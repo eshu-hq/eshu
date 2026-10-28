@@ -5,7 +5,9 @@ package ruby
 
 import (
 	"fmt"
+	"path/filepath"
 	"slices"
+	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
@@ -31,11 +33,17 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 // ParseWithParser builds the Ruby payload with a caller-owned tree-sitter
 // parser so the runtime can reuse cached language handles.
 func ParseWithParser(path string, isDependency bool, options shared.Options, parser *tree_sitter.Parser) (map[string]any, error) {
-	source, err := shared.ReadSource(path)
+	source, original, err := shared.ReadSourceWithOriginal(path)
 	if err != nil {
 		return nil, err
 	}
 	if payload, ok := parseBundlerPayload(path, source, isDependency); ok {
+		if evidence, present := payload["ruby_runtime_evidence"].(RubyRuntimeEvidence); present {
+			evidence.Digest = RubyRuntimeDigest(original)
+			evidence.ByteSize = len(original)
+			checkGemfileRuntimeSyntax(&evidence, path, source, parser)
+			payload["ruby_runtime_evidence"] = evidence
+		}
 		return payload, nil
 	}
 
@@ -118,4 +126,26 @@ func appendRubyCalls(payload map[string]any, syntax *rubySyntax) {
 	for _, item := range syntax.calls {
 		shared.AppendBucket(payload, "function_calls", item)
 	}
+}
+
+func checkGemfileRuntimeSyntax(evidence *RubyRuntimeEvidence, path string, source []byte, parser *tree_sitter.Parser) {
+	if !strings.EqualFold(filepath.Base(path), bundlerGemfileName) || len(evidence.Values) == 0 || evidence.State == "over_cap" {
+		return
+	}
+	if parser == nil {
+		evidence.State = "unavailable"
+		evidence.Values = nil
+		return
+	}
+	tree := parser.Parse(source, nil)
+	if tree == nil {
+		evidence.State = "unavailable"
+		evidence.Values = nil
+		return
+	}
+	if tree.RootNode().HasError() {
+		evidence.State = "unavailable"
+		evidence.Values = nil
+	}
+	tree.Close()
 }

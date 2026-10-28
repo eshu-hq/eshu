@@ -25,6 +25,7 @@ type bundlerGemfileContext struct {
 func parseBundlerGemfilePayload(path string, source []byte, isDependency bool) map[string]any {
 	payload := newBundlerPayload(path, isDependency)
 	contexts := make([]bundlerGemfileContext, 0)
+	evidence := newRubyRuntimeEvidence(source)
 	lines := strings.Split(string(source), "\n")
 
 	for index, rawLine := range lines {
@@ -43,6 +44,12 @@ func parseBundlerGemfilePayload(path string, source []byte, isDependency bool) m
 			contexts = append(contexts, context)
 			continue
 		}
+		if value, ok := rubyGemfileDirective(trimmed); ok {
+			if len(contexts) == 0 {
+				evidence.add("gemfile_ruby", value, lineNumber)
+			}
+			continue
+		}
 		if row, ok := parseBundlerGemfileDependency(trimmed, lineNumber, contexts); ok {
 			appendBundlerDependency(payload, row)
 			continue
@@ -52,6 +59,7 @@ func parseBundlerGemfilePayload(path string, source []byte, isDependency bool) m
 		}
 	}
 
+	payload["ruby_runtime_evidence"] = evidence
 	sharedSortBundlerVariables(payload)
 	return payload
 }

@@ -78,6 +78,27 @@ func NoteParsedComposerCandidate(candidates map[string]Candidate, relativePath s
 	candidates[relativePath] = Candidate{Manifest: true, Extraction: extraction}
 }
 
+// NoteParsedRubyCandidate stores guarded native Bundler parser evidence.
+func NoteParsedRubyCandidate(candidates map[string]Candidate, relativePath string, extraction runtimedeclaration.Extraction) {
+	if runtimedeclaration.ClassifyPath(relativePath) != runtimedeclaration.FileManifest {
+		return
+	}
+	if extraction.Len() == 0 && !extraction.Skip().Skipped() {
+		return
+	}
+	candidates[relativePath] = Candidate{Manifest: true, Extraction: extraction}
+}
+
+// NoteUnavailableRubyCandidate records a parser miss for a retry.
+func NoteUnavailableRubyCandidate(candidates map[string]Candidate, relativePath string, byteSize int) {
+	candidates[relativePath] = Candidate{Manifest: true, Extraction: runtimedeclaration.UnavailableRubyExtraction(byteSize)}
+}
+
+// NoteCappedRubyCandidate records a bounded skip without retaining the body.
+func NoteCappedRubyCandidate(candidates map[string]Candidate, relativePath string, byteSize int) {
+	candidates[relativePath] = Candidate{Manifest: true, Extraction: runtimedeclaration.CappedRubyExtraction(byteSize)}
+}
+
 // NoteParsedPythonCandidate stores guarded native parser evidence.
 func NoteParsedPythonCandidate(candidates map[string]Candidate, relativePath string, extraction runtimedeclaration.Extraction) {
 	if runtimedeclaration.ClassifyPath(relativePath) != runtimedeclaration.FileManifest {

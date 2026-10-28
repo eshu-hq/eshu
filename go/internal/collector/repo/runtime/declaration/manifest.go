@@ -35,6 +35,8 @@ const (
 	sourceKindPipfileFullVersion = "pipfile_python_full_version"
 	sourceKindSetupCFGRequires   = "setup_cfg_python_requires"
 	sourceKindSetupPYRequires    = "setup_py_python_requires"
+	sourceKindGemfileRuby        = "gemfile_ruby"
+	sourceKindGemfileLockRuby    = "gemfile_lock_ruby_version"
 )
 
 // section identifies the manifest section a declaration was read from.
@@ -59,6 +61,8 @@ const (
 	sectionPipfileFullVersion
 	sectionSetupCFGRequires
 	sectionSetupPYRequires
+	sectionGemfileRuby
+	sectionGemfileLockRuby
 )
 
 // sectionSourceKinds maps a section to its source kind.
@@ -81,6 +85,8 @@ var sectionSourceKinds = [...]string{
 	sectionPipfileFullVersion: sourceKindPipfileFullVersion,
 	sectionSetupCFGRequires:   sourceKindSetupCFGRequires,
 	sectionSetupPYRequires:    sourceKindSetupPYRequires,
+	sectionGemfileRuby:        sourceKindGemfileRuby,
+	sectionGemfileLockRuby:    sourceKindGemfileLockRuby,
 }
 
 // MaxManifestBytesPerFile bounds one package.json, Composer, or go.mod body. A manifest
@@ -104,6 +110,8 @@ const (
 	manifestPythonTOML
 	manifestSetupCFG
 	manifestSetupPY
+	manifestGemfile
+	manifestGemfileLock
 )
 
 // dependencyDirs are directory names whose manifests belong to a dependency,
@@ -147,6 +155,10 @@ func manifestKindForBase(base, relativePath string) manifestKind {
 		kind = manifestSetupCFG
 	case base == "setup.py":
 		kind = manifestSetupPY
+	case base == "Gemfile":
+		kind = manifestGemfile
+	case base == "Gemfile.lock":
+		kind = manifestGemfileLock
 	case isDockerfileName(base):
 		kind = manifestDockerfile
 	case ghactionsref.IsWorkflowPath(relativePath):

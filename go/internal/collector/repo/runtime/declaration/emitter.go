@@ -148,7 +148,7 @@ func EmitExtraction(ctx FixtureContext, repoID, relativePath string, extraction 
 			RawSpec:             d.rawSpec,
 			Distribution:        d.distribution,
 		}
-		applySpec(&version, classifyDeclaration(extraction.sourceKind, d))
+		applySpec(&version, classifyDeclaration(sourceKind, d))
 		payload, err := factschema.EncodeRuntimeDeclarationVersion(version)
 		if err != nil {
 			continue
@@ -172,6 +172,9 @@ func EmitExtraction(ctx FixtureContext, repoID, relativePath string, extraction 
 func classifyDeclaration(sourceKind string, d declaration) Spec {
 	if d.whole || (sourceKind == sourceKindSwiftVersion && !swiftReleasePattern.MatchString(d.rawSpec)) {
 		return unparsedSpec(d.rawSpec)
+	}
+	if sourceKind == sourceKindGemfileLockRuby {
+		return Classify(strings.TrimPrefix(d.rawSpec, "ruby "))
 	}
 	if sourceKind == sourceKindRuntimeTXT {
 		return Classify(strings.TrimPrefix(d.rawSpec, "python-"))

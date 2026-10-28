@@ -176,7 +176,7 @@
         "note": "CodeownerTeam nodes materialized from Repository-[:DECLARES_CODEOWNER]->CodeownerTeam edges (issue #5419 Phase 3); the go_comprehensive fixture's .github/CODEOWNERS declares 2 distinct owner refs (@eshu-hq/platform, @eshu-hq/docs), ceiling wide for future fixture CODEOWNERS growth"
       },
       "RuntimeDeclaration": {
-        "min": 4,
+        "min": 6,
         "max": 30,
         "note": "RuntimeDeclaration nodes from runtime_declaration.version facts (issue #8816); the go_comprehensive fixture's .tool-versions declares 4 versions on 2 lines (golang 1.22.5; nodejs 20.11.1 18.19.0 lts/iron, three tokens with order_index 0, 1 and 2), ceiling wide for future fixture pin files"
       }
@@ -2209,6 +2209,25 @@
         "minimum_count": 1,
         "required_node_properties": ["runtime", "source_kind"],
         "allowed_node_property_values": {"runtime": ["python"], "source_kind": ["runtime_txt"]}
+      },
+      {
+        "id": "rn-ruby-runtime-declaration",
+        "description": "Synthetic ruby_rails_app/runtime-declarations Gemfile and Gemfile.lock declarations require Ruby runtime nodes; the HTTP and MCP tuple matches pin source lines and values.",
+        "label": "RuntimeDeclaration",
+        "minimum_count": 2,
+        "required_node_properties": [
+          "runtime",
+          "source_kind"
+        ],
+        "allowed_node_property_values": {
+          "runtime": [
+            "ruby"
+          ],
+          "source_kind": [
+            "gemfile_ruby",
+            "gemfile_lock_ruby_version"
+          ]
+        }
       },
       {
         "id": "rn-cloud-resource-running-image",
@@ -4880,6 +4899,46 @@
         },
         "arguments": {"runtime": "php", "source_kind": "composer_json_require_php", "limit": 10}
       },
+      "list_runtime_version_declarations?assert=ruby_sources": {
+        "description": "Both synthetic Ruby runtime source declarations from ruby_rails_app/runtime-declarations, each bound as one exact source tuple through the deployed MCP tool.",
+        "required_response_fields": [
+          "declarations",
+          "count",
+          "limit",
+          "truncated",
+          "filters",
+          "excluded_from_comparison",
+          "partial_reasons"
+        ],
+        "minimum_results": 2,
+        "results_field": "declarations",
+        "required_json_object_matches": {
+          "declarations[]": [
+            {
+              "runtime": "ruby",
+              "source_kind": "gemfile_ruby",
+              "relative_path": "runtime-declarations/Gemfile",
+              "raw_spec": ">= 3.2, < 4.0",
+              "spec_kind": "range",
+              "line_number": 2,
+              "order_index": 0
+            },
+            {
+              "runtime": "ruby",
+              "source_kind": "gemfile_lock_ruby_version",
+              "relative_path": "runtime-declarations/Gemfile.lock",
+              "raw_spec": "ruby 3.3.1p55",
+              "spec_kind": "exact",
+              "line_number": 10,
+              "order_index": 0
+            }
+          ]
+        },
+        "arguments": {
+          "runtime": "ruby",
+          "limit": 50
+        }
+      },
       "list_runtime_version_declarations?assert=python_sources": {
         "description": "All seven Python runtime source kinds from python_comprehensive/runtime_sources, each pinned as one complete row through the deployed MCP tool.",
         "required_response_fields": ["declarations", "count", "limit", "truncated", "filters", "excluded_from_comparison", "partial_reasons"],
@@ -7483,6 +7542,46 @@
           "declarations[]": [{"runtime": "php", "source_kind": "composer_json_require_php", "relative_path": "composer.json", "raw_spec": ">=8.1", "spec_kind": "range", "line_number": 6, "order_index": 0}]
         },
         "request_body": {"runtime": "php", "source_kind": "composer_json_require_php", "limit": 10}
+      },
+      "POST /api/v0/runtime-declarations/query?assert=ruby_sources": {
+        "description": "Both synthetic Ruby runtime source declarations from ruby_rails_app/runtime-declarations, each bound as one exact source tuple through the deployed HTTP route.",
+        "required_response_fields": [
+          "declarations",
+          "count",
+          "limit",
+          "truncated",
+          "filters",
+          "excluded_from_comparison",
+          "partial_reasons"
+        ],
+        "minimum_results": 2,
+        "results_field": "declarations",
+        "required_json_object_matches": {
+          "declarations[]": [
+            {
+              "runtime": "ruby",
+              "source_kind": "gemfile_ruby",
+              "relative_path": "runtime-declarations/Gemfile",
+              "raw_spec": ">= 3.2, < 4.0",
+              "spec_kind": "range",
+              "line_number": 2,
+              "order_index": 0
+            },
+            {
+              "runtime": "ruby",
+              "source_kind": "gemfile_lock_ruby_version",
+              "relative_path": "runtime-declarations/Gemfile.lock",
+              "raw_spec": "ruby 3.3.1p55",
+              "spec_kind": "exact",
+              "line_number": 10,
+              "order_index": 0
+            }
+          ]
+        },
+        "request_body": {
+          "runtime": "ruby",
+          "limit": 50
+        }
       },
       "POST /api/v0/runtime-declarations/query?assert=python_sources": {
         "description": "All seven Python runtime source kinds from python_comprehensive/runtime_sources, each pinned as one complete row through the deployed HTTP route.",

@@ -158,6 +158,8 @@ a constraint from a pin.
 | `pipfile_python_full_version` | `Pipfile` `[requires].python_full_version` | `python` |
 | `setup_cfg_python_requires` | `setup.cfg` `[options].python_requires` | `python` |
 | `setup_py_python_requires` | `setup.py` bound `setuptools.setup` or `distutils.core.setup` literal keyword | `python` |
+| `gemfile_ruby` | literal `ruby` arguments in `Gemfile` | `ruby` |
+| `gemfile_lock_ruby_version` | `Gemfile.lock` `RUBY VERSION` | `ruby` |
 | `runtime_txt` | `runtime.txt` `python-<spec>` line | `python` |
 | `go_mod_go` | the `go` directive | `go` |
 | `go_mod_toolchain` | the `toolchain` directive | `go` |
@@ -189,6 +191,8 @@ prefix.
 content storage: its original body reaches this guarded reader, while content
 and file facts keep only the path and source digest. It admits one effective
 `python-<spec>` line and keeps that wrapper in `raw_spec`.
+
+Bundler manifests reuse the Ruby parser’s existing Gemfile and lockfile scans. The parser carries private, guarded evidence bound to the exact source bytes; the collector checks that digest before emission. The content-only `EmitFile` path uses that same Bundler scanner on its supplied body. A Gemfile with Ruby syntax errors, a dynamic or file-derived `ruby` directive, or an unrecognized lockfile version emits no Ruby runtime declaration. Dependency rows retain their existing interpretation. `gemfile_ruby` records top-level literal version requirements, while `gemfile_lock_ruby_version` keeps the `ruby ` wrapper in `raw_spec` and classifies its version as an exact pin.
 
 Rules that keep a manifest read bounded and fail closed:
 
