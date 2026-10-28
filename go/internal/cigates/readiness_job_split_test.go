@@ -65,7 +65,7 @@ type readinessService struct {
 }
 
 const (
-	readinessCleanupSelection = "${{ always() }}"
+	readinessCleanupSelection = "always()"
 	readinessHermeticPlan     = "${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'hermetic') }}"
 	readinessShardPlan        = "${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'live-postgres-readiness-shards') }}"
 	readinessAlways           = "${{ always() }}"
