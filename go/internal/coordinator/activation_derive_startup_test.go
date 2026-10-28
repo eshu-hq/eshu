@@ -216,3 +216,134 @@ func innermostError(err error) error {
 		err = next
 	}
 }
+
+// staticActivationEnv returns a coordinator environment whose only collector
+// instance arrives through ESHU_COLLECTOR_INSTANCES_JSON, the static path, with
+// configuration as its raw activation document.
+func staticActivationEnv(collectorKind string, enabled bool, configuration string) func(string) string {
+	instances := fmt.Sprintf(`[{"instance_id":"vuln-intel-static","collector_kind":%q,`+
+		`"mode":"scheduled","enabled":%t,"claims_enabled":%t,"configuration":%s}]`,
+		collectorKind, enabled, enabled, configuration)
+	values := map[string]string{
+		"ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE": "active",
+		"ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED":  "true",
+		"ESHU_COLLECTOR_INSTANCES_JSON":             instances,
+	}
+	if !enabled {
+		values["ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE"] = "dark"
+	}
+	return func(key string) string { return values[key] }
+}
+
+// staticDeriveCases are bad derive blocks a static activation document can
+// carry: a blank list, an invalid value, and a host scope kind mismatch.
+var staticDeriveCases = []struct {
+	name, source, kind, block string
+	check                     func(t *testing.T, err error)
+}{
+	{
+		name: "blank list", source: testVulnerabilityKind, kind: testVulnerabilityKind,
+		block: `{"derive_from_owned_packages":{"enabled":true,"sources":["osv"]},` +
+			`"derive_from_installed_evidence":{"enabled":true,"sources":["osv"],"ecosystems":["debian"]}}`,
+		check: func(t *testing.T, err error) {
+			t.Helper()
+			var listErr workflow.DeriveListNotExplicitError
+			if !errors.As(err, &listErr) || listErr.Section != "derive_from_owned_packages" || listErr.List != "ecosystems" {
+				t.Fatalf("error = %v, want DeriveListNotExplicitError for derive_from_owned_packages.ecosystems", err)
+			}
+			if strings.Contains(err.Error(), "debian") {
+				t.Fatalf("error = %v, want no configured value", err)
+			}
+		},
+	},
+	{
+		name: "invalid value", source: testVulnerabilityKind, kind: testVulnerabilityKind,
+		block: `{"derive_from_owned_packages":{"enabled":true,"sources":["osv"],"ecosystems":["bogus"]}}`,
+		check: func(t *testing.T, err error) {
+			t.Helper()
+			if err == nil || !strings.Contains(err.Error(), `unsupported ecosystem "bogus"`) {
+				t.Fatalf("error = %v, want the unsupported ecosystem refusal", err)
+			}
+		},
+	},
+	{
+		name: "host scope kind mismatch", source: testVulnerabilityKind, kind: "repository",
+		block: `{"derive_from_owned_packages":{"enabled":true,"sources":["osv"],"ecosystems":["npm"]}}`,
+		check: func(t *testing.T, err error) {
+			t.Helper()
+			var hostErr activationHostMismatchError
+			if !errors.As(err, &hostErr) {
+				t.Fatalf("error = %v, want activationHostMismatchError", err)
+			}
+		},
+	},
+}
+
+// TestStaticActivationDeriveBlockFailsStartup is the #9311 F4 RED: a
+// vulnerability activation document that arrives through
+// ESHU_COLLECTOR_INSTANCES_JSON with a bad derive block fails LoadConfig and
+// Config.Validate, before any durable write, with the same innermost error
+// (type and text) the reconcile hook returns. A disabled instance fails too,
+// the same as an in-tree instance whose derive config is invalid.
+func TestStaticActivationDeriveBlockFailsStartup(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range staticDeriveCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			configuration := testVulnerabilityActivationConfiguration(tc.block, tc.source, tc.kind)
+
+			cfg, loadErr := LoadConfig(staticActivationEnv(testVulnerabilityKind, true, configuration))
+			if loadErr == nil {
+				t.Fatalf("LoadConfig() config = %+v, error = nil, want the derive refusal", cfg.CollectorInstances)
+			}
+			tc.check(t, loadErr)
+			if !strings.Contains(loadErr.Error(), `"vuln-intel-static"`) {
+				t.Fatalf("LoadConfig() error = %v, want the instance id", loadErr)
+			}
+			_, disabledErr := LoadConfig(staticActivationEnv(testVulnerabilityKind, false, configuration))
+			tc.check(t, disabledErr)
+
+			now := time.Date(2026, time.October, 28, 1, 0, 0, 0, time.UTC)
+			instance := testVulnerabilityActivationInstance(now, configuration)
+			validateErr := Config{
+				DeploymentMode: deploymentModeActive,
+				ClaimsEnabled:  true,
+				CollectorInstances: []workflow.DesiredCollectorInstance{{
+					InstanceID: instance.InstanceID, CollectorKind: instance.CollectorKind, Mode: instance.Mode,
+					Enabled: true, ClaimsEnabled: true, Configuration: configuration,
+				}},
+			}.Validate()
+			tc.check(t, validateErr)
+
+			store := &fakeStore{instances: []workflow.CollectorInstance{instance}}
+			service := testVulnerabilityActivationService(t, now, instance, store, ownedViteReader(), `{"mode":"broad"}`)
+			reconcileErr := service.scheduleComponentExtensionWork(context.Background(), now, []workflow.CollectorInstance{instance})
+			tc.check(t, reconcileErr)
+			startupRoot, reconcileRoot := innermostError(loadErr), innermostError(reconcileErr)
+			if fmt.Sprintf("%T", startupRoot) != fmt.Sprintf("%T", reconcileRoot) ||
+				startupRoot.Error() != reconcileRoot.Error() {
+				t.Fatalf("innermost startup error %T(%v) != reconcile error %T(%v)",
+					startupRoot, startupRoot, reconcileRoot, reconcileRoot)
+			}
+		})
+	}
+}
+
+// TestStaticActivationDeriveBlockGreenAndOtherKinds is the control: a static
+// vulnerability activation with explicit, valid lists starts up, and a
+// scorecard activation carrying a bad block is not validated by this rule.
+func TestStaticActivationDeriveBlockGreenAndOtherKinds(t *testing.T) {
+	t.Parallel()
+
+	good := testVulnerabilityActivationConfiguration(
+		`{"derive_from_owned_packages":{"enabled":true,"sources":["osv"],"ecosystems":["npm"]}}`,
+		testVulnerabilityKind, testVulnerabilityKind)
+	if _, err := LoadConfig(staticActivationEnv(testVulnerabilityKind, true, good)); err != nil {
+		t.Fatalf("LoadConfig(explicit lists) error = %v, want nil", err)
+	}
+	bad := testVulnerabilityActivationConfiguration(staticDeriveCases[0].block, "openssf-scorecard", "repository")
+	if _, err := LoadConfig(staticActivationEnv("scorecard", true, bad)); err != nil {
+		t.Fatalf("LoadConfig(scorecard) error = %v, want nil for a non-vulnerability kind", err)
+	}
+}
