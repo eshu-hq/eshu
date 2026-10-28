@@ -35,8 +35,11 @@ The payload follows `shared.BasePayload(path, "sbt", isDependency)`. The
   `sbt_configuration`. On a `partial` row the scope is a placeholder.
 - `dependency_resolution_state`: `resolved` only for a statement that matches
   the grammar below, else `partial`; `unresolved` for a non-literal revision,
-  with `dependency_unresolved_keys`. An Ivy dynamic revision (`1.+`,
-  `latest.release`, any range such as `[1.0,2.0)` or `]1.0,2.0]`) is `partial`.
+  with `dependency_unresolved_keys`. A literal revision the shared
+  exact-version rule (`internal/parser/gradle/selector`) rejects (`1.0!`,
+  `1.0:jdk8`) is `unresolved` with the literal kept and no key. An Ivy
+  dynamic revision (`1.+`, `latest.release`, any range such as `[1.0,2.0)`
+  or `]1.0,2.0]`) is `partial`.
 - `direct_dependency`: `true`; `dependency_path_kind`: `manifest`;
   `dependency_optional`: `true` for an `Optional` configuration.
 - `sbt_cross_version`: `none` (`%`), `binary` (`%%`), `scalajs` (`%%%`), or

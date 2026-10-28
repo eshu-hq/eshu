@@ -173,6 +173,14 @@ func buildDependencyRow(
 			resolutionState = "unresolved"
 			unresolvedKeys = unresolved
 			value = rawVersion
+		} else if hasIllegalMavenVersionChar(value) {
+			// A version holding a character Maven's model validator
+			// forbids is not a version, whether written literally or
+			// reached through a local property: the row stays unresolved
+			// and keeps the literal text. It names no property key, so
+			// none is recorded.
+			resolutionState = "unresolved"
+			value = rawVersion
 		}
 	}
 
@@ -204,6 +212,17 @@ func buildDependencyRow(
 		row["dependency_unresolved_keys"] = unresolvedKeys
 	}
 	return row, true
+}
+
+// illegalMavenVersionChars is Maven's DefaultModelValidator
+// ILLEGAL_VERSION_CHARS: a version holding one is rejected by the model
+// validator, so it names no releasable version.
+const illegalMavenVersionChars = `\/:"<>|?*`
+
+// hasIllegalMavenVersionChar reports whether version holds a character Maven
+// forbids in a version.
+func hasIllegalMavenVersionChar(version string) bool {
+	return strings.ContainsAny(version, illegalMavenVersionChars)
 }
 
 func resolvePropertyReferences(raw string, properties map[string]string) (string, []string) {

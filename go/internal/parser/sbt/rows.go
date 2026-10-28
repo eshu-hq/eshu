@@ -3,7 +3,11 @@
 
 package sbt
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/gradle/selector"
+)
 
 // scalaBinaryVersion returns the artifact suffix sbt appends for `%%`:
 // "2.13" for any 2.13.x, "2.10" through "2.12" likewise, "3" for any 3.x, and
@@ -80,6 +84,15 @@ func (d dependency) row(vals map[string]string, binary string) map[string]any {
 	case versionOpaque:
 		state = "unresolved"
 		unresolvedKeys = []string{d.version}
+	}
+
+	// A literal revision the shared exact-version rule rejects ("1.0!",
+	// "1.0:jdk8") is not a version, whether written directly or reached
+	// through a top-level val: the row stays unresolved and keeps the text
+	// as written, the way the Gradle readers treat a selector. It names no
+	// interpolation key, so none is recorded.
+	if state == "resolved" && !selector.Exact(value) {
+		state = "unresolved"
 	}
 
 	if d.scopeUndetermined() && state == "resolved" {
