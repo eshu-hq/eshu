@@ -247,6 +247,52 @@ func TestInstallEvidenceDropsSignedDownloadQueries(t *testing.T) {
 	}
 }
 
+func TestInstallEvidenceCountsSignedQueriesOutsideDownloadCommands(t *testing.T) {
+	const marker = "exampleSecretToken123"
+	cases := []struct {
+		name, source, wantName string
+	}{
+		{"pip index option", "FROM alpine\nRUN pip install --index-url https://example.test/simple?X-Amz-Signature=" + marker + " requests\n", "requests"},
+		{"pip package URL", "FROM alpine\nRUN pip install https://example.test/file?X-Goog-Signature=" + marker + "\n", ""},
+		{"ARG alias", "FROM alpine\nARG MIRROR_URL=https://example.test/file?sig=" + marker + "\nARG MIRROR_ALIAS=$MIRROR_URL\nADD $MIRROR_ALIAS /tmp/\n", ""},
+		{"ENV alias", "FROM alpine\nENV MIRROR_URL=https://example.test/file?X-Amz-%2553ignature=" + marker + "\nENV MIRROR_ALIAS=$MIRROR_URL\nRUN curl $MIRROR_ALIAS\n", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := RuntimeMetadata(tc.source)
+			wantCount := 0
+			if tc.wantName != "" {
+				wantCount = 1
+			}
+			if got.DroppedCredentials != 1 || len(got.Installs) != wantCount {
+				t.Fatalf("install count = %d, dropped = %d, want one drop and expected safe row", len(got.Installs), got.DroppedCredentials)
+			}
+			if tc.wantName != "" && got.Installs[0].Name != tc.wantName {
+				t.Fatal("safe package name changed")
+			}
+			rows, err := json.Marshal(got.Map()["dockerfile_installs"])
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(string(rows), marker) {
+				t.Fatal("signed query value reached install rows")
+			}
+		})
+	}
+}
+
+func TestInstallEvidenceExpandsSafeVariableOnlyDownloadURL(t *testing.T) {
+	got := RuntimeMetadata("FROM alpine\nENV DOWNLOAD_URL=https://example.test/file?mirror=one\n" +
+		"RUN curl $DOWNLOAD_URL\nRUN wget $MISSING_URL\n")
+	if len(got.Installs) != 1 || got.Installs[0].Manager != "url" ||
+		got.Installs[0].Name != "example.test/file" || got.DroppedCredentials != 0 {
+		t.Fatalf("install count = %d, dropped = %d, want one safe download and no drops", len(got.Installs), got.DroppedCredentials)
+	}
+	if len(got.Unparsed) != 1 || got.Unparsed[0].Reason != "unresolved_variable" {
+		t.Fatalf("unparsed count = %d, want one unresolved variable", len(got.Unparsed))
+	}
+}
+
 func TestInstallEvidenceDropsSensitiveVariableExpansionAcrossARGAndENV(t *testing.T) {
 	const marker = "exampleSecretToken123"
 	source := "FROM alpine\n" +

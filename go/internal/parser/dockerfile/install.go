@@ -117,7 +117,7 @@ func parseInstallSegment(words []string, line int, stage string, vars *installSc
 		manager, start = command, 1
 	case "curl", "wget":
 		for _, word := range words[1:] {
-			if !strings.Contains(word, "://") {
+			if !strings.Contains(word, "://") && !strings.Contains(word, "$") {
 				continue
 			}
 			expanded, ok, sensitive := expandInstallWord(word, vars)
@@ -214,7 +214,7 @@ func safeDownload(raw string) (string, bool, bool) {
 	if err != nil || parsed.Host == "" || (parsed.Scheme != "https" && parsed.Scheme != "http") {
 		return "", false, false
 	}
-	if parsed.User != nil || strings.ContainsAny(parsed.RawQuery, "\n\r") || hasTokenQuery(parsed.RawQuery) || unsafeDownloadPath(parsed.Path) {
+	if strings.ContainsAny(parsed.RawQuery, "\n\r") || credentialBearingURL(parsed) {
 		return "", true, false
 	}
 	if parsed.Fragment != "" {

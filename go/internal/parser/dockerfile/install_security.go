@@ -62,7 +62,13 @@ func credentialBearingValue(value string) bool {
 	if err != nil {
 		return true
 	}
-	return parsed.User != nil || credentialBearingText(parsed.Path) || unsafeDownloadPath(parsed.Path)
+	return credentialBearingURL(parsed)
+}
+
+// credentialBearingURL is shared by retained downloads and consumed install
+// values, so signed query keys cannot bypass the option or variable counters.
+func credentialBearingURL(parsed *url.URL) bool {
+	return parsed.User != nil || hasTokenQuery(parsed.RawQuery) || unsafeDownloadPath(parsed.Path)
 }
 
 func unsafeDownloadPath(path string) bool {

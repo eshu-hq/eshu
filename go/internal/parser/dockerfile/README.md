@@ -259,11 +259,14 @@ values, names, and URLs, including encoded credential markers in URL paths.
 Signed download query keys such as AWS and Google Cloud `Signature` or
 `Credential` fields and Azure `sig` are rejected after bounded percent decoding;
 malformed query escapes are rejected as unsafe. Ordinary query keys are
-accepted, and query values are never kept in install names.
+accepted, and query values are never kept in install names. The same guard
+counts signed URLs consumed as install option values or package words.
 Sensitive ARG or ENV names and their indirect aliases remain tainted when
 expanded into an install name or download URL; these references are counted
 and excluded from install evidence.
-Only a credential-free download host and path can be retained. Repository
+Only a credential-free download host and path can be retained. A `curl` or
+`wget` URL supplied entirely through a known ARG or ENV is expanded before
+classification. Repository
 artifact readers expose the same rows per Dockerfile stage. Parent parser
 file-parse timing remains the operator signal; this package adds no metric.
 
@@ -296,3 +299,7 @@ The original preimplementation timing investigation expired before a quiet
 host was available, so its theory remains unproven. The later paired run
 verifies only the implemented parser path. No new metric or span was added;
 the parent parser's existing file-parse timing remains the operator signal.
+The figures above predate the signed-query guard. A separate same-round
+comparison of that final edit found +1.8% and -1.1% on the unchanged five-file
+fixture corpus; see [signed-query proof](../../../../docs/internal/evidence/9303-dockerfile-signed-query-proof.md)
+for the source hashes, query controls, and interpretation.
