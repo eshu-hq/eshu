@@ -22,9 +22,9 @@ production cutover and rollback.
 | File | Role | Key symbol |
 | --- | --- | --- |
 | `main.go` | entry point, telemetry bootstrap, Postgres wiring, hosted status server | `run`, `runtimecfg.OpenPostgres`, `app.NewHostedWithStatusServer` |
-| `config.go` | 13 `ESHU_SCANNER_WORKER_*` vars + `ESHU_COLLECTOR_INSTANCES_JSON` instance select | `loadRuntimeConfig`, `selectScannerWorkerInstance`, `validateScannerWorkerInstance` |
+| `config.go` | 12 `ESHU_SCANNER_WORKER_*` vars + `ESHU_COLLECTOR_INSTANCES_JSON` instance select | `loadRuntimeConfig`, `selectScannerWorkerInstance`, `validateScannerWorkerInstance` |
 | `service.go` | analyzer wiring, claim-ID minting, ingestion committer | `buildService`, `buildAnalyzer`, `newClaimID` (`scanner_worker-claim-` prefix) |
-| `sbom_source.go` + `sbom_lockfile_*.go` | bounded repository walk, 10 lockfile ecosystems | `newRepositorySBOMSource`, `sbomTargetConfig` (`scope_id`, `root_path`, `subject_digest`, `source_tool` — no secrets) |
+| `sbom_source.go` + `sbom_lockfile_*.go` | bounded repository walk, 10 lockfile manifests across 8 ecosystems | `newRepositorySBOMSource`, `sbomTargetConfig` (`scope_id`, `root_path`, `subject_digest`, `source_tool` — no secrets) |
 
 ### Library: `go/internal/collector/scannerworker/` (moves with the worker)
 
