@@ -141,7 +141,7 @@ via `ESHU_PPROF_ADDR`.
 
 ## 7. Migration stage
 
-`planned` (preparation only; no cutover, no in-tree removal). This PREP
+`contract_blocked` (amended 2026-10-28; see §10). This PREP
 records evidence and grants no cutover authority. Still not
 `ready_for_cutover`: extracted-path parity, independent build/release/deploy,
 rollback rehearsal, and production acceptance are `NOT_CHECKED`.
@@ -180,3 +180,15 @@ rollback rehearsal, and production acceptance are `NOT_CHECKED`.
    artifacts/configuration; fence claims, revoke replaced authority, replay
    without dual authority or lost facts).
 6. Dest re-inventory at cutover (`50e55647` cited vs observed `main`).
+
+## 10. Stage amendment — arbiter-eshu revised ruling (2026-10-28)
+
+- Stage is now `contract_blocked` on `#9385` (bounded SDK result byte
+  bound + pagination for hostile inputs) and the `#8877` claim client: the
+  worker's claim/commit path follows the extension-host client shape, so
+  scanner cutover waits on both.
+- `#9380` VOID verdict (recorded, not re-litigated): representative inputs
+  fit the bound at 12-18%, but hostile inputs exceed it to 2211%; sandbox
+  confinement passed. The over-bound hostile case is why `#9385` gates
+  cutover.
+- Stage comments already posted on `#8878`; not reposted.

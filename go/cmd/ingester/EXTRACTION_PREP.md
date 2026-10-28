@@ -174,7 +174,8 @@ behind the drain barrier (`wiring.go:275`, `wiring_deferred_relationship.go`).
 
 ## 8. Migration stage and prerequisites
 
-Stage: **PREPARATION ONLY**. No cutover has occurred; the worktree was clean
+Stage: **PLANNED** (reaffirmed 2026-10-28; see §10) — explicitly NOT
+`contract_blocked`. No cutover has occurred; the worktree was clean
 at `origin/main` (`dc65b4d597`) before this manifest.
 
 - `#6708` (SDK publication), `#6709` (producer delegation), `#6710`
@@ -221,3 +222,15 @@ two and records the rest:
    fencing, and safe replay: NOT_CHECKED.
 12. Independent review, local proof, stable exact-head CI; in-tree code
    retained (correctly, pre-acceptance): review/CI pending for this manifest.
+
+## 10. Stage amendment — arbiter-eshu revised ruling (2026-10-28)
+
+- Stage stays `planned` (NOT `contract_blocked`): no protocol contract
+  gates this lane because the ingester shell moves no claim authority and
+  mints no new wire format.
+- Cutover gates on `#9382` (production caller + sandbox proof for the
+  dormant document-import capabilities): hosted activation for media/ocr
+  stays DISABLED until that proof passes.
+- Dormancy re-verified at this amendment: no production caller wires the
+  assigned capabilities (§4); the §4 dormancy proof stands.
+- Stage comments already posted on `#8879`; not reposted.
