@@ -236,10 +236,159 @@ func TestContentWriterMetadataOnlyRewriteIsHOTLive(t *testing.T) {
 	}
 }
 
-// TestContentWriterMetadataOnlySavesWalWallLive compares the legacy
-// single-statement rewrite (an unobserved writer, which takes the old path)
-// with the observed prototype rewrite on identical findings-heavy batches.
-func TestContentWriterMetadataOnlySavesWalWallLive(t *testing.T) {
+// TestContentWriterUnobservedRewriteIsHOTLive is the #8942 regression: an
+// unchanged-content rewrite under a new generation through a writer WITHOUT
+// observers must be a metadata-only HOT update, exactly like the observed
+// prototype. Against the pre-#8942 writer it fails: the unobserved batch
+// takes the single-statement guarded upsert, every row leaves its page and
+// the indexes grow.
+func TestContentWriterUnobservedRewriteIsHOTLive(t *testing.T) {
+	ctx, database := openContentUpsertGuardDatabase(t)
+	database.SetMaxOpenConns(1)
+	database.SetMaxIdleConns(1)
+	const repoID = "repo-8942-hot"
+	writer := NewContentWriter(SQLDB{DB: database})
+
+	bodies := hotLiveBodies(t)
+	if _, err := writer.Write(ctx, hotLiveMaterialization(repoID, "gen-1", "c1", bodies)); err != nil {
+		t.Fatalf("seed Write: %v", err)
+	}
+	prepareHotLiveTable(t, ctx, database)
+
+	fenceVersion := func() int64 {
+		t.Helper()
+		var v int64
+		if err := database.QueryRowContext(ctx, `SELECT coalesce((SELECT version FROM config_artifact_content_versions WHERE repo_id = $1), 0)`, repoID).Scan(&v); err != nil {
+			t.Fatalf("fence version: %v", err)
+		}
+		return v
+	}
+	c := hotLiveCounters{
+		beforeWAL:  sampleWriterWAL(t, ctx, database),
+		beforeIdx:  contentFilesIndexBytes(t, ctx, database),
+		beforeRows: readContentFileVersions(t, ctx, database, repoID),
+	}
+	beforeFence := fenceVersion()
+	start := time.Now()
+	if _, err := writer.Write(ctx, hotLiveMaterialization(repoID, "gen-2", "c2", bodies)); err != nil {
+		t.Fatalf("rewrite Write: %v", err)
+	}
+	wall := time.Since(start)
+	// The metadata UPDATE is a real content_files write: the statement-level
+	// version fence must still stage the repository and bump at commit.
+	if got := fenceVersion(); got <= beforeFence {
+		t.Errorf("fence version = %d after rewrite, want > %d", got, beforeFence)
+	}
+	walBytes := writerWALBetween(t, c.beforeWAL, sampleWriterWAL(t, ctx, database))
+	t.Logf("unobserved rewrite wall %s for %d files of ~%d KiB", wall, hotLiveFileCount, hotLiveSizeKB)
+
+	// Same bound as the observed rewrite: 2.4 MiB of bodies, tens of KiB of
+	// heap tuples, two orders of magnitude above the measured prototype and
+	// still below the legacy ~900 KiB for the same shape.
+	assertMetadataOnlyHOT(t, ctx, database, repoID, c, walBytes, 256<<10)
+
+	var secretCount int
+	if err := database.QueryRowContext(ctx, `SELECT count(*) FROM content_file_secret_lines WHERE repo_id = $1`, repoID).Scan(&secretCount); err != nil {
+		t.Fatalf("secret lines count: %v", err)
+	}
+	if secretCount == 0 {
+		t.Errorf("secret-lines side table is empty after the rewrite: findings must survive a metadata-only rewrite")
+	}
+}
+
+// TestContentWriterUnchangedReplayStaysHOTLive is the #8942 acceptance
+// replay on the rebuilt writer: thirty unchanged re-upserts under fresh
+// generations, every round HOT (version moves, page kept, content and
+// indexed_at preserved, lineage advanced), the fence monotonic, and the rows
+// exact at the end.
+func TestContentWriterUnchangedReplayStaysHOTLive(t *testing.T) {
+	ctx, database := openContentUpsertGuardDatabase(t)
+	database.SetMaxOpenConns(1)
+	database.SetMaxIdleConns(1)
+	const (
+		repoID = "repo-8942-replay"
+		rounds = 30
+	)
+	writer := NewContentWriter(SQLDB{DB: database})
+
+	bodies := hotLiveBodies(t)
+	if _, err := writer.Write(ctx, hotLiveMaterialization(repoID, "gen-1", "c1", bodies)); err != nil {
+		t.Fatalf("seed Write: %v", err)
+	}
+	prepareHotLiveTable(t, ctx, database)
+	beforeIdx := contentFilesIndexBytes(t, ctx, database)
+
+	var beforeFence int64
+	if err := database.QueryRowContext(ctx, `SELECT coalesce((SELECT version FROM config_artifact_content_versions WHERE repo_id = $1), 0)`, repoID).Scan(&beforeFence); err != nil {
+		t.Fatalf("fence version: %v", err)
+	}
+
+	for round := 2; round <= rounds+1; round++ {
+		gen := fmt.Sprintf("gen-%d", round)
+		commit := fmt.Sprintf("c%d", round)
+		before := readContentFileVersions(t, ctx, database, repoID)
+		if _, err := writer.Write(ctx, hotLiveMaterialization(repoID, gen, commit, bodies)); err != nil {
+			t.Fatalf("round %d Write: %v", round, err)
+		}
+		after := readContentFileVersions(t, ctx, database, repoID)
+		if len(after) != hotLiveFileCount {
+			t.Fatalf("round %d rows after rewrite = %d, want %d", round, len(after), hotLiveFileCount)
+		}
+		for path, was := range before {
+			now := after[path]
+			if now.xmin == was.xmin {
+				t.Errorf("round %d %s kept xmin %s: the rewrite must move the lineage version", round, path, was.xmin)
+			}
+			if ctidPage(now.ctid) != ctidPage(was.ctid) {
+				t.Errorf("round %d %s left page %s for %s: not a HOT update", round, path, ctidPage(was.ctid), ctidPage(now.ctid))
+			}
+			if !now.indexedAt.Equal(was.indexedAt) {
+				t.Errorf("round %d %s moved indexed_at: a metadata-only rewrite must not touch it", round, path)
+			}
+			if now.content != was.content {
+				t.Errorf("round %d %s changed content on a metadata-only rewrite", round, path)
+			}
+			if now.commitSHA.String != commit || now.generation.String != gen {
+				t.Errorf("round %d %s lineage = (%q/%q), want (%q/%q)", round, path, now.commitSHA.String, now.generation.String, commit, gen)
+			}
+		}
+	}
+
+	afterIdx := contentFilesIndexBytes(t, ctx, database)
+	for name, before := range beforeIdx {
+		if got := afterIdx[name]; got != before {
+			t.Errorf("index %s changed size %d -> %d over %d rounds: a HOT replay adds no index entry", name, before, got, rounds)
+		}
+	}
+	var afterFence int64
+	if err := database.QueryRowContext(ctx, `SELECT coalesce((SELECT version FROM config_artifact_content_versions WHERE repo_id = $1), 0)`, repoID).Scan(&afterFence); err != nil {
+		t.Fatalf("fence version: %v", err)
+	}
+	if afterFence <= beforeFence {
+		t.Errorf("fence version = %d after %d rounds, want > %d", afterFence, rounds, beforeFence)
+	}
+	var secretCount int
+	if err := database.QueryRowContext(ctx, `SELECT count(*) FROM content_file_secret_lines WHERE repo_id = $1`, repoID).Scan(&secretCount); err != nil {
+		t.Fatalf("secret lines count: %v", err)
+	}
+	if secretCount == 0 {
+		t.Errorf("secret-lines side table is empty after %d rounds: findings must survive a metadata-only replay", rounds)
+	}
+	var genCount int
+	if err := database.QueryRowContext(ctx, `SELECT count(*) FROM content_files WHERE repo_id = $1 AND generation_id = $2`, repoID, fmt.Sprintf("gen-%d", rounds+1)).Scan(&genCount); err != nil {
+		t.Fatalf("final generation rows: %v", err)
+	}
+	if genCount != hotLiveFileCount {
+		t.Errorf("final generation rows = %d, want %d", genCount, hotLiveFileCount)
+	}
+}
+
+// TestContentWriterObservedAndUnobservedRewriteAlikeLive proves #8942:
+// observation no longer changes the write path. The unobserved and observed
+// writers stay HOT alike on identical findings-heavy batches (both under the
+// absolute WAL bound the HOT proofs use), leave identical rows, and the
+// observed writer still counts every row metadata_only.
+func TestContentWriterObservedAndUnobservedRewriteAlikeLive(t *testing.T) {
 	ctx, database := openContentUpsertGuardDatabase(t)
 	database.SetMaxOpenConns(2)
 	t.Run("foreign_backend_wal_is_ignored", func(t *testing.T) {
@@ -293,7 +442,7 @@ func TestContentWriterMetadataOnlySavesWalWallLive(t *testing.T) {
 	database.SetMaxIdleConns(1)
 	bodies := hotLiveBodies(t)
 
-	legacyWriter := NewContentWriter(SQLDB{DB: database})
+	plainWriter := NewContentWriter(SQLDB{DB: database})
 	protoWriter, protoReader := newLiveOutcomeWriter(t, database)
 
 	rewrite := func(repoID string, writer ContentWriter) (walBytes int64, wall time.Duration, totalDelta int64) {
@@ -320,21 +469,60 @@ func TestContentWriterMetadataOnlySavesWalWallLive(t *testing.T) {
 		return walBytes, wall, afterTotal - beforeTotal
 	}
 
-	legacyWAL, legacyWall, legacySize := rewrite("repo-8950-legacy", legacyWriter)
-	protoWAL, protoWall, protoSize := rewrite("repo-8950-proto", protoWriter)
-	if legacyWAL <= 0 {
-		t.Fatal("legacy writer produced no attributed WAL: comparison denominator is invalid")
-	}
-	t.Logf("legacy rewrite: WAL %d bytes (%.2f MiB) wall %s total-size delta %d bytes",
-		legacyWAL, float64(legacyWAL)/(1<<20), legacyWall, legacySize)
-	t.Logf("prototype rewrite: WAL %d bytes (%.2f MiB) wall %s total-size delta %d bytes",
-		protoWAL, float64(protoWAL)/(1<<20), protoWall, protoSize)
+	plainWAL, plainWall, _ := rewrite("repo-8950-plain", plainWriter)
+	protoWAL, protoWall, _ := rewrite("repo-8950-proto", protoWriter)
+	t.Logf("unobserved rewrite: WAL %d bytes (%.2f MiB) wall %s",
+		plainWAL, float64(plainWAL)/(1<<20), plainWall)
+	t.Logf("observed rewrite: WAL %d bytes (%.2f MiB) wall %s",
+		protoWAL, float64(protoWAL)/(1<<20), protoWall)
 
-	if protoWAL*20 > legacyWAL {
-		t.Errorf("prototype WAL %d is not at least 20x below legacy WAL %d", protoWAL, legacyWAL)
+	// Both writers take the same two-statement path, so both stay under the
+	// absolute bound the HOT proofs use; the pre-#8942 legacy shape measured
+	// ~900 KiB here.
+	for name, wal := range map[string]int64{"unobserved": plainWAL, "observed": protoWAL} {
+		if wal <= 0 {
+			t.Errorf("%s rewrite produced no attributed WAL: measurement denominator is invalid", name)
+		}
+		if wal > 256<<10 {
+			t.Errorf("%s rewrite WAL %d bytes exceeds the HOT bound %d", name, wal, 256<<10)
+		}
 	}
-	if protoSize >= legacySize {
-		t.Errorf("prototype total-size delta %d is not below legacy delta %d", protoSize, legacySize)
+
+	// Both repos hold identical rows: same paths, contents, hashes, lineage
+	// and guarded columns. (indexed_at differs by writer clock: the observed
+	// writer pins Now in tests, the plain writer uses wall time.)
+	rowSig := func(repo string) map[string]string {
+		t.Helper()
+		rows, err := database.QueryContext(ctx, `
+SELECT relative_path, content, content_hash, line_count,
+       coalesce(language, '~'), coalesce(commit_sha, '~'), coalesce(generation_id, '~')
+FROM content_files WHERE repo_id = $1 ORDER BY relative_path`, repo)
+		if err != nil {
+			t.Fatalf("read %s rows: %v", repo, err)
+		}
+		defer func() { _ = rows.Close() }()
+		got := map[string]string{}
+		for rows.Next() {
+			var path, content, hash, lang, commit, gen string
+			var lines int
+			if err := rows.Scan(&path, &content, &hash, &lines, &lang, &commit, &gen); err != nil {
+				t.Fatalf("scan %s rows: %v", repo, err)
+			}
+			got[path] = strings.Join([]string{content, hash, fmt.Sprint(lines), lang, commit, gen}, "\x1f")
+		}
+		if err := rows.Err(); err != nil {
+			t.Fatalf("read %s rows: %v", repo, err)
+		}
+		return got
+	}
+	plainRows, protoRows := rowSig("repo-8950-plain"), rowSig("repo-8950-proto")
+	if len(plainRows) != hotLiveFileCount || len(protoRows) != hotLiveFileCount {
+		t.Fatalf("row counts = %d/%d, want %d", len(plainRows), len(protoRows), hotLiveFileCount)
+	}
+	for path, want := range protoRows {
+		if got := plainRows[path]; got != want {
+			t.Errorf("%s differs between writers (unobserved %d bytes, observed %d bytes)", path, len(got), len(want))
+		}
 	}
 
 	// The share the merged #8950 counter records for a new-generation replay

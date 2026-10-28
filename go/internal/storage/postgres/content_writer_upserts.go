@@ -82,13 +82,14 @@ func (w ContentWriter) upsertObservedContentFileBatch(ctx context.Context, batch
 	// Blank writing generations bind NULL through the shared tag rule.
 	tag := contentFileTagParam(generationID)
 
-	// #8950 prototype: rows the pre-read classified as metadata_only go
+	// Two-statement writer (#8950 prototype, always on since #8942): the
+	// pre-read drives every batch, and rows it classified as metadata_only go
 	// through the metadata-only UPDATE, which leaves content and indexed_at
 	// alone so the update stays HOT. The UPDATE reports the keys it touched;
 	// every other metadata-classified row falls through to the guarded upsert,
 	// which is the last-writer-wins backstop for a concurrent edit between
-	// the pre-read and the UPDATE. An unclassified batch keeps the single
-	// statement. The whole unit runs under the write-conflict retry: the two
+	// the pre-read and the UPDATE. Only a batch whose pre-read failed keeps
+	// the single statement. The whole unit runs under the write-conflict retry: the two
 	// statements take locks over snapshot-dependent subsets, so concurrent
 	// writers for the same keys can deadlock where the single statement never
 	// did.

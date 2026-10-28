@@ -214,6 +214,104 @@ func TestObservedBatchFallsThroughMissedMetadataRows(t *testing.T) {
 	}
 }
 
+// TestUnobservedBatchTakesMetadataUpdate is the #8942 failing regression:
+// the pre-read drives the write, not just the counters. A writer without
+// observers still routes an unchanged-content row through the metadata-only
+// UPDATE; with every row updated, no guarded upsert runs.
+func TestUnobservedBatchTakesMetadataUpdate(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	metaBody := "package meta\n"
+	fake := &outcomeFakeDB{
+		transactionalFakeDB: withTransactions(&fakeExecQueryer{}),
+		storedRows: [][]any{
+			storedFileRow("repo-1", "meta.go", "hm", int64(len(metaBody)), "c1", 1, "go", "g1"),
+		},
+	}
+	writer := NewContentWriter(fake)
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	writer.Now = func() time.Time { return now }
+
+	batch := []preparedFileRow{
+		{repoID: "repo-1", path: "meta.go", commitSHA: "c2", body: metaBody, contentHash: "hm", lineCount: 1, language: "go"},
+	}
+	if err := writer.upsertContentFileBatch(ctx, batch, now, "g2"); err != nil {
+		t.Fatalf("upsertContentFileBatch: %v", err)
+	}
+
+	inner := fake.fakeExecQueryer
+	prereads, updates := 0, 0
+	for _, q := range inner.queries {
+		switch {
+		case q.query == contentFileOutcomePreReadSQL:
+			prereads++
+		case strings.HasPrefix(strings.TrimSpace(q.query), "UPDATE content_files"):
+			updates++
+			if strings.Count(q.query, "($") != 1 {
+				t.Fatalf("UPDATE carries %d value groups, want 1 (meta.go)", strings.Count(q.query, "($"))
+			}
+		}
+	}
+	if prereads != 1 {
+		t.Fatalf("pre-read issued %d times, want 1 (write-driving, not observability)", prereads)
+	}
+	if updates != 1 {
+		t.Fatalf("metadata UPDATE issued %d times, want 1", updates)
+	}
+	for _, e := range inner.execs {
+		if strings.Contains(e.query, "INSERT INTO content_files") {
+			t.Fatalf("guarded upsert issued though the UPDATE touched every row")
+		}
+	}
+}
+
+// TestUnobservedBatchFallsBackOnPreReadFailure proves the write-driving
+// pre-read never fails the Write: when it errors, the batch keeps the legacy
+// single-statement upsert.
+func TestUnobservedBatchFallsBackOnPreReadFailure(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	fake := &outcomeFakeDB{
+		transactionalFakeDB: withTransactions(&fakeExecQueryer{}),
+		readErr:             errors.New("pre-read unavailable"),
+	}
+	writer := NewContentWriter(fake)
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	writer.Now = func() time.Time { return now }
+
+	batch := []preparedFileRow{
+		{repoID: "repo-1", path: "a.go", commitSHA: "c2", body: "package a\n", contentHash: "h", lineCount: 1, language: "go"},
+	}
+	if err := writer.upsertContentFileBatch(ctx, batch, now, "g2"); err != nil {
+		t.Fatalf("upsertContentFileBatch: %v", err)
+	}
+
+	inner := fake.fakeExecQueryer
+	prereads := 0
+	for _, q := range inner.queries {
+		if q.query == contentFileOutcomePreReadSQL {
+			prereads++
+		}
+		if strings.HasPrefix(strings.TrimSpace(q.query), "UPDATE content_files") {
+			t.Fatalf("metadata UPDATE issued after a failed pre-read: fall back to the upsert")
+		}
+	}
+	if prereads != 1 {
+		t.Fatalf("pre-read attempted %d times, want 1", prereads)
+	}
+	inserts := 0
+	for _, e := range inner.execs {
+		if strings.Contains(e.query, "INSERT INTO content_files") {
+			inserts++
+		}
+	}
+	if inserts != 1 {
+		t.Fatalf("unobserved writer issued %d content_files inserts, want 1 (legacy fall-through)", inserts)
+	}
+}
+
 // TestContentFileWriteConflictClass pins the retryable set: deadlocks and
 // serialization failures retry, everything else (including nil) returns.
 func TestContentFileWriteConflictClass(t *testing.T) {
@@ -277,9 +375,11 @@ func TestObservedBatchRetriesDeadlockedUpdate(t *testing.T) {
 	}
 }
 
-// TestUnobservedBatchKeepsSingleStatement proves the prototype changes
-// nothing for a writer without observers: one INSERT, no UPDATE.
-func TestUnobservedBatchKeepsSingleStatement(t *testing.T) {
+// TestUnobservedInsertTakesSingleUpsert proves the #8942 write-driving
+// pre-read changes nothing for a row with no stored version: the batch still
+// runs one pre-read (which classifies the row inserted) and one guarded
+// upsert, and no metadata UPDATE.
+func TestUnobservedInsertTakesSingleUpsert(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -293,13 +393,19 @@ func TestUnobservedBatchKeepsSingleStatement(t *testing.T) {
 	if err := writer.upsertContentFileBatch(ctx, batch, writer.Now(), "g2"); err != nil {
 		t.Fatalf("upsertContentFileBatch: %v", err)
 	}
+	prereads := 0
 	for _, q := range db.queries {
 		if strings.HasPrefix(strings.TrimSpace(q.query), "UPDATE content_files") {
-			t.Fatalf("unobserved writer issued a metadata UPDATE")
+			t.Fatalf("unobserved writer issued a metadata UPDATE for an insert")
+		}
+		if q.query == contentFileOutcomePreReadSQL {
+			prereads++
 		}
 	}
-	if len(db.queries) != 0 {
-		t.Fatalf("unobserved writer issued %d queries, want none (no pre-read)", len(db.queries))
+	// The plain fake answers the pre-read with zero rows, so the row
+	// classifies inserted; the pre-read itself still runs.
+	if prereads != 1 {
+		t.Fatalf("pre-read issued %d times, want 1 (write-driving, not observability)", prereads)
 	}
 	inserts := 0
 	for _, e := range db.execs {

@@ -18,7 +18,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// Two-statement content_files writer prototype (#8950).
+// Two-statement content_files writer (#8950 prototype, always on since
+// #8942).
 //
 // An unchanged-content rewrite under a new generation rewrites every row
 // through the guarded upsert: SET content forces a new TOAST value and new
@@ -39,25 +40,25 @@ import (
 //
 // indexed_at is deliberately not moved: it sits in the language covering
 // index's INCLUDE, and moving it costs the HOT update. A metadata-only row
-// keeps its old indexed_at, which on these converted paths (classified
-// batches, plus the single-row ContentStore twin) means "when this row was
-// last written with a change beyond commit_sha/generation_id lineage"
-// (#8950, replacing the #8915 wording rather than extending it for those
-// paths: a commit/generation-only rewrite is no longer a content write for
-// indexed_at purposes). The language rollup's MAX(indexed_at) therefore no
-// longer advances on a pure replay through these paths; unobserved writers
-// and unclassified batches still take the single-statement upsert, which
+// keeps its old indexed_at, which means "when this row was last written with
+// a change beyond commit_sha/generation_id lineage" (#8950, replacing the
+// #8915 wording rather than extending it: a commit/generation-only rewrite is
+// no longer a content write for indexed_at purposes). The language rollup's
+// MAX(indexed_at) therefore no longer advances on a pure replay; only a
+// batch whose pre-read failed still takes the single-statement upsert, which
 // moves indexed_at as before. That scoped semantic change rolled out under
-// the arbiter ruling for #8950, recorded in the evidence note.
+// the arbiter ruling for #8950, recorded in the evidence note, and #8942
+// extends the same frozen meaning to every batch without redesigning it (per
+// its ruling, indexed_at semantics and index 172 are untouched).
 // The statement-level triggers still fire (with an
 // empty transition table when every row falls through): the secret-lines
 // derive diffs old against new content and derives nothing for identical
 // rows, and the config-artifact version fence stages every repository the
 // UPDATE touched.
 //
-// The path engages only when the batch was classified (outcomes != nil). An
-// unobserved writer and every unclassified batch keep the single-statement
-// upsert byte-identical to before.
+// The path engages on every batch, observed or not (#8942): the pre-read
+// drives the write, not just the counters. Only a failed pre-read keeps the
+// single-statement upsert byte-identical to before for the whole batch.
 
 // metadataOnlyContentFileUpdatePrefix and metadataOnlyContentFileUpdateSuffix
 // bracket the per-row VALUES list assembled by
@@ -173,17 +174,19 @@ func (w ContentWriter) retryContentFileWriteConflicts(ctx context.Context, batch
 	}
 }
 
-// classifyAndWriteFileBatch is one attempt of a batch's classified write: the
-// pre-read, the metadata-only UPDATE for metadata-classified rows, and the
-// guarded upsert for everything the UPDATE did not touch (including the rows
-// the UPDATE missed under a concurrent edit). On success it folds the
-// pre-read cost into the tally; a failed attempt leaves the tally alone so a
-// retry does not count the pre-read twice.
+// classifyAndWriteFileBatch is one attempt of a batch's two-statement write:
+// the pre-read, the metadata-only UPDATE for metadata-classified rows, and
+// the guarded upsert for everything the UPDATE did not touch (including the
+// rows the UPDATE missed under a concurrent edit). The pre-read drives the
+// write on every batch (#8942), observed or not; only a failed pre-read
+// keeps the legacy single-statement upsert for the whole batch. On success it
+// folds the pre-read cost into the tally; a failed attempt leaves the tally
+// alone so a retry does not count the pre-read twice.
 func (w ContentWriter) classifyAndWriteFileBatch(ctx context.Context, obs *fileUpsertObservation, batch []preparedFileRow, indexedAt time.Time, tag any) ([]fileOutcome, string, error) {
-	outcomes, unclassifiedReason, classifySeconds := w.preClassify(ctx, obs, batch, tag)
+	writeOutcomes, countedOutcomes, unclassifiedReason, classifySeconds := w.preClassifyForWrite(ctx, obs, batch, tag)
 
 	upsertBatch := batch
-	if meta, rest := partitionMetadataOnlyBatch(batch, outcomes); len(meta) > 0 {
+	if meta, rest := partitionMetadataOnlyBatch(batch, writeOutcomes); len(meta) > 0 {
 		updated, err := w.updateMetadataOnlyContentFileBatch(ctx, meta, tag)
 		if err != nil {
 			return nil, "", err
@@ -235,13 +238,14 @@ func (w ContentWriter) classifyAndWriteFileBatch(ctx context.Context, obs *fileU
 	if obs != nil {
 		obs.tally.classifySeconds += classifySeconds
 	}
-	return outcomes, unclassifiedReason, nil
+	return countedOutcomes, unclassifiedReason, nil
 }
 
 // partitionMetadataOnlyBatch splits a classified batch into the metadata-only
-// rows for the UPDATE and the rest for the guarded upsert. An unclassified
-// batch (outcomes nil, or a length mismatch that must never happen) returns
-// the whole batch as rest, so the writer keeps the legacy single statement.
+// rows for the UPDATE and the rest for the guarded upsert. A batch the
+// pre-read could not classify (outcomes nil, or a length mismatch that must
+// never happen) returns the whole batch as rest, so the writer keeps the
+// legacy single statement.
 func partitionMetadataOnlyBatch(batch []preparedFileRow, outcomes []fileOutcome) (meta, rest []preparedFileRow) {
 	if len(outcomes) != len(batch) {
 		return nil, batch

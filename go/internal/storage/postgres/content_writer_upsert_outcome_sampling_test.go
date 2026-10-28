@@ -48,10 +48,11 @@ func collectOutcomeMetrics(t *testing.T, reader interface {
 	return rm
 }
 
-// TestContentWriterSamplesSmallBatches pins the sampling policy: the pre-read
-// has a fixed per-batch cost, so batches under the minimum size are classified
-// one in every N, and every skipped row and its body bytes are still counted as
-// unclassified, labelled small, so the counters add up to the rows written.
+// TestContentWriterSamplesSmallBatches pins the sampling policy: the
+// write-driving pre-read runs on every batch (#8942), but batches under the
+// minimum size are counted one in every N, and every skipped row and its body
+// bytes are still counted as unclassified, labelled small, so the counters
+// add up to the rows written.
 func TestContentWriterSamplesSmallBatches(t *testing.T) {
 	t.Parallel()
 
@@ -61,13 +62,13 @@ func TestContentWriterSamplesSmallBatches(t *testing.T) {
 	for i := range writes {
 		writeFiles(t, writer, fmt.Sprintf("g%d", i), 1)
 	}
-	classified := preReadCount(fake)
-	if want := writes / contentFileOutcomeSampleEvery; classified < want-3 || classified > want+3 {
-		t.Fatalf("pre-reads for %d one-file writes = %d, want about %d (one in %d)", writes, classified, want, contentFileOutcomeSampleEvery)
+	if got := preReadCount(fake); got != writes {
+		t.Fatalf("pre-reads for %d one-file writes = %d, want %d (the pre-read drives every write)", writes, got, writes)
 	}
 	rm := collectOutcomeMetrics(t, reader)
-	if got := sumPoints(t, rm, "eshu_dp_content_file_upserts_total", map[string]string{"batch_class": "small"}); got != int64(classified) {
-		t.Errorf("classified small rows = %d, want %d", got, classified)
+	classified := int(sumPoints(t, rm, "eshu_dp_content_file_upserts_total", map[string]string{"batch_class": "small"}))
+	if want := writes / contentFileOutcomeSampleEvery; classified < want-3 || classified > want+3 {
+		t.Fatalf("classified small rows = %d, want about %d (one in %d)", classified, want, contentFileOutcomeSampleEvery)
 	}
 	skipped := int64(writes - classified)
 	if got := sumPoints(t, rm, "eshu_dp_content_file_upsert_unclassified_rows_total", map[string]string{"reason": "sampled_out", "snapshot": "delta", "batch_class": "small"}); got != skipped {
@@ -99,11 +100,14 @@ func TestNewContentWriterSamplesByDefault(t *testing.T) {
 	for i := range writes {
 		writeFiles(t, writer, fmt.Sprintf("g%d", i), 1)
 	}
-	classified := preReadCount(fake)
-	if want := writes / contentFileOutcomeSampleEvery; classified < want-3 || classified > want+3 {
-		t.Fatalf("pre-reads for %d one-file writes through NewContentWriter = %d, want about %d: the default sampling policy is off", writes, classified, want)
+	if got := preReadCount(fake); got != writes {
+		t.Fatalf("pre-reads for %d one-file writes through NewContentWriter = %d, want %d: the write-driving pre-read is off", writes, got, writes)
 	}
 	rm := collectOutcomeMetrics(t, reader)
+	classified := int(sumPoints(t, rm, "eshu_dp_content_file_upserts_total", map[string]string{"batch_class": "small"}))
+	if want := writes / contentFileOutcomeSampleEvery; classified < want-3 || classified > want+3 {
+		t.Fatalf("classified small rows through NewContentWriter = %d, want about %d: the default sampling policy is off", classified, want)
+	}
 	if got := sumPoints(t, rm, "eshu_dp_content_file_upsert_unclassified_rows_total", map[string]string{"reason": "sampled_out"}); got != int64(writes-classified) {
 		t.Errorf("sampled_out rows = %d, want %d", got, writes-classified)
 	}
@@ -117,13 +121,14 @@ func TestContentWriterAlwaysClassifiesLargeBatches(t *testing.T) {
 
 	writer, fake, reader, _ := newOutcomeWriter(t, nil)
 	writer = writer.WithOutcomeSampling(contentFileOutcomeMinBatchRows, contentFileOutcomeSampleEvery)
-	writeFiles(t, writer, "g0", 1) // takes the first sampler slot, which classifies
-	writeFiles(t, writer, "g1", 1) // the second slot is skipped
+	writeFiles(t, writer, "g0", 1) // takes the first sampler slot, which counts
+	writeFiles(t, writer, "g1", 1) // the second slot is counted as sampled out
 	for i := range 3 {
 		writeFiles(t, writer, fmt.Sprintf("big%d", i), contentFileOutcomeMinBatchRows)
 	}
-	if got := preReadCount(fake); got != 4 {
-		t.Fatalf("pre-reads = %d, want 4 (one sampled small batch plus three large)", got)
+	// Every batch pre-reads (#8942); the sampler only gates the counters.
+	if got := preReadCount(fake); got != 5 {
+		t.Fatalf("pre-reads = %d, want 5 (two small batches plus three large)", got)
 	}
 	rm := collectOutcomeMetrics(t, reader)
 	if got, want := sumPoints(t, rm, "eshu_dp_content_file_upserts_total", map[string]string{"batch_class": "large"}), int64(3*contentFileOutcomeMinBatchRows); got != want {
