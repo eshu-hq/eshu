@@ -12,11 +12,13 @@ from __future__ import annotations
 
 import live_postgres_readiness_weights as wt
 
-#: 80% of the 900s ``go test -timeout`` kill clock, matching the sibling
-#: shard-job gate (1440s of 1800s). The observed red-vs-green swing is
-#: +164s on a ~786s prediction, so a chunk predicted at 720s still clears
-#: the clock (720 + 164 = 884 < 900); at 100% no room is left for growth.
-ROW_BUDGET_TENTHS = 720 * wt.UNIT
+#: 75% of the 900s ``go test -timeout`` kill clock (#9348). The v2 row price
+#: is what that clock times (tests plus the repeat residual; compile and link
+#: run before it starts). Over 17 green five-shard main runs, rows predicted
+#: at 150 s or more ran at a measured/predicted ratio of p50 1.00, p99 1.26
+#: and max 1.33 (n=188), so a 675 s row at the worst observed ratio runs
+#: 675 x 1.33 = 898 s, still inside the clock.
+ROW_BUDGET_TENTHS = 675 * wt.UNIT
 
 
 def group_cost_tenths(group: list[str], weights: wt.Weights) -> int:
