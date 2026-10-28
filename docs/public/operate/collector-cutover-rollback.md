@@ -95,6 +95,74 @@ Three details explain the shape of step 1:
   kind outside the in-tree set, so a mistyped `--external-instance` cannot hide a
   claim held by the real one.
 
+## Activations (GitOps) mode
+
+Some collectors run in *activations mode*: their authority lives in GitOps
+values, not in a shared component registry. On these topologies the component
+registry is a pod-local `registry.json` on an `emptyDir` volume, re-seeded from
+the `eshu-component-activations` ConfigMap by seed/reconcile init containers on
+every pod start. `eshu component disable` and `eshu component revoke-grant` are
+file-local writes the next pod start undoes there: running them scales the live
+producer to zero and restarts the coordinator for a step that still ends
+FAILED. Do not run them on this topology.
+
+Pass `--activations-mode` for these collectors, with `--removal-commit` (the
+GitOps commit that deleted the activation entry), `--gitops-repo` (a local
+checkout holding that commit), and the mandatory
+`--restore-applied-by-gitops`. The removal commit, merged and synced, REPLACES
+script steps 1 and 3 with read-only proofs. Steps 2, 5, and 6 are unchanged.
+(`verify` needs the proof options but not the restore flag; `verify --capture`
+needs neither.)
+Step 4 still scales the in-tree Deployment and waits for the rollout, but the
+restore itself is a `git revert` of the removal commit plus a sync, never helm.
+
+| Step | Durable store | Ephemeral / derived | Write (the act) | Read (the proof) |
+| --- | --- | --- | --- | --- |
+| 1G (replaces 1) | Git values file | ConfigMap, then pod-local registry.json | removal commit + sync | `git show` of the commit, live ConfigMap without the entry, `component list` absent or `activations=0`, worker absent or at 0 replicas, coordinator `rollout status` |
+| 2 (kept) | Postgres claim tables | none | none, observe only | drain query: 0 claimed, 0 active |
+| 3G (replaces 3) | Git values file (grant source) | pod-local grant rows | none: `revoke-grant` is NOT run | `component grants --producer`: zero rows, plus the removal-commit guard |
+| 4 | Git revert commit; Postgres clock | rollout state | `git revert` + sync, scale, rollout waits | revert commit SHA, `rollout status` lines, DB clock as window start |
+| 5 (kept) | Postgres work items / generations | none | none | replay query (or direct-commit signal): finished counts |
+| 6 (kept) | Postgres facts + baseline file | none | none | truth equality + runbook read-truth queries |
+
+Print the plan first. `plan` prints the GitOps sequence in full from the same
+builders `run` executes: the `git show` read, the component list, the ConfigMap
+read, and every workload and SQL line. Lines prefixed `operator$` are acts the
+operator performs outside the script (merge the removal, sync the app, render
+check, `git revert`); no step references a command the plan did not print.
+
+```bash
+scripts/collector-cutover-rollback.sh plan \
+  --activations-mode \
+  --removal-commit <removal-commit-sha> --gitops-repo <gitops-checkout> \
+  --restore-applied-by-gitops \
+  <the same collector, instance, component, grant, workload, and Deployment options>
+```
+
+Run it with the same options plus `--yes` and the baseline. Step 1G scales and
+restarts nothing: the sync already rolled the workloads.
+
+Three details explain the shape of the GitOps proofs:
+
+- Zero grant rows prove removal only with both guards. A mistyped producer ID
+  also reads zero rows, so step 3G additionally requires the component registry
+  to be clear and the removal-commit diff to mention the activation. Name the
+  producer exactly (the default is the component ID). One boundary stays
+  operator-side: a producer typo combined with grant rows that linger after an
+  otherwise complete removal still reads zero rows for the typo, so reconcile
+  any surviving rows against the removal diff by hand.
+- The ConfigMap check is a substring read and refuses fail-closed: an entry
+  that shares text with the instance ID reads as "not synced". Name activation
+  entries distinctly.
+- The removal diff must mention every `--external-instance`. A commit that
+  deletes an unrelated activation fails the proof instead of passing it.
+
+This mode covers collectors with an in-tree producer to restore. A satellite
+round-trip with no in-tree producer (the re-enabled activation is itself the
+restored producer) keeps steps 1G through 3G as written and hand-runs the
+replay and truth queries from the truth checks page against the re-enabled
+activation, with the window re-anchored at the post-sync restart.
+
 ## Run it
 
 Print the plan first. `plan` prints the six steps with the exact commands and
@@ -133,7 +201,9 @@ Useful controls:
   `--through-step 3`, merge and sync the restore change, then resume with
   `--from-step 4 --restore-applied-by-gitops`. Replace the Helm options with
   `--restore-applied-by-gitops` for that resume. Applying the restore change
-  before step 3 completes lets two producers claim at once.
+  before step 3 completes lets two producers claim at once. In activations
+  mode the restore flag is mandatory from the start (see above), so there are
+  no Helm options to replace.
 - `--from-step N` resumes at step N and re-checks every earlier step against the
   live state first, so a resume cannot skip a gate. Step 5 also needs `--since`.
 - `--drain-timeout`, `--step-timeout`, `--replay-timeout`: whole seconds (600, 180, 1800).

@@ -17,7 +17,7 @@ trap 'rm -rf "${tmp_root}" 2>/dev/null || true' EXIT
 
 bin_dir="${tmp_root}/bin"
 mkdir -p "${bin_dir}"
-for tool in eshu kubectl psql helm; do
+for tool in eshu kubectl psql helm git; do
 	cp "${repo_root}/scripts/lib/test-collector-cutover-rollback-fake-${tool}.sh" "${bin_dir}/${tool}"
 	chmod +x "${bin_dir}/${tool}"
 done
@@ -61,6 +61,25 @@ new_state() {
 	} >"${FAKE_STATE}/baseline"
 	printf 'work_item.comment\tp1\tC-1\nwork_item.issue\tp2\tI-1\nwork_item.issue\tp3\tI-2\n' >"${FAKE_STATE}/keys"
 	LC_ALL=C sort "${FAKE_STATE}/keys" >"${FAKE_STATE}/baseline.keys"
+	# The activations-mode seed: the ConfigMap entries the seed/reconcile init
+	# containers reinstall on every pod start, and the removal commit diff the
+	# GitOps mode proves against. Both default to the shared-registry world, so
+	# existing cases (which never read them) are unaffected.
+	cp "${FAKE_STATE}/activations" "${FAKE_STATE}/seed_activations"
+	printf 'ext-1\n' >"${FAKE_STATE}/configmap_entries"
+	mkdir -p "${FAKE_STATE}/repo"
+	{
+		printf 'commit abcdef1234567890abcdef1234567890abcdef12\n'
+		printf 'Author: Operator <operator@example.com>\n'
+		printf 'Date:   Thu Oct 23 12:00:00 2026 +0000\n'
+		printf '\n'
+		printf '    Remove the jira satellite activation\n'
+		printf '\n'
+		printf '%s\n' 'diff --git a/charts/eshu/values.yaml b/charts/eshu/values.yaml'
+		printf '%s\n' '--- a/charts/eshu/values.yaml'
+		printf '%s\n' '+++ b/charts/eshu/values.yaml'
+		printf '%s\n' '-  instance: ext-1'
+	} >"${FAKE_STATE}/removal_diff"
 }
 
 # new_clear_state is the world after steps 1 to 3 have completed: external

@@ -11,6 +11,7 @@
 #   direct    the direct in-tree producer mode (#9027)
 # scripts/lib/test-collector-cutover-rollback-mutants.sh proves these cases kill
 # every listed mutant of the step and gate logic.
+#   activations the activations/GitOps mode (#9293)
 
 set -euo pipefail
 
@@ -29,6 +30,8 @@ source "${lib_dir}/test-collector-cutover-rollback-cases-truth.sh"
 source "${lib_dir}/test-collector-cutover-rollback-cases-usage.sh"
 # shellcheck source=scripts/lib/test-collector-cutover-rollback-cases-direct.sh
 source "${lib_dir}/test-collector-cutover-rollback-cases-direct.sh"
+# shellcheck source=scripts/lib/test-collector-cutover-rollback-cases-activations.sh
+source "${lib_dir}/test-collector-cutover-rollback-cases-activations.sh"
 
 if [[ "${failures}" -gt 0 ]]; then
 	printf '\n%d check(s) failed\n' "${failures}"

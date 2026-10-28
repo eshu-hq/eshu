@@ -108,6 +108,14 @@
 #   M91 gates  the unreadable-Deployment note drops the kubectl exit code
 #   M92 plan   plan omits the Deployment read in direct mode
 #   M93 plan   plan omits the Deployment read from step 5, which run performs
+#   M94 steps  the mode still disables in step 1
+#   M95 steps  the mode still revokes in step 3
+#   M96 gates  remaining grant rows count as absent
+#   M97 gates  a removal diff that never mentions the instance counts as deleting it
+#   M98 gates  the step 1G confirmation skips the ConfigMap read
+#   M99 main   the mode does not require --restore-applied-by-gitops
+#   M100 main  --removal-commit is not required in the mode
+#   M101 main  --gitops-repo is not required in the mode
 
 # The single-quoted anchors are literal source text to find, not expansions.
 # shellcheck disable=SC2016
@@ -161,12 +169,12 @@ define_mutants() {
 		done
 		printf '%s' "$out"
 	}
-	add M01 steps "$(pairs "${T}gate_step1 3${NL}${T}gate_step2 3${NL}" "${T}gate_step1 3${NL}")"
+	add M01 steps "$(pairs "${T}gate_step1 3${NL}${T}gate_step2 3${NL}${T}local kind${NL}" "${T}gate_step1 3${NL}${T}local kind${NL}")"
 	add M02 steps "$(pairs "${T}gate_step3 4${NL}" "")"
 	add M03 steps "$(pairs "${T}gate_step1 4${NL}" "")"
 	add M04 steps "$(pairs "${T}gate_step2 4${NL}" "")"
 	add M05 steps "$(pairs "${T}gate_step1 2${NL}" "")"
-	add M06 steps "$(pairs "${T}gate_step1 3${NL}${T}gate_step2 3${NL}" "${T}gate_step2 3${NL}")"
+	add M06 steps "$(pairs "${T}gate_step1 3${NL}${T}gate_step2 3${NL}${T}local kind${NL}" "${T}gate_step2 3${NL}${T}local kind${NL}")"
 	add M07 gates "$(pairs 'DRAIN_ACTIVE="${XOUT##*|}"' 'DRAIN_ACTIVE="0"')"
 	add M08 gates "$(pairs 'DRAIN_CLAIMED="${XOUT%%|*}"' 'DRAIN_CLAIMED="0"')"
 	add M09 gates "$(pairs "${T}${T}step_failed \"\$1\" \"could not read the claim table (exit \${XRC}); treating the drain as unknown\"${NL}" "${T}${T}DRAIN_CLAIMED=0${NL}${T}${T}DRAIN_ACTIVE=0${NL}${T}${T}return 0${NL}")"
@@ -187,7 +195,7 @@ define_mutants() {
 	add M20 gates "$(pairs 'in_tree_rolled_out || refuse "$1"' 'in_tree_rolled_out || : "$1"')"
 	add M21 gates "$(pairs "${T}if ! grants_revoked; then${NL}${T}${T}refuse \"\$1\" \"\${GRANT_NOTE}. Revoke the external" "${T}if false; then${NL}${T}${T}refuse \"\$1\" \"\${GRANT_NOTE}. Revoke the external")"
 	add M22 steps "$(pairs "${T}${T}exit \"\$EX_TIMEOUT\"${NL}${T}fi${NL}${T}evidence 2" "${T}${T}exit 0${NL}${T}fi${NL}${T}evidence 2")"
-	add M23 steps "$(pairs "${T}if ! registry_clear; then${NL}${T}${T}[[ \"\$REGISTRY_COUNT\"" "${T}if false; then${NL}${T}${T}[[ \"\$REGISTRY_COUNT\"")"
+	add M23 steps "$(pairs "${T}if ! registry_clear; then${NL}${T}${T}[[ \"\$REGISTRY_COUNT\" != \"unknown\" ]] || step_failed 1 \"\$REGISTRY_NOTE\"${NL}${T}${T}refuse 1 \"\$REGISTRY_NOTE\"${NL}${T}fi${NL}${T}local worker_state=\"scaled-to-zero\"${NL}" "${T}if false; then${NL}${T}${T}[[ \"\$REGISTRY_COUNT\" != \"unknown\" ]] || step_failed 1 \"\$REGISTRY_NOTE\"${NL}${T}${T}refuse 1 \"\$REGISTRY_NOTE\"${NL}${T}fi${NL}${T}local worker_state=\"scaled-to-zero\"${NL}")"
 	add M24 gates "$(pairs "${T}if ! registry_clear; then${NL}${T}${T}CONFIRM_NOTE=\"\$REGISTRY_NOTE\"${NL}${T}${T}return 1${NL}${T}fi${NL}" "")"
 	add M25 gates "$(pairs 'REGISTRY_COUNT="unknown"
 		return 0' 'REGISTRY_COUNT="0"
@@ -221,7 +229,7 @@ define_mutants() {
 	add M50 truth "$(pairs "${T}${T}if worker_pods_gone; then" "${T}${T}if true; then")"
 	add M51 truth "$(pairs "${T}${T}if registry_clear; then${NL}${T}${T}${T}evidence" "${T}${T}if true; then${NL}${T}${T}${T}evidence")"
 	add M53 gates "$(pairs "awk '/^pod\\//'" "awk 'NF'")"
-	add M52 truth "$(pairs "${T}${T}if grants_revoked; then${NL}${T}${T}${T}evidence" "${T}${T}if true; then${NL}${T}${T}${T}evidence")"
+	add M52 truth "$(pairs "${T}${T}elif grants_revoked; then${NL}${T}${T}${T}evidence" "${T}${T}elif true; then${NL}${T}${T}${T}evidence")"
 	add M54 gates "$(pairs 'total += $NF' 'total = $NF')"
 	add M55 gates "$(pairs 'else { bad = 1 }' 'else { }')"
 	add M56 truth "$(pairs "${T}rm -f \"\${capture_file}\" \"\${capture_file}.keys\"${NL}" "${T}rm -f \"\${capture_file}\"${NL}")"
@@ -261,6 +269,14 @@ define_mutants() {
 	add M91 gates "$(pairs 'could not be read (exit ${XRC}): ' 'could not be read: ')"
 	add M92 plan "$(pairs "${T}[[ \"\$in_tree_direct\" == \"true\" ]] || return 0${NL}${T}build_in_tree_replicas" "${T}return 0${NL}${T}build_in_tree_replicas")"
 	add M93 plan "$(pairs "${T}${T}plan_direct_replicas${NL}${T}${T}plan_psql_line direct-commit" "${T}${T}plan_psql_line direct-commit")"
+	add M94 steps "$(pairs "${T}if [[ \"\$activations_mode\" == \"true\" ]]; then${NL}${T}${T}step_1_gitops${NL}${T}${T}return 0${NL}${T}fi${NL}" "")"
+	add M95 steps "$(pairs "${T}if [[ \"\$activations_mode\" == \"true\" ]]; then${NL}${T}${T}step_3_gitops${NL}${T}${T}return 0${NL}${T}fi${NL}" "")"
+	add M96 gates "$(pairs "${T}if [[ -n \"\$(printf '%s\\n' \"\$XOUT\" | awk -F'\\t' 'NF > 1 { print }')\" ]]; then" "${T}if false; then")"
+	add M97 gates "$(pairs "${T}for instance in \"\${externals[@]}\"; do${NL}${T}${T}if [[ \"\$REMOVAL_SHOW\" != *\"\$instance\"* ]]; then" "${T}for instance in \"\${externals[@]}\"; do${NL}${T}${T}if false; then")"
+	add M98 gates "$(pairs "${T}if ! activations_configmap_clear; then${NL}${T}${T}GITOPS_CONFIRM_NOTE=\"\$CONFIGMAP_NOTE\"${NL}${T}${T}return 1${NL}${T}fi${NL}" "")"
+	add M99 main "$(pairs "${T}${T}[[ \"\$restore_by_gitops\" == \"true\" ]] ||${NL}${T}${T}${T}die \"\$EX_USAGE\" \"--activations-mode needs --restore-applied-by-gitops: the restore is a git revert of the removal commit plus a sync, never helm\"${NL}" "${T}${T}:${NL}")"
+	add M100 main "$(pairs "${T}[[ -n \"\$removal_commit\" ]] ||${NL}${T}${T}die \"\$EX_USAGE\" \"--activations-mode needs --removal-commit SHA: the GitOps commit that deleted the activation entry\"${NL}" "")"
+	add M101 main "$(pairs "${T}[[ -n \"\$gitops_repo\" ]] ||${NL}${T}${T}die \"\$EX_USAGE\" \"--activations-mode needs --gitops-repo DIR: a local checkout holding the removal commit\"${NL}" "")"
 	add M64 main "$(pairs '"${TMPDIR:-/tmp}/eshu-rollback.XXXXXX"' '"/tmp/eshu-rollback.XXXXXX"')"
 }
 

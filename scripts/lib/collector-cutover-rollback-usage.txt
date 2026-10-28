@@ -41,6 +41,21 @@ Restore (step 4) uses exactly one of:
   --restore-applied-by-gitops   the same values change was already applied
                                 through GitOps AFTER step 3 completed
 
+Activations/GitOps mode (collectors whose authority lives in GitOps values,
+not a shared component registry): the removal commit replaces steps 1
+(disable) and 3 (revoke-grant) with read-only proofs, which never run
+component disable or revoke-grant. Requires all of:
+  --activations-mode            enable the mode
+  --restore-applied-by-gitops   the restore is a git revert of the removal
+                                commit plus a sync, never helm
+  --removal-commit SHA          GitOps commit that deleted the activation entry
+                                (7 to 64 hex characters)
+  --gitops-repo DIR             local checkout holding the removal commit
+  --activations-configmap NAME  activations ConfigMap the pods re-seed from
+                                (default eshu-component-activations)
+                                (verify needs the proof but not the restore
+                                flag; --capture needs neither)
+
 Run control:
   --yes                         required for run
   --baseline FILE               pre-cutover truth snapshot (required for run)
