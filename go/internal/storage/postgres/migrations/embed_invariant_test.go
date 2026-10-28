@@ -149,15 +149,15 @@ import (
 // stale-claim reap index; DDL half) and
 // 239_incident_freshness_claim_lease_backfill.sql (the claimed-row backfill;
 // DML half, #7961 split).
-// #9227 adds 238_vulnerability_source_state_packages.sql: the package keys a
+// #9227 adds 243_vulnerability_source_state_packages.sql: the package keys a
 // derived vulnerability source target queried, joined by readiness.
-const goldenBootstrapDefinitionsDigest = "0835a7054f93082fdf1c650519bc36b7922762cf4bf4b828e4b80e856d59ce9a"
+const goldenBootstrapDefinitionsDigest = "db6c8f80de2a3ed9cf91756092b78ea40b26358a431ece3ab8d2c14277f90ac6"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 257
+const goldenBootstrapDefinitionsCount = 258
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

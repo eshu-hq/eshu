@@ -344,7 +344,7 @@ var orderedBootstrapDefinitionNamesLate = []string{
 	// (DDL half); 239 is the claimed-row backfill (DML half, #7961 split).
 	"incident_freshness_claim_lease",
 	"incident_freshness_claim_lease_backfill",
-	// Migration 238 (#9227) adds the package keys derived vulnerability source
+	// Migration 243 (#9227) adds the package keys derived vulnerability source
 	// targets queried, which supply-chain readiness joins on.
 	"vulnerability_source_state_packages",
 }
