@@ -85,10 +85,46 @@ model the way the workflow's `matrix` step does: the committed default path,
 v2 and five shards when the v2 file is present, v1 and four shards only when
 it is absent. Their first case fails if the contract's model or shard count
 differs from the `matrix` output or from the committed v2 `shard_count`. Before
-#9100 these cases ran on the v1 four-shard cut while CI ran five shards: the
-seeded case scored 1439.9 s against the 1440 s budget, and one more 25 s
-seed failed it at 1441.6 s. The five-shard cut scores the same two plans at
-1356.0 s and 1359.9 s. The
+#9100 these cases ran on the v1 four-shard cut while CI ran five shards.
+
+The statements below about five jobs, five-shard cuts, and the "no shard
+partition fits the job budget" error describe the v2 model. Three cases
+assert v2-only results and skip, with a stated reason, when the v2 file is
+absent and the loader returns v1: the drift-survives-a-rejected-plan case and
+the appended-tail case here, and the planted 800 s lone-test case in
+`scripts/lib/live_postgres_readiness_row_clock_cases.py`. They never skip while
+the v2 file exists: a loader that returned v1 then fails them. Every other case
+runs on both models.
+
+The planted cases do not plant a fixed size on the live plan (#9371). A fixed
+plant there measures the live plan's remaining headroom and its package lumps,
+not the model. The old 10 x 20 s appended tail landed where no five-shard cut
+meets both the 1440 s budget and the 15% spread: shard 5 holding one
+`./internal/storage/postgres` row cost 1447.0 s under one correct refit and
+1421.3 s under the committed weights. A PR that added eight live tests also
+failed the old seeded case with "no shard partition fits the job budget",
+while the live plan itself still fit. Each case now asserts what it is named for:
+
+- The appended-tail case prices ten tail tests to fill the last shard's own
+  headroom on the live cut. It then requires a clean budget and every job at
+  or under 1440 s. A tail whose test seconds pass the five jobs' combined
+  budget must still fail with "no shard partition fits the job budget".
+- The seeded case runs on a fixed synthetic plan of 20 packages x 20 tests
+  with round prices: 15 tests at 60 s seeded into the first package push the
+  count split to 1930 s, past the 1800 s cap, and the weighted cut holds
+  every job at or under 1440 s. The live count split and the live fit are
+  still asserted, unseeded, on the live plan.
+- The drift case adds 41 unpriced tail tests and requires the
+  "planned tests have no weight (limit 40)" error. `drift_report` no longer
+  raises when the budget rejects the cut: it prices repeat rows on the whole
+  plan, which covers every cut's needs. A PR that both adds too many
+  unpriced tests and breaks the budget now sees both errors.
+
+The live plan can still fail the 15% spread at some sizes. Under the committed
+weights, the budget gate fails once 45 to 60 default-priced tests are added to
+the last package (the range swept). That failure is the live-plan fit case
+reporting a real limit. The appended-tail case fails with it and names the same
+spread error. The
 v1 cut mechanics (fixed-plan balance, cut cache, malformed files, union
 under changed weights) stay in `live_postgres_readiness_balance_cases.py`.
 The suite fails when:

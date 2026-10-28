@@ -322,10 +322,23 @@ def budget_errors(runs: list[str], weights: Weights | WeightsV2) -> list[str]:
 
 
 def drift_report(runs: list[str], weights: Weights | WeightsV2) -> Drift:
-    """Compare the plan with the measured weights."""
+    """Compare the plan with the measured weights.
+
+    A v2 plan the budget rejects still gets a drift report (#9371). Its
+    repeat-price needs come from the whole plan as one segment, which is a
+    superset of any cut's: a package group that fits one row fits one row in
+    every slice of it. ``budget_errors`` reports the cut failure itself.
+
+    Raises:
+        ValueError: The plan repeats a run or splits a package (v2).
+    """
     import live_postgres_readiness_v2 as v2
     if isinstance(weights, v2.WeightsV2):
-        bounds = weighted_bounds(runs, weights, weights.shard_count)
+        v2.Scorer(runs, weights)  # plan shape errors still raise here
+        try:
+            bounds = weighted_bounds(runs, weights, weights.shard_count)
+        except ValueError:
+            bounds = [0, len(runs)]
         rows_by_shard = [v2.split_rows(runs[low:high], weights)
                          for low, high in zip(bounds, bounds[1:])]
         return Drift(
