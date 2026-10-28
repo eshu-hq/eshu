@@ -15,6 +15,10 @@ kept reading the retired in-tree instance's last rows as `fresh`.
   of an enabled, not deactivated collector instance.
 - `ClaimedService` fires the post-commit observer for an unchanged generation
   too, so an unchanged result records success.
+- `next_retry_at` and terminality come from `collector.ClaimRetryDelay` and
+  `collector.ClaimAttemptBudgetExhausted`, the helpers `ClaimedService` uses.
+  A retryable failure on the last attempt is `failed_terminal`, not the
+  in-tree `failed_retryable`.
 
 There is no DDL change, no migration, and no satellite change.
 
@@ -97,6 +101,10 @@ Observability Evidence:
 - A failed attempt-row write fails the claim retryable with
   `failure_class=source_state_record`. That shows on
   `eshu_dp_component_extension_results_total` and the claim failure columns.
+- `eshu_dp_workflow_claim_commit_observer_failures_total{collector_kind,source_system}`
+  counts post-commit observer errors on both the commit and the unchanged
+  path, next to the `claimed_generation_commit_observer_failed` span event. A
+  success-row write failure shows here and on the write-failure counter.
 - A WARN log line appears when a claim scope is outside the scope-id grammar.
   Those claims are skipped, never written under an invented source.
 - The row values (`freshness_state`, `terminal_status`, `next_retry_at`,

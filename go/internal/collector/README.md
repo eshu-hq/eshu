@@ -219,7 +219,13 @@ evidence (No-Regression and No-Observability-Change) for this section lives in
   once a claim's commit succeeds, so a source's own progress marker advances only once landed.
   It also fires once for an unchanged generation after its completion mutation
   resolves, before the claim completes (#9420), so a source records an
-  unchanged result like a committed one.
+  unchanged result like a committed one. A hook error never fails the claim; it
+  adds a `claimed_generation_commit_observer_failed` span event and counts on
+  `eshu_dp_workflow_claim_commit_observer_failures_total`.
+- `ClaimRetryDelay` and `ClaimAttemptBudgetExhausted` — the retry delay and
+  attempt-budget rules `ClaimedService` applies, exported so a component that
+  reports retry state (the extension host's vulnerability source-state recorder,
+  #9420) cannot drift from the queue.
 - `FairClaimDispatcher` — applies `workflow.FamilyFairnessScheduler` to a
   bounded candidate set and delegates each selected target to
   `ClaimControlStore.ClaimNextEligible`; empty target lanes are skipped during

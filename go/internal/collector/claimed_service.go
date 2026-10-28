@@ -433,10 +433,7 @@ func (s ClaimedService) startHeartbeatLoop(ctx context.Context, mutation workflo
 // runners that suffered the runaway loop in issue #612 explicitly set a
 // positive budget.
 func (s ClaimedService) attemptBudgetExhausted(item workflow.WorkItem) bool {
-	if s.MaxAttempts <= 0 {
-		return false
-	}
-	return item.AttemptCount >= s.MaxAttempts
+	return ClaimAttemptBudgetExhausted(s.MaxAttempts, item)
 }
 
 func (s ClaimedService) budgetExhaustedError(ctx context.Context, item workflow.WorkItem, cause error) error {

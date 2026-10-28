@@ -70,8 +70,9 @@ built on `vulnerabilitystore.NewVulnerabilitySourceStateStore(database)` like th
 retired in-tree command. It writes `vulnerability_source_states` under this
 worker's instance id: the attempt or failure row from each claim outcome and
 the success row after the durable commit, at most two single-row statements per
-claim. `next_retry_at` uses the poll interval and the default attempt budget, so
-it matches the delay `ClaimedService` applies. Writes record the
+claim. `next_retry_at` and terminality come from `collector.ClaimRetryDelay` and
+`collector.ClaimAttemptBudgetExhausted` with this worker's poll interval and the
+default attempt budget, the same helpers `ClaimedService` applies to the claim. Writes record the
 `vulnerability_intelligence.source_state_checkpoint` span event; skipped stale
 writes and store failures count on
 `eshu_dp_vulnerability_source_state_stale_writes_skipped_total` and

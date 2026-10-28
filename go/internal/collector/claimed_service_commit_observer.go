@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -58,7 +59,7 @@ type ClaimedGenerationCommitObserver interface {
 	// generation of the same scope) re-evaluates against the same
 	// not-yet-advanced marker and still catches any gap that would
 	// otherwise have gone undetected. ClaimedService therefore records the
-	// error as a span event and continues completing the claim; it does
+	// error as a span event and a counter and continues completing the claim; it does
 	// NOT fail the claim and does NOT roll back the already-committed
 	// facts.
 	ObserveClaimedGenerationCommitted(ctx context.Context, item workflow.WorkItem) error
@@ -66,8 +67,10 @@ type ClaimedGenerationCommitObserver interface {
 
 // observeClaimedGenerationCommitted invokes the optional
 // ClaimedGenerationCommitObserver hook for s.Source, if it implements one.
-// Called from processClaimed immediately after commitCollected succeeds. A
-// hook error is recorded as a span event on the current claimed-run span and
+// Called from processClaimed immediately after commitCollected succeeds, and
+// after an unchanged generation's completion mutation resolves (#9420). A
+// hook error is recorded as a span event on the current claimed-run span,
+// counted on eshu_dp_workflow_claim_commit_observer_failures_total, and
 // swallowed -- see ClaimedGenerationCommitObserver's doc comment for why
 // that is safe rather than a silent failure: the fact commit already
 // happened, and the marker that didn't advance is self-healing on the
@@ -78,6 +81,12 @@ func (s ClaimedService) observeClaimedGenerationCommitted(ctx context.Context, i
 		return
 	}
 	if err := observer.ObserveClaimedGenerationCommitted(ctx, item); err != nil {
+		if s.Instruments != nil && s.Instruments.WorkflowClaimCommitObserverFailures != nil {
+			s.Instruments.WorkflowClaimCommitObserverFailures.Add(ctx, 1, metric.WithAttributes(
+				telemetry.AttrCollectorKind(string(s.CollectorKind)),
+				telemetry.AttrSourceSystem(item.SourceSystem),
+			))
+		}
 		trace.SpanFromContext(ctx).AddEvent(
 			"claimed_generation_commit_observer_failed",
 			trace.WithAttributes(
