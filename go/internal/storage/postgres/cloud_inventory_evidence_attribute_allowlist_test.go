@@ -4,6 +4,7 @@
 package postgres
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -22,6 +23,70 @@ func TestCloudInventoryRecordFromRowAWSPatchLevelAttributes(t *testing.T) {
 	want := map[string]any{"platform_version": "eks.30", "release_version": "1.30.1", "addon_version": "v1.0", "ami_id": "ami-000000000000000a", "runtime": "python3.12"}
 	if !reflect.DeepEqual(record.Attributes, want) {
 		t.Fatalf("attributes = %#v, want %#v", record.Attributes, want)
+	}
+}
+
+// TestCloudInventoryAllowlistKeepsAllTwelveSafeFields covers the maximum
+// current AWS allowlist output, including its nested container field.
+func TestCloudInventoryAllowlistKeepsAllTwelveSafeFields(t *testing.T) {
+	t.Parallel()
+
+	attributes := map[string]any{
+		"task_definition_arn": "task-definition/demo:1",
+		"image_uri":           "example.invalid/demo:1",
+		"resolved_image_uri":  "example.invalid/demo@sha256:0001",
+		"code_sha256":         "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+		"package_type":        "Image",
+		"version":             "1.30",
+		"platform_version":    "eks.30",
+		"release_version":     "1.30.1",
+		"addon_version":       "v1.0",
+		"ami_id":              "ami-000000000000000a",
+		"runtime":             "python3.12",
+		"containers": []any{map[string]any{
+			"image": "example.invalid/demo:1", "image_digest": "sha256:0001",
+			"name": "must-not-surface",
+		}},
+		"secret": "must-not-surface",
+	}
+	got := awsCloudInventoryAttributeAllowlist.filter(attributes)
+	if len(got) != 12 {
+		t.Fatalf("allowlisted attributes = %d, want 12: %#v", len(got), got)
+	}
+	for _, key := range []string{
+		"task_definition_arn", "image_uri", "resolved_image_uri", "code_sha256",
+		"package_type", "version", "platform_version", "release_version",
+		"addon_version", "ami_id", "runtime",
+	} {
+		if got[key] != attributes[key] {
+			t.Fatalf("%s = %#v, want %#v", key, got[key], attributes[key])
+		}
+	}
+	wantContainers := []map[string]any{{
+		"image": "example.invalid/demo:1", "image_digest": "sha256:0001",
+	}}
+	if !reflect.DeepEqual(got["containers"], wantContainers) {
+		t.Fatalf("containers = %#v, want %#v", got["containers"], wantContainers)
+	}
+	if _, present := got["secret"]; present {
+		t.Fatal("unknown secret attribute surfaced")
+	}
+}
+
+// TestCloudInventoryAttributeAllowlistCapsAt64 ensures a future larger
+// allowlist cannot exceed the existing output-key safety bound.
+func TestCloudInventoryAttributeAllowlistCapsAt64(t *testing.T) {
+	t.Parallel()
+
+	allow := cloudInventoryAttributeAllowlist{scalarKeys: make(map[string]struct{})}
+	attributes := make(map[string]any)
+	for i := 0; i < maxCloudInventoryAttributeKeys+1; i++ {
+		key := fmt.Sprintf("safe_%d", i)
+		allow.scalarKeys[key] = struct{}{}
+		attributes[key] = "value"
+	}
+	if got := allow.filter(attributes); len(got) != maxCloudInventoryAttributeKeys {
+		t.Fatalf("allowlisted attributes = %d, want cap %d", len(got), maxCloudInventoryAttributeKeys)
 	}
 }
 
