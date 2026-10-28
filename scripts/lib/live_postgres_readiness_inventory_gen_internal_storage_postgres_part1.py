@@ -132,7 +132,9 @@ TABLE = {
         ),
         "go/internal/storage/postgres/content_writer_metadata_only_hot_live_test.go": (
             "TestContentWriterMetadataOnlyRewriteIsHOTLive",
-            "TestContentWriterMetadataOnlySavesWalWallLive",
+            "TestContentWriterUnobservedRewriteIsHOTLive",
+            "TestContentWriterUnchangedReplayStaysHOTLive",
+            "TestContentWriterObservedAndUnobservedRewriteAlikeLive",
             "TestContentWriterMetadataOnlyConcurrentNoTornRowsLive",
         ),
         "go/internal/storage/postgres/content_writer_metadata_only_redarm_live_test.go": (
