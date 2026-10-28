@@ -86,6 +86,7 @@ var lockstepDocsPaths = []string{
 	"go/cmd/audit-preflight/testdata/graphify-foundation-exists.md",
 	"go/cmd/audit-preflight/testdata/incomplete.md",
 	"go/cmd/ifa/README.md",
+	"go/cmd/scanner-worker/EXTRACTION_PREP.md",
 	"go/internal/ask/catalog/README.md",
 	"go/internal/cli/demo/README.md",
 	"go/internal/cli/hookpreflight/AGENTS.md",
