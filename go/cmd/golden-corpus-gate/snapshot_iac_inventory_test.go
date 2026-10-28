@@ -54,17 +54,20 @@ func TestGoldenSnapshotIaCInventoryRequiresCurrentSummary(t *testing.T) {
 	// a resource, #5954 by adding a module. With both fixtures staged the
 	// totals compose rather than collide: 15 resources + 7 modules +
 	// 2 data-sources = 24.
+	// Issue #9307 adds one aws_ecs_service resource block in the
+	// deployable-source fixture. It raises resource and count to 16 and
+	// total to 25; module and data-source counts stay at 7 and 2.
 	//
 	// summary.by_kind.module and summary.by_kind.data-source are pinned
-	// (PR #6037 review round 3, copilot) because total=24/resource=15 fixes
+	// (PR #6037 review round 3, copilot) because total=25/resource=16 fixes
 	// their sum at 9 but not the split, so without them a regression could
 	// shift a count from module to data-source and still pass -- see
 	// testdata/golden/e2e-20repo-snapshot.json's own required_json_values
 	// comment on this same query shape for the full derivation of all five.
 	for path, want := range map[string]any{
-		"count":                       float64(15),
-		"summary.total":               float64(24),
-		"summary.by_kind.resource":    float64(15),
+		"count":                       float64(16),
+		"summary.total":               float64(25),
+		"summary.by_kind.resource":    float64(16),
 		"summary.by_kind.module":      float64(7),
 		"summary.by_kind.data-source": float64(2),
 	} {
