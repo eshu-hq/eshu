@@ -214,7 +214,7 @@ coverage:
   # around: ack_barrier blocks the queue ACK itself via a BEFORE UPDATE
   # trigger on fact_work_items holding an advisory lock from a separate
   # session, so handler width no longer matters -- see the header block above
-  # and docs/internal/evidence/5998-rationale-relative-path.md. The fault
+  # and go/internal/ifa/testdata/5998-rationale-relative-path.md. The fault
   # dimension below is real, unwaived coverage for BOTH the reclaim
   # (ack_barrier kill-worker) and injected graph-write failure cells;
   # documentation_edges has no remaining named gap for mid-handler

@@ -105,7 +105,7 @@ mutated or removed row silently changes what every existing citation to it
 means.
 
 A claim may instead cite the workflow run that recorded it with an
-`artifact:<run-id>/<artifact-name>` token (or a full Actions run URL) on the
+`artifact:<run-id>/<artifact-name>` token (or a run URL inside the token, `artifact:https://…`) on the
 same line — for example `0/210 trials (artifact:39421484741/deadlock-matrix)`.
 The gate checks the pointer is present and namespaced; the reviewer verifies
 the run holds the figure. Use this while run outputs live as workflow
