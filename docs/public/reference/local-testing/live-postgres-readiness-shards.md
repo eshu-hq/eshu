@@ -1,9 +1,10 @@
 # Live PostgreSQL readiness shards
 
 The `live-postgres-readiness` workflow runs the enrolled PostgreSQL proofs in
-four parallel jobs while only the v1 weights file is present. A later standalone
-v2 weights file activates five jobs through the same workflow. Each job keeps
-the 30-minute cap (1800 s). This page explains the cut and calibration.
+five parallel jobs, cut from `specs/live-postgres-readiness-weights.v2.json`
+(present since #9240). The four-job v1 cut is the fallback, used only when the
+v2 file is absent. Each job keeps the 30-minute cap (1800 s). This page
+explains the cut and calibration.
 
 ## How the cut works
 
@@ -59,7 +60,19 @@ bounds do not guarantee an observed 1800 s wall time.
 ## Gates
 
 `python3 scripts/test-live-postgres-readiness-shards.py` runs in the hermetic
-job and fails when:
+job. The budget, drift, seeded-overflow, and appended-tail cases
+(`scripts/lib/live_postgres_readiness_weights_budget_cases.py`) load the
+model the way the workflow's `matrix` step does: the committed default path,
+v2 and five shards when the v2 file is present, v1 and four shards only when
+it is absent. Their first case fails if the contract's model or shard count
+differs from the `matrix` output or from the committed v2 `shard_count`. Before
+#9100 these cases ran on the v1 four-shard cut while CI ran five shards: the
+seeded case scored 1439.9 s against the 1440 s budget, and one more 25 s
+seed failed it at 1441.6 s. The five-shard cut scores the same two plans at
+1356.0 s and 1359.9 s. The
+v1 cut mechanics (fixed-plan balance, cut cache, malformed files, union
+under changed weights) stay in `live_postgres_readiness_balance_cases.py`.
+The suite fails when:
 
 - any shard's predicted job seconds pass 80% of the 1800 s cap (1440 s). Adding
   tests without refreshing the weights is caught here once the defaults stop
@@ -107,15 +120,16 @@ job and fails when:
 
 ## Move to five shards
 
-This infrastructure change keeps `specs/live-postgres-readiness-weights.v2.json`
-absent. The default matrix therefore remains exactly `1/4` through `4/4`; the
-plan job computes it from the same checkout used by the runner and aggregate.
+The move landed in #9240: `specs/live-postgres-readiness-weights.v2.json` is
+present, so the default matrix is `1/5` through `5/5`. The plan job computes it
+from the same checkout used by the runner and aggregate. Without the v2 file
+the matrix falls back to `1/4` through `4/4`.
 A malformed present v2 file fails the plan and the selected aggregate; it never
 falls back to v1. A present valid v2 file changes all five check names to `/5`
 and requires five matching reports. The selected aggregate fails if the plan,
 a shard, or report selection fails.
 
-After the final Phase A code and this infrastructure merge, collect at least two
+To produce a v2 file (the first one, or a refit), collect at least two
 complete, successful `main` workflow runs with the same inventory, profile,
 image, toolchain, and proof boundaries. Save every shard job's metadata and log.
 Use the v2 refresher with both runs and an output outside the repository:

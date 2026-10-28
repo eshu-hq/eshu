@@ -264,7 +264,7 @@ to select workflows and gates on the exact head:
   depends on `changes` and fails if `changes` did not, since GitHub marks a job
   `skipped` (not `failed`) when a dependency fails. The sharded live-PostgreSQL
   readiness lane (`live-postgres-readiness.yml`, `blocking: false` in the
-  registry) is also path-selected and cuts its four shards by predicted seconds
+  registry) is also path-selected and cuts its five shards by predicted seconds
   ([readiness shards](local-testing/live-postgres-readiness-shards.md)).
 - **Trusted blocking-gate aggregate:** the manifest also declares
   `required-gates-complete`. A `workflow_run` publisher executes the policy from

@@ -3,8 +3,10 @@
 
 Partitioning itself is exercised on synthetic flat plans; every TSV-level
 check runs against the live `list-packages` output, so enrollment changes
-cannot stale these tests. The time-balance, budget-gate, and weights-refresh
-cases live in `lib/live_postgres_readiness_balance_cases.py` and run here too.
+cannot stale these tests. The v1 time-balance and weights-refresh cases live
+in `lib/live_postgres_readiness_balance_cases.py`; the budget and drift gates
+on the model CI cuts live in `lib/live_postgres_readiness_weights_budget_cases.py`.
+Both run here too.
 """
 
 from __future__ import annotations
@@ -31,6 +33,8 @@ from live_postgres_readiness_balance_cases import (  # noqa: E402,F401
     BalanceContractTest, RefreshTest)
 from live_postgres_readiness_v2_cases import (  # noqa: E402,F401
     ActiveDefaultTest, V2ModelTest, V2ReportTest)
+from live_postgres_readiness_weights_budget_cases import (  # noqa: E402,F401
+    ActiveBudgetContractTest)
 import live_postgres_readiness_row_split as row_split  # noqa: E402
 import live_postgres_readiness_weights as wt  # noqa: E402
 
