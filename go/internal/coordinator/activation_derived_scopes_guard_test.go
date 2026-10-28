@@ -96,9 +96,15 @@ func TestActivationDerivedScopesRefuseHostScopeKindMismatch(t *testing.T) {
 			service := testVulnerabilityActivationService(t, now, instance, store, reader, `{"mode":"broad"}`)
 			service.Logger = slog.New(slog.NewJSONHandler(&logs, nil))
 
-			err := runCancelledReconcile(t, service)
+			// Service.Run refuses this host at Config.Validate now; the
+			// hook's own refusal is the backstop for a stale durable row.
+			err := service.scheduleComponentExtensionWork(context.Background(), now, []workflow.CollectorInstance{instance})
 			if err == nil || !strings.Contains(err.Error(), "must both be \"vulnerability_intelligence\"") {
-				t.Fatalf("Run() error = %v, want host scope kind/source system refusal", err)
+				t.Fatalf("scheduleComponentExtensionWork() error = %v, want host scope kind/source system refusal", err)
+			}
+			if runErr := runCancelledReconcile(t, service); runErr == nil ||
+				!strings.Contains(runErr.Error(), "must both be \"vulnerability_intelligence\"") {
+				t.Fatalf("Run() error = %v, want the startup refusal", runErr)
 			}
 			if got := len(reader.requests); got != 0 {
 				t.Fatalf("owned target reads = %d, want 0 after refusal", got)

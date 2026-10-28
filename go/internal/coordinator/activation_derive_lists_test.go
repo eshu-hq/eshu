@@ -5,6 +5,7 @@ package coordinator
 
 import (
 	"bytes"
+	"context"
 	"log/slog"
 	"strings"
 	"testing"
@@ -15,8 +16,10 @@ import (
 
 // TestActivationDerivedScopesRequireExplicitLists covers #9311 ruling option C
 // cases (a) and (b): a vulnerability activation whose enabled core derive
-// section leaves sources or ecosystems blank fails its reconcile before any
-// read, with a value-free ERROR log that names the section and list. The
+// section leaves sources or ecosystems blank is refused by the reconcile hook
+// (the backstop behind the startup check) before any read, with a value-free
+// ERROR log that names the section and list, and Service.Run refuses it at
+// startup. The
 // collector resolves derived scopes against the union of its sections and
 // defaults only an empty union, so a per-section host default would plan
 // scopes it refuses.
@@ -55,10 +58,15 @@ func TestActivationDerivedScopesRequireExplicitLists(t *testing.T) {
 			service.OSPackageAdvisoryTargetReader = osReader
 			service.Logger = slog.New(slog.NewJSONHandler(&logs, nil))
 
-			err := runCancelledReconcile(t, service)
+			// Service.Run refuses this block at Config.Validate now; the
+			// hook's own refusal is the backstop for a stale durable row.
+			err := service.scheduleComponentExtensionWork(context.Background(), now, []workflow.CollectorInstance{instance})
 			want := tc.section + "." + tc.list + ": an activation must list " + tc.list + " explicitly"
 			if err == nil || !strings.Contains(err.Error(), want) {
-				t.Fatalf("Run() error = %v, want %q", err, want)
+				t.Fatalf("scheduleComponentExtensionWork() error = %v, want %q", err, want)
+			}
+			if runErr := runCancelledReconcile(t, service); runErr == nil || !strings.Contains(runErr.Error(), want) {
+				t.Fatalf("Run() error = %v, want the startup refusal %q", runErr, want)
 			}
 			if got := len(ownedReader.requests) + len(osReader.requests); got != 0 {
 				t.Fatalf("derived target reads = %d, want 0 after the refusal", got)

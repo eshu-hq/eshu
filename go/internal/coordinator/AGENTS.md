@@ -258,8 +258,12 @@ because schedulers stop at the first error. One predicate enforces it:
   source system that is not `vulnerability_intelligence` or a derive section
   with blank `sources`/`ecosystems` (`reason=derive_lists_not_explicit`). Both
   refusals live in one pure function, `checkActivationDerivation`.
-  `componentActivationRuntimeConfig` calls it so an invalid block is a
-  `LoadConfig` error before any durable write; the hook calls it again as a
+  `componentActivationRuntimeConfig` (registry activations) and
+  `Config.Validate` (every desired instance, through
+  `checkActivationDocumentDerivation`, which covers a static
+  `ESHU_COLLECTOR_INSTANCES_JSON` activation document) call it, so an invalid
+  block is a `LoadConfig` error before any durable write on both config
+  paths; the hook calls it again as a
   backstop, and like every reconcile error a refusal there stops the
   coordinator (`runReconcile` returns, `Service.Run` exits). Keep the rules in
   that function; do not fork them per caller. The hook reads targets

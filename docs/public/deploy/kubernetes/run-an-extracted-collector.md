@@ -118,7 +118,7 @@ Every entry needs its own `instanceId`.
 | `mode` | no | Activation mode, default `scheduled`. Claims are always enabled. |
 | `seed.image` | yes | Release image pinned by digest alone: `repository@sha256:<64 hex>`. A tag is rejected, even next to a digest, because the seed command's `--image-ref` would carry the tag. A registry port is fine (`registry.example:5000/org/name@sha256:...`). |
 | `seed.pullPolicy`, `seed.command` | no | Pull policy (default `IfNotPresent`) and seed entrypoint (default `["/collector", "seed"]`). |
-| `host.sourceSystem`, `host.scope.id`, `host.scope.kind` | yes | Claim identity the coordinator copies into planned work. An activation plans exactly one scope, its `host.scope.id`; component configuration that names other scopes is never collected, so run one activation per scope. |
+| `host.sourceSystem`, `host.scope.id`, `host.scope.kind` | yes | Claim identity the coordinator copies into planned work. An activation plans exactly one host scope, its `host.scope.id`, and a `vulnerability_intelligence` activation also plans the derived OSV scopes described in "Derived OSV Scopes". Other component configuration that names scopes is still never collected, so run one activation per host scope. |
 | `process.args`, `process.env`, `process.stdoutLimitBytes`, `process.stderrLimitBytes` | no | How the worker starts the binary. The chart sets the command itself. The worker reads 4 MiB of collector output by default; raise `stdoutLimitBytes` for a collector that emits more (for example 33554432 for 32 MiB, 67108864 for 64 MiB). |
 | `claimLeaseTTL`, `heartbeatInterval`, `pollInterval` | no | Per-worker claim timing. Each overrides the value of the same name under `componentExtensionCollector`. Durations use `h`, `m` and `s` (`pollInterval` also accepts `ms`). The heartbeat must be less than the lease. See "Set The Claim Lease". |
 | `config` | no | Non-secret collector settings, passed to the collector as its config block. For a core collector kind with host-planned derived scopes, today `vulnerability_intelligence`, the coordinator also reads that kind's derive sections from this block (see "Derived OSV Scopes"); the block is still passed to the collector verbatim. |
@@ -175,8 +175,10 @@ one claim per derived OSV scope, the same way it does for an in-tree instance
   `ecosystems`, `planning_mode`, `target_limit`), with the same validation and
   error text, plus the explicit-list rule below. The coordinator checks the
   block when it loads its configuration, so an invalid value is a startup
-  error, raised before any durable write. Unknown keys are ignored, as they are
-  in-tree and in the collector.
+  error, raised before any durable write. That holds for an activation read
+  from the component registry and for an activation document passed through
+  `ESHU_COLLECTOR_INSTANCES_JSON`, enabled or not. Unknown keys are ignored, as
+  they are in-tree and in the collector.
 - `target_limit` (default 100, at most 5000) and `planning_mode` (`rotating` or
   `single_pass`) are host-only: the coordinator applies them, and collector
   v0.1.0 ignores them. Rotation buckets on the coordinator's reconcile interval,

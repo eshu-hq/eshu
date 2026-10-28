@@ -176,10 +176,33 @@ func (e activationHostMismatchError) Error() string {
 		e.SourceSystem, e.ScopeKind, scope.CollectorVulnerabilityIntelligence)
 }
 
+// checkActivationDocumentDerivation applies [checkActivationDerivation] to a
+// desired instance's raw configuration. Config.Validate calls it for every
+// instance, so an activation document that arrives through
+// ESHU_COLLECTOR_INSTANCES_JSON fails startup the same way a registry
+// activation does, and so does a disabled one, like an in-tree instance with a
+// bad derive config. A configuration that is not an activation document, or a
+// malformed one, returns nil here: in-tree validators own the first, and the
+// generic planner reports the second at reconcile (#8919).
+func checkActivationDocumentDerivation(kind scope.CollectorKind, configuration string) error {
+	if !activationCarriesComponentConfig(kind) {
+		return nil
+	}
+	config, ok, err := activation.ParseConfig(configuration)
+	if err != nil || !ok {
+		return nil
+	}
+	_, err = checkActivationDerivation(kind, config)
+	return err
+}
+
 // checkActivationDerivation is the one rule set for an activation's derive
-// block. Coordinator startup (componentActivationRuntimeConfig) calls it so a
-// refused block fails LoadConfig before any durable write, and the reconcile
-// hook calls it again as a backstop for a stale durable row. A kind without
+// block. Coordinator startup calls it twice: componentActivationRuntimeConfig
+// for a registry activation and Config.Validate (through
+// [checkActivationDocumentDerivation]) for every desired instance, including a
+// static ESHU_COLLECTOR_INSTANCES_JSON one, so a refused block fails LoadConfig
+// before any durable write. The reconcile hook calls it again as a backstop
+// for a stale durable row. A kind without
 // host-planned derived scopes returns a zero derivation and no error. For
 // vulnerability_intelligence it returns the decoded derivation, or the error
 // from [vulnerability.ActivationDerivationFromConfig] (an invalid value, or
