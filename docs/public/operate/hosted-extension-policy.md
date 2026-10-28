@@ -48,6 +48,18 @@ Use bounded reason classes in tickets and runbooks:
 `isolation_profile_denied`, `tenant_scope_denied`, and
 `claim_capability_denied`.
 
+An extension may refine a failure class with one dot-separated sub-reason,
+`<class>.<reason>`, for example `invalid_config.target_scope_mismatch`. The SDK
+status has no free-text field, so this token is the only way an extension names
+a reason. The whole token is the failure class: Eshu records it verbatim in
+`failure_class` metric labels, the `component extension result` log, and the
+claim's `last_failure_class` and `last_failure_message`. The reason uses only
+lowercase letters, digits, and underscores, and the full token stays within 96
+characters. To group by the base class, use the segment before the first dot.
+A dashboard or alert that matches `failure_class="invalid_config"` exactly
+must match the prefix instead (`invalid_config(\..*)?`), because a refined
+class no longer equals the base class.
+
 ## Revocation Behavior
 
 Revocation must stop new work without requiring operators to delete package

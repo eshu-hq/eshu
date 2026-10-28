@@ -170,6 +170,34 @@ func TestComponentExtensionStatusRecorderBoundsLabels(t *testing.T) {
 	}
 }
 
+// TestComponentExtensionStatusRecorderAdmitsRefinedFailureClass pins that a
+// collector-refined "<class>.<reason>" token is a legal label: it is admitted
+// as its own series on the result and status instruments, not folded to
+// other (eshu-hq/eshu#9289). A malformed refinement still folds.
+func TestComponentExtensionStatusRecorderAdmitsRefinedFailureClass(t *testing.T) {
+	t.Parallel()
+
+	recorder, reader := newExtensionStatusRecorder(t)
+	ctx := context.Background()
+	const class = "invalid_config.target_scope_mismatch"
+	recorder.RecordResult(ctx, "security_alert", "terminal", class, 0)
+	recorder.RecordStatus(ctx, "security_alert", "terminal", "failure", class, 0, 0, 0)
+	recorder.RecordResult(ctx, "security_alert", "terminal", "invalid_config.Bad Reason", 0)
+
+	metrics := collectExtension(t, reader)
+	results := sumByAttrs(t, metrics[contract.MetricComponentExtensionResults])
+	if got := results["collector_kind=security_alert,failure_class="+class+",state=terminal,"]; got != 1 {
+		t.Fatalf("results = %v, want the refined class admitted as its own label", results)
+	}
+	if got := results["collector_kind=security_alert,failure_class=other,state=terminal,"]; got != 1 {
+		t.Fatalf("results = %v, want the malformed refinement folded to other", results)
+	}
+	statuses := sumByAttrs(t, metrics[contract.MetricComponentExtensionStatusRecords])
+	if got := statuses["collector_kind=security_alert,failure_class="+class+",state=terminal,status_class=failure,"]; got != 1 {
+		t.Fatalf("status records = %v, want the refined class admitted", statuses)
+	}
+}
+
 // TestComponentExtensionStatusRecorderNilSafe proves a recorder built without
 // instruments, and a nil recorder, record nothing and do not panic.
 func TestComponentExtensionStatusRecorderNilSafe(t *testing.T) {

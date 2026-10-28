@@ -202,3 +202,56 @@ func TestClaimedServiceBudgetExhaustedKeepsCarriedClass(t *testing.T) {
 		t.Fatalf("FailureStatusCode = %d, want 429", got.FailureStatusCode)
 	}
 }
+
+// refinedClassFailure is a claim failure whose class is a collector-refined
+// "<class>.<reason>" token, the shape an extracted collector reports through
+// the extension host (eshu-hq/eshu#9289).
+type refinedClassFailure struct{ class string }
+
+func (e refinedClassFailure) Error() string {
+	return "collector extension failure: " + e.class + ": extension requested terminal result"
+}
+func (e refinedClassFailure) FailureClass() string  { return e.class }
+func (e refinedClassFailure) TerminalFailure() bool { return true }
+
+// TestClaimedServiceTerminalFailurePersistsRefinedClassVerbatim pins that the
+// dot in a refined failure class survives into the persisted claim mutation:
+// the class column and message are not sanitized, only the operation token is.
+// Extension collectors depend on this to surface a reason such as
+// invalid_config.target_scope_mismatch in last_failure_class and
+// last_failure_message without a host-side mapping.
+func TestClaimedServiceTerminalFailurePersistsRefinedClassVerbatim(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	now := time.Date(2026, time.October, 27, 12, 0, 0, 0, time.UTC)
+	item := testClaimedWorkItem(now)
+	claim := testWorkflowClaim(item.WorkItemID, now)
+	store := &stubClaimStore{
+		item:  item,
+		claim: claim,
+		found: true,
+		terminalFail: func(context.Context, workflow.ClaimMutation) error {
+			cancel()
+			return nil
+		},
+	}
+	const class = "invalid_config.target_scope_mismatch"
+	source := &stubClaimedSource{err: refinedClassFailure{class: class}}
+	service := testClaimedService(now, claim, scope.CollectorGit, store, source, &stubClaimedCommitter{})
+
+	if err := service.Run(ctx); err != nil {
+		t.Fatalf("Run() error = %v, want nil after terminal claim failure", err)
+	}
+	got := store.lastTerminalFail
+	if got.FailureClass != class {
+		t.Fatalf("FailureClass = %q, want %q verbatim", got.FailureClass, class)
+	}
+	if !strings.Contains(got.FailureMessage, class) {
+		t.Fatalf("FailureMessage = %q, want it to contain %q", got.FailureMessage, class)
+	}
+	if !got.FailureTerminal {
+		t.Fatal("FailureTerminal = false, want true")
+	}
+}
