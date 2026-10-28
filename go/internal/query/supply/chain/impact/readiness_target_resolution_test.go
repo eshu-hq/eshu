@@ -99,6 +99,45 @@ func TestIntersectReadinessTargetPackagesDropsNonIntersectingID(t *testing.T) {
 	}
 }
 
+func TestMergeReadinessTargetPackageKeepsUnionOfKeys(t *testing.T) {
+	t.Parallel()
+
+	existing := readinessTargetPackage{
+		packageID: "npm://registry.npmjs.org/lodash",
+		keys: []readinessTargetKey{{
+			packageID: "npm://registry.npmjs.org/lodash",
+			key:       packageidentity.ConsumptionKey{Ecosystem: packageidentity.EcosystemNPM, PackageName: "lodash"},
+		}},
+	}
+	candidate := readinessTargetPackage{
+		packageID: "npm://registry.npmjs.org/lodash",
+		keys: []readinessTargetKey{{
+			packageID: "npm://registry.npmjs.org/lodash",
+			key:       packageidentity.ConsumptionKey{Ecosystem: packageidentity.EcosystemNPM, PackageName: "lodash.js"},
+		}},
+	}
+	merged := mergeReadinessTargetPackage(existing, candidate)
+	if len(merged.keys) != 2 {
+		t.Fatalf("merged keys = %#v, want both aliases", merged.keys)
+	}
+	if got := mergeReadinessTargetPackage(readinessTargetPackage{}, candidate); got.packageID != candidate.packageID {
+		t.Errorf("empty existing must yield the candidate: %#v", got)
+	}
+}
+
+func TestReadinessTargetPackageFromKeysSkipsBlankKeys(t *testing.T) {
+	t.Parallel()
+
+	got := readinessTargetPackageFromKeys("pkg", []packageidentity.ConsumptionKey{
+		{Ecosystem: packageidentity.EcosystemNPM, PackageName: "lodash"},
+		{Ecosystem: packageidentity.EcosystemNPM, PackageName: "lodash"},
+		{Ecosystem: "", PackageName: "blank"},
+	}, true)
+	if len(got.keys) != 1 || !got.keys[0].parserTrusted {
+		t.Fatalf("keys = %#v, want one trusted deduplicated key", got.keys)
+	}
+}
+
 func TestResolveReadinessTargetPackageUsesPURLCanonicalIdentity(t *testing.T) {
 	t.Parallel()
 
