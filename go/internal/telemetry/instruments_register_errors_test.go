@@ -108,6 +108,8 @@ func TestRegisterInstrumentsFailLoud(t *testing.T) {
 		{"config_artifact_read", func(m metric.Meter) error { return registerConfigArtifactReadInstruments(m, &Instruments{}) }},
 		{"content_store_policy", func(m metric.Meter) error { return registerContentStorePolicyInstruments(m, &Instruments{}) }},
 		{"deferred_backfill_block", func(m metric.Meter) error { return registerDeferredBackfillBlockInstruments(m, &Instruments{}) }},
+		{"vulnerability_source_state", func(m metric.Meter) error { return registerVulnerabilitySourceStateInstruments(m, &Instruments{}) }},
+		{"claim_commit_observer", func(m metric.Meter) error { return registerClaimCommitObserverInstruments(m, &Instruments{}) }},
 		{"deferred_backfill_targeted", func(m metric.Meter) error { return registerDeferredBackfillTargeted(m, &Instruments{}) }},
 		{"delta_baseline_fence", func(m metric.Meter) error { return registerProjectorDeltaBaselineFence(m, &Instruments{}) }},
 		{"delta_touched_ratio", func(m metric.Meter) error { return registerCollectorDeltaTouchedRatio(m, &Instruments{}) }},

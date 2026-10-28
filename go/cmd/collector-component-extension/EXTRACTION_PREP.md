@@ -47,7 +47,7 @@ binary selects one trusted claim-capable activation and serves claims.
 | `oci.go:42,119` | digest-pinned OCI runner (`@sha256:<64 hex>` required, floating tags rejected); `--network none`, `--read-only`, non-root user, `--cap-drop ALL`, `no-new-privileges`; host env never forwarded; no datastore/graph handles | `OCIRunner` |
 | `oci.go:168` | shared strict result decoder: `UseNumber`, `DisallowUnknownFields`, trailing-JSON rejection (`#8936` numeric fidelity) | `decodeSDKResult` |
 | `mapping.go:53` | validated SDK facts mapped to envelopes, deduplicated by kind + stable key | `envelopesForResult` |
-| `failure.go` | failure taxonomy: `invalid_claim`, `invalid_result`, `identity_mismatch`, `launch_failure`, `status_record` | failure classes |
+| `failure.go`, `claim_outcome.go` | failure taxonomy: `invalid_claim`, `invalid_result`, `identity_mismatch`, `launch_failure`, `status_record`; `claim_outcome.go` adds `source_state_record` (#9420) | failure classes |
 | `grant_decision.go` (in `component/`) | deny reasons `revoked`, `expired`, `grants_unreadable` | `GrantReason*` |
 
 ### Library: `go/internal/component/` (trust + authority; moves with the host)

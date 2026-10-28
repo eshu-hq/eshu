@@ -172,6 +172,14 @@ only their package qualifier changed).
 
 ## Gotchas / invariants
 
+- The `vulnerability_source_state_candidates` CTE counts only rows whose
+  collector instance is enabled and not deactivated (#9420), filtered before
+  its `LIMIT 200`. A retired instance's rows stop updating, so without the
+  filter its last `fresh` rows kept a target ready after the in-tree
+  collector was cut over. `TestReadinessSourceScopeTableAgreesWithSharedSourceParser`
+  keeps the scope-id to source table in step with `vulnsource.SourceForScopeID`.
+  QA read replica EXPLAIN (576 rows): the `vulnerability_source_states` seq scan
+  is unchanged; a hash join on the 30-row `collector_instances` table is added.
 - Do not import root package `query`. Root's
   `compat_supply_chain.go` already imports this package, so the
   reverse import cycles.

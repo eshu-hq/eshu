@@ -284,6 +284,16 @@ vulnerability_source_state_candidates AS (
                AND target.ecosystem = NULLIF(LOWER(TRIM(state.ecosystem)), '')
            )
     )
+      -- #9420: only rows of a live collector instance count. A retired
+      -- instance's rows stop updating, so their last state would read as
+      -- current forever.
+      AND EXISTS (
+          SELECT 1
+          FROM collector_instances AS instance
+          WHERE instance.instance_id = state.collector_instance_id
+            AND instance.enabled
+            AND instance.deactivated_at IS NULL
+      )
     ORDER BY CASE WHEN scope_id IN ($9, $10, $11, $12, $14) THEN 0 ELSE 1 END,
         updated_at DESC,
         source ASC,

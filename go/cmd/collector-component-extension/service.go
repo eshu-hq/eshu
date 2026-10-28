@@ -97,6 +97,12 @@ func buildClaimedService(
 	if err != nil {
 		return collector.ClaimedService{}, err
 	}
+	outcomeRecorder, err := sourceStateRecorder(
+		config.CollectorKind, database, config.Instance.InstanceID, config.PollInterval, instruments, logger,
+	)
+	if err != nil {
+		return collector.ClaimedService{}, err
+	}
 	source, err := extensionhost.NewSource(extensionhost.Config{
 		Manifest:            config.Manifest,
 		CollectorInstanceID: config.Instance.InstanceID,
@@ -124,6 +130,10 @@ func buildClaimedService(
 		LiveGrants: func() ([]component.ProducerGrant, error) {
 			return component.NewRegistry(grantHome).ProducerGrants()
 		},
+		// ClaimOutcomeRecorder writes vulnerability_source_states from claim
+		// outcomes for the vulnerability_intelligence kind only (#9420); it
+		// is nil for every other kind.
+		ClaimOutcomeRecorder: outcomeRecorder,
 	})
 	if err != nil {
 		return collector.ClaimedService{}, err

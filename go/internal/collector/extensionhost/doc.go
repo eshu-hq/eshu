@@ -45,4 +45,12 @@
 // boundary, never the App private key. A mint denial fails the claim terminal
 // with a bounded auth_denied failure before the runner launches, while a
 // transient mint fault stays retryable.
+//
+// When Config.ClaimOutcomeRecorder is set, the Source reports one
+// ClaimOutcome per claim on every exit path and, for a completed claim, the
+// same outcome again from ObserveClaimedGenerationCommitted once
+// ClaimedService has durably committed or resolved the generation (#9420).
+// The vulnerability-intelligence host uses it to write
+// vulnerability_source_states; an attempt-row write error fails the claim
+// retryable with FailureClassSourceStateRecord.
 package extensionhost

@@ -142,10 +142,11 @@ optional `ResultRecorder` interface, so `Source.NextClaimed` reports exactly
 one `ResultRecord` per call on every exit path: SDK results (`complete`,
 `unchanged`, `partial`, `retryable`, `terminal`) with summed status counts, and
 host verdicts (`invalid_claim`, `launch_failure`, `invalid_result`,
-`identity_mismatch`, `status_record`) with the host failure class and the state
-`ClaimedService` applies. Host verdicts carry no status counts because an
-unvalidated result's statuses are not trusted. `ResultRecord` holds no scope,
-instance, work item, generation, or URL value by construction.
+`identity_mismatch`, `status_record`, `source_state_record`) with the host
+failure class and the state `ClaimedService` applies. Host verdicts carry no
+status counts because an unvalidated result's statuses are not trusted.
+`ResultRecord` holds no scope, instance, work item, generation, or URL value by
+construction.
 
 Signals (labels `collector_kind`, `state`, `status_class`, `failure_class`
 only; see [Telemetry Metrics](../../../../docs/public/reference/telemetry/metrics.md)):
@@ -312,3 +313,28 @@ span, log, or status of its own. Operator signals are unchanged: claim
 failure classes, bounded SDK statuses, and existing collector fact evidence.
 A satellite missing an expected variable fails through its own existing
 result and error path, not a new one.
+
+## Claim outcomes and host-owned source state (#9420)
+
+`Config.ClaimOutcomeRecorder` is an optional seam for durable state the host
+owns on behalf of an extension; the extension never sees it, so no storage
+handle crosses the stdio boundary. `cmd/collector-component-extension` sets it
+only for the `vulnerability_intelligence` kind
+(`collector/vulnerabilityintelligence/checkpoint`, which writes
+`vulnerability_source_states`); every other kind leaves it nil.
+
+- `NextClaimed` calls `RecordClaimOutcome` exactly once on every exit path,
+  after the outcome is decided and before the `ResultRecord`, with a
+  `ClaimOutcome` that carries the work item, origin, state, failure class,
+  terminal flag, capped retry request, partial flag, fact and warning counts,
+  the host attempt time, and the generation's observed time.
+- A completed outcome (`complete`, `unchanged`, `partial`) is stashed by work
+  item id. `Source.ObserveClaimedGenerationCommitted`
+  (`collector.ClaimedGenerationCommitObserver`) hands it to
+  `RecordClaimCommitted` after `ClaimedService` commits the generation, or
+  resolves an unchanged one. The stash is cleared on every `NextClaimed` exit
+  for the item and capped at 256 entries (oldest attempt evicted).
+- An attempt-row error on a completed outcome fails the claim retryable with
+  `source_state_record`; an error on a failed outcome is joined to the claim
+  error and never changes its class or terminality; a post-commit error is
+  non-fatal.

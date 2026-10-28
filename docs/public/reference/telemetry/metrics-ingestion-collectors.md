@@ -200,13 +200,18 @@ artifact paths, and credentials stay out of labels.
 | `eshu_dp_vulnerability_intelligence_facts_emitted_total` | `source`, `fact_kind` | Source fact volume emitted per bounded target. |
 | `eshu_dp_vulnerability_intelligence_rate_limited_total` | `source` | HTTP 429 pressure across OSV, NVD, EPSS, KEV, or mirrors. |
 | `eshu_dp_vulnerability_intelligence_fetch_duration_seconds` | `source`, `result` | Bounded source fetch duration. |
+| `eshu_dp_vulnerability_source_state_stale_writes_skipped_total` | `status`, `result` | Source-state writes the extension host skipped because a newer attempt already owns the row (#9420). Expected under replica overlap; not an error. |
+| `eshu_dp_vulnerability_source_state_write_failures_total` | `status`, `result` | Source-state writes from the extension host that failed in Postgres (#9420). A failed attempt row also fails the claim retryable with `source_state_record`. |
 
 Source URLs, CVE IDs, package names, versions, API keys, and cache paths stay
 out of metric labels. Durable checkpoint and retry details are exposed through
 status/API fields rather than high-cardinality metrics. Successful checkpoint
 writes also add a `vulnerability_intelligence.source_state_checkpoint` event to
 the source observe span with bounded source, ecosystem, freshness, terminal, and
-failure-class attributes.
+failure-class attributes. For an extracted collector the
+`collector-component-extension` host writes the rows (#9420): the same event
+lands on the claim span with an extra `applied` attribute, `status` is the
+`freshness_state` and `result` the `terminal_status`.
 
 ## Security Alert Collector
 

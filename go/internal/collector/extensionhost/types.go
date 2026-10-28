@@ -61,7 +61,7 @@ type StatusRecord struct {
 // ResultRecord per NextClaimed call, for every final state: SDK results
 // (complete, unchanged, partial, retryable, terminal) and host verdicts
 // (invalid claim, launch failure, invalid result, identity mismatch, status
-// record failure). It cannot fail the claim.
+// record failure, source-state record failure). It cannot fail the claim.
 type ResultRecorder interface {
 	RecordExtensionResult(context.Context, ResultRecord)
 }
@@ -146,6 +146,11 @@ type Config struct {
 	// DefaultMaxResultPages; negative fails Source construction. It never
 	// trims facts: breaching it fails the claim terminal naming the bound.
 	MaxResultPages int
+	// ClaimOutcomeRecorder, when set, receives every claim outcome and, for
+	// completed claims, the post-commit confirmation (#9420). The host sets
+	// it only for collector kinds with host-owned source state; nil costs one
+	// nil check per claim.
+	ClaimOutcomeRecorder ClaimOutcomeRecorder
 }
 
 // Source implements collector.ClaimedSource for collector SDK extensions.
@@ -176,4 +181,8 @@ type Source struct {
 	grantObserver component.GrantObserver
 	// maxPages bounds paged reassembly; zero means DefaultMaxResultPages.
 	maxPages int
+	// outcomeRecorder receives claim outcomes; nil disables the seam.
+	outcomeRecorder ClaimOutcomeRecorder
+	// pendingOutcomes holds completed outcomes until the commit hook fires.
+	pendingOutcomes *pendingClaimOutcomes
 }

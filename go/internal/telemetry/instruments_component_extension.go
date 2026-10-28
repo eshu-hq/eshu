@@ -18,7 +18,7 @@ func registerComponentExtensionInstruments(meter metric.Meter, inst *Instruments
 	var err error
 	if inst.ComponentExtensionResults, err = meter.Int64Counter(
 		"eshu_dp_component_extension_results_total",
-		metric.WithDescription("Component-extension claim results by collector_kind, state (complete, unchanged, partial, retryable, terminal), and failure_class, including host verdicts (invalid_claim, launch_failure, invalid_result, identity_mismatch, status_record) (#8908)"),
+		metric.WithDescription("Component-extension claim results by collector_kind, state (complete, unchanged, partial, retryable, terminal), and failure_class, including host verdicts (invalid_claim, launch_failure, invalid_result, identity_mismatch, status_record, source_state_record) (#8908, #9420)"),
 	); err != nil {
 		return fmt.Errorf("register ComponentExtensionResults counter: %w", err)
 	}

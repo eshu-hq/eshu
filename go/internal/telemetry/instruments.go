@@ -1683,6 +1683,13 @@ type Instruments struct {
 	// see that runtime backpressure is working and failed_retryable rows are
 	// no longer unbounded (issue #612).
 	WorkflowClaimAttemptBudgetExhausted metric.Int64Counter
+	// WorkflowClaimCommitObserverFailures counts ClaimedService post-commit
+	// observer hook errors (ClaimedGenerationCommitObserver), labeled by
+	// collector_kind and source_system. The hook runs after a durable commit
+	// or an unchanged-generation resolution (#9420); its error never fails
+	// the claim, so this counter and the claimed_generation_commit_observer_failed
+	// span event are how an operator sees a source's progress state lag.
+	WorkflowClaimCommitObserverFailures metric.Int64Counter
 	// WorkflowClaimRetries counts retryable workflow claim failures that were
 	// re-queued (not yet terminal), labeled by collector_kind, source_system,
 	// and failure_class so an operator can see which collector family is
@@ -2141,6 +2148,15 @@ type Instruments struct {
 	// scope). A server fault, a malformed body, an unconfigured service and a
 	// replay still in flight are not counted; they are on the request span.
 	CollectorTerminalFailureAcknowledgements metric.Int64Counter
+
+	// VulnerabilitySourceStateStaleWritesSkipped and
+	// VulnerabilitySourceStateWriteFailures count the extension host's
+	// vulnerability_source_states writes (#9420): writes the monotonic upsert
+	// skipped, and writes the store failed. Labels are status
+	// (freshness_state) and result (terminal_status). Registered by
+	// registerVulnerabilitySourceStateInstruments.
+	VulnerabilitySourceStateStaleWritesSkipped metric.Int64Counter
+	VulnerabilitySourceStateWriteFailures      metric.Int64Counter
 
 	// RuntimeDeclarationQueryDuration measures the graph reads behind the
 	// runtime declaration read surface (#8817) by closed operation (list,
@@ -6135,6 +6151,12 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	if err := registerCollectorTerminalFailureAcknowledgements(meter, inst); err != nil {
 		return nil, err
 	}
+	if err := registerClaimCommitObserverInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerVulnerabilitySourceStateInstruments(meter, inst); err != nil {
+		return nil, err
+	}
 	if err := registerRuntimeDeclarationQuery(meter, inst); err != nil {
 		return nil, err
 	}
@@ -8756,6 +8778,42 @@ func RegisterFilesByLanguageObservableGauge(inst *Instruments, meter metric.Mete
 	)
 	if err != nil {
 		return fmt.Errorf("register FilesByLanguage gauge: %w", err)
+	}
+	return nil
+}
+
+// registerVulnerabilitySourceStateInstruments registers the #9420
+// host-owned vulnerability source-state counters on inst. Both are labelled
+// by status (freshness_state) and result (terminal_status) only. The names
+// are literals so scripts/verify-telemetry-coverage.sh can find them; they
+// equal contract.MetricVulnerabilitySourceStateStaleWritesSkipped and
+// contract.MetricVulnerabilitySourceStateWriteFailures.
+func registerVulnerabilitySourceStateInstruments(meter metric.Meter, inst *Instruments) error {
+	var err error
+	if inst.VulnerabilitySourceStateStaleWritesSkipped, err = meter.Int64Counter(
+		"eshu_dp_vulnerability_source_state_stale_writes_skipped_total",
+		metric.WithDescription("Vulnerability source-state writes the monotonic upsert skipped because a newer claim attempt already owns the row, by status (freshness_state) and result (terminal_status) (#9420)"),
+	); err != nil {
+		return fmt.Errorf("register VulnerabilitySourceStateStaleWritesSkipped counter: %w", err)
+	}
+	if inst.VulnerabilitySourceStateWriteFailures, err = meter.Int64Counter(
+		"eshu_dp_vulnerability_source_state_write_failures_total",
+		metric.WithDescription("Vulnerability source-state writes that failed in the store, by status (freshness_state) and result (terminal_status) (#9420)"),
+	); err != nil {
+		return fmt.Errorf("register VulnerabilitySourceStateWriteFailures counter: %w", err)
+	}
+	return nil
+}
+
+// registerClaimCommitObserverInstruments registers the ClaimedService
+// post-commit observer failure counter (#9420) on inst.
+func registerClaimCommitObserverInstruments(meter metric.Meter, inst *Instruments) error {
+	var err error
+	if inst.WorkflowClaimCommitObserverFailures, err = meter.Int64Counter(
+		"eshu_dp_workflow_claim_commit_observer_failures_total",
+		metric.WithDescription("ClaimedService post-commit observer hook errors after a durable commit or unchanged resolution; non-fatal to the claim, labeled by collector_kind and source_system (#9420)"),
+	); err != nil {
+		return fmt.Errorf("register WorkflowClaimCommitObserverFailures counter: %w", err)
 	}
 	return nil
 }

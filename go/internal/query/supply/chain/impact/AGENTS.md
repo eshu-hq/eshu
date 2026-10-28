@@ -4,6 +4,10 @@ Read `doc.go` and `README.md` first.
 
 ## Invariants
 
+- The source-state candidates CTE MUST keep its live-instance `EXISTS`
+  filter before `LIMIT 200` (#9420), and its literal scope-id to source pairs
+  MUST parse through `vulnsource.SourceForScopeID` (pinned by
+  `TestReadinessSourceScopeTableAgreesWithSharedSourceParser`).
 - MUST NOT import root package `query`. Root's
   `compat_supply_chain.go` already imports this package for its
   compatibility aliases, so the reverse import cycles. If a change needs

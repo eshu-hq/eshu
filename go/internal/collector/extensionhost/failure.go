@@ -12,6 +12,9 @@ import (
 	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
 )
 
+// Host failure classes. The host also writes FailureClassSourceStateRecord
+// (claim_outcome.go) when a completed claim's source-state attempt row cannot
+// be recorded; status/collector extensionHostFailureClasses lists every one.
 const (
 	// FailureClassInvalidClaim marks corrupt or unsupported host claim input.
 	FailureClassInvalidClaim = "invalid_claim"

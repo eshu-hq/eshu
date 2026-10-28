@@ -279,6 +279,12 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 			}
 			return err
 		}
+		// #9420: an unchanged generation has nothing to commit. The hook
+		// fires after the resolution check and before the heartbeat drain and
+		// CompleteClaim, the same position relative to claim completion as on
+		// the commit path; a lost lease or a failed CompleteClaim therefore
+		// leaves the row written and a re-run rewrites it.
+		s.observeClaimedGenerationCommitted(ctx, item)
 		stopHeartbeat()
 		if err := drainHeartbeatError(heartbeatErr); err != nil {
 			return err
@@ -429,10 +435,7 @@ func (s ClaimedService) startHeartbeatLoop(ctx context.Context, mutation workflo
 // runners that suffered the runaway loop in issue #612 explicitly set a
 // positive budget.
 func (s ClaimedService) attemptBudgetExhausted(item workflow.WorkItem) bool {
-	if s.MaxAttempts <= 0 {
-		return false
-	}
-	return item.AttemptCount >= s.MaxAttempts
+	return ClaimAttemptBudgetExhausted(s.MaxAttempts, item)
 }
 
 func (s ClaimedService) budgetExhaustedError(ctx context.Context, item workflow.WorkItem, cause error) error {

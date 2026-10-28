@@ -11,4 +11,9 @@
 // only from the component's verified manifest artifact). It never gives
 // extensions direct Postgres, graph, reducer, API, MCP, or workflow-control
 // handles.
+//
+// For the vulnerability_intelligence kind the worker owns the extension's
+// durable source state: sourceStateRecorder wires a checkpoint.Recorder that
+// writes vulnerability_source_states from claim outcomes (#9420), because the
+// extension itself has no storage handle.
 package main
