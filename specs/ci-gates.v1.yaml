@@ -125,5 +125,3 @@ non_gate_workflows:
     reason: "daily/manual PostgreSQL live proof enrollment; scheduled verification, not a PR or merge gate pending repeated cost evidence"
   - file: ci-census.yml
     reason: "daily CI cost census telemetry (#8617); reports run counts, cancelled share, and duration percentiles to a job summary, posts no merge-relevant status"
-  - file: publish-ci-tools-oneoff.yml
-    reason: "one-off ci-tools image publisher for the go1.26.10 rebuild (#8693); workflow_dispatch only, deleted before the bump PR merges, not a PR gate"
