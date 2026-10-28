@@ -48,7 +48,7 @@ SELECT stage,
        COALESCE(
          EXTRACT(
            EPOCH FROM (
-             $1 - MIN(created_at)
+             $1 - MIN(COALESCE(reopened_at, created_at))
                FILTER (WHERE status IN ('pending', 'claimed', 'running', 'retrying'))
            )
          ),
@@ -86,7 +86,7 @@ SELECT work.stage,
        COALESCE(
          EXTRACT(
            EPOCH FROM (
-             $1 - MIN(work.created_at)
+             $1 - MIN(COALESCE(work.reopened_at, work.created_at))
                FILTER (WHERE work.status IN ('pending', 'claimed', 'running', 'retrying'))
            )
          ),

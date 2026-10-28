@@ -97,7 +97,7 @@ GROUP BY stage, status`
              EXTRACT(
                EPOCH FROM (
                  $1 - (
-                   MIN(created_at)
+                   MIN(COALESCE(reopened_at, created_at))
                      FILTER (WHERE status IN ('pending', 'claimed', 'running', 'retrying'))
                  )
                )
@@ -192,7 +192,7 @@ HAVING SUM(outstanding_count) + SUM(in_flight_count) + SUM(retrying_count) + SUM
            EXTRACT(
              EPOCH FROM (
                $1 - (
-                 MIN(created_at)
+                 MIN(COALESCE(reopened_at, created_at))
                    FILTER (WHERE status IN ('pending', 'claimed', 'running', 'retrying'))
                )
              )

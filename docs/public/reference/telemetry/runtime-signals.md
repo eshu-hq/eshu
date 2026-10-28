@@ -89,6 +89,17 @@ Start with:
 - `eshu_dp_queue_depth`
 - `eshu_dp_queue_oldest_age_seconds`
 
+The oldest-age signals (`eshu_runtime_queue_oldest_outstanding_age_seconds`,
+`eshu_runtime_domain_oldest_age_seconds`, `eshu_dp_queue_oldest_age_seconds`,
+and the matching admin status fields) measure how long outstanding fact work
+has waited, measured from `COALESCE(reopened_at, created_at)`. A reducer item
+that completes and is reopened from `succeeded` (an OSV pass, a domain replay,
+an admin reopen, a completion wake) restarts its age at the reopen, so a wave
+that drains in minutes reads as minutes. An activation wake does the same for
+the dead-lettered consumers it wakes. Dead-letter and failed replays, the
+poison sweep, and projector re-drives do not set `reopened_at` and still age
+from creation, and so do shared-projection intents (#9320).
+
 Incremental refresh is healthy when unchanged scopes avoid unnecessary work and
 changed scopes still drain through projection and reducer queues. Watch:
 

@@ -35,6 +35,7 @@ const activeWorkSummaryColumns = `CASE WHEN work.status IN ('pending', 'claimed'
          work.visible_at,
          work.claim_until,
          work.created_at,
+         work.reopened_at,
          work.updated_at,
          CASE WHEN work.stage = 'reducer'
                    AND work.status IN ('pending', 'retrying', 'claimed', 'running')

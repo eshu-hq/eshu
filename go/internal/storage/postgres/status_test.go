@@ -266,10 +266,10 @@ func TestStatusQueriesUseAggregateFilterSyntax(t *testing.T) {
 		"domainBacklogQuery": domainBacklogQuery,
 		"queueSnapshotQuery": queueSnapshotQuery,
 	} {
-		if !strings.Contains(query, "MIN(created_at)") || !strings.Contains(query, "FILTER") {
+		if !strings.Contains(query, "MIN(COALESCE(reopened_at, created_at))") || !strings.Contains(query, "FILTER") {
 			t.Fatalf("%s missing aggregate FILTER placement:\n%s", name, query)
 		}
-		if strings.Contains(query, "EXTRACT(EPOCH FROM ($1 - MIN(created_at)))\n           FILTER") {
+		if strings.Contains(query, "EXTRACT(EPOCH FROM ($1 - MIN(COALESCE(reopened_at, created_at))))\n           FILTER") {
 			t.Fatalf("%s uses invalid FILTER placement:\n%s", name, query)
 		}
 	}

@@ -272,7 +272,7 @@ The response combines:
 - `queue`: depth (`total`, `outstanding`, `pending`, `in_flight`, `retrying`,
   `dead_letter`), a `claim_latency` object (`overdue_claims`,
   `oldest_outstanding_age`, `coordinator_oldest_pending`), and a `stuck` object
-  (`oldest_outstanding_age`, `blocked_conflicts`).
+  (`oldest_outstanding_age`, `blocked_conflicts`). For fact work items, `oldest_outstanding_age` and per-domain `oldest_age` are measured from `COALESCE(reopened_at, created_at)`. A reducer item reopened from `succeeded` (an OSV or refresh pass, a domain replay, an admin reopen, a completion wake) reports the time since the reopen, not since its first creation. Dead-letter and failed replays, the poison sweep, and projector re-drives do not set `reopened_at`, so those items still age from `created_at` (#9320).
 - `reducer_domains`: per-domain backlog rows, highest pressure first, each
   retaining `retrying`, `dead_letter`, and `oldest_age` for drilldown.
 - `collector_families`: one promotion verdict per collector family with

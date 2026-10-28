@@ -83,7 +83,7 @@ func TestCorpusFenceGaugesQueryShape(t *testing.T) {
 		string(reducer.DomainWorkloadMaterialization),
 		string(reducer.DomainDeployableUnitCorrelation),
 		string(reducer.DomainServiceCatalogCorrelation),
-		"MIN(created_at)",
+		"MIN(COALESCE(reopened_at, created_at))",
 	} {
 		if !strings.Contains(corpusFenceGaugesQuery, want) {
 			t.Fatalf("corpusFenceGaugesQuery missing %q:\n%s", want, corpusFenceGaugesQuery)

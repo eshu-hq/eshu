@@ -19,6 +19,12 @@ package postgres
 // proves the result still differs from the shipped query only in the history
 // pieces.
 //
+// #9292 re-derived the age fragments the same way: active_fact_work_items
+// carries reopened_at, and the backlog and queue ages take
+// MIN(COALESCE(reopened_at, created_at)). Both changes are shared fragments,
+// so the oracle took the same two edits and its SHA-256 was re-pinned; the
+// differential above proves it still differs only in the history pieces.
+//
 // Lifecycle: the oracle is bound to 9bcca588f and to the #7009
 // transformation only. When a shared fragment changes (stageCountsSelect,
 // domainBacklogCTEs, reducerConflictBlockageCTEs, the scope join, or
@@ -58,6 +64,7 @@ active_fact_work_items AS MATERIALIZED (
          work.visible_at,
          work.claim_until,
          work.created_at,
+         work.reopened_at,
          work.updated_at,
          CASE WHEN work.stage = 'reducer'
                    AND work.status IN ('pending', 'retrying', 'claimed', 'running')
@@ -101,7 +108,7 @@ fact_domain_backlogs AS (
              EXTRACT(
                EPOCH FROM (
                  $1 - (
-                   MIN(created_at)
+                   MIN(COALESCE(reopened_at, created_at))
                      FILTER (WHERE status IN ('pending', 'claimed', 'running', 'retrying'))
                  )
                )
@@ -344,7 +351,7 @@ SELECT (SELECT COUNT(*) FROM fact_work_items) AS total_count,
            EXTRACT(
              EPOCH FROM (
                $1 - (
-                 MIN(created_at)
+                 MIN(COALESCE(reopened_at, created_at))
                    FILTER (WHERE status IN ('pending', 'claimed', 'running', 'retrying'))
                )
              )
@@ -418,4 +425,4 @@ ORDER BY section, ordinal
 `
 
 // activeWorkSummaryPreHistoryGroupsOracleSHA256 pins the oracle text.
-const activeWorkSummaryPreHistoryGroupsOracleSHA256 = "a2d562a8c96f7b5622ae5ef23cf9c28d57a32d7fb307d7c7b8c3761fbaeb4253"
+const activeWorkSummaryPreHistoryGroupsOracleSHA256 = "3dbaf44f1270a58032ef43710f3e04d03ae72abf09bdec441583772c4971c8f1"

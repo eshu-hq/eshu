@@ -21,17 +21,19 @@ import (
 )
 
 // SHA-256 of the #7009 S5 shim renders of the gated a2v variant (harness
-// 7009-c3-shim-src, render_s5.py), re-rendered for #8954: the blockage fragment
-// now names the fence holder, so these no longer match the historical shim
-// files byte for byte; the only difference is that fragment. The measured
+// 7009-c3-shim-src, render_s5.py), re-rendered for #8954 (the blockage fragment
+// now names the fence holder) and again for #9292 (the outstanding-age
+// aggregates read COALESCE(reopened_at, created_at) and the active work CTE
+// carries reopened_at), so these no longer match the historical shim files
+// byte for byte; the only differences are those fragments. The measured
 // statement has no mode section; activeWorkSummaryMeasuredText removes it before hashing.
 const (
-	shimA2vThresholdSHA256     = "f5b3c9b0de5a229ffd7e775ae2947a354f53951603eeea4d4a36ba77fa058616" // s5_a2v_T.sql, T=0.4
-	shimA2vForcedGroupedSHA256 = "536d6116cc51f8ef9fd5b6938af2c7109a5166fb152485599971a4a12a7808c7" // s5_a2v_g.sql
-	shimA2vForcedDetailSHA256  = "49d4d79deff449afc4c28f21ccd1b285da720fb10f305b484965382ddc20e0df" // s5_a2v_d.sql
-	shimA2vMutDropHistorySHA   = "60be60ae3e857854b782670e9f3a3ffbe760f3d317a16393bcb0e46adc5d453d" // s5_mut_a2v_b_drop_hist_notin.sql
-	shimA2vMutGateNullSHA      = "d7d0bc03f8299d42a6068edb48880625ee547b270d5305054aefd554ff485551" // s5_mut_a2v_c_gate_null.sql
-	shimA2vMutGroupedNullSHA   = "048622fadd7887bb8e2d216c3a51f07d2e6a76386ebf8dd39c36c328fba9332a" // s5_mut_a2v_c2_grouped_null.sql
+	shimA2vThresholdSHA256     = "2e1162464677d4052c4131184f91b6c33f35ad2377123b20e84f60355be45b3e" // s5_a2v_T.sql, T=0.4
+	shimA2vForcedGroupedSHA256 = "2eccfb3f5119859e58c1797a43e233e502c960c10cd652d2d2ed2d954a5696f8" // s5_a2v_g.sql
+	shimA2vForcedDetailSHA256  = "f5088698d3d5ef859f99bc6d7c0a8b702599a646d399ab4dabc2bf9676c2a030" // s5_a2v_d.sql
+	shimA2vMutDropHistorySHA   = "3516229ae76e8d78d107ecbe4eb4a1ac950bf373cbde150cedc18bda0d3cfa3d" // s5_mut_a2v_b_drop_hist_notin.sql
+	shimA2vMutGateNullSHA      = "e23253687740d8bdc24e8b2780fe7563711f7cd0d003d4b1b66c07af240bed51" // s5_mut_a2v_c_gate_null.sql
+	shimA2vMutGroupedNullSHA   = "df62631b45cbf04459b98b632dc1c6131c313290489bd2b410517d58701aecde" // s5_mut_a2v_c2_grouped_null.sql
 )
 
 // Forced-branch threshold literals of the shim's _g/_d renderings: the MCV
