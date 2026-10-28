@@ -27,7 +27,9 @@ func TestReadinessSourceStateCandidatesIgnoreDeactivatedInstances(t *testing.T) 
 		t.Fatalf("vulnerability_source_state_candidates CTE not found in ListReadinessQuery")
 	}
 	cte := strings.Join(strings.Fields(ListReadinessQuery[start:end]), " ")
-	filter := strings.Index(cte, liveCollectorInstanceFilter)
+	// "AND " anchors the predicate as a conjunct, so a negated
+	// "NOT EXISTS (...)" does not satisfy it.
+	filter := strings.Index(cte, "AND "+liveCollectorInstanceFilter)
 	if filter < 0 {
 		t.Fatalf("candidates CTE lacks the live-instance filter %q:\n%s", liveCollectorInstanceFilter, cte)
 	}
