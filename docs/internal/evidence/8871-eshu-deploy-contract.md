@@ -2,9 +2,11 @@
 
 ## Scope
 
-Base: `origin/main` at `da1dc3b70f`. Builds on the merged step-1
-census (#9356): that record inventories the assets, this record is the
-versioned deploy contract `eshu-deploy` publishes on day one.
+Base: `origin/main` including the merged step-1 census (#9356).
+(That record inventories the assets; this record is the versioned
+deploy contract `eshu-deploy` publishes on day one. The base is stated
+without a fixed SHA so routine rebases cannot stale it; the contract
+tests re-pin every version figure to the tree on each run.)
 
 This record moves no code and authorizes no release, deployment,
 rollback, or in-tree removal. The destination repository
