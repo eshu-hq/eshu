@@ -1,4 +1,4 @@
-export type TruthLevel = "exact" | "derived" | "fallback";
+export type TruthLevel = "exact" | "derived" | "partial" | "fallback";
 
 export type FreshnessState = "fresh" | "stale" | "building" | "unavailable";
 

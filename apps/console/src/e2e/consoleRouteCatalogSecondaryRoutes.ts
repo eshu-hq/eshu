@@ -396,6 +396,30 @@ export const secondaryConsoleRoutes: readonly ConsoleRoute[] = [
     },
   },
   {
+    path: "/content-search",
+    label: "File content search",
+    area: "repositories",
+    workflow: {
+      id: "file-content-search-live-result",
+      kind: "submit",
+      fields: [
+        {
+          requestKey: "query",
+          selector: 'input[aria-label="Content pattern"]',
+          valueEnv: "ESHU_E2E_SEMANTIC_QUERY",
+        },
+      ],
+      role: "button",
+      name: "Fresh search",
+      scopeSelector: ".content-search-page form",
+      expectedRequestPath: "/api/v0/content/files/search",
+      expectedRequestMethod: "POST",
+      acceptedResponseStatuses: [200],
+      outcomeSelector: '.content-search-page [aria-label="File content results"]',
+      forbiddenSelectors: ['[role="alert"]'],
+    },
+  },
+  {
     path: "/semantic-search",
     label: "Semantic Search",
     area: "ask",

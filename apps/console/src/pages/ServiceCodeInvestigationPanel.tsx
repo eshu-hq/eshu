@@ -1,4 +1,7 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router";
+
+import { APP_ROUTE_PATHS } from "../appRoutePaths";
 
 import { EshuApiClient } from "../api/client";
 import {
@@ -113,6 +116,11 @@ function NextCallStrip({
         <article key={`${call.tool}:${index}`}>
           <strong>{humanToolLabel(call.tool)}</strong>
           <small>{argumentSummary(call.args)}</small>
+          {contentSearchState(call) && (
+            <Link to={APP_ROUTE_PATHS.contentSearch} state={contentSearchState(call)}>
+              Open file content search
+            </Link>
+          )}
         </article>
       ))}
     </div>
@@ -172,4 +180,31 @@ function humanToolLabel(tool: string): string {
     search_file_content: "Content search",
   };
   return labels[tool] ?? tool.replace(/_/g, " ");
+}
+
+function contentSearchState(call: CodeTopicNextCall):
+  | {
+      readonly query: string;
+      readonly repoId?: string;
+      readonly repoName?: string;
+      readonly limit?: number;
+    }
+  | undefined {
+  if (call.tool !== "search_file_content") return undefined;
+  const query =
+    typeof call.args.pattern === "string"
+      ? call.args.pattern
+      : typeof call.args.query === "string"
+        ? call.args.query
+        : "";
+  if (!query.trim()) return undefined;
+  return {
+    query,
+    repoId: typeof call.args.repo_id === "string" ? call.args.repo_id : undefined,
+    repoName: typeof call.args.repo_name === "string" ? call.args.repo_name : undefined,
+    limit:
+      typeof call.args.limit === "number" && call.args.limit >= 1 && call.args.limit <= 200
+        ? call.args.limit
+        : undefined,
+  };
 }

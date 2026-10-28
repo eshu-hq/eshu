@@ -53,6 +53,10 @@ const WorkspacePage = lazy(() =>
 
 // SemanticSearchPage is code-split via React.lazy (issue #4024) so its
 // search surface stays out of the eagerly loaded main bundle.
+const ContentSearchPage = lazy(() =>
+  import("./pages/ContentSearchPage").then((module) => ({ default: module.ContentSearchPage })),
+);
+
 const SemanticSearchPage = lazy(() =>
   import("./pages/SemanticSearchPage").then((module) => ({
     default: module.SemanticSearchPage,
@@ -167,6 +171,20 @@ export function AppRoutes({
             }
           >
             <SemanticSearchPage client={client} repositoryCatalog={repositoryCatalog} />
+          </Suspense>
+        }
+      />
+      <Route
+        path={APP_ROUTE_PATHS.contentSearch}
+        element={
+          <Suspense
+            fallback={
+              <section className="page-shell">
+                <h1>Loading file content search</h1>
+              </section>
+            }
+          >
+            <ContentSearchPage client={client} repositoryCatalog={repositoryCatalog} />
           </Suspense>
         }
       />

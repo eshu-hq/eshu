@@ -7,6 +7,7 @@ export const APP_ROUTE_PATHS = Object.freeze({
   dashboard: "/dashboard",
   ask: "/ask",
   semanticSearch: "/semantic-search",
+  contentSearch: "/content-search",
   guidedQuestions: "/guided-questions",
   impact: "/impact",
   exposure: "/exposure",
