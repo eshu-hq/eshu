@@ -5,6 +5,7 @@ package coordinator //nolint:dirgate // Root owns scheduling, policy, audit, and
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -168,6 +169,17 @@ func (s Service) scheduleVulnerabilityActivationDerivedScopes(
 ) error {
 	derivation, err := vulnerability.ActivationDerivationFromConfig(config.ComponentConfig)
 	if err != nil {
+		var listErr workflow.DeriveListNotExplicitError
+		if errors.As(err, &listErr) && s.Logger != nil {
+			s.Logger.Error(
+				"workflow coordinator refused derived scopes for component activation",
+				"collector_kind", instance.CollectorKind,
+				"collector_instance_id", instance.InstanceID,
+				"derive_section", listErr.Section,
+				"derive_list", listErr.List,
+				"reason", "derive_lists_not_explicit",
+			)
+		}
 		return fmt.Errorf("load vulnerability intelligence derived targets for %q: %w", instance.InstanceID, err)
 	}
 	if !derivation.Enabled() {

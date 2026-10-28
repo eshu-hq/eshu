@@ -24,8 +24,9 @@
 // registry collector instances validate bounded package metadata targets and
 // known document formats, vulnerability intelligence collector instances
 // validate bounded source targets, supported exact-version derivation
-// ecosystems, mirror URLs, source-cache modes, and cache freshness durations,
-// and security-alert collector instances validate repository allowlists plus
+// ecosystems, mirror URLs, source-cache modes, and cache freshness durations
+// (a component activation's derive sections also need explicit sources and
+// ecosystems lists, reported as DeriveListNotExplicitError), and security-alert collector instances validate repository allowlists plus
 // HTTPS credentialed API base URLs before the coordinator plans claimable work
 // items. Disabled PagerDuty and Jira collector instances validate only durable
 // registration shape while enabled instances validate bounded account,
