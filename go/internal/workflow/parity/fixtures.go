@@ -171,6 +171,15 @@ var satelliteTables = []string{
 	"component_quota_windows",
 }
 
+// truncateSatelliteTables is the TRUNCATE statement ResetSatellite runs. It
+// is a constant, not built by string joining, so no caller input can reach
+// the query text. TestTruncateCoversSatelliteTables pins it to
+// satelliteTables.
+const truncateSatelliteTables = "TRUNCATE workflow_claims, " +
+	"workflow_run_progress, workflow_run_completeness, workflow_work_items, " +
+	"workflow_runs, collector_instances, workflow_claim_pacing, " +
+	"component_quota_windows RESTART IDENTITY CASCADE"
+
 // ResetSatellite clears satellite state on the database named by dsn. It
 // runs at suite start and at suite end (cleanup), never between the two
 // legs of one scenario: scenarios use disjoint run IDs.
@@ -196,8 +205,7 @@ func ResetSatellite(t *testing.T, dsn string) {
 		resetDarkSuiteRows(t, ctx, db)
 		return
 	}
-	query := "TRUNCATE " + strings.Join(satelliteTables, ", ") + " RESTART IDENTITY CASCADE"
-	if _, err := db.ExecContext(ctx, query); err != nil {
+	if _, err := db.ExecContext(ctx, truncateSatelliteTables); err != nil {
 		t.Fatalf("truncate satellite tables: %v", err)
 	}
 }

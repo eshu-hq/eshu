@@ -6,9 +6,36 @@ package parity
 import (
 	"context"
 	"fmt"
+	"strings"
+	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
+
+// TestTruncateCoversSatelliteTables pins the constant TRUNCATE statement
+// ResetSatellite executes to the satelliteTables set, so the two cannot
+// drift: every listed table is truncated, and no unlisted table is.
+func TestTruncateCoversSatelliteTables(t *testing.T) {
+	t.Parallel()
+	const prefix = "TRUNCATE "
+	const suffix = " RESTART IDENTITY CASCADE"
+	if !strings.HasPrefix(truncateSatelliteTables, prefix) ||
+		!strings.HasSuffix(truncateSatelliteTables, suffix) {
+		t.Fatalf("truncate statement changed shape: %q", truncateSatelliteTables)
+	}
+	listed := strings.Split(strings.TrimSuffix(strings.TrimPrefix(
+		truncateSatelliteTables, prefix), suffix), ", ")
+	if len(listed) != len(satelliteTables) {
+		t.Fatalf("truncate covers %d tables, satelliteTables holds %d",
+			len(listed), len(satelliteTables))
+	}
+	for i := range satelliteTables {
+		if listed[i] != satelliteTables[i] {
+			t.Fatalf("truncate table %d = %q, satelliteTables[%d] = %q",
+				i, listed[i], i, satelliteTables[i])
+		}
+	}
+}
 
 // Conformance slice 2b: fail dispositions and duplicate delivery.
 //
