@@ -45,7 +45,7 @@ class WeightsV2:
                            self.default_package_first, self.default_package_repeat,
                            sorted(self.package_first.items()),
                            sorted(self.package_repeat.items()), sorted(self.test.items()),
-                           "midpoint-v2-cold-plus-max-first-repeat-every-row"],
+                           "midpoint-v2-clock-tests-plus-repeat-675"],
                           separators=(",", ":"))
 
 
@@ -82,23 +82,25 @@ def weights_from_json(value: object) -> WeightsV2:
 
 
 def _row_package_price(model: WeightsV2, package: str) -> int:
-    """Bound a row by either its first-use or its repeat package price."""
-    return max(model.package_first.get(package, model.default_package_first),
-               model.package_repeat.get(package, model.default_package_repeat))
+    """Price the in-clock overhead of one row: the package repeat residual.
+
+    ``go test -timeout`` starts after compile and link, so the cold-cache and
+    first-use build costs never run under a row's clock (#9348). The repeat
+    residual (link, start, TestMain, teardown) is the in-clock part of either
+    row kind; the job score still charges cold once and first-use once.
+    """
+    return model.package_repeat.get(package, model.default_package_repeat)
 
 
 def _row_weights(model: WeightsV2) -> wt.Weights:
-    """Give the production midpoint splitter conservative admission prices."""
-    packages = model.package_first.keys() | model.package_repeat.keys()
+    """Give the production midpoint splitter the clock-timed row prices."""
     return wt.Weights(
-        model.source_runs, model.fixed, model.cold, model.default_test,
-        max(model.default_package_first, model.default_package_repeat),
-        {package: _row_package_price(model, package) for package in packages},
-        model.test)
+        model.source_runs, model.fixed, 0, model.default_test,
+        model.default_package_repeat, dict(model.package_repeat), model.test)
 
 
 def row_cost_tenths(row: list[str], model: WeightsV2) -> int:
-    """Return the conservative admission price used for every runner row."""
+    """Return the clock-timed admission price of one runner row."""
     return row_split.group_cost_tenths(row, _row_weights(model))
 
 
@@ -171,7 +173,7 @@ class Scorer:
         while pending:
             start, end = pending.pop()
             total = self.test_prefix[end] - self.test_prefix[start]
-            if end - start == 1 or self.model.cold + admission + total <= ROW_BUDGET:
+            if end - start == 1 or admission + total <= ROW_BUDGET:
                 count += 1
                 continue
             half = (total + 1) // 2

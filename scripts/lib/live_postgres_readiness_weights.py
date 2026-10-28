@@ -233,7 +233,8 @@ def weighted_bounds(runs: list[str], weights: Weights | WeightsV2,
                 raise ValueError("v2 row union differs from shard plan")
             if any(v2.row_cost_tenths(row, weights) > v2.ROW_BUDGET
                    for row in rows):
-                raise ValueError("v2 runner row exceeds 720 s budget")
+                raise ValueError(
+                    f"v2 runner row exceeds {v2.ROW_BUDGET // UNIT} s budget")
         if len(_BOUNDS_CACHE) > 64:
             _BOUNDS_CACHE.clear()
         _BOUNDS_CACHE[key] = list(bounds)

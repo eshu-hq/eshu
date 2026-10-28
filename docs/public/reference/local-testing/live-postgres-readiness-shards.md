@@ -49,13 +49,32 @@ Predicted v1 job seconds are the sum of its tests, package costs, cold-cache
 constant, and fixed job overhead. A v2 model distinguishes the first use of a
 package from each later runner row. Its job score adds fixed and cold costs,
 every test price, one first-use price per package, and one repeat price for
-every further row of that package. For the 720 s row admission budget, the
-splitter charges cold cost, test prices, and the greater of first-use and
-repeat cost to every row. This bounds either row kind even when repeat cost
-exceeds first-use cost; the job score still charges the measured price for
-each actual row kind. The model gate keeps each predicted job at or below 1440 s,
-spread within 15%, and defaults within 40 tests and 2 packages. These modeled
-bounds do not guarantee an observed 1800 s wall time.
+every further row of that package. The model gate keeps each predicted job at
+or below 1440 s, spread within 15%, and defaults within 40 tests and 2
+packages. These modeled bounds do not guarantee an observed 1800 s wall time.
+
+Each runner row is one `go test -json -count=1 -timeout=15m` invocation, and
+the splitter admits a row by what that 900 s clock times. `go help testflag`
+says the timeout panics "if a test binary runs longer than duration d", so
+compile and link finish before the clock starts: a cold-cache shim with
+`-timeout=3s` and a 2.4 s test took 10.2 s of wall time and passed. A row's
+admission price is therefore its test prices plus the package repeat price
+(the in-binary link, start, `TestMain`, and teardown residual), with no cold
+or first-use cost; the job score charges those build costs once (#9348).
+Before #9348 the splitter charged cold, first-use, and test prices to every
+row, so a row could fail on compile time the clock never sees. The row budget
+is 675 s, 75% of the clock. Measured over 17 green five-shard main runs, the
+repeat residual has a median of 11.5 s (n=157) while a shard's first
+`./internal/storage/postgres` row pays 336 to 655 s of build before its first
+test. Rows predicted at 150 s or more ran at a measured/predicted test-time
+ratio of p50 1.00, p95 1.16, p99 1.26, and max 1.33 (n=188). A 675 s row
+prices about 663.6 s of tests plus the repeat residual (max measured 19.1 s).
+The worst observed row ran 744.1 s of tests, about 763 s with the largest
+residual, inside the clock. The joint worst case, the maximum ratio and the
+maximum residual on one row, is about 901 s. It was not observed; if it
+happens, the 900 s clock fails that shard loudly and the next refit adjusts the
+prices. A single test priced above the budget cannot be split and fails the
+gate.
 
 ## Gates
 
@@ -114,6 +133,11 @@ The suite fails when:
   green while the defaulted count is at or under the cap, and review — not the
   gate — flags a weights edit inside a feature PR. Only a standalone refit PR
   (see below) touches the weights files;
+- a v2 runner row's clock-timed price (tests plus the package repeat price)
+  passes 675 s, 75% of the 900 s `go test -timeout`. A splittable row is cut
+  at its weight midpoint until it fits, so only a single test priced above
+  675 s trips this. The clock and the 675 s budget are pinned in
+  `scripts/lib/live_postgres_readiness_row_clock_cases.py`;
 - the shard job's `timeout-minutes` stops matching the 1800 s cap the gate
   uses;
 - a weights file is malformed, has duplicate keys, or a non-finite or negative
