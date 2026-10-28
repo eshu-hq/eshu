@@ -30,4 +30,6 @@ interpret Dockerfile source during a read. Parsing happens at ingestion and
 unparsed commands are reported only in the Dockerfile's structured file
 metadata. Credential-bearing install option values, URL paths, and sensitive
 ARG/ENV expansions are excluded from install entities and reference names
-before those facts are emitted.
+before those facts are emitted. Signed download query keys, including AWS and
+Google Cloud signature fields and Azure SAS `sig`, are also dropped and counted
+after bounded decoding.

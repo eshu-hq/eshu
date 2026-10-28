@@ -208,6 +208,45 @@ func TestInstallEvidenceDropsCredentialedOptionsAndURLPaths(t *testing.T) {
 	}
 }
 
+func TestInstallEvidenceDropsSignedDownloadQueries(t *testing.T) {
+	const marker = "exampleSecretToken123"
+	cases := []struct{ name, instruction string }{
+		{"AWS signature", "ADD https://example.test/file?X-Amz-Signature=" + marker + " /tmp/"},
+		{"AWS credential", "RUN curl https://example.test/file?x-amz-credential=" + marker},
+		{"GCP signature", "RUN wget https://example.test/file?X-Goog-Signature=" + marker},
+		{"GCP credential", "ADD https://example.test/file?X-Goog-Credential=" + marker + " /tmp/"},
+		{"Azure SAS signature", "ADD https://example.test/file?sig=" + marker + " /tmp/"},
+		{"mixed case", "RUN curl https://example.test/file?x-AmZ-sIgNaTuRe=" + marker},
+		{"encoded key", "RUN curl https://example.test/file?X-Goog-%53ignature=" + marker},
+		{"double encoded key", "ADD https://example.test/file?X-Amz-%2553ignature=" + marker + " /tmp/"},
+		{"encoded Azure key", "ADD https://example.test/file?%2573ig=" + marker + " /tmp/"},
+		{"malformed key", "RUN curl https://example.test/file?X-Amz-%ZZignature=" + marker},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := RuntimeMetadata("FROM alpine\n" + tc.instruction + "\n")
+			if got.DroppedCredentials != 1 || len(got.Installs) != 0 {
+				t.Fatalf("install count = %d, dropped = %d, want zero and one", len(got.Installs), got.DroppedCredentials)
+			}
+			rows, err := json.Marshal(got.Map()["dockerfile_installs"])
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(string(rows), marker) {
+				t.Fatal("signed query value reached install rows")
+			}
+		})
+	}
+	for _, key := range []string{"mirror", "design"} {
+		t.Run("ordinary "+key, func(t *testing.T) {
+			got := RuntimeMetadata("FROM alpine\nRUN curl https://example.test/file?" + key + "=one\n")
+			if got.DroppedCredentials != 0 || len(got.Installs) != 1 || got.Installs[0].Name != "example.test/file" {
+				t.Fatalf("install count = %d, dropped = %d, want one and zero", len(got.Installs), got.DroppedCredentials)
+			}
+		})
+	}
+}
+
 func TestInstallEvidenceDropsSensitiveVariableExpansionAcrossARGAndENV(t *testing.T) {
 	const marker = "exampleSecretToken123"
 	source := "FROM alpine\n" +

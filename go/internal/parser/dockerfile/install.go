@@ -214,7 +214,7 @@ func safeDownload(raw string) (string, bool, bool) {
 	if err != nil || parsed.Host == "" || (parsed.Scheme != "https" && parsed.Scheme != "http") {
 		return "", false, false
 	}
-	if parsed.User != nil || strings.ContainsAny(parsed.RawQuery, "\n\r") || hasTokenQuery(parsed.Query()) || unsafeDownloadPath(parsed.Path) {
+	if parsed.User != nil || strings.ContainsAny(parsed.RawQuery, "\n\r") || hasTokenQuery(parsed.RawQuery) || unsafeDownloadPath(parsed.Path) {
 		return "", true, false
 	}
 	if parsed.Fragment != "" {
@@ -227,10 +227,31 @@ func safeDownload(raw string) (string, bool, bool) {
 	return name, false, true
 }
 
-func hasTokenQuery(values url.Values) bool {
+// hasTokenQuery rejects signed URL query keys, including bounded nested
+// percent encoding. Parse errors are unsafe because Query silently drops them.
+func hasTokenQuery(raw string) bool {
+	values, err := url.ParseQuery(raw)
+	if err != nil {
+		return true
+	}
 	for key := range values {
-		lower := strings.ToLower(key)
-		if strings.Contains(lower, "token") || strings.Contains(lower, "key") || strings.Contains(lower, "secret") || strings.Contains(lower, "auth") || strings.Contains(lower, "password") {
+		for i := 0; i < 4; i++ {
+			lower := strings.ToLower(key)
+			if lower == "sig" || strings.Contains(lower, "signature") || strings.Contains(lower, "credential") ||
+				strings.Contains(lower, "token") || strings.Contains(lower, "key") || strings.Contains(lower, "secret") ||
+				strings.Contains(lower, "auth") || strings.Contains(lower, "password") {
+				return true
+			}
+			if !strings.Contains(key, "%") {
+				break
+			}
+			decoded, err := url.PathUnescape(key)
+			if err != nil || decoded == key {
+				return true
+			}
+			key = decoded
+		}
+		if strings.Contains(key, "%") {
 			return true
 		}
 	}

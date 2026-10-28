@@ -256,6 +256,10 @@ flags before URL sources. Unsupported commands are fail-closed:
 
 `dockerfile_dropped_credentials` counts rejected credential-bearing option
 values, names, and URLs, including encoded credential markers in URL paths.
+Signed download query keys such as AWS and Google Cloud `Signature` or
+`Credential` fields and Azure `sig` are rejected after bounded percent decoding;
+malformed query escapes are rejected as unsafe. Ordinary query keys are
+accepted, and query values are never kept in install names.
 Sensitive ARG or ENV names and their indirect aliases remain tainted when
 expanded into an install name or download URL; these references are counted
 and excluded from install evidence.

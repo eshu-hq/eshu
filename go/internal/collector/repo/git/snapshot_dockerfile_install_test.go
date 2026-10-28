@@ -94,3 +94,47 @@ func TestSnapshotDockerfileInstallEvidenceNeverPromotesCredentialOptionOrPath(t 
 		t.Fatalf("install entities = %d, want one ordinary package", installCount)
 	}
 }
+
+func TestSnapshotDockerfileInstallSignedQueriesNeverBecomeEntitiesOrReferences(t *testing.T) {
+	const marker = "exampleSecretToken123"
+	root := t.TempDir()
+	source := strings.Join([]string{
+		"FROM alpine",
+		"ADD https://example.test/aws?X-Amz-Signature=" + marker + " /tmp/",
+		"RUN curl https://example.test/gcp?X-Goog-%2553ignature=" + marker,
+		"ADD https://example.test/azure?SiG=" + marker + " /tmp/",
+		"ADD https://example.test/public?mirror=one /tmp/",
+		"",
+	}, "\n")
+	writeCollectorTestFile(t, filepath.Join(root, "Dockerfile"), source)
+	snapshot, err := (NativeRepositorySnapshotter{}).SnapshotRepository(context.Background(), SelectedRepository{RepoPath: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	generation := buildStreamingGeneration(root, testCollectorRepositoryMetadata(root), "run-9303-signed", time.Now(), snapshot, false, "")
+	installCount, contentCount := 0, 0
+	for _, fact := range drainFactChannel(generation.Facts) {
+		switch fact.FactKind {
+		case "content_entity":
+			if fact.Payload["entity_type"] != "DockerfileInstall" {
+				continue
+			}
+			installCount++
+			if fact.Payload["entity_name"] != "example.test/public" {
+				t.Fatal("signed query became a persisted install entity")
+			}
+		case "content":
+			if fact.Payload["content_path"] != "Dockerfile" {
+				continue
+			}
+			contentCount++
+			names, _ := fact.Payload["dockerfile_install_names"].([]string)
+			if len(names) != 1 || names[0] != "example.test/public" {
+				t.Fatal("signed query reached content reference names")
+			}
+		}
+	}
+	if installCount != 1 || contentCount != 1 {
+		t.Fatalf("install entities = %d, Dockerfile content facts = %d, want one each", installCount, contentCount)
+	}
+}
