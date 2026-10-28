@@ -1,16 +1,18 @@
 # Separate SSM host observations from vulnerability findings (#9302)
 
-Status: Proposed; no implementation or deployment is approved. Part of #9295.
+Status: Proposed; the goal authorizes implementation, but this design still needs
+representative capture evidence and final arbiter acceptance before #9302 code.
+Part of #9295.
 
 **Propose distinct host application and platform observations, with no
 vulnerability finding until a separately proven host applicability contract
 exists.** This provisional choice is not accepted until the measurement and
 decisions below are complete.
 
-The representative account volume measurement is incomplete. A QA managed-node
+The representative captured-cohort volume measurement is incomplete. A QA managed-node
 discovery read succeeded after the owner updated IAM; application volume and
-fleet coverage remain unmeasured. The decision, implementation issues, and live QA
-claims remain open until that measurement and arbiter acceptance are recorded.
+fleet coverage remain unmeasured. The decision and live QA claims remain open
+until that measurement and arbiter acceptance are recorded.
 #9301's AMI integration is also a prerequisite.
 
 ## Context
@@ -34,21 +36,37 @@ scope as a substitute. An SSM inventory item alone is not a vulnerability findin
 
 | Option | Cost and disposition |
 | --- | --- |
-| Emit distinct application and platform observations | Proposed: preserves source meaning but requires new contracts and a separate host-impact design. |
+| Emit distinct application and platform observations | Proposed: preserves source meaning and supports inventory-first delivery; host impact remains a separate correlation contract. |
 | Reuse `vulnerability.os_package` | Rejected provisionally: its image-scan semantics and matcher do not establish host applicability. |
-| Inventory only, without host impact | Possible first phase; does not complete the requested host-impact decision. |
+| Inventory only, without host impact | Chosen first phase; host admission is specified here, while advisory correlation belongs to #9209. |
 
 ## Decision
 
 The satellite `eshu-hq/eshu-collector-aws-cloud` would collect bounded,
-allowlisted SSM inventory into typed host platform and application-observation
-facts. Package facts require a separately validated subset. Exact kind names,
-payloads, keys, schema versions, and lifecycle remain undecided. The provisional ruling selects distinct application and platform
-observation kinds; SSM application rows must not be emitted as
-`vulnerability.os_package`. New graph-truth kinds need typed contracts and
-registry bindings, reducer and conformance work in `eshu`, not just a collector
-manifest. Changing the meaning or stable key of an existing kind is a major
-contract change with a conversion path; optional additive fields are minor.
+allowlisted SSM inventory into two proposed new v1.0.0 fact kinds:
+`aws_ssm_host_application` and `aws_ssm_host_platform`. These are observations,
+not package findings. `AWS:Application` rows must not become
+`vulnerability.os_package` or `supply_chain_impact`. #9209 owns advisory feeds
+and correlation; a new advisory engine is not needed to deliver this first
+inventory slice. New graph-truth kinds need typed contracts, registry bindings,
+reducer and conformance work in `eshu`, not just a collector manifest. Adding
+new kinds is a new v1 contract, not a change to an existing kind. Changing an
+existing kind's meaning or stable key would instead be a major change with a
+conversion path.
+
+| Proposed fact | Required payload | Stable key and lifecycle |
+| --- | --- | --- |
+| `aws_ssm_host_application` v1.0.0 | Partition, account, region, EC2 instance ID, source type and schema version, capture time, and the allowlisted source fields `Name`, `Version`, `Release`, `Epoch`, `PackageId`, `Architecture` when present. | Host tuple + capture time + SHA-256 of the canonical allowlisted row. Identical rows in a capture deduplicate; another capture is a new observation. A complete newer generation supersedes prior observations for that host and type. |
+| `aws_ssm_host_platform` v1.0.0 | The same host tuple, `PlatformType`, `PlatformName`, `PlatformVersion` when present, source type, and observation or capture time with its provenance. | Host tuple + source type. A complete newer generation updates the platform observation; `DescribeInstanceInformation` observation time must not be labeled inventory capture time. |
+
+The exact JSON field spelling and key encoding are finalized with the typed
+schema implementation after the measured record is accepted. A missing or
+invalid capture time emits no application fact and cannot supersede the last
+complete snapshot. Empty application rows count as an empty snapshot only with
+a coherent dated capture and complete pagination; an undated zero-row response
+is unknown. No raw source row, URL, Summary, hostname or IP is stored. Hashing
+the canonical selected row is for identity, not a claim that the row is an OS
+package or that its contents are secret.
 
 An EC2 host subject must include the AWS partition, account, region and
 managed node instance identifier. Require EC2 resource type and corroborating
@@ -56,10 +74,11 @@ EC2 identity in that boundary; an identifier prefix alone is insufficient.
 For the first EC2-host design, exclude non-EC2 and conflicting identities from
 EC2/AMI impact with visible counts. A separate managed-node host model may be
 considered later; it must not inherit an EC2 or AMI join. The AMI link comes
-from the instance-to-AMI evidence delivered by #9301. Environment and service attribution require their own corroborating
-relationships; neither names nor AMI membership alone prove them. Define
-collision, deletion, generation, retry, and cross-account handling before
-selecting stable keys.
+from the instance-to-AMI evidence delivered by #9301. Environment and service
+attribution require their own corroborating relationships; neither names nor
+AMI membership alone prove them. Reject conflicting host tuples and cross-account
+or cross-region joins. Replay of the same complete capture is idempotent; a
+partial or denied read preserves the prior generation with visible status.
 
 The existing OS-package matcher consumes vulnerability-scan observations and
 requires a supported package manager, distro version, architecture, vendor
@@ -69,25 +88,23 @@ not establish vulnerability by comparing installed versions to advisory ranges.
 but does not guarantee the package manager, distro/version, vendor repository
 and advisory provenance, PURL, or advisory applicability. It can include
 applications other than OS packages. Do not invent a PURL or vendor
-classification from a name. Inventory-only facts may land as a phase, but they
-do not complete the requested host impact design. A supported platform-specific subset needs retained source
-evidence and a distinct host vulnerability applicability contract.
+classification from a name. Inventory-only facts are the first phase. Host vulnerability applicability
+belongs to #9209 and needs a separately proven platform-specific contract.
 Unknown mappings remain unresolved. See `go/internal/reducer/supplychain/core/match.go`
 and the [AWS inventory schema](https://docs.aws.amazon.com/systems-manager/latest/userguide/inventory-schema.html).
 
-A host-aware correlation path would admit package evidence only for a uniquely
-identified, sufficiently fresh host, then connect it to a vulnerability through
-a separately designed and proven advisory applicability and platform-specific
-version comparison, with source provenance. The existing image-scan matcher
+A future host-aware correlation path would admit package evidence only for a
+uniquely identified, sufficiently fresh host, then connect it to a vulnerability
+through #9209's separately proven advisory and version comparison. The existing image-scan matcher
 cannot provide this conclusion from normalized application inventory alone. It
 must not invent an image digest, infer a running service from an installed package, or treat an AMI
 as proof that the running host still has its original contents.
 
 | Case | Required behavior to prove |
 | --- | --- |
-| Positive | Matching account, region, instance, fresh inventory, and supported package/version evidence yield the intended host impact. |
-| Negative | A different account, region, instance or package, an unmatched version, and an AMI alone do not yield host impact. |
-| Ambiguous | Conflicting identity, multiple plausible matches, unknown version semantics, stale data, or partial inventory remain unresolved; do not choose a winner by ordering. |
+| Positive | A matching partition, account, region and instance with a fresh complete capture admits host observations; only a separately proven comparator may later yield host impact. |
+| Negative | A different host tuple, an AMI alone, or an installed application without applicable advisory evidence yields no host impact. |
+| Ambiguous | Conflicting identity, unknown version semantics, stale capture or partial inventory remain unresolved; do not choose a winner by ordering. |
 
 The implementation proof plan must specify tests comparing fixture intent,
 admitted reducer facts, direct graph nodes and edges, and API/MCP output.
@@ -97,7 +114,7 @@ supersession, incomplete pages, and concurrent projection require explicit
 proof. Operator signals must distinguish denied, partial, stale, and successful
 inventory without exposing package values in logs.
 
-## Collection, privacy, and freshness questions
+## Collection, privacy, and freshness rules
 
 The proposed minimum is `AWS:Application` observations and the platform fields
 needed for host identity and potential version matching. An application is not
@@ -131,12 +148,11 @@ host or a deletion. A missing inventory association or disabled collection must
 also not be interpreted as an empty application set.
 
 [`DescribeInstanceInformation`](https://docs.aws.amazon.com/systems-manager/latest/APIReference/API_DescribeInstanceInformation.html)
-omits stopped and terminated nodes. Compare it with
-[`GetInventory`](https://docs.aws.amazon.com/systems-manager/latest/APIReference/API_GetInventory.html),
-which includes such node statuses, before choosing discovery and measurement
-coverage. A stopped or terminated inventory record informs coverage, not current
-running-host exposure. Report EC2 fleet, SSM-managed, active, and inventory-enabled counts
-separately; none is automatically the denominator for the others.
+omits stopped and terminated nodes. The initial cohort therefore covers online EC2 managed nodes with confirmed
+application capture only. It makes no stopped-node or full-fleet coverage claim.
+Report target, SSM-managed, captured, and excluded counts separately; none is
+automatically the denominator for the others. `GetInventory` and a full-fleet
+census are unnecessary for this bounded cohort.
 
 The candidate measurement calls require `ssm:DescribeInstanceInformation`
 and `ssm:ListInventoryEntries`. The [Systems Manager authorization reference](https://docs.aws.amazon.com/service-authorization/latest/reference/list_ssm.html)
@@ -150,13 +166,18 @@ in deployment configuration.
 
 **NOT_PROVEN:** instances × packages × scans per day; application rows are not
 necessarily packages. Bytes, page count, runtime, and effect on ingestion, reducer work, storage, and retention are also unknown.
-Measure a representative account with a bounded, read-only shim after access is
-available. Record the exact command, account selection method without private
-identifiers, UTC time, instance count, application-entry distribution, page
+Measure a representative captured cohort with a bounded, read-only shim after
+access is available. Record the exact command, selection method without private
+identifiers, UTC time, target and captured counts, platform and package-population
+limits, application-entry distribution, page
 count, capture ages, enumeration and per-node/type page counts, bytes, source rows and content
 hashes where available, and exit status. Record SSM capture cadence separately
-from Eshu polling cadence. Changed-versus-unchanged rate needs two comparable
-reads; otherwise mark it and any future fact-rate projection NOT_PROVEN. Report
+from Eshu polling cadence. Use a conservative full-snapshot-per-poll bound: target hosts × maximum accepted
+entries per host × polls per day, with requests bounded by hosts × allowed pages
+per type per poll. Set positive numeric host, page, entry, age, skew, polling and
+retention limits from the representative measurement before final acceptance;
+missing limits fail configuration. Changed-versus-unchanged rate needs two
+comparable reads; otherwise mark it and any deduplication saving NOT_PROVEN. Report
 validated OS-package counts separately only if the classification is proven;
 otherwise the package count and package-rate projection stay NOT_PROVEN. State
 sample limitations. Distinguish observed counts from projections. A denial is not a zero inventory result.
@@ -207,8 +228,8 @@ application inventory; this zero-entry sample does not meet that gate.
 
 ## Implementation plan
 
-After acceptance, implement typed contracts and registry in `eshu`, collection
-in `eshu-hq/eshu-collector-aws-cloud`, and reducer/read paths in `eshu`. Keep
+After acceptance and #9301, implement typed contracts and registry in `eshu`,
+collection in `eshu-hq/eshu-collector-aws-cloud`, and reducer/read paths in `eshu`. Keep
 the source allowlist, partial-state diagnostics and proof plan above; do not
 reuse image vulnerability findings or infer missing facts as deletion. Split
 implementation into issues under #9295 only after the decision is accepted.
@@ -223,8 +244,8 @@ implementation into issues under #9295 only after the decision is accepted.
 
 **Bad**
 
-- New contracts, correlation and retention work are required before host impact
-  can be reported.
+- New contracts and retention work are required for observations; #9209 owns
+  the separate host impact correlation.
 - Representative volume, supported version comparators and retained-data cleanup
   remain unknown; they may change the final design or operational cost.
 
@@ -242,12 +263,12 @@ implementation into issues under #9295 only after the decision is accepted.
 
 1. Which exact versioned kind names, keys and schemas represent application
    observations and platform evidence?
-2. Which supported host package and advisory comparator rules establish
-   vulnerability applicability, and which cases remain unknown?
-3. What measured age, clock-skew, cross-type-skew and bounded resource limits
-   govern a complete snapshot?
+2. Which captured cohort and numeric limits support this first observation-only
+   implementation without making a fleet-wide capacity claim?
+3. What measured age, clock-skew, and bounded resource limits govern a complete
+   application snapshot and the separate platform observation?
 4. Which discovery source and approved population provide representative
-   capture and fleet coverage, and what is the retention policy?
+   capture for the limited cohort, and what is the retention policy?
 
 ## Obtaining representative capture evidence
 
@@ -277,8 +298,8 @@ and [troubleshooting guide](https://docs.aws.amazon.com/systems-manager/latest/u
 Host overhead, retained data, request counts and any indirect costs need
 measurement; do not promise zero cost.
 
-Before accepting this record, resolve the fact-kind and host identity design,
-impact matching and stale semantics, IAM and privacy scope, and measured volume.
+Before accepting this record, resolve the host identity and stale semantics,
+IAM and privacy scope, and measured volume. Host impact matching belongs to #9209.
 An arbiter must accept the completed record before collector, contract, reducer,
 or query implementation. File and work the accepted implementation issues in
 this goal under #9295. This draft is not that acceptance.
