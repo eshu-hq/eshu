@@ -312,11 +312,11 @@ services:
   # reconciles chain gen1-c->gen1-f->gen2-c->gen2-f on purpose: they share
   # one registry file and concurrent writers corrupt it.
   collector-terraform-state-seed-gen1-c:
-    image: ${ESHU_TFSTATE_SATELLITE_IMAGE:-ghcr.io/eshu-hq/eshu-collector-terraform-state@sha256:36b51cee5abe3f7734cbcaeb79a005165a3a9694bd3a62a562799668583dd8e9}
+    image: ${ESHU_TFSTATE_SATELLITE_IMAGE:-ghcr.io/eshu-hq/eshu-collector-terraform-state@sha256:4a9464c52f9cc5a50d8f86d60d0e092a0f48e98340475638ff629bd854c0df08}
     restart: "no"
     user: "0:0"
     entrypoint: ["/usr/local/bin/collector"]
-    command: ["seed", "--dest", "/data/.eshu/components/runtime/tier2-v25-terraform-state-gen1-c", "--image-ref", "ghcr.io/eshu-hq/eshu-collector-terraform-state@sha256:36b51cee5abe3f7734cbcaeb79a005165a3a9694bd3a62a562799668583dd8e9"]
+    command: ["seed", "--dest", "/data/.eshu/components/runtime/tier2-v25-terraform-state-gen1-c", "--image-ref", "ghcr.io/eshu-hq/eshu-collector-terraform-state@sha256:4a9464c52f9cc5a50d8f86d60d0e092a0f48e98340475638ff629bd854c0df08"]
     volumes:
       - type: volume
         source: eshu_data
@@ -409,11 +409,11 @@ services:
         condition: service_completed_successfully
 
   collector-terraform-state-seed-gen1-f:
-    image: ${ESHU_TFSTATE_SATELLITE_IMAGE:-ghcr.io/eshu-hq/eshu-collector-terraform-state@sha256:36b51cee5abe3f7734cbcaeb79a005165a3a9694bd3a62a562799668583dd8e9}
+    image: ${ESHU_TFSTATE_SATELLITE_IMAGE:-ghcr.io/eshu-hq/eshu-collector-terraform-state@sha256:4a9464c52f9cc5a50d8f86d60d0e092a0f48e98340475638ff629bd854c0df08}
     restart: "no"
     user: "0:0"
     entrypoint: ["/usr/local/bin/collector"]
-    command: ["seed", "--dest", "/data/.eshu/components/runtime/tier2-v25-terraform-state-gen1-f", "--image-ref", "ghcr.io/eshu-hq/eshu-collector-terraform-state@sha256:36b51cee5abe3f7734cbcaeb79a005165a3a9694bd3a62a562799668583dd8e9"]
+    command: ["seed", "--dest", "/data/.eshu/components/runtime/tier2-v25-terraform-state-gen1-f", "--image-ref", "ghcr.io/eshu-hq/eshu-collector-terraform-state@sha256:4a9464c52f9cc5a50d8f86d60d0e092a0f48e98340475638ff629bd854c0df08"]
     volumes:
       - type: volume
         source: eshu_data
@@ -508,11 +508,11 @@ services:
         condition: service_completed_successfully
 
   collector-terraform-state-seed-gen2-c:
-    image: ${ESHU_TFSTATE_SATELLITE_IMAGE:-ghcr.io/eshu-hq/eshu-collector-terraform-state@sha256:36b51cee5abe3f7734cbcaeb79a005165a3a9694bd3a62a562799668583dd8e9}
+    image: ${ESHU_TFSTATE_SATELLITE_IMAGE:-ghcr.io/eshu-hq/eshu-collector-terraform-state@sha256:4a9464c52f9cc5a50d8f86d60d0e092a0f48e98340475638ff629bd854c0df08}
     restart: "no"
     user: "0:0"
     entrypoint: ["/usr/local/bin/collector"]
-    command: ["seed", "--dest", "/data/.eshu/components/runtime/tier2-v25-terraform-state-gen2-c", "--image-ref", "ghcr.io/eshu-hq/eshu-collector-terraform-state@sha256:36b51cee5abe3f7734cbcaeb79a005165a3a9694bd3a62a562799668583dd8e9"]
+    command: ["seed", "--dest", "/data/.eshu/components/runtime/tier2-v25-terraform-state-gen2-c", "--image-ref", "ghcr.io/eshu-hq/eshu-collector-terraform-state@sha256:4a9464c52f9cc5a50d8f86d60d0e092a0f48e98340475638ff629bd854c0df08"]
     volumes:
       - type: volume
         source: eshu_data
@@ -607,11 +607,11 @@ services:
         condition: service_completed_successfully
 
   collector-terraform-state-seed-gen2-f:
-    image: ${ESHU_TFSTATE_SATELLITE_IMAGE:-ghcr.io/eshu-hq/eshu-collector-terraform-state@sha256:36b51cee5abe3f7734cbcaeb79a005165a3a9694bd3a62a562799668583dd8e9}
+    image: ${ESHU_TFSTATE_SATELLITE_IMAGE:-ghcr.io/eshu-hq/eshu-collector-terraform-state@sha256:4a9464c52f9cc5a50d8f86d60d0e092a0f48e98340475638ff629bd854c0df08}
     restart: "no"
     user: "0:0"
     entrypoint: ["/usr/local/bin/collector"]
-    command: ["seed", "--dest", "/data/.eshu/components/runtime/tier2-v25-terraform-state-gen2-f", "--image-ref", "ghcr.io/eshu-hq/eshu-collector-terraform-state@sha256:36b51cee5abe3f7734cbcaeb79a005165a3a9694bd3a62a562799668583dd8e9"]
+    command: ["seed", "--dest", "/data/.eshu/components/runtime/tier2-v25-terraform-state-gen2-f", "--image-ref", "ghcr.io/eshu-hq/eshu-collector-terraform-state@sha256:4a9464c52f9cc5a50d8f86d60d0e092a0f48e98340475638ff629bd854c0df08"]
     volumes:
       - type: volume
         source: eshu_data
