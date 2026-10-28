@@ -14,6 +14,16 @@ import storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 // owning packages (#8824). The filter applies to rows the LATERAL index probe
 // already fetched, so it changes no index use. The package-anchored arm ($20)
 // reads package_manifest_consumption_keys, which never holds a pin.
+//
+// #8995: the package-anchored arm first fenced the target keys in a
+// MATERIALIZED probe of the sidecar lookup index, then joins fact, scope and
+// generation per surviving row. Before, the arm joined every active sidecar
+// row first and applied the target keys last, so under a generic plan its
+// cost followed the scope count (one sidecar probe per active scope per
+// target key), not the matching keys. A plain join reorder is a no-op (the
+// planner emits the same plan); only the MATERIALIZED fence holds the shape.
+// The inner WHERE $20 keeps the fence free for repository-anchored reads
+// ($20 false): the CTE prunes to no rows without touching the sidecar.
 const listSupplyChainImpactReadinessPackageManifestQuery = `
 package_manifest_dependency AS (
     SELECT
@@ -33,7 +43,19 @@ package_manifest_dependency AS (
           AND ` + storagepostgres.NotCentralVersionDeclarationSQL + `
         UNION ALL
         SELECT fact.fact_id, fact.observed_at
-        FROM package_manifest_consumption_keys AS consumption
+        FROM (
+            WITH package_manifest_target_match AS MATERIALIZED (
+                SELECT consumption.fact_id, consumption.scope_id,
+                    consumption.generation_id, consumption.repository_id
+                FROM package_manifest_consumption_keys AS consumption
+                JOIN target_consumption_keys AS target
+                  ON target.ecosystem = consumption.ecosystem
+                 AND target.package_name = consumption.package_name
+                WHERE $20
+            )
+            SELECT fact_id, scope_id, generation_id, repository_id
+            FROM package_manifest_target_match
+        ) AS consumption
         JOIN fact_records AS fact
           ON fact.fact_id = consumption.fact_id
          AND fact.scope_id = consumption.scope_id
@@ -48,12 +70,6 @@ package_manifest_dependency AS (
           AND fact.is_tombstone = FALSE
           AND generation.status = 'active'
           AND ($11 = '' OR consumption.repository_id = $11)
-          AND EXISTS (
-              SELECT 1
-              FROM target_consumption_keys AS target
-              WHERE target.ecosystem = consumption.ecosystem
-                AND target.package_name = consumption.package_name
-          )
     ) AS manifest
 ),
 `
