@@ -182,26 +182,59 @@ count.
   `OCIRunner` in `go/internal/collector/extensionhost/oci.go`, same SDK
   contract as `ProcessRunner`. No artifact is built or published by this PREP.
 
+### First-target cutover observation (2026-10-28, QA)
+
+- Satellite repository `eshu-hq/eshu-collector-sbom-attestation` exists
+  (default branch `main`, HEAD `5172564c` observed 2026-10-28); tags
+  `v0.1.0`, `v0.1.0-kindfix.1`. No GitHub Release object published.
+  (The environment token in the scope, instance, and deploy names below
+  is elided as `…`: this repository must not record environment names.
+  Full identifiers live in `iac-eks-eshu#401` and on the issue.)
+- QA seed image pinned in the `iac-eks-eshu` QA activation
+  (`instanceId: sbom-att-cx-…`):
+  `ghcr.io/eshu-hq/eshu-collector-sbom-attestation@sha256:c5c709d4a9ebacd5bab3589a6b267496805a2f98d577bd0b50dd5ea3efce8936`
+  (comment: `v0.1.0-kindfix.1`, linux/amd64, binary at
+  `/usr/local/bin/collector`). First reviewed `configured_source` target
+  merged as `iac-eks-eshu#401` (merged 2026-10-28T03:10:42Z): host scope
+  `sbom-attestation://…/sbom-fixture-cyclonedx`, single CycloneDX
+  fixture target.
+- Live QA truth observed read-only 2026-10-28: worker deploy
+  `eshu-cx-sbom-att-cx-…` `1/1` Available; 2 `completed` claims on the
+  fixture scope (03:13:05Z, 03:33:51Z); 28 `fact_records` with
+  `source_system='sbom_attestation'` in 24h (`max(observed_at)`
+  2026-10-28T03:33:54Z): `sbom.document` 2, `sbom.component` 10,
+  `sbom.dependency_relationship` 6, `sbom.external_reference` 2,
+  `sbom.warning` 6, `reducer_sbom_attestation_attachment` 2. Older
+  targetless-scope claims (`sbom_attestation:…`) fail terminal
+  `invalid_config` — the designed fail-closed, with no facts admitted.
+- Reducer projection, canonical graph, HTTP API, and MCP agreement on
+  the extracted path remain `NOT_CHECKED`; rollback rehearsal is open.
+
 ## 7. Migration stage
 
-`planned` (advisory diagnostic reads `keep_in_tree`; the diagnostic records evidence and grants no cutover authority). Not `ready_for_cutover`:
-repository, release, operational, and rollback proof are absent, and the
-public SDK surface is owned by `#8851`. Roadmap owners: `#6707` inventory,
-`#6708` SDK/fact-schema, `#6709` producer delegation, `#6710` template and
-compatibility harness, `#4047` per-collector cutover gate.
+`planned` (advisory diagnostic reads `keep_in_tree`; the diagnostic records evidence and grants no cutover authority). First-target
+deployment observed in the owner-designated QA environment (see §6):
+satellite repository, tags,
+digest-pinned seed image, merged first-target activation, and completed
+fixture-scope claims with 28 facts. Still not `ready_for_cutover`:
+reducer/graph/API/MCP agreement on the extracted path is `NOT_CHECKED`,
+rollback rehearsal is open, and the public SDK surface is owned by
+`#8851`. Roadmap owners: `#6707` inventory, `#6708` SDK/fact-schema,
+`#6709` producer delegation, `#6710` template and compatibility harness,
+`#4047` per-collector cutover gate.
 
 ## 8. `#8865` acceptance sweep at `origin/main`
 
-| Acceptance item | State at PREP |
+| Acceptance item | State |
 | --- | --- |
-| Named owners, production target, configuration source | **Open** — owner-confirmed on the issue; QA EKS access unavailable from this machine, `NOT_CHECKED` |
-| Census, kinds, consumers, state, protocols, artifacts, stage | **Met in PREP** by this document |
+| Named owners, production target, configuration source | **Partial** — owner-confirmed on the issue; QA worker and claims observed read-only from this machine 2026-10-28 (deploy `1/1`, §6); configuration source is the QA activation in `iac-eks-eshu` (`instanceId: sbom-att-cx-…`, full identifiers in `iac-eks-eshu#401`) |
+| Census, kinds, consumers, state, protocols, artifacts, stage | **Met in PREP** by this document; artifacts/stage updated with the 2026-10-28 observation (§6) |
 | Source parity on representative + hostile inputs | **Met in-tree side** by `runtime/source_parity_8865_test.go` + `runtime/testdata/8865-parity-sbom-attestation.json` (AC3) |
-| Extracted-path admitted facts, projection, graph, API, MCP truth | **Open** — needs `#4047` gate + deployment |
-| Retry, duplicates, ordering, cancellation, revoked authority, stale claims, partial/ambiguous failures | **Open** — duplicates + malformed + grant-free delta pinned in-tree; revocation/staleness need the extracted path |
-| Bounded resources, no regression, health/readiness/freshness/telemetry | **Open** — in-tree no-regression evidence recorded in `runtime/README.md` and `document/README.md`; extracted-path proof outstanding |
+| Extracted-path admitted facts, projection, graph, API, MCP truth | **Partial (admission only)** — 2 completed fixture-scope claims with 28 facts observed 2026-10-28 (§6); reducer projection, canonical graph, HTTP API, and MCP agreement `NOT_CHECKED`; `#4047` gate still required |
+| Retry, duplicates, ordering, cancellation, revoked authority, stale claims, partial/ambiguous failures | **Open** — duplicates + malformed + grant-free delta pinned in-tree; targetless-scope fail-closed terminals observed live (`invalid_config`, no facts); revocation/staleness need the extracted path |
+| Bounded resources, no regression, health/readiness/freshness/telemetry | **Open** — in-tree no-regression evidence recorded in `runtime/README.md` and `document/README.md`; first-target fact freshness observed 2026-10-28 (§6); extracted-path proof outstanding |
 | Credentials, provenance, vuln response, oldest/newest pairs | **Partial** — credential handling and provenance recorded here; record-ID redact-or-refuse is an open `#4047` cutover item (verbatim carry pinned); version pairs need `#6710` + `#8851` |
-| Independent build/release/deploy on public contracts | **Open** — SDK pins verified (see [SHIM_MAP](SHIM_MAP.md)), template outstanding |
+| Independent build/release/deploy on public contracts | **Partial** — satellite repo, tags, digest-pinned QA seed image, and merged first-target activation observed (§6); SDK pins verified (see [SHIM_MAP](SHIM_MAP.md)); template outstanding |
 | Rollback rehearsal | **Draft recorded** ([ROLLBACK_DRAFT](ROLLBACK_DRAFT.md)); rehearsal **open** |
 | Review, local proof, stable CI, removal after acceptance | **Open** — local proof in this lane's commit; removal explicitly **not** in PREP |
 
@@ -209,7 +242,7 @@ compatibility harness, `#4047` per-collector cutover gate.
 
 1. Published SDK + fact-schema modules (`#6708`, `#8851` Codex lane) at
    the coordinates pinned in [SHIM_MAP](SHIM_MAP.md) (currently collector
-   `v0.1.0-rc.3`, factschema `v0.1.0-rc.6`). Symbol sufficiency was
+   `v0.1.0-rc.4`, factschema `v0.1.0-rc.7`). Symbol sufficiency was
    verified at `v0.1.0-rc.1` (SHIM_MAP §6); each later bump re-proves it by
    building this lane green, and the pin-parity guard
    (`runtime/shim_pin_8865_test.go`) fails closed on undocumented drift.
