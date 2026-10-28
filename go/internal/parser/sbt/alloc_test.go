@@ -141,6 +141,24 @@ func TestParseRepeatedAndChainedConfigurationsStayLinear(t *testing.T) {
 	requireField(t, requireRow(t, payload, "a:b"), "dependency_resolution_state", "partial")
 }
 
+// TestParseNestedInterpolationHolesStayLinear feeds a 10 MB line of nested
+// `${` openers inside one interpolated string (issue #8980). Inside a hole a
+// further `${` is a splice dollar plus a brace, so the whole line is one hole
+// frame with a growing depth counter: no per-opener state, and the scan
+// allocates a small multiple of the input. The unclosed hole fails the line
+// closed without emitting a row.
+func TestParseNestedInterpolationHolesStayLinear(t *testing.T) {
+	openers := strings.Repeat("${", (10<<20)/2)
+	body := "val x = s\"" + openers + "\"\n"
+
+	payload, gotBytes, _ := measureParse(t, body)
+	requireAllocCeiling(t, "10MB nested holes", len(body), gotBytes, 3, 1<<20)
+	if rows := dependencyRows(t, payload); len(rows) != 0 {
+		t.Fatalf("rows = %d, want 0: the unclosed hole fails closed", len(rows))
+	}
+	requireStateField(t, stateOf(t, payload), "unresolved_declaration_count", 0)
+}
+
 // TestParseTailAllowlistStaysLinear drives the grammar and its fallback with
 // long tails: 100,000 allowlisted infix calls (matched by the grammar),
 // 100,000 unknown calls, a 100,000-call `.map` body, and 100,000 leading-infix

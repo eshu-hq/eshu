@@ -35,7 +35,9 @@ type fuzzReport struct {
 // Every generated coordinate must also be emitted (partial at worst), and no
 // resolved row may appear that the generator did not write. The indentation
 // arm (fuzz_indent_test.go) runs the same checks over Scala 3 braceless
-// blocks, whose coordinates are all unknown. The member arm
+// blocks, whose coordinates are all unknown. The interpolation arm
+// (fuzz_interp_test.go) runs them over brace blocks that open with
+// interpolated strings holding unbalanced brackets in nested strings. The member arm
 // (fuzz_member_test.go) checks the exact row states, unresolved count and
 // scalaVersion envelope around member calls, legacy and unknown assignment
 // operators, and nested scalaVersion literals.
@@ -52,20 +54,22 @@ func TestGrammarSeededFuzzInvariants(t *testing.T) {
 	}
 	report := fuzzReport{classes: map[string]int{}}
 	indent := fuzzReport{classes: map[string]int{}}
+	interp := fuzzReport{classes: map[string]int{}}
 	member := memberReport{}
 	reference := refReport{}
 	for seed := int64(1); seed <= int64(cases); seed++ {
 		report.check(t, seed, fzBuild(seed))
 		indent.check(t, seed, fzIndentBuild(seed))
+		interp.check(t, seed, fzInterpBuild(seed))
 		member.check(t, seed, fzMemberBuild(seed))
 		reference.check(t, seed, fzRefBuild(seed))
 	}
 	member.cases, reference.cases = cases, cases
-	report.cases, indent.cases = cases, cases
+	report.cases, indent.cases, interp.cases = cases, cases, cases
 	for _, arm := range []struct {
 		name   string
 		report *fuzzReport
-	}{{"grammar", &report}, {"indentation", &indent}} {
+	}{{"grammar", &report}, {"indentation", &indent}, {"interpolation", &interp}} {
 		r := arm.report
 		t.Logf("%s: cases=%d rows=%d I1=%d I2=%d I3=%d missing=%d fabricated=%d classes=[%s]",
 			arm.name, r.cases, r.rows, r.i1, r.i2, r.i3, r.missing, r.fabricate, r.classList())
