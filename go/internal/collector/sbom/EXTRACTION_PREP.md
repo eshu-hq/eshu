@@ -207,18 +207,60 @@ count.
   `sbom.warning` 6, `reducer_sbom_attestation_attachment` 2. Older
   targetless-scope claims (`sbom_attestation:…`) fail terminal
   `invalid_config` — the designed fail-closed, with no facts admitted.
-- Reducer projection, canonical graph, HTTP API, and MCP agreement on
-  the extracted path remain `NOT_CHECKED`; rollback rehearsal is open.
+- Extracted-path read-surface agreement observed read-only 2026-10-28
+  (late-morning window; claims through 10:00:42Z, generations through
+  10:30:44Z): newest 3 `workflow_claims` for `sbom_attestation`
+  `completed` 10:00:42Z / 09:30:42Z / 09:00:42Z (instance
+  `sbom-att-cx-…`); 210 `fact_records` on scope
+  `sbom-attestation://…/sbom-fixture-cyclonedx`
+  (`max(observed_at)` 2026-10-28T10:00:43Z; 15 generations × 14 facts at
+  check start, 16 at end). Latest-then generation:
+  `sbom.document` 1, `sbom.component` 5,
+  `sbom.dependency_relationship` 3, `sbom.external_reference` 1,
+  `sbom.warning` 3, `reducer_sbom_attestation_attachment` 1 with
+  `attachment_status=attached_parse_only`, `artifact_kind=sbom`,
+  `attachment_scope=parse_only_unanchored`, `component_count=5`.
+- HTTP API `AGREE`: `GET
+  /api/v0/supply-chain/sbom-attestations/attachments/count` returned
+  HTTP 200 `total_attachments=1`, `by_artifact_kind={sbom:1}`,
+  `by_attachment_status={attached_parse_only:1}`; `GET .../attachments`
+  returned HTTP 200 `count=1` with all seven compared fields
+  (`attachment_status`, `subject_digest`, `document_id`,
+  `document_digest`, `artifact_kind`, `attachment_scope`,
+  `component_count`) identical to the `fact_records` reducer row, both
+  scoped by the `document_id` anchor (the filter requires one anchor per
+  `SBOMAttestationAttachmentFilter.HasScope`; there is no `scope_id`
+  filter). The first list attempt returned HTTP 503
+  (`database read temporarily unavailable`, 2.0s guarded-reader stage
+  timeout in `eshu-api` logs); the immediate retry returned 200.
+- MCP `AGREE`: `list_sbom_attestation_attachments` (`document_id`
+  anchor, `limit 10`) returned HTTP 200 with 1 result; status, digests,
+  IDs, artifact kind, scope, `component_count` (5), and `parse_status`
+  identical to `fact_records` and HTTP API substance; truth envelope
+  `exact/production/semantic_facts/fresh`. The API-vs-MCP
+  `attachment_id` differs only by the 30-minute generation rollover
+  mid-check (API row = 10:00:43 generation, MCP row = 10:30:44
+  generation; both `fact_id`s exist in `fact_records`).
+- Still `NOT_CHECKED` on the extracted path: reducer projection beyond
+  the attachment row, canonical Neo4j graph projection, and the MCP
+  `count_sbom_attestation_attachments` /
+  `get_sbom_attestation_attachment_inventory` tools as individually
+  live-called surfaces (their route mapping is unit-covered in
+  `go/internal/mcp/supply/chain/evidence/routes_test.go`; the
+  underlying HTTP `/count` route returned 200 above). Rollback
+  rehearsal is open.
 
 ## 7. Migration stage
 
 `planned` (advisory diagnostic reads `keep_in_tree`; the diagnostic records evidence and grants no cutover authority). First-target
 deployment observed in the owner-designated QA environment (see §6):
 satellite repository, tags,
-digest-pinned seed image, merged first-target activation, and completed
-fixture-scope claims with 28 facts. Still not `ready_for_cutover`:
-reducer/graph/API/MCP agreement on the extracted path is `NOT_CHECKED`,
-rollback rehearsal is open, and the public SDK surface is owned by
+digest-pinned seed image, merged first-target activation, completed
+fixture-scope claims with 210 facts, and HTTP API + MCP read-surface
+agreement with `fact_records` on the extracted path (see §6). Still not
+`ready_for_cutover`: canonical graph projection agreement on the
+extracted path is `NOT_CHECKED`, rollback rehearsal is open, and the
+public SDK surface is owned by
 `#8851`. Roadmap owners: `#6707` inventory, `#6708` SDK/fact-schema,
 `#6709` producer delegation, `#6710` template and compatibility harness,
 `#4047` per-collector cutover gate.
@@ -230,7 +272,7 @@ rollback rehearsal is open, and the public SDK surface is owned by
 | Named owners, production target, configuration source | **Partial** — owner-confirmed on the issue; QA worker and claims observed read-only from this machine 2026-10-28 (deploy `1/1`, §6); configuration source is the QA activation in `iac-eks-eshu` (`instanceId: sbom-att-cx-…`, full identifiers in `iac-eks-eshu#401`) |
 | Census, kinds, consumers, state, protocols, artifacts, stage | **Met in PREP** by this document; artifacts/stage updated with the 2026-10-28 observation (§6) |
 | Source parity on representative + hostile inputs | **Met in-tree side** by `runtime/source_parity_8865_test.go` + `runtime/testdata/8865-parity-sbom-attestation.json` (AC3) |
-| Extracted-path admitted facts, projection, graph, API, MCP truth | **Partial (admission only)** — 2 completed fixture-scope claims with 28 facts observed 2026-10-28 (§6); reducer projection, canonical graph, HTTP API, and MCP agreement `NOT_CHECKED`; `#4047` gate still required |
+| Extracted-path admitted facts, projection, graph, API, MCP truth | **Partial (admission + read-surface agreement)** — completed fixture-scope claims with 210 facts observed 2026-10-28 (§6); HTTP API (`/attachments`, `/count`) and MCP (`list_sbom_attestation_attachments`) agree with `fact_records` (§6); reducer projection beyond the attachment row and canonical graph agreement `NOT_CHECKED`; `#4047` gate still required |
 | Retry, duplicates, ordering, cancellation, revoked authority, stale claims, partial/ambiguous failures | **Open** — duplicates + malformed + grant-free delta pinned in-tree; targetless-scope fail-closed terminals observed live (`invalid_config`, no facts); revocation/staleness need the extracted path |
 | Bounded resources, no regression, health/readiness/freshness/telemetry | **Open** — in-tree no-regression evidence recorded in `runtime/README.md` and `document/README.md`; first-target fact freshness observed 2026-10-28 (§6); extracted-path proof outstanding |
 | Credentials, provenance, vuln response, oldest/newest pairs | **Partial** — credential handling and provenance recorded here; record-ID redact-or-refuse is an open `#4047` cutover item (verbatim carry pinned); version pairs need `#6710` + `#8851` |
