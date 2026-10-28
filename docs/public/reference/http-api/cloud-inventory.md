@@ -206,6 +206,10 @@ No-Observability-Change: #5454 adds no new metric, span, log line, audit table,
 or schema; the `code_sha256_correlation` limitation is a content-free label on
 an existing read surface, covered by the existing cloud-inventory query span.
 
+No-Regression Evidence: #9298 extends an existing in-process scalar-key allowlist by five keys. The baseline and after path both perform one map membership check for each supplied AWS attribute and add no SQL, graph read, queue work, or network call. The focused Postgres fact-to-inventory regression used one synthetic aws_resource row with five version/identity scalars plus one excluded key; it failed before the change and passed after. Backend/version is not applicable to this in-process filter; no live throughput measurement is claimed. The existing cloud inventory query span and duration metric cover the same request path.
+
+No-Observability-Change: #9298 adds no metric, span, log, status, or queue stage. Operators can inspect the existing cloud inventory query duration/error signals and the returned bounded attributes; live QA truth remains unverified until current typed AWS facts are admitted.
+
 ## Cloud Resource Graph Paging
 
 `GET /api/v0/cloud/resources` returns a bounded browse page from the authoritative CloudResource graph. Optional `provider`, `resource_type`, `region`, and
