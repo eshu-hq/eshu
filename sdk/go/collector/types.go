@@ -12,6 +12,12 @@ const (
 	// contract. Hosts admit it only when explicitly configured; the v1alpha1
 	// default is unchanged.
 	ProtocolVersionV1Alpha2 = "collector-sdk/v1alpha2"
+	// ProtocolVersionV1Alpha3 is the third collector extension wire
+	// contract. It admits the optional paged-result continuation in
+	// Result.Page so a satellite can split a result that would not fit
+	// one bounded stdout write into resumed calls. Hosts admit it only
+	// when explicitly configured; the v1alpha1 default is unchanged.
+	ProtocolVersionV1Alpha3 = "collector-sdk/v1alpha3"
 )
 
 const (
@@ -74,7 +80,10 @@ type FactDeclaration struct {
 	TombstoneAllowed bool               `json:"tombstone_allowed,omitempty"`
 }
 
-// Result is the top-level collector-sdk/v1alpha1 extension response.
+// Result is the top-level collector extension response. The Page field is
+// admitted only on ProtocolVersionV1Alpha3; older protocols must leave it
+// absent so older hosts fail closed on paged output instead of dropping the
+// continuation.
 type Result struct {
 	ProtocolVersion string      `json:"protocol_version"`
 	State           ResultState `json:"state"`
@@ -82,6 +91,31 @@ type Result struct {
 	Generation      Generation  `json:"generation"`
 	Facts           []Fact      `json:"facts,omitempty"`
 	Statuses        []Status    `json:"statuses,omitempty"`
+	Page            *ResultPage `json:"page,omitempty"`
+}
+
+// ResultPage carries versioned multi-call continuation for one result page.
+// A satellite splits a result that would not fit one bounded stdout write
+// into pages: every page repeats the claim and generation, carries its facts
+// in stable order, and names the resume cursor while more pages remain. The
+// host re-invokes the satellite with the cursor until a final page
+// (More=false) closes the generation. Absent Page means a legacy single-shot
+// result.
+type ResultPage struct {
+	// Cursor is the opaque satellite-minted resume token. It is required
+	// while More is true and must be empty on the final page, so a cursor
+	// cannot outlive the generation it resumes.
+	Cursor string `json:"cursor,omitempty"`
+	// More reports whether the host must re-invoke the satellite with
+	// Cursor to fetch the next page.
+	More bool `json:"more,omitempty"`
+	// PageIndex is the zero-based page sequence. The first page is 0; the
+	// host rejects a gap or replay.
+	PageIndex int `json:"page_index,omitempty"`
+	// TotalFacts is the satellite-declared fact total across all pages of
+	// the generation. Zero means undeclared; when declared it must agree on
+	// every page and match the reassembled fact count.
+	TotalFacts int `json:"total_facts,omitempty"`
 }
 
 // Claim is the bounded core-owned work item passed to an extension.

@@ -1,0 +1,326 @@
+{
+  "$defs": {
+    "claim": {
+      "additionalProperties": false,
+      "properties": {
+        "attempt": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "collector_kind": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "component_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "config_handle": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "deadline": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "fencing_token": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "generation_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "instance_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/scope"
+        },
+        "source_run_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "source_system": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "work_item_id": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "component_id",
+        "instance_id",
+        "collector_kind",
+        "source_system",
+        "scope",
+        "source_run_id",
+        "generation_id",
+        "work_item_id",
+        "fencing_token",
+        "attempt",
+        "deadline",
+        "config_handle"
+      ],
+      "type": "object"
+    },
+    "fact": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "observed_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "payload": {
+          "type": "object"
+        },
+        "redactions": {
+          "items": {
+            "$ref": "#/$defs/redaction"
+          },
+          "type": "array"
+        },
+        "schema_version": {
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+          "type": "string"
+        },
+        "source_confidence": {
+          "enum": [
+            "observed",
+            "reported",
+            "inferred",
+            "derived"
+          ]
+        },
+        "source_ref": {
+          "$ref": "#/$defs/source_ref"
+        },
+        "stable_key": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "tombstone": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "kind",
+        "schema_version",
+        "stable_key",
+        "source_confidence",
+        "observed_at",
+        "source_ref",
+        "payload"
+      ],
+      "type": "object"
+    },
+    "generation": {
+      "additionalProperties": false,
+      "properties": {
+        "freshness_hint": {
+          "type": "string"
+        },
+        "id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "observed_at": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "observed_at"
+      ],
+      "type": "object"
+    },
+    "page": {
+      "additionalProperties": false,
+      "properties": {
+        "cursor": {
+          "type": "string"
+        },
+        "more": {
+          "type": "boolean"
+        },
+        "page_index": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "total_facts": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "redaction": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "reason": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "field",
+        "reason"
+      ],
+      "type": "object"
+    },
+    "scope": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "kind": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind"
+      ],
+      "type": "object"
+    },
+    "source_ref": {
+      "additionalProperties": false,
+      "properties": {
+        "fact_key": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "generation_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "record_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "scope_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "source_system": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "uri": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_system",
+        "scope_id",
+        "generation_id",
+        "fact_key",
+        "uri",
+        "record_id"
+      ],
+      "type": "object"
+    },
+    "status": {
+      "additionalProperties": false,
+      "properties": {
+        "class": {
+          "enum": [
+            "progress",
+            "warning",
+            "failure",
+            "complete"
+          ]
+        },
+        "fact_count": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "failure_class": {
+          "type": "string"
+        },
+        "partial": {
+          "type": "boolean"
+        },
+        "retry_after_seconds": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "source_latency_ms": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "warning_count": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "class"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://eshu.dev/schemas/collector-sdk/v1alpha3/result.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "claim": {
+      "$ref": "#/$defs/claim"
+    },
+    "facts": {
+      "items": {
+        "$ref": "#/$defs/fact"
+      },
+      "type": "array"
+    },
+    "generation": {
+      "$ref": "#/$defs/generation"
+    },
+    "page": {
+      "$ref": "#/$defs/page"
+    },
+    "protocol_version": {
+      "const": "collector-sdk/v1alpha3"
+    },
+    "state": {
+      "enum": [
+        "complete",
+        "unchanged",
+        "partial",
+        "retryable",
+        "terminal"
+      ]
+    },
+    "statuses": {
+      "items": {
+        "$ref": "#/$defs/status"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "protocol_version",
+    "state",
+    "claim",
+    "generation"
+  ],
+  "title": "Eshu Collector SDK Result",
+  "type": "object"
+}

@@ -17,6 +17,7 @@ const componentInstanceConfigSchema = "eshu.component.instance.v1"
 const (
 	componentCollectorSDKProtocolV1Alpha1 = "collector-sdk/v1alpha1"
 	componentCollectorSDKProtocolV1Alpha2 = "collector-sdk/v1alpha2"
+	componentCollectorSDKProtocolV1Alpha3 = "collector-sdk/v1alpha3"
 	componentRuntimeAdapterOCI            = "oci"
 	componentRuntimeAdapterProcess        = "process"
 )
@@ -200,7 +201,7 @@ func validateComponentActivationConfiguration(raw string) (bool, error) {
 		return true, fmt.Errorf("component activation configuration runtime.sdk_protocol is required")
 	}
 	switch strings.TrimSpace(config.Runtime.SDKProtocol) {
-	case componentCollectorSDKProtocolV1Alpha1, componentCollectorSDKProtocolV1Alpha2:
+	case componentCollectorSDKProtocolV1Alpha1, componentCollectorSDKProtocolV1Alpha2, componentCollectorSDKProtocolV1Alpha3:
 	default:
 		return true, fmt.Errorf(
 			"component activation configuration runtime.sdk_protocol %q is unsupported",

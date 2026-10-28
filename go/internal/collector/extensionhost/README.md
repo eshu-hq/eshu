@@ -3,7 +3,15 @@
 `extensionhost` adapts public `collector-sdk/v1alpha1` extension results into
 the core `collector.ClaimedService` path. A manifest that explicitly configures
 `collector-sdk/v1alpha2` handshakes on the alpha2 protocol instead; the
-v1alpha1 default is unchanged.
+v1alpha1 default is unchanged. A manifest that explicitly configures
+`collector-sdk/v1alpha3` additionally admits versioned multi-call pagination:
+the satellite splits a result that would not fit one bounded stdout write
+into pages carrying the resume cursor (`Result.Page`), and the host
+re-invokes the runner with the cursor until a final page closes the
+generation, reassembling one identical fact set. Legacy single-shot
+satellites are unaffected: runners without paged support keep the exact
+single-call path, and the first paged request stays byte-identical to the
+legacy request.
 
 The package owns only the intake boundary:
 
@@ -14,6 +22,8 @@ The package owns only the intake boundary:
 - validate fact payloads against factschema fixture-pack schemas when the
   manifest declares `payloadSchemaRef`
 - compare the returned claim identity with the host claim
+- reassemble v1alpha3 pages with gapless sequence, pinned generation, and
+  declared-total accounting (bounded by `Config.MaxResultPages`, default 64)
 - map accepted SDK facts into internal `facts.Envelope` values
 - classify retryable, terminal, invalid-result, and identity-mismatch outcomes
 - carry the extension's provider retry delay on retryable results

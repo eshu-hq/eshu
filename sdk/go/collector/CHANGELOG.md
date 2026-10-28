@@ -22,6 +22,16 @@ Tags for this module use the Go subdirectory-module format:
 - `ProtocolVersionV1Alpha2` (`collector-sdk/v1alpha2`): second collector
   extension wire contract, admitted only when explicitly configured;
   v1alpha1 default unchanged.
+- `ProtocolVersionV1Alpha3` (`collector-sdk/v1alpha3`): third collector
+  extension wire contract with versioned multi-call pagination. `Result.Page`
+  carries the resume cursor (`cursor` required while `more` is true, empty on
+  the final page), the zero-based `page_index`, and the optional declared
+  `total_facts`. Byte accounting helpers `PageBoundForStdout`,
+  `FactWireBytes`, and `SplitFacts` size every page against the host stdout
+  limit minus fixed envelope headroom; a single fact above the bound fails
+  closed naming itself, never silently dropped. JSON Schema artifact:
+  `schema/collector-sdk-v1alpha3.schema.json`. v1alpha1/v1alpha2 results are
+  unchanged and validate as v1alpha3 when pageless (backward compatible).
 
 ### Changed
 

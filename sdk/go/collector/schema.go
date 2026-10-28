@@ -12,47 +12,79 @@ const (
 
 // JSONSchema returns the collector-sdk/v1alpha1 result JSON Schema.
 func JSONSchema() ([]byte, error) {
-	raw, err := json.MarshalIndent(resultSchema(), "", "  ")
+	raw, err := json.MarshalIndent(resultSchema(ProtocolVersionV1Alpha1, false), "", "  ")
 	if err != nil {
 		return nil, err
 	}
 	return append(raw, '\n'), nil
 }
 
-func resultSchema() map[string]any {
+// JSONSchemaV1Alpha3 returns the collector-sdk/v1alpha3 result JSON Schema:
+// the v1alpha1 shape plus the optional paged-result continuation in
+// Result.Page.
+func JSONSchemaV1Alpha3() ([]byte, error) {
+	raw, err := json.MarshalIndent(resultSchema(ProtocolVersionV1Alpha3, true), "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	return append(raw, '\n'), nil
+}
+
+func resultSchema(protocolVersion string, withPage bool) map[string]any {
+	properties := map[string]any{
+		"protocol_version": map[string]any{"const": protocolVersion},
+		"state": map[string]any{
+			"enum": []string{
+				string(ResultComplete),
+				string(ResultUnchanged),
+				string(ResultPartial),
+				string(ResultRetryable),
+				string(ResultTerminal),
+			},
+		},
+		"claim":      ref("#/$defs/claim"),
+		"generation": ref("#/$defs/generation"),
+		"facts":      arrayOf(ref("#/$defs/fact")),
+		"statuses":   arrayOf(ref("#/$defs/status")),
+	}
+	defs := map[string]any{
+		"claim":      claimSchema(),
+		"scope":      scopeSchema(),
+		"generation": generationSchema(),
+		"fact":       factSchema(),
+		"source_ref": sourceRefSchema(),
+		"redaction":  redactionSchema(),
+		"status":     statusSchema(),
+	}
+	id := schemaID
+	if withPage {
+		id = "https://eshu.dev/schemas/collector-sdk/v1alpha3/result.schema.json"
+		properties["page"] = ref("#/$defs/page")
+		defs["page"] = pageSchema()
+	}
 	return map[string]any{
 		"$schema":              schemaDraft2020,
-		"$id":                  schemaID,
+		"$id":                  id,
 		"title":                "Eshu Collector SDK Result",
 		"type":                 "object",
 		"additionalProperties": false,
 		"required":             []string{"protocol_version", "state", "claim", "generation"},
-		"properties": map[string]any{
-			"protocol_version": map[string]any{"const": ProtocolVersionV1Alpha1},
-			"state": map[string]any{
-				"enum": []string{
-					string(ResultComplete),
-					string(ResultUnchanged),
-					string(ResultPartial),
-					string(ResultRetryable),
-					string(ResultTerminal),
-				},
-			},
-			"claim":      ref("#/$defs/claim"),
-			"generation": ref("#/$defs/generation"),
-			"facts":      arrayOf(ref("#/$defs/fact")),
-			"statuses":   arrayOf(ref("#/$defs/status")),
-		},
-		"$defs": map[string]any{
-			"claim":      claimSchema(),
-			"scope":      scopeSchema(),
-			"generation": generationSchema(),
-			"fact":       factSchema(),
-			"source_ref": sourceRefSchema(),
-			"redaction":  redactionSchema(),
-			"status":     statusSchema(),
-		},
+		"properties":           properties,
+		"$defs":                defs,
 	}
+}
+
+// pageSchema describes the optional v1alpha3 paged-result continuation.
+func pageSchema() map[string]any {
+	return objectSchema(
+		[]string{},
+		map[string]any{
+			"cursor":      map[string]any{"type": "string"},
+			"more":        map[string]any{"type": "boolean"},
+			"page_index":  map[string]any{"type": "integer", "minimum": 0},
+			"total_facts": map[string]any{"type": "integer", "minimum": 0},
+		},
+	)
 }
 
 func claimSchema() map[string]any {

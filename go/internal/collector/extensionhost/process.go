@@ -31,6 +31,8 @@ type ProcessRunner struct {
 }
 
 // RunCollector starts the configured process and decodes one SDK result.
+// It keeps the legacy strict decode: paged v1alpha3 output fails closed
+// here, and paged satellites run through RunPagedCollector instead.
 func (r ProcessRunner) RunCollector(ctx context.Context, request Request) (sdkcollector.Result, error) {
 	if r.Command == "" {
 		return sdkcollector.Result{}, errors.New("extension command is required")
@@ -69,6 +71,50 @@ func (r ProcessRunner) RunCollector(ctx context.Context, request Request) (sdkco
 	}
 
 	return decodeSDKResult(stdout.Bytes())
+}
+
+// RunPagedCollector starts the configured process and decodes one SDK result
+// with its optional v1alpha3 page continuation, so the host can reassemble
+// split results across resumed calls. Legacy single-shot output decodes with
+// a nil page.
+func (r ProcessRunner) RunPagedCollector(ctx context.Context, request Request) (CallResult, error) {
+	if r.Command == "" {
+		return CallResult{}, errors.New("extension command is required")
+	}
+	payload, err := json.Marshal(request)
+	if err != nil {
+		return CallResult{}, fmt.Errorf("encode extension request: %w", err)
+	}
+
+	cmd := exec.CommandContext(ctx, r.Command, r.Args...) // #nosec G204 -- runs operator-configured extension command with operator-supplied args from ProcessRunner config
+	cmd.Stdin = bytes.NewReader(payload)
+	cmd.Env = append(os.Environ(), r.Env...)
+	cmd.Dir = r.Dir
+
+	stdout := newLimitedBuffer(effectiveLimit(r.StdoutLimitBytes, defaultStdoutLimitBytes))
+	stderr := newLimitedBuffer(effectiveLimit(r.StderrLimitBytes, defaultStderrLimitBytes))
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
+
+	if err := cmd.Run(); err != nil {
+		if ctx.Err() != nil {
+			return CallResult{}, ctx.Err()
+		}
+		return CallResult{}, fmt.Errorf(
+			"extension process failed: %w (stderr_bytes=%d stderr_truncated=%t)",
+			err,
+			stderr.Len(),
+			stderr.Truncated(),
+		)
+	}
+	if stdout.Truncated() {
+		return CallResult{}, fmt.Errorf(
+			"extension stdout limit exceeded: limit_bytes=%d",
+			stdout.Limit(),
+		)
+	}
+
+	return decodePagedSDKResult(stdout.Bytes())
 }
 
 func effectiveLimit(value int64, defaultValue int64) int64 {

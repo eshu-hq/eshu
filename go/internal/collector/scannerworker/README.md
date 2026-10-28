@@ -32,6 +32,12 @@ graph projection phases.
   input copied from an active workflow claim and fencing token.
 - `FactOutput`, `ValidateFactOutput` — validates fenced source facts and
   rejects silent clean output or reducer-owned finding facts.
+- `SplitFactOutput` — partitions a `FactOutput` into pages that each fit the
+  explicit per-call byte bound of the `collector-sdk/v1alpha3` pagination
+  contract, measured as SDK wire bytes. Order is preserved and no fact is
+  lost; only a single fact larger than the whole bound fails closed naming
+  itself. The `MaxFacts` ceiling is unchanged: paging spreads facts across
+  resumed calls, never trims them.
 - `FailureDisposition`, `FailureClass`, `ResourceUsage`, `FailurePayload`,
   `FailurePayloadFor` — bounded retry and dead-letter payloads that avoid raw
   target locators.

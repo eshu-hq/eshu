@@ -10,7 +10,10 @@ internal durable fact envelope.
 - Go module path: `github.com/eshu-hq/eshu/sdk/go/collector`
 - Initial SDK module semver: `v0.1.x`
 - Initial wire protocol: `collector-sdk/v1alpha1`
+- Paged wire protocol: `collector-sdk/v1alpha3` (optional `Result.Page`
+  continuation; v1alpha1/v1alpha2 single-shot results unchanged)
 - JSON Schema artifact: `schema/collector-sdk-v1alpha1.schema.json`
+- JSON Schema artifact (paged): `schema/collector-sdk-v1alpha3.schema.json`
 - Cassette format JSON Schema (replay fixtures): `schema/cassette-format.v1.schema.json`
   — a generated mirror of the host's cassette envelope contract
   (`go/internal/replay/schema`), so credential-free replay cassettes can be
@@ -28,6 +31,9 @@ The public surface includes:
 - `Fact`, `SourceRef`, and `Redaction` for source evidence.
 - `Status` and `Result` for complete, unchanged, partial, retryable, and
   terminal outcomes.
+- `ResultPage` plus `PageBoundForStdout`, `FactWireBytes`, and `SplitFacts`
+  for versioned (`collector-sdk/v1alpha3`) multi-call pagination of results
+  that would not fit one bounded stdout write.
 - `Contract`, `FactDeclaration`, `Validator`, and `ValidationReport` for
   fail-closed host validation.
 

@@ -47,6 +47,9 @@ func NewSource(config Config) (*Source, error) {
 	if config.Runner == nil {
 		return nil, errors.New("extension runner is required")
 	}
+	if config.MaxResultPages < 0 {
+		return nil, errors.New("max_result_pages must not be negative")
+	}
 	if config.TokenProvider != nil {
 		// A static value under the host-minted key would be silently
 		// overwritten per claim; fail closed at activation instead. The
@@ -90,6 +93,7 @@ func NewSource(config Config) (*Source, error) {
 		collectorKinds:      collectorKinds,
 		liveGrants:          liveGrants,
 		grantObserver:       config.GrantObserver,
+		maxPages:            config.MaxResultPages,
 	}, nil
 }
 
@@ -135,8 +139,13 @@ func (s *Source) nextClaimed(
 	runCtx, cancel := context.WithDeadline(ctx, request.Claim.Deadline)
 	defer cancel()
 
-	result, err := s.runner.RunCollector(runCtx, request)
+	result, err := s.runClaim(runCtx, request)
 	if err != nil {
+		if failure, ok := err.(extensionFailure); ok {
+			return collector.CollectedGeneration{}, false, sdkcollector.Result{}, ResultOriginHost, failure
+		}
+		// The legacy single-call path surfaces raw runner errors; they stay
+		// launch failures exactly as before pagination existed.
 		return collector.CollectedGeneration{}, false, sdkcollector.Result{}, ResultOriginHost, extensionFailure{
 			class: FailureClassLaunchFailure,
 			cause: err,
@@ -153,6 +162,16 @@ func (s *Source) nextClaimed(
 	}
 	collected, ok, err := s.resolveResult(item, result)
 	return collected, ok, result, ResultOriginSDK, err
+}
+
+// runClaim executes one claim through the satellite. Runners with paged
+// support reassemble every continuation page into one result; all other
+// runners keep the exact legacy single-call path.
+func (s *Source) runClaim(ctx context.Context, request Request) (sdkcollector.Result, error) {
+	if paged, ok := s.runner.(PagedRunner); ok {
+		return s.collectPages(ctx, paged, request)
+	}
+	return s.runner.RunCollector(ctx, request)
 }
 
 // resolveResult maps a validated SDK result state to the ClaimedService

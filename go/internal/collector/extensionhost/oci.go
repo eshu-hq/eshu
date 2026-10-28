@@ -106,6 +106,46 @@ func (r OCIRunner) RunCollector(ctx context.Context, request Request) (sdkcollec
 	return decodeSDKResult(stdout.Bytes())
 }
 
+// RunPagedCollector launches the digest-pinned artifact and decodes one SDK
+// result with its optional v1alpha3 page continuation. Legacy single-shot
+// output decodes with a nil page.
+func (r OCIRunner) RunPagedCollector(ctx context.Context, request Request) (CallResult, error) {
+	args, err := r.commandArgs()
+	if err != nil {
+		return CallResult{}, err
+	}
+	payload, err := json.Marshal(request)
+	if err != nil {
+		return CallResult{}, fmt.Errorf("encode extension request: %w", err)
+	}
+
+	stdout := newLimitedBuffer(effectiveLimit(r.StdoutLimitBytes, defaultStdoutLimitBytes))
+	stderr := newLimitedBuffer(effectiveLimit(r.StderrLimitBytes, defaultStderrLimitBytes))
+
+	run := r.exec
+	if run == nil {
+		run = defaultOCIExec
+	}
+	if err := run(ctx, r.runtime(), args, payload, stdout, stderr); err != nil {
+		if ctx.Err() != nil {
+			return CallResult{}, ctx.Err()
+		}
+		return CallResult{}, fmt.Errorf(
+			"extension oci adapter failed: %w (stderr_bytes=%d stderr_truncated=%t)",
+			err,
+			stderr.Len(),
+			stderr.Truncated(),
+		)
+	}
+	if stdout.Truncated() {
+		return CallResult{}, fmt.Errorf(
+			"extension stdout limit exceeded: limit_bytes=%d",
+			stdout.Limit(),
+		)
+	}
+	return decodePagedSDKResult(stdout.Bytes())
+}
+
 func (r OCIRunner) runtime() string {
 	if runtime := strings.TrimSpace(r.Runtime); runtime != "" {
 		return runtime
