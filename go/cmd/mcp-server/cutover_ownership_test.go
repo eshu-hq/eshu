@@ -202,6 +202,24 @@ func cutoverMCPDispatchCorpus(t *testing.T) string {
 	return sb.String()
 }
 
+// concatBuiltRoutes covers the cited routes the dispatch tree serves via
+// string concatenation rather than a single literal. Each entry names the
+// quoted fragments that must all be present; anything not listed here and
+// not an exact quoted literal fails as phantom.
+var concatBuiltRoutes = map[string][]string{
+	"/api/v0/repositories/{repo_id}/tree":                 {`"/api/v0/repositories/"`, `"/tree"`},
+	"/api/v0/services/{service_name}/intelligence-report": {`"/api/v0/services/"`, `"/intelligence-report"`},
+}
+
+func corpusHoldsAll(corpus string, fragments []string) bool {
+	for _, fragment := range fragments {
+		if !strings.Contains(corpus, fragment) {
+			return false
+		}
+	}
+	return true
+}
+
 func TestCutoverMCPOwnershipBackingRoutesResolve(t *testing.T) {
 	t.Parallel()
 
@@ -218,9 +236,17 @@ func TestCutoverMCPOwnershipBackingRoutesResolve(t *testing.T) {
 	}
 	var phantom []string
 	for route := range cited {
-		if !strings.Contains(corpus, route) {
-			phantom = append(phantom, route)
+		// Quote-anchored: a cited route must appear as a served route
+		// literal, so a strict prefix of a live route (e.g. a truncated
+		// spelling) still fails instead of matching inside the longer
+		// literal (#9437 review).
+		if strings.Contains(corpus, `"`+route+`"`) {
+			continue
 		}
+		if fragments, ok := concatBuiltRoutes[route]; ok && corpusHoldsAll(corpus, fragments) {
+			continue
+		}
+		phantom = append(phantom, route)
 	}
 	if len(phantom) != 0 {
 		slices.Sort(phantom)
