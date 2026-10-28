@@ -29,7 +29,8 @@ func (f *fakeSuppressionAdmission) UpsertVulnerabilitySuppression(
 // TestNewSupplyChainHandlerTakesAdmissionContract proves the #8872 seam: the
 // supply-chain handler is built with the versioned suppression admission
 // contract, not a *sql.DB writer handle. The handler must carry the exact
-// injected port so eshu-api can later bind a core-issued admission endpoint.
+// injected port (identity, not merely non-nil) so eshu-api can later bind a
+// core-issued admission endpoint.
 func TestNewSupplyChainHandlerTakesAdmissionContract(t *testing.T) {
 	t.Parallel()
 
@@ -38,7 +39,7 @@ func TestNewSupplyChainHandlerTakesAdmissionContract(t *testing.T) {
 	if handler == nil {
 		t.Fatal("newSupplyChainHandler() = nil, want a handler bound to the admission contract")
 	}
-	if handler.SuppressionMutations == nil {
-		t.Fatal("handler.SuppressionMutations = nil, want the injected admission contract")
+	if handler.SuppressionMutations != query.SuppressionAdmission(admission) {
+		t.Fatalf("handler.SuppressionMutations = %T(%v), want the exact injected admission contract %T(%v)", handler.SuppressionMutations, handler.SuppressionMutations, admission, admission)
 	}
 }

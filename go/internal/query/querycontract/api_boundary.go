@@ -5,8 +5,10 @@ package querycontract
 
 // CoreReadContractsVersion versions the core-owned read-contract set the
 // eshu-api extraction consumes (Refs eshu-hq/eshu#8872): the GraphQuery and
-// ContentStore ports below plus the Postgres ReadStore reader surface. Read
-// runtimes display core truth; they never take direct table or queue handles,
-// so a breaking change to any of these ports must bump this version in the
-// same diff and keep the eshu-api boundary explicit.
+// ContentStore ports declared in ports.go (plus the related content models),
+// and the Postgres ReadStore reader surface. Read runtimes display core
+// truth; they never take direct table or queue handles. TestCoreReadContractsVersioned
+// in api_boundary_test.go enforces the bump: it pins the frozen method set of
+// each port, so a breaking change fails there until this version moves in the
+// same diff.
 const CoreReadContractsVersion = "v0"
