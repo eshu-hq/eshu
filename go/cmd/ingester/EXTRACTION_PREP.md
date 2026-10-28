@@ -76,7 +76,8 @@ Refs `#8879`. Part of `#6707`.
 Per `docs/internal/design/eshu-ecosystem-repository-migration.md:16-22`
 (eshu retains default Git collector, discovery/parsing, reducer/resolution,
 canonical admission/projection/storage) and the repository map
-(`:56-60`, `eshu-ingester` owns intake orchestration outside the default
+(`docs/internal/design/eshu-ecosystem-repository-migration.md:56-60`,
+`eshu-ingester` owns intake orchestration outside the default
 Git/parser implementation). `collector-git` is absent from the collector
 table because it is `core_by_design` (`:105-108`).
 
