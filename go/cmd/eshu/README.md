@@ -343,3 +343,5 @@ they stay here:
 - [Service runtimes](../../../docs/public/deployment/service-runtimes.md)
 - [CLI reference](../../../docs/public/reference/cli-reference.md)
 - [CLI indexing](../../../docs/public/reference/cli-indexing.md)
+- [eshu-cli extraction contract](../../../docs/internal/evidence/8874-eshu-cli-contract.md) —
+  version pairs, credential handling, demo asset split, and local-host boundary (#8874)

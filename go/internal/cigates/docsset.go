@@ -49,6 +49,7 @@ var lockstepDocsPaths = []string{
 	"docs/internal/evidence/8870-vulnerability-intelligence-version-provenance.md",
 	"docs/internal/evidence/8871-eshu-deploy-census.md",
 	"docs/internal/evidence/8871-eshu-deploy-contract.md",
+	"docs/internal/evidence/8874-eshu-cli-contract.md",
 	"docs/internal/remote-validation/inventory.generated.json",
 	"docs/public/deploy/kubernetes/helm-routing-and-storage-values.md",
 	"docs/public/deploy/kubernetes/runtime-parity-matrix.md",
