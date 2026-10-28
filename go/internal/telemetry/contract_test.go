@@ -313,6 +313,7 @@ func TestSpanNames(t *testing.T) {
 		"config_artifacts.derive",
 		"mcp.router.find",
 		"mcp.router.call",
+		"owned_package_targets.read",
 	}
 
 	got := SpanNames()

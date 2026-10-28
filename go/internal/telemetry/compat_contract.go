@@ -111,6 +111,13 @@ const (
 	LogKeyPostgresStoreError         = contract.LogKeyPostgresStoreError
 )
 
+// Owned-package hash-slot read span and window event (from
+// contract/owned_package_targets.go, #9422).
+const (
+	SpanOwnedPackageTargetsRead    = contract.SpanOwnedPackageTargetsRead
+	EventOwnedPackageTargetsWindow = contract.EventOwnedPackageTargetsWindow
+)
+
 // Kubernetes correlation query span (from contract/kubernetes.go).
 const SpanQueryKubernetesCorrelations = contract.SpanQueryKubernetesCorrelations
 
