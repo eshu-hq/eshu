@@ -173,6 +173,9 @@ func TestServiceRunActiveModePassesOwnedPackageEvidenceToPackageRegistryPlanner(
 	if targetReader.requests[0].VersionSpecific {
 		t.Fatalf("package-registry target reader requested version-specific rows")
 	}
+	if targetReader.requests[0].ExpandPackageManagerAliases {
+		t.Fatalf("package-registry target reader must keep the raw package_manager match")
+	}
 	if got, want := targetReader.requests[0].RotationOffset, schedule.DerivedTargetRotationOffset(now, time.Hour, 125); got != want {
 		t.Fatalf("target reader rotation offset = %d, want %d", got, want)
 	}

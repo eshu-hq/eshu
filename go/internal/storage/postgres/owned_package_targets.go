@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -16,7 +17,46 @@ const (
 	maxOwnedPackageDependencyTargetLimit     = 5000
 )
 
-func listOwnedPackageDependencyTargetsQuery(versionSpecific bool) string {
+// ownedPackageEcosystemExpression returns the SQL expression that names a
+// dependency fact's ecosystem. Without alias expansion it is the lowercased raw
+// package_manager. With expansion it folds every known alias onto its canonical
+// ecosystem (gradle onto maven), built from the same table the derivation
+// uses, so a pair declared under two aliases is one DISTINCT, ranked and
+// rotated row instead of two. The literals come from a static, test-pinned
+// table and are never caller input.
+func ownedPackageEcosystemExpression(expandAliases bool) string {
+	raw := "LOWER(fact.payload->'entity_metadata'->>'package_manager')"
+	if !expandAliases {
+		return raw
+	}
+	var expression strings.Builder
+	expression.WriteString("CASE ")
+	expression.WriteString(raw)
+	for _, entry := range workflow.OwnedPackageManagerAliasTable() {
+		fmt.Fprintf(&expression, " WHEN '%s' THEN '%s'", entry.Alias, entry.Canonical)
+	}
+	expression.WriteString(" ELSE ")
+	expression.WriteString(raw)
+	expression.WriteString(" END")
+	return expression.String()
+}
+
+// ownedPackageManagerFilterValues returns the raw package_manager values the
+// reader selects for the requested ecosystems. With alias expansion each
+// ecosystem brings its aliases; without it the values pass through unchanged.
+func ownedPackageManagerFilterValues(ecosystems []string, expandAliases bool) []string {
+	if !expandAliases {
+		return ecosystems
+	}
+	values := make([]string, 0, len(ecosystems)+2)
+	for _, ecosystem := range ecosystems {
+		values = append(values, workflow.OwnedPackageManagerAliases(ecosystem)...)
+	}
+	slices.Sort(values)
+	return slices.Compact(values)
+}
+
+func listOwnedPackageDependencyTargetsQuery(versionSpecific bool, expandAliases bool) string {
 	distinctColumns := "ecosystem, package_name"
 	distinctOrder := "ecosystem ASC, package_name ASC, CASE WHEN source_location <> '' THEN 0 ELSE 1 END ASC, lockfile DESC, version ASC, fact_id ASC"
 	if versionSpecific {
@@ -26,7 +66,7 @@ func listOwnedPackageDependencyTargetsQuery(versionSpecific bool) string {
 	return fmt.Sprintf(`
 WITH active_dependencies AS (
   SELECT
-    LOWER(fact.payload->'entity_metadata'->>'package_manager') AS ecosystem,
+    %s AS ecosystem,
     fact.payload->>'entity_name' AS package_name,
     fact.payload->'entity_metadata'->>'value' AS version,
     COALESCE((fact.payload->'entity_metadata'->>'lockfile') = 'true', FALSE) AS lockfile,
@@ -99,7 +139,7 @@ SELECT
 FROM rotated_targets
 ORDER BY rotated_rank ASC, target_rank ASC
 LIMIT $2
-`, distinctColumns, distinctOrder)
+`, ownedPackageEcosystemExpression(expandAliases), distinctColumns, distinctOrder)
 }
 
 // ListOwnedPackageDependencyTargets loads active Git dependency declarations
@@ -120,8 +160,8 @@ func (s FactStore) ListOwnedPackageDependencyTargets(
 
 	rows, err := s.database.QueryContext(
 		ctx,
-		listOwnedPackageDependencyTargetsQuery(filter.VersionSpecific),
-		ecosystems,
+		listOwnedPackageDependencyTargetsQuery(filter.VersionSpecific, filter.ExpandPackageManagerAliases),
+		ownedPackageManagerFilterValues(ecosystems, filter.ExpandPackageManagerAliases),
 		limit,
 		filter.RotationOffset,
 	)

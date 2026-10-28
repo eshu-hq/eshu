@@ -128,7 +128,7 @@ in the listed order, or have one engineer own the whole zone.
 | D. Parity SQL | winners store, `findings_queries.go`, `aggregates_queries.go` | 1.2, then 2.3 (only if it chooses read-time enrichment), then 3.2 | The byte-parity rule. One change at a time, each with a parity test. If 2.3 keeps per-scope copies, it does not enter this zone. |
 | E. Reducer decode | `typed_decode.go`, `provenance_selection.go`, `index.go` | 1.13, 1.2, 1.5, 1.7, 3.2 | Same decode functions, the same selection loop, and the same classification path. |
 | F. Contract | `sdk/go/factschema/vulnerability/v1/cve.go` (1.5, 3.1, the 1.2 marker), `affected_product.go` (1.7), the registry | 1.5, 1.7, 3.1 | Each one is a minor version bump. Combine them or serialize them. |
-| G. Derivation and planning | `intelligence_derivation.go`, `vulnerability_intelligence_config.go`, the coordinator scheduler | 2.1, 2.2, 2.4 | Same planner and validators. Item 2.2 is also in zone B, after 1.4. |
+| G. Derivation and planning | `intelligence_derivation.go`, `vulnerability_intelligence_config.go`, `workflow/owned_package_manager_aliases.go`, `storage/postgres/owned_package_targets.go`, the coordinator scheduler | 2.1, 2.2, 2.4 | Same planner and validators. Item 2.2 is also in zone B, after 1.4. The `package_manager` alias table (gradle to maven) feeds both the reader SQL and the derivation mapping; edit it in one place. |
 | H. Alert path | `core/security_alert.go` | 1.12, then the alert half of 1.2 | Both edit the alert-to-finding mapping. |
 
 Items with a zone of their own:

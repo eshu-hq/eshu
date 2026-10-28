@@ -19,6 +19,9 @@ TABLE = {
         "go/internal/storage/postgres/migration_169_reader_bound_live_test.go": (
             "TestMigration169PhasedBackfillReaderBoundLive",
         ),
+        "go/internal/storage/postgres/owned_package_targets_alias_live_test.go": (
+            "TestListOwnedPackageDependencyTargetsAliasesLive",
+        ),
         "go/internal/storage/postgres/package_manifest_central_pin_live_test.go": (
             "TestNotCentralVersionDeclarationSQLAgreesWithGoLive",
         ),
