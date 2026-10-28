@@ -111,6 +111,8 @@ GitOps commit that deleted the activation entry), `--gitops-repo` (a local
 checkout holding that commit), and the mandatory
 `--restore-applied-by-gitops`. The removal commit, merged and synced, REPLACES
 script steps 1 and 3 with read-only proofs. Steps 2, 5, and 6 are unchanged.
+(`verify` needs the proof options but not the restore flag; `verify --capture`
+needs neither.)
 Step 4 still scales the in-tree Deployment and waits for the rollout, but the
 restore itself is a `git revert` of the removal commit plus a sync, never helm.
 

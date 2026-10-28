@@ -53,6 +53,8 @@ component disable or revoke-grant. Requires all of:
   --gitops-repo DIR             local checkout holding the removal commit
   --activations-configmap NAME  activations ConfigMap the pods re-seed from
                                 (default eshu-component-activations)
+                                (verify needs the proof but not the restore
+                                flag; --capture needs neither)
 
 Run control:
   --yes                         required for run
