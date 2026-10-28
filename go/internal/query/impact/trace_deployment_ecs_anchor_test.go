@@ -314,7 +314,12 @@ func TestTraceDeploymentChainScopedDeclarationUsesRepoAndAWSGrants(t *testing.T)
 
 func TestFetchWorkloadECSTaskSummaryScopedScopeGrantAloneCannotSelectDeclaration(t *testing.T) {
 	store := &fakeECSTaskStore{}
-	h := &Handler{ECSTasks: store, Content: content.FakePortContentStore{Entities: []querycontract.EntityContent{{RepoID: "repo-api", EntityType: "TerraformResource", Metadata: map[string]any{"resource_type": "aws_ecs_service", "attributes": map[string]any{"name": "api", "cluster": "arn:aws:ecs:us-east-1:000000000000:cluster/c"}}}}}, Neo4j: graph.FakeWorkloadGraphReader{}}
+	h := &Handler{ECSTasks: store, Content: content.FakePortContentStore{Entities: []querycontract.EntityContent{{RepoID: "repo-api", EntityType: "TerraformResource", Metadata: map[string]any{"resource_type": "aws_ecs_service", "attributes": map[string]any{"name": "api", "cluster": "arn:aws:ecs:us-east-1:000000000000:cluster/c"}}}}}, Neo4j: graph.FakeWorkloadGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+		if strings.Contains(cypher, "RETURN DISTINCT w.id as workload_id") {
+			return []map[string]any{{"workload_id": "workload-api"}}, nil
+		}
+		return nil, nil
+	}}}
 	got, err := h.fetchWorkloadECSTaskSummary(context.Background(), "api", "repo-api", CloudResourceResult{IdentityWithheld: true}, querycontract.RepositoryAccessFilter{AllowedScopeIDs: []string{"repo-api"}})
 	if err != nil || got.Count != nil || store.called != 0 {
 		t.Fatalf("scope-only grant selected declaration: summary=%#v err=%v store calls=%d", got, err, store.called)
