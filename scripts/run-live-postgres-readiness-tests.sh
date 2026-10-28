@@ -9,11 +9,12 @@
 # configured; without one the graph proofs are excused and named in the
 # summary), one go test per package.
 #
-# With --shard N/4 (one CI matrix leg) the runner executes only that
+# With --shard N/TOTAL (one CI matrix leg) the runner executes only that
 # time-weighted contiguous slice of the enrolled proofs through the shards
-# planner (cuts from specs/live-postgres-readiness-weights.v1.json) and leaves a
-# fail-closed per-shard JSON report instead of the suite summary; the
-# aggregator job verifies the four reports cover the full plan.
+# planner (cuts from the active weights model: five legs from
+# specs/live-postgres-readiness-weights.v2.json, four from the v1 fallback)
+# and leaves a fail-closed per-shard JSON report instead of the suite
+# summary; the aggregator job verifies every leg's report covers the plan.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -31,7 +32,7 @@ while [[ $# -gt 0 ]]; do
     --shard) shard="${2:-}"; shift 2 ;;
     --report) report_path="${2:-}"; shift 2 ;;
     --head) opt_head="${2:-}"; shift 2 ;;
-    *) die "unknown argument: $1 (usage: [--shard N/4 --report PATH] [--head SHA])" ;;
+    *) die "unknown argument: $1 (usage: [--shard N/TOTAL --report PATH] [--head SHA])" ;;
   esac
 done
 if [[ "${shard}" == "all" ]]; then
