@@ -78,7 +78,7 @@ precheck image), `service`, `networkPolicy`, `apiAuth`, `api`,
 `exposure`, `ingester`, `env`, `contentStore`, `observability`, `neo4j`,
 `nornicdb`, `repoSync`, and `eshuignore`.
 
-## Compose family (18 root files plus `docs/public/run-locally`)
+## Compose family (20 root files plus `docs/public/run-locally`)
 
 Root overlays, every one named here so the cutover cannot drop a lane:
 `docker-compose.yaml`, `docker-compose.demo.corpus.yaml`,
@@ -93,7 +93,9 @@ Root overlays, every one named here so the cutover cannot drop a lane:
 `docker-compose.remote-e2e.pprof.yaml`,
 `docker-compose.remote-e2e.runtime.yaml`,
 `docker-compose.remote-e2e.seed.yaml`, `docker-compose.remote-e2e.yaml`,
-`docker-compose.telemetry.yml`.
+`docker-compose.telemetry.yml`, `docker-compose.tier2-tfstate-v25.yaml`,
+`docker-compose.tier2-tfstate.yaml` (tier2/v25 tfstate drift E2E overlays,
+revived on the extracted satellite per #9288).
 
 `docs/public/run-locally` holds 4 compose fragments
 (`docker-compose.component-extension-oci.yaml`,
