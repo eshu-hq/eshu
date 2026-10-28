@@ -15,7 +15,6 @@ never trust the bot label alone to decide whether a finding is correct.
 | GitHub Copilot | `github-copilot[bot]` | **Handle if present; never request.** Eshu does not request Copilot reviews (reviewers of record: the owner `linuxdynasty` and community reviewers). If it comments unrequested, classify and resolve its threads exactly like any other reviewer's. |
 | Claude (when tokens are available) | `claude[bot]` or a harness-specific handle | Posts summary reviews and inline comments. Tends to focus on architectural concerns and security/secret leakage. |
 | Human reviewers | a real GitHub user | Authoritative. Treat their findings as P0/P1 unless the author can prove they are out of scope. |
-| Eshu post-discord-invite | `github-actions[bot]` | Not a review; a Discord link post. Ignore. |
 | Cloudflare Pages / Build & Release bots | `cloudflare-workers-and-pages[bot]`, `github-actions[bot]` | Not reviews; deployment status. Ignore. |
 
 Severity framing is the same regardless of author: an owner/community comment

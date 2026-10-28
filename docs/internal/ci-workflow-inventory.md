@@ -86,7 +86,6 @@ that workflow. Automation workflows are explicitly outside the gate registry.
 | `e2e-tests.yml` | Blocking Docker end-to-end smoke | Distinct runtime integration proof; retain. |
 | `factschema-diff.yml` | Blocking fact schema compatibility | Distinct compatibility boundary; retain. |
 | `frontend.yml` | Seven blocking frontend gates, advisory SSO/Prettier | Preserve product tests; narrow independent scopes before consolidation. |
-| `generate-bundle-on-demand.yml` | Manual bundle generator | Retirement candidate: installs Python editable root despite no root Python package and Go runtime. Confirm callers before deletion; currently has stale action syntax. |
 | `golden-corpus-gate.yml` | Blocking mirror/Neo4j/differential; advisory NornicDB corpus | Preserve semantic proof; parallel captures and selected queue payload in this change. |
 | `ifa-determinism-gate.yml` | Blocking determinism/dead-letter/fault matrices; advisory mirror | Distinct recovery invariants; retain selected proof. |
 | `live-backend-tests.yml` | Blocking live backends and mirrors | Preserve live integration contracts. |
@@ -95,7 +94,6 @@ that workflow. Automation workflows are explicitly outside the gate registry.
 | `main-health.yml` | Post-merge and six-hour health watcher | Useful operator signal, not duplicate merge proof. |
 | `mcp-schema-drift.yml` | Blocking schema/docs/tool inventory | Preserve compatibility; reduce hand-maintained enumerations through generated schema evidence. |
 | `payload-usage-manifest.yml` | Blocking payload consumer manifest | Preserve ownership contract; consider deriving consumer metadata from code. |
-| `post_discord_invite.yml` | Issue/PR invitation bot | No product validation; disable/move candidate if invitations are unwanted. |
 | `product-claim-ledger.yml` | Blocking claim evidence, plus weekly audit | Useful truth boundary; replace brittle text assertions with executable contract evidence where possible. |
 | `race-graph-writes.yml` | Blocking tagged graph race tests | Investigate actual overlap with whole-module race before deletion; tags may provide unique coverage. |
 | `read-api-latency-gate.yml` | Blocking latency/work budgets plus two comparator mirrors | Preserve performance correctness; benchmark noise and mirrored maintenance are consolidation targets. |

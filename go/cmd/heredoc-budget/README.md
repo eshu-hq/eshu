@@ -309,11 +309,11 @@ oversight.
 - Only `*.sh` files are scanned at all. Makefile recipes, GitHub Actions
   `run:` blocks, `bash -c` strings, and heredocs embedded in Go string
   literals execute as real shell but are invisible to this gate. Confirmed
-  live instances in this repository: a heredoc inside a `run:` step in
-  `.github/workflows/generate-bundle-on-demand.yml`, and Go string literal
-  heredocs used as test fixtures in this very package (`main_test.go`,
-  `scanner_test.go`) — neither is a `*.sh` file under `scripts/`, so neither
-  is ever scanned.
+  live instances in this repository included a heredoc inside a `run:` step
+  in the retired `.github/workflows/generate-bundle-on-demand.yml` (deleted
+  per #9315), alongside Go string literal heredocs used as test fixtures in
+  this very package (`main_test.go`, `scanner_test.go`) — the fixtures are
+  not `*.sh` files under `scripts/`, so they are never scanned.
 - A heredoc opener nested inside another heredoc's own UNQUOTED body
   (`cat <<OUTER` whose body contains `$(cat <<INNER ... INNER)`) is a real,
   valid bash construct — verified against real bash, which executes it and

@@ -115,10 +115,6 @@ non_gate_workflows:
     reason: "release-binary build/publish; PR compile coverage is the go-build gate via test.yml"
   - file: deploy-root-docs.yml
     reason: "docs site deploy, not a PR gate"
-  - file: generate-bundle-on-demand.yml
-    reason: "on-demand/dispatch bundle generation, not a PR gate"
-  - file: post_discord_invite.yml
-    reason: "Discord invite bot post, not a review gate"
   - file: refresh-cassettes.yml
     reason: "scheduled/manual cassette refresh, not a PR gate"
   - file: postgres-scheduled-live.yml
