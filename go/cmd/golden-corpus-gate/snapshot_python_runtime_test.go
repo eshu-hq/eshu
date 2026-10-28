@@ -21,7 +21,7 @@ func TestGoldenSnapshotPinsPythonRuntimeOnBothReadSurfaces(t *testing.T) {
 	want := []map[string]any{
 		{"runtime": "python", "source_kind": "pyproject_requires_python", "relative_path": "runtime_sources/pyproject.toml", "raw_spec": ">=3.10", "spec_kind": "range", "line_number": float64(2), "order_index": float64(0)},
 		{"runtime": "python", "source_kind": "poetry_python", "relative_path": "runtime_sources/pyproject.toml", "raw_spec": "^3.11", "spec_kind": "range", "line_number": float64(5), "order_index": float64(0)},
-		{"runtime": "python", "source_kind": "pipfile_python_version", "relative_path": "runtime_sources/Pipfile", "raw_spec": "3.12", "spec_kind": "exact", "line_number": float64(2), "order_index": float64(0)},
+		{"runtime": "python", "source_kind": "pipfile_python_version", "relative_path": "runtime_sources/Pipfile", "raw_spec": "3.12", "spec_kind": "partial", "line_number": float64(2), "order_index": float64(0)},
 		{"runtime": "python", "source_kind": "pipfile_python_full_version", "relative_path": "runtime_sources/Pipfile", "raw_spec": "3.12.1", "spec_kind": "exact", "line_number": float64(3), "order_index": float64(0)},
 		{"runtime": "python", "source_kind": "setup_cfg_python_requires", "relative_path": "runtime_sources/setup.cfg", "raw_spec": ">=3.9", "spec_kind": "range", "line_number": float64(2), "order_index": float64(0)},
 		{"runtime": "python", "source_kind": "setup_py_python_requires", "relative_path": "runtime_sources/setup.py", "raw_spec": ">=3.8", "spec_kind": "range", "line_number": float64(2), "order_index": float64(0)},

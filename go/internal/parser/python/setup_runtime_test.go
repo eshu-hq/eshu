@@ -32,6 +32,8 @@ func TestSetupPythonRuntimeRejectsUnboundOrDynamicCalls(t *testing.T) {
 	for _, tc := range []struct{ name, source string }{
 		{"unbound", "setup(python_requires='3.12')\n"},
 		{"shadowed", "from setuptools import setup\nsetup = fake\nsetup(python_requires='3.12')\n"},
+		{"chained_shadow", "from setuptools import setup\nother = setup = fake\nsetup(python_requires='3.12')\n"},
+		{"walrus_shadow", "from setuptools import setup\n(setup := fake)\nsetup(python_requires='3.12')\n"},
 		{"conditional_shadow", "from setuptools import setup\nif switch:\n    setup = fake\nsetup(python_requires='3.12')\n"},
 		{"destructured_shadow", "from setuptools import setup\nother, setup = pair\nsetup(python_requires='3.12')\n"},
 		{"wildcard_shadow", "from setuptools import setup\nfrom other import *\nsetup(python_requires='3.12')\n"},

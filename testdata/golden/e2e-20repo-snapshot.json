@@ -4889,7 +4889,7 @@
           "declarations[]": [
             {"runtime": "python", "source_kind": "pyproject_requires_python", "relative_path": "runtime_sources/pyproject.toml", "raw_spec": ">=3.10", "spec_kind": "range", "line_number": 2, "order_index": 0},
             {"runtime": "python", "source_kind": "poetry_python", "relative_path": "runtime_sources/pyproject.toml", "raw_spec": "^3.11", "spec_kind": "range", "line_number": 5, "order_index": 0},
-            {"runtime": "python", "source_kind": "pipfile_python_version", "relative_path": "runtime_sources/Pipfile", "raw_spec": "3.12", "spec_kind": "exact", "line_number": 2, "order_index": 0},
+            {"runtime": "python", "source_kind": "pipfile_python_version", "relative_path": "runtime_sources/Pipfile", "raw_spec": "3.12", "spec_kind": "partial", "line_number": 2, "order_index": 0},
             {"runtime": "python", "source_kind": "pipfile_python_full_version", "relative_path": "runtime_sources/Pipfile", "raw_spec": "3.12.1", "spec_kind": "exact", "line_number": 3, "order_index": 0},
             {"runtime": "python", "source_kind": "setup_cfg_python_requires", "relative_path": "runtime_sources/setup.cfg", "raw_spec": ">=3.9", "spec_kind": "range", "line_number": 2, "order_index": 0},
             {"runtime": "python", "source_kind": "setup_py_python_requires", "relative_path": "runtime_sources/setup.py", "raw_spec": ">=3.8", "spec_kind": "range", "line_number": 2, "order_index": 0},
@@ -7493,7 +7493,7 @@
           "declarations[]": [
             {"runtime": "python", "source_kind": "pyproject_requires_python", "relative_path": "runtime_sources/pyproject.toml", "raw_spec": ">=3.10", "spec_kind": "range", "line_number": 2, "order_index": 0},
             {"runtime": "python", "source_kind": "poetry_python", "relative_path": "runtime_sources/pyproject.toml", "raw_spec": "^3.11", "spec_kind": "range", "line_number": 5, "order_index": 0},
-            {"runtime": "python", "source_kind": "pipfile_python_version", "relative_path": "runtime_sources/Pipfile", "raw_spec": "3.12", "spec_kind": "exact", "line_number": 2, "order_index": 0},
+            {"runtime": "python", "source_kind": "pipfile_python_version", "relative_path": "runtime_sources/Pipfile", "raw_spec": "3.12", "spec_kind": "partial", "line_number": 2, "order_index": 0},
             {"runtime": "python", "source_kind": "pipfile_python_full_version", "relative_path": "runtime_sources/Pipfile", "raw_spec": "3.12.1", "spec_kind": "exact", "line_number": 3, "order_index": 0},
             {"runtime": "python", "source_kind": "setup_cfg_python_requires", "relative_path": "runtime_sources/setup.cfg", "raw_spec": ">=3.9", "spec_kind": "range", "line_number": 2, "order_index": 0},
             {"runtime": "python", "source_kind": "setup_py_python_requires", "relative_path": "runtime_sources/setup.py", "raw_spec": ">=3.8", "spec_kind": "range", "line_number": 2, "order_index": 0},

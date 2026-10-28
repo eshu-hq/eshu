@@ -33,6 +33,13 @@ func TestPythonTOMLSourceKindsClassifySpecShapes(t *testing.T) {
 	}
 }
 
+func TestPipfilePythonVersionWithoutPatchIsPartial(t *testing.T) {
+	facts := emitDecoded(t, "Pipfile", "[requires]\npython_version = '3.12'\n")
+	if len(facts) != 1 || facts[0].SpecKind != "partial" {
+		t.Fatalf("Pipfile short version = %+v", facts)
+	}
+}
+
 func TestPythonTOMLRejectsMalformedAndCredentialValues(t *testing.T) {
 	for _, source := range []struct{ path, prefix, suffix string }{
 		{"pyproject.toml", "[project]\nrequires-python = \"", "\"\n"},

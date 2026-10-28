@@ -157,6 +157,27 @@ func TestPythonRuntimeHandoffRejectsChangedBody(t *testing.T) {
 	}
 }
 
+func TestPythonRuntimeNativeSetupRejectsModuleWrites(t *testing.T) {
+	for _, tc := range []struct{ name, write string }{
+		{"chained", "other = setup = fake"},
+		{"walrus", "(setup := fake)"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repoRoot := t.TempDir()
+			writeCollectorTestFile(t, filepath.Join(repoRoot, "setup.py"), "from setuptools import setup\n"+tc.write+"\nsetup(python_requires='3.12')\n")
+			observed := time.Date(2026, time.October, 28, 0, 0, 0, 0, time.UTC)
+			snapshot, err := (NativeRepositorySnapshotter{Now: func() time.Time { return observed }}).SnapshotRepository(context.Background(), SelectedRepository{RepoPath: repoRoot})
+			if err != nil {
+				t.Fatal(err)
+			}
+			collected := buildStreamingGeneration(repoRoot, testCollectorRepositoryMetadata(repoRoot), "run-python-write", observed, snapshot, false, "")
+			if got := decodeDeclarationList(t, drainFactChannel(collected.Facts)); len(got) != 0 {
+				t.Fatalf("module-scope write emitted false runtime declaration: %+v", got)
+			}
+		})
+	}
+}
+
 func TestPythonRuntimeBareCRDigestBindsOriginalRevision(t *testing.T) {
 	for _, tc := range []struct{ name, path, body string }{
 		{"pyproject", "pyproject.toml", "[project]\rrequires-python = '3.12'\r"},

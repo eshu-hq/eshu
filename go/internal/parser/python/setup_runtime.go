@@ -57,10 +57,8 @@ func pythonSetupRuntimeEvidence(root *tree_sitter.Node, source []byte) pythondep
 			if expression == nil {
 				continue
 			}
-			switch expression.Kind() {
-			case "assignment", "augmented_assignment", "annotated_assignment":
-				invalidateSetupTargets(expression.ChildByFieldName("left"), source, modules, direct)
-			case "call":
+			invalidateSetupWrites(expression, source, modules, direct)
+			if expression.Kind() == "call" {
 				if !boundSetupCall(expression, source, modules, direct) {
 					continue
 				}
@@ -103,6 +101,26 @@ func pythonSetupRuntimeEvidence(root *tree_sitter.Node, source []byte) pythondep
 		evidence.State = "parsed_values"
 	}
 	return evidence
+}
+
+// invalidateSetupWrites removes a trusted import after any module-scope write
+// inside an expression. Chained assignments put later targets on the right;
+// named expressions can occur under a parenthesized expression or call.
+func invalidateSetupWrites(expression *tree_sitter.Node, source []byte, modules, direct map[string]bool) {
+	stack := []tree_sitter.Node{*expression}
+	for len(stack) > 0 {
+		node := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		switch node.Kind() {
+		case "assignment", "augmented_assignment", "annotated_assignment":
+			invalidateSetupTargets(node.ChildByFieldName("left"), source, modules, direct)
+		case "named_expression":
+			invalidateSetupTargets(node.ChildByFieldName("name"), source, modules, direct)
+		}
+		cursor := node.Walk()
+		stack = append(stack, node.NamedChildren(cursor)...)
+		cursor.Close()
+	}
 }
 
 func bindSetupModuleImport(node *tree_sitter.Node, source []byte, modules, direct map[string]bool) {
