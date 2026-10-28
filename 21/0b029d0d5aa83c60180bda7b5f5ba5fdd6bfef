@@ -1,0 +1,48 @@
+docs/public/concepts/how-it-works.md
+  s_5826901f023244::t_340e87105fa893 64-65
+docs/public/reference/collector-reducer-readiness.md
+  s_5826901f023244::t_cd46a8d89dd0da 257
+docs/public/supply-chain-traceability.md
+  s_5826901f023244::t_7f537abe2e637a 15,32,34-35
+  s_5826901f023244::t_743aa61be1973c 3-7
+  s_5826901f023244::t_2db63c00ea7f13 25-31
+  s_5826901f023244::t_2d7028d36fb04a 33
+  s_5826901f023244::t_bdfe7cfcf0b482 36
+docs/public/deploy/kubernetes/storage.md
+  s_5826901f023244::t_879479fb031053 22-24,42,58
+specs/capability-matrix.v1.yaml
+  s_5826901f023244::t_594fd332b4eece 299-301
+docs/public/why-eshu.md
+  s_5826901f023244::t_cd46a8d89dd0da 73-74
+docs/public/roadmap.md
+  s_5826901f023244::t_cd46a8d89dd0da 135-137
+docs/public/reference/cli-system.md
+  s_5826901f023244::t_879479fb031053 78-79
+docs/public/reference/graph-backend-installation.md
+  s_5826901f023244::t_879479fb031053 19,21-23
+docs/public/reference/cypher-performance.md
+  s_5826901f023244::t_879479fb031053 25
+docs/public/reference/backend-conformance.md
+  s_5826901f023244::t_5acc5f584c158e 201
+  s_5826901f023244::t_340e87105fa893 5-8,200,202-203
+  s_5826901f023244::t_632e06da9793ff 15,25,62
+docs/public/reference/http-api/deployment-trace-and-influence.md
+  s_5826901f023244::t_644c788d8bf15f 104-105,110
+  s_5826901f023244::t_d82c7ba32933b0 106-109
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "210b029d0d5aa83c60180bda7b5f5ba5fdd6bfef",
+  "prompts": {},
+  "sessions": {
+    "s_5826901f023244": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a183bd-3250-71f2-9668-435aa2ce8de2",
+        "model": "gpt-6.1-terra"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
