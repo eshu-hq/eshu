@@ -34,6 +34,22 @@ test_malformed_artifact_citation_fails() {
   assert_contains "malformed workflow artifact" "${out}" "artifact: names the malformed pointer"
 }
 
+# A bare http(s) host names no run and must fail: the URL arm requires a
+# registry host plus /actions/runs/ or a numeric run segment (#9370).
+test_bare_url_artifact_citation_fails() {
+  local root="${tmp_root}/artifact-bare-url" out="${tmp_root}/artifact-bare-url.out"
+  write_doc "${root}" "example.md" \
+    '# Example' '' \
+    'Scale proof: `artifact:http://x`.' \
+    'Matrix proof: `artifact:https://y`.'
+  if run_verifier "${root}" "${out}"; then
+    record_fail "artifact: bare http(s) hosts fail (verifier exited zero)"
+  else
+    record_pass "artifact: bare http(s) hosts fail"
+  fi
+  assert_contains "malformed workflow artifact" "${out}" "artifact: names the bare-URL pointer"
+}
+
 # `artifact:<GoIdentifier>` prose (the established anchor-doc convention)
 # is not a citation attempt and must keep passing.
 test_artifact_identifier_prose_ignored() {

@@ -214,17 +214,43 @@ claim_pattern='[0-9]+/[0-9]+[[:space:]]+(trials|runs)\b|^[[:space:]]*Measurement
 citation_pattern='ledger:([A-Za-z0-9][A-Za-z0-9_-]*)'
 artifact_pattern='artifact:([A-Za-z0-9_./#:-]+)'
 
+# artifact_url_wellformed requires a resolvable run URL: a registry host
+# (a dot in the host) plus /actions/runs/ or a numeric run segment, per
+# docs/internal/measurement-ledger.md. Rejects bare hosts such as http://x.
+artifact_url_wellformed() {
+  local url="$1"
+  local hostpath="${url#*://}"
+  local host="${hostpath%%/*}"
+  case "${host}" in
+    *.*) ;;
+    *) return 1 ;;
+  esac
+  case "${url}" in
+    */actions/runs/*) return 0 ;;
+  esac
+  case "${hostpath}" in
+    */*)
+      local path="/${hostpath#*/}"
+      case "${path}" in
+        */[0-9]*) return 0 ;;
+      esac
+      ;;
+  esac
+  return 1
+}
+
 # artifact_ref_wellformed reports whether an extracted artifact token names a
 # resolvable run output: a numeric run id plus an artifact name, or a full
 # http(s) run URL -- the doc-citations bar
 # (scripts/lib/doc-citation-artifacts.sh) and the measurement-ledger promise.
 # A bare slash is not a namespace, so a slash-bearing non-pointer such as
 # "see/above" is malformed and must fail the claim it was cited for.
+# A bare http(s) host with no run segment (e.g. http://x) is malformed too.
 artifact_ref_wellformed() {
   local ref="$1"
   case "${ref}" in
     http://?*|https://?*)
-      return 0
+      artifact_url_wellformed "${ref}" && return 0 || return 1
       ;;
     http://|https://)
       return 1

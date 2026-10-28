@@ -91,11 +91,11 @@ perf_apply_workflow_artifact_evidence() {
   if [ -s "$_perf_artifact_added_path" ]; then
     # Match against a file, never a pipe: `printf ... | rg -q` races under
     # `set -o pipefail` (see the committed-marker block in the verifier).
-    if rg -q -e '(^|[[:space:]])(Performance Evidence|Benchmark Evidence|No-Regression Evidence)[[:space:]]*\(workflow-artifact:[[:space:]]*([0-9]+/[^()[:space:]]+|https?://[^()[:space:]]+)[^()]*\)[[:space:]]*:' "$_perf_artifact_added_path"; then
+    if rg -q -e '(^|[[:space:]])(Performance Evidence|Benchmark Evidence|No-Regression Evidence)[[:space:]]*\(workflow-artifact:[[:space:]]*([0-9]+/[^()[:space:]]+|https?://[^()[:space:]]*[.][^()[:space:]]*(/actions/runs/[^()[:space:]]*|/[0-9][^()[:space:]]*))[^()]*\)[[:space:]]*:' "$_perf_artifact_added_path"; then
       # shellcheck disable=SC2034  # consumed by the sourcing verifier.
       perf_artifact_has_performance=0
     fi
-    if rg -q -e '(^|[[:space:]])(Observability Evidence|No-Observability-Change)[[:space:]]*\(workflow-artifact:[[:space:]]*([0-9]+/[^()[:space:]]+|https?://[^()[:space:]]+)[^()]*\)[[:space:]]*:' "$_perf_artifact_added_path"; then
+    if rg -q -e '(^|[[:space:]])(Observability Evidence|No-Observability-Change)[[:space:]]*\(workflow-artifact:[[:space:]]*([0-9]+/[^()[:space:]]+|https?://[^()[:space:]]*[.][^()[:space:]]*(/actions/runs/[^()[:space:]]*|/[0-9][^()[:space:]]*))[^()]*\)[[:space:]]*:' "$_perf_artifact_added_path"; then
       # shellcheck disable=SC2034  # consumed by the sourcing verifier.
       perf_artifact_has_observability=0
     fi

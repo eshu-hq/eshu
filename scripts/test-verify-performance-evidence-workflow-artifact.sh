@@ -132,6 +132,28 @@ git -C "${artifact_slash_repo}" add .
 git -C "${artifact_slash_repo}" commit -q -m 'hot change with slash-bearing non-pointer refs'
 expect_fail "${artifact_slash_repo}" 'slash-bearing non-pointer refs'
 
+# A bare http(s) host names no run and must not satisfy the gate: the URL arm
+# requires a registry host plus /actions/runs/ or a numeric run segment (#9370).
+artifact_bare_url_repo="$(init_repo artifact-bare-url)"
+hot_change "${artifact_bare_url_repo}"
+cat >>"${artifact_bare_url_repo}/go/internal/storage/cypher/writer.go" <<'GO'
+// Performance Evidence (workflow-artifact: http://x): bare host is not a run URL.
+// Observability Evidence (workflow-artifact: http://x): bare host is not a run URL.
+GO
+git -C "${artifact_bare_url_repo}" add .
+git -C "${artifact_bare_url_repo}" commit -q -m 'hot change with bare-http refs'
+expect_fail "${artifact_bare_url_repo}" 'bare-http refs'
+
+artifact_bare_urls_repo="$(init_repo artifact-bare-url-s)"
+hot_change "${artifact_bare_urls_repo}"
+cat >>"${artifact_bare_urls_repo}/go/internal/storage/cypher/writer.go" <<'GO'
+// Performance Evidence (workflow-artifact: https://y): bare host is not a run URL.
+// Observability Evidence (workflow-artifact: https://y): bare host is not a run URL.
+GO
+git -C "${artifact_bare_urls_repo}" add .
+git -C "${artifact_bare_urls_repo}" commit -q -m 'hot change with bare-https refs'
+expect_fail "${artifact_bare_urls_repo}" 'bare-https refs'
+
 # A shaped pointer inside a fixture tree must not satisfy the gate: testdata
 # carries fixtures, never evidence (eshu-hq/eshu#5542 follow-up).
 artifact_fixture_repo="$(init_repo artifact-fixture)"

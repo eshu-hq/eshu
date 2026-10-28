@@ -102,6 +102,20 @@ printf '# New Finding\n\nA deadlock check ran clean: 0/30 trials failed (artifac
 commit_change "${artifact_slash_repo}" "add slash-bearing non-pointer claim"
 expect_fail "${artifact_slash_repo}" "slash-bearing non-pointer must fail"
 
+# A bare http(s) host names no run and must fail: the URL arm requires a
+# registry host plus /actions/runs/ or a numeric run segment (eshu-hq/eshu#9370).
+artifact_bare_url_repo="$(init_repo artifact-bare-url)"
+printf '# New Finding\n\nA deadlock check ran clean: 0/30 trials failed (artifact:http://x).\n' \
+  >"${artifact_bare_url_repo}/docs/internal/evidence/new-finding.md"
+commit_change "${artifact_bare_url_repo}" "add bare-http artifact claim"
+expect_fail "${artifact_bare_url_repo}" "bare http URL must fail"
+
+artifact_bare_url_s_repo="$(init_repo artifact-bare-url-s)"
+printf '# New Finding\n\nA deadlock check ran clean: 0/30 trials failed (artifact:https://y).\n' \
+  >"${artifact_bare_url_s_repo}/docs/internal/evidence/new-finding.md"
+commit_change "${artifact_bare_url_s_repo}" "add bare-https artifact claim"
+expect_fail "${artifact_bare_url_s_repo}" "bare https URL must fail"
+
 # The committed ledger path keeps working through the transition.
 ledger_repo="$(init_repo ledger-still-accepted)"
 printf '# New Finding\n\nA deadlock check ran clean: 0/10 trials failed (ledger:9999-known-row).\n' \

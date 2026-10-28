@@ -216,6 +216,10 @@ func TestProofLikeAcceptsWorkflowArtifactRefs(t *testing.T) {
 		"artifact:abc/def",
 		"artifact:12345",
 		"artifact:12345/",
+		// A bare http(s) host names no run: the URL arm requires a
+		// registry host plus /actions/runs/ or a numeric run segment (#9370).
+		"artifact:http://x",
+		"artifact:https://y",
 	} {
 		if proofLike(ref) {
 			t.Errorf("proofLike(%q) = true, want false for a pointer with no run namespace", ref)

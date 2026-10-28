@@ -354,18 +354,49 @@ func proofLike(ref string) bool {
 		strings.Contains(lower, "golden")
 }
 
+// artifactURLWellformed requires a resolvable run URL: a registry host
+// (a dot in the host) plus /actions/runs/ or a numeric run segment, per
+// docs/internal/measurement-ledger.md. Rejects bare hosts such as http://x.
+func artifactURLWellformed(url string) bool {
+	var hostpath string
+	if rest, ok := strings.CutPrefix(url, "http://"); ok {
+		hostpath = rest
+	} else if rest, ok := strings.CutPrefix(url, "https://"); ok {
+		hostpath = rest
+	} else {
+		return false
+	}
+	host, _, _ := strings.Cut(hostpath, "/")
+	if !strings.Contains(host, ".") {
+		return false
+	}
+	if strings.Contains(url, "/actions/runs/") {
+		return true
+	}
+	if _, path, ok := strings.Cut(hostpath, "/"); ok {
+		p := "/" + path
+		for i := 0; i+1 < len(p); i++ {
+			if p[i] == '/' && p[i+1] >= '0' && p[i+1] <= '9' {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // artifactRefWellformed reports whether the ref after "artifact:" names a
 // resolvable run output: a numeric run id plus an artifact name, or a full
 // http(s) run URL -- the doc-citations bar
 // (scripts/lib/doc-citation-artifacts.sh). Anything else, including a
-// slash-bearing non-pointer such as "see/above", is not a pointer.
+// slash-bearing non-pointer such as "see/above" or a bare http(s) host
+// with no run segment such as "http://x", is not a pointer.
 func artifactRefWellformed(rest string) bool {
 	rest = strings.TrimSpace(rest)
 	if rest == "http://" || rest == "https://" {
 		return false
 	}
 	if strings.HasPrefix(rest, "http://") || strings.HasPrefix(rest, "https://") {
-		return true
+		return artifactURLWellformed(rest)
 	}
 	run, name, ok := strings.Cut(rest, "/")
 	if !ok || name == "" {

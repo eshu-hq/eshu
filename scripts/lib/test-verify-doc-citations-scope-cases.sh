@@ -395,6 +395,7 @@ run_basic_fixture_cases() {
     test_fails_closed_on_bad_baseline \
     test_artifact_citation_passes \
     test_malformed_artifact_citation_fails \
+    test_bare_url_artifact_citation_fails \
     test_artifact_identifier_prose_ignored; do
     run_doc_citation_case "${test_case}"
   done
