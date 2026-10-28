@@ -72,6 +72,7 @@ func (h *Handler) fetchCloudResourceResult(
 		         sort_instance_environment
 		LIMIT $cloud_observation_limit
 		RETURN c.id as id, c.name as name, c.kind as kind, c.provider as provider,
+		       c.resource_type as resource_type, c.arn as arn,
 		       properties(rel) as observation,
 		       i.environment as instance_environment,
 		       c.environment as resource_environment

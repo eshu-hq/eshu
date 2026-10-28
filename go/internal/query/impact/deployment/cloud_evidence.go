@@ -24,6 +24,7 @@ func DeploymentTraceCloudResourcesFromRows(rows []map[string]any, defaultRelatio
 			"name":                  querycontract.StringVal(row, "name"),
 			"kind":                  querycontract.StringVal(row, "kind"),
 			"resource_type":         querycontract.StringVal(row, "resource_type"),
+			"arn":                   querycontract.StringVal(row, "arn"),
 			"provider":              querycontract.StringVal(row, "provider"),
 			"environment":           querycontract.StringVal(row, "environment"),
 			"confidence":            querycontract.FloatVal(row, "confidence"),
@@ -63,6 +64,7 @@ func groupCloudResourceObservationRows(rows []map[string]any) []map[string]any {
 			"name":          querycontract.StringVal(row, "name"),
 			"kind":          querycontract.StringVal(row, "kind"),
 			"resource_type": querycontract.StringVal(row, "resource_type"),
+			"arn":           querycontract.StringVal(row, "arn"),
 			"provider":      querycontract.StringVal(row, "provider"),
 			"observations":  []map[string]any{observation},
 		}
