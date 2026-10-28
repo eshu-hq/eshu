@@ -299,7 +299,9 @@ The original preimplementation timing investigation expired before a quiet
 host was available, so its theory remains unproven. The later paired run
 verifies only the implemented parser path. No new metric or span was added;
 the parent parser's existing file-parse timing remains the operator signal.
-The figures above predate the signed-query guard. A separate same-round
-comparison of that final edit found +1.8% and -1.1% on the unchanged five-file
-fixture corpus; see [signed-query proof](../../../../docs/internal/evidence/9303-dockerfile-signed-query-proof.md)
+The figures above predate the signed-query guard. Its first paired comparison
+found +1.8% and -1.1% on the unchanged five-file fixture corpus. A final
+paired comparison of the shared URL classifier found +0.8–0.9% per five-file
+pass and +4.2–8.0% on an ordinary pip-index URL microcase, with one extra
+allocation in that case. See [signed-query proof](../../../../docs/internal/evidence/9303-dockerfile-signed-query-proof.md)
 for the source hashes, query controls, and interpretation.

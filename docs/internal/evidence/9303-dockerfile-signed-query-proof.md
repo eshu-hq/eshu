@@ -67,8 +67,45 @@ install row to a counted credential drop, so their before/after times are not
 interpreted as a speedup. Candidate `safeDownload` medians were 346–351 ns
 for AWS, 553–555 ns for encoded Google Cloud, and 287–288 ns for Azure.
 
-This measures the first signed-query guard commit, before the follow-up shared
-classifier and variable-only URL change. The broader #9303
-parser contribution still has the separately recorded +16–20% five-fixture
-and +95–101% repeated deep-parent costs. Neither measurement establishes an
-end-to-end or production-corpus budget acceptance.
+The first comparison measured the signed-query guard before the shared
+classifier and variable-only URL change. A second quiet-host comparison from
+2026-10-28 23:38:13–23:38:24 UTC measured that final delta, before its
+declared 23:45:02 deadline. Baseline was
+`96708ac14cad0f38e98f1e2c85a50fcaf2cfa57d`; candidate was
+`116ac19e9ebf8f79a1512502d4edd789f63fd9d5`. The identical temporary
+option benchmark harness had SHA-256
+`6f14132344ade81fd14914f415e53e8b91b1f2697f621db0d316d5334ed31497`.
+The changed `install.go` hashes were
+`3bb2d593e48be6706e07f3b7c94afa888751fb1b27a61fa0f18cc4634dd23b39`
+and `48bce0f200578e584c90afd67dbec9cdd2b0475ed43d548f96f3049832b7563a`;
+`install_security.go` hashes were
+`38fe5f0420e91ceea4f03a7434c6719750ac91e5c1e926eec344990e78c09496`
+and `1140398784ef519af2d6d23527cef18ac1e4606099be5b794a1f6565accbfae9`.
+
+Both base/head rounds used five samples per case with
+`GOMAXPROCS=4 go test ./internal/parser/dockerfile -run '^$' -bench
+'BenchmarkInstallOptionBoundary|BenchmarkInstallEvidenceEcosystemsDockerfiles'
+-benchtime=10000x -count=5 -benchmem`. The identical temporary harness and
+raw output are retained on the validation host as
+`/tmp/eshu-9303-option-bench_test.go` and
+`/tmp/eshu-9303-option-{base1,head1,base2,head2}.log`.
+
+| Same-outcome case | Baseline round 1 → candidate | Baseline round 2 → candidate |
+| --- | ---: | ---: |
+| Ordinary pip index URL | 5,089 → 5,304 ns/op | 5,120 → 5,532 ns/op |
+| Safe ADD URL alias | 5,731 → 5,828 ns/op | 5,590 → 5,877 ns/op |
+| Five ecosystem Dockerfiles | 24,071 → 24,285 ns/op | 24,165 → 24,349 ns/op |
+
+The ordinary option increases were 215–412 ns (+4.2–8.0%) and one
+allocation. The safe alias increases were 97–287 ns (+1.7–5.1%) and one
+allocation. The five-file increases were 184–214 ns (+0.8–0.9%) per pass,
+with allocation count unchanged at 374. The provisional diagnostic flag was
+a same-outcome increase above 10% or 1 microsecond per Dockerfile; no case
+crossed it. Signed option and variable-only signed `curl` cases change
+credential counts, so their times are reported only as candidate absolute
+costs (about 6.74–6.75 and 5.99–6.00 microseconds respectively).
+
+The broader #9303 parser contribution still has the separately recorded
++16–20% five-fixture and +95–101% repeated deep-parent costs. These local
+measurements do not establish an end-to-end or production-corpus budget
+acceptance.
