@@ -202,6 +202,47 @@ Rules that keep a manifest read bounded and fail closed:
   listed in the table.
 - A body over 1 MiB (`MaxManifestBytesPerFile`) is skipped before any parsing.
 
+### PHP collector cost and signals
+
+Performance Evidence (#9308, 2026-10-28): a five-pair, sequential local
+benchmark ran the same snapshot-to-fact-stream harness and the same 424-byte
+three-file `php-app` fixture on the branch merge base `6d04851df8` and PHP
+commit `7c3f9afff3`. The harness SHA-256 was
+`68d9f32f4b19a4b9b49fea70a407c84c1d9984abb460e317b865aa0a2ed163a1`;
+each built test binary used Go 1.26.10 on Linux arm64, 16 CPUs, no graph or
+Postgres backend. Each round ran the base control then the changed binary with
+`-test.benchtime=500ms -test.count=1 -test.benchmem`. Load1 stayed below 3.72,
+under the 8.0 quiet-host ceiling. A pre-existing idle query-proof container
+remained up, so these local timings are diagnostic rather than a production
+throughput or no-regression claim.
+
+| Per three-file snapshot and drained fact stream | Base | PHP commit |
+| --- | ---: | ---: |
+| Median time | 1,623,100 ns | 1,874,785 ns |
+| Observed time range | 1,499,039-1,645,786 ns | 1,776,529-1,977,383 ns |
+| Fact count | 21 | 28 |
+| `runtime_declaration.version` facts | 0 | 5 |
+| Allocated bytes per operation, observed range | 435,336-435,510 | 532,736-536,822 |
+
+The five same-round time ratios averaged 1.172 (sample SD 0.040). The new
+`.php-version` admission adds one `file` and one `content` fact; the other five
+new facts are the PHP declarations. The baseline did not support these sources,
+so the measured extra cost accompanies the intended output. The accepted
+Composer scan caps each body at 1 MiB and retains guarded declarations rather
+than the body; `TestNoteRuntimeDeclarationCandidateRetainsNoManifestBody`
+checks the retention boundary. The corpus pin, deterministic digest, and
+five-source snapshot stream tests check the changed fact counts and truth.
+
+No-Observability-Change: no metric, span, or log key was added. Existing
+`git_runtime_declaration_file_skipped` and
+`git_runtime_declaration_values_rejected` WARN logs report bounded skips with
+reason, relative path, byte size, and rejected count without raw values. A
+changed or unparsed Composer body marks the stream dropped, exposing the
+existing `eshu_dp_collector_preparse_identity_dropped_total` and
+`git_snapshot_preparse_identity_dropped` signals. Queue and graph counts were
+not measured in this local parser/collector benchmark; the live golden-corpus
+gate owns projection proof.
+
 ## Dockerfile and workflow sources
 
 A Dockerfile `FROM` line declares the base image's tag, and a workflow
