@@ -14,7 +14,10 @@ five consecutive pairs advanced by one page.
 The read now gives each distinct target a fixed slot, `sha256(key)` low 24 bits
 mod P, with P the smallest power of two where `P * target_limit >= 2 * T`. A
 window returns slot `bucket mod P` in the global order, plus the window stats
-(T, P, slot, slot_size, rows read). Scope, limits and cardinality:
+(T, P, slot, slot_size, rows read). A one-row `window_stats` CTE (T from
+`COUNT(*)` of the distinct targets, then P and the slot) is LEFT JOINed to the
+slot rows, so an empty slot or T = 0 still returns one row carrying the stats.
+Scope, limits and cardinality:
 
 - Scope: the same predicate as before (active generation, `content_entity`,
   `git`, `Variable`, `config_kind = dependency`, the configured
@@ -28,8 +31,9 @@ window returns slot `bucket mod P` in the global order, plus the window stats
   so the planner cannot push it below the window aggregate.
 
 Performance Evidence: shim lane `RE:shim9422-1` measured the shipped statement
-(S) against the hash-slot statement with the MATERIALIZED fence (M, the text
-this PR ships byte for byte), OFFSET 0 (O) and no fence (U) on the QA read
+(S) against the hash-slot statement with the MATERIALIZED fence (M, the first
+version of this PR, before the `window_stats` join), OFFSET 0 (O) and no fence
+(U) on the QA read
 replica at origin/main `5f205c4d7c`. Each ran 6 times, 24 runs in total, between
 17:22:05Z and 17:28:28Z on 2026-10-28, interleaved with the first mover rotated
 each round. The bucket varied per run (996441 to 996464). Every run used
@@ -56,6 +60,52 @@ Slot balance at P = 32, L = 2,000 (one snapshot, T = 30,091): min 879, max
 maven, npm, pypi, rubygems) has targets in all 32 slots. rubygems has 6 to 15
 per slot.
 
+### Re-measure of the shipped text (window_stats join)
+
+The `window_stats` CTE and the LEFT JOIN changed the statement after the shim
+run, so the text this PR ships (N) was measured again on the same QA read
+replica on 2026-10-28, interleaved with the shipped statement (S) and the M
+text. Each variant ran 4 times between 19:53:30Z and 19:56:47Z, with the first
+mover rotated each round (S M N, N S M, M N S, S N M). The bucket varied per run
+(997201 to 997212). N and M were rendered from the Go builders for the
+vulnerability caller. The figure is EXPLAIN (ANALYZE, BUFFERS) Execution Time.
+
+A first batch at `statement_timeout` 15 s (19:48 to 19:51Z) timed out on all
+12 runs, S included. Nothing else was active on the replica, and the heap is
+86 GB, so these were cold-cache runs. One discarded S warm-up at 30 s then ran
+in 14.98 s. The measured batch used 30 s, the limit the arbiter ruling allows
+when a baseline run times out. No run reached it.
+
+| Variant | n | Mean | Median | Min | Max | sd | Delta vs S |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| S shipped, limit 101 | 4 | 14.852 s | 14.819 s | 14.650 s | 15.118 s | 0.199 s | |
+| M first PR text, limit 2001 | 4 | 14.778 s | 14.850 s | 14.383 s | 15.030 s | 0.278 s | -0.074 s |
+| N shipped text, limit 2001 | 4 | 14.988 s | 15.057 s | 14.638 s | 15.199 s | 0.243 s | +0.136 s |
+
+N is within one sd of S in the same session (+0.136 s). The whole session ran
+about 0.9 s above the shim's run: S itself averaged 14.85 s against 13.93 s,
+with T at 30,669 instead of 30,091 and 2,813,766 scanned index rows instead of
+2,715,673. Against the shim's absolute band (13.7 to 14.1 s, plus 0.5 s) N's
+mean is 0.39 s over, and today's S is 0.25 s over the same bar. The comparison
+that holds the replica's state constant is the interleaved one.
+
+Plan (EXPLAIN VERBOSE, bucket 997250, 14.41 s): the same index scan and
+Unique to 30,669 distinct targets. `sha256(convert_to(...))` is in the output
+of the 30,669-row WindowAgg, so the hash still runs on the distinct rows. The
+stats side is an Aggregate over a second CTE Scan of the materialized
+`distinct_targets` (30,669 rows in memory, no new buffers). It feeds a Hash
+Right Join with the 30,669-row slot window, which returns 983 rows. Buffers
+match S within noise (round 1: S hit 8,975,219 read 1,002,056; N hit 8,959,270
+read 1,018,661).
+
+Exact text (PREPARE and EXECUTE of the rendered N text with binds, in one
+REPEATABLE READ READ ONLY transaction): for bucket 997300, N returned 964 rows
+equal to the M text's 964 rows (T 30,669, P 32, slot 20, slot_size 964). With
+L = 1 (P 65,536) the slot was empty, and N returned one row with NULL target
+columns and T 30,669, P 65,536, slot 14,260, slot_size 0. For ecosystems with
+no inventory (hex, swift), N returned one row with T 0, P 1, slot 0, both for
+L = 2,000 and for single_pass (L = 0).
+
 This is a no-regression result, not a speedup. The cost is still the full
 scan, which #9426 addresses separately.
 
@@ -78,7 +128,8 @@ It carries `owned_package_targets.total_targets`, `slot_count`, `slot`,
 `slot_size`, `rows_read`, `selected` and `truncated` attributes, and an
 `owned_package_targets.window` event with the per-ecosystem selected counts.
 `TestListOwnedPackageDependencyTargetsSlotWindowStatsLive` asserts the event
-values against the returned window. The coordinator logs one INFO line per read,
+values against the returned window, including for an empty slot (its subtests
+also cover T = 0 and pin the D1 hash bytes with a Go oracle). The coordinator logs one INFO line per read,
 `workflow coordinator read owned package target window`, with `total_targets`,
 `slot_count`, `slot`, `slot_size`, `rows_read`, `truncated`, `selected`,
 `selected_ecosystems` and `selected_by_ecosystem`
@@ -93,6 +144,11 @@ as `derived_target_budget_exhausted` skip evidence on the run.
 - Two consecutive windows log consecutive `slot` values (`bucket mod P`) with
   the same `slot_count` unless T crossed a power-of-two multiple of
   `target_limit / 2`.
-- `truncated` stays false. If it is true, the slot outgrew the read limit, and
-  the run's skip evidence names the unread count.
+- On a rotating instance `truncated` stays false. If it is true, the slot
+  outgrew the read limit, and the run's skip evidence names the unread count.
+  A `single_pass` instance reads one slot holding the whole set (P = 1), so it
+  logs `truncated=true` whenever T is above `target_limit + 1` and reports the
+  targets past the read limit as `derived_target_budget_exhausted` by design:
+  single_pass never plans them.
+- An empty slot, or T = 0, still logs T, P and the slot, with `slot_size` 0.
 - The read lands in a finite `eshu_dp_postgres_query_duration_seconds` bucket.

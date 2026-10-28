@@ -20,13 +20,16 @@ recent shipped work grouped by feature area.
   two with `P * target_limit >= 2 * T`, and window `bucket` plans slot
   `bucket mod P`. Every target is planned within P windows: 32 windows (16 h)
   at `target_limit: 2000` while T stays at or below 32,000. The read cost is
-  unchanged on the QA replica (14.0 s against 13.9 s, n = 6 each). A slot that
+  unchanged on the QA replica (15.0 s against 14.9 s for the shipped
+  statement, interleaved, n = 4 each). A slot that
   the read limit cuts short now reports `derived_target_budget_exhausted`, and
   the target after a skipped row is no longer planned in two windows. Each read
-  logs T, P, the slot, its size and the selected count per ecosystem, and adds
-  the `owned_package_targets.read` span.
+  logs T, P, the slot, its size and the selected count per ecosystem, also for
+  an empty slot or T = 0, and adds the `owned_package_targets.read` span.
   `eshu_dp_postgres_query_duration_seconds` gains buckets up to 300 s.
-  `single_pass` keeps reading the first page of the whole set.
+  `single_pass` keeps reading the first page of the whole set, and by design
+  logs `truncated=true` and reports the rest of the set as
+  `derived_target_budget_exhausted`.
 
 ### Supply chain: sbt dependencies join their Maven package
 
