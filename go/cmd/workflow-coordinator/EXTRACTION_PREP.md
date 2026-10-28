@@ -22,7 +22,7 @@ HEAD. Clarification posted on `#8875`; not blocking.
 
 ## 1. Command surface
 
-`go/cmd/workflow-coordinator/` — 9 files, live verified:
+`go/cmd/workflow-coordinator/` — 9 code files at base (10 with this census file), live verified:
 
 | File | Role | Key symbol |
 | --- | --- | --- |
@@ -33,9 +33,12 @@ HEAD. Clarification posted on `#8875`; not blocking.
 | `workflow_control_store_wiring.go` (+ test) | `WorkflowControlStore` construction | store wiring |
 
 The binary opens Postgres only and never writes the graph: zero
-`graph|neo4j|nornic|cypher` hits in `main.go`/`doc.go`, `workflow/*.go`,
-and `coordinator/service.go`. SDK relocation is NOT a prerequisite for this
-lane: zero `eshu-hq/eshu-sdk` imports in the leaf (live `rg` scan).
+`neo4j|nornic|cypher` hits (no graph-backend driver or query language) in
+`main.go`/`doc.go`, `workflow/*.go`, and `coordinator/service.go`; the
+remaining `graph` hits are discovery-config wording (`tfstate` `Graph`
+flag, `graph-readiness` comments), not backend writes. SDK relocation is
+NOT a prerequisite for this lane: zero `eshu-hq/eshu-sdk` imports in the
+leaf (live `rg` scan).
 
 ## 2. Workflow library (moves with the coordinator)
 
@@ -82,7 +85,7 @@ shared and **stays** in eshu main; it moves only if the queue package moves.
 distinct in `go/internal/facts/fact_kind_registry.generated.go`). The
 workflow leaf emits no facts: SDK relocation (`#6708`) is therefore NOT a
 prerequisite for this lane. Deployment-compat preparation may proceed
-independently per the `#8875` body. `go.mod`: `module
+independently per the `#8875` body. `go/go.mod`: `module
 github.com/eshu-hq/eshu/go`, `go 1.26.10`.
 
 ## 5. Consumers (must agree at cutover)
