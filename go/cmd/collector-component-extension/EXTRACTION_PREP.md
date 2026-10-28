@@ -101,7 +101,7 @@ queue, lease, reducer, API, MCP, or workflow handles.
   digest-pinned artifact.
 - Claim/lease/heartbeat/commit through `collector.ClaimedService`; the
   extension never touches claim mutation.
-- Public target contract pins: `eshu-sdk/collector v0.1.0-rc.4`,
+- Public target contract pins: `eshu-sdk/collector v0.1.0-rc.5`,
   `eshu-sdk/factschema v0.1.0-rc.7` (`go/go.mod`); toolchain directive
   `go 1.26.10`, installed `go1.26.6` (mismatch recorded, no behavior impact
   on this doc).
