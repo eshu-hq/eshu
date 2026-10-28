@@ -47,7 +47,7 @@ deployment.
 
 ### Durable stores (core Postgres owns durable state; store packages move with the listener)
 
-- `go/internal/storage/postgres/webhook/trigger_store_sql.go:35,65,113-121` —
+- `go/internal/storage/postgres/webhook/trigger_store_sql.go` (`storeWebhookTriggerQuery`, `claimQueuedWebhookTriggersQuery`) —
   `ON CONFLICT (refresh_key) DO UPDATE`, `duplicate_count+1`, `ORDER BY
   received_at,trigger_id FOR UPDATE SKIP LOCKED`, `claim_fencing_token+1`,
   token-checked completion (`:336-386`), stale-claim reap (`:165`).

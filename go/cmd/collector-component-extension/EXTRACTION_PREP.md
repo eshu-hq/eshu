@@ -20,7 +20,7 @@ Part of `#6707`. Keep this a direct execution record; no intermediate epic.
 ### Binary: `go/cmd/collector-component-extension/`
 
 The binary does **not** install components; installation is owned by
-`component.Registry.Install` (`go/internal/component/registry.go:65`). The
+`component.Registry.Install` (`go/internal/component/registry.go::Install`). The
 binary selects one trusted claim-capable activation and serves claims.
 
 | File | Role | Key symbol |
@@ -67,7 +67,7 @@ Extension-emitted kinds are manifest-declared, not host-enumerated: the
 manifest's collector kinds gate claim acceptance (`source.go:201`), and every
 emitted core-owned kind needs a live producer grant (`source.go:266`).
 Core reservation is `facts.IsCoreFactKind`
-(`go/internal/facts/registry.go:21`). The generated registry
+(`go/internal/facts/registry.go::IsCoreFactKind`). The generated registry
 (`go/internal/facts/fact_kind_registry.generated.go`) holds 185 `Kind:`
 entries (counted live 2026-10-28). Extension facts are source evidence until
 a reducer owns a consumer contract — no graph writes from this surface
@@ -121,7 +121,7 @@ queue, lease, reducer, API, MCP, or workflow handles.
 | Threat | Proof |
 | --- | --- |
 | Revoked grant at wiring | `grant_signal_test.go:143` `TestBuildClaimedServiceRevokedGrantFailsClosedAndRecordsDeny` — revoked grant stops the worker AND records `deny/readback/revoked` |
-| Revoked/expired at emission | `producer_grant_decision_test.go:63` (revoked/expired rows expect `revoked`/`expired`), `go/internal/collector/extensionhost/producer_grant_test.go:83,126` (post-revoke, post-expiry rejection; the `go/internal/component/` copy of that filename is a different `RecordGrant`/`Install` test) |
+| Revoked/expired at emission | `producer_grant_decision_test.go:63` (revoked/expired rows expect `revoked`/`expired`), `go/internal/collector/extensionhost/producer_grant_test.go::TestSourceRejectsEmissionAfterGrantRevoked`, `go/internal/collector/extensionhost/producer_grant_test.go::TestSourceRejectsEmissionAfterGrantExpiry` (post-revoke, post-expiry rejection; the `go/internal/component/` copy of that filename is a different `RecordGrant`/`Install` test) |
 | Sandbox escape / floating image | `oci_test.go:29,57,113` — digest pin + isolation argv, unpinned rejection before exec |
 | Resource exhaustion | `oci_test.go:148` stdout-limit enforcement; `process.go:19` 4 MiB/64 KiB defaults; truncation fails closed |
 | Cancellation | `oci_test.go:165` canceled-context honor; `process.go:53` and `oci.go:89` return `ctx.Err()`; per-claim deadline `source.go:135` |
