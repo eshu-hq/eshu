@@ -78,12 +78,13 @@ func portMethodSet(t *testing.T, name string, iface any) []string {
 	return got
 }
 
-// TestCoreReadContractsVersioned pins the #8872 versioned core read-contract
-// set consumed by the API surface: GraphQuery, ContentStore, and the Postgres
-// ReadStore reader surface named on CoreReadContractsVersion. The version
-// value plus the frozen method sets below are the enforcement: a breaking
-// change to any port fails this test until the version bumps in the same
-// diff.
+// TestCoreReadContractsVersioned pins the GraphQuery and ContentStore half
+// of the #8872 versioned core read-contract set consumed by the API surface.
+// The Postgres ReadStore half is pinned by TestReadStoreContractIsVersioned
+// in storage/postgres/db (querycontract stays dependency-neutral and must
+// not import the adapter surface). The version value plus both frozen sets
+// are the enforcement: a breaking change to any named port fails until
+// CoreReadContractsVersion bumps in the same diff.
 func TestCoreReadContractsVersioned(t *testing.T) {
 	t.Helper()
 	t.Parallel()
