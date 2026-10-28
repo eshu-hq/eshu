@@ -16,9 +16,9 @@ import (
 // reader surface, which querycontract.CoreReadContractsVersion versions as
 // part of the #8872 eshu-api read-contract set. A renamed, added, removed,
 // or re-signed method fails here and must bump that version in the same
-// diff, so the extraction boundary cannot drift silently. The pin lives in
-// this package because querycontract stays dependency-neutral and must not
-// import the Postgres adapter surface.
+// diff, so the extraction boundary cannot drift silently. The pin lives next
+// to the surface it pins: the db package owns ReadStore, so its frozen set
+// lives here and travels with the interface.
 var frozenReadStore = []string{
 	"BeginReadOnlySnapshot func(context.Context) (db.ReadTransaction, error)",
 	"QueryContext func(context.Context, string, ...interface {}) (db.Rows, error)",
