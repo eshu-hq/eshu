@@ -58,7 +58,7 @@ func testManifestV1Alpha3() component.Manifest {
 	return manifest
 }
 
-func mustNewPagedSource(t *testing.T, runner Runner, maxPages int) *Source {
+func mustNewPagedSource(t testing.TB, runner Runner, maxPages int) *Source {
 	t.Helper()
 
 	source, err := NewSource(Config{
@@ -354,6 +354,52 @@ func TestCollectPagesRejectsOutOfContractPages(t *testing.T) {
 			assertFailure(t, err, tc.wantClass, true)
 		})
 	}
+}
+
+// BenchmarkCollectPagesReassembly measures the host cost of splitting one
+// 30-fact generation into three pages versus admitting it one-shot through
+// the same v1alpha3 source. It isolates the reassembly loop (extra calls,
+// per-page validation, accumulation) from satellite runtime.
+func BenchmarkCollectPagesReassembly(b *testing.B) {
+	item := testWorkItem()
+	makeFacts := func(tag string) []sdkcollector.Fact {
+		facts := make([]sdkcollector.Fact, 0, 10)
+		for i := 0; i < 10; i++ {
+			fact := testSDKFact(item)
+			fact.StableKey = "scorecard:repo-eshu:" + tag + string(rune('a'+i))
+			fact.SourceRef.FactKey = fact.StableKey
+			facts = append(facts, fact)
+		}
+		return facts
+	}
+	b.Run("one-shot", func(b *testing.B) {
+		call := pagedCall(item, append(append(makeFacts("a"), makeFacts("b")...), makeFacts("c")...), nil)
+		script := &scriptRunner{calls: []CallResult{call}}
+		source := mustNewPagedSource(b, script, 0)
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			script.requests = script.requests[:0]
+			if _, _, err := source.NextClaimed(context.Background(), item); err != nil {
+				b.Fatalf("NextClaimed() error = %v, want nil", err)
+			}
+		}
+	})
+	b.Run("three-pages", func(b *testing.B) {
+		calls := []CallResult{
+			pagedCall(item, makeFacts("a"), &ResultPage{Cursor: "cursor-1", More: true, TotalFacts: 30}),
+			pagedCall(item, makeFacts("b"), &ResultPage{Cursor: "cursor-2", More: true, PageIndex: 1, TotalFacts: 30}),
+			pagedCall(item, makeFacts("c"), &ResultPage{PageIndex: 2, TotalFacts: 30}),
+		}
+		script := &scriptRunner{calls: calls}
+		source := mustNewPagedSource(b, script, 0)
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			script.requests = script.requests[:0]
+			if _, _, err := source.NextClaimed(context.Background(), item); err != nil {
+				b.Fatalf("NextClaimed() error = %v, want nil", err)
+			}
+		}
+	})
 }
 
 // TestLegacyRunnerPathStaysSingleCall proves backward compatibility: a Runner

@@ -48,6 +48,27 @@ contexts. `ProcessRunner` preserves those values through JSON transport. That
 key check does not grant producer authority: optional payload-schema validation
 and the live producer-grant check still run before fact mapping.
 
+Performance Evidence: `BenchmarkCollectPagesReassembly` (linux/arm64,
+go1.26.6) admits one 30-fact scorecard generation one-shot versus split
+10/10/10 across three resumed calls through the same v1alpha3 source.
+Baseline one-shot: 343,000-461,000 ns/op, ~240,000 B/op, ~1,677 allocs/op.
+After (three pages): 303,000-445,000 ns/op, ~251,000 B/op, ~1,696 allocs/op.
+Terminal counts: 3 satellite calls, 30 facts committed, 1 ResultRecord per
+claim either way. The page loop adds ~11 KB/op (+5%) and ~19 allocs/op (+1%)
+with timing overlapping run-to-run noise; per-page validation is the same O
+(facts) validator the one-shot path already runs, and in production each
+continuation call is a satellite subprocess launch (milliseconds), so the
+microsecond-scale loop never decides claim latency. Safe because the legacy
+Runner path is untouched (exact single-call flow, covered by
+`TestLegacyRunnerPathStaysSingleCall`) and the page bound trims nothing (a
+breach fails the claim terminal naming the bound).
+
+No-Observability-Change: pagination adds no metric, label, span, or log key.
+`StatusTelemetry` instruments and the `ResultRecord` shape are unchanged;
+paged page counts surface only through the existing summed `FactCount` and
+`StatusCount`, and `TestNextClaimedReportsOneResultForEveryFinalState` still
+proves exactly one result record per claim on every exit path.
+
 No-Regression Evidence: `go test ./internal/collector/extensionhost -count=1`
 proves the host passes only a bounded JSON claim/config/contract document,
 validates SDK output and declared payload schemas before fact mapping,
