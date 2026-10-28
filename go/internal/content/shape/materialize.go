@@ -51,6 +51,7 @@ type File struct {
 	IACRelevant     *bool
 	CommitSHA       string
 	Metadata        map[string]string
+	InstallNames    []string
 	Deleted         bool
 	EntityBuckets   map[string][]Entity
 
@@ -124,11 +125,12 @@ func materializeFile(repoID string, file File) (content.Record, []content.Entity
 	}
 
 	record := content.Record{
-		Path:     path,
-		Body:     file.Body,
-		Digest:   strings.TrimSpace(file.Digest),
-		Deleted:  file.Deleted,
-		Metadata: normalizeFileMetadata(file),
+		Path:         path,
+		Body:         file.Body,
+		Digest:       strings.TrimSpace(file.Digest),
+		Deleted:      file.Deleted,
+		Metadata:     normalizeFileMetadata(file),
+		InstallNames: append([]string(nil), file.InstallNames...),
 	}
 
 	entities, fileEntityCapHit, err := materializeEntities(repoID, path, file)

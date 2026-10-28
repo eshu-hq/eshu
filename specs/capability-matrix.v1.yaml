@@ -76,7 +76,7 @@ capabilities:
       local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 700, max_scope_size: indexed_workspace, verification: [{compose_e2e: scripts/verify-golden-corpus-gate.sh}], notes: the fresh full-stack golden-corpus run returned four Variable-labeled matches through both MCP and HTTP}
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-variable-lookup}], notes: durable semantic facts; deployed MCP find_code and HTTP variable lookup returned four Variable-labeled matches in the B-7 golden corpus run recorded by prod-variable-lookup}
   - capability: code_search.content_search
-    tools: [search_file_content]
+    tools: [search_file_content, search_dockerfile_installs]
     profiles:
       local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: "relational content search; unscoped file search accepts budget_ms 100..10000 per request and otherwise uses the configured server budget; scoped requests reject budget_ms"}
       local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: "relational content search; unscoped file search accepts budget_ms 100..10000 per request and otherwise uses the configured server budget; scoped requests reject budget_ms; graph sidecar unused for this capability"}

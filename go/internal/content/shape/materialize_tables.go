@@ -139,6 +139,7 @@ var contentEntityBuckets = []entityBucketMapping{
 	// per the frozen-table invariant.
 	{bucket: "flux_helm_releases", label: "FluxHelmRelease"},
 	{bucket: "flux_helm_repositories", label: "FluxHelmRepository"},
+	{bucket: "dockerfile_installs", label: "DockerfileInstall"},
 }
 
 // sourceFieldContainsCode is the set of entity labels whose Source field holds

@@ -50,6 +50,7 @@ var RetractInfraEntityLabels = map[string]struct{}{
 	"AtlantisWorkflow":     {},
 	"GitlabPipeline":       {},
 	"GitlabJob":            {},
+	"DockerfileInstall":    {},
 	// Incident-declaration content entity (#5954); retracted with the other
 	// declared-infrastructure labels so a delta projection does not strand it.
 	"PagerDutyDeclaration":  {},

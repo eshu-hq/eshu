@@ -29,13 +29,25 @@ func BuildContentRecord(fact facts.Envelope) (content.Record, bool) {
 
 	body, _ := decode.PayloadRawText(fact.Payload, "content_body")
 	digest, _ := decode.PayloadString(fact.Payload, "content_digest")
+	var installNames []string
+	switch values := fact.Payload["dockerfile_install_names"].(type) {
+	case []string:
+		installNames = append([]string(nil), values...)
+	case []any:
+		for _, value := range values {
+			if name, ok := value.(string); ok {
+				installNames = append(installNames, name)
+			}
+		}
+	}
 
 	return content.Record{
-		Path:     path,
-		Body:     body,
-		Digest:   digest,
-		Deleted:  fact.IsTombstone,
-		Metadata: decode.PayloadAttributes(fact.Payload, "content_path", "content_body", "content_digest"),
+		Path:         path,
+		Body:         body,
+		Digest:       digest,
+		Deleted:      fact.IsTombstone,
+		Metadata:     decode.PayloadAttributes(fact.Payload, "content_path", "content_body", "content_digest", "dockerfile_install_names"),
+		InstallNames: installNames,
 	}, true
 }
 

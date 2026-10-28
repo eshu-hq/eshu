@@ -86,6 +86,7 @@ func ReadOnlyTools() []ToolDefinition {
 	// Appended last so no earlier tool's registration position moves (the
 	// codeowners, kubernetes, service and ask position pins stay valid).
 	tools = append(tools, runtimeDeclarationTools()...)
+	tools = append(tools, dockerfileInstallTool())
 	return tools
 }
 

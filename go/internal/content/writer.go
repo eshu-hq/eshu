@@ -20,6 +20,8 @@ type Record struct {
 	Digest   string
 	Deleted  bool
 	Metadata map[string]string
+	// InstallNames are names from the parser's Dockerfile install evidence.
+	InstallNames []string
 
 	// PurgeEntities requests removal of any existing content_entities for this
 	// path while keeping the content body. Set when per-file entity
@@ -34,6 +36,7 @@ func (r Record) Clone() Record {
 	if r.Metadata != nil {
 		cloned.Metadata = cloneStringMap(r.Metadata)
 	}
+	cloned.InstallNames = append([]string(nil), r.InstallNames...)
 
 	return cloned
 }

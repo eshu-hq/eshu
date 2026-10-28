@@ -137,6 +137,22 @@
         },
         {
           "fact_kind": "git.file",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:file:dockerfile",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/replay-delta-tombstone/Dockerfile",
+            "relative_path": "Dockerfile",
+            "name": "Dockerfile",
+            "language": "dockerfile",
+            "repo_id": "replay-delta-tombstone",
+            "dir_path": "/repos/replay-delta-tombstone"
+          }
+        },
+        {
+          "fact_kind": "git.file",
           "stable_fact_key": "git:repository:replay-delta-tombstone:file:gitlab-ci-a",
           "schema_version": "1.0.0",
           "collector_kind": "git",
@@ -2025,6 +2041,30 @@
             "end_line": 5,
             "entity_id": "replay-delta-tombstone:terraform_block:probe"
           }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:dockerfile_install:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "DockerfileInstall",
+            "entity_name": "curl",
+            "relative_path": "Dockerfile",
+            "repo_id": "replay-delta-tombstone",
+            "language": "dockerfile",
+            "start_line": 3,
+            "end_line": 3,
+            "metadata": {
+              "manager": "apt-get",
+              "category": "package",
+              "stage": "final",
+              "version": "8.2.1",
+              "install_ordinal": "1"
+            }
+          }
         }
       ]
     },
@@ -2173,6 +2213,22 @@
             "relative_path": ".gitlab-ci.yml",
             "name": ".gitlab-ci.yml",
             "language": "gitlab-ci",
+            "repo_id": "replay-delta-tombstone",
+            "dir_path": "/repos/replay-delta-tombstone"
+          }
+        },
+        {
+          "fact_kind": "git.file",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:file:dockerfile",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 2,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/replay-delta-tombstone/Dockerfile",
+            "relative_path": "Dockerfile",
+            "name": "Dockerfile",
+            "language": "dockerfile",
             "repo_id": "replay-delta-tombstone",
             "dir_path": "/repos/replay-delta-tombstone"
           }

@@ -19,6 +19,7 @@ var familyPaths = map[string]string{
 	"build_evidence_citation_packet": "/api/v0/evidence/citations",
 	"search_file_content":            "/api/v0/content/files/search",
 	"search_entity_content":          "/api/v0/content/entities/search",
+	"search_dockerfile_installs":     "/api/v0/content/dockerfile-installs/search",
 }
 
 func TestRouteOwnsExactlyTheContentFamily(t *testing.T) {

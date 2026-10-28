@@ -7,14 +7,15 @@ import "time"
 
 // ContentFileSnapshot captures one portable file-content record.
 type ContentFileSnapshot struct {
-	RelativePath    string `json:"relative_path"`
-	Body            string `json:"content_body"`
-	Digest          string `json:"content_digest"`
-	Language        string `json:"language"`
-	ArtifactType    string `json:"artifact_type"`
-	TemplateDialect string `json:"template_dialect"`
-	IACRelevant     *bool  `json:"iac_relevant"`
-	CommitSHA       string `json:"commit_sha"`
+	RelativePath    string   `json:"relative_path"`
+	Body            string   `json:"content_body"`
+	Digest          string   `json:"content_digest"`
+	Language        string   `json:"language"`
+	ArtifactType    string   `json:"artifact_type"`
+	TemplateDialect string   `json:"template_dialect"`
+	IACRelevant     *bool    `json:"iac_relevant"`
+	CommitSHA       string   `json:"commit_sha"`
+	InstallNames    []string `json:"dockerfile_install_names,omitempty"`
 }
 
 // ContentFileMeta captures file metadata without the body string.
@@ -22,13 +23,14 @@ type ContentFileSnapshot struct {
 // during parse/materialize (bodies temporary), Phase B re-reads bodies from
 // disk during fact streaming so memory stays O(single_file) not O(repo).
 type ContentFileMeta struct {
-	RelativePath    string `json:"relative_path"`
-	Digest          string `json:"content_digest"`
-	Language        string `json:"language"`
-	ArtifactType    string `json:"artifact_type"`
-	TemplateDialect string `json:"template_dialect"`
-	IACRelevant     *bool  `json:"iac_relevant"`
-	CommitSHA       string `json:"commit_sha"`
+	RelativePath    string   `json:"relative_path"`
+	Digest          string   `json:"content_digest"`
+	Language        string   `json:"language"`
+	ArtifactType    string   `json:"artifact_type"`
+	TemplateDialect string   `json:"template_dialect"`
+	IACRelevant     *bool    `json:"iac_relevant"`
+	CommitSHA       string   `json:"commit_sha"`
+	InstallNames    []string `json:"dockerfile_install_names,omitempty"`
 }
 
 // ContentEntitySnapshot captures one portable content-entity record.

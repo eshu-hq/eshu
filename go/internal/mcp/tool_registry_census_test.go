@@ -33,7 +33,7 @@ import (
 // censusToolCount is the number of tools ReadOnlyTools assembles. A new tool
 // registration must update this census and the #8873 destination content plan
 // in the same change.
-const censusToolCount = 168
+const censusToolCount = 169
 
 // TestToolRegistryCensusCount pins the registry size first (TDD red gate:
 // this fails while the census is being established).
@@ -326,4 +326,5 @@ var censusToolNames = []string{ //nolint:gochecknoglobals // pinned extraction b
 	"list_relationship_edges",
 	"list_repository_files",
 	"list_runtime_version_declarations",
+	"search_dockerfile_installs",
 }

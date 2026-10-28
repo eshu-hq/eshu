@@ -191,6 +191,7 @@ var uidConstraintLabels = []string{
 	"CrossplaneComposition",
 	"CrossplaneXRD",
 	"DashboardAsset",
+	"DockerfileInstall",
 	"DataAsset",
 	"DataColumn",
 	"DataContract",

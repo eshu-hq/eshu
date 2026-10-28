@@ -190,7 +190,7 @@ func (m Metadata) Map() map[string]any {
 		"dockerfile_args":                labelsToMaps(m.Args, argMap),
 		"dockerfile_envs":                labelsToMaps(m.Envs, envMap),
 		"dockerfile_labels":              labelsToMaps(m.Labels, labelMap),
-		"dockerfile_installs":            labelsToMaps(m.Installs, installMap),
+		"dockerfile_installs":            installRows(m.Installs),
 		"dockerfile_unparsed":            labelsToMaps(m.Unparsed, unparsedMap),
 		"dockerfile_dropped_credentials": m.DroppedCredentials,
 	}

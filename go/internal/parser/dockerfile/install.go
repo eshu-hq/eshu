@@ -5,6 +5,7 @@ package dockerfile
 
 import (
 	"net/url"
+	"strconv"
 	"strings"
 	"unicode"
 )
@@ -33,6 +34,30 @@ func installMap(item Install) map[string]any {
 	row := map[string]any{"manager": item.Manager, "name": item.Name, "line_number": item.LineNumber, "stage": item.Stage}
 	addOptional(row, "version", item.Version)
 	return row
+}
+
+func installRows(installs []Install) []map[string]any {
+	rows := make([]map[string]any, 0, len(installs))
+	for index, install := range installs {
+		row := installMap(install)
+		row["install_ordinal"] = strconv.Itoa(index + 1)
+		row["category"] = installCategory(install.Manager)
+		rows = append(rows, row)
+	}
+	return rows
+}
+
+func installCategory(manager string) string {
+	switch manager {
+	case "url":
+		return "download"
+	case "docker-php-ext-install", "docker-php-ext-enable", "docker-php-ext-configure", "pecl":
+		return "php_extension"
+	case "a2enmod":
+		return "apache_module"
+	default:
+		return "package"
+	}
 }
 
 func unparsedMap(item UnparsedCommand) map[string]any {

@@ -78,6 +78,19 @@ func (w ContentWriter) upsertContentReferenceBatch(
 func contentReferencesForFiles(rows []preparedFileRow) []preparedContentReferenceRow {
 	references := make([]preparedContentReferenceRow, 0)
 	for _, row := range rows {
+		if kind, _ := row.artifactType.(string); kind == "dockerfile" {
+			seen := make(map[string]struct{})
+			for _, name := range row.installNames {
+				value := strings.ToLower(name)
+				if _, ok := seen[value]; ok {
+					continue
+				}
+				seen[value] = struct{}{}
+				references = append(references, preparedContentReferenceRow{
+					repoID: row.repoID, path: row.path, kind: "dockerfile_install", value: value,
+				})
+			}
+		}
 		for _, hostname := range contentrefs.Hostnames(row.body) {
 			references = append(references, preparedContentReferenceRow{
 				repoID: row.repoID,

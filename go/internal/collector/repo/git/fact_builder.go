@@ -275,6 +275,7 @@ func streamFacts(
 				TemplateDialect: meta.TemplateDialect,
 				IACRelevant:     meta.IACRelevant,
 				CommitSHA:       meta.CommitSHA,
+				InstallNames:    meta.InstallNames,
 			}))
 			catalog.EmitServiceCatalogFactsForContentFile(w, scopeID, generationID, observedAt, meta.RelativePath, bodyStr)
 			image.EmitWorkflowImageEvidenceFactsForContentFile(

@@ -1694,6 +1694,18 @@
           "source_response": {}
         }
       }
+    ],
+    "search_dockerfile_installs": [
+      {
+        "label": "default",
+        "arguments": {
+          "package": "curl",
+          "repo_ids": [
+            "$REPO"
+          ],
+          "limit": 5
+        }
+      }
     ]
   }
 }

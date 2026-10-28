@@ -2,8 +2,8 @@
   "schema_version": "replay-coverage-report.v4",
   "blocking": true,
   "totals": {
-    "total": 452,
-    "covered": 442,
+    "total": 453,
+    "covered": 443,
     "uncovered": 0,
     "unresolved": 0,
     "exempt": 10,
@@ -93,8 +93,8 @@
     },
     {
       "registry": "retractable_type",
-      "total": 100,
-      "covered": 99,
+      "total": 101,
+      "covered": 100,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 1,
@@ -140,8 +140,8 @@
     },
     {
       "scenario_type": "delta_tombstone",
-      "total": 165,
-      "covered": 164,
+      "total": 166,
+      "covered": 165,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 1,
@@ -3714,6 +3714,16 @@
     {
       "registry": "retractable_type",
       "key": "retractable_node:Directory",
+      "scenario_type": "delta_tombstone",
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:DockerfileInstall",
       "scenario_type": "delta_tombstone",
       "status": "covered",
       "scenario": "cassette",

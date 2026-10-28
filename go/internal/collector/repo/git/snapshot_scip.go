@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/discovery"
+	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/content/shape"
 	"github.com/eshu-hq/eshu/go/internal/parser"
 	"github.com/eshu-hq/eshu/go/internal/parser/scip"
@@ -298,6 +299,7 @@ func shapeFileFromParsed(parsed map[string]any, relativePath string, body string
 		IACRelevant:     snapshotPayloadBoolPtr(parsed, "iac_relevant"),
 		CommitSHA:       commitSHA,
 		EntityBuckets:   entityBucketsFromParsed(parsed),
+		InstallNames:    content.DockerfileInstallNamesFromParsed(parsed),
 		ParseBounded:    parseBoundedFromParsed(parsed),
 	}
 }

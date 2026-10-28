@@ -109,9 +109,17 @@ const (
 // current one, so it can never be reached by the current lookup. It records
 // what that schema admitted, and the fence tests drive the real admission
 // decision with it.
+// The pre-DockerfileInstall fingerprints are the previous current schema.
+// The new uid constraint is additive: old writers emit no DockerfileInstall
+// nodes, so they can write safely against the expanded schema.
+const (
+	graphSchemaNeo4jPreDockerfileInstallFingerprint    = "f41d86abcb08707e328254f8d0be247bfcfe135713e7a9147d8eb960afd0a5e0"
+	graphSchemaNornicDBPreDockerfileInstallFingerprint = "8f1251766e77d4e5bf6fc41ad1a049994db4321d55706a47e92ed193ffb8cd25"
+)
+
 var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 	SchemaBackendNeo4j: {
-		graphSchemaNeo4jFingerprint: {},
+		graphSchemaNeo4jFingerprint: {graphSchemaNeo4jPreDockerfileInstallFingerprint},
 		graphSchemaNeo4jPreModuleImportKeyFingerprint: {
 			graphSchemaNeo4jPreInfraSearchKeyIndexesFingerprint,
 			graphSchemaNeo4jPreFulltextModernFormFingerprint,
@@ -141,7 +149,7 @@ var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 		},
 	},
 	SchemaBackendNornicDB: {
-		graphSchemaNornicDBFingerprint: {},
+		graphSchemaNornicDBFingerprint: {graphSchemaNornicDBPreDockerfileInstallFingerprint},
 		graphSchemaNornicDBPreModuleImportKeyFingerprint: {
 			graphSchemaNornicDBPreRetiredNarrowConstraintsFingerprint,
 			graphSchemaNornicDBPreInfraEvidenceSourceIndexFingerprint,

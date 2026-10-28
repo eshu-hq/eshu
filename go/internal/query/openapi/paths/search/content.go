@@ -283,4 +283,36 @@ const Content = `
         }
       }
     },
+    "/api/v0/content/dockerfile-installs/search": {
+      "post": {
+        "tags": ["content"],
+        "summary": "Search Dockerfile install declarations",
+        "description": "Finds persisted DockerfileInstall content entities by exact, case-sensitive install name across authorized repositories. Results use stable keyset pagination; follow next_cursor while truncated is true.",
+        "operationId": "searchDockerfileInstalls",
+        "x-scoped-token-support": true,
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {
+            "type": "object",
+            "required": ["package"],
+            "properties": {
+              "package": {"type": "string", "description": "Exact declared install name"},
+              "repo_id": {"type": "string"},
+              "repo_ids": {"type": "array", "items": {"type": "string"}},
+              "limit": {"type": "integer", "minimum": 1, "maximum": 50, "default": 10},
+              "cursor": {"type": "object", "required": ["basis", "repo_id", "relative_path", "start_line", "entity_id"], "properties": {
+                "basis": {"type": "string"}, "repo_id": {"type": "string"}, "relative_path": {"type": "string"},
+                "start_line": {"type": "integer"}, "entity_id": {"type": "string"}
+              }}
+            }
+          }}}
+        },
+        "responses": {
+          "200": {"description": "Ordered install entity page with matches, truncated and optional next_cursor"},
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      }
+    },
 `

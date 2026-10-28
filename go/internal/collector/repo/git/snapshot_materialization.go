@@ -225,6 +225,13 @@ func annotateParsedFilesWithEntityIDs(
 		relativePath = filepath.ToSlash(filepath.Clean(relativePath))
 
 		for _, mapping := range snapshotEntityBuckets {
+			// The new install bucket exists only on Dockerfiles. Avoid adding a
+			// nil key to every other parser payload during UID annotation.
+			if mapping.bucket == "dockerfile_installs" {
+				if _, present := parsedFile[mapping.bucket]; !present {
+					continue
+				}
+			}
 			items, _ := parsedFile[mapping.bucket].([]map[string]any)
 			for i := range items {
 				name := snapshotPayloadString(items[i], "name")
@@ -250,6 +257,7 @@ func materializationRecordsToMetas(records []content.Record) []model.ContentFile
 			TemplateDialect: record.Metadata["template_dialect"],
 			IACRelevant:     snapshotMetadataBoolPtr(record.Metadata, "iac_relevant"),
 			CommitSHA:       record.Metadata["commit_sha"],
+			InstallNames:    record.InstallNames,
 		})
 	}
 	return metas

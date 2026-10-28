@@ -1143,6 +1143,11 @@
     },
     {
       "category": "api_route",
+      "name": "POST /api/v0/content/dockerfile-installs/search",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
       "name": "POST /api/v0/content/entities/read",
       "readiness": "implemented"
     },
@@ -3582,6 +3587,11 @@
     {
       "category": "mcp_tool",
       "name": "resolve_query_playbook",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "search_dockerfile_installs",
       "readiness": "implemented"
     },
     {

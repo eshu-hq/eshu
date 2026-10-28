@@ -48,6 +48,9 @@ func ContentFactEnvelope(
 	if fileSnapshot.IACRelevant != nil {
 		payload["iac_relevant"] = strings.ToLower(fmt.Sprintf("%t", *fileSnapshot.IACRelevant))
 	}
+	if len(fileSnapshot.InstallNames) > 0 {
+		payload["dockerfile_install_names"] = fileSnapshot.InstallNames
+	}
 
 	return model.FactEnvelope(
 		"content",

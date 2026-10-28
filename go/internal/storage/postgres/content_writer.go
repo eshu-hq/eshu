@@ -100,6 +100,7 @@ type preparedFileRow struct {
 	path            string
 	commitSHA       any
 	body            string
+	installNames    []string
 	contentHash     string
 	lineCount       int
 	language        any
@@ -236,6 +237,7 @@ func (w ContentWriter) Write(ctx context.Context, materialization content.Materi
 			path:            record.Path,
 			commitSHA:       commitSHA,
 			body:            record.Body,
+			installNames:    record.InstallNames,
 			contentHash:     contentHash,
 			lineCount:       lineCount(record.Body),
 			language:        language,

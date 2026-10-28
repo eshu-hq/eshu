@@ -33,3 +33,4 @@ FROM ghcr.io/acme/ci-lineage-base@sha256:c10000000000000000000000000000000000000
 COPY --from=builder /out/app /usr/local/bin/app
 EXPOSE 8080
 ENTRYPOINT ["/usr/local/bin/app"]
+RUN apt-get update && apt-get install -y curl curl=8.2
