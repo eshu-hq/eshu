@@ -239,14 +239,56 @@ Dockerfile commands again. An install row says only that source declared an
 install, not that the built image contains it.
 
 The bounded scanner accepts package managers, PHP extension commands, and
-HTTP(S) downloads from RUN or ADD without executing shell. `dockerfile_unparsed`
-records a line and reason without keeping command text when tokenization or
-variable expansion fails. `dockerfile_dropped_credentials` counts rejected
-credential-bearing URLs. Download rows retain host and path only. Repository
+HTTP(S) downloads from RUN or ADD without executing shell. A global ARG can
+expand a FROM reference, but becomes available to RUN only after an ARG of the
+same name is declared inside that stage. An unrelated FROM starts with no
+install variables; FROM a prior named stage inherits its ARG and ENV values.
+ENV wins when both provide the same name. Values remain source defaults, since
+build-time overrides are unknown to the parser.
+
+RUN shell comments end at an unquoted `#` that begins a word. Recognized
+package-manager options consume their values before package detection; an
+unknown option rejects the command. A simple executable RUN heredoc can
+provide install declarations. Shell data or control-flow heredocs and COPY/ADD
+data bodies do not become RUN declarations. ADD accepts recognized leading
+flags before URL sources. Unsupported commands are fail-closed:
+`dockerfile_unparsed` records a line and reason without keeping command text.
+
+`dockerfile_dropped_credentials` counts rejected credential-bearing option
+values, names, and URLs, including encoded credential markers in URL paths.
+Sensitive ARG or ENV names and their indirect aliases remain tainted when
+expanded into an install name or download URL; these references are counted
+and excluded from install evidence.
+Only a credential-free download host and path can be retained. Repository
 artifact readers expose the same rows per Dockerfile stage. Parent parser
 file-parse timing remains the operator signal; this package adds no metric.
 
-No-Regression Evidence: the parser retains source order for install rows and
-leaves existing stage, port, ARG, ENV and label buckets unchanged. Focused
-parser and repository-artifact tests cover install forms, stage binding,
-variable substitution, malformed commands, and credential drops.
+Accuracy Evidence: the parser retains source order for install rows and leaves
+existing stage, port, ARG, ENV and label buckets unchanged. Focused parser and
+collector fact tests cover install forms, stage binding, heredoc boundaries,
+option values, and credential drops through persisted install entities and
+content reference names.
+
+Performance Evidence: two quiet-host base/candidate rounds used the identical
+`BenchmarkInstallEvidenceStageScope` harness and
+`GOMAXPROCS=4 go test ./internal/parser/dockerfile -run '^$' -bench
+'^BenchmarkInstallEvidenceStageScope$' -benchtime=100x -count=5 -benchmem`.
+Median ordinary parse cost moved from 4.602-4.713 to 5.789-5.892
+microseconds (+25-26%, about 1.2 microseconds). One inherited lookup across
+1,000 stages moved from 1.438-1.488 to 1.865-1.880 ms (+25-31%). A
+1,001-stage Dockerfile with 100 final-stage inherited installs moved from
+1.516-1.561 to 3.037-3.048 ms: a material 95-101% and about 1.5 ms
+increase. Five fixed ecosystem fixture Dockerfiles (seven stages total)
+moved from 20.096-20.418 to 23.773-24.039 microseconds per five-file pass:
++16-20%, or 3.36-3.94 microseconds. A guarded fast path was proved first
+against the same fixture words and encoded/opaque values; it saved about
+1.5 microseconds per five-file pass relative to the prior candidate. These
+are paired medians of five samples per side in each of two quiet-host rounds;
+raw output is retained in the run evidence. The candidate stayed below the
+provisional 50 ms hostile-case investigation bound, but this is not an
+end-to-end or production-corpus no-regression claim. The visible files in this
+checkout have at most seven stages; this is only a checkout proxy.
+The original preimplementation timing investigation expired before a quiet
+host was available, so its theory remains unproven. The later paired run
+verifies only the implemented parser path. No new metric or span was added;
+the parent parser's existing file-parse timing remains the operator signal.

@@ -91,9 +91,13 @@ type Label struct {
 }
 
 type instruction struct {
-	keyword string
-	line    int
-	value   string
+	keyword           string
+	line              int
+	value             string
+	heredoc           bool
+	heredocExecutable bool
+	heredocComplete   bool
+	heredocBody       string
 }
 
 // RuntimeMetadata extracts Dockerfile stage, argument, environment, port, and
@@ -115,11 +119,13 @@ func RuntimeMetadata(sourceText string) Metadata {
 	var currentStage *Stage
 	stageIndex := 0
 	resolver := newBaseRefResolver()
-	installVars := make(map[string]string)
+	stageScopes := make(map[string]*installScope)
+	var installVars *installScope
 	for _, item := range instructions {
 		switch item.keyword {
 		case "FROM":
 			stage := parseStage(item, stageIndex, escape, resolver)
+			installVars = stageInstallScope(stage, stageScopes)
 			metadata.Stages = append(metadata.Stages, stage)
 			currentStage = &metadata.Stages[len(metadata.Stages)-1]
 			stageIndex++
@@ -129,23 +135,18 @@ func RuntimeMetadata(sourceText string) Metadata {
 			if currentStage == nil {
 				for _, decl := range decls {
 					resolver.declare(decl)
-					if decl.hasDefault {
-						installVars[decl.name] = decl.value
-					}
 				}
 			} else {
 				noteStageArgDefaults(currentStage, decls)
 				for _, decl := range decls {
-					if decl.hasDefault {
-						installVars[decl.name] = decl.value
-					}
+					installVars.declareArg(decl, resolver)
 				}
 			}
 		case "ENV":
 			envRows := parseEnvs(item, currentStage, escape)
 			metadata.Envs = append(metadata.Envs, envRows...)
 			for _, row := range envRows {
-				installVars[row.Name] = row.Value
+				installVars.declareEnv(row.Name, row.Value)
 			}
 		case "RUN", "ADD":
 			installs, unparsed, dropped := parseInstallInstruction(item, stageName(currentStage), installVars)

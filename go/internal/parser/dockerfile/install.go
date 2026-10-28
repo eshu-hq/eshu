@@ -64,30 +64,15 @@ func unparsedMap(item UnparsedCommand) map[string]any {
 	return map[string]any{"line_number": item.LineNumber, "reason": item.Reason}
 }
 
-func parseInstallInstruction(item instruction, stage string, variables map[string]string) ([]Install, []UnparsedCommand, int) {
+func parseInstallInstruction(item instruction, stage string, variables *installScope) ([]Install, []UnparsedCommand, int) {
+	if item.heredoc {
+		return parseInstallHeredoc(item, stage, variables)
+	}
 	if len(item.value) > maxInstallCommandBytes {
 		return nil, []UnparsedCommand{{LineNumber: item.line, Reason: "command_over_limit"}}, 0
 	}
 	if item.keyword == "ADD" {
-		words, ok := shellWords(item.value)
-		if !ok || len(words) < 2 {
-			return nil, []UnparsedCommand{{LineNumber: item.line, Reason: "invalid_add"}}, 0
-		}
-		source := words[0]
-		if strings.HasPrefix(source, "--") && len(words) > 2 {
-			source = words[1]
-		}
-		if !strings.Contains(source, "://") {
-			return nil, nil, 0
-		}
-		name, dropped, ok := safeDownload(source)
-		if dropped {
-			return nil, nil, 1
-		}
-		if !ok {
-			return nil, []UnparsedCommand{{LineNumber: item.line, Reason: "invalid_url"}}, 0
-		}
-		return []Install{{Manager: "url", Name: name, LineNumber: item.line, Stage: stage}}, nil, 0
+		return parseADDInstall(item, stage, variables)
 	}
 	segments, ok := shellSegments(item.value)
 	if !ok {
@@ -107,7 +92,7 @@ func parseInstallInstruction(item instruction, stage string, variables map[strin
 	return installs, unparsed, dropped
 }
 
-func parseInstallSegment(words []string, line int, stage string, vars map[string]string) ([]Install, string, int) {
+func parseInstallSegment(words []string, line int, stage string, vars *installScope) ([]Install, string, int) {
 	if len(words) == 0 {
 		return nil, "", 0
 	}
@@ -135,7 +120,10 @@ func parseInstallSegment(words []string, line int, stage string, vars map[string
 			if !strings.Contains(word, "://") {
 				continue
 			}
-			expanded, ok := expandInstallWord(word, vars)
+			expanded, ok, sensitive := expandInstallWord(word, vars)
+			if sensitive {
+				return nil, "", 1
+			}
 			if !ok {
 				return nil, "unresolved_variable", 0
 			}
@@ -152,36 +140,35 @@ func parseInstallSegment(words []string, line int, stage string, vars map[string
 	default:
 		return nil, "", 0
 	}
-	if manager == "npm" {
-		global := false
-		for _, word := range words[start:] {
-			if word == "-g" || word == "--global" {
-				global = true
-			}
-		}
-		if !global {
-			return nil, "", 0
-		}
+	options := parseInstallOptions(manager, words[start:], vars)
+	if options.reason != "" {
+		return nil, options.reason, options.dropped
 	}
-	rows := make([]Install, 0)
-	for _, word := range words[start:] {
-		if strings.HasPrefix(word, "-") {
-			continue
+	if manager == "npm" && !options.global {
+		return nil, "", options.dropped
+	}
+	rows := make([]Install, 0, len(options.packages))
+	for _, word := range options.packages {
+		expanded, ok, sensitive := expandInstallWord(word, vars)
+		if sensitive {
+			return nil, "credential_name", options.dropped + 1
 		}
-		expanded, ok := expandInstallWord(word, vars)
 		if !ok {
-			return nil, "unresolved_variable", 0
+			return nil, "unresolved_variable", options.dropped
+		}
+		if credentialBearingValue(expanded) {
+			return nil, "credential_name", options.dropped + 1
 		}
 		if !safeInstallName(expanded) {
-			return nil, "unsafe_name", 0
+			return nil, "unsafe_name", options.dropped
 		}
 		name, version := splitPackagePin(manager, expanded)
 		rows = append(rows, Install{Manager: manager, Name: name, Version: version, LineNumber: line, Stage: stage})
 	}
 	if len(rows) == 0 {
-		return nil, "missing_package", 0
+		return nil, "missing_package", options.dropped
 	}
-	return rows, "", 0
+	return rows, "", options.dropped
 }
 
 func splitPackagePin(manager, word string) (string, string) {
@@ -211,7 +198,7 @@ func splitPackagePin(manager, word string) (string, string) {
 }
 
 func safeInstallName(word string) bool {
-	if word == "" || len(word) > 256 || strings.ContainsAny(word, ";&|<>`$\\\"' ") {
+	if word == "" || len(word) > 256 || strings.ContainsAny(word, ";&|<>`$\\\"' ?%") || strings.Contains(word, "://") || strings.Contains(word, ":") && strings.Contains(word, "@") {
 		return false
 	}
 	for _, char := range word {
@@ -227,13 +214,17 @@ func safeDownload(raw string) (string, bool, bool) {
 	if err != nil || parsed.Host == "" || (parsed.Scheme != "https" && parsed.Scheme != "http") {
 		return "", false, false
 	}
-	if parsed.User != nil || strings.ContainsAny(parsed.RawQuery, "\n\r") || hasTokenQuery(parsed.Query()) {
+	if parsed.User != nil || strings.ContainsAny(parsed.RawQuery, "\n\r") || hasTokenQuery(parsed.Query()) || unsafeDownloadPath(parsed.Path) {
 		return "", true, false
 	}
 	if parsed.Fragment != "" {
 		return "", true, false
 	}
-	return parsed.Host + parsed.EscapedPath(), false, true
+	name := parsed.Host + parsed.EscapedPath()
+	if len(name) > 256 {
+		return "", false, false
+	}
+	return name, false, true
 }
 
 func hasTokenQuery(values url.Values) bool {
@@ -246,9 +237,11 @@ func hasTokenQuery(values url.Values) bool {
 	return false
 }
 
-func expandInstallWord(word string, vars map[string]string) (string, bool) {
+// expandInstallWord returns a separate sensitive outcome so callers can count
+// a dropped credential without retaining its value in install evidence.
+func expandInstallWord(word string, vars *installScope) (string, bool, bool) {
 	if !strings.Contains(word, "$") {
-		return word, true
+		return word, true, false
 	}
 	var out strings.Builder
 	for i := 0; i < len(word); {
@@ -267,27 +260,31 @@ func expandInstallWord(word string, vars map[string]string) (string, bool) {
 			i++
 		}
 		if start == i || braced && (i >= len(word) || word[i] != '}') {
-			return "", false
+			return "", false, false
 		}
 		name := word[start:i]
 		if braced {
 			i++
 		}
-		value, ok := vars[name]
-		if !ok || strings.Contains(value, "$") || len(value) > 256 {
-			return "", false
+		value, ok := vars.lookup(name)
+		if credentialVariableName(name) || ok && value.sensitive {
+			return "", false, true
 		}
-		out.WriteString(value)
+		if !ok || strings.Contains(value.text, "$") || len(value.text) > 256 {
+			return "", false, false
+		}
+		out.WriteString(value.text)
 		if out.Len() > 256 {
-			return "", false
+			return "", false, false
 		}
 	}
-	return out.String(), true
+	return out.String(), true, false
 }
 
 // shellSegments recognizes a bounded subset of shell words and && separators.
 // It never invokes a shell or treats unsupported operators as install proof.
 func shellSegments(raw string) ([][]string, bool) {
+	raw = stripShellComment(raw)
 	segments := make([][]string, 0)
 	for _, part := range strings.Split(raw, "&&") {
 		words, ok := shellWords(part)
@@ -347,4 +344,43 @@ func shellWords(raw string) ([]string, bool) {
 		words = append(words, out.String())
 	}
 	return words, true
+}
+
+// stripShellComment removes a RUN shell comment only when # begins an
+// unquoted word. Dockerfile ADD arguments use a different comment rule.
+func stripShellComment(raw string) string {
+	var quote rune
+	escaped := false
+	wordStart := true
+	for index, char := range raw {
+		if escaped {
+			escaped = false
+			wordStart = false
+			continue
+		}
+		if char == '\\' && quote != '\'' {
+			escaped = true
+			continue
+		}
+		if quote != 0 {
+			if char == quote {
+				quote = 0
+			}
+			continue
+		}
+		if char == '\'' || char == '"' {
+			quote = char
+			wordStart = false
+			continue
+		}
+		if unicode.IsSpace(char) || char == '&' {
+			wordStart = true
+			continue
+		}
+		if char == '#' && wordStart {
+			return raw[:index]
+		}
+		wordStart = false
+	}
+	return raw
 }

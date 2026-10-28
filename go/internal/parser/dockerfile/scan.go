@@ -12,13 +12,11 @@ func instructionsFromSource(source string, escape rune) []instruction {
 	scanner := bufio.NewScanner(strings.NewReader(source))
 	instructions := make([]instruction, 0)
 	escapeText := string(escape)
-	var (
-		buffer      strings.Builder
-		startLine   int
-		line        int
-		heredocTerm string
-		heredocRows []instruction
-	)
+	var buffer strings.Builder
+	var pending *instruction
+	var body []string
+	var terms []heredocMarker
+	startLine, line := 0, 0
 
 	flush := func() {
 		raw := strings.TrimSpace(buffer.String())
@@ -32,28 +30,37 @@ func instructionsFromSource(source string, escape rune) []instruction {
 		}
 		keyword := strings.ToUpper(parts[0])
 		value := strings.TrimSpace(strings.TrimPrefix(raw, parts[0]))
-		if keyword == "RUN" && strings.HasPrefix(value, "<<") {
-			marker := strings.Trim(strings.TrimPrefix(value, "<<"), "'\"")
-			if marker != "" && !strings.ContainsAny(marker, " \t") {
-				heredocTerm = marker
-				heredocRows = nil
+		item := instruction{keyword: keyword, line: startLine, value: value}
+		if keyword == "RUN" || keyword == "COPY" || keyword == "ADD" {
+			markers := heredocMarkers(value)
+			if len(markers) > 0 {
+				item.heredoc = true
+				item.heredocExecutable = keyword == "RUN" && simpleExecutableHeredoc(value, markers)
+				pending = &item
+				terms = markers
+				body = body[:0]
 				return
 			}
 		}
-		instructions = append(instructions, instruction{keyword: keyword, line: startLine, value: value})
+		instructions = append(instructions, item)
 	}
 
 	for scanner.Scan() {
 		line++
 		text := scanner.Text()
 		trimmed := strings.TrimSpace(text)
-		if heredocTerm != "" {
-			if trimmed == heredocTerm {
-				instructions = append(instructions, heredocRows...)
-				heredocTerm = ""
-				heredocRows = nil
-			} else if trimmed != "" && !strings.HasPrefix(trimmed, "#") {
-				heredocRows = append(heredocRows, instruction{keyword: "RUN", line: line, value: trimmed})
+		if pending != nil {
+			if terms[0].matches(text) {
+				terms = terms[1:]
+				if len(terms) == 0 {
+					pending.heredocComplete = true
+					pending.heredocBody = strings.Join(body, "\n")
+					instructions = append(instructions, *pending)
+					pending = nil
+					body = nil
+				}
+			} else {
+				body = append(body, text)
 			}
 			continue
 		}
@@ -75,9 +82,11 @@ func instructionsFromSource(source string, escape rune) []instruction {
 		}
 		flush()
 	}
-	flush()
-	if heredocTerm != "" {
-		instructions = append(instructions, instruction{keyword: "RUN", line: line, value: "'"})
+	if pending != nil {
+		pending.heredocBody = strings.Join(body, "\n")
+		instructions = append(instructions, *pending)
+	} else {
+		flush()
 	}
 	return instructions
 }

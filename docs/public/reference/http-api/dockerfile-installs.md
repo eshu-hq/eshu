@@ -28,4 +28,6 @@ The query uses the PostgreSQL content-entity name index and the normal
 `postgres.query` span with operation `search_dockerfile_install`. It does not
 interpret Dockerfile source during a read. Parsing happens at ingestion and
 unparsed commands are reported only in the Dockerfile's structured file
-metadata. URL credentials are dropped before any entity is emitted.
+metadata. Credential-bearing install option values, URL paths, and sensitive
+ARG/ENV expansions are excluded from install entities and reference names
+before those facts are emitted.
