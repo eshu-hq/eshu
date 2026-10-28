@@ -42,9 +42,9 @@ reads `extension_defined`. Either way a provider message never reaches the
 field.
 
 Every kind reports the extension host's own classes (`invalid_claim`,
-`invalid_result`, `launch_failure`, `status_record`), because a component
-extension can be configured with a first-party kind such as `jira` and the host
-then writes those classes for it.
+`invalid_result`, `launch_failure`, `source_state_record`, `status_record`),
+because a component extension can be configured with a first-party kind such
+as `jira` and the host then writes those classes for it.
 
 An instance is extension-hosted when the generic component planner claims its
 stored configuration (the same check the coordinator uses to hand an instance
@@ -118,6 +118,7 @@ Known limit, reading `unknown` rather than leaking text:
 | `invalid_claim` | every kind, from the extension host | The host rejected corrupt or unsupported claim input. |
 | `invalid_result` | every kind, from the extension host | The host rejected the extension's output before commit. |
 | `launch_failure` | every kind, from the extension host | The host could not launch the extension. |
+| `source_state_record` | every kind, from the extension host | The host could not record a completed claim's source-state attempt row (#9420); the claim fails retryable. |
 | `status_record` | every kind, from the extension host | The host failed to record the extension's status. |
 | `extension_defined` | extension-hosted instances | The extension reported a class of its own. |
 

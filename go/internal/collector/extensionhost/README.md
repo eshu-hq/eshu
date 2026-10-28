@@ -142,10 +142,11 @@ optional `ResultRecorder` interface, so `Source.NextClaimed` reports exactly
 one `ResultRecord` per call on every exit path: SDK results (`complete`,
 `unchanged`, `partial`, `retryable`, `terminal`) with summed status counts, and
 host verdicts (`invalid_claim`, `launch_failure`, `invalid_result`,
-`identity_mismatch`, `status_record`) with the host failure class and the state
-`ClaimedService` applies. Host verdicts carry no status counts because an
-unvalidated result's statuses are not trusted. `ResultRecord` holds no scope,
-instance, work item, generation, or URL value by construction.
+`identity_mismatch`, `status_record`, `source_state_record`) with the host
+failure class and the state `ClaimedService` applies. Host verdicts carry no
+status counts because an unvalidated result's statuses are not trusted.
+`ResultRecord` holds no scope, instance, work item, generation, or URL value by
+construction.
 
 Signals (labels `collector_kind`, `state`, `status_class`, `failure_class`
 only; see [Telemetry Metrics](../../../../docs/public/reference/telemetry/metrics.md)):

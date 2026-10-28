@@ -105,15 +105,18 @@ var kindFailureClasses = map[string][]string{
 }
 
 // extensionHostFailureClasses are the classes the extension host itself writes
-// for a collector kind it hosts (collector/extensionhost/failure.go).
-// identity_mismatch is also written there and is already common. Every kind
+// for a collector kind it hosts (collector/extensionhost/failure.go, plus
+// source_state_record from claim_outcome.go when a claim's source-state
+// attempt row cannot be recorded). identity_mismatch is also written there and
+// is already common. Every kind
 // admits them, first-party kinds included, because the component-extension
 // runtime takes its collector kind from the manifest
 // (cmd/collector-component-extension collectorKindForManifest): a
 // component-configured instance can carry a first-party kind such as jira, and
 // the host then writes these classes for it.
 var extensionHostFailureClasses = []string{
-	"invalid_claim", "invalid_result", "launch_failure", "status_record",
+	"invalid_claim", "invalid_result", "launch_failure", "source_state_record",
+	"status_record",
 }
 
 // firstPartyKinds is every collector kind the platform ships, derived from the

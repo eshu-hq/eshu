@@ -61,7 +61,7 @@ type StatusRecord struct {
 // ResultRecord per NextClaimed call, for every final state: SDK results
 // (complete, unchanged, partial, retryable, terminal) and host verdicts
 // (invalid claim, launch failure, invalid result, identity mismatch, status
-// record failure). It cannot fail the claim.
+// record failure, source-state record failure). It cannot fail the claim.
 type ResultRecorder interface {
 	RecordExtensionResult(context.Context, ResultRecord)
 }
