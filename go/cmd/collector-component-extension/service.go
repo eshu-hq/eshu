@@ -35,22 +35,30 @@ var fallbackClaimSequence uint64
 // OCI-adapter runners already forward only explicit env, so only process
 // runners are touched. Explicit runner Env entries still apply afterwards,
 // so operator intent wins.
-func scrubHostCredentialEnv(runner extensionhost.Runner) extensionhost.Runner {
+//
+// Unknown runner types fail closed: a future Runner that inherits the host
+// environment must add its scrub case here, or startup is refused with an
+// error naming the type (eshu-hq/eshu#9413). Only the OCI adapter — which
+// never inherits host env — passes through, in both its value and pointer
+// shapes.
+func scrubHostCredentialEnv(runner extensionhost.Runner) (extensionhost.Runner, error) {
 	// RunCollector has a value receiver, so both extensionhost.ProcessRunner
 	// and *extensionhost.ProcessRunner satisfy Runner; the scrub must cover
-	// both shapes. Runners of any other type pass through only because every
-	// non-process runner today (the OCI adapter) forwards explicit env and
-	// never inherits the host environment — a new inheriting runner type
-	// must add its case here.
-	switch process := runner.(type) {
+	// both shapes.
+	switch scrubbed := runner.(type) {
 	case extensionhost.ProcessRunner:
-		process.ScrubEnv = append(process.ScrubEnv, envGitHubAppID, envGitHubAppPrivateKey, envGitHubAppInstallations)
-		return process
+		scrubbed.ScrubEnv = append(scrubbed.ScrubEnv, envGitHubAppID, envGitHubAppPrivateKey, envGitHubAppInstallations)
+		return scrubbed, nil
 	case *extensionhost.ProcessRunner:
-		process.ScrubEnv = append(process.ScrubEnv, envGitHubAppID, envGitHubAppPrivateKey, envGitHubAppInstallations)
-		return process
+		if scrubbed == nil {
+			return nil, fmt.Errorf("extension process runner is nil: refusing startup rather than launching with unknown host-env inheritance")
+		}
+		scrubbed.ScrubEnv = append(scrubbed.ScrubEnv, envGitHubAppID, envGitHubAppPrivateKey, envGitHubAppInstallations)
+		return scrubbed, nil
+	case extensionhost.OCIRunner, *extensionhost.OCIRunner:
+		return runner, nil
 	default:
-		return runner
+		return nil, fmt.Errorf("unknown extension runner type %T: refusing startup; declare its host-env inheritance in scrubHostCredentialEnv", runner)
 	}
 }
 
@@ -78,13 +86,19 @@ func buildClaimedService(
 	if err != nil {
 		return collector.ClaimedService{}, err
 	}
+	// A runner the scrub does not know fails closed here, before the worker
+	// can claim work with unknown host-env inheritance (eshu-hq/eshu#9413).
+	runner, err := scrubHostCredentialEnv(config.Runner)
+	if err != nil {
+		return collector.ClaimedService{}, err
+	}
 	source, err := extensionhost.NewSource(extensionhost.Config{
 		Manifest:            config.Manifest,
 		CollectorInstanceID: config.Instance.InstanceID,
 		ScopeKind:           config.ScopeKind,
 		ConfigHandle:        config.ConfigHandle,
 		Config:              config.ExtensionConfig,
-		Runner:              scrubHostCredentialEnv(config.Runner),
+		Runner:              runner,
 		// StatusTelemetry turns the extension's SDK status rows into the
 		// eshu_dp_component_extension_* instruments and one bounded log
 		// line per claim result (#8908); an extracted collector emits no
