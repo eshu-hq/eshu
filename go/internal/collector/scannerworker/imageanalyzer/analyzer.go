@@ -149,6 +149,7 @@ func (a *Analyzer) snapshot(
 			DistroVersion:      target.DistroVersion,
 			PackageManager:     target.PackageManager,
 			Repositories:       target.Repositories,
+			RPMOriginBindings:  target.RPMOriginBindings,
 			ThirdPartyPackages: target.ThirdPartyPackages,
 		}, limits)
 		if err != nil {
@@ -161,20 +162,22 @@ func (a *Analyzer) snapshot(
 			return Snapshot{}, usage, translated
 		}
 		return Snapshot{
-			Distro:             snapshot.Distro,
-			DistroVersion:      snapshot.DistroVersion,
-			PackageManager:     snapshot.PackageManager,
-			Repositories:       snapshot.Repositories,
-			InstalledDB:        snapshot.InstalledDB,
-			Status:             snapshot.Status,
-			ThirdPartyPackages: snapshot.ThirdPartyPackages,
-			SourceURI:          firstNonBlank(snapshot.SourceURI, target.SourceURI),
-			SourceRecordID:     firstNonBlank(snapshot.SourceRecordID, target.SourceRecordID),
-			ImageReference:     target.ImageReference,
-			ImageDigest:        target.ImageDigest,
-			EvidenceSource:     EvidenceSourceRootFS,
-			ExtractionReason:   extractionOK,
-			ObservedAt:         snapshot.ObservedAt,
+			Distro:              snapshot.Distro,
+			DistroVersion:       snapshot.DistroVersion,
+			PackageManager:      snapshot.PackageManager,
+			Repositories:        snapshot.Repositories,
+			RPMOriginBindings:   snapshot.RPMOriginBindings,
+			InstalledDB:         snapshot.InstalledDB,
+			RPMDatabaseTooLarge: snapshot.RPMDatabaseTooLarge,
+			Status:              snapshot.Status,
+			ThirdPartyPackages:  snapshot.ThirdPartyPackages,
+			SourceURI:           firstNonBlank(snapshot.SourceURI, target.SourceURI),
+			SourceRecordID:      firstNonBlank(snapshot.SourceRecordID, target.SourceRecordID),
+			ImageReference:      target.ImageReference,
+			ImageDigest:         target.ImageDigest,
+			EvidenceSource:      EvidenceSourceRootFS,
+			ExtractionReason:    extractionOK,
+			ObservedAt:          snapshot.ObservedAt,
 		}, usage, nil
 	}
 	return readLayerSnapshot(ctx, target, limits, a.now)
@@ -223,6 +226,11 @@ func (a *Analyzer) envelopes(input scannerworker.ClaimInput, snapshot Snapshot) 
 			Repositories:       snapshot.Repositories,
 			Status:             snapshot.Status,
 			ThirdPartyPackages: snapshot.ThirdPartyPackages,
+		})
+	case ospackagevulnerability.PackageManagerRPM:
+		packages, warnings, err = ospackagevulnerability.ParseRPMDatabase(ospackagevulnerability.RPMSnapshot{
+			Distro: snapshot.Distro, DistroVersion: snapshot.DistroVersion,
+			Repositories: snapshot.Repositories, Database: snapshot.InstalledDB, DatabaseTooLarge: snapshot.RPMDatabaseTooLarge, OriginBindings: snapshot.RPMOriginBindings,
 		})
 	default:
 		return nil, 0, fmt.Errorf("%w: unsupported package database", errUnsupportedTarget)

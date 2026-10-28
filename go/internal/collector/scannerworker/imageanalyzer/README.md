@@ -5,7 +5,7 @@
 `imageanalyzer` adapts scanner-worker image unpacking and component extraction
 to Eshu source facts. It consumes configured local image evidence, either an
 already-extracted rootfs or bounded local OCI layer tar streams, and emits
-installed OS package source facts when Alpine apk or Debian dpkg package
+installed OS package source facts when Alpine apk, Debian dpkg, or RPM package
 database evidence exists. Every supported image target also emits
 `scanner_worker.analysis` coverage evidence so operators can distinguish a
 completed scan from package facts alone.
@@ -25,8 +25,8 @@ See `doc.go` for the godoc contract. The exported surface is `Analyzer`,
 
 ## Dependencies
 
-- `internal/collector/ospackagevulnerability` provides Alpine apk and Debian
-  dpkg parser contracts plus fact-envelope construction.
+- `internal/collector/ospackagevulnerability` provides Alpine apk, Debian dpkg, and RPM
+  parser contracts plus fact-envelope construction.
 - `internal/collector/ospackagevulnerability/osruntime` provides the
   already-extracted rootfs reader used when `rootfs_path` is configured.
 - `internal/collector/scannerworker` provides analyzer input, output, resource
@@ -47,7 +47,7 @@ hosted runtime can record resource telemetry.
 
 - Local layer paths must be ordered from base to top layer.
 - Layer unpacking extracts only `/etc/os-release`, `/etc/apk/repositories`,
-  `/lib/apk/db/installed`, and `/var/lib/dpkg/status`; it does not materialize a
+  `/lib/apk/db/installed`, `/var/lib/dpkg/status`, and recognized RPM databases; it does not materialize a
   whole rootfs.
 - OCI whiteout markers are honored for the package metadata paths before facts
   are emitted.

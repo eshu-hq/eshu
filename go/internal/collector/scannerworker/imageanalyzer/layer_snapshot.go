@@ -21,13 +21,17 @@ import (
 )
 
 const (
-	osReleasePath     = "etc/os-release"
-	apkReposPath      = "etc/apk/repositories"
-	apkInstalledPath  = "lib/apk/db/installed"
-	dpkgStatusPath    = "var/lib/dpkg/status"
-	whiteoutPrefix    = ".wh."
-	opaqueWhiteout    = ".wh..wh..opq"
-	layerRegularFiles = int64(4)
+	osReleasePath       = "etc/os-release"
+	apkReposPath        = "etc/apk/repositories"
+	apkInstalledPath    = "lib/apk/db/installed"
+	dpkgStatusPath      = "var/lib/dpkg/status"
+	rpmSQLitePath       = "usr/lib/sysimage/rpm/rpmdb.sqlite"
+	rpmSQLiteLegacyPath = "var/lib/rpm/rpmdb.sqlite"
+	rpmNDBPath          = "var/lib/rpm/Packages.db"
+	rpmBDBPath          = "var/lib/rpm/Packages"
+	whiteoutPrefix      = ".wh."
+	opaqueWhiteout      = ".wh..wh..opq"
+	layerRegularFiles   = int64(4)
 )
 
 type layerSnapshotReader struct {
@@ -37,6 +41,7 @@ type layerSnapshotReader struct {
 	peakBytes       int64
 	startCPUSeconds float64
 	files           map[string][]byte
+	oversizedRPM    map[string]bool
 	deleted         map[string]struct{}
 	opaqueDirs      map[string]struct{}
 }
@@ -52,6 +57,7 @@ func readLayerSnapshot(
 		maxFiles:        limits.MaxFiles,
 		startCPUSeconds: currentUserCPUSeconds(),
 		files:           make(map[string][]byte, layerRegularFiles),
+		oversizedRPM:    make(map[string]bool),
 		deleted:         make(map[string]struct{}),
 		opaqueDirs:      make(map[string]struct{}),
 	}
@@ -66,10 +72,11 @@ func readLayerSnapshot(
 	osRelease := reader.files[osReleasePath]
 	fields := parseOSRelease(osRelease)
 	snapshot := Snapshot{
-		Distro:             firstNonBlankDistro(target.Distro, ospackagevulnerability.Distro(strings.TrimSpace(fields["ID"]))),
+		Distro:             firstNonBlankDistro(target.Distro, ospackagevulnerability.NormalizeDistroID(ospackagevulnerability.Distro(fields["ID"]))),
 		DistroVersion:      firstNonBlank(target.DistroVersion, fields["VERSION_ID"], fields["VERSION"]),
 		PackageManager:     target.PackageManager,
 		Repositories:       target.Repositories,
+		RPMOriginBindings:  target.RPMOriginBindings,
 		ThirdPartyPackages: target.ThirdPartyPackages,
 		SourceURI:          target.SourceURI,
 		SourceRecordID:     target.SourceRecordID,
@@ -79,7 +86,8 @@ func readLayerSnapshot(
 		ExtractionReason:   extractionUnsupported,
 		ObservedAt:         now().UTC(),
 	}
-	distro, manager, err := resolvePackageDatabase(target, fields, reader.files)
+	oversizedRPM := rpmLayerDatabaseTooLarge(reader.files, reader.oversizedRPM)
+	distro, manager, err := resolvePackageDatabase(target, fields, reader.files, oversizedRPM)
 	if err != nil {
 		return snapshot, reader.usage(), err
 	}
@@ -92,6 +100,9 @@ func readLayerSnapshot(
 		snapshot.InstalledDB = reader.files[apkInstalledPath]
 	case ospackagevulnerability.PackageManagerDPKG:
 		snapshot.Status = reader.files[dpkgStatusPath]
+	case ospackagevulnerability.PackageManagerRPM:
+		snapshot.InstalledDB = rpmLayerDatabase(reader.files)
+		snapshot.RPMDatabaseTooLarge = oversizedRPM
 	default:
 		return Snapshot{}, reader.usage(), fmt.Errorf("%w: unsupported package manager", errUnsupportedTarget)
 	}
@@ -104,6 +115,7 @@ func unsupportedLayerSnapshot(target TargetConfig, now func() time.Time, reason 
 		DistroVersion:      target.DistroVersion,
 		PackageManager:     target.PackageManager,
 		Repositories:       target.Repositories,
+		RPMOriginBindings:  target.RPMOriginBindings,
 		ThirdPartyPackages: target.ThirdPartyPackages,
 		SourceURI:          target.SourceURI,
 		SourceRecordID:     target.SourceRecordID,
@@ -205,6 +217,12 @@ func (r *layerSnapshotReader) handleEntry(header *tar.Header, body io.Reader) er
 	if !isPackageEvidencePath(name) {
 		return nil
 	}
+	if isRPMDatabasePath(name) && header.Size > ospackagevulnerability.RPMDatabaseByteLimit {
+		r.files[name] = nil
+		r.oversizedRPM[name] = true
+		delete(r.deleted, name)
+		return nil
+	}
 	if header.Size > r.remainingBytes {
 		return fmt.Errorf("%w: layer metadata byte budget exceeded", errInputLimitExceeded)
 	}
@@ -220,6 +238,7 @@ func (r *layerSnapshotReader) handleEntry(header *tar.Header, body io.Reader) er
 		r.peakBytes = int64(len(content))
 	}
 	r.files[name] = content
+	delete(r.oversizedRPM, name)
 	delete(r.deleted, name)
 	return nil
 }
@@ -233,12 +252,14 @@ func (r *layerSnapshotReader) applyWhiteout(name string) {
 		for existing := range r.files {
 			if filepath.Dir(existing) == cleanDir {
 				delete(r.files, existing)
+				delete(r.oversizedRPM, existing)
 			}
 		}
 		return
 	}
 	target := filepath.ToSlash(filepath.Join(dir, strings.TrimPrefix(base, whiteoutPrefix)))
 	delete(r.files, target)
+	delete(r.oversizedRPM, target)
 	r.deleted[target] = struct{}{}
 }
 
@@ -260,7 +281,7 @@ func cleanLayerName(name string) string {
 
 func isPackageEvidencePath(name string) bool {
 	switch name {
-	case osReleasePath, apkReposPath, apkInstalledPath, dpkgStatusPath:
+	case osReleasePath, apkReposPath, apkInstalledPath, dpkgStatusPath, rpmSQLitePath, rpmSQLiteLegacyPath, rpmNDBPath, rpmBDBPath:
 		return true
 	default:
 		return false
@@ -271,10 +292,11 @@ func resolvePackageDatabase(
 	target TargetConfig,
 	fields map[string]string,
 	files map[string][]byte,
+	oversizedRPM bool,
 ) (ospackagevulnerability.Distro, ospackagevulnerability.PackageManager, error) {
 	distro := target.Distro
 	if distro == "" {
-		distro = ospackagevulnerability.Distro(strings.TrimSpace(fields["ID"]))
+		distro = ospackagevulnerability.NormalizeDistroID(ospackagevulnerability.Distro(fields["ID"]))
 	}
 	manager := target.PackageManager
 	if manager == "" {
@@ -283,6 +305,8 @@ func resolvePackageDatabase(
 			manager = ospackagevulnerability.PackageManagerAPK
 		case len(files[dpkgStatusPath]) > 0:
 			manager = ospackagevulnerability.PackageManagerDPKG
+		case len(rpmLayerDatabase(files)) > 0 || oversizedRPM:
+			manager = ospackagevulnerability.PackageManagerRPM
 		case distro == ospackagevulnerability.DistroAlpine:
 			manager = ospackagevulnerability.PackageManagerAPK
 		case distro == ospackagevulnerability.DistroDebian:
@@ -303,6 +327,13 @@ func resolvePackageDatabase(
 	case ospackagevulnerability.PackageManagerDPKG:
 		if distro != ospackagevulnerability.DistroDebian || len(files[dpkgStatusPath]) == 0 {
 			return "", "", fmt.Errorf("%w: missing dpkg status database", errUnsupportedTarget)
+		}
+	case ospackagevulnerability.PackageManagerRPM:
+		if strings.TrimSpace(string(distro)) == "" || firstNonBlank(target.DistroVersion, fields["VERSION_ID"], fields["VERSION"]) == "" {
+			return "", "", fmt.Errorf("%w: missing rpm distro identity", errUnsupportedTarget)
+		}
+		if len(rpmLayerDatabase(files)) == 0 && !oversizedRPM {
+			return "", "", fmt.Errorf("%w: missing rpm database", errUnsupportedTarget)
 		}
 	default:
 		return "", "", fmt.Errorf("%w: missing supported package database", errUnsupportedTarget)
@@ -355,4 +386,34 @@ func currentUserCPUSeconds() float64 {
 		return 0
 	}
 	return samples[0].Value.Float64()
+}
+
+func rpmLayerDatabase(files map[string][]byte) []byte {
+	for _, path := range []string{rpmSQLitePath, rpmSQLiteLegacyPath, rpmNDBPath, rpmBDBPath} {
+		if len(files[path]) > 0 {
+			return files[path]
+		}
+	}
+	return nil
+}
+
+func isRPMDatabasePath(name string) bool {
+	switch name {
+	case rpmSQLitePath, rpmSQLiteLegacyPath, rpmNDBPath, rpmBDBPath:
+		return true
+	default:
+		return false
+	}
+}
+
+func rpmLayerDatabaseTooLarge(files map[string][]byte, oversized map[string]bool) bool {
+	for _, path := range []string{rpmSQLitePath, rpmSQLiteLegacyPath, rpmNDBPath, rpmBDBPath} {
+		if oversized[path] {
+			return true
+		}
+		if len(files[path]) > 0 {
+			return false
+		}
+	}
+	return false
 }
