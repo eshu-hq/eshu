@@ -475,6 +475,8 @@ github.com/eshu-hq/embedded-postgres v1.34.0-eshu.1 h1:SBFlZaq6+VZ04JxcrJl2DU4F/
 github.com/eshu-hq/embedded-postgres v1.34.0-eshu.1/go.mod h1:1sJQmsa9f9xLU2bfoXpeLb7Px/AUfIJKo+Yiez8nFC0=
 github.com/eshu-hq/eshu-sdk/collector v0.1.0-rc.3 h1:IWRyIZzVRyxC/MSFWAToTYChSvO9sI8Fg8v5IYVbLqs=
 github.com/eshu-hq/eshu-sdk/collector v0.1.0-rc.3/go.mod h1:ysNLZcpQe9ZGYFZnTLyYTCHNaLrPRJjb1f9aLPOXdtA=
+github.com/eshu-hq/eshu-sdk/collector v0.1.0-rc.4 h1:V8kE6u4KJ2S93po/9uAewswm8RAt38nwe6ppz6Kawy4=
+github.com/eshu-hq/eshu-sdk/collector v0.1.0-rc.4/go.mod h1:ysNLZcpQe9ZGYFZnTLyYTCHNaLrPRJjb1f9aLPOXdtA=
 github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.7 h1:20Q3x+rqSSsQ2fEc4PvfiSFDaoQLNghsaTNgv5xSf5k=
 github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.7/go.mod h1:CnwND1yYkq0K/gMO7k746nEKmTKvVCRYrHB3TZpsJqk=
 github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5KwzbycvMj4=
