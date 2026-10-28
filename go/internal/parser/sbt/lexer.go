@@ -348,14 +348,23 @@ func (l *lexer) scanBacktick() (tokenKind, string) {
 	return kindIdent, text
 }
 
-// scanString scans a string starting at the opening quote. interpolated forces
-// an opaque result. Strings without a backslash are literals; anything with a
+// scanString scans a string starting at the opening quote. An interpolated
+// string is consumed by scanInterp (brace depth over `${...}` holes) and is
+// always opaque. Strings without a backslash are literals; anything with a
 // backslash, unterminated or interpolated is opaque. A triple-quoted string
 // keeps a backslash verbatim in Scala 2.13.2 and later, but Scala 2.12 (sbt 1)
 // processes unicode escapes before lexing, even there, so its value depends on
 // the compiler and it is opaque too.
 func (l *lexer) scanString(interpolated bool) (tokenKind, string) {
 	start := l.pos
+	if interpolated {
+		// An interpolated string holds `${...}` holes with nested strings
+		// inside; scanInterp consumes them with brace depth so no bracket
+		// that is string content reaches the bracket stack (issue #8980).
+		// The value is computed at build time, so the token stays opaque.
+		l.scanInterp()
+		return kindOpaque, boundOpaque(l.src[start:l.pos])
+	}
 	if l.hasPrefix(`"""`) {
 		l.pos += 3
 		bodyStart := l.pos

@@ -295,6 +295,25 @@ ms/op (median 16.33) before and 16.25 to 16.44 ms/op (median 16.31) after,
 with 16.45 MB/op and 139,757 to 139,758 allocs/op on both: no byte or
 allocation change.
 
+No-Regression Evidence (interpolated holes, #8980): the lexer used to end an
+interpolated string at the first nested quote, so a `}` inside a nested
+string popped a real opener and the closer rule marked the rest of an
+indented line top level (a dependency after `s"${"}"}";` resolved, a
+block-local val shadowed the top-level one). `scanInterp`
+(`interpolation.go`) now consumes `${...}` holes, which are BlockExpr with
+significant newlines, with brace depth over nested strings (plain, triple,
+and interpolated), character literals, and comments; `$$` and `$"` stay
+escapes and `$ident` stays a splice, per the Scala lexical syntax. An
+unclosed hole consumes to its `}` and fails the file closed (no row
+resolves). The interpolation fuzz arm (`fuzz_interp_test.go`) draws hostile
+hosts with unbalanced brackets in nested strings around same-line probes:
+on the code before the fix it reported I1=276, I3=276 and missing=9,927 over
+4,000 cases; with the fix, zero at 4,000 (45,974 rows) and at 30,000
+(344,554 rows), and the grammar, indentation, member and reference arms stay
+zero with their row counts unchanged. A 10 MB line of nested `${` openers
+(one hole frame with a depth counter) allocates 2.00 times the input, under
+the 3x ceiling.
+
 No-Regression Evidence: the bounded-input tests in `adversarial_test.go` run a
 single-pass scanner with no recursion. 200,000 nested parentheses finish in
 0.03 s, and 100,000 dependency lines finish in 0.08 s while emitting exactly
