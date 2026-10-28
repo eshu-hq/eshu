@@ -64,6 +64,12 @@ func newUnsupportedWarning(
 			ScopeID:      input.Target.ScopeID,
 			GenerationID: input.GenerationID,
 			FactKey:      stableKey,
+			// Same satellite-contract source identity as the analysis fact:
+			// sanitized snapshot URI, record falling back to the image
+			// digest (empty on unscanned targets, which stay satellite
+			// inadmissible until a record identity exists for them).
+			SourceURI:      ospackagevulnerability.SanitizeURL(snapshot.SourceURI),
+			SourceRecordID: firstNonBlank(snapshot.SourceRecordID, snapshot.ImageDigest),
 		},
 	}, nil
 }

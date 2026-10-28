@@ -17,6 +17,18 @@ Tags for this module use the Go subdirectory-module format:
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-28
+
+Additive post-`v0.2.0` changes only: the new `collector-sdk/v1alpha3`
+protocol version is opt-in (v1alpha1 default unchanged), v1alpha1/v1alpha2
+results validate unchanged, and no exported Go identifier was removed or
+renamed, so this stays a minor bump per the rule above. Release-prepared in
+the `drive/8878-scanner-port` lane (Refs #9385); the
+`sdk/go/collector/v0.3.0` tag is NOT cut here — a maintainer cuts it per
+[`RELEASING.md`](../../../RELEASING.md) after merge. See
+[SDK Compatibility](../../../docs/public/extend/sdk-compatibility.md) for the
+version row for this release.
+
 ### Added
 
 - `ProtocolVersionV1Alpha2` (`collector-sdk/v1alpha2`): second collector

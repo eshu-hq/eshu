@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu-sdk/factschema"
 	scannerworkerv1 "github.com/eshu-hq/eshu-sdk/factschema/scannerworker/v1"
+	"github.com/eshu-hq/eshu/go/internal/collector/ospackagevulnerability"
 	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -77,6 +78,15 @@ func newAnalysisFact(
 			ScopeID:      input.Target.ScopeID,
 			GenerationID: input.GenerationID,
 			FactKey:      stableKey,
+			// The collector SDK requires source_ref.uri and record_id on
+			// every satellite-emitted fact. The analysis fact carries the
+			// same sanitized source identity as its sibling package facts
+			// (see Analyzer.envelopes): the snapshot URI through the shared
+			// sanitizer, and the snapshot record falling back to the image
+			// digest. Additive: in-tree validation never constrains these
+			// fields, and stable keys and payloads are untouched.
+			SourceURI:      ospackagevulnerability.SanitizeURL(snapshot.SourceURI),
+			SourceRecordID: firstNonBlank(snapshot.SourceRecordID, snapshot.ImageDigest),
 		},
 	}, nil
 }
