@@ -119,6 +119,11 @@ tests:
     class: postgres_ci
     reason: "#7126 disposable PostgreSQL 18 proof that the non-blank statement of the needed-content hydration equals strings.TrimSpace on every Unicode White_Space code point, on text with whitespace on either side, and on large out-of-line values, plus the trim set checked against unicode.IsSpace over the whole 0x10FFFF range; one local PostgreSQL 18 run took about 1.5 s"
     runner: live-postgres-readiness
+  - file: go/internal/query/content_reader_php_config_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9304 disposable PostgreSQL proof that the PHP configuration reader walks all 120 exact-name rows across repository and page boundaries, honors repository grants, and withholds source_cache on a 120000-row fixture with production-shaped indexes"
+    runner: live-postgres-readiness
   - file: go/internal/query/content_reader_repository_catalog_live_test.go
     tag: ~
     class: postgres_ci

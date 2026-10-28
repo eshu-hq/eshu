@@ -136,8 +136,8 @@ func TestResolveNativeSnapshotFileSetAdmitsUniversalConfigNames(t *testing.T) {
 // selector copies the registry-derived dotfile set into the managed workspace
 // (#8904). The kept and dropped lists come from the live registry, not from a
 // duplicate table: a store-policy dot-prefixed exact name is kept at the root
-// and nested, while .gitignore and the names a metadata or redact policy
-// governs stay out, so a registry-admitted dotfile reaches discovery in
+// and nested, while .gitignore and most names a metadata or redact policy
+// governs stay out; .htaccess is an explicit metadata-only delivery exception, so a registry-admitted dotfile reaches discovery in
 // filesystem mode exactly as it does in clone mode. The copy keeps .mvn
 // whole; what discovery then admits from it is pinned by
 // TestFilesystemCopyKeepsMvnDirectoryAndDiscoveryAppliesRegistryRules.
@@ -155,7 +155,7 @@ func TestFilesystemSelectorPreservesUniversalConfigDotfiles(t *testing.T) {
 			if !strings.HasPrefix(name, ".") {
 				continue
 			}
-			if strings.EqualFold(name, ".gitignore") || definition.ContentStore.Policy != parser.ContentStoreStore {
+			if !strings.EqualFold(name, ".htaccess") && (strings.EqualFold(name, ".gitignore") || definition.ContentStore.Policy != parser.ContentStoreStore) {
 				dropped = append(dropped, name)
 				continue
 			}

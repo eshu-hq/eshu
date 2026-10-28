@@ -34,7 +34,7 @@ never queries Postgres, the graph backend, or any live runtime state.
 | `annotations_intents_families.go` | `toolFamilies()` (the one family list) and `sharedIntentAllowed` |
 | `annotations_intents_{code,repo_service,supply,iac_drift,ops}.go` | Curated intent phrases and canonical flags per tool group |
 | `annotations_routes.go` | `askRouteAnnotations()` — implemented retrieval-capable HTTP API routes |
-| `annotations_tools.go` | `askToolAnnotations()` — 167 implemented MCP tools |
+| `annotations_tools.go` | `askToolAnnotations()` — implemented MCP tools |
 | `planner_exclusions.go` | Curated non-retrieval admin/auth/session control routes excluded from planner entries |
 | `coverage_test.go` | Drift gate: `TestOverlayCoversInventory` — reads the real inventory, fails if any implemented surface is unannotated |
 | `planner_exclusions_test.go` | Planner gate: proves every implemented surface is either cataloged or explicitly excluded |

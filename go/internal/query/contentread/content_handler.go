@@ -58,6 +58,7 @@ func (h *ContentHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/content/files/search", h.searchFiles)
 	mux.HandleFunc("POST /api/v0/content/entities/search", h.searchEntities)
 	mux.HandleFunc("POST /api/v0/content/dockerfile-installs/search", h.searchDockerfileInstalls)
+	mux.HandleFunc("POST /api/v0/content/php-config/search", h.searchPHPConfig)
 }
 
 // readFile reads full file content.

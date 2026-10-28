@@ -52,6 +52,7 @@ is not broken out here).
 | `askTools` | 1 | `ask/tools.go` |
 | `relationshipEdgesTool` | 1 | `relationships/tools.go` |
 | `repositoryFilesTool` | 1 | `tools_repository_files.go` |
+| `phpConfigurationTool` | 1 | `tools_content.go` (appended after the existing registry) |
 
 Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:207`):
 
@@ -123,6 +124,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:207`):
 | `resolve_entity` | POST | `/api/v0/entities/resolve` — exact case-sensitive lookup; global calls require one supported `type`, except canonical `content-entity:` handles and workload resolution |
 | `get_service_story` | GET | `/api/v0/services/{service_selector}/story` (canonical `workload:*` inputs also pass `service_id`; `service_name` plus `repo`/`repository_id`/`repo_id` forwards repository-scoped story selection to HTTP) |
 | `investigate_service` | GET | `/api/v0/investigations/services/{service_name}` |
+| `search_php_configuration` | POST | `/api/v0/content/php-config/search` — guarded directive or server-mode declarations |
 | `get_file_content` | POST | `/api/v0/content/files/read` |
 | `list_documentation_findings` | GET | `/api/v0/documentation/findings` with scope, repo, target, and service filters |
 | `list_documentation_facts` | GET | `/api/v0/documentation/facts` with scope, repo, target, service, source, document, section, and search filters; reads the active generation unless `generation_id` names another |

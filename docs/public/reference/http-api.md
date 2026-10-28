@@ -41,7 +41,7 @@ The mounted Go runtime admin OpenAPI contract lives in
 | Repository, workload, and service stories, intelligence reports, and investigations | [Story routes](http-api/story-routes.md) |
 | Deployment-chain trace and deployment-configuration influence | [Deployment trace and influence](http-api/deployment-trace-and-influence.md) |
 | Code search, symbols, relationships, call chains, dead-code, complexity, quality, language queries | [Code routes](http-api/code.md) |
-| IaC cleanup, AWS drift, content reads/search, infra impact, environment comparison | [IaC, content, and infra routes](http-api/iac-content-infra.md) |
+| IaC cleanup, AWS drift, content reads/search, infra impact, environment comparison | [IaC, content, and infra routes](http-api/iac-content-infra.md); [PHP configuration search](http-api/php-configuration.md) |
 | File-content search with no repository filter: work budget, partial results, resume cursor | [Unscoped file search](http-api/unscoped-file-search.md) |
 | Entity-content search with no repository filter: work budget, partial results, resume cursor | [Unscoped entity search](http-api/unscoped-entity-search.md) |
 | Code and entity-content search in relevance order across pages: `rank_cursor`, `rank_walk`, 409 basis mismatch | [Relevance walk](http-api/rank-walk.md) |

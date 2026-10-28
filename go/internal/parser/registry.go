@@ -187,6 +187,11 @@ func (r Registry) lookupPath(path string) (Definition, bool) {
 		return definition, ok
 	}
 
+	if isPHPConfigPath(path) {
+		definition, ok := r.byKey["php_config"]
+		return definition, ok
+	}
+
 	if isMavenExtensionsPath(path) {
 		definition, ok := r.byKey["raw_text"]
 		return definition, ok

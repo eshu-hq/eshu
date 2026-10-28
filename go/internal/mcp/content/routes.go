@@ -20,6 +20,19 @@ import "github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 // registration group without moving any coupled routing.
 func Route(toolName string, args routecontract.Arguments) (routecontract.Request, bool) {
 	switch toolName {
+	case "search_php_configuration":
+		body := map[string]any{
+			"directive": args.String("directive"),
+			"mode":      args.String("mode"),
+			"limit":     args.IntOr("limit", 50),
+		}
+		if repoID := args.String("repo_id"); repoID != "" {
+			body["repo_id"] = repoID
+		}
+		if cursor := args.String("cursor"); cursor != "" {
+			body["cursor"] = cursor
+		}
+		return routecontract.Request{Method: "POST", Path: "/api/v0/content/php-config/search", Body: body}, true
 	case "get_file_content":
 		return routecontract.Request{Method: "POST", Path: "/api/v0/content/files/read", Body: map[string]any{
 			"repo_id":       args.String("repo_id"),

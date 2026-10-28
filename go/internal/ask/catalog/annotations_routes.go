@@ -173,6 +173,7 @@ func askRouteAnnotations() map[string]Annotation {
 		"POST /api/v0/content/files/lines":                      {Backend: BackendPostgres, Cost: CostLow},
 		"POST /api/v0/content/files/read":                       {Backend: BackendPostgres, Cost: CostLow},
 		"POST /api/v0/content/files/search":                     {Backend: BackendPostgres, Cost: CostModerate},
+		"POST /api/v0/content/php-config/search":                {Backend: BackendPostgres, Cost: CostModerate},
 		"POST /api/v0/ecosystem/graph-summary":                  {Backend: BackendNornicDB, Cost: CostModerate},
 		"POST /api/v0/entities/resolve":                         {Backend: BackendBoth, Cost: CostModerate},
 		"POST /api/v0/evidence/citations":                       {Backend: BackendPostgres, Cost: CostLow},

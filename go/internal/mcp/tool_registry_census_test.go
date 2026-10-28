@@ -327,4 +327,5 @@ var censusToolNames = []string{ //nolint:gochecknoglobals // pinned extraction b
 	"list_repository_files",
 	"list_runtime_version_declarations",
 	"search_dockerfile_installs",
+	"search_php_configuration",
 }

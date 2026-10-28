@@ -6205,6 +6205,16 @@
           "results[].relative_path": "dataflow_proof.go"
         }
       },
+      "search_php_configuration": {
+        "description": "Positive guarded PHP directive evidence from php_comprehensive/php.ini. The MCP and HTTP shapes pin the same source line and value while the raw body stays withheld.",
+        "required_response_fields": ["count", "limit", "results", "truncated"],
+        "results_field": "results",
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "arguments": {"directive": "memory_limit", "limit": 5},
+        "required_json_values": {"results[].metadata.value": "256M"},
+        "required_json_object_matches": {"results[]": [{"relative_path": "php.ini", "start_line": 2, "entity_name": "php_directive:memory_limit"}]}
+      },
       "search_entity_content": {
         "description": "MCP tool coverage shape for search_entity_content; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
         "required_response_fields": [
@@ -7409,6 +7419,16 @@
       }
     },
     "http": {
+      "POST /api/v0/content/php-config/search": {
+        "description": "HTTP parity for the guarded PHP directive declaration in php_comprehensive/php.ini.",
+        "request_body": {"directive": "memory_limit", "limit": 5},
+        "required_response_fields": ["count", "limit", "results", "truncated"],
+        "results_field": "results",
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "required_json_values": {"results[].metadata.value": "256M"},
+        "required_json_object_matches": {"results[]": [{"relative_path": "php.ini", "start_line": 2, "entity_name": "php_directive:memory_limit"}]}
+      },
       "POST /api/v0/runtime-declarations/query": {
         "description": "Declared runtime versions through the deployed HTTP query surface (issue #8817). Non-vacuous since #9131: the go_comprehensive fixture's .tool-versions pins nodejs 20.11.1 18.19.0 lts/iron, so 18.19.0 is the decided below-20 row (minimum_results 1) and the lts/iron alias is the undecided row counted in excluded_from_comparison; the echo fields, the comparison exclusion report and partial_reasons carry the assertion that the route is mounted and read the RuntimeDeclaration graph.",
         "required_response_fields": [

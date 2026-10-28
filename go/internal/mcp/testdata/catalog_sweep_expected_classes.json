@@ -169,6 +169,7 @@
     "trace_resource_to_code/default": "allowlisted",
     "trace_route_callers/default": "allowlisted",
     "visualize_graph_query/default": "shared_key_only",
-    "search_dockerfile_installs/default": "allowlisted"
+    "search_dockerfile_installs/default": "allowlisted",
+    "search_php_configuration/default": "allowlisted"
   }
 }

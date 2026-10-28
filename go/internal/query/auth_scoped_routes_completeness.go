@@ -275,6 +275,7 @@ var scopedTokenAdvertisedRoutes = map[string]scopedRouteClass{
 	"POST /api/v0/content/entities/read":                                            scopedRouteGrantBound,
 	"POST /api/v0/content/entities/search":                                          scopedRouteGrantBound,
 	"POST /api/v0/content/dockerfile-installs/search":                               scopedRouteGrantBound,
+	"POST /api/v0/content/php-config/search":                                        scopedRouteGrantBound,
 	"POST /api/v0/content/files/lines":                                              scopedRouteGrantBound,
 	"POST /api/v0/content/files/read":                                               scopedRouteGrantBound,
 	"POST /api/v0/content/files/search":                                             scopedRouteGrantBound,

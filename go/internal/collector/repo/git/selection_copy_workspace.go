@@ -105,6 +105,10 @@ func preserveFilesystemHiddenPath(rel string) bool {
 
 	lowered := strings.ToLower(normalized)
 	base := path.Base(lowered)
+	// .htaccess must reach the PHP parser even though its content-store body is withheld.
+	if base == ".htaccess" {
+		return true
+	}
 	if base == ".mvn" || base == ".gitmodules" {
 		return true
 	}

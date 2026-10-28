@@ -305,6 +305,8 @@ func (e *Engine) parseDefinition(
 		return parseNuGetProject(resolvedPath, isDependency, options)
 	case "perl":
 		return e.parsePerl(resolvedPath, isDependency, options)
+	case "php_config":
+		return parsePHPConfig(resolvedPath, isDependency)
 	case "php":
 		return e.parsePHP(repoRoot, resolvedPath, isDependency, options)
 	case "python":

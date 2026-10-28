@@ -87,6 +87,7 @@ func ReadOnlyTools() []ToolDefinition {
 	// codeowners, kubernetes, service and ask position pins stay valid).
 	tools = append(tools, runtimeDeclarationTools()...)
 	tools = append(tools, dockerfileInstallTool())
+	tools = append(tools, phpConfigurationTool())
 	return tools
 }
 

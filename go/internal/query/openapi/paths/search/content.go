@@ -315,4 +315,40 @@ const Content = `
         }
       }
     },
+    "/api/v0/content/php-config/search": {
+      "post": {
+        "tags": ["content"],
+        "summary": "Search declared PHP configuration",
+        "description": "Finds repository files declaring a PHP directive or a mod_php/php-fpm server mode. Values are guarded parser evidence; source bodies are withheld. The response includes repository, path, line, count, and an opaque next_cursor whenever truncated is true. Repository grants are applied before paging. Dockerfile base-tag and a2enmod declarations are derived from the shared Dockerfile parser; source code is not returned.",
+        "operationId": "searchPHPConfiguration",
+        "x-scoped-token-support": true,
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {
+          "type": "object", "oneOf": [{"required": ["directive"]}, {"required": ["mode"]}],
+          "properties": {
+            "directive": {"type": "string", "maxLength": 128},
+            "mode": {"type": "string", "enum": ["mod_php", "php-fpm"]},
+            "repo_id": {"type": "string"},
+            "limit": {"type": "integer", "minimum": 1, "maximum": 200, "default": 50},
+            "cursor": {"type": "string", "description": "Opaque next_cursor from a preceding page of the same filter"}
+          }
+        }}}},
+        "responses": {
+          "200": {"description": "Guarded configuration entity page", "content": {"application/json": {"schema": {
+            "type": "object", "required": ["results", "count", "limit", "truncated"],
+            "properties": {
+              "results": {"type": "array", "items": {"$ref": "#/components/schemas/EntityContent"}},
+              "count": {"type": "integer"},
+              "limit": {"type": "integer"},
+              "truncated": {"type": "boolean"},
+              "next_cursor": {"type": "string", "description": "Present when truncated is true; pass as cursor to continue"}
+            }
+          }}}},
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "404": {"$ref": "#/components/responses/NotFound"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      }
+    },
 `

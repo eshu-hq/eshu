@@ -22,6 +22,7 @@ func (e *Engine) parseDockerfile(
 	for key, value := range buildDockerfilePayload(string(source)) {
 		payload[key] = value
 	}
+	payload["variables"] = phpDockerfileModeRows(payload)
 	if options.IndexSource {
 		payload["source"] = string(source)
 	}
