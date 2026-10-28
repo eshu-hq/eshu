@@ -15,10 +15,12 @@
 # as committed markers: an untouched pointer from an earlier PR must not
 # satisfy this one) and only outside testdata/vendor/generated trees (a
 # fixture carrying a marker must never satisfy the gate, eshu-hq/eshu#5542
-# follow-up). The ref must be namespaced -- run-id/artifact-name or a full
-# Actions run URL, both of which contain a `/` a bare word never does. The
-# gate checks the pointer is present and shaped, not that the artifact
-# resolves; the reviewer verifies that.
+# follow-up). The ref must be a resolvable run pointer -- a numeric
+# run-id/artifact-name or a full Actions run URL, the doc-citations bar
+# (scripts/lib/doc-citation-artifacts.sh). A bare slash is not a namespace,
+# so a slash-bearing non-pointer such as "see/above" never satisfies the
+# gate. The gate checks the pointer is present and shaped, not that the
+# artifact resolves; the reviewer verifies that.
 
 # Collects the added diff lines of EVERY listed file in one awk pass over
 # the already-fetched _perf_diff_cache, instead of re-scanning the whole
@@ -89,11 +91,11 @@ perf_apply_workflow_artifact_evidence() {
   if [ -s "$_perf_artifact_added_path" ]; then
     # Match against a file, never a pipe: `printf ... | rg -q` races under
     # `set -o pipefail` (see the committed-marker block in the verifier).
-    if rg -q -e '(^|[[:space:]])(Performance Evidence|Benchmark Evidence|No-Regression Evidence)[[:space:]]*\(workflow-artifact:[^()]*\/[^()]*\)[[:space:]]*:' "$_perf_artifact_added_path"; then
+    if rg -q -e '(^|[[:space:]])(Performance Evidence|Benchmark Evidence|No-Regression Evidence)[[:space:]]*\(workflow-artifact:[[:space:]]*([0-9]+/[^()[:space:]]+|https?://[^()[:space:]]+)[^()]*\)[[:space:]]*:' "$_perf_artifact_added_path"; then
       # shellcheck disable=SC2034  # consumed by the sourcing verifier.
       perf_artifact_has_performance=0
     fi
-    if rg -q -e '(^|[[:space:]])(Observability Evidence|No-Observability-Change)[[:space:]]*\(workflow-artifact:[^()]*\/[^()]*\)[[:space:]]*:' "$_perf_artifact_added_path"; then
+    if rg -q -e '(^|[[:space:]])(Observability Evidence|No-Observability-Change)[[:space:]]*\(workflow-artifact:[[:space:]]*([0-9]+/[^()[:space:]]+|https?://[^()[:space:]]+)[^()]*\)[[:space:]]*:' "$_perf_artifact_added_path"; then
       # shellcheck disable=SC2034  # consumed by the sourcing verifier.
       perf_artifact_has_observability=0
     fi

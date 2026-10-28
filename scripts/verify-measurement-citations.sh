@@ -214,6 +214,36 @@ claim_pattern='[0-9]+/[0-9]+[[:space:]]+(trials|runs)\b|^[[:space:]]*Measurement
 citation_pattern='ledger:([A-Za-z0-9][A-Za-z0-9_-]*)'
 artifact_pattern='artifact:([A-Za-z0-9_./#:-]+)'
 
+# artifact_ref_wellformed reports whether an extracted artifact token names a
+# resolvable run output: a numeric run id plus an artifact name, or a full
+# http(s) run URL -- the doc-citations bar
+# (scripts/lib/doc-citation-artifacts.sh) and the measurement-ledger promise.
+# A bare slash is not a namespace, so a slash-bearing non-pointer such as
+# "see/above" is malformed and must fail the claim it was cited for.
+artifact_ref_wellformed() {
+  local ref="$1"
+  case "${ref}" in
+    http://?*|https://?*)
+      return 0
+      ;;
+    http://|https://)
+      return 1
+      ;;
+    */*)
+      local run="${ref%%/*}"
+      local name="${ref#*/}"
+      [ -n "${name}" ] || return 1
+      case "${run}" in
+        ''|*[!0-9]*) return 1 ;;
+      esac
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 # extract_ratio prints "<N> <M>" for the FIRST "<N>/<M> trials|runs" match in
 # $1, or nothing if the line has no such match (e.g. a "Measurement:" line
 # whose figure isn't in that shape).
@@ -309,9 +339,9 @@ while IFS= read -r line; do
   if [ -z "${citation}" ]; then
     artifact="$(printf '%s' "${payload}" | rg -o "${artifact_pattern}" -r '$1' | head -n1 || true)"
     if [ -n "${artifact}" ]; then
-      case "${artifact}" in
-        */*) continue ;;
-      esac
+      if artifact_ref_wellformed "${artifact}"; then
+        continue
+      fi
       violations+=("${current_file}: cites malformed artifact pointer '${artifact}' (want artifact:<run-id>/<artifact-name> or a run URL) -> ${payload}")
       continue
     fi

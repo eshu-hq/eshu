@@ -93,6 +93,15 @@ printf '# New Finding\n\nA deadlock check ran clean: 0/30 trials failed (artifac
 commit_change "${artifact_bare_repo}" "add bare artifact claim"
 expect_fail "${artifact_bare_repo}" "bare artifact pointer must fail"
 
+# A slash-bearing non-pointer names no run and must still fail: the ledger
+# promises artifact:<run-id>/<artifact-name> or a run URL, and a bare slash
+# is not a namespace (eshu-hq/eshu#9368).
+artifact_slash_repo="$(init_repo artifact-slash)"
+printf '# New Finding\n\nA deadlock check ran clean: 0/30 trials failed (artifact:see/above).\n' \
+  >"${artifact_slash_repo}/docs/internal/evidence/new-finding.md"
+commit_change "${artifact_slash_repo}" "add slash-bearing non-pointer claim"
+expect_fail "${artifact_slash_repo}" "slash-bearing non-pointer must fail"
+
 # The committed ledger path keeps working through the transition.
 ledger_repo="$(init_repo ledger-still-accepted)"
 printf '# New Finding\n\nA deadlock check ran clean: 0/10 trials failed (ledger:9999-known-row).\n' \

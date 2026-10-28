@@ -210,6 +210,12 @@ func TestProofLikeAcceptsWorkflowArtifactRefs(t *testing.T) {
 		"artifact:",
 		"artifact:somerun",
 		"artifact evidence lives in CI",
+		// A slash alone is not a namespace: the pointer must carry a
+		// numeric run id or a run URL (eshu-hq/eshu#9368).
+		"artifact:see/above",
+		"artifact:abc/def",
+		"artifact:12345",
+		"artifact:12345/",
 	} {
 		if proofLike(ref) {
 			t.Errorf("proofLike(%q) = true, want false for a pointer with no run namespace", ref)

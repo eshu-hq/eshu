@@ -340,16 +340,43 @@ func proofLike(ref string) bool {
 		return ok && len(tests) > 0
 	}
 	// A workflow run that recorded the evidence satisfies proof without a
-	// committed record (#9315): the ref must be namespaced
-	// (run-id/artifact-name) or a full run URL, both of which contain a
-	// `/` a bare word never does. The committed test/script/golden paths
-	// below stay accepted unchanged.
+	// committed record (#9315): the ref must be a resolvable run pointer --
+	// a numeric run-id/artifact-name or a full run URL, the doc-citations
+	// bar (scripts/lib/doc-citation-artifacts.sh). A bare slash is not a
+	// namespace, so a slash-bearing non-pointer such as "see/above" is not
+	// proof. The committed test/script/golden paths below stay accepted
+	// unchanged.
 	if rest, ok := strings.CutPrefix(ref, "artifact:"); ok {
-		return strings.Contains(rest, "/")
+		return artifactRefWellformed(rest)
 	}
 	return strings.HasPrefix(ref, "scripts/") ||
 		strings.HasPrefix(ref, "bash scripts/") ||
 		strings.Contains(lower, "golden")
+}
+
+// artifactRefWellformed reports whether the ref after "artifact:" names a
+// resolvable run output: a numeric run id plus an artifact name, or a full
+// http(s) run URL -- the doc-citations bar
+// (scripts/lib/doc-citation-artifacts.sh). Anything else, including a
+// slash-bearing non-pointer such as "see/above", is not a pointer.
+func artifactRefWellformed(rest string) bool {
+	rest = strings.TrimSpace(rest)
+	if rest == "http://" || rest == "https://" {
+		return false
+	}
+	if strings.HasPrefix(rest, "http://") || strings.HasPrefix(rest, "https://") {
+		return true
+	}
+	run, name, ok := strings.Cut(rest, "/")
+	if !ok || name == "" {
+		return false
+	}
+	for _, r := range run {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return run != ""
 }
 
 func parseGoTestRef(ref string) ([]string, []string, bool) {

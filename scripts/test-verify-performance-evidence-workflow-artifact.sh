@@ -120,6 +120,18 @@ git -C "${artifact_bare_repo}" add .
 git -C "${artifact_bare_repo}" commit -q -m 'hot change with bare artifact refs'
 expect_fail "${artifact_bare_repo}" 'bare artifact refs'
 
+# A slash-bearing non-pointer names no run and must not satisfy the gate:
+# the pointer must carry a numeric run id or a run URL (eshu-hq/eshu#9368).
+artifact_slash_repo="$(init_repo artifact-slash)"
+hot_change "${artifact_slash_repo}"
+cat >>"${artifact_slash_repo}/go/internal/storage/cypher/writer.go" <<'GO'
+// Performance Evidence (workflow-artifact: see/above): slash-bearing prose is not a pointer.
+// Observability Evidence (workflow-artifact: see/above): slash-bearing prose is not a pointer.
+GO
+git -C "${artifact_slash_repo}" add .
+git -C "${artifact_slash_repo}" commit -q -m 'hot change with slash-bearing non-pointer refs'
+expect_fail "${artifact_slash_repo}" 'slash-bearing non-pointer refs'
+
 # A shaped pointer inside a fixture tree must not satisfy the gate: testdata
 # carries fixtures, never evidence (eshu-hq/eshu#5542 follow-up).
 artifact_fixture_repo="$(init_repo artifact-fixture)"
