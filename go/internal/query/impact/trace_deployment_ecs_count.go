@@ -25,15 +25,20 @@ func (h *Handler) fetchWorkloadECSTaskSummary(ctx context.Context, workloadName,
 		}
 		span.End()
 	}()
-	if len(cloudResources.Limits) == 0 {
-		return deployment.ECSTaskSummary{Reason: "ecs_service_identity_coverage_unknown"}, nil
-	}
 	if querycontract.BoolVal(cloudResources.Limits, "truncated") {
 		return deployment.ECSTaskSummary{Reason: "ecs_service_identity_truncated"}, nil
 	}
+	if cloudResources.IdentityWithheld {
+		if !access.Scoped() {
+			return deployment.ECSTaskSummary{Reason: "ecs_service_identity_coverage_unknown"}, nil
+		}
+		cloudResources.Rows = nil // Context fallback rows cannot establish scoped graph identity.
+	} else if len(cloudResources.Limits) == 0 {
+		return deployment.ECSTaskSummary{Reason: "ecs_service_identity_coverage_unknown"}, nil
+	}
 	anchors := deployment.ECSServicesFromCloudResources(cloudResources.Rows)
 	if len(anchors) == 0 {
-		if h != nil && h.Neo4j != nil && h.Content != nil && access.AllowsRepositoryID(repoID) {
+		if h != nil && h.Neo4j != nil && h.Content != nil && access.AllowsCanonicalRepositoryID(repoID) {
 			workloadCount, err := countWorkloadsDefinedByRepo(ctx, h.Neo4j, repoID)
 			if err != nil {
 				span.RecordError(err)

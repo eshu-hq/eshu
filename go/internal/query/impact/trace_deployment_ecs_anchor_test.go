@@ -16,6 +16,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/parser/hcl"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
@@ -43,12 +44,14 @@ func TestFetchCloudResourceResultRetainsECSServiceIdentity(t *testing.T) {
 type fakeECSTaskStore struct {
 	called int
 	arn    string
+	access querycontract.RepositoryAccessFilter
 	result *deployment.ECSServiceTaskEvidence
 }
 
-func (s *fakeECSTaskStore) ListRunningTasks(_ context.Context, arn string, _ querycontract.RepositoryAccessFilter) (*deployment.ECSServiceTaskEvidence, error) {
+func (s *fakeECSTaskStore) ListRunningTasks(_ context.Context, arn string, access querycontract.RepositoryAccessFilter) (*deployment.ECSServiceTaskEvidence, error) {
 	s.called++
 	s.arn = arn
+	s.access = access
 	return s.result, nil
 }
 
@@ -260,6 +263,61 @@ func TestTraceDeploymentChainSurfacesParsedECSDeclarationCount(t *testing.T) {
 	summary := querycontract.MapValue(body, "deployment_fact_summary")
 	if summary["ecs_running_task_count"] != float64(1) || summary["ecs_matched_container"] != "deployable-source" || !slices.Equal(querycontract.StringSliceVal(summary, "ecs_matched_containers"), []string{"deployable-source"}) || store.arn != arn {
 		t.Fatalf("ECS summary=%#v store ARN=%q", summary, store.arn)
+	}
+}
+
+func TestTraceDeploymentChainScopedDeclarationUsesRepoAndAWSGrants(t *testing.T) {
+	parsed, err := hcl.Parse(filepath.Join("..", "..", "..", "..", "tests", "fixtures", "ecosystems", "deployable-source", "main.tf"), false, shared.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resources := parsed["terraform_resources"].([]map[string]any)
+	const arn = "arn:aws:ecs:us-east-1:123456789012:service/supply-chain-demo/deployable-source"
+	zero := 0
+	store := &fakeECSTaskStore{result: &deployment.ECSServiceTaskEvidence{RunningCount: &zero}}
+	workload := map[string]any{"id": "workload-deployable-source", "name": "deployable-source", "repo_id": "repo-deployable-source", "repo_name": "deployable-source", "instances": []any{}, "cloud_resources": []map[string]any{{"resource_type": "aws_ecs_service", "arn": "arn:aws:ecs:us-east-1:123456789012:service/other/foreign"}}}
+	h := &Handler{ECSTasks: store, Content: content.FakePortContentStore{Entities: []querycontract.EntityContent{{RepoID: "repo-deployable-source", EntityType: "TerraformResource", EntityName: "aws_ecs_service.deployable_source", Metadata: resources[0]}}}, Neo4j: graph.FakeWorkloadGraphReader{
+		RunSingleByMatch: map[string]map[string]any{"w.name = $service_name": workload, "w.id = $workload_id": workload},
+		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+			switch {
+			case strings.Contains(cypher, "w.name = $service_name"):
+				return []map[string]any{workload}, nil
+			case strings.Contains(cypher, "RETURN DISTINCT w.id as workload_id"):
+				return []map[string]any{{"workload_id": "workload-deployable-source"}}, nil
+			case strings.Contains(cypher, "MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)"):
+				return []map[string]any{{"repo_id": "repo-deployable-source", "repo_name": "deployable-source"}}, nil
+			case strings.Contains(cypher, "-[rel:USES]->(c:CloudResource)"):
+				t.Fatal("scoped route must not read global cloud bindings")
+			default:
+				return nil, nil
+			}
+			return nil, nil
+		},
+	}}
+	grants := auth.AuthContext{Mode: auth.AuthModeScoped, AllowedRepositoryIDs: []string{"repo-deployable-source"}, AllowedScopeIDs: []string{"aws-scope"}}
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/trace-deployment-chain", strings.NewReader(`{"service_name":"deployable-source"}`))
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), grants))
+	w := httptest.NewRecorder()
+	h.TraceDeploymentChain(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	summary := querycontract.MapValue(body, "deployment_fact_summary")
+	if summary["ecs_running_task_count"] != float64(0) || store.called != 1 || store.arn != arn || !slices.Equal(store.access.AllowedRepositoryIDs, []string{"repo-deployable-source"}) || !slices.Equal(store.access.AllowedScopeIDs, []string{"aws-scope"}) {
+		t.Fatalf("scoped ECS summary=%#v store=%#v", summary, store)
+	}
+}
+
+func TestFetchWorkloadECSTaskSummaryScopedScopeGrantAloneCannotSelectDeclaration(t *testing.T) {
+	store := &fakeECSTaskStore{}
+	h := &Handler{ECSTasks: store, Content: content.FakePortContentStore{Entities: []querycontract.EntityContent{{RepoID: "repo-api", EntityType: "TerraformResource", Metadata: map[string]any{"resource_type": "aws_ecs_service", "attributes": map[string]any{"name": "api", "cluster": "arn:aws:ecs:us-east-1:000000000000:cluster/c"}}}}}, Neo4j: graph.FakeWorkloadGraphReader{}}
+	got, err := h.fetchWorkloadECSTaskSummary(context.Background(), "api", "repo-api", CloudResourceResult{IdentityWithheld: true}, querycontract.RepositoryAccessFilter{AllowedScopeIDs: []string{"repo-api"}})
+	if err != nil || got.Count != nil || store.called != 0 {
+		t.Fatalf("scope-only grant selected declaration: summary=%#v err=%v store calls=%d", got, err, store.called)
 	}
 }
 

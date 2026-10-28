@@ -19,8 +19,9 @@ import (
 // exported because the query root's cloud-limit tests read them from outside
 // this package. See #6060.
 type CloudResourceResult struct {
-	Rows   []map[string]any
-	Limits map[string]any
+	Rows             []map[string]any
+	Limits           map[string]any
+	IdentityWithheld bool // Scoped callers cannot trust global USES edges as workload identity.
 }
 
 // CloudResourceObservationLimit bounds the cloud-resource observation read
@@ -47,7 +48,7 @@ func (h *Handler) fetchCloudResourceResult(
 	// limits with the rows so consumers cannot misread withheld evidence as an
 	// exact empty collection.
 	if access.Scoped() {
-		return CloudResourceResult{Rows: []map[string]any{}}, nil
+		return CloudResourceResult{Rows: []map[string]any{}, IdentityWithheld: true}, nil
 	}
 	params := access.GraphParams(map[string]any{
 		"repo_id":                 repoID,
