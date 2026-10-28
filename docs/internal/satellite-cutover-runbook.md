@@ -122,7 +122,8 @@ response are recorded (criterion 7).
 
 Only after production acceptance, delete the in-tree producer and repoint
 every registry, contract, spec, and doc that named it. Precedent scale:
-#9312 removed 206-209 files (+466/-13288). What moves vs what stays:
+#9312 removed on the order of 200 files (roughly +500/-13,000 lines).
+What moves vs what stays:
 
 | Moves to the satellite (delete in-tree) | Stays in core (do not touch) |
 | --- | --- |
