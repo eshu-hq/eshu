@@ -279,9 +279,11 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 			}
 			return err
 		}
-		// #9420: an unchanged generation has nothing to commit; resolving it
-		// is the durable outcome, so the post-commit hook fires here, at the
-		// same position relative to claim completion as on the commit path.
+		// #9420: an unchanged generation has nothing to commit. The hook
+		// fires after the resolution check and before the heartbeat drain and
+		// CompleteClaim, the same position relative to claim completion as on
+		// the commit path; a lost lease or a failed CompleteClaim therefore
+		// leaves the row written and a re-run rewrites it.
 		s.observeClaimedGenerationCommitted(ctx, item)
 		stopHeartbeat()
 		if err := drainHeartbeatError(heartbeatErr); err != nil {

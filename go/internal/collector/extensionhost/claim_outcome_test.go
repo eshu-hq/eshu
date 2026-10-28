@@ -104,6 +104,18 @@ func TestNextClaimedReportsOneClaimOutcomeOnEveryExit(t *testing.T) {
 			wantCompleted: true,
 		},
 		{
+			// A complete result may still carry a partial status row; the
+			// claim is then partial, so the row cannot read fresh/succeeded.
+			name: "complete result with a partial status row",
+			result: func(item workflow.WorkItem) sdkcollector.Result {
+				result := completeResult(item, testSDKFact(item))
+				result.Statuses = []sdkcollector.Status{{Class: sdkcollector.StatusWarning, Partial: true, WarningCount: 1, FactCount: 1}}
+				return result
+			},
+			want:          ClaimOutcome{Origin: ResultOriginSDK, State: sdkcollector.ResultComplete, Partial: true, FactCount: 1, WarningCount: 1},
+			wantCompleted: true,
+		},
+		{
 			name:   "sdk retryable",
 			result: func(item workflow.WorkItem) sdkcollector.Result { return retryableResultWithDelays(item, 30, 120) },
 			want: ClaimOutcome{
