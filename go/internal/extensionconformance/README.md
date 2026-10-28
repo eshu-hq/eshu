@@ -32,8 +32,9 @@ manifest against the producer grants in the component home, so a collector that
 declares granted core-owned fact kinds is judged like install judges it. The
 host passes the full core reserved-kind inventory and a trusted authorization
 snapshot to the public harness. Each emitted core fact must match a live grant
-for its component, version, collector kind, and schema version. The snapshot
-uses one evaluation time; expired and revoked grants do not authorize facts.
+for its component, version, collector kind, and schema version. Core
+schema versions must also pass core admission. The snapshot uses one evaluation
+time; expired and revoked grants do not authorize facts.
 The authoritative reducer phase and payload schema come from the generated
 core fact-kind registry. `FindingFixtureReadFailed` is the only host-local
 finding code, because file I/O is the host's responsibility.

@@ -82,14 +82,13 @@ package itself:
   grant fails closed with the same core-owned error as before. A manifest
   that declares only namespaced kinds never reads the registry, so an
   unreadable registry cannot change its result. With grants, `verify`
-  applies the same trust policy `install` does, so verify, install, and
-  conform agree on one manifest. `conform` also stops reserving the granted
-  kinds in the harness, while every other core-owned kind stays reserved.
-- Known limit: the public SDK harness still requires every emitted fact
-  kind to carry a `.` namespace prefix, so `conform` fails for a granted
-  core kind without one (for example the Confluence `documentation_*`
-  kinds) until the harness accepts host-granted kinds (#8851). `inspect`
-  and `verify` are unaffected.
+  applies the same trust policy `install` does. `conform` keeps the full core
+  reserved-kind inventory and passes the SDK a trusted snapshot of exact live
+  producer, version, collector-kind, fact-kind, and schema-version grants.
+  Core-owned declarations must also use a schema version supported by core;
+  a grant alone cannot make an unsupported version pass conformance. The host
+  supplies reducer phases and payload schemas from the core fact-kind registry.
+  Namespaced declarations continue through the ordinary SDK path.
 - Collector startup loads the grant snapshot for activation and re-reads
   the registry on every emission: a grant revoked or expired during
   execution fails the next result terminal with an `InvalidResult` failure

@@ -93,6 +93,9 @@ func Run(ctx context.Context, req Request) (Report, error) {
 
 	now := time.Now().UTC()
 	manifest, grants, err := component.NewRegistry(req.ComponentHome).LoadGrantedManifestAt(req.ManifestPath, now)
+	if err == nil {
+		err = validateDeclaredCoreSchemaVersions(manifest)
+	}
 	if err != nil {
 		report := Report{
 			SchemaVersion: conformance.SchemaVersion,
@@ -145,6 +148,22 @@ func Run(ctx context.Context, req Request) (Report, error) {
 		return report, conformanceError(report)
 	}
 	return report, nil
+}
+
+// validateDeclaredCoreSchemaVersions prevents a producer grant from making a
+// version pass conformance that core's fact admission would later reject.
+func validateDeclaredCoreSchemaVersions(manifest component.Manifest) error {
+	for _, fact := range manifest.Spec.EmittedFacts {
+		if !facts.IsCoreFactKind(fact.Kind) {
+			continue
+		}
+		for _, version := range fact.SchemaVersions {
+			if err := facts.ValidateSchemaVersion(fact.Kind, version); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // trustedCoreFacts builds exact collector/schema tuples from the same grant

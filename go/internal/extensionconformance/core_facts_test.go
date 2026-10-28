@@ -98,22 +98,35 @@ func TestRunAcceptsGrantedAWSResource(t *testing.T) {
 func TestRunRejectsCrossGrantTuple(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
-	awsGrant := liveGrant()
-	awsGrant.ProducerID = "dev.example.collector.aws"
-	awsGrant.Kind = "aws_resource"
-	awsGrant.Scope = "aws"
-	otherGrant := awsGrant
+	docsGrant := liveGrant()
+	docsGrant.ProducerID = "dev.example.collector.docs"
+	docsGrant.Kind = "documentation_section"
+	docsGrant.Scope = "docs"
+	otherGrant := docsGrant
 	otherGrant.Scope = "other"
-	otherGrant.SchemaVersions = []string{"2.0.0"}
-	recordGrants(t, home, awsGrant, otherGrant)
-	manifest := strings.Replace(awsCoreManifest, "    - aws\n", "    - aws\n    - other\n", 1)
-	manifest = strings.Replace(manifest, "        - 1.0.0\n", "        - 1.0.0\n        - 2.0.0\n", 1)
+	otherGrant.SchemaVersions = []string{"1.1.0"}
+	recordGrants(t, home, docsGrant, otherGrant)
+	manifest := strings.ReplaceAll(awsCoreManifest, "aws_resource", "documentation_section")
+	manifest = strings.ReplaceAll(manifest, "dev.example.collector.aws", "dev.example.collector.docs")
+	manifest = strings.Replace(manifest, "aws_cloud_runtime_drift", "documentation_materialization", 1)
+	manifest = strings.Replace(manifest, "    - aws\n", "    - docs\n    - other\n", 1)
+	manifest = strings.Replace(manifest, "        - 1.0.0\n", "        - 1.0.0\n        - 1.1.0\n", 1)
 	manifestPath := filepath.Join(t.TempDir(), "manifest.yaml")
 	if err := os.WriteFile(manifestPath, []byte(manifest), 0o600); err != nil {
 		t.Fatalf("write manifest: %v", err)
 	}
 	result := awsCoreResult(t)
-	result.Facts[0].SchemaVersion = "2.0.0"
+	result.Claim.ComponentID = "dev.example.collector.docs"
+	result.Claim.CollectorKind = "docs"
+	result.Claim.SourceSystem = result.Claim.ComponentID
+	result.Facts[0].SourceRef.SourceSystem = result.Claim.ComponentID
+	result.Facts[0].SchemaVersion = "1.1.0"
+	result.Facts[0].Kind = "documentation_section"
+	payload, ok := fixturepack.ValidPayload("documentation_section")
+	if !ok {
+		t.Fatal("documentation_section fixture pack payload missing")
+	}
+	result.Facts[0].Payload = payload
 	report, err := Run(context.Background(), Request{
 		ManifestPath:  manifestPath,
 		FixturePaths:  []string{writeConformanceFixture(t, result)},
@@ -124,6 +137,9 @@ func TestRunRejectsCrossGrantTuple(t *testing.T) {
 		t.Fatal("Run() error = nil, want exact-tuple denial")
 	}
 	assertFinding(t, report, FindingFixtureContractFailed, true, true)
+	if !strings.Contains(report.Findings[0].Message, "lacks exact collector/schema authorization") {
+		t.Fatalf("finding = %q, want exact-tuple denial", report.Findings[0].Message)
+	}
 }
 
 // TestRunRejectsConflictingCoreSchema proves manifest metadata cannot replace
@@ -153,5 +169,38 @@ func TestRunRejectsConflictingCoreSchema(t *testing.T) {
 	assertFinding(t, report, FindingPayloadSchemaInvalid, true, true)
 	if !strings.Contains(report.Findings[0].Message, "payloadSchemaRef conflicts with manifest") {
 		t.Fatalf("finding = %q, want trusted schema conflict", report.Findings[0].Message)
+	}
+}
+
+// TestRunRejectsGrantedUnsupportedCoreVersion proves a live grant cannot make
+// an unsupported core schema version pass fixture conformance.
+func TestRunRejectsGrantedUnsupportedCoreVersion(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	grant := liveGrant()
+	grant.ProducerID = "dev.example.collector.aws"
+	grant.Kind = "aws_resource"
+	grant.Scope = "aws"
+	grant.SchemaVersions = []string{"2.0.0"}
+	recordGrants(t, home, grant)
+	manifest := strings.Replace(awsCoreManifest, "        - 1.0.0\n", "        - 2.0.0\n", 1)
+	manifestPath := filepath.Join(t.TempDir(), "manifest.yaml")
+	if err := os.WriteFile(manifestPath, []byte(manifest), 0o600); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+	result := awsCoreResult(t)
+	result.Facts[0].SchemaVersion = "2.0.0"
+	report, err := Run(context.Background(), Request{
+		ManifestPath:  manifestPath,
+		FixturePaths:  []string{writeConformanceFixture(t, result)},
+		Mode:          ModeFixture,
+		ComponentHome: home,
+	})
+	if err == nil {
+		t.Fatal("Run() error = nil, want unsupported core schema version")
+	}
+	assertFinding(t, report, FindingManifestInvalid, true, true)
+	if !strings.Contains(report.Findings[0].Message, "schema_version \"2.0.0\" is unsupported") {
+		t.Fatalf("finding = %q, want unsupported core schema version", report.Findings[0].Message)
 	}
 }
