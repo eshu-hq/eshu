@@ -76,7 +76,10 @@ func referencedForkMergeSHA(repo string, pr int, raw json.RawMessage) (string, b
 	prefix := repo + "/.github/workflows/"
 	seen := make(map[string]bool, len(refs))
 	var mergeSHA string
-	queueCount := 0
+	// No workflow stem is privileged: queue-selection.yml is deleted, so the
+	// binding is the completeness of the local immutable set itself. Every
+	// entry must still be a local reusable workflow pinned to this PR's merge
+	// ref at one shared full SHA with no duplicate stems.
 	for _, entry := range refs {
 		fileAndSHA, ok := strings.CutPrefix(entry.Path, prefix)
 		if !ok || entry.Ref != wantRef || !fullLowerSHA(entry.SHA) {
@@ -92,11 +95,8 @@ func referencedForkMergeSHA(repo string, pr int, raw json.RawMessage) (string, b
 		}
 		seen[stem] = true
 		mergeSHA = entry.SHA
-		if stem == "queue-selection" {
-			queueCount++
-		}
 	}
-	return mergeSHA, queueCount == 1
+	return mergeSHA, true
 }
 
 func verifyForkMergeCommit(ctx context.Context, runner ghRunner, repo, mergeSHA, headSHA string) error {
