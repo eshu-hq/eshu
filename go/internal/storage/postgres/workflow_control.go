@@ -234,17 +234,17 @@ func (s *WorkflowControlStore) HeartbeatClaim(ctx context.Context, mutation work
 	if err != nil {
 		return err
 	}
-	return s.execClaimMutation(ctx, mutation, heartbeatWorkflowClaimQuery, mutation.ObservedAt.UTC().Add(effectiveLeaseTTL))
+	return s.execClaimMutation(ctx, claimOpHeartbeat, mutation, heartbeatWorkflowClaimQuery, mutation.ObservedAt.UTC().Add(effectiveLeaseTTL))
 }
 
 // CompleteClaim marks the active ownership epoch and work item complete.
 func (s *WorkflowControlStore) CompleteClaim(ctx context.Context, mutation workflow.ClaimMutation) error {
-	return s.execCompleteClaimMutation(ctx, mutation)
+	return s.execCompleteClaimMutation(ctx, claimOpComplete, mutation)
 }
 
 // ReleaseClaim gives up an active claim without recording a collector failure.
 func (s *WorkflowControlStore) ReleaseClaim(ctx context.Context, mutation workflow.ClaimMutation) error {
-	return s.execClaimMutation(ctx, mutation, releaseWorkflowClaimQuery, time.Time{})
+	return s.execClaimMutation(ctx, claimOpRelease, mutation, releaseWorkflowClaimQuery, time.Time{})
 }
 
 // FailClaimRetryable marks the current epoch retryable and requeues the work item.
@@ -252,12 +252,12 @@ func (s *WorkflowControlStore) FailClaimRetryable(ctx context.Context, mutation 
 	if mutation.VisibleAt.IsZero() {
 		mutation.VisibleAt = mutation.ObservedAt
 	}
-	return s.execTerminalClaimMutation(ctx, mutation, failWorkflowClaimRetryableQuery, true)
+	return s.execTerminalClaimMutation(ctx, claimOpFailRetryable, mutation, failWorkflowClaimRetryableQuery, true)
 }
 
 // FailClaimTerminal marks the current epoch terminal without requeueing.
 func (s *WorkflowControlStore) FailClaimTerminal(ctx context.Context, mutation workflow.ClaimMutation) error {
-	return s.execTerminalClaimMutation(ctx, mutation, failWorkflowClaimTerminalQuery, false)
+	return s.execTerminalClaimMutation(ctx, claimOpFailTerminal, mutation, failWorkflowClaimTerminalQuery, false)
 }
 
 // ReapExpiredClaims expires stale active claims atomically and requeues their work.

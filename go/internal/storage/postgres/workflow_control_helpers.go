@@ -116,6 +116,7 @@ func (s *WorkflowControlStore) enqueueWorkItemBatchWithExecutor(
 
 func (s *WorkflowControlStore) execClaimMutation(
 	ctx context.Context,
+	op claimMutationOp,
 	mutation workflow.ClaimMutation,
 	query string,
 	leaseExpiresAt time.Time,
@@ -143,10 +144,10 @@ func (s *WorkflowControlStore) execClaimMutation(
 	if err != nil {
 		return fmt.Errorf("mutate workflow claim: %w", err)
 	}
-	return validateMutationResult(result)
+	return s.classifyClaimMutationResult(ctx, op, mutation, result)
 }
 
-func (s *WorkflowControlStore) execCompleteClaimMutation(ctx context.Context, mutation workflow.ClaimMutation) error {
+func (s *WorkflowControlStore) execCompleteClaimMutation(ctx context.Context, op claimMutationOp, mutation workflow.ClaimMutation) error {
 	if s.database == nil {
 		return fmt.Errorf("workflow control store database is required")
 	}
@@ -169,11 +170,12 @@ func (s *WorkflowControlStore) execCompleteClaimMutation(ctx context.Context, mu
 	if err != nil {
 		return fmt.Errorf("mutate complete workflow claim: %w", err)
 	}
-	return validateMutationResult(result)
+	return s.classifyClaimMutationResult(ctx, op, mutation, result)
 }
 
 func (s *WorkflowControlStore) execTerminalClaimMutation(
 	ctx context.Context,
+	op claimMutationOp,
 	mutation workflow.ClaimMutation,
 	query string,
 	includeVisibleAt bool,
@@ -207,7 +209,7 @@ func (s *WorkflowControlStore) execTerminalClaimMutation(
 	if err != nil {
 		return fmt.Errorf("mutate terminal workflow claim: %w", err)
 	}
-	return validateMutationResult(result)
+	return s.classifyClaimMutationResult(ctx, op, mutation, result)
 }
 
 func scanClaimedWorkflowWorkItem(rows db.Rows) (workflow.WorkItem, workflow.Claim, error) {
@@ -444,20 +446,6 @@ func (s *WorkflowControlStore) effectiveExpiredRequeueDelay(provided time.Durati
 		return s.DefaultExpiredRequeueDelay
 	}
 	return DefaultWorkflowExpiredClaimRequeueDelay
-}
-
-func validateMutationResult(result sql.Result) error {
-	if result == nil {
-		return fmt.Errorf("workflow claim mutation result is required")
-	}
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("read workflow claim mutation rows affected: %w", err)
-	}
-	if rowsAffected == 0 {
-		return ErrWorkflowClaimRejected
-	}
-	return nil
 }
 
 func nullableRFC3339(value time.Time) string {
