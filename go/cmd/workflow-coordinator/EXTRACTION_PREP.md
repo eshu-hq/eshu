@@ -146,7 +146,7 @@ rollback rehearsal.
 
 ## 7. Migration stage + prerequisites
 
-- Stage: in-tree preparation (this PREP). `eshu-hq/eshu-workflow` exists
+- Stage: `contract_blocked` (amended 2026-10-28; see §9). `eshu-hq/eshu-workflow` exists
   at `c54a09b88e30` (README-only; no tags/releases). No satellite image is
   deployed anywhere. No in-tree deletion: removal stays gated on
   production acceptance per `#8875`.
@@ -175,3 +175,16 @@ line; `deploy/helm/eshu` workflow-coordinator deployment/service/values
 blocks; `docker-compose.remote-e2e.runtime.yaml` workflow-coordinator
 service; networkpolicy/pdb/servicemonitor/workflow refs; scripts and
 docs-cli-env-refs baselines. Binary is dark-by-default and Postgres-only.
+
+## 9. Stage amendment — arbiter-eshu revised ruling (2026-10-28)
+
+- Stage is now `contract_blocked` on `#9376` (workflow.v1 protocol): no
+  cutover work proceeds until the versioned three-plane claim/report/read
+  protocol contract lands and is proven.
+- `eshu-hq/eshu-workflow#1` is MERGED (`0e6f9aae00e8`, scaffold service
+  with workflow.v1 protocol contract) and stands as the staged contract
+  surface for the claim/report/read planes recorded in §6.
+- Machinery reuse: the proven `#8868` satellite extraction pattern and the
+  `#9312` in-tree removal precedent apply when the contract gate clears;
+  no new extraction machinery is invented here.
+- Stage comments already posted on `#8875`; not reposted.

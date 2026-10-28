@@ -145,7 +145,7 @@ shared runtime mux.
 
 ## 7. Migration stage
 
-`planned` (preparation only; no cutover, no in-tree removal). This PREP
+`contract_blocked` (amended 2026-10-28; see §10). This PREP
 records evidence and grants no cutover authority. Still not
 `ready_for_cutover`: peer intake-boundary/compat proof across seven
 providers and four trigger stores is peer-owned work in progress (reused,
@@ -191,3 +191,18 @@ build/release/deploy, rollback rehearsal, and production acceptance are
    artifacts/configuration; fence claims, revoke replaced authority,
    replay without dual authority or lost facts).
 6. Dest re-inventory at cutover (`50e55647` cited vs `9580c04b` observed).
+
+## 10. Stage amendment — arbiter-eshu revised ruling (2026-10-28)
+
+- Stage is now `contract_blocked` on `#9377` (authenticated versioned
+  HTTP intake API replacing direct trigger-table writes) and `#9379`
+  (incident lease/fencing recovery): no cutover work proceeds until both
+  gates clear.
+- Unaffected surfaces: reducer, graph, API, and MCP truth are out of scope
+  for this lane — the listener emits zero fact kinds (§2), so extraction
+  cannot change query truth except via the collector handoff boundary.
+- Boundary distinction: a deployment-only move (packaging the intake
+  runtime) stays separable from the full-boundary move (cutting the
+  trigger-table write path over to the intake contract); only the latter
+  needs the `#9377`/`#9379` gates.
+- Stage comments already posted on `#8876`; not reposted.

@@ -132,7 +132,7 @@ queue, lease, reducer, API, MCP, or workflow handles.
 
 ## 8. Migration stage
 
-`planned` (this PREP records evidence and grants no cutover authority).
+`contract_blocked` (amended 2026-10-28; see §11).
 Production acceptance, deployment, and rollback: `NOT_CHECKED`.
 
 ## 9. `#8877` acceptance sweep at `origin/main` (`dc65b4d597`)
@@ -164,3 +164,14 @@ Production acceptance, deployment, and rollback: `NOT_CHECKED`.
 5. Producer-authority single-holder enforcement and a rehearsed rollback
    draft for this state boundary.
 6. `#4047` per-collector cutover gate verdict on identical inputs.
+
+## 11. Stage amendment — arbiter-eshu revised ruling (2026-10-28)
+
+- Stage is now `contract_blocked` on `#9381`, sequenced after `#9376`:
+  the host must not grow an interim protocol — claim/lease/commit moves
+  onto the workflow.v1 claim plane once that lands, with no stopgap wire
+  format in between.
+- SHA note: `50e55647` is the eshu-main inventory merge commit at
+  issue-writing time, not the destination SHA; the destination stub HEAD
+  recorded in §6 is reconciled at cutover.
+- Stage comments already posted on `#8877`; not reposted.
