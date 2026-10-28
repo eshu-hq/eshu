@@ -8,7 +8,8 @@ and per-container image digests. A digest-only match cannot establish service
 identity, and the CloudResource `running_image_digest` is empty for
 multi-container tasks.
 
-On 2026-10-28, a disposable PostgreSQL 18.6 container held 20,000 synthetic
+On 2026-10-28, disposable run `eshu-9307-theory` used a PostgreSQL 18.6
+container holding 20,000 synthetic
 `aws_resource` task facts, three in the target service and the rest in another
 service. The read joined active-generation `fact_records` to
 `ingestion_scopes` and `scope_generations`, selected `aws_ecs_task` by exact
