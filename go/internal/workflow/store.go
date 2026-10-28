@@ -63,6 +63,17 @@ type ClaimMutation struct {
 	ResolvedAcceptanceUnitID string
 	ResolvedSourceRunID      string
 	ResolvedGenerationID     string
+	// ExtensionOutcome carries a validated SDK result summary into the
+	// fenced completion update. Nil for in-tree collectors.
+	ExtensionOutcome *ExtensionOutcome
+}
+
+// ExtensionOutcome is the bounded result of a completed extension claim.
+// It contains no provider payload, scope identifier, or status message.
+type ExtensionOutcome struct {
+	State        string
+	Partial      bool
+	WarningCount int
 }
 
 // ClaimedWorkItem returns the currently owned work item and claim epoch.

@@ -39,6 +39,7 @@ type RawSnapshot struct {
 	AWSFreshness          cloud.AWSFreshnessSnapshot
 	InfraInventory        InfraInventorySnapshot
 	VulnerabilitySources  []collector.VulnerabilitySourceState
+	ExtensionOutcomes     []collector.ExtensionOutcome
 	SemanticExtraction    semantic.ExtractionStatus
 	AnswerNarration       AnswerNarrationStatus
 	// CollectorGenerationDeadLetters captures commit failures that happened
@@ -267,6 +268,7 @@ type Report struct {
 	AWSFreshness                   cloud.AWSFreshnessSnapshot
 	InfraInventory                 InfraInventorySnapshot
 	VulnerabilitySources           []collector.VulnerabilitySourceState
+	ExtensionOutcomes              []collector.ExtensionOutcome
 	SemanticExtraction             semantic.ExtractionStatus
 	AnswerNarration                AnswerNarrationStatus
 	CollectorGenerationDeadLetters collector.GenerationDeadLetterSnapshot

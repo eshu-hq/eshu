@@ -344,4 +344,8 @@ var orderedBootstrapDefinitionNamesLate = []string{
 	// (DDL half); 239 is the claimed-row backfill (DML half, #7961 split).
 	"incident_freshness_claim_lease",
 	"incident_freshness_claim_lease_backfill",
+	// #9297 stores bounded SDK completion status and builds its latest-scope
+	// index concurrently in a separate migration.
+	"workflow_extension_outcome",
+	"workflow_extension_outcome_latest_idx",
 }

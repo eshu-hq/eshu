@@ -20,7 +20,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/vulnerability"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
-	"github.com/eshu-hq/eshu/go/internal/status/collector"
 	"github.com/eshu-hq/eshu/go/internal/status/generation"
 	"github.com/eshu-hq/eshu/go/internal/status/shared"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
@@ -216,13 +215,9 @@ func (s StatusStore) ReadStatusSnapshotFiltered(
 	if err = done(err); err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
-	var collectorFactEvidence []collector.FactEvidence
-	if selection.IncludeCollectorFactEvidence {
-		q, done = s.read(ctx, statusReadCollectorFactEvidence)
-		collectorFactEvidence, err = readCollectorFactEvidence(ctx, q)
-		if err = done(err); err != nil {
-			return statuspkg.RawSnapshot{}, err
-		}
+	collectorFactEvidence, extensionOutcomes, err := s.readCollectorEvidence(ctx, selection.IncludeCollectorFactEvidence, coordinatorSnapshot)
+	if err != nil {
+		return statuspkg.RawSnapshot{}, err
 	}
 	var (
 		terraformStateEvidence statestore.TerraformStateAdminEvidence
@@ -261,6 +256,7 @@ func (s StatusStore) ReadStatusSnapshotFiltered(
 		InfraInventory:                 infraInventory,
 		VulnerabilitySources:           vulnerabilitySources,
 		CollectorFactEvidence:          collectorFactEvidence,
+		ExtensionOutcomes:              extensionOutcomes,
 		RepositorySelection:            repositorySelection,
 		AWSCloudScansTruncated:         awsCloudScansTruncated,
 		AWSCloudScanLimit:              awsCloudScanStatusLimit,

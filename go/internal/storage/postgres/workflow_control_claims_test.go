@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 func TestWorkflowControlStoreClaimNextEligibleReturnsClaimAndWorkItem(t *testing.T) {
@@ -316,11 +317,12 @@ func TestWorkflowControlStoreCompleteClaimUsesFencingAndOwnerGuards(t *testing.T
 	now := time.Date(2026, time.April, 20, 14, 0, 0, 0, time.UTC)
 
 	err := store.CompleteClaim(context.Background(), ClaimMutation{
-		WorkItemID:   "item-1",
-		ClaimID:      "claim-1",
-		FencingToken: 2,
-		OwnerID:      "collector-pod-1",
-		ObservedAt:   now,
+		WorkItemID:       "item-1",
+		ClaimID:          "claim-1",
+		FencingToken:     2,
+		OwnerID:          "collector-pod-1",
+		ObservedAt:       now,
+		ExtensionOutcome: &workflow.ExtensionOutcome{State: "partial", Partial: true, WarningCount: 1},
 	})
 	if err != nil {
 		t.Fatalf("CompleteClaim() error = %v, want nil", err)
@@ -329,7 +331,11 @@ func TestWorkflowControlStoreCompleteClaimUsesFencingAndOwnerGuards(t *testing.T
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
 	query := db.execs[0].query
+	if got := db.execs[0].args; len(got) != 13 || got[10] != "partial" || got[11] != true || got[12] != 1 {
+		t.Fatalf("completion args = %#v, want fenced partial extension outcome", got)
+	}
 	for _, want := range []string{
+		"extension_result_state = $11",
 		"UPDATE workflow_claims",
 		"status = 'completed'",
 		"fencing_token = $3",

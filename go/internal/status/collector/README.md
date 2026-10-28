@@ -33,6 +33,8 @@ coordinator registration, vulnerability-source evidence, and fact evidence.
   family/instance/source-system tuple
 - `FactEvidence` — persisted source/reducer fact evidence for one collector
   runtime, without source payload identifiers
+- `ExtensionOutcome` — latest completed SDK result per scope, aggregated
+  by collector instance without scope IDs or provider payloads
 - `GenerationDeadLetterSnapshot` — collector generation commit failures
   quarantined before normal queue rows existed
 - `CatalogEntry`, `DefaultCatalog`, `KnownKinds` — the readiness catalog:

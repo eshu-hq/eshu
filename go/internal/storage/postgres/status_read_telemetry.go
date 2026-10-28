@@ -45,6 +45,7 @@ const (
 	statusReadInfraInventory                 = "infra_inventory"
 	statusReadVulnerabilitySources           = "vulnerability_sources"
 	statusReadCollectorFactEvidence          = "collector_fact_evidence"
+	statusReadExtensionOutcomes              = "extension_claim_outcomes"
 	statusReadTerraformState                 = "terraform_state"
 	statusReadTerraformStateModel            = "terraform_state_model"
 	statusReadSemanticExtraction             = "semantic_extraction"

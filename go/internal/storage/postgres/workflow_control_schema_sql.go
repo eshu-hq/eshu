@@ -46,6 +46,11 @@ CREATE TABLE IF NOT EXISTS workflow_work_items (
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL
 );
+ALTER TABLE workflow_work_items
+    ADD COLUMN IF NOT EXISTS extension_result_state TEXT,
+    ADD COLUMN IF NOT EXISTS extension_partial BOOLEAN,
+    ADD COLUMN IF NOT EXISTS extension_warning_count INTEGER;
+
 CREATE INDEX IF NOT EXISTS workflow_work_items_claimable_idx
     ON workflow_work_items (
         collector_kind,

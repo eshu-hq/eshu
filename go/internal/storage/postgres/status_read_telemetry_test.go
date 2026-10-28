@@ -28,6 +28,7 @@ var statusSnapshotFullReads = []string{
 	"aws_cloud_scans",
 	"aws_freshness",
 	"collector_fact_evidence",
+	"extension_claim_outcomes",
 	"collector_generation_dead_letters",
 	"coordinator",
 	"generation_counts",

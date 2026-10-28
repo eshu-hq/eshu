@@ -149,13 +149,13 @@ import (
 // stale-claim reap index; DDL half) and
 // 239_incident_freshness_claim_lease_backfill.sql (the claimed-row backfill;
 // DML half, #7961 split).
-const goldenBootstrapDefinitionsDigest = "0835a7054f93082fdf1c650519bc36b7922762cf4bf4b828e4b80e856d59ce9a"
+const goldenBootstrapDefinitionsDigest = "26b0ab49c7b061bd721cd869d71c4198545c3ee415b4f56d0980635e18408c00"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 257
+const goldenBootstrapDefinitionsCount = 259
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

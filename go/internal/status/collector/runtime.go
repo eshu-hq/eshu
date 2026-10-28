@@ -84,6 +84,7 @@ func RuntimeStatuses(evidence Evidence) []RuntimeStatus {
 	builder.addAWSScans(evidence.AWSScans)
 	builder.addVulnerabilitySources(evidence.VulnerabilitySources)
 	builder.addFactEvidence(evidence.FactEvidence)
+	builder.addExtensionOutcomes(evidence.ExtensionOutcomes)
 	builder.applyTerminalFailures(evidence.TerminalFailures)
 	return builder.rows()
 }

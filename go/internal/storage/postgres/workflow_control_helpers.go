@@ -166,6 +166,11 @@ func (s *WorkflowControlStore) execCompleteClaimMutation(ctx context.Context, op
 		mutation.ResolvedSourceRunID,
 		mutation.ResolvedGenerationID,
 	}
+	if mutation.ExtensionOutcome == nil {
+		args = append(args, nil, nil, nil)
+	} else {
+		args = append(args, mutation.ExtensionOutcome.State, mutation.ExtensionOutcome.Partial, mutation.ExtensionOutcome.WarningCount)
+	}
 	result, err := s.database.ExecContext(ctx, completeWorkflowClaimQuery, args...)
 	if err != nil {
 		return fmt.Errorf("mutate complete workflow claim: %w", err)
@@ -381,6 +386,19 @@ func validateClaimMutationTenantBoundary(mutation workflow.ClaimMutation) (bool,
 func validateCompleteClaimMutation(mutation workflow.ClaimMutation) error {
 	if err := validateClaimMutation(mutation); err != nil {
 		return err
+	}
+	if outcome := mutation.ExtensionOutcome; outcome != nil {
+		switch outcome.State {
+		case "complete", "partial", "unchanged":
+		default:
+			return fmt.Errorf("invalid extension outcome state")
+		}
+		if outcome.WarningCount < 0 || outcome.WarningCount > 2147483647 {
+			return fmt.Errorf("invalid extension warning count")
+		}
+		if outcome.State == "partial" && !outcome.Partial {
+			return fmt.Errorf("partial extension result requires partial outcome")
+		}
 	}
 	resolved := []string{
 		mutation.ResolvedScopeID,
