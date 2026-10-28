@@ -38,7 +38,7 @@ func (cr *ContentReader) SearchFiles(ctx context.Context, repoID string, repoIDs
 	if repoID != "" {
 		return cr.searchFileContentPage(ctx, repoID, pattern, limit, offset)
 	}
-	page, err := cr.SearchFilesUnscoped(ctx, pattern, limit, offset, "", "")
+	page, err := cr.SearchFilesUnscoped(ctx, pattern, limit, offset, "", "", 0)
 	if err != nil {
 		return nil, err
 	}
@@ -85,10 +85,18 @@ func (cr *ContentReader) SearchFilesUnscoped(
 	pattern string,
 	limit, offset int,
 	cursorRepoID, cursorPath string,
+	budgetMS int,
 ) (querycontract.FileSearchPage, error) {
+	budget := cr.unscoped.budget
+	if budgetMS != 0 {
+		if budgetMS < int(unscoped.MinBudget.Milliseconds()) || budgetMS > int(unscoped.MaxBudget.Milliseconds()) {
+			return querycontract.FileSearchPage{}, fmt.Errorf("budget_ms must be between 100 and 10000")
+		}
+		budget = time.Duration(budgetMS) * time.Millisecond
+	}
 	searcher := &unscoped.Searcher{
 		Store:       cr.db,
-		Budget:      cr.unscoped.budget,
+		Budget:      budget,
 		Tracer:      cr.tracer,
 		Instruments: cr.instruments,
 		Logger:      cr.unscoped.logger,

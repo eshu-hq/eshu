@@ -138,7 +138,7 @@ type FileSearchPage struct {
 // satisfaction across packages. limit is the page size; the store reads its
 // own look-ahead row. A non-empty cursor starts the search after that key.
 type UnscopedFileSearcher interface {
-	SearchFilesUnscoped(ctx context.Context, pattern string, limit, offset int, cursorRepoID, cursorPath string) (FileSearchPage, error)
+	SearchFilesUnscoped(ctx context.Context, pattern string, limit, offset int, cursorRepoID, cursorPath string, budgetMS int) (FileSearchPage, error)
 }
 
 // EntitySearchHit is one entity row of a budgeted unscoped entity search.

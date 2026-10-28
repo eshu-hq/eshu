@@ -40,6 +40,9 @@ func Route(toolName string, args routecontract.Arguments) (routecontract.Request
 		}}, true
 	case "search_file_content":
 		body := contentSearchBody(args)
+		if budget, ok := args["budget_ms"]; ok {
+			body["budget_ms"] = budget
+		}
 		// The resume cursor of a partial unscoped search (#7730) goes to the
 		// file search; the entity search takes its own cursor below.
 		if cursor, ok := args["cursor"].(map[string]any); ok && len(cursor) > 0 {

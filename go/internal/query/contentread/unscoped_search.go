@@ -6,15 +6,33 @@ package contentread
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/search/unscoped"
 	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 // errCursorNeedsUnscopedSearch rejects a resume cursor on any search the
 // bounded walk does not serve, so a client never believes a cursor was honored.
 var errCursorNeedsUnscopedSearch = errors.New("cursor is only supported by a search with no repository filter")
+
+var errBudgetNeedsUnscopedSearch = errors.New("budget_ms is only supported by a file search with no repository filter")
+
+func (req contentSearchRequest) fileBudgetMS() (int, error) {
+	if len(req.BudgetMS) == 0 {
+		return 0, nil
+	}
+	ms, err := strconv.Atoi(string(req.BudgetMS))
+	if err != nil {
+		return 0, errors.New("budget_ms must be an integer between 100 and 10000")
+	}
+	if ms < int(unscoped.MinBudget.Milliseconds()) || ms > int(unscoped.MaxBudget.Milliseconds()) {
+		return 0, errors.New("budget_ms must be between 100 and 10000")
+	}
+	return ms, nil
+}
 
 // errFileCursorNamesEntity rejects a cursor that names an entity (start_line
 // or entity_id) on the file route. The file walk binds only repo_id and
@@ -53,7 +71,8 @@ func (h *ContentHandler) searchFilesUnscoped(
 		return
 	}
 	cursor := req.cursor()
-	page, err := searcher.SearchFilesUnscoped(ctx, req.pattern(), req.limit(), req.offset(), cursor.RepoID, cursor.RelativePath)
+	budgetMS, _ := req.fileBudgetMS() // searchFiles validated the value before routing.
+	page, err := searcher.SearchFilesUnscoped(ctx, req.pattern(), req.limit(), req.offset(), cursor.RepoID, cursor.RelativePath, budgetMS)
 	if err != nil {
 		h.writeFileSearchError(w, r, err)
 		return

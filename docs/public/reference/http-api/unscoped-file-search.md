@@ -42,6 +42,12 @@ The budget is `ESHU_CONTENT_SEARCH_BUDGET_MS` (default 800, accepted
 100..10000; see [Environment Variable Reference](../env-registry/api-and-auth.md#api)). Every
 internal timeout scales with it.
 
+For one unscoped file search, set `budget_ms` in the HTTP request body or
+`search_file_content` MCP arguments to an integer from 100 through 10000.
+Omitting it uses the configured server budget. An explicit zero, out-of-range
+value, or `budget_ms` on a search scoped by a repository selector or token
+answers 400. The reported `partial.budget_ms` is the budget used for that call.
+
 ## Partial results
 
 If the budget ends first, the answer is **HTTP 200**, never an error:
@@ -109,9 +115,9 @@ cursor costs more than the whole budget, for example because it holds very
 large documents), `cursor` is the cursor you sent (empty on a
 first call) and `rows_matched` is `0`, so resuming repeats the identical
 request and will not progress. Do not retry it unchanged: scope the search with
-`repo_id`, ask the operator to raise the server setting
-`ESHU_CONTENT_SEARCH_BUDGET_MS` (read at startup), or stop. In any case bound a
-resume loop (for example a fixed number of resumes) rather than looping until
+`repo_id`, raise `budget_ms` for another unscoped request within 100..10000,
+or stop. An operator can also raise `ESHU_CONTENT_SEARCH_BUDGET_MS` at startup.
+In any case bound a resume loop (for example a fixed number of resumes) rather than looping until
 `partial` disappears; the `hint` then names the next step.
 
 ## Operator signals

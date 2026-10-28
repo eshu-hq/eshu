@@ -129,7 +129,7 @@ const Content = `
       "post": {
         "tags": ["content"],
         "summary": "Search file content",
-        "description": "Searches file content by pattern. A search with no repository filter runs inside a work budget (ESHU_CONTENT_SEARCH_BUDGET_MS, default 800 ms): when the budget ends before the page is proven complete the answer is still HTTP 200, with truncated true, a partial object (reason, rows_scanned_in_order, rows_matched, cursor, budget_ms, elapsed_ms, overrun_ms, progressed, hint) and truth level partial. The returned rows are an ordered prefix of the exact answer; resume with the cursor request field and offset max(0, offset - rows_matched) while progressed is true, or add repo_id to scope the search. A partial with progressed false scanned nothing inside the budget: resuming repeats the same request, so scope with repo_id, ask the operator to raise the server budget (ESHU_CONTENT_SEARCH_BUDGET_MS), or stop, and bound any resume loop.",
+        "description": "Searches file content by pattern. A search with no repository filter runs inside a work budget (ESHU_CONTENT_SEARCH_BUDGET_MS, default 800 ms): when the budget ends before the page is proven complete the answer is still HTTP 200, with truncated true, a partial object (reason, rows_scanned_in_order, rows_matched, cursor, budget_ms, elapsed_ms, overrun_ms, progressed, hint) and truth level partial. The returned rows are an ordered prefix of the exact answer; resume with the cursor request field and offset max(0, offset - rows_matched) while progressed is true, or add repo_id to scope the search. A partial with progressed false scanned nothing inside the budget: resuming repeats the same request, so scope with repo_id, raise budget_ms for the next unscoped request (100..10000), or stop, and bound any resume loop.",
         "operationId": "searchFiles",
         "x-scoped-token-support": true,
         "requestBody": {
@@ -156,6 +156,7 @@ const Content = `
                   },
                   "limit": {"type": "integer", "default": 50, "maximum": 200},
                   "offset": {"type": "integer", "default": 0, "minimum": 0, "maximum": 10000},
+                  "budget_ms": {"type": "integer", "minimum": 100, "maximum": 10000, "description": "Optional per-request work budget in milliseconds for searches with no repository filter. Omitted uses ESHU_CONTENT_SEARCH_BUDGET_MS. Refused (400) when the search is scoped."},
                   "cursor": {
                     "type": "object",
                     "description": "Resumes a search with no repository filter strictly after this key. Use the cursor of a previous partial result. Refused (400) on any search that has a repository filter, and refused (400) when it carries start_line or entity_id: that is an entity search cursor, and the file search resumes from repo_id and relative_path only.",

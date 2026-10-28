@@ -49,8 +49,16 @@ export function ServiceCodeInvestigationPanel({
     };
   }, [spotlight.name, spotlight.repoName]);
 
-  if (investigation === undefined || investigation.coverage.empty) {
+  if (investigation === undefined) {
     return null;
+  }
+  if (investigation.coverage.empty) {
+    return investigation.nextCalls.length > 0 ? (
+      <section aria-label="Code investigation" className="service-code-investigation">
+        <h2>No code paths found for this service</h2>
+        <NextCallStrip calls={investigation.nextCalls} />
+      </section>
+    ) : null;
   }
 
   return (

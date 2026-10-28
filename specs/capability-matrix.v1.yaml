@@ -78,10 +78,10 @@ capabilities:
   - capability: code_search.content_search
     tools: [search_file_content]
     profiles:
-      local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: relational content search}
-      local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: relational content search; graph sidecar unused for this capability}
-      local_full_stack: {status: supported, max_truth_level: derived, required_runtime: full_stack, p95_latency_ms: 800, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: relational content search}
-      production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 1200, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-content-search}], notes: relational content search}
+      local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: "relational content search; unscoped file search accepts budget_ms 100..10000 per request and otherwise uses the configured server budget; scoped requests reject budget_ms"}
+      local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: "relational content search; unscoped file search accepts budget_ms 100..10000 per request and otherwise uses the configured server budget; scoped requests reject budget_ms; graph sidecar unused for this capability"}
+      local_full_stack: {status: supported, max_truth_level: derived, required_runtime: full_stack, p95_latency_ms: 800, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: "relational content search; unscoped file search accepts budget_ms 100..10000 per request and otherwise uses the configured server budget; scoped requests reject budget_ms"}
+      production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 1200, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-content-search}], notes: "relational content search; unscoped file search accepts budget_ms 100..10000 per request and otherwise uses the configured server budget; scoped requests reject budget_ms"}
   - capability: code_search.topic_investigation
     tools: [investigate_code_topic]
     profiles:

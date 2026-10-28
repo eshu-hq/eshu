@@ -202,6 +202,10 @@ func (h *ContentHandler) searchFiles(w http.ResponseWriter, r *http.Request) {
 		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	if _, err := req.fileBudgetMS(); err != nil {
+		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if req.RankCursor != "" {
 		writeRankError(w, r, rank.ToolSearchFileContent, rank.Unsupported(rank.ReasonFileSearch))
 		return
@@ -218,6 +222,10 @@ func (h *ContentHandler) searchFiles(w http.ResponseWriter, r *http.Request) {
 
 	if searcher, ok := h.unscopedFileSearcher(req); ok {
 		h.searchFilesUnscoped(w, r, req, searcher)
+		return
+	}
+	if req.BudgetMS != nil {
+		querycontract.WriteError(w, http.StatusBadRequest, errBudgetNeedsUnscopedSearch.Error())
 		return
 	}
 	if req.Cursor != nil {
@@ -264,6 +272,10 @@ func (h *ContentHandler) searchEntities(w http.ResponseWriter, r *http.Request) 
 	}
 	if err := req.validate(); err != nil {
 		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if len(req.BudgetMS) != 0 {
+		querycontract.WriteError(w, http.StatusBadRequest, "budget_ms is only supported by unscoped file search")
 		return
 	}
 	if req.RankCursor != "" {

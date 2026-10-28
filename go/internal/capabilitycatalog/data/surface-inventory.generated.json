@@ -2631,6 +2631,11 @@
     },
     {
       "category": "console_page",
+      "name": "ContentSearchPage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
       "name": "DashboardPage",
       "readiness": "implemented"
     },
