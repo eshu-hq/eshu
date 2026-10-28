@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/vaultlive"
 	coordinatorvaultlive "github.com/eshu-hq/eshu/go/internal/coordinator/vault/live"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -37,10 +36,10 @@ func TestServiceRunActiveModeSchedulesVaultLiveWorkThroughChildPlanner(t *testin
 	t.Parallel()
 
 	now := time.Date(2026, time.June, 6, 14, 0, 0, 0, time.UTC)
-	scopeID, err := vaultlive.VaultScopeID("vault-a", "admin")
-	if err != nil {
-		t.Fatalf("VaultScopeID() error = %v", err)
-	}
+	// Golden scope id produced by the collector's VaultScopeID("vault-a",
+	// "admin") before the coordinator decoupling: the coordinator must plan
+	// and admit identical rows without importing the collector package.
+	const scopeID = "vault_live:de7d9d02c426ac00c84465828dc7cd1050bc6dc39bc5bcdddada8405fee3c754"
 	run := workflow.Run{
 		RunID:              "vault_live:vault-live-primary:continuous-20260606T140000Z",
 		TriggerKind:        workflow.TriggerKindSchedule,
@@ -55,7 +54,7 @@ func TestServiceRunActiveModeSchedulesVaultLiveWorkThroughChildPlanner(t *testin
 		RunID:               run.RunID,
 		CollectorKind:       scope.CollectorVaultLive,
 		CollectorInstanceID: "vault-live-primary",
-		SourceSystem:        vaultlive.CollectorKind,
+		SourceSystem:        "vault_live",
 		ScopeID:             scopeID,
 		AcceptanceUnitID:    scopeID,
 		SourceRunID:         "vault_live:generation-1",

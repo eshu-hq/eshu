@@ -63,8 +63,8 @@ capability-matrix key in `capability`, listed per step below (#8176).
 | Route | Failed step | Capability | Fixed message |
 | --- | --- | --- | --- |
 | `POST /api/v0/admin/work-items/query` | work-item read | `operator.work_items.list` | `work-item query failed` |
-| `POST /api/v0/admin/decisions/query` | decision read | `operator.decisions.list` | `projection decision query failed` |
-| `POST /api/v0/admin/decisions/query` | evidence read (`include_evidence`) | `operator.decision_evidence.list` | `projection decision evidence query failed` |
+| `POST /api/v0/admin/decisions/query` (decision read) | decision read | `operator.decisions.list` | `projection decision query failed` |
+| `POST /api/v0/admin/decisions/query` (evidence read) | evidence read (`include_evidence`) | `operator.decision_evidence.list` | `projection decision evidence query failed` |
 | `POST /api/v0/admin/replay-events/query` | replay-event read | `operator.replay_events.list` | `replay-event query failed` |
 | `POST /api/v0/admin/dead-letters/query` | dead-letter read | `operator.dead_letters.list` | `dead-letter query failed`; `504` `dead-letter query timed out` |
 | `POST /api/v0/admin/input-invalid-facts/query` | quarantine read | `operator.reducer_input_invalid_facts.list` | `input-invalid-facts query failed`; `504` `input-invalid-facts query timed out` |
@@ -117,30 +117,30 @@ so retry with a fresh `idempotency_key`.
 | Route | Failed step | Fixed message |
 | --- | --- | --- |
 | `POST /api/v0/admin/refinalize` | refinalize | `refinalize failed` |
-| `POST /api/v0/admin/reindex` | fleet watermark | `reindex request failed` |
-| `POST /api/v0/admin/reindex` | repository selector lookup | `repository reindex selector lookup failed` |
-| `POST /api/v0/admin/reindex` | repository watermarks | `repository reindex request failed` |
-| `POST /api/v0/admin/recover-generations` | idempotency claim | `recover-generations idempotency claim failed` |
-| `POST /api/v0/admin/recover-generations` | re-enqueue | `recover-generations failed` |
-| `POST /api/v0/admin/recover-generations` | ledger finalize | `recover-generations applied but recording its idempotency outcome failed` |
+| `POST /api/v0/admin/reindex` (fleet watermark) | fleet watermark | `reindex request failed` |
+| `POST /api/v0/admin/reindex` (repository selector lookup) | repository selector lookup | `repository reindex selector lookup failed` |
+| `POST /api/v0/admin/reindex` (repository watermarks) | repository watermarks | `repository reindex request failed` |
+| `POST /api/v0/admin/recover-generations` (idempotency claim) | idempotency claim | `recover-generations idempotency claim failed` |
+| `POST /api/v0/admin/recover-generations` (re-enqueue) | re-enqueue | `recover-generations failed` |
+| `POST /api/v0/admin/recover-generations` (ledger finalize) | ledger finalize | `recover-generations applied but recording its idempotency outcome failed` |
 | `POST /api/v0/admin/dead-letter` | dead-letter update | `dead-letter request failed` |
 | `POST /api/v0/admin/skip` | skip update | `skip request failed` |
 | `POST /api/v0/admin/backfill` | backfill insert | `backfill request failed` |
-| `POST /api/v0/admin/replay` | superseded-generation check | `replay superseded-generation check failed` |
-| `POST /api/v0/admin/replay` | unsafe-target check | `replay unsafe-target check failed` |
-| `POST /api/v0/admin/replay` | idempotency claim | `replay idempotency claim failed` |
-| `POST /api/v0/admin/replay` | replay update | `replay failed` |
-| `POST /api/v0/admin/replay` | ledger finalize | `replay applied but recording its idempotency outcome failed` |
-| `POST /api/v0/admin/repository-retirements` | repository selector lookup | `repository retirement selector lookup failed` |
-| `POST /api/v0/admin/repository-retirements` | retirement trigger | `repository retirement request failed` |
-| `POST /api/v0/admin/collector-failures/acknowledge` | acknowledgement write | `collector terminal failure acknowledgement failed` |
-| `POST /api/v0/admin/collector-failures/acknowledge` | idempotency claim | `collector terminal failure acknowledgement idempotency claim failed` |
-| `POST /api/v0/admin/collector-failures/acknowledge` | ledger finalize | `collector terminal failure acknowledged but recording its idempotency outcome failed` |
+| `POST /api/v0/admin/replay` (superseded-generation check) | superseded-generation check | `replay superseded-generation check failed` |
+| `POST /api/v0/admin/replay` (unsafe-target check) | unsafe-target check | `replay unsafe-target check failed` |
+| `POST /api/v0/admin/replay` (idempotency claim) | idempotency claim | `replay idempotency claim failed` |
+| `POST /api/v0/admin/replay` (replay update) | replay update | `replay failed` |
+| `POST /api/v0/admin/replay` (ledger finalize) | ledger finalize | `replay applied but recording its idempotency outcome failed` |
+| `POST /api/v0/admin/repository-retirements` (repository selector lookup) | repository selector lookup | `repository retirement selector lookup failed` |
+| `POST /api/v0/admin/repository-retirements` (retirement trigger) | retirement trigger | `repository retirement request failed` |
+| `POST /api/v0/admin/collector-failures/acknowledge` (acknowledgement write) | acknowledgement write | `collector terminal failure acknowledgement failed` |
+| `POST /api/v0/admin/collector-failures/acknowledge` (idempotency claim) | idempotency claim | `collector terminal failure acknowledgement idempotency claim failed` |
+| `POST /api/v0/admin/collector-failures/acknowledge` (ledger finalize) | ledger finalize | `collector terminal failure acknowledged but recording its idempotency outcome failed` |
 | `POST /api/v0/admin/collector-failures/acknowledgements/query` | acknowledgement read | `collector terminal failure acknowledgement query failed` |
-| `POST /api/v0/admin/reopen` | scope resolution | `reopen scope resolution failed` |
-| `POST /api/v0/admin/reopen` | idempotency claim | `reopen idempotency claim failed` |
-| `POST /api/v0/admin/reopen` | reopen transaction | `reopen failed` |
-| `POST /api/v0/admin/reopen` | ledger finalize | `reopen applied but recording its idempotency outcome failed` |
+| `POST /api/v0/admin/reopen` (scope resolution) | scope resolution | `reopen scope resolution failed` |
+| `POST /api/v0/admin/reopen` (idempotency claim) | idempotency claim | `reopen idempotency claim failed` |
+| `POST /api/v0/admin/reopen` (reopen transaction) | reopen transaction | `reopen failed` |
+| `POST /api/v0/admin/reopen` (ledger finalize) | ledger finalize | `reopen applied but recording its idempotency outcome failed` |
 
 A selector that matches no repository, or several, still answers `400` and
 names the selector. A failed catalog lookup answers `500` without it.
