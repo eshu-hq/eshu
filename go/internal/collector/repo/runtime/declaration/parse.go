@@ -37,6 +37,7 @@ var fileRuntime = map[string]string{
 	sourceKindTerraformVersion: "terraform",
 	sourceKindRustToolchain:    "rust",
 	sourceKindSwiftVersion:     "swift",
+	sourceKindRuntimeTXT:       "python",
 }
 
 // runtimeAliases normalises a tool token to the canonical runtime name. An
@@ -119,6 +120,8 @@ func parse(sourceKind, body string, limit int) (declarations []declaration, tota
 		parseSdkmanrc(body, sink)
 	case sourceKindRustToolchain:
 		parseRustToolchain(body, sink)
+	case sourceKindRuntimeTXT:
+		parseRuntimeTXT(body, sink)
 	default:
 		parseSingleRuntime(sourceKind, body, sink)
 	}

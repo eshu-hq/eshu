@@ -18,7 +18,7 @@ func Tools() []toolcontract.ToolDefinition {
 func listTool() toolcontract.ToolDefinition {
 	return toolcontract.ToolDefinition{
 		Name: ToolName,
-		Description: "List the runtime versions repositories declare (pin files such as .nvmrc, .tool-versions and rust-toolchain, package.json engines, volta and packageManager, and the go.mod go and toolchain directives), so a security question such as which repositories declare a Node major below 20 has one answer. " +
+		Description: "List the runtime versions repositories declare (pin files such as .nvmrc, .tool-versions, rust-toolchain and runtime.txt; package.json, go.mod, Composer and Python manifest constraints), so a security question such as which repositories declare a Node major below 20 has one answer. " +
 			"Send runtime and major_below (or version_below such as 20.10) to compare; a comparison needs runtime. " +
 			"The comparison returns only declarations it can place (exact and partial specs). Range, alias (lts/*, node, system) and unresolved specs are never guessed: they are excluded and named in partial_reasons, with their counts in excluded_from_comparison. Read partial_reasons before concluding a fleet is clean. " +
 			"There is no effective-version view: every declaration is returned with its scope_dir (. at the repository root), so a root .nvmrc and a services/web/.nvmrc are separate rows. " +
@@ -49,7 +49,7 @@ func listTool() toolcontract.ToolDefinition {
 				},
 				"source_kind": map[string]any{
 					"type":        "string",
-					"description": "Exact declaring source: nvmrc, tool_versions, rust_toolchain, package_json_engines, package_json_volta, package_json_package_manager, go_mod_go, go_mod_toolchain, dockerfile_from or workflow_setup_version. At most 128 characters.",
+					"description": "Exact declaring source kind, such as nvmrc, go_mod_go, composer_json_require_php, pyproject_requires_python or runtime_txt. At most 128 characters.",
 				},
 				"repo_ids": map[string]any{
 					"type":        "array",

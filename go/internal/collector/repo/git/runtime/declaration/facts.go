@@ -78,6 +78,27 @@ func NoteParsedComposerCandidate(candidates map[string]Candidate, relativePath s
 	candidates[relativePath] = Candidate{Manifest: true, Extraction: extraction}
 }
 
+// NoteParsedPythonCandidate stores guarded native parser evidence.
+func NoteParsedPythonCandidate(candidates map[string]Candidate, relativePath string, extraction runtimedeclaration.Extraction) {
+	if runtimedeclaration.ClassifyPath(relativePath) != runtimedeclaration.FileManifest {
+		return
+	}
+	if extraction.Len() == 0 && !extraction.Skip().Skipped() {
+		return
+	}
+	candidates[relativePath] = Candidate{Manifest: true, Extraction: extraction}
+}
+
+// NoteUnavailablePythonCandidate records a parser miss for a retry.
+func NoteUnavailablePythonCandidate(candidates map[string]Candidate, relativePath string, byteSize int) {
+	candidates[relativePath] = Candidate{Manifest: true, Extraction: runtimedeclaration.UnavailablePythonExtraction(byteSize)}
+}
+
+// NoteCappedPythonCandidate records a bounded skip without retaining the body.
+func NoteCappedPythonCandidate(candidates map[string]Candidate, relativePath string, byteSize int) {
+	candidates[relativePath] = Candidate{Manifest: true, Extraction: runtimedeclaration.CappedPythonExtraction(byteSize)}
+}
+
 // NoteUnavailableComposerCandidate records a typed skip for a Composer file
 // whose native parser failed or was not run.
 func NoteUnavailableComposerCandidate(candidates map[string]Candidate, relativePath string, byteSize int) {

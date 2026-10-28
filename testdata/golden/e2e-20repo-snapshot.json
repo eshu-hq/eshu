@@ -2203,6 +2203,14 @@
         "allowed_node_property_values": {"runtime": ["php"]}
       },
       {
+        "id": "rn-python-runtime-txt",
+        "description": "The synthetic python_comprehensive/runtime_sources/runtime.txt declares python-3.11.2. Require Python runtime and runtime_txt source properties on RuntimeDeclaration nodes; the HTTP/MCP row matches below bind both to one declaration.",
+        "label": "RuntimeDeclaration",
+        "minimum_count": 1,
+        "required_node_properties": ["runtime", "source_kind"],
+        "allowed_node_property_values": {"runtime": ["python"], "source_kind": ["runtime_txt"]}
+      },
+      {
         "id": "rn-cloud-resource-running-image",
         "description": "issue #5450: EXACTLY 2 CloudResource nodes carry non-empty running_image_ref AND running_image_digest -- the ECS running task (resource_type ecs.task, containers[0].image/image_digest) and the Lambda function (resource_type lambda.function, image_uri/resolved_image_uri) from the awscloud supply-chain-demo cassette. Provably 0 without cloudResourceRunningImageFields (go/internal/reducer/aws_resource_running_image.go) wired into cloudResourceNodeRow AND baseCloudResourceUpsertCypher's SET clause (go/internal/storage/cypher/cloud/resource/node_writer.go) actually persisting the two properties -- the in-memory row map alone is necessary but not sufficient, since Cypher silently drops any row key with no matching SET fragment. running_image_digest is normalized to the BARE digest for both resource types (P2 fix: Lambda's resolved_image_uri is registry/repository@digest, parsed down to sha256:<hex> so it matches ECS's already-bare shape; the full reference stays available via running_image_ref). A multi-container ECS task stays ambiguous and unpromoted by design (no essential-container flag exists to disambiguate by), so this is exactly the two single-image fixtures, not every CloudResource. maximum_node_property_count pins the CEILING at 2, not just the floor (a live corpus-gate run caught a real regression here: the pinned NornicDB backend does not evaluate a key MISSING from one row of a heterogeneous UNWIND $rows list as null in a SET clause, it persists a stringified 'row.running_image_ref' literal instead -- which is non-empty and so silently satisfied a floor-only `want >= 2` on all 115 CloudResource nodes. Fixed by making every CloudResource row builder -- AWS (cloudResourceRunningImageFields), GCP (gcpCloudResourceNodeRow), and Azure (azureCloudResourceNodeRow) -- always carry both keys, defaulting to \"\" rather than omitting them, mirroring the pre-existing #4995 workload_id/service_name parity-key precedent. The ceiling is what makes a reintroduced omission fail loud instead of silently passing at the old floor).",
         "label": "CloudResource",
@@ -4872,6 +4880,24 @@
         },
         "arguments": {"runtime": "php", "source_kind": "composer_json_require_php", "limit": 10}
       },
+      "list_runtime_version_declarations?assert=python_sources": {
+        "description": "All seven Python runtime source kinds from python_comprehensive/runtime_sources, each pinned as one complete row through the deployed MCP tool.",
+        "required_response_fields": ["declarations", "count", "limit", "truncated", "filters", "excluded_from_comparison", "partial_reasons"],
+        "minimum_results": 7,
+        "results_field": "declarations",
+        "required_json_object_matches": {
+          "declarations[]": [
+            {"runtime": "python", "source_kind": "pyproject_requires_python", "relative_path": "runtime_sources/pyproject.toml", "raw_spec": ">=3.10", "spec_kind": "range", "line_number": 2, "order_index": 0},
+            {"runtime": "python", "source_kind": "poetry_python", "relative_path": "runtime_sources/pyproject.toml", "raw_spec": "^3.11", "spec_kind": "range", "line_number": 5, "order_index": 0},
+            {"runtime": "python", "source_kind": "pipfile_python_version", "relative_path": "runtime_sources/Pipfile", "raw_spec": "3.12", "spec_kind": "exact", "line_number": 2, "order_index": 0},
+            {"runtime": "python", "source_kind": "pipfile_python_full_version", "relative_path": "runtime_sources/Pipfile", "raw_spec": "3.12.1", "spec_kind": "exact", "line_number": 3, "order_index": 0},
+            {"runtime": "python", "source_kind": "setup_cfg_python_requires", "relative_path": "runtime_sources/setup.cfg", "raw_spec": ">=3.9", "spec_kind": "range", "line_number": 2, "order_index": 0},
+            {"runtime": "python", "source_kind": "setup_py_python_requires", "relative_path": "runtime_sources/setup.py", "raw_spec": ">=3.8", "spec_kind": "range", "line_number": 2, "order_index": 0},
+            {"runtime": "python", "source_kind": "runtime_txt", "relative_path": "runtime_sources/runtime.txt", "raw_spec": "python-3.11.2", "spec_kind": "exact", "line_number": 1, "order_index": 0}
+          ]
+        },
+        "arguments": {"runtime": "python", "limit": 50}
+      },
       "list_kubernetes_correlations": {
         "description": "Returns k8s workload correlations for a cluster; confirms the WorkloadInstance correlation ran. Needs a cluster selector. Also isolates the #5437 selector_match verb (cold-review finding 1): minimum_results:1 alone was already satisfied by the pre-existing owner_reference correlation, so a broken selector_match pass would pass this shape undetected without the required_json_values pin.",
         "required_response_fields": [
@@ -7457,6 +7483,24 @@
           "declarations[]": [{"runtime": "php", "source_kind": "composer_json_require_php", "relative_path": "composer.json", "raw_spec": ">=8.1", "spec_kind": "range", "line_number": 6, "order_index": 0}]
         },
         "request_body": {"runtime": "php", "source_kind": "composer_json_require_php", "limit": 10}
+      },
+      "POST /api/v0/runtime-declarations/query?assert=python_sources": {
+        "description": "All seven Python runtime source kinds from python_comprehensive/runtime_sources, each pinned as one complete row through the deployed HTTP route.",
+        "required_response_fields": ["declarations", "count", "limit", "truncated", "filters", "excluded_from_comparison", "partial_reasons"],
+        "minimum_results": 7,
+        "results_field": "declarations",
+        "required_json_object_matches": {
+          "declarations[]": [
+            {"runtime": "python", "source_kind": "pyproject_requires_python", "relative_path": "runtime_sources/pyproject.toml", "raw_spec": ">=3.10", "spec_kind": "range", "line_number": 2, "order_index": 0},
+            {"runtime": "python", "source_kind": "poetry_python", "relative_path": "runtime_sources/pyproject.toml", "raw_spec": "^3.11", "spec_kind": "range", "line_number": 5, "order_index": 0},
+            {"runtime": "python", "source_kind": "pipfile_python_version", "relative_path": "runtime_sources/Pipfile", "raw_spec": "3.12", "spec_kind": "exact", "line_number": 2, "order_index": 0},
+            {"runtime": "python", "source_kind": "pipfile_python_full_version", "relative_path": "runtime_sources/Pipfile", "raw_spec": "3.12.1", "spec_kind": "exact", "line_number": 3, "order_index": 0},
+            {"runtime": "python", "source_kind": "setup_cfg_python_requires", "relative_path": "runtime_sources/setup.cfg", "raw_spec": ">=3.9", "spec_kind": "range", "line_number": 2, "order_index": 0},
+            {"runtime": "python", "source_kind": "setup_py_python_requires", "relative_path": "runtime_sources/setup.py", "raw_spec": ">=3.8", "spec_kind": "range", "line_number": 2, "order_index": 0},
+            {"runtime": "python", "source_kind": "runtime_txt", "relative_path": "runtime_sources/runtime.txt", "raw_spec": "python-3.11.2", "spec_kind": "exact", "line_number": 1, "order_index": 0}
+          ]
+        },
+        "request_body": {"runtime": "python", "limit": 50}
       },
       "POST /api/v0/impact/entity-map": {
         "description": "Positive repository-to-workload entity map for the deployable-config fixture through the deployed HTTP query surface. Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",

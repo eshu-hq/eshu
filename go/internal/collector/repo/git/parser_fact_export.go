@@ -13,6 +13,8 @@ import (
 	runtimepaths "github.com/eshu-hq/eshu/go/internal/collector/repo/runtime/declaration"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	parserjson "github.com/eshu-hq/eshu/go/internal/parser/json"
+	pythonparser "github.com/eshu-hq/eshu/go/internal/parser/python"
+	"github.com/eshu-hq/eshu/go/internal/parser/pythondep"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -29,7 +31,7 @@ import (
 // carry the "path" key the parser sets to the file's absolute path. repoPath is
 // the repository root the relative path is computed against. The envelope's
 // Payload embeds the parser payload under "parsed_file_data" after removing
-// private Composer transport. gitcontent.FileFactEnvelope collapses the
+// private Composer and Python transport. gitcontent.FileFactEnvelope collapses the
 // fingerprint wall-clock observation to zero so durable facts stay byte-deterministic (a recorder marking that
 // subtree opaque still preserves the parser output byte for byte).
 func ParserFileFactEnvelope(
@@ -41,10 +43,12 @@ func ParserFileFactEnvelope(
 	parsedFile map[string]any,
 	isDependency bool,
 ) facts.Envelope {
-	if _, hasTransport := parsedFile["composer_runtime_evidence"]; hasTransport {
+	_, hasComposerTransport := parsedFile["composer_runtime_evidence"]
+	_, hasPythonTransport := parsedFile["python_runtime_evidence"]
+	if hasComposerTransport || hasPythonTransport {
 		clean := make(map[string]any, len(parsedFile)-1)
 		for key, value := range parsedFile {
-			if key != "composer_runtime_evidence" {
+			if key != "composer_runtime_evidence" && key != "python_runtime_evidence" {
 				clean[key] = value
 			}
 		}
@@ -56,6 +60,45 @@ func ParserFileFactEnvelope(
 // noteComposerOrRuntimeCandidate uses the parser's one Composer interpretation
 // when available. A changed body cannot be combined with an earlier parse.
 func noteComposerOrRuntimeCandidate(snapshot *RepositorySnapshot, candidates map[string]runtimedeclaration.Candidate, relativePath, body string, dropped *atomic.Bool, droppedPaths *scope.StreamDroppedPaths) {
+	if filepath.Base(relativePath) == "pyproject.toml" || filepath.Base(relativePath) == "Pipfile" || filepath.Base(relativePath) == "setup.py" {
+		if parsed, ok := snapshot.PythonRuntime[relativePath]; ok {
+			if parsed.Digest != pythondep.PythonRuntimeDigest([]byte(body)) {
+				dropped.Store(true)
+				droppedPaths.Note(relativePath)
+				return
+			}
+			runtimedeclaration.NoteParsedPythonCandidate(candidates, relativePath, parsed.Extraction)
+			return
+		}
+		if snapshot.PythonRuntimeExpected {
+			// A native parse miss is deterministic only when the current body
+			// itself is malformed or capped. A valid body the parser missed
+			// requests retry; never infer runtime truth from this reread.
+			if len(body) > runtimepaths.MaxManifestBytesPerFile {
+				runtimedeclaration.NoteCappedPythonCandidate(candidates, relativePath, len(body))
+				return
+			}
+			var state string
+			var err error
+			if filepath.Base(relativePath) == "setup.py" {
+				var evidence pythondep.PythonRuntimeEvidence
+				evidence, err = pythonparser.ExtractSetupPYRuntimeEvidence([]byte(body))
+				state = evidence.State
+			} else {
+				var evidence pythondep.PythonRuntimeEvidence
+				evidence, err = pythondep.ExtractPythonRuntimeEvidence(filepath.Base(relativePath), []byte(body))
+				state = evidence.State
+			}
+			if err != nil || state == "unavailable" {
+				runtimedeclaration.NoteUnavailablePythonCandidate(candidates, relativePath, len(body))
+				return
+			}
+			dropped.Store(true)
+			droppedPaths.Note(relativePath)
+			runtimedeclaration.NoteUnavailablePythonCandidate(candidates, relativePath, len(body))
+			return
+		}
+	}
 	if filepath.Base(relativePath) == "composer.json" || filepath.Base(relativePath) == "composer.lock" {
 		if runtimepaths.ClassifyPath(relativePath) != runtimepaths.FileManifest {
 			return

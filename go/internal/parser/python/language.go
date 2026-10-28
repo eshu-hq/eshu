@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
+	"github.com/eshu-hq/eshu/go/internal/parser/pythondep"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -22,7 +23,7 @@ func Parse(
 	options shared.Options,
 	parser *tree_sitter.Parser,
 ) (map[string]any, error) {
-	source, err := readSource(path)
+	source, original, err := shared.ReadSourceWithOriginal(path)
 	if err != nil {
 		return nil, err
 	}
@@ -42,6 +43,11 @@ func Parse(
 	payload["modules"] = []map[string]any{}
 	payload["type_annotations"] = []map[string]any{}
 	root := tree.RootNode()
+	if filepath.Base(path) == "setup.py" {
+		evidence := pythonSetupRuntimeEvidence(root, source)
+		evidence.Digest = pythondep.PythonRuntimeDigest(original)
+		payload["python_runtime_evidence"] = evidence
+	}
 	// Fingerprint state for the #6833 code-divergence report: error graphs
 	// are excluded per the #6834 verdict, and per-file outcomes accumulate
 	// for collector-side telemetry via payload[fingerprint.StatsKey].

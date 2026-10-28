@@ -14,6 +14,12 @@ correlate PyPI vulnerability advisories against repository dependency truth.
   tables, Poetry `[tool.poetry.dependencies]`, Poetry group dependencies, and
   Hatch `[tool.hatch.envs.*.dependencies]`.
 - Parse `Pipfile` `[packages]` and `[dev-packages]`.
+- Read interpreter constraints from `pyproject.toml` (`[project].requires-python`
+  and Poetry's `[tool.poetry.dependencies].python`) and `Pipfile`
+  (`[requires].python_version` and `.python_full_version`) as private typed
+  runtime evidence. The Git collector removes it before file facts persist.
+- Read `setup.cfg` `[options].python_requires` with a bounded, exact-name
+  ConfigParser-compatible reader. It does not evaluate interpolation.
 - Parse `poetry.lock` `[[package]]` arrays with optional `[package.source]`
   subtables.
 - Parse `uv.lock` `[[package]]` entries with the fail-closed version-1 grammar
@@ -89,6 +95,12 @@ constraint never declares a dependency:
   direct reference, userinfo included.
 
 ## Safety rules
+
+`pyproject.toml` and `Pipfile` pass the TOML nesting and key-work guards before
+one semantic decode. Dependency rows and interpreter evidence share its decoded
+values; the TOML syntax tree supplies order and source positions only. Duplicate
+TOML keys fail the whole document. Interpreter evidence is detached and guarded
+before handoff, and a parser miss never counts as a declaration-free file.
 
 - VCS, path, URL, editable, and malformed entries always reach the payload
   with a non-`dependency` `config_kind` so

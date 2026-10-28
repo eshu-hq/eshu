@@ -96,6 +96,12 @@ type composerRuntimeSnapshot struct {
 	Digest     string
 }
 
+// pythonRuntimeSnapshot binds one parser outcome to its exact source bytes.
+type pythonRuntimeSnapshot struct {
+	Extraction runtimedeclaration.Extraction
+	Digest     string
+}
+
 // composerRuntimeUnparsed is a discovered Composer file without accepted parser
 // evidence. A deterministic skip is bound to the failed file's bytes (or its
 // over-cap state); empty SkipReason leaves a transient parser miss to retry.
@@ -122,8 +128,11 @@ type RepositorySnapshot struct {
 	ComposerRuntime         map[string]composerRuntimeSnapshot `json:"-"`
 	ComposerRuntimeExpected bool                               `json:"-"`
 	ComposerRuntimeUnparsed []composerRuntimeUnparsed          `json:"-"`
-	ContentFiles            []model.ContentFileSnapshot        `json:"content_files"`
-	ContentEntities         []model.ContentEntitySnapshot      `json:"content_entities"`
+	// PythonRuntime holds guarded interpreter evidence from the native parser.
+	PythonRuntime         map[string]pythonRuntimeSnapshot `json:"-"`
+	PythonRuntimeExpected bool                             `json:"-"`
+	ContentFiles          []model.ContentFileSnapshot      `json:"content_files"`
+	ContentEntities       []model.ContentEntitySnapshot    `json:"content_entities"`
 	// GitRefs carries source-observed branch/ref heads for this repository.
 	GitRefs []GitRef `json:"git_refs,omitempty"`
 	// TerraformStateCandidates carries metadata-only repo-local state-file

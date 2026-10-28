@@ -58,6 +58,12 @@ The godoc contract is in doc.go.
   pre-scan does not run framework, route, public-API, call, shell, and
   value-flow extraction before the full parse stage.
 - NotebookSource extracts executable Python code cells from notebook JSON.
+- ExtractSetupPYRuntimeEvidence reads literal `python_requires` keywords from
+  top-level calls proven bound to `setuptools.setup` or
+  `distutils.core.setup`. It never executes `setup.py` or evaluates dynamic
+  expressions. The Git collector receives guarded, parser-private evidence
+  and removes it before durable file facts. More than 1,024 bound
+  `python_requires` calls produce a count-only token-cap skip.
 - The `embedded_shell_commands` bucket records import-backed `subprocess` and
   `os.system` call sites with function, line, API, and language metadata only.
   It does not retain command strings, arguments, or environment values.

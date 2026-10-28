@@ -63,6 +63,7 @@ a line there.
 | `python_toml` | python | L2 structured fact | store |  | `Pipfile`, `poetry.lock`, `pyproject.toml`, `uv.lock` |  |
 | `raw_text` | raw_text | L1 content text | store | `.cfg`, `.cnf`, `.conf`, `.j2`, `.jinja`, `.jinja2`, `.tftpl`, `.tpl` | `.babelrc`, `.dockerignore`, `.editorconfig`, `.eslintrc`, `.flake8`, `.gitattributes`, `.gitignore`, `.go-version`, `.java-version`, `.node-version`, `.npmignore`, `.nvmrc`, `.php-version`, `.prettierrc`, `.python-version`, `.ruby-version`, `.sdkmanrc`, `.swift-version`, `.terraform-version`, `.tool-versions`, `Berksfile`, `clippy.toml`, `GNUmakefile`, `justfile`, `Makefile`, `mypy.ini`, `Puppetfile`, `pytest.ini`, `renovate.json5`, `rust-toolchain`, `rust-toolchain.toml`, `rustfmt.toml`, `tox.ini` |  |
 | `ruby` | ruby | L2 structured fact | store | `.rb` | `Gemfile`, `Gemfile.lock` |  |
+| `runtime_txt` | python | L2 structured fact | metadata |  | `runtime.txt` |  |
 | `rust` | rust | L2 structured fact | store | `.rs` | `Cargo.lock`, `Cargo.toml` |  |
 | `sbt` | scala | L2 structured fact | store |  | `build.sbt` |  |
 | `scala` | scala | L2 structured fact | store | `.routes`, `.sc`, `.scala` |  |  |
