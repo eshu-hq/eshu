@@ -322,10 +322,12 @@ func dependencyIdentityDiscriminator(packageManager string, metadata map[string]
 		// bare declaration and a `% Test` one already key apart. A custom
 		// `cross(...)` modifier finer than the "custom" label still shares
 		// one id. So does the same coordinate repeated across two projects
-		// of one build.sbt, whose rows carry no project field — including
-		// two projects on different scalaVersion values declaring the same
-		// dep at the same revision via %% (only sbt_binary_artifact
-		// differs, and last-wins keeps a single one). That cross-project
+		// of one build.sbt, whose rows carry no project field. The parser
+		// computes one binary version per file (empty unless the file
+		// declares exactly one scalaVersion), so with one scalaVersion
+		// both rows share the same artifact, and with two scalaVersions
+		// the field is empty on both: last-wins drops a duplicate row,
+		// never a distinct artifact variant. That cross-project
 		// sharing is the idiomatic multi-project shape, pinned by
 		// TestSbtSameCoordinateAcrossProjectsSharesOneId; only a
 		// byte-identical redeclaration inside ONE project is the
