@@ -20,6 +20,19 @@ version — pinning this module pins the fixture pack too.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-28
+
+Additive post-`v0.2.0` changes only — new fact kinds and optional fields,
+zero breaking schema diffs against tag `sdk/go/factschema/v0.2.0`
+(`bash scripts/verify-factschema-diff.sh -base-ref sdk/go/factschema/v0.2.0`
+exits 0), so this stays a minor bump per the policy above.
+Release-prepared in the `drive/8878-scanner-port` lane (Refs #9385); the
+`sdk/go/factschema/v0.3.0` tag is NOT cut here — a maintainer cuts it per
+[`RELEASING.md`](../../../RELEASING.md) after merge. This is also the
+fixture-pack version — no separate fixture-pack tag exists. See
+[SDK Compatibility](../../../docs/public/extend/sdk-compatibility.md) for the
+version row for this release.
+
 ### Added
 
 - New `runtimedeclaration/v1` package with `DecodeRuntimeDeclarationVersion` and
