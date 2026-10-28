@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #9307 disposable PostgreSQL 18.6 fresh and populated ECS index migration proof with ordinary writer progress and invalid-index restart recovery; local two-test run took 3.4s on 2026-10-28
+//eshu:readiness:env ESHU_TEST_ECS_RUNTIME_INDEX_POSTGRES_DISPOSABLE ESHU_TEST_ECS_RUNTIME_INDEX_POSTGRES_DSN
+
 import (
 	"context"
 	"database/sql"
@@ -10,6 +14,7 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -68,24 +73,29 @@ func TestECSRuntimeIndexUpgradeLive(t *testing.T) {
 	writerCtx, stopWriter := context.WithCancel(ctx)
 	ready := make(chan error, 1)
 	done := make(chan ecsIndexWriterProgress, 1)
-	go func() { done <- runECSIndexWriter(writerCtx, database, ready) }()
+	var completed atomic.Int64
+	go func() { done <- runECSIndexWriter(writerCtx, database, ready, &completed) }()
 	if err := <-ready; err != nil {
 		stopWriter()
 		<-done
 		t.Fatalf("start fact writer: %v", err)
 	}
+	before := completed.Load()
 	started := time.Now()
 	upgradeErr := applyBootstrapDefinitionsWith(ctx, exec, definitions[boundary:boundary+2], slog.Default(), schemaBootstrapCoordination{})
 	upgradeDuration := time.Since(started)
+	during := completed.Load() - before
 	stopWriter()
 	writer := <-done
 	if upgradeErr != nil {
 		t.Fatalf("upgrade populated schema: %v", upgradeErr)
 	}
-	if writer.err != nil || writer.cycles < 2 {
-		t.Fatalf("writer progress during upgrade: cycles=%d err=%v", writer.cycles, writer.err)
+	if writer.err != nil || during < 2 {
+		t.Fatalf("writer progress during upgrade: completed=%d before=%d during=%d err=%v", writer.cycles, before, during, writer.err)
 	}
-	t.Logf("populated upgrade=%s writer cycles=%d max cycle=%s", upgradeDuration, writer.cycles, writer.maxCycle)
+	// One cycle may have started before the first snapshot; two completed
+	// cycles guarantee at least one full insert/delete pair inside the call.
+	t.Logf("populated upgrade=%s writer cycles completed during upgrade=%d max cycle across writer run=%s", upgradeDuration, during, writer.maxCycle)
 	for _, name := range ecsRuntimeIndexNames {
 		assertECSIndexState(t, ctx, database, name, true)
 	}
@@ -117,7 +127,7 @@ type ecsIndexWriterProgress struct {
 	err      error
 }
 
-func runECSIndexWriter(ctx context.Context, database *sql.DB, ready chan<- error) ecsIndexWriterProgress {
+func runECSIndexWriter(ctx context.Context, database *sql.DB, ready chan<- error, completed *atomic.Int64) ecsIndexWriterProgress {
 	var progress ecsIndexWriterProgress
 	for n := 0; ctx.Err() == nil; n++ {
 		started := time.Now()
@@ -141,6 +151,7 @@ VALUES ($1, 'scope:ecs-index-proof', 'generation:ecs-index-proof', 'aws_resource
 			return progress
 		}
 		progress.cycles++
+		completed.Add(1)
 		if elapsed := time.Since(started); elapsed > progress.maxCycle {
 			progress.maxCycle = elapsed
 		}

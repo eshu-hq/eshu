@@ -364,6 +364,11 @@ tests:
     class: postgres_ci
     reason: "#7228 overfull-band-bucket skip proof, enrolled in the live-postgres-readiness runner on ESHU_DRIFTED_BUCKET_SKIP_PROOF_DSN: a 307-member bucket nominates no pairs while the same repo's small-bucket pairs are unchanged, with skipped-bucket/max-bucket/pairs-considered stats. Local run passed in 1.3s on postgres:18 on 2026-10-08; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/ecs_task_index_migration_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9307 disposable PostgreSQL 18.6 fresh and populated ECS index migration proof with ordinary writer progress and invalid-index restart recovery; local two-test run took 3.4s on 2026-10-28"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/fact_key_foreign_key_drop_live_test.go
     tag: ~
     class: postgres_ci

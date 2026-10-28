@@ -343,6 +343,8 @@ jobs:
           ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE: '1'
           ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_TEST_CONTENT_INDEX_POSTGRES_READ_DSN: postgres://postgres:local-proof-only@127.0.0.1:15433/postgres?sslmode=disable
+          ESHU_TEST_ECS_RUNTIME_INDEX_POSTGRES_DISPOSABLE: '1'
+          ESHU_TEST_ECS_RUNTIME_INDEX_POSTGRES_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_WEBHOOK_CLAIM_LEASE_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           # END GENERATED READINESS ENV
         run: bash scripts/run-live-postgres-readiness-tests.sh --shard "${{ matrix.shard }}/${{ matrix.total }}" --report readiness-shard-report.json
