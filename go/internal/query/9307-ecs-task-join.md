@@ -29,3 +29,11 @@ proved by this plan alone.
 
 No-Regression Evidence: NOT_CHECKED; production code has not changed.
 No-Observability-Change: the theory ran outside the API and adds no signal.
+
+The new cassette reference uses the historical in-tree ECS scanner's
+`runningContainerImageReferences` shape: a RUNNING ECR container with an
+observed digest produces an `aws_image_reference` with repository, registry,
+digest, and parsed tag. The existing distinct digest reference remains to
+preserve prior identity assertions; two digests under one tag can be observed
+during a rolling deployment. This fixture establishes matching digest input
+only; it does not by itself prove the deployment-story read.

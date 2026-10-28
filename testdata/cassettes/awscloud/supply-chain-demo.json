@@ -256,6 +256,29 @@
           }
         },
         {
+          "fact_kind": "aws_image_reference",
+          "stable_fact_key": "aws:123456789012:us-east-1:ecs:image-reference:supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890#latest",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "region": "us-east-1",
+            "service_kind": "ecs",
+            "repository_name": "supply-chain-demo",
+            "registry_id": "123456789012",
+            "image_digest": "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+            "manifest_digest": "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+            "tag": "latest",
+            "correlation_anchors": [
+              "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+              "supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+              "supply-chain-demo:latest"
+            ]
+          }
+        },
+        {
           "fact_kind": "aws_resource",
           "stable_fact_key": "aws:123456789012:us-east-1:ecs:task-definition:supply-chain-demo:1",
           "schema_version": "1.0.0",
