@@ -23,7 +23,7 @@ FRAGMENT_BOUNDARIES = (
     "go/internal/storage/postgres/alert_shard_planner_cost_live_test.go",
     "go/internal/storage/postgres/"
     "ingestion_backfill_generation_guard_reproject_live_test.go",
-    "go/internal/storage/postgres/status/summary/bloat_live_test.go",
+    "go/internal/storage/postgres/search/index/retention/drain_live_test.go",
 )
 FRAGMENT_DIR = "specs/live-tests.d/"
 MAX_FRAGMENT_LINES = 499
