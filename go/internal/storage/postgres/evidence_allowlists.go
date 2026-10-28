@@ -23,6 +23,11 @@ var awsCloudInventoryAttributeAllowlist = cloudInventoryAttributeAllowlist{
 		"code_sha256":         {},
 		"package_type":        {},
 		"version":             {},
+		"platform_version":    {},
+		"release_version":     {},
+		"addon_version":       {},
+		"ami_id":              {},
+		"runtime":             {},
 	},
 	nestedArrayKeys: map[string]map[string]struct{}{
 		// containers' sub-key set is intentionally maintained independently of

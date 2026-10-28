@@ -404,7 +404,8 @@
               "package_type": "Zip",
               "code_sha256": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
               "version": "$LATEST",
-              "role_arn": "arn:aws:iam::123456789012:role/supply-chain-demo-lambda-role"
+              "role_arn": "arn:aws:iam::123456789012:role/supply-chain-demo-lambda-role",
+              "runtime": "python3.12"
             }
           }
         },
@@ -719,6 +720,86 @@
                   "deletes": "2027-02-28T00:00:00Z"
                 }
               ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scope_id": "aws:123456789012:us-east-1:eks",
+      "source_system": "aws",
+      "scope_kind": "region",
+      "collector_kind": "aws",
+      "partition_key": "aws:123456789012:us-east-1:eks",
+      "metadata": {
+        "account_id": "123456789012",
+        "region": "us-east-1",
+        "service_kind": "eks"
+      },
+      "generation_id": "cassette-aws-eks-gen1",
+      "observed_at": "2026-06-25T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:us-east-1:eks:aws_eks_cluster:demo-cluster",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "arn": "arn:aws:eks:us-east-1:123456789012:demo-cluster",
+            "resource_id": "demo-cluster",
+            "resource_type": "aws_eks_cluster",
+            "name": "demo-cluster",
+            "state": "ACTIVE",
+            "account_id": "123456789012",
+            "region": "us-east-1",
+            "service_kind": "eks",
+            "attributes": {
+              "platform_version": "eks.30"
+            }
+          }
+        },
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:us-east-1:eks:aws_eks_nodegroup:demo-nodes",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "arn": "arn:aws:eks:us-east-1:123456789012:demo-nodes",
+            "resource_id": "demo-nodes",
+            "resource_type": "aws_eks_nodegroup",
+            "name": "demo-nodes",
+            "state": "ACTIVE",
+            "account_id": "123456789012",
+            "region": "us-east-1",
+            "service_kind": "eks",
+            "attributes": {
+              "release_version": "1.30.1-20260625"
+            }
+          }
+        },
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:us-east-1:eks:aws_eks_addon:vpc-cni",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "arn": "arn:aws:eks:us-east-1:123456789012:vpc-cni",
+            "resource_id": "vpc-cni",
+            "resource_type": "aws_eks_addon",
+            "name": "vpc-cni",
+            "state": "ACTIVE",
+            "account_id": "123456789012",
+            "region": "us-east-1",
+            "service_kind": "eks",
+            "attributes": {
+              "addon_version": "v1.19.0-eksbuild.1"
             }
           }
         }

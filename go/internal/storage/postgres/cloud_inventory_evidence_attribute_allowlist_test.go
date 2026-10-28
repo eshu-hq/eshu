@@ -4,10 +4,26 @@
 package postgres
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
+
+// TestCloudInventoryRecordFromRowAWSPatchLevelAttributes exercises the actual
+// fact-to-inventory filter for the scanner's version and runtime fields.
+func TestCloudInventoryRecordFromRowAWSPatchLevelAttributes(t *testing.T) {
+	t.Parallel()
+	payload := []byte(`{"arn":"arn:aws:eks:us-east-1:000000000000:cluster/demo","resource_type":"aws_eks_cluster","account_id":"000000000000","resource_id":"demo","region":"us-east-1","attributes":{"platform_version":"eks.30","release_version":"1.30.1","addon_version":"v1.0","ami_id":"ami-000000000000000a","runtime":"python3.12","raw_secret":"private"}}`)
+	record, ok := cloudInventoryRecordFromRow(cloud.AWSResourceFactKind, "eks-demo", payload)
+	if !ok {
+		t.Fatal("cloudInventoryRecordFromRow() ok = false")
+	}
+	want := map[string]any{"platform_version": "eks.30", "release_version": "1.30.1", "addon_version": "v1.0", "ami_id": "ami-000000000000000a", "runtime": "python3.12"}
+	if !reflect.DeepEqual(record.Attributes, want) {
+		t.Fatalf("attributes = %#v, want %#v", record.Attributes, want)
+	}
+}
 
 // TestCloudInventoryRecordFromRowAWSRawLocatorsNotSurfaced proves that an
 // aws_resource row whose attributes map carries only raw provider locators

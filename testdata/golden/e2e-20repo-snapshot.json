@@ -4553,7 +4553,15 @@
           "resources"
         ],
         "minimum_results": 1,
-        "results_field": "resources"
+        "results_field": "resources",
+        "arguments": {"provider": "aws"},
+        "required_json_values": {
+          "resources[].attributes.platform_version": "eks.30",
+          "resources[].attributes.release_version": "1.30.1-20260625",
+          "resources[].attributes.addon_version": "v1.19.0-eksbuild.1",
+          "resources[].attributes.ami_id": "ami-000000000000000a",
+          "resources[].attributes.runtime": "python3.12"
+        }
       },
       "list_cloud_runtime_drift_findings": {
         "description": "MCP tool coverage shape for list_cloud_runtime_drift_findings; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). #5759 wired buildMultiCloudRuntimeDriftReducerIntent into appendScopeGenerationReducerIntents (triggering on gcp_cloud_resource or azure_cloud_resource facts) and added MultiCloudRuntimeDriftHandler.Handle's excludeAWSOwnedRows provider-partition filter, so DomainMultiCloudRuntimeDrift is enqueued for GCP/Azure scopes and no longer collides with DomainAWSCloudRuntimeDrift's own findings for the same AWS resource -- closing the pre-existing registered-not-enqueued gap (domain built for #1997/#1998, predates #5453). Non-vacuous: a live golden-corpus-gate run returned 10 drift_findings for this GCP scope (bounded by the requested limit:10 below, the same convention the sibling list_aws_runtime_drift_findings entry uses -- this corpus's gcp_cloud_resource cassette carries 110 keyable resources and no Terraform state/config fixture anywhere in the corpus declares a matching google_* resource, so far more than 10 orphaned findings are admitted; the request just asks for one page of 10). minimum_results is 1, which requires results_field (added here -- #5862 removed EvaluateQueryShape's implicit first-array-field inference, so an entry with minimum_results>0 and no results_field is now an unconditional hard failure regardless of live data); the row count above was established by a live golden-corpus-gate run against the underlying route before this results_field correction landed, and this corrected shape still needs confirmation on the next live run. #5453's image_version_drift value drift is separately proven non-vacuously through the sibling list_aws_runtime_drift_findings entry (reducer_aws_cloud_runtime_drift_finding, exclusively AWS-owned and unaffected by this change).",
@@ -8143,6 +8151,11 @@
         "required_json_values": {
           "resources[].attributes.containers[].image": "123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo:latest",
           "resources[].attributes.image_uri": "123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo:latest",
+          "resources[].attributes.platform_version": "eks.30",
+          "resources[].attributes.release_version": "1.30.1-20260625",
+          "resources[].attributes.addon_version": "v1.19.0-eksbuild.1",
+          "resources[].attributes.ami_id": "ami-000000000000000a",
+          "resources[].attributes.runtime": "python3.12",
           "resources[].attributes.api_key_count": "2",
           "resources[].attributes.api_key_lifecycles[].expires": "2026-12-31T00:00:00Z",
           "resources[].code_sha256_correlation.unsupported_reason": "zip_code_sha256_no_ci_counterpart"

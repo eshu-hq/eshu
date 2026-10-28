@@ -127,7 +127,9 @@ by provider:
 - **AWS** surfaces a CLOSED allowlist, scoped to the
   strongest deployed-code signals the collector already observes:
   `task_definition_arn`, `image_uri`, `resolved_image_uri`, `code_sha256`,
-  `package_type`, `version`, and a `containers` array (from ECS running tasks)
+  `package_type`, `version`, `platform_version` (EKS cluster),
+  `release_version` (EKS node group), `addon_version` (EKS add-on),
+  `ami_id` (EC2 instance), `runtime` (Lambda function), and a `containers` array (from ECS running tasks)
   reduced per element to `{image, image_digest}`. `package_type` is the bounded
   Lambda packaging discriminator (`Zip`/`Image`). Every other AWS attribute key
   (for example `cluster_arn`, `role_arn`, `kms_key_arn`, `network_interfaces`,
@@ -151,7 +153,7 @@ by provider:
 `attributes` surfaces deployed-code identity evidence — image references
 (`image_uri`, `resolved_image_uri`, the ECS `containers[].image`) and the
 owning `task_definition_arn` — which necessarily name the image, registry, and
-repository for the caller's own resources. This route is account-scoped (it is
+repository for the caller's own resources. The five patch-level additions are public software version or image identifiers: EKS platform_version, node group release_version, add-on addon_version, EC2 ami_id, and Lambda runtime. None is a credential or secret-bearing object, and each is still admitted only as a scalar by the closed allowlist. This route is account-scoped (it is
 filtered by `scope_id`/`account_id`), so those identifiers are the operator's
 own, not another tenant's. What is never present is any credential, secret, or
 non-image infrastructure locator: `cluster_arn`, `role_arn`, `kms_key_arn`,
