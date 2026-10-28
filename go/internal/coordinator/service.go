@@ -79,12 +79,13 @@ type VulnerabilityIntelligencePlanner interface {
 }
 
 // OwnedPackageTargetReader loads active dependency evidence that can bound
-// derived package-registry and vulnerability-intelligence work.
+// derived package-registry and vulnerability-intelligence work. One read
+// returns one hash slot of the target set with its window stats (#9422).
 type OwnedPackageTargetReader interface {
 	ListOwnedPackageDependencyTargets(
 		context.Context,
 		workflow.OwnedPackageDependencyTargetFilter,
-	) ([]workflow.OwnedPackageDependencyTarget, error)
+	) (workflow.OwnedPackageDependencyTargetPage, error)
 }
 
 // AWSScheduledPlanner plans scheduled AWS collector work from configuration.

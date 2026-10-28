@@ -144,7 +144,7 @@ subpackage here: if the root file survives, the split buys nothing.
 
 | Directory | Holds |
 | --- | --- |
-| `schedule/` | The shared scheduling substrate: target classes and ranking, derived-target skip evidence and budget, rotation offsets, plan keys, read limits, set and version helpers. Imported by `vulnerability` and `registry/package`; imports neither. |
+| `schedule/` | The shared scheduling substrate: target classes and ranking, derived-target skip evidence and budget, rotation buckets and offsets, plan keys, read limits, set and version helpers. Imported by `vulnerability` and `registry/package`; imports neither. |
 | `vulnerability/` | Vulnerability-intelligence derivation, OSV batching and chunk sizing, `IntelligenceWorkPlanner`. |
 | `registry/package/` | Package-registry derivation, ecosystem targets, `WorkPlanner`. Go package name `packages`. |
 | `egress/` | Collector and extension egress policy parsing and decisions. |

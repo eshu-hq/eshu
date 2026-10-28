@@ -271,10 +271,11 @@ func (s Service) scheduleVulnerabilityActivationDerivedScopes(
 	// checkActivationDerivation refuses an enabled derivation without a
 	// vulnerability_intelligence host, so Host is set here.
 	sourceSystem, hostScopeID := config.Host.SourceSystem, config.Host.Scope.ID
-	ownedTargets, err := s.vulnerabilityOwnedTargets(ctx, derivation.DeriveFromOwnedPackages, observedAt, interval)
+	ownedPage, err := s.vulnerabilityOwnedTargets(ctx, derivation.DeriveFromOwnedPackages, observedAt, interval)
 	if err != nil {
 		return fmt.Errorf("load vulnerability intelligence derived targets for %q: %w", instance.InstanceID, err)
 	}
+	s.logOwnedPackageWindow(instance, derivation.DeriveFromOwnedPackages.Enabled, ownedPage)
 	osTargets, sbomTargets, err := s.vulnerabilityInstalledEvidenceTargets(ctx, derivation.DeriveFromInstalledEvidence, observedAt, interval)
 	if err != nil {
 		return fmt.Errorf("load vulnerability intelligence installed evidence targets for %q: %w", instance.InstanceID, err)
@@ -287,7 +288,8 @@ func (s Service) scheduleVulnerabilityActivationDerivedScopes(
 		SourceSystem:         sourceSystem,
 		HostScopeID:          hostScopeID,
 		Derivation:           derivation,
-		OwnedPackageTargets:  ownedTargets,
+		OwnedPackageTargets:  ownedPage.Targets,
+		OwnedPackageWindow:   ownedPage.Window,
 		OSPackageTargets:     osTargets,
 		SBOMComponentTargets: sbomTargets,
 	})
@@ -311,7 +313,7 @@ func (s Service) scheduleVulnerabilityActivationDerivedScopes(
 			"run_id", run.RunID,
 			"planned_work_items", len(items),
 			"enqueued_work_items", enqueued,
-			"owned_package_candidates", len(ownedTargets),
+			"owned_package_candidates", len(ownedPage.Targets),
 			"installed_evidence_candidates", len(osTargets)+len(sbomTargets),
 		)
 	}

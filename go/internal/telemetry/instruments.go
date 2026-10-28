@@ -5663,7 +5663,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register DependencyListErrors counter: %w", err)
 	}
 
-	// liveActivityQueryBuckets matches the documented postgres-query-seconds
+	// liveActivityQueryBuckets matches the documented file-parse-and-live-query-seconds
 	// bucket set (docs/public/observability/telemetry-coverage.md); the
 	// bounded live-activity query's own proof evidence (6.1ms normal shape,
 	// 12.3ms pathological shape) sits comfortably inside it.
@@ -5687,7 +5687,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	}
 
 	// repositoryFreshnessQueryBuckets matches the documented
-	// postgres-query-seconds bucket set (docs/public/observability/telemetry-coverage.md);
+	// file-parse-and-live-query-seconds bucket set (docs/public/observability/telemetry-coverage.md);
 	// the #5143 prove-theory-first single-scope composite read measured
 	// 2.5ms full shape against a 20k-scope/150k-work-item synthetic corpus,
 	// sitting comfortably inside it.
@@ -6278,7 +6278,10 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register ProjectorZombieHeal counter: %w", err)
 	}
 
-	postgresBuckets := []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5}
+	// The top buckets reach 300 s so a full-scan planner read (the
+	// owned-package reader runs 14 s on the QA replica and 19-129 s on the
+	// coordinator, #9422) lands in a finite bucket instead of +Inf.
+	postgresBuckets := []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300}
 	inst.PostgresQueryDuration, err = meter.Float64Histogram(
 		"eshu_dp_postgres_query_duration_seconds",
 		metric.WithDescription("Postgres query duration"),

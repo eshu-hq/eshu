@@ -403,3 +403,9 @@ func registerComponentExtensionStatus() {
 		contract.LogKeyExtensionStatusRetryAfterRequestedSeconds,
 	)
 }
+
+// registerOwnedPackageTargets appends the owned-package hash-slot read span
+// (#9422), unconditionally at the end and independent of every earlier step.
+func registerOwnedPackageTargets() {
+	spanNames = append(spanNames, contract.SpanOwnedPackageTargetsRead)
+}

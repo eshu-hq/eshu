@@ -84,8 +84,21 @@ func DerivationLimit(raw int, fallback int) int {
 
 // DerivedTargetRotationOffset returns the read offset that pages a rotating
 // instance through its derived target set, one limit-sized page per interval.
+// The installed-advisory readers still page by this offset; the owned-package
+// reader selects a hash slot by [DerivedTargetRotationBucket] instead (#9422).
 func DerivedTargetRotationOffset(observedAt time.Time, interval time.Duration, limit int) int64 {
 	if observedAt.IsZero() || limit <= 0 {
+		return 0
+	}
+	return DerivedTargetRotationBucket(observedAt, interval) * int64(limit)
+}
+
+// DerivedTargetRotationBucket returns the index of the reconcile window that
+// contains observedAt. The owned-package reader selects hash slot
+// bucket mod P, so consecutive windows take consecutive slots (#9422). A zero
+// observedAt is bucket 0.
+func DerivedTargetRotationBucket(observedAt time.Time, interval time.Duration) int64 {
+	if observedAt.IsZero() {
 		return 0
 	}
 	if interval <= 0 {
@@ -98,7 +111,12 @@ func DerivedTargetRotationOffset(observedAt time.Time, interval time.Duration, l
 	// key and let a rotating instance page to new targets under the old run ID.
 	// For an epoch-aligned interval the two indices are identical.
 	bucket := observedAt.UTC().Truncate(interval).UnixNano() / int64(interval)
-	return bucket * int64(limit)
+	if bucket < 0 {
+		// A clock before 1970 truncates to a negative bucket; SQL MOD keeps the
+		// sign, so clamp to keep the selected slot in [0, P).
+		return 0
+	}
+	return bucket
 }
 
 // DerivedTargetRotationOffsetForMode is [DerivedTargetRotationOffset] for a
@@ -113,6 +131,30 @@ func DerivedTargetRotationOffsetForMode(
 		return 0
 	}
 	return DerivedTargetRotationOffset(observedAt, interval, limit)
+}
+
+// DerivedTargetRotationBucketForMode is [DerivedTargetRotationBucket] for a
+// rotating instance and bucket 0 for a single-pass one, so single_pass always
+// reads slot 0 under its stable plan key.
+func DerivedTargetRotationBucketForMode(
+	planningMode string,
+	observedAt time.Time,
+	interval time.Duration,
+) int64 {
+	if NormalizePlanningMode(planningMode) == PlanningModeSinglePass {
+		return 0
+	}
+	return DerivedTargetRotationBucket(observedAt, interval)
+}
+
+// DerivedTargetSlotLimitForMode returns the target limit that sizes the
+// owned-package hash slots: targetLimit for a rotating instance and 0 (one
+// slot, the first page of the whole set) for a single-pass one (#9422).
+func DerivedTargetSlotLimitForMode(planningMode string, targetLimit int) int {
+	if NormalizePlanningMode(planningMode) == PlanningModeSinglePass {
+		return 0
+	}
+	return max(targetLimit, 0)
 }
 
 // DerivedTargetPlanKey renders the plan key that makes one interval's derived

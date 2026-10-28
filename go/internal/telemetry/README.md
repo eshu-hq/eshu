@@ -353,7 +353,7 @@ module prefixes across generations.
 | `CanonicalWriteDuration` | `eshu_dp_canonical_write_duration_seconds` | 0.01–60 s |
 | `CanonicalProjectionDuration` | `eshu_dp_canonical_projection_duration_seconds` | 0.01–60 s |
 | `QueueClaimDuration` | `eshu_dp_queue_claim_duration_seconds` | 0.001–30 s |
-| `PostgresQueryDuration` | `eshu_dp_postgres_query_duration_seconds` | 0.001–2.5 s |
+| `PostgresQueryDuration` | `eshu_dp_postgres_query_duration_seconds` | 0.001–300 s (top buckets 5, 10, 30, 60, 120, 300 s for planner full scans, #9422) |
 | `Neo4jQueryDuration` | `eshu_dp_neo4j_query_duration_seconds` | 0.001–10 s |
 | `StatusSnapshotReadDuration` | `eshu_dp_status_snapshot_read_duration_seconds` | 0.001–10 s; `read` (closed reader set), `outcome` |
 | `RelationshipBreakdownPermitWaitDuration` | `eshu_dp_relationship_breakdown_permit_wait_seconds` | 0–30 s; no labels |

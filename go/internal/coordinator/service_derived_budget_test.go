@@ -45,8 +45,11 @@ func TestServiceRunActiveModeSurfacesPackageRegistryDerivedBudgetExhaustion(t *t
 	if got, want := targetReader.requests[0].Limit, 3; got != want {
 		t.Fatalf("target reader limit = %d, want budget plus exhaustion lookahead %d", got, want)
 	}
-	if got, want := targetReader.requests[0].RotationOffset, schedule.DerivedTargetRotationOffset(now, time.Hour, 2); got != want {
-		t.Fatalf("target reader rotation offset = %d, want %d", got, want)
+	if got, want := targetReader.requests[0].RotationBucket, schedule.DerivedTargetRotationBucket(now, time.Hour); got != want {
+		t.Fatalf("target reader rotation bucket = %d, want %d", got, want)
+	}
+	if got, want := targetReader.requests[0].TargetLimit, 2; got != want {
+		t.Fatalf("target reader slot target limit = %d, want %d", got, want)
 	}
 	if got, want := len(store.createdRuns), 1; got != want {
 		t.Fatalf("created runs = %d, want %d", got, want)
@@ -89,8 +92,11 @@ func TestServiceRunActiveModeSurfacesVulnerabilityDerivedBudgetExhaustion(t *tes
 	if got, want := targetReader.requests[0].Limit, 3; got != want {
 		t.Fatalf("target reader limit = %d, want budget plus exhaustion lookahead %d", got, want)
 	}
-	if got, want := targetReader.requests[0].RotationOffset, schedule.DerivedTargetRotationOffset(now, time.Hour, 2); got != want {
-		t.Fatalf("target reader rotation offset = %d, want %d", got, want)
+	if got, want := targetReader.requests[0].RotationBucket, schedule.DerivedTargetRotationBucket(now, time.Hour); got != want {
+		t.Fatalf("target reader rotation bucket = %d, want %d", got, want)
+	}
+	if got, want := targetReader.requests[0].TargetLimit, 2; got != want {
+		t.Fatalf("target reader slot target limit = %d, want %d", got, want)
 	}
 	if got, want := len(store.createdRuns), 1; got != want {
 		t.Fatalf("created runs = %d, want %d", got, want)
@@ -137,8 +143,9 @@ func TestServiceRunActiveModeSinglePassPackageRegistryDerivedBudgetDoesNotAdmitN
 		t.Fatalf("enqueued package-registry derived targets across representative proof = %d, want configured budget %d", got, want)
 	}
 	for i, request := range targetReader.requests {
-		if request.RotationOffset != 0 {
-			t.Fatalf("target reader request %d rotation offset = %d, want 0 for single-pass proof", i, request.RotationOffset)
+		if request.RotationBucket != 0 || request.TargetLimit != 0 {
+			t.Fatalf("target reader request %d bucket = %d slot limit = %d, want 0 and 0 (one slot) for single-pass proof",
+				i, request.RotationBucket, request.TargetLimit)
 		}
 	}
 }
@@ -175,8 +182,9 @@ func TestServiceRunActiveModeSinglePassVulnerabilityDerivedBudgetDoesNotAdmitNex
 		t.Fatalf("enqueued vulnerability-intelligence derived query batches across representative proof = %d, want first bounded batch only", got)
 	}
 	for i, request := range targetReader.requests {
-		if request.RotationOffset != 0 {
-			t.Fatalf("target reader request %d rotation offset = %d, want 0 for single-pass proof", i, request.RotationOffset)
+		if request.RotationBucket != 0 || request.TargetLimit != 0 {
+			t.Fatalf("target reader request %d bucket = %d slot limit = %d, want 0 and 0 (one slot) for single-pass proof",
+				i, request.RotationBucket, request.TargetLimit)
 		}
 	}
 }
@@ -211,27 +219,31 @@ type rotatingOwnedPackageTargetReader struct {
 	targets  []workflow.OwnedPackageDependencyTarget
 }
 
+// ListOwnedPackageDependencyTargets pages through the fake targets one
+// limit-sized page per bucket. It models a different page per window for the
+// service tests; the hash-slot selection itself is proven by the storage live
+// tests.
 func (r *rotatingOwnedPackageTargetReader) ListOwnedPackageDependencyTargets(
 	_ context.Context,
 	filter workflow.OwnedPackageDependencyTargetFilter,
-) ([]workflow.OwnedPackageDependencyTarget, error) {
+) (workflow.OwnedPackageDependencyTargetPage, error) {
 	r.requests = append(r.requests, filter)
 	if len(r.targets) == 0 {
-		return nil, nil
+		return workflow.OwnedPackageDependencyTargetPage{}, nil
 	}
 	limit := filter.Limit
 	if limit <= 0 || limit > len(r.targets) {
 		limit = len(r.targets)
 	}
-	offset := int(filter.RotationOffset % int64(len(r.targets)))
-	if offset < 0 {
-		offset += len(r.targets)
+	offset := 0
+	if filter.TargetLimit > 0 {
+		offset = int((filter.RotationBucket * int64(filter.TargetLimit)) % int64(len(r.targets)))
 	}
 	out := make([]workflow.OwnedPackageDependencyTarget, 0, limit)
 	for i := 0; i < limit; i++ {
 		out = append(out, r.targets[(offset+i)%len(r.targets)])
 	}
-	return out, nil
+	return workflow.OwnedPackageDependencyTargetPage{Targets: out}, nil
 }
 
 type terminalizingWorkflowStore struct {

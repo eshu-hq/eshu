@@ -47,7 +47,7 @@ live in the repository today.
 | `go/internal/coordinator/environment/` | environment-variable parsing shared by coordinator config loading and the semantic-provider worker |
 | `go/internal/coordinator/governance/audit/` | redacted governance-audit scope hashing, correlation identity, service identity, and append timeout |
 | `go/internal/coordinator/registry/package/` | package-registry target derivation, ecosystem target construction, and deterministic workflow planning (Go package name `packages`) |
-| `go/internal/coordinator/schedule/` | shared scheduling substrate: target classes and ranking, derived-target budget and skip evidence, rotation offsets, plan keys, and derivation helpers |
+| `go/internal/coordinator/schedule/` | shared scheduling substrate: target classes and ranking, derived-target budget and skip evidence, rotation buckets and offsets, plan keys, and derivation helpers |
 | `go/internal/coordinator/semantic/` | egress-gated semantic-provider execution worker, its configuration, and its claim telemetry |
 | `go/internal/coordinator/vulnerability/` | vulnerability-intelligence target derivation, OSV query batching and chunk sizing, and deterministic workflow planning |
 | `go/internal/facts/` | durable fact models and queue contracts |

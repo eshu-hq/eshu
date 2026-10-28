@@ -39,7 +39,8 @@ import (
 // zzzz_service_changed_since) exactly, then appends producer_grant (#6726),
 // code-topic partition, git-command retry, deferred backfill block, the
 // repository-retirement split, and the later families in slice order, ending
-// with component-extension status (#8908); do not resort it alphabetically by Go
+// with component-extension status (#8908) and the owned-package hash-slot read
+// span (#9422); do not resort it alphabetically by Go
 // function name or reflow it without re-running the order tests.
 var registrationSteps = []func(){
 	registerAdmissionDecisions,
@@ -78,6 +79,7 @@ var registrationSteps = []func(){
 	registerMCPRouter,
 	registerSupplyChainActiveEvidence,
 	registerComponentExtensionStatus,
+	registerOwnedPackageTargets,
 }
 
 func init() {

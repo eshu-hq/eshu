@@ -210,10 +210,18 @@ type OwnedPackageDependencyTarget struct {
 
 // OwnedPackageDependencyTargetFilter bounds active dependency target reads.
 type OwnedPackageDependencyTargetFilter struct {
-	Ecosystems      []string
-	Limit           int
+	Ecosystems []string
+	// Limit is the read limit: the most rows one read returns. Callers pass
+	// the target limit plus the one lookahead row.
+	Limit int
+	// TargetLimit is the configured target limit L that sizes the hash slots
+	// ([OwnedPackageTargetSlotCount]). Zero or less means one slot: the read
+	// takes the first Limit targets of the whole set (single_pass).
+	TargetLimit     int
 	VersionSpecific bool
-	RotationOffset  int64
+	// RotationBucket is the truncated-clock bucket of the reconcile window.
+	// The read selects slot RotationBucket mod P; single_pass passes 0.
+	RotationBucket int64
 	// ExpandPackageManagerAliases makes the read select every raw
 	// package_manager alias of each requested ecosystem (for example gradle
 	// for maven) and report them under the canonical ecosystem name. The zero

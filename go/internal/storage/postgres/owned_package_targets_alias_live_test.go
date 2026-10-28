@@ -34,12 +34,12 @@ func TestListOwnedPackageDependencyTargetsAliasesLive(t *testing.T) {
 		t.Helper()
 		filter.Limit = 100
 		filter.VersionSpecific = true
-		targets, err := store.ListOwnedPackageDependencyTargets(ctx, filter)
+		page, err := store.ListOwnedPackageDependencyTargets(ctx, filter)
 		if err != nil {
 			t.Fatalf("ListOwnedPackageDependencyTargets() error = %v, want nil", err)
 		}
-		out := make([]string, 0, len(targets))
-		for _, target := range targets {
+		out := make([]string, 0, len(page.Targets))
+		for _, target := range page.Targets {
 			out = append(out, fmt.Sprintf("%s|%s|%s", target.Ecosystem, target.PackageName, target.Version))
 		}
 		return out

@@ -76,8 +76,20 @@ operational lessons that future storage changes still need to respect.
   one package cannot starve later packages. Vulnerability-intelligence callers
   use package-version identities and retain dependency `source_location` so
   Swift OSV planning can send the source Git URL required by OSV `SwiftURL`.
-  The rotation offset lets bounded full-corpus runs advance past the first
-  sorted page without changing worker counts or query scope.
+  The read is a hash-slot window (#9422): each distinct target hashes to slot
+  `sha256(key)` mod P, with P the smallest power of two where
+  `P * TargetLimit >= 2 * T`, computed from `COUNT(*) OVER ()` in the same
+  statement. A read returns slot `RotationBucket mod P` in the global order and
+  the window stats (T, P, slot, slot_size, rows read). A change in T never moves
+  a target to another slot, so every target is planned within P windows. Keep
+  the hash on the distinct rows (about 30k on QA), not the 2.7M scanned rows;
+  the slot predicate depends on the window aggregate, so it cannot be pushed
+  below it. The key COALESCEs NULL parts: `sha256(NULL)` would drop a target
+  from every slot. Do not use `md5()`: the QA server runs in FIPS mode. The
+  reader fails the read when the statement's P or slot disagrees with
+  `workflow.OwnedPackageTargetSlotCount`. The stats come from a one-row
+  `window_stats` CTE LEFT JOINed to the slot rows, so an empty slot or T = 0
+  still reports them; an inner join would return no row and no stats.
   Vulnerability-intelligence callers also set `ExpandPackageManagerAliases`
   (#9285): the filter selects every raw `package_manager` alias of each
   configured ecosystem (`gradle` for `maven`, `gomod`, `go-module`, and

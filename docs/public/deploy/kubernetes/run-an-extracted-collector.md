@@ -182,7 +182,9 @@ one claim per derived OSV scope, the same way it does for an in-tree instance
 - `target_limit` (default 100, at most 5000) and `planning_mode` (`rotating` or
   `single_pass`) are host-only: the coordinator applies them, and collector
   v0.1.0 ignores them. Rotation buckets on the coordinator's reconcile interval,
-  because an activation sets no `scan_interval`.
+  because an activation sets no `scan_interval`. See
+  [Derived Target Rotation](#derived-target-rotation) for how a window picks
+  its targets.
 - Derived scopes ride a second run beside the host-scope claim. The open-target
   guard admits each scope separately, so an open host-scope claim does not block
   them, and the host scope is never planned twice.
@@ -219,6 +221,41 @@ refusal caught by the reconcile backstop shows as
 `eshu_dp_workflow_coordinator_reconcile_total{outcome="reconcile_error"}` with
 the ERROR line above. The owned-package read shows in the store histograms
 under `store="owned_package_targets"`.
+
+### Derived Target Rotation
+
+The owned-package read (shared by derived vulnerability and package-registry
+targets) gives every distinct target a fixed hash slot (#9422):
+
+- The slot is `sha256(key)` mod P. The key is `ecosystem|package|version` for
+  vulnerability targets and `ecosystem|package` for package-registry targets,
+  with the alias-folded ecosystem.
+- P is the smallest power of two with `P * target_limit >= 2 * T`, where T is
+  the number of distinct targets for the configured ecosystems. The mean slot
+  then holds at most half the limit, so a slot fits in one read.
+- Window `bucket` plans slot `bucket mod P`. The bucket is the
+  interval-truncated clock that also names the plan key. Consecutive windows
+  plan consecutive slots, and a change in T does not move a target to another
+  slot.
+- Every target is planned within P windows. With a 30-minute interval,
+  `target_limit: 2000` and T up to 32,000, P is 32 (16 hours). Past 32,000, P
+  is 64 (32 hours) and each window holds about half as many targets. At the
+  default limit of 100, P is 1,024 for T near 30,000, so raise the limit with
+  the image that ships this rule.
+- `single_pass` always reads the first `target_limit` targets of the whole set
+  (one slot). By design it logs `truncated=true` whenever T is above
+  `target_limit + 1`, and reports the targets past the read limit as
+  `derived_target_budget_exhausted`, because it never plans them.
+- When the read limit cuts a slot short, the unread targets are reported as
+  `derived_target_budget_exhausted` skip evidence.
+
+Each read logs one INFO line, `workflow coordinator read owned package target
+window`, even when the slot is empty (`slot_size` 0) or T is 0 (P is 1), with `total_targets` (T), `slot_count` (P), `slot`, `slot_size`,
+`rows_read`, `truncated`, `selected`, `selected_ecosystems`, and
+`selected_by_ecosystem`. The same values sit on the `owned_package_targets.read`
+span and its `owned_package_targets.window` event. The read latency is
+`eshu_dp_postgres_query_duration_seconds{store="owned_package_targets"}`,
+whose buckets reach 300 s.
 
 ## Set The Claim Lease
 
