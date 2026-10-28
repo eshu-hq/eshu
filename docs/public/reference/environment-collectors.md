@@ -193,8 +193,8 @@ Collector configuration may define explicit `targets` or enable
 `derive_from_owned_packages` so the coordinator derives bounded npm metadata
 targets from active owned Git dependency facts. Derived collection is currently
 npm only and still uses workflow claims. The default derived target limit is
-100, at most 5000. Each window plans one hash slot, so every target is planned
-within P windows ([Derived Target Rotation](../deploy/kubernetes/run-an-extracted-collector.md#derived-target-rotation)).
+100, at most 5000. Each rotating window plans one hash slot, so every target is
+planned within P windows ([Derived Target Rotation](../deploy/kubernetes/run-an-extracted-collector.md#derived-target-rotation)).
 Package-registry derivation uses one target per package identity,
 not one target per observed version. When `derive_from_owned_packages.version_limit`
 is omitted, derived npm targets default to one version so full-corpus
@@ -402,8 +402,8 @@ are sent to OSV as `SwiftURL`; Pub targets keep canonical `pub`. Manifest
 ranges, aliases, Pub git/path/private-hosted rows, Pub dependency overrides,
 branch-only Swift pins, revision-only Swift pins, and local/path Swift pins
 remain partial evidence and are skipped for exact OSV collection. The default derived target
-limit is 100, at most 5000; each window plans one hash slot of the owned targets
-([Derived Target Rotation](../deploy/kubernetes/run-an-extracted-collector.md#derived-target-rotation)).
+limit is 100, at most 5000; each rotating window plans one hash slot of the
+owned targets ([Derived Target Rotation](../deploy/kubernetes/run-an-extracted-collector.md#derived-target-rotation)).
 The single OSV target query payload remains capped separately at 100 queries.
 
 `derive_from_owned_packages.ecosystems` takes OSV ecosystem names only. Some

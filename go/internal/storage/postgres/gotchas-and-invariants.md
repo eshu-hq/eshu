@@ -87,7 +87,9 @@ operational lessons that future storage changes still need to respect.
   below it. The key COALESCEs NULL parts: `sha256(NULL)` would drop a target
   from every slot. Do not use `md5()`: the QA server runs in FIPS mode. The
   reader fails the read when the statement's P or slot disagrees with
-  `workflow.OwnedPackageTargetSlotCount`.
+  `workflow.OwnedPackageTargetSlotCount`. The stats come from a one-row
+  `window_stats` CTE LEFT JOINed to the slot rows, so an empty slot or T = 0
+  still reports them; an inner join would return no row and no stats.
   Vulnerability-intelligence callers also set `ExpandPackageManagerAliases`
   (#9285): the filter selects every raw `package_manager` alias of each
   configured ecosystem (`gradle` for `maven`, `gomod`, `go-module`, and

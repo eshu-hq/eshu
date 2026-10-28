@@ -243,12 +243,14 @@ targets) gives every distinct target a fixed hash slot (#9422):
   default limit of 100, P is 1,024 for T near 30,000, so raise the limit with
   the image that ships this rule.
 - `single_pass` always reads the first `target_limit` targets of the whole set
-  (one slot).
+  (one slot). By design it logs `truncated=true` whenever T is above
+  `target_limit + 1`, and reports the targets past the read limit as
+  `derived_target_budget_exhausted`, because it never plans them.
 - When the read limit cuts a slot short, the unread targets are reported as
   `derived_target_budget_exhausted` skip evidence.
 
 Each read logs one INFO line, `workflow coordinator read owned package target
-window`, with `total_targets` (T), `slot_count` (P), `slot`, `slot_size`,
+window`, even when the slot is empty (`slot_size` 0) or T is 0 (P is 1), with `total_targets` (T), `slot_count` (P), `slot`, `slot_size`,
 `rows_read`, `truncated`, `selected`, `selected_ecosystems`, and
 `selected_by_ecosystem`. The same values sit on the `owned_package_targets.read`
 span and its `owned_package_targets.window` event. The read latency is
