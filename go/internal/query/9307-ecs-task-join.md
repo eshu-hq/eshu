@@ -100,17 +100,20 @@ extracted collector remains NOT_CHECKED.
 
 The two ECS read indexes are migration-only, each in a sole
 `CREATE INDEX CONCURRENTLY` statement. `EnsureSchema` does not build them
-against a populated fact table. On a disposable PostgreSQL 18.6 database,
-`TestECSRuntimeIndexFreshBootstrapLive` passed with both indexes valid after
-the complete 259-definition bootstrap. `TestECSRuntimeIndexUpgradeLive`
-applied the first 257 definitions, seeded 30,000 AWS resource facts, then
-applied 240-241 through the tracked runner while an ordinary insert/delete
-writer stayed active. Atomic snapshots immediately around that two-index call
-recorded 71 completed cycles in its 108.781 ms window; the test requires at
-least two completions so at least one full insert/delete pair occurs inside
-the call. The runner logged concurrent index builds of 86 ms and 17 ms. A
-full restart skipped all 259 receipts. After a duplicate-key
-failure left an invalid same-name concurrent index, a second full
-`ApplyBootstrap` rebuilt 240 with `recovery=true`. Both tests exited 0.
-These timings describe this disposable run under shared-host load; they do
-not establish composed endpoint latency or a stable before/after speedup.
+against a populated fact table. Disposable PostgreSQL 18.6 run
+`eshu-9307-ecs-index-live-controlled-final` passed both live tests. Fresh
+`ApplyBootstrap` left both indexes valid after 259 definitions. For an
+upgrade, the test applied the first 257 definitions, seeded 30,000 AWS
+resource facts, and held an uncommitted fact insert. While the tracked runner
+applied 240-241, `pg_stat_progress_create_index` reported an active concurrent
+build and a second distinct fact write committed under a 300 ms lock timeout.
+The first writer remained open, so the build could not have completed before
+the second write. After the first writer committed, the runner completed and
+a full restart skipped all 259 receipts. A duplicate-key failure then left
+an invalid same-name concurrent index; `ApplyBootstrap` rebuilt 240 with
+`recovery=true`. An ordinary `CREATE INDEX` control waited for an ungranted
+`ShareLock` on the same fact table, and its second writer failed with
+SQLSTATE 55P03 under a 200 ms lock timeout. This RED control and concurrent
+GREEN case prove writer admission during the actual tracked index build.
+The host was contended by a separate pre-push run, so no durations from this
+run are used as endpoint latency or stable speedup evidence.

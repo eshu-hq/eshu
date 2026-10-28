@@ -4,19 +4,21 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #9307 disposable PostgreSQL 18.6 fresh and populated ECS index migration proof with ordinary writer progress and invalid-index restart recovery; local two-test run took 3.4s on 2026-10-28
+//eshu:readiness:reason #9307 disposable PostgreSQL 18.6 fresh and populated ECS index proof: an observed active concurrent build admits a second fact writer, an ordinary build queues that writer to 55P03, and invalid-index restart recovery rebuilds 240
 //eshu:readiness:env ESHU_TEST_ECS_RUNTIME_INDEX_POSTGRES_DISPOSABLE ESHU_TEST_ECS_RUNTIME_INDEX_POSTGRES_DSN
 
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
@@ -45,8 +47,8 @@ func TestECSRuntimeIndexFreshBootstrapLive(t *testing.T) {
 }
 
 // TestECSRuntimeIndexUpgradeLive proves the shipped migration runner creates
-// both indexes over populated facts while an ordinary fact writer progresses,
-// then recovers a failed concurrent build on restart.
+// both indexes over populated facts while a second writer commits during an
+// observed active index build, then recovers a failed build on restart.
 func TestECSRuntimeIndexUpgradeLive(t *testing.T) {
 	ctx, database := postgresproof.OpenDisposableDatabase(t,
 		os.Getenv(ecsIndexProofDSN), os.Getenv(ecsIndexProofDisposable), 5*time.Minute)
@@ -70,32 +72,31 @@ func TestECSRuntimeIndexUpgradeLive(t *testing.T) {
 		assertECSIndexState(t, ctx, database, name, false)
 	}
 
-	writerCtx, stopWriter := context.WithCancel(ctx)
-	ready := make(chan error, 1)
-	done := make(chan ecsIndexWriterProgress, 1)
-	var completed atomic.Int64
-	go func() { done <- runECSIndexWriter(writerCtx, database, ready, &completed) }()
-	if err := <-ready; err != nil {
-		stopWriter()
-		<-done
-		t.Fatalf("start fact writer: %v", err)
-	}
-	before := completed.Load()
+	held := holdECSIndexWriter(t, ctx, database, "ecs-index-held-concurrent")
+	defer func() { _ = held.Rollback() }()
+	applied := make(chan error, 1)
 	started := time.Now()
-	upgradeErr := applyBootstrapDefinitionsWith(ctx, exec, definitions[boundary:boundary+2], slog.Default(), schemaBootstrapCoordination{})
+	go func() {
+		applied <- applyBootstrapDefinitionsWith(ctx, exec, definitions[boundary:boundary+2], slog.Default(), schemaBootstrapCoordination{})
+	}()
+	waitECSIndexBuild(t, ctx, database, true)
+	if err := writeECSIndexFact(ctx, database, "ecs-index-second-concurrent", 300*time.Millisecond); err != nil {
+		t.Fatalf("second fact writer during observed concurrent index build: %v", err)
+	}
+	select {
+	case err := <-applied:
+		t.Fatalf("index build finished before held writer committed: %v", err)
+	default:
+	}
+	if err := held.Commit(); err != nil {
+		t.Fatalf("commit held writer: %v", err)
+	}
+	upgradeErr := <-applied
 	upgradeDuration := time.Since(started)
-	during := completed.Load() - before
-	stopWriter()
-	writer := <-done
 	if upgradeErr != nil {
 		t.Fatalf("upgrade populated schema: %v", upgradeErr)
 	}
-	if writer.err != nil || during < 2 {
-		t.Fatalf("writer progress during upgrade: completed=%d before=%d during=%d err=%v", writer.cycles, before, during, writer.err)
-	}
-	// One cycle may have started before the first snapshot; two completed
-	// cycles guarantee at least one full insert/delete pair inside the call.
-	t.Logf("populated upgrade=%s writer cycles completed during upgrade=%d max cycle across writer run=%s", upgradeDuration, during, writer.maxCycle)
+	t.Logf("populated upgrade=%s; second writer committed while concurrent index build remained active", upgradeDuration)
 	for _, name := range ecsRuntimeIndexNames {
 		assertECSIndexState(t, ctx, database, name, true)
 	}
@@ -119,47 +120,111 @@ func TestECSRuntimeIndexUpgradeLive(t *testing.T) {
 	for _, indexName := range ecsRuntimeIndexNames {
 		assertECSIndexState(t, ctx, database, indexName, true)
 	}
+	proveECSOrdinaryIndexBlocksWriter(t, ctx, database)
 }
 
-type ecsIndexWriterProgress struct {
-	cycles   int
-	maxCycle time.Duration
-	err      error
+type ecsIndexFactExecutor interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
 }
 
-func runECSIndexWriter(ctx context.Context, database *sql.DB, ready chan<- error, completed *atomic.Int64) ecsIndexWriterProgress {
-	var progress ecsIndexWriterProgress
-	for n := 0; ctx.Err() == nil; n++ {
-		started := time.Now()
-		id := fmt.Sprintf("ecs-index-writer:%d", n)
-		_, err := database.ExecContext(ctx, `
+func insertECSIndexFact(ctx context.Context, exec ecsIndexFactExecutor, id string) error {
+	_, err := exec.ExecContext(ctx, `
 INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind,
   stable_fact_key, source_system, source_fact_key, observed_at, ingested_at, payload)
 VALUES ($1, 'scope:ecs-index-proof', 'generation:ecs-index-proof', 'aws_resource',
   $1, 'proof', $1, clock_timestamp(), clock_timestamp(),
   '{"resource_type":"aws_ecs_task","state":"RUNNING","attributes":{"cluster_arn":"arn:aws:ecs:us-east-1:123456789012:cluster/proof","group":"service:proof"}}'::jsonb)`, id)
-		if err == nil {
-			_, err = database.ExecContext(ctx, "DELETE FROM fact_records WHERE fact_id = $1", id)
-		}
-		if err != nil {
-			if ctx.Err() == nil {
-				progress.err = err
-			}
-			if n == 0 {
-				ready <- progress.err
-			}
-			return progress
-		}
-		progress.cycles++
-		completed.Add(1)
-		if elapsed := time.Since(started); elapsed > progress.maxCycle {
-			progress.maxCycle = elapsed
-		}
-		if n == 0 {
-			ready <- nil
-		}
+	return err
+}
+
+func holdECSIndexWriter(t *testing.T, ctx context.Context, database *sql.DB, id string) *sql.Tx {
+	t.Helper()
+	transaction, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("begin held fact writer: %v", err)
 	}
-	return progress
+	if err := insertECSIndexFact(ctx, transaction, id); err != nil {
+		_ = transaction.Rollback()
+		t.Fatalf("insert held fact writer: %v", err)
+	}
+	return transaction
+}
+
+func writeECSIndexFact(ctx context.Context, database *sql.DB, id string, lockTimeout time.Duration) error {
+	transaction, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin second fact writer: %w", err)
+	}
+	defer func() { _ = transaction.Rollback() }()
+	if _, err := transaction.ExecContext(ctx, "SELECT set_config('lock_timeout', $1, true)", lockTimeout.String()); err != nil {
+		return fmt.Errorf("set second writer lock timeout: %w", err)
+	}
+	if err := insertECSIndexFact(ctx, transaction, id); err != nil {
+		return fmt.Errorf("insert second fact: %w", err)
+	}
+	return transaction.Commit()
+}
+
+func waitECSIndexBuild(t *testing.T, ctx context.Context, database *sql.DB, concurrent bool) {
+	t.Helper()
+	statement := `SELECT EXISTS (SELECT 1 FROM pg_stat_progress_create_index
+WHERE datid = (SELECT oid FROM pg_database WHERE datname = current_database())
+  AND relid = 'fact_records'::regclass AND command = 'CREATE INDEX CONCURRENTLY')`
+	if !concurrent {
+		statement = `SELECT EXISTS (SELECT 1 FROM pg_locks
+WHERE database = (SELECT oid FROM pg_database WHERE datname = current_database())
+  AND relation = 'fact_records'::regclass AND mode = 'ShareLock' AND NOT granted)`
+	}
+	for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline); {
+		var active bool
+		if err := database.QueryRowContext(ctx, statement).Scan(&active); err != nil {
+			t.Fatalf("inspect index build state: %v", err)
+		}
+		if active {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("index build did not reach observed state (concurrent=%t)", concurrent)
+}
+
+func proveECSOrdinaryIndexBlocksWriter(t *testing.T, ctx context.Context, database *sql.DB) {
+	t.Helper()
+	held := holdECSIndexWriter(t, ctx, database, "ecs-index-held-ordinary")
+	defer func() { _ = held.Rollback() }()
+	control := Definition{
+		Name: "ecs_runtime_ordinary_control",
+		Path: "test/9307_ecs_runtime_ordinary_control.sql",
+		SQL: strings.Replace(MigrationSQL("ecs_runtime_service_arn_index"),
+			"CREATE INDEX CONCURRENTLY IF NOT EXISTS fact_records_ecs_service_arn_idx",
+			"CREATE INDEX IF NOT EXISTS fact_records_ecs_service_arn_red_idx", 1),
+	}
+	if !strings.Contains(control.SQL, "CREATE INDEX IF NOT EXISTS fact_records_ecs_service_arn_red_idx") {
+		t.Fatal("ordinary control did not replace the concurrent statement")
+	}
+	applied := make(chan error, 1)
+	go func() {
+		applied <- applyBootstrapDefinitionsWith(ctx, SQLDB{DB: database}, []Definition{control}, slog.Default(), schemaBootstrapCoordination{})
+	}()
+	waitECSIndexBuild(t, ctx, database, false)
+	err := writeECSIndexFact(ctx, database, "ecs-index-second-ordinary", 200*time.Millisecond)
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.Code != "55P03" {
+		t.Fatalf("ordinary index queued writer: err=%v, want 55P03 lock timeout", err)
+	}
+	t.Log("ordinary CREATE INDEX held an ungranted ShareLock; second writer received SQLSTATE 55P03")
+	select {
+	case err := <-applied:
+		t.Fatalf("ordinary index finished before held writer committed: %v", err)
+	default:
+	}
+	if err := held.Commit(); err != nil {
+		t.Fatalf("commit held ordinary writer: %v", err)
+	}
+	if err := <-applied; err != nil {
+		t.Fatalf("complete ordinary control index: %v", err)
+	}
+	assertECSIndexState(t, ctx, database, "fact_records_ecs_service_arn_red_idx", true)
 }
 
 func seedECSRuntimeIndexFacts(t *testing.T, ctx context.Context, database *sql.DB) {

@@ -367,7 +367,7 @@ tests:
   - file: go/internal/storage/postgres/ecs_task_index_migration_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#9307 disposable PostgreSQL 18.6 fresh and populated ECS index migration proof with ordinary writer progress and invalid-index restart recovery; local two-test run took 3.4s on 2026-10-28"
+    reason: "#9307 disposable PostgreSQL 18.6 fresh and populated ECS index proof: an observed active concurrent build admits a second fact writer, an ordinary build queues that writer to 55P03, and invalid-index restart recovery rebuilds 240"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/fact_key_foreign_key_drop_live_test.go
     tag: ~
