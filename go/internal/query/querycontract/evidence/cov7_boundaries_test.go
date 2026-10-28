@@ -30,7 +30,10 @@ func TestCov7EvidenceBoundariesFor(t *testing.T) {
 		t.Fatalf("workload boundaries = %#v, want domain-sorted pair", workload)
 	}
 	for _, boundary := range workload {
-		if boundary.ReadSurface != "get_workload_story" || boundary.Reason != BoundaryReasonPostgresOnly {
+		// Pin the wire literal from the OpenAPI schema
+		// (evidence_boundaries.go reason enum), not the package
+		// constant, so a constant-value mutation fails.
+		if boundary.ReadSurface != "get_workload_story" || boundary.Reason != "postgres_only_read_model" {
 			t.Fatalf("boundary = %#v, want surface and postgres-only reason", boundary)
 		}
 	}
