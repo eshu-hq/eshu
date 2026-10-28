@@ -41,6 +41,32 @@ func TestScrubHostCredentialEnvAddsAppVarsToProcessRunner(t *testing.T) {
 	}
 }
 
+// TestScrubHostCredentialEnvScrubsPointerRunner proves a *ProcessRunner is
+// scrubbed in place: RunCollector has a value receiver, so the pointer also
+// satisfies extensionhost.Runner, and silently skipping it would leak host
+// credentials with a green suite (eshu-hq/eshu#9394 review).
+func TestScrubHostCredentialEnvScrubsPointerRunner(t *testing.T) {
+	t.Parallel()
+
+	runner := scrubHostCredentialEnv(&extensionhost.ProcessRunner{Command: "/data/collector"})
+	process, ok := runner.(*extensionhost.ProcessRunner)
+	if !ok {
+		t.Fatalf("scrubHostCredentialEnv() type = %T, want *extensionhost.ProcessRunner", runner)
+	}
+	for _, name := range []string{envGitHubAppID, envGitHubAppPrivateKey, envGitHubAppInstallations} {
+		found := false
+		for _, scrubbed := range process.ScrubEnv {
+			if scrubbed == name {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("scrubHostCredentialEnv() ScrubEnv = %q, want it to contain %s", process.ScrubEnv, name)
+		}
+	}
+}
+
 // TestScrubHostCredentialEnvLeavesOCIRunnerAlone proves the OCI adapter is
 // untouched: it already forwards only explicit env, so there is nothing to
 // withhold.

@@ -36,12 +36,22 @@ var fallbackClaimSequence uint64
 // runners are touched. Explicit runner Env entries still apply afterwards,
 // so operator intent wins.
 func scrubHostCredentialEnv(runner extensionhost.Runner) extensionhost.Runner {
-	process, ok := runner.(extensionhost.ProcessRunner)
-	if !ok {
+	// RunCollector has a value receiver, so both extensionhost.ProcessRunner
+	// and *extensionhost.ProcessRunner satisfy Runner; the scrub must cover
+	// both shapes. Runners of any other type pass through only because every
+	// non-process runner today (the OCI adapter) forwards explicit env and
+	// never inherits the host environment — a new inheriting runner type
+	// must add its case here.
+	switch process := runner.(type) {
+	case extensionhost.ProcessRunner:
+		process.ScrubEnv = append(process.ScrubEnv, envGitHubAppID, envGitHubAppPrivateKey, envGitHubAppInstallations)
+		return process
+	case *extensionhost.ProcessRunner:
+		process.ScrubEnv = append(process.ScrubEnv, envGitHubAppID, envGitHubAppPrivateKey, envGitHubAppInstallations)
+		return process
+	default:
 		return runner
 	}
-	process.ScrubEnv = append(process.ScrubEnv, envGitHubAppID, envGitHubAppPrivateKey, envGitHubAppInstallations)
-	return process
 }
 
 func buildClaimedService(
