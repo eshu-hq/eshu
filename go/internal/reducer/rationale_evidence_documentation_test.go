@@ -36,7 +36,7 @@ func TestRationaleEvidenceDocumentsCurrentCollectorAndReducerCost(t *testing.T) 
 			},
 		},
 		{
-			path: filepath.Join("..", "..", "..", "docs", "internal", "evidence", "5998-rationale-relative-path.md"),
+			path: filepath.Join("testdata", "5998-rationale-relative-path.md"),
 			required: []string{
 				"12-fact rationale cassette",
 				"repo-relative `target_path`",
@@ -105,7 +105,7 @@ func TestRationaleEvidenceDocumentsCurrentCollectorAndReducerCost(t *testing.T) 
 			path: "README.md",
 			required: []string{
 				"Rationale EXPLAINS reconciliation",
-				"docs/internal/evidence/5998-rationale-relative-path.md",
+				"testdata/5998-rationale-relative-path.md",
 				"completed live proof on the supported backend",
 			},
 			prohibited: []string{"pending supported-backend proof"},

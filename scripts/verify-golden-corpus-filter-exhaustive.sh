@@ -78,8 +78,11 @@ workflow_paths="$(yq e '.workflows[0].paths[]' "${workflow}")"
 # two glob shapes are actually used by this filter today:
 #   "go/internal/foo/**"  -> matches "go/internal/foo" itself and anything
 #                            nested under it.
-#   "go/cmd/collector-**" -> matches anything starting with the literal
-#                            prefix before "**" (no separating slash).
+#   "go/cmd/collector-*/**" -> prefix "go/cmd/collector-*/" before "**".
+#                            (No compiled package lives under a collector
+#                            command dir -- those are main packages of other
+#                            binaries -- so this shape only ever meets the
+#                            loop below as a non-match.)
 # Any other literal entry (e.g. "testdata/golden/**") simply never matches a
 # go/internal or go/cmd package path and is harmless to compare against.
 path_covers() {

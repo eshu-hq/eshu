@@ -24,7 +24,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
-const factKeyReverseProcedurePath = "../../../../docs/internal/evidence/7420-drop-key-sidecar-fks-reverse.sql"
+const factKeyReverseProcedurePath = "testdata/7420-drop-key-sidecar-fks-reverse.sql"
 
 // factKeyReverseProcedure is the documented reverse procedure split on its
 // "-- step N:" headers: the preamble (the session lock_timeout) and steps

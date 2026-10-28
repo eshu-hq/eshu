@@ -44,6 +44,7 @@ workflows:
   - go/cmd/audit-preflight/testdata/gitnexus-missing.md
   - go/cmd/audit-preflight/testdata/graphify-foundation-exists.md
   - go/cmd/audit-preflight/testdata/incomplete.md
+  - go/cmd/collector-vault-live/testdata/8869-collector-vault-live-census.md
   - go/cmd/eshu/cli_extraction_inventory.md
   - go/cmd/ifa/README.md
   - go/cmd/scanner-worker/EXTRACTION_PREP.md
@@ -57,10 +58,13 @@ workflows:
   - go/internal/facts/FACT_KIND_REGISTRIES.md
   - go/internal/ifa/README.md
   - go/internal/ifa/materializededges/README.md
+  - go/internal/ifa/testdata/5998-rationale-relative-path.md
   - go/internal/query/repository/README.md
   - go/internal/reducer/AGENTS.md
   - go/internal/reducer/README.md
+  - go/internal/reducer/testdata/5998-rationale-relative-path.md
   - go/internal/runtime/README.md
+  - go/internal/runtime/testdata/8894-component-extension-activations.md
   jobs:
   - queue-selection
   - test

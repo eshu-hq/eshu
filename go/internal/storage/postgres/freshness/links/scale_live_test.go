@@ -22,7 +22,8 @@ import (
 )
 
 // scaleDSNEnv names a database loaded by
-// docs/internal/evidence/7127-link-writer-fixture.sql. The scale test is the
+// go/internal/storage/postgres/freshness/links/testdata/7127-link-writer-fixture.sql.
+// The scale test is the
 // measurement half of docs/internal/evidence/7127-link-writer-scale.py, which
 // samples backend RssAnon around the windows this test prints.
 const scaleDSNEnv = "ESHU_CHANGED_SINCE_LINK_SCALE_DSN"
@@ -103,7 +104,7 @@ func bareAggregateSQL(t *testing.T) string {
 func TestLinkScaleEvidence(t *testing.T) {
 	dsn := strings.TrimSpace(os.Getenv(scaleDSNEnv))
 	if dsn == "" {
-		t.Skipf("set %s to a database loaded by docs/internal/evidence/7127-link-writer-fixture.sql", scaleDSNEnv)
+		t.Skipf("set %s to a database loaded by go/internal/storage/postgres/freshness/links/testdata/7127-link-writer-fixture.sql", scaleDSNEnv)
 	}
 	declareScaleHost(t, "start TestLinkScaleEvidence")
 	defer declareScaleHost(t, "end TestLinkScaleEvidence")

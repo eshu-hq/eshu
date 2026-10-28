@@ -495,4 +495,6 @@ if ! env -u ESHU_MEASUREMENT_CITATIONS_BASE -u GITHUB_BASE_REF \
   exit 1
 fi
 
+# Workflow-artifact citations (#9315) satisfy the gate without ledger rows.
+"${repo_root}/scripts/test-verify-measurement-citations-workflow-artifact.sh"
 printf 'verify-measurement-citations tests passed\n'

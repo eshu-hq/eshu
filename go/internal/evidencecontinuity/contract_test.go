@@ -197,6 +197,47 @@ func TestValidatorRejectsProseProofRefs(t *testing.T) {
 	mustContainFinding(t, findings, "invalid_proof_ref", "empty_evidence")
 }
 
+func TestProofLikeAcceptsWorkflowArtifactRefs(t *testing.T) {
+	for _, ref := range []string{
+		"artifact:39421484741/freshness-scale",
+		"artifact:https://github.com/eshu-hq/eshu/actions/runs/39421484741",
+	} {
+		if !proofLike(ref) {
+			t.Errorf("proofLike(%q) = false, want true for a namespaced run pointer", ref)
+		}
+	}
+	for _, ref := range []string{
+		"artifact:",
+		"artifact:somerun",
+		"artifact evidence lives in CI",
+		// A slash alone is not a namespace: the pointer must carry a
+		// numeric run id or a run URL (eshu-hq/eshu#9368).
+		"artifact:see/above",
+		"artifact:abc/def",
+		"artifact:12345",
+		"artifact:12345/",
+		// A bare http(s) host names no run: the URL arm requires a
+		// registry host plus /actions/runs/ or a numeric run segment (#9370).
+		"artifact:http://x",
+		"artifact:https://y",
+	} {
+		if proofLike(ref) {
+			t.Errorf("proofLike(%q) = true, want false for a pointer with no run namespace", ref)
+		}
+	}
+	// The committed test/script/golden paths stay accepted through the transition.
+	for _, ref := range []string{
+		"go test ./internal/query -run '^(TestBuildDeploymentTraceResponseDoesNotEmitStructurallyEmptyDeliveryPaths)$' -count=1",
+		"scripts/verify-example.sh",
+		"bash scripts/verify-example.sh",
+		"golden corpus snapshot",
+	} {
+		if !proofLike(ref) {
+			t.Errorf("proofLike(%q) = false, want true for a committed proof path", ref)
+		}
+	}
+}
+
 func TestValidatorRejectsBroadProofRefs(t *testing.T) {
 	contract := Contract{
 		Version: "v1",

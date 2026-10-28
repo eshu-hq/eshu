@@ -60,7 +60,13 @@ require_workflow_path "fact-kind schemas (#5596)"       "sdk/go/factschema/**"
 # under a collector command service file (formerly
 # the in-tree aws-cloud command service, removed on the #8852 extraction) can
 # alter emitted facts as much as go/internal/collector (#5686 review).
-require_workflow_path "collector command wiring"       "go/cmd/collector-**"
+# Spelling note (#9368 fixup): this fragment feeds the ci-gates planner
+# (MatchGlob treats "**" as a whole segment), not a GitHub paths filter, so
+# "go/cmd/collector-**" matched only the directory itself and stranded the
+# aggregate plan (TestDocsOnlyAggregateIsPlannable RED on the collector
+# census fixture, GREEN after). The registry (gates-08.yaml, #6159) already
+# pins "go/cmd/collector-*/**"; this mirrors that spelling with that proof.
+require_workflow_path "collector command wiring"       "go/cmd/collector-*/**"
 require_workflow_path "bootstrap-index fact seeding"   "go/cmd/bootstrap-index/**"
 require_workflow_path "ingester fact emission"         "go/cmd/ingester/**"
 require_workflow_path "projector runtime"              "go/cmd/projector/**"

@@ -13,6 +13,12 @@ set -euo pipefail
 # See docs/internal/measurement-ledger.md for the schema, the exact patterns
 # this gate matches, and what it deliberately does not catch.
 #
+# A claim may instead cite the workflow run that recorded it via an
+# "artifact:<run-id>/<artifact-name>" token (or a full Actions run URL, which
+# is likewise namespaced with a `/`). The gate checks the pointer is present
+# and namespaced; the reviewer verifies the run. The committed ledger path
+# above stays accepted unchanged.
+#
 # Resolve an explicit base, CI PR base, or origin/main to its common ancestor
 # with HEAD. Use that one commit for ledger and prose comparisons.
 
@@ -206,6 +212,63 @@ git -C "$repo_root" diff -U0 --no-color "$comparison_commit" HEAD >"${diff_path}
 # docs/internal/measurement-ledger.md for the full included/excluded set.
 claim_pattern='[0-9]+/[0-9]+[[:space:]]+(trials|runs)\b|^[[:space:]]*Measurement:'
 citation_pattern='ledger:([A-Za-z0-9][A-Za-z0-9_-]*)'
+artifact_pattern='artifact:([A-Za-z0-9_./#:-]+)'
+
+# artifact_url_wellformed requires a resolvable run URL: a registry host
+# (a dot in the host) plus /actions/runs/ or a numeric run segment, per
+# docs/internal/measurement-ledger.md. Rejects bare hosts such as http://x.
+artifact_url_wellformed() {
+  local url="$1"
+  local hostpath="${url#*://}"
+  local host="${hostpath%%/*}"
+  case "${host}" in
+    *.*) ;;
+    *) return 1 ;;
+  esac
+  case "${url}" in
+    */actions/runs/*) return 0 ;;
+  esac
+  case "${hostpath}" in
+    */*)
+      local path="/${hostpath#*/}"
+      case "${path}" in
+        */[0-9]*) return 0 ;;
+      esac
+      ;;
+  esac
+  return 1
+}
+
+# artifact_ref_wellformed reports whether an extracted artifact token names a
+# resolvable run output: a numeric run id plus an artifact name, or a full
+# http(s) run URL -- the doc-citations bar
+# (scripts/lib/doc-citation-artifacts.sh) and the measurement-ledger promise.
+# A bare slash is not a namespace, so a slash-bearing non-pointer such as
+# "see/above" is malformed and must fail the claim it was cited for.
+# A bare http(s) host with no run segment (e.g. http://x) is malformed too.
+artifact_ref_wellformed() {
+  local ref="$1"
+  case "${ref}" in
+    http://?*|https://?*)
+      artifact_url_wellformed "${ref}" && return 0 || return 1
+      ;;
+    http://|https://)
+      return 1
+      ;;
+    */*)
+      local run="${ref%%/*}"
+      local name="${ref#*/}"
+      [ -n "${name}" ] || return 1
+      case "${run}" in
+        ''|*[!0-9]*) return 1 ;;
+      esac
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
 
 # extract_ratio prints "<N> <M>" for the FIRST "<N>/<M> trials|runs" match in
 # $1, or nothing if the line has no such match (e.g. a "Measurement:" line
@@ -292,6 +355,7 @@ while IFS= read -r line; do
     scripts/verify-measurement-citations.sh) continue ;;
     scripts/test-verify-measurement-citations.sh) continue ;;
     scripts/test-verify-measurement-citations-wrapper.sh) continue ;;
+    scripts/test-verify-measurement-citations-workflow-artifact.sh) continue ;;
   esac
 
   payload="${line:1}"
@@ -299,7 +363,15 @@ while IFS= read -r line; do
 
   citation="$(printf '%s' "${payload}" | rg -o "${citation_pattern}" -r '$1' | head -n1 || true)"
   if [ -z "${citation}" ]; then
-    violations+=("${current_file}: added line states a measurement but cites no ledger row (ledger:<id>) -> ${payload}")
+    artifact="$(printf '%s' "${payload}" | rg -o "${artifact_pattern}" -r '$1' | head -n1 || true)"
+    if [ -n "${artifact}" ]; then
+      if artifact_ref_wellformed "${artifact}"; then
+        continue
+      fi
+      violations+=("${current_file}: cites malformed artifact pointer '${artifact}' (want artifact:<run-id>/<artifact-name> or a run URL) -> ${payload}")
+      continue
+    fi
+    violations+=("${current_file}: added line states a measurement but cites no ledger row (ledger:<id>) or workflow artifact (artifact:<run-id>/<name>) -> ${payload}")
     continue
   fi
   if ! is_known_ledger_id "${citation}"; then
@@ -353,6 +425,9 @@ fi
   printf '\nAdd the measurement as a row in %s, then cite it inline with\n' "${ledger_rel_path}"
   printf '"ledger:<id>" on the same line, e.g.:\n\n'
   printf '  Measurement: 0/210 trials (ledger:5837-deadlock-plain-total)\n\n'
+  printf 'Or cite the workflow run that recorded it (the gate checks the pointer\n'
+  printf 'is namespaced; the reviewer verifies the run), e.g.:\n\n'
+  printf '  Measurement: 0/210 trials (artifact:39421484741/deadlock-matrix)\n\n'
   printf 'This gate only recognizes "<N>/<M> trials", "<N>/<M> runs", and an explicit\n'
   printf '"Measurement:" marker. It does not catch every restated figure -- see\n'
   printf 'docs/internal/measurement-ledger.md for the documented blind spots.\n'

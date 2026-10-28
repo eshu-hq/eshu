@@ -19,7 +19,7 @@ package factkeys
 // never with the whole-generation statements in Deletes, which would also
 // remove the live keys of a live generation. The census must read zero
 // before the foreign keys are put back
-// (docs/internal/evidence/7420-drop-key-sidecar-fks-reverse.sql).
+// (go/internal/storage/postgres/testdata/7420-drop-key-sidecar-fks-reverse.sql).
 //
 // It is read-only and takes ACCESS SHARE only. On the #7420 fixture (3M
 // facts, 3.75M key rows) it ran in 1.5 s as one hash anti-join per table

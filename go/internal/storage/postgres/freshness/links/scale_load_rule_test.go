@@ -60,7 +60,7 @@ const (
 
 // scaleDefaultControlMaxSeconds is the canary bound in seconds, derived from
 // the committed G7 bare_b spread in
-// docs/internal/evidence/7127-link-writer-g7-results.json (max 8.50s, mean
+// testdata/7127-link-writer-g7-results.json (max 8.50s, mean
 // 5.86, sd 1.24, n=10 on 18 CPUs): 12s sits 3.5s (2.8 sd) above the max, so a
 // quiet control passes and a starved one (the #7127 incident's bad control
 // ran 8.5x its quiet time) fails. TestScaleCanaryBoundCoversCommittedG7Spread

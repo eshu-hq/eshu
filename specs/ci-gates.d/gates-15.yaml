@@ -281,6 +281,7 @@ gates:
       - "scripts/lib/cgo-cflags.sh"
       - "scripts/lib/precommit-go-gosec.sh"
       - "scripts/verify-performance-evidence.sh"
+      - "scripts/lib/performance-evidence-artifact.sh"
       - "scripts/lib/live-gate-lock.sh"
       - "scripts/lib/golden-corpus-keep-marker.sh"
       - "scripts/test-verify-performance-evidence.sh"
@@ -290,6 +291,7 @@ gates:
       - "scripts/test-verify-performance-evidence-merge-base.sh"
       - "scripts/test-verify-performance-evidence-missing-base.sh"
       - "scripts/test-verify-performance-evidence-shared-shallow.sh"
+      - "scripts/test-verify-performance-evidence-workflow-artifact.sh"
     local:
       command: "bash scripts/dev/precommit-go.sh perf-evidence"
       pre_push: floor

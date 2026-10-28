@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -366,15 +365,9 @@ func validateDocumentationUnfilteredFindingsShimForTest(query string, args []any
 
 func documentationQueryPlanShimForTest(t *testing.T) string {
 	t.Helper()
-	_, thisFile, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("runtime.Caller failed")
-	}
-	path := filepath.Join(
-		filepath.Dir(thisFile), "..", "..", "..",
-		"docs", "internal", "evidence", "5275-documentation-query-plan-shim.sql",
-	)
-	raw, err := os.ReadFile(path) // #nosec G304 -- path is a fixed repository test fixture.
+	// The test working directory is this package's directory, so the
+	// co-located testdata fixture resolves as a plain relative path.
+	raw, err := os.ReadFile(filepath.Join("testdata", "5275-documentation-query-plan-shim.sql")) // #nosec G304 -- path is a fixed repository test fixture.
 	if err != nil {
 		t.Fatalf("read documentation query-plan shim: %v", err)
 	}

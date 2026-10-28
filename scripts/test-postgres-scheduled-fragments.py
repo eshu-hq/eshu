@@ -197,7 +197,7 @@ class InventoryFragmentTest(unittest.TestCase):
                  "selector"),
                 ("ESHU_RETENTION_TIMING_MODE=build go test",
                  "ESHU_RETENTION_TIMING_MODE=run go test", "freshness"),
-                ("< ../docs/internal/evidence/7127-link-writer-fixture.sql",
+                ("< internal/storage/postgres/freshness/links/testdata/7127-link-writer-fixture.sql",
                  "< /tmp/7127-link-writer-fixture-missing.sql", "freshness"),
             ):
                 action = root / runner.BULK_ACTION

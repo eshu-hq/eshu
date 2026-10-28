@@ -24,7 +24,7 @@ var (
 		"docs/public/deploy/kubernetes/run-an-extracted-collector.md",
 		"docs/public/deploy/kubernetes/helm-collector-and-webhook-values.md",
 		"docs/public/extend/reference-pagerduty-extension.md",
-		"docs/internal/evidence/8894-component-extension-activations.md",
+		"go/internal/runtime/testdata/8894-component-extension-activations.md",
 	}
 )
 

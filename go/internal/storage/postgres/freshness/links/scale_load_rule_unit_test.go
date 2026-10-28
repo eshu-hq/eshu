@@ -295,10 +295,10 @@ func TestScaleControlMaxSecondsDefaultsToDerivedBound(t *testing.T) {
 
 // TestScaleCanaryBoundCoversCommittedG7Spread locks the canary bound
 // derivation: the default must sit strictly outside the committed G7 bare_b
-// spread (docs/internal/evidence/7127-link-writer-g7-results.json), per rule 2
+// spread (testdata/7127-link-writer-g7-results.json), per rule 2
 // of the timing-proof rules (a bound must sit outside the measured spread).
 func TestScaleCanaryBoundCoversCommittedG7Spread(t *testing.T) {
-	raw, err := os.ReadFile("../../../../../../docs/internal/evidence/7127-link-writer-g7-results.json")
+	raw, err := os.ReadFile("testdata/7127-link-writer-g7-results.json")
 	if err != nil {
 		t.Fatalf("committed G7 results: %v", err)
 	}

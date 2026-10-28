@@ -83,7 +83,7 @@ PR_PATHS = {
     ".github/actions/postgres-scheduled-bulk/action.yml",
     ".github/workflows/postgres-scheduled-live.yml",
     "docs/internal/evidence/7127-ledger-retention-timing.sh",
-    "docs/internal/evidence/7127-link-writer-fixture.sql",
+    "go/internal/storage/postgres/freshness/links/testdata/7127-link-writer-fixture.sql",
     "docs/internal/evidence/7127-link-writer-scale.py",
     "go/cmd/golden-corpus-gate/testdata/**",
     "go/go.mod",
