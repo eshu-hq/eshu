@@ -93,7 +93,7 @@ func composerUnparsedStillSame(repoPath string, unparsed composerRuntimeUnparsed
 		return false
 	}
 	body, err := readComposerFailureProbe(absolutePath)
-	return err == nil && len(body) <= runtimedeclaration.MaxManifestBytesPerFile && digestForBody(string(body)) == unparsed.Digest
+	return err == nil && len(body) <= runtimedeclaration.MaxManifestBytesPerFile && parserjson.ComposerRuntimeDigest(body) == unparsed.Digest
 }
 
 // readComposerFailureProbe caps a failed-only reread at one byte beyond the

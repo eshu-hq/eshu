@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/git/content"
 	runtimedeclaration "github.com/eshu-hq/eshu/go/internal/collector/repo/git/runtime/declaration"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	parserjson "github.com/eshu-hq/eshu/go/internal/parser/json"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -56,7 +57,7 @@ func ParserFileFactEnvelope(
 func noteComposerOrRuntimeCandidate(snapshot *RepositorySnapshot, candidates map[string]runtimedeclaration.Candidate, relativePath, body string, dropped *atomic.Bool, droppedPaths *scope.StreamDroppedPaths) {
 	if filepath.Base(relativePath) == "composer.json" || filepath.Base(relativePath) == "composer.lock" {
 		if parsed, ok := snapshot.ComposerRuntime[relativePath]; ok {
-			if parsed.Digest != digestForBody(body) {
+			if parsed.Digest != parserjson.ComposerRuntimeDigest([]byte(body)) {
 				dropped.Store(true)
 				droppedPaths.Note(relativePath)
 				return

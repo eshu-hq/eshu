@@ -27,6 +27,7 @@ func TestComposerUnavailableSkipSelection(t *testing.T) {
 		{"unchanged malformed", `{"require":{"php":"8.2",}`, "", runtimedeclaration.SkipReasonManifestUnparseable, false, false},
 		{"unchanged malformed over cap", `{"require":{"php":"` + strings.Repeat("x", runtimedeclaration.MaxManifestBytesPerFile), "", runtimedeclaration.SkipReasonByteCap, false, false},
 		{"changed after parse", `{"require":{"php":"8.2",}`, `{"require":{"php":"8.3.12"}}`, runtimedeclaration.SkipReasonManifestUnparseable, false, true},
+		{"malformed bytes change after parse", `{"require":{"php":"8.2",}`, `{"require":{"php":"8.3",}`, runtimedeclaration.SkipReasonManifestUnparseable, false, true},
 		{"capped source shrinks after parse", `{"require":{"php":"` + strings.Repeat("x", runtimedeclaration.MaxManifestBytesPerFile), `{"require":{"php":"8.3.12"}}`, runtimedeclaration.SkipReasonByteCap, false, true},
 		{"read fails after parse", `{"require":{"php":"8.2",}`, `{"require":{"php":"8.3.12"}}`, runtimedeclaration.SkipReasonManifestUnparseable, true, true},
 	} {

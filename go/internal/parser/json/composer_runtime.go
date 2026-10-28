@@ -5,7 +5,7 @@ package json
 
 import (
 	"bytes"
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
 	stdjson "encoding/json"
 	"fmt"
@@ -39,7 +39,7 @@ type ComposerRuntimeEvidence struct {
 // ExtractComposerRuntimeEvidence reads one Composer body through the same
 // decoder and source-position helper used by Parse.
 func ExtractComposerRuntimeEvidence(filename string, source []byte) (ComposerRuntimeEvidence, error) {
-	result := ComposerRuntimeEvidence{ByteSize: len(source), Digest: composerRuntimeDigest(source)}
+	result := ComposerRuntimeEvidence{ByteSize: len(source), Digest: ComposerRuntimeDigest(source)}
 	if len(source) > composerRuntimeMaxBytes {
 		result.Unavailable = true
 		return result, nil
@@ -49,14 +49,14 @@ func ExtractComposerRuntimeEvidence(filename string, source []byte) (ComposerRun
 	if err := stdjson.Unmarshal([]byte(normalized), &document); err != nil {
 		return result, err
 	}
-	result, err := composerRuntimeFromDocument(filename, document, []byte(normalized), buildTranslatedNewlineIndex(source, translate))
-	result.ByteSize = len(source)
-	result.Digest = composerRuntimeDigest(source)
-	return result, err
+	parsed, err := composerRuntimeFromDocument(filename, document, []byte(normalized), buildTranslatedNewlineIndex(source, translate))
+	parsed.ByteSize = result.ByteSize
+	parsed.Digest = result.Digest
+	return parsed, err
 }
 
 func composerRuntimeFromDocument(filename string, document map[string]any, source []byte, idx *newlineIndex) (ComposerRuntimeEvidence, error) {
-	result := ComposerRuntimeEvidence{ByteSize: len(source), Digest: composerRuntimeDigest(source)}
+	result := ComposerRuntimeEvidence{ByteSize: len(source)}
 	if len(source) > composerRuntimeMaxBytes {
 		result.Unavailable = true
 		return result, nil
@@ -169,7 +169,9 @@ func jsonObjectExtractLastKey(data []byte, key string, baseOffset int64) (stdjso
 	return last, offset, found, nil
 }
 
-func composerRuntimeDigest(source []byte) string {
-	sum := sha1.Sum(source) // #nosec G401 -- matches the non-security snapshot content digest
+// ComposerRuntimeDigest binds private parser evidence to the source bytes read
+// later by the Git collector. It is separate from the persisted content digest.
+func ComposerRuntimeDigest(source []byte) string {
+	sum := sha256.Sum256(source)
 	return hex.EncodeToString(sum[:])
 }

@@ -189,4 +189,6 @@ for the Git collector. It uses the accepted JSON document and last occurrence
 of duplicate keys, preserving the value's JSON string type and real source
 line. The collector removes the private handoff before persisting parser file
 facts; rejected values are counted without being retained. A missing parser
-result is distinct from a parsed file with no PHP declaration.
+result is distinct from a parsed file with no PHP declaration. A private
+SHA-256 digest binds this evidence to the source bytes reread by the collector;
+it does not change the persisted content digest.

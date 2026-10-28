@@ -76,7 +76,7 @@ func Parse(
 	filename := strings.ToLower(filepath.Base(path))
 	if filename == "composer.json" || filename == "composer.lock" {
 		evidence, evidenceErr := composerRuntimeFromDocument(filename, object, normalizedBytes, buildTranslatedNewlineIndex(source, translate))
-		evidence.Digest = composerRuntimeDigest(source)
+		evidence.Digest = ComposerRuntimeDigest(source)
 		evidence.ByteSize = len(source)
 		if len(source) > composerRuntimeMaxBytes {
 			evidence.Values = nil

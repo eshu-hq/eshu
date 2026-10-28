@@ -4,6 +4,7 @@
 package json
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,6 +13,27 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 )
+
+func TestComposerRuntimeEvidenceDigestBindsAcceptedAndMalformedSource(t *testing.T) {
+	for _, tc := range []struct {
+		name, body string
+		wantError  bool
+	}{
+		{"accepted", `{"require":{"php":"8.2"}}`, false},
+		{"malformed", `{"require":{"php":"8.2",}`, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			evidence, err := ExtractComposerRuntimeEvidence("composer.json", []byte(tc.body))
+			if (err != nil) != tc.wantError {
+				t.Fatalf("parse error = %v, want error %v", err, tc.wantError)
+			}
+			want := fmt.Sprintf("%x", sha256.Sum256([]byte(tc.body)))
+			if evidence.Digest != want {
+				t.Fatalf("source digest = %q, want SHA-256 %q", evidence.Digest, want)
+			}
+		})
+	}
+}
 
 func TestComposerRuntimeEvidenceLastWinsWithRealLine(t *testing.T) {
 	const body = "{\n  \"require\": {\"php\": \"7.4\"},\n  \"require\": {\"php\": \"^8.2\"}\n}"
