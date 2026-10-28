@@ -359,11 +359,12 @@ func TestServiceRunActiveModeCoalescesRepeatedJiraWebhookClaims(t *testing.T) {
 }
 
 type fakeIncidentFreshnessTriggerStore struct {
-	claimed       []webhook.StoredIncidentFreshnessTrigger
-	handedOff     []string
-	failed        []string
-	failedCalls   []incidentFreshnessFailureCall
-	markFailedErr error
+	claimed         []webhook.StoredIncidentFreshnessTrigger
+	handedOff       []string
+	handedOffTokens []int64
+	failed          []string
+	failedCalls     []incidentFreshnessFailureCall
+	markFailedErr   error
 }
 
 func (s *fakeIncidentFreshnessTriggerStore) ClaimQueuedTriggers(
@@ -371,26 +372,42 @@ func (s *fakeIncidentFreshnessTriggerStore) ClaimQueuedTriggers(
 	string,
 	time.Time,
 	int,
+	time.Duration,
 ) ([]webhook.StoredIncidentFreshnessTrigger, error) {
 	return append([]webhook.StoredIncidentFreshnessTrigger(nil), s.claimed...), nil
 }
 
+func (s *fakeIncidentFreshnessTriggerStore) ReapExpiredTriggerClaims(
+	context.Context,
+	time.Time,
+	int,
+) ([]webhook.StoredIncidentFreshnessTrigger, error) {
+	return nil, nil
+}
+
 func (s *fakeIncidentFreshnessTriggerStore) MarkTriggersHandedOff(
 	_ context.Context,
-	triggerIDs []string,
+	triggers []webhook.StoredIncidentFreshnessTrigger,
 	_ time.Time,
 ) error {
-	s.handedOff = append(s.handedOff, triggerIDs...)
+	for _, trigger := range triggers {
+		s.handedOff = append(s.handedOff, trigger.TriggerID)
+		s.handedOffTokens = append(s.handedOffTokens, trigger.ClaimFencingToken)
+	}
 	return nil
 }
 
 func (s *fakeIncidentFreshnessTriggerStore) MarkTriggersFailed(
 	_ context.Context,
-	triggerIDs []string,
+	triggers []webhook.StoredIncidentFreshnessTrigger,
 	_ time.Time,
 	failureClass string,
 	_ string,
 ) error {
+	triggerIDs := make([]string, 0, len(triggers))
+	for _, trigger := range triggers {
+		triggerIDs = append(triggerIDs, trigger.TriggerID)
+	}
 	s.failed = append(s.failed, triggerIDs...)
 	s.failedCalls = append(s.failedCalls, incidentFreshnessFailureCall{
 		triggerIDs:   append([]string(nil), triggerIDs...),
@@ -429,6 +446,44 @@ func incidentFreshnessStoredTrigger(
 		Status:       webhook.TriggerStatusClaimed,
 		ReceivedAt:   now,
 		UpdatedAt:    now,
+	}
+}
+
+// TestServicePresentsClaimFencingTokensOnHandoff proves the coordinator
+// presents the exact claim fencing tokens it received from
+// ClaimQueuedTriggers back to MarkTriggersHandedOff (#9379): without the
+// token round-trip the store cannot fence a stale holder whose lease was
+// reaped and re-claimed by a different owner.
+func TestServicePresentsClaimFencingTokensOnHandoff(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 31, 18, 30, 0, 0, time.UTC)
+	pagerDuty := testServicePagerDutyInstance(now)
+	claimed := incidentFreshnessStoredTrigger("trigger-pd", webhook.ProviderPagerDuty, "pagerduty:account:example", now)
+	claimed.ClaimFencingToken = 9
+	triggerStore := &fakeIncidentFreshnessTriggerStore{claimed: []webhook.StoredIncidentFreshnessTrigger{claimed}}
+	store := &fakeStore{instances: []workflow.CollectorInstance{pagerDuty}}
+	service := Service{
+		Config: Config{
+			DeploymentMode:    deploymentModeActive,
+			ClaimsEnabled:     true,
+			ReconcileInterval: time.Hour,
+		},
+		Store:                     store,
+		PagerDutyPlanner:          pagerduty.WorkPlanner{},
+		JiraPlanner:               jira.WorkPlanner{},
+		IncidentFreshnessTriggers: triggerStore,
+		Clock:                     func() time.Time { return now },
+	}
+
+	if err := service.runIncidentFreshnessHandoff(context.Background()); err != nil {
+		t.Fatalf("runIncidentFreshnessHandoff() error = %v, want nil", err)
+	}
+	if !reflect.DeepEqual(triggerStore.handedOff, []string{"trigger-pd"}) {
+		t.Fatalf("handedOff = %#v, want trigger-pd", triggerStore.handedOff)
+	}
+	if !reflect.DeepEqual(triggerStore.handedOffTokens, []int64{9}) {
+		t.Fatalf("handedOffTokens = %#v, want the claimed fencing token", triggerStore.handedOffTokens)
 	}
 }
 

@@ -177,11 +177,12 @@ func (f *fakeStore) ReconcileWorkflowRuns(_ context.Context, observedAt time.Tim
 }
 
 type fakeMetrics struct {
-	observations             []ReconcileObservation
-	reapObservations         []ReapObservation
-	runReconcilations        []RunReconciliationObservation
-	awsFreshnessReapObserved []FreshnessReapObservation
-	gcpFreshnessReapObserved []FreshnessReapObservation
+	observations                  []ReconcileObservation
+	reapObservations              []ReapObservation
+	runReconcilations             []RunReconciliationObservation
+	awsFreshnessReapObserved      []FreshnessReapObservation
+	gcpFreshnessReapObserved      []FreshnessReapObservation
+	incidentFreshnessReapObserved []FreshnessReapObservation
 }
 
 func (f *fakeMetrics) RecordReconcile(_ context.Context, observation ReconcileObservation) {
@@ -202,4 +203,8 @@ func (f *fakeMetrics) RecordAWSFreshnessReap(_ context.Context, observation Fres
 
 func (f *fakeMetrics) RecordGCPFreshnessReap(_ context.Context, observation FreshnessReapObservation) {
 	f.gcpFreshnessReapObserved = append(f.gcpFreshnessReapObserved, observation)
+}
+
+func (f *fakeMetrics) RecordIncidentFreshnessReap(_ context.Context, observation FreshnessReapObservation) {
+	f.incidentFreshnessReapObserved = append(f.incidentFreshnessReapObserved, observation)
 }

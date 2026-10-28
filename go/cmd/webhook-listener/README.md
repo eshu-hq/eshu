@@ -57,6 +57,20 @@ flowchart LR
 - `ESHU_WEBHOOK_MAX_BODY_BYTES` bounds request bodies and defaults to 1 MiB.
 - `ESHU_WEBHOOK_DEFAULT_BRANCH` is a fallback only when provider payloads omit
   repository default-branch data.
+- `ESHU_WEBHOOK_INTAKE_URL` switches the listener to intake mode: instead of
+  writing trigger tables directly, the listener verifies and normalizes
+  provider deliveries and submits them to core's authenticated, versioned
+  intake API (`POST /api/v1/webhook/intake/...` in
+  `go/internal/webhook/intake`). Requires `ESHU_WEBHOOK_INTAKE_TOKEN`.
+- `ESHU_WEBHOOK_INTAKE_TOKEN` is the bearer secret the listener presents to
+  the core intake API. Required whenever `ESHU_WEBHOOK_INTAKE_URL` is set.
+
+In intake mode the listener opens no Postgres handle and runs no
+`EnsureSchema`: core retains durable trigger storage and lifecycle, and the
+listener is a verifier/normalizer only. Readiness probes core's `/healthz` —
+a listener that cannot reach core reports not-ready so traffic stays on a
+replica that can hand off. The direct-Postgres path remains the default when
+`ESHU_WEBHOOK_INTAKE_URL` is unset.
 
 GitHub Actions deliveries require `X-GitHub-Delivery` and a valid GitHub
 HMAC. The listener stores only event, action, repository, run, and optional job

@@ -144,13 +144,18 @@ import (
 // #8950 adds 237_content_files_fillfactor.sql (the rollout writer's HOT
 // headroom: ALTER TABLE content_files SET fillfactor 50, catalog-only,
 // single statement).
-const goldenBootstrapDefinitionsDigest = "e0e2f2ea851f65e93b597a874bd054c21ff5f039e199d8307234019483888012"
+// #9379 adds 238_incident_freshness_claim_lease.sql (the incident freshness
+// claim_expires_at lease, claim_fencing_token fencing column, and
+// stale-claim reap index; DDL half) and
+// 239_incident_freshness_claim_lease_backfill.sql (the claimed-row backfill;
+// DML half, #7961 split).
+const goldenBootstrapDefinitionsDigest = "0835a7054f93082fdf1c650519bc36b7922762cf4bf4b828e4b80e856d59ce9a"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 255
+const goldenBootstrapDefinitionsCount = 257
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

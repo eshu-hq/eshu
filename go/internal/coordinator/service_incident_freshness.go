@@ -21,14 +21,47 @@ import (
 const (
 	incidentFreshnessClaimOwner        = "workflow-coordinator"
 	defaultIncidentFreshnessClaimLimit = 100
+	// defaultIncidentFreshnessClaimLeaseDuration bounds how long a claimed
+	// incident freshness trigger can sit unresolved before
+	// runReapExpiredIncidentFreshnessClaims reclaims it back to 'queued'.
+	// It mirrors defaultAWSFreshnessClaimLeaseDuration's order of
+	// magnitude: long enough to cover one plan+handoff round trip, short
+	// enough that a stranded trigger (mid-batch abort or coordinator
+	// crash, #9379) is not silently lost for long.
+	defaultIncidentFreshnessClaimLeaseDuration = 5 * time.Minute
 )
 
 // IncidentFreshnessTriggerStore is the durable trigger queue surface for
 // PagerDuty and Jira webhook-driven collector wake-ups.
 type IncidentFreshnessTriggerStore interface {
-	ClaimQueuedTriggers(context.Context, string, time.Time, int) ([]webhook.StoredIncidentFreshnessTrigger, error)
-	MarkTriggersHandedOff(context.Context, []string, time.Time) error
-	MarkTriggersFailed(context.Context, []string, time.Time, string, string) error
+	// ClaimQueuedTriggers atomically flips up to limit 'queued' rows to
+	// 'claimed', stamping a claim_expires_at lease (claimedAt+leaseDuration)
+	// and bumping each row's claim_fencing_token, which the caller must
+	// present back to MarkTriggersHandedOff/MarkTriggersFailed.
+	ClaimQueuedTriggers(ctx context.Context, owner string, claimedAt time.Time, limit int, leaseDuration time.Duration) ([]webhook.StoredIncidentFreshnessTrigger, error)
+	// ReapExpiredTriggerClaims reclaims 'claimed' rows whose lease expired
+	// back to 'queued' so a later handoff tick retries them.
+	ReapExpiredTriggerClaims(ctx context.Context, asOf time.Time, limit int) ([]webhook.StoredIncidentFreshnessTrigger, error)
+	// MarkTriggersHandedOff completes claimed triggers, fenced by each
+	// trigger's ClaimFencingToken from ClaimQueuedTriggers, so a stale
+	// claimant whose lease expired and was reaped by
+	// ReapExpiredTriggerClaims — and whose trigger a different owner then
+	// re-claimed — cannot complete a claim it no longer holds.
+	MarkTriggersHandedOff(ctx context.Context, triggers []webhook.StoredIncidentFreshnessTrigger, handedOffAt time.Time) error
+	// MarkTriggersFailed is MarkTriggersHandedOff's failure-path counterpart;
+	// see that method's doc comment for the claim_fencing_token fencing
+	// rationale.
+	MarkTriggersFailed(ctx context.Context, triggers []webhook.StoredIncidentFreshnessTrigger, failedAt time.Time, failureClass string, failureMessage string) error
+}
+
+// incidentFreshnessClaimLeaseDuration returns the configured incident
+// freshness claim lease duration, falling back to
+// defaultIncidentFreshnessClaimLeaseDuration when unset.
+func (s Service) incidentFreshnessClaimLeaseDuration() time.Duration {
+	if s.Config.IncidentFreshnessClaimLeaseDuration > 0 {
+		return s.Config.IncidentFreshnessClaimLeaseDuration
+	}
+	return defaultIncidentFreshnessClaimLeaseDuration
 }
 
 type incidentFreshnessAssignment struct {
@@ -65,6 +98,7 @@ func (s Service) scheduleIncidentFreshnessWork(
 		incidentFreshnessClaimOwner,
 		observedAt.UTC(),
 		defaultIncidentFreshnessClaimLimit,
+		s.incidentFreshnessClaimLeaseDuration(),
 	)
 	if err != nil {
 		return fmt.Errorf("claim incident freshness triggers: %w", err)
@@ -223,11 +257,20 @@ func (s Service) finishIncidentFreshnessHandoff(
 		s.markIncidentFreshnessFailed(ctx, assignment.triggers, observedAt, "workflow_handoff_failed", err.Error())
 		return fmt.Errorf("create incident freshness workflow run for %q: %w", assignment.instance.InstanceID, err)
 	}
-	triggerIDs := incidentFreshnessTriggerIDs(assignment.triggers)
-	if err := s.IncidentFreshnessTriggers.MarkTriggersHandedOff(ctx, triggerIDs, observedAt); err != nil {
+	if err := s.IncidentFreshnessTriggers.MarkTriggersHandedOff(ctx, sortedIncidentFreshnessTriggers(assignment.triggers), observedAt); err != nil {
 		return fmt.Errorf("mark incident freshness triggers handed off: %w", err)
 	}
 	return nil
+}
+
+// sortedIncidentFreshnessTriggers returns the triggers ordered by trigger
+// ID. Completion order carries no lifecycle meaning (the fenced UPDATE
+// matches by trigger ID), but a deterministic order keeps the completion
+// batch stable across ticks for logs, tests, and operator replays.
+func sortedIncidentFreshnessTriggers(triggers []webhook.StoredIncidentFreshnessTrigger) []webhook.StoredIncidentFreshnessTrigger {
+	ordered := append([]webhook.StoredIncidentFreshnessTrigger(nil), triggers...)
+	sort.Slice(ordered, func(i, j int) bool { return ordered[i].TriggerID < ordered[j].TriggerID })
+	return ordered
 }
 
 func (s Service) incidentFreshnessPlanKey(observedAt time.Time) string {
@@ -245,32 +288,21 @@ func (s Service) markIncidentFreshnessFailed(
 	failureClass string,
 	failureMessage string,
 ) {
-	ids := incidentFreshnessTriggerIDs(triggers)
-	if len(ids) > 0 {
-		// Best-effort: we are already on the failure path (the primary handoff
-		// could not be planned), so a failed failure-marking write must not abort
-		// reconciliation. It is logged rather than swallowed so an operator can
-		// see that the triggers were not durably marked failed (#3793).
-		if err := s.IncidentFreshnessTriggers.MarkTriggersFailed(ctx, ids, observedAt, failureClass, failureMessage); err != nil && s.Logger != nil {
-			s.Logger.Warn(
-				"incident-freshness trigger failure marking did not persist",
-				"error", err,
-				"trigger_count", len(ids),
-				"failure_class", failureClass,
-			)
-		}
+	if len(triggers) == 0 {
+		return
 	}
-}
-
-func incidentFreshnessTriggerIDs(triggers []webhook.StoredIncidentFreshnessTrigger) []string {
-	ids := make([]string, 0, len(triggers))
-	for _, trigger := range triggers {
-		if id := strings.TrimSpace(trigger.TriggerID); id != "" {
-			ids = append(ids, id)
-		}
+	// Best-effort: we are already on the failure path (the primary handoff
+	// could not be planned), so a failed failure-marking write must not abort
+	// reconciliation. It is logged rather than swallowed so an operator can
+	// see that the triggers were not durably marked failed (#3793).
+	if err := s.IncidentFreshnessTriggers.MarkTriggersFailed(ctx, sortedIncidentFreshnessTriggers(triggers), observedAt, failureClass, failureMessage); err != nil && s.Logger != nil {
+		s.Logger.Warn(
+			"incident-freshness trigger failure marking did not persist",
+			"error", err,
+			"trigger_count", len(triggers),
+			"failure_class", failureClass,
+		)
 	}
-	sort.Strings(ids)
-	return ids
 }
 
 func incidentFreshnessScopeIDs(triggers []webhook.StoredIncidentFreshnessTrigger) []string {

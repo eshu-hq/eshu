@@ -22,6 +22,7 @@ The reducer, projector, workflow coordinator, push hooks, and semantic providers
 | `ESHU_WORKFLOW_COORDINATOR_FRESHNESS_CLAIM_REAP_LIMIT` | int | `100` | Reap batch limit for expired AWS/GCP freshness trigger claims per pass (#4576). |
 | `ESHU_WORKFLOW_COORDINATOR_GCP_FRESHNESS_CLAIM_LEASE_DURATION` | duration | `5m` | Claim lease duration for GCP freshness trigger handoff (#4576). |
 | `ESHU_WORKFLOW_COORDINATOR_HEARTBEAT_INTERVAL` | duration | — | Heartbeat interval for claim owners. |
+| `ESHU_WORKFLOW_COORDINATOR_INCIDENT_FRESHNESS_CLAIM_LEASE_DURATION` | duration | `5m` | Claim lease duration for incident freshness trigger handoff (#9379). |
 | `ESHU_WORKFLOW_COORDINATOR_REAP_INTERVAL` | duration | — | Expired-claim reaping interval. |
 | `ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL` | duration | `30s` | Workflow state reconciliation interval. |
 | `ESHU_WORKFLOW_COORDINATOR_RUN_RECONCILE_INTERVAL` | duration | `30s` | Run-level reconciliation interval. |

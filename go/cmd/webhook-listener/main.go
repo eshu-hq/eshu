@@ -30,6 +30,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/webhook"
 	actionsstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/webhook/actions"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func main() {
@@ -71,6 +72,17 @@ func run(parent context.Context) error {
 	if err := telemetry.RecordGOMEMLIMIT(meter, memLimit); err != nil {
 		return fmt.Errorf("register gomemlimit gauge: %w", err)
 	}
+	cfg, err := loadWebhookListenerConfig(os.Getenv)
+	if err != nil {
+		return err
+	}
+	// Intake mode (#9377): the listener verifies and normalizes provider
+	// deliveries and submits them through core's authenticated versioned
+	// intake API. It opens no Postgres handle and runs no EnsureSchema:
+	// core retains durable trigger storage and lifecycle.
+	if intakeMode(cfg) {
+		return runIntakeListener(parent, cfg, logger, tracer, instruments, providers)
+	}
 	db, err := runtimecfg.OpenPostgres(parent, os.Getenv)
 	if err != nil {
 		return err
@@ -82,10 +94,6 @@ func run(parent context.Context) error {
 		Tracer:      tracer,
 		Instruments: instruments,
 		StoreName:   "webhook_triggers",
-	}
-	cfg, err := loadWebhookListenerConfig(os.Getenv)
-	if err != nil {
-		return err
 	}
 	store := webhookstore.NewWebhookTriggerStore(instrumentedDB)
 	if err := store.EnsureSchema(parent); err != nil {
@@ -160,6 +168,58 @@ func run(parent context.Context) error {
 		return err
 	}
 	statusReader := postgres.NewInstrumentedStatusStore(postgres.SQLQueryer{DB: db}, instruments)
+	service, err := newWebhookApplication(runtimeConfig, statusReader, webhookMux, providers.PrometheusHandler)
+	if err != nil {
+		return err
+	}
+	ctx, stop := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	return service.Run(ctx)
+}
+
+// runIntakeListener runs the listener in intake mode (#9377): provider
+// deliveries are verified and normalized locally, then submitted through
+// core's authenticated versioned intake API. No Postgres handle is opened,
+// no EnsureSchema runs, and no trigger table is touched on this path.
+func runIntakeListener(
+	parent context.Context,
+	cfg webhookListenerConfig,
+	logger *slog.Logger,
+	tracer trace.Tracer,
+	instruments *telemetry.Instruments,
+	providers *telemetry.Providers,
+) error {
+	client, err := newIntakeClient(cfg.IntakeURL, cfg.IntakeToken)
+	if err != nil {
+		return err
+	}
+	handler := webhookHandler{
+		Config:               cfg,
+		Store:                &intakeRepositorySubmitter{client: client},
+		ActionsStore:         &intakeActionsSubmitter{client: client},
+		Logger:               logger,
+		Instruments:          instruments,
+		Tracer:               tracer,
+		GCPPushOIDCValidator: intakeOIDCValidatorForConfig(cfg),
+	}
+	if incidentWebhookConfigured(cfg) {
+		handler.IncidentFreshnessStore = &intakeIncidentSubmitter{client: client}
+	}
+	if cfg.AWSFreshnessToken != "" {
+		handler.AWSFreshnessStore = &intakeAWSFreshnessSubmitter{client: client}
+	}
+	if gcpFreshnessConfigured(cfg) {
+		handler.GCPFreshnessStore = &intakeGCPFreshnessSubmitter{client: client}
+	}
+	webhookMux, err := newWebhookMux(handler)
+	if err != nil {
+		return err
+	}
+	runtimeConfig, err := runtimecfg.LoadConfig("webhook-listener")
+	if err != nil {
+		return err
+	}
+	statusReader := &intakeStatusReader{baseURL: strings.TrimRight(strings.TrimSpace(cfg.IntakeURL), "/")}
 	service, err := newWebhookApplication(runtimeConfig, statusReader, webhookMux, providers.PrometheusHandler)
 	if err != nil {
 		return err
