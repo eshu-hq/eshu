@@ -236,6 +236,31 @@ than the body; `TestNoteRuntimeDeclarationCandidateRetainsNoManifestBody`
 checks the retention boundary. The corpus pin, deterministic digest, and
 five-source snapshot stream tests check the changed fact counts and truth.
 
+No-Regression Evidence (#9308 raw-byte identity fix, 2026-10-28): the actual
+JSON `Parse` and legacy `ExtractComposerRuntimeEvidence` paths were measured on
+the same 180-byte LF `php-app/composer.json` fixture (SHA-256
+`374d6651c0573c42d14eb7352eeefd3f34ff715dc67e4da7b5f0a49536ecde10`).
+The temporary benchmark harness SHA-256 was
+`131a9bba5035b9922816bfebabb7653c0d5ba8789f2293591c3ef83e74b3376d`;
+its setup required both PHP values. On Linux arm64, Go 1.26.6, 16 CPUs,
+`GOMAXPROCS=1`, each of five rounds ran pre-fix `9f7bb0cceb` then fixed
+`16f7b115f2` with `go test ./internal/parser/json -run '^$' -bench
+'^BenchmarkComposer(Parse|Extract)LF$' -benchtime=300ms -count=1 -benchmem
+-cpu=1` after a 100 ms warmup per binary. The first set was discarded because
+an unrelated proof overlapped it. The repeat set ran from 22:26:12 to 22:26:33
+UTC with no observed peer at its boundaries, no containers, and maximum sampled
+load1 2.01 (the quiet-host ceiling was 8). `Parse` base/head ns/op by round:
+32,220/31,943; 31,895/32,522; 31,953/31,812; 31,993/32,073;
+31,816/32,028. Medians were 31,953/32,028 ns/op; same-round head/base ratios
+averaged 1.0032 (sample SD 0.0110). `Extract` pairs were 13,755/13,607;
+13,612/13,714; 13,665/13,529; 13,671/13,939; 13,526/13,772 ns/op;
+medians 13,665/13,714, ratio mean 1.0049 (SD 0.0147). Allocations were
+unchanged: `Parse` 25,289 B and 390 allocs/op, `Extract` 10,928 B and 200
+allocs/op. The difference is within the paired spread. This measures the two
+parser paths on an LF fixture; bare-CR correctness is proved by the native
+snapshot-to-fact-stream regression, and end-to-end collector time was not
+remeasured for this fix.
+
 No-Observability-Change: no metric, span, or log key was added. Existing
 `git_runtime_declaration_file_skipped` and
 `git_runtime_declaration_values_rejected` WARN logs report bounded skips with
