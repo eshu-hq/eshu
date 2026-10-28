@@ -10,7 +10,6 @@ workflows:
   - .github/actions/postgres-scheduled-bulk/action.yml
   - .github/workflows/postgres-scheduled-live.yml
   - docs/internal/evidence/7127-ledger-retention-timing.sh
-  - docs/internal/evidence/7127-link-writer-fixture.sql
   - docs/internal/evidence/7127-link-writer-scale.py
   - go/cmd/golden-corpus-gate/drains_residual_breakdown_live_test.go
   - go/cmd/golden-corpus-gate/testdata/**
@@ -102,6 +101,7 @@ workflows:
   - go/internal/storage/postgres/freshness/links/scale_live_test.go
   - go/internal/storage/postgres/freshness/links/scale_proof_live_test.go
   - go/internal/storage/postgres/freshness/links/stale_stats_live_test.go
+  - go/internal/storage/postgres/freshness/links/testdata/7127-link-writer-fixture.sql
   - go/internal/storage/postgres/generation_projected_commit_live_test.go
   - go/internal/storage/postgres/infra/inventory/backfill_live_test.go
   - go/internal/storage/postgres/infra/inventory/background_live_test.go

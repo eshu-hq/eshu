@@ -107,7 +107,7 @@
 # reducer blocked by the holder specifically). The pre-adoption substitution is
 # kept on the record rather than erased, because it is what makes the claim
 # checkable. See scripts/lib/ifa_fault_injection_documentation_cells.sh's header
-# and docs/internal/evidence/5998-rationale-relative-path.md. #5998 likewise added
+# and go/internal/ifa/testdata/5998-rationale-relative-path.md. #5998 likewise added
 # full-record rationale assertions and domain-scoped recovery cells, retiring
 # both rationale waivers. #6158 wired deployable_unit_edges' already-implemented
 # vacuity guard into the resolver dispatch and its Odù into the catalog --

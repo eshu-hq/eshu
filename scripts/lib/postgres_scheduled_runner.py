@@ -25,7 +25,7 @@ INVENTORY = Path(__file__).with_name("postgres_scheduled_inventory.json")
 WORKFLOW = Path(".github/workflows/postgres-scheduled-live.yml")
 FRAGMENT = Path("specs/ci-pr-workflows.d/postgres-scheduled-live.yml")
 BULK_ACTION = Path(".github/actions/postgres-scheduled-bulk/action.yml")
-WORKFLOW_SHA256 = "6bb42daf05f2007873c07fba965ddd3ceddb1b3c641576a0a795408d5c8b773f"
+WORKFLOW_SHA256 = "0313a746b37ea88e48e0a5388a09e8b1e8f58c5c92f196578d05879eae275a83"
 BULK_ACTION_SHA256 = "a40268e192f607a4201130cca07a30e3070a19808176b8eab25cd1331e4feb4f"
 TEST_PATTERN = re.compile(r"^func (Test\w+)\(", re.MULTILINE)
 GROUP_LABELS = {
@@ -233,7 +233,7 @@ def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> Non
                 ):
                     if step.count(f"          {line}") != 1:
                         raise ValueError(f"missing freshness links fixture pin: {line}")
-                if step.count("../docs/internal/evidence/7127-link-writer-fixture.sql") != 1:
+                if step.count("internal/storage/postgres/freshness/links/testdata/7127-link-writer-fixture.sql") != 1:
                     raise ValueError("missing freshness links scale fixture load")
         else:
             for prefix in ADMIN_ENVS[group]:

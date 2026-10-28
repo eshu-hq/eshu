@@ -120,7 +120,7 @@ identity. Edge payloads keep repo-relative target paths for partition identity;
 full refreshes retract repo-wide, while delta refreshes use separately
 repository-qualified changed and deleted paths. The unconditional Git follow-up
 also runs zero-positive generations so stale rationale edges can retract. See
-[`docs/internal/evidence/5998-rationale-relative-path.md`](../../../docs/internal/evidence/5998-rationale-relative-path.md)
+[`testdata/5998-rationale-relative-path.md`](testdata/5998-rationale-relative-path.md)
 for the fixture, benchmark boundary, and completed live proof on the supported backend.
 
 ## Cross-repo call resolver coverage (issue #3487)

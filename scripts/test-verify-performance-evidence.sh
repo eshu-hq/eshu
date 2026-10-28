@@ -494,4 +494,7 @@ expect_fail "${last_line_repo}"
 # this one under the repo's 500-line cap.
 "${repo_root}/scripts/test-verify-performance-evidence-shared-shallow.sh"
 
+# Workflow-artifact pointers (#9315) satisfy the gate without committed records.
+"${repo_root}/scripts/test-verify-performance-evidence-workflow-artifact.sh"
+
 printf 'verify-performance-evidence tests passed\n'

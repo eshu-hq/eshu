@@ -190,7 +190,7 @@ func TestMaterializedEdgeLiveProofDocumentationMatchesWiring(t *testing.T) {
 			},
 		},
 		{
-			path: filepath.Join("docs", "internal", "evidence", "5998-rationale-relative-path.md"),
+			path: filepath.Join("go", "internal", "ifa", "testdata", "5998-rationale-relative-path.md"),
 			required: []string{
 				"## Supported-backend live proof",
 				"The post-rebase determinism matrix passed at N=1, N=2, and N=4",

@@ -8,7 +8,7 @@
 # Scope: every Markdown page under docs/, including internal evidence notes.
 # Test and fixture scans cover the same docs tree that triggers this gate.
 #
-# Three independent citation kinds are scanned, each with its own resolution
+# Four independent citation kinds are scanned, each with its own resolution
 # rule:
 #
 #   1. TEST citations: `<path>.go::TestName` naming a specific Go test
@@ -45,6 +45,12 @@
 #      New pairs fail even when the target line exists because range validity
 #      cannot prove that line supports the surrounding claim. Use a symbol or
 #      file anchor. Historical evidence may use a full-SHA `#L<line>` link.
+#   4. ARTIFACT citations: `artifact:<run-id>/<name>` or a run URL, pointing
+#      at the workflow run that recorded the evidence instead of a committed
+#      file. Well-formed refs always resolve (runs live outside the repo) and
+#      never enter the baseline; malformed refs fail unconditionally, like
+#      subtest-form TEST citations. `artifact:<GoIdentifier>` prose is not a
+#      citation and is ignored.
 #
 # LIMITATION (also see the issue that motivated this note, #5398's
 # kubernetes_live route): existence-checking cannot catch a citation that is
@@ -94,6 +100,8 @@ log() {
 source "${script_dir}/lib/gate-diff-base.sh"
 # shellcheck source=scripts/lib/doc-citation-lines.sh
 source "${script_dir}/lib/doc-citation-lines.sh"
+# shellcheck source=scripts/lib/doc-citation-artifacts.sh
+source "${script_dir}/lib/doc-citation-artifacts.sh"
 
 usage() {
   printf 'usage: %s [-update]\n' "${0##*/}"
@@ -352,6 +360,7 @@ cmd_update() {
   fi
   classify_test_citations "${tmp_dir}/test-citations.txt" \
     "${tmp_dir}/test-ok.txt" "${tmp_dir}/test-format-errors.txt"
+  warn_artifact_citations "${tmp_dir}"
 
   local format_err_count
   format_err_count="$(awk 'NF' "${tmp_dir}/test-format-errors.txt" | wc -l | tr -d ' ')"
@@ -425,6 +434,9 @@ cmd_check() {
     log "${format_err_count} subtest-form citation(s) (never baseline-able)"
     failed=1
   fi
+
+  # Workflow-artifact pointers (#9315); see scripts/lib/doc-citation-artifacts.sh.
+  check_artifact_citations "${tmp_dir}" || failed=1
 
   dead_test_citations "${tmp_dir}/test-ok.txt" >"${tmp_dir}/test-dead.txt"
   baseline_test_pairs "${baseline_path}" >"${tmp_dir}/test-baseline.txt"

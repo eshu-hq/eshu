@@ -94,7 +94,7 @@
 # holder_backend_pid assertion below, so an incidental block by any other
 # backend fails), and `after exact graph write` is the ordering itself. The
 # structural argument is now a measurement; see
-# docs/internal/evidence/5998-rationale-relative-path.md.
+# go/internal/ifa/testdata/5998-rationale-relative-path.md.
 #
 # The psql-stand-in history above is kept deliberately rather than deleted now
 # that the stronger evidence exists. It records what was and was not proven at

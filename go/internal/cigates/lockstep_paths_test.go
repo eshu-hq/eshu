@@ -19,7 +19,6 @@ var probePaths = []string{
 	"deploy/README.md",
 	"deploy/helm/eshu/README.md",
 	"docs/internal/agent-guide.md",
-	"docs/internal/evidence/8894-component-extension-activations.md",
 	"docs/internal/writing-for-agents.md",
 	"docs/openapi/README.md",
 	"docs/public/contributing-language-support.md",

@@ -3,6 +3,8 @@ set -euo pipefail
 
 # shellcheck source=scripts/lib/gate-diff-base.sh
 . "$(cd "$(dirname "$0")" && pwd)/lib/gate-diff-base.sh"
+# shellcheck source=scripts/lib/performance-evidence-artifact.sh
+. "$(cd "$(dirname "$0")" && pwd)/lib/performance-evidence-artifact.sh"
 
 repo_root="${ESHU_PERFORMANCE_EVIDENCE_REPO_ROOT:-}"
 if [ -z "$repo_root" ]; then
@@ -516,43 +518,9 @@ fi
 # (eshu-hq/eshu#5542): the marker sits in the file as unchanged context, not
 # as something this diff contributed, so it must not satisfy the gate.
 #
-# Collects the added diff lines of EVERY evidence file in one awk pass over
-# the already-fetched _perf_diff_cache, instead of re-scanning the whole
-# cache per evidence file (a 6.5MB cache times 840 evidence files). Only the
-# two global flags below consume this union, and both are set-or-nothing
-# ("any evidence file's added lines match"), so scanning the union with the
-# unchanged marker patterns decides exactly what the per-file loop decided:
-# a marker sets its flag iff some evidence file contributed a matching added
-# line. Uses exact path membership (associative array loaded from the list
-# file), never regex, so evidence paths containing regex metacharacters
-# (e.g. a literal `.` in a filename) still compare exactly.
-evidence_added_union() {
-  local list_path="$1"
-  [ -n "${_perf_diff_cache}" ] || return 0
-  printf '%s\n' "${_perf_diff_cache}" | awk -v list="${list_path}" '
-    BEGIN {
-      while ((getline line < list) > 0) evidence[line] = 1
-    }
-    substr($0, 1, 6) == "+++ b/" {
-      # No /dev/null guard needed here: "+++ b/" is exactly six characters, so
-      # substr($0, 7) is always the path *after* b/ -- for "+++ b/dev/null" it
-      # is "dev/null", never "/dev/null" or "b/dev/null". A real deleted-file
-      # header is "+++ /dev/null", which does not match this rule at all and is
-      # handled by the next one. The shell loop in _perf_code_change_map keeps
-      # an equivalent check for its own reasons; do not copy it back here.
-      cur = substr($0, 7)
-      next
-    }
-    $0 == "+++ /dev/null" { cur = ""; next }
-    substr($0, 1, 6) == "--- a/" { next }
-    $0 == "--- /dev/null" { next }
-    substr($0, 1, 1) == "+" {
-      if (cur in evidence) print substr($0, 2)
-      next
-    }
-  '
-}
-
+# Added-line unions (evidence files here, workflow-artifact pointers in the
+# lib module) are built by evidence_added_union in
+# scripts/lib/performance-evidence-artifact.sh.
 has_performance_evidence=1
 has_observability_evidence=1
 if [ "${#evidence_files[@]}" -gt 0 ]; then
@@ -594,6 +562,14 @@ if [ "${#evidence_files[@]}" -gt 0 ]; then
   rm -f "$_perf_evidence_added_path"
 fi
 
+# Workflow-artifact pointers satisfy the same two flags without a committed
+# record; the committed-file verdict above stays untouched.
+perf_apply_workflow_artifact_evidence
+# shellcheck disable=SC2154  # set by scripts/lib/performance-evidence-artifact.sh.
+if [ "$perf_artifact_has_performance" -eq 0 ]; then has_performance_evidence=0; fi
+# shellcheck disable=SC2154  # set by scripts/lib/performance-evidence-artifact.sh.
+if [ "$perf_artifact_has_observability" -eq 0 ]; then has_observability_evidence=0; fi
+
 if [ "$has_performance_evidence" -eq 0 ] && [ "$has_observability_evidence" -eq 0 ]; then
   printf 'verify-performance-evidence: benchmark and observability markers found for hot-path changes\n'
   # Guarded: rm -f with an empty operand still exits nonzero, which under
@@ -621,6 +597,7 @@ fi
   printf 'terminal queue or row counts, telemetry/log/status evidence, and why the change\n'
   printf 'is safe. PR text alone is not enough because future agents need the evidence\n'
   printf 'in the repo.\n'
+  perf_print_artifact_hint
   printf '\nThis gate is content-based as well as path-based, so new collectors that add\n'
   printf 'Cypher, worker claims, leases, batching, concurrency knobs, or runtime\n'
   printf 'Compose/Helm settings are covered.\n'

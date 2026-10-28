@@ -339,6 +339,14 @@ func proofLike(ref string) bool {
 		_, tests, ok := parseGoTestRef(ref)
 		return ok && len(tests) > 0
 	}
+	// A workflow run that recorded the evidence satisfies proof without a
+	// committed record (#9315): the ref must be namespaced
+	// (run-id/artifact-name) or a full run URL, both of which contain a
+	// `/` a bare word never does. The committed test/script/golden paths
+	// below stay accepted unchanged.
+	if rest, ok := strings.CutPrefix(ref, "artifact:"); ok {
+		return strings.Contains(rest, "/")
+	}
 	return strings.HasPrefix(ref, "scripts/") ||
 		strings.HasPrefix(ref, "bash scripts/") ||
 		strings.Contains(lower, "golden")

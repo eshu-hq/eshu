@@ -276,6 +276,7 @@ copy_doc_citation_mode_helpers() {
     "${source_dir}/test-verify-doc-citations-binary-cases.sh" \
     "${source_dir}/test-verify-doc-citations-preparation-cases.sh" \
     "${source_dir}/test-verify-doc-citations-scope-cases.sh" \
+    "${source_dir}/test-verify-doc-citations-artifact-cases.sh" \
     "${destination}/"
 }
 
@@ -391,7 +392,10 @@ run_basic_fixture_cases() {
     test_baselined_unused_fixture_shared_across_docs_passes \
     test_guard_snapshot_basename_is_not_a_use \
     test_guard_snapshot_exclusion_is_narrow \
-    test_fails_closed_on_bad_baseline; do
+    test_fails_closed_on_bad_baseline \
+    test_artifact_citation_passes \
+    test_malformed_artifact_citation_fails \
+    test_artifact_identifier_prose_ignored; do
     run_doc_citation_case "${test_case}"
   done
 }

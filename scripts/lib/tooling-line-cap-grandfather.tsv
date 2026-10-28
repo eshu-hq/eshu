@@ -33,5 +33,5 @@ scripts/test-verify-docs-build-changed.sh	638
 scripts/test-verify-filename-stutter.sh	638
 scripts/test-verify-route-coverage.sh	657
 scripts/verify-openapi.sh	541
-scripts/verify-performance-evidence.sh	631
+scripts/verify-performance-evidence.sh	608
 scripts/verify_relationship_platform_compose.sh	525

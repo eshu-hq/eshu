@@ -17,9 +17,10 @@ import (
 )
 
 // censusRecordRel is the #8869 AC2 extraction census record, relative to the
-// repository root. It must name every source family the cutover moves and the
-// credential boundary the extraction must preserve.
-const censusRecordRel = "docs/internal/evidence/8869-collector-vault-live-census.md"
+// repository root. It lives in this command's testdata so the asserting tests
+// do not depend on committed evidence files. It must name every source family
+// the cutover moves and the credential boundary the extraction must preserve.
+const censusRecordRel = "go/cmd/collector-vault-live/testdata/8869-collector-vault-live-census.md"
 
 // censusSourceFamilies are the package directories the census record must
 // account for. They are asserted against the tree so the record cannot drift

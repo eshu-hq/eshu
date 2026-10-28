@@ -218,7 +218,7 @@ and `package_registry_identity_keys`. Read these facts before rollout:
   image, which deletes the key rows explicitly. An image older than PR1
   relies on the cascade and would leave orphan key rows after each prune.
   Before rolling back that far, put the keys back with
-  `docs/internal/evidence/7420-drop-key-sidecar-fks-reverse.sql` in psql.
+  `go/internal/storage/postgres/testdata/7420-drop-key-sidecar-fks-reverse.sql` in psql.
   It starts with `SET lock_timeout = '5s';`: psql sets none, and without it
   a waiting lock request stalls every new writer of `fact_records` behind it
   until it is granted. Then census at zero, then `ADD ... NOT VALID` (SHARE
