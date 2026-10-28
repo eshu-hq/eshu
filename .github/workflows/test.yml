@@ -127,6 +127,7 @@ jobs:
               - 'go/cmd/audit-preflight/testdata/gitnexus-missing.md'
               - 'go/cmd/audit-preflight/testdata/graphify-foundation-exists.md'
               - 'go/cmd/audit-preflight/testdata/incomplete.md'
+              - 'go/cmd/eshu/cli_extraction_inventory.md'
               - 'go/cmd/ifa/README.md'
               - 'go/cmd/scanner-worker/EXTRACTION_PREP.md'
               - 'go/internal/ask/catalog/README.md'
