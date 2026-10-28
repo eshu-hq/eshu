@@ -160,6 +160,51 @@ func (s Service) scheduleActivationDerivedScopes(
 	return s.scheduleVulnerabilityActivationDerivedScopes(ctx, observedAt, instance, config, interval)
 }
 
+// activationHostMismatchError reports an activation that enables derived
+// scopes while its host.sourceSystem or host.scope.kind is not
+// vulnerability_intelligence. The worker stamps every generation with
+// host.scope.kind, so derived generations under any other kind or source
+// would be mislabeled against the in-tree vulnerability_intelligence history.
+// Both values are collector labels, not secrets, and the message names them.
+type activationHostMismatchError struct {
+	SourceSystem string
+	ScopeKind    string
+}
+
+func (e activationHostMismatchError) Error() string {
+	return fmt.Sprintf("host.sourceSystem %q and host.scope.kind %q must both be %q",
+		e.SourceSystem, e.ScopeKind, scope.CollectorVulnerabilityIntelligence)
+}
+
+// checkActivationDerivation is the one rule set for an activation's derive
+// block. Coordinator startup (componentActivationRuntimeConfig) calls it so a
+// refused block fails LoadConfig before any durable write, and the reconcile
+// hook calls it again as a backstop for a stale durable row. A kind without
+// host-planned derived scopes returns a zero derivation and no error. For
+// vulnerability_intelligence it returns the decoded derivation, or the error
+// from [vulnerability.ActivationDerivationFromConfig] (an invalid value, or
+// [workflow.DeriveListNotExplicitError] for a blank list), or an
+// [activationHostMismatchError] when an enabled derivation's host is not
+// vulnerability_intelligence. It reads nothing and logs nothing.
+func checkActivationDerivation(kind scope.CollectorKind, config activation.Config) (vulnerability.ActivationDerivation, error) {
+	if !activationCarriesComponentConfig(kind) {
+		return vulnerability.ActivationDerivation{}, nil
+	}
+	derivation, err := vulnerability.ActivationDerivationFromConfig(config.ComponentConfig)
+	if err != nil || !derivation.Enabled() {
+		return vulnerability.ActivationDerivation{}, err
+	}
+	var host activationHostMismatchError
+	if config.Host != nil {
+		host = activationHostMismatchError{SourceSystem: config.Host.SourceSystem, ScopeKind: config.Host.Scope.Kind}
+	}
+	want := string(scope.CollectorVulnerabilityIntelligence)
+	if host.SourceSystem != want || host.ScopeKind != want {
+		return vulnerability.ActivationDerivation{}, host
+	}
+	return derivation, nil
+}
+
 func (s Service) scheduleVulnerabilityActivationDerivedScopes(
 	ctx context.Context,
 	observedAt time.Time,
@@ -167,9 +212,24 @@ func (s Service) scheduleVulnerabilityActivationDerivedScopes(
 	config activation.Config,
 	interval time.Duration,
 ) error {
-	derivation, err := vulnerability.ActivationDerivationFromConfig(config.ComponentConfig)
-	if err != nil {
-		var listErr workflow.DeriveListNotExplicitError
+	derivation, err := checkActivationDerivation(instance.CollectorKind, config)
+	var listErr workflow.DeriveListNotExplicitError
+	var hostErr activationHostMismatchError
+	switch {
+	case err == nil:
+	case errors.As(err, &hostErr):
+		if s.Logger != nil {
+			s.Logger.Error(
+				"workflow coordinator refused derived scopes for component activation",
+				"collector_kind", instance.CollectorKind,
+				"collector_instance_id", instance.InstanceID,
+				"host_source_system", hostErr.SourceSystem,
+				"host_scope_kind", hostErr.ScopeKind,
+				"reason", "host_scope_kind_or_source_system_mismatch",
+			)
+		}
+		return fmt.Errorf("plan vulnerability intelligence derived scopes for %q: %w", instance.InstanceID, err)
+	default:
 		if errors.As(err, &listErr) && s.Logger != nil {
 			s.Logger.Error(
 				"workflow coordinator refused derived scopes for component activation",
@@ -185,30 +245,9 @@ func (s Service) scheduleVulnerabilityActivationDerivedScopes(
 	if !derivation.Enabled() {
 		return nil
 	}
-	sourceSystem, scopeKind, hostScopeID := "", "", ""
-	if config.Host != nil {
-		sourceSystem, scopeKind, hostScopeID = config.Host.SourceSystem, config.Host.Scope.Kind, config.Host.Scope.ID
-	}
-	// The worker stamps every generation with host.scope.kind, so derived
-	// generations under any other kind or source would be mislabeled against
-	// the in-tree vulnerability_intelligence history.
-	want := string(scope.CollectorVulnerabilityIntelligence)
-	if sourceSystem != want || scopeKind != want {
-		if s.Logger != nil {
-			s.Logger.Error(
-				"workflow coordinator refused derived scopes for component activation",
-				"collector_kind", instance.CollectorKind,
-				"collector_instance_id", instance.InstanceID,
-				"host_source_system", sourceSystem,
-				"host_scope_kind", scopeKind,
-				"reason", "host_scope_kind_or_source_system_mismatch",
-			)
-		}
-		return fmt.Errorf(
-			"plan vulnerability intelligence derived scopes for %q: host.sourceSystem %q and host.scope.kind %q must both be %q",
-			instance.InstanceID, sourceSystem, scopeKind, want,
-		)
-	}
+	// checkActivationDerivation refuses an enabled derivation without a
+	// vulnerability_intelligence host, so Host is set here.
+	sourceSystem, hostScopeID := config.Host.SourceSystem, config.Host.Scope.ID
 	ownedTargets, err := s.vulnerabilityOwnedTargets(ctx, derivation.DeriveFromOwnedPackages, observedAt, interval)
 	if err != nil {
 		return fmt.Errorf("load vulnerability intelligence derived targets for %q: %w", instance.InstanceID, err)

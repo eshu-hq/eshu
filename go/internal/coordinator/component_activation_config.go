@@ -175,6 +175,16 @@ func componentActivationRuntimeConfig(
 			)
 		}
 		config.ComponentConfig = block
+		// The reconcile hook applies the same rules as a backstop; checking
+		// here refuses a bad derive block at LoadConfig, before any durable
+		// write, the same phase an in-tree instance's bad config fails.
+		if _, err := checkActivationDerivation(collectorKind, config); err != nil {
+			return "", fmt.Errorf(
+				"load component activation config block for %q: %w",
+				strings.TrimSpace(registeredActivation.InstanceID),
+				err,
+			)
+		}
 	}
 	raw, err := json.Marshal(config)
 	if err != nil {

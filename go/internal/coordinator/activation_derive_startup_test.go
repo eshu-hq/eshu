@@ -196,6 +196,13 @@ func TestActivationDeriveRulesMatchAtStartupAndReconcile(t *testing.T) {
 				t.Fatalf("innermost startup error %T(%v) != reconcile error %T(%v)",
 					startupRoot, startupRoot, reconcileRoot, reconcileRoot)
 			}
+			for _, err := range []error{startupErr, reconcileErr} {
+				var listErr workflow.DeriveListNotExplicitError
+				var hostErr activationHostMismatchError
+				if !errors.As(err, &listErr) && !errors.As(err, &hostErr) {
+					t.Fatalf("error = %v, want DeriveListNotExplicitError or activationHostMismatchError", err)
+				}
+			}
 		})
 	}
 }

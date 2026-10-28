@@ -173,9 +173,10 @@ one claim per derived OSV scope, the same way it does for an in-tree instance
   worker still hands the collector its own read of the block, unchanged.
 - The derive sections follow the in-tree rules (`enabled`, `sources`,
   `ecosystems`, `planning_mode`, `target_limit`), with the same validation and
-  error text, plus the explicit-list rule below. An invalid value fails that
-  activation's reconcile. Unknown keys are ignored, as they are in-tree and in
-  the collector.
+  error text, plus the explicit-list rule below. The coordinator checks the
+  block when it loads its configuration, so an invalid value is a startup
+  error, raised before any durable write. Unknown keys are ignored, as they are
+  in-tree and in the collector.
 - `target_limit` (default 100, at most 5000) and `planning_mode` (`rotating` or
   `single_pass`) are host-only: the coordinator applies them, and collector
   v0.1.0 ignores them. Rotation buckets on the coordinator's reconcile interval,
@@ -184,8 +185,8 @@ one claim per derived OSV scope, the same way it does for an in-tree instance
   guard admits each scope separately, so an open host-scope claim does not block
   them, and the host scope is never planned twice.
 - `host.sourceSystem` and `host.scope.kind` must both be
-  `vulnerability_intelligence`. Otherwise the coordinator refuses derived
-  planning for that activation, logs both values, and fails its reconcile.
+  `vulnerability_intelligence` when derivation is enabled. Otherwise the
+  coordinator refuses to start, and the error names both values.
 - Egress policy applies first: a denied activation gets no derived scopes and
   no owned-package read.
 - Every enabled derive section must list `sources` and `ecosystems`
@@ -195,19 +196,24 @@ one claim per derived OSV scope, the same way it does for an in-tree instance
   defaults an empty union to `osv` and `npm`, and keeps only `osv` and the 16
   supported ecosystems. The coordinator defaults each section on its own, so
   a blank list could plan scopes the collector refuses. On an activation, a
-  blank or absent list therefore fails the reconcile with
-  `<section>.<list>: an activation must list <list> explicitly` and one ERROR
-  log line (`derive_section`, `derive_list`,
-  `reason=derive_lists_not_explicit`, no configured values). An in-tree
-  instance keeps its blank-list defaults.
+  blank or absent list therefore fails coordinator startup with
+  `<section>.<list>: an activation must list <list> explicitly`, naming the
+  instance and no configured values. An in-tree instance keeps its blank-list
+  defaults.
+- Each reconcile pass applies the same checks again, as a backstop for a stale
+  durable row. A refusal there logs one ERROR line, either value-free
+  (`derive_section`, `derive_list`, `reason=derive_lists_not_explicit`) or with
+  the `host_source_system` and `host_scope_kind` values. Like every reconcile
+  error, it stops the coordinator process until the file is fixed.
 - A derived scope the collector does not accept fails as `unknown_scope`,
   which is retryable: it is retried until the claim's attempt budget is spent,
   then marked terminal `attempt_budget_exhausted`. It is not `invalid_config`;
   the collector reports that only when it cannot start from its config block.
 
 `eshu_dp_workflow_coordinator_activation_derived_scopes_planned_total` counts
-planned scopes by instance and ecosystem. A refused activation (scope kind or
-explicit lists) shows as
+planned scopes by instance and ecosystem. A startup refusal shows as the
+coordinator exiting with `workflow coordinator failed` and the error above. A
+refusal caught by the reconcile backstop shows as
 `eshu_dp_workflow_coordinator_reconcile_total{outcome="reconcile_error"}` with
 the ERROR line above. The owned-package read shows in the store histograms
 under `store="owned_package_targets"`.

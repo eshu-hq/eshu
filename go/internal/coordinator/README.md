@@ -196,7 +196,7 @@ one enabled bounded scope; invalid configurations fail validation.
 - `GCPPlanner` — implemented by `gcp.WorkPlanner`, which also exposes
   `EnabledScopes`/`ValidateClaimSchedulerConfiguration` for root reuse.
 - `ComponentExtensionPlanner` — `extension.WorkPlanner`, from `activation.Config`; it alone plans an
-  instance whose configuration is an `eshu.component.instance.v1` document, and every in-tree selector calls `inTreeSchedulable` to skip it (#8919). After the egress decision, the kind-scoped hook in `component_extension_service.go` also plans a `vulnerability_intelligence` activation's derived OSV scopes as a second run, from the opaque `component_config` block, through the same owned-package and installed-evidence readers (#9311).
+  instance whose configuration is an `eshu.component.instance.v1` document, and every in-tree selector calls `inTreeSchedulable` to skip it (#8919). After the egress decision, the kind-scoped hook in `component_extension_service.go` also plans a `vulnerability_intelligence` activation's derived OSV scopes as a second run, from the opaque `component_config` block, through the same owned-package and installed-evidence readers (#9311). `checkActivationDerivation` holds the derive-list and host scope-kind rules; startup (`componentActivationRuntimeConfig`) applies them so a bad block fails `LoadConfig`, and the hook applies them again as a backstop.
 - `OwnedPackageTargetReader` — optional active-mode dependency target reader
   used by `Service` when package-registry or vulnerability-intelligence
   instances (in-tree or activation) enable `derive_from_owned_packages`.
