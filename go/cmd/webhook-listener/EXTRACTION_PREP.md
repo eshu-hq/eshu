@@ -21,10 +21,10 @@ deployment.
 
 | File | Role | Key symbol |
 | --- | --- | --- |
-| `main.go:74,90-135` | entry point, Postgres wiring, per-store `EnsureSchema` | `runtimecfg.OpenPostgres`, `NewWebhookTriggerStore`, `actionsstore.NewStore`, `NewIncidentFreshnessStore`, `NewAWSFreshnessStore`, `NewGCPFreshnessStore` |
-| `config.go:12,33,60,78` | 7 provider secrets/paths, 1 MiB default body cap | `defaultMaxWebhookBodyBytes`, `MaxRequestBodyBytes` |
-| `handler.go:93,108-126` | 7 mounted provider routes via `newWebhookMux` | `handleGitHub`, `handleGitLab`, `handleBitbucket`, `handlePagerDuty`, `handleJira`, `handleAWSFreshnessEventBridge`, `handleGCPFreshnessPubSubPush` |
-| `handler.go:225-244` | bounded body read: 413 only on cap exceed, else 400 | `readPostBody`, `http.MaxBytesReader` (`:231`) |
+| `main.go` | entry point, Postgres wiring, per-store `EnsureSchema` (`run`) | `runtimecfg.OpenPostgres`, `NewWebhookTriggerStore`, `actionsstore.NewStore`, `NewIncidentFreshnessStore`, `NewAWSFreshnessStore`, `NewGCPFreshnessStore` |
+| `config.go` | 7 provider secrets/paths, 1 MiB default body cap | `defaultMaxWebhookBodyBytes`, `MaxRequestBodyBytes` (`loadWebhookListenerConfig`) |
+| `handler.go` | 7 mounted provider routes via `newWebhookMux` | `handleGitHub`, `handleGitLab`, `handleBitbucket`, `handlePagerDuty`, `handleJira`, `handleAWSFreshnessEventBridge`, `handleGCPFreshnessPubSubPush` |
+| `handler.go` | bounded body read: 413 only on cap exceed, else 400 | `readPostBody` over `http.MaxBytesReader` |
 | `actions_handler.go` | Actions inbox: exact-duplicate 202, conflicting-identity 409, missing store 503 | delivery-identity check |
 | `incident_freshness_handler.go` | PagerDuty/Jira scoped incident wake-ups | incident freshness route |
 | `aws_freshness_handler.go` | EventBridge/Config `(account_id, region, service_kind)` wake-ups | AWS freshness route |
@@ -34,7 +34,7 @@ deployment.
 
 | File | Role | Key symbol |
 | --- | --- | --- |
-| `signature.go:21,26,31,36,90` | provider verification | `VerifyGitHubSignature`, `VerifyBitbucketSignature`, `VerifyJiraSignature`, `VerifyPagerDutySignature`, `VerifyGitLabToken` |
+| `signature.go` | provider verification | `VerifyGitHubSignature`, `VerifyBitbucketSignature`, `VerifyJiraSignature`, `VerifyPagerDutySignature`, `VerifyGitLabToken` |
 | `normalizer_github.go`, `normalizer_gitlab.go`, `normalizer_bitbucket.go` | git-provider normalization, accept/ignore decisions | provider normalizers |
 | `normalizer_ado.go`, `normalizer_jenkins.go`, `normalizer_circleci.go`, `normalizer_buildkite.go`, `normalizer_drone.go` | CI-provider normalization | CI normalizers |
 | `actions.go` | Actions identity/delivery-conflict rules | Actions inbox rules |
@@ -47,17 +47,20 @@ deployment.
 
 ### Durable stores (core Postgres owns durable state; store packages move with the listener)
 
-- `go/internal/storage/postgres/webhook/trigger_store_sql.go` (`storeWebhookTriggerQuery`, `claimQueuedWebhookTriggersQuery`) —
-  `ON CONFLICT (refresh_key) DO UPDATE`, `duplicate_count+1`, `ORDER BY
-  received_at,trigger_id FOR UPDATE SKIP LOCKED`, `claim_fencing_token+1`,
-  token-checked completion (`:336-386`), stale-claim reap (`:165`).
+- `go/internal/storage/postgres/webhook/trigger_store_sql.go` —
+  `ON CONFLICT (refresh_key) DO UPDATE` (`storeWebhookTriggerQuery`),
+  `duplicate_count+1`, `ORDER BY received_at,trigger_id FOR UPDATE SKIP
+  LOCKED` (`claimQueuedWebhookTriggersQuery`), `claim_fencing_token+1`,
+  token-checked completion (`markWebhookTriggersHandedOffQueryFormat`),
+  stale-claim reap (`reapStaleWebhookTriggerClaimsQuery`).
 - `go/internal/storage/postgres/webhook/actions/` — `cicd_actions_deliveries`
   inbox (`store.go`, `sql.go`, `schema.go`).
 - `go/internal/storage/postgres/freshness/{aws,gcp,incident}/` — one
   `store.go` + `sql.go` + `schema_sql.go` each. Incident store claims via
-  `FOR UPDATE SKIP LOCKED` (`sql.go:96`) with `ClaimQueuedTriggers`
-  (`store.go:98`), `MarkTriggersHandedOff` (`:138`), `MarkTriggersFailed`
-  (`:158`) — and **no** fencing-token/lease column: lease/fencing recovery
+  `FOR UPDATE SKIP LOCKED` (`claimQueuedIncidentFreshnessTriggersQuery`)
+  with `ClaimQueuedTriggers`, `MarkTriggersHandedOff`,
+  `MarkTriggersFailed` (all in incident `store.go`) — and **no**
+  fencing-token/lease column: lease/fencing recovery
   is the explicit unproven prerequisite (see §9.1).
 
 ## 2. Fact kinds and versions
@@ -95,21 +98,21 @@ handles.
 
 ## 5. Protocols
 
-Seven mounted provider routes (`handler.go:108-126`), each gated on its
+Seven mounted provider routes (`newWebhookMux` in `handler.go`), each gated on its
 configured secret/token and unmounted when unconfigured:
 
 | Provider | Auth | Delivery identity |
 | --- | --- | --- |
-| GitHub `X-Hub-Signature-256` | HMAC-SHA256 `sha256=` (`signature.go:21`); SHA-1 rejected | `X-GitHub-Delivery` required before normalization |
-| GitLab `X-Gitlab-Token` | constant-time compare (`signature.go:90`) | `Idempotency-Key` preferred, then provider UUID |
-| Bitbucket `X-Hub-Signature` | HMAC (`signature.go:26`) | `X-Request-UUID` preferred, then `X-Hook-UUID` |
+| GitHub `X-Hub-Signature-256` | HMAC-SHA256 `sha256=` (`VerifyGitHubSignature`); SHA-1 rejected | `X-GitHub-Delivery` required before normalization |
+| GitLab `X-Gitlab-Token` | constant-time compare (`VerifyGitLabToken`) | `Idempotency-Key` preferred, then provider UUID |
+| Bitbucket `X-Hub-Signature` | HMAC (`VerifyBitbucketSignature`) | `X-Request-UUID` preferred, then `X-Hook-UUID` |
 | AWS freshness | `Authorization: Bearer` or `X-Eshu-AWS-Freshness-Token` | normalized `(account_id, region, service_kind)` tuple |
 | GCP freshness (default-off) | shared token OR Pub/Sub push OIDC (`aud` + allowlisted SA `email`/`email_verified`), either sufficient, fail-closed | normalized `(parent_scope_kind, parent_scope_id, asset_type, location)`; raw CAI `resource.data` dropped at the normalizer redaction choke point; bare-string welcome message acked 202 without storing |
-| PagerDuty `X-PagerDuty-Signature` | `v1=` multi-candidate (`signature.go:36`) | payload `event.id`, `X-Webhook-Id`, or `X-Request-Id`; scoped by `ESHU_WEBHOOK_PAGERDUTY_SCOPE_ID` |
-| Jira `X-Hub-Signature` | HMAC (`signature.go:31`) | `X-Atlassian-Webhook-Identifier` or `X-Request-Id`; only issue created/updated/deleted admitted, other families rejected `reason=unsupported_event`; scoped by `ESHU_WEBHOOK_JIRA_SCOPE_ID` |
+| PagerDuty `X-PagerDuty-Signature` | `v1=` multi-candidate (`VerifyPagerDutySignature`) | payload `event.id`, `X-Webhook-Id`, or `X-Request-Id`; scoped by `ESHU_WEBHOOK_PAGERDUTY_SCOPE_ID` |
+| Jira `X-Hub-Signature` | HMAC (`VerifyJiraSignature`) | `X-Atlassian-Webhook-Identifier` or `X-Request-Id`; only issue created/updated/deleted admitted, other families rejected `reason=unsupported_event`; scoped by `ESHU_WEBHOOK_JIRA_SCOPE_ID` |
 
-Body bound: `ESHU_WEBHOOK_MAX_BODY_BYTES`, default 1 MiB (`config.go:12`);
-413 only on cap exceed, other read failures 400 (`handler.go:225-244`).
+Body bound: `ESHU_WEBHOOK_MAX_BODY_BYTES`, default 1 MiB (`defaultMaxWebhookBodyBytes`);
+413 only on cap exceed, other read failures 400 (`readPostBody`).
 GitHub `ping` is a verified no-op handshake (202, no trigger).
 Duplicates: same delivery ID dedupes/coalesces (`duplicate_count+1`);
 conflicting identity returns 409 with the original row intact. Store
@@ -156,7 +159,7 @@ build/release/deploy, rollback rehearsal, and production acceptance are
 | Acceptance item | State |
 | --- | --- |
 | Inventory verification/signature rules, replay/dedup keys, trigger state, durable handoff ownership | **Met in PREP** by §§1–5 |
-| Valid/invalid signatures, duplicates, ordering, bounded bodies, durable retry/partial-failure without core-table mutation | **Partial (in-tree side)** — `handler_test.go` pins accept/reject per provider (`:22,:56,:89,:124` accept; `:161,:186,:211,:239,:263,:359,:387` reject), body 413-vs-400 (`:417,:442`), Actions 202/409/503; dedupe/coalescing + fencing-claim store SQL (§1); explicit ordering test NOT found; extracted-path proof pending peer compat work |
+| Valid/invalid signatures, duplicates, ordering, bounded bodies, durable retry/partial-failure without core-table mutation | **Partial (in-tree side)** — `handler_test.go` pins accept/reject per provider (accept: `TestWebhookHandlerAcceptsSignedGitHubPush`, `TestWebhookHandlerAcceptsSignedGitHubPingWithoutStoringTrigger`, `TestWebhookHandlerAcceptsSignedPagerDutyFreshnessTrigger`, `TestWebhookHandlerAcceptsSignedJiraFreshnessTrigger`; reject: `TestWebhookHandlerRejectsMissingPagerDutySignature`, `TestWebhookHandlerRejectsMissingPagerDutyDeliveryIdentity`, `TestWebhookHandlerRejectsMissingJiraDeliveryID`, `TestWebhookHandlerRejectsBadGitHubSignature`, `TestWebhookHandlerRejectsMissingGitHubDeliveryID`, `TestWebhookHandlerRejectsMissingBitbucketDeliveryID`, `TestWebhookHandlerRejectsMissingGitLabDeliveryID`), body 413-vs-400 (`TestWebhookHandlerDistinguishesBodyReadErrors`, `TestWebhookHandlerReportsOversizedBody`), Actions 202/409/503; dedupe/coalescing + fencing-claim store SQL (§1); explicit ordering test NOT found; extracted-path proof pending peer compat work |
 | Named owners, production target, configuration source | **Partial** — owner-confirmed on the issue (`@linuxdynasty` release/deployment owner, QA EKS target); configuration source still to be established from the caller inventory |
 | Census, kinds, consumers, state, protocols, artifacts, stage | **Met in PREP** by this document |
 | Behavior + public-contract parity on representative/hostile inputs | **Open** — in-tree tests listed above; extracted-path proof outstanding |
