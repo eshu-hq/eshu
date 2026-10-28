@@ -95,8 +95,12 @@ uses `failure_class=commit_failed` and the log adds a bounded
 
 - Scanner workers emit source facts only. Reducer finding facts are rejected.
 - Concrete analyzers may preserve their parser-owned `collector_kind` and
-  `source_ref.source_system` as long as both are nonblank, match each other,
-  and the fact kind is on the scanner-worker source allowlist.
+  `source_ref.source_system` as long as both are nonblank, the fact kind is on
+  the scanner-worker source allowlist, and `source_system` either matches the
+  envelope `collector_kind` or carries the planner-owned `scanner_worker`
+  claim identity the SDK satellite contract admits (#9407). SBOM facts
+  additionally project the sanitized claim scope as `source_ref.uri` with
+  per-fact snapshot records.
 - Completed scanner claims must emit at least one source fact or warning; silent
   clean output is not accepted.
 - Retry and dead-letter payloads carry safe locator hashes and bounded failure

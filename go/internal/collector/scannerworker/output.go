@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/factenvelope"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
 // ValidateFactOutput validates scanner-worker output before fact commit.
@@ -97,8 +98,15 @@ func validateSourceFact(input ClaimInput, fact facts.Envelope) error {
 	if fact.SourceRef.SourceSystem != sourceSystem {
 		return fmt.Errorf("source_ref.source_system must be normalized")
 	}
-	if fact.SourceRef.SourceSystem != fact.CollectorKind {
-		return fmt.Errorf("source_ref.source_system %q does not match collector_kind %q", fact.SourceRef.SourceSystem, fact.CollectorKind)
+	// Source identity is either analyzer-owned (source_system equals the
+	// envelope collector kind) or claim-plane-owned (#9407: os_package
+	// envelopes keep the analyzer collector kind for durable provenance but
+	// carry the planner-owned scanner_worker claim identity the SDK
+	// satellite contract admits).
+	if fact.SourceRef.SourceSystem != fact.CollectorKind &&
+		fact.SourceRef.SourceSystem != string(scope.CollectorScannerWorker) {
+		return fmt.Errorf("source_ref.source_system %q must match collector_kind %q or the scanner-worker claim plane",
+			fact.SourceRef.SourceSystem, fact.CollectorKind)
 	}
 	if strings.TrimSpace(fact.SourceRef.ScopeID) == "" {
 		return fmt.Errorf("source_ref.scope_id must not be blank")
