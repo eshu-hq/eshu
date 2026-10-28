@@ -309,8 +309,9 @@ func TestReducerContentionGateSecurityAlertReconciliationImpactFenceKeepsItsAtte
 // but the producer dead-lettered (nothing left to wait for), the
 // reconciliation spends attempts 1 and 2 on counting deferrals and on attempt 3
 // writes unmatched, now naming the give-up on the result. With the fence wired
-// and the producer succeeded (#8956) the same counting path ends in a genuine
-// no-match: unmatched, but no give-up on the result or the write.
+// and the producer succeeded (#8956, #9053) the first attempt writes the
+// genuine no-match at once: unmatched, but no give-up on the result or the
+// write, terminal succeeded at attempt 1.
 func TestReducerContentionGateSecurityAlertReconciliationGivesUpVisiblyWithoutAFence(t *testing.T) {
 	dsn := reducerDomainFairnessDSN()
 	if dsn == "" {
@@ -321,10 +322,13 @@ func TestReducerContentionGateSecurityAlertReconciliationGivesUpVisiblyWithoutAF
 		fenced       bool
 		impactStatus string
 		wantOutcome  string
+		// settledFirst marks the case the #9053 skip finishes on the first
+		// attempt instead of the counting path.
+		settledFirst bool
 	}{
-		{"no fence, producer pending (pre-fix behavior)", false, "pending", securityalert.ImpactWaitGaveUpUnmatched},
-		{"fence wired, producer dead-lettered", true, "dead_letter", securityalert.ImpactWaitGaveUpUnmatched},
-		{"fence wired, producer succeeded (genuine no-match)", true, "succeeded", ""},
+		{"no fence, producer pending (pre-fix behavior)", false, "pending", securityalert.ImpactWaitGaveUpUnmatched, false},
+		{"fence wired, producer dead-lettered", true, "dead_letter", securityalert.ImpactWaitGaveUpUnmatched, false},
+		{"fence wired, producer succeeded (genuine no-match)", true, "succeeded", "", true},
 	}
 	for i, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -345,6 +349,36 @@ func TestReducerContentionGateSecurityAlertReconciliationGivesUpVisiblyWithoutAF
 			loader, writer := newImpactWaitLoader(), &impactWaitWriter{}
 			handler := impactWaitHandler(db, loader, writer, tc.fenced, now)
 
+			if tc.settledFirst {
+				intent, claimed, err := queue.Claim(ctx)
+				if err != nil || !claimed {
+					t.Fatalf("settled Claim() claimed=%v err=%v, want the write on the first attempt", claimed, err)
+				}
+				if intent.AttemptCount != 1 {
+					t.Fatalf("settled AttemptCount = %d, want 1", intent.AttemptCount)
+				}
+				result, handleErr := handler.Handle(ctx, intent)
+				if handleErr != nil {
+					t.Fatalf("settled Handle() error = %v, want the genuine no-match write", handleErr)
+				}
+				if strings.Contains(result.EvidenceSummary, "impact_wait=") {
+					t.Fatalf("settled summary %q names a give-up for a settled producer", result.EvidenceSummary)
+				}
+				if err := queue.Ack(ctx, intent, result); err != nil {
+					t.Fatalf("settled Ack() error = %v", err)
+				}
+				calls, statuses := writer.snapshot()
+				if calls != 1 || len(statuses) != 1 || statuses[0] != securityalert.SecurityAlertReconciliationUnmatched {
+					t.Fatalf("settled writes = %d statuses = %v, want one unmatched decision", calls, statuses)
+				}
+				if outcomes := writer.outcomeSnapshot(); len(outcomes) != 1 || outcomes[0] != "" {
+					t.Fatalf("settled write impact wait outcomes = %q, want one empty genuine no-match", outcomes)
+				}
+				if status, _, attempts := readRuntimeFenceItem(t, ctx, db, reconID); status != "succeeded" || attempts != 1 {
+					t.Fatalf("settled reconciliation terminal = %s attempts=%d, want succeeded at 1", status, attempts)
+				}
+				return
+			}
 			for attempt := 1; attempt <= 3; attempt++ {
 				intent, claimed, err := queue.Claim(ctx)
 				if err != nil || !claimed {

@@ -58,10 +58,11 @@ const (
 	// no sign of life for crossscope.ProducerReadinessMaxWait.
 	ImpactWaitGaveUpBoundExceeded = "gave_up_bound_exceeded"
 	// ImpactWaitProducerSettled means the handler wrote its unmatched decisions
-	// at the attempt cap after every supply_chain_impact work item of the same
+	// on the first run after every supply_chain_impact work item of the same
 	// scope generation succeeded (ImpactProducerState.Settled): the producer
 	// ran and wrote no finding for the advisory, so the rows are a genuine
-	// no-match, not a give-up (#8956). It is never persisted on a row.
+	// no-match, not a give-up (#8956, first-run skip #9053). It is never
+	// persisted on a row.
 	ImpactWaitProducerSettled = "producer_settled"
 )
 
@@ -187,21 +188,23 @@ type impactProducerSnapshot struct {
 }
 
 // probeImpactProducerBeforeLoad reads the producer state BEFORE the handler
-// loads its evidence, on the attempt where the handler may write at its cap
-// (#8956 review). Settled() read before the load means every impact work item
+// loads its evidence, on every attempt of an impact-producing intent (#8956
+// review, #9053). Settled() read before the load means every impact work item
 // committed its findings before the load began (the impact writer commits in
 // its own transaction inside Handle and the queue acks succeeded only after
 // Handle returns), so the loaded evidence already holds every finding. Read
 // after the load, a finding that committed in between would be absent from the
 // decisions while the probe reports settled, and the stale unmatched row would
-// be published as a genuine no-match. Below the cap no write can happen, so the
-// probe stays after the load and is skipped when nothing waits on impact.
+// be published as a genuine no-match. A settled producer writes its genuine
+// no-match on the first run (#9053), so the early read cannot wait for the
+// cap: every impact-producing pass pays the one probe even when nothing waits
+// on impact, and resolveImpactWait performs no second probe when the snapshot
+// is present.
 func (h SecurityAlertReconciliationHandler) probeImpactProducerBeforeLoad(
 	ctx context.Context,
 	intent reducercontract.Intent,
 ) (impactProducerSnapshot, error) {
 	if h.ImpactProducerReadiness == nil ||
-		intent.AttemptCount < pendingImpactSecurityAlertReconciliationMaxAttempts ||
 		!impactProducingSecurityAlertReconciliation(intent) {
 		return impactProducerSnapshot{}, nil
 	}
@@ -231,16 +234,18 @@ func (h SecurityAlertReconciliationHandler) probeImpactProducer(
 }
 
 // resolveImpactWait decides what a reconciliation with decisions waiting on
-// impact evidence does: defer without spending an attempt while the impact
-// work of its scope generation is in flight inside the bound, defer on the
-// counting path below the handler cap, or write at the cap. At the cap a
-// settled producer (every impact work item succeeded) is a genuine no-match
-// and records producer_settled; anything else is a visible give-up whose
-// outcome the write persists on the waiting rows (#8956). early is the state
-// probeImpactProducerBeforeLoad read before the evidence load; when present it
-// is used instead of a second probe, so settlement is never read after the
-// load. It returns a zero decision and a nil error when nothing waits on
-// impact.
+// impact evidence does: write immediately when the producer has settled,
+// defer without spending an attempt while the impact work of its scope
+// generation is in flight inside the bound, defer on the counting path below
+// the handler cap, or write at the cap. A settled producer (every impact work
+// item succeeded) is already final, so the handler writes its genuine
+// no-match on the first run and records producer_settled instead of spending
+// its counting defers on a wait nothing can change (#9053); anything else at
+// the cap is a visible give-up whose outcome the write persists on the
+// waiting rows (#8956). early is the state probeImpactProducerBeforeLoad read
+// before the evidence load; when present it is used instead of a second probe,
+// so settlement is never read after the load. It returns a zero decision and
+// a nil error when nothing waits on impact.
 func (h SecurityAlertReconciliationHandler) resolveImpactWait(
 	ctx context.Context,
 	intent reducercontract.Intent,
@@ -281,19 +286,21 @@ func (h SecurityAlertReconciliationHandler) resolveImpactWait(
 			boundExceeded = true
 		}
 	}
-	if intent.AttemptCount < pendingImpactSecurityAlertReconciliationMaxAttempts {
-		return impactWaitDecision{}, retryableSecurityAlertReconciliationEvidenceError{
-			packageID: firstWaitingPackage(decisions),
-		}
-	}
 	if probed && state.Settled() {
 		// The producer ran to completion and wrote no finding that matches:
-		// the unmatched rows are a genuine no-match, not a give-up.
+		// the unmatched rows are a genuine no-match, not a give-up. The
+		// producer is final, so this short-circuits the counting defers on
+		// every attempt, including the first run (#9053).
 		h.recordImpactWait(ctx, ImpactWaitProducerSettled)
 		h.logImpactWait(ctx, slog.LevelInfo,
 			"security alert reconciliation wrote unmatched decisions after supply chain impact settled with no matching finding",
 			intent, ImpactWaitProducerSettled, state, h.now())
 		return impactWaitDecision{}, nil
+	}
+	if intent.AttemptCount < pendingImpactSecurityAlertReconciliationMaxAttempts {
+		return impactWaitDecision{}, retryableSecurityAlertReconciliationEvidenceError{
+			packageID: firstWaitingPackage(decisions),
+		}
 	}
 	outcome := ImpactWaitGaveUpUnmatched
 	if boundExceeded {
