@@ -33,8 +33,11 @@ import (
 //
 // Known contract limit, documented not fixed: rows carry no project field,
 // so the same coordinate declared with the same revision and cross operator
-// in two projects of one build.sbt shares one id. That is the accepted
-// residual stated on the sbt discriminator case — the same shape as an
+// in two projects of one build.sbt shares one id. That sharing is the
+// idiomatic multi-project shape — both declarations are real and coexist in
+// sbt — and it is pinned by TestSbtSameCoordinateAcrossProjectsSharesOneId
+// below; only a byte-identical redeclaration inside ONE project is the
+// pathological duplicate, the same accepted residual as an
 // exactly-duplicated gradle line.
 func TestSbtRowsGetSectionKeyedIdentityOverRealManifests(t *testing.T) {
 	t.Parallel()
@@ -98,6 +101,60 @@ func assertDistinctAndStable(t *testing.T, displayPath string, rows []map[string
 			t.Errorf("row %d (%q) churned across a line move: %q vs %q", i, name, ids[i], moved)
 		}
 	}
+}
+
+// TestSbtSameCoordinateAcrossProjectsSharesOneId pins the disclosed residual
+// through the real engine: the same coordinate declared in two projects of
+// one build.sbt mints one shared id, stable across a line move and distinct
+// from the legacy line-keyed id. This is the idiomatic multi-project shape,
+// not a pathological duplicate.
+func TestSbtSameCoordinateAcrossProjectsSharesOneId(t *testing.T) {
+	t.Parallel()
+
+	rows := parseSbtManifestRows(t, writeSharedCoordinateBuildSbt(t))
+	if len(rows) != 2 {
+		t.Fatalf("shared-coordinate build.sbt produced %d variable rows, want 2", len(rows))
+	}
+
+	const repoID = "repository:sbt-proof"
+	const displayPath = "shared-build.sbt"
+	ids := make([]string, len(rows))
+	for i, row := range rows {
+		name, _ := row["name"].(string)
+		line := sbtIntFromRow(row, "line_number")
+		ids[i] = content.CanonicalEntityIDWithMetadata(repoID, displayPath, "variable", name, line, row)
+		if legacy := content.CanonicalEntityID(repoID, displayPath, "variable", name, line); ids[i] == legacy {
+			t.Fatalf("row %d fell back to the legacy line-keyed id: %v", i, row)
+		}
+		if moved := content.CanonicalEntityIDWithMetadata(repoID, displayPath, "variable", name, 4242, row); moved != ids[i] {
+			t.Fatalf("row %d churned across a line move: %q vs %q", i, ids[i], moved)
+		}
+	}
+	if ids[0] != ids[1] {
+		t.Fatalf("same coordinate in two projects minted distinct ids %q vs %q; the disclosed residual says one", ids[0], ids[1])
+	}
+}
+
+// writeSharedCoordinateBuildSbt writes a two-project build.sbt declaring one
+// coordinate at one revision in both projects.
+func writeSharedCoordinateBuildSbt(t *testing.T) string {
+	t.Helper()
+	const body = `scalaVersion := "2.13.12"
+
+lazy val core = project.settings(
+  libraryDependencies += "org.typelevel" %% "cats-core" % "2.10.0"
+)
+
+lazy val api = project.settings(
+  libraryDependencies += "org.typelevel" %% "cats-core" % "2.10.0"
+)
+`
+	dir := t.TempDir()
+	manifest := filepath.Join(dir, "build.sbt")
+	if err := os.WriteFile(manifest, []byte(body), 0o644); err != nil {
+		t.Fatalf("os.WriteFile(build.sbt) error = %v", err)
+	}
+	return manifest
 }
 
 // sbtIdentityTuple is the (section, name, value, sbt_cross_version) tuple

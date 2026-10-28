@@ -320,16 +320,17 @@ func dependencyIdentityDiscriminator(packageManager string, metadata map[string]
 		// The declaration configuration needs no component here: rows.go
 		// rides it in the section ("libraryDependencies:<Config>"), so a
 		// bare declaration and a `% Test` one already key apart. A custom
-		// `cross(...)` modifier finer than the "custom" label, and two
-		// byte-identical redeclarations of one coordinate (including the
-		// same coordinate repeated across two projects of one build.sbt,
-		// whose rows carry no project field), still share one id — the
-		// same accepted residual as an exactly-duplicated gradle line.
-		// That bucket also holds two projects on different scalaVersion
-		// values declaring the same dep at the same revision via %%: name,
-		// value, and cross_version all match (only sbt_binary_artifact
-		// differs), so they share one id and last-wins keeps a single
-		// sbt_binary_artifact.
+		// `cross(...)` modifier finer than the "custom" label still shares
+		// one id. So does the same coordinate repeated across two projects
+		// of one build.sbt, whose rows carry no project field — including
+		// two projects on different scalaVersion values declaring the same
+		// dep at the same revision via %% (only sbt_binary_artifact
+		// differs, and last-wins keeps a single one). That cross-project
+		// sharing is the idiomatic multi-project shape, pinned by
+		// TestSbtSameCoordinateAcrossProjectsSharesOneId; only a
+		// byte-identical redeclaration inside ONE project is the
+		// pathological duplicate, the same accepted residual as an
+		// exactly-duplicated gradle line.
 		return metadataStringValue(metadata, "value") + "\x1e" + metadataStringValue(metadata, "sbt_cross_version")
 	case "pypi":
 		// A pip/PEP 508 requirement (requirements.txt lines, and the
