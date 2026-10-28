@@ -121,7 +121,7 @@ queue, lease, reducer, API, MCP, or workflow handles.
 | Threat | Proof |
 | --- | --- |
 | Revoked grant at wiring | `grant_signal_test.go:143` `TestBuildClaimedServiceRevokedGrantFailsClosedAndRecordsDeny` — revoked grant stops the worker AND records `deny/readback/revoked` |
-| Revoked/expired at emission | `producer_grant_decision_test.go:63` (revoked/expired rows expect `revoked`/`expired`), `producer_grant_test.go:83,126` (post-revoke, post-expiry rejection) |
+| Revoked/expired at emission | `producer_grant_decision_test.go:63` (revoked/expired rows expect `revoked`/`expired`), `go/internal/collector/extensionhost/producer_grant_test.go:83,126` (post-revoke, post-expiry rejection; the `go/internal/component/` copy of that filename is a different `RecordGrant`/`Install` test) |
 | Sandbox escape / floating image | `oci_test.go:29,57,113` — digest pin + isolation argv, unpinned rejection before exec |
 | Resource exhaustion | `oci_test.go:148` stdout-limit enforcement; `process.go:19` 4 MiB/64 KiB defaults; truncation fails closed |
 | Cancellation | `oci_test.go:165` canceled-context honor; `process.go:53` and `oci.go:89` return `ctx.Err()`; per-claim deadline `source.go:135` |
