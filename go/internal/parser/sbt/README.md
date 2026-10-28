@@ -402,4 +402,7 @@ tracked. A leading UTF-8 byte order mark is ignored.
   name, a `%%` row only by `sbt_binary_artifact`, and every other row (`%%%`,
   custom `cross`, no known binary version, a pre-release) not at all. The
   parser does not change for this: `name` stays the unsuffixed
-  `organization:name`. Rows keep the line-keyed entity id (#8962).
+  `organization:name`. Rows use the section-keyed entity id (#8962): the
+  identity discriminator folds in the declared revision and the
+  cross-version label, because `name` alone cannot tell `%` from `%%` and sbt
+  appends repeat declarations to the sequence without de-duplicating.

@@ -132,7 +132,7 @@ around the `Materialize` call.
   `content.CanonicalEntityIDWithMetadata`, passing the cloned per-entity
   `Metadata` map used for the entity's other fields. For an in-scope manifest
   dependency Variable (npm, composer, cargo, gradle, maven, nuget, pypi, go,
-  rubygems, pub, hex; non-lockfile, non-empty `section` in metadata) this
+  rubygems, pub, hex, sbt; non-lockfile, non-empty `section` in metadata) this
   mints a section-keyed, line-independent id via
   `content.CanonicalDependencyEntityID` instead of the legacy line-keyed
   `content.CanonicalEntityID` — see `internal/content/README.md`'s Gotchas
@@ -152,13 +152,16 @@ shifted lines in the same section.
 `#5357` proved this for `package.json`/`composer.json`, where `(section,
 name)` alone is already unique (a JSON object key). `#5507` extended the
 scheme to cargo, gradle, maven, nuget, pypi, go (gomod), rubygems, pub, and
-hex — for cargo, gradle, maven, nuget, pypi, and go, `(section, name)` alone
+hex, and `#8962` added sbt — for cargo, gradle, maven, nuget, pypi, go, and
+sbt, `(section, name)` alone
 is NOT always unique (see `content.dependencyIdentityDiscriminator`'s doc
 comment for the concrete manifest feature each one's added discriminator
 defends: Cargo package aliasing, Gradle same-coordinate-different-version,
 Maven classifier/type, NuGet multi-targeting conditions, pypi extras/markers,
-and go's non-deduplicating `modfile.Parse` admitting the same module required
-twice at different versions in an untidied go.mod). Only rubygems, pub, and
+go's non-deduplicating `modfile.Parse` admitting the same module required
+twice at different versions in an untidied go.mod, and sbt's repeatable
+coordinate-at-a-different-version plus its unsuffixed `%`/`%%`/`%%%` names
+kept apart by the cross-version label). Only rubygems, pub, and
 hex need no discriminator: each one's own tooling or file format already
 guarantees per-section name uniqueness. `swift` was deliberately left out of
 scope — its only current producer (`Package.resolved`) is a lockfile, already

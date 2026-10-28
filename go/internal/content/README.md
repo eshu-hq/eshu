@@ -104,7 +104,8 @@ Identity:
   `CanonicalEntityID` unchanged. The gate excludes lockfile-sourced rows on
   purpose — see `CanonicalDependencyEntityID` below. As of #5507 the in-scope
   package managers are `npm`, `composer` (#5357), `cargo`, `gradle`, `maven`,
-  `nuget`, `pypi`, `go` (gomod), `rubygems`, `pub`, and `hex`; `swift` is
+  `nuget`, `pypi`, `go` (gomod), `rubygems`, `pub`, and `hex`, plus `sbt`
+  (#8962); `swift` is
   deliberately excluded (see `dependency_identity.go`'s doc comment — its only
   producer is a lockfile).
 - `CanonicalDependencyEntityID(repoID, relativePath, section, name string) string`
@@ -120,9 +121,11 @@ Identity:
   `dependencyIdentityDiscriminator` in `dependency_identity.go`) for formats
   where `(section, name)` alone cannot guarantee uniqueness — cargo (manifest
   alias), gradle (version), maven (classifier/type), nuget (item-level MSBuild
-  `Condition`, falling back to group-level), pypi (extras/marker/value), and
+  `Condition`, falling back to group-level), pypi (extras/marker/value),
   go/gomod (raw declared version, since `modfile.Parse` does not de-duplicate
-  `require` directives). `CanonicalDependencyEntityID` itself is unaware of the
+  `require` directives), and sbt (declared revision plus cross-version label,
+  since `name` stays unsuffixed for `%`/`%%`/`%%%` alike).
+  `CanonicalDependencyEntityID` itself is unaware of the
   discriminator concept; its hash shape never changes, so the #5357
   npm/composer ids already minted in production stay byte-identical.
 
@@ -186,7 +189,8 @@ contract.
   that forces it (Cargo's `package = "..."` aliasing, Gradle's repeatable
   coordinate-at-a-different-version, Maven's classifier/type, NuGet's
   MSBuild `Condition` multi-targeting, pypi's extras/markers/version
-  constraints). Do not add or
+  constraints, sbt's repeatable coordinate-at-a-different-version and its
+  unsuffixed `%`/`%%`/`%%%` names kept apart by the cross-version label). Do not add or
   widen a case without the same kind of proof, and do not forget: an empty
   discriminator is the correct answer for every format whose parser already
   guarantees per-section uniqueness on its own.

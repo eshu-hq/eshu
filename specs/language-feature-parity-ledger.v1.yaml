@@ -372,11 +372,11 @@ language_features:
     pin_files: [.sdkmanrc, .java-version]
     parser_backing: tree-sitter-backed
     no_provider_required: true
-    supported_features: [functions-def, classes, objects-object, traits, imports, function-calls, generic-function-calls, val-definitions, var-definitions, parent-context-class-context, dead-code-roots, play-http4s-literal-route-truth, build-sbt-literal-dependency-manifest, build-sbt-maven-identity-join]
+    supported_features: [functions-def, classes, objects-object, traits, imports, function-calls, generic-function-calls, val-definitions, var-definitions, parent-context-class-context, dead-code-roots, play-http4s-literal-route-truth, build-sbt-literal-dependency-manifest, build-sbt-maven-identity-join, build-sbt-section-keyed-dependency-identity]
     partial_features: [broader-play-http4s-route-truth, outbound-contracts, build-sbt-non-literal-dependency-forms]
     derived_features: []
     source_files: [go/internal/parser/scala_language.go, go/internal/parser/scala/language.go, go/internal/parser/scala/framework_routes.go, go/internal/parser/gradle_language.go, go/internal/parser/sbt/parser.go]
-    test_files: [go/internal/parser/sbt/grammar_test.go, go/internal/parser/sbt/fuzz_test.go, go/internal/parser/sbt/parser_test.go, go/internal/parser/sbt/adversarial_test.go, go/internal/parser/registry_sbt_test.go, go/internal/packageidentity/sbt_test.go, go/internal/reducer/packages/correlation/consumption_sbt_test.go, go/internal/parser/scala/engine_scala_imports_test.go, go/internal/parser/scala/scala_dead_code_roots_test.go, go/internal/parser/scala/scala_route_entries_test.go, go/internal/reducer/code/call/materialization/routes_scala_test.go, go/internal/query/content_reader_framework_routes_scala_test.go]
+    test_files: [go/internal/parser/sbt/grammar_test.go, go/internal/parser/sbt/fuzz_test.go, go/internal/parser/sbt/parser_test.go, go/internal/parser/sbt/adversarial_test.go, go/internal/parser/registry_sbt_test.go, go/internal/packageidentity/sbt_test.go, go/internal/reducer/packages/correlation/consumption_sbt_test.go, go/internal/content/dependency_identity_sbt_test.go, go/internal/content/dependency_identity_sbt_proof_test.go, go/internal/parser/scala/engine_scala_imports_test.go, go/internal/parser/scala/scala_dead_code_roots_test.go, go/internal/parser/scala/scala_route_entries_test.go, go/internal/reducer/code/call/materialization/routes_scala_test.go, go/internal/query/content_reader_framework_routes_scala_test.go]
     docs: [docs/public/languages/scala.md]
     read_surfaces: [execute_language_query, find_dead_code, trace_route_callers]
     tracking_issues: [4038, 4164]
