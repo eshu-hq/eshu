@@ -109,9 +109,10 @@ func writeRootFS(t *testing.T, packages int) string {
 	return root
 }
 
-// runRaw invokes the runner for a single call and returns the decoded page
-// with the stderr record, without asserting the result state.
-func runRaw(t *testing.T, componentID string, stdin []byte) (wirePage, string) {
+// runRawWithClock invokes the runner for a single call with an explicit
+// observation clock and returns the decoded page with the stderr record,
+// without asserting the result state.
+func runRawWithClock(t *testing.T, componentID string, stdin []byte, clock func() time.Time) (wirePage, string) {
 	t.Helper()
 
 	var stdout, stderr bytes.Buffer
@@ -120,7 +121,7 @@ func runRaw(t *testing.T, componentID string, stdin []byte) (wirePage, string) {
 		Stdin:       bytes.NewReader(stdin),
 		Stdout:      &stdout,
 		Stderr:      &stderr,
-		Clock:       testClock,
+		Clock:       clock,
 	}
 	if err := runner.Run(context.Background()); err != nil {
 		t.Fatalf("Run() error = %v, stderr = %q", err, stderr.String())
@@ -129,6 +130,35 @@ func runRaw(t *testing.T, componentID string, stdin []byte) (wirePage, string) {
 		t.Fatal("Run() wrote no stderr log line, want at least a completion record")
 	}
 	return decodePage(t, stdout.Bytes()), stderr.String()
+}
+
+// runRaw invokes the runner for a single call and returns the decoded page
+// with the stderr record, without asserting the result state.
+func runRaw(t *testing.T, componentID string, stdin []byte) (wirePage, string) {
+	t.Helper()
+
+	return runRawWithClock(t, componentID, stdin, testClock)
+}
+
+// runTerminal invokes the runner for a single call that must end the claim
+// terminal: a Go error here would become a retryable host launch failure.
+func runTerminal(t *testing.T, componentID string, stdin []byte, class string) wirePage {
+	t.Helper()
+
+	page, _ := runRaw(t, componentID, stdin)
+	if page.State != sdkcollector.ResultTerminal {
+		t.Fatalf("state = %q, want terminal", page.State)
+	}
+	if len(page.Statuses) != 1 || page.Statuses[0].Class != sdkcollector.StatusFailure {
+		t.Fatalf("statuses = %+v, want one failure status", page.Statuses)
+	}
+	if page.Statuses[0].FailureClass != class {
+		t.Fatalf("failure_class = %q, want %q", page.Statuses[0].FailureClass, class)
+	}
+	if len(page.Facts) != 0 {
+		t.Fatalf("facts = %d, want none on the terminal result", len(page.Facts))
+	}
+	return page
 }
 
 // runOne invokes the runner for a single call and returns the decoded page.
@@ -163,22 +193,20 @@ func TestRunnerRejectsForeignProtocol(t *testing.T) {
 }
 
 // TestRunnerRejectsAnalyzerMismatch proves a binary never executes another
-// analyzer: the claim component ID must equal the binary identity.
+// analyzer: a claim naming a different component ends the claim terminal
+// with a bounded class instead of a retryable launch failure.
 func TestRunnerRejectsAnalyzerMismatch(t *testing.T) {
 	t.Parallel()
 
 	claim := testClaim(IDSBOM, "scanner-worker://repository/r", "gen-1")
 	raw := testRequest(t, claim, map[string]any{"targets": []any{}})
-	var stdout, stderr bytes.Buffer
-	runner := Runner{ComponentID: IDImage, Stdin: bytes.NewReader(raw), Stdout: &stdout, Stderr: &stderr}
-	if err := runner.Run(context.Background()); err == nil {
-		t.Fatal("Run(mismatched component) error = nil, want identity rejection")
-	}
+	runTerminal(t, IDImage, raw, "component_claim_mismatch")
 }
 
-// TestRunnerRejectsUnknownCursor proves a forged resume cursor fails closed
-// naming the cursor, never paths.
-func TestRunnerRejectsUnknownCursor(t *testing.T) {
+// TestRunnerForgedCursorEmitsTerminal proves a forged resume cursor ends the
+// claim terminal with a bounded class instead of a retryable launch
+// failure: the defect is deterministic, so retry cannot fix it.
+func TestRunnerForgedCursorEmitsTerminal(t *testing.T) {
 	t.Parallel()
 
 	claim := testClaim(IDImage, "image://registry.example/t@sha256:deadbeef", "gen-1")
@@ -196,12 +224,101 @@ func TestRunnerRejectsUnknownCursor(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal request: %v", err)
 	}
-	var stdout, stderr bytes.Buffer
-	runner := Runner{ComponentID: IDImage, Stdin: bytes.NewReader(raw), Stdout: &stdout, Stderr: &stderr}
-	if err := runner.Run(context.Background()); err == nil {
-		t.Fatal("Run(forged cursor) error = nil, want cursor rejection")
-	} else if !strings.Contains(err.Error(), "forged-cursor") {
-		t.Fatalf("Run(forged cursor) error = %v, want cursor naming", err)
+	runTerminal(t, IDImage, raw, "component_bad_cursor")
+}
+
+// TestRunnerBadConfigEmitsTerminal proves a deterministic operator config
+// defect ends the claim terminal with a bounded class: retrying a bad
+// activation until the lease expires helps nobody.
+func TestRunnerBadConfigEmitsTerminal(t *testing.T) {
+	t.Parallel()
+
+	claim := testClaim(IDImage, "image://registry.example/t@sha256:deadbeef", "gen-1")
+	raw := testRequest(t, claim, map[string]any{
+		"targets":            []any{map[string]any{}},
+		"acceptance_unit_id": "image:sha256:deadbeef",
+		"page_bound_bytes":   -1,
+	})
+	page := runTerminal(t, IDImage, raw, "component_bad_config")
+	if page.Generation.ID != claim.GenerationID {
+		t.Fatalf("generation = %q, want the claim generation echoed back", page.Generation.ID)
+	}
+}
+
+// TestRunnerMalformedClaimEmitsTerminal proves a malformed claim identity
+// ends the claim terminal instead of retrying a defect the host will hand
+// back unchanged on every attempt.
+func TestRunnerMalformedClaimEmitsTerminal(t *testing.T) {
+	t.Parallel()
+
+	claim := testClaim(IDImage, "image://registry.example/t@sha256:deadbeef", "gen-1")
+	claim.WorkItemID = "  "
+	raw := testRequest(t, claim, map[string]any{
+		"targets":            []any{map[string]any{}},
+		"acceptance_unit_id": "image:sha256:deadbeef",
+	})
+	runTerminal(t, IDImage, raw, "component_bad_claim")
+}
+
+// TestRunnerPagesShareClaimStableObservedAtLiveClock proves every page of
+// one claim carries the same Generation.ObservedAt even when the wall clock
+// advances between the stateless re-invocations: the host pins the full
+// generation across pages and ends the claim terminal on drift.
+func TestRunnerPagesShareClaimStableObservedAtLiveClock(t *testing.T) {
+	t.Parallel()
+
+	scopeID := "image://registry.example/t@sha256:deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
+	root := writeRootFS(t, 60)
+	target := map[string]any{
+		"scope_id":         scopeID,
+		"rootfs_path":      root,
+		"source_uri":       "oci://registry.example/t@sha256:deadbeef",
+		"source_record_id": "sha256:deadbeef",
+		"image_reference":  "registry.example/t:1.0",
+		"image_digest":     "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+	}
+	claim := testClaim(IDImage, scopeID, "scanner-worker:generation-test")
+	config := map[string]any{
+		"targets":            []any{target},
+		"acceptance_unit_id": "image:sha256:deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+		"page_bound_bytes":   8 * 1024,
+	}
+
+	tick := testClock()
+	clock := func() time.Time {
+		tick = tick.Add(2 * time.Second)
+		return tick
+	}
+	var stamps []time.Time
+	var cursor *continuation
+	pages := 0
+	for {
+		raw := testRequestWithContinuation(t, claim, config, cursor)
+		page, _ := runRawWithClock(t, IDImage, raw, clock)
+		if page.State != sdkcollector.ResultComplete {
+			t.Fatalf("page state = %q, want complete", page.State)
+		}
+		if page.Generation.ObservedAt.IsZero() {
+			t.Fatalf("page %d has zero ObservedAt, want the claim observation time", pages)
+		}
+		stamps = append(stamps, page.Generation.ObservedAt)
+		pages++
+		if !page.Page.More {
+			break
+		}
+		cursor = &continuation{Cursor: page.Page.Cursor}
+		if pages > 64 {
+			t.Fatal("paging did not terminate within 64 pages")
+		}
+	}
+	if pages < 2 {
+		t.Fatalf("pages = %d, want multi-page output at the small test bound", pages)
+	}
+	for i, stamp := range stamps {
+		if !stamp.Equal(stamps[0]) {
+			t.Fatalf("page %d ObservedAt %s drifts from page 0 %s across live-clock calls",
+				i, stamp.Format(time.RFC3339Nano), stamps[0].Format(time.RFC3339Nano))
+		}
 	}
 }
 

@@ -31,7 +31,8 @@ type Config struct {
 	AcceptanceUnitID string `json:"acceptance_unit_id"`
 	// PageBoundBytes optionally narrows the per-call page byte bound below
 	// the stdout-derived default (tests and constrained hosts). Zero keeps
-	// the default. A non-positive value fails closed.
+	// the default; a value above the default is clamped to it, so pages
+	// always fit the host stdout limit. A negative value fails closed.
 	PageBoundBytes int64 `json:"page_bound_bytes,omitempty"`
 }
 

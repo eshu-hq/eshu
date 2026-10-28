@@ -41,6 +41,9 @@ const protocolVersion = "collector-sdk/v1alpha3"
 // claim does not carry is recomputed deterministically (the locator hash
 // from the scope ID) or scoped to the executor (owner and claim-correlation
 // IDs name the component, never the workflow); none of it crosses the wire.
+// The page cursor carries the claim observation time the first page minted,
+// so every page stamps the same Generation.ObservedAt for the host
+// generation pin.
 type Runner struct {
 	// ComponentID is the binary identity (IDImage, IDSBOM, IDOSRuntime).
 	// The claim's component ID must equal it.
@@ -89,6 +92,19 @@ type wireResult struct {
 }
 
 // Run executes one call: decode, validate, analyze, page, emit.
+//
+// Error taxonomy (collector-sdk/v1alpha3 pagination, extensionhost
+// collectPages): every Go error returned here becomes a host launch failure,
+// which is RETRYABLE until the claim lease expires. Deterministic input
+// defects therefore emit terminal Results against the echoed claim instead:
+// a bad activation fails once with a bounded component_* class rather than
+// retry-storming to lease expiry. Go errors remain only where no
+// trustworthy result can be constructed: transport failures, undecodable or
+// oversized requests (no claim to echo), a foreign protocol version
+// (emitting v1alpha3 to a host that speaks something else is undecodable
+// output, and version skew may resolve on redeploy, so retryable is
+// honest), and an unknown binary identity (deployment wiring no result can
+// attribute).
 func (r Runner) Run(ctx context.Context) error {
 	if r.Stdin == nil {
 		return fmt.Errorf("component stdin is required")
@@ -96,7 +112,7 @@ func (r Runner) Run(ctx context.Context) error {
 	if r.Stdout == nil {
 		return fmt.Errorf("component stdout is required")
 	}
-	now := r.clock()
+	callNow := r.clock()
 	raw, err := io.ReadAll(io.LimitReader(r.Stdin, maxRequestBytes+1))
 	if err != nil {
 		return fmt.Errorf("read component request: %w", err)
@@ -115,60 +131,75 @@ func (r Runner) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if req.Claim.ComponentID != r.ComponentID {
-		return fmt.Errorf("claim component %q does not match binary %q", req.Claim.ComponentID, r.ComponentID)
-	}
+	// The claim observation time is minted on the first page and travels
+	// in the opaque page cursor the host echoes back, so every page of one
+	// claim stamps the same Generation.ObservedAt across the stateless
+	// re-invocations. Stamping the per-call clock here breaks the host
+	// generation pin (extensionhost sameGeneration) on page two.
+	observedAt := callNow
 	resume := 0
 	if req.Continuation != nil {
-		resume, err = parseCursorIndex(req.Continuation.Cursor)
+		var cursorObservedAt time.Time
+		resume, cursorObservedAt, err = parseCursor(req.Continuation.Cursor)
 		if err != nil {
-			return err
+			r.log(analyzer, "terminal", 0, 0, 0, "component_bad_cursor")
+			return r.emitTerminal(req.Claim, callNow, "component_bad_cursor")
 		}
+		observedAt = cursorObservedAt
+	}
+	if req.Claim.ComponentID != r.ComponentID {
+		r.log(analyzer, "terminal", 0, 0, 0, "component_claim_mismatch")
+		return r.emitTerminal(req.Claim, observedAt, "component_claim_mismatch")
 	}
 	config, err := parseConfig(req.Config)
 	if err != nil {
-		return err
+		r.log(analyzer, "terminal", 0, 0, 0, "component_bad_config")
+		return r.emitTerminal(req.Claim, observedAt, "component_bad_config")
 	}
-	input, err := claimInput(req.Claim, config, analyzer, now)
+	input, err := claimInput(req.Claim, config, analyzer, observedAt)
 	if err != nil {
-		return err
+		// The echoed claim is malformed, so the host SDK validator will
+		// reject this result as invalid: still terminal, still no retry.
+		r.log(analyzer, "terminal", 0, 0, 0, "component_bad_claim")
+		return r.emitTerminal(req.Claim, observedAt, "component_bad_claim")
 	}
-	executor, err := buildAnalyzer(analyzer, req.Claim, config, now)
+	executor, err := buildAnalyzer(analyzer, req.Claim, config, observedAt)
 	if err != nil {
 		r.log(analyzer, "terminal", 0, 0, 0, "component_failed")
-		return r.emitTerminal(req.Claim, now, "component_failed")
+		return r.emitTerminal(req.Claim, observedAt, "component_failed")
 	}
 	bound, err := pageBound(config.PageBoundBytes)
 	if err != nil {
 		return err
 	}
-	start := now
+	start := callNow
 	analyzeCtx, cancel := r.analyzeContext(ctx, input)
 	result, err := executor.Analyze(analyzeCtx, input)
 	cancel()
 	latencyMS := int(time.Since(start).Milliseconds())
 	if err != nil {
 		r.log(analyzer, failureState(err), 0, 0, 0, failureClass(err))
-		return r.emitFailure(req.Claim, now, err)
+		return r.emitFailure(req.Claim, observedAt, err)
 	}
 	output := result.Output
 	if err := scannerworker.ValidateFactOutput(input, output); err != nil {
 		r.log(analyzer, "terminal", 0, 0, 0, "component_invalid_output")
-		return r.emitTerminal(req.Claim, now, "component_invalid_output")
+		return r.emitTerminal(req.Claim, observedAt, "component_invalid_output")
 	}
 	pages, err := scannerworker.SplitFactOutput(output, bound)
 	if err != nil {
 		r.log(analyzer, "terminal", 0, 0, 0, "component_fact_above_bound")
-		return r.emitTerminal(req.Claim, now, "component_fact_above_bound")
+		return r.emitTerminal(req.Claim, observedAt, "component_fact_above_bound")
 	}
 	if len(pages) > maxPagesPerClaim {
 		r.log(analyzer, "terminal", 0, 0, 0, "component_page_bound_exceeded")
-		return r.emitTerminal(req.Claim, now, "component_page_bound_exceeded")
+		return r.emitTerminal(req.Claim, observedAt, "component_page_bound_exceeded")
 	}
 	index := resume
 	if req.Continuation != nil {
 		if err := checkCursorRange(req.Continuation.Cursor, index, len(pages)); err != nil {
-			return err
+			r.log(analyzer, "terminal", 0, 0, 0, "component_bad_cursor")
+			return r.emitTerminal(req.Claim, observedAt, "component_bad_cursor")
 		}
 	}
 	page := pages[index]
@@ -177,13 +208,13 @@ func (r Runner) Run(ctx context.Context) error {
 		wire, err := factenvelope.SDKFactFromInternal(envelope)
 		if err != nil {
 			r.log(analyzer, "terminal", 0, 0, 0, "component_invalid_output")
-			return r.emitTerminal(req.Claim, now, "component_invalid_output")
+			return r.emitTerminal(req.Claim, observedAt, "component_invalid_output")
 		}
 		wireFacts = append(wireFacts, wire)
 	}
 	envelope := &pageEnvelope{PageIndex: index, TotalFacts: len(output.Facts)}
 	if index < len(pages)-1 {
-		envelope.Cursor = formatCursor(index + 1)
+		envelope.Cursor = formatCursor(index+1, observedAt)
 		envelope.More = true
 	}
 	wire := wireResult{
@@ -193,7 +224,7 @@ func (r Runner) Run(ctx context.Context) error {
 			Claim:           req.Claim,
 			Generation: sdkcollector.Generation{
 				ID:            req.Claim.GenerationID,
-				ObservedAt:    now,
+				ObservedAt:    observedAt,
 				FreshnessHint: "snapshot",
 			},
 			Facts: wireFacts,
@@ -342,12 +373,22 @@ func decodeTargets(raw []json.RawMessage, targets any) error {
 
 // pageBound resolves the per-call page byte bound: the operator-narrowed
 // value when configured, else the stdout-derived default both sides mirror.
+// A configured bound above the default is clamped to it: pages must fit the
+// host stdout limit, so widening can only buy a truncation plus retry loop,
+// never more facts per call.
 func pageBound(configured int64) (int64, error) {
+	def, err := pageBoundForStdout(DefaultStdoutLimitBytes)
+	if err != nil {
+		return 0, err
+	}
 	if configured == 0 {
-		return pageBoundForStdout(DefaultStdoutLimitBytes)
+		return def, nil
 	}
 	if configured < 0 {
 		return 0, fmt.Errorf("page_bound_bytes must not be negative")
+	}
+	if configured > def {
+		return def, nil
 	}
 	return configured, nil
 }
@@ -376,26 +417,27 @@ func failureState(err error) sdkcollector.ResultState {
 }
 
 // emitFailure emits a single-shot failure result for an analysis error.
-func (r Runner) emitFailure(claim sdkcollector.Claim, now time.Time, err error) error {
-	return r.emit(claim, now, failureState(err), nil, []sdkcollector.Status{{
+func (r Runner) emitFailure(claim sdkcollector.Claim, observedAt time.Time, err error) error {
+	return r.emit(claim, observedAt, failureState(err), nil, []sdkcollector.Status{{
 		Class:        sdkcollector.StatusFailure,
 		FailureClass: failureClass(err),
 	}}, nil)
 }
 
 // emitTerminal emits a single-shot terminal result for a binary-side defect
-// (invalid output, unpageable fact): retry cannot fix it, so the claim must
-// not be released for another attempt. The class names the defect, never
-// the values that triggered it.
-func (r Runner) emitTerminal(claim sdkcollector.Claim, now time.Time, class string) error {
-	return r.emit(claim, now, sdkcollector.ResultTerminal, nil, []sdkcollector.Status{{
+// (invalid output, unpageable fact) or a deterministic input defect (bad
+// config, malformed claim, forged cursor): retry cannot fix it, so the
+// claim must not be released for another attempt. The class names the
+// defect, never the values that triggered it.
+func (r Runner) emitTerminal(claim sdkcollector.Claim, observedAt time.Time, class string) error {
+	return r.emit(claim, observedAt, sdkcollector.ResultTerminal, nil, []sdkcollector.Status{{
 		Class:        sdkcollector.StatusFailure,
 		FailureClass: class,
 	}}, nil)
 }
 
 // emit writes one result document to stdout.
-func (r Runner) emit(claim sdkcollector.Claim, now time.Time, state sdkcollector.ResultState, facts []sdkcollector.Fact, statuses []sdkcollector.Status, page *pageEnvelope) error {
+func (r Runner) emit(claim sdkcollector.Claim, observedAt time.Time, state sdkcollector.ResultState, facts []sdkcollector.Fact, statuses []sdkcollector.Status, page *pageEnvelope) error {
 	raw, err := json.Marshal(wireResult{
 		Result: sdkcollector.Result{
 			ProtocolVersion: protocolVersion,
@@ -403,7 +445,7 @@ func (r Runner) emit(claim sdkcollector.Claim, now time.Time, state sdkcollector
 			Claim:           claim,
 			Generation: sdkcollector.Generation{
 				ID:            claim.GenerationID,
-				ObservedAt:    now,
+				ObservedAt:    observedAt,
 				FreshnessHint: "snapshot",
 			},
 			Facts:    facts,

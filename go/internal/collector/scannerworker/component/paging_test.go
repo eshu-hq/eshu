@@ -5,6 +5,7 @@ package component
 
 import (
 	"testing"
+	"time"
 )
 
 // TestPageBoundMirrorsSDKAccounting pins the page-bound arithmetic against
@@ -54,30 +55,59 @@ func TestPageBoundConfigNarrowsOnly(t *testing.T) {
 	}
 }
 
+// TestPageBoundConfigNeverWidens proves a widening operator page bound is
+// clamped to the stdout-derived default the narrows-only contract promises:
+// pages must fit the host stdout limit, so a bound above it can only buy a
+// truncation plus retry loop, never more facts per call.
+func TestPageBoundConfigNeverWidens(t *testing.T) {
+	t.Parallel()
+
+	def, err := pageBound(0)
+	if err != nil {
+		t.Fatalf("pageBound(0) error = %v", err)
+	}
+	for _, configured := range []int64{def, def + 1, 2 * def, 1 << 30} {
+		got, err := pageBound(configured)
+		if err != nil {
+			t.Fatalf("pageBound(%d) error = %v, want clamp to default", configured, err)
+		}
+		if got != def {
+			t.Fatalf("pageBound(%d) = %d, want default %d", configured, got, def)
+		}
+	}
+}
+
 // TestCursorRoundTrip proves minted cursors parse back to their page and
-// forgeries fail closed.
+// claim observation time, and forgeries fail closed. The observation time
+// travels in the token so every page of one claim stamps the same
+// Generation.ObservedAt; a cursor minted before that (bare page-N) is a
+// forgery now, since echoing the call clock would reintroduce drift.
 func TestCursorRoundTrip(t *testing.T) {
 	t.Parallel()
 
+	stamp := time.Date(2026, time.October, 28, 12, 0, 0, 123456789, time.UTC)
 	for _, index := range []int{0, 1, 63} {
-		cursor := formatCursor(index)
-		got, err := parseCursorIndex(cursor)
+		cursor := formatCursor(index, stamp)
+		got, gotStamp, err := parseCursor(cursor)
 		if err != nil {
-			t.Fatalf("parseCursorIndex(%q) error = %v", cursor, err)
+			t.Fatalf("parseCursor(%q) error = %v", cursor, err)
 		}
 		if got != index {
-			t.Fatalf("parseCursorIndex(%q) = %d, want %d", cursor, got, index)
+			t.Fatalf("parseCursor(%q) = %d, want %d", cursor, got, index)
+		}
+		if !gotStamp.Equal(stamp) {
+			t.Fatalf("parseCursor(%q) observed_at = %s, want %s", cursor, gotStamp.Format(time.RFC3339Nano), stamp.Format(time.RFC3339Nano))
 		}
 	}
-	for _, forged := range []string{"", "page-", "page-x", "page--1", "sheet-1", "page-1;rm -rf /"} {
-		if _, err := parseCursorIndex(forged); err == nil {
-			t.Fatalf("parseCursorIndex(%q) error = nil, want rejection", forged)
+	for _, forged := range []string{"", "page-", "page-x", "page--1", "sheet-1", "page-1;rm -rf /", "page-1", "page-1.", "page-1.x", "page-1.-5", "page-x.123", "page--1.123"} {
+		if _, _, err := parseCursor(forged); err == nil {
+			t.Fatalf("parseCursor(%q) error = nil, want rejection", forged)
 		}
 	}
-	if err := checkCursorRange("page-2", 2, 3); err != nil {
+	if err := checkCursorRange("page-2.123", 2, 3); err != nil {
 		t.Fatalf("checkCursorRange(in-range) error = %v", err)
 	}
-	if err := checkCursorRange("page-3", 3, 3); err == nil {
+	if err := checkCursorRange("page-3.123", 3, 3); err == nil {
 		t.Fatal("checkCursorRange(out-of-range) error = nil, want rejection")
 	}
 }

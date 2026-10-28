@@ -5,9 +5,11 @@ package component
 
 import (
 	"context"
+	"errors"
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -175,6 +177,126 @@ func TestHostAdmitsRealImageBinary(t *testing.T) {
 		}
 	}
 	t.Logf("image: host-admitted %d facts identical to in-tree output", len(admitted))
+}
+
+// terminalFailure reports whether the host ended the claim terminal (no
+// retry) rather than with a retryable launch failure.
+func terminalFailure(t *testing.T, err error) bool {
+	t.Helper()
+
+	var terminal interface{ TerminalFailure() bool }
+	if !errors.As(err, &terminal) {
+		t.Fatalf("host error %v carries no terminal verdict, want a terminal failure", err)
+	}
+	return terminal.TerminalFailure()
+}
+
+// TestHostAdmitsMultiPageBinaryLiveClock proves the production path for a
+// multi-page component result with a real wall clock: the real host Source
+// launches the real image binary (no frozen clock) at a small page bound,
+// reassembles every page, and admits the identical fact set the in-tree
+// analyzer produces. A per-invocation Generation.ObservedAt fails this with
+// a terminal identity mismatch on page two.
+func TestHostAdmitsMultiPageBinaryLiveClock(t *testing.T) {
+	bin := buildComponentBinary(t, "github.com/eshu-hq/eshu/go/cmd/scanner-component-image", "scanner-component-image")
+
+	scopeID := "image://registry.example/admission@sha256:deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
+	root := writeRootFS(t, 60)
+	acceptance := "image:sha256:deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
+	target := map[string]any{
+		"scope_id":         scopeID,
+		"rootfs_path":      root,
+		"source_uri":       "oci://registry.example/admission@sha256:deadbeef",
+		"source_record_id": "sha256:deadbeef",
+		"image_reference":  "registry.example/admission:1.0",
+		"image_digest":     "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+	}
+	config := map[string]any{
+		"targets":            []any{target},
+		"acceptance_unit_id": acceptance,
+		"page_bound_bytes":   8 * 1024,
+	}
+
+	claim := testClaim(IDImage, scopeID, "scanner-worker:generation-admission")
+	claim.InstanceID = "scanner-admission"
+	claim.FencingToken = "13"
+	claim.Attempt = 1
+	if _, pages := drivePages(t, IDImage, claim, config); pages < 2 {
+		t.Fatalf("pages = %d, want multi-page output at the small test bound", pages)
+	}
+
+	item := admissionItem("scanner-admission", scopeID, acceptance)
+	admitted := admitThroughHost(t, scannerworker.AnalyzerImageUnpacking, bin, item, config)
+
+	wantClaim := testClaim(IDImage, scopeID, item.GenerationID)
+	wantClaim.InstanceID = item.CollectorInstanceID
+	wantClaim.FencingToken = strconv.FormatInt(item.CurrentFencingToken, 10)
+	wantClaim.Attempt = item.AttemptCount
+	wantClaim.Deadline = item.LeaseExpiresAt
+	want := directImageOutputFor(t, wantClaim, acceptance, root)
+	if len(admitted) != len(want) {
+		t.Fatalf("admitted %d facts, want %d", len(admitted), len(want))
+	}
+	for i := range want {
+		if admitted[i] != want[i] {
+			t.Fatalf("admitted facts[%d]:\n got %q\nwant %q", i, admitted[i], want[i])
+		}
+	}
+	t.Logf("image: host-admitted %d multi-page facts identical to in-tree output with a live clock", len(admitted))
+}
+
+// TestHostEndsBadConfigTerminal proves a deterministic operator config
+// defect ends the claim terminal through the real host instead of retrying
+// a launch failure until the lease expires.
+func TestHostEndsBadConfigTerminal(t *testing.T) {
+	bin := buildComponentBinary(t, "github.com/eshu-hq/eshu/go/cmd/scanner-component-image", "scanner-component-image")
+
+	scopeID := "image://registry.example/admission@sha256:deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
+	root := writeRootFS(t, 1)
+	acceptance := "image:sha256:deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
+	item := admissionItem("scanner-admission", scopeID, acceptance)
+	config := map[string]any{
+		"targets": []any{map[string]any{
+			"scope_id":         scopeID,
+			"rootfs_path":      root,
+			"source_uri":       "oci://registry.example/admission@sha256:deadbeef",
+			"source_record_id": "sha256:deadbeef",
+			"image_reference":  "registry.example/admission:1.0",
+			"image_digest":     "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		}},
+		"acceptance_unit_id": acceptance,
+		"page_bound_bytes":   -1,
+	}
+
+	manifest, err := ManifestFor(scannerworker.AnalyzerImageUnpacking)
+	if err != nil {
+		t.Fatalf("ManifestFor() error = %v", err)
+	}
+	source, err := extensionhost.NewSource(extensionhost.Config{
+		Manifest:            manifest,
+		CollectorInstanceID: item.CollectorInstanceID,
+		ScopeKind:           scope.KindRepository,
+		ConfigHandle:        "cfg-admission",
+		Config:              config,
+		Runner:              extensionhost.ProcessRunner{Command: bin},
+		Grants:              RequiredGrants(manifest),
+	})
+	if err != nil {
+		t.Fatalf("NewSource() error = %v", err)
+	}
+	_, ok, err := source.NextClaimed(context.Background(), item)
+	if err == nil {
+		t.Fatal("NextClaimed(bad config) error = nil, want a terminal failure")
+	}
+	if ok {
+		t.Fatal("NextClaimed(bad config) ok = true, want no admission")
+	}
+	if !terminalFailure(t, err) {
+		t.Fatalf("NextClaimed(bad config) error = %v, want terminal, not a retryable launch failure", err)
+	}
+	if !strings.Contains(err.Error(), "component_bad_config") {
+		t.Fatalf("NextClaimed(bad config) error = %v, want the bounded component class", err)
+	}
 }
 
 // TestHostAdmitsRealOSRuntimeBinary proves the same production path for the

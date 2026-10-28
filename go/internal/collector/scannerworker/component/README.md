@@ -54,13 +54,18 @@ the host already decodes.
 
 Observability travels in-band: every call emits one SDK status record and
 one structured stderr log line with the component identity, outcome, and
-counts only. Claim values never appear in logs. Host-side spans, metrics,
-and grant telemetry remain the operator surfaces.
+counts only. Claim values never appear in logs. The stderr line is a
+debugging aid, not an operator signal: the host captures it in a bounded
+64 KiB per-call buffer that only annotates the failure message (byte count
+and truncation flag) and is never read on success. The operator-visible
+signals are the per-page SDK status records the host records. Host-side
+spans, metrics, and grant telemetry remain the operator surfaces.
 
 Observability Evidence: the status record carries fact count and source
 latency per page; the stderr line carries component, analyzer, state,
-page, facts, and total; host-side admission, grant, and status recorders
-are unchanged, so no new operator surface was added and none was removed.
+page, facts, and total for failure annotation only; host-side admission,
+grant, and status recorders are unchanged, so no new operator surface was
+added and none was removed.
 
 ## Performance Evidence
 
@@ -75,9 +80,11 @@ Per-call cost of the new subprocess path (baseline: direct in-process
 `imageanalyzer.Analyze` on a 60-package Alpine rootfs, arm64, Go 1.26.10:
 ~0.04 ms/op): one component invocation (process spawn, request decode,
 same analysis, page emit at an 8 KiB bound yielding 5 of 61 facts on page
-0) completes in ~6 ms wall with ~27 MB max RSS. A hostile full-range
-result needs about 24 such calls (~150 ms total), which is negligible
-against the 10–15 minute analyzer timeouts and minute-scale claim leases.
-Pages are stateless and resumable, so a spent budget fails the claim
-terminal instead of holding it. No hot-path Cypher, graph write, queue,
-or lease behavior changed: the host claim/commit path is untouched.
+0) completes in ~6 ms wall with ~27 MB max RSS. That per-call figure is
+measured; the multi-page total is an estimate from it, not a measured
+end-to-end run: a hostile full-range result at that bound would need about
+24 such calls (~150 ms extrapolated), which is negligible against the
+10–15 minute analyzer timeouts and minute-scale claim leases. Pages are
+stateless and resumable, so a spent budget fails the claim terminal
+instead of holding it. No hot-path Cypher, graph write, queue, or lease
+behavior changed: the host claim/commit path is untouched.

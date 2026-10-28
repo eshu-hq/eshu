@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -42,26 +43,43 @@ func pageBoundForStdout(stdoutLimitBytes int64) (int64, error) {
 	return bound, nil
 }
 
-// formatCursor mints the opaque resume token for one page index. The host
+// formatCursor mints the opaque resume token for one page: the next page
+// index plus the claim observation time minted on the first page. The host
 // echoes it back verbatim on the continuation call; only this component
-// interprets it.
-func formatCursor(pageIndex int) string {
-	return "page-" + strconv.Itoa(pageIndex)
+// interprets it. Carrying the observation time in the token keeps every
+// page's Generation.ObservedAt identical across the stateless
+// re-invocations one claim reassembles, which the host generation pin
+// (extensionhost sameGeneration) requires. The timestamp is the runner's
+// own observation time, never claim material, so it stays safe to name in
+// errors under the package leak rules.
+func formatCursor(pageIndex int, observedAt time.Time) string {
+	return "page-" + strconv.Itoa(pageIndex) + "." + strconv.FormatInt(observedAt.UTC().UnixNano(), 10)
 }
 
-// parseCursorIndex resolves a continuation cursor to the page index it
-// names, without range context. Format forgeries fail here, before any
-// analysis runs.
-func parseCursorIndex(cursor string) (int, error) {
+// parseCursor resolves a continuation cursor to the page index it names and
+// the claim observation time it carries, without range context. Format
+// forgeries fail here, before any analysis runs — including cursors minted
+// before the observation time traveled in the token, since falling back to
+// the call clock for those would reintroduce cross-page drift.
+func parseCursor(cursor string) (int, time.Time, error) {
 	trimmed := strings.TrimSpace(cursor)
-	if !strings.HasPrefix(trimmed, "page-") {
-		return 0, fmt.Errorf("unknown result cursor %q", trimmed)
+	rest, ok := strings.CutPrefix(trimmed, "page-")
+	if !ok {
+		return 0, time.Time{}, fmt.Errorf("unknown result cursor %q", trimmed)
 	}
-	index, err := strconv.Atoi(strings.TrimPrefix(trimmed, "page-"))
+	head, tail, ok := strings.Cut(rest, ".")
+	if !ok {
+		return 0, time.Time{}, fmt.Errorf("unknown result cursor %q", trimmed)
+	}
+	index, err := strconv.Atoi(head)
 	if err != nil || index < 0 {
-		return 0, fmt.Errorf("unknown result cursor %q", trimmed)
+		return 0, time.Time{}, fmt.Errorf("unknown result cursor %q", trimmed)
 	}
-	return index, nil
+	nanos, err := strconv.ParseInt(tail, 10, 64)
+	if err != nil || nanos <= 0 {
+		return 0, time.Time{}, fmt.Errorf("unknown result cursor %q", trimmed)
+	}
+	return index, time.Unix(0, nanos).UTC(), nil
 }
 
 // checkCursorRange resolves a parsed cursor against the page count of this

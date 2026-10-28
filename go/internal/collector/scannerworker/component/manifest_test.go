@@ -4,7 +4,9 @@
 package component
 
 import (
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker"
 )
@@ -109,6 +111,66 @@ func TestRequiredGrantsCoverEmittedKinds(t *testing.T) {
 			}
 			if grant.Scope == "" {
 				t.Fatalf("grant[%d] has empty scope", i)
+			}
+		}
+	}
+}
+
+// TestManifestArtifactPinsPublishTimeDigestContract pins the activation
+// contract for component images: one linux/arm64 artifact per manifest,
+// addressed as ghcr.io/eshu-hq/scanner-<name> pinned to an immutable
+// sha256 digest. The digest is the documented placeholder until the images
+// publish; the shape (registry, name, digest pinning) is what the publish
+// step must preserve when it swaps in the real digest.
+func TestManifestArtifactPinsPublishTimeDigestContract(t *testing.T) {
+	t.Parallel()
+
+	names := map[scannerworker.AnalyzerKind]string{
+		scannerworker.AnalyzerImageUnpacking:      "image",
+		scannerworker.AnalyzerSBOMGeneration:      "sbom",
+		scannerworker.AnalyzerOSPackageExtraction: "osruntime",
+	}
+	for kind, name := range names {
+		manifest, err := ManifestFor(kind)
+		if err != nil {
+			t.Fatalf("ManifestFor(%q) error = %v", kind, err)
+		}
+		if len(manifest.Spec.Artifacts) != 1 {
+			t.Fatalf("ManifestFor(%q) artifacts = %d, want exactly one pinned image", kind, len(manifest.Spec.Artifacts))
+		}
+		artifact := manifest.Spec.Artifacts[0]
+		if artifact.Platform != "linux/arm64" {
+			t.Fatalf("ManifestFor(%q) platform = %q, want linux/arm64", kind, artifact.Platform)
+		}
+		want := "ghcr.io/eshu-hq/scanner-" + name + "@sha256:" + placeholderArtifactDigest
+		if artifact.Image != want {
+			t.Fatalf("ManifestFor(%q) image = %q, want %q", kind, artifact.Image, want)
+		}
+		if placeholderArtifactDigest != strings.Repeat("a", 64) {
+			t.Fatalf("placeholderArtifactDigest = %q, want the 64-hex never-pulled convention", placeholderArtifactDigest)
+		}
+	}
+}
+
+// TestRequiredGrantsAreLive pins that the required grant set stays usable:
+// every grant expires in the future with renewal margin, so fixtures do
+// not rot into fail-closed expiry denials. Production lifetimes come from
+// `eshu component grant` activation policy, not this constructor.
+func TestRequiredGrantsAreLive(t *testing.T) {
+	t.Parallel()
+
+	for _, kind := range []scannerworker.AnalyzerKind{
+		scannerworker.AnalyzerImageUnpacking,
+		scannerworker.AnalyzerSBOMGeneration,
+		scannerworker.AnalyzerOSPackageExtraction,
+	} {
+		manifest, err := ManifestFor(kind)
+		if err != nil {
+			t.Fatalf("ManifestFor(%q) error = %v", kind, err)
+		}
+		for i, grant := range RequiredGrants(manifest) {
+			if !grant.ExpiresAt.After(time.Now().Add(24 * time.Hour)) {
+				t.Fatalf("ManifestFor(%q) grant[%d] expires at %s, want live with renewal margin", kind, i, grant.ExpiresAt.Format(time.RFC3339))
 			}
 		}
 	}

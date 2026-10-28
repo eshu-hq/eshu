@@ -38,5 +38,8 @@ Observability travels in-band: every call emits one SDK status record
 (complete with fact count and source latency, or failure with a bounded
 class) plus one structured stderr log line carrying the component identity,
 outcome, and counts only. Claim values (scope IDs, image references,
-paths, digests) never appear in logs. Host-side spans, metrics, and grant
-telemetry remain the operator surfaces.
+paths, digests) never appear in logs. The stderr line is a debugging aid,
+not an operator signal: the host captures it in a bounded 64 KiB per-call
+buffer that only annotates the failure message and is never read on
+success. Host-side spans, metrics, and grant telemetry remain the operator
+surfaces.

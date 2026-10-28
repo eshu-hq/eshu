@@ -29,6 +29,15 @@ const (
 	// admits the protocol by string and the pinned eshu-sdk/collector
 	// module predates the constant.
 	CollectorSDKProtocolV1Alpha3 = "collector-sdk/v1alpha3"
+	// placeholderArtifactDigest stands in for the immutable image digest
+	// of an unpublished scanner component image. Manifests must carry at
+	// least one artifact to validate, and no host, activation pipeline, or
+	// registry consumer resolves these manifests yet, so the digest stays
+	// unpullable until the images publish: publishing
+	// ghcr.io/eshu-hq/scanner-<name> must pin its real sha256 digest here
+	// in place of the placeholder. The all-a shape follows the repo-wide
+	// test/fixture convention for never-pulled digests.
+	placeholderArtifactDigest = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 )
 
 // AnalyzerFor resolves a component ID back to its analyzer. Unknown IDs fail
@@ -142,7 +151,9 @@ func ManifestFor(kind scannerworker.AnalyzerKind) (component.Manifest, error) {
 			},
 			Artifacts: []component.Artifact{{
 				Platform: "linux/arm64",
-				Image:    "ghcr.io/eshu-hq/scanner-" + strings.TrimPrefix(id, "eshu.scanner.") + "@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				// Unpullable until the images publish; see
+				// placeholderArtifactDigest for the resolution path.
+				Image: "ghcr.io/eshu-hq/scanner-" + strings.TrimPrefix(id, "eshu.scanner.") + "@sha256:" + placeholderArtifactDigest,
 			}},
 			EmittedFacts: families,
 			ConsumerContracts: component.ConsumerContracts{
@@ -155,8 +166,13 @@ func ManifestFor(kind scannerworker.AnalyzerKind) (component.Manifest, error) {
 
 // RequiredGrants returns the live producer grants one manifest needs: one
 // grant per declared fact family, pinned to the manifest id and version.
-// Production activations issue these through `eshu component grant`; the
-// constructor defines the required set the host admission enforces.
+// Production activations issue these through `eshu component grant`, which
+// assigns the bounded lifetime activation policy chooses (there are no
+// non-expiring grants, and expired grants deny admission fail-closed); the
+// constructor defines the required SET the host admission enforces, with a
+// far-future expiry so fixtures stay live. Never mint production grants
+// from this constructor output: set lifetimes and renew through the
+// activation grant flow.
 func RequiredGrants(manifest component.Manifest) []component.ProducerGrant {
 	grants := make([]component.ProducerGrant, 0, len(manifest.Spec.EmittedFacts))
 	for _, family := range manifest.Spec.EmittedFacts {
