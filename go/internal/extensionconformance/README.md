@@ -28,12 +28,14 @@ public `sdk/go/collector/conformance` types, so CLI and automation output stay
 byte-stable. Callers use `Run` with a `Request` (manifest path, fixture paths,
 mode, component home) and receive the public `Report`. `Run` loads the
 manifest against the producer grants in the component home, so a collector that
-declares granted core-owned fact kinds is judged like install judges it; the
-granted kinds alone are exempted from the harness's reserved core-kind list.
-The public harness still requires a `.` namespace prefix on every kind, which
-fails a granted kind without one until the SDK accepts host-granted kinds
-(#8851). `FindingFixtureReadFailed` is the only
-host-local finding code, because file I/O is the host's responsibility.
+declares granted core-owned fact kinds is judged like install judges it. The
+host passes the full core reserved-kind inventory and a trusted authorization
+snapshot to the public harness. Each emitted core fact must match a live grant
+for its component, version, collector kind, and schema version. The snapshot
+uses one evaluation time; expired and revoked grants do not authorize facts.
+The authoritative reducer phase and payload schema come from the generated
+core fact-kind registry. `FindingFixtureReadFailed` is the only host-local
+finding code, because file I/O is the host's responsibility.
 
 ## Dependencies
 
@@ -43,8 +45,8 @@ host-local finding code, because file I/O is the host's responsibility.
 
 The package intentionally avoids storage, graph, API, MCP, and workflow
 dependencies so fixture-mode checks stay cheap and deterministic. It reads
-payload schemas only from the versioned factschema fixture pack when a manifest
-declares `payloadSchemaRef`.
+payload schemas only from the versioned factschema fixture pack, using a core
+kind's registered schema even when the manifest omits `payloadSchemaRef`.
 
 ## Telemetry
 

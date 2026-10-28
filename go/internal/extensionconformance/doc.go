@@ -10,8 +10,10 @@
 // activation. It does not install components, claim workflow work, write graph
 // truth, or run Compose services.
 //
-// When a manifest fact family declares payloadSchemaRef, the host maps that
-// namespaced component fact kind to the referenced factschema fixture-pack
-// schema and passes it to the public conformance harness. A schema-invalid
-// fixture therefore fails closed before publication or hosted activation.
+// The host loads a durable producer-grant snapshot when a manifest declares a
+// core-owned fact kind. It passes exact live collector/schema authorization,
+// core reducer phases, and registered payload schemas to the public harness.
+// Namespaced fact kinds may declare payloadSchemaRef to use a fixture-pack
+// schema. A schema-invalid fixture fails closed before publication or hosted
+// activation.
 package extensionconformance

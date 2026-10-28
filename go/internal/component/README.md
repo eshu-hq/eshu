@@ -59,7 +59,9 @@ The CLI in `go/cmd/eshu` calls this package for `eshu component inspect`,
   verify, and conformance: it resolves core-owned declarations against the
   registry's durable producer grants and reads the registry only when the
   manifest declares such a kind. It returns the grants it used so callers can
-  pass them to `Policy.VerifyWithGrants`.
+  pass them to `Policy.VerifyWithGrants`. `LoadGrantedManifestAt(path, now)`
+  uses an explicit evaluation time when a caller must validate the returned
+  snapshot again, including fixture conformance.
 - `Policy`, `ProvenancePolicy`, `ProvenanceVerifier`, and
   `VerificationResult` implement local trust checks and expose stable failure
   classes for invalid manifests, incompatible core ranges, revoked packages,

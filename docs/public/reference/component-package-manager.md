@@ -111,11 +111,11 @@ is not remote Docker Compose proof.
 
 Uninstall fails while a component has active instances. `enable` rejects a padded component ID, `--instance`, or `--mode`; `disable` matches the stored values exactly, so it still clears a padded instance an older build recorded.
 
-Producer-grant issuance (`grant`, `grants`, `revoke-grant`) authorizes
-first-party producers to emit core-owned fact kinds. `inspect`, `verify`, and
-`conform` read those grants from `--component-home` when a manifest declares
-one; without a live grant they fail closed. See
-[Component Producer Grants](component-producer-grants.md).
+Producer grants authorize first-party core fact emission. `inspect`, `verify`,
+and `conform` read live grants from `--component-home`; absent, revoked, or
+expired grants fail closed. Conformance keeps all core kinds reserved and passes
+exact component/version/collector/schema tuples with registry reducer phases
+and payload schemas to the SDK. See [Component Producer Grants](component-producer-grants.md).
 
 Every component subcommand accepts `--json`. JSON output uses
 `schema_version: eshu.component.cli.v1`, a command name, a status, and the
@@ -480,12 +480,11 @@ another version with the same fact kind only when the declared schema-version ma
 compatible; otherwise the registry returns `fact_kind_collision`. Uninstalling an inactive
 component version releases its local fact-kind ownership claim.
 
-An `emittedFacts[].payloadSchemaRef` value is optional. When present, it must
-name a fact kind shipped by the factschema fixture pack, such as
-`aws_resource`. The component still emits its own namespaced kind, but the host
-uses the referenced core payload shape to validate SDK results before
-publication or hosted activation. Leave it unset only for provenance-only
-component facts that have no core payload shape yet.
+An `emittedFacts[].payloadSchemaRef` is optional and must name a fixture-pack
+fact kind, such as `aws_resource`. For namespaced facts, it selects the payload
+schema used before publication or hosted activation. Granted core facts use
+registry payload schemas even when the field is absent; conflicting references
+fail conformance. Leave it unset for provenance-only namespaced facts without a core payload shape.
 
 ## Current Limits
 

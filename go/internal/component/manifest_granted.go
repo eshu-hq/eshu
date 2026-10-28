@@ -27,6 +27,13 @@ import (
 // when the registry was not consulted. Pass them to Policy.VerifyWithGrants
 // so the verdict matches the load.
 func (r Registry) LoadGrantedManifest(path string) (Manifest, []ProducerGrant, error) {
+	return r.LoadGrantedManifestAt(path, time.Now().UTC())
+}
+
+// LoadGrantedManifestAt loads and validates a manifest against one durable
+// producer-grant snapshot evaluated at now. Callers that pass the grants on to
+// another verifier must use the same instant for every authorization decision.
+func (r Registry) LoadGrantedManifestAt(path string, now time.Time) (Manifest, []ProducerGrant, error) {
 	manifest, err := decodeManifest(path)
 	if err != nil {
 		return Manifest{}, nil, err
@@ -38,7 +45,7 @@ func (r Registry) LoadGrantedManifest(path string) (Manifest, []ProducerGrant, e
 			return Manifest{}, nil, err
 		}
 	}
-	if err := manifest.validateFactFamilies(grants, time.Now().UTC()); err != nil {
+	if err := manifest.validateFactFamilies(grants, now); err != nil {
 		return Manifest{}, nil, WrapError(ErrorCodeInvalidManifest, err.Error(), err)
 	}
 	return manifest, grants, nil

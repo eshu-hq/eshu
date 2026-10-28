@@ -12,6 +12,7 @@ import (
 	"time"
 
 	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
+	"github.com/eshu-hq/eshu-sdk/factschema/fixturepack"
 	"github.com/eshu-hq/eshu/go/internal/component"
 )
 
@@ -21,9 +22,8 @@ const (
 	grantedScope       = "incidents"
 )
 
-// grantedKindManifest declares one core-owned fact kind. The kind carries no
-// payloadSchemaRef so the test isolates the grant decision from payload
-// validation.
+// grantedKindManifest declares one core-owned fact kind with its authoritative
+// reducer phase. The host supplies its trusted payload schema from the registry.
 const grantedKindManifest = `apiVersion: eshu.dev/v1alpha1
 kind: ComponentPackage
 metadata:
@@ -51,7 +51,7 @@ spec:
   consumerContracts:
     reducer:
       phases:
-        - source_evidence_only:no_graph_truth
+        - incident_repository_correlation
   telemetry:
     metricsPrefix: eshu_dp_example_incidents_
 `
@@ -68,7 +68,8 @@ func writeGrantedKindManifest(t *testing.T) string {
 
 // grantedKindResult is a valid complete result whose single fact is the
 // core-owned incident.record kind, claimed by the incidents collector.
-func grantedKindResult() sdkcollector.Result {
+func grantedKindResult(t *testing.T) sdkcollector.Result {
+	t.Helper()
 	result := validConformanceResult()
 	result.Claim.ComponentID = grantedComponentID
 	result.Claim.InstanceID = "incidents-primary"
@@ -84,6 +85,11 @@ func grantedKindResult() sdkcollector.Result {
 	fact.SourceRef.FactKey = "incidents:record:1"
 	fact.SourceRef.URI = "component://incidents/record/1"
 	fact.SourceRef.RecordID = "record-1"
+	payload, ok := fixturepack.ValidPayload(grantedKind)
+	if !ok {
+		t.Fatal("incident.record fixture pack payload missing")
+	}
+	fact.Payload = payload
 	result.Facts = []sdkcollector.Fact{fact}
 	return result
 }
@@ -123,7 +129,7 @@ func TestRunHonorsProducerGrantsInComponentHome(t *testing.T) {
 
 	report, err := Run(context.Background(), Request{
 		ManifestPath:  writeGrantedKindManifest(t),
-		FixturePaths:  []string{writeConformanceFixture(t, grantedKindResult())},
+		FixturePaths:  []string{writeConformanceFixture(t, grantedKindResult(t))},
 		Mode:          ModeFixture,
 		ComponentHome: home,
 	})
@@ -187,7 +193,7 @@ func TestRunFailsClosedWithoutMatchingGrant(t *testing.T) {
 			}
 			report, err := Run(context.Background(), Request{
 				ManifestPath:  writeGrantedKindManifest(t),
-				FixturePaths:  []string{writeConformanceFixture(t, grantedKindResult())},
+				FixturePaths:  []string{writeConformanceFixture(t, grantedKindResult(t))},
 				Mode:          ModeFixture,
 				ComponentHome: home,
 			})
