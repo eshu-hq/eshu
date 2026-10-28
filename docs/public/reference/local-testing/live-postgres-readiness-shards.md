@@ -308,8 +308,12 @@ and requires five matching reports. The selected aggregate fails if the plan,
 a shard, or report selection fails.
 
 To produce a v2 file (the first one, or a refit), collect at least two
-complete, successful `main` workflow runs with the same inventory, profile,
-image, toolchain, and proof boundaries. Save every shard job's metadata and log.
+complete, successful `main` workflow runs with the same inventory, runner image
+name, Go toolchain, Postgres image digest, and proof boundaries. Save every
+shard job's metadata and log. Mixed hosted-runner image versions are accepted,
+and the refresher prints the version it saw on each shard. GitHub rolls hosted
+images over several days and standard runners cannot pin a version. The
+version is never used in pricing (#9411).
 Use the v2 refresher with both runs and an output outside the repository:
 
 ```bash
