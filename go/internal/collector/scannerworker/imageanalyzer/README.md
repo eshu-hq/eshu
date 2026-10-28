@@ -95,6 +95,29 @@ facts-emitted, queue-wait, scan-duration, target-count, result-count, CPU,
 memory, and private pprof signals; the typed encoder only changes the local
 construction seam for the same payload keys.
 
+## Satellite-contract source identity (Refs #9385)
+
+The analysis and unsupported-warning facts now carry the same sanitized
+source identity as their sibling package facts (`SourceURI` through the
+shared `ospackagevulnerability.SanitizeURL`, record falling back from the
+snapshot record to the image digest), because the collector SDK satellite
+contract requires `source_ref.uri` and `record_id` on every fact. Stable
+keys, payloads, limits, and the per-package emission path are untouched.
+
+No-Regression Evidence: throwaway `BenchmarkAnalyzeFixedRootFS` (fixed
+60-package Alpine rootfs, 61 facts per claim, linux/arm64, go1.26.6).
+Baseline `a5252ea478`: 477,000-502,000 ns/op, ~538,450 B/op, 6,465
+allocs/op. After: 481,000-488,000 ns/op, ~538,700 B/op, 6,468 allocs/op.
+Timing overlaps run-to-run noise; the delta is +3 allocs/op (+0.05%) and
++~250 B/op (+0.05%) from the two sanitizer calls on the analysis/warning
+facts. Safe because the per-package hot path is untouched and fact ceilings
+are unchanged (`TestMaxFactsContractUnchanged` still pins 50,000).
+
+No-Observability-Change: the new fields add no metric, label, span, or log
+key. Envelope counts and the scanner-worker claim/retry/dead-letter signals
+are unchanged; `TestAnalyzerPagedProjectionParity` proves paged reassembly
+keeps identical kinds, stable keys, generations, and scopes.
+
 ## Related docs
 
 - `../README.md`
