@@ -224,6 +224,33 @@ func TestClaimPlaneClientIdleAndPaced(t *testing.T) {
 	}
 }
 
+// TestClaimPlaneClientForeignNotFoundIsError guards the idle mapping: only
+// the idle not_found envelope (code not_found from ClaimNext) reports idle.
+// A not_found phrase arriving under another envelope code — e.g. a server
+// failure mentioning a missing run — must surface as an error, never idle.
+func TestClaimPlaneClientForeignNotFoundIsError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusInternalServerError)
+		if err := json.NewEncoder(writer).Encode(map[string]any{
+			"code":    "internal",
+			"message": "run not found in store",
+		}); err != nil {
+			t.Fatalf("encode stub response: %v", err)
+		}
+	}))
+	defer server.Close()
+	client := NewClaimPlaneClient(server.URL, server.Client())
+
+	_, _, issued, err := client.ClaimNextEligible(context.Background(), testSelector(), time.Now().UTC(), time.Minute)
+	if err == nil {
+		t.Fatalf("foreign not_found err = nil (issued=%v), want error", issued)
+	}
+	if issued {
+		t.Fatalf("foreign not_found issued a grant")
+	}
+}
+
 // BenchmarkClaimPlaneClientClaimNext bounds the per-claim HTTP overhead
 // the seam adds on the collector claim path: one grant round trip over
 // loopback against a stub server. Evidence numbers live in

@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -196,22 +197,50 @@ func (c *ClaimPlaneClient) post(
 	return nil
 }
 
+// claimPlaneError is the typed protocol-envelope error from the post path.
+// It carries the envelope Code so callers can branch on the protocol cause
+// instead of substring-matching the rendered message: a future not_found
+// phrase from another cause must not read as idle.
+type claimPlaneError struct {
+	operation string
+	code      string
+	message   string
+	wrapped   error
+}
+
+// Error implements error. The rendering preserves the historical
+// claimPlaneMapError strings so existing log scrapers keep matching.
+func (e *claimPlaneError) Error() string {
+	switch e.code {
+	case "stale_fence", "lease_expired", "claim_conflict":
+		return fmt.Sprintf("claim-plane %s: %s: %s", e.operation, ErrClaimRejected, e.message)
+	case "not_found":
+		return fmt.Sprintf("claim-plane %s: not found: %s", e.operation, e.message)
+	case "paced":
+		return fmt.Sprintf("claim-plane %s: paced: %s", e.operation, e.message)
+	case "invalid", "version_mismatch":
+		return fmt.Sprintf("claim-plane %s: invalid: %s", e.operation, e.message)
+	default:
+		return fmt.Sprintf("claim-plane %s: server error: %s", e.operation, e.message)
+	}
+}
+
+// Unwrap exposes ErrClaimRejected for fenced-away epochs so callers keep the
+// in-tree contract via errors.Is: drop the stale item and keep polling.
+func (e *claimPlaneError) Unwrap() error {
+	return e.wrapped
+}
+
 // claimPlaneMapError maps a protocol envelope to a caller error.
 // Fenced-away epochs collapse to ErrClaimRejected so callers keep the
 // in-tree contract: drop the stale item and keep polling.
 func claimPlaneMapError(operation string, envelope claimPlaneEnvelope) error {
+	err := &claimPlaneError{operation: operation, code: envelope.Code, message: envelope.Message}
 	switch envelope.Code {
 	case "stale_fence", "lease_expired", "claim_conflict":
-		return fmt.Errorf("claim-plane %s: %w: %s", operation, ErrClaimRejected, envelope.Message)
-	case "not_found":
-		return fmt.Errorf("claim-plane %s: not found: %s", operation, envelope.Message)
-	case "paced":
-		return fmt.Errorf("claim-plane %s: paced: %s", operation, envelope.Message)
-	case "invalid", "version_mismatch":
-		return fmt.Errorf("claim-plane %s: invalid: %s", operation, envelope.Message)
-	default:
-		return fmt.Errorf("claim-plane %s: server error: %s", operation, envelope.Message)
+		err.wrapped = ErrClaimRejected
 	}
+	return err
 }
 
 // claimPlaneMutation is the fenced mutation argument wire shape.
@@ -289,7 +318,8 @@ func (c *ClaimPlaneClient) ClaimNextEligible(
 		"lease_ttl_ns": int64(leaseDuration),
 	}, &response)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		var planeErr *claimPlaneError
+		if errors.As(err, &planeErr) && planeErr.code == "not_found" {
 			return WorkItem{}, Claim{}, false, nil
 		}
 		return WorkItem{}, Claim{}, false, err
