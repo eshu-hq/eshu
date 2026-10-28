@@ -57,9 +57,7 @@ export function isEshuErrorEnvelope<TData>(envelope: EshuEnvelope<TData>): boole
   return envelope.error !== null;
 }
 
-export function unwrapEnvelope<TData>(
-  envelope: EshuEnvelope<TData>
-): UnwrappedEnvelope<TData> {
+export function unwrapEnvelope<TData>(envelope: EshuEnvelope<TData>): UnwrappedEnvelope<TData> {
   if (envelope.error !== null) {
     throw new EshuEnvelopeError(envelope.error);
   }
@@ -68,6 +66,6 @@ export function unwrapEnvelope<TData>(
   }
   return {
     data: envelope.data,
-    truth: envelope.truth
+    truth: envelope.truth,
   };
 }

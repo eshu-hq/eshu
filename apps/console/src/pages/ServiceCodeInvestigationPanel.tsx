@@ -4,13 +4,13 @@ import { EshuApiClient } from "../api/client";
 import {
   loadCodeTopicInvestigation,
   type CodeTopicInvestigation,
-  type CodeTopicNextCall
+  type CodeTopicNextCall,
 } from "../api/codeTopic";
 import type { ServiceSpotlight } from "../api/serviceSpotlight";
 import { loadConsoleEnvironment } from "../config/environment";
 
 export function ServiceCodeInvestigationPanel({
-  spotlight
+  spotlight,
 }: {
   readonly spotlight: ServiceSpotlight;
 }): React.JSX.Element | null {
@@ -23,13 +23,13 @@ export function ServiceCodeInvestigationPanel({
     }
     const client = new EshuApiClient({
       apiKey: environment.apiKey,
-      baseUrl: environment.apiBaseUrl
+      baseUrl: environment.apiBaseUrl,
     });
     let active = true;
     void loadCodeTopicInvestigation({
       client,
       repoName: spotlight.repoName,
-      serviceName: spotlight.name
+      serviceName: spotlight.name,
     })
       .then((loaded) => {
         if (active) {
@@ -56,8 +56,8 @@ export function ServiceCodeInvestigationPanel({
         <span className="entity-kind">Code investigation</span>
         <h2>Code paths Eshu found</h2>
         <p>
-          Eshu searched the service repository for behavior-level evidence before asking
-          for exact symbols. Use this when the question starts with a flow, not a function name.
+          Eshu searched the service repository for behavior-level evidence before asking for exact
+          symbols. Use this when the question starts with a flow, not a function name.
         </p>
       </div>
       <div className="service-code-investigation-summary">
@@ -99,7 +99,7 @@ export function ServiceCodeInvestigationPanel({
 }
 
 function NextCallStrip({
-  calls
+  calls,
 }: {
   readonly calls: readonly CodeTopicNextCall[];
 }): React.JSX.Element | null {
@@ -153,7 +153,12 @@ function stringArgument(argumentsValue: Record<string, unknown>, key: string): s
   if (typeof value === "object") return JSON.stringify(value);
   // Remaining possibilities: number | boolean | bigint | symbol. Each one
   // stringifies cleanly without falling into the "[object Object]" trap.
-  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint" || typeof value === "symbol") {
+  if (
+    typeof value === "number" ||
+    typeof value === "boolean" ||
+    typeof value === "bigint" ||
+    typeof value === "symbol"
+  ) {
     return String(value);
   }
   return "";
@@ -164,7 +169,7 @@ function humanToolLabel(tool: string): string {
     get_code_relationship_story: "Code relationship story",
     get_file_lines: "Source lines",
     find_symbol: "Symbol lookup",
-    search_file_content: "Content search"
+    search_file_content: "Content search",
   };
   return labels[tool] ?? tool.replace(/_/g, " ");
 }
