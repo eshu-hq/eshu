@@ -271,6 +271,14 @@ func (r *Runner) recordLink(ctx context.Context, span trace.Span, result store.L
 			slog.Int64("delta_rows", result.DeltaRows),
 			slog.Int64("keys", result.Keys),
 			slog.Float64("duration_seconds", result.Duration.Seconds()),
+			// Where the duration went (#9275). The phases sum to at most
+			// duration_seconds; the gap is Go code between them.
+			slog.Float64("phase_ensure_cursor_seconds", result.Phases.EnsureCursor.Seconds()),
+			slog.Float64("phase_begin_seconds", result.Phases.Begin.Seconds()),
+			slog.Float64("phase_locks_seconds", result.Phases.Locks.Seconds()),
+			slog.Float64("phase_statement_seconds", result.Phases.Statement.Seconds()),
+			slog.Float64("phase_advance_seconds", result.Phases.Advance.Seconds()),
+			slog.Float64("phase_commit_seconds", result.Phases.Commit.Seconds()),
 			telemetry.PhaseAttr(telemetry.PhaseReduction),
 		)
 	}

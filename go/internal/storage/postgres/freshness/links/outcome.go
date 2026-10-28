@@ -169,6 +169,11 @@ type LinkResult struct {
 	DeltaRows int64
 	// Keys is the effective key count of the linked generation, all
 	// categories.
-	Keys     int64
+	Keys int64
+	// Duration is the wall time of the whole LinkNext call, from before the
+	// cursor insert to after the commit.
 	Duration time.Duration
+	// Phases splits Duration by step, so a slow link names where it was slow.
+	// Their sum is at most Duration (#9275).
+	Phases LinkPhases
 }

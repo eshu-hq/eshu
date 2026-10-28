@@ -7,6 +7,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
@@ -108,5 +109,39 @@ func TestJournalLockTimeoutIsARetryNotACycleFailure(t *testing.T) {
 	}
 	if !strings.Contains(logs.String(), `"sqlstate":"55P03"`) || !strings.Contains(logs.String(), `"level":"WARN"`) {
 		t.Fatalf("journal timeout log does not carry the SQLSTATE at WARN:\n%s", logs.String())
+	}
+}
+
+// TestLinkLogCarriesPhaseTimings is the operator half of #9275: the
+// changed-since link log line names where the link's time went, next to
+// duration_seconds, so a slow link on a 3 AM dashboard shows which phase grew
+// without a new metric.
+func TestLinkLogCarriesPhaseTimings(t *testing.T) {
+	linker := &fakeLinker{calls: map[string]int{}, scripts: map[string][]linkStep{
+		"s": {{result: store.LinkResult{
+			ScopeID: "s", GenerationID: "g1", Kind: store.LinkKindIncremental,
+			Duration: 181 * time.Millisecond,
+			Phases: store.LinkPhases{
+				EnsureCursor: 1 * time.Millisecond, Begin: 2 * time.Millisecond, Locks: 3 * time.Millisecond,
+				Statement: 4 * time.Millisecond, Advance: 5 * time.Millisecond, Commit: 160 * time.Millisecond,
+			},
+		}}},
+	}}
+	r, _, logs := observedRunner(t, linker, "s")
+	if _, err := r.RunOnce(context.Background()); err != nil {
+		t.Fatalf("RunOnce: %v", err)
+	}
+	for _, want := range []string{
+		`"duration_seconds":0.181`,
+		`"phase_ensure_cursor_seconds":0.001`,
+		`"phase_begin_seconds":0.002`,
+		`"phase_locks_seconds":0.003`,
+		`"phase_statement_seconds":0.004`,
+		`"phase_advance_seconds":0.005`,
+		`"phase_commit_seconds":0.16`,
+	} {
+		if !strings.Contains(logs.String(), want) {
+			t.Errorf("link log line lacks %s:\n%s", want, logs.String())
+		}
 	}
 }
