@@ -92,6 +92,32 @@ func TestExtractionCensusPackagesExist(t *testing.T) {
 	}
 }
 
+// censusPostReplayMustName lists strings the census record must contain once
+// the #8869 rollback drill and post-replay verification complete: the drill
+// PR pair, the surviving active generation, the observed scope identity, and
+// the verified worker deployment. They pin the record to the drill the owner
+// ran on 2026-10-28 so a later edit cannot silently drop the evidence.
+var censusPostReplayMustName = []string{
+	"iac-eks-eshu#402",
+	"iac-eks-eshu#404",
+	"68790ab7",
+	"vault_live:a542fa8a",
+	"sha-a93fb67440a1e2f6f9626b2c69e7e9066ec46b03",
+}
+
+func TestExtractionCensusRecordsPostReplayVerification(t *testing.T) {
+	body, err := os.ReadFile(filepath.Join(repoRootForCensus(t), censusRecordRel))
+	if err != nil {
+		t.Fatalf("read census record %s: %v", censusRecordRel, err)
+	}
+	text := string(body)
+	for _, want := range censusPostReplayMustName {
+		if !strings.Contains(text, want) {
+			t.Errorf("census record %s does not name post-replay evidence %q", censusRecordRel, want)
+		}
+	}
+}
+
 func TestExtractionScopeIdentityAgrees(t *testing.T) {
 	if string(scope.CollectorVaultLive) != vaultlive.CollectorKind {
 		t.Errorf("scope identity %q != vaultlive source identity %q",
