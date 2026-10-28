@@ -206,7 +206,18 @@ No-Observability-Change: #5454 adds no new metric, span, log line, audit table,
 or schema; the `code_sha256_correlation` limitation is a content-free label on
 an existing read surface, covered by the existing cloud-inventory query span.
 
-Performance Evidence: #9298 extends an existing in-process scalar-key allowlist by five keys. The implementation adds no SQL, graph read, queue work, or network call. A matched base/head benchmark of the fact-to-inventory filter is pending; no measured no-regression claim is made here. The existing cloud inventory query span and duration metric cover the same request path.
+Performance Evidence: #9298 extends an in-process scalar-key allowlist by five
+keys and adds no SQL, graph read, queue work, or network call. On the measured
+single-row ECS fact-to-inventory path, exact base `0f8e42c82f` averaged
+7,951 ns/op and head `6c33e395daa9` averaged 8,084 ns/op across three paired
+rounds (mean same-round ratio 1.0167, sample SD 0.0011). Both used 4,192 B
+and 95 allocations per operation. A synthetic 12-allowed-field row was 0.30%
+slower than the earlier allowlist implementation, with equal allocations.
+These measurements bound only the in-process per-row loader on linux/arm64 with
+Go 1.26.10; they do not establish HTTP or MCP endpoint latency. The existing
+cloud inventory query span and duration metric cover the request path. The
+full method, controls, and sample values are recorded in
+`docs/internal/evidence/9298-cloud-inventory-allowlist-performance.md`.
 
 No-Observability-Change: #9298 adds no metric, span, log, status, or queue stage. Operators can inspect the existing cloud inventory query duration/error signals and the returned bounded attributes; live QA truth remains unverified until current typed AWS facts are admitted.
 
