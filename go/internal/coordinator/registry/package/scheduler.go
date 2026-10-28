@@ -25,6 +25,10 @@ type PlanRequest struct {
 	ObservedAt          time.Time
 	PlanKey             string
 	OwnedPackageTargets []workflow.OwnedPackageDependencyTarget
+	// OwnedPackageWindow is the hash-slot window the owned-package read
+	// selected. A slot the read limit cut short reports budget exhaustion
+	// (#9422). The zero value means no window stats.
+	OwnedPackageWindow workflow.OwnedPackageDependencyTargetWindow
 }
 
 // WorkPlanner plans workflow rows for configured
@@ -165,7 +169,7 @@ func decodedPackageRegistryDerivation(
 	if err := json.Unmarshal([]byte(request.Instance.Configuration), &decoded); err != nil {
 		return packageRegistryDerivationResult{}
 	}
-	return derivePackageRegistryTargets(configured, decoded.DeriveFromOwnedPackages, request.OwnedPackageTargets)
+	return derivePackageRegistryTargets(configured, decoded.DeriveFromOwnedPackages, request.OwnedPackageTargets, request.OwnedPackageWindow)
 }
 
 func validateUniquePackageRegistryTargets(targets []packageRegistryTargetConfiguration) error {
@@ -261,10 +265,14 @@ func appendPackageRegistryDerivedTargets(
 	return configured
 }
 
+// derivePackageRegistryTargets plans registry targets from one owned-package
+// read. Budget exhaustion counts the derivable candidates left after the limit
+// filled plus the slot targets the read limit left unread (#9422).
 func derivePackageRegistryTargets(
 	configured []packageRegistryTargetConfiguration,
 	derivation DerivationConfiguration,
 	owned []workflow.OwnedPackageDependencyTarget,
+	window workflow.OwnedPackageDependencyTargetWindow,
 ) packageRegistryDerivationResult {
 	if !derivation.Enabled {
 		return packageRegistryDerivationResult{}
@@ -303,6 +311,7 @@ func derivePackageRegistryTargets(
 		}
 		out = append(out, derived)
 	}
+	skipped += int(window.UnreadTargets())
 	return packageRegistryDerivationResult{
 		Targets: out,
 		SkippedTargets: schedule.DerivedTargetBudgetSkipEvidence(

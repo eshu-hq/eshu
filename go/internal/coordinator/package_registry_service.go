@@ -34,15 +34,17 @@ func (s Service) schedulePackageRegistryWork(
 		if err != nil {
 			return fmt.Errorf("read scan interval for %q: %w", instance.InstanceID, err)
 		}
-		ownedTargets, err := s.packageRegistryOwnedTargets(ctx, instance, observedAt, interval)
+		ownedPage, readOwned, err := s.packageRegistryOwnedTargets(ctx, instance, observedAt, interval)
 		if err != nil {
 			return fmt.Errorf("load package registry derived targets for %q: %w", instance.InstanceID, err)
 		}
+		s.logOwnedPackageWindow(instance, readOwned, ownedPage)
 		run, items, err := s.PackageRegistryPlanner.PlanPackageRegistryWork(ctx, packages.PlanRequest{
 			Instance:            instance,
 			ObservedAt:          observedAt,
 			PlanKey:             s.packageRegistryPlanKey(instance, observedAt, interval),
-			OwnedPackageTargets: ownedTargets,
+			OwnedPackageTargets: ownedPage.Targets,
+			OwnedPackageWindow:  ownedPage.Window,
 		})
 		if err != nil {
 			return fmt.Errorf("plan package registry work for %q: %w", instance.InstanceID, err)
@@ -57,28 +59,33 @@ func (s Service) schedulePackageRegistryWork(
 	return nil
 }
 
+// packageRegistryOwnedTargets reads one hash slot of the owned-package
+// targets for a derived package-registry instance (#9422). The bool reports
+// whether a read happened (derivation enabled).
 func (s Service) packageRegistryOwnedTargets(
 	ctx context.Context,
 	instance workflow.CollectorInstance,
 	observedAt time.Time,
 	interval time.Duration,
-) ([]workflow.OwnedPackageDependencyTarget, error) {
+) (workflow.OwnedPackageDependencyTargetPage, bool, error) {
 	derivation, err := packages.DerivationFromConfig(instance.Configuration)
 	if err != nil {
-		return nil, err
+		return workflow.OwnedPackageDependencyTargetPage{}, false, err
 	}
 	if !derivation.Enabled {
-		return nil, nil
+		return workflow.OwnedPackageDependencyTargetPage{}, false, nil
 	}
 	if s.OwnedPackageTargetReader == nil {
-		return nil, fmt.Errorf("owned package target reader is required for derived package registry targets")
+		return workflow.OwnedPackageDependencyTargetPage{}, false, fmt.Errorf("owned package target reader is required for derived package registry targets")
 	}
 	targetLimit := packages.DerivedTargetLimit(derivation.TargetLimit)
-	return s.OwnedPackageTargetReader.ListOwnedPackageDependencyTargets(ctx, workflow.OwnedPackageDependencyTargetFilter{
+	page, err := s.OwnedPackageTargetReader.ListOwnedPackageDependencyTargets(ctx, workflow.OwnedPackageDependencyTargetFilter{
 		Ecosystems:     schedule.SortedStringSetValues(packages.DerivationEcosystems(derivation.Ecosystems)),
 		Limit:          schedule.DerivedTargetReadLimit(targetLimit),
-		RotationOffset: schedule.DerivedTargetRotationOffsetForMode(derivation.PlanningMode, observedAt, interval, targetLimit),
+		TargetLimit:    schedule.DerivedTargetSlotLimitForMode(derivation.PlanningMode, targetLimit),
+		RotationBucket: schedule.DerivedTargetRotationBucketForMode(derivation.PlanningMode, observedAt, interval),
 	})
+	return page, true, err
 }
 
 func shouldSchedulePackageRegistry(instance workflow.CollectorInstance) bool {

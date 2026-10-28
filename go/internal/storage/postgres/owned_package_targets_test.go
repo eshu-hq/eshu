@@ -26,13 +26,76 @@ func TestListOwnedPackageDependencyTargetsQueryIsActiveAndBounded(t *testing.T) 
 		"SELECT DISTINCT ON (ecosystem, package_name, version)",
 		"CASE WHEN source_location <> '' THEN 0 ELSE 1 END ASC",
 		"ROW_NUMBER() OVER",
-		"ORDER BY rotated_rank ASC, target_rank ASC",
-		"LIMIT $2",
+		"COUNT(*) OVER () AS total_targets",
+		"sha256(convert_to(COALESCE(ecosystem, '') || '|' || COALESCE(package_name, '') || '|' || COALESCE(version, ''), 'UTF8')) AS key_hash",
+		"MOD(key_hash_low24::bigint, slot_count) AS slot_of_key",
+		"MOD($3::bigint, slot_count) AS window_slot",
+		"COUNT(*) OVER (PARTITION BY slot_of_key) AS slot_size",
+		"WHERE slot_of_key = window_slot",
+		"ORDER BY target_rank ASC\nLIMIT $2",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("listOwnedPackageDependencyTargetsQuery missing %q:\n%s", want, query)
 		}
 	}
+	// The rotating offset window is gone (#9422), and md5 is unavailable on a
+	// FIPS server, so neither may come back.
+	for _, banned := range []string{"rotated_rank", "md5(", "$3::bigint, total_targets"} {
+		if strings.Contains(query, banned) {
+			t.Fatalf("listOwnedPackageDependencyTargetsQuery contains %q:\n%s", banned, query)
+		}
+	}
+}
+
+// TestOwnedPackageSlotDifferentialDerivesFromTheShippedQuery is the prefix
+// guard for the live differential: the all-slots query must be the shipped
+// statement up to the final SELECT, byte for byte, for both identity modes.
+func TestOwnedPackageSlotDifferentialDerivesFromTheShippedQuery(t *testing.T) {
+	t.Parallel()
+
+	for _, versionSpecific := range []bool{true, false} {
+		query := listOwnedPackageDependencyTargetsQuery(versionSpecific, true)
+		if got := strings.Count(query, ownedPackageSlotSelectMarker); got != 1 {
+			t.Fatalf("final SELECT marker appears %d times, want exactly 1:\n%s", got, query)
+		}
+		derived := ownedPackageAllSlotsQuery(versionSpecific, true)
+		prefix, ok := strings.CutSuffix(derived, ownedPackageAllSlotsTail)
+		if !ok {
+			t.Fatalf("differential query does not end with the all-slots tail")
+		}
+		if !strings.HasPrefix(query, prefix) {
+			t.Fatalf("differential prefix is not a byte-prefix of the shipped query")
+		}
+		if !strings.HasSuffix(prefix, "\n") || !strings.Contains(prefix, "window_targets AS (") {
+			t.Fatalf("differential prefix does not end at the CTE chain:\n%s", prefix)
+		}
+	}
+	if !strings.Contains(listOwnedPackageDependencyTargetsQuery(false, false),
+		"sha256(convert_to(COALESCE(ecosystem, '') || '|' || COALESCE(package_name, ''), 'UTF8'))") {
+		t.Fatalf("package-level query must hash the package identity without the version")
+	}
+}
+
+// ownedPackageAllSlotsTail replaces the shipped final SELECT with a read-only
+// tail that returns every target with its slot, so a live test can compare the
+// reader's per-window rows with the whole partition.
+const ownedPackageAllSlotsTail = `SELECT ecosystem, package_name, version, slot_of_key, slot_count, total_targets, slot_size
+FROM window_targets
+ORDER BY target_rank ASC
+LIMIT $2
+`
+
+// ownedPackageAllSlotsQuery derives the differential query from the shipped
+// statement by truncating it at the final SELECT marker.
+func ownedPackageAllSlotsQuery(versionSpecific bool, expandAliases bool) string {
+	query := listOwnedPackageDependencyTargetsQuery(versionSpecific, expandAliases)
+	chain, _, found := strings.Cut(query, ownedPackageSlotSelectMarker)
+	if !found {
+		// The hermetic prefix guard fails first with the reason; return a
+		// query that cannot run so a live caller fails too.
+		return "SELECT missing_final_select_marker"
+	}
+	return chain + ownedPackageAllSlotsTail
 }
 
 func TestListOwnedPackageDependencyTargetsQueryCanUsePackageLevelIdentity(t *testing.T) {

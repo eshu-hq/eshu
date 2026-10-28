@@ -5,10 +5,17 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"slices"
 	"strings"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -56,17 +63,46 @@ func ownedPackageManagerFilterValues(ecosystems []string, expandAliases bool) []
 	return slices.Compact(values)
 }
 
+// ownedPackageSlotSelectMarker begins the final SELECT of the owned-package
+// statement. Everything before it is the CTE chain that ranks, hashes and
+// sizes the slots; the query-shape differential derives its read-only
+// all-slots tail from the text before this marker, so it can never drift from
+// production.
+const ownedPackageSlotSelectMarker = "SELECT\n    ecosystem,\n    package_name,\n    version,\n    lockfile,\n    repository_id,\n    fact_id,\n    source_location,\n    total_targets,"
+
+// listOwnedPackageDependencyTargetsQuery builds the hash-slot window read
+// (#9422). Each distinct target hashes to a fixed slot,
+// sha256(key) low 24 bits mod P, where the key is the DISTINCT ON identity and
+// P = next_pow2(ceil(2T/L)) is computed from T = COUNT(*) OVER () in the same
+// statement. The window takes slot bucket mod P in the global target order, so
+// a change in T never moves a target to a different window, and every target
+// is planned within P windows. The text is the one the shim lane measured on
+// the QA read replica (MATERIALIZED fence kept for intent; it is not
+// load-bearing on the measured plan because the slot predicate depends on the
+// window aggregate). Binds: $1 raw package_manager values, $2 read limit,
+// $3 rotation bucket, $4 target limit (zero or less means one slot).
 func listOwnedPackageDependencyTargetsQuery(versionSpecific bool, expandAliases bool) string {
 	distinctColumns := "ecosystem, package_name"
 	distinctOrder := "ecosystem ASC, package_name ASC, CASE WHEN source_location <> '' THEN 0 ELSE 1 END ASC, lockfile DESC, version ASC, fact_id ASC"
+	// COALESCE keeps a NULL version or name in a slot: sha256(NULL) is NULL,
+	// which would put the target in no slot and starve it silently.
+	slotKey := "COALESCE(ecosystem, '') || '|' || COALESCE(package_name, '')"
 	if versionSpecific {
 		distinctColumns = "ecosystem, package_name, version"
 		distinctOrder = "ecosystem ASC, package_name ASC, version ASC, CASE WHEN source_location <> '' THEN 0 ELSE 1 END ASC, lockfile DESC, fact_id ASC"
+		slotKey = "COALESCE(ecosystem, '') || '|' || COALESCE(package_name, '') || '|' || COALESCE(version, '')"
 	}
-	return fmt.Sprintf(`
+	return fmt.Sprintf(ownedPackageSlotQueryTemplate,
+		ownedPackageEcosystemExpression(expandAliases), distinctColumns, distinctOrder, slotKey)
+}
+
+// ownedPackageSlotQueryTemplate is the measured statement with its four
+// builder verbs: %[1]s ecosystem expression, %[2]s DISTINCT ON columns,
+// %[3]s DISTINCT ON order, %[4]s slot key expression.
+const ownedPackageSlotQueryTemplate = `
 WITH active_dependencies AS (
   SELECT
-    %s AS ecosystem,
+    %[1]s AS ecosystem,
     fact.payload->>'entity_name' AS package_name,
     fact.payload->'entity_metadata'->>'value' AS version,
     COALESCE((fact.payload->'entity_metadata'->>'lockfile') = 'true', FALSE) AS lockfile,
@@ -88,8 +124,8 @@ WHERE fact.fact_kind = 'content_entity'
   AND fact.payload->'entity_metadata'->>'package_manager' = ANY($1::text[])
   AND generation.status = 'active'
 ),
-distinct_targets AS (
-  SELECT DISTINCT ON (%s)
+distinct_targets AS MATERIALIZED (
+  SELECT DISTINCT ON (%[2]s)
     ecosystem,
     package_name,
     version,
@@ -98,7 +134,7 @@ distinct_targets AS (
     fact_id,
     source_location
   FROM active_dependencies
-  ORDER BY %s
+  ORDER BY %[3]s
 ),
 numbered_targets AS (
   SELECT
@@ -112,21 +148,35 @@ numbered_targets AS (
     ROW_NUMBER() OVER (
       ORDER BY ecosystem ASC, package_name ASC, version ASC, lockfile DESC, fact_id ASC
     ) - 1 AS target_rank,
-    COUNT(*) OVER () AS total_targets
-  FROM distinct_targets
+    COUNT(*) OVER () AS total_targets,
+    get_byte(key_hash, 0) + 256 * get_byte(key_hash, 1) + 65536 * get_byte(key_hash, 2) AS key_hash_low24
+  FROM (
+    SELECT
+      distinct_targets.*,
+      sha256(convert_to(%[4]s, 'UTF8')) AS key_hash
+    FROM distinct_targets
+  ) AS hashed_targets
 ),
-rotated_targets AS (
+sized_targets AS (
   SELECT
-    ecosystem,
-    package_name,
-    version,
-    lockfile,
-    repository_id,
-    fact_id,
-    source_location,
-    target_rank,
-    MOD(target_rank - MOD($3::bigint, total_targets) + total_targets, total_targets) AS rotated_rank
+    numbered_targets.*,
+    CASE WHEN $4::bigint <= 0 THEN 1::bigint
+      ELSE (1::bigint << length(ltrim((GREATEST((2 * total_targets + $4::bigint - 1) / NULLIF($4::bigint, 0), 1) - 1)::bit(64)::text, '0')))
+    END AS slot_count
   FROM numbered_targets
+),
+slotted_targets AS (
+  SELECT
+    sized_targets.*,
+    MOD(key_hash_low24::bigint, slot_count) AS slot_of_key,
+    MOD($3::bigint, slot_count) AS window_slot
+  FROM sized_targets
+),
+window_targets AS (
+  SELECT
+    slotted_targets.*,
+    COUNT(*) OVER (PARTITION BY slot_of_key) AS slot_size
+  FROM slotted_targets
 )
 SELECT
     ecosystem,
@@ -135,68 +185,156 @@ SELECT
     lockfile,
     repository_id,
     fact_id,
-    source_location
-FROM rotated_targets
-ORDER BY rotated_rank ASC, target_rank ASC
+    source_location,
+    total_targets,
+    slot_count,
+    window_slot,
+    slot_size
+FROM window_targets
+WHERE slot_of_key = window_slot
+ORDER BY target_rank ASC
 LIMIT $2
-`, ownedPackageEcosystemExpression(expandAliases), distinctColumns, distinctOrder)
-}
+`
 
 // ListOwnedPackageDependencyTargets loads active Git dependency declarations
 // that can bound package-registry and vulnerability-intelligence target
-// planning.
+// planning. It returns one hash slot of the target set (slot
+// filter.RotationBucket mod P) in the global target order, with the window
+// stats beside the rows. A read whose slot holds no targets returns no rows and
+// a zero window, because the statement carries the stats on its rows.
 func (s FactStore) ListOwnedPackageDependencyTargets(
 	ctx context.Context,
 	filter workflow.OwnedPackageDependencyTargetFilter,
-) ([]workflow.OwnedPackageDependencyTarget, error) {
+) (workflow.OwnedPackageDependencyTargetPage, error) {
 	if s.database == nil {
-		return nil, fmt.Errorf("fact store database is required")
+		return workflow.OwnedPackageDependencyTargetPage{}, fmt.Errorf("fact store database is required")
 	}
 	ecosystems := cleanStringFilterValues(filter.Ecosystems)
 	if len(ecosystems) == 0 {
-		return nil, nil
+		return workflow.OwnedPackageDependencyTargetPage{}, nil
 	}
 	limit := ownedPackageDependencyTargetLimit(filter.Limit)
+	targetLimit := max(filter.TargetLimit, 0)
+	bucket := max(filter.RotationBucket, 0)
 
+	ctx, span := otel.Tracer(telemetry.DefaultSignalName).Start(ctx, telemetry.SpanOwnedPackageTargetsRead)
+	defer span.End()
+	page, err := s.readOwnedPackageWindow(ctx, filter, ecosystems, limit, bucket, targetLimit)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "owned package target read failed")
+		return workflow.OwnedPackageDependencyTargetPage{}, err
+	}
+	recordOwnedPackageWindow(span, page)
+	return page, nil
+}
+
+func (s FactStore) readOwnedPackageWindow(
+	ctx context.Context,
+	filter workflow.OwnedPackageDependencyTargetFilter,
+	ecosystems []string,
+	limit int,
+	bucket int64,
+	targetLimit int,
+) (workflow.OwnedPackageDependencyTargetPage, error) {
 	rows, err := s.database.QueryContext(
 		ctx,
 		listOwnedPackageDependencyTargetsQuery(filter.VersionSpecific, filter.ExpandPackageManagerAliases),
 		ownedPackageManagerFilterValues(ecosystems, filter.ExpandPackageManagerAliases),
 		limit,
-		filter.RotationOffset,
+		bucket,
+		targetLimit,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("list owned package dependency targets: %w", err)
+		return workflow.OwnedPackageDependencyTargetPage{}, fmt.Errorf("list owned package dependency targets: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
-	targets := make([]workflow.OwnedPackageDependencyTarget, 0, limit)
+	page := workflow.OwnedPackageDependencyTargetPage{
+		Targets: make([]workflow.OwnedPackageDependencyTarget, 0, limit),
+	}
 	for rows.Next() {
-		var target workflow.OwnedPackageDependencyTarget
+		var (
+			target  workflow.OwnedPackageDependencyTarget
+			version sql.NullString
+			name    sql.NullString
+			window  workflow.OwnedPackageDependencyTargetWindow
+		)
 		if err := rows.Scan(
 			&target.Ecosystem,
-			&target.PackageName,
-			&target.Version,
+			&name,
+			&version,
 			&target.Lockfile,
 			&target.RepositoryID,
 			&target.FactID,
 			&target.SourceLocation,
+			&window.TotalTargets,
+			&window.SlotCount,
+			&window.Slot,
+			&window.SlotSize,
 		); err != nil {
-			return nil, fmt.Errorf("list owned package dependency targets: %w", err)
+			return workflow.OwnedPackageDependencyTargetPage{}, fmt.Errorf("list owned package dependency targets: %w", err)
 		}
+		page.Window.TotalTargets = window.TotalTargets
+		page.Window.SlotCount = window.SlotCount
+		page.Window.Slot = window.Slot
+		page.Window.SlotSize = window.SlotSize
+		page.Window.RowsRead++
+		target.PackageName = strings.TrimSpace(name.String)
+		target.Version = strings.TrimSpace(version.String)
 		target.Ecosystem = strings.ToLower(strings.TrimSpace(target.Ecosystem))
-		target.PackageName = strings.TrimSpace(target.PackageName)
-		target.Version = strings.TrimSpace(target.Version)
 		target.SourceLocation = strings.TrimSpace(target.SourceLocation)
 		if target.Ecosystem == "" || target.PackageName == "" {
 			continue
 		}
-		targets = append(targets, target)
+		page.Targets = append(page.Targets, target)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("list owned package dependency targets: %w", err)
+		return workflow.OwnedPackageDependencyTargetPage{}, fmt.Errorf("list owned package dependency targets: %w", err)
 	}
-	return targets, nil
+	if err := checkOwnedPackageWindow(page.Window, bucket, targetLimit); err != nil {
+		return workflow.OwnedPackageDependencyTargetPage{}, err
+	}
+	return page, nil
+}
+
+// recordOwnedPackageWindow puts the window stats on the read span and adds
+// one window event with the per-ecosystem selected counts. Ecosystems are a
+// closed, configured set, so the attribute arrays stay small.
+func recordOwnedPackageWindow(span trace.Span, page workflow.OwnedPackageDependencyTargetPage) {
+	ecosystems, selected := page.SelectedByEcosystem()
+	attributes := []attribute.KeyValue{
+		attribute.Int64("owned_package_targets.total_targets", page.Window.TotalTargets),
+		attribute.Int64("owned_package_targets.slot_count", page.Window.SlotCount),
+		attribute.Int64("owned_package_targets.slot", page.Window.Slot),
+		attribute.Int64("owned_package_targets.slot_size", page.Window.SlotSize),
+		attribute.Int64("owned_package_targets.rows_read", page.Window.RowsRead),
+		attribute.Int("owned_package_targets.selected", len(page.Targets)),
+		attribute.Bool("owned_package_targets.truncated", page.Window.Truncated()),
+	}
+	span.SetAttributes(attributes...)
+	span.AddEvent(telemetry.EventOwnedPackageTargetsWindow, trace.WithAttributes(append(attributes,
+		attribute.StringSlice("owned_package_targets.ecosystems", ecosystems),
+		attribute.IntSlice("owned_package_targets.selected_by_ecosystem", selected),
+	)...))
+}
+
+// checkOwnedPackageWindow fails the read when the statement's slot count or
+// slot disagrees with the Go fill rule, so the SQL and Go definitions of P
+// cannot drift apart silently. A read with no rows carries no stats.
+func checkOwnedPackageWindow(window workflow.OwnedPackageDependencyTargetWindow, bucket int64, targetLimit int) error {
+	if window.RowsRead == 0 {
+		return nil
+	}
+	if want := workflow.OwnedPackageTargetSlotCount(window.TotalTargets, targetLimit); window.SlotCount != want {
+		return fmt.Errorf("list owned package dependency targets: statement slot count %d for T=%d L=%d, want %d",
+			window.SlotCount, window.TotalTargets, targetLimit, want)
+	}
+	if want := bucket % window.SlotCount; window.Slot != want {
+		return fmt.Errorf("list owned package dependency targets: statement slot %d for bucket %d mod %d, want %d",
+			window.Slot, bucket, window.SlotCount, want)
+	}
+	return nil
 }
 
 func ownedPackageDependencyTargetLimit(raw int) int {

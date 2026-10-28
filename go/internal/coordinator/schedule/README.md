@@ -4,7 +4,7 @@
 
 `schedule` collects the scheduling primitives shared by the coordinator root
 and its `vulnerability` and `registry/package` families: target-class ranking,
-derived-target skip evidence and budget accounting, rotation offsets and plan
+derived-target skip evidence and budget accounting, rotation buckets, offsets and plan
 keys for paging a derived target set, read-limit widening, and small
 string-set and dependency-version helpers.
 
@@ -29,7 +29,11 @@ cycle.
 - `DerivationEcosystems`, `StringSet`, `StringSetContains`,
   `SortedStringSetValues`, `DerivationLimit`.
 - `DerivedTargetRotationOffset`, `DerivedTargetRotationOffsetForMode`,
-  `DerivedTargetPlanKey`, `DerivedTargetReadLimit`.
+  `DerivedTargetRotationBucket`, `DerivedTargetRotationBucketForMode`,
+  `DerivedTargetSlotLimitForMode`, `DerivedTargetPlanKey`,
+  `DerivedTargetReadLimit`. The owned-package reader selects hash slot
+  `bucket mod P` (#9422); the installed-advisory readers still page by
+  `bucket * limit` until #9427.
 - `ExactOwnedDependencyVersion`, `NonVersionOwnedDependencyPrefix`,
   `FirstNonBlank`.
 - `ScanIntervalConfigKey`, `ParseScanInterval` (one configuration document),
@@ -66,10 +70,13 @@ existing reconcile telemetry is unchanged.
 
 - `TargetClassRank` ranks an unrecognized class last (4) so it can never
   preempt a known class.
-- `DerivedTargetRotationOffset` truncates the observed time with the same
-  epoch-based bucket the plan key uses; changing the truncation basis in one
-  without the other lets a rotating instance page to new targets under a
-  stale plan key.
+- `DerivedTargetRotationBucket` truncates the observed time with the same
+  basis the plan key uses, and `DerivedTargetRotationOffset` is that bucket
+  times the limit; changing the truncation basis in one without the other lets
+  a rotating instance page to new targets under a stale plan key. A clock
+  before 1970 clamps to bucket 0 so the SQL `MOD` stays non-negative.
+- `DerivedTargetSlotLimitForMode` returns 0 for `single_pass`, which the
+  owned-package reader treats as one slot (the first page of the whole set).
 - `DerivedTargetPlanKey` returns a fixed `<prefix>-single-pass` key for
   single-pass mode and an interval-truncated timestamp key for rotating mode;
   callers must not mix the two modes for the same plan without also changing

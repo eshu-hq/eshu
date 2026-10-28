@@ -133,22 +133,25 @@ func TestActivationDerivedScopesRotationAndLimit(t *testing.T) {
 	now := time.Date(2026, time.October, 27, 22, 15, 0, 0, time.UTC)
 	for _, tc := range []struct {
 		name, block, wantPlanKey string
-		wantOffset               int64
+		wantBucket               int64
+		wantSlotLimit            int
 		wantLimit                int
 	}{
 		{
-			name:        "rotating",
-			block:       `{"derive_from_owned_packages":{"enabled":true,"sources":["osv"],"ecosystems":["npm","maven"],"target_limit":1000}}`,
-			wantPlanKey: "scheduled-20261027T220000Z",
-			wantOffset:  schedule.DerivedTargetRotationOffset(now, time.Hour, 1000),
-			wantLimit:   1001,
+			name:          "rotating",
+			block:         `{"derive_from_owned_packages":{"enabled":true,"sources":["osv"],"ecosystems":["npm","maven"],"target_limit":1000}}`,
+			wantPlanKey:   "scheduled-20261027T220000Z",
+			wantBucket:    schedule.DerivedTargetRotationBucket(now, time.Hour),
+			wantSlotLimit: 1000,
+			wantLimit:     1001,
 		},
 		{
-			name:        "single pass with clamp",
-			block:       `{"derive_from_owned_packages":{"enabled":true,"sources":["osv"],"ecosystems":["npm"],"planning_mode":"single_pass","target_limit":5000}}`,
-			wantPlanKey: "scheduled-single-pass",
-			wantOffset:  0,
-			wantLimit:   5001,
+			name:          "single pass with clamp",
+			block:         `{"derive_from_owned_packages":{"enabled":true,"sources":["osv"],"ecosystems":["npm"],"planning_mode":"single_pass","target_limit":5000}}`,
+			wantPlanKey:   "scheduled-single-pass",
+			wantBucket:    0,
+			wantSlotLimit: 0,
+			wantLimit:     5001,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -167,8 +170,11 @@ func TestActivationDerivedScopesRotationAndLimit(t *testing.T) {
 			if got := reader.requests[0].Limit; got != tc.wantLimit {
 				t.Fatalf("read limit = %d, want %d", got, tc.wantLimit)
 			}
-			if got := reader.requests[0].RotationOffset; got != tc.wantOffset {
-				t.Fatalf("rotation offset = %d, want %d", got, tc.wantOffset)
+			if got := reader.requests[0].RotationBucket; got != tc.wantBucket {
+				t.Fatalf("rotation bucket = %d, want %d", got, tc.wantBucket)
+			}
+			if got := reader.requests[0].TargetLimit; got != tc.wantSlotLimit {
+				t.Fatalf("slot target limit = %d, want %d", got, tc.wantSlotLimit)
 			}
 			wantRun := "vulnerability_intelligence:vuln-intel-activation:schedule:derived:" + tc.wantPlanKey
 			found := false

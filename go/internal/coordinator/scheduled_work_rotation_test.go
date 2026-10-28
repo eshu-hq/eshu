@@ -87,9 +87,10 @@ func TestServiceRunReconcileRotatesVulnerabilityTargetsOnInstanceScanInterval(t 
 			len(ownedReader.requests), len(osReader.requests), len(sbomReader.requests), len(planner.requests))
 	}
 	wantOffset := schedule.DerivedTargetRotationOffset(first, time.Hour, 10)
+	wantBucket := schedule.DerivedTargetRotationBucket(first, time.Hour)
 	for tick := 0; tick < 2; tick++ {
-		if got := ownedReader.requests[tick].RotationOffset; got != wantOffset {
-			t.Fatalf("tick %d owned rotation offset = %d, want %d (1h bucket)", tick, got, wantOffset)
+		if got := ownedReader.requests[tick].RotationBucket; got != wantBucket {
+			t.Fatalf("tick %d owned rotation bucket = %d, want %d (1h bucket)", tick, got, wantBucket)
 		}
 		if got := osReader.requests[tick].RotationOffset; got != wantOffset {
 			t.Fatalf("tick %d OS package rotation offset = %d, want %d (1h bucket)", tick, got, wantOffset)
@@ -212,9 +213,9 @@ func TestServiceRunReconcileBootstrapRotationIgnoresScanInterval(t *testing.T) {
 		if got, want := planner.requests[tick].PlanKey, "bootstrap"; got != want {
 			t.Fatalf("tick %d plan key = %q, want %q", tick, got, want)
 		}
-		want := schedule.DerivedTargetRotationOffset(first.Add(time.Duration(tick)*5*time.Minute), 5*time.Minute, 10)
-		if got := targetReader.requests[tick].RotationOffset; got != want {
-			t.Fatalf("tick %d rotation offset = %d, want %d (global 5m cadence, not the 1h override)", tick, got, want)
+		want := schedule.DerivedTargetRotationBucket(first.Add(time.Duration(tick)*5*time.Minute), 5*time.Minute)
+		if got := targetReader.requests[tick].RotationBucket; got != want {
+			t.Fatalf("tick %d rotation bucket = %d, want %d (global 5m cadence, not the 1h override)", tick, got, want)
 		}
 	}
 }

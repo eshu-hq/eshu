@@ -3,7 +3,7 @@
 
 // Package schedule holds the coordinator's shared scheduling substrate:
 // target-class constants and ranking, derived-target skip evidence and
-// budget accounting, derived-target rotation offsets and plan keys, read
+// budget accounting, derived-target rotation buckets, offsets and plan keys, read
 // limits, the per-instance scan_interval parser, and small string-set and
 // version helpers.
 //

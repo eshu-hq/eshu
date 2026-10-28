@@ -7,7 +7,7 @@
 2. `go/internal/coordinator/schedule/target.go` for target-class ranking and
    Postgres-precision-safe ordinal spacing.
 3. `go/internal/coordinator/schedule/derivation.go` for planning-mode
-   constants, rotation offsets, plan-key rendering, and owned-dependency
+   constants, rotation buckets and offsets, plan-key rendering, and owned-dependency
    version parsing.
 4. `go/internal/coordinator/schedule/derived_target_budget.go` for skip-reason
    constants and skip-evidence rendering.
@@ -21,9 +21,14 @@
   package) or on either family package that calls it.
 - Keep `TargetClassRank` ranking an unrecognized class last so it never
   preempts a known class.
-- Keep `DerivedTargetRotationOffset`'s truncation basis identical to whatever
+- Keep `DerivedTargetRotationBucket`'s truncation basis (and so
+  `DerivedTargetRotationOffset`, which multiplies it) identical to whatever
   basis `DerivedTargetPlanKey` uses for the same interval, so a rotating
   instance never pages under a plan key from a different bucket.
+  `TestDerivedTargetRotationBucketSharesThePlanKeyBasis` pins it.
+- The owned-package reader takes the bucket, not the offset (#9422): its slot
+  is `bucket mod P`. Do not pass `bucket * limit` to it; that brings back the
+  window that jumps whenever T changes.
 - Keep `ParseScanInterval` and `ParseScanIntervalValue` on one rule set: the
   first decodes the document and delegates the present key to the second.
   The status reader depends on the value parser agreeing with the

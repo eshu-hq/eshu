@@ -38,6 +38,7 @@ type fakeStore struct {
 type fakeOwnedPackageTargetReader struct {
 	requests []workflow.OwnedPackageDependencyTargetFilter
 	targets  []workflow.OwnedPackageDependencyTarget
+	window   workflow.OwnedPackageDependencyTargetWindow
 	err      error
 }
 
@@ -57,16 +58,16 @@ func (f *fakeGovernanceAuditAppender) Append(_ context.Context, events []governa
 func (f *fakeOwnedPackageTargetReader) ListOwnedPackageDependencyTargets(
 	_ context.Context,
 	filter workflow.OwnedPackageDependencyTargetFilter,
-) ([]workflow.OwnedPackageDependencyTarget, error) {
+) (workflow.OwnedPackageDependencyTargetPage, error) {
 	f.requests = append(f.requests, filter)
 	if f.err != nil {
-		return nil, f.err
+		return workflow.OwnedPackageDependencyTargetPage{}, f.err
 	}
 	targets := append([]workflow.OwnedPackageDependencyTarget(nil), f.targets...)
 	if filter.Limit > 0 && len(targets) > filter.Limit {
 		targets = targets[:filter.Limit]
 	}
-	return targets, nil
+	return workflow.OwnedPackageDependencyTargetPage{Targets: targets, Window: f.window}, nil
 }
 
 func (f *fakeStore) ReconcileCollectorInstances(_ context.Context, observedAt time.Time, desired []workflow.DesiredCollectorInstance) error {
