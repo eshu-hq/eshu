@@ -162,7 +162,17 @@ func TestPreviousRepoArmReadinessQuerySplicesOnlyTheTwoCTEs(t *testing.T) {
 // value. The statement takes exactly 20 arguments; a shorter list fails with
 // "expected 20 arguments".
 func readinessArgsForQuery(query ReadinessQuery) []any {
-	ecosystems, packageNames, packageIDs, resolved := readinessTargetArguments(readinessTarget{}, query)
+	return readinessArgsForTarget(readinessTarget{}, query)
+}
+
+// readinessArgsForTarget returns the same 20 arguments for an explicit
+// target, as produced by resolveReadinessTarget in production (the caller
+// builds the target the way resolution would, e.g. with
+// packageidentity.ConsumptionKeys). Callers needing a package-anchored arm
+// ($20) pass a non-empty target; readinessArgsForQuery is the
+// no-resolved-keys case.
+func readinessArgsForTarget(target readinessTarget, query ReadinessQuery) []any {
+	ecosystems, packageNames, packageIDs, resolved := readinessTargetArguments(target, query)
 	return []any{
 		array.Of(vulnerabilityAdvisoryFactKinds),
 		array.Of(vulnerabilityExploitabilityFactKinds),

@@ -16,6 +16,9 @@ TABLE = {
         "go/internal/query/supply/chain/impact/readiness_orphan_package_keys_live_test.go": (
             "TestReadinessIgnoresOrphanPackageKeysLive",
         ),
+        "go/internal/query/supply/chain/impact/readiness_package_anchor_plan_live_test.go": (
+            "TestSupplyChainImpactReadinessPackageAnchorLive",
+        ),
         "go/internal/query/supply/chain/impact/readiness_package_consumption_scope_live_test.go": (
             "TestSupplyChainImpactReadinessPackageConsumptionScopeLive",
         ),
