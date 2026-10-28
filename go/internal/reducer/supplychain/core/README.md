@@ -34,6 +34,44 @@ facts in provenance. Equivalent image rows coalesce after version conflict
 checks. One complete writer pass publishes the resulting set so prior subjects
 can retract when evidence changes.
 
+Manifest read filter (#9286): the impact handler asks Postgres for manifest
+dependency rows with an exact `entity_name = ANY(names)` match, so the name set
+must contain the form the manifest stores. For Maven and Gradle that is the
+case-preserved `group:artifact` coordinate. An OSV Maven advisory names its
+package as the bare artifact id, a slash purl path, and a package ID whose path
+starts with the registry's `maven2` segment, so the filter derives the
+coordinate from the purl and from the package ID with the registry path removed
+(`packageidentity.ManifestEntityNameCandidates`,
+`payloadcore.PackageNameFromPackageID`). Without it no manifest row loaded, the
+finding had no repository anchor, and the owned-anchor gate dropped it. A
+different group with the same artifact does not match. The name set is a read
+prefilter only; the consumption-key join stays the accuracy gate.
+
+No-Regression Evidence (#9286): the SQL text is unchanged; only the `$2` name
+array differs, and for lowercase coordinates it is smaller (3 names per package
+instead of 4, because the unmatchable `maven2/...` names are gone; 5 per
+package for a mixed-case coordinate). On a private PostgreSQL 18.6 with 80,000
+git dependency rows (44,000 npm, 16,400 maven/gradle, 8,000 pypi, 8,000 go,
+4,000 sbt), 160,400 `fact_records` rows, 4,000 active scopes, and the
+`listActivePackageManifestDependencyFactsWithSBTQuery` text, `EXPLAIN (ANALYZE,
+BUFFERS)` of the prepared statement, three warm runs each, planner defaults:
+1 advisory 7.2/7.0/6.5 ms before and 7.0/10.2/6.6 ms after (4,077 buffers
+both); 50 advisories 94.2/92.3/101.6 ms before and 91.8/93.8/94.5 ms after
+(116,507 buffers both, the same scope-driven nested loop on this synthetic
+data; the #8961 evidence records the same shape); 500 advisories 83.9-88.1 ms
+before and 84.4-89.5 ms after. With `enable_nestloop = off` the first branch
+uses `fact_records_active_package_dependency_entity_idx` (Index Searches 3,
+415 buffers for the 50-advisory set), 6.9-7.9 ms before and 9.7-10.7 ms after;
+the extra ~3 ms is the 400 manifest rows the fixed name set now returns, where
+the old set returned 0. The index choice, the active-generation join, the
+keyset cursor, and the ordering are unchanged.
+
+No-Observability-Change: no new query, span, or metric. The existing
+`manifest_dependency_facts` count in the impact handler's success log goes
+from 0 to the matched row count for Maven scopes, which is the operator signal
+for this fix. Findings appear only after `supply_chain_impact` reruns for the
+Maven scopes (a new OSV generation or an operator replay).
+
 Performance Evidence (#9232): `BenchmarkSBOMVersionGuard` uses the same
 five-fact npm advisory and attached image on Apple M5 Max with Go 1.26.10.
 The single-subject baseline was commit `2446f21874245d2d63a46ecf28136dfed44dfa64`.

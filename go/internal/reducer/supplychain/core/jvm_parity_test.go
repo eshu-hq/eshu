@@ -4,6 +4,7 @@
 package core
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -200,17 +201,30 @@ func jvmAffectedPackageRangeFact(
 	affectedRange string,
 	fixedVersion string,
 ) facts.Envelope {
+	// The OSV collector emits the bare artifact id as package_name and the
+	// group in the purl and package_id (issue #9286). Callers pass the
+	// group:artifact coordinate for readability; the fixture splits it into
+	// the real OSV shape so a join that only works on a coordinate-shaped
+	// package_name cannot pass.
+	_, artifact, hasGroup := strings.Cut(packageName, ":")
+	if !hasGroup {
+		artifact = packageName
+	}
+	payload := map[string]any{
+		"cve_id":         cveID,
+		"advisory_id":    cveID,
+		"package_id":     packageID,
+		"ecosystem":      "maven",
+		"package_name":   artifact,
+		"affected_range": affectedRange,
+		"fixed_versions": []any{fixedVersion},
+	}
+	if strings.HasPrefix(packageID, "pkg:") {
+		payload["purl"] = packageID
+	}
 	return facts.Envelope{
 		FactID:   factID,
 		FactKind: chain.VulnerabilityAffectedPackageFactKind,
-		Payload: map[string]any{
-			"cve_id":         cveID,
-			"advisory_id":    cveID,
-			"package_id":     packageID,
-			"ecosystem":      "maven",
-			"package_name":   packageName,
-			"affected_range": affectedRange,
-			"fixed_versions": []any{fixedVersion},
-		},
+		Payload:  payload,
 	}
 }

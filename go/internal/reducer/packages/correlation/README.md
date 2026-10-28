@@ -39,7 +39,9 @@ read the durable facts; they never import this package.
   `PackageManifestDependency.ConsumptionKeys` (the one place a dependency row
   becomes registry keys; an sbt row joins only the Maven artifact it publishes,
   #8961),
-  `PackageConsumptionKeys`, `PackageConsumptionNameCandidates`,
+  `PackageConsumptionKeys`, `PackageConsumptionNameCandidates` (the manifest
+  read-filter name set: consumption forms plus, for Maven, the stored
+  `group:artifact` coordinate, #9286),
   `ExtractPackageRegistryIdentities`, `PackageManifestDependency`,
   `PackageRegistryIdentity`, `PackageManifestDependencyFactFilter`.
 - Owner resolution: `ResolvePackageOwners`, `PackageOwnerResolution`,
