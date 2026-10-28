@@ -26,11 +26,12 @@ import (
 // purely additive — no existing constructor or behavior changes.
 //
 // Coverage: the claim path (ClaimNextEligible, Heartbeat, Complete,
-// Release, Fail x2, Pin) plus the read probe ListCollectorInstances and
-// the pacing consult CheckClaimPacing travel over HTTP. Run admission,
-// reconciliation, completeness upserts, and the reaper stay server-internal
-// by protocol ruling and report ErrClaimPlaneUnsupported until their
-// Stage-1c routes exist. Nothing in-tree constructs this client yet.
+// Release, Fail x2, Pin), the read probe ListCollectorInstances, the
+// pacing consult CheckClaimPacing, and the six control routes
+// (CreateRun, EnqueueWorkItems, ReconcileCollectorInstances,
+// UpsertCompletenessStates, ReconcileWorkflowRuns, ReapExpiredClaims in
+// claim_plane_control_client.go) travel over HTTP. Nothing in-tree
+// constructs this client yet.
 type ClaimPlaneClient struct {
 	baseURL    string
 	httpClient *http.Client
@@ -44,10 +45,6 @@ func NewClaimPlaneClient(baseURL string, httpClient *http.Client) *ClaimPlaneCli
 	}
 	return &ClaimPlaneClient{baseURL: strings.TrimRight(baseURL, "/"), httpClient: httpClient}
 }
-
-// ErrClaimPlaneUnsupported reports a ControlStore method with no protocol
-// route: server-internal by ruling, awaiting its Stage-1c route.
-var ErrClaimPlaneUnsupported = fmt.Errorf("claim-plane protocol: operation stays server-internal")
 
 // ClaimPacedError reports a claim refused by server-side pacing. It carries
 // the backoff the runner must wait instead of treating the refusal as a
@@ -450,48 +447,5 @@ func (c *ClaimPlaneClient) ListCollectorInstances(ctx context.Context) ([]Collec
 	return instances, nil
 }
 
-func claimPlaneUnsupported(operation string) error {
-	return fmt.Errorf("%w: %s", ErrClaimPlaneUnsupported, operation)
-}
-
-// CreateRun stays server-internal: no protocol route admits runs.
-func (c *ClaimPlaneClient) CreateRun(context.Context, Run) error {
-	return claimPlaneUnsupported("CreateRun")
-}
-
-// EnqueueWorkItems stays server-internal: no protocol route admits work.
-func (c *ClaimPlaneClient) EnqueueWorkItems(context.Context, []WorkItem) error {
-	return claimPlaneUnsupported("EnqueueWorkItems")
-}
-
-// ReconcileCollectorInstances stays server-internal.
-func (c *ClaimPlaneClient) ReconcileCollectorInstances(
-	context.Context,
-	time.Time,
-	[]DesiredCollectorInstance,
-) error {
-	return claimPlaneUnsupported("ReconcileCollectorInstances")
-}
-
-// UpsertCompletenessStates stays server-internal.
-func (c *ClaimPlaneClient) UpsertCompletenessStates(context.Context, []CompletenessState) error {
-	return claimPlaneUnsupported("UpsertCompletenessStates")
-}
-
-// ReconcileWorkflowRuns stays server-internal (the server reaper owns it).
-func (c *ClaimPlaneClient) ReconcileWorkflowRuns(context.Context, time.Time) (int, error) {
-	return 0, claimPlaneUnsupported("ReconcileWorkflowRuns")
-}
-
-// ReapExpiredClaims stays server-internal (the server reaper owns it).
-func (c *ClaimPlaneClient) ReapExpiredClaims(
-	context.Context,
-	time.Time,
-	int,
-	time.Duration,
-) ([]Claim, error) {
-	return nil, claimPlaneUnsupported("ReapExpiredClaims")
-}
-
-// The client satisfies the durable store surface for the claim path.
+// The client satisfies the full durable store surface over HTTP.
 var _ ControlStore = (*ClaimPlaneClient)(nil)

@@ -244,31 +244,3 @@ func BenchmarkClaimPlaneClientClaimNext(b *testing.B) {
 		}
 	}
 }
-
-func TestClaimPlaneClientServerInternalOps(t *testing.T) {
-	stub := &stubClaimPlane{t: t}
-	server := httptest.NewServer(stub.handler())
-	defer server.Close()
-	client := NewClaimPlaneClient(server.URL, server.Client())
-	ctx := context.Background()
-	now := time.Now().UTC()
-
-	if err := client.CreateRun(ctx, Run{}); !errors.Is(err, ErrClaimPlaneUnsupported) {
-		t.Fatalf("CreateRun err = %v", err)
-	}
-	if err := client.EnqueueWorkItems(ctx, nil); !errors.Is(err, ErrClaimPlaneUnsupported) {
-		t.Fatalf("EnqueueWorkItems err = %v", err)
-	}
-	if err := client.ReconcileCollectorInstances(ctx, now, nil); !errors.Is(err, ErrClaimPlaneUnsupported) {
-		t.Fatalf("ReconcileCollectorInstances err = %v", err)
-	}
-	if err := client.UpsertCompletenessStates(ctx, nil); !errors.Is(err, ErrClaimPlaneUnsupported) {
-		t.Fatalf("UpsertCompletenessStates err = %v", err)
-	}
-	if _, err := client.ReconcileWorkflowRuns(ctx, now); !errors.Is(err, ErrClaimPlaneUnsupported) {
-		t.Fatalf("ReconcileWorkflowRuns err = %v", err)
-	}
-	if _, err := client.ReapExpiredClaims(ctx, now, 10, time.Second); !errors.Is(err, ErrClaimPlaneUnsupported) {
-		t.Fatalf("ReapExpiredClaims err = %v", err)
-	}
-}
