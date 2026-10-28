@@ -63,19 +63,44 @@ func TargetScopeFromWorkItem(item workflow.WorkItem) (TargetScope, error) {
 	if err := item.Validate(); err != nil {
 		return TargetScope{}, err
 	}
-	digest := sha256.Sum256([]byte(item.ScopeID))
+	return TargetScopeForComponent(item.ScopeID, item.AcceptanceUnitID, item.SourceRunID, item.GenerationID)
+}
+
+// TargetScopeForComponent derives the same privacy-safe scanner target from
+// claim-carried identity instead of a workflow work item, for stdio
+// components that receive an SDK claim over the v1alpha3 contract (Refs
+// #8878). The locator hash is recomputed deterministically from the scope
+// ID — never invented, never carried — so component output bears the
+// identical provenance the in-tree worker commits. The host owns the claim;
+// this derives target identity only.
+func TargetScopeForComponent(scopeID, acceptanceUnitID, sourceRunID, generationID string) (TargetScope, error) {
+	if strings.TrimSpace(scopeID) == "" {
+		return TargetScope{}, fmt.Errorf("target scope_id must not be blank")
+	}
+	if strings.TrimSpace(acceptanceUnitID) == "" {
+		return TargetScope{}, fmt.Errorf("target acceptance_unit_id must not be blank")
+	}
+	if strings.TrimSpace(sourceRunID) == "" {
+		return TargetScope{}, fmt.Errorf("target source_run_id must not be blank")
+	}
+	if strings.TrimSpace(generationID) == "" {
+		return TargetScope{}, fmt.Errorf("target generation_id must not be blank")
+	}
+	digest := sha256.Sum256([]byte(scopeID))
 	return TargetScope{
-		Kind:             targetKindFromWorkItem(item),
-		ScopeID:          item.ScopeID,
-		AcceptanceUnitID: item.AcceptanceUnitID,
-		SourceRunID:      item.SourceRunID,
-		GenerationID:     item.GenerationID,
+		Kind:             targetKindForComponent(scopeID, acceptanceUnitID),
+		ScopeID:          scopeID,
+		AcceptanceUnitID: acceptanceUnitID,
+		SourceRunID:      sourceRunID,
+		GenerationID:     generationID,
 		LocatorHash:      safeLocatorHashPrefix + hex.EncodeToString(digest[:]),
 	}, nil
 }
 
-func targetKindFromWorkItem(item workflow.WorkItem) TargetKind {
-	for _, value := range []string{item.ScopeID, item.AcceptanceUnitID} {
+// targetKindForComponent infers the target kind from the claim scope and
+// acceptance unit with the same prefix rules the work-item derivation uses.
+func targetKindForComponent(scopeID, acceptanceUnitID string) TargetKind {
+	for _, value := range []string{scopeID, acceptanceUnitID} {
 		if kind, ok := targetKindFromIdentity(value); ok {
 			return kind
 		}

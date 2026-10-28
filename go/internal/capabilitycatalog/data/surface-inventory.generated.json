@@ -2536,6 +2536,21 @@
     },
     {
       "category": "command",
+      "name": "scanner-component-image",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
+      "name": "scanner-component-osruntime",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
+      "name": "scanner-component-sbom",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
       "name": "scanner-worker",
       "readiness": "implemented"
     },

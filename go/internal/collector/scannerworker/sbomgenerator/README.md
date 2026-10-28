@@ -37,12 +37,16 @@ This package owns:
   `file_limit_exceeded`, `input_limit_exceeded`, `fact_limit_exceeded`,
   `analyzer_failed`). Raw target locators stay out of the failure payload.
 
-The runtime owns filesystem walking, archive extraction, SDK invocation,
-and CPU/memory/timeout enforcement (cgroups, ulimits, or process supervision
-configured per analyzer profile in `cmd/scanner-worker`). Reducers own the
-attachment truth table that decides whether an emitted `sbom.document`
-becomes attached, attached_parse_only, ambiguous_subject, unknown_subject,
-unparseable, or subject-mismatched.
+This package owns the bounded repository-walk source
+(`NewRepositorySource` over `RepositoryTarget`) that parses the ten
+supported lockfile manifests across eight ecosystems. The worker binary and
+the sbom stdio component (`go/cmd/scanner-component-sbom`) construct it
+from operator targets; archive extraction, SDK invocation, and
+CPU/memory/timeout enforcement stay runtime-owned (cgroups, ulimits, or
+process supervision configured per analyzer profile in
+`cmd/scanner-worker`). Reducers own the attachment truth table that decides
+whether an emitted `sbom.document` becomes attached, attached_parse_only,
+ambiguous_subject, unknown_subject, unparseable, or subject-mismatched.
 
 ## Exported surface
 
@@ -59,6 +63,11 @@ unparseable, or subject-mismatched.
   returns from `Collect`; the analyzer maps them to terminal
   `unsupported_target` or retryable `source_unavailable` workflow
   dispositions.
+- `NewRepositorySource`, `RepositoryTarget`, `ErrNoSBOMTargets` — the
+  bounded repository-walk `Source` over operator targets (identity, paths,
+  and budgets only, never credentials). Empty targets fail with
+  `ErrNoSBOMTargets` so callers degrade to an explicit warning fact instead
+  of pretending the target scanned clean.
 - `Format`, `ParseStatusGenerated`, `SpecVersionDefault`, `ToolDefault` —
   constants emitted on document facts so reducer attachment can distinguish
   generated documents from parsed third-party documents.

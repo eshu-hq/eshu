@@ -83,9 +83,9 @@ func buildAnalyzer(config runtimeConfig) (scannerworker.Analyzer, error) {
 			Now:                 time.Now,
 		})
 	case scannerworker.AnalyzerSBOMGeneration:
-		source, err := newRepositorySBOMSource(config.SBOMTargets)
+		source, err := sbomgenerator.NewRepositorySource(config.SBOMTargets)
 		if err != nil {
-			if errors.Is(err, errNoSBOMTargets) {
+			if errors.Is(err, sbomgenerator.ErrNoSBOMTargets) {
 				return scannerworker.WarningAnalyzer{Reason: "sbom_generator_source_not_configured"}, nil
 			}
 			return nil, err

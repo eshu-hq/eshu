@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker/sbomgenerator"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -146,7 +147,7 @@ func TestExtractionBoundaryConfigCarriesNoSecret(t *testing.T) {
 	}
 	for _, typ := range []reflect.Type{
 		reflect.TypeOf(runtimeConfig{}),
-		reflect.TypeOf(sbomTargetConfig{}),
+		reflect.TypeOf(sbomgenerator.RepositoryTarget{}),
 		reflect.TypeOf(resourceLimitsJSON{}),
 	} {
 		walk(typ.Name(), typ)

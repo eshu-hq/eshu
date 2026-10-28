@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package sbomgenerator
 
 import (
 	"encoding/json"
 	"regexp"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker/sbomgenerator"
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 )
 
@@ -24,12 +23,12 @@ type pipfileLockPackage struct {
 	File    string `json:"file"`
 }
 
-func parsePipfileLockComponents(relativePath string, body []byte) ([]sbomgenerator.Component, []sbomgenerator.Warning) {
+func parsePipfileLockComponents(relativePath string, body []byte) ([]Component, []Warning) {
 	var lock pipfileLockFile
 	if err := json.Unmarshal(body, &lock); err != nil {
-		return nil, []sbomgenerator.Warning{malformedLockfileWarning(relativePath, packageidentity.EcosystemPyPI, err)}
+		return nil, []Warning{malformedLockfileWarning(relativePath, packageidentity.EcosystemPyPI, err)}
 	}
-	components := make([]sbomgenerator.Component, 0, len(lock.Default)+len(lock.Develop))
+	components := make([]Component, 0, len(lock.Default)+len(lock.Develop))
 	components = append(components, pipfileLockComponents(relativePath, lock.Default, "default", "runtime")...)
 	components = append(components, pipfileLockComponents(relativePath, lock.Develop, "develop", "development")...)
 	return components, nil
@@ -40,8 +39,8 @@ func pipfileLockComponents(
 	packages map[string]pipfileLockPackage,
 	scope string,
 	dependencyType string,
-) []sbomgenerator.Component {
-	components := make([]sbomgenerator.Component, 0, len(packages))
+) []Component {
+	components := make([]Component, 0, len(packages))
 	for _, name := range sortedMapKeys(packages) {
 		pkg := packages[name]
 		if strings.TrimSpace(pkg.Git) != "" || strings.TrimSpace(pkg.Path) != "" || strings.TrimSpace(pkg.File) != "" {
@@ -65,9 +64,9 @@ type poetryLockPackage struct {
 	sourceScoped bool
 }
 
-func parsePoetryLockComponents(relativePath string, body []byte) []sbomgenerator.Component {
+func parsePoetryLockComponents(relativePath string, body []byte) []Component {
 	packages := poetryLockPackages(string(body))
-	components := make([]sbomgenerator.Component, 0, len(packages))
+	components := make([]Component, 0, len(packages))
 	for _, pkg := range packages {
 		if pkg.sourceScoped && !poetryRegistrySource(pkg.sourceType) {
 			continue
@@ -172,11 +171,11 @@ type gemfileLockSpec struct {
 	registryBack bool
 }
 
-func parseGemfileLockComponents(relativePath string, body []byte) []sbomgenerator.Component {
+func parseGemfileLockComponents(relativePath string, body []byte) []Component {
 	specs, edges, directNames := parseGemfileLock(string(body))
 	chains := gemfileLockDependencyChains(edges, directNames)
 	names := sortedMapKeys(specs)
-	components := make([]sbomgenerator.Component, 0, len(names))
+	components := make([]Component, 0, len(names))
 	for _, name := range names {
 		spec := specs[name]
 		if !spec.registryBack {
@@ -277,8 +276,8 @@ func walkGemfileLockDependency(
 	}
 }
 
-func parseGradleLockfileComponents(relativePath string, body []byte) []sbomgenerator.Component {
-	components := make([]sbomgenerator.Component, 0)
+func parseGradleLockfileComponents(relativePath string, body []byte) []Component {
+	components := make([]Component, 0)
 	for _, rawLine := range strings.Split(string(body), "\n") {
 		line := strings.TrimSpace(rawLine)
 		if line == "" || strings.HasPrefix(line, "#") || line == "empty=empty" {
