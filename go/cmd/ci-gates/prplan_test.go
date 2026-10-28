@@ -24,7 +24,7 @@ func TestTrustedPRWorkflowDefinitionsKeepNonGateEventSemantics(t *testing.T) {
 	for _, def := range defs {
 		byFile[def.File] = def
 	}
-	for _, file := range []string{"test.yml", "build.yml", "post_discord_invite.yml", "refresh-cassettes.yml"} {
+	for _, file := range []string{"test.yml", "build.yml", "refresh-cassettes.yml"} {
 		if _, ok := byFile[file]; !ok {
 			t.Fatalf("missing PR workflow %s", file)
 		}
@@ -32,7 +32,7 @@ func TestTrustedPRWorkflowDefinitionsKeepNonGateEventSemantics(t *testing.T) {
 	if !byFile["test.yml"].Synchronize || !byFile["build.yml"].Synchronize {
 		t.Fatal("synchronize workflows were not parsed")
 	}
-	if byFile["post_discord_invite.yml"].Synchronize || byFile["refresh-cassettes.yml"].Synchronize {
+	if byFile["refresh-cassettes.yml"].Synchronize {
 		t.Fatal("opened/labeled-only workflows must not join synchronize plan")
 	}
 	if !reflect.DeepEqual(byFile["build.yml"].Branches, []string{"main"}) {

@@ -20,8 +20,8 @@ the previous frozen inventory, which did not yet name the helper; smoke
 and reuse do not select the shards. The caller retains each
 workflow's token scope and passes the private cassette-author identifiers only
 to the static-contract workflow. Each called workflow has its own concurrency
-group so it cannot cancel the caller. Opened-only Discord and labeled-only
-cassette refresh still use their own PR triggers.
+group so it cannot cancel the caller. Labeled-only cassette refresh
+still uses its own PR trigger.
 Scheduled PostgreSQL proofs use PR-conditional cancellation in their event/ref
 group; scheduled and manual runs retain noncancelling behavior.
 
