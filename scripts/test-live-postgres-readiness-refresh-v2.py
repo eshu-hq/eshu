@@ -7,6 +7,7 @@ import contextlib
 import io
 import json
 from pathlib import Path
+import statistics
 import sys
 import tempfile
 import unittest
@@ -19,7 +20,7 @@ import live_postgres_readiness_weights_refresh as cli_refresh  # noqa: E402
 
 PLAN = [f"./{package}|Test{name}" for package, name in (
     ("a", "One"), ("a", "Two"), ("b", "One"), ("b", "Two"),
-    ("b", "Three"), ("b", "Four"))]
+    ("b", "Three"), ("c", "One"), ("c", "Two"))]
 SHA = "a" * 40
 OTHER_SHA = "b" * 40
 
@@ -61,8 +62,8 @@ def _sample(root: Path, run_id: int, sha: str) -> Path:
     rows_by_shard = [
         [("a", "TestOne", 8)],
         [("a", "TestTwo", 8), ("b", "TestOne", 5), ("b", "TestTwo", 2)],
-        [("b", "TestThree", 8)],
-        [("b", "TestFour", 8)],
+        [("b", "TestThree", 8), ("c", "TestOne", 5)],
+        [("c", "TestTwo", 8)],
     ]
     for shard, rows in enumerate(rows_by_shard, 1):
         jobs.append({
@@ -102,8 +103,8 @@ class RefreshV2Cases(unittest.TestCase):
         self.expected_rows = {
             1: [frozenset([PLAN[0]])],
             2: [frozenset([PLAN[1]]), frozenset([PLAN[2]]), frozenset([PLAN[3]])],
-            3: [frozenset([PLAN[4]])],
-            4: [frozenset([PLAN[5]])],
+            3: [frozenset([PLAN[4]]), frozenset([PLAN[5]])],
+            4: [frozenset([PLAN[6]])],
         }
         self.real_source_rows = refresh.provenance.source_rows
         rows = mock.patch.object(refresh.provenance, "source_rows",
@@ -192,9 +193,60 @@ class RefreshV2Cases(unittest.TestCase):
         self.assertEqual(result["schema_version"], 2)
         self.assertEqual(result["shard_count"], 5)
         self.assertEqual(result["cold_cache_seconds"], 3.0)
-        self.assertEqual(result["package_first_seconds"], {"./a": 5.0, "./b": 5.0})
+        self.assertEqual(result["package_first_seconds"],
+                         {"./a": 5.0, "./b": 5.0, "./c": 5.0})
         self.assertEqual(result["package_repeat_seconds"], {"./b": 2.0})
         self.assertGreater(result["default_package_repeat_seconds"], 0)
+
+    def test_cold_fit_downweights_noisy_negative_pair(self) -> None:
+        """A huge-variance negative pair must not veto a tight positive one."""
+        tight = {"first_row": [60.8, 63.1], "first_later": [1.6, 1.6]}
+        noisy = {"first_row": [666.6, 488.0, 434.7, 482.3, 469.2, 422.5],
+                 "first_later": [556.0, 573.5]}
+        diffs = [statistics.mean(kinds["first_row"]) - statistics.mean(kinds["first_later"])
+                 for kinds in (tight, noisy)]
+        self.assertLessEqual(statistics.mean(diffs), 0)
+        cold, components = refresh.fit_cold({"./tight": dict(tight),
+                                             "./noisy": dict(noisy)})
+        self.assertAlmostEqual(cold, 60.3, delta=0.5)
+        by_package = {component.package: component for component in components}
+        self.assertEqual(sorted(by_package), ["./noisy", "./tight"])
+        self.assertLess(by_package["./noisy"].weight, 0.01)
+        self.assertAlmostEqual(sum(component.weight for component in components), 1.0)
+        line = by_package["./tight"].line()
+        for fragment in ("./tight", "diff=", "variance=", "weight="):
+            self.assertIn(fragment, line)
+
+    def test_cold_fit_rejects_all_tight_negative_pairs(self) -> None:
+        """Tight negative pairs still fail closed instead of pricing cold."""
+        categories = {"./a": {"first_row": [5.0, 5.2], "first_later": [10.1, 10.3]},
+                      "./b": {"first_row": [7.0, 7.1], "first_later": [12.0, 12.2]}}
+        with self.assertRaisesRegex(ValueError, "cold"):
+            refresh.fit_cold(categories)
+
+    def test_cold_fit_rejects_single_eligible_pair(self) -> None:
+        """One eligible pair cannot identify cold, however tight it is."""
+        categories = {"./only": {"first_row": [60.8, 63.1], "first_later": [1.6, 1.6]},
+                      "./thin": {"first_row": [9.0], "first_later": [2.0, 2.1]}}
+        with self.assertRaisesRegex(ValueError, "cold"):
+            refresh.fit_cold(categories)
+
+    def test_cold_fit_rejects_positive_but_insignificant_cold(self) -> None:
+        """A positive cold within two standard errors still fails closed."""
+        categories = {"./a": {"first_row": [0.0, 20.0], "first_later": [9.5, 9.9]},
+                      "./b": {"first_row": [0.0, 30.0], "first_later": [14.3, 14.7]}}
+        with self.assertRaisesRegex(ValueError, "significant"):
+            refresh.fit_cold(categories)
+
+    def test_cold_fit_matches_unweighted_mean_at_equal_variance(self) -> None:
+        """Equal-variance pairs reproduce the old arithmetic mean."""
+        categories = {"./a": {"first_row": [10.0, 12.0], "first_later": [4.0, 6.0]},
+                      "./b": {"first_row": [20.0, 22.0], "first_later": [8.0, 10.0]}}
+        expected = statistics.mean(
+            statistics.mean(kinds["first_row"]) - statistics.mean(kinds["first_later"])
+            for kinds in categories.values())
+        cold, _ = refresh.fit_cold(categories)
+        self.assertAlmostEqual(cold, expected, places=1)
 
     def test_rejects_feature_or_partial_run(self) -> None:
         path = self.sources[0] / "run.json"
@@ -209,7 +261,7 @@ class RefreshV2Cases(unittest.TestCase):
     def test_rejects_missing_or_duplicate_inventory_tests(self) -> None:
         path = self.sources[0] / "shard4.log"
         original = path.read_text()
-        path.write_text(original.replace("TestFour: PASS", "TestThree: PASS"))
+        path.write_text(original.replace("TestTwo: PASS", "TestOne: PASS"))
         with self.assertRaisesRegex(ValueError, "inventory|duplicate|coverage|row.*source"):
             self.fit()
 
@@ -240,9 +292,12 @@ class RefreshV2Cases(unittest.TestCase):
             (source / "shard3.log").write_text(_log(3, [
                 ("b", "TestOne", 8), ("b", "TestTwo", 2),
                 ("b", "TestThree", 8)], int(source.name)))
+            (source / "shard4.log").write_text(_log(4, [
+                ("c", "TestOne", 5), ("c", "TestTwo", 8)], int(source.name)))
         self.expected_rows[2] = [frozenset([PLAN[1]])]
         self.expected_rows[3] = [frozenset([PLAN[2]]), frozenset([PLAN[3]]),
                                  frozenset([PLAN[4]])]
+        self.expected_rows[4] = [frozenset([PLAN[5]]), frozenset([PLAN[6]])]
         with self.assertRaisesRegex(ValueError, "cold"):
             self.fit()
 
@@ -344,9 +399,9 @@ class RefreshV2Cases(unittest.TestCase):
 
     def test_rejects_reordered_source_package_rows(self) -> None:
         for source in self.sources:
-            (source / "shard1.log").write_text(_log(1, [("b", "TestFour", 8)], int(source.name)))
+            (source / "shard1.log").write_text(_log(1, [("c", "TestTwo", 8)], int(source.name)))
             (source / "shard4.log").write_text(_log(4, [("a", "TestOne", 8)], int(source.name)))
-        self.expected_rows[1] = [frozenset([PLAN[5]])]
+        self.expected_rows[1] = [frozenset([PLAN[6]])]
         self.expected_rows[4] = [frozenset([PLAN[0]])]
         with self.assertRaisesRegex(ValueError, "order"):
             self.fit()
