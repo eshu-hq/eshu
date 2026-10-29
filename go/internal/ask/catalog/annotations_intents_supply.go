@@ -8,6 +8,7 @@ package catalog
 // secrets/IAM tools. Families are named in annotations_intents_families.go.
 func supplyToolIntents() map[string]toolIntent {
 	return map[string]toolIntent{
+		"search_dockerfile_installs": intents("which dockerfiles install this package", "dockerfile package install declarations", "find dockerfile downloads by name", "search source image build installs"),
 		// vulnerability-impact
 		"list_supply_chain_impact_findings":  canonicalIntents("which cves affect us", "vulnerability impact findings", "vulnerable packages in repository", "cve impact by image digest", "affected vs not affected findings"),
 		"count_supply_chain_impact_findings": intents("how many vulnerabilities", "count of cve findings", "vulnerability totals by severity", "number of affected packages"),

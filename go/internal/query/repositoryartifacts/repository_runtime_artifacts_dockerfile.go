@@ -57,6 +57,9 @@ func buildDockerfileRuntimeArtifacts(file querycontract.FileContent) []map[strin
 		if environment := dockerfileStageEnvironment(metadata, stageName); len(environment) > 0 {
 			row["environment"] = environment
 		}
+		if installs := dockerfileStageInstalls(metadata, stageName); len(installs) > 0 {
+			row["installs"] = installs
+		}
 		rows = append(rows, row)
 	}
 
@@ -190,4 +193,14 @@ func isDockerfileArtifact(file querycontract.FileContent) bool {
 		strings.HasSuffix(base, "/dockerfile.dev") ||
 		strings.HasSuffix(base, "/dockerfile.prod") ||
 		base == "dockerfile"
+}
+
+func dockerfileStageInstalls(metadata map[string]any, stageName string) []map[string]any {
+	rows := make([]map[string]any, 0)
+	for _, row := range querycontract.MapSliceValue(metadata, "dockerfile_installs") {
+		if querycontract.StringVal(row, "stage") == stageName {
+			rows = append(rows, row)
+		}
+	}
+	return rows
 }

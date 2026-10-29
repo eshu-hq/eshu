@@ -48,7 +48,7 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			// The additive #5385 T4 endpoint_repo_id index rides on top of
 			// the cutover DDL without changing write identity; the cutover's
 			// refusal dominates, so no predecessor is listed here either.
-			compatible: []string{},
+			compatible: []string{graphSchemaNeo4jPreDockerfileInstallFingerprint},
 		},
 		{
 			name:        "nornicdb",
@@ -57,7 +57,7 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			// No predecessor, for the same #8168 import_key cutover (the
 			// #5385 T4 endpoint_repo_id index rides on top without changing
 			// write identity, and the cutover's refusal dominates here too).
-			compatible: []string{},
+			compatible: []string{graphSchemaNornicDBPreDockerfileInstallFingerprint},
 		},
 	}
 

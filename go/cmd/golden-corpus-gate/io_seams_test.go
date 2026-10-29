@@ -115,6 +115,7 @@ func fileLanguageFloor() (map[string]int64, map[string][]string) {
 	}
 	nodes := map[string]int64{
 		"File":                   int64(len(langs)),
+		"DockerfileInstall":      3,
 		"CloudResource":          3,
 		"FluxKustomization":      1,
 		"FluxGitRepository":      1,
@@ -129,7 +130,13 @@ func fileLanguageFloor() (map[string]int64, map[string][]string) {
 		"RegistryEvent":          1,
 	}
 	nodeProp := map[string][]string{
-		"File|language": langs,
+		"File|language":                   langs,
+		"DockerfileInstall|name":          {"curl", "curl", "ca-certificates"},
+		"DockerfileInstall|manager":       {"apt-get", "apt-get", "apt-get"},
+		"DockerfileInstall|stage":         {"builder", "builder", "final"},
+		"DockerfileInstall|category":      {"package", "package", "package"},
+		"DockerfileInstall|relative_path": {"Dockerfile", "Dockerfile", "Dockerfile"},
+		"DockerfileInstall|version":       {"8.2"},
 		// rn-package-artifact-hashes (#5820 P2 review finding): mirrors the
 		// package_registry supply-chain-demo cassette's
 		// github.com/acme/lib-common@1.0.0 package_artifact fact hashes, "|"

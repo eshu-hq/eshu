@@ -92,8 +92,8 @@ const (
 	// tf_module/tf_output evidence_source, the Neo4j-only #7057 uid indexes,
 	// the #7095/#7097 constraint retirements, #7675, and the Neo4j-only #7245
 	// infra_search_key_ft index.
-	graphSchemaNeo4jFingerprint    = "f41d86abcb08707e328254f8d0be247bfcfe135713e7a9147d8eb960afd0a5e0"
-	graphSchemaNornicDBFingerprint = "8f1251766e77d4e5bf6fc41ad1a049994db4321d55706a47e92ed193ffb8cd25"
+	graphSchemaNeo4jFingerprint    = "4a5cd866a90b873bf79c91d20804b7c087eb0159df54365fa5a92334c4cdee14"
+	graphSchemaNornicDBFingerprint = "838893b45d370aabddd8cd3628bd7042a75ac73601f50337958496b63ccb2d05"
 
 	// graphSchemaNeo4jPreDirectoryRepoIDIndexFingerprint and its NornicDB peer
 	// are the digests immediately before that index was added, which is the

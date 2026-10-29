@@ -143,4 +143,5 @@ var snapshotEntityBuckets = []struct {
 	{bucket: "cloudformation_conditions", label: "CloudFormationCondition"},
 	{bucket: "cloudformation_cross_stack_imports", label: "CloudFormationImport"},
 	{bucket: "cloudformation_cross_stack_exports", label: "CloudFormationExport"},
+	{bucket: "dockerfile_installs", label: "DockerfileInstall"},
 }

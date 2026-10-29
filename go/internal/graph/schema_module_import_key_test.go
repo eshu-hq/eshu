@@ -37,10 +37,10 @@ func TestModuleImportKeyConstraintLandsOnBothBackends(t *testing.T) {
 }
 
 // TestModuleImportKeyIsAWriteIdentityCutover proves the #8168 identity change
-// fences every older writer. A writer on the previous release MERGEs Module on
-// (name, lang) and never sets import_key, so after the migration it would
-// mint a second node beside each canonical one. It must be refused, so the
-// current fingerprint lists no compatible predecessor at all.
+// fences every pre-cutover writer. Those writers MERGE Module on (name, lang)
+// and never set import_key, so they would mint a second node. The one
+// immediate post-cutover predecessor is safe under the additive
+// DockerfileInstall uid constraint and remains compatible.
 func TestModuleImportKeyIsAWriteIdentityCutover(t *testing.T) {
 	t.Parallel()
 
@@ -50,20 +50,32 @@ func TestModuleImportKeyIsAWriteIdentityCutover(t *testing.T) {
 	if slices.Contains(graphWriteIdentityContract, "Module=name,lang") {
 		t.Fatalf("graphWriteIdentityContract = %v still records the retired Module=name,lang identity", graphWriteIdentityContract)
 	}
-	for backend, previous := range map[SchemaBackend]string{
-		SchemaBackendNeo4j:    graphSchemaNeo4jPreModuleImportKeyFingerprint,
-		SchemaBackendNornicDB: graphSchemaNornicDBPreModuleImportKeyFingerprint,
+	for _, tc := range []struct {
+		backend     SchemaBackend
+		preCutover  string
+		postCutover string
+	}{
+		{SchemaBackendNeo4j, graphSchemaNeo4jPreModuleImportKeyFingerprint, graphSchemaNeo4jPreDockerfileInstallFingerprint},
+		{SchemaBackendNornicDB, graphSchemaNornicDBPreModuleImportKeyFingerprint, graphSchemaNornicDBPreDockerfileInstallFingerprint},
 	} {
+		backend := tc.backend
 		app, err := SchemaApplicationForBackend(backend)
 		if err != nil {
 			t.Fatalf("SchemaApplicationForBackend(%q) error = %v", backend, err)
 		}
-		if app.Fingerprint == previous {
+		if app.Fingerprint == tc.preCutover {
 			t.Fatalf("%s fingerprint did not move for the import_key cutover", backend)
 		}
-		if len(app.CompatibleFingerprints) != 0 {
-			t.Fatalf("%s CompatibleFingerprints = %v, want none: every older writer MERGEs Module on (name, lang)",
-				backend, app.CompatibleFingerprints)
+		if !slices.Equal(app.CompatibleFingerprints, []string{tc.postCutover}) {
+			t.Fatalf("%s CompatibleFingerprints = %v, want only immediate post-cutover predecessor %s", backend, app.CompatibleFingerprints, tc.postCutover)
+		}
+		for _, unsafe := range graphSchemaCompatibleFingerprints[backend][tc.preCutover] {
+			if slices.Contains(app.CompatibleFingerprints, unsafe) {
+				t.Fatalf("%s current schema admits pre-cutover writer %s", backend, unsafe)
+			}
+		}
+		if slices.Contains(app.CompatibleFingerprints, tc.preCutover) {
+			t.Fatalf("%s current schema admits pre-cutover tip %s", backend, tc.preCutover)
 		}
 	}
 }

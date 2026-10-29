@@ -35,8 +35,12 @@ func TestContentEntityBucketsFluxTypedEntitiesAppendedAtEnd(t *testing.T) {
 		"helm_template_value_usages": "HelmTemplateValueUsage",
 	}
 
-	// The six trailing entries must be the Flux typed entities, in this
-	// fixed order.
+	// The Flux block keeps its fixed order immediately before the next
+	// appended bucket. Existing bucket positions must never move.
+	if got := contentEntityBuckets[n-1]; got != (entityBucketMapping{bucket: "dockerfile_installs", label: "DockerfileInstall"}) {
+		t.Fatalf("last bucket = %#v, want appended DockerfileInstall", got)
+	}
+	fluxEnd := n - 1
 	wantTrailing := []entityBucketMapping{
 		{bucket: "flux_kustomizations", label: "FluxKustomization"},
 		{bucket: "flux_git_repositories", label: "FluxGitRepository"},
@@ -46,7 +50,7 @@ func TestContentEntityBucketsFluxTypedEntitiesAppendedAtEnd(t *testing.T) {
 		{bucket: "flux_helm_repositories", label: "FluxHelmRepository"},
 	}
 	for i, want := range wantTrailing {
-		got := contentEntityBuckets[n-len(wantTrailing)+i]
+		got := contentEntityBuckets[fluxEnd-len(wantTrailing)+i]
 		if got != want {
 			t.Fatalf("bucket at trailing index %d = %#v, want %#v (append at end)", i, got, want)
 		}
@@ -54,7 +58,7 @@ func TestContentEntityBucketsFluxTypedEntitiesAppendedAtEnd(t *testing.T) {
 
 	// sql_migrations (#5346) must sit immediately before the Flux entries, never
 	// shifted.
-	sqlIdx := n - len(wantTrailing) - 1
+	sqlIdx := fluxEnd - len(wantTrailing) - 1
 	if got := contentEntityBuckets[sqlIdx]; got.bucket != "sql_migrations" || got.label != "SqlMigration" {
 		t.Fatalf("bucket before flux entries = %q/%q, want sql_migrations/SqlMigration", got.bucket, got.label)
 	}

@@ -3079,6 +3079,10 @@
       "derived_maturity": "general_availability",
       "surfaces": [
         {
+          "tool": "search_dockerfile_installs",
+          "kind": "mcp"
+        },
+        {
           "tool": "search_file_content",
           "kind": "mcp"
         }

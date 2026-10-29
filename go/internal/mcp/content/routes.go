@@ -49,6 +49,18 @@ func Route(toolName string, args routecontract.Arguments) (routecontract.Request
 			body["cursor"] = cursor
 		}
 		return routecontract.Request{Method: "POST", Path: "/api/v0/content/files/search", Body: body}, true
+	case "search_dockerfile_installs":
+		body := map[string]any{"package": args.String("package"), "limit": args.IntOr("limit", 10)}
+		if repoID := args.String("repo_id"); repoID != "" {
+			body["repo_id"] = repoID
+		}
+		if repoIDs := args.StringSlice("repo_ids"); len(repoIDs) > 0 {
+			body["repo_ids"] = repoIDs
+		}
+		if cursor, ok := args["cursor"].(map[string]any); ok && len(cursor) > 0 {
+			body["cursor"] = cursor
+		}
+		return routecontract.Request{Method: "POST", Path: "/api/v0/content/dockerfile-installs/search", Body: body}, true
 	case "search_entity_content":
 		body := contentSearchBody(args)
 		// The resume cursor of a partial unscoped entity search (#7730)

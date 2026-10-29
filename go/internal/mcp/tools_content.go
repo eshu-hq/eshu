@@ -225,3 +225,25 @@ func contentTools() []ToolDefinition {
 		},
 	}
 }
+
+// dockerfileInstallTool registers the install search at the registry tail so
+// existing tool positions remain stable.
+func dockerfileInstallTool() ToolDefinition {
+	return ToolDefinition{
+		Name:        "search_dockerfile_installs",
+		Description: "Find persisted Dockerfile install declarations by exact package or download name across authorized repositories. Results are ordered by repository, path, line and entity ID. Pass next_cursor to continue until truncated is false.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"package":  map[string]any{"type": "string", "description": "Exact install name as declared in the Dockerfile; case sensitive"},
+				"repo_id":  map[string]any{"type": "string", "description": "Optional repository selector"},
+				"repo_ids": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Optional repository selectors"},
+				"limit":    map[string]any{"type": "integer", "minimum": 1, "maximum": 50, "default": 10},
+				"cursor": map[string]any{"type": "object", "description": "Full next_cursor from the prior page", "properties": map[string]any{
+					"basis": map[string]any{"type": "string"}, "repo_id": map[string]any{"type": "string"}, "relative_path": map[string]any{"type": "string"}, "start_line": map[string]any{"type": "integer"}, "entity_id": map[string]any{"type": "string"},
+				}},
+			},
+			"required": []string{"package"},
+		},
+	}
+}

@@ -25,6 +25,11 @@
         "max": 35,
         "note": "35 corpus repos (#5954 staged cloudformation_comprehensive, previously an orphaned fixture used only by parser unit tests; #7601 staged the format-kit producer and storefront-web consumer for the cross-repository JS call proof, and the ledger-kit producer and invoice-portal consumer for the PHP one). The ceiling is exact and deliberate, not a placeholder: if a mirror stub is ever discovered, it MUST fail this ceiling and get reviewed under this file's own update-under-review policy, not be silently absorbed by a padded range."
       },
+      "DockerfileInstall": {
+        "min": 3,
+        "max": 1000,
+        "note": "#9303: staged container-base-lineage Dockerfile declares two distinct curl installs on one builder RUN line and ca-certificates in final stage. The floor pins graph projection of install evidence; the HTTP/MCP shapes pin exact names, stage, version, and location."
+      },
       "TerraformBlock": {
         "min": 5,
         "max": 50,
@@ -2043,6 +2048,38 @@
         "required_node_properties": [
           "tf_attr_instance_type"
         ]
+      },
+      {
+        "id": "rn-dockerfile-install-curl",
+        "description": "#9303: two same-line curl declarations in the staged container-base-lineage builder Dockerfile must project as distinct graph nodes with typed install metadata.",
+        "label": "DockerfileInstall",
+        "minimum_count": 2,
+        "required_node_properties": [
+          "name",
+          "manager",
+          "stage",
+          "category",
+          "relative_path"
+        ],
+        "allowed_node_property_values": {
+          "name": ["curl"],
+          "manager": ["apt-get"],
+          "stage": ["builder"],
+          "relative_path": ["Dockerfile"]
+        }
+      },
+      {
+        "id": "rn-dockerfile-install-pinned-curl",
+        "description": "#9303: one builder-stage curl declaration carries the explicit apt version pin to the graph.",
+        "label": "DockerfileInstall",
+        "minimum_count": 1,
+        "required_node_properties": ["name", "version", "manager", "stage"],
+        "allowed_node_property_values": {
+          "name": ["curl"],
+          "version": ["8.2"],
+          "manager": ["apt-get"],
+          "stage": ["builder"]
+        }
       },
       {
         "id": "rn-file-language",
@@ -7192,6 +7229,59 @@
           "scope_id": "state_snapshot:s3:299b28d40110e54bf81beb51e9459bdef688dbc58419782b29aa83a5930b48a7",
           "limit": 25
         }
+      },
+      "search_dockerfile_installs": {
+        "description": "Dockerfile install evidence from the staged container-base-lineage fixture; two curl declarations on one builder RUN line must remain separate.",
+        "required_response_fields": [
+          "package",
+          "matches",
+          "limit",
+          "truncated"
+        ],
+        "minimum_results": 2,
+        "maximum_results": 2,
+        "results_field": "matches",
+        "result_item_required_fields": [
+          "entity_id",
+          "repo_id",
+          "relative_path",
+          "line_number",
+          "manager",
+          "category",
+          "name",
+          "stage"
+        ],
+        "required_json_values": {
+          "package": "curl",
+          "limit": 10,
+          "truncated": false
+        },
+        "required_json_object_matches": {
+          "matches[]": [
+            {
+              "relative_path": "Dockerfile",
+              "line_number": 15,
+              "manager": "apt-get",
+              "category": "package",
+              "name": "curl",
+              "stage": "builder"
+            },
+            {
+              "relative_path": "Dockerfile",
+              "line_number": 15,
+              "manager": "apt-get",
+              "category": "package",
+              "name": "curl",
+              "stage": "builder",
+              "version": "8.2"
+            }
+          ]
+        },
+        "arguments": {
+          "package": "curl",
+          "repo_id": "container-base-lineage",
+          "limit": 10
+        }
       }
     },
     "cli": {
@@ -9443,6 +9533,59 @@
               "value": "external_registry"
             }
           ]
+        }
+      },
+      "POST /api/v0/content/dockerfile-installs/search": {
+        "description": "Dockerfile install evidence from the staged container-base-lineage fixture; two curl declarations on one builder RUN line must remain separate.",
+        "required_response_fields": [
+          "package",
+          "matches",
+          "limit",
+          "truncated"
+        ],
+        "minimum_results": 2,
+        "maximum_results": 2,
+        "results_field": "matches",
+        "result_item_required_fields": [
+          "entity_id",
+          "repo_id",
+          "relative_path",
+          "line_number",
+          "manager",
+          "category",
+          "name",
+          "stage"
+        ],
+        "required_json_values": {
+          "package": "curl",
+          "limit": 10,
+          "truncated": false
+        },
+        "required_json_object_matches": {
+          "matches[]": [
+            {
+              "relative_path": "Dockerfile",
+              "line_number": 15,
+              "manager": "apt-get",
+              "category": "package",
+              "name": "curl",
+              "stage": "builder"
+            },
+            {
+              "relative_path": "Dockerfile",
+              "line_number": 15,
+              "manager": "apt-get",
+              "category": "package",
+              "name": "curl",
+              "stage": "builder",
+              "version": "8.2"
+            }
+          ]
+        },
+        "request_body": {
+          "package": "curl",
+          "repo_id": "container-base-lineage",
+          "limit": 10
         }
       }
     }

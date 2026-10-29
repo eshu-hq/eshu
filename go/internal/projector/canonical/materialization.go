@@ -305,6 +305,7 @@ var entityTypeLabelMap = map[string]string{
 	"flux_bucket":               "FluxBucket",
 	"flux_helm_release":         "FluxHelmRelease",
 	"flux_helm_repository":      "FluxHelmRepository",
+	"dockerfile_install":        "DockerfileInstall",
 	"helm_chart":                "HelmChart",
 	"helm_values":               "HelmValues",
 	"helm_value_definition":     "HelmValueDefinition",

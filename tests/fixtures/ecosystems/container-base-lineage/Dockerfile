@@ -12,9 +12,11 @@
 # functions named "main").
 FROM golang:1.24 AS builder
 WORKDIR /src
+RUN apt-get update && apt-get install -y curl curl=8.2
 RUN go build -o /out/app ./...
 
 FROM ghcr.io/eshu-hq/base-runtime@sha256:ba5e0000000000000000000000000000000000000000000000000000000000ba
+RUN apt-get update && apt-get install -y ca-certificates
 COPY --from=builder /out/app /usr/local/bin/app
 EXPOSE 8080
 ENTRYPOINT ["/usr/local/bin/app"]

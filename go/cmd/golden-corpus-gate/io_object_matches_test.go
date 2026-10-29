@@ -20,7 +20,15 @@ func fakeSetJSONObjectMatches(root map[string]any, path string, matches []map[st
 			if !arraySegment {
 				return
 			}
-			existing, _ := obj[segment].([]any)
+			existing, ok := obj[segment].([]any)
+			if !ok {
+				if typed, typedOK := obj[segment].([]map[string]any); typedOK {
+					existing = make([]any, len(typed))
+					for i, item := range typed {
+						existing[i] = item
+					}
+				}
+			}
 			items := make([]any, 0, len(matches))
 			for index, match := range matches {
 				item := map[string]any{}

@@ -168,6 +168,7 @@ func askToolAnnotations() map[string]Annotation {
 		"resolve_investigation_workflow":                  {Backend: BackendEmbedded, Cost: CostLow},
 		"resolve_query_playbook":                          {Backend: BackendEmbedded, Cost: CostLow},
 		"search_entity_content":                           {Backend: BackendPostgres, Cost: CostModerate},
+		"search_dockerfile_installs":                      {Backend: BackendPostgres, Cost: CostModerate},
 		"search_file_content":                             {Backend: BackendPostgres, Cost: CostModerate},
 		"search_registry_bundles":                         {Backend: BackendNornicDB, Cost: CostLow},
 		"search_semantic_context":                         {Backend: BackendPostgres, Cost: CostModerate},

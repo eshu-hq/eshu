@@ -16,7 +16,7 @@ and the exported compatibility wrapper used by query and relationship code.
 ## Exported surface
 
 The godoc contract is in doc.go. Current exports are Metadata, Stage, Arg, Env,
-Port, Label, RuntimeMetadata, and Metadata.Map. The Stage type carries
+Port, Label, Install, UnparsedCommand, RuntimeMetadata, and Metadata.Map. The Stage type carries
 BaseRefTemplate, UnresolvedArgs, ArgDefaults, ArgDefaultsTruncated, and
 ArgDefaultsOmitted for the FROM substitution evidence above.
 
@@ -228,3 +228,86 @@ relationship packages still consume `parser.ExtractDockerfileRuntimeMetadata`.
 ## Related docs
 
 - docs/public/languages/support-maturity.md
+
+### RUN and ADD install declarations (#9303)
+
+`RuntimeMetadata` records recognized source declarations in `Installs` and in
+`dockerfile_installs` payload rows (`manager`, `name`, optional pinned `version`,
+`line_number`, `stage`). `a2enmod` and `docker-php-ext-*` use the same row
+contract; PHP configuration readers consume these rows instead of parsing
+Dockerfile commands again. An install row says only that source declared an
+install, not that the built image contains it.
+
+The bounded scanner accepts package managers, PHP extension commands, and
+HTTP(S) downloads from RUN or ADD without executing shell. A global ARG can
+expand a FROM reference, but becomes available to RUN only after an ARG of the
+same name is declared inside that stage. An unrelated FROM starts with no
+install variables; FROM a prior named stage inherits its ARG and ENV values.
+ENV wins when both provide the same name. Values remain source defaults, since
+build-time overrides are unknown to the parser.
+
+RUN shell comments end at an unquoted `#` that begins a word. The parser
+consumes Dockerfile `RUN --mount`, `--network`, `--security`, and `--device`
+flags before reading the shell command. Recognized package-manager options
+before or after the action consume their values before package detection; an
+unknown option rejects the command. A simple executable RUN heredoc can
+provide install declarations. Shell data or control-flow heredocs and COPY/ADD
+data bodies do not become RUN declarations. ADD accepts recognized leading
+flags before URL sources. Unsupported install-shape commands are
+fail-closed: `dockerfile_unparsed` records a line and reason without keeping
+command text. This covers install wrappers the parser cannot dispatch (such
+as `sudo`, `python -m`, or command substitution) as well as unknown options
+and unresolvable values. Plain shell commands with no install semantics
+(such as `echo` or `ls`) are ignored.
+
+`dockerfile_dropped_credentials` counts rejected credential-bearing option
+values, names, and URLs, including encoded credential markers in URL paths.
+Signed download query keys such as AWS and Google Cloud `Signature` or
+`Credential` fields and Azure `sig` are rejected after bounded percent decoding;
+malformed query escapes are rejected as unsafe. Ordinary query keys are
+accepted, and query values are never kept in install names. The same guard
+counts signed URLs consumed as install option values or package words.
+Sensitive ARG or ENV names and their indirect aliases remain tainted when
+expanded into an install name or download URL; these references are counted
+and excluded from install evidence.
+Only a credential-free download host and path can be retained. A `curl` or
+`wget` URL supplied entirely through a known ARG or ENV is expanded before
+classification. Repository
+artifact readers expose the same rows per Dockerfile stage. Parent parser
+file-parse timing remains the operator signal; this package adds no metric.
+
+Accuracy Evidence: the parser retains source order for install rows and leaves
+existing stage, port, ARG, ENV and label buckets unchanged. Focused parser and
+collector fact tests cover install forms, stage binding, heredoc boundaries,
+option values, and credential drops through persisted install entities and
+content reference names.
+
+Performance Evidence: two quiet-host base/candidate rounds used the identical
+`BenchmarkInstallEvidenceStageScope` harness and
+`GOMAXPROCS=4 go test ./internal/parser/dockerfile -run '^$' -bench
+'^BenchmarkInstallEvidenceStageScope$' -benchtime=100x -count=5 -benchmem`.
+Median ordinary parse cost moved from 4.602-4.713 to 5.789-5.892
+microseconds (+25-26%, about 1.2 microseconds). One inherited lookup across
+1,000 stages moved from 1.438-1.488 to 1.865-1.880 ms (+25-31%). A
+1,001-stage Dockerfile with 100 final-stage inherited installs moved from
+1.516-1.561 to 3.037-3.048 ms: a material 95-101% and about 1.5 ms
+increase. Five fixed ecosystem fixture Dockerfiles (seven stages total)
+moved from 20.096-20.418 to 23.773-24.039 microseconds per five-file pass:
++16-20%, or 3.36-3.94 microseconds. A guarded fast path was proved first
+against the same fixture words and encoded/opaque values; it saved about
+1.5 microseconds per five-file pass relative to the prior candidate. These
+are paired medians of five samples per side in each of two quiet-host rounds;
+raw output is retained in the run evidence. The candidate stayed below the
+provisional 50 ms hostile-case investigation bound, but this is not an
+end-to-end or production-corpus no-regression claim. The visible files in this
+checkout have at most seven stages; this is only a checkout proxy.
+The original preimplementation timing investigation expired before a quiet
+host was available, so its theory remains unproven. The later paired run
+verifies only the implemented parser path. No new metric or span was added;
+the parent parser's existing file-parse timing remains the operator signal.
+The figures above predate the signed-query guard. Its first paired comparison
+found +1.8% and -1.1% on the unchanged five-file fixture corpus. A final
+paired comparison of the shared URL classifier found +0.8–0.9% per five-file
+pass and +4.2–8.0% on an ordinary pip-index URL microcase, with one extra
+allocation in that case. See [signed-query proof](../../../../docs/internal/evidence/9303-dockerfile-signed-query-proof.md)
+for the source hashes, query controls, and interpretation.

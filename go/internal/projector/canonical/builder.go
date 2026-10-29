@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/decode"
 
+	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -259,6 +260,7 @@ func extractEntities(envelopes []facts.Envelope, repoID, repoPath string) []Enti
 		}
 
 		incomingEntityID, _ := decode.PayloadString(p, "entity_id")
+		metadata := extractEntityMetadata(p)
 		entityID := canonicalGraphEntityID(
 			label,
 			entityRepoID,
@@ -268,9 +270,11 @@ func extractEntities(envelopes []facts.Envelope, repoID, repoPath string) []Enti
 			startLine,
 			incomingEntityID,
 		)
+		if label == "DockerfileInstall" && incomingEntityID == "" {
+			entityID = content.CanonicalEntityIDWithMetadata(entityRepoID, relativePath, entityType, entityName, startLine, metadata)
+		}
 
 		fullPath := qualifyPath(repoPath, relativePath)
-		metadata := extractEntityMetadata(p)
 		cyclomaticComplexity, _ := decode.PayloadInt(metadata, "cyclomatic_complexity")
 
 		row := EntityRow{

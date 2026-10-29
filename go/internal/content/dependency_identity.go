@@ -63,12 +63,9 @@ var dependencyIdentityPackageManagers = map[string]struct{}{
 	"sbt":      {},
 }
 
-// CanonicalEntityIDWithMetadata returns the canonical content-entity
-// identifier for entityType/entityName at lineNumber, routing in-scope
-// manifest dependency Variables to the section-keyed, line-independent
-// CanonicalDependencyEntityID and everything else to the legacy line-keyed
-// CanonicalEntityID.
-//
+// CanonicalEntityIDWithMetadata returns a stable content-entity ID. It routes
+// Dockerfile installs through an ordinal discriminator, manifest dependencies
+// through section identity, and other entities through line identity.
 // An entity qualifies for the dependency form IFF ALL of:
 //
 //  1. entityType is "variable" (case-insensitive, matching CanonicalEntityID's
@@ -113,6 +110,9 @@ func CanonicalEntityIDWithMetadata(
 	lineNumber int,
 	metadata map[string]any,
 ) string {
+	if id := dockerfileInstallEntityID(repoID, relativePath, entityType, entityName, lineNumber, metadata); id != "" {
+		return id
+	}
 	section, ok := dependencyIdentitySection(entityType, metadata)
 	if !ok {
 		return CanonicalEntityID(repoID, relativePath, entityType, entityName, lineNumber)

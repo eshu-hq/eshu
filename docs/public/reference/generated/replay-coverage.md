@@ -4,7 +4,7 @@
 
 Every non-exempt required surface maps to a committed scenario and the named proof gate that must pass. Exempt rows carry the audited reason that a proof class does not apply. The inventory check itself is credential-free and Docker-free; backend-required scenarios run in their named proof gates. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 452/452 surfaces satisfied (100.00%)** — mode: blocking.
+**Overall: 453/453 surfaces satisfied (100.00%)** — mode: blocking.
 
 ## Coverage by axis
 
@@ -19,9 +19,9 @@ Every non-exempt required surface maps to a committed scenario and the named pro
 | Projections (cost/ordering) | 31 | 31 | 100.00% | 0 | 1 |
 | Reducer drain (crash) | 1 | 1 | 100.00% | 0 | 0 |
 | Retractable edge types (delta) | 64 | 64 | 100.00% | 0 | 0 |
-| Retractable node types (delta) | 100 | 100 | 100.00% | 0 | 1 |
+| Retractable node types (delta) | 101 | 101 | 100.00% | 0 | 1 |
 | Collectors | 24 | 24 | 100.00% | 0 | 7 |
-| **Total** | **452** | **452** | **100.00%** | **0** | **10** |
+| **Total** | **453** | **453** | **100.00%** | **0** | **10** |
 
 ## Coverage by scenario type
 
@@ -30,7 +30,7 @@ Every non-exempt required surface maps to a committed scenario and the named pro
 | baseline | 240 | 240 | 100.00% | 0 | 4 |
 | cost | 30 | 30 | 100.00% | 0 | 1 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
-| delta_tombstone | 165 | 165 | 100.00% | 0 | 1 |
+| delta_tombstone | 166 | 166 | 100.00% | 0 | 1 |
 | fault | 12 | 12 | 100.00% | 0 | 4 |
 | ordering | 3 | 3 | 100.00% | 0 | 0 |
 
@@ -46,7 +46,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 
 None. Every non-exempt required surface has a replay scenario; exemptions carry audited reasons.
 
-## Covered surfaces (452)
+## Covered surfaces (453)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact / exemption reason |
 | --- | --- | --- | --- | --- |
@@ -406,6 +406,7 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `retractable_node:DataOwner` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:DataQualityCheck` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:Directory` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
+| `retractable_node:DockerfileInstall` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:Enum` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:File` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:FluxBucket` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |

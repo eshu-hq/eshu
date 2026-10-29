@@ -280,3 +280,12 @@ graph drivers.
 Run focused `repositoryartifacts` tests, then `repository` and root
 `query` suites. Artifact predicates feed access decisions: keep the
 fail-closed behavior and bounded limits exactly as they are.
+
+### Dockerfile install declarations (#9303)
+
+A Dockerfile stage artifact carries `installs` when its `RUN` or `ADD` source
+declares supported packages, PHP extensions, Apache modules or downloads. Each
+row has `manager`, `name`, optional `version`, `line_number` and `stage`. These
+are source declarations and do not prove the built image contains the package.
+The parser reports rejected commands and credential-bearing URLs separately;
+query readers never display the rejected source text.
