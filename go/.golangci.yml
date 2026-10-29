@@ -822,11 +822,7 @@ linters:
       - path: 'internal/collector/terraformstate/'
         linters:
           - wrapcheck
-      # Vault live and GCP cloud collectors are at the boundary
-      # with upstream provider APIs.
-      - path: 'internal/collector/vaultlive/'
-        linters:
-          - wrapcheck
+      # The GCP cloud collector is at the boundary with upstream provider APIs.
       - path: 'internal/collector/gcpcloud/'
         linters:
           - wrapcheck

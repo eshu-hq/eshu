@@ -1,6 +1,10 @@
 # #8869 in-tree vault-live removal (proposal)
 
-Base: `origin/main` at `d363d77b85`. This record is the tracked
+Base: `origin/main` at `73418463ed` (rebased from `d363d77b85`; the
+rebase takes upstream deletions of the in-tree deploy lanes and the
+live-test ledger row for #9474, and drops the lockstep reader entry
+whose only test reader was the deleted census test). This record is
+the tracked
 performance/no-regression/observability note for the mechanical removal
 of the superseded in-tree vault-live collector. It authorizes no merge:
 the removal PR stays a proposal until recorded production acceptance

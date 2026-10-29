@@ -46,7 +46,6 @@ var lockstepDocsPaths = []string{
 	"AGENTS.md",
 	"docs/internal/design/430-nornicdb-graph-search-split.md",
 	"docs/internal/design/5351-ifa-materialized-edge-known-gaps.md",
-	"docs/internal/evidence/8869-collector-vault-live-census.md",
 	"docs/internal/evidence/8870-vulnerability-intelligence-version-provenance.md",
 	"docs/internal/evidence/8871-eshu-deploy-census.md",
 	"docs/internal/evidence/8871-eshu-deploy-contract.md",

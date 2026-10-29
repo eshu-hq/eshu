@@ -260,11 +260,13 @@ and SDK HTTP error wrapping for status and transport failures. Vault
 metadata-only path guards, 404 empty-state behavior, and the seven metadata
 families are proven by the satellite repo and the QA lane on #8869.
 
-No-Observability-Change (#2377): Vault live keeps its existing secrets/IAM
-source fact counters, API-call counters, partial-scope counters, redaction
-counters, freshness gauge, shared collector metrics, and `vault_live.snapshot`
-span. The SDK emits no telemetry directly, and metric labels remain bounded to
-source, fact kind, operation, result, reason, field class, and scope kind.
+No-Observability-Change (#2377, superseded by #8869 extraction): Vault live kept
+its existing secrets/IAM source fact counters, API-call counters,
+partial-scope counters, redaction counters, freshness gauge, shared collector
+metrics, and `vault_live.snapshot` span until the extraction moved those
+instruments to `eshu-hq/eshu-collector-vault-live`. The SDK emits no telemetry
+directly, and metric labels remain bounded to source, fact kind, operation,
+result, reason, field class, and scope kind.
 
 Line-count marker (#2381): OCI Distribution now reuses SDK base URL validation,
 bounded default HTTP client construction, and bounded `HTTPError` values for
