@@ -41,14 +41,14 @@ def _members(rows: list[list[tuple[str, str, int]]]) -> dict[int, list[frozenset
             for number, shard in enumerate(rows, 1)}
 
 
-def own_file(count: object) -> dict[str, object]:
+def own_file(count: object, plan: list[str] = PLAN) -> dict[str, object]:
     """Return a valid own-SHA v2 weights document with the given shard_count."""
     return {"schema_version": 2, "source_runs": ["1", "2"], "shard_count": count,
             "fixed_job_seconds": 1.0, "cold_cache_seconds": 1.0,
             "default_test_seconds": 1.0, "default_package_first_seconds": 1.0,
             "default_package_repeat_seconds": 1.0,
             "package_first_seconds": {"./a": 1.0}, "package_repeat_seconds": {"./a": 1.0},
-            "test_seconds": {run: 1.0 for run in PLAN}}
+            "test_seconds": {run: 1.0 for run in plan}}
 
 
 class SourceHistoryTest(unittest.TestCase):
@@ -59,13 +59,16 @@ class SourceHistoryTest(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.counts = {FIVE_SHA: 5, SIX_SHA: 6}
+        self.plan = PLAN
+        self.cuts = {5: FIVE, 6: SIX}
         self.planned: list[int] = []
         self.real_source_rows = refresh.provenance.source_rows
         patches = [
             mock.patch.object(refresh.provenance, "_source_text", side_effect=self.text),
             mock.patch.object(refresh.provenance.subprocess, "run",
                               return_value=subprocess.CompletedProcess([], 0)),
-            mock.patch.object(refresh.provenance, "source_inventory", return_value=PLAN),
+            mock.patch.object(refresh.provenance, "source_inventory",
+                              side_effect=lambda _root, _sha: self.plan),
             mock.patch.object(refresh.provenance, "source_rows", side_effect=self.rows),
         ]
         for patch in patches:
@@ -75,7 +78,7 @@ class SourceHistoryTest(unittest.TestCase):
     def text(self, _root: Path, sha: str, path: str) -> str:
         """Serve the own-SHA workflow and v2 weights file of a synthetic source."""
         if path == WEIGHTS_V2:
-            return json.dumps(own_file(self.counts[sha]))
+            return json.dumps(own_file(self.counts[sha], self.plan))
         if path == refresh.provenance.WORKFLOW:
             return ""
         raise ValueError(f"source {sha} lacks {path}")
@@ -84,12 +87,12 @@ class SourceHistoryTest(unittest.TestCase):
              count: int) -> dict[int, list[frozenset[str]]]:
         """Record the count each source is planned at and return its cut."""
         self.planned.append(count)
-        return _members(FIVE if count == 5 else SIX)
+        return _members(self.cuts[count])
 
     def pool(self, *shapes: int) -> list[Path]:
         """Write one source per shape (5 or 6 shards), run IDs from 100."""
         return [write_sample(self.root, 100 + index, FIVE_SHA if shape == 5 else SIX_SHA,
-                             FIVE if shape == 5 else SIX)
+                             self.cuts[shape])
                 for index, shape in enumerate(shapes)]
 
     def test_five_shard_source_is_accepted_and_output_is_six_shard(self) -> None:
@@ -155,3 +158,38 @@ class SourceHistoryTest(unittest.TestCase):
         self.assertEqual(v2.weights_from_json(own_file(5), history=True).shard_count, 5)
         with self.assertRaisesRegex(ValueError, "v2 weights schema mismatch"):
             v2.weights_from_json({**own_file(5), "extra": 1}, history=True)
+
+    def test_pool_of_four_keeps_cold_fixed_and_defaults_on_their_rules(self) -> None:
+        """p75 reaches only the per-test, first-use and repeat tables (#9519 review P2-1).
+
+        Every table here has a p75 that differs from its mean, so a leak of the
+        quantile into cold, fixed or a default changes an asserted value.
+        """
+        self.plan = PLAN + ["./d|TestTwo", "./e|TestOne"]
+        self.cuts[5] = [[("a", "TestOne", 8)],
+                        [("a", "TestTwo", 8), ("b", "TestOne", 5), ("b", "TestTwo", 2)],
+                        [("b", "TestThree", 8), ("c", "TestOne", 5)],
+                        [("c", "TestTwo", 8), ("d", "TestOne", 6), ("d", "TestTwo", 7)],
+                        [("e", "TestOne", 16)]]
+        sources = self.pool(5, 5, 5, 5)
+        for source in sources:  # ./e|TestOne takes 9 s, so test prices are uneven.
+            path = source / "shard5.log"
+            path.write_text(path.read_text().replace("elapsed=1.0s", "elapsed=9.0s"))
+        jobs = sources[0] / "jobs.json"  # One of 20 shard jobs has 20 s overhead, not 10 s.
+        jobs.write_text(jobs.read_text().replace("2026-10-26T00:00:25Z",
+                                                 "2026-10-26T00:00:15Z", 1))
+        document = refresh.build_document(sources, self.root)
+        self.assertEqual(document["package_first_seconds"],
+                         {"./a": 5.0, "./b": 5.0, "./c": 5.0, "./d": 6.0, "./e": 5.0})
+        self.assertEqual(document["package_repeat_seconds"], {"./b": 2.0, "./d": 7.0})
+        # Each value follows its committed rule; at p75, fixed and the three
+        # defaults would be 10.0, 1.0, 5.0 and 5.8.
+        self.assertEqual((document["cold_cache_seconds"], document["fixed_job_seconds"],
+                          document["default_test_seconds"],
+                          document["default_package_first_seconds"],
+                          document["default_package_repeat_seconds"]),
+                         (3.0, 10.5, 1.8, 5.2, 4.5))
+
+    def test_source_rows_refuses_an_own_file_count_other_than_requested(self) -> None:
+        with self.assertRaisesRegex(ValueError, "weights file says 5 shards, not 6"):
+            self.real_source_rows(self.root, FIVE_SHA, PLAN, 6)
