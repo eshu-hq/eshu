@@ -390,15 +390,24 @@ their rules in every pool. The refresher prints the rule, the pool size, and
 the pool run IDs on one `weights refresh v2: pricing ...` line; copy it into
 the refit PR body.
 
+Source history (#9473): each source run is read at its own commit. A tree
+without a v2 weights file ran the four-shard v1 model. A tree with one ran the
+`shard_count` that file declares, which must be 5 or 6 and pass every other v2
+schema check. The run's shard jobs must report that same count, and its rows
+are re-planned at that count. A pool may mix five- and six-shard runs, because
+test prices do not depend on the cut and row kinds are classified per run. The
+refit output is always six-shard, and the committed file, the planner, the CI
+reader and the drift gates still accept only six. The pricing line names each
+source's shard count.
+
 A pooled refit PR must meet these gates:
 
 - Declare the pool before the fit: every green `main` push run of
-  `live-postgres-readiness.yml` that shares the inventory of the PR's base,
-  one runner profile, one shard topology, in run-ID order. The minimum is 4
-  runs, there is no maximum, and no run is skipped for its outcome. The
-  refresher reads four- and six-shard sources only, and it refuses a pool
-  that mixes topologies. If the pool fails the cold fit, do not re-select runs;
-  take the failure to the issue.
+  `live-postgres-readiness.yml` that shares the inventory of the PR's base
+  and one runner profile, five- or six-shard, in run-ID order. The minimum is
+  4 runs, there is no maximum, and no run is skipped for its outcome. If the
+  pool fails the cold fit, do not re-select runs; take the failure to the
+  issue.
 - Time-ordered holdout: fit the pool minus its two newest runs and score those
   two runs. The all-shard maximum of observed job wall over `v2.Scorer` job
   seconds must be at most 1.15.
