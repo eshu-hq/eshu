@@ -108,7 +108,8 @@ CREATE TABLE fact_work_items (
     failure_details TEXT NULL,
     payload         JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at      TIMESTAMPTZ NOT NULL,
-    updated_at      TIMESTAMPTZ NOT NULL
+    updated_at      TIMESTAMPTZ NOT NULL,
+    reopened_at     TIMESTAMPTZ NULL
 );
 `
 	if _, err := db.ExecContext(ctx, minimalFactWorkItemsSchemaSQL); err != nil {

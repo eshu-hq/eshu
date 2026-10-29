@@ -60,7 +60,8 @@ func TestSharedIntentGenerationPendingIndexLifecycleLive(t *testing.T) {
 CREATE TABLE shared_projection_intents (
 	intent_id TEXT PRIMARY KEY,
 	generation_id TEXT NOT NULL,
-	completed_at TIMESTAMPTZ NULL
+	completed_at TIMESTAMPTZ NULL,
+	reopened_at TIMESTAMPTZ NULL
 );
 INSERT INTO shared_projection_intents (intent_id, generation_id, completed_at)
 SELECT 'pending-' || i, 'generation-' || (i % 40), NULL

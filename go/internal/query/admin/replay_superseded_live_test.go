@@ -45,7 +45,7 @@ CREATE TEMP TABLE fact_work_items (
     attempt_count integer NOT NULL, lease_owner text, claim_until timestamptz,
     visible_at timestamptz, next_attempt_at timestamptz, last_attempt_at timestamptz,
     failure_class text, failure_message text, failure_details text,
-    created_at timestamptz NOT NULL, updated_at timestamptz NOT NULL,
+    created_at timestamptz NOT NULL, updated_at timestamptz NOT NULL, reopened_at timestamptz,
     container_image_identity_v2_required boolean NOT NULL DEFAULT false,
     container_image_identity_v2_authorized_status text NOT NULL DEFAULT '',
     container_image_identity_v3_required boolean NOT NULL DEFAULT false,
