@@ -185,6 +185,16 @@ and `db.sql.table=content_entities`, and logs
 `content_search.unscoped_entity_partial`. The counters and histograms are
 shared with the file route and split by their `table` label.
 
+## Performance Evidence (#9306)
+
+- No-Regression Evidence: default 800 -> 2000 ms, figures x2.5 at unchanged ratios, MaxBudget 10 s.
+  QA Postgres 18.6 read replica, 164,886-row corpus: rare/50 complete p95 1921 ms, 1989 ms under
+  4-way concurrency (gate 2500 ms); no-match/50 full scan p95 1129 ms; common/200 ~30 ms.
+  Load: EXPLAIN rare-tail 25,341 shared hits, reader loadavg 0.62 -> 1.14 (pgss shared-role, not claimed).
+  Safe: ratios intact and explicit budgets proven invariant (byte-identical file-route goldens).
+- Observability Evidence: span attrs (`budget/elapsed/overrun_ms`) and the partial log line keep
+  their shape; no new instruments.
+
 ## Gotchas
 
 - The tail's plan is not the planner's choice: `enable_indexscan = off` leaves
