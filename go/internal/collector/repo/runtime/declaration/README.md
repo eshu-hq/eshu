@@ -307,6 +307,32 @@ only size checks. This cost is confined to failed Composer parses.
 Queue and graph counts were not measured in this local parser/collector
 benchmark; the live golden-corpus gate owns projection proof.
 
+### Ruby collector cost and signals
+
+Performance Evidence (#9308, 2026-10-29): a paired, sequential local
+benchmark ran the same Gemfile-heavy harness against the branch merge base
+`ac99a7edde` and this branch at `0f0c2097c2`. The temporary harness
+(`BenchmarkRubyGemfileHeavy`, SHA-256
+`d29ea60e1bfb350f7c892e802e4ec9151ba1ffb0951735e46a4f7e96d218bd8b`;
+removed after the run)
+parses one 4,855-byte `Gemfile` (a `source` line, one literal `ruby`
+directive, 200 `gem` lines) via `Parse` (`-benchtime=300x -count=3
+-benchmem -cpu=1`, `GOMAXPROCS=1`, Go 1.26.6, linux/arm64; no graph backend,
+queue, or persisted rows). Bytes and allocs repeat exactly on each side:
+base 192,380 B and 3,235 allocs/op; this branch 225,654 B and 4,267
+allocs/op (+17.3%, +31.9%: one extra bounded tree-sitter verification
+parse). The cost applies only with a candidate `ruby` directive: the same
+200-gem Gemfile without it matches the base within 416 bytes and 6 allocs
+(192,796 B, 3,241 allocs, 0.42-0.44 ms/op). Host load was not controlled
+(load average 24-30), so wall time (base 0.41-2.32 ms/op, branch 5.70-6.31
+ms/op) is diagnostic, not a production claim.
+
+No-Observability-Change: no metric, span, or log key was added. The existing
+snapshot-stage duration and emitted-fact counters cover this path; the Git
+collector's runtime-declaration skip and rejected-value WARN logs identify
+invalid input. Bundler bodies stay under the 1 MiB manifest cap and the
+collector retains only the few guarded declarations, never the body.
+
 ## Dockerfile and workflow sources
 
 A Dockerfile `FROM` line declares the base image's tag, and a workflow

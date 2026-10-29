@@ -38,13 +38,22 @@ func TestRubyRuntimeSourceKindsAndGuard(t *testing.T) {
 }
 
 func TestRubyManifestContentOnlyEntrypoint(t *testing.T) {
-	for _, tc := range []struct{ path, body, kind, spec string }{
-		{"Gemfile", "ruby '3.3.1'\n", "gemfile_ruby", "exact"},
-		{"Gemfile.lock", "RUBY VERSION\n   ruby 3.3.1p55\n", "gemfile_lock_ruby_version", "exact"},
+	for _, tc := range []struct {
+		name, path, body, kind, spec string
+		want                         int
+	}{
+		{"top-level Gemfile", "Gemfile", "ruby '3.3.1'\n", "gemfile_ruby", "exact", 1},
+		{"lockfile", "Gemfile.lock", "RUBY VERSION\n   ruby 3.3.1p55\n", "gemfile_lock_ruby_version", "exact", 1},
+		{"nested method", "Gemfile", "def configure\n  ruby '3.3.1'\nend\n", "", "", 0},
+		{"nested class", "Gemfile", "class Configure\n  ruby '3.3.1'\nend\n", "", "", 0},
+		{"nested module", "Gemfile", "module Configure\n  ruby '3.3.1'\nend\n", "", "", 0},
 	} {
-		t.Run(tc.path, func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			facts := emitDecoded(t, tc.path, tc.body)
-			if len(facts) != 1 || facts[0].SourceKind != tc.kind || facts[0].SpecKind != tc.spec {
+			if len(facts) != tc.want {
+				t.Fatalf("Emit(%q) emitted %d facts, want %d: %+v", tc.body, len(facts), tc.want, facts)
+			}
+			if tc.want == 1 && (facts[0].SourceKind != tc.kind || facts[0].SpecKind != tc.spec) {
 				t.Fatalf("facts = %+v", facts)
 			}
 		})
