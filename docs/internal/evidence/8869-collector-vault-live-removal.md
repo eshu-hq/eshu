@@ -1,4 +1,4 @@
-# #8869 in-tree vault-live removal (proposal)
+# #8869 in-tree vault-live removal (accepted)
 
 Base: `origin/main` at `73418463ed` (rebased from `d363d77b85`; the
 rebase takes upstream deletions of the in-tree deploy lanes and the
@@ -6,9 +6,13 @@ live-test ledger row for #9474, and drops the lockstep reader entry
 whose only test reader was the deleted census test). This record is
 the tracked
 performance/no-regression/observability note for the mechanical removal
-of the superseded in-tree vault-live collector. It authorizes no merge:
-the removal PR stays a proposal until recorded production acceptance
-lands on #8869.
+of the superseded in-tree vault-live collector. Production acceptance
+is recorded: owner sign-off 2026-10-29T15:23:00Z
+(https://github.com/eshu-hq/eshu/issues/8869#issuecomment-6500790114,
+session "i signoff lets do it"), declaring production acceptance for
+the vault-live cutover at QA evidence level (grant + emission-count
+health: 13 facts/cycle, zero errors) and lifting the single stated
+gate on the removal proposal.
 
 ## Scope
 
