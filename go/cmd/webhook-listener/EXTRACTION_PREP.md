@@ -59,9 +59,11 @@ deployment.
   `store.go` + `sql.go` + `schema_sql.go` each. Incident store claims via
   `FOR UPDATE SKIP LOCKED` (`claimQueuedIncidentFreshnessTriggersQuery`)
   with `ClaimQueuedTriggers`, `MarkTriggersHandedOff`,
-  `MarkTriggersFailed` (all in incident `store.go`) — and **no**
-  fencing-token/lease column: lease/fencing recovery
-  is the explicit unproven prerequisite (see §9.1).
+  `MarkTriggersFailed` (all in incident `store.go`) — and since
+  `#9397` (merged `a5252ea478`), the `claim_expires_at` lease column
+  and `claim_fencing_token` fencing column (`238_incident_freshness_claim_lease.sql`,
+  `239_incident_freshness_claim_lease_backfill.sql`); lease/fencing
+  recovery proven live on Postgres in that PR (see §11).
 
 ## 2. Fact kinds and versions
 
@@ -177,9 +179,10 @@ build/release/deploy, rollback rehearsal, and production acceptance are
    four trigger stores (`@linuxdynasty` claim on `#8876`, 2026-10-24):
    direct-store vs authenticated versioned HTTP intake with core retaining
    durable trigger storage/lifecycle. Reused, not redone, by this PREP.
-2. Incident freshness lease/fencing recovery proof — explicit unproven
-   prerequisite; incident store has claim/handoff/fail transitions but no
-   lease/fencing token (§1).
+2. Incident freshness lease/fencing recovery proof — SUPERSEDED by
+   `#9397` slice 1 (merged `a5252ea478`): `claim_expires_at` +
+   `claim_fencing_token`, migrations 238/239, live Postgres proof green
+   (reclaim, fenced handoff, 5 concurrent reapers exactly once). See §11.
 3. Extracted-path parity (valid/invalid signatures, duplicates, ordering,
    bounded bodies, durable retry/partial-failure) through the supported
    intake contracts.
@@ -206,3 +209,31 @@ build/release/deploy, rollback rehearsal, and production acceptance are
   trigger-table write path over to the intake contract); only the latter
   needs the `#9377`/`#9379` gates.
 - Stage comments already posted on `#8876`; not reposted.
+
+## 11. Post-merge status (2026-10-29, verified against `origin/main`)
+
+- `#9377` + `#9379` gates CLEAR: `#9397` merged (`a5252ea478`) —
+  versioned intake API (5 routes, Bearer [REDACTED] 1 MiB bounds) plus incident
+  lease/fencing (migrations 238/239). Intake mount `#9408` merged
+  (`aec61df95e`); listener serves the intake API in intake mode with no
+  Postgres handle (`intake_serve.go`, zero-SQL `intake_submit.go`).
+- Extracted-path parity harness
+  (`intake_parity_cases_test.go` + `intake_parity_stores_test.go`) runs
+  WITHOUT production writes (in-memory coalescing fakes + `httptest`):
+  11/11 green locally 2026-10-29, covering all seven mounted providers
+  (github, gitlab, bitbucket, pagerduty, jira, aws, gcp), invalid
+  signatures, duplicate coalescing, bounded body, FIFO claim order,
+  intake-auth failures, partial failure, and Actions 202/409. Pure unit
+  suites (`go/internal/webhook/`, `.../webhook/intake/`) also green.
+- Satellite deployed to the QA EKS target (`eshu-webhook-satellite`, pinned digest,
+  ClusterIP-only, no ingress); in-tree listener retains sole provider
+  authority. Delete-path rollback rehearsed 2026-10-28 under the owner
+  rollback policy (`#9383`) with owner synthetic-write sign-off: stop
+  verified (listener-only 11/11 at zero), restore of the identical digest,
+  full 8-case parity 16/16, zero residue.
+- Pending owner acts on `#8876`: production acceptance decision; fresh
+  synthetic-write grant for one final live 8-case run at acceptance time;
+  post-cutover producer-authority rollback rehearsal or explicit
+  roll-forward waiver plus revival follow-up before in-tree removal.
+  `go/cmd/webhook-listener/` plus webhook-owned implementation remain
+  in tree on `origin/main`.
