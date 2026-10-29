@@ -80,7 +80,12 @@ func TestDriftCheck_PythonImportsWithoutAScriptsModuleIgnored(t *testing.T) {
 }
 
 // #9479 acceptance: a change set holding only the row-budget module or its
-// row-clock cases selects both readiness gates in the committed registry.
+// row-clock cases selects both readiness gates in the committed registry. The
+// shard-mirror rows past those two are reached only through a subprocess the
+// drift walk cannot follow: the shards test runs
+// scripts/lib/live_postgres_readiness_results.py by a computed path, and that
+// script imports them at top level, so a break in any of them turns the gate
+// red. A change to only one of them must still select the gate.
 func TestCommittedRegistryReadinessGatesSelectRowBudgetFiles(t *testing.T) {
 	t.Parallel()
 
@@ -96,15 +101,28 @@ func TestCommittedRegistryReadinessGatesSelectRowBudgetFiles(t *testing.T) {
 	for _, g := range reg.Gates {
 		triggers[g.ID] = g.Triggers
 	}
-	for _, id := range []string{"live-postgres-readiness", "live-postgres-readiness-shard-mirror"} {
+	rowBudget := []string{
+		"scripts/lib/live_postgres_readiness_row_split.py",
+		"scripts/lib/live_postgres_readiness_row_clock_cases.py",
+	}
+	resultsImports := []string{
+		"scripts/lib/live_postgres_readiness_gen_scan.py",
+		"scripts/lib/live_postgres_readiness_events.py",
+		"scripts/lib/live_tests_registry.py",
+	}
+	for _, tc := range []struct {
+		id    string
+		paths []string
+	}{
+		{"live-postgres-readiness", rowBudget},
+		{"live-postgres-readiness-shard-mirror", append(append([]string{}, rowBudget...), resultsImports...)},
+	} {
+		id := tc.id
 		gateTriggers, ok := triggers[id]
 		if !ok {
 			t.Fatalf("committed registry has no gate %q", id)
 		}
-		for _, path := range []string{
-			"scripts/lib/live_postgres_readiness_row_split.py",
-			"scripts/lib/live_postgres_readiness_row_clock_cases.py",
-		} {
+		for _, path := range tc.paths {
 			matched := false
 			for _, trigger := range gateTriggers {
 				if cigates.MatchGlob(trigger, path) {
