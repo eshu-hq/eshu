@@ -40,7 +40,9 @@ still describes the satellite path.
 `./internal/status/collector/...`,
 `./internal/collector/access/posture/...`,
 `./cmd/capability-inventory/...` (regenerated artifacts committed).
-Registry-selected static gates: 278 PASS, 0 FAIL (see gate log).
+Registry-selected static gates: 280 PASS, 0 FAIL (see gate log;
+rebased head `a50bc9ba8d`, rg 15.2.0 floor toolchain, disk-backed
+TMPDIR, `ESHU_DEPLOY_CHECKOUT` set for the deploy-contract tests).
 
 ## Observability Evidence
 
