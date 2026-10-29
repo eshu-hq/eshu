@@ -144,22 +144,25 @@ The setup leg writes `manifest.json` with the run URL, ID, attempt, event, revie
 ## Step 7 sharding (#8617)
 
 The serial suite's p95 was ~84 min (ten latest hosted runs on 2026-10-19,
-success range 62-84 min). The workflow now runs seven jobs: `scheduled-setup`
-(enrollment gate plus manifest from its own same-image service),
-`scheduled-freshness-scale`, `scheduled-freshness-a`, `scheduled-freshness-b`,
-`scheduled-ack`, `scheduled-bulk`, and `scheduled-aggregate` (download,
-bundle verify, retain). The freshness split and leg budgets rest on run
-39339606297 (success) per-test artifact timings:
+success range 62-84 min). Step 7 split the workflow into seven jobs:
+`scheduled-setup` (enrollment gate plus manifest from its own same-image
+service), `scheduled-freshness-scale`, `scheduled-freshness-a`,
+`scheduled-freshness-b`, `scheduled-ack`, `scheduled-bulk`, and
+`scheduled-aggregate` (download, bundle verify, retain). This section records
+that shape. #9488 later added an eighth job, `scheduled-storage`, and changed
+two caps (see [Storage leg (#9488)](#storage-leg-9488)). The freshness split
+and leg budgets rest on run 39339606297 (success) per-test artifact timings:
 
 | Leg | Files | Tests | Measured test time |
 | --- | ---: | ---: | ---: |
 | freshness-scale (scale, scale-proof, retention-timing, timing-clone) | 4 | 4 | ~16.6m |
 | freshness-a (retention-plan, fence, lock-timeout ×2, retention ×2, journal, link, poison) | 9 | 33 | ~5.7m |
 | freshness-b (rekey, plan, plan-stats, prior-plan, stale-stats, retention-race, prior-wait, fence-breach, prior-fence) | 9 | 21 | ~4.3m |
-| ack (unchanged) | 22 | 45 | ~4.6m tests inside a 22.4m wall incl. the one-time -race build |
-| bulk (all other families, serial, one warm build cache) | 75 | 139 | ~16m tests |
+| ack (unchanged by step 7) | 22 | 45 | ~4.6m tests inside a 22.4m wall incl. the one-time -race build |
+| bulk (all other families at step 7, serial, one warm build cache) | 75 | 139 | ~16m tests |
 
-Leg caps: setup 15, scale 45, chunks 25, ack 30, bulk 40, aggregate 15.
+Leg caps at step 7: setup 15, scale 45, chunks 25, ack 30, bulk 40,
+aggregate 15. Since #9488: ack 40, bulk 40, and storage 40.
 The runner pins the matrix shape (one selector per group across legs, fresh
 database and DSN per group, per-leg stream uploads, aggregate fan-in and exact
 bundle paths) and the workflow SHA256. Acceptance (#8617 step 7, as amended
@@ -215,8 +218,12 @@ same-machine trial (load 13-20) showed that the scheduled `go test -json
 -race` form reuses a race-lane-form cache that has the package: 391s cold,
 then 32s. That is not a CI runner timing.
 
-The runner rejects a root storage `go test` in any leg except ACK and storage,
-so a new family cannot bring the build back into bulk.
+The runner rejects a root storage test in any leg except ACK and storage. It
+recognizes the reviewed step form only: one line of `go test -json -race ...
+./internal/storage/postgres -run ...` that ends by writing
+`${RUNNER_TEMP}/<group>.jsonl`. A new family enrolled through the inventory
+uses that form, so it cannot bring the build back into bulk. A hand-written
+command in another shape would not be caught.
 
 ## Boundaries
 
