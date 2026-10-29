@@ -171,6 +171,26 @@ _repo="$(changed_repo unrelated_go_change go/internal/query/handler.go)"
 _got="$(fixture_consumer_dirs_for "${_repo}")"
 assert_empty "unrelated_go_change_selects_nothing" "${_got}"
 
+# #9438: TestCanonicalSchemaDirMatchesFixturePack
+# (go/internal/extensionconformance/fixturepack_conformance_test.go) reads the
+# canonical schemas at sdk/go/factschema/schema/*.v1.schema.json off disk and
+# compares them with the fixturepack-embedded copies, so a schema-only edit
+# changes no go/ package and the focused test step would select nothing. The
+# fixture branch above must select ./internal/extensionconformance for schema
+# edits. The RED half plants a schema edit; the GREEN half proves an unrelated
+# sdk edit does not over-select the package.
+_repo="$(changed_repo factschema_schema sdk/go/factschema/schema/vulnerability.v1.schema.json)"
+_got="$(fixture_consumer_dirs_for "${_repo}")"
+assert_contains "factschema_schema_selects_extensionconformance" "./internal/extensionconformance" "${_got}"
+
+_repo="$(changed_repo factschema_fixturepack_schema sdk/go/factschema/fixturepack/schema/vulnerability.v1.schema.json)"
+_got="$(fixture_consumer_dirs_for "${_repo}")"
+assert_contains "factschema_fixturepack_schema_selects_extensionconformance" "./internal/extensionconformance" "${_got}"
+
+_repo="$(changed_repo factschema_unrelated sdk/go/factschema/README.md)"
+_got="$(fixture_consumer_dirs_for "${_repo}")"
+assert_not_contains "factschema_unrelated_does_not_select_extensionconformance" "./internal/extensionconformance" "${_got}"
+
 _repo="$(changed_repo nested_claude_md nested/CLAUDE.md)"
 _got="$(fixture_consumer_dirs_for "${_repo}")"
 assert_empty "nested_claude_md_is_not_the_root_canon_file" "${_got}"

@@ -63,4 +63,17 @@ fixture_consumer_dirs() {
 	if printf '%s\n' "${all}" | rg -q '^(CLAUDE|AGENTS)\.md$'; then
 		printf './internal/runtime\n'
 	fi
+	# #9438: the canonical factschema schemas at
+	# sdk/go/factschema/schema/*.v1.schema.json are read off disk by
+	# TestCanonicalSchemaDirMatchesFixturePack in ./internal/extensionconformance,
+	# which compares them with the fixturepack-embedded copies. A schema-only
+	# edit changes no go/ package, so without this the focused test step
+	# selects nothing and the first failure is in CI -- the same fixture-only
+	# gap as the golden snapshot above. The fixturepack/schema/ copy is the
+	# embedded counterpart of the same artifact, so it selects the same
+	# consumer. Other sdk/go/factschema/** edits (Go code, docs) are covered
+	# by the sdk-go-factschema gate, not this mapping.
+	if printf '%s\n' "${all}" | rg -q '^sdk/go/factschema/(schema|fixturepack/schema)/'; then
+		printf './internal/extensionconformance\n'
+	fi
 }
