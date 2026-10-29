@@ -296,7 +296,7 @@ func checkReadinessMatrixScript(t *testing.T, root, script string) {
 				t.Fatal(err)
 			}
 			count := len(matrix.Include)
-			if count != 4 && count != 5 {
+			if count != 4 && count != 6 {
 				t.Fatalf("matrix has %d shards", count)
 			}
 			for index, shard := range matrix.Include {

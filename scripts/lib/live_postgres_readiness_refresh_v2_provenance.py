@@ -76,11 +76,11 @@ def source_rows(root: Path, sha: str, plan: list[str],
     weights. A behavior change that cannot reproduce old rows fails closed.
     """
     import live_postgres_readiness_shards as shards
-    path = f"specs/live-postgres-readiness-weights.v{2 if count == 5 else 1}.json"
+    path = f"specs/live-postgres-readiness-weights.v{2 if count == 6 else 1}.json"
     parsed = json.loads(_source_text(root, sha, path),
                         object_pairs_hook=weights._unique_object,
                         parse_constant=weights._reject_constant)
-    if count == 5:
+    if count == 6:
         import live_postgres_readiness_v2 as v2
         model = v2.weights_from_json(parsed)
     else:
@@ -98,7 +98,7 @@ def source_rows(root: Path, sha: str, plan: list[str],
 
 
 def source_shard_count(root: Path, sha: str) -> int:
-    """Bind historical four or activated five shards to the source tree."""
+    """Bind historical four or activated six shards to the source tree."""
     _source_text(root, sha, WORKFLOW)
     candidate = "specs/live-postgres-readiness-weights.v2.json"
     exists = subprocess.run(["git", "cat-file", "-e", f"{sha}:{candidate}"],
@@ -163,7 +163,7 @@ def read_source(directory: Path, root: Path) -> tuple[str, str, list[str], dict[
         raise ValueError("source must be a complete successful main push workflow")
     plan = source_inventory(root, sha)
     count = source_shard_count(root, sha)
-    if count not in (4, 5):
+    if count not in (4, 6):
         raise ValueError(f"source {run_id} has unsupported shard count {count}")
     required = {"live-postgres-readiness hermetic",
                 "live-postgres-readiness (postgres18)"}

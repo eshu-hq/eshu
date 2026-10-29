@@ -20,7 +20,7 @@ def shard_ids(weights: wt.Weights | v2.WeightsV2) -> tuple[str, ...]:
     return tuple(f"{number}/{count}" for number in range(1, count + 1))
 
 
-ARTIFACT_RE = re.compile(r"^readiness-shard-\d+-(\d+)-[1-5]$")
+ARTIFACT_RE = re.compile(r"^readiness-shard-\d+-(\d+)-[1-6]$")
 
 def _report(head: str, shard: str, plan: Path, manifest_path: Path,
             output: Path, weights_path: Path | None = None) -> bool:

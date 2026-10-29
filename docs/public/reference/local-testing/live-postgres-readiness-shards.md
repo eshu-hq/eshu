@@ -1,7 +1,7 @@
 # Live PostgreSQL readiness shards
 
 The `live-postgres-readiness` workflow runs the enrolled PostgreSQL proofs in
-five parallel jobs, cut from `specs/live-postgres-readiness-weights.v2.json`
+six parallel jobs, cut from `specs/live-postgres-readiness-weights.v2.json`
 (present since #9240). The four-job v1 cut is the fallback, used only when the
 v2 file is absent. Each job keeps the 30-minute cap (1800 s). This page
 explains the cut and calibration.
@@ -21,14 +21,14 @@ The plan is the flat `package|test` list from
 `live_postgres_readiness_results.py list-packages`, in canonical inventory
 order. `scripts/lib/live_postgres_readiness_weights.py` reads the committed model.
 With v1, it cuts the plan into four contiguous slices using the existing
-longest-leg objective. With v2, it cuts into five contiguous slices using
+longest-leg objective. With v2, it cuts into six contiguous slices using
 measured first-use and repeat-row costs and the guard-constrained objective. Every proof is in exactly one slice. A new test
 enters the plan at its inventory position and the cut moves with it, so no one
 edits a pinned table.
 
 The runner (`plan` and `report`) and the aggregate (`verify` and `select`) all
 call the same cut function with the same weights file from the same checkout.
-The aggregate requires exactly the active model's four or five reports to
+The aggregate requires exactly the active model's four or six reports to
 be the exact union of the plan. A report cut under different weights fails with `plan mismatch`.
 
 ## What the prediction counts
@@ -90,12 +90,12 @@ priced above the budget cannot be split and fails the gate.
 job. The budget, drift, seeded-overflow, and appended-tail cases
 (`scripts/lib/live_postgres_readiness_weights_budget_cases.py`) load the
 model the way the workflow's `matrix` step does: the committed default path,
-v2 and five shards when the v2 file is present, v1 and four shards only when
+v2 and six shards when the v2 file is present, v1 and four shards only when
 it is absent. Their first case fails if the contract's model or shard count
 differs from the `matrix` output or from the committed v2 `shard_count`. Before
 #9100 these cases ran on the v1 four-shard cut while CI ran five shards.
 
-The statements below about five jobs, five-shard cuts, and the "no shard
+The statements below about six jobs, six-shard cuts, and the "no shard
 partition fits the job budget" error describe the v2 model. Three cases
 assert v2-only results and skip, with a stated reason, when the v2 file is
 absent and the loader returns v1: the drift-survives-a-rejected-plan case and
@@ -120,11 +120,11 @@ while the live plan itself still fit. Each case now asserts what it is named for
 
 - The appended-tail case prices ten tail tests to fill the last shard's own
   headroom on the live cut. It then requires a clean budget and every job at
-  or under 1440 s. A tail whose test seconds pass the five jobs' combined
+  or under 1440 s. A tail whose test seconds pass the six jobs' combined
   budget must still fail with "no shard partition fits the job budget".
 - The seeded case runs on a fixed synthetic plan of 20 packages x 20 tests
-  with round prices: 15 tests at 60 s seeded into the first package push the
-  count split to 1930 s, past the 1800 s cap, and the weighted cut holds
+  with round prices: 20 tests at 60 s seeded into the first package push the
+  six-way count split to 2030 s, past the 1800 s cap, and the weighted cut holds
   every job at or under 1440 s. The live count split and the live fit are
   still asserted, unseeded, on the live plan.
 - The drift case adds 41 unpriced tail tests and requires the
@@ -312,15 +312,19 @@ edge of a window is not proof that no cut exists.
    it yet. Do not change the budget, the spread, or the weights in a feature
    PR.
 
-## Move to five shards
+## Move to six shards
 
-The move landed in #9240: `specs/live-postgres-readiness-weights.v2.json` is
-present, so the default matrix is `1/5` through `5/5`. The plan job computes it
+The v2 model landed in #9240 with five shards; #9460 moved it to six when the
+five-leg cut saturated at about 1270 s predicted mean and shard 1 started
+hitting the 30-minute cap on `main` itself (see
+[When a shard is still too slow](#when-a-shard-is-still-too-slow)).
+`specs/live-postgres-readiness-weights.v2.json` is present, so the default
+matrix is `1/6` through `6/6`. The plan job computes it
 from the same checkout used by the runner and aggregate. Without the v2 file
 the matrix falls back to `1/4` through `4/4`.
 A malformed present v2 file fails the plan and the selected aggregate; it never
-falls back to v1. A present valid v2 file changes all five check names to `/5`
-and requires five matching reports. The selected aggregate fails if the plan,
+falls back to v1. A present valid v2 file changes all six check names to `/6`
+and requires six matching reports. The selected aggregate fails if the plan,
 a shard, or report selection fails.
 
 To produce a v2 file (the first one, or a refit), collect at least two
@@ -346,8 +350,8 @@ Review the source run and job IDs, successful terminal states, complete rows,
 first-use/repeat identification, predicted row and job maxima, defaults, and
 exact ordered test coverage. Then add only the sorted
 `specs/live-postgres-readiness-weights.v2.json` file in a standalone PR. Its
-five-way CI run is the first observed wall-time proof; diagnose a timeout or
-spread failure before merging. The five-leg model uses one more SQL runner and may consume more aggregate
+six-way CI run is the first observed wall-time proof; diagnose a timeout or
+spread failure before merging. The six-leg model uses one more SQL runner and may consume more aggregate
 runner seconds; the plan job also adds setup time. No speedup or fixed
 wall-time result is promised.
 
@@ -356,7 +360,7 @@ wall-time result is promised.
 A refit is a standalone bot-or-owner PR that touches only the weights files.
 While `specs/live-postgres-readiness-weights.v2.json` is present, the budget
 and drift gates run on it, so a refit must regenerate it with the v2
-refresher (see [Move to five shards](#move-to-five-shards)); a v1-only refit
+refresher (see [Move to six shards](#move-to-six-shards)); a v1-only refit
 cannot clear a tripped gate. Regenerating
 `specs/live-postgres-readiness-weights.v1.json` in the same PR keeps the
 fallback current; no gate checks the v1 file against the live plan while v2
@@ -417,7 +421,10 @@ pass; they just cannot feed the refit, because the refit reads only green
 If the gate fails after a refresh, the plan no longer fits in the active shard count at
 80% of the cap. Reduce the cost instead of raising the cap: split the slowest
 package's proofs, cache the Go build for the storage package, or add a shard.
-Raising `timeout-minutes` only hides a hang.
+Raising `timeout-minutes` only hides a hang. The five-to-six move in #9460 is
+the recorded precedent: five legs saturated at about 1270 s predicted mean
+with no guard-legal contiguous re-cut, so the relief was a sixth shard at
+unchanged prices, cap, and guards.
 
 ## Race detector
 

@@ -70,6 +70,7 @@ on:
       - 'scripts/lib/live_postgres_readiness_reports.py'
       - 'scripts/lib/live_postgres_readiness_refresh_v2.py'
       - 'scripts/lib/live_postgres_readiness_refresh_v2_provenance.py'
+      - 'scripts/lib/live_postgres_readiness_row_clock_cases.py'
       - 'scripts/test-live-postgres-readiness-refresh-v2.py'
       - 'specs/live-postgres-readiness-weights.v1.json'
       - 'specs/live-postgres-readiness-weights.v2.json'
@@ -208,7 +209,7 @@ jobs:
     # 30-minute leg budget (#7864). The ledger-selected suite grows with
     # enrollment, so each leg runs one contiguous slice of the plan. The cuts
     # use the same committed model in plan, runner, and aggregate. The
-    # present v2 weights file cuts five row-aware legs; without it the
+    # present v2 weights file cuts six row-aware legs; without it the
     # matrix falls back to four v1 legs. The shard contract fails
     # above 80% of this cap, so a near-cap leg needs a measured refit.
     timeout-minutes: 30

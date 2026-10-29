@@ -214,7 +214,7 @@ def weighted_bounds(runs: list[str], weights: Weights | WeightsV2,
         if shard_count is None:
             shard_count = weights.shard_count
         if shard_count != weights.shard_count:
-            raise ValueError("v2 planner requires five shards")
+            raise ValueError("v2 planner requires six shards")
         key = (weights.fingerprint(), tuple(runs), shard_count)
         cached = _BOUNDS_CACHE.get(key)
         if cached is not None:
