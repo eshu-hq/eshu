@@ -4,7 +4,7 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #9307 disposable PostgreSQL 18.6 fresh and populated ECS index proof: an observed active concurrent build admits a second fact writer, an ordinary build queues that writer to 55P03, and invalid-index restart recovery rebuilds 240
+//eshu:readiness:reason #9307 disposable PostgreSQL 18.6 fresh and populated ECS index proof: an observed active concurrent build admits a second fact writer, an ordinary build queues that writer to 55P03, and invalid-index restart recovery rebuilds 242/244
 //eshu:readiness:env ESHU_TEST_ECS_RUNTIME_INDEX_POSTGRES_DISPOSABLE ESHU_TEST_ECS_RUNTIME_INDEX_POSTGRES_DSN
 
 import (
