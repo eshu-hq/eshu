@@ -258,7 +258,7 @@ that is up to 5.3 million cuts per plan; the extension to 110 used an extra
 sound prune. It prices them with the same `v2.Scorer` the production planner
 uses, and tests the spread in integer tenths exactly as
 `live_postgres_readiness_weights.py` does. The search tested only the 1440 s
-cap and the 15% spread; the 675 s row check never decided an outcome. It
+cap and the 15% spread; the 675 s row check of that time never decided an outcome. It
 searched only default-priced tests appended to the last package, not other
 growth positions or priced tails.
 
@@ -286,7 +286,7 @@ appended tests on #9320 and 62 on #9227 plus main (14.92% and 14.89% there).
 The rejected candidate showed no such edge up to 110 appended tests. These
 figures, the edges and the 110 bound come from the maintainers' exact search,
 not from this repository; whether the current weights have such an edge near
-70 appended tests is not measured. #9390 tracks the planner fix. Until it lands, a spread raise at the
+72 appended tests, where the current window closes, is not measured. #9390 tracks the planner fix. Until it lands, a spread raise at the
 edge of a window is not proof that no cut exists.
 
 **What to do, in order.**
@@ -295,7 +295,8 @@ edge of a window is not proof that no cut exists.
    enrollment across PRs when it is larger. Run the snippet on your branch to
    see where you stand. The drift gate also caps the defaulted tests at 40, so
    the usable headroom is the lower of the fit window and 40 minus the tests
-   the plan already prices at defaults. Print that count with:
+   the plan already prices at defaults. At `d363d77b85` that is 1 (39 of 40
+   defaulted). Print the count with:
 
    ```bash
    python3 -I -B -c 'import sys; sys.path.insert(0, "scripts/lib")
