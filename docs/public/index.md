@@ -69,9 +69,9 @@ at every hop.
 <p><strong>Deploying Eshu</strong></p>
 <p>Move from a local run to a shared Kubernetes service.</p>
 <ul>
-<li><a href="deploy/kubernetes/">Deployment options</a></li>
-<li><a href="deploy/kubernetes/helm-quickstart/">Helm quickstart</a></li>
-<li><a href="deploy/kubernetes/manifests/">Kubernetes manifests</a></li>
+<li><a href="https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/index.md">Deployment options</a></li>
+<li><a href="https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/helm-quickstart.md">Helm quickstart</a></li>
+<li><a href="https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/manifests.md">Kubernetes manifests</a></li>
 </ul>
 </li>
 <li>
@@ -108,7 +108,7 @@ at every hop.
 <li>
 <p><strong>Deploy on Kubernetes</strong></p>
 <p>Deploy Eshu with Helm and validate the rollout.</p>
-<p><a href="tutorials/deploy-kubernetes/">Deploy with Helm</a></p>
+<p><a href="https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/helm-quickstart.md">Deploy with Helm</a></p>
 </li>
 <li>
 <p><strong>Find unmanaged AWS resources</strong></p>
@@ -129,7 +129,7 @@ at every hop.
 | --- | --- | --- |
 | New engineer | [First successful run](getting-started/first-successful-run.md) | [How Eshu works](concepts/how-it-works.md) |
 | Software engineer | [Ask code questions](use/code-questions.md) | [Starter prompts](guides/starter-prompts.md) |
-| Platform engineer | [Trace infrastructure](use/trace-infrastructure.md) | [Deploy to Kubernetes](deploy/kubernetes/index.md) |
+| Platform engineer | [Trace infrastructure](use/trace-infrastructure.md) | [Deploy to Kubernetes](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/index.md) |
 | Security engineer | [Supply-chain traceability](supply-chain-traceability.md) | [Security intelligence](reference/security-intelligence.md) |
 | Operator | [Health checks](operate/health-checks.md) | [Tuning playbook](operate/tuning-playbook.md) |
 | Evaluator or contributor | [Roadmap](roadmap.md) | [Release log](releases/index.md) |

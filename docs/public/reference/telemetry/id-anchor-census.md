@@ -48,8 +48,8 @@ nonzero `unreachable_nodes` logs at WARN. A failed pass logs
 
 ## Alerts
 
-`deploy/observability/alerts.yaml` (group `eshu.pipeline`) and
-`deploy/observability/id-anchor-census-prometheus-rule.yaml` (Prometheus
+`$ESHU_DEPLOY_CHECKOUT/observability/alerts.yaml` (group `eshu.pipeline`) and
+`$ESHU_DEPLOY_CHECKOUT/observability/id-anchor-census-prometheus-rule.yaml` (Prometheus
 Operator) carry the same two alerts. The census alert rule test in
 `go/internal/reducer/maintenance/census` keeps them aligned.
 

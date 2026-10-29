@@ -16,7 +16,7 @@ func TestRemoteE2EComposeWiresRepresentativeCorpusBounds(t *testing.T) {
 
 	assertComposeEnv(t, preflight, "ESHU_REMOTE_E2E_MAX_REPOSITORY_COUNT", "${ESHU_REMOTE_E2E_MAX_REPOSITORY_COUNT:-}")
 
-	exampleEnv := readRepositoryFile(t, "../../..", ".env.remote-e2e.example")
+	exampleEnv := readRepositoryFile(t, deployCheckoutRoot(t), ".env.remote-e2e.example")
 	for _, want := range []string{
 		"ESHU_REMOTE_E2E_CORPUS_MODE=smoke",
 		"ESHU_REMOTE_E2E_MAX_REPOSITORY_COUNT=",
@@ -35,7 +35,7 @@ func TestRemoteE2EComposeWiresRepresentativeCorpusBounds(t *testing.T) {
 func TestRemoteE2EComposeUsesBoundedDerivedTargetBudget(t *testing.T) {
 	t.Parallel()
 
-	compose := readRepositoryFile(t, "../../..", "docker-compose.remote-e2e.runtime.yaml")
+	compose := readRepositoryFile(t, deployCheckoutRoot(t), "compose/docker-compose.remote-e2e.runtime.yaml")
 	if got := strings.Count(compose, `\"target_limit\": ${ESHU_REMOTE_E2E_DERIVED_TARGET_LIMIT:-100}`); got != 2 {
 		t.Fatalf("derived target budget interpolation count = %d, want 2", got)
 	}

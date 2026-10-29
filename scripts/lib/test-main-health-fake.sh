@@ -63,7 +63,7 @@ on:
   schedule:
     - cron: "0 6 * * 1"
   workflow_run:
-    workflows: ["Publish Image and Helm Chart"]
+    workflows: ["Publish Image"]
     types: [completed]
 YAML
 cp "${repo_root}/scripts/lib/test-main-health-ci-gates.yaml.tmpl" "${policy_root}/specs/ci-gates.v1.yaml"

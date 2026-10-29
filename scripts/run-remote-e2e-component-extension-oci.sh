@@ -48,8 +48,11 @@ postgres="${project}-postgres-1"
 artifacts_dir=""
 keep_up=false
 
-base_compose="${repo_root}/docker-compose.yaml"
-overlay="${repo_root}/docs/public/run-locally/docker-compose.component-extension-oci.yaml"
+# The base stack and the OCI overlay moved to eshu-deploy under #8871:
+# resolve both from the ESHU_DEPLOY_CHECKOUT checkout.
+: "${ESHU_DEPLOY_CHECKOUT:?ESHU_DEPLOY_CHECKOUT must point at an eshu-hq/eshu-deploy checkout}"
+base_compose="${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.yaml"
+overlay="${ESHU_DEPLOY_CHECKOUT}/compose/fragments/docker-compose.component-extension-oci.yaml"
 
 die() { printf 'run-remote-e2e-component-extension-oci: %s\n' "$*" >&2; exit 1; }
 log() { printf 'run-remote-e2e-component-extension-oci: %s\n' "$*"; }

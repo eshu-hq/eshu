@@ -20,6 +20,10 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
+# Stack builds compile Eshu source: anchor them at this checkout (dest
+# compose files default the build context to their own directory).
+export ESHU_REPO_ROOT="${ESHU_REPO_ROOT:-${repo_root}}"
+
 # shellcheck source=scripts/lib/auth_mcp_e2e_sensitivity.sh
 source "${repo_root}/scripts/lib/auth_mcp_e2e_sensitivity.sh"
 
@@ -43,8 +47,9 @@ mcp_base="http://${bind_addr}:${mcp_port}"
 report_path="${repo_root}/e2e-artifacts/auth-mcp-e2e-report.json"
 step_id="leakage_credentialless_probes_do_not_leak"
 
-base_compose=(-p "$project" -f docker-compose.e2e.yaml)
-mutation_compose=(-p "$project" -f docker-compose.e2e.yaml -f docker-compose.e2e.mutation.yaml)
+: "${ESHU_DEPLOY_CHECKOUT:?ESHU_DEPLOY_CHECKOUT must point at an eshu-hq/eshu-deploy checkout; the gate workflow checks it out at the pinned extraction commit}"
+base_compose=(-p "$project" -f "${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.e2e.yaml")
+mutation_compose=(-p "$project" -f "${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.e2e.yaml" -f "${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.e2e.mutation.yaml")
 # Every Compose call goes through scripts/ci/compose.sh, which renders and appends the
 # CI overlay for the exact file set of that call: the base and the mutation stack
 # each get their own, and no overlay variable is swapped here.

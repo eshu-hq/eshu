@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"regexp"
 	"strings"
 	"testing"
@@ -20,11 +21,80 @@ import (
 // The id-anchor census alerts (#7212). Since PR-B, a nonzero unreachable gauge
 // means entity ids that GET /api/v0/entities/{entity_id}/context answers 404
 // on Neo4j, so the gauge pages. The standalone rule file and the Prometheus
-// Operator wrapper must carry the same alerts (deploy/observability/README.md).
-const (
-	standaloneAlertsPath = "../../../../../deploy/observability/alerts.yaml"
-	operatorRulePath     = "../../../../../deploy/observability/id-anchor-census-prometheus-rule.yaml"
-)
+// Operator wrapper moved to eshu-deploy with #8871; both files below are
+// resolved from the pinned eshu-deploy checkout (observability/README.md in
+// that checkout describes the layout).
+//
+// expectedDeployCheckoutCommit pins the eshu-hq/eshu-deploy commit the census
+// rule test reads deploy assets from. It must match the twin pins in
+// go/internal/deploy/checkout_test.go and
+// go/internal/runtime/deploy_checkout_test.go: every helper fails closed on
+// any other commit, so a skew between the pins surfaces as a test failure,
+// not a silent drift.
+const expectedDeployCheckoutCommit = "6b6164d4fd95b8959284c5af0ba9a233fe032134"
+
+// deployCheckoutForContract resolves the eshu-deploy checkout the census rule
+// test reads observability rule files from. It fails closed: an absent
+// ESHU_DEPLOY_CHECKOUT, a missing directory, or a commit mismatch fails the
+// calling test instead of silently reading the wrong tree.
+func deployCheckoutForContract(t *testing.T) string {
+	t.Helper()
+
+	dir := os.Getenv("ESHU_DEPLOY_CHECKOUT")
+	if dir == "" {
+		t.Fatal("ESHU_DEPLOY_CHECKOUT is not set; point it at an eshu-hq/eshu-deploy checkout at " + expectedDeployCheckoutCommit)
+	}
+	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+		t.Fatalf("ESHU_DEPLOY_CHECKOUT=%q is not a directory: %v", dir, err)
+	}
+	cmd := exec.Command("git", "-C", dir, "rev-parse", "HEAD")
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("ESHU_DEPLOY_CHECKOUT=%q is not a git checkout: %v", dir, err)
+	}
+	if got := strings.TrimSpace(string(out)); got != expectedDeployCheckoutCommit {
+		t.Fatalf("ESHU_DEPLOY_CHECKOUT=%q is at %s, want %s", dir, got, expectedDeployCheckoutCommit)
+	}
+	return dir
+}
+
+// ruleFileForContract reads one observability rule file from the pinned
+// eshu-deploy checkout, failing the test when the file cannot be read.
+func ruleFileForContract(t *testing.T, name string) []byte {
+	t.Helper()
+
+	raw, err := os.ReadFile(deployCheckoutForContract(t) + "/observability/" + name)
+	if err != nil {
+		t.Fatalf("read observability/%s: %v", name, err)
+	}
+	return raw
+}
+
+// TestDeployCheckoutForContractFailsClosedWithoutEnv proves the rule test
+// refuses to guess: without ESHU_DEPLOY_CHECKOUT the probe fails naming the
+// required variable.
+func TestDeployCheckoutForContractFailsClosedWithoutEnv(t *testing.T) {
+	t.Parallel()
+
+	cmd := exec.Command(os.Args[0], "-test.run", "TestDeployCheckoutContractProbe$", "-test.v")
+	cmd.Env = []string{"PATH=" + os.Getenv("PATH"), "GO_WANT_HELPER_PROCESS=1"}
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("helper probe succeeded, want failure\n%s", out)
+	}
+	if !strings.Contains(string(out), "ESHU_DEPLOY_CHECKOUT") {
+		t.Fatalf("probe output does not name the required env var:\n%s", out)
+	}
+}
+
+// TestDeployCheckoutContractProbe is the subprocess entry point: it calls the
+// helper so the parent can assert the fail-closed behavior end to end.
+func TestDeployCheckoutContractProbe(t *testing.T) {
+	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
+		t.Skip("helper probe entry point")
+	}
+	deployCheckoutForContract(t)
+}
 
 // idAnchorCensusAlerts are the alerts both rule files must carry, with the
 // metric selectors each expression must contain. The stale alert reads the
@@ -175,14 +245,8 @@ func registeredCensusMetrics(t *testing.T) map[string]bool {
 func TestIDAnchorCensusAlertsAreInBothRuleFiles(t *testing.T) {
 	t.Parallel()
 
-	standalone, err := os.ReadFile(standaloneAlertsPath)
-	if err != nil {
-		t.Fatalf("read %s: %v", standaloneAlertsPath, err)
-	}
-	operator, err := os.ReadFile(operatorRulePath)
-	if err != nil {
-		t.Fatalf("read %s: %v", operatorRulePath, err)
-	}
+	standalone := ruleFileForContract(t, "alerts.yaml")
+	operator := ruleFileForContract(t, "id-anchor-census-prometheus-rule.yaml")
 	for _, problem := range checkIDAnchorCensusAlerts(standalone, operator, registeredCensusMetrics(t)) {
 		t.Error(problem)
 	}
@@ -193,14 +257,8 @@ func TestIDAnchorCensusAlertsAreInBothRuleFiles(t *testing.T) {
 func TestIDAnchorCensusAlertCheckFailsOnPlantedViolations(t *testing.T) {
 	t.Parallel()
 
-	standalone, err := os.ReadFile(standaloneAlertsPath)
-	if err != nil {
-		t.Fatalf("read %s: %v", standaloneAlertsPath, err)
-	}
-	operator, err := os.ReadFile(operatorRulePath)
-	if err != nil {
-		t.Fatalf("read %s: %v", operatorRulePath, err)
-	}
+	standalone := ruleFileForContract(t, "alerts.yaml")
+	operator := ruleFileForContract(t, "id-anchor-census-prometheus-rule.yaml")
 	registered := registeredCensusMetrics(t)
 	for name, raw := range map[string][]byte{"standalone": standalone, "operator": operator} {
 		if !strings.Contains(string(raw), censusStaleExpr) {

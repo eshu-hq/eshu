@@ -27,7 +27,7 @@ func readComposeDocumentWithIncludes(t *testing.T, name string, seen map[string]
 	}
 	seen[cleanName] = true
 
-	raw, err := os.ReadFile(filepath.Join("..", "..", "..", cleanName))
+	raw, err := os.ReadFile(deployComposePath(t, cleanName))
 	if err != nil {
 		t.Fatalf("read %s: %v", cleanName, err)
 	}
@@ -67,7 +67,7 @@ func readComposeSourceWithIncludes(t *testing.T, name string, seen map[string]bo
 	}
 	seen[cleanName] = true
 
-	raw := readRepositoryFile(t, "../../..", cleanName)
+	raw := readRepositoryFile(t, deployCheckoutRoot(t), filepath.Join("compose", cleanName))
 	var doc composeDocument
 	if err := yaml.Unmarshal([]byte(raw), &doc); err != nil {
 		t.Fatalf("parse %s: %v", cleanName, err)

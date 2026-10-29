@@ -158,8 +158,9 @@ suppresses index plans that would win on flash storage.
 
 ### What Eshu already sets
 
-Eshu's local Compose Postgres runs SSD-tuned (see `docker-compose.yaml` and
-`docker-compose.neo4j.yml`):
+Eshu's local Compose Postgres runs SSD-tuned (see `compose/docker-compose.yaml` and
+`compose/docker-compose.neo4j.yml` under `$ESHU_DEPLOY_CHECKOUT`; the stack
+moved to eshu-deploy under #8871):
 
 | Setting | Compose value | Postgres default |
 | --- | --- | --- |

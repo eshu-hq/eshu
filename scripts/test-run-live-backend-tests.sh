@@ -12,6 +12,10 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 script="${repo_root}/scripts/run-live-backend-tests.sh"
 targets="${repo_root}/scripts/lib/live_backend_test_targets.py"
 ledger="${repo_root}/specs/live-tests.v1.yaml"
+# Backend stacks moved to eshu-deploy under #8871: pin drift is asserted
+# against the ESHU_DEPLOY_CHECKOUT checkout (CI pins the extraction commit).
+: "${ESHU_DEPLOY_CHECKOUT:?ESHU_DEPLOY_CHECKOUT must point at an eshu-hq/eshu-deploy checkout}"
+deploy_compose_dir="${ESHU_DEPLOY_CHECKOUT}/compose"
 
 fail() {
 	printf 'test-run-live-backend-tests: %s\n' "$*" >&2
@@ -162,18 +166,18 @@ got="$(env -u NEO4J_PLATFORM PATH="${seed_dir}/archbin:${PATH}" ESHU_LIVE_RUNNER
 	bash "${script}" --backend nornicdb 2>&1 | { rg '^neo4j_platform=' || true; } | cut -d= -f2-)"
 [[ ! -e "${probe_marker}" ]] || fail "--backend nornicdb probed docker for a neo4j platform"
 [[ -z "${got}" ]] || fail "--backend nornicdb resolved neo4j platform '${got}', want none"
-rg -q 'platform: \$\{NEO4J_PLATFORM:-linux/amd64\}' "${repo_root}/docker-compose.live-backend-neo4j.yml" ||
+rg -q 'platform: \$\{NEO4J_PLATFORM:-linux/amd64\}' "${deploy_compose_dir}/docker-compose.live-backend-neo4j.yml" ||
 	fail "neo4j live-backend compose must still honour NEO4J_PLATFORM"
 
 # ── Image pins match the canonical compose files (no silent drift) ───────
 nornicdb_compose="$(probe | rg '^nornicdb_compose=' | cut -d= -f2-)"
 neo4j_compose="$(probe | rg '^neo4j_compose=' | cut -d= -f2-)"
-nornicdb_pin="$(rg '^    image: ' "${repo_root}/${nornicdb_compose}" | head -n 1 | sed 's/^    image: //')"
-neo4j_pin="$(rg '^    image: ' "${repo_root}/${neo4j_compose}" | head -n 1 | sed 's/^    image: //')"
+nornicdb_pin="$(rg '^    image: ' "${deploy_compose_dir}/${nornicdb_compose}" | head -n 1 | sed 's/^    image: //')"
+neo4j_pin="$(rg '^    image: ' "${deploy_compose_dir}/${neo4j_compose}" | head -n 1 | sed 's/^    image: //')"
 [[ -n "${nornicdb_pin}" && -n "${neo4j_pin}" ]] || fail "could not read image pins from live-backend compose files"
-rg --fixed-strings --quiet -- "${nornicdb_pin}" "${repo_root}/docker-compose.yaml" ||
+rg --fixed-strings --quiet -- "${nornicdb_pin}" "${deploy_compose_dir}/docker-compose.yaml" ||
 	fail "nornicdb image pin drifted from docker-compose.yaml: ${nornicdb_pin}"
-rg --fixed-strings --quiet -- "${neo4j_pin}" "${repo_root}/docker-compose.neo4j.yml" ||
+rg --fixed-strings --quiet -- "${neo4j_pin}" "${deploy_compose_dir}/docker-compose.neo4j.yml" ||
 	fail "neo4j image pin drifted from docker-compose.neo4j.yml: ${neo4j_pin}"
 
 # ── Targets: one line per CI ledger row, module-relative, named tests ────

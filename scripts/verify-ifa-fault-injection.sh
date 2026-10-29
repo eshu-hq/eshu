@@ -141,7 +141,11 @@ export NEO4J_HTTP_PORT="${NEO4J_HTTP_PORT:-7688}"
 : "${CLAIMED_ROW_WAIT_TIMEOUT:=120}"
 : "${RESTART_SENTINEL_WAIT_TIMEOUT:=90}"
 
-compose_file="docker-compose.yaml"
+# Deploy lanes moved to eshu-deploy under #8871: the Compose file comes
+# from the ESHU_DEPLOY_CHECKOUT checkout (CI pins the extraction commit).
+: "${ESHU_DEPLOY_CHECKOUT:?ESHU_DEPLOY_CHECKOUT must point at an eshu-hq/eshu-deploy checkout; the gate workflow checks it out at the pinned extraction commit}"
+compose_file="${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.yaml"
+[[ -f "${compose_file}" ]] || { printf 'verify-ifa-fault-injection: compose file %s missing from ESHU_DEPLOY_CHECKOUT=%s\n' "${compose_file}" "${ESHU_DEPLOY_CHECKOUT}" >&2; exit 1; }
 cassette="${repo_root}/testdata/cassettes/gcpcloud/supply-chain-demo.json"
 drive_workers=4
 

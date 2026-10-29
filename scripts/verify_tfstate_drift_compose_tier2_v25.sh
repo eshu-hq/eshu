@@ -159,7 +159,11 @@ eshu_require_tool jq
 eshu_require_tool nc
 require_compose
 
-COMPOSE_CMD+=(-f docker-compose.yaml -f docker-compose.tier2-tfstate-v25.yaml)
+# Compose files moved to eshu-deploy under #8871: resolve the stack through
+# ESHU_DEPLOY_CHECKOUT (CI pins the extraction commit), failing closed.
+: "${ESHU_DEPLOY_CHECKOUT:?ESHU_DEPLOY_CHECKOUT must point at an eshu-hq/eshu-deploy checkout; the gate workflow checks it out at the pinned extraction commit}"
+DEPLOY_COMPOSE="${ESHU_DEPLOY_CHECKOUT}/compose"
+COMPOSE_CMD+=(-f "${DEPLOY_COMPOSE}/docker-compose.yaml" -f "${DEPLOY_COMPOSE}/docker-compose.tier2-tfstate-v25.yaml")
 
 pick_port() {
     local start_port="$1" port

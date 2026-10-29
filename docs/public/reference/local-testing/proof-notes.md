@@ -74,7 +74,8 @@ bash scripts/test-verify-tagged-builds.sh
 ## Remote Collector E2E Compose Proof
 
 Use [Remote collector E2E](remote-collector-e2e.md) when changing
-`docker-compose.remote-e2e.yaml` or hosted collector recovery.
+`${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.remote-e2e.yaml`
+(the stack moved to eshu-deploy under #8871) or hosted collector recovery.
 
 Before accepting a remote collector E2E run, also run the hosted runtime-state
 gate in [Remote E2E Runtime State](../remote-e2e-runtime-state.md). It verifies
@@ -96,7 +97,7 @@ retry-safe after the final file existed. The fixed render runs as UID/GID
 and `/data/repos`, and replaces `.eshuignore` through a temp file on the same
 data mount before `mv -f`. Verification covered
 `go test ./internal/runtime -run TestHelmWorkspaceSetupInitIsPersistentVolumeRetrySafe -count=1`,
-`go test ./internal/runtime -count=1`, `helm lint ./deploy/helm/eshu`,
+`go test ./internal/runtime -count=1`, `helm lint $ESHU_DEPLOY_CHECKOUT/helm/eshu`,
 Compose/Helm runtime parity, and a remote Docker proof on linux/amd64 using the
 runtime base image with `--cap-drop ALL`, `--read-only`, UID/GID `10001`, and
 the same persisted data/config/tmp mount shape; both first and retry setup
@@ -110,7 +111,7 @@ events, and the existing ingester probes after startup.
 
 ## Two-Team K8s Governance Proof
 
-`scripts/run-k8s-two-team-governance-proof.sh` deploys the Helm chart to a local Kubernetes cluster,
+`$ESHU_DEPLOY_CHECKOUT/scripts/run-k8s-two-team-governance-proof.sh` deploys the Helm chart to a local Kubernetes cluster,
 provisions two teams' scoped tokens through a mounted read-only Secret, and tests cross-scope isolation
 through the live API and MCP. Each team sees only its own repositories; the other team's repository is
 absent; out-of-grant selectors return matching non-disclosing `403 permission_denied` or
@@ -121,7 +122,8 @@ and hostile fixture self-tests as part of the aggregate gate.
 The chart hooks that enable this proof — `api.extraVolumes` /
 `api.extraVolumeMounts` and the matching `mcpServer.*` values — are additive and
 default to `[]`, so an operator that does not opt in renders a byte-identical
-runtime. `deploy/helm/eshu/ci/governance-two-team-k8s.values.yaml` is test-only
+runtime. `helm/eshu/ci/governance-two-team-k8s.values.yaml` in the
+eshu-deploy checkout is test-only
 and is not part of a shipped runtime profile.
 
 No-Regression Evidence: the chart hooks are opt-in, empty-by-default Pod volume mounts. They add no
@@ -160,7 +162,8 @@ a stable API contract.
 ## Demo Compose Stack Proof
 
 Use `scripts/verify-demo-compose-answers.sh` to prove the credential-free demo
-stack (`docker-compose.demo.yaml`) converges the corpus and answers the five
+stack (`${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.demo.yaml`, moved to
+eshu-deploy under #8871) converges the corpus and answers the five
 `specs/demo-first-answers.v1.yaml` questions over HTTP. It is failing-test-first
 (red before the overlay exists, green after): it boots the stack with zero
 credential env, asserts each question over HTTP with no `Authorization` header,

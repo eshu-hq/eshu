@@ -52,7 +52,16 @@ done
 # every case plants the scripts it needs, so the base holds an empty scripts/lib
 # (copying the whole scripts/ tree cost seconds per verifier run).
 mkdir -p "${base}/scripts/lib"
-cp "${repo_root}"/Dockerfile "${repo_root}"/docker-compose*.y*ml "${base}/"
+# Post-#8871 the in-tree compose lanes live in eshu-deploy, so the committed
+# tree may hold no docker-compose*.y*ml. The base mirrors the committed tree:
+# copy the Dockerfile plus whatever compose files exist (possibly none). The
+# fixture cases below plant their own compose/Dockerfile files, so verifier
+# coverage of those scan paths does not depend on the base copies.
+cp "${repo_root}"/Dockerfile "${base}/"
+for compose in "${repo_root}"/docker-compose*.y*ml; do
+  [ -e "${compose}" ] || continue
+  cp "${compose}" "${base}/"
+done
 # verify-agent-hygiene.yml is the scratch workflow add_job fills; it runs on a tag
 # push and dispatch only so the Docker Hub login rule (not the queue-path rule)
 # governs its jobs.

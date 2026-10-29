@@ -78,8 +78,6 @@ jobs:
               - 'docs/internal/evidence/8871-eshu-deploy-contract.md'
               - 'docs/internal/evidence/8874-eshu-cli-contract.md'
               - 'docs/internal/remote-validation/inventory.generated.json'
-              - 'docs/public/deploy/kubernetes/helm-routing-and-storage-values.md'
-              - 'docs/public/deploy/kubernetes/runtime-parity-matrix.md'
               - 'docs/public/deployment/credential-file-cleanup.md'
               - 'docs/public/deployment/service-runtimes-collectors.md'
               - 'docs/public/deployment/service-runtimes.md'
@@ -106,7 +104,6 @@ jobs:
               - 'docs/public/reference/searchbench-evidence/issue-417-nornicdb-hybrid-retrieval-prototype-v1.json'
               - 'docs/public/reference/searchbench-evidence/issue-420-link-prediction-evaluation-v1.json'
               - 'docs/public/reference/searchbench-evidence/issue-421-rerank-protocol-evaluation-v1.json'
-              - 'docs/public/run-locally/docker-compose.md'
               - 'go/cmd/README.md'
               - 'go/cmd/api/CUTOVER_OWNERSHIP.md'
               - 'go/cmd/audit-preflight/testdata/codegraphcontext-already-tracked.md'
@@ -411,6 +408,15 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
+      # Repointed contract tests (internal/deploy, internal/runtime,
+      # internal/cli/demo) read deploy assets from the pinned eshu-deploy
+      # checkout and fail closed without ESHU_DEPLOY_CHECKOUT (#8871).
+      - name: Check out eshu-deploy at the pinned extraction commit
+        uses: actions/checkout@v5
+        with:
+          repository: eshu-hq/eshu-deploy
+          ref: 6b6164d4fd95b8959284c5af0ba9a233fe032134
+          path: eshu-deploy
       - name: Set up Helm for race tests
         uses: azure/setup-helm@v5.0.0
         with:
@@ -426,6 +432,7 @@ jobs:
         env:
           SHARD_INDEX: ${{ matrix.shard }}
           SHARD_TOTAL: ${{ strategy.job-total }}
+          ESHU_DEPLOY_CHECKOUT: ${{ github.workspace }}/eshu-deploy
         run: |
           set -euo pipefail
           pkgs="$(go list ./... | awk -v n="${SHARD_TOTAL}" -v k="${SHARD_INDEX}" 'NR % n == (k % n)')"

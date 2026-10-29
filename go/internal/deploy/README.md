@@ -4,9 +4,10 @@
 
 This package owns the `eshu-deploy` extraction census for issue #8871: the
 inventory of deployment assets (Helm chart, Compose overlays, GitOps
-examples, deployment defaults, compatibility matrix) moving to
-`eshu-hq/eshu-deploy`, and the contract tests that pin the census record
-to the tree until the cutover lands.
+examples, deployment defaults, compatibility matrix) that moved to
+`eshu-hq/eshu-deploy`, and the contract tests that pin the frozen census
+record plus the living core-owned boundary against the pinned
+eshu-deploy checkout.
 
 ## Ownership boundary
 
@@ -16,10 +17,12 @@ contract record
 (`docs/internal/evidence/8871-eshu-deploy-contract.md`), and their
 contract tests only. Does not own the chart, the compose files, the
 release pipelines, or the schema-bootstrap implementation — those live
-with their respective owners (`deploy/`, `.github/workflows/`,
-`go/cmd/bootstrap-data-plane`). After the cutover, the runtime contract
-tests in `go/internal/runtime` repoint at the published eshu-deploy
-artifact versions.
+with their respective owners (`eshu-hq/eshu-deploy`,
+`.github/workflows/`, `go/cmd/bootstrap-data-plane`). After the
+in-tree removal, the record-prose tests pin the frozen evidence and the
+boundary test reads the chart from the pinned eshu-deploy checkout
+(`ESHU_DEPLOY_CHECKOUT`); the runtime contract tests in
+`go/internal/runtime` repoint at the same checkout.
 
 ## Exported surface
 
@@ -40,9 +43,13 @@ output.
 
 ## Gotchas / invariants
 
-- Every count in the census `## Counts` section is parsed as
-  `- <label>: <N>` and compared against the tree; keep that line shape
-  exact and keep other list lines away from it.
+- The census `## Counts` section is frozen extraction evidence, not a
+  live tree assertion: `TestExtractionCensusRecordNamesSourceFamilies`
+  pins the record's prose with `strings.Contains` checks (source
+  families plus the contract anchors), and the tree assertions that
+  counted the in-tree deploy surface were removed with that surface.
+  Keep the count lines as historical record; do not re-add tree
+  counting without restoring a checkout to count against.
 - The census file is a lockstep docs input: it is registered in
   `specs/ci-docs-lockstep-paths.txt`, `go/internal/cigates/docsset.go`,
   and the three workflow `lockstep` filters.
@@ -55,4 +62,4 @@ output.
 
 - `docs/internal/design/eshu-ecosystem-repository-migration.md`
 - `docs/public/deploy/kubernetes/runtime-parity-matrix.md`
-- `deploy/helm/eshu/README.md`
+- [eshu-deploy `helm/eshu/README.md`](https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/README.md) (moved out of this repo under #8871)

@@ -70,11 +70,11 @@ The Go code coverage badge links to an advisory package report. It is one signal
 | I want to... | Start here |
 | --- | --- |
 | Get one successful local run and first answer | [First successful run](docs/public/getting-started/first-successful-run.md) |
-| Try the full API and MCP service stack on my laptop | [Docker Compose](docs/public/run-locally/docker-compose.md) |
+| Try the full API and MCP service stack on my laptop | [Docker Compose](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/run-locally/docker-compose.md) |
 | Develop Eshu or run one local workspace service | [Local binaries](docs/public/run-locally/local-binaries.md) |
 | Connect Codex, Claude, Cursor, or VS Code | [Connect MCP](docs/public/mcp/index.md) |
-| Deploy Eshu as a shared team service | [Kubernetes deployment](docs/public/deploy/kubernetes/index.md) |
-| Deploy on EKS | [EKS deployment](docs/public/deploy/eks/index.md) |
+| Deploy Eshu as a shared team service | [Kubernetes deployment](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/index.md) |
+| Deploy on EKS | [EKS deployment](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/eks/index.md) |
 | Monitor, debug, or tune a deployment | [Operate Eshu](docs/public/operate/index.md) |
 | Code on Eshu with an AI agent | [Code with agents](docs/public/guides/coding-with-agents.md) |
 | Understand the architecture | [How Eshu works](docs/public/concepts/how-it-works.md) |
@@ -100,7 +100,7 @@ The full documentation is organized by job:
 
 - [Use Eshu](docs/public/use/index.md): index repositories and ask code or
   infrastructure questions.
-- [Deploy Eshu](docs/public/deploy/kubernetes/index.md): install the shared
+- [Deploy Eshu](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/index.md): install the shared
   service with Helm or follow the EKS runbook.
 - [Operate Eshu](docs/public/operate/index.md): health checks, telemetry, and
   troubleshooting.
@@ -130,8 +130,8 @@ The full documentation is organized by job:
 | Path | Purpose |
 | --- | --- |
 | [go/](go/) | Go module for the CLI, API, MCP server, ingester, reducer, collectors, storage, parser, and query code. |
-| [deploy/helm/eshu/](deploy/helm/eshu/) | Public split-service Helm chart. |
-| [deploy/observability/](deploy/observability/) | Prometheus alert rules and local OpenTelemetry Collector config. |
+| [helm/eshu/](https://github.com/eshu-hq/eshu-deploy/tree/main/helm/eshu) | Public split-service Helm chart (eshu-deploy repo). |
+| [observability/](https://github.com/eshu-hq/eshu-deploy/tree/main/observability) | Prometheus alert rules and local OpenTelemetry Collector config (eshu-deploy repo). |
 | [apps/console/](apps/console/) | Private read-only product console for Eshu graph data. |
 | [docs/public/](docs/public/) | MkDocs source for the public documentation site. |
 

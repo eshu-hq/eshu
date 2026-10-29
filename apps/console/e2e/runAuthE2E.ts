@@ -2,8 +2,10 @@
 //
 // Drives a REAL browser through the console's first-run setup wizard and
 // the require_sso guardrail against a freshly booted, zero-corpus
-// docker-compose.e2e.yaml stack (see that file and
-// docs/public/run-locally/docker-compose.md#sso-auth-e2e-stack). Unlike
+// docker-compose.e2e.yaml stack (compose/docker-compose.e2e.yaml under
+// $ESHU_DEPLOY_CHECKOUT, moved there under #8871; see
+// https://github.com/eshu-hq/eshu-deploy/blob/main/docs/run-locally/docker-compose.md#sso-auth-e2e-stack).
+// Unlike
 // e2e/runConsoleLiveE2E.ts (pre-shared API key against a corpus-bearing
 // stack), this authenticates like a real first-boot operator: no local
 // identities exist yet, so it recovers the one-time admin credential from

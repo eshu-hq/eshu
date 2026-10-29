@@ -88,7 +88,11 @@ require_tool jq
 require_tool rg
 
 if docker compose version >/dev/null 2>&1; then
-	COMPOSE_CMD=(docker compose -p "$COMPOSE_PROJECT" -f docker-compose.yaml)
+	# Compose files moved to eshu-deploy under #8871: resolve the stack through
+	# ESHU_DEPLOY_CHECKOUT (CI pins the extraction commit), failing closed.
+	: "${ESHU_DEPLOY_CHECKOUT:?ESHU_DEPLOY_CHECKOUT must point at an eshu-hq/eshu-deploy checkout; the gate workflow checks it out at the pinned extraction commit}"
+	DEPLOY_COMPOSE="${ESHU_DEPLOY_CHECKOUT}/compose"
+	COMPOSE_CMD=(docker compose -p "$COMPOSE_PROJECT" -f "${DEPLOY_COMPOSE}/docker-compose.yaml")
 else
 	echo "docker compose is required" >&2
 	exit 1

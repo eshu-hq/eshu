@@ -15,29 +15,24 @@ gate_commands_are_mirrored() {
 
 # run_remote_validation_k8s_case proves that Kubernetes proof scripts and
 # fixtures select the remote-validation gate identically in the registry and
-# workflow, and that the gate runs both provenance verifier self-tests.
+# workflow, and that the gate runs the verifier self-test. (The provenance
+# capture script moved to eshu-deploy with #8871, so the gate test_command no
+# longer requires it; only the surviving verifier test is mirrored here.)
 run_remote_validation_k8s_case() {
 	local repo_root="$1" registry="$2" registry_gate="$3"
 	local workflow_filter="$4" workflow_gate="$5"
 	local script_trigger='scripts/**/*k8s*.sh'
 	local fixture_trigger='tests/fixtures/governance_k8s_two_team_proof/**'
 	local verifier_test='bash scripts/test-verify-k8s-two-team-governance-proof.sh'
-	local provenance_test='bash scripts/test-k8s-two-team-governance-provenance.sh'
 	local selection trigger representative fixture
 
 	if gate_commands_are_mirrored "${registry_gate}" "${workflow_gate}" \
-		"${verifier_test}" "${provenance_test}" &&
-		! gate_commands_are_mirrored "${provenance_test}" \
-			"${verifier_test} ${provenance_test}" "${verifier_test}" "${provenance_test}" &&
-		! gate_commands_are_mirrored "${verifier_test}" \
-			"${verifier_test} ${provenance_test}" "${verifier_test}" "${provenance_test}" &&
-		! gate_commands_are_mirrored "${verifier_test} ${provenance_test}" \
-			"${provenance_test}" "${verifier_test}" "${provenance_test}" &&
-		! gate_commands_are_mirrored "${verifier_test} ${provenance_test}" \
-			"${verifier_test}" "${verifier_test}" "${provenance_test}"; then
-		record_pass "Kubernetes governance verifier and provenance capture tests run locally and in CI"
+		"${verifier_test}" &&
+		! gate_commands_are_mirrored "no k8s proof command here" \
+			"nor here" "${verifier_test}"; then
+		record_pass "Kubernetes governance verifier test runs locally and in CI"
 	else
-		record_fail "Kubernetes governance verifier and provenance capture tests run locally and in CI"
+		record_fail "Kubernetes governance verifier test runs locally and in CI"
 	fi
 	if printf '%s\n' "${registry_gate}" |
 		rg --fixed-strings "      - \"${fixture_trigger}\"" >/dev/null &&

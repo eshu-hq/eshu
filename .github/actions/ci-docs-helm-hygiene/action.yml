@@ -34,21 +34,10 @@ runs:
       shell: bash
       run: |
         scripts/test-issue-6184-gate-labelling.sh
-    - name: Set up Helm
-      if: ${{ inputs.mode != 'smoke' }}
-      uses: azure/setup-helm@v5.0.0
-      with:
-        version: v4.2.3
-    - name: Lint Helm chart
-      if: ${{ inputs.mode != 'smoke' }}
-      shell: bash
-      run: helm lint deploy/helm/eshu
-    - name: Verify bundled NornicDB storage example
-      if: ${{ inputs.mode != 'smoke' }}
-      shell: bash
-      run: |
-        scripts/test-verify-storage-doc-bundled-nornicdb-example.sh
-        scripts/verify-storage-doc-bundled-nornicdb-example.sh
+    # Helm chart lint and the bundled NornicDB storage-example check moved to
+    # eshu-deploy under #8871 (dest charts lane lints the chart; the storage
+    # verifier lives at $ESHU_DEPLOY_CHECKOUT/scripts/). This action keeps
+    # only the checks that assert in-tree docs.
     - name: Verify changed docs contract in smoke
       if: ${{ inputs.mode == 'smoke' && contains(fromJSON(inputs.gates), 'docs-build-changed') }}
       shell: bash

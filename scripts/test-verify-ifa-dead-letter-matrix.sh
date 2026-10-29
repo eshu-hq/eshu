@@ -251,11 +251,11 @@ done
 # dumps no logs, and tears nothing down.
 for needle in \
 	'DETERMINISM_COMPOSE_PROJECT: eshu-ifa-determinism-${{ github.run_id }}-${{ github.run_attempt }}' \
-	'run: bash scripts/ci/compose.sh -p "${DETERMINISM_COMPOSE_PROJECT}" -f docker-compose.yaml -- logs --tail=200 || true' \
-	'run: bash scripts/ci/compose.sh -p "${DETERMINISM_COMPOSE_PROJECT}" -f docker-compose.yaml -- down -v || true' \
+	'run: bash scripts/ci/compose.sh -p "${DETERMINISM_COMPOSE_PROJECT}" -f eshu-deploy/compose/docker-compose.yaml -- logs --tail=200 || true' \
+	'run: bash scripts/ci/compose.sh -p "${DETERMINISM_COMPOSE_PROJECT}" -f eshu-deploy/compose/docker-compose.yaml -- down -v || true' \
 	'DEADLETTER_MATRIX_COMPOSE_PROJECT: eshu-ifa-deadletter-matrix-${{ github.run_id }}-${{ github.run_attempt }}' \
-	'run: bash scripts/ci/compose.sh -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f docker-compose.yaml -- logs --tail=200 || true' \
-	'run: bash scripts/ci/compose.sh -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f docker-compose.yaml -- down -v || true'; do
+	'run: bash scripts/ci/compose.sh -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f eshu-deploy/compose/docker-compose.yaml -- logs --tail=200 || true' \
+	'run: bash scripts/ci/compose.sh -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f eshu-deploy/compose/docker-compose.yaml -- down -v || true'; do
 	rg --fixed-strings --quiet -- "${needle}" "${workflow}" \
 		|| fail "matrix workflow does not address the kept compose project: ${needle}"
 done

@@ -259,7 +259,7 @@ proves `ci_cd_run.observe`, `ci_cd_run.fetch`,
 run, artifact, URL, or token labels.
 
 Collector Deployment Evidence: `go test ./internal/runtime -run
-TestHelmCICDRunCollectorDeployment -count=1` and `helm lint deploy/helm/eshu`
+TestHelmCICDRunCollectorDeployment -count=1` and `helm lint $ESHU_DEPLOY_CHECKOUT/helm/eshu`
 prove the hosted `eshu-collector-cicd-run` Deployment, metrics Service,
 ServiceMonitor, NetworkPolicy, and PodDisruptionBudget render only when the
 matching claim-driven `ci_cd_run` collector instance is enabled.

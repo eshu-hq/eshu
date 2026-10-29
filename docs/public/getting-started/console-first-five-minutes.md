@@ -36,7 +36,7 @@ docker compose up --build
 ```
 
 This starts the default stack described in
-[Docker Compose](../run-locally/docker-compose.md): NornicDB, Postgres, schema
+[Docker Compose](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/run-locally/docker-compose.md): NornicDB, Postgres, schema
 migration, workspace setup, bootstrap indexing, the HTTP API on
 `http://localhost:8080`, the MCP service on `http://localhost:8081`, the
 ingester, and the reducer. Leave this terminal running.
@@ -232,7 +232,7 @@ directly.
 
 ## Related docs
 
-- [Docker Compose](../run-locally/docker-compose.md) — full service table and
+- [Docker Compose](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/run-locally/docker-compose.md) — full service table and
   bootstrap admin credential background.
 - [Environment Variable Reference](../reference/env-registry.md) — every
   `ESHU_ADMIN_*` and `ESHU_AUTH_*` variable with its default.
@@ -240,7 +240,7 @@ directly.
   modes, tokens, roles, and audit beyond first-run setup.
 - [HTTP API Reference](../reference/http-api.md) — the full `/api/v0/auth/*`
   route table.
-- [Helm chart README](https://github.com/eshu-hq/eshu/blob/main/deploy/helm/eshu/README.md)
+- [Helm chart README](https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/README.md)
   — mounting `ESHU_AUTH_SECRET_ENC_KEY_FILE` and
   `ESHU_ADMIN_USERNAME`/`ESHU_ADMIN_PASSWORD_FILE` as Kubernetes Secrets for a
   production deployment.

@@ -76,7 +76,12 @@ cd "${repo_root}"
 : "${GATE_LATENCY_REPORT:=}"
 : "${GATE_STATUS_DIAGNOSTIC_DIR:=}"
 
-stack_dir="${GATE_STACK_DIR:-${repo_root}}"
+# Backend stacks moved to eshu-deploy under #8871: the base Compose file
+# and the latency overlay both come from the ESHU_DEPLOY_CHECKOUT checkout
+# (CI pins the extraction commit). GATE_STACK_DIR still overrides the base
+# file for local candidate-fix measurement.
+: "${ESHU_DEPLOY_CHECKOUT:?ESHU_DEPLOY_CHECKOUT must point at an eshu-hq/eshu-deploy checkout; the gate workflow checks it out at the pinned extraction commit}"
+stack_dir="${GATE_STACK_DIR:-${ESHU_DEPLOY_CHECKOUT}/compose}"
 compose_file="${stack_dir}/docker-compose.yaml"
 database="nornic"
 if [[ "${ESHU_GRAPH_BACKEND}" == "neo4j" ]]; then
@@ -88,7 +93,7 @@ fi
 # per-route Postgres work. It is passed on EVERY compose call below (up, logs,
 # down): a call without it recomputes a different postgres config and recreates
 # the running container mid-run (same failure class as the port env vars above).
-compose_args=(-p "${GATE_COMPOSE_PROJECT}" -f "${compose_file}" -f "${repo_root}/docker-compose.read-api-latency-gate.yaml")
+compose_args=(-p "${GATE_COMPOSE_PROJECT}" -f "${compose_file}" -f "${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.read-api-latency-gate.yaml")
 
 use_compose=1
 keep=0

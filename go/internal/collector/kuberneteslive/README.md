@@ -178,13 +178,14 @@ completion logs. Fake-client tests exercise the resources-listed, facts-emitted,
 warning, and partial paths.
 
 Collector Deployment Evidence: this foundation ships the binary and its build
-registration in `scripts/install-local-binaries.sh`. The Helm chart now wires the
-collector — `deploy/helm/eshu/templates/deployment-kubernetes-live-collector.yaml`,
+registration in `scripts/install-local-binaries.sh`. The Helm chart (in the
+eshu-deploy checkout, `$ESHU_DEPLOY_CHECKOUT`) now wires the
+collector — `helm/eshu/templates/deployment-kubernetes-live-collector.yaml`,
 `service-kubernetes-live-collector-metrics.yaml`,
 `rbac-kubernetes-live-collector.yaml`, and the ServiceMonitor entry in
-`deploy/helm/eshu/templates/servicemonitor.yaml` — but the entire lane is gated
+`helm/eshu/templates/servicemonitor.yaml` — but the entire lane is gated
 off by default behind `kubernetesLiveCollector.enabled: false`
-(`deploy/helm/eshu/values.yaml`), so an operator must explicitly opt in. The
+(`helm/eshu/values.yaml`), so an operator must explicitly opt in. The
 metrics Service additionally requires `observability.prometheus.enabled` (it is
 gated on both flags). The ServiceMonitor entry's own `if` reads as gated only on
 `kubernetesLiveCollector.enabled`, but `servicemonitor.yaml` opens with a
@@ -195,9 +196,9 @@ this one included — already requires `observability.prometheus.enabled` (and
 `observability.prometheus.serviceMonitor.enabled`) before its own flag is even
 consulted. The ServiceMonitor therefore cannot render without the metrics
 Service also existing; see
-`TestHelmKubernetesLiveCollectorServiceMonitorGatingMatchesService` in
-`go/internal/runtime/helm_live_collectors_contract_test.go` for the regression
-proof. The in-cluster RBAC additionally requires `kubernetesLiveCollector.rbac.create`.
+`TestHelmKubernetesLiveCollectorServiceMonitorGatingMatchesService`
+(run from an `ESHU_DEPLOY_CHECKOUT` checkout, helm live-collectors contract
+suite) for the regression proof. The in-cluster RBAC additionally requires `kubernetesLiveCollector.rbac.create`.
 It is still NOT added to any Compose service. Per the readiness doc, the
 claim-driven deployed lane remains deferred until the claim runtime, status
 path, and proof exist (#388 follow-ups). The reducer `kubernetes_correlation`

@@ -112,7 +112,7 @@ test_ifa_fault_failure_artifact_contract() {
 	fi
 	rg --fixed-strings --quiet -- 'FAULT_COMPOSE_PROJECT: eshu-ifa-fault-injection-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}' "${workflow}" \
 		|| fail "fault job does not pin a stable per-shard Compose project"
-	rg --fixed-strings --quiet -- 'bash scripts/ci/compose.sh -p "${FAULT_COMPOSE_PROJECT}" -f docker-compose.yaml -- down -v' "${workflow}" \
+	rg --fixed-strings --quiet -- 'bash scripts/ci/compose.sh -p "${FAULT_COMPOSE_PROJECT}" -f eshu-deploy/compose/docker-compose.yaml -- down -v' "${workflow}" \
 		|| fail "workflow teardown does not target the retained fault stack"
 	rg --fixed-strings --quiet -- 'name: Verify fault-injection diagnostic completeness' "${workflow}" \
 		|| fail "workflow does not fail closed when diagnostic collection is incomplete"

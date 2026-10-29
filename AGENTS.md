@@ -269,7 +269,7 @@ Read the doc that matches the change, not every doc for every change:
   [Telemetry](docs/public/reference/telemetry/index.md).
 - Pipeline stages or ownership boundaries:
   [Architecture](docs/public/architecture.md).
-- Docker Compose: [Docker Compose](docs/public/run-locally/docker-compose.md).
+- Docker Compose: [Docker Compose](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/run-locally/docker-compose.md).
 - Hot-path Cypher, graph writes, query handlers, reducer projection,
   materialization, or schema DDL:
   [Cypher Performance](docs/public/reference/cypher-performance.md).

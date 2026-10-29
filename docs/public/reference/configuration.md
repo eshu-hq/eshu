@@ -12,8 +12,8 @@ environment-variable catalog. For runtime knobs, use
 | Tune API, MCP, ingester, reducer, collectors, Postgres, Bolt, OTEL, pprof, or worker counts | [Environment Variables](environment-variables.md) |
 | Install or rebuild local binaries from source | [Local Binaries](../run-locally/local-binaries.md) |
 | Choose embedded or process-mode NornicDB locally | [Graph Backend Installation](graph-backend-installation.md) |
-| Configure Docker Compose services and ports | [Docker Compose](../run-locally/docker-compose.md) |
-| Configure Kubernetes values | [Helm Values](../deploy/kubernetes/helm-values.md) |
+| Configure Docker Compose services and ports | [Docker Compose](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/run-locally/docker-compose.md) |
+| Configure Kubernetes values | [Helm Values](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/helm-values.md) |
 | Exclude repository-local files from indexing | [.eshuignore](eshuignore.md) and [Discovery Advisory](local-testing/discovery-advisory.md) |
 | Verify changes before merge | [Local Testing](local-testing.md) |
 

@@ -105,11 +105,12 @@ cd "${repo_root}"; export GIT_TRACE2_EVENT=0 GIT_TRACE2_PERF=0 # #8673: keep fix
 : "${GATE_COLLECTOR_SETTLE_SECONDS:=90}"
 : "${GATE_COLLECTOR_SETTLE_POLL_SECONDS:=2}"
 
-compose_file="docker-compose.yaml"
+# Deploy lanes moved to eshu-deploy (#8871): Compose files come from the checkout (extraction pin in the gate workflow).
+compose_file="${ESHU_DEPLOY_CHECKOUT:?set ESHU_DEPLOY_CHECKOUT to an eshu-deploy checkout}/compose/docker-compose.yaml"
 graph_service="nornicdb"
 database="nornic"
 if [[ "${ESHU_GRAPH_BACKEND}" == "neo4j" ]]; then
-	compose_file="docker-compose.neo4j.yml"
+	compose_file="${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.neo4j.yml"
 	graph_service="neo4j"
 	database="neo4j"
 fi

@@ -21,7 +21,7 @@ func TestNornicDBComposeDefaultPinsPublishedImage(t *testing.T) {
 	if want := "${NORNICDB_IMAGE:-" + nornicDBPinnedImage + "}"; service.Image != want {
 		t.Fatalf("nornicdb image = %q, want immutable pinned default %q", service.Image, want)
 	}
-	content := readRepositoryFile(t, "../../..", "docker-compose.yaml")
+	content := readRepositoryFile(t, deployCheckoutRoot(t), "compose/docker-compose.yaml")
 	if want := "pull_policy: ${NORNICDB_PULL_POLICY:-missing}"; !strings.Contains(content, want) {
 		t.Fatalf("nornicdb service missing cache-safe immutable pull policy %q", want)
 	}
@@ -39,7 +39,7 @@ func TestNornicDBComposeDefaultPinsPublishedImage(t *testing.T) {
 func TestNornicDBComposeDocumentsImageAndPullPolicyOverrides(t *testing.T) {
 	t.Parallel()
 
-	docs := readRepositoryFile(t, "../../..", "docs/public/run-locally/docker-compose.md")
+	docs := readRepositoryFile(t, deployCheckoutRoot(t), "docs/run-locally/docker-compose.md")
 	docs = strings.Join(strings.Fields(docs), " ")
 	for _, want := range []string{
 		"NORNICDB_IMAGE",
@@ -94,17 +94,19 @@ func TestNornicDBComposeDefaultsToFreshV132FormatGraphVolume(t *testing.T) {
 func TestNornicDBDefaultNoLongerCarriesSourceBuildControls(t *testing.T) {
 	t.Parallel()
 
-	for _, file := range []string{
-		"docker-compose.yaml",
-		"docs/public/run-locally/docker-compose.md",
-		".github/workflows/ifa-determinism-gate.yml",
-		".github/workflows/e2e-tests.yml",
-		".github/workflows/golden-corpus-gate.yml",
-		".github/workflows/frontend.yml",
+	for _, file := range []struct {
+		root, rel string
+	}{
+		{deployCheckoutRoot(t), "compose/docker-compose.yaml"},
+		{deployCheckoutRoot(t), "docs/run-locally/docker-compose.md"},
+		{"../../..", ".github/workflows/ifa-determinism-gate.yml"},
+		{"../../..", ".github/workflows/e2e-tests.yml"},
+		{"../../..", ".github/workflows/golden-corpus-gate.yml"},
+		{"../../..", ".github/workflows/frontend.yml"},
 	} {
-		content := readRepositoryFile(t, "../../..", file)
+		content := readRepositoryFile(t, file.root, file.rel)
 		if strings.Contains(content, "NORNICDB_HEADLESS") {
-			t.Fatalf("%s still carries NORNICDB_HEADLESS after the default moved from a source build to a published image", file)
+			t.Fatalf("%s still carries NORNICDB_HEADLESS after the default moved from a source build to a published image", file.rel)
 		}
 	}
 }
@@ -112,7 +114,7 @@ func TestNornicDBDefaultNoLongerCarriesSourceBuildControls(t *testing.T) {
 func TestNornicDBComposeDisablesSearchIndexPersistence(t *testing.T) {
 	t.Parallel()
 
-	content := readRepositoryFile(t, "../../..", "docker-compose.yaml")
+	content := readRepositoryFile(t, deployCheckoutRoot(t), "compose/docker-compose.yaml")
 	want := `NORNICDB_PERSIST_SEARCH_INDEXES: "false"`
 	if !strings.Contains(content, want) {
 		t.Fatalf("docker-compose.yaml must not persist disabled NornicDB search indexes for graph-only startup, want %q", want)
@@ -122,7 +124,7 @@ func TestNornicDBComposeDisablesSearchIndexPersistence(t *testing.T) {
 func TestNornicDBComposeDisablesEmbeddingsByDefault(t *testing.T) {
 	t.Parallel()
 
-	content := readRepositoryFile(t, "../../..", "docker-compose.yaml")
+	content := readRepositoryFile(t, deployCheckoutRoot(t), "compose/docker-compose.yaml")
 	want := `NORNICDB_EMBEDDING_ENABLED: "false"`
 	if !strings.Contains(content, want) {
 		t.Fatalf("docker-compose.yaml must disable NornicDB embeddings for indexing by default, want %q", want)
@@ -152,7 +154,7 @@ func TestNornicDBComposeDisablesSearchIndexesByDefault(t *testing.T) {
 func TestNornicDBGraphOnlySearchStartupDocsTrackSupportedKnobs(t *testing.T) {
 	t.Parallel()
 
-	docs := readRepositoryFile(t, "../../..", "docs/public/run-locally/docker-compose.md")
+	docs := readRepositoryFile(t, deployCheckoutRoot(t), "docs/run-locally/docker-compose.md")
 	for _, want := range []string{
 		"NORNICDB_EMBEDDING_ENABLED=false",
 		"NORNICDB_PERSIST_SEARCH_INDEXES=false",
@@ -166,7 +168,7 @@ func TestNornicDBGraphOnlySearchStartupDocsTrackSupportedKnobs(t *testing.T) {
 		}
 	}
 
-	compose := readRepositoryFile(t, "../../..", "docker-compose.yaml")
+	compose := readRepositoryFile(t, deployCheckoutRoot(t), "compose/docker-compose.yaml")
 	if strings.Contains(compose, "NORNICDB_SEARCH_ENABLED") {
 		t.Fatal("docker-compose.yaml must not advertise unsupported NORNICDB_SEARCH_ENABLED")
 	}
@@ -252,16 +254,16 @@ var digestedImageRef = regexp.MustCompile(`^[^:@\s]+:[^@\s]+@sha256:[0-9a-f]{64}
 func TestHelmNornicDBImageMatchesReplayTierGate(t *testing.T) {
 	t.Parallel()
 
-	valuesYAML := readRepositoryFile(t, "../../..", "deploy/helm/eshu/values.yaml")
+	valuesYAML := readRepositoryFile(t, deployCheckoutRoot(t), "helm/eshu/values.yaml")
 	var values map[string]any
 	if err := yaml.Unmarshal([]byte(valuesYAML), &values); err != nil {
-		t.Fatalf("parse deploy/helm/eshu/values.yaml: %v", err)
+		t.Fatalf("parse helm/eshu/values.yaml: %v", err)
 	}
 	image := helmMap(helmMap(values["nornicdb"])["image"])
 	repository, _ := image["repository"].(string)
 	tag, _ := image["tag"].(string)
 	if repository == "" || tag == "" {
-		t.Fatalf("nornicdb.image.repository/tag missing from deploy/helm/eshu/values.yaml, got repository=%q tag=%q", repository, tag)
+		t.Fatalf("nornicdb.image.repository/tag missing from helm/eshu/values.yaml, got repository=%q tag=%q", repository, tag)
 	}
 	chartRef := repository + ":" + tag
 	if !digestedImageRef.MatchString(chartRef) {
@@ -274,7 +276,7 @@ func TestHelmNornicDBImageMatchesReplayTierGate(t *testing.T) {
 	compose := readComposeDocument(t, "docker-compose.yaml")
 	composeRef := strings.TrimSuffix(strings.TrimPrefix(requireComposeService(t, compose, "nornicdb").Image, "${NORNICDB_IMAGE:-"), "}")
 	if composeRef != chartRef {
-		t.Fatalf("docker-compose.yaml defaults to %q but deploy/helm/eshu/values.yaml renders %q", composeRef, chartRef)
+		t.Fatalf("docker-compose.yaml defaults to %q but helm/eshu/values.yaml renders %q", composeRef, chartRef)
 	}
 
 	gateScript := readRepositoryFile(t, "../../..", "scripts/verify-replay-tier.sh")
@@ -283,7 +285,7 @@ func TestHelmNornicDBImageMatchesReplayTierGate(t *testing.T) {
 		t.Fatal("scripts/verify-replay-tier.sh has no NORNICDB_IMAGE=\"...\" assignment; the replay-tier lockstep assertion cannot be evaluated")
 	}
 	if gateRef := gateMatch[1]; gateRef != chartRef {
-		t.Fatalf("scripts/verify-replay-tier.sh runs %q but deploy/helm/eshu/values.yaml renders %q; the chart's image must be the artifact the R-5 replay gate exercises", gateRef, chartRef)
+		t.Fatalf("scripts/verify-replay-tier.sh runs %q but helm/eshu/values.yaml renders %q; the chart's image must be the artifact the R-5 replay gate exercises", gateRef, chartRef)
 	}
 
 	mirrorScript := readRepositoryFile(t, "../../..", "scripts/test-verify-replay-tier.sh")
@@ -292,20 +294,19 @@ func TestHelmNornicDBImageMatchesReplayTierGate(t *testing.T) {
 		t.Fatal("scripts/test-verify-replay-tier.sh no longer pins ^NORNICDB_IMAGE=\"...\"$; the gate's image pin has lost its mirror")
 	}
 	if mirrorRef := strings.ReplaceAll(mirrorMatch[1], `\.`, "."); mirrorRef != chartRef {
-		t.Fatalf("scripts/test-verify-replay-tier.sh pins %q but deploy/helm/eshu/values.yaml renders %q", mirrorRef, chartRef)
+		t.Fatalf("scripts/test-verify-replay-tier.sh pins %q but helm/eshu/values.yaml renders %q", mirrorRef, chartRef)
 	}
 
-	operatorDocs := readRepositoryFile(t, "../../..", "docs/public/deploy/kubernetes/helm-routing-and-storage-values.md")
+	operatorDocs := readRepositoryFile(t, deployCheckoutRoot(t), "docs/kubernetes/helm-routing-and-storage-values.md")
 	if !strings.Contains(operatorDocs, tag) {
-		t.Fatalf("docs/public/deploy/kubernetes/helm-routing-and-storage-values.md does not name the chart's nornicdb.image.tag %q, so operators read a stale pin", tag)
+		t.Fatalf("docs/kubernetes/helm-routing-and-storage-values.md does not name the chart's nornicdb.image.tag %q, so operators read a stale pin", tag)
 	}
 
-	governanceProof := readRepositoryFile(t, "../../..", "scripts/run-k8s-two-team-governance-proof.sh")
-	if !strings.Contains(governanceProof, `nornicdb_image="`+chartRef+`"`) {
-		t.Fatalf("scripts/run-k8s-two-team-governance-proof.sh does not deploy the lockstep NornicDB image %q", chartRef)
-	}
+	// The k8s two-team governance proof script moved to eshu-deploy with the
+	// chart; its lockstep-image assertion travels in the dest-repo change
+	// proposal, not here: the pinned checkout predates the proof's arrival.
 
-	governanceYAML := readRepositoryFile(t, "../../..", "deploy/helm/eshu/ci/governance-two-team-k8s.values.yaml")
+	governanceYAML := readRepositoryFile(t, deployCheckoutRoot(t), "helm/eshu/ci/governance-two-team-k8s.values.yaml")
 	var governanceValues map[string]any
 	if err := yaml.Unmarshal([]byte(governanceYAML), &governanceValues); err != nil {
 		t.Fatalf("parse governance-two-team-k8s.values.yaml: %v", err)

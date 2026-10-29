@@ -32,7 +32,6 @@ required_pages=(
   "tutorials/trace-vulnerable-dependency.md"
   "tutorials/ask-from-assistant.md"
   "tutorials/index-repositories.md"
-  "tutorials/deploy-kubernetes.md"
   "tutorials/debug-stale-answers.md"
   "use/index.md"
   "use/code-questions.md"

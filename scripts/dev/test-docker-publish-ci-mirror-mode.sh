@@ -68,9 +68,6 @@ expected_release_condition() {
     attach-release-sbom)
       release="(${guard}) && needs.changes.outputs.image == 'true' && github.ref_type == 'tag'"
       ;;
-    package-and-push-chart)
-      release="(${guard}) && needs.changes.outputs.chart == 'true'"
-      ;;
     *) fail "unknown release job: $1" ;;
   esac
   printf '    if: ${{ (github.event_name != '\''pull_request'\'' || contains(fromJSON(inputs.plan_jobs || '\''[]'\''), '\''%s'\'')) && (%s) }}\n' "$1" "${release}"
@@ -82,9 +79,11 @@ rg -q '^        default: release$' "${workflow}" || fail 'normal dispatch defaul
 # An added job cannot silently bypass the mirror-mode partition: a new
 # publish job joins the partition only with the exact guarded release
 # fence asserted below.
+# The chart lane (package-and-push-chart) moved to eshu-deploy's
+# chart-release.yml under #8871; it is no longer part of this partition.
 expected_jobs="$(printf '%s\n' changes verify-apk-floors build-and-push-image \
   build-and-push-scanner-images promote-moving-tags verify-reproducibility \
-  attach-release-sbom package-and-push-chart publish-ci-service-mirrors \
+  attach-release-sbom publish-ci-service-mirrors \
   verify-public-ci-service-mirrors | LC_ALL=C sort)"
 actual_jobs="$(awk '
   /^jobs:$/ { in_jobs = 1; next }
@@ -101,7 +100,7 @@ actual_jobs="$(awk '
 
 for job in changes verify-apk-floors build-and-push-image \
   build-and-push-scanner-images promote-moving-tags \
-  verify-reproducibility attach-release-sbom package-and-push-chart; do
+  verify-reproducibility attach-release-sbom; do
   condition="$(job_condition "${job}")"
   [[ "${condition}" == "$(expected_release_condition "${job}")" ]] ||
     fail "${job} release condition differs from its guarded exact shape"

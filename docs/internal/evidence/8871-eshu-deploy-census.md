@@ -36,8 +36,10 @@ Count locations, in order: files directly under
 under `deploy/manifests`; files directly under `deploy/observability`;
 files directly under `deploy/grafana/dashboards`; all files under
 `docs/public/deploy`; files directly under `docs/public/run-locally`.
-`go/internal/deploy/extraction_census_test.go` pins every line above to the
-tree.
+`go/internal/deploy/extraction_census_test.go` pins the families and
+contract anchors named above as prose; the counts themselves are frozen
+extraction evidence (the in-tree surface they counted was removed under
+#8871).
 
 ## Helm family (`deploy/helm/eshu`)
 

@@ -60,22 +60,22 @@ freshness, and effective target, rule, log-signal, or trace-signal metadata.
 
 | Runtime | Collector kind | Work source | Command | Helm template |
 | --- | --- | --- | --- | --- |
-| OCI Registry Collector | `oci_registry` | explicit registry targets; runtime also supports claim-aware mode | `/usr/local/bin/eshu-collector-oci-registry` | `deploy/helm/eshu/templates/deployment-oci-registry-collector.yaml` |
-| GCP Cloud Collector | `gcp` | workflow claims for configured Cloud Asset Inventory scopes | `/usr/local/bin/eshu-collector-gcp-cloud` | `deploy/helm/eshu/templates/deployment-gcp-cloud-collector.yaml` |
-| Azure Cloud Collector | `azure` | workflow claims for configured Resource Graph scopes | `/usr/local/bin/eshu-collector-azure-cloud` | `deploy/helm/eshu/templates/deployment-azure-cloud-collector.yaml` |
-| Kubernetes Live Collector | `kubernetes_live` | configured read-only cluster targets (in-cluster or kubeconfig auth); not claim-driven | `/usr/local/bin/eshu-collector-kubernetes-live` | `deploy/helm/eshu/templates/deployment-kubernetes-live-collector.yaml` |
-| Vault Live Collector | `vault_live` | workflow claims for configured Vault cluster/namespace metadata targets | `/usr/local/bin/eshu-collector-vault-live` | `deploy/helm/eshu/templates/deployment-vault-live-collector.yaml` |
-| Package Registry Collector | `package_registry` | workflow claims for configured or derived package metadata targets | `/usr/local/bin/eshu-collector-package-registry` | `deploy/helm/eshu/templates/deployment-package-registry-collector.yaml` |
-| SBOM Attestation Collector | `sbom_attestation` | workflow claims for configured SBOM document URLs or OCI referrer documents | `/usr/local/bin/eshu-collector-sbom-attestation` | `deploy/helm/eshu/templates/deployment-sbom-attestation-collector.yaml` |
-| Security Alert Collector | `security_alert` | workflow claims for configured GitHub Dependabot repository-alert targets | `/usr/local/bin/eshu-collector-security-alerts` | `deploy/helm/eshu/templates/deployment-security-alert-collector.yaml` |
-| CI/CD Run Collector | `ci_cd_run` | workflow claims for configured GitHub Actions repository run targets | `/usr/local/bin/eshu-collector-cicd-run` | `deploy/helm/eshu/templates/deployment-cicd-run-collector.yaml` |
-| PagerDuty Collector | `pagerduty` | workflow claims for configured PagerDuty account or service-allowlist targets | `/usr/local/bin/eshu-collector-pagerduty` | `deploy/helm/eshu/templates/deployment-pagerduty-collector.yaml` |
-| Grafana Collector | `grafana` | workflow claims for configured live Grafana API targets | `/usr/local/bin/eshu-collector-grafana` | `deploy/helm/eshu/templates/deployment-grafana-collector.yaml` |
-| Prometheus/Mimir Collector | `prometheus_mimir` | workflow claims for configured live Prometheus or Mimir API targets | `/usr/local/bin/eshu-collector-prometheus-mimir` | `deploy/helm/eshu/templates/deployment-prometheus-mimir-collector.yaml` |
-| Tempo Collector (satellite) | `tempo` | workflow claims for configured Tempo query-frontend metadata targets; runs on the monolith host image as a component-extension worker, seeded from the digest-pinned satellite image, not the monolith collector binary | `/usr/local/bin/eshu-collector-component-extension` | `deploy/helm/eshu/templates/deployment-tempo-collector.yaml` |
-| Scanner Worker | `scanner_worker` | workflow claims for CPU-heavy or memory-heavy security analyzer targets | `/usr/local/bin/eshu-scanner-worker` | `deploy/helm/eshu/templates/deployment-scanner-worker.yaml` |
-| Vulnerability Intelligence Collector | `vulnerability_intelligence` | workflow claims for bounded vulnerability source targets (CISA KEV, FIRST EPSS, NVD windows, OSV queries, GitLab Gemnasium, GHSA) or derived owned-package targets | `/usr/local/bin/eshu-collector-vulnerability-intelligence` | `deploy/helm/eshu/templates/deployment-vulnerability-intelligence-collector.yaml` |
-| Component Extension Collector | manifest-declared collector kind | workflow claims for verified, claim-capable process-adapter component activations | `/usr/local/bin/eshu-collector-component-extension` | `deploy/helm/eshu/templates/deployment-component-extension-collector.yaml` |
+| OCI Registry Collector | `oci_registry` | explicit registry targets; runtime also supports claim-aware mode | `/usr/local/bin/eshu-collector-oci-registry` | `https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/templates/deployment-oci-registry-collector.yaml` |
+| GCP Cloud Collector | `gcp` | workflow claims for configured Cloud Asset Inventory scopes | `/usr/local/bin/eshu-collector-gcp-cloud` | `https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/templates/deployment-gcp-cloud-collector.yaml` |
+| Azure Cloud Collector | `azure` | workflow claims for configured Resource Graph scopes | `/usr/local/bin/eshu-collector-azure-cloud` | `https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/templates/deployment-azure-cloud-collector.yaml` |
+| Kubernetes Live Collector | `kubernetes_live` | configured read-only cluster targets (in-cluster or kubeconfig auth); not claim-driven | `/usr/local/bin/eshu-collector-kubernetes-live` | `https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/templates/deployment-kubernetes-live-collector.yaml` |
+| Vault Live Collector | `vault_live` | workflow claims for configured Vault cluster/namespace metadata targets | `/usr/local/bin/eshu-collector-vault-live` | `https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/templates/deployment-vault-live-collector.yaml` |
+| Package Registry Collector | `package_registry` | workflow claims for configured or derived package metadata targets | `/usr/local/bin/eshu-collector-package-registry` | `https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/templates/deployment-package-registry-collector.yaml` |
+| SBOM Attestation Collector | `sbom_attestation` | workflow claims for configured SBOM document URLs or OCI referrer documents | `/usr/local/bin/eshu-collector-sbom-attestation` | `https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/templates/deployment-sbom-attestation-collector.yaml` |
+| Security Alert Collector | `security_alert` | workflow claims for configured GitHub Dependabot repository-alert targets | `/usr/local/bin/eshu-collector-security-alerts` | `https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/templates/deployment-security-alert-collector.yaml` |
+| CI/CD Run Collector | `ci_cd_run` | workflow claims for configured GitHub Actions repository run targets | `/usr/local/bin/eshu-collector-cicd-run` | `https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/templates/deployment-cicd-run-collector.yaml` |
+| PagerDuty Collector | `pagerduty` | workflow claims for configured PagerDuty account or service-allowlist targets | `/usr/local/bin/eshu-collector-pagerduty` | `https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/templates/deployment-pagerduty-collector.yaml` |
+| Grafana Collector | `grafana` | workflow claims for configured live Grafana API targets | `/usr/local/bin/eshu-collector-grafana` | `https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/templates/deployment-grafana-collector.yaml` |
+| Prometheus/Mimir Collector | `prometheus_mimir` | workflow claims for configured live Prometheus or Mimir API targets | `/usr/local/bin/eshu-collector-prometheus-mimir` | `https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/templates/deployment-prometheus-mimir-collector.yaml` |
+| Tempo Collector (satellite) | `tempo` | workflow claims for configured Tempo query-frontend metadata targets; runs on the monolith host image as a component-extension worker, seeded from the digest-pinned satellite image, not the monolith collector binary | `/usr/local/bin/eshu-collector-component-extension` | `https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/templates/deployment-tempo-collector.yaml` |
+| Scanner Worker | `scanner_worker` | workflow claims for CPU-heavy or memory-heavy security analyzer targets | `/usr/local/bin/eshu-scanner-worker` | `https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/templates/deployment-scanner-worker.yaml` |
+| Vulnerability Intelligence Collector | `vulnerability_intelligence` | workflow claims for bounded vulnerability source targets (CISA KEV, FIRST EPSS, NVD windows, OSV queries, GitLab Gemnasium, GHSA) or derived owned-package targets | `/usr/local/bin/eshu-collector-vulnerability-intelligence` | `https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/templates/deployment-vulnerability-intelligence-collector.yaml` |
+| Component Extension Collector | manifest-declared collector kind | workflow claims for verified, claim-capable process-adapter component activations | `/usr/local/bin/eshu-collector-component-extension` | `https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/templates/deployment-component-extension-collector.yaml` |
 
 All hosted collector runtimes expose `/healthz`, `/readyz`, `/metrics`, and
 `/admin/status` through the shared runtime admin surface.
@@ -229,20 +229,20 @@ bootstrap-index are excluded because they are not steady-state services.
 
 The collector metrics services live under:
 
-- `deploy/helm/eshu/templates/service-confluence-collector-metrics.yaml`
-- `deploy/helm/eshu/templates/service-oci-registry-collector-metrics.yaml`
-- `deploy/helm/eshu/templates/service-terraform-state-collector-metrics.yaml`
-- `deploy/helm/eshu/templates/service-aws-cloud-collector-metrics.yaml`
-- `deploy/helm/eshu/templates/service-gcp-cloud-collector-metrics.yaml`
-- `deploy/helm/eshu/templates/service-azure-cloud-collector-metrics.yaml`
-- `deploy/helm/eshu/templates/service-package-registry-collector-metrics.yaml`
-- `deploy/helm/eshu/templates/service-sbom-attestation-collector-metrics.yaml`
-- `deploy/helm/eshu/templates/service-security-alert-collector-metrics.yaml`
-- `deploy/helm/eshu/templates/service-pagerduty-collector-metrics.yaml`
-- `deploy/helm/eshu/templates/service-jira-collector-metrics.yaml`
-- `deploy/helm/eshu/templates/service-scanner-worker-metrics.yaml`
-- `deploy/helm/eshu/templates/service-vulnerability-intelligence-collector-metrics.yaml`
-- `deploy/helm/eshu/templates/service-component-extension-collector-metrics.yaml`
+- `https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/templates/service-confluence-collector-metrics.yaml`
+- `https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/templates/service-oci-registry-collector-metrics.yaml`
+- `https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/templates/service-terraform-state-collector-metrics.yaml`
+- `https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/templates/service-aws-cloud-collector-metrics.yaml`
+- `https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/templates/service-gcp-cloud-collector-metrics.yaml`
+- `https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/templates/service-azure-cloud-collector-metrics.yaml`
+- `https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/templates/service-package-registry-collector-metrics.yaml`
+- `https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/templates/service-sbom-attestation-collector-metrics.yaml`
+- `https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/templates/service-security-alert-collector-metrics.yaml`
+- `https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/templates/service-pagerduty-collector-metrics.yaml`
+- `https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/templates/service-jira-collector-metrics.yaml`
+- `https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/templates/service-scanner-worker-metrics.yaml`
+- `https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/templates/service-vulnerability-intelligence-collector-metrics.yaml`
+- `https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/templates/service-component-extension-collector-metrics.yaml`
 
 No-Regression Evidence: `go test ./internal/runtime -run 'TestHelmJiraCollectorDeployment' -count=1`
 proves the Jira collector stays opt-in by default, renders a claim-driven

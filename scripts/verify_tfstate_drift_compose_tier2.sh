@@ -109,7 +109,11 @@ require_compose
 
 # Always include the overlay. Authoring the overlay path once at the top keeps
 # the rest of the script from repeating the -f arguments on every invocation.
-COMPOSE_CMD+=(-f docker-compose.yaml -f docker-compose.tier2-tfstate.yaml)
+# Compose files moved to eshu-deploy under #8871: resolve the stack through
+# ESHU_DEPLOY_CHECKOUT (CI pins the extraction commit), failing closed.
+: "${ESHU_DEPLOY_CHECKOUT:?ESHU_DEPLOY_CHECKOUT must point at an eshu-hq/eshu-deploy checkout; the gate workflow checks it out at the pinned extraction commit}"
+DEPLOY_COMPOSE="${ESHU_DEPLOY_CHECKOUT}/compose"
+COMPOSE_CMD+=(-f "${DEPLOY_COMPOSE}/docker-compose.yaml" -f "${DEPLOY_COMPOSE}/docker-compose.tier2-tfstate.yaml")
 
 # -- port assignment ---------------------------------------------------------
 

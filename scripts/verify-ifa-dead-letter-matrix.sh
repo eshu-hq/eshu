@@ -88,7 +88,11 @@ export NEO4J_HTTP_PORT="${NEO4J_HTTP_PORT:-7681}"
 : "${ESHU_NEO4J_PASSWORD:=change-me}"
 : "${DEADLETTER_MATRIX_DRAIN_TIMEOUT_SECONDS:=180}"
 
-compose_file="docker-compose.yaml"
+# Deploy lanes moved to eshu-deploy under #8871: the Compose file comes
+# from the ESHU_DEPLOY_CHECKOUT checkout (CI pins the extraction commit).
+: "${ESHU_DEPLOY_CHECKOUT:?ESHU_DEPLOY_CHECKOUT must point at an eshu-hq/eshu-deploy checkout; the gate workflow checks it out at the pinned extraction commit}"
+compose_file="${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.yaml"
+[[ -f "${compose_file}" ]] || { printf 'verify-ifa-dead-letter-matrix: compose file %s missing from ESHU_DEPLOY_CHECKOUT=%s\n' "${compose_file}" "${ESHU_DEPLOY_CHECKOUT}" >&2; exit 1; }
 source_cassette="${repo_root}/testdata/cassettes/gcpcloud/supply-chain-demo.json"
 worker_counts=(1 2 4)
 

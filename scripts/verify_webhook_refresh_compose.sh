@@ -293,8 +293,12 @@ else
 	echo "Missing required compose command: docker compose or docker-compose" >&2
 	exit 1
 fi
-COMPOSE_CMD+=(--profile webhook-listener)
-COMPOSE_DISPLAY="$COMPOSE_DISPLAY --profile webhook-listener"
+# Compose files moved to eshu-deploy under #8871: resolve the stack through
+# ESHU_DEPLOY_CHECKOUT (CI pins the extraction commit), failing closed.
+: "${ESHU_DEPLOY_CHECKOUT:?ESHU_DEPLOY_CHECKOUT must point at an eshu-hq/eshu-deploy checkout; the gate workflow checks it out at the pinned extraction commit}"
+DEPLOY_COMPOSE="${ESHU_DEPLOY_CHECKOUT}/compose"
+COMPOSE_CMD+=(-f "${DEPLOY_COMPOSE}/docker-compose.yaml" --profile webhook-listener)
+COMPOSE_DISPLAY="$COMPOSE_DISPLAY -f ${DEPLOY_COMPOSE}/docker-compose.yaml --profile webhook-listener"
 
 cd "$REPO_ROOT"
 

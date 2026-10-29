@@ -66,8 +66,8 @@ overlay_path="${ESHU_CI_COMPOSE_OVERLAY}"
 [[ "$(stat -c %a "${ESHU_CI_COMPOSE_OVERLAY}" 2>/dev/null || stat -f %Lp "${ESHU_CI_COMPOSE_OVERLAY}")" == "600" ]]
 bash scripts/ci/compose.sh -f docker-compose.yaml -- ps
 bash scripts/ci/compose.sh -f docker-compose.yaml -- exec -T postgres true
-rg --fixed-strings --quiet -- "-f docker-compose.yaml -f ${overlay_path} ps" "${FAKE_DOCKER_CALLS}"
-rg --fixed-strings --quiet -- "-f docker-compose.yaml -f ${overlay_path} exec -T postgres true" "${FAKE_DOCKER_CALLS}"
+rg --fixed-strings --quiet -- "--project-directory ${repo_root} -f docker-compose.yaml -f ${overlay_path} ps" "${FAKE_DOCKER_CALLS}"
+rg --fixed-strings --quiet -- "--project-directory ${repo_root} -f docker-compose.yaml -f ${overlay_path} exec -T postgres true" "${FAKE_DOCKER_CALLS}"
 [[ "$(wc -l <"${FAKE_DOCKER_COUNT}")" -eq 1 ]] || {
     echo "prepared overlay should render exactly once" >&2
     exit 1
@@ -87,7 +87,9 @@ eshu_ci_compose_cleanup
 [[ ! -e "${overlay_path}" ]]
 ESHU_GO_IMAGE="${good_go_pin}"
 export ESHU_GO_IMAGE
-cp docker-compose.yaml "${test_dir}/stack.yaml"
+# In-tree docker-compose.yaml moved to eshu-deploy under #8871; the fixture
+# is a minimal local stack (the fake render supplies the images).
+printf 'services:\n  postgres:\n    image: postgres:18-alpine\n' >"${test_dir}/stack.yaml"
 eshu_ci_compose_prepare "${repo_root}" -f "${test_dir}/stack.yaml"
 printf '\n# changed after prepare\n' >>"${test_dir}/stack.yaml"
 if bash scripts/ci/compose.sh -f "${test_dir}/stack.yaml" -- ps >/dev/null 2>&1; then
@@ -152,15 +154,18 @@ if bash scripts/ci/compose.sh -f docker-compose.yaml -f "${test_dir}/external-st
     exit 1
 fi
 eshu_ci_compose_cleanup
-# The signature hashes the value of every variable a root Compose file names, so
+# The signature hashes the value of every variable a Compose file names, so
 # a prepared overlay refuses a call after any such export. This is the contract
 # that makes a script-level prepare unsafe in a script that exports later.
+# (The fixture is local: in-tree Compose files moved to eshu-deploy under
+# #8871, so the test no longer relies on root docker-compose*.yaml.)
+printf 'services:\n  postgres:\n    image: postgres:18-alpine\n    volumes:\n      - ${ESHU_HOME:-/tmp/eshu-home}:/data/.eshu\n' >"${test_dir}/env-stack.yaml"
 unset ESHU_CI_COMPOSE_OVERLAY ESHU_CI_COMPOSE_SIGNATURE
 : >"${test_dir}/calls"
 if (
-    eshu_ci_compose_prepare "${repo_root}" -f docker-compose.yaml &&
+    eshu_ci_compose_prepare "${repo_root}" -f "${test_dir}/env-stack.yaml" &&
     export ESHU_HOME="${test_dir}/home" &&
-    bash scripts/ci/compose.sh -f docker-compose.yaml -- up -d
+    bash scripts/ci/compose.sh -f "${test_dir}/env-stack.yaml" -- up -d
 ) >/dev/null 2>&1; then
     echo "an export of a Compose-referenced variable after prepare must invalidate the overlay" >&2
     exit 1

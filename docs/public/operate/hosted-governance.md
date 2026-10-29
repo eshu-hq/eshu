@@ -49,6 +49,8 @@ access or implying tenant isolation.
 
 Run governance preflight before handing a team an onboarding artifact.
 
+Deploy assets (chart, Compose overlays, proof scripts) live in the eshu-deploy checkout; point `$ESHU_DEPLOY_CHECKOUT` at it before running any command below that references it.
+
 1. Run the local hosted governance proof gate before remote Compose,
    Kubernetes, or GitOps promotion:
 
@@ -242,16 +244,16 @@ semanticProvider:
 Render and lint before applying:
 
 ```bash
-helm template eshu ./deploy/helm/eshu -f values.hosted-governance.yaml
-helm lint ./deploy/helm/eshu -f values.hosted-governance.yaml
+helm template eshu "$ESHU_DEPLOY_CHECKOUT/helm/eshu" -f values.hosted-governance.yaml
+helm lint "$ESHU_DEPLOY_CHECKOUT/helm/eshu" -f values.hosted-governance.yaml
 ```
 
 Generate the public-safe hosted governance Helm proof before promoting a
 governance rollout past remote Compose:
 
 ```bash
-scripts/test-verify-hosted-governance-helm-proof.sh
-scripts/verify-hosted-governance-helm-proof.sh \
+"$ESHU_DEPLOY_CHECKOUT/scripts/test-verify-hosted-governance-helm-proof.sh"
+"$ESHU_DEPLOY_CHECKOUT/scripts/verify-hosted-governance-helm-proof.sh" \
   --out-dir .proof/governance-helm \
   --values values.hosted-governance.yaml
 ```
@@ -538,9 +540,7 @@ scripts/test-verify-two-team-governance-proof.sh
 scripts/run-two-team-governance-proof.sh
 ```
 
-The driver and overlay live at
-`docs/public/run-locally/docker-compose.governance-two-team.yaml` and
-`scripts/run-two-team-governance-proof.sh`. The live run asserts, on both the
+The driver lives at `scripts/run-two-team-governance-proof.sh`; the overlay moved to the eshu-deploy checkout (`$ESHU_DEPLOY_CHECKOUT/compose/fragments/docker-compose.governance-two-team.yaml`). The live run asserts, on both the
 API and the MCP tool-dispatch path:
 
 - the shared operator key (`ESHU_API_KEY`, presented before the scoped-token
@@ -579,11 +579,10 @@ scripts/test-verify-k8s-two-team-governance-proof.sh
 # Live proof: build the image, install the chart into a unique namespace, seed
 # two scoped tokens, assert the cross-scope denial matrix, verify, then helm
 # uninstall and delete the namespace (on success and on failure).
-scripts/run-k8s-two-team-governance-proof.sh
+"$ESHU_DEPLOY_CHECKOUT/scripts/run-k8s-two-team-governance-proof.sh"
 ```
 
-The driver and values live at `scripts/run-k8s-two-team-governance-proof.sh` and
-`deploy/helm/eshu/ci/governance-two-team-k8s.values.yaml`. Beyond the Compose
+The driver and values moved to the eshu-deploy checkout (`$ESHU_DEPLOY_CHECKOUT/scripts/run-k8s-two-team-governance-proof.sh` and `$ESHU_DEPLOY_CHECKOUT/helm/eshu/ci/governance-two-team-k8s.values.yaml`). Beyond the Compose
 assertions, the live Kubernetes run also records that the chart's NetworkPolicies
 are actually applied in-cluster (API and MCP policies present, restricted egress)
 and stamps `platform: kubernetes` with the live cluster version into provenance.
@@ -637,14 +636,14 @@ Use these gates for hosted governance-related changes:
 | Change | Minimum proof |
 | --- | --- |
 | Public docs or navigation | Strict MkDocs build and `git diff --check`. |
-| Hosted API/MCP auth, Secret refs, pprof, or docs exposure posture | `scripts/test-verify-hosted-security-posture.sh`, `scripts/verify-hosted-security-posture.sh -f values.eshu.yaml`, and `helm lint deploy/helm/eshu -f values.eshu.yaml`. |
-| Hosted NetworkPolicy egress posture | `scripts/test-verify-hosted-network-policy-egress.sh`, `scripts/verify-hosted-network-policy-egress.sh -f values.eshu.yaml`, and `helm lint deploy/helm/eshu -f values.eshu.yaml`. |
+| Hosted API/MCP auth, Secret refs, pprof, or docs exposure posture | `$ESHU_DEPLOY_CHECKOUT/scripts/test-verify-hosted-security-posture.sh`, `$ESHU_DEPLOY_CHECKOUT/scripts/verify-hosted-security-posture.sh -f values.eshu.yaml`, and `helm lint $ESHU_DEPLOY_CHECKOUT/helm/eshu -f values.eshu.yaml`. |
+| Hosted NetworkPolicy egress posture | `$ESHU_DEPLOY_CHECKOUT/scripts/test-verify-hosted-network-policy-egress.sh`, `$ESHU_DEPLOY_CHECKOUT/scripts/verify-hosted-network-policy-egress.sh -f values.eshu.yaml`, and `helm lint $ESHU_DEPLOY_CHECKOUT/helm/eshu -f values.eshu.yaml`. |
 | Hosted governance local proof posture | `scripts/test-verify-hosted-governance-proof.sh`, `scripts/verify-hosted-governance-proof.sh`, strict MkDocs build, and `git diff --check`. |
 | Hosted governance remote Compose proof | `scripts/test-verify-hosted-governance-remote-compose-proof.sh`, `scripts/verify-hosted-governance-remote-compose-proof.sh`, and `scripts/verify-hosted-governance-remote-compose-proof.sh --runtime` from the private remote Compose operator environment. |
 | Two-team scoped cross-scope denial proof | `scripts/test-verify-two-team-governance-proof.sh` (source-only verifier self-test), and `scripts/run-two-team-governance-proof.sh` for the live API/MCP cross-scope denial proof from a Docker Compose operator environment. |
-| Live Kubernetes/Helm two-team cross-scope denial proof | `scripts/test-verify-k8s-two-team-governance-proof.sh` (source-only verifier self-test), and `scripts/run-k8s-two-team-governance-proof.sh` for the live in-cluster API/MCP cross-scope denial proof plus in-cluster NetworkPolicy applied-state, on a Kubernetes cluster (for example single-node OrbStack). |
+| Live Kubernetes/Helm two-team cross-scope denial proof | `scripts/test-verify-k8s-two-team-governance-proof.sh` (source-only verifier self-test), and `$ESHU_DEPLOY_CHECKOUT/scripts/run-k8s-two-team-governance-proof.sh` for the live in-cluster API/MCP cross-scope denial proof plus in-cluster NetworkPolicy applied-state, on a Kubernetes cluster (for example single-node OrbStack). |
 | Hosted governance proof artifact | `scripts/test-verify-hosted-governance-proof-artifact.sh`, `scripts/verify-hosted-governance-proof-artifact.sh --input governance-proof.json --output-json governance-proof.summary.json --output-markdown governance-proof.summary.md`, strict MkDocs build, and `git diff --check`. |
-| Hosted governance Helm proof | `scripts/test-verify-hosted-governance-helm-proof.sh`, `scripts/verify-hosted-governance-helm-proof.sh --out-dir .proof/governance-helm --values values.eshu.yaml`, `helm lint deploy/helm/eshu -f values.eshu.yaml`, strict MkDocs build, and `git diff --check`. |
+| Hosted governance Helm proof | `$ESHU_DEPLOY_CHECKOUT/scripts/test-verify-hosted-governance-helm-proof.sh`, `$ESHU_DEPLOY_CHECKOUT/scripts/verify-hosted-governance-helm-proof.sh --out-dir .proof/governance-helm --values values.eshu.yaml`, `helm lint $ESHU_DEPLOY_CHECKOUT/helm/eshu -f values.eshu.yaml`, strict MkDocs build, and `git diff --check`. |
 | Hosted governance negative leakage proof | `scripts/test-verify-hosted-governance-negative-leakage-proof.sh`, `scripts/verify-hosted-governance-negative-leakage-proof.sh --manifest leakage-proof.json --output-json leakage-proof.summary.json --output-markdown leakage-proof.summary.md`, strict MkDocs build, and `git diff --check`. |
 | Hosted auth audit and revocation proof | `scripts/test-verify-hosted-auth-audit-proof.sh`, `scripts/verify-hosted-auth-audit-proof.sh --input auth-audit-proof.json --output-json auth-audit-proof.summary.json --output-markdown auth-audit-proof.summary.md`, strict MkDocs build, and `git diff --check`. |
 | Hosted retention or deletion policy docs | Strict MkDocs build and `git diff --check`; runtime implementation must add focused deletion, tombstone, stale-read, and graph-rebuild tests. |

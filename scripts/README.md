@@ -24,12 +24,14 @@ The `verify_*_compose.sh` scripts are developer and DevOps proof lanes. They
 start their own Compose project, choose ports, and tear the stack down unless
 `ESHU_KEEP_COMPOSE_STACK=true` is set.
 
-`verify-hosted-helm-rollout-proof.sh` creates the public-safe proof artifact for
-hosted Helm install, upgrade, and rollback work. It renders, lints, runs a Helm
-dry-run, summarizes required workloads and schema bootstrap, optionally captures
-API/MCP readback, and fails upgrade or rollback modes when durable-state,
-queue-state, Postgres restore, or graph rebuild assumptions are missing. The
-mocked harness is `test-verify-hosted-helm-rollout-proof.sh`.
+`verify-hosted-helm-rollout-proof.sh` moved to eshu-hq/eshu-deploy under
+#8871; run it from an `ESHU_DEPLOY_CHECKOUT` checkout. It creates the
+public-safe proof artifact for hosted Helm install, upgrade, and rollback
+work: render, lint, Helm dry-run, required workloads and schema bootstrap
+summary, optional API/MCP readback, and upgrade/rollback-mode failure when
+durable-state, queue-state, Postgres restore, or graph rebuild assumptions
+are missing. The mocked harness is
+`test-verify-hosted-helm-rollout-proof.sh` (same directory in that checkout).
 
 `collector-cutover-rollback.sh` rolls a collector back from an external
 component producer to the in-tree producer as a producer-authority transition
@@ -71,24 +73,30 @@ that passes it, so read such a merge. The seeded tests are
 merge conflicts without the attribute and applies cleanly with it; the SDK
 changelogs are not union-merged).
 
-`verify-compose-helm-runtime-parity.sh` is the static hosted deployability
-gate for Compose-to-Kubernetes runtime parity. It renders default Compose,
-remote E2E Compose, profile-expanded remote collectors, observability remote
-collectors, and Helm with ServiceMonitors enabled, then fails on missing
-services, critical env wiring, health or metrics probes, Helm core workloads,
-or collector ServiceMonitor template coverage. The mocked harness is
-`test-verify-compose-helm-runtime-parity.sh`.
+`verify-compose-helm-runtime-parity.sh` moved to eshu-hq/eshu-deploy under
+#8871; run it from an `ESHU_DEPLOY_CHECKOUT` checkout. It is the static
+hosted deployability gate for Compose-to-Kubernetes runtime parity: default
+Compose, remote E2E Compose, profile-expanded remote collectors,
+observability remote collectors, and Helm with ServiceMonitors enabled,
+failing on missing services, critical env wiring, health or metrics probes,
+Helm core workloads, or collector ServiceMonitor template coverage. The
+mocked harness is `test-verify-compose-helm-runtime-parity.sh` (same
+directory in that checkout).
 
-`verify-hosted-security-posture.sh` renders the Helm chart and fails closed on
+`verify-hosted-security-posture.sh` and `verify-hosted-network-policy-egress.sh`
+moved to eshu-hq/eshu-deploy under #8871; run them from an
+`ESHU_DEPLOY_CHECKOUT` checkout
+(`"${ESHU_DEPLOY_CHECKOUT}/scripts/verify-hosted-security-posture.sh"`,
+`"${ESHU_DEPLOY_CHECKOUT}/scripts/verify-hosted-network-policy-egress.sh"`).
+The posture verifier renders the Helm chart and fails closed on
 inline credential-shaped env vars, missing API auth Secret refs, empty
 credential Secret refs, public pprof binding, and public API docs without an
-explicit verifier opt-in. Use `test-verify-hosted-security-posture.sh` for the
-mutation harness.
-
-`verify-hosted-network-policy-egress.sh` renders the Helm chart and verifies
-hosted NetworkPolicy egress posture. It flags broad egress as a governance risk
-and proves restricted mode for DNS, datastore, graph, internal-service,
-collector-provider, semantic-provider, and extension destination classes. Use
+explicit verifier opt-in. Use `test-verify-hosted-security-posture.sh` (same
+directory in that checkout) for the mutation harness. The egress verifier
+renders the Helm chart and verifies hosted NetworkPolicy egress posture. It
+flags broad egress as a governance risk and proves restricted mode for DNS,
+datastore, graph, internal-service, collector-provider, semantic-provider,
+and extension destination classes. Use
 `test-verify-hosted-network-policy-egress.sh` for the mutation harness.
 
 `verify_remote_e2e_runtime_state.sh` is the post-start gate for the hosted
@@ -106,13 +114,15 @@ identity counts when those probes are required. Use
 `ESHU_REMOTE_E2E_COMPOSE_FILES` as a colon-separated Compose file list and
 `ESHU_REMOTE_E2E_ENV_FILE` when the stack uses a private env file.
 
-`verify-gitops-rendered-diff-preflight.sh` renders the Helm chart with Argo CD
-overlay value files before a GitOps controller syncs them. It fails on
-placeholder rendered values, unpinned image tags, chart-invalid exposure or
-schema-bootstrap combinations, and claim-driven collectors without an active
-workflow coordinator. The output is a redacted resource summary suitable for CI
-evidence. Use `test-verify-gitops-rendered-diff-preflight.sh` for the focused
-harness.
+`verify-gitops-rendered-diff-preflight.sh` moved to eshu-hq/eshu-deploy
+under #8871; run it from an `ESHU_DEPLOY_CHECKOUT` checkout. It renders the
+Helm chart with Argo CD overlay value files before a GitOps controller syncs
+them, failing on placeholder rendered values, unpinned image tags,
+chart-invalid exposure or schema-bootstrap combinations, and claim-driven
+collectors without an active workflow coordinator. The output is a redacted
+resource summary suitable for CI evidence. Use
+`test-verify-gitops-rendered-diff-preflight.sh` (same directory in that
+checkout) for the focused harness.
 
 `verify-hosted-backup-restore-proof.sh` validates the public-safe hosted
 backup, restore, and graph-rebuild proof packet. It fails closed on stale or
@@ -122,14 +132,17 @@ readback, and private-data-shaped fields. It writes sanitized JSON and Markdown
 summaries only. Use `test-verify-hosted-backup-restore-proof.sh` for the
 mocked harness.
 
-`verify-hosted-ops-alert-pack.sh` validates the hosted operations dashboard and
-alert pack. It checks Grafana dashboard JSON, required panels, standalone and
-Prometheus Operator alert parity, required runbook annotations, bounded label
-usage, and Helm ServiceMonitor render shape. Use
-`test-verify-hosted-ops-alert-pack.sh` for the mutation harness.
+`verify-hosted-ops-alert-pack.sh` moved to eshu-hq/eshu-deploy under #8871;
+run it from an `ESHU_DEPLOY_CHECKOUT` checkout
+(`"${ESHU_DEPLOY_CHECKOUT}/scripts/verify-hosted-ops-alert-pack.sh"`). It
+validates the hosted operations dashboard and alert pack: Grafana dashboard
+JSON, required panels, standalone and Prometheus Operator alert parity,
+required runbook annotations, bounded label usage, and Helm ServiceMonitor
+render shape. Use `test-verify-hosted-ops-alert-pack.sh` (same directory in
+that checkout) for the mutation harness.
 
 `remote-e2e-corpus-preflight.sh` is the one-shot corpus guard used by
-`docker-compose.remote-e2e.yaml`. Smoke mode is fixture-friendly, representative
+`$ESHU_DEPLOY_CHECKOUT/compose/docker-compose.remote-e2e.yaml`. Smoke mode is fixture-friendly, representative
 mode is the 20-50 repository inner-loop gate, and full mode is the release
 gate. `test-remote-e2e-corpus-preflight.sh` covers those bounds without
 requiring Docker.

@@ -76,15 +76,22 @@ if [[ "${list_only}" == "true" ]]; then
 	print_step "live K8s two-team scoped cross-scope denial proof verifier self-test" \
 		"scripts/test-verify-k8s-two-team-governance-proof.sh"
 	print_step "hosted security posture verifier self-test" \
-		"scripts/test-verify-hosted-security-posture.sh"
+		'"${ESHU_DEPLOY_CHECKOUT}/scripts/test-verify-hosted-security-posture.sh"'
 	print_step "hosted security posture Helm render proof" \
-		"scripts/verify-hosted-security-posture.sh"
+		'"${ESHU_DEPLOY_CHECKOUT}/scripts/verify-hosted-security-posture.sh"'
 	print_step "hosted NetworkPolicy egress verifier self-test" \
-		"scripts/test-verify-hosted-network-policy-egress.sh"
+		'"${ESHU_DEPLOY_CHECKOUT}/scripts/test-verify-hosted-network-policy-egress.sh"'
 	print_step "hosted NetworkPolicy egress render proof" \
-		"scripts/verify-hosted-network-policy-egress.sh"
+		'"${ESHU_DEPLOY_CHECKOUT}/scripts/verify-hosted-network-policy-egress.sh"'
 	exit 0
 fi
+
+# The four hosted security-posture and NetworkPolicy proof scripts moved to
+# the eshu-hq/eshu-deploy checkout under #8871. The rest of this gate runs
+# from this repo; resolve the moved scripts through ESHU_DEPLOY_CHECKOUT and
+# fail closed when it is unset instead of executing a host-local stale copy.
+[ -n "${ESHU_DEPLOY_CHECKOUT:-}" ] || die "ESHU_DEPLOY_CHECKOUT must point at an eshu-hq/eshu-deploy checkout (hosted proof scripts moved there under #8871)"
+deploy_proofs_root="${ESHU_DEPLOY_CHECKOUT}"
 
 run_step() {
 	local label="$1"
@@ -112,7 +119,7 @@ run_step() {
 )
 
 run_step "hosted security posture verifier self-test" \
-	bash "${repo_root}/scripts/test-verify-hosted-security-posture.sh"
+	bash "${deploy_proofs_root}/scripts/test-verify-hosted-security-posture.sh"
 run_step "hosted governance retention-state proof self-test" \
 	bash "${repo_root}/scripts/test-verify-hosted-governance-retention-proof.sh"
 run_step "hosted auth audit and revocation proof self-test" \
@@ -122,10 +129,10 @@ run_step "two-team scoped cross-scope denial proof verifier self-test" \
 run_step "live K8s two-team scoped cross-scope denial proof verifier self-test" \
 	bash "${repo_root}/scripts/test-verify-k8s-two-team-governance-proof.sh"
 run_step "hosted security posture Helm render proof" \
-	bash "${repo_root}/scripts/verify-hosted-security-posture.sh"
+	bash "${deploy_proofs_root}/scripts/verify-hosted-security-posture.sh"
 run_step "hosted NetworkPolicy egress verifier self-test" \
-	bash "${repo_root}/scripts/test-verify-hosted-network-policy-egress.sh"
+	bash "${deploy_proofs_root}/scripts/test-verify-hosted-network-policy-egress.sh"
 run_step "hosted NetworkPolicy egress render proof" \
-	bash "${repo_root}/scripts/verify-hosted-network-policy-egress.sh"
+	bash "${deploy_proofs_root}/scripts/verify-hosted-network-policy-egress.sh"
 
 printf 'hosted governance proof verification passed\n'

@@ -51,7 +51,6 @@ gates:
       - "specs/ci-gates.d/**"
       - "specs/ifa-materialized-edge-coverage.v1.yaml"
       - "specs/ifa-materialized-edge-coverage-direct.v1.yaml"
-      - "docker-compose.yaml"
       - "testdata/cassettes/gcpcloud/supply-chain-demo.json"
       - "testdata/golden/e2e-20repo-snapshot.json"
       - "go/cmd/golden-corpus-gate/main.go"

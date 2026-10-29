@@ -1,6 +1,6 @@
 ---
 name: eshu-release
-description: "Use when cutting an Eshu release: bumping deploy/helm/eshu/Chart.yaml, tagging vX.Y.Z or an sdk/go module, and verifying the image, attestations, Helm OCI package, and GitHub Release."
+description: "Use when cutting an Eshu release: bumping helm/eshu/Chart.yaml in eshu-hq/eshu-deploy, tagging vX.Y.Z or an sdk/go module, and verifying the image, attestations, Helm OCI package, and GitHub Release."
 ---
 
 # Eshu Release And Deployment Pipeline
@@ -15,7 +15,7 @@ docs, commits, PRs, or reusable scripts.
 | Attribute | Value |
 | --- | --- |
 | Repository | `eshu-hq/eshu` |
-| Helm chart | `deploy/helm/eshu` |
+| Helm chart | `helm/eshu` in `eshu-hq/eshu-deploy` (moved out of this repo under #8871; check it out separately, e.g. `ESHU_DEPLOY_CHECKOUT`) |
 | Docker image | `ghcr.io/eshu-hq/eshu` by default from `github.repository` |
 | Helm OCI registry | `oci://ghcr.io/eshu-hq/charts` by default |
 | CLI binaries | GitHub Releases from `v*` tags |
@@ -26,7 +26,7 @@ Treat releases as a chain of evidence:
 
 1. Confirm the exact source commit.
 2. Use a worktree or feature branch; never push directly to `main`.
-3. Update `deploy/helm/eshu/Chart.yaml` intentionally:
+3. Update `helm/eshu/Chart.yaml` in the `eshu-hq/eshu-deploy` checkout intentionally:
    - `version` for Helm chart package changes.
    - `appVersion` for the Eshu application version, usually `vX.Y.Z`.
 4. Run the smallest validation that proves the touched surface.
@@ -41,34 +41,35 @@ intended version or digest.
 
 ## Open-Source Release Workflow
 
-From a clean main checkout:
+Core release work happens from a clean main checkout of this repo; chart
+work happens from a checkout of `eshu-hq/eshu-deploy`:
 
 ```bash
 git worktree add ../eshu-release-vX.Y.Z -b chore/release-vX.Y.Z main
 cd ../eshu-release-vX.Y.Z
 ```
 
-Edit `deploy/helm/eshu/Chart.yaml`:
+Edit `helm/eshu/Chart.yaml` in the eshu-deploy checkout:
 
 ```yaml
 version: X.Y.Z
 appVersion: "vX.Y.Z"
 ```
 
-Validate:
+Validate (core tests in this repo, chart lint in the eshu-deploy checkout):
 
 ```bash
 cd go
 go test ./cmd/eshu ./cmd/api ./cmd/mcp-server -count=1
-cd ..
-helm lint deploy/helm/eshu
+cd "$ESHU_DEPLOY_CHECKOUT"
+helm lint helm/eshu
 git diff --check
 ```
 
 Commit and publish a PR:
 
 ```bash
-git add deploy/helm/eshu/Chart.yaml
+git add helm/eshu/Chart.yaml
 git commit -m "chore(release): prepare vX.Y.Z"
 git push origin chore/release-vX.Y.Z
 gh pr create --title "chore(release): prepare vX.Y.Z"
@@ -91,7 +92,7 @@ The tag triggers:
 - Sigstore cosign signing for the pushed Docker image digest.
 - Build provenance and SPDX SBOM attestations for the pushed image digest.
 - GitHub Release SBOM asset publishing for tag releases.
-- Helm package push from `deploy/helm/eshu`.
+- Helm package push from `helm/eshu` via the chart-release workflow in the eshu-deploy checkout.
 - CLI binary release from `.github/workflows/build.yml` with
   `eshu-linux-x86_64` and `eshu-macos-arm64`.
 
@@ -100,12 +101,12 @@ The tag triggers:
 Use this when Helm templates, `values.yaml`, or `values.schema.json` change but
 the application version does not.
 
-1. Bump only `deploy/helm/eshu/Chart.yaml` `version`.
+1. Bump only `helm/eshu/Chart.yaml` `version` in the eshu-deploy checkout.
 2. Leave `appVersion` unchanged.
 3. Run:
 
 ```bash
-helm lint deploy/helm/eshu
+helm lint helm/eshu
 git diff --check
 ```
 
@@ -154,7 +155,7 @@ Report concrete evidence:
 
 - source commit SHA
 - release tag
-- `deploy/helm/eshu/Chart.yaml` `version` and `appVersion`
+- eshu-deploy `helm/eshu/Chart.yaml` `version` and `appVersion`
 - Docker image tag and digest
 - cosign verification result for the Docker image tag or digest
 - provenance attestation verification result

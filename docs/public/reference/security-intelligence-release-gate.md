@@ -21,7 +21,7 @@ sub-proof lives in:
 - [Vulnerability Parity Gate](vulnerability-parity-gate.md)
 - [Remote Collector E2E](local-testing/remote-collector-e2e.md)
 - [Remote E2E Runtime State](remote-e2e-runtime-state.md)
-- [Deploy To EKS](../deploy/eks/index.md)
+- [Deploy To EKS](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/eks/index.md)
 
 ## Why the gate exists
 
@@ -59,7 +59,7 @@ The gate is intentionally:
 | Vulnerability parity gate against synthetic fixtures and optional operator-local provider comparison with only aggregate/private-safe mismatch classes | `fixtures` phase plus optional `provider` phase |
 | Representative 20-50 repository proof across npm, Go modules, PyPI, Maven/Gradle, Composer, RubyGems, Cargo, NuGet, Terraform/IaC, SBOM/image, deployment, readback counts, queue-zero counters, wall time, CPU/memory, logs, pprof, and follow-up issue references | Optional `proof-matrix` phase with an operator-local aggregate JSON file |
 | Pprof availability, effective env, queue counts, retries, dead letters, target counts, fact counts, wall times, CPU, memory, freshness states | `runtime` phase docker stats snapshot, `/api/v0/index-status` payload, and pprof reachability check |
-| Kubernetes / EKS proof with pprof, logs, queue telemetry, and resource snapshots before declaring release readiness | `k8s` phase plus [Deploy To EKS](../deploy/eks/index.md) |
+| Kubernetes / EKS proof with pprof, logs, queue telemetry, and resource snapshots before declaring release readiness | `k8s` phase plus [Deploy To EKS](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/eks/index.md) |
 | Exact commit, image tag candidate, NornicDB tag/commit, clean-volume state, schema/bootstrap state, and pass/fail evidence | `state` phase, always offline |
 
 ### Supply-chain impact path proof
@@ -134,7 +134,9 @@ inputs look like private data.
 ### Selecting phases
 
 ```bash
-# offline defaults
+# offline defaults (deploy assets live in the eshu-deploy checkout;
+# the state phase fails closed without ESHU_DEPLOY_CHECKOUT)
+export ESHU_DEPLOY_CHECKOUT=/path/to/eshu-deploy
 scripts/security_intelligence_release_gate.sh \
   --image-tag-candidate v0.0.3-pre-release-9
 
@@ -231,7 +233,7 @@ record the private URL in the Kubernetes evidence.
    pass the file to `--provider-compare`. The harness records only the
    aggregate counts and the synthetic comparison id.
 11. **Run the `k8s` phase against the staging cluster.** Follow
-   [Deploy To EKS](../deploy/eks/index.md) for cluster setup. Use a private
+   [Deploy To EKS](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/eks/index.md) for cluster setup. Use a private
    port-forward for `--api-base-url` so the harness can read
    `/admin/status?format=json` and `/api/v0/index-status`; pass
    `--pprof-base-url` for the private pprof port-forward. The

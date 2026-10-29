@@ -88,7 +88,8 @@ RUN cd go \
 # `docker build .` / `docker compose build` without a target resolves to
 # whichever stage is LAST in this file: the production stage must remain
 # that last stage, with mock-oidc-idp reached only via an explicit
-# `--target mock-oidc-idp` (see docker-compose.e2e.yaml).
+# `--target mock-oidc-idp` (see compose/docker-compose.e2e.yaml under
+# $ESHU_DEPLOY_CHECKOUT; the stack moved to eshu-deploy under #8871).
 FROM builder AS mock-oidc-builder
 # Redeclare so a provided epoch reaches this stage's RUN too — ARGs do not
 # cross stage boundaries, and the builder stage no longer leaks it via ENV.

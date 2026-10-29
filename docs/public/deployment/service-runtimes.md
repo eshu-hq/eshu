@@ -4,8 +4,8 @@ Use this page when you need the deployment ownership map: which Eshu runtimes
 exist, which service owns a problem, and which focused page has the detail.
 
 For Kubernetes install steps, use
-[Helm Quickstart](../deploy/kubernetes/helm-quickstart.md). For local stack
-choices, use [Docker Compose](../run-locally/docker-compose.md).
+[Helm Quickstart](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/helm-quickstart.md). For local stack
+choices, use [Docker Compose](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/run-locally/docker-compose.md).
 
 ## Runtime Map
 
@@ -264,5 +264,5 @@ configuration.
 | Commands, templates, and scaling notes for core services | [Core Runtime Services](service-runtimes-core.md) |
 | Collector control-plane and hosted collector matrix | [Collector Runtime Services](service-runtimes-collectors.md) |
 | Schema bootstrap and bootstrap-index contract | [Bootstrap Runtime Services](service-runtimes-bootstrap.md) |
-| Helm values and render-time guards | [Helm Values](../deploy/kubernetes/helm-values.md) |
+| Helm values and render-time guards | [Helm Values](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/helm-values.md) |
 | Metrics, traces, logs, and status signal names | [Telemetry Overview](../reference/telemetry/index.md) |

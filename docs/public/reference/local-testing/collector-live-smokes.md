@@ -173,8 +173,8 @@ render the profile:
 
 ```bash
 docker compose --env-file path/to/private-remote-e2e.env \
-  -f docker-compose.remote-e2e.yaml \
-  -f docker-compose.remote-e2e.observability.yaml \
+  -f "${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.remote-e2e.yaml" \
+  -f "${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.remote-e2e.observability.yaml" \
   --profile loki config --services
 ```
 
@@ -201,8 +201,8 @@ lists every variable) — then render the profile:
 
 ```bash
 docker compose --env-file path/to/private-remote-e2e.env \
-  -f docker-compose.remote-e2e.yaml \
-  -f docker-compose.remote-e2e.observability.yaml \
+  -f "${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.remote-e2e.yaml" \
+  -f "${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.remote-e2e.observability.yaml" \
   --profile tempo config --services
 ```
 

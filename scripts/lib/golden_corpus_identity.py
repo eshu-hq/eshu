@@ -87,6 +87,7 @@ def verify_routes(root: Path) -> None:
         ("corpus-gate", "Run B-7 golden corpus gate",
          "bash scripts/verify-golden-corpus-gate.sh",
          "        env:\n          ESHU_GRAPH_BACKEND: ${{ matrix.graph_backend }}\n"
+         "          ESHU_DEPLOY_CHECKOUT: ${{ github.workspace }}/eshu-deploy\n"
          "          ESHU_NEO4J_PASSWORD: change-me\n          ESHU_POSTGRES_PASSWORD: change-me\n"),
     ):
         body = re.search(rf"(?ms)^  {job}:\n(.*?)(?=^  [a-z][\w-]*:|\Z)", workflow)

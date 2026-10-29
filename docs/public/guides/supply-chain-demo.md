@@ -78,7 +78,7 @@ consumers.
 ## Part B — Full chain (Compose stack + seeded advisory facts)
 
 This part is not offline. Bring up the stack first using
-[Docker Compose](../run-locally/docker-compose.md).
+[Docker Compose](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/run-locally/docker-compose.md).
 
 ### B1. Build the synthetic image
 
@@ -331,4 +331,4 @@ is live, seeded, or fixture-only.
 - [SARIF Export](../reference/sarif-export.md)
 - [Vulnerability Scanner Read Contract](../reference/vulnerability-scanner-read-contract.md)
 - [Value-Flow Emission](../reference/value-flow-emission.md)
-- [Docker Compose](../run-locally/docker-compose.md)
+- [Docker Compose](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/run-locally/docker-compose.md)

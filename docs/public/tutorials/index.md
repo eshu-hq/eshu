@@ -40,7 +40,7 @@ expected result, failure hints, and what to read next.
 <li>
 <p><strong>Deploy on Kubernetes</strong></p>
 <p>Render the Helm chart, install the core services, and verify the rollout.</p>
-<p><a href="deploy-kubernetes/">Deploy with Helm</a></p>
+<p><a href="https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/index.md">Deploy with Helm</a></p>
 </li>
 <li>
 <p><strong>Debug stale answers</strong></p>
@@ -58,7 +58,7 @@ expected result, failure hints, and what to read next.
 | [Trace a vulnerable dependency](trace-vulnerable-dependency.md) | You want the supply-chain story from package evidence to workload impact. | The demo distinguishes offline scan proof from full-chain stack proof. |
 | [Ask Eshu from an assistant](ask-from-assistant.md) | You want Codex, Claude, Cursor, VS Code, or another MCP client to use Eshu. | The client lists Eshu tools and answers a narrow first prompt. |
 | [Index repositories](index-repositories.md) | You need Eshu to ingest code and infrastructure repositories. | `eshu list`, `eshu stats`, or index status shows indexed data. |
-| [Deploy on Kubernetes](deploy-kubernetes.md) | You are preparing a shared Helm deployment. | Kubernetes workloads roll out and the API/MCP services are reachable. |
+| [Deploy on Kubernetes](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/index.md) | You are preparing a shared Helm deployment. | Kubernetes workloads roll out and the API/MCP services are reachable. |
 | [Debug stale answers](debug-stale-answers.md) | Health is green but answers are missing, stale, or incomplete. | Status endpoints identify whether ingestion, queueing, or graph writes are behind. |
 
 ## Read Next

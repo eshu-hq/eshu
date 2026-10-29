@@ -122,7 +122,17 @@ jobs:
         run: scripts/ci/go-mod-download-retry.sh
       - name: Install Playwright browsers
         run: npx playwright install chromium --with-deps
+      # The auth E2E stack moved to eshu-deploy under #8871. The job
+      # checks that repo out at the pinned extraction commit.
+      - name: Check out eshu-deploy at the pinned extraction commit
+        uses: actions/checkout@v5
+        with:
+          repository: eshu-hq/eshu-deploy
+          ref: 6b6164d4fd95b8959284c5af0ba9a233fe032134
+          path: eshu-deploy
       - name: Run the fresh-stack SSO auth E2E
+        env:
+          ESHU_DEPLOY_CHECKOUT: ${{ github.workspace }}/eshu-deploy
         run: bash scripts/run-auth-e2e.sh
       - name: Upload auth E2E artifacts
         if: ${{ always() }}
@@ -157,11 +167,23 @@ jobs:
         run: npx playwright install chromium --with-deps
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh
+      # The auth E2E stack moved to eshu-deploy under #8871. The job
+      # checks that repo out at the pinned extraction commit.
+      - name: Check out eshu-deploy at the pinned extraction commit
+        uses: actions/checkout@v5
+        with:
+          repository: eshu-hq/eshu-deploy
+          ref: 6b6164d4fd95b8959284c5af0ba9a233fe032134
+          path: eshu-deploy
       - name: Run the fresh-stack MCP-identity auth E2E
+        env:
+          ESHU_DEPLOY_CHECKOUT: ${{ github.workspace }}/eshu-deploy
         run: bash scripts/run-auth-mcp-e2e.sh
       - name: Verify the report against the named baseline manifest
         run: bash scripts/verify-auth-mcp-e2e-manifest.sh
       - name: Run the mutation-sensitivity gate
+        env:
+          ESHU_DEPLOY_CHECKOUT: ${{ github.workspace }}/eshu-deploy
         run: bash scripts/verify-auth-mcp-e2e-sensitivity.sh
       - name: Upload MCP-identity auth E2E artifacts
         if: ${{ always() }}

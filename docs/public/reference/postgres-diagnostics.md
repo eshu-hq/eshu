@@ -192,7 +192,8 @@ rounds stay in the evidence note for the record.)
   `7650-write-null-lat-sd-pct`.
 
 Three more Compose stacks get these settings through `extends` of the base
-postgres service: `docker-compose.e2e.yaml`, `docker-compose.demo.corpus.yaml`,
+postgres service (all under `compose/` in `$ESHU_DEPLOY_CHECKOUT`, moved to
+eshu-deploy under #8871): `docker-compose.e2e.yaml`, `docker-compose.demo.corpus.yaml`,
 and `docker-compose.remote-e2e.foundation.yaml`. The first run on those stacks
 after this change is a run with a new Postgres configuration. Keep that in mind
 when you compare it with a baseline from before the change.

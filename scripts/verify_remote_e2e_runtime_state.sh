@@ -8,7 +8,10 @@ TFSTATE_WARNINGS_LIB="${REPO_ROOT}/scripts/lib/remote_e2e_tfstate_warnings.sh"
 HOSTED_SERVICES_LIB="${REPO_ROOT}/scripts/lib/remote_e2e_hosted_services.sh"
 FINITE_COMPLETION_LIB="${REPO_ROOT}/scripts/lib/remote_e2e_finite_completion.sh"
 
-COMPOSE_FILES="${ESHU_REMOTE_E2E_COMPOSE_FILES:-docker-compose.remote-e2e.yaml}"
+# The remote-e2e stack moved to eshu-deploy under #8871: the default resolves
+# under ESHU_DEPLOY_CHECKOUT (CI pins the extraction commit), failing closed
+# when neither an explicit override nor the checkout is set.
+COMPOSE_FILES="${ESHU_REMOTE_E2E_COMPOSE_FILES:-${ESHU_DEPLOY_CHECKOUT:?ESHU_DEPLOY_CHECKOUT must point at an eshu-hq/eshu-deploy checkout; the gate workflow checks it out at the pinned extraction commit}/compose/docker-compose.remote-e2e.yaml}"
 COMPOSE_ENV_FILE="${ESHU_REMOTE_E2E_ENV_FILE:-}"
 COMPOSE_PROFILES="${ESHU_REMOTE_E2E_COMPOSE_PROFILES:-${COMPOSE_PROFILES:-}}"
 API_BASE_URL="${ESHU_REMOTE_E2E_API_BASE_URL:-}"

@@ -148,8 +148,6 @@ gates:
     blocking: true
     triggers:
       - "go/**"
-      - "docker-compose*.yaml"
-      - "docker-compose*.yml"
       - "scripts/verify_backend_conformance_live.sh"
       - "scripts/lib/nornic_conformance_events.py"
       - "scripts/lib/nornic_conformance_inventory.json"
@@ -193,10 +191,6 @@ gates:
       - "scripts/verify-auth-mcp-e2e-manifest.sh"
       - "scripts/lib/auth_mcp_e2e_sensitivity.sh"
       - "scripts/lib/auth_mcp_e2e_manifest.sh"
-      - "docker-compose.e2e.yaml"
-      # docker-compose.e2e.yaml extends the neo4j service from this file.
-      - "docker-compose.neo4j.yml"
-      - "docker-compose.e2e.mutation.yaml"
       - "testdata/golden/auth-mcp-e2e-baseline.json"
       - "go/cmd/mock-github/**"
       - "go/cmd/mock-oidc-idp/**"
@@ -247,9 +241,6 @@ gates:
       - "scripts/console-auth-e2e-runtime.mjs"
       - "scripts/ci/go-mod-download-retry.sh"
       - "scripts/ci/install-apt-packages.sh"
-      - "docker-compose.e2e.yaml"
-      - "docker-compose.neo4j.yml"
-      - "docker-compose.yaml"
       - "Dockerfile"
       - "go/cmd/mock-oidc-idp/**"
       - "go/cmd/api/**"
@@ -283,7 +274,6 @@ gates:
     triggers:
       - "go/**"
       - "Dockerfile"
-      - "deploy/helm/**"
     ci:
       workflow: security-scan.yml
       job: "Trivy image scan (ghcr.io/eshu-hq/eshu)"
@@ -371,7 +361,6 @@ gates:
       - ".github/static-contract-filters.yml"
       - "scripts/ci/promote-moving-tags.sh"
       - "scripts/ci/select-docker-publish-lanes.sh"
-      - "scripts/ci/push-helm-chart.sh"
       - "scripts/ci/test-docker-publish-extracted-steps.sh"
       - "scripts/ci/resolve-image-scan-ref.sh"
       - "scripts/test-promote-moving-tags.sh"

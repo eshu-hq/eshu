@@ -11,9 +11,11 @@ both a rendered Compose service and a positive source or warning fact from that
 collector's expected evidence family.
 
 The checked-in base profile does not start those six services by default.
-PagerDuty and Jira render from `docker-compose.remote-e2e.yaml`; Grafana,
-Prometheus/Mimir, Loki, and Tempo render from
-`docker-compose.remote-e2e.observability.yaml`. Operator-local env files
+PagerDuty and Jira render from `compose/docker-compose.remote-e2e.yaml`
+under `$ESHU_DEPLOY_CHECKOUT` (the stack moved to eshu-deploy under #8871);
+Grafana, Prometheus/Mimir, Loki, and Tempo render from
+`compose/docker-compose.remote-e2e.observability.yaml` under the same
+checkout. Operator-local env files
 provide private target configuration. Without a rendered hosted service, the
 manifest classifies the row as `skipped` with
 `collector service disabled in remote Compose profile`.
@@ -27,8 +29,8 @@ enable flag, and render only the intended profiles:
 export ESHU_REMOTE_E2E_ENV_FILE=path/to/private-remote-e2e.env
 
 docker compose --env-file "${ESHU_REMOTE_E2E_ENV_FILE}" \
-  -f docker-compose.remote-e2e.yaml \
-  -f docker-compose.remote-e2e.observability.yaml \
+  -f "${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.remote-e2e.yaml" \
+  -f "${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.remote-e2e.observability.yaml" \
   --profile jira \
   --profile pagerduty \
   --profile grafana \
@@ -42,7 +44,7 @@ When running `scripts/verify_remote_e2e_runtime_state.sh` for that stack, keep
 the same Compose files and profile set:
 
 ```bash
-export ESHU_REMOTE_E2E_COMPOSE_FILES="docker-compose.remote-e2e.yaml:docker-compose.remote-e2e.observability.yaml"
+export ESHU_REMOTE_E2E_COMPOSE_FILES="${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.remote-e2e.yaml:${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.remote-e2e.observability.yaml"
 export ESHU_REMOTE_E2E_COMPOSE_PROFILES="jira,pagerduty,grafana,prometheus-mimir,loki,tempo"
 scripts/verify_remote_e2e_runtime_state.sh
 ```

@@ -301,7 +301,7 @@ explicit credential source is configured. Configuring any one of `ESHU_API_KEY`,
 non-public request with no `Authorization` header and no valid session cookie is
 then rejected with `401`. With none of the three set the read surface is open
 (the deliberate local/demo dev-mode; see
-[Docker Compose](../run-locally/docker-compose.md)). Seeded bootstrap identities
+[Docker Compose](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/run-locally/docker-compose.md)). Seeded bootstrap identities
 and console-minted tokens are not enforcement signals on their own — close the
 open read surface with one of those three environment variables. Both `cmd/api`
 and `cmd/mcp-server` log the resolved posture (`auth.enforcement.configured` or

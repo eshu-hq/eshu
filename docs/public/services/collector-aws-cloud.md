@@ -146,5 +146,5 @@ client IDs, thumbprints, credentials, or token-like values.
 - [AWS Collector Security And Config](collector-aws-cloud-security.md)
 - [AWS Collector Scanner Coverage](collector-aws-cloud-scanners.md)
 - [Collector Runtime Services](../deployment/service-runtimes-collectors.md)
-- [Helm Collector And Webhook Values](../deploy/kubernetes/helm-collector-and-webhook-values.md)
+- [Helm Collector And Webhook Values](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/helm-collector-and-webhook-values.md)
 - [Collector And Reducer Readiness](../reference/collector-reducer-readiness.md)

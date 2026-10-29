@@ -45,16 +45,26 @@ jobs:
       matrix:
         include:
           - graph_backend: nornicdb
-            compose_file: docker-compose.yaml
+            compose_file: eshu-deploy/compose/docker-compose.yaml
             graph_service: nornicdb
             database: nornic
           - graph_backend: neo4j
-            compose_file: docker-compose.neo4j.yml
+            compose_file: eshu-deploy/compose/docker-compose.neo4j.yml
             graph_service: neo4j
             database: neo4j
     steps:
       - name: Check out code
         uses: actions/checkout@v5
+
+      # Deploy lanes (Compose files, env examples) moved to eshu-deploy
+      # under #8871. Gates check that repo out at the pinned extraction
+      # commit and address Compose files inside it.
+      - name: Check out eshu-deploy at the pinned extraction commit
+        uses: actions/checkout@v5
+        with:
+          repository: eshu-hq/eshu-deploy
+          ref: 6b6164d4fd95b8959284c5af0ba9a233fe032134
+          path: eshu-deploy
 
       - name: Set up Go
         uses: actions/setup-go@v6

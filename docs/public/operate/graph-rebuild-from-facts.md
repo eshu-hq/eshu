@@ -483,7 +483,7 @@ for the conditions the reference number was taken under.
 
 ## Related pages
 
-- [Hosted backup and restore proof](../deploy/kubernetes/backup-restore-proof.md)
+- [Hosted backup and restore proof](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/backup-restore-proof.md)
   — the evidence packet a hosted restore drill produces. This page is the
   procedure; that one validates the summary of having run it.
 - [Health checks](health-checks.md) — the shorter graph-data-loss sequence, for

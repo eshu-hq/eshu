@@ -118,9 +118,9 @@ For hosted remote E2E performance debugging, keep the base stack unchanged and
 add the pprof overlay only for the run that needs profiles:
 
 ```bash
-docker compose --env-file .env.remote-e2e \
-  -f docker-compose.remote-e2e.yaml \
-  -f docker-compose.remote-e2e.pprof.yaml \
+docker compose --env-file "${ESHU_DEPLOY_CHECKOUT}/.env.remote-e2e.example" \
+  -f "${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.remote-e2e.yaml" \
+  -f "${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.remote-e2e.pprof.yaml" \
   --profile seed up --build
 ```
 
@@ -128,11 +128,11 @@ When profiling Grafana, Prometheus/Mimir, Loki, or Tempo, include the matching
 observability overlays:
 
 ```bash
-docker compose --env-file .env.remote-e2e \
-  -f docker-compose.remote-e2e.yaml \
-  -f docker-compose.remote-e2e.observability.yaml \
-  -f docker-compose.remote-e2e.pprof.yaml \
-  -f docker-compose.remote-e2e.observability.pprof.yaml \
+docker compose --env-file "${ESHU_DEPLOY_CHECKOUT}/.env.remote-e2e.example" \
+  -f "${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.remote-e2e.yaml" \
+  -f "${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.remote-e2e.observability.yaml" \
+  -f "${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.remote-e2e.pprof.yaml" \
+  -f "${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.remote-e2e.observability.pprof.yaml" \
   --profile grafana --profile prometheus-mimir \
   --profile loki --profile tempo up --build
 ```

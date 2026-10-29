@@ -77,8 +77,8 @@ already running:
 ```bash
 docker build -t eshu:local -f Dockerfile .
 docker compose -p pd-ce-proof \
-  -f docker-compose.yaml \
-  -f docs/public/run-locally/docker-compose.component-extension-pagerduty.yaml \
+  -f "${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.yaml" \
+  -f "${ESHU_DEPLOY_CHECKOUT}/compose/fragments/docker-compose.component-extension-pagerduty.yaml" \
   --profile component-extension-collector up -d --build
 scripts/run-remote-e2e-pagerduty-component-extension.sh --artifacts <run-dir>
 ```
@@ -125,12 +125,12 @@ The Helm chart keeps the component extension collector default-off. Operators
 enable it with `componentExtensionCollector.enabled=true`, an allowlist trust
 mode, an explicit hosted-extension egress policy JSON, and a shared component
 registry volume mounted into both the workflow coordinator and worker. See
-[Helm Collector And Webhook Values](../deploy/kubernetes/helm-collector-and-webhook-values.md#collector-values)
+[Helm Collector And Webhook Values](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/helm-collector-and-webhook-values.md#collector-values)
 for the value contract and render-time guardrails.
 
 To run a collector from its own release image rather than a hand-mounted
 registry, use `componentExtensionCollector.activations`; see
-[Run An Extracted Collector](../deploy/kubernetes/run-an-extracted-collector.md).
+[Run An Extracted Collector](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/run-an-extracted-collector.md).
 
 Strict trust mode is not charted until provenance verifier values become
 first-class chart inputs. Rollback is disabling `componentExtensionCollector`

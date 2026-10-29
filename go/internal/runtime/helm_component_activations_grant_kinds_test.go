@@ -15,16 +15,66 @@ import (
 )
 
 var (
-	grantsKeyLine   = regexp.MustCompile(`^(\s*)grants:\s*(#.*)?$`)
-	grantKindLine   = regexp.MustCompile(`^\s*(?:-\s+)?kind:\s*["']?([A-Za-z0-9_.]+)["']?\s*(?:#.*)?$`)
-	commentLeadIn   = regexp.MustCompile(`^\s*#\s?`)
-	grantExampleSrc = []string{
-		"deploy/helm/eshu/values.yaml",
-		"deploy/helm/eshu/README.md",
-		"docs/public/deploy/kubernetes/run-an-extracted-collector.md",
-		"docs/public/deploy/kubernetes/helm-collector-and-webhook-values.md",
+	grantsKeyLine = regexp.MustCompile(`^(\s*)grants:\s*(#.*)?$`)
+	grantKindLine = regexp.MustCompile(`^\s*(?:-\s+)?kind:\s*["']?([A-Za-z0-9_.]+)["']?\s*(?:#.*)?$`)
+	commentLeadIn = regexp.MustCompile(`^\s*#\s?`)
+
+	// Activation fixtures duplicated from the extracted chart contract
+	// tests: this boundary test scans the real activation examples, and
+	// the chart-side copies moved to eshu-deploy with their file.
+	activationPagerDutyDigest = "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+	activationJiraDigest      = "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+
+	pagerDutyActivationValues = `    - instanceId: pagerduty-a
+      componentId: dev.example.collector.pagerduty
+      componentVersion: 0.1.0
+      seed:
+        image: ghcr.io/example/collector-pagerduty@` + activationPagerDutyDigest + `
+      host:
+        sourceSystem: pagerduty
+        scope:
+          id: pagerduty:account:example
+          kind: pagerduty_account
+      process:
+        args: ["--sdk-stdio"]
+      config:
+        api_token_env: PAGERDUTY_API_TOKEN
+      grants:
+        - kind: incident.record
+          schemaVersions: ["1.0.0", "1.1.0"]
+          scope: pagerduty
+          expiresIn: 360h
+      extraEnv:
+        - name: PAGERDUTY_API_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: pagerduty-credentials
+              key: api-token
+`
+	jiraActivationValues = `    - instanceId: jira-b
+      componentId: dev.example.collector.jira
+      componentVersion: 0.2.0
+      seed:
+        image: ghcr.io/example/collector-jira@` + activationJiraDigest + `
+      host:
+        sourceSystem: jira
+        scope:
+          id: jira:site:example.atlassian.net
+          kind: jira_site
+      replicas: 2
+`
+
+	// grantExampleSrcCore lives in eshu; grantExampleSrcDeploy lives in the
+	// pinned eshu-deploy checkout (checkout-relative paths).
+	grantExampleSrcCore = []string{
 		"docs/public/extend/reference-pagerduty-extension.md",
 		"go/internal/runtime/testdata/8894-component-extension-activations.md",
+	}
+	grantExampleSrcDeploy = []string{
+		"helm/eshu/values.yaml",
+		"helm/eshu/README.md",
+		"docs/kubernetes/run-an-extracted-collector.md",
+		"docs/kubernetes/helm-collector-and-webhook-values.md",
 	}
 )
 
@@ -89,8 +139,16 @@ func TestComponentActivationExampleGrantKindsAreCoreOwned(t *testing.T) {
 		"fixture jiraActivationValues":      jiraActivationValues,
 	}
 	root := repositoryRoot(t)
-	for _, rel := range grantExampleSrc {
+	for _, rel := range grantExampleSrcCore {
 		body, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel)))
+		if err != nil {
+			t.Fatalf("read %s: %v", rel, err)
+		}
+		sources[rel] = string(body)
+	}
+	checkout := deployCheckoutRoot(t)
+	for _, rel := range grantExampleSrcDeploy {
+		body, err := os.ReadFile(filepath.Join(checkout, filepath.FromSlash(rel)))
 		if err != nil {
 			t.Fatalf("read %s: %v", rel, err)
 		}
@@ -110,8 +168,8 @@ func TestComponentActivationExampleGrantKindsAreCoreOwned(t *testing.T) {
 	// carry at least one example grant.
 	for _, name := range []string{
 		"fixture pagerdutyActivationValues",
-		"deploy/helm/eshu/values.yaml",
-		"docs/public/deploy/kubernetes/run-an-extracted-collector.md",
+		"helm/eshu/values.yaml",
+		"docs/kubernetes/run-an-extracted-collector.md",
 	} {
 		if found[name] == 0 {
 			t.Errorf("%s: no example grant found; the scan no longer sees it", name)

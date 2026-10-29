@@ -147,7 +147,7 @@ export NEO4J_HTTP_PORT="${NEO4J_HTTP_PORT:-7680}"
 : "${ESHU_NEO4J_PASSWORD:=change-me}"
 : "${GATE_DRAIN_TIMEOUT:=3m}"
 
-compose_file="docker-compose.yaml"
+compose_file="${ESHU_DEPLOY_CHECKOUT:?set ESHU_DEPLOY_CHECKOUT to an eshu-deploy checkout (#8871 extraction pin in the gate workflow)}/compose/docker-compose.yaml"
 cassette="${repo_root}/testdata/cassettes/gcpcloud/supply-chain-demo.json"
 worker_counts=(1 2 4)
 

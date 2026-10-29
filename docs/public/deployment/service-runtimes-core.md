@@ -56,7 +56,7 @@ workspace PVC. Stdio MCP mode does not expose the HTTP admin surface.
 
 The reducer-specific runtime contract lives in
 [Resolution Engine](../services/resolution-engine.md). Helm lane and env
-values live in [Runtime Values](../deploy/kubernetes/helm-runtime-values.md).
+values live in [Runtime Values](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/helm-runtime-values.md).
 
 ## Collector Claims
 

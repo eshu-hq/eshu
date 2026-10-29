@@ -177,15 +177,49 @@ func TestGCPCloudCollectorBinaryIsBuiltInstalledAndDocumented(t *testing.T) {
 		"Dockerfile":                        "-o /go-bin/eshu-collector-gcp-cloud ./cmd/collector-gcp-cloud",
 		"scripts/install-local-binaries.sh": "go build -trimpath -ldflags=\"$LDFLAGS\" -o \"$INSTALL_DIR/eshu-collector-gcp-cloud\" ./cmd/collector-gcp-cloud",
 		"go/cmd/README.md":                  "`eshu-collector-gcp-cloud`",
-		"docs/public/deployment/service-runtimes-collectors.md":          "deploy/helm/eshu/templates/deployment-gcp-cloud-collector.yaml",
-		"docs/public/reference/environment-collectors.md":                "ESHU_GCP_COLLECTOR_INSTANCE_ID",
-		"deploy/helm/eshu/templates/deployment-gcp-cloud-collector.yaml": "/usr/local/bin/eshu-collector-gcp-cloud",
+		"docs/public/deployment/service-runtimes-collectors.md": "https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/templates/deployment-gcp-cloud-collector.yaml",
+		"docs/public/reference/environment-collectors.md":       "ESHU_GCP_COLLECTOR_INSTANCE_ID",
 	} {
 		content := readRepositoryFile(t, "../../..", file)
 		if !strings.Contains(content, want) {
 			t.Fatalf("%s missing %q", file, want)
 		}
 	}
+	for file, want := range map[string]string{
+		"helm/eshu/templates/deployment-gcp-cloud-collector.yaml": "/usr/local/bin/eshu-collector-gcp-cloud",
+	} {
+		content := readRepositoryFile(t, deployCheckoutRoot(t), file)
+		if !strings.Contains(content, want) {
+			t.Fatalf("%s missing %q", file, want)
+		}
+	}
+}
+
+func assertClaimCollector(
+	t *testing.T,
+	manifests []helmManifest,
+	component string,
+	binary string,
+	wantEnv map[string]string,
+) {
+	t.Helper()
+
+	deployment := requireHelmManifest(t, manifests, "Deployment", "eshu-"+component)
+	container := requireHelmContainer(t, deployment, component)
+	if command := helmStringSlice(container["command"]); !stringSlicesEqual(command, []string{"/usr/local/bin/" + binary}) {
+		t.Fatalf("%s command = %#v, want %s", component, command, binary)
+	}
+	env := helmEnvByName(container)
+	for name, want := range wantEnv {
+		assertHelmLiteralEnv(t, env, name, want)
+	}
+	if value := helmString(env["ESHU_COLLECTOR_INSTANCES_JSON"]["value"]); !strings.Contains(value, `"claims_enabled":true`) {
+		t.Fatalf("%s collector instances JSON = %q, missing claims_enabled=true", component, value)
+	}
+	requireHelmManifest(t, manifests, "Service", "eshu-"+component+"-metrics")
+	requireHelmManifest(t, manifests, "ServiceMonitor", "eshu-"+component+"-metrics")
+	requireHelmManifest(t, manifests, "NetworkPolicy", "eshu-"+component)
+	requireHelmManifest(t, manifests, "PodDisruptionBudget", "eshu-"+component)
 }
 
 func validGCPCloudCollectorValues() string {

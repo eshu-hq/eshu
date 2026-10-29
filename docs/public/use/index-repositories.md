@@ -78,8 +78,9 @@ Use `index` when you only need to launch `eshu-bootstrap-index`:
 eshu index .
 ```
 
-If you use `docker-compose.neo4j.yml`, set `ESHU_GRAPH_BACKEND=neo4j` and use
-database `neo4j`.
+If you use `compose/docker-compose.neo4j.yml` from `$ESHU_DEPLOY_CHECKOUT`
+(the stack moved to eshu-deploy under #8871), set `ESHU_GRAPH_BACKEND=neo4j`
+and use database `neo4j`.
 
 ## Start a local Eshu service
 

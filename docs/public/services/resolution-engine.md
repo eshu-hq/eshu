@@ -2,7 +2,7 @@
 
 Use this page for the reducer runtime boundary, concurrency model, and operator
 signals. Helm lane values live in
-[Helm Runtime Values](../deploy/kubernetes/helm-runtime-values.md).
+[Helm Runtime Values](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/helm-runtime-values.md).
 
 The resolution engine claims durable work, runs reducer domains, drains shared
 projection lanes, writes canonical graph/read-model truth through configured

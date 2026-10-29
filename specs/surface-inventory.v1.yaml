@@ -61,7 +61,7 @@ surfaces:
       fact_kinds: [oci_registry.image_descriptor, oci_registry.image_index, oci_registry.image_manifest, oci_registry.image_referrer, oci_registry.image_tag_observation, oci_registry.repository, oci_registry.warning]
       projection_surfaces: [container_image_identity, sbom_attestation_attachment, supply_chain_impact]
       read_surfaces: [GET /api/v0/images, GET /api/v0/supply-chain/container-images/identities, get_container_image_identity_inventory, list_container_image_identities]
-      proof_gates: [cd go && go test ./internal/collector/registry/oci ./internal/reducer ./internal/query ./internal/mcp -count=1, scripts/verify_oci_registry_collector_helm.sh]
+      proof_gates: [cd go && go test ./internal/collector/registry/oci ./internal/reducer ./internal/query ./internal/mcp -count=1]
       fixture_refs: [go/internal/collector/registry/oci/testdata]
       truth_profile: provider_gated
   - category: collector
@@ -144,7 +144,7 @@ surfaces:
       fact_kinds: [vulnerability.affected_package, vulnerability.affected_product, vulnerability.cve, vulnerability.epss_score, vulnerability.go_call_reachability, vulnerability.go_module_evidence, vulnerability.known_exploited, vulnerability.os_package, vulnerability.reference, vulnerability.source_snapshot, vulnerability.warning]
       projection_surfaces: [supply_chain_impact, vulnerability_source_state]
       read_surfaces: [GET /api/v0/supply-chain/impact/findings, "GET /api/v0/supply-chain/vulnerabilities/{id}", explain_supply_chain_impact, list_supply_chain_impact_findings]
-      proof_gates: [cd go && go test ./internal/collector/vulnerabilityintelligence ./internal/reducer ./internal/query ./internal/mcp -count=1, scripts/verify_vulnerability_intelligence_collector_helm.sh]
+      proof_gates: [cd go && go test ./internal/collector/vulnerabilityintelligence ./internal/reducer ./internal/query ./internal/mcp -count=1]
       fixture_refs: [go/internal/collector/vulnerabilityintelligence/testdata, docs/public/reference/collector-reducer-readiness.md#vulnerability-intelligence-promotion-proof]
       truth_profile: provider_gated
   - category: collector
@@ -346,7 +346,7 @@ surfaces:
     name: mock-oidc-idp
     readiness: fixture_only
     owner: cmd/mock-oidc-idp
-    docs: [run-locally/docker-compose.md]
+    docs: [https://github.com/eshu-hq/eshu-deploy/blob/main/docs/run-locally/docker-compose.md]
     notes: >-
       Test-only synthetic OpenID Connect IdP built solely for the #4971 auth
       E2E stack (docker-compose.e2e.yaml). Deliberately excluded from the

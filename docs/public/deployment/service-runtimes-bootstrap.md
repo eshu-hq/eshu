@@ -156,7 +156,7 @@ server.
 
 Compose runs `db-migrate` with `/usr/local/bin/eshu-bootstrap-data-plane` after
 Postgres and the graph backend are healthy. Steady-state services depend on
-that one-shot service completing successfully; on Kubernetes it runs as the chart's schema-bootstrap Job (see [Argo CD and GitOps](../deploy/kubernetes/argocd.md#schema-bootstrap-presync-hook) for the PreSync hook variant, deadline sizing, and break-glass render).
+that one-shot service completing successfully; on Kubernetes it runs as the chart's schema-bootstrap Job (see [Argo CD and GitOps](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/argocd.md#schema-bootstrap-presync-hook) for the PreSync hook variant, deadline sizing, and break-glass render).
 
 Graph-writing runtimes (`eshu-bootstrap-index`, ingester/projector, standalone
 projector, and resolution engine) read the latest Postgres
@@ -285,10 +285,7 @@ pooler in front of the DSN must forward the `eshu.infra_inventory_writer`
 session setting; a stripped setting shows as `postgres.session_unfenced` and a
 non-zero `eshu_dp_infra_inventory_dirty_repos`.
 
-Helm renders `deploy/helm/eshu/templates/job-schema-bootstrap.yaml`. With
-`schemaBootstrap.useHelmHooks=true`, the Job runs as a pre-install/pre-upgrade
-hook. Do not attach schema verification to every runtime pod; repeated graph
-schema checks can saturate a large existing backend during rolling updates.
+Helm renders `helm/eshu/templates/job-schema-bootstrap.yaml` from the eshu-deploy checkout (`$ESHU_DEPLOY_CHECKOUT`, [chart README](https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/README.md)). With `schemaBootstrap.useHelmHooks=true`, the Job runs as a pre-install/pre-upgrade hook. Do not attach schema verification to every runtime pod; repeated graph schema checks can saturate a large existing backend during rolling updates.
 
 Do not combine Helm-hook schema bootstrap with bundled NornicDB:
 
@@ -494,7 +491,7 @@ on the legacy scan until a bootstrap-index run publishes.
 
 ## Related Pages
 
-- [Helm Runtime Values](../deploy/kubernetes/helm-runtime-values.md)
-- [Storage](../deploy/kubernetes/storage.md)
+- [Helm Runtime Values](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/helm-runtime-values.md)
+- [Storage](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/storage.md)
 - [Bootstrap Index Service](../services/bootstrap-index.md)
 - [Telemetry Overview](../reference/telemetry/index.md)

@@ -12,12 +12,12 @@ healthy collectors but a `Created`, stopped, or unhealthy ingester is not ready.
 
 ## Command
 
-Run from the Eshu checkout that owns the Compose stack:
+Run from the eshu-deploy checkout that owns the Compose stack (moved there under #8871; `ESHU_DEPLOY_CHECKOUT` must point at that checkout):
 
 ```bash
 export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-eshu-remote-e2e}"
-export ESHU_REMOTE_E2E_ENV_FILE="${ESHU_REMOTE_E2E_ENV_FILE:-.env.remote-e2e}"
-export ESHU_REMOTE_E2E_COMPOSE_FILES="docker-compose.remote-e2e.yaml"
+export ESHU_REMOTE_E2E_ENV_FILE="${ESHU_REMOTE_E2E_ENV_FILE:-${ESHU_DEPLOY_CHECKOUT}/.env.remote-e2e.example}"
+export ESHU_REMOTE_E2E_COMPOSE_FILES="${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.remote-e2e.yaml"
 
 scripts/verify_remote_e2e_runtime_state.sh
 ```
@@ -25,7 +25,7 @@ scripts/verify_remote_e2e_runtime_state.sh
 If the run uses an additional local override file, append it with a colon:
 
 ```bash
-export ESHU_REMOTE_E2E_COMPOSE_FILES="docker-compose.remote-e2e.yaml:/tmp/eshu-remote-e2e.override.yaml"
+export ESHU_REMOTE_E2E_COMPOSE_FILES="${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.remote-e2e.yaml:/tmp/eshu-remote-e2e.override.yaml"
 scripts/verify_remote_e2e_runtime_state.sh
 ```
 
@@ -33,7 +33,7 @@ If the run enables Grafana, Prometheus/Mimir, Loki, or Tempo, include the
 checked-in observability overlay:
 
 ```bash
-export ESHU_REMOTE_E2E_COMPOSE_FILES="docker-compose.remote-e2e.yaml:docker-compose.remote-e2e.observability.yaml"
+export ESHU_REMOTE_E2E_COMPOSE_FILES="${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.remote-e2e.yaml:${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.remote-e2e.observability.yaml"
 export ESHU_REMOTE_E2E_COMPOSE_PROFILES="grafana,prometheus-mimir,loki,tempo"
 scripts/verify_remote_e2e_runtime_state.sh
 ```
