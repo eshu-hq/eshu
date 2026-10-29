@@ -105,17 +105,21 @@ func parseSeedArgs(args []string) (string, string, error) {
 // when it is absent. Modes are enforced after every write so a re-seed
 // repairs drift instead of preserving it.
 func writeSeed(dest string, manifest component.Manifest, executable string) error {
+	// #nosec G301 -- dest is the operator-chosen seed directory; 0755 grants no group/other write and lets reconcile traverse it.
 	if err := os.MkdirAll(dest, 0o755); err != nil {
 		return errors.New("seed: --dest is not a writable directory")
 	}
+	// #nosec G304 -- this path originates from os.Executable, never from --dest or another user-controlled flag.
 	raw, err := os.ReadFile(executable)
 	if err != nil {
 		return errors.New("seed: read the running executable")
 	}
 	collector := filepath.Join(dest, seedCollectorName)
+	// #nosec G306, G703 -- the collector must stay executable (0755) for the reconcile step; dest is the explicit operator-chosen target joined only with constant file names.
 	if err := os.WriteFile(collector, raw, 0o755); err != nil {
 		return errors.New("seed: cannot write the collector file")
 	}
+	// #nosec G302 -- re-seed repairs mode drift back to the required 0755.
 	if err := os.Chmod(collector, 0o755); err != nil {
 		return errors.New("seed: cannot write the collector file")
 	}
@@ -124,9 +128,11 @@ func writeSeed(dest string, manifest component.Manifest, executable string) erro
 		return errors.New("seed: cannot encode the component manifest")
 	}
 	manifestPath := filepath.Join(dest, seedManifestName)
+	// #nosec G306 -- the manifest must stay readable (0644) for the reconcile step.
 	if err := os.WriteFile(manifestPath, encoded, 0o644); err != nil {
 		return errors.New("seed: cannot write the manifest file")
 	}
+	// #nosec G302 -- re-seed repairs mode drift back to the required 0644.
 	if err := os.Chmod(manifestPath, 0o644); err != nil {
 		return errors.New("seed: cannot write the manifest file")
 	}
