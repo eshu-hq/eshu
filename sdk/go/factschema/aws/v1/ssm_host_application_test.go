@@ -24,7 +24,7 @@ func TestSSMHostApplicationJSONSpelling(t *testing.T) {
 		Partition:           "aws",
 		AccountID:           "055929692761",
 		Region:              "us-east-1",
-		InstanceID:          "i-0e18f7b9871b85f57",
+		InstanceID:          "i-00000000000000002",
 		ResourceType:        "AWS::EC2::Instance",
 		SourceType:          SSMInventoryTypeApplication,
 		SchemaVersion:       "1.0.0",
@@ -82,7 +82,7 @@ func TestSSMHostApplicationOptionalRowFieldsOmitted(t *testing.T) {
 		Partition:     "aws",
 		AccountID:     "055929692761",
 		Region:        "us-east-1",
-		InstanceID:    "i-0e18f7b9871b85f57",
+		InstanceID:    "i-00000000000000002",
 		ResourceType:  "AWS::EC2::Instance",
 		SourceType:    SSMInventoryTypeApplication,
 		SchemaVersion: "1.0.0",
@@ -114,7 +114,7 @@ func TestSSMHostApplicationCanonicalRowHashIsAllowlistOnly(t *testing.T) {
 	name, version := "openssl", "3.0.8"
 	base := SSMHostApplication{
 		Partition: "aws", AccountID: "055929692761", Region: "us-east-1",
-		InstanceID: "i-0e18f7b9871b85f57", ResourceType: "AWS::EC2::Instance",
+		InstanceID: "i-00000000000000002", ResourceType: "AWS::EC2::Instance",
 		SourceType: SSMInventoryTypeApplication, SchemaVersion: "1.0.0",
 		CaptureTime: "2026-10-29T22:31:19Z", Name: &name, Version: &version,
 	}
@@ -156,14 +156,14 @@ func TestSSMHostApplicationStableKeyComposition(t *testing.T) {
 	name := "openssl"
 	base := SSMHostApplication{
 		Partition: "aws", AccountID: "055929692761", Region: "us-east-1",
-		InstanceID: "i-0e18f7b9871b85f57", ResourceType: "AWS::EC2::Instance",
+		InstanceID: "i-00000000000000002", ResourceType: "AWS::EC2::Instance",
 		SourceType: SSMInventoryTypeApplication, SchemaVersion: "1.0.0",
 		CaptureTime: "2026-10-29T22:31:19Z", Name: &name,
 	}
 	key := SSMHostApplicationStableKey(base)
 	for _, want := range []string{
 		"aws_ssm_host_application", "aws", "055929692761", "us-east-1",
-		"i-0e18f7b9871b85f57", "2026-10-29T22:31:19Z",
+		"i-00000000000000002", "2026-10-29T22:31:19Z",
 		CanonicalSSMHostApplicationRow(base),
 	} {
 		if !strings.Contains(key, want) {

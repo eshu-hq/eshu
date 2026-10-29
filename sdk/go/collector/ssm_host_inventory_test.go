@@ -187,7 +187,7 @@ func TestSSMHostInventoryAggregatesCarryCountsOnly(t *testing.T) {
 	t.Parallel()
 
 	hostile := []string{
-		"openssl-3.0.8", "i-0e18f7b9871b85f57", "host-01.example.com",
+		"openssl-3.0.8", "i-00000000000000002", "host-01.example.com",
 		"203.0.113.10", "https://example.com/packages",
 		"ListInventoryEntries row",
 	}

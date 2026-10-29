@@ -24,7 +24,7 @@ func TestSSMHostPlatformJSONSpelling(t *testing.T) {
 		Partition:           "aws",
 		AccountID:           "055929692761",
 		Region:              "us-east-1",
-		InstanceID:          "i-0e18f7b9871b85f57",
+		InstanceID:          "i-00000000000000002",
 		ResourceType:        "AWS::EC2::Instance",
 		PlatformType:        &platformType,
 		PlatformName:        &platformName,
@@ -72,7 +72,7 @@ func TestSSMHostPlatformDescribeInstanceInformationOmitsCaptureTime(t *testing.T
 		Partition:       "aws",
 		AccountID:       "055929692761",
 		Region:          "us-east-1",
-		InstanceID:      "i-0e18f7b9871b85f57",
+		InstanceID:      "i-00000000000000002",
 		ResourceType:    "AWS::EC2::Instance",
 		PlatformType:    &platformType,
 		SourceType:      SSMHostPlatformSourceDescribeInstanceInformation,
@@ -103,7 +103,7 @@ func TestSSMHostPlatformStableKeyComposition(t *testing.T) {
 
 	base := SSMHostPlatform{
 		Partition: "aws", AccountID: "055929692761", Region: "us-east-1",
-		InstanceID:      "i-0e18f7b9871b85f57",
+		InstanceID:      "i-00000000000000002",
 		ResourceType:    "AWS::EC2::Instance",
 		SourceType:      SSMHostPlatformSourceInventory,
 		CaptureTime:     ptr("2026-10-29T22:31:19Z"),
@@ -112,7 +112,7 @@ func TestSSMHostPlatformStableKeyComposition(t *testing.T) {
 	key := SSMHostPlatformStableKey(base)
 	for _, want := range []string{
 		"aws_ssm_host_platform", "aws", "055929692761", "us-east-1",
-		"i-0e18f7b9871b85f57", SSMHostPlatformSourceInventory,
+		"i-00000000000000002", SSMHostPlatformSourceInventory,
 	} {
 		if !strings.Contains(key, want) {
 			t.Fatalf("stable key %q misses %q", key, want)
