@@ -23,6 +23,13 @@ import (
 // on the in-tree leg instead of failing it.
 var ErrPinNotSupported = errors.New("parity backend has no commit pin")
 
+// ErrGuardedAdmissionNotSupported reports a guarded admission on a backend
+// with no atomic no-open-targets route. Only the in-tree store implements
+// CreateRunWithWorkItemsIfNoOpenTargets; the satellite serves CreateRun and
+// EnqueueWorkItems as separate calls, and a client-side read-then-write
+// shim is refused (#9428 ruling), so the satellite leg records this code.
+var ErrGuardedAdmissionNotSupported = errors.New("parity backend has no guarded admission")
+
 // Backend is one side of the differential harness: either the in-tree
 // ControlStore or the satellite claim plane over HTTP. Method sets match
 // workflow.ControlStore plus the commit pin and the instance read both
@@ -31,6 +38,7 @@ type Backend interface {
 	Name() string
 	CreateRun(context.Context, workflow.Run) error
 	EnqueueWorkItems(context.Context, []workflow.WorkItem) error
+	AdmitGuarded(context.Context, workflow.Run, []workflow.WorkItem) (workflow.RunAdmission, error)
 	ReconcileCollectorInstances(context.Context, time.Time, []workflow.DesiredCollectorInstance) error
 	UpsertCompletenessStates(context.Context, []workflow.CompletenessState) error
 	ReconcileWorkflowRuns(context.Context, time.Time) (int, error)
@@ -104,6 +112,14 @@ func (b *inTreeBackend) CreateRun(ctx context.Context, run workflow.Run) error {
 
 func (b *inTreeBackend) EnqueueWorkItems(ctx context.Context, items []workflow.WorkItem) error {
 	return wrapLegErr(b.Name(), "EnqueueWorkItems", b.store.EnqueueWorkItems(ctx, items))
+}
+
+// AdmitGuarded admits through the atomic no-open-targets guard: the second
+// admission on an already-covered scope set reports zero eligible targets
+// instead of queueing duplicates.
+func (b *inTreeBackend) AdmitGuarded(ctx context.Context, run workflow.Run, items []workflow.WorkItem) (workflow.RunAdmission, error) {
+	admission, err := b.store.CreateRunWithWorkItemsIfNoOpenTargets(ctx, run, items)
+	return admission, wrapLegErr(b.Name(), "AdmitGuarded", err)
 }
 
 func (b *inTreeBackend) ReconcileCollectorInstances(ctx context.Context, observedAt time.Time, desired []workflow.DesiredCollectorInstance) error {
@@ -201,6 +217,13 @@ func (b *satelliteBackend) CreateRun(ctx context.Context, run workflow.Run) erro
 
 func (b *satelliteBackend) EnqueueWorkItems(ctx context.Context, items []workflow.WorkItem) error {
 	return wrapLegErr(b.Name(), "EnqueueWorkItems", b.client.EnqueueWorkItems(ctx, items))
+}
+
+// AdmitGuarded has no satellite route: the claim plane serves CreateRun and
+// EnqueueWorkItems as separate calls, and a client-side read-then-write shim
+// is refused (#9428 ruling), so the satellite leg records the gap.
+func (b *satelliteBackend) AdmitGuarded(context.Context, workflow.Run, []workflow.WorkItem) (workflow.RunAdmission, error) {
+	return workflow.RunAdmission{}, wrapLegErr(b.Name(), "AdmitGuarded", ErrGuardedAdmissionNotSupported)
 }
 
 func (b *satelliteBackend) ReconcileCollectorInstances(ctx context.Context, observedAt time.Time, desired []workflow.DesiredCollectorInstance) error {
