@@ -6,6 +6,7 @@ package query
 import (
 	"context"
 	"database/sql"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -218,37 +219,26 @@ func TestAdvisoryEvidenceImpactRepoProbeLive(t *testing.T) {
 
 	seedAdvisoryImpactRepoFixtures(t, ctx, db)
 
-	contains := func(ids []string, want string) bool {
-		for _, id := range ids {
-			if id == want {
-				return true
-			}
+	assertExactIDs := func(scope string, ids, want []string) {
+		t.Helper()
+		got := slices.Clone(ids)
+		slices.Sort(got)
+		if !slices.Equal(got, want) {
+			t.Fatalf("%s scope must return exactly %v, got %v", scope, want, got)
 		}
-		return false
 	}
 
+	// Exact sets (order-proof): a leaked row (stale generation, tombstone,
+	// cross-scope) or a silently dropped row fails the scope.
 	repoA := queryImpactRepoEvidence(t, ctx, db, "repository:repo-A", "", "")
-	if !contains(repoA, "repo-adv-9101") {
-		t.Fatalf("repository scope must resolve live finding CVE-2026-9101, got %v", repoA)
-	}
-	for _, excluded := range []string{"repo-adv-9103", "repo-adv-9104"} {
-		if contains(repoA, excluded) {
-			t.Fatalf("repository scope must exclude %s (stale generation / tombstone), got %v", excluded, repoA)
-		}
-	}
+	assertExactIDs("repository:repo-A", repoA, []string{"repo-adv-9101", "repo-adv-9106"})
 
 	repoSvc := queryImpactRepoEvidence(t, ctx, db, "repository:repo-A", "service:svc-X", "")
-	if !contains(repoSvc, "repo-adv-9101") {
-		t.Fatalf("repository+service scope must resolve CVE-2026-9101, got %v", repoSvc)
-	}
+	assertExactIDs("repository:repo-A+service:svc-X", repoSvc, []string{"repo-adv-9101"})
 
 	repoSvcMiss := queryImpactRepoEvidence(t, ctx, db, "repository:repo-A", "service:svc-missing", "")
-	if contains(repoSvcMiss, "repo-adv-9101") {
-		t.Fatalf("repository+missing-service scope must exclude CVE-2026-9101, got %v", repoSvcMiss)
-	}
+	assertExactIDs("repository:repo-A+service:svc-missing", repoSvcMiss, []string{})
 
 	workload := queryImpactRepoEvidence(t, ctx, db, "", "", "workload:repo-W")
-	if !contains(workload, "repo-adv-9106") {
-		t.Fatalf("workload scope must resolve CVE-2026-9106, got %v", workload)
-	}
+	assertExactIDs("workload:repo-W", workload, []string{"repo-adv-9106"})
 }
