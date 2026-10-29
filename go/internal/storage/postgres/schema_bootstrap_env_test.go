@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -12,6 +13,39 @@ import (
 	"testing"
 	"time"
 )
+
+// expectedDeployCheckoutCommit pins the eshu-hq/eshu-deploy commit the
+// chart-binding tests read deploy assets from. It must match the twin pins
+// in go/internal/deploy/checkout_test.go and
+// go/internal/runtime/deploy_checkout_test.go: every helper fails closed on
+// any other commit, so a skew between the pins surfaces as a test failure,
+// not a silent drift.
+const expectedDeployCheckoutCommit = "bc6b17897056e3c5dab27dd2357a013869b2bd9a"
+
+// deployCheckoutForContract resolves the eshu-deploy checkout the
+// chart-binding tests read the Helm chart from. It fails closed: an absent
+// ESHU_DEPLOY_CHECKOUT, a missing directory, or a commit mismatch fails the
+// calling test instead of silently reading the wrong tree.
+func deployCheckoutForContract(t *testing.T) string {
+	t.Helper()
+
+	dir := os.Getenv("ESHU_DEPLOY_CHECKOUT")
+	if dir == "" {
+		t.Fatal("ESHU_DEPLOY_CHECKOUT is not set; point it at an eshu-hq/eshu-deploy checkout at " + expectedDeployCheckoutCommit)
+	}
+	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+		t.Fatalf("ESHU_DEPLOY_CHECKOUT=%q is not a directory: %v", dir, err)
+	}
+	cmd := exec.Command("git", "-C", dir, "rev-parse", "HEAD")
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("ESHU_DEPLOY_CHECKOUT=%q is not a git checkout: %v", dir, err)
+	}
+	if got := strings.TrimSpace(string(out)); got != expectedDeployCheckoutCommit {
+		t.Fatalf("ESHU_DEPLOY_CHECKOUT=%q is at %s, want %s", dir, got, expectedDeployCheckoutCommit)
+	}
+	return dir
+}
 
 // TestBootstrapOptionsFromEnv pins the #6956 knob contract for ALL THREE
 // variables: unset leaves the package default (zero) in force, a duration
@@ -85,12 +119,13 @@ func TestBootstrapOptionsFromEnv(t *testing.T) {
 // shared by every statement of the run and counts each attempt's
 // lock_timeout), so their sum plus a floor for pod start, the migrations'
 // own work and the graph schema must fit inside the schema bootstrap Job's
-// activeDeadlineSeconds, read from deploy/helm/eshu/values.yaml, or the
-// holder diagnostic can never print before Kubernetes kills the Job.
+// activeDeadlineSeconds, read from the eshu-deploy checkout's
+// helm/eshu/values.yaml, or the holder diagnostic can never print before
+// Kubernetes kills the Job.
 func TestSchemaBootstrapCoordinationDefaultsFitTheJobDeadline(t *testing.T) {
 	t.Parallel()
 	const workFloor = 4 * time.Minute // pod start, image pull, migrations, graph schema
-	values, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "deploy", "helm", "eshu", "values.yaml"))
+	values, err := os.ReadFile(filepath.Join(deployCheckoutForContract(t), "helm", "eshu", "values.yaml"))
 	if err != nil {
 		t.Fatalf("read chart values: %v", err)
 	}

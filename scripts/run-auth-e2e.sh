@@ -19,6 +19,10 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
+# Stack builds compile Eshu source: anchor them at this checkout (dest
+# compose files default the build context to their own directory).
+export ESHU_REPO_ROOT="${ESHU_REPO_ROOT:-${repo_root}}"
+
 # shellcheck source=scripts/lib/auth_e2e_cli.sh
 source "$repo_root/scripts/lib/auth_e2e_cli.sh"
 

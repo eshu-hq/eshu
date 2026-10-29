@@ -30,6 +30,9 @@ concurrency:
 # because setting CGO_CFLAGS replaces it. Remove with scripts/lib/cgo-cflags.sh.
 env:
   CGO_CFLAGS: "-O2 -g -std=gnu17"
+  # Repointed contract tests read deploy assets from the pinned eshu-deploy
+  # checkout and fail closed without it (#8871).
+  ESHU_DEPLOY_CHECKOUT: ${{ github.workspace }}/eshu-deploy
 
 jobs:
   macos:
@@ -41,6 +44,13 @@ jobs:
 
     steps:
       - uses: actions/checkout@v5
+
+      - name: Check out eshu-deploy at the pinned extraction commit
+        uses: actions/checkout@v5
+        with:
+          repository: eshu-hq/eshu-deploy
+          ref: bc6b17897056e3c5dab27dd2357a013869b2bd9a
+          path: eshu-deploy
 
       - name: Set up Go
         uses: actions/setup-go@v6

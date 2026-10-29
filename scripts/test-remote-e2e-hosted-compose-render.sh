@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# Remote E2E Compose files moved to eshu-deploy under #8871: render them
+# from the pinned eshu-deploy checkout (CI pins the extraction commit).
+: "${ESHU_DEPLOY_CHECKOUT:?ESHU_DEPLOY_CHECKOUT must point at an eshu-hq/eshu-deploy checkout; the gate workflow checks it out at the pinned extraction commit}"
+DEPLOY_COMPOSE="${ESHU_DEPLOY_CHECKOUT}/compose"
+DEPLOY_ENV="${ESHU_DEPLOY_CHECKOUT}/.env.remote-e2e.example"
 
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
@@ -19,47 +22,47 @@ docker_compose_available() {
 compose_services() {
 	local output="$1"
 	shift
-	docker compose --env-file "${REPO_ROOT}/.env.remote-e2e.example" \
-		-f "${REPO_ROOT}/docker-compose.remote-e2e.yaml" \
+	docker compose --env-file "${DEPLOY_ENV}" \
+		-f "${DEPLOY_COMPOSE}/docker-compose.remote-e2e.yaml" \
 		"$@" config --services >"${output}"
 }
 
 compose_observability_services() {
 	local output="$1"
 	shift
-	docker compose --env-file "${REPO_ROOT}/.env.remote-e2e.example" \
-		-f "${REPO_ROOT}/docker-compose.remote-e2e.yaml" \
-		-f "${REPO_ROOT}/docker-compose.remote-e2e.observability.yaml" \
+	docker compose --env-file "${DEPLOY_ENV}" \
+		-f "${DEPLOY_COMPOSE}/docker-compose.remote-e2e.yaml" \
+		-f "${DEPLOY_COMPOSE}/docker-compose.remote-e2e.observability.yaml" \
 		"$@" config --services >"${output}"
 }
 
 compose_pprof_config() {
 	local output="$1"
 	shift
-	docker compose --env-file "${REPO_ROOT}/.env.remote-e2e.example" \
-		-f "${REPO_ROOT}/docker-compose.remote-e2e.yaml" \
-		-f "${REPO_ROOT}/docker-compose.remote-e2e.pprof.yaml" \
+	docker compose --env-file "${DEPLOY_ENV}" \
+		-f "${DEPLOY_COMPOSE}/docker-compose.remote-e2e.yaml" \
+		-f "${DEPLOY_COMPOSE}/docker-compose.remote-e2e.pprof.yaml" \
 		"$@" config >"${output}"
 }
 
 compose_observability_pprof_config() {
 	local output="$1"
 	shift
-	docker compose --env-file "${REPO_ROOT}/.env.remote-e2e.example" \
-		-f "${REPO_ROOT}/docker-compose.remote-e2e.yaml" \
-		-f "${REPO_ROOT}/docker-compose.remote-e2e.observability.yaml" \
-		-f "${REPO_ROOT}/docker-compose.remote-e2e.pprof.yaml" \
-		-f "${REPO_ROOT}/docker-compose.remote-e2e.observability.pprof.yaml" \
+	docker compose --env-file "${DEPLOY_ENV}" \
+		-f "${DEPLOY_COMPOSE}/docker-compose.remote-e2e.yaml" \
+		-f "${DEPLOY_COMPOSE}/docker-compose.remote-e2e.observability.yaml" \
+		-f "${DEPLOY_COMPOSE}/docker-compose.remote-e2e.pprof.yaml" \
+		-f "${DEPLOY_COMPOSE}/docker-compose.remote-e2e.observability.pprof.yaml" \
 		"$@" config >"${output}"
 }
 
 compose_fragment_hashes() {
 	local output="$1"
 	shift
-	docker compose --env-file "${REPO_ROOT}/.env.remote-e2e.example" \
-		-f "${REPO_ROOT}/docker-compose.remote-e2e.foundation.yaml" \
-		-f "${REPO_ROOT}/docker-compose.remote-e2e.runtime.yaml" \
-		-f "${REPO_ROOT}/docker-compose.remote-e2e.seed.yaml" \
+	docker compose --env-file "${DEPLOY_ENV}" \
+		-f "${DEPLOY_COMPOSE}/docker-compose.remote-e2e.foundation.yaml" \
+		-f "${DEPLOY_COMPOSE}/docker-compose.remote-e2e.runtime.yaml" \
+		-f "${DEPLOY_COMPOSE}/docker-compose.remote-e2e.seed.yaml" \
 		"$@" config --hash '*' >"${output}"
 }
 
@@ -128,14 +131,14 @@ assert_static_contract() {
 		'ESHU_REMOTE_E2E_LOKI_ENABLED=false' \
 		'ESHU_REMOTE_E2E_TEMPO_ENABLED=false'; do
 		if ! rg -q "${want}" \
-			"${REPO_ROOT}/docker-compose.remote-e2e.yaml" \
-			"${REPO_ROOT}/docker-compose.remote-e2e.foundation.yaml" \
-			"${REPO_ROOT}/docker-compose.remote-e2e.runtime.yaml" \
-			"${REPO_ROOT}/docker-compose.remote-e2e.seed.yaml" \
-			"${REPO_ROOT}/docker-compose.remote-e2e.observability.yaml" \
-			"${REPO_ROOT}/docker-compose.remote-e2e.pprof.yaml" \
-			"${REPO_ROOT}/docker-compose.remote-e2e.observability.pprof.yaml" \
-			"${REPO_ROOT}/.env.remote-e2e.example"; then
+			"${DEPLOY_COMPOSE}/docker-compose.remote-e2e.yaml" \
+			"${DEPLOY_COMPOSE}/docker-compose.remote-e2e.foundation.yaml" \
+			"${DEPLOY_COMPOSE}/docker-compose.remote-e2e.runtime.yaml" \
+			"${DEPLOY_COMPOSE}/docker-compose.remote-e2e.seed.yaml" \
+			"${DEPLOY_COMPOSE}/docker-compose.remote-e2e.observability.yaml" \
+			"${DEPLOY_COMPOSE}/docker-compose.remote-e2e.pprof.yaml" \
+			"${DEPLOY_COMPOSE}/docker-compose.remote-e2e.observability.pprof.yaml" \
+			"${DEPLOY_ENV}"; then
 			die "checked-in remote E2E hosted Compose contract missing ${want}"
 		fi
 	done
@@ -164,8 +167,8 @@ assert_service_absent "${default_services}" collector-confluence-preflight
 root_hashes="${TMP_DIR}/root-config.hashes"
 fragment_hashes="${TMP_DIR}/fragment-config.hashes"
 compose_fragment_hashes "${fragment_hashes}"
-docker compose --env-file "${REPO_ROOT}/.env.remote-e2e.example" \
-	-f "${REPO_ROOT}/docker-compose.remote-e2e.yaml" \
+docker compose --env-file "${DEPLOY_ENV}" \
+	-f "${DEPLOY_COMPOSE}/docker-compose.remote-e2e.yaml" \
 	config --hash '*' >"${root_hashes}"
 if ! diff -u "${root_hashes}" "${fragment_hashes}" >"${TMP_DIR}/fragment-render.diff"; then
 	die "remote E2E wrapper service hashes differ from explicit fragment render"
@@ -194,9 +197,9 @@ assert_service_present "${observability_profiled_services}" collector-tempo
 assert_service_present "${observability_profiled_services}" collector-tempo-preflight
 
 rendered="${TMP_DIR}/profiled-config.yaml"
-docker compose --env-file "${REPO_ROOT}/.env.remote-e2e.example" \
-	-f "${REPO_ROOT}/docker-compose.remote-e2e.yaml" \
-	-f "${REPO_ROOT}/docker-compose.remote-e2e.observability.yaml" \
+docker compose --env-file "${DEPLOY_ENV}" \
+	-f "${DEPLOY_COMPOSE}/docker-compose.remote-e2e.yaml" \
+	-f "${DEPLOY_COMPOSE}/docker-compose.remote-e2e.observability.yaml" \
 	--profile jira \
 	--profile pagerduty \
 	--profile grafana \
