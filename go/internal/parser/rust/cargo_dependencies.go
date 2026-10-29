@@ -88,6 +88,7 @@ func ParseCargoDependencyFile(repoRoot string, path string, isDependency bool) (
 		if err := decodeCargoTOML(source, &document, nil); err != nil {
 			return nil, fmt.Errorf("parse Cargo.toml %q: %w", path, err)
 		}
+		payload["rust_runtime_evidence"] = cargoRuntimeEvidence(source, document)
 		payload["variables"] = cargoManifestDependencyRows(repoRoot, path, document)
 	case "cargo.lock":
 		var lock cargoLockDocument

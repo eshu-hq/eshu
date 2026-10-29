@@ -47,6 +47,8 @@ func Extract(relativePath, body string) (Extraction, bool) {
 	switch manifestKindForPath(relativePath) {
 	case manifestNone:
 		return Extraction{}, false
+	case manifestCargo:
+		return extractCargoManifest(body), true
 	case manifestPackageJSON:
 		return extractManifest(body, func() ([]declaration, int, error) { return extractPackageJSON(body) }), true
 	case manifestComposerJSON:

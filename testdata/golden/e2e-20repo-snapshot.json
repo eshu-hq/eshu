@@ -2230,6 +2230,14 @@
         }
       },
       {
+        "id": "rn-rust-runtime-declaration",
+        "description": "The synthetic lib-common Cargo package declares its Rust toolchain requirement. HTTP and MCP shapes bind the complete source tuple.",
+        "label": "RuntimeDeclaration",
+        "minimum_count": 1,
+        "required_node_properties": ["runtime", "source_kind"],
+        "allowed_node_property_values": {"runtime": ["rust"], "source_kind": ["cargo_package_rust_version"]}
+      },
+      {
         "id": "rn-iac-runtime-declarations",
         "description": "The synthetic lib-common runtime_iac fixtures declare Terraform, Terragrunt, and Kubernetes runtime requirements. HTTP and MCP shapes bind the four complete source tuples.",
         "label": "RuntimeDeclaration",
@@ -5033,6 +5041,14 @@
         },
         "arguments": {"runtime": "dotnet", "limit": 50}
       },
+      "list_runtime_version_declarations?assert=rust_source": {
+        "description": "Synthetic Cargo package rust-version declaration from lib-common/runtime_rust, bound as one complete source tuple.",
+        "required_response_fields": ["declarations", "count", "limit", "truncated", "filters", "excluded_from_comparison", "partial_reasons"],
+        "minimum_results": 1,
+        "results_field": "declarations",
+        "required_json_object_matches": {"declarations[]": [{"runtime": "rust", "source_kind": "cargo_package_rust_version", "relative_path": "runtime_rust/Cargo.toml", "raw_spec": "1.78.0", "spec_kind": "exact", "line_number": 4, "order_index": 0}]},
+        "arguments": {"limit": 100}
+      },
       "list_runtime_version_declarations?assert=iac_sources": {
         "description": "Four synthetic Terraform, Terragrunt, and Helm source declarations from lib-common/runtime_iac, each bound as one complete source tuple through the deployed MCP surface.",
         "required_response_fields": ["declarations", "count", "limit", "truncated", "filters", "excluded_from_comparison", "partial_reasons"],
@@ -7721,6 +7737,14 @@
           ]
         },
         "request_body": {"runtime": "dotnet", "limit": 50}
+      },
+      "POST /api/v0/runtime-declarations/query?assert=rust_source": {
+        "description": "Synthetic Cargo package rust-version declaration from lib-common/runtime_rust, bound as one complete source tuple.",
+        "required_response_fields": ["declarations", "count", "limit", "truncated", "filters", "excluded_from_comparison", "partial_reasons"],
+        "minimum_results": 1,
+        "results_field": "declarations",
+        "required_json_object_matches": {"declarations[]": [{"runtime": "rust", "source_kind": "cargo_package_rust_version", "relative_path": "runtime_rust/Cargo.toml", "raw_spec": "1.78.0", "spec_kind": "exact", "line_number": 4, "order_index": 0}]},
+        "request_body": {"limit": 100}
       },
       "POST /api/v0/runtime-declarations/query?assert=iac_sources": {
         "description": "Four synthetic Terraform, Terragrunt, and Helm source declarations from lib-common/runtime_iac, each bound as one complete source tuple through the deployed HTTP surface.",
