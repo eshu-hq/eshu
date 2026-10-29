@@ -92,12 +92,7 @@ tests:
   - file: go/internal/storage/postgres/vulnerability/source_state_package_keys_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#9227 disposable PostgreSQL proof that a derived source-state upsert replaces its package keys in the same statement and that a failed upsert leaves no orphan keys"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/vulnerability/source_state_status_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#9423 disposable PostgreSQL proof that the status snapshot reads a stored fresh source state as fresh only inside vulnsource.DefaultFreshnessWindow of its as-of time and never reads a deactivated instance's rows"
+    reason: "#9227 disposable PostgreSQL proof that a derived source-state upsert replaces its package keys in the same statement and that a failed upsert leaves no orphan keys, and (#9423) that the status read reports a stored fresh row as fresh only inside vulnsource.DefaultFreshnessWindow of its as-of time and never lists a deactivated instance's rows"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/webhook/actions/contention_live_test.go
     tag: ~
