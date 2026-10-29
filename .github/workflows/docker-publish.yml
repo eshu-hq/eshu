@@ -237,9 +237,9 @@ jobs:
   # Dockerfile scanner-<name> stage. Published as
   # ghcr.io/<owner>/scanner-<name> so the ComponentPackage manifest artifact
   # (go/internal/collector/scannerworker/component) can pin the published
-  # digest after the first publish. No moving tags are promoted: downstream
-  # activation consumes these images by digest alone (a tag is rejected at
-  # render time), so only the immutable per-commit sha tag is pushed.
+  # digest after the first publish. Downstream activation consumes these
+  # images by digest alone (a tag is rejected at render time), mirroring
+  # the main image job (semver tags included on release-tag events).
   build-and-push-scanner-images:
     needs: [changes]
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'build-and-push-scanner-images')) && ((github.event_name != 'workflow_dispatch' || inputs.mode == 'release') && needs.changes.outputs.image == 'true') }}
