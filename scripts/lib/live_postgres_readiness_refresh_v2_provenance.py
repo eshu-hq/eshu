@@ -216,6 +216,10 @@ def read_source(directory: Path, root: Path) -> tuple[str, str, list[str], dict[
             raise ValueError(f"source shard {number} log unavailable") from error
         job_name = f"Complete job name: {job['name']}"
         artifact = f"name: readiness-shard-{run_id}-{attempt}-{number}"
+        earlier = re.search(rf"name: readiness-shard-{run_id}-(\d+)-{number}(?!\d)", log)
+        if earlier is not None and int(earlier.group(1)) != attempt:
+            raise ValueError(f"source {run_id} shard {number} log is from attempt "
+                             f"{earlier.group(1)}, the run is attempt {attempt}")
         if job_name not in log or artifact not in log:
             raise ValueError(f"source shard {number} log does not match run and job")
         logs[number] = log

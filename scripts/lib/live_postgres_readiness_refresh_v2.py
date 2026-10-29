@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from collections import Counter, defaultdict
-from collections.abc import Callable
-from dataclasses import dataclass
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
 import datetime as dt
 import math
 from pathlib import Path
@@ -57,9 +57,9 @@ class ImageProvenance:
                 f"distinct {distinct}")
 
     @property
-    def shard_counts(self) -> tuple[int, ...]:
-        """Return each source run's parsed shard count, in pool order."""
-        return tuple(len(shards) for shards in self.versions.values())
+    def shard_counts(self) -> dict[str, int]:
+        """Return each source run's parsed shard count, keyed by run ID."""
+        return {run: len(shards) for run, shards in self.versions.items()}
 
 
 def _profile(log: str) -> tuple[tuple[str, ...], str]:
@@ -169,15 +169,15 @@ class PricingRule:
 
     Attributes:
         pool: Source run IDs in the order the fit read them.
-        shard_counts: Each source's shard count, aligned with pool, or empty
-            when the caller does not report topology.
+        shard_counts: Each source's shard count keyed by run ID, covering
+            exactly the pool, or empty when the caller does not report topology.
     """
 
     pool: tuple[str, ...]
-    shard_counts: tuple[int, ...] = ()
+    shard_counts: Mapping[str, int] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        if self.shard_counts and len(self.shard_counts) != len(self.pool):
+        if self.shard_counts and set(self.shard_counts) != set(self.pool):
             raise ValueError("pricing shard counts do not match the source pool")
 
     @property
@@ -198,8 +198,7 @@ class PricingRule:
         """Render one stdout line for the refit PR body and evidence note."""
         rule = (f"p{PRICE_PERCENTILE} (linear inclusive)" if self.quantile else "mean")
         note = "" if self.quantile else f" (p{PRICE_PERCENTILE} needs at least {QUANTILE_MIN_POOL} runs)"
-        runs = (", ".join(f"{run} ({count} shards)"
-                          for run, count in zip(self.pool, self.shard_counts))
+        runs = (", ".join(f"{run} ({self.shard_counts[run]} shards)" for run in self.pool)
                 if self.shard_counts else ", ".join(self.pool))
         return (f"weights refresh v2: pricing {rule} of per-test, first-use and "
                 f"repeat samples over a {len(self.pool)}-run pool "
@@ -208,14 +207,17 @@ class PricingRule:
 
 
 def pricing_rule(source_runs: list[str],
-                 shard_counts: tuple[int, ...] = ()) -> PricingRule:
+                 shard_counts: Mapping[str, int] | None = None) -> PricingRule:
     """Return the pricing rule a fit over these source run IDs applies.
 
     Args:
         source_runs: Source run IDs in fit order; their count picks the rule.
-        shard_counts: Optional per-source shard counts for the stdout line.
+        shard_counts: Optional shard count per run ID for the stdout line.
+
+    Raises:
+        ValueError: shard_counts does not name exactly the source runs.
     """
-    return PricingRule(tuple(source_runs), tuple(shard_counts))
+    return PricingRule(tuple(source_runs), dict(shard_counts or {}))
 
 
 def _price_tenth(values: list[float], label: str, rule: PricingRule,
