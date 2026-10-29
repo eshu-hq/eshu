@@ -17,6 +17,22 @@ identifies the advisory. Focused proof:
 `go test ./internal/query -run 'TestAdvisoryEvidence(Query|Lookup)|TestSupplyChainListAdvisoryEvidence|TestPostgresAdvisoryEvidenceStore|TestBuildAdvisoryEvidenceRows' -count=1`
 and
 `go test ./internal/storage/postgres -run 'TestBootstrapDefinitionsInclude(AdvisoryEvidenceReadIndexes|SupplyChainImpactFactIndexes)$' -count=1`.
+
+Performance Evidence (issue #8870 fix (c), 2026-10-29): the eight seed/matched
+legs are lookup-driven `LATERAL` probes into the payload-key index leader with
+active-generation membership as a correlated `EXISTS` subplan (`OFFSET 0`
+keeps the planner from flattening it back into a per-scope semi-join), and
+each package `OR` leg is split into `package_id`/`purl` legs pinned to
+`fact_kind = 'vulnerability.affected_package'` so the planner uses the
+package/purl partial indexes. Parameter order, `DISTINCT ON` semantics,
+ordering, and limits are unchanged. Primary read-only `EXPLAIN (ANALYZE,
+BUFFERS)` before/after: KEV-CVE input 65.055s to 0.735s, package-only input
+63.762s to 0.565s, impact-scoped input 36.621s to 0.625s. Every leg is an
+index probe; no per-scope loops, no `fact_records` seq scans. Old-vs-new
+row-set differential on one `REPEATABLE READ` snapshot is identical
+(KEV-CVE: 1 row; package-only: 11 rows). Shape pins live in
+`supply_chain_advisory_evidence_sql_test.go`
+(`TestAdvisoryEvidenceQueryProbesLookupValueFirstWithoutScopeFanout`).
 Remote preserved-volume proof on the representative Compose backlog applied the
 new DDL in 241s, then returned `CVE-2021-44228` in 0.691s cold and 0.435s /
 0.439s warm with 2 source observations and 5 affected package rows. A missing

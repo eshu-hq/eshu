@@ -130,77 +130,132 @@ seed_candidates AS MATERIALIZED (
         candidate.payload,
         candidate.schema_version
     FROM (
-        SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.fact_kind, fact.source_confidence, fact.observed_at, fact.payload, fact.schema_version
+        SELECT leg.fact_id, leg.scope_id, leg.generation_id, leg.fact_kind, leg.source_confidence, leg.observed_at, leg.payload, leg.schema_version
         FROM lookup_ids AS lookup
-        JOIN scope_active_generations AS scope ON TRUE
-        JOIN fact_records AS fact
-          ON fact.scope_id = scope.scope_id
-         AND scope.active_generation_id = fact.generation_id
-         AND fact.payload->>'cve_id' = lookup.value
-        WHERE fact.fact_kind IN (
-            'vulnerability.cve',
-            'vulnerability.affected_package',
-            'vulnerability.affected_product',
-            'vulnerability.epss_score',
-            'vulnerability.known_exploited',
-            'vulnerability.reference'
-        )
-          AND fact.fact_kind = ANY($1::text[])
-          AND fact.is_tombstone = FALSE
+        JOIN LATERAL (
+            SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.fact_kind, fact.source_confidence, fact.observed_at, fact.payload, fact.schema_version
+            FROM fact_records AS fact
+            WHERE fact.payload->>'cve_id' = lookup.value
+              AND EXISTS (
+                  SELECT 1
+                  FROM scope_active_generations AS scope
+                  WHERE scope.scope_id = fact.scope_id
+                    AND scope.active_generation_id = fact.generation_id
+                    OFFSET 0
+              )
+              AND fact.fact_kind IN (
+                'vulnerability.cve',
+                'vulnerability.affected_package',
+                'vulnerability.affected_product',
+                'vulnerability.epss_score',
+                'vulnerability.known_exploited',
+                'vulnerability.reference'
+            )
+              AND fact.fact_kind = ANY($1::text[])
+              AND fact.is_tombstone = FALSE
+        ) AS leg ON TRUE
         UNION ALL
-        SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.fact_kind, fact.source_confidence, fact.observed_at, fact.payload, fact.schema_version
+        SELECT leg.fact_id, leg.scope_id, leg.generation_id, leg.fact_kind, leg.source_confidence, leg.observed_at, leg.payload, leg.schema_version
         FROM lookup_ids AS lookup
-        JOIN scope_active_generations AS scope ON TRUE
-        JOIN fact_records AS fact
-          ON fact.scope_id = scope.scope_id
-         AND scope.active_generation_id = fact.generation_id
-         AND fact.payload->>'advisory_id' = lookup.value
-        WHERE fact.fact_kind IN (
-            'vulnerability.cve',
-            'vulnerability.affected_package',
-            'vulnerability.affected_product',
-            'vulnerability.epss_score',
-            'vulnerability.known_exploited',
-            'vulnerability.reference'
-        )
-          AND fact.fact_kind = ANY($1::text[])
-          AND fact.is_tombstone = FALSE
+        JOIN LATERAL (
+            SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.fact_kind, fact.source_confidence, fact.observed_at, fact.payload, fact.schema_version
+            FROM fact_records AS fact
+            WHERE fact.payload->>'advisory_id' = lookup.value
+              AND EXISTS (
+                  SELECT 1
+                  FROM scope_active_generations AS scope
+                  WHERE scope.scope_id = fact.scope_id
+                    AND scope.active_generation_id = fact.generation_id
+                    OFFSET 0
+              )
+              AND fact.fact_kind IN (
+                'vulnerability.cve',
+                'vulnerability.affected_package',
+                'vulnerability.affected_product',
+                'vulnerability.epss_score',
+                'vulnerability.known_exploited',
+                'vulnerability.reference'
+            )
+              AND fact.fact_kind = ANY($1::text[])
+              AND fact.is_tombstone = FALSE
+        ) AS leg ON TRUE
         UNION ALL
-        SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.fact_kind, fact.source_confidence, fact.observed_at, fact.payload, fact.schema_version
+        SELECT leg.fact_id, leg.scope_id, leg.generation_id, leg.fact_kind, leg.source_confidence, leg.observed_at, leg.payload, leg.schema_version
         FROM lookup_ids AS lookup
-        JOIN scope_active_generations AS scope ON TRUE
-        JOIN fact_records AS fact
-          ON fact.scope_id = scope.scope_id
-         AND scope.active_generation_id = fact.generation_id
-         AND fact.payload->>'ghsa_id' = lookup.value
-        WHERE fact.fact_kind IN (
-            'vulnerability.cve',
-            'vulnerability.affected_package',
-            'vulnerability.affected_product',
-            'vulnerability.epss_score',
-            'vulnerability.known_exploited',
-            'vulnerability.reference'
-        )
-          AND fact.fact_kind = ANY($1::text[])
-          AND fact.is_tombstone = FALSE
+        JOIN LATERAL (
+            SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.fact_kind, fact.source_confidence, fact.observed_at, fact.payload, fact.schema_version
+            FROM fact_records AS fact
+            WHERE fact.payload->>'ghsa_id' = lookup.value
+              AND EXISTS (
+                  SELECT 1
+                  FROM scope_active_generations AS scope
+                  WHERE scope.scope_id = fact.scope_id
+                    AND scope.active_generation_id = fact.generation_id
+                    OFFSET 0
+              )
+              AND fact.fact_kind IN (
+                'vulnerability.cve',
+                'vulnerability.affected_package',
+                'vulnerability.affected_product',
+                'vulnerability.epss_score',
+                'vulnerability.known_exploited',
+                'vulnerability.reference'
+            )
+              AND fact.fact_kind = ANY($1::text[])
+              AND fact.is_tombstone = FALSE
+        ) AS leg ON TRUE
         UNION ALL
-        SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.fact_kind, fact.source_confidence, fact.observed_at, fact.payload, fact.schema_version
+        SELECT leg.fact_id, leg.scope_id, leg.generation_id, leg.fact_kind, leg.source_confidence, leg.observed_at, leg.payload, leg.schema_version
         FROM package_ids AS pkg
-        JOIN scope_active_generations AS scope ON TRUE
-        JOIN fact_records AS fact
-          ON fact.scope_id = scope.scope_id
-         AND scope.active_generation_id = fact.generation_id
-        WHERE (fact.payload->>'package_id' = pkg.value OR fact.payload->>'purl' = pkg.value)
-          AND fact.fact_kind IN (
-              'vulnerability.cve',
-              'vulnerability.affected_package',
-              'vulnerability.affected_product',
-              'vulnerability.epss_score',
-              'vulnerability.known_exploited',
-              'vulnerability.reference'
-          )
-          AND fact.fact_kind = ANY($1::text[])
-          AND fact.is_tombstone = FALSE
+        JOIN LATERAL (
+            SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.fact_kind, fact.source_confidence, fact.observed_at, fact.payload, fact.schema_version
+            FROM fact_records AS fact
+            WHERE fact.payload->>'package_id' = pkg.value
+              AND EXISTS (
+                  SELECT 1
+                  FROM scope_active_generations AS scope
+                  WHERE scope.scope_id = fact.scope_id
+                    AND scope.active_generation_id = fact.generation_id
+                    OFFSET 0
+              )
+              AND fact.fact_kind = 'vulnerability.affected_package'
+              AND fact.fact_kind IN (
+                  'vulnerability.cve',
+                  'vulnerability.affected_package',
+                  'vulnerability.affected_product',
+                  'vulnerability.epss_score',
+                  'vulnerability.known_exploited',
+                  'vulnerability.reference'
+              )
+              AND fact.fact_kind = ANY($1::text[])
+              AND fact.is_tombstone = FALSE
+        ) AS leg ON TRUE
+        UNION ALL
+        SELECT leg.fact_id, leg.scope_id, leg.generation_id, leg.fact_kind, leg.source_confidence, leg.observed_at, leg.payload, leg.schema_version
+        FROM package_ids AS pkg
+        JOIN LATERAL (
+            SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.fact_kind, fact.source_confidence, fact.observed_at, fact.payload, fact.schema_version
+            FROM fact_records AS fact
+            WHERE fact.payload->>'purl' = pkg.value
+              AND EXISTS (
+                  SELECT 1
+                  FROM scope_active_generations AS scope
+                  WHERE scope.scope_id = fact.scope_id
+                    AND scope.active_generation_id = fact.generation_id
+                    OFFSET 0
+              )
+              AND fact.fact_kind = 'vulnerability.affected_package'
+              AND fact.fact_kind IN (
+                  'vulnerability.cve',
+                  'vulnerability.affected_package',
+                  'vulnerability.affected_product',
+                  'vulnerability.epss_score',
+                  'vulnerability.known_exploited',
+                  'vulnerability.reference'
+              )
+              AND fact.fact_kind = ANY($1::text[])
+              AND fact.is_tombstone = FALSE
+        ) AS leg ON TRUE
     ) AS candidate
     ORDER BY candidate.fact_id
 ),
@@ -256,87 +311,143 @@ matched_candidates AS MATERIALIZED (
         candidate.payload,
         candidate.schema_version
     FROM (
-        SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.fact_kind, fact.source_confidence, fact.observed_at, fact.payload, fact.schema_version
+        SELECT leg.fact_id, leg.scope_id, leg.generation_id, leg.fact_kind, leg.source_confidence, leg.observed_at, leg.payload, leg.schema_version
         FROM seed_keys AS keys
         JOIN LATERAL unnest(keys.values) AS lookup(value) ON TRUE
-        JOIN scope_active_generations AS scope ON TRUE
-        JOIN fact_records AS fact
-          ON fact.scope_id = scope.scope_id
-         AND scope.active_generation_id = fact.generation_id
-         AND fact.payload->>'cve_id' = lookup.value
-        WHERE cardinality(keys.values) > 0
-          AND fact.fact_kind IN (
-              'vulnerability.cve',
-              'vulnerability.affected_package',
-              'vulnerability.affected_product',
-              'vulnerability.epss_score',
-              'vulnerability.known_exploited',
-              'vulnerability.reference'
-          )
-          AND fact.fact_kind = ANY($1::text[])
-          AND fact.is_tombstone = FALSE
-          AND ($4 = '' OR LOWER(fact.payload->>'source') = $4)
+        JOIN LATERAL (
+            SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.fact_kind, fact.source_confidence, fact.observed_at, fact.payload, fact.schema_version
+            FROM fact_records AS fact
+            WHERE fact.payload->>'cve_id' = lookup.value
+              AND cardinality(keys.values) > 0
+              AND EXISTS (
+                  SELECT 1
+                  FROM scope_active_generations AS scope
+                  WHERE scope.scope_id = fact.scope_id
+                    AND scope.active_generation_id = fact.generation_id
+                    OFFSET 0
+              )
+              AND fact.fact_kind IN (
+                  'vulnerability.cve',
+                  'vulnerability.affected_package',
+                  'vulnerability.affected_product',
+                  'vulnerability.epss_score',
+                  'vulnerability.known_exploited',
+                  'vulnerability.reference'
+              )
+              AND fact.fact_kind = ANY($1::text[])
+              AND fact.is_tombstone = FALSE
+              AND ($4 = '' OR LOWER(fact.payload->>'source') = $4)
+        ) AS leg ON TRUE
         UNION ALL
-        SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.fact_kind, fact.source_confidence, fact.observed_at, fact.payload, fact.schema_version
+        SELECT leg.fact_id, leg.scope_id, leg.generation_id, leg.fact_kind, leg.source_confidence, leg.observed_at, leg.payload, leg.schema_version
         FROM seed_keys AS keys
         JOIN LATERAL unnest(keys.values) AS lookup(value) ON TRUE
-        JOIN scope_active_generations AS scope ON TRUE
-        JOIN fact_records AS fact
-          ON fact.scope_id = scope.scope_id
-         AND scope.active_generation_id = fact.generation_id
-         AND fact.payload->>'advisory_id' = lookup.value
-        WHERE cardinality(keys.values) > 0
-          AND fact.fact_kind IN (
-              'vulnerability.cve',
-              'vulnerability.affected_package',
-              'vulnerability.affected_product',
-              'vulnerability.epss_score',
-              'vulnerability.known_exploited',
-              'vulnerability.reference'
-          )
-          AND fact.fact_kind = ANY($1::text[])
-          AND fact.is_tombstone = FALSE
-          AND ($4 = '' OR LOWER(fact.payload->>'source') = $4)
+        JOIN LATERAL (
+            SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.fact_kind, fact.source_confidence, fact.observed_at, fact.payload, fact.schema_version
+            FROM fact_records AS fact
+            WHERE fact.payload->>'advisory_id' = lookup.value
+              AND cardinality(keys.values) > 0
+              AND EXISTS (
+                  SELECT 1
+                  FROM scope_active_generations AS scope
+                  WHERE scope.scope_id = fact.scope_id
+                    AND scope.active_generation_id = fact.generation_id
+                    OFFSET 0
+              )
+              AND fact.fact_kind IN (
+                  'vulnerability.cve',
+                  'vulnerability.affected_package',
+                  'vulnerability.affected_product',
+                  'vulnerability.epss_score',
+                  'vulnerability.known_exploited',
+                  'vulnerability.reference'
+              )
+              AND fact.fact_kind = ANY($1::text[])
+              AND fact.is_tombstone = FALSE
+              AND ($4 = '' OR LOWER(fact.payload->>'source') = $4)
+        ) AS leg ON TRUE
         UNION ALL
-        SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.fact_kind, fact.source_confidence, fact.observed_at, fact.payload, fact.schema_version
+        SELECT leg.fact_id, leg.scope_id, leg.generation_id, leg.fact_kind, leg.source_confidence, leg.observed_at, leg.payload, leg.schema_version
         FROM seed_keys AS keys
         JOIN LATERAL unnest(keys.values) AS lookup(value) ON TRUE
-        JOIN scope_active_generations AS scope ON TRUE
-        JOIN fact_records AS fact
-          ON fact.scope_id = scope.scope_id
-         AND scope.active_generation_id = fact.generation_id
-         AND fact.payload->>'ghsa_id' = lookup.value
-        WHERE cardinality(keys.values) > 0
-          AND fact.fact_kind IN (
-              'vulnerability.cve',
-              'vulnerability.affected_package',
-              'vulnerability.affected_product',
-              'vulnerability.epss_score',
-              'vulnerability.known_exploited',
-              'vulnerability.reference'
-          )
-          AND fact.fact_kind = ANY($1::text[])
-          AND fact.is_tombstone = FALSE
-          AND ($4 = '' OR LOWER(fact.payload->>'source') = $4)
+        JOIN LATERAL (
+            SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.fact_kind, fact.source_confidence, fact.observed_at, fact.payload, fact.schema_version
+            FROM fact_records AS fact
+            WHERE fact.payload->>'ghsa_id' = lookup.value
+              AND cardinality(keys.values) > 0
+              AND EXISTS (
+                  SELECT 1
+                  FROM scope_active_generations AS scope
+                  WHERE scope.scope_id = fact.scope_id
+                    AND scope.active_generation_id = fact.generation_id
+                    OFFSET 0
+              )
+              AND fact.fact_kind IN (
+                  'vulnerability.cve',
+                  'vulnerability.affected_package',
+                  'vulnerability.affected_product',
+                  'vulnerability.epss_score',
+                  'vulnerability.known_exploited',
+                  'vulnerability.reference'
+              )
+              AND fact.fact_kind = ANY($1::text[])
+              AND fact.is_tombstone = FALSE
+              AND ($4 = '' OR LOWER(fact.payload->>'source') = $4)
+        ) AS leg ON TRUE
         UNION ALL
-        SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.fact_kind, fact.source_confidence, fact.observed_at, fact.payload, fact.schema_version
+        SELECT leg.fact_id, leg.scope_id, leg.generation_id, leg.fact_kind, leg.source_confidence, leg.observed_at, leg.payload, leg.schema_version
         FROM package_ids AS pkg
-        JOIN scope_active_generations AS scope ON TRUE
-        JOIN fact_records AS fact
-          ON fact.scope_id = scope.scope_id
-         AND scope.active_generation_id = fact.generation_id
-        WHERE (fact.payload->>'package_id' = pkg.value OR fact.payload->>'purl' = pkg.value)
-          AND fact.fact_kind IN (
-              'vulnerability.cve',
-              'vulnerability.affected_package',
-              'vulnerability.affected_product',
-              'vulnerability.epss_score',
-              'vulnerability.known_exploited',
-              'vulnerability.reference'
-          )
-          AND fact.fact_kind = ANY($1::text[])
-          AND fact.is_tombstone = FALSE
-          AND ($4 = '' OR LOWER(fact.payload->>'source') = $4)
+        JOIN LATERAL (
+            SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.fact_kind, fact.source_confidence, fact.observed_at, fact.payload, fact.schema_version
+            FROM fact_records AS fact
+            WHERE fact.payload->>'package_id' = pkg.value
+              AND EXISTS (
+                  SELECT 1
+                  FROM scope_active_generations AS scope
+                  WHERE scope.scope_id = fact.scope_id
+                    AND scope.active_generation_id = fact.generation_id
+                    OFFSET 0
+              )
+              AND fact.fact_kind = 'vulnerability.affected_package'
+              AND fact.fact_kind IN (
+                  'vulnerability.cve',
+                  'vulnerability.affected_package',
+                  'vulnerability.affected_product',
+                  'vulnerability.epss_score',
+                  'vulnerability.known_exploited',
+                  'vulnerability.reference'
+              )
+              AND fact.fact_kind = ANY($1::text[])
+              AND fact.is_tombstone = FALSE
+              AND ($4 = '' OR LOWER(fact.payload->>'source') = $4)
+        ) AS leg ON TRUE
+        UNION ALL
+        SELECT leg.fact_id, leg.scope_id, leg.generation_id, leg.fact_kind, leg.source_confidence, leg.observed_at, leg.payload, leg.schema_version
+        FROM package_ids AS pkg
+        JOIN LATERAL (
+            SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.fact_kind, fact.source_confidence, fact.observed_at, fact.payload, fact.schema_version
+            FROM fact_records AS fact
+            WHERE fact.payload->>'purl' = pkg.value
+              AND EXISTS (
+                  SELECT 1
+                  FROM scope_active_generations AS scope
+                  WHERE scope.scope_id = fact.scope_id
+                    AND scope.active_generation_id = fact.generation_id
+                    OFFSET 0
+              )
+              AND fact.fact_kind = 'vulnerability.affected_package'
+              AND fact.fact_kind IN (
+                  'vulnerability.cve',
+                  'vulnerability.affected_package',
+                  'vulnerability.affected_product',
+                  'vulnerability.epss_score',
+                  'vulnerability.known_exploited',
+                  'vulnerability.reference'
+              )
+              AND fact.fact_kind = ANY($1::text[])
+              AND fact.is_tombstone = FALSE
+              AND ($4 = '' OR LOWER(fact.payload->>'source') = $4)
+        ) AS leg ON TRUE
     ) AS candidate
     ORDER BY candidate.fact_id
 ),
