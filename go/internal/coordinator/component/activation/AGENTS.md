@@ -62,10 +62,11 @@ move into the scheduler-owned child), not adjacent scope.
   `config_handle` once `schema_version` matches.
 - Require `runtime.sdk_protocol` in
   `{component.CollectorSDKProtocolV1Alpha1,
-  component.CollectorSDKProtocolV1Alpha2}` (compared after trimming
+  component.CollectorSDKProtocolV1Alpha2,
+  component.CollectorSDKProtocolV1Alpha3}` (compared after trimming
   surrounding whitespace) and `runtime.adapter` in `{oci, process}`. The
-  v1alpha1 default is unchanged; alpha2 is admitted only when explicitly
-  configured.
+  v1alpha1 default is unchanged; alpha2 and alpha3 are admitted only when
+  explicitly configured.
 - Normalize and validate an optional `host` claim; clear it when
   normalization yields an empty value instead of failing.
 - Treat `component_config` as opaque: accept absent, `null`, or a JSON

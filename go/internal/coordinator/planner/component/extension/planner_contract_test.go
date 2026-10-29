@@ -5,6 +5,7 @@ package extension
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -74,6 +75,44 @@ func TestPlanComponentExtensionWorkDeterministicIDsForFixedRequest(t *testing.T)
 	}
 	if first.FairnessKey != second.FairnessKey {
 		t.Fatalf("FairnessKey = %q, want match with %q", second.FairnessKey, first.FairnessKey)
+	}
+}
+
+// TestPlanComponentExtensionWorkAdmitsAlpha3 proves a v1alpha3 activation
+// plans successfully (#9549): the gate admits it, the requested scope set
+// carries the protocol verbatim, and generation identity is unchanged
+// (GenerationID == SourceRunID, as for every non-terraform kind).
+func TestPlanComponentExtensionWorkAdmitsAlpha3(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, time.June, 20, 9, 0, 0, 0, time.UTC)
+	instance := validComponentExtensionInstance(observedAt)
+	instance.Configuration = `{
+		"schema_version":"eshu.component.instance.v1",
+		"component_id":"dev.eshu.examples.scorecard",
+		"component_version":"0.1.0",
+		"manifest_digest":"sha256:1234",
+		"config_handle":"component-config:abcd",
+		"runtime":{"sdk_protocol":"collector-sdk/v1alpha3","adapter":"oci"}
+	}`
+	request := PlanRequest{
+		Instance:   instance,
+		ObservedAt: observedAt,
+		PlanKey:    "scheduled-20260620T090000Z",
+	}
+
+	run, items, err := WorkPlanner{}.PlanComponentExtensionWork(context.Background(), request)
+	if err != nil {
+		t.Fatalf("PlanComponentExtensionWork() error = %v, want nil", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("items = %d, want 1", len(items))
+	}
+	if !strings.Contains(run.RequestedScopeSet, `"sdk_protocol":"collector-sdk/v1alpha3"`) {
+		t.Fatalf("RequestedScopeSet = %s, want it to carry collector-sdk/v1alpha3", run.RequestedScopeSet)
+	}
+	if items[0].GenerationID != items[0].SourceRunID {
+		t.Fatalf("GenerationID = %q, want match with SourceRunID %q", items[0].GenerationID, items[0].SourceRunID)
 	}
 }
 

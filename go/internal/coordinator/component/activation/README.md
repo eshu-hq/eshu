@@ -82,8 +82,9 @@ status value, queue, worker, lease, retry, or runtime setting.
 - `component_id`, `component_version`, `manifest_digest`, and
   `config_handle` are all required once `schema_version` matches; a missing
   one is a validation error, not a miss.
-- `runtime.sdk_protocol` must be `component.CollectorSDKProtocolV1Alpha1`
-  or an explicitly configured `component.CollectorSDKProtocolV1Alpha2`
+- `runtime.sdk_protocol` must be `component.CollectorSDKProtocolV1Alpha1`,
+  `component.CollectorSDKProtocolV1Alpha2`, or
+  `component.CollectorSDKProtocolV1Alpha3`
   (compared after trimming surrounding whitespace), and `runtime.adapter`
   must be `oci` or `process`. The v1alpha1 default is unchanged.
 - An optional `host` claim is normalized and validated when present; an
