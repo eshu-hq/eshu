@@ -69,11 +69,14 @@ fixture_consumer_dirs() {
 	# which compares them with the fixturepack-embedded copies. A schema-only
 	# edit changes no go/ package, so without this the focused test step
 	# selects nothing and the first failure is in CI -- the same fixture-only
-	# gap as the golden snapshot above. The fixturepack/schema/ copy is the
-	# embedded counterpart of the same artifact, so it selects the same
-	# consumer. Other sdk/go/factschema/** edits (Go code, docs) are covered
-	# by the sdk-go-factschema gate, not this mapping.
-	if printf '%s\n' "${all}" | rg -q '^sdk/go/factschema/(schema|fixturepack/schema)/'; then
+	# gap as the golden snapshot above. Only schema/ is mapped: the test
+	# imports fixturepack from the pinned external eshu-sdk release (go.mod,
+	# no vendor/replace), so it cannot see working-tree
+	# sdk/go/factschema/fixturepack/ edits -- selecting the package for a
+	# pack-only edit would pass the floor vacuously. Pack-copy drift stays
+	# CI-only via TestFixturePackSchemasMatchCanonical in the
+	# sdk-go-factschema gate, whose trigger covers sdk/go/factschema/**.
+	if printf '%s\n' "${all}" | rg -q '^sdk/go/factschema/schema/'; then
 		printf './internal/extensionconformance\n'
 	fi
 }
