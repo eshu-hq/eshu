@@ -1,7 +1,7 @@
 # eshu-deploy change proposal: adopt the extracted contract tests and proof scripts
 
 Source: eshu @ `2e3ba9fc40` (paths as deleted by the #8871 in-tree removal).
-Destination base: eshu-deploy @ `103155c9` (includes PR #5).
+Destination base: eshu-deploy @ `bc6b17897056` (main after PR #11 merge; includes PR #5 plus the review-thread follow-up: missing files, translated paths, Go lane, exec bits).
 Full adapted tree, verified as below: `/tmp/eshu-deploy-proposal`
 (70 files). Nothing here was pushed to eshu-deploy.
 
