@@ -32,6 +32,7 @@ class ScheduledMatrixTest(unittest.TestCase):
             "scheduled-freshness-b",
             "scheduled-ack",
             "scheduled-bulk",
+            "scheduled-storage",
             "scheduled-aggregate",
         ])
         for group in (
@@ -42,11 +43,35 @@ class ScheduledMatrixTest(unittest.TestCase):
         self.assertIn(
             "needs: [scheduled-setup, scheduled-freshness-scale, "
             "scheduled-freshness-a, scheduled-freshness-b, scheduled-ack, "
-            "scheduled-bulk]",
+            "scheduled-bulk, scheduled-storage]",
             workflow,
         )
         inventory = MODULE.load_inventory()
         MODULE.verify_inventory(ROOT, inventory)
+
+    def test_root_storage_build_runs_only_in_ack_and_storage_legs(self) -> None:
+        """#9488: the root storage -race test build stays off the bulk leg.
+
+        The first family to test ./internal/storage/postgres pays its -race
+        test build, measured at 11 to 21 minutes. In the bulk leg that build
+        put the job at its 40-minute cap, so every root-package family runs in
+        the storage leg, and no third job may pay the build again.
+        """
+        workflow = (ROOT / MODULE.WORKFLOW).read_text()
+        expanded = MODULE.expand_actions(workflow, ROOT)
+        blocks = MODULE.job_blocks(expanded)
+        MODULE.verify_root_storage_builds(blocks)
+        self.assertEqual(
+            MODULE.root_storage_groups(blocks["scheduled-storage"]),
+            sorted(MODULE.STORAGE_GROUPS))
+        self.assertEqual(MODULE.root_storage_groups(blocks["scheduled-bulk"]), [])
+        seeded = dict(blocks)
+        seeded["scheduled-bulk"] = blocks["scheduled-bulk"] + (
+            "          go test -json -race -p=1 -count=1 -timeout=6m "
+            "./internal/storage/postgres -run '^(TestSeeded)$' "
+            "| tee \"${RUNNER_TEMP}/seeded.jsonl\"\n")
+        with self.assertRaisesRegex(ValueError, "root storage -race build"):
+            MODULE.verify_root_storage_builds(seeded)
 
 
 if __name__ == "__main__":
