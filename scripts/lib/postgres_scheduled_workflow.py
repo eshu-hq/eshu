@@ -27,23 +27,25 @@ JOB_ORDER = (
     "scheduled-freshness-b",
     "scheduled-ack",
     "scheduled-bulk",
+    "scheduled-storage",
     "scheduled-aggregate",
 )
-SERVICE_JOBS = frozenset(JOB_ORDER[:6])
-LEG_JOBS = frozenset(JOB_ORDER[1:6])
+SERVICE_JOBS = frozenset(JOB_ORDER[:7])
+LEG_JOBS = frozenset(JOB_ORDER[1:7])
 JOB_TIMEOUTS = {
     "scheduled-setup": "15",
     "scheduled-freshness-scale": "45",
     "scheduled-freshness-a": "25",
     "scheduled-freshness-b": "25",
-    "scheduled-ack": "30",
+    "scheduled-ack": "40",
     "scheduled-bulk": "40",
+    "scheduled-storage": "40",
     "scheduled-aggregate": "15",
 }
 AGGREGATE_NEEDS = (
     "    needs: [scheduled-setup, scheduled-freshness-scale, "
     "scheduled-freshness-a, scheduled-freshness-b, scheduled-ack, "
-    "scheduled-bulk]"
+    "scheduled-bulk, scheduled-storage]"
 )
 JOB_STEPS = {
     "scheduled-setup": (
@@ -94,6 +96,23 @@ JOB_STEPS = {
         "Run Crossplane proofs",
         "Create fresh inventory database",
         "Run infra inventory proofs",
+        "Create fresh containerimage database",
+        "Run containerimage proofs",
+        "Run disposable golden corpus residual proof",
+        "Run disposable query proofs",
+        "Create fresh admin database",
+        "Run admin proofs",
+        "Create fresh completion database",
+        "Run completion proofs",
+        "Create fresh reachability database",
+        "Run reachability proofs",
+        "Run secret_lines proofs",
+        "Upload bulk proof streams",
+    ),
+    "scheduled-storage": (
+        "Check out repository",
+        "Set up Go",
+        "Pre-warm Go modules",
         "Create fresh claim database",
         "Run claim proofs",
         "Create fresh liveness database",
@@ -104,19 +123,8 @@ JOB_STEPS = {
         "Run search proofs",
         "Create fresh readiness database",
         "Run readiness proofs",
-        "Create fresh containerimage database",
-        "Run containerimage proofs",
-        "Run disposable golden corpus residual proof",
-        "Run disposable query proofs",
         "Run disposable storage proofs",
-        "Create fresh admin database",
-        "Run admin proofs",
-        "Create fresh completion database",
-        "Run completion proofs",
-        "Create fresh reachability database",
-        "Run reachability proofs",
-        "Run secret_lines proofs",
-        "Upload bulk proof streams",
+        "Upload storage proof streams",
     ),
     "scheduled-aggregate": (
         "Check out repository",
@@ -132,6 +140,7 @@ ALWAYS_STEPS = frozenset({
     "Upload freshness chunk B proof stream",
     "Upload ACK proof stream",
     "Upload bulk proof streams",
+    "Upload storage proof streams",
     "Retain hosted proof bundle",
 })
 

@@ -23,8 +23,8 @@ SPEC.loader.exec_module(MODULE)
 
 
 def copy_contract(root: Path) -> None:
-    """Install the frozen PR route and bulk action in mutation checkouts."""
-    for relative in (MODULE.FRAGMENT, MODULE.BULK_ACTION):
+    """Install the frozen PR route and both actions in mutation checkouts."""
+    for relative in (MODULE.FRAGMENT, MODULE.BULK_ACTION, MODULE.STORAGE_ACTION):
         target = root / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes((ROOT / relative).read_bytes())
@@ -335,7 +335,8 @@ class ScheduledRunnerTest(unittest.TestCase):
             removed = "        ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN: "
             removed += "postgres://eshu:change-me@localhost:15432/"
             removed += "postgres?sslmode=disable\n"
-            self.assertEqual(action.read_text().count(removed), 3)
+            # #9488: disposable_storage moved to the storage action.
+            self.assertEqual(action.read_text().count(removed), 2)
             action.write_text(action.read_text().replace(removed, "", 1))
             with mock.patch.object(MODULE, "BULK_ACTION_SHA256",
                                    hashlib.sha256(action.read_bytes()).hexdigest()):

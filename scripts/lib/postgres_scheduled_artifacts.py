@@ -6,7 +6,7 @@ from pathlib import Path
 import re
 import shutil
 
-from postgres_scheduled_contract import PACKAGES
+from postgres_scheduled_contract import PACKAGES, STORAGE_GROUPS
 
 
 LEG_FILES = {
@@ -18,11 +18,11 @@ LEG_FILES = {
 }
 NON_BULK_GROUPS = frozenset({
     "freshness_links_scale", "freshness_links_a", "freshness_links_b",
-    "ack_family",
+    "ack_family", *STORAGE_GROUPS,
 })
 ARTIFACT_NAME = re.compile(
     r"scheduled-proof-streams-(setup|freshness-scale|freshness-a|"
-    r"freshness-b|ack|bulk)-([1-9][0-9]*)-([1-9][0-9]*)"
+    r"freshness-b|ack|bulk|storage)-([1-9][0-9]*)-([1-9][0-9]*)"
 )
 
 
@@ -51,6 +51,8 @@ def assemble_proof_bundle(
         **LEG_FILES,
         "bulk": tuple(f"{group}.jsonl" for group in packages
                       if group not in NON_BULK_GROUPS),
+        "storage": tuple(f"{group}.jsonl" for group in packages
+                         if group in STORAGE_GROUPS),
     }
     selected: dict[str, tuple[int, Path]] = {}
     for artifact in downloads.iterdir():
@@ -110,7 +112,7 @@ def verify_artifact_sources(bundle: Path, manifest: dict[str, object],
             or sources["run_id"] != manifest["run_id"]
             or sources["run_attempt"] != current_attempt
             or not isinstance(sources["legs"], dict)
-            or set(sources["legs"]) != set(LEG_FILES) | {"bulk"}):
+            or set(sources["legs"]) != set(LEG_FILES) | {"bulk", "storage"}):
         raise ValueError("hosted artifact source provenance differs from run")
     for leg, attempt in sources["legs"].items():
         if (type(attempt) is not int or attempt < 1

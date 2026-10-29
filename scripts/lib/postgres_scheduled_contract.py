@@ -22,6 +22,13 @@ PACKAGES = {
     "freshness_links_b": "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links"
 }
 
+# #9488: the families that test ./internal/storage/postgres itself, outside
+# ACK. The first one pays that package's -race test build (11.2 to 20.9 min
+# measured) and the rest reuse it, so they share the scheduled-storage leg.
+STORAGE_GROUPS = (
+    "claim", "liveness", "fanout", "search", "readiness", "disposable_storage",
+)
+
 DSNS = {
     "admin": "ESHU_POSTGRES_DSN",
     "completion": "ESHU_POSTGRES_DSN",
@@ -81,6 +88,7 @@ IMAGE = (
 
 PR_PATHS = {
     ".github/actions/postgres-scheduled-bulk/action.yml",
+    ".github/actions/postgres-scheduled-storage/action.yml",
     ".github/workflows/postgres-scheduled-live.yml",
     "docs/internal/evidence/7127-ledger-retention-timing.sh",
     "go/internal/storage/postgres/freshness/links/testdata/7127-link-writer-fixture.sql",
@@ -110,6 +118,7 @@ PR_PATHS = {
     "go/internal/testutil/postgresproof/**",
     "scripts/ci/go-mod-download-retry.sh",
     "scripts/lib/live_tests_registry.py",
+    "scripts/lib/postgres_scheduled_actions.py",
     "scripts/lib/postgres_scheduled_artifacts.py",
     "scripts/lib/postgres_scheduled_contract.py",
     "scripts/lib/postgres_scheduled_fragments.py",

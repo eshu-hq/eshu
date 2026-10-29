@@ -8,6 +8,7 @@ workflows:
   - main
   paths:
   - .github/actions/postgres-scheduled-bulk/action.yml
+  - .github/actions/postgres-scheduled-storage/action.yml
   - .github/workflows/postgres-scheduled-live.yml
   - docs/internal/evidence/7127-ledger-retention-timing.sh
   - docs/internal/evidence/7127-link-writer-scale.py
@@ -178,6 +179,7 @@ workflows:
   - go/internal/testutil/postgresproof/**
   - scripts/ci/go-mod-download-retry.sh
   - scripts/lib/live_tests_registry.py
+  - scripts/lib/postgres_scheduled_actions.py
   - scripts/lib/postgres_scheduled_artifacts.py
   - scripts/lib/postgres_scheduled_contract.py
   - scripts/lib/postgres_scheduled_fragments.py
@@ -209,4 +211,5 @@ workflows:
   - scheduled-freshness-b
   - scheduled-freshness-scale
   - scheduled-setup
+  - scheduled-storage
   job_names: {}

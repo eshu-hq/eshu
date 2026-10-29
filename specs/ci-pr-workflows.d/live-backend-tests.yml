@@ -58,6 +58,9 @@ workflows:
   - scripts/lib/postgres_scheduled_fragments.py
   - scripts/lib/postgres_scheduled_artifacts.py
   - scripts/lib/postgres_scheduled_matrix.py
+  - scripts/lib/postgres_scheduled_actions.py
+  - .github/actions/postgres-scheduled-bulk/action.yml
+  - .github/actions/postgres-scheduled-storage/action.yml
   - scripts/test-postgres-scheduled-fragments.py
   - scripts/test-postgres-scheduled-matrix.py
   - scripts/test-postgres-scheduled-runner.py

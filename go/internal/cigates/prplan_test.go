@@ -31,6 +31,7 @@ func TestPostgresScheduledOwnedPathsSelectAllFullJobs(t *testing.T) {
 	}
 	for _, path := range []string{
 		".github/actions/postgres-scheduled-bulk/action.yml",
+		".github/actions/postgres-scheduled-storage/action.yml",
 		"specs/ci-pr-workflows.d/postgres-scheduled-live.yml",
 	} {
 		t.Run(path, func(t *testing.T) {
@@ -38,8 +39,8 @@ func TestPostgresScheduledOwnedPathsSelectAllFullJobs(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !slices.Equal(jobs[def.File], def.Jobs) || len(jobs[def.File]) != 7 {
-				t.Fatalf("full PostgreSQL jobs = %v; want all seven %v", jobs[def.File], def.Jobs)
+			if !slices.Equal(jobs[def.File], def.Jobs) || len(jobs[def.File]) != 8 {
+				t.Fatalf("full PostgreSQL jobs = %v; want all eight %v", jobs[def.File], def.Jobs)
 			}
 		})
 	}

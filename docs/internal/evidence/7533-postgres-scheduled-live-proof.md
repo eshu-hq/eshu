@@ -144,22 +144,25 @@ The setup leg writes `manifest.json` with the run URL, ID, attempt, event, revie
 ## Step 7 sharding (#8617)
 
 The serial suite's p95 was ~84 min (ten latest hosted runs on 2026-10-19,
-success range 62-84 min). The workflow now runs seven jobs: `scheduled-setup`
-(enrollment gate plus manifest from its own same-image service),
-`scheduled-freshness-scale`, `scheduled-freshness-a`, `scheduled-freshness-b`,
-`scheduled-ack`, `scheduled-bulk`, and `scheduled-aggregate` (download,
-bundle verify, retain). The freshness split and leg budgets rest on run
-39339606297 (success) per-test artifact timings:
+success range 62-84 min). Step 7 split the workflow into seven jobs:
+`scheduled-setup` (enrollment gate plus manifest from its own same-image
+service), `scheduled-freshness-scale`, `scheduled-freshness-a`,
+`scheduled-freshness-b`, `scheduled-ack`, `scheduled-bulk`, and
+`scheduled-aggregate` (download, bundle verify, retain). This section records
+that shape. #9488 later added an eighth job, `scheduled-storage`, and changed
+two caps (see [Storage leg (#9488)](#storage-leg-9488)). The freshness split
+and leg budgets rest on run 39339606297 (success) per-test artifact timings:
 
 | Leg | Files | Tests | Measured test time |
 | --- | ---: | ---: | ---: |
 | freshness-scale (scale, scale-proof, retention-timing, timing-clone) | 4 | 4 | ~16.6m |
 | freshness-a (retention-plan, fence, lock-timeout ×2, retention ×2, journal, link, poison) | 9 | 33 | ~5.7m |
 | freshness-b (rekey, plan, plan-stats, prior-plan, stale-stats, retention-race, prior-wait, fence-breach, prior-fence) | 9 | 21 | ~4.3m |
-| ack (unchanged) | 22 | 45 | ~4.6m tests inside a 22.4m wall incl. the one-time -race build |
-| bulk (all other families, serial, one warm build cache) | 75 | 139 | ~16m tests |
+| ack (unchanged by step 7) | 22 | 45 | ~4.6m tests inside a 22.4m wall incl. the one-time -race build |
+| bulk (all other families at step 7, serial, one warm build cache) | 75 | 139 | ~16m tests |
 
-Leg caps: setup 15, scale 45, chunks 25, ack 30, bulk 40, aggregate 15.
+Leg caps at step 7: setup 15, scale 45, chunks 25, ack 30, bulk 40,
+aggregate 15. Since #9488: ack 40, bulk 40, and storage 40.
 The runner pins the matrix shape (one selector per group across legs, fresh
 database and DSN per group, per-leg stream uploads, aggregate fan-in and exact
 bundle paths) and the workflow SHA256. Acceptance (#8617 step 7, as amended
@@ -169,6 +172,58 @@ baseline. Measured on run 39421484741 (all legs green, aggregate SUCCESS):
 scale 32m20s, bulk 26m33s, ack 23m09s, chunks ~7-8m, setup 50s, aggregate 16s.
 Leg caps above are timeout kill limits, not the acceptance bound. No Go
 production code, SQL, fixture, or telemetry contract changed.
+
+## Storage leg (#9488)
+
+By 2026-10-29 `scheduled-bulk` was cancelled at its 40-minute cap on PRs
+#9481 (twice) and #9483. Per-family step walls from four job logs show that
+the cost is the claim family's `-race` test build of
+`./internal/storage/postgres`, the first family to test that package in the
+leg. It is not the tests themselves:
+
+| Run (bulk job) | Claim wall | Claim tests | Bulk step | Result |
+| --- | ---: | ---: | ---: | --- |
+| main 40485127858 (122124889517) | 14.7m | 3.5m | 24.5m | pass |
+| main 40674818081 (122770411208) | 19.7m | 5.0m | 33.0m | pass |
+| PR #9483 40842111898 (123341097469) | 25.7m | 5.3m | 39.7m | cancelled |
+| PR #9481, attempt 2 | 26.4m | 5.4m | 39.5m | cancelled |
+
+The package grew 1.0% in source bytes (13.48 to 13.61 MB) between the heads
+of runs 40485127858 and 40842111898. The two slow runs used runner image
+20261025.353.1 and the two fast ones used 20261012.334.1; that is a
+correlation, not a diagnosed cause. The five other root-package families reuse
+the build and take 0.2-1.1m each. A local trial found no measurable `go vet`
+cost.
+
+The six families that test the root package (claim, liveness, fanout, search,
+readiness, disposable_storage) now run in `scheduled-storage`, from
+`.github/actions/postgres-scheduled-storage`. The nine others stay in
+`scheduled-bulk`. Predicted from the measured family walls, the storage leg
+takes 16.9-29.8m of steps and the bulk leg 7.6-12.7m. The 12.7m top end
+estimates the four families cancelled on #9481 from the other runs. Both caps
+stay at 40.
+
+`scheduled-ack` builds the same root package and took 17.0, 24.9 and 26.2m
+against its 30-minute cap on the first three runs above, with about 5m of
+tests. A build cannot be shared across jobs, so its cap moves from 30 to 40,
+the same kill limit as `scheduled-storage`.
+
+A warm `-race` cache would not avoid the build on today's main. The scheduled
+jobs restore the shared `setup-go` key (a hit on all four runs, 435-658 MB),
+not the race lane's `gobuildrace` key. The 2026-10-29 `gobuildrace` entry was
+saved by go-race shard 1 (job 123379419537). Shard 3, which tests
+`./internal/storage/postgres`, logged `Unable to reserve cache` (job
+123379419435), so the entry holds no build of that package. One local
+same-machine trial (load 13-20) showed that the scheduled `go test -json
+-race` form reuses a race-lane-form cache that has the package: 391s cold,
+then 32s. That is not a CI runner timing.
+
+The runner rejects a root storage test in any leg except ACK and storage. It
+recognizes the reviewed step form only: one line of `go test -json -race ...
+./internal/storage/postgres -run ...` that ends by writing
+`${RUNNER_TEMP}/<group>.jsonl`. A new family enrolled through the inventory
+uses that form, so it cannot bring the build back into bulk. A hand-written
+command in another shape would not be caught.
 
 ## Boundaries
 

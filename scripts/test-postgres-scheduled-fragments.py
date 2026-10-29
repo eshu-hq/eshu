@@ -19,7 +19,7 @@ import postgres_scheduled_runner as runner  # noqa: E402
 
 def copy_contract(root: Path) -> None:
     """Copy workflow routing sources into an inventory mutation checkout."""
-    for relative in (runner.FRAGMENT, runner.BULK_ACTION):
+    for relative in (runner.FRAGMENT, runner.BULK_ACTION, runner.STORAGE_ACTION):
         target = root / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes((ROOT / relative).read_bytes())
@@ -201,16 +201,21 @@ class InventoryFragmentTest(unittest.TestCase):
                  "< /tmp/7127-link-writer-fixture-missing.sql", "freshness"),
             ):
                 action = root / runner.BULK_ACTION
+                storage = root / runner.STORAGE_ACTION
                 fragment = root / runner.FRAGMENT
                 subject = (workflow if old in original else
-                           action if old in action.read_text() else fragment)
+                           action if old in action.read_text() else
+                           storage if old in storage.read_text() else fragment)
                 source = subject.read_text()
                 self.assertIn(old, source)
                 changed_text = source.replace(old, new, 1)
                 subject.write_text(changed_text)
                 digest = hashlib.sha256(action.read_bytes()).hexdigest()
+                storage_digest = hashlib.sha256(storage.read_bytes()).hexdigest()
                 with self.subTest(message=message), mock.patch.object(
-                        runner, "BULK_ACTION_SHA256", digest), self.assertRaisesRegex(ValueError, message):
+                        runner, "BULK_ACTION_SHA256", digest), mock.patch.object(
+                        runner, "STORAGE_ACTION_SHA256", storage_digest), \
+                        self.assertRaisesRegex(ValueError, message):
                     runner.verify_inventory(root, inventory)
                 subject.write_text(source)
 
@@ -233,7 +238,8 @@ class InventoryFragmentTest(unittest.TestCase):
                 "postgres://eshu:change-me@localhost:15432/"
                 "postgres?sslmode=disable\n"
             )
-            self.assertEqual(original.count(removed), 3)
+            # #9488: disposable_storage moved to the storage action.
+            self.assertEqual(original.count(removed), 2)
             action.write_text(original.replace(removed, "", 1))
             with mock.patch.object(
                     runner, "BULK_ACTION_SHA256",
@@ -408,9 +414,8 @@ class CgoEnvAllowlistTest(unittest.TestCase):
 
     def test_only_the_reviewed_env_stanza_is_allowed(self) -> None:
         workflow = (ROOT / runner.WORKFLOW).read_text(encoding="utf-8")
-        action = (ROOT / runner.BULK_ACTION).read_text(encoding="utf-8")
         self.assertIn(self.STANZA, workflow)
-        runner.verify_canonical_workflow(runner.expand_bulk_action(workflow, action))
+        runner.verify_canonical_workflow(runner.expand_actions(workflow, ROOT))
         for label, stanza in (
             ("other key", 'env:\n  OTHER: "1"\n'),
             ("other value", 'env:\n  CGO_CFLAGS: "-O3"\n'),
@@ -420,7 +425,7 @@ class CgoEnvAllowlistTest(unittest.TestCase):
                 mutated = workflow.replace(self.STANZA, stanza, 1)
                 with self.assertRaises(ValueError):
                     runner.verify_canonical_workflow(
-                        runner.expand_bulk_action(mutated, action))
+                        runner.expand_actions(mutated, ROOT))
 
 
 if __name__ == "__main__":

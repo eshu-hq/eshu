@@ -9,12 +9,21 @@ from pathlib import Path
 import re
 import sys
 
-from postgres_scheduled_contract import ADMIN_ENVS, DATABASES, DSNS, IMAGE, PACKAGES, PR_PATHS
+from postgres_scheduled_contract import (
+    ADMIN_ENVS, DATABASES, DSNS, IMAGE, PACKAGES, PR_PATHS, STORAGE_GROUPS,
+)
+from postgres_scheduled_actions import (
+    BULK_ACTION, STORAGE_ACTION, expand_action,
+    expand_actions as expand_reviewed_actions,
+)
 from postgres_scheduled_artifacts import assemble_proof_bundle, verify_artifact_sources
 from reducer_contention_events import verify_events as verify_go_events
 from postgres_scheduled_fragments import load_inventory as load_fragments, inventory_digest
 from postgres_scheduled_manifest import build_manifest as build_source_bound_manifest
-from postgres_scheduled_matrix import verify_aggregate_bundle, verify_leg_uploads
+from postgres_scheduled_matrix import (
+    root_storage_groups, verify_aggregate_bundle, verify_leg_uploads,
+    verify_root_storage_builds,
+)
 from postgres_scheduled_workflow import (
     JOB_ORDER, LEG_JOBS, SERVICE_JOBS, job_blocks, named_step,
     verify_canonical_workflow, verify_trigger as verify_workflow_trigger,
@@ -24,9 +33,9 @@ from postgres_scheduled_workflow import (
 INVENTORY = Path(__file__).with_name("postgres_scheduled_inventory.json")
 WORKFLOW = Path(".github/workflows/postgres-scheduled-live.yml")
 FRAGMENT = Path("specs/ci-pr-workflows.d/postgres-scheduled-live.yml")
-BULK_ACTION = Path(".github/actions/postgres-scheduled-bulk/action.yml")
-WORKFLOW_SHA256 = "0313a746b37ea88e48e0a5388a09e8b1e8f58c5c92f196578d05879eae275a83"
-BULK_ACTION_SHA256 = "a40268e192f607a4201130cca07a30e3070a19808176b8eab25cd1331e4feb4f"
+WORKFLOW_SHA256 = "c6e5289cfc25e093b032b875289365ed4e3613cceffff053640133f94dfff589"
+BULK_ACTION_SHA256 = "937bb489c42ec113d8886a594a10c56fae2872610ccf667ff72c0a25203e848b"
+STORAGE_ACTION_SHA256 = "53327aaa04e313ce57aae169e84ef977773f07afdb9df899ffd1e9ea01c5370a"
 TEST_PATTERN = re.compile(r"^func (Test\w+)\(", re.MULTILINE)
 GROUP_LABELS = {
     "crossplane": "Crossplane",
@@ -49,34 +58,15 @@ GROUP_TIMEOUTS = {
 
 
 def expand_bulk_action(workflow: str, action: str) -> str:
-    """Expose the reviewed composite's commands to the existing proof checks."""
-    if hashlib.sha256(action.encode()).hexdigest() != BULK_ACTION_SHA256:
-        raise ValueError("hosted bulk action executable bytes differ from reviewed contract")
-    prefix = (
-        "name: Scheduled PostgreSQL bulk proofs\n"
-        "description: Run the enrolled bulk proof families and upload their streams.\n"
-        "inputs:\n  postgres_container:\n"
-        "    description: PostgreSQL service container ID.\n"
-        "    required: true\n"
-        "runs:\n  using: composite\n  steps:\n"
-    )
-    if not action.startswith(prefix):
-        raise ValueError("hosted bulk action has unsupported controls")
-    marker = ("      - name: Run bulk proof families\n"
-              "        uses: ./.github/actions/postgres-scheduled-bulk\n"
-              "        with:\n"
-              "          postgres_container: ${{ job.services.postgres.id }}\n")
-    if workflow.count(marker) != 1:
-        raise ValueError("hosted bulk action is not called exactly once")
-    steps = []
-    for line in action[len(prefix):].splitlines():
-        if line == "      shell: bash":
-            continue
-        if "shell:" in line or (line and not line.startswith("    ")):
-            raise ValueError("hosted bulk action has unsupported step controls")
-        steps.append("  " + line.replace("${{ inputs.postgres_container }}",
-                                        "${{ job.services.postgres.id }}"))
-    return workflow.replace(marker, "\n".join(steps) + "\n", 1)
+    """Expand only the bulk composite against its reviewed digest."""
+    return expand_action(workflow, action, "bulk", BULK_ACTION_SHA256)
+
+
+def expand_actions(workflow: str, root: Path) -> str:
+    """Expand both reviewed composites against the digests pinned here."""
+    return expand_reviewed_actions(workflow, root, {
+        "bulk": BULK_ACTION_SHA256, "storage": STORAGE_ACTION_SHA256,
+    })
 
 
 def verify_trigger(workflow: str, inventory: dict[str, dict[str, object]], fragment: str) -> None:
@@ -95,8 +85,7 @@ def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> Non
     workflow = (root / WORKFLOW).read_text(encoding="utf-8")
     if "--local-simulation" in workflow or "--allow-local-simulation" in workflow:
         raise ValueError("local simulation cannot appear in hosted workflow")
-    expanded = expand_bulk_action(
-        workflow, (root / BULK_ACTION).read_text(encoding="utf-8"))
+    expanded = expand_actions(workflow, root)
     verify_trigger(expanded, inventory, (root / FRAGMENT).read_text(encoding="utf-8"))
     if IMAGE not in expanded or "postgres:latest" in expanded:
         raise ValueError("pinned PostgreSQL backend missing")
@@ -294,6 +283,7 @@ def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> Non
         if actual != tests:
             raise ValueError(f"source Test inventory changed: {relative}")
     verify_leg_uploads(blocks)
+    verify_root_storage_builds(blocks)
     verify_aggregate_bundle(aggregate_steps)
     if hashlib.sha256(workflow.encode("utf-8")).hexdigest() != WORKFLOW_SHA256:
         raise ValueError("hosted workflow executable bytes differ from reviewed contract")
