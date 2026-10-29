@@ -115,12 +115,13 @@ func listOwnedPackageDependencyTargetsQuery(versionSpecific bool, expandAliases 
 	}
 	return fmt.Sprintf(ownedPackageSlotQueryTemplate,
 		ownedPackageEcosystemExpression(expandAliases), distinctColumns, distinctOrder, slotKey,
-		ownedPackageSlotCountExpression)
+		ownedPackageSlotCountExpression, ownedPackageActiveGenerationPredicate)
 }
 
-// ownedPackageSlotQueryTemplate is the measured statement with its five
+// ownedPackageSlotQueryTemplate is the measured statement with its six
 // builder verbs: %[1]s ecosystem expression, %[2]s DISTINCT ON columns,
-// %[3]s DISTINCT ON order, %[4]s slot key expression, %[5]s slot count.
+// %[3]s DISTINCT ON order, %[4]s slot key expression, %[5]s slot count,
+// %[6]s active-generation predicate.
 const ownedPackageSlotQueryTemplate = `
 WITH active_dependencies AS (
   SELECT
@@ -145,7 +146,7 @@ WHERE fact.fact_kind = 'content_entity'
   AND fact.payload->'entity_metadata'->>'config_kind' = 'dependency'
   AND fact.payload->'entity_metadata'->>'package_manager' = ANY($1::text[])
   AND generation.status = 'active'
-),
+%[6]s),
 distinct_targets AS MATERIALIZED (
   SELECT DISTINCT ON (%[2]s)
     ecosystem,

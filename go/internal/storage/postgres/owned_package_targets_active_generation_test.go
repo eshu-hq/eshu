@@ -150,8 +150,13 @@ func assertOwnedPackageReadFollowsActiveGenerations(ctx context.Context, t *test
 	if rows := ownedPackageFactScanRows(ctx, t, db, history, args); rows <= active {
 		t.Fatalf("all-history plan read %d fact rows, want more than the %d active rows; the fixture does not discriminate", rows, active)
 	}
-	if rows := ownedPackageFactScanRows(ctx, t, db, shipped, args); rows > active {
-		t.Fatalf("shipped plan read %d fact rows, want at most the %d active rows: the read follows generation history", rows, active)
+	// The predicate admits every generation a scope points at; scope-mismatch
+	// points at a non-active generation, so its 10 rows are read and then
+	// dropped by the status join. Superseded and pending rows are never read.
+	pointed := active + 10
+	if rows := ownedPackageFactScanRows(ctx, t, db, shipped, args); rows > pointed {
+		t.Fatalf("shipped plan read %d fact rows, want at most the %d rows of pointed-at generations: the read follows generation history",
+			rows, pointed)
 	}
 }
 
