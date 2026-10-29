@@ -79,20 +79,125 @@ func TestSeedRejectsUnknownComponent(t *testing.T) {
 	}
 }
 
-// TestSeedRejectsImageRefMismatch proves a --image-ref outside the pinned
-// manifest artifact fails closed before anything is written: the
-// destination stays empty so a stale or foreign image never seeds.
+// nonPinSeedImage returns a well-formed --image-ref for one analyzer that
+// differs from the compiled ManifestFor pin: the shape Seed accepts and
+// stamps, per the #8878 ruling. The digest is fixed so the test stays
+// deterministic; the guard proves it is not the pin.
+func nonPinSeedImage(t *testing.T, kind scannerworker.AnalyzerKind) string {
+	t.Helper()
+
+	id, err := componentID(kind)
+	if err != nil {
+		t.Fatalf("componentID(%q) error = %v", kind, err)
+	}
+	ref := "ghcr.io/eshu-hq/scanner-" + strings.TrimPrefix(id, "eshu.scanner.") + "@sha256:" + strings.Repeat("b", 64)
+	if ref == pinnedSeedImage(t, kind) {
+		t.Fatalf("non-pin seed image equals the ManifestFor pin for %q, want a differing ref", kind)
+	}
+	return ref
+}
+
+// TestSeedRejectsImageRefMismatch proves a --image-ref outside the
+// fail-closed shape fails before anything is written: the destination stays
+// empty so a stale or foreign image never seeds. Shape is
+// ghcr.io/eshu-hq/scanner-<name>@sha256:<64 lowercase hex> with <name>
+// matching the binary's own component ID; the compiled pin is not compared
+// (#8878: the pin changes the image digest, so equality is unsatisfiable at
+// seed time and enforced at admission instead). Error text names
+// --image-ref, never the rejected value.
 func TestSeedRejectsImageRefMismatch(t *testing.T) {
 	t.Parallel()
 
-	dest := filepath.Join(t.TempDir(), "runtime")
-	if err := Seed(IDImage, []string{"--dest", dest, "--image-ref", "ghcr.io/eshu-hq/scanner-image:latest"}); err == nil {
-		t.Fatal("Seed(mismatched ref) error = nil, want pinned-artifact mismatch error")
-	} else if !strings.Contains(err.Error(), "image-ref") {
-		t.Fatalf("Seed(mismatched ref) error = %v, want it to name --image-ref", err)
+	sbomPin := pinnedSeedImage(t, scannerworker.AnalyzerSBOMGeneration)
+	hex64 := strings.Repeat("a", 64)
+	for _, tc := range []struct {
+		name string
+		ref  string
+	}{
+		{"tag ref", "ghcr.io/eshu-hq/scanner-image:latest"},
+		{"foreign registry", "ghcr.io/other-org/scanner-image@sha256:" + hex64},
+		{"docker hub", "scanner-image@sha256:" + hex64},
+		{"wrong component pin", sbomPin},
+		{"right shape wrong name", "ghcr.io/eshu-hq/scanner-sbom@sha256:" + hex64},
+		{"uppercase digest", "ghcr.io/eshu-hq/scanner-image@sha256:" + strings.Repeat("A", 64)},
+		{"short digest", "ghcr.io/eshu-hq/scanner-image@sha256:" + strings.Repeat("a", 63)},
+		{"long digest", "ghcr.io/eshu-hq/scanner-image@sha256:" + strings.Repeat("a", 65)},
+		{"non-hex digest", "ghcr.io/eshu-hq/scanner-image@sha256:" + strings.Repeat("g", 64)},
+		{"missing digest", "ghcr.io/eshu-hq/scanner-image@sha256:"},
+		{"trailing path", "ghcr.io/eshu-hq/scanner-image@sha256:" + hex64 + "/extra"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			dest := filepath.Join(t.TempDir(), "runtime")
+			err := Seed(IDImage, []string{"--dest", dest, "--image-ref", tc.ref})
+			if err == nil {
+				t.Fatalf("Seed(%q) error = nil, want shape rejection", tc.ref)
+			}
+			if !strings.Contains(err.Error(), "image-ref") {
+				t.Fatalf("Seed(%q) error = %v, want it to name --image-ref", tc.ref, err)
+			}
+			if strings.Contains(err.Error(), tc.ref) {
+				t.Fatalf("Seed(%q) error = %v, must not echo the rejected value", tc.ref, err)
+			}
+			if entries, readErr := os.ReadDir(dest); readErr == nil && len(entries) > 0 {
+				t.Fatalf("rejected seed wrote %d entries, want none", len(entries))
+			}
+		})
 	}
-	if entries, readErr := os.ReadDir(dest); readErr == nil && len(entries) > 0 {
-		t.Fatalf("mismatched seed wrote %d entries to %s, want none", len(entries), dest)
+}
+
+// TestSeedAcceptsWellFormedRefDifferingFromPin proves the #8878 ruling:
+// Seed accepts any well-formed ref for its own component name even when it
+// differs from the compiled ManifestFor pin, and stamps that ref into
+// Artifacts[0].Image of the seeded manifest while every other field stays
+// the ManifestFor document.
+func TestSeedAcceptsWellFormedRefDifferingFromPin(t *testing.T) {
+	t.Parallel()
+
+	for _, kind := range []scannerworker.AnalyzerKind{
+		scannerworker.AnalyzerImageUnpacking,
+		scannerworker.AnalyzerSBOMGeneration,
+		scannerworker.AnalyzerOSPackageExtraction,
+	} {
+		t.Run(string(kind), func(t *testing.T) {
+			t.Parallel()
+
+			id, err := componentID(kind)
+			if err != nil {
+				t.Fatalf("componentID(%q) error = %v", kind, err)
+			}
+			ref := nonPinSeedImage(t, kind)
+			dest := filepath.Join(t.TempDir(), "runtime")
+			if err := Seed(id, []string{"--dest", dest, "--image-ref", ref}); err != nil {
+				t.Fatalf("Seed(%q) error = %v, want nil for a well-formed ref", ref, err)
+			}
+			raw, err := os.ReadFile(filepath.Join(dest, "manifest.yaml"))
+			if err != nil {
+				t.Fatalf("read seeded manifest error = %v", err)
+			}
+			var decoded eshucomponent.Manifest
+			if err := yaml.Unmarshal(raw, &decoded); err != nil {
+				t.Fatalf("decode seeded manifest error = %v", err)
+			}
+			if len(decoded.Spec.Artifacts) != 1 {
+				t.Fatalf("seeded artifacts = %d, want exactly 1", len(decoded.Spec.Artifacts))
+			}
+			if decoded.Spec.Artifacts[0].Image != ref {
+				t.Fatalf("seeded artifact image = %q, want the stamped ref", decoded.Spec.Artifacts[0].Image)
+			}
+			wantManifest, err := ManifestFor(kind)
+			if err != nil {
+				t.Fatalf("ManifestFor(%q) error = %v", kind, err)
+			}
+			decoded.Spec.Artifacts[0].Image = wantManifest.Spec.Artifacts[0].Image
+			if !reflect.DeepEqual(decoded, wantManifest) {
+				t.Fatalf("seeded manifest differs from ManifestFor(%q) outside the stamped artifact", kind)
+			}
+			if err := decoded.ValidateWithGrants(RequiredGrants(wantManifest)); err != nil {
+				t.Fatalf("seeded manifest ValidateWithGrants() error = %v, want nil", err)
+			}
+		})
 	}
 }
 
@@ -230,16 +335,18 @@ func seedSmokeBinaries(t *testing.T) map[scannerworker.AnalyzerKind]string {
 }
 
 // TestSeedBuiltBinarySmoke proves the production path per analyzer: the
-// real binary behind `seed --dest --image-ref` exits 0 and leaves an
-// executable collector plus a manifest decoding to the pinned component
-// ID, while a mismatched ref exits nonzero with nothing seeded.
+// real binary behind `seed --dest --image-ref` exits 0 on a well-formed ref
+// that differs from the compiled pin (#8878) and leaves an executable
+// collector plus a manifest carrying the stamped ref under the pinned
+// component ID, while a tag ref exits nonzero with nothing seeded.
 func TestSeedBuiltBinarySmoke(t *testing.T) {
 	bins := seedSmokeBinaries(t)
 
 	for kind, bin := range bins {
 		t.Run(string(kind), func(t *testing.T) {
+			ref := nonPinSeedImage(t, kind)
 			dest := filepath.Join(t.TempDir(), "runtime")
-			cmd := exec.Command(bin, "seed", "--dest", dest, "--image-ref", pinnedSeedImage(t, kind))
+			cmd := exec.Command(bin, "seed", "--dest", dest, "--image-ref", ref)
 			if out, err := cmd.CombinedOutput(); err != nil {
 				t.Fatalf("seed smoke error = %v\n%s", err, out)
 			}
@@ -264,6 +371,9 @@ func TestSeedBuiltBinarySmoke(t *testing.T) {
 			}
 			if decoded.Metadata.ID != id {
 				t.Fatalf("smoked manifest id = %q, want %q", decoded.Metadata.ID, id)
+			}
+			if len(decoded.Spec.Artifacts) != 1 || decoded.Spec.Artifacts[0].Image != ref {
+				t.Fatalf("smoked manifest artifact = %+v, want the stamped ref", decoded.Spec.Artifacts)
 			}
 
 			badDest := filepath.Join(t.TempDir(), "bad")

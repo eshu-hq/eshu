@@ -43,6 +43,20 @@ const (
 // bumping this SHA and the pins together (the pattern #9494 uses) —
 // the publish workflow never auto-updates this file.
 // Scanner-Publish-SHA: 01c8781a71b75e2c9a19611b40b0140ec68de1fe
+//
+// Pin semantics (#8878): these pins are platform-side admission truth, not
+// seed-time comparisons. Seed checks only that --image-ref has the
+// ghcr.io/eshu-hq/scanner-<name>@sha256:<64 hex> shape for its own
+// component and stamps the value into the seeded manifest, because the pin
+// changes the image digest and a binary can never satisfy equality against
+// its own image (fixed-point impossibility). Equality is enforced later by
+// VerifySeededArtifact, which the extension worker loader and the
+// coordinator activation planner run over the installed manifest before any
+// claim or execution: a drifted seed image is denied there. The re-pin PR
+// therefore bumps this SHA, the pins, and the chart seed.image entries
+// together (the activation contract test pins the mirrored in-repo chart
+// values; live-chart sync rides the re-pin PR process with admission as the
+// fail-closed backstop).
 var artifactDigests = map[string]string{
 	IDImage:     "fd7122317aa8a93ae9ac17ed06120ab23ca049987b51abf84019b190956d22fe",
 	IDSBOM:      "484e5aa4b33ecc77f7135409936c1403b7b86c62dcb1d3aa1130ca01f69debe0",

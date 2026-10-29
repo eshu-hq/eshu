@@ -21,22 +21,36 @@ import (
 const seedCollectorName = "collector"
 
 // seedManifestName is the manifest file Seed writes next to the collector
-// binary, carrying the exact ManifestFor document for the analyzer.
+// binary, carrying the ManifestFor document with the seeded image stamped
+// into its artifact.
 const seedManifestName = "manifest.yaml"
+
+// seedImageRepoPrefix is the only registry and repository Seed accepts: the
+// digest-pinned scanner images the platform publishes.
+const seedImageRepoPrefix = "ghcr.io/eshu-hq/scanner-"
 
 // Seed runs the chart seed-init contract for one scanner component binary:
 // it copies the running executable to <dest>/collector and marshals the
-// pinned manifest to <dest>/manifest.yaml. args carries the flags after the
-// `seed` subcommand word (`--dest` and `--image-ref`, each as `--flag
-// value` or `--flag=value`).
+// manifest to <dest>/manifest.yaml with the --image-ref value stamped into
+// Artifacts[0].Image. args carries the flags after the `seed` subcommand
+// word (`--dest` and `--image-ref`, each as `--flag value` or
+// `--flag=value`).
+//
+// Seed validates the --image-ref SHAPE only, never equality with the
+// ManifestFor pin compiled into this binary: the pin changes the image
+// digest, so a binary cannot satisfy equality against its own image
+// (fixed-point impossibility, #8878). Equality is enforced later, at
+// admission, by VerifySeededArtifact before any claim or execution.
 //
 // Seed fails closed: unknown flags, a missing or empty --dest or
-// --image-ref, and an --image-ref outside the ManifestFor pinned artifact
-// all error before anything is written, so a stale or foreign image never
-// seeds a partial runtime directory. Re-running with the same inputs
-// overwrites byte-identical files. Error text names the flag or defect,
-// never the value: image references and paths stay out of errors, logs,
-// and statuses per the package privacy rule.
+// --image-ref, and an --image-ref outside the
+// ghcr.io/eshu-hq/scanner-<name>@sha256:<64 lowercase hex> shape for this
+// binary's own component name all error before anything is written, so a
+// stale or foreign image never seeds a partial runtime directory.
+// Re-running with the same inputs overwrites byte-identical files. Error
+// text names the flag or defect, never the value: image references and
+// paths stay out of errors, logs, and statuses per the package privacy
+// rule.
 func Seed(componentID string, args []string) error {
 	kind, err := AnalyzerFor(componentID)
 	if err != nil {
@@ -46,18 +60,45 @@ func Seed(componentID string, args []string) error {
 	if err != nil {
 		return err
 	}
+	if err := validateSeedImageRef(componentID, imageRef); err != nil {
+		return err
+	}
 	manifest, err := ManifestFor(kind)
 	if err != nil {
 		return err
 	}
-	if len(manifest.Spec.Artifacts) != 1 || manifest.Spec.Artifacts[0].Image != imageRef {
-		return errors.New("seed: --image-ref does not match the pinned scanner image artifact")
+	if len(manifest.Spec.Artifacts) != 1 {
+		return errors.New("seed: the pinned scanner manifest declares no single image artifact")
 	}
+	manifest.Spec.Artifacts[0].Image = imageRef
 	executable, err := os.Executable()
 	if err != nil {
 		return errors.New("seed: resolve the running executable")
 	}
 	return writeSeed(dest, manifest, executable)
+}
+
+// validateSeedImageRef enforces the fail-closed --image-ref shape for one
+// scanner component binary: ghcr.io/eshu-hq/scanner-<name>@sha256:<64
+// lowercase hex> where <name> is the binary's own component name. The digest
+// is deliberately not compared to the compiled ManifestFor pin (see Seed).
+// A rejection names --image-ref, never the rejected value.
+func validateSeedImageRef(componentID, imageRef string) error {
+	name := strings.TrimPrefix(componentID, "eshu.scanner.")
+	digest, ok := strings.CutPrefix(imageRef, seedImageRepoPrefix+name+"@sha256:")
+	if !ok {
+		return errors.New("seed: --image-ref is not a digest-pinned image for this scanner component")
+	}
+	if len(digest) != 64 {
+		return errors.New("seed: --image-ref does not carry a 64-character image digest")
+	}
+	for i := 0; i < len(digest); i++ {
+		c := digest[i]
+		if c < '0' || (c > '9' && c < 'a') || c > 'f' {
+			return errors.New("seed: --image-ref does not carry a lowercase hex image digest")
+		}
+	}
+	return nil
 }
 
 // parseSeedArgs extracts --dest and --image-ref from the arguments after

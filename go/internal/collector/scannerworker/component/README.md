@@ -33,8 +33,18 @@ the host already decodes.
 - `ManifestFor`, `RequiredGrants`, `AnalyzerFor` — per-analyzer manifests,
   the grants each manifest needs, and component-ID resolution.
 - `Seed` — chart seed-init contract: copy the running binary to
-  `<dest>/collector` and marshal the pinned manifest to
-  `<dest>/manifest.yaml`, failing closed on arg or image-ref mismatch.
+  `<dest>/collector` and marshal the manifest to `<dest>/manifest.yaml`
+  with the `--image-ref` value stamped into its artifact. Seed checks the
+  ref shape only (`ghcr.io/eshu-hq/scanner-<name>@sha256:<64 hex>` for its
+  own component name), never equality with the compiled pin: the pin
+  changes the image digest, so equality at seed time is unsatisfiable
+  (#8878). Fails closed on arg or shape mismatch, writing nothing.
+- `VerifySeededArtifact` — reconcile/admission equality check: the seeded
+  manifest artifact must equal the platform `ManifestFor` pin for
+  `eshu.scanner.*` before any claim or execution. Enforced by the extension
+  worker loader (`selectActivation` in `go/cmd/collector-component-extension`)
+  and the coordinator activation planner, both deny fail-closed on
+  mismatch without echoing image values.
 - `IDImage`, `IDSBOM`, `IDOSRuntime`, `Version` — component identities and
   the manifest version.
 - `DefaultStdoutLimitBytes` — the mirrored host stdout limit page bounds
