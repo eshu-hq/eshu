@@ -14,7 +14,12 @@
 #   - a ruleset-required context that is pending, red, absent or not success fails;
 #   - a check the ruleset does not require, pending or absent, is a note;
 #   - a completed red one fails unless --dispositioned <context>=<reason> names
-#     it, and each disposition is printed in the arm output.
+#     it, and each disposition is printed in the arm output;
+#   - outside a merge group, mergeStateStatus must be CLEAN, or UNSTABLE when at
+#     least one completed red context is dispositioned and nothing else fails
+#     (#9489). GitHub reports UNSTABLE for exactly that state, a non-required
+#     check that completed red, so the disposition must reach the merge-state
+#     comparison. BLOCKED, DIRTY, BEHIND, DRAFT and UNKNOWN still fail.
 
 # run_checks_arm: print the checks PASS/FAIL line (and notes) for the head.
 #
@@ -150,6 +155,8 @@ run_checks_arm() {
 		esac
 	done
 	local i state rows red_state
+	# excused: the dispositioned contexts that were completed red, in flag order.
+	local -a excused=()
 	for ((i = 0; i < ${#disp_ctx[@]}; i++)); do
 		ctx="${disp_ctx[i]}"
 		if in_list "${ctx}" "${ruleset_contexts[@]}"; then
@@ -164,22 +171,34 @@ run_checks_arm() {
 				state="unused: not red"
 			fi
 		fi
+		[[ "${state}" != applied:* ]] || excused+=("${ctx}")
 		note checks "dispositioned: ${ctx}=${disp_reason[i]} (${state})"
 	done
-	local mss group_label="" ruleset_list
+	local mss group_label="" ruleset_list excused_list="" unstable_ok=0
 	mss="$(jq -r '.mergeStateStatus // "?"' <<<"${pr_json}")"
 	# A PR already in a merge group reads mergeStateStatus UNKNOWN (PR #8000,
 	# rulings a9-135.2, a9-139.2): the row is labeled IN-GROUP and accepts only
-	# UNKNOWN or CLEAN; any other value fails. Any other PR still needs CLEAN.
+	# UNKNOWN or CLEAN; any other value fails. Any other PR needs CLEAN, or
+	# UNSTABLE when every completed red context is dispositioned (#9489): the
+	# arm has found nothing else wrong (checks_bad is empty, so every
+	# ruleset-required context is success and no red is undispositioned) and at
+	# least one dispositioned context really was red. UNSTABLE with no excused
+	# red has no known cause here, so it fails closed.
 	if [[ "${in_group}" -eq 1 ]]; then
 		group_label="IN-GROUP: "
 		[[ "${mss}" == UNKNOWN || "${mss}" == CLEAN ]] || checks_bad+=("mergeStateStatus=${mss}")
+	elif [[ "${mss}" == UNSTABLE && ${#checks_bad[@]} -eq 0 && ${#excused[@]} -gt 0 ]]; then
+		unstable_ok=1
+		excused_list="$(printf '%s, ' "${excused[@]}")"
+		excused_list="${excused_list%, }"
 	else
 		[[ "${mss}" == CLEAN ]] || checks_bad+=("mergeStateStatus=${mss}")
 	fi
 	ruleset_list="$(IFS=,; echo "${ruleset_contexts[*]}")"
 	if [[ ${#checks_bad[@]} -eq 0 && -n "${group_label}" ]]; then
 		pass checks "${group_label}complete; ${ruleset_list}=success; mergeStateStatus=${mss} (PR is in a merge group)"
+	elif [[ ${#checks_bad[@]} -eq 0 && "${unstable_ok}" -eq 1 ]]; then
+		pass checks "complete; ${ruleset_list}=success; mergeStateStatus=UNSTABLE (dispositioned: ${excused_list})"
 	elif [[ ${#checks_bad[@]} -eq 0 ]]; then
 		pass checks "complete; ${ruleset_list}=success; mergeStateStatus=CLEAN"
 	else

@@ -73,6 +73,8 @@ false-failure publisher stamp described in
 Read the gates under it. A gate that completed red (an Ifá/Odù cell, a
 contract, performance, or end-to-end gate) is a finding: fix it, or link an
 issue that the active goal works. A cancelled gate is not red: rerun it. A
+cancel that repeats at the job's cap after one rerun is a completed red;
+disposition it together with the capacity issue. A
 pending check that the ruleset does not require does not block the merge; name
 every still-pending check in the merge report. Main Health is the backstop: if
 `main` goes red on a gate a PR merged past, the fix-forward belongs to that
@@ -80,7 +82,9 @@ PR's goal.
 `scripts/dev/pre-enqueue-check.sh` checks this rule. It fails on a required
 check that is not green and on a completed red not named with
 `--dispositioned '<check>=<reason>'`, and it only notes a pending or absent
-check that the ruleset does not require.
+check that the ruleset does not require. It accepts `mergeStateStatus` UNSTABLE,
+which GitHub reports for a red check the ruleset does not require, only when
+every completed red is dispositioned and the required checks are green.
 
 The Ifá/Odù protection was never fully local: the live cells (fault injection,
 determinism and dead-letter matrices, golden-corpus, e2e) need

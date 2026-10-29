@@ -46,9 +46,15 @@ usage() {
 		'                  a note while pending or absent and a FAIL when completed' \
 		'                  failure/cancelled/timed_out/action_required, unless' \
 		'                  --dispositioned names it; unclassified conclusions fail' \
-		'                  closed; at least one row; mergeStateStatus == CLEAN; a PR' \
-		'                  already in the merge queue is labeled IN-GROUP and accepts' \
-		'                  UNKNOWN (GitHub reports it for a queued PR) or CLEAN' \
+		'                  closed; at least one row; mergeStateStatus == CLEAN, or' \
+		'                  UNSTABLE when every completed red check is named by' \
+		'                  --dispositioned and nothing else fails (GitHub reports' \
+		'                  UNSTABLE for a non-required red check; the PASS line names' \
+		'                  the dispositions); a cancel that repeats at the job cap' \
+		'                  after one rerun is a completed red: disposition it with' \
+		'                  the capacity issue; a PR already in the merge queue is' \
+		'                  labeled IN-GROUP and accepts UNKNOWN (GitHub reports it' \
+		'                  for a queued PR) or CLEAN' \
 		'  threads         unresolved review threads == 0' \
 		'  body            at least one issue reference (#N) or closing keyword' \
 		'                  (Closes/Fixes/Resolves #N), labeled for the caller to' \
