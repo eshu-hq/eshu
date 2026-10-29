@@ -66,7 +66,11 @@
 // admin-only and never carried here.
 //
 // VulnerabilitySourceState captures one durable vulnerability-intelligence
-// source checkpoint for operator status and API readiness surfaces.
+// source checkpoint for operator status and API readiness surfaces. Its
+// runtime health follows the terminal status, except that a succeeded row
+// whose FreshnessState is stale reads stale, not observed (#9477). Stale ranks
+// above partial and below degraded, and PromotionProofs maps it to
+// PromotionStale with a source-freshness blocker.
 //
 // RuntimeStatuses and PromotionProofs are collector-fleet business logic
 // that read coordinator, AWS-scan, vulnerability-source, and fact-evidence

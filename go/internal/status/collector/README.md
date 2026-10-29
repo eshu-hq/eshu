@@ -57,7 +57,10 @@ coordinator registration, vulnerability-source evidence, and fact evidence.
   operation tokens; `RuntimeStatus` and
   `PromotionProof` carry the result as `LastFailure*` fields (#8803)
 - `VulnerabilitySourceState` — one durable vulnerability-intelligence source
-  checkpoint
+  checkpoint. Its runtime health follows the terminal status, except that a
+  succeeded row with `FreshnessState` `stale` reads `stale`, not `observed`
+  (#9477). Health ranks `degraded` > `stale` > `partial` > `observed`, matching
+  the promotion severity order, and stale health maps to promotion `stale`.
 - `InstanceSummary` — the operator-visible shape of one configured collector
   instance (used by root's `CoordinatorSnapshot`)
 

@@ -104,6 +104,14 @@ are never carried on `RuntimeStatus`, `PromotionProof`, or their JSON; the
 reason is admin-only. Do not add the covering rule here; it is one SQL predicate
 in `storage/postgres`.
 
+A succeeded vulnerability source whose `FreshnessState` is `stale` reads
+runtime health `stale` (#9477). `runtimeHealthRank` must stay monotone with the
+promotion severity each health maps to: `degraded` > `stale` > `partial` >
+`observed`. Do not move `stale` below `partial`. That makes a stopped writer
+read less severe (promotion `partial` with "some work did not complete"
+instead of `stale` with "re-run the collector"). The acknowledged-failure arm
+stays ahead of the stale arm in `derivePromotionState`.
+
 ## Exporting the render/clone/JSON surface
 
 Every render, clone, and JSON-projection helper in this family

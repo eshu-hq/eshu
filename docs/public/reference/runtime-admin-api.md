@@ -188,6 +188,22 @@ available. Source-specific documentation collectors preserve the neutral
 `collector_kind=documentation` fact model while exposing identities such as
 `source_systems=["confluence"]` for operator readback.
 
+For a vulnerability intelligence instance, the health label comes from its
+`vulnerability_sources` rows. A failed row reads `degraded` and a partial run
+reads `partial`. A succeeded row reads `observed` only while its
+`freshness_state` is fresh. A succeeded row whose `freshness_state` is
+`stale`, meaning its last success is outside the 14-day freshness window,
+reads `stale`: the run completed, but its evidence is too old to trust. Health
+ranks `degraded` above `stale` above `partial` above `observed`, and the
+instance takes its worst row. A `stale` instance's promotion proof reads
+`stale` with the blocker "vulnerability source stale: last success outside the
+source freshness window", and readiness recommends re-running the collector.
+That holds for a running writer that records a stale source and for a stopped
+writer whose sources aged out. The health order matches the promotion severity
+order, so a stale row combined with a partial row never lowers the instance
+below `stale`. An acknowledged terminal failure is checked before staleness,
+so that instance reads `partial` with the acknowledged failure named.
+
 Queue and domain age fields include both human-readable duration strings and
 seconds values, such as `oldest_outstanding_age_seconds` and
 `oldest_age_seconds`.
