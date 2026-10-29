@@ -87,34 +87,45 @@ Performance Evidence: interleaved medians on PostgreSQL 18.6, 2026-10-29:
   returning the 81,236 active rows. The per-row active-scope probes drop from
   936,553 to 81,236.
 - If that index were not used, D falls back to the package-manager index with
-  `generation_id = ANY` as an in-index condition. That fallback wins only up to
-  the measured array size of 53,314 active ids: with index 121 dropped inside
-  a rolled-back transaction, D read 81,236 heap rows in 638 to 746 ms (about
-  416,000 buffers) against A-nl's 1,167 to 1,480 ms (about 4,030,000 buffers).
-  The narrow `rubygems` filter takes this same plan on its own: 7.4 ms and
-  6,233 buffers against 10 to 14 ms and 34,579 buffers.
+  `generation_id = ANY` as an in-index condition. With index 121 dropped inside
+  a rolled-back transaction and 53,314 active ids, D read 81,236 heap rows in
+  638 to 746 ms (about 416,000 buffers) against A-nl's 1,167 to 1,480 ms
+  (about 4,030,000 buffers). How the fallback scales with the active-id count
+  is under "Classes where D is not faster" below. The narrow `rubygems` filter
+  takes this same plan on its own: 7.4 ms and 6,233 buffers against 10 to 14 ms
+  and 34,579 buffers.
+- `plan_cache_mode = force_generic_plan` (PREPARE and EXECUTE with the real
+  binds) gives the same plan and the same buffers as `force_custom_plan` for
+  both A and D on this fixture.
 
-The classes measured to lose:
+Classes where D is not faster:
 
 - Flat history, because A already reads only active rows. D's median is 12 ms
   (3.6%) above A's, inside the run-to-run spread (D's minimum is below A's),
   and D uses 15% fewer buffers. The threshold was no loser regression above
   10%.
-- Index 121 absent or INVALID together with a very large active-scope count.
-  Independent review measurement (rev-9426, a separate PostgreSQL 18.6 fixture
-  of 1,345,076 dependency rows, 9.6% active, plus 300,980 non-NULL
+- Index 121 absent or INVALID together with a large active-scope count.
+  Without index 121, D keeps `generation_id = ANY (InitPlan 1)` as an
+  in-index condition on the package-manager index and pays a binary search of
+  the active-id array per index tuple, so its cost grows with the array.
+  Independent review measurement (rev-9426: a separate PostgreSQL 18.6 fixture
+  of 1,345,076 dependency rows, 9.6% active, extra non-NULL
   `active_generation_id` values, index 121 dropped inside a rolled-back
-  transaction, interleaved, n=4): D keeps `generation_id = ANY (InitPlan 1)`
-  as an in-index condition on the package-manager index and pays a binary
-  search of the 300k-element array per index tuple. D took 6,943 to 7,323 ms
-  against A's 5,920 to 6,256 ms, about +17% at the median, above the 10%
-  threshold, while buffers fell from 1,613,564 to 503,914. With index 121
-  present, the same 300k array is a 2x win in the same review (about 2,100 ms
-  against about 4,200 ms). So this loser needs both conditions; the QA
-  readback checks both (see NOT_CHECKED).
-- `plan_cache_mode = force_generic_plan` (PREPARE and EXECUTE with the real
-  binds) gives the same plan and the same buffers as `force_custom_plan` for
-  both A and D on this fixture.
+  transaction, interleaved):
+  - 53,314 active ids (this note's fixture, above): D wins.
+  - 75,980: D wins, about 23% at the median (n=4; buffers 966,278 against
+    5,456,293).
+  - 150,980: about even, +11% at the median (n=8, two rounds that disagree,
+    so noisy; buffers 493,139 against 1,613,564).
+  - 300,980: D loses, 6,943 to 7,323 ms against A's 5,920 to 6,256 ms, about
+    +17% at the median (n=4), while buffers fall from 1,613,564 to 503,914.
+
+  With index 121 present, the same 300,980-id array is a 2x win in the same
+  review (about 2,100 ms against about 4,200 ms). With index 121 INVALID,
+  treat any active-scope count above about 100,000 as at risk and rebuild the
+  index. An INVALID index 121 is a defect in itself, because it also serves
+  the #7007 readiness query. The QA readback checks both values (see
+  NOT_CHECKED).
 
 Output equality: for every one of the 64 slots of the history fixture, A and D
 returned byte-identical output (62,765 rows, same SHA-1). The same held for the
@@ -123,7 +134,7 @@ subcase below checks the same equality on every slot.
 
 | Candidate | Old | New | Accuracy | Disposition |
 | --- | ---: | ---: | --- | --- |
-| D: `generation_id = ANY` of active ids, no DDL | 2,112 ms (A-nl) | 698 ms | identical output, all slots | proven (fixture); loses only with index 121 absent or INVALID and about 300k active ids |
+| D: `generation_id = ANY` of active ids, no DDL | 2,112 ms (A-nl) | 698 ms | identical output, all slots | proven (fixture); with index 121 absent or INVALID it is about even at 150,980 active ids and loses at 300,980 (review measurement) |
 | B: drive from active scopes through `fact_records_collector_status_active_idx` | | | | rejected: reads every active `content_entity` row, about 99% of them non-dependency (migration 121 note) |
 | C: new partial index keyed by `generation_id` | | | | not needed: D reaches the threshold on existing indexes |
 
@@ -190,7 +201,8 @@ the plan above (`Index Cond: generation_id = ANY (InitPlan 1)`).
   `CONCURRENTLY`, so a failed build leaves it INVALID and the planner skips it.
 - The QA active-scope count:
   `SELECT count(*) FROM ingestion_scopes WHERE active_generation_id IS NOT NULL`.
-  With index 121 invalid and this count near 300,000, the change is measured to
-  lose (above). The QA readback records both values beside the plan.
+  With index 121 invalid, a count above about 100,000 is at risk (above), and
+  an invalid index 121 is rebuilt whatever the count. The QA readback records
+  both values beside the plan.
 - The coordinator-versus-replica gap on QA.
 - Cold-cache timing: the fixture ran with a warm OS cache.
