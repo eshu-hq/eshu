@@ -55,3 +55,14 @@ Throughput numbers log per leg for the dark-deployment no-regression baseline.
   through separate `CreateRun`/`EnqueueWorkItems` calls. The rehearsal must
   cover the duplicate-admission scenario on the flipped scope
   ([#8875](https://github.com/eshu-hq/eshu/issues/8875)).
+
+No-Regression Evidence: this change adds a harness-only `Backend` method and
+a test; production guard SQL, wire shapes, queue depths, and row counts are
+untouched. Baseline and after: full `go test ./internal/workflow/parity/`
+two-legged green before (5.7s range) and after (5.685s on 77c751be0c) with
+identical scenario sets plus the new gap test; backend Go 1.26 linux/arm64
+against local Postgres 18 and the QA claim-plane. Terminal counts: 0 parity
+rows remain satellite-side, no local schema remains.
+
+No-Observability-Change: no new spans, metrics, logs, or dashboards; the
+test emits only the standard `go test` verdict lines.
