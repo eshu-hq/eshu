@@ -120,7 +120,7 @@ func TestRequiredGrantsCoverEmittedKinds(t *testing.T) {
 // contract for component images: one linux/arm64 artifact per manifest,
 // addressed as ghcr.io/eshu-hq/scanner-<name> pinned to the immutable
 // sha256 digest of the merge-head publish (docker-publish run
-// 40892918102, merge 01c8781a; each attestation verified with
+// 40963555579, merge 6ce31d8b9d; each attestation verified with
 // gh attestation verify). Any republish must update these pins together:
 // a stale digest silently runs the old analyzer binary.
 func TestManifestArtifactPinsPublishTimeDigestContract(t *testing.T) {
