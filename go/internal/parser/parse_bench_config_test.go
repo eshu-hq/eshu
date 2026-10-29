@@ -47,6 +47,7 @@ var configBenchCases = []configBenchCase{
 	{language: "gradle_wrapper", parserKey: "gradle_wrapper", fileName: "gradle-wrapper.properties", build: buildGradleWrapper},
 	{language: "hcl", parserKey: "hcl", fileName: "main.tf", build: buildHCL},
 	{language: "json", parserKey: "json", fileName: "config.json", build: buildJSON},
+	{language: "dotnet_global_json", parserKey: "dotnet_global_json", fileName: "global.json", build: buildDotNetGlobalJSON},
 	{language: "maven", parserKey: "maven", fileName: "pom.xml", build: buildMavenPOM},
 	{language: "node_lockfile", parserKey: "node_lockfile", fileName: "yarn.lock", build: buildYarnLock},
 	{language: "npmrc", parserKey: "npmrc", fileName: ".npmrc", build: buildNpmrc},
@@ -264,6 +265,29 @@ func buildJSON(minLOC int) []byte {
 		b.WriteString(",\n")
 	}
 	b.WriteString("]\n")
+	return b.Bytes()
+}
+
+// buildDotNetGlobalJSON returns a valid global.json of >= minLOC lines: one
+// SDK pin plus a large "projects" array of distinct project paths. The array
+// keeps the document schema-plausible (global.json "projects" lists member
+// project paths) while a repeated scalar would not survive a schema-aware
+// reader.
+func buildDotNetGlobalJSON(minLOC int) []byte {
+	var b bytes.Buffer
+	b.WriteString("{\n  \"sdk\": {\n    \"version\": \"8.0.300\",\n    \"rollForward\": \"latestMajor\"\n  },\n  \"projects\": [\n")
+	i := 0
+	for {
+		fmt.Fprintf(&b, "    \"src/Project%06d/Project%06d.csproj\"", i, i)
+		i++
+		// Reserve room for the closing lines; stop once the floor is reached.
+		if bytes.Count(b.Bytes(), []byte("\n")) >= minLOC {
+			b.WriteString("\n")
+			break
+		}
+		b.WriteString(",\n")
+	}
+	b.WriteString("  ]\n}\n")
 	return b.Bytes()
 }
 

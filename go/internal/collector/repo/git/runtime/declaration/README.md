@@ -66,3 +66,5 @@ cd go && go test -race ./internal/collector/repo/git/... -count=1
 
 Changes to emitted facts also need the golden-corpus gate (B-7) and the B-12
 snapshot; see `docs/public/reference/local-testing/golden-corpus-gate.md`.
+
+.NET `global.json` and `.csproj` declarations reuse the JSON and NuGet parser output. The collector checks the raw-byte digest and retains only the detached extraction; an absent parser result is a retryable miss.

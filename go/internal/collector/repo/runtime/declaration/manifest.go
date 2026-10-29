@@ -37,6 +37,9 @@ const (
 	sourceKindSetupPYRequires           = "setup_py_python_requires"
 	sourceKindGemfileRuby               = "gemfile_ruby"
 	sourceKindGemfileLockRuby           = "gemfile_lock_ruby_version"
+	sourceKindDotNetGlobalSDK           = "dotnet_global_json_sdk"
+	sourceKindDotNetTargetFramework     = "dotnet_csproj_target_framework"
+	sourceKindDotNetTargetFrameworks    = "dotnet_csproj_target_frameworks"
 	sourceKindPomCompilerRelease        = "pom_maven_compiler_release"
 	sourceKindPomCompilerSource         = "pom_maven_compiler_source"
 	sourceKindPomCompilerTarget         = "pom_maven_compiler_target"
@@ -73,6 +76,9 @@ const (
 	sectionSetupPYRequires
 	sectionGemfileRuby
 	sectionGemfileLockRuby
+	sectionDotNetGlobalSDK
+	sectionDotNetTargetFramework
+	sectionDotNetTargetFrameworks
 	sectionPomCompilerRelease
 	sectionPomCompilerSource
 	sectionPomCompilerTarget
@@ -107,6 +113,9 @@ var sectionSourceKinds = [...]string{
 	sectionSetupPYRequires:           sourceKindSetupPYRequires,
 	sectionGemfileRuby:               sourceKindGemfileRuby,
 	sectionGemfileLockRuby:           sourceKindGemfileLockRuby,
+	sectionDotNetGlobalSDK:           sourceKindDotNetGlobalSDK,
+	sectionDotNetTargetFramework:     sourceKindDotNetTargetFramework,
+	sectionDotNetTargetFrameworks:    sourceKindDotNetTargetFrameworks,
 	sectionPomCompilerRelease:        sourceKindPomCompilerRelease,
 	sectionPomCompilerSource:         sourceKindPomCompilerSource,
 	sectionPomCompilerTarget:         sourceKindPomCompilerTarget,
@@ -142,6 +151,8 @@ const (
 	manifestSetupPY
 	manifestGemfile
 	manifestGemfileLock
+	manifestDotNetGlobal
+	manifestDotNetProject
 	manifestPom
 	manifestGradle
 	manifestSbt
@@ -193,6 +204,10 @@ func manifestKindForBase(base, relativePath string) manifestKind {
 		kind = manifestGemfile
 	case base == "Gemfile.lock":
 		kind = manifestGemfileLock
+	case base == "global.json":
+		kind = manifestDotNetGlobal
+	case path.Ext(base) == ".csproj":
+		kind = manifestDotNetProject
 	case base == "pom.xml":
 		kind = manifestPom
 	case base == "build.gradle" || base == "build.gradle.kts":

@@ -20,6 +20,8 @@ owns registry dispatch, file discovery, and the engine wrapper
 (including the discriminator that keeps two same-name PackageReference rows
 apart) lives in `go/internal/content/dependency_identity.go`.
 
+The `.csproj` parser also reads unconditional, direct `<PropertyGroup>` `TargetFramework` and `TargetFrameworks` values from its one source read. It passes bounded, digest-bound `dotnet_runtime_evidence` privately to the git collector; conditional groups, MSBuild expressions, malformed XML, and unsafe values produce no resolved runtime version. Semicolon-separated `TargetFrameworks` entries become separate declarations with distinct order indexes.
+
 ## Exported surface
 
 - `Parse(path string, isDependency bool, options shared.Options) (map[string]any, error)`.

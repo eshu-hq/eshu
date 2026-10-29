@@ -38,6 +38,7 @@ a line there.
 | `c_sharp` | csharp | L2 structured fact | store | `.cs`, `.csx` |  |  |
 | `cpp` | cpp | L2 structured fact | store | `.cc`, `.cpp`, `.cxx`, `.h`, `.hh`, `.hpp`, `.hxx` |  |  |
 | `dart` | dart | L2 structured fact | store | `.dart` |  |  |
+| `dotnet_global_json` | csharp | L2 structured fact | metadata |  | `global.json` |  |
 | `elixir` | elixir | L2 structured fact | store | `.ex`, `.exs` | `mix.lock` |  |
 | `go` | go | L2 structured fact | store | `.go` |  |  |
 | `gomod` | go | L2 structured fact | store |  | `go.mod`, `go.sum`, `go.work` |  |

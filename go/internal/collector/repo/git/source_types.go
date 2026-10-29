@@ -112,6 +112,12 @@ type pythonRuntimeSnapshot struct {
 	Digest     string
 }
 
+// dotNetRuntimeSnapshot binds one .NET parser outcome to its exact bytes.
+type dotNetRuntimeSnapshot struct {
+	Extraction runtimedeclaration.Extraction
+	Digest     string
+}
+
 // composerRuntimeUnparsed is a discovered Composer file without accepted parser
 // evidence. A deterministic skip is bound to the failed file's bytes (or its
 // over-cap state); empty SkipReason leaves a transient parser miss to retry.
@@ -145,6 +151,8 @@ type RepositorySnapshot struct {
 	RubyRuntimeExpected   bool                             `json:"-"`
 	JVMRuntime            map[string]jvmRuntimeSnapshot    `json:"-"`
 	JVMRuntimeExpected    bool                             `json:"-"`
+	DotNetRuntime         map[string]dotNetRuntimeSnapshot `json:"-"`
+	DotNetRuntimeExpected bool                             `json:"-"`
 	ContentFiles          []model.ContentFileSnapshot      `json:"content_files"`
 	ContentEntities       []model.ContentEntitySnapshot    `json:"content_entities"`
 	// GitRefs carries source-observed branch/ref heads for this repository.

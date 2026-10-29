@@ -2219,6 +2219,17 @@
         "allowed_node_property_values": {"runtime": ["java", "scala", "sbt"]}
       },
       {
+        "id": "rn-dotnet-runtime-declaration",
+        "description": "Synthetic go_comprehensive/runtime-declarations/dotnet SDK and target frameworks require .NET RuntimeDeclaration nodes and exact HTTP/MCP tuples.",
+        "label": "RuntimeDeclaration",
+        "minimum_count": 3,
+        "required_node_properties": ["runtime", "source_kind"],
+        "allowed_node_property_values": {
+          "runtime": ["dotnet"],
+          "source_kind": ["dotnet_global_json_sdk", "dotnet_csproj_target_frameworks"]
+        }
+      },
+      {
         "id": "rn-ruby-runtime-declaration",
         "description": "Synthetic ruby_rails_app/runtime-declarations Gemfile and Gemfile.lock declarations require Ruby runtime nodes; the HTTP and MCP tuple matches pin source lines and values.",
         "label": "RuntimeDeclaration",
@@ -4990,6 +5001,20 @@
         },
         "arguments": {"limit": 100}
       },
+      "list_runtime_version_declarations?assert=dotnet_sources": {
+        "description": "Synthetic .NET SDK and target-framework declarations from go_comprehensive/runtime-declarations/dotnet.",
+        "required_response_fields": ["declarations", "count", "limit", "truncated", "filters", "excluded_from_comparison", "partial_reasons"],
+        "minimum_results": 3,
+        "results_field": "declarations",
+        "required_json_object_matches": {
+          "declarations[]": [
+            {"runtime": "dotnet", "source_kind": "dotnet_global_json_sdk", "relative_path": "runtime-declarations/dotnet/global.json", "raw_spec": "8.0.300", "spec_kind": "exact", "line_number": 3, "order_index": 0},
+            {"runtime": "dotnet", "source_kind": "dotnet_csproj_target_frameworks", "relative_path": "runtime-declarations/dotnet/App.csproj", "raw_spec": "net8.0", "spec_kind": "alias", "line_number": 3, "order_index": 0},
+            {"runtime": "dotnet", "source_kind": "dotnet_csproj_target_frameworks", "relative_path": "runtime-declarations/dotnet/App.csproj", "raw_spec": "net9.0", "spec_kind": "alias", "line_number": 3, "order_index": 1}
+          ]
+        },
+        "arguments": {"runtime": "dotnet", "limit": 50}
+      },
       "list_runtime_version_declarations?assert=ruby_sources": {
         "description": "Both synthetic Ruby runtime source declarations from ruby_rails_app/runtime-declarations, each bound as one exact source tuple through the deployed MCP tool.",
         "required_response_fields": [
@@ -7649,6 +7674,20 @@
           ]
         },
         "request_body": {"limit": 100}
+      },
+      "POST /api/v0/runtime-declarations/query?assert=dotnet_sources": {
+        "description": "Synthetic .NET SDK and target-framework declarations from go_comprehensive/runtime-declarations/dotnet.",
+        "required_response_fields": ["declarations", "count", "limit", "truncated", "filters", "excluded_from_comparison", "partial_reasons"],
+        "minimum_results": 3,
+        "results_field": "declarations",
+        "required_json_object_matches": {
+          "declarations[]": [
+            {"runtime": "dotnet", "source_kind": "dotnet_global_json_sdk", "relative_path": "runtime-declarations/dotnet/global.json", "raw_spec": "8.0.300", "spec_kind": "exact", "line_number": 3, "order_index": 0},
+            {"runtime": "dotnet", "source_kind": "dotnet_csproj_target_frameworks", "relative_path": "runtime-declarations/dotnet/App.csproj", "raw_spec": "net8.0", "spec_kind": "alias", "line_number": 3, "order_index": 0},
+            {"runtime": "dotnet", "source_kind": "dotnet_csproj_target_frameworks", "relative_path": "runtime-declarations/dotnet/App.csproj", "raw_spec": "net9.0", "spec_kind": "alias", "line_number": 3, "order_index": 1}
+          ]
+        },
+        "request_body": {"runtime": "dotnet", "limit": 50}
       },
       "POST /api/v0/runtime-declarations/query?assert=ruby_sources": {
         "description": "Both synthetic Ruby runtime source declarations from ruby_rails_app/runtime-declarations, each bound as one exact source tuple through the deployed HTTP route.",

@@ -50,10 +50,11 @@ func ParserFileFactEnvelope(
 	_, hasPythonTransport := parsedFile["python_runtime_evidence"]
 	_, hasRubyTransport := parsedFile["ruby_runtime_evidence"]
 	_, hasJVMTransport := parsedFile["jvm_runtime_evidence"]
-	if hasComposerTransport || hasPythonTransport || hasRubyTransport || hasJVMTransport {
+	_, hasDotNetTransport := parsedFile["dotnet_runtime_evidence"]
+	if hasComposerTransport || hasPythonTransport || hasRubyTransport || hasJVMTransport || hasDotNetTransport {
 		clean := make(map[string]any, len(parsedFile)-1)
 		for key, value := range parsedFile {
-			if key != "composer_runtime_evidence" && key != "python_runtime_evidence" && key != "ruby_runtime_evidence" && key != "jvm_runtime_evidence" {
+			if key != "composer_runtime_evidence" && key != "python_runtime_evidence" && key != "ruby_runtime_evidence" && key != "jvm_runtime_evidence" && key != "dotnet_runtime_evidence" {
 				clean[key] = value
 			}
 		}
@@ -83,6 +84,27 @@ func noteComposerOrRuntimeCandidate(snapshot *RepositorySnapshot, candidates map
 			dropped.Store(true)
 			droppedPaths.Note(relativePath)
 			runtimedeclaration.NoteUnavailableJVMCandidate(candidates, relativePath, len(body))
+			return
+		}
+	}
+	if filepath.Base(relativePath) == "global.json" || filepath.Ext(relativePath) == ".csproj" {
+		if parsed, ok := snapshot.DotNetRuntime[relativePath]; ok {
+			if parsed.Digest != shared.DotNetRuntimeDigest([]byte(body)) {
+				dropped.Store(true)
+				droppedPaths.Note(relativePath)
+				return
+			}
+			runtimedeclaration.NoteParsedDotNetCandidate(candidates, relativePath, parsed.Extraction)
+			return
+		}
+		if snapshot.DotNetRuntimeExpected {
+			if len(body) > runtimepaths.MaxManifestBytesPerFile {
+				runtimedeclaration.NoteCappedDotNetCandidate(candidates, relativePath, len(body))
+				return
+			}
+			dropped.Store(true)
+			droppedPaths.Note(relativePath)
+			runtimedeclaration.NoteUnavailableDotNetCandidate(candidates, relativePath, len(body))
 			return
 		}
 	}

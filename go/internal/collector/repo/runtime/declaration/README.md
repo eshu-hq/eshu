@@ -160,6 +160,9 @@ a constraint from a pin.
 | `setup_py_python_requires` | `setup.py` bound `setuptools.setup` or `distutils.core.setup` literal keyword | `python` |
 | `gemfile_ruby` | literal `ruby` arguments in `Gemfile` | `ruby` |
 | `gemfile_lock_ruby_version` | `Gemfile.lock` `RUBY VERSION` | `ruby` |
+| `dotnet_global_json_sdk` | `global.json` `sdk.version` | `dotnet` |
+| `dotnet_csproj_target_framework` | `.csproj` unconditional `TargetFramework` | `dotnet` |
+| `dotnet_csproj_target_frameworks` | `.csproj` unconditional `TargetFrameworks` entries | `dotnet` |
 | `pom_maven_compiler_release` | `pom.xml` direct `<properties><maven.compiler.release>` | `java` |
 | `pom_maven_compiler_source` | `pom.xml` direct `<properties><maven.compiler.source>` | `java` |
 | `pom_maven_compiler_target` | `pom.xml` direct `<properties><maven.compiler.target>` | `java` |

@@ -16,7 +16,7 @@ One declaration is one runtime version one file declares: a version-pin file
 directives of `go.mod`, PHP constraints and platform pins in `composer.json`
 and `composer.lock`, the `.php-version` pin, the `FROM` base-image tag of a
 `Dockerfile`, Python constraints in `pyproject.toml`, `Pipfile`, `setup.cfg`
-and literal `setup.py` calls, the `runtime.txt` pin, literal Ruby requirements in `Gemfile` and the `Gemfile.lock` `RUBY VERSION` pin, or the
+and literal `setup.py` calls, the `runtime.txt` pin, literal Ruby requirements in `Gemfile` and the `Gemfile.lock` `RUBY VERSION` pin, .NET `global.json` SDK and `.csproj` framework declarations, or the
 `with.*-version` inputs of a GitHub Actions workflow step. A pin-file line
 that lists several versions is one row per token. There is no effective-version view in v1: a repository with a root
 `.nvmrc` and a `services/web/.nvmrc` returns both rows, each with its
@@ -30,7 +30,8 @@ that lists several versions is one row per token. There is no effective-version 
 `composer_lock_platform_overrides_php`, `pyproject_requires_python`,
 `poetry_python`, `pipfile_python_version`, `pipfile_python_full_version`,
 `setup_cfg_python_requires`, `setup_py_python_requires`, `gemfile_ruby`,
-`gemfile_lock_ruby_version`, `pom_maven_compiler_release`,
+`gemfile_lock_ruby_version`, `dotnet_global_json_sdk`, `dotnet_csproj_target_framework`,
+`dotnet_csproj_target_frameworks`, `pom_maven_compiler_release`,
 `pom_maven_compiler_source`, `pom_maven_compiler_target`, `pom_java_version`,
 `gradle_java_toolchain`, `gradle_java_source_compatibility`,
 `gradle_java_target_compatibility`,

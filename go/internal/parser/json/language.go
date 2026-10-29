@@ -74,6 +74,9 @@ func Parse(
 	}
 
 	filename := strings.ToLower(filepath.Base(path))
+	if filename == "global.json" {
+		payload["dotnet_runtime_evidence"] = dotNetGlobalRuntimeEvidence(object, normalizedBytes, buildTranslatedNewlineIndex(source, translate), original)
+	}
 	if filename == "composer.json" || filename == "composer.lock" {
 		evidence, evidenceErr := composerRuntimeFromDocument(filename, object, normalizedBytes, buildTranslatedNewlineIndex(source, translate))
 		evidence.Digest = ComposerRuntimeDigest(original)

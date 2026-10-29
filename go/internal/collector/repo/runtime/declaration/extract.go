@@ -8,7 +8,9 @@ import (
 	"strings"
 
 	gradleparser "github.com/eshu-hq/eshu/go/internal/parser/gradle"
+	parserjson "github.com/eshu-hq/eshu/go/internal/parser/json"
 	mavenparser "github.com/eshu-hq/eshu/go/internal/parser/maven"
+	"github.com/eshu-hq/eshu/go/internal/parser/nuget"
 	rubyparser "github.com/eshu-hq/eshu/go/internal/parser/ruby"
 	sbtparser "github.com/eshu-hq/eshu/go/internal/parser/sbt"
 )
@@ -77,6 +79,10 @@ func Extract(relativePath, body string) (Extraction, bool) {
 		return ExtractJVMEvidence(sbtparser.ExtractRuntimeEvidence([]byte(body))), true
 	case manifestSbtBuildProperties:
 		return ExtractJVMEvidence(sbtparser.ExtractBuildPropertiesEvidence([]byte(body))), true
+	case manifestDotNetGlobal:
+		return ExtractDotNetEvidence(parserjson.ExtractDotNetGlobalEvidence([]byte(body))), true
+	case manifestDotNetProject:
+		return ExtractDotNetEvidence(nuget.ExtractDotNetProjectEvidence([]byte(body))), true
 	case manifestGemfile, manifestGemfileLock:
 		if len(body) > MaxManifestBytesPerFile {
 			return CappedRubyExtraction(len(body)), true
