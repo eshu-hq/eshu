@@ -190,3 +190,24 @@ func mustExecBridgeRow(t *testing.T, ctx context.Context, database *sql.DB, quer
 		t.Fatal(err)
 	}
 }
+
+// TestAuthorizedImpactAdvisoriesEmptyRegistryStaysCompleteLive pins the
+// dark-by-default contract: with no public advisory authority registered
+// anywhere, advisory evidence is vacuously absent (empty set, empty reason),
+// so an ordinary scope completes on static evidence alone instead of
+// fail-closing the whole pass as policy_unavailable. A registered set with a
+// broken witness still fail-closes on mismatch.
+func TestAuthorizedImpactAdvisoriesEmptyRegistryStaysCompleteLive(t *testing.T) {
+	database, _ := openWorkflowControlIntegrationStore(t)
+	set, reason, err := loadCurrentAuthorizedPublicAdvisories(context.Background(), SQLDB{DB: database})
+	if err != nil {
+		t.Fatalf("loadCurrentAuthorizedPublicAdvisories() error = %v, want nil", err)
+	}
+	if reason != "" {
+		t.Fatalf("loadCurrentAuthorizedPublicAdvisories() reason = %q, want empty on an unregistered registry", reason)
+	}
+	if len(set.facts) != 0 || len(set.dependencies) != 0 {
+		t.Fatalf("loadCurrentAuthorizedPublicAdvisories() returned %d facts and %d dependencies, want none",
+			len(set.facts), len(set.dependencies))
+	}
+}
