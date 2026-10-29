@@ -34,6 +34,25 @@ facts in provenance. Equivalent image rows coalesce after version conflict
 checks. One complete writer pass publishes the resulting set so prior subjects
 can retract when evidence changes.
 
+No-Regression Evidence (#9430): the provenance selector now resolves a
+multi-line observation's scalar fixed version with one pass over its distinct
+fixed versions (early exit on the second distinct value) instead of indexing
+`fixed_versions[0]`. `BenchmarkBuildSupplyChainImpactFindingsTwoEPSSDates`
+(same two-envelope input, linux/arm64, Go 1.26.6, three one-second samples)
+measured 16868/16869/16869 B/op and 157 allocs/op at `origin/main`
+(`a2d69c98c2`) and 16865/16854/16851 B/op and 157 allocs/op after: allocation
+behavior is identical. Wall-time samples (23119/20782/20600 ns/op before,
+29786/61011/61838 ns/op after) are labeled not comparable: the host carried a
+22-31 load average from concurrent agents' builds during both runs, and the
+after-run samples vary 2x among themselves. No new backend call, queue stage,
+lock, or graph write; the explain-side matching-line lookup runs once per
+explained finding at read time, not in the reducer pass.
+
+No-Observability-Change (#9430): no new metric, span, log key, or queue
+stage. The existing persisted finding (`fixed_version` blank for multi-line
+facts, branches unchanged) and the existing impact-explanation read carry the
+corrected headline.
+
 Manifest read filter (#9286): the impact handler asks Postgres for manifest
 dependency rows with an exact `entity_name = ANY(names)` match, so the name set
 must contain the form the manifest stores. For Maven and Gradle that is the
