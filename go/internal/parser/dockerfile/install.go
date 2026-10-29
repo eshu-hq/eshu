@@ -127,8 +127,22 @@ func parseInstallSegment(words []string, line int, stage string, vars *installSc
 	if len(words) == 0 {
 		return nil, "", 0
 	}
+	for _, word := range words {
+		if strings.Contains(word, "$(") || strings.Contains(word, "`") {
+			return nil, "unsupported_command", 0
+		}
+	}
 	command := strings.TrimPrefix(words[0], "/usr/bin/")
 	command = strings.TrimPrefix(command, "/bin/")
+	if command == "sudo" {
+		if len(words) < 2 {
+			return nil, "unsupported_command", 0
+		}
+		return parseInstallSegment(words[1:], line, stage, vars)
+	}
+	if (command == "python" || command == "python3") && len(words) >= 3 && words[1] == "-m" {
+		return parseInstallSegment(words[2:], line, stage, vars)
+	}
 	manager, start := "", 0
 	switch command {
 	case "apt", "apt-get", "apk", "yum", "dnf", "pecl", "npm", "pip", "pip3":
@@ -278,10 +292,14 @@ func hasTokenQuery(raw string) bool {
 	}
 	for key := range values {
 		for i := 0; i < 4; i++ {
-			lower := strings.ToLower(key)
-			if lower == "sig" || strings.Contains(lower, "signature") || strings.Contains(lower, "credential") ||
-				strings.Contains(lower, "token") || strings.Contains(lower, "key") || strings.Contains(lower, "secret") ||
-				strings.Contains(lower, "auth") || strings.Contains(lower, "password") {
+			matched := false
+			for _, token := range queryKeyTokens(key) {
+				if sensitiveQueryTokens[token] {
+					matched = true
+					break
+				}
+			}
+			if matched {
 				return true
 			}
 			if !strings.Contains(key, "%") {

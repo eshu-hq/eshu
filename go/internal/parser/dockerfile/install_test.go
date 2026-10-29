@@ -433,3 +433,63 @@ func TestInstallEvidenceHeredocBoundaryReturnsToDockerfileInstructions(t *testin
 		t.Fatalf("installs = %#v, want heredoc curl then ordinary RUN git", got.Installs)
 	}
 }
+
+func TestInstallEvidenceSudoWrapperRedispatch(t *testing.T) {
+	got := RuntimeMetadata("FROM debian\nRUN sudo apt-get install -y curl\n")
+	if len(got.Installs) != 1 || got.Installs[0].Manager != "apt-get" || got.Installs[0].Name != "curl" {
+		t.Fatalf("installs = %#v, unparsed = %#v, want one apt-get curl", got.Installs, got.Unparsed)
+	}
+	if len(got.Unparsed) != 0 {
+		t.Fatalf("unparsed = %#v, want none for a dispatched sudo wrapper", got.Unparsed)
+	}
+}
+
+func TestInstallEvidenceMixedChainRecordsSudoSegment(t *testing.T) {
+	got := RuntimeMetadata("FROM debian\nRUN apt-get install -y curl && sudo apt-get install -y git\n")
+	if len(got.Installs) != 2 || got.Installs[1].Name != "git" {
+		t.Fatalf("installs = %#v, unparsed = %#v, want curl then git", got.Installs, got.Unparsed)
+	}
+	if len(got.Unparsed) != 0 {
+		t.Fatalf("unparsed = %#v, want none when both segments dispatch", got.Unparsed)
+	}
+}
+
+func TestInstallEvidenceBareSudoFailsClosed(t *testing.T) {
+	got := RuntimeMetadata("FROM debian\nRUN sudo\n")
+	if len(got.Installs) != 0 || len(got.Unparsed) != 1 || got.Unparsed[0].Reason != "unsupported_command" {
+		t.Fatalf("installs = %#v, unparsed = %#v, want one unsupported_command", got.Installs, got.Unparsed)
+	}
+}
+
+func TestInstallEvidencePythonModuleRedispatch(t *testing.T) {
+	got := RuntimeMetadata("FROM python\nRUN python -m pip install requests\n")
+	if len(got.Installs) != 1 || got.Installs[0].Manager != "pip" || got.Installs[0].Name != "requests" {
+		t.Fatalf("installs = %#v, unparsed = %#v, want one pip requests", got.Installs, got.Unparsed)
+	}
+}
+
+func TestInstallEvidenceCommandSubstitutionFailsClosed(t *testing.T) {
+	got := RuntimeMetadata("FROM alpine\nRUN echo $(apt-get install -y curl)\n")
+	if len(got.Installs) != 0 || len(got.Unparsed) != 1 || got.Unparsed[0].Reason != "unsupported_command" {
+		t.Fatalf("installs = %#v, unparsed = %#v, want one unsupported_command", got.Installs, got.Unparsed)
+	}
+}
+
+func TestInstallEvidenceQueryKeyTokenMatching(t *testing.T) {
+	for _, key := range []string{"keyboard", "author", "monkey", "bypass"} {
+		t.Run("ordinary "+key, func(t *testing.T) {
+			got := RuntimeMetadata("FROM alpine\nRUN curl https://example.test/file?" + key + "=one\n")
+			if got.DroppedCredentials != 0 || len(got.Installs) != 1 {
+				t.Fatalf("key %q: installs = %#v, dropped = %d, want one install and no drop", key, got.Installs, got.DroppedCredentials)
+			}
+		})
+	}
+	for _, key := range []string{"AWSAccessKeyId", "authToken", "authorization", "pass"} {
+		t.Run("sensitive "+key, func(t *testing.T) {
+			got := RuntimeMetadata("FROM alpine\nRUN curl https://example.test/file?" + key + "=exampleSecretToken123\n")
+			if got.DroppedCredentials != 1 || len(got.Installs) != 0 {
+				t.Fatalf("key %q: installs = %#v, dropped = %d, want no install and one drop", key, got.Installs, got.DroppedCredentials)
+			}
+		})
+	}
+}

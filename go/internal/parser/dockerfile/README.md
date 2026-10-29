@@ -253,8 +253,12 @@ before or after the action consume their values before package detection; an
 unknown option rejects the command. A simple executable RUN heredoc can
 provide install declarations. Shell data or control-flow heredocs and COPY/ADD
 data bodies do not become RUN declarations. ADD accepts recognized leading
-flags before URL sources. Unsupported commands are fail-closed:
-`dockerfile_unparsed` records a line and reason without keeping command text.
+flags before URL sources. Unsupported install-shape commands are
+fail-closed: `dockerfile_unparsed` records a line and reason without keeping
+command text. This covers install wrappers the parser cannot dispatch (such
+as `sudo`, `python -m`, or command substitution) as well as unknown options
+and unresolvable values. Plain shell commands with no install semantics
+(such as `echo` or `ls`) are ignored.
 
 `dockerfile_dropped_credentials` counts rejected credential-bearing option
 values, names, and URLs, including encoded credential markers in URL paths.
