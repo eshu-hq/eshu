@@ -131,6 +131,8 @@ const (
 //  1. The value is already a JSON string (enforced by filter before this
 //     runs: non-strings never reach here and are never stringified).
 //  2. The trimmed text holds 3-128 runes, the AWS CreateImage maximum.
+//     Surrounding whitespace is trimmed before validation, so the trimmed
+//     value is what is admitted and surfaced, never the padded original.
 //  3. Every rune is printable with no controls, and inside the exact AWS
 //     CreateImage charset: alphanumerics plus ()[] ./-'@_. Hence no "=",
 //     no ":", no URL or header shape, and no percent-encoding.

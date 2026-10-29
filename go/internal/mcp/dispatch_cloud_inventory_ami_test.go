@@ -17,9 +17,15 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/testutil/contentreader"
 )
 
-// amiInventoryCanonicalRow returns one canonical identity envelope exactly as
-// the admission writer emits it from a loader-admitted AMI record: the
-// attributes map carries the validated name only.
+// amiInventoryCanonicalRow returns one canonical identity envelope in
+// loader-admitted shape: the attributes map carries the validated name plus
+// a rogue non-scalar description value. Production rows never carry
+// description at all (the loader drops it before the writer, pinned by the
+// loader battery in go/internal/storage/postgres); the rogue object here
+// probes the readback projector's own type gate, which drops non-scalar
+// values, as defense in depth. A string description would surface through
+// the permissive passthrough by design (ruling decision 7c), so only the
+// loader pin covers that shape.
 func amiInventoryCanonicalRow(t *testing.T) []byte {
 	t.Helper()
 	row := map[string]any{
@@ -42,6 +48,10 @@ func amiInventoryCanonicalRow(t *testing.T) []byte {
 			"account_id":            "111122223333",
 			"attributes": map[string]any{
 				"name": "ubuntu-jammy-22.04-amd64-server-20230601",
+				// Rogue non-scalar description: the projector's type gate
+				// must drop it, so neither the key nor the sentinel inside
+				// reaches the envelope.
+				"description": map[string]any{"rogue": "must-not-surface"},
 			},
 		},
 	}
@@ -54,9 +64,12 @@ func amiInventoryCanonicalRow(t *testing.T) []byte {
 
 // TestDispatchToolCloudInventorySurfacesAMIName is the MCP golden cassette
 // for #9525: list_cloud_resource_inventory served through real MCP dispatch
-// carries the loader-admitted name verbatim under data, and no description
-// or dropped value. MCP dispatch is transport-only onto the HTTP handler, so
-// this cassettes the same bytes the HTTP cassette asserts.
+// carries the loader-admitted name verbatim under data, and the rogue
+// non-scalar description carried by the fixture is dropped by the
+// projector's type gate. MCP dispatch is transport-only onto the HTTP
+// handler, so this cassettes the same bytes the HTTP cassette asserts;
+// string-description exclusion rests on the loader pin proved in
+// go/internal/storage/postgres.
 func TestDispatchToolCloudInventorySurfacesAMIName(t *testing.T) {
 	t.Parallel()
 

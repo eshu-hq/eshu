@@ -208,7 +208,12 @@ a JSON string (never stringified), 3-128 runes (the AWS CreateImage maximum),
 printable with no controls, inside the exact AWS CreateImage charset
 (alphanumerics plus `()[] ./-'@_`), and passing the shared free-text hygiene
 scan as a drop trigger. Anything else is dropped with `ami_id` and all typed
-fields intact. The name is never truncated.
+fields intact. The name is never truncated. Surrounding whitespace is trimmed
+before validation: the trimmed value is what is admitted and served, never the
+padded original. One exact test string is additionally dropped as a name value
+even though it fits the charset: `must-not-surface`, the drop sentinel shared
+by the allowlist tests (issue #9450) — exact-sentinel preservation, not secret
+detection.
 
 The admitted name is untrusted creator-controlled text and is explicitly NOT
 proven secret-free: a patternless bare token fits the charset and will pass.

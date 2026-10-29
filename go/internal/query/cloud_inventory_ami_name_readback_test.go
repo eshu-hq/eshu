@@ -17,10 +17,16 @@ import (
 const amiNameBenign = "ubuntu-jammy-22.04-amd64-server-20230601"
 
 // cloudInventoryAMICanonicalRow returns one canonical
-// reducer_cloud_resource_identity envelope exactly as the admission writer
-// emits it from a loader-admitted AMI record: attributes carry the validated
-// name only, because the loader drops description and every nonconforming
-// name before the writer ever sees them.
+// reducer_cloud_resource_identity envelope in loader-admitted shape: the
+// attributes carry the validated name plus a rogue non-scalar description
+// value. Production rows never carry description at all (the loader drops it
+// before the writer, pinned by the loader battery in
+// go/internal/storage/postgres where every source payload carries the
+// description sentinel); the rogue object here probes the readback
+// projector's own type gate, which drops non-scalar values, as defense in
+// depth. A string description would surface through the permissive
+// passthrough by design (ruling decision 7c), so only the loader pin covers
+// that shape.
 func cloudInventoryAMICanonicalRow(t *testing.T, withAttributes bool) []byte {
 	t.Helper()
 	payload := map[string]any{
@@ -36,7 +42,12 @@ func cloudInventoryAMICanonicalRow(t *testing.T, withAttributes bool) []byte {
 		"account_id":            "111122223333",
 	}
 	if withAttributes {
-		payload["attributes"] = map[string]any{"name": amiNameBenign}
+		payload["attributes"] = map[string]any{
+			"name": amiNameBenign,
+			// Rogue non-scalar description: the projector's type gate must
+			// drop it, so neither the key nor the sentinel inside surfaces.
+			"description": map[string]any{"rogue": "must-not-surface"},
+		}
 	}
 	row := map[string]any{
 		"fact_id":       "reducer_cloud_resource_identity:ami-1",
@@ -56,10 +67,11 @@ func cloudInventoryAMICanonicalRow(t *testing.T, withAttributes bool) []byte {
 
 // TestCloudInventoryHandlerSurfacesAMINameDropsDescription is the HTTP golden
 // cassette for #9525: the benign name admitted by the loader surfaces
-// verbatim, and sensitive text is absent because the served canonical bytes
-// carry no description key and no dropped value. The read model stays a
-// permissive scalar passthrough by design (ruling decision 7c); closed-ness
-// rests on the loader pin proved in go/internal/storage/postgres.
+// verbatim, and the rogue non-scalar description carried by the fixture is
+// dropped by the projector's type gate, so neither the description key nor
+// the sentinel inside reaches the body. The read model stays a permissive
+// scalar passthrough by design (ruling decision 7c); string-description
+// exclusion rests on the loader pin proved in go/internal/storage/postgres.
 func TestCloudInventoryHandlerSurfacesAMINameDropsDescription(t *testing.T) {
 	t.Parallel()
 
