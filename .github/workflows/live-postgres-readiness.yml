@@ -212,6 +212,15 @@ jobs:
     # matrix falls back to four v1 legs. The shard contract fails
     # above 80% of this cap, so a near-cap leg needs a measured refit.
     timeout-minutes: 30
+    # Leg wall is compile-dominated on cache-cold runners (measured: 472 s
+    # wall for 4 webhook-listener tests with ~0 s of test time, #9460), so
+    # the shards restore the shared plain-build cache go-core populates
+    # instead of compiling the tree six times over. Restore-only: the store
+    # is nearly full and six shard saves would add eviction pressure for no
+    # benefit, since go-core already saves this key space. The gobuildrace-
+    # entries are not a fallback: race objects differ from plain builds
+    # (#9462), and these legs run plain `go test -count=1`.
+    env: {GOCACHE: /tmp/eshu-ci/go-build}
     services:
       postgres:
         image: ghcr.io/eshu-hq/ci-postgres-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c
@@ -244,6 +253,14 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ github.sha }}
+
+      - name: Restore Go build cache
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/eshu-ci/go-build
+          key: ${{ runner.os }}-${{ runner.arch }}-gobuildreadiness-${{ hashFiles('go/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-gobuild-
 
       - name: Set up Go
         uses: actions/setup-go@v6
