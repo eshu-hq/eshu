@@ -18,9 +18,6 @@ The `alert` child owns the provider security-alert planning request and
 planner implementation under the same boundary.
 The `sbom/attestation` child owns the hosted SBOM-attestation planning request
 and planner while root retains scheduling and durable admission.
-The `vault/live` child owns the Vault metadata planning request and planner
-under the same in-process boundary; root retains scheduling, admission,
-retries, and telemetry.
 The `tempo` child owns the Tempo trace-signal planning request and pure
 planner; root retains scheduling order, tenant and egress filtering, the
 plan-key clock, durable admission, retries, and telemetry.
@@ -158,10 +155,6 @@ one enabled bounded scope; invalid configurations fail validation.
   `alert.WorkPlanner`. The child plans provider security-alert
   collection from configured targets; root keeps the service call and durable
   admission.
-- `VaultLivePlanner` — the root structural interface implemented by
-  `live.WorkPlanner` (imported as `coordinatorvaultlive`). The child plans Vault
-  metadata collection; root keeps the clock, scheduling, durable admission,
-  retries, and telemetry. It is not independently deployable.
 - `ScannerWorkerPlanner` — the root interface implemented by
   `worker.WorkPlanner` (imported as `scannerworker`); it plans configured targets
   without exposing runtime-local roots. Root keeps clocks, scheduling,
@@ -240,7 +233,6 @@ one enabled bounded scope; invalid configurations fail validation.
 - `internal/coordinator/planner/aws/{freshness,scheduled}` — AWS planner leaves.
 - `internal/coordinator/planner/component/extension` — component work planner.
 - `internal/coordinator/component/activation` — shared activation configuration.
-- `internal/coordinator/vault/live` — Vault metadata planner.
 - `internal/workflow` — `DesiredCollectorInstance`, `CollectorInstance`,
   `Claim`, and default accessors; used throughout `Store` and `Config`.
 - `internal/scope` — `CollectorKind` used by `Config` and

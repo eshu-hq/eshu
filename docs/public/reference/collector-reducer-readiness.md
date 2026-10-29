@@ -274,22 +274,19 @@ Workspace documentation.
 No-Observability-Change: this removal adds no metric, span, log, status row,
 database query, graph write, queue consumer, or hosted runtime path.
 
-Live-Collector Chart Evidence: the `kubernetesLiveCollector` and
-`vaultLiveCollector` Helm surfaces add deploy-time wiring only (Deployment,
-metrics Service, ServiceMonitor, NetworkPolicy, PodDisruptionBudget, read-only
-in-cluster RBAC for kubernetes-live, and Secret-referenced redaction key and
-per-target Vault tokens for vault-live). They start the existing
-`/usr/local/bin/eshu-collector-kubernetes-live` and
-`/usr/local/bin/eshu-collector-vault-live` binaries with their established env
-contracts and change no Cypher, reducer, queue, worker-count, batch, or graph
-write path.
+Live-Collector Chart Evidence: the `kubernetesLiveCollector` Helm surface adds
+deploy-time wiring only (Deployment, metrics Service, ServiceMonitor,
+NetworkPolicy, PodDisruptionBudget, read-only in-cluster RBAC). It starts the
+existing `/usr/local/bin/eshu-collector-kubernetes-live` binary with its
+established env contract and changes no Cypher, reducer, queue, worker-count,
+batch, or graph write path. (Vault-live chart evidence left with the #8869
+extraction; collection runs from `eshu-hq/eshu-collector-vault-live`.)
 
 No-Regression Evidence: `go test ./internal/runtime -run
 'TestHelm(LiveCollectorDeployments|ClaimDrivenCollectorDeployments)' -count=1`
-proves both live collectors are off by default, render their full workload and
-RBAC surfaces with the correct binary commands and env contracts when enabled,
-and that the existing claim-driven collector render contract still holds after
-adding vault-live to the claim-driven coordinator guard.
+proves the live collector is off by default, renders its full workload and
+RBAC surfaces with the correct binary command and env contract when enabled,
+and that the existing claim-driven collector render contract still holds.
 
 No-Observability-Change: the live-collector chart additions add no metric, span,
 structured log, status row, database query, graph write, or queue consumer.

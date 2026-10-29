@@ -14,7 +14,7 @@ Subsystem anchors such as `#api` and `#auth` moved to the family pages when this
 | [Runtime and storage](env-registry/runtime-and-storage.md) | Shared runtime settings, Postgres, the graph backend, and backend conformance test knobs. | 56 |
 | [Reducer and projection](env-registry/reducer-and-projection.md) | The reducer, projector, workflow coordinator, push hooks, and semantic providers. | 93 |
 | [Ingester and collector framework](env-registry/collectors-platform.md) | The ingester's git collector, the component package manager, and the component-extension collector. | 38 |
-| [Infrastructure and registry collectors](env-registry/collectors-infrastructure.md) | Cloud, Kubernetes, Vault, OCI registry, and package registry collectors. AWS cloud and Terraform state now collect from their extracted satellites (eshu-hq/eshu-collector-aws-cloud, eshu-hq/eshu-collector-terraform-state). | 35 |
+| [Infrastructure and registry collectors](env-registry/collectors-infrastructure.md) | Cloud, Kubernetes, OCI registry, and package registry collectors. AWS cloud and Terraform state now collect from their extracted satellites (eshu-hq/eshu-collector-aws-cloud, eshu-hq/eshu-collector-terraform-state). Vault now collects from its extracted satellite (eshu-hq/eshu-collector-vault-live). | 29 |
 | [Observability, delivery, and security collectors](env-registry/collectors-signals.md) | Grafana, Prometheus/Mimir, PagerDuty, CI/CD run, security alert, SBOM, and vulnerability collectors. Jira now collects from its extracted satellite (eshu-hq/eshu-collector-jira). Tempo now collects from its extracted satellite (eshu-hq/eshu-collector-tempo). Loki now collects from its extracted satellite (eshu-hq/eshu-collector-loki). | 35 |
 
 ## Subsystems
@@ -37,7 +37,6 @@ Subsystem anchors such as `#api` and `#auth` moved to the family pages when this
 | [`collector-prometheus-mimir`](env-registry/collectors-signals.md#collector-prometheus-mimir) | 5 | Observability, delivery, and security collectors |
 | [`collector-sbom-attestation`](env-registry/collectors-signals.md#collector-sbom-attestation) | 5 | Observability, delivery, and security collectors |
 | [`collector-security-alerts`](env-registry/collectors-signals.md#collector-security-alerts) | 5 | Observability, delivery, and security collectors |
-| [`collector-vault-live`](env-registry/collectors-infrastructure.md#collector-vault-live) | 6 | Infrastructure and registry collectors |
 | [`collector-vulnerability-intelligence`](env-registry/collectors-signals.md#collector-vulnerability-intelligence) | 5 | Observability, delivery, and security collectors |
 | [`component`](env-registry/collectors-platform.md#component) | 7 | Ingester and collector framework |
 | [`coordinator`](env-registry/reducer-and-projection.md#coordinator) | 21 | Reducer and projection |

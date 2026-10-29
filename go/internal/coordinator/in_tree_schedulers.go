@@ -127,10 +127,6 @@ func reconcileSchedulers() []reconcileScheduler {
 			Service.scheduleLokiWork,
 		},
 		{
-			instanceSelector{"shouldScheduleVaultLive", scope.CollectorVaultLive, shouldScheduleVaultLive},
-			Service.scheduleVaultLiveWork,
-		},
-		{
 			instanceSelector{"shouldScheduleAWS", scope.CollectorAWS, shouldScheduleAWS},
 			Service.scheduleAWSScheduledWork,
 		},

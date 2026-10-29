@@ -116,7 +116,6 @@ type Service struct {
 	GCPPlanner                        GCPPlanner
 	GrafanaPlanner                    GrafanaPlanner
 	LokiPlanner                       LokiPlanner
-	VaultLivePlanner                  VaultLivePlanner
 	ComponentExtensionPlanner         ComponentExtensionPlanner
 	OwnedPackageTargetReader          OwnedPackageTargetReader
 	TenantGrantReader                 TenantGrantReader

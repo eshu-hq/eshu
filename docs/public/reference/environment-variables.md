@@ -79,7 +79,6 @@ Treat these variables as credentials or secret material:
 - `NEO4J_PASSWORD`
 - `ESHU_POSTGRES_PASSWORD`
 - SAML IdP metadata env handles referenced by `ESHU_SAML_PROVIDERS_JSON`
-- `ESHU_VAULT_LIVE_REDACTION_KEY`
 - `ESHU_CONFLUENCE_API_TOKEN`
 - `ESHU_CONFLUENCE_BEARER_TOKEN`
 - webhook secrets and live-smoke registry passwords or bearer tokens

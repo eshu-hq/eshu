@@ -41,8 +41,6 @@ live in the repository today.
 | `go/internal/coordinator/sbom/attestation/` | hosted SBOM and attestation scheduler request validation and deterministic workflow planning |
 | `go/internal/coordinator/planner/tempo/` | Grafana Tempo scheduler request validation, target filtering, and deterministic workflow planning |
 | `go/internal/coordinator/planner/tfstate/` | Terraform-state scheduler request and plan-key validation, discovery-candidate resolution, locator-free requested-scope construction, and deterministic workflow planning |
-| `go/internal/coordinator/vault/` | documentation-only namespace for coordinator-side Vault planning contracts |
-| `go/internal/coordinator/vault/live/` | Vault metadata scheduler request validation and deterministic workflow planning |
 | `go/internal/coordinator/egress/` | collector and component-extension egress policy parsing and fail-closed allow/deny decisions |
 | `go/internal/coordinator/environment/` | environment-variable parsing shared by coordinator config loading and the semantic-provider worker |
 | `go/internal/coordinator/governance/audit/` | redacted governance-audit scope hashing, correlation identity, service identity, and append timeout |

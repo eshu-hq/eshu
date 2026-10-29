@@ -456,12 +456,12 @@ if rg --quiet --fixed-strings -- 'drain-advisory-domains="code_calls"' "${script
 	fail "code_calls must no longer be quarantined as an advisory drain domain (#3865 fixed)"
 fi
 
-# Wires all seven B-10 cassette collectors (aws-cloud and terraform-state were
-# extracted to satellites; their cassettes ride the replay aliases in
-# verify-golden-corpus-gate.sh).
+# Wires all six B-10 cassette collectors (aws-cloud, terraform-state, and
+# vault-live were extracted to satellites; their cassettes ride the replay
+# aliases in verify-golden-corpus-gate.sh).
 for collector in \
 	collector-kubernetes-live collector-azure-cloud \
-	collector-gcp-cloud collector-vault-live collector-oci-registry \
+	collector-gcp-cloud collector-oci-registry \
 	collector-package-registry; do
 	require "collector ${collector}" "${collector}"
 done

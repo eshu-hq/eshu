@@ -317,15 +317,15 @@ surfaces:
   - category: collector
     name: vault_live
     readiness: gated
-    owner: internal/collector/vaultlive
+    owner: eshu-hq/eshu-collector-vault-live
     docs: [reference/collector-reducer-readiness.md, reference/secrets-iam-posture-collector-contract.md]
-    notes: "Secrets/IAM posture lane; source facts exist, graph promotion gated for issue #25."
+    notes: "Secrets/IAM posture lane; source facts exist, graph promotion gated for issue #25. Extracted to the eshu-collector-vault-live satellite (eshu-hq/eshu-collector-vault-live): the in-tree command, source package, and chart surface are gone. Fact kinds, reducer projection, and read surfaces stay core-owned and covered."
     collector_contract:
       fact_kinds: [secrets_iam_coverage_warning, vault_acl_policy, vault_auth_mount, vault_auth_role, vault_identity_alias, vault_identity_entity, vault_kv_metadata, vault_secret_engine_mount]
       projection_surfaces: [secrets_iam_trust_chain]
       read_surfaces: [GET /api/v0/secrets-iam/posture-summary, list_secrets_iam_identity_trust_chains]
-      proof_gates: [cd go && go test ./cmd/collector-vault-live ./internal/collector/vaultlive ./internal/reducer/... ./internal/query -count=1]
-      fixture_refs: [go/internal/collector/vaultlive/testdata, docs/public/reference/secrets-iam-posture-collector-contract.md]
+      proof_gates: [cd go && go test ./internal/reducer/... ./internal/query ./internal/mcp -count=1]
+      fixture_refs: [testdata/cassettes/vaultlive, docs/public/reference/secrets-iam-posture-collector-contract.md]
       truth_profile: provider_gated
   - category: collector
     name: semantic_extraction

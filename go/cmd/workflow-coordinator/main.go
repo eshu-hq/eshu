@@ -37,7 +37,6 @@ import (
 	scannerworker "github.com/eshu-hq/eshu/go/internal/coordinator/scanner/worker"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/security/alert"
 	coordinatorsemantic "github.com/eshu-hq/eshu/go/internal/coordinator/semantic"
-	coordinatorvaultlive "github.com/eshu-hq/eshu/go/internal/coordinator/vault/live"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/vulnerability"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -244,7 +243,6 @@ func run(parent context.Context) error {
 		GCPPlanner:                        gcp.WorkPlanner{},
 		GrafanaPlanner:                    grafana.WorkPlanner{},
 		LokiPlanner:                       loki.WorkPlanner{},
-		VaultLivePlanner:                  coordinatorvaultlive.WorkPlanner{},
 		ComponentExtensionPlanner:         extension.WorkPlanner{},
 		OwnedPackageTargetReader:          postgres.NewFactStore(ownedPackageTargetsDB),
 		TenantGrantReader:                 tenantGrantReader{store: tenantGrantStore},

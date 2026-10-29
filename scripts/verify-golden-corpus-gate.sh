@@ -125,7 +125,6 @@ collector_specs=(
 	"collector-kubernetes-live:kuberneteslive"
 	"collector-azure-cloud:azurecloud"
 	"collector-gcp-cloud:gcpcloud"
-	"collector-vault-live:vaultlive"
 	"collector-oci-registry:ociregistry"
 	"collector-cicd-run:cicdrun"
 	"collector-package-registry:packageregistry"
@@ -144,6 +143,7 @@ cassette_replay_alias_specs=(
 	"tempo-cassette-replay:collector-pagerduty:tempo"
 	"aws-cassette-replay:collector-pagerduty:awscloud"
 	"terraform-state-cassette-replay:collector-pagerduty:terraformstate"
+	"vault-cassette-replay:collector-pagerduty:vaultlive"
 )
 cassette_recording="supply-chain-demo.json"
 

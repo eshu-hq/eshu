@@ -479,3 +479,22 @@ docs/internal/evidence/5837-aws-drift-reopen.md:go/cmd/collector-terraform-state
 # successor paths exist, so the note stays as the pre-extraction record.
 docs/internal/evidence/5870-nil-schema-resolver-guard.md:go/cmd/collector-terraform-state/config.go
 docs/internal/evidence/5870-nil-schema-resolver-guard.md:go/cmd/collector-terraform-state/service.go
+# Vault-live satellite extraction (#8869): the in-tree command, source
+# package, and coordinator planner are deleted and collection now runs from
+# eshu-hq/eshu-collector-vault-live. The 6627 package-move evidence note names
+# the planner sources and root service files at their pre-extraction in-tree
+# paths as the files the move evidence was gathered on. No in-tree successor
+# paths exist, so the note stays as the pre-extraction evidence record.
+docs/internal/evidence/6627-coordinator-vault-live-package-move.md:go/internal/coordinator/service_vault_live_test.go
+docs/internal/evidence/6627-coordinator-vault-live-package-move.md:go/internal/coordinator/vault/live/planner_contract_test.go
+docs/internal/evidence/6627-coordinator-vault-live-package-move.md:go/internal/coordinator/vault/live/planner_validation_test.go
+docs/internal/evidence/6627-coordinator-vault-live-package-move.md:go/internal/coordinator/vault_live_service.go
+# Vault-live satellite extraction (#8869): the 8869 extraction census names
+# the in-tree command, source package, and planner at their pre-extraction
+# in-tree paths as the files the cutover evidence was gathered on. No in-tree
+# successor paths exist, so the record stays as the pre-extraction evidence
+# record.
+docs/internal/evidence/8869-collector-vault-live-census.md:go/cmd/collector-vault-live/extraction_census_test.go
+docs/internal/evidence/8869-collector-vault-live-census.md:go/internal/collector/vaultlive/map.go
+docs/internal/evidence/8869-collector-vault-live-census.md:go/internal/collector/vaultlive/snapshot.go
+docs/internal/evidence/8869-collector-vault-live-census.md:go/internal/coordinator/vault/live/planner.go

@@ -25,7 +25,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/coordinator/sbom/attestation"
 	scannerworker "github.com/eshu-hq/eshu/go/internal/coordinator/scanner/worker"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/security/alert"
-	coordinatorvaultlive "github.com/eshu-hq/eshu/go/internal/coordinator/vault/live"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/vulnerability"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -79,7 +78,6 @@ func productionPlannerService(
 		GCPPlanner:                       gcp.WorkPlanner{},
 		GrafanaPlanner:                   grafana.WorkPlanner{},
 		LokiPlanner:                      loki.WorkPlanner{},
-		VaultLivePlanner:                 coordinatorvaultlive.WorkPlanner{},
 		ComponentExtensionPlanner:        extensionPlanner,
 		AWSScheduledPlanner:              scheduled.WorkPlanner{},
 		AWSFreshnessPlanner:              freshness.WorkPlanner{},

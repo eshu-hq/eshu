@@ -34,10 +34,10 @@
 // structural planner interface and scheduling position. The security/alert
 // child package owns the equivalent provider security-alert planner while this
 // package retains scheduling and durable admission. The sbom/attestation child
-// follows the same boundary for hosted SBOM and attestation targets. The
-// vault/live child owns deterministic Vault metadata planning while this
-// package retains scheduling, admission, retries, and telemetry. The child is
-// an in-process planner seam, not an independently deployable service.
+// follows the same boundary for hosted SBOM and attestation targets. Vault
+// metadata planning moved out of tree to eshu-hq/eshu-collector-vault-live
+// (#8869); this package no longer admits an enabled in-tree vault_live
+// instance for claim scheduling.
 // The tempo child owns deterministic Tempo trace-signal planning while
 // this package retains scheduling order, tenant and egress filtering, the
 // plan-key clock, durable admission, retries, and telemetry.

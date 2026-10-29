@@ -128,14 +128,14 @@ capabilities (`read`, `list`).
 
 ## Status and deployment
 
-The Vault source mapping (all seven fact families), no-SDK live API adapter,
-`vault_live` collector kind, claim-driven scheduling, hosted runtime, and
-`eshu_dp_secrets_iam_*` source metrics are implemented. Configure the runtime
-with a claim-capable `vault_live` entry in `ESHU_COLLECTOR_INSTANCES_JSON`, a
-private read-only token environment variable referenced by each target's
-`token_env`, and `ESHU_VAULT_LIVE_REDACTION_KEY` for deterministic HMAC markers
-over Vault names and paths. The collector still emits source facts only;
-reducers and query surfaces own posture truth and graph promotion.
+The Vault source mapping (all seven fact families), `vault_live` collector
+kind, claim-driven scheduling, and `eshu_dp_secrets_iam_*` source metrics are
+implemented in the extracted satellite (`eshu-hq/eshu-collector-vault-live`).
+Configure the satellite with a claim-capable `vault_live` entry, a private
+read-only token environment variable referenced by each target's `token_env`,
+and the satellite redaction key for deterministic HMAC markers over Vault names
+and paths. The collector still emits source facts only; reducers and query
+surfaces own posture truth and graph promotion.
 
 ## Related
 
