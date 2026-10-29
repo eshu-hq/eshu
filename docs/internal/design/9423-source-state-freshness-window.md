@@ -53,11 +53,30 @@ take it from the same place. That would be a new decision, not a change here.
   and the status query (#9420) already skip rows of a disabled or deactivated
   instance. The tests below now pin that.
 
-Known limit, not changed: configured readiness rows reach Go through
-`TO_CHAR(... 'SS')`, which truncates `last_success_at` to whole seconds. A row
-whose success falls less than one second after the cutoff reads `stale` one
-second early. The error points toward stale, never toward fresh, so changing
-the hot-path SQL for it is not justified.
+- **No new reason field.** The issue asks for the stale target "with the
+  reason". Readiness already gives one: `<source>:stale` in
+  `incomplete_reasons`, beside the row's `last_success_at`. The status
+  snapshot shows `freshness_state=stale` beside the same `last_success_at`.
+  Adding a `freshness_reason` field would change the readiness and status
+  wire contracts without telling an operator anything those two fields do not
+  already show. Revisit only if a reviewer asks.
+
+## Known limit: whole-second truncation on configured readiness rows
+
+Not changed. Configured readiness rows reach Go as
+`TO_CHAR(last_success_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')`.
+That drops the fractional second (up to 999,999 µs, since PostgreSQL stores
+microseconds). Go `ageSourceStates` then compares the truncated value with
+`!success.After(cutoff)`. A row reads `stale` early when its true
+`last_success_at` lies after the cutoff but its truncated second does not.
+That band is shorter than 1 s out of the 1,209,600 s window, under one
+millionth of it (8.3e-7), once per row per window.
+
+Example: the cutoff is `12:00:00.500` and the success is `12:00:00.800`. The
+truncated `12:00:00` is not after the cutoff, so the row reads stale 0.3 s
+early. The error only ever points toward stale, never toward fresh, and only
+inside that band. Derived rows, and the status snapshot, compare at full
+precision. A hot-path SQL change to close the band is not justified.
 
 ## Tests
 
@@ -65,11 +84,12 @@ the hot-path SQL for it is not justified.
   (`at cutoff`, `out of window`, `fresh without success` read `fresh`) and
   passes after. It covers in-window, a sub-second in-window boundary, the
   cutoff itself, out-of-window, a missing success, and a failed row.
-- `TestVulnerabilitySourceStatusAgesFreshRowsLive` (new live test, one slot)
-  runs the real status query on PostgreSQL. The live in-window row stays
-  fresh, the live 15-day-old row reads stale, and a deactivated instance's
-  recent row is not listed. Mutant: comparing only the zero time made it fail
-  with `freshness = "fresh", want "stale"`.
+- The status live proof is a subtest, `status read ages fresh rows at as-of`,
+  of the existing `TestVulnerabilitySourceStateStaleWriteLeavesStateAndKeysUnchangedLive`.
+  It adds no live-test slot. It runs the real status query on PostgreSQL: the
+  live in-window row stays fresh, the live 15-day-old row reads stale, and a
+  deactivated instance's recent row is not listed. Mutant: comparing only the
+  zero time made it fail with `freshness = "fresh", want "stale"`.
 - `TestSupplyChainImpactReadinessSuccessExpiresAtReadTimeLive` (existing live
   test, cases folded in, no new slot) covers NVD, KEV, and EPSS rows out of
   window, a KEV row in window (13 days), and a deactivated instance's fresh
@@ -81,14 +101,14 @@ the hot-path SQL for it is not justified.
 ## Performance Evidence
 
 The QA environment read replica was unreachable during this change (expired
-SSO session). Plans were measured on a local private PostgreSQL 18.6 cluster,
-labeled local. The seed was one bootstrapped schema, 181 configured NVD/EPSS/KEV
+SSO session), so its plan and cost are NOT_CHECKED. Every number below is from
+a local fixture, not the QA environment: a private PostgreSQL 18.6 cluster. The seed was one bootstrapped schema, 181 configured NVD/EPSS/KEV
 targets and states, and one derived npm instance with 50,300 scopes and package
 keys. That is far above the 576 rows the QA replica held when #9420 measured
 it. Each run was `EXPLAIN (ANALYZE, BUFFERS)`, 7 interleaved runs with the
 order alternating per round, median reported.
 
-| Read | SQL change | Median execution (local) | Plan |
+| Read | SQL change | Median execution (local fixture, not the QA environment) | Plan |
 | --- | --- | --- | --- |
 | Readiness, CVE request (configured-heavy) | none | 5.06 ms | unchanged text |
 | Readiness, 300-package derived request (loser class) | none | 9.12 ms | unchanged text |
