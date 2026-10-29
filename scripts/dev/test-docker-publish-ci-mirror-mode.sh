@@ -59,7 +59,7 @@ expected_release_condition() {
     verify-apk-floors)
       release="(${guard}) && (github.event_name == 'pull_request' && needs.changes.outputs.apkfloors == 'true')"
       ;;
-    build-and-push-image|verify-reproducibility)
+    build-and-push-image|verify-reproducibility|build-and-push-scanner-images)
       release="(${guard}) && needs.changes.outputs.image == 'true'"
       ;;
     promote-moving-tags)
@@ -79,10 +79,12 @@ expected_release_condition() {
 rg -q '^  workflow_dispatch:$' "${workflow}" || fail 'manual dispatch missing'
 rg -q '^        default: release$' "${workflow}" || fail 'normal dispatch default changed'
 
-# An added job cannot silently bypass the mirror-mode partition.
+# An added job cannot silently bypass the mirror-mode partition: a new
+# publish job joins the partition only with the exact guarded release
+# fence asserted below.
 expected_jobs="$(printf '%s\n' changes verify-apk-floors build-and-push-image \
-  promote-moving-tags verify-reproducibility attach-release-sbom \
-  package-and-push-chart publish-ci-service-mirrors \
+  build-and-push-scanner-images promote-moving-tags verify-reproducibility \
+  attach-release-sbom package-and-push-chart publish-ci-service-mirrors \
   verify-public-ci-service-mirrors | LC_ALL=C sort)"
 actual_jobs="$(awk '
   /^jobs:$/ { in_jobs = 1; next }
@@ -97,7 +99,8 @@ actual_jobs="$(awk '
 ' "${workflow}" | LC_ALL=C sort)"
 [[ "${actual_jobs}" == "${expected_jobs}" ]] || fail 'workflow jobs differ from the guarded release-plus-mirror partition'
 
-for job in changes verify-apk-floors build-and-push-image promote-moving-tags \
+for job in changes verify-apk-floors build-and-push-image \
+  build-and-push-scanner-images promote-moving-tags \
   verify-reproducibility attach-release-sbom package-and-push-chart; do
   condition="$(job_condition "${job}")"
   [[ "${condition}" == "$(expected_release_condition "${job}")" ]] ||
