@@ -67,4 +67,13 @@ class PooledPricingTest(unittest.TestCase):
             "samples over a 2-run pool 100, 101 (p75 needs at least 4 runs); "
             "cold, fixed and defaults keep their committed rules")
         self.assertIn("over a 2-run pool 100 (5 shards), 101 (6 shards) (p75 needs",
-                      refresh.pricing_rule(["100", "101"], (5, 6)).line())
+                      refresh.pricing_rule(["100", "101"], {"101": 6, "100": 5}).line())
+
+    def test_shard_counts_pair_by_run_id_not_position(self) -> None:
+        # Review P3-4: a reordered source list must not relabel the counts.
+        self.assertIn("over a 2-run pool 101 (6 shards), 100 (5 shards) (p75 needs",
+                      refresh.pricing_rule(["101", "100"], {"100": 5, "101": 6}).line())
+        for counts in ({"100": 5}, {"100": 5, "101": 6, "102": 6}, {"100": 5, "999": 6}):
+            with self.subTest(counts=counts), self.assertRaisesRegex(
+                    ValueError, "pricing shard counts do not match the source pool"):
+                refresh.pricing_rule(["100", "101"], counts)

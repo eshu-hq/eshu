@@ -193,3 +193,16 @@ class SourceHistoryTest(unittest.TestCase):
     def test_source_rows_refuses_an_own_file_count_other_than_requested(self) -> None:
         with self.assertRaisesRegex(ValueError, "weights file says 5 shards, not 6"):
             self.real_source_rows(self.root, FIVE_SHA, PLAN, 6)
+
+    def test_carried_forward_attempt_log_is_refused_and_named(self) -> None:
+        """A rerun that reuses an attempt-1 shard log names both attempts (review P3-2)."""
+        sources = self.pool(5, 5)
+        run_path, jobs_path = sources[0] / "run.json", sources[0] / "jobs.json"
+        run_path.write_text(json.dumps({**json.loads(run_path.read_text()), "run_attempt": 2}))
+        payload = json.loads(jobs_path.read_text())
+        for job in payload["jobs"]:
+            job["run_attempt"] = 2
+        jobs_path.write_text(json.dumps(payload))
+        with self.assertRaisesRegex(ValueError, "source 100 shard 1 log is from attempt 1, "
+                                    "the run is attempt 2"):
+            refresh.build_document(sources, self.root)

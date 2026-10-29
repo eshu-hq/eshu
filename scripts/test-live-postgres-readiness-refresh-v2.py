@@ -209,7 +209,8 @@ class RefreshV2Cases(unittest.TestCase):
                 contextlib.redirect_stdout(stdout):
             self.assertEqual(cli_refresh.main(), 0)
         self.assertIn(refresh.pricing_rule(["100", "101", "102", "103"],
-                                           (4, 4, 4, 4)).line() + "\n",
+                                           dict.fromkeys(["100", "101", "102", "103"], 4)
+                                           ).line() + "\n",
                       stdout.getvalue())
         self.assertIn("p75 (linear inclusive)", stdout.getvalue())
 
