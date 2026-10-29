@@ -70,6 +70,12 @@ func ownedPackageManagerFilterValues(ecosystems []string, expandAliases bool) []
 // production.
 const ownedPackageSlotSelectMarker = "SELECT\n    window_targets.ecosystem,\n    window_targets.package_name,\n    window_targets.version,"
 
+// ownedPackageActiveGenerationPredicate restricts the fact read to the active
+// generation set (#9426). It is implied by the active-scope and active-status
+// joins, so it removes no row those joins keep; it exists so the planner reads
+// only active-generation fact rows instead of every generation's rows.
+const ownedPackageActiveGenerationPredicate = "  AND fact.generation_id = ANY (ARRAY(SELECT active_generation_id FROM ingestion_scopes WHERE active_generation_id IS NOT NULL))\n"
+
 // ownedPackageSlotCountExpression is P in SQL, the fill rule of
 // [workflow.OwnedPackageTargetSlotCount] over the column total_targets and the
 // target limit $4: 1 << bit_length(max(ceil(2T/L), 1) - 1), or 1 when $4 is
@@ -94,6 +100,9 @@ const ownedPackageSlotCountExpression = `CASE WHEN $4::bigint <= 0 THEN 1::bigin
 // replica (docs/internal/evidence/9422-owned-package-hash-slot.md). The
 // MATERIALIZED fence is kept for intent; it is not load-bearing on the
 // measured plan because the slot predicate depends on the window aggregate.
+// The fact read is restricted to the active generation set (#9426), so its
+// cost follows the active inventory instead of the generation history
+// (docs/internal/evidence/9426-owned-package-active-generation-read.md).
 // Binds: $1 raw package_manager values, $2 read limit, $3 rotation bucket,
 // $4 target limit (zero or less means one slot).
 func listOwnedPackageDependencyTargetsQuery(versionSpecific bool, expandAliases bool) string {
@@ -109,12 +118,13 @@ func listOwnedPackageDependencyTargetsQuery(versionSpecific bool, expandAliases 
 	}
 	return fmt.Sprintf(ownedPackageSlotQueryTemplate,
 		ownedPackageEcosystemExpression(expandAliases), distinctColumns, distinctOrder, slotKey,
-		ownedPackageSlotCountExpression)
+		ownedPackageSlotCountExpression, ownedPackageActiveGenerationPredicate)
 }
 
-// ownedPackageSlotQueryTemplate is the measured statement with its five
+// ownedPackageSlotQueryTemplate is the measured statement with its six
 // builder verbs: %[1]s ecosystem expression, %[2]s DISTINCT ON columns,
-// %[3]s DISTINCT ON order, %[4]s slot key expression, %[5]s slot count.
+// %[3]s DISTINCT ON order, %[4]s slot key expression, %[5]s slot count,
+// %[6]s active-generation predicate.
 const ownedPackageSlotQueryTemplate = `
 WITH active_dependencies AS (
   SELECT
@@ -139,7 +149,7 @@ WHERE fact.fact_kind = 'content_entity'
   AND fact.payload->'entity_metadata'->>'config_kind' = 'dependency'
   AND fact.payload->'entity_metadata'->>'package_manager' = ANY($1::text[])
   AND generation.status = 'active'
-),
+%[6]s),
 distinct_targets AS MATERIALIZED (
   SELECT DISTINCT ON (%[2]s)
     ecosystem,

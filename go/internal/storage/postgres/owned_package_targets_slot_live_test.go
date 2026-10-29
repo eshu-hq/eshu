@@ -4,7 +4,7 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #9422 PostgreSQL 18.6 full-bootstrap proof that the owned-package reader's hash-slot window plans every target of a 319-row minority ecosystem within P windows while a 2,000-row majority block grows by one target per window, and that the window stats report T, P, slot and slot_size; isolated bootstrap schema
+//eshu:readiness:reason #9422 PostgreSQL 18.6 full-bootstrap proof that the owned-package reader's hash-slot window plans every target of a 319-row minority ecosystem within P windows while a 2,000-row majority block grows by one target per window, and that the window stats report T, P, slot and slot_size; #9426 subcase proves the read pays only for active-generation fact rows under eleven superseded generations with output identical to the all-history statement; isolated bootstrap schema
 //eshu:readiness:env ESHU_POSTGRES_DSN
 
 import (
@@ -226,6 +226,9 @@ func TestListOwnedPackageDependencyTargetsSlotDifferentialLive(t *testing.T) {
 			t.Fatalf("slot %d reader rows (%d) differ from the partition (%d)", slot, len(got), len(partition[slot]))
 		}
 	}
+	t.Run("read follows active generations with output identical to the all-history read", func(t *testing.T) {
+		assertOwnedPackageReadFollowsActiveGenerations(ctx, t, db, slotLiveMajorityTargets+slotLiveMinorityTargets)
+	})
 }
 
 // assertOwnedPackageWindowEvent proves the read span carries the window
