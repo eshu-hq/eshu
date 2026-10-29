@@ -52,7 +52,12 @@ inventory slice. New graph-truth kinds need typed contracts, registry bindings,
 reducer and conformance work in `eshu`, not just a collector manifest. Adding
 new kinds is a new v1 contract, not a change to an existing kind. Changing an
 existing kind's meaning or stable key would instead be a major change with a
-conversion path.
+conversion path. Verified 2026-10-29 against `specs/fact-kind-registry.v1.yaml`:
+no `aws_ssm`, `host_application`, or `host_platform` kind exists, so the
+proposal renames and redefines nothing; at implementation the
+`factschema-diff`, `payload-usage-manifest`, `fact-kind-registry`, and
+`contract-source-of-truth` gates apply to the new declarations, schemas, typed
+structs, and conformance fixtures.
 
 | Proposed fact | Required payload | Stable key and lifecycle |
 | --- | --- | --- |
@@ -159,7 +164,10 @@ and `ssm:ListInventoryEntries`. The [Systems Manager authorization reference](ht
 lists no resource-level type for either action; their policy therefore needs
 `Resource: "*"`. Confirm any applicable conditions and the final action set
 against the accepted collection design. Do not grant patch-compliance actions
-until patch collection is in the accepted scope. The source, account, region, and enabled inventory types must be explicit
+until patch collection is in the accepted scope. The association-review path
+additionally needs an association describe or list grant: a bounded
+`ListAssociations` filtered on `AWS-GatherSoftwareInventory` was denied for
+the QA measurement identity on 2026-10-29 (see evidence below). The source, account, region, and enabled inventory types must be explicit
 in deployment configuration.
 
 ## Measurement requirements
@@ -223,6 +231,52 @@ denominator, validated package counts, capture cadence, change rate,
 and daily fact volume remain NOT_PROVEN. A meaningful representative
 application-volume decision needs evidence from hosts with configured
 application inventory; this zero-entry sample does not meet that gate.
+
+### Second online-node application frame (Frame C), 2026-10-29
+
+With the standing read-only QA measurement, `python3 /tmp/ssm_9302_frame_c.py`
+ran once on 2026-10-29 from 10:17:11 to 10:17:22 UTC and exited 0. The exact
+command and its JSON output are recorded here; the script is a throwaway
+`/tmp` probe, not a committed artifact. No `GetInventory` call and no retry
+loop were made in this frame.
+
+A new, complete discovery page returned 24 unique managed nodes, all Online,
+all Linux, all EC2Instance, in one page (0.461 seconds). All 24 were sampled
+using one `AWS:Application` inventory page each (10.448 seconds total, about
+0.44 seconds per node page). Every response contained zero entries and no
+`CaptureTime`; no node truncated at 50 entries; zero errors and no throttling
+occurred. The 24 responses totaled 1,872 bytes in compact JSON serialization;
+this is not wire traffic or object heap size.
+
+Frame C is a new snapshot, not a rerun of the 2026-10-28 frame: the count
+differs (24 versus 22) and node identity equality cannot be verified because
+neither frame retains identifiers. Two independent zero-capture frames now
+agree, which strengthens the reading that no application inventory association
+is collecting on these nodes, but it still does not distinguish an
+unconfigured association from a completed empty capture, and it is not
+evidence of zero installed packages. Under the rule above, all 24 responses
+are unknown: they emit no application fact and cannot supersede any prior
+snapshot. Stopped-node coverage, the inventory-enabled denominator, validated
+package counts, capture cadence, change rate, and daily fact volume remain
+NOT_PROVEN. Observed request bounds so far: discovery one page under one
+second for ~24 nodes; one application page per node at about half a second
+each with no throttling at this cohort size. Package-count and byte projections
+stay symbolic until a captured cohort is measured.
+
+### Association review attempt, 2026-10-29
+
+One bounded read-only call tested the association-review path:
+
+`aws ssm list-associations --association-filter-list key=Name,value=AWS-GatherSoftwareInventory --max-results 5`
+
+It was denied: `AccessDeniedException`, identity
+`arn:aws:sts::055929692761:assumed-role/eshu-dev-box/i-0e18f7b9871b85f57` is
+not authorized to perform `ssm:ListAssociations`. No IAM change was made and
+the call was not retried. Association status therefore cannot currently
+distinguish unconfigured collection from empty capture; the association-review
+path needs a `ssm:ListAssociations` (or equivalent describe) grant before it
+can select a representative captured population. A denial is not a zero
+inventory result.
 
 </details>
 
