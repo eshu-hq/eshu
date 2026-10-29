@@ -55,6 +55,55 @@ class ImageProvenance:
                 f"distinct {distinct}")
 
 
+@dataclass(frozen=True)
+class ColdEstimate:
+    """The identifiable cold-cache estimate and the price the fit used.
+
+    Attributes:
+        measured: Mean over ``terms`` in seconds, rounded to a tenth.
+        terms: Per package seen both as a shard's first row and as a later
+            first use: mean first-row residual minus mean later residual.
+        used: ``measured`` when positive, else 0.0 (#9490).
+    """
+
+    measured: float
+    terms: dict[str, float]
+    used: float
+
+    def line(self) -> str:
+        """Render one stdout line for the refit PR body and evidence note."""
+        count = len(self.terms)
+        terms = ", ".join(f"{package} {value:+.1f}"
+                          for package, value in sorted(self.terms.items()))
+        note = "" if self.measured > 0 else " (estimate not positive)"
+        return (f"weights refresh v2: cold cache estimate {self.measured:.1f} s from "
+                f"{count} package{'s' if count != 1 else ''} ({terms}); "
+                f"used {self.used:.1f} s{note}")
+
+
+def _cold_estimate(categories: dict[str, dict[str, list[float]]]) -> ColdEstimate:
+    """Estimate the cold-cache price from packages seen in both first-use kinds.
+
+    The estimate is the unweighted mean of each package's first-row minus
+    later-first-use residual. A non-positive estimate is a measurement, not a
+    defect of the pair: first-use residuals are compile-dominated and noisy,
+    so the fit prices cold as 0.0 and keeps every other formula (#9490).
+
+    Raises:
+        ValueError: No package was seen both as a first row and a later first use.
+    """
+    terms = {package: statistics.mean(kinds["first_row"]) - statistics.mean(kinds["first_later"])
+             for package, kinds in categories.items()
+             if kinds["first_row"] and kinds["first_later"]}
+    if not terms:
+        raise ValueError("no measured identifiable cold component")
+    measured = round(statistics.mean(terms.values()), 1) or 0.0
+    return ColdEstimate(
+        measured=measured,
+        terms={package: round(value, 1) for package, value in terms.items()},
+        used=measured if measured > 0 else 0.0)
+
+
 def _profile(log: str) -> tuple[tuple[str, ...], str]:
     """Return the gated runner profile and the reported image version.
 
@@ -158,16 +207,17 @@ def build_document(sources: list[Path], root: Path) -> dict[str, object]:
 
 
 def fit_with_provenance(sources: list[Path], root: Path) -> tuple[
-        dict[str, object], ImageProvenance]:
-    """Fit a v2 document and report the runner image versions it accepted.
+        dict[str, object], ImageProvenance, ColdEstimate]:
+    """Fit a v2 document and report its image versions and cold estimate.
 
     Args:
         sources: Directories named by run ID, each with run/jobs JSON and shard logs.
         root: Git checkout containing the source commit objects.
 
     Returns:
-        The validated v2 document (as from build_document) and the image
-        provenance seen across every shard of every source.
+        The validated v2 document (as from build_document), the image
+        provenance seen across every shard of every source, and the measured
+        cold-cache estimate with the price the document uses.
 
     Raises:
         ValueError: A source is incomplete, incompatible, or cannot identify a
@@ -219,9 +269,8 @@ def fit_with_provenance(sources: list[Path], root: Path) -> tuple[
         fixed.extend(overhead)
     first: dict[str, float] = {}
     repeat: dict[str, float] = {}
-    paired_cold = [statistics.mean(kinds["first_row"]) - statistics.mean(kinds["first_later"])
-                   for kinds in categories.values() if kinds["first_row"] and kinds["first_later"]]
-    cold = _mean_tenth(paired_cold, "identifiable cold component", positive=True)
+    estimate = _cold_estimate(categories)
+    cold = estimate.used
     for package, kinds in categories.items():
         later = kinds["first_later"]
         first_rows = kinds["first_row"]
@@ -253,7 +302,7 @@ def fit_with_provenance(sources: list[Path], root: Path) -> tuple[
     v2.weights_from_json(document)
     if expected_profile is None:
         raise ValueError("source runs have no shard profile")
-    return document, ImageProvenance(expected_profile[0], image_versions)
+    return document, ImageProvenance(expected_profile[0], image_versions), estimate
 
 
 def _collect_test_values(log: str, expected: list[str], values: dict[str, list[float]]) -> None:

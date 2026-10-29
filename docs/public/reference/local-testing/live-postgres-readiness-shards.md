@@ -330,6 +330,15 @@ shard job's metadata and log. Mixed hosted-runner image versions are accepted,
 and the refresher prints the version it saw on each shard. GitHub rolls hosted
 images over several days and standard runners cannot pin a version. The
 version is never used in pricing (#9411).
+
+The refresher estimates `cold_cache_seconds` from the packages that run both
+as a shard's first row and as a later first use on another shard: the mean
+over those packages of first-row minus later-first-use residual. It prints the
+estimate and each package's term. First-use residuals are mostly compile time
+and vary widely between runs. A zero or negative estimate is therefore a
+measurement, not a bad pair: the refresher prices the cold cache as 0.0 and
+keeps every other formula (#9490).
+
 Use the v2 refresher with both runs and an output outside the repository:
 
 ```bash
