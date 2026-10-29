@@ -59,20 +59,46 @@ func SelectDeclaredECSServiceARN(workloadName, repoID string, workloadCount int,
 	return arn, ""
 }
 
+// ecsServiceARNPrefixOK reports whether prefix is an ECS ARN prefix
+// (arn:<partition>:ecs:<region>:<12-digit-account>) in a platform partition
+// the collector models: commercial, GovCloud, or China. The region and
+// account checks match the long-standing commercial validation; only the
+// partition set is wider than the old arn:aws:ecs: literal.
+func ecsServiceARNPrefixOK(prefix string) bool {
+	withoutScheme, ok := strings.CutPrefix(prefix, "arn:")
+	if !ok {
+		return false
+	}
+	partition, remainder, ok := strings.Cut(withoutScheme, ":")
+	if !ok {
+		return false
+	}
+	switch partition {
+	case "aws", "aws-cn", "aws-us-gov":
+	default:
+		return false
+	}
+	service, remainder, ok := strings.Cut(remainder, ":")
+	if !ok || service != "ecs" {
+		return false
+	}
+	region, account, ok := strings.Cut(remainder, ":")
+	if !ok || region == "" || strings.Contains(account, ":") || len(account) != 12 {
+		return false
+	}
+	for _, digit := range account {
+		if digit < '0' || digit > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 func ecsServiceARNFromLiteralCluster(clusterARN, serviceName string) string {
 	prefix, clusterName, ok := strings.Cut(clusterARN, ":cluster/")
 	if !ok || clusterName == "" || strings.Contains(clusterName, "/") || strings.Contains(serviceName, "/") ||
-		!strings.HasPrefix(prefix, "arn:aws:ecs:") {
+		!ecsServiceARNPrefixOK(prefix) {
 		return ""
-	}
-	parts := strings.Split(prefix, ":")
-	if len(parts) != 5 || parts[3] == "" || len(parts[4]) != 12 {
-		return ""
-	}
-	for _, digit := range parts[4] {
-		if digit < '0' || digit > '9' {
-			return ""
-		}
 	}
 	return prefix + ":service/" + clusterName + "/" + serviceName
 }
@@ -87,7 +113,8 @@ func ECSServicesFromCloudResources(resources []map[string]any) []string {
 			continue
 		}
 		arn := querycontract.StringVal(resource, "arn")
-		if !strings.HasPrefix(arn, "arn:aws:ecs:") || !strings.Contains(arn, ":service/") {
+		svcIdx := strings.Index(arn, ":service/")
+		if svcIdx < 0 || !ecsServiceARNPrefixOK(arn[:svcIdx]) {
 			continue
 		}
 		seen[arn] = struct{}{}

@@ -62,3 +62,32 @@ func TestValidECSTaskIdentityRejectsCrossClusterAndAccount(t *testing.T) {
 		}
 	}
 }
+
+func TestValidECSTaskIdentityAdmitesGovCloudPartition(t *testing.T) {
+	service := "arn:aws-us-gov:ecs:us-gov-west-1:000000000000:service/prod/api"
+	for _, tc := range []struct {
+		task string
+		want bool
+	}{
+		{"arn:aws-us-gov:ecs:us-gov-west-1:000000000000:task/prod/abc", true},
+		{"arn:aws:ecs:us-east-1:000000000000:task/prod/abc", false},
+		{"arn:aws-iso:ecs:us-isob-east-1:000000000000:task/prod/abc", false},
+	} {
+		if got := validECSTaskIdentity(service, tc.task); got != tc.want {
+			t.Fatalf("task %q valid=%t, want %t", tc.task, got, tc.want)
+		}
+	}
+	if got := validECSTaskIdentity("arn:aws-iso:ecs:us-isob-east-1:000000000000:service/prod/api", "arn:aws-iso:ecs:us-isob-east-1:000000000000:task/prod/abc"); got {
+		t.Fatalf("unknown partition pair valid=true, want false")
+	}
+}
+
+func TestECSTaskStoreGuardAdmitesGovCloudRejectsUnknownPartition(t *testing.T) {
+	store := NewPostgresECSTaskStore(ecsQueryer{})
+	if _, err := store.ListRunningTasks(context.Background(), "arn:aws-iso:ecs:us-isob-east-1:000000000000:service/prod/api", querycontract.RepositoryAccessFilter{AllScopes: true}); err == nil || err.Error() != "exact ECS service ARN is required" {
+		t.Fatalf("unknown partition err=%v, want exact-ARN guard error", err)
+	}
+	if _, err := store.ListRunningTasks(context.Background(), "arn:aws-us-gov:ecs:us-gov-west-1:000000000000:service/prod/api", querycontract.RepositoryAccessFilter{AllScopes: true}); err != nil && err.Error() == "exact ECS service ARN is required" {
+		t.Fatalf("GovCloud service rejected by guard: %v", err)
+	}
+}

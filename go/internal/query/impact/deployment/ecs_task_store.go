@@ -46,7 +46,8 @@ func (s PostgresECSTaskStore) ListRunningTasks(ctx context.Context, serviceARN s
 	if s.Reader == nil {
 		return nil, fmt.Errorf("ECS task reader is required")
 	}
-	if !strings.HasPrefix(serviceARN, "arn:aws:ecs:") || !strings.Contains(serviceARN, ":service/") {
+	svcIdx := strings.Index(serviceARN, ":service/")
+	if svcIdx < 0 || !ecsServiceARNPrefixOK(serviceARN[:svcIdx]) {
 		return nil, fmt.Errorf("exact ECS service ARN is required")
 	}
 	if access.Empty() {
@@ -217,7 +218,7 @@ func validECSServiceIdentity(expectedARN, observedARN, observedName, clusterARN 
 
 func validECSTaskIdentity(serviceARN, taskARN string) bool {
 	prefix, servicePath, ok := strings.Cut(serviceARN, ":service/")
-	if !ok {
+	if !ok || !ecsServiceARNPrefixOK(prefix) {
 		return false
 	}
 	clusterName, _, ok := strings.Cut(servicePath, "/")

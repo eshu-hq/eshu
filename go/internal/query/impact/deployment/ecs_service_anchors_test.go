@@ -4,6 +4,7 @@
 package deployment
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -18,6 +19,37 @@ func TestECSServicesFromCloudResourcesRequiresServiceIdentity(t *testing.T) {
 	got := ECSServicesFromCloudResources(resources)
 	if len(got) != 1 || got[0] != "arn:aws:ecs:us-east-1:000000000000:service/c/api" {
 		t.Fatalf("ECS service anchors = %#v, want only the observed service ARN", got)
+	}
+}
+
+func TestECSServicesFromCloudResourcesAdmitesGovCloudAndChinaPartitions(t *testing.T) {
+	resources := []map[string]any{
+		{"resource_type": "aws_ecs_service", "arn": "arn:aws-us-gov:ecs:us-gov-west-1:123456789012:service/prod/api"},
+		{"resource_type": "aws_ecs_service", "arn": "arn:aws-cn:ecs:cn-north-1:123456789012:service/prod/api"},
+		{"resource_type": "aws_ecs_service", "arn": "arn:aws-iso:ecs:us-isob-east-1:123456789012:service/prod/api"},
+	}
+	got := ECSServicesFromCloudResources(resources)
+	want := []string{"arn:aws-cn:ecs:cn-north-1:123456789012:service/prod/api", "arn:aws-us-gov:ecs:us-gov-west-1:123456789012:service/prod/api"}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("ECS service anchors = %#v, want %#v", got, want)
+	}
+}
+
+func TestSelectDeclaredECSServiceARNAdmitesGovCloudPartition(t *testing.T) {
+	const cluster = "arn:aws-us-gov:ecs:us-gov-west-1:123456789012:cluster/prod"
+	const want = "arn:aws-us-gov:ecs:us-gov-west-1:123456789012:service/prod/api"
+	entity := querycontract.EntityContent{RepoID: "repo-api", EntityType: "TerraformResource", EntityName: "aws_ecs_service.api", Metadata: map[string]any{
+		"resource_type": "aws_ecs_service", "attributes": map[string]any{"name": "api", "cluster": cluster},
+	}}
+	got, reason := SelectDeclaredECSServiceARN("api", "repo-api", 1, []querycontract.EntityContent{entity})
+	if got != want || reason != "" {
+		t.Fatalf("got ARN=%q reason=%q, want ARN=%q reason=%q", got, reason, want, "")
+	}
+	bad := querycontract.EntityContent{RepoID: "repo-api", EntityType: "TerraformResource", EntityName: "aws_ecs_service.api", Metadata: map[string]any{
+		"resource_type": "aws_ecs_service", "attributes": map[string]any{"name": "api", "cluster": "arn:aws-iso:ecs:us-isob-east-1:123456789012:cluster/prod"},
+	}}
+	if got, reason := SelectDeclaredECSServiceARN("api", "repo-api", 1, []querycontract.EntityContent{bad}); got != "" || reason != "ecs_declaration_unresolved" {
+		t.Fatalf("unknown partition: got ARN=%q reason=%q, want unresolved", got, reason)
 	}
 }
 
