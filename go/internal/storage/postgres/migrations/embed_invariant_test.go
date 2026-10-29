@@ -175,13 +175,15 @@ import (
 // taken by main, so the lane keeps the letter-suffixed sequence precedent
 // (skipped by the unique-sequence guard, ordered by path sort); SQL content
 // is byte-identical to the lane's pre-rebase files.
-const goldenBootstrapDefinitionsDigest = "84f1efc7b50dd13c2e33f479c540c3e4f379a8fbe7847974491b72b1840e4423"
+// #9299 splits 241a's authority-epoch backfill into 241b (the five
+// INSERT ... SELECT seeds; DML half, #7961 split).
+const goldenBootstrapDefinitionsDigest = "904c11feddad30ed45975b515fe382aa5c98e054fcb7012566d396171ef7891f"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 291
+const goldenBootstrapDefinitionsCount = 292
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

@@ -267,28 +267,6 @@ CREATE OR REPLACE TRIGGER scanner_advisory_scope_authority_epoch
 AFTER INSERT OR UPDATE OR DELETE ON ingestion_scopes
 FOR EACH ROW EXECUTE FUNCTION scanner_bump_ancestor_epoch();
 
-INSERT INTO scanner_authority_epochs (authority_kind,authority_key,active)
-SELECT 'tenant',(jsonb_build_array(tenant_id))::text,
-       status='active' AND tombstoned_at IS NULL FROM tenants
-ON CONFLICT (authority_kind,authority_key) DO NOTHING;
-INSERT INTO scanner_authority_epochs (authority_kind,authority_key,active)
-SELECT 'workspace',(jsonb_build_array(tenant_id,workspace_id))::text,
-       status='active' AND tombstoned_at IS NULL FROM workspaces
-ON CONFLICT (authority_kind,authority_key) DO NOTHING;
-INSERT INTO scanner_authority_epochs (authority_kind,authority_key,active)
-SELECT 'scope_grant',
-       (jsonb_build_array(tenant_id,workspace_id,scope_id,subject_class))::text,
-       tombstoned_at IS NULL FROM tenant_scope_grants
-ON CONFLICT (authority_kind,authority_key) DO NOTHING;
-INSERT INTO scanner_authority_epochs (authority_kind,authority_key,active)
-SELECT 'collector_instance',(jsonb_build_array(instance_id))::text,
-       enabled AND claims_enabled FROM collector_instances
-ON CONFLICT (authority_kind,authority_key) DO NOTHING;
-INSERT INTO scanner_authority_epochs (authority_kind,authority_key,active)
-SELECT 'advisory_scope',(jsonb_build_array(scope_id))::text,
-       status='active' AND active_generation_id IS NOT NULL FROM ingestion_scopes
-ON CONFLICT (authority_kind,authority_key) DO NOTHING;
-
 ALTER TABLE scanner_image_target_sources
     ADD COLUMN IF NOT EXISTS canonical_observation_id BIGINT
       REFERENCES scanner_running_image_observations(observation_id),
