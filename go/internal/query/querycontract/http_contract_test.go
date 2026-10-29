@@ -197,7 +197,6 @@ func TestParseGraphBackendAndProfile(t *testing.T) {
 // TestCapabilityMatrixExtras proves the compatibility matrix, the
 // hardcoded-secret ceilings, and the context-overview gate.
 func TestCapabilityMatrixExtras(t *testing.T) {
-	t.Parallel()
 	isolateCapabilityRegistry(t)
 
 	if matrix := CompatibilityCapabilityMatrix(); matrix == nil {

@@ -246,7 +246,6 @@ func TestServiceCatalogHasScope(t *testing.T) {
 // TestMaxTruthLevelDefaultArm proves unknown profiles fall back to the
 // production ceiling.
 func TestMaxTruthLevelDefaultArm(t *testing.T) {
-	t.Parallel()
 	isolateCapabilityRegistry(t)
 
 	ceiling := TruthLevelDerived

@@ -49,6 +49,22 @@ func TestSearchFileContentForwardsResumeCursor(t *testing.T) {
 	}
 }
 
+func TestSearchFileContentForwardsBudgetOnlyWhenProvided(t *testing.T) {
+	t.Parallel()
+	file, _ := Route("search_file_content", routecontract.Arguments{"pattern": "render", "budget_ms": 1200})
+	if got := body(t, file)["budget_ms"]; got != 1200 {
+		t.Fatalf("file budget_ms = %#v, want 1200", got)
+	}
+	plain, _ := Route("search_file_content", routecontract.Arguments{"pattern": "render"})
+	if _, present := body(t, plain)["budget_ms"]; present {
+		t.Fatal("omitted budget_ms was forwarded")
+	}
+	entity, _ := Route("search_entity_content", routecontract.Arguments{"pattern": "render", "budget_ms": 1200})
+	if _, present := body(t, entity)["budget_ms"]; present {
+		t.Fatal("file-only budget_ms was forwarded to entity search")
+	}
+}
+
 // TestSearchEntityContentForwardsRankCursor pins that the #7746 rank cursor
 // reaches the entity route, and that a call without one sends no key.
 func TestSearchEntityContentForwardsRankCursor(t *testing.T) {

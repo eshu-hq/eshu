@@ -38,6 +38,7 @@ const NAV_ROUTE_TO_FAMILY: ReadonlyMap<string, string> = new Map([
   ["/guided-questions", "ask_search"],
   // repository_content: source code, file trees, code graph, dead code
   ["/repositories", "repository_content"],
+  ["/content-search", "repository_content"],
   ["/code-graph", "repository_content"],
   ["/dead-code", "repository_content"],
   ["/nodes", "repository_content"],

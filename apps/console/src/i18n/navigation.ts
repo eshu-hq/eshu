@@ -128,6 +128,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         count: (m) => nonZero(m.findings.filter((finding) => finding.type === "Dead code").length),
       },
       { to: "/code-graph", messageId: "app.nav.item.codeGraph", icon: Code2 },
+      { to: "/content-search", messageId: "app.nav.item.contentSearch", icon: FileSearch },
     ],
   },
   {

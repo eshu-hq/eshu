@@ -82,35 +82,37 @@ describe("live E2E policy", () => {
   it("keeps browser-session-only surfaces out of the bearer verdict without counting them as passes", () => {
     const coverage = createAuthRouteCoverage(consoleRoutes, "bearer");
 
-    expect(coverage.eligibleRoutes).toHaveLength(37);
+    expect(coverage.eligibleRoutes).toHaveLength(38);
     expect(coverage.excludedByAuth).toEqual([
       { path: "/profile", requiredAuthMode: "browser_session" },
       { path: "/admin", requiredAuthMode: "browser_session" },
     ]);
     expect(coverage.eligibleRoutes.some((route) => route.path === "/profile")).toBe(false);
     expect(coverage.eligibleRoutes.some((route) => route.path === "/admin")).toBe(false);
+    expect(coverage.eligibleRoutes.some((route) => route.path === "/content-search")).toBe(true);
     expect(authCoverageReport(coverage)).toMatchObject({
       authMode: "bearer",
-      catalogRouteCount: 39,
-      eligibleRouteCount: 37,
+      catalogRouteCount: 40,
+      eligibleRouteCount: 38,
     });
     expect(formatAuthRouteCoverage(coverage)).toContain(
-      "37/39; 2 browser-session route(s) excluded from this verdict",
+      "38/40; 2 browser-session route(s) excluded from this verdict",
     );
   });
 
   it("runs every bearer-capable workflow through the browser-session verdict", () => {
     const coverage = createAuthRouteCoverage(consoleRoutes, "browser_session");
 
-    expect(coverage.eligibleRoutes).toHaveLength(39);
+    expect(coverage.eligibleRoutes).toHaveLength(40);
     expect(coverage.excludedByAuth).toEqual([]);
+    expect(coverage.eligibleRoutes.some((route) => route.path === "/content-search")).toBe(true);
     expect(coverage.eligibleRoutes.map((route) => route.path)).toEqual(
       consoleRoutes.map((route) => route.path),
     );
     expect(authCoverageReport(coverage)).toMatchObject({
       authMode: "browser_session",
-      catalogRouteCount: 39,
-      eligibleRouteCount: 39,
+      catalogRouteCount: 40,
+      eligibleRouteCount: 40,
     });
   });
 

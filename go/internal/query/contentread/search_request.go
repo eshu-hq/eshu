@@ -4,6 +4,7 @@
 package contentread
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -19,6 +20,9 @@ type contentSearchRequest struct {
 	Pattern string   `json:"pattern"`
 	Limit   int      `json:"limit"`
 	Offset  int      `json:"offset"`
+	// BudgetMS overrides the configured budget for an unscoped file search.
+	// Raw bytes distinguish omission from explicit null or zero.
+	BudgetMS json.RawMessage `json:"budget_ms,omitempty"`
 	// Cursor resumes an unscoped search strictly after the named key. It
 	// is the cursor a partial result returned (#7730) and is refused on every
 	// other search shape.

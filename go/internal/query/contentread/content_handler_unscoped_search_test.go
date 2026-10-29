@@ -29,15 +29,17 @@ type unscopedSearchStore struct {
 		offset     int
 		cursorRepo string
 		cursorPath string
+		budgetMS   int
 	}
 }
 
 func (s *unscopedSearchStore) SearchFilesUnscoped(
-	_ context.Context, pattern string, limit, offset int, cursorRepoID, cursorPath string,
+	_ context.Context, pattern string, limit, offset int, cursorRepoID, cursorPath string, budgetMS int,
 ) (querycontract.FileSearchPage, error) {
 	s.calls++
 	s.gotArg.pattern, s.gotArg.limit, s.gotArg.offset = pattern, limit, offset
 	s.gotArg.cursorRepo, s.gotArg.cursorPath = cursorRepoID, cursorPath
+	s.gotArg.budgetMS = budgetMS
 	return s.page, s.err
 }
 
@@ -145,6 +147,70 @@ func TestSearchFilesUnscopedPassesRequestCursor(t *testing.T) {
 	}
 	if store.gotArg.cursorRepo != "r9" || store.gotArg.cursorPath != "z.go" {
 		t.Fatalf("cursor = %q/%q, want r9/z.go", store.gotArg.cursorRepo, store.gotArg.cursorPath)
+	}
+}
+
+func TestSearchFilesUnscopedBudgetOverride(t *testing.T) {
+	t.Parallel()
+	store := &unscopedSearchStore{}
+	h := &ContentHandler{Content: store, Profile: querycontract.ProfileLocalAuthoritative}
+	for _, tc := range []struct {
+		body       string
+		wantStatus int
+		wantBudget int
+	}{
+		{`{"query":"render"}`, http.StatusOK, 0},
+		{`{"query":"render","budget_ms":100}`, http.StatusOK, 100},
+		{`{"query":"render","budget_ms":10000}`, http.StatusOK, 10000},
+		{`{"query":"render","budget_ms":0}`, http.StatusBadRequest, 0},
+		{`{"query":"render","budget_ms":null}`, http.StatusBadRequest, 0},
+		{`{"query":"render","budget_ms":10001}`, http.StatusBadRequest, 0},
+		{`{"query":"render","budget_ms":"100"}`, http.StatusBadRequest, 0},
+		{`{"query":"render","repo_id":"repository:r_ok","budget_ms":800}`, http.StatusBadRequest, 0},
+	} {
+		before := store.calls
+		rec, _ := postFileSearch(t, h, context.Background(), tc.body)
+		if rec.Code != tc.wantStatus {
+			t.Errorf("body %s: status = %d, want %d; response = %s", tc.body, rec.Code, tc.wantStatus, rec.Body.String())
+		}
+		if tc.wantStatus == http.StatusOK {
+			if store.calls != before+1 || store.gotArg.budgetMS != tc.wantBudget {
+				t.Errorf("body %s: calls = %d, budget_ms = %d", tc.body, store.calls-before, store.gotArg.budgetMS)
+			}
+		} else if store.calls != before {
+			t.Errorf("body %s: called unscoped store", tc.body)
+		}
+	}
+}
+
+func TestSearchFilesBudgetRejectsScopedTokenWithNoGrants(t *testing.T) {
+	t.Parallel()
+	store := &unscopedSearchStore{}
+	h := &ContentHandler{Content: store, Profile: querycontract.ProfileLocalAuthoritative}
+	ctx := auth.ContextWithAuthContext(context.Background(), auth.AuthContext{
+		Mode:        auth.AuthModeScoped,
+		TenantID:    "tenant-a",
+		WorkspaceID: "workspace-a",
+	})
+	rec, _ := postFileSearch(t, h, ctx, `{"query":"render","budget_ms":800}`)
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "budget_ms") {
+		t.Fatalf("status = %d, body = %s; want budget_ms 400", rec.Code, rec.Body.String())
+	}
+	if store.calls != 0 {
+		t.Fatalf("unscoped seam called %d times with a scoped empty grant", store.calls)
+	}
+}
+
+func TestSearchEntitiesRejectsFileBudget(t *testing.T) {
+	t.Parallel()
+	h := &ContentHandler{Content: &unscopedSearchStore{}, Profile: querycontract.ProfileLocalAuthoritative}
+	mux := http.NewServeMux()
+	h.Mount(mux)
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/content/entities/search", strings.NewReader(`{"query":"render","budget_ms":800}`))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400; body = %s", rec.Code, rec.Body.String())
 	}
 }
 

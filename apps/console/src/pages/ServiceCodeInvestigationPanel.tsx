@@ -1,16 +1,18 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router";
 
 import { EshuApiClient } from "../api/client";
 import {
   loadCodeTopicInvestigation,
   type CodeTopicInvestigation,
-  type CodeTopicNextCall
+  type CodeTopicNextCall,
 } from "../api/codeTopic";
 import type { ServiceSpotlight } from "../api/serviceSpotlight";
+import { APP_ROUTE_PATHS } from "../appRoutePaths";
 import { loadConsoleEnvironment } from "../config/environment";
 
 export function ServiceCodeInvestigationPanel({
-  spotlight
+  spotlight,
 }: {
   readonly spotlight: ServiceSpotlight;
 }): React.JSX.Element | null {
@@ -23,13 +25,13 @@ export function ServiceCodeInvestigationPanel({
     }
     const client = new EshuApiClient({
       apiKey: environment.apiKey,
-      baseUrl: environment.apiBaseUrl
+      baseUrl: environment.apiBaseUrl,
     });
     let active = true;
     void loadCodeTopicInvestigation({
       client,
       repoName: spotlight.repoName,
-      serviceName: spotlight.name
+      serviceName: spotlight.name,
     })
       .then((loaded) => {
         if (active) {
@@ -46,8 +48,16 @@ export function ServiceCodeInvestigationPanel({
     };
   }, [spotlight.name, spotlight.repoName]);
 
-  if (investigation === undefined || investigation.coverage.empty) {
+  if (investigation === undefined) {
     return null;
+  }
+  if (investigation.coverage.empty) {
+    return investigation.nextCalls.length > 0 ? (
+      <section aria-label="Code investigation" className="service-code-investigation">
+        <h2>No code paths found for this service</h2>
+        <NextCallStrip calls={investigation.nextCalls} />
+      </section>
+    ) : null;
   }
 
   return (
@@ -56,8 +66,8 @@ export function ServiceCodeInvestigationPanel({
         <span className="entity-kind">Code investigation</span>
         <h2>Code paths Eshu found</h2>
         <p>
-          Eshu searched the service repository for behavior-level evidence before asking
-          for exact symbols. Use this when the question starts with a flow, not a function name.
+          Eshu searched the service repository for behavior-level evidence before asking for exact
+          symbols. Use this when the question starts with a flow, not a function name.
         </p>
       </div>
       <div className="service-code-investigation-summary">
@@ -99,7 +109,7 @@ export function ServiceCodeInvestigationPanel({
 }
 
 function NextCallStrip({
-  calls
+  calls,
 }: {
   readonly calls: readonly CodeTopicNextCall[];
 }): React.JSX.Element | null {
@@ -113,6 +123,11 @@ function NextCallStrip({
         <article key={`${call.tool}:${index}`}>
           <strong>{humanToolLabel(call.tool)}</strong>
           <small>{argumentSummary(call.args)}</small>
+          {contentSearchState(call) && (
+            <Link to={APP_ROUTE_PATHS.contentSearch} state={contentSearchState(call)}>
+              Open file content search
+            </Link>
+          )}
         </article>
       ))}
     </div>
@@ -153,7 +168,12 @@ function stringArgument(argumentsValue: Record<string, unknown>, key: string): s
   if (typeof value === "object") return JSON.stringify(value);
   // Remaining possibilities: number | boolean | bigint | symbol. Each one
   // stringifies cleanly without falling into the "[object Object]" trap.
-  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint" || typeof value === "symbol") {
+  if (
+    typeof value === "number" ||
+    typeof value === "boolean" ||
+    typeof value === "bigint" ||
+    typeof value === "symbol"
+  ) {
     return String(value);
   }
   return "";
@@ -164,7 +184,34 @@ function humanToolLabel(tool: string): string {
     get_code_relationship_story: "Code relationship story",
     get_file_lines: "Source lines",
     find_symbol: "Symbol lookup",
-    search_file_content: "Content search"
+    search_file_content: "Content search",
   };
   return labels[tool] ?? tool.replace(/_/g, " ");
+}
+
+function contentSearchState(call: CodeTopicNextCall):
+  | {
+      readonly query: string;
+      readonly repoId?: string;
+      readonly repoName?: string;
+      readonly limit?: number;
+    }
+  | undefined {
+  if (call.tool !== "search_file_content") return undefined;
+  const query =
+    typeof call.args.pattern === "string"
+      ? call.args.pattern
+      : typeof call.args.query === "string"
+        ? call.args.query
+        : "";
+  if (!query.trim()) return undefined;
+  return {
+    query,
+    repoId: typeof call.args.repo_id === "string" ? call.args.repo_id : undefined,
+    repoName: typeof call.args.repo_name === "string" ? call.args.repo_name : undefined,
+    limit:
+      typeof call.args.limit === "number" && call.args.limit >= 1 && call.args.limit <= 200
+        ? call.args.limit
+        : undefined,
+  };
 }

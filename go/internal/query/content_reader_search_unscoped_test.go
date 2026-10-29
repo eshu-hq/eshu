@@ -108,7 +108,7 @@ func TestContentReaderSearchFilesUnscopedUsesBoundedSnapshot(t *testing.T) {
 	tx := &unscopedSnapshotTx{hitKeys: []string{"a.go", "b.go"}}
 	reader := NewContentReaderWithReadStore(&unscopedSnapshotStore{tx: tx})
 
-	page, err := reader.SearchFilesUnscoped(context.Background(), "render", 5, 0, "", "")
+	page, err := reader.SearchFilesUnscoped(context.Background(), "render", 5, 0, "", "", 0)
 	if err != nil {
 		t.Fatalf("SearchFilesUnscoped() error = %v", err)
 	}
@@ -120,13 +120,28 @@ func TestContentReaderSearchFilesUnscopedUsesBoundedSnapshot(t *testing.T) {
 	}
 }
 
+func TestContentReaderSearchFilesUnscopedBudgetIsPerCall(t *testing.T) {
+	t.Parallel()
+	tx := &unscopedSnapshotTx{cancelSteps: true}
+	reader := NewContentReaderWithReadStore(&unscopedSnapshotStore{tx: tx}).WithUnscopedSearch(200*time.Millisecond, nil)
+	for _, tc := range []struct{ requested, want int }{{100, 100}, {0, 200}} {
+		page, err := reader.SearchFilesUnscoped(context.Background(), "render", 5, 0, "", "", tc.requested)
+		if err != nil || page.Partial == nil {
+			t.Fatalf("budget %d: page = %+v, error = %v; want partial", tc.requested, page, err)
+		}
+		if got := page.Partial.BudgetMS; got != int64(tc.want) {
+			t.Fatalf("budget %d: partial budget = %d, want %d", tc.requested, got, tc.want)
+		}
+	}
+}
+
 func TestContentReaderSearchFilesUnscopedClassifiesReadinessFailure(t *testing.T) {
 	t.Parallel()
 
 	tx := &unscopedSnapshotTx{readyErr: &pgconn.PgError{Code: "55000", Message: "content substring indexes are not ready"}}
 	reader := NewContentReaderWithReadStore(&unscopedSnapshotStore{tx: tx})
 
-	_, err := reader.SearchFilesUnscoped(context.Background(), "render", 5, 0, "", "")
+	_, err := reader.SearchFilesUnscoped(context.Background(), "render", 5, 0, "", "", 0)
 	if !errors.Is(err, ErrContentSubstringIndexesNotReady) {
 		t.Fatalf("SearchFilesUnscoped() error = %v, want the readiness sentinel", err)
 	}
@@ -138,7 +153,7 @@ func TestContentReaderSearchFilesUnscopedClassifiesLowercaseReadinessFailure(t *
 	tx := &unscopedSnapshotTx{lowerReadyErr: &pgconn.PgError{Code: "55000", Message: "content substring indexes are not ready"}}
 	reader := NewContentReaderWithReadStore(&unscopedSnapshotStore{tx: tx})
 
-	_, err := reader.SearchFilesUnscoped(context.Background(), "render", 5, 0, "", "")
+	_, err := reader.SearchFilesUnscoped(context.Background(), "render", 5, 0, "", "", 0)
 	if !errors.Is(err, ErrContentSubstringIndexesNotReady) {
 		t.Fatalf("SearchFilesUnscoped() error = %v, want the readiness sentinel", err)
 	}

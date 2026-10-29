@@ -163,7 +163,7 @@ func TestSearchFilesUnscopedMatchesOldStatementLive(t *testing.T) {
 			want := oracleKeys(t, ctx, db, pattern, page.limit+1, page.offset)
 			oldWall := time.Since(oldStart)
 			newStart := time.Now()
-			got, err := reader.SearchFilesUnscoped(ctx, pattern, page.limit, page.offset, "", "")
+			got, err := reader.SearchFilesUnscoped(ctx, pattern, page.limit, page.offset, "", "", 0)
 			newWall := time.Since(newStart)
 			if page.offset == 0 && page.limit == 10 {
 				t.Logf("timing class=%q old=%.1fms new=%.1fms", name, float64(oldWall.Microseconds())/1000, float64(newWall.Microseconds())/1000)
