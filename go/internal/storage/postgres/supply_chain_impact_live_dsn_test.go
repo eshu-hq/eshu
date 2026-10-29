@@ -53,6 +53,33 @@ func supplyChainImpactLiveDSN(t *testing.T, proof string) string {
 	return dsn
 }
 
+// supplyChainImpactDisposableAdmin returns the administrative DSN and opt-in
+// a supply-chain impact live proof creates its disposable database through.
+//
+// Proofs that read the lane query surface must install the lane's
+// database-global authority migrations (241a/241b carry a public-schema-only
+// SQL guard), so they bootstrap a fresh database (public schema, where the
+// guard passes) instead of an isolated schema, where the guard fails closed
+// and the isolated-schema skip drops the claim columns the lane query
+// requires. This mirrors the ESHU_REDUCER_ACK_RECLAIM_PROOF_DSN/_DISPOSABLE
+// precedent: an explicit administrative DSN plus an explicit opt-in, both set
+// by the gate. It lives in this file (not the proof files) because the proof
+// discovery scan forbids direct env reads in proof files.
+//
+// The family switch still gates every proof first: an unset TEST_DSN fails
+// (not skips) where proofs are required, so the disposable pair can neither
+// bypass nor weaken that enrollment.
+func supplyChainImpactDisposableAdmin(t *testing.T, proof string) (adminDSN, optIn string) {
+	t.Helper()
+
+	_ = supplyChainImpactLiveDSN(t, proof)
+	adminDSN = os.Getenv("ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DSN")
+	if adminDSN == "" {
+		t.Skip("set ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DSN to run the live " + proof + " on a disposable database")
+	}
+	return adminDSN, os.Getenv("ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DISPOSABLE")
+}
+
 // TestSupplyChainImpactLiveDecision pins the behavior the enrollment guard
 // relies on: an unset DSN fails only when the required switch is exactly "1",
 // so a helper that read the switch and still skipped would fail here.
