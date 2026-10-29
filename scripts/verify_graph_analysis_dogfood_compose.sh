@@ -298,8 +298,12 @@ else
 	echo "Missing required compose command: docker compose or docker-compose" >&2
 	exit 1
 fi
-COMPOSE_CMD+=(-f docker-compose.neo4j.yml -f docker-compose.telemetry.yml)
-COMPOSE_DISPLAY+=" -f docker-compose.neo4j.yml -f docker-compose.telemetry.yml"
+# Compose files moved to eshu-deploy under #8871: resolve the stack through
+# ESHU_DEPLOY_CHECKOUT (CI pins the extraction commit), failing closed.
+: "${ESHU_DEPLOY_CHECKOUT:?ESHU_DEPLOY_CHECKOUT must point at an eshu-hq/eshu-deploy checkout; the gate workflow checks it out at the pinned extraction commit}"
+DEPLOY_COMPOSE="${ESHU_DEPLOY_CHECKOUT}/compose"
+COMPOSE_CMD+=(-f "${DEPLOY_COMPOSE}/docker-compose.neo4j.yml" -f "${DEPLOY_COMPOSE}/docker-compose.telemetry.yml")
+COMPOSE_DISPLAY+=" -f ${DEPLOY_COMPOSE}/docker-compose.neo4j.yml -f ${DEPLOY_COMPOSE}/docker-compose.telemetry.yml"
 
 cd "$REPO_ROOT"
 export COMPOSE_PROJECT_NAME

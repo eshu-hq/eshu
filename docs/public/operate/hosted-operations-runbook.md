@@ -45,8 +45,8 @@ Start with rendered configuration, then run remote proof only from a private
 operator environment:
 
 ```bash
-docker compose --env-file .env.remote-e2e.example \
-  -f docker-compose.remote-e2e.yaml config
+docker compose --env-file "${ESHU_DEPLOY_CHECKOUT}/.env.remote-e2e.example" \
+  -f "${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.remote-e2e.yaml" config
 
 scripts/test-remote-e2e-hosted-compose-render.sh
 scripts/test-verify-hosted-governance-remote-compose-proof.sh

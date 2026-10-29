@@ -100,6 +100,7 @@ log "hard gate: no required (\":?\") credential env in the demo compose files"
 # before scanning. The sed substitution preserves line numbers.
 gate_tripped=0
 for compose_scan_file in "${compose_files[@]}"; do
+	[[ -f "${compose_scan_file}" ]] || die "hard gate: compose file absent: ${compose_scan_file} (point ESHU_DEPLOY_CHECKOUT at the pinned extraction commit)"
 	scan_output="$(sed 's/\$\${//g' "${compose_scan_file}" | rg -n '\$\{[^}]*:\?' || true)"
 	if [[ -n "${scan_output}" ]]; then
 		printf '%s:\n%s\n' "${compose_scan_file}" "${scan_output}"

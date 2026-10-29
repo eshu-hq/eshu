@@ -77,8 +77,8 @@ already running:
 ```bash
 docker build -t eshu:local -f Dockerfile .
 docker compose -p pd-ce-proof \
-  -f docker-compose.yaml \
-  -f docs/public/run-locally/docker-compose.component-extension-pagerduty.yaml \
+  -f "${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.yaml" \
+  -f "${ESHU_DEPLOY_CHECKOUT}/compose/fragments/docker-compose.component-extension-pagerduty.yaml" \
   --profile component-extension-collector up -d --build
 scripts/run-remote-e2e-pagerduty-component-extension.sh --artifacts <run-dir>
 ```

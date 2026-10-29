@@ -74,8 +74,8 @@ explicit hosted-extension egress allow rule:
 ```bash
 docker build -t eshu:local -f Dockerfile .
 docker compose \
-  -f docker-compose.yaml \
-  -f docs/public/run-locally/docker-compose.component-extension.yaml \
+  -f "${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.yaml" \
+  -f "${ESHU_DEPLOY_CHECKOUT}/compose/fragments/docker-compose.component-extension.yaml" \
   --profile component-extension-collector \
   --profile workflow-coordinator \
   up -d --build
