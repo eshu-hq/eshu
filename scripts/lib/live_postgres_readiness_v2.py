@@ -1,4 +1,4 @@
-"""Strict five-shard weights and row-aware costs for readiness proofs.
+"""Strict six-shard weights and row-aware costs for readiness proofs.
 
 The v1 model remains separate because its package price has different meaning.
 All costs here are exact integer tenths of a second.
@@ -18,7 +18,7 @@ KEYS = {"schema_version", "source_runs", "shard_count", "fixed_job_seconds",
         "cold_cache_seconds", "default_test_seconds", "default_package_first_seconds",
         "default_package_repeat_seconds", "package_first_seconds",
         "package_repeat_seconds", "test_seconds"}
-SHARD_COUNT = 5
+SHARD_COUNT = 6
 ROW_BUDGET = row_split.ROW_BUDGET_TENTHS
 
 
@@ -56,7 +56,7 @@ def weights_from_json(value: object) -> WeightsV2:
     if type(value["schema_version"]) is not int or value["schema_version"] != 2:
         raise ValueError("unsupported weights schema_version")
     if type(value["shard_count"]) is not int or value["shard_count"] != SHARD_COUNT:
-        raise ValueError("v2 shard_count must be 5")
+        raise ValueError("v2 shard_count must be 6")
     runs = value["source_runs"]
     if (not isinstance(runs, list) or len(runs) < 2
             or any(not isinstance(run, str) or not run.isascii() or not run.isdigit()

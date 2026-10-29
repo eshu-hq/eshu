@@ -205,7 +205,7 @@ jobs:
     # 30-minute leg budget (#7864). The ledger-selected suite grows with
     # enrollment, so each leg runs one contiguous slice of the plan. The cuts
     # use the same committed model in plan, runner, and aggregate. The
-    # present v2 weights file cuts five row-aware legs; without it the
+    # present v2 weights file cuts six row-aware legs; without it the
     # matrix falls back to four v1 legs. The shard contract fails
     # above 80% of this cap, so a near-cap leg needs a measured refit.
     timeout-minutes: 30

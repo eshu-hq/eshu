@@ -11,7 +11,7 @@
 #
 # With --shard N/TOTAL (one CI matrix leg) the runner executes only that
 # time-weighted contiguous slice of the enrolled proofs through the shards
-# planner (cuts from the active weights model: five legs from
+# planner (cuts from the active weights model: six legs from
 # specs/live-postgres-readiness-weights.v2.json, four from the v1 fallback)
 # and leaves a fail-closed per-shard JSON report instead of the suite
 # summary; the aggregator job verifies every leg's report covers the plan.

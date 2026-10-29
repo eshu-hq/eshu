@@ -1,4 +1,4 @@
-"""Synthetic contracts for the five-shard row-aware readiness model."""
+"""Synthetic contracts for the six-shard row-aware readiness model."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ import live_postgres_readiness_v2_planner as planner
 def document() -> dict[str, object]:
     """Return a minimal independently priced v2 model."""
     return {
-        "schema_version": 2, "source_runs": ["11", "12"], "shard_count": 5,
+        "schema_version": 2, "source_runs": ["11", "12"], "shard_count": 6,
         "fixed_job_seconds": 10.0, "cold_cache_seconds": 20.0,
         "default_test_seconds": 1.0,
         "default_package_first_seconds": 30.0,
@@ -77,7 +77,7 @@ class V2ModelTest(unittest.TestCase):
         self.assertEqual(v2.segment_cost_tenths(runs, model), expected)
 
     def test_row_and_spread_guards_fail_closed(self) -> None:
-        runs = [f"./p{i}|Test{i}Live" for i in range(5)]
+        runs = [f"./p{i}|Test{i}Live" for i in range(6)]
         prices = {run: 1.0 for run in runs}
         prices[runs[-1]] = 800.0
         model = v2.weights_from_json({**document(),
@@ -98,7 +98,7 @@ class V2ModelTest(unittest.TestCase):
 
     def test_repeat_price_cannot_hide_a_row_over_its_timeout(self) -> None:
         runs = [f"./p{package}|Test{test}Live"
-                for package in range(5) for test in range(2)]
+                for package in range(6) for test in range(2)]
         model = v2.weights_from_json({
             **document(), "fixed_job_seconds": 0.0,
             "cold_cache_seconds": 1.0,
@@ -106,13 +106,13 @@ class V2ModelTest(unittest.TestCase):
             "default_package_repeat_seconds": 500.0,
             "package_first_seconds": {}, "package_repeat_seconds": {},
             "test_seconds": {run: 400.0 for run in runs}})
-        self.assertEqual(wt.shard_job_seconds(runs, model, [0, 2, 4, 6, 8, 10]),
-                         [1302.0] * 5)
+        self.assertEqual(wt.shard_job_seconds(runs, model, [0, 2, 4, 6, 8, 10, 12]),
+                         [1302.0] * 6)
         self.assertIn("608 s", " ".join(wt.budget_errors(runs, model)))
 
     def test_repeat_price_splits_rows_and_matches_fast_interval_score(self) -> None:
         runs = [f"./p{package}|Test{test}Live"
-                for package in range(5) for test in range(2)]
+                for package in range(6) for test in range(2)]
         model = v2.weights_from_json({
             **document(), "fixed_job_seconds": 0.0,
             "cold_cache_seconds": 1.0,
@@ -145,7 +145,7 @@ class V2ModelTest(unittest.TestCase):
                 self.assertEqual(scorer.cost(low, high), expected)
         self.assertEqual(v2.split_rows(runs[:2], model),
                          [[runs[0]], [runs[1]]])
-        self.assertEqual(wt.weighted_bounds(runs, model), [0, 2, 4, 6, 8, 10])
+        self.assertEqual(wt.weighted_bounds(runs, model), [0, 2, 4, 6, 8, 10, 12])
 
     def test_exact_planner_matches_bruteforce_small_instances(self) -> None:
         for costs in ([0, 0, 0, 0, 0, 0], [9, 2, 8, 3, 7, 4],
@@ -176,8 +176,8 @@ class V2ModelTest(unittest.TestCase):
 
     def test_default_planner_count_follows_v2_schema(self) -> None:
         model = v2.weights_from_json(document())
-        runs = [f"./p|Test{i}Live" for i in range(5)]
-        self.assertEqual(wt.weighted_bounds(runs, model), [0, 1, 2, 3, 4, 5])
+        runs = [f"./p|Test{i}Live" for i in range(6)]
+        self.assertEqual(wt.weighted_bounds(runs, model), [0, 1, 2, 3, 4, 5, 6])
         with self.assertRaises(ValueError):
             wt.weighted_bounds(runs, model, 4)
 
@@ -206,7 +206,7 @@ class V2ModelTest(unittest.TestCase):
 
 
 class V2ReportTest(unittest.TestCase):
-    """Exercise the command boundary and five-report accounting."""
+    """Exercise the command boundary and six-report accounting."""
 
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
@@ -224,7 +224,7 @@ class V2ReportTest(unittest.TestCase):
             cwd=Path(__file__).parents[1])
         self.plan.write_text(inventory.stdout, encoding="utf-8")
         self.runs = shards.expand_tsv(inventory.stdout.splitlines())
-        self.bounds = wt.weighted_bounds(self.runs, wt.load_weights(self.weights_path), 5)
+        self.bounds = wt.weighted_bounds(self.runs, wt.load_weights(self.weights_path), 6)
         self.head = "a" * 40
 
     def invoke(self, *arguments: str) -> subprocess.CompletedProcess[str]:
@@ -245,29 +245,29 @@ class V2ReportTest(unittest.TestCase):
                 encoding="utf-8")
             output = self.root / f"report{index}.json"
             result = self.invoke("report", "--head", self.head, "--shard",
-                                 f"{index}/5", "--plan", str(self.plan),
+                                 f"{index}/6", "--plan", str(self.plan),
                                  "--manifest", str(manifest), "--output", str(output))
             self.assertEqual(result.returncode, 0, result.stderr)
             paths.append(output)
         return paths
 
-    def test_matrix_is_five_and_malformed_model_fails_nonzero(self) -> None:
+    def test_matrix_is_six_and_malformed_model_fails_nonzero(self) -> None:
         result = self.invoke("matrix")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout),
-                         {"include": [{"shard": index, "total": 5}
-                                      for index in range(1, 6)]})
+                         {"include": [{"shard": index, "total": 6}
+                                      for index in range(1, 7)]})
         self.weights_path.write_text("{}", encoding="utf-8")
         self.assertNotEqual(self.invoke("matrix").returncode, 0)
 
-    def test_report_verify_fifth_and_model_fingerprint(self) -> None:
+    def test_report_verify_sixth_and_model_fingerprint(self) -> None:
         reports = self.reports()
         result = self.invoke("verify", "--head", self.head, "--plan",
                              str(self.plan), *(str(path) for path in reports))
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertNotEqual(self.invoke(
             "verify", "--head", self.head, "--plan", str(self.plan),
-            *(str(path) for path in reports[:4])).returncode, 0)
+            *(str(path) for path in reports[:5])).returncode, 0)
         changed = document()
         changed["default_package_repeat_seconds"] = 6.0
         self.weights_path.write_text(json.dumps(changed), encoding="utf-8")
@@ -294,9 +294,9 @@ class V2ReportTest(unittest.TestCase):
                                      str(self.plan),
                                      *(str(path) for path in reports))
                 self.assertNotEqual(result.returncode, 0)
-                self.assertIn("stale metadata for 1/5", result.stderr)
+                self.assertIn("stale metadata for 1/6", result.stderr)
 
-    def test_select_rejects_stale_newest_and_missing_fifth(self) -> None:
+    def test_select_rejects_stale_newest_and_missing_sixth(self) -> None:
         reports = self.reports()
         output_dir = self.root / "selected"
         result = self.invoke("select", "--head", self.head, "--plan",
@@ -306,7 +306,7 @@ class V2ReportTest(unittest.TestCase):
         self.assertNotEqual(self.invoke(
             "select", "--head", self.head, "--plan", str(self.plan),
             "--output-dir", str(output_dir),
-            *(str(path) for path in reports[:4])).returncode, 0)
+            *(str(path) for path in reports[:5])).returncode, 0)
 
     def test_wrong_count_stale_head_and_duplicate_run_fail(self) -> None:
         reports = self.reports()
@@ -341,12 +341,12 @@ class ActiveDefaultTest(unittest.TestCase):
                               check=False)
 
     def test_default_matrix_plan_reports_and_aggregate_agree(self) -> None:
-        """The four- or five-shard activation covers the inventory exactly."""
+        """The four- or six-shard activation covers the inventory exactly."""
         matrix = self.invoke("matrix")
         self.assertEqual(matrix.returncode, 0, matrix.stderr)
         include = json.loads(matrix.stdout)["include"]
         count = len(include)
-        self.assertIn(count, (4, 5))
+        self.assertIn(count, (4, 6))
         self.assertEqual(include, [{"shard": index, "total": count}
                                    for index in range(1, count + 1)])
         inventory = subprocess.run(
@@ -387,6 +387,6 @@ class ActiveDefaultTest(unittest.TestCase):
                                          ).returncode, 0)
             self.assertNotEqual(self.invoke(*verify_args, *(str(path) for path in reports[:-1])
                                             ).returncode, 0)
-            wrong = f"1/{4 if count == 5 else 5}"
+            wrong = f"1/{4 if count == 6 else 6}"
             self.assertNotEqual(self.invoke("plan", "--shard", wrong,
                                             input_text=inventory).returncode, 0)

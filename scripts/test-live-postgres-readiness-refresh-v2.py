@@ -169,10 +169,10 @@ class RefreshV2Cases(unittest.TestCase):
         self.assertTrue(any(line.count("|Test") == 2 for line in rendered.splitlines()))
         self.assertEqual(cli_refresh.render(json.loads(rendered)), rendered)
 
-    def test_source_rows_support_five_shard_v2(self) -> None:
-        plan = [f"./a|Test{number}" for number in range(1, 6)]
+    def test_source_rows_support_six_shard_v2(self) -> None:
+        plan = [f"./a|Test{number}" for number in range(1, 7)]
         document = {
-            "schema_version": 2, "source_runs": ["100", "101"], "shard_count": 5,
+            "schema_version": 2, "source_runs": ["100", "101"], "shard_count": 6,
             "fixed_job_seconds": 1.0, "cold_cache_seconds": 1.0,
             "default_test_seconds": 1.0, "default_package_first_seconds": 1.0,
             "default_package_repeat_seconds": 1.0,
@@ -182,8 +182,8 @@ class RefreshV2Cases(unittest.TestCase):
         }
         with mock.patch.object(refresh.provenance, "_source_text",
                                return_value=json.dumps(document)):
-            rows = self.real_source_rows(self.root, SHA, plan, 5)
-        self.assertEqual(list(rows), [1, 2, 3, 4, 5])
+            rows = self.real_source_rows(self.root, SHA, plan, 6)
+        self.assertEqual(list(rows), [1, 2, 3, 4, 5, 6])
         self.assertEqual([next(iter(rows[index])) for index in rows],
                          [frozenset([run]) for run in plan])
 
@@ -191,7 +191,7 @@ class RefreshV2Cases(unittest.TestCase):
         result = self.fit()
         self.assertEqual(result["source_runs"], ["100", "101"])
         self.assertEqual(result["schema_version"], 2)
-        self.assertEqual(result["shard_count"], 5)
+        self.assertEqual(result["shard_count"], 6)
         self.assertEqual(result["cold_cache_seconds"], 3.0)
         self.assertEqual(result["package_first_seconds"],
                          {"./a": 5.0, "./b": 5.0, "./c": 5.0})

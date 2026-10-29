@@ -30,7 +30,7 @@ GUARD = "./internal/storage/postgres|TestProjectorClaimMarkedGuardContention"
 def model(tests: dict[str, float], packages: list[str]) -> v2.WeightsV2:
     """Return a v2 model with a 500 s first use and a 10 s repeat residual."""
     return v2.weights_from_json({
-        "schema_version": 2, "source_runs": ["11", "12"], "shard_count": 5,
+        "schema_version": 2, "source_runs": ["11", "12"], "shard_count": 6,
         "fixed_job_seconds": 0.0, "cold_cache_seconds": 10.0,
         "default_test_seconds": 1.0, "default_package_first_seconds": 500.0,
         "default_package_repeat_seconds": 10.0,
@@ -41,8 +41,8 @@ def model(tests: dict[str, float], packages: list[str]) -> v2.WeightsV2:
 
 
 def lone_tests(seconds: float) -> tuple[list[str], v2.WeightsV2]:
-    """Five one-test packages, one per shard, each test priced at ``seconds``."""
-    runs = [f"./p{index}|TestLone{index}Live" for index in range(5)]
+    """Six one-test packages, one per shard, each test priced at ``seconds``."""
+    runs = [f"./p{index}|TestLone{index}Live" for index in range(6)]
     packages = [run.split("|", 1)[0] for run in runs]
     return runs, model({run: seconds for run in runs}, packages)
 
@@ -67,7 +67,7 @@ class RowClockAdmissionTest(unittest.TestCase):
         runs, weights = lone_tests(300.0)
         self.assertEqual(v2.row_cost_tenths([runs[0]], weights), 3100)
         self.assertEqual(wt.budget_errors(runs, weights), [])
-        self.assertEqual(wt.weighted_bounds(runs, weights), [0, 1, 2, 3, 4, 5])
+        self.assertEqual(wt.weighted_bounds(runs, weights), [0, 1, 2, 3, 4, 5, 6])
 
     def test_lone_test_over_the_row_budget_still_trips(self) -> None:
         # Rows of 600 s and 608 s fit; 609 s and 620 s trip (#9469).

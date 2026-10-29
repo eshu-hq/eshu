@@ -319,7 +319,7 @@ def fit_with_provenance(sources: list[Path], root: Path) -> tuple[
     if set(tests) != set(expected_plan or []):
         raise ValueError("source test prices differ from canonical inventory")
     document: dict[str, object] = {
-        "schema_version": 2, "source_runs": source_runs, "shard_count": 5,
+        "schema_version": 2, "source_runs": source_runs, "shard_count": 6,
         "fixed_job_seconds": _mean_tenth(fixed, "fixed job overhead"),
         "cold_cache_seconds": cold,
         "default_test_seconds": _mean_tenth(list(tests.values()), "default test", positive=True),
