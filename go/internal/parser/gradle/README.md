@@ -102,3 +102,11 @@ The shared dependency coverage gate
 `go test ./internal/parser/json -run TestDependencyCoverage -count=1` also
 exercises `build.gradle` and `build.gradle.kts` end-to-end and locks the
 matrix entries to covered fixtures.
+
+## Runtime declarations
+
+The same source bytes used for dependency parsing yield private, digest-bound
+Java toolchain, source compatibility, and Kotlin jvmToolchain literal evidence.
+The collector removes that evidence before file facts persist and emits guarded
+`runtime_declaration.version` facts. Gradle is never executed; dynamic values
+produce no declaration.

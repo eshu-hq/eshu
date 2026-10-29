@@ -325,7 +325,7 @@ func (e *Engine) parseDefinition(
 		return e.parseGoModule(resolvedPath, isDependency, options)
 	case "hcl", "tfvars":
 		return e.parseHCL(resolvedPath, isDependency, options)
-	case "gradle", "gradle_wrapper", "sbt":
+	case "gradle", "gradle_wrapper", "sbt", "sbt_properties":
 		return e.parseJVMBuild(definition.Language, repoRoot, resolvedPath, isDependency, options)
 	case "groovy":
 		return e.parseGroovy(resolvedPath, isDependency, options)

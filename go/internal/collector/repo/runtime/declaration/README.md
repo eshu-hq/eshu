@@ -160,6 +160,16 @@ a constraint from a pin.
 | `setup_py_python_requires` | `setup.py` bound `setuptools.setup` or `distutils.core.setup` literal keyword | `python` |
 | `gemfile_ruby` | literal `ruby` arguments in `Gemfile` | `ruby` |
 | `gemfile_lock_ruby_version` | `Gemfile.lock` `RUBY VERSION` | `ruby` |
+| `pom_maven_compiler_release` | `pom.xml` direct `<properties><maven.compiler.release>` | `java` |
+| `pom_maven_compiler_source` | `pom.xml` direct `<properties><maven.compiler.source>` | `java` |
+| `pom_maven_compiler_target` | `pom.xml` direct `<properties><maven.compiler.target>` | `java` |
+| `pom_java_version` | `pom.xml` direct `<properties><java.version>` | `java` |
+| `gradle_java_toolchain` | `build.gradle[.kts]` Java toolchain languageVersion literal | `java` |
+| `gradle_java_target_compatibility` | `build.gradle[.kts]` targetCompatibility literal | `java` |
+| `gradle_java_source_compatibility` | `build.gradle[.kts]` sourceCompatibility literal | `java` |
+| `gradle_kotlin_jvm_toolchain` | `build.gradle[.kts]` Kotlin jvmToolchain literal | `java` |
+| `sbt_scala_version` | `build.sbt` effective literal scalaVersion | `scala` |
+| `sbt_build_properties_version` | `project/build.properties` sbt.version | `sbt` |
 | `runtime_txt` | `runtime.txt` `python-<spec>` line | `python` |
 | `go_mod_go` | the `go` directive | `go` |
 | `go_mod_toolchain` | the `toolchain` directive | `go` |
@@ -191,6 +201,8 @@ prefix.
 content storage: its original body reaches this guarded reader, while content
 and file facts keep only the path and source digest. It admits one effective
 `python-<spec>` line and keeps that wrapper in `raw_spec`.
+
+JVM manifests use parser-private, digest-bound evidence from the bytes already read by the Maven, Gradle, and sbt parsers. Maven reads only direct project properties; repeated or unlocatable tags are dropped. Gradle reads literal Java and Kotlin toolchain or compatibility settings in the supported DSL blocks without executing build code. sbt reuses its existing conservative `scala_version` envelope: ambiguous or dynamic assignments produce no declaration. The `project/build.properties` path uses a dedicated metadata-only parser; it reads only `sbt.version` and never stores or emits other properties. All values pass the shared credential guard and byte/token limits.
 
 Bundler manifests reuse the Ruby parser’s existing Gemfile and lockfile scans. The parser carries private, guarded evidence bound to the exact source bytes; the collector checks that digest before emission. The content-only `EmitFile` path uses that same Bundler scanner on its supplied body. A Gemfile with Ruby syntax errors, a dynamic or file-derived `ruby` directive, or an unrecognized lockfile version emits no Ruby runtime declaration. Dependency rows retain their existing interpretation. `gemfile_ruby` records top-level literal version requirements, while `gemfile_lock_ruby_version` keeps the `ruby ` wrapper in `raw_spec` and classifies its version as an exact pin.
 

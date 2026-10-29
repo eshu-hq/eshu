@@ -68,3 +68,10 @@ The shared dependency coverage gate
 `go test ./internal/parser/json -run TestDependencyCoverage -count=1` also
 exercises `pom.xml` end-to-end and locks the matrix entry to a covered
 fixture so the docs claim cannot drift away from parser behavior.
+
+## Runtime declarations
+
+The parser passes its already decoded direct `<project><properties>` values to
+`runtime_declaration.version` for `maven.compiler.release`, `source`, `target`,
+and `java.version`. The private evidence binds to the raw POM digest and never
+appears in a file fact. It does not resolve parent POM properties or execute Maven.

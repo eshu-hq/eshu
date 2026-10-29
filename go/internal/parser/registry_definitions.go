@@ -307,6 +307,15 @@ func defaultDefinitions() []Definition {
 			ExactNames: []string{"build.sbt"},
 		},
 		{
+			ParserKey:    "sbt_properties",
+			Language:     "sbt_properties",
+			Ecosystem:    "scala",
+			Admission:    AdmissionStructuredFact,
+			ContentStore: ContentStore{Policy: ContentStoreMetadata},
+			// project/build.properties is path-dispatched below. The base
+			// name alone is too generic for a repository-wide admission.
+		},
+		{
 			ParserKey:  "sql",
 			Language:   "sql",
 			Ecosystem:  "sql",
@@ -431,6 +440,11 @@ func PathDispatches() []PathDispatch {
 			Examples:  []string{"conf/routes", "app/conf/routes", "conf/api.routes"},
 		},
 		{
+			Patterns:  []string{"project/build.properties"},
+			ParserKey: "sbt_properties",
+			Examples:  []string{"project/build.properties", "module/project/build.properties"},
+		},
+		{
 			Patterns:  []string{".mvn/extensions.xml"},
 			ParserKey: "raw_text",
 			Examples:  []string{".mvn/extensions.xml", "module/.mvn/extensions.xml"},
@@ -484,17 +498,4 @@ func isMavenExtensionsPath(path string) bool {
 	normalized := strings.ToLower(filepath.ToSlash(filepath.Clean(path)))
 	return normalized == ".mvn/extensions.xml" ||
 		strings.HasSuffix(normalized, "/.mvn/extensions.xml")
-}
-
-func isJavaMetadataPath(path string) bool {
-	normalized := strings.ToLower(filepath.ToSlash(filepath.Clean(path)))
-	if strings.HasPrefix(normalized, "meta-inf/services/") ||
-		strings.Contains(normalized, "/meta-inf/services/") {
-		_, serviceName, ok := strings.Cut(normalized, "meta-inf/services/")
-		return ok && strings.TrimSpace(serviceName) != ""
-	}
-	return normalized == "meta-inf/spring/org.springframework.boot.autoconfigure.autoconfiguration.imports" ||
-		strings.HasSuffix(normalized, "/meta-inf/spring/org.springframework.boot.autoconfigure.autoconfiguration.imports") ||
-		normalized == "meta-inf/spring.factories" ||
-		strings.HasSuffix(normalized, "/meta-inf/spring.factories")
 }

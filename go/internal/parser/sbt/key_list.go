@@ -237,7 +237,7 @@ func (s *scan) judgeKey(key token) {
 		s.parseLibraryDependencies(key)
 		return
 	}
-	s.parseScalaVersion(s.scalaVersionContext(key))
+	s.parseScalaVersion(key, s.scalaVersionContext(key))
 }
 
 // denyKeyListReads denies the pending references of a key list that does not

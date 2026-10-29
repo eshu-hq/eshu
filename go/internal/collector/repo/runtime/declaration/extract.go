@@ -7,7 +7,10 @@ import (
 	"path"
 	"strings"
 
+	gradleparser "github.com/eshu-hq/eshu/go/internal/parser/gradle"
+	mavenparser "github.com/eshu-hq/eshu/go/internal/parser/maven"
 	rubyparser "github.com/eshu-hq/eshu/go/internal/parser/ruby"
+	sbtparser "github.com/eshu-hq/eshu/go/internal/parser/sbt"
 )
 
 // Extraction is the declarations read from one admitted file, before they
@@ -66,6 +69,14 @@ func Extract(relativePath, body string) (Extraction, bool) {
 		return extractPythonSetupCFG(body), true
 	case manifestSetupPY:
 		return extractPythonSetupPY(body), true
+	case manifestPom:
+		return ExtractJVMEvidence(mavenparser.ExtractRuntimeEvidence([]byte(body))), true
+	case manifestGradle:
+		return ExtractJVMEvidence(gradleparser.ExtractRuntimeEvidence([]byte(body))), true
+	case manifestSbt:
+		return ExtractJVMEvidence(sbtparser.ExtractRuntimeEvidence([]byte(body))), true
+	case manifestSbtBuildProperties:
+		return ExtractJVMEvidence(sbtparser.ExtractBuildPropertiesEvidence([]byte(body))), true
 	case manifestGemfile, manifestGemfileLock:
 		if len(body) > MaxManifestBytesPerFile {
 			return CappedRubyExtraction(len(body)), true
