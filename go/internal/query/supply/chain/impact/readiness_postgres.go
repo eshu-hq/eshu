@@ -206,7 +206,6 @@ func (s PostgresReadinessStore) readSupplyChainImpactReadiness(
 	args := readinessQueryArguments(query, target, freshnessCutoff)
 	args = append(args, supplyChainImpactCallerAuthorizationArgs(ctx)...)
 	rows, err := database.QueryContext(ctx, statement, args...)
-
 	if err != nil {
 		return ReadinessSnapshot{}, fmt.Errorf("read supply chain impact readiness: %w", err)
 	}

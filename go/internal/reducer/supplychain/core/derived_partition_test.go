@@ -9,7 +9,89 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
+
+func TestAdvisoryMatchesTrustedSource(t *testing.T) {
+	envelopeFor := func(kind string, payload map[string]any) facts.Envelope {
+		return facts.Envelope{
+			FactKind:      kind,
+			SchemaVersion: chain.VulnerabilityIntelligenceSchemaVersionV1,
+			Payload:       payload,
+		}
+	}
+	dependencyFor := func(class string) AdvisoryAuthorityDependency {
+		return AdvisoryAuthorityDependency{Kind: "public_registration", TrustedSourceClass: class, ContentProfile: "supply_chain_impact_v1"}
+	}
+	cases := []struct {
+		name       string
+		envelope   facts.Envelope
+		dependency AdvisoryAuthorityDependency
+		want       bool
+	}{
+		{
+			name:       "positive: kev fact matches cisa kev",
+			envelope:   envelopeFor(chain.VulnerabilityKnownExploitedFactKind, map[string]any{"cve_id": "CVE-2024-0001", "source": "cisa_kev"}),
+			dependency: dependencyFor("cisa_kev"),
+			want:       true,
+		},
+		{
+			name:       "positive: epss fact matches first epss",
+			envelope:   envelopeFor(chain.VulnerabilityEPSSScoreFactKind, map[string]any{"cve_id": "CVE-2024-0001", "source": "first_epss"}),
+			dependency: dependencyFor("first_epss"),
+			want:       true,
+		},
+		{
+			name:       "positive: cve fact matches its seam-decoded source",
+			envelope:   envelopeFor(chain.VulnerabilityCVEFactKind, map[string]any{"advisory_id": "GHSA-1", "source": "nvd"}),
+			dependency: dependencyFor("nvd"),
+			want:       true,
+		},
+		{
+			name:       "positive: source comparison folds case and space",
+			envelope:   envelopeFor(chain.VulnerabilityCVEFactKind, map[string]any{"advisory_id": "GHSA-1", "source": " NVD "}),
+			dependency: dependencyFor("nvd"),
+			want:       true,
+		},
+		{
+			name:       "negative: kev fact does not match osv",
+			envelope:   envelopeFor(chain.VulnerabilityKnownExploitedFactKind, map[string]any{"cve_id": "CVE-2024-0001", "source": "cisa_kev"}),
+			dependency: dependencyFor("osv"),
+			want:       false,
+		},
+		{
+			name:       "negative: cve fact from another source does not match",
+			envelope:   envelopeFor(chain.VulnerabilityCVEFactKind, map[string]any{"advisory_id": "GHSA-1", "source": "nvd"}),
+			dependency: dependencyFor("osv"),
+			want:       false,
+		},
+		{
+			name:       "negative: cve without a source fails closed",
+			envelope:   envelopeFor(chain.VulnerabilityCVEFactKind, map[string]any{"advisory_id": "GHSA-1"}),
+			dependency: dependencyFor("nvd"),
+			want:       false,
+		},
+		{
+			name:       "negative: malformed cve fails closed",
+			envelope:   envelopeFor(chain.VulnerabilityCVEFactKind, map[string]any{"source": "nvd"}),
+			dependency: dependencyFor("nvd"),
+			want:       false,
+		},
+		{
+			name:       "ambiguous: unknown kind fails closed",
+			envelope:   envelopeFor(chain.VulnerabilityReferenceFactKind, map[string]any{"source": "nvd"}),
+			dependency: dependencyFor("nvd"),
+			want:       false,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := advisoryMatchesTrustedSource(tc.envelope, tc.dependency); got != tc.want {
+				t.Fatalf("advisoryMatchesTrustedSource() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
 
 func TestAuthorizedScanImpactPartitionSameDigest(t *testing.T) {
 	const (
@@ -18,7 +100,7 @@ func TestAuthorizedScanImpactPartitionSameDigest(t *testing.T) {
 		digest       = "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
 	)
 	advisory := derivedPartitionAdvisory("public", "vuln-intel://nvd/cve", "3.0.11-1~deb12u3")
-	authority := []AdvisoryAuthorityDependency{{Kind: "public_registration", ID: "registration-1", RevisionID: "revision-1", AdvisoryScopeID: advisory[0].ScopeID, AdvisoryGenerationID: advisory[0].GenerationID, ConfigFingerprint: "config-1", ProviderID: "debian", TrustedSourceClass: "debian"}}
+	authority := []AdvisoryAuthorityDependency{{Kind: "public_registration", ID: "registration-1", RevisionID: "revision-1", AdvisoryScopeID: advisory[0].ScopeID, AdvisoryGenerationID: advisory[0].GenerationID, ConfigFingerprint: "config-1", ProviderID: "debian", TrustedSourceClass: "debian", ContentProfile: "supply_chain_impact_v1"}}
 	first := derivedPartitionScan("first", firstTarget, "generation-a", digest, "3.0.11-1~deb12u2")
 	second := derivedPartitionScan("second", secondTarget, "generation-b", digest, "3.0.11-1~deb12u3")
 	var forwardIDs []string
@@ -79,8 +161,8 @@ func TestAuthorizedScanImpactConflictingFixedVersions(t *testing.T) {
 	private := derivedPartitionAdvisory("private", "private://tenant-a/advisory", "3.0.11-1~deb12u4")
 	scan := derivedPartitionScan("first", targetID, "generation-a", digest, "3.0.11-1~deb12u3")
 	dependencies := []AdvisoryAuthorityDependency{
-		{Kind: "public_registration", ID: "registration-1", RevisionID: "revision-1", AdvisoryScopeID: public[0].ScopeID, AdvisoryGenerationID: public[0].GenerationID, ConfigFingerprint: "config-1", ProviderID: "debian", TrustedSourceClass: "debian"},
-		{Kind: "private_binding", ScanTargetID: targetID, ID: "binding-1", RevisionID: "revision-1", AdvisoryScopeID: private[0].ScopeID, AdvisoryGenerationID: private[0].GenerationID, ConfigFingerprint: "config-2", ProviderID: "debian", TrustedSourceClass: "debian"},
+		{Kind: "public_registration", ID: "registration-1", RevisionID: "revision-1", AdvisoryScopeID: public[0].ScopeID, AdvisoryGenerationID: public[0].GenerationID, ConfigFingerprint: "config-1", ProviderID: "debian", TrustedSourceClass: "debian", ContentProfile: "supply_chain_impact_v1"},
+		{Kind: "private_binding", ScanTargetID: targetID, ID: "binding-1", RevisionID: "revision-1", AdvisoryScopeID: private[0].ScopeID, AdvisoryGenerationID: private[0].GenerationID, ConfigFingerprint: "config-2", ProviderID: "debian", TrustedSourceClass: "debian", ContentProfile: "supply_chain_impact_v1"},
 	}
 	for _, reverse := range []bool{false, true} {
 		advisories := append(slices.Clone(public), private...)
@@ -128,8 +210,8 @@ func TestAuthorizedScanImpactDisjointAffectedBranches(t *testing.T) {
 	input := AuthorizedScanImpactEvidence{
 		ScanTargetID: targetID, ScanGenerationID: "generation-a", OSPackages: []facts.Envelope{scan[0]}, Analyses: []facts.Envelope{scan[1]},
 		Advisories: append(public, private...), AuthorityDependencies: []AdvisoryAuthorityDependency{
-			{Kind: "public_registration", ID: "registration-1", RevisionID: "revision-1", AdvisoryScopeID: public[0].ScopeID, AdvisoryGenerationID: public[0].GenerationID, ConfigFingerprint: "config-1", ProviderID: "debian", TrustedSourceClass: "debian"},
-			{Kind: "private_binding", ScanTargetID: targetID, ID: "binding-1", RevisionID: "revision-1", AdvisoryScopeID: private[0].ScopeID, AdvisoryGenerationID: private[0].GenerationID, ConfigFingerprint: "config-2", ProviderID: "debian", TrustedSourceClass: "debian"},
+			{Kind: "public_registration", ID: "registration-1", RevisionID: "revision-1", AdvisoryScopeID: public[0].ScopeID, AdvisoryGenerationID: public[0].GenerationID, ConfigFingerprint: "config-1", ProviderID: "debian", TrustedSourceClass: "debian", ContentProfile: "supply_chain_impact_v1"},
+			{Kind: "private_binding", ScanTargetID: targetID, ID: "binding-1", RevisionID: "revision-1", AdvisoryScopeID: private[0].ScopeID, AdvisoryGenerationID: private[0].GenerationID, ConfigFingerprint: "config-2", ProviderID: "debian", TrustedSourceClass: "debian", ContentProfile: "supply_chain_impact_v1"},
 		}, Complete: true,
 	}
 	findings, err := BuildAuthorizedScanImpactFindings(nil, []AuthorizedScanImpactEvidence{input})
@@ -161,7 +243,7 @@ func TestAuthorizedScanImpactRejectsUntrustedOrStaleEvidence(t *testing.T) {
 	scan := derivedPartitionScan("first", targetID, "generation-a", "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "3.0.11-1~deb12u2")
 	base := AuthorizedScanImpactEvidence{
 		ScanTargetID: targetID, ScanGenerationID: "generation-a", OSPackages: []facts.Envelope{scan[0]}, Analyses: []facts.Envelope{scan[1]},
-		Advisories: advisory, AuthorityDependencies: []AdvisoryAuthorityDependency{{Kind: "public_registration", ID: "registration-1", RevisionID: "revision-1", AdvisoryScopeID: advisory[0].ScopeID, AdvisoryGenerationID: advisory[0].GenerationID, ConfigFingerprint: "config-1", ProviderID: "debian", TrustedSourceClass: "debian"}}, Complete: true,
+		Advisories: advisory, AuthorityDependencies: []AdvisoryAuthorityDependency{{Kind: "public_registration", ID: "registration-1", RevisionID: "revision-1", AdvisoryScopeID: advisory[0].ScopeID, AdvisoryGenerationID: advisory[0].GenerationID, ConfigFingerprint: "config-1", ProviderID: "debian", TrustedSourceClass: "debian", ContentProfile: "supply_chain_impact_v1"}}, Complete: true,
 	}
 	for name, mutate := range map[string]func(*AuthorizedScanImpactEvidence){
 		"missing authority": func(target *AuthorizedScanImpactEvidence) { target.AuthorityDependencies = nil },
@@ -170,7 +252,7 @@ func TestAuthorizedScanImpactRejectsUntrustedOrStaleEvidence(t *testing.T) {
 			target.AuthorityDependencies[0].ScanTargetID = targetID
 		},
 		"private sibling target": func(target *AuthorizedScanImpactEvidence) {
-			target.AuthorityDependencies = []AdvisoryAuthorityDependency{{Kind: "private_binding", ScanTargetID: "image://derived/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", ID: "binding-1", RevisionID: "revision-1", AdvisoryScopeID: advisory[0].ScopeID, AdvisoryGenerationID: advisory[0].GenerationID, ConfigFingerprint: "config-1", ProviderID: "debian", TrustedSourceClass: "debian"}}
+			target.AuthorityDependencies = []AdvisoryAuthorityDependency{{Kind: "private_binding", ScanTargetID: "image://derived/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", ID: "binding-1", RevisionID: "revision-1", AdvisoryScopeID: advisory[0].ScopeID, AdvisoryGenerationID: advisory[0].GenerationID, ConfigFingerprint: "config-1", ProviderID: "debian", TrustedSourceClass: "debian", ContentProfile: "supply_chain_impact_v1"}}
 		},
 		"incomplete load":       func(target *AuthorizedScanImpactEvidence) { target.Complete = false },
 		"stale scan generation": func(target *AuthorizedScanImpactEvidence) { target.ScanGenerationID = "generation-b" },
@@ -225,6 +307,7 @@ func TestAuthorizedScanImpactCompleteEmptyAdvisoryGeneration(t *testing.T) {
 			Kind: "public_registration", ID: "registration-empty", RevisionID: "revision-empty",
 			AdvisoryScopeID: advisory[0].ScopeID, AdvisoryGenerationID: advisory[0].GenerationID,
 			ConfigFingerprint: "config-empty", ProviderID: "debian", TrustedSourceClass: "debian",
+			ContentProfile: "supply_chain_impact_v1",
 		}}, Complete: true,
 	}})
 	if err != nil || len(findings) != 0 {
@@ -236,7 +319,7 @@ func TestAuthorizedScanImpactDuplicateDeliveryAndStableIdentity(t *testing.T) {
 	const targetID = "image://derived/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	advisory := derivedPartitionAdvisory("public", "vuln-intel://nvd/cve", "3.0.11-1~deb12u3")
 	scan := derivedPartitionScan("first", targetID, "generation-a", "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "3.0.11-1~deb12u2")
-	authority := []AdvisoryAuthorityDependency{{Kind: "public_registration", ID: "registration-1", RevisionID: "revision-1", AdvisoryScopeID: advisory[0].ScopeID, AdvisoryGenerationID: advisory[0].GenerationID, ConfigFingerprint: "config-1", ProviderID: "debian", TrustedSourceClass: "debian"}}
+	authority := []AdvisoryAuthorityDependency{{Kind: "public_registration", ID: "registration-1", RevisionID: "revision-1", AdvisoryScopeID: advisory[0].ScopeID, AdvisoryGenerationID: advisory[0].GenerationID, ConfigFingerprint: "config-1", ProviderID: "debian", TrustedSourceClass: "debian", ContentProfile: "supply_chain_impact_v1"}}
 	var prior SupplyChainImpactFinding
 	for _, generation := range []string{"generation-a", "generation-b"} {
 		replayed := []facts.Envelope{scan[0].Clone(), scan[1].Clone()}
@@ -283,9 +366,9 @@ func TestAuthorizedScanImpactPublicPrivateExtensionIsolation(t *testing.T) {
 	extension := derivedPartitionAdvisory("extension", "extension://tenant-b/advisory", "3.0.11-1~deb12u5")
 	first := derivedPartitionScan("first", firstTarget, "generation-a", digest, "3.0.11-1~deb12u3")
 	second := derivedPartitionScan("second", secondTarget, "generation-b", digest, "3.0.11-1~deb12u3")
-	publicAuthority := AdvisoryAuthorityDependency{Kind: "public_registration", ID: "registration-1", RevisionID: "revision-1", AdvisoryScopeID: public[0].ScopeID, AdvisoryGenerationID: public[0].GenerationID, ConfigFingerprint: "config-public", ProviderID: "debian", TrustedSourceClass: "debian"}
-	firstAuthority := AdvisoryAuthorityDependency{Kind: "private_binding", ScanTargetID: firstTarget, ID: "binding-first", RevisionID: "revision-first", AdvisoryScopeID: private[0].ScopeID, AdvisoryGenerationID: private[0].GenerationID, ConfigFingerprint: "config-first", ProviderID: "debian", TrustedSourceClass: "debian"}
-	secondAuthority := AdvisoryAuthorityDependency{Kind: "private_binding", ScanTargetID: secondTarget, ID: "binding-second", RevisionID: "revision-second", AdvisoryScopeID: extension[0].ScopeID, AdvisoryGenerationID: extension[0].GenerationID, ConfigFingerprint: "config-second", ProviderID: "debian", TrustedSourceClass: "debian"}
+	publicAuthority := AdvisoryAuthorityDependency{Kind: "public_registration", ID: "registration-1", RevisionID: "revision-1", AdvisoryScopeID: public[0].ScopeID, AdvisoryGenerationID: public[0].GenerationID, ConfigFingerprint: "config-public", ProviderID: "debian", TrustedSourceClass: "debian", ContentProfile: "supply_chain_impact_v1"}
+	firstAuthority := AdvisoryAuthorityDependency{Kind: "private_binding", ScanTargetID: firstTarget, ID: "binding-first", RevisionID: "revision-first", AdvisoryScopeID: private[0].ScopeID, AdvisoryGenerationID: private[0].GenerationID, ConfigFingerprint: "config-first", ProviderID: "debian", TrustedSourceClass: "debian", ContentProfile: "supply_chain_impact_v1"}
+	secondAuthority := AdvisoryAuthorityDependency{Kind: "private_binding", ScanTargetID: secondTarget, ID: "binding-second", RevisionID: "revision-second", AdvisoryScopeID: extension[0].ScopeID, AdvisoryGenerationID: extension[0].GenerationID, ConfigFingerprint: "config-second", ProviderID: "debian", TrustedSourceClass: "debian", ContentProfile: "supply_chain_impact_v1"}
 	for _, reverse := range []bool{false, true} {
 		firstAdvisories := append(slices.Clone(public), private...)
 		secondAdvisories := append(slices.Clone(public), extension...)
@@ -338,8 +421,8 @@ func TestAuthorizedScanImpactPrivateAdvisoryExcludedFromLegacyPass(t *testing.T)
 	findings, err := BuildAuthorizedScanImpactFindings(legacyFindings, []AuthorizedScanImpactEvidence{{
 		ScanTargetID: targetID, ScanGenerationID: "generation-a", OSPackages: []facts.Envelope{targetScan[0]}, Analyses: []facts.Envelope{targetScan[1]},
 		Advisories: append(slices.Clone(public), private...), AuthorityDependencies: []AdvisoryAuthorityDependency{
-			{Kind: "public_registration", ID: "registration-1", RevisionID: "revision-1", AdvisoryScopeID: public[0].ScopeID, AdvisoryGenerationID: public[0].GenerationID, ConfigFingerprint: "config-1", ProviderID: "debian", TrustedSourceClass: "debian"},
-			{Kind: "private_binding", ScanTargetID: targetID, ID: "binding-1", RevisionID: "revision-1", AdvisoryScopeID: private[0].ScopeID, AdvisoryGenerationID: private[0].GenerationID, ConfigFingerprint: "config-2", ProviderID: "debian", TrustedSourceClass: "debian"},
+			{Kind: "public_registration", ID: "registration-1", RevisionID: "revision-1", AdvisoryScopeID: public[0].ScopeID, AdvisoryGenerationID: public[0].GenerationID, ConfigFingerprint: "config-1", ProviderID: "debian", TrustedSourceClass: "debian", ContentProfile: "supply_chain_impact_v1"},
+			{Kind: "private_binding", ScanTargetID: targetID, ID: "binding-1", RevisionID: "revision-1", AdvisoryScopeID: private[0].ScopeID, AdvisoryGenerationID: private[0].GenerationID, ConfigFingerprint: "config-2", ProviderID: "debian", TrustedSourceClass: "debian", ContentProfile: "supply_chain_impact_v1"},
 		}, Complete: true,
 	}})
 	if err != nil {
@@ -395,8 +478,8 @@ func TestAuthorizedScanImpactDisjointBranchGapStaysPartial(t *testing.T) {
 	findings, err := BuildAuthorizedScanImpactFindings(nil, []AuthorizedScanImpactEvidence{{
 		ScanTargetID: targetID, ScanGenerationID: "generation-a", OSPackages: []facts.Envelope{scan[0]}, Analyses: []facts.Envelope{scan[1]},
 		Advisories: append(public, private...), AuthorityDependencies: []AdvisoryAuthorityDependency{
-			{Kind: "public_registration", ID: "registration-1", RevisionID: "revision-1", AdvisoryScopeID: public[0].ScopeID, AdvisoryGenerationID: public[0].GenerationID, ConfigFingerprint: "config-1", ProviderID: "debian", TrustedSourceClass: "debian"},
-			{Kind: "private_binding", ScanTargetID: targetID, ID: "binding-1", RevisionID: "revision-1", AdvisoryScopeID: private[0].ScopeID, AdvisoryGenerationID: private[0].GenerationID, ConfigFingerprint: "config-2", ProviderID: "debian", TrustedSourceClass: "debian"},
+			{Kind: "public_registration", ID: "registration-1", RevisionID: "revision-1", AdvisoryScopeID: public[0].ScopeID, AdvisoryGenerationID: public[0].GenerationID, ConfigFingerprint: "config-1", ProviderID: "debian", TrustedSourceClass: "debian", ContentProfile: "supply_chain_impact_v1"},
+			{Kind: "private_binding", ScanTargetID: targetID, ID: "binding-1", RevisionID: "revision-1", AdvisoryScopeID: private[0].ScopeID, AdvisoryGenerationID: private[0].GenerationID, ConfigFingerprint: "config-2", ProviderID: "debian", TrustedSourceClass: "debian", ContentProfile: "supply_chain_impact_v1"},
 		}, Complete: true,
 	}})
 	if err != nil {

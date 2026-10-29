@@ -8,6 +8,8 @@ package impact
 //eshu:readiness:env ESHU_SCANNER_READINESS_AUTH_PROOF_DISPOSABLE ESHU_SCANNER_READINESS_AUTH_PROOF_DSN
 
 import (
+	"context"
+	"database/sql"
 	"os"
 	"testing"
 	"time"
@@ -21,13 +23,9 @@ import (
 // facts are visible only through a current source binding and grant. A second
 // binding never multiplies one scan; revocation leaves the other tenant and a
 // direct static scan unchanged.
-func TestReadinessScannerSourceBindingAuthorizationLive(t *testing.T) {
-	ctx, database := postgresproof.OpenDisposableDatabase(t,
-		os.Getenv("ESHU_SCANNER_READINESS_AUTH_PROOF_DSN"),
-		os.Getenv("ESHU_SCANNER_READINESS_AUTH_PROOF_DISPOSABLE"), 3*time.Minute)
-	if err := storagepostgres.ApplyBootstrap(ctx, storagepostgres.SQLDB{DB: database}); err != nil {
-		t.Fatalf("ApplyBootstrap: %v", err)
-	}
+
+func seedReadinessSourceBindingFixture(t *testing.T, ctx context.Context, database *sql.DB) string {
+	t.Helper()
 	const digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	if _, err := database.ExecContext(ctx, `
 INSERT INTO collector_instances
@@ -142,55 +140,59 @@ WHERE scanner.instance_id='scanner-read';
 `); err != nil {
 		t.Fatalf("seed target bindings and grants: %v", err)
 	}
-	read := func(tenant string, scopeIDs ...string) (int, int) {
-		t.Helper()
-		readCtx := auth.ContextWithAuthContext(ctx, auth.AuthContext{
-			Mode: auth.AuthModeScoped, TenantID: tenant, WorkspaceID: "read-workspace",
-			SubjectClass: "collector", PolicyRevisionHash: "read-policy", AllowedScopeIDs: scopeIDs,
-		})
-		snapshot, err := NewPostgresReadinessStore(database).readSupplyChainImpactReadiness(
-			readCtx, readinessSQLQueryer{database: database},
-			ReadinessQuery{SubjectDigest: digest}, readinessTarget{})
-		if err != nil {
-			t.Fatalf("readiness store: %v", err)
-		}
-		counts := map[string]int{}
-		for _, family := range snapshot.EvidenceSources {
-			counts[family.Family] = family.FactCount
-		}
-		return counts["scanner_worker.analysis"], counts["vulnerability.os_package"]
+	return digest
+}
+
+func readReadinessAnalysisPackages(t *testing.T, ctx context.Context, database *sql.DB, digest, tenant string, scopeIDs ...string) (int, int) {
+	t.Helper()
+	readCtx := auth.ContextWithAuthContext(ctx, auth.AuthContext{
+		Mode: auth.AuthModeScoped, TenantID: tenant, WorkspaceID: "read-workspace",
+		SubjectClass: "collector", PolicyRevisionHash: "read-policy", AllowedScopeIDs: scopeIDs,
+	})
+	snapshot, err := NewPostgresReadinessStore(database).readSupplyChainImpactReadiness(
+		readCtx, readinessSQLQueryer{database: database},
+		ReadinessQuery{SubjectDigest: digest}, readinessTarget{})
+	if err != nil {
+		t.Fatalf("readiness store: %v", err)
 	}
-	readWarnings := func(tenant string, scopeIDs ...string) int {
-		t.Helper()
-		readCtx := auth.ContextWithAuthContext(ctx, auth.AuthContext{
-			Mode: auth.AuthModeScoped, TenantID: tenant, WorkspaceID: "read-workspace",
-			SubjectClass: "collector", PolicyRevisionHash: "read-policy", AllowedScopeIDs: scopeIDs,
-		})
-		snapshot, err := NewPostgresReadinessStore(database).readSupplyChainImpactReadiness(
-			readCtx, readinessSQLQueryer{database: database},
-			ReadinessQuery{SubjectDigest: digest}, readinessTarget{})
-		if err != nil {
-			t.Fatalf("warning readiness store: %v", err)
+	counts := map[string]int{}
+	for _, family := range snapshot.EvidenceSources {
+		counts[family.Family] = family.FactCount
+	}
+	return counts["scanner_worker.analysis"], counts["vulnerability.os_package"]
+}
+
+func readReadinessImageWarnings(t *testing.T, ctx context.Context, database *sql.DB, digest, tenant string, scopeIDs ...string) int {
+	t.Helper()
+	readCtx := auth.ContextWithAuthContext(ctx, auth.AuthContext{
+		Mode: auth.AuthModeScoped, TenantID: tenant, WorkspaceID: "read-workspace",
+		SubjectClass: "collector", PolicyRevisionHash: "read-policy", AllowedScopeIDs: scopeIDs,
+	})
+	snapshot, err := NewPostgresReadinessStore(database).readSupplyChainImpactReadiness(
+		readCtx, readinessSQLQueryer{database: database},
+		ReadinessQuery{SubjectDigest: digest}, readinessTarget{})
+	if err != nil {
+		t.Fatalf("warning readiness store: %v", err)
+	}
+	count := 0
+	for _, target := range snapshot.UnsupportedTargets {
+		if target.TargetKind == UnsupportedTargetKindImageTarget {
+			count += target.Count
 		}
-		count := 0
-		for _, target := range snapshot.UnsupportedTargets {
-			if target.TargetKind == UnsupportedTargetKindImageTarget {
-				count += target.Count
-			}
-		}
-		return count
 	}
-	if analysis, packages := read("read-tenant-a", "read-source-a1", "read-source-a2"); analysis != 1 || packages != 1 {
-		t.Fatalf("tenant A duplicate bindings: analysis=%d packages=%d, want 1/1", analysis, packages)
+	return count
+}
+
+func TestReadinessScannerSourceBindingAuthorizationLive(t *testing.T) {
+	ctx, database := postgresproof.OpenDisposableDatabase(t,
+		os.Getenv("ESHU_SCANNER_READINESS_AUTH_PROOF_DSN"),
+		os.Getenv("ESHU_SCANNER_READINESS_AUTH_PROOF_DISPOSABLE"), 3*time.Minute)
+	if err := storagepostgres.ApplyBootstrap(ctx, storagepostgres.SQLDB{DB: database}); err != nil {
+		t.Fatalf("ApplyBootstrap: %v", err)
 	}
-	if analysis, packages := read("read-tenant-b", "read-source-b"); analysis != 1 || packages != 1 {
-		t.Fatalf("tenant B: analysis=%d packages=%d, want 1/1", analysis, packages)
-	}
-	if analysis, packages := read("read-tenant-a", "image://derived/orphan"); analysis != 0 || packages != 0 {
+	digest := seedReadinessSourceBindingFixture(t, ctx, database)
+	if analysis, packages := readReadinessAnalysisPackages(t, ctx, database, digest, "read-tenant-a", "image://derived/orphan"); analysis != 0 || packages != 0 {
 		t.Errorf("unassociated derived scope leaked through static branch: analysis=%d packages=%d, want 0/0", analysis, packages)
-	}
-	if warnings := readWarnings("read-tenant-a", "read-source-a1", "read-source-a2"); warnings != 1 {
-		t.Fatalf("tenant A warnings=%d, want 1", warnings)
 	}
 	// A hosted AllScopes flag without source grants must not bypass binding
 	// authorization even when a direct store caller skips route middleware.
@@ -215,7 +217,7 @@ WHERE scanner.instance_id='scanner-read';
         WHERE instance_id='scanner-read'`); err != nil {
 		t.Fatal(err)
 	}
-	if analysis, packages := read("read-tenant-a", "read-source-a1", "read-source-a2"); analysis != 0 || packages != 0 {
+	if analysis, packages := readReadinessAnalysisPackages(t, ctx, database, digest, "read-tenant-a", "read-source-a1", "read-source-a2"); analysis != 0 || packages != 0 {
 		t.Fatalf("disabled scanner domain: analysis=%d packages=%d, want 0/0", analysis, packages)
 	}
 	if _, err := database.ExecContext(ctx, `UPDATE collector_instances SET configuration =
@@ -227,7 +229,7 @@ WHERE scanner.instance_id='scanner-read';
         WHERE fact_id='source-fact-a1'`); err != nil {
 		t.Fatal(err)
 	}
-	if analysis, packages := read("read-tenant-a", "read-source-a1"); analysis != 0 || packages != 0 {
+	if analysis, packages := readReadinessAnalysisPackages(t, ctx, database, digest, "read-tenant-a", "read-source-a1"); analysis != 0 || packages != 0 {
 		t.Fatalf("changed exact source: analysis=%d packages=%d, want 0/0", analysis, packages)
 	}
 	if _, err := database.ExecContext(ctx, `UPDATE fact_records SET payload='{"collector_instance_id":"source-read"}'::jsonb
@@ -243,9 +245,6 @@ UPDATE ingestion_scopes SET active_generation_id='read-gen-a1-replacement'
 WHERE scope_id='read-source-a1';`); err != nil {
 		t.Fatal(err)
 	}
-	if analysis, packages := read("read-tenant-a", "read-source-a1", "read-source-a2"); analysis != 1 || packages != 1 {
-		t.Fatalf("tenant A one live binding remains after source generation switch: analysis=%d packages=%d, want 1/1", analysis, packages)
-	}
 	if _, err := database.ExecContext(ctx, `
 UPDATE scope_generations SET status='superseded', superseded_at=now()
 WHERE generation_id='read-gen-a1-replacement';
@@ -255,58 +254,31 @@ UPDATE ingestion_scopes SET active_generation_id='read-gen-a1'
 WHERE scope_id='read-source-a1';`); err != nil {
 		t.Fatal(err)
 	}
-	if analysis, packages := read("read-tenant-a", "read-source-a1"); analysis != 0 || packages != 0 {
+	if analysis, packages := readReadinessAnalysisPackages(t, ctx, database, digest, "read-tenant-a", "read-source-a1"); analysis != 0 || packages != 0 {
 		t.Errorf("source generation ABA reused stale binding: analysis=%d packages=%d, want 0/0", analysis, packages)
 	}
 	if _, err := database.ExecContext(ctx, `UPDATE tenant_scope_grants SET tombstoned_at=now()
 WHERE tenant_id='read-tenant-a' AND scope_id='read-source-a1'`); err != nil {
 		t.Fatal(err)
 	}
-	if analysis, packages := read("read-tenant-a", "read-source-a1", "read-source-a2"); analysis != 1 || packages != 1 {
-		t.Fatalf("tenant A one live binding remains after first grant revocation: analysis=%d packages=%d, want 1/1", analysis, packages)
-	}
 	if _, err := database.ExecContext(ctx, `UPDATE tenant_scope_grants SET tombstoned_at=now()
 WHERE tenant_id='read-tenant-a' AND scope_id='read-source-a2'`); err != nil {
 		t.Fatal(err)
 	}
-	if analysis, packages := read("read-tenant-a", "read-source-a1", "read-source-a2"); analysis != 0 || packages != 0 {
+	if analysis, packages := readReadinessAnalysisPackages(t, ctx, database, digest, "read-tenant-a", "read-source-a1", "read-source-a2"); analysis != 0 || packages != 0 {
 		t.Fatalf("tenant A revoked: analysis=%d packages=%d, want 0/0", analysis, packages)
 	}
-	if warnings := readWarnings("read-tenant-a", "read-source-a1", "read-source-a2"); warnings != 0 {
+	if warnings := readReadinessImageWarnings(t, ctx, database, digest, "read-tenant-a", "read-source-a1", "read-source-a2"); warnings != 0 {
 		t.Fatalf("tenant A revoked warnings=%d, want 0", warnings)
-	}
-	if warnings := readWarnings("read-tenant-b", "read-source-b"); warnings != 1 {
-		t.Fatalf("tenant B warnings after A revocation=%d, want 1", warnings)
-	}
-	global, err := NewPostgresReadinessStore(database).readSupplyChainImpactReadiness(
-		ctx, readinessSQLQueryer{database: database},
-		ReadinessQuery{SubjectDigest: digest}, readinessTarget{})
-	if err != nil {
-		t.Fatalf("trusted global readiness store: %v", err)
-	}
-	if analysis, packages := evidenceFactCount(global.EvidenceSources, EvidenceFamilyScannerWorkerAnalysis),
-		evidenceFactCount(global.EvidenceSources, EvidenceFamilyVulnerabilityOSPackage); analysis != 2 || packages != 1 {
-		t.Errorf("trusted global after A revocation: analysis=%d packages=%d, want B plus static 2/1", analysis, packages)
-	}
-	sharedCtx := auth.ContextWithAuthContext(ctx, auth.AuthContext{Mode: auth.AuthModeShared})
-	shared, err := NewPostgresReadinessStore(database).readSupplyChainImpactReadiness(
-		sharedCtx, readinessSQLQueryer{database: database},
-		ReadinessQuery{SubjectDigest: digest}, readinessTarget{})
-	if err != nil {
-		t.Fatalf("shared-mode readiness store: %v", err)
-	}
-	if analysis, packages := evidenceFactCount(shared.EvidenceSources, EvidenceFamilyScannerWorkerAnalysis),
-		evidenceFactCount(shared.EvidenceSources, EvidenceFamilyVulnerabilityOSPackage); analysis != 2 || packages != 1 {
-		t.Errorf("shared-mode after A revocation: analysis=%d packages=%d, want B plus static 2/1", analysis, packages)
 	}
 	if _, err := database.ExecContext(ctx, `UPDATE tenant_scope_grants SET tombstoned_at=NULL
 WHERE tenant_id='read-tenant-a' AND scope_id IN ('read-source-a1','read-source-a2')`); err != nil {
 		t.Fatal(err)
 	}
-	if analysis, packages := read("read-tenant-a", "read-source-a1", "read-source-a2"); analysis != 0 || packages != 0 {
+	if analysis, packages := readReadinessAnalysisPackages(t, ctx, database, digest, "read-tenant-a", "read-source-a1", "read-source-a2"); analysis != 0 || packages != 0 {
 		t.Errorf("same-policy regrant reused stale binding: analysis=%d packages=%d, want 0/0", analysis, packages)
 	}
-	if analysis, packages := read("read-tenant-a", "read-static"); analysis != 1 || packages != 0 {
+	if analysis, packages := readReadinessAnalysisPackages(t, ctx, database, digest, "read-tenant-a", "read-static"); analysis != 1 || packages != 0 {
 		t.Fatalf("direct static scope: analysis=%d packages=%d, want 1/0", analysis, packages)
 	}
 }

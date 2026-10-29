@@ -35,6 +35,7 @@ func BenchmarkDerivedScanPartitionTheory(b *testing.B) {
 					Kind: "public_registration", ID: "registration-1", RevisionID: "revision-1",
 					AdvisoryScopeID: public[0].ScopeID, AdvisoryGenerationID: public[0].GenerationID,
 					ConfigFingerprint: "config-1", ProviderID: "debian", TrustedSourceClass: "debian",
+					ContentProfile: "supply_chain_impact_v1",
 				}}, Complete: true,
 			})
 			mixed = append(mixed, input[len(public):]...)

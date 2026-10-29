@@ -39,6 +39,23 @@ type Definition struct {
 	// recorded so the tracker can detect the full migration as already
 	// applied once a deferred variant completes.
 	FullChecksum string
+	// PublicOnly marks a database-global authority migration (#7033) that
+	// refuses any non-public schema via its own SQL guard. The marked set
+	// lives in publicOnlyMigrationPaths below, next to the files — never
+	// in the SQL itself, because #7002 forbids editing a shipped
+	// migration. Test binaries bootstrapping isolated schemas skip these
+	// definitions explicitly (see postgres.ApplyBootstrapWithOptions);
+	// production bootstraps always run public and install them. A rename
+	// breaks the checksum manifest loudly, so the map cannot drift
+	// silently from the file it names.
+	PublicOnly bool
+}
+
+// publicOnlyMigrationPaths is the exact set of PublicOnly definitions, keyed
+// by embedded path. It exists because the SQL files themselves are immutable
+// (#7002): the marker cannot live in the migration body.
+var publicOnlyMigrationPaths = map[string]bool{
+	"go/internal/storage/postgres/migrations/241a_scanner_typed_source_and_results.sql": true,
 }
 
 // BootstrapDefinitions returns the ordered Wave 2 bootstrap layout, sourced
@@ -75,9 +92,10 @@ func BootstrapDefinitions() []Definition {
 		fspath := path.Join("go", "internal", "storage", "postgres", "migrations", name)
 
 		defs = append(defs, Definition{
-			Name: defName,
-			Path: fspath,
-			SQL:  string(data),
+			Name:       defName,
+			Path:       fspath,
+			SQL:        string(data),
+			PublicOnly: publicOnlyMigrationPaths[fspath],
 		})
 	}
 	sort.SliceStable(defs, func(i, j int) bool {

@@ -7,10 +7,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"hash/fnv"
 	"sort"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -24,6 +22,7 @@ type scannerAdmissionPlan struct {
 	bindingID     string
 	sourceScopeID string
 	proofs        map[int64]scannerSourceProof
+	bindingIDs    []string
 }
 
 const scannerTargetInsertQuery = `
@@ -59,6 +58,11 @@ SELECT EXISTS (
           AND completed_attempt.status='completed'
          WHERE result.scan_scope_id=target.scan_scope_id
            AND result.binding_id=$2
+       ) OR EXISTS (
+         SELECT 1 FROM scanner_image_target_attempts AS terminal_attempt
+         WHERE terminal_attempt.scan_scope_id=target.scan_scope_id
+           AND terminal_attempt.binding_id=$2
+           AND terminal_attempt.status='failed_terminal'
        ),
        EXISTS (
          SELECT 1 FROM scanner_image_target_attempts AS attempt
@@ -192,27 +196,24 @@ func (s *WorkflowControlStore) createScannerRunWithTargetsOnce(
 		}
 	}
 	ordered := make([]*scannerAdmissionPlan, 0, len(plans))
-	items := make([]workflow.WorkItem, 0, len(plans))
 	for _, plan := range plans {
 		ordered = append(ordered, plan)
-		items = append(items, plan.item)
 	}
 	sort.Slice(ordered, func(i, j int) bool { return ordered[i].target.ScanTargetID < ordered[j].target.ScanTargetID })
+	drop, skipped, err := proveScannerPlanSources(ctx, tx, ordered, advance.request)
+	if err != nil {
+		return workflow.RunAdmission{}, err
+	}
+	kept := make([]*scannerAdmissionPlan, 0, len(ordered))
 	for _, plan := range ordered {
-		plan.proofs = make(map[int64]scannerSourceProof, len(plan.target.Sources))
-		sources := append([]workflow.ScannerImageSourceBinding(nil), plan.target.Sources...)
-		sort.Slice(sources, func(i, j int) bool { return sources[i].SourceObservationID < sources[j].SourceObservationID })
-		for _, source := range sources {
-			if _, exists := plan.proofs[source.SourceObservationID]; exists {
-				continue
-			}
-			proof, err := proveScannerSource(ctx, tx, plan.item, plan.target, source, advance.request)
-			if err != nil {
-				return workflow.RunAdmission{}, err
-			}
-			plan.proofs[source.SourceObservationID] = proof
+		if !drop[plan] {
+			kept = append(kept, plan)
 		}
 	}
+	ordered = kept
+	// A skipped binding is never marked admitted, but the cursor still
+	// completes the finite cycle past it: stopping before a mid-page bad
+	// item would re-wedge on it next page.
 	if len(ordered) == 0 {
 		if err := advanceScannerDiscoveryCursor(ctx, tx, advance); err != nil {
 			return workflow.RunAdmission{}, err
@@ -221,7 +222,11 @@ func (s *WorkflowControlStore) createScannerRunWithTargetsOnce(
 			return workflow.RunAdmission{}, err
 		}
 		committed = true
-		return workflow.RunAdmission{}, nil
+		return workflow.RunAdmission{AdmissionSkipped: orNilAdmissionSkips(skipped)}, nil
+	}
+	items := make([]workflow.WorkItem, 0, len(ordered))
+	for _, plan := range ordered {
+		items = append(items, plan.item)
 	}
 	// Instance locks precede stable target locks on every admission path.
 	if err := lockWorkflowOpenTargets(ctx, tx, items); err != nil {
@@ -239,19 +244,29 @@ func (s *WorkflowControlStore) createScannerRunWithTargetsOnce(
 			return workflow.RunAdmission{}, err
 		}
 		committed = true
-		return workflow.RunAdmission{}, nil
+		return workflow.RunAdmission{AdmissionSkipped: orNilAdmissionSkips(skipped)}, nil
 	}
 	candidates := make([]workflow.WorkItem, 0, len(ordered))
 	for _, plan := range ordered {
 		if err := admitScannerBindings(ctx, tx, plan); err != nil {
 			return workflow.RunAdmission{}, err
 		}
-		completed, open, err := scannerTargetState(ctx, tx,
-			plan.target.ScanTargetID, plan.bindingID)
-		if err != nil {
-			return workflow.RunAdmission{}, err
+		// A target is closed only when every distinct binding it carries
+		// is completed or terminally failed: one new binding still earns
+		// an attempt while a repeated identical set stays suppressed.
+		allClosed, scopeOpen := true, false
+		for _, binding := range plan.bindingIDs {
+			completed, open, err := scannerTargetState(ctx, tx,
+				plan.target.ScanTargetID, binding)
+			if err != nil {
+				return workflow.RunAdmission{}, err
+			}
+			scopeOpen = scopeOpen || open
+			if !completed {
+				allClosed = false
+			}
 		}
-		if !completed && !open {
+		if !allClosed && !scopeOpen {
 			candidates = append(candidates, plan.item)
 		}
 	}
@@ -269,7 +284,7 @@ func (s *WorkflowControlStore) createScannerRunWithTargetsOnce(
 			return workflow.RunAdmission{}, err
 		}
 		committed = true
-		return workflow.RunAdmission{}, nil
+		return workflow.RunAdmission{AdmissionSkipped: orNilAdmissionSkips(skipped)}, nil
 	}
 	if err := s.createRunWithExecutor(ctx, tx, run); err != nil {
 		return workflow.RunAdmission{}, err
@@ -314,101 +329,6 @@ func (s *WorkflowControlStore) createScannerRunWithTargetsOnce(
 		return workflow.RunAdmission{}, err
 	}
 	committed = true
+	admission.AdmissionSkipped = orNilAdmissionSkips(skipped)
 	return admission, nil
-}
-
-func admitScannerBindings(ctx context.Context, tx db.ExecQueryer, plan *scannerAdmissionPlan) error {
-	target := plan.target
-	accepted := 0
-	seenSource := make(map[int64]struct{}, len(target.Sources))
-	sources := append([]workflow.ScannerImageSourceBinding(nil), target.Sources...)
-	sort.Slice(sources, func(i, j int) bool { return sources[i].SourceObservationID < sources[j].SourceObservationID })
-	for _, source := range sources {
-		if _, duplicate := seenSource[source.SourceObservationID]; duplicate {
-			continue
-		}
-		seenSource[source.SourceObservationID] = struct{}{}
-		proof, exists := plan.proofs[source.SourceObservationID]
-		if !exists {
-			return ErrScannerTargetNotAuthorized
-		}
-		if accepted == 0 {
-			if _, err := tx.ExecContext(ctx, scannerTargetInsertQuery,
-				target.ScanTargetID, string(target.AuthorizationNamespace), target.TenantID,
-				target.WorkspaceID, target.SubjectClass, target.AuthorizationDomain,
-				target.ManifestDigest); err != nil {
-				return fmt.Errorf("scanner target admission insert target: %w", err)
-			}
-			plan.bindingID = scannerBindingID(target, plan.item, source, proof)
-			plan.sourceScopeID = source.SourceScopeID
-		}
-		accepted++
-		bindingID := scannerBindingID(target, plan.item, source, proof)
-		var verificationID, verificationEpoch any
-		if source.RuntimeDigestKind == workflow.ScannerRuntimeDigestConfig {
-			verificationID = source.ManifestVerificationID
-			verificationEpoch = proof.manifestVerificationEpoch
-		}
-		if _, err := tx.ExecContext(ctx, scannerBindingInsertQuery,
-			bindingID, target.ScanTargetID,
-			fmt.Sprintf("typed-observation:%d", source.SourceObservationID),
-			source.SourceCollectorInstanceID,
-			source.SourceScopeID, source.SourceGenerationID, proof.sourcePayloadHash,
-			plan.item.CollectorInstanceID, target.PolicyRevisionHash, source.Registry,
-			source.Repository, source.RuntimeDigest, string(source.RuntimeDigestKind),
-			source.RuntimeImageReference, "", "", "", "",
-			proof.domainConfigHash, source.SourceObservationID,
-			proof.producerPrincipalOID, proof.sourceActivationEpoch,
-			proof.producerGrantEpoch, proof.sourceInstanceEpoch,
-			proof.tenantEpoch, proof.workspaceEpoch, proof.scopeGrantEpoch,
-			proof.registryEpoch, proof.rolePolicyRevision, proof.databaseIdentity,
-			verificationID, verificationEpoch); err != nil {
-			return fmt.Errorf("scanner target admission insert binding: %w", err)
-		}
-	}
-	if accepted == 0 {
-		return fmt.Errorf("scanner target admission has no distinct source: %w", ErrScannerTargetNotAuthorized)
-	}
-	return nil
-}
-
-func scannerTargetState(ctx context.Context, tx db.Queryer,
-	scanScopeID, bindingID string,
-) (bool, bool, error) {
-	rows, err := tx.QueryContext(ctx, scannerTargetStateQuery,
-		scanScopeID, bindingID)
-	if err != nil {
-		return false, false, err
-	}
-	defer func() { _ = rows.Close() }()
-	if !rows.Next() {
-		return false, false, fmt.Errorf("scanner target admission missing target")
-	}
-	var completed, open bool
-	if err := rows.Scan(&completed, &open); err != nil {
-		return false, false, err
-	}
-	return completed, open, rows.Err()
-}
-
-func lockScannerTargets(ctx context.Context, tx db.Executor, plans []*scannerAdmissionPlan) error {
-	keys := make([]int64, 0, len(plans))
-	seen := make(map[int64]struct{}, len(plans))
-	for _, plan := range plans {
-		h := fnv.New64a()
-		_, _ = h.Write([]byte("scanner-image\x00" + plan.target.ScanTargetID))
-		key := int64(h.Sum64()) // #nosec G115 -- advisory-lock bit reinterpretation
-		if _, duplicate := seen[key]; duplicate {
-			continue
-		}
-		seen[key] = struct{}{}
-		keys = append(keys, key)
-	}
-	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
-	for _, key := range keys {
-		if _, err := tx.ExecContext(ctx, workflowAdvisoryTargetLockQuery, key); err != nil {
-			return fmt.Errorf("scanner target admission lock: %w", err)
-		}
-	}
-	return nil
 }

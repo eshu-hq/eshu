@@ -56,6 +56,10 @@ type Metrics interface {
 	// triggers stranded at 'claimed' by a mid-batch handoff abort or a
 	// coordinator crash (#9379).
 	RecordIncidentFreshnessReap(context.Context, FreshnessReapObservation)
+	// RecordScannerDerivedPage records one derived-image discovery page
+	// admission (#9299): admitted targets, per-reason skip evidence, and
+	// the page remainder that earned no work item this tick.
+	RecordScannerDerivedPage(context.Context, ScannerDerivedPageObservation)
 }
 
 // ReconcileObservation captures one reconcile-loop outcome.
@@ -115,6 +119,10 @@ type otelMetrics struct {
 	awsFreshnessStuckClaims      atomic.Int64
 	gcpFreshnessStuckClaims      atomic.Int64
 	incidentFreshnessStuckClaims atomic.Int64
+
+	scannerDerivedAdmittedTotal metric.Int64Counter
+	scannerDerivedSkippedTotal  metric.Int64Counter
+	scannerDerivedBacklog       atomic.Int64
 
 	// workItemRetention holds the workflow_work_items retention instruments
 	// (#8829), registered in retention_metrics.go.
@@ -281,6 +289,10 @@ func NewMetrics(meter metric.Meter) (Metrics, error) {
 	if err != nil {
 		return nil, err
 	}
+	scannerDerived, err := newScannerDerivedPageInstruments(meter)
+	if err != nil {
+		return nil, err
+	}
 
 	recorder := &otelMetrics{
 		reconcileTotal:                reconcileTotal,
@@ -297,63 +309,84 @@ func NewMetrics(meter metric.Meter) (Metrics, error) {
 		incidentFreshnessReapTotal:    freshnessReapInstruments.incidentReapTotal,
 		incidentFreshnessReapDuration: freshnessReapInstruments.incidentReapDuration,
 		workItemRetention:             workItemRetention,
+
+		scannerDerivedAdmittedTotal: scannerDerived.admittedTotal,
+		scannerDerivedSkippedTotal:  scannerDerived.skippedTotal,
 	}
 
+	if err := registerCoordinatorGauges(meter, recorder); err != nil {
+		return nil, err
+	}
+
+	return recorder, nil
+}
+
+// registerCoordinatorGauges registers the observable coordinator gauges and
+// the callback that serves them. Splitting this out of NewMetrics keeps that
+// function under the repo's funlen limit.
+func registerCoordinatorGauges(meter metric.Meter, recorder *otelMetrics) error {
 	desiredGauge, err := meter.Int64ObservableGauge(
 		MetricPrefix+"desired_collector_instances",
 		metric.WithDescription("Desired workflow coordinator collector instance count"),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("register desired collector instance gauge: %w", err)
+		return fmt.Errorf("register desired collector instance gauge: %w", err)
 	}
 	durableGauge, err := meter.Int64ObservableGauge(
 		MetricPrefix+"durable_collector_instances",
 		metric.WithDescription("Durable workflow coordinator collector instance count"),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("register durable collector instance gauge: %w", err)
+		return fmt.Errorf("register durable collector instance gauge: %w", err)
 	}
 	driftGauge, err := meter.Int64ObservableGauge(
 		MetricPrefix+"collector_instance_drift",
 		metric.WithDescription("Absolute drift between desired and durable collector instance counts"),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("register collector instance drift gauge: %w", err)
+		return fmt.Errorf("register collector instance drift gauge: %w", err)
 	}
 	reapedGauge, err := meter.Int64ObservableGauge(
 		MetricPrefix+"last_reaped_claims",
 		metric.WithDescription("Claims reaped by the most recent workflow coordinator reap pass"),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("register last reaped claims gauge: %w", err)
+		return fmt.Errorf("register last reaped claims gauge: %w", err)
 	}
 	reconciledGauge, err := meter.Int64ObservableGauge(
 		MetricPrefix+"last_reconciled_runs",
 		metric.WithDescription("Runs reconciled by the most recent workflow coordinator run reconciliation pass"),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("register last reconciled runs gauge: %w", err)
+		return fmt.Errorf("register last reconciled runs gauge: %w", err)
 	}
 	awsFreshnessStuckGauge, err := meter.Int64ObservableGauge(
 		MetricPrefix+"aws_freshness_stuck_claimed",
 		metric.WithDescription("AWS freshness triggers reclaimed from 'claimed' by the most recent reap pass (#4576)"),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("register AWS freshness stuck-claimed gauge: %w", err)
+		return fmt.Errorf("register AWS freshness stuck-claimed gauge: %w", err)
 	}
 	gcpFreshnessStuckGauge, err := meter.Int64ObservableGauge(
 		MetricPrefix+"gcp_freshness_stuck_claimed",
 		metric.WithDescription("GCP freshness triggers reclaimed from 'claimed' by the most recent reap pass (#4576)"),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("register GCP freshness stuck-claimed gauge: %w", err)
+		return fmt.Errorf("register GCP freshness stuck-claimed gauge: %w", err)
 	}
 	incidentFreshnessStuckGauge, err := meter.Int64ObservableGauge(
 		MetricPrefix+"incident_freshness_stuck_claimed",
 		metric.WithDescription("Incident freshness triggers reclaimed from 'claimed' by the most recent reap pass (#9379)"),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("register incident freshness stuck-claimed gauge: %w", err)
+		return fmt.Errorf("register incident freshness stuck-claimed gauge: %w", err)
+	}
+	scannerDerivedBacklogGauge, err := meter.Int64ObservableGauge(
+		"eshu_dp_workflow_coordinator_scanner_derived_backlog",
+		metric.WithDescription("Derived-image discovery page candidates that earned no work item on the most recent page (#9299)"),
+	)
+	if err != nil {
+		return fmt.Errorf("register scanner derived backlog gauge: %w", err)
 	}
 	if _, err := meter.RegisterCallback(func(ctx context.Context, observer metric.Observer) error {
 		observer.ObserveInt64(desiredGauge, recorder.desiredCount.Load())
@@ -364,12 +397,13 @@ func NewMetrics(meter metric.Meter) (Metrics, error) {
 		observer.ObserveInt64(awsFreshnessStuckGauge, recorder.awsFreshnessStuckClaims.Load())
 		observer.ObserveInt64(gcpFreshnessStuckGauge, recorder.gcpFreshnessStuckClaims.Load())
 		observer.ObserveInt64(incidentFreshnessStuckGauge, recorder.incidentFreshnessStuckClaims.Load())
+		observer.ObserveInt64(scannerDerivedBacklogGauge, recorder.scannerDerivedBacklog.Load())
 		return nil
-	}, desiredGauge, durableGauge, driftGauge, reapedGauge, reconciledGauge, awsFreshnessStuckGauge, gcpFreshnessStuckGauge, incidentFreshnessStuckGauge); err != nil {
-		return nil, fmt.Errorf("register coordinator metrics callback: %w", err)
+	}, desiredGauge, durableGauge, driftGauge, reapedGauge, reconciledGauge, awsFreshnessStuckGauge, gcpFreshnessStuckGauge, incidentFreshnessStuckGauge, scannerDerivedBacklogGauge); err != nil {
+		return fmt.Errorf("register coordinator metrics callback: %w", err)
 	}
 
-	return recorder, nil
+	return nil
 }
 
 func (m *otelMetrics) RecordReap(ctx context.Context, observation ReapObservation) {

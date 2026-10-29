@@ -19,7 +19,7 @@ const currentScannerFactPredicate = `
         (fact.scope_id NOT LIKE 'image://derived/%'
          AND NOT EXISTS (SELECT 1 FROM scanner_image_targets AS target
                          WHERE target.scan_scope_id = fact.scope_id)
-         AND (NOT $21::boolean OR fact.scope_id = ANY($26::text[])))
+         AND (NOT $26::boolean OR fact.scope_id = ANY($31::text[])))
         OR EXISTS (
           SELECT 1
           FROM scanner_image_scan_fact_associations AS membership
@@ -172,12 +172,12 @@ const currentScannerFactPredicate = `
               WHERE domain.value->>'authorization_domain' = target.authorization_domain
                 AND domain.value->>'registry' = binding.registry
                 AND encode(sha256(convert_to(domain.value::text,'UTF8')),'hex') = binding.registry_domain_config_sha256)
-            AND (NOT $21::boolean OR (
-                 target.tenant_id = $22
-                 AND target.workspace_id = $23
-                 AND target.subject_class = $24
-                 AND binding.policy_revision_hash = $25
-                 AND binding.source_scope_id = ANY($26::text[])))
+            AND (NOT $26::boolean OR (
+                 target.tenant_id = $27
+                 AND target.workspace_id = $28
+                 AND target.subject_class = $29
+                 AND binding.policy_revision_hash = $30
+                 AND binding.source_scope_id = ANY($31::text[])))
             AND FALSE
         )
       )`

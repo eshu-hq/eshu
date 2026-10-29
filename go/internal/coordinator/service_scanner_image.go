@@ -88,6 +88,15 @@ func (s Service) scheduleDerivedScannerImageWork(
 		if err != nil {
 			return fmt.Errorf("admit scanner image page for %q: %w", instance.InstanceID, err)
 		}
+		skipped = append(skipped, schedule.DerivedTargetSkipEvidenceByReasonForClass(
+			string(instance.CollectorKind), schedule.TargetClassDerivedImage,
+			"running_image", len(targets), admission.InsertedWorkItems,
+			admission.AdmissionSkipped, nil)...)
+		s.recordScannerDerivedPage(ctx, ScannerDerivedPageObservation{
+			InsertedWorkItems: admission.InsertedWorkItems,
+			Skipped:           skipped,
+			PageCandidates:    len(page.Candidates),
+		})
 		if s.Logger != nil {
 			s.Logger.InfoContext(ctx, "scanner image discovery page admitted",
 				"collector_instance_id", instance.InstanceID,

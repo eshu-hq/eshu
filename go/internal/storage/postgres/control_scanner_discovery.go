@@ -108,10 +108,12 @@ WHERE observation.observation_id<=$10
 // Every source, tenant and registry predicate is evaluated before LIMIT. The
 // returned locator is a candidate only; admission locks and rechecks it.
 //
-// The page limit is formatted, not bound: the skip-counts query shares one
-// argument slice with the candidates query, and the pgx stdlib driver cannot
-// transmit an unreferenced parameter (SQLSTATE 42P18), so every bound
-// argument must appear in both statements. request.Limit is validated to
+// The page limit is formatted, not bound: the skip-counts query starts from
+// the same argument slice as the candidates query, and the pgx stdlib driver
+// cannot transmit an unreferenced parameter (SQLSTATE 42P18), so every bound
+// argument must appear in the statement that carries it. The page-span bound
+// therefore travels on a skip-only extension of the shared slice ($13/$14),
+// never on the shared slice itself. request.Limit is validated to
 // 1..scannerDiscoveryPageLimit by the caller, so the %d is always a small
 // integer, never caller text.
 const scannerDiscoveryCandidatesQueryFormat = `
@@ -140,20 +142,79 @@ func scannerDiscoveryCandidatesQuery(limit int) string {
 	return fmt.Sprintf(scannerDiscoveryCandidatesQueryFormat, limit)
 }
 
-// scannerDiscoverySkipCountsQuery counts authorized observations in the same
-// cursor window that the candidate filter drops for their digest class:
+// scannerDiscoverySkipCountsSelect counts authorized observations in the
+// page span that the candidate filter drops for their digest class:
 // tag-only references with no digest, and config digests with no single
 // verified manifest. Rows failing any other shared predicate are in neither
 // read; the two reads share every other predicate by construction above.
-const scannerDiscoverySkipCountsQuery = `
+const scannerDiscoverySkipCountsSelect = `
 SELECT CASE WHEN observation.runtime_digest_kind='unknown'
             THEN 'tag_only' ELSE 'unresolved_config' END,
        COUNT(*)
 ` + scannerDiscoveryAuthorizedSources + `
   AND (observation.runtime_digest_kind='unknown' OR
        (observation.runtime_digest_kind='config' AND
-        verification.match_count IS DISTINCT FROM 1))
+        verification.match_count IS DISTINCT FROM 1))`
+
+// scannerDiscoverySkipCountsQuery counts the same skips over the whole
+// cursor window that remains once the page under read is exhausted: no
+// further candidate can follow, so the window remainder is the page span.
+const scannerDiscoverySkipCountsQuery = scannerDiscoverySkipCountsSelect + `
 GROUP BY 1`
+
+// scannerDiscoverySkipCountsPageBound narrows the shared window to the page
+// span actually read: skips at or below the page's last candidate in the
+// candidate (observation, domain) order. It appends $13 and $14 to a
+// skip-only extension of the shared 12-argument slice, so every bound
+// parameter stays referenced by the statement that carries it: placing the
+// page bound on the shared slice would trip the pgx stdlib unreferenced
+// parameter refusal (SQLSTATE 42P18) on the candidates read.
+const scannerDiscoverySkipCountsPageBound = `
+  AND (observation.observation_id<$13 OR
+       (observation.observation_id=$13 AND
+        domain.value->>'authorization_domain'<=$14))`
+
+// scannerDiscoverySkipCountsStatement returns the skip-counts statement for
+// the page just read. A non-exhausted page counts only its own span, so
+// pages partition the window without overlap; an exhausted page counts the
+// window remainder, which is its span.
+func scannerDiscoverySkipCountsStatement(exhausted bool) string {
+	if exhausted {
+		return scannerDiscoverySkipCountsQuery
+	}
+	return scannerDiscoverySkipCountsSelect + scannerDiscoverySkipCountsPageBound + `
+GROUP BY 1`
+}
+
+// validateScannerDiscoveryRequest enforces the discovery page's closed input
+// boundary: a pinned collector, policy, and role revision, a bounded limit,
+// and exactly one of the local or hosted namespace shapes. Splitting this
+// out of ListAuthorizedRunningImageObservationsPage keeps that function
+// under the repo's funlen limit.
+func validateScannerDiscoveryRequest(request workflow.RunningImageDiscoveryRequest) error {
+	if request.ScannerCollectorInstanceID == "" || request.DiscoveryPolicyRevision <= 0 ||
+		request.ExpectedRolePolicyRevision <= 0 || request.ExpectedDatabaseIdentity == "" ||
+		request.Limit < 1 || request.Limit > scannerDiscoveryPageLimit {
+		return errors.New("scanner discovery request invalid")
+	}
+	switch request.AuthorizationNamespace {
+	case workflow.ScannerAuthorizationLocal:
+		if request.TenantID != "" || request.WorkspaceID != "" ||
+			request.SubjectClass != "" || request.PolicyRevisionHash != "" ||
+			len(request.LocalSourceScopeIDs) == 0 || len(request.LocalSourceScopeIDs) > 1024 {
+			return errors.New("scanner local discovery boundary invalid")
+		}
+	case workflow.ScannerAuthorizationHosted:
+		if request.TenantID == "" || request.WorkspaceID == "" ||
+			request.SubjectClass == "" || request.PolicyRevisionHash == "" ||
+			len(request.LocalSourceScopeIDs) != 0 {
+			return errors.New("scanner hosted discovery boundary invalid")
+		}
+	default:
+		return errors.New("scanner discovery namespace invalid")
+	}
+	return nil
+}
 
 // ListAuthorizedRunningImageObservationsPage lists one bounded finite-cycle
 // page. Authority remains advisory until the admission transaction rechecks it.
@@ -163,26 +224,8 @@ func (s *WorkflowControlStore) ListAuthorizedRunningImageObservationsPage(
 	if s.database == nil {
 		return workflow.RunningImageDiscoveryPage{}, errors.New("scanner discovery requires database")
 	}
-	if request.ScannerCollectorInstanceID == "" || request.DiscoveryPolicyRevision <= 0 ||
-		request.ExpectedRolePolicyRevision <= 0 || request.ExpectedDatabaseIdentity == "" ||
-		request.Limit < 1 || request.Limit > scannerDiscoveryPageLimit {
-		return workflow.RunningImageDiscoveryPage{}, errors.New("scanner discovery request invalid")
-	}
-	switch request.AuthorizationNamespace {
-	case workflow.ScannerAuthorizationLocal:
-		if request.TenantID != "" || request.WorkspaceID != "" ||
-			request.SubjectClass != "" || request.PolicyRevisionHash != "" ||
-			len(request.LocalSourceScopeIDs) == 0 || len(request.LocalSourceScopeIDs) > 1024 {
-			return workflow.RunningImageDiscoveryPage{}, errors.New("scanner local discovery boundary invalid")
-		}
-	case workflow.ScannerAuthorizationHosted:
-		if request.TenantID == "" || request.WorkspaceID == "" ||
-			request.SubjectClass == "" || request.PolicyRevisionHash == "" ||
-			len(request.LocalSourceScopeIDs) != 0 {
-			return workflow.RunningImageDiscoveryPage{}, errors.New("scanner hosted discovery boundary invalid")
-		}
-	default:
-		return workflow.RunningImageDiscoveryPage{}, errors.New("scanner discovery namespace invalid")
+	if err := validateScannerDiscoveryRequest(request); err != nil {
+		return workflow.RunningImageDiscoveryPage{}, err
 	}
 	args := []any{
 		request.ScannerCollectorInstanceID,
@@ -264,7 +307,20 @@ func (s *WorkflowControlStore) ListAuthorizedRunningImageObservationsPage(
 	if err := rows.Close(); err != nil {
 		return page, fmt.Errorf("scanner discovery candidates close: %w", err)
 	}
-	skipRows, err := s.database.QueryContext(ctx, scannerDiscoverySkipCountsQuery, candidateArgs...)
+	page.Exhausted = len(page.Candidates) <= request.Limit
+	if len(page.Candidates) > request.Limit {
+		page.Candidates = page.Candidates[:request.Limit]
+	}
+	// Scope the counts to the span just read. A non-exhausted read always
+	// returns request.Limit (validated >= 1) candidates, so the span end
+	// below always exists; an exhausted read keeps the window remainder.
+	skipStatement := scannerDiscoverySkipCountsStatement(page.Exhausted)
+	skipArgs := candidateArgs
+	if !page.Exhausted {
+		last := page.Candidates[len(page.Candidates)-1]
+		skipArgs = append(append([]any{}, candidateArgs...), last.ObservationID, last.AuthorizationDomain)
+	}
+	skipRows, err := s.database.QueryContext(ctx, skipStatement, skipArgs...)
 	if err != nil {
 		return page, fmt.Errorf("scanner discovery skip counts: %w", err)
 	}
@@ -288,10 +344,6 @@ func (s *WorkflowControlStore) ListAuthorizedRunningImageObservationsPage(
 	}
 	if err := skipRows.Close(); err != nil {
 		return page, fmt.Errorf("scanner discovery skip counts close: %w", err)
-	}
-	page.Exhausted = len(page.Candidates) <= request.Limit
-	if len(page.Candidates) > request.Limit {
-		page.Candidates = page.Candidates[:request.Limit]
 	}
 	page.NextCursor = page.ExpectedCursor
 	page.NextCursor.Version++

@@ -84,6 +84,14 @@ func openStatusSemanticsSchema(ctx context.Context, t *testing.T, dsn string) *s
 		}
 	}
 	for _, def := range BootstrapDefinitions() {
+		// Public-only definitions (241's database-global authority, #7033)
+		// refuse isolated schemas by design; these status-semantics
+		// fixtures prove non-authority behavior and never read authority
+		// tables, so they skip them the same way ApplyBootstrap does for
+		// test binaries (see skipPublicOnlyDefinitionsForIsolatedTestBootstrap).
+		if def.PublicOnly {
+			continue
+		}
 		if _, err := conn.ExecContext(ctx, def.SQL); err != nil {
 			t.Fatalf("apply migration %s: %v", def.Name, err)
 		}

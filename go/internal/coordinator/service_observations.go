@@ -50,6 +50,13 @@ func (s Service) recordIncidentFreshnessReap(ctx context.Context, observation Fr
 	s.Metrics.RecordIncidentFreshnessReap(ctx, observation)
 }
 
+func (s Service) recordScannerDerivedPage(ctx context.Context, observation ScannerDerivedPageObservation) {
+	if s.Metrics == nil {
+		return
+	}
+	s.Metrics.RecordScannerDerivedPage(ctx, observation)
+}
+
 func tickerChan(ticker *time.Ticker) <-chan time.Time {
 	if ticker == nil {
 		return nil

@@ -130,7 +130,17 @@ func assertContentFilesLanguageReplayIsNoOp(
 	t.Logf("language index after tracked ApplyBootstrap: %+v", afterTracked)
 
 	recorder := &migrationIndexReplayRecorder{db: SQLDB{DB: db}, t: t, schema: schema, table: contentFilesLanguageTable}
-	if err := ApplyDefinitions(ctx, recorder, BootstrapDefinitions()); err != nil {
+	// Public-only definitions (241's database-global authority, #7033)
+	// refuse isolated schemas by design; replay everything else, the same
+	// set ApplyBootstrap installs here.
+	replayable := make([]Definition, 0, len(BootstrapDefinitions()))
+	for _, def := range BootstrapDefinitions() {
+		if def.PublicOnly {
+			continue
+		}
+		replayable = append(replayable, def)
+	}
+	if err := ApplyDefinitions(ctx, recorder, replayable); err != nil {
 		t.Fatalf("untracked full-tree replay: %v", err)
 	}
 	for _, change := range recorder.changes {
