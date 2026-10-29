@@ -44,20 +44,47 @@ scope_active_generations AS MATERIALIZED (
      AND generation.generation_id = scope.active_generation_id
     WHERE generation.status = 'active'
 ),
+repo_probe AS MATERIALIZED (
+    SELECT fact.fact_id,
+        fact.payload,
+        fact.scope_id,
+        fact.generation_id
+    FROM impact_selector AS selector
+    JOIN fact_records AS fact
+      ON fact.fact_kind = 'reducer_supply_chain_impact_finding'
+     AND fact.is_tombstone = FALSE
+     AND fact.payload->>'repository_id' = selector.repository_id
+    WHERE selector.has_scope
+      AND selector.repository_id <> ''
+),
 impact_candidates AS MATERIALIZED (
     SELECT DISTINCT ON (fact.fact_id)
         fact.fact_id,
         fact.payload
     FROM impact_selector AS selector
-    JOIN scope_active_generations AS scope
+    JOIN (
+        SELECT fact.fact_id, fact.payload, fact.scope_id, fact.generation_id
+        FROM impact_selector AS s1
+        JOIN repo_probe AS fact
+          ON s1.has_scope
+         AND s1.repository_id <> ''
+        JOIN scope_active_generations AS scope
+          ON scope.scope_id = fact.scope_id
+         AND scope.active_generation_id = fact.generation_id
+        UNION ALL
+        SELECT fact.fact_id, fact.payload, fact.scope_id, fact.generation_id
+        FROM impact_selector AS s2
+        JOIN scope_active_generations AS scope
+          ON s2.has_scope
+         AND s2.repository_id = ''
+        JOIN fact_records AS fact
+          ON fact.scope_id = scope.scope_id
+         AND scope.active_generation_id = fact.generation_id
+        WHERE fact.fact_kind = 'reducer_supply_chain_impact_finding'
+          AND fact.is_tombstone = FALSE
+    ) AS fact
       ON selector.has_scope
-    JOIN fact_records AS fact
-      ON fact.scope_id = scope.scope_id
-     AND scope.active_generation_id = fact.generation_id
-    WHERE fact.fact_kind = 'reducer_supply_chain_impact_finding'
-      AND fact.is_tombstone = FALSE
-      AND (selector.repository_id = '' OR fact.payload->>'repository_id' = selector.repository_id)
-      AND (selector.service_id = '' OR fact.payload->'service_ids' ? selector.service_id)
+    WHERE (selector.service_id = '' OR fact.payload->'service_ids' ? selector.service_id)
       AND (selector.workload_id = '' OR fact.payload->'workload_ids' ? selector.workload_id)
       AND (
           COALESCE(cardinality($9::text[]), 0) = 0

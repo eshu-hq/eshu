@@ -131,6 +131,33 @@ func TestAdvisoryEvidenceQueryProbesLookupValueFirstWithoutScopeFanout(t *testin
 	}
 }
 
+func TestAdvisoryEvidenceImpactCandidatesProbeRepositoryFirst(t *testing.T) {
+	t.Parallel()
+
+	// Issue #9487: the impact_candidates CTE fanned every impact-scoped
+	// input out to one probe per active scope before DISTINCT ON/LIMIT
+	// materialized (~900ms of a 2.8s impact query on the primary). A
+	// repository-anchored input must drive from the repository-key probe
+	// into the payload index and test active-generation membership after,
+	// while every other selector shape keeps the scope-driven fan-in.
+	for _, want := range []string{
+		"repo_probe AS MATERIALIZED",
+		"fact.payload->>'repository_id' = selector.repository_id",
+		"AND selector.repository_id <> ''",
+		"AND s2.repository_id = ''",
+		"UNION ALL",
+	} {
+		if !strings.Contains(listAdvisoryEvidenceQuery, want) {
+			t.Fatalf("listAdvisoryEvidenceQuery missing repository-first probe %q:\n%s", want, listAdvisoryEvidenceQuery)
+		}
+	}
+	// The repository OR predicate must not survive as a per-row filter:
+	// with the probe it is enforced by the branch guards instead.
+	if strings.Contains(listAdvisoryEvidenceQuery, "(selector.repository_id = '' OR fact.payload->>'repository_id' = selector.repository_id)") {
+		t.Fatalf("listAdvisoryEvidenceQuery keeps the scope-fan-in repository filter:\n%s", listAdvisoryEvidenceQuery)
+	}
+}
+
 func TestAdvisoryEvidenceLookupIDsStaySeparateFromPackageScope(t *testing.T) {
 	t.Parallel()
 
