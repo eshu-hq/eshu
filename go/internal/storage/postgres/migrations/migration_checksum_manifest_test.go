@@ -286,8 +286,8 @@ var migrationShippedChecksums = map[string]string{
 	"237_content_files_fillfactor.sql":                                       "0675f7de75400e00a3a0f8540ddeb0b6791df377b5aef1355dac88c3d4158f9f",
 	"238_incident_freshness_claim_lease.sql":                                 "62274f7b57f8d680f4c1c2197a290235473c0ce1bf7f32b9ab78fc36f1f2e612",
 	"239_incident_freshness_claim_lease_backfill.sql":                        "f4ac5392a4a812ef4663acab67826c8730e47a03d0fb89f0153810e6e2d388bb",
-	"240_fact_records_vulnerability_active_package_lookup_v2_idx.sql":        "0ae9256352ad97a20cfed227ab90737fd3e5ada0c19a4b3acb9130fc030976b2",
-	"241_fact_records_vulnerability_active_purl_lookup_v2_idx.sql":           "b2ae7fe871d3f934dd6d7d1244add0fac34fd0fe32ef774660bba2e9a05f5642",
+	"240_fact_records_vulnerability_active_package_lookup_v2_idx.sql":        "8616f1d3317e32f6a7c7828dd0860ab3db1a42c4105dcfed6a6b936a605db9c0",
+	"241_fact_records_vulnerability_active_purl_lookup_v2_idx.sql":           "a405afdcc1a2fe3a167107102cd2670cea061f44962ce5e019919462447a0255",
 	"243_vulnerability_source_state_packages.sql":                            "548ad5e4d9442064ba81026b49b7443590ae8244282aa138190d9c7182417438",
 }
 

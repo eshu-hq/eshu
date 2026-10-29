@@ -154,8 +154,10 @@ import (
 // #9474 adds 240_fact_records_vulnerability_active_package_lookup_v2_idx.sql
 // and 241_fact_records_vulnerability_active_purl_lookup_v2_idx.sql: the
 // five-kind package_id/purl partial indexes for the split advisory-evidence
-// package legs (one CREATE INDEX CONCURRENTLY per file).
-const goldenBootstrapDefinitionsDigest = "23d606796b69679890298c5555311a698b78699f743eec13c4564083f010f215"
+// package legs (one CREATE INDEX CONCURRENTLY per file); re-pinned after the
+// bundled-statement guard fix reworded a comment naming CONCURRENTLY
+// (no semantic change to either migration).
+const goldenBootstrapDefinitionsDigest = "2681bdba548cdb2421bd4856a2bcc7819d92a6dcaf5691f72b37fdc89c6fb77b"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
