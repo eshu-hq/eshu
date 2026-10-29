@@ -198,7 +198,24 @@ readiness, disposable_storage) now run in `scheduled-storage`, from
 `scheduled-bulk`. Predicted from the measured family walls, the storage leg
 takes 16.9-29.8m of steps and the bulk leg 7.6-12.7m. The 12.7m top end
 estimates the four families cancelled on #9481 from the other runs. Both caps
-stay at 40. The runner rejects a root storage `go test` in any leg except ACK and storage,
+stay at 40.
+
+`scheduled-ack` builds the same root package and took 17.0, 24.9 and 26.2m
+against its 30-minute cap on the first three runs above, with about 5m of
+tests. A build cannot be shared across jobs, so its cap moves from 30 to 40,
+the same kill limit as `scheduled-storage`.
+
+A warm `-race` cache would not avoid the build on today's main. The scheduled
+jobs restore the shared `setup-go` key (a hit on all four runs, 435-658 MB),
+not the race lane's `gobuildrace` key. The 2026-10-29 `gobuildrace` entry was
+saved by go-race shard 1 (job 123379419537). Shard 3, which tests
+`./internal/storage/postgres`, logged `Unable to reserve cache` (job
+123379419435), so the entry holds no build of that package. One local
+same-machine trial (load 13-20) showed that the scheduled `go test -json
+-race` form reuses a race-lane-form cache that has the package: 391s cold,
+then 32s. That is not a CI runner timing.
+
+The runner rejects a root storage `go test` in any leg except ACK and storage,
 so a new family cannot bring the build back into bulk.
 
 ## Boundaries

@@ -322,10 +322,10 @@ jobs:
   scheduled-ack:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'scheduled-ack') }}
     runs-on: ubuntu-24.04
-    # ACK and completion proofs stay whole: measured 22.4m including the
-    # one-time -race build of the storage test binary, so 30 min keeps thin
-    # but sufficient margin without masking a hang.
-    timeout-minutes: 30
+    # ACK and completion proofs stay whole. #9488 measured 17.0-26.2 min, about
+    # 5 of them tests and the rest the storage -race build that scheduled-storage
+    # also pays, so both legs share the 40 min cap.
+    timeout-minutes: 40
     services:
       postgres:
         image: ghcr.io/eshu-hq/ci-postgres-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
