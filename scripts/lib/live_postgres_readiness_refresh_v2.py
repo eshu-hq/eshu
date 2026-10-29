@@ -28,6 +28,13 @@ PROFILE_RE = (
 )
 
 
+# A PASS row stamped less than this after the previous stamp, with more test
+# elapsed than the gap, was probably flushed in one burst by the runner, so its
+# row wall is not measured. The run is still refused, with that likely cause
+# named (#9543). The bound is strict: a gap of exactly 1 s keeps the old text.
+BURST_GAP_SECONDS = 1.0
+
+
 def _time(value: str) -> dt.datetime:
     """Parse runner timestamps without losing the chronological ordering."""
     return dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
@@ -114,8 +121,12 @@ def _parse_shard(log: str, number: int, total: int) -> tuple[
             if not weights.PACKAGE_RE.fullmatch(package) or not block or passed != expected or passed != len(block):
                 raise ValueError("source has invalid package PASS row")
             now = _time(match.group(1))
-            residual = (now - previous).total_seconds() - sum(seconds for _, seconds in block)
+            gap = (now - previous).total_seconds()
+            residual = gap - sum(seconds for _, seconds in block)
             if residual < 0:
+                if gap < BURST_GAP_SECONDS:
+                    raise ValueError(f"source row timestamps are batched (log flush): {package} "
+                                     f"in shard {number}; the run cannot price residuals")
                 raise ValueError("source has negative row residual")
             kind = "first_row" if not rows else ("repeat" if package in seen_packages else "first_later")
             if kind == "repeat" and rows[-1][0] != package:

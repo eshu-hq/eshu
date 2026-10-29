@@ -394,6 +394,41 @@ class RefreshV2Cases(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "order"):
             self.fit()
 
+    def test_names_batched_row_timestamps(self) -> None:
+        """A PASS row flushed within 1 s of the previous stamp gets the burst error (#9543)."""
+        log = self.sources[0] / "shard2.log"
+        log.write_text(log.read_text().replace("00:00:15Z", "00:00:09.5Z"))
+        with self.assertRaisesRegex(ValueError, r"^source row timestamps are batched \(log flush\): "
+                                    r"\./b in shard 2; the run cannot price residuals$"):
+            self.fit()
+
+    def test_parallel_row_keeps_negative_residual_error(self) -> None:
+        """A 2 s row with 3 s of test elapsed is not a burst and keeps the old refusal."""
+        log = self.sources[0] / "shard2.log"
+        log.write_text(log.read_text().replace(
+            "00:00:15Z TestOne: PASS elapsed=1.0s", "00:00:11Z TestOne: PASS elapsed=3.0s").replace(
+            "00:00:15Z live-postgres-readiness: ./b", "00:00:11Z live-postgres-readiness: ./b"))
+        with self.assertRaisesRegex(ValueError, r"^source has negative row residual$"):
+            self.fit()
+
+    def test_gap_of_exactly_one_second_keeps_negative_residual_error(self) -> None:
+        """The burst gap is strict: a row exactly 1 s after the previous stamp is not a burst."""
+        log = self.sources[0] / "shard2.log"
+        log.write_text(log.read_text().replace(
+            "00:00:15Z TestOne: PASS elapsed=1.0s", "00:00:10Z TestOne: PASS elapsed=1.5s").replace(
+            "00:00:15Z live-postgres-readiness: ./b", "00:00:10Z live-postgres-readiness: ./b"))
+        with self.assertRaisesRegex(ValueError, r"^source has negative row residual$"):
+            self.fit()
+
+    def test_sub_second_row_with_positive_residual_is_still_accepted(self) -> None:
+        """A row 0.5 s after the previous stamp that ran 0.2 s of tests is not a burst (#9543)."""
+        for source in self.sources:
+            log = source / "shard2.log"
+            log.write_text(log.read_text().replace(
+                "00:00:18Z TestTwo: PASS elapsed=1.0s", "00:00:15.5Z TestTwo: PASS elapsed=0.2s").replace(
+                "00:00:18Z live-postgres-readiness: ./b", "00:00:15.5Z live-postgres-readiness: ./b"))
+        self.assertEqual(self.fit()["package_repeat_seconds"], {"./b": 0.3})
+
     def test_rejects_source_inventory_mismatch(self) -> None:
         with mock.patch.object(refresh.provenance, "source_inventory", return_value=PLAN[:-1]):
             with self.assertRaisesRegex(ValueError, "inventory|coverage"):
