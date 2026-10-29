@@ -21,10 +21,11 @@ import (
 // producer grants the component needs. The chart-side copy is applied in the
 // deploy step; these entries are what it must match.
 //
-// Deliberately environment-specific fields are absent: host scope, process
-// command, and config targets come from the QA environment at deploy time.
-// The scanner binaries take no CLI arguments (stdin/stdout only, plus
-// --version), so no process args are declared here.
+// Deliberately environment-specific fields are absent: host scope and config
+// targets come from the QA environment at deploy time. The stdio call path
+// takes no CLI arguments (stdin/stdout only, plus --version); the seed init
+// container instead runs the seed subcommand each binary exposes (Refs
+// #9501), with --dest/--image-ref appended by the chart.
 const scannerActivationValues = `
 - instanceId: scanner-image
   componentId: eshu.scanner.image
@@ -32,6 +33,7 @@ const scannerActivationValues = `
   mode: scheduled
   seed:
     image: ghcr.io/eshu-hq/scanner-image@sha256:d2967a1ab642747ec5bafed484b4a5384839b90b59c9562ee38e67b3fa547d49
+    command: ["/usr/local/bin/eshu-scanner-component-image", "seed"]
     pullPolicy: IfNotPresent
   grants:
     - kind: scanner_worker.analysis
@@ -56,6 +58,7 @@ const scannerActivationValues = `
   mode: scheduled
   seed:
     image: ghcr.io/eshu-hq/scanner-sbom@sha256:cbafeeeb2bae99902838e5159bd4003e210f5cfe41891b50b0caf502b2d99dec
+    command: ["/usr/local/bin/eshu-scanner-component-sbom", "seed"]
     pullPolicy: IfNotPresent
   grants:
     - kind: sbom.document
@@ -76,6 +79,7 @@ const scannerActivationValues = `
   mode: scheduled
   seed:
     image: ghcr.io/eshu-hq/scanner-osruntime@sha256:e302cf4e398f23974210f69988a3c53510738100ae7525ead6d11d992d7be3a8
+    command: ["/usr/local/bin/eshu-scanner-component-osruntime", "seed"]
     pullPolicy: IfNotPresent
   grants:
     - kind: vulnerability.os_package
@@ -96,8 +100,9 @@ type scannerActivationGrant struct {
 }
 
 type scannerActivationSeed struct {
-	Image      string `yaml:"image"`
-	PullPolicy string `yaml:"pullPolicy"`
+	Image      string   `yaml:"image"`
+	Command    []string `yaml:"command"`
+	PullPolicy string   `yaml:"pullPolicy"`
 }
 
 type scannerActivation struct {
@@ -154,6 +159,43 @@ func TestScannerActivationSeedImagesMatchPinnedManifests(t *testing.T) {
 			}
 			if got := strings.TrimSpace(manifest.Spec.Artifacts[0].Image); got != activation.Seed.Image {
 				t.Fatalf("seed image = %q, want pinned manifest artifact %q", activation.Seed.Image, got)
+			}
+		})
+	}
+}
+
+// TestScannerActivationSeedCommandsMatchImageBinaries pins the seed init
+// container command each activation runs: the absolute in-image path of the
+// component binary (the Dockerfile scanner-<name> stages COPY
+// eshu-scanner-component-<name> to /usr/local/bin) plus the `seed`
+// subcommand the binary dispatches (Refs #9501). The chart appends --dest
+// and --image-ref; an entry pointing at a relocated binary would seed
+// nothing.
+func TestScannerActivationSeedCommandsMatchImageBinaries(t *testing.T) {
+	t.Parallel()
+
+	wantBinary := map[string]string{
+		scannercomponent.IDImage:     "eshu-scanner-component-image",
+		scannercomponent.IDSBOM:      "eshu-scanner-component-sbom",
+		scannercomponent.IDOSRuntime: "eshu-scanner-component-osruntime",
+	}
+	activations := parseScannerActivations(t)
+	for _, activation := range activations {
+		t.Run(activation.ComponentID, func(t *testing.T) {
+			t.Parallel()
+
+			binary, ok := wantBinary[activation.ComponentID]
+			if !ok {
+				t.Fatalf("unexpected componentId %q", activation.ComponentID)
+			}
+			want := []string{"/usr/local/bin/" + binary, "seed"}
+			if len(activation.Seed.Command) != len(want) {
+				t.Fatalf("seed command = %q, want %q", activation.Seed.Command, want)
+			}
+			for i := range want {
+				if activation.Seed.Command[i] != want[i] {
+					t.Fatalf("seed command = %q, want %q", activation.Seed.Command, want)
+				}
 			}
 		})
 	}
