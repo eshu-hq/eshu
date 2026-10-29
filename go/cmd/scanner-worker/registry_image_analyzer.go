@@ -157,6 +157,7 @@ func (a registryImageAnalyzer) Analyze(ctx context.Context, input scannerworker.
 			return scannerworker.AnalyzerResult{}, registryImageLimit(scannerworker.FailureClassInputLimitExceeded)
 		}
 		compressedPath := filepath.Join(stageDir, fmt.Sprintf("compressed-%d", index))
+		// #nosec G304 -- compressedPath joins an os.MkdirTemp staging dir with an integer-derived layer index name and is created O_EXCL|0o600, so no external path or symlink can redirect it.
 		compressedFile, err := os.OpenFile(compressedPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 		if err != nil {
 			return scannerworker.AnalyzerResult{}, registryImageRetryable("registry image staging unavailable")
@@ -244,6 +245,7 @@ func decodeImageManifest(ctx context.Context, raw []byte, target registryImageTa
 }
 
 func expandGzipLayer(ctx context.Context, compressedPath, expandedPath string, capBytes int64) (int64, error) {
+	// #nosec G304 -- compressedPath is the analyzer's own O_EXCL-created staging file under an os.MkdirTemp dir with an integer-derived name, not external input.
 	input, err := os.Open(compressedPath)
 	if err != nil {
 		return 0, errExpandedLayerStaging
@@ -254,6 +256,7 @@ func expandGzipLayer(ctx context.Context, compressedPath, expandedPath string, c
 		return 0, err
 	}
 	defer func() { _ = gzipReader.Close() }()
+	// #nosec G304 -- expandedPath joins an os.MkdirTemp staging dir with an integer-derived layer index name and is created O_EXCL|0o600, so no external path or symlink can redirect it.
 	output, err := os.OpenFile(expandedPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
 		return 0, errExpandedLayerStaging
