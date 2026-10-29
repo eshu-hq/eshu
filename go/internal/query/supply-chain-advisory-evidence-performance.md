@@ -94,3 +94,22 @@ No-Observability-Change: the route still emits `query.advisory_evidence`, the
 Postgres query duration histogram, HTTP status/error bodies, truth envelope
 metadata, `count`, `limit`, `truncated`, and `next_cursor`. The change adds no
 graph query, queue, reducer lane, worker, runtime knob, or metric label.
+
+Performance Evidence (#9487): the `impact_candidates` CTE no longer fans
+every impact-scoped input out to one probe per active scope. A
+repository-anchored selector drives from the repository-key probe
+(`repo_probe`, guarded by `has_scope AND repository_id <> ''`) into
+`fact_records_supply_chain_impact_repository_lookup_idx` and tests
+active-generation membership after; every other selector shape keeps the
+scope-driven fan-in behind the mutually exclusive `repository_id = ''`
+guard, and the no-scope path skips the fan-in probes entirely. No DDL, no
+leg changes, no contract change. Primary corpus (91 GB fact_records,
+2026-10-29, read-only tx): repository scope r_91a70b19 (4890 evidence
+rows) 2639/2390/2264ms -> 1450/1610/1485ms, byte-identical including
+order; smaller repository scope r_c917fef9 identical (927 rows); KEV
+CVE-2021-44228 866ms -> 2ms identical (1 row); workload-only
+workload:repository:r_33474efb identical (1 row) with neutral timing
+(medians ~1000ms vs ~1017ms). Shape pin:
+`TestAdvisoryEvidenceImpactCandidatesProbeRepositoryFirst`.
+
+No-Observability-Change (#9487): same route signals as above, unchanged.
