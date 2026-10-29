@@ -111,8 +111,12 @@ rg -q '^chart=true$' "${scratch}/output"
 rg -q '^apkfloors=false$' "${scratch}/output"
 # #7762: the runtime image tool verifier and its suite select the image lane,
 # whose verify-reproducibility job runs both against the built rootfs.
-for tool_script in scripts/verify-runtime-image-tools.sh scripts/test-verify-runtime-image-tools.sh; do
+# #8878: the scanner image verifier, its suite, and the shared
+# rootfs-resolve library they source select the same lane, since the
+# scanner-images gate depends on verify-reproducibility running via it.
+for tool_script in scripts/verify-runtime-image-tools.sh scripts/test-verify-runtime-image-tools.sh scripts/verify-scanner-images.sh scripts/test-verify-scanner-images.sh scripts/lib/rootfs-resolve.sh; do
   tool_base="$(git -C "${repo}" rev-parse HEAD)"
+  mkdir -p "${repo}/$(dirname "${tool_script}")"
   printf '#!/usr/bin/env bash\n' > "${repo}/${tool_script}"
   git -C "${repo}" add "${tool_script}"
   git -C "${repo}" commit -qm "${tool_script##*/}"

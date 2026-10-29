@@ -84,9 +84,8 @@ RUN cd go \
 # boundary via an explicit `command:` override). It is built in its own stage
 # off `builder`, so /go-bin/ — and therefore the production stage's
 # `COPY --from=builder /go-bin/` below — never contains it. This stage and
-# mock-github's below it MUST stay before "Production stage": no
-# docker-compose*.yaml `build:` block in this repo sets an explicit
-# `target:`, so plain `docker build .` / `docker compose build` resolves to
+# mock-github's below it MUST stay before "Production stage": plain
+# `docker build .` / `docker compose build` without a target resolves to
 # whichever stage is LAST in this file: the production stage must remain
 # that last stage, with mock-oidc-idp reached only via an explicit
 # `--target mock-oidc-idp` (see docker-compose.e2e.yaml).
@@ -148,19 +147,21 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 CMD ["eshu-mock-github"]
 
 # scanner-image / scanner-sbom / scanner-osruntime: destination images for
-# the per-analyzer scanner stdio components (#8878). Each image carries
-# exactly one component binary from the builder stage — the same binary
-# the runtime image ships — and nothing else: the extension host launches
-# one process per call, and each ComponentPackage manifest
-# (go/internal/collector/scannerworker/component) pins exactly one artifact
-# image, so scripts/verify-scanner-images.sh fails a stage that gains a
-# sibling binary. No shell tools, no ports, no HEALTHCHECK: stdio components
-# read the v1alpha3 page request on stdin and write the result page on
-# stdout; there is no server to probe. The base is the same digest-pinned
-# Alpine the production stage uses. These stages MUST stay before
-# "Production stage": no docker-compose*.yaml `build:` block in this repo
-# sets an explicit `target:`, so plain `docker build .` resolves to
-# whichever stage is LAST in this file. Published as
+# the per-analyzer scanner stdio components (#8878). Each image COPYs only
+# its own component binary from the builder stage under usr/local/bin — the
+# same binary the runtime image ships — and the extension host launches one
+# process per call, with each ComponentPackage manifest
+# (go/internal/collector/scannerworker/component) pinning exactly one
+# artifact image, so scripts/verify-scanner-images.sh fails a stage whose
+# own binary does not resolve under usr/bin, bin, or usr/local/bin, or that
+# gains a sibling-component name under any of those three directories. No
+# ports, no HEALTHCHECK: stdio components read the v1alpha3 page request on
+# stdin and write the result page on stdout; there is no server to probe.
+# The base is the same digest-pinned Alpine the production stage uses.
+# These stages MUST stay before "Production stage": plain `docker build .`
+# resolves to whichever stage is LAST in this file, and services needing
+# another stage use an explicit `target:` (e.g. mock-oidc-idp in
+# docker-compose.e2e.yaml). Published as
 # ghcr.io/eshu-hq/scanner-<name> by docker-publish.yml's
 # build-and-push-scanner-images job; the manifest placeholder digest is
 # swapped for the published digest after the first publish.

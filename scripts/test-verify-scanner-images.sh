@@ -5,7 +5,8 @@
 # each case builds a synthetic destination-image root filesystem under mktemp.
 #
 # Contract under test: the destination scanner-<name> image for one analyzer
-# carries exactly its own stdio component binary. For component C in
+# resolves its own stdio component binary with no sibling-component entry
+# under the three binary directories. For component C in
 # {image, sbom, osruntime} with binary eshu-scanner-component-C:
 #   GREEN the binary resolves, inside the rootfs, to an executable regular
 #         file, and neither sibling component binary has an entry under the

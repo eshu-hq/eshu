@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
 # verify-scanner-images.sh - assert one destination scanner-<name> image
-# carries exactly its own stdio component binary (#8878).
+# resolves its own stdio component binary and carries no sibling-component
+# entry under the three binary directories (#8878).
 #
 # Usage: verify-scanner-images.sh <image|sbom|osruntime> <rootfs-dir>
 #
@@ -25,8 +26,9 @@
 # host binary. The sibling check is lexical on purpose: the question is
 # whether the image ships the name at all, not what it points at.
 #
-# Exit codes: 0 the image carries exactly its binary; 1 a binary is missing
-# or a sibling is present; 2 the input is unusable (wrong arity, unknown
+# Exit codes: 0 the own binary resolves and no sibling entry is present
+# under usr/bin, bin, or usr/local/bin; 1 the own binary is missing or a
+# sibling entry is present; 2 the input is unusable (wrong arity, unknown
 # component, not a directory, or not an image rootfs).
 # MAX_LINK_HOPS below is consumed by the sourced rootfs-resolve library,
 # which shellcheck cannot see when this file is linted alone.
