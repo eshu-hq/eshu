@@ -121,6 +121,69 @@ func TestBuildSupplyChainVersionExplanation(t *testing.T) {
 	}
 }
 
+// TestBuildSupplyChainVersionExplanationNamesMatchingLineFix proves #9430:
+// with a two-line fact (the 1.x line fixed in 1.9.1, the 2.x line fixed in
+// 2.4.5) and an observed 2.0.5 install, the headline must name 2.4.5 — the
+// fix of the release line containing the observation — not the persisted
+// fixed_versions[0] scalar 1.9.1.
+func TestBuildSupplyChainVersionExplanationNamesMatchingLineFix(t *testing.T) {
+	t.Parallel()
+
+	row := explainBuildTestRow()
+	row.Finding.Ecosystem = "composer"
+	row.Finding.PackageID = "composer://packagist.org/guzzlehttp/psr7"
+	row.Finding.PackageName = "guzzlehttp/psr7"
+	row.Finding.ObservedVersion = "2.0.5"
+	row.Finding.FixedVersion = "1.9.1"
+	row.EvidenceFacts = []EvidenceFact{
+		{
+			FactID:   "psr7-fact",
+			FactKind: "vulnerability.affected_package",
+			Payload: map[string]any{
+				"fixed_versions": []any{"1.9.1", "2.4.5"},
+				"affected_ranges": []any{
+					map[string]any{"type": "ECOSYSTEM", "events": []any{
+						map[string]any{"introduced": "1.0.0"},
+						map[string]any{"fixed": "1.9.1"},
+					}},
+					map[string]any{"type": "ECOSYSTEM", "events": []any{
+						map[string]any{"introduced": "2.0.0"},
+						map[string]any{"fixed": "2.4.5"},
+					}},
+				},
+			},
+		},
+	}
+	advisory := buildSupplyChainAdvisoryExplanation(row)
+	component := buildSupplyChainComponentExplanation(row)
+	if got := buildSupplyChainVersionExplanation(row, advisory, component); got.FixedVersion != "2.4.5" {
+		t.Errorf("FixedVersion = %q, want 2.4.5 (fix of the 2.x line containing 2.0.5)", got.FixedVersion)
+	}
+}
+
+// TestBuildSupplyChainVersionExplanationOrdersFixesByEcosystem proves #9430:
+// a lexicographically sorted fixed_versions list (["10.0.1","9.5.0"]) must
+// resolve to the ecosystem-lowest fix (9.5.0), not versions[0] (10.0.1).
+func TestBuildSupplyChainVersionExplanationOrdersFixesByEcosystem(t *testing.T) {
+	t.Parallel()
+
+	row := explainBuildTestRow()
+	row.Finding.FixedVersion = ""
+	row.Finding.ObservedVersion = ""
+	row.EvidenceFacts = []EvidenceFact{
+		{
+			FactID:   "fact-order",
+			FactKind: "vulnerability.affected_package",
+			Payload:  map[string]any{"fixed_versions": []any{"10.0.1", "9.5.0"}},
+		},
+	}
+	advisory := buildSupplyChainAdvisoryExplanation(row)
+	component := buildSupplyChainComponentExplanation(row)
+	if got := buildSupplyChainVersionExplanation(row, advisory, component); got.FixedVersion != "9.5.0" {
+		t.Errorf("FixedVersion = %q, want 9.5.0 (ecosystem order, not string order)", got.FixedVersion)
+	}
+}
+
 // TestBuildSupplyChainDependencyChain proves the chain builder clones
 // the finding path and returns nil when no chain evidence exists.
 func TestBuildSupplyChainDependencyChain(t *testing.T) {

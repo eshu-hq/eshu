@@ -111,10 +111,16 @@ func buildSupplyChainVersionExplanation(
 		FixedVersion:    row.Finding.FixedVersion,
 		VersionEvidence: "missing",
 	}
-	if version.FixedVersion == "" {
+	if matching := matchingLineFixedVersion(row.EvidenceFacts, version.ObservedVersion); matching != "" {
+		// A multi-line advisory unions one fix per release line; the
+		// headline names the fix of the line containing the observation
+		// (#9430), even when the persisted finding still carries the old
+		// fixed_versions[0] scalar.
+		version.FixedVersion = matching
+	} else if version.FixedVersion == "" {
 		for _, fact := range row.EvidenceFacts {
-			if versions := querycontract.StringSliceVal(fact.Payload, "fixed_versions"); len(versions) > 0 {
-				version.FixedVersion = versions[0]
+			if fixed := lowestFixedVersion(querycontract.StringSliceVal(fact.Payload, "fixed_versions")); fixed != "" {
+				version.FixedVersion = fixed
 				break
 			}
 			if fixed := querycontract.StringVal(fact.Payload, "fixed_version"); fixed != "" {
@@ -130,6 +136,65 @@ func buildSupplyChainVersionExplanation(
 		version.VersionEvidence = "range_only"
 	}
 	return version
+}
+
+// matchingLineFixedVersion returns the fix published on the release line
+// containing the observed version: the first affected_ranges entry whose
+// events contain the observation and which names a fixed boundary. Empty
+// when the observation is blank, when no entry contains it, or when the
+// containing entry names no fix.
+func matchingLineFixedVersion(facts []EvidenceFact, observed string) string {
+	observed = strings.TrimSpace(observed)
+	if observed == "" {
+		return ""
+	}
+	for _, fact := range facts {
+		for _, events := range decodeExplainAffectedRanges(fact.Payload) {
+			contained, valid := explainRangeContains(events, observed)
+			if !valid || !contained {
+				continue
+			}
+			for _, event := range events {
+				if fixed := strings.TrimSpace(event.fixed); fixed != "" {
+					return fixed
+				}
+			}
+		}
+	}
+	return ""
+}
+
+// lowestFixedVersion returns the lowest candidate in semver-family version
+// order (#9430) instead of the collector's lexicographic sort. Candidates
+// no semver parser reads keep payload order — the first — rather than a
+// guessed order.
+func lowestFixedVersion(candidates []string) string {
+	trimmed := make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		if candidate = strings.TrimSpace(candidate); candidate != "" {
+			trimmed = append(trimmed, candidate)
+		}
+	}
+	if len(trimmed) == 0 {
+		return ""
+	}
+	lowest := ""
+	for _, candidate := range trimmed {
+		if _, ok := normalizeExplainVersion(candidate); !ok {
+			continue
+		}
+		if lowest == "" {
+			lowest = candidate
+			continue
+		}
+		if cmp, ok := compareExplainSemverVersions(candidate, lowest); ok && cmp < 0 {
+			lowest = candidate
+		}
+	}
+	if lowest != "" {
+		return lowest
+	}
+	return trimmed[0]
 }
 
 func buildSupplyChainDependencyChain(

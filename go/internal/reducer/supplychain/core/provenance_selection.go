@@ -180,7 +180,7 @@ func selectAdvisoryProvenance(
 		}
 		if selection.FixedVersionSource == "" && len(observation.FixedVersions) > 0 {
 			selection.FixedVersionSource = observation.Source
-			selection.FixedVersion = strings.TrimSpace(observation.FixedVersions[0])
+			selection.FixedVersion = singleFixedVersion(observation.FixedVersions)
 		}
 		if selection.RangeSource == "" && strings.TrimSpace(observation.AffectedRange) != "" {
 			selection.RangeSource = observation.Source
@@ -253,4 +253,30 @@ func selectAdvisoryProvenance(
 	}
 	selection.EvidenceFactIDs = payloadcore.UniqueSortedStrings(selection.EvidenceFactIDs)
 	return selection
+}
+
+// singleFixedVersion returns the observation's fixed version only when it
+// names exactly one distinct fix. A multi-line advisory unions one fix per
+// release line into fixed_versions (#9421); no single entry answers "the"
+// fixed version without the observed version, and publishing
+// fixed_versions[0] as the scalar feeds a cross-line fix into the version
+// matcher (#9430). Callers read the per-line fix from FixedVersionBranches
+// (remediation) or from the release line containing the observation (impact
+// explanations) instead.
+func singleFixedVersion(versions []string) string {
+	var out string
+	for _, version := range versions {
+		version = strings.TrimSpace(version)
+		if version == "" {
+			continue
+		}
+		if out == "" {
+			out = version
+			continue
+		}
+		if version != out {
+			return ""
+		}
+	}
+	return out
 }
