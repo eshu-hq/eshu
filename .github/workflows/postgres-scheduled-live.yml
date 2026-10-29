@@ -385,7 +385,7 @@ jobs:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'scheduled-bulk') }}
     runs-on: ubuntu-24.04
     # Bulk leg: every family outside ACK, freshness and the root storage leg,
-    # serially on one warm cache. #9488 measured 9.7-12.7 min of steps.
+    # serially on one warm cache. #9488 predicts 7.6-12.7 min of steps.
     timeout-minutes: 40
     services:
       postgres:
@@ -421,7 +421,7 @@ jobs:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'scheduled-storage') }}
     runs-on: ubuntu-24.04
     # Root storage leg (#9488): the six families testing ./internal/storage/postgres
-    # share its 11-21 min -race test build. Measured 17.0-29.8 min of steps.
+    # share its 11-21 min -race test build. #9488 predicts 16.9-29.8 min.
     timeout-minutes: 40
     services:
       postgres:

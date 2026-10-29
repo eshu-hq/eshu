@@ -185,17 +185,20 @@ leg. It is not the tests themselves:
 | PR #9483 40842111898 (123341097469) | 25.7m | 5.3m | 39.7m | cancelled |
 | PR #9481, attempt 2 | 26.4m | 5.4m | 39.5m | cancelled |
 
-The package grew 1.0% in source bytes between the first and last run. The two
-slow runs used runner image 20261025.353.1 and the two fast ones used
-20261012.334.1. The five other root-package families reuse the build and take
-0.2-1.1m each. A local trial ruled out `go vet` as the cost.
+The package grew 1.0% in source bytes (13.48 to 13.61 MB) between the heads
+of runs 40485127858 and 40842111898. The two slow runs used runner image
+20261025.353.1 and the two fast ones used 20261012.334.1; that is a
+correlation, not a diagnosed cause. The five other root-package families reuse
+the build and take 0.2-1.1m each. A local trial found no measurable `go vet`
+cost.
 
 The six families that test the root package (claim, liveness, fanout, search,
 readiness, disposable_storage) now run in `scheduled-storage`, from
 `.github/actions/postgres-scheduled-storage`. The nine others stay in
 `scheduled-bulk`. Predicted from the measured family walls, the storage leg
-takes 17.0-29.8m of steps and the bulk leg 9.7-12.7m. Both caps stay at 40.
-The runner rejects a root storage `go test` in any leg except ACK and storage,
+takes 16.9-29.8m of steps and the bulk leg 7.6-12.7m. The 12.7m top end
+estimates the four families cancelled on #9481 from the other runs. Both caps
+stay at 40. The runner rejects a root storage `go test` in any leg except ACK and storage,
 so a new family cannot bring the build back into bulk.
 
 ## Boundaries
