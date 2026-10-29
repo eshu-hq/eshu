@@ -43,10 +43,10 @@ collector generation dead-letter replay (a different table).
 
 Migration 245 adds `shared_projection_intents.reopened_at TIMESTAMPTZ NULL`
 (catalog-only, one statement), and migration 246 adds the pending-age index.
-Check on 2026-10-29 at the rebase onto `origin/main` 01c8781a71: main holds
-238 through 241 and 243; open PR #9458 adds 242 and 244. This branch first
-took 239 and 240, then 241 and 242, then 244 and 245, and now takes 245 and
-246, past the highest number on main or in flight. Gaps in the sequence are
+Check on 2026-10-29 at the rebase onto `origin/main` 663c111676: main holds
+238 through 244 (#9307 landed 242 and 244). This branch first took 239 and
+240, then 241 and 242, then 244 and 245, and now takes 245 and 246, past the
+highest number on main or in flight. Gaps in the sequence are
 tolerated; a shared sequence number fails
 `TestBootstrapDefinitionsHaveUniqueSequenceNumbers`.
 

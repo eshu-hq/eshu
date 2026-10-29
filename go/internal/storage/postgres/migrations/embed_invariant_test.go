@@ -165,16 +165,15 @@ import (
 // nullable reopen marker for reopen-aware shared-projection backlog age)
 // and 246_shared_projection_intents_domain_pending_age_idx.sql (the partial
 // covering index that keeps that backlog aggregate an Index Only Scan; one
-// CREATE INDEX CONCURRENTLY). It skips 242 and 244, which an open PR
-// holds, and stays past 243, the highest number on main; gaps are tolerated,
-// shared sequence numbers are not.
-const goldenBootstrapDefinitionsDigest = "48334a156a30664aaa073d714a3f3ec2d259efa81aeefda79e22e94cb94eecf4"
+// CREATE INDEX CONCURRENTLY). It follows 244 (#9307), the highest number
+// on main; gaps are tolerated, shared sequence numbers are not.
+const goldenBootstrapDefinitionsDigest = "0e60a98af2f9bf261282e17ed4ffd9b8dcdb463ee360d681227f2e4c43c6896d"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 262
+const goldenBootstrapDefinitionsCount = 264
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()
