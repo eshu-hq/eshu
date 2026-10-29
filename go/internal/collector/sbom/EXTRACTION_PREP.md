@@ -284,7 +284,7 @@ public SDK surface is owned by
 
 1. Published SDK + fact-schema modules (`#6708`, `#8851` Codex lane) at
    the coordinates pinned in [SHIM_MAP](SHIM_MAP.md) (currently collector
-   `v0.1.0-rc.4`, factschema `v0.1.0-rc.7`). Symbol sufficiency was
+   `v0.1.0-rc.5`, factschema `v0.1.0-rc.7`). Symbol sufficiency was
    verified at `v0.1.0-rc.1` (SHIM_MAP §6); each later bump re-proves it by
    building this lane green, and the pin-parity guard
    (`runtime/shim_pin_8865_test.go`) fails closed on undocumented drift.
