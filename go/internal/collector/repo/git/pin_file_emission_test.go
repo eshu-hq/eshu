@@ -31,6 +31,7 @@ func TestSnapshotRepositoryEmitsARuntimeDeclarationForEveryAdmittedPinName(t *te
 		".java-version":       {"17\n", "java_version", "java"},
 		".go-version":         {"1.22.1\n", "go_version", "go"},
 		".terraform-version":  {"1.6.0\n", "terraform_version", "terraform"},
+		".terragrunt-version": {"0.58.0\n", "terragrunt_version", "terragrunt"},
 		".tool-versions":      {"nodejs 20.11.1\n", "tool_versions", "node"},
 		".sdkmanrc":           {"java=17.0.2-tem\n", "sdkmanrc", "java"},
 		"rust-toolchain":      {"1.75.0\n", "rust_toolchain", "rust"},

@@ -220,7 +220,7 @@ func defaultDefinitions() []Definition {
 				"Puppetfile", "Berksfile",
 				".nvmrc", ".node-version", ".tool-versions", ".python-version", ".php-version",
 				".ruby-version", ".java-version", ".go-version", ".sdkmanrc",
-				".swift-version", ".terraform-version",
+				".swift-version", ".terraform-version", ".terragrunt-version",
 				"rust-toolchain", "rust-toolchain.toml",
 				"Makefile", "GNUmakefile", "justfile",
 				".editorconfig", ".gitattributes", ".dockerignore", ".gitignore",

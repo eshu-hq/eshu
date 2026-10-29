@@ -8,19 +8,20 @@ import "path"
 // Source kinds for the version-pin files. One value per file name, snake case.
 // rust-toolchain and rust-toolchain.toml share a kind.
 const (
-	sourceKindNvmrc            = "nvmrc"
-	sourceKindPHPVersion       = "php_version"
-	sourceKindNodeVersion      = "node_version"
-	sourceKindPythonVersion    = "python_version"
-	sourceKindRubyVersion      = "ruby_version"
-	sourceKindJavaVersion      = "java_version"
-	sourceKindGoVersion        = "go_version"
-	sourceKindTerraformVersion = "terraform_version"
-	sourceKindToolVersions     = "tool_versions"
-	sourceKindSdkmanrc         = "sdkmanrc"
-	sourceKindRustToolchain    = "rust_toolchain"
-	sourceKindSwiftVersion     = "swift_version"
-	sourceKindRuntimeTXT       = "runtime_txt"
+	sourceKindNvmrc             = "nvmrc"
+	sourceKindPHPVersion        = "php_version"
+	sourceKindNodeVersion       = "node_version"
+	sourceKindPythonVersion     = "python_version"
+	sourceKindRubyVersion       = "ruby_version"
+	sourceKindJavaVersion       = "java_version"
+	sourceKindGoVersion         = "go_version"
+	sourceKindTerraformVersion  = "terraform_version"
+	sourceKindTerragruntVersion = "terragrunt_version"
+	sourceKindToolVersions      = "tool_versions"
+	sourceKindSdkmanrc          = "sdkmanrc"
+	sourceKindRustToolchain     = "rust_toolchain"
+	sourceKindSwiftVersion      = "swift_version"
+	sourceKindRuntimeTXT        = "runtime_txt"
 )
 
 // pinFileSourceKinds maps the exact base names admitted by the parser registry
@@ -39,6 +40,7 @@ var pinFileSourceKinds = map[string]string{
 	".java-version":       sourceKindJavaVersion,
 	".go-version":         sourceKindGoVersion,
 	".terraform-version":  sourceKindTerraformVersion,
+	".terragrunt-version": sourceKindTerragruntVersion,
 	".tool-versions":      sourceKindToolVersions,
 	".sdkmanrc":           sourceKindSdkmanrc,
 	"rust-toolchain":      sourceKindRustToolchain,

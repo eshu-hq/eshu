@@ -141,6 +141,24 @@ func NoteCappedPythonCandidate(candidates map[string]Candidate, relativePath str
 	candidates[relativePath] = Candidate{Manifest: true, Extraction: runtimedeclaration.CappedPythonExtraction(byteSize)}
 }
 
+// NoteParsedIACCandidate stores guarded native HCL or Helm parser evidence.
+func NoteParsedIACCandidate(candidates map[string]Candidate, relativePath string, extraction runtimedeclaration.Extraction) {
+	if extraction.Len() == 0 && !extraction.Skip().Skipped() {
+		return
+	}
+	candidates[relativePath] = Candidate{Manifest: true, Extraction: extraction}
+}
+
+// NoteUnavailableIACCandidate records a parser miss for a retry.
+func NoteUnavailableIACCandidate(candidates map[string]Candidate, relativePath string, byteSize int) {
+	candidates[relativePath] = Candidate{Manifest: true, Extraction: runtimedeclaration.UnavailableIACExtraction(byteSize)}
+}
+
+// NoteCappedIACCandidate records a bounded skip without retaining the body.
+func NoteCappedIACCandidate(candidates map[string]Candidate, relativePath string, byteSize int) {
+	candidates[relativePath] = Candidate{Manifest: true, Extraction: runtimedeclaration.CappedIACExtraction(byteSize)}
+}
+
 // NoteUnavailableComposerCandidate records a typed skip for a Composer file
 // whose native parser failed or was not run.
 func NoteUnavailableComposerCandidate(candidates map[string]Candidate, relativePath string, byteSize int) {

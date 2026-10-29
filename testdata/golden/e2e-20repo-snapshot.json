@@ -2230,6 +2230,14 @@
         }
       },
       {
+        "id": "rn-iac-runtime-declarations",
+        "description": "The synthetic lib-common runtime_iac fixtures declare Terraform, Terragrunt, and Kubernetes runtime requirements. HTTP and MCP shapes bind the four complete source tuples.",
+        "label": "RuntimeDeclaration",
+        "minimum_count": 4,
+        "required_node_properties": ["runtime", "source_kind"],
+        "allowed_node_property_values": {"runtime": ["terraform", "terragrunt", "kubernetes"], "source_kind": ["terraform_required_version", "terragrunt_version_constraint", "terragrunt_version", "helm_chart_kube_version"]}
+      },
+      {
         "id": "rn-ruby-runtime-declaration",
         "description": "Synthetic ruby_rails_app/runtime-declarations Gemfile and Gemfile.lock declarations require Ruby runtime nodes; the HTTP and MCP tuple matches pin source lines and values.",
         "label": "RuntimeDeclaration",
@@ -5015,6 +5023,21 @@
         },
         "arguments": {"runtime": "dotnet", "limit": 50}
       },
+      "list_runtime_version_declarations?assert=iac_sources": {
+        "description": "Four synthetic Terraform, Terragrunt, and Helm source declarations from lib-common/runtime_iac, each bound as one complete source tuple through the deployed MCP surface.",
+        "required_response_fields": ["declarations", "count", "limit", "truncated", "filters", "excluded_from_comparison", "partial_reasons"],
+        "minimum_results": 4,
+        "results_field": "declarations",
+        "required_json_object_matches": {
+          "declarations[]": [
+            {"runtime": "terraform", "source_kind": "terraform_required_version", "relative_path": "runtime_iac/main.tf", "raw_spec": ">= 1.6.0", "spec_kind": "range", "line_number": 2, "order_index": 0},
+            {"runtime": "terraform", "source_kind": "terragrunt_version_constraint", "relative_path": "runtime_iac/terragrunt.hcl", "raw_spec": "~> 1.6", "spec_kind": "range", "line_number": 1, "order_index": 0},
+            {"runtime": "terragrunt", "source_kind": "terragrunt_version", "relative_path": "runtime_iac/.terragrunt-version", "raw_spec": "0.58.0", "spec_kind": "exact", "line_number": 1, "order_index": 0},
+            {"runtime": "kubernetes", "source_kind": "helm_chart_kube_version", "relative_path": "runtime_iac/charts/app/Chart.yaml", "raw_spec": ">= 1.27.0", "spec_kind": "range", "line_number": 4, "order_index": 0}
+          ]
+        },
+        "arguments": {"limit": 100}
+      },
       "list_runtime_version_declarations?assert=ruby_sources": {
         "description": "Both synthetic Ruby runtime source declarations from ruby_rails_app/runtime-declarations, each bound as one exact source tuple through the deployed MCP tool.",
         "required_response_fields": [
@@ -7688,6 +7711,21 @@
           ]
         },
         "request_body": {"runtime": "dotnet", "limit": 50}
+      },
+      "POST /api/v0/runtime-declarations/query?assert=iac_sources": {
+        "description": "Four synthetic Terraform, Terragrunt, and Helm source declarations from lib-common/runtime_iac, each bound as one complete source tuple through the deployed HTTP surface.",
+        "required_response_fields": ["declarations", "count", "limit", "truncated", "filters", "excluded_from_comparison", "partial_reasons"],
+        "minimum_results": 4,
+        "results_field": "declarations",
+        "required_json_object_matches": {
+          "declarations[]": [
+            {"runtime": "terraform", "source_kind": "terraform_required_version", "relative_path": "runtime_iac/main.tf", "raw_spec": ">= 1.6.0", "spec_kind": "range", "line_number": 2, "order_index": 0},
+            {"runtime": "terraform", "source_kind": "terragrunt_version_constraint", "relative_path": "runtime_iac/terragrunt.hcl", "raw_spec": "~> 1.6", "spec_kind": "range", "line_number": 1, "order_index": 0},
+            {"runtime": "terragrunt", "source_kind": "terragrunt_version", "relative_path": "runtime_iac/.terragrunt-version", "raw_spec": "0.58.0", "spec_kind": "exact", "line_number": 1, "order_index": 0},
+            {"runtime": "kubernetes", "source_kind": "helm_chart_kube_version", "relative_path": "runtime_iac/charts/app/Chart.yaml", "raw_spec": ">= 1.27.0", "spec_kind": "range", "line_number": 4, "order_index": 0}
+          ]
+        },
+        "request_body": {"limit": 100}
       },
       "POST /api/v0/runtime-declarations/query?assert=ruby_sources": {
         "description": "Both synthetic Ruby runtime source declarations from ruby_rails_app/runtime-declarations, each bound as one exact source tuple through the deployed HTTP route.",

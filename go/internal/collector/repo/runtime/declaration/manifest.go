@@ -50,6 +50,9 @@ const (
 	sourceKindGradleKotlinToolchain     = "gradle_kotlin_jvm_toolchain"
 	sourceKindSbtScalaVersion           = "sbt_scala_version"
 	sourceKindSbtBuildVersion           = "sbt_build_properties_version"
+	sourceKindTerraformRequired         = "terraform_required_version"
+	sourceKindTerragruntConstraint      = "terragrunt_version_constraint"
+	sourceKindHelmKubeVersion           = "helm_chart_kube_version"
 )
 
 // section identifies the manifest section a declaration was read from.
@@ -89,6 +92,9 @@ const (
 	sectionGradleKotlinToolchain
 	sectionSbtScalaVersion
 	sectionSbtBuildVersion
+	sectionTerraformRequired
+	sectionTerragruntConstraint
+	sectionHelmKubeVersion
 )
 
 // sectionSourceKinds maps a section to its source kind.
@@ -126,6 +132,9 @@ var sectionSourceKinds = [...]string{
 	sectionGradleKotlinToolchain:     sourceKindGradleKotlinToolchain,
 	sectionSbtScalaVersion:           sourceKindSbtScalaVersion,
 	sectionSbtBuildVersion:           sourceKindSbtBuildVersion,
+	sectionTerraformRequired:         sourceKindTerraformRequired,
+	sectionTerragruntConstraint:      sourceKindTerragruntConstraint,
+	sectionHelmKubeVersion:           sourceKindHelmKubeVersion,
 }
 
 // MaxManifestBytesPerFile bounds one package.json, Composer, or go.mod body. A manifest

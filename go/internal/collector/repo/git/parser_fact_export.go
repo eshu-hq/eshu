@@ -51,10 +51,11 @@ func ParserFileFactEnvelope(
 	_, hasRubyTransport := parsedFile["ruby_runtime_evidence"]
 	_, hasJVMTransport := parsedFile["jvm_runtime_evidence"]
 	_, hasDotNetTransport := parsedFile["dotnet_runtime_evidence"]
-	if hasComposerTransport || hasPythonTransport || hasRubyTransport || hasJVMTransport || hasDotNetTransport {
+	_, hasIACTransport := parsedFile["iac_runtime_evidence"]
+	if hasComposerTransport || hasPythonTransport || hasRubyTransport || hasJVMTransport || hasDotNetTransport || hasIACTransport {
 		clean := make(map[string]any, len(parsedFile)-1)
 		for key, value := range parsedFile {
-			if key != "composer_runtime_evidence" && key != "python_runtime_evidence" && key != "ruby_runtime_evidence" && key != "jvm_runtime_evidence" && key != "dotnet_runtime_evidence" {
+			if key != "composer_runtime_evidence" && key != "python_runtime_evidence" && key != "ruby_runtime_evidence" && key != "jvm_runtime_evidence" && key != "dotnet_runtime_evidence" && key != "iac_runtime_evidence" {
 				clean[key] = value
 			}
 		}
@@ -66,6 +67,27 @@ func ParserFileFactEnvelope(
 // noteComposerOrRuntimeCandidate uses the parser's one Composer interpretation
 // when available. A changed body cannot be combined with an earlier parse.
 func noteComposerOrRuntimeCandidate(snapshot *RepositorySnapshot, candidates map[string]runtimedeclaration.Candidate, relativePath, body string, dropped *atomic.Bool, droppedPaths *scope.StreamDroppedPaths) {
+	if isIACRuntimePath(relativePath) {
+		if parsed, ok := snapshot.IACRuntime[relativePath]; ok {
+			if parsed.Digest != shared.RuntimeDigest([]byte(body)) {
+				dropped.Store(true)
+				droppedPaths.Note(relativePath)
+				return
+			}
+			runtimedeclaration.NoteParsedIACCandidate(candidates, relativePath, parsed.Extraction)
+			return
+		}
+		if snapshot.IACRuntimeExpected {
+			if len(body) > runtimepaths.MaxManifestBytesPerFile {
+				runtimedeclaration.NoteCappedIACCandidate(candidates, relativePath, len(body))
+				return
+			}
+			dropped.Store(true)
+			droppedPaths.Note(relativePath)
+			runtimedeclaration.NoteUnavailableIACCandidate(candidates, relativePath, len(body))
+			return
+		}
+	}
 	if isJVMRuntimePath(relativePath) {
 		if parsed, ok := snapshot.JVMRuntime[relativePath]; ok {
 			if parsed.Digest != shared.RuntimeDigest([]byte(body)) {
@@ -203,4 +225,9 @@ func isJVMRuntimePath(relativePath string) bool {
 	default:
 		return false
 	}
+}
+
+func isIACRuntimePath(relativePath string) bool {
+	base := filepath.Base(relativePath)
+	return strings.HasSuffix(base, ".tf") || base == "terragrunt.hcl" || strings.EqualFold(base, "Chart.yaml") || strings.EqualFold(base, "Chart.yml")
 }
