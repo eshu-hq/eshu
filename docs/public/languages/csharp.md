@@ -79,6 +79,14 @@ Supported today:
   Size, depth, row, and field bounds apply.
   `$(Property)` resolves from the same file only. The grammar is in
   `go/internal/parser/nuget/README.md`.
+- .NET runtime version evidence (`global.json` SDK versions and
+  `TargetFramework`/`TargetFrameworks` values) is collected into
+  parser-private `DotNetRuntimeEvidence`. Every `Add` call is measured in
+  `TokenCount`, including rejected values and calls past the cap, under the
+  shared `RuntimeVersionTokenCap` (1024); once the measured count exceeds the
+  cap the retained values are cleared and the state becomes `over_tokens`,
+  mirroring `RuntimeEvidence.Add`. Unit coverage:
+  `go/internal/parser/shared/dotnet_runtime_test.go`.
 - `.csproj` PackageReference entries are parsed into repository dependency
   evidence by the separate `nuget_project` parser path. That parser lives in
   `go/internal/parser/nuget`; a thin dispatch wrapper stays in
