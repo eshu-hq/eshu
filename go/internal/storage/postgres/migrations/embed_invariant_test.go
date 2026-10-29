@@ -161,14 +161,14 @@ import (
 // package legs (one CREATE INDEX CONCURRENTLY per file); re-pinned after the
 // bundled-statement guard fix reworded a comment naming CONCURRENTLY
 // (no semantic change to either migration).
-// #9320 adds 244_shared_projection_intent_reopened_at.sql (catalog-only
+// #9320 adds 245_shared_projection_intent_reopened_at.sql (catalog-only
 // nullable reopen marker for reopen-aware shared-projection backlog age)
-// and 245_shared_projection_intents_domain_pending_age_idx.sql (the partial
+// and 246_shared_projection_intents_domain_pending_age_idx.sql (the partial
 // covering index that keeps that backlog aggregate an Index Only Scan; one
-// CREATE INDEX CONCURRENTLY). It skips 242: an open PR holds it, and the
-// migrations stay past 243, the highest number on main; gaps are tolerated,
+// CREATE INDEX CONCURRENTLY). It skips 242 and 244, which an open PR
+// holds, and stays past 243, the highest number on main; gaps are tolerated,
 // shared sequence numbers are not.
-const goldenBootstrapDefinitionsDigest = "ee6858420aba74ac16d3214fd9033ebd60cbc834cec4e3798fd96c7038ad3a74"
+const goldenBootstrapDefinitionsDigest = "48334a156a30664aaa073d714a3f3ec2d259efa81aeefda79e22e94cb94eecf4"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or

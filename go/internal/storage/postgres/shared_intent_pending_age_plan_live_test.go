@@ -4,7 +4,7 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #9320 PostgreSQL 18.6 plan proof of migration 245: the shipped shared_projection_pending aggregate, derived from domainBacklogCTEs, reads MIN(COALESCE(reopened_at, created_at)) over 12,000 vacuumed intents with 1,500 pending across 4 domains as an Index Only Scan on shared_projection_intents_domain_pending_age_idx with Heap Fetches 0, and loses that plan when the index is dropped, so the index is load-bearing; about 2-3 s locally in an isolated schema
+//eshu:readiness:reason #9320 PostgreSQL 18.6 plan proof of migration 246: the shipped shared_projection_pending aggregate, derived from domainBacklogCTEs, reads MIN(COALESCE(reopened_at, created_at)) over 12,000 vacuumed intents with 1,500 pending across 4 domains as an Index Only Scan on shared_projection_intents_domain_pending_age_idx with Heap Fetches 0, and loses that plan when the index is dropped, so the index is load-bearing; about 2-3 s locally in an isolated schema
 //eshu:readiness:env ESHU_POSTGRES_DSN
 
 import (
@@ -42,7 +42,7 @@ func sharedProjectionPendingCTEBody(t *testing.T) string {
 	return ""
 }
 
-// TestSharedIntentPendingAgeIndexOnlyScanLive proves migration 245 keeps the
+// TestSharedIntentPendingAgeIndexOnlyScanLive proves migration 246 keeps the
 // reopen-aware shared-projection backlog aggregate off the heap (#9320).
 // Without the index the planner must read reopened_at from the heap of every
 // block that holds a pending intent; with it the aggregate is answered from
@@ -97,18 +97,18 @@ FROM generate_series(1, 12000) AS g`, now); err != nil {
 	}
 	if !strings.Contains(withIndex, "Index Only Scan using shared_projection_intents_domain_pending_age_idx") ||
 		!strings.Contains(withIndex, "Heap Fetches: 0") {
-		t.Fatalf("with migration 245 the aggregate must be an Index Only Scan on "+
+		t.Fatalf("with migration 246 the aggregate must be an Index Only Scan on "+
 			"shared_projection_intents_domain_pending_age_idx with Heap Fetches 0:\n%s", withIndex)
 	}
 
 	// Control: without the index the same text must leave the index-only path,
-	// or the assertion above would pass whatever migration 245 does.
+	// or the assertion above would pass whatever migration 246 does.
 	if _, err := database.ExecContext(ctx, `DROP INDEX shared_projection_intents_domain_pending_age_idx`); err != nil {
 		t.Fatalf("drop index: %v", err)
 	}
 	withoutIndex := explain()
 	if strings.Contains(withoutIndex, "Index Only Scan") {
-		t.Fatalf("without migration 245 the aggregate still found an index-only path, so the proof is vacuous:\n%s", withoutIndex)
+		t.Fatalf("without migration 246 the aggregate still found an index-only path, so the proof is vacuous:\n%s", withoutIndex)
 	}
 }
 

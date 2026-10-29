@@ -126,7 +126,7 @@ FOR UPDATE SKIP LOCKED
 // completed_at = NULL, never a delete: the payload is the drain's input).
 // The completed_at IS NOT NULL guard makes the reported count mean
 // "reopened": a row a concurrent drain already re-completed is left alone.
-// It stamps reopened_at ($2, the reopen time; migration 244, #9320) so the
+// It stamps reopened_at ($2, the reopen time; migration 245, #9320) so the
 // shared-projection backlog age counts from the reopen; created_at stays the
 // intent's acceptance epoch and pending order key (#7323).
 const reopenIntentsQuery = `

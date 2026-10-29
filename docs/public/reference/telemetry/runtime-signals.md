@@ -103,7 +103,7 @@ re-projection, generation-liveness re-drive, zombie heal, refinalize) (#9320).
 A claimed or running item whose lease expired and that a sweep re-drives was
 already outstanding, so it keeps its earlier age and a stall stays visible.
 Shared-projection intents reopened by an admin reopen or a rebuild reset also
-age from the reopen (`shared_projection_intents.reopened_at`, migration 244).
+age from the reopen (`shared_projection_intents.reopened_at`, migration 245).
 
 Incremental refresh is healthy when unchanged scopes avoid unnecessary work and
 changed scopes still drain through projection and reducer queues. Watch:

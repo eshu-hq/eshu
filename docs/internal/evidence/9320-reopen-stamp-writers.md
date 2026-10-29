@@ -41,13 +41,13 @@ collector generation dead-letter replay (a different table).
 
 ## Schema
 
-Migration 244 adds `shared_projection_intents.reopened_at TIMESTAMPTZ NULL`
-(catalog-only, one statement), and migration 245 adds the pending-age index.
-Check on 2026-10-29 at the rebase onto `origin/main` 7ef08c6566: main holds
-238, 239 and 243; open PRs #9474 and #9458 each add 240 and 241. This branch
-first took 239 and 240, then 241 and 242, and now takes 244 and 245, past the
-highest number on main or in flight. Gaps in the sequence are tolerated; a
-shared sequence number fails
+Migration 245 adds `shared_projection_intents.reopened_at TIMESTAMPTZ NULL`
+(catalog-only, one statement), and migration 246 adds the pending-age index.
+Check on 2026-10-29 at the rebase onto `origin/main` 01c8781a71: main holds
+238 through 241 and 243; open PR #9458 adds 242 and 244. This branch first
+took 239 and 240, then 241 and 242, then 244 and 245, and now takes 245 and
+246, past the highest number on main or in flight. Gaps in the sequence are
+tolerated; a shared sequence number fails
 `TestBootstrapDefinitionsHaveUniqueSequenceNumbers`.
 
 ## Proof
@@ -122,7 +122,7 @@ row already in hand.
 Shared-intent age reader: `shared_projection_pending` now reads
 `MIN(COALESCE(reopened_at, created_at))`. `shared_projection_intents_pending_idx`
 does not hold `reopened_at`, so without help the aggregate read the heap of
-every block holding a pending intent. Migration 245 adds
+every block holding a pending intent. Migration 246 adds
 `shared_projection_intents_domain_pending_age_idx` on `(projection_domain,
 created_at) INCLUDE (reopened_at) WHERE completed_at IS NULL` (arbiter ruling,
 option B). On 500,000 intents with 20,000 pending over 12 domains:
@@ -131,17 +131,17 @@ option B). On 500,000 intents with 20,000 pending over 12 domains:
 | --- | --- | --- |
 | `MIN(created_at)`, before #9320 | Index Only Scan, pending_idx, 207 buffers | 1.46-1.55 ms |
 | `MIN(COALESCE(...))`, no index | Bitmap Heap Scan, 8,441 heap blocks | 11.9-12.9 ms warm |
-| `MIN(COALESCE(...))`, migration 245 | Index Only Scan, 101 buffers, 808 kB index | 1.27-1.86 ms |
+| `MIN(COALESCE(...))`, migration 246 | Index Only Scan, 101 buffers, 808 kB index | 1.27-1.86 ms |
 
 `TestSharedIntentPendingAgeIndexOnlyScanLive` runs the shipped CTE text and
-asserts the Index Only Scan with `Heap Fetches: 0`; it fails without 245.
+asserts the Index Only Scan with `Heap Fetches: 0`; it fails without 246.
 Write path (ruling proof 2): twin 500,000-row tables with every production
-index, one also carrying the 245 index; each statement 1,000 rows, under
+index, one also carrying the 246 index; each statement 1,000 rows, under
 `EXPLAIN (ANALYZE, BUFFERS, WAL)` in `BEGIN`/`ROLLBACK`, 5 interleaved reps,
 alternating first mover. The host was loaded (load average 18-28), so the WAL
 columns are the exact comparison and the times are indicative.
 
-| Write | WAL without 245 | WAL with 245 | Median time without / with |
+| Write | WAL without 246 | WAL with 246 | Median time without / with |
 | --- | --- | --- | --- |
 | (a) new pending upsert | 1,798,897 B, 9,118 rec | 1,933,033 B, 10,130 rec | 45.5 / 52.0 ms |
 | (b) completed-row re-upsert | 750,958 B, 8,048 rec | 750,958 B, 8,048 rec | 44.4 / 45.8 ms |
@@ -155,7 +155,7 @@ that becomes pending (about 134-137 B and one WAL record each).
 Readers (ruling proof 3), after `VACUUM ANALYZE`, 5 interleaved reps, custom
 and forced generic plans:
 
-| Reader | Plan with 245 | Median without / with |
+| Reader | Plan with 246 | Median without / with |
 | --- | --- | --- |
 | liveness `progressed_domains` InitPlan | unchanged (Index Only Scan, pending_idx) | 0.216 / 0.214 ms |
 | `listPendingDomainPartitionIntentsSQL` | unchanged | generic 0.80 / 0.96 ms, custom 3.92 / 3.68 ms |

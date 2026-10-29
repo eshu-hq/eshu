@@ -291,8 +291,8 @@ var migrationShippedChecksums = map[string]string{
 	"242_ecs_runtime_service_arn_index.sql":                                  "edbcfbb5682b4a7ce9aa58375522232461af0b7559f7d969df38dedd8dd99011",
 	"243_vulnerability_source_state_packages.sql":                            "548ad5e4d9442064ba81026b49b7443590ae8244282aa138190d9c7182417438",
 	"244_ecs_runtime_task_scope_index.sql":                                   "04879797b6faf565ad46a774716ee9000c79358d082df1aa05b6ee8a760dace3",
-	"244_shared_projection_intent_reopened_at.sql":                           "c00bc4a7c9953d3b84dbd03f241ec2c5adc1f9f5e97860cdf52586aa7d62e1da",
-	"245_shared_projection_intents_domain_pending_age_idx.sql":               "936dfe6ad154a3f23bd3612ea6be75540f89ab4da20c2943630e4f1c62265a8d",
+	"245_shared_projection_intent_reopened_at.sql":                           "c00bc4a7c9953d3b84dbd03f241ec2c5adc1f9f5e97860cdf52586aa7d62e1da",
+	"246_shared_projection_intents_domain_pending_age_idx.sql":               "936dfe6ad154a3f23bd3612ea6be75540f89ab4da20c2943630e4f1c62265a8d",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

@@ -123,7 +123,7 @@ shared_projection_active_leases AS (
 -- Only pending intents or a live lease can produce a shared projection
 -- backlog row, so read pending intents once instead of joining every intent
 -- row (completed rows accumulate into the hundreds of thousands; #6794).
--- A reopened intent ages from its reopen (#9320, migration 244), the same
+-- A reopened intent ages from its reopen (#9320, migration 245), the same
 -- COALESCE(reopened_at, created_at) definition as the fact work item backlog
 -- (#9292); created_at stays the intent's acceptance epoch (#7323).
 shared_projection_pending AS (
