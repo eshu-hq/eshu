@@ -139,3 +139,31 @@ SQLSTATE 55P03 under a 200 ms lock timeout. This RED control and concurrent
 GREEN case prove writer admission during the actual tracked index build.
 The host was contended by a separate pre-push run, so no durations from this
 run are used as endpoint latency or stable speedup evidence.
+
+On 2026-10-29, disposable run `eshu-9307-readjoin-final` re-ran the exact
+shipped read (`ecsTaskReadAllScopesSQL` from `ecs_task_store.go`, no hand
+copy) on PostgreSQL 18.6 with 30,003 active facts in one scope/generation
+(one target service with `running_count=2`, two RUNNING tasks, one image
+reference, 30,000 distractor service/task facts) after `ANALYZE`. Before
+(both ECS indexes dropped): `EXPLAIN (ANALYZE, BUFFERS)` 14.229 ms, ~5,183
+shared-buffer hits, service leg via the scope/generation keyset index
+removing 15,002 rows, task leg filtering 30,002 rows; seven
+`ListRunningTasks` rounds 0.0149-0.0182 s, median 0.017452 s. After
+(migrations 240-241 re-applied from `MigrationSQL`): 0.187 ms, 12
+shared-buffer hits, service leg on `fact_records_ecs_service_arn_idx`
+(4 buffers) and task leg on
+`fact_records_ecs_task_scope_cluster_group_idx` (2 rows in 0.012 ms,
+4 buffers); seven rounds 0.00045-0.00381 s, median 0.000559 s. Same rows
+both sides. Planner statistics are load-bearing: without a preceding
+`ANALYZE`, the task leg stays on the keyset index with a 30k-row filter
+(7.918 ms, 2,979 buffers) while the service leg still uses the ARN index;
+correctness is identical, only the plan is slower, and production
+autovacuum provides the statistics. Host `ip-10-247-141-174` (16 CPUs):
+load1 7.53 at start (below the 8.0 half-CPU bound) but 10.45 at end, with
+four idle sibling containers resident that this run must not disturb, so
+per timing-proof-rules §1 the wall times are corroboration with spread,
+not gated claims; the deterministic evidence is the plan node set, the
+index names, the buffer counts, and the row counts. This is the read-time
+join and the store read the story endpoint runs; a composed HTTP
+endpoint comparison with a live full stack remains NOT_PROVEN (handler
+tests use graph/content fakes).
