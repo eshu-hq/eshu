@@ -300,8 +300,8 @@ kubectl create secret generic scorecard-extension \
 When this path is implemented, render and lint before applying:
 
 ```bash
-helm template eshu ./deploy/helm/eshu -f values.hosted-extensions.yaml
-helm lint ./deploy/helm/eshu -f values.hosted-extensions.yaml
+helm template eshu "$ESHU_DEPLOY_CHECKOUT/helm/eshu" -f values.hosted-extensions.yaml
+helm lint "$ESHU_DEPLOY_CHECKOUT/helm/eshu" -f values.hosted-extensions.yaml
 ```
 
 ## Security Review Posture

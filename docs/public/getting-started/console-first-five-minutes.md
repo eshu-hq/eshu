@@ -240,7 +240,7 @@ directly.
   modes, tokens, roles, and audit beyond first-run setup.
 - [HTTP API Reference](../reference/http-api.md) — the full `/api/v0/auth/*`
   route table.
-- [Helm chart README](https://github.com/eshu-hq/eshu/blob/main/deploy/helm/eshu/README.md)
+- [Helm chart README](https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/README.md)
   — mounting `ESHU_AUTH_SECRET_ENC_KEY_FILE` and
   `ESHU_ADMIN_USERNAME`/`ESHU_ADMIN_PASSWORD_FILE` as Kubernetes Secrets for a
   production deployment.
