@@ -294,9 +294,8 @@ func TestSupplyChainImpactReadinessRepoArmScopeLive(t *testing.T) {
 	if _, err := conn.ExecContext(ctx, "SET plan_cache_mode = force_generic_plan"); err != nil {
 		t.Fatalf("force generic plan: %v", err)
 	}
-	if _, err := conn.ExecContext(ctx, "PREPARE repo_arm_readiness("+
-		"text[], text[], text[], text[], text[], text[], text[], text[], "+
-		"text, text, text, text, text, text, text[], text[], text[], text[], text[], boolean) AS "+ListReadinessQuery); err != nil {
+	if _, err := conn.ExecContext(ctx, readinessPrepareStatement(t, "repo_arm_readiness", ListReadinessQuery,
+		readinessArgsForRepository(repoArmTargetRepoID))); err != nil {
 		t.Fatalf("PREPARE readiness: %v", err)
 	}
 	for i := 0; i < 7; i++ {

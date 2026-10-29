@@ -203,7 +203,9 @@ func (h *Handler) readSupplyChainImpactReadinessForScope(
 	findings []impact.FindingResult,
 	truncated bool,
 ) impact.ReadinessEnvelope {
+	timer := startSupplyChainQueryStage(r.Context(), h.Logger, supplyChainImpactExplanationOperation, scope.RepositoryID, "readiness_snapshot")
 	snapshot, err := h.readSupplyChainImpactReadinessSnapshot(r, scope)
+	doneReadinessStage(r.Context(), timer, err, len(snapshot.EvidenceSources))
 	if err != nil {
 		return impact.BuildReadinessUnavailable(scope, findings, truncated)
 	}

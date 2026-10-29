@@ -249,7 +249,7 @@ func (h *Handler) listImpactFindings(w http.ResponseWriter, r *http.Request) {
 	}
 	readinessTimer := startSupplyChainQueryStage(r.Context(), h.Logger, supplyChainImpactFindingsOperation, filter.RepositoryID, "readiness_snapshot")
 	snapshot, readinessErr := h.readSupplyChainImpactReadinessSnapshot(r, scope)
-	readinessTimer.Done(r.Context(), slog.Bool("error", readinessErr != nil), slog.Int("evidence_source_count", len(snapshot.EvidenceSources)))
+	doneReadinessStage(r.Context(), readinessTimer, readinessErr, len(snapshot.EvidenceSources))
 	var readiness impact.ReadinessEnvelope
 	if readinessErr != nil {
 		// Readiness lookup failed (transient Postgres error, statement

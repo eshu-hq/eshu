@@ -20,6 +20,17 @@ version — pinning this module pins the fixture pack too.
 
 ## [Unreleased]
 
+### Added
+
+- `vulnerability.source_snapshot` gains an optional `coverage_descriptor` for
+  NVD: a versioned, normalized record of the explicit CVE set (trimmed, upper
+  case, deduplicated, sorted), query mode and
+  window, configured endpoint set, and endpoint actually used. Older snapshots
+  remain valid source observations but cannot certify zero advisory coverage.
+  Optional `collector_instance_id` and `result_count` fields now declare
+  fields the SQL readiness reader already uses. This is an additive payload
+  schema change; no external SDK release is claimed here (#9227).
+
 ## [0.3.0] - 2026-10-28
 
 Additive post-`v0.2.0` changes only — new fact kinds and optional fields,

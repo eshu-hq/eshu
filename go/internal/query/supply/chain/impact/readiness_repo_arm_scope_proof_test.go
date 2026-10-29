@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
@@ -153,52 +154,45 @@ func TestPreviousRepoArmReadinessQuerySplicesOnlyTheTwoCTEs(t *testing.T) {
 	}
 }
 
-// readinessArgsForQuery returns the 20 arguments readSupplyChainImpactReadiness
-// binds for query, in the same order, with the target-resolution arguments
-// ($17-$20) taken from readinessTargetArguments for a target with no resolved
-// package keys. It differs from production in one way: $17-$19 go through
-// nonNilStrings, so an empty target renders as an empty array instead of NULL
-// in the SQL-level prepared statements these proofs use; $20 is the production
-// value. The statement takes exactly 20 arguments; a shorter list fails with
-// "expected 20 arguments".
+// readinessArgsForQuery returns the arguments readSupplyChainImpactReadiness
+// binds for query with a target that resolved no package keys. Every proof
+// builds its arguments here, so a new statement parameter reaches them all.
 func readinessArgsForQuery(query ReadinessQuery) []any {
 	return readinessArgsForTarget(readinessTarget{}, query)
 }
 
-// readinessArgsForTarget returns the same 20 arguments for an explicit
-// target, as produced by resolveReadinessTarget in production (the caller
-// builds the target the way resolution would, e.g. with
-// packageidentity.ConsumptionKeys). Callers needing a package-anchored arm
-// ($20) pass a non-empty target; readinessArgsForQuery is the
-// no-resolved-keys case.
+// readinessArgsForTarget returns the production arguments for an explicit
+// target, as resolveReadinessTarget would build it (the caller constructs the
+// target, e.g. with packageidentity.ConsumptionKeys). It calls the production
+// builder, readinessQueryArguments, with the default freshness cutoff, so the
+// proofs cannot keep a private copy of the parameter list. A nil target slice
+// stays NULL, as it does on the wire in production.
 func readinessArgsForTarget(target readinessTarget, query ReadinessQuery) []any {
-	ecosystems, packageNames, packageIDs, resolved := readinessTargetArguments(target, query)
-	return []any{
-		array.Of(vulnerabilityAdvisoryFactKinds),
-		array.Of(vulnerabilityExploitabilityFactKinds),
-		array.Of(packageConsumptionCorrelationFactKinds),
-		array.Of(packageRegistryFactKinds),
-		array.Of(sbomComponentFactKinds),
-		array.Of(sbomAttestationFactKinds),
-		array.Of(containerImageIdentityFactKinds),
-		array.Of(vulnerabilitySourceSnapshotFactKinds),
-		query.CVEID, query.PackageID, query.RepositoryID, query.SubjectDigest, query.AdvisoryID, query.ImageRef,
-		array.Of(vulnerabilityOSPackageFactKinds),
-		array.Of(scannerWorkerAnalysisFactKinds),
-		array.Of(nonNilStrings(ecosystems)),
-		array.Of(nonNilStrings(packageNames)),
-		array.Of(nonNilStrings(packageIDs)),
-		resolved,
-	}
+	return readinessQueryArguments(query, target, time.Now().UTC().Add(-supplyChainImpactReadinessFreshnessWindow))
 }
 
-// nonNilStrings turns a nil slice into an empty one so the SQL-level prepared
-// statement path renders an empty array literal instead of NULL.
-func nonNilStrings(values []string) []string {
-	if values == nil {
-		return []string{}
+// readinessPrepareStatement renders a SQL-level PREPARE of statement whose
+// parameter types come from args, the same argument list the proof then
+// renders with repoArmExecuteStatement. Deriving the types keeps the PREPARE
+// in step with the production argument count.
+func readinessPrepareStatement(t *testing.T, name, statement string, args []any) string {
+	t.Helper()
+	types := make([]string, 0, len(args))
+	for index, arg := range args {
+		switch arg.(type) {
+		case string:
+			types = append(types, "text")
+		case bool:
+			types = append(types, "boolean")
+		case time.Time:
+			types = append(types, "timestamptz")
+		case *array.StringArray:
+			types = append(types, "text[]")
+		default:
+			t.Fatalf("PREPARE argument $%d has unsupported type %T", index+1, arg)
+		}
 	}
-	return values
+	return "PREPARE " + name + "(" + strings.Join(types, ", ") + ") AS " + statement
 }
 
 // readinessArgsForRepository returns the production arguments for a
@@ -346,10 +340,16 @@ func repoArmExecuteStatement(t *testing.T, name string, args []any) string {
 			literals = append(literals, quote(v))
 		case bool:
 			literals = append(literals, fmt.Sprintf("%t", v))
+		case time.Time:
+			literals = append(literals, quote(v.UTC().Format(time.RFC3339Nano)))
 		case driver.Valuer:
 			value, err := v.Value()
 			if err != nil {
 				t.Fatalf("render array argument: %v", err)
+			}
+			if value == nil {
+				literals = append(literals, "NULL")
+				continue
 			}
 			text, ok := value.(string)
 			if !ok {

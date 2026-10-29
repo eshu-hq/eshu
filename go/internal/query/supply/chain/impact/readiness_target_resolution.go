@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
@@ -119,6 +120,61 @@ func readinessTargetArguments(target readinessTarget, query ReadinessQuery) ([]s
 		packageNames = append(packageNames, key.key.PackageName)
 	}
 	return ecosystems, packageNames, target.PackageIDs, query.needsTargetResolution()
+}
+
+// readinessTargetKeyPackageIDs returns the package id of each target key,
+// aligned with the ecosystems and names readinessTargetArguments returns, so
+// the derived source-state join can count matches per requested package.
+func readinessTargetKeyPackageIDs(target readinessTarget) []string {
+	packageIDs := make([]string, 0, len(target.Keys))
+	for _, key := range target.Keys {
+		packageIDs = append(packageIDs, key.packageID)
+	}
+	return packageIDs
+}
+
+// readinessDerivationEcosystems lists the ecosystem spellings the
+// vulnerability-intelligence collector accepts in derive_from_owned_packages
+// and derive_from_installed_evidence (vulnruntime normalizeDerivedTargetConfig),
+// minus the OS distributions, whose package keys readiness has not proven.
+var readinessDerivationEcosystems = []string{
+	"npm", "pypi", "go", "maven", "nuget", "composer", "rubygems", "cargo", "swift", "hex", "pub",
+}
+
+// readinessEcosystemAliases returns the spelling-to-canonical table the
+// derived source-state CTE joins: every derivation spelling plus each
+// canonical name, with derivation marking the spellings the collector
+// accepts ("true" or "false", since the array encoder carries text).
+// Canonical names come from packageidentity, the same normalizer the
+// collector uses when it writes package keys, so "go" maps to "gomod".
+func readinessEcosystemAliases() ([]string, []string, []string) {
+	spellings := make([]string, 0, 2*len(readinessDerivationEcosystems))
+	canonicals := make([]string, 0, cap(spellings))
+	derivation := make([]bool, 0, cap(spellings))
+	seen := make(map[string]int, cap(spellings))
+	add := func(spelling string, canonical string, derived bool) {
+		if index, ok := seen[spelling]; ok {
+			derivation[index] = derivation[index] || derived
+			return
+		}
+		seen[spelling] = len(spellings)
+		spellings = append(spellings, spelling)
+		canonicals = append(canonicals, canonical)
+		derivation = append(derivation, derived)
+	}
+	for _, spelling := range readinessDerivationEcosystems {
+		canonical := string(packageidentity.NormalizeEcosystem(packageidentity.Ecosystem(spelling)))
+		if canonical == "" {
+			continue
+		}
+		add(spelling, canonical, true)
+		add(canonical, canonical, false)
+	}
+	flags := make([]string, len(derivation))
+	for index, derived := range derivation {
+		flags[index] = strconv.FormatBool(derived)
+	}
+	return spellings, canonicals, flags
 }
 
 func readinessTargetOwnerArguments(target readinessTarget) ([]string, []string, []string, []string, []string, []string) {

@@ -76,4 +76,20 @@ type State struct {
 	ResultCount         int
 	WarningCount        int
 	UpdatedAt           time.Time
+	// PackageKeys lists the package identities a derived target queried, in
+	// the canonical package-identity ecosystem. Readiness matches a request's
+	// packages against these rows instead of parsing scope ids.
+	PackageKeys []PackageKey
+	// ReplacePackageKeys makes the store replace the scope's stored package
+	// keys with PackageKeys in the same statement as the state upsert. It is
+	// set only for derived targets; a configured target leaves keys untouched.
+	ReplacePackageKeys bool
+}
+
+// PackageKey is one package identity a derived source target queried:
+// Ecosystem is the canonical packageidentity ecosystem (for example "gomod",
+// not "go") and PackageName one consumption-key candidate for that package.
+type PackageKey struct {
+	Ecosystem   string
+	PackageName string
 }

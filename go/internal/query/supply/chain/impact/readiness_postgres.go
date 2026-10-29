@@ -6,6 +6,7 @@ package impact
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -120,7 +121,7 @@ func (s PostgresReadinessStore) ReadSupplyChainImpactReadiness(
 			return ReadinessSnapshot{}, err
 		}
 		if !ready {
-			return ReadinessSnapshot{}, fmt.Errorf("package manifest consumption keys are not ready")
+			return ReadinessSnapshot{}, ErrReadinessConsumptionKeysNotReady
 		}
 		target, err = resolveReadinessTarget(ctx, database, query)
 		if err != nil {
@@ -143,29 +144,12 @@ func (s PostgresReadinessStore) ReadSupplyChainImpactReadiness(
 	return snapshot, nil
 }
 
-func (q ReadinessQuery) needsTargetResolution() bool {
-	return strings.TrimSpace(q.CVEID) != "" ||
-		strings.TrimSpace(q.PackageID) != "" ||
-		strings.TrimSpace(q.SubjectDigest) != "" ||
-		strings.TrimSpace(q.ImageRef) != ""
-}
-
-func (s PostgresReadinessStore) readSupplyChainImpactReadiness(
-	ctx context.Context,
-	database db.Queryer,
-	query ReadinessQuery,
-	target readinessTarget,
-) (ReadinessSnapshot, error) {
-	window := s.FreshnessWindow
-	if window <= 0 {
-		window = supplyChainImpactReadinessFreshnessWindow
-	}
-	freshnessCutoff := time.Now().UTC().Add(-window)
+// readinessQueryArguments returns the ListReadinessQuery parameters in
+// placeholder order ($1..$25) for one request and its resolved target.
+func readinessQueryArguments(query ReadinessQuery, target readinessTarget, freshnessCutoff time.Time) []any {
 	targetEcosystems, targetPackageNames, targetPackageIDs, targetResolved := readinessTargetArguments(target, query)
-
-	rows, err := database.QueryContext(
-		ctx,
-		ListReadinessQuery,
+	aliasSpellings, aliasCanonicals, aliasDerivation := readinessEcosystemAliases()
+	return []any{
 		array.Of(vulnerabilityAdvisoryFactKinds),
 		array.Of(vulnerabilityExploitabilityFactKinds),
 		array.Of(packageConsumptionCorrelationFactKinds),
@@ -186,7 +170,33 @@ func (s PostgresReadinessStore) readSupplyChainImpactReadiness(
 		array.Of(targetPackageNames),
 		array.Of(targetPackageIDs),
 		targetResolved,
-	)
+		array.Of(readinessTargetKeyPackageIDs(target)),
+		freshnessCutoff,
+		array.Of(aliasSpellings),
+		array.Of(aliasCanonicals),
+		array.Of(aliasDerivation),
+	}
+}
+
+func (q ReadinessQuery) needsTargetResolution() bool {
+	return strings.TrimSpace(q.CVEID) != "" ||
+		strings.TrimSpace(q.PackageID) != "" ||
+		strings.TrimSpace(q.SubjectDigest) != "" ||
+		strings.TrimSpace(q.ImageRef) != ""
+}
+
+func (s PostgresReadinessStore) readSupplyChainImpactReadiness(
+	ctx context.Context,
+	database db.Queryer,
+	query ReadinessQuery,
+	target readinessTarget,
+) (ReadinessSnapshot, error) {
+	window := s.FreshnessWindow
+	if window <= 0 {
+		window = supplyChainImpactReadinessFreshnessWindow
+	}
+	freshnessCutoff := time.Now().UTC().Add(-window)
+	rows, err := database.QueryContext(ctx, ListReadinessQuery, readinessQueryArguments(query, target, freshnessCutoff)...)
 	if err != nil {
 		return ReadinessSnapshot{}, fmt.Errorf("read supply chain impact readiness: %w", err)
 	}
@@ -220,7 +230,19 @@ func (s PostgresReadinessStore) readSupplyChainImpactReadiness(
 			if err != nil {
 				return ReadinessSnapshot{}, err
 			}
-			sourceSnapshots = append(sourceSnapshots, decodedSnapshots...)
+			sourceSnapshots = append(sourceSnapshots, ageSourceSnapshots(decodedSnapshots, freshnessCutoff)...)
+			continue
+		}
+		if family == sourceStateInvalidMarker {
+			if incompleteFlag.Valid && incompleteFlag.Bool {
+				return ReadinessSnapshot{}, ErrReadinessSourceTargetsMalformed
+			}
+			continue
+		}
+		if family == sourceStateOverflowMarker {
+			if incompleteFlag.Valid && incompleteFlag.Bool {
+				return ReadinessSnapshot{}, ErrReadinessSourceTargetsOverflow
+			}
 			continue
 		}
 		if family == sourceStateFamilyMarker {
@@ -232,7 +254,7 @@ func (s PostgresReadinessStore) readSupplyChainImpactReadiness(
 			if err != nil {
 				return ReadinessSnapshot{}, err
 			}
-			sourceStates = append(sourceStates, decodedStates...)
+			sourceStates = append(sourceStates, ageSourceStates(decodedStates, freshnessCutoff)...)
 			continue
 		}
 		if family == unsupportedTargetFamilyMarker {
@@ -288,4 +310,46 @@ func (s PostgresReadinessStore) readSupplyChainImpactReadiness(
 		TargetIncomplete:   targetIncomplete,
 		IncompleteReasons:  uniqueSortedReadinessStrings(incompleteReasons),
 	}, nil
+}
+
+// Deterministic fail-closed readiness causes. Each one turns a readiness read
+// into readiness_unavailable until an operator fixes configuration or the
+// consumption-key backfill finishes, so handlers log the cause by class.
+var (
+	// ErrReadinessSourceTargetsMalformed reports an enabled vulnerability
+	// intelligence instance whose configured targets are malformed or repeat
+	// a scope ID; no target can be trusted to certify coverage.
+	ErrReadinessSourceTargetsMalformed = errors.New("vulnerability source readiness has malformed active target configuration")
+	// ErrReadinessSourceTargetsOverflow reports more than 200 relevant
+	// configured or derived source targets; a truncated read is refused.
+	ErrReadinessSourceTargetsOverflow = errors.New("vulnerability source readiness exceeds 200 relevant targets")
+	// ErrReadinessConsumptionKeysNotReady reports that the package manifest
+	// consumption-key backfill has not completed, so targets cannot resolve.
+	ErrReadinessConsumptionKeysNotReady = errors.New("package manifest consumption keys are not ready")
+)
+
+// Closed-set readiness_unavailable_cause values for operator logs.
+const (
+	ReadinessUnavailableCauseTargetsMalformed = "source_targets_malformed"
+	ReadinessUnavailableCauseTargetsOverflow  = "source_targets_overflow"
+	ReadinessUnavailableCauseConsumptionKeys  = "consumption_keys_not_ready"
+	ReadinessUnavailableCauseQueryError       = "query_error"
+)
+
+// ReadinessUnavailableCause classifies a readiness read error into a bounded
+// cause class. It returns an empty string for a nil error and query_error for
+// any transient or unrecognized failure.
+func ReadinessUnavailableCause(err error) string {
+	switch {
+	case err == nil:
+		return ""
+	case errors.Is(err, ErrReadinessSourceTargetsMalformed):
+		return ReadinessUnavailableCauseTargetsMalformed
+	case errors.Is(err, ErrReadinessSourceTargetsOverflow):
+		return ReadinessUnavailableCauseTargetsOverflow
+	case errors.Is(err, ErrReadinessConsumptionKeysNotReady):
+		return ReadinessUnavailableCauseConsumptionKeys
+	default:
+		return ReadinessUnavailableCauseQueryError
+	}
 }

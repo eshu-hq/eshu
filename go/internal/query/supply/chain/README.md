@@ -109,7 +109,10 @@ and `supply_chain_query.stage_completed` for the stages `impact_findings_query`,
 including `impact_findings_query`, so a failed read and an empty page no longer
 log identically (#7546). Every sibling list, aggregate, advisory, and packet
 route emits the same per-read started/completed pair with its own operation
-and stage names (#7549).
+and stage names (#7549). A failed `readiness_snapshot` read on the findings or
+explain route answers `readiness_unavailable`, so its completion rises to WARN
+with `readiness_unavailable_cause` and a bounded `readiness_error`
+(`readiness_stage_log.go`, #9227).
 
 The `impact_findings_query` completion also carries `reader_borrow_seconds`,
 `reader_identity_seconds`, `reader_replay_seconds`, and `business_query_seconds`

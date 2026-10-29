@@ -10,6 +10,11 @@ claimed source attempts, Postgres persists it with keyed upserts, and status/API
 surfaces render it so empty result sets are not confused with missing source
 configuration.
 
+A derived target's state also carries `PackageKeys`, the canonical package
+identities it queried, with `ReplacePackageKeys` telling the store to replace
+the scope's stored keys in the same upsert. Readiness matches requested
+packages against those keys rather than parsing scope ids.
+
 ## Scope ids and sources
 
 `SourceForScopeID` is the one parser from a vulnerability scope id to the

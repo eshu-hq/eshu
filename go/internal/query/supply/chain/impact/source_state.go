@@ -25,6 +25,34 @@ type SourceState struct {
 	ResultCount         int               `json:"result_count"`
 	WarningCount        int               `json:"warning_count"`
 	UpdatedAt           string            `json:"updated_at,omitempty"`
+	// Derived marks one aggregate row standing for every derived
+	// owned-package OSV scope that covers the request's packages in one
+	// (collector instance, source, ecosystem). Its scope_id is a
+	// derived:// name, not a collector scope. The fields below are set only
+	// on derived rows. FreshnessState is the worst aged state of the kept
+	// scopes, read as pending when any requested package has no scope.
+	Derived bool `json:"derived,omitempty"`
+	// ScopeCount is the number of distinct derived scopes kept: the newest
+	// scope per requested package, then deduplicated.
+	ScopeCount int `json:"scope_count,omitempty"`
+	// PackageCount is the number of requested packages a scope covered.
+	PackageCount int `json:"package_count,omitempty"`
+	// UnmatchedPackageCount is the number of requested packages no derived
+	// scope covered. It includes packages the planner skipped and scopes
+	// written before package keys were recorded.
+	UnmatchedPackageCount int `json:"unmatched_package_count,omitempty"`
+	// FreshCount through PendingCount count the kept scopes by aged state.
+	FreshCount       int `json:"fresh_count,omitempty"`
+	StaleCount       int `json:"stale_count,omitempty"`
+	FailedCount      int `json:"failed_count,omitempty"`
+	RateLimitedCount int `json:"rate_limited_count,omitempty"`
+	PartialCount     int `json:"partial_count,omitempty"`
+	PendingCount     int `json:"pending_count,omitempty"`
+	// ScopeIDs lists up to 10 kept scope ids, worst state first and oldest
+	// success first within a state.
+	ScopeIDs         []string `json:"scope_ids,omitempty"`
+	coverageEligible bool
+	coverageZero     bool
 }
 
 // SourceStateWindow is the bounded source collection window.
@@ -63,9 +91,21 @@ func normalizeSourceStates(states []SourceState) []SourceState {
 		if out[i].Ecosystem != out[j].Ecosystem {
 			return out[i].Ecosystem < out[j].Ecosystem
 		}
-		return out[i].ScopeID < out[j].ScopeID
+		if out[i].ScopeID != out[j].ScopeID {
+			return out[i].ScopeID < out[j].ScopeID
+		}
+		return out[i].CollectorInstanceID < out[j].CollectorInstanceID
 	})
 	return out
+}
+
+func sourceSnapshotsIncomplete(snapshots []SourceSnapshot) bool {
+	for _, snapshot := range snapshots {
+		if !snapshot.Complete || snapshot.Freshness == FreshnessLabelStale {
+			return true
+		}
+	}
+	return false
 }
 
 func sourceStatesIncomplete(states []SourceState) bool {
@@ -87,6 +127,26 @@ func sourceStateIncompleteReasons(states []SourceState) []string {
 		}
 	}
 	return reasons
+}
+
+// sourceStatesHaveCoveredSuccess reports whether committed NVD coverage
+// certifies advisory absence: every covered exact-CVE NVD state must be fresh,
+// succeeded, warning-free, and backed by a committed zero-result snapshot
+// (coverageZero). The state row's own counts stay as extra health gates; the
+// certifying bit comes from the snapshot, never from source-state health.
+func sourceStatesHaveCoveredSuccess(states []SourceState) bool {
+	covered := false
+	for _, state := range states {
+		if !state.coverageEligible || state.Source != "nvd" {
+			continue
+		}
+		if state.FreshnessState != "fresh" || state.TerminalStatus != "succeeded" ||
+			!state.coverageZero || state.ResultCount != 0 || state.WarningCount != 0 {
+			return false
+		}
+		covered = true
+	}
+	return covered
 }
 
 func sourceStatesHaveFreshSuccess(states []SourceState) bool {

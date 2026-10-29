@@ -12,6 +12,8 @@ import (
 const (
 	sourceSnapshotFamilyMarker    = "vulnerability.source_snapshot"
 	sourceStateFamilyMarker       = "vulnerability.source_state"
+	sourceStateOverflowMarker     = "vulnerability.source_state_overflow"
+	sourceStateInvalidMarker      = "vulnerability.source_state_invalid"
 	unsupportedTargetFamilyMarker = "vulnerability.unsupported_target"
 )
 
@@ -30,9 +32,19 @@ func decodeSourceStates(raw sql.NullString) ([]SourceState, error) {
 	if !raw.Valid || raw.String == "" {
 		return nil, nil
 	}
-	var states []SourceState
-	if err := json.Unmarshal([]byte(raw.String), &states); err != nil {
+	var decoded []struct {
+		SourceState
+		CoverageEligible bool `json:"coverage_eligible"`
+		CoverageZero     bool `json:"coverage_zero"`
+	}
+	if err := json.Unmarshal([]byte(raw.String), &decoded); err != nil {
 		return nil, fmt.Errorf("decode vulnerability source state metadata: %w", err)
+	}
+	states := make([]SourceState, 0, len(decoded))
+	for _, entry := range decoded {
+		entry.coverageEligible = entry.CoverageEligible
+		entry.coverageZero = entry.CoverageZero
+		states = append(states, entry.SourceState)
 	}
 	return states, nil
 }

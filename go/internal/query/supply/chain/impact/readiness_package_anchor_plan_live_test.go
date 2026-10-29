@@ -257,9 +257,7 @@ func explainText(t *testing.T, ctx context.Context, conn *sql.Conn, statement st
 func assertPackageAnchorPlan(t *testing.T, ctx context.Context, conn *sql.Conn, label, statement string, args []any, targetKeys int) {
 	t.Helper()
 	name := "pkg_anchor_" + label
-	if _, err := conn.ExecContext(ctx, "PREPARE "+name+"("+
-		"text[], text[], text[], text[], text[], text[], text[], text[], "+
-		"text, text, text, text, text, text, text[], text[], text[], text[], text[], boolean) AS "+statement); err != nil {
+	if _, err := conn.ExecContext(ctx, readinessPrepareStatement(t, name, statement, args)); err != nil {
 		t.Fatalf("PREPARE %s: %v", label, err)
 	}
 	execute := repoArmExecuteStatement(t, name, args)
@@ -387,7 +385,7 @@ func TestSupplyChainImpactReadinessPackageAnchorLive(t *testing.T) {
 	target := packageAnchorTarget(t)
 	query := ReadinessQuery{PackageID: "npm://registry.npmjs.org/pkg-1"}
 	args := readinessArgsForTarget(target, query)
-	if resolved := args[len(args)-1]; resolved != true {
+	if resolved := args[19]; resolved != true {
 		t.Fatalf("$20 = %v, want true (package anchor must take the key arm)", resolved)
 	}
 

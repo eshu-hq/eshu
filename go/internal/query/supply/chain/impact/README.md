@@ -89,6 +89,125 @@ missing-evidence constants, and the relocated runtime-evidence types
 `KubernetesRuntimeWorkloadRef`, `KubernetesRuntimeProbeMetadata`,
 `VulnerabilitySuppressionMutationResult`).
 
+For an explicit NVD CVE, the readiness SQL treats source state as health and
+calls a target covered only when a complete, fresh, warning-free
+active-generation source snapshot carries a matching versioned coverage
+descriptor. The comparison uses the current configured selector (CVE ids
+compared in upper case, as the collector matches them) and the endpoint
+actually used, inside the same repeatable-read snapshot as target resolution.
+Missing legacy metadata, stale or partial snapshots, and an in-place selector
+change leave the target uncovered, which is the only source of
+`nvd:committed_snapshot_missing`. A covered snapshot that counted records is
+not a gap: the CVE's advisory fact decides between `ready_zero_findings` and
+`evidence_incomplete`. Only a covered snapshot with `result_count = 0`
+(`coverage_zero`, carried per state row and never exposed) certifies advisory
+absence. Source-state freshness ages by `last_success_at` only; the
+collection window is reported, not aged. Malformed CVE elements, duplicate
+scope IDs, and window fields the collector's config parse refuses fail the
+readiness lookup closed as `source_targets_malformed`, and the findings and
+explain handlers log the fail-closed cause. A present `modified_start` or
+`modified_end` must be strict RFC 3339 with a `Z` or `+-hh:mm` zone (no hour
+24 or second 60) that `pg_input_is_valid` accepts, and a present
+`results_per_page` must be a JSON integer of magnitude at most 999,999,999,
+which keeps the int4 cast in range. The descriptor casts
+each field only in the `THEN` arm of a `CASE WHEN` on the same guard, so one
+garbage target can no longer abort the read as `query_error`. A comma
+fraction or a `+24:00` offset, which Go accepts and Postgres refuses, reads
+as malformed (fail closed).
+
+Derived owned-package OSV scopes (#9227 F7) never reach readiness by scope-id
+parsing. The collector writes each derived scope's package identities to
+`vulnerability_source_state_packages` (canonical `packageidentity` ecosystem,
+every consumption-key candidate) in the same statement as its source-state
+upsert. `readinessDerivedSourceStateCTE` joins the request's keys to that table
+by equality: package, CVE, and image requests use the resolved target keys,
+and a repository-only request takes keys from the active consumption facts.
+Per (instance, source, ecosystem, requested package) the newest state wins,
+the distinct winners are aged by the read cutoff, and one aggregate
+`SourceState` row (`Derived`, `derived://<source>/<ecosystem>`) reports the
+worst state and the counts. A requested package with no matching scope makes
+the row pending, so an enabled derived ecosystem with no coverage reads
+`osv:pending`. Configured targets keep one row per scope. The 200-row bound
+counts configured scopes plus aggregate rows. Known limitations: packages the
+planner skipped read as pending (follow-up under #9209); a state written
+before the key table existed matches nothing until its scope is collected
+again, with no backfill; Swift keys are not proven; OS-distribution derived
+scopes are not joined.
+
+Performance Evidence: the window-field guards (#9435 review) were measured
+with the same kind of scratch harness, base SQL (`08241776a0`) against guarded
+SQL, 21 warm samples each with alternating first mover in one repeatable-read
+transaction, on disposable PostgreSQL 18.6 with 50 instances and 10,000
+configured targets and states (200 NVD targets selecting the CVE). Plans are
+node-for-node identical (266 nodes) with 645 shared hits in both. With
+CVE-only targets the median moved 21.257 ms to 21.684 ms. With 9,800 non-NVD
+targets carrying window strings and a page size, the worst case, it moved
+34.056 ms to 92.334 ms. The cost is the invalid-target filter (1.052 ms per
+instance against 0.131 ms without window strings), about 4.6 microseconds
+per window-carrying target for two regex matches, two `pg_input_is_valid`
+calls, and one numeric check (a standalone shim put one regex match at about
+1.1 microseconds and one `pg_input_is_valid` at 0.2). The descriptor guards run only
+on the 200 relevant rows. The regex is kept because it mirrors the
+collector's strict parse; a target without window fields pays nothing. The
+host load average was 14-39 on 18 cores, so these are relative figures.
+
+Performance Evidence: the #9227 F7 derived-scope join was measured with a
+scratch harness that ran `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` on the
+assembled `ListReadinessQuery` with production arguments, alternating the
+pre-F7 SQL (`98e8b15af9`) and the new SQL in one repeatable-read transaction,
+nine warm samples each, on disposable PostgreSQL 18.6. Fixture: 50 instances
+with 10,000 configured NVD targets and states (200 selecting the CVE), plus
+either 25,000 single-package derived npm scopes or 250 batch scopes of 100
+keys each. New plans read the key table and the states primary key by index
+only, with no states sequential scan, zero reads, and zero temp blocks.
+Medians, old to new: a package request on single scopes 132.185 ms to
+14.984 ms (shared hits 1,515 to 98), a 10-package CVE 163.867 ms to
+27.108 ms, a 300-package repository 133.166 ms to 28.963 ms; on batch scopes
+24.234 ms to 18.677 ms, 29.856 ms to 24.010 ms, and 25.246 ms to 32.693 ms.
+The batch repository read costs more because the old SQL refused it
+(250 relevant scopes exceeded the bound) while the new SQL answers it. A
+CVE-only configured read stayed level: 31.395 ms to 31.292 ms with 25,000
+keys present, and 27.082 ms to 28.432 ms with none. The host's one-minute
+load average was 12-14 on 18 cores; these are plan-shape and relative
+figures, not a deployed latency claim. The key write cost is measured in the
+vulnerability store README.
+
+Earlier Performance Evidence: the #9227 F1/F5 change (covered no longer requires
+`result_count = 0`, a per-target `coverage_zero` aggregate replaces the
+`EXISTS`, and CVE selectors compare in upper case) was measured with a
+scratch harness that wraps the read transaction and runs `EXPLAIN (ANALYZE,
+BUFFERS, FORMAT JSON)` on the assembled `ListReadinessQuery` with production
+arguments. Fixture: disposable PostgreSQL 18.6, 50 active collector instances,
+10,000 configured NVD targets, 10,000 source-state rows, CVE-only request.
+Before (`6a2f420830`) and after SQL ran alternately in one transaction on the
+same data, nine warm samples each. Plans are node-for-node identical except
+the per-target coverage `Result` node became an `Aggregate` over the same 200
+loops (0.4-1.4 ms in both). Shared hits were equal: 630 for 200 and 250
+relevant targets, 1,986 with 100 committed zero-result snapshots, with zero
+reads and zero temp blocks. Median execution time for 200 targets went from
+34.979 ms to 37.921 ms; the 250-target and positive-snapshot medians stayed
+inside run-to-run noise. A SQL shim put the added `UPPER` at about 0.9 ms per
+10,000 configured CVE elements (`COLLATE "C"` saved nothing). The host ran at
+load average 82-105 on 18 cores, so absolute times are about twice the
+earlier quiet-host figures and are not a deployed latency claim. The 250-target
+read still detects the 201st target before any state lookup. The earlier
+figures in this paragraph's history (baseline `16fad519` 14.795 ms; corrected
+query 19.933-22.691 ms) were quiet-host runs of the pre-F1 SQL.
+
+Observability Evidence: `source_states[]` reports collector health and
+`source_snapshots[]` reports committed source health; a derived aggregate row
+names its worst scopes in `scope_ids` and its uncovered packages in
+`unmatched_package_count`, so an operator can find the scope behind
+`osv:failed` or `osv:pending`; when no current NVD
+snapshot qualifies for absence coverage, `readiness_state=target_incomplete`
+and `incomplete_reasons[]=nvd:committed_snapshot_missing` identify the gap
+without exposing the descriptor, endpoint URL, or API key. A fail-closed read
+(`ErrReadinessSourceTargetsMalformed`, `ErrReadinessSourceTargetsOverflow`,
+`ErrReadinessConsumptionKeysNotReady`, or a query error) answers
+`readiness_unavailable`; the handlers log one WARN `readiness_snapshot` stage
+line whose `readiness_unavailable_cause` comes from
+`ReadinessUnavailableCause`.
+
 Every export names a staying root caller, an external `query.X`
 caller, or a carried pre-existing export; see `AGENTS.md` for the
 per-symbol list. See `doc.go` for the godoc-rendered contract.

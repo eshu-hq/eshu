@@ -33,23 +33,9 @@ func TestSupplyChainImpactReadinessMutableRefIncludesEveryCurrentDigestLive(t *t
 	}
 	seedReadinessMutableRefProof(t, ctx, db)
 
-	args := []any{
-		array.Of(vulnerabilityAdvisoryFactKinds),
-		array.Of(vulnerabilityExploitabilityFactKinds),
-		array.Of(packageConsumptionCorrelationFactKinds),
-		array.Of(packageRegistryFactKinds),
-		array.Of(sbomComponentFactKinds),
-		array.Of(sbomAttestationFactKinds),
-		array.Of(containerImageIdentityFactKinds),
-		array.Of(vulnerabilitySourceSnapshotFactKinds),
-		"", "", "", "", "", readinessMutableRef,
-		array.Of(vulnerabilityOSPackageFactKinds),
-		array.Of(scannerWorkerAnalysisFactKinds),
-		array.Of([]string{}), // no resolved package keys in this image-only shape proof
-		array.Of([]string{}),
-		array.Of([]string{}),
-		false,
-	}
+	// No package keys are seeded for this image, so target resolution yields
+	// an empty target, as it would in production.
+	args := readinessArgsForQuery(ReadinessQuery{ImageRef: readinessMutableRef})
 	rows, err := db.QueryContext(ctx, ListReadinessQuery, args...)
 	if err != nil {
 		t.Fatalf("query production readiness shape: %v", err)
