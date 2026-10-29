@@ -246,6 +246,50 @@ class RefreshV2Cases(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "cold"):
             self.fit()
 
+    def cli_stdout(self) -> str:
+        """Run the v2 CLI on the synthetic sources and return its stdout."""
+        output = self.root / "weights.v2.json"
+        argv = ["refresh", "--schema-version", "2", "--out", str(output)]
+        argv.extend(f"--sample={source.name}={source}" for source in self.sources)
+        stdout = io.StringIO()
+        with mock.patch.object(cli_refresh.sys, "argv", argv), \
+                contextlib.redirect_stdout(stdout):
+            self.assertEqual(cli_refresh.main(), 0)
+        return stdout.getvalue()
+
+    def set_later_first_use(self, residual: int) -> None:
+        """Set ./b's later first-use residual on shard 2 of both sources."""
+        for source in self.sources:
+            (source / "shard2.log").write_text(_log(2, [
+                ("a", "TestTwo", 8), ("b", "TestOne", residual),
+                ("b", "TestTwo", 2)], int(source.name)))
+
+    def test_positive_cold_is_priced_as_measured_and_reported(self) -> None:
+        self.assertEqual(self.fit()["cold_cache_seconds"], 3.0)
+        self.assertIn("weights refresh v2: cold cache estimate 3.0 s from 1 package "
+                      "(./b +3.0); used 3.0 s\n", self.cli_stdout())
+
+    def test_negative_cold_estimate_prices_zero_and_reports_terms(self) -> None:
+        # #9490: ./b's first row (8 s) is faster than its later first use (9 s),
+        # so the identifiable cold estimate is -1.0 s. The pair is still valid.
+        self.set_later_first_use(9)
+        result = self.fit()
+        self.assertEqual(result["cold_cache_seconds"], 0.0)
+        self.assertEqual(result["package_first_seconds"], {"./a": 8.0, "./b": 9.0})
+        self.assertEqual(result["package_repeat_seconds"], {"./b": 2.0})
+        self.assertIn("weights refresh v2: cold cache estimate -1.0 s from 1 package "
+                      "(./b -1.0); used 0.0 s (estimate not positive)\n",
+                      self.cli_stdout())
+
+    def test_zero_cold_estimate_prices_zero(self) -> None:
+        self.set_later_first_use(8)
+        result = self.fit()
+        self.assertEqual(result["cold_cache_seconds"], 0.0)
+        self.assertEqual(result["package_first_seconds"], {"./a": 8.0, "./b": 8.0})
+        self.assertIn("weights refresh v2: cold cache estimate 0.0 s from 1 package "
+                      "(./b +0.0); used 0.0 s (estimate not positive)\n",
+                      self.cli_stdout())
+
     def test_rejects_no_measured_repeat(self) -> None:
         for source in self.sources:
             path = source / "shard2.log"
