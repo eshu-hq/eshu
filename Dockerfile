@@ -67,6 +67,9 @@ RUN cd go \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-grafana ./cmd/collector-grafana \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-prometheus-mimir ./cmd/collector-prometheus-mimir \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-scanner-worker ./cmd/scanner-worker \
+    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-scanner-component-image ./cmd/scanner-component-image \
+    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-scanner-component-sbom ./cmd/scanner-component-sbom \
+    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-scanner-component-osruntime ./cmd/scanner-component-osruntime \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-gcp-cloud ./cmd/collector-gcp-cloud \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-azure-cloud ./cmd/collector-azure-cloud \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-webhook-listener ./cmd/webhook-listener \
