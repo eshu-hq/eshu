@@ -346,10 +346,10 @@ func (allow cloudInventoryAttributeAllowlist) filter(raw any) map[string]any {
 // default/stringify branch) for exactly this reason. It differs deliberately in
 // OUTPUT type: where the GCP raw passthrough returns a native bool/float64/
 // json.Number, this allowlist normalizes every scalar to its string form as an
-// added defense layer -- every current allowlisted key (task_definition_arn,
-// image_uri, resolved_image_uri, code_sha256, version, containers[].image,
-// containers[].image_digest) holds a string, so a future non-string scalar key
-// would surface as its string form rather than a native JSON number/bool.
+// added defense layer. The current AWS image, version, patch, runtime, and
+// nested container image values are strings; AppSync's api_key_count is a
+// number that this helper intentionally returns as a string. Future admitted
+// numeric or boolean values likewise surface as strings, not native JSON values.
 func cloudInventoryAllowlistScalarString(value any) (string, bool) {
 	switch v := value.(type) {
 	case string:
