@@ -146,6 +146,33 @@ func checkGemfileRuntimeSyntax(evidence *RubyRuntimeEvidence, path string, sourc
 	if tree.RootNode().HasError() {
 		evidence.State = "unavailable"
 		evidence.Values = nil
+		tree.Close()
+		return
+	}
+	// The Bundler line scanner records candidate literals, but it cannot tell
+	// whether a `ruby` call is inside a method, class, or module. Only a direct
+	// program child proves a repository-level directive.
+	topLevelLines := make(map[int]struct{}, len(evidence.Values))
+	root := tree.RootNode()
+	cursor := root.Walk()
+	for _, child := range root.NamedChildren(cursor) {
+		child := child
+		if child.Kind() != "call" || child.ChildByFieldName("receiver") != nil ||
+			shared.NodeText(child.ChildByFieldName("method"), source) != "ruby" {
+			continue
+		}
+		topLevelLines[shared.NodeLine(&child)] = struct{}{}
+	}
+	cursor.Close()
+	kept := evidence.Values[:0]
+	for _, value := range evidence.Values {
+		if _, ok := topLevelLines[value.Line]; ok {
+			kept = append(kept, value)
+		}
+	}
+	evidence.Values = kept
+	if len(kept) == 0 && evidence.Rejected == 0 {
+		evidence.State = "parsed_empty"
 	}
 	tree.Close()
 }

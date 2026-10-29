@@ -97,3 +97,25 @@ func TestRubyRuntimeRawDigestAndGuard(t *testing.T) {
 		t.Fatalf("digest = %q", got)
 	}
 }
+
+func TestRubyRuntimeNativeRejectsNestedGemfileDirectives(t *testing.T) {
+	for _, tc := range []struct{ name, body string }{
+		{"method", "def configure\n  ruby '3.3.1'\nend\n"},
+		{"class", "class Configure\n  ruby '3.3.1'\nend\n"},
+		{"module", "module Configure\n  ruby '3.3.1'\nend\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			writeCollectorTestFile(t, filepath.Join(root, "Gemfile"), tc.body)
+			observed := time.Date(2026, time.October, 29, 0, 0, 0, 0, time.UTC)
+			snapshot, err := (NativeRepositorySnapshotter{Now: func() time.Time { return observed }}).SnapshotRepository(context.Background(), SelectedRepository{RepoPath: root})
+			if err != nil {
+				t.Fatal(err)
+			}
+			collected := buildStreamingGeneration(root, testCollectorRepositoryMetadata(root), "run-ruby-nested", observed, snapshot, false, "")
+			if got := decodeDeclarationList(t, drainFactChannel(collected.Facts)); len(got) != 0 {
+				t.Fatalf("nested Ruby directive became a repository runtime declaration: %+v", got)
+			}
+		})
+	}
+}
