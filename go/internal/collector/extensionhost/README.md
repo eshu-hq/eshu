@@ -173,7 +173,13 @@ in the failure message, `ClaimedService` persists it unsanitized as
 `last_failure_class`, and the metric label admits it like any other class.
 `TestValidateBoundedStatusesRefinedClass`, the refined case in
 `TestSourceRoutesRetryableAndTerminalResultsThroughClaimFailures`, and the
-telemetry and `ClaimedService` pins keep that true. An alert that matches the
+telemetry and `ClaimedService` pins keep that true. A rejected value never
+reaches the error verbatim: the host reports the rule and a bounded
+description (byte length plus a short prefix from the allowed alphabet, e.g.
+`status.failure_class is not bounded (105 bytes, prefix "invalid_config.a")`),
+and the same holds for the continuation-state rejection in `checkPageEnvelope`.
+`TestValidateBoundedStatusesErrorOmitsRawValue` and
+`TestCheckPageEnvelopeContinuationErrorOmitsRawState` pin that. An alert that matches the
 base class exactly must match the prefix instead (see the
 [hosted extension policy](../../../../docs/public/operate/hosted-extension-policy.md)).
 

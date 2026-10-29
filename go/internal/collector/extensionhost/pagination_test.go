@@ -426,6 +426,30 @@ func TestLegacyRunnerPathStaysSingleCall(t *testing.T) {
 	}
 }
 
+// TestCheckPageEnvelopeContinuationErrorOmitsRawState pins eshu-hq/eshu#9310
+// for the sibling echo in the same validation path: checkPageEnvelope runs
+// before SDK validation, so a hostile extension-controlled result state
+// rejected on a continuation page must not reach the invalid_result error.
+func TestCheckPageEnvelopeContinuationErrorOmitsRawState(t *testing.T) {
+	t.Parallel()
+
+	hostile := sdkcollector.ResultState(strings.Repeat("z", 200) + "!$(touch /tmp/eshu-9310)\nSECOND-LINE")
+	call := CallResult{
+		Result: sdkcollector.Result{
+			State:           hostile,
+			ProtocolVersion: collectorSDKProtocolV1Alpha3,
+		},
+		Page: &ResultPage{PageIndex: 0, More: true, Cursor: "resume-here"},
+	}
+	err := (&Source{}).checkPageEnvelope(call, 0, false)
+	if err == nil {
+		t.Fatal("checkPageEnvelope(hostile state) error = nil, want rejection")
+	}
+	if strings.Contains(err.Error(), string(hostile)) {
+		t.Fatalf("checkPageEnvelope error echoes raw state: %v", err)
+	}
+}
+
 // TestV1Alpha3ManifestAdmitted proves the version gate opens explicitly: a
 // v1alpha3 manifest constructs the source, while any other protocol stays
 // rejected.

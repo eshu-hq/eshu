@@ -50,3 +50,28 @@ func TestValidateBoundedStatusesRefinedClass(t *testing.T) {
 		})
 	}
 }
+
+// TestValidateBoundedStatusesErrorOmitsRawValue pins eshu-hq/eshu#9310: a
+// status with an over-long failure_class containing characters outside the
+// pattern is rejected with an error that never carries the raw
+// extension-supplied value, so untrusted text cannot reach operator logs or
+// the stored failure message through invalid_result.
+func TestValidateBoundedStatusesErrorOmitsRawValue(t *testing.T) {
+	t.Parallel()
+
+	hostile := "invalid_config." + strings.Repeat("a", 90) + "!$(touch /tmp/eshu-9310)\nSECOND-LINE"
+	result := sdkcollector.Result{Statuses: []sdkcollector.Status{{
+		Class:        sdkcollector.StatusFailure,
+		FailureClass: hostile,
+	}}}
+	err := validateBoundedStatuses(result)
+	if err == nil {
+		t.Fatal("validateBoundedStatuses(hostile) error = nil, want rejection")
+	}
+	// %q escapes control characters, so assert on the long distinctive run
+	// that survives quoting verbatim: the unbounded extension text reaches
+	// the error either way.
+	if run := strings.Repeat("a", 90); strings.Contains(err.Error(), run) {
+		t.Fatalf("validateBoundedStatuses error echoes raw failure_class: %v", err)
+	}
+}

@@ -96,6 +96,31 @@ func retryAfterFromStatuses(result sdkcollector.Result) time.Duration {
 	return time.Duration(largest) * time.Second
 }
 
+// maxRejectedPrefixRunes caps the recognizable fragment a bounded rejection
+// error may carry. The fragment stays within the failure-class alphabet, so a
+// hostile value cannot smuggle control characters, quotes, or newlines into
+// logs or stored failure messages through the error.
+const maxRejectedPrefixRunes = 16
+
+// describeRejectedValue renders a bounded description of an
+// extension-supplied value the host refused: its byte length plus a short
+// prefix drawn only from the failure-class alphabet ([a-z0-9._-]). The raw
+// value never reaches the error, so an over-long or hostile value cannot flow
+// into operator logs or the stored failure message. A short value made
+// entirely of alphabet characters may appear verbatim in the prefix, but that
+// fragment is itself bounded (at most maxRejectedPrefixRunes characters from
+// the allowed alphabet).
+func describeRejectedValue(value string) string {
+	var prefix []byte
+	for i := 0; i < len(value) && len(prefix) < maxRejectedPrefixRunes; i++ {
+		c := value[i]
+		if c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '.' || c == '_' || c == '-' {
+			prefix = append(prefix, c)
+		}
+	}
+	return fmt.Sprintf("%d bytes, prefix %q", len(value), prefix)
+}
+
 func validateBoundedStatuses(result sdkcollector.Result) error {
 	for _, status := range result.Statuses {
 		failureClass := strings.TrimSpace(status.FailureClass)
@@ -103,7 +128,7 @@ func validateBoundedStatuses(result sdkcollector.Result) error {
 			continue
 		}
 		if failureClass != status.FailureClass || !failureClassPattern.MatchString(failureClass) {
-			return fmt.Errorf("status.failure_class %q is not bounded", status.FailureClass)
+			return fmt.Errorf("status.failure_class is not bounded (%s)", describeRejectedValue(status.FailureClass))
 		}
 	}
 	return nil
