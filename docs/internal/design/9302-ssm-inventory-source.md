@@ -304,6 +304,25 @@ arbiter-authorized QA-only inventory association with application collection
 enabled, per the section below. Until one appears, the captured-cohort
 measurement cannot run and the volume, limit, and cost numbers stay NOT_PROVEN.
 
+### Grant live and association review, 2026-10-29 evening UTC
+
+After the owner added the grant to the role, the same bounded call now
+succeeds: `aws ssm list-associations
+--association-filter-list key=Name,value=AWS-GatherSoftwareInventory
+--max-results 5 --region us-east-1` exits 0 with `{"Associations": []}`.
+A bounded unfiltered review (`--max-results 10`, names and IDs only) also
+exits 0 with an empty list: no associations of any document exist in
+us-east-1 for this identity's view. No IAM change was made from here and
+nothing was retried. Association targets and inventory content did not enter
+logs beyond the empty counts above.
+
+There is therefore no existing capture to select: the representative
+captured-cohort measurement still needs the temporary QA-only association
+path, which remains a separate environment change requiring owner and
+arbiter authorization (targets, application-collection-only scope, and
+post-measurement deletion) before it runs. Volume, limit, and cost numbers
+stay NOT_PROVEN.
+
 </details>
 
 ## Implementation plan
