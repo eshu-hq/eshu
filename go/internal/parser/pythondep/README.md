@@ -14,6 +14,12 @@ correlate PyPI vulnerability advisories against repository dependency truth.
   tables, Poetry `[tool.poetry.dependencies]`, Poetry group dependencies, and
   Hatch `[tool.hatch.envs.*.dependencies]`.
 - Parse `Pipfile` `[packages]` and `[dev-packages]`.
+- Read interpreter constraints from `pyproject.toml` (`[project].requires-python`
+  and Poetry's `[tool.poetry.dependencies].python`) and `Pipfile`
+  (`[requires].python_version` and `.python_full_version`) as private typed
+  runtime evidence. The Git collector removes it before file facts persist.
+- Read `setup.cfg` `[options].python_requires` with a bounded, exact-name
+  ConfigParser-compatible reader. It does not evaluate interpolation.
 - Parse `poetry.lock` `[[package]]` arrays with optional `[package.source]`
   subtables.
 - Parse `uv.lock` `[[package]]` entries with the fail-closed version-1 grammar
@@ -89,6 +95,12 @@ constraint never declares a dependency:
   direct reference, userinfo included.
 
 ## Safety rules
+
+`pyproject.toml` and `Pipfile` pass the TOML nesting and key-work guards before
+one semantic decode. Dependency rows and interpreter evidence share its decoded
+values; the TOML syntax tree supplies order and source positions only. Duplicate
+TOML keys fail the whole document. Interpreter evidence is detached and guarded
+before handoff, and a parser miss never counts as a declaration-free file.
 
 - VCS, path, URL, editable, and malformed entries always reach the payload
   with a non-`dependency` `config_kind` so
@@ -295,3 +307,22 @@ No-Observability-Change: the reader adds no metric, span, or log key. The
 `uv_lock_state` payload field and the existing collector parse timing and parse
 errors diagnose it, and a partial file shows as `unresolved` and
 `dropped_over_cap` counts.
+
+### Python runtime evidence cost (#9308)
+
+Performance Evidence: on Go 1.26.6, linux/arm64, the same 300-iteration,
+three-run `BenchmarkPythonRuntimeTOMLParse` harness ran sequentially against
+base `25d68d408b` and this branch. Each input is a short literal TOML manifest
+with interpreter constraints and two dependencies. The shared host's load was
+not controlled. The pyproject fixture's median increased
+from 13.7 to 21.0 us/op (74 to 177 allocs); Pipfile changed from 12.6 to
+12.4 us/op (66 to 141 allocs). The added interpreter evidence costs one
+bounded parse per changed manifest; this local parser benchmark uses no graph
+backend, queue, or persisted rows. The collector's content pin and six focused
+package tests passed with the new declarations. The pyproject increase is a
+measured per-file cost, not a repository wall-time claim.
+
+No-Observability-Change: the existing snapshot-stage duration and emitted-fact
+counters cover this path; the Git collector's runtime-declaration skip and
+rejected-value warnings identify invalid input. No metric, span, or log key
+was added by the parser evidence handoff.

@@ -10,6 +10,7 @@ import (
 	"github.com/eshu-hq/eshu-sdk/factschema"
 	runtimedeclarationv1 "github.com/eshu-hq/eshu-sdk/factschema/runtimedeclaration/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 )
 
 // runtimeVersionPrefix is the label some tools write before a version in a pin
@@ -29,13 +30,13 @@ var runtimeVersionPrefix = map[string]string{
 // is never reported as the release it precedes.
 var swiftReleasePattern = regexp.MustCompile(`^[0-9]+(\.[0-9]+){0,2}$`)
 
-// MaxTokensPerFile bounds the version tokens one pin file may declare. A real
-// pin file holds a handful of tokens (a .tool-versions names one tool per
+// MaxTokensPerFile bounds the version tokens one pin file or repeatable
+// manifest source may declare. A real pin file holds a handful of tokens (a .tool-versions names one tool per
 // line); 1024 leaves wide headroom for a monorepo file that pins many tools,
 // and a file over it is generated or hostile content. Emitting a prefix would
 // present a partial list as the whole file, so the whole file is skipped and
 // the caller is told how many tokens it held.
-const MaxTokensPerFile = 1024
+const MaxTokensPerFile = shared.RuntimeVersionTokenCap
 
 // MaxBytesPerFile bounds the size of one pin file body. It is checked before
 // any parsing, so a hostile or generated file costs nothing proportional to its
@@ -171,6 +172,9 @@ func EmitExtraction(ctx FixtureContext, repoID, relativePath string, extraction 
 func classifyDeclaration(sourceKind string, d declaration) Spec {
 	if d.whole || (sourceKind == sourceKindSwiftVersion && !swiftReleasePattern.MatchString(d.rawSpec)) {
 		return unparsedSpec(d.rawSpec)
+	}
+	if sourceKind == sourceKindRuntimeTXT {
+		return Classify(strings.TrimPrefix(d.rawSpec, "python-"))
 	}
 	return Classify(stripRuntimePrefix(d.runtime, d.rawSpec))
 }

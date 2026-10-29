@@ -155,6 +155,29 @@ hatch-tested = ">=0.1"
 	}
 }
 
+func TestPyProjectRuntimeAndDependenciesShareDecodedTOML(t *testing.T) {
+	path := writeTempFile(t, "pyproject.toml", "[project]\nrequires-python = \"\\u003e=3.11\"\n[tool.\"poetry\".dependencies]\npython = \"^3.11\"\nhttpx = \"\\u005e0.27\"\n")
+	payload, err := ParsePyProject(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	evidence, ok := payload["python_runtime_evidence"].(PythonRuntimeEvidence)
+	if !ok || len(evidence.Values) != 2 || evidence.Values[0].Value != ">=3.11" || evidence.Values[0].Line != 2 || evidence.Values[1].Value != "^3.11" || evidence.Values[1].Line != 4 {
+		t.Fatalf("runtime evidence = %+v", evidence)
+	}
+	row := findRowByName(variableRows(t, payload), "httpx")
+	if row == nil || row["value"] != "^0.27" {
+		t.Fatalf("dependency row = %+v", row)
+	}
+}
+
+func TestPyProjectDuplicateRuntimeKeyFailsWholeDocument(t *testing.T) {
+	path := writeTempFile(t, "pyproject.toml", "[project]\nrequires-python = '3.11'\nrequires-python = '3.12'\n")
+	if _, err := ParsePyProject(path); err == nil {
+		t.Fatal("duplicate TOML key was accepted")
+	}
+}
+
 // TestParsePyProjectMalformedTableStaysMissingNotFake guards the rule that an
 // invalid TOML body MUST NOT smuggle a dependency row through the parser. An
 // empty/failed parse means the file is missing evidence, not safe.

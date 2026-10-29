@@ -31,7 +31,7 @@
 // decision points from a BranchNodeSet so every tree-sitter language computes
 // real complexity from data tables rather than per-language traversal code.
 //
-// ReadSource is the single physical-read chokepoint every child parser package
+// ReadSource and ReadSourceWithOriginal are the single physical-read chokepoint every child parser package
 // calls. Every buffer it returns passes through NormalizeLineEndings, which
 // rewrites carriage returns to '\n' in a source that contains no '\n' at all
 // and returns every other source byte-identical, so no language parser in this

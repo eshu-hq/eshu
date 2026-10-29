@@ -20,6 +20,7 @@ const (
 	sourceKindSdkmanrc         = "sdkmanrc"
 	sourceKindRustToolchain    = "rust_toolchain"
 	sourceKindSwiftVersion     = "swift_version"
+	sourceKindRuntimeTXT       = "runtime_txt"
 )
 
 // pinFileSourceKinds maps the exact base names admitted by the parser registry
@@ -43,6 +44,7 @@ var pinFileSourceKinds = map[string]string{
 	"rust-toolchain":      sourceKindRustToolchain,
 	"rust-toolchain.toml": sourceKindRustToolchain,
 	".swift-version":      sourceKindSwiftVersion,
+	"runtime.txt":         sourceKindRuntimeTXT,
 }
 
 // SourceKindForPath returns the source kind of a repository-relative path when

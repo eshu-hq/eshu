@@ -275,6 +275,7 @@ func defaultDefinitions() []Definition {
 				"rustfmt.toml", "clippy.toml", "renovate.json5",
 			},
 		},
+		pythonRuntimeTXTDefinition(),
 		{
 			ParserKey:  "ruby",
 			Language:   "ruby",

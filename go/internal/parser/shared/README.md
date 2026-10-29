@@ -54,7 +54,7 @@ The godoc contract is in `doc.go` and `shared.go`. Current exports are
 `ReadSourceWithOriginal`, `NormalizeLineEndings`, `PrimeSource`, `ClearSource`,
 `SetReadSourceHookForTest`,
 `MaxSourceBytes`, `ErrSourceTooLarge`, `SourceReadCap`, `SetSourceReadCapForTest`,
-`ReadFileCapped` (`read_cap.go`, issue #8986), `WalkNamed`, `NodeText`, `NodeLine`, `NodeEndLine`, `CloneNode`,
+`ReadFileCapped` (`read_cap.go`, issue #8986), `RuntimeVersionTokenCap`, `WalkNamed`, `NodeText`, `NodeLine`, `NodeEndLine`, `CloneNode`,
 `AppendBucket`, `SortNamedBucket`, `SortNamedMaps`, `CollectBucketNames`,
 `IntValue`, `LastPathSegment`, `DedupeNonEmptyStrings`, `BranchNodeSet`,
 `NewBranchNodeSet`, `CyclomaticComplexity`, and the import-entry flag keys

@@ -4,6 +4,8 @@
 package pythondep
 
 import (
+	"path/filepath"
+
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 )
 
@@ -12,15 +14,18 @@ import (
 // `git`, `path`, or `url` key surface as non-`dependency` config_kind so the
 // supply-chain reducer cannot mis-admit them as PyPI registry consumption.
 func ParsePipfile(path string) (map[string]any, error) {
-	source, err := shared.ReadSource(path)
+	source, original, err := shared.ReadSourceWithOriginal(path)
 	if err != nil {
 		return nil, err
 	}
 	payload := basePayload(path, LangTOML)
-	sections, err := scanTOML(string(source))
+	document, err := parsePythonTOML(filepath.Base(path), source)
 	if err != nil {
 		return nil, err
 	}
+	sections := document.sections
+	document.evidence.Digest = PythonRuntimeDigest(original)
+	payload["python_runtime_evidence"] = document.evidence
 
 	rows := make([]map[string]any, 0)
 	for _, section := range sections {

@@ -29,6 +29,12 @@ const (
 	sourceKindGoModToolchain     = "go_mod_toolchain"
 	sourceKindDockerfileFrom     = "dockerfile_from"
 	sourceKindWorkflowSetup      = "workflow_setup_version"
+	sourceKindPyProjectRequires  = "pyproject_requires_python"
+	sourceKindPoetryPython       = "poetry_python"
+	sourceKindPipfileVersion     = "pipfile_python_version"
+	sourceKindPipfileFullVersion = "pipfile_python_full_version"
+	sourceKindSetupCFGRequires   = "setup_cfg_python_requires"
+	sourceKindSetupPYRequires    = "setup_py_python_requires"
 )
 
 // section identifies the manifest section a declaration was read from.
@@ -47,6 +53,12 @@ const (
 	sectionGoModToolchain
 	sectionDockerfileFrom
 	sectionWorkflowSetup
+	sectionPyProjectRequires
+	sectionPoetryPython
+	sectionPipfileVersion
+	sectionPipfileFullVersion
+	sectionSetupCFGRequires
+	sectionSetupPYRequires
 )
 
 // sectionSourceKinds maps a section to its source kind.
@@ -63,6 +75,12 @@ var sectionSourceKinds = [...]string{
 	sectionGoModToolchain:     sourceKindGoModToolchain,
 	sectionDockerfileFrom:     sourceKindDockerfileFrom,
 	sectionWorkflowSetup:      sourceKindWorkflowSetup,
+	sectionPyProjectRequires:  sourceKindPyProjectRequires,
+	sectionPoetryPython:       sourceKindPoetryPython,
+	sectionPipfileVersion:     sourceKindPipfileVersion,
+	sectionPipfileFullVersion: sourceKindPipfileFullVersion,
+	sectionSetupCFGRequires:   sourceKindSetupCFGRequires,
+	sectionSetupPYRequires:    sourceKindSetupPYRequires,
 }
 
 // MaxManifestBytesPerFile bounds one package.json, Composer, or go.mod body. A manifest
@@ -83,6 +101,9 @@ const (
 	manifestGoMod
 	manifestDockerfile
 	manifestWorkflow
+	manifestPythonTOML
+	manifestSetupCFG
+	manifestSetupPY
 )
 
 // dependencyDirs are directory names whose manifests belong to a dependency,
@@ -120,6 +141,12 @@ func manifestKindForBase(base, relativePath string) manifestKind {
 		kind = manifestComposerLock
 	case base == "go.mod":
 		kind = manifestGoMod
+	case base == "pyproject.toml" || base == "Pipfile":
+		kind = manifestPythonTOML
+	case base == "setup.cfg":
+		kind = manifestSetupCFG
+	case base == "setup.py":
+		kind = manifestSetupPY
 	case isDockerfileName(base):
 		kind = manifestDockerfile
 	case ghactionsref.IsWorkflowPath(relativePath):

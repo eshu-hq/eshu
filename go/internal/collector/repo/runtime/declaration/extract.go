@@ -55,6 +55,12 @@ func Extract(relativePath, body string) (Extraction, bool) {
 		}), true
 	case manifestWorkflow:
 		return extractManifest(body, func() ([]declaration, int, error) { return extractWorkflow(body) }), true
+	case manifestPythonTOML:
+		return extractPythonTOMLManifest(relativePath, body), true
+	case manifestSetupCFG:
+		return extractPythonSetupCFG(body), true
+	case manifestSetupPY:
+		return extractPythonSetupPY(body), true
 	}
 	return Extraction{}, false
 }
@@ -63,6 +69,9 @@ func Extract(relativePath, body string) (Extraction, bool) {
 func extractPinFile(sourceKind, body string) Extraction {
 	if len(body) > MaxBytesPerFile {
 		return Extraction{skip: Skip{Reason: SkipReasonByteCap, ByteSize: len(body), ByteCap: MaxBytesPerFile}}
+	}
+	if sourceKind == sourceKindRuntimeTXT {
+		return extractRuntimeTXT(body)
 	}
 	declarations, total := parse(sourceKind, body, MaxTokensPerFile)
 	switch {

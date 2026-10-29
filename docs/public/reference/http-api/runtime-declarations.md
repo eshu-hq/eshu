@@ -15,7 +15,8 @@ One declaration is one runtime version one file declares: a version-pin file
 `packageManager` sections of `package.json`, the `go` and `toolchain`
 directives of `go.mod`, PHP constraints and platform pins in `composer.json`
 and `composer.lock`, the `.php-version` pin, the `FROM` base-image tag of a
-`Dockerfile`, or the
+`Dockerfile`, Python constraints in `pyproject.toml`, `Pipfile`, `setup.cfg`
+and literal `setup.py` calls, the `runtime.txt` pin, or the
 `with.*-version` inputs of a GitHub Actions workflow step. A pin-file line
 that lists several versions is one row per token. There is no effective-version view in v1: a repository with a root
 `.nvmrc` and a `services/web/.nvmrc` returns both rows, each with its
@@ -26,7 +27,10 @@ that lists several versions is one row per token. There is no effective-version 
 (`package_json_engines`, `package_json_volta`, `package_json_package_manager`,
 `go_mod_go`, `go_mod_toolchain`, `composer_json_require_php`,
 `composer_json_platform_php`, `composer_lock_platform_php`,
-`composer_lock_platform_overrides_php`), and one per new reader (`dockerfile_from`,
+`composer_lock_platform_overrides_php`, `pyproject_requires_python`,
+`poetry_python`, `pipfile_python_version`, `pipfile_python_full_version`,
+`setup_cfg_python_requires`, `setup_py_python_requires`), and one per new reader
+(`runtime_txt`, `dockerfile_from`,
 `workflow_setup_version`). The filter is an exact match on an open set.
 
 ## Request

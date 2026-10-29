@@ -69,8 +69,9 @@ func TestPinFileSourceKindsAreAllRegistryAdmitted(t *testing.T) {
 	multiRuntime := map[string]bool{sourceKindToolVersions: true, sourceKindSdkmanrc: true}
 	for name, kind := range pinFileSourceKinds {
 		definition, ok := registry.LookupByPath("services/api/" + name)
-		if !ok || definition.ParserKey != "raw_text" {
-			t.Errorf("pin file %q is not admitted as raw_text by the parser registry (got %q, %v)", name, definition.ParserKey, ok)
+		admitted := ok && (definition.ParserKey == "raw_text" || name == "runtime.txt" && definition.ParserKey == "runtime_txt")
+		if !admitted {
+			t.Errorf("pin file %q is not admitted by the parser registry (got %q, %v)", name, definition.ParserKey, ok)
 		}
 		if !multiRuntime[kind] && fileRuntime[kind] == "" {
 			t.Errorf("pin file %q (source kind %q) has no runtime in fileRuntime", name, kind)

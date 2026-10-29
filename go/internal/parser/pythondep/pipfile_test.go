@@ -93,3 +93,26 @@ mypy = "*"
 		t.Fatalf("upstream config_kind = %#v, want vcs_dependency", got)
 	}
 }
+
+func TestPipfileRuntimeAndDependenciesShareDecodedTOML(t *testing.T) {
+	path := writeTempFile(t, "Pipfile", "[requires]\npython_version = \"\\u0033.12\"\npython_full_version = '3.12.1'\n[packages]\nhttpx = \"\\u005e0.27\"\n")
+	payload, err := ParsePipfile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	evidence, ok := payload["python_runtime_evidence"].(PythonRuntimeEvidence)
+	if !ok || len(evidence.Values) != 2 || evidence.Values[0].Value != "3.12" || evidence.Values[0].Line != 2 || evidence.Values[1].Value != "3.12.1" || evidence.Values[1].Line != 3 {
+		t.Fatalf("runtime evidence = %+v", evidence)
+	}
+	row := findRowByName(variableRows(t, payload), "httpx")
+	if row == nil || row["value"] != "^0.27" {
+		t.Fatalf("dependency row = %+v", row)
+	}
+}
+
+func TestPipfileDuplicateRuntimeKeyFailsWholeDocument(t *testing.T) {
+	path := writeTempFile(t, "Pipfile", "[requires]\npython_version = '3.11'\npython_version = '3.12'\n[packages]\nhttpx = '*'\n")
+	if _, err := ParsePipfile(path); err == nil {
+		t.Fatal("duplicate TOML key was accepted")
+	}
+}

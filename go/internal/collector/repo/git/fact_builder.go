@@ -260,11 +260,13 @@ func streamFacts(
 				snapshot.ContentFileMetas[i] = model.ContentFileMeta{}
 				continue
 			}
-			body = tally.storedBytes(snapshot.ContentStores, meta.RelativePath, body) // every emitter below sees the stored body
+			// Runtime declarations are read from original bytes. A metadata
+			// content-store policy may then clear the body before durable facts.
+			noteComposerOrRuntimeCandidate(snapshot, runtimeDeclarationCandidates, meta.RelativePath, string(body), dropped, droppedPaths)
+			body = tally.storedBytes(snapshot.ContentStores, meta.RelativePath, body)
 			bodyStr := string(body)
 			submodule.NoteSubmoduleCandidate(gitmodulesCandidates, meta.RelativePath, bodyStr)
 			codeowners.NoteCodeownersCandidate(codeownersCandidates, meta.RelativePath, bodyStr)
-			noteComposerOrRuntimeCandidate(snapshot, runtimeDeclarationCandidates, meta.RelativePath, bodyStr, dropped, droppedPaths)
 
 			w.Send(gitcontent.ContentFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, model.ContentFileSnapshot{
 				RelativePath:    meta.RelativePath,
@@ -309,10 +311,10 @@ func streamFacts(
 		snapshot.ContentFileMetas = nil
 	} else {
 		for i, fileSnapshot := range snapshot.ContentFiles {
+			noteComposerOrRuntimeCandidate(snapshot, runtimeDeclarationCandidates, fileSnapshot.RelativePath, fileSnapshot.Body, dropped, droppedPaths)
 			fileSnapshot.Body = tally.storedBody(snapshot.ContentStores, fileSnapshot.RelativePath, fileSnapshot.Body)
 			submodule.NoteSubmoduleCandidate(gitmodulesCandidates, fileSnapshot.RelativePath, fileSnapshot.Body)
 			codeowners.NoteCodeownersCandidate(codeownersCandidates, fileSnapshot.RelativePath, fileSnapshot.Body)
-			noteComposerOrRuntimeCandidate(snapshot, runtimeDeclarationCandidates, fileSnapshot.RelativePath, fileSnapshot.Body, dropped, droppedPaths)
 			w.Send(gitcontent.ContentFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, fileSnapshot))
 			catalog.EmitServiceCatalogFactsForContentFile(w,
 				scopeID,

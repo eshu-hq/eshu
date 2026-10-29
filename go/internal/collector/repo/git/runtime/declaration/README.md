@@ -4,7 +4,7 @@
 
 `go/internal/collector/repo/git/runtime/declaration` is the Git collector hook
 that emits `runtime_declaration.version` facts from version-pin files and from
-`package.json` and `go.mod` (issue #8815).
+`package.json`, `go.mod`, Composer, and Python manifests (issue #8815).
 
 ## Where this fits
 
@@ -22,7 +22,7 @@ and classification live in `go/internal/collector/repo/runtime/declaration`.
 
 - `Candidate` — one admitted file held until emission. A pin file keeps its
   size, and its body only when the file is at or under
-  `runtimedeclaration.MaxBytesPerFile`. A `package.json` or `go.mod` keeps only
+  `runtimedeclaration.MaxBytesPerFile`. A manifest keeps only
   its `runtimedeclaration.Extraction` (a handful of declarations). The
   Extraction owns copies of its strings, so it does not pin the body; the
   retention test proves it.
@@ -31,6 +31,10 @@ and classification live in `go/internal/collector/repo/runtime/declaration`.
   the byte cap is recorded by size only. A manifest is parsed here and recorded
   only when it declares something or has a skip to report, so the common
   `package.json` with no `engines`, `volta` or `packageManager` leaves no entry.
+- `NoteParsedPythonCandidate`, `NoteUnavailablePythonCandidate`, and
+  `NoteCappedPythonCandidate` — keep guarded native parser evidence, or an
+  explicit skip when the native parse was absent or over the byte cap. The
+  Git collector binds evidence to the raw file revision before calling them.
 - `EmitRuntimeDeclarationFactsForCandidates` — sends the facts through the
   shared writer, in path order. A pin file over
   `runtimedeclaration.MaxBytesPerFile` or `runtimedeclaration.MaxTokensPerFile`,
@@ -43,8 +47,8 @@ and classification live in `go/internal/collector/repo/runtime/declaration`.
 
 ## Notes
 
-Unlike CODEOWNERS there is no per-repository winner: every pin file, package.json
-and go.mod in every directory declares its own scope, so a monorepo emits one
+Unlike CODEOWNERS there is no per-repository winner: every pin file and
+manifest in every directory declares its own scope, so a monorepo emits one
 set of facts per package directory. A delta generation re-emits only the files
 it changed.
 A deleted pin file leaves its earlier facts in place until the projection

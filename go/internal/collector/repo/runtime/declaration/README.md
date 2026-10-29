@@ -152,6 +152,13 @@ a constraint from a pin.
 | `composer_json_platform_php` | `composer.json` `config.platform.php` | `php` |
 | `composer_lock_platform_php` | `composer.lock` `platform.php` | `php` |
 | `composer_lock_platform_overrides_php` | `composer.lock` `platform-overrides.php` | `php` |
+| `pyproject_requires_python` | `pyproject.toml` `[project].requires-python` | `python` |
+| `poetry_python` | `pyproject.toml` `[tool.poetry.dependencies].python` | `python` |
+| `pipfile_python_version` | `Pipfile` `[requires].python_version` | `python` |
+| `pipfile_python_full_version` | `Pipfile` `[requires].python_full_version` | `python` |
+| `setup_cfg_python_requires` | `setup.cfg` `[options].python_requires` | `python` |
+| `setup_py_python_requires` | `setup.py` bound `setuptools.setup` or `distutils.core.setup` literal keyword | `python` |
+| `runtime_txt` | `runtime.txt` `python-<spec>` line | `python` |
 | `go_mod_go` | the `go` directive | `go` |
 | `go_mod_toolchain` | the `toolchain` directive | `go` |
 
@@ -166,6 +173,22 @@ a constraint from a pin.
 | `toolchain go1.22.3` | `exact` 1.22.3; `raw_spec` keeps the `go` prefix |
 | `toolchain default`, `toolchain local`, `toolchain go1.22.3+auto`, `go 1.22.3-custom` | `alias`: a selection rule or an unrecognised form is kept as written, never read as a version |
 | `go ${GO_VERSION}` | `unresolved` |
+
+Python TOML manifests are validated once with the bounded TOML decoder. The
+same decoded values feed dependency rows and runtime declarations; source
+positions come from TOML syntax nodes. Duplicate keys and malformed documents
+emit no runtime fact. `setup.cfg` reads only `[options].python_requires`,
+rejects duplicate sections or options, and never evaluates interpolation.
+`setup.py` reads only literal `python_requires` keywords on calls proven bound
+to setuptools or distutils imports; Python code is never executed. Dynamic
+expressions, f-strings, `**kwargs` overrides, and shadowed calls emit nothing.
+It counts bound calls past `MaxTokensPerFile` (1,024) without retaining more
+values, then skips the whole file with the exact count instead of emitting a
+prefix.
+`runtime.txt` has a separate exact-name registry entry under metadata-only
+content storage: its original body reaches this guarded reader, while content
+and file facts keep only the path and source digest. It admits one effective
+`python-<spec>` line and keeps that wrapper in `raw_spec`.
 
 Rules that keep a manifest read bounded and fail closed:
 

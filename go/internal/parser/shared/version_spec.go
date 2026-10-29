@@ -5,6 +5,10 @@ package shared
 
 import "strings"
 
+// RuntimeVersionTokenCap bounds declarations retained from one version source.
+// Readers count past the cap but must not emit a prefix as complete evidence.
+const RuntimeVersionTokenCap = 1024
+
 // SafeVersionSpec reports whether a declared version is short, printable
 // ASCII from the version grammar and lacks a credential-like opaque run.
 // This is the shared parser and fact-emitter guard for manifest values.
