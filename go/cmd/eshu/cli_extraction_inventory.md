@@ -142,12 +142,26 @@ against the registry. Inventory: `ESHU_SERVICE_URL`, `ESHU_API_KEY`,
    tests), then the destination population PR with the parity evidence,
    then production acceptance before removing anything in-tree.
 
-## Open questions (owner rulings needed)
+## Decided questions (arbiter verdict recorded)
 
-- Oldest/newest supported core↔CLI version pairs and credential handling for
-  the independently released CLI (acceptance criteria still NOT_CHECKED).
-- Distribution of the demo Compose overlay and manifest to an installed
-  `eshu-cli` outside a checkout (embed, pinned fetch, or deploy-repo
-  checkout), to be decided in the #8871/#8874 execution.
-- Name, versioning, and discovery of the future core `local-host` entrypoint
-  that would let `graph`/`watch` verbs appear in `eshu-cli`.
+The three open questions are decided by the arbiter verdict recorded in
+`docs/internal/evidence/8874-cli-open-questions-verdict.md` (base
+`origin/main` `9922b49`; `go/cmd/eshu/` re-pinned at 146 entries at
+that base):
+
+- Version pairs and credentials: one tested pair at the first
+  independent release, recorded only in the eshu-deploy compatibility
+  matrix; no runtime version enforcement on day one; exact
+  original-path SDK pins with no `replace` and no `go.work`; the
+  `~/.eshu/.env` (0600) filesystem contract moves with the CLI.
+- Demo distribution: the question manifest embeds in `eshu-cli`
+  (`//go:embed`, on-disk file wins, CI byte-diff against the core
+  spec at the paired tag); the Compose overlay stays a deploy-repo
+  checkout owned by #8871. The miss text naming an eshu-deploy
+  checkout is the one sanctioned parity exception on this axis.
+- `local-host`: `eshu local-host` in the core `eshu` binary, protocol
+  `local-host/v1` with an additive handshake, `ESHU_LOCAL_HOST_BIN`
+  then `PATH` discovery, and a redacted v1 discovery record (never
+  `OwnerRecord`). `graph`/`watch`/`w` stay RETAIN until v1 ships;
+  STUB entries through `removedCommandError` (exit 1) are the second
+  sanctioned parity exception.
