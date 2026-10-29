@@ -1,4 +1,4 @@
-# #8874 open-questions arbiter verdict
+# 8874 open-questions arbiter verdict
 
 Refs #8874, part of #6707. Status: decision record only. This file
 records the landed arbiter ruling on the three open questions the
