@@ -412,11 +412,12 @@ jobs:
     env:
       LANE_APPLIES: ${{ needs.changes.outputs.image }}
     # The scanner destination builds (#8878) added three rootfs builds plus
-    # verifier runs to this job; it now exceeds the old 30-minute envelope
-    # (killed twice at 30m12s mid-builder-compile with no test failing). 45
-    # matches the sibling publish jobs and leaves margin over the observed
-    # ~31-minute floor.
-    timeout-minutes: 45
+    # verifier runs to this job; measured need is ~40 min (13 first build +
+    # ~11 shared-builder scanner builds + 13 second no-cache build + compare;
+    # the pre-fix shape needed ~54 min and died at the 30- and 45-minute
+    # envelopes with no test failing). 60 leaves 1.5x margin over the
+    # measured need.
+    timeout-minutes: 60
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -453,8 +454,14 @@ jobs:
       - name: Build and verify scanner destination images
         if: ${{ env.LANE_APPLIES == 'true' }}
         # #8878: each scanner-<name> stage must export a rootfs carrying
-        # exactly its own component binary. Same mirrored bases and
-        # reproducibility flags as scripts/ci/build-reproducibility-image.sh.
+        # only its own component binary under the enforced directories.
+        # Same mirrored bases and reproducibility flags as
+        # scripts/ci/build-reproducibility-image.sh, but WITHOUT --no-cache:
+        # the verifier asserts content, not cold-build reproducibility (the
+        # main-image compare below owns that), and the three targets share
+        # one builder stage, so the second and third builds reuse its layers
+        # instead of recompiling Go twice more (~14 min saved; the first
+        # build on a fresh runner is inherently cold).
         run: |
           for component in image sbom osruntime; do
             dest="/tmp/scan-${component}"
@@ -467,7 +474,6 @@ jobs:
               --build-arg "ESHU_GO_IMAGE=${{ env.ESHU_GO_IMAGE }}" \
               --build-arg "ESHU_ALPINE_IMAGE=${{ env.ESHU_ALPINE_IMAGE }}" \
               --provenance=false \
-              --no-cache \
               --output "type=local,dest=${dest}" \
               .
             bash scripts/verify-scanner-images.sh "${component}" "${dest}"
