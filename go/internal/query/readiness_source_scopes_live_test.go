@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -368,21 +369,56 @@ func TestSupplyChainImpactReadinessSuccessWithoutCommittedSnapshotLive(t *testin
 	}
 }
 
+// TestSupplyChainImpactReadinessSuccessExpiresAtReadTimeLive is the #9423
+// readiness proof: a stored fresh row counts as fresh only while
+// last_success_at is inside vulnsource.DefaultFreshnessWindow (14 days), per
+// configured source, and a deactivated instance's fresh row does not count.
 func TestSupplyChainImpactReadinessSuccessExpiresAtReadTimeLive(t *testing.T) {
 	ctx, db, now := readinessScopeLiveDatabase(t)
-	seedReadinessScopeInstance(t, ctx, db, now, "expiry-instance", []map[string]any{
-		{"source": "nvd", "scope_id": "exact", "cve_ids": []string{"CVE-2026-9227"}},
-	})
-	seedReadinessScopeState(t, ctx, db, now, "expiry-instance", "exact", "nvd", "fresh", "succeeded")
-	if _, err := db.ExecContext(ctx, `UPDATE vulnerability_source_states
-        SET last_success_at = $1 WHERE collector_instance_id = 'expiry-instance' AND scope_id = 'exact'`,
-		now.Add(-30*24*time.Hour)); err != nil {
-		t.Fatalf("age source state: %v", err)
+	cases := []struct {
+		scope, source string
+		age           time.Duration
+		deactivated   bool
+		want          string // "" means the row must not be read at all
+	}{
+		{"nvd-old", "nvd", 30 * 24 * time.Hour, false, "stale"},
+		{"kev-old", "cisa_kev", 15 * 24 * time.Hour, false, "stale"},
+		{"epss-old", "first_epss", 15 * 24 * time.Hour, false, "stale"},
+		{"kev-recent", "cisa_kev", 13 * 24 * time.Hour, false, "fresh"},
+		{"kev-retired", "cisa_kev", time.Hour, true, ""},
+	}
+	for _, tc := range cases {
+		instance := "expiry-" + tc.scope
+		seedReadinessScopeInstance(t, ctx, db, now, instance, []map[string]any{
+			{"source": tc.source, "scope_id": tc.scope, "cve_ids": []string{"CVE-2026-9227"}},
+		})
+		seedReadinessScopeState(t, ctx, db, now, instance, tc.scope, tc.source, "fresh", "succeeded")
+		if _, err := db.ExecContext(ctx, `UPDATE vulnerability_source_states SET last_success_at = $1
+            WHERE collector_instance_id = $2`, now.Add(-tc.age), instance); err != nil {
+			t.Fatalf("age source state %s: %v", tc.scope, err)
+		}
+		if tc.deactivated {
+			if _, err := db.ExecContext(ctx, `UPDATE collector_instances SET deactivated_at = $1
+                WHERE instance_id = $2`, now, instance); err != nil {
+				t.Fatalf("deactivate instance %s: %v", instance, err)
+			}
+		}
 	}
 	readiness := readReadinessScopeAPI(t, db, "CVE-2026-9227")
-	if len(readiness.SourceStates) != 1 || readiness.SourceStates[0].FreshnessState != "stale" ||
-		readiness.State != impact.ReadinessStateTargetIncomplete {
-		t.Fatalf("aged source readiness = %+v, want stale target_incomplete", readiness)
+	got := map[string]string{}
+	for _, state := range readiness.SourceStates {
+		got[state.ScopeID] = state.FreshnessState
+	}
+	for _, tc := range cases {
+		if got[tc.scope] != tc.want {
+			t.Errorf("%s (%s, success %s ago) freshness = %q, want %q", tc.scope, tc.source, tc.age, got[tc.scope], tc.want)
+		}
+		if tc.want == "stale" && !slices.Contains(readiness.IncompleteReasons, tc.source+":stale") {
+			t.Errorf("incomplete_reasons = %v, want %s:stale", readiness.IncompleteReasons, tc.source)
+		}
+	}
+	if readiness.State != impact.ReadinessStateTargetIncomplete {
+		t.Fatalf("aged source readiness = %+v, want target_incomplete", readiness)
 	}
 }
 
