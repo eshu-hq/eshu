@@ -64,6 +64,13 @@ while IFS= read -r path; do
     go/cmd/scanner-component-image/*|go/cmd/scanner-component-sbom/*|go/cmd/scanner-component-osruntime/*|go/cmd/scanner-worker/*)
       scannerpins=true
       ;;
+    # Shared installer used by the scannerpins live job (pinned crane
+    # install): a lone touch must still select this gate's lane, or the
+    # registry selects the gate while every publish job skips and the
+    # aggregator fails closed.
+    scripts/ci/go-install-retry.sh)
+      scannerpins=true
+      ;;
     scripts/verify-runtime-image-tools.sh|scripts/test-verify-runtime-image-tools.sh)
       image=true
       ;;

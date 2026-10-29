@@ -148,4 +148,15 @@ git -C "${repo}" add go/internal/other/other.go
 git -C "${repo}" commit -qm unrelated-go
 run_selection pull_request "$(git -C "${repo}" rev-parse HEAD)" "${pins_base}"
 rg -q '^scannerpins=false$' "${scratch}/output"
+# #9491: the shared installer the scannerpins live job uses is a registry
+# trigger for this gate, so a lone touch must select the scannerpins lane;
+# otherwise the registry selects the gate while every publish job skips and
+# the aggregator fails closed.
+retry_base="$(git -C "${repo}" rev-parse HEAD)"
+mkdir -p "${repo}/scripts/ci"
+printf '# retry\n' > "${repo}/scripts/ci/go-install-retry.sh"
+git -C "${repo}" add scripts/ci/go-install-retry.sh
+git -C "${repo}" commit -qm go-install-retry
+run_selection pull_request "$(git -C "${repo}" rev-parse HEAD)" "${retry_base}"
+rg -q '^scannerpins=true$' "${scratch}/output"
 printf 'PASS: production workflow selector steps execute with expected event behavior\n'
