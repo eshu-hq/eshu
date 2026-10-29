@@ -154,6 +154,28 @@ func TestCloudInventoryLoaderDropsNonconformingAMIName(t *testing.T) {
 	}
 }
 
+// TestCloudInventoryLoaderTrimsSurroundingWhitespaceAMIName pins the
+// TrimSpace-before-admit behavior documented in cloud-inventory.md: padding
+// is trimmed before validation, so the trimmed value is what is admitted and
+// surfaced (never the padded original), and padding that trims below 3 runes
+// still drops with the typed record intact.
+func TestCloudInventoryLoaderTrimsSurroundingWhitespaceAMIName(t *testing.T) {
+	t.Parallel()
+
+	attrs := loadAMILoaderRecord(t, amiSourcePayload(t, "  abc  "))
+	if got := attrs["name"]; got != "abc" {
+		t.Fatalf("attributes[name] = %#v, want trimmed %q", got, "abc")
+	}
+	padded := loadAMILoaderRecord(t, amiSourcePayload(t, "  abc"))
+	if got := padded["name"]; got != "abc" {
+		t.Fatalf("attributes[name] = %#v, want trimmed %q", got, "abc")
+	}
+	short := loadAMILoaderRecord(t, amiSourcePayload(t, " a "))
+	if _, present := short["name"]; present {
+		t.Fatalf("attributes[name] = %#v, want dropped (trims to one rune)", short["name"])
+	}
+}
+
 // TestCloudInventoryLoaderAdmitsAMINameBoundaries pins the exact AWS
 // CreateImage bounds: 3 and 128 runes pass verbatim.
 func TestCloudInventoryLoaderAdmitsAMINameBoundaries(t *testing.T) {
