@@ -196,9 +196,9 @@ this one included — already requires `observability.prometheus.enabled` (and
 `observability.prometheus.serviceMonitor.enabled`) before its own flag is even
 consulted. The ServiceMonitor therefore cannot render without the metrics
 Service also existing; see
-`TestHelmKubernetesLiveCollectorServiceMonitorGatingMatchesService` in
-`go/internal/runtime/helm_live_collectors_contract_test.go` for the regression
-proof. The in-cluster RBAC additionally requires `kubernetesLiveCollector.rbac.create`.
+`TestHelmKubernetesLiveCollectorServiceMonitorGatingMatchesService`
+(run from an `ESHU_DEPLOY_CHECKOUT` checkout, helm live-collectors contract
+suite) for the regression proof. The in-cluster RBAC additionally requires `kubernetesLiveCollector.rbac.create`.
 It is still NOT added to any Compose service. Per the readiness doc, the
 claim-driven deployed lane remains deferred until the claim runtime, status
 path, and proof exist (#388 follow-ups). The reducer `kubernetes_correlation`
