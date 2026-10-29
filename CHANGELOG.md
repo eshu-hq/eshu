@@ -20,7 +20,7 @@ recent shipped work grouped by feature area.
   guides, and the deploy proof verifiers are deleted from this repo. Gates
   check out eshu-deploy at the pinned extraction commit
   (`ESHU_DEPLOY_CHECKOUT`, pin
-  `bc6b17897056e3c5dab27dd2357a013869b2bd9a`) and address Compose files,
+  `6b6164d4fd95b8959284c5af0ba9a233fe032134`) and address Compose files,
   chart renders, and deploy docs inside it; contract tests fail closed when
   the checkout is absent or drifts from the pin. The Helm chart release
   lane (`scripts/ci/push-helm-chart.sh`, `package-and-push-chart` job) now

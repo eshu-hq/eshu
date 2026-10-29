@@ -1,7 +1,7 @@
 # eshu-deploy change proposal: adopt the extracted contract tests and proof scripts
 
 Source: eshu @ `2e3ba9fc40` (paths as deleted by the #8871 in-tree removal).
-Destination base: eshu-deploy @ `bc6b17897056` (main after PR #11 merge; includes PR #5 plus the review-thread follow-up: missing files, translated paths, Go lane, exec bits).
+Destination base: eshu-deploy @ `6b6164d4fd95` (main after PR #15 merge; extends/build-context anchoring for foreign project directories).
 Full adapted tree, verified as below: `/tmp/eshu-deploy-proposal`
 (70 files). Nothing here was pushed to eshu-deploy.
 
@@ -163,7 +163,7 @@ proof="$(cat scripts/run-k8s-two-team-governance-proof.sh)"
 ## No-Regression Evidence: in-tree removal
 
 - Baseline: `origin/main` (`4750c37f8b` at rebase); dest checkout pin
-  `bc6b17897056e3c5dab27dd2357a013869b2bd9a` (symbol
+  `6b6164d4fd95b8959284c5af0ba9a233fe032134` (symbol
   `expectedDeployCheckoutCommit` in `go/internal/deploy/checkout_test.go`).
 - Change shape: deploy assets, root Compose files, env examples, deploy
   docs, and proof scripts deleted (~37k lines across ~380 files); staying
