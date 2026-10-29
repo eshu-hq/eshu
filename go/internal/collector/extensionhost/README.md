@@ -179,7 +179,27 @@ description (byte length plus a short prefix from the allowed alphabet, e.g.
 `status.failure_class is not bounded (105 bytes, prefix "invalid_config.a")`),
 and the same holds for the continuation-state rejection in `checkPageEnvelope`.
 `TestValidateBoundedStatusesErrorOmitsRawValue` and
-`TestCheckPageEnvelopeContinuationErrorOmitsRawState` pin that. An alert that matches the
+`TestCheckPageEnvelopeContinuationErrorOmitsRawState` pin that.
+
+Bounded Rejection No-Regression Evidence (#9310): the bounded description
+replaces the raw echo only on the rejection path; the accept path is the same
+comparisons as before. `go test ./internal/collector/extensionhost -run '^$'
+-bench '9310' -benchmem -count=5` (go1.26.10, linux/arm64, shared host) built
+the old `%q` error against the new `describeRejectedValue` error for a
+141-byte hostile value. Old: 1,079-1,149 ns/op, 656 B/op, 5 allocs/op. New:
+511-733 ns/op, 208 B/op, 7 allocs/op (the first run measured 1,157 ns/op
+cold; the two extra allocs are the prefix buffer and format args). The
+accepted-class check measures 486-495 ns/op with zero allocs. Safe because the
+rejection runs at most once per invalid result on the terminal-failure path,
+never in the per-page streaming loop.
+
+Bounded Rejection Observability Evidence (#9310): the `invalid_result` cause
+changes from the raw value to the rule plus the bounded description, e.g.
+`status.failure_class is not bounded (105 bytes, prefix "invalid_config.a")`
+and `extension result must not request continuation (state 200 bytes, prefix
+"zzzzzzzzzzzzzzzz")`. Operators match on the rule text and the class, never on
+extension-supplied substrings; log lines and stored failure messages keep the
+same keys. An alert that matches the
 base class exactly must match the prefix instead (see the
 [hosted extension policy](../../../../docs/public/operate/hosted-extension-policy.md)).
 
