@@ -53,18 +53,30 @@ func TestECSRuntimeIndexUpgradeLive(t *testing.T) {
 	ctx, database := postgresproof.OpenDisposableDatabase(t,
 		os.Getenv(ecsIndexProofDSN), os.Getenv(ecsIndexProofDisposable), 5*time.Minute)
 	definitions := BootstrapDefinitions()
-	boundary := -1
+	serviceIdx, taskIdx := -1, -1
 	for i, definition := range definitions {
-		if definition.Name == "ecs_runtime_service_arn_index" {
-			boundary = i
+		switch definition.Name {
+		case "ecs_runtime_service_arn_index":
+			if serviceIdx < 0 {
+				serviceIdx = i
+			}
+		case "ecs_runtime_task_scope_index":
+			if taskIdx < 0 {
+				taskIdx = i
+			}
+		}
+		if serviceIdx >= 0 && taskIdx >= 0 {
 			break
 		}
 	}
-	if boundary < 0 || boundary+1 >= len(definitions) || definitions[boundary+1].Name != "ecs_runtime_task_scope_index" {
-		t.Fatalf("ECS index migration order is missing or nonadjacent: boundary=%d", boundary)
+	if serviceIdx < 0 || taskIdx < 0 {
+		t.Fatalf("ECS index migrations missing: service=%d task=%d", serviceIdx, taskIdx)
 	}
+	// The two ECS migrations are not adjacent (243 interleaves 242/244),
+	// so apply them as an explicit pair instead of a positional slice.
+	ecsUpgrade := []Definition{definitions[serviceIdx], definitions[taskIdx]}
 	exec := SQLDB{DB: database}
-	if err := applyBootstrapDefinitionsWith(ctx, exec, definitions[:boundary], slog.Default(), schemaBootstrapCoordination{}); err != nil {
+	if err := applyBootstrapDefinitionsWith(ctx, exec, definitions[:serviceIdx], slog.Default(), schemaBootstrapCoordination{}); err != nil {
 		t.Fatalf("apply prior schema: %v", err)
 	}
 	seedECSRuntimeIndexFacts(t, ctx, database)
@@ -77,7 +89,7 @@ func TestECSRuntimeIndexUpgradeLive(t *testing.T) {
 	applied := make(chan error, 1)
 	started := time.Now()
 	go func() {
-		applied <- applyBootstrapDefinitionsWith(ctx, exec, definitions[boundary:boundary+2], slog.Default(), schemaBootstrapCoordination{})
+		applied <- applyBootstrapDefinitionsWith(ctx, exec, ecsUpgrade, slog.Default(), schemaBootstrapCoordination{})
 	}()
 	waitECSIndexBuild(t, ctx, database, true)
 	if err := writeECSIndexFact(ctx, database, "ecs-index-second-concurrent", 300*time.Millisecond); err != nil {
