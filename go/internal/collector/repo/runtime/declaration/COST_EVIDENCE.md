@@ -176,3 +176,18 @@ No-Observability-Change: no metric, span, or log key was added. The
 fact count as Composer, Ruby, and JVM; malformed or capped manifests reuse
 the existing WARN `git_runtime_declaration_file_skipped` and guarded values
 reuse WARN `git_runtime_declaration_values_rejected` with the same labels.
+
+## .NET token-cap alignment (#9548 P2-1)
+
+No-Regression Evidence (#9548 P2-1): aligning the .NET evidence cap with the
+shared RuntimeVersionTokenCap (1024) keeps the same bounded-memory contract
+as the sibling JVM/Ruby/Python lanes: the parser counts without retaining
+past the cap and the collector still emits no fact for an over-cap file. No
+new allocation path was added; the realistic-manifest cost profile above is
+unchanged.
+
+No-Observability-Change (#9548 P2-1): no metric, span, or log key was added.
+The over_tokens skip keeps the existing WARN
+`git_runtime_declaration_file_skipped` with the same labels; only the
+TokenCount it carries becomes the measured count instead of a hardcoded
+constant.
