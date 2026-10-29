@@ -32,8 +32,10 @@ No-Regression Evidence: component package suite
 extension worker suite
 (`go test ./cmd/collector-component-extension -count=1`), coordinator
 suite (`go test ./internal/coordinator/ -count=1`), and the runtime
-contract suite holding the chart `seed.image == pin` deploy-time check
-(`go test ./internal/runtime/ -run TestScanner -count=1`) all pass; the
+contract suite pinning the mirrored in-repo chart values
+(`go test ./internal/runtime/ -run TestScanner -count=1`) all pass; live-chart
+`seed.image` sync rides the re-pin PR process, with admission as the
+fail-closed backstop. The
 new tests fail on the pre-fix tree for the intended reason (pin-equality
 rejection at seed, no admission check). The only added production work is
 one shape check per seed invocation (cold init path) and one artifact

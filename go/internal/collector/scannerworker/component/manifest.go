@@ -54,7 +54,9 @@ const (
 // coordinator activation planner run over the installed manifest before any
 // claim or execution: a drifted seed image is denied there. The re-pin PR
 // therefore bumps this SHA, the pins, and the chart seed.image entries
-// together (the activation contract test keeps the chart copy in sync).
+// together (the activation contract test pins the mirrored in-repo chart
+// values; live-chart sync rides the re-pin PR process with admission as the
+// fail-closed backstop).
 var artifactDigests = map[string]string{
 	IDImage:     "fd7122317aa8a93ae9ac17ed06120ab23ca049987b51abf84019b190956d22fe",
 	IDSBOM:      "484e5aa4b33ecc77f7135409936c1403b7b86c62dcb1d3aa1130ca01f69debe0",
