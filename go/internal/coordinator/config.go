@@ -320,6 +320,12 @@ func validateCollectorClaimSchedulingSupported(instance workflow.DesiredCollecto
 	switch instance.CollectorKind {
 	case scope.CollectorGCP:
 		return gcp.ValidateClaimSchedulerConfiguration(instance)
+	case scope.CollectorVaultLive:
+		// The in-tree vault/live planner is removed (#8869): an enabled
+		// vault_live instance would be admitted and then never planned.
+		// The lane now ships as eshu-hq/eshu-collector-vault-live, so
+		// reject loudly at startup instead of stalling silently.
+		return fmt.Errorf("collector instance %q uses collector_kind %q: vault_live planning moved out of tree to eshu-hq/eshu-collector-vault-live; disable the in-tree instance or convert it to a component activation document", instance.InstanceID, instance.CollectorKind)
 	default:
 		return nil
 	}
