@@ -189,6 +189,9 @@ func TestScannerActivationGrantsMatchRequiredGrants(t *testing.T) {
 			}
 			seen := map[string]bool{}
 			for _, grant := range activation.Grants {
+				if seen[grant.Kind] {
+					t.Errorf("duplicate grant %q in activation %q", grant.Kind, activation.ComponentID)
+				}
 				got := strings.Join(grant.SchemaVersions, ",") + "\x00" + grant.Scope
 				if want[grant.Kind] != got {
 					t.Errorf("grant %q = %q, want RequiredGrants %q", grant.Kind, got, want[grant.Kind])
