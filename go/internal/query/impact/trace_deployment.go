@@ -366,6 +366,23 @@ func (h *Handler) TraceDeploymentChain(w http.ResponseWriter, r *http.Request) {
 			// an actual observation.
 			ctx["_live_instance_count_truncated"] = liveInstances.truncated
 		}
+
+		// ECS task count is a separate, read-time observation. It requires an
+		// exact service ARN bound to this workload by graph or literal declaration;
+		// neither a shared digest nor the request's service name can anchor it.
+		ecsTasks, ecsErr := h.fetchWorkloadECSTaskSummary(r.Context(), querycontract.SafeStr(ctx, "name"), querycontract.SafeStr(ctx, "repo_id"), cloudResourceResult, access)
+		if ecsErr != nil {
+			if h.Logger != nil {
+				h.Logger.Warn("impact handler: ECS task count read failed, omitting count", "service_name", req.ServiceName, "error", ecsErr.Error())
+			}
+			ctx["_ecs_running_task_reason"] = "ecs_task_read_failed"
+		} else if ecsTasks.Count != nil {
+			ctx["_ecs_running_task_count"] = *ecsTasks.Count
+			ctx["_ecs_matching_container"] = ecsTasks.MatchedContainer
+			ctx["_ecs_matching_containers"] = ecsTasks.MatchedContainers
+		} else if ecsTasks.Reason != "" {
+			ctx["_ecs_running_task_reason"] = ecsTasks.Reason
+		}
 	}
 
 	response := deployment.BuildDeploymentTraceResponse(req.ServiceName, ctx, h.traceContext().BuildServiceDeploymentOverview(ctx))

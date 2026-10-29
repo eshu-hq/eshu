@@ -50,6 +50,9 @@ type Handler struct {
 	// one workload on another's live row. KubernetesPodTemplates fixes that
 	// by requiring an identity match first.
 	KubernetesPodTemplates deployment.KubernetesPodTemplateStore
+	// ECSTasks reads active AWS service and task facts for an exact service ARN
+	// already bound to the traced workload's graph-backed cloud evidence.
+	ECSTasks deployment.ECSTaskStore
 	// CodeSurface runs the code-topic-coupled half of change-surface
 	// resolution (fetch topic rows, bind grants, shape files/symbols/
 	// evidence groups). It is an interface, not a method set, because the

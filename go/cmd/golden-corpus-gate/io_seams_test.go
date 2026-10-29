@@ -100,7 +100,7 @@ func pinnedSelfLoopCounts() map[string]int64 {
 // CodeownerTeam/ref (#5419 Phase 5); RuntimeDeclaration identity and spec
 // properties (#8816); the #5450 entry pins identity via
 // CloudResource nodes carrying running_image_ref and running_image_digest (the
-// ECS running task's and Lambda function's deployed image evidence); and the
+// two ECS running tasks' and Lambda function's deployed image evidence); and the
 // #5448 entry pins identity via a CloudResource node carrying ami_id (the EC2
 // instance identity materialization's disjoint augment property); and the
 // #5717 entry pins identity via a CloudResource node carrying resource_type
@@ -194,6 +194,7 @@ func fileLanguageFloor() (map[string]int64, map[string][]string) {
 		"CloudResource|running_image_ref": {
 			"123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo:latest",
 			"123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo:latest",
+			"123456789012.dkr.ecr.us-east-1.amazonaws.com/deployable-source:latest",
 		},
 		// running_image_digest carries the BARE digest for both ECS and Lambda
 		// (issue #5450 P2 fix): the full registry/repository@digest reference
@@ -202,6 +203,7 @@ func fileLanguageFloor() (map[string]int64, map[string][]string) {
 		// never has to branch on resource_type to know which shape it is
 		// getting.
 		"CloudResource|running_image_digest": {
+			"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 			// #5452: the ECS running task now runs the SCANNED vulnerable digest
 			// (...901a), so its supply_chain_impact finding classifies
 			// runtime_confirmed via the query-time CloudResource probe.

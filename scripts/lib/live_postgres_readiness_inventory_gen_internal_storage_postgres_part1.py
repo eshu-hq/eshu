@@ -196,6 +196,10 @@ TABLE = {
         "go/internal/storage/postgres/drifted_bucket_skip_live_test.go": (
             "TestDriftedPathologicalBucketSkippedLive",
         ),
+        "go/internal/storage/postgres/ecs_task_index_migration_live_test.go": (
+            "TestECSRuntimeIndexFreshBootstrapLive",
+            "TestECSRuntimeIndexUpgradeLive",
+        ),
         "go/internal/storage/postgres/fact_key_foreign_key_drop_live_test.go": (
             "TestBootstrapDropsEveryFactRecordsForeignKeyLive",
             "TestFactKeyForeignKeyDropMigrationsAreDeadlockFreeLive",

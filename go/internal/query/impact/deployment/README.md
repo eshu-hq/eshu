@@ -109,3 +109,13 @@ The live pod-template evidence store also accepts `db.Queryer` through
 `NewPostgresKubernetesPodTemplateStoreWithReadStore`. Tracking-id and declared
 object existence and list reads share that guarded reader. The existing
 constructor retains `database/sql` callers and the same SQL and scope bounds.
+
+The ECS read-side store accepts the same guarded `db.Queryer`. It starts from
+one exact service ARN bound to the traced workload by graph evidence or an
+own-repository literal ECS service declaration in a single-workload repo,
+requires a current authorized service fact, then reads same-generation running
+tasks by cluster ARN and service group. A separate same-generation active
+`aws_image_reference` read corroborates container digests. Missing or ambiguous
+service identity and incomplete task enumeration omit the runtime count rather
+than turning an unknown into zero. The count never materializes
+`WorkloadInstance` nodes.

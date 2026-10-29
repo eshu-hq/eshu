@@ -148,7 +148,11 @@ import (
 // claim_expires_at lease, claim_fencing_token fencing column, and
 // stale-claim reap index; DDL half) and
 // 239_incident_freshness_claim_lease_backfill.sql (the claimed-row backfill;
-// DML half, #7961 split).
+// DML half, #7961 split). #9307 adds 242_ecs_runtime_service_arn_index.sql
+// and 244_ecs_runtime_task_scope_index.sql as separate concurrent ECS
+// service/task read index migrations so populated fact writers can proceed
+// (numbered 242/244: main owns 240/241 for #9474 and 243 for #9227; sequence
+// gaps are tolerated).
 // #9227 adds 243_vulnerability_source_state_packages.sql: the package keys a
 // derived vulnerability source target queried, joined by readiness.
 // #9474 adds 240_fact_records_vulnerability_active_package_lookup_v2_idx.sql
@@ -157,13 +161,13 @@ import (
 // package legs (one CREATE INDEX CONCURRENTLY per file); re-pinned after the
 // bundled-statement guard fix reworded a comment naming CONCURRENTLY
 // (no semantic change to either migration).
-const goldenBootstrapDefinitionsDigest = "2681bdba548cdb2421bd4856a2bcc7819d92a6dcaf5691f72b37fdc89c6fb77b"
+const goldenBootstrapDefinitionsDigest = "c80ee136904cd7486095e888f12b25117090a6d683efd98177896c7bd1bc89cd"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 260
+const goldenBootstrapDefinitionsCount = 262
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

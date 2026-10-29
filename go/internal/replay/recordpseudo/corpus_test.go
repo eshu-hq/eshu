@@ -219,10 +219,15 @@ func TestAWSCorpusShapePreserved(t *testing.T) {
 
 	// Keep #6965's seven-scope baseline exact on BOTH sides. AppSync and EKS
 	// extensions are asserted separately below so they cannot rewrite it.
-	wantTypes := map[string]int{"aws_ec2_ami": 1, "aws_iam_role": 1, "aws_s3_bucket": 1, "ecr.repository": 1, "ecs.service": 1, "ecs.task": 1, "ecs.task_definition": 1, "lambda.function": 3}
+	// The #9307 ECS extension re-types the ECS rows to the collector's
+	// aws_ecs_* resource types and adds one aws_ecs_service and one
+	// aws_ecs_task CloudResource row plus two aws_image_reference facts
+	// (identity decisions only, no new relationship rows), so the baseline
+	// pins below carry that extension on both sides.
+	wantTypes := map[string]int{"aws_ec2_ami": 1, "aws_iam_role": 1, "aws_s3_bucket": 1, "ecr.repository": 1, "aws_ecs_service": 2, "aws_ecs_task": 2, "aws_ecs_task_definition": 1, "lambda.function": 3}
 	for label, sh := range map[string]shape{"raw baseline": baselineRaw, "pseudonymized baseline": baselinePseudo} {
-		if sh.nodes != 10 || sh.distinctUIDs != 10 {
-			t.Errorf("%s: CloudResource rows=%d distinct uids=%d, want 10/10", label, sh.nodes, sh.distinctUIDs)
+		if sh.nodes != 12 || sh.distinctUIDs != 12 {
+			t.Errorf("%s: CloudResource rows=%d distinct uids=%d, want 12/12", label, sh.nodes, sh.distinctUIDs)
 		}
 		if fmt.Sprint(sh.nodeTypes) != fmt.Sprint(wantTypes) {
 			t.Errorf("%s: resource_type multiset=%v, want %v", label, sh.nodeTypes, wantTypes)
@@ -239,14 +244,14 @@ func TestAWSCorpusShapePreserved(t *testing.T) {
 		if sh.canPerform != 1 || fmt.Sprint(sh.canPerformBy) != fmt.Sprint(map[string]int{"exact_arn": 1}) {
 			t.Errorf("%s: CAN_PERFORM=%d by mode %v, want 1 exact_arn", label, sh.canPerform, sh.canPerformBy)
 		}
-		if sh.ciDecisions != 2 {
-			t.Errorf("%s: container-image identity decisions=%d, want 2", label, sh.ciDecisions)
+		if sh.ciDecisions != 4 {
+			t.Errorf("%s: container-image identity decisions=%d, want 4", label, sh.ciDecisions)
 		}
 	}
 	for label, sh := range map[string]shape{"raw full corpus": raw, "pseudonymized full corpus": pseudo} {
-		if sh.nodes != 14 || sh.distinctUIDs != 14 || sh.nodeTypes["aws_appsync_graphql_api"] != 1 ||
+		if sh.nodes != 16 || sh.distinctUIDs != 16 || sh.nodeTypes["aws_appsync_graphql_api"] != 1 ||
 			sh.nodeTypes["aws_eks_cluster"] != 1 || sh.nodeTypes["aws_eks_nodegroup"] != 1 || sh.nodeTypes["aws_eks_addon"] != 1 {
-			t.Errorf("%s: CloudResource rows=%d distinct uids=%d additive types=%v; want 14/14 and one AppSync, cluster, nodegroup and add-on", label, sh.nodes, sh.distinctUIDs, sh.nodeTypes)
+			t.Errorf("%s: CloudResource rows=%d distinct uids=%d additive types=%v; want 16/16 and one AppSync, cluster, nodegroup and add-on", label, sh.nodes, sh.distinctUIDs, sh.nodeTypes)
 		}
 		if len(rawGens) != 9 || len(pseudoGens) != 9 {
 			t.Errorf("full corpus scopes raw=%d pseudonymized=%d; want 9/9", len(rawGens), len(pseudoGens))
@@ -295,15 +300,15 @@ func TestAWSCorpusShapePreserved(t *testing.T) {
 			paired++
 		}
 	}
-	if total != 26 || paired != 26 || len(rawKeys) != 26 || len(pseudoKeys) != 26 || len(rawGens) != 9 || len(pseudoGens) != 9 {
-		t.Errorf("full facts=%d paired=%d rawKeys=%d pseudoKeys=%d scopes raw=%d pseudo=%d; want 26/26/26/26/9/9", total, paired, len(rawKeys), len(pseudoKeys), len(rawGens), len(pseudoGens))
+	if total != 30 || paired != 30 || len(rawKeys) != 30 || len(pseudoKeys) != 30 || len(rawGens) != 9 || len(pseudoGens) != 9 {
+		t.Errorf("full facts=%d paired=%d rawKeys=%d pseudoKeys=%d scopes raw=%d pseudo=%d; want 30/30/30/30/9/9", total, paired, len(rawKeys), len(pseudoKeys), len(rawGens), len(pseudoGens))
 	}
 	baselineFacts := 0
 	for _, gen := range baselineRawGens {
 		baselineFacts += len(gen)
 	}
-	if baselineFacts != 22 || len(baselineRawGens) != 7 || len(baselinePseudoGens) != 7 {
-		t.Errorf("baseline facts=%d scopes raw=%d pseudonymized=%d; want 22/7/7", baselineFacts, len(baselineRawGens), len(baselinePseudoGens))
+	if baselineFacts != 26 || len(baselineRawGens) != 7 || len(baselinePseudoGens) != 7 {
+		t.Errorf("baseline facts=%d scopes raw=%d pseudonymized=%d; want 26/7/7", baselineFacts, len(baselineRawGens), len(baselinePseudoGens))
 	}
 }
 

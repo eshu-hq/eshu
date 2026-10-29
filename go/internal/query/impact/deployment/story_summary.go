@@ -42,6 +42,8 @@ func BuildDeploymentFactSummary(
 	uncorrelatedCloudResources := querycontract.MapSliceValue(workloadContext, "uncorrelated_cloud_resources")
 	summary := map[string]any{
 		"instance_count":                 len(instances),
+		"instance_count_source":          "configured_workload_instances",
+		"instance_count_evidence_tier":   "config_only",
 		"environment_count":              len(materializedEnvironments),
 		"materialized_environment_count": len(materializedEnvironments),
 		"config_environment_count":       len(configEnvironments),
@@ -70,6 +72,8 @@ func BuildDeploymentFactSummary(
 	// fabricated zero.
 	if count, ok := workloadContext["_live_instance_count"].(int); ok {
 		summary["live_instance_count"] = count
+		summary["live_instance_count_source"] = "kubernetes_live.pod_template"
+		summary["live_instance_count_evidence_tier"] = "runtime_confirmed"
 		// #5663: truncated is a flat sibling field of live_instance_count,
 		// always present (as false or true) whenever live_instance_count
 		// itself is present, mirroring the always-present-within-its-parent
@@ -79,6 +83,20 @@ func BuildDeploymentFactSummary(
 		// impact/trace_deployment.go) rather than as a builder parameter, to
 		// match how live_instance_count itself already arrives here.
 		summary["live_instance_count_truncated"], _ = workloadContext["_live_instance_count_truncated"].(bool)
+	}
+	if count, ok := workloadContext["_ecs_running_task_count"].(int); ok {
+		summary["ecs_running_task_count"] = count
+		summary["ecs_running_task_count_source"] = "aws_ecs_describe_services_tasks"
+		summary["ecs_running_task_evidence_tier"] = "runtime_confirmed"
+		if name := querycontract.StringVal(workloadContext, "_ecs_matching_container"); name != "" {
+			summary["ecs_matched_container"] = name
+		}
+		if names := querycontract.StringSliceVal(workloadContext, "_ecs_matching_containers"); len(names) > 0 {
+			summary["ecs_matched_containers"] = names
+		}
+	}
+	if reason := querycontract.StringVal(workloadContext, "_ecs_running_task_reason"); reason != "" {
+		summary["ecs_running_task_count_unavailable_reason"] = reason
 	}
 	if len(uncorrelatedCloudResources) > 0 {
 		summary["uncorrelated_cloud_resource_count"] = len(uncorrelatedCloudResources)

@@ -39,7 +39,7 @@ The mounted Go runtime admin OpenAPI contract lives in
 | Entity resolution, context, incident/work-item evidence, and catalog | [Context routes and shared response contracts](http-api/context-and-stories.md) |
 | Declared runtime versions across repositories (`POST /api/v0/runtime-declarations/query`), such as every Node major below 20 | [Runtime declaration routes](http-api/runtime-declarations.md) |
 | Repository, workload, and service stories, intelligence reports, and investigations | [Story routes](http-api/story-routes.md) |
-| Deployment-chain trace and deployment-configuration influence | [Deployment trace and influence](http-api/deployment-trace-and-influence.md) |
+| Deployment-chain trace, Kubernetes and ECS runtime counts, and deployment-configuration influence | [Deployment trace and influence](http-api/deployment-trace-and-influence.md) |
 | Code search, symbols, relationships, call chains, dead-code, complexity, quality, language queries | [Code routes](http-api/code.md) |
 | IaC cleanup, AWS drift, content reads/search, infra impact, environment comparison | [IaC, content, and infra routes](http-api/iac-content-infra.md); [PHP configuration search](http-api/php-configuration.md) |
 | File-content search with no repository filter: work budget, partial results, resume cursor | [Unscoped file search](http-api/unscoped-file-search.md) |
