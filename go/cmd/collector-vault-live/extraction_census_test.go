@@ -162,6 +162,36 @@ func TestExtractionCensusRecordsTruthReadSurface(t *testing.T) {
 	}
 }
 
+// censusCutoverMustName lists strings the census record must contain once
+// the post-rc.5 cutover confirmation lands: the SDK rc.5 pin, the IaC rollout
+// PR and host image it shipped in, the first post-rollout generation with all
+// seven vault kinds emitting, and the dest v0.1.1 digest the parity baseline
+// compares against. Each entry pins one load-bearing claim so a later edit
+// that drops any of them fails this test instead of silently shrinking the
+// record.
+var censusCutoverMustName = []string{
+	"v0.1.0-rc.5",
+	"iac-eks-eshu#438",
+	"99323d9654",
+	"83a562b7",
+	"fact_count 13",
+	"38a86611",
+	"vault_auth_role facts flowing",
+}
+
+func TestExtractionCensusRecordsCutoverConfirmation(t *testing.T) {
+	body, err := os.ReadFile(filepath.Join(repoRootForCensus(t), censusRecordRel))
+	if err != nil {
+		t.Fatalf("read census record %s: %v", censusRecordRel, err)
+	}
+	text := string(body)
+	for _, want := range censusCutoverMustName {
+		if !strings.Contains(text, want) {
+			t.Errorf("census record %s does not name cutover evidence %q", censusRecordRel, want)
+		}
+	}
+}
+
 func TestExtractionScopeIdentityAgrees(t *testing.T) {
 	if string(scope.CollectorVaultLive) != vaultlive.CollectorKind {
 		t.Errorf("scope identity %q != vaultlive source identity %q",

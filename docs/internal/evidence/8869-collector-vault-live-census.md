@@ -151,8 +151,8 @@ claim contracts, never shared-table shortcuts.
 
 - In-tree binary via the `main` package; no standalone release artifact.
 - Destination `eshu-hq/eshu-collector-vault-live`: scaffold, deployment
-  contract, and claim-serving entrypoint with seed lane merged (#1-#3); image
-  and release plumbing defined, no release cut yet.
+  contract, and claim-serving entrypoint with seed lane merged (#1-#3);
+  `v0.1.1` cut 2026-10-28 (see the cutover section below).
 - Helm: `deploy/helm/eshu/templates/deployment-vault-live-collector.yaml`
   (command `/usr/local/bin/eshu-collector-vault-live`, values-gated) and
   `service-vault-live-collector-metrics.yaml`.
@@ -278,6 +278,58 @@ the owner's exact-truth verdict on the replayed generation plus the
 live API/MCP scoped reads on the extracted path, followed by
 independent review and the in-tree removal in a later step.
 
+## Post-rc.5 cutover confirmation (2026-10-29)
+
+Base for this section: `origin/main` at `d363d77b85`, worktree
+`/home/ubuntu/personal-repos/eshu-8869-cutover-proof`, branch
+`drive/8869-cutover-proof`. All live observations below are read-only
+against the owner-designated QA EKS environment; this section moves no
+code and authorizes no removal.
+
+Fix chain (issue #8869, 2026-10-28/29):
+
+- SDK allow-list fix `eshu-hq/eshu-sdk#62`, tagged collector
+  `v0.1.0-rc.5`; pinned in `go/go.mod` by `eshu-hq/eshu#9451` (merge
+  `49c580f`, 2026-10-29T01:08:21Z).
+- `iac-eks-eshu#438` pins the host image to eshu commit
+  `99323d9654`, the first host build validating with SDK collector rc.5.
+  Merged and Argo-synced; the live worker runs host image
+  `ghcr.io/eshu-hq/eshu:sha-99323d965498c70fa622f3edcd120f113b969640`
+  (read from the Deployment spec).
+- Destination release `v0.1.1` exists (tag object `e2ad975d`, source
+  `9c5a4bff`, digest
+  `sha256:38a86611db813cf1015f06f767946f6e7bf485bdc9e08918ae379badb55e3fd7`,
+  published 2026-10-28T13:54:13Z). This corrects the "no release cut"
+  staleness in Artifacts and Unresolved below; the release predates rc.5
+  (pins rc.4/rc.7) while the live pipeline validates with the rc.5 host.
+
+Facts flowing (vault-live worker OTEL):
+
+- 03:51:30Z: producer grants allowed for all 8 fact kinds, including
+  `vault_auth_role` under producer `dev.eshu.collector.vault-live@0.1.1`.
+- 04:22:30Z collection: state complete, fact_count 13, warning_count 0,
+  partial false, source latency 36 ms; ingestion committed generation
+  `component-generation:83a562b7` (successor_guard refused=false, prior
+  7 facts superseded). This is the first collection ever to emit
+  vault_auth_role facts: vault_auth_role facts flowing.
+- 04:52:34Z collection: state complete, fact_count 13, warning_count 0,
+  partial false; ingestion refresh skipped unchanged (matched 83a562b7):
+  steady state, facts still flowing post-#438.
+- Cutover delta vs the `fd3135d4` baseline: net +6 facts with zero new
+  failures; the `invalid_result` terminal state is gone.
+
+Single authority holds: only the dest producer serves the scope (the in-tree
+instance holds zero work-item rows per the 04:50 UTC status on #8869; the
+lane report on #8869, 04:35 UTC,
+records 12/12 API/MCP reads agreeing at these pins with no regression on
+the six previously proven kinds). My own API live-read is NOT_CHECKED:
+one bounded `posture-summary` attempt returned 401 (the service requires
+auth); replica SELECTs were not attempted under ingestion load.
+
+Stage stays `planned`: no owner production-acceptance declaration is
+recorded on #8869 and the acceptance checkboxes are unchecked. The
+in-tree removal waits on that acceptance.
+
 ## TDD and focused proof
 
 `go/cmd/collector-vault-live/extraction_census_test.go` was written first and
@@ -307,7 +359,8 @@ version false-green.
 - Oldest/newest supported core and component version pairs; vulnerability
   response record.
 - Independent release artifact from `eshu-hq/eshu-collector-vault-live`
-  (scaffold, deployment contract, and entrypoint merged; no release cut).
+  (scaffold, deployment contract, and entrypoint merged; `v0.1.1` cut
+  2026-10-28, recorded in the cutover section above).
 - Owner's exact-truth verdict on the replayed generation, live HTTP API
   and MCP scoped reads on the extracted production path (code-inspected
   surface recorded above; live reads `NOT_CHECKED`), independent review,
