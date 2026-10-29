@@ -110,7 +110,7 @@ events, and the existing ingester probes after startup.
 
 ## Two-Team K8s Governance Proof
 
-`scripts/run-k8s-two-team-governance-proof.sh` deploys the Helm chart to a local Kubernetes cluster,
+`$ESHU_DEPLOY_CHECKOUT/scripts/run-k8s-two-team-governance-proof.sh` deploys the Helm chart to a local Kubernetes cluster,
 provisions two teams' scoped tokens through a mounted read-only Secret, and tests cross-scope isolation
 through the live API and MCP. Each team sees only its own repositories; the other team's repository is
 absent; out-of-grant selectors return matching non-disclosing `403 permission_denied` or

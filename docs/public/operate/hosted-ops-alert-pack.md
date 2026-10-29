@@ -9,11 +9,11 @@ without exposing source-specific data.
 
 | Asset | Purpose |
 | --- | --- |
-| `deploy/grafana/dashboards/eshu-hosted-operations.json` | Grafana dashboard for hosted API, MCP, ingester, resolution engine, workflow coordinator, and collector operations. |
-| `deploy/observability/hosted-operations-alerts.yaml` | Standalone Prometheus rules for environments that load rule files directly. |
-| `deploy/observability/hosted-operations-prometheus-rule.yaml` | Prometheus Operator `PrometheusRule` wrapper carrying the same alert intent. |
-| `scripts/verify-hosted-ops-alert-pack.sh` | Static verifier for dashboard JSON, alert names, runbook annotations, bounded labels, and Helm ServiceMonitor render shape. |
-| `scripts/test-verify-hosted-ops-alert-pack.sh` | Mutation harness that proves the verifier fails closed on missing panels, missing alerts, and missing runbook annotations. |
+| `grafana/dashboards/eshu-hosted-operations.json` in the eshu-deploy checkout | Grafana dashboard for hosted API, MCP, ingester, resolution engine, workflow coordinator, and collector operations. |
+| `observability/hosted-operations-alerts.yaml` in the eshu-deploy checkout | Standalone Prometheus rules for environments that load rule files directly. |
+| `observability/hosted-operations-prometheus-rule.yaml` in the eshu-deploy checkout | Prometheus Operator `PrometheusRule` wrapper carrying the same alert intent. |
+| `$ESHU_DEPLOY_CHECKOUT/scripts/verify-hosted-ops-alert-pack.sh` | Static verifier for dashboard JSON, alert names, runbook annotations, bounded labels, and Helm ServiceMonitor render shape. |
+| `$ESHU_DEPLOY_CHECKOUT/scripts/test-verify-hosted-ops-alert-pack.sh` | Mutation harness that proves the verifier fails closed on missing panels, missing alerts, and missing runbook annotations. |
 
 ## Dashboard Contract
 
@@ -56,7 +56,7 @@ status surface, metric family, or rollout proof to inspect next.
 ## Status Summary Alerts
 
 Two alerts watch the status read path (#7009). They use only metrics the code
-defines, and `scripts/verify-hosted-ops-alert-pack.sh` fails if a metric they
+defines, and `$ESHU_DEPLOY_CHECKOUT/scripts/verify-hosted-ops-alert-pack.sh` fails if a metric they
 name is not defined as a quoted name in `go/`.
 
 | Alert | Fires when | Severity |

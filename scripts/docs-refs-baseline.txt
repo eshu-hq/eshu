@@ -13,3 +13,35 @@
 #   bash scripts/verify-docs-refs.sh -update
 #
 # <doc-page-relpath> <missing-script-path>
+operate/hosted-governance.md ESHU_DEPLOY_CHECKOUT/scripts/run-k8s-two-team-governance-proof.sh
+operate/hosted-governance.md ESHU_DEPLOY_CHECKOUT/scripts/test-verify-hosted-governance-helm-proof.sh
+operate/hosted-governance.md ESHU_DEPLOY_CHECKOUT/scripts/test-verify-hosted-network-policy-egress.sh
+operate/hosted-governance.md ESHU_DEPLOY_CHECKOUT/scripts/test-verify-hosted-security-posture.sh
+operate/hosted-governance.md ESHU_DEPLOY_CHECKOUT/scripts/verify-hosted-governance-helm-proof.sh
+operate/hosted-governance.md ESHU_DEPLOY_CHECKOUT/scripts/verify-hosted-network-policy-egress.sh
+operate/hosted-governance.md ESHU_DEPLOY_CHECKOUT/scripts/verify-hosted-security-posture.sh
+operate/hosted-operations-runbook.md ESHU_DEPLOY_CHECKOUT/scripts/verify-hosted-helm-rollout-proof.sh
+operate/hosted-ops-alert-pack.md ESHU_DEPLOY_CHECKOUT/scripts/test-verify-hosted-ops-alert-pack.sh
+operate/hosted-ops-alert-pack.md ESHU_DEPLOY_CHECKOUT/scripts/verify-hosted-ops-alert-pack.sh
+operate/hosted-security-posture.md ESHU_DEPLOY_CHECKOUT/scripts/test-verify-hosted-security-posture.sh
+operate/hosted-security-posture.md ESHU_DEPLOY_CHECKOUT/scripts/verify-hosted-security-posture.sh
+operate/user-management-runbook.md ESHU_DEPLOY_CHECKOUT/scripts/run-k8s-two-team-governance-proof.sh
+operate/user-management-runbook.md ESHU_DEPLOY_CHECKOUT/scripts/test-verify-hosted-security-posture.sh
+operate/user-management-runbook.md ESHU_DEPLOY_CHECKOUT/scripts/verify-hosted-security-posture.sh
+reference/local-testing/proof-notes.md ESHU_DEPLOY_CHECKOUT/scripts/run-k8s-two-team-governance-proof.sh
+reference/local-testing/quick-verification-matrix.md ESHU_DEPLOY_CHECKOUT/scripts/test-verify-compose-helm-runtime-parity.sh
+reference/local-testing/quick-verification-matrix.md ESHU_DEPLOY_CHECKOUT/scripts/test-verify-gitops-rendered-diff-preflight.sh
+reference/local-testing/quick-verification-matrix.md ESHU_DEPLOY_CHECKOUT/scripts/test-verify-hosted-governance-helm-proof.sh
+reference/local-testing/quick-verification-matrix.md ESHU_DEPLOY_CHECKOUT/scripts/test-verify-hosted-helm-rollout-proof.sh
+reference/local-testing/quick-verification-matrix.md ESHU_DEPLOY_CHECKOUT/scripts/test-verify-hosted-network-policy-egress.sh
+reference/local-testing/quick-verification-matrix.md ESHU_DEPLOY_CHECKOUT/scripts/test-verify-hosted-ops-alert-pack.sh
+reference/local-testing/quick-verification-matrix.md ESHU_DEPLOY_CHECKOUT/scripts/test-verify-hosted-security-posture.sh
+reference/local-testing/quick-verification-matrix.md ESHU_DEPLOY_CHECKOUT/scripts/test-verify-storage-doc-bundled-nornicdb-example.sh
+reference/local-testing/quick-verification-matrix.md ESHU_DEPLOY_CHECKOUT/scripts/verify-compose-helm-runtime-parity.sh
+reference/local-testing/quick-verification-matrix.md ESHU_DEPLOY_CHECKOUT/scripts/verify-gitops-rendered-diff-preflight.sh
+reference/local-testing/quick-verification-matrix.md ESHU_DEPLOY_CHECKOUT/scripts/verify-hosted-governance-helm-proof.sh
+reference/local-testing/quick-verification-matrix.md ESHU_DEPLOY_CHECKOUT/scripts/verify-hosted-helm-rollout-proof.sh
+reference/local-testing/quick-verification-matrix.md ESHU_DEPLOY_CHECKOUT/scripts/verify-hosted-network-policy-egress.sh
+reference/local-testing/quick-verification-matrix.md ESHU_DEPLOY_CHECKOUT/scripts/verify-hosted-ops-alert-pack.sh
+reference/local-testing/quick-verification-matrix.md ESHU_DEPLOY_CHECKOUT/scripts/verify-hosted-security-posture.sh
+reference/local-testing/quick-verification-matrix.md ESHU_DEPLOY_CHECKOUT/scripts/verify-storage-doc-bundled-nornicdb-example.sh
