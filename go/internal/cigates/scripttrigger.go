@@ -119,7 +119,7 @@ var pythonImportRE = regexp.MustCompile(`(?m)^[ \t]*(?:from[ \t]+([A-Za-z_]\w*)[
 //     launched by subprocess through a computed path such as
 //     LIB / "live_postgres_readiness_results.py". That last class is why the
 //     shard-mirror gate declares results.py's imports by hand. On landing the
-//     walk reported 10 drift errors covering 8 unique gate-and-file pairs.
+//     walk reported 10 drift errors covering 7 unique gate-and-file pairs.
 //   - It does NOT check the reverse direction. A trigger matching no file on
 //     disk is a separate concern, and a gate is free to declare triggers well
 //     beyond its own scripts.
