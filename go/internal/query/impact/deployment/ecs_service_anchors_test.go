@@ -45,6 +45,12 @@ func TestSelectDeclaredECSServiceARNAdmitesGovCloudPartition(t *testing.T) {
 	if got != want || reason != "" {
 		t.Fatalf("got ARN=%q reason=%q, want ARN=%q reason=%q", got, reason, want, "")
 	}
+	cnEntity := querycontract.EntityContent{RepoID: "repo-api", EntityType: "TerraformResource", EntityName: "aws_ecs_service.api", Metadata: map[string]any{
+		"resource_type": "aws_ecs_service", "attributes": map[string]any{"name": "api", "cluster": "arn:aws-cn:ecs:cn-north-1:123456789012:cluster/prod"},
+	}}
+	if got, reason := SelectDeclaredECSServiceARN("api", "repo-api", 1, []querycontract.EntityContent{cnEntity}); got != "arn:aws-cn:ecs:cn-north-1:123456789012:service/prod/api" || reason != "" {
+		t.Fatalf("China: got ARN=%q reason=%q, want admitted", got, reason)
+	}
 	bad := querycontract.EntityContent{RepoID: "repo-api", EntityType: "TerraformResource", EntityName: "aws_ecs_service.api", Metadata: map[string]any{
 		"resource_type": "aws_ecs_service", "attributes": map[string]any{"name": "api", "cluster": "arn:aws-iso:ecs:us-isob-east-1:123456789012:cluster/prod"},
 	}}
