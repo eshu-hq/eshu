@@ -301,6 +301,30 @@ expect_red "UNSTABLE with no completed red check to excuse it" checks
 ok=0
 rg -q '^FAIL checks +mergeStateStatus=UNSTABLE; $' <<<"${OUT}" || ok=1
 check "RED UNSTABLE with nothing dispositioned that is red is not accepted" "${ok}"
+# A red commit status outside the manifest is a red context too (#9489 review
+# F1): without a disposition it fails the arm even when another red is
+# dispositioned, and with one it is excused like any other red.
+new_case unstable-undispositioned-status
+edit pr.json '.mergeStateStatus = "UNSTABLE"'
+edit check-runs.json '.check_runs += [{name:"e2e",status:"completed",conclusion:"cancelled"}]'
+edit status.json '.statuses += [{context:"external-status",state:"failure"}]'
+RUN_ARGS=(--dispositioned "e2e=#9488")
+expect_red "UNSTABLE with an undispositioned red commit status outside the manifest" checks
+ok=0
+rg -q '^FAIL checks +external-status=failure \(commit status; pass --dispositioned external-status=<issue-or-reason> to accept\); mergeStateStatus=UNSTABLE; $' <<<"${OUT}" || ok=1
+check "RED the undispositioned red commit status is named and UNSTABLE is not accepted" "${ok}"
+new_case unstable-dispositioned-status
+edit pr.json '.mergeStateStatus = "UNSTABLE"'
+edit status.json '.statuses += [{context:"external-status",state:"error"}]'
+RUN_ARGS=(--dispositioned "external-status=#4242 external reporter down")
+run
+ok=0
+[[ "${RC}" -eq 0 ]] || ok=1
+[[ "$(fail_lines)" == 0 ]] || ok=1
+rg -q '^     checks +dispositioned: external-status=#4242 external reporter down \(applied: error\)$' <<<"${OUT}" || ok=1
+rg -q '^PASS checks +complete; go-core-complete,go-race-complete=success; mergeStateStatus=UNSTABLE \(dispositioned: external-status\)$' <<<"${OUT}" || ok=1
+check "GREEN UNSTABLE with a dispositioned red commit status outside the manifest passes" "${ok}"
+[[ "${ok}" -eq 0 ]] || printf '%s\n' "${OUT}" | sed 's/^/    | /'
 new_case blocked-dispositioned
 edit pr.json '.mergeStateStatus = "BLOCKED"'
 edit check-runs.json '.check_runs += [{name:"e2e",status:"completed",conclusion:"cancelled"}]'
