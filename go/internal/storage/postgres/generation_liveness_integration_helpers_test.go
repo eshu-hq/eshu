@@ -478,13 +478,16 @@ func provisionLivenessSchema(t *testing.T, db *sql.DB, seedSQL string) {
 	// Apply the shipped DDL, not a copy: migration 160 (#7584) and 163 (#7635),
 	// whose obligation tables ProjectorQueue.Ack inserts into in the Ack
 	// transaction; 207 (#7766), whose retirement marker gate the scope upsert
-	// folds (without it every upsert fails with 42P01); and 088, whose
-	// fact_work_items.reopened_at the projector re-drive upserts read (#9320).
+	// folds (without it every upsert fails with 42P01); 088, whose
+	// fact_work_items.reopened_at the projector re-drive upserts read (#9320);
+	// and 245, which adds shared_projection_intents.reopened_at so the
+	// hand-built intents table matches production (#9320).
 	for _, name := range []string{
 		"activation_obligations",
 		"producer_activation_obligations",
 		"repository_retirements",
 		"reducer_work_item_reopened_at",
+		"shared_projection_intent_reopened_at",
 	} {
 		if _, err := db.ExecContext(ctx, MigrationSQL(name)); err != nil {
 			t.Fatalf("apply migration %s: %v", name, err)
