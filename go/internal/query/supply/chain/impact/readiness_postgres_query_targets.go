@@ -359,6 +359,7 @@ derived_vulnerability_source_state_candidates AS (
         CASE WHEN unmatched_packages > 0 AND COALESCE(worst_severity, 3) >= 3 THEN 'pending' ELSE worst_terminal END AS terminal_status,
         result_count, warning_count, updated_at,
         FALSE AS coverage_eligible, FALSE AS coverage_zero, FALSE AS coverage_missing,
+        FALSE AS multi_cve_target,
         derived_detail
     FROM derived_vulnerability_source_aggregates
 ),
