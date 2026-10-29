@@ -27,6 +27,10 @@ workflows:
   - go/internal/collector/scannerworker/component/manifest.go
   - go/internal/collector/scannerworker/component/manifest_test.go
   - go/internal/collector/scannerworker/**
+  - go/cmd/scanner-component-image/**
+  - go/cmd/scanner-component-sbom/**
+  - go/cmd/scanner-component-osruntime/**
+  - go/cmd/scanner-worker/**
   - specs/ci-pr-workflows.d/docker-publish.yml
   jobs:
   - attach-release-sbom

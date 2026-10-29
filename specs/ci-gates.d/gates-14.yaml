@@ -523,6 +523,10 @@ gates:
       - "go/internal/collector/scannerworker/component/manifest.go"
       - "go/internal/collector/scannerworker/component/manifest_test.go"
       - "go/internal/collector/scannerworker/**"
+      - "go/cmd/scanner-component-image/**"
+      - "go/cmd/scanner-component-sbom/**"
+      - "go/cmd/scanner-component-osruntime/**"
+      - "go/cmd/scanner-worker/**"
     local:
       command: "bash scripts/test-verify-scanner-digest-pins.sh"
       pre_push: floor

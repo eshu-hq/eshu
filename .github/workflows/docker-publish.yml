@@ -119,6 +119,7 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: read
+      attestations: read
     steps:
       - name: Checkout repository
         if: ${{ env.LANE_APPLIES == 'true' }}
