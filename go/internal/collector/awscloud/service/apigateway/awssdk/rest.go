@@ -117,6 +117,7 @@ func (c *Client) listRESTIntegrations(
 	apiID string,
 ) ([]apigatewayservice.Integration, []awscloud.WarningObservation, error) {
 	var integrations []apigatewayservice.Integration
+	var warnings []awscloud.WarningObservation
 	var position *string
 	for {
 		var page *awsapigateway.GetResourcesOutput
@@ -134,23 +135,24 @@ func (c *Client) listRESTIntegrations(
 			return nil, []awscloud.WarningObservation{c.restResourcesThrottleWarning()}, nil
 		}
 		if isNetworkTimeoutError(ctx, err) {
-			return nil, []awscloud.WarningObservation{c.networkTimeoutWarning(
+			warnings = appendWarningOnce(warnings, c.networkTimeoutWarning(
 				"GetResources", apigatewayservice.APIKindREST, "rest_integrations",
 				"REST integration metadata", "apigateway_rest_integrations_timeout",
-			)}, nil
+			))
+			return integrations, warnings, nil
 		}
 		if err != nil {
 			return nil, nil, err
 		}
 		if page == nil {
-			return integrations, nil, nil
+			return integrations, warnings, nil
 		}
 		for _, resource := range page.Items {
 			integrations = append(integrations, mapRESTResourceIntegrations(apiID, resource)...)
 		}
 		position = page.Position
 		if aws.ToString(position) == "" {
-			return integrations, nil, nil
+			return integrations, warnings, nil
 		}
 	}
 }
@@ -255,6 +257,7 @@ func (c *Client) listRESTMappings(
 	domainName string,
 ) ([]apigatewayservice.Mapping, []awscloud.WarningObservation, error) {
 	var mappings []apigatewayservice.Mapping
+	var warnings []awscloud.WarningObservation
 	var position *string
 	for {
 		var page *awsapigateway.GetBasePathMappingsOutput
@@ -268,23 +271,24 @@ func (c *Client) listRESTMappings(
 			return err
 		})
 		if isNetworkTimeoutError(ctx, err) {
-			return nil, []awscloud.WarningObservation{c.networkTimeoutWarning(
+			warnings = appendWarningOnce(warnings, c.networkTimeoutWarning(
 				"GetBasePathMappings", apigatewayservice.APIKindREST, "rest_mappings",
 				"REST domain-mapping inventory", "apigateway_rest_mappings_timeout",
-			)}, nil
+			))
+			return mappings, warnings, nil
 		}
 		if err != nil {
 			return nil, nil, err
 		}
 		if page == nil {
-			return mappings, nil, nil
+			return mappings, warnings, nil
 		}
 		for _, item := range page.Items {
 			mappings = append(mappings, mapRESTMapping(domainName, item))
 		}
 		position = page.Position
 		if aws.ToString(position) == "" {
-			return mappings, nil, nil
+			return mappings, warnings, nil
 		}
 	}
 }

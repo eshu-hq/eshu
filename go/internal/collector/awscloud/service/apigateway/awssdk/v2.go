@@ -91,6 +91,7 @@ func (c *Client) listV2Stages(
 	apiID string,
 ) ([]apigatewayservice.Stage, []awscloud.WarningObservation, error) {
 	var stages []apigatewayservice.Stage
+	var warnings []awscloud.WarningObservation
 	var token *string
 	for {
 		var page *awsapigatewayv2.GetStagesOutput
@@ -104,23 +105,24 @@ func (c *Client) listV2Stages(
 			return err
 		})
 		if isNetworkTimeoutError(ctx, err) {
-			return nil, []awscloud.WarningObservation{c.networkTimeoutWarning(
+			warnings = appendWarningOnce(warnings, c.networkTimeoutWarning(
 				"GetStages", apigatewayservice.APIKindV2, "v2_stages",
 				"HTTP/WebSocket stage inventory", "apigateway_v2_stages_timeout",
-			)}, nil
+			))
+			return stages, warnings, nil
 		}
 		if err != nil {
 			return nil, nil, err
 		}
 		if page == nil {
-			return stages, nil, nil
+			return stages, warnings, nil
 		}
 		for _, item := range page.Items {
 			stages = append(stages, mapV2Stage(apiID, item))
 		}
 		token = page.NextToken
 		if aws.ToString(token) == "" {
-			return stages, nil, nil
+			return stages, warnings, nil
 		}
 	}
 }
@@ -130,6 +132,7 @@ func (c *Client) listV2Integrations(
 	apiID string,
 ) ([]apigatewayservice.Integration, []awscloud.WarningObservation, error) {
 	var integrations []apigatewayservice.Integration
+	var warnings []awscloud.WarningObservation
 	var token *string
 	for {
 		var page *awsapigatewayv2.GetIntegrationsOutput
@@ -143,23 +146,24 @@ func (c *Client) listV2Integrations(
 			return err
 		})
 		if isNetworkTimeoutError(ctx, err) {
-			return nil, []awscloud.WarningObservation{c.networkTimeoutWarning(
+			warnings = appendWarningOnce(warnings, c.networkTimeoutWarning(
 				"GetIntegrations", apigatewayservice.APIKindV2, "v2_integrations",
 				"HTTP/WebSocket integration metadata", "apigateway_v2_integrations_timeout",
-			)}, nil
+			))
+			return integrations, warnings, nil
 		}
 		if err != nil {
 			return nil, nil, err
 		}
 		if page == nil {
-			return integrations, nil, nil
+			return integrations, warnings, nil
 		}
 		for _, item := range page.Items {
 			integrations = append(integrations, mapV2Integration(apiID, item))
 		}
 		token = page.NextToken
 		if aws.ToString(token) == "" {
-			return integrations, nil, nil
+			return integrations, warnings, nil
 		}
 	}
 }
@@ -215,6 +219,7 @@ func (c *Client) listV2Mappings(
 	domainName string,
 ) ([]apigatewayservice.Mapping, []awscloud.WarningObservation, error) {
 	var mappings []apigatewayservice.Mapping
+	var warnings []awscloud.WarningObservation
 	var token *string
 	for {
 		var page *awsapigatewayv2.GetApiMappingsOutput
@@ -228,23 +233,24 @@ func (c *Client) listV2Mappings(
 			return err
 		})
 		if isNetworkTimeoutError(ctx, err) {
-			return nil, []awscloud.WarningObservation{c.networkTimeoutWarning(
+			warnings = appendWarningOnce(warnings, c.networkTimeoutWarning(
 				"GetApiMappings", apigatewayservice.APIKindV2, "v2_mappings",
 				"HTTP/WebSocket domain-mapping inventory", "apigateway_v2_mappings_timeout",
-			)}, nil
+			))
+			return mappings, warnings, nil
 		}
 		if err != nil {
 			return nil, nil, err
 		}
 		if page == nil {
-			return mappings, nil, nil
+			return mappings, warnings, nil
 		}
 		for _, item := range page.Items {
 			mappings = append(mappings, mapV2Mapping(domainName, item))
 		}
 		token = page.NextToken
 		if aws.ToString(token) == "" {
-			return mappings, nil, nil
+			return mappings, warnings, nil
 		}
 	}
 }
