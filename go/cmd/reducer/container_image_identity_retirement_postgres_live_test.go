@@ -93,8 +93,10 @@ func TestContainerImageIdentityRetirementProductionPathLive(t *testing.T) {
 	}
 
 	cutoverStore := postgres.NewContainerImageIdentityCutoverStore(storeDB)
+	seedRetirementLiveScopeState(t, ctx, db, retirementLiveRepoScope, retirementLiveRepoGen)
 	writer := containerimage.PostgresContainerImageIdentityWriter{
 		DB:                  storeDB,
+		ActivationLookup:    postgres.NewContainerImageIdentityScopeStateStore(storeDB),
 		CutoverLookup:       cutoverStore,
 		LegacyCleanupLookup: cutoverStore,
 		ClaimedExecer:       postgres.ContainerImageIdentityClaimedExecer{DB: storeDB},
@@ -291,6 +293,29 @@ SET status = 'active', activated_at = EXCLUDED.activated_at, superseded_at = NUL
 		generationID,
 	); err != nil {
 		t.Fatalf("activate generation %q: %v", generationID, err)
+	}
+}
+
+// seedRetirementLiveScopeState opens the lifecycle snapshot the handler's
+// activation gate reads: the scope-state row for the intent's generation at
+// the synthetic first epoch. Without it the gate fails loud instead of
+// exercising the retirement path (#9506).
+func seedRetirementLiveScopeState(
+	t *testing.T,
+	ctx context.Context,
+	db *sql.DB,
+	scopeID string,
+	generationID string,
+) {
+	t.Helper()
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO container_image_identity_scope_state (
+    scope_id, active_generation_id, activation_epoch, observed_at, ingested_at
+) VALUES ($1, $2, 1, clock_timestamp(), clock_timestamp())
+ON CONFLICT (scope_id) DO UPDATE
+SET active_generation_id = EXCLUDED.active_generation_id
+`, scopeID, generationID); err != nil {
+		t.Fatalf("seed scope state %q: %v", scopeID, err)
 	}
 }
 
