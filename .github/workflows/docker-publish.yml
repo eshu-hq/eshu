@@ -293,8 +293,9 @@ jobs:
       - name: Verify runtime image ships required tools
         if: ${{ env.LANE_APPLIES == 'true' }}
         # #7762: git execs ssh for ESHU_GIT_AUTH_METHOD=ssh and the
-        # HEALTHCHECK execs curl. Assert both, plus git itself, against the
-        # rootfs this job just built rather than the Dockerfile text.
+        # HEALTHCHECK execs curl. Assert the verifier's REQUIRED_TOOLS
+        # list against the rootfs this job just built rather than the
+        # Dockerfile text.
         run: bash scripts/verify-runtime-image-tools.sh /tmp/out1
       - name: Build image (second, no cache)
         if: ${{ env.LANE_APPLIES == 'true' }}
