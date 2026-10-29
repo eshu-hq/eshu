@@ -40,7 +40,7 @@ new DDL in 241s, then returned `CVE-2021-44228` in 0.691s cold and 0.435s /
 ANALYZE` used the three `fact_records_vulnerability_active_*_lookup_v2_idx`
 indexes and completed the present-CVE SQL in 472.419ms.
 
-Performance Evidence (issue #9474 P1 verdict (a), 2026-10-29): GitLab CVE
+Performance Evidence (issue #9474 P1 verdict a, 2026-10-29): GitLab CVE
 envelopes carry `package_id` (`newGitLabCVEEnvelope`), so pinning the
 package legs to `vulnerability.affected_package` silently dropped
 package-matching rows of other kinds. Each of the four package legs is now
@@ -65,6 +65,12 @@ delta on P1-shaped inputs being exactly the previously dropped rows
 index builds 1-20ms, each new index 8KB vs 2696KB table. Shape pins live in
 `supply_chain_advisory_evidence_sql_test.go`
 (`TestAdvisoryEvidenceQueryProbesLookupValueFirstWithoutScopeFanout`).
+
+No-Observability-Change (#9474): the route still emits
+`query.advisory_evidence`, the Postgres query duration histogram, HTTP
+status/error bodies, truth envelope metadata, `count`, `limit`,
+`truncated`, and `next_cursor`. The change adds no graph query, reducer
+lane, worker, runtime knob, or metric label.
 
 No-Observability-Change: the route still emits `query.advisory_evidence`, the
 Postgres query duration histogram, HTTP status/error bodies, truth envelope
