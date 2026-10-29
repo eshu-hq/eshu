@@ -165,8 +165,9 @@ import (
 // nullable reopen marker for reopen-aware shared-projection backlog age)
 // and 245_shared_projection_intents_domain_pending_age_idx.sql (the partial
 // covering index that keeps that backlog aggregate an Index Only Scan; one
-// CREATE INDEX CONCURRENTLY). It skips 240-242, which open PRs hold; gaps
-// are tolerated, shared sequence numbers are not.
+// CREATE INDEX CONCURRENTLY). It skips 242: an open PR holds it, and the
+// migrations stay past 243, the highest number on main; gaps are tolerated,
+// shared sequence numbers are not.
 const goldenBootstrapDefinitionsDigest = "ee6858420aba74ac16d3214fd9033ebd60cbc834cec4e3798fd96c7038ad3a74"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
