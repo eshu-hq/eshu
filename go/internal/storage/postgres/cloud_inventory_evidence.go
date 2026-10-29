@@ -289,29 +289,47 @@ func (allow cloudInventoryAttributeAllowlist) filter(raw any) map[string]any {
 	if !ok || len(object) == 0 {
 		return nil
 	}
-	out := make(map[string]any, len(allow.scalarKeys)+len(allow.nestedArrayKeys))
+	// Most resources carry far fewer allowed attributes than the closed set.
+	// Preallocating for every key grows the map's backing buckets even when
+	// the source has only one or two kept fields.
+	// Stage at most the existing cap of safe keys, then allocate the result
+	// map for the number actually kept. The allowlist is larger than most
+	// source payloads; allocating for every possible key penalizes sparse
+	// records, while an unhinted map grows on the uncommon all-keys payload.
+	type keptAttribute struct {
+		key   string
+		value any
+	}
+	var kept [maxCloudInventoryAttributeKeys]keptAttribute
+	count := 0
 	for key := range allow.scalarKeys {
-		if len(out) >= maxCloudInventoryAttributeKeys {
+		if count >= maxCloudInventoryAttributeKeys {
 			break
 		}
 		value, present := object[key]
 		if !present {
 			continue
 		}
-		if s, ok := cloudInventoryAllowlistScalarString(value); ok {
-			out[key] = s
+		if scalar, ok := cloudInventoryAllowlistScalarString(value); ok {
+			kept[count] = keptAttribute{key: key, value: scalar}
+			count++
 		}
 	}
 	for key, subKeys := range allow.nestedArrayKeys {
-		if len(out) >= maxCloudInventoryAttributeKeys {
+		if count >= maxCloudInventoryAttributeKeys {
 			break
 		}
 		if filtered := filterCloudInventoryNestedArray(object[key], subKeys); len(filtered) > 0 {
-			out[key] = filtered
+			kept[count] = keptAttribute{key: key, value: filtered}
+			count++
 		}
 	}
-	if len(out) == 0 {
+	if count == 0 {
 		return nil
+	}
+	out := make(map[string]any, count)
+	for i := 0; i < count; i++ {
+		out[kept[i].key] = kept[i].value
 	}
 	return out
 }
@@ -328,10 +346,10 @@ func (allow cloudInventoryAttributeAllowlist) filter(raw any) map[string]any {
 // default/stringify branch) for exactly this reason. It differs deliberately in
 // OUTPUT type: where the GCP raw passthrough returns a native bool/float64/
 // json.Number, this allowlist normalizes every scalar to its string form as an
-// added defense layer -- every current allowlisted key (task_definition_arn,
-// image_uri, resolved_image_uri, code_sha256, version, containers[].image,
-// containers[].image_digest) holds a string, so a future non-string scalar key
-// would surface as its string form rather than a native JSON number/bool.
+// added defense layer. The current AWS image, version, patch, runtime, and
+// nested container image values are strings; AppSync's api_key_count is a
+// number that this helper intentionally returns as a string. Future admitted
+// numeric or boolean values likewise surface as strings, not native JSON values.
 func cloudInventoryAllowlistScalarString(value any) (string, bool) {
 	switch v := value.(type) {
 	case string:

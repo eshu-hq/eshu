@@ -47,6 +47,45 @@ func BenchmarkCloudInventoryRecordFromRowAWSAllowlist(b *testing.B) {
 	}
 }
 
+// BenchmarkCloudInventoryRecordFromRowAWSAllAllowed measures the bounded
+// worst-case map growth when a synthetic AWS fact carries every safe scalar
+// and the nested containers field. No single scanner currently emits this
+// mixed-service shape; it tests the allowlist's maximum output cardinality.
+func BenchmarkCloudInventoryRecordFromRowAWSAllAllowed(b *testing.B) {
+	arn := "arn:aws:eks:us-east-1:000000000000:cluster/bench"
+	payload := []byte(`{
+		"arn":"` + arn + `",
+		"resource_type":"aws_eks_cluster",
+		"account_id":"000000000000",
+		"resource_id":"` + arn + `",
+		"region":"us-east-1",
+		"attributes":{
+			"task_definition_arn":"arn:aws:ecs:us-east-1:000000000000:task-definition/bench:1",
+			"image_uri":"example.invalid/bench:1",
+			"resolved_image_uri":"example.invalid/bench@sha256:0000000000000000000000000000000000000000000000000000000000000001",
+			"code_sha256":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+			"package_type":"Image",
+			"version":"1.30",
+			"platform_version":"eks.30",
+			"release_version":"1.30.1",
+			"addon_version":"v1.0",
+			"ami_id":"ami-000000000000000a",
+			"runtime":"python3.12",
+			"containers":[{"image":"example.invalid/bench:1","image_digest":"sha256:0000000000000000000000000000000000000000000000000000000000000001"}]
+		}
+	}`)
+	if record, ok := cloudInventoryRecordFromRow(cloud.AWSResourceFactKind, arn, payload); !ok || len(record.Attributes) != 12 {
+		b.Fatalf("worst-case AWS row attributes = %d, want 12", len(record.Attributes))
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, ok := cloudInventoryRecordFromRow(cloud.AWSResourceFactKind, arn, payload); !ok {
+			b.Fatal("aws row unexpectedly dropped")
+		}
+	}
+}
+
 // BenchmarkCloudInventoryRecordFromRowGCPPassthrough measures the same
 // per-row loader path for GCP's raw-passthrough attributes (surfacesAttributes
 // true, boundedCloudInventoryAttributes) on a comparably-sized payload, as the

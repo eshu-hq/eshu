@@ -127,7 +127,9 @@ by provider:
 - **AWS** surfaces a CLOSED allowlist, scoped to the
   strongest deployed-code signals the collector already observes:
   `task_definition_arn`, `image_uri`, `resolved_image_uri`, `code_sha256`,
-  `package_type`, `version`, and a `containers` array (from ECS running tasks)
+  `package_type`, `version`, `platform_version` (EKS cluster),
+  `release_version` (EKS node group), `addon_version` (EKS add-on),
+  `ami_id` (EC2 instance), `runtime` (Lambda function), and a `containers` array (from ECS running tasks)
   reduced per element to `{image, image_digest}`. `package_type` is the bounded
   Lambda packaging discriminator (`Zip`/`Image`). Every other AWS attribute key
   (for example `cluster_arn`, `role_arn`, `kms_key_arn`, `network_interfaces`,
@@ -151,7 +153,7 @@ by provider:
 `attributes` surfaces deployed-code identity evidence — image references
 (`image_uri`, `resolved_image_uri`, the ECS `containers[].image`) and the
 owning `task_definition_arn` — which necessarily name the image, registry, and
-repository for the caller's own resources. This route is account-scoped (it is
+repository for the caller's own resources. The five patch-level additions are public software version or image identifiers: EKS platform_version, node group release_version, add-on addon_version, EC2 ami_id, and Lambda runtime. None is a credential or secret-bearing object, and each is still admitted only as a scalar by the closed allowlist. This route is account-scoped (it is
 filtered by `scope_id`/`account_id`), so those identifiers are the operator's
 own, not another tenant's. What is never present is any credential, secret, or
 non-image infrastructure locator: `cluster_arn`, `role_arn`, `kms_key_arn`,
@@ -203,6 +205,21 @@ readback suite on the same corpus/fixtures).
 No-Observability-Change: #5454 adds no new metric, span, log line, audit table,
 or schema; the `code_sha256_correlation` limitation is a content-free label on
 an existing read surface, covered by the existing cloud-inventory query span.
+
+Performance Evidence: #9298 extends an in-process scalar-key allowlist by five
+keys and adds no SQL, graph read, queue work, or network call. On the measured
+single-row ECS fact-to-inventory path, exact base `0f8e42c82f` averaged
+7,951 ns/op and head `6c33e395daa9` averaged 8,084 ns/op across three paired
+rounds (mean same-round ratio 1.0167, sample SD 0.0011). Both used 4,192 B
+and 95 allocations per operation. A synthetic 12-allowed-field row was 0.30%
+slower than the earlier allowlist implementation, with equal allocations.
+These measurements bound only the in-process per-row loader on linux/arm64 with
+Go 1.26.10; they do not establish HTTP or MCP endpoint latency. The existing
+cloud inventory query span and duration metric cover the request path. The
+full method, controls, and sample values are recorded in
+`docs/internal/evidence/9298-cloud-inventory-allowlist-performance.md`.
+
+No-Observability-Change: #9298 adds no metric, span, log, status, or queue stage. Operators can inspect the existing cloud inventory query duration/error signals and the returned bounded attributes; live QA truth remains unverified until current typed AWS facts are admitted.
 
 ## Cloud Resource Graph Paging
 

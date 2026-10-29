@@ -107,8 +107,8 @@
       },
       "CloudResource": {
         "min": 118,
-        "max": 124,
-        "note": "cloud-registry/compute nodes from the AWS/Azure/GCP cassettes (observed 118: 8 AWS [ecr.repository, ecs.service, ecs.task, ecs.task_definition, lambda.function (image), lambda.function (zip -- #5454's second Lambda fixture supply-chain-demo-zip, package_type=Zip, materializes its own CloudResource node with no running_image_ref so the EXACTLY-2 running-image assertion below stays 2), ec2.instance, ec2.ami (aws_ec2_ami -- #5717 adds the AMI's own aws_resource identity fact, resource_id=ami-000000000000000a, so the instance's #5448 ec2_instance_uses_ami relationship's target finally resolves to a real CloudResource node instead of always falling to joinModeUnresolved; see rc-174 and rn-ec2-ami-node)] -- #5449 added the ecs.task and lambda.function fixtures, #5450 added the ecs.task_definition fixture (the ECSTaskDefinitionUsesImage edge source), #5448 added the ec2.instance fixture (the aws_ec2_instance CloudResource node DomainEC2InstanceNodeMaterialization materializes and #5448's aws_resource identity fact augments with ami_id), #5717 added the ec2.ami fixture] + 110 GCP -- BigQuery Dataset+Table+Routine, Network, Subnetwork, Image, Snapshot, CryptoKey, Disk, Instance, Firewall, VPC Access Connector, Secret Manager Secret+SecretVersion, Cloud Run Service+Revision, custom IAM Role, IAM ServiceAccount+ServiceAccountKey, Artifact Registry Repository+DockerImage+CMEK repo, Pub/Sub Topic (x2), Pub/Sub Schema, Pub/Sub Subscription (x4), Router, VpnGateway, VpnTunnel, HealthCheck, BackendService, UrlMap, GKE Cluster, Storage Bucket, Cloud SQL Instance, DNS Managed Zone, KMS KeyRing+CryptoKey+CryptoKeyVersion, Forwarding Rule, Memorystore Redis Instance, Firestore Database, Dataproc Cluster, compute Route (x3), Bigtable Table, compute Static Address, App Engine Application+Service+Version, Cloud Tasks Queue, Cloud Scheduler Job, Eventarc Trigger (x3)+Channel+Function+Workflow targets, Logging LogSink (x4)+LogBucket, Cloud Functions Function (gen2)+CloudFunction (gen1), BigQuery Connection, Dataform Repository, Firebase Project+Ruleset+AppInfo, CloudResourceManager Project, reCAPTCHA Enterprise Key, API Key, IAM Workload Identity Pool+Provider, BigQuery Data Transfer Config, Dataplex Entry Group, Identity Platform Config, Cloud Build Build (x2)+BuildTrigger, Cloud Source Repositories Repository, Interconnect Attachment, InstanceGroup, SecurityPolicy (x2), ExternalVpnGateway, TargetVpnGateway, BackendBucket, second usage-logging Bucket, Cloud SQL read-replica Instance, DNS peering ManagedZone, ForwardingRule (x4 additional target-kind fixtures)+TargetPool+TargetHttpProxy+TargetInstance+ServiceAttachment, Memorystore Memcached Instance); floor raised from 4 to catch GCP node projection regression across the #4377/#4378/#4381/#4383/#4385/#4388/#4401/#4404/#4406/#4409/#4552/#4553/#4554/#4556/#4557/#4539/#4537/#4540/#4538/#4541/#4542/#4555/#4411/#4418/#4426/#4437/#4420/#4412/#4500/#4498/#4489/#4493/#4486/#4484/#4480/#4490/#4431/#4452/#4416/#4441/#4462/#4438/#4414/#4504/#4501/#4495/#4482/#4463/#4453/#4434/#4468/#4478/#4475/#4470/#4618/#4655 golden-corpus follow-ups; floor raised from 112 to 114 by #5449 for the ecs.task and lambda.function AWS resource fixtures added to the awscloud cassette; floor raised again from 114 to 115 by #5450 for the ecs.task_definition AWS resource fixture (the source of the ECSTaskDefinitionUsesImage aws_relationship, which resolves the source endpoint through this node even though the edge itself stays Postgres-only per the #5472 EXACT-ONLY policy); floor raised from 115 to 116 by #5448 for the new ec2.instance aws_ec2_instance CloudResource node (ec2_instance posture materializes the node; the aws_resource identity fact only augments it with ami_id), so a regression that silently drops any of the four new #5449/#5450/#5448 AWS CloudResource nodes fails this range instead of passing at the old floor; floor raised from 116 to 117 by #5454 for the second (zip-packaged) lambda.function node supply-chain-demo-zip, whose package_type=Zip code_sha256 carries the bounded deployment-code correlation limitation (code_sha256_correlation.unsupported_reason=zip_code_sha256_no_ci_counterpart) asserted on the provider=aws cloud-inventory readback; floor raised from 117 to 118 by #5717 for the new ec2.ami aws_ec2_ami CloudResource node (rn-ec2-ami-node), the node class that finally lets the #5448 ec2_instance_uses_ami relationship resolve (rc-174); ceiling wide for richer cloud cassettes"
+        "max": 127,
+        "note": "cloud-registry/compute nodes from the AWS/Azure/GCP cassettes (observed 118: 8 AWS [ecr.repository, ecs.service, ecs.task, ecs.task_definition, lambda.function (image), lambda.function (zip -- #5454's second Lambda fixture supply-chain-demo-zip, package_type=Zip, materializes its own CloudResource node with no running_image_ref so the EXACTLY-2 running-image assertion below stays 2), ec2.instance, ec2.ami (aws_ec2_ami -- #5717 adds the AMI's own aws_resource identity fact, resource_id=ami-000000000000000a, so the instance's #5448 ec2_instance_uses_ami relationship's target finally resolves to a real CloudResource node instead of always falling to joinModeUnresolved; see rc-174 and rn-ec2-ami-node)] -- #5449 added the ecs.task and lambda.function fixtures, #5450 added the ecs.task_definition fixture (the ECSTaskDefinitionUsesImage edge source), #5448 added the ec2.instance fixture (the aws_ec2_instance CloudResource node DomainEC2InstanceNodeMaterialization materializes and #5448's aws_resource identity fact augments with ami_id), #5717 added the ec2.ami fixture] + 110 GCP -- BigQuery Dataset+Table+Routine, Network, Subnetwork, Image, Snapshot, CryptoKey, Disk, Instance, Firewall, VPC Access Connector, Secret Manager Secret+SecretVersion, Cloud Run Service+Revision, custom IAM Role, IAM ServiceAccount+ServiceAccountKey, Artifact Registry Repository+DockerImage+CMEK repo, Pub/Sub Topic (x2), Pub/Sub Schema, Pub/Sub Subscription (x4), Router, VpnGateway, VpnTunnel, HealthCheck, BackendService, UrlMap, GKE Cluster, Storage Bucket, Cloud SQL Instance, DNS Managed Zone, KMS KeyRing+CryptoKey+CryptoKeyVersion, Forwarding Rule, Memorystore Redis Instance, Firestore Database, Dataproc Cluster, compute Route (x3), Bigtable Table, compute Static Address, App Engine Application+Service+Version, Cloud Tasks Queue, Cloud Scheduler Job, Eventarc Trigger (x3)+Channel+Function+Workflow targets, Logging LogSink (x4)+LogBucket, Cloud Functions Function (gen2)+CloudFunction (gen1), BigQuery Connection, Dataform Repository, Firebase Project+Ruleset+AppInfo, CloudResourceManager Project, reCAPTCHA Enterprise Key, API Key, IAM Workload Identity Pool+Provider, BigQuery Data Transfer Config, Dataplex Entry Group, Identity Platform Config, Cloud Build Build (x2)+BuildTrigger, Cloud Source Repositories Repository, Interconnect Attachment, InstanceGroup, SecurityPolicy (x2), ExternalVpnGateway, TargetVpnGateway, BackendBucket, second usage-logging Bucket, Cloud SQL read-replica Instance, DNS peering ManagedZone, ForwardingRule (x4 additional target-kind fixtures)+TargetPool+TargetHttpProxy+TargetInstance+ServiceAttachment, Memorystore Memcached Instance); floor raised from 4 to catch GCP node projection regression across the #4377/#4378/#4381/#4383/#4385/#4388/#4401/#4404/#4406/#4409/#4552/#4553/#4554/#4556/#4557/#4539/#4537/#4540/#4538/#4541/#4542/#4555/#4411/#4418/#4426/#4437/#4420/#4412/#4500/#4498/#4489/#4493/#4486/#4484/#4480/#4490/#4431/#4452/#4416/#4441/#4462/#4438/#4414/#4504/#4501/#4495/#4482/#4463/#4453/#4434/#4468/#4478/#4475/#4470/#4618/#4655 golden-corpus follow-ups; floor raised from 112 to 114 by #5449 for the ecs.task and lambda.function AWS resource fixtures added to the awscloud cassette; floor raised again from 114 to 115 by #5450 for the ecs.task_definition AWS resource fixture (the source of the ECSTaskDefinitionUsesImage aws_relationship, which resolves the source endpoint through this node even though the edge itself stays Postgres-only per the #5472 EXACT-ONLY policy); floor raised from 115 to 116 by #5448 for the new ec2.instance aws_ec2_instance CloudResource node (ec2_instance posture materializes the node; the aws_resource identity fact only augments it with ami_id), so a regression that silently drops any of the four new #5449/#5450/#5448 AWS CloudResource nodes fails this range instead of passing at the old floor; floor raised from 116 to 117 by #5454 for the second (zip-packaged) lambda.function node supply-chain-demo-zip, whose package_type=Zip code_sha256 carries the bounded deployment-code correlation limitation (code_sha256_correlation.unsupported_reason=zip_code_sha256_no_ci_counterpart) asserted on the provider=aws cloud-inventory readback; floor raised from 117 to 118 by #5717 for the new ec2.ami aws_ec2_ami CloudResource node (rn-ec2-ami-node), the node class that finally lets the #5448 ec2_instance_uses_ami relationship resolve (rc-174); ceiling raised from 124 to 127 by #9298 for three distinct EKS aws_resource identities (cluster, nodegroup, add-on) with scanner-shaped ARN resource_ids; the 2026-10-28 live replay observed 125 CloudResource nodes, and a base/candidate census of the AWS cassette found 12 to 15 unique (account, region, type, resource_id) identities with no removals. The unchanged floor remains broad corpus cardinality tolerance; rn-eks-cluster, rn-eks-nodegroup and rn-eks-addon below independently pin graph uid, resource_type and resource_id values, while HTTP/MCP values separately assert inventory readback"
       },
       "TerraformStateResource": {
         "min": 1,
@@ -2250,6 +2250,45 @@
         ],
         "allowed_node_property_values": {
           "ami_id": ["ami-000000000000000a"]
+        }
+      },
+      {
+        "id": "rn-eks-cluster",
+        "description": "#9298 synthetic EKS aws_resource fact should project a CloudResource node. The gate independently pins exactly one allowed uid, resource_type and scanner-shaped ARN resource_id value across CloudResource nodes; it does not assert those three properties on the same node. The uid is the graph StableID of account, region, type and resource_id. HTTP/MCP inventory attribute checks are separate.",
+        "label": "CloudResource",
+        "minimum_count": 1,
+        "required_node_properties": ["uid", "resource_type", "resource_id"],
+        "maximum_node_property_count": {"uid": 1, "resource_type": 1, "resource_id": 1},
+        "allowed_node_property_values": {
+          "uid": ["ebb466e52cc949aa5efc8ce1cfa38014a98f9bb6b6f1be61a7e3e972f3b26d67"],
+          "resource_type": ["aws_eks_cluster"],
+          "resource_id": ["arn:aws:eks:us-east-1:123456789012:cluster/demo-cluster"]
+        }
+      },
+      {
+        "id": "rn-eks-nodegroup",
+        "description": "#9298 synthetic EKS aws_resource fact should project a CloudResource node. The gate independently pins exactly one allowed uid, resource_type and scanner-shaped ARN resource_id value across CloudResource nodes; it does not assert those three properties on the same node. The uid is the graph StableID of account, region, type and resource_id. HTTP/MCP inventory attribute checks are separate.",
+        "label": "CloudResource",
+        "minimum_count": 1,
+        "required_node_properties": ["uid", "resource_type", "resource_id"],
+        "maximum_node_property_count": {"uid": 1, "resource_type": 1, "resource_id": 1},
+        "allowed_node_property_values": {
+          "uid": ["f21d65a5c93f368bb92a20b32ba2fd51c9c2210a00e51dac5ce9e77462b13727"],
+          "resource_type": ["aws_eks_nodegroup"],
+          "resource_id": ["arn:aws:eks:us-east-1:123456789012:nodegroup/demo-cluster/demo-nodes/0000000000000000000000000000000a"]
+        }
+      },
+      {
+        "id": "rn-eks-addon",
+        "description": "#9298 synthetic EKS aws_resource fact should project a CloudResource node. The gate independently pins exactly one allowed uid, resource_type and scanner-shaped ARN resource_id value across CloudResource nodes; it does not assert those three properties on the same node. The uid is the graph StableID of account, region, type and resource_id. HTTP/MCP inventory attribute checks are separate.",
+        "label": "CloudResource",
+        "minimum_count": 1,
+        "required_node_properties": ["uid", "resource_type", "resource_id"],
+        "maximum_node_property_count": {"uid": 1, "resource_type": 1, "resource_id": 1},
+        "allowed_node_property_values": {
+          "uid": ["1c239aaba3f3c257b7cc8fa06530cf38bf04b810a3b1f546bb4a2efbbb2e2cc5"],
+          "resource_type": ["aws_eks_addon"],
+          "resource_id": ["arn:aws:eks:us-east-1:123456789012:addon/demo-cluster/vpc-cni/0000000000000000000000000000000b"]
         }
       },
       {
@@ -4598,7 +4637,15 @@
           "resources"
         ],
         "minimum_results": 1,
-        "results_field": "resources"
+        "results_field": "resources",
+        "arguments": {"provider": "aws"},
+        "required_json_values": {
+          "resources[].attributes.platform_version": "eks.30",
+          "resources[].attributes.release_version": "1.30.1-20260625",
+          "resources[].attributes.addon_version": "v1.19.0-eksbuild.1",
+          "resources[].attributes.ami_id": "ami-000000000000000a",
+          "resources[].attributes.runtime": "python3.12"
+        }
       },
       "list_cloud_runtime_drift_findings": {
         "description": "MCP tool coverage shape for list_cloud_runtime_drift_findings; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). #5759 wired buildMultiCloudRuntimeDriftReducerIntent into appendScopeGenerationReducerIntents (triggering on gcp_cloud_resource or azure_cloud_resource facts) and added MultiCloudRuntimeDriftHandler.Handle's excludeAWSOwnedRows provider-partition filter, so DomainMultiCloudRuntimeDrift is enqueued for GCP/Azure scopes and no longer collides with DomainAWSCloudRuntimeDrift's own findings for the same AWS resource -- closing the pre-existing registered-not-enqueued gap (domain built for #1997/#1998, predates #5453). Non-vacuous: a live golden-corpus-gate run returned 10 drift_findings for this GCP scope (bounded by the requested limit:10 below, the same convention the sibling list_aws_runtime_drift_findings entry uses -- this corpus's gcp_cloud_resource cassette carries 110 keyable resources and no Terraform state/config fixture anywhere in the corpus declares a matching google_* resource, so far more than 10 orphaned findings are admitted; the request just asks for one page of 10). minimum_results is 1, which requires results_field (added here -- #5862 removed EvaluateQueryShape's implicit first-array-field inference, so an entry with minimum_results>0 and no results_field is now an unconditional hard failure regardless of live data); the row count above was established by a live golden-corpus-gate run against the underlying route before this results_field correction landed, and this corrected shape still needs confirmation on the next live run. #5453's image_version_drift value drift is separately proven non-vacuously through the sibling list_aws_runtime_drift_findings entry (reducer_aws_cloud_runtime_drift_finding, exclusively AWS-owned and unaffected by this change).",
@@ -8297,6 +8344,11 @@
         "required_json_values": {
           "resources[].attributes.containers[].image": "123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo:latest",
           "resources[].attributes.image_uri": "123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo:latest",
+          "resources[].attributes.platform_version": "eks.30",
+          "resources[].attributes.release_version": "1.30.1-20260625",
+          "resources[].attributes.addon_version": "v1.19.0-eksbuild.1",
+          "resources[].attributes.ami_id": "ami-000000000000000a",
+          "resources[].attributes.runtime": "python3.12",
           "resources[].attributes.api_key_count": "2",
           "resources[].attributes.api_key_lifecycles[].expires": "2026-12-31T00:00:00Z",
           "resources[].code_sha256_correlation.unsupported_reason": "zip_code_sha256_no_ci_counterpart"
