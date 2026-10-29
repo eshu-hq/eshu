@@ -40,6 +40,32 @@ new DDL in 241s, then returned `CVE-2021-44228` in 0.691s cold and 0.435s /
 ANALYZE` used the three `fact_records_vulnerability_active_*_lookup_v2_idx`
 indexes and completed the present-CVE SQL in 472.419ms.
 
+Performance Evidence (issue #9474 P1 verdict (a), 2026-10-29): GitLab CVE
+envelopes carry `package_id` (`newGitLabCVEEnvelope`), so pinning the
+package legs to `vulnerability.affected_package` silently dropped
+package-matching rows of other kinds. Each of the four package legs is now
+two slices: the affected_package slice is unchanged, and a new slice pinned
+to the five remaining advisory kinds keeps the shared six-kind `IN` and
+`ANY($1)` envelope. Fourteen legs, `OFFSET 0` x14. Two partial indexes in
+the same v2 leader shape (`(payload->>key), scope_id, generation_id,
+fact_kind, fact_id`) carry the five-kind predicate: migrations
+240 (`package_id`) and 241 (`purl`), plus the matching bootstrap fragment.
+No key-presence narrowing; a hermetic shim proves the planner selects both
+indexes per package leg with no `fact_records` seq scan in the
+seed/matched CTEs. The legs name no indexes: a new binary against a schema
+missing 240/241 is slow, not wrong, and the schema job completes the
+migrations before API readiness. Focused proof:
+`go test ./internal/query -run 'TestAdvisoryEvidencePackageLegs'`
+(RED-first hermetic fixtures: lone cve-with-package_id, tombstoned sibling,
+synthetic reference-with-purl) and the old-vs-new differential on one
+`REPEATABLE READ` snapshot: byte-identical including order on
+KEV-CVE/package-only/impact-scoped/GLAD-pair/5000-row inputs, with the only
+delta on P1-shaped inputs being exactly the previously dropped rows
+(3 rows added, 0 removed). Local shim on 20k rows: 5-20ms per input,
+index builds 1-20ms, each new index 8KB vs 2696KB table. Shape pins live in
+`supply_chain_advisory_evidence_sql_test.go`
+(`TestAdvisoryEvidenceQueryProbesLookupValueFirstWithoutScopeFanout`).
+
 No-Observability-Change: the route still emits `query.advisory_evidence`, the
 Postgres query duration histogram, HTTP status/error bodies, truth envelope
 metadata, `count`, `limit`, `truncated`, and `next_cursor`. The change adds no

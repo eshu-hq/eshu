@@ -256,6 +256,7 @@ seed_candidates AS MATERIALIZED (
               AND fact.fact_kind = ANY($1::text[])
               AND fact.is_tombstone = FALSE
         ) AS leg ON TRUE
+` + advisoryEvidenceSeedPackageFiveKindLegs + `
     ) AS candidate
     ORDER BY candidate.fact_id
 ),
@@ -448,6 +449,7 @@ matched_candidates AS MATERIALIZED (
               AND fact.is_tombstone = FALSE
               AND ($4 = '' OR LOWER(fact.payload->>'source') = $4)
         ) AS leg ON TRUE
+` + advisoryEvidenceMatchedPackageFiveKindLegs + `
     ) AS candidate
     ORDER BY candidate.fact_id
 ),
