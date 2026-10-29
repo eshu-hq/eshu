@@ -56,6 +56,11 @@ class ImageProvenance:
         return (f"weights refresh v2: runner image {self.name} versions {runs}; "
                 f"distinct {distinct}")
 
+    @property
+    def shard_counts(self) -> tuple[int, ...]:
+        """Return each source run's parsed shard count, in pool order."""
+        return tuple(len(shards) for shards in self.versions.values())
+
 
 def _profile(log: str) -> tuple[tuple[str, ...], str]:
     """Return the gated runner profile and the reported image version.
@@ -164,9 +169,16 @@ class PricingRule:
 
     Attributes:
         pool: Source run IDs in the order the fit read them.
+        shard_counts: Each source's shard count, aligned with pool, or empty
+            when the caller does not report topology.
     """
 
     pool: tuple[str, ...]
+    shard_counts: tuple[int, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.shard_counts and len(self.shard_counts) != len(self.pool):
+            raise ValueError("pricing shard counts do not match the source pool")
 
     @property
     def quantile(self) -> bool:
@@ -186,15 +198,24 @@ class PricingRule:
         """Render one stdout line for the refit PR body and evidence note."""
         rule = (f"p{PRICE_PERCENTILE} (linear inclusive)" if self.quantile else "mean")
         note = "" if self.quantile else f" (p{PRICE_PERCENTILE} needs at least {QUANTILE_MIN_POOL} runs)"
+        runs = (", ".join(f"{run} ({count} shards)"
+                          for run, count in zip(self.pool, self.shard_counts))
+                if self.shard_counts else ", ".join(self.pool))
         return (f"weights refresh v2: pricing {rule} of per-test, first-use and "
                 f"repeat samples over a {len(self.pool)}-run pool "
-                f"{', '.join(self.pool)}{note}; cold, fixed and defaults keep "
+                f"{runs}{note}; cold, fixed and defaults keep "
                 "their committed rules")
 
 
-def pricing_rule(source_runs: list[str]) -> PricingRule:
-    """Return the pricing rule a fit over these source run IDs applies."""
-    return PricingRule(tuple(source_runs))
+def pricing_rule(source_runs: list[str],
+                 shard_counts: tuple[int, ...] = ()) -> PricingRule:
+    """Return the pricing rule a fit over these source run IDs applies.
+
+    Args:
+        source_runs: Source run IDs in fit order; their count picks the rule.
+        shard_counts: Optional per-source shard counts for the stdout line.
+    """
+    return PricingRule(tuple(source_runs), tuple(shard_counts))
 
 
 def _price_tenth(values: list[float], label: str, rule: PricingRule,
@@ -322,7 +343,6 @@ def fit_with_provenance(sources: list[Path], root: Path) -> tuple[
     image_versions: dict[str, dict[int, str]] = {}
     expected_plan: list[str] | None = None
     expected_profile: tuple[str, ...] | None = None
-    expected_count: int | None = None
     fixed: list[float] = []
     test_values: dict[str, list[float]] = defaultdict(list)
     categories: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
@@ -334,9 +354,6 @@ def fit_with_provenance(sources: list[Path], root: Path) -> tuple[
         if expected_plan is not None and plan != expected_plan:
             raise ValueError("source inventories differ")
         expected_plan = plan
-        if expected_count is not None and len(logs) != expected_count:
-            raise ValueError("source shard topology differs")
-        expected_count = len(logs)
         observed: list[str] = []
         row_packages: list[str] = []
         for number, log in sorted(logs.items()):
@@ -383,7 +400,7 @@ def fit_with_provenance(sources: list[Path], root: Path) -> tuple[
     if set(tests) != set(expected_plan or []):
         raise ValueError("source test prices differ from canonical inventory")
     document: dict[str, object] = {
-        "schema_version": 2, "source_runs": source_runs, "shard_count": 6,
+        "schema_version": 2, "source_runs": source_runs, "shard_count": v2.SHARD_COUNT,
         "fixed_job_seconds": _mean_tenth(fixed, "fixed job overhead"),
         "cold_cache_seconds": cold,
         "default_test_seconds": _mean_tenth(list(tests.values()), "default test", positive=True),
