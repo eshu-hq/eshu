@@ -30,7 +30,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
-      serviceAccountName: {{ include "eshu.serviceAccountName" $ }}
+      serviceAccountName: {{ include "eshu.componentActivationServiceAccountName" $ctx }}
       securityContext:
         {{- toYaml $.Values.podSecurityContext | nindent 8 }}
       initContainers:

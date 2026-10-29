@@ -93,12 +93,43 @@ func TestHelmAWSActivationUsesDedicatedServiceAccount(t *testing.T) {
 	}
 }
 
+func TestHelmAWSActivationUsesExistingServiceAccount(t *testing.T) {
+	activation := strings.Replace(awsRedactionActivation,
+		"      serviceAccount:\n        create: true\n        annotations:\n          eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/eshu-aws-live\n",
+		"      serviceAccount:\n        name: aws-existing\n", 1)
+	manifests := renderComponentActivations(t, awsActivationValues(activation, "awsCloudCollector:\n  redaction:\n    secretName: aws-redaction\n"))
+	worker := requireHelmManifest(t, manifests, "Deployment", "eshu-cx-aws-live")
+	if got := helmPodSpec(t, worker)["serviceAccountName"]; got != "aws-existing" {
+		t.Fatalf("AWS worker serviceAccountName = %v, want aws-existing", got)
+	}
+	if helmManifestExists(manifests, "ServiceAccount", "aws-existing") {
+		t.Fatal("chart created the operator-managed existing ServiceAccount")
+	}
+}
+
+func TestHelmAWSActivationRejectsSharedServiceAccount(t *testing.T) {
+	for _, name := range []string{"default", "eshu"} {
+		t.Run(name, func(t *testing.T) {
+			activation := strings.Replace(awsRedactionActivation,
+				"      serviceAccount:\n        create: true\n        annotations:\n          eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/eshu-aws-live\n",
+				"      serviceAccount:\n        name: "+name+"\n", 1)
+			output := renderHelmChartFailure(t, "-f", writeComponentActivationValues(t, awsActivationValues(activation, "awsCloudCollector:\n  redaction:\n    secretName: aws-redaction\n")))
+			if !strings.Contains(output, "shared or default ServiceAccount") {
+				t.Fatalf("helm error %q does not reject shared service account", output)
+			}
+		})
+	}
+}
+
 // TestHelmAWSActivationSensitiveLiveServicesNeedKey refuses a worker that
 // would reach Lambda or ECS without its configured redaction Secret.
 func TestHelmAWSActivationSensitiveLiveServicesNeedKey(t *testing.T) {
 	nestedScope := strings.Replace(awsRedactionActivation,
 		"        target_scopes:\n          account_id: \"123456789012\"\n        allowed_regions: [us-east-1]\n        allowed_services: [lambda, ecs]\n",
 		"        target_scopes:\n          - account_id: \"123456789012\"\n            allowed_regions: [us-east-1]\n            allowed_services: [\" Lambda \", ECS]\n", 1)
+	sourceServices := strings.Replace(awsRedactionActivation,
+		"        allowed_services: [lambda, ecs]\n        source:\n",
+		"        source:\n          services: [\" ECS \"]\n", 1)
 	spaceInput := strings.Replace(awsRedactionActivation,
 		"        source:\n          redactionKeyEnv:",
 		"        source:\n          input: \"   \"\n          redactionKeyEnv:", 1)
@@ -107,6 +138,7 @@ func TestHelmAWSActivationSensitiveLiveServicesNeedKey(t *testing.T) {
 	}{
 		{"no Secret", awsRedactionActivation, "", "awsCloudCollector.redaction.secretName"},
 		{"nested target scope and normalized services", nestedScope, "", "awsCloudCollector.redaction.secretName"},
+		{"source service fallback", sourceServices, "", "awsCloudCollector.redaction.secretName"},
 		{"whitespace input is live", spaceInput, "", "awsCloudCollector.redaction.secretName"},
 		{"no key name", awsRedactionActivation, "awsCloudCollector:\n  redaction:\n    secretName: aws-redaction\n    keyKey: \"\"\n", "awsCloudCollector.redaction.keyKey"},
 		{"no env reference", strings.Replace(awsRedactionActivation, "          redactionKeyEnv: ESHU_AWS_REDACTION_KEY\n", "", 1), "awsCloudCollector:\n  redaction:\n    secretName: aws-redaction\n", "source.redactionKeyEnv"},

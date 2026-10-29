@@ -103,6 +103,28 @@ secret. Credentials belong only in an activation's extraEnv secretKeyRef.
 {{- if not (has $componentId $allowed) -}}
 {{- fail (printf "%s.componentId %q must be listed in componentExtensionCollector.allowIds" $at $componentId) -}}
 {{- end -}}
+{{- $account := default (dict) $activation.serviceAccount -}}
+{{- if not (kindIs "map" $account) -}}
+{{- fail (printf "%s.serviceAccount must be an object" $at) -}}
+{{- end -}}
+{{- $accountName := toString (default "" $account.name) -}}
+{{- if and $accountName (or (gt (len $accountName) 63) (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" $accountName))) -}}
+{{- fail (printf "%s.serviceAccount.name must be a DNS label of at most 63 characters" $at) -}}
+{{- end -}}
+{{- if and (not $account.create) $account.annotations -}}
+{{- fail (printf "%s.serviceAccount.annotations require create=true; annotations on an existing ServiceAccount are ignored" $at) -}}
+{{- end -}}
+{{- if and $account.create (eq $accountName (include "eshu.serviceAccountName" $root)) -}}
+{{- fail (printf "%s.serviceAccount.name must not collide with the shared Eshu ServiceAccount" $at) -}}
+{{- end -}}
+{{- if eq $componentId "dev.eshu.collector.aws" -}}
+{{- if not (or $account.create $accountName) -}}
+{{- fail (printf "%s.serviceAccount must create or name a dedicated AWS activation ServiceAccount" $at) -}}
+{{- end -}}
+{{- if or (eq $accountName "default") (eq $accountName (include "eshu.serviceAccountName" $root)) -}}
+{{- fail (printf "%s.serviceAccount.name must not use the shared or default ServiceAccount for AWS permissions" $at) -}}
+{{- end -}}
+{{- end -}}
 {{- if not (regexMatch "^[0-9]+\\.[0-9]+\\.[0-9]+([-+][0-9A-Za-z.-]+)?$" (toString (default "" $activation.componentVersion))) -}}
 {{- fail (printf "%s.componentVersion is required and must be the semantic version in the seeded manifest" $at) -}}
 {{- end -}}
@@ -302,6 +324,7 @@ worker's own: 60s lease, 20s heartbeat.
 {{- fail "componentExtensionCollector.extraEnv cannot be set together with componentExtensionCollector.activations; set extraEnv on the activation that needs the credential so one collector never sees another's secret" -}}
 {{- end -}}
 {{- $seenIDs := dict -}}
+{{- $seenServiceAccounts := dict -}}
 {{- $versionByComponent := dict -}}
 {{- $imageByComponent := dict -}}
 {{- range $index, $activation := $activations -}}
@@ -310,6 +333,14 @@ worker's own: 60s lease, 20s heartbeat.
 {{- fail (printf "componentExtensionCollector.activations[%d].instanceId %q is used more than once" $index $activation.instanceId) -}}
 {{- end -}}
 {{- $_ := set $seenIDs $activation.instanceId true -}}
+{{- $account := default (dict) $activation.serviceAccount -}}
+{{- if or $account.create $account.name -}}
+{{- $accountName := include "eshu.componentActivationServiceAccountName" (dict "root" $ "activation" $activation) -}}
+{{- if hasKey $seenServiceAccounts $accountName -}}
+{{- fail (printf "componentExtensionCollector.activations[%d].serviceAccount %q is used by more than one activation" $index $accountName) -}}
+{{- end -}}
+{{- $_ := set $seenServiceAccounts $accountName true -}}
+{{- end -}}
 {{- if hasKey $versionByComponent $activation.componentId -}}
 {{- if ne (get $versionByComponent $activation.componentId) $activation.componentVersion -}}
 {{- fail (printf "componentExtensionCollector.activations[%d] pins %s at version %s but an earlier activation pins version %s; one component ID must use one version" $index $activation.componentId $activation.componentVersion (get $versionByComponent $activation.componentId)) -}}

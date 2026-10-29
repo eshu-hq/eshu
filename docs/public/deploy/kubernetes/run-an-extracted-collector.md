@@ -115,6 +115,7 @@ Every entry needs its own `instanceId`.
 | `instanceId` | yes | Lowercase DNS label, 30 characters or fewer, unique in the list. Names the Deployment (`<release>-cx-<instanceId>`). |
 | `componentId` | yes | Component ID from the manifest. It must also appear in `allowIds`. |
 | `componentVersion` | yes | Version from the manifest. The init container fails if the seeded manifest differs. |
+| `serviceAccount.create`, `serviceAccount.name`, `serviceAccount.annotations` | AWS: yes; others: no | Create a dedicated ServiceAccount for this activation (default name `<release>-cx-<instanceId>`), or name an existing dedicated account. `annotations` apply only when `create=true`. AWS activations cannot use the shared or default ServiceAccount. Other activations keep the shared account unless configured. |
 | `mode` | no | Activation mode, default `scheduled`. Claims are always enabled. |
 | `seed.image` | yes | Release image pinned by digest alone: `repository@sha256:<64 hex>`. A tag is rejected, even next to a digest, because the seed command's `--image-ref` would carry the tag. A registry port is fine (`registry.example:5000/org/name@sha256:...`). |
 | `seed.pullPolicy`, `seed.command` | no | Pull policy (default `IfNotPresent`) and seed entrypoint (default `["/collector", "seed"]`). |
@@ -133,6 +134,12 @@ operator-managed Secret. The chart passes that key through a non-optional
 do not receive it. Keep the key value out of `config`, `process.env`, and
 chart `env` maps; those settings render into a ConfigMap or Pod spec. The
 satellite refuses a missing or blank key before collecting live Lambda or ECS.
+Set the AWS activation's `serviceAccount.create: true` with workload-identity
+annotations, or `serviceAccount.name` to an existing dedicated account. Do not
+attach the AWS role to the release's shared ServiceAccount. After rotating the
+Secret, restart that activation Deployment: environment variables in running
+pods do not update when a Secret changes. Rotation changes deterministic HMAC
+markers, so coordinate it with downstream comparison and replay expectations.
 
 The schema (`values.schema.json`) rejects unknown keys, so a misspelled key
 fails the render instead of being ignored.

@@ -20,6 +20,17 @@ drives rendering, empty string otherwise.
 {{- printf "%s-cx-%s" (include "eshu.fullname" .root) .activation.instanceId -}}
 {{- end -}}
 
+{{- define "eshu.componentActivationServiceAccountName" -}}
+{{- $account := default (dict) .activation.serviceAccount -}}
+{{- if $account.name -}}
+{{- $account.name -}}
+{{- else if $account.create -}}
+{{- include "eshu.componentActivationFullname" . -}}
+{{- else -}}
+{{- include "eshu.serviceAccountName" .root -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "eshu.componentActivationSelectorLabels" -}}
 {{- include "eshu.componentExtensionCollectorSelectorLabels" .root }}
 eshu.dev/component-instance: {{ .activation.instanceId | quote }}

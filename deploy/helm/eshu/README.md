@@ -113,8 +113,13 @@ guidance belong in the public Kubernetes docs.
   managed by the chart. See `docs/public/deploy/kubernetes/run-an-extracted-collector.md`.
   For an AWS activation that reads live Lambda or ECS, set
   `awsCloudCollector.redaction.secretName` and `keyKey`; the chart sends the
-  Secret as `ESHU_AWS_REDACTION_KEY` only to that activation worker and
-  requires `config.source.redactionKeyEnv: ESHU_AWS_REDACTION_KEY`.
+  Secret as `ESHU_AWS_REDACTION_KEY` only to that AWS worker among activations
+  and requires `config.source.redactionKeyEnv: ESHU_AWS_REDACTION_KEY`.
+  Configure that activation's own `serviceAccount` for AWS workload identity;
+  the shared Eshu ServiceAccount must not hold its AWS permissions. Updating
+  the Secret requires a restart of the AWS worker Deployment to refresh its
+  environment. The legacy direct AWS Deployment also uses this Secret setting
+  when enabled.
 - `gcpCloudCollector` is off by default. When enabled, it starts only explicit
   claimed-live mode, requires active workflow claims, mounts the redaction key
   from a read-only Secret file, and expects read-only GCP credentials from pod

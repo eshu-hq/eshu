@@ -875,6 +875,9 @@ componentExtensionCollector:
   # - instanceId: pagerduty-example          # DNS label, <= 30 chars, unique
   #   componentId: dev.example.collector.pagerduty
   #   componentVersion: 0.1.0                # version in the seeded manifest
+  #   serviceAccount:                        # use a dedicated identity for AWS activations
+  #     create: true                         # or name an existing dedicated ServiceAccount
+  #     annotations: {}                      # workload-identity annotations when creating
   #   mode: scheduled
   #   seed:
   #     image: ghcr.io/example/collector-pagerduty@sha256:<64 hex>  # digest alone; a tag, even next to one, is refused

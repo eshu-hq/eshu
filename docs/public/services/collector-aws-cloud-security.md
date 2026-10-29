@@ -24,6 +24,11 @@ to the satellite. The activation ConfigMap carries only the environment
 variable name. A missing or blank Secret key prevents collection; Helm also
 refuses the live Lambda/ECS activation when the reference or Secret metadata
 is absent.
+Give the AWS activation its own `serviceAccount.create: true` and workload
+identity annotations, or point `serviceAccount.name` at an existing dedicated
+account. The coordinator's shared account must not receive AWS permissions.
+Restart the AWS activation Deployment after rotating the Secret: running pods
+keep their previous environment value, and a new key changes HMAC markers.
 
 Claim polling, lease TTL, and heartbeat are satellite activation settings
 (heartbeat must stay below the lease TTL).
@@ -203,8 +208,11 @@ Helm renders collector instances, instance selector, owner ID, Postgres env,
 OTEL env, probes, metrics Service, optional `ServiceMonitor`, NetworkPolicy,
 and PodDisruptionBudget.
 
-Use `awsCloudCollector.serviceAccount.create=true` for IRSA so AWS permissions
-do not attach to API, reducer, ingester, or other pods in the same release.
+For the extracted activation, use its own `serviceAccount.create=true` and
+workload-identity annotation, or its `serviceAccount.name` for an existing
+dedicated account. `awsCloudCollector.serviceAccount` configures only the
+legacy direct collector Deployment; it does not give the extracted worker a
+workload identity. Never put the AWS role on the shared Eshu ServiceAccount.
 
 ## Related Docs
 
