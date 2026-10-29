@@ -88,10 +88,7 @@ on their checks. A rebase follows the decision table in `eshu-code-review`
   post the diff and exits as a PR comment, push.
 - Any other conflict (row 4b), or a larger added commit: scoped re-review.
 - No conflicts, every commit `=`, equal patch-id: waiver note after the floor.
-  Anything else, an open finding, or no clean prior verdict: full review —
-  except a content-identical push after a clean verdict with no new findings,
-  which takes the fixed-awaiting-push transfer note (row 2). Merge bars are
-  unchanged.
+  Anything else, an open finding, or no clean prior verdict: full review (a content-identical push after a clean verdict takes the row-2 transfer note).
 
 ## Mandatory Pre-PR Local Proof
 
