@@ -59,3 +59,15 @@ main. This bump moves the anchor to
   change; no code path, query, or telemetry is touched. The mirrored
   in-repo chart values in the runtime contract test move with the pins;
   the live chart carries no scanner seed.image entries.
+
+No-Regression Evidence (seed re-pin 6ce31d8b9d): component suite 7.548s
+on clean main (`300ec193b6`, throwaway worktree, same host) vs 7.542s
+with the new pins; constants-only change, manifest construction off any
+query, ingest, or graph-write path. Backend/version: no backend touched
+(unit suite, no graph backend); input shape: three pin constants plus
+anchor line; queue/row counts: none (no queue involved).
+
+No-Observability-Change (seed re-pin 6ce31d8b9d): no metric, span, log,
+or status field added, renamed, or removed by the new pin values; seed
+and admission failures keep the existing defect-only startup-error path
+with no new telemetry.
