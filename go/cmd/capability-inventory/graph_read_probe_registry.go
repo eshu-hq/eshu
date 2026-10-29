@@ -268,6 +268,16 @@ func classifyAPIExecution(method, path string) (bool, string) {
 	if method == http.MethodPost && path == "/api/v0/supply-chain/impact/suppressions" {
 		return false, "operator suppression mutation changes durable vulnerability policy"
 	}
+	if method == http.MethodPost {
+		switch path {
+		case "/api/v0/investigation/packet/render",
+			"/api/v0/service/report/compose",
+			"/api/v0/report/bundle/capture",
+			"/api/v0/report/bundle/validate",
+			"/api/v0/answer-quality/score":
+			return false, "thin-CLI support route is a pure function of the caller-supplied request body; it resolves no graph, content, or runtime state, so discovered-selector fixtures cannot exercise it (handler contract and differential parity tests cover it instead)"
+		}
+	}
 	return true, ""
 }
 

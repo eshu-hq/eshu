@@ -85,8 +85,12 @@ func (e *TargetCredentialError) Error() string {
 }
 
 // checkTargetCredentials refuses a target carrying URL userinfo, the
-// `user:password@host` an authority component may hold.
+// `user:password@host` an authority component may hold. The predicate lives
+// in reportbundle.CheckTargetCredentials — the capture owner — so the
+// offline command and the S4 capture endpoint refuse exactly the same
+// inputs; this wrapper only restores the flag-worded CLI error.
 //
+
 // Every redaction rule in internal/reportbundle matches an object KEY name, and
 // SplitTargetQuery exists to turn a target's query string back into keys so
 // those rules can reach it. Userinfo sits before the "?", so the split never
@@ -123,22 +127,13 @@ func (e *TargetCredentialError) Error() string {
 // CI logs and pasted bug reports — the places the bundle beside them is
 // redacted for.
 func checkTargetCredentials(flag, value string) error {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" {
-		return nil
-	}
-	parsed, _, err := targetAuthority(trimmed)
-	if err != nil {
-		return &TargetCredentialError{
-			Flag:   flag,
-			Reason: "cannot be parsed as a URL, so it cannot be checked for an embedded credential; pass a plain path or tool name",
+	if err := reportbundle.CheckTargetCredentials(value); err != nil {
+		var refusal *reportbundle.CredentialRefusal
+		reason := err.Error()
+		if errors.As(err, &refusal) {
+			reason = refusal.Reason
 		}
-	}
-	if parsed.User != nil {
-		return &TargetCredentialError{
-			Flag:   flag,
-			Reason: "carries a credential in its URL userinfo (user:password@host); remove it and rerun, because the captured bundle is meant to be attached to a public issue",
-		}
+		return &TargetCredentialError{Flag: flag, Reason: reason}
 	}
 	return nil
 }

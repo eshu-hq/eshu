@@ -76,13 +76,15 @@ run_verifier() {
   fi
 }
 
-# setup_repo creates a minimal repo with the query and serviceintelhttp
-# packages verify-openapi.sh scans, plus one family subpackage under query.
+# setup_repo creates a minimal repo with the query, serviceintelhttp, and
+# cli/support packages verify-openapi.sh scans, plus one family
+# subpackage under query.
 setup_repo() {
   local name="$1"
   local dir="${tmp_root}/${name}"
   mkdir -p "${dir}/go/internal/query/supply/chain"
   mkdir -p "${dir}/go/internal/serviceintelhttp"
+  mkdir -p "${dir}/go/internal/cli/support"
   mkdir -p "${dir}/scripts"
   echo "$dir"
 }

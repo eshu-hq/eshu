@@ -103,6 +103,17 @@ func plannerExcludedSurfaces() map[string]struct{} {
 		"GET /api/v0/auth/saml/providers/{provider_id}/login":    {}, // redirects to the SAML IdP
 		"GET /api/v0/auth/saml/providers/{provider_id}/metadata": {}, // serves SP SAML metadata
 		"POST /api/v0/auth/saml/providers/{provider_id}/acs":     {}, // consumes the SAML assertion (ACS)
+		// Thin-CLI support routes (#8874 S4): pure functions of the
+		// caller-supplied request body (render a packet, compose a report,
+		// assemble or check a bundle, score an answer). None reads the
+		// graph, content, or runtime stores, and capture persists nothing
+		// server-side, so none of them is a retrieval path for answering
+		// repository, graph, runtime, or cloud questions.
+		"POST /api/v0/answer-quality/score":        {}, // scores a caller-supplied answer against its evidence
+		"POST /api/v0/investigation/packet/render": {}, // renders a caller-supplied investigation packet
+		"POST /api/v0/report/bundle/capture":       {}, // assembles a report bundle from caller-supplied inputs
+		"POST /api/v0/report/bundle/validate":      {}, // checks a caller-supplied report bundle
+		"POST /api/v0/service/report/compose":      {}, // composes a service report from caller-supplied dossier
 	}
 }
 

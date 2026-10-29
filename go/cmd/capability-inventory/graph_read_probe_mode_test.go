@@ -221,6 +221,11 @@ func TestCurrentProbeRegistryIsRedactedAndClassifiesMappedDelta(t *testing.T) {
 		auth     graphReadProbeAuth
 	}{
 		{"api:DELETE /api/v0/auth/browser-session", false, graphReadProbeUserAuth},
+		{"api:POST /api/v0/answer-quality/score", false, graphReadProbeUserAuth},
+		{"api:POST /api/v0/investigation/packet/render", false, graphReadProbeUserAuth},
+		{"api:POST /api/v0/report/bundle/capture", false, graphReadProbeUserAuth},
+		{"api:POST /api/v0/report/bundle/validate", false, graphReadProbeUserAuth},
+		{"api:POST /api/v0/service/report/compose", false, graphReadProbeUserAuth},
 		{"api:POST /api/v0/admin/work-items/query", true, graphReadProbeAdminAuth},
 		{"api:POST /api/v0/code/cypher", true, graphReadProbeAdminAuth},
 		{"api:GET /api/v0/auth/github/login", true, "public"},
