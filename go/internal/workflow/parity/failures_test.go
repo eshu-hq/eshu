@@ -5,12 +5,34 @@ package parity
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
+
+// TestClassifyMapsProductionDeferral pins CodePaced to the production
+// deferral type the runner backoff path consumes, wrapped or not. A
+// same-message impostor must stay CodeFault so the comparator cannot hide
+// a type the runner would fail on.
+func TestClassifyMapsProductionDeferral(t *testing.T) {
+	t.Parallel()
+	deferral := &workflow.ClaimPacingDeferral{Signal: "domain", RetryAfter: time.Second}
+	if got := Classify(deferral); got != CodePaced {
+		t.Fatalf("Classify(deferral) = %q, want %q", got, CodePaced)
+	}
+	wrapped := fmt.Errorf("parity satellite ClaimNext: %w", deferral)
+	if got := Classify(wrapped); got != CodePaced {
+		t.Fatalf("Classify(wrapped deferral) = %q, want %q", got, CodePaced)
+	}
+	impostor := errors.New("claim pacing engaged on domain depth")
+	if got := Classify(impostor); got != CodeFault {
+		t.Fatalf("Classify(impostor) = %q, want %q", got, CodeFault)
+	}
+}
 
 // TestTruncateCoversSatelliteTables pins the constant TRUNCATE statement
 // ResetSatellite executes to the satelliteTables set, so the two cannot

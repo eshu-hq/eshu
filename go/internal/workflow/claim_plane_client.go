@@ -47,22 +47,6 @@ func NewClaimPlaneClient(baseURL string, httpClient *http.Client) *ClaimPlaneCli
 	return &ClaimPlaneClient{baseURL: strings.TrimRight(baseURL, "/"), httpClient: httpClient}
 }
 
-// ClaimPacedError reports a claim refused by server-side pacing. It carries
-// the backoff the runner must wait instead of treating the refusal as a
-// failure.
-type ClaimPacedError struct {
-	Signal     ClaimPacingSignal
-	Domain     string
-	RetryAfter time.Duration
-	Stuck      bool
-}
-
-// Error implements error.
-func (e *ClaimPacedError) Error() string {
-	return fmt.Sprintf("claim pacing engaged on %s depth (domain %q): grant delayed %s",
-		e.Signal, e.Domain, e.RetryAfter)
-}
-
 // claimPlaneEnvelope is the protocol error body.
 type claimPlaneEnvelope struct {
 	Code              string `json:"code"`
@@ -286,7 +270,9 @@ func wireMutation(mutation ClaimMutation) claimPlaneMutation {
 
 // ClaimNextEligible claims the next work item through the server. An idle
 // queue reports (zero, zero, false, nil); a paced queue reports
-// *ClaimPacedError carrying the backoff.
+// *ClaimPacingDeferral carrying the backoff, the same production type the
+// runner backoff path matches, so a paced grant backs off instead of
+// failing the run.
 func (c *ClaimPlaneClient) ClaimNextEligible(
 	ctx context.Context,
 	selector ClaimSelector,
@@ -328,7 +314,7 @@ func (c *ClaimPlaneClient) ClaimNextEligible(
 		return wireItemToWorkItem(response.Grant.WorkItem),
 			wireClaimToClaim(response.Grant.Claim), true, nil
 	}
-	return WorkItem{}, Claim{}, false, &ClaimPacedError{
+	return WorkItem{}, Claim{}, false, &ClaimPacingDeferral{
 		Signal:     ClaimPacingSignal(response.Deferral.Signal),
 		Domain:     response.Deferral.Domain,
 		RetryAfter: time.Duration(response.Deferral.RetryAfter),

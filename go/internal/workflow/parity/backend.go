@@ -68,7 +68,10 @@ func Classify(err error) Code {
 	if errors.Is(err, workflow.ErrClaimRejected) {
 		return CodeRejected
 	}
-	var paced *workflow.ClaimPacedError
+	// CodePaced matches the production deferral type the runner backoff
+	// path consumes, wrapped or not: anything else must stay CodeFault so
+	// the comparator cannot hide a type the runner would fail on.
+	var paced *workflow.ClaimPacingDeferral
 	if errors.As(err, &paced) {
 		return CodePaced
 	}

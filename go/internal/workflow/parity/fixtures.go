@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 	"testing"
@@ -17,6 +18,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
+
+// satelliteLegTimeout bounds one HTTP leg call so a dead satellite fails
+// the suite fast instead of hanging tests on context.Background().
+const satelliteLegTimeout = 30 * time.Second
 
 // Suite seeds and clocks every scenario identically on both legs:
 // deterministic IDs under one run prefix, one captured clock per
@@ -254,11 +259,14 @@ func CountSuiteRows(t *testing.T, dsn string) int {
 	return total
 }
 
-// OpenSatellite opens the HTTP leg against the satellite base URL.
+// OpenSatellite opens the HTTP leg against the satellite base URL. The leg
+// uses an explicit timeout so a dead server fails the suite fast instead of
+// hanging tests that run on context.Background().
 func OpenSatellite(t *testing.T, baseURL string) Backend {
 	t.Helper()
 	if strings.TrimSpace(baseURL) == "" {
 		t.Skip("PARITY_SATELLITE_URL is not set; skipping satellite parity leg")
 	}
-	return &satelliteBackend{client: workflow.NewClaimPlaneClient(baseURL, nil)}
+	return &satelliteBackend{client: workflow.NewClaimPlaneClient(baseURL,
+		&http.Client{Timeout: satelliteLegTimeout})}
 }

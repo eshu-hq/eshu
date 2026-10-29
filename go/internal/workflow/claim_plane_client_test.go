@@ -214,13 +214,20 @@ func TestClaimPlaneClientIdleAndPaced(t *testing.T) {
 	}
 
 	stub.paced = true
-	_, _, _, err = client.ClaimNextEligible(ctx, testSelector(), time.Now().UTC(), time.Minute)
-	paced, ok := err.(*ClaimPacedError)
-	if !ok {
-		t.Fatalf("paced claim err = %v (%T), want *ClaimPacedError", err, err)
+	_, _, issued, err = client.ClaimNextEligible(ctx, testSelector(), time.Now().UTC(), time.Minute)
+	if issued {
+		t.Fatalf("paced claim issued a grant")
 	}
-	if paced.RetryAfter != 5*time.Second {
-		t.Fatalf("paced retry_after = %s", paced.RetryAfter)
+	// The paced error must be the production deferral type: the runner
+	// backoff path matches *ClaimPacingDeferral via errors.As and waits
+	// RetryAfterDelay, so any other type would fail the run instead of
+	// backing off.
+	var deferral *ClaimPacingDeferral
+	if !errors.As(err, &deferral) {
+		t.Fatalf("paced claim err = %v (%T), want *ClaimPacingDeferral", err, err)
+	}
+	if deferral.RetryAfterDelay() != 5*time.Second {
+		t.Fatalf("paced retry_after = %s", deferral.RetryAfterDelay())
 	}
 }
 
