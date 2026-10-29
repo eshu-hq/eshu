@@ -11,6 +11,10 @@ import (
 const awsRedactionActivation = `    - instanceId: aws-live
       componentId: dev.eshu.collector.aws
       componentVersion: 0.1.0
+      serviceAccount:
+        create: true
+        annotations:
+          eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/eshu-aws-live
       seed:
         image: ghcr.io/example/collector-aws@sha256:3333333333333333333333333333333333333333333333333333333333333333
       host:
@@ -68,6 +72,27 @@ func TestHelmAWSActivationRedactionKeyDelivery(t *testing.T) {
 	}
 }
 
+// TestHelmAWSActivationUsesDedicatedServiceAccount keeps the AWS workload
+// identity on its activation pod instead of the coordinator's shared account.
+func TestHelmAWSActivationUsesDedicatedServiceAccount(t *testing.T) {
+	values := awsActivationValues(awsRedactionActivation, "awsCloudCollector:\n  redaction:\n    secretName: aws-redaction\n")
+	manifests := renderComponentActivations(t, values)
+	worker := requireHelmManifest(t, manifests, "Deployment", "eshu-cx-aws-live")
+	if got := helmPodSpec(t, worker)["serviceAccountName"]; got != "eshu-cx-aws-live" {
+		t.Fatalf("AWS worker serviceAccountName = %v, want eshu-cx-aws-live", got)
+	}
+	account := requireHelmManifest(t, manifests, "ServiceAccount", "eshu-cx-aws-live")
+	annotations := helmMap(helmMap(account["metadata"])["annotations"])
+	if got := annotations["eks.amazonaws.com/role-arn"]; got != "arn:aws:iam::123456789012:role/eshu-aws-live" {
+		t.Fatalf("AWS activation IRSA annotation = %v", got)
+	}
+	for _, name := range []string{"eshu-cx-pagerduty-a", "eshu-workflow-coordinator"} {
+		if got := helmPodSpec(t, requireHelmManifest(t, manifests, "Deployment", name))["serviceAccountName"]; got == "eshu-cx-aws-live" {
+			t.Fatalf("%s received AWS service account", name)
+		}
+	}
+}
+
 // TestHelmAWSActivationSensitiveLiveServicesNeedKey refuses a worker that
 // would reach Lambda or ECS without its configured redaction Secret.
 func TestHelmAWSActivationSensitiveLiveServicesNeedKey(t *testing.T) {
@@ -85,6 +110,7 @@ func TestHelmAWSActivationSensitiveLiveServicesNeedKey(t *testing.T) {
 		{"whitespace input is live", spaceInput, "", "awsCloudCollector.redaction.secretName"},
 		{"no key name", awsRedactionActivation, "awsCloudCollector:\n  redaction:\n    secretName: aws-redaction\n    keyKey: \"\"\n", "awsCloudCollector.redaction.keyKey"},
 		{"no env reference", strings.Replace(awsRedactionActivation, "          redactionKeyEnv: ESHU_AWS_REDACTION_KEY\n", "", 1), "awsCloudCollector:\n  redaction:\n    secretName: aws-redaction\n", "source.redactionKeyEnv"},
+		{"no dedicated service account", strings.Replace(awsRedactionActivation, "      serviceAccount:\n        create: true\n        annotations:\n          eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/eshu-aws-live\n", "", 1), "awsCloudCollector:\n  redaction:\n    secretName: aws-redaction\n", "serviceAccount"},
 		{"plaintext process env", strings.Replace(awsRedactionActivation, "        args: [\"--sdk-stdio\"]\n", "        args: [\"--sdk-stdio\"]\n        env: [\"ESHU_AWS_REDACTION_KEY=plaintext\"]\n", 1), "awsCloudCollector:\n  redaction:\n    secretName: aws-redaction\n", "process.env must not carry ESHU_AWS_REDACTION_KEY"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
