@@ -239,6 +239,12 @@ jobs:
           --health-timeout 10s
           --health-retries 20
     steps:
+      # Output only, no gate: records the runner CPU so job walls can be
+      # read against the hardware each shard drew (#9532). The || true keeps
+      # the step from failing if a pipefail shell is set later.
+      - name: Record runner CPU
+        run: lscpu | head -20 || true; nproc
+
       - name: Check out code
         uses: actions/checkout@v5
         with:

@@ -299,7 +299,11 @@ name, Go toolchain, Postgres image digest, and proof boundaries. Save every
 shard job's metadata and log. Mixed hosted-runner image versions are accepted,
 and the refresher prints the version it saw on each shard. GitHub rolls hosted
 images over several days and standard runners cannot pin a version. The
-version is never used in pricing (#9411). Two or three runs price at the
+version is never used in pricing (#9411). Each shard job's first step prints
+`lscpu | head -20 || true; nproc` so a job wall can be read against the CPU it drew
+(#9532); it is output only, no gate, and the refresher ignores it. The next
+refit's fixed job overhead includes the step, about 1 s (roughly 1%). Two or
+three runs price at the
 mean; four or more price at the pooled p75 (see
 [Pooled refit](#pooled-refit-four-or-more-runs)).
 Use the v2 refresher with the runs and an output outside the repository:

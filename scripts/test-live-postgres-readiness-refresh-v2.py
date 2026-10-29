@@ -312,6 +312,28 @@ class RefreshV2Cases(unittest.TestCase):
             "distinct 20261012.334.1, 20261025.353.1\n",
             stdout.getvalue())
 
+    def test_ignores_runner_cpu_step_output(self) -> None:
+        # Each shard job prints `lscpu | head -20 || true; nproc` first
+        # (#9532). That output lands before the Go setup and the proof step,
+        # and it must change neither the profile nor any price. Its stamp is
+        # 30 s earlier than every other line, so a parser that took its timing
+        # baseline from any line but the proof step's group line would move a
+        # residual and fail here.
+        uniform = self.fit()
+        cpu_step = "".join(f"2026-10-25T23:59:30Z {line}\n" for line in (
+            "##[group]Run lscpu | head -20 || true; nproc", "Architecture:  x86_64",
+            "CPU(s):  4", "Vendor ID:  AuthenticAMD",
+            "Model name:  AMD EPYC 7763 64-Core Processor", "Model:  1",
+            "Thread(s) per core:  2", "4", "##[endgroup]"))
+        for source in self.sources:
+            for number in range(1, 5):
+                path = source / f"shard{number}.log"
+                text = path.read_text()
+                marker = "2026-10-26T00:00:00Z Setup go version spec"
+                self.assertEqual(text.count(marker), 1)
+                path.write_text(text.replace(marker, cpu_step + marker))
+        self.assertEqual(self.fit(), uniform)
+
     def test_rejects_changed_runner_image_name(self) -> None:
         path = self.sources[0] / "shard1.log"
         path.write_text(path.read_text().replace("Image: ubuntu-24.04",
