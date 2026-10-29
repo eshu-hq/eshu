@@ -108,7 +108,7 @@ class V2ModelTest(unittest.TestCase):
             "test_seconds": {run: 400.0 for run in runs}})
         self.assertEqual(wt.shard_job_seconds(runs, model, [0, 2, 4, 6, 8, 10]),
                          [1302.0] * 5)
-        self.assertIn("675 s", " ".join(wt.budget_errors(runs, model)))
+        self.assertIn("608 s", " ".join(wt.budget_errors(runs, model)))
 
     def test_repeat_price_splits_rows_and_matches_fast_interval_score(self) -> None:
         runs = [f"./p{package}|Test{test}Live"
@@ -276,19 +276,24 @@ class V2ReportTest(unittest.TestCase):
 
     def test_report_cut_under_the_build_charging_model_fails(self) -> None:
         # #9348: a report cut before the clock-timed row model carries the
-        # old fingerprint literal and must not pass the aggregate.
-        reports = self.reports()
+        # old fingerprint literal and must not pass the aggregate. #9469: nor
+        # may a report cut under the 675 s row budget.
         current = v2.weights_from_json(document()).fingerprint()
-        old = current.replace("midpoint-v2-clock-tests-plus-repeat-675",
-                              "midpoint-v2-cold-plus-max-first-repeat-every-row")
-        self.assertNotEqual(old, current)
-        stale = json.loads(reports[0].read_text(encoding="utf-8"))
-        stale["model_fingerprint"] = old
-        reports[0].write_text(json.dumps(stale), encoding="utf-8")
-        result = self.invoke("verify", "--head", self.head, "--plan",
-                             str(self.plan), *(str(path) for path in reports))
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("stale metadata for 1/5", result.stderr)
+        for literal in ("midpoint-v2-cold-plus-max-first-repeat-every-row",
+                        "midpoint-v2-clock-tests-plus-repeat-675"):
+            with self.subTest(literal=literal):
+                reports = self.reports()
+                old = current.replace("midpoint-v2-clock-tests-plus-repeat-608",
+                                      literal)
+                self.assertNotEqual(old, current)
+                stale = json.loads(reports[0].read_text(encoding="utf-8"))
+                stale["model_fingerprint"] = old
+                reports[0].write_text(json.dumps(stale), encoding="utf-8")
+                result = self.invoke("verify", "--head", self.head, "--plan",
+                                     str(self.plan),
+                                     *(str(path) for path in reports))
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("stale metadata for 1/5", result.stderr)
 
     def test_select_rejects_stale_newest_and_missing_fifth(self) -> None:
         reports = self.reports()
