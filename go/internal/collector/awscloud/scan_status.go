@@ -54,6 +54,12 @@ const (
 	// WarningThrottleSustained marks a scan that omitted optional metadata after
 	// an AWS API stayed throttled past the SDK retry budget.
 	WarningThrottleSustained = "throttle_sustained"
+	// WarningNetworkTimeout marks a scan that omitted API Gateway inventory
+	// after a control-plane call timed out past the SDK retry budget (dial
+	// timeout or retry-exhausted transport error, issue #9535). The scan
+	// degrades with a warning instead of failing terminal; authorization and
+	// contract errors stay fatal.
+	WarningNetworkTimeout = "network_timeout"
 	// WarningAssumeRoleFailed marks a scan that could not acquire target
 	// account credentials.
 	WarningAssumeRoleFailed = "assumerole_failed"

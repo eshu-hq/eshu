@@ -70,6 +70,13 @@ scanning. Sustained `GetResources` throttling marks the scan partial with
   after SDK retries, the scanner emits a throttle warning and omits REST
   integration relationships for that scan instead of failing the whole regional
   API Gateway claim.
+- A dial timeout or retry-exhausted transport error on any regional list read
+  (`GetRestApis`, `GetApis`, `GetStages`, `GetResources`, `GetIntegrations`,
+  `GetDomainNames`, `GetBasePathMappings`, `GetApiMappings`) degrades that
+  inventory slice to the items collected so far (empty when the timeout hits
+  the first page) with exactly one network-timeout warning
+  (`warning_kind=network_timeout`) instead of failing the whole regional
+  claim. Authorization and contract errors stay terminal.
 - Stage variables, policy JSON, API keys, authorizer secrets, integration
   credentials, request templates, and response templates stay out of facts.
 
