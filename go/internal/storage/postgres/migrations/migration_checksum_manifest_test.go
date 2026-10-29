@@ -291,7 +291,7 @@ var migrationShippedChecksums = map[string]string{
 	"242_ecs_runtime_service_arn_index.sql":                                  "edbcfbb5682b4a7ce9aa58375522232461af0b7559f7d969df38dedd8dd99011",
 	"240a_scanner_image_targets.sql":                                         "15a429af918f8755bdd21c51c88e82b9635154ad7f05dab2d78e1afddb019716",
 	"241a_scanner_typed_source_and_results.sql":                              "bc69562cddbd19aa54d6cff61d692908da54c3ffd02fbb3f0bdaaf1feea5b2f3",
-	"241b_scanner_authority_epoch_backfill.sql":                              "9fa58463813a3bd815cd43ce9583112b76f786ed40fb9865ff219071258fa266",
+	"241b_scanner_authority_epoch_backfill.sql":                              "8b18b691871e8ae4ff84cc6ad0695da4799af214021bd242610eb8fb1585d50d",
 	"242a_scanner_role_attestation.sql":                                      "c45b3372706e7a7359b659404d78d742f26d3b72f2d212f1d1243033c94e4fbd",
 	"243a_scanner_role_policy_install.sql":                                   "77686e57b16d5350445762c00075a4b8f690ede89c4684972406692e308d5c87",
 	"244a_scanner_protected_capability.sql":                                  "ab3c6f6b0d112680ab616fb50eb5e90740d82a7fe46eaaf85bdb73e54983f2ed",

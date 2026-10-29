@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2025-2026 eshu-hq
+-- SPDX-License-Identifier: MIT
+-- Copyright (c) 2025-2026 eshu-hq
 
 -- #9299. Authority-epoch backfill for the scanner typed-source tables.
 --
