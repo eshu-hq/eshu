@@ -7,7 +7,7 @@ gates:
     # local command would never run locally.
     category: exactness
     layer: contract
-    purpose: "Fails when the built runtime image is missing git, ssh, or curl, the external tools the collector and HEALTHCHECK exec."
+    purpose: "Fails when the built runtime image is missing any tool in the verifier's REQUIRED_TOOLS list."
     tier: pre-pr
     blocking: true
     # Locally this runs only the hermetic RED/GREEN suite for the verifier: it

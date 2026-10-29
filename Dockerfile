@@ -67,6 +67,9 @@ RUN cd go \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-grafana ./cmd/collector-grafana \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-prometheus-mimir ./cmd/collector-prometheus-mimir \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-scanner-worker ./cmd/scanner-worker \
+    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-scanner-component-image ./cmd/scanner-component-image \
+    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-scanner-component-sbom ./cmd/scanner-component-sbom \
+    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-scanner-component-osruntime ./cmd/scanner-component-osruntime \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-gcp-cloud ./cmd/collector-gcp-cloud \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-azure-cloud ./cmd/collector-azure-cloud \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-webhook-listener ./cmd/webhook-listener \
@@ -169,8 +172,8 @@ FROM ${ESHU_ALPINE_IMAGE} AS runtime
 #
 # openssh-client provides the `ssh` transport git execs for
 # ESHU_GIT_AUTH_METHOD=ssh (#7762). Its libcrypto3 dependency is held by the
-# floor above. scripts/verify-runtime-image-tools.sh asserts git, ssh, and
-# curl are present in the built image.
+# floor above. scripts/verify-runtime-image-tools.sh asserts its
+# REQUIRED_TOOLS list is present in the built image.
 RUN apk add --no-cache git openssh-client curl "c-ares>=1.34.9-r0" \
     "libexpat>=2.9.0-r0" "libssl3>=3.3.7-r2" "libcrypto3>=3.3.7-r2"
 

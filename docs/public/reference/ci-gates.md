@@ -169,7 +169,7 @@ results are derived from the inputs rather than written by hand. See
 - `cassette-author` (blocking): Scans committed cassettes for leaked private data and validates each one against the v1 cassette-format schema.
 - `authz-scoped-route-tests` (blocking): Confirms scoped-token route authorization in code matches the declared authorization-catalog and replay-coverage specs.
 - `docker-image-reproducibility` (blocking): Builds the Docker image twice and checks the two outputs are identical, proving the build is reproducible.
-- `runtime-image-tools` (blocking): Fails when the built runtime image is missing git, ssh, or curl, the external tools the collector and HEALTHCHECK exec.
+- `runtime-image-tools` (blocking): Fails when the built runtime image is missing any tool in the verifier's REQUIRED_TOOLS list.
 - `apk-floors` (blocking): Fails when an apk add version floor in the Dockerfile's final stage is below the version the Alpine repository serves.
 - `pg-statement-report` (blocking): Checks the pg-statement-report script keeps its read-only, no-DDL-without-install, privacy-filter, and not-preloaded contract against a stub psql.
 - `collector-cutover-rollback` (blocking): Checks the collector cutover rollback script keeps its step order, refusal gates, and idempotence against stubbed eshu, kubectl, helm, and psql.

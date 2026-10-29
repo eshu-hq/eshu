@@ -13,6 +13,9 @@
 #   git   repository collector clone, fetch, and committed-tree reads
 #   ssh   git transport for ESHU_GIT_AUTH_METHOD=ssh (GIT_SSH_COMMAND)
 #   curl  the image HEALTHCHECK
+#   eshu-scanner-component-image/sbom/osruntime (#8878) per-analyzer scanner
+#         stdio components exec'd by the extension host over the
+#         collector-sdk/v1alpha3 paged contract
 #
 # A tool passes when <rootfs>/{usr/bin,bin,usr/local/bin}/<tool> resolves,
 # inside the rootfs, to an executable regular file. The path is resolved one
@@ -26,7 +29,7 @@
 # is unusable (missing argument, not a directory, or not an image rootfs).
 set -euo pipefail
 
-REQUIRED_TOOLS=(git ssh curl)
+REQUIRED_TOOLS=(git ssh curl eshu-scanner-component-image eshu-scanner-component-sbom eshu-scanner-component-osruntime)
 SEARCH_DIRS=(usr/bin bin usr/local/bin)
 MAX_LINK_HOPS=16
 

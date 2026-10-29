@@ -8,6 +8,10 @@
 #   RED   a rootfs shaped like the pre-#7762 runtime stage (git and curl, no
 #         ssh): the verifier must exit 1 and name ssh.
 #   GREEN the same rootfs plus usr/bin/ssh: the verifier must exit 0.
+# The #8878 RED/GREEN pair:
+#   RED   a rootfs with the shell tools but no scanner stdio components:
+#         the verifier must exit 1 and name the missing component binary.
+#   GREEN the same rootfs plus the three component binaries: exit 0.
 # False-green guards: an absolute symlink whose target exists only on the
 # host, a relative symlink or a symlinked parent directory whose ".." climbs
 # above the rootfs top, a link path the kernel rejects (through a missing
@@ -28,6 +32,11 @@ PASS=0
 FAIL=0
 record_pass() { PASS=$((PASS + 1)); printf 'ok - %s\n' "$1"; }
 record_fail() { FAIL=$((FAIL + 1)); printf 'not ok - %s\n' "$1" >&2; }
+
+# Scanner stdio component binaries (#8878) ship in the same runtime image
+# and are exec'd by the extension host, so every passing rootfs carries
+# them alongside the shell tools.
+COMPONENT_BINS=(eshu-scanner-component-image eshu-scanner-component-sbom eshu-scanner-component-osruntime)
 
 # make_rootfs NAME TOOL...: create <tmp>/NAME/usr/bin with an executable
 # stub for each TOOL and print the rootfs path.
@@ -76,22 +85,33 @@ red="$(make_rootfs red git curl)"
 expect "RED pre-#7762 rootfs without ssh fails" 1 "ssh" -- "${red}"
 
 # GREEN: adding ssh is the only change needed.
-green="$(make_rootfs green git curl ssh)"
+green="$(make_rootfs green git curl ssh "${COMPONENT_BINS[@]}")"
 expect "GREEN rootfs with git, ssh, curl passes" 0 -- "${green}"
+
+# RED (#8878): the pre-component runtime stage has the shell tools but no
+# scanner stdio components.
+nocomps="$(make_rootfs nocomps git curl ssh)"
+expect "RED rootfs without scanner components fails" 1 "eshu-scanner-component-image" -- "${nocomps}"
+
+# GREEN (#8878): adding the three component binaries is the only change needed.
+withcomps="$(make_rootfs withcomps git curl ssh "${COMPONENT_BINS[@]}")"
+expect "GREEN rootfs with scanner components passes" 0 -- "${withcomps}"
 
 # Every required tool is enforced, not only ssh.
 expect "rootfs without git fails" 1 "git" -- "$(make_rootfs nogit ssh curl)"
 expect "rootfs without curl fails" 1 "curl" -- "$(make_rootfs nocurl git ssh)"
+expect "rootfs without sbom component fails" 1 "eshu-scanner-component-sbom" -- "$(make_rootfs nosbom git curl ssh eshu-scanner-component-image eshu-scanner-component-osruntime)"
+expect "rootfs without osruntime component fails" 1 "eshu-scanner-component-osruntime" -- "$(make_rootfs noosruntime git curl ssh eshu-scanner-component-image eshu-scanner-component-sbom)"
 
 # Tools found under /bin and /usr/local/bin count.
-alt="$(make_rootfs alt git)"
+alt="$(make_rootfs alt git "${COMPONENT_BINS[@]}")"
 mkdir -p "${alt}/usr/local/bin"
 printf '#!/bin/sh\n' >"${alt}/bin/ssh" && chmod 0755 "${alt}/bin/ssh"
 printf '#!/bin/sh\n' >"${alt}/usr/local/bin/curl" && chmod 0755 "${alt}/usr/local/bin/curl"
 expect "tools in /bin and /usr/local/bin pass" 0 -- "${alt}"
 
 # Symlinks resolve inside the rootfs: absolute and relative targets.
-linked="$(make_rootfs linked git curl)"
+linked="$(make_rootfs linked git curl "${COMPONENT_BINS[@]}")"
 mkdir -p "${linked}/usr/libexec"
 printf '#!/bin/sh\n' >"${linked}/usr/libexec/ssh-real" && chmod 0755 "${linked}/usr/libexec/ssh-real"
 ln -s /usr/libexec/ssh-real "${linked}/usr/bin/ssh"
@@ -163,7 +183,7 @@ fi
 
 # Directory symlinks on the path resolve inside the rootfs: a relative one,
 # and an absolute one whose target exists only inside the rootfs.
-dirlinked="$(make_rootfs dirlinked git curl)"
+dirlinked="$(make_rootfs dirlinked git curl "${COMPONENT_BINS[@]}")"
 mkdir -p "${dirlinked}/opt/eshu-7762-ssh/bin"
 printf '#!/bin/sh\n' >"${dirlinked}/opt/eshu-7762-ssh/bin/ssh"
 chmod 0755 "${dirlinked}/opt/eshu-7762-ssh/bin/ssh"
