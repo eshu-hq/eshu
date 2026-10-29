@@ -391,9 +391,16 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /tmp/eshu-ci/go-build
-          key: ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ hashFiles('go/go.sum') }}
+          # A race build stores different objects than go-core's plain build.
+          # Sharing go-core's key let it save first and shadow this lane with a
+          # cache holding no race objects (#9462), so the race lane keeps its own
+          # key. One key for all four shards, not one each: the repository cache
+          # store is nearly full, and the shards share most compiled packages.
+          # "gobuildrace" does not match go-core's "gobuild-" restore prefix, so
+          # neither lane restores the other's cache.
+          key: ${{ runner.os }}-${{ runner.arch }}-gobuildrace-${{ hashFiles('go/go.sum') }}
           restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-gobuild-
+            ${{ runner.os }}-${{ runner.arch }}-gobuildrace-
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
