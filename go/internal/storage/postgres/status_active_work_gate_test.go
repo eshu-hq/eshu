@@ -29,12 +29,12 @@ import (
 // shim files byte for byte; the only differences are those fragments. The measured
 // statement has no mode section; activeWorkSummaryMeasuredText removes it before hashing.
 const (
-	shimA2vThresholdSHA256     = "c124084ef424c72cb0bc508e1223060c9036f8c166ba92648d8d59a55d0f4baf" // s5_a2v_T.sql, T=0.4
-	shimA2vForcedGroupedSHA256 = "af5ab49645105b08f88f2a47dfe1c8f6b0708f61e758c4033f1d9a6795a004d2" // s5_a2v_g.sql
-	shimA2vForcedDetailSHA256  = "972e1f637a8882be63eeb5e9031dcd4f2036b8aba58cf067e1d0cd58b0a8d85e" // s5_a2v_d.sql
-	shimA2vMutDropHistorySHA   = "144d7c3cead6ec484dd13ce1af818ffcbb40a1e3b77e0881033657613b5123a1" // s5_mut_a2v_b_drop_hist_notin.sql
-	shimA2vMutGateNullSHA      = "b4a178e2592fd6f3089bc961768107012ab5671768e6acd5885d889a5518ca2f" // s5_mut_a2v_c_gate_null.sql
-	shimA2vMutGroupedNullSHA   = "cfa14c4af3f4f402db749d206caa0149834510f35a4dbab356f62d5901a3bb3d" // s5_mut_a2v_c2_grouped_null.sql
+	shimA2vThresholdSHA256     = "285793482ecc0f3beacb0c085b23163247e66366f7ee54bdc071085dea443d93" // s5_a2v_T.sql, T=0.4
+	shimA2vForcedGroupedSHA256 = "ec932bd7b229f1f8ea608b0d1f51544664a0e47a365f7e855262fde23d4414e2" // s5_a2v_g.sql
+	shimA2vForcedDetailSHA256  = "14f9bb9d9bcafa86b7e459b5e28615d1f3af534d3040f111caa53b887a434cd2" // s5_a2v_d.sql
+	shimA2vMutDropHistorySHA   = "27f7717916a3e5733e6b6812cab58211a4ec439d07284a3afa456129dcefb2e9" // s5_mut_a2v_b_drop_hist_notin.sql
+	shimA2vMutGateNullSHA      = "36ecabef719fb8449e082a180c2260b4df1cd8990b54b1be014bfeb75fd990c0" // s5_mut_a2v_c_gate_null.sql
+	shimA2vMutGroupedNullSHA   = "70322152ed1739523280cfb45d56b9869117a4ebc083cd53572be0d3a7aadfae" // s5_mut_a2v_c2_grouped_null.sql
 )
 
 // Forced-branch threshold literals of the shim's _g/_d renderings: the MCV

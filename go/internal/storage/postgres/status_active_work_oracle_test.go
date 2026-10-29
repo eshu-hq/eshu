@@ -428,4 +428,4 @@ ORDER BY section, ordinal
 `
 
 // activeWorkSummaryPreHistoryGroupsOracleSHA256 pins the oracle text.
-const activeWorkSummaryPreHistoryGroupsOracleSHA256 = "888864a01187a44ee648faa72c56f2d2d156753bc496138b36176d2720191b9c"
+const activeWorkSummaryPreHistoryGroupsOracleSHA256 = "14b7334d4ec5e8e9a3ad864c7c9c73a55e77119fdb217a36affcee9f93473aee"
