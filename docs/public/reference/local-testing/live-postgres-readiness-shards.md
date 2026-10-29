@@ -299,8 +299,10 @@ and requires six matching reports. The selected aggregate fails if the plan,
 a shard, or report selection fails.
 
 To produce a v2 file (the first one, or a refit), collect at least two
-complete, successful `main` workflow runs with the same inventory, runner image
-name, Go toolchain, Postgres image digest, and proof boundaries. Save every
+complete, successful `main` workflow runs with the same runner image
+name, Go toolchain, Postgres image digest, proof boundaries, and cache era.
+Runs of different inventories pool only from four runs up (see
+[Inventories and cache eras](#inventories-and-cache-eras)). Save every
 shard job's metadata and log. Mixed hosted-runner image versions are accepted,
 and the refresher prints the version it saw on each shard. GitHub rolls hosted
 images over several days and standard runners cannot pin a version. The
@@ -375,11 +377,37 @@ refit output is always six-shard, and the committed file, the planner, the CI
 reader and the drift gates still accept only six. The pricing line names each
 source's shard count.
 
+### Inventories and cache eras
+
+Each enrolled live test changes main's inventory, so a pool that needed one
+inventory could close before it reached four runs (#9566). A pool of four or
+more runs may now mix inventories. Each test of the newest run's inventory is
+priced at the p75 of the runs that contain it when it has at least four
+samples. A test with fewer samples is left out of `test_seconds`, so it is
+priced at `default_test_seconds` and counts toward the drift gate. Tests that
+the newest run no longer has are dropped. First-use, repeat, cold, and fixed
+seconds still come from every run, and each run's rows are still checked
+against its own commit. A mixed pool prints a
+`weights refresh v2: inventories ...` line that names each defaulted test and
+its sample count; copy it into the refit PR body. A two- or three-run pool
+still needs one inventory.
+
+A pool also holds one cache era, read per shard job. A job without a
+`Restore Go build cache` step is cold. The step must succeed, but
+`actions/cache/restore` succeeds on a miss too, so the restore step's section
+of the shard log decides: `Cache restored from key:` is warm (#9462), and
+`Cache not found for input keys` is cold, because a miss compiles what a cold
+run compiles. Cold residuals carry the compile time that the cache removes, so
+the refresher refuses by name a pool that mixes eras, a run whose shards
+differ in era, and any other restore state. It prints the era and the hit,
+miss, and no-step counts on a `weights refresh v2: cache era ...` line. The
+next pool is warm-era only.
+
 A pooled refit PR must meet these gates:
 
 - Declare the pool before the fit: every green `main` push run of
-  `live-postgres-readiness.yml` that shares the inventory of the PR's base
-  and one runner profile, five- or six-shard, in run-ID order. The minimum is
+  `live-postgres-readiness.yml` in one cache era with one runner profile, at
+  any inventory, five- or six-shard, in run-ID order. The minimum is
   4 runs, there is no maximum, and no run is skipped for its outcome. If the
   pool fails the cold fit, do not re-select runs; take the failure to the
   issue.
