@@ -55,11 +55,11 @@ func entityPolicyClasses() []entityPolicyClass {
 		},
 		{
 			name: "decode-like at limit 50", corpus: large(1128*ms, decode...), limit: 50,
-			outcome: "exact", rows: 50, endedIn: "continuation", minMS: 60, maxMS: 100,
+			outcome: "exact", rows: 50, endedIn: "continuation", minMS: 175, maxMS: 215,
 		},
 		{
 			name: "decode-like at limit 100", corpus: large(1128*ms, decode...), limit: 100,
-			outcome: "exact", rows: 100, endedIn: "continuation", minMS: 130, maxMS: 160,
+			outcome: "exact", rows: 100, endedIn: "continuation", minMS: 340, maxMS: 380,
 		},
 		// R2.2 was the one disclosed trade: a partial of 149 rows plus one
 		// resume. Since #8002 the density-gated extension fills the page in
@@ -69,7 +69,7 @@ func entityPolicyClasses() []entityPolicyClass {
 		{
 			name: "decode-like at limit 200 (R2.2 exact via extension)", corpus: large(1128*ms, decode...), limit: 200,
 			outcome: "exact", rows: 200, endedIn: "extension",
-			minMS: 200, maxMS: 300,
+			minMS: 545, maxMS: 590,
 		},
 		{
 			name: "a-like at limit 200", corpus: at(3700*ms, aPositions...), limit: 200,
@@ -77,17 +77,17 @@ func entityPolicyClasses() []entityPolicyClass {
 		},
 		{
 			name: "db_-like at limit 200", corpus: at(3700*ms, dbPositions...), limit: 200,
-			outcome: "exact", rows: 200, endedIn: "continuation", maxMS: 20,
+			outcome: "exact", rows: 200, endedIn: "continuation", maxMS: 50,
 		},
 		// Rare bitmap classes exact under the tail cap (RA-1). The file split
 		// cancels both tails.
 		{
 			name: "process_entries-like", corpus: large(462*ms, processEntriesPositions...), limit: 10,
-			outcome: "exhausted", rows: 2, tailRan: true, endedIn: "tail", minMS: 600, maxMS: 650,
+			outcome: "exhausted", rows: 2, tailRan: true, endedIn: "tail", minMS: 845, maxMS: 890,
 		},
 		{
 			name: "FeaturesTab-like", corpus: at(400*ms, featuresTabPositions...), limit: 10,
-			outcome: "exhausted", rows: 4, tailRan: true, endedIn: "tail", minMS: 540, maxMS: 590,
+			outcome: "exhausted", rows: 4, tailRan: true, endedIn: "tail", minMS: 785, maxMS: 830,
 		},
 		// R2.3 row (i) and the from_event-like class: at the default budget
 		// the tail timeout (638 ms) is outside the 13.1 MB block, so the
@@ -95,9 +95,9 @@ func entityPolicyClasses() []entityPolicyClass {
 		// floor puts the timeout inside the block. An 80 ms cap also fails the
 		// row, but by skipping the tail, which is under the 150 ms floor.
 		{
-			name: "from_event-like, 13.1 MB value, default budget (R2.3 i)", corpus: large(1236*ms, fromEventPositions...), limit: 10,
+			name: "from_event-like, 13.1 MB value, default budget (R2.3 i)", corpus: large(3090*ms, fromEventPositions...), limit: 10,
 			outcome: "partial", rows: 0, tailRan: true, tailCancelled: true, endedIn: "tail",
-			minMS: 790, maxMS: 810, maxOverrunMS: 10,
+			minMS: 1950, maxMS: 2050, maxOverrunMS: 10,
 		},
 		// R2.3 row (ii-a): at 160 ms the tail timeout is 128 ms, inside the
 		// block; the cancel lands at 170 ms, 42 ms late, under the 100 ms
@@ -105,7 +105,7 @@ func entityPolicyClasses() []entityPolicyClass {
 		{
 			name: "from_event-like, 13.1 MB value, 160 ms budget (R2.3 ii-a)", corpus: large(1236*ms, fromEventPositions...),
 			budget: 160 * ms, limit: 10, outcome: "partial", rows: 0, tailRan: true, tailCancelled: true, endedIn: "tail",
-			minMS: 190, maxMS: 205, minOverrunMS: 40, maxOverrunMS: 45,
+			minMS: 165, maxMS: 195, minOverrunMS: 40, maxOverrunMS: 45,
 		},
 		// R2.3 row (ii-b): at the 100 ms minimum budget a 40 ms probe leaves
 		// a 60 ms tail timeout; the cancel lands at 170 ms, 110 ms late.
@@ -119,26 +119,26 @@ func entityPolicyClasses() []entityPolicyClass {
 			minMS: 205, maxMS: 215, minOverrunMS: 105, maxOverrunMS: 115, largeDoc: true,
 		},
 		// Selective classes: the tail answers them. Seeded RED for the
-		// selective long identifier: a 0.25 x budget tail cap (200 ms).
+		// selective long identifier: a 200 ms tail cap cancels its 226 ms tail.
 		{
 			name: "getApplicationContext-like (selective)", corpus: at(226*ms, selectivePositions...), limit: 10,
-			outcome: "exact", rows: 10, tailRan: true, endedIn: "tail", minMS: 370, maxMS: 410,
+			outcome: "exact", rows: 10, tailRan: true, endedIn: "tail", minMS: 610, maxMS: 650,
 		},
 		{
 			name: "showImage-like", corpus: at(139*ms, showImagePositions...), limit: 10,
-			outcome: "exact", rows: 10, tailRan: true, endedIn: "tail", minMS: 285, maxMS: 320,
+			outcome: "exact", rows: 10, tailRan: true, endedIn: "tail", minMS: 525, maxMS: 565,
 		},
 		{
 			name: "checkPrerequisites-like", corpus: at(24*ms, checkPrerequisitesPositions...), limit: 10,
-			outcome: "exact", rows: 10, tailRan: true, endedIn: "tail", minMS: 170, maxMS: 200,
+			outcome: "exact", rows: 10, tailRan: true, endedIn: "tail", minMS: 410, maxMS: 450,
 		},
 		{
 			name: "createNewVersion-like", corpus: at(37*ms, createNewVersionPositions...), limit: 10,
-			outcome: "exact", rows: 10, tailRan: true, endedIn: "tail", minMS: 185, maxMS: 215,
+			outcome: "exact", rows: 10, tailRan: true, endedIn: "tail", minMS: 420, maxMS: 465,
 		},
 		{
 			name: "zero-match", corpus: at(4 * ms), limit: 10,
-			outcome: "exhausted", rows: 0, tailRan: true, endedIn: "tail", minMS: 155, maxMS: 180,
+			outcome: "exhausted", rows: 0, tailRan: true, endedIn: "tail", minMS: 390, maxMS: 430,
 		},
 		// No-trigram class with rare matches. The S1 tail measurement showed a
 		// 3.7 s parallel scan cancelled at the tail cap, 45 ms late. Since #8002 a
@@ -149,36 +149,36 @@ func entityPolicyClasses() []entityPolicyClass {
 		{
 			name: "no-trigram rare, match inside the key-order walk (#8002)", pattern: "db_",
 			corpus: at(3700*ms, 80_000), limit: 10,
-			outcome: "exhausted", rows: 1, endedIn: "tail_skipped_no_trigram", minMS: 430, maxMS: 470,
+			outcome: "exhausted", rows: 1, endedIn: "tail_skipped_no_trigram", minMS: 1105, maxMS: 1150,
 		},
 		// The same class when the match lies past what a short budget walks:
 		// a partial that names the limit instead of a cancelled tail.
 		{
 			name: "no-trigram rare, match past the budgeted walk (#8002)", pattern: "db_",
 			corpus: at(3700*ms, 80_000), budget: 150 * ms, limit: 10,
-			outcome: "partial", rows: 0, endedIn: "tail_skipped_no_trigram", minMS: 130, maxMS: 150,
+			outcome: "partial", rows: 0, endedIn: "tail_skipped_no_trigram", minMS: 105, maxMS: 140,
 			maxOverrunMS: 10, reason: querycontract.SearchPartialPatternHasNoTrigram,
 		},
 		// Rule 1 guard against skipping the tail after a match. Seeded RED:
 		// "skip the tail when a match was seen" turns it partial.
 		{
 			name: "SYN early-match-selective", corpus: at(300*ms, 150, 40_000, 80_000), limit: 10,
-			outcome: "exhausted", rows: 3, tailRan: true, endedIn: "tail", minMS: 445, maxMS: 480,
+			outcome: "exhausted", rows: 3, tailRan: true, endedIn: "tail", minMS: 685, maxMS: 730,
 		},
 		{
 			name: "SYN zero-match-mid", corpus: at(270 * ms), limit: 10,
-			outcome: "exhausted", rows: 0, tailRan: true, endedIn: "tail", minMS: 415, maxMS: 450,
+			outcome: "exhausted", rows: 0, tailRan: true, endedIn: "tail", minMS: 655, maxMS: 700,
 		},
 		{
-			name: "SYN zero-match-common", corpus: large(1260 * ms), limit: 10,
+			name: "SYN zero-match-common", corpus: large(3150 * ms), limit: 10,
 			outcome: "partial", rows: 0, tailRan: true, tailCancelled: true, endedIn: "tail",
-			minMS: 790, maxMS: 810, maxOverrunMS: 10,
+			minMS: 1950, maxMS: 2050, maxOverrunMS: 10,
 		},
-		// Rule 1 guard on tail room. Seeded RED: a 0.60 x budget tail cap
-		// (480 ms) cancels the 500 ms tail.
+		// Rule 1 guard on tail room. Seeded RED: a 480 ms tail cap cancels
+		// the 500 ms tail.
 		{
 			name: "SYN half-early-rare", corpus: at(500*ms, halfEarlyRarePositions...), limit: 10,
-			outcome: "exact", rows: 10, tailRan: true, endedIn: "tail", minMS: 645, maxMS: 680,
+			outcome: "exact", rows: 10, tailRan: true, endedIn: "tail", minMS: 885, maxMS: 930,
 		},
 	}
 }
@@ -214,8 +214,10 @@ func TestEntityPolicyClasses(t *testing.T) {
 			if got.elapsedMS < tc.minMS || got.elapsedMS > tc.maxMS {
 				t.Fatalf("elapsed = %d ms, want %d..%d ms", got.elapsedMS, tc.minMS, tc.maxMS)
 			}
-			if got.elapsedMS > 1000 {
-				t.Fatalf("elapsed = %d ms, over the 1.0 s bar (rule 3)", got.elapsedMS)
+			// Rule 3 ceiling follows the #9306 ruling (rare/no-match p95 gate
+			// 2500 ms), not the retired 1.0 s bar.
+			if got.elapsedMS > 2500 {
+				t.Fatalf("elapsed = %d ms, over the 2.5 s bar (rule 3)", got.elapsedMS)
 			}
 			if page.Partial == nil {
 				return
@@ -264,8 +266,8 @@ func TestEntityPolicyDecodeAtLimit200ExactInOneCall(t *testing.T) {
 	if got.endedIn != "extension" {
 		t.Fatalf("ended_in = %q, want extension", got.endedIn)
 	}
-	if got.elapsedMS > 1000 {
-		t.Fatalf("elapsed = %d ms, over the 1.0 s bar", got.elapsedMS)
+	if got.elapsedMS > 2500 {
+		t.Fatalf("elapsed = %d ms, over the 2.5 s bar (#9306 ruling)", got.elapsedMS)
 	}
 	if want := matchEntityKeys(corpus)[:200]; !equalKeys(entityKeys(got.page.Hits), want) {
 		t.Fatalf("one call returned %d keys, want the first 200 matches", len(got.page.Hits))
@@ -279,7 +281,7 @@ func TestEntityPolicyDecodeAtLimit200ExactInOneCall(t *testing.T) {
 func TestEntityPolicyFromEventChainEndsExact(t *testing.T) {
 	t.Parallel()
 
-	corpus := withEntityLargeValue(entityPolicyCorpus(1236*ms, fromEventPositions...))
+	corpus := withEntityLargeValue(entityPolicyCorpus(3090*ms, fromEventPositions...))
 	cursor := querycontract.SearchCursor{}
 	var gathered []string
 	calls := 0
@@ -289,8 +291,8 @@ func TestEntityPolicyFromEventChainEndsExact(t *testing.T) {
 			t.Fatalf("no exact page after %d calls", calls-1)
 		}
 		got := runEntityPolicy(t, corpus, 0, 10-len(gathered), cursor)
-		if got.elapsedMS > 1000 {
-			t.Fatalf("call %d: elapsed = %d ms, over the 1.0 s bar", calls, got.elapsedMS)
+		if got.elapsedMS > 2500 {
+			t.Fatalf("call %d: elapsed = %d ms, over the 2.5 s bar (#9306 ruling)", calls, got.elapsedMS)
 		}
 		gathered = append(gathered, entityKeys(got.page.Hits)...)
 		if got.page.Partial == nil {

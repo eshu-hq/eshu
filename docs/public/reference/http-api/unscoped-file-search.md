@@ -23,13 +23,13 @@ One call is one read-only snapshot transaction:
    `503` as before.
 2. A **probe** of 200 rows in `repo_id, relative_path` order. Its timeout is
    the remaining budget.
-3. **Continuation** steps of 500 rows, capped at 0.55 x the budget (440 ms at
+3. **Continuation** steps of 500 rows, capped at 0.55 x the budget (1100 ms at
    the default). Common tokens whose matches sit a few thousand rows deep in
    key order are answered here, without the tail. Each step's timeout is the
    room left in the cap, so a window that holds one large file completes when
    the cap can pay for it.
 4. A **trigram tail** with a timeout of `min(remaining, 0.5 x budget)`. If less
-   than the floor (150 ms at the default) remains, the tail is skipped.
+   than the floor (375 ms at the default) remains, the tail is skipped.
 5. **Continuation** with the rest of the budget. At the default ratios
    (continuation cap 0.55, tail cap 0.5) a cancelled tail leaves too little
    budget for another step, so this phase issues no statement.
@@ -38,7 +38,7 @@ A window shorter than its size means the key space ended, so the answer is
 complete. The page is the first `limit` matches in key order after `offset`
 matches; the server reads `offset + limit + 1` matches to set `truncated`.
 
-The budget is `ESHU_CONTENT_SEARCH_BUDGET_MS` (default 800, accepted
+The budget is `ESHU_CONTENT_SEARCH_BUDGET_MS` (default 2000, accepted
 100..10000; see [Environment Variable Reference](../env-registry/api-and-auth.md#api)). Every
 internal timeout scales with it.
 
@@ -64,7 +64,7 @@ If the budget ends first, the answer is **HTTP 200**, never an error:
       "rows_scanned_in_order": 7700,
       "rows_matched": 1,
       "cursor": {"repo_id": "...", "relative_path": "..."},
-      "budget_ms": 800, "elapsed_ms": 785, "overrun_ms": 0,
+      "budget_ms": 2000, "elapsed_ms": 1985, "overrun_ms": 0,
       "progressed": true,
       "hint": "add repo_id (repo_ids in the MCP tool) to scope the search"
     }

@@ -32,8 +32,8 @@ route, `db.sql.table=content_files`) or
 `search.overrun_ms`, `search.probe_rows_visited`, `search.continuation_steps`,
 `search.continuation_rows`, `search.tail_ran`, `search.tail_cancelled`,
 `search.outcome` (`exact`, `partial`, `exhausted`), `search.cursor_present`,
-`search.phase_one_cap_ms` (the continuation cap at the call's budget: 440 on
-the file route and 160 on the entity route at the default budget),
+`search.phase_one_cap_ms` (the continuation cap at the call's budget: 1100 on
+the file route and 400 on the entity route at the default budget),
 `search.ended_in`, `search.steps_cancelled`, `search.progressed`,
 `search.want` (offset + limit + 1, the matches the walk had to find; a high
 value on a partial says the caller asked for a large page) and

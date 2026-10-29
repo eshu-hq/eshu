@@ -15,11 +15,13 @@ import (
 const EnvBudgetMS = "ESHU_CONTENT_SEARCH_BUDGET_MS"
 
 const (
-	// DefaultBudget is the work budget when EnvBudgetMS is unset. It keeps the
-	// common case under the one-second end-to-end bar; a cancelled statement
-	// can still overrun its own timeout by one candidate's recheck, and the
-	// result reports that overrun.
-	DefaultBudget = 800 * time.Millisecond
+	// DefaultBudget is the work budget when EnvBudgetMS is unset. It is the
+	// smallest measured budget where a selective unscoped query completes on
+	// the QA corpus (#9306 ruling 2026-10-29: rare complete p95 1921 ms within
+	// the 2500 ms gate; 800 ms left rare 21/21 partial at ~8.3% coverage). A
+	// cancelled statement can still overrun its own timeout by one candidate's
+	// recheck, and the result reports that overrun.
+	DefaultBudget = 2000 * time.Millisecond
 	// MinBudget is the smallest accepted budget. Below it the tail floor and
 	// the phase rooms shrink under the cost of one round trip.
 	MinBudget = 100 * time.Millisecond
@@ -89,8 +91,15 @@ type plan struct {
 }
 
 func newPlan(budget time.Duration, f figures) plan {
+	// Scale in whole milliseconds: the nanosecond product
+	// atDefault*budget overflows int64 once atDefault exceeds ~920 ms at a
+	// 10 s budget, wrapping the caps negative (#9306: the walk then ends in
+	// the probe with ended_in=budget). Millisecond products stay far inside
+	// int64, and the quotient matches the nanosecond one exactly for the
+	// millisecond budgets the API accepts; setTimeout quantizes to whole
+	// milliseconds anyway.
 	scale := func(atDefault time.Duration) time.Duration {
-		return time.Duration(int64(atDefault) * int64(budget) / int64(DefaultBudget))
+		return time.Duration(atDefault.Milliseconds()*budget.Milliseconds()/DefaultBudget.Milliseconds()) * time.Millisecond
 	}
 	return plan{
 		budget:        budget,

@@ -15,7 +15,7 @@ import (
 // A pattern with no three-character alphanumeric run yields no trigram for
 // pg_trgm to extract, so the tail statement can only plan a sequential scan
 // (measured on the QA environment read replica at 3,930 ms warm for `db_` against a
-// 400 ms tail cap, #8002). The walk must skip that tail, spend the whole
+// 1000 ms tail cap, #8002). The walk must skip that tail, spend the whole
 // remaining budget in key order, and state the limit in the partial reason
 // instead of burning the cap on a statement it always cancels.
 func TestSearchSkipsTailWhenPatternHasNoTrigram(t *testing.T) {

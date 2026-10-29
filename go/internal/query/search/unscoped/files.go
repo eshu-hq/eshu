@@ -106,15 +106,20 @@ var fileShape = shape[querycontract.FileContent, querycontract.SearchCursor]{
 		// 0.55 x budget (#7730 continuation shim of 2026-10-11,
 		// 7730-continuation-shim-20261011.md, on the QA environment read of
 		// 2026-10-11): one key-ordered window to the 11th match of the common
-		// tokens that ended partial at 0.15 costs 289-409 ms, so 440 ms reaches
-		// them, and the 360 ms left for the tail still covers the measured
+		// tokens that ended partial at 0.15 costs 289-409 ms, so 1100 ms reaches
+		// them, and the 900 ms left for the tail still covers the measured
 		// 268 ms zero-match and 300 ms selective tails. Caps 0.50 to 0.60 pass
 		// the model's accuracy rules; 0.65 turns the selective class partial.
-		phaseOneCap: 440 * time.Millisecond,
+		// Stated at the 2000 ms default (#9306 ruling 2026-10-29: re-based x2.5
+		// from the 800 ms statement; the QA baseline — rare complete p95
+		// 1921 ms, no-match full scan p95 1129 ms on 164,886 rows — is the
+		// measurement. Explicit-budget behavior is unchanged: newPlan divides
+		// by DefaultBudget, so the x2.5 cancels exactly.
+		phaseOneCap: 1100 * time.Millisecond,
 		// 0.5 x budget: the largest tail timeout (#7730 V4c).
-		tailCap: 400 * time.Millisecond,
+		tailCap: 1000 * time.Millisecond,
 		// The smallest tail timeout worth issuing (#7730 V4c).
-		tailFloor: 150 * time.Millisecond,
+		tailFloor: 375 * time.Millisecond,
 		// No density extension on the file route (#8002): zero keeps the
 		// file walk byte-identical.
 		extensionRows: 0,

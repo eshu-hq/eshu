@@ -100,20 +100,21 @@ func policyClasses() []policyClass {
 		},
 		{
 			// Rule 2 and the disclosed cost: two rows (the 0.15 cap gave one),
-			// the tail meets the large document 110 ms in and the cancel lands
-			// at 809 ms.
+			// the tail meets the large document 275 ms in and the cancel lands
+			// at 2022 ms. The window scales with the budget: the ~890 ms tail
+			// timeout must fall inside the meeting span for the cancel to fire.
 			name: "kafka-like, large document early",
 			corpus: func() *fakeCorpus {
-				return withLargeDocument(policyCorpus(1278*ms, 120, 5750, 21691, 22109, 22119), 110*ms, 809*ms)
+				return withLargeDocument(policyCorpus(1278*ms, 120, 5750, 21691, 22109, 22119), 275*ms, 2022*ms)
 			},
-			outcome: "partial", rows: 2, tailRan: true, tailCancelled: true, minMS: 1150, maxMS: 1300, largeDocReason: true,
+			outcome: "partial", rows: 2, tailRan: true, tailCancelled: true, minMS: 3080, maxMS: 3180, largeDocReason: true,
 		},
 		{
 			name: "kafka-like, large document late",
 			corpus: func() *fakeCorpus {
-				return withLargeDocument(policyCorpus(1278*ms, 120, 5750, 21691, 22109, 22119), 140*ms, 921*ms)
+				return withLargeDocument(policyCorpus(1278*ms, 120, 5750, 21691, 22109, 22119), 350*ms, 2302*ms)
 			},
-			outcome: "partial", rows: 2, tailRan: true, tailCancelled: true, minMS: 1280, maxMS: 1400, largeDocReason: true,
+			outcome: "partial", rows: 2, tailRan: true, tailCancelled: true, minMS: 3360, maxMS: 3460, largeDocReason: true,
 		},
 		{
 			// Rule 4 guard: without the large document the tail finishes and
@@ -121,7 +122,7 @@ func policyClasses() []policyClass {
 			// match fails this row.
 			name:    "kafka-like without the large document, tail 150 ms",
 			corpus:  func() *fakeCorpus { return policyCorpus(150*ms, 120, 5750, 21691, 22109, 22119) },
-			outcome: "exhausted", rows: 5, tailRan: true, minMS: 500, maxMS: 650,
+			outcome: "exhausted", rows: 5, tailRan: true, minMS: 1180, maxMS: 1280,
 		},
 		{
 			// Unchanged: the continuation fills the page before any tail.
@@ -132,30 +133,31 @@ func policyClasses() []policyClass {
 			outcome: "exact", rows: 10, minMS: 100, maxMS: 170,
 		},
 		{
-			// Unchanged: 2 matches past the walk, a 430 ms cold tail.
-			name:    "xyzzy-like: 2 matches past the walk, tail 430 ms",
-			corpus:  func() *fakeCorpus { return policyCorpus(430*ms, 60000, 90000) },
-			outcome: "partial", rows: 0, tailRan: true, tailCancelled: true, minMS: 780, maxMS: 830,
+			// 2 matches past the walk; the tail costs 950 ms against ~890 ms
+			// of room left, so it cancels and the call is partial with 0 rows.
+			name:    "xyzzy-like: 2 matches past the walk, tail 950 ms",
+			corpus:  func() *fakeCorpus { return policyCorpus(950*ms, 60000, 90000) },
+			outcome: "partial", rows: 0, tailRan: true, tailCancelled: true, minMS: 1950, maxMS: 2050,
 		},
 		{
 			// Pins the tail reserve after the cap: a 268 ms tail finishes.
 			name:    "zero-match, tail 268 ms",
 			corpus:  func() *fakeCorpus { return policyCorpus(268 * ms) },
-			outcome: "exhausted", rows: 0, tailRan: true, minMS: 650, maxMS: 720,
+			outcome: "exhausted", rows: 0, tailRan: true, minMS: 1300, maxMS: 1400,
 		},
 		{
 			// Rule 1 guard. Seeded RED: a 0.65 cap leaves too little for the
 			// 300 ms tail and turns this class partial.
 			name:    "selective: 40,000, 80,000, 120,000, tail 300 ms",
 			corpus:  func() *fakeCorpus { return policyCorpus(300*ms, 40000, 80000, 120000) },
-			outcome: "exhausted", rows: 3, tailRan: true, minMS: 680, maxMS: 760,
+			outcome: "exhausted", rows: 3, tailRan: true, minMS: 1330, maxMS: 1430,
 		},
 		{
 			// Rule 1 guard against skipping the tail after a match. Seeded
 			// RED: "skip the tail when a match was seen" turns it partial.
 			name:    "early-match-selective: 150, 40,000, 80,000, tail 300 ms",
 			corpus:  func() *fakeCorpus { return policyCorpus(300*ms, 150, 40000, 80000) },
-			outcome: "exhausted", rows: 3, tailRan: true, minMS: 680, maxMS: 760,
+			outcome: "exhausted", rows: 3, tailRan: true, minMS: 1330, maxMS: 1430,
 		},
 	}
 }

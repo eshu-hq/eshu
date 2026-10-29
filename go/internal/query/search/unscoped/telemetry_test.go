@@ -25,7 +25,9 @@ import (
 // partialCorpus is the dense-late class: the tail is cancelled and the budget
 // ends the walk, so every signal fires.
 func partialCorpus() *fakeCorpus {
-	corpus := newCorpus(20000, 50*time.Microsecond, func(i int) bool { return i >= 3000 && i%50 == 0 })
+	// Larger than the capped continuation can exhaust, so the tail meets
+	// the dense class and the budget ends the walk.
+	corpus := newCorpus(60000, 50*time.Microsecond, func(i int) bool { return i >= 3000 && i%500 == 0 })
 	corpus.tailCost = func(int) time.Duration { return 3 * time.Second }
 	corpus.tailLag = 120 * ms
 	return corpus
@@ -98,8 +100,8 @@ func TestSearchRecordsSpanAttributesForPartial(t *testing.T) {
 			t.Errorf("%s = %q, want %q", key, got, want)
 		}
 	}
-	if got := attrs["search.budget_ms"].AsInt64(); got != 800 {
-		t.Errorf("search.budget_ms = %d, want 800", got)
+	if got := attrs["search.budget_ms"].AsInt64(); got != 2000 {
+		t.Errorf("search.budget_ms = %d, want 2000", got)
 	}
 	if got := attrs["search.overrun_ms"].AsInt64(); got != 120 {
 		t.Errorf("search.overrun_ms = %d, want 120", got)
@@ -119,11 +121,11 @@ func TestSearchRecordsSpanAttributesForPartial(t *testing.T) {
 	if got := attrs["search.continuation_rows"].AsInt64(); got != attrs["search.continuation_steps"].AsInt64()*500 {
 		t.Errorf("search.continuation_rows = %d, want steps x 500", got)
 	}
-	if got := attrs["search.elapsed_ms"].AsInt64(); got < 700 {
+	if got := attrs["search.elapsed_ms"].AsInt64(); got < 1900 {
 		t.Errorf("search.elapsed_ms = %d, want about the budget", got)
 	}
-	if got := attrs["search.phase_one_cap_ms"].AsInt64(); got != 440 {
-		t.Errorf("search.phase_one_cap_ms = %d, want 440 at the default budget", got)
+	if got := attrs["search.phase_one_cap_ms"].AsInt64(); got != 1100 {
+		t.Errorf("search.phase_one_cap_ms = %d, want 1100 at the default budget", got)
 	}
 	if got := attrs["search.ended_in"].AsString(); got != "tail" {
 		t.Errorf("search.ended_in = %q, want tail: the cancelled tail is the last statement", got)
@@ -306,8 +308,8 @@ func TestSearchExactEmitsNoPartialLog(t *testing.T) {
 	}
 }
 
-// Every timeout scales with the budget. At half the default the tail cap is
-// half of 400 ms and the continuation cap half of 440 ms. A probe of 100 ms
+// Every timeout scales with the budget. At an explicit 400 ms budget the tail
+// cap is 200 ms and the continuation cap 220 ms. A probe of 100 ms
 // predicts a 250 ms step, over the 220 ms cap, so no step runs and the tail
 // cap is what binds the tail's timeout.
 func TestSearchScalesTailTimeoutWithBudget(t *testing.T) {

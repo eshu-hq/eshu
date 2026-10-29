@@ -13,7 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/search/unscoped"
 )
 
-// runEntities searches the entity corpus with the default 800 ms budget and a
+// runEntities searches the entity corpus with the default 2000 ms budget and a
 // fake clock.
 func runEntities(
 	t *testing.T,
@@ -150,7 +150,7 @@ func TestEntitySearchBudgetStopReturnsReasonCodedPartial(t *testing.T) {
 	if fdb.tx.indexOff {
 		t.Error("enable_indexscan still off after the cancelled tail")
 	}
-	if partial.ElapsedMS < 700 || partial.ElapsedMS > 850 {
+	if partial.ElapsedMS < 1900 || partial.ElapsedMS > 2050 {
 		t.Errorf("elapsed_ms = %d, want about the budget", partial.ElapsedMS)
 	}
 	if partial.OverrunMS != 0 {

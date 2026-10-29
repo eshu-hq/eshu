@@ -23,7 +23,7 @@
 //     budget, each with the room left in that cap as its statement timeout;
 //  3. a trigram tail inside a savepoint with index scans disabled and a
 //     statement timeout of min(remaining budget, 0.50 / 0.80 x budget),
-//     skipped when less than the tail floor (150 ms) is left, and skipped
+//     skipped when less than the tail floor (375 ms) is left, and skipped
 //     when the pattern has no three-character alphanumeric run, because
 //     pg_trgm then extracts no trigram and the tail could only run as an
 //     unbounded sequential scan; the partial reason states that limit
@@ -48,7 +48,7 @@
 // the measured elapsed time and overrun; it never returns an error for a
 // spent budget and never returns a short page that looks complete.
 //
-// Every figure scales linearly with the budget (EnvBudgetMS, default 800 ms).
+// Every figure scales linearly with the budget (EnvBudgetMS, default 2000 ms).
 // The package depends on db.ReadTransaction, not on database/sql, and reads
 // the clock through Searcher.Now so the budget decisions are testable.
 package unscoped

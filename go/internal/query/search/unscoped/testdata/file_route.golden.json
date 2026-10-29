@@ -36,7 +36,7 @@
       "statements": [
         "s01 | ",
         "s02 | ",
-        "s03 | execMode=exec | string:800ms",
+        "s03 | execMode=exec | string:2000ms",
         "s04 | ",
         "s05 | execMode=exec | string:needle | int64:200 | int64:8",
         "s06 | "
@@ -46,7 +46,7 @@
         "db.operation": "search_file_content_any_repo_page",
         "db.sql.table": "content_files",
         "db.system": "postgresql",
-        "search.budget_ms": "800",
+        "search.budget_ms": "2000",
         "search.continuation_rows": "0",
         "search.continuation_steps": "0",
         "search.cursor_present": "false",
@@ -55,7 +55,7 @@
         "search.ended_in": "probe",
         "search.outcome": "exact",
         "search.overrun_ms": "0",
-        "search.phase_one_cap_ms": "440",
+        "search.phase_one_cap_ms": "1100",
         "search.probe_rows_visited": "200",
         "search.progressed": "true",
         "search.scope": "unscoped",
@@ -241,7 +241,7 @@
       "statements": [
         "s01 | ",
         "s02 | ",
-        "s03 | execMode=exec | string:800ms",
+        "s03 | execMode=exec | string:2000ms",
         "s04 | ",
         "s05 | execMode=exec | string:needle | int64:200 | int64:11",
         "s06 | "
@@ -251,7 +251,7 @@
         "db.operation": "search_file_content_any_repo_page",
         "db.sql.table": "content_files",
         "db.system": "postgresql",
-        "search.budget_ms": "800",
+        "search.budget_ms": "2000",
         "search.continuation_rows": "0",
         "search.continuation_steps": "0",
         "search.cursor_present": "false",
@@ -260,7 +260,7 @@
         "search.ended_in": "probe",
         "search.outcome": "exhausted",
         "search.overrun_ms": "0",
-        "search.phase_one_cap_ms": "440",
+        "search.phase_one_cap_ms": "1100",
         "search.probe_rows_visited": "0",
         "search.progressed": "true",
         "search.scope": "unscoped",
@@ -727,21 +727,21 @@
           "repo_id": "",
           "relative_path": ""
         },
-        "budget_ms": 800,
-        "elapsed_ms": 805,
-        "overrun_ms": 5,
+        "budget_ms": 2000,
+        "elapsed_ms": 2010,
+        "overrun_ms": 10,
         "progressed": false,
         "hint": "this call scanned no rows inside the budget, so resuming from this cursor repeats the same request and will not progress: add repo_id (repo_ids in the MCP tool) to scope the search, or ask the operator to raise the server setting ESHU_CONTENT_SEARCH_BUDGET_MS"
       },
       "statements": [
         "s01 | ",
         "s02 | ",
-        "s03 | execMode=exec | string:800ms",
+        "s03 | execMode=exec | string:2000ms",
         "s04 | ",
         "s05 | execMode=exec | string:needle | int64:200 | int64:51",
         "s11 | ",
         "s06 | ",
-        "s03 | execMode=exec | string:150ms",
+        "s03 | execMode=exec | string:375ms",
         "s04 | ",
         "s12 | string: | string:",
         "s06 | "
@@ -751,16 +751,16 @@
         "db.operation": "search_file_content_any_repo_page",
         "db.sql.table": "content_files",
         "db.system": "postgresql",
-        "search.budget_ms": "800",
+        "search.budget_ms": "2000",
         "search.continuation_rows": "0",
         "search.continuation_steps": "0",
         "search.cursor_present": "false",
-        "search.documents_not_searched": "20000",
-        "search.elapsed_ms": "805",
+        "search.documents_not_searched": "60000",
+        "search.elapsed_ms": "2010",
         "search.ended_in": "budget",
         "search.outcome": "partial",
-        "search.overrun_ms": "5",
-        "search.phase_one_cap_ms": "440",
+        "search.overrun_ms": "10",
+        "search.phase_one_cap_ms": "1100",
         "search.probe_rows_visited": "0",
         "search.progressed": "false",
         "search.scope": "unscoped",
@@ -790,14 +790,14 @@
             "outcome": "partial",
             "table": "content_files"
           },
-          "value": "count=1 sum=0.805"
+          "value": "count=1 sum=2.01"
         },
         {
           "name": "eshu_dp_content_search_unscoped_overrun_seconds",
           "attrs": {
             "table": "content_files"
           },
-          "value": "count=1 sum=0.005"
+          "value": "count=1 sum=0.01"
         },
         {
           "name": "eshu_dp_content_search_unscoped_total",
@@ -810,14 +810,14 @@
       ],
       "logs": [
         {
-          "budget_ms": 800,
-          "documents_not_searched": 20000,
-          "elapsed_ms": 805,
+          "budget_ms": 2000,
+          "documents_not_searched": 60000,
+          "elapsed_ms": 2010,
           "ended_in": "budget",
           "event_name": "content_search.unscoped_partial",
           "level": "INFO",
           "msg": "unscoped content search returned a partial result",
-          "overrun_ms": 5,
+          "overrun_ms": 10,
           "progressed": false,
           "reason": "candidate_budget_exceeded",
           "rows_matched": 0,
@@ -988,11 +988,11 @@
       "statements": [
         "s01 | ",
         "s02 | ",
-        "s03 | execMode=exec | string:800ms",
+        "s03 | execMode=exec | string:2000ms",
         "s04 | ",
         "s05 | execMode=exec | string:needle | int64:200 | int64:6",
         "s06 | ",
-        "s03 | execMode=exec | string:400ms",
+        "s03 | execMode=exec | string:1000ms",
         "s04 | ",
         "s08 | ",
         "s09 | execMode=exec | string:needle | int64:6 | string:repo-001 | string:file-00199.go",
@@ -1004,16 +1004,16 @@
         "db.operation": "search_file_content_any_repo_page",
         "db.sql.table": "content_files",
         "db.system": "postgresql",
-        "search.budget_ms": "800",
+        "search.budget_ms": "2000",
         "search.continuation_rows": "0",
         "search.continuation_steps": "0",
         "search.cursor_present": "false",
         "search.documents_not_searched": "0",
-        "search.elapsed_ms": "300",
+        "search.elapsed_ms": "700",
         "search.ended_in": "tail",
         "search.outcome": "exhausted",
         "search.overrun_ms": "0",
-        "search.phase_one_cap_ms": "440",
+        "search.phase_one_cap_ms": "1100",
         "search.probe_rows_visited": "200",
         "search.progressed": "true",
         "search.scope": "unscoped",
@@ -1029,7 +1029,7 @@
             "outcome": "exhausted",
             "table": "content_files"
           },
-          "value": "count=1 sum=0.3"
+          "value": "count=1 sum=0.7"
         },
         {
           "name": "eshu_dp_content_search_unscoped_overrun_seconds",
@@ -1059,11 +1059,11 @@
       "statements": [
         "s01 | ",
         "s02 | ",
-        "s03 | execMode=exec | string:800ms",
+        "s03 | execMode=exec | string:2000ms",
         "s04 | ",
         "s05 | execMode=exec | string:needle | int64:200 | int64:6",
         "s06 | ",
-        "s03 | execMode=exec | string:150ms",
+        "s03 | execMode=exec | string:375ms",
         "s04 | ",
         "s08 | ",
         "s09 | execMode=exec | string:needle | int64:6 | string:repo-001 | string:file-00199.go",
@@ -1075,16 +1075,16 @@
         "db.operation": "search_file_content_any_repo_page",
         "db.sql.table": "content_files",
         "db.system": "postgresql",
-        "search.budget_ms": "800",
+        "search.budget_ms": "2000",
         "search.continuation_rows": "0",
         "search.continuation_steps": "0",
         "search.cursor_present": "false",
         "search.documents_not_searched": "0",
-        "search.elapsed_ms": "750",
+        "search.elapsed_ms": "1725",
         "search.ended_in": "tail",
         "search.outcome": "exhausted",
         "search.overrun_ms": "0",
-        "search.phase_one_cap_ms": "440",
+        "search.phase_one_cap_ms": "1100",
         "search.probe_rows_visited": "200",
         "search.progressed": "true",
         "search.scope": "unscoped",
@@ -1100,7 +1100,7 @@
             "outcome": "exhausted",
             "table": "content_files"
           },
-          "value": "count=1 sum=0.75"
+          "value": "count=1 sum=1.725"
         },
         {
           "name": "eshu_dp_content_search_unscoped_overrun_seconds",
@@ -1132,8 +1132,8 @@
           "repo_id": "repo-001",
           "relative_path": "file-00199.go"
         },
-        "budget_ms": 800,
-        "elapsed_ms": 651,
+        "budget_ms": 2000,
+        "elapsed_ms": 1626,
         "overrun_ms": 0,
         "progressed": true,
         "hint": "add repo_id (repo_ids in the MCP tool) to scope the search"
@@ -1141,11 +1141,11 @@
       "statements": [
         "s01 | ",
         "s02 | ",
-        "s03 | execMode=exec | string:800ms",
+        "s03 | execMode=exec | string:2000ms",
         "s04 | ",
         "s05 | execMode=exec | string:needle | int64:200 | int64:6",
         "s06 | ",
-        "s03 | execMode=exec | string:150ms",
+        "s03 | execMode=exec | string:375ms",
         "s04 | ",
         "s12 | string:repo-001 | string:file-00199.go",
         "s06 | "
@@ -1155,16 +1155,16 @@
         "db.operation": "search_file_content_any_repo_page",
         "db.sql.table": "content_files",
         "db.system": "postgresql",
-        "search.budget_ms": "800",
+        "search.budget_ms": "2000",
         "search.continuation_rows": "0",
         "search.continuation_steps": "0",
         "search.cursor_present": "false",
         "search.documents_not_searched": "19800",
-        "search.elapsed_ms": "651",
+        "search.elapsed_ms": "1626",
         "search.ended_in": "budget",
         "search.outcome": "partial",
         "search.overrun_ms": "0",
-        "search.phase_one_cap_ms": "440",
+        "search.phase_one_cap_ms": "1100",
         "search.probe_rows_visited": "200",
         "search.progressed": "true",
         "search.scope": "unscoped",
@@ -1180,7 +1180,7 @@
             "outcome": "partial",
             "table": "content_files"
           },
-          "value": "count=1 sum=0.651"
+          "value": "count=1 sum=1.626"
         },
         {
           "name": "eshu_dp_content_search_unscoped_overrun_seconds",
@@ -1200,9 +1200,9 @@
       ],
       "logs": [
         {
-          "budget_ms": 800,
+          "budget_ms": 2000,
           "documents_not_searched": 19800,
-          "elapsed_ms": 651,
+          "elapsed_ms": 1626,
           "ended_in": "budget",
           "event_name": "content_search.unscoped_partial",
           "level": "INFO",
