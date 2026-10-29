@@ -43,9 +43,13 @@ output.
 
 ## Gotchas / invariants
 
-- Every count in the census `## Counts` section is parsed as
-  `- <label>: <N>` and compared against the tree; keep that line shape
-  exact and keep other list lines away from it.
+- The census `## Counts` section is frozen extraction evidence, not a
+  live tree assertion: `TestExtractionCensusRecordNamesSourceFamilies`
+  pins the record's prose with `strings.Contains` checks (source
+  families plus the contract anchors), and the tree assertions that
+  counted the in-tree deploy surface were removed with that surface.
+  Keep the count lines as historical record; do not re-add tree
+  counting without restoring a checkout to count against.
 - The census file is a lockstep docs input: it is registered in
   `specs/ci-docs-lockstep-paths.txt`, `go/internal/cigates/docsset.go`,
   and the three workflow `lockstep` filters.
@@ -58,4 +62,4 @@ output.
 
 - `docs/internal/design/eshu-ecosystem-repository-migration.md`
 - `docs/public/deploy/kubernetes/runtime-parity-matrix.md`
-- `deploy/helm/eshu/README.md`
+- [eshu-deploy `helm/eshu/README.md`](https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/README.md) (moved out of this repo under #8871)

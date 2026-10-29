@@ -20,7 +20,7 @@ import (
 // match the twin pins in go/internal/runtime and go/internal/deploy: every
 // helper fails closed on any other commit, so a skew between the twins
 // surfaces as a test failure, not a silent drift.
-const expectedDeployCheckoutCommit = "103155c9ffa27ad245da17e60edf982989e51ba7"
+const expectedDeployCheckoutCommit = "bc6b17897056e3c5dab27dd2357a013869b2bd9a"
 
 // deployCheckoutRoot resolves the eshu-deploy checkout the demo overlay
 // boundary test reads the fragment from. It fails closed: an absent
@@ -423,5 +423,76 @@ func TestPrintDemoGuidedPathSaysWhenItCannotLoad(t *testing.T) {
 	}
 	if !strings.Contains(got, ManifestPath) {
 		t.Errorf("output = %q, want it to name %q so the operator can act on it", got, ManifestPath)
+	}
+}
+
+// TestDeployCheckoutRootFailsClosedWithoutEnv proves the demo overlay helper
+// refuses to guess: without ESHU_DEPLOY_CHECKOUT the calling test fails
+// naming the required variable instead of reading the (deleted) in-tree
+// deploy surface.
+func TestDeployCheckoutRootFailsClosedWithoutEnv(t *testing.T) {
+	t.Parallel()
+
+	out := runDeployCheckoutProbe(t, nil)
+	if !strings.Contains(out, "ESHU_DEPLOY_CHECKOUT") {
+		t.Fatalf("probe output does not name the required env var:\n%s", out)
+	}
+}
+
+// TestDeployCheckoutRootRejectsWrongCommit proves the pin is enforced: a
+// checkout at any other commit fails instead of asserting against drifted
+// deploy assets.
+func TestDeployCheckoutRootRejectsWrongCommit(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	initGitRepo(t, dir)
+	out := runDeployCheckoutProbe(t, map[string]string{"ESHU_DEPLOY_CHECKOUT": dir})
+	if !strings.Contains(out, "ESHU_DEPLOY_CHECKOUT") {
+		t.Fatalf("probe output does not name the required env var:\n%s", out)
+	}
+}
+
+// runDeployCheckoutProbe runs the helper probe in a subprocess and returns
+// its combined output. The probe must fail (nonzero exit): absent env and
+// wrong-pin checkouts are both fatal.
+func runDeployCheckoutProbe(t *testing.T, env map[string]string) string {
+	t.Helper()
+
+	cmd := exec.Command(os.Args[0], "-test.run", "TestDeployCheckoutHelperProbe$", "-test.v")
+	cmd.Env = []string{"PATH=" + os.Getenv("PATH"), "GO_WANT_HELPER_PROCESS=1"}
+	for k, v := range env {
+		cmd.Env = append(cmd.Env, k+"="+v)
+	}
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("helper probe succeeded, want failure\n%s", out)
+	}
+	return string(out)
+}
+
+// TestDeployCheckoutHelperProbe is the subprocess entry point: it calls the
+// helper so the parent can assert the fail-closed behavior end to end.
+func TestDeployCheckoutHelperProbe(t *testing.T) {
+	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
+		t.Skip("helper probe entry point")
+	}
+	deployCheckoutRoot(t)
+}
+
+// initGitRepo creates a minimal git checkout whose HEAD cannot match the
+// pinned deploy commit.
+func initGitRepo(t *testing.T, dir string) {
+	t.Helper()
+
+	if err := os.WriteFile(filepath.Join(dir, "probe.txt"), []byte("probe"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"init"}, {"add", "-A"}, {"-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "probe"}} {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
 	}
 }

@@ -74,7 +74,7 @@ The Go code coverage badge links to an advisory package report. It is one signal
 | Develop Eshu or run one local workspace service | [Local binaries](docs/public/run-locally/local-binaries.md) |
 | Connect Codex, Claude, Cursor, or VS Code | [Connect MCP](docs/public/mcp/index.md) |
 | Deploy Eshu as a shared team service | [Kubernetes deployment](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/index.md) |
-| Deploy on EKS | [EKS deployment](docs/public/deploy/eks/index.md) |
+| Deploy on EKS | [EKS deployment](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/eks/index.md) |
 | Monitor, debug, or tune a deployment | [Operate Eshu](docs/public/operate/index.md) |
 | Code on Eshu with an AI agent | [Code with agents](docs/public/guides/coding-with-agents.md) |
 | Understand the architecture | [How Eshu works](docs/public/concepts/how-it-works.md) |

@@ -108,7 +108,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: eshu-hq/eshu-deploy
-          ref: 103155c9ffa27ad245da17e60edf982989e51ba7
+          ref: bc6b17897056e3c5dab27dd2357a013869b2bd9a
           path: eshu-deploy
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -253,7 +253,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: eshu-hq/eshu-deploy
-          ref: 103155c9ffa27ad245da17e60edf982989e51ba7
+          ref: bc6b17897056e3c5dab27dd2357a013869b2bd9a
           path: eshu-deploy
 
       - name: Set up Go

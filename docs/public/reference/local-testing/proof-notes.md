@@ -96,7 +96,7 @@ retry-safe after the final file existed. The fixed render runs as UID/GID
 and `/data/repos`, and replaces `.eshuignore` through a temp file on the same
 data mount before `mv -f`. Verification covered
 `go test ./internal/runtime -run TestHelmWorkspaceSetupInitIsPersistentVolumeRetrySafe -count=1`,
-`go test ./internal/runtime -count=1`, `helm lint ./deploy/helm/eshu`,
+`go test ./internal/runtime -count=1`, `helm lint $ESHU_DEPLOY_CHECKOUT/helm/eshu`,
 Compose/Helm runtime parity, and a remote Docker proof on linux/amd64 using the
 runtime base image with `--cap-drop ALL`, `--read-only`, UID/GID `10001`, and
 the same persisted data/config/tmp mount shape; both first and retry setup
@@ -121,7 +121,8 @@ and hostile fixture self-tests as part of the aggregate gate.
 The chart hooks that enable this proof — `api.extraVolumes` /
 `api.extraVolumeMounts` and the matching `mcpServer.*` values — are additive and
 default to `[]`, so an operator that does not opt in renders a byte-identical
-runtime. `deploy/helm/eshu/ci/governance-two-team-k8s.values.yaml` is test-only
+runtime. `helm/eshu/ci/governance-two-team-k8s.values.yaml` in the
+eshu-deploy checkout is test-only
 and is not part of a shipped runtime profile.
 
 No-Regression Evidence: the chart hooks are opt-in, empty-by-default Pod volume mounts. They add no

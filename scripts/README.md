@@ -79,16 +79,20 @@ services, critical env wiring, health or metrics probes, Helm core workloads,
 or collector ServiceMonitor template coverage. The mocked harness is
 `test-verify-compose-helm-runtime-parity.sh`.
 
-`verify-hosted-security-posture.sh` renders the Helm chart and fails closed on
+`verify-hosted-security-posture.sh` and `verify-hosted-network-policy-egress.sh`
+moved to eshu-hq/eshu-deploy under #8871; run them from an
+`ESHU_DEPLOY_CHECKOUT` checkout
+(`"${ESHU_DEPLOY_CHECKOUT}/scripts/verify-hosted-security-posture.sh"`,
+`"${ESHU_DEPLOY_CHECKOUT}/scripts/verify-hosted-network-policy-egress.sh"`).
+The posture verifier renders the Helm chart and fails closed on
 inline credential-shaped env vars, missing API auth Secret refs, empty
 credential Secret refs, public pprof binding, and public API docs without an
-explicit verifier opt-in. Use `test-verify-hosted-security-posture.sh` for the
-mutation harness.
-
-`verify-hosted-network-policy-egress.sh` renders the Helm chart and verifies
-hosted NetworkPolicy egress posture. It flags broad egress as a governance risk
-and proves restricted mode for DNS, datastore, graph, internal-service,
-collector-provider, semantic-provider, and extension destination classes. Use
+explicit verifier opt-in. Use `test-verify-hosted-security-posture.sh` (same
+directory in that checkout) for the mutation harness. The egress verifier
+renders the Helm chart and verifies hosted NetworkPolicy egress posture. It
+flags broad egress as a governance risk and proves restricted mode for DNS,
+datastore, graph, internal-service, collector-provider, semantic-provider,
+and extension destination classes. Use
 `test-verify-hosted-network-policy-egress.sh` for the mutation harness.
 
 `verify_remote_e2e_runtime_state.sh` is the post-start gate for the hosted

@@ -7,7 +7,7 @@ values.
 
 ## What The Gate Checks
 
-`scripts/verify-hosted-security-posture.sh` renders the Helm chart and fails
+`"${ESHU_DEPLOY_CHECKOUT}/scripts/verify-hosted-security-posture.sh"` renders the Helm chart and fails
 when it finds:
 
 - `ESHU_API_KEY` without a Secret-backed `apiAuth.secretName`;

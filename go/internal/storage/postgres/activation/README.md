@@ -120,8 +120,8 @@ Migration 160 must exist before any binary that Acks runs
 writes `activation_obligations`. This follows the existing convention:
 `eshu-bootstrap-data-plane` applies Postgres migrations and exits before the
 services start (`docs/public/deployment/service-runtimes-bootstrap.md`), and the
-Helm chart runs it as a `pre-install,pre-upgrade` hook
-(`deploy/helm/eshu/templates/job-schema-bootstrap.yaml`). If a new binary Acks
+Helm chart (in the eshu-deploy checkout) runs it as a `pre-install,pre-upgrade` hook
+(`helm/eshu/templates/job-schema-bootstrap.yaml`). If a new binary Acks
 before the migration, the Ack fails with SQLSTATE 42P01 (`relation
 "activation_obligations" does not exist`) and the transaction rolls back, so no
 partial activation is written. That error is not a lock wait, so it is not
