@@ -131,7 +131,10 @@ by provider:
   `release_version` (EKS node group), `addon_version` (EKS add-on),
   `ami_id` (EC2 instance), `runtime` (Lambda function), and a `containers` array (from ECS running tasks)
   reduced per element to `{image, image_digest}`. `package_type` is the bounded
-  Lambda packaging discriminator (`Zip`/`Image`). Every other AWS attribute key
+  Lambda packaging discriminator (`Zip`/`Image`). For `aws_ec2_ami` only, the
+  route additionally surfaces the AMI `name` (structurally validated creator
+  text; see below). The AMI `description` is never surfaced for any resource.
+  Every other AWS attribute key
   (for example `cluster_arn`, `role_arn`, `kms_key_arn`, `network_interfaces`,
   `environment`, `vpc_config`, or a container's `name`/`runtime_id`) is
   dropped before the route ever sees it. For `aws_appsync_graphql_api` only,
@@ -193,6 +196,52 @@ field is **not** present for an **image-packaged** Lambda
 (`package_type` == `Image`): its deployment code is the container image, which
 *is* correlated to the OCI `ContainerImage` through `image_uri` /
 `resolved_image_uri`.
+
+### AMI `name` is admitted creator text, not proven secret-free (bounded admission)
+
+For `resource_type` `aws_ec2_ami` only, the row surfaces `attributes.name`:
+the image name serves distro/version identification for CVE triage
+(`platform_details` says only Linux/UNIX vs Windows; the name says
+`ubuntu-jammy-22.04` or `RHEL-9.3`) and human-readable golden-image identity.
+The name is admitted ONLY when every structural condition holds at the loader:
+a JSON string (never stringified), 3-128 runes (the AWS CreateImage maximum),
+printable with no controls, inside the exact AWS CreateImage charset
+(alphanumerics plus `()[] ./-'@_`), and passing the shared free-text hygiene
+scan as a drop trigger. Anything else is dropped with `ami_id` and all typed
+fields intact. The name is never truncated.
+
+The admitted name is untrusted creator-controlled text and is explicitly NOT
+proven secret-free: a patternless bare token fits the charset and will pass.
+That limitation is stated here rather than hidden, and it is a condition of
+the admission ruling (issue #9525). The AMI `description` is permanently
+excluded: unconstrained mutable prose whose marginal signal over `name` is
+small, so it is dropped at the loader even from a rogue producer payload.
+The graph node `Name` stays the bare AMI id: node materialization reads the
+typed top-level `Name` field only, never `attributes.name`.
+
+Adjacent surfaces carry no creator text: the runtime-drift value comparison
+keys only EC2-instance, Lambda, and ECS-task-definition resource types, so an
+AMI name never enters drift classification; inventory attributes are not
+content-indexed; `reportbundle` and `evidredact` never read cloud inventory
+attributes; loader diagnostics log only the fact kind and a redacted identity,
+never attribute values; admission telemetry labels are provider and outcome
+only.
+
+No-Regression Evidence: issue #9525 adds one validated allowlist key (`name`,
+`aws_ec2_ami` only) to the loader plus one O(name-length) rune scan per AMI
+row. It introduces no new query, SQL, Cypher, transaction, per-row I/O, or
+worker/queue work; the per-row cost stays in-process string validation on an
+already-decoded payload, so no readback or admission path changes shape
+(correctness verified by the focused loader, readback, MCP dispatch, and
+node-materialization suites on synthetic AMI fixtures; no wall-time claim is
+made beyond that structural bound).
+
+No-Observability-Change: #9525 adds no new metric, span, log line, audit
+table, or schema; the admitted name is content on an existing read surface,
+covered by the existing cloud-inventory query span. The drop path emits no
+loader diagnostic carrying creator text; the exactly-one-deduped-warning leg
+(`ami_name_dropped`) is emitted producer-side by the satellite collector
+lane, which owns `aws_warning` emission.
 
 No-Regression Evidence: issue #5454 adds one bounded scalar (`package_type`) to
 the closed `awsCloudInventoryAttributeAllowlist` and one O(1) provider +
