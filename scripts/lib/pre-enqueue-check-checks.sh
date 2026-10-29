@@ -187,7 +187,8 @@ run_checks_arm() {
 				state="unused: not red"
 			fi
 		fi
-		[[ "${state}" != applied:* ]] || excused+=("${ctx}")
+		# A context dispositioned twice is excused (and named) once.
+		[[ "${state}" != applied:* ]] || in_list "${ctx}" ${excused[@]+"${excused[@]}"} || excused+=("${ctx}")
 		note checks "dispositioned: ${ctx}=${disp_reason[i]} (${state})"
 	done
 	local mss group_label="" ruleset_list excused_list="" unstable_ok=0

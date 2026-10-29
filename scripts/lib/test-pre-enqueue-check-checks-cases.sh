@@ -325,6 +325,17 @@ rg -q '^     checks +dispositioned: external-status=#4242 external reporter down
 rg -q '^PASS checks +complete; go-core-complete,go-race-complete=success; mergeStateStatus=UNSTABLE \(dispositioned: external-status\)$' <<<"${OUT}" || ok=1
 check "GREEN UNSTABLE with a dispositioned red commit status outside the manifest passes" "${ok}"
 [[ "${ok}" -eq 0 ]] || printf '%s\n' "${OUT}" | sed 's/^/    | /'
+# The same context dispositioned twice is named once in the PASS line.
+new_case unstable-dispositioned-twice
+edit pr.json '.mergeStateStatus = "UNSTABLE"'
+edit check-runs.json '.check_runs += [{name:"e2e",status:"completed",conclusion:"cancelled"}]'
+RUN_ARGS=(--dispositioned "e2e=#9488" --dispositioned "e2e=#9488 again")
+run
+ok=0
+[[ "${RC}" -eq 0 ]] || ok=1
+rg -q '^PASS checks +complete; go-core-complete,go-race-complete=success; mergeStateStatus=UNSTABLE \(dispositioned: e2e\)$' <<<"${OUT}" || ok=1
+check "GREEN a context dispositioned twice is named once in the PASS line" "${ok}"
+[[ "${ok}" -eq 0 ]] || printf '%s\n' "${OUT}" | sed 's/^/    | /'
 new_case blocked-dispositioned
 edit pr.json '.mergeStateStatus = "BLOCKED"'
 edit check-runs.json '.check_runs += [{name:"e2e",status:"completed",conclusion:"cancelled"}]'
