@@ -76,7 +76,7 @@ func noteComposerOrRuntimeCandidate(snapshot *RepositorySnapshot, candidates map
 			return
 		}
 		if snapshot.JVMRuntimeExpected {
-			if len(body) > runtimeparser.MaxManifestBytesPerFile {
+			if len(body) > runtimepaths.MaxManifestBytesPerFile {
 				runtimedeclaration.NoteCappedJVMCandidate(candidates, relativePath, len(body))
 				return
 			}
