@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 import datetime as dt
+import math
 from pathlib import Path
 import re
 import statistics
@@ -140,6 +141,85 @@ def _mean_tenth(values: list[float], label: str, positive: bool = False) -> floa
     return result
 
 
+MIN_COLD_PAIRS = 2
+COLD_VARIANCE_FLOOR = 1.0
+
+
+@dataclass(frozen=True)
+class ColdComponent:
+    """One eligible paired package's contribution to the cold-cache fit.
+
+    Attributes:
+        package: The paired package these residuals belong to.
+        diff: Mean first-row residual minus mean first-later residual, seconds.
+        first_rows: Count of first-row residuals behind the diff.
+        first_laters: Count of first-later residuals behind the diff.
+        variance: Floored variance of the diff, seconds squared.
+        weight: Normalized inverse-variance weight in the cold mean.
+    """
+
+    package: str
+    diff: float
+    first_rows: int
+    first_laters: int
+    variance: float
+    weight: float
+
+    def line(self) -> str:
+        """Render one stdout line for the refit PR body and evidence note."""
+        return (f"weights refresh v2: cold {self.package} "
+                f"diff={self.diff:.1f}s n_first_row={self.first_rows} "
+                f"n_first_later={self.first_laters} "
+                f"variance={self.variance:.2f}s2 weight={self.weight:.4f}")
+
+
+def fit_cold(categories: dict[str, dict[str, list[float]]]) -> tuple[float, list[ColdComponent]]:
+    """Fit the cold-cache constant as an inverse-variance-weighted mean.
+
+    A paired package is eligible only with at least two first-row and two
+    first-later residuals. Each eligible diff is weighted by the inverse of
+    its difference variance (sample variances over counts, floored so no
+    package takes unbounded weight from two identical samples), so a giant
+    binary's compile noise cannot veto a tight small-package measurement.
+
+    Args:
+        categories: Per-package residuals by row kind, as accumulated in
+            fit_with_provenance.
+
+    Returns:
+        The cold-cache seconds rounded to a tenth, and the per-package
+        components sorted by package.
+
+    Raises:
+        ValueError: Fewer than two eligible paired packages, a non-positive
+            weighted cold, or a cold within two standard errors of zero.
+    """
+    eligible: list[tuple[str, float, float, int, int]] = []
+    for package in sorted(categories):
+        kinds = categories[package]
+        first_rows, first_laters = kinds["first_row"], kinds["first_later"]
+        if len(first_rows) < 2 or len(first_laters) < 2:
+            continue
+        diff = statistics.mean(first_rows) - statistics.mean(first_laters)
+        variance = max(statistics.variance(first_rows) / len(first_rows)
+                       + statistics.variance(first_laters) / len(first_laters),
+                       COLD_VARIANCE_FLOOR)
+        eligible.append((package, diff, variance, len(first_rows), len(first_laters)))
+    if len(eligible) < MIN_COLD_PAIRS:
+        raise ValueError("measured identifiable cold component needs at least two "
+                         f"eligible paired packages, found {len(eligible)}")
+    total = sum(1.0 / variance for _, _, variance, _, _ in eligible)
+    cold = round(sum(diff / variance for _, diff, variance, _, _ in eligible) / total, 1)
+    if cold <= 0:
+        raise ValueError("measured identifiable cold component is not positive")
+    if cold - 2 * math.sqrt(1.0 / total) <= 0:
+        raise ValueError("measured identifiable cold component is not "
+                         "significant at two standard errors")
+    return cold, [ColdComponent(package, diff, first_rows, first_laters, variance,
+                                (1.0 / variance) / total)
+                  for package, diff, variance, first_rows, first_laters in eligible]
+
+
 def build_document(sources: list[Path], root: Path) -> dict[str, object]:
     """Fit a v2 document after source-SHA inventory and CI provenance checks.
 
@@ -158,7 +238,7 @@ def build_document(sources: list[Path], root: Path) -> dict[str, object]:
 
 
 def fit_with_provenance(sources: list[Path], root: Path) -> tuple[
-        dict[str, object], ImageProvenance]:
+        dict[str, object], ImageProvenance, list[ColdComponent]]:
     """Fit a v2 document and report the runner image versions it accepted.
 
     Args:
@@ -166,8 +246,9 @@ def fit_with_provenance(sources: list[Path], root: Path) -> tuple[
         root: Git checkout containing the source commit objects.
 
     Returns:
-        The validated v2 document (as from build_document) and the image
-        provenance seen across every shard of every source.
+        The validated v2 document (as from build_document), the image
+        provenance seen across every shard of every source, and the
+        per-package cold components behind the fitted cold constant.
 
     Raises:
         ValueError: A source is incomplete, incompatible, or cannot identify a
@@ -219,9 +300,7 @@ def fit_with_provenance(sources: list[Path], root: Path) -> tuple[
         fixed.extend(overhead)
     first: dict[str, float] = {}
     repeat: dict[str, float] = {}
-    paired_cold = [statistics.mean(kinds["first_row"]) - statistics.mean(kinds["first_later"])
-                   for kinds in categories.values() if kinds["first_row"] and kinds["first_later"]]
-    cold = _mean_tenth(paired_cold, "identifiable cold component", positive=True)
+    cold, cold_components = fit_cold(categories)
     for package, kinds in categories.items():
         later = kinds["first_later"]
         first_rows = kinds["first_row"]
@@ -253,7 +332,7 @@ def fit_with_provenance(sources: list[Path], root: Path) -> tuple[
     v2.weights_from_json(document)
     if expected_profile is None:
         raise ValueError("source runs have no shard profile")
-    return document, ImageProvenance(expected_profile[0], image_versions)
+    return document, ImageProvenance(expected_profile[0], image_versions), cold_components
 
 
 def _collect_test_values(log: str, expected: list[str], values: dict[str, list[float]]) -> None:

@@ -30,7 +30,8 @@ source SHA's committed inventory:
         --sample 40363532093=/data/40363532093
 
 V2 gates on one runner image name, Go version, and Postgres digest, and prints
-one provenance line naming the runner image version seen on each shard.
+one provenance line naming the runner image version seen on each shard plus
+one cold-provenance line per paired package behind the fitted cold constant.
 """
 
 from __future__ import annotations
@@ -206,7 +207,7 @@ def main() -> int:
                         or Path(directory).name != run):
                     raise ValueError(f"v2 --sample needs RUNID=DIR named by run ID: {item!r}")
                 sources.append(Path(directory))
-            document, images = v2_refresh.fit_with_provenance(
+            document, images, cold_components = v2_refresh.fit_with_provenance(
                 sources, Path(__file__).resolve().parents[2])
             output = render(document)
             Path(args.out).write_text(output, encoding="utf-8")
@@ -216,6 +217,8 @@ def main() -> int:
         print(f"weights refresh v2: {len(document['test_seconds'])} tests "
               f"from runs {document['source_runs']}")
         print(images.line())
+        for component in cold_components:
+            print(component.line())
         return 0
     if args.fixed_job_seconds is None:
         parser.error("--fixed-job-seconds is required for v1")
