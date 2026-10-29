@@ -163,6 +163,9 @@ TABLE = {
         "go/internal/storage/postgres/control_scanner_authority_epoch_live_test.go": (
             "TestScannerAuthorityEpochNoABALive",
         ),
+        "go/internal/storage/postgres/control_scanner_discovery_plan_live_test.go": (
+            "TestScannerDiscoveryPagePlanLive",
+        ),
         "go/internal/storage/postgres/control_scanner_targets_tenant_live_test.go": (
             "TestScannerImageTargetHostedBoundaryAndGrantRevocationLive",
         ),
