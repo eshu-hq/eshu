@@ -111,7 +111,7 @@ results are derived from the inputs rather than written by hand. See
 - `code-coverage-report` (advisory): Runs the full Go test suite with coverage and regenerates the public coverage report and badge; advisory only.
 - `go-test-race` (blocking): Runs the replay and scheduling test packages under Go's race detector to catch data races.
 
-### Contract: Do declared or generated artifacts match the code? (62 gates)
+### Contract: Do declared or generated artifacts match the code? (63 gates)
 
 - `slim-collector-entrypoints` (blocking): Fails the queue entry when the generated collector entrypoints file drifts from the collector fact contract spec.
 - `openapi-surface` (blocking): Fails when a registered HTTP route has no matching OpenAPI fragment, or vice versa.
@@ -168,6 +168,7 @@ results are derived from the inputs rather than written by hand. See
 - `cassette-author` (blocking): Scans committed cassettes for leaked private data and validates each one against the v1 cassette-format schema.
 - `authz-scoped-route-tests` (blocking): Confirms scoped-token route authorization in code matches the declared authorization-catalog and replay-coverage specs.
 - `docker-image-reproducibility` (blocking): Builds the Docker image twice and checks the two outputs are identical, proving the build is reproducible.
+- `scanner-digest-pins` (blocking): Fails when a scanner image digest drifted from its pin, its attestation fails, or scanner sources passed the anchored publish SHA.
 - `runtime-image-tools` (blocking): Fails when the built runtime image is missing any tool in the verifier's REQUIRED_TOOLS list.
 - `scanner-images` (blocking): Fails when a built scanner-<name> destination image is missing its own eshu-scanner-component-<name> binary or carries a sibling component binary.
 - `apk-floors` (blocking): Fails when an apk add version floor in the Dockerfile's final stage is below the version the Alpine repository serves.
@@ -366,6 +367,7 @@ results are derived from the inputs rather than written by hand. See
 | `workflow-script-checkout` | Workflow jobs check out before running repo scripts | hygiene | pre-pr | true | `bash scripts/verify-workflow-script-checkout.sh`<br>then self-test: `bash scripts/test-verify-workflow-script-checkout.sh` | static-contract-gates.yml / Verify workflow script checkout gate | 5 path(s): .github/**, scripts/verify-workflow-script-checkout.sh, scripts/test-verify-workflow-script-checkout.sh, … |
 | `docker-image-promotion` | Moving image tag promotion | build | ci-heavy | false | — (CI-only: requires a pushed digest and GHCR write credentials; push-only job, never runs on PRs) | docker-publish.yml / promote-moving-tags | 5 path(s): Dockerfile, .dockerignore, .github/workflows/docker-publish.yml, … |
 | `release-sbom-attach` | Release SBOM attach | release | ci-heavy | false | — (CI-only: attaches a release asset with the workflow token; tag-push only, never runs on a pull_request or merge_group) | docker-publish.yml / attach-release-sbom | 3 path(s): Dockerfile, .dockerignore, .github/workflows/docker-publish.yml |
+| `scanner-digest-pins` | Scanner image digest pins match the published images | exactness | pre-pr | true | `bash scripts/test-verify-scanner-digest-pins.sh` | docker-publish.yml / verify-scanner-digest-pins | 9 path(s): Dockerfile, .github/workflows/docker-publish.yml, scripts/ci/select-docker-publish-lanes.sh, … |
 | `ci-service-mirror-publish` | CI service image mirror publish | release | manual | false | — (CI-only: manual main-only dispatch with packages: write and a GHCR login; no merge depends on it and it never runs on a pull_request or merge_group) | docker-publish.yml / publish-ci-service-mirrors | 6 path(s): .github/workflows/docker-publish.yml, scripts/dev/publish-ci-image-mirrors.sh, scripts/dev/test-publish-ci-image-mirrors.sh, … |
 | `ci-service-mirror-verify-public` | CI service image mirror public verify | release | manual | false | — (CI-only: manual main-only dispatch that needs live registry reads; no merge depends on it and it never runs on a pull_request or merge_group) | docker-publish.yml / verify-public-ci-service-mirrors | 6 path(s): .github/workflows/docker-publish.yml, scripts/dev/publish-ci-image-mirrors.sh, scripts/dev/test-publish-ci-image-mirrors.sh, … |
 | `cgo-cflags-guard` | Go workflows and entrypoints set the cgo C dialect flag | hygiene | pre-push | true | `bash scripts/verify-cgo-cflags-guard.sh`<br>then self-test: `bash scripts/test-verify-cgo-cflags-guard.sh` | verify-agent-hygiene.yml / Agent hygiene gate | 21 path(s): .github/workflows/*.yml, scripts/**/*.sh, Makefile, … |

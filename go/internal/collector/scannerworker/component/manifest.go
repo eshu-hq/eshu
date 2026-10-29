@@ -31,14 +31,18 @@ const (
 	CollectorSDKProtocolV1Alpha3 = "collector-sdk/v1alpha3"
 )
 
-// artifactDigests pins each scanner component image to the immutable
-// sha256 digest of its first merge-head publish (docker-publish run
-// 40847362877, merge 92744768; each digest's build attestation
-// verified with gh attestation verify before pinning). Manifests must
-// carry at least one artifact to validate, and the artifact must be
-// the exact published image: a stale digest silently runs the old
-// analyzer binary, so any republish must update the pin here in the
-// same change that publishes the image.
+// Scanner-Publish-SHA anchors the pins below to the merge-head publish
+// that produced them (docker-publish run 40847362877, merge 92744768;
+// each digest's build attestation verified with gh attestation verify
+// before pinning). The verify-scanner-digest-pins gate
+// (scripts/verify-scanner-digest-pins.sh, blocking tier pre-pr row
+// scanner-digest-pins) resolves each pin against the immutable
+// sha-<publish-sha> tag, re-verifies the attestation, and fails when
+// scanner sources advance past this anchor. A republish therefore lands
+// in two changes: the publish itself, then a reviewed follow-up PR
+// bumping this SHA and the pins together (the pattern #9494 uses) —
+// the publish workflow never auto-updates this file.
+// Scanner-Publish-SHA: 92744768263db42d393e0cec65ab6980bcef2134
 var artifactDigests = map[string]string{
 	IDImage:     "d2967a1ab642747ec5bafed484b4a5384839b90b59c9562ee38e67b3fa547d49",
 	IDSBOM:      "cbafeeeb2bae99902838e5159bd4003e210f5cfe41891b50b0caf502b2d99dec",
