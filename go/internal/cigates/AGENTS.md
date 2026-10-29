@@ -420,7 +420,7 @@ and `eshu-diagnostic-rigor`.
   the sourcing walk below — see checkScriptTriggerCoverage's doc comment for
   the audit that found them.)
 
-  Sourcing is followed transitively: golden-corpus-lock-cases.sh is the real
+  Sourcing, and Python import (#9479), is followed transitively: golden-corpus-lock-cases.sh is the real
   case, sourced directly by scripts/test-verify-golden-corpus-gate.sh and
   itself sourcing two more case files the gate's `local.command` never names.
   The walk uses a visited set so a sourcing cycle cannot hang it — no script

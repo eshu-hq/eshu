@@ -87,7 +87,7 @@ var matrixVariableRE = regexp.MustCompile(`\$\{\{\s*matrix\.([A-Za-z0-9_]+)\s*\}
 //
 //  8. Gate script → own trigger coverage (#5762): every scripts/ token in a
 //     gate's local.command and local.test_command — and every scripts/ file
-//     those source, at any depth — must be matched by one of that gate's own
+//     those source or import (Python, #9479), at any depth — must be matched by one of that gate's own
 //     triggers, so a PR editing only the verifier, a chained second script, or
 //     a case file sourced two levels deep still selects the gate locally
 //     instead of first failing in CI. See checkScriptTriggerCoverage.
