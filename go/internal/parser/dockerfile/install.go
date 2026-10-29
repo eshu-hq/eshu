@@ -123,6 +123,25 @@ func stripInstallRunOptions(raw string, vars *installScope) (string, string, int
 	return remaining, "", 0
 }
 
+// isPythonModuleCommand reports whether command names a CPython interpreter
+// that can carry `-m <manager>` installs: `python`, `python3`, or a dotted
+// version such as `python3.11`. Anything else (including lookalikes such as
+// `pythonfoo`) dispatches through the ordinary manager switch.
+func isPythonModuleCommand(command string) bool {
+	if command == "python" || command == "python3" {
+		return true
+	}
+	if !strings.HasPrefix(command, "python") || len(command) == len("python") {
+		return false
+	}
+	for _, r := range command[len("python"):] {
+		if (r < '0' || r > '9') && r != '.' {
+			return false
+		}
+	}
+	return true
+}
+
 func parseInstallSegment(words []string, line int, stage string, vars *installScope) ([]Install, string, int) {
 	if len(words) == 0 {
 		return nil, "", 0
@@ -134,13 +153,18 @@ func parseInstallSegment(words []string, line int, stage string, vars *installSc
 	}
 	command := strings.TrimPrefix(words[0], "/usr/bin/")
 	command = strings.TrimPrefix(command, "/bin/")
-	if command == "sudo" {
-		if len(words) < 2 {
+	for command == "sudo" {
+		words = words[1:]
+		if len(words) == 0 {
 			return nil, "unsupported_command", 0
 		}
-		return parseInstallSegment(words[1:], line, stage, vars)
+		command = strings.TrimPrefix(words[0], "/usr/bin/")
+		command = strings.TrimPrefix(command, "/bin/")
+		if strings.HasPrefix(command, "-") {
+			return nil, "unsupported_command", 0
+		}
 	}
-	if (command == "python" || command == "python3") && len(words) >= 3 && words[1] == "-m" {
+	if isPythonModuleCommand(command) && len(words) >= 3 && words[1] == "-m" {
 		return parseInstallSegment(words[2:], line, stage, vars)
 	}
 	manager, start := "", 0

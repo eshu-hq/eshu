@@ -16,7 +16,9 @@
             "artifact_type": "dockerfile",
             "classes": [],
             "dockerfile_args": [],
+            "dockerfile_dropped_credentials": 0,
             "dockerfile_envs": [],
+            "dockerfile_installs": [],
             "dockerfile_labels": [],
             "dockerfile_ports": [],
             "dockerfile_stages": [
@@ -33,6 +35,7 @@
                 "stage_index": 0
               }
             ],
+            "dockerfile_unparsed": [],
             "function_calls": [],
             "functions": [],
             "iac_relevant": true,

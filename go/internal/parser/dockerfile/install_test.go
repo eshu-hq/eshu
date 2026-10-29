@@ -468,6 +468,27 @@ func TestInstallEvidencePythonModuleRedispatch(t *testing.T) {
 	}
 }
 
+func TestInstallEvidenceSudoFlagFailsClosed(t *testing.T) {
+	got := RuntimeMetadata("FROM debian\nRUN sudo -u root apt-get install -y curl\n")
+	if len(got.Installs) != 0 || len(got.Unparsed) != 1 || got.Unparsed[0].Reason != "unsupported_command" {
+		t.Fatalf("installs = %#v, unparsed = %#v, want one unsupported_command", got.Installs, got.Unparsed)
+	}
+}
+
+func TestInstallEvidenceRepeatedSudoRedispatch(t *testing.T) {
+	got := RuntimeMetadata("FROM debian\nRUN sudo sudo apt-get install -y curl\n")
+	if len(got.Installs) != 1 || got.Installs[0].Name != "curl" || len(got.Unparsed) != 0 {
+		t.Fatalf("installs = %#v, unparsed = %#v, want one curl", got.Installs, got.Unparsed)
+	}
+}
+
+func TestInstallEvidenceVersionedPythonRedispatch(t *testing.T) {
+	got := RuntimeMetadata("FROM python\nRUN python3.11 -m pip install requests\n")
+	if len(got.Installs) != 1 || got.Installs[0].Manager != "pip" || got.Installs[0].Name != "requests" {
+		t.Fatalf("installs = %#v, unparsed = %#v, want one pip requests", got.Installs, got.Unparsed)
+	}
+}
+
 func TestInstallEvidenceCommandSubstitutionFailsClosed(t *testing.T) {
 	got := RuntimeMetadata("FROM alpine\nRUN echo $(apt-get install -y curl)\n")
 	if len(got.Installs) != 0 || len(got.Unparsed) != 1 || got.Unparsed[0].Reason != "unsupported_command" {
