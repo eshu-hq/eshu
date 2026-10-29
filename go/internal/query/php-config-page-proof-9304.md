@@ -88,10 +88,9 @@ separate rows and no inferred effective runtime mode.
 No-Regression Evidence: the PHP change adds one `.htaccess` selection branch to
 `preserveFilesystemHiddenPath`. The decision threshold was at most 20% median
 regression for a clean 1,000-file copy; the timed run was bounded to 15
-minutes. A disposable Git fixture at commit
-`50c2f13fae4dd9093d03c10935cffca4373067c4` held 1,000 tracked small
-`.go` files (124,000 copied bytes) and no `.htaccess`. Baseline Eshu commit
-`6d04851df8` and PHP commit `4f92c29545` ran the unchanged
+minutes. A disposable Git fixture held 1,000 tracked small
+`.go` files (124,000 copied bytes) and no `.htaccess`. The base revision
+and the PHP revision ran the unchanged
 `BenchmarkFilesystemManagedCopyCommitAttributionLargeRepository/copy-bound-full-managed-copy`
 with the same fixture, `GOMAXPROCS=2`, `-benchtime=3x -count=5 -benchmem`,
 Go 1.26.6 on Linux arm64, and `/tmp` tmpfs. The ABBA sequence ran from
