@@ -4,10 +4,11 @@ Use this page to identify published SDK/core combinations and to track the
 separate Eshu SDK repository migration. A candidate module path is not a
 supported core/SDK combination until its own qualification evidence exists.
 
-Both SDK modules are public Go subdirectory modules with independent tags —
-`sdk/go/collector/vX.Y.Z` and `sdk/go/factschema/vX.Y.Z` — per the repository's
+All three SDK modules are public Go subdirectory modules with independent
+tags — `sdk/go/collector/vX.Y.Z`, `sdk/go/factschema/vX.Y.Z`, and
+`sdk/go/apicontract/vX.Y.Z` (API wire shapes only) — per the repository's
 `RELEASING.md`. Core Eshu itself tags as `vX.Y.Z` at the repository root. The
-three version lines move independently. The compatibility table states the
+version lines move independently. The compatibility table states the
 combinations supported under the original module paths. The new-path mapping
 below records candidate availability without adding a supported combination.
 
@@ -50,7 +51,7 @@ collector wire protocol, so it tracks outside the combination table above.
 
 | SDK module version | Core source pins | Status |
 | --- | --- | --- |
-| `sdk/go/apicontract` v0.1.0 (proposed; tag NOT cut — maintainer act per `RELEASING.md`) | `querycontract` envelopes/profiles, `toolcontract` tool shape, `envregistry` client entries at the merge commit | Prepared, not published: module source merged, in-module suites and core drift tests green. Proxy verification pending the tag; Tier-2 CLI repoint and consumer qualification follow in a separate change. |
+| `sdk/go/apicontract` v0.1.0 (release-prepared Refs #8874; tag `sdk/go/apicontract/v0.1.0` NOT cut — maintainer act per `RELEASING.md`) | `querycontract` envelopes/profiles, `toolcontract` tool shape, `envregistry` client entries at the prep commit | Prepared, not published: CHANGELOG versioned, module source merged, in-module suites and core drift tests green. Proxy verification pending the tag; Tier-2 CLI repoint and consumer qualification follow in a separate change. |
 
 ## New repository path mapping
 
