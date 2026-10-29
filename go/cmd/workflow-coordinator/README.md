@@ -65,8 +65,8 @@ flowchart TB
    `security/alert`, `sbom/attestation`, `scanner/worker` (aliased as
    `scannerworker`), `gcp`, `grafana`,
    `loki`, `jira`, `pagerduty`, `metrics`,
-   `tempo`, `vault/live` (aliased as `coordinatorvaultlive`), and `extension`
-   planners,
+   `tempo`, and `extension`
+   planners (Vault planning moved to `eshu-hq/eshu-collector-vault-live`),
    scheduled AWS and AWS freshness planners, plus freshness trigger stores,
    and handed to
    `NewHostedWithStatusServer`, which mounts the admin surface.
@@ -149,7 +149,7 @@ off by default and ships no live provider traffic.
 Every periodic scheduled planner (AWS, GCP, Terraform state, OCI registry,
 package registry, vulnerability intelligence, SBOM attestation, security alert,
 scanner worker, CI/CD run, Grafana, Loki, Prometheus/Mimir, Tempo, Jira,
-PagerDuty, Vault, component extension) buckets its plan key by truncating the
+PagerDuty, component extension) buckets its plan key by truncating the
 wall clock to an interval. By default that interval is the global
 `ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL`. A collector instance may set
 `scan_interval` inside its `configuration` object to use a wider bucket of its
@@ -266,8 +266,6 @@ The direct process contract includes `eshu-workflow-coordinator --version` and
   Terraform-state drift targets
 - `internal/coordinator/oci/registry` — concrete scheduler wiring for OCI
   registry repository targets
-- `internal/coordinator/vault/live` — concrete scheduler wiring for Vault
-  metadata targets
 - `internal/workflow` — type contracts consumed by `coordinator.Service`
 - `internal/storage/postgres` — `NewWorkflowControlStore`, `NewStatusStore`;
   Postgres-backed store implementations

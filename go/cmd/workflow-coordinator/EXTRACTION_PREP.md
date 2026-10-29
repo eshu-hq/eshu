@@ -68,8 +68,8 @@ share this transaction and must replace it explicitly (see §6).
 `planner/{aws,component,contract,gcp,grafana,jira,loki,pagerduty,prometheus,tempo,tfstate}`.
 `service.go` holds the `Service` reconcile/reap loops and per-family planner
 interfaces (TerraformState, OCI, PackageRegistry, VulnIntel, AWSScheduled,
-plus cicd/run, sbom/attestation, scanner/worker, security/alert, vault/live
-services). External consumers of the coordinator are ONLY
+plus cicd/run, sbom/attestation, scanner/worker, security/alert
+services; vault/live planning moved to `eshu-hq/eshu-collector-vault-live`). External consumers of the coordinator are ONLY
 `go/cmd/workflow-coordinator/main.go` + `tenant_grants.go` (non-test); the
 coordinator surface is consumed solely by the workflow-coordinator binary.
 

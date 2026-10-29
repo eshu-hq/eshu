@@ -25,7 +25,7 @@ deploy contract (issue #8871).
 
 ## Patterns to follow
 
-- Mirror the `go/cmd/collector-vault-live/extraction_census_test.go`
+- Mirror the `go/cmd/scanner-worker/extraction_census_test.go`
   precedent: record-relative path constant, family list asserted both as
   named in the record and present in the tree.
 - Register any new test-read docs file in

@@ -128,22 +128,16 @@ is the ambient Azure workload identity.
 
 ## Vault Live Collector
 
-The Vault live collector is claim-only. It selects an enabled `vault_live`
-instance from `ESHU_COLLECTOR_INSTANCES_JSON`, resolves each target's
-read-only token from `token_env`, calls metadata-only Vault endpoints, and
-commits `secrets_iam_posture` source facts. It never reads KV `/data` paths or
-secret values. `ESHU_VAULT_LIVE_REDACTION_KEY` is required because Vault paths,
-names, accessors, aliases, and policy hashes can reveal trust topology; those
-values are persisted as deterministic HMAC markers.
+Vault now collects from its extracted satellite
+(`eshu-hq/eshu-collector-vault-live`); the target shape below is unchanged, but
+the `ESHU_VAULT_LIVE_*` process variables are satellite-side operator inputs,
+not in-tree registry entries, so `eshu config validate` does not cover them. The
+satellite resolves credentials and redaction through its activation config.
 
-| Variable | Default | Read by | Purpose |
-| --- | --- | --- | --- |
-| `ESHU_VAULT_LIVE_COLLECTOR_INSTANCE_ID` | required when more than one enabled Vault live instance exists | collector-vault-live | Selects the claim-capable `vault_live` instance. |
-| `ESHU_VAULT_LIVE_REDACTION_KEY` | unset | collector-vault-live | Deployment-scoped key for deterministic Vault metadata markers. Required. |
-| `ESHU_VAULT_LIVE_POLL_INTERVAL` | `5m` | collector-vault-live | Delay between empty workflow-claim polls. |
-| `ESHU_VAULT_LIVE_CLAIM_LEASE_TTL` | workflow default | collector-vault-live | Lease TTL used when claiming and refreshing work. |
-| `ESHU_VAULT_LIVE_HEARTBEAT_INTERVAL` | workflow default | collector-vault-live | Heartbeat interval for active workflow claims. Must be less than the claim lease TTL. |
-| `ESHU_VAULT_LIVE_COLLECTOR_OWNER_ID` | host/process-derived | collector-vault-live | Owner label written into workflow claim rows. |
+The satellite is claim-only. It selects an enabled `vault_live` instance,
+resolves each target's read-only token from `token_env`, calls metadata-only
+Vault endpoints, and commits `secrets_iam_posture` source facts. It never reads
+KV `/data` paths or secret values.
 
 Vault tokens must come from private environment variables referenced by
 `token_env`; do not commit token values, private Vault URLs, Vault paths, policy

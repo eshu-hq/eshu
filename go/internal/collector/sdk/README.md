@@ -248,20 +248,17 @@ metrics, and admin-status signals. The SDK still emits no telemetry directly,
 and no metric label now contains package names, metadata URLs, versions, feed
 paths, source locators, or credential material.
 
-Line-count marker (#2377): Vault live's `vaultapi` adapter now reuses SDK base
-URL validation, bounded default HTTP client construction, and bounded
-`HTTPError` values. Vault-owned metadata endpoint traversal, KV `/data/` guards,
-namespace/token headers, 404-as-empty handling, body-size limits, and API-call
-observation hooks stay local, and the package still has no HashiCorp Vault SDK
-dependency.
+Line-count marker (#2377, superseded by #8869 extraction): Vault live's
+`vaultapi` adapter reused SDK base URL validation, bounded default HTTP client
+construction, and bounded `HTTPError` values. The adapter left with the
+extraction to `eshu-hq/eshu-collector-vault-live`; the package still has no
+HashiCorp Vault SDK dependency.
 
-No-Regression Evidence (#2377): `go test ./internal/collector/sdk
-./internal/collector/vaultlive ./internal/collector/vaultlive/vaultapi
-./cmd/collector-vault-live -count=1` covers SDK base URL credential rejection,
-bounded default client construction, SDK HTTP error wrapping for status and
-transport failures, Vault metadata-only path guards, 404 empty-state behavior,
-all seven metadata families, API-call observations, redaction canaries, claim
-config, and command service wiring.
+No-Regression Evidence (#8869): `go test ./internal/collector/sdk -count=1`
+covers SDK base URL credential rejection, bounded default client construction,
+and SDK HTTP error wrapping for status and transport failures. Vault
+metadata-only path guards, 404 empty-state behavior, and the seven metadata
+families are proven by the satellite repo and the QA lane on #8869.
 
 No-Observability-Change (#2377): Vault live keeps its existing secrets/IAM
 source fact counters, API-call counters, partial-scope counters, redaction

@@ -70,10 +70,6 @@ var collectorEntries = func() []Entry {
 	add(collectorFrameworkEntries("collector-vulnerability-intelligence",
 		"ESHU_VULNERABILITY_INTELLIGENCE_COLLECTOR_INSTANCE_ID", "ESHU_VULNERABILITY_INTELLIGENCE_COLLECTOR_OWNER_ID",
 		"ESHU_VULNERABILITY_INTELLIGENCE_POLL_INTERVAL", "", "ESHU_VULNERABILITY_INTELLIGENCE_CLAIM_LEASE_TTL", "ESHU_VULNERABILITY_INTELLIGENCE_HEARTBEAT_INTERVAL")...)
-	add(collectorFrameworkEntries("collector-vault-live",
-		"ESHU_VAULT_LIVE_COLLECTOR_INSTANCE_ID", "ESHU_VAULT_LIVE_COLLECTOR_OWNER_ID",
-		"ESHU_VAULT_LIVE_POLL_INTERVAL", "", "ESHU_VAULT_LIVE_CLAIM_LEASE_TTL", "ESHU_VAULT_LIVE_HEARTBEAT_INTERVAL")...)
-	add(Entry{Name: "ESHU_VAULT_LIVE_REDACTION_KEY", Type: VarString, Subsystem: "collector-vault-live", Description: "Encryption key for redacting sensitive Vault data."})
 
 	// Package-registry and OCI-registry collectors (poll/lease/heartbeat without infix).
 	add(collectorFrameworkEntries("collector-package-registry",

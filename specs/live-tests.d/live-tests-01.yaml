@@ -199,10 +199,6 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
-  - file: go/internal/coordinator/service_vault_live_test.go
-    tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/eshulocal/embedded_postgres_driver_live_test.go
     tag: "!windows"
     class: scheduled
