@@ -159,3 +159,28 @@ proof="$(cat scripts/run-k8s-two-team-governance-proof.sh)"
   uses their helpers (two restores: sbom preflight, postgres budget).
 - Chart lane proof: `0.0.3-pre-release-26` re-pulled from
   `oci://ghcr.io/eshu-hq/charts/eshu` at execution (digest in handoff).
+
+## No-Regression Evidence: in-tree removal
+
+- Baseline: `origin/main` (`4750c37f8b` at rebase); dest checkout pin
+  `bc6b17897056e3c5dab27dd2357a013869b2bd9a` (`go/internal/deploy/checkout_test.go:18`).
+- Change shape: deploy assets, root Compose files, env examples, deploy
+  docs, and proof scripts deleted (~37k lines across ~380 files); staying
+  Go changes are additive only (fail-closed `ESHU_DEPLOY_CHECKOUT`
+  helpers, two `FailsClosed` probe tests, one `envregistry` entry).
+- After measurement: `go test ./internal/deploy/ ./internal/cli/demo/
+  ./internal/runtime/` exit 0 with `ESHU_DEPLOY_CHECKOUT` at the pin;
+  `go test ./internal/envregistry/` exit 0;
+  `bash scripts/verify-docs-cli-env-refs.sh` OK (1868 references
+  checked); `mkdocs build --strict --clean` exit 0; `git diff --check`
+  clean.
+- Backend/version: no backend, schema, queue, or hot-path change; no
+  NornicDB/Neo4j knob touched. Census counts stay frozen extraction
+  evidence (102 templates, 11 argocd, 6 manifests, 8 observability,
+  3 dashboards, 18 deploy docs, 9 run-locally).
+- No-Observability-Change: census tests emit no metrics, spans, or logs
+  beyond `go test` output; no new instrumentation added, none removed
+  from a live path.
+- Why safe: no runtime code path is modified, so there is no hot path to
+  regress; every staying reader of a deleted asset addresses the pinned
+  dest checkout or fails closed naming `ESHU_DEPLOY_CHECKOUT`.

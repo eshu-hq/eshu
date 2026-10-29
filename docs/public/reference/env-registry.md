@@ -11,7 +11,7 @@ Subsystem anchors such as `#api` and `#auth` moved to the family pages when this
 | Page | Covers | Variables |
 | --- | --- | --- |
 | [API, auth, and MCP](env-registry/api-and-auth.md) | Listen addresses, authentication, browser sessions, OIDC and GitHub login, and the MCP server. | 48 |
-| [Runtime and storage](env-registry/runtime-and-storage.md) | Shared runtime settings, Postgres, the graph backend, and backend conformance test knobs. | 55 |
+| [Runtime and storage](env-registry/runtime-and-storage.md) | Shared runtime settings, Postgres, the graph backend, and backend conformance test knobs. | 56 |
 | [Reducer and projection](env-registry/reducer-and-projection.md) | The reducer, projector, workflow coordinator, push hooks, and semantic providers. | 93 |
 | [Ingester and collector framework](env-registry/collectors-platform.md) | The ingester's git collector, the component package manager, and the component-extension collector. | 38 |
 | [Infrastructure and registry collectors](env-registry/collectors-infrastructure.md) | Cloud, Kubernetes, Vault, OCI registry, and package registry collectors. AWS cloud and Terraform state now collect from their extracted satellites (eshu-hq/eshu-collector-aws-cloud, eshu-hq/eshu-collector-terraform-state). | 35 |
@@ -23,7 +23,7 @@ Subsystem anchors such as `#api` and `#auth` moved to the family pages when this
 | --- | --- | --- |
 | [`api`](env-registry/api-and-auth.md#api) | 35 | API, auth, and MCP |
 | [`auth`](env-registry/api-and-auth.md#auth) | 7 | API, auth, and MCP |
-| [`backend-conformance`](env-registry/runtime-and-storage.md#backend-conformance) | 8 | Runtime and storage |
+| [`backend-conformance`](env-registry/runtime-and-storage.md#backend-conformance) | 9 | Runtime and storage |
 | [`collector`](env-registry/collectors-platform.md#collector) | 22 | Ingester and collector framework |
 | [`collector-azure-cloud`](env-registry/collectors-infrastructure.md#collector-azure-cloud) | 8 | Infrastructure and registry collectors |
 | [`collector-cicd-run`](env-registry/collectors-signals.md#collector-cicd-run) | 5 | Observability, delivery, and security collectors |
