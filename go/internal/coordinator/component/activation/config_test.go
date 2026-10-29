@@ -76,10 +76,10 @@ func TestParseConfigAdmitsExplicitAlpha3(t *testing.T) {
 	}
 }
 
-// TestParseConfigAdmitsEveryKnownSDKProtocol is the recurrence guard for
-// #9549: every protocol constant the component package defines must pass
-// this package's allowlist, so a future protocol bump cannot widen the
-// manifest side and miss this gate again.
+// TestParseConfigAdmitsEveryKnownSDKProtocol pins the currently known set
+// for #9549: every protocol constant the component package defines today
+// must pass this package's allowlist. A future protocol bump extends this
+// list by hand; the test then fails until the gate is widened with it.
 func TestParseConfigAdmitsEveryKnownSDKProtocol(t *testing.T) {
 	t.Parallel()
 
