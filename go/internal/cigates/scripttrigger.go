@@ -113,9 +113,13 @@ var pythonImportRE = regexp.MustCompile(`(?m)^[ \t]*(?:from[ \t]+([A-Za-z_]\w*)[
 //     TestDriftCheck_VariableSourcedFileNotResolved pins the boundary with an
 //     uncovered `${script_dir}`-sourced lib that produces 0 check-8 errors.
 //   - A Python file's imports are walked too (pythonImports, #9479): a module
-//     resolves to a scripts/ file beside the importer or in scripts/lib. A
-//     module loaded by path (importlib's spec_from_file_location) or by a
-//     dotted name is not seen.
+//     resolves to a scripts/ file beside the importer or in scripts/lib. Not
+//     seen: relative and dotted imports, a module loaded by path (importlib's
+//     spec_from_file_location, import_module, __import__), and a script
+//     launched by subprocess through a computed path such as
+//     LIB / "live_postgres_readiness_results.py". That last class is why the
+//     shard-mirror gate declares results.py's imports by hand. On landing the
+//     walk reported 10 drift errors covering 8 unique gate-and-file pairs.
 //   - It does NOT check the reverse direction. A trigger matching no file on
 //     disk is a separate concern, and a gate is free to declare triggers well
 //     beyond its own scripts.
@@ -258,16 +262,36 @@ func sourcedScripts(repoRoot, script string) []string {
 	return out
 }
 
-// readInRepo reads repoRoot/rel, refusing a path that cleans to outside
-// repoRoot. An escaping or unreadable path reports false.
-func readInRepo(repoRoot, rel string) ([]byte, bool) {
+// inRepo joins repoRoot and rel, refusing a path that cleans to outside
+// repoRoot.
+func inRepo(repoRoot, rel string) (string, bool) {
 	full := filepath.Join(repoRoot, rel)
 	root := filepath.Clean(repoRoot)
 	if full != root && !strings.HasPrefix(full, root+string(filepath.Separator)) {
+		return "", false
+	}
+	return full, true
+}
+
+// readInRepo reads repoRoot/rel. An escaping or unreadable path reports false.
+func readInRepo(repoRoot, rel string) ([]byte, bool) {
+	full, ok := inRepo(repoRoot, rel)
+	if !ok {
 		return nil, false
 	}
-	raw, err := os.ReadFile(full) // #nosec G304 -- full is confirmed to resolve within repoRoot above
+	raw, err := os.ReadFile(full) // #nosec G304 -- inRepo confirmed full resolves within repoRoot
 	return raw, err == nil
+}
+
+// existsInRepo reports whether repoRoot/rel is a file inside repoRoot, with a
+// stat rather than a read.
+func existsInRepo(repoRoot, rel string) bool {
+	full, ok := inRepo(repoRoot, rel)
+	if !ok {
+		return false
+	}
+	info, err := os.Stat(full)
+	return err == nil && !info.IsDir()
 }
 
 // pythonImports returns the sorted scripts/ modules a .py script imports, one
@@ -292,7 +316,7 @@ func pythonImports(repoRoot, script string) []string {
 			if fields := strings.Fields(name); len(fields) > 0 {
 				for _, dir := range []string{filepath.ToSlash(filepath.Dir(script)), "scripts/lib"} {
 					rel := dir + "/" + fields[0] + ".py"
-					if _, found := readInRepo(repoRoot, rel); found {
+					if existsInRepo(repoRoot, rel) {
 						seen[rel] = struct{}{}
 						break
 					}
