@@ -5,6 +5,7 @@ package git
 
 import (
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	pythonparser "github.com/eshu-hq/eshu/go/internal/parser/python"
 	"github.com/eshu-hq/eshu/go/internal/parser/pythondep"
 	rubyparser "github.com/eshu-hq/eshu/go/internal/parser/ruby"
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -47,10 +49,11 @@ func ParserFileFactEnvelope(
 	_, hasComposerTransport := parsedFile["composer_runtime_evidence"]
 	_, hasPythonTransport := parsedFile["python_runtime_evidence"]
 	_, hasRubyTransport := parsedFile["ruby_runtime_evidence"]
-	if hasComposerTransport || hasPythonTransport || hasRubyTransport {
+	_, hasJVMTransport := parsedFile["jvm_runtime_evidence"]
+	if hasComposerTransport || hasPythonTransport || hasRubyTransport || hasJVMTransport {
 		clean := make(map[string]any, len(parsedFile)-1)
 		for key, value := range parsedFile {
-			if key != "composer_runtime_evidence" && key != "python_runtime_evidence" && key != "ruby_runtime_evidence" {
+			if key != "composer_runtime_evidence" && key != "python_runtime_evidence" && key != "ruby_runtime_evidence" && key != "jvm_runtime_evidence" {
 				clean[key] = value
 			}
 		}
@@ -62,6 +65,27 @@ func ParserFileFactEnvelope(
 // noteComposerOrRuntimeCandidate uses the parser's one Composer interpretation
 // when available. A changed body cannot be combined with an earlier parse.
 func noteComposerOrRuntimeCandidate(snapshot *RepositorySnapshot, candidates map[string]runtimedeclaration.Candidate, relativePath, body string, dropped *atomic.Bool, droppedPaths *scope.StreamDroppedPaths) {
+	if isJVMRuntimePath(relativePath) {
+		if parsed, ok := snapshot.JVMRuntime[relativePath]; ok {
+			if parsed.Digest != shared.RuntimeDigest([]byte(body)) {
+				dropped.Store(true)
+				droppedPaths.Note(relativePath)
+				return
+			}
+			runtimedeclaration.NoteParsedJVMCandidate(candidates, relativePath, parsed.Extraction)
+			return
+		}
+		if snapshot.JVMRuntimeExpected {
+			if len(body) > runtimepaths.MaxManifestBytesPerFile {
+				runtimedeclaration.NoteCappedJVMCandidate(candidates, relativePath, len(body))
+				return
+			}
+			dropped.Store(true)
+			droppedPaths.Note(relativePath)
+			runtimedeclaration.NoteUnavailableJVMCandidate(candidates, relativePath, len(body))
+			return
+		}
+	}
 	if filepath.Base(relativePath) == "Gemfile" || filepath.Base(relativePath) == "Gemfile.lock" {
 		if parsed, ok := snapshot.RubyRuntime[relativePath]; ok {
 			if parsed.Digest != rubyparser.RubyRuntimeDigest([]byte(body)) {
@@ -146,4 +170,15 @@ func noteComposerOrRuntimeCandidate(snapshot *RepositorySnapshot, candidates map
 		}
 	}
 	runtimedeclaration.NoteRuntimeDeclarationCandidate(candidates, relativePath, body)
+}
+
+func isJVMRuntimePath(relativePath string) bool {
+	switch filepath.Base(relativePath) {
+	case "pom.xml", "build.gradle", "build.gradle.kts", "build.sbt":
+		return true
+	case "build.properties":
+		return relativePath == "project/build.properties" || strings.HasSuffix(relativePath, "/project/build.properties")
+	default:
+		return false
+	}
 }

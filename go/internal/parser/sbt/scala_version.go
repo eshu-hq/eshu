@@ -27,7 +27,7 @@ func (s *scan) scalaVersionContext(key token) bool {
 // non-ThisBuild axes, a parenthesized key, an infix member (`withRank`,
 // `set`), a bare key, and any assignment outside a grammar context, which
 // may reach a project the scanner does not track.
-func (s *scan) parseScalaVersion(inContext bool) {
+func (s *scan) parseScalaVersion(key token, inContext bool) {
 	if axes, thisBuild := s.skipLegacyAxes(); axes > 1 || (axes == 1 && !thisBuild) {
 		inContext = false
 	}
@@ -51,9 +51,9 @@ func (s *scan) parseScalaVersion(inContext bool) {
 	value := s.next()
 	switch {
 	case value.kind == kindString && validField(value.text) && endsLiteral(s.peek()):
-		s.recordScalaVersion(value.text)
+		s.recordScalaVersion(value.text, int(key.line))
 	case value.kind == kindIdent && s.resolveIdentVersion(value):
-		s.recordScalaVersion(s.vals[value.text])
+		s.recordScalaVersion(s.vals[value.text], int(key.line))
 	case value.kind == kindEOF:
 		// `scalaVersion :=` cut off by end of input: counted and poisoned,
 		// with nothing left to skip.
@@ -89,7 +89,7 @@ func (s *scan) resolveIdentVersion(value token) bool {
 // recordScalaVersion keeps value once among the distinct literals, up to
 // maxScalaVersions. A literal past the cap still poisons the envelope, so the
 // count stays a lower bound and never names a single version wrongly.
-func (s *scan) recordScalaVersion(value string) {
+func (s *scan) recordScalaVersion(value string, line int) {
 	for _, seen := range s.scalaVersions {
 		if seen == value {
 			return
@@ -98,6 +98,9 @@ func (s *scan) recordScalaVersion(value string) {
 	if len(s.scalaVersions) >= maxScalaVersions {
 		s.scalaPoisoned = true
 		return
+	}
+	if len(s.scalaVersions) == 0 {
+		s.scalaVersionLine = line
 	}
 	s.scalaVersions = append(s.scalaVersions, value)
 }

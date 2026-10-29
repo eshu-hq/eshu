@@ -10,7 +10,7 @@ not admit it (#8938).
 
 ## Ownership boundary
 
-The package owns `build.sbt` scanning only. The parent parser package owns
+The package owns `build.sbt` scanning and the metadata-only `project/build.properties` launcher pin. The parent parser package owns
 registry dispatch, file discovery, and the engine wrapper
 (`go/internal/parser/gradle_language.go`, beside the Gradle wrapper). The reducer owns matching emitted rows
 to package-registry identities.
@@ -18,7 +18,7 @@ to package-registry identities.
 ## Exported surface
 
 - `Parse(repoRoot, path string, isDependency bool, options shared.Options) (map[string]any, error)`
-- `MaxDependencyRows`, `MaxFieldBytes`, `LanguageName`
+- `ParseBuildProperties`, `ExtractRuntimeEvidence`, `ExtractBuildPropertiesEvidence`, `MaxDependencyRows`, `MaxFieldBytes`, `LanguageName`
 
 The payload follows `shared.BasePayload(path, "sbt", isDependency)`. The
 `variables` bucket holds one row per literal coordinate:

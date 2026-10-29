@@ -28,6 +28,7 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 	}
 
 	payload := shared.BasePayload(path, "gradle", isDependency)
+	payload["jvm_runtime_evidence"] = ExtractRuntimeEvidence(source)
 	text := string(source)
 	stripped := stripCommentsAndStringInteriorsKept(text)
 	properties := collectScalarProperties(stripped)

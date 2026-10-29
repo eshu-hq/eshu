@@ -30,7 +30,12 @@ that lists several versions is one row per token. There is no effective-version 
 `composer_lock_platform_overrides_php`, `pyproject_requires_python`,
 `poetry_python`, `pipfile_python_version`, `pipfile_python_full_version`,
 `setup_cfg_python_requires`, `setup_py_python_requires`, `gemfile_ruby`,
-`gemfile_lock_ruby_version`), and one per new reader
+`gemfile_lock_ruby_version`, `pom_maven_compiler_release`,
+`pom_maven_compiler_source`, `pom_maven_compiler_target`, `pom_java_version`,
+`gradle_java_toolchain`, `gradle_java_source_compatibility`,
+`gradle_java_target_compatibility`,
+`gradle_kotlin_jvm_toolchain`, `sbt_scala_version`,
+`sbt_build_properties_version`), and one per new reader
 (`runtime_txt`, `dockerfile_from`,
 `workflow_setup_version`). The filter is an exact match on an open set.
 

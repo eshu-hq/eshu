@@ -89,6 +89,27 @@ func NoteParsedRubyCandidate(candidates map[string]Candidate, relativePath strin
 	candidates[relativePath] = Candidate{Manifest: true, Extraction: extraction}
 }
 
+// NoteParsedJVMCandidate stores guarded parser evidence for one JVM manifest.
+func NoteParsedJVMCandidate(candidates map[string]Candidate, relativePath string, extraction runtimedeclaration.Extraction) {
+	if runtimedeclaration.ClassifyPath(relativePath) != runtimedeclaration.FileManifest {
+		return
+	}
+	if extraction.Len() == 0 && !extraction.Skip().Skipped() {
+		return
+	}
+	candidates[relativePath] = Candidate{Manifest: true, Extraction: extraction}
+}
+
+// NoteUnavailableJVMCandidate records a JVM parser miss for retry.
+func NoteUnavailableJVMCandidate(candidates map[string]Candidate, relativePath string, byteSize int) {
+	candidates[relativePath] = Candidate{Manifest: true, Extraction: runtimedeclaration.UnavailableJVMExtraction(byteSize)}
+}
+
+// NoteCappedJVMCandidate records an over-cap JVM manifest without retaining it.
+func NoteCappedJVMCandidate(candidates map[string]Candidate, relativePath string, byteSize int) {
+	candidates[relativePath] = Candidate{Manifest: true, Extraction: runtimedeclaration.CappedJVMExtraction(byteSize)}
+}
+
 // NoteUnavailableRubyCandidate records a parser miss for a retry.
 func NoteUnavailableRubyCandidate(candidates map[string]Candidate, relativePath string, byteSize int) {
 	candidates[relativePath] = Candidate{Manifest: true, Extraction: runtimedeclaration.UnavailableRubyExtraction(byteSize)}

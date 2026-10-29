@@ -192,6 +192,10 @@ func (r Registry) lookupPath(path string) (Definition, bool) {
 		return definition, ok
 	}
 
+	if isSbtBuildPropertiesPath(path) {
+		definition, ok := r.byKey["sbt_properties"]
+		return definition, ok
+	}
 	if isMavenExtensionsPath(path) {
 		definition, ok := r.byKey["raw_text"]
 		return definition, ok

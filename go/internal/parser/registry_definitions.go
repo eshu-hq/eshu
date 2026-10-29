@@ -11,9 +11,10 @@ import (
 // defaultDefinitions returns the built-in parser metadata catalog for this wave.
 // It is the source-of-truth literal consumed by DefaultRegistry; keep new parser
 // registrations here so registry.go stays focused on registry construction and
-// lookup logic.
+// lookup logic. JVM-ecosystem registrations live in registry_jvm.go and are
+// appended to the literal below through jvmDefinitions.
 func defaultDefinitions() []Definition {
-	return []Definition{
+	definitions := []Definition{
 		{
 			ParserKey:  "__dockerfile__",
 			Language:   "dockerfile",
@@ -120,42 +121,6 @@ func defaultDefinitions() []Definition {
 			ContentStore: ContentStore{Policy: ContentStoreRedact, Redactor: RedactorSkeleton},
 		},
 		{
-			ParserKey:  "java",
-			Language:   "java",
-			Ecosystem:  "java",
-			Admission:  AdmissionStructuredFact,
-			Extensions: []string{".java"},
-		},
-		{
-			ParserKey: "java_metadata",
-			Language:  "java_metadata",
-			Ecosystem: "java",
-			Admission: AdmissionStructuredFact,
-		},
-		{
-			ParserKey:  "gradle",
-			Language:   "gradle",
-			Ecosystem:  "java",
-			Admission:  AdmissionStructuredFact,
-			ExactNames: []string{"build.gradle", "build.gradle.kts", "libs.versions.toml"},
-		},
-		{
-			// gradle-wrapper.properties pins the Gradle distribution, and its
-			// distributionUrl can carry user:password@ userinfo. It is its own
-			// exact-name definition, never bound to the gradle definition above,
-			// and it binds the metadata content-store policy (#8822): the row
-			// keeps the path and the source digest with an empty body, and the
-			// wrapper parser emits only the version and the distribution type.
-			// Parser output is not governed by the policy, so the parser, not
-			// the policy, keeps credentials out of facts.
-			ParserKey:    "gradle_wrapper",
-			Language:     "gradle_wrapper",
-			Ecosystem:    "java",
-			Admission:    AdmissionStructuredFact,
-			ContentStore: ContentStore{Policy: ContentStoreMetadata},
-			ExactNames:   []string{"gradle-wrapper.properties"},
-		},
-		{
 			ParserKey:  "javascript",
 			Language:   "javascript",
 			Ecosystem:  "javascript",
@@ -179,20 +144,6 @@ func defaultDefinitions() []Definition {
 			// Exact names only (#8824): .props is no registered extension, so a
 			// stray Common.props or Build.props stays unadmitted.
 			ExactNames: []string{"Directory.Packages.props", "Directory.Build.props"},
-		},
-		{
-			ParserKey:  "kotlin",
-			Language:   "kotlin",
-			Ecosystem:  "kotlin",
-			Admission:  AdmissionStructuredFact,
-			Extensions: []string{".kt", ".kts"},
-		},
-		{
-			ParserKey:  "maven",
-			Language:   "maven",
-			Ecosystem:  "java",
-			Admission:  AdmissionStructuredFact,
-			ExactNames: []string{"pom.xml"},
 		},
 		{
 			ParserKey:  "perl",
@@ -293,20 +244,6 @@ func defaultDefinitions() []Definition {
 			ExactNames: []string{"Cargo.toml", "Cargo.lock"},
 		},
 		{
-			ParserKey:  "scala",
-			Language:   "scala",
-			Ecosystem:  "scala",
-			Admission:  AdmissionStructuredFact,
-			Extensions: []string{".sc", ".scala", ".routes"},
-		},
-		{
-			ParserKey:  "sbt",
-			Language:   "sbt",
-			Ecosystem:  "scala",
-			Admission:  AdmissionStructuredFact,
-			ExactNames: []string{"build.sbt"},
-		},
-		{
 			ParserKey:  "sql",
 			Language:   "sql",
 			Ecosystem:  "sql",
@@ -386,6 +323,10 @@ func defaultDefinitions() []Definition {
 			},
 		},
 	}
+	// JVM-ecosystem definitions live in registry_jvm.go. NewRegistry sorts by
+	// parser key and normalizes every binding list, so appending them here
+	// registers exactly what the inline entries did.
+	return append(definitions, jvmDefinitions()...)
 }
 
 // Hardcoded path-dispatch rules. LookupByPath resolves these before the
@@ -429,6 +370,11 @@ func PathDispatches() []PathDispatch {
 			Patterns:  []string{"conf/routes", "*.routes"},
 			ParserKey: "scala",
 			Examples:  []string{"conf/routes", "app/conf/routes", "conf/api.routes"},
+		},
+		{
+			Patterns:  []string{"project/build.properties"},
+			ParserKey: "sbt_properties",
+			Examples:  []string{"project/build.properties", "module/project/build.properties"},
 		},
 		{
 			Patterns:  []string{".mvn/extensions.xml"},
@@ -484,17 +430,4 @@ func isMavenExtensionsPath(path string) bool {
 	normalized := strings.ToLower(filepath.ToSlash(filepath.Clean(path)))
 	return normalized == ".mvn/extensions.xml" ||
 		strings.HasSuffix(normalized, "/.mvn/extensions.xml")
-}
-
-func isJavaMetadataPath(path string) bool {
-	normalized := strings.ToLower(filepath.ToSlash(filepath.Clean(path)))
-	if strings.HasPrefix(normalized, "meta-inf/services/") ||
-		strings.Contains(normalized, "/meta-inf/services/") {
-		_, serviceName, ok := strings.Cut(normalized, "meta-inf/services/")
-		return ok && strings.TrimSpace(serviceName) != ""
-	}
-	return normalized == "meta-inf/spring/org.springframework.boot.autoconfigure.autoconfiguration.imports" ||
-		strings.HasSuffix(normalized, "/meta-inf/spring/org.springframework.boot.autoconfigure.autoconfiguration.imports") ||
-		normalized == "meta-inf/spring.factories" ||
-		strings.HasSuffix(normalized, "/meta-inf/spring.factories")
 }

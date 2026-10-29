@@ -41,6 +41,18 @@ Primary proof:
 - `go/internal/query/codequery/deadcode/java_roots_test.go`
 - `go/internal/query/codequery/route_to_caller_java_test.go::TestHandleRouteToCallerResolvesJavaSpringHandler`
 
+## Declared JVM versions
+
+Admitted Maven `pom.xml` files declare Java versions through the direct
+`maven.compiler.release`, `source`, `target`, and `java.version` properties.
+Gradle build files declare Java toolchain `languageVersion`, literal
+`sourceCompatibility`, and Kotlin `jvmToolchain` values as separate
+`runtime_declaration.version` source kinds. Eshu reads literal, file-local
+values without executing a build. It keeps aliases and unresolved placeholders
+as such and drops credential-shaped values. `project/build.properties` supplies
+an sbt launcher version under metadata-only content storage; other properties
+are not retained in its parser output.
+
 ## Dead-Code Support
 
 Java dead-code support is `derived`. Eshu suppresses parser-proven runtime

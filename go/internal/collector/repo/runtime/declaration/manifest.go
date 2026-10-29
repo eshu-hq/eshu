@@ -18,25 +18,35 @@ import (
 // declaring section (its FROM lines) and a workflow has one (its setup with:
 // version inputs), so each has a single kind.
 const (
-	sourceKindPackageJSONEngines = "package_json_engines"
-	sourceKindPackageJSONVolta   = "package_json_volta"
-	sourceKindPackageJSONManager = "package_json_package_manager"
-	sourceKindComposerRequire    = "composer_json_require_php"
-	sourceKindComposerPlatform   = "composer_json_platform_php"
-	sourceKindComposerLock       = "composer_lock_platform_php"
-	sourceKindComposerOverrides  = "composer_lock_platform_overrides_php"
-	sourceKindGoModGo            = "go_mod_go"
-	sourceKindGoModToolchain     = "go_mod_toolchain"
-	sourceKindDockerfileFrom     = "dockerfile_from"
-	sourceKindWorkflowSetup      = "workflow_setup_version"
-	sourceKindPyProjectRequires  = "pyproject_requires_python"
-	sourceKindPoetryPython       = "poetry_python"
-	sourceKindPipfileVersion     = "pipfile_python_version"
-	sourceKindPipfileFullVersion = "pipfile_python_full_version"
-	sourceKindSetupCFGRequires   = "setup_cfg_python_requires"
-	sourceKindSetupPYRequires    = "setup_py_python_requires"
-	sourceKindGemfileRuby        = "gemfile_ruby"
-	sourceKindGemfileLockRuby    = "gemfile_lock_ruby_version"
+	sourceKindPackageJSONEngines        = "package_json_engines"
+	sourceKindPackageJSONVolta          = "package_json_volta"
+	sourceKindPackageJSONManager        = "package_json_package_manager"
+	sourceKindComposerRequire           = "composer_json_require_php"
+	sourceKindComposerPlatform          = "composer_json_platform_php"
+	sourceKindComposerLock              = "composer_lock_platform_php"
+	sourceKindComposerOverrides         = "composer_lock_platform_overrides_php"
+	sourceKindGoModGo                   = "go_mod_go"
+	sourceKindGoModToolchain            = "go_mod_toolchain"
+	sourceKindDockerfileFrom            = "dockerfile_from"
+	sourceKindWorkflowSetup             = "workflow_setup_version"
+	sourceKindPyProjectRequires         = "pyproject_requires_python"
+	sourceKindPoetryPython              = "poetry_python"
+	sourceKindPipfileVersion            = "pipfile_python_version"
+	sourceKindPipfileFullVersion        = "pipfile_python_full_version"
+	sourceKindSetupCFGRequires          = "setup_cfg_python_requires"
+	sourceKindSetupPYRequires           = "setup_py_python_requires"
+	sourceKindGemfileRuby               = "gemfile_ruby"
+	sourceKindGemfileLockRuby           = "gemfile_lock_ruby_version"
+	sourceKindPomCompilerRelease        = "pom_maven_compiler_release"
+	sourceKindPomCompilerSource         = "pom_maven_compiler_source"
+	sourceKindPomCompilerTarget         = "pom_maven_compiler_target"
+	sourceKindPomJavaVersion            = "pom_java_version"
+	sourceKindGradleToolchain           = "gradle_java_toolchain"
+	sourceKindGradleCompatibility       = "gradle_java_source_compatibility"
+	sourceKindGradleTargetCompatibility = "gradle_java_target_compatibility"
+	sourceKindGradleKotlinToolchain     = "gradle_kotlin_jvm_toolchain"
+	sourceKindSbtScalaVersion           = "sbt_scala_version"
+	sourceKindSbtBuildVersion           = "sbt_build_properties_version"
 )
 
 // section identifies the manifest section a declaration was read from.
@@ -63,30 +73,50 @@ const (
 	sectionSetupPYRequires
 	sectionGemfileRuby
 	sectionGemfileLockRuby
+	sectionPomCompilerRelease
+	sectionPomCompilerSource
+	sectionPomCompilerTarget
+	sectionPomJavaVersion
+	sectionGradleToolchain
+	sectionGradleCompatibility
+	sectionGradleTargetCompatibility
+	sectionGradleKotlinToolchain
+	sectionSbtScalaVersion
+	sectionSbtBuildVersion
 )
 
 // sectionSourceKinds maps a section to its source kind.
 var sectionSourceKinds = [...]string{
-	sectionNone:               "",
-	sectionPackageJSONEngines: sourceKindPackageJSONEngines,
-	sectionPackageJSONVolta:   sourceKindPackageJSONVolta,
-	sectionPackageJSONManager: sourceKindPackageJSONManager,
-	sectionComposerRequire:    sourceKindComposerRequire,
-	sectionComposerPlatform:   sourceKindComposerPlatform,
-	sectionComposerLock:       sourceKindComposerLock,
-	sectionComposerOverrides:  sourceKindComposerOverrides,
-	sectionGoModGo:            sourceKindGoModGo,
-	sectionGoModToolchain:     sourceKindGoModToolchain,
-	sectionDockerfileFrom:     sourceKindDockerfileFrom,
-	sectionWorkflowSetup:      sourceKindWorkflowSetup,
-	sectionPyProjectRequires:  sourceKindPyProjectRequires,
-	sectionPoetryPython:       sourceKindPoetryPython,
-	sectionPipfileVersion:     sourceKindPipfileVersion,
-	sectionPipfileFullVersion: sourceKindPipfileFullVersion,
-	sectionSetupCFGRequires:   sourceKindSetupCFGRequires,
-	sectionSetupPYRequires:    sourceKindSetupPYRequires,
-	sectionGemfileRuby:        sourceKindGemfileRuby,
-	sectionGemfileLockRuby:    sourceKindGemfileLockRuby,
+	sectionNone:                      "",
+	sectionPackageJSONEngines:        sourceKindPackageJSONEngines,
+	sectionPackageJSONVolta:          sourceKindPackageJSONVolta,
+	sectionPackageJSONManager:        sourceKindPackageJSONManager,
+	sectionComposerRequire:           sourceKindComposerRequire,
+	sectionComposerPlatform:          sourceKindComposerPlatform,
+	sectionComposerLock:              sourceKindComposerLock,
+	sectionComposerOverrides:         sourceKindComposerOverrides,
+	sectionGoModGo:                   sourceKindGoModGo,
+	sectionGoModToolchain:            sourceKindGoModToolchain,
+	sectionDockerfileFrom:            sourceKindDockerfileFrom,
+	sectionWorkflowSetup:             sourceKindWorkflowSetup,
+	sectionPyProjectRequires:         sourceKindPyProjectRequires,
+	sectionPoetryPython:              sourceKindPoetryPython,
+	sectionPipfileVersion:            sourceKindPipfileVersion,
+	sectionPipfileFullVersion:        sourceKindPipfileFullVersion,
+	sectionSetupCFGRequires:          sourceKindSetupCFGRequires,
+	sectionSetupPYRequires:           sourceKindSetupPYRequires,
+	sectionGemfileRuby:               sourceKindGemfileRuby,
+	sectionGemfileLockRuby:           sourceKindGemfileLockRuby,
+	sectionPomCompilerRelease:        sourceKindPomCompilerRelease,
+	sectionPomCompilerSource:         sourceKindPomCompilerSource,
+	sectionPomCompilerTarget:         sourceKindPomCompilerTarget,
+	sectionPomJavaVersion:            sourceKindPomJavaVersion,
+	sectionGradleToolchain:           sourceKindGradleToolchain,
+	sectionGradleCompatibility:       sourceKindGradleCompatibility,
+	sectionGradleTargetCompatibility: sourceKindGradleTargetCompatibility,
+	sectionGradleKotlinToolchain:     sourceKindGradleKotlinToolchain,
+	sectionSbtScalaVersion:           sourceKindSbtScalaVersion,
+	sectionSbtBuildVersion:           sourceKindSbtBuildVersion,
 }
 
 // MaxManifestBytesPerFile bounds one package.json, Composer, or go.mod body. A manifest
@@ -112,6 +142,10 @@ const (
 	manifestSetupPY
 	manifestGemfile
 	manifestGemfileLock
+	manifestPom
+	manifestGradle
+	manifestSbt
+	manifestSbtBuildProperties
 )
 
 // dependencyDirs are directory names whose manifests belong to a dependency,
@@ -159,6 +193,14 @@ func manifestKindForBase(base, relativePath string) manifestKind {
 		kind = manifestGemfile
 	case base == "Gemfile.lock":
 		kind = manifestGemfileLock
+	case base == "pom.xml":
+		kind = manifestPom
+	case base == "build.gradle" || base == "build.gradle.kts":
+		kind = manifestGradle
+	case base == "build.sbt":
+		kind = manifestSbt
+	case base == "build.properties" && (relativePath == "project/build.properties" || strings.HasSuffix(relativePath, "/project/build.properties")):
+		kind = manifestSbtBuildProperties
 	case isDockerfileName(base):
 		kind = manifestDockerfile
 	case ghactionsref.IsWorkflowPath(relativePath):

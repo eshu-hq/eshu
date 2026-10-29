@@ -54,6 +54,8 @@ func (e *Engine) parseSbt(repoRoot, path string, isDependency bool, options Opti
 // no name can reach the build-script parser through it.
 func (e *Engine) parseJVMBuild(language, repoRoot, path string, isDependency bool, options Options) (map[string]any, error) {
 	switch language {
+	case "sbt_properties":
+		return sbtparser.ParseBuildProperties(path, isDependency)
 	case "sbt":
 		return e.parseSbt(repoRoot, path, isDependency, options)
 	case "gradle_wrapper":

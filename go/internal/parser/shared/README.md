@@ -273,3 +273,10 @@ avoiding per-node `NamedChildren` slice allocation in repo-scale Go pre-scans.
 parser hands Composer PHP declarations to the runtime fact emitter. Both stages
 apply the same grammar so a rejected credential-shaped value does not enter the
 parser transport or a runtime fact.
+
+## Private runtime evidence
+
+`RuntimeEvidence` carries bounded, source-positioned values from Maven, Gradle,
+and sbt parsers to the Git collector. `RuntimeDigest` binds them to the raw
+file bytes; `Add` applies the shared version guard and token cap before a value
+is retained. The collector removes this transport before file facts persist.

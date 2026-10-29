@@ -63,6 +63,7 @@ func Parse(repoRoot, path string, isDependency bool, options shared.Options) (ma
 	scan.metaBuild = isMetaBuildPath(repoRoot, path)
 	scan.run()
 	rows, state := scan.finish()
+	payload["jvm_runtime_evidence"] = scan.runtimeEvidence(source)
 	payload["variables"] = rows
 	payload["sbt_state"] = state
 
@@ -87,7 +88,8 @@ type scan struct {
 	vals map[string]string
 	// scalaVersions holds the distinct scalaVersion literals recorded in a
 	// grammar context, in source order.
-	scalaVersions []string
+	scalaVersions    []string
+	scalaVersionLine int
 	// scalaPoisoned is set by a scalaVersion statement in a grammar context
 	// that the scanner cannot read as a literal; the envelope then reports
 	// no version and no row gets a `%%` hint.
@@ -206,7 +208,7 @@ func (s *scan) run() {
 		case "libraryDependencies":
 			s.parseLibraryDependencies(tok)
 		case "scalaVersion":
-			s.parseScalaVersion(s.scalaVersionContext(tok))
+			s.parseScalaVersion(tok, s.scalaVersionContext(tok))
 		case "ThisBuild":
 			s.thisBuildAt = 0
 			if _, ok := s.keyContext(tok, s.hist[1]); ok {

@@ -12,6 +12,7 @@
 package maven
 
 import (
+	"bytes"
 	"encoding/xml"
 	"fmt"
 	"regexp"
@@ -45,6 +46,7 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 	}
 
 	rows := make([]map[string]any, 0)
+	payload["jvm_runtime_evidence"] = runtimeEvidence(source, project)
 	properties := project.Properties.values()
 	lineNumber := 1
 	for _, dependency := range project.Dependencies.Dependency {
@@ -247,4 +249,49 @@ func resolvePropertyReferences(raw string, properties map[string]string) (string
 	})
 	sort.Strings(unresolved)
 	return resolved, unresolved
+}
+
+// ExtractRuntimeEvidence reads the four JVM properties from one supplied POM.
+// The native parser calls runtimeEvidence with its already decoded document.
+func ExtractRuntimeEvidence(source []byte) shared.RuntimeEvidence {
+	evidence := shared.NewRuntimeEvidence(source)
+	if evidence.State == "over_cap" {
+		return evidence
+	}
+	var project pomProject
+	if err := xml.Unmarshal(source, &project); err != nil {
+		evidence.State = "unavailable"
+		return evidence
+	}
+	return runtimeEvidence(source, project)
+}
+
+func runtimeEvidence(source []byte, project pomProject) shared.RuntimeEvidence {
+	evidence := shared.NewRuntimeEvidence(source)
+	if evidence.State == "over_cap" {
+		return evidence
+	}
+	kinds := map[string]string{
+		"maven.compiler.release": "pom_maven_compiler_release",
+		"maven.compiler.source":  "pom_maven_compiler_source",
+		"maven.compiler.target":  "pom_maven_compiler_target",
+		"java.version":           "pom_java_version",
+	}
+	for _, property := range project.Properties.Entries {
+		name := property.XMLName.Local
+		kind, ok := kinds[name]
+		if !ok {
+			continue
+		}
+		// A repeated spelling cannot be assigned an unambiguous source line.
+		opening := []byte("<" + name + ">")
+		at := bytes.Index(source, opening)
+		if at < 0 || bytes.LastIndex(source, opening) != at {
+			evidence.Rejected++
+			continue
+		}
+		line := 1 + bytes.Count(source[:at], []byte{'\n'})
+		evidence.Add(kind, "java", property.Value, line)
+	}
+	return evidence
 }

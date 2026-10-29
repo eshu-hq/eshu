@@ -57,7 +57,7 @@ func comparablePayload(t *testing.T, payload map[string]any, repoRoot string) st
 	t.Helper()
 	clone := make(map[string]any, len(payload))
 	for key, value := range payload {
-		if key == "path" || key == "repo_path" || key == "source" {
+		if key == "path" || key == "repo_path" || key == "source" || key == "jvm_runtime_evidence" {
 			continue
 		}
 		clone[key] = value

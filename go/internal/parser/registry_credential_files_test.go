@@ -126,14 +126,14 @@ func TestDefaultRegistryBindsCredentialFilePolicies(t *testing.T) {
 		if definition.ParserKey == "tfvars" || definition.ParserKey == "yarnrc" {
 			continue
 		}
-		if definition.ParserKey == "npmrc" || definition.ParserKey == "gradle_wrapper" || definition.ParserKey == "php_config" || definition.ParserKey == "runtime_txt" {
+		if definition.ParserKey == "npmrc" || definition.ParserKey == "gradle_wrapper" || definition.ParserKey == "php_config" || definition.ParserKey == "runtime_txt" || definition.ParserKey == "sbt_properties" {
 			if definition.ContentStore.Policy != ContentStoreMetadata {
 				t.Errorf("%s policy = %+v, want metadata (#8978, #8822, #9304)", definition.ParserKey, definition.ContentStore)
 			}
 			continue
 		}
 		if definition.ContentStore.Policy != ContentStoreStore {
-			t.Errorf("%s binds %q; only tfvars and yarnrc bind a policy", definition.ParserKey, definition.ContentStore.Policy)
+			t.Errorf("%s binds %q; only the listed credential files bind a non-store policy", definition.ParserKey, definition.ContentStore.Policy)
 		}
 	}
 }
