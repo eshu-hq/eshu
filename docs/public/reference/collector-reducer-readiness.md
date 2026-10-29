@@ -336,7 +336,7 @@ Each proof carries a closed `promotion_state`:
 | `implemented` | Healthy, fresh, reducer-readback evidence. Promotable. |
 | `partial` | Evidence exists but the implemented contract is unmet (readback pending, claims inactive, or a fixture-only lane). Not promotable yet. |
 | `failed` | Runtime health degraded. Reject and fix the owning layer. |
-| `stale` | Newest evidence older than the freshness window. Re-run before trusting. |
+| `stale` | Newest evidence older than the freshness window, or a vulnerability source whose last success is outside its source freshness window. Re-run before trusting. |
 | `gated` | Claim-driven lane with claims disabled, or hidden by a runtime profile gate. Expected for preview lanes. |
 | `disabled` | Registered but disabled or deactivated. |
 | `permission_hidden` | Hidden from the caller by an active permission scope; metadata is redacted. |

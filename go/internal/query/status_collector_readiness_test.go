@@ -158,6 +158,45 @@ func TestCollectorReadinessMarksStaleEvidence(t *testing.T) {
 	}
 }
 
+// TestCollectorReadinessStoppedWriterWithAgedOutSourcesIsStale pins the
+// operator outcome of #9477: a vulnerability writer stopped 15 days whose
+// sources aged out of the freshness window reads promotion stale, names the
+// source freshness window in its blocker, and tells the operator to re-run the
+// collector. It must never read the less severe partial state.
+func TestCollectorReadinessStoppedWriterWithAgedOutSourcesIsStale(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 10, 29, 12, 0, 0, 0, time.UTC)
+	old := now.Add(-15 * 24 * time.Hour)
+	reader := fakeStatusReader{snapshot: statuspkg.RawSnapshot{
+		AsOf: now,
+		Coordinator: &statuspkg.CoordinatorSnapshot{
+			CollectorInstances: []collector.InstanceSummary{
+				{InstanceID: "collector-vuln", CollectorKind: "vulnerability_intelligence", Mode: "claim", Enabled: true, ClaimsEnabled: true, LastObservedAt: old, UpdatedAt: old},
+			},
+		},
+		VulnerabilitySources: []collector.VulnerabilitySourceState{
+			{CollectorInstanceID: "collector-vuln", ScopeID: "vuln-intel://cisa/kev", Source: "cisa_kev", FreshnessState: "stale", TerminalStatus: "succeeded", UpdatedAt: old},
+		},
+		CollectorFactEvidence: []collector.FactEvidence{
+			{InstanceID: "collector-vuln", CollectorKind: "vulnerability_intelligence", EvidenceSource: "reducer_facts", ObservationCount: 4, LastObservedAt: old, UpdatedAt: old},
+		},
+	}}
+
+	vuln := collectorReadinessByKind(t, getCollectorReadinessBody(t, reader))["vulnerability_intelligence"]
+	if vuln["promotion_state"] != collector.PromotionStale {
+		t.Fatalf("promotion_state = %v, want stale (blockers %v)", vuln["promotion_state"], vuln["blockers"])
+	}
+	blockers, _ := vuln["blockers"].([]any)
+	if len(blockers) != 1 || blockers[0] != "vulnerability source stale: last success outside the source freshness window" {
+		t.Fatalf("blockers = %v, want the source freshness blocker", vuln["blockers"])
+	}
+	want := "Re-run the collector; the newest evidence is older than the freshness window."
+	if vuln["recommended_next_action"] != want {
+		t.Fatalf("recommended_next_action = %v, want %q", vuln["recommended_next_action"], want)
+	}
+}
+
 func TestCollectorReadinessClaimCapableWithoutEvidenceIsPartial(t *testing.T) {
 	t.Parallel()
 

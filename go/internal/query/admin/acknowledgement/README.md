@@ -57,7 +57,9 @@ repository, or account, and the status payloads reach callers outside the admin
 gate. It returns bounded tokens only (never a failure message or the reason) and
 writes no audit event.
 
-An acknowledged instance reads `partial`, never healthy or failed, with the
+An acknowledged instance reads promotion `partial`, never healthy or failed,
+and health at least `partial` (a stale source or another scope's degraded
+failure keeps the higher health), with the
 failure kept as a separate `acknowledged_failure` object. A completed work item
 on the scope, or a failure of another raw class, reports the failure again with
 no further write. See

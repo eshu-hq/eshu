@@ -97,12 +97,23 @@ never touches `LastFailure*`. It becomes the `AcknowledgedFailure` sub-record,
 raises health to `partial` (never `healthy`, `registered`, or `observed`, and
 never `degraded` by itself), and `derivePromotionState` returns
 `PromotionPartial` with the `terminal fetch failure acknowledged` blocker in an
-arm before the generic partial case. A real unacknowledged failure outranks it by
-health rank. The runtime gauge in `internal/runtime` counts it only on the
+arm before the generic partial case. A real unacknowledged failure, or a stale
+vulnerability source (#9477), outranks it by health rank. The runtime gauge in `internal/runtime` counts it only on the
 acknowledged series. The operator's reason, the scope id, and the work item id
 are never carried on `RuntimeStatus`, `PromotionProof`, or their JSON; the
 reason is admin-only. Do not add the covering rule here; it is one SQL predicate
 in `storage/postgres`.
+
+A succeeded vulnerability source whose `FreshnessState` is `stale` reads
+runtime health `stale` (#9477). `runtimeHealthRank` must stay monotone with the
+promotion severity each health maps to: `degraded` > `stale` > `partial` >
+`observed`. Do not move `stale` below `partial`. Then an instance with both a
+stale row and a partial row reads less severe: promotion `partial` with "some
+work did not complete" instead of `stale` with "re-run the collector". An
+instance with only stale rows still reads `stale` either way. The
+acknowledged-failure arm stays ahead of the stale arm in
+`derivePromotionState`, so an acknowledged instance reads promotion `partial`
+while its health can read `stale`.
 
 ## Exporting the render/clone/JSON surface
 

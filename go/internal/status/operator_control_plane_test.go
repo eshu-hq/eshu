@@ -176,6 +176,41 @@ func TestControlPlaneCollectorFamilyWorstVerdictCarriesItsRuntimeFields(t *testi
 	}
 }
 
+// TestControlPlaneAgedOutVulnerabilitySourceRollsUpAsStale pins the family
+// rollup of #9477: one instance with a fresh partial run and one stopped
+// instance whose sources aged out roll up to stale, the more severe verdict,
+// with the source freshness blocker. Combining instances never lowers severity.
+func TestControlPlaneAgedOutVulnerabilitySourceRollsUpAsStale(t *testing.T) {
+	now := time.Date(2026, 10, 29, 12, 0, 0, 0, time.UTC)
+	recent := now.Add(-2 * time.Minute)
+	old := now.Add(-15 * 24 * time.Hour)
+	report := BuildReport(RawSnapshot{
+		AsOf: now,
+		Coordinator: &CoordinatorSnapshot{CollectorInstances: []collector.InstanceSummary{
+			{InstanceID: "vuln-running", CollectorKind: "vulnerability_intelligence", Mode: "claim", Enabled: true, ClaimsEnabled: true, LastObservedAt: recent, UpdatedAt: recent},
+			{InstanceID: "vuln-stopped", CollectorKind: "vulnerability_intelligence", Mode: "claim", Enabled: true, ClaimsEnabled: true, LastObservedAt: old, UpdatedAt: old},
+		}},
+		VulnerabilitySources: []collector.VulnerabilitySourceState{
+			{CollectorInstanceID: "vuln-running", ScopeID: "a", Source: "osv", FreshnessState: "fresh", TerminalStatus: "partial", UpdatedAt: recent},
+			{CollectorInstanceID: "vuln-stopped", ScopeID: "b", Source: "osv", FreshnessState: "stale", TerminalStatus: "succeeded", UpdatedAt: old},
+		},
+	}, Options{})
+
+	for _, fam := range ControlPlane(report).CollectorFamilies {
+		if fam.CollectorKind != "vulnerability_intelligence" {
+			continue
+		}
+		if fam.PromotionState != collector.PromotionStale || fam.Health != "stale" {
+			t.Fatalf("family = %q health %q (blockers %v), want stale/stale", fam.PromotionState, fam.Health, fam.Blockers)
+		}
+		if len(fam.Blockers) != 1 || fam.Blockers[0] != "vulnerability source stale: last success outside the source freshness window" {
+			t.Fatalf("family blockers = %v, want the source freshness blocker", fam.Blockers)
+		}
+		return
+	}
+	t.Fatalf("vulnerability_intelligence family missing")
+}
+
 // TestControlPlaneReducerDomainsSortedAndCarryRetryState confirms reducer
 // domains preserve retry/dead-letter/oldest-age signals for diagnosis.
 func TestControlPlaneReducerDomainsSortedAndCarryRetryState(t *testing.T) {
