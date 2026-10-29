@@ -310,6 +310,29 @@ gates:
       - docker
     ci_only_reason: "requires hosted Docker Buildx; PR runs build with push disabled"
 
+  - id: scanner-image-build
+    name: Scanner destination image build smoke
+    category: build
+    layer: hygiene
+    purpose: "Smoke-tests that the three scanner-<name> destination images still build and push successfully in CI, so the digest-pinned activation artifacts exist."
+    tier: ci-heavy
+    blocking: true
+    triggers:
+      - "Dockerfile"
+      - ".dockerignore"
+      - ".github/workflows/docker-publish.yml"
+      - "scripts/ci/select-docker-publish-lanes.sh"
+    ci:
+      workflow: docker-publish.yml
+      job: "build-and-push-scanner-images"
+      check_names:
+        - "Build and push scanner-image"
+        - "Build and push scanner-sbom"
+        - "Build and push scanner-osruntime"
+    requirements:
+      - docker
+    ci_only_reason: "requires hosted Docker Buildx; PR runs build with push disabled"
+
   - id: docker-image-reproducibility
     name: Docker image reproducibility
     category: build

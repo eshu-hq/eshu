@@ -147,6 +147,53 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 CMD ["eshu-mock-github"]
 
+# scanner-image / scanner-sbom / scanner-osruntime: destination images for
+# the per-analyzer scanner stdio components (#8878). Each image carries
+# exactly one component binary from the builder stage — the same binary
+# the runtime image ships — and nothing else: the extension host launches
+# one process per call, and each ComponentPackage manifest
+# (go/internal/collector/scannerworker/component) pins exactly one artifact
+# image, so scripts/verify-scanner-images.sh fails a stage that gains a
+# sibling binary. No shell tools, no ports, no HEALTHCHECK: stdio components
+# read the v1alpha3 page request on stdin and write the result page on
+# stdout; there is no server to probe. The base is the same digest-pinned
+# Alpine the production stage uses. These stages MUST stay before
+# "Production stage": no docker-compose*.yaml `build:` block in this repo
+# sets an explicit `target:`, so plain `docker build .` resolves to
+# whichever stage is LAST in this file. Published as
+# ghcr.io/eshu-hq/scanner-<name> by docker-publish.yml's
+# build-and-push-scanner-images job; the manifest placeholder digest is
+# swapped for the published digest after the first publish.
+FROM ${ESHU_ALPINE_IMAGE} AS scanner-image
+
+COPY --from=builder /go-bin/eshu-scanner-component-image /usr/local/bin/eshu-scanner-component-image
+
+RUN adduser -D -u 10001 scanner
+
+USER scanner
+
+CMD ["eshu-scanner-component-image"]
+
+FROM ${ESHU_ALPINE_IMAGE} AS scanner-sbom
+
+COPY --from=builder /go-bin/eshu-scanner-component-sbom /usr/local/bin/eshu-scanner-component-sbom
+
+RUN adduser -D -u 10001 scanner
+
+USER scanner
+
+CMD ["eshu-scanner-component-sbom"]
+
+FROM ${ESHU_ALPINE_IMAGE} AS scanner-osruntime
+
+COPY --from=builder /go-bin/eshu-scanner-component-osruntime /usr/local/bin/eshu-scanner-component-osruntime
+
+RUN adduser -D -u 10001 scanner
+
+USER scanner
+
+CMD ["eshu-scanner-component-osruntime"]
+
 # Production stage. MUST remain the last stage in this file — see the
 # mock-oidc-idp comment above. It is named `runtime` because
 # docker-publish.yml passes `no-cache-filters: runtime` to the image build.
