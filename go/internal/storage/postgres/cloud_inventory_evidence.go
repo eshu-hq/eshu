@@ -118,6 +118,7 @@ var cloudInventorySourceFactMappings = map[string]cloudInventorySourceFactMappin
 		attributeAllowlist: &awsCloudInventoryAttributeAllowlist,
 		resourceTypeAllowlists: map[string]cloudInventoryAttributeAllowlist{
 			awsCloudInventoryAppSyncGraphQLAPIResourceType: awsCloudInventoryAppSyncGraphQLAPIAttributeAllowlist,
+			awsCloudInventoryAMIResourceType:               awsCloudInventoryAMIAttributeAllowlist,
 		},
 	},
 	cloud.GCPCloudResourceFactKind: {
@@ -275,15 +276,21 @@ type cloudInventoryAttributeAllowlist struct {
 	// JSON object, or whose every allowed sub-key is absent or blank, is
 	// dropped; every non-allowlisted sub-key and top-level key is dropped.
 	nestedArrayKeys map[string]map[string]struct{}
+	// validatedScalarKeys maps a top-level attribute key to a structural
+	// validator for its JSON string value. A validated key NEVER stringifies:
+	// non-strings drop before the validator runs, which decides admit-or-drop
+	// on the trimmed text (issue #9525 creator-controlled text).
+	validatedScalarKeys map[string]func(string) (string, bool)
 }
 
 // filter reduces one provider's raw "attributes" payload value to this
 // allowlist's closed key set: allowed top-level scalar keys with a non-blank
-// value, plus allowed nested-array keys reduced element-by-element to their
-// allowed sub-keys. It caps the result at maxCloudInventoryAttributeKeys as
-// defense in depth (the allowlist itself is already far smaller than the cap).
-// A raw value that is not a JSON object, or a zero-value allowlist (no scalar
-// or nested-array keys configured, e.g. Azure today), yields nil.
+// value, allowed nested-array keys reduced element-by-element to their allowed
+// sub-keys, and validated scalar keys admitted only by their structural
+// validator. It caps the result at maxCloudInventoryAttributeKeys as defense
+// in depth (the allowlist itself is already far smaller than the cap). A raw
+// value that is not a JSON object, or a zero-value allowlist (no scalar,
+// nested-array, or validated keys configured, e.g. Azure today), yields nil.
 func (allow cloudInventoryAttributeAllowlist) filter(raw any) map[string]any {
 	object, ok := raw.(map[string]any)
 	if !ok || len(object) == 0 {
@@ -321,6 +328,26 @@ func (allow cloudInventoryAttributeAllowlist) filter(raw any) map[string]any {
 		}
 		if filtered := filterCloudInventoryNestedArray(object[key], subKeys); len(filtered) > 0 {
 			kept[count] = keptAttribute{key: key, value: filtered}
+			count++
+		}
+	}
+	for key, validate := range allow.validatedScalarKeys {
+		if count >= maxCloudInventoryAttributeKeys {
+			break
+		}
+		if validate == nil {
+			continue
+		}
+		value, present := object[key]
+		if !present {
+			continue
+		}
+		text, ok := value.(string)
+		if !ok {
+			continue
+		}
+		if keptValue, ok := validate(text); ok {
+			kept[count] = keptAttribute{key: key, value: keptValue}
 			count++
 		}
 	}

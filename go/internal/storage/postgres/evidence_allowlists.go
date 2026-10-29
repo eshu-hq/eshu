@@ -3,6 +3,14 @@
 
 package postgres
 
+import (
+	"strings"
+	"unicode"
+	"unicode/utf8"
+
+	"github.com/eshu-hq/eshu/go/internal/urlredact"
+)
+
 // awsCloudInventoryAttributeAllowlist is the closed image/version allowlist
 // for aws_resource attributes (issues #5449 and #9298). It surfaces AWS
 // runtime and patch-level fields the collector observes -- an ECS task's
@@ -64,6 +72,22 @@ var awsCloudInventoryAttributeAllowlist = cloudInventoryAttributeAllowlist{
 // for the regression guard that every current Azure key stays dropped.
 var azureCloudInventoryAttributeAllowlist = cloudInventoryAttributeAllowlist{}
 
+const awsCloudInventoryAMIResourceType = "aws_ec2_ami"
+
+// awsCloudInventoryAMIAttributeAllowlist admits the AMI name ONLY for the
+// aws_ec2_ami resource type (hybrid ruling on issue #9525, decision 7b). The
+// name is the single validatedScalarKeys entry: a JSON string that passes the
+// AWS CreateImage structural validator below. description is ALWAYS dropped,
+// even from a rogue producer payload, because no allowlist names it: the
+// closed filter keeps only named keys. This entry is deliberately narrow: it
+// inherits nothing from the base AWS image/version allowlist, and no other
+// resource type admits name.
+var awsCloudInventoryAMIAttributeAllowlist = cloudInventoryAttributeAllowlist{
+	validatedScalarKeys: map[string]func(string) (string, bool){
+		"name": cloudInventoryAMIName,
+	},
+}
+
 const awsCloudInventoryAppSyncGraphQLAPIResourceType = "aws_appsync_graphql_api"
 
 // awsCloudInventoryAppSyncGraphQLAPIAttributeAllowlist exposes only the
@@ -79,4 +103,83 @@ var awsCloudInventoryAppSyncGraphQLAPIAttributeAllowlist = cloudInventoryAttribu
 			"deletes": {},
 		},
 	},
+}
+
+// cloudInventoryAMINameDropSentinel is the exact synthetic value the
+// allowlist tests use for must-drop fields (issue #9450). It stays dropped as
+// an AMI name value even though it is charset-valid: exact-sentinel
+// preservation, not secret detection. A bare patternless token that is NOT
+// this sentinel still passes when it fits the charset (see the honesty clause
+// below); blocklisting one exact test string is deterministic, unlike judging
+// what a value looks like.
+const cloudInventoryAMINameDropSentinel = "must-not-surface"
+
+// cloudInventoryAMINameMinRunes and cloudInventoryAMINameMaxRunes are the AWS
+// CreateImage Name bounds (3-128 characters), derived from the API contract,
+// not invented. Any failure below drops the field only and keeps ami_id and
+// every typed field; the name is never truncated, because a truncated name is
+// a name AWS never reported.
+const (
+	cloudInventoryAMINameMinRunes = 3
+	cloudInventoryAMINameMaxRunes = 128
+)
+
+// cloudInventoryAMIName admits one AMI name value under the hybrid ruling on
+// issue #9525 (conditional admission for name, permanent exclusion for
+// description). ALL of these must hold, fail-closed:
+//
+//  1. The value is already a JSON string (enforced by filter before this
+//     runs: non-strings never reach here and are never stringified).
+//  2. The trimmed text holds 3-128 runes, the AWS CreateImage maximum.
+//  3. Every rune is printable with no controls, and inside the exact AWS
+//     CreateImage charset: alphanumerics plus ()[] ./-'@_. Hence no "=",
+//     no ":", no URL or header shape, and no percent-encoding.
+//  4. The shared free-text hygiene walk (urlredact.FreeText over the shared
+//     sensitive-key predicate) reports nothing to remove. This is a
+//     defense-in-depth drop trigger, not a second deciding gate: the charset
+//     already rejects every key=value and key:value shape (FreeText
+//     fast-paths out when none of =:% is present, so it cannot fire on a
+//     charset-passing input today), and a patternless bare token passes here
+//     by design. The call stays in the drop path so a future charset widening
+//     still trips on credential-shaped pairs instead of silently admitting
+//     them; key=value coverage is proved through the charset gate.
+//
+// What is claimed and tested is only the falsifiable part (shape, charset,
+// drop behavior). The admitted name is untrusted creator-controlled text and
+// is explicitly NOT proven secret-free: a bare patternless token fits the
+// charset and will pass. That limitation is printed in the contract docs, not
+// hidden (ruling decision 6, disclaimer condition).
+func cloudInventoryAMIName(value string) (string, bool) {
+	s := strings.TrimSpace(value)
+	if s == "" || s == cloudInventoryAMINameDropSentinel {
+		return "", false
+	}
+	if n := utf8.RuneCountInString(s); n < cloudInventoryAMINameMinRunes || n > cloudInventoryAMINameMaxRunes {
+		return "", false
+	}
+	for _, r := range s {
+		if !unicode.IsPrint(r) || unicode.IsControl(r) || !cloudInventoryAMINameRuneAllowed(r) {
+			return "", false
+		}
+	}
+	if _, hit := urlredact.FreeText(s, nil); hit {
+		return "", false
+	}
+	return s, true
+}
+
+// cloudInventoryAMINameRuneAllowed reports whether r is inside the exact AWS
+// CreateImage Name charset: ASCII alphanumerics plus ()[] ./-'@_ and space.
+// The printable/no-control gate in cloudInventoryAMIName stays separate so it
+// survives any future charset widening.
+func cloudInventoryAMINameRuneAllowed(r rune) bool {
+	switch {
+	case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+		return true
+	}
+	switch r {
+	case '(', ')', '[', ']', ' ', '.', '/', '-', '\'', '@', '_':
+		return true
+	}
+	return false
 }
