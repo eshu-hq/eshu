@@ -323,6 +323,50 @@ arbiter authorization (targets, application-collection-only scope, and
 post-measurement deletion) before it runs. Volume, limit, and cost numbers
 stay NOT_PROVEN.
 
+### Captured-cohort measurement, 2026-10-29 22:07-22:34 UTC (FIRST POPULATED CAPTURE)
+
+Authorizations: owner approved the 4 named instances in-session; arbiter
+REJECTED that set (none SSM-managed at the time) and pre-accepted a retry on
+proven-managed targets. Owner then approved proceeding on the reporting
+subset; 2 of the 4 came Online. Owner added a scoped create/delete grant to
+the measurement role (CreateAssociation on the 2 instance ARNs + the
+document ARN + the association ARN; Delete/DescribeAssociation on the
+association ARN) after the first create attempt showed the grant missing the
+association resource.
+
+Association `463893ad-250e-4104-85ee-3c8bc6a80650` (created 22:07:23Z,
+applications Enabled, all other types explicitly Disabled) executed 22:22:29Z
+and Failed both targets: agent log shows the `files` plugin rejecting the
+explicit `"Disabled"` value (`invalid character 'D' looking for beginning of
+value`). The association was deleted (exit 0). It was replaced by
+`01e99689-f60b-4bf8-8b38-23d86b63c92f` (created 22:29:59Z, identical scope
+except `files` and `windowsRegistry` left at document default, which is
+empty): "Disabled" is not a valid value for those two parameters, so the
+letter of "explicitly disable everything" cannot be implemented; the net
+collection scope is unchanged (applications only). Owner ran
+start-associations-once under their own credentials (the measurement role
+lacks that action).
+
+Capture (both targets, `AWS:Application`, dated `2026-10-29T22:31:19Z`,
+measured ~2 minutes fresh):
+
+- target A: 1310 entries over 27 pages, 601,671 response bytes (~459 B/entry, ~22.3 KB/page)
+- target B: 1295 entries over 26 pages, 594,307 response bytes (~459 B/entry, ~22.9 KB/page)
+- cohort totals: 2 nodes, 2605 entries, 53 pages, 1,195,978 bytes (~1.17 MB)
+
+No raw rows entered any log; aggregates only. Against the stated limits: L1
+([A], >50/page overflow) CONFIRMED by observation (26-27 pages each); L2
+([C], ~1 KB/entry) within factor 2 as observed (~0.45 KB/entry); L3 ([C],
+45-50 KB/page upper budget) observed below budget (~22-23 KB/page). Final
+limit grading belongs to the arbiter re-review, which this measurement
+unblocks. S3 sync was never configured, so the cost question stays bounded
+to API-read volume only.
+
+Cleanup: association `01e99689-…` deleted 22:34:09Z (exit 0);
+unpaginated ListAssociations afterwards returns empty (exit 0). Built-in
+inventory data deletion is NOT claimed (retention unresolved, per the
+earlier section).
+
 </details>
 
 ## Implementation plan
