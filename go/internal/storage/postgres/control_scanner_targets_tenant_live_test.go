@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #9299 disposable PostgreSQL proof for hosted tenant boundaries and grant-revocation target suppression
+//eshu:readiness:env ESHU_POSTGRES_DISPOSABLE ESHU_POSTGRES_DSN
+
 import (
 	"context"
 	"errors"

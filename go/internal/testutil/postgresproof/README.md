@@ -15,9 +15,15 @@ owns those steps after it receives the isolated connection.
 
 - `OpenDisposableDatabase` creates a random database from `template0` and
   drops it during test cleanup (database.go).
+- `OpenDisposableBootstrapDatabase` opens that disposable database and runs
+  the caller's apply (usually the full production bootstrap) on it before
+  returning, so public-qualified `SECURITY DEFINER` bodies install into
+  `public` (database.go). The caller passes the administrative DSN and the
+  explicit opt-in; neither is derived.
 - `OpenIsolatedSchema` creates and drops a timestamped schema in the
-  database its DSN names and runs the caller's schema setup on it; storage
-  packages pass their own bootstrap, so this package still owns no Eshu
+  database its DSN names and runs the caller's schema setup on it; it is
+  subset-DDL-only since the #9299 lane (a full bootstrap must use
+  `OpenDisposableBootstrapDatabase`), so this package still owns no Eshu
   schema (schema.go).
 - `InstallTrigramExtension` installs `pg_trgm` in `public` under the
   transaction advisory lock `TrigramExtensionLockKey`, so concurrent proofs on

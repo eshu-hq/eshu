@@ -3,6 +3,10 @@
 
 package runtime
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #9299 disposable PostgreSQL proof that the installed role policy attests the actual physical session against role rotation
+//eshu:readiness:env ESHU_ROLE_ATTEST_DISPOSABLE ESHU_ROLE_ATTEST_DSN
+
 import (
 	"context"
 	"fmt"
@@ -14,7 +18,7 @@ import (
 )
 
 func TestPostgresRoleContractAttestsActualPhysicalSession(t *testing.T) {
-	dsn := os.Getenv("ESHU_ROLE_ATTEST_TEST_DSN")
+	dsn := os.Getenv("ESHU_ROLE_ATTEST_DSN")
 	if dsn == "" || os.Getenv("ESHU_ROLE_ATTEST_DISPOSABLE") != "1" {
 		t.Skip("requires an explicitly marked disposable PostgreSQL fixture")
 	}

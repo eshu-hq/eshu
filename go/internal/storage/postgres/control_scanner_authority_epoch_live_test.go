@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #9299 disposable PostgreSQL proof that authority epoch bumps never ABA across tenant, workspace, grant, and instance revocation cycles
+//eshu:readiness:env ESHU_POSTGRES_DISPOSABLE ESHU_POSTGRES_DSN
+
 import (
 	"context"
 	"testing"

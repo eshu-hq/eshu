@@ -4,8 +4,8 @@
 package query
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #8803 disposable PostgreSQL proof of the security-alert empty-answer collection-state reads on the bootstrapped schema: only enabled, non-deactivated security_alert instances contribute configuration; the latest work item per target is chosen by updated_at with the lowest work_item_id on a tie and ignores other collector kinds; a failed_terminal row with NULL last_failure_terminal (pre-migration-185) reads as failed_terminal with the flag false; a committed generation is active, superseded, or completed only; a target with no work items still returns a row; the 64-instance and 1024-target bounds fail with ErrSecurityAlertCollectionStateBound; EXPLAIN shows the lateral latest-item read as an index-only probe of workflow_work_items_security_alert_scope_updated_idx (#8840) with no sort over a 20,000-item history, and it returns the same rows as the pre-#8840 plan forced by dropping the index in a rolled-back transaction, including updated_at ties; isolated bootstrapped schema per test; wall time and plan timing are logged, not gated
-//eshu:readiness:env ESHU_POSTGRES_DSN
+//eshu:readiness:reason #8803 disposable PostgreSQL proof of the security-alert empty-answer collection-state reads on the bootstrapped database: only enabled, non-deactivated security_alert instances contribute configuration; the latest work item per target is chosen by updated_at with the lowest work_item_id on a tie and ignores other collector kinds; a failed_terminal row with NULL last_failure_terminal (pre-migration-185) reads as failed_terminal with the flag false; a committed generation is active, superseded, or completed only; a target with no work items still returns a row; the 64-instance and 1024-target bounds fail with ErrSecurityAlertCollectionStateBound; EXPLAIN shows the lateral latest-item read as an index-only probe of workflow_work_items_security_alert_scope_updated_idx (#8840) with no sort over a 20,000-item history, and it returns the same rows as the pre-#8840 plan forced by dropping the index in a rolled-back transaction, including updated_at ties; disposable bootstrapped database per test; wall time and plan timing are logged, not gated
+//eshu:readiness:env ESHU_POSTGRES_DISPOSABLE ESHU_POSTGRES_DSN
 
 import (
 	"context"
@@ -28,7 +28,7 @@ import (
 const securityAlertCollectionStateLiveSkip = "set ESHU_POSTGRES_DSN to run the #8803 security-alert collection-state live proofs"
 
 // collectionStateLiveFixture seeds collector_instances, workflow_work_items,
-// ingestion_scopes, and scope_generations in an isolated bootstrapped schema.
+// ingestion_scopes, and scope_generations in a disposable bootstrapped database.
 type collectionStateLiveFixture struct {
 	t        *testing.T
 	ctx      context.Context
@@ -36,17 +36,18 @@ type collectionStateLiveFixture struct {
 	asOf     time.Time
 }
 
-func newCollectionStateLiveFixture(t *testing.T, prefix string) *collectionStateLiveFixture {
+func newCollectionStateLiveFixture(t *testing.T) *collectionStateLiveFixture {
 	t.Helper()
 	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
 	if dsn == "" {
 		t.Skip(securityAlertCollectionStateLiveSkip)
 	}
-	database := postgresproof.OpenIsolatedSchema(t, dsn, prefix, func(ctx context.Context, db *sql.DB) error {
+	// Disposable database (#9299): the lane's public-qualified SECURITY
+	// DEFINER bodies cannot install into an isolated schema; isolation comes
+	// from the database, so no per-test schema prefix is needed.
+	ctx, database := postgresproof.OpenDisposableBootstrapDatabase(t, dsn, os.Getenv("ESHU_POSTGRES_DISPOSABLE"), 2*time.Minute, func(ctx context.Context, db *sql.DB) error {
 		return storagepostgres.ApplyBootstrap(ctx, storagepostgres.SQLDB{DB: db})
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	t.Cleanup(cancel)
 	f := &collectionStateLiveFixture{t: t, ctx: ctx, database: database, asOf: time.Now().UTC().Truncate(time.Second)}
 	f.exec(`INSERT INTO workflow_runs (run_id, trigger_kind, status, created_at, updated_at)
 VALUES ('run-8803', 'schedule', 'running', $1, $1)`, f.asOf)
@@ -104,7 +105,7 @@ func (f *collectionStateLiveFixture) store() PostgresSecurityAlertCollectionStat
 
 func TestSecurityAlertCollectionStateSemanticsLive(t *testing.T) {
 	started := time.Now()
-	f := newCollectionStateLiveFixture(t, "sa_collection_state")
+	f := newCollectionStateLiveFixture(t)
 	f.instance("sa-live", "security_alert", true, false, `{"targets":[{"scope_id":"live"}]}`)
 	f.instance("sa-disabled", "security_alert", false, false, `{"targets":[{"scope_id":"disabled"}]}`)
 	f.instance("sa-deactivated", "security_alert", true, true, `{"targets":[{"scope_id":"deactivated"}]}`)
@@ -161,7 +162,7 @@ func TestSecurityAlertCollectionStateSemanticsLive(t *testing.T) {
 }
 
 func TestSecurityAlertCollectionStateBoundsLive(t *testing.T) {
-	f := newCollectionStateLiveFixture(t, "sa_collection_bounds")
+	f := newCollectionStateLiveFixture(t)
 	for i := 0; i < 64; i++ {
 		f.instance(fmt.Sprintf("sa-%02d", i), "security_alert", true, false, `{"targets":[]}`)
 	}
@@ -195,7 +196,7 @@ func TestSecurityAlertCollectionStateBoundsLive(t *testing.T) {
 // rows as the pre-#8840 plan, which is forced inside a rolled-back transaction
 // that drops the index. Plan timing and buffers are logged, not gated.
 func TestSecurityAlertCollectionStatePlanLive(t *testing.T) {
-	f := newCollectionStateLiveFixture(t, "sa_collection_plan")
+	f := newCollectionStateLiveFixture(t)
 	f.exec(`INSERT INTO workflow_work_items (work_item_id, run_id, collector_kind, collector_instance_id, scope_id,
     generation_id, status, created_at, updated_at)
 SELECT 'wi-' || k || '-' || t || '-' || g, 'run-8803', k, 'sa-live', 'target-' || t, md5(k || t || g),

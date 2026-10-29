@@ -3,6 +3,21 @@
 
 -- #9299. These rows are protected authority and result provenance. Generic
 -- fact_records remain a projection; they cannot create source eligibility.
+--
+-- Public-schema-only (#7033): this migration installs database-global
+-- authority (the eshu_security schema, singleton state, and SECURITY
+-- DEFINER routines with locked search paths). Under an isolated-schema
+-- search_path the unqualified DDL below would land in the wrong schema
+-- while the public-qualified bodies still bind public, silently splitting
+-- one install across two schemas. Fail closed here, before any DDL, so a
+-- missed harness caller errors loudly instead of half-installing.
+DO $scanner_241_public_only$
+BEGIN
+    IF current_schema() IS DISTINCT FROM 'public' THEN
+        RAISE EXCEPTION 'migration 241 applies to the public schema only (current_schema() = %)', current_schema();
+    END IF;
+END
+$scanner_241_public_only$;
 CREATE SCHEMA IF NOT EXISTS eshu_security;
 CREATE TABLE IF NOT EXISTS eshu_security.role_policy_state (
     singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
@@ -179,7 +194,7 @@ CREATE TABLE IF NOT EXISTS scanner_authority_epochs (
 -- receive no direct DML privilege on scanner_authority_epochs.
 CREATE OR REPLACE FUNCTION scanner_bump_ancestor_epoch() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER
-SET search_path = pg_catalog, public, pg_temp AS $$
+SET search_path = pg_catalog, pg_temp AS $$
 DECLARE
     before_row JSONB := to_jsonb(OLD);
     after_row JSONB := to_jsonb(NEW);

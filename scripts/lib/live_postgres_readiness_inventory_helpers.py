@@ -25,7 +25,7 @@ HELPER_PROOFS = {
             {
                 "consumer_file": "go/internal/query/supply/chain/runtime_filter_plan_live_test.go",
                 "consumer_test": "TestSupplyChainImpactRuntimeFilterPlansLive",
-                "consumer_sha256": "98b8d51903d5a4543e784af49fe8fa5ac380e9b5f2168974cd2c1fd7638c466e",
+                "consumer_sha256": "03a8883085e0d277ebc854dc79974676c5b3447373479da770a796d5833e7a88",
             },
             {
                 "consumer_file": "go/internal/query/supply/chain/runtime_filter_workload_id_shape_live_test.go",

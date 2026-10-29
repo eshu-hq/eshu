@@ -157,6 +157,15 @@ TABLE = {
         "go/internal/storage/postgres/content_writer_upsert_outcome_write_bench_live_test.go": (
             "TestContentFileUpsertOutcomeWriteCostLive",
         ),
+        "go/internal/storage/postgres/control_scanner_admission_atomicity_live_test.go": (
+            "TestScannerAdmissionRejectsConflictingDuplicateSourceLive",
+        ),
+        "go/internal/storage/postgres/control_scanner_authority_epoch_live_test.go": (
+            "TestScannerAuthorityEpochNoABALive",
+        ),
+        "go/internal/storage/postgres/control_scanner_targets_tenant_live_test.go": (
+            "TestScannerImageTargetHostedBoundaryAndGrantRevocationLive",
+        ),
         "go/internal/storage/postgres/corpus_fence_observer_live_test.go": (
             "TestQueueObserverStoreCorpusFenceCountsRunOnPostgres",
         ),

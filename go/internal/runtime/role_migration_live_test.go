@@ -3,6 +3,10 @@
 
 package runtime_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #9299 disposable-role proof that the installed role policy attests the runtime physical connection across the admin, bootstrap, runtime, reader, control, producer, and advisory roles
+//eshu:readiness:env ESHU_ROLE_ATTEST_DISPOSABLE ESHU_ROLE_ATTEST_DSN ESHU_ROLE_ATTEST_BOOTSTRAP_DSN ESHU_ROLE_ATTEST_RUNTIME_DSN ESHU_ROLE_ATTEST_READER_DSN ESHU_ROLE_ATTEST_CONTROL_DSN ESHU_ROLE_ATTEST_PRODUCER_DSN ESHU_ROLE_ATTEST_ADVISORY_DSN ESHU_CONTENT_STORE_DSN ESHU_POSTGRES_DSN ESHU_POSTGRES_PRODUCER_DSN
+
 import (
 	"context"
 	"database/sql"
@@ -19,7 +23,7 @@ import (
 )
 
 func TestInstalledRolePolicyAttestsRuntimePhysicalConnection(t *testing.T) {
-	adminDSN := os.Getenv("ESHU_ROLE_ATTEST_ADMIN_DSN")
+	adminDSN := os.Getenv("ESHU_ROLE_ATTEST_DSN")
 	bootstrapDSN := os.Getenv("ESHU_ROLE_ATTEST_BOOTSTRAP_DSN")
 	runtimeDSN := os.Getenv("ESHU_ROLE_ATTEST_RUNTIME_DSN")
 	readerDSN := os.Getenv("ESHU_ROLE_ATTEST_READER_DSN")

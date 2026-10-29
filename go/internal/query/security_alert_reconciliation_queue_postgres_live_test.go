@@ -4,8 +4,8 @@
 package query
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #8839 disposable PostgreSQL proof of the security_alert_reconciliation per-scope queue read: outstanding (pending, claimed, running, retrying) and dead-lettered counts per covering scope, other domains and terminal rows excluded, and EXPLAIN (ANALYZE, BUFFERS) over a 500,000-item backlog logged, not gated; isolated bootstrapped schema per test
-//eshu:readiness:env ESHU_POSTGRES_DSN
+//eshu:readiness:reason #8839 disposable PostgreSQL proof of the security_alert_reconciliation per-scope queue read: outstanding (pending, claimed, running, retrying) and dead-lettered counts per covering scope, other domains and terminal rows excluded, and EXPLAIN (ANALYZE, BUFFERS) over a 500,000-item backlog logged, not gated; disposable bootstrapped database per test
+//eshu:readiness:env ESHU_POSTGRES_DISPOSABLE ESHU_POSTGRES_DSN
 
 import (
 	"context"
@@ -24,7 +24,7 @@ import (
 const reconciliationQueueLiveSkip = "set ESHU_POSTGRES_DSN to run the #8839 reconciliation queue live proofs"
 
 // reconciliationQueueLiveFixture seeds ingestion_scopes, scope_generations,
-// and fact_work_items in an isolated bootstrapped schema.
+// and fact_work_items in a disposable bootstrapped database.
 type reconciliationQueueLiveFixture struct {
 	t        *testing.T
 	ctx      context.Context
@@ -32,17 +32,18 @@ type reconciliationQueueLiveFixture struct {
 	asOf     time.Time
 }
 
-func newReconciliationQueueLiveFixture(t *testing.T, prefix string) *reconciliationQueueLiveFixture {
+func newReconciliationQueueLiveFixture(t *testing.T) *reconciliationQueueLiveFixture {
 	t.Helper()
 	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
 	if dsn == "" {
 		t.Skip(reconciliationQueueLiveSkip)
 	}
-	database := postgresproof.OpenIsolatedSchema(t, dsn, prefix, func(ctx context.Context, db *sql.DB) error {
+	// Disposable database (#9299): the lane's public-qualified SECURITY
+	// DEFINER bodies cannot install into an isolated schema; isolation comes
+	// from the database, so no per-test schema prefix is needed.
+	ctx, database := postgresproof.OpenDisposableBootstrapDatabase(t, dsn, os.Getenv("ESHU_POSTGRES_DISPOSABLE"), 5*time.Minute, func(ctx context.Context, db *sql.DB) error {
 		return storagepostgres.ApplyBootstrap(ctx, storagepostgres.SQLDB{DB: db})
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	t.Cleanup(cancel)
 	return &reconciliationQueueLiveFixture{t: t, ctx: ctx, database: database, asOf: time.Now().UTC().Truncate(time.Second)}
 }
 
@@ -82,7 +83,7 @@ func (f *reconciliationQueueLiveFixture) store() PostgresSecurityAlertCollection
 // succeeded, failed, and other-domain rows are excluded. A scope with only
 // excluded rows is omitted from the result.
 func TestSecurityAlertReconciliationQueueStatesLive(t *testing.T) {
-	f := newReconciliationQueueLiveFixture(t, "reconcile_queue_map")
+	f := newReconciliationQueueLiveFixture(t)
 	f.scope("scope-a")
 	f.scope("scope-b")
 	f.scope("scope-drained")
@@ -126,7 +127,7 @@ func TestSecurityAlertReconciliationQueueStatesLive(t *testing.T) {
 // and timings are logged, not gated; the figures feed
 // docs/internal/evidence/8839-security-alert-reconciliation-queue.md.
 func TestSecurityAlertReconciliationQueuePlanLive(t *testing.T) {
-	f := newReconciliationQueueLiveFixture(t, "reconcile_queue_plan")
+	f := newReconciliationQueueLiveFixture(t)
 	f.scope("scope-hot")
 	f.scope("scope-quiet")
 	f.exec(`INSERT INTO fact_work_items (work_item_id, scope_id, generation_id, stage, domain, status, created_at, updated_at)

@@ -72,6 +72,9 @@ TABLE = {
         "go/internal/storage/postgres/prefetch_batch_plan_live_test.go": (
             "TestPrefetchBatchQueriesUsePrimaryKeyLive",
         ),
+        "go/internal/storage/postgres/producer_ingestion_acl_live_test.go": (
+            "TestProducerIngestionACLsLive",
+        ),
         "go/internal/storage/postgres/projector_ack_supersede_lock_order_live_test.go": (
             "TestProjectorAckSupersedeHeldRowRaceLive",
             "TestProjectorAckSupersedeDropsRowClaimedBeforeItsLockLive",

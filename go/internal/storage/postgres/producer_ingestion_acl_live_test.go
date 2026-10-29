@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #9299 disposable-role proof that the producer role can use only the ordinary ingestion writes its protected advisory transaction invokes
+//eshu:readiness:env ESHU_PRODUCER_ACL_DISPOSABLE ESHU_PRODUCER_ACL_DSN ESHU_PRODUCER_ACL_OWNER_DSN ESHU_PRODUCER_ACL_PRODUCER_DSN
+
 import (
 	"context"
 	"database/sql"
@@ -16,7 +20,7 @@ import (
 // TestProducerIngestionACLsLive proves the producer can use only the ordinary
 // ingestion writes its protected advisory transaction actually invokes.
 func TestProducerIngestionACLsLive(t *testing.T) {
-	adminDSN := os.Getenv("ESHU_PRODUCER_ACL_ADMIN_DSN")
+	adminDSN := os.Getenv("ESHU_PRODUCER_ACL_DSN")
 	ownerDSN := os.Getenv("ESHU_PRODUCER_ACL_OWNER_DSN")
 	producerDSN := os.Getenv("ESHU_PRODUCER_ACL_PRODUCER_DSN")
 	if os.Getenv("ESHU_PRODUCER_ACL_DISPOSABLE") != "1" ||

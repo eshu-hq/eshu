@@ -5,7 +5,7 @@ package impact
 
 //eshu:readiness live-postgres-readiness
 //eshu:readiness:reason #8824 disposable PostgreSQL proof that central version pins (NuGet PackageVersion rows flagged central_version_declaration) add no package.consumption evidence on either readiness arm, so a pin-only repository reads evidence_incomplete and not ready_zero_findings, while a real reference next to a pin still counts; reads ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN with its disposable opt-in
-//eshu:readiness:env ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN ESHU_POSTGRES_DSN
+//eshu:readiness:env ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN ESHU_POSTGRES_DISPOSABLE ESHU_POSTGRES_DSN
 
 import (
 	"context"
@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
@@ -28,19 +29,24 @@ import (
 // dependency evidence into "ready, zero findings".
 func TestReadinessExcludesCentralVersionPinsLive(t *testing.T) {
 	dsn := strings.TrimSpace(os.Getenv("ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN"))
-	if dsn != "" && os.Getenv("ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE") != "1" {
-		t.Fatal("ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN is set without ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE=1")
-	}
-	if dsn == "" {
+	var optIn string
+	if dsn != "" {
+		if os.Getenv("ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE") != "1" {
+			t.Fatal("ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN is set without ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE=1")
+		}
+		optIn = os.Getenv("ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE")
+	} else {
 		dsn = strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
+		optIn = os.Getenv("ESHU_POSTGRES_DISPOSABLE")
 	}
 	if dsn == "" {
 		t.Skip("set ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN or ESHU_POSTGRES_DSN to run the central pin readiness proof")
 	}
-	db := postgresproof.OpenIsolatedSchema(t, dsn, "eshu_8824_central_pins", func(ctx context.Context, db *sql.DB) error {
+	// Disposable database (#9299): the lane's public-qualified SECURITY
+	// DEFINER bodies cannot install into an isolated schema.
+	ctx, db := postgresproof.OpenDisposableBootstrapDatabase(t, dsn, optIn, 5*time.Minute, func(ctx context.Context, db *sql.DB) error {
 		return storagepostgres.ApplyBootstrap(ctx, storagepostgres.SQLDB{DB: db})
 	})
-	ctx := context.Background()
 	// A NuGet repository whose only dependency rows are central pins.
 	seedReadinessManifestScope(t, ctx, db, "nuget-pin-only", "repository:nuget-pin-only")
 	seedReadinessCentralPin(t, ctx, db, "nuget-pin-only", "repository:nuget-pin-only", "nuget", "Newtonsoft.Json")

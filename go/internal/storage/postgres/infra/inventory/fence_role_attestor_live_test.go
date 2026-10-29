@@ -3,6 +3,10 @@
 
 package inventory
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #9299 physical-connection proof that writer role attestation runs before session hooks on every new connection and preserves DSN session attributes
+//eshu:readiness:env ESHU_POSTGRES_DSN
+
 import (
 	"context"
 	"errors"

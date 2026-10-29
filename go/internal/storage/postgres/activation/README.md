@@ -143,8 +143,8 @@ superseded generations and their obligations go with them
 
 ## Proof
 
-Live proofs run on the full bootstrap schema in an isolated schema of a
-disposable PostgreSQL (`ESHU_DEFERRED_PARTITION_PROOF_DSN`,
+Live proofs run on the full bootstrap schema in a disposable PostgreSQL
+database (`ESHU_DEFERRED_PARTITION_PROOF_DSN`,
 `ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE=1`), enrolled in the
 `live-postgres-readiness` runner. They are this package's external tests
 (`package activation_test`):
@@ -240,7 +240,7 @@ harness compared the raw constant to the normalized text), so the hold figure
 is the client-side measurement only. The partition-scoped callback's cost is in
 `docs/internal/evidence/7584-partition-scoped-maintenance.md` (a cost harness on a
 tiny-facts fixture). What is proven here is correctness on PostgreSQL 18 (disposable
-`postgres@sha256:54451ecb…`, isolated schema, full bootstrap): the live
+`postgres@sha256:54451ecb…`, disposable database, full bootstrap): the live
 test functions listed above plus the two quiet-generation proofs (38 in all),
 and 74 of 76 distinct semantic mutations killed, including every branch of
 `postgres.ActivationMaintainer`'s mapping, the wiring flag, the re-owe of an

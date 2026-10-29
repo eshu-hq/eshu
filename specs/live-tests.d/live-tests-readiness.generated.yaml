@@ -137,7 +137,7 @@ tests:
   - file: go/internal/query/content_reader_repository_catalog_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#8837 disposable PostgreSQL proof of the grant-to-slug catalog read: repository and scope id grants map to their catalog entries, other scope kinds are excluded, and EXPLAIN (ANALYZE, BUFFERS) over a 10,000-repository catalog at grant sizes 1, 100 and 5,000 is logged, not gated; isolated bootstrapped schema per test"
+    reason: "#8837 disposable PostgreSQL proof of the grant-to-slug catalog read: repository and scope id grants map to their catalog entries, other scope kinds are excluded, and EXPLAIN (ANALYZE, BUFFERS) over a 10,000-repository catalog at grant sizes 1, 100 and 5,000 is logged, not gated; disposable bootstrapped database per test"
     runner: live-postgres-readiness
   - file: go/internal/query/content_reader_search_scoped_union_probe_live_test.go
     tag: ~
@@ -227,12 +227,12 @@ tests:
   - file: go/internal/query/security_alert_collection_state_postgres_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#8803 disposable PostgreSQL proof of the security-alert empty-answer collection-state reads on the bootstrapped schema: only enabled, non-deactivated security_alert instances contribute configuration; the latest work item per target is chosen by updated_at with the lowest work_item_id on a tie and ignores other collector kinds; a failed_terminal row with NULL last_failure_terminal (pre-migration-185) reads as failed_terminal with the flag false; a committed generation is active, superseded, or completed only; a target with no work items still returns a row; the 64-instance and 1024-target bounds fail with ErrSecurityAlertCollectionStateBound; EXPLAIN shows the lateral latest-item read as an index-only probe of workflow_work_items_security_alert_scope_updated_idx (#8840) with no sort over a 20,000-item history, and it returns the same rows as the pre-#8840 plan forced by dropping the index in a rolled-back transaction, including updated_at ties; isolated bootstrapped schema per test; wall time and plan timing are logged, not gated"
+    reason: "#8803 disposable PostgreSQL proof of the security-alert empty-answer collection-state reads on the bootstrapped database: only enabled, non-deactivated security_alert instances contribute configuration; the latest work item per target is chosen by updated_at with the lowest work_item_id on a tie and ignores other collector kinds; a failed_terminal row with NULL last_failure_terminal (pre-migration-185) reads as failed_terminal with the flag false; a committed generation is active, superseded, or completed only; a target with no work items still returns a row; the 64-instance and 1024-target bounds fail with ErrSecurityAlertCollectionStateBound; EXPLAIN shows the lateral latest-item read as an index-only probe of workflow_work_items_security_alert_scope_updated_idx (#8840) with no sort over a 20,000-item history, and it returns the same rows as the pre-#8840 plan forced by dropping the index in a rolled-back transaction, including updated_at ties; disposable bootstrapped database per test; wall time and plan timing are logged, not gated"
     runner: live-postgres-readiness
   - file: go/internal/query/security_alert_reconciliation_queue_postgres_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#8839 disposable PostgreSQL proof of the security_alert_reconciliation per-scope queue read: outstanding (pending, claimed, running, retrying) and dead-lettered counts per covering scope, other domains and terminal rows excluded, and EXPLAIN (ANALYZE, BUFFERS) over a 500,000-item backlog logged, not gated; isolated bootstrapped schema per test"
+    reason: "#8839 disposable PostgreSQL proof of the security_alert_reconciliation per-scope queue read: outstanding (pending, claimed, running, retrying) and dead-lettered counts per covering scope, other domains and terminal rows excluded, and EXPLAIN (ANALYZE, BUFFERS) over a 500,000-item backlog logged, not gated; disposable bootstrapped database per test"
     runner: live-postgres-readiness
   - file: go/internal/query/security_alert_target_set_postgres_live_test.go
     tag: ~
@@ -253,6 +253,11 @@ tests:
     tag: ~
     class: postgres_ci
     reason: "#7009 disposable PostgreSQL 18 proof that every Terraform-free status route returns byte-identical responses with and without the Terraform-state serial and warning reads over seeded tfstate and git warnings, that pipeline and index status keep the seeded terraform_state rows, and that forcing the skip onto them changes the response"
+    runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/impact/findings_protected_target_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9299 provisional protected target association must distinguish same-digest findings before winner ranking"
     runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/readiness_central_pin_live_test.go
     tag: ~
@@ -303,6 +308,10 @@ tests:
     tag: ~
     class: postgres_ci
     reason: "#9685 disposable PostgreSQL 18 rescanned-scope proof: a rescan for a new digest reuses the operator-configured scope, so scope-level sibling attribution is ambiguous there"
+  - file: go/internal/query/supply/chain/impact/readiness_scanner_authorization_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9299 disposable PostgreSQL source-binding authorization and revocation proof"
     runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/runtime_environment_store_live_test.go
     tag: ~
@@ -418,6 +427,21 @@ tests:
     tag: ~
     class: postgres_ci
     reason: "#7009 disposable PostgreSQL 18 proof of the terraform_state summary model: a row written by the production writer pass (each model row is its own transaction under the same advisory lock, reads its own database clock after the active-work row commits so the terraform_state as_of is not earlier than the active-work as_of, and carries its own digest) and read back by the production stored-summary reader inside a REPEATABLE READ READ ONLY snapshot equals what the two live Terraform-state statements return at an empty database, a few state scopes, past the per-locator rank cap of 50, and with Git backend warnings plus state scopes whose generation ids carry no serial; a warning written after the pass shows the comparison can differ; TestWriterKilledMidCompanionKeepsThePrimaryRowLive terminates the companion's backend between its statements and its upsert and shows the active-work row advances while the terraform_state row keeps its old as_of and still serves equal to live"
+    runner: live-postgres-readiness
+  - file: go/internal/runtime/postgres/reader_topology_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9299 disposable PostgreSQL proof that the reader uses a distinct credential on the same physical primary with role-attested session hooks"
+    runner: live-postgres-readiness
+  - file: go/internal/runtime/role_attest_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9299 disposable PostgreSQL proof that the installed role policy attests the actual physical session against role rotation"
+    runner: live-postgres-readiness
+  - file: go/internal/runtime/role_migration_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9299 disposable-role proof that the installed role policy attests the runtime physical connection across the admin, bootstrap, runtime, reader, control, producer, and advisory roles"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/actions_work_live_test.go
     tag: ~
