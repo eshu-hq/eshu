@@ -234,6 +234,9 @@ func (s *WorkflowControlStore) HeartbeatClaim(ctx context.Context, mutation work
 	if err != nil {
 		return err
 	}
+	if mutation.DerivedScannerImage {
+		return s.heartbeatDerivedScannerClaim(ctx, mutation, effectiveLeaseTTL)
+	}
 	return s.execClaimMutation(ctx, claimOpHeartbeat, mutation, heartbeatWorkflowClaimQuery, mutation.ObservedAt.UTC().Add(effectiveLeaseTTL))
 }
 

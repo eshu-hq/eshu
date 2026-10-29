@@ -84,7 +84,15 @@ source_candidates AS (
         CASE WHEN NULLIF(fact.payload->>'finding_id', '') IS NULL THEN 0 ELSE 1 END AS has_payload_finding_id,
         COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') AS suppression_state
     FROM active_facts AS fact
+    LEFT JOIN scanner_image_result_fact_classifications AS finding_class
+      ON finding_class.finding_fact_id = fact.fact_id
+    LEFT JOIN scanner_image_result_fact_associations AS finding_association
+      ON finding_association.finding_fact_id = fact.fact_id
     WHERE fact.scope_id <> 'operator:vulnerability_suppressions'
+      AND finding_association.finding_fact_id IS NULL
+      AND fact.scope_id NOT LIKE 'image://derived/%'
+      AND (finding_class.finding_fact_id IS NULL
+           OR (finding_class.source_class = 'static' AND finding_class.lifecycle = 'active'))
 ),
 source_ranked AS (
     SELECT source.*,

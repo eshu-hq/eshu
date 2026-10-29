@@ -55,6 +55,8 @@ type Config struct {
 	CollectorEgressPolicy   egress.CollectorPolicy
 	ExtensionEgressPolicy   egress.ExtensionPolicy
 	TenantBoundary          WorkflowTenantBoundary
+	ScannerImageDiscovery   ScannerImageDiscoveryPolicy
+	PublicAdvisoryPolicy    PublicAdvisoryPolicy
 	CollectorInstances      []workflow.DesiredCollectorInstance
 	// StaleComponentActivationSkips lists claims-enabled registry activations
 	// dropped from startup planning because their mounted config files are
@@ -138,35 +140,7 @@ func LoadConfigObserved(getenv func(string) string, observer component.GrantObse
 	if err != nil {
 		return Config{}, err
 	}
-	awsFreshnessClaimLeaseDuration, err := environment.Duration(
-		getenv,
-		"ESHU_WORKFLOW_COORDINATOR_AWS_FRESHNESS_CLAIM_LEASE_DURATION",
-		defaultAWSFreshnessClaimLeaseDuration,
-	)
-	if err != nil {
-		return Config{}, err
-	}
-	gcpFreshnessClaimLeaseDuration, err := environment.Duration(
-		getenv,
-		"ESHU_WORKFLOW_COORDINATOR_GCP_FRESHNESS_CLAIM_LEASE_DURATION",
-		defaultGCPFreshnessClaimLeaseDuration,
-	)
-	if err != nil {
-		return Config{}, err
-	}
-	incidentFreshnessClaimLeaseDuration, err := environment.Duration(
-		getenv,
-		"ESHU_WORKFLOW_COORDINATOR_INCIDENT_FRESHNESS_CLAIM_LEASE_DURATION",
-		defaultIncidentFreshnessClaimLeaseDuration,
-	)
-	if err != nil {
-		return Config{}, err
-	}
-	freshnessClaimReapLimit, err := environment.Int(
-		getenv,
-		"ESHU_WORKFLOW_COORDINATOR_FRESHNESS_CLAIM_REAP_LIMIT",
-		defaultFreshnessClaimReapLimit,
-	)
+	awsFreshnessClaimLeaseDuration, gcpFreshnessClaimLeaseDuration, incidentFreshnessClaimLeaseDuration, freshnessClaimReapLimit, err := loadFreshnessClaimTimings(getenv)
 	if err != nil {
 		return Config{}, err
 	}
@@ -182,6 +156,11 @@ func LoadConfigObserved(getenv func(string) string, observer component.GrantObse
 	if err != nil {
 		return Config{}, fmt.Errorf("parse ESHU_WORKFLOW_COORDINATOR_TENANT_BOUNDARY_JSON: %w", err)
 	}
+	scannerImageDiscovery, err := parseScannerImageDiscoveryPolicy(
+		getenv("ESHU_WORKFLOW_COORDINATOR_SCANNER_IMAGE_DISCOVERY_POLICY_JSON"), tenantBoundary)
+	if err != nil {
+		return Config{}, fmt.Errorf("parse ESHU_WORKFLOW_COORDINATOR_SCANNER_IMAGE_DISCOVERY_POLICY_JSON: %w", err)
+	}
 	instances, err := workflow.ParseDesiredCollectorInstancesJSON(getenv("ESHU_COLLECTOR_INSTANCES_JSON"))
 	if err != nil {
 		return Config{}, fmt.Errorf("parse ESHU_COLLECTOR_INSTANCES_JSON: %w", err)
@@ -193,6 +172,11 @@ func LoadConfigObserved(getenv func(string) string, observer component.GrantObse
 	instances, err = mergeCollectorInstances(instances, componentInstances)
 	if err != nil {
 		return Config{}, err
+	}
+	publicAdvisoryPolicy, err := parsePublicAdvisoryPolicy(
+		getenv("ESHU_WORKFLOW_COORDINATOR_PUBLIC_ADVISORY_POLICY_JSON"), instances)
+	if err != nil {
+		return Config{}, fmt.Errorf("parse ESHU_WORKFLOW_COORDINATOR_PUBLIC_ADVISORY_POLICY_JSON: %w", err)
 	}
 	quotaOverride, err := componentQuotaOverrideFromEnv(getenv)
 	if err != nil {
@@ -224,6 +208,8 @@ func LoadConfigObserved(getenv func(string) string, observer component.GrantObse
 		CollectorEgressPolicy:               collectorEgressPolicy,
 		ExtensionEgressPolicy:               extensionEgressPolicy,
 		TenantBoundary:                      tenantBoundary,
+		ScannerImageDiscovery:               scannerImageDiscovery,
+		PublicAdvisoryPolicy:                publicAdvisoryPolicy,
 		CollectorInstances:                  instances,
 		QuotaLookup:                         quotaLookup,
 		StaleComponentActivationSkips:       staleSkips,
@@ -234,6 +220,46 @@ func LoadConfigObserved(getenv func(string) string, observer component.GrantObse
 		return Config{}, err
 	}
 	return cfg, nil
+}
+
+// loadFreshnessClaimTimings parses the AWS/GCP/incident freshness claim lease
+// durations and the per-pass stuck-claim reap limit (#4576, #9379). Each
+// parse failure returns the bare environment error, matching the inline
+// behavior this helper replaces.
+func loadFreshnessClaimTimings(getenv func(string) string) (time.Duration, time.Duration, time.Duration, int, error) {
+	awsLease, err := environment.Duration(
+		getenv,
+		"ESHU_WORKFLOW_COORDINATOR_AWS_FRESHNESS_CLAIM_LEASE_DURATION",
+		defaultAWSFreshnessClaimLeaseDuration,
+	)
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
+	gcpLease, err := environment.Duration(
+		getenv,
+		"ESHU_WORKFLOW_COORDINATOR_GCP_FRESHNESS_CLAIM_LEASE_DURATION",
+		defaultGCPFreshnessClaimLeaseDuration,
+	)
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
+	incidentLease, err := environment.Duration(
+		getenv,
+		"ESHU_WORKFLOW_COORDINATOR_INCIDENT_FRESHNESS_CLAIM_LEASE_DURATION",
+		defaultIncidentFreshnessClaimLeaseDuration,
+	)
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
+	reapLimit, err := environment.Int(
+		getenv,
+		"ESHU_WORKFLOW_COORDINATOR_FRESHNESS_CLAIM_REAP_LIMIT",
+		defaultFreshnessClaimReapLimit,
+	)
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
+	return awsLease, gcpLease, incidentLease, reapLimit, nil
 }
 
 // Validate checks the coordinator config invariants.
@@ -280,10 +306,23 @@ func (c Config) Validate() error {
 	if err := c.TenantBoundary.validate(); err != nil {
 		return err
 	}
+	if err := c.ScannerImageDiscovery.validate(c.TenantBoundary); err != nil {
+		return err
+	}
+	if _, err := c.PublicAdvisoryPolicy.selectInstances(c.CollectorInstances); err != nil {
+		return err
+	}
 	activeClaimCollectors := 0
 	for _, instance := range c.CollectorInstances {
 		if err := instance.Validate(); err != nil {
 			return fmt.Errorf("workflow coordinator collector instance: %w", err)
+		}
+		derivesImages, err := scannerInstanceDerivesFromRunningImages(instance)
+		if err != nil {
+			return fmt.Errorf("collector instance %q: %w", instance.InstanceID, err)
+		}
+		if derivesImages && c.ScannerImageDiscovery.Mode == ScannerImageDiscoveryDisabled {
+			return fmt.Errorf("collector instance %q derives running images without an enabled scanner image discovery policy", instance.InstanceID)
 		}
 		if err := validateScanInterval(instance.Configuration, c.ReconcileInterval); err != nil {
 			return fmt.Errorf("collector instance %q: %w", instance.InstanceID, err)

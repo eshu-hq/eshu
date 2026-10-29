@@ -69,7 +69,7 @@ func (b *boltGraphCounter) DeltaUnionRepoFiles(ctx context.Context, repoID strin
 // carries no delta-active scopes, so the phase passes vacuously until a
 // delta scenario lands, and then it guards the repair.
 func runDeltaUnion(ctx context.Context, getenv func(string) string, r *Report) error {
-	pgdb, err := runtimecfg.OpenPostgres(ctx, getenv)
+	pgdb, err := runtimecfg.OpenPostgresForWorkload(ctx, getenv, runtimecfg.PostgresWorkloadRuntime)
 	if err != nil {
 		return fmt.Errorf("delta-union phase: open postgres: %w", err)
 	}

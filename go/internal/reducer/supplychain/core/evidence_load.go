@@ -6,6 +6,7 @@ package core
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -22,6 +23,7 @@ import (
 // classification, suppression, and the write/emit tail.
 type supplyChainImpactLoadedEvidence struct {
 	envelopes               []facts.Envelope
+	asAuthorized            *AuthorizedSupplyChainImpactLoad
 	scopeFacts              int
 	repositoryFacts         int
 	manifestDependencyFacts int
@@ -91,6 +93,12 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 	ctx context.Context,
 	intent reducercontract.Intent,
 ) (supplyChainImpactLoadedEvidence, supplyChainImpactTiming, error) {
+	if h.AuthorizedEvidenceLoader != nil {
+		return h.loadAuthorizedSupplyChainImpactEvidence(ctx, intent)
+	}
+	if h.RequireAuthorizedEvidenceLoader || strings.HasPrefix(intent.ScopeID, "image://derived/") {
+		return supplyChainImpactLoadedEvidence{}, supplyChainImpactTiming{}, fmt.Errorf("authorized impact evidence loader is required")
+	}
 	var timing supplyChainImpactTiming
 
 	phaseStarted := time.Now()
@@ -100,6 +108,9 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 		return supplyChainImpactLoadedEvidence{}, timing, fmt.Errorf("load supply chain impact facts: %w", err)
 	}
 	scopeFacts := len(envelopes)
+	if h.authorizedStaticOnly {
+		envelopes = appendUniqueSupplyChainImpactFacts(envelopes, h.authorizedStaticAdvisories...)
+	}
 
 	phaseStarted = time.Now()
 	repositories, err := h.loadActiveSupplyChainImpactRepositoryFacts(ctx, envelopes)
@@ -146,9 +157,12 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 	}
 	activeEvidenceFacts := len(envelopes) - activeEvidenceStartCount
 
-	envelopes, expansion, err := h.loadSupplyChainImpactExpansionEvidence(ctx, envelopes, budget, &truncation, &timing)
-	if err != nil {
-		return supplyChainImpactLoadedEvidence{}, timing, err
+	var expansion supplyChainImpactExpansionCounts
+	if !h.authorizedStaticOnly {
+		envelopes, expansion, err = h.loadSupplyChainImpactExpansionEvidence(ctx, envelopes, budget, &truncation, &timing)
+		if err != nil {
+			return supplyChainImpactLoadedEvidence{}, timing, err
+		}
 	}
 	osPackageAdvisoryFacts := expansion.osPackageAdvisory
 	osPackageAdvisorySkipped := expansion.osPackageAdvisorySkipped
@@ -196,6 +210,11 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 	securityAlertScopedOutFacts := 0
 	if securityAlertScopingApplied && preSecurityAlertScopeFacts > postSecurityAlertScopeFacts {
 		securityAlertScopedOutFacts = preSecurityAlertScopeFacts - postSecurityAlertScopeFacts
+	}
+	for _, envelope := range envelopes {
+		if strings.HasPrefix(envelope.ScopeID, "image://derived/") {
+			return supplyChainImpactLoadedEvidence{}, timing, fmt.Errorf("derived fact %q requires protected impact evidence loader", envelope.FactID)
+		}
 	}
 
 	return supplyChainImpactLoadedEvidence{

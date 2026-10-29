@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 	neo4jconfig "github.com/neo4j/neo4j-go-driver/v5/neo4j/config"
 
@@ -197,6 +198,14 @@ func OpenPostgresWithSession(ctx context.Context, getenv func(string) string, ex
 // on a probe session first (secretlines.OpenDeferredWriterPool) and the hook
 // never waits.
 func OpenPostgresWithSessionHooks(ctx context.Context, getenv func(string) string, hooks []inventory.ConnectHook, extraSessionSQL ...string) (*sql.DB, error) {
+	if getenv != nil && (strings.TrimSpace(getenv("ESHU_POSTGRES_ROLE_CONTRACT_JSON")) != "" ||
+		strings.TrimSpace(getenv("ESHU_POSTGRES_ROLE_BOUNDARY_REQUIRED")) != "") {
+		return nil, fmt.Errorf("postgres role boundary requires OpenPostgresForWorkload")
+	}
+	return openPostgresWithRoleAttestor(ctx, getenv, nil, hooks, extraSessionSQL...)
+}
+
+func openPostgresWithRoleAttestor(ctx context.Context, getenv func(string) string, attestor pgconn.ValidateConnectFunc, hooks []inventory.ConnectHook, extraSessionSQL ...string) (*sql.DB, error) {
 	cfg, err := LoadPostgresConfig(getenv)
 	if err != nil {
 		return nil, err
@@ -205,7 +214,7 @@ func OpenPostgresWithSessionHooks(ctx context.Context, getenv func(string) strin
 	// Every connection is marked derive-aware: this binary's content_entities
 	// writers keep the infra read model in step, so migration 109's
 	// rolling-upgrade fence must not mark their writes (#6793).
-	db, err := inventory.OpenWriterDBWithHooks(cfg.DSN, hooks, extraSessionSQL...)
+	db, err := inventory.OpenWriterDBWithRoleAttestorHooks(cfg.DSN, attestor, hooks, extraSessionSQL...)
 	if err != nil {
 		return nil, fmt.Errorf("open postgres connection: %w", err)
 	}

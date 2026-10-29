@@ -110,6 +110,10 @@ func (s FactStore) ListActivePackageManifestDependencyFacts(
 	}
 
 	packageManagers, query := activePackageManifestDependencyQuery(ecosystems)
+	query, err := s.protectedImpactStaticFactSQL(query)
+	if err != nil {
+		return nil, err
+	}
 	var loaded []facts.Envelope
 	var cursorObservedAt *time.Time
 	var cursorFactID string

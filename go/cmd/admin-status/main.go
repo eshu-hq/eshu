@@ -48,7 +48,7 @@ func run(
 	stderr io.Writer,
 	getenv func(string) string,
 ) error {
-	db, err := runtimecfg.OpenPostgres(parent, getenv)
+	db, err := runtimecfg.OpenPostgresForWorkload(parent, getenv, runtimecfg.PostgresWorkloadRuntime)
 	if err != nil {
 		return err
 	}

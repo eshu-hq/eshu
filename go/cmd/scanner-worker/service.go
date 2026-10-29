@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -38,7 +39,16 @@ func buildService(
 	if err != nil {
 		return scannerworker.Service{}, err
 	}
-	analyzer, err := buildAnalyzer(config)
+	controlStore := postgres.NewWorkflowControlStore(database)
+	var registryResolver registryImageResolver
+	if config.DeriveFromRunningImages {
+		domains, err := parseRegistryDomains(config.Instance.Configuration)
+		if err != nil {
+			return scannerworker.Service{}, err
+		}
+		registryResolver = newRegistryImageResolver(controlStore, domains, getenv)
+	}
+	analyzer, err := buildAnalyzerWithRegistry(config, registryResolver)
 	if err != nil {
 		return scannerworker.Service{}, err
 	}
@@ -46,8 +56,9 @@ func buildService(
 	committer.Logger = logger
 	committer.Instruments = instruments
 	return scannerworker.Service{
-		ControlStore:        postgres.NewWorkflowControlStore(database),
+		ControlStore:        controlStore,
 		Committer:           committer,
+		DerivedCommitter:    committer,
 		Analyzer:            analyzer,
 		AnalyzerKind:        config.Analyzer,
 		CollectorInstanceID: config.Instance.InstanceID,
@@ -68,8 +79,36 @@ func buildService(
 // analyzer kind. Analyzer kinds whose concrete source is not wired still commit
 // an explicit warning fact instead of pretending the target scanned clean.
 func buildAnalyzer(config runtimeConfig) (scannerworker.Analyzer, error) {
+	return buildAnalyzerWithRegistry(config, nil)
+}
+
+func buildAnalyzerWithRegistry(config runtimeConfig, registryResolver registryImageResolver) (scannerworker.Analyzer, error) {
+	if config.DeriveFromRunningImages && config.Analyzer != scannerworker.AnalyzerImageUnpacking {
+		return nil, fmt.Errorf("running image derivation requires image_unpacking analyzer")
+	}
 	switch config.Analyzer {
 	case scannerworker.AnalyzerImageUnpacking:
+		if config.DeriveFromRunningImages {
+			if registryResolver == nil {
+				return nil, fmt.Errorf("derived image resolver and registry domains are required")
+			}
+			derived := registryImageAnalyzer{resolver: registryResolver, collectorInstanceID: config.Instance.InstanceID}
+			if len(config.ImageTargets) == 0 {
+				return derived, nil
+			}
+			for _, target := range config.ImageTargets {
+				if strings.HasPrefix(target.ScopeID, derivedImageScopePrefix) {
+					return nil, fmt.Errorf("static image target uses reserved derived scope")
+				}
+			}
+			static, err := imageanalyzer.NewAnalyzer(imageanalyzer.AnalyzerConfig{
+				CollectorInstanceID: config.Instance.InstanceID, Targets: config.ImageTargets, Now: time.Now,
+			})
+			if err != nil {
+				return nil, err
+			}
+			return compositeImageAnalyzer{static: static, derived: derived}, nil
+		}
 		return imageanalyzer.NewAnalyzer(imageanalyzer.AnalyzerConfig{
 			CollectorInstanceID: config.Instance.InstanceID,
 			Targets:             config.ImageTargets,

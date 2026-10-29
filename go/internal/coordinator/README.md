@@ -158,7 +158,7 @@ one enabled bounded scope; invalid configurations fail validation.
 - `ScannerWorkerPlanner` — the root interface implemented by
   `worker.WorkPlanner` (imported as `scannerworker`); it plans configured targets
   without exposing runtime-local roots. Root keeps clocks, scheduling,
-  admission, retries, and telemetry; collector enums remain extraction debt.
+  admission, retries, and telemetry; collector enums remain extraction debt (scanner-image paging: [derived-scanner-image-planning.md](derived-scanner-image-planning.md)).
 - `PagerDutyPlanner` — implemented by `pagerduty.WorkPlanner`; child owns
   validated target membership and private planning. Root retains authorization,
   scheduling, admission, trigger transitions, retries, and telemetry.

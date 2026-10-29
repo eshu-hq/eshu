@@ -160,6 +160,10 @@ func (s FactStore) listActiveRepositoryFactsPage(
 	cursorObservedAt *time.Time,
 	cursorFactID string,
 ) ([]facts.Envelope, int64, error) {
+	query, err := s.protectedImpactStaticFactSQL(listActiveRepositoryFactsQuery)
+	if err != nil {
+		return nil, 0, err
+	}
 	var cursor any
 	if cursorObservedAt != nil {
 		cursor = cursorObservedAt.UTC()
@@ -167,7 +171,7 @@ func (s FactStore) listActiveRepositoryFactsPage(
 
 	rows, err := s.database.QueryContext(
 		ctx,
-		listActiveRepositoryFactsQuery,
+		query,
 		cursor,
 		cursorFactID,
 		listFactsByKindPageSize,

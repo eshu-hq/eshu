@@ -16,6 +16,7 @@ const (
 	TargetClassOwnedPackage     = "owned_package"
 	TargetClassInstalledOS      = "installed_os_package"
 	TargetClassSBOMComponent    = "sbom_component"
+	TargetClassDerivedImage     = "derived_image"
 	TargetClassBroad            = "broad"
 )
 
@@ -27,7 +28,7 @@ func TargetClassRank(targetClass string) int {
 		return 0
 	case TargetClassOwnedPackage:
 		return 1
-	case TargetClassInstalledOS, TargetClassSBOMComponent:
+	case TargetClassInstalledOS, TargetClassSBOMComponent, TargetClassDerivedImage:
 		return 2
 	case TargetClassBroad:
 		return 3

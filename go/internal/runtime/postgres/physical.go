@@ -172,7 +172,7 @@ func readerValidator(expected physicalIdentity, exportQualification *snapshotExp
 // insert timeline, and flushed WAL position on one connection. The flushed
 // position seeds the restart watermark before any checkpoint runs.
 func bootstrapPhysicalWriter(ctx context.Context, cfg *pgx.ConnConfig, expectedSystemID string) (physicalIdentity, lineageObservation, error) {
-	cfg.ValidateConnect = bootstrapWriterValidator(expectedSystemID, cfg.Database)
+	cfg.ValidateConnect = attestThenValidate(cfg.ValidateConnect, bootstrapWriterValidator(expectedSystemID, cfg.Database))
 	conn, err := pgx.ConnectConfig(ctx, cfg)
 	if err != nil {
 		return physicalIdentity{}, lineageObservation{}, fmt.Errorf("writer bootstrap: %w", err)
@@ -193,4 +193,34 @@ func bootstrapPhysicalWriter(ctx context.Context, cfg *pgx.ConnConfig, expectedS
 		return physicalIdentity{}, lineageObservation{}, ErrWrongTopology
 	}
 	return id, observed, nil
+}
+
+func attestThenValidate(attestor, validator pgconn.ValidateConnectFunc) pgconn.ValidateConnectFunc {
+	if attestor == nil {
+		return validator
+	}
+	if validator == nil {
+		return attestor
+	}
+	return func(ctx context.Context, conn *pgconn.PgConn) error {
+		if err := attestor(ctx, conn); err != nil {
+			return fmt.Errorf("postgres role attestation: %w", err)
+		}
+		return validator(ctx, conn)
+	}
+}
+
+func validateThenValidate(first, second pgconn.ValidateConnectFunc) pgconn.ValidateConnectFunc {
+	if first == nil {
+		return second
+	}
+	if second == nil {
+		return first
+	}
+	return func(ctx context.Context, conn *pgconn.PgConn) error {
+		if err := first(ctx, conn); err != nil {
+			return err
+		}
+		return second(ctx, conn)
+	}
 }

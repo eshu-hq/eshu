@@ -10,7 +10,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strings"
 )
 
 // StreamBlob copies a verified digest blob to dst while enforcing a byte cap.
@@ -26,13 +25,8 @@ func (c *Client) StreamBlob(
 	if expectedSize < 0 || maxBytes <= 0 || expectedSize > maxBytes || dst == nil {
 		return 0, fmt.Errorf("invalid OCI blob stream limit")
 	}
-	if len(digest) != len("sha256:")+sha256.Size*2 || !strings.HasPrefix(digest, "sha256:") {
+	if !validSHA256Digest(digest) {
 		return 0, fmt.Errorf("invalid OCI blob digest")
-	}
-	for _, digit := range digest[len("sha256:"):] {
-		if !strings.ContainsRune("0123456789abcdef", digit) {
-			return 0, fmt.Errorf("invalid OCI blob digest")
-		}
 	}
 	endpoint := "/v2/" + repositoryPath(repository) + "/blobs/" + url.PathEscape(digest)
 	resp, err := c.do(ctx, "stream_blob", http.MethodGet, endpoint, map[string]string{"Accept": "*/*"})

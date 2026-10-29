@@ -221,6 +221,12 @@ type SupplyChainSecurityHandlers struct {
 	// supplychaincore.SupplyChainImpactWriter persists vulnerability impact findings with
 	// explicit package, SBOM, image, and repository evidence paths.
 	SupplyChainImpactWriter supplychaincore.SupplyChainImpactWriter
+	// SupplyChainImpactAuthorizedEvidenceLoader checks protected static and
+	// target-local source authority before any evidence limit or ranking.
+	SupplyChainImpactAuthorizedEvidenceLoader supplychaincore.AuthorizedSupplyChainImpactEvidenceLoader
+	// RequireSupplyChainImpactAuthorizedEvidenceLoader fails closed in the
+	// production catalog if the protected evidence loader is absent.
+	RequireSupplyChainImpactAuthorizedEvidenceLoader bool
 
 	// supplychaincore.SupplyChainImpactFencingTokenIssuer supplies the database-issued fencing
 	// token each impact pass is stamped with (#7142). Required alongside the

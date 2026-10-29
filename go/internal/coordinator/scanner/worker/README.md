@@ -2,8 +2,10 @@
 
 ## Purpose
 
-`scanner/worker` plans one workflow work item per configured scanner target. It
-does not read source paths, open image layers, or contact another service.
+`scanner/worker` plans configured scanner targets and groups one bounded page
+of canonical running-image observations by immutable manifest and authorization
+boundary. It does not read source paths, open image layers, or contact another
+service.
 
 ## Ownership boundary
 
@@ -19,6 +21,9 @@ remain in the parent package.
 
 - `PlanRequest` carries the collector instance, observation time, and plan key.
 - `WorkPlanner` implements the parent's `ScannerWorkerPlanner` interface.
+- `DerivedImagePlanRequest` carries one protected discovery page and its
+  scanner boundary. `PlanDerivedImageWork` preserves every canonical source
+  observation as a binding and emits one work item per boundary-local image.
 
 ## Dependencies
 
@@ -32,18 +37,19 @@ extractable.
 ## Telemetry
 
 None. Planning inherits the parent reconcile metrics, workflow and claim
-status, and duplicate-admission logs.
+status, and bounded discovery admission logs.
 
-No-Observability-Change: this package move adds no metric, span, log field,
-queue, worker, lease, or runtime setting. Parent scheduling and durable
-admission remain covered by `eshu_dp_workflow_coordinator_reconcile_total` and
-`eshu_dp_workflow_coordinator_reconcile_duration_seconds`.
+The parent records only page counts, cursor version and cycle exhaustion; it
+does not log registry, repository, runtime reference, or source object IDs.
 
 ## Gotchas / invariants
 
 - Run IDs remain a function of instance and plan key. Work-item and generation
   IDs also include analyzer and target scope.
 - Duplicate scope IDs fail before any row is returned.
+- Derived grouping uses the scan target's namespace, tenant boundary,
+  authorization domain, and verified manifest digest. The durable admission
+  transaction rechecks each source and its protected manifest verification.
 - `requested_scope_set` excludes runtime-local roots and artifact locators.
 - Work items retain configured target order, while requested-scope targets are
   sorted by scope for stable metadata.

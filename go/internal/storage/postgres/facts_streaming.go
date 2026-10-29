@@ -219,7 +219,7 @@ func upsertStreamingFacts(
 	factStream <-chan facts.Envelope,
 	scopeID string,
 	generationID string,
-	afterBatch func([]facts.Envelope) error,
+	afterBatch func([]facts.Envelope, int) error,
 ) (factUpsertStats, error) {
 	var stats factUpsertStats
 	if database == nil {
@@ -256,7 +256,7 @@ func upsertStreamingFacts(
 			stats.Rows += len(batch)
 			stats.Batches++
 			if afterBatch != nil {
-				if err := afterBatch(filterAcceptedEnvelopes(batch, accepted)); err != nil {
+				if err := afterBatch(filterAcceptedEnvelopes(batch, accepted), len(batch)); err != nil {
 					return stats, err
 				}
 			}
@@ -277,7 +277,7 @@ func upsertStreamingFacts(
 		stats.Rows += len(batch)
 		stats.Batches++
 		if afterBatch != nil {
-			if err := afterBatch(filterAcceptedEnvelopes(batch, accepted)); err != nil {
+			if err := afterBatch(filterAcceptedEnvelopes(batch, accepted), len(batch)); err != nil {
 				return stats, err
 			}
 		}

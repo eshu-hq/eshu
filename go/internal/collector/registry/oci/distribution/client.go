@@ -83,7 +83,7 @@ func NewClient(config ClientConfig) (*Client, error) {
 		password:    config.Password,
 		bearerToken: config.BearerToken,
 	}
-	c.client = clientWithRedirectCredentialPolicy(client, baseURL.Hostname(), c)
+	c.client = clientWithRedirectCredentialPolicy(client, baseURL.Host, c)
 	return c, nil
 }
 
@@ -96,7 +96,7 @@ func NewClient(config ClientConfig) (*Client, error) {
 // multi-target referrer fetches). Mutating its CheckRedirect would let the first
 // Distribution client capture its registry host and credentials in a closure
 // that every later client then reuses, dropping or misapplying Authorization on
-// valid same-host redirects. To avoid that, this returns a shallow copy of the
+// valid same-authority redirects. To avoid that, this returns a shallow copy of the
 // client that carries a CheckRedirect bound to this client's host and
 // credentials. Transport, Timeout, Jar, and the other fields are preserved by
 // the copy. A caller that already set CheckRedirect keeps full control of its
@@ -104,13 +104,13 @@ func NewClient(config ClientConfig) (*Client, error) {
 //
 // Registries such as ECR answer manifest and blob fetches with a redirect to a
 // presigned object-store URL on a different host. The original credential must
-// follow redirects that stay on the registry host so same-host hops still
-// authenticate, and it must never reach a different host because presigned
+// follow redirects that stay on the registry authority so those hops still
+// authenticate, and it must never reach another authority because presigned
 // stores reject an extra Authorization header and forwarding the credential
 // would disclose it. net/http already enforces this in current releases, but it
 // is a version-dependent default; owning the policy here keeps the behavior
 // locked under the package's regression tests.
-func clientWithRedirectCredentialPolicy(client *http.Client, registryHost string, c *Client) *http.Client {
+func clientWithRedirectCredentialPolicy(client *http.Client, registryAuthority string, c *Client) *http.Client {
 	if client.CheckRedirect != nil {
 		return client
 	}
@@ -119,13 +119,16 @@ func clientWithRedirectCredentialPolicy(client *http.Client, registryHost string
 		if len(via) >= 10 {
 			return fmt.Errorf("stopped after 10 redirects")
 		}
+		if c.baseURL.Scheme == "https" && req.URL.Scheme != "https" {
+			return fmt.Errorf("OCI HTTPS redirect downgrade rejected")
+		}
 		// Start each hop with no inherited credential, then re-apply the
-		// registry credential only when the hop stays on the registry host.
-		// Same-host hops (ECR keeps manifest/blob auth on the registry host)
+		// registry credential only when the hop stays on the registry authority.
+		// Same-authority hops (ECR keeps manifest/blob auth on the registry host)
 		// must re-authenticate; cross-host hops (presigned object stores)
 		// must never receive the credential.
 		req.Header.Del("Authorization")
-		if strings.EqualFold(req.URL.Hostname(), registryHost) {
+		if strings.EqualFold(req.URL.Host, registryAuthority) {
 			c.applyAuth(req)
 		}
 		return nil

@@ -19,7 +19,9 @@ flowchart LR
 | Setting | Meaning |
 | --- | --- |
 | `ESHU_POSTGRES_DSN` | Writer DSN; `ESHU_CONTENT_STORE_DSN` is the legacy fallback. |
+| `ESHU_POSTGRES_PRODUCER_DSN` | Separate producer credential for the in-repo vulnerability-intelligence public advisory path. Requires a producer role contract and never falls back to the writer. |
 | `ESHU_POSTGRES_READ_DSN` | Optional reader DSN. Omitted means the exact writer DSN. |
+| `ESHU_POSTGRES_READ_TOPOLOGY` | `primary` or `standby` when the role boundary is enabled. This asserts routing independently of DSN string equality; the connected backend is still checked. |
 | `ESHU_POSTGRES_READ_MEMBERS` | Optional nonempty credential-free JSON inventory of direct physical readers (`id`, `host`, `port`). One member has no reader redundancy. Omit for the legacy reader Service path. |
 | `ESHU_POSTGRES_MAX_OPEN_CONNS` | Total open connections across both pools per API/MCP process; default 30, minimum 2. |
 | `ESHU_POSTGRES_MAX_IDLE_CONNS` | Total idle connections across both pools; default 10. |
@@ -31,6 +33,18 @@ A single-instance install can set both DSNs to exactly the same string or omit
 the reader DSN. The process creates a private read-only session pool alongside
 the writer pool. This separates ownership and connection budgets; one database
 still shares CPU, memory, and storage between reads and writes.
+
+With `ESHU_POSTGRES_ROLE_CONTRACT_JSON`, the reader must have its own credential
+and `ESHU_POSTGRES_READ_TOPOLOGY` must be explicit. Set `primary` for a separate
+SELECT-only reader login on the same physical primary, or `standby` for a
+physical replica. Each new writer and reader connection attests its actual
+login, effective role, database, protected policy revision, and fixed privilege
+profile before a query can use it. A pod's JSON is an expected assertion and
+contract reference; it cannot authorize a privilege or substitute for the
+database-owned registry. `ESHU_POSTGRES_ROLE_BOUNDARY_REQUIRED=true` makes
+an empty contract Secret value fail before a dial. A missing or stale contract
+fails startup or a new connection. [Helm Quickstart](../deploy/kubernetes/helm-quickstart.md#postgres-role-boundary-rollout)
+describes the rollout order.
 
 Without a member inventory, both DSNs accept native pgx host lists, for example:
 
@@ -147,8 +161,10 @@ physical destination. A missing event or
 
 Use a database role with appropriate read permissions. Session read-only mode
 is a guard, not a replacement for database privileges. The writer and reader
-roles need `EXECUTE` on `pg_control_system()` for identity checks; grant that
-specific function if the deployment revokes the default access.
+roles need `EXECUTE` on `pg_catalog.pg_control_system()` for identity checks.
+PostgreSQL restricts that function by default; a database administrator must
+grant this exact privilege before the role-bound policy is installed. Do not
+grant the broader `pg_monitor` role to the reader.
 
 A reader that has not replayed to the writer checkpoint within the replay
 window, or whose connection acquisition (pool wait or dial) or identity check

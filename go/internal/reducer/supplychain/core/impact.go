@@ -65,46 +65,6 @@ type SupplyChainImpactFactFilter struct {
 	ImageRefs         []string
 }
 
-// SupplyChainImpactWrite carries findings for durable publication.
-type SupplyChainImpactWrite struct {
-	IntentID     string
-	ScopeID      string
-	GenerationID string
-	SourceSystem string
-	Cause        string
-	Findings     []SupplyChainImpactFinding
-	// PartialEvidence marks a pass whose evidence load stopped short for a
-	// cause that can change a finding's identity: the active-evidence round cap
-	// or the per-intent evidence budget (supplyChainImpactTruncation.partial).
-	// Its finding set is not the complete truth for the (scope, generation), so
-	// the writer upserts it but retracts nothing: hiding a finding because a
-	// bounded load did not reach it would trade a stale row for a missing one
-	// (#6831). Per-key caps are paged to completion and a bounded suppression
-	// tail does not set it, so a scope larger than one page still converges
-	// (#7154).
-	PartialEvidence bool
-	// FencingToken is the database-issued ordering value this pass was stamped
-	// with at evidence-read time (#7142). The writer admits the write only when
-	// no fresher pass was admitted for the (scope, generation), stamps every
-	// upserted and retracted row with it, and rejects a zero token.
-	FencingToken int64
-}
-
-// SupplyChainImpactWriteResult summarizes durable impact publication.
-type SupplyChainImpactWriteResult struct {
-	CanonicalWrites int
-	FactsWritten    int
-	// FactsRetracted counts prior finding rows of the same (scope, generation)
-	// this pass tombstoned because it no longer derives them (#6831).
-	FactsRetracted  int
-	EvidenceSummary string
-}
-
-// SupplyChainImpactWriter persists reducer-owned impact findings.
-type SupplyChainImpactWriter interface {
-	WriteSupplyChainImpactFindings(context.Context, SupplyChainImpactWrite) (SupplyChainImpactWriteResult, error)
-}
-
 type activeSupplyChainImpactFactLoader interface {
 	// The bool return reports that the vulnerability.suppression tail of the
 	// read was bounded (#5466 P1-B, see handler_helpers.go). It must never
@@ -120,6 +80,16 @@ type SupplyChainImpactHandler struct {
 	FactLoader  factload.FactLoader
 	Writer      SupplyChainImpactWriter
 	Instruments *telemetry.Instruments
+	// AuthorizedEvidenceLoader supplies protected source and advisory
+	// classifications before limits for every production impact intent.
+	AuthorizedEvidenceLoader AuthorizedSupplyChainImpactEvidenceLoader
+	// RequireAuthorizedEvidenceLoader closes the legacy static fallback when
+	// this handler runs against a target-enabled production store.
+	RequireAuthorizedEvidenceLoader bool
+	// authorizedStaticOnly skips legacy target-specific expansion inside the protected snapshot.
+	authorizedStaticOnly bool
+	// authorizedStaticAdvisories are receipt-backed public facts seeded before static expansion.
+	authorizedStaticAdvisories []facts.Envelope
 	// Now lets tests pin the evaluation clock used for suppression
 	// expiration checks. Defaults to time.Now() in UTC.
 	Now func() time.Time
@@ -160,8 +130,8 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 	if intent.Domain != reducercontract.DomainSupplyChainImpact {
 		return reducercontract.Result{}, fmt.Errorf("supply_chain_impact handler does not accept domain %q", intent.Domain)
 	}
-	if h.FactLoader == nil {
-		return reducercontract.Result{}, fmt.Errorf("supply chain impact fact loader is required")
+	if h.FactLoader == nil && h.AuthorizedEvidenceLoader == nil {
+		return reducercontract.Result{}, fmt.Errorf("supply chain impact evidence loader is required")
 	}
 	if h.Writer == nil {
 		return reducercontract.Result{}, fmt.Errorf("supply chain impact writer is required")
@@ -187,7 +157,7 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 	envelopes := loaded.envelopes
 
 	phaseStarted := time.Now()
-	findings, quarantinedVulnerabilityFacts, err := buildSupplyChainImpactFindingsWithQuarantine(envelopes)
+	findings, quarantinedVulnerabilityFacts, err := buildAuthorizedSupplyChainImpactFindings(loaded)
 	if err != nil {
 		// A non-decode error (transient fact-load or other fatal condition
 		// factdecode.PartitionDecodeFailures did NOT quarantine) fails the whole intent so
@@ -200,7 +170,11 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 	timing.buildFindingsDuration = time.Since(phaseStarted)
 
 	phaseStarted = time.Now()
-	suppressions, quarantinedSuppressions, err := BuildVulnerabilitySuppressions(envelopes)
+	suppressionEnvelopes := envelopes
+	if loaded.asAuthorized != nil {
+		suppressionEnvelopes = loaded.asAuthorized.SuppressionEnvelopes
+	}
+	suppressions, quarantinedSuppressions, err := BuildVulnerabilitySuppressions(suppressionEnvelopes)
 	if err != nil {
 		return reducercontract.Result{}, fmt.Errorf("build vulnerability suppressions: %w", err)
 	}
@@ -227,10 +201,7 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 		intent.GenerationID,
 		quarantinedVulnerabilityFacts,
 	)
-	now := h.evaluationNow()
-	for i := range findings {
-		findings[i].Suppression = EvaluateSupplyChainSuppression(findings[i], suppressions, now)
-	}
+	applySupplyChainImpactSuppressions(findings, suppressions, h.evaluationNow())
 	counts := supplyChainImpactCounts(findings)
 	suppressionCounts := supplyChainSuppressionCounts(findings)
 	remediationCounts := supplyChainRemediationCounts(findings)
@@ -238,7 +209,7 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 	emitAnchorProbe6702(ctx, h.Logger, intent, loaded.floorArmed, loaded.crossScopeProducerDelta, false, envelopes, findings)
 
 	phaseStarted = time.Now()
-	writeResult, err := h.Writer.WriteSupplyChainImpactFindings(ctx, SupplyChainImpactWrite{
+	write := SupplyChainImpactWrite{
 		IntentID:     intent.IntentID,
 		ScopeID:      intent.ScopeID,
 		GenerationID: intent.GenerationID,
@@ -252,7 +223,14 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 		// such a pass still converges (#7154).
 		PartialEvidence: loaded.truncation.partial(),
 		FencingToken:    fencingToken,
-	})
+	}
+	if loaded.asAuthorized != nil {
+		write.ScanPublications = loaded.asAuthorized.ScanPublications
+		write.StaticAdvisoryEvidence = loaded.asAuthorized.StaticAdvisoryEvidence
+		write.StaticNonAdvisoryEvidenceFactIDs = loaded.asAuthorized.StaticNonAdvisoryEvidenceFactIDs
+		write.ProtectedCompleteSet = true
+	}
+	writeResult, err := h.Writer.WriteSupplyChainImpactFindings(ctx, write)
 	if err != nil {
 		h.emitWriteSuperseded(ctx, intent, fencingToken, err)
 		return reducercontract.Result{}, fmt.Errorf("write supply chain impact findings: %w", err)
@@ -295,7 +273,7 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 	subSignals["evidence_truncated_rounds"] = boolSignal(loaded.truncation.rounds)
 	subSignals["evidence_truncated_budget"] = boolSignal(loaded.truncation.budget)
 	subSignals["suppression_evidence_truncated"] = boolSignal(loaded.truncation.suppressionTail)
-	subSignals["evidence_envelopes"] = float64(len(envelopes))
+	subSignals["evidence_envelopes"] = float64(loaded.evidenceEnvelopeCount())
 	subSignals["evidence_expansion_envelopes"] = float64(loaded.expansionEnvelopes)
 	for key, value := range factdecode.InputInvalidSubSignals(inputInvalidCount) {
 		subSignals[key] = value
@@ -312,6 +290,20 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 		SubDurations:    subDurations,
 		SubSignals:      subSignals,
 	}, nil
+}
+
+// applySupplyChainImpactSuppressions evaluates per-finding suppressions at one
+// instant. A target-bound finding keeps the static view: no target-bound
+// suppression authority is loaded yet, so it evaluates against no
+// suppressions rather than a static scope rule.
+func applySupplyChainImpactSuppressions(findings []SupplyChainImpactFinding, suppressions []vulnerabilitySuppression, now time.Time) {
+	for i := range findings {
+		if findings[i].ScanTargetID != "" {
+			findings[i].Suppression = EvaluateSupplyChainSuppression(findings[i], nil, now)
+			continue
+		}
+		findings[i].Suppression = EvaluateSupplyChainSuppression(findings[i], suppressions, now)
+	}
 }
 
 // BuildSupplyChainImpactFindings classifies vulnerability source facts against
@@ -349,27 +341,7 @@ func buildSupplyChainImpactFindingsWithQuarantine(envelopes []facts.Envelope) ([
 	if err != nil {
 		return nil, nil, err
 	}
-	cveGroups := groupSupplyChainCVEsByID(index.cves)
-	findings := make([]SupplyChainImpactFinding, 0, len(index.affectedPackages)+len(index.affectedProducts))
-	for _, cveID := range sortedCVEKeys(cveGroups) {
-		group := cveGroups[cveID]
-		affected := index.affectedPackages[cveID]
-		if len(affected) > 0 {
-			pkgGroups := groupSupplyChainAffectedByPackage(affected)
-			for _, packageID := range sortedPackageKeys(pkgGroups) {
-				pkgs := pkgGroups[packageID]
-				findings = appendSupplyChainImpactPackageFindings(findings, group, pkgs, index)
-			}
-			continue
-		}
-		products := index.affectedProducts[cveID]
-		if len(products) > 0 {
-			for _, product := range products {
-				findings = appendSupplyChainImpactFinding(findings, classifySupplyChainImpactProduct(group.representative(), product, index))
-			}
-			continue
-		}
-	}
+	findings := appendSupplyChainImpactIndexFindings(nil, index)
 	findings, securityAlertQuarantined, err := appendSecurityAlertImpactFindings(findings, envelopes, index)
 	if err != nil {
 		return nil, nil, err
