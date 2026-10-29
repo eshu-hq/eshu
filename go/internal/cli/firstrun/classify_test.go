@@ -87,6 +87,29 @@ func TestClassifyComposeServicesUnhealthy(t *testing.T) {
 	assertDiagnostic(t, got, ok, ClassComposeUnhealthy, "Compose services")
 }
 
+// TestClassifyComposeUnhealthyPinsDeployDocsURL pins the user-facing Compose
+// guide URL the classifier emits for the compose-unhealthy class. It asserts
+// the literal string, not the deployComposeDocsURL constant, so a wrong value
+// in production code fails this test instead of echoing the implementation.
+func TestClassifyComposeUnhealthyPinsDeployDocsURL(t *testing.T) {
+	signal := onboardingSignal{
+		Step:            onboardingStepVerify,
+		Shape:           ShapeDockerCompose,
+		Underlying:      rootCauseErr(),
+		RuntimeDetail:   "API not reachable",
+		RuntimeFailed:   true,
+		ComposeDetected: true,
+	}
+	got, ok := classifyOnboardingFailure(signal)
+	if !ok {
+		t.Fatal("classifyOnboardingFailure() ok = false, want a compose-unhealthy diagnostic")
+	}
+	const want = "https://github.com/eshu-hq/eshu-deploy/blob/main/docs/run-locally/docker-compose.md"
+	if got.DocsLink != want {
+		t.Fatalf("DocsLink = %q, want literal %q", got.DocsLink, want)
+	}
+}
+
 // TestClassifyBinariesMissing covers the missing-helper-binary class.
 func TestClassifyBinariesMissing(t *testing.T) {
 	signal := onboardingSignal{

@@ -407,6 +407,15 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
+      # Repointed contract tests (internal/deploy, internal/runtime,
+      # internal/cli/demo) read deploy assets from the pinned eshu-deploy
+      # checkout and fail closed without ESHU_DEPLOY_CHECKOUT (#8871).
+      - name: Check out eshu-deploy at the pinned extraction commit
+        uses: actions/checkout@v5
+        with:
+          repository: eshu-hq/eshu-deploy
+          ref: bc6b17897056e3c5dab27dd2357a013869b2bd9a
+          path: eshu-deploy
       - name: Set up Helm for race tests
         uses: azure/setup-helm@v5.0.0
         with:
@@ -422,6 +431,7 @@ jobs:
         env:
           SHARD_INDEX: ${{ matrix.shard }}
           SHARD_TOTAL: ${{ strategy.job-total }}
+          ESHU_DEPLOY_CHECKOUT: ${{ github.workspace }}/eshu-deploy
         run: |
           set -euo pipefail
           pkgs="$(go list ./... | awk -v n="${SHARD_TOTAL}" -v k="${SHARD_INDEX}" 'NR % n == (k % n)')"

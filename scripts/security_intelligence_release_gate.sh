@@ -144,9 +144,12 @@ list_evidence_files() {
 }
 
 run_phase_state() {
-    local chart="${repo_root}/deploy/helm/eshu/Chart.yaml"
-    local compose_root="${repo_root}/docker-compose.yaml"
-    local compose_remote="${repo_root}/docker-compose.remote-e2e.yaml"
+    # Deploy assets moved to eshu-hq/eshu-deploy under #8871; fail closed
+    # instead of reading a stale or missing in-tree copy.
+    local deploy_checkout="${ESHU_DEPLOY_CHECKOUT:?security_intelligence_release_gate: ESHU_DEPLOY_CHECKOUT must point at an eshu-hq/eshu-deploy checkout (deploy assets moved there under #8871)}"
+    local chart="${deploy_checkout}/helm/eshu/Chart.yaml"
+    local compose_root="${deploy_checkout}/compose/docker-compose.yaml"
+    local compose_remote="${deploy_checkout}/compose/docker-compose.remote-e2e.yaml"
     local schema_dir="${repo_root}/schema/data-plane/postgres"
     local state_status="pass"
 

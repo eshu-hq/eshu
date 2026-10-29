@@ -101,7 +101,7 @@ func TestParseEnvelopePreservesDiagnosisCause(t *testing.T) {
 				Class:         FailureClass("bootstrap_mount_missing"),
 				Summary:       "the repo mount is not visible to the container",
 				RecoverySteps: []string{"check the compose bind mount"},
-				DocsLink:      deployComposeDocsURL,
+				DocsLink:      "https://github.com/eshu-hq/eshu-deploy/blob/main/docs/run-locally/docker-compose.md",
 				Underlying:    errors.New(sentinel),
 			},
 		},

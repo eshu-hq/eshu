@@ -134,7 +134,9 @@ inputs look like private data.
 ### Selecting phases
 
 ```bash
-# offline defaults
+# offline defaults (deploy assets live in the eshu-deploy checkout;
+# the state phase fails closed without ESHU_DEPLOY_CHECKOUT)
+export ESHU_DEPLOY_CHECKOUT=/path/to/eshu-deploy
 scripts/security_intelligence_release_gate.sh \
   --image-tag-candidate v0.0.3-pre-release-9
 

@@ -40,12 +40,15 @@ init_fake_repo() {
     done
 
     local dir="${tmp_root}/${name}"
-    mkdir -p "${dir}/deploy/helm/eshu" "${dir}/schema/data-plane/postgres" "${dir}/docs"
+    # Chart and Compose fixtures live in the dest-shaped layout
+    # (${dir}/dest/...) so the state phase provably resolves them through
+    # ESHU_DEPLOY_CHECKOUT, matching the real eshu-deploy checkout.
+    mkdir -p "${dir}/dest/helm/eshu" "${dir}/dest/compose" "${dir}/schema/data-plane/postgres" "${dir}/docs"
     git -C "${dir}" init -q
     git -C "${dir}" config user.email "test@example.invalid"
     git -C "${dir}" config user.name "Eshu Release Gate Test"
 
-    cat >"${dir}/deploy/helm/eshu/Chart.yaml" <<'YAML'
+    cat >"${dir}/dest/helm/eshu/Chart.yaml" <<'YAML'
 apiVersion: v2
 name: eshu
 description: test fixture
@@ -54,7 +57,7 @@ version: 0.0.3-pre-release-9
 appVersion: "v0.0.3-pre-release-9"
 YAML
 
-    cat >"${dir}/docker-compose.yaml" <<'YAML'
+    cat >"${dir}/dest/compose/docker-compose.yaml" <<'YAML'
 services:
   nornicdb:
     image: ${NORNICDB_IMAGE:-timothyswt/nornicdb-cpu-bge:v9.9.9@sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789}
@@ -66,7 +69,7 @@ YAML
         # and macOS's 512-byte pipe buffer deadlocks on any body over that
         # size (#5074).
         cat "${repo_root}/scripts/lib/test-security_intelligence_release_gate-docker-compose-remote-e2e.yaml" \
-            >"${dir}/docker-compose.remote-e2e.yaml"
+            >"${dir}/dest/compose/docker-compose.remote-e2e.yaml"
     fi
 
     for i in 001 002 003 004; do
@@ -99,6 +102,7 @@ run_gate() {
     local out_dir="${dir}/_evidence"
     ESHU_RELEASE_GATE_REPO_ROOT="${dir}" \
         ESHU_RELEASE_GATE_SKIP_GO_TESTS=1 \
+        ESHU_DEPLOY_CHECKOUT="${dir}/dest" \
         "${gate}" --out-dir "${out_dir}" "$@" >"${dir}/_gate.out" 2>"${dir}/_gate.err"
 }
 
@@ -206,12 +210,24 @@ jq -e '.provider | has("package_name") | not' "${prov_file}" >/dev/null \
 
 # --- Test 5: missing Chart.yaml fails the state phase.
 repo5="$(init_fake_repo case5 --scanner-worker)"
-rm "${repo5}/deploy/helm/eshu/Chart.yaml"
+rm "${repo5}/dest/helm/eshu/Chart.yaml"
 git -C "${repo5}" add -A
 git -C "${repo5}" commit -q -m "drop chart"
 expect_fail "${repo5}" --phases state
 rg --fixed-strings --quiet -- "Chart.yaml" "${repo5}/_gate.err" \
     || { printf 'expected Chart.yaml error in case5\n' >&2; exit 1; }
+
+# --- Test 5b: unset ESHU_DEPLOY_CHECKOUT fails the state phase closed.
+repo5b="$(init_fake_repo case5b --scanner-worker)"
+if ESHU_DEPLOY_CHECKOUT='' ESHU_RELEASE_GATE_REPO_ROOT="${repo5b}" \
+    ESHU_RELEASE_GATE_SKIP_GO_TESTS=1 \
+    "${gate}" --out-dir "${repo5b}/_evidence" --phases state \
+    >"${repo5b}/_gate.out" 2>"${repo5b}/_gate.err"; then
+    printf 'expected gate to fail without ESHU_DEPLOY_CHECKOUT in case5b\n' >&2
+    exit 1
+fi
+rg --fixed-strings --quiet -- "ESHU_DEPLOY_CHECKOUT" "${repo5b}/_gate.err" \
+    || { printf 'expected ESHU_DEPLOY_CHECKOUT error in case5b\n' >&2; exit 1; }
 
 # --- Test 6: runtime/k8s phases noop without endpoints/namespace but state
 # still passes when explicitly requested as additional phases.
@@ -325,6 +341,7 @@ exit 0
 SH
 chmod +x "${repo11}/scripts/verify_remote_e2e_runtime_state.sh"
 ESHU_RELEASE_GATE_SKIP_GO_TESTS=1 \
+    ESHU_DEPLOY_CHECKOUT="${repo11}/dest" \
     "${gate}" \
     --out-dir "${repo11}/_evidence" \
     --phases state,runtime \
@@ -351,6 +368,7 @@ rm "${repo12}/scripts/verify_vulnerability_parity_fixtures.sh"
 ESHU_RELEASE_GATE_REPO_ROOT="${repo12}" \
     ESHU_RELEASE_GATE_SKIP_GO_TESTS=1 \
     ESHU_RELEASE_GATE_FORCE_FIXTURES_GO_OK=1 \
+    ESHU_DEPLOY_CHECKOUT="${repo12}/dest" \
     "${gate}" \
     --out-dir "${repo12}/_evidence" \
     --phases state,fixtures \

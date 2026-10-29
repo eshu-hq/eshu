@@ -163,7 +163,8 @@ proof="$(cat scripts/run-k8s-two-team-governance-proof.sh)"
 ## No-Regression Evidence: in-tree removal
 
 - Baseline: `origin/main` (`4750c37f8b` at rebase); dest checkout pin
-  `bc6b17897056e3c5dab27dd2357a013869b2bd9a` (`go/internal/deploy/checkout_test.go:18`).
+  `bc6b17897056e3c5dab27dd2357a013869b2bd9a` (symbol
+  `expectedDeployCheckoutCommit` in `go/internal/deploy/checkout_test.go`).
 - Change shape: deploy assets, root Compose files, env examples, deploy
   docs, and proof scripts deleted (~37k lines across ~380 files); staying
   Go changes are additive only (fail-closed `ESHU_DEPLOY_CHECKOUT`

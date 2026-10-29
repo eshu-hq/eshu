@@ -9,9 +9,36 @@ eshu_ci_compose_signature() {
     python3 "${helper_root}/scripts/lib/ci_image_compose_signature.py" "${helper_root}" "$@"
 }
 
+# Deploy lanes moved to eshu-hq/eshu-deploy under #8871: Compose files now
+# live outside this repo, so resolve every relative path (build contexts,
+# env files) against the stack root. Without this, `build: context: .`
+# resolves to the Compose file's directory and the image gate rejects the
+# stack as an unapproved build identity. The flag is part of the overlay
+# signature; injection is idempotent so prepare, signature checks, and
+# lifecycle calls always agree no matter which entry point adds it first.
+eshu_ci_compose_ensure_project_directory() {
+    local root="$1"
+    shift
+    local has_dir=0 arg
+    for arg in "$@"; do
+        case "${arg}" in
+        --project-directory*) has_dir=1 ;;
+        esac
+    done
+    if [[ "${has_dir}" == "0" ]]; then
+        set -- --project-directory "${root}" "$@"
+    fi
+    printf '%s\n' "$@"
+}
+
 eshu_ci_compose_prepare() {
     local stack_root="$1" rendered stage directory helper_root signature
     shift
+    local prepared_args=()
+    while IFS= read -r line; do
+        prepared_args+=("${line}")
+    done < <(eshu_ci_compose_ensure_project_directory "${stack_root}" "$@")
+    set -- "${prepared_args[@]}"
     ESHU_CI_COMPOSE_OVERLAY=""
     ESHU_CI_COMPOSE_SIGNATURE=""
     if [[ "${ESHU_CI_IMAGES:-0}" != "1" ]]; then

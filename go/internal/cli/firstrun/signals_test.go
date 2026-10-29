@@ -172,7 +172,7 @@ func TestRenderFirstRunHumanIncludesDiagnostic(t *testing.T) {
 		Class:         ClassComposeUnhealthy,
 		Summary:       "Compose services are not running or are unhealthy",
 		RecoverySteps: []string{"docker compose up -d"},
-		DocsLink:      deployComposeDocsURL,
+		DocsLink:      "https://github.com/eshu-hq/eshu-deploy/blob/main/docs/run-locally/docker-compose.md",
 		Underlying:    errors.New("verify runtime: API not reachable"),
 	}
 	var buf bytes.Buffer
@@ -182,7 +182,7 @@ func TestRenderFirstRunHumanIncludesDiagnostic(t *testing.T) {
 		"Diagnosis",
 		"Compose services are not running",
 		"docker compose up -d",
-		deployComposeDocsURL,
+		"https://github.com/eshu-hq/eshu-deploy/blob/main/docs/run-locally/docker-compose.md",
 		"API not reachable",
 	} {
 		if !strings.Contains(out, want) {

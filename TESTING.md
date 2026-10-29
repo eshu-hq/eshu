@@ -37,6 +37,16 @@ cd go
 go test ./cmd/eshu ./cmd/api ./cmd/mcp-server ./internal/query -count=1
 ```
 
+Deploy-contract packages (`internal/deploy`, `internal/runtime`,
+`internal/cli/demo`) read the extracted deploy assets from an
+eshu-hq/eshu-deploy checkout and fail closed without it:
+
+```bash
+export ESHU_DEPLOY_CHECKOUT=/path/to/eshu-deploy  # at the pinned commit in go/internal/deploy/checkout_test.go
+cd go
+go test ./internal/deploy/ ./internal/runtime/ ./internal/cli/demo/ -count=1
+```
+
 Deployment shape:
 
 ```bash
