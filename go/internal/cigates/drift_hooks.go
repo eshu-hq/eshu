@@ -15,7 +15,7 @@ import (
 // This file holds DriftCheck's checks 1 and 2 (pre-commit hook parsing and
 // the hook-registration/hook-stage-consistency checks). Split out of
 // drift.go, which was at the repository's 500-line cap, when check 11
-// (checkCIScriptTriggerCoverage, scripttrigger.go) pushed it over -- the same
+// (checkCIScriptTriggerCoverage, now in cijobcoverage.go) pushed it over -- the same
 // class of split this package already applies elsewhere (see
 // scripttrigger.go's own header on trivyskipdirs.go). DriftCheck's own doc
 // comment in drift.go remains the single source of truth for what checks 1

@@ -10,8 +10,6 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-
-	"gopkg.in/yaml.v3"
 )
 
 // sourcedScriptRE captures a repo-relative scripts/ path from a shell `source`
@@ -19,6 +17,12 @@ import (
 // source=scripts/lib/...` directive that usually sits above such a line is not
 // mistaken for an actual dependency.
 var sourcedScriptRE = regexp.MustCompile(`(?m)^[ \t]*(?:\.|source)[ \t]+[^\n]*?(scripts/[A-Za-z0-9_./-]+)`)
+
+// pythonImportRE captures the modules a Python line imports at any indent:
+// group 1 for "from a import b", group 2 for "import a, b as c". Dotted and
+// relative names do not match, and a docstring line shaped like an import is
+// a conservative false edge, never a missed one (#9479).
+var pythonImportRE = regexp.MustCompile(`(?m)^[ \t]*(?:from[ \t]+([A-Za-z_]\w*)[ \t]+import\b|import[ \t]+([A-Za-z_][\w \t,]*?)[ \t]*(?:#.*)?$)`)
 
 // checkScriptTriggerCoverage reports every gate whose own local script — or a
 // script that script sources, at any depth — is not matched by any of that
@@ -108,6 +112,10 @@ var sourcedScriptRE = regexp.MustCompile(`(?m)^[ \t]*(?:\.|source)[ \t]+[^\n]*?(
 //     change.
 //     TestDriftCheck_VariableSourcedFileNotResolved pins the boundary with an
 //     uncovered `${script_dir}`-sourced lib that produces 0 check-8 errors.
+//   - A Python file's imports are walked too (pythonImports, #9479): a module
+//     resolves to a scripts/ file beside the importer or in scripts/lib. A
+//     module loaded by path (importlib's spec_from_file_location) or by a
+//     dotted name is not seen.
 //   - It does NOT check the reverse direction. A trigger matching no file on
 //     disk is a separate concern, and a gate is free to declare triggers well
 //     beyond its own scripts.
@@ -179,9 +187,9 @@ func checkScriptTriggerCoverage(repoRoot string, reg *Registry) []error {
 						continue
 					}
 					errs = append(errs, fmt.Errorf(
-						"drift: gate %q %s (%s) sources %q but no trigger of that gate matches it (triggers: %v); "+
+						"drift: gate %q %s (%s) %s %q but no trigger of that gate matches it (triggers: %v); "+
 							"a PR editing only that sourced file would not select the gate locally and would first fail in CI",
-						g.ID, c.field, script, sourced, g.Triggers,
+						g.ID, c.field, script, edgeVerb(sourced), sourced, g.Triggers,
 					))
 				}
 			}
@@ -203,7 +211,7 @@ func allSourcedScripts(repoRoot, script string) []string {
 	for len(queue) > 0 {
 		cur := queue[0]
 		queue = queue[1:]
-		for _, sourced := range sourcedScripts(repoRoot, cur) {
+		for _, sourced := range append(sourcedScripts(repoRoot, cur), pythonImports(repoRoot, cur)...) {
 			if _, ok := visited[sourced]; ok {
 				continue
 			}
@@ -234,13 +242,8 @@ func sourcedScripts(repoRoot, script string) []string {
 	// Reject that before opening anything: an escaping path is never a real
 	// in-repo script, so it is treated the same as an unreadable one (#5934
 	// review).
-	full := filepath.Join(repoRoot, script)
-	root := filepath.Clean(repoRoot)
-	if full != root && !strings.HasPrefix(full, root+string(filepath.Separator)) {
-		return nil
-	}
-	raw, err := os.ReadFile(full) // #nosec G304 -- full is confirmed to resolve within repoRoot above
-	if err != nil {
+	raw, ok := readInRepo(repoRoot, script)
+	if !ok {
 		return nil
 	}
 	seen := make(map[string]struct{})
@@ -253,6 +256,64 @@ func sourcedScripts(repoRoot, script string) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// readInRepo reads repoRoot/rel, refusing a path that cleans to outside
+// repoRoot. An escaping or unreadable path reports false.
+func readInRepo(repoRoot, rel string) ([]byte, bool) {
+	full := filepath.Join(repoRoot, rel)
+	root := filepath.Clean(repoRoot)
+	if full != root && !strings.HasPrefix(full, root+string(filepath.Separator)) {
+		return nil, false
+	}
+	raw, err := os.ReadFile(full) // #nosec G304 -- full is confirmed to resolve within repoRoot above
+	return raw, err == nil
+}
+
+// pythonImports returns the sorted scripts/ modules a .py script imports, one
+// level deep. A module resolves to <importer dir>/<name>.py, then
+// scripts/lib/<name>.py, the sys.path the repo's test mirrors set; a name with
+// neither file (stdlib, third party) adds no edge.
+func pythonImports(repoRoot, script string) []string {
+	if !strings.HasSuffix(script, ".py") {
+		return nil
+	}
+	raw, ok := readInRepo(repoRoot, script)
+	if !ok {
+		return nil
+	}
+	seen := make(map[string]struct{})
+	for _, m := range pythonImportRE.FindAllSubmatch(raw, -1) {
+		names := []string{string(m[1])}
+		if len(m[2]) > 0 {
+			names = strings.Split(string(m[2]), ",")
+		}
+		for _, name := range names {
+			if fields := strings.Fields(name); len(fields) > 0 {
+				for _, dir := range []string{filepath.ToSlash(filepath.Dir(script)), "scripts/lib"} {
+					rel := dir + "/" + fields[0] + ".py"
+					if _, found := readInRepo(repoRoot, rel); found {
+						seen[rel] = struct{}{}
+						break
+					}
+				}
+			}
+		}
+	}
+	out := make([]string, 0, len(seen))
+	for p := range seen {
+		out = append(out, p)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// edgeVerb names how a walked dependency is reached in a drift message.
+func edgeVerb(path string) string {
+	if strings.HasSuffix(path, ".py") {
+		return "imports"
+	}
+	return "sources"
 }
 
 // hiddenScriptsInCdPrefixedCommand returns every "scripts/"-prefixed word in
@@ -285,173 +346,4 @@ func anyTriggerMatches(triggers []string, path string) bool {
 		}
 	}
 	return false
-}
-
-// checkCIScriptTriggerCoverage extends checkScriptTriggerCoverage's
-// guarantee to the script CI actually executes, not only the local static
-// mirror. The two are routinely different files: ifa-determinism's CI job
-// runs the live driver scripts/verify-ifa-determinism.sh while
-// local.command runs the static mirror scripts/test-verify-ifa-determinism.sh
-// (specs/ci-gates.v1.yaml, ifa-determinism). checkScriptTriggerCoverage walks
-// outward only from local.command/local.test_command, so a scripts/ token
-// that appears ONLY in the CI job's own run: command -- or that command's own
-// sourcing graph, at any depth -- was invisible to it. That gap is not
-// hypothetical: it is why three cap-driven split files
-// (ifa_deployable_unit_live_diagnostics.sh, ifa_deployable_unit_live_converge.sh,
-// and a documentation-family cells split) shipped with no trigger row on a
-// prior branch and had to be caught by hand, because the live driver sources
-// them and nothing walked that graph.
-//
-// Narrowed to gates whose ci.workflow and ci.job both resolve, AND whose
-// (workflow, job) pair is not shared with another gate. ci.workflow must
-// name a readable, parseable file under .github/workflows/, and ci.job must
-// be a literal key in that file's `jobs:` map -- a gate whose CI job is a
-// matrix-dispatched check (ci.job names an append_gate display or a
-// ${{ matrix.* }} job, not a literal jobs: key -- see checkJobNamesResolve)
-// is skipped rather than false-flagged, since this check does not attempt
-// the matrix-dispatch resolution checkPathFilterCoverage already owns for a
-// different purpose.
-//
-// The shared-pair exclusion is required, not a nicety: a first version of
-// this check attributed every `run:` step in the resolved job to whichever
-// single gate named it, and measured once against the committed registry at
-// the time this narrowing was added -- a historical count, not a live one --
-// that produced 352 false positives from exactly one shape -- test.yml's
-// verify-contracts job is a single CI job that runs roughly thirty unrelated
-// gates' verify scripts as separate named steps, and several other gates in
-// the registry declare ci.job: "verify-contracts" as a shared backstop
-// rather than a gate-dedicated job (go-core, docs-helm-hygiene, and several
-// others follow the same pattern with different member counts). The exact,
-// live member count for verify-contracts and every other shared pair is
-// CIScriptTriggerCoverageSummary's own output, not a number restated here --
-// see that function's doc comment for why a hardcoded count in prose drifts
-// from the registry while a derived one cannot. Walking every step
-// of a shared job and attributing it to one gate is exactly the wrong
-// direction of narrowing: it invents a claim the registry itself does not
-// make (that THIS gate owns THAT step), rather than skipping what genuinely
-// cannot be attributed -- the same "carries no correspondence signal, so it
-// is skipped rather than guessed" convention scriptWorkflowSoundSubset
-// already applies to gate-vs-workflow attribution, applied here to
-// gate-vs-job-step attribution instead. A (workflow, job) pair used by
-// exactly one gate is unambiguous: every run: step in it is that gate's own,
-// which is the ifa-determinism/ifa-fault-injection shape this check exists
-// for (each has its own dedicated determinism-matrix / fault-injection job).
-//
-// Within a resolved, unambiguous job, only `run:` steps count -- exactly the
-// same "only executable run: blocks count as executing it" convention
-// checkVerifyScriptWorkflowMatch already applies for the same reason (a
-// dorny/paths-filter entry watches a path, it does not invoke it).
-//
-// Shares extractScriptPaths, allSourcedScripts, and anyTriggerMatches with
-// checkScriptTriggerCoverage, so it inherits every narrowing documented on
-// that function's own doc comment (the cd-prefix skip, the literal-"scripts/"-
-// text-only sourcing walk, and so on) applied per run: command instead of per
-// local.command/local.test_command.
-//
-// Blind, visibly: this walks reg.Gates only, never hygiene_hooks. A
-// hygiene_hooks entry is a bare id+reason pair (specs/ci-gates.v1.yaml's
-// `hygiene_hooks:` list) -- it declares no ci.workflow, no ci.job, no
-// local.command, nothing this check (or checkScriptTriggerCoverage) could
-// walk a script from. That is why this check could not have caught a
-// pure-hygiene-hook guard's own self-test going unwired (#6149 follow-up item
-// 8 review, P1): the orphaned self-test file was reachable from no gate's
-// local.command/local.test_command and no CI job either, and hygiene_hooks is
-// where the guard hook already lived at the time, outside every walk in this
-// file. Extending this check (or checkScriptTriggerCoverage) into
-// hygiene_hooks would need those entries to name a script to walk from in the
-// first place, which the schema does not carry today -- a real gap, left open
-// rather than silently narrowed further, since closing it changes the
-// hygiene_hooks schema, not this function's walk.
-//
-// The remedy that does not need a schema change: a hygiene hook that grows a
-// testable script -- its own local.command, or a self-test -- should become a
-// gate, not stay a hook. This is not hypothetical; it is what this same PR
-// did four commits earlier, registering the guard's self-test as its own
-// local-only gate (a `local.command: ""`, `local.test_command: <the
-// self-test>` shape) while the underlying git pre-push hook itself correctly
-// stayed a hygiene_hooks entry -- it still has no testable local.command
-// shape, the chicken-and-egg problem that gate's own local_only_reason
-// explained -- but its self-test did have a testable script and gained a real
-// gate instead of staying invisible, which is why this check saw it. (That
-// stamp guard and its gate were later removed along with the push stamp.) A
-// hygiene_hooks entry with nothing to test (a staged-file variant, a
-// commit-msg-stage alias) has no remedy and stays a hook; one whose script
-// gains a test does.
-//
-// Silent, until CIScriptTriggerCoverageSummary: the ONLY visible signal this
-// check emits on success is DriftCheck's empty []error, so a clean run reads
-// as "no drift" with no scope attached -- some fraction of the registry's
-// CI-backed gates sit on a shared (workflow, job) pair and are silently
-// skipped by the exclusion above, leaving only the rest this check actually
-// attributes drift to. Run `bash scripts/verify-ci-gates-registry.sh
-// --drift` for the live split (the `ci-job-trigger-coverage` line) rather
-// than trusting a count here -- an earlier version of this exact paragraph
-// hardcoded "40 of 93... accounts for 11... leaving only 53" instead of
-// deriving it, the same drift-prone pattern the summary function two
-// paragraphs above was written to stop, restated by hand in the paragraph
-// right next to it. A #6157 review thread caught it. The skip
-// logic itself is correct and stays (see the false-positive count above);
-// what was missing was a summary saying so. CIScriptTriggerCoverageSummary
-// (below) reports the split so a caller can print "no drift among N
-// attributable gates" instead of an unqualified "no drift" (#6149 follow-up
-// item 8 review, P2(a)).
-func checkCIScriptTriggerCoverage(repoRoot string, reg *Registry) []error {
-	wfDir := filepath.Join(repoRoot, ".github", "workflows")
-	jobGates := ciJobGateIDs(reg)
-
-	var errs []error
-	for _, g := range reg.Gates {
-		if g.CI.Workflow == "" || g.CI.Job == "" {
-			continue
-		}
-		if len(jobGates[ciJobKey{g.CI.Workflow, g.CI.Job}]) > 1 {
-			// A CI job shared by more than one gate carries no per-gate
-			// attribution signal -- see the shared-pair discussion above.
-			continue
-		}
-		raw, err := os.ReadFile(filepath.Join(wfDir, g.CI.Workflow)) // #nosec G304 -- wfDir-confined, registry-declared filename
-		if err != nil {
-			// An unreadable or missing workflow file is a different check's
-			// finding (checkWorkflowCompleteness / checkJobNamesResolve);
-			// reporting it again here would duplicate, not add, signal.
-			continue
-		}
-		var wf runWorkflowFile
-		if yaml.Unmarshal(raw, &wf) != nil {
-			continue
-		}
-		job, ok := wf.Jobs[g.CI.Job]
-		if !ok {
-			// ci.job did not resolve to a literal jobs: key -- a
-			// matrix-dispatched check name, or a genuine mismatch
-			// checkJobNamesResolve already reports. Neither is this check's
-			// signal to add to.
-			continue
-		}
-		for _, step := range job.Steps {
-			if step.Run == "" {
-				continue
-			}
-			for _, script := range extractScriptPaths(step.Run) {
-				if !anyTriggerMatches(g.Triggers, script) {
-					errs = append(errs, fmt.Errorf(
-						"drift: gate %q ci job %q (workflow %s) runs %q but no trigger of that gate matches it (triggers: %v); "+
-							"a PR editing only that script would not select the gate locally and would first fail in CI",
-						g.ID, g.CI.Job, g.CI.Workflow, script, g.Triggers,
-					))
-				}
-				for _, sourced := range allSourcedScripts(repoRoot, script) {
-					if anyTriggerMatches(g.Triggers, sourced) {
-						continue
-					}
-					errs = append(errs, fmt.Errorf(
-						"drift: gate %q ci job %q (workflow %s, %s) sources %q but no trigger of that gate matches it (triggers: %v); "+
-							"a PR editing only that sourced file would not select the gate locally and would first fail in CI",
-						g.ID, g.CI.Job, g.CI.Workflow, script, sourced, g.Triggers,
-					))
-				}
-			}
-		}
-	}
-	return errs
 }

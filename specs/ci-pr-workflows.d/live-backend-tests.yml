@@ -56,6 +56,7 @@ workflows:
   - scripts/lib/postgres_scheduled_inventory.json
   - scripts/lib/postgres_scheduled_inventory.d/**
   - scripts/lib/postgres_scheduled_fragments.py
+  - scripts/lib/postgres_scheduled_artifacts.py
   - scripts/lib/postgres_scheduled_matrix.py
   - scripts/test-postgres-scheduled-fragments.py
   - scripts/test-postgres-scheduled-matrix.py
