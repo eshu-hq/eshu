@@ -64,6 +64,7 @@ func TestReadinessHelpersRouteToProof(t *testing.T) {
 		"scripts/lib/live_postgres_readiness_v2.py",
 		"scripts/lib/live_postgres_readiness_v2_planner.py",
 		"scripts/lib/live_postgres_readiness_v2_cases.py",
+		"scripts/lib/live_postgres_readiness_row_clock_cases.py",
 		"scripts/lib/live_postgres_readiness_reports.py",
 		"scripts/lib/live_postgres_readiness_refresh_v2.py",
 		"scripts/lib/live_postgres_readiness_refresh_v2_provenance.py",

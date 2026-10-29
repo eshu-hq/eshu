@@ -15,7 +15,7 @@ Planner, shard report, and aggregate verification all call
 ``weighted_bounds`` with the same selected weights file, so every proof
 lands in exactly one shard and a weights change cannot silently move a proof
 out of the union.
-A present v2 file switches to a separate row-aware five-shard model; the
+A present v2 file switches to a separate row-aware six-shard model; the
 v1 path and its four-shard behavior remain unchanged when v2 is absent.
 All arithmetic uses integer tenths of a second. Two gates keep the file
 honest: ``budget_errors`` fails when a shard's predicted job seconds pass
