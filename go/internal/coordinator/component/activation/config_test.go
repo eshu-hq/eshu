@@ -6,6 +6,8 @@ package activation
 import (
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/component"
 )
 
 // TestParseConfigAdmitsExplicitAlpha2 proves an explicitly configured
@@ -37,6 +39,68 @@ func TestParseConfigAdmitsExplicitAlpha2(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// TestParseConfigAdmitsExplicitAlpha3 proves an explicitly configured
+// collector-sdk/v1alpha3 activation parses: the seeded scanner manifests
+// stamp v1alpha3, and the coordinator must accept what the seed emits
+// (#9549). Mirrors TestParseConfigAdmitsExplicitAlpha2, including the
+// padded variant that must normalize rather than bypass the allowlist.
+func TestParseConfigAdmitsExplicitAlpha3(t *testing.T) {
+	t.Parallel()
+
+	for _, adapter := range []string{"oci", "process"} {
+		for _, protocol := range []string{"collector-sdk/v1alpha3", " collector-sdk/v1alpha3 "} {
+			t.Run(adapter+"/"+protocol, func(t *testing.T) {
+				t.Parallel()
+
+				raw := `{"schema_version":"eshu.component.instance.v1",` +
+					`"component_id":"dev.eshu.examples.scorecard",` +
+					`"component_version":"0.1.0",` +
+					`"manifest_digest":"sha256:1234",` +
+					`"config_handle":"component-config:abcd",` +
+					`"runtime":{"sdk_protocol":"` + protocol + `","adapter":"` + adapter + `"}}`
+				config, ok, err := ParseConfig(raw)
+				if err != nil {
+					t.Fatalf("ParseConfig() error = %v, want nil", err)
+				}
+				if !ok {
+					t.Fatal("ParseConfig() ok = false, want true")
+				}
+				if strings.TrimSpace(config.Runtime.SDKProtocol) != "collector-sdk/v1alpha3" {
+					t.Fatalf("ParseConfig() SDKProtocol = %q, want alpha3", config.Runtime.SDKProtocol)
+				}
+			})
+		}
+	}
+}
+
+// TestParseConfigAdmitsEveryKnownSDKProtocol pins the currently known set
+// for #9549: every protocol constant the component package defines today
+// must pass this package's allowlist. A future protocol bump extends this
+// list by hand; the test then fails until the gate is widened with it.
+func TestParseConfigAdmitsEveryKnownSDKProtocol(t *testing.T) {
+	t.Parallel()
+
+	for _, protocol := range []string{
+		component.CollectorSDKProtocolV1Alpha1,
+		component.CollectorSDKProtocolV1Alpha2,
+		component.CollectorSDKProtocolV1Alpha3,
+	} {
+		t.Run(protocol, func(t *testing.T) {
+			t.Parallel()
+
+			raw := `{"schema_version":"eshu.component.instance.v1",` +
+				`"component_id":"dev.eshu.examples.scorecard",` +
+				`"component_version":"0.1.0",` +
+				`"manifest_digest":"sha256:1234",` +
+				`"config_handle":"component-config:abcd",` +
+				`"runtime":{"sdk_protocol":"` + protocol + `","adapter":"oci"}}`
+			if _, ok, err := ParseConfig(raw); err != nil || !ok {
+				t.Fatalf("ParseConfig() ok=%v err=%v for known protocol %q, want ok", ok, err, protocol)
+			}
+		})
 	}
 }
 
