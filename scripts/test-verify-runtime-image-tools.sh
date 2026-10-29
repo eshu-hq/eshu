@@ -101,6 +101,7 @@ expect "GREEN rootfs with scanner components passes" 0 -- "${withcomps}"
 expect "rootfs without git fails" 1 "git" -- "$(make_rootfs nogit ssh curl)"
 expect "rootfs without curl fails" 1 "curl" -- "$(make_rootfs nocurl git ssh)"
 expect "rootfs without sbom component fails" 1 "eshu-scanner-component-sbom" -- "$(make_rootfs nosbom git curl ssh eshu-scanner-component-image eshu-scanner-component-osruntime)"
+expect "rootfs without osruntime component fails" 1 "eshu-scanner-component-osruntime" -- "$(make_rootfs noosruntime git curl ssh eshu-scanner-component-image eshu-scanner-component-sbom)"
 
 # Tools found under /bin and /usr/local/bin count.
 alt="$(make_rootfs alt git "${COMPONENT_BINS[@]}")"
