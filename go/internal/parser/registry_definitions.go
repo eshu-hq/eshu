@@ -11,9 +11,10 @@ import (
 // defaultDefinitions returns the built-in parser metadata catalog for this wave.
 // It is the source-of-truth literal consumed by DefaultRegistry; keep new parser
 // registrations here so registry.go stays focused on registry construction and
-// lookup logic.
+// lookup logic. JVM-ecosystem registrations live in registry_jvm.go and are
+// appended to the literal below through jvmDefinitions.
 func defaultDefinitions() []Definition {
-	return []Definition{
+	definitions := []Definition{
 		{
 			ParserKey:  "__dockerfile__",
 			Language:   "dockerfile",
@@ -120,42 +121,6 @@ func defaultDefinitions() []Definition {
 			ContentStore: ContentStore{Policy: ContentStoreRedact, Redactor: RedactorSkeleton},
 		},
 		{
-			ParserKey:  "java",
-			Language:   "java",
-			Ecosystem:  "java",
-			Admission:  AdmissionStructuredFact,
-			Extensions: []string{".java"},
-		},
-		{
-			ParserKey: "java_metadata",
-			Language:  "java_metadata",
-			Ecosystem: "java",
-			Admission: AdmissionStructuredFact,
-		},
-		{
-			ParserKey:  "gradle",
-			Language:   "gradle",
-			Ecosystem:  "java",
-			Admission:  AdmissionStructuredFact,
-			ExactNames: []string{"build.gradle", "build.gradle.kts", "libs.versions.toml"},
-		},
-		{
-			// gradle-wrapper.properties pins the Gradle distribution, and its
-			// distributionUrl can carry user:password@ userinfo. It is its own
-			// exact-name definition, never bound to the gradle definition above,
-			// and it binds the metadata content-store policy (#8822): the row
-			// keeps the path and the source digest with an empty body, and the
-			// wrapper parser emits only the version and the distribution type.
-			// Parser output is not governed by the policy, so the parser, not
-			// the policy, keeps credentials out of facts.
-			ParserKey:    "gradle_wrapper",
-			Language:     "gradle_wrapper",
-			Ecosystem:    "java",
-			Admission:    AdmissionStructuredFact,
-			ContentStore: ContentStore{Policy: ContentStoreMetadata},
-			ExactNames:   []string{"gradle-wrapper.properties"},
-		},
-		{
 			ParserKey:  "javascript",
 			Language:   "javascript",
 			Ecosystem:  "javascript",
@@ -179,20 +144,6 @@ func defaultDefinitions() []Definition {
 			// Exact names only (#8824): .props is no registered extension, so a
 			// stray Common.props or Build.props stays unadmitted.
 			ExactNames: []string{"Directory.Packages.props", "Directory.Build.props"},
-		},
-		{
-			ParserKey:  "kotlin",
-			Language:   "kotlin",
-			Ecosystem:  "kotlin",
-			Admission:  AdmissionStructuredFact,
-			Extensions: []string{".kt", ".kts"},
-		},
-		{
-			ParserKey:  "maven",
-			Language:   "maven",
-			Ecosystem:  "java",
-			Admission:  AdmissionStructuredFact,
-			ExactNames: []string{"pom.xml"},
 		},
 		{
 			ParserKey:  "perl",
@@ -293,29 +244,6 @@ func defaultDefinitions() []Definition {
 			ExactNames: []string{"Cargo.toml", "Cargo.lock"},
 		},
 		{
-			ParserKey:  "scala",
-			Language:   "scala",
-			Ecosystem:  "scala",
-			Admission:  AdmissionStructuredFact,
-			Extensions: []string{".sc", ".scala", ".routes"},
-		},
-		{
-			ParserKey:  "sbt",
-			Language:   "sbt",
-			Ecosystem:  "scala",
-			Admission:  AdmissionStructuredFact,
-			ExactNames: []string{"build.sbt"},
-		},
-		{
-			ParserKey:    "sbt_properties",
-			Language:     "sbt_properties",
-			Ecosystem:    "scala",
-			Admission:    AdmissionStructuredFact,
-			ContentStore: ContentStore{Policy: ContentStoreMetadata},
-			// project/build.properties is path-dispatched below. The base
-			// name alone is too generic for a repository-wide admission.
-		},
-		{
 			ParserKey:  "sql",
 			Language:   "sql",
 			Ecosystem:  "sql",
@@ -395,6 +323,10 @@ func defaultDefinitions() []Definition {
 			},
 		},
 	}
+	// JVM-ecosystem definitions live in registry_jvm.go. NewRegistry sorts by
+	// parser key and normalizes every binding list, so appending them here
+	// registers exactly what the inline entries did.
+	return append(definitions, jvmDefinitions()...)
 }
 
 // Hardcoded path-dispatch rules. LookupByPath resolves these before the

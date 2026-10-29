@@ -13,7 +13,7 @@
    `scalars.go` - `validScalar`, which rejects a number or date value
    go-toml's decoder cannot convert.
 8. The parent hook `../../gradle_language.go` and the registry entry in
-   `../../registry_definitions.go`.
+   `../../registry_jvm.go`.
 
 ## Invariants this package enforces
 
