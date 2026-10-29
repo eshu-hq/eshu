@@ -16,6 +16,7 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).parent / "lib"))
 import live_postgres_readiness_refresh_v2 as refresh  # noqa: E402
 import live_postgres_readiness_weights_refresh as cli_refresh  # noqa: E402
+from live_postgres_readiness_weights_pooled_cases import PooledPricingTest  # noqa: E402,F401
 
 
 PLAN = [f"./{package}|Test{name}" for package, name in (
@@ -247,6 +248,33 @@ class RefreshV2Cases(unittest.TestCase):
             for kinds in categories.values())
         cold, _ = refresh.fit_cold(categories)
         self.assertAlmostEqual(cold, expected, places=1)
+
+    def test_pool_of_four_prices_fast_draw_at_p75(self) -> None:
+        """One fast run among four prices at p75; two or three runs keep the mean."""
+        self.sources += [_sample(self.root, 102, SHA), _sample(self.root, 103, OTHER_SHA)]
+        fast = self.sources[0]
+        (fast / "shard2.log").write_text(_log(2, [
+            ("a", "TestTwo", 8), ("b", "TestOne", 1), ("b", "TestTwo", 0)], 100))
+        path = fast / "shard4.log"
+        path.write_text(path.read_text().replace("TestTwo: PASS elapsed=1.0s",
+                                                 "TestTwo: PASS elapsed=0.2s"))
+        priced = {4: (1.0, 5.0, 2.0), 3: (0.7, 3.7, 1.3), 2: (0.6, 3.0, 1.0)}
+        for runs, (test, first, repeat) in priced.items():
+            result = refresh.build_document(self.sources[:runs], self.root)
+            self.assertEqual((result["test_seconds"]["./c|TestTwo"],
+                              result["package_first_seconds"]["./b"],
+                              result["package_repeat_seconds"]["./b"]),
+                             (test, first, repeat), f"{runs}-run pool")
+        output = self.root / "weights.v2.json"
+        argv = ["refresh", "--schema-version", "2", "--out", str(output)]
+        argv.extend(f"--sample={source.name}={source}" for source in self.sources)
+        stdout = io.StringIO()
+        with mock.patch.object(cli_refresh.sys, "argv", argv), \
+                contextlib.redirect_stdout(stdout):
+            self.assertEqual(cli_refresh.main(), 0)
+        self.assertIn(refresh.pricing_rule(["100", "101", "102", "103"]).line() + "\n",
+                      stdout.getvalue())
+        self.assertIn("p75 (linear inclusive)", stdout.getvalue())
 
     def test_rejects_feature_or_partial_run(self) -> None:
         path = self.sources[0] / "run.json"
