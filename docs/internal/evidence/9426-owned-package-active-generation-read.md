@@ -24,8 +24,9 @@ dependency rows and probed the active-scope index once per row.
 - Limit: unchanged (`target_limit + 1` rows per read).
 - Timeout: no new statement timeout. The read runs under the coordinator's
   existing context.
-- Cardinality: the InitPlan reads one row per scope with an active generation
-  (3,314 in the history fixture, 53,314 in the wide fixture). The fact read
+- Cardinality: the InitPlan scans `ingestion_scopes` once and returns one id
+  per scope with an active generation (3,314 in the history fixture, 53,314
+  in the wide fixture). The fact read
   drops from all generations to the active ones.
 - Locks: one SELECT, ACCESS SHARE only. The InitPlan and the joins read the
   same snapshot, so a generation that activates during the read cannot appear
@@ -86,15 +87,31 @@ Performance Evidence: interleaved medians on PostgreSQL 18.6, 2026-10-29:
   returning the 81,236 active rows. The per-row active-scope probes drop from
   936,553 to 81,236.
 - If that index were not used, D falls back to the package-manager index with
-  `generation_id = ANY` as an in-index condition. With index 121 dropped inside
+  `generation_id = ANY` as an in-index condition. That fallback wins only up to
+  the measured array size of 53,314 active ids: with index 121 dropped inside
   a rolled-back transaction, D read 81,236 heap rows in 638 to 746 ms (about
   416,000 buffers) against A-nl's 1,167 to 1,480 ms (about 4,030,000 buffers).
   The narrow `rubygems` filter takes this same plan on its own: 7.4 ms and
   6,233 buffers against 10 to 14 ms and 34,579 buffers.
-- Flat history is the class that can lose, because A already reads only active
-  rows. D's median is 12 ms (3.6%) above A's, inside the run-to-run spread
-  (D's minimum is below A's), and D uses 15% fewer buffers. The threshold was
-  no loser regression above 10%.
+
+The classes measured to lose:
+
+- Flat history, because A already reads only active rows. D's median is 12 ms
+  (3.6%) above A's, inside the run-to-run spread (D's minimum is below A's),
+  and D uses 15% fewer buffers. The threshold was no loser regression above
+  10%.
+- Index 121 absent or INVALID together with a very large active-scope count.
+  Independent review measurement (rev-9426, a separate PostgreSQL 18.6 fixture
+  of 1,345,076 dependency rows, 9.6% active, plus 300,980 non-NULL
+  `active_generation_id` values, index 121 dropped inside a rolled-back
+  transaction, interleaved, n=4): D keeps `generation_id = ANY (InitPlan 1)`
+  as an in-index condition on the package-manager index and pays a binary
+  search of the 300k-element array per index tuple. D took 6,943 to 7,323 ms
+  against A's 5,920 to 6,256 ms, about +17% at the median, above the 10%
+  threshold, while buffers fell from 1,613,564 to 503,914. With index 121
+  present, the same 300k array is a 2x win in the same review (about 2,100 ms
+  against about 4,200 ms). So this loser needs both conditions; the QA
+  readback checks both (see NOT_CHECKED).
 - `plan_cache_mode = force_generic_plan` (PREPARE and EXECUTE with the real
   binds) gives the same plan and the same buffers as `force_custom_plan` for
   both A and D on this fixture.
@@ -106,7 +123,7 @@ subcase below checks the same equality on every slot.
 
 | Candidate | Old | New | Accuracy | Disposition |
 | --- | ---: | ---: | --- | --- |
-| D: `generation_id = ANY` of active ids, no DDL | 2,112 ms (A-nl) | 698 ms | identical output, all slots | proven (fixture) |
+| D: `generation_id = ANY` of active ids, no DDL | 2,112 ms (A-nl) | 698 ms | identical output, all slots | proven (fixture); loses only with index 121 absent or INVALID and about 300k active ids |
 | B: drive from active scopes through `fact_records_collector_status_active_idx` | | | | rejected: reads every active `content_entity` row, about 99% of them non-dependency (migration 121 note) |
 | C: new partial index keyed by `generation_id` | | | | not needed: D reaches the threshold on existing indexes |
 
@@ -168,5 +185,12 @@ the plan above (`Index Cond: generation_id = ANY (InitPlan 1)`).
 - The QA replica plan, rows, buffers and wall time for D (QA unreachable). The
   QA readback should run the same EXPLAIN on the replica before the rollout
   claim.
+- Whether index 121 is valid on QA: `pg_index.indisvalid` for
+  `fact_records_content_entity_dependency_variable_repo_idx`. It was built
+  `CONCURRENTLY`, so a failed build leaves it INVALID and the planner skips it.
+- The QA active-scope count:
+  `SELECT count(*) FROM ingestion_scopes WHERE active_generation_id IS NOT NULL`.
+  With index 121 invalid and this count near 300,000, the change is measured to
+  lose (above). The QA readback records both values beside the plan.
 - The coordinator-versus-replica gap on QA.
 - Cold-cache timing: the fixture ran with a warm OS cache.
