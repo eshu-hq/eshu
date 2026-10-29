@@ -256,6 +256,94 @@ fi
 new_case not-clean
 edit pr.json '.mergeStateStatus = "BLOCKED"'
 expect_red "mergeStateStatus BLOCKED" checks
+# GitHub reports UNSTABLE for a PR whose non-required check completed red or
+# cancelled (#9489). The arm accepts UNSTABLE only when every completed red
+# context is dispositioned and every ruleset-required context is success, and
+# it names the dispositioned contexts in the PASS line.
+new_case unstable-dispositioned
+edit pr.json '.mergeStateStatus = "UNSTABLE"'
+edit check-runs.json '.check_runs += [{name:"e2e",status:"completed",conclusion:"cancelled"}]'
+RUN_ARGS=(--dispositioned "e2e=#9488 cancelled at the job cap after one rerun")
+run
+ok=0
+[[ "${RC}" -eq 0 ]] || ok=1
+[[ "$(fail_lines)" == 0 ]] || ok=1
+rg -q '^PASS checks +complete; go-core-complete,go-race-complete=success; mergeStateStatus=UNSTABLE \(dispositioned: e2e\)$' <<<"${OUT}" || ok=1
+check "GREEN UNSTABLE with every red dispositioned passes and names the dispositions" "${ok}"
+[[ "${ok}" -eq 0 ]] || printf '%s\n' "${OUT}" | sed 's/^/    | /'
+new_case unstable-not-dispositioned
+edit pr.json '.mergeStateStatus = "UNSTABLE"'
+edit check-runs.json '.check_runs += [{name:"e2e",status:"completed",conclusion:"cancelled"}]'
+expect_red "UNSTABLE with a red check and no disposition" checks
+ok=0
+rg -q '^FAIL checks +fail=1: e2e; mergeStateStatus=UNSTABLE; $' <<<"${OUT}" || ok=1
+check "RED UNSTABLE names the undispositioned red and the merge state" "${ok}"
+new_case unstable-one-undispositioned
+edit pr.json '.mergeStateStatus = "UNSTABLE"'
+edit check-runs.json '.check_runs += [{name:"e2e",status:"completed",conclusion:"cancelled"},{name:"bench",status:"completed",conclusion:"failure"}]'
+RUN_ARGS=(--dispositioned "e2e=#9488")
+expect_red "UNSTABLE with one dispositioned red and one undispositioned red" checks
+ok=0
+rg -q '^FAIL checks +fail=1: bench; mergeStateStatus=UNSTABLE; $' <<<"${OUT}" || ok=1
+check "RED the undispositioned red is named and UNSTABLE is not accepted" "${ok}"
+new_case unstable-required-red
+edit pr.json '.mergeStateStatus = "UNSTABLE"'
+edit check-runs.json '.check_runs |= map(if .name == "go-core-complete" then .conclusion = "failure" else . end)'
+RUN_ARGS=(--dispositioned "go-core-complete=#1")
+expect_red "UNSTABLE with a ruleset-required context red, even when named" checks
+ok=0
+rg -q '^FAIL checks +fail=1: go-core-complete; go-core-complete=failure; mergeStateStatus=UNSTABLE; $' <<<"${OUT}" || ok=1
+check "RED a red ruleset-required context keeps UNSTABLE failing" "${ok}"
+new_case unstable-no-red
+edit pr.json '.mergeStateStatus = "UNSTABLE"'
+RUN_ARGS=(--dispositioned "e2e=#9488")
+expect_red "UNSTABLE with no completed red check to excuse it" checks
+ok=0
+rg -q '^FAIL checks +mergeStateStatus=UNSTABLE; $' <<<"${OUT}" || ok=1
+check "RED UNSTABLE with nothing dispositioned that is red is not accepted" "${ok}"
+# A red commit status outside the manifest is a red context too (#9489 review
+# F1): without a disposition it fails the arm even when another red is
+# dispositioned, and with one it is excused like any other red.
+new_case unstable-undispositioned-status
+edit pr.json '.mergeStateStatus = "UNSTABLE"'
+edit check-runs.json '.check_runs += [{name:"e2e",status:"completed",conclusion:"cancelled"}]'
+edit status.json '.statuses += [{context:"external-status",state:"failure"}]'
+RUN_ARGS=(--dispositioned "e2e=#9488")
+expect_red "UNSTABLE with an undispositioned red commit status outside the manifest" checks
+ok=0
+rg -q '^FAIL checks +external-status=failure \(commit status; pass --dispositioned external-status=<issue-or-reason> to accept\); mergeStateStatus=UNSTABLE; $' <<<"${OUT}" || ok=1
+check "RED the undispositioned red commit status is named and UNSTABLE is not accepted" "${ok}"
+new_case unstable-dispositioned-status
+edit pr.json '.mergeStateStatus = "UNSTABLE"'
+edit status.json '.statuses += [{context:"external-status",state:"error"}]'
+RUN_ARGS=(--dispositioned "external-status=#4242 external reporter down")
+run
+ok=0
+[[ "${RC}" -eq 0 ]] || ok=1
+[[ "$(fail_lines)" == 0 ]] || ok=1
+rg -q '^     checks +dispositioned: external-status=#4242 external reporter down \(applied: error\)$' <<<"${OUT}" || ok=1
+rg -q '^PASS checks +complete; go-core-complete,go-race-complete=success; mergeStateStatus=UNSTABLE \(dispositioned: external-status\)$' <<<"${OUT}" || ok=1
+check "GREEN UNSTABLE with a dispositioned red commit status outside the manifest passes" "${ok}"
+[[ "${ok}" -eq 0 ]] || printf '%s\n' "${OUT}" | sed 's/^/    | /'
+# The same context dispositioned twice is named once in the PASS line.
+new_case unstable-dispositioned-twice
+edit pr.json '.mergeStateStatus = "UNSTABLE"'
+edit check-runs.json '.check_runs += [{name:"e2e",status:"completed",conclusion:"cancelled"}]'
+RUN_ARGS=(--dispositioned "e2e=#9488" --dispositioned "e2e=#9488 again")
+run
+ok=0
+[[ "${RC}" -eq 0 ]] || ok=1
+rg -q '^PASS checks +complete; go-core-complete,go-race-complete=success; mergeStateStatus=UNSTABLE \(dispositioned: e2e\)$' <<<"${OUT}" || ok=1
+check "GREEN a context dispositioned twice is named once in the PASS line" "${ok}"
+[[ "${ok}" -eq 0 ]] || printf '%s\n' "${OUT}" | sed 's/^/    | /'
+new_case blocked-dispositioned
+edit pr.json '.mergeStateStatus = "BLOCKED"'
+edit check-runs.json '.check_runs += [{name:"e2e",status:"completed",conclusion:"cancelled"}]'
+RUN_ARGS=(--dispositioned "e2e=#9488")
+expect_red "BLOCKED with every red dispositioned" checks
+ok=0
+rg -q '^FAIL checks +mergeStateStatus=BLOCKED; $' <<<"${OUT}" || ok=1
+check "RED a disposition never makes BLOCKED pass" "${ok}"
 new_case unknown-bucket
 edit check-runs.json '.check_runs += [{name:"future-check",status:"completed",conclusion:"stale"}]'
 expect_red "check row with an unrecognized conclusion" checks
