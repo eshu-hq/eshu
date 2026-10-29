@@ -15,7 +15,7 @@ Deployment target: the owner-designated QA EKS environment.
 
 ## What moves (source: the ownership map)
 
-`go/cmd/mcp-server/CUTOVER_OWNERSHIP.md` is the machine-checked census: 168
+`go/cmd/mcp-server/CUTOVER_OWNERSHIP.md` is the machine-checked census: 169
 registry tools plus the `find_tool`/`call_tool` router surface, every tool in
 exactly one family row, every backing `/api/v0` route served by the dispatch
 tree, every source file present in the tree.
