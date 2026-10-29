@@ -151,13 +151,19 @@ import (
 // DML half, #7961 split).
 // #9227 adds 243_vulnerability_source_state_packages.sql: the package keys a
 // derived vulnerability source target queried, joined by readiness.
-const goldenBootstrapDefinitionsDigest = "db6c8f80de2a3ed9cf91756092b78ea40b26358a431ece3ab8d2c14277f90ac6"
+// #9474 adds 240_fact_records_vulnerability_active_package_lookup_v2_idx.sql
+// and 241_fact_records_vulnerability_active_purl_lookup_v2_idx.sql: the
+// five-kind package_id/purl partial indexes for the split advisory-evidence
+// package legs (one CREATE INDEX CONCURRENTLY per file); re-pinned after the
+// bundled-statement guard fix reworded a comment naming CONCURRENTLY
+// (no semantic change to either migration).
+const goldenBootstrapDefinitionsDigest = "2681bdba548cdb2421bd4856a2bcc7819d92a6dcaf5691f72b37fdc89c6fb77b"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 258
+const goldenBootstrapDefinitionsCount = 260
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

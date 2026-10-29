@@ -25,7 +25,10 @@ func TestAdvisoryEvidenceQuerySeedsFromFactRecordsNotBroadActiveSet(t *testing.T
 		t.Fatalf("query must derive seed keys before matching facts:\n%s", listAdvisoryEvidenceQuery)
 	}
 	for _, want := range []string{
-		"JOIN fact_records AS fact",
+		// Legs probe fact_records through a lookup-driven LATERAL
+		// subquery (issue #8870): the probe order is enforced, not
+		// planned, so the pin is on the subquery source, not a join.
+		"FROM fact_records AS fact",
 		"fact.fact_kind = ANY($1::text[])",
 		"fact.fact_kind IN (",
 		"'vulnerability.reference'",
@@ -70,6 +73,61 @@ func TestAdvisoryEvidenceQueryUsesIndexableJSONBPredicates(t *testing.T) {
 		if !strings.Contains(listAdvisoryEvidenceQuery, want) {
 			t.Fatalf("listAdvisoryEvidenceQuery missing %q:\n%s", want, listAdvisoryEvidenceQuery)
 		}
+	}
+}
+
+func TestAdvisoryEvidenceQueryProbesLookupValueFirstWithoutScopeFanout(t *testing.T) {
+	t.Parallel()
+
+	// Issue #8870 advisory-evidence timeout: every seed/matched leg joined
+	// scope_active_generations ON TRUE, fanning each lookup value out to one
+	// probe per active scope (~1476) before DISTINCT ON/LIMIT materialized.
+	// Legs must drive from the lookup value into the payload-key probe and
+	// test active-generation membership with EXISTS instead.
+	if strings.Contains(listAdvisoryEvidenceQuery, "JOIN scope_active_generations AS scope ON TRUE") {
+		t.Fatalf("advisory evidence query must not fan out over scope_active_generations with JOIN ON TRUE:\n%s", listAdvisoryEvidenceQuery)
+	}
+	// Each package OR leg must be split so every leg carries a single
+	// payload-key equality probe the planner can feed to an index.
+	if strings.Contains(listAdvisoryEvidenceQuery, "(fact.payload->>'package_id' = pkg.value OR fact.payload->>'purl' = pkg.value)") {
+		t.Fatalf("advisory evidence query must split the package OR into per-key legs:\n%s", listAdvisoryEvidenceQuery)
+	}
+	if !strings.Contains(listAdvisoryEvidenceQuery, "FROM scope_active_generations AS scope") {
+		t.Fatalf("advisory evidence query must keep active-generation membership as EXISTS over scope_active_generations:\n%s", listAdvisoryEvidenceQuery)
+	}
+	// Each affected_package slice must pin the affected_package kind
+	// literal so the planner can use the package_id/purl partial indexes
+	// that are partial on vulnerability.affected_package. GitLab CVE
+	// envelopes also carry package_id
+	// (gitlab_gemnasium_envelope.go newGitLabCVEEnvelope), so the
+	// affected_package pin alone would drop package-matching rows of
+	// other kinds (issue #9474 P1): the four five-kind slices below
+	// cover them. Without the literals the legs fall back to per-scope
+	// keyset scans (~65s on the primary, issue #8870).
+	if got := strings.Count(listAdvisoryEvidenceQuery, "AND fact.fact_kind = 'vulnerability.affected_package'"); got != 4 {
+		t.Fatalf("advisory evidence query has %d package-leg kind literals, want 4 (seed package_id, seed purl, matched package_id, matched purl):\n%s", got, listAdvisoryEvidenceQuery)
+	}
+	// Each five-kind slice must pin the exact five-kind IN (every
+	// advisory kind except affected_package) so the planner proves the
+	// fact_records_vulnerability_active_package_lookup_v2_idx /
+	// fact_records_vulnerability_active_purl_lookup_v2_idx partial
+	// predicates while the shared six-kind IN envelope stays intact.
+	fiveKindSlice := `AND fact.fact_kind IN (
+                'vulnerability.cve',
+                'vulnerability.affected_product',
+                'vulnerability.epss_score',
+                'vulnerability.known_exploited',
+                'vulnerability.reference'
+            )`
+	if got := strings.Count(listAdvisoryEvidenceQuery, fiveKindSlice); got != 4 {
+		t.Fatalf("advisory evidence query has %d five-kind package slices, want 4 (seed package_id, seed purl, matched package_id, matched purl):\n%s", got, listAdvisoryEvidenceQuery)
+	}
+	// OFFSET 0 keeps each active-generation EXISTS a correlated subplan:
+	// without it the planner flattens the membership test into a
+	// scope-outer semi-join and reintroduces one probe per active scope
+	// (~1476) on every leg. All fourteen legs must carry it.
+	if got := strings.Count(listAdvisoryEvidenceQuery, "OFFSET 0"); got != 14 {
+		t.Fatalf("advisory evidence query has %d OFFSET 0 guards, want 14 (one per leg):\n%s", got, listAdvisoryEvidenceQuery)
 	}
 }
 

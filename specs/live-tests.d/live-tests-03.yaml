@@ -11,6 +11,10 @@ tests:
     tag: integration
     class: scheduled
     reason: full-stack cost unmeasured on this tree; promote to blocking after a measured green run
+  - file: go/internal/query/advisory_evidence_package_kind_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#9474 hermetic PostgreSQL 18 proof of the split advisory-evidence package legs: a lone cve-with-package_id row is returned with no affected_package sibling, a tombstoned sibling does not suppress it, a non-affected_package reference row carrying purl is returned, and both five-kind partial indexes are probed in the seed/matched CTEs with no fact_records seq scan; isolated schema per test with cleanup on pass and fail; local runs took 0.2-0.7s — promote to blocking with repeated timing evidence"
   - file: go/internal/query/tag_history_nornicdb_live_test.go
     tag: ~
     class: scheduled
