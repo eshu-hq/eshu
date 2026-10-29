@@ -118,19 +118,32 @@ func TestRequiredGrantsCoverEmittedKinds(t *testing.T) {
 
 // TestManifestArtifactPinsPublishTimeDigestContract pins the activation
 // contract for component images: one linux/arm64 artifact per manifest,
-// addressed as ghcr.io/eshu-hq/scanner-<name> pinned to an immutable
-// sha256 digest. The digest is the documented placeholder until the images
-// publish; the shape (registry, name, digest pinning) is what the publish
-// step must preserve when it swaps in the real digest.
+// addressed as ghcr.io/eshu-hq/scanner-<name> pinned to the immutable
+// sha256 digest of the first merge-head publish (docker-publish run
+// 40847362877, merge 92744768; each attestation verified with
+// gh attestation verify). Any republish must update these pins together:
+// a stale digest silently runs the old analyzer binary.
 func TestManifestArtifactPinsPublishTimeDigestContract(t *testing.T) {
 	t.Parallel()
 
-	names := map[scannerworker.AnalyzerKind]string{
-		scannerworker.AnalyzerImageUnpacking:      "image",
-		scannerworker.AnalyzerSBOMGeneration:      "sbom",
-		scannerworker.AnalyzerOSPackageExtraction: "osruntime",
+	names := map[scannerworker.AnalyzerKind]struct {
+		name   string
+		digest string
+	}{
+		scannerworker.AnalyzerImageUnpacking: {
+			name:   "image",
+			digest: "d2967a1ab642747ec5bafed484b4a5384839b90b59c9562ee38e67b3fa547d49",
+		},
+		scannerworker.AnalyzerSBOMGeneration: {
+			name:   "sbom",
+			digest: "cbafeeeb2bae99902838e5159bd4003e210f5cfe41891b50b0caf502b2d99dec",
+		},
+		scannerworker.AnalyzerOSPackageExtraction: {
+			name:   "osruntime",
+			digest: "e302cf4e398f23974210f69988a3c53510738100ae7525ead6d11d992d7be3a8",
+		},
 	}
-	for kind, name := range names {
+	for kind, want := range names {
 		manifest, err := ManifestFor(kind)
 		if err != nil {
 			t.Fatalf("ManifestFor(%q) error = %v", kind, err)
@@ -142,12 +155,12 @@ func TestManifestArtifactPinsPublishTimeDigestContract(t *testing.T) {
 		if artifact.Platform != "linux/arm64" {
 			t.Fatalf("ManifestFor(%q) platform = %q, want linux/arm64", kind, artifact.Platform)
 		}
-		want := "ghcr.io/eshu-hq/scanner-" + name + "@sha256:" + placeholderArtifactDigest
-		if artifact.Image != want {
-			t.Fatalf("ManifestFor(%q) image = %q, want %q", kind, artifact.Image, want)
+		wantImage := "ghcr.io/eshu-hq/scanner-" + want.name + "@sha256:" + want.digest
+		if artifact.Image != wantImage {
+			t.Fatalf("ManifestFor(%q) image = %q, want %q", kind, artifact.Image, wantImage)
 		}
-		if placeholderArtifactDigest != strings.Repeat("a", 64) {
-			t.Fatalf("placeholderArtifactDigest = %q, want the 64-hex never-pulled convention", placeholderArtifactDigest)
+		if strings.Count(artifact.Image, "sha256:") != 1 || len(want.digest) != 64 {
+			t.Fatalf("ManifestFor(%q) image = %q, want one 64-hex digest pin", kind, artifact.Image)
 		}
 	}
 }
