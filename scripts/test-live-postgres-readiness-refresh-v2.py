@@ -338,6 +338,21 @@ class RefreshV2Cases(unittest.TestCase):
         self.assertIn("weights refresh v2: cold cache estimate 15.0 s from 2 packages "
                       "(./b +10.0, ./c +20.0); used 15.0 s\n", self.cli_stdout())
 
+    def test_cold_estimate_is_the_unweighted_mean_over_packages(self) -> None:
+        # Three packages with unequal row counts: ./a has four first rows, the
+        # others one. The estimate is the mean of the per-package terms, not a
+        # sum, a median, or a mean weighted by rows (#9490).
+        def kinds(first_row: list[float], first_later: list[float]) -> dict[str, list[float]]:
+            return {"first_row": first_row, "first_later": first_later, "repeat": []}
+
+        estimate = refresh._cold_estimate({
+            "./a": kinds([10.0] * 4, [0.0]),
+            "./b": kinds([0.0], [20.0]),
+            "./c": kinds([30.0], [0.0])})
+        self.assertEqual(estimate.terms, {"./a": 10.0, "./b": -20.0, "./c": 30.0})
+        self.assertEqual(estimate.measured, 6.7)
+        self.assertEqual(estimate.used, 6.7)
+
     def test_rejects_no_measured_repeat(self) -> None:
         for source in self.sources:
             path = source / "shard2.log"
