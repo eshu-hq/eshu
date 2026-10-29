@@ -274,4 +274,5 @@ var censusToolSchemaSnapshot = []censusToolSchema{
 	{Name: "list_repository_files", Properties: []string{"language", "path", "recursive", "ref", "repo_id"}, Required: []string{"repo_id"}},
 	{Name: "list_runtime_version_declarations", Properties: []string{"cursor", "limit", "major_below", "repo_ids", "runtime", "source_kind", "version_below"}, Required: []string{}},
 	{Name: "search_dockerfile_installs", Properties: []string{"cursor", "limit", "package", "repo_id", "repo_ids"}, Required: []string{"package"}},
+	{Name: "search_php_configuration", Properties: []string{"cursor", "directive", "limit", "mode", "repo_id"}, Required: []string{}},
 }
