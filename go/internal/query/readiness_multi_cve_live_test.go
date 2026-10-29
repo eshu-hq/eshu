@@ -4,9 +4,7 @@
 package query
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #9322 disposable PostgreSQL API proof that a
-// multi-CVE NVD target says so in the response: its source-state row carries
-// multi_cve_target, so absence stays per target once NVD returned any record
+//eshu:readiness:reason #9322 disposable PostgreSQL API proof that a multi-CVE NVD target says so in the response with multi_cve_target on its source-state row
 //eshu:readiness:env ESHU_POSTGRES_DSN
 
 import (

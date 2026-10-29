@@ -4,10 +4,7 @@
 package query
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #9322 disposable PostgreSQL proof that Swift and
-// OS-distribution derived OSV scopes reach readiness through recorded package
-// keys: Swift keys already join once the instance enables swift, and
-// distro-configured instances join canonical os keys
+//eshu:readiness:reason #9322 disposable PostgreSQL proof that Swift and OS-distribution derived OSV scopes reach readiness through recorded package keys
 //eshu:readiness:env ESHU_POSTGRES_DSN
 
 import (

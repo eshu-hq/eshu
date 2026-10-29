@@ -90,10 +90,17 @@ TABLE = {
             "TestSupplyChainImpactReadinessDerivedNewestStateWinsLive",
             "TestSupplyChainImpactReadinessConfiguredOSVOverflowStillRefusesLive",
         ),
+        "go/internal/query/readiness_derived_swift_os_live_test.go": (
+            "TestSupplyChainImpactReadinessDerivedSwiftScopeMatchesLive",
+            "TestSupplyChainImpactReadinessDerivedDistroScopeMatchesLive",
+        ),
         "go/internal/query/readiness_known_cve_coverage_live_test.go": (
             "TestSupplyChainImpactReadinessKnownCVECoverageLive",
             "TestSupplyChainImpactReadinessStaticWindowStaysHealthOnlyLive",
             "TestSupplyChainImpactReadinessLowercaseConfiguredCVELive",
+        ),
+        "go/internal/query/readiness_multi_cve_live_test.go": (
+            "TestSupplyChainImpactReadinessMultiCVETargetSaysSoLive",
         ),
         "go/internal/query/readiness_source_reconfiguration_live_test.go": (
             "TestSupplyChainImpactReadinessReconfiguredExactSelectorRefusesOldSuccessLive",

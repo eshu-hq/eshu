@@ -184,10 +184,20 @@ tests:
     class: postgres_ci
     reason: "#9227 F7 disposable PostgreSQL API proof that derived owned-package OSV scopes reach readiness through recorded package keys as one aggregate per instance, source, and ecosystem, without unrelated scopes counting toward the 200-target bound"
     runner: live-postgres-readiness
+  - file: go/internal/query/readiness_derived_swift_os_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9322 disposable PostgreSQL proof that Swift and OS-distribution derived OSV scopes reach readiness through recorded package keys"
+    runner: live-postgres-readiness
   - file: go/internal/query/readiness_known_cve_coverage_live_test.go
     tag: ~
     class: postgres_ci
     reason: "#9227 disposable PostgreSQL API proof that committed NVD cassette snapshots certify known and absent CVEs through the producer-shaped descriptor"
+    runner: live-postgres-readiness
+  - file: go/internal/query/readiness_multi_cve_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9322 disposable PostgreSQL API proof that a multi-CVE NVD target says so in the response with multi_cve_target on its source-state row"
     runner: live-postgres-readiness
   - file: go/internal/query/readiness_source_reconfiguration_live_test.go
     tag: ~
