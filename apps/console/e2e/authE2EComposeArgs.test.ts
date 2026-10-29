@@ -20,7 +20,7 @@ describe("authE2EComposeArgs", () => {
     ]);
   });
 
-  it("keeps the product Compose command unchanged outside CI", () => {
+  it("resolves the deploy-checkout stack when the overlay is empty", () => {
     vi.stubEnv("ESHU_DEPLOY_CHECKOUT", "/tmp/eshu-deploy");
     expect(authE2EComposeArgs("proof", "")).toEqual([
       "compose",

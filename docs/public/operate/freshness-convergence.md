@@ -23,7 +23,7 @@ not metrics.
 
 ## Dashboard
 
-`deploy/grafana/dashboards/eshu-freshness-convergence.json` (UID
+`$ESHU_DEPLOY_CHECKOUT/grafana/dashboards/eshu-freshness-convergence.json` (UID
 `eshu-freshness-convergence`) groups freshness signals into four sections. It
 has a `service` template variable backed by
 `label_values(eshu_runtime_queue_outstanding, service_name)` so you can scope to
@@ -67,8 +67,8 @@ one runtime or view all.
 
 ## Alert Pack
 
-The `eshu.freshness` group lives in both `deploy/observability/alerts.yaml`
-(standalone Prometheus) and `deploy/observability/prometheus-rule.yaml`
+The `eshu.freshness` group lives in both `$ESHU_DEPLOY_CHECKOUT/observability/alerts.yaml`
+(standalone Prometheus) and `$ESHU_DEPLOY_CHECKOUT/observability/prometheus-rule.yaml`
 (Prometheus Operator). The five rules are intentionally disjoint and carry a
 `freshness_state` label so an operator can tell the failure modes apart instead
 of guessing.

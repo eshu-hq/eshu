@@ -65,6 +65,8 @@ jobs:
         run: bash scripts/test-verify-ifa-dead-letter-matrix.sh
       - name: Validate fault-injection matrix mirror
         run: bash scripts/test-verify-ifa-fault-injection.sh
+        env:
+          ESHU_DEPLOY_CHECKOUT: ${{ github.workspace }}/eshu-deploy
   determinism-matrix:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'determinism-matrix') }}
     name: determinism-matrix

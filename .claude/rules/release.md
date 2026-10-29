@@ -1,6 +1,5 @@
 ---
 paths:
-  - "deploy/helm/**"
   - "Dockerfile*"
   - ".github/workflows/docker-publish.yml"
 ---

@@ -92,7 +92,7 @@ The tag triggers:
 - Sigstore cosign signing for the pushed Docker image digest.
 - Build provenance and SPDX SBOM attestations for the pushed image digest.
 - GitHub Release SBOM asset publishing for tag releases.
-- Helm package push from `helm/eshu` via eshu-deploy's `chart-release.yml`.
+- Helm package push from `helm/eshu` via the chart-release workflow in the eshu-deploy checkout.
 - CLI binary release from `.github/workflows/build.yml` with
   `eshu-linux-x86_64` and `eshu-macos-arm64`.
 

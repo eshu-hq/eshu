@@ -94,7 +94,7 @@ func stripWholeLineSQLComments(sql string) string {
 // converges (see issue #7004's evidence).
 //
 // This is NOT bounded by the schema bootstrap Job's activeDeadlineSeconds
-// (deploy/helm/eshu/values.yaml): that deadline kills the bootstrap CLIENT
+// ($ESHU_DEPLOY_CHECKOUT/helm/eshu/values.yaml): that deadline kills the bootstrap CLIENT
 // process only. Both bootstrap binaries (eshu-bootstrap-data-plane,
 // bootstrap-index) run with a background context and no signal handling, so
 // killing the pod does not cancel the statement on the Postgres server -- the
