@@ -43,19 +43,12 @@ mkdir -p "${stubbin}"
 cat >"${stubbin}/crane" <<'STUB'
 #!/usr/bin/env bash
 set -euo pipefail
-[[ "${1:-}" == digest && $# -eq 2 ]] || { echo "stub crane: want 'digest <ref>'" >&2; exit 2; }
-ref="$2"
-comp="$(printf '%s' "${ref}" | sed -n 's|.*/scanner-\([a-z]*\):sha-[0-9a-f]*$|\1|p')"
-[[ -n "${comp}" ]] || { echo "stub crane: cannot parse component from ${ref}" >&2; exit 2; }
-dir="${CRANE_STUB_DIR:?stub crane needs CRANE_STUB_DIR}"
-if [[ -e "${dir}/broken" ]]; then
-	echo "stub crane: dial tcp: connection refused" >&2
-	exit 1
-fi
-if [[ -e "${dir}/fail-${comp}" ]]; then
-	echo "Error: GET https://ghcr.io/v2/eshu-hq/scanner-${comp}/manifests/x: MANIFEST_UNKNOWN: manifest unknown" >&2
-	exit 1
-fi
+[[ "${1:-}" == digest && $# -eq 2 ]] || exit 2
+comp="$(printf '%s' "$2"|sed -n 's|.*/scanner-\([a-z]*\):sha-[0-9a-f]*$|\1|p')"
+[[ -n "${comp}" ]] || exit 2
+dir="${CRANE_STUB_DIR:?need CRANE_STUB_DIR}"
+[[ -e "${dir}/broken" ]] && { echo dial tcp: connection refused >&2; exit 1; }
+[[ -e "${dir}/fail-${comp}" ]] && { echo "MANIFEST_UNKNOWN: ${comp}" >&2; exit 1; }
 cat "${dir}/digest-${comp}"
 STUB
 # Stub gh passes attestation unless GH_STUB_ATTEST_FAIL names the component.
