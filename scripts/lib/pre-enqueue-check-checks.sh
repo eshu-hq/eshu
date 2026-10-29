@@ -15,6 +15,8 @@
 #   - a check the ruleset does not require, pending or absent, is a note;
 #   - a completed red one fails unless --dispositioned <context>=<reason> names
 #     it, and each disposition is printed in the arm output;
+#   - a failure or error commit status outside the manifest is a red context
+#     with the same disposition rule;
 #   - outside a merge group, mergeStateStatus must be CLEAN, or UNSTABLE when at
 #     least one completed red context is dispositioned and nothing else fails
 #     (#9489). GitHub reports UNSTABLE for exactly that state, a non-required
@@ -105,8 +107,22 @@ run_checks_arm() {
 			checks_bad+=("$(rows_entry fail "${failing_bad}" "${failing_sel} | select((.name | IN(\$d[])) | not)" --argjson d "${elig_json}")")
 		[[ "${unknown}" -eq 0 ]] || checks_bad+=("unclassified=${unknown}")
 	fi
-	local status_json ctx ctx_state superseded red_states=""
+	local status_json ctx ctx_state superseded red_states="" s_ctx s_state
 	status_json="$("${GH}" api "repos/${repo}/commits/${want}/status?per_page=100" 2>/dev/null)"
+	# A commit status outside the manifest (another reporter) has no check-run
+	# row, so the tally above never sees it. A failure or error one is a red
+	# context like any other: it fails the arm unless --dispositioned names it,
+	# and a dispositioned one is excused (#9489 review F1). An unreadable status
+	# read already fails closed through the manifest's own status contexts.
+	while IFS=$'\t' read -r s_ctx s_state; do
+		[[ -n "${s_ctx}" ]] || continue
+		red_states+="${s_ctx}"$'\t'"${s_state}"$'\n'
+		if ! in_list "${s_ctx}" ${disp_ctx[@]+"${disp_ctx[@]}"}; then
+			checks_bad+=("${s_ctx}=${s_state} (commit status; pass --dispositioned ${s_ctx}=<issue-or-reason> to accept)")
+		fi
+	done < <(jq -r --argjson m "${manifest_json}" '[.statuses[]? | select((.context | IN($m[])) | not)
+		| select(.state == "failure" or .state == "error")] | unique_by(.context) | .[]
+		| "\(.context)\t\(.state)"' <<<"${status_json}" 2>/dev/null)
 	# Every manifest context is read here. go-core-complete and go-race-complete
 	# publish as check runs, required-gates-complete as a commit status. A check
 	# run of that name wins; the status is the fallback. Each is pinned to exactly

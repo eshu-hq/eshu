@@ -84,7 +84,8 @@ check that is not green and on a completed red not named with
 `--dispositioned '<check>=<reason>'`, and it only notes a pending or absent
 check that the ruleset does not require. It accepts `mergeStateStatus` UNSTABLE,
 which GitHub reports for a red check the ruleset does not require, only when
-every completed red is dispositioned and the required checks are green.
+every completed red is dispositioned, at least one dispositioned check is red,
+and the required checks are green. UNSTABLE with nothing red fails.
 
 The Ifá/Odù protection was never fully local: the live cells (fault injection,
 determinism and dead-letter matrices, golden-corpus, e2e) need
