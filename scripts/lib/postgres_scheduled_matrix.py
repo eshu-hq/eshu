@@ -3,7 +3,7 @@
 
 import re
 
-from postgres_scheduled_contract import PACKAGES
+from postgres_scheduled_contract import PACKAGES, STORAGE_GROUPS
 from postgres_scheduled_workflow import named_step
 
 
@@ -31,8 +31,38 @@ UPLOAD_JOBS = {
 }
 NON_BULK_GROUPS = frozenset({
     "ack_family", "freshness_links_scale",
-    "freshness_links_a", "freshness_links_b",
+    "freshness_links_a", "freshness_links_b", *STORAGE_GROUPS,
 })
+# A go test of the root ./internal/storage/postgres package, naming its stream.
+ROOT_STORAGE_RUN = re.compile(
+    r"(?m)^\s*go test -json -race [^\n]*? \./internal/storage/postgres -run "
+    r"[^\n]*/([a-z_]+)\.jsonl\"$"
+)
+
+
+def root_storage_groups(block: str) -> list[str]:
+    """Return the sorted groups whose go test builds the root storage package."""
+    return sorted(ROOT_STORAGE_RUN.findall(block))
+
+
+def verify_root_storage_builds(blocks: dict[str, str]) -> None:
+    """Keep the root storage -race test build in the ACK and storage legs.
+
+    #9488: the first family to test ./internal/storage/postgres pays its -race
+    test build (11.2 to 20.9 min measured), and it put the bulk leg at its
+    40-minute cap. Every other root-package family shares the storage leg.
+    """
+    for job, block in blocks.items():
+        groups = root_storage_groups(block)
+        if job == "scheduled-ack":
+            allowed = ["ack_family"]
+        elif job == "scheduled-storage":
+            allowed = sorted(STORAGE_GROUPS)
+        else:
+            allowed = []
+        if groups != allowed:
+            raise ValueError(
+                f"root storage -race build outside its legs: {job} runs {groups}")
 
 
 def verify_leg_uploads(blocks: dict[str, str]) -> None:
@@ -51,22 +81,26 @@ def verify_leg_uploads(blocks: dict[str, str]) -> None:
             raise ValueError(f"hosted proof leg artifact upload missing: {name}")
         if always != ("        if: always()" in upload_step.splitlines()):
             raise ValueError(f"conditional hosted proof leg upload: {name}")
-    _, bulk_upload = named_step(
-        re.split(r"(?m)^      - name:", blocks["scheduled-bulk"]),
-        "Upload bulk proof streams")
-    expected_bulk_uploads = [
-        f"            ${{{{ runner.temp }}}}/{group}.jsonl"
-        for group in PACKAGES if group not in NON_BULK_GROUPS
-    ]
-    bulk_paths = re.search(
-        r"(?m)^          path: \|\n((?:            [^\n]+\n)+)",
-        bulk_upload,
-    )
-    if (not bulk_paths
-            or bulk_paths.group(1).splitlines() != expected_bulk_uploads
-            or "        if: always()" not in bulk_upload.splitlines()
-            or bulk_upload.count("        uses: actions/upload-artifact@v4") != 1):
-        raise ValueError("hosted proof bulk upload differs from exact bundle")
+    for job, step, leg, groups in (
+        ("scheduled-bulk", "Upload bulk proof streams", "bulk",
+         [group for group in PACKAGES if group not in NON_BULK_GROUPS]),
+        ("scheduled-storage", "Upload storage proof streams", "storage",
+         [group for group in PACKAGES if group in STORAGE_GROUPS]),
+    ):
+        _, upload = named_step(re.split(r"(?m)^      - name:", blocks[job]), step)
+        expected_uploads = [
+            f"            ${{{{ runner.temp }}}}/{group}.jsonl" for group in groups
+        ]
+        paths = re.search(
+            r"(?m)^          path: \|\n((?:            [^\n]+\n)+)", upload)
+        if (not paths
+                or paths.group(1).splitlines() != expected_uploads
+                or "        if: always()" not in upload.splitlines()
+                or upload.count("        uses: actions/upload-artifact@v4") != 1
+                or f"          name: scheduled-proof-streams-{leg}-"
+                "${{ github.run_id }}-${{ github.run_attempt }}"
+                not in upload.splitlines()):
+            raise ValueError(f"hosted proof {leg} upload differs from exact bundle")
 
 
 def verify_aggregate_bundle(aggregate_steps: list[str]) -> None:

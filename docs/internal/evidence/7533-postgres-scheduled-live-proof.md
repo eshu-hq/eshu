@@ -170,6 +170,34 @@ scale 32m20s, bulk 26m33s, ack 23m09s, chunks ~7-8m, setup 50s, aggregate 16s.
 Leg caps above are timeout kill limits, not the acceptance bound. No Go
 production code, SQL, fixture, or telemetry contract changed.
 
+## Storage leg (#9488)
+
+By 2026-10-29 `scheduled-bulk` was cancelled at its 40-minute cap on PRs
+#9481 (twice) and #9483. Per-family step walls from four job logs show that
+the cost is the claim family's `-race` test build of
+`./internal/storage/postgres`, the first family to test that package in the
+leg. It is not the tests themselves:
+
+| Run (bulk job) | Claim wall | Claim tests | Bulk step | Result |
+| --- | ---: | ---: | ---: | --- |
+| main 40485127858 (122124889517) | 14.7m | 3.5m | 24.5m | pass |
+| main 40674818081 (122770411208) | 19.7m | 5.0m | 33.0m | pass |
+| PR #9483 40842111898 (123341097469) | 25.7m | 5.3m | 39.7m | cancelled |
+| PR #9481, attempt 2 | 26.4m | 5.4m | 39.5m | cancelled |
+
+The package grew 1.0% in source bytes between the first and last run. The two
+slow runs used runner image 20261025.353.1 and the two fast ones used
+20261012.334.1. The five other root-package families reuse the build and take
+0.2-1.1m each. A local trial ruled out `go vet` as the cost.
+
+The six families that test the root package (claim, liveness, fanout, search,
+readiness, disposable_storage) now run in `scheduled-storage`, from
+`.github/actions/postgres-scheduled-storage`. The nine others stay in
+`scheduled-bulk`. Predicted from the measured family walls, the storage leg
+takes 17.0-29.8m of steps and the bulk leg 9.7-12.7m. Both caps stay at 40.
+The runner rejects a root storage `go test` in any leg except ACK and storage,
+so a new family cannot bring the build back into bulk.
+
 ## Boundaries
 
 Crossplane uses `ESHU_CROSSPLANE_REDRIVE_PROOF_DSN` and creates a unique schema in its fresh database. ACK/completion uses both `ESHU_POSTGRES_TEST_DSN` and `ESHU_POSTGRES_DSN` pointed at its own fresh database; the shared test helper creates a unique schema, applies the full bootstrap, and drops that schema on cleanup. Infra inventory uses `ESHU_POSTGRES_DSN`, bootstraps its fresh database, and some tests create and drop sibling databases. The disposable packages use `ESHU_TEST_CONTENT_INDEX_POSTGRES_*`, `ESHU_TEST_DOCUMENTATION_INDEX_POSTGRES_*`, and `ESHU_TEST_DRAIN_RESIDUAL_POSTGRES_*` with each `*_DISPOSABLE` value set to `1`. Their admin DSNs target the same owned PostgreSQL service's `postgres` database. The peer-owned `code_topic_parallel_guarded_live_test.go` and four cost files with five tests remain excluded from this inventory. Claim uses `ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN`, `ESHU_REDUCER_FAIRNESS_PROOF_DSN`, and `ESHU_POSTGRES_DSN` in one fresh database; liveness uses `ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN`; fanout uses `ESHU_REDUCER_FAIRNESS_PROOF_DSN` and `ESHU_POSTGRES_DSN`; search uses `ESHU_POSTGRES_DSN` with `ESHU_SEARCH_INDEX_PARTITION_LIVE=1`; readiness uses both `ESHU_REDUCER_FAIRNESS_PROOF_DSN` and `ESHU_POSTGRES_DSN` in one fresh database. These opt-ins preserve their existing test defaults. No new runtime telemetry was introduced because this batch changes only CI enrollment and proof metadata. No Go production code, SQL, golden snapshot, graph backend, or telemetry contract changed in this batch. The containerimage changes repair test setup only, as described below. The ACK live test now checks the canonical reducer claim rejection, exactly one dropped stale claim, `KeptCommitted`, and the surviving committed row with its lease cleared. The original assertion failed because it expected the older PostgreSQL wrapper error; the current typed error intentionally wraps the canonical reducer error. Freshness-links points `ESHU_POSTGRES_TEST_DSN` and `ESHU_RETENTION_TIMING_DSN` at its fresh database and `ESHU_CHANGED_SINCE_LINK_SCALE_DSN` at the fixture-loaded auxiliary database, with the bounded cost, timing, and scale env pins above; no new runtime telemetry was introduced.

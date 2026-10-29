@@ -28,7 +28,10 @@ LEG_FILES = {
     "ack": ("ack_family.jsonl",),
     "bulk": tuple(f"{group}.jsonl" for group in MODULE.PACKAGES
                   if group not in {"freshness_links_scale", "freshness_links_a",
-                                   "freshness_links_b", "ack_family"}),
+                                   "freshness_links_b", "ack_family",
+                                   *MODULE.STORAGE_GROUPS}),
+    "storage": tuple(f"{group}.jsonl" for group in MODULE.PACKAGES
+                     if group in MODULE.STORAGE_GROUPS),
 }
 
 

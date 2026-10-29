@@ -51,121 +51,6 @@ runs:
         test -z "$effective_config"
         proof_status="$(git -C .. status --porcelain --untracked-files=all)"
         test -z "$proof_status"
-    - name: Create fresh claim database
-      shell: bash
-      run: docker exec "${{ inputs.postgres_container }}" psql -v ON_ERROR_STOP=1 -U eshu -d postgres -c 'CREATE DATABASE eshu_claim_scheduled'
-    - name: Run claim proofs
-      working-directory: go
-      env:
-        ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN: postgres://eshu:change-me@localhost:15432/eshu_claim_scheduled?sslmode=disable
-        ESHU_POSTGRES_DSN: postgres://eshu:change-me@localhost:15432/eshu_claim_scheduled?sslmode=disable
-        ESHU_REDUCER_FAIRNESS_PROOF_DSN: postgres://eshu:change-me@localhost:15432/eshu_claim_scheduled?sslmode=disable
-      shell: bash
-      run: |
-        set -euo pipefail
-        test -z "${GOFLAGS:-}"
-        test -z "${GOWORK:-}"
-        effective_config="$(go env GOFLAGS GOWORK)"
-        test -z "$effective_config"
-        proof_status="$(git -C .. status --porcelain --untracked-files=all)"
-        test -z "$proof_status"
-        go test -json -race -p=1 -count=1 -timeout=6m ./internal/storage/postgres -run '^(TestFailBoundsWideDetailsAndSupersedeFoldCopiesTheStoredString|TestProjectorClaimConcurrentLoadHasNoDeadlock|TestProjectorClaimDoesNotWaitOnGenerationUpdateChain|TestProjectorClaimDoesNotWaitOnLockedMaintenanceRows|TestProjectorClaimDoesNotWaitOnScopeUpdateChain|TestProjectorClaimFenceRowLifecycle|TestProjectorClaimFenceRowNeverMakesClaimersWait|TestProjectorClaimIgnoresIngestionHoldingScopeRow|TestProjectorClaimLeavesFenceUnlockedWhenWorkRowBusy|TestProjectorClaimLockRechecksRowsChangedAfterSnapshot|TestProjectorClaimMaintenanceSemantics|TestProjectorClaimReclaimDoesNotNestAnAlreadyReclaimedRow|TestProjectorClaimReclaimKeepsPriorFailureDuplicate|TestProjectorClaimReclaimKeepsPriorFailureSibling|TestProjectorClaimReclaimThenSupersedeKeepsTheRealCause|TestProjectorClaimScopeFenceExcludesCrossSnapshotClaim|TestProjectorClaimSkipsBusyScopeWithoutWaiting|TestProjectorClaimSkipsScopeWithoutFenceRow|TestProjectorClaimSortedLockStepMatchesWholePool|TestProjectorClaimSortedLockStepStopsAtFirstLockableRow|TestProjectorClaimStillClaimsLiveGenerations|TestProjectorClaimSupersededSweepDropsLeaseRenewedAfterSnapshot|TestProjectorClaimSweepsSupersededGenerationRow|TestProjectorScopeClaimFenceMigrationBackfills|TestQueueObserverCountsProjectorScopesWithMultipleLiveLeases|TestSupersedeFoldsPriorFailureAck|TestSupersedeFoldsPriorFailureAckRefusal|TestSupersedeFoldsPriorFailureClaimSupersededGeneration|TestSupersedeFoldsPriorFailureClaimSweep|TestSupersedeFoldsPriorFailureHeartbeat|TestSupersedeFoldsPriorFailureReducerClaim|TestSupersedeFoldsPriorFailureSeesConcurrentCommit|TestSupersedeFoldsPriorFailureTextFidelity|TestSupersedeIsTerminalForPriorFailure|TestSupersedeNoCandidateClaimRunsSamePlanAndWritesNothing|TestSupersedeNoCandidateProofRejectsAStaleRow)$' | tee "${RUNNER_TEMP}/claim.jsonl"
-        python3 ../scripts/lib/postgres_scheduled_runner.py --events "${RUNNER_TEMP}/claim.jsonl" --group claim
-        effective_config="$(go env GOFLAGS GOWORK)"
-        test -z "$effective_config"
-        proof_status="$(git -C .. status --porcelain --untracked-files=all)"
-        test -z "$proof_status"
-    - name: Create fresh liveness database
-      shell: bash
-      run: docker exec "${{ inputs.postgres_container }}" psql -v ON_ERROR_STOP=1 -U eshu -d postgres -c 'CREATE DATABASE eshu_liveness_scheduled'
-    - name: Run liveness proofs
-      working-directory: go
-      env:
-        ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN: postgres://eshu:change-me@localhost:15432/eshu_liveness_scheduled?sslmode=disable
-      shell: bash
-      run: |
-        set -euo pipefail
-        test -z "${GOFLAGS:-}"
-        test -z "${GOWORK:-}"
-        effective_config="$(go env GOFLAGS GOWORK)"
-        test -z "$effective_config"
-        proof_status="$(git -C .. status --porcelain --untracked-files=all)"
-        test -z "$proof_status"
-        go test -json -race -p=1 -count=1 -timeout=6m ./internal/storage/postgres -run '^(TestDeltaSyncBaselineUsesActiveGenerationLive|TestPreflightUnderHeldScopeRowCatchesALockWait|TestProjectorAckFencesDeltaAgainstActivationWhileWaiting|TestProjectorAckRefusesGenerationSupersededAfterClaim|TestProjectorAckRefusesSupersededGeneration|TestProjectorAckSupersededMarkKeepsOwnerAndAttemptFences|TestProjectorDeltaBaselineAckLeaseLostBeforeMark|TestProjectorDeltaBaselineAckMatrix|TestProjectorDeltaBaselineAckRefusalFoldsPriorFailure|TestProjectorDeltaBaselineAckTargetAlreadySupersededPassesThrough|TestProjectorDeltaBaselineChain|TestProjectorDeltaBaselineMarkFailureConverges|TestProjectorDeltaBaselinePreflightLive|TestProjectorDeltaBaselineReadAndMarkNeverWaitOnScopeRow|TestProjectorHeartbeatRefusesSupersededGeneration|TestProjectorHeartbeatRenewsLiveGeneration|TestReplayLeavesSupersededGenerationProjectorWork|TestReplayWithOnlyFencedRowsStillReportsTheSkipCount)$' | tee "${RUNNER_TEMP}/liveness.jsonl"
-        python3 ../scripts/lib/postgres_scheduled_runner.py --events "${RUNNER_TEMP}/liveness.jsonl" --group liveness
-        effective_config="$(go env GOFLAGS GOWORK)"
-        test -z "$effective_config"
-        proof_status="$(git -C .. status --porcelain --untracked-files=all)"
-        test -z "$proof_status"
-    - name: Create fresh fanout database
-      shell: bash
-      run: docker exec "${{ inputs.postgres_container }}" psql -v ON_ERROR_STOP=1 -U eshu -d postgres -c 'CREATE DATABASE eshu_fanout_scheduled'
-    - name: Run fanout proofs
-      working-directory: go
-      env:
-        ESHU_POSTGRES_DSN: postgres://eshu:change-me@localhost:15432/eshu_fanout_scheduled?sslmode=disable
-        ESHU_REDUCER_FAIRNESS_PROOF_DSN: postgres://eshu:change-me@localhost:15432/eshu_fanout_scheduled?sslmode=disable
-      shell: bash
-      run: |
-        set -euo pipefail
-        test -z "${GOFLAGS:-}"
-        test -z "${GOWORK:-}"
-        effective_config="$(go env GOFLAGS GOWORK)"
-        test -z "$effective_config"
-        proof_status="$(git -C .. status --porcelain --untracked-files=all)"
-        test -z "$proof_status"
-        go test -json -race -p=1 -count=1 -timeout=6m ./internal/storage/postgres -run '^(TestReducerContentionGateAckEligibleEPQLive|TestReducerContentionGateAckFanoutAuditFKCompatibilityLive|TestReducerContentionGateProducerAckCaptureHorizonLive)$' | tee "${RUNNER_TEMP}/fanout.jsonl"
-        python3 ../scripts/lib/postgres_scheduled_runner.py --events "${RUNNER_TEMP}/fanout.jsonl" --group fanout
-        effective_config="$(go env GOFLAGS GOWORK)"
-        test -z "$effective_config"
-        proof_status="$(git -C .. status --porcelain --untracked-files=all)"
-        test -z "$proof_status"
-    - name: Create fresh search database
-      shell: bash
-      run: docker exec "${{ inputs.postgres_container }}" psql -v ON_ERROR_STOP=1 -U eshu -d postgres -c 'CREATE DATABASE eshu_search_scheduled'
-    - name: Run search proofs
-      working-directory: go
-      env:
-        ESHU_POSTGRES_DSN: postgres://eshu:change-me@localhost:15432/eshu_search_scheduled?sslmode=disable
-        ESHU_SEARCH_INDEX_PARTITION_LIVE: "1"
-      shell: bash
-      run: |
-        set -euo pipefail
-        test -z "${GOFLAGS:-}"
-        test -z "${GOWORK:-}"
-        effective_config="$(go env GOFLAGS GOWORK)"
-        test -z "$effective_config"
-        proof_status="$(git -C .. status --porcelain --untracked-files=all)"
-        test -z "$proof_status"
-        go test -json -race -p=1 -count=1 -timeout=6m ./internal/storage/postgres -run '^(TestCopySearchIndexTermsRoutesThroughPartitionedParentLive|TestEshuSearchIndexBM25PartitionedTermsPrunedAndOrderEquivalentLive|TestEshuSearchIndexBM25PostingLookupUsesCoveringIndexLive|TestEshuSearchIndexBM25ScoreStableAcrossPlansLive|TestEshuSearchIndexTermCopyPartitionedParentContentionLive|TestEshuSearchIndexTermsFreshBootstrapPartitionedLive|TestEshuSearchIndexTermsGenerationClearPrunesScopePartitionLive|TestEshuSearchIndexTermsPartitionCutoverMigrationLive)$' | tee "${RUNNER_TEMP}/search.jsonl"
-        python3 ../scripts/lib/postgres_scheduled_runner.py --events "${RUNNER_TEMP}/search.jsonl" --group search
-        effective_config="$(go env GOFLAGS GOWORK)"
-        test -z "$effective_config"
-        proof_status="$(git -C .. status --porcelain --untracked-files=all)"
-        test -z "$proof_status"
-    - name: Create fresh readiness database
-      shell: bash
-      run: docker exec "${{ inputs.postgres_container }}" psql -v ON_ERROR_STOP=1 -U eshu -d postgres -c 'CREATE DATABASE eshu_readiness_scheduled'
-    - name: Run readiness proofs
-      working-directory: go
-      env:
-        ESHU_REDUCER_FAIRNESS_PROOF_DSN: postgres://eshu:change-me@localhost:15432/eshu_readiness_scheduled?sslmode=disable
-        ESHU_POSTGRES_DSN: postgres://eshu:change-me@localhost:15432/eshu_readiness_scheduled?sslmode=disable
-      shell: bash
-      run: |
-        set -euo pipefail
-        test -z "${GOFLAGS:-}"
-        test -z "${GOWORK:-}"
-        effective_config="$(go env GOFLAGS GOWORK)"
-        test -z "$effective_config"
-        proof_status="$(git -C .. status --porcelain --untracked-files=all)"
-        test -z "$proof_status"
-        go test -json -race -p=1 -count=1 -timeout=6m ./internal/storage/postgres -run '^(TestReducerContentionGateCrossScopeReadinessConvergesAtTheElapsedBound|TestReducerContentionGateCrossScopeReadinessDeferralKeepsItsAttemptBudget|TestReducerContentionGateOlderGenerationSupersessionStaysTerminal|TestReducerContentionGatePreActivationDeferralExits|TestReducerContentionGatePreActivationGenerationRunsAfterActivation|TestReducerContentionGateSharedEdgeTargetDeferralKeepsItsAttemptBudget)$' | tee "${RUNNER_TEMP}/readiness.jsonl"
-        python3 ../scripts/lib/postgres_scheduled_runner.py --events "${RUNNER_TEMP}/readiness.jsonl" --group readiness
-        effective_config="$(go env GOFLAGS GOWORK)"
-        test -z "$effective_config"
-        proof_status="$(git -C .. status --porcelain --untracked-files=all)"
-        test -z "$proof_status"
     - name: Create fresh containerimage database
       shell: bash
       run: docker exec "${{ inputs.postgres_container }}" psql -v ON_ERROR_STOP=1 -U eshu -d postgres -c 'CREATE DATABASE eshu_containerimage_scheduled'
@@ -226,28 +111,6 @@ runs:
         test -z "$proof_status"
         go test -json -race -p=1 -count=1 -timeout=6m ./internal/query -run '^(TestContentReaderOmitsFingerprintKeysAfterStorageWriteLive|TestDocumentationFactsBindActiveGenerationLive|TestDocumentationFactsLabelsHonorScopedGrantsLive|TestDocumentationRelatedReadsBindActiveGenerationLive|TestDocumentationTargetFactsSplitReadMatchesLegacyLive|TestHardcodedSecretSideTableDifferentialLive|TestInvestigateCodeTopicPathFirstPostgresLive|TestRepositoryLanguageInventoryTwoStageLive|TestSearchEntitiesSingleRepoAvoidsNamedPreparedStatementLive)$' | tee "${RUNNER_TEMP}/disposable_query.jsonl"
         python3 ../scripts/lib/postgres_scheduled_runner.py --events "${RUNNER_TEMP}/disposable_query.jsonl" --group disposable_query
-        effective_config="$(go env GOFLAGS GOWORK)"
-        test -z "$effective_config"
-        proof_status="$(git -C .. status --porcelain --untracked-files=all)"
-        test -z "$proof_status"
-    - name: Run disposable storage proofs
-      working-directory: go
-      env:
-        ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN: postgres://eshu:change-me@localhost:15432/postgres?sslmode=disable
-        ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE: "1"
-        ESHU_TEST_SUPPLY_CHAIN_RUNTIME_INDEX_POSTGRES_DSN: postgres://eshu:change-me@localhost:15432/postgres?sslmode=disable
-        ESHU_TEST_SUPPLY_CHAIN_RUNTIME_INDEX_POSTGRES_DISPOSABLE: "1"
-      shell: bash
-      run: |
-        set -euo pipefail
-        test -z "${GOFLAGS:-}"
-        test -z "${GOWORK:-}"
-        effective_config="$(go env GOFLAGS GOWORK)"
-        test -z "$effective_config"
-        proof_status="$(git -C .. status --porcelain --untracked-files=all)"
-        test -z "$proof_status"
-        go test -json -race -p=1 -count=1 -timeout=6m ./internal/storage/postgres -run '^(TestContentFileSecretLinesMigrationBackfillsAndReappliesLive|TestContentFileSecretLinesRetentionPruneCascadesLive|TestSecretLinesPolicyMigrationFlipsReadinessOnceLive|TestSecretLinesPolicyMigrationIsOneTransactionLive|TestSecretLinesPolicyMigrationUnderWritersLive|TestSupplyChainRuntimeFallbackIndexRestartSafetyLive)$' | tee "${RUNNER_TEMP}/disposable_storage.jsonl"
-        python3 ../scripts/lib/postgres_scheduled_runner.py --events "${RUNNER_TEMP}/disposable_storage.jsonl" --group disposable_storage
         effective_config="$(go env GOFLAGS GOWORK)"
         test -z "$effective_config"
         proof_status="$(git -C .. status --porcelain --untracked-files=all)"
@@ -353,12 +216,6 @@ runs:
           ${{ runner.temp }}/infra_inventory.jsonl
           ${{ runner.temp }}/disposable_gate.jsonl
           ${{ runner.temp }}/disposable_query.jsonl
-          ${{ runner.temp }}/disposable_storage.jsonl
-          ${{ runner.temp }}/claim.jsonl
-          ${{ runner.temp }}/liveness.jsonl
-          ${{ runner.temp }}/fanout.jsonl
-          ${{ runner.temp }}/search.jsonl
-          ${{ runner.temp }}/readiness.jsonl
           ${{ runner.temp }}/containerimage.jsonl
         if-no-files-found: error
         retention-days: 14
