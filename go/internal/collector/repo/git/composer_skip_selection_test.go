@@ -33,12 +33,12 @@ func TestComposerUnavailableSkipSelection(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			w := newSkipParseWorld(t, "", "big")
-			repoPath := w.repoPath("big")
-			writeCollectorTestFile(t, filepath.Join(repoPath, "composer.json"), tc.before)
+			repoTempDir := w.repoPath("big")
+			writeCollectorTestFile(t, filepath.Join(repoTempDir, "composer.json"), tc.before)
 			identity := w.identity()
 			observed := time.Date(2026, time.October, 28, 0, 0, 0, 0, time.UTC)
 			snapshot, err := (NativeRepositorySnapshotter{Now: func() time.Time { return observed }}).
-				SnapshotRepository(context.Background(), SelectedRepository{RepoPath: repoPath, PreparseIdentity: identity})
+				SnapshotRepository(context.Background(), SelectedRepository{RepoPath: repoTempDir, PreparseIdentity: identity})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -50,14 +50,14 @@ func TestComposerUnavailableSkipSelection(t *testing.T) {
 			}
 			if tc.after != "" {
 				if tc.removeAfterParse {
-					if err := os.Remove(filepath.Join(repoPath, "composer.json")); err != nil {
+					if err := os.Remove(filepath.Join(repoTempDir, "composer.json")); err != nil {
 						t.Fatal(err)
 					}
 				} else {
-					writeCollectorTestFile(t, filepath.Join(repoPath, "composer.json"), tc.after)
+					writeCollectorTestFile(t, filepath.Join(repoTempDir, "composer.json"), tc.after)
 				}
 			}
-			collected := buildStreamingGeneration(repoPath, testCollectorRepositoryMetadata(repoPath), "composer-skip-selection", observed, snapshot, false, "")
+			collected := buildStreamingGeneration(repoTempDir, testCollectorRepositoryMetadata(repoTempDir), "composer-skip-selection", observed, snapshot, false, "")
 			if got := decodeDeclarationList(t, drainFactChannel(collected.Facts)); len(got) != 0 {
 				t.Fatalf("unaccepted Composer document emitted %+v", got)
 			}
@@ -68,7 +68,7 @@ func TestComposerUnavailableSkipSelection(t *testing.T) {
 			state.ActiveStreamDroppedPaths = collected.Generation.PreparseIdentityDroppedPaths.Sorted()
 			w.resolver.fallback = state
 			if tc.removeAfterParse {
-				writeCollectorTestFile(t, filepath.Join(repoPath, "composer.json"), tc.after)
+				writeCollectorTestFile(t, filepath.Join(repoTempDir, "composer.json"), tc.after)
 			}
 			synced := w.sync(7, nil, "big")
 			if tc.wantDropped {
