@@ -59,7 +59,7 @@ Throughput numbers log per leg for the dark-deployment no-regression baseline.
 No-Regression Evidence: this change adds a harness-only `Backend` method and
 a test; production guard SQL, wire shapes, queue depths, and row counts are
 untouched. Baseline and after: full `go test ./internal/workflow/parity/`
-two-legged green before (5.7s range) and after (5.685s on 77c751be0c) with
+two-legged green before and after (5.685s on 77c751be0c) with
 identical scenario sets plus the new gap test; backend Go 1.26 linux/arm64
 against local Postgres 18 and the QA claim-plane. Terminal counts: 0 parity
 rows remain satellite-side, no local schema remains.
