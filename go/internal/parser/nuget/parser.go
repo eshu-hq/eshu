@@ -72,7 +72,7 @@ type nugetProjectProperty struct {
 // evaluates Conditions, or reads a sibling file: a props file is parsed only
 // when it is itself the file under parse, never to complete a .csproj.
 func Parse(path string, isDependency bool, options shared.Options) (map[string]any, error) {
-	source, err := shared.ReadSource(path)
+	source, original, err := shared.ReadSourceWithOriginal(path)
 	if err != nil {
 		return nil, err
 	}
@@ -89,6 +89,7 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 
 	payload := shared.BasePayload(path, "nuget_project", isDependency)
 	payload["variables"] = nugetProjectDependencyRows(project)
+	payload["dotnet_runtime_evidence"] = projectRuntimeEvidence(source, original)
 	if options.IndexSource {
 		payload["source"] = string(source)
 	}

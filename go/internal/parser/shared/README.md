@@ -274,6 +274,8 @@ parser hands Composer PHP declarations to the runtime fact emitter. Both stages
 apply the same grammar so a rejected credential-shaped value does not enter the
 parser transport or a runtime fact.
 
+`DotNetRuntimeEvidence` is a bounded, raw-byte-digest-bound private handoff shared by the JSON and NuGet parsers. `Add` detaches only credential-guarded version strings; the collector strips the transport before file facts persist.
+
 ## Private runtime evidence
 
 `RuntimeEvidence` carries bounded, source-positioned values from Maven, Gradle,
