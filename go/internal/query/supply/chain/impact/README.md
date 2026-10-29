@@ -102,7 +102,10 @@ not a gap: the CVE's advisory fact decides between `ready_zero_findings` and
 `evidence_incomplete`. Only a covered snapshot with `result_count = 0`
 (`coverage_zero`, carried per state row and never exposed) certifies advisory
 absence. Source-state freshness ages by `last_success_at` only; the
-collection window is reported, not aged. Malformed CVE elements, duplicate
+collection window is reported, not aged. The window is
+`vulnsource.DefaultFreshnessWindow` (14 days), the one window every writer
+uses for OSV, NVD, KEV, EPSS, and GLAD, and each read ages every row against
+one cutoff (#9423). Malformed CVE elements, duplicate
 scope IDs, and window fields the collector's config parse refuses fail the
 readiness lookup closed as `source_targets_malformed`, and the findings and
 explain handlers log the fail-closed cause. A present `modified_start` or

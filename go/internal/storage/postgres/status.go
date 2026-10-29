@@ -212,7 +212,7 @@ func (s StatusStore) ReadStatusSnapshotFiltered(
 		return statuspkg.RawSnapshot{}, err
 	}
 	q, done = s.read(ctx, statusReadVulnerabilitySources)
-	vulnerabilitySources, err := vulnerabilitystore.ReadVulnerabilitySourceStates(ctx, q)
+	vulnerabilitySources, err := vulnerabilitystore.ReadVulnerabilitySourceStates(ctx, q, asOf.UTC())
 	if err = done(err); err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}

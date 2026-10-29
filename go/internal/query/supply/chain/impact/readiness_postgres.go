@@ -13,9 +13,15 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/vulnsource"
 )
 
-const supplyChainImpactReadinessFreshnessWindow = 14 * 24 * time.Hour
+// supplyChainImpactReadinessFreshnessWindow is the window a stored fresh
+// source state or snapshot keeps its label at read time. It is the writers'
+// window, vulnsource.DefaultFreshnessWindow, so reader and writer cannot drift
+// (#9423). OSV, NVD, CISA KEV, FIRST EPSS, and GLAD all use it; no production
+// writer overrides it per source or per instance.
+const supplyChainImpactReadinessFreshnessWindow = vulnsource.DefaultFreshnessWindow
 
 // ReadinessQueryer is the minimal Postgres surface PostgresReadinessStore
 // needs; *sql.DB satisfies it.

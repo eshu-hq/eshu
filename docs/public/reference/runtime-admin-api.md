@@ -211,7 +211,10 @@ identifiers, payload excerpts, or raw failure messages.
 target state when the vulnerability intelligence collector has attempted a
 target. Each row carries last attempt/success timestamps, next retry, last
 error class, freshness state, terminal status, result count, warning count, and
-the bounded collection window.
+the bounded collection window. A stored `fresh` row reports `stale` when its
+last success is missing or older than the 14-day freshness window at the
+snapshot's as-of time, so a stopped collector does not keep reading as
+current. Rows of a disabled or deactivated collector instance are not listed.
 
 `semantic_extraction` reports optional LLM-assisted semantic extraction status.
 When no provider is configured it returns `state=unavailable`,
