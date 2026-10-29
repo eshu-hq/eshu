@@ -247,47 +247,13 @@ leaves the shard. Shard 5 then falls below 85% of the mean job. It cannot grow b
 first-use charge and breaks the budget. The window closes when the appended
 tail alone lifts shard 5 over the 85% floor.
 
-**Whether a valid cut exists.** The maintainers checked by exhaustive
-enumeration at `613ee359ea`, before the #9436 refit and the #9435
-enrollment. The figures in this part price that plan with the weights
-committed then (from runs 40603534686 and 40585622864) and with a refit
-candidate that was later rejected; no exact search has run on the current
-weights. It lists every contiguous five-shard cut whose
-five jobs each stay within 1440 s. For the sweeps over 0 to 60 appended tests
-that is up to 5.3 million cuts per plan; the extension to 110 used an extra
-sound prune. It prices them with the same `v2.Scorer` the production planner
-uses, and tests the spread in integer tenths exactly as
-`live_postgres_readiness_weights.py` does. The search tested only the 1440 s
-cap and the 15% spread; the 675 s row check of that time never decided an outcome. It
-searched only default-priced tests appended to the last package, not other
-growth positions or priced tails.
-
-Six sweeps (main, #9320, and #9227 plus main, each under the weights committed
-then and the refit candidate, 0 to 60 appended tests) found that the planner
-accepted exactly the plans that have a valid cut. On that main under the
-weights committed then, the live-plan fit case failed from 45 through 65
-appended tests. For 45
-through 64 no valid contiguous cut existed, so the planner was right to raise
-there. The sweeps covered 0 to 60; an independent enumerator checked 61 to 64
-separately. At 65 a valid cut existed and the planner skipped it (below). A
-cross-check on that main under the same weights agreed on the sampled rows (0,
-44, 45, 56, 60, 64, 65, and 66). For the other plans the sweeps also ran 0 to
-60; their edges beyond that come from the extension to 110.
-
-The planner does skip a valid cut at the one place the sweeps found: the
-re-entry edge, where the window is about to close. The planner picks the cut
-with the highest smallest job, then the lowest largest job, then the lowest sum
-of squares, and it checks the 15% spread afterwards on that one cut. It never
-searches for the spread. At the edge, that cut splits a small package and pays
-its first-use price twice, which pushes shard 5 just under the floor. On that
-main with the weights committed then, at 65 appended tests, the planner's cut
-had a 15.11% spread and a cut at 14.93% existed. The same edge appeared at 68
-appended tests on #9320 and 62 on #9227 plus main (14.92% and 14.89% there).
-The rejected candidate showed no such edge up to 110 appended tests. These
-figures, the edges and the 110 bound come from the maintainers' exact search,
-not from this repository; whether the current weights have such an edge near
-72 appended tests, where the current window closes, is not measured. #9390 tracks the planner fix. Until it lands, a spread raise at the
-edge of a window is not proof that no cut exists.
+**Whether a valid cut exists.** An exhaustive search of every contiguous
+five-shard cut, run before the #9436 refit, found that the planner accepted
+exactly the plans that had a valid cut, except at the edge where a window is
+about to close: there the planner can raise on a cut that another cut would
+fix (#9390). The method and figures are in
+`docs/internal/evidence/9390-five-shard-cut-enumeration.md`. Until #9390
+lands, a spread raise at the edge of a window is not proof that no cut exists.
 
 **What to do, in order.**
 
@@ -333,8 +299,10 @@ name, Go toolchain, Postgres image digest, and proof boundaries. Save every
 shard job's metadata and log. Mixed hosted-runner image versions are accepted,
 and the refresher prints the version it saw on each shard. GitHub rolls hosted
 images over several days and standard runners cannot pin a version. The
-version is never used in pricing (#9411).
-Use the v2 refresher with both runs and an output outside the repository:
+version is never used in pricing (#9411). Two or three runs price at the
+mean; four or more price at the pooled p75 (see
+[Pooled refit](#pooled-refit-four-or-more-runs)).
+Use the v2 refresher with the runs and an output outside the repository:
 
 ```bash
 python3 scripts/lib/live_postgres_readiness_weights_refresh.py \
@@ -373,6 +341,49 @@ Trigger a refit when the drift count passes 20 defaulted tests (half the
 40-test gate cap), when the gate fails, when a shard job runs near its cap, or
 on a regular schedule. Either trigger shape is acceptable; the choice is the
 reviewer's call on the refit PR.
+
+### Pooled refit (four or more runs)
+
+A two-run mean under-prices any test or package that drew fast in one run, and
+the job that holds it then runs over its prediction (#9519). With four or more
+`--sample` runs the v2 refresher prices each per-test, first-use, and repeat
+price at the p75 of the pooled samples: linear inclusive, which is
+`statistics.quantiles(samples, n=100, method="inclusive")[74]`. A single sample
+prices at itself. With two or three runs it keeps the mean, so the declared
+two-run refits still reproduce byte-for-byte. The cold-cache fit
+(inverse-variance weighted), the fixed job overhead, and the defaults keep
+their rules in every pool. The refresher prints the rule, the pool size, and
+the pool run IDs on one `weights refresh v2: pricing ...` line; copy it into
+the refit PR body.
+
+Source history (#9473): each source run is read at its own commit. A tree
+without a v2 weights file ran the four-shard v1 model. A tree with one ran the
+`shard_count` that file declares, which must be 5 or 6 and pass every other v2
+schema check. The run's shard jobs must report that same count, and its rows
+are re-planned at that count. A pool may mix five- and six-shard runs, because
+test prices do not depend on the cut and row kinds are classified per run. The
+refit output is always six-shard, and the committed file, the planner, the CI
+reader and the drift gates still accept only six. The pricing line names each
+source's shard count.
+
+A pooled refit PR must meet these gates:
+
+- Declare the pool before the fit: every green `main` push run of
+  `live-postgres-readiness.yml` that shares the inventory of the PR's base
+  and one runner profile, five- or six-shard, in run-ID order. The minimum is
+  4 runs, there is no maximum, and no run is skipped for its outcome. If the
+  pool fails the cold fit, do not re-select runs; take the failure to the
+  issue.
+- Time-ordered holdout: fit the pool minus its two newest runs and score those
+  two runs. The all-shard maximum of observed job wall over `v2.Scorer` job
+  seconds must be at most 1.15.
+- Full-pool planner on main's live plan: largest predicted job at most
+  1440 s, spread within 15%, and an appended-test window of at least 38
+  tests (see [The live-plan spread window](#the-live-plan-spread-window)).
+  Record the measured window on this page in the refit PR. The 608 s row
+  budget does not change.
+- No timeout, skip, or serialization change rides along. The p90 and max were
+  measured and rejected: they leave too little of the 1440 s budget.
 
 For the v1 fallback file, take two or more green full runs of the workflow on
 `main`, download each shard job's log, put each run's shard logs in its own

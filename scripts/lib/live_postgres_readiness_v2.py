@@ -19,6 +19,7 @@ KEYS = {"schema_version", "source_runs", "shard_count", "fixed_job_seconds",
         "default_package_repeat_seconds", "package_first_seconds",
         "package_repeat_seconds", "test_seconds"}
 SHARD_COUNT = 6
+HISTORY_SHARD_COUNTS = (5, 6)
 ROW_BUDGET = row_split.ROW_BUDGET_TENTHS
 
 
@@ -49,13 +50,31 @@ class WeightsV2:
                           separators=(",", ":"))
 
 
-def weights_from_json(value: object) -> WeightsV2:
-    """Reject an ambiguous or incomplete v2 weights document."""
+def weights_from_json(value: object, *, history: bool = False) -> WeightsV2:
+    """Reject an ambiguous or incomplete v2 weights document.
+
+    Args:
+        value: The parsed weights document.
+        history: True only for a refit source's own-SHA file. It accepts a
+            shard_count in HISTORY_SHARD_COUNTS and keeps that count; every
+            other check is unchanged. The committed file, the planner, the CI
+            reader and the drift gates use the default and require SHARD_COUNT.
+
+    Returns:
+        The validated model, carrying the document's shard count.
+
+    Raises:
+        ValueError: The document fails any schema or value check.
+    """
     if not isinstance(value, dict) or set(value) != KEYS:
         raise ValueError("v2 weights schema mismatch")
     if type(value["schema_version"]) is not int or value["schema_version"] != 2:
         raise ValueError("unsupported weights schema_version")
-    if type(value["shard_count"]) is not int or value["shard_count"] != SHARD_COUNT:
+    count = value["shard_count"]
+    if history:
+        if type(count) is not int or count not in HISTORY_SHARD_COUNTS:
+            raise ValueError(f"v2 source shard_count must be 5 or 6, found {count!r}")
+    elif type(count) is not int or count != SHARD_COUNT:
         raise ValueError("v2 shard_count must be 6")
     runs = value["source_runs"]
     if (not isinstance(runs, list) or len(runs) < 2
@@ -78,7 +97,8 @@ def weights_from_json(value: object) -> WeightsV2:
                                 "package_first_seconds", wt.PACKAGE_RE),
         package_repeat=wt._table(value["package_repeat_seconds"],
                                  "package_repeat_seconds", wt.PACKAGE_RE),
-        test=wt._table(value["test_seconds"], "test_seconds", wt.RUN_RE))
+        test=wt._table(value["test_seconds"], "test_seconds", wt.RUN_RE),
+        shard_count=count)
 
 
 def _row_package_price(model: WeightsV2, package: str) -> int:

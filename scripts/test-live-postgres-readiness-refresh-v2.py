@@ -16,73 +16,10 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).parent / "lib"))
 import live_postgres_readiness_refresh_v2 as refresh  # noqa: E402
 import live_postgres_readiness_weights_refresh as cli_refresh  # noqa: E402
-
-
-PLAN = [f"./{package}|Test{name}" for package, name in (
-    ("a", "One"), ("a", "Two"), ("b", "One"), ("b", "Two"),
-    ("b", "Three"), ("c", "One"), ("c", "Two"))]
-SHA = "a" * 40
-OTHER_SHA = "b" * 40
-
-
-def _log(shard: int, rows: list[tuple[str, str, int]], run_id: int) -> str:
-    """Build a small timestamped runner proof with explicit row residuals."""
-    lines = [
-        f"2026-10-26T00:00:00Z Complete job name: live-postgres-readiness (postgres18) shard ({shard}/4)",
-        "2026-10-26T00:00:00Z Image: ubuntu-24.04",
-        "2026-10-26T00:00:00Z Version: 20261012.334.1",
-        "2026-10-26T00:00:00Z Setup go version spec 1.26.10",
-        "2026-10-26T00:00:00Z ESHU_LIVE_POSTGRES_IMAGE: ghcr.io/eshu-hq/ci-postgres-bookworm@sha256:" + "c" * 64,
-        f'2026-10-26T00:00:00Z ##[group]Run bash scripts/run-live-postgres-readiness-tests.sh --shard "{shard}/4" --report readiness-shard-report.json',
-    ]
-    second = 0
-    for package, test, residual in rows:
-        second += 1 + residual
-        lines.append(f"2026-10-26T00:00:{second:02d}Z {test}: PASS elapsed=1.0s")
-        lines.append(f"2026-10-26T00:00:{second:02d}Z live-postgres-readiness: ./{package} 1/1 PASS")
-    lines.append(f"2026-10-26T00:00:{second:02d}Z readiness shard {shard}/4: "
-                 f"{len(rows)}/{len(rows)} passing runs, ok=True")
-    lines.append(f"2026-10-26T00:00:{second:02d}Z ##[endgroup]")
-    lines.append(f"2026-10-26T00:00:{second:02d}Z   name: readiness-shard-{run_id}-1-{shard}")
-    return "\n".join(lines) + "\n"
-
-
-def _sample(root: Path, run_id: int, sha: str) -> Path:
-    """Write one complete synthetic main workflow sample."""
-    directory = root / str(run_id)
-    directory.mkdir()
-    (directory / "run.json").write_text(json.dumps({
-        "id": run_id, "head_sha": sha, "head_branch": "main", "event": "push",
-        "status": "completed", "conclusion": "success",
-        "path": ".github/workflows/live-postgres-readiness.yml", "run_attempt": 1,
-        "repository": {"full_name": "eshu-hq/eshu"},
-        "head_repository": {"full_name": "eshu-hq/eshu"},
-    }))
-    jobs = []
-    rows_by_shard = [
-        [("a", "TestOne", 8)],
-        [("a", "TestTwo", 8), ("b", "TestOne", 5), ("b", "TestTwo", 2)],
-        [("b", "TestThree", 8), ("c", "TestOne", 5)],
-        [("c", "TestTwo", 8)],
-    ]
-    for shard, rows in enumerate(rows_by_shard, 1):
-        jobs.append({
-            "id": 1000 * run_id + shard, "run_id": run_id, "head_sha": sha,
-            "run_attempt": 1, "name": f"live-postgres-readiness (postgres18) shard ({shard}/4)",
-            "status": "completed", "conclusion": "success",
-            "started_at": "2026-10-26T00:00:00Z", "completed_at": "2026-10-26T00:00:30Z",
-            "steps": [{"name": "Run live readiness proofs", "status": "completed",
-                       "conclusion": "success", "started_at": "2026-10-26T00:00:05Z",
-                       "completed_at": "2026-10-26T00:00:25Z"}],
-        })
-        (directory / f"shard{shard}.log").write_text(_log(shard, rows, run_id))
-    for name in ("live-postgres-readiness hermetic",
-                 "live-postgres-readiness (postgres18)",):
-        jobs.append({"id": 1000 * run_id + len(jobs) + 1, "run_id": run_id,
-                     "head_sha": sha, "run_attempt": 1, "name": name,
-                     "status": "completed", "conclusion": "success"})
-    (directory / "jobs.json").write_text(json.dumps({"total_count": len(jobs), "jobs": jobs}))
-    return directory
+from live_postgres_readiness_weights_history_cases import SourceHistoryTest  # noqa: E402,F401
+from live_postgres_readiness_weights_pooled_cases import PooledPricingTest  # noqa: E402,F401
+from live_postgres_readiness_weights_refresh_fixture import (  # noqa: E402
+    OTHER_SHA, PLAN, SHA, shard_log as _log, write_sample as _sample)
 
 
 class RefreshV2Cases(unittest.TestCase):
@@ -247,6 +184,35 @@ class RefreshV2Cases(unittest.TestCase):
             for kinds in categories.values())
         cold, _ = refresh.fit_cold(categories)
         self.assertAlmostEqual(cold, expected, places=1)
+
+    def test_pool_of_four_prices_fast_draw_at_p75(self) -> None:
+        """One fast run among four prices at p75; two or three runs keep the mean."""
+        self.sources += [_sample(self.root, 102, SHA), _sample(self.root, 103, OTHER_SHA)]
+        fast = self.sources[0]
+        (fast / "shard2.log").write_text(_log(2, [
+            ("a", "TestTwo", 8), ("b", "TestOne", 1), ("b", "TestTwo", 0)], 100))
+        path = fast / "shard4.log"
+        path.write_text(path.read_text().replace("TestTwo: PASS elapsed=1.0s",
+                                                 "TestTwo: PASS elapsed=0.2s"))
+        priced = {4: (1.0, 5.0, 2.0), 3: (0.7, 3.7, 1.3), 2: (0.6, 3.0, 1.0)}
+        for runs, (test, first, repeat) in priced.items():
+            result = refresh.build_document(self.sources[:runs], self.root)
+            self.assertEqual((result["test_seconds"]["./c|TestTwo"],
+                              result["package_first_seconds"]["./b"],
+                              result["package_repeat_seconds"]["./b"]),
+                             (test, first, repeat), f"{runs}-run pool")
+        output = self.root / "weights.v2.json"
+        argv = ["refresh", "--schema-version", "2", "--out", str(output)]
+        argv.extend(f"--sample={source.name}={source}" for source in self.sources)
+        stdout = io.StringIO()
+        with mock.patch.object(cli_refresh.sys, "argv", argv), \
+                contextlib.redirect_stdout(stdout):
+            self.assertEqual(cli_refresh.main(), 0)
+        self.assertIn(refresh.pricing_rule(["100", "101", "102", "103"],
+                                           dict.fromkeys(["100", "101", "102", "103"], 4)
+                                           ).line() + "\n",
+                      stdout.getvalue())
+        self.assertIn("p75 (linear inclusive)", stdout.getvalue())
 
     def test_rejects_feature_or_partial_run(self) -> None:
         path = self.sources[0] / "run.json"

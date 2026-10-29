@@ -216,6 +216,8 @@ def main() -> int:
             return 1
         print(f"weights refresh v2: {len(document['test_seconds'])} tests "
               f"from runs {document['source_runs']}")
+        print(v2_refresh.pricing_rule(document["source_runs"],  # type: ignore[arg-type]
+                                      images.shard_counts).line())
         print(images.line())
         for component in cold_components:
             print(component.line())

@@ -13,6 +13,7 @@ import live_postgres_readiness_weights as weights
 WORKFLOW = ".github/workflows/live-postgres-readiness.yml"
 INVENTORY = "scripts/lib/live_postgres_readiness_inventory_generated.py"
 MODULE_DIR = "scripts/lib/"
+V1_SHARD_COUNT = 4
 SHARD_RE = re.compile(r"live-postgres-readiness \(postgres18\) shard \((\d+)/(\d+)\)")
 
 
@@ -76,15 +77,18 @@ def source_rows(root: Path, sha: str, plan: list[str],
     weights. A behavior change that cannot reproduce old rows fails closed.
     """
     import live_postgres_readiness_shards as shards
-    path = f"specs/live-postgres-readiness-weights.v{2 if count == 6 else 1}.json"
+    path = f"specs/live-postgres-readiness-weights.v{1 if count == V1_SHARD_COUNT else 2}.json"
     parsed = json.loads(_source_text(root, sha, path),
                         object_pairs_hook=weights._unique_object,
                         parse_constant=weights._reject_constant)
-    if count == 6:
-        import live_postgres_readiness_v2 as v2
-        model = v2.weights_from_json(parsed)
-    else:
+    if count == V1_SHARD_COUNT:
         model = weights.weights_from_json(parsed)
+    else:
+        import live_postgres_readiness_v2 as v2
+        model = v2.weights_from_json(parsed, history=True)
+        if model.shard_count != count:
+            raise ValueError(f"source {sha} weights file says {model.shard_count} "
+                             f"shards, not {count}")
     selected: dict[int, list[frozenset[str]]] = {}
     for number in range(1, count + 1):
         selected[number] = []
@@ -98,7 +102,12 @@ def source_rows(root: Path, sha: str, plan: list[str],
 
 
 def source_shard_count(root: Path, sha: str) -> int:
-    """Bind historical four or activated six shards to the source tree."""
+    """Bind a source run to the shard count its own commit declared.
+
+    A tree without a v2 weights file ran the four-shard v1 model. A tree with
+    one ran its own count, five or six, which the history-tolerant v2 parse
+    validates with every other schema check of that file (#9473).
+    """
     _source_text(root, sha, WORKFLOW)
     candidate = "specs/live-postgres-readiness-weights.v2.json"
     exists = subprocess.run(["git", "cat-file", "-e", f"{sha}:{candidate}"],
@@ -109,7 +118,7 @@ def source_shard_count(root: Path, sha: str) -> int:
                         object_pairs_hook=weights._unique_object,
                         parse_constant=weights._reject_constant)
     import live_postgres_readiness_v2 as v2
-    return v2.weights_from_json(parsed).shard_count
+    return v2.weights_from_json(parsed, history=True).shard_count
 
 
 def _jobs(payload: object) -> list[dict[str, object]]:
@@ -163,7 +172,8 @@ def read_source(directory: Path, root: Path) -> tuple[str, str, list[str], dict[
         raise ValueError("source must be a complete successful main push workflow")
     plan = source_inventory(root, sha)
     count = source_shard_count(root, sha)
-    if count not in (4, 6):
+    import live_postgres_readiness_v2 as v2
+    if count != V1_SHARD_COUNT and count not in v2.HISTORY_SHARD_COUNTS:
         raise ValueError(f"source {run_id} has unsupported shard count {count}")
     required = {"live-postgres-readiness hermetic",
                 "live-postgres-readiness (postgres18)"}
@@ -177,7 +187,10 @@ def read_source(directory: Path, root: Path) -> tuple[str, str, list[str], dict[
             _successful(job, run_id, sha, attempt)
         elif isinstance(name, str) and (match := SHARD_RE.fullmatch(name)):
             number, total = map(int, match.groups())
-            if total != count or number in shard_jobs or not 1 <= number <= count:
+            if total != count:
+                raise ValueError(f"source {run_id} shard job {name!r} reports {total} "
+                                 f"shards but its own-SHA weights file says {count}")
+            if number in shard_jobs or not 1 <= number <= count:
                 raise ValueError("source shard topology is incomplete or duplicated")
             shard_jobs[number] = job
     if set(shard_jobs) != set(range(1, count + 1)):
@@ -203,6 +216,10 @@ def read_source(directory: Path, root: Path) -> tuple[str, str, list[str], dict[
             raise ValueError(f"source shard {number} log unavailable") from error
         job_name = f"Complete job name: {job['name']}"
         artifact = f"name: readiness-shard-{run_id}-{attempt}-{number}"
+        earlier = re.search(rf"name: readiness-shard-{run_id}-(\d+)-{number}(?!\d)", log)
+        if earlier is not None and int(earlier.group(1)) != attempt:
+            raise ValueError(f"source {run_id} shard {number} log is from attempt "
+                             f"{earlier.group(1)}, the run is attempt {attempt}")
         if job_name not in log or artifact not in log:
             raise ValueError(f"source shard {number} log does not match run and job")
         logs[number] = log
