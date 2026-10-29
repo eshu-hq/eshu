@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 
-import { APP_ROUTE_PATHS } from "../appRoutePaths";
-
 import { EshuApiClient } from "../api/client";
 import {
   loadCodeTopicInvestigation,
@@ -10,6 +8,7 @@ import {
   type CodeTopicNextCall,
 } from "../api/codeTopic";
 import type { ServiceSpotlight } from "../api/serviceSpotlight";
+import { APP_ROUTE_PATHS } from "../appRoutePaths";
 import { loadConsoleEnvironment } from "../config/environment";
 
 export function ServiceCodeInvestigationPanel({

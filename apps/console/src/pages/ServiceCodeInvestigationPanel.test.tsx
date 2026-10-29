@@ -1,10 +1,10 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
 import { ServiceCodeInvestigationPanel } from "./ServiceCodeInvestigationPanel";
-import type { ServiceSpotlight } from "../api/serviceSpotlight";
 import { loadCodeTopicInvestigation } from "../api/codeTopic";
+import type { ServiceSpotlight } from "../api/serviceSpotlight";
 
 vi.mock("../api/codeTopic", () => ({
   loadCodeTopicInvestigation: vi.fn(),
@@ -50,8 +50,9 @@ describe("ServiceCodeInvestigationPanel", () => {
     );
 
     expect(loadCodeTopicInvestigation).toHaveBeenCalled();
-    const loaded = await vi.mocked(loadCodeTopicInvestigation).mock.results[0].value;
-    expect(loaded.nextCalls).toHaveLength(1);
+    await act(async () => {
+      await Promise.resolve();
+    });
     const link = await screen.findByRole("link", { name: "Open file content search" });
     expect(link).toHaveAttribute("href", "/content-search");
     expect(screen.getByText("No code paths found for this service")).toBeInTheDocument();

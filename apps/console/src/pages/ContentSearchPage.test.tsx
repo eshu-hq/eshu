@@ -2,8 +2,8 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
-import type { EshuApiClient } from "../api/client";
 import { ContentSearchPage } from "./ContentSearchPage";
+import type { EshuApiClient } from "../api/client";
 
 function answer(data: Record<string, unknown>, level = "partial") {
   return { data, truth: { level }, error: null };
