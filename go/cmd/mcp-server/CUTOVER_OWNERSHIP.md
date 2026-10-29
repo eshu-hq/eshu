@@ -6,8 +6,11 @@
 Source: `go/cmd/mcp-server/` (binary entrypoint, transports, auth guards,
 wiring) plus `go/internal/mcp/` (`ReadOnlyTools` registry, `router`
 find/call surface, family dispatch selectors). Census baseline:
-`go/internal/mcp/tool_registry_census_test.go` pins 168 tools in registration
+`go/internal/mcp/tool_registry_census_test.go` pins 169 tools in registration
 order; `TestToolRegistryCensusCount` fails the build on any add/remove/rename.
+`go/internal/mcp/tool_registry_schema_census_test.go` pins each tool's
+input-schema surface; `TestToolRegistrySchemaCensusSurface` fails the build on
+any argument add/remove/rename or required-ness flip.
 Destination: `eshu-hq/eshu-mcp` (branch `main`; preparation only, nothing
 pushed). Plan:
 `docs/internal/design/eshu-ecosystem-repository-migration.md` step 7
