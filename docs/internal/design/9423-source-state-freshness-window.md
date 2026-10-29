@@ -61,11 +61,12 @@ take it from the same place. That would be a new decision, not a change here.
   wire contracts without telling an operator anything those two fields do not
   already show. Revisit only if a reviewer asks.
 
-## Known limit: whole-second truncation on configured readiness rows
+## Known limit: whole-second truncation on readiness rows
 
-Not changed. Configured readiness rows reach Go as
+Not changed. Every readiness source-state row reaches Go as
 `TO_CHAR(last_success_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')`.
-That drops the fractional second (up to 999,999 µs, since PostgreSQL stores
+That covers configured rows and the derived aggregate row; the aggregate
+carries `MIN(kept.last_success_at)`. That drops the fractional second (up to 999,999 µs, since PostgreSQL stores
 microseconds). Go `ageSourceStates` then compares the truncated value with
 `!success.After(cutoff)`. A row reads `stale` early when its true
 `last_success_at` lies after the cutoff but its truncated second does not.
@@ -75,8 +76,18 @@ millionth of it (8.3e-7), once per row per window.
 Example: the cutoff is `12:00:00.500` and the success is `12:00:00.800`. The
 truncated `12:00:00` is not after the cutoff, so the row reads stale 0.3 s
 early. The error only ever points toward stale, never toward fresh, and only
-inside that band. Derived rows, and the status snapshot, compare at full
-precision. A hot-path SQL change to close the band is not justified.
+inside that band. Two comparisons run at full precision: the per-scope
+derived aging in SQL (`last_success_at <= $22`) and the status snapshot, which
+compares `time.Time` values. The derived aggregate row that readiness returns
+is still re-aged by Go `ageSourceStates` from its truncated value, so it has
+the same band. A hot-path SQL change to close the band is not justified.
+
+At the exact cutoff instant, all three readers call a row stale: status Go
+`!row.LastSuccessAt.After(cutoff)`, readiness Go `!success.After(cutoff)`, and
+derived SQL `last_success_at <= $22`. The writers use a strict `Before`
+(`checkpoint.Recorder.RecordClaimCommitted`, `vulnruntime/source_state.go`
+`sourceStateStale`), so a writer calls that single instant fresh. That
+difference is one instant wide, and it is settled at the next read.
 
 ## Tests
 
@@ -84,6 +95,12 @@ precision. A hot-path SQL change to close the band is not justified.
   (`at cutoff`, `out of window`, `fresh without success` read `fresh`) and
   passes after. It covers in-window, a sub-second in-window boundary, the
   cutoff itself, out-of-window, a missing success, and a failed row.
+- `TestReadStatusSnapshotAgesVulnerabilitySourcesAtAsOf` (unit, in
+  `go/internal/storage/postgres`) drives `StatusStore.ReadStatusSnapshotFiltered`
+  with a fake source read. It proves the snapshot passes its own as-of time:
+  a fresh row older than as-of minus the window reads stale, and an in-window
+  row stays fresh. Mutants that pass `time.Time{}` or `time.Now()` at the call
+  site both fail it.
 - The status live proof is a subtest, `status read ages fresh rows at as-of`,
   of the existing `TestVulnerabilitySourceStateStaleWriteLeavesStateAndKeysUnchangedLive`.
   It adds no live-test slot. It runs the real status query on PostgreSQL: the
