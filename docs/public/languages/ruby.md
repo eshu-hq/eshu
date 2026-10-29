@@ -106,3 +106,7 @@ Not claimed today:
 - Rails autoload/eager-load configuration, namespaced controller string
   resolution, anonymous Sinatra route blocks, ActiveRecord scopes, gem public
   API surfaces, and broad constant resolution remain exactness blockers.
+
+## Runtime declarations
+
+Top-level literal `ruby` version requirements in an admitted `Gemfile` emit `gemfile_ruby` runtime declarations. The `RUBY VERSION` section of an admitted `Gemfile.lock` emits `gemfile_lock_ruby_version`, preserving the `ruby ` prefix in `raw_spec`. Both use the existing runtime declaration fact and query contract. Dynamic expressions and `file:` directives are not evaluated. A Gemfile with malformed Ruby syntax contributes no runtime declaration.

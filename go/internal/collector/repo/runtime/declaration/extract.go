@@ -3,7 +3,12 @@
 
 package declaration
 
-import "strings"
+import (
+	"path"
+	"strings"
+
+	rubyparser "github.com/eshu-hq/eshu/go/internal/parser/ruby"
+)
 
 // Extraction is the declarations read from one admitted file, before they
 // become fact envelopes, plus the skip that applies to the file. A manifest's
@@ -61,6 +66,11 @@ func Extract(relativePath, body string) (Extraction, bool) {
 		return extractPythonSetupCFG(body), true
 	case manifestSetupPY:
 		return extractPythonSetupPY(body), true
+	case manifestGemfile, manifestGemfileLock:
+		if len(body) > MaxManifestBytesPerFile {
+			return CappedRubyExtraction(len(body)), true
+		}
+		return ExtractRubyEvidence(rubyparser.ExtractBundlerRuntimeEvidence(path.Base(relativePath), []byte(body))), true
 	}
 	return Extraction{}, false
 }

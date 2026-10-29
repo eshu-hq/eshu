@@ -25,7 +25,7 @@ type bundlerLockSpec struct {
 
 func parseBundlerLockfilePayload(path string, source []byte, isDependency bool) map[string]any {
 	payload := newBundlerPayload(path, isDependency)
-	specs, edges, directNames := parseBundlerLockfile(string(source))
+	specs, edges, directNames, evidence := parseBundlerLockfile(string(source))
 	chains := bundlerLockDependencyChains(edges, directNames)
 
 	names := make([]string, 0, len(specs))
@@ -54,11 +54,13 @@ func parseBundlerLockfilePayload(path string, source []byte, isDependency bool) 
 		appendBundlerDependency(payload, row)
 	}
 
+	payload["ruby_runtime_evidence"] = evidence
 	sharedSortBundlerVariables(payload)
 	return payload
 }
 
-func parseBundlerLockfile(source string) (map[string]bundlerLockSpec, map[string][]string, []string) {
+func parseBundlerLockfile(source string) (map[string]bundlerLockSpec, map[string][]string, []string, RubyRuntimeEvidence) {
+	evidence := newRubyRuntimeEvidence([]byte(source))
 	specs := make(map[string]bundlerLockSpec)
 	edges := make(map[string][]string)
 	directNames := make([]string, 0)
@@ -84,6 +86,13 @@ func parseBundlerLockfile(source string) (map[string]bundlerLockSpec, map[string
 		}
 
 		switch section {
+		case "RUBY VERSION":
+			if value, ok := rubyLockVersion(rawLine); ok && value != "" && evidence.TokenCount == 0 {
+				evidence.add("gemfile_lock_ruby_version", value, lineNumber)
+			} else {
+				evidence.State = "unavailable"
+				evidence.Values = nil
+			}
 		case "GEM", "GIT", "PATH":
 			if strings.HasPrefix(trimmed, "remote:") {
 				sourcePath = strings.TrimSpace(strings.TrimPrefix(trimmed, "remote:"))
@@ -124,7 +133,7 @@ func parseBundlerLockfile(source string) (map[string]bundlerLockSpec, map[string
 		}
 	}
 
-	return specs, edges, uniqueBundlerLockNames(directNames)
+	return specs, edges, uniqueBundlerLockNames(directNames), evidence
 }
 
 func isBundlerLockSectionHeader(rawLine string, trimmed string) bool {

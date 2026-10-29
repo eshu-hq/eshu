@@ -97,6 +97,11 @@ type composerRuntimeSnapshot struct {
 }
 
 // pythonRuntimeSnapshot binds one parser outcome to its exact source bytes.
+type rubyRuntimeSnapshot struct {
+	Extraction runtimedeclaration.Extraction
+	Digest     string
+}
+
 type pythonRuntimeSnapshot struct {
 	Extraction runtimedeclaration.Extraction
 	Digest     string
@@ -131,6 +136,8 @@ type RepositorySnapshot struct {
 	// PythonRuntime holds guarded interpreter evidence from the native parser.
 	PythonRuntime         map[string]pythonRuntimeSnapshot `json:"-"`
 	PythonRuntimeExpected bool                             `json:"-"`
+	RubyRuntime           map[string]rubyRuntimeSnapshot   `json:"-"`
+	RubyRuntimeExpected   bool                             `json:"-"`
 	ContentFiles          []model.ContentFileSnapshot      `json:"content_files"`
 	ContentEntities       []model.ContentEntitySnapshot    `json:"content_entities"`
 	// GitRefs carries source-observed branch/ref heads for this repository.

@@ -24,7 +24,7 @@ telemetry.
 ## Exported surface
 
 The godoc contract is in doc.go. Current exports are Parse, ParseWithParser,
-PreScan, and PreScanWithParser. The `WithParser` variants accept a caller-owned
+PreScan, PreScanWithParser, and ExtractBundlerRuntimeEvidence. The `WithParser` variants accept a caller-owned
 tree-sitter parser so the parent engine can reuse cached language handles.
 
 ## Dependencies
@@ -127,6 +127,8 @@ so there is no concurrency or backend contention surface to measure.
 No-Observability-Change: This package emits no telemetry; parse timing and spans
 remain owned by the parent parser engine, and this change does not add, remove,
 or alter any metric, span, log, or status field.
+
+Bundler runtime evidence comes from the same manifest scans as dependency evidence: literal Gemfile `ruby` requirements and the lockfile `RUBY VERSION` section. The parser binds private evidence to the exact source bytes; malformed Gemfile Ruby syntax, dynamic/file-derived directives, and malformed lock version lines produce no runtime declaration. The Git collector removes this evidence before file facts persist.
 
 Bundler parsing is intentionally static. Literal `gem` calls in `Gemfile`
 emit `variables` rows with `config_kind=dependency`,

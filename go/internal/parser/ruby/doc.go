@@ -4,7 +4,7 @@
 // Package ruby parses Ruby source evidence for the parent parser engine using a
 // tree-sitter AST.
 //
-// Parse reads one Ruby source file through shared.ReadSource, parses it with the
+// Parse reads one Ruby source file through shared.ReadSourceWithOriginal, parses it with the
 // tree-sitter-ruby grammar, and emits the parser payload buckets for modules,
 // classes, methods, imports, module inclusions, variables, method calls, block
 // end lines, exact literal Rails/Sinatra route entries, and bounded dead-code
@@ -19,7 +19,7 @@
 // receiverless calls. Gemfile
 // and Gemfile.lock inputs use a Bundler-specific path that emits RubyGems
 // dependency rows, exact lockfile versions, group scope, and lockfile-proven
-// dependency chains while skipping dynamic Ruby. PreScan returns declaration
+// dependency chains and private interpreter-version evidence while skipping dynamic Ruby. PreScan returns declaration
 // names from the same payload path. ParseWithParser and PreScanWithParser let
 // the parent engine reuse a caller-owned runtime parser without importing parser
 // dispatcher internals. The package keeps constants in the existing variable

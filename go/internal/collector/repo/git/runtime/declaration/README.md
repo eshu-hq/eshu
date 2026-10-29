@@ -4,7 +4,7 @@
 
 `go/internal/collector/repo/git/runtime/declaration` is the Git collector hook
 that emits `runtime_declaration.version` facts from version-pin files and from
-`package.json`, `go.mod`, Composer, and Python manifests (issue #8815).
+`package.json`, `go.mod`, Composer, Python, and Ruby manifests (issue #8815).
 
 ## Where this fits
 
@@ -35,6 +35,9 @@ and classification live in `go/internal/collector/repo/runtime/declaration`.
   `NoteCappedPythonCandidate` — keep guarded native parser evidence, or an
   explicit skip when the native parse was absent or over the byte cap. The
   Git collector binds evidence to the raw file revision before calling them.
+- `NoteParsedRubyCandidate`, `NoteUnavailableRubyCandidate`, and
+  `NoteCappedRubyCandidate` — carry the guarded Bundler parser evidence or an
+  explicit skip. The Git collector checks the raw source digest before emission.
 - `EmitRuntimeDeclarationFactsForCandidates` — sends the facts through the
   shared writer, in path order. A pin file over
   `runtimedeclaration.MaxBytesPerFile` or `runtimedeclaration.MaxTokensPerFile`,

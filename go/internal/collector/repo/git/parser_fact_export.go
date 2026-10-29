@@ -15,6 +15,7 @@ import (
 	parserjson "github.com/eshu-hq/eshu/go/internal/parser/json"
 	pythonparser "github.com/eshu-hq/eshu/go/internal/parser/python"
 	"github.com/eshu-hq/eshu/go/internal/parser/pythondep"
+	rubyparser "github.com/eshu-hq/eshu/go/internal/parser/ruby"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -31,7 +32,7 @@ import (
 // carry the "path" key the parser sets to the file's absolute path. repoPath is
 // the repository root the relative path is computed against. The envelope's
 // Payload embeds the parser payload under "parsed_file_data" after removing
-// private Composer and Python transport. gitcontent.FileFactEnvelope collapses the
+// private Composer, Python, and Ruby transport. gitcontent.FileFactEnvelope collapses the
 // fingerprint wall-clock observation to zero so durable facts stay byte-deterministic (a recorder marking that
 // subtree opaque still preserves the parser output byte for byte).
 func ParserFileFactEnvelope(
@@ -45,10 +46,11 @@ func ParserFileFactEnvelope(
 ) facts.Envelope {
 	_, hasComposerTransport := parsedFile["composer_runtime_evidence"]
 	_, hasPythonTransport := parsedFile["python_runtime_evidence"]
-	if hasComposerTransport || hasPythonTransport {
+	_, hasRubyTransport := parsedFile["ruby_runtime_evidence"]
+	if hasComposerTransport || hasPythonTransport || hasRubyTransport {
 		clean := make(map[string]any, len(parsedFile)-1)
 		for key, value := range parsedFile {
-			if key != "composer_runtime_evidence" && key != "python_runtime_evidence" {
+			if key != "composer_runtime_evidence" && key != "python_runtime_evidence" && key != "ruby_runtime_evidence" {
 				clean[key] = value
 			}
 		}
@@ -60,6 +62,27 @@ func ParserFileFactEnvelope(
 // noteComposerOrRuntimeCandidate uses the parser's one Composer interpretation
 // when available. A changed body cannot be combined with an earlier parse.
 func noteComposerOrRuntimeCandidate(snapshot *RepositorySnapshot, candidates map[string]runtimedeclaration.Candidate, relativePath, body string, dropped *atomic.Bool, droppedPaths *scope.StreamDroppedPaths) {
+	if filepath.Base(relativePath) == "Gemfile" || filepath.Base(relativePath) == "Gemfile.lock" {
+		if parsed, ok := snapshot.RubyRuntime[relativePath]; ok {
+			if parsed.Digest != rubyparser.RubyRuntimeDigest([]byte(body)) {
+				dropped.Store(true)
+				droppedPaths.Note(relativePath)
+				return
+			}
+			runtimedeclaration.NoteParsedRubyCandidate(candidates, relativePath, parsed.Extraction)
+			return
+		}
+		if snapshot.RubyRuntimeExpected {
+			if len(body) > runtimepaths.MaxManifestBytesPerFile {
+				runtimedeclaration.NoteCappedRubyCandidate(candidates, relativePath, len(body))
+				return
+			}
+			dropped.Store(true)
+			droppedPaths.Note(relativePath)
+			runtimedeclaration.NoteUnavailableRubyCandidate(candidates, relativePath, len(body))
+			return
+		}
+	}
 	if filepath.Base(relativePath) == "pyproject.toml" || filepath.Base(relativePath) == "Pipfile" || filepath.Base(relativePath) == "setup.py" {
 		if parsed, ok := snapshot.PythonRuntime[relativePath]; ok {
 			if parsed.Digest != pythondep.PythonRuntimeDigest([]byte(body)) {
