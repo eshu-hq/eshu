@@ -4,7 +4,7 @@
 
 `go/internal/collector/repo/git/runtime/declaration` is the Git collector hook
 that emits `runtime_declaration.version` facts from version-pin files and from
-`package.json`, `go.mod`, Composer, Python, and Ruby manifests (issue #8815).
+`package.json`, `go.mod`, Composer, Python, Ruby, and JVM manifests (issue #8815).
 
 ## Where this fits
 
