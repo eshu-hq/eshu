@@ -505,7 +505,7 @@ func TestInstallEvidenceQueryKeyTokenMatching(t *testing.T) {
 			}
 		})
 	}
-	for _, key := range []string{"AWSAccessKeyId", "authToken", "authorization", "pass"} {
+	for _, key := range []string{"AWSAccessKeyId", "authToken", "authorization", "pass", "apikey", "APIKEY", "accesstoken", "authtoken", "secretkey", "accesskeyid"} {
 		t.Run("sensitive "+key, func(t *testing.T) {
 			got := RuntimeMetadata("FROM alpine\nRUN curl https://example.test/file?" + key + "=exampleSecretToken123\n")
 			if got.DroppedCredentials != 1 || len(got.Installs) != 0 {

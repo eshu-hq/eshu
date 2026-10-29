@@ -318,7 +318,7 @@ func hasTokenQuery(raw string) bool {
 		for i := 0; i < 4; i++ {
 			matched := false
 			for _, token := range queryKeyTokens(key) {
-				if sensitiveQueryTokens[token] {
+				if sensitiveQueryTokens[token] || isCompoundCredentialToken(token) {
 					matched = true
 					break
 				}
