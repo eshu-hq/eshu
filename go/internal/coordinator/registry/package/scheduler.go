@@ -294,6 +294,12 @@ func derivePackageRegistryTargets(
 	out := make([]packageRegistryTargetConfiguration, 0, min(limit, len(owned)))
 	skipped := 0
 	for _, target := range owned {
+		// Gradle declares Maven coordinates and reports under the Maven
+		// ecosystem, so fold the raw package_manager through the same alias
+		// table the owned-package reader's SQL selection is built from before
+		// the membership check. A target that is already canonical passes
+		// through unchanged.
+		target.Ecosystem = workflow.CanonicalOwnedPackageEcosystem(target.Ecosystem)
 		if !schedule.StringSetContains(ecosystems, target.Ecosystem) {
 			continue
 		}
