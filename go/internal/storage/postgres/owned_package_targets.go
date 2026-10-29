@@ -70,6 +70,12 @@ func ownedPackageManagerFilterValues(ecosystems []string, expandAliases bool) []
 // production.
 const ownedPackageSlotSelectMarker = "SELECT\n    window_targets.ecosystem,\n    window_targets.package_name,\n    window_targets.version,"
 
+// ownedPackageActiveGenerationPredicate restricts the fact read to the active
+// generation set (#9426). It is implied by the active-scope and active-status
+// joins, so it removes no row those joins keep; it exists so the planner reads
+// only active-generation fact rows instead of every generation's rows.
+const ownedPackageActiveGenerationPredicate = "  AND fact.generation_id = ANY (ARRAY(SELECT active_generation_id FROM ingestion_scopes WHERE active_generation_id IS NOT NULL))\n"
+
 // ownedPackageSlotCountExpression is P in SQL, the fill rule of
 // [workflow.OwnedPackageTargetSlotCount] over the column total_targets and the
 // target limit $4: 1 << bit_length(max(ceil(2T/L), 1) - 1), or 1 when $4 is

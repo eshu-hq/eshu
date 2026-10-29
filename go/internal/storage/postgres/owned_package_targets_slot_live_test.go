@@ -226,6 +226,9 @@ func TestListOwnedPackageDependencyTargetsSlotDifferentialLive(t *testing.T) {
 			t.Fatalf("slot %d reader rows (%d) differ from the partition (%d)", slot, len(got), len(partition[slot]))
 		}
 	}
+	t.Run("read follows active generations with output identical to the all-history read", func(t *testing.T) {
+		assertOwnedPackageReadFollowsActiveGenerations(ctx, t, db, slotLiveMajorityTargets+slotLiveMinorityTargets)
+	})
 }
 
 // assertOwnedPackageWindowEvent proves the read span carries the window
