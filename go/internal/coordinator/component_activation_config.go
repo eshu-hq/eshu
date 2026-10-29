@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	scannercomponent "github.com/eshu-hq/eshu/go/internal/collector/scannerworker/component"
 	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/component/activation"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -57,6 +58,13 @@ func componentCollectorInstancesFromEnv(getenv func(string) string, observer com
 		manifest, err := load(entry.ID, entry.Version)
 		if err != nil {
 			return nil, nil, fmt.Errorf("load component manifest %q: %w", entry.ID, err)
+		}
+		// The reconcile init container installed this manifest from the
+		// seeded manifest.yaml: for eshu.scanner.* it must equal the
+		// platform pin, or nothing is planned for it. A drifted seed
+		// image stops here, before any instance can claim (#8878).
+		if err := scannercomponent.VerifySeededArtifact(manifest); err != nil {
+			return nil, nil, fmt.Errorf("verify seeded scanner manifest for %q: %w", entry.ID, err)
 		}
 		componentInstances, err := desiredInstancesForComponent(entry, manifest)
 		if err != nil {

@@ -15,6 +15,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/extensionhost"
+	scannercomponent "github.com/eshu-hq/eshu/go/internal/collector/scannerworker/component"
 	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -179,6 +180,13 @@ func selectActivation(
 		manifest, err := registry.LoadInstalledManifest(entry.ID, entry.Version)
 		if err != nil {
 			return activationCandidate{}, fmt.Errorf("load component manifest %q: %w", entry.ID, err)
+		}
+		// The reconcile init container installed this manifest from the
+		// seeded manifest.yaml: for eshu.scanner.* it must equal the
+		// platform pin, or the worker must not claim. A drifted seed
+		// image stops here, before any claim or execution (#8878).
+		if err := scannercomponent.VerifySeededArtifact(manifest); err != nil {
+			return activationCandidate{}, fmt.Errorf("verify seeded scanner manifest for %q: %w", entry.ID, err)
 		}
 		collectorKind, err := collectorKindForManifest(manifest)
 		if err != nil {
