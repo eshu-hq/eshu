@@ -79,8 +79,15 @@ func loadCurrentAuthorizedPublicAdvisories(
 	if readErr != nil || closeErr != nil {
 		return authorizedImpactPublicAdvisorySet{}, "", errors.Join(readErr, closeErr)
 	}
-	if len(authorities) == 0 || len(authorities) != expected {
+	if len(authorities) != expected {
 		return authorizedImpactPublicAdvisorySet{}, "policy_unavailable", nil
+	}
+	if len(authorities) == 0 {
+		// No public advisory authority is registered anywhere: advisory-gated
+		// publication is not in use, so advisory evidence is vacuously absent
+		// and the static evidence stands on its own. A registered set with a
+		// broken witness still fail-closes above.
+		return authorizedImpactPublicAdvisorySet{}, "", nil
 	}
 	result := authorizedImpactPublicAdvisorySet{
 		dependencies: make([]supplychaincore.AdvisoryAuthorityDependency, 0, len(authorities)),
