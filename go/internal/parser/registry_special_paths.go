@@ -21,11 +21,12 @@ func isJavaMetadataPath(path string) bool {
 		strings.HasSuffix(normalized, "/meta-inf/spring.factories")
 }
 
-// isSbtBuildPropertiesPath accepts only sbt's launcher pin path.
+// isSbtBuildPropertiesPath accepts only sbt's launcher pin path, matching
+// case-insensitively like the java_metadata and maven-extensions dispatchers.
 func isSbtBuildPropertiesPath(path string) bool {
-	if filepath.Base(path) != "build.properties" {
+	if !strings.EqualFold(filepath.Base(path), "build.properties") {
 		return false
 	}
-	normalized := filepath.ToSlash(filepath.Clean(path))
+	normalized := strings.ToLower(filepath.ToSlash(filepath.Clean(path)))
 	return normalized == "project/build.properties" || strings.HasSuffix(normalized, "/project/build.properties")
 }
