@@ -49,7 +49,8 @@ WITH authorized AS MATERIALIZED (
    AND ((fact.fact_kind IN ('scanner_worker.analysis','scanner_worker.warning')
          AND fact.source_system='scanner_worker')
      OR (fact.fact_kind IN ('vulnerability.os_package','vulnerability.warning')
-         AND fact.source_system='os_package_vulnerability'))
+         AND fact.source_system='scanner_worker'
+         AND fact.collector_kind='os_package_vulnerability'))
    AND NOT fact.is_tombstone
 )
 SELECT * FROM authorized ORDER BY fact_id LIMIT $4`

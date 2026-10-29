@@ -198,7 +198,7 @@ var RetireTableDispositions = map[string]RetireTableEntry{
 	"scanner_image_result_fact_classifications":  {Table: "scanner_image_result_fact_classifications", KeyColumns: []string{"scan_scope_id"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "result classifications keyed by image identity"},
 	"scanner_image_result_evidence_associations": {Table: "scanner_image_result_evidence_associations", KeyColumns: []string{"scan_scope_id"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "evidence associations keyed by image identity"},
 	"scanner_image_result_suppressions":          {Table: "scanner_image_result_suppressions", KeyColumns: []string{"scan_scope_id", "operator_scope_id"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "operator-authored suppression decisions, not derived state"},
-	"scanner_image_result_advisory_dependencies": {Table: "scanner_image_result_advisory_dependencies", KeyColumns: []string{"scan_scope_id", "advisory_scope_id"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "dependency edges between image results and advisory generations"},
+	"scanner_image_result_advisory_dependencies": {Table: "scanner_image_result_advisory_dependencies", KeyColumns: []string{"advisory_scope_id"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "dependency edges between image results and advisory generations; the table carries no scan_scope_id, so the image side joins through scanner_image_result_publications on publication_id"},
 	// Publications and impact authority (#9299, migrations 241-263) carry
 	// an impact_scope_id written only by the not-yet-landed publication
 	// path, so no repository key exists to purge today. If impact scopes

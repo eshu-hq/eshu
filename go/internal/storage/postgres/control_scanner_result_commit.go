@@ -198,8 +198,9 @@ func writeScannerImageResult(ctx context.Context, tx db.ExecQueryer, mutation wo
 		}
 		// The persisted claim identity is planner-owned (#9407) for every
 		// kind. The analyzer-owned CollectorKind was already checked on the
-		// envelope before the write; persisted rows carry no collector
-		// kind, so membership pins kind, fence, claim identity, and life.
+		// envelope before the write; this membership check pins kind,
+		// fence, claim identity, and life, while the persisted rows keep
+		// their collector kind for the authorized-impact read path.
 		if expected[factID] != factKind || fence != mutation.FencingToken ||
 			sourceSystem != string(scope.CollectorScannerWorker) || tombstone {
 			_ = rows.Close()

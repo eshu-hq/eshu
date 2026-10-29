@@ -158,7 +158,8 @@ const supplyChainImpactCurrentAdvisoryVectorSQL = `
                        OR NOT ((evidence.fact_kind IN ('scanner_worker.analysis', 'scanner_worker.warning')
                                 AND evidence.source_system = 'scanner_worker')
                             OR (evidence.fact_kind IN ('vulnerability.os_package', 'vulnerability.warning')
-                                AND evidence.source_system = 'os_package_vulnerability'))
+                                AND evidence.source_system = 'scanner_worker'
+                                AND evidence.collector_kind = 'os_package_vulnerability'))
                        OR NOT EXISTS (
                            SELECT 1 FROM scanner_image_scan_fact_associations AS scan_fact
                            WHERE scan_fact.fact_id = evidence.fact_id

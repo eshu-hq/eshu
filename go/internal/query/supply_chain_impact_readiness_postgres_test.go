@@ -439,8 +439,8 @@ func TestPostgresSupplyChainImpactReadinessBindsScanTierFactKindArrays(t *testin
 		context.Background(),
 		impact.ReadinessQuery{RepositoryID: "repository:scan-tier-args"},
 	)
-	if len(db.args) != 25 {
-		t.Fatalf("QueryContext args = %d, want 25 (8 fact-kind arrays + 6 scalars + 2 scan-tier arrays + 3 target arrays + target flag + key package ids + freshness cutoff + 3 ecosystem alias arrays)", len(db.args))
+	if len(db.args) != 31 {
+		t.Fatalf("QueryContext args = %d, want 31 (8 fact-kind arrays + 6 scalars + 2 scan-tier arrays + 3 target arrays + target flag + key package ids + freshness cutoff + 3 ecosystem alias arrays + 6 caller-visibility args)", len(db.args))
 	}
 	osPackageKinds, ok := db.args[14].(*array.StringArray)
 	if !ok {
@@ -482,5 +482,19 @@ func TestPostgresSupplyChainImpactReadinessBindsScanTierFactKindArrays(t *testin
 		if !ok || len(*values) == 0 {
 			t.Fatalf("args[%d] = %#v (%T), want a non-empty ecosystem alias array", index, db.args[index], db.args[index])
 		}
+	}
+	// #9299: the lane appends the six caller-visibility args after the
+	// ecosystem arrays. A context without auth binds the shared-mode shape:
+	// unscoped flag, four empty identity strings, empty scope allowlist.
+	if scoped, ok := db.args[25].(bool); !ok || scoped {
+		t.Fatalf("args[25] = %#v (%T), want false shared-mode caller flag", db.args[25], db.args[25])
+	}
+	for _, index := range []int{26, 27, 28, 29} {
+		if identity, ok := db.args[index].(string); !ok || identity != "" {
+			t.Fatalf("args[%d] = %#v (%T), want empty shared-mode caller identity", index, db.args[index], db.args[index])
+		}
+	}
+	if scopes, ok := db.args[30].(*array.StringArray); !ok || len(*scopes) != 0 {
+		t.Fatalf("args[30] = %#v (%T), want empty shared-mode scope allowlist", db.args[30], db.args[30])
 	}
 }
