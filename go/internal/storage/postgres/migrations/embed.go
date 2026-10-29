@@ -56,6 +56,7 @@ type Definition struct {
 // (#7002): the marker cannot live in the migration body.
 var publicOnlyMigrationPaths = map[string]bool{
 	"go/internal/storage/postgres/migrations/241a_scanner_typed_source_and_results.sql": true,
+	"go/internal/storage/postgres/migrations/241b_scanner_authority_epoch_backfill.sql": true,
 }
 
 // BootstrapDefinitions returns the ordered Wave 2 bootstrap layout, sourced
