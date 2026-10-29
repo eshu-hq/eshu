@@ -14,9 +14,10 @@ Two writers record `vulnerability_source_states`: the in-tree collector
 (`vulnruntime.ClaimedSource.sourceStateStale`) and the component-extension
 host recorder (`checkpoint.Recorder`). Both default to
 `vulnsource.DefaultFreshnessWindow` when their `FreshnessWindow` field is zero.
-No production caller sets that field: `rg -n 'FreshnessWindow' go --type go`
-finds assignments only in tests. So the window does not vary by source or by
-instance.
+No production caller sets that field. Outside tests,
+`rg -n 'FreshnessWindow\s*:|\.FreshnessWindow\s*=|freshnessWindow\s*=' go --type go`
+finds only the recorder's own default and the readiness store's own field. So
+the window does not vary by source or by instance.
 
 | Source | Scope ids | Window the writer uses | Window the reader uses |
 | --- | --- | --- | --- |
