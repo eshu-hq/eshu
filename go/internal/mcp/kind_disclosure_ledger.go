@@ -69,11 +69,12 @@ import (
 //   - service_catalog.{api_link,dependency,scorecard_definition,
 //     scorecard_result,warning}: five kinds with no decode-side consumer
 //     today (registry YAML comment ~428-435)
-//   - vulnerability.warning: no reducer decode, no query reader (#5462 owns
-//     any future consumer) — corrected from vulnerability_intelligence in
-//     #5474: the registry's actual family label is vulnerability_intelligence,
-//     but the kind's own family key used in this ledger's digest input
-//     matches kindDisclosureEntries' Family field.
+//   - vulnerability.warning: REMOVED in #9299 — the lane's scanner result
+//     commit and supply-chain-impact query dispatch gained real reducer-level
+//     case consumers (control_scanner_result_commit.go,
+//     supply_chain_impact_authorized_targets.go,
+//     supply_chain_impact_authorized_loader.go), so the gate's contradiction
+//     check fired and the disclosure had to go.
 //   - ci.job, ci.pipeline_definition, ci.warning: emitted by collector but
 //     no reducer decode call today (Wave 4d intentionally deferred)
 //
@@ -110,11 +111,6 @@ var grandfatheredUnconsumedKinds = map[string]string{
 	"service_catalog.scorecard_definition": "eccbec4f20a13d00a43437085ea328cdce7a4b2f4781f4a5c7f8b2019a6b2992",
 	"service_catalog.scorecard_result":     "6665f2717625493b9b949bf1575170e0bc9313f023ad022192ce49402cb877c4",
 	"service_catalog.warning":              "d15f38d83feac67e85d2988ec8af36efcc705199469f9ed9a2f1e26e2ced2b8e",
-
-	// vulnerability.warning — no consumer (see comment above: no pipeline
-	// consumer either — pipelineConsumer was removed in #5474 because it was
-	// equally toothless).
-	"vulnerability.warning": "396608cc74fe490db6e7ec97c11c710c307af87d849a99c947eee59b95913a87",
 
 	// ci_cd_run kinds — emitted by collector, no reducer decode call (Wave 4d deferred)
 	"ci.job":                 "9291dd86572475df194a616ec46caa0cd6bf5900d44edc814c69726feae9363c",
@@ -243,7 +239,6 @@ var kindDisclosureEntries = []kindDisclosureEntry{
 	{Family: "service_catalog", Kind: "service_catalog.scorecard_definition", Reason: "no decode-side consumer (registry YAML ~428-435)"},
 	{Family: "service_catalog", Kind: "service_catalog.scorecard_result", Reason: "no decode-side consumer (registry YAML ~428-435)"},
 	{Family: "service_catalog", Kind: "service_catalog.warning", Reason: "no decode-side consumer (registry YAML ~428-435)"},
-	{Family: "vulnerability_intelligence", Kind: "vulnerability.warning", Reason: "no reducer decode, no query reader (#5462 owns)"},
 	{Family: "ci_cd_run", Kind: "ci.job", Reason: "emitted by collector, no reducer decode (Wave 4d deferred)"},
 	{Family: "ci_cd_run", Kind: "ci.pipeline_definition", Reason: "emitted by collector, no reducer decode (Wave 4d deferred)"},
 	{Family: "ci_cd_run", Kind: "ci.warning", Reason: "emitted by collector, no reducer decode (Wave 4d deferred)"},
