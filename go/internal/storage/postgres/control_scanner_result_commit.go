@@ -159,7 +159,12 @@ func validateDerivedImageResultFacts(mutation workflow.ClaimMutation, scopeID, g
 		default:
 			return nil, errors.New("derived image result fact kind invalid")
 		}
-		if fact.CollectorKind != producer || fact.SourceRef.SourceSystem != producer {
+		// Claim-plane identity is planner-owned (#9407): source_system is the
+		// scanner_worker claim identity for every kind, while CollectorKind
+		// stays analyzer-owned for package facts. Demanding the analyzer kind
+		// in source_system would reject every genuine package fact.
+		if fact.CollectorKind != producer ||
+			fact.SourceRef.SourceSystem != string(scope.CollectorScannerWorker) {
 			return nil, errors.New("derived image result fact producer invalid")
 		}
 		if _, duplicate := expected[fact.FactID]; duplicate {
@@ -191,12 +196,12 @@ func writeScannerImageResult(ctx context.Context, tx db.ExecQueryer, mutation wo
 			_ = rows.Close()
 			return fmt.Errorf("read derived image fact membership: %w", err)
 		}
-		producer := string(scope.CollectorScannerWorker)
-		if factKind == chain.VulnerabilityOSPackageFactKind || factKind == chain.VulnerabilityWarningFactKind {
-			producer = ospackagevulnerability.CollectorKind
-		}
+		// The persisted claim identity is planner-owned (#9407) for every
+		// kind. The analyzer-owned CollectorKind was already checked on the
+		// envelope before the write; persisted rows carry no collector
+		// kind, so membership pins kind, fence, claim identity, and life.
 		if expected[factID] != factKind || fence != mutation.FencingToken ||
-			sourceSystem != producer || tombstone {
+			sourceSystem != string(scope.CollectorScannerWorker) || tombstone {
 			_ = rows.Close()
 			return errors.New("derived image persisted fact membership mismatch")
 		}

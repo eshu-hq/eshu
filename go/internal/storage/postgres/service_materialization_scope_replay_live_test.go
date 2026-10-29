@@ -169,7 +169,12 @@ func assertServiceLineageReplayIsNoOp(
 	t.Logf("active index after tracked ApplyBootstrap: %+v", afterTracked)
 
 	recorder := &migrationIndexReplayRecorder{db: SQLDB{DB: db}, t: t, schema: schema, table: serviceLineageTable}
-	if err := ApplyDefinitions(ctx, recorder, BootstrapDefinitions()); err != nil {
+	// The untracked replay runs in this isolated schema, so it skips the
+	// same public-only definitions the tracked bootstrap skips: 241's
+	// database-global authority cannot be hosted off-public, and nothing
+	// under replay here touches it.
+	replayable := skipPublicOnlyDefinitionsForIsolatedTestBootstrap(ctx, SQLDB{DB: db}, BootstrapDefinitions(), slog.Default())
+	if err := ApplyDefinitions(ctx, recorder, replayable); err != nil {
 		t.Fatalf("untracked full-tree replay: %v", err)
 	}
 	for _, change := range recorder.changes {

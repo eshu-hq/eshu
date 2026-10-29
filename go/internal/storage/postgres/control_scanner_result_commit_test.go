@@ -67,7 +67,7 @@ func TestScannerResultMembershipRequiresExactPersistedFacts(t *testing.T) {
 		{name: "exact", rows: [][]any{valid}, expected: map[string]string{"fact-analysis": "scanner_worker.analysis"}},
 		{name: "package warning", rows: [][]any{{
 			"fact-warning", chain.VulnerabilityWarningFactKind, int64(7),
-			ospackagevulnerability.CollectorKind, false,
+			"scanner_worker", false,
 		}}, expected: map[string]string{"fact-warning": chain.VulnerabilityWarningFactKind}},
 		{name: "missing", rows: nil, expected: map[string]string{"fact-analysis": "scanner_worker.analysis"}, wantError: true},
 		{
@@ -79,7 +79,9 @@ func TestScannerResultMembershipRequiresExactPersistedFacts(t *testing.T) {
 			expected: map[string]string{"fact-analysis": "scanner_worker.analysis"}, wantError: true,
 		},
 		{
-			name: "wrong package producer", rows: [][]any{{"fact-warning", chain.VulnerabilityWarningFactKind, int64(7), "scanner_worker", false}},
+			// The analyzer kind in the claim identity is the #9407
+			// violation: source_system must stay planner-owned.
+			name: "wrong package producer", rows: [][]any{{"fact-warning", chain.VulnerabilityWarningFactKind, int64(7), ospackagevulnerability.CollectorKind, false}},
 			expected: map[string]string{"fact-warning": chain.VulnerabilityWarningFactKind}, wantError: true,
 		},
 	} {
