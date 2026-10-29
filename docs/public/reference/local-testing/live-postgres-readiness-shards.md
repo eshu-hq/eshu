@@ -333,8 +333,10 @@ name, Go toolchain, Postgres image digest, and proof boundaries. Save every
 shard job's metadata and log. Mixed hosted-runner image versions are accepted,
 and the refresher prints the version it saw on each shard. GitHub rolls hosted
 images over several days and standard runners cannot pin a version. The
-version is never used in pricing (#9411).
-Use the v2 refresher with both runs and an output outside the repository:
+version is never used in pricing (#9411). Two or three runs price at the
+mean; four or more price at the pooled p75 (see
+[Pooled refit](#pooled-refit-four-or-more-runs)).
+Use the v2 refresher with the runs and an output outside the repository:
 
 ```bash
 python3 scripts/lib/live_postgres_readiness_weights_refresh.py \
@@ -373,6 +375,40 @@ Trigger a refit when the drift count passes 20 defaulted tests (half the
 40-test gate cap), when the gate fails, when a shard job runs near its cap, or
 on a regular schedule. Either trigger shape is acceptable; the choice is the
 reviewer's call on the refit PR.
+
+### Pooled refit (four or more runs)
+
+A two-run mean under-prices any test or package that drew fast in one run, and
+the job that holds it then runs over its prediction (#9519). With four or more
+`--sample` runs the v2 refresher prices each per-test, first-use, and repeat
+price at the p75 of the pooled samples: linear inclusive, which is
+`statistics.quantiles(samples, n=100, method="inclusive")[74]`. A single sample
+prices at itself. With two or three runs it keeps the mean, so the declared
+two-run refits still reproduce byte-for-byte. The cold-cache fit
+(inverse-variance weighted), the fixed job overhead, and the defaults keep
+their rules in every pool. The refresher prints the rule, the pool size, and
+the pool run IDs on one `weights refresh v2: pricing ...` line; copy it into
+the refit PR body.
+
+A pooled refit PR must meet these gates:
+
+- Declare the pool before the fit: every green `main` push run of
+  `live-postgres-readiness.yml` that shares the inventory of the PR's base,
+  one runner profile, one shard topology, in run-ID order. The minimum is 4
+  runs, there is no maximum, and no run is skipped for its outcome. The
+  refresher reads four- and six-shard sources only, and it refuses a pool
+  that mixes topologies. If the pool fails the cold fit, do not re-select runs;
+  take the failure to the issue.
+- Time-ordered holdout: fit the pool minus its two newest runs and score those
+  two runs. The all-shard maximum of observed job wall over `v2.Scorer` job
+  seconds must be at most 1.15.
+- Full-pool planner on main's live plan: largest predicted job at most
+  1440 s, spread within 15%, and an appended-test window of at least 38
+  tests (see [The live-plan spread window](#the-live-plan-spread-window)).
+  Record the measured window on this page in the refit PR. The 608 s row
+  budget does not change.
+- No timeout, skip, or serialization change rides along. The p90 and max were
+  measured and rejected: they leave too little of the 1440 s budget.
 
 For the v1 fallback file, take two or more green full runs of the workflow on
 `main`, download each shard job's log, put each run's shard logs in its own
