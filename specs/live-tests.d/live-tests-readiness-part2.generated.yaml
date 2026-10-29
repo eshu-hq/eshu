@@ -354,6 +354,26 @@ tests:
     class: postgres_ci
     reason: "#8950 disposable PostgreSQL 18 measurement of what the content_files upsert outcome pre-read adds to a whole ContentWriter.Write of 1, 5, 20 and 50 small files, with and without ten entities per file, as an observed writer against an unobserved one interleaved on one database; opt-in (ESHU_CONTENT_UPSERT_OUTCOME_BENCH=1), otherwise a one-round smoke; enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the retention proofs do; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/control_scanner_admission_atomicity_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9299 disposable PostgreSQL proof that conflicting same-observation source bindings fail admission atomically with no partial plan"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/control_scanner_authority_epoch_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9299 disposable PostgreSQL proof that authority epoch bumps never ABA across tenant, workspace, grant, and instance revocation cycles"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/control_scanner_discovery_plan_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9299 disposable PostgreSQL proof that the running-image derivation page returns bounded candidates with skip counts and its EXPLAIN ANALYZE plan seeks the observations primary key instead of scanning"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/control_scanner_targets_tenant_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9299 disposable PostgreSQL proof for hosted tenant boundaries and grant-revocation target suppression"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/corpus_fence_observer_live_test.go
     tag: ~
     class: postgres_ci

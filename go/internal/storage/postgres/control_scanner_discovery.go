@@ -61,8 +61,8 @@ JOIN collector_instances AS scanner
  AND scanner.configuration->>'derive_from_running_images'='true'
 JOIN eshu_security.role_policy_state AS role_policy
   ON role_policy.singleton AND role_policy.active
- AND role_policy.policy_revision=$12
- AND role_policy.database_identity=$13::uuid
+ AND role_policy.policy_revision=$11
+ AND role_policy.database_identity=$12::uuid
 CROSS JOIN LATERAL jsonb_array_elements(
   COALESCE(scanner.configuration->'registry_domains','[]'::jsonb)) AS domain(value)
 LEFT JOIN LATERAL (
@@ -107,7 +107,14 @@ WHERE observation.observation_id<=$10
 
 // Every source, tenant and registry predicate is evaluated before LIMIT. The
 // returned locator is a candidate only; admission locks and rechecks it.
-const scannerDiscoveryCandidatesQuery = `
+//
+// The page limit is formatted, not bound: the skip-counts query shares one
+// argument slice with the candidates query, and the pgx stdlib driver cannot
+// transmit an unreferenced parameter (SQLSTATE 42P18), so every bound
+// argument must appear in both statements. request.Limit is validated to
+// 1..scannerDiscoveryPageLimit by the caller, so the %d is always a small
+// integer, never caller text.
+const scannerDiscoveryCandidatesQueryFormat = `
 SELECT observation.observation_id,observation.producer_instance_id,
        observation.source_scope_id,observation.source_generation_id,
        observation.object_id,observation.slot_id,observation.producer_class,
@@ -124,7 +131,14 @@ SELECT observation.observation_id,observation.producer_instance_id,
        (observation.runtime_digest_kind='config' AND
         verification.match_count=1))
 ORDER BY observation.observation_id,domain.value->>'authorization_domain'
-LIMIT $11`
+LIMIT %d`
+
+// scannerDiscoveryCandidatesQuery formats the candidates query for one
+// validated page limit. The limit stays out of the bound arguments so the
+// candidates statement and the skip-counts statement share one slice.
+func scannerDiscoveryCandidatesQuery(limit int) string {
+	return fmt.Sprintf(scannerDiscoveryCandidatesQueryFormat, limit)
+}
 
 // scannerDiscoverySkipCountsQuery counts authorized observations in the same
 // cursor window that the candidate filter drops for their digest class:
@@ -218,10 +232,10 @@ func (s *WorkflowControlStore) ListAuthorizedRunningImageObservationsPage(
 		string(request.AuthorizationNamespace), request.TenantID, request.WorkspaceID,
 		request.SubjectClass, request.PolicyRevisionHash, request.LocalSourceScopeIDs,
 		page.ExpectedCursor.AfterObservationID,
-		page.ExpectedCursor.AfterAuthorizationDomain, upper, request.Limit + 1,
+		page.ExpectedCursor.AfterAuthorizationDomain, upper,
 		request.ExpectedRolePolicyRevision, request.ExpectedDatabaseIdentity,
 	}
-	rows, err = s.database.QueryContext(ctx, scannerDiscoveryCandidatesQuery, candidateArgs...)
+	rows, err = s.database.QueryContext(ctx, scannerDiscoveryCandidatesQuery(request.Limit+1), candidateArgs...)
 	if err != nil {
 		return page, fmt.Errorf("scanner discovery candidates: %w", err)
 	}
