@@ -48,14 +48,17 @@ def lone_tests(seconds: float) -> tuple[list[str], v2.WeightsV2]:
 
 
 class RowClockAdmissionTest(unittest.TestCase):
-    """Pin the clock-timed row price, the 675 s budget, and the job score."""
+    """Pin the clock-timed row price, the 608 s budget, and the job score."""
 
-    def test_row_budget_is_75_percent_of_the_go_test_timeout(self) -> None:
+    def test_row_budget_is_the_clock_over_the_measured_tail(self) -> None:
+        # #9469: budget = 900 s / 1.48, the max measured/predicted test-time
+        # ratio on the refit weights, rounded down to whole seconds.
         text = RUNNER.read_text(encoding="utf-8")
         clocks = re.findall(r"-timeout=(\d+)m", text)
         self.assertEqual(clocks, ["15"], "runner go test clock moved")
-        self.assertEqual(row_split.ROW_BUDGET_TENTHS, 675 * wt.UNIT)
-        self.assertEqual(row_split.ROW_BUDGET_TENTHS * 100, 75 * 15 * 60 * wt.UNIT)
+        clock = 15 * 60
+        self.assertEqual(row_split.ROW_BUDGET_TENTHS, 608 * wt.UNIT)
+        self.assertEqual(row_split.ROW_BUDGET_TENTHS // wt.UNIT, clock * 100 // 148)
         self.assertEqual(v2.ROW_BUDGET, row_split.ROW_BUDGET_TENTHS)
 
     def test_row_price_is_tests_plus_repeat_without_build_cost(self) -> None:
@@ -67,21 +70,23 @@ class RowClockAdmissionTest(unittest.TestCase):
         self.assertEqual(wt.weighted_bounds(runs, weights), [0, 1, 2, 3, 4, 5])
 
     def test_lone_test_over_the_row_budget_still_trips(self) -> None:
-        runs, weights = lone_tests(665.0)
-        self.assertEqual(v2.row_cost_tenths([runs[0]], weights), 6750)
-        self.assertEqual(wt.budget_errors(runs, weights), [])
-        runs, weights = lone_tests(670.0)
-        self.assertEqual(v2.row_cost_tenths([runs[0]], weights), 6800)
-        self.assertEqual(wt.budget_errors(runs, weights),
-                         ["v2 runner row exceeds 675 s budget"])
+        # Rows of 600 s and 608 s fit; 609 s and 620 s trip (#9469).
+        for seconds, price, errors in (
+                (590.0, 6000, []), (598.0, 6080, []),
+                (599.0, 6090, ["v2 runner row exceeds 608 s budget"]),
+                (610.0, 6200, ["v2 runner row exceeds 608 s budget"])):
+            with self.subTest(row=price / wt.UNIT):
+                runs, weights = lone_tests(seconds)
+                self.assertEqual(v2.row_cost_tenths([runs[0]], weights), price)
+                self.assertEqual(wt.budget_errors(runs, weights), errors)
 
     def test_job_score_charges_build_once_with_the_new_row_count(self) -> None:
-        # Four 150 s tests fit one row at 610 s; the old admission charged
-        # 660 s per test and cut four rows, adding three repeat prices. The
-        # 165 s and 167 s cases sit on the 675 s boundary (cold 10, repeat 10):
-        # 660 + 10 = 670 fits one row, 668 + 10 = 678 does not, so the job
-        # score row count cannot drift from the runner's split_rows.
-        cases = ((4, 150.0, 1), (6, 150.0, 2), (4, 165.0, 1), (4, 167.0, 2))
+        # Four 140 s tests fit one row at 570 s; the old admission charged
+        # 650 s per test and cut four rows, adding three repeat prices. The
+        # 149.5 s and 150 s cases sit on the 608 s boundary (cold 10, repeat
+        # 10): 598 + 10 = 608 fits one row, 600 + 10 = 610 does not, so the
+        # job score row count cannot drift from the runner's split_rows.
+        cases = ((4, 140.0, 1), (6, 150.0, 2), (4, 149.5, 1), (4, 150.0, 2))
         for count, seconds, rows_expected in cases:
             with self.subTest(count=count, seconds=seconds):
                 runs = [f"./p|Test{index}Live" for index in range(count)]
@@ -110,8 +115,9 @@ class RowClockAdmissionTest(unittest.TestCase):
     def test_fingerprint_names_the_clock_model(self) -> None:
         _, weights = lone_tests(1.0)
         fingerprint = weights.fingerprint()
-        self.assertIn('"midpoint-v2-clock-tests-plus-repeat-675"', fingerprint)
+        self.assertIn('"midpoint-v2-clock-tests-plus-repeat-608"', fingerprint)
         self.assertNotIn("cold-plus-max-first-repeat-every-row", fingerprint)
+        self.assertNotIn("repeat-675", fingerprint)
 
 
 if __name__ == "__main__":

@@ -5,7 +5,8 @@ reviewed six-shard schedule. This is source-bound calibration collection only; t
 does not consume these six-shard dispatch results. A separate reviewed fit is
 needed before any acceptance change. The existing
 readiness acceptance workflow, its 15% spread guard, 1440-second modeled job
-limit, 675-second row limit, and 30-minute hosted job timeout stay in force.
+limit, 608-second row limit (#9469; 675 seconds before), and 30-minute hosted
+job timeout stay in force.
 
 The fixed input is
 `specs/live-postgres-readiness-calibration.v1.json`. Its 34 runner rows cover

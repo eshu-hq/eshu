@@ -45,7 +45,7 @@ class WeightsV2:
                            self.default_package_first, self.default_package_repeat,
                            sorted(self.package_first.items()),
                            sorted(self.package_repeat.items()), sorted(self.test.items()),
-                           "midpoint-v2-clock-tests-plus-repeat-675"],
+                           "midpoint-v2-clock-tests-plus-repeat-608"],
                           separators=(",", ":"))
 
 

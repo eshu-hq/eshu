@@ -63,18 +63,26 @@ admission price is therefore its test prices plus the package repeat price
 or first-use cost; the job score charges those build costs once (#9348).
 Before #9348 the splitter charged cold, first-use, and test prices to every
 row, so a row could fail on compile time the clock never sees. The row budget
-is 675 s, 75% of the clock. Measured over 17 green five-shard main runs, the
-repeat residual has a median of 11.5 s (n=157) while a shard's first
-`./internal/storage/postgres` row pays 336 to 655 s of build before its first
-test. Rows predicted at 150 s or more ran at a measured/predicted test-time
-ratio of p50 1.00, p95 1.16, p99 1.26, and max 1.33 (n=188). A 675 s row
-prices about 663.6 s of tests plus the repeat residual (max measured 19.1 s).
-The worst observed row ran 744.1 s of tests, about 763 s with the largest
-residual, inside the clock. The joint worst case, the maximum ratio and the
-maximum residual on one row, is about 901 s. It was not observed; if it
-happens, the 900 s clock fails that shard loudly and the next refit adjusts the
-prices. A single test priced above the budget cannot be split and fails the
-gate.
+is the clock divided by the largest measured/predicted test-time ratio, on rows
+predicted at 150 s or more. #9348 measured 17 green five-shard main runs on the
+weights before the #9436 refit: the repeat residual had a median of 11.5 s
+(n=157), a shard's first `./internal/storage/postgres` row paid 336 to 655 s of
+build before its first test, and the ratio was p50 1.00, p95 1.16, p99 1.26,
+and max 1.33 (n=188). That set the budget to 675 s, 75% of the clock. #9469
+re-measured the ratio on the refit weights with the same method:
+
+| Runs (refit weights) | Rows | p50 | p95 | p99 | Max |
+| --- | --- | --- | --- | --- | --- |
+| Refit pair 40672571941 and 40687668044 (in-sample) | 16 | 1.00 | 1.23 | 1.28 | 1.29 |
+| 10 green main runs, 40753558584 to 40818333400 | 61 | 1.06 | 1.43 | 1.46 | 1.48 |
+
+The worst row, 13 `./internal/query/admin` tests in shard 1, was predicted at
+196.1 s and ran 289.6 s. The row budget is now 608 s: 900 / 1.48, rounded down.
+A 608 s row prices about 593.6 s of tests plus the 14.4 s repeat price. The
+joint worst case, the maximum ratio and the largest residual #9348 measured
+(19.1 s) on one row, is about 898 s. If a row still overruns, the 900 s clock
+fails that shard loudly and the next refit adjusts the prices. A single test
+priced above the budget cannot be split and fails the gate.
 
 ## Gates
 
@@ -174,9 +182,9 @@ The suite fails when:
   gate — flags a weights edit inside a feature PR. Only a standalone refit PR
   (see below) touches the weights files;
 - a v2 runner row's clock-timed price (tests plus the package repeat price)
-  passes 675 s, 75% of the 900 s `go test -timeout`. A splittable row is cut
-  at its weight midpoint until it fits, so only a single test priced above
-  675 s trips this. The clock and the 675 s budget are pinned in
+  passes 608 s, the 900 s `go test -timeout` over the measured 1.48 tail. A
+  splittable row is cut at its weight midpoint until it fits, so only a single
+  test priced above 608 s trips this. The clock and the 608 s budget are pinned in
   `scripts/lib/live_postgres_readiness_row_clock_cases.py`;
 - the shard job's `timeout-minutes` stops matching the 1800 s cap the gate
   uses;
@@ -188,7 +196,7 @@ The suite fails when:
 
 A PR that only appends tests can trip the live-plan fit case with
 `v2 predicted job spread exceeds 15% of mean`. The 1440 s budget, the 15%
-spread, and the 675 s row budget are unchanged by this section. The failure
+spread, and the 608 s row budget are unchanged by this section. The failure
 comes from the plan's package lumps, and it shows up as a window of plan sizes:
 the case passes, fails for a range of appended tests, then passes again.
 
@@ -197,8 +205,9 @@ appended to the last package and prints the sizes the live-plan fit case
 rejects. Every enrollment and every refit moves the window, so run it rather
 than trusting a figure on this page. At `d363d77b85` (the #9436 refit weights
 from runs 40672571941 and 40687668044, and the 36 tests #9435 enrolled) main
-plans 738 tests, 39 of them on default prices. The fit case accepts 32
-appended tests, fails from 33 through 69, and passes again at 70.
+plans 738 tests, 39 of them on default prices. With the 608 s row budget
+(#9469) the fit case accepts 32 appended tests, fails from 33 through 71, and
+passes again at 72. Under the 675 s budget it failed from 33 through 69.
 
 Run this
 from the repository root to print the window for the checkout you are on. It
@@ -224,8 +233,8 @@ print(f"{len(plan)} tests;",
 EOF
 ```
 
-At `d363d77b85` it prints `738 tests; fails k=33..69`, so main takes 32
-appended tests before the first failure.
+On that plan with the 608 s row budget it prints `738 tests; fails k=33..71`,
+so main takes 32 appended tests before the first failure.
 
 **Why the window exists.** While shard 5 can hold at least one
 `./internal/storage/postgres` test (411 tests on main at `d363d77b85`), the
@@ -249,7 +258,7 @@ that is up to 5.3 million cuts per plan; the extension to 110 used an extra
 sound prune. It prices them with the same `v2.Scorer` the production planner
 uses, and tests the spread in integer tenths exactly as
 `live_postgres_readiness_weights.py` does. The search tested only the 1440 s
-cap and the 15% spread; the 675 s row check never decided an outcome. It
+cap and the 15% spread; the 675 s row check of that time never decided an outcome. It
 searched only default-priced tests appended to the last package, not other
 growth positions or priced tails.
 
@@ -277,14 +286,24 @@ appended tests on #9320 and 62 on #9227 plus main (14.92% and 14.89% there).
 The rejected candidate showed no such edge up to 110 appended tests. These
 figures, the edges and the 110 bound come from the maintainers' exact search,
 not from this repository; whether the current weights have such an edge near
-70 appended tests is not measured. #9390 tracks the planner fix. Until it lands, a spread raise at the
+72 appended tests, where the current window closes, is not measured. #9390 tracks the planner fix. Until it lands, a spread raise at the
 edge of a window is not proof that no cut exists.
 
 **What to do, in order.**
 
 1. Keep the PR's appended tail under the headroom above, and batch the
    enrollment across PRs when it is larger. Run the snippet on your branch to
-   see where you stand.
+   see where you stand. The drift gate also caps the defaulted tests at 40, so
+   the usable headroom is the lower of the fit window and 40 minus the tests
+   the plan already prices at defaults. At `d363d77b85` that is 1 (39 of 40
+   defaulted). Print the count with:
+
+   ```bash
+   python3 -I -B -c 'import sys; sys.path.insert(0, "scripts/lib")
+   import live_postgres_readiness_weights as wt
+   from live_postgres_readiness_balance_cases import live_plan
+   print(len(wt.drift_report(live_plan(), wt.load_weights()).defaulted_tests))'
+   ```
 2. Land the refit if one is due. A refit moves the window; it does not remove
    it, so check the new headroom with the snippet.
 3. If your plan fails at its enrolled size, file a model-change issue. Attach
