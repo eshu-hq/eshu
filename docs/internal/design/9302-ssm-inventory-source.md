@@ -4,6 +4,13 @@ Status: Proposed; the goal authorizes implementation, but this design still need
 representative capture evidence and final arbiter acceptance before #9302 code.
 Part of #9295.
 
+2026-10-29: `ssm:ListAssociations` re-verified denied for the QA measurement
+identity (single read-only call, no IAM change, no retry). The captured-cohort
+measurement stays blocked and this record stays NOT accepted. Open blockers:
+(a) association-read grant or an authorized QA-only inventory association with
+application collection; (b) captured-cohort volume measurement; (c) #9301 AMI
+integration; (d) final arbiter verdict.
+
 **Propose distinct host application and platform observations, with no
 vulnerability finding until a separately proven host applicability contract
 exists.** This provisional choice is not accepted until the measurement and
@@ -278,6 +285,25 @@ path needs a `ssm:ListAssociations` (or equivalent describe) grant before it
 can select a representative captured population. A denial is not a zero
 inventory result.
 
+### Grant re-verification, 2026-10-29 14:21 UTC
+
+One bounded read-only call re-tested the path after the IAM update that had
+enabled managed-node discovery:
+
+`aws ssm list-associations --association-filter-list key=Name,value=AWS-GatherSoftwareInventory --max-results 5`
+
+Still denied: `AccessDeniedException`, same identity
+`arn:aws:sts::055929692761:assumed-role/eshu-dev-box/i-0e18f7b9871b85f57`,
+`not authorized to perform: ssm:ListAssociations` on resource
+`arn:aws:ssm:us-east-1:055929692761:*` because `no identity-based policy
+allows the ssm:ListAssociations action`. Exit 254. No IAM change was made and
+the call was not retried. The exact missing grant is `ssm:ListAssociations`
+(or an equivalent association describe) on the QA measurement identity in
+account 055929692761, region us-east-1; alternatively, an owner- and
+arbiter-authorized QA-only inventory association with application collection
+enabled, per the section below. Until one appears, the captured-cohort
+measurement cannot run and the volume, limit, and cost numbers stay NOT_PROVEN.
+
 </details>
 
 ## Implementation plan
@@ -302,6 +328,24 @@ implementation into issues under #9295 only after the decision is accepted.
   the separate host impact correlation.
 - Representative volume, supported version comparators and retained-data cleanup
   remain unknown; they may change the final design or operational cost.
+
+**Cost and risk bounds (observed versus unmeasured)**
+
+- Observed read-only probe cost, QA cohort of ~24 nodes: discovery one page
+  under one second; about 0.44 seconds per node per `AWS:Application` page
+  with no throttling; 1,872 bytes of compact-JSON responses for 24 zero-entry
+  pages (serialization size, not wire or heap). One `GetInventory` attempt
+  throttled after 5.2 seconds, so bounded per-node reads are the safer probe
+  shape. No writes were performed by any measurement.
+- Unmeasured until a captured cohort exists: per-poll request totals at fleet
+  scale, bytes per populated page, ingestion and reducer work, storage and
+  retention cost, and host-agent overhead of any temporary association. The
+  request bound stays symbolic: target hosts x allowed pages per type per poll.
+- Risk: treating zero-capture frames as empty hosts would manufacture
+  false-negative evidence; the unknown-not-empty rule above is load-bearing.
+  A temporary QA association is an environment change needing owner and arbiter
+  authorization with post-measurement deletion, and built-in inventory retention
+  after deletion is unresolved. Do not promise a zero-cost outcome.
 
 ## Acceptance criteria
 
