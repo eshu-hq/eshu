@@ -91,8 +91,15 @@ type plan struct {
 }
 
 func newPlan(budget time.Duration, f figures) plan {
+	// Scale in whole milliseconds: the nanosecond product
+	// atDefault*budget overflows int64 once atDefault exceeds ~920 ms at a
+	// 10 s budget, wrapping the caps negative (#9306: the walk then ends in
+	// the probe with ended_in=budget). Millisecond products stay far inside
+	// int64, and the quotient matches the nanosecond one exactly for the
+	// millisecond budgets the API accepts; setTimeout quantizes to whole
+	// milliseconds anyway.
 	scale := func(atDefault time.Duration) time.Duration {
-		return time.Duration(int64(atDefault) * int64(budget) / int64(DefaultBudget))
+		return time.Duration(atDefault.Milliseconds()*budget.Milliseconds()/DefaultBudget.Milliseconds()) * time.Millisecond
 	}
 	return plan{
 		budget:        budget,
