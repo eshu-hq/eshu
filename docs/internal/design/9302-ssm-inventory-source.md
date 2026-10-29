@@ -1,26 +1,35 @@
 # Separate SSM host observations from vulnerability findings (#9302)
 
-Status: Proposed; the goal authorizes implementation, but this design still needs
-representative capture evidence and final arbiter acceptance before #9302 code.
-Part of #9295.
+Status: Accepted for a bounded observation-only first phase (arbiter ACCEPT
+2026-10-29 on the measured numbers; this record reconciled to that ruling
+after the verdict — see "Arbiter acceptance" below). Part of #9295.
 
-2026-10-29: `ssm:ListAssociations` re-verified denied for the QA measurement
-identity (single read-only call, no IAM change, no retry). The captured-cohort
-measurement stays blocked and this record stays NOT accepted. Open blockers:
-(a) association-read grant or an authorized QA-only inventory association with
-application collection; (b) captured-cohort volume measurement; (c) #9301 AMI
-integration; (d) final arbiter verdict.
+2026-10-29: all four pre-acceptance blockers cleared. (a) Owner granted a
+scoped create/delete association grant and ran the trigger; the temporary
+QA-only association path ran and was deleted. (b) Captured-cohort volume
+measured on 2 nodes (see "Captured-cohort measurement" below). (c) #9301
+closed completed. (d) Arbiter verdict ACCEPT obtained. Remaining work splits
+into implementation issues under #9295 — typed contracts in `eshu`,
+bounded collection in `eshu-collector-aws-cloud`, reducer/read paths in
+`eshu` — not inside the closed design PR #9452, which reopens only as the
+accepted record.
 
 **Propose distinct host application and platform observations, with no
 vulnerability finding until a separately proven host applicability contract
-exists.** This provisional choice is not accepted until the measurement and
-decisions below are complete.
+exists.** Accepted for the bounded observation-only first phase: new v1.0.0
+kinds `aws_ssm_host_application` and `aws_ssm_host_platform` per the keys and
+allowlist below. No `vulnerability.os_package`, no `supply_chain_impact`, no
+invented PURL or image digest. Host vulnerability correlation stays with
+#9209. Cohort scope stays online EC2 managed nodes with confirmed capture
+only; no fleet, Windows, stopped-node, or non-EC2 claim is accepted.
 
-The representative captured-cohort volume measurement is incomplete. A QA managed-node
-discovery read succeeded after the owner updated IAM; application volume and
-fleet coverage remain unmeasured. The decision and live QA claims remain open
-until that measurement and arbiter acceptance are recorded.
-#9301's AMI integration is also a prerequisite.
+The representative captured-cohort volume measurement is complete (2 Linux
+nodes, 2026-10-29, see below). Fleet coverage, changed-vs-unchanged rate,
+ingestion/reducer/storage/retention cost, host-agent overhead, validated
+OS-package counts, and AWS-side dollar cost remain NOT_PROVEN and need a
+second comparable capture before any change-rate, dedup-saving, or
+fleet-scale claim.
+#9301's AMI integration closed completed as a prerequisite.
 
 ## Context
 
@@ -179,10 +188,15 @@ in deployment configuration.
 
 ## Measurement requirements
 
-**NOT_PROVEN:** instances × packages × scans per day; application rows are not
-necessarily packages. Bytes, page count, runtime, and effect on ingestion, reducer work, storage, and retention are also unknown.
-Measure a representative captured cohort with a bounded, read-only shim after
-access is available. Record the exact command, selection method without private
+**PARTIALLY PROVEN (cohort of 2, 2026-10-29):** per-host entries, pages, and
+response bytes are measured (see "Captured-cohort measurement" below).
+**Still NOT_PROVEN:** instances × packages × scans per day at any wider
+scope; application rows are not necessarily packages. Effect on ingestion,
+reducer work, storage, and retention is unknown, as are changed-vs-unchanged
+rate, dedup savings, host-agent overhead, and dollar cost. A second
+comparable capture is required before any of those claims.
+The cohort was measured with a bounded association path after owner and
+arbiter authorization. Record the exact command, selection method without private
 identifiers, UTC time, target and captured counts, platform and package-population
 limits, application-entry distribution, page
 count, capture ages, enumeration and per-node/type page counts, bytes, source rows and content
@@ -304,48 +318,16 @@ arbiter-authorized QA-only inventory association with application collection
 enabled, per the section below. Until one appears, the captured-cohort
 measurement cannot run and the volume, limit, and cost numbers stay NOT_PROVEN.
 
-### Grant live and association review, 2026-10-29 evening UTC
-
-After the owner added the grant to the role, the same bounded call now
-succeeds: `aws ssm list-associations
---association-filter-list key=Name,value=AWS-GatherSoftwareInventory
---max-results 5 --region us-east-1` exits 0 with `{"Associations": []}`.
-A bounded unfiltered review (`--max-results 10`, names and IDs only) also
-exits 0 with an empty list: no associations of any document exist in
-us-east-1 for this identity's view. No IAM change was made from here and
-nothing was retried. Association targets and inventory content did not enter
-logs beyond the empty counts above.
-
-There is therefore no existing capture to select: the representative
-captured-cohort measurement still needs the temporary QA-only association
-path, which remains a separate environment change requiring owner and
-arbiter authorization (targets, application-collection-only scope, and
-post-measurement deletion) before it runs. Volume, limit, and cost numbers
-stay NOT_PROVEN.
-
 ### Captured-cohort measurement, 2026-10-29 22:07-22:34 UTC (FIRST POPULATED CAPTURE)
 
-Authorizations: owner approved the 4 named instances in-session; arbiter
-REJECTED that set (none SSM-managed at the time) and pre-accepted a retry on
-proven-managed targets. Owner then approved proceeding on the reporting
-subset; 2 of the 4 came Online. Owner added a scoped create/delete grant to
-the measurement role (CreateAssociation on the 2 instance ARNs + the
-document ARN + the association ARN; Delete/DescribeAssociation on the
-association ARN) after the first create attempt showed the grant missing the
-association resource.
-
-Association `463893ad-250e-4104-85ee-3c8bc6a80650` (created 22:07:23Z,
-applications Enabled, all other types explicitly Disabled) executed 22:22:29Z
-and Failed both targets: agent log shows the `files` plugin rejecting the
-explicit `"Disabled"` value (`invalid character 'D' looking for beginning of
-value`). The association was deleted (exit 0). It was replaced by
-`01e99689-f60b-4bf8-8b38-23d86b63c92f` (created 22:29:59Z, identical scope
-except `files` and `windowsRegistry` left at document default, which is
-empty): "Disabled" is not a valid value for those two parameters, so the
-letter of "explicitly disable everything" cannot be implemented; the net
-collection scope is unchanged (applications only). Owner ran
-start-associations-once under their own credentials (the measurement role
-lacks that action).
+Full narrative (grant review, authorizations, association story, cleanup)
+lives in [9302-ssm-captured-cohort-evidence.md](9302-ssm-captured-cohort-evidence.md):
+no pre-existing capture existed, so the temporary QA-only association path
+ran under owner + arbiter authorization (applications-only scope) and was
+deleted afterwards. The first association failed on the agent rejecting
+explicit `"Disabled"` for `files`; the retry omitted `files` and
+`windowsRegistry` (document default, collects neither) with identical net
+scope.
 
 Capture (both targets, `AWS:Application`, dated `2026-10-29T22:31:19Z`,
 measured ~2 minutes fresh):
@@ -354,13 +336,40 @@ measured ~2 minutes fresh):
 - target B: 1295 entries over 26 pages, 594,307 response bytes (~459 B/entry, ~22.9 KB/page)
 - cohort totals: 2 nodes, 2605 entries, 53 pages, 1,195,978 bytes (~1.17 MB)
 
-No raw rows entered any log; aggregates only. Against the stated limits: L1
-([A], >50/page overflow) CONFIRMED by observation (26-27 pages each); L2
-([C], ~1 KB/entry) within factor 2 as observed (~0.45 KB/entry); L3 ([C],
-45-50 KB/page upper budget) observed below budget (~22-23 KB/page). Final
-limit grading belongs to the arbiter re-review, which this measurement
-unblocks. S3 sync was never configured, so the cost question stays bounded
-to API-read volume only.
+No raw rows entered any log; aggregates only. "Response bytes" throughout
+this section means compact-JSON serialization of the `ListInventoryEntries`
+responses, not wire traffic or object heap size (same byte method as the
+earlier frames). Against the stated limits, arbiter-graded 2026-10-29: L1
+(multi-page overflow) CONFIRMED by construction and observation — a populated
+host is ~26-27 pages, so single-page reads are a correctness bug and
+complete-pagination-before-supersession is mandatory; L2 retained as the
+per-entry planning budget (~1 KB, ~2.2x headroom over the observed
+~0.45 KB/entry); L3 retained as the per-page budget (45-50 KB, ~2x headroom
+over the observed ~22-23 KB/page). S3 sync was never configured, so the cost
+question stays bounded to API-read volume only: ~27 application pages and
+~0.6 MB raw response per populated host per poll. Capacity planning must use
+the conservative full-snapshot-per-poll bound until a second comparable
+capture measures changed-vs-unchanged rate.
+
+Non-application absence (closes the re-review's open check, detail in the
+evidence file): 2026-10-29 ~23:00Z existence-only reads show zero entries
+with no next page for `AWS:File`, `AWS:WindowsRegistry`, `AWS:Network`,
+`AWS:Service`, and `AWS:Process` on both nodes, while `AWS:Application`
+carries the exact measurement capture time. Canonical association form going
+forward: omit `files` and `windowsRegistry` (document default, collects
+neither), explicit `Disabled` for every other toggle type except
+`applications`.
+
+Binding numeric ceilings (arbiter-set): max 5,000 entries per host per
+capture (~3.8x observed max); max 100 pages per host per type per poll;
+1 KB/entry and 50 KB/page planning budgets; host set is an explicit
+configured target list with no unlimited default. Implementation must fail
+closed unless explicit positive values are configured and must not exceed
+these ceilings without a new measurement. A capture exceeding any ceiling is
+partial/unknown, never truncated-and-superseding. Freshness numbers
+(stale-age, cross-type skew tied to the configured capture interval, and the
+separate `DescribeInstanceInformation` platform rule) must be set in the
+implementation issue before code lands.
 
 Cleanup: association `01e99689-…` deleted 22:34:09Z (exit 0);
 unpaginated ListAssociations afterwards returns empty (exit 0). Built-in
@@ -400,10 +409,13 @@ implementation into issues under #9295 only after the decision is accepted.
   pages (serialization size, not wire or heap). One `GetInventory` attempt
   throttled after 5.2 seconds, so bounded per-node reads are the safer probe
   shape. No writes were performed by any measurement.
-- Unmeasured until a captured cohort exists: per-poll request totals at fleet
-  scale, bytes per populated page, ingestion and reducer work, storage and
-  retention cost, and host-agent overhead of any temporary association. The
-  request bound stays symbolic: target hosts x allowed pages per type per poll.
+- Measured per-poll API-read volume (cohort of 2, 2026-10-29): ~27
+  application pages and ~0.6 MB compact-JSON response per populated host per
+  poll. Still unmeasured: fleet-scale request totals, ingestion and reducer
+  work, storage and retention cost, host-agent overhead, changed-vs-unchanged
+  rate, and dollar cost. The request bound is now concrete per host (hosts ×
+  allowed pages per type per poll, within the ceilings above); fleet
+  projections need the second capture.
 - Risk: treating zero-capture frames as empty hosts would manufacture
   false-negative evidence; the unknown-not-empty rule above is load-bearing.
   A temporary QA association is an environment change needing owner and arbiter
@@ -412,13 +424,32 @@ implementation into issues under #9295 only after the decision is accepted.
 
 ## Acceptance criteria
 
-- [ ] Measure a representative captured population with the denominators,
-  counts, pages, bytes, timing, sampling limits and sizing bounds above.
-- [ ] Settle kind names, schemas, stable keys, identity, IAM, privacy, freshness,
-  partial-generation and host applicability rules.
+- [x] Measure a representative captured population with the denominators,
+  counts, pages, bytes, timing, sampling limits and sizing bounds above
+  (2-node cohort, 2026-10-29; fleet scale explicitly out of claim).
+- [x] Settle kind names, stable keys, identity, IAM, privacy,
+  partial-generation and host applicability rules (arbiter decision 1;
+  exact JSON field spelling finalizes with the typed contracts in `eshu`;
+  freshness numbers finalize in the implementation issue).
 - [ ] Specify executable positive, negative and ambiguous fixture, concurrency,
-  performance, graph, API and MCP checks with expected outcomes.
-- [ ] Obtain a final arbiter verdict on this completed decision before building.
+  performance, graph, API and MCP checks with expected outcomes
+  (moves to the implementation issues, with the required proof list in
+  "Arbiter acceptance" below, including a ≥27-page no-truncation
+  regression and a ceiling-breach partial-not-superseding test).
+- [x] Obtain a final arbiter verdict on this completed decision before building
+  (ACCEPT 2026-10-29, bounded observation-only first phase).
+
+## Arbiter acceptance (2026-10-29, RULING: ACCEPT)
+
+Bounded observation-only first phase accepted on the measured numbers; full
+verdict with all 8 decisions in the evidence file. Binding takeaways:
+ceilings above, API-read-volume-only cost with full-snapshot bound until the
+second capture, freshness numbers in the implementation issue, canonical
+omit-default association form, implementation splits under #9295 (never
+inside closed PR #9452). Refused: fleet claims from n=2, rows-as-packages,
+built-in data deletion, serialization/single-page reads. Re-escalate only on
+ceiling breach, >1 KB/entry on a new host class, or non-application types
+found collected (absent as of 2026-10-29 ~23:00Z).
 
 ## Decisions for the arbiter
 
