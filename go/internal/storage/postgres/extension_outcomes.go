@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 	"time"
@@ -25,7 +26,8 @@ WITH requested AS (
 SELECT requested.collector_kind, requested.collector_instance_id,
        completed.scope_count, completed.partial_scopes,
        completed.warning_count, active.in_flight_scopes,
-       GREATEST(completed.updated_at, active.updated_at)
+       GREATEST(completed.updated_at, active.updated_at),
+       committed.last_committed_at
 FROM requested
 LEFT JOIN LATERAL (
     SELECT COUNT(*) AS scope_count,
@@ -63,6 +65,14 @@ LEFT JOIN LATERAL (
       AND collector_instance_id = requested.collector_instance_id
       AND status = 'claimed'
 ) active ON TRUE
+LEFT JOIN LATERAL (
+    SELECT MAX(updated_at) AS last_committed_at
+    FROM workflow_work_items
+    WHERE collector_kind = requested.collector_kind
+      AND collector_instance_id = requested.collector_instance_id
+      AND status = 'completed'
+      AND extension_result_state IS NOT NULL
+) committed ON TRUE
 WHERE completed.scope_count > 0 OR active.in_flight_scopes > 0
 ORDER BY requested.collector_kind, requested.collector_instance_id
 `
@@ -92,7 +102,8 @@ func readWorkflowExtensionOutcomes(ctx context.Context, queryer db.Queryer, inst
 		var row collector.ExtensionOutcome
 		var scopes, partial, warnings, inFlight int64
 		var updated time.Time
-		if err := rows.Scan(&row.CollectorKind, &row.InstanceID, &scopes, &partial, &warnings, &inFlight, &updated); err != nil {
+		var committed sql.NullTime
+		if err := rows.Scan(&row.CollectorKind, &row.InstanceID, &scopes, &partial, &warnings, &inFlight, &updated, &committed); err != nil {
 			return nil, fmt.Errorf("scan extension claim outcome: %w", err)
 		}
 		row.ScopeCount = int(scopes)
@@ -100,6 +111,9 @@ func readWorkflowExtensionOutcomes(ctx context.Context, queryer db.Queryer, inst
 		row.WarningCount = int(warnings)
 		row.InFlightScopes = int(inFlight)
 		row.UpdatedAt = updated.UTC()
+		if committed.Valid {
+			row.LastCommittedAt = committed.Time.UTC()
+		}
 		outcomes = append(outcomes, row)
 	}
 	if err := rows.Err(); err != nil {

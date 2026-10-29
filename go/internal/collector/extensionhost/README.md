@@ -321,11 +321,14 @@ summary (state, partial flag, warning count) into fenced `CompleteClaim`.
 A result with state `partial`, or any partial status row, is withheld before
 fact mapping and snapshot commit. `ClaimedService` records the distinct
 `partial_snapshot_withheld` failure class on a fenced retryable claim and
-schedules its next attempt; no projector work is enqueued and prior active
-truth stays in place. The same fenced mutation stores the bounded
+schedules its next attempt while the claim has retry budget; after budget
+exhaustion the work item is terminal and a later planned run is required.
+No projector work is enqueued and prior active truth stays in place. The same fenced mutation stores the bounded
 `partial_withheld` state, partial flag, and warning count on the workflow item.
 The operator read includes the latest withheld partial attempt per scope so
-an older clean completion cannot make it look healthy. The per-result status
+an older clean completion cannot make it look healthy. Its latest attempt
+time updates status without advancing `last_observed_at`, which comes only
+from a fenced completed claim. The per-result status
 log and metric retain the SDK state, warning count, partial flag, and host
 failure class. This is a safety hold until the host can
 prove completeness or carry forward omitted fact families (#9297).
@@ -350,7 +353,8 @@ only for the `vulnerability_intelligence` kind
   for the item and capped at 256 entries (oldest attempt evicted).
 - A withheld partial is a failed attempt with no completion observer; the
   recorder writes a partial source state while preserving the previous success
-  timestamp and schedules the same bounded retry as the claim.
+  timestamp and schedules the same bounded retry as the claim while budget
+  remains; exhausted attempts are terminal without a retry time.
 - An attempt-row error on a completed outcome fails the claim retryable with
   `source_state_record`; an error on a failed outcome is joined to the claim
   error and never changes its class or terminality; a post-commit error is
