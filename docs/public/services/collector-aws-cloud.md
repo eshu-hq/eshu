@@ -31,13 +31,11 @@ infer service ownership.
 2. Configure one enabled `aws` collector instance with `claims_enabled=true`.
 3. Use exact target scopes: 12-digit account, concrete regions, concrete
    service kinds, per-account concurrency, and one credential mode.
-4. Provide the satellite redaction key through the activation config when any
-   target scope enables Batch, CloudWatch, Cognito, ECS, Lambda, Security Hub,
-   or Organizations. Batch needs it because job-definition container
-   environment values can carry secrets and are redacted before persistence.
-   CloudWatch needs it because alarm metric dimension values can be
-   customer-tag-named and are redacted before persistence; Cognito needs it
-   for identity-pool developer provider names and group descriptions.
+4. For live Lambda or ECS, put the redaction key in an operator-managed
+   Kubernetes Secret, set `awsCloudCollector.redaction.secretName` and
+   `keyKey`, and put only `source.redactionKeyEnv: ESHU_AWS_REDACTION_KEY` in
+   the activation config. The worker passes the Secret to the satellite
+   process without storing its value in the activation ConfigMap.
 5. Check `/healthz`, `/readyz`, `/metrics`, and `/admin/status?format=json`.
 6. Confirm scanner status and commit status before debugging reducer or query
    results.

@@ -111,6 +111,10 @@ guidance belong in the public Kubernetes docs.
   extracted collectors instead: one worker Deployment per entry, seeded by init
   containers from a digest-pinned collector image, with the registry volume
   managed by the chart. See `docs/public/deploy/kubernetes/run-an-extracted-collector.md`.
+  For an AWS activation that reads live Lambda or ECS, set
+  `awsCloudCollector.redaction.secretName` and `keyKey`; the chart sends the
+  Secret as `ESHU_AWS_REDACTION_KEY` only to that activation worker and
+  requires `config.source.redactionKeyEnv: ESHU_AWS_REDACTION_KEY`.
 - `gcpCloudCollector` is off by default. When enabled, it starts only explicit
   claimed-live mode, requires active workflow claims, mounts the redaction key
   from a read-only Secret file, and expects read-only GCP credentials from pod
