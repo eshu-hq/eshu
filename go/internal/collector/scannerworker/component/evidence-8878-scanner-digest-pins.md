@@ -1,0 +1,19 @@
+# Evidence: scanner manifest digest pins carry no performance or observability change (#8878)
+
+The digest-pin change (`manifest.go`, `manifest_test.go`) swaps one
+never-published digest constant for a three-entry digest table plus a map
+lookup in `ManifestFor`, a cold config path that runs once per manifest
+build. It adds no Cypher, no worker claims, no leases, no batching, no
+concurrency knobs, and no runtime or Compose/Helm settings.
+
+No-Regression Evidence: baseline package suite on clean `origin/main`
+(`77cba71c95`, detached worktree, same host) passes in 3.584s; the same
+suite with the pins plus two new tests passes in 3.499s, and with `-race`
+in 5.0s. The only added production work per manifest build is one map
+lookup; manifest construction is not on any query, ingest, or graph-write
+path, so no hot-path statement changes shape or cardinality. No benchmark
+delta is claimed because no measured path exists to improve.
+
+No-Observability-Change: no metric, span, log, or status field is added,
+renamed, or removed. The one new string is a fail-closed error return for
+an unpinned component id, surfaced to the caller, not emitted as telemetry.
