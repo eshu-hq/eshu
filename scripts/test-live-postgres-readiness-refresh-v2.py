@@ -290,6 +290,54 @@ class RefreshV2Cases(unittest.TestCase):
                       "(./b +0.0); used 0.0 s (estimate not positive)\n",
                       self.cli_stdout())
 
+    def pair_two_packages(self, a: int, b_later: int, b_first: int,
+                          c_later: int, c_first: int) -> None:
+        """Lay out ./b and ./c each as a first row and as a later first use.
+
+        Args:
+            a: ./a first-row residual on shards 1 and 2.
+            b_later: ./b later first-use residual (shard 2).
+            b_first: ./b first-row residual (shard 3).
+            c_later: ./c later first-use residual (shard 3).
+            c_first: ./c first-row residual (shard 4).
+        """
+        plan = [*PLAN, "./c|TestOne", "./c|TestTwo"]
+        layout = {
+            1: [("a", "TestOne", a)],
+            2: [("a", "TestTwo", a), ("b", "TestOne", b_later)],
+            3: [("b", "TestTwo", b_first), ("b", "TestThree", 2),
+                ("b", "TestFour", 2), ("c", "TestOne", c_later)],
+            4: [("c", "TestTwo", c_first)],
+        }
+        for source in self.sources:
+            for shard, rows in layout.items():
+                (source / f"shard{shard}.log").write_text(_log(shard, rows, int(source.name)))
+        self.expected_rows = {shard: [frozenset([f"./{package}|{test}"])
+                                      for package, test, _ in rows]
+                              for shard, rows in layout.items()}
+        inventory = mock.patch.object(refresh.provenance, "source_inventory",
+                                      side_effect=lambda _root, _sha: plan)
+        inventory.start()
+        self.addCleanup(inventory.stop)
+
+    def test_two_opposing_cold_terms_average_to_a_zero_price(self) -> None:
+        # The frozen #9473 pair's shape: one package's term is positive, the
+        # other's negative, and their mean (not their sum) is the estimate.
+        self.pair_two_packages(a=8, b_later=2, b_first=8, c_later=10, c_first=3)
+        self.assertEqual(self.fit()["cold_cache_seconds"], 0.0)
+        self.assertIn("weights refresh v2: cold cache estimate -0.5 s from 2 packages "
+                      "(./b +6.0, ./c -7.0); used 0.0 s (estimate not positive)\n",
+                      self.cli_stdout())
+
+    def test_two_positive_cold_terms_price_their_average(self) -> None:
+        self.pair_two_packages(a=40, b_later=2, b_first=12, c_later=2, c_first=22)
+        result = self.fit()
+        self.assertEqual(result["cold_cache_seconds"], 15.0)
+        self.assertEqual(result["package_first_seconds"],
+                         {"./a": 25.0, "./b": 2.0, "./c": 2.0})
+        self.assertIn("weights refresh v2: cold cache estimate 15.0 s from 2 packages "
+                      "(./b +10.0, ./c +20.0); used 15.0 s\n", self.cli_stdout())
+
     def test_rejects_no_measured_repeat(self) -> None:
         for source in self.sources:
             path = source / "shard2.log"
