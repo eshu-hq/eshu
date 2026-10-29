@@ -11,7 +11,7 @@
 
 | Producer | Repository | Path | Planned repository | Authority | Emitted kinds |
 | --- | --- | --- | --- | --- | --- |
-| `collector-sbom-attestation` | `eshu-hq/eshu` | `go/internal/collector/sbom` | `eshu-hq/eshu-collector-sbom-attestation` | `core_issued_grant` | `attestation.signature_verification, attestation.slsa_provenance, attestation.statement, sbom.dependency_relationship, sbom.external_reference` |
+| `collector-sbom-attestation` | `eshu-hq/eshu` | `go/internal/collector/sbom` | `eshu-hq/eshu-collector-sbom-attestation` | `core_issued_grant` | `attestation.signature_verification, attestation.slsa_provenance, attestation.statement, sbom.component, sbom.dependency_relationship, sbom.document, sbom.external_reference, sbom.warning` |
 | `scanner-worker` | `eshu-hq/eshu` | `go/internal/collector/scannerworker` | `` | `core_owned` | `sbom.component, sbom.document, sbom.warning` |
 
 ## Kinds
@@ -21,8 +21,8 @@
 | `attestation.signature_verification` | `collector-sbom-attestation` | `containerimage/containerimage_handle_sbom_attestation, sbomattest/sbomattest_handle_sbom_attestation` | `GET /api/v0/supply-chain/sbom-attestations/attachments` | `sdk/go/factschema/schema/attestation.signature_verification.v1.schema.json` |
 | `attestation.slsa_provenance` | `collector-sbom-attestation` | `containerimage/containerimage_handle_sbom_attestation, sbomattest/sbomattest_handle_sbom_attestation` | `GET /api/v0/supply-chain/sbom-attestations/attachments` | `sdk/go/factschema/schema/attestation.slsa_provenance.v1.schema.json` |
 | `attestation.statement` | `collector-sbom-attestation` | `containerimage/containerimage_handle_sbom_attestation, sbomattest/sbomattest_handle_sbom_attestation` | `GET /api/v0/supply-chain/sbom-attestations/attachments` | `sdk/go/factschema/schema/attestation.statement.v1.schema.json` |
-| `sbom.component` | `scanner-worker` | `core/core_handle_sbom_attestation, sbomattest/sbomattest_handle_sbom_attestation` | `GET /api/v0/supply-chain/sbom-attestations/attachments` | `sdk/go/factschema/schema/sbom.component.v1.schema.json` |
+| `sbom.component` | `collector-sbom-attestation, scanner-worker` | `core/core_handle_sbom_attestation, sbomattest/sbomattest_handle_sbom_attestation` | `GET /api/v0/supply-chain/sbom-attestations/attachments` | `sdk/go/factschema/schema/sbom.component.v1.schema.json` |
 | `sbom.dependency_relationship` | `collector-sbom-attestation` | `sbomattest/sbomattest_handle_sbom_attestation` | `GET /api/v0/supply-chain/sbom-attestations/attachments` | `sdk/go/factschema/schema/sbom.dependency_relationship.v1.schema.json` |
-| `sbom.document` | `scanner-worker` | `sbomattest/sbomattest_handle_sbom_attestation` | `GET /api/v0/supply-chain/sbom-attestations/attachments` | `sdk/go/factschema/schema/sbom.document.v1.schema.json` |
+| `sbom.document` | `collector-sbom-attestation, scanner-worker` | `sbomattest/sbomattest_handle_sbom_attestation` | `GET /api/v0/supply-chain/sbom-attestations/attachments` | `sdk/go/factschema/schema/sbom.document.v1.schema.json` |
 | `sbom.external_reference` | `collector-sbom-attestation` | `sbomattest/sbomattest_handle_sbom_attestation` | `GET /api/v0/supply-chain/sbom-attestations/attachments` | `sdk/go/factschema/schema/sbom.external_reference.v1.schema.json` |
-| `sbom.warning` | `scanner-worker` | `sbomattest/sbomattest_handle_sbom_attestation` | `GET /api/v0/supply-chain/sbom-attestations/attachments` | `sdk/go/factschema/schema/sbom.warning.v1.schema.json` |
+| `sbom.warning` | `collector-sbom-attestation, scanner-worker` | `sbomattest/sbomattest_handle_sbom_attestation` | `GET /api/v0/supply-chain/sbom-attestations/attachments` | `sdk/go/factschema/schema/sbom.warning.v1.schema.json` |

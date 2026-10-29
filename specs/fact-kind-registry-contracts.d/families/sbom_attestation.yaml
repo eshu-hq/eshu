@@ -30,8 +30,11 @@ producers:
         - attestation.signature_verification
         - attestation.slsa_provenance
         - attestation.statement
+        - sbom.component
         - sbom.dependency_relationship
+        - sbom.document
         - sbom.external_reference
+        - sbom.warning
     - id: scanner-worker
       repository: eshu-hq/eshu
       path: go/internal/collector/scannerworker
