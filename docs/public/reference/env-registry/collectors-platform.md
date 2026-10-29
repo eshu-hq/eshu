@@ -35,6 +35,7 @@ The ingester's git collector, the component package manager, and the component-e
 
 | Variable | Type | Default | Notes |
 | --- | --- | --- | --- |
+| `ESHU_AWS_REDACTION_KEY` | string | — | Kubernetes Secret-backed HMAC key inherited by the AWS satellite process from its component-extension worker. Required for live Lambda or ECS collection; the activation file contains only source.redactionKeyEnv=ESHU_AWS_REDACTION_KEY, never the key value. |
 | `ESHU_COMPONENT_COLLECTOR_CLAIM_LEASE_TTL` | duration | `60s` | Workflow claim lease TTL. |
 | `ESHU_COMPONENT_COLLECTOR_HEARTBEAT_INTERVAL` | duration | `20s` | Claim heartbeat interval; must be less than the lease TTL. |
 | `ESHU_COMPONENT_COLLECTOR_INSTANCE_ID` | string | — | Instance ID for the component-extension collector. |

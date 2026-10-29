@@ -80,8 +80,8 @@ claim metadata and collector config; credentials arrive as environment variables
 
 {{/*
 Per-activation environment for the worker container. Credentials come only
-from the activation's own extraEnv, so one collector never inherits another's
-secret.
+from the activation's own extraEnv or its AWS redaction Secret, so one
+collector never inherits another's secret.
 */}}
 {{- define "eshu.renderComponentActivationEnv" -}}
 {{- $root := .root -}}
@@ -105,6 +105,13 @@ secret.
 {{- with default $values.heartbeatInterval $activation.heartbeatInterval }}
 - name: ESHU_COMPONENT_COLLECTOR_HEARTBEAT_INTERVAL
   value: {{ . | quote }}
+{{- end }}
+{{- if and (eq $activation.componentId "dev.eshu.collector.aws") $root.Values.awsCloudCollector.redaction.secretName }}
+- name: ESHU_AWS_REDACTION_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ $root.Values.awsCloudCollector.redaction.secretName | quote }}
+      key: {{ $root.Values.awsCloudCollector.redaction.keyKey | quote }}
 {{- end }}
 {{- with $values.env }}
 {{- include "eshu.renderEnvMap" . }}

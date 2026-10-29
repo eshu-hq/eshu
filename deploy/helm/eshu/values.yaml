@@ -512,6 +512,9 @@ awsCloudCollector:
     name: ""
     annotations: {}
   redaction:
+    # Also supplies ESHU_AWS_REDACTION_KEY to an AWS component activation's
+    # worker only. Live Lambda/ECS activations require this Secret and must
+    # set config.source.redactionKeyEnv: ESHU_AWS_REDACTION_KEY.
     secretName: ""
     keyKey: redaction-key
   extraEnv: []

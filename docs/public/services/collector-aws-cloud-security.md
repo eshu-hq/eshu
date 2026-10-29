@@ -13,7 +13,17 @@ container, or instance role); no credential key exists in config.
 
 | Setting | Purpose |
 | --- | --- |
-| Satellite redaction key | Required when any target scope enables Batch, CloudWatch, CodeBuild, Cognito, ECS, Lambda, Security Hub, Organizations, or IAM Identity Center (`ssoadmin`). Batch job-definition container environment values can carry secrets and are redacted before persistence; CloudWatch alarm metric dimension values can be customer-tag-named and are redacted before persistence; CodeBuild environment-variable PLAINTEXT values may carry secrets and are redacted before persistence (name and type only); Cognito redacts identity-pool developer provider names and group descriptions; Identity Center principal display names are redacted before persistence. |
+| Satellite redaction key | Required for live Lambda and ECS scans. Lambda environment-variable values and ECS task-definition environment values can carry secrets; the satellite turns them into deterministic HMAC markers before persistence. |
+
+For a Helm component activation with live Lambda or ECS, set
+`config.source.redactionKeyEnv: ESHU_AWS_REDACTION_KEY` and point
+`awsCloudCollector.redaction.secretName` and `keyKey` at an existing
+Kubernetes Secret. The chart injects the key into the AWS activation worker's
+environment through `secretKeyRef`; its process runner passes that environment
+to the satellite. The activation ConfigMap carries only the environment
+variable name. A missing or blank Secret key prevents collection; Helm also
+refuses the live Lambda/ECS activation when the reference or Secret metadata
+is absent.
 
 Claim polling, lease TTL, and heartbeat are satellite activation settings
 (heartbeat must stay below the lease TTL).
@@ -54,10 +64,11 @@ Network Firewall rule group rule sources (Suricata signature bodies),
 Inspector v2 finding details, Inspector v2 filter criteria, or Inspector v2 CIS
 scan results.
 
-CloudWatch, CodeBuild, ECS, Lambda, Security Hub, Organizations, and IAM
-Identity Center (`ssoadmin`) scans require the satellite redaction key before
-startup because sensitive-derived fields are redacted before persistence. The
-key produces deterministic HMAC markers; it is not stored in facts. Security Hub
+The extracted satellite's live Lambda and ECS scans require the redaction key
+before collecting those services. The key produces deterministic HMAC markers;
+it is not stored in facts. The legacy direct collector also required a key for
+CloudWatch, CodeBuild, Security Hub, Organizations, and IAM Identity Center
+(`ssoadmin`) scans. Its Security Hub
 action target descriptions and Organizations account email/name values pass
 through the shared redaction helper, CloudWatch alarm metric dimension values
 whose names look like customer tags pass through the same helper, CodeBuild

@@ -154,6 +154,9 @@ secret. Credentials belong only in an activation's extraEnv secretKeyRef.
 {{- $parts := splitList "=" (toString $entry) -}}
 {{- $envName := first $parts -}}
 {{- $envValue := join "=" (rest $parts) -}}
+{{- if eq $envName "ESHU_AWS_REDACTION_KEY" -}}
+{{- fail (printf "%s.process.env must not carry ESHU_AWS_REDACTION_KEY; use awsCloudCollector.redaction.secretName and keyKey" $at) -}}
+{{- end -}}
 {{- if regexMatch "(?i)(password|passwd|secret|token|api[-_]?key|credential|private[-_]?key|authorization|bearer)" $envName -}}
 {{- fail (printf "%s.process.env entry %q looks like a credential; process.env is stored in a ConfigMap, so pass secrets through extraEnv secretKeyRef" $at $envName) -}}
 {{- end -}}
@@ -162,6 +165,44 @@ secret. Credentials belong only in an activation's extraEnv secretKeyRef.
 {{- end -}}
 {{- end -}}
 {{- include "eshu.validate.componentActivationNoSecrets" (dict "path" (printf "%s.config" $at) "value" (default (dict) $activation.config)) -}}
+{{- if eq $componentId "dev.eshu.collector.aws" -}}
+{{- $config := default (dict) $activation.config -}}
+{{- $source := default (dict) $config.source -}}
+{{- if or (hasKey (default (dict) $root.Values.env) "ESHU_AWS_REDACTION_KEY") (hasKey (default (dict) $root.Values.componentExtensionCollector.env) "ESHU_AWS_REDACTION_KEY") (hasKey (default (dict) $activation.env) "ESHU_AWS_REDACTION_KEY") -}}
+{{- fail (printf "%s must not set ESHU_AWS_REDACTION_KEY in an env map; use awsCloudCollector.redaction.secretName and keyKey" $at) -}}
+{{- end -}}
+{{- range $entry := default (list) $activation.extraEnv -}}
+{{- if eq (toString (default "" $entry.name)) "ESHU_AWS_REDACTION_KEY" -}}
+{{- fail (printf "%s.extraEnv must not duplicate ESHU_AWS_REDACTION_KEY; use awsCloudCollector.redaction.secretName and keyKey" $at) -}}
+{{- end -}}
+{{- end -}}
+{{- if and $root.Values.awsCloudCollector.redaction.secretName (not $root.Values.awsCloudCollector.redaction.keyKey) -}}
+{{- fail (printf "%s requires awsCloudCollector.redaction.keyKey when secretName is set" $at) -}}
+{{- end -}}
+{{- $services := default (list) $config.allowed_services -}}
+{{- if and (not $services) (kindIs "map" $source) -}}
+{{- $services = default (list) $source.services -}}
+{{- end -}}
+{{- $needsKey := false -}}
+{{- if kindIs "slice" $services -}}
+{{- range $service := $services -}}
+{{- if or (eq $service "lambda") (eq $service "ecs") -}}
+{{- $needsKey = true -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if and $needsKey (eq (toString (default "" $source.input)) "") -}}
+{{- if ne (toString (default "" $source.redactionKeyEnv)) "ESHU_AWS_REDACTION_KEY" -}}
+{{- fail (printf "%s.config.source.redactionKeyEnv must reference ESHU_AWS_REDACTION_KEY for live Lambda or ECS" $at) -}}
+{{- end -}}
+{{- if not $root.Values.awsCloudCollector.redaction.secretName -}}
+{{- fail (printf "%s requires awsCloudCollector.redaction.secretName for live Lambda or ECS" $at) -}}
+{{- end -}}
+{{- if not $root.Values.awsCloudCollector.redaction.keyKey -}}
+{{- fail (printf "%s requires awsCloudCollector.redaction.keyKey for live Lambda or ECS" $at) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
 {{- $grants := default (list) $activation.grants -}}
 {{- range $gi, $grant := $grants -}}
 {{- $gat := printf "%s.grants[%d]" $at $gi -}}

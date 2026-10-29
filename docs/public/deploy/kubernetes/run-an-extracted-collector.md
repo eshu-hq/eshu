@@ -125,6 +125,15 @@ Every entry needs its own `instanceId`.
 | `grants` | no | Producer grants for core-owned fact kinds: `kind`, `schemaVersions`, `scope`, and `expiresIn` (default `720h`, a positive duration whose first number is not zero). Each `kind` must be an exact core fact kind such as `incident.record`; `eshu component grant` refuses anything else and the pod stays in `Init:Error`. The scope is the collector kind (for example `jira` or `documentation`), and a grant is needed for each core fact kind and schema version the manifest declares before install succeeds. |
 | `replicas`, `resources`, `env`, `extraEnv`, `extraVolumes`, `extraVolumeMounts` | no | Per-worker overrides. `extraEnv` is where credentials go. |
 
+For the AWS cloud satellite, set `config.source.redactionKeyEnv` to
+`ESHU_AWS_REDACTION_KEY` when live `allowed_services` includes `lambda` or
+`ecs`, and set `awsCloudCollector.redaction.secretName` and `keyKey` to an
+operator-managed Secret. The chart passes that key through a non-optional
+`secretKeyRef` to the AWS activation worker. The coordinator and other workers
+do not receive it. Keep the key value out of `config`, `process.env`, and
+chart `env` maps; those settings render into a ConfigMap or Pod spec. The
+satellite refuses a missing or blank key before collecting live Lambda or ECS.
+
 The schema (`values.schema.json`) rejects unknown keys, so a misspelled key
 fails the render instead of being ignored.
 
