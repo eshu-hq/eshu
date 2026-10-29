@@ -313,6 +313,7 @@ the `querycontract.CoreReadContractsVersion` port set.
 | `POST /api/v0/code/visualize` | Code | paths/code/graph.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
 | `POST /api/v0/compare/environments` | Compare | paths/status/compare.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
 | `POST /api/v0/content/dockerfile-installs/search` | Content | paths/search/content.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
+| `POST /api/v0/content/php-config/search` | Content | paths/search/content.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
 | `POST /api/v0/content/entities/read` | Content | paths/search/content.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
 | `POST /api/v0/content/entities/search` | Content | paths/search/content.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
 | `POST /api/v0/content/files/lines` | Content | paths/search/content.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
