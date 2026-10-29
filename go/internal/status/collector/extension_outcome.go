@@ -11,13 +11,16 @@ import (
 // ExtensionOutcome summarizes the latest completed or withheld SDK result in each scope
 // of one collector instance. It carries no scope IDs or provider data.
 type ExtensionOutcome struct {
-	CollectorKind  string
-	InstanceID     string
-	ScopeCount     int
-	PartialScopes  int
-	WarningCount   int
-	UpdatedAt      time.Time
-	InFlightScopes int
+	CollectorKind string
+	InstanceID    string
+	ScopeCount    int
+	PartialScopes int
+	WarningCount  int
+	UpdatedAt     time.Time
+	// LastCommittedAt is the latest fenced completed extension claim. A
+	// withheld attempt may update status but must not advance observation time.
+	LastCommittedAt time.Time `json:"-"`
+	InFlightScopes  int
 }
 
 // CloneExtensionOutcomes isolates a report from its storage snapshot.
@@ -46,7 +49,7 @@ func (b *runtimeStatusBuilder) addExtensionOutcomes(rows []ExtensionOutcome) {
 			detail = "extension claim is in progress"
 		}
 		status := directEvidenceRuntimeStatus(row.InstanceID, row.CollectorKind,
-			"extension_claim_outcome", nil, 0, health, row.UpdatedAt, row.UpdatedAt)
+			"extension_claim_outcome", nil, 0, health, row.LastCommittedAt, row.UpdatedAt)
 		status.Detail = detail
 		b.add(status)
 	}
