@@ -132,15 +132,15 @@ func TestManifestArtifactPinsPublishTimeDigestContract(t *testing.T) {
 	}{
 		scannerworker.AnalyzerImageUnpacking: {
 			name:   "image",
-			digest: "fd7122317aa8a93ae9ac17ed06120ab23ca049987b51abf84019b190956d22fe",
+			digest: "ffddf249bf17eacb0db1ba018d7e999390d2014e45aabd15e294f4c01d6c82f5",
 		},
 		scannerworker.AnalyzerSBOMGeneration: {
 			name:   "sbom",
-			digest: "484e5aa4b33ecc77f7135409936c1403b7b86c62dcb1d3aa1130ca01f69debe0",
+			digest: "f5acc7cbdf5337d0446c5fe6db657bccd158ea2186c03b6ea59f336498988e70",
 		},
 		scannerworker.AnalyzerOSPackageExtraction: {
 			name:   "osruntime",
-			digest: "fbca5bab4ea056415613deba845421a07f70431c92e535ce03fa1f6c30c0d07b",
+			digest: "fd6ed4079f7dfc1f0118c122a2b01b71b5f65fa33a224eabffbd9376dbc575e8",
 		},
 	}
 	for kind, want := range names {
