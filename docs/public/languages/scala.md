@@ -275,3 +275,13 @@ the B-12 golden snapshot (epic #4831, #4841). Contributors adding a new
 framework-route detector should extend the shared pass rather than add
 another full-tree walk when the detector has no dependency on another
 detector's completed output.
+
+## Declared sbt versions
+
+An admitted `build.sbt` with one unambiguous `scalaVersion` literal emits a
+`runtime_declaration.version` fact with `source_kind=sbt_scala_version`. The
+existing sbt scanner also feeds dependency rows; dynamic, conflicting, or
+out-of-context assignments emit no Scala version. The exact
+`project/build.properties` path emits `sbt_build_properties_version` for
+`sbt.version` under metadata-only content storage. Other properties are not
+returned or stored as file content.

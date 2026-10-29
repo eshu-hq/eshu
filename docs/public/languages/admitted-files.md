@@ -66,6 +66,7 @@ a line there.
 | `runtime_txt` | python | L2 structured fact | metadata |  | `runtime.txt` |  |
 | `rust` | rust | L2 structured fact | store | `.rs` | `Cargo.lock`, `Cargo.toml` |  |
 | `sbt` | scala | L2 structured fact | store |  | `build.sbt` |  |
+| `sbt_properties` | scala | L2 structured fact | metadata |  |  |  |
 | `scala` | scala | L2 structured fact | store | `.routes`, `.sc`, `.scala` |  |  |
 | `sql` | sql | L2 structured fact | store | `.sql` |  |  |
 | `swift` | swift | L2 structured fact | store | `.swift` |  |  |
@@ -81,6 +82,7 @@ Paths are matched case-insensitively:
 
 - `META-INF/services/<service>`, `META-INF/spring.factories`, `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports` bind to `java_metadata`.
 - `conf/routes`, `*.routes` bind to `scala`.
+- `project/build.properties` bind to `sbt_properties`.
 - `.mvn/extensions.xml` bind to `raw_text`.
 - `*.tfvars.json`, `*.tfvars` bind to `tfvars`.
 - `conf.d/*.ini`, `php-fpm.d/*.conf`, `apache/**/*.conf`, `apache2/**/*.conf`, `httpd/**/*.conf` bind to `php_config`.

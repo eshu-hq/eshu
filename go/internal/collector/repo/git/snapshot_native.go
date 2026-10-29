@@ -320,6 +320,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	collectComposerRuntimeSnapshot(repoPath, fileSet, parsedFiles, &snapshot)
 	collectPythonRuntimeSnapshot(repoPath, parsedFiles, &snapshot)
 	collectRubyRuntimeSnapshot(repoPath, parsedFiles, &snapshot)
+	collectJVMRuntimeSnapshot(repoPath, parsedFiles, &snapshot)
 
 	// Apply each definition's content-store policy before the entities are cut
 	// from the body (#8812): source_cache is then sliced from the stored body.

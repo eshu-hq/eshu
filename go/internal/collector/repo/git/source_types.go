@@ -102,6 +102,11 @@ type rubyRuntimeSnapshot struct {
 	Digest     string
 }
 
+type jvmRuntimeSnapshot struct {
+	Extraction runtimedeclaration.Extraction
+	Digest     string
+}
+
 type pythonRuntimeSnapshot struct {
 	Extraction runtimedeclaration.Extraction
 	Digest     string
@@ -138,6 +143,8 @@ type RepositorySnapshot struct {
 	PythonRuntimeExpected bool                             `json:"-"`
 	RubyRuntime           map[string]rubyRuntimeSnapshot   `json:"-"`
 	RubyRuntimeExpected   bool                             `json:"-"`
+	JVMRuntime            map[string]jvmRuntimeSnapshot    `json:"-"`
+	JVMRuntimeExpected    bool                             `json:"-"`
 	ContentFiles          []model.ContentFileSnapshot      `json:"content_files"`
 	ContentEntities       []model.ContentEntitySnapshot    `json:"content_entities"`
 	// GitRefs carries source-observed branch/ref heads for this repository.
