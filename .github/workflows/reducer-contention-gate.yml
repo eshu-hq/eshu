@@ -119,6 +119,8 @@ jobs:
           ESHU_SUPERSEDED_GENERATION_PROOF_DSN: postgres://eshu:change-me@localhost:15432/eshu?sslmode=disable
           ESHU_POSTGRES_TEST_DSN: postgres://eshu:change-me@localhost:15432/eshu?sslmode=disable
           ESHU_REQUIRE_SUPPLY_CHAIN_IMPACT_PROOF: "1"
+          ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DSN: postgres://eshu:change-me@localhost:15432/postgres?sslmode=disable
+          ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DISPOSABLE: "1"
           ESHU_REQUIRE_ACCEPTANCE_MONOTONIC_PROOF: "1"
           ESHU_REQUIRE_SERVICE_LINEAGE_SCOPE_PROOF: "1"
           ESHU_REQUIRE_RETENTION_MIGRATED_SCHEMA_PROOF: "1"
@@ -362,14 +364,17 @@ jobs:
         # 50,000 rows. Only real Postgres advisory locks, row locks, snapshots and
         # query plans reproduce them. They read ESHU_POSTGRES_TEST_DSN, and
         # ESHU_REQUIRE_SUPPLY_CHAIN_IMPACT_PROOF makes an unset DSN fail them here
-        # instead of skipping. TestSupplyChainImpactLiveProofsRunInTheReducerContentionGate
+        # instead of skipping. Proofs that read the lane query surface bootstrap
+        # a fresh database through ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DSN plus
+        # ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DISPOSABLE (the lane's authority
+        # migrations are public-only). TestSupplyChainImpactLiveProofsRunInTheReducerContentionGate
         # keeps this filter in step with the proofs declared in those files.
         # The guard and its seeded RED/GREEN tests are hermetic and also run in the
         # job's own filter, so a change to this workflow cannot drop a proof from the
         # filter while the job stays green.
-        # #6680/#7493: the isolated-schema proofs below derive their schemas
+        # #6680/#7493: the advisory proofs below derive their databases
         # from the production bootstrap instead of hand-picked definition
-        # lists, and the derivation guards fail when a helper-built schema
+        # lists, and the derivation guards fail when a helper-built database
         # lacks a production object. TestReducerClaimFencedSiblingBecomesClaimableAfterAck
         # proves a fenced sibling becomes claimable after ack; the advisory
         # proofs run the live supply-chain impact reducer over an

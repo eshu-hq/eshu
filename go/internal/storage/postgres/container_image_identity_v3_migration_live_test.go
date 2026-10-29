@@ -6,7 +6,6 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"os"
 	"path"
 	"strings"
@@ -32,28 +31,23 @@ func TestContainerImageIdentityV3MigrationPopulatedUpgradeLive(t *testing.T) {
 	if dsn == "" {
 		t.Skip("set ESHU_POSTGRES_TEST_DSN to run the populated digest-v3 migration proof")
 	}
+	preUpgrade, upgrade := containerImageIdentityV3UpgradeDefinitions(t)
 	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
 	defer cancel()
-	schema := fmt.Sprintf("eshu_5740_v3_upgrade_%d", time.Now().UnixNano())
-	adminDB := openActiveOCIWarningIndexProofDB(t, dsn)
-	if _, err := adminDB.ExecContext(ctx, "CREATE SCHEMA "+quoteSQLIdentifier(schema)); err != nil {
-		t.Fatalf("create isolated digest-v3 schema: %v", err)
-	}
-	t.Cleanup(func() {
-		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cleanupCancel()
-		if _, err := adminDB.ExecContext(cleanupCtx, "DROP SCHEMA IF EXISTS "+quoteSQLIdentifier(schema)+" CASCADE"); err != nil {
-			t.Errorf("drop isolated digest-v3 schema: %v", err)
-		}
-	})
-	db := openActiveOCIWarningIndexProofDB(t, activeOCIWarningIndexSchemaDSN(t, dsn, schema))
+	// The upgrade set installs the lane's public-only authority migrations,
+	// so the proof bootstraps a fresh database (public schema, where the 241
+	// guard passes) instead of an isolated schema, where it fails closed.
+	// The pre-v3/upgrade split still proves the historical upgrade; only the
+	// isolation unit changed from schema to database.
+	db := openDisposablePublicBootstrapDB(t, dsn,
+		os.Getenv("ESHU_POSTGRES_DISPOSABLE"),
+		"set ESHU_POSTGRES_TEST_DSN to run the populated digest-v3 migration proof",
+		func(applyCtx context.Context, database *sql.DB) error {
+			return ApplyDefinitions(applyCtx, SQLDB{DB: database}, preUpgrade)
+		})
 	db.SetMaxOpenConns(5)
 	db.SetMaxIdleConns(5)
 	exec := SQLDB{DB: db}
-	preUpgrade, upgrade := containerImageIdentityV3UpgradeDefinitions(t)
-	if err := ApplyDefinitions(ctx, exec, preUpgrade); err != nil {
-		t.Fatalf("apply pre-092 bootstrap definitions: %v", err)
-	}
 	seedContainerImageIdentityV3MigrationRows(t, ctx, db)
 
 	proveContainerImageIdentityV3MigrationLockTimeout(t, ctx, exec, upgrade, db)
