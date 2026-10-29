@@ -36,17 +36,40 @@ start_bg() {
 	printf -v "${pidvar}" '%s' "${pid}"
 }
 
+# wait_for_gate_http <failure-message> <url> <log-name> polls url until it
+# answers, dying with the service log tail otherwise. Extracted from the
+# orchestrator's eshu-api /readyz and eshu-mcp-server /health waits to keep
+# that file under the 500-line cap; the failure messages stay identical.
+wait_for_gate_http() {
+	local failure_message="$1" url="$2" log_name="$3" ready=false
+	for _ in $(seq 1 30); do
+		if curl -fsS "${url}" >/dev/null 2>&1; then
+			ready=true
+			break
+		fi
+		sleep 1
+	done
+	[[ "${ready}" == "true" ]] || { tail -30 "${log_dir}/${log_name}.log" >&2 || true; die "${failure_message}"; }
+}
+
 # pg runs a single-value SQL query against the gate's Postgres, working in both
 # compose mode (via the postgres container) and --no-compose mode (via a local
 # psql client). Used to assert the cassette collectors actually committed.
+# Leading -v NAME=VALUE pairs are forwarded to psql as query variables
+# (single-argument callers are unaffected).
 pg() {
+	local vars=()
+	while [[ $# -gt 1 && "$1" == "-v" ]]; do
+		vars+=("$1" "$2")
+		shift 2
+	done
 	local sql="$1"
 	if [[ "${use_compose}" -eq 1 ]]; then
 		docker compose "${compose_args[@]}" exec -T postgres \
-			psql -v ON_ERROR_STOP=1 -U eshu -d eshu -tA -c "${sql}"
+			psql -v ON_ERROR_STOP=1 -U eshu -d eshu ${vars[@]+"${vars[@]}"} -tA -c "${sql}"
 	else
 		command -v psql >/dev/null 2>&1 || die "psql client required in --no-compose mode"
-		psql "${ESHU_POSTGRES_DSN}" -v ON_ERROR_STOP=1 -tA -c "${sql}"
+		psql "${ESHU_POSTGRES_DSN}" -v ON_ERROR_STOP=1 ${vars[@]+"${vars[@]}"} -tA -c "${sql}"
 	fi
 }
 
