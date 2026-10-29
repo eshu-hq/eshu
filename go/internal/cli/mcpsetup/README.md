@@ -55,8 +55,8 @@ See `doc.go` for the full godoc contract.
   reuse `TokenReference`/`RedactToken`/`RenderSetupSnippet` to show the
   credential they actually used), `assistant.go` (reuses the local
   stdio verification seam for `assistant status --verify`), and
-  `first_run_evidence.go` (reuses `evidredact.RedactToken` for endpoint
-  redaction)
+  `go/internal/cli/firstrun/evidence.go` (redacts via
+  `evidredact.Endpoint`)
 
 ## Telemetry
 

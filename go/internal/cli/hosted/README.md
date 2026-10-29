@@ -65,9 +65,11 @@ points. Around them:
   used; the status wire shape and `EvaluateReadiness` stay in the caller.
 - `internal/cli/evidredact` — `Endpoint`, the CLI-wide endpoint redaction
   applied to `APIURL`, `MCPURL`, and the URL inside `SetupSnippet`.
-- `internal/cli/mcpsetup` — token redaction (`RedactToken`, `TokenReference`),
-  platform resolution, and the client setup snippet. Called for pure rendering;
-  `mcpsetup`'s network posture probe is never reached from here.
+- `internal/cli/mcpsetup` — `TokenReference`, platform resolution, and
+  the client setup snippet. Called for pure rendering; `mcpsetup`'s
+  network posture probe is never reached from here. Token masking is
+  `internal/cli/evidredact`'s `RedactToken` (`mcpsetup.RedactToken` is
+  only its deprecated alias).
 - `internal/query` — `PlaybookCatalog()`, a pure in-process list, is the single
   source of truth for starter prompts and playbooks.
 - `internal/mcp` — `ToolDefinition` appears only as the `Deps.ListTools` return
@@ -106,7 +108,7 @@ Covered:
   fragment embedded in the endpoint are stripped from `APIURL`, from the
   derived `MCPURL`, and from the URL inside `SetupSnippet` by
   `evidredact.Endpoint`. A value that does not parse as a URL is masked through
-  `mcpsetup.RedactToken`.
+  `evidredact.RedactToken`.
 
 Deliberately NOT covered:
 

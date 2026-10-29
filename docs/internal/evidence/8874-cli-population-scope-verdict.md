@@ -179,8 +179,10 @@ S1 (sequencing decision 6, first gate) landed as the seam commit on
   (new file, same `package main`); `basic.go` carries no `eshulocal`
   or `procexec` import. Command registrations untouched.
 - `RedactToken` moved `internal/cli/mcpsetup` ->
-  `internal/cli/evidredact` (`token.go`, with `token_test.go` moved
-  alongside); `mcpsetup.RedactToken` stays as a deprecated alias;
+  `internal/cli/evidredact` (`token.go`, with `token_test.go` copied
+  alongside — `mcpsetup` retains its alias test in `setup_test.go`);
+  `mcpsetup.RedactToken` stays as a deprecated alias;
+  `hosted/setup.go` migrates to the owner;
   `evidredact/endpoint.go` no longer imports `mcpsetup`.
 - In-tree parity proof: root plus per-command `--help` bytes
   (`query`, `list`, `stats`, `index-status`, `watch`, `index`, `map`,
