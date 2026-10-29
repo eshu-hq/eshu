@@ -244,7 +244,9 @@ nothing. Reading it writes no audit event.
 ### What an acknowledgement does
 
 - The instance stops failing. An instance whose only unresolved failures are
-  acknowledged reads `health=partial` and `promotion_state=partial`, with the
+  acknowledged reads `promotion_state=partial` and `health=partial` (health
+  stays `stale` when a vulnerability source aged out of its freshness window),
+  with the
   blocker `terminal fetch failure acknowledged: <class> (<operation>)`, never
   `healthy` or `implemented`, and never `failed`. The failure is still happening,
   so no surface reads it as healthy.

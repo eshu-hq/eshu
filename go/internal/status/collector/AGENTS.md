@@ -107,10 +107,13 @@ in `storage/postgres`.
 A succeeded vulnerability source whose `FreshnessState` is `stale` reads
 runtime health `stale` (#9477). `runtimeHealthRank` must stay monotone with the
 promotion severity each health maps to: `degraded` > `stale` > `partial` >
-`observed`. Do not move `stale` below `partial`. That makes a stopped writer
-read less severe (promotion `partial` with "some work did not complete"
-instead of `stale` with "re-run the collector"). The acknowledged-failure arm
-stays ahead of the stale arm in `derivePromotionState`.
+`observed`. Do not move `stale` below `partial`. Then an instance with both a
+stale row and a partial row reads less severe: promotion `partial` with "some
+work did not complete" instead of `stale` with "re-run the collector". An
+instance with only stale rows still reads `stale` either way. The
+acknowledged-failure arm stays ahead of the stale arm in
+`derivePromotionState`, so an acknowledged instance reads promotion `partial`
+while its health can read `stale`.
 
 ## Exporting the render/clone/JSON surface
 

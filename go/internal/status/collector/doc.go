@@ -60,7 +60,8 @@
 // acknowledgement covers, and the newest covered one. RuntimeStatuses fills
 // LastFailure* and degrades the instance only for the first. The second becomes
 // the distinct AcknowledgedFailure sub-record and raises health to partial
-// (never healthy; a degraded failure on another scope still wins), and
+// (never healthy; a degraded failure on another scope or a stale vulnerability
+// source still wins on health), and
 // PromotionProofs reports promotion_state partial with the blocker "terminal
 // fetch failure acknowledged: <class> (<operation>)". The operator's reason is
 // admin-only and never carried here.

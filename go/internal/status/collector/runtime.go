@@ -66,7 +66,8 @@ type RuntimeStatus struct {
 	LastFailureAt        time.Time
 	// AcknowledgedFailure is the newest unresolved terminal failure an operator
 	// acknowledged (#8830), or nil. It is separate from LastFailure*: the
-	// failure is still happening, so health reads partial, never healthy.
+	// failure is still happening, so health reads at least partial, never healthy
+	// (a stale or degraded row on the instance keeps the higher rank).
 	AcknowledgedFailure *AcknowledgedFailure
 }
 

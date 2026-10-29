@@ -201,8 +201,14 @@ source freshness window", and readiness recommends re-running the collector.
 That holds for a running writer that records a stale source and for a stopped
 writer whose sources aged out. The health order matches the promotion severity
 order, so a stale row combined with a partial row never lowers the instance
-below `stale`. An acknowledged terminal failure is checked before staleness,
-so that instance reads `partial` with the acknowledged failure named.
+below `stale`. An acknowledged terminal failure is checked before staleness in
+the promotion proof, so that instance's promotion reads `partial` with the
+acknowledged failure named, while its health label keeps the higher of
+`partial` and its other evidence (`stale` or `degraded`). That lowers the
+promotion severity from `stale` to `partial` for that one combination, by
+design: the acknowledged failure is the likely cause of the staleness. A
+disabled or deactivated instance with stale source rows shows health `stale`
+while its category and promotion read `disabled`.
 
 Queue and domain age fields include both human-readable duration strings and
 seconds values, such as `oldest_outstanding_age_seconds` and
