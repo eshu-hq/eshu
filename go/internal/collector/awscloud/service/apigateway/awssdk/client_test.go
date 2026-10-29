@@ -198,16 +198,20 @@ func reflectDeepEqualStrings(got []string, want []string) bool {
 
 type fakeRESTAPI struct {
 	restAPIPages       []*awsapigateway.GetRestApisOutput
+	restAPIErrors      []error
 	restAPICalls       int
 	restStagePages     []*awsapigateway.GetStagesOutput
+	restStageErrors    []error
 	restStageCalls     int
 	restResourcePages  []*awsapigateway.GetResourcesOutput
 	restResourceErrors []error
 	restResourceCalls  int
 	restResourceEmbed  []string
 	restDomainPages    []*awsapigateway.GetDomainNamesOutput
+	restDomainErrors   []error
 	restDomainCalls    int
 	restMappingPages   []*awsapigateway.GetBasePathMappingsOutput
+	restMappingErrors  []error
 	restMappingCalls   int
 }
 
@@ -216,6 +220,11 @@ func (f *fakeRESTAPI) GetRestApis(
 	*awsapigateway.GetRestApisInput,
 	...func(*awsapigateway.Options),
 ) (*awsapigateway.GetRestApisOutput, error) {
+	if f.restAPICalls < len(f.restAPIErrors) && f.restAPIErrors[f.restAPICalls] != nil {
+		err := f.restAPIErrors[f.restAPICalls]
+		f.restAPICalls++
+		return nil, err
+	}
 	if f.restAPICalls >= len(f.restAPIPages) {
 		return &awsapigateway.GetRestApisOutput{}, nil
 	}
@@ -229,6 +238,11 @@ func (f *fakeRESTAPI) GetStages(
 	*awsapigateway.GetStagesInput,
 	...func(*awsapigateway.Options),
 ) (*awsapigateway.GetStagesOutput, error) {
+	if f.restStageCalls < len(f.restStageErrors) && f.restStageErrors[f.restStageCalls] != nil {
+		err := f.restStageErrors[f.restStageCalls]
+		f.restStageCalls++
+		return nil, err
+	}
 	if f.restStageCalls >= len(f.restStagePages) {
 		return &awsapigateway.GetStagesOutput{}, nil
 	}
@@ -261,6 +275,11 @@ func (f *fakeRESTAPI) GetDomainNames(
 	*awsapigateway.GetDomainNamesInput,
 	...func(*awsapigateway.Options),
 ) (*awsapigateway.GetDomainNamesOutput, error) {
+	if f.restDomainCalls < len(f.restDomainErrors) && f.restDomainErrors[f.restDomainCalls] != nil {
+		err := f.restDomainErrors[f.restDomainCalls]
+		f.restDomainCalls++
+		return nil, err
+	}
 	if f.restDomainCalls >= len(f.restDomainPages) {
 		return &awsapigateway.GetDomainNamesOutput{}, nil
 	}
@@ -274,6 +293,11 @@ func (f *fakeRESTAPI) GetBasePathMappings(
 	*awsapigateway.GetBasePathMappingsInput,
 	...func(*awsapigateway.Options),
 ) (*awsapigateway.GetBasePathMappingsOutput, error) {
+	if f.restMappingCalls < len(f.restMappingErrors) && f.restMappingErrors[f.restMappingCalls] != nil {
+		err := f.restMappingErrors[f.restMappingCalls]
+		f.restMappingCalls++
+		return nil, err
+	}
 	if f.restMappingCalls >= len(f.restMappingPages) {
 		return &awsapigateway.GetBasePathMappingsOutput{}, nil
 	}
@@ -283,16 +307,21 @@ func (f *fakeRESTAPI) GetBasePathMappings(
 }
 
 type fakeV2API struct {
-	v2APIPages         []*awsapigatewayv2.GetApisOutput
-	v2APICalls         int
-	v2StagePages       []*awsapigatewayv2.GetStagesOutput
-	v2StageCalls       int
-	v2IntegrationPages []*awsapigatewayv2.GetIntegrationsOutput
-	v2IntegrationCalls int
-	v2DomainPages      []*awsapigatewayv2.GetDomainNamesOutput
-	v2DomainCalls      int
-	v2MappingPages     []*awsapigatewayv2.GetApiMappingsOutput
-	v2MappingCalls     int
+	v2APIPages          []*awsapigatewayv2.GetApisOutput
+	v2APIErrors         []error
+	v2APICalls          int
+	v2StagePages        []*awsapigatewayv2.GetStagesOutput
+	v2StageErrors       []error
+	v2StageCalls        int
+	v2IntegrationPages  []*awsapigatewayv2.GetIntegrationsOutput
+	v2IntegrationErrors []error
+	v2IntegrationCalls  int
+	v2DomainPages       []*awsapigatewayv2.GetDomainNamesOutput
+	v2DomainErrors      []error
+	v2DomainCalls       int
+	v2MappingPages      []*awsapigatewayv2.GetApiMappingsOutput
+	v2MappingErrors     []error
+	v2MappingCalls      int
 }
 
 func (f *fakeV2API) GetApis(
@@ -300,6 +329,11 @@ func (f *fakeV2API) GetApis(
 	*awsapigatewayv2.GetApisInput,
 	...func(*awsapigatewayv2.Options),
 ) (*awsapigatewayv2.GetApisOutput, error) {
+	if f.v2APICalls < len(f.v2APIErrors) && f.v2APIErrors[f.v2APICalls] != nil {
+		err := f.v2APIErrors[f.v2APICalls]
+		f.v2APICalls++
+		return nil, err
+	}
 	if f.v2APICalls >= len(f.v2APIPages) {
 		return &awsapigatewayv2.GetApisOutput{}, nil
 	}
@@ -313,6 +347,11 @@ func (f *fakeV2API) GetStages(
 	*awsapigatewayv2.GetStagesInput,
 	...func(*awsapigatewayv2.Options),
 ) (*awsapigatewayv2.GetStagesOutput, error) {
+	if f.v2StageCalls < len(f.v2StageErrors) && f.v2StageErrors[f.v2StageCalls] != nil {
+		err := f.v2StageErrors[f.v2StageCalls]
+		f.v2StageCalls++
+		return nil, err
+	}
 	if f.v2StageCalls >= len(f.v2StagePages) {
 		return &awsapigatewayv2.GetStagesOutput{}, nil
 	}
@@ -326,6 +365,11 @@ func (f *fakeV2API) GetIntegrations(
 	*awsapigatewayv2.GetIntegrationsInput,
 	...func(*awsapigatewayv2.Options),
 ) (*awsapigatewayv2.GetIntegrationsOutput, error) {
+	if f.v2IntegrationCalls < len(f.v2IntegrationErrors) && f.v2IntegrationErrors[f.v2IntegrationCalls] != nil {
+		err := f.v2IntegrationErrors[f.v2IntegrationCalls]
+		f.v2IntegrationCalls++
+		return nil, err
+	}
 	if f.v2IntegrationCalls >= len(f.v2IntegrationPages) {
 		return &awsapigatewayv2.GetIntegrationsOutput{}, nil
 	}
@@ -339,6 +383,11 @@ func (f *fakeV2API) GetDomainNames(
 	*awsapigatewayv2.GetDomainNamesInput,
 	...func(*awsapigatewayv2.Options),
 ) (*awsapigatewayv2.GetDomainNamesOutput, error) {
+	if f.v2DomainCalls < len(f.v2DomainErrors) && f.v2DomainErrors[f.v2DomainCalls] != nil {
+		err := f.v2DomainErrors[f.v2DomainCalls]
+		f.v2DomainCalls++
+		return nil, err
+	}
 	if f.v2DomainCalls >= len(f.v2DomainPages) {
 		return &awsapigatewayv2.GetDomainNamesOutput{}, nil
 	}
@@ -352,6 +401,11 @@ func (f *fakeV2API) GetApiMappings(
 	*awsapigatewayv2.GetApiMappingsInput,
 	...func(*awsapigatewayv2.Options),
 ) (*awsapigatewayv2.GetApiMappingsOutput, error) {
+	if f.v2MappingCalls < len(f.v2MappingErrors) && f.v2MappingErrors[f.v2MappingCalls] != nil {
+		err := f.v2MappingErrors[f.v2MappingCalls]
+		f.v2MappingCalls++
+		return nil, err
+	}
 	if f.v2MappingCalls >= len(f.v2MappingPages) {
 		return &awsapigatewayv2.GetApiMappingsOutput{}, nil
 	}

@@ -8,6 +8,8 @@
 // maps SDK response shapes into the parent package's safe metadata model, and
 // records shared AWS collector API-call telemetry around every AWS operation.
 // It does not call API execution, export, API key, authorizer secret, or
-// mutation APIs. Callers must handle AWS authorization, throttling, and partial
+// mutation APIs. Dial timeouts and retry-exhausted transport errors degrade to
+// network-timeout warnings with empty inventory instead of failing the scan;
+// callers must still handle AWS authorization, throttling, and other partial
 // service failures as normal scanner errors.
 package awssdk

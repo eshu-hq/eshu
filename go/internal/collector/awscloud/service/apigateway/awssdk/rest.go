@@ -38,6 +38,12 @@ func (c *Client) listRESTAPIs(
 			})
 			return err
 		})
+		if isNetworkTimeoutError(err) {
+			return nil, []awscloud.WarningObservation{c.networkTimeoutWarning(
+				"GetRestApis", apigatewayservice.APIKindREST, "rest_apis",
+				"REST API inventory", "apigateway_rest_apis_timeout",
+			)}, nil
+		}
 		if err != nil {
 			return nil, nil, err
 		}
@@ -49,7 +55,7 @@ func (c *Client) listRESTAPIs(
 			if err != nil {
 				return nil, nil, err
 			}
-			warnings = appendRESTWarningOnce(warnings, apiWarnings...)
+			warnings = appendWarningOnce(warnings, apiWarnings...)
 			apis = append(apis, api)
 		}
 		position = page.Position
@@ -64,34 +70,45 @@ func (c *Client) restAPIMetadata(
 	item awsapigatewaytypes.RestApi,
 ) (apigatewayservice.RESTAPI, []awscloud.WarningObservation, error) {
 	api := mapRESTAPI(item)
-	var err error
-	api.Stages, err = c.listRESTStages(ctx, api.ID)
-	if err != nil {
-		return apigatewayservice.RESTAPI{}, nil, err
-	}
 	var warnings []awscloud.WarningObservation
-	api.Integrations, warnings, err = c.listRESTIntegrations(ctx, api.ID)
+	var err error
+	api.Stages, warnings, err = c.listRESTStages(ctx, api.ID)
 	if err != nil {
 		return apigatewayservice.RESTAPI{}, nil, err
 	}
+	var integrationWarnings []awscloud.WarningObservation
+	api.Integrations, integrationWarnings, err = c.listRESTIntegrations(ctx, api.ID)
+	if err != nil {
+		return apigatewayservice.RESTAPI{}, nil, err
+	}
+	warnings = appendWarningOnce(warnings, integrationWarnings...)
 	return api, warnings, nil
 }
 
-func (c *Client) listRESTStages(ctx context.Context, apiID string) ([]apigatewayservice.Stage, error) {
+func (c *Client) listRESTStages(
+	ctx context.Context,
+	apiID string,
+) ([]apigatewayservice.Stage, []awscloud.WarningObservation, error) {
 	var page *awsapigateway.GetStagesOutput
 	err := c.recordAPICall(ctx, "GetStages", func(callCtx context.Context) error {
 		var err error
 		page, err = c.rest.GetStages(callCtx, &awsapigateway.GetStagesInput{RestApiId: aws.String(apiID)})
 		return err
 	})
+	if isNetworkTimeoutError(err) {
+		return nil, []awscloud.WarningObservation{c.networkTimeoutWarning(
+			"GetStages", apigatewayservice.APIKindREST, "rest_stages",
+			"REST stage inventory", "apigateway_rest_stages_timeout",
+		)}, nil
+	}
 	if err != nil || page == nil {
-		return nil, err
+		return nil, nil, err
 	}
 	stages := make([]apigatewayservice.Stage, 0, len(page.Item))
 	for _, item := range page.Item {
 		stages = append(stages, mapRESTStage(apiID, item))
 	}
-	return stages, nil
+	return stages, nil, nil
 }
 
 func (c *Client) listRESTIntegrations(
@@ -115,6 +132,12 @@ func (c *Client) listRESTIntegrations(
 		if isThrottleError(err) {
 			return nil, []awscloud.WarningObservation{c.restResourcesThrottleWarning()}, nil
 		}
+		if isNetworkTimeoutError(err) {
+			return nil, []awscloud.WarningObservation{c.networkTimeoutWarning(
+				"GetResources", apigatewayservice.APIKindREST, "rest_integrations",
+				"REST integration metadata", "apigateway_rest_integrations_timeout",
+			)}, nil
+		}
 		if err != nil {
 			return nil, nil, err
 		}
@@ -131,19 +154,20 @@ func (c *Client) listRESTIntegrations(
 	}
 }
 
-func appendRESTWarningOnce(
+// appendWarningOnce merges per-call degrade warnings into the scan warning
+// set, keeping one observation per (warning kind, error class, operation).
+// Every warning produced in this package carries those three keys, so the
+// throttle behavior is unchanged (one GetResources throttle warning per scan)
+// while each timed-out operation is still recorded exactly once.
+func appendWarningOnce(
 	warnings []awscloud.WarningObservation,
 	candidates ...awscloud.WarningObservation,
 ) []awscloud.WarningObservation {
 	for _, candidate := range candidates {
-		if candidate.WarningKind != awscloud.WarningThrottleSustained {
-			warnings = append(warnings, candidate)
-			continue
-		}
+		key := warningDedupeKey(candidate)
 		seen := false
 		for _, warning := range warnings {
-			if warning.WarningKind == awscloud.WarningThrottleSustained &&
-				warning.ErrorClass == candidate.ErrorClass {
+			if warningDedupeKey(warning) == key {
 				seen = true
 				break
 			}
@@ -153,6 +177,11 @@ func appendRESTWarningOnce(
 		}
 	}
 	return warnings
+}
+
+func warningDedupeKey(warning awscloud.WarningObservation) string {
+	operation, _ := warning.Attributes["operation"].(string)
+	return warning.WarningKind + "\x00" + warning.ErrorClass + "\x00" + operation
 }
 
 func (c *Client) restResourcesThrottleWarning() awscloud.WarningObservation {
@@ -170,8 +199,11 @@ func (c *Client) restResourcesThrottleWarning() awscloud.WarningObservation {
 	}
 }
 
-func (c *Client) listRESTDomains(ctx context.Context) ([]apigatewayservice.DomainName, error) {
+func (c *Client) listRESTDomains(
+	ctx context.Context,
+) ([]apigatewayservice.DomainName, []awscloud.WarningObservation, error) {
 	var domains []apigatewayservice.DomainName
+	var warnings []awscloud.WarningObservation
 	var position *string
 	for {
 		var page *awsapigateway.GetDomainNamesOutput
@@ -183,29 +215,39 @@ func (c *Client) listRESTDomains(ctx context.Context) ([]apigatewayservice.Domai
 			})
 			return err
 		})
+		if isNetworkTimeoutError(err) {
+			return nil, []awscloud.WarningObservation{c.networkTimeoutWarning(
+				"GetDomainNames", apigatewayservice.APIKindREST, "rest_domains",
+				"REST custom-domain inventory", "apigateway_rest_domains_timeout",
+			)}, nil
+		}
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if page == nil {
-			return domains, nil
+			return domains, warnings, nil
 		}
 		for _, item := range page.Items {
 			domain := mapRESTDomain(item)
-			mappings, err := c.listRESTMappings(ctx, domain.Name)
+			mappings, mappingWarnings, err := c.listRESTMappings(ctx, domain.Name)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
+			warnings = appendWarningOnce(warnings, mappingWarnings...)
 			domain.Mappings = mappings
 			domains = append(domains, domain)
 		}
 		position = page.Position
 		if aws.ToString(position) == "" {
-			return domains, nil
+			return domains, warnings, nil
 		}
 	}
 }
 
-func (c *Client) listRESTMappings(ctx context.Context, domainName string) ([]apigatewayservice.Mapping, error) {
+func (c *Client) listRESTMappings(
+	ctx context.Context,
+	domainName string,
+) ([]apigatewayservice.Mapping, []awscloud.WarningObservation, error) {
 	var mappings []apigatewayservice.Mapping
 	var position *string
 	for {
@@ -219,18 +261,24 @@ func (c *Client) listRESTMappings(ctx context.Context, domainName string) ([]api
 			})
 			return err
 		})
+		if isNetworkTimeoutError(err) {
+			return nil, []awscloud.WarningObservation{c.networkTimeoutWarning(
+				"GetBasePathMappings", apigatewayservice.APIKindREST, "rest_mappings",
+				"REST domain-mapping inventory", "apigateway_rest_mappings_timeout",
+			)}, nil
+		}
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if page == nil {
-			return mappings, nil
+			return mappings, nil, nil
 		}
 		for _, item := range page.Items {
 			mappings = append(mappings, mapRESTMapping(domainName, item))
 		}
 		position = page.Position
 		if aws.ToString(position) == "" {
-			return mappings, nil
+			return mappings, nil, nil
 		}
 	}
 }

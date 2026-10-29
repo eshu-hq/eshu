@@ -6,6 +6,7 @@ package awssdk
 import (
 	"context"
 	"errors"
+	"net"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -53,26 +54,51 @@ func NewClient(
 }
 
 // Snapshot returns REST, HTTP, WebSocket, custom-domain, mapping, stage, and
-// integration metadata visible to the configured AWS credentials.
+// integration metadata visible to the configured AWS credentials. A
+// dial-timeout or retry-exhausted transport error on any regional list read
+// degrades that inventory slice to empty with a network-timeout warning
+// instead of failing the whole regional read; authorization and contract
+// errors stay terminal.
 func (c *Client) Snapshot(ctx context.Context) (apigatewayservice.Snapshot, error) {
 	restAPIs, warnings, err := c.listRESTAPIs(ctx)
 	if err != nil {
 		return apigatewayservice.Snapshot{}, err
 	}
-	v2APIs, err := c.listV2APIs(ctx)
+	v2APIs, v2Warnings, err := c.listV2APIs(ctx)
 	if err != nil {
 		return apigatewayservice.Snapshot{}, err
 	}
-	restDomains, err := c.listRESTDomains(ctx)
+	warnings = appendWarningOnce(warnings, v2Warnings...)
+	restDomains, restDomainWarnings, err := c.listRESTDomains(ctx)
 	if err != nil {
 		return apigatewayservice.Snapshot{}, err
 	}
-	v2Domains, err := c.listV2Domains(ctx)
+	warnings = appendWarningOnce(warnings, restDomainWarnings...)
+	v2Domains, v2DomainWarnings, err := c.listV2Domains(ctx)
 	if err != nil {
 		return apigatewayservice.Snapshot{}, err
 	}
+	warnings = appendWarningOnce(warnings, v2DomainWarnings...)
 	domains := append(restDomains, v2Domains...)
 	return apigatewayservice.Snapshot{Warnings: warnings, RESTAPIs: restAPIs, V2APIs: v2APIs, Domains: domains}, nil
+}
+
+// networkTimeoutWarning builds the degrade-with-warning observation for one
+// timed-out control-plane read. The message stays static so endpoint
+// addresses from the transport error never reach persisted facts.
+func (c *Client) networkTimeoutWarning(operation, apiKind, partialComponent, omitted, sourceRecordID string) awscloud.WarningObservation {
+	return awscloud.WarningObservation{
+		Boundary:    c.boundary,
+		WarningKind: awscloud.WarningNetworkTimeout,
+		ErrorClass:  "network_timeout",
+		Message:     "API Gateway " + operation + " timed out after SDK retries; " + omitted + " omitted for this scan",
+		Attributes: map[string]any{
+			"api_kind":          apiKind,
+			"operation":         operation,
+			"partial_component": partialComponent,
+		},
+		SourceRecordID: sourceRecordID,
+	}
 }
 
 func (c *Client) recordAPICall(ctx context.Context, operation string, call func(context.Context) error) error {
@@ -132,4 +158,28 @@ func isThrottleError(err error) bool {
 		code == "requestlimitexceeded" ||
 		code == "toomanyrequestsexception" ||
 		code == "slowdown"
+}
+
+// isNetworkTimeoutError reports whether err evidences a control-plane dial
+// timeout or a retry-exhausted transport timeout (issue #9535): a deadline
+// the SDK did not get to answer, a transport error whose Timeout reports
+// true, or the flattened SDK message carrying dial/i-o timeout phrasing.
+// Authorization, throttle, validation, and other contract errors never match:
+// none carries a deadline, a transport timeout, or timeout phrasing.
+func isNetworkTimeoutError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return true
+	}
+	message := strings.ToLower(err.Error())
+	if strings.Contains(message, "i/o timeout") {
+		return true
+	}
+	return strings.Contains(message, "dial") && strings.Contains(message, "timeout")
 }

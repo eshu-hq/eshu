@@ -54,6 +54,32 @@ throttle counters, `SpanAWSServicePaginationPage` span, and API-call event log
 cover API Gateway REST and v2 pagination. `GetResources` throttling also
 produces an API Gateway throttle warning so `aws_scan_status` can expose the
 claim as partial/throttled without leaking resource identifiers into labels.
+Dial timeouts and retry-exhausted transport errors on any regional list read
+produce an API Gateway network-timeout warning (`warning_kind=
+network_timeout`, `error_class=network_timeout`) with the timed-out operation
+in attributes and a static message, so endpoint addresses never reach facts.
+
+No-Regression Evidence (#9535): baseline `go test
+./internal/collector/awscloud/service/apigateway/... -count=1` fails 13
+timeout subtests terminal with `dial tcp: i/o timeout`; after this change the
+same suite passes with those subtests asserting an empty inventory slice plus
+exactly one warning, and 4 subtests asserting access-denied, validation, and
+connection-refused errors stay terminal with zero warnings. Backend: unit
+fixtures only (fake SDK clients injecting a dial `net.OpError`, a flattened
+retry-exhausted message, and `context.DeadlineExceeded`); no live AWS call.
+Input shape: one REST API, one v2 API, and one domain per list path. Counts: a
+timed-out slice returns zero records plus one warning observation while every
+other slice keeps its records. Telemetry is unchanged: `recordAPICall` still
+records `result=error` per timed-out call and the throttle counter is
+untouched. The classifier only matches a deadline, a transport `Timeout()`, or
+dial and i-o timeout phrasing, so no authorization or contract error can take
+the degrade path.
+
+Observability Evidence (#9535): each timed-out read emits one `aws_warning`
+fact (`warning_kind=network_timeout`, `error_class=network_timeout`, the
+operation in attributes, static message) through the existing `appendWarnings`
+path, so `aws_scan_status` exposes the partial scan. No new metrics, spans, or
+log lines were added.
 
 ## Gotchas / invariants
 
