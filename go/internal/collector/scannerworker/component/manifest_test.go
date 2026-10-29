@@ -165,6 +165,27 @@ func TestManifestArtifactPinsPublishTimeDigestContract(t *testing.T) {
 	}
 }
 
+// TestManifestForFailsClosedWithoutPinnedDigest pins the fail-closed
+// lookup: an analyzer whose component id has no published digest pin must
+// error, never emit an unpinned artifact. It is deliberately sequential:
+// it mutates artifactDigests, and parallel tests resume only after the
+// sequential tests finish, so no concurrent map access can occur.
+func TestManifestForFailsClosedWithoutPinnedDigest(t *testing.T) {
+	digest, ok := artifactDigests[IDSBOM]
+	if !ok {
+		t.Fatalf("artifactDigests[%q] missing, want the published pin present", IDSBOM)
+	}
+	delete(artifactDigests, IDSBOM)
+	defer func() { artifactDigests[IDSBOM] = digest }()
+	_, err := ManifestFor(scannerworker.AnalyzerSBOMGeneration)
+	if err == nil {
+		t.Fatalf("ManifestFor(sbom) with no pinned digest = nil error, want fail-closed")
+	}
+	if !strings.Contains(err.Error(), "no published image digest pinned") {
+		t.Fatalf("ManifestFor(sbom) error = %q, want the fail-closed digest error", err)
+	}
+}
+
 // TestRequiredGrantsAreLive pins that the required grant set stays usable:
 // every grant expires in the future with renewal margin, so fixtures do
 // not rot into fail-closed expiry denials. Production lifetimes come from
