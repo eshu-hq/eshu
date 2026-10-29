@@ -62,13 +62,16 @@ in attributes and a static message, so endpoint addresses never reach facts.
 No-Regression Evidence (#9535): baseline `go test
 ./internal/collector/awscloud/service/apigateway/... -count=1` fails 13
 timeout subtests terminal with `dial tcp: i/o timeout`; after this change the
-same suite passes with those subtests asserting an empty inventory slice plus
-exactly one warning, and 4 subtests asserting access-denied, validation, and
-connection-refused errors stay terminal with zero warnings. Backend: unit
+same suite passes with those subtests asserting the items collected so far
+(empty when the timeout hits the first page; page-one items survive a
+mid-pagination timeout) plus exactly one warning, and 4 subtests asserting
+access-denied, validation, and connection-refused errors stay terminal with
+zero warnings. Backend: unit
 fixtures only (fake SDK clients injecting a dial `net.OpError`, a flattened
 retry-exhausted message, and `context.DeadlineExceeded`); no live AWS call.
 Input shape: one REST API, one v2 API, and one domain per list path. Counts: a
-timed-out slice returns zero records plus one warning observation while every
+timed-out slice returns the items collected so far (zero records when the
+timeout hits the first page) plus one warning observation while every
 other slice keeps its records. Telemetry is unchanged: `recordAPICall` still
 records `result=error` per timed-out call and the throttle counter is
 untouched. The classifier only matches a deadline, a transport `Timeout()`, or

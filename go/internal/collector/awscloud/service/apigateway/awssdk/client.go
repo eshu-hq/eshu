@@ -56,7 +56,8 @@ func NewClient(
 // Snapshot returns REST, HTTP, WebSocket, custom-domain, mapping, stage, and
 // integration metadata visible to the configured AWS credentials. A
 // dial-timeout or retry-exhausted transport error on any regional list read
-// degrades that inventory slice to empty with a network-timeout warning
+// degrades that inventory slice to the items collected so far (empty when the
+// timeout hits the first page) with exactly one network-timeout warning
 // instead of failing the whole regional read; authorization and contract
 // errors stay terminal.
 func (c *Client) Snapshot(ctx context.Context) (apigatewayservice.Snapshot, error) {
