@@ -32,7 +32,13 @@
 #      the fallback can resolve a citation to a script the author never
 #      meant. Precision over recall, on purpose; full-path citations do not
 #      have this ambiguity and are the recommended form.
-#   3. A citation that resolves nowhere is DEAD.
+#   3. A citation that resolves nowhere is DEAD — with one conditional
+#      second chance: a citation under `ESHU_DEPLOY_CHECKOUT/` (scripts that
+#      moved to the eshu-deploy checkout under #8871) is checked against
+#      `$ESHU_DEPLOY_CHECKOUT` when that variable is set (#9497). A target
+#      present in the checkout resolves; a missing one fails the gate even
+#      though it sits in the baseline. Without a checkout the baseline stays
+#      the advisory fallback and the citation passes.
 #
 # Exclusions:
 #   - a candidate containing <, >, *, or the ellipsis character (…) is
@@ -206,6 +212,44 @@ cmd_update() {
   log "baseline updated: ${n} dead reference(s) at ${baseline_path}"
 }
 
+# check_external_refs resolves the DEAD citations that live outside this
+# repo (`ESHU_DEPLOY_CHECKOUT/...`, scripts that moved to the eshu-deploy
+# checkout under #8871) against the checkout when ESHU_DEPLOY_CHECKOUT is
+# set (#9497). A target present in the checkout is fine; a missing one fails
+# the gate even though the baseline exempts it. Without a checkout the
+# baseline stays the advisory fallback (pass). A set-but-absent checkout
+# fails closed, matching the twin-pin helpers
+# (scripts/verify-hosted-governance-proof.sh). Reads dead.txt, which
+# cmd_check already populated; the `..` and leading-`/` guards from the
+# scan still apply because only scanned citations reach that file.
+check_external_refs() {
+  [ -n "${ESHU_DEPLOY_CHECKOUT:-}" ] || return 0
+  if [[ ! -d "${ESHU_DEPLOY_CHECKOUT}" ]]; then
+    log "ESHU_DEPLOY_CHECKOUT is set but not a directory: ${ESHU_DEPLOY_CHECKOUT}"
+    return 1
+  fi
+  local missing_count=0
+  local rel path target
+  while IFS=' ' read -r rel path; do
+    [ -z "${rel}" ] && continue
+    case "${path}" in
+      ESHU_DEPLOY_CHECKOUT/*) ;;
+      *) continue ;;
+    esac
+    target="${path#ESHU_DEPLOY_CHECKOUT/}"
+    if [[ -f "${ESHU_DEPLOY_CHECKOUT}/${target}" ]]; then
+      continue
+    fi
+    log "${rel} cites missing external script ${path} (absent from ESHU_DEPLOY_CHECKOUT=${ESHU_DEPLOY_CHECKOUT})"
+    missing_count=$((missing_count + 1))
+  done <"${tmp_dir}/dead.txt"
+  if [[ "${missing_count}" -gt 0 ]]; then
+    log "${missing_count} external script reference(s) missing from the deploy checkout"
+    return 1
+  fi
+  return 0
+}
+
 cmd_check() {
   validate_baseline "${baseline_path}" || exit 1
 
@@ -225,10 +269,17 @@ cmd_check() {
     return 1
   fi
 
-  local citation_count dead_count
+  check_external_refs || return 1
+
+  local citation_count dead_count external_count
   citation_count="$(awk 'NF' "${tmp_dir}/citations.txt" | wc -l | tr -d ' ')"
   dead_count="$(awk 'NF' "${tmp_dir}/dead.txt" | wc -l | tr -d ' ')"
-  log "OK: ${citation_count} script citation(s) checked, ${dead_count} baselined dead reference(s)"
+  external_count="$(awk '$2 ~ /^ESHU_DEPLOY_CHECKOUT\// { c++ } END { print c+0 }' "${tmp_dir}/dead.txt")"
+  if [ -n "${ESHU_DEPLOY_CHECKOUT:-}" ]; then
+    log "OK: ${citation_count} script citation(s) checked, ${dead_count} baselined dead reference(s), ${external_count} external reference(s) resolved against ESHU_DEPLOY_CHECKOUT"
+  else
+    log "OK: ${citation_count} script citation(s) checked, ${dead_count} baselined dead reference(s)"
+  fi
   return 0
 }
 

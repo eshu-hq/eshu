@@ -4,13 +4,14 @@
 # the gate that fails a docs page citing a scripts/*.sh|*.py|*.awk path that
 # does not exist in the repo (#5125 workstream 3, deliverable A).
 #
-# Cases 1-5 and 8 build a scratch repo_root under mktemp and point the
-# verifier at it via ESHU_DOCS_REFS_REPO_ROOT (docs_root + existence-check
-# root) and, for case 7, ESHU_DOCS_REFS_BASELINE_PATH (baseline read/write
-# location only) so a real-tree regeneration never touches the committed
-# baseline file. Cases 6-7 run against the actual repo tree to prove the
-# committed scripts/docs-refs-baseline.txt is both sufficient (case 6) and
-# not stale (case 7).
+# Cases 1-5, 8, and 10 build a scratch repo_root under mktemp and point
+# the verifier at it via ESHU_DOCS_REFS_REPO_ROOT (docs_root +
+# existence-check root) and, for case 7, ESHU_DOCS_REFS_BASELINE_PATH
+# (baseline read/write location only) so a real-tree regeneration never
+# touches the committed baseline file. Cases 6-7 run against the actual repo
+# tree to prove the committed scripts/docs-refs-baseline.txt is both
+# sufficient (case 6) and not stale (case 7). Case 10 drives the deploy
+# checkout through ESHU_DEPLOY_CHECKOUT (#9497).
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -290,6 +291,70 @@ test_fails_closed_on_bad_baseline() {
   fi
 }
 
+# Case 10: baselined ESHU_DEPLOY_CHECKOUT/... refs resolve against the
+# deploy checkout when it is set (#9497). A target present in the checkout
+# passes; a planted missing target fails with the checkout set (RED) and
+# passes advisory without it (GREEN); a set-but-absent checkout fails
+# closed, matching the twin-pin helpers.
+test_external_refs_checked_against_deploy_checkout() {
+  local root="${tmp_root}/case10"
+  local out="${tmp_root}/case10.out"
+  write_doc "${root}" "operate/example.md" \
+    '# Example' \
+    '' \
+    'Run `"$ESHU_DEPLOY_CHECKOUT/scripts/proof-external.sh"`.'
+  mkdir -p "${root}/scripts"
+  printf '# baseline\noperate/example.md ESHU_DEPLOY_CHECKOUT/scripts/proof-external.sh\n' \
+    >"${root}/scripts/docs-refs-baseline.txt"
+
+  # GREEN without a checkout: the baseline stays the advisory fallback.
+  if env -u ESHU_DEPLOY_CHECKOUT ESHU_DOCS_REFS_REPO_ROOT="${root}" \
+    "${BASH:-bash}" "${verifier}" >"${out}" 2>&1; then
+    assert_contains "verify-docs-refs: OK" "${out}" \
+      "case10: external ref advisory-passes without a checkout"
+  else
+    record_fail "case10: external ref advisory-passes without a checkout (verifier exited non-zero)"
+    cat "${out}" >&2
+  fi
+
+  # GREEN with a checkout that contains the target.
+  local checkout="${tmp_root}/case10-checkout"
+  mkdir -p "${checkout}/scripts"
+  printf '#!/usr/bin/env bash\ntrue\n' >"${checkout}/scripts/proof-external.sh"
+  if ESHU_DOCS_REFS_REPO_ROOT="${root}" ESHU_DEPLOY_CHECKOUT="${checkout}" \
+    "${BASH:-bash}" "${verifier}" >"${out}" 2>&1; then
+    assert_contains "verify-docs-refs: OK" "${out}" \
+      "case10: external ref present in the checkout passes"
+  else
+    record_fail "case10: external ref present in the checkout passes (verifier exited non-zero)"
+    cat "${out}" >&2
+  fi
+
+  # RED with a checkout missing the target (planted violation).
+  rm "${checkout}/scripts/proof-external.sh"
+  if ESHU_DOCS_REFS_REPO_ROOT="${root}" ESHU_DEPLOY_CHECKOUT="${checkout}" \
+    "${BASH:-bash}" "${verifier}" >"${out}" 2>&1; then
+    record_fail "case10: external ref missing from the checkout fails (verifier exited zero)"
+    cat "${out}" >&2
+  else
+    record_pass "case10: external ref missing from the checkout fails"
+  fi
+  assert_contains "proof-external.sh" "${out}" \
+    "case10: failure names the missing external target"
+
+  # Fail closed when the checkout path itself is absent.
+  if ESHU_DOCS_REFS_REPO_ROOT="${root}" \
+    ESHU_DEPLOY_CHECKOUT="${tmp_root}/case10-no-such-checkout" \
+    "${BASH:-bash}" "${verifier}" >"${out}" 2>&1; then
+    record_fail "case10: absent checkout dir fails closed (verifier exited zero)"
+    cat "${out}" >&2
+  else
+    record_pass "case10: absent checkout dir fails closed"
+  fi
+  assert_contains "ESHU_DEPLOY_CHECKOUT" "${out}" \
+    "case10: absent-checkout failure names the variable"
+}
+
 test_existing_citation_passes
 test_missing_citation_fails
 test_baselined_missing_citation_passes
@@ -299,6 +364,7 @@ test_real_tree_passes_with_committed_baseline
 test_real_baseline_matches_fresh_regeneration
 test_fails_closed_on_bad_baseline
 test_resolution_semantics
+test_external_refs_checked_against_deploy_checkout
 
 if [[ "${FAIL}" -ne 0 ]]; then
   printf 'test-verify-docs-refs FAILED: %d/%d\n' "${FAIL}" "$((PASS + FAIL))" >&2
