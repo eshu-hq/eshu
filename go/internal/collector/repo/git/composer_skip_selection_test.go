@@ -8,10 +8,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	gitruntime "github.com/eshu-hq/eshu/go/internal/collector/repo/git/runtime/declaration"
 	runtimedeclaration "github.com/eshu-hq/eshu/go/internal/collector/repo/runtime/declaration"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
 // TestComposerUnavailableSkipSelection drives the native parse, fact stream,
@@ -79,5 +82,16 @@ func TestComposerUnavailableSkipSelection(t *testing.T) {
 				t.Fatalf("unchanged deterministic skip selected %d, reprojected %d; want skip parse", len(synced.SelectedRepoPaths), len(w.resolver.reprojected))
 			}
 		})
+	}
+}
+
+func TestComposerDependencyMissDoesNotDropIdentity(t *testing.T) {
+	snapshot := &RepositorySnapshot{ComposerRuntimeExpected: true}
+	candidates := make(map[string]gitruntime.Candidate)
+	var dropped atomic.Bool
+	paths := &scope.StreamDroppedPaths{}
+	noteComposerOrRuntimeCandidate(snapshot, candidates, "vendor/package/composer.json", `{`, &dropped, paths)
+	if dropped.Load() || len(candidates) != 0 || len(paths.Sorted()) != 0 {
+		t.Fatalf("dependency manifest caused retry or candidate: dropped=%v candidates=%v paths=%v", dropped.Load(), candidates, paths.Sorted())
 	}
 }
