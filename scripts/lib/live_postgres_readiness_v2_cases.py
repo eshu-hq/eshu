@@ -120,7 +120,8 @@ class V2ModelTest(unittest.TestCase):
             "default_package_repeat_seconds": 300.0,
             "package_first_seconds": {"./p2": 2.0},
             "package_repeat_seconds": {"./p2": 250.0},
-            "test_seconds": {run: 350.0 for run in runs}})
+            # A lone row (300 + 300 s) fits the 608 s budget; a pair does not.
+            "test_seconds": {run: 300.0 for run in runs}})
         scorer = v2.Scorer(runs, model)
         for low in range(len(runs)):
             for high in range(low + 1, len(runs) + 1):
