@@ -183,40 +183,6 @@ func (b *runtimeStatusBuilder) addAWSScans(rows []cloud.AWSScanStatus) {
 	}
 }
 
-func (b *runtimeStatusBuilder) addVulnerabilitySources(rows []VulnerabilitySourceState) {
-	type aggregate struct {
-		count     int
-		health    string
-		updatedAt time.Time
-	}
-	aggregates := map[string]aggregate{}
-	for _, row := range rows {
-		instanceID := strings.TrimSpace(row.CollectorInstanceID)
-		if instanceID == "" {
-			continue
-		}
-		current := aggregates[instanceID]
-		current.count++
-		current.health = combineRuntimeHealth(current.health, vulnerabilitySourceHealth(row))
-		if row.UpdatedAt.After(current.updatedAt) {
-			current.updatedAt = row.UpdatedAt
-		}
-		aggregates[instanceID] = current
-	}
-	for instanceID, aggregate := range aggregates {
-		b.add(directEvidenceRuntimeStatus(
-			instanceID,
-			"vulnerability_intelligence",
-			"vulnerability_source_state",
-			nil,
-			aggregate.count,
-			aggregate.health,
-			time.Time{},
-			aggregate.updatedAt,
-		))
-	}
-}
-
 func (b *runtimeStatusBuilder) addFactEvidence(rows []FactEvidence) {
 	for _, row := range rows {
 		instanceID := strings.TrimSpace(row.InstanceID)
@@ -390,19 +356,6 @@ func awsCloudScanDetail(row cloud.AWSScanStatus) string {
 	return strings.Join(parts, " ")
 }
 
-func vulnerabilitySourceHealth(row VulnerabilitySourceState) string {
-	switch strings.TrimSpace(row.TerminalStatus) {
-	case "failed", "failed_terminal", "failed_retryable":
-		return "degraded"
-	case "partial":
-		return "partial"
-	case "succeeded", "completed":
-		return "observed"
-	default:
-		return "unknown"
-	}
-}
-
 func combineRuntimeHealth(current string, next string) string {
 	if runtimeHealthRank(next) > runtimeHealthRank(current) {
 		return next
@@ -410,9 +363,16 @@ func combineRuntimeHealth(current string, next string) string {
 	return current
 }
 
+// runtimeHealthRank orders health values; combining rows keeps the highest.
+// stale ranks above partial and below degraded so the rank stays monotone with
+// the promotion severity that derivePromotionState maps each value to
+// (failed above stale above partial): combining rows never lowers the
+// instance's promotion severity (#9477).
 func runtimeHealthRank(value string) int {
 	switch value {
 	case "degraded":
+		return 5
+	case "stale":
 		return 4
 	case "partial":
 		return 3

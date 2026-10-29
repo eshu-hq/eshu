@@ -297,6 +297,11 @@ func derivePromotionState(
 		// An operator acknowledged the failure (#8830). It is still happening,
 		// so the proof is partial with the failure named, never implemented.
 		return PromotionPartial, []string{acknowledgedFailureDetail(row.AcknowledgedFailure.FailureClass, row.AcknowledgedFailure.FailureOperation)}
+	case row.Health == "stale":
+		// An aged-out vulnerability source (#9477): the run completed, but its
+		// last success is outside the source freshness window. It reads stale,
+		// like old evidence, so the operator is told to re-run the collector.
+		return PromotionStale, []string{staleSourceBlocker}
 	case row.Health == "partial":
 		return PromotionPartial, []string{"runtime health partial: some work did not complete"}
 	case isGated(entry, row, claimState):
@@ -376,6 +381,10 @@ func evidenceIsStale(row RuntimeStatus, staleAfter time.Duration, asOf time.Time
 	}
 	return newest.Before(asOf.Add(-staleAfter))
 }
+
+// staleSourceBlocker is the promotion blocker for stale runtime health: a
+// vulnerability source whose last success is outside its freshness window.
+const staleSourceBlocker = "vulnerability source stale: last success outside the source freshness window"
 
 func degradedBlocker(row RuntimeStatus) string {
 	if detail := row.Detail; detail != "" {
