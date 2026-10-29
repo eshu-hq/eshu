@@ -1,9 +1,10 @@
-# AWS activation key wiring: backup evidence
+# AWS activation key wiring: historical backup evidence
 
-The owner ordered a push of the current work in progress as a backup, without a
-PR. The dedicated activation ServiceAccount test at `d994e48dc8a1` is expected
-to fail until the chart supports that configuration. This branch is not ready
-for merge or deployment.
+The owner ordered a push of work in progress at backup commit `d994e48dc8a1`,
+without a PR. At that commit, the dedicated activation ServiceAccount test
+failed because the chart did not support that configuration. This note records
+only the backup state; it does not assess later implementation commits. The
+backup commit was not ready for merge or deployment.
 
 No-Regression Evidence: The active, nonblank, non-comment lines of
 `deploy/helm/eshu/values.yaml` are identical at baseline

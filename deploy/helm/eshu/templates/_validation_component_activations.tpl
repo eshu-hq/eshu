@@ -108,20 +108,21 @@ secret. Credentials belong only in an activation's extraEnv secretKeyRef.
 {{- fail (printf "%s.serviceAccount must be an object" $at) -}}
 {{- end -}}
 {{- $accountName := toString (default "" $account.name) -}}
+{{- $resolvedAccountName := include "eshu.componentActivationServiceAccountName" (dict "root" $root "activation" $activation) -}}
 {{- if and $accountName (or (gt (len $accountName) 63) (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" $accountName))) -}}
 {{- fail (printf "%s.serviceAccount.name must be a DNS label of at most 63 characters" $at) -}}
 {{- end -}}
 {{- if and (not $account.create) $account.annotations -}}
 {{- fail (printf "%s.serviceAccount.annotations require create=true; annotations on an existing ServiceAccount are ignored" $at) -}}
 {{- end -}}
-{{- if and $account.create (eq $accountName (include "eshu.serviceAccountName" $root)) -}}
+{{- if and $account.create (eq $resolvedAccountName (include "eshu.serviceAccountName" $root)) -}}
 {{- fail (printf "%s.serviceAccount.name must not collide with the shared Eshu ServiceAccount" $at) -}}
 {{- end -}}
 {{- if eq $componentId "dev.eshu.collector.aws" -}}
 {{- if not (or $account.create $accountName) -}}
 {{- fail (printf "%s.serviceAccount must create or name a dedicated AWS activation ServiceAccount" $at) -}}
 {{- end -}}
-{{- if or (eq $accountName "default") (eq $accountName (include "eshu.serviceAccountName" $root)) -}}
+{{- if or (eq $resolvedAccountName "default") (eq $resolvedAccountName (include "eshu.serviceAccountName" $root)) -}}
 {{- fail (printf "%s.serviceAccount.name must not use the shared or default ServiceAccount for AWS permissions" $at) -}}
 {{- end -}}
 {{- end -}}
@@ -201,14 +202,25 @@ secret. Credentials belong only in an activation's extraEnv secretKeyRef.
 {{- if and $root.Values.awsCloudCollector.redaction.secretName (not $root.Values.awsCloudCollector.redaction.keyKey) -}}
 {{- fail (printf "%s requires awsCloudCollector.redaction.keyKey when secretName is set" $at) -}}
 {{- end -}}
-{{- $services := default (list) $config.allowed_services -}}
-{{- if and (not $services) (kindIs "map" $source) -}}
-{{- $services = default (list) $source.allowed_services -}}
-{{- if not $services -}}
-{{- $services = default (list) $source.services -}}
+{{- $services := list -}}
+{{- $foundServices := false -}}
+{{- if and (hasKey $config "allowed_services") (not (kindIs "invalid" $config.allowed_services)) -}}
+{{- $services = $config.allowed_services -}}
+{{- $foundServices = true -}}
+{{- else if and (hasKey $config "services") (not (kindIs "invalid" $config.services)) -}}
+{{- $services = $config.services -}}
+{{- $foundServices = true -}}
+{{- end -}}
+{{- if and (not $foundServices) (kindIs "map" $source) -}}
+{{- if and (hasKey $source "allowed_services") (not (kindIs "invalid" $source.allowed_services)) -}}
+{{- $services = $source.allowed_services -}}
+{{- $foundServices = true -}}
+{{- else if and (hasKey $source "services") (not (kindIs "invalid" $source.services)) -}}
+{{- $services = $source.services -}}
+{{- $foundServices = true -}}
 {{- end -}}
 {{- end -}}
-{{- if not $services -}}
+{{- if not $foundServices -}}
 {{- $scopes := default (list) $config.target_scopes -}}
 {{- if and (not $scopes) (kindIs "map" $source) -}}
 {{- $scopes = default (list) $source.target_scopes -}}
@@ -216,9 +228,10 @@ secret. Credentials belong only in an activation's extraEnv secretKeyRef.
 {{- if and (kindIs "slice" $scopes) (eq (len $scopes) 1) -}}
 {{- $scope := index $scopes 0 -}}
 {{- if kindIs "map" $scope -}}
-{{- $services = default (list) $scope.allowed_services -}}
-{{- if not $services -}}
-{{- $services = default (list) $scope.services -}}
+{{- if and (hasKey $scope "allowed_services") (not (kindIs "invalid" $scope.allowed_services)) -}}
+{{- $services = $scope.allowed_services -}}
+{{- else if and (hasKey $scope "services") (not (kindIs "invalid" $scope.services)) -}}
+{{- $services = $scope.services -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}

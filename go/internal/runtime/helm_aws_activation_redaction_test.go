@@ -121,6 +121,15 @@ func TestHelmAWSActivationRejectsSharedServiceAccount(t *testing.T) {
 	}
 }
 
+func TestHelmAWSActivationRejectsResolvedSharedServiceAccount(t *testing.T) {
+	values := "serviceAccount:\n  create: true\n  name: eshu-cx-aws-live\n" +
+		awsActivationValues(awsRedactionActivation, "awsCloudCollector:\n  redaction:\n    secretName: aws-redaction\n")
+	output := renderHelmChartFailure(t, "-f", writeComponentActivationValues(t, values))
+	if !strings.Contains(output, "shared Eshu ServiceAccount") {
+		t.Fatalf("helm error %q does not reject resolved shared service account", output)
+	}
+}
+
 // TestHelmAWSActivationSensitiveLiveServicesNeedKey refuses a worker that
 // would reach Lambda or ECS without its configured redaction Secret.
 func TestHelmAWSActivationSensitiveLiveServicesNeedKey(t *testing.T) {
@@ -130,6 +139,9 @@ func TestHelmAWSActivationSensitiveLiveServicesNeedKey(t *testing.T) {
 	sourceServices := strings.Replace(awsRedactionActivation,
 		"        allowed_services: [lambda, ecs]\n        source:\n",
 		"        source:\n          services: [\" ECS \"]\n", 1)
+	topLevelAlias := strings.Replace(awsRedactionActivation,
+		"        allowed_services: [lambda, ecs]\n",
+		"        services: [\" Lambda \"]\n", 1)
 	spaceInput := strings.Replace(awsRedactionActivation,
 		"        source:\n          redactionKeyEnv:",
 		"        source:\n          input: \"   \"\n          redactionKeyEnv:", 1)
@@ -139,6 +151,7 @@ func TestHelmAWSActivationSensitiveLiveServicesNeedKey(t *testing.T) {
 		{"no Secret", awsRedactionActivation, "", "awsCloudCollector.redaction.secretName"},
 		{"nested target scope and normalized services", nestedScope, "", "awsCloudCollector.redaction.secretName"},
 		{"source service fallback", sourceServices, "", "awsCloudCollector.redaction.secretName"},
+		{"top-level services alias", topLevelAlias, "", "awsCloudCollector.redaction.secretName"},
 		{"whitespace input is live", spaceInput, "", "awsCloudCollector.redaction.secretName"},
 		{"no key name", awsRedactionActivation, "awsCloudCollector:\n  redaction:\n    secretName: aws-redaction\n    keyKey: \"\"\n", "awsCloudCollector.redaction.keyKey"},
 		{"no env reference", strings.Replace(awsRedactionActivation, "          redactionKeyEnv: ESHU_AWS_REDACTION_KEY\n", "", 1), "awsCloudCollector:\n  redaction:\n    secretName: aws-redaction\n", "source.redactionKeyEnv"},
