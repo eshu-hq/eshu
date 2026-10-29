@@ -187,6 +187,9 @@ func (s ClaimedSource) observeScanStatus(
 	} else if factStats.Throttled {
 		statusValue = awscloud.ScanStatusPartial
 		failureClass = "throttled"
+	} else if factStats.NetworkTimeout {
+		statusValue = awscloud.ScanStatusPartial
+		failureClass = "network_timeout"
 	} else if factStats.OrgAccessSkipped {
 		statusValue = awscloud.ScanStatusPartial
 		failureClass = "org_access_skipped"
@@ -244,6 +247,7 @@ type awsEnvelopeStats struct {
 	BudgetExhausted     bool
 	CredentialFailed    bool
 	Throttled           bool
+	NetworkTimeout      bool
 	OrgAccessSkipped    bool
 	OrgAccessSkipReason string
 }
@@ -268,6 +272,8 @@ func awsFactStats(envelopes []facts.Envelope) awsEnvelopeStats {
 				stats.CredentialFailed = true
 			case awscloud.WarningThrottleSustained:
 				stats.Throttled = true
+			case awscloud.WarningNetworkTimeout:
+				stats.NetworkTimeout = true
 			case awscloud.WarningOrganizationsOrgAccessSkipped:
 				stats.OrgAccessSkipped = true
 				stats.OrgAccessSkipReason = warningSkipReason(envelope)

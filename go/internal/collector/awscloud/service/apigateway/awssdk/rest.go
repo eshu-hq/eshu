@@ -38,11 +38,12 @@ func (c *Client) listRESTAPIs(
 			})
 			return err
 		})
-		if isNetworkTimeoutError(err) {
-			return nil, []awscloud.WarningObservation{c.networkTimeoutWarning(
+		if isNetworkTimeoutError(ctx, err) {
+			warnings = appendWarningOnce(warnings, c.networkTimeoutWarning(
 				"GetRestApis", apigatewayservice.APIKindREST, "rest_apis",
 				"REST API inventory", "apigateway_rest_apis_timeout",
-			)}, nil
+			))
+			return apis, warnings, nil
 		}
 		if err != nil {
 			return nil, nil, err
@@ -95,7 +96,7 @@ func (c *Client) listRESTStages(
 		page, err = c.rest.GetStages(callCtx, &awsapigateway.GetStagesInput{RestApiId: aws.String(apiID)})
 		return err
 	})
-	if isNetworkTimeoutError(err) {
+	if isNetworkTimeoutError(ctx, err) {
 		return nil, []awscloud.WarningObservation{c.networkTimeoutWarning(
 			"GetStages", apigatewayservice.APIKindREST, "rest_stages",
 			"REST stage inventory", "apigateway_rest_stages_timeout",
@@ -132,7 +133,7 @@ func (c *Client) listRESTIntegrations(
 		if isThrottleError(err) {
 			return nil, []awscloud.WarningObservation{c.restResourcesThrottleWarning()}, nil
 		}
-		if isNetworkTimeoutError(err) {
+		if isNetworkTimeoutError(ctx, err) {
 			return nil, []awscloud.WarningObservation{c.networkTimeoutWarning(
 				"GetResources", apigatewayservice.APIKindREST, "rest_integrations",
 				"REST integration metadata", "apigateway_rest_integrations_timeout",
@@ -155,10 +156,12 @@ func (c *Client) listRESTIntegrations(
 }
 
 // appendWarningOnce merges per-call degrade warnings into the scan warning
-// set, keeping one observation per (warning kind, error class, operation).
-// Every warning produced in this package carries those three keys, so the
-// throttle behavior is unchanged (one GetResources throttle warning per scan)
-// while each timed-out operation is still recorded exactly once.
+// set, keeping one observation per (warning kind, error class, operation,
+// api kind, partial component). Every warning produced in this package
+// carries those five keys, so the throttle behavior is unchanged (one
+// GetResources throttle warning per scan) while each timed-out slice keeps
+// exactly one operator-visible warning, including REST and v2 timeouts on
+// the same operation name.
 func appendWarningOnce(
 	warnings []awscloud.WarningObservation,
 	candidates ...awscloud.WarningObservation,
@@ -181,7 +184,9 @@ func appendWarningOnce(
 
 func warningDedupeKey(warning awscloud.WarningObservation) string {
 	operation, _ := warning.Attributes["operation"].(string)
-	return warning.WarningKind + "\x00" + warning.ErrorClass + "\x00" + operation
+	apiKind, _ := warning.Attributes["api_kind"].(string)
+	partialComponent, _ := warning.Attributes["partial_component"].(string)
+	return warning.WarningKind + "\x00" + warning.ErrorClass + "\x00" + operation + "\x00" + apiKind + "\x00" + partialComponent
 }
 
 func (c *Client) restResourcesThrottleWarning() awscloud.WarningObservation {
@@ -215,11 +220,12 @@ func (c *Client) listRESTDomains(
 			})
 			return err
 		})
-		if isNetworkTimeoutError(err) {
-			return nil, []awscloud.WarningObservation{c.networkTimeoutWarning(
+		if isNetworkTimeoutError(ctx, err) {
+			warnings = appendWarningOnce(warnings, c.networkTimeoutWarning(
 				"GetDomainNames", apigatewayservice.APIKindREST, "rest_domains",
 				"REST custom-domain inventory", "apigateway_rest_domains_timeout",
-			)}, nil
+			))
+			return domains, warnings, nil
 		}
 		if err != nil {
 			return nil, nil, err
@@ -261,7 +267,7 @@ func (c *Client) listRESTMappings(
 			})
 			return err
 		})
-		if isNetworkTimeoutError(err) {
+		if isNetworkTimeoutError(ctx, err) {
 			return nil, []awscloud.WarningObservation{c.networkTimeoutWarning(
 				"GetBasePathMappings", apigatewayservice.APIKindREST, "rest_mappings",
 				"REST domain-mapping inventory", "apigateway_rest_mappings_timeout",

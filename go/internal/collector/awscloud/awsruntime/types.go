@@ -31,6 +31,9 @@ const (
 	// WarningThrottleSustained is emitted when a service scan omits optional
 	// metadata after an AWS API stays throttled past the SDK retry budget.
 	WarningThrottleSustained = awscloud.WarningThrottleSustained
+	// WarningNetworkTimeout is emitted when a service scan omits inventory
+	// after a control-plane call times out past the SDK retry budget.
+	WarningNetworkTimeout = awscloud.WarningNetworkTimeout
 	// WarningOrganizationsOrgAccessSkipped is emitted when Organizations
 	// credentials are not management or delegated-admin credentials.
 	WarningOrganizationsOrgAccessSkipped = awscloud.WarningOrganizationsOrgAccessSkipped

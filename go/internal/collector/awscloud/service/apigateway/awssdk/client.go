@@ -160,14 +160,21 @@ func isThrottleError(err error) bool {
 		code == "slowdown"
 }
 
-// isNetworkTimeoutError reports whether err evidences a control-plane dial
-// timeout or a retry-exhausted transport timeout (issue #9535): a deadline
-// the SDK did not get to answer, a transport error whose Timeout reports
-// true, or the flattened SDK message carrying dial/i-o timeout phrasing.
-// Authorization, throttle, validation, and other contract errors never match:
-// none carries a deadline, a transport timeout, or timeout phrasing.
-func isNetworkTimeoutError(err error) bool {
+// isNetworkTimeoutError reports whether err evidences an SDK-internal
+// control-plane dial timeout or retry-exhausted transport timeout (issue
+// #9535): a deadline the SDK did not get to answer while the caller context
+// stays alive, a transport error whose Timeout reports true, or the
+// flattened SDK message carrying dial/i-o timeout phrasing. A done caller
+// context (cancellation or scan-scope deadline) always returns false so
+// caller-scope termination propagates terminal instead of degrading to
+// success with a warning. Authorization, throttle, validation, and other
+// contract errors never match: none carries a deadline, a transport
+// timeout, or timeout phrasing.
+func isNetworkTimeoutError(ctx context.Context, err error) bool {
 	if err == nil {
+		return false
+	}
+	if ctx != nil && ctx.Err() != nil {
 		return false
 	}
 	if errors.Is(err, context.DeadlineExceeded) {

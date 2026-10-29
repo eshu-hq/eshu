@@ -38,11 +38,12 @@ func (c *Client) listV2APIs(
 			})
 			return err
 		})
-		if isNetworkTimeoutError(err) {
-			return nil, []awscloud.WarningObservation{c.networkTimeoutWarning(
+		if isNetworkTimeoutError(ctx, err) {
+			warnings = appendWarningOnce(warnings, c.networkTimeoutWarning(
 				"GetApis", apigatewayservice.APIKindV2, "v2_apis",
 				"HTTP/WebSocket API inventory", "apigateway_v2_apis_timeout",
-			)}, nil
+			))
+			return apis, warnings, nil
 		}
 		if err != nil {
 			return nil, nil, err
@@ -102,7 +103,7 @@ func (c *Client) listV2Stages(
 			})
 			return err
 		})
-		if isNetworkTimeoutError(err) {
+		if isNetworkTimeoutError(ctx, err) {
 			return nil, []awscloud.WarningObservation{c.networkTimeoutWarning(
 				"GetStages", apigatewayservice.APIKindV2, "v2_stages",
 				"HTTP/WebSocket stage inventory", "apigateway_v2_stages_timeout",
@@ -141,7 +142,7 @@ func (c *Client) listV2Integrations(
 			})
 			return err
 		})
-		if isNetworkTimeoutError(err) {
+		if isNetworkTimeoutError(ctx, err) {
 			return nil, []awscloud.WarningObservation{c.networkTimeoutWarning(
 				"GetIntegrations", apigatewayservice.APIKindV2, "v2_integrations",
 				"HTTP/WebSocket integration metadata", "apigateway_v2_integrations_timeout",
@@ -179,11 +180,12 @@ func (c *Client) listV2Domains(
 			})
 			return err
 		})
-		if isNetworkTimeoutError(err) {
-			return nil, []awscloud.WarningObservation{c.networkTimeoutWarning(
+		if isNetworkTimeoutError(ctx, err) {
+			warnings = appendWarningOnce(warnings, c.networkTimeoutWarning(
 				"GetDomainNames", apigatewayservice.APIKindV2, "v2_domains",
 				"HTTP/WebSocket custom-domain inventory", "apigateway_v2_domains_timeout",
-			)}, nil
+			))
+			return domains, warnings, nil
 		}
 		if err != nil {
 			return nil, nil, err
@@ -225,7 +227,7 @@ func (c *Client) listV2Mappings(
 			})
 			return err
 		})
-		if isNetworkTimeoutError(err) {
+		if isNetworkTimeoutError(ctx, err) {
 			return nil, []awscloud.WarningObservation{c.networkTimeoutWarning(
 				"GetApiMappings", apigatewayservice.APIKindV2, "v2_mappings",
 				"HTTP/WebSocket domain-mapping inventory", "apigateway_v2_mappings_timeout",
