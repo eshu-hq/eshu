@@ -7,7 +7,6 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/cli/mcpsetup"
 	"github.com/eshu-hq/eshu/go/internal/urlredact"
 )
 
@@ -26,7 +25,7 @@ const Marker = "redacted"
 // (user:password@), a query parameter with a credential-shaped name, and the
 // fragment. The scheme, host, path, and every other query parameter remain so
 // the operator can still recognize the target. A value that does not parse as a
-// URL is masked through mcpsetup.RedactToken so a credential-looking string
+// URL is masked through RedactToken so a credential-looking string
 // never survives verbatim.
 //
 // Each place was open until measured, and the count in this comment was wrong
@@ -50,7 +49,7 @@ func Endpoint(raw string) string {
 	}
 	parsed, err := url.Parse(trimmed)
 	if err != nil || parsed.Host == "" {
-		return mcpsetup.RedactToken(trimmed)
+		return RedactToken(trimmed)
 	}
 	if parsed.User != nil {
 		parsed.User = url.User(Marker)

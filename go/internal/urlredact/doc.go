@@ -28,7 +28,7 @@
 // inline-content key name in as an ADDITION to the shared predicate, never a
 // replacement, so a caller can widen the name set and can never narrow it.
 // internal/cli/evidredact keeps URL assembly: the userinfo rule, the fragment
-// rule, and the mcpsetup.RedactToken fallback for a value that does not parse as
+// rule, and the evidredact.RedactToken fallback for a value that does not parse as
 // a URL, which would drag a CLI dependency in here for no gain.
 //
 // Agreeing on WHICH bytes bound a pair is only half of it. An HTTP client

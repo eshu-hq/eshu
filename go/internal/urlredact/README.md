@@ -451,5 +451,5 @@ in the depth section.
 
 Assembling a redacted URL is not here either. `evidredact.Endpoint` keeps that:
 it also strips userinfo and the fragment, and falls back to
-`mcpsetup.RedactToken` for a value that does not parse as a URL, which would drag
+`evidredact.RedactToken` for a value that does not parse as a URL, which would drag
 a CLI dependency into this package for no gain.

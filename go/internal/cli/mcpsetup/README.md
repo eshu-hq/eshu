@@ -30,7 +30,8 @@ returns data and errors, never printing anything itself.
 - `AuthPosture`/`PostureToken`/`PostureSSO`/`PostureSharedKey`,
   `PostureProbeResult`, `ResolveAuthPosture`, `HostedPostureProbe` -- the RFC
   9728 discovery probe and posture resolution (auto/sso/token/shared-key)
-- `RedactToken`, `TokenReference` -- display-safe credential handling; neither
+- `RedactToken` (deprecated alias over `evidredact.RedactToken`),
+  `TokenReference` -- display-safe credential handling; neither
   ever returns a raw secret
 - `WriteMCPServerConfig`, `DefaultWriteTarget`, `DescribeWriteTarget` -- the
   `--write` merge path
@@ -54,7 +55,8 @@ See `doc.go` for the full godoc contract.
   reuse `TokenReference`/`RedactToken`/`RenderSetupSnippet` to show the
   credential they actually used), `assistant.go` (reuses the local
   stdio verification seam for `assistant status --verify`), and
-  `first_run_evidence.go` (reuses `RedactToken` for endpoint redaction)
+  `go/internal/cli/firstrun/evidence.go` (redacts via
+  `evidredact.Endpoint`)
 
 ## Telemetry
 
