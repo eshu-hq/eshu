@@ -84,7 +84,7 @@ func TestPagerDutyCollectorBinaryIsBuiltInstalledAndDocumented(t *testing.T) {
 		"Dockerfile":                        "-o /go-bin/eshu-collector-pagerduty ./cmd/collector-pagerduty",
 		"scripts/install-local-binaries.sh": "go build -trimpath -ldflags=\"$LDFLAGS\" -o \"$INSTALL_DIR/eshu-collector-pagerduty\" ./cmd/collector-pagerduty",
 		"go/cmd/README.md":                  "`eshu-collector-pagerduty`",
-		"docs/public/deployment/service-runtimes-collectors.md": "deploy/helm/eshu/templates/deployment-pagerduty-collector.yaml",
+		"docs/public/deployment/service-runtimes-collectors.md": "https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/templates/deployment-pagerduty-collector.yaml",
 		"docs/public/reference/environment-collectors.md":       "ESHU_PAGERDUTY_COLLECTOR_INSTANCE_ID",
 	} {
 		content := readRepositoryFile(t, "../../..", file)
@@ -117,14 +117,14 @@ func TestObservabilityCollectorBinariesAreBuiltInstalledAndDocumented(t *testing
 			commandPath:  "./cmd/collector-grafana",
 			displayName:  "Grafana Collector",
 			envVar:       "ESHU_GRAFANA_COLLECTOR_INSTANCE_ID",
-			templatePath: "deploy/helm/eshu/templates/deployment-grafana-collector.yaml",
+			templatePath: "helm/eshu/templates/deployment-grafana-collector.yaml",
 		},
 		{
 			binary:       "eshu-collector-prometheus-mimir",
 			commandPath:  "./cmd/collector-prometheus-mimir",
 			displayName:  "Prometheus/Mimir Collector",
 			envVar:       "ESHU_PROMETHEUS_MIMIR_COLLECTOR_INSTANCE_ID",
-			templatePath: "deploy/helm/eshu/templates/deployment-prometheus-mimir-collector.yaml",
+			templatePath: "helm/eshu/templates/deployment-prometheus-mimir-collector.yaml",
 		},
 		// Tempo collects from its extracted satellite
 		// (eshu-hq/eshu-collector-tempo) since #9172: no in-tree binary,

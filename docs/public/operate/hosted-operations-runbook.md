@@ -110,14 +110,14 @@ Accept the proof only when:
 
 ### 3. Render Helm Before Cluster Changes
 
-Render the exact values intended for the cluster:
+Render the exact values intended for the cluster (deploy assets live in the eshu-deploy checkout, `$ESHU_DEPLOY_CHECKOUT`):
 
 ```bash
-helm template eshu ./deploy/helm/eshu \
+helm template eshu "$ESHU_DEPLOY_CHECKOUT/helm/eshu" \
   --namespace eshu \
   -f values.eshu.yaml
 
-scripts/verify-hosted-helm-rollout-proof.sh \
+"$ESHU_DEPLOY_CHECKOUT/scripts/verify-hosted-helm-rollout-proof.sh" \
   --out-dir .proof/helm-install \
   --namespace eshu \
   --release eshu \
@@ -136,7 +136,7 @@ upgrade only after Postgres, graph backend, secrets, workspace storage, and
 repository sync rules are ready.
 
 ```bash
-helm upgrade --install eshu ./deploy/helm/eshu \
+helm upgrade --install eshu "$ESHU_DEPLOY_CHECKOUT/helm/eshu" \
   --namespace eshu \
   -f values.eshu.yaml
 ```

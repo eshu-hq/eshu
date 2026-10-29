@@ -177,7 +177,7 @@ func TestGCPCloudCollectorBinaryIsBuiltInstalledAndDocumented(t *testing.T) {
 		"Dockerfile":                        "-o /go-bin/eshu-collector-gcp-cloud ./cmd/collector-gcp-cloud",
 		"scripts/install-local-binaries.sh": "go build -trimpath -ldflags=\"$LDFLAGS\" -o \"$INSTALL_DIR/eshu-collector-gcp-cloud\" ./cmd/collector-gcp-cloud",
 		"go/cmd/README.md":                  "`eshu-collector-gcp-cloud`",
-		"docs/public/deployment/service-runtimes-collectors.md": "deploy/helm/eshu/templates/deployment-gcp-cloud-collector.yaml",
+		"docs/public/deployment/service-runtimes-collectors.md": "https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/templates/deployment-gcp-cloud-collector.yaml",
 		"docs/public/reference/environment-collectors.md":       "ESHU_GCP_COLLECTOR_INSTANCE_ID",
 	} {
 		content := readRepositoryFile(t, "../../..", file)

@@ -98,10 +98,12 @@ Use alerts in this order during incidents:
 Run the focused gate before publishing alert or dashboard changes:
 
 ```bash
-scripts/test-verify-hosted-ops-alert-pack.sh
-scripts/verify-hosted-ops-alert-pack.sh
-helm lint deploy/helm/eshu
+"$ESHU_DEPLOY_CHECKOUT/scripts/test-verify-hosted-ops-alert-pack.sh"
+"$ESHU_DEPLOY_CHECKOUT/scripts/verify-hosted-ops-alert-pack.sh"
+helm lint "$ESHU_DEPLOY_CHECKOUT/helm/eshu"
 ```
+
+Deploy assets live in the eshu-deploy checkout (`$ESHU_DEPLOY_CHECKOUT`).
 
 Docs or navigation edits also require:
 

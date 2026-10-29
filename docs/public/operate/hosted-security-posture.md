@@ -89,10 +89,12 @@ kubectl -n eshu create secret generic eshu-neo4j \
 ```bash
 scripts/test-verify-hosted-governance-proof.sh
 scripts/verify-hosted-governance-proof.sh
-scripts/test-verify-hosted-security-posture.sh
-scripts/verify-hosted-security-posture.sh -f values.eshu.yaml
-helm lint deploy/helm/eshu -f values.eshu.yaml
+"$ESHU_DEPLOY_CHECKOUT/scripts/test-verify-hosted-security-posture.sh"
+"$ESHU_DEPLOY_CHECKOUT/scripts/verify-hosted-security-posture.sh" -f values.eshu.yaml
+helm lint "$ESHU_DEPLOY_CHECKOUT/helm/eshu" -f values.eshu.yaml
 ```
+
+Deploy assets live in the eshu-deploy checkout (`$ESHU_DEPLOY_CHECKOUT`).
 
 Docs or navigation changes also require:
 
