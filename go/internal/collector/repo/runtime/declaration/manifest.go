@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/ghactionsref"
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 )
 
 // Source kinds for the manifest files. Unlike a pin file, one manifest holds
@@ -20,6 +21,10 @@ const (
 	sourceKindPackageJSONEngines = "package_json_engines"
 	sourceKindPackageJSONVolta   = "package_json_volta"
 	sourceKindPackageJSONManager = "package_json_package_manager"
+	sourceKindComposerRequire    = "composer_json_require_php"
+	sourceKindComposerPlatform   = "composer_json_platform_php"
+	sourceKindComposerLock       = "composer_lock_platform_php"
+	sourceKindComposerOverrides  = "composer_lock_platform_overrides_php"
 	sourceKindGoModGo            = "go_mod_go"
 	sourceKindGoModToolchain     = "go_mod_toolchain"
 	sourceKindDockerfileFrom     = "dockerfile_from"
@@ -34,6 +39,10 @@ const (
 	sectionPackageJSONEngines
 	sectionPackageJSONVolta
 	sectionPackageJSONManager
+	sectionComposerRequire
+	sectionComposerPlatform
+	sectionComposerLock
+	sectionComposerOverrides
 	sectionGoModGo
 	sectionGoModToolchain
 	sectionDockerfileFrom
@@ -46,13 +55,17 @@ var sectionSourceKinds = [...]string{
 	sectionPackageJSONEngines: sourceKindPackageJSONEngines,
 	sectionPackageJSONVolta:   sourceKindPackageJSONVolta,
 	sectionPackageJSONManager: sourceKindPackageJSONManager,
+	sectionComposerRequire:    sourceKindComposerRequire,
+	sectionComposerPlatform:   sourceKindComposerPlatform,
+	sectionComposerLock:       sourceKindComposerLock,
+	sectionComposerOverrides:  sourceKindComposerOverrides,
 	sectionGoModGo:            sourceKindGoModGo,
 	sectionGoModToolchain:     sourceKindGoModToolchain,
 	sectionDockerfileFrom:     sourceKindDockerfileFrom,
 	sectionWorkflowSetup:      sourceKindWorkflowSetup,
 }
 
-// MaxManifestBytesPerFile bounds one package.json or go.mod body. A manifest
+// MaxManifestBytesPerFile bounds one package.json, Composer, or go.mod body. A manifest
 // is read for a few fixed keys, and the scan allocates for none of the rest, so
 // the cap bounds time, not memory. Real manifests are a few KiB; a very large
 // monorepo root with thousands of dependencies stays under 256 KiB. A body over
@@ -65,6 +78,8 @@ type manifestKind int
 const (
 	manifestNone manifestKind = iota
 	manifestPackageJSON
+	manifestComposerJSON
+	manifestComposerLock
 	manifestGoMod
 	manifestDockerfile
 	manifestWorkflow
@@ -99,6 +114,10 @@ func manifestKindForBase(base, relativePath string) manifestKind {
 	switch {
 	case base == "package.json":
 		kind = manifestPackageJSON
+	case base == "composer.json":
+		kind = manifestComposerJSON
+	case base == "composer.lock":
+		kind = manifestComposerLock
 	case base == "go.mod":
 		kind = manifestGoMod
 	case isDockerfileName(base):
@@ -157,18 +176,6 @@ func ClassifyPath(relativePath string) FileClass {
 	return FileNotAdmitted
 }
 
-// Value bounds for a manifest declaration. A version or range is short; a
-// longer value, or one holding an opaque token, is not read as a version.
-const (
-	// maxSpecBytes bounds one raw_spec read from a manifest.
-	maxSpecBytes = 128
-	// maxOpaqueRun is the length at which a run of letters, digits and
-	// underscores in a manifest value is treated as opaque. Real specs ("20.11.1", "lts/hydrogen",
-	// "workspace:*", ">=18.17.0-rc.1") stay under it; an API key, a token or a
-	// hash does not.
-	maxOpaqueRun = 16
-)
-
 // safeSpec reports whether raw may be emitted as a manifest raw_spec. The
 // manifests are admitted with the store content policy because the named
 // sections hold only versions, but the key set is the file's, not ours: a
@@ -177,25 +184,4 @@ const (
 // and range grammar, holds no opaque run, and is not a URL. Everything else is
 // dropped and counted, never truncated or masked, because a masked fact would
 // still claim a declaration the file does not make.
-func safeSpec(raw string) bool {
-	if raw == "" || len(raw) > maxSpecBytes || strings.Contains(raw, "://") {
-		return false
-	}
-	run := 0
-	for i := 0; i < len(raw); i++ {
-		c := raw[i]
-		switch {
-		case c >= '0' && c <= '9', c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c == '_':
-			run++
-			if run >= maxOpaqueRun {
-				return false
-			}
-			continue
-		case strings.IndexByte(" .+*^~<>=|,-/:@${}", c) >= 0:
-			run = 0
-		default:
-			return false
-		}
-	}
-	return true
-}
+func safeSpec(raw string) bool { return shared.SafeVersionSpec(raw) }

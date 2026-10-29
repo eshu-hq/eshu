@@ -21,6 +21,8 @@ func TestManifestsAreAdmittedWithTheStorePolicy(t *testing.T) {
 	registry := parser.DefaultRegistry()
 	for path, wantParser := range map[string]string{
 		"package.json":                       "json",
+		"composer.json":                      "json",
+		"composer.lock":                      "json",
 		"packages/web/package.json":          "json",
 		"go.mod":                             "gomod",
 		"services/api/internal/tools/go.mod": "gomod",
@@ -57,7 +59,7 @@ func TestClassifyPathMatchesTheSourceTables(t *testing.T) {
 			t.Errorf("SourceKindForPath(%q) = false", name)
 		}
 	}
-	for _, name := range []string{".npmrc", ".yarnrc.yml", ".pypirc", ".netrc", "mise.toml", "package-lock.json", "go.sum", "go.work", "composer.json"} {
+	for _, name := range []string{".npmrc", ".yarnrc.yml", ".pypirc", ".netrc", "mise.toml", "package-lock.json", "go.sum", "go.work"} {
 		if got := ClassifyPath("a/" + name); got != FileNotAdmitted {
 			t.Errorf("ClassifyPath(%q) = %v, want FileNotAdmitted", name, got)
 		}

@@ -9,6 +9,7 @@ import "path"
 // rust-toolchain and rust-toolchain.toml share a kind.
 const (
 	sourceKindNvmrc            = "nvmrc"
+	sourceKindPHPVersion       = "php_version"
 	sourceKindNodeVersion      = "node_version"
 	sourceKindPythonVersion    = "python_version"
 	sourceKindRubyVersion      = "ruby_version"
@@ -30,6 +31,7 @@ const (
 // nor the test's list of non-pin configuration files.
 var pinFileSourceKinds = map[string]string{
 	".nvmrc":              sourceKindNvmrc,
+	".php-version":        sourceKindPHPVersion,
 	".node-version":       sourceKindNodeVersion,
 	".python-version":     sourceKindPythonVersion,
 	".ruby-version":       sourceKindRubyVersion,

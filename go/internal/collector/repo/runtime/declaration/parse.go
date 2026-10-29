@@ -28,6 +28,7 @@ type declaration struct {
 // fileRuntime is the runtime a single-runtime pin file declares.
 var fileRuntime = map[string]string{
 	sourceKindNvmrc:            "node",
+	sourceKindPHPVersion:       "php",
 	sourceKindNodeVersion:      "node",
 	sourceKindPythonVersion:    "python",
 	sourceKindRubyVersion:      "ruby",

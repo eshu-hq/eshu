@@ -39,6 +39,10 @@ func Extract(relativePath, body string) (Extraction, bool) {
 		return Extraction{}, false
 	case manifestPackageJSON:
 		return extractManifest(body, func() ([]declaration, int, error) { return extractPackageJSON(body) }), true
+	case manifestComposerJSON:
+		return extractManifest(body, func() ([]declaration, int, error) { return extractComposer(body, false) }), true
+	case manifestComposerLock:
+		return extractManifest(body, func() ([]declaration, int, error) { return extractComposer(body, true) }), true
 	case manifestGoMod:
 		return extractManifest(body, func() ([]declaration, int, error) {
 			declarations, rejected := extractGoMod(body)
@@ -66,6 +70,21 @@ func extractPinFile(sourceKind, body string) Extraction {
 		return Extraction{}
 	case total > MaxTokensPerFile:
 		return Extraction{skip: Skip{Reason: SkipReasonTokenCap, ByteSize: len(body), TokenCount: total}}
+	}
+	if sourceKind == sourceKindPHPVersion {
+		kept := declarations[:0]
+		rejected := 0
+		for _, d := range declarations {
+			if !safeSpec(d.rawSpec) {
+				rejected++
+				continue
+			}
+			kept = append(kept, d)
+		}
+		if rejected > 0 {
+			return Extraction{sourceKind: sourceKind, declarations: kept, skip: Skip{Reason: SkipReasonValueRejected, ByteSize: len(body), Rejected: rejected}}
+		}
+		declarations = kept
 	}
 	return Extraction{sourceKind: sourceKind, declarations: declarations}
 }

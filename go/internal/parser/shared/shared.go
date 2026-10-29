@@ -125,10 +125,9 @@ var (
 )
 
 // readSourceHook, when non-nil, observes every physical disk read performed by
-// ReadSource. It exists only so tests can count real os.ReadFile calls without
-// changing ReadSource's signature; production code never sets it. Guarded by
-// readSourceHookMu so -race sees no data race between a test installing the
-// hook and ReadSource invoking it.
+// ReadSource or ReadSourceWithOriginal. It exists only so tests can count real
+// file reads without changing their signatures; production code never sets it.
+// Guarded by readSourceHookMu so -race sees no data race with a test hook.
 var (
 	readSourceHookMu sync.Mutex
 	readSourceHook   func(path string)
@@ -197,11 +196,21 @@ func ClearSource(path string) {
 // SourceReadCap, read from disk or primed, returns an error wrapping
 // ErrSourceTooLarge, so it never reaches a parser.
 func ReadSource(path string) ([]byte, error) {
+	normalized, _, err := ReadSourceWithOriginal(path)
+	return normalized, err
+}
+
+// ReadSourceWithOriginal returns the normalized parser view and the exact
+// original bytes from one cached or capped disk read. Callers that bind parsed
+// evidence to a later raw-byte read use original for source identity and
+// normalized for decoding and line positions. Normalization never mutates
+// original; both returned views must be treated as read-only.
+func ReadSourceWithOriginal(path string) (normalized, original []byte, err error) {
 	if cached, ok := cachedSource(path); ok {
 		if capBytes := SourceReadCap(); int64(len(cached)) > capBytes {
-			return nil, fmt.Errorf("read source %q: %w: %d bytes, cap %d bytes", path, ErrSourceTooLarge, len(cached), capBytes)
+			return nil, nil, fmt.Errorf("read source %q: %w: %d bytes, cap %d bytes", path, ErrSourceTooLarge, len(cached), capBytes)
 		}
-		return NormalizeLineEndings(cached), nil
+		return NormalizeLineEndings(cached), cached, nil
 	}
 	readSourceHookMu.Lock()
 	hook := readSourceHook
@@ -211,9 +220,9 @@ func ReadSource(path string) ([]byte, error) {
 	}
 	body, err := ReadFileCapped(path)
 	if err != nil {
-		return nil, fmt.Errorf("read source %q: %w", path, err)
+		return nil, nil, fmt.Errorf("read source %q: %w", path, err)
 	}
-	return NormalizeLineEndings(body), nil
+	return NormalizeLineEndings(body), body, nil
 }
 
 // cachedSource returns the primed body for path, if any, under the shared

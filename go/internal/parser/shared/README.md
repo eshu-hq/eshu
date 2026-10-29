@@ -51,7 +51,8 @@ inference, parser runtime caching, or language-specific semantics.
 The godoc contract is in `doc.go` and `shared.go`. Current exports are
 `Options`, `GoImportedInterfaceParamMethods`, `GoDirectMethodCallRoots`,
 `GoPackageSemanticRoots`, `GoPackageSemanticRootOptions`, `BasePayload`, `ReadSource`,
-`NormalizeLineEndings`, `PrimeSource`, `ClearSource`, `SetReadSourceHookForTest`,
+`ReadSourceWithOriginal`, `NormalizeLineEndings`, `PrimeSource`, `ClearSource`,
+`SetReadSourceHookForTest`,
 `MaxSourceBytes`, `ErrSourceTooLarge`, `SourceReadCap`, `SetSourceReadCapForTest`,
 `ReadFileCapped` (`read_cap.go`, issue #8986), `WalkNamed`, `NodeText`, `NodeLine`, `NodeEndLine`, `CloneNode`,
 `AppendBucket`, `SortNamedBucket`, `SortNamedMaps`, `CollectBucketNames`,
@@ -121,6 +122,9 @@ production code. There is no environment variable: no operator need for one
 was shown. Side reads of other repository files (C and C++ headers, Python
 package `__init__` files and Lambda configs, JavaScript siblings, tsconfig and
 package.json, composer manifests and locks, `go.mod`) use `ReadFileCapped` too.
+`ReadSourceWithOriginal` uses the same cache, cap, and physical read as
+`ReadSource`, returning both the line-normalized parser view and the original
+bytes for parsers that bind evidence to a later raw source read.
 `TestParserTreeReadsRepositoryFilesThroughTheCap` fails on any other whole-file
 read in the parser tree; its allowlist names the Terragrunt include walker (its
 own 1 MiB cap), the SCIP index reader, and the golden-audit fixture reader.
@@ -264,3 +268,8 @@ avoiding per-node `NamedChildren` slice allocation in repo-scale Go pre-scans.
 ## Related docs
 
 - `docs/public/languages/support-maturity.md`
+
+`SafeVersionSpec` is the shared bounded version-value guard used when the JSON
+parser hands Composer PHP declarations to the runtime fact emitter. Both stages
+apply the same grammar so a rejected credential-shaped value does not enter the
+parser transport or a runtime fact.

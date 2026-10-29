@@ -1,5 +1,6 @@
 {
   "name": "acme/fixture-app",
-  "require": {"acme/fixture-lib": "^1.0"},
+  "require": {"acme/fixture-lib": "^1.0", "php": "^8.2"},
+  "config": {"platform": {"php": "8.3.12"}},
   "autoload": {"psr-4": {"App\\": "src/"}}
 }

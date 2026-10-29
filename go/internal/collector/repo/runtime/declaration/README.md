@@ -130,10 +130,13 @@ A token that matches none of the version, range or placeholder shapes (for
 example `jruby-9.4.0`) is classified `alias`: a named reference is never
 guessed into numbers.
 
+A `.php-version` file declares the PHP runtime using the `php_version`
+source kind. Its value passes the manifest credential guard before emission.
+
 ## Manifest sources
 
-`package.json` and `go.mod` are matched by exact, case-sensitive base name at
-any depth, so a monorepo emits one set of facts per package directory. A copy
+`package.json`, `composer.json`, `composer.lock` and `go.mod` are matched by
+exact, case-sensitive base name at any depth, so a monorepo emits one set of facts per package directory. A copy
 inside `node_modules`, `vendor`, `bower_components` or `jspm_packages` never
 emits: discovery already prunes those directories, and the emitter refuses them
 as well, because a dependency's own `engines` is not this repository's
@@ -145,6 +148,10 @@ a constraint from a pin.
 | `package_json_engines` | `engines.node`, `.npm`, `.yarn`, `.pnpm` | the key |
 | `package_json_volta` | `volta.node`, `.npm`, `.yarn`, `.pnpm` | the key |
 | `package_json_package_manager` | `packageManager` (`name@version`) | the name: `npm`, `pnpm` or `yarn` |
+| `composer_json_require_php` | `composer.json` `require.php` | `php` |
+| `composer_json_platform_php` | `composer.json` `config.platform.php` | `php` |
+| `composer_lock_platform_php` | `composer.lock` `platform.php` | `php` |
+| `composer_lock_platform_overrides_php` | `composer.lock` `platform-overrides.php` | `php` |
 | `go_mod_go` | the `go` directive | `go` |
 | `go_mod_toolchain` | the `toolchain` directive | `go` |
 
@@ -162,10 +169,10 @@ a constraint from a pin.
 
 Rules that keep a manifest read bounded and fail closed:
 
-- Only the five sections above are read. Any other `engines` key (`vscode`,
-  `electron`), a non-string value, a `volta.extends` and every `require`,
-  `replace`, `exclude`, `retract`, `godebug` and `tool` line or `( ... )` block
-  member in `go.mod` never emit.
+- Only the named runtime sections above are read. Any other `engines` key
+  (`vscode`, `electron`), a non-string value, `volta.extends`, non-PHP Composer
+  dependencies, and every `require`, `replace`, `exclude`, `retract`,
+  `godebug` and `tool` line or `( ... )` block member in `go.mod` never emit.
 - A repeated key behaves as `JSON.parse` does: the last `engines`, `volta`,
   `packageManager` or member wins, and only that one emits. A repeated `go` or
   `toolchain` directive makes the file ambiguous (the go tool refuses it), so
@@ -175,7 +182,7 @@ Rules that keep a manifest read bounded and fail closed:
   trailing text, an unquoted key, nested more than 64 levels) emits nothing,
   because the part before the error would pass for the file. `//` and `/* */`
   comments, a byte-order mark and CRLF are accepted.
-- **Credential guard.** The content store keeps these two files under the
+- **Credential guard.** The content store keeps these manifests under the
   `store` policy, so a value that is not a version must not leave the file in a
   fact. A value is emitted only when it is at most 128 bytes of ASCII from the
   version and range grammar, holds no run of 16 or more letters, digits or
@@ -193,7 +200,85 @@ Rules that keep a manifest read bounded and fail closed:
   minified one-line `package.json` still gets distinct stable keys. Declarations
   come out in a fixed order: engines, volta, `packageManager`, each runtime as
   listed in the table.
-- A body over 1 MiB (`MaxManifestBytesPerFile`) is skipped before any parsing.
+- Runtime declaration extraction skips a manifest body over 1 MiB
+  (`MaxManifestBytesPerFile`). JSON manifests such as `package.json` and
+  Composer files may still be read and decoded by the generic JSON parser up
+  to its shared 64 MiB per-file cap before this extraction guard runs.
+
+### PHP collector cost and signals
+
+Performance Evidence (#9308, 2026-10-28): a five-pair, sequential local
+benchmark ran the same snapshot-to-fact-stream harness and the same 424-byte
+three-file `php-app` fixture on the branch merge base `6d04851df8` and PHP
+commit `7c3f9afff3`. The harness SHA-256 was
+`68d9f32f4b19a4b9b49fea70a407c84c1d9984abb460e317b865aa0a2ed163a1`;
+each built test binary used Go 1.26.10 on Linux arm64, 16 CPUs, no graph or
+Postgres backend. Each round ran the base control then the changed binary with
+`-test.benchtime=500ms -test.count=1 -test.benchmem`. Load1 stayed below 3.72,
+under the 8.0 quiet-host ceiling. A pre-existing idle query-proof container
+remained up, so these local timings are diagnostic rather than a production
+throughput or no-regression claim.
+
+| Per three-file snapshot and drained fact stream | Base | PHP commit |
+| --- | ---: | ---: |
+| Median time | 1,623,100 ns | 1,874,785 ns |
+| Observed time range | 1,499,039-1,645,786 ns | 1,776,529-1,977,383 ns |
+| Fact count | 21 | 28 |
+| `runtime_declaration.version` facts | 0 | 5 |
+| Allocated bytes per operation, observed range | 435,336-435,510 | 532,736-536,822 |
+
+The five same-round time ratios averaged 1.172 (sample SD 0.040). The new
+`.php-version` admission adds one `file` and one `content` fact; the other five
+new facts are the PHP declarations. The baseline did not support these sources,
+so the measured extra cost accompanies the intended output. The accepted
+Composer scan caps each body at 1 MiB and retains guarded declarations rather
+than the body; `TestNoteRuntimeDeclarationCandidateRetainsNoManifestBody`
+checks the retention boundary. The corpus pin, deterministic digest, and
+five-source snapshot stream tests check the changed fact counts and truth.
+
+No-Regression Evidence (#9308 raw-byte identity fix, 2026-10-28): the actual
+JSON `Parse` and legacy `ExtractComposerRuntimeEvidence` paths were measured on
+the same 180-byte LF `php-app/composer.json` fixture (SHA-256
+`374d6651c0573c42d14eb7352eeefd3f34ff715dc67e4da7b5f0a49536ecde10`).
+The temporary benchmark harness SHA-256 was
+`131a9bba5035b9922816bfebabb7653c0d5ba8789f2293591c3ef83e74b3376d`;
+its setup required both PHP values. On Linux arm64, Go 1.26.6, 16 CPUs,
+`GOMAXPROCS=1`, each of five rounds ran pre-fix `9f7bb0cceb` then fixed
+`16f7b115f2` with `go test ./internal/parser/json -run '^$' -bench
+'^BenchmarkComposer(Parse|Extract)LF$' -benchtime=300ms -count=1 -benchmem
+-cpu=1` after a 100 ms warmup per binary. The first set was discarded because
+an unrelated proof overlapped it. The repeat set ran from 22:26:12 to 22:26:33
+UTC with no observed peer at its boundaries, no containers, and maximum sampled
+load1 2.01 (the quiet-host ceiling was 8). `Parse` base/head ns/op by round:
+32,220/31,943; 31,895/32,522; 31,953/31,812; 31,993/32,073;
+31,816/32,028. Medians were 31,953/32,028 ns/op; same-round head/base ratios
+averaged 1.0032 (sample SD 0.0110). `Extract` pairs were 13,755/13,607;
+13,612/13,714; 13,665/13,529; 13,671/13,939; 13,526/13,772 ns/op;
+medians 13,665/13,714, ratio mean 1.0049 (SD 0.0147). Allocations were
+unchanged: `Parse` 25,289 B and 390 allocs/op, `Extract` 10,928 B and 200
+allocs/op. The difference is within the paired spread. This measures the two
+parser paths on an LF fixture; bare-CR correctness is proved by the native
+snapshot-to-fact-stream regression, and end-to-end collector time was not
+remeasured for this fix.
+
+No-Observability-Change: no metric, span, or log key was added. Existing
+`git_runtime_declaration_file_skipped` and
+`git_runtime_declaration_values_rejected` WARN logs report bounded skips with
+reason, relative path, byte size, and rejected count without raw values. A
+malformed Composer body that remains byte-identical, or one that remains over
+the 1 MiB cap, reaches the typed skip WARN without marking the generation
+`stream_dropped`; an unchanged clean scope can reproject without reparsing.
+After a native parser miss, the collector makes a failed-only bounded read to
+classify that skip and rechecks it at emission. A transient read failure,
+valid fallback body, or changed body marks `stream_dropped` with the affected
+relative path so the next sweep recollects it. The existing pre-parse identity
+drop metric and WARN log cover file read failures, not this Composer mismatch
+branch. The accepted Composer path makes no additional read.
+An under-cap parser miss adds at most two 1 MiB plus one byte reads and one
+canonical JSON extraction in that generation; a proven over-cap file needs
+only size checks. This cost is confined to failed Composer parses.
+Queue and graph counts were not measured in this local parser/collector
+benchmark; the live golden-corpus gate owns projection proof.
 
 ## Dockerfile and workflow sources
 
