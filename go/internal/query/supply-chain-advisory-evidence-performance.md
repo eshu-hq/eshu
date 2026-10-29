@@ -21,16 +21,12 @@ and
 Performance Evidence (issue #8870 fix (c), 2026-10-29): the eight seed/matched
 legs are lookup-driven `LATERAL` probes into the payload-key index leader with
 active-generation membership as a correlated `EXISTS` subplan (`OFFSET 0`
-keeps the planner from flattening it back into a per-scope semi-join), and
-each package `OR` leg is split into `package_id`/`purl` legs pinned to
-`fact_kind = 'vulnerability.affected_package'` so the planner uses the
-package/purl partial indexes. Parameter order, `DISTINCT ON` semantics,
-ordering, and limits are unchanged. Primary read-only `EXPLAIN (ANALYZE,
-BUFFERS)` before/after: KEV-CVE input 65.055s to 0.735s, package-only input
-63.762s to 0.565s, impact-scoped input 36.621s to 0.625s. Every leg is an
-index probe; no per-scope loops, no `fact_records` seq scans. Old-vs-new
-row-set differential on one `REPEATABLE READ` snapshot is identical
-(KEV-CVE: 1 row; package-only: 11 rows). Shape pins live in
+keeps the planner from flattening it back into a per-scope semi-join).
+SUPERSEDED by the #9474 P1 entry below: the package legs as first written
+were pinned to `fact_kind = 'vulnerability.affected_package'`, which silently
+dropped package-matching rows of other kinds (GitLab CVE envelopes carry
+`package_id`). Timings quoted here belong to that superseded shape and are
+kept as history only. Shape pins live in
 `supply_chain_advisory_evidence_sql_test.go`
 (`TestAdvisoryEvidenceQueryProbesLookupValueFirstWithoutScopeFanout`).
 Remote preserved-volume proof on the representative Compose backlog applied the
@@ -62,7 +58,27 @@ synthetic reference-with-purl) and the old-vs-new differential on one
 KEV-CVE/package-only/impact-scoped/GLAD-pair/5000-row inputs, with the only
 delta on P1-shaped inputs being exactly the previously dropped rows
 (3 rows added, 0 removed). Local shim on 20k rows: 5-20ms per input,
-index builds 1-20ms, each new index 8KB vs 2696KB table. Shape pins live in
+index builds 1-20ms, each new index 8KB vs 2696KB table. Primary corpus
+(91 GB fact_records, active ingestion, read-only tx, 2026-10-29): new-shape
+`EXPLAIN (ANALYZE, BUFFERS)` KEV-CVE 0.59-0.75s, package-only 0.65s,
+GLAD-shaped 0.63-0.73s, impact-scoped 0.92-1.14s; every leg an index probe
+(v2 identity + existing affected_package partials + both new five-kind
+slices), zero `fact_records` seq scans. Old-vs-new differential on one
+`REPEATABLE READ` snapshot, byte-identical including order: KEV-CVE
+(1 row, old 315.7s/new 0.7s), package-only pkg:npm/axios (2084 rows,
+35.6s/0.7s), impact-scoped r_33474efb (1472 rows, 41.5s/1.0s), GLAD-shaped
+pkg:composer/symfony/symfony (194 rows, 33.9s/1.1s), busiest package
+npm://registry.npmjs.org/axios (2084 rows, 37.8s/1.1s). Gate restatement
+(arbiter, #9474): non-impact inputs <=1s (met, <=750ms); impact-scoped is a
+scoped exception — ~500ms of its ~0.9-1.1s sits in the pre-existing,
+byte-identical `impact_candidates` CTE (1503-scope fan-in over the impact
+repository index), named as the next measured bottleneck with a follow-up
+issue filed in this goal. Shim index builds on the primary: 405.8s +
+398.9s sequential (804.7s combined, CONCURRENTLY, writer-safe); each index
+149MB vs 91GB table (0.16%). Combined build exceeds the 600s default, so
+the chart default `schemaBootstrap.activeDeadlineSeconds` moves 600 to
+3600 in this diff (matching the QA/AWS overlays); expect a ~14-minute
+large-database upgrade window. Shape pins live in
 `supply_chain_advisory_evidence_sql_test.go`
 (`TestAdvisoryEvidenceQueryProbesLookupValueFirstWithoutScopeFanout`).
 
