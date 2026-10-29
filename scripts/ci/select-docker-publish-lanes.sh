@@ -48,6 +48,12 @@ while IFS= read -r path; do
     scripts/verify-runtime-image-tools.sh|scripts/test-verify-runtime-image-tools.sh)
       image=true
       ;;
+    # Destination scanner-<name> images (#8878): the scanner verifier with
+    # its self-test, and the shared rootfs-resolve library both verifiers
+    # source, must run the image lane (build + reproducibility + verify).
+    scripts/verify-scanner-images.sh|scripts/test-verify-scanner-images.sh|scripts/lib/rootfs-resolve.sh)
+      image=true
+      ;;
     # The reproducibility build asserts the canonical mirror digests from
     # specs/ci-images.v1.json and feeds them to the runtime image build, so a
     # change to either file must run the image lane (build + reproducibility).

@@ -20,10 +20,14 @@ workflows:
   - scripts/fixtures/apk-floors/**
   - scripts/verify-runtime-image-tools.sh
   - scripts/test-verify-runtime-image-tools.sh
+  - scripts/verify-scanner-images.sh
+  - scripts/test-verify-scanner-images.sh
+  - scripts/lib/rootfs-resolve.sh
   - specs/ci-pr-workflows.d/docker-publish.yml
   jobs:
   - attach-release-sbom
   - build-and-push-image
+  - build-and-push-scanner-images
   - changes
   - package-and-push-chart
   - promote-moving-tags
@@ -31,4 +35,5 @@ workflows:
   - verify-apk-floors
   - verify-public-ci-service-mirrors
   - verify-reproducibility
-  job_names: {}
+  job_names:
+    build-and-push-scanner-images: Build and push scanner-${{ matrix.component }}
