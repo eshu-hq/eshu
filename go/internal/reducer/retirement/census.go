@@ -166,6 +166,54 @@ var RetireTableDispositions = map[string]RetireTableEntry{
 	"incident_freshness_triggers":                        {Table: "incident_freshness_triggers", KeyColumns: []string{"scope_id"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "keyed by incident scopes, not repository scopes"},
 	"gcp_freshness_triggers":                             {Table: "gcp_freshness_triggers", KeyColumns: []string{"scope_id", "parent_scope_id"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "keyed by GCP scopes, not repository scopes"},
 	"cicd_run_watermarks":                                {Table: "cicd_run_watermarks", KeyColumns: []string{"scope_id", "repository"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "keyed by CI scopes"},
+	// Peer tables the census join sees that merged without census entries;
+	// the live test fails until someone records them here.
+	"vulnerability_source_state_packages": {Table: "vulnerability_source_state_packages", KeyColumns: []string{"scope_id"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "keyed by vulnerability-intelligence scopes, not repository scopes (migration 243, #9227)"},
+	"cicd_actions_deliveries":             {Table: "cicd_actions_deliveries", KeyColumns: []string{"repository", "repository_id"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "keyed by CI scopes (migration 236, #9397)"},
+	// Scanner running-image intake (#9299, migrations 241-252). The
+	// source_scope_id values are producer workload scopes (Kubernetes
+	// namespaces, ECS tasks, Lambda functions), never repository scopes,
+	// so repository retirement has no key to purge by.
+	"scanner_running_image_producer_grants":        {Table: "scanner_running_image_producer_grants", KeyColumns: []string{"source_scope_id"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "keyed by producer workload scopes, not repository scopes"},
+	"scanner_running_image_scope_claims":           {Table: "scanner_running_image_scope_claims", KeyColumns: []string{"source_scope_id"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "keyed by producer workload scopes, not repository scopes"},
+	"scanner_running_image_generations":            {Table: "scanner_running_image_generations", KeyColumns: []string{"source_scope_id"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "source generation registry; superseded generations go inert once active_scopes moves on"},
+	"scanner_running_image_page_receipts":          {Table: "scanner_running_image_page_receipts", KeyColumns: []string{"source_scope_id"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "collection receipts keyed by producer workload scopes"},
+	"scanner_running_image_delivery_receipts":      {Table: "scanner_running_image_delivery_receipts", KeyColumns: []string{"source_scope_id"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "delivery receipts keyed by producer workload scopes"},
+	"scanner_running_image_observations":           {Table: "scanner_running_image_observations", KeyColumns: []string{"source_scope_id", "repository"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "workload intake facts; repository holds registry paths (team/service), not git repos"},
+	"scanner_running_image_manifest_verifications": {Table: "scanner_running_image_manifest_verifications", KeyColumns: []string{"repository"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "verification records keyed by observation; repository holds registry paths, not git repos"},
+	"scanner_running_image_active_scopes":          {Table: "scanner_running_image_active_scopes", KeyColumns: []string{"source_scope_id"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "current-generation pointers keyed by producer workload scopes"},
+	"scanner_running_image_activation_outbox":      {Table: "scanner_running_image_activation_outbox", KeyColumns: []string{"source_scope_id"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "activation outbox rows keyed by producer workload scopes"},
+	"scanner_running_image_projection_outbox":      {Table: "scanner_running_image_projection_outbox", KeyColumns: []string{"source_scope_id"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "projection outbox rows keyed by producer workload scopes"},
+	// Scanner derived targets and results (#9299, migrations 240-250). The
+	// scan_scope_id values are derived image identities
+	// (image://derived/<sha256> over boundary, tenant, domain, and digest),
+	// never repository scopes, so this is control-plane history: a later
+	// admission for a gone scope is refused by authority.
+	"scanner_image_targets":                      {Table: "scanner_image_targets", KeyColumns: []string{"scan_scope_id"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "derived target rows keyed by image identity; later admission for a gone scope is refused by authority"},
+	"scanner_image_target_sources":               {Table: "scanner_image_target_sources", KeyColumns: []string{"scan_scope_id", "source_scope_id", "repository"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "kept with its scanner_image_targets parent; source and evidence pins are workload and registry identities"},
+	"scanner_image_target_attempts":              {Table: "scanner_image_target_attempts", KeyColumns: []string{"scan_scope_id"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "attempt history keyed by image identity"},
+	"scanner_image_scan_results":                 {Table: "scanner_image_scan_results", KeyColumns: []string{"scan_scope_id"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "scan receipts keyed by image identity"},
+	"scanner_image_scan_fact_associations":       {Table: "scanner_image_scan_fact_associations", KeyColumns: []string{"scan_scope_id"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "result associations keyed by image identity"},
+	"scanner_image_result_fact_associations":     {Table: "scanner_image_result_fact_associations", KeyColumns: []string{"scan_scope_id"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "result associations keyed by image identity"},
+	"scanner_image_result_fact_classifications":  {Table: "scanner_image_result_fact_classifications", KeyColumns: []string{"scan_scope_id"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "result classifications keyed by image identity"},
+	"scanner_image_result_evidence_associations": {Table: "scanner_image_result_evidence_associations", KeyColumns: []string{"scan_scope_id"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "evidence associations keyed by image identity"},
+	"scanner_image_result_suppressions":          {Table: "scanner_image_result_suppressions", KeyColumns: []string{"scan_scope_id", "operator_scope_id"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "operator-authored suppression decisions, not derived state"},
+	"scanner_image_result_advisory_dependencies": {Table: "scanner_image_result_advisory_dependencies", KeyColumns: []string{"scan_scope_id", "advisory_scope_id"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "dependency edges between image results and advisory generations"},
+	// Publications and impact authority (#9299, migrations 241-263) carry
+	// an impact_scope_id written only by the not-yet-landed publication
+	// path, so no repository key exists to purge today. If impact scopes
+	// ever name repository scopes, these rows owe a 2e sweep entry.
+	"scanner_image_result_publications":                 {Table: "scanner_image_result_publications", KeyColumns: []string{"scan_scope_id", "impact_scope_id"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "publication history; impact scopes are written only by the unlanded publication path, so no repository key exists to purge today"},
+	"scanner_static_impact_finding_authority_revisions": {Table: "scanner_static_impact_finding_authority_revisions", KeyColumns: []string{"impact_scope_id"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "impact authority revisions; same unlanded-path caveat as publications"},
+	// Scanner advisory policy (#9299, migrations 254-257). Advisory scopes
+	// are per-instance policy scopes (which scopes an instance may publish
+	// advisories for), never repository scopes.
+	"scanner_advisory_producer_grants":      {Table: "scanner_advisory_producer_grants", KeyColumns: []string{"advisory_scope_id"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "keyed by advisory policy scopes, not repository scopes"},
+	"scanner_advisory_generation_receipts":  {Table: "scanner_advisory_generation_receipts", KeyColumns: []string{"advisory_scope_id"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "keyed by advisory policy scopes, not repository scopes"},
+	"scanner_advisory_private_bindings":     {Table: "scanner_advisory_private_bindings", KeyColumns: []string{"advisory_scope_id", "scan_scope_id"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "private advisory bindings over advisory policy scopes and image identities"},
+	"scanner_advisory_public_activations":   {Table: "scanner_advisory_public_activations", KeyColumns: []string{"advisory_scope_id"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "keyed by advisory policy scopes, not repository scopes"},
+	"scanner_advisory_public_generations":   {Table: "scanner_advisory_public_generations", KeyColumns: []string{"pinned_advisory_scope_epoch"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "advisory generation epochs, not repository data"},
+	"scanner_advisory_public_registrations": {Table: "scanner_advisory_public_registrations", KeyColumns: []string{"advisory_scope_id"}, RemoveSteps: []string{}, Disposition: "kept", Reason: "keyed by advisory policy scopes, not repository scopes"},
 }
 
 // RetireTableDispositionFor returns the census entry for one table, or
