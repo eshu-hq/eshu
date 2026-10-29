@@ -10,10 +10,19 @@
 // rejects application database DSNs before connecting, and force-drops only
 // the generated database during cleanup.
 //
+// OpenDisposableBootstrapDatabase opens a disposable database the way
+// OpenDisposableDatabase does and runs the caller's apply (usually the
+// production bootstrap) on it before returning, so migrations with
+// public-qualified SECURITY DEFINER bodies install into public. The caller
+// passes the administrative DSN and the explicit opt-in; neither is derived.
+//
 // OpenIsolatedSchema gives one test its own schema in the database its DSN
 // names: it installs pg_trgm in public under TrigramExtensionLockKey, creates
 // prefix_<unix nanos>, runs the caller's schema setup on a pool whose
-// search_path puts that schema first, and drops it when the test ends. It
+// search_path puts that schema first, and drops it when the test ends. It is
+// subset-DDL-only since the #9299 lane: a full production bootstrap applies
+// public-qualified SECURITY DEFINER bodies that an isolated schema cannot
+// host, so full bootstraps must use OpenDisposableBootstrapDatabase. It
 // does not validate the DSN or require an opt-in; the live-postgres-readiness
 // runner checks the proof DSNs it passes.
 // DeferredPartitionProofDSN reads the DSN the deferred-partition and

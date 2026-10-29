@@ -17,6 +17,7 @@ FRAGMENT_NAMES = (
     "live-tests-readiness-part2.generated.yaml",
     "live-tests-readiness-part3.generated.yaml",
     "live-tests-readiness-part4.generated.yaml",
+    "live-tests-readiness-part5.generated.yaml",
 )
 # Committed lexical cuts keep each file's destination stable as enrollment grows.
 # Rebalanced 2026-10-30 for #9322: enrollment reached 333 rows and the first

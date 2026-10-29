@@ -32,7 +32,7 @@ func TestProducerActivationRunnerStoreSettlesThroughThePort(t *testing.T) {
 	if os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE") != "1" {
 		t.Skip("set ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE=1 for disposable PostgreSQL proof")
 	}
-	database := openIsolatedBootstrapSchema(t, testfixtures.DSNForDeferredPartitionMemoProof(t), "producer_port")
+	database := openIsolatedBootstrapSchema(t, testfixtures.DSNForDeferredPartitionMemoProof(t), os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE"), "producer_port")
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	seedProducerDependentCostCorpus(t, ctx, database)
@@ -241,7 +241,7 @@ func TestProducerDependentListingCostLive(t *testing.T) {
 	if os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE") != "1" {
 		t.Skip("set ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE=1 for disposable PostgreSQL proof")
 	}
-	database := openIsolatedBootstrapSchema(t, testfixtures.DSNForDeferredPartitionMemoProof(t), "producer_cost")
+	database := openIsolatedBootstrapSchema(t, testfixtures.DSNForDeferredPartitionMemoProof(t), os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE"), "producer_cost")
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	seedProducerDependentCostCorpus(t, ctx, database)
@@ -420,7 +420,7 @@ func TestProducerEvidenceProbeCostLive(t *testing.T) {
 	if os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE") != "1" {
 		t.Skip("set ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE=1 for disposable PostgreSQL proof")
 	}
-	database := openIsolatedBootstrapSchema(t, testfixtures.DSNForDeferredPartitionMemoProof(t), "producer_probe_cost")
+	database := openIsolatedBootstrapSchema(t, testfixtures.DSNForDeferredPartitionMemoProof(t), os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE"), "producer_probe_cost")
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	seedProducerEvidenceProbeCorpus(t, ctx, database)
@@ -476,7 +476,7 @@ func TestProducerEvidenceKindPrefilterDifferential(t *testing.T) {
 	if os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE") != "1" {
 		t.Skip("set ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE=1 for disposable PostgreSQL proof")
 	}
-	database := openIsolatedBootstrapSchema(t, testfixtures.DSNForDeferredPartitionMemoProof(t), "producer_probe_diff")
+	database := openIsolatedBootstrapSchema(t, testfixtures.DSNForDeferredPartitionMemoProof(t), os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE"), "producer_probe_diff")
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	seedProducerEvidenceProbeCorpus(t, ctx, database)

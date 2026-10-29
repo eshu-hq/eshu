@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #9299 disposable PostgreSQL proof that conflicting same-observation source bindings fail admission atomically with no partial plan
+//eshu:readiness:env ESHU_POSTGRES_DISPOSABLE ESHU_POSTGRES_DSN
+
 import (
 	"context"
 	"errors"

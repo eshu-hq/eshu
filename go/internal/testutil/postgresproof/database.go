@@ -88,6 +88,30 @@ func OpenDisposableDatabase(
 	return ctx, targetDB
 }
 
+// OpenDisposableBootstrapDatabase opens a disposable database exactly the
+// way OpenDisposableDatabase does (template0, search_path=public, the same
+// administrative DSN and explicit opt-in checks) and runs apply on it before
+// returning, so a full production bootstrap lands in public instead of an
+// isolated schema. The caller passes the administrative DSN and the opt-in
+// explicitly, read from the proof family's own environment variables; the
+// helper never derives either one, and an absent DSN skips like
+// OpenDisposableDatabase does. An apply error fails the test before any
+// caller can use a half-built database.
+func OpenDisposableBootstrapDatabase(
+	t testing.TB,
+	adminDSN string,
+	optIn string,
+	timeout time.Duration,
+	apply func(context.Context, *sql.DB) error,
+) (context.Context, *sql.DB) {
+	t.Helper()
+	ctx, database := OpenDisposableDatabase(t, adminDSN, optIn, timeout)
+	if err := apply(ctx, database); err != nil {
+		t.Fatalf("apply schema to disposable PostgreSQL database: %v", err)
+	}
+	return ctx, database
+}
+
 // cloneRuntimeParams copies a pgx runtime-parameter map so the disposable
 // target can pin its own search_path without rewriting the shared
 // administrative config's session defaults.

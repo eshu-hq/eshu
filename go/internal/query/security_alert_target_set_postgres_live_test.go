@@ -87,7 +87,7 @@ func (f *collectionStateLiveFixture) uncollected(scopeID string, slugs []string)
 // sequence on real Postgres: an allowlist change between two cycles, checked
 // before and after the second projection.
 func TestSecurityAlertTargetSetAllowlistChangeLive(t *testing.T) {
-	f := newCollectionStateLiveFixture(t, "sa_target_set")
+	f := newCollectionStateLiveFixture(t)
 	requested := []string{"acme/a", "acme/new"}
 	cycle1 := scope.NewSecurityAlertTargetSet([]string{"acme/a"})
 	cycle2 := scope.NewSecurityAlertTargetSet([]string{"acme/a", "acme/new"})
@@ -132,7 +132,7 @@ func TestSecurityAlertTargetSetAllowlistChangeLive(t *testing.T) {
 // generation committed before the record existed reports nothing uncollected,
 // and a recorded empty set reports every requested repository.
 func TestSecurityAlertTargetSetLegacyAndEmptyLive(t *testing.T) {
-	f := newCollectionStateLiveFixture(t, "sa_target_set_edges")
+	f := newCollectionStateLiveFixture(t)
 
 	f.commitTargetGeneration("t-legacy", "gen-legacy", "sha256:legacy", f.asOf.Add(-time.Hour), scope.SecurityAlertTargetSet{})
 	f.activate("t-legacy", "gen-legacy")

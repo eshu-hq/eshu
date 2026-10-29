@@ -49,13 +49,13 @@ type runtimeConfig struct {
 }
 
 type scannerInstanceConfig struct {
-	Analyzer                string                       `json:"analyzer"`
-	ResourceLimits          resourceLimitsJSON           `json:"resource_limits"`
+	Analyzer                string                           `json:"analyzer"`
+	ResourceLimits          resourceLimitsJSON               `json:"resource_limits"`
 	SBOMTargets             []sbomgenerator.RepositoryTarget `json:"sbom_targets"`
-	OSPackageTargets        []osruntime.TargetConfig     `json:"os_package_targets"`
-	ImageTargets            []imageanalyzer.TargetConfig `json:"image_targets"`
-	DeriveFromRunningImages bool                         `json:"derive_from_running_images"`
-	RegistryDomains         []registryDomainConfig       `json:"registry_domains"`
+	OSPackageTargets        []osruntime.TargetConfig         `json:"os_package_targets"`
+	ImageTargets            []imageanalyzer.TargetConfig     `json:"image_targets"`
+	DeriveFromRunningImages bool                             `json:"derive_from_running_images"`
+	RegistryDomains         []registryDomainConfig           `json:"registry_domains"`
 }
 
 type resourceLimitsJSON struct {

@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #9299 disposable PostgreSQL proof that the reader uses a distinct credential on the same physical primary with role-attested session hooks
+//eshu:readiness:env ESHU_READER_TEST_WRITER_DSN ESHU_ROLE_ATTEST_DISPOSABLE ESHU_POSTGRES_DSN
+
 import (
 	"context"
 	"fmt"

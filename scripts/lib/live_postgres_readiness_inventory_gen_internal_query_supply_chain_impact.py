@@ -7,6 +7,9 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./internal/query/supply/chain/impact": {
+        "go/internal/query/supply/chain/impact/findings_protected_target_live_test.go": (
+            "TestProtectedScanTargetsDoNotCollapseSameDigestFindingsLive",
+        ),
         "go/internal/query/supply/chain/impact/readiness_central_pin_live_test.go": (
             "TestReadinessExcludesCentralVersionPinsLive",
         ),
@@ -42,6 +45,9 @@ TABLE = {
         ),
         "go/internal/query/supply/chain/impact/readiness_scan_tier_rescan_live_test.go": (
             "TestSupplyChainImpactReadinessScanTierRescannedScopeLive",
+        ),
+        "go/internal/query/supply/chain/impact/readiness_scanner_authorization_live_test.go": (
+            "TestReadinessScannerSourceBindingAuthorizationLive",
         ),
         "go/internal/query/supply/chain/impact/runtime_environment_store_live_test.go": (
             "TestRuntimeEnvironmentEvidenceHotDigestUsesArtifactIndexLive",

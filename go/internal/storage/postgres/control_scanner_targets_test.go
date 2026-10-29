@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #9299 disposable PostgreSQL proof for scanner target admission and completion, concurrent cross-instance admission, temp-shadow rejection, and the 241 public-schema guard refusal
+//eshu:readiness:env ESHU_POSTGRES_DISPOSABLE ESHU_POSTGRES_DSN
+
 import (
 	"context"
 	"errors"
