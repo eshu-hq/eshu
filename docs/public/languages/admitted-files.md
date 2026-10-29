@@ -57,6 +57,7 @@ a line there.
 | `nuget_project` | csharp | L2 structured fact | store | `.csproj` | `Directory.Build.props`, `Directory.Packages.props` |  |
 | `perl` | perl | L2 structured fact | store | `.pl`, `.pm` |  |  |
 | `php` | php | L2 structured fact | store | `.php` |  |  |
+| `php_config` | php | L2 structured fact | metadata |  | `.htaccess`, `apache2.conf`, `httpd.conf`, `php.ini` |  |
 | `python` | python | L2 structured fact | store | `.ipynb`, `.py`, `.pyi`, `.pyw` |  |  |
 | `python_requirements` | python | L2 structured fact | store |  | `requirements.txt` | `requirements-`, `requirements_` |
 | `python_toml` | python | L2 structured fact | store |  | `Pipfile`, `poetry.lock`, `pyproject.toml`, `uv.lock` |  |
@@ -81,6 +82,7 @@ Paths are matched case-insensitively:
 - `conf/routes`, `*.routes` bind to `scala`.
 - `.mvn/extensions.xml` bind to `raw_text`.
 - `*.tfvars.json`, `*.tfvars` bind to `tfvars`.
+- `conf.d/*.ini`, `php-fpm.d/*.conf`, `apache/**/*.conf`, `apache2/**/*.conf`, `httpd/**/*.conf` bind to `php_config`.
 - `constraints.txt`, `constraints-*.txt`, `constraints_*.txt` bind to `python_requirements`.
 <!-- parser-admission-table:end -->
 

@@ -11,7 +11,7 @@
    implemented retrieval-capable HTTP API routes; read owning handlers in
    `internal/query/` before adding or changing entries.
 4. `go/internal/ask/catalog/annotations_tools.go` — curated annotations for the
-   167 implemented MCP tools; read owning handlers in `internal/mcp/` before
+   implemented MCP tools; read owning handlers in `internal/mcp/` before
    adding or changing entries.
 5. `go/internal/ask/catalog/annotations_intents_families.go` — the one list of
    overlapping-tool families (`toolFamilies()`); the per-group

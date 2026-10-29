@@ -50,6 +50,7 @@ var configBenchCases = []configBenchCase{
 	{language: "maven", parserKey: "maven", fileName: "pom.xml", build: buildMavenPOM},
 	{language: "node_lockfile", parserKey: "node_lockfile", fileName: "yarn.lock", build: buildYarnLock},
 	{language: "npmrc", parserKey: "npmrc", fileName: ".npmrc", build: buildNpmrc},
+	{language: "php_config", parserKey: "php_config", fileName: "php.ini", build: buildPHPConfig},
 	{language: "nuget_project", parserKey: "nuget_project", fileName: "project.csproj", build: buildCsproj},
 	{language: "nuget_directory_packages_props", parserKey: "nuget_project", fileName: "Directory.Packages.props", build: buildDirectoryPackagesProps},
 	{language: "nuget_directory_build_props", parserKey: "nuget_project", fileName: "Directory.Build.props", build: buildDirectoryBuildProps},
@@ -384,6 +385,15 @@ func buildYAMLValues(minLOC int) []byte {
 			"        cpu: 500m\n"+
 			"        memory: 512Mi\n", i, i%5+1, i, i%10, i%100)
 		i++
+	}
+	return b.Bytes()
+}
+
+// buildPHPConfig returns a valid, bounded PHP INI source with many directives.
+func buildPHPConfig(minLOC int) []byte {
+	var b bytes.Buffer
+	for i := 0; i < minLOC; i++ {
+		fmt.Fprintf(&b, "memory_limit = %dM\n", 128+i%1024)
 	}
 	return b.Bytes()
 }

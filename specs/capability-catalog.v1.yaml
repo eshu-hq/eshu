@@ -210,6 +210,8 @@ tool_exemptions:
     reason: entity context retrieval utility
   - tool: search_entity_content
     reason: entity content search utility
+  - tool: search_php_configuration
+    reason: guarded PHP configuration content search utility
   - tool: resolve_entity
     reason: entity id resolution utility
   - tool: search_registry_bundles

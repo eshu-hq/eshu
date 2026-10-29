@@ -1173,6 +1173,11 @@
     },
     {
       "category": "api_route",
+      "name": "POST /api/v0/content/php-config/search",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
       "name": "POST /api/v0/ecosystem/graph-summary",
       "readiness": "implemented"
     },
@@ -3600,6 +3605,11 @@
     {
       "category": "mcp_tool",
       "name": "search_file_content",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "search_php_configuration",
       "readiness": "implemented"
     },
     {

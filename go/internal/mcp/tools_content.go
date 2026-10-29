@@ -247,3 +247,22 @@ func dockerfileInstallTool() ToolDefinition {
 		},
 	}
 }
+
+// phpConfigurationTool is appended after the existing registry to retain
+// the established positions of every earlier tool.
+func phpConfigurationTool() ToolDefinition {
+	return ToolDefinition{
+		Name:        "search_php_configuration",
+		Description: "Find repositories declaring a PHP directive or server mode in committed PHP/Apache configuration. Returns only guarded structured evidence with file and line; raw configuration bodies are withheld.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"directive": map[string]any{"type": "string", "description": "PHP directive name, for example memory_limit"},
+				"mode":      map[string]any{"type": "string", "enum": []string{"mod_php", "php-fpm"}, "description": "Declared server mode"},
+				"repo_id":   map[string]any{"type": "string", "description": "Optional repository selector"},
+				"limit":     map[string]any{"type": "integer", "minimum": 1, "maximum": 200, "default": 50},
+				"cursor":    map[string]any{"type": "string", "description": "Opaque next_cursor from the preceding page"},
+			},
+		},
+	}
+}

@@ -9,14 +9,15 @@ package catalog
 func codeToolIntents() map[string]toolIntent {
 	return map[string]toolIntent{
 		// code-lookup
-		"find_symbol":            canonicalIntents("where is this symbol defined", "find function definition", "find class definition", "locate symbol by name", "fuzzy symbol search", "go to definition"),
-		"find_code":              intents("find code by name", "search entities by case-sensitive name", "substring entity name search", "exact entity name lookup", "page through name matches"),
-		"resolve_entity":         intents("resolve entity name to id", "exact entity name resolution", "get entity id for name", "disambiguate entity"),
-		"execute_language_query": intents("find functions in language", "list classes written in go", "language specific entity query", "find structs by language", "query by programming language"),
-		"search_entity_content":  intents("search function source snippets", "grep entity source", "find code containing text", "search cached entity source", "text search in function bodies"),
-		"search_file_content":    intents("search file text", "grep repositories for string", "find files containing text", "substring search across files", "full text search source files"),
-		"inspect_code_inventory": intents("list functions in file", "list classes in repository", "decorated methods", "documented functions", "dataclasses in repo", "code structure inventory"),
-		"investigate_code_topic": intents("where is this behavior implemented", "find code for a topic", "explore feature implementation", "which files handle this", "broad code topic search"),
+		"find_symbol":              canonicalIntents("where is this symbol defined", "find function definition", "find class definition", "locate symbol by name", "fuzzy symbol search", "go to definition"),
+		"find_code":                intents("find code by name", "search entities by case-sensitive name", "substring entity name search", "exact entity name lookup", "page through name matches"),
+		"resolve_entity":           intents("resolve entity name to id", "exact entity name resolution", "get entity id for name", "disambiguate entity"),
+		"execute_language_query":   intents("find functions in language", "list classes written in go", "language specific entity query", "find structs by language", "query by programming language"),
+		"search_entity_content":    intents("search function source snippets", "grep entity source", "find code containing text", "search cached entity source", "text search in function bodies"),
+		"search_file_content":      intents("search file text", "grep repositories for string", "find files containing text", "substring search across files", "full text search source files"),
+		"search_php_configuration": intents("which repositories use mod php", "find php ini directive", "php configuration declarations", "which repositories set memory limit", "find php fpm pools"),
+		"inspect_code_inventory":   intents("list functions in file", "list classes in repository", "decorated methods", "documented functions", "dataclasses in repo", "code structure inventory"),
+		"investigate_code_topic":   intents("where is this behavior implemented", "find code for a topic", "explore feature implementation", "which files handle this", "broad code topic search"),
 		// source-read
 		"get_file_content":      canonicalIntents("read file source", "show file contents", "get source of file", "open file in repository", "read repo file by path"),
 		"get_file_lines":        intents("read lines of file", "show line range", "get lines 10 to 40", "excerpt of file", "view part of a file"),

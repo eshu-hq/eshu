@@ -20,9 +20,8 @@ FRAGMENT_NAMES = (
 )
 # Committed lexical cuts keep each file's destination stable as enrollment grows.
 FRAGMENT_BOUNDARIES = (
-    "go/internal/storage/postgres/alert_shard_planner_cost_live_test.go",
-    "go/internal/storage/postgres/"
-    "ingestion_backfill_generation_guard_reproject_live_test.go",
+    "go/internal/storage/postgres/active_symbol_loader_package_fixture_live_test.go",
+    "go/internal/storage/postgres/identity_epoch_active_set_live_test.go",
     "go/internal/storage/postgres/search/index/retention/drain_live_test.go",
 )
 FRAGMENT_DIR = "specs/live-tests.d/"

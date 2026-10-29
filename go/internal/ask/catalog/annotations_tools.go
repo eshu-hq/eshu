@@ -170,6 +170,7 @@ func askToolAnnotations() map[string]Annotation {
 		"search_entity_content":                           {Backend: BackendPostgres, Cost: CostModerate},
 		"search_dockerfile_installs":                      {Backend: BackendPostgres, Cost: CostModerate},
 		"search_file_content":                             {Backend: BackendPostgres, Cost: CostModerate},
+		"search_php_configuration":                        {Backend: BackendPostgres, Cost: CostModerate},
 		"search_registry_bundles":                         {Backend: BackendNornicDB, Cost: CostLow},
 		"search_semantic_context":                         {Backend: BackendPostgres, Cost: CostModerate},
 		"trace_deployment_chain":                          {Backend: BackendNornicDB, Cost: CostHigh},

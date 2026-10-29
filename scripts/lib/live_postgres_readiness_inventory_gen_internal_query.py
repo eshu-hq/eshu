@@ -45,6 +45,9 @@ TABLE = {
             "TestNonBlankRepoFilePathsMatchesTrimSpaceLive",
             "TestNonBlankSpaceSetMatchesGoOverEveryRuneLive",
         ),
+        "go/internal/query/content_reader_php_config_live_test.go": (
+            "TestPHPConfigKeysetLive",
+        ),
         "go/internal/query/content_reader_repository_catalog_live_test.go": (
             "TestMatchRepositoriesByIDsLive",
             "TestMatchRepositoriesByIDsPlanLive",

@@ -201,6 +201,7 @@ func defaultDefinitions() []Definition {
 			Admission:  AdmissionStructuredFact,
 			Extensions: []string{".pl", ".pm"},
 		},
+		phpConfigDefinition(),
 		{
 			ParserKey:  "php",
 			Language:   "php",
@@ -438,6 +439,7 @@ func PathDispatches() []PathDispatch {
 			ParserKey: "tfvars",
 			Examples:  []string{"prod.tfvars.json", "env/stage.auto.tfvars.json", "Dockerfile.tfvars", "META-INF/services/x.tfvars"},
 		},
+		phpConfigPathDispatch(),
 		{
 			Patterns:  []string{"constraints.txt", "constraints-*.txt", "constraints_*.txt"},
 			ParserKey: "python_requirements",

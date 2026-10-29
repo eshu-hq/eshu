@@ -134,6 +134,7 @@ nav:
         - Code: reference/http-api/code.md
         - Source Cache Read Clip: reference/http-api/source-cache-clip.md
         - IaC, Content, And Infra: reference/http-api/iac-content-infra.md
+        - PHP Configuration Search: reference/http-api/php-configuration.md
         - Unscoped File Search: reference/http-api/unscoped-file-search.md
         - Relevance Walk: reference/http-api/rank-walk.md
         - Infrastructure Resource Aggregates: reference/http-api/infra-resource-aggregates.md

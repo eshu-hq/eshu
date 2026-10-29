@@ -303,7 +303,8 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 		return false
 	}
 	switch r.URL.Path {
-	case "/api/v0/content/files/read",
+	case "/api/v0/content/php-config/search",
+		"/api/v0/content/files/read",
 		"/api/v0/content/files/lines",
 		"/api/v0/content/entities/read",
 		"/api/v0/content/files/search",
