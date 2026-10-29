@@ -206,9 +206,10 @@ the promotion proof, so that instance's promotion reads `partial` with the
 acknowledged failure named, while its health label keeps the higher of
 `partial` and its other evidence (`stale` or `degraded`). That lowers the
 promotion severity from `stale` to `partial` for that one combination, by
-design: the acknowledged failure is the likely cause of the staleness. A
-disabled or deactivated instance with stale source rows shows health `stale`
-while its category and promotion read `disabled`.
+design: the acknowledged failure is the likely cause of the staleness. The
+status read lists no source rows for a disabled or deactivated instance, so
+staleness never changes its health: its health, category and promotion read
+`disabled`.
 
 Queue and domain age fields include both human-readable duration strings and
 seconds values, such as `oldest_outstanding_age_seconds` and
