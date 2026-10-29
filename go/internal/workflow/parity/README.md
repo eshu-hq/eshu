@@ -49,3 +49,9 @@ Throughput numbers log per leg for the dark-deployment no-regression baseline.
   `Outcome.Equal` since the replay-ack alignment).
 - Commit pin: in-tree has none (`TestParityPinGap`); pin survival is
   proven on the satellite leg only.
+- Guarded admission: the in-tree store refuses a second admission on an
+  already-covered target tuple (`TestDuplicateAdmissionGap`); the satellite
+  has no guarded route (`ErrGuardedAdmissionNotSupported`) and admits
+  through separate `CreateRun`/`EnqueueWorkItems` calls. The rehearsal must
+  cover the duplicate-admission scenario on the flipped scope
+  ([#8875](https://github.com/eshu-hq/eshu/issues/8875)).
