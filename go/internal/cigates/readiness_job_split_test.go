@@ -351,6 +351,14 @@ func TestReadinessWorkflowSplit(t *testing.T) {
 			"          persist-credentials: false\n" +
 			"          ref: ${{ github.sha }}\n" +
 			"\n" +
+			"      - name: Restore Go build cache\n" +
+			"        uses: actions/cache/restore@v4\n" +
+			"        with:\n" +
+			"          path: /tmp/eshu-ci/go-build\n" +
+			"          key: ${{ runner.os }}-${{ runner.arch }}-gobuildreadiness-${{ hashFiles('go/go.sum') }}\n" +
+			"          restore-keys: |\n" +
+			"            ${{ runner.os }}-${{ runner.arch }}-gobuild-\n" +
+			"\n" +
 			"      - name: Set up Go\n"
 		if !strings.Contains(string(workflow), checkoutStep) {
 			t.Fatal("mutation anchor missing")
@@ -379,6 +387,14 @@ func TestReadinessWorkflowSplit(t *testing.T) {
 			"        with:\n" +
 			"          persist-credentials: false\n" +
 			"          ref: ${{ github.sha }}\n" +
+			"\n" +
+			"      - name: Restore Go build cache\n" +
+			"        uses: actions/cache/restore@v4\n" +
+			"        with:\n" +
+			"          path: /tmp/eshu-ci/go-build\n" +
+			"          key: ${{ runner.os }}-${{ runner.arch }}-gobuildreadiness-${{ hashFiles('go/go.sum') }}\n" +
+			"          restore-keys: |\n" +
+			"            ${{ runner.os }}-${{ runner.arch }}-gobuild-\n" +
 			"\n" +
 			"      - name: Set up Go\n"
 		if !strings.Contains(string(workflow), checkoutStep) {
