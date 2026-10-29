@@ -35,6 +35,27 @@ func (s *scan) runtimeEvidence(source []byte) shared.RuntimeEvidence {
 	return evidence
 }
 
+// splitPropertiesLine cuts a java.util.Properties line at its first
+// separator: '=', ':', or whitespace. A whitespace separator may be
+// followed by padding and one optional '=' or ':'. Backslash escapes are
+// not unescaped; values are taken literally.
+func splitPropertiesLine(trimmed string) (key, value string, ok bool) {
+	if i := strings.IndexAny(trimmed, "=:"); i >= 0 {
+		if ws := strings.IndexAny(trimmed, " \t\f"); ws < 0 || i < ws {
+			return trimmed[:i], strings.TrimSpace(trimmed[i+1:]), true
+		}
+	}
+	ws := strings.IndexAny(trimmed, " \t\f")
+	if ws < 0 {
+		return trimmed, "", false
+	}
+	rest := strings.TrimLeft(trimmed[ws:], " \t\f")
+	if strings.HasPrefix(rest, "=") || strings.HasPrefix(rest, ":") {
+		rest = rest[1:]
+	}
+	return trimmed[:ws], strings.TrimSpace(rest), true
+}
+
 // ExtractBuildPropertiesEvidence reads only sbt.version from a launcher pin.
 // Other properties may contain credentials and are never returned.
 func ExtractBuildPropertiesEvidence(source []byte) shared.RuntimeEvidence {
@@ -48,7 +69,7 @@ func ExtractBuildPropertiesEvidence(source []byte) shared.RuntimeEvidence {
 		if trimmed == "" || strings.HasPrefix(trimmed, "#") || strings.HasPrefix(trimmed, "!") {
 			continue
 		}
-		key, value, ok := strings.Cut(trimmed, "=")
+		key, value, ok := splitPropertiesLine(trimmed)
 		if strings.TrimSpace(key) != "sbt.version" {
 			continue
 		}

@@ -47,6 +47,11 @@ func TestJVMManifestSpecAndFailClosedCases(t *testing.T) {
 		{"properties-unresolved", "project/build.properties", "sbt.version=${SBT_VERSION}", "unresolved", 1, 0, ""},
 		{"properties-malformed", "project/build.properties", "sbt.version=", "", 0, 0, SkipReasonManifestUnparseable},
 		{"properties-credential", "project/build.properties", "sbt.version=0123456789abcdef-secret", "", 0, 1, SkipReasonValueRejected},
+		{"properties-colon", "project/build.properties", "sbt.version:1.9.9", "exact", 1, 0, ""},
+		{"properties-whitespace", "project/build.properties", "sbt.version 1.9.9", "exact", 1, 0, ""},
+		{"properties-colon-padded", "project/build.properties", "# sbt pin\nsbt.version : 1.9.9\n", "exact", 1, 0, ""},
+		{"properties-duplicate", "project/build.properties", "sbt.version=1.9.9\nsbt.version=1.8.0\n", "", 0, 0, SkipReasonManifestUnparseable},
+		{"pom-duplicate", "pom.xml", "<project><properties><java.version>17</java.version><java.version>21</java.version></properties></project>", "", 0, 2, SkipReasonValueRejected},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			extraction, ok := Extract(tc.path, tc.body)
@@ -61,6 +66,25 @@ func TestJVMManifestSpecAndFailClosedCases(t *testing.T) {
 				if got := classifyDeclaration(sectionSourceKinds[extraction.declarations[0].section], extraction.declarations[0]).Kind; got != tc.kind {
 					t.Fatalf("spec kind=%q, want %q", got, tc.kind)
 				}
+			}
+		})
+	}
+}
+
+func TestJVMDeclarationLineNumbersSurviveLeadingLines(t *testing.T) {
+	for _, tc := range []struct {
+		path, body, kind string
+		line             int
+	}{
+		{"project/build.properties", "# managed by sbt\n# do not edit\n\nsbt.version=1.9.9\n", "sbt_build_properties_version", 4},
+		{"project/build.properties", "# sbt pin\nsbt.version : 1.9.9\n", "sbt_build_properties_version", 2},
+		{"build.sbt", "// header\n// more context\nscalaVersion := \"3.3.1\"\n", "sbt_scala_version", 3},
+		{"pom.xml", "<project>\n<properties>\n<maven.compiler.release>21</maven.compiler.release>\n</properties>\n</project>", "pom_maven_compiler_release", 3},
+	} {
+		t.Run(tc.path, func(t *testing.T) {
+			facts := emitDecoded(t, tc.path, tc.body)
+			if len(facts) != 1 || facts[0].SourceKind != tc.kind || facts[0].LineNumber != tc.line {
+				t.Fatalf("declaration = %+v, want kind=%s line=%d", facts, tc.kind, tc.line)
 			}
 		})
 	}
