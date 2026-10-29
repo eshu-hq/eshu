@@ -4,9 +4,10 @@
 
 This package owns the `eshu-deploy` extraction census for issue #8871: the
 inventory of deployment assets (Helm chart, Compose overlays, GitOps
-examples, deployment defaults, compatibility matrix) moving to
-`eshu-hq/eshu-deploy`, and the contract tests that pin the census record
-to the tree until the cutover lands.
+examples, deployment defaults, compatibility matrix) that moved to
+`eshu-hq/eshu-deploy`, and the contract tests that pin the frozen census
+record plus the living core-owned boundary against the pinned
+eshu-deploy checkout.
 
 ## Ownership boundary
 
@@ -16,10 +17,12 @@ contract record
 (`docs/internal/evidence/8871-eshu-deploy-contract.md`), and their
 contract tests only. Does not own the chart, the compose files, the
 release pipelines, or the schema-bootstrap implementation — those live
-with their respective owners (`deploy/`, `.github/workflows/`,
-`go/cmd/bootstrap-data-plane`). After the cutover, the runtime contract
-tests in `go/internal/runtime` repoint at the published eshu-deploy
-artifact versions.
+with their respective owners (`eshu-hq/eshu-deploy`,
+`.github/workflows/`, `go/cmd/bootstrap-data-plane`). After the
+in-tree removal, the record-prose tests pin the frozen evidence and the
+boundary test reads the chart from the pinned eshu-deploy checkout
+(`ESHU_DEPLOY_CHECKOUT`); the runtime contract tests in
+`go/internal/runtime` repoint at the same checkout.
 
 ## Exported surface
 

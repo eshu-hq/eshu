@@ -45,10 +45,12 @@ ledger="${repo_root}/specs/live-tests.v1.yaml"
 # --keep marker reclaim path checks `docker compose -p <project> ps -q`,
 # which does not see bare-run containers, so a legitimately retained
 # stack would read as stale and the next run would collide on the fixed
-# ports. Compose files (single bare service each):
-#   nornicdb → docker-compose.live-backend-nornicdb.yml
-#   neo4j    → docker-compose.live-backend-neo4j.yml
-# Their image pins MUST match docker-compose.yaml / docker-compose.neo4j.yml;
+# ports. Compose files (single bare service each) moved to eshu-deploy
+# under #8871:
+#   nornicdb → compose/docker-compose.live-backend-nornicdb.yml
+#   neo4j    → compose/docker-compose.live-backend-neo4j.yml
+# Their image pins MUST match compose/docker-compose.yaml /
+# compose/docker-compose.neo4j.yml;
 # scripts/test-run-live-backend-tests.sh fails on drift.
 nornicdb_compose="docker-compose.live-backend-nornicdb.yml"
 neo4j_compose="docker-compose.live-backend-neo4j.yml"
@@ -124,6 +126,16 @@ if [[ "${ESHU_LIVE_RUNNER_SELFTEST:-0}" == "1" ]]; then
 	printf 'neo4j_platform=%s\n' "${NEO4J_PLATFORM:-}"
 	exit 0
 fi
+
+# Backend stacks moved to eshu-deploy under #8871: the Compose files come
+# from the ESHU_DEPLOY_CHECKOUT checkout (CI pins the extraction commit).
+# Required after the self-test early exit so the static self-test stays
+# hermetic, while a real run without the checkout fails here instead of
+# composing the wrong files.
+: "${ESHU_DEPLOY_CHECKOUT:?ESHU_DEPLOY_CHECKOUT must point at an eshu-hq/eshu-deploy checkout; the gate workflow checks it out at the pinned extraction commit}"
+deploy_compose_dir="${ESHU_DEPLOY_CHECKOUT}/compose"
+[[ -f "${deploy_compose_dir}/${nornicdb_compose}" ]] || die "compose file ${deploy_compose_dir}/${nornicdb_compose} missing from ESHU_DEPLOY_CHECKOUT=${ESHU_DEPLOY_CHECKOUT}"
+[[ -f "${deploy_compose_dir}/${neo4j_compose}" ]] || die "compose file ${deploy_compose_dir}/${neo4j_compose} missing from ESHU_DEPLOY_CHECKOUT=${ESHU_DEPLOY_CHECKOUT}"
 
 : "${NEO4J_BOLT_PORT:=7687}"
 : "${NEO4J_HTTP_PORT:=7474}"
@@ -225,7 +237,7 @@ run_one() {
 		printf 'run-live-backend-tests: neo4j platform %s\n' "${NEO4J_PLATFORM:-compose default (linux/amd64)}"
 	fi
 	if [[ "${use_compose}" == "1" ]]; then
-		compose_args=(-p "${compose_project}" -f "${repo_root}/${compose_file}")
+		compose_args=(-p "${compose_project}" -f "${deploy_compose_dir}/${compose_file}")
 		eshu_ci_compose_prepare "${repo_root}" "${compose_args[@]}" || die "CI image overlay preflight failed"
 		compose_down "${compose_file}" || die "could not establish fresh ${name} stack"
 		# A failed up can leave a half-started stack behind, and the EXIT

@@ -1,4 +1,4 @@
-name: Publish Image and Helm Chart
+name: Publish Image
 on:
   workflow_call:
     inputs:
@@ -18,7 +18,7 @@ on:
       - 'v*'
     paths: [
       'Dockerfile', '.dockerignore', 'go/**',
-      'deploy/helm/**', '.github/workflows/docker-publish.yml', 'scripts/ci/select-docker-publish-lanes.sh', 'scripts/ci/push-helm-chart.sh', 'scripts/verify-apk-floors.sh',
+      '.github/workflows/docker-publish.yml', 'scripts/ci/select-docker-publish-lanes.sh', 'scripts/verify-apk-floors.sh',
       'scripts/test-verify-apk-floors.sh', 'scripts/fixtures/apk-floors/**',
       'scripts/verify-runtime-image-tools.sh', 'scripts/test-verify-runtime-image-tools.sh',
       'scripts/verify-scanner-images.sh', 'scripts/test-verify-scanner-images.sh',
@@ -56,8 +56,6 @@ env:
   ESHU_ALPINE_IMAGE: ghcr.io/eshu-hq/ci-mirror-alpine@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  CHART_PATH: deploy/helm/eshu
-  CHART_REGISTRY: oci://ghcr.io/${{ github.repository_owner }}/charts
   IMAGE_PLATFORMS: ${{ (github.event_name == 'pull_request') && 'linux/amd64' || 'linux/amd64,linux/arm64' }}
 jobs:
   changes:
@@ -66,7 +64,6 @@ jobs:
     timeout-minutes: 5
     outputs:
       image: ${{ steps.filter.outputs.image }}
-      chart: ${{ steps.filter.outputs.chart }}
       apkfloors: ${{ steps.filter.outputs.apkfloors }}
     steps:
       - name: Checkout repository
@@ -535,36 +532,6 @@ jobs:
           gh release upload "${GITHUB_REF_NAME}" "dist/eshu-image-sbom.spdx.json" \
             --repo "${GITHUB_REPOSITORY}" \
             --clobber
-  package-and-push-chart:
-    needs: [changes]
-    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'package-and-push-chart')) && ((github.event_name != 'workflow_dispatch' || inputs.mode == 'release') && needs.changes.outputs.chart == 'true') }}
-    env:
-      LANE_APPLIES: ${{ needs.changes.outputs.chart }}
-    timeout-minutes: 10
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - name: Checkout repository
-        if: ${{ env.LANE_APPLIES == 'true' }}
-        uses: actions/checkout@v5
-      - name: Set up Helm
-        if: ${{ env.LANE_APPLIES == 'true' }}
-        uses: azure/setup-helm@v5.0.0
-        with:
-          version: v4.2.3
-      - name: Lint Helm chart
-        if: ${{ env.LANE_APPLIES == 'true' }}
-        run: helm lint ${{ env.CHART_PATH }}
-      - name: Package Helm chart
-        if: ${{ env.LANE_APPLIES == 'true' }}
-        run: mkdir -p dist && helm package ${{ env.CHART_PATH }} --destination dist
-      - name: Push Helm chart to GHCR
-        if: ${{ github.event_name != 'pull_request' }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bash scripts/ci/push-helm-chart.sh
   publish-ci-service-mirrors:
     if: github.event_name == 'workflow_dispatch' && inputs.mode == 'ci-mirrors-publish' && github.repository == 'eshu-hq/eshu' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04

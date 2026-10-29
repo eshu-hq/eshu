@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Selects the eshu-side docker-publish lanes (image, apkfloors) from the
+# changed paths. The Helm chart lane moved to eshu-hq/eshu-deploy under
+# #8871: eshu-deploy's chart-release.yml owns chart publication, so the
+# chart lane and its triggers (deploy/helm/*, push-helm-chart.sh) no longer
+# live here. Only image and apkfloors remain.
+
 if [[ "${GITHUB_REF_TYPE}" == tag || "${GITHUB_EVENT_NAME}" == workflow_dispatch ]]; then
   {
     echo 'image=true'
-    echo 'chart=true'
     echo 'apkfloors=true'
   } >> "${GITHUB_OUTPUT}"
   exit 0
@@ -31,7 +36,6 @@ case "${GITHUB_EVENT_NAME}" in
 esac
 
 image=false
-chart=false
 apkfloors=false
 while IFS= read -r path; do
   case "${path}" in
@@ -67,21 +71,13 @@ while IFS= read -r path; do
         image=true
       fi
       ;;
-    deploy/helm/*)
-      chart=true
-      ;;
     .github/workflows/docker-publish.yml|scripts/ci/select-docker-publish-lanes.sh)
       image=true
-      chart=true
       apkfloors=true
-      ;;
-    scripts/ci/push-helm-chart.sh)
-      chart=true
       ;;
   esac
 done < <(git diff --name-only "${base_sha}" "${head_sha}")
 {
   echo "image=${image}"
-  echo "chart=${chart}"
   echo "apkfloors=${apkfloors}"
 } >> "${GITHUB_OUTPUT}"

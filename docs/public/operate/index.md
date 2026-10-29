@@ -36,8 +36,8 @@ queued work.
 | Prove a local change before handoff | [Local Testing Reference](../reference/local-testing.md) |
 | Validate hosted or Kubernetes behavior | [Cloud Validation Runbook](../reference/cloud-validation.md) |
 | Operate AWS cloud collection | [AWS Cloud Collector](../services/collector-aws-cloud.md) |
-| Prepare Kubernetes rollout checks | [Kubernetes Production Checklist](../deploy/kubernetes/production-checklist.md) |
-| Roll forward or back | [Upgrade and Rollback](../deploy/kubernetes/upgrades-rollbacks.md) |
+| Prepare Kubernetes rollout checks | [Kubernetes Production Checklist](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/production-checklist.md) |
+| Roll forward or back | [Upgrade and Rollback](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/upgrades-rollbacks.md) |
 
 ## Runtime Model
 

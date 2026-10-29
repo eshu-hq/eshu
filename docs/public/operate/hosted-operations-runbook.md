@@ -21,21 +21,21 @@ bounded API or MCP read that proves indexed state is usable.
 | Need | Use |
 | --- | --- |
 | Runtime ownership and health versus completeness | [Service Runtimes](../deployment/service-runtimes.md) |
-| Local and remote Compose shape | [Docker Compose](../run-locally/docker-compose.md) |
+| Local and remote Compose shape | [Docker Compose](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/run-locally/docker-compose.md) |
 | Remote all-collector proof | [Remote Collector E2E](../reference/local-testing/remote-collector-e2e.md) |
 | Hosted runtime-state gate | [Remote E2E Runtime State](../reference/remote-e2e-runtime-state.md) |
-| Kubernetes install flow | [Helm Quickstart](../deploy/kubernetes/helm-quickstart.md) |
-| Install, upgrade, and rollback proof artifact | [Helm Rollout Proof](../deploy/kubernetes/helm-rollout-proof.md) |
-| EKS shared-service path | [Deploy To EKS](../deploy/eks/index.md) |
-| GitOps overlays | [Argo CD And GitOps](../deploy/kubernetes/argocd.md) |
-| Production checklist | [Production Checklist](../deploy/kubernetes/production-checklist.md) |
-| Backup, restore, and graph rebuild proof | [Hosted Backup and Restore Proof](../deploy/kubernetes/backup-restore-proof.md) |
+| Kubernetes install flow | [Helm Quickstart](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/helm-quickstart.md) |
+| Install, upgrade, and rollback proof artifact | [Helm Rollout Proof](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/helm-rollout-proof.md) |
+| EKS shared-service path | [Deploy To EKS](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/eks/index.md) |
+| GitOps overlays | [Argo CD And GitOps](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/argocd.md) |
+| Production checklist | [Production Checklist](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/production-checklist.md) |
+| Backup, restore, and graph rebuild proof | [Hosted Backup and Restore Proof](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/backup-restore-proof.md) |
 | Health checks | [Health Checks](health-checks.md) |
 | Telemetry and signal order | [Telemetry](telemetry.md) |
 | Hosted dashboard and alert pack | [Hosted Ops Alert Pack](hosted-ops-alert-pack.md) |
 | MCP clients | [Connect MCP](../mcp/index.md) |
 | Hosted onboarding and governance | [Hosted Project Onboarding](../deployment/hosted-onboarding.md), [Hosted Governance Posture](hosted-governance.md) |
-| Upgrade and rollback | [Upgrade And Rollback](../deploy/kubernetes/upgrades-rollbacks.md) |
+| Upgrade and rollback | [Upgrade And Rollback](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/upgrades-rollbacks.md) |
 
 ## Minimum Hosted Rollout Checklist
 
@@ -130,8 +130,8 @@ optional collector settings. Fix render errors before `helm upgrade --install`.
 
 ### 4. Install Or Upgrade Kubernetes
 
-Follow [Helm Quickstart](../deploy/kubernetes/helm-quickstart.md) for a generic
-cluster or [Deploy To EKS](../deploy/eks/index.md) for the EKS path. Install or
+Follow [Helm Quickstart](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/helm-quickstart.md) for a generic
+cluster or [Deploy To EKS](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/eks/index.md) for the EKS path. Install or
 upgrade only after Postgres, graph backend, secrets, workspace storage, and
 repository sync rules are ready.
 
@@ -205,7 +205,7 @@ graph backends until the failure class is known.
 Before an upgrade, pin the image tag, render Helm, review workload and
 environment changes, verify recent Postgres backups, and capture current queue
 and completeness state. Then follow
-[Upgrade And Rollback](../deploy/kubernetes/upgrades-rollbacks.md).
+[Upgrade And Rollback](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/upgrades-rollbacks.md).
 
 Rollback is not a database restore. If a new image writes durable Postgres state
 that the old image cannot read, use the platform restore plan. If only the graph

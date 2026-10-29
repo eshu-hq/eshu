@@ -26,8 +26,8 @@ from zero to one indexed repository, a status check, and a first useful answer.
 | Index repositories and ask questions | [Use Eshu](use/index.md) |
 | Trace a vulnerable dependency to its images and owners | [Use Cases](use-cases.md) |
 | Audit secrets, IAM, and supply-chain posture | [Security Intelligence](reference/security-intelligence.md) |
-| Deploy Eshu for a team | [Deploy to Kubernetes](deploy/kubernetes/index.md) |
-| Deploy Eshu on EKS | [Deploy to EKS](deploy/eks/index.md) |
+| Deploy Eshu for a team | [Deploy to Kubernetes](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/index.md) |
+| Deploy Eshu on EKS | [Deploy to EKS](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/eks/index.md) |
 | Keep a running service healthy | [Operate Eshu](operate/index.md) |
 | Debug slow indexing, stale answers, or graph timeouts | [Tuning Playbook](operate/tuning-playbook.md) |
 | Understand the architecture and graph model | [Understand Eshu](understand/index.md) |
@@ -40,7 +40,7 @@ from zero to one indexed repository, a status check, and a first useful answer.
 
 Most first-time readers start locally. Eshu has two local shapes:
 
-- Use [Docker Compose](run-locally/docker-compose.md) when you want the full
+- Use [Docker Compose](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/run-locally/docker-compose.md) when you want the full
   API and MCP service stack on one laptop.
 - Use [Local binaries](run-locally/local-binaries.md) when you are developing
   Eshu or testing the local owner service behind `eshu graph start`.

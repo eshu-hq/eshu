@@ -53,11 +53,11 @@ def verify_workflow_text(text: str, fragment: str | None = None) -> None:
         (6, "matrix:"),
         (8, "include:"),
         (10, "- graph_backend: nornicdb"),
-        (12, "compose_file: docker-compose.yaml"),
+        (12, "compose_file: eshu-deploy/compose/docker-compose.yaml"),
         (12, "graph_service: nornicdb"),
         (12, "database: nornic"),
         (10, "- graph_backend: neo4j"),
-        (12, "compose_file: docker-compose.neo4j.yml"),
+        (12, "compose_file: eshu-deploy/compose/docker-compose.neo4j.yml"),
         (12, "graph_service: neo4j"),
         (12, "database: neo4j"),
     ]:
@@ -70,7 +70,7 @@ def verify_workflow_text(text: str, fragment: str | None = None) -> None:
     job = match.group(1)
     nornic_matrix = (
         "          - graph_backend: nornicdb\n"
-        "            compose_file: docker-compose.yaml\n"
+        "            compose_file: eshu-deploy/compose/docker-compose.yaml\n"
         "            graph_service: nornicdb\n"
         "            database: nornic\n"
     )

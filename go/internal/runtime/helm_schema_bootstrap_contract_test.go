@@ -104,7 +104,7 @@ func TestHelmSchemaBootstrapQAOverlayPinsHook(t *testing.T) {
 
 	chartValues := func(name string) string {
 		t.Helper()
-		return filepath.Join(repositoryRoot(t), "deploy", "argocd", name)
+		return deployGitOpsPath(t, filepath.Join("argocd", name))
 	}
 	manifests := renderHelmChart(t,
 		"-f", chartValues(filepath.Join("base", "values.yaml")),

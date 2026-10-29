@@ -188,7 +188,7 @@ gates:
       - ".github/static-contract-filters.yml"
     local:
       command: "bash scripts/generate-remote-validation-inventory.sh && git diff --exit-code -- docs/internal/remote-validation/inventory.generated.json && bash scripts/verify-remote-validation-artifacts.sh"
-      test_command: "bash scripts/test-generate-remote-validation-inventory.sh && bash scripts/test-verify-remote-validation-artifacts.sh && bash scripts/test-verify-dead-iac-compose.sh && bash scripts/test-verify-remote-e2e-component-extension.sh && bash scripts/test-verify-k8s-two-team-governance-proof.sh && bash scripts/test-k8s-two-team-governance-provenance.sh"
+      test_command: "bash scripts/test-generate-remote-validation-inventory.sh && bash scripts/test-verify-remote-validation-artifacts.sh && bash scripts/test-verify-dead-iac-compose.sh && bash scripts/test-verify-remote-e2e-component-extension.sh && bash scripts/test-verify-k8s-two-team-governance-proof.sh"
     ci:
       workflow: static-contract-gates.yml
       job: "Verify remote-validation-artifacts gate"

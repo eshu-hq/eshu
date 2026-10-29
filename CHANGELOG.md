@@ -9,6 +9,24 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### Deploy lanes move to eshu-deploy: in-tree Helm, Compose, and deploy docs removed
+
+- **Deploy assets now live in
+  [eshu-hq/eshu-deploy](https://github.com/eshu-hq/eshu-deploy)**
+  ([#8871](https://github.com/eshu-hq/eshu/issues/8871)). The in-tree
+  `deploy/` Helm chart, GitOps examples, manifests, observability and
+  Grafana assets, all root `docker-compose.*` files, the run-locally
+  Compose docs and fragments, the `deploy/kubernetes` and `deploy/eks`
+  guides, and the deploy proof verifiers are deleted from this repo. Gates
+  check out eshu-deploy at the pinned extraction commit
+  (`ESHU_DEPLOY_CHECKOUT`, pin
+  `103155c9ffa27ad245da17e60edf982989e51ba7`) and address Compose files,
+  chart renders, and deploy docs inside it; contract tests fail closed when
+  the checkout is absent or drifts from the pin. The Helm chart release
+  lane (`scripts/ci/push-helm-chart.sh`, `package-and-push-chart` job) now
+  runs from eshu-deploy's `chart-release.yml`, which published chart
+  `0.0.3-pre-release-26`. Docs nav keeps one link to the deploy repo.
+
 ### Vulnerability and package-registry planning: every target within P windows
 
 - **Derived targets now rotate through fixed hash slots**

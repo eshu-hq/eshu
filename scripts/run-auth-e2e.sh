@@ -9,7 +9,8 @@
 # full lifecycle: it always brings up a fresh stack and always tears it down
 # (`down -v` removes the named Postgres/graph volumes too), using an isolated
 # Compose project name so it never touches a developer's own manually-started
-# `eshu-e2e` stack (docs/public/run-locally/docker-compose.md#sso-auth-e2e-stack).
+# `eshu-e2e` stack (see the SSO auth E2E stack section of the Compose guide in
+# eshu-hq/eshu-deploy: docs/run-locally/docker-compose.md).
 #
 # Usage: scripts/run-auth-e2e.sh
 #   ESHU_KEEP_COMPOSE_STACK=true   Skip the `down -v` teardown for debugging.
@@ -48,7 +49,10 @@ for tool in docker node go; do
   }
 done
 
-compose_args=(-p "$project" -f docker-compose.e2e.yaml)
+# The e2e stack moved to eshu-deploy under #8871: the Compose file comes
+# from the ESHU_DEPLOY_CHECKOUT checkout (CI pins the extraction commit).
+: "${ESHU_DEPLOY_CHECKOUT:?ESHU_DEPLOY_CHECKOUT must point at an eshu-hq/eshu-deploy checkout; the gate workflow checks it out at the pinned extraction commit}"
+compose_args=(-p "$project" -f "${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.e2e.yaml")
 # shellcheck source=scripts/lib/ci-image-compose.sh
 source "$repo_root/scripts/lib/ci-image-compose.sh"
 eshu_ci_compose_prepare "$repo_root" "${compose_args[@]}"
@@ -62,7 +66,7 @@ teardown() {
     exit_code=1
   fi
   if [[ "$keep_stack" == "true" ]]; then
-    echo "run-auth-e2e: ESHU_KEEP_COMPOSE_STACK=true — leaving stack up: docker compose -p $project -f docker-compose.e2e.yaml down -v"
+    echo "run-auth-e2e: ESHU_KEEP_COMPOSE_STACK=true — leaving stack up: docker compose -p $project -f ${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.e2e.yaml down -v"
     exit "$exit_code"
   fi
   echo "run-auth-e2e: tearing down project $project"

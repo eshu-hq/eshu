@@ -12,7 +12,8 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${repo_root}"
 
-compose_file="docker-compose.demo.yaml"
+: "${ESHU_DEPLOY_CHECKOUT:?set ESHU_DEPLOY_CHECKOUT to an eshu-deploy checkout at the #8871 extraction pin}"
+compose_file="${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.demo.yaml"
 project_name="eshu-demo-proof-$$"
 
 : "${ESHU_DEMO_API_PORT:=18080}"

@@ -58,7 +58,7 @@ inspect the ingester and resolution-engine logs plus
 
 ## Backend And Runtime Links
 
-- [Docker Compose](../run-locally/docker-compose.md)
+- [Docker Compose](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/run-locally/docker-compose.md)
 - [Graph Backend Operations](graph-backend-operations.md)
 - [NornicDB Tuning](nornicdb-tuning.md)
 - [Tuning Playbook](../operate/tuning-playbook.md)

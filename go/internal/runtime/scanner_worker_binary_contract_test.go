@@ -59,11 +59,18 @@ func TestSBOMAttestationCollectorBinaryIsBuiltInstalledAndDocumented(t *testing.
 		"Dockerfile":                        "-o /go-bin/eshu-collector-sbom-attestation ./cmd/collector-sbom-attestation",
 		"scripts/install-local-binaries.sh": "go build -trimpath -ldflags=\"$LDFLAGS\" -o \"$INSTALL_DIR/eshu-collector-sbom-attestation\" ./cmd/collector-sbom-attestation",
 		"go/cmd/README.md":                  "`eshu-collector-sbom-attestation`",
-		"docs/public/deployment/service-runtimes-collectors.md":                 "SBOM Attestation Collector",
-		"docs/public/reference/environment-collectors-supply-chain.md":          "ESHU_SBOM_ATTESTATION_COLLECTOR_INSTANCE_ID",
-		"deploy/helm/eshu/templates/deployment-sbom-attestation-collector.yaml": "/usr/local/bin/eshu-collector-sbom-attestation",
+		"docs/public/deployment/service-runtimes-collectors.md":        "SBOM Attestation Collector",
+		"docs/public/reference/environment-collectors-supply-chain.md": "ESHU_SBOM_ATTESTATION_COLLECTOR_INSTANCE_ID",
 	} {
 		content := readRepositoryFile(t, "../../..", file)
+		if !strings.Contains(content, want) {
+			t.Fatalf("%s missing %q", file, want)
+		}
+	}
+	for file, want := range map[string]string{
+		"helm/eshu/templates/deployment-sbom-attestation-collector.yaml": "/usr/local/bin/eshu-collector-sbom-attestation",
+	} {
+		content := readRepositoryFile(t, deployCheckoutRoot(t), file)
 		if !strings.Contains(content, want) {
 			t.Fatalf("%s missing %q", file, want)
 		}
@@ -77,11 +84,18 @@ func TestPagerDutyCollectorBinaryIsBuiltInstalledAndDocumented(t *testing.T) {
 		"Dockerfile":                        "-o /go-bin/eshu-collector-pagerduty ./cmd/collector-pagerduty",
 		"scripts/install-local-binaries.sh": "go build -trimpath -ldflags=\"$LDFLAGS\" -o \"$INSTALL_DIR/eshu-collector-pagerduty\" ./cmd/collector-pagerduty",
 		"go/cmd/README.md":                  "`eshu-collector-pagerduty`",
-		"docs/public/deployment/service-runtimes-collectors.md":          "deploy/helm/eshu/templates/deployment-pagerduty-collector.yaml",
-		"docs/public/reference/environment-collectors.md":                "ESHU_PAGERDUTY_COLLECTOR_INSTANCE_ID",
-		"deploy/helm/eshu/templates/deployment-pagerduty-collector.yaml": "/usr/local/bin/eshu-collector-pagerduty",
+		"docs/public/deployment/service-runtimes-collectors.md": "deploy/helm/eshu/templates/deployment-pagerduty-collector.yaml",
+		"docs/public/reference/environment-collectors.md":       "ESHU_PAGERDUTY_COLLECTOR_INSTANCE_ID",
 	} {
 		content := readRepositoryFile(t, "../../..", file)
+		if !strings.Contains(content, want) {
+			t.Fatalf("%s missing %q", file, want)
+		}
+	}
+	for file, want := range map[string]string{
+		"helm/eshu/templates/deployment-pagerduty-collector.yaml": "/usr/local/bin/eshu-collector-pagerduty",
+	} {
+		content := readRepositoryFile(t, deployCheckoutRoot(t), file)
 		if !strings.Contains(content, want) {
 			t.Fatalf("%s missing %q", file, want)
 		}
@@ -122,12 +136,16 @@ func TestObservabilityCollectorBinariesAreBuiltInstalledAndDocumented(t *testing
 			"go/cmd/README.md":                  "`" + collector.binary + "`",
 			"docs/public/deployment/service-runtimes-collectors.md": collector.displayName,
 			"docs/public/reference/environment-collectors.md":       collector.envVar,
-			collector.templatePath:                                  "/usr/local/bin/" + collector.binary,
 		} {
 			content := readRepositoryFile(t, "../../..", file)
 			if !strings.Contains(content, want) {
 				t.Fatalf("%s missing %q", file, want)
 			}
+		}
+		deployTemplate := strings.TrimPrefix(collector.templatePath, "deploy/")
+		content := readRepositoryFile(t, deployCheckoutRoot(t), deployTemplate)
+		if want := "/usr/local/bin/" + collector.binary; !strings.Contains(content, want) {
+			t.Fatalf("%s missing %q", deployTemplate, want)
 		}
 	}
 }
@@ -139,11 +157,18 @@ func TestCICDRunCollectorBinaryIsBuiltInstalledAndDocumented(t *testing.T) {
 		"Dockerfile":                        "-o /go-bin/eshu-collector-cicd-run ./cmd/collector-cicd-run",
 		"scripts/install-local-binaries.sh": "go build -trimpath -ldflags=\"$LDFLAGS\" -o \"$INSTALL_DIR/eshu-collector-cicd-run\" ./cmd/collector-cicd-run",
 		"go/cmd/README.md":                  "`eshu-collector-cicd-run`",
-		"docs/public/deployment/service-runtimes-collectors.md":         "CI/CD Run Collector",
-		"docs/public/reference/environment-collectors-supply-chain.md":  "ESHU_CICD_RUN_COLLECTOR_INSTANCE_ID",
-		"deploy/helm/eshu/templates/deployment-cicd-run-collector.yaml": "/usr/local/bin/eshu-collector-cicd-run",
+		"docs/public/deployment/service-runtimes-collectors.md":        "CI/CD Run Collector",
+		"docs/public/reference/environment-collectors-supply-chain.md": "ESHU_CICD_RUN_COLLECTOR_INSTANCE_ID",
 	} {
 		content := readRepositoryFile(t, "../../..", file)
+		if !strings.Contains(content, want) {
+			t.Fatalf("%s missing %q", file, want)
+		}
+	}
+	for file, want := range map[string]string{
+		"helm/eshu/templates/deployment-cicd-run-collector.yaml": "/usr/local/bin/eshu-collector-cicd-run",
+	} {
+		content := readRepositoryFile(t, deployCheckoutRoot(t), file)
 		if !strings.Contains(content, want) {
 			t.Fatalf("%s missing %q", file, want)
 		}

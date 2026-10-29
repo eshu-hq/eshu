@@ -18,7 +18,7 @@ class from status output, structured logs, traces, or a discovery advisory.
 | Workflow coordinator, Terraform-state, AWS, Vault live, OCI, package-registry, SBOM-attestation, security-alert, vulnerability-intelligence, Confluence, and webhook variables | [Collector Environment](environment-collectors.md) |
 | Docker Compose ports, remote E2E, verifier, live-smoke, and proof-run variables | [Compose And Test Environment](environment-compose-tests.md) |
 | NornicDB write-shape tuning decisions and evidence requirements | [NornicDB Tuning](nornicdb-tuning.md) |
-| Compose service purpose and when to use each Compose file | [Docker Compose](../run-locally/docker-compose.md) |
+| Compose service purpose and when to use each Compose file | [Docker Compose](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/run-locally/docker-compose.md) |
 | Local validation commands and gates | [Local Testing](local-testing.md) |
 
 ## Tuning Rules

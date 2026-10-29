@@ -71,7 +71,9 @@ type Diagnostic struct {
 	Summary string `json:"summary"`
 	// RecoverySteps are concrete, copy-pasteable actions to resolve the failure.
 	RecoverySteps []string `json:"recovery_steps"`
-	// DocsLink is a repo-relative docs path the operator can open for context.
+	// DocsLink is a docs location the operator can open for context:
+	// either a repo-relative docs path or, for assets extracted to
+	// eshu-hq/eshu-deploy, an absolute URL into that repository.
 	DocsLink string `json:"docs_link"`
 	// Underlying is the preserved root-cause error. It is never discarded so the
 	// transport, process, or queue evidence remains visible.

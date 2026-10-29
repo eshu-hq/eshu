@@ -426,7 +426,7 @@ defaults.
 The Helm chart owns hosted defaults for NornicDB container flags, probes,
 `ESHU_CANONICAL_WRITE_TIMEOUT=120s`, and
 `ESHU_SHARED_PROJECTION_WORKERS=8`. See
-[Helm Runtime Values](../deploy/kubernetes/helm-runtime-values.md) before
+[Helm Runtime Values](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/helm-runtime-values.md) before
 changing chart values and [NornicDB Tuning Evidence](nornicdb-tuning-evidence.md)
 before changing their proof trail.
 

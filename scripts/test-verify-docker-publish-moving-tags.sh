@@ -94,19 +94,25 @@ require_pattern \
 	'"${image}:main" -t "${image}:latest"' \
 	'promotion script must move main and latest together in one command'
 
-# 4. The Helm push tolerates a same-version duplicate only when the bytes are
-# identical; anything else stays red.
-require_pattern \
+# 4. The Helm chart lane moved to eshu-hq/eshu-deploy under #8871
+# (chart-release.yml runs the guarded publisher there): this workflow must
+# not resurrect a chart lane, so a re-added chart job, chart path, or
+# publisher call fails here naming the extraction.
+forbid_pattern \
 	"$publish" \
-	'run: bash scripts/ci/push-helm-chart.sh' \
-	'docker publish workflow must call the guarded Helm chart publisher'
-require_pattern \
-	'scripts/ci/push-helm-chart.sh' \
-	'already published with identical bytes' \
-	'Helm chart publisher must tolerate only byte-identical duplicate pushes'
+	'push-helm-chart' \
+	'docker publish workflow must not call the Helm chart publisher (moved to eshu-deploy chart-release.yml)'
+forbid_pattern \
+	"$publish" \
+	'package-and-push-chart' \
+	'docker publish workflow must not contain a chart packaging job (moved to eshu-deploy chart-release.yml)'
+forbid_pattern \
+	"$publish" \
+	'CHART_PATH' \
+	'docker publish workflow must not set a chart path (moved to eshu-deploy chart-release.yml)'
 
 # 5. Trivy scans the per-commit sha tag, never the racy moving tag, and skips
-# green when the triggering run pushed no image (chart-only).
+# green when the triggering run pushed no image (lane filter selected none).
 require_pattern \
 	"$scan" \
 	'bash scripts/ci/resolve-image-scan-ref.sh' \

@@ -3,7 +3,8 @@ set -euo pipefail
 
 # Capture + verify driver for the Scorecard component-extension remote Compose
 # proof (#2126, #1923). It reads runtime truth from a running ce-proof stack
-# (see docs/public/run-locally/docker-compose.component-extension.yaml), shapes
+# (see compose/fragments/docker-compose.component-extension.yaml in the
+# eshu-deploy checkout), shapes
 # it into normalized proof artifacts the verifier consumes, then runs
 # scripts/verify-remote-e2e-component-extension.sh against them.
 #

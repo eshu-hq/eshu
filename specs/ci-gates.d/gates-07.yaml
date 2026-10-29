@@ -289,7 +289,6 @@ gates:
     blocking: false
     triggers:
       - "Dockerfile"
-      - "deploy/**"
       - "go/go.mod"
       - "go/go.sum"
       - "package-lock.json"

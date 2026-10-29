@@ -61,13 +61,13 @@ jobs:
       matrix:
         include:
           - graph_backend: nornicdb
-            compose_file: docker-compose.yaml
+            compose_file: eshu-deploy/compose/docker-compose.yaml
           # #6782: the Neo4j backend runs the same corpus. Its registry row
           # (golden-corpus-gate-neo4j) is the blocking truth gate (#7362).
           # The NornicDB cell above is watch-only: its row (golden-corpus-gate)
           # is blocking: false, layer secondary.
           - graph_backend: neo4j
-            compose_file: docker-compose.neo4j.yml
+            compose_file: eshu-deploy/compose/docker-compose.neo4j.yml
     env:
       # The orchestrator names its compose project from this; pinning it lets
       # the failure-dump and teardown steps address the same project with the
@@ -76,6 +76,16 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v5
+
+      # Deploy lanes (Compose files, env examples) moved to eshu-deploy
+      # under #8871. Gates check that repo out at the pinned extraction
+      # commit and address Compose files inside it.
+      - name: Check out eshu-deploy at the pinned extraction commit
+        uses: actions/checkout@v5
+        with:
+          repository: eshu-hq/eshu-deploy
+          ref: 103155c9ffa27ad245da17e60edf982989e51ba7
+          path: eshu-deploy
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -97,6 +107,7 @@ jobs:
       - name: Run B-7 golden corpus gate
         env:
           ESHU_GRAPH_BACKEND: ${{ matrix.graph_backend }}
+          ESHU_DEPLOY_CHECKOUT: ${{ github.workspace }}/eshu-deploy
           ESHU_NEO4J_PASSWORD: change-me
           ESHU_POSTGRES_PASSWORD: change-me
         run: bash scripts/verify-golden-corpus-gate.sh
@@ -124,10 +135,20 @@ jobs:
         graph_backend: [nornicdb, neo4j]
     env:
       GATE_COMPOSE_PROJECT: eshu-differential-pair${{ matrix.pair }}-${{ matrix.graph_backend }}
-      COMPOSE_FILE: ${{ matrix.graph_backend == 'neo4j' && 'docker-compose.neo4j.yml' || 'docker-compose.yaml' }}
+      COMPOSE_FILE: ${{ matrix.graph_backend == 'neo4j' && 'eshu-deploy/compose/docker-compose.neo4j.yml' || 'eshu-deploy/compose/docker-compose.yaml' }}
     steps:
       - name: Check out code
         uses: actions/checkout@v5
+
+      # Deploy lanes (Compose files, env examples) moved to eshu-deploy
+      # under #8871. Gates check that repo out at the pinned extraction
+      # commit and address Compose files inside it.
+      - name: Check out eshu-deploy at the pinned extraction commit
+        uses: actions/checkout@v5
+        with:
+          repository: eshu-hq/eshu-deploy
+          ref: 103155c9ffa27ad245da17e60edf982989e51ba7
+          path: eshu-deploy
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -148,6 +169,7 @@ jobs:
       - name: Run B-7 with differential capture
         env:
           ESHU_GRAPH_BACKEND: ${{ matrix.graph_backend }}
+          ESHU_DEPLOY_CHECKOUT: ${{ github.workspace }}/eshu-deploy
           ESHU_NEO4J_PASSWORD: change-me
           ESHU_POSTGRES_PASSWORD: change-me
           ESHU_DIFFERENTIAL_CAPTURE: 1

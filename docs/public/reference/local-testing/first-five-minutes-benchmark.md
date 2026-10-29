@@ -85,7 +85,7 @@ the step count as not-measured.
 | Path | How to capture | Status in this repo |
 | --- | --- | --- |
 | Local binary | `eshu first-run --json` against locally built binaries | Measured. A run with no reachable API correctly FAILS the benchmark (no answer returned). The PASS path is reproduced from a complete envelope below. |
-| Local Compose | Bring up the Compose stack, then `eshu first-run --json` | Documented procedure. Run `docker compose up -d` (see [Docker Compose](../../run-locally/docker-compose.md)), wait for indexing, then capture and score the envelope. |
+| Local Compose | Bring up the Compose stack, then `eshu first-run --json` | Documented procedure. Run `docker compose up -d` (see [Docker Compose](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/run-locally/docker-compose.md)), wait for indexing, then capture and score the envelope. |
 | Hosted | Point `--service-url` at a hosted API, then `eshu first-run --json` | Documented procedure. Capture the envelope against the hosted endpoint and score it. Redact the hostname before storing evidence. |
 
 Only the local-binary path is fully measured in the default development

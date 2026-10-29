@@ -21,7 +21,7 @@ on:
       - MCP Schema Drift
       - Payload Usage Manifest
       - Product Claim Ledger
-      - Publish Image and Helm Chart
+      - Publish Image
       - Race Graph Writes
       - Read API Latency Gate
       - Reducer Contention Gate

@@ -194,7 +194,7 @@ Collector configuration may define explicit `targets` or enable
 targets from active owned Git dependency facts. Derived collection is currently
 npm only and still uses workflow claims. The default derived target limit is
 100, at most 5000. Each rotating window plans one hash slot, so every target is
-planned within P windows ([Derived Target Rotation](../deploy/kubernetes/run-an-extracted-collector.md#derived-target-rotation)).
+planned within P windows ([Derived Target Rotation](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/run-an-extracted-collector.md#derived-target-rotation)).
 Package-registry derivation uses one target per package identity,
 not one target per observed version. When `derive_from_owned_packages.version_limit`
 is omitted, derived npm targets default to one version so full-corpus
@@ -392,7 +392,7 @@ variables or Kubernetes Secrets referenced by `extraEnv`.
 ## Vulnerability Intelligence Collector
 
 The vulnerability intelligence collector is claim-only. It selects an enabled
-`vulnerability_intelligence` instance from `ESHU_COLLECTOR_INSTANCES_JSON`; for an activation, where `target_limit` and `planning_mode` are host-only, see [Derived OSV Scopes](../deploy/kubernetes/run-an-extracted-collector.md#derived-osv-scopes).
+`vulnerability_intelligence` instance from `ESHU_COLLECTOR_INSTANCES_JSON`; for an activation, where `target_limit` and `planning_mode` are host-only, see [Derived OSV Scopes](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/run-an-extracted-collector.md#derived-osv-scopes).
 Supported source targets are CISA KEV, FIRST EPSS, OSV, and NVD.
 Collector configuration may define explicit `targets` or enable
 `derive_from_owned_packages` so the coordinator derives bounded OSV npm, Pub,
@@ -403,7 +403,7 @@ ranges, aliases, Pub git/path/private-hosted rows, Pub dependency overrides,
 branch-only Swift pins, revision-only Swift pins, and local/path Swift pins
 remain partial evidence and are skipped for exact OSV collection. The default derived target
 limit is 100, at most 5000; each rotating window plans one hash slot of the
-owned targets ([Derived Target Rotation](../deploy/kubernetes/run-an-extracted-collector.md#derived-target-rotation)).
+owned targets ([Derived Target Rotation](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/run-an-extracted-collector.md#derived-target-rotation)).
 The single OSV target query payload remains capped separately at 100 queries.
 
 `derive_from_owned_packages.ecosystems` takes OSV ecosystem names only. Some

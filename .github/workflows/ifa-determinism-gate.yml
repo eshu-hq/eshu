@@ -38,6 +38,14 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
+      # One mirror driver executes its gate script to count matrix cells, so
+      # the static job also checks out the deploy repo (#8871).
+      - name: Check out eshu-deploy at the pinned extraction commit
+        uses: actions/checkout@v5
+        with:
+          repository: eshu-hq/eshu-deploy
+          ref: 103155c9ffa27ad245da17e60edf982989e51ba7
+          path: eshu-deploy
       - name: Install ripgrep
         run: scripts/ci/install-apt-packages.sh ripgrep
         env:
@@ -51,6 +59,8 @@ jobs:
         run: scripts/ci/go-mod-download-retry.sh
       - name: Validate determinism matrix mirror
         run: bash scripts/test-verify-ifa-determinism.sh
+        env:
+          ESHU_DEPLOY_CHECKOUT: ${{ github.workspace }}/eshu-deploy
       - name: Validate dead-letter matrix mirror
         run: bash scripts/test-verify-ifa-dead-letter-matrix.sh
       - name: Validate fault-injection matrix mirror
@@ -66,6 +76,15 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v5
 
+      # Deploy lanes (Compose files) moved to eshu-deploy under #8871.
+      # Gates check that repo out at the pinned extraction commit.
+      - name: Check out eshu-deploy at the pinned extraction commit
+        uses: actions/checkout@v5
+        with:
+          repository: eshu-hq/eshu-deploy
+          ref: 103155c9ffa27ad245da17e60edf982989e51ba7
+          path: eshu-deploy
+
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
@@ -76,12 +95,13 @@ jobs:
       - name: Run Ifa graph-determinism matrix (N=1,2,4; demo-org + synth-multiscope, Tier 2)
         id: determinism_matrix
         env:
+          ESHU_DEPLOY_CHECKOUT: ${{ github.workspace }}/eshu-deploy
           ESHU_NEO4J_PASSWORD: change-me
           ESHU_POSTGRES_PASSWORD: change-me
         run: bash scripts/verify-ifa-determinism.sh --keep
       - name: Dump service logs on failure
         if: ${{ failure() }}
-        run: bash scripts/ci/compose.sh -p "${DETERMINISM_COMPOSE_PROJECT}" -f docker-compose.yaml -- logs --tail=200 || true
+        run: bash scripts/ci/compose.sh -p "${DETERMINISM_COMPOSE_PROJECT}" -f eshu-deploy/compose/docker-compose.yaml -- logs --tail=200 || true
       - name: Upload determinism-matrix diagnostics
         if: failure() && steps.determinism_matrix.outcome == 'failure'
         uses: actions/upload-artifact@v4
@@ -95,7 +115,7 @@ jobs:
           retention-days: 7
       - name: Tear down Docker services
         if: ${{ always() }}
-        run: bash scripts/ci/compose.sh -p "${DETERMINISM_COMPOSE_PROJECT}" -f docker-compose.yaml -- down -v || true
+        run: bash scripts/ci/compose.sh -p "${DETERMINISM_COMPOSE_PROJECT}" -f eshu-deploy/compose/docker-compose.yaml -- down -v || true
   dead-letter-matrix:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'dead-letter-matrix') }}
     name: dead-letter-matrix
@@ -107,6 +127,15 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v5
 
+      # Deploy lanes (Compose files) moved to eshu-deploy under #8871.
+      # Gates check that repo out at the pinned extraction commit.
+      - name: Check out eshu-deploy at the pinned extraction commit
+        uses: actions/checkout@v5
+        with:
+          repository: eshu-hq/eshu-deploy
+          ref: 103155c9ffa27ad245da17e60edf982989e51ba7
+          path: eshu-deploy
+
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
@@ -117,12 +146,13 @@ jobs:
       - name: Run Ifa dead-letter-set determinism matrix (N=1,2,4)
         id: dead_letter_matrix
         env:
+          ESHU_DEPLOY_CHECKOUT: ${{ github.workspace }}/eshu-deploy
           ESHU_NEO4J_PASSWORD: change-me
           ESHU_POSTGRES_PASSWORD: change-me
         run: bash scripts/verify-ifa-dead-letter-matrix.sh --keep
       - name: Dump service logs on failure
         if: ${{ failure() }}
-        run: bash scripts/ci/compose.sh -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f docker-compose.yaml -- logs --tail=200 || true
+        run: bash scripts/ci/compose.sh -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f eshu-deploy/compose/docker-compose.yaml -- logs --tail=200 || true
       - name: Upload dead-letter-matrix diagnostics
         if: failure() && steps.dead_letter_matrix.outcome == 'failure'
         uses: actions/upload-artifact@v4
@@ -135,7 +165,7 @@ jobs:
           retention-days: 7
       - name: Tear down Docker services
         if: ${{ always() }}
-        run: bash scripts/ci/compose.sh -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f docker-compose.yaml -- down -v || true
+        run: bash scripts/ci/compose.sh -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f eshu-deploy/compose/docker-compose.yaml -- down -v || true
   fault-injection:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'fault-injection') }}
     name: fault-injection (shard ${{ matrix.shard }}/8)
@@ -150,6 +180,14 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v5
+      # Deploy lanes (Compose files) moved to eshu-deploy under #8871.
+      # Gates check that repo out at the pinned extraction commit.
+      - name: Check out eshu-deploy at the pinned extraction commit
+        uses: actions/checkout@v5
+        with:
+          repository: eshu-hq/eshu-deploy
+          ref: 103155c9ffa27ad245da17e60edf982989e51ba7
+          path: eshu-deploy
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
@@ -167,6 +205,7 @@ jobs:
       - name: Run Ifa fault-injection matrix shard (fresh stack per cell)
         id: fault_matrix
         env:
+          ESHU_DEPLOY_CHECKOUT: ${{ github.workspace }}/eshu-deploy
           ESHU_NEO4J_PASSWORD: change-me
           ESHU_POSTGRES_PASSWORD: change-me
           IFA_FAULT_SHARD: ${{ matrix.shard }}
@@ -203,4 +242,4 @@ jobs:
           retention-days: 7
       - name: Tear down Docker services
         if: ${{ always() }}
-        run: bash scripts/ci/compose.sh -p "${FAULT_COMPOSE_PROJECT}" -f docker-compose.yaml -- down -v || true
+        run: bash scripts/ci/compose.sh -p "${FAULT_COMPOSE_PROJECT}" -f eshu-deploy/compose/docker-compose.yaml -- down -v || true

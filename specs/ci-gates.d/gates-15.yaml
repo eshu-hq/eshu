@@ -114,36 +114,16 @@ gates:
       - network
     ci_only_reason: "daily scheduled run against the live Alpine repository; the blocking apk-floors row runs the same script"
 
-  - id: helm-package
-    name: Helm chart lint and package
-    category: release
-    layer: hygiene
-    purpose: "Lints and packages the Helm chart to make sure it builds cleanly before publishing."
-    tier: ci-heavy
-    blocking: true
-    triggers:
-      - "deploy/helm/**"
-      - ".github/workflows/docker-publish.yml"
-      - "scripts/ci/select-docker-publish-lanes.sh"
-      - "scripts/ci/push-helm-chart.sh"
-    ci:
-      workflow: docker-publish.yml
-      job: "package-and-push-chart"
-    requirements:
-      - go
-    ci_only_reason: "requires the hosted Helm packaging lane; PR runs skip the registry push"
-
   - id: docker-publish
-    name: Docker image and Helm publication
+    name: Docker image publication
     category: release
     layer: secondary
-    purpose: "Publishes the Docker image and Helm chart after merge; the publish steps never block a pull request."
+    purpose: "Publishes the Docker image after merge; the publish steps never block a pull request. The Helm chart lane moved to eshu-hq/eshu-deploy."
     tier: manual
     blocking: false
     triggers:
       - "go/**"
       - "Dockerfile"
-      - "deploy/helm/**"
     ci:
       workflow: docker-publish.yml
       job: "build-and-push-image"

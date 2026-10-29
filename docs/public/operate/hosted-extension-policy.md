@@ -237,7 +237,7 @@ The Helm chart can run the component extension host through
 egress-policy env to the workflow coordinator and worker. For extracted
 collectors, `componentExtensionCollector.activations` renders one worker per
 activation (see
-[Run An Extracted Collector](../deploy/kubernetes/run-an-extracted-collector.md)).
+[Run An Extracted Collector](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/run-an-extracted-collector.md)).
 It still does not
 consume the full `hostedExtensions` policy document below; keep that document
 as private operator review input and translate the approved runtime subset into

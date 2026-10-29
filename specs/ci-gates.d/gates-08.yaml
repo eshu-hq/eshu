@@ -146,10 +146,9 @@ gates:
       - "scripts/lib/live-gate-lock.sh"
       - "scripts/ci/install-apt-packages.sh"
       - "scripts/ci/go-mod-download-retry.sh"
-      # The Neo4j matrix leg boots from this file (compose_file), which pins
-      # the Neo4j image digest; a digest-only bump must re-run the gate too
-      # (#6782 round-4 review P3-4).
-      - "docker-compose.neo4j.yml"
+      # Compose lanes moved to eshu-hq/eshu-deploy under #8871: digest bumps
+      # there no longer select this gate from the eshu side. The workflow
+      # checks the deploy repo out at a pinned commit instead.
       - ".github/workflows/golden-corpus-gate.yml"
       - "scripts/ci/compose.sh"
       - "scripts/lib/ci-image-compose.sh"
@@ -207,8 +206,6 @@ gates:
       - "scripts/lib/compose_verification_runtime_common.sh"
       - "scripts/ci/install-apt-packages.sh"
       - "scripts/ci/go-mod-download-retry.sh"
-      - "docker-compose.yaml"
-      - "docker-compose.read-api-latency-gate.yaml"
       - ".github/workflows/read-api-latency-gate.yml"
       - "scripts/ci/compose.sh"
       - "scripts/lib/ci-image-compose.sh"
@@ -246,9 +243,6 @@ gates:
       - "scripts/test-status-diagnostic-runner.sh"
       - "testdata/benchmarks/read-api-route-budgets.txt"
       - "testdata/benchmarks/read-api-route-work-budgets.txt"
-      - "docker-compose.yaml"
-      - "docker-compose.neo4j.yml"
-      - "docker-compose.read-api-latency-gate.yaml"
       - ".github/workflows/read-api-latency-gate.yml"
     ci:
       workflow: read-api-latency-gate.yml
@@ -424,10 +418,9 @@ gates:
       - "scripts/lib/live-gate-lock.sh"
       - "scripts/ci/install-apt-packages.sh"
       - "scripts/ci/go-mod-download-retry.sh"
-      # The Neo4j matrix leg boots from this file (compose_file), which pins
-      # the Neo4j image digest; a digest-only bump must re-run the gate too
-      # (#6782 round-4 review P3-4).
-      - "docker-compose.neo4j.yml"
+      # Compose lanes moved to eshu-hq/eshu-deploy under #8871: digest bumps
+      # there no longer select this gate from the eshu side. The workflow
+      # checks the deploy repo out at a pinned commit instead.
       - ".github/workflows/golden-corpus-gate.yml"
       - "scripts/ci/compose.sh"
       - "scripts/lib/ci-image-compose.sh"
@@ -483,10 +476,6 @@ gates:
       - "scripts/lib/live-gate-lock.sh"
       - "scripts/ci/install-apt-packages.sh"
       - "scripts/ci/go-mod-download-retry.sh"
-      - "docker-compose.live-backend-nornicdb.yml"
-      - "docker-compose.live-backend-neo4j.yml"
-      - "docker-compose.yaml"
-      - "docker-compose.neo4j.yml"
       - ".github/workflows/live-backend-tests.yml"
       - "scripts/ci/compose.sh"
       - "scripts/lib/ci-image-compose.sh"

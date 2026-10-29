@@ -92,7 +92,7 @@ eshu graph start --workspace-root "$PWD"   # graph + ingester + reducer + MCP, n
 
 See [Local Binaries](../run-locally/local-binaries.md) (including
 [What still needs an API](../run-locally/local-binaries.md#what-still-needs-an-api))
-and [Docker Compose](../run-locally/docker-compose.md) for details.
+and [Docker Compose](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/run-locally/docker-compose.md) for details.
 
 ## Step 2 — Ingest Terraform state and config
 

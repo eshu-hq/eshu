@@ -8,8 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"gopkg.in/yaml.v3"
 )
 
 // contractRecordRel is the #8871 deploy-contract extraction record,
@@ -17,8 +15,10 @@ import (
 // publishes on day one (Helm, Compose, GitOps examples, deployment
 // defaults, and the cross-repository compatibility matrix) and the
 // core-owned boundary it must not absorb (schema-bootstrap and repair
-// implementation). The census record inventories the assets; this record
-// is the versioned contract the cutover compares against.
+// implementation). The record is frozen extraction evidence: the
+// cutover-time tree pins were removed with the in-tree deploy surface,
+// and what remains pins the record's prose plus the living core-owned
+// boundary against the pinned eshu-deploy checkout.
 const contractRecordRel = "docs/internal/evidence/8871-eshu-deploy-contract.md"
 
 // contractSourceFamilies are the deployment-asset families the contract
@@ -65,12 +65,6 @@ func readContractRecord(t *testing.T) string {
 	return string(body)
 }
 
-// contractParityMatrixRel is the in-tree parity baseline the contract
-// record supersedes as the published cross-repository matrix. The matrix
-// test reads it so the supersede claim stays pinned to a baseline that
-// still exists with its expected heading.
-const contractParityMatrixRel = "docs/public/deploy/kubernetes/runtime-parity-matrix.md"
-
 func TestExtractionContractNamesSourceFamilies(t *testing.T) {
 	text := readContractRecord(t)
 	for _, family := range contractSourceFamilies {
@@ -85,121 +79,17 @@ func TestExtractionContractNamesSourceFamilies(t *testing.T) {
 	}
 }
 
-// TestExtractionContractPinsChartIdentity keeps the contract's version
-// basis honest: the chart name, version, and appVersion the record
-// presents as the extraction baseline must match the tree, so a silent
-// bump fails here instead of shipping a stale contract to eshu-deploy.
-func TestExtractionContractPinsChartIdentity(t *testing.T) {
-	text := readContractRecord(t)
-	root := repoRootForCensus(t)
-	chartRaw, err := os.ReadFile(filepath.Join(root, "deploy/helm/eshu/Chart.yaml"))
-	if err != nil {
-		t.Fatalf("read Chart.yaml: %v", err)
-	}
-	pins := []struct{ tree, record string }{
-		{"name: eshu", "name `eshu`"},
-		{"version: 0.0.3-pre-release-26", "version: 0.0.3-pre-release-26"},
-		{`appVersion: "v0.0.3-pre-release-18"`, "appVersion: v0.0.3-pre-release-18"},
-	}
-	for _, pin := range pins {
-		if !strings.Contains(string(chartRaw), pin.tree) {
-			t.Errorf("Chart.yaml no longer contains %q; update the chart or the contract record", pin.tree)
-		}
-		if !strings.Contains(text, pin.record) {
-			t.Errorf("contract record %s no longer states %q; update the record", contractRecordRel, pin.record)
-		}
-	}
-}
-
-// TestExtractionContractPinsImageIdentities guards the immutable-artifact
-// half of the deploy contract: the core image, the digest-pinned bundled
-// collectors, and the NornicDB default the record presents as the tested
-// pair must resolve to the same refs the chart defaults carry.
-func TestExtractionContractPinsImageIdentities(t *testing.T) {
-	text := readContractRecord(t)
-	root := repoRootForCensus(t)
-	raw, err := os.ReadFile(filepath.Join(root, "deploy/helm/eshu/values.yaml"))
-	if err != nil {
-		t.Fatalf("read values.yaml: %v", err)
-	}
-	var doc map[string]any
-	if err := yaml.Unmarshal(raw, &doc); err != nil {
-		t.Fatalf("parse values.yaml: %v", err)
-	}
-	image, _ := doc["image"].(map[string]any)
-	repo, _ := image["repository"].(string)
-	tag, _ := image["tag"].(string)
-	if repo != "ghcr.io/eshu-hq/eshu" || tag != "v0.0.3-pre-release-18" {
-		t.Fatalf("core image defaults are %s:%s; the contract pins ghcr.io/eshu-hq/eshu:v0.0.3-pre-release-18", repo, tag)
-	}
-	if !strings.Contains(text, "ghcr.io/eshu-hq/eshu") || !strings.Contains(text, "v0.0.3-pre-release-18") {
-		t.Errorf("contract record %s no longer states the core image repo and tag; update the record", contractRecordRel)
-	}
-	satellites := bundledCollectorRefs(t, collectImageRefs(doc, "$"))
-	if len(satellites) == 0 {
-		t.Fatal("values.yaml has no digest-pinned eshu-collector-* refs; the bundled-collector defaults moved without review")
-	}
-	for _, ref := range satellites {
-		if !strings.Contains(text, ref) {
-			t.Errorf("contract record %s no longer carries the full satellite ref %s; a rotated digest must fail here, not pass on a prefix",
-				contractRecordRel, ref)
-		}
-	}
-	nornicdbRef := nornicDBRefOfValues(t, doc)
-	if !strings.Contains(text, nornicdbRef) {
-		t.Errorf("contract record %s no longer carries the full NornicDB ref %s; a rotated stream or digest must fail here",
-			contractRecordRel, nornicdbRef)
-	}
-}
-
-// bundledCollectorRefs returns the full single-string image refs of the
-// digest-pinned bundled collectors: eshu-collector-* refs that carry a
-// digest. Documentation placeholders (example registries) never match,
-// and a newly bundled collector is covered the moment its default lands.
-func bundledCollectorRefs(t *testing.T, refs []imageRef) []string {
-	t.Helper()
-	var out []string
-	for _, ref := range refs {
-		if !ref.single || !strings.Contains(ref.ref, "eshu-collector-") {
-			continue
-		}
-		if !ref.pinned {
-			t.Errorf("bundled collector ref %q at %s carries no digest; immutable artifacts require one", ref.ref, ref.where)
-			continue
-		}
-		out = append(out, ref.ref)
-	}
-	return out
-}
-
-// nornicDBRefOfValues builds the full NornicDB image ref the chart
-// defaults carry (repository plus the stream-and-digest tag) so the
-// contract pins the exact backend identity, not the stream name alone.
-func nornicDBRefOfValues(t *testing.T, doc map[string]any) string {
-	t.Helper()
-	backend, _ := doc["nornicdb"].(map[string]any)
-	image, _ := backend["image"].(map[string]any)
-	repo, _ := image["repository"].(string)
-	tag, _ := image["tag"].(string)
-	if repo == "" || tag == "" {
-		t.Fatal("values.yaml nornicdb.image names no repository/tag; the backend default moved without review")
-	}
-	if !strings.Contains(tag, "@sha256:") {
-		t.Errorf("values.yaml nornicdb tag %q carries no digest; immutable artifacts require one", tag)
-	}
-	return repo + ":" + tag
-}
-
 // TestExtractionContractCoreOwnsBootstrap pins the migration-plan
 // boundary inside the deploy contract: the schema-bootstrap Job template
-// moves to eshu-deploy, but what it invokes stays core. The template must
+// moved to eshu-deploy, but what it invokes stays core. The template must
 // render the core image and exec the core-owned bootstrap binary, the
 // values schema must still gate the schemaBootstrap stanza, and the
 // implementation behind the binary must still live in core.
 func TestExtractionContractCoreOwnsBootstrap(t *testing.T) {
 	text := readContractRecord(t)
 	root := repoRootForCensus(t)
-	jobRaw, err := os.ReadFile(filepath.Join(root, "deploy/helm/eshu/templates/job-schema-bootstrap.yaml"))
+	checkout := deployCheckoutForContract(t)
+	jobRaw, err := os.ReadFile(filepath.Join(checkout, "helm/eshu/templates/job-schema-bootstrap.yaml"))
 	if err != nil {
 		t.Fatalf("read job-schema-bootstrap.yaml: %v", err)
 	}
@@ -222,7 +112,6 @@ func TestExtractionContractCoreOwnsBootstrap(t *testing.T) {
 		}
 	}
 	for _, f := range []string{
-		"scripts/ci/push-helm-chart.sh",
 		"scripts/ci/promote-moving-tags.sh",
 		".github/workflows/docker-publish.yml",
 	} {
@@ -230,7 +119,10 @@ func TestExtractionContractCoreOwnsBootstrap(t *testing.T) {
 			t.Errorf("release-automation file %s is gone: %v", f, err)
 		}
 	}
-	schemaRaw, err := os.ReadFile(filepath.Join(root, "deploy/helm/eshu/values.schema.json"))
+	if _, err := os.Stat(filepath.Join(checkout, "scripts/ci/push-helm-chart.sh")); err != nil {
+		t.Errorf("deploy release-automation file scripts/ci/push-helm-chart.sh is gone from the pinned checkout: %v", err)
+	}
+	schemaRaw, err := os.ReadFile(filepath.Join(checkout, "helm/eshu/values.schema.json"))
 	if err != nil {
 		t.Fatalf("read values.schema.json: %v", err)
 	}
@@ -240,63 +132,4 @@ func TestExtractionContractCoreOwnsBootstrap(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, "go/cmd/bootstrap-data-plane")); err != nil {
 		t.Errorf("core-owned bootstrap implementation go/cmd/bootstrap-data-plane is gone: %v", err)
 	}
-}
-
-// TestExtractionContractMatrixStatesTestedPair pins the compatibility
-// matrix half of the deploy contract: the record must state the tested
-// core/component/external pair it publishes (single supported pair at
-// extraction; oldest and newest converge on it until independent
-// releases widen the range), and the external pins must match the tree.
-func TestExtractionContractMatrixStatesTestedPair(t *testing.T) {
-	text := readContractRecord(t)
-	root := repoRootForCensus(t)
-	for _, want := range []string{
-		"v0.0.3-pre-release-18",
-		"postgres:18-alpine",
-		"neo4j:2026-community@sha256:",
-	} {
-		if !strings.Contains(text, want) {
-			t.Errorf("contract record %s matrix no longer states tested pin %q; update the record", contractRecordRel, want)
-		}
-	}
-	composeRaw, err := os.ReadFile(filepath.Join(root, "docker-compose.neo4j.yml"))
-	if err != nil {
-		t.Fatalf("read docker-compose.neo4j.yml: %v", err)
-	}
-	if !strings.Contains(string(composeRaw), "postgres:18-alpine") {
-		t.Error("docker-compose.neo4j.yml no longer pins postgres:18-alpine; update the compose lane or the contract record")
-	}
-	if !strings.Contains(string(composeRaw), "neo4j:2026-community@sha256:") {
-		t.Error("docker-compose.neo4j.yml no longer pins the neo4j community digest; update the compose lane or the contract record")
-	}
-	baselineRaw, err := os.ReadFile(filepath.Join(root, contractParityMatrixRel))
-	if err != nil {
-		t.Fatalf("read superseded parity baseline %s: %v", contractParityMatrixRel, err)
-	}
-	if !strings.Contains(string(baselineRaw), "# Runtime Parity Matrix") {
-		t.Errorf("parity baseline %s lost its heading; the contract supersedes a baseline that moved without review", contractParityMatrixRel)
-	}
-	neoDigest := neo4jDigestOfCompose(t, string(composeRaw))
-	if !strings.Contains(text, neoDigest) {
-		t.Errorf("contract record %s matrix no longer carries the full neo4j digest %s; update the record", contractRecordRel, neoDigest)
-	}
-}
-
-// neo4jDigestOfCompose extracts the full neo4j image ref (with digest)
-// from the compose default so the matrix test pins the exact ref, not a
-// prefix that could hide a digest rotation.
-func neo4jDigestOfCompose(t *testing.T, compose string) string {
-	t.Helper()
-	const marker = "neo4j:2026-community@sha256:"
-	i := strings.Index(compose, marker)
-	if i < 0 {
-		t.Fatal("compose file has no neo4j digest ref")
-	}
-	// The marker itself starts at the ref ("neo4j:..."), whether the
-	// compose line carries a bare image or a ${VAR:-default} fallback.
-	end := strings.IndexAny(compose[i:], " \n\"'}")
-	if end < 0 {
-		t.Fatal("cannot terminate the neo4j digest ref")
-	}
-	return compose[i : i+end]
 }

@@ -63,6 +63,6 @@ component-owned metrics only.
 
 - `docs/public/extend/community-extension-authoring.md`
 - `docs/public/extend/reference-pagerduty-extension.md`
-- `docs/public/run-locally/docker-compose.component-extension-pagerduty.yaml`
+- `compose/fragments/docker-compose.component-extension-pagerduty.yaml` (eshu-hq/eshu-deploy)
 - `docs/public/reference/component-package-manager.md`
 - `docs/public/reference/pagerduty-evidence.md`

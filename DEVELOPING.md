@@ -11,7 +11,7 @@ For general contribution rules, see [CONTRIBUTING.md](CONTRIBUTING.md).
 Use these as the primary source of truth while you work:
 
 - [Local Testing Runbook](docs/public/reference/local-testing.md)
-- [Docker Compose](docs/public/run-locally/docker-compose.md)
+- [Docker Compose](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/run-locally/docker-compose.md)
 - [Service Runtimes](docs/public/deployment/service-runtimes.md)
 - [Telemetry Overview](docs/public/reference/telemetry/index.md)
 

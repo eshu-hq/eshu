@@ -35,7 +35,7 @@ for binding in 'PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}' \
 done
 
 repo="${scratch}/repo"
-mkdir -p "${repo}/scripts/ci" "${repo}/deploy/helm/eshu"
+mkdir -p "${repo}/scripts/ci"
 ln -s "${root}/scripts/ci/select-docker-publish-lanes.sh" "${repo}/scripts/ci/select-docker-publish-lanes.sh"
 git -C "${repo}" init -q -b main
 git -C "${repo}" config user.name CI
@@ -56,19 +56,20 @@ run_selection() {
     GITHUB_REF_TYPE="${ref_type}" GITHUB_SHA="${head}" PR_BASE_SHA="${pr_base}" \
     PR_HEAD_SHA="${head}" BEFORE_SHA="${base}" bash scripts/ci/select-docker-publish-lanes.sh)
 }
+# The Helm chart lane moved to eshu-hq/eshu-deploy under #8871: only the
+# eshu-side image and apkfloors lanes remain selectable here.
 for mode in tag workflow_dispatch; do
   if [[ "${mode}" == tag ]]; then
     run_selection push "${base}" "${base}" tag
   else
     run_selection workflow_dispatch "${base}"
   fi
-  for lane in image chart apkfloors; do
+  for lane in image apkfloors; do
     rg -q "^${lane}=true$" "${scratch}/output"
   done
 done
 run_selection merge_group "${image_head}"
 rg -q '^image=true$' "${scratch}/output"
-rg -q '^chart=false$' "${scratch}/output"
 rg -q '^apkfloors=true$' "${scratch}/output"
 mkdir -p "${repo}/go"
 printf 'package sample\n' > "${repo}/go/sample.go"
@@ -85,30 +86,15 @@ rg -q '^image=true$' "${scratch}/output"
 git -C "${repo}" update-ref refs/remotes/origin/main "${go_head}"
 run_selection merge_group "${go_head}"
 rg -q '^image=false$' "${scratch}/output"
-rg -q '^chart=false$' "${scratch}/output"
 rg -q '^apkfloors=false$' "${scratch}/output"
 git -C "${repo}" add scripts/ci/select-docker-publish-lanes.sh
 git -C "${repo}" commit -qm selector-helper
 selector_head="$(git -C "${repo}" rev-parse HEAD)"
 run_selection merge_group "${selector_head}"
 rg -q '^image=true$' "${scratch}/output"
-rg -q '^chart=true$' "${scratch}/output"
 rg -q '^apkfloors=true$' "${scratch}/output"
 git -C "${repo}" update-ref refs/remotes/origin/main "${selector_head}"
 
-chart_run="$(workflow_run 'Push Helm chart to GHCR')"
-[[ "${chart_run}" == 'bash scripts/ci/push-helm-chart.sh' ]] || {
-  echo 'FAIL: chart step does not execute the production publisher' >&2
-  exit 1
-}
-mkdir -p "${repo}/dist"
-ln -s "${root}/scripts/ci/push-helm-chart.sh" "${repo}/scripts/ci/push-helm-chart.sh"
-git -C "${repo}" add scripts/ci/push-helm-chart.sh
-git -C "${repo}" commit -qm chart-helper
-run_selection merge_group "$(git -C "${repo}" rev-parse HEAD)"
-rg -q '^image=false$' "${scratch}/output"
-rg -q '^chart=true$' "${scratch}/output"
-rg -q '^apkfloors=false$' "${scratch}/output"
 # #7762: the runtime image tool verifier and its suite select the image lane,
 # whose verify-reproducibility job runs both against the built rootfs.
 # #8878: the scanner image verifier, its suite, and the shared
@@ -122,7 +108,6 @@ for tool_script in scripts/verify-runtime-image-tools.sh scripts/test-verify-run
   git -C "${repo}" commit -qm "${tool_script##*/}"
   run_selection pull_request "$(git -C "${repo}" rev-parse HEAD)" "${tool_base}"
   rg -q '^image=true$' "${scratch}/output"
-  rg -q '^chart=false$' "${scratch}/output"
   rg -q '^apkfloors=false$' "${scratch}/output"
 done
 # The reproducibility build asserts the canonical mirror digests from
@@ -139,53 +124,6 @@ for repro_file in specs/ci-images.v1.json scripts/ci/build-reproducibility-image
   git -C "${repo}" commit -qm "${repro_file##*/}"
   run_selection pull_request "$(git -C "${repo}" rev-parse HEAD)" "${repro_base}"
   rg -q '^image=true$' "${scratch}/output"
-  rg -q '^chart=false$' "${scratch}/output"
   rg -q '^apkfloors=false$' "${scratch}/output"
 done
-printf 'version: 1.2.3\n' > "${repo}/deploy/helm/eshu/Chart.yaml"
-printf 'chart bytes\n' > "${repo}/dist/eshu-1.2.3.tgz"
-cat > "${scratch}/helm" <<'STUB'
-#!/usr/bin/env bash
-set -euo pipefail
-case "$1 $2" in
-  'registry login') exit 0 ;;
-  'push '*)
-    if [[ "${HELM_MODE}" == success ]]; then exit 0; fi
-    exit 27
-    ;;
-  'pull '*)
-    while [[ "$#" -gt 0 ]]; do
-      if [[ "$1" == --destination ]]; then shift; destination="$1"; break; fi
-      shift
-    done
-STUB
-cat >> "${scratch}/helm" <<'STUB'
-    if [[ "${HELM_MODE}" == missing ]]; then exit 1; fi
-    if [[ "${HELM_MODE}" == duplicate ]]; then
-      cp dist/eshu-1.2.3.tgz "${destination}/eshu-1.2.3.tgz"
-    else
-      printf 'different bytes\n' > "${destination}/eshu-1.2.3.tgz"
-    fi
-    ;;
-  *) exit 2 ;;
-esac
-STUB
-chmod +x "${scratch}/helm"
-run_chart() {
-  (cd "${repo}" && PATH="${scratch}:${PATH}" HELM_MODE="$1" CHART_PATH=deploy/helm/eshu \
-    CHART_REGISTRY=oci://ghcr.io/eshu-hq/charts REGISTRY=ghcr.io \
-    GITHUB_ACTOR=ci GITHUB_TOKEN=fake bash scripts/ci/push-helm-chart.sh)
-}
-run_chart success > "${scratch}/success.log"
-run_chart duplicate > "${scratch}/duplicate.log"
-rg -q 'already published with identical bytes' "${scratch}/duplicate.log"
-if run_chart conflict > "${scratch}/conflict.log" 2>&1; then
-  echo 'FAIL: changed published chart was accepted' >&2
-  exit 1
-fi
-rg -q 'differs \(or is unreadable\)' "${scratch}/conflict.log"
-if run_chart missing > "${scratch}/missing.log" 2>&1; then
-  echo 'FAIL: unreadable published chart was accepted' >&2
-  exit 1
-fi
-printf 'PASS: production workflow selector and chart publisher steps execute with expected event and duplicate behavior\n'
+printf 'PASS: production workflow selector steps execute with expected event behavior\n'

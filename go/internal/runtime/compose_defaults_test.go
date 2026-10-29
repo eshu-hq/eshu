@@ -4,6 +4,7 @@
 package runtime
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -175,7 +176,6 @@ func TestRepositoryDocumentationStandardsAreEnforced(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
 	for _, relativePath := range []string{
 		"README.md",
-		"deploy/README.md",
 		"docs/openapi/README.md",
 		"go/README.md",
 		"go/cmd/README.md",
@@ -420,6 +420,24 @@ func readRepositoryFile(t *testing.T, root, relativePath string) string {
 		t.Fatalf("read %s: %v", relativePath, err)
 	}
 	return string(raw)
+}
+
+func assertComposeNamedVolume(t *testing.T, service composeService, source string, target string) {
+	t.Helper()
+
+	for _, volume := range service.Volumes {
+		if short, ok := volume.(string); ok && short == source+":"+target {
+			return
+		}
+		fields, ok := volume.(map[string]any)
+		if !ok {
+			continue
+		}
+		if fmt.Sprint(fields["source"]) == source && fmt.Sprint(fields["target"]) == target {
+			return
+		}
+	}
+	t.Fatalf("compose service missing volume source=%q target=%q in %#v", source, target, service.Volumes)
 }
 
 func requireComposeService(t *testing.T, doc composeDocument, name string) composeService {

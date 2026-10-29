@@ -8,11 +8,44 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
+
+// expectedDeployCheckoutCommit pins the eshu-hq/eshu-deploy commit the demo
+// overlay boundary test asserts against (#8871 in-tree removal). It must
+// match the twin pins in go/internal/runtime and go/internal/deploy: every
+// helper fails closed on any other commit, so a skew between the twins
+// surfaces as a test failure, not a silent drift.
+const expectedDeployCheckoutCommit = "103155c9ffa27ad245da17e60edf982989e51ba7"
+
+// deployCheckoutRoot resolves the eshu-deploy checkout the demo overlay
+// boundary test reads the fragment from. It fails closed: an absent
+// ESHU_DEPLOY_CHECKOUT, a missing directory, or a commit mismatch fails the
+// calling test instead of silently reading the wrong tree.
+func deployCheckoutRoot(t *testing.T) string {
+	t.Helper()
+
+	dir := os.Getenv("ESHU_DEPLOY_CHECKOUT")
+	if dir == "" {
+		t.Fatal("ESHU_DEPLOY_CHECKOUT is not set; point it at an eshu-hq/eshu-deploy checkout at " + expectedDeployCheckoutCommit)
+	}
+	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+		t.Fatalf("ESHU_DEPLOY_CHECKOUT=%q is not a directory: %v", dir, err)
+	}
+	cmd := exec.Command("git", "-C", dir, "rev-parse", "HEAD")
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("ESHU_DEPLOY_CHECKOUT=%q is not a git checkout: %v", dir, err)
+	}
+	if got := strings.TrimSpace(string(out)); got != expectedDeployCheckoutCommit {
+		t.Fatalf("ESHU_DEPLOY_CHECKOUT=%q is at %s, want %s", dir, got, expectedDeployCheckoutCommit)
+	}
+	return dir
+}
 
 // fakeDemoExec records every command the runtime shells out to and replays a
 // scripted reply, so the whole lifecycle is exercised without Docker.
@@ -279,7 +312,7 @@ func TestDemoEnvelope_ShapeMatchesTheFirstRunContract(t *testing.T) {
 // committed fragment and requires the name to appear as a service key.
 func TestDemoServiceNameMatchesComposeOverlay(t *testing.T) {
 	t.Parallel()
-	path := filepath.Join("..", "..", "..", "..", "docker-compose.demo.runtime.yaml")
+	path := filepath.Join(deployCheckoutRoot(t), "compose", "docker-compose.demo.runtime.yaml")
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read %s: %v", path, err)

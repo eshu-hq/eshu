@@ -102,6 +102,14 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v5
+      # Backend stacks moved to eshu-deploy under #8871. Gates check that
+      # repo out at the pinned extraction commit.
+      - name: Check out eshu-deploy at the pinned extraction commit
+        uses: actions/checkout@v5
+        with:
+          repository: eshu-hq/eshu-deploy
+          ref: 103155c9ffa27ad245da17e60edf982989e51ba7
+          path: eshu-deploy
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
@@ -115,6 +123,7 @@ jobs:
         run: scripts/ci/go-mod-download-retry.sh
       - name: Run scale and concurrent HTTP/MCP proof
         env:
+          ESHU_DEPLOY_CHECKOUT: ${{ github.workspace }}/eshu-deploy
           GATE_WORK_REPORT: ${{ runner.temp }}/methodology-work.json
           GATE_LATENCY_REPORT: ${{ runner.temp }}/methodology-latency.json
           GATE_CONCURRENT_REPORT: ${{ runner.temp }}/methodology-concurrency.json
@@ -171,10 +180,10 @@ jobs:
           if-no-files-found: error
       - name: Dump supported-backend logs on failure
         if: failure()
-        run: bash scripts/ci/compose.sh -p "$GATE_COMPOSE_PROJECT" -f docker-compose.neo4j.yml -f docker-compose.read-api-latency-gate.yaml -- logs --tail=200 || true
+        run: bash scripts/ci/compose.sh -p "$GATE_COMPOSE_PROJECT" -f eshu-deploy/compose/docker-compose.neo4j.yml -f eshu-deploy/compose/docker-compose.read-api-latency-gate.yaml -- logs --tail=200 || true
       - name: Tear down supported-backend services
         if: always()
-        run: bash scripts/ci/compose.sh -p "$GATE_COMPOSE_PROJECT" -f docker-compose.neo4j.yml -f docker-compose.read-api-latency-gate.yaml -- down -v || true
+        run: bash scripts/ci/compose.sh -p "$GATE_COMPOSE_PROJECT" -f eshu-deploy/compose/docker-compose.neo4j.yml -f eshu-deploy/compose/docker-compose.read-api-latency-gate.yaml -- down -v || true
 
   # The work budget table's generator has a test mirror that the heavy job below
   # never runs (it only executes the live gate). It is cheap and needs no Docker,
@@ -238,6 +247,15 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v5
 
+      # Backend stacks moved to eshu-deploy under #8871. Gates check that
+      # repo out at the pinned extraction commit.
+      - name: Check out eshu-deploy at the pinned extraction commit
+        uses: actions/checkout@v5
+        with:
+          repository: eshu-hq/eshu-deploy
+          ref: 103155c9ffa27ad245da17e60edf982989e51ba7
+          path: eshu-deploy
+
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
@@ -254,6 +272,7 @@ jobs:
 
       - name: Run read-API latency gate
         env:
+          ESHU_DEPLOY_CHECKOUT: ${{ github.workspace }}/eshu-deploy
           GATE_WORK_REPORT: ${{ runner.temp }}/read-api-work-report.json
         run: bash scripts/verify-read-api-latency-gate.sh
 
@@ -271,8 +290,8 @@ jobs:
 
       - name: Dump service logs on failure
         if: ${{ failure() }}
-        run: bash scripts/ci/compose.sh -p "${GATE_COMPOSE_PROJECT}" -f docker-compose.yaml -f docker-compose.read-api-latency-gate.yaml -- logs --tail=200 || true
+        run: bash scripts/ci/compose.sh -p "${GATE_COMPOSE_PROJECT}" -f eshu-deploy/compose/docker-compose.yaml -f eshu-deploy/compose/docker-compose.read-api-latency-gate.yaml -- logs --tail=200 || true
 
       - name: Tear down Docker services
         if: ${{ always() }}
-        run: bash scripts/ci/compose.sh -p "${GATE_COMPOSE_PROJECT}" -f docker-compose.yaml -f docker-compose.read-api-latency-gate.yaml -- down -v || true
+        run: bash scripts/ci/compose.sh -p "${GATE_COMPOSE_PROJECT}" -f eshu-deploy/compose/docker-compose.yaml -f eshu-deploy/compose/docker-compose.read-api-latency-gate.yaml -- down -v || true

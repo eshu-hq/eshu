@@ -80,11 +80,12 @@ mkdir -p "${artifacts_dir}"
 work_dir="$(mktemp -d "${TMPDIR:-/tmp}/gov-two-team-work.XXXXXX")"
 tokens_file="${work_dir}/scoped-tokens.json"
 
+: "${ESHU_DEPLOY_CHECKOUT:?set ESHU_DEPLOY_CHECKOUT to an eshu-deploy checkout at the #8871 extraction pin}"
 compose() {
 	docker compose \
 		-p "${project}" \
-		-f "${repo_root}/docker-compose.yaml" \
-		-f "${repo_root}/docs/public/run-locally/docker-compose.governance-two-team.yaml" \
+		-f "${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.yaml" \
+		-f "${ESHU_DEPLOY_CHECKOUT}/compose/fragments/docker-compose.governance-two-team.yaml" \
 		"$@"
 }
 

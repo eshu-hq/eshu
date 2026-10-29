@@ -41,15 +41,10 @@ func renderHelmChart(t *testing.T, args ...string) []helmManifest {
 	return renderHelmChartArgs(t, helmRenderArgs(args...)...)
 }
 
-func renderDefaultHelmChart(t *testing.T) []helmManifest {
-	t.Helper()
-	return renderHelmChartArgs(t)
-}
-
 func renderHelmChartArgs(t *testing.T, args ...string) []helmManifest {
 	t.Helper()
 
-	chartPath := filepath.Join(repositoryRoot(t), "deploy", "helm", "eshu")
+	chartPath := filepath.Join(deployCheckoutRoot(t), "helm", "eshu")
 	helmPath, err := exec.LookPath("helm")
 	if err != nil {
 		t.Skipf("helm binary not found in PATH; install Helm to run chart contract tests: %v", err)
@@ -82,7 +77,7 @@ func renderHelmChartArgs(t *testing.T, args ...string) []helmManifest {
 func renderHelmChartFailure(t *testing.T, args ...string) string {
 	t.Helper()
 
-	chartPath := filepath.Join(repositoryRoot(t), "deploy", "helm", "eshu")
+	chartPath := filepath.Join(deployCheckoutRoot(t), "helm", "eshu")
 	helmPath, err := exec.LookPath("helm")
 	if err != nil {
 		t.Skipf("helm binary not found in PATH; install Helm to run chart contract tests: %v", err)

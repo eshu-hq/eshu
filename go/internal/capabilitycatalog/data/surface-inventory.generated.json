@@ -1836,8 +1836,7 @@
           "list_container_image_identities"
         ],
         "proof_gates": [
-          "cd go \u0026\u0026 go test ./internal/collector/registry/oci ./internal/reducer ./internal/query ./internal/mcp -count=1",
-          "scripts/verify_oci_registry_collector_helm.sh"
+          "cd go \u0026\u0026 go test ./internal/collector/registry/oci ./internal/reducer ./internal/query ./internal/mcp -count=1"
         ],
         "fixture_refs": [
           "go/internal/collector/registry/oci/testdata"
@@ -2280,8 +2279,7 @@
           "list_supply_chain_impact_findings"
         ],
         "proof_gates": [
-          "cd go \u0026\u0026 go test ./internal/collector/vulnerabilityintelligence ./internal/reducer ./internal/query ./internal/mcp -count=1",
-          "scripts/verify_vulnerability_intelligence_collector_helm.sh"
+          "cd go \u0026\u0026 go test ./internal/collector/vulnerabilityintelligence ./internal/reducer ./internal/query ./internal/mcp -count=1"
         ],
         "fixture_refs": [
           "docs/public/reference/collector-reducer-readiness.md#vulnerability-intelligence-promotion-proof",

@@ -105,4 +105,4 @@ All must hold, else NO-GO:
 
 - [Collector cutover rollback](collector-cutover-rollback.md)
 - [Collector cutover truth checks](collector-cutover-truth-checks.md)
-- [Upgrade and rollback](../deploy/kubernetes/upgrades-rollbacks.md)
+- [Upgrade and rollback](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/upgrades-rollbacks.md)

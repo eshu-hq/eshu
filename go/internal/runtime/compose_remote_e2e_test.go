@@ -32,7 +32,7 @@ func TestRemoteE2EComposeDefinesCorpusPreflight(t *testing.T) {
 func TestRemoteE2EExampleEnvDefaultsToSmokeCorpusPreflight(t *testing.T) {
 	t.Parallel()
 
-	content := readRepositoryFile(t, "../../..", ".env.remote-e2e.example")
+	content := readRepositoryFile(t, deployCheckoutRoot(t), ".env.remote-e2e.example")
 	for _, want := range []string{
 		"ESHU_REMOTE_E2E_CORPUS_MODE=smoke",
 		"ESHU_REMOTE_E2E_MIN_REPOSITORY_COUNT=0",
@@ -80,7 +80,7 @@ func TestRemoteE2EComposeUsesResponsiveWorkflowReconcileWindow(t *testing.T) {
 		t.Fatal("remote E2E Compose should default workflow reconcile to 30s so derived collector targets are planned after Git facts land")
 	}
 
-	exampleEnv := readRepositoryFile(t, "../../..", ".env.remote-e2e.example")
+	exampleEnv := readRepositoryFile(t, deployCheckoutRoot(t), ".env.remote-e2e.example")
 	if !strings.Contains(exampleEnv, "ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL=30s") {
 		t.Fatal(".env.remote-e2e.example should document the responsive reconcile window")
 	}
@@ -285,7 +285,7 @@ func TestRemoteE2EComposeIncludesSecurityAlertCollector(t *testing.T) {
 		}
 	}
 
-	exampleEnv := readRepositoryFile(t, "../../..", ".env.remote-e2e.example")
+	exampleEnv := readRepositoryFile(t, deployCheckoutRoot(t), ".env.remote-e2e.example")
 	for _, want := range []string{
 		"ESHU_SECURITY_ALERT_REPOSITORY=owner/repository",
 		"ESHU_SECURITY_ALERT_GITHUB_TOKEN=replace-with-read-only-token",
@@ -325,7 +325,7 @@ func TestRemoteE2EComposeIncludesSBOMAttestationCollector(t *testing.T) {
 		}
 	}
 
-	exampleEnv := readRepositoryFile(t, "../../..", ".env.remote-e2e.example")
+	exampleEnv := readRepositoryFile(t, deployCheckoutRoot(t), ".env.remote-e2e.example")
 	for _, want := range []string{
 		"ESHU_SBOM_ATTESTATION_E2E_SUBJECT_DIGEST=sha256:1111111111111111111111111111111111111111111111111111111111111111",
 		"ESHU_SBOM_ATTESTATION_DOCUMENT_URL=http://sbom-attestation-fixture:8080/cyclonedx_image_subject.json",
@@ -400,7 +400,7 @@ func TestRemoteE2EComposeIncludesVulnerabilityIntelligenceCollector(t *testing.T
 		}
 	}
 
-	exampleEnv := readRepositoryFile(t, "../../..", ".env.remote-e2e.example")
+	exampleEnv := readRepositoryFile(t, deployCheckoutRoot(t), ".env.remote-e2e.example")
 	for _, want := range []string{
 		"ESHU_VULNERABILITY_E2E_CVE_ID=CVE-2021-44228",
 		"ESHU_NVD_API_KEY=",
@@ -445,7 +445,7 @@ func TestRemoteE2EComposeIncludesScannerWorker(t *testing.T) {
 		}
 	}
 
-	exampleEnv := readRepositoryFile(t, "../../..", ".env.remote-e2e.example")
+	exampleEnv := readRepositoryFile(t, deployCheckoutRoot(t), ".env.remote-e2e.example")
 	for _, want := range []string{
 		"ESHU_SCANNER_WORKER_SBOM_HOST_ROOT=./tests/fixtures/ecosystems",
 		"ESHU_SCANNER_WORKER_SBOM_SUBJECT_DIGEST=sha256:",

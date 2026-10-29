@@ -5,7 +5,7 @@ covers it, and that a route which cannot be tenant-filtered refuses a scoped
 token and says why. The opt-in `catalog-sweep` module of the MCP-identity E2E
 harness proves both on a fresh `docker-compose.e2e.yaml` stack (project
 `eshu-e2e-auth-mcp`, 29xxx ports, graph on Neo4j; see
-[Docker Compose](docker-compose.md#mcp-identity-auth-e2e-stack)). The sweep
+[Docker Compose](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/run-locally/docker-compose.md#mcp-identity-auth-e2e-stack)). The sweep
 run sets `ESHU_QUERY_PROFILE=local_full_stack` for the API and MCP services so
 `tools/list` advertises the full tool surface and direct-API replays run the
 same supported profile; an empty value keeps the

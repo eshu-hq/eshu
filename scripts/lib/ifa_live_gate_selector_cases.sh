@@ -184,7 +184,6 @@ ifa_live_gate_common_seams=(
 	'go/internal/reducer/**|go/internal/reducer/defaults_additive_domains_gcp.go'
 	'go/internal/storage/cypher/cloud/resource/node_writer.go|go/internal/storage/cypher/cloud/resource/node_writer.go'
 	'go/internal/storage/cypher/cloud/resource/node_writer_teeth_off.go|go/internal/storage/cypher/cloud/resource/node_writer_teeth_off.go'
-	'docker-compose.yaml|docker-compose.yaml'
 	'testdata/cassettes/gcpcloud/supply-chain-demo.json|testdata/cassettes/gcpcloud/supply-chain-demo.json'
 	'testdata/golden/e2e-20repo-snapshot.json|testdata/golden/e2e-20repo-snapshot.json'
 	'go/cmd/golden-corpus-gate/main.go|go/cmd/golden-corpus-gate/main.go'

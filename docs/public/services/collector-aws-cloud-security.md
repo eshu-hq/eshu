@@ -199,5 +199,5 @@ do not attach to API, reducer, ingester, or other pods in the same release.
 
 - [AWS Cloud Collector](collector-aws-cloud.md)
 - [AWS Collector Scanner Coverage](collector-aws-cloud-scanners.md)
-- [Helm Collector And Webhook Values](../deploy/kubernetes/helm-collector-and-webhook-values.md)
+- [Helm Collector And Webhook Values](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/helm-collector-and-webhook-values.md)
 - [Collector Environment](../reference/environment-collectors.md)

@@ -2,7 +2,7 @@
 schema_version: 1
 workflows:
 - file: docker-publish.yml
-  name: Publish Image and Helm Chart
+  name: Publish Image
   synchronize: true
   branches:
   - main
@@ -11,10 +11,8 @@ workflows:
   - specs/ci-images.v1.json
   - Dockerfile
   - .dockerignore
-  - deploy/helm/**
   - .github/workflows/docker-publish.yml
   - scripts/ci/select-docker-publish-lanes.sh
-  - scripts/ci/push-helm-chart.sh
   - scripts/verify-apk-floors.sh
   - scripts/test-verify-apk-floors.sh
   - scripts/fixtures/apk-floors/**
@@ -29,7 +27,6 @@ workflows:
   - build-and-push-image
   - build-and-push-scanner-images
   - changes
-  - package-and-push-chart
   - promote-moving-tags
   - publish-ci-service-mirrors
   - verify-apk-floors

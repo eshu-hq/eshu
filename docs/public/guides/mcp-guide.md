@@ -166,7 +166,7 @@ then use `list_repository_files` to see what is indexed.
 ## Local Testing
 
 - Local owner: [Local MCP](../run-locally/mcp-local.md)
-- Compose stack: [Docker Compose](../run-locally/docker-compose.md)
+- Compose stack: [Docker Compose](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/run-locally/docker-compose.md)
 - Client setup: [Connect MCP](../mcp/index.md)
 
 For Compose, `./scripts/sync_local_compose_mcp.sh` discovers the MCP port and

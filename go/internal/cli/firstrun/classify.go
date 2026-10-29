@@ -12,6 +12,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/cli/scan"
 )
 
+// deployComposeDocsURL points operators at the Compose guide in
+// eshu-hq/eshu-deploy, where the run-locally stack moved under #8871.
+const deployComposeDocsURL = "https://github.com/eshu-hq/eshu-deploy/blob/main/docs/run-locally/docker-compose.md"
+
 // onboardingSignal is the pure, structured input to the classifier. It carries
 // the failing step, the detected runtime shape, the preserved underlying error,
 // and the small set of boolean/structured signals that distinguish failure
@@ -96,7 +100,7 @@ func onboardingRules() []onboardingRule {
 						"Confirm the bootstrap target resolves to a path visible inside the container",
 						"Re-run after the mount is in place: eshu first-run",
 					},
-					DocsLink:   "docs/public/run-locally/docker-compose.md",
+					DocsLink:   deployComposeDocsURL,
 					Underlying: s.Underlying,
 				}
 			},
@@ -215,7 +219,7 @@ func onboardingRules() []onboardingRule {
 						"Check service health: docker compose ps",
 						"Re-run once the API reports healthy: eshu first-run",
 					},
-					DocsLink:   "docs/public/run-locally/docker-compose.md",
+					DocsLink:   deployComposeDocsURL,
 					Underlying: s.Underlying,
 				}
 			},

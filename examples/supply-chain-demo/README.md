@@ -105,7 +105,7 @@ and how to feed it into GitHub Code Scanning or a SIEM.
 This part is **not** offline. It needs the Compose stack, the advisory and
 package-registry collectors, and (for the image half) a built image plus a
 workload correlated to the image digest. Follow
-[Docker Compose](../../docs/public/run-locally/docker-compose.md) to bring up the
+[Docker Compose](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/run-locally/docker-compose.md) to bring up the
 stack first.
 
 ### B1. Build the synthetic image (produces an image identity)
