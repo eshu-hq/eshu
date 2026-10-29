@@ -355,6 +355,10 @@ var orderedBootstrapDefinitionNamesLate = []string{
 	// Migration 241a (#9299) adds the typed-source tables (observations,
 	// generations, grants, receipts) with the public-schema guard.
 	"scanner_typed_source_and_results",
+	// Migration 241b (#9299) holds 241a's authority-epoch backfill (the five
+	// INSERT ... SELECT seeds; DML half, #7961 split). It sorts after 241a
+	// ("241a_" < "241b_") so the DDL half applies first.
+	"scanner_authority_epoch_backfill",
 	// Migrations 242/244 (#9307) build exact ECS service and task read
 	// indexes concurrently, one statement per file on populated fact_records
 	// (numbered 242/244: main owns 240/241 for #9474 and 243 for #9227;
