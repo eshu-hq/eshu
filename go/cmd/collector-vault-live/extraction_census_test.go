@@ -22,6 +22,13 @@ import (
 // the cutover moves and the credential boundary the extraction must preserve.
 const censusRecordRel = "go/cmd/collector-vault-live/testdata/8869-collector-vault-live-census.md"
 
+// censusEvidenceRel is the owner-facing evidence record for #8869
+// acceptance, relative to the repository root. The cutover-confirmation test
+// below pins it with the same seven pins as the testdata copy so a future
+// edit to the evidence copy alone cannot silently diverge from the guarded
+// copy (linuxdynasty review on #9467).
+const censusEvidenceRel = "docs/internal/evidence/8869-collector-vault-live-census.md"
+
 // censusSourceFamilies are the package directories the census record must
 // account for. They are asserted against the tree so the record cannot drift
 // silently when a family moves before extraction.
@@ -180,14 +187,17 @@ var censusCutoverMustName = []string{
 }
 
 func TestExtractionCensusRecordsCutoverConfirmation(t *testing.T) {
-	body, err := os.ReadFile(filepath.Join(repoRootForCensus(t), censusRecordRel))
-	if err != nil {
-		t.Fatalf("read census record %s: %v", censusRecordRel, err)
-	}
-	text := string(body)
-	for _, want := range censusCutoverMustName {
-		if !strings.Contains(text, want) {
-			t.Errorf("census record %s does not name cutover evidence %q", censusRecordRel, want)
+	root := repoRootForCensus(t)
+	for _, rel := range []string{censusRecordRel, censusEvidenceRel} {
+		body, err := os.ReadFile(filepath.Join(root, rel))
+		if err != nil {
+			t.Fatalf("read census record %s: %v", rel, err)
+		}
+		text := string(body)
+		for _, want := range censusCutoverMustName {
+			if !strings.Contains(text, want) {
+				t.Errorf("census record %s does not name cutover evidence %q", rel, want)
+			}
 		}
 	}
 }
