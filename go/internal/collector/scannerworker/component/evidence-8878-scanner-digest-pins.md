@@ -17,3 +17,19 @@ delta is claimed because no measured path exists to improve.
 No-Observability-Change: no metric, span, log, or status field is added,
 renamed, or removed. The one new string is a fail-closed error return for
 an unpinned component id, surfaced to the caller, not emitted as telemetry.
+
+## Re-pin after the seed publish (merge 01c8781a, docker-publish run 40892918102)
+
+The seed subcommand change (`seed.go`, per-binary dispatch, three mains)
+advanced scanner inputs past anchor `92744768`, so
+`verify-scanner-digest-pins.sh` reports STALE on current main. This bump
+moves the anchor to `01c8781a71b75e2c9a19611b40b0140ec68de1fe` and the three
+pins to the `sha-01c8781a...` tags published from that merge:
+
+- image `fd712231...d22fe`, sbom `484e5aa4...debe0`,
+  osruntime `fbca5bab...07b` (full hex in `manifest.go`).
+- Each digest read back with `crane digest` and its build attestation
+  re-verified with `gh attestation verify oci://... -R eshu-hq/eshu`
+  (exit 0; negative control on a bogus digest fails MANIFEST_UNKNOWN).
+- Same no-perf/no-observability reasoning as above: only hex constants
+  change; no code path, query, or telemetry is touched.

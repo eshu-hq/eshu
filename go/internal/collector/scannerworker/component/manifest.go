@@ -32,7 +32,7 @@ const (
 )
 
 // Scanner-Publish-SHA anchors the pins below to the merge-head publish
-// that produced them (docker-publish run 40847362877, merge 92744768;
+// that produced them (docker-publish run 40892918102, merge 01c8781a;
 // each digest's build attestation verified with gh attestation verify
 // before pinning). The verify-scanner-digest-pins gate
 // (scripts/verify-scanner-digest-pins.sh, blocking tier pre-pr row
@@ -42,11 +42,11 @@ const (
 // in two changes: the publish itself, then a reviewed follow-up PR
 // bumping this SHA and the pins together (the pattern #9494 uses) —
 // the publish workflow never auto-updates this file.
-// Scanner-Publish-SHA: 92744768263db42d393e0cec65ab6980bcef2134
+// Scanner-Publish-SHA: 01c8781a71b75e2c9a19611b40b0140ec68de1fe
 var artifactDigests = map[string]string{
-	IDImage:     "d2967a1ab642747ec5bafed484b4a5384839b90b59c9562ee38e67b3fa547d49",
-	IDSBOM:      "cbafeeeb2bae99902838e5159bd4003e210f5cfe41891b50b0caf502b2d99dec",
-	IDOSRuntime: "e302cf4e398f23974210f69988a3c53510738100ae7525ead6d11d992d7be3a8",
+	IDImage:     "fd7122317aa8a93ae9ac17ed06120ab23ca049987b51abf84019b190956d22fe",
+	IDSBOM:      "484e5aa4b33ecc77f7135409936c1403b7b86c62dcb1d3aa1130ca01f69debe0",
+	IDOSRuntime: "fbca5bab4ea056415613deba845421a07f70431c92e535ce03fa1f6c30c0d07b",
 }
 
 // AnalyzerFor resolves a component ID back to its analyzer. Unknown IDs fail
