@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
@@ -206,8 +207,10 @@ func TestComposeEndpointRejectsBadShapes(t *testing.T) {
 	good := ComposeRequest{Dossier: dossier, Truth: truth}
 	t.Run("oversize", func(t *testing.T) {
 		t.Parallel()
+		dossier, _ := sampleDossier()
+		dossier["pad"] = strings.Repeat("z", maxComposeBodyBytes+1)
 		rec := serveRequest(t, http.MethodPost, "/api/v0/service/report/compose",
-			oversizedValidJSON(maxComposeBodyBytes), query.EnvelopeMIMEType)
+			mustJSON(t, ComposeRequest{Dossier: dossier}), query.EnvelopeMIMEType)
 		if rec.Code != http.StatusRequestEntityTooLarge {
 			t.Fatalf("status = %d, want 413; body=%s", rec.Code, rec.Body.String())
 		}
@@ -317,8 +320,10 @@ func TestValidateEndpointRejectsBadShapes(t *testing.T) {
 	good := ValidateRequest{Bundle: bundle}
 	t.Run("oversize", func(t *testing.T) {
 		t.Parallel()
+		big := bundle
+		big.ReporterNote = strings.Repeat("n", maxValidateBodyBytes+1)
 		rec := serveRequest(t, http.MethodPost, "/api/v0/report/bundle/validate",
-			oversizedValidJSON(maxValidateBodyBytes), query.EnvelopeMIMEType)
+			mustJSON(t, ValidateRequest{Bundle: big}), query.EnvelopeMIMEType)
 		if rec.Code != http.StatusRequestEntityTooLarge {
 			t.Fatalf("status = %d, want 413; body=%s", rec.Code, rec.Body.String())
 		}
@@ -352,7 +357,7 @@ func TestScoreEndpointRejectsBadShapes(t *testing.T) {
 	t.Run("oversize", func(t *testing.T) {
 		t.Parallel()
 		rec := serveRequest(t, http.MethodPost, "/api/v0/answer-quality/score",
-			oversizedValidJSON(maxScoreBodyBytes), query.EnvelopeMIMEType)
+			oversizedRawJSON(maxScoreBodyBytes), query.EnvelopeMIMEType)
 		if rec.Code != http.StatusRequestEntityTooLarge {
 			t.Fatalf("status = %d, want 413; body=%s", rec.Code, rec.Body.String())
 		}

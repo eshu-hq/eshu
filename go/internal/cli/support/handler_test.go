@@ -112,10 +112,10 @@ func TestRenderEndpointRejectsUnknownFormat(t *testing.T) {
 	}
 }
 
-// oversizedValidJSON returns valid JSON larger than cap: a bare oversized
-// blob fails on syntax before the cap trips, so the 413 path needs a value
-// the decoder keeps reading past the limit.
-func oversizedValidJSON(cap int) []byte {
+// oversizedRawJSON returns valid JSON larger than cap for routes that read
+// raw bytes before any JSON decode: the MaxBytesReader cap trips during the
+// read by construction, so no decoder error-precedence subtlety applies.
+func oversizedRawJSON(cap int) []byte {
 	var buf bytes.Buffer
 	buf.WriteString(`{"pad":"`)
 	buf.Write(bytes.Repeat([]byte("z"), cap+1))
@@ -123,11 +123,17 @@ func oversizedValidJSON(cap int) []byte {
 	return buf.Bytes()
 }
 
-// TestRenderEndpointRejectsOversizeBody pins the fail-closed body cap.
+// TestRenderEndpointRejectsOversizeBody pins the fail-closed body cap. The
+// padding rides a declared field (format), so the 413 rests on the
+// MaxBytesReader cap tripping during the whole-value scan, not on how the
+// decoder orders an unknown-field error against a mid-scan read error.
 func TestRenderEndpointRejectsOversizeBody(t *testing.T) {
 	t.Parallel()
 	rec := serveRequest(t, http.MethodPost, "/api/v0/investigation/packet/render",
-		oversizedValidJSON(maxRenderBodyBytes), query.EnvelopeMIMEType)
+		mustJSON(t, RenderRequest{
+			Packet: samplePacket(),
+			Format: strings.Repeat("f", maxRenderBodyBytes+1),
+		}), query.EnvelopeMIMEType)
 	if rec.Code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("status = %d, want 413; body=%s", rec.Code, rec.Body.String())
 	}
@@ -287,11 +293,15 @@ func TestCaptureEndpointRedactsCredentialParams(t *testing.T) {
 }
 
 // TestCaptureEndpointRejectsOversizeBody pins the fail-closed body cap for
-// the payload-bearing private-triage mode.
+// the payload-bearing private-triage mode. The padding rides a declared
+// field (reporter_note), so the 413 rests on the MaxBytesReader cap, not on
+// decoder error precedence.
 func TestCaptureEndpointRejectsOversizeBody(t *testing.T) {
 	t.Parallel()
+	input := sampleCaptureInput()
+	input.ReporterNote = strings.Repeat("n", maxCaptureBodyBytes+1)
 	rec := serveRequest(t, http.MethodPost, "/api/v0/report/bundle/capture",
-		oversizedValidJSON(maxCaptureBodyBytes), query.EnvelopeMIMEType)
+		mustJSON(t, input), query.EnvelopeMIMEType)
 	if rec.Code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("status = %d, want 413; body=%s", rec.Code, rec.Body.String())
 	}
