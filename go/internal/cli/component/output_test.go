@@ -11,11 +11,12 @@ import (
 
 // TestCLIComponentJSONOpensWithIDAndCarriesVersion pins the part of the
 // `eshu component list --json` shape that the Helm reconcile init container
-// reads with shell pattern matching (deploy/helm/eshu, the component
-// activations script). It splits the listing on `{"id":"` and then looks for
-// `"version":"<v>"` inside the same component object. If the field order or
-// the key names change, change that script and its test in
-// go/internal/runtime together with this one.
+// reads with shell pattern matching ($ESHU_DEPLOY_CHECKOUT/helm/eshu, the
+// component activations script). It splits the listing on `{"id":"` and then
+// looks for `"version":"<v>"` inside the same component object. If the field
+// order or the key names change, change that script and its component-
+// activations script test in the eshu-deploy checkout (run from
+// ESHU_DEPLOY_CHECKOUT) together with this one.
 func TestCLIComponentJSONOpensWithIDAndCarriesVersion(t *testing.T) {
 	t.Parallel()
 
