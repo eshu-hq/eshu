@@ -100,6 +100,9 @@ const ownedPackageSlotCountExpression = `CASE WHEN $4::bigint <= 0 THEN 1::bigin
 // replica (docs/internal/evidence/9422-owned-package-hash-slot.md). The
 // MATERIALIZED fence is kept for intent; it is not load-bearing on the
 // measured plan because the slot predicate depends on the window aggregate.
+// The fact read is restricted to the active generation set (#9426), so its
+// cost follows the active inventory instead of the generation history
+// (docs/internal/evidence/9426-owned-package-active-generation-read.md).
 // Binds: $1 raw package_manager values, $2 read limit, $3 rotation bucket,
 // $4 target limit (zero or less means one slot).
 func listOwnedPackageDependencyTargetsQuery(versionSpecific bool, expandAliases bool) string {
