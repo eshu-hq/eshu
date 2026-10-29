@@ -411,7 +411,12 @@ jobs:
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'verify-reproducibility')) && ((github.event_name != 'workflow_dispatch' || inputs.mode == 'release') && needs.changes.outputs.image == 'true') }}
     env:
       LANE_APPLIES: ${{ needs.changes.outputs.image }}
-    timeout-minutes: 30
+    # The scanner destination builds (#8878) added three rootfs builds plus
+    # verifier runs to this job; it now exceeds the old 30-minute envelope
+    # (killed twice at 30m12s mid-builder-compile with no test failing). 45
+    # matches the sibling publish jobs and leaves margin over the observed
+    # ~31-minute floor.
+    timeout-minutes: 45
     runs-on: ubuntu-24.04
     permissions:
       contents: read
