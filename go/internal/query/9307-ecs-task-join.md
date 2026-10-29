@@ -158,7 +158,7 @@ both sides. Planner statistics are load-bearing: without a preceding
 `ANALYZE`, the task leg stays on the keyset index with a 30k-row filter
 (7.918 ms, 2,979 buffers) while the service leg still uses the ARN index;
 correctness is identical, only the plan is slower, and production
-autovacuum provides the statistics. Host `ip-10-247-141-174` (16 CPUs):
+autovacuum provides the statistics. 16-CPU disposable host:
 load1 7.53 at start (below the 8.0 half-CPU bound) but 10.45 at end, with
 four idle sibling containers resident that this run must not disturb, so
 per timing-proof-rules §1 the wall times are corroboration with spread,
