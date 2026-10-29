@@ -171,7 +171,7 @@ build/release/deploy, rollback rehearsal, and production acceptance are
 | Bounded resources, no regression, telemetry | **Partial** — bounds + signals recorded in §5 and `cmd` README; extracted-path proof outstanding |
 | Credentials, provenance, vuln response, oldest/newest pairs | **Open** — credential env surface recorded in §5; pairs need template/harness (`#6710`) |
 | Independent build/release/deploy on public contracts | **Open** — dest holds only the placeholder README |
-| Rollback rehearsal | **Open** — no draft recorded for this lane |
+| Rollback rehearsal | **Partial** — delete-path rehearsal done 2026-10-28 (stop/restore, §11 record); post-cutover producer-authority rollback plan still undrafted |
 | Review, local proof, stable CI, removal after acceptance | **Open** — local proof in this lane's commit; removal explicitly **not** in PREP |
 
 ## 9. Prerequisites for cutover
@@ -237,15 +237,19 @@ build/release/deploy, rollback rehearsal, and production acceptance are
   intake-auth failures, partial failure, and Actions 202/409. Pure unit
   suites (`go/internal/webhook/`, `.../webhook/intake/`) also green.
 - Satellite deployed to the QA EKS target (`eshu-webhook-satellite`,
-  image `ghcr.io/eshu-hq/eshu-webhook@sha256:b2b72c4d…689f1a`
+  image `ghcr.io/eshu-hq/eshu-webhook@sha256:b2b72c4ddd2aa96b5e2e677b324bef7fc344b0b1ac513a589401b65e4a689f1a`
   per the satellite Deployment manifest in the deployment repository,
   ClusterIP-only, no ingress); in-tree listener retains sole provider
   authority. Delete-path rollback rehearsed 2026-10-28 under the owner
   rollback policy (`#9383`) with owner synthetic-write sign-off, record at
   ([#8876 comment 6482991767](https://github.com/eshu-hq/eshu/issues/8876#issuecomment-6482991767)):
-  stop verified (listener-only subset 11/11 at zero, TAG 1793227941),
-  restore of the identical digest, full 8-case parity run 16/16 checks
-  green (TAG 1793228682), zero residue.
+  stop verified (zero-phase listener-only subset: 11 checks green at zero,
+  run TAG 1793227941), restore of the identical digest, post-restore full
+  parity (8 cases run against both listener and satellite: 16 checks
+  green, run TAG 1793228682), zero residue. TAG numbers are the rehearsal
+  harness run tags from that record. Scope honesty: this rehearses the
+  stateless stop/restore path only; post-cutover producer-authority
+  rollback is still pending (see pending acts below).
 - Pending owner acts on `#8876`: production acceptance decision; fresh
   synthetic-write grant for one final live 8-case run at acceptance time;
   post-cutover producer-authority rollback rehearsal or explicit
