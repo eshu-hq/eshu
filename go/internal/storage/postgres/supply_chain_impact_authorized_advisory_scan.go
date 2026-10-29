@@ -10,8 +10,13 @@ import (
 )
 
 type authorizedImpactAdvisoryFact struct {
-	envelope   facts.Envelope
-	payloadSHA string
+	envelope facts.Envelope
+	// receiptCollectorInstanceID is the emitter the generation receipt pins
+	// (receipt.collector_instance_id), not a payload self-claim: receipt
+	// membership already binds fencing token, payload hash, and producer
+	// grant, so this plain column is the authoritative instance binding.
+	receiptCollectorInstanceID string
+	payloadSHA                 string
 }
 
 func scanAuthorizedImpactAdvisoryFact(rows db.Rows) (authorizedImpactAdvisoryFact, error) {
@@ -25,6 +30,7 @@ func scanAuthorizedImpactAdvisoryFact(rows db.Rows) (authorizedImpactAdvisoryFac
 		&envelope.CollectorKind, &envelope.FencingToken, &envelope.SourceConfidence,
 		&sourceSystem, &sourceFactKey, &sourceURI, &sourceRecordID,
 		&envelope.ObservedAt, &envelope.IsTombstone, &rawPayload, &row.payloadSHA,
+		&row.receiptCollectorInstanceID,
 	); err != nil {
 		return authorizedImpactAdvisoryFact{}, err
 	}

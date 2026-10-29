@@ -7,12 +7,13 @@ import "testing"
 
 func TestScannerImageTargetRequiresImmutableAuthorizedIdentity(t *testing.T) {
 	source := ScannerImageSourceBinding{
-		SourceFactID: "fact-1", SourceCollectorInstanceID: "source-instance",
+		SourceObservationID: 1, SourceCollectorInstanceID: "source-instance",
 		SourceScopeID: "scope-1", SourceGenerationID: "generation-1",
 		Registry: "registry.example.invalid", Repository: "team/service",
-		RuntimeDigest:         "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-		RuntimeDigestKind:     ScannerRuntimeDigestConfig,
-		RuntimeImageReference: "registry.example.invalid/team/service:release",
+		RuntimeDigest:          "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		RuntimeDigestKind:      ScannerRuntimeDigestConfig,
+		RuntimeImageReference:  "registry.example.invalid/team/service:release",
+		ManifestVerificationID: "verification-1",
 	}
 	valid := ScannerImageTarget{
 		WorkItemID:             "scanner-worker:item-1",

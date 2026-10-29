@@ -27,6 +27,15 @@ const (
 	DerivedTargetSkipReasonMissingVersion        = "derived_target_missing_version"
 	DerivedTargetSkipReasonNonExactVersion       = "derived_target_non_exact_version"
 	DerivedTargetSkipReasonConflictingVersion    = "derived_target_conflicting_version"
+	// DerivedTargetSkipReasonAdmissionUnauthorized marks a planned binding
+	// the admission transaction refused to prove: the pinned source or
+	// current authority no longer permits it. The binding skips in
+	// isolation while clean siblings admit.
+	DerivedTargetSkipReasonAdmissionUnauthorized = "derived_target_admission_unauthorized"
+	// DerivedTargetSkipReasonConflictingDuplicate marks a plan dropped
+	// whole because one observation carried two differing claims in the
+	// same page. The plan is never partially admitted.
+	DerivedTargetSkipReasonConflictingDuplicate = "derived_target_conflicting_duplicate"
 )
 
 // DerivedTargetSkipEvidence is the operator-facing record of one reason a

@@ -116,7 +116,8 @@ WITH authorized AS MATERIALIZED (
         fact.fencing_token,fact.source_confidence,fact.source_system,
         fact.source_fact_key,COALESCE(fact.source_uri,''),
         COALESCE(fact.source_record_id,''),fact.observed_at,
-        fact.is_tombstone,fact.payload,member.payload_sha256
+        fact.is_tombstone,fact.payload,member.payload_sha256,
+        receipt.collector_instance_id
  FROM scanner_advisory_generation_facts AS member
  JOIN scanner_advisory_generation_receipts AS receipt
    ON receipt.receipt_id=member.receipt_id AND receipt.status='published'

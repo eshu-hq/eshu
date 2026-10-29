@@ -239,6 +239,16 @@ func ApplyBootstrapWithoutContentSearchIndexes(ctx context.Context, exec db.Exec
 
 // ApplyBootstrapWithOptions applies pending Postgres migrations and logs progress
 // through the supplied logger, or the default logger when Logger is nil.
+//
+// Test binaries bootstrapping an isolated (non-public) schema skip
+// public-only definitions (e.g. 241's database-global authority, #7033)
+// with a loud log line instead of hitting their fail-closed guard: those
+// tests prove non-authority behavior and never read authority tables, while
+// authority tests bootstrap public databases where the guard passes.
+// Production binaries always bootstrap public and install everything; the
+// testing.Testing gate keeps that fail-closed guarantee outside test runs.
+// A test that needs authority tables must use a public-schema bootstrap,
+// never this skip path.
 func ApplyBootstrapWithOptions(ctx context.Context, exec db.Executor, options BootstrapOptions) error {
 	definitions := BootstrapDefinitions()
 	if options.DeferContentSearchIndexes {
@@ -248,6 +258,7 @@ func ApplyBootstrapWithOptions(ctx context.Context, exec db.Executor, options Bo
 	if logger == nil {
 		logger = slog.Default()
 	}
+	definitions = skipPublicOnlyDefinitionsForIsolatedTestBootstrap(ctx, exec, definitions, logger)
 	return applyBootstrapDefinitionsWith(ctx, exec, definitions, logger, schemaBootstrapCoordination{
 		ownershipWait:   options.OwnershipWait,
 		lockRetryBudget: options.LockRetryBudget,

@@ -60,7 +60,10 @@ type RunningImageDiscoveryPage struct {
 	ExpectedCursor RunningImageDiscoveryCursor
 	NextCursor     RunningImageDiscoveryCursor
 	Exhausted      bool
-	// Bounded skip counts are server codes and never include private locators.
+	// Skip counts cover the page span actually returned: the after-cursor
+	// through the page's last candidate, or through the cycle upper bound
+	// on an exhausted page. They are bounded server codes and never
+	// include private locators.
 	SkippedTagOnly          int
 	SkippedUnresolvedConfig int
 }

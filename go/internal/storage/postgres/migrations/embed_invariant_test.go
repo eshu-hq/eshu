@@ -170,13 +170,18 @@ import (
 // #9568 adds 247_fact_records_manifest_dependency_folded_entity_index.sql
 // (the partial expression index that serves the folded entity_name prefilter
 // for registry-cased manifest rows; one CREATE INDEX CONCURRENTLY).
-const goldenBootstrapDefinitionsDigest = "c068c2ef4edb354e8991fedba88de73a86b48ca5b83de0b2cea02faedd028b5e"
+// #9299 adds 240a-265 (242a/243a/244a/245a/246a/247a for the slots main took):
+// the scanner running-image targets block. The 240-247 slots were already
+// taken by main, so the lane keeps the letter-suffixed sequence precedent
+// (skipped by the unique-sequence guard, ordered by path sort); SQL content
+// is byte-identical to the lane's pre-rebase files.
+const goldenBootstrapDefinitionsDigest = "84f1efc7b50dd13c2e33f479c540c3e4f379a8fbe7847974491b72b1840e4423"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 265
+const goldenBootstrapDefinitionsCount = 291
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

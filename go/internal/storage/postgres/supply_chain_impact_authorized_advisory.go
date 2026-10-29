@@ -146,22 +146,33 @@ func countExpectedAuthorizedPublicAdvisories(ctx context.Context, queryer db.Que
 	return count, rows.Err()
 }
 
+// authorizedImpactExpectedKinds is the single source of truth mapping a
+// trusted advisory source class to the fact kinds its generations may carry.
+// The seam's kind attribution (decodeVulnerabilityAdvisorySourceClass) must
+// stay consistent with this map; the test pins that every kind here
+// attributes to exactly its own class and no foreign one.
+func authorizedImpactExpectedKinds(sourceClass string) []string {
+	switch sourceClass {
+	case "nvd":
+		return []string{"vulnerability.cve", "vulnerability.affected_product"}
+	case "osv":
+		return []string{"vulnerability.cve", "vulnerability.affected_package"}
+	case "cisa_kev":
+		return []string{"vulnerability.known_exploited"}
+	case "first_epss":
+		return []string{"vulnerability.epss_score"}
+	default:
+		return nil
+	}
+}
+
 func authorizedImpactAllowedKinds(sourceClass, raw string) bool {
 	var kinds []string
 	if err := json.Unmarshal([]byte(raw), &kinds); err != nil {
 		return false
 	}
-	var expected []string
-	switch sourceClass {
-	case "nvd":
-		expected = []string{"vulnerability.cve", "vulnerability.affected_product"}
-	case "osv":
-		expected = []string{"vulnerability.cve", "vulnerability.affected_package"}
-	case "cisa_kev":
-		expected = []string{"vulnerability.known_exploited"}
-	case "first_epss":
-		expected = []string{"vulnerability.epss_score"}
-	default:
+	expected := authorizedImpactExpectedKinds(sourceClass)
+	if expected == nil {
 		return false
 	}
 	if len(kinds) != len(expected) {
@@ -199,8 +210,8 @@ func loadCurrentAuthorizedAdvisoryFacts(
 		}
 		if envelope.CollectorKind != "vulnerability_intelligence" ||
 			envelope.SourceRef.SourceSystem != "vulnerability_intelligence" ||
-			envelope.Payload["collector_instance_id"] != authority.collectorInstanceID ||
-			envelope.Payload["source"] != authority.sourceClass {
+			advisoryFact.receiptCollectorInstanceID != authority.collectorInstanceID ||
+			!advisorySourceClassMatches(envelope, authority.sourceClass) {
 			_ = rows.Close()
 			return nil, "policy_unavailable", nil
 		}

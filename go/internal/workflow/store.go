@@ -91,6 +91,12 @@ type RunAdmission struct {
 	// InsertedWorkItems counts the rows the work-item table actually accepted.
 	// This is the work an operator can find in the queue.
 	InsertedWorkItems int
+	// AdmissionSkipped counts planned bindings the admission transaction
+	// refused to prove, by skip reason and authorization domain. A skipped
+	// binding earns no target row, attempt, or work item; the discovery
+	// cursor still advances past it and the next cycle re-proves it from
+	// scratch. Nil when every planned binding admitted.
+	AdmissionSkipped map[string]map[string]int
 }
 
 // CompletenessState captures one reducer-facing completion checkpoint for a

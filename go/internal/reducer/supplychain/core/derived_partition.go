@@ -291,20 +291,60 @@ func advisoryMatchesTrustedSource(envelope facts.Envelope, dependency AdvisoryAu
 	sourceClass := strings.ToLower(strings.TrimSpace(dependency.TrustedSourceClass))
 	switch envelope.FactKind {
 	case chain.VulnerabilityKnownExploitedFactKind:
+		// Kind-exact: only the CISA KEV collector emits this kind, so a
+		// well-formed fact is cisa_kev by construction. The decode keeps
+		// the old fail-closed verdict on malformed payloads.
 		if sourceClass != "cisa_kev" {
 			return false
 		}
+		_, err := schemadecode.DecodeVulnerabilityKnownExploited(envelope)
+		return err == nil
 	case chain.VulnerabilityEPSSScoreFactKind:
+		// Kind-exact: only First EPSS emits this kind; see above.
 		if sourceClass != "first_epss" {
 			return false
 		}
+		_, err := schemadecode.DecodeVulnerabilityEPSSScore(envelope)
+		return err == nil
 	default:
 		if sourceClass == "cisa_kev" || sourceClass == "first_epss" {
 			return false
 		}
 	}
-	source, ok := envelope.Payload["source"].(string)
+	source, ok := advisorySourceClass(envelope)
 	return ok && strings.EqualFold(strings.TrimSpace(source), sourceClass)
+}
+
+// advisorySourceClass reports the trusted source class an advisory fact
+// envelope speaks for, without reading its payload map directly. The
+// affected_product kind is NVD-only; the kinds shared across sources (cve,
+// affected_package) decode through the contracts seam and report their
+// declared source field. Anything else reports ok=false so the caller fails
+// closed, preserving the old raw-read verdicts without the raw read —
+// except malformed shared-kind payloads, which now fail closed instead of
+// matching on a present source string.
+func advisorySourceClass(envelope facts.Envelope) (string, bool) {
+	switch envelope.FactKind {
+	case chain.VulnerabilityAffectedProductFactKind:
+		if _, err := schemadecode.DecodeVulnerabilityAffectedProduct(envelope); err != nil {
+			return "", false
+		}
+		return "nvd", true
+	case chain.VulnerabilityCVEFactKind:
+		cve, err := schemadecode.DecodeVulnerabilityCVE(envelope)
+		if err != nil || cve.Source == nil {
+			return "", false
+		}
+		return *cve.Source, true
+	case chain.VulnerabilityAffectedPackageFactKind:
+		pkg, err := schemadecode.DecodeVulnerabilityAffectedPackage(envelope)
+		if err != nil || pkg.Source == nil {
+			return "", false
+		}
+		return *pkg.Source, true
+	default:
+		return "", false
+	}
 }
 
 // sortAuthorizedScanImpactFindings orders the already-coalesced legacy and
