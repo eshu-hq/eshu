@@ -79,7 +79,9 @@ func (cr *ContentReader) WithUnscopedSearch(budget time.Duration, logger *slog.L
 // inside a work budget (#7730): a key-ordered probe and continuation, then a
 // bounded trigram tail, then an explicit partial page with a resume cursor
 // when the budget runs out. Exported, with decomposed primitive parameters,
-// for the same #6060 interface-export reason as SearchFiles.
+// for the same #6060 interface-export reason as SearchFiles. A zero budgetMS
+// uses the configured default; nonzero values must be between 100 and 10000
+// milliseconds.
 func (cr *ContentReader) SearchFilesUnscoped(
 	ctx context.Context,
 	pattern string,
