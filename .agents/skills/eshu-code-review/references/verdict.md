@@ -111,6 +111,9 @@ A rebase that applies with no conflicts, with every commit `=` in
 note in its place and pass it as `--verdict` to
 `ci-gates review-attest capture`. The table in "Rebase Waiver" in
 [SKILL.md](../SKILL.md#rebase-waiver) decides when a note applies: row 6 only.
+A row 2 rebase takes the fixed-awaiting-push transfer note only for a
+content-identical push after a clean verdict with no new findings; every other
+case takes the full review, and merge bars are unchanged.
 A rebase with a non-mechanical conflict resolution or an added commit (rows 3
 and 4b) needs a review, so it uses the
 [scoped rebase verdict](#scoped-rebase-verdict) and not this note. Row 4a and

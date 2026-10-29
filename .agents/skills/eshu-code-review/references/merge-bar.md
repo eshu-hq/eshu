@@ -231,9 +231,11 @@ finding. It proves only that the inputs already reviewed are still the inputs
 being pushed.
 
 A rebase has its own decision table. See [Rebase Waiver](../SKILL.md#rebase-waiver),
-the [waiver note](verdict.md#waiver-note) (row 6), and the
+the [waiver note](verdict.md#waiver-note) (row 6), the fixed-awaiting-push
+transfer note (row 2, content-identical push after a clean verdict with no new
+findings only; every other row 2 case takes the full review), and the
 [scoped rebase verdict](verdict.md#scoped-rebase-verdict) (rows 3 and 4b);
-row 4a and tier S need neither. It
+row 4a and tier S need neither. Merge bars are unchanged. It
 holds the waiver conditions and the open-finding definition, which the
 deferred-P2 rule above feeds.
 

@@ -148,8 +148,9 @@ escalation. If any one fails, row 2 applies: full review.
      `comm -12 <(git diff --name-only <new-base>..HEAD | sort -u) <(git diff --name-only <old-base>..<new-base> | sort -u)`
      prints nothing.
 3. No new finding: no new unresolved thread, no new review-body or
-   issue-comment finding, and no required CI job completed red on the
-   rebased head beyond what the prior verdict already dispositioned.
+   issue-comment finding, and no required CI job completed red on any
+   head since the prior verdict beyond what the prior verdict already
+   dispositioned.
 
 Write a transfer note and pass it as `--verdict` to
 `ci-gates review-attest capture`. Run `make pre-push` on the rebased head
