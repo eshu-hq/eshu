@@ -1,0 +1,138 @@
+name: Live PostgreSQL Readiness Calibration
+
+# Manual calibration only. This workflow does not supply the main-push or PR
+# readiness acceptance check, and its six fixed shards are not a gate change.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CGO_CFLAGS: "-O2 -g -std=gnu17"
+  ESHU_LIVE_POSTGRES_IMAGE: ghcr.io/eshu-hq/ci-postgres-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c
+
+jobs:
+  calibration-shards:
+    name: readiness-calibration (postgres18) shard (${{ matrix.shard }}/6)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6]
+    services:
+      postgres:
+        image: ghcr.io/eshu-hq/ci-postgres-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c
+        env:
+          POSTGRES_DB: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: local-proof-only
+        ports:
+          - 15432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      neo4j:
+        image: ghcr.io/eshu-hq/ci-neo4j-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f
+        env:
+          NEO4J_AUTH: neo4j/local-proof-only
+          NEO4J_PLUGINS: '[]'
+        ports:
+          - 7687:7687
+        options: >-
+          --health-cmd "cypher-shell -u neo4j -p local-proof-only 'RETURN 1'"
+          --health-interval 10s
+          --health-timeout 10s
+          --health-retries 20
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
+      - name: Install ripgrep
+        run: scripts/ci/install-apt-packages.sh ripgrep
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Start disposable physical standby
+        run: bash scripts/ci/live-postgres-standby-fixture.sh start '${{ job.services.postgres.id }}' 'cal-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}'
+      - name: Run fixed calibration proofs
+        shell: bash
+        run: |
+          set -euo pipefail
+          source scripts/lib/live_postgres_readiness_env.sh
+          primary='postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable'
+          standby='postgres://postgres:local-proof-only@127.0.0.1:15433/postgres?sslmode=disable'
+          for name in "${READINESS_DSN_VARS[@]}"; do
+            printf -v "$name" '%s' "$primary"
+            export "$name"
+          done
+          for name in "${READINESS_DISPOSABLE_VARS[@]}" "${READINESS_OPT_IN_VARS[@]}"; do
+            printf -v "$name" '%s' 1
+            export "$name"
+          done
+          export ESHU_REACHABILITY_COMPLETED_INDEX_PROOF_DSN="$primary"
+          export ESHU_REACHABILITY_COMPLETED_INDEX_PROOF_DISPOSABLE=1
+          export ESHU_TEST_CONTENT_INDEX_POSTGRES_READ_DSN="$standby"
+          export ESHU_GRAPH_BACKEND=neo4j ESHU_NEO4J_DATABASE=neo4j
+          export ESHU_NEO4J_URI='neo4j://127.0.0.1:7687'
+          export ESHU_NEO4J_USERNAME=neo4j ESHU_NEO4J_PASSWORD=local-proof-only
+          echo "calibration-start shard=${{ matrix.shard }}/6"
+          bash scripts/run-live-postgres-readiness-tests.sh --calibration \
+            --shard '${{ matrix.shard }}/6' --report calibration-shard-report.json
+      - name: Upload calibration shard report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: calibration-shard-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}
+          path: calibration-shard-report.json
+          if-no-files-found: error
+      - name: Upload failed-package event streams
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: calibration-debug-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}
+          path: .readiness-debug/
+          include-hidden-files: true
+          if-no-files-found: ignore
+      - name: Stop disposable physical standby
+        if: ${{ always() }}
+        run: bash scripts/ci/live-postgres-standby-fixture.sh stop 'cal-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}'
+
+  calibration-coverage:
+    name: readiness-calibration coverage
+    needs: [calibration-shards]
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Require successful calibration shards
+        env:
+          SHARD_RESULT: ${{ needs.calibration-shards.result }}
+        run: test "$SHARD_RESULT" = success
+      - name: Check out code
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - name: Download calibration reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: calibration-shard-${{ github.run_id }}-${{ github.run_attempt }}-*
+          path: calibration-shard-reports
+      - name: Verify fixed ordered coverage
+        run: |
+          python3 scripts/lib/live_postgres_readiness_results.py list-packages > calibration-full.tsv
+          python3 scripts/lib/live_postgres_readiness_calibration.py verify \
+            --head "$(git rev-parse HEAD)" \
+            calibration-shard-reports/*/calibration-shard-report.json < calibration-full.tsv

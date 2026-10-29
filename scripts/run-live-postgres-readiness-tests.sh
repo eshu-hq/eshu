@@ -20,6 +20,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 results="${repo_root}/scripts/lib/live_postgres_readiness_results.py"
 shards="${repo_root}/scripts/lib/live_postgres_readiness_shards.py"
+calibration="${repo_root}/scripts/lib/live_postgres_readiness_calibration.py"
 ledger="${repo_root}/specs/live-tests.v1.yaml"
 
 die() { printf 'live-postgres-readiness: %s\n' "$*" >&2; exit 1; }
@@ -27,11 +28,13 @@ die() { printf 'live-postgres-readiness: %s\n' "$*" >&2; exit 1; }
 shard="all"
 report_path=""
 opt_head=""
+calibration_mode=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --shard) shard="${2:-}"; shift 2 ;;
     --report) report_path="${2:-}"; shift 2 ;;
     --head) opt_head="${2:-}"; shift 2 ;;
+    --calibration) calibration_mode=1; shift ;;
     *) die "unknown argument: $1 (usage: [--shard N/TOTAL --report PATH] [--head SHA])" ;;
   esac
 done
@@ -40,6 +43,14 @@ if [[ "${shard}" == "all" ]]; then
     die "--report/--head require --shard"
 else
   [[ -n "${report_path}" ]] || die "--shard requires --report PATH"
+fi
+if [[ "${calibration_mode}" -eq 1 ]]; then
+  [[ "${shard}" =~ ^[1-6]/6$ ]] || die "calibration requires --shard N/6"
+  [[ "${GITHUB_RUN_ID:-}" =~ ^[1-9][0-9]*$ && "${GITHUB_RUN_ATTEMPT:-}" =~ ^[1-9][0-9]*$ ]] ||
+    die "calibration requires GitHub run ID and attempt"
+  [[ -n "${ESHU_NEO4J_URI:-}" && -n "${ESHU_NEO4J_USERNAME:-}" &&
+     -n "${ESHU_NEO4J_PASSWORD:-}" && "${ESHU_GRAPH_BACKEND:-}" == neo4j ]] ||
+    die "calibration requires the strict Neo4j proof backend"
 fi
 command -v go >/dev/null 2>&1 || die "go is required"
 command -v python3 >/dev/null 2>&1 || die "python3 is required"
@@ -105,8 +116,13 @@ python3 "${results}" list-packages >"${scratch}/full.tsv" ||
 if [[ "${shard}" == "all" ]]; then
   cp "${scratch}/full.tsv" "${scratch}/packages.tsv"
 else
-  python3 "${shards}" plan --shard "${shard}" <"${scratch}/full.tsv" >"${scratch}/packages.tsv" ||
-    die "shard selection is invalid"
+  if [[ "${calibration_mode}" -eq 1 ]]; then
+    python3 "${calibration}" plan --shard "${shard%/*}" <"${scratch}/full.tsv" >"${scratch}/packages.tsv" ||
+      die "fixed calibration selection is invalid"
+  else
+    python3 "${shards}" plan --shard "${shard}" <"${scratch}/full.tsv" >"${scratch}/packages.tsv" ||
+      die "shard selection is invalid"
+  fi
   [[ -s "${scratch}/packages.tsv" ]] || die "shard ${shard} selected no packages"
 fi
 
@@ -213,6 +229,13 @@ else
   head_sha="$(git -C "${repo_root}" rev-parse HEAD 2>/dev/null)" ||
     die "no --head and no git HEAD: cannot attest the shard report"
 fi
-python3 "${shards}" report --head "${head_sha}" --shard "${shard}" \
-  --plan "${scratch}/full.tsv" --manifest "${scratch}/manifest.tsv" \
-  --output "${report_path}" || die "shard ${shard} report is invalid"
+if [[ "${calibration_mode}" -eq 1 ]]; then
+  python3 "${calibration}" report --head "${head_sha}" --shard "${shard%/*}" \
+    --manifest "${scratch}/manifest.tsv" --output "${report_path}" \
+    --run-id "${GITHUB_RUN_ID}" --attempt "${GITHUB_RUN_ATTEMPT}" \
+    <"${scratch}/full.tsv" || die "calibration shard ${shard} report is invalid"
+else
+  python3 "${shards}" report --head "${head_sha}" --shard "${shard}" \
+    --plan "${scratch}/full.tsv" --manifest "${scratch}/manifest.tsv" \
+    --output "${report_path}" || die "shard ${shard} report is invalid"
+fi

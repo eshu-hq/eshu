@@ -103,6 +103,8 @@ hygiene_hooks:
 # release, scheduled-refresh, on-demand, or bot workflows). Each must exist on
 # disk; the drift check fails on a stale entry or an unregistered workflow.
 non_gate_workflows:
+  - file: live-postgres-readiness-calibration.yml
+    reason: "manual six-shard calibration for #9100; evidence only, never a PR or main-push acceptance gate"
   - file: main-health.yml
     reason: "post-merge watcher on main (workflow_run + 6h schedule) that files the main-is-red issue and status; its script is gated by main-health-watcher, the workflow itself is not a PR gate"
   - file: bench.yml
