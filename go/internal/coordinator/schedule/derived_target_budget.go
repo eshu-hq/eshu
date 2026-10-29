@@ -3,7 +3,11 @@
 
 package schedule
 
-import "sort"
+import (
+	"sort"
+	"strconv"
+	"strings"
+)
 
 // DerivedTargetSkipReasonBudgetExhausted marks targets dropped because the
 // instance's target budget filled before they were reached.
@@ -13,6 +17,8 @@ const DerivedTargetSkipReasonBudgetExhausted = "derived_target_budget_exhausted"
 // before planning. They are recorded per reason and ecosystem so an operator
 // can tell a configuration gap from a data gap.
 const (
+	DerivedTargetSkipReasonMissingDigest         = "derived_target_missing_digest"
+	DerivedTargetSkipReasonInvalidCandidate      = "derived_target_invalid_candidate"
 	DerivedTargetSkipReasonMissingPackageName    = "derived_target_missing_package_name"
 	DerivedTargetSkipReasonMissingPURL           = "derived_target_missing_purl"
 	DerivedTargetSkipReasonMissingSource         = "derived_target_missing_source"
@@ -123,6 +129,16 @@ func DerivedTargetSkipEvidenceByReasonForClass(
 // an ecosystem value.
 func skipPackageKey(reason, ecosystem string) string {
 	return reason + "\x00" + ecosystem
+}
+
+// DerivedTargetSkipEvidenceSummary renders skip evidence as a compact
+// reason=count string for structured operator logs.
+func DerivedTargetSkipEvidenceSummary(evidence []DerivedTargetSkipEvidence) string {
+	parts := make([]string, 0, len(evidence))
+	for _, row := range evidence {
+		parts = append(parts, row.Reason+"="+strconv.Itoa(row.SkippedCount))
+	}
+	return strings.Join(parts, ",")
 }
 
 // RecordDerivedTargetSkip counts one skipped candidate under its reason and

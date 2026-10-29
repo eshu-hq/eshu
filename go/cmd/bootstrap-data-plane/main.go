@@ -386,7 +386,7 @@ func schemaBackendFromEnv(getenv func(string) string) (graph.SchemaBackend, erro
 }
 
 func openBootstrapDB(ctx context.Context, getenv func(string) string) (bootstrapDB, error) {
-	database, err := runtimecfg.OpenPostgres(ctx, getenv)
+	database, err := runtimecfg.OpenPostgresForWorkload(ctx, getenv, runtimecfg.PostgresWorkloadBootstrap)
 	if err != nil {
 		return nil, err
 	}

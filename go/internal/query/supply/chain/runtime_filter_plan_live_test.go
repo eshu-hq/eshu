@@ -423,7 +423,7 @@ func withSupplyChainRuntimeFilterDimensions(
 }
 
 func supplyChainRuntimeFilterListArgs(filter impact.FindingFilter) []any {
-	return []any{
+	args := []any{
 		impact.FindingFactKind,
 		filter.CVEID,
 		filter.PackageID,
@@ -455,10 +455,11 @@ func supplyChainRuntimeFilterListArgs(filter impact.FindingFilter) []any {
 		// is produced, so every plan assertion below is skipped rather than run.
 		impact.SuppressionReadAt(nil),
 	}
+	return append(args, supplyChainRuntimeFilterCallerArgs()...)
 }
 
 func supplyChainRuntimeFilterAggregateArgs(filter impact.AggregateFilter) []any {
-	return []any{
+	args := []any{
 		filter.CVEID,
 		filter.PackageID,
 		filter.RepositoryID,
@@ -480,4 +481,9 @@ func supplyChainRuntimeFilterAggregateArgs(filter impact.AggregateFilter) []any 
 		array.Of(filter.AllowedScopeIDs),
 		impact.SuppressionReadAt(nil),
 	}
+	return append(args, supplyChainRuntimeFilterCallerArgs()...)
+}
+
+func supplyChainRuntimeFilterCallerArgs() []any {
+	return []any{false, "", "", "", "", array.Of([]string{})}
 }

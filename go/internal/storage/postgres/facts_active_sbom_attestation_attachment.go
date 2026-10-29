@@ -103,11 +103,15 @@ func (s FactStore) ListActiveSBOMAttestationAttachmentFacts(
 
 	var loaded []facts.Envelope
 	err := withReadOnlyRepeatableRead(ctx, s.database, func(queryer db.Queryer) error {
+		query, err := s.protectedImpactStaticFactSQL(listActiveSBOMAttestationAttachmentFactsQuery)
+		if err != nil {
+			return err
+		}
 		var legacyFacts []facts.Envelope
 		var cursorFactID string
 		for {
 			page, loadErr := listActiveSBOMAttestationAttachmentFactsPage(
-				ctx, queryer, digests, cursorFactID,
+				ctx, queryer, query, digests, cursorFactID,
 			)
 			if loadErr != nil {
 				return loadErr
@@ -138,12 +142,13 @@ func (s FactStore) ListActiveSBOMAttestationAttachmentFacts(
 func listActiveSBOMAttestationAttachmentFactsPage(
 	ctx context.Context,
 	queryer db.Queryer,
+	query string,
 	digests []string,
 	cursorFactID string,
 ) ([]facts.Envelope, error) {
 	rows, err := queryer.QueryContext(
 		ctx,
-		listActiveSBOMAttestationAttachmentFactsQuery,
+		query,
 		digests,
 		cursorFactID,
 		listFactsByKindPageSize,

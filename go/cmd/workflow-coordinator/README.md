@@ -47,8 +47,10 @@ flowchart TB
 
 1. `run` calls `NewBootstrap("workflow-coordinator")` and `NewProviders` to
    bring up OTEL tracing, metrics, and the Prometheus handler.
-2. `OpenPostgres(parent, os.Getenv)` opens the Postgres connection using
-   the standard Postgres environment variables.
+2. `OpenPostgresForWorkload(parent, os.Getenv, PostgresWorkloadCoordinator)`
+   opens the control connection. When a role contract is configured, every
+   physical connection is checked against the protected database contract
+   before use.
 3. `LoadConfigObserved(os.Getenv, observer)` (`LoadConfig` plus the
    producer-grant observer built from the process instruments) parses all ESHU_WORKFLOW_COORDINATOR_* and
    ESHU_COLLECTOR_INSTANCES_JSON env vars and validates the resulting `Config`.
@@ -111,6 +113,29 @@ for the full list. Key env vars:
   boundary with opaque `tenant_id`, `workspace_id`, `subject_class`, and
   `policy_revision_hash`; when set, planned work must intersect an active
   tenant scope grant before any claimable row is created
+- ESHU_WORKFLOW_COORDINATOR_SCANNER_IMAGE_DISCOVERY_POLICY_JSON — revisioned
+  JSON policy with explicit `disabled`, `local`, or `hosted` mode. Blank
+  disables derived discovery. Local mode requires exact source scope IDs;
+  hosted mode requires the tenant boundary above. A configured policy also
+  requires ESHU_POSTGRES_ROLE_CONTRACT_JSON so the coordinator uses an
+  attested control connection. An opted-in scanner instance must select the
+  `image_unpacking` analyzer. Each pass reads at most 256 currently authorized
+  canonical observations per instance; admission advances the durable cursor
+  even when the page yields no new targets. The cursor partitions local and
+  hosted boundaries and policy revision. Page logs report bounded counts, not
+  registry or workload source names.
+- ESHU_WORKFLOW_COORDINATOR_PUBLIC_ADVISORY_POLICY_JSON — explicit
+  operator-managed registration policy with `expected_revision`, a higher
+  `desired_revision`, and `instances`, the complete set of advisory-owned
+  `vulnerability_intelligence` instance IDs. Every selected instance must
+  declare `configuration.public_advisory_targets`, including an empty list
+  when its public sources are removed. Each public target requires a `scope_id`
+  and `max_age_seconds` from 1 through 2592000. Omitted previously owned
+  instances are deactivated by the protected policy; unrelated instances keep
+  their ordinary reconciliation path. The coordinator applies this policy
+  before ordinary instance reconciliation and requires an attested Postgres
+  control role contract. Blank disables this registration path; ordinary fact
+  generations do not acquire public advisory authority.
 - ESHU_COLLECTOR_INSTANCES_JSON — JSON array of collector instance objects
 - ESHU_COMPONENT_QUOTA_MAX_GENERATIONS_PER_HOUR — optional uniform operator
   override for the per-component generations-per-hour claim quota (#8561);

@@ -71,6 +71,13 @@ type SupplyChainImpactFinding struct {
 	Reachability          *SupplyChainReachability
 	RepositoryID          string
 	SubjectDigest         string
+	// ScanTargetID is the immutable authorization boundary for a derived
+	// image scan. It is empty for legacy repository and image findings.
+	ScanTargetID string
+	// ScanGenerationID and AuthorityDependencies are protected writer inputs.
+	// They are never encoded into the public reducer-derived fact payload.
+	ScanGenerationID      string
+	AuthorityDependencies []AdvisoryAuthorityDependency
 	ImageRef              string
 	DependencyScope       string
 	WorkloadIDs           []string

@@ -58,12 +58,14 @@ func appendSupplyChainCorrelationAdditiveDomains(definitions []DomainDefinition,
 		handlers.SupplyChainImpactFencingTokenIssuer != nil {
 		impact := supplyChainImpactDomainDefinition()
 		impact.Handler = supplychaincore.SupplyChainImpactHandler{
-			FactLoader:         handlers.FactLoader,
-			Writer:             handlers.SupplyChainImpactWriter,
-			FencingTokenIssuer: handlers.SupplyChainImpactFencingTokenIssuer,
-			Instruments:        handlers.Instruments,
-			ScopeRepos:         handlers.ScopeRepos,
-			WorkloadLookup:     handle.SiblingLookupOrNil(handlers.WorkloadSiblingLookup),
+			FactLoader:                      handlers.FactLoader,
+			Writer:                          handlers.SupplyChainImpactWriter,
+			AuthorizedEvidenceLoader:        handlers.SupplyChainImpactAuthorizedEvidenceLoader,
+			RequireAuthorizedEvidenceLoader: handlers.RequireSupplyChainImpactAuthorizedEvidenceLoader,
+			FencingTokenIssuer:              handlers.SupplyChainImpactFencingTokenIssuer,
+			Instruments:                     handlers.Instruments,
+			ScopeRepos:                      handlers.ScopeRepos,
+			WorkloadLookup:                  handle.SiblingLookupOrNil(handlers.WorkloadSiblingLookup),
 			// #5709: supply_chain_impact is the second registered cross-scope
 			// consumer. Being in crossscope.dependencyCatalog does not gate a
 			// handler -- these two lines are what do, and

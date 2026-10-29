@@ -52,6 +52,10 @@ graph projection phases.
   and policy-revision identity are copied from the work item into the commit
   mutation so persistence can re-check the active grant without exposing raw
   target locators.
+- `DerivedImageResultCommitter` — commits derived image facts, the protected
+  source receipt and exact fact membership, and claim completion in one
+  transaction. The claim loop stops its heartbeat before this source-first
+  transaction; static scanner targets retain the existing split commit path.
 - `WarningAnalyzer` — safe built-in analyzer used when no concrete scanner is
   configured; it emits `scanner_worker.warning`.
 
@@ -103,6 +107,8 @@ uses `failure_class=commit_failed` and the log adds a bounded
   per-fact snapshot records.
 - Completed scanner claims must emit at least one source fact or warning; silent
   clean output is not accepted.
+- Derived image scopes use `image://derived/` and require the atomic result
+  committer. A missing committer stops the claim loop before a split fact write.
 - Retry and dead-letter payloads carry safe locator hashes and bounded failure
   classes, not raw repository paths, image names, registry URLs, package
   coordinates, or bucket keys.

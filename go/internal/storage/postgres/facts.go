@@ -76,6 +76,9 @@ type FactStore struct {
 	fleetShared *sharedFleetLoadGroup
 	instruments *telemetry.Instruments
 	logger      *slog.Logger
+	// impactStaticSnapshot freezes the static-evidence snapshot for the
+	// checkpoint-retry path (lane #9299); base fleetShared kept above.
+	impactStaticSnapshot bool
 }
 
 // NewFactStore constructs a Postgres-backed fact store without identity caching.

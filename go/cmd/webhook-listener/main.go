@@ -81,7 +81,7 @@ func run(parent context.Context) error {
 	if intakeMode(cfg) {
 		return runIntakeListener(parent, cfg, logger, tracer, instruments, providers)
 	}
-	db, err := runtimecfg.OpenPostgres(parent, os.Getenv)
+	db, err := runtimecfg.OpenPostgresForWorkload(parent, os.Getenv, runtimecfg.PostgresWorkloadRuntime)
 	if err != nil {
 		return err
 	}

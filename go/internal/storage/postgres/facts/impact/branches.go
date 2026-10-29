@@ -136,6 +136,21 @@ func Branches() []Branch {
 	return append(probeBranches(), guard())
 }
 
+// ProtectedStaticBranches omits target scopes and advisory kinds from legacy
+// expansion. Protected advisory receipts are loaded separately in the same
+// snapshot. The predicates are inside candidate, before suppression LIMIT.
+func ProtectedStaticBranches() []Branch {
+	branches := Branches()
+	for i := range branches {
+		branches[i].SQL = strings.Replace(branches[i].SQL, "    WHERE ", `    WHERE fact.scope_id NOT LIKE 'image://derived/%'
+      AND fact.fact_kind NOT IN ('vulnerability.cve', 'vulnerability.affected_package',
+                                 'vulnerability.affected_product', 'vulnerability.epss_score',
+                                 'vulnerability.known_exploited')
+      AND `, 1)
+	}
+	return branches
+}
+
 // probeBranches is every branch except the guard, whose predicate is derived
 // from the keys these branches probe.
 func probeBranches() []Branch {

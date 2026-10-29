@@ -158,4 +158,6 @@ flowchart LR
 `openBootstrapDB` and the enrolled live tests both call it, so a test cannot
 drift from production. Its opener is a `PostgresOpener`: production uses
 `RuntimePostgresOpener`, and the unit tests use a recorder to pin that a dropped
-hook (F1) or a hooked probe (F8) fails in CI-run tests.
+hook (F1) or a hooked probe (F8) fails in CI-run tests. Both physical pools use
+the compiled bootstrap role route before their session hooks when the role
+boundary is active; the probe still takes no deferred-writer hook.

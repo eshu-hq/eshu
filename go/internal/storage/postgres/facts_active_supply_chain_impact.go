@@ -148,7 +148,11 @@ func (s FactStore) resolveSupplyChainImpactFactIDs(
 	}
 	seen := map[string]struct{}{}
 	var resolved supplyChainImpactResolvedIDs
-	for _, branch := range factimpact.Branches() {
+	branches := factimpact.Branches()
+	if s.impactStaticSnapshot {
+		branches = factimpact.ProtectedStaticBranches()
+	}
+	for _, branch := range branches {
 		if !supplyChainImpactBranchRuns(branch, values) {
 			continue
 		}

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package worker plans workflow rows for configured scanner-worker
-// source and image targets.
+// Package worker plans workflow rows for configured scanner-worker targets
+// and bounded canonical running-image discovery pages.
 //
 // WorkPlanner validates one enabled, claim-capable collector instance and
 // returns deterministic workflow rows without reading source paths or image

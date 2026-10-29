@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 var (
@@ -69,17 +70,24 @@ func (s PostgresFindingStore) ExplainSupplyChainImpact(
 	if !filter.HasBoundedScope() {
 		return ExplanationRow{}, fmt.Errorf("finding_id or advisory/cve plus package, repository, or subject digest is required")
 	}
-	args := supplyChainImpactExplanationQueryArgs(filter, s.Now)
+	readStore, commit, err := s.explanationSnapshot(ctx)
+	if err != nil {
+		return ExplanationRow{}, err
+	}
+	if commit != nil {
+		defer func() { _ = commit(false) }()
+	}
+	args := supplyChainImpactExplanationQueryArgs(ctx, filter, s.Now)
 	query := ExplainFindingQuery
 	if filter.FindingID != "" {
 		query = ExplainFindingByPublicIDQuery
 	}
-	findings, err := s.loadSupplyChainImpactExplanationFindings(ctx, query, args)
+	findings, err := readStore.loadSupplyChainImpactExplanationFindings(ctx, query, args)
 	if err != nil {
 		return ExplanationRow{}, err
 	}
 	if filter.FindingID != "" && len(findings) == 0 {
-		findings, err = s.loadSupplyChainImpactExplanationFindings(
+		findings, err = readStore.loadSupplyChainImpactExplanationFindings(
 			ctx,
 			ExplainFindingQuery,
 			args,
@@ -95,21 +103,67 @@ func (s PostgresFindingStore) ExplainSupplyChainImpact(
 	default:
 		return ExplanationRow{}, newSupplyChainImpactExplanationAmbiguousError(len(findings))
 	}
-	evidence, err := s.loadSupplyChainImpactEvidenceFacts(ctx, findings[0].EvidenceFactIDs)
+	evidence, err := readStore.loadSupplyChainImpactAuthorizedEvidenceFacts(ctx, findings[0].factID, findings[0].finding.EvidenceFactIDs)
 	if err != nil {
 		return ExplanationRow{}, err
 	}
+	if commit != nil {
+		if err := commit(true); err != nil {
+			return ExplanationRow{}, fmt.Errorf("commit supply chain impact explanation snapshot: %w", err)
+		}
+	}
 	return ExplanationRow{
-		Finding:       findings[0],
+		Finding:       findings[0].finding,
 		EvidenceFacts: evidence,
 	}, nil
+}
+
+type supplyChainImpactExplanationCandidate struct {
+	factID  string
+	finding FindingRow
+}
+
+// explanationSnapshot holds winner selection and evidence hydration on one
+// physical repeatable-read snapshot when the read port supports transactions.
+func (s PostgresFindingStore) explanationSnapshot(
+	ctx context.Context,
+) (PostgresFindingStore, func(bool) error, error) {
+	if beginner, ok := s.reader.(db.ReadSnapshotBeginner); ok {
+		tx, err := beginner.BeginReadOnlySnapshot(ctx)
+		if err != nil {
+			return s, nil, fmt.Errorf("begin supply chain impact explanation snapshot: %w", err)
+		}
+		s.reader = tx
+		return s, func(success bool) error {
+			if success {
+				return tx.Commit()
+			}
+			return tx.Rollback()
+		}, nil
+	}
+	if beginner, ok := s.DB.(readinessTransactionStarter); ok {
+		tx, err := beginner.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
+		if err != nil {
+			return s, nil, fmt.Errorf("begin supply chain impact explanation snapshot: %w", err)
+		}
+		s.reader = legacyFindingQueryer{database: tx}
+		return s, func(success bool) error {
+			if success {
+				return tx.Commit()
+			}
+			return tx.Rollback()
+		}, nil
+	}
+	// Legacy test doubles expose only QueryContext; derived candidates remain
+	// closed until the protected publication writer is available.
+	return s, nil, nil
 }
 
 func (s PostgresFindingStore) loadSupplyChainImpactExplanationFindings(
 	ctx context.Context,
 	query string,
 	args []any,
-) ([]FindingRow, error) {
+) ([]supplyChainImpactExplanationCandidate, error) {
 	rows, err := s.queryer().QueryContext(
 		ctx,
 		query,
@@ -120,7 +174,7 @@ func (s PostgresFindingStore) loadSupplyChainImpactExplanationFindings(
 	}
 	defer func() { _ = rows.Close() }()
 
-	findings := make([]FindingRow, 0, 2)
+	findings := make([]supplyChainImpactExplanationCandidate, 0, 2)
 	for rows.Next() {
 		var factID string
 		var sourceConfidence string
@@ -132,7 +186,7 @@ func (s PostgresFindingStore) loadSupplyChainImpactExplanationFindings(
 		if err != nil {
 			return nil, err
 		}
-		findings = append(findings, finding)
+		findings = append(findings, supplyChainImpactExplanationCandidate{factID: factID, finding: finding})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("explain supply chain impact finding: %w", err)
@@ -140,25 +194,39 @@ func (s PostgresFindingStore) loadSupplyChainImpactExplanationFindings(
 	return findings, nil
 }
 
+func (s PostgresFindingStore) loadSupplyChainImpactAuthorizedEvidenceFacts(
+	ctx context.Context, findingFactID string, factIDs []string,
+) ([]EvidenceFact, error) {
+	return s.loadSupplyChainImpactEvidenceFactsQuery(
+		ctx, explainSupplyChainImpactAuthorizedEvidenceFactsQuery,
+		[]any{findingFactID, array.Of(explanationUniqueStrings(factIDs))}, len(factIDs),
+	)
+}
+
 func (s PostgresFindingStore) loadSupplyChainImpactEvidenceFacts(
 	ctx context.Context,
 	factIDs []string,
 ) ([]EvidenceFact, error) {
 	factIDs = explanationUniqueStrings(factIDs)
-	if len(factIDs) == 0 {
+	return s.loadSupplyChainImpactEvidenceFactsQuery(
+		ctx, explainSupplyChainImpactEvidenceFactsQuery,
+		[]any{array.Of(factIDs)}, len(factIDs),
+	)
+}
+
+func (s PostgresFindingStore) loadSupplyChainImpactEvidenceFactsQuery(
+	ctx context.Context, query string, args []any, capacity int,
+) ([]EvidenceFact, error) {
+	if capacity == 0 {
 		return nil, nil
 	}
-	rows, err := s.queryer().QueryContext(
-		ctx,
-		explainSupplyChainImpactEvidenceFactsQuery,
-		array.Of(factIDs),
-	)
+	rows, err := s.queryer().QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("explain supply chain impact evidence facts: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
-	out := make([]EvidenceFact, 0, len(factIDs))
+	out := make([]EvidenceFact, 0, capacity)
 	for rows.Next() {
 		var fact EvidenceFact
 		var sourceSystem sql.NullString
@@ -202,11 +270,11 @@ func (s PostgresFindingStore) loadSupplyChainImpactEvidenceFacts(
 
 // ExplainFindingByPublicIDQuery explains one finding anchored on its exact
 // public finding_id, never falling back to a canonical-key candidate match.
-var ExplainFindingByPublicIDQuery = buildExplainSupplyChainImpactFindingQuery(
+var ExplainFindingByPublicIDQuery = supplyChainImpactReadModeSQL(buildExplainSupplyChainImpactFindingQuery(
 	`
     AND fact.payload->>'finding_id' = $2`,
 	"",
-)
+), false)
 
 // ExplainFindingQuery explains a finding from a caller-supplied identifier
 // that may be a fact id, finding id, or canonical key: an empty $2 applies
@@ -216,7 +284,7 @@ var ExplainFindingByPublicIDQuery = buildExplainSupplyChainImpactFindingQuery(
 // it. Without a finding_id the store runs this query directly; with one it
 // tries ExplainFindingByPublicIDQuery first and falls back to this query
 // only when that finds nothing.
-var ExplainFindingQuery = buildExplainSupplyChainImpactFindingQuery(
+var ExplainFindingQuery = supplyChainImpactReadModeSQL(buildExplainSupplyChainImpactFindingQuery(
 	"",
 	`
   WHERE $2 = ''
@@ -224,20 +292,11 @@ var ExplainFindingQuery = buildExplainSupplyChainImpactFindingQuery(
      OR finding_id = $2
      OR canonical_key = $2
      OR canonical_key IN (
-          SELECT `+CanonicalFindingKeySQL+`
-          FROM fact_records AS fact
-          JOIN ingestion_scopes AS identity_scope
-            ON identity_scope.scope_id = fact.scope_id
-           AND identity_scope.active_generation_id = fact.generation_id
-          JOIN scope_generations AS identity_generation
-            ON identity_generation.scope_id = fact.scope_id
-           AND identity_generation.generation_id = fact.generation_id
-          WHERE fact.fact_kind = $1
-            AND fact.is_tombstone = FALSE
-            AND identity_generation.status = 'active'
-            AND fact.fact_id = $2
+          SELECT canonical_key
+          FROM authorized_source_candidates AS identity_candidate
+          WHERE identity_candidate.fact_id = $2
         )`,
-)
+), false)
 
 func buildExplainSupplyChainImpactFindingQuery(
 	authorizedSourcePredicate string,
@@ -254,7 +313,7 @@ authorized_source_candidates AS NOT MATERIALIZED (
          COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') AS suppression_state,
          COALESCE(NULLIF(fact.payload->>'priority_score', '')::int, 0) AS priority_score,
          ` + supplyChainImpactPayloadFindingIDPresentSQL + ` AS has_payload_finding_id,
-         ` + CanonicalFindingKeySQL + ` AS canonical_key
+         ` + supplyChainImpactProtectedSourceCanonicalKeySQL + ` AS canonical_key
   FROM fact_records AS fact
   JOIN ingestion_scopes AS scope
     ON scope.scope_id = fact.scope_id
@@ -262,10 +321,12 @@ authorized_source_candidates AS NOT MATERIALIZED (
   JOIN scope_generations AS generation
     ON generation.scope_id = fact.scope_id
    AND generation.generation_id = fact.generation_id
+` + supplyChainImpactProtectedSourceJoinsSQL + `
   WHERE fact.fact_kind = $1
     AND fact.is_tombstone = FALSE
     AND generation.status = 'active'
     AND fact.scope_id <> '` + supplyChainImpactOperatorSuppressionScopeID + `'
+` + supplyChainImpactProtectedSourcePredicateSQL("$14", "$15", "$16", "$17", "$18", "$19", "$12", "$13") + `
     AND ($3 = '' OR fact.payload->>'advisory_id' = $3 OR fact.payload->>'cve_id' = $3)
     AND ($4 = '' OR fact.payload->>'cve_id' = $4)
     AND ($5 = '' OR fact.payload->>'package_id' = $5)
@@ -282,6 +343,7 @@ authorized_source_candidates AS NOT MATERIALIZED (
       (COALESCE(cardinality($11::text[]), 0) = 0 AND COALESCE(cardinality($12::text[]), 0) = 0)
       OR fact.payload->>'repository_id' = ANY($11::text[])
       OR fact.scope_id = ANY($12::text[])
+      OR finding_class.source_class = 'derived'
     )
 ` + authorizedSourcePredicate + `
 ),
@@ -304,10 +366,11 @@ LIMIT 2
 }
 
 func supplyChainImpactExplanationQueryArgs(
+	ctx context.Context,
 	filter ExplanationFilter,
 	now func() time.Time,
 ) []any {
-	return []any{
+	args := []any{
 		FindingFactKind,
 		filter.FindingID,
 		filter.AdvisoryID,
@@ -322,7 +385,42 @@ func supplyChainImpactExplanationQueryArgs(
 		array.Of(filter.AllowedScopeIDs),
 		SuppressionReadAt(now),
 	}
+	return append(args, supplyChainImpactCallerAuthorizationArgs(ctx)...)
 }
+
+const explainSupplyChainImpactAuthorizedEvidenceFactsQuery = `
+SELECT fact.fact_id, fact.fact_kind, fact.source_system, fact.source_confidence, fact.observed_at, fact.schema_version, fact.payload
+FROM fact_records AS fact
+JOIN ingestion_scopes AS scope
+  ON scope.scope_id = fact.scope_id
+ AND scope.active_generation_id = fact.generation_id
+JOIN scope_generations AS generation
+  ON generation.scope_id = fact.scope_id
+ AND generation.generation_id = fact.generation_id
+LEFT JOIN scanner_image_result_fact_associations AS finding_association
+  ON finding_association.finding_fact_id = $1
+WHERE fact.fact_id = ANY($2::text[])
+  AND fact.is_tombstone = FALSE
+  AND generation.status = 'active'
+  AND (finding_association.finding_fact_id IS NULL OR EXISTS (
+    SELECT 1 FROM scanner_image_result_evidence_associations AS evidence_link
+    WHERE evidence_link.finding_fact_id = $1
+      AND evidence_link.publication_id = finding_association.publication_id
+      AND evidence_link.evidence_fact_id = fact.fact_id
+      AND ((evidence_link.evidence_class = 'scan_intrinsic'
+            AND fact.scope_id = finding_association.scan_scope_id
+            AND fact.generation_id = finding_association.scan_generation_id)
+        OR (evidence_link.evidence_class = 'advisory'
+            AND EXISTS (
+              SELECT 1 FROM scanner_image_result_advisory_dependencies AS dependency
+              WHERE dependency.publication_id = finding_association.publication_id
+                AND dependency.authority_kind = evidence_link.authority_kind
+                AND dependency.authority_id = evidence_link.authority_id
+                AND dependency.authority_epoch = evidence_link.authority_epoch
+                AND fact.scope_id = dependency.advisory_scope_id
+                AND fact.generation_id = dependency.advisory_generation_id)))))
+ORDER BY fact.fact_id ASC
+`
 
 const explainSupplyChainImpactEvidenceFactsQuery = `
 SELECT fact.fact_id, fact.fact_kind, fact.source_system, fact.source_confidence, fact.observed_at, fact.schema_version, fact.payload

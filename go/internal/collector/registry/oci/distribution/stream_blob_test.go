@@ -77,6 +77,27 @@ func TestStreamBlobRejectsShortRead(t *testing.T) {
 	}
 }
 
+func TestStreamBlobStopsBeforeWritingUndeclaredBytes(t *testing.T) {
+	t.Parallel()
+	declared := []byte("declared")
+	digest := fmt.Sprintf("sha256:%x", sha256.Sum256(declared))
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(append(append([]byte(nil), declared...), []byte("excess")...))
+	}))
+	defer server.Close()
+	client, err := NewClient(ClientConfig{BaseURL: server.URL})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var output bytes.Buffer
+	if _, err := client.StreamBlob(context.Background(), "example/app", digest, int64(len(declared)), int64(len(declared)), &output); err == nil {
+		t.Fatal("undeclared response bytes accepted")
+	}
+	if output.Len() > len(declared) {
+		t.Fatalf("wrote %d bytes past descriptor cap %d", output.Len(), len(declared))
+	}
+}
+
 func TestStreamBlobRejectsInvalidDigestBeforeRequest(t *testing.T) {
 	t.Parallel()
 	requests := 0

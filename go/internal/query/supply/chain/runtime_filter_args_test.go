@@ -127,6 +127,8 @@ func productionQueryArgCount(t *testing.T, file, fnName string) int {
 		t.Fatalf("parse %s: %v", file, err)
 	}
 	count := -1
+	baseCount := -1
+	callerAppend := false
 	// found counts every QueryContext call, not just the last one. ast.Inspect's
 	// `return false` prunes only the matched call's own subtree; the walk
 	// continues past it. Without this count a second QueryContext added to the
@@ -140,6 +142,22 @@ func productionQueryArgCount(t *testing.T, file, fnName string) int {
 			continue
 		}
 		ast.Inspect(fn, func(n ast.Node) bool {
+			if assign, ok := n.(*ast.AssignStmt); ok && len(assign.Lhs) == 1 && len(assign.Rhs) == 1 {
+				if ident, ok := assign.Lhs[0].(*ast.Ident); ok && ident.Name == "args" {
+					if literal, ok := assign.Rhs[0].(*ast.CompositeLit); ok {
+						baseCount = len(literal.Elts)
+					}
+					if appendCall, ok := assign.Rhs[0].(*ast.CallExpr); ok {
+						if fn, ok := appendCall.Fun.(*ast.Ident); ok && fn.Name == "append" && len(appendCall.Args) == 2 {
+							if caller, ok := appendCall.Args[1].(*ast.CallExpr); ok {
+								if callerFn, ok := caller.Fun.(*ast.Ident); ok && callerFn.Name == "supplyChainImpactCallerAuthorizationArgs" {
+									callerAppend = true
+								}
+							}
+						}
+					}
+				}
+			}
 			call, ok := n.(*ast.CallExpr)
 			if !ok {
 				return true
@@ -150,6 +168,12 @@ func productionQueryArgCount(t *testing.T, file, fnName string) int {
 			}
 			// minus ctx and the query itself
 			count = len(call.Args) - 2
+			if call.Ellipsis.IsValid() {
+				if baseCount < 0 || !callerAppend {
+					t.Fatalf("%s must build the query argument slice and append six caller bounds before execution", fnName)
+				}
+				count = baseCount + 6
+			}
 			found++
 			return false
 		})

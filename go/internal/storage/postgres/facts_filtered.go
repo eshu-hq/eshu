@@ -81,6 +81,21 @@ ORDER BY observed_at ASC, fact_id ASC
 LIMIT $6
 `
 
+// The protected impact loader obtains advisory facts from published public
+// receipts and derived scan facts from result receipts in the same snapshot.
+// This predicate is evaluated before both direct-scope page limits.
+const protectedStaticScopeFactPredicate = `scope_id NOT LIKE 'image://derived/%'
+  AND fact_kind NOT IN ('vulnerability.cve', 'vulnerability.affected_package',
+                        'vulnerability.affected_product', 'vulnerability.epss_score',
+                        'vulnerability.known_exploited')`
+
+var (
+	protectedStaticFactsByKindQuery = strings.Replace(listFactsByKindQuery,
+		"WHERE scope_id =", "WHERE "+protectedStaticScopeFactPredicate+"\n  AND scope_id =", 1)
+	protectedStaticFactsByKindCursorQuery = strings.Replace(listFactsByKindCursorQuery,
+		"WHERE scope_id =", "WHERE "+protectedStaticScopeFactPredicate+"\n  AND scope_id =", 1)
+)
+
 // Split for the same reason as listFactsByKindQuery above.
 const listFactsByKindAndPayloadValueQuery = `
 SELECT
@@ -137,6 +152,13 @@ ORDER BY observed_at ASC, fact_id ASC
 LIMIT $8
 `
 
+var (
+	protectedStaticFactsByPayloadQuery = strings.Replace(listFactsByKindAndPayloadValueQuery,
+		"WHERE scope_id =", "WHERE "+protectedStaticScopeFactPredicate+"\n  AND scope_id =", 1)
+	protectedStaticFactsByPayloadCursorQuery = strings.Replace(listFactsByKindAndPayloadValueCursorQuery,
+		"WHERE scope_id =", "WHERE "+protectedStaticScopeFactPredicate+"\n  AND scope_id =", 1)
+)
+
 // ListFactsByKind loads fact envelopes for one scope generation and a bounded
 // set of fact kinds, preserving the same stable ordering as ListFacts.
 func (s FactStore) ListFactsByKind(
@@ -188,8 +210,11 @@ func (s FactStore) ListFactsByKindAndPayloadValue(
 	if s.database == nil {
 		return nil, fmt.Errorf("fact store database is required")
 	}
-
 	factKind = strings.TrimSpace(factKind)
+	if s.impactStaticSnapshot && (factKind == "scanner_worker.analysis" || factKind == "scanner_worker.warning" ||
+		factKind == "vulnerability.os_package" || factKind == "vulnerability.warning") {
+		return nil, fmt.Errorf("protected impact coverage unavailable: target-scoped payload-value read has no scan receipt authority")
+	}
 	payloadKey = strings.TrimSpace(payloadKey)
 	payloadValues = filters.CleanFactKinds(payloadValues)
 	if factKind == "" || payloadKey == "" || len(payloadValues) == 0 {
@@ -237,9 +262,15 @@ func (s FactStore) listFactsByKindPage(
 	cursorFactID string,
 ) ([]facts.Envelope, error) {
 	query := listFactsByKindQuery
+	if s.impactStaticSnapshot {
+		query = protectedStaticFactsByKindQuery
+	}
 	args := []any{scopeID, generationID, factKinds, listFactsByKindPageSize}
 	if cursorObservedAt != nil {
 		query = listFactsByKindCursorQuery
+		if s.impactStaticSnapshot {
+			query = protectedStaticFactsByKindCursorQuery
+		}
 		args = []any{
 			scopeID,
 			generationID,
@@ -282,6 +313,9 @@ func (s FactStore) listFactsByKindAndPayloadValuePage(
 	cursorFactID string,
 ) ([]facts.Envelope, error) {
 	query := listFactsByKindAndPayloadValueQuery
+	if s.impactStaticSnapshot {
+		query = protectedStaticFactsByPayloadQuery
+	}
 	args := []any{
 		scopeID,
 		generationID,
@@ -292,6 +326,9 @@ func (s FactStore) listFactsByKindAndPayloadValuePage(
 	}
 	if cursorObservedAt != nil {
 		query = listFactsByKindAndPayloadValueCursorQuery
+		if s.impactStaticSnapshot {
+			query = protectedStaticFactsByPayloadCursorQuery
+		}
 		args = []any{
 			scopeID,
 			generationID,

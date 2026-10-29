@@ -220,7 +220,7 @@ func supplyChainRuntimePlanIndexRows(
 }
 
 func supplyChainRuntimeFilterExplainArgs(filter impact.ExplanationFilter) []any {
-	return []any{
+	args := []any{
 		impact.FindingFactKind,
 		filter.FindingID,
 		filter.AdvisoryID,
@@ -235,4 +235,5 @@ func supplyChainRuntimeFilterExplainArgs(filter impact.ExplanationFilter) []any 
 		array.Of(filter.AllowedScopeIDs),
 		impact.SuppressionReadAt(nil),
 	}
+	return append(args, supplyChainRuntimeFilterCallerArgs()...)
 }

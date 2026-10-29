@@ -431,9 +431,7 @@ func (s PostgresFindingStore) ListSupplyChainImpactFindings(
 		len(filter.AllowedScopeIDs) == 0 {
 		query = ListFindingsFromWinnersQuery
 	}
-	rows, err := s.queryer().QueryContext(
-		ctx,
-		query,
+	args := []any{
 		FindingFactKind,
 		filter.CVEID,
 		filter.PackageID,
@@ -458,7 +456,9 @@ func (s PostgresFindingStore) ListSupplyChainImpactFindings(
 		array.Of(filter.AllowedRepositoryIDs),
 		array.Of(filter.AllowedScopeIDs),
 		SuppressionReadAt(s.Now),
-	)
+	}
+	args = append(args, supplyChainImpactCallerAuthorizationArgs(ctx)...)
+	rows, err := s.queryer().QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list supply chain impact findings: %w", err)
 	}

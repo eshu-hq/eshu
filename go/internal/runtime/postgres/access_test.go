@@ -10,13 +10,85 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type observed struct {
 	mu   sync.Mutex
 	seen map[Stage]map[Outcome]int
+}
+
+func TestAccessRoleAttestorsCoverNewPhysicalConnections(t *testing.T) {
+	dsn := os.Getenv("ESHU_READER_TEST_WRITER_DSN")
+	if dsn == "" {
+		t.Skip("owned disposable PostgreSQL fixture not configured")
+	}
+	cfg, err := LoadConfig(func(key string) string {
+		if key == "ESHU_POSTGRES_DSN" {
+			return dsn
+		}
+		return ""
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var writerChecks, readerChecks atomic.Int32
+	cfg.WriterRoleAttestor = func(_ context.Context, _ *pgconn.PgConn) error {
+		writerChecks.Add(1)
+		return nil
+	}
+	cfg.ReaderRoleAttestor = func(_ context.Context, _ *pgconn.PgConn) error {
+		readerChecks.Add(1)
+		return nil
+	}
+	access, err := Open(context.Background(), cfg, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = access.Close() }()
+	if writerChecks.Load() < 2 || readerChecks.Load() < 1 {
+		t.Fatalf("startup checks writer=%d reader=%d, want bootstrap and both pools", writerChecks.Load(), readerChecks.Load())
+	}
+	access.writer.SetMaxIdleConns(0)
+	access.reader.SetMaxIdleConns(0)
+	for range 2 {
+		if err := access.writer.PingContext(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		if err := access.reader.PingContext(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if writerChecks.Load() < 4 || readerChecks.Load() < 3 {
+		t.Fatalf("new physical connections unchecked: writer=%d reader=%d", writerChecks.Load(), readerChecks.Load())
+	}
+}
+
+func TestAccessRoleAttestorRefusalFailsClosed(t *testing.T) {
+	dsn := os.Getenv("ESHU_READER_TEST_WRITER_DSN")
+	if dsn == "" {
+		t.Skip("owned disposable PostgreSQL fixture not configured")
+	}
+	cfg, err := LoadConfig(func(key string) string {
+		if key == "ESHU_POSTGRES_DSN" {
+			return dsn
+		}
+		return ""
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.WriterRoleAttestor = func(_ context.Context, _ *pgconn.PgConn) error {
+		return errors.New("writer role refused")
+	}
+	if access, err := Open(context.Background(), cfg, nil); err == nil {
+		_ = access.Close()
+		t.Fatal("refused writer role reached a usable pool")
+	}
 }
 
 func (o *observed) Observe(_ string, stage Stage, outcome Outcome, _ time.Duration) {
