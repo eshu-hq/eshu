@@ -78,9 +78,12 @@ type ClaimOutcome struct {
 	ObservedAt time.Time
 }
 
-// Completed reports whether the claim produced a generation ClaimedService
-// commits (complete or partial) or resolves (unchanged).
+// Completed reports whether ClaimedService may commit or resolve this claim.
+// A withheld partial is a failed attempt despite its validated SDK state.
 func (o ClaimOutcome) Completed() bool {
+	if o.FailureClass == FailureClassPartialSnapshotWithheld {
+		return false
+	}
 	switch o.State {
 	case sdkcollector.ResultComplete, sdkcollector.ResultUnchanged, sdkcollector.ResultPartial:
 		return true

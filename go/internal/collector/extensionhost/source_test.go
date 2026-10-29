@@ -148,7 +148,7 @@ func TestSourceReturnsUnchangedWithoutFactStream(t *testing.T) {
 	}
 }
 
-func TestSourceCommitsPartialFactsAndRecordsWarningStatus(t *testing.T) {
+func TestSourceWithholdsPartialFactsAndRecordsWarningStatus(t *testing.T) {
 	t.Parallel()
 
 	item := testWorkItem()
@@ -164,14 +164,12 @@ func TestSourceCommitsPartialFactsAndRecordsWarningStatus(t *testing.T) {
 	source := mustNewSource(t, &recordingRunner{result: result}, recorder)
 
 	collected, ok, err := source.NextClaimed(context.Background(), item)
-	if err != nil {
-		t.Fatalf("NextClaimed() error = %v, want nil", err)
+	if err == nil || ok {
+		t.Fatalf("NextClaimed() = (_, %t, %v), want withheld partial", ok, err)
 	}
-	if !ok {
-		t.Fatal("NextClaimed() ok = false, want true")
-	}
-	if got := len(collectFacts(t, collected)); got != 1 {
-		t.Fatalf("partial emitted facts = %d, want 1", got)
+	assertFailure(t, err, FailureClassPartialSnapshotWithheld, false)
+	if got := len(collectFacts(t, collected)); got != 0 {
+		t.Fatalf("partial emitted facts = %d, want 0", got)
 	}
 	if got, want := recorder.statuses[0].State, sdkcollector.ResultPartial; got != want {
 		t.Fatalf("recorded state = %q, want %q", got, want)

@@ -42,7 +42,7 @@ func TestWorkflowControlStoreFailClaimTerminalPersistsStructuredClassification(t
 	if got, want := len(db.execs), 1; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
-	if got, want := len(db.execs[0].args), 10; got != want {
+	if got, want := len(db.execs[0].args), 13; got != want {
 		t.Fatalf("terminal mutation arg count = %d, want %d", got, want)
 	}
 	query := db.execs[0].query
@@ -58,7 +58,7 @@ func TestWorkflowControlStoreFailClaimTerminalPersistsStructuredClassification(t
 			t.Fatalf("terminal claim query missing %q:\n%s", want, query)
 		}
 	}
-	if strings.Contains(query, "$11") {
+	if strings.Contains(query, "$14") {
 		t.Fatalf("terminal claim query leaves an unused parameter hole:\n%s", query)
 	}
 	args := db.execs[0].args
@@ -102,7 +102,7 @@ func TestWorkflowControlStoreFailClaimRetryablePersistsStructuredClassification(
 	if got, want := len(db.execs), 1; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
-	if got, want := len(db.execs[0].args), 11; got != want {
+	if got, want := len(db.execs[0].args), 14; got != want {
 		t.Fatalf("retryable mutation arg count = %d, want %d", got, want)
 	}
 	query := db.execs[0].query
@@ -118,7 +118,7 @@ func TestWorkflowControlStoreFailClaimRetryablePersistsStructuredClassification(
 			t.Fatalf("retryable claim query missing %q:\n%s", want, query)
 		}
 	}
-	if strings.Contains(query, "$12") {
+	if strings.Contains(query, "$15") {
 		t.Fatalf("retryable claim query leaves an unused parameter hole:\n%s", query)
 	}
 }

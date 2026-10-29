@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// ExtensionOutcome summarizes the latest completed SDK result in each scope
+// ExtensionOutcome summarizes the latest completed or withheld SDK result in each scope
 // of one collector instance. It carries no scope IDs or provider data.
 type ExtensionOutcome struct {
 	CollectorKind  string

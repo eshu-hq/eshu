@@ -171,12 +171,12 @@ completeness. `eshu_runtime_coordinator_collector_terminal_failure_instances`
 (labels `collector_kind`, `failure_class`) is a point-in-time gauge of
 registered instances with a terminal work-item failure inside 3 x their
 `scan_interval` (30 minute floor) and no later completed work item for the same
-instance and scope; `failure_class` is one of the 41 bounded classes in
+instance and scope; `failure_class` is one of the 42 bounded classes in
 [Collector Terminal Failure Readiness](../http-api/collector-terminal-failure.md#values)
 (the nine every kind shares, the five the extension host writes, each kind's
 own, and the one `extension_defined` token for a class an extension defines, on
 a kind that is not first-party or on a component-activated instance), or
-`unknown`, so the label takes at most 42 values. A class outside the kind's own
+`unknown`, so the label takes at most 43 values. A class outside the kind's own
 set reads `unknown`, and no persisted text reaches the label. It is a gauge,
 not a counter, so a recovered or aged-out instance
 drops out. Every runtime that scrapes status exports the same value with its
@@ -259,7 +259,7 @@ Use these to locate the phase that changed before opening logs or traces:
 | `eshu_dp_projector_ack_deferrals_total` | Projector Acks deferred because a same-scope ingestion commit held the scope row, by `outcome`: `retried`, `abandoned` (the 150-retry bound ran out), or `shutdown`. `retried` is counted before the lease renewal; a renewal that then ends the wait shows its result only in `eshu_dp_projector_ack_wait_seconds`. A rising `abandoned` rate means work is being dropped for re-projection after its lease expires. |
 | `eshu_dp_workflow_claim_commit_observer_failures_total` | `ClaimedService` post-commit observer hook errors, by `collector_kind` and `source_system` (#9420). The hook runs after a durable commit or an unchanged-generation resolution; an error never fails the claim, so a nonzero rate means a source's own progress state (for example the GitHub Actions run watermark or the vulnerability source-state success row) did not advance this cycle. Pair with the `claimed_generation_commit_observer_failed` span event. |
 | `eshu_dp_component_producer_grant_decisions_total` | Producer-grant allow/deny decisions for core-owned fact kinds, by `decision` (`allow`/`deny`), `stage` (`install`/`readback`/`activation`/`emission`), closed `reason` (`granted` or a deny reason), and core `fact_kind`. Producer id is span/log only. Emitted by `collector-component-extension` (readback, activation, emission) and `workflow-coordinator` (readback, activation); the CLI, API, and MCP server emit none, so separate the two emitters by `service_name`. See [Producer-Grant Decisions](producer-grant-decisions.md). |
-| `eshu_dp_component_extension_results_total` | Component-extension claim results by `collector_kind`, `state` (`complete`, `unchanged`, `partial`, `retryable`, `terminal`), and `failure_class`, including host verdicts (`invalid_claim`, `launch_failure`, `invalid_result`, `identity_mismatch`, `status_record`, `source_state_record`). `failure_class` is `none` without a failure and folds to `other` past 64 distinct values per process; the cap is per process and, because failure classes are collector-defined, which classes fold depends on arrival order. |
+| `eshu_dp_component_extension_results_total` | Component-extension claim results by `collector_kind`, `state` (`complete`, `unchanged`, `partial`, `retryable`, `terminal`), and `failure_class`, including host verdicts (`invalid_claim`, `launch_failure`, `invalid_result`, `identity_mismatch`, `status_record`, `source_state_record`, `partial_snapshot_withheld`). `failure_class` is `none` without a failure and folds to `other` past 64 distinct values per process; the cap is per process and, because failure classes are collector-defined, which classes fold depends on arrival order. |
 | `eshu_dp_component_extension_status_records_total` | Validated SDK status rows by `collector_kind`, `state`, `status_class`, and `failure_class`. |
 | `eshu_dp_component_extension_reported_facts_total` / `eshu_dp_component_extension_reported_warnings_total` | The `fact_count` and `warning_count` an extension reported in its status rows, by `collector_kind` and `state`. Committed facts are `eshu_dp_workflow_claim_facts_emitted_total`. |
 | `eshu_dp_component_extension_source_latency_seconds` | Reported `source_latency_ms` from status rows that carry it, by `collector_kind` and `state`. |

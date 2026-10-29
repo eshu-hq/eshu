@@ -10,6 +10,7 @@ import (
 	"time"
 
 	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
+	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 // Host failure classes. The host also writes FailureClassSourceStateRecord
@@ -26,6 +27,9 @@ const (
 	FailureClassLaunchFailure = "launch_failure"
 	// FailureClassStatusRecord marks host failure while recording SDK status.
 	FailureClassStatusRecord = "status_record"
+	// FailureClassPartialSnapshotWithheld marks validated incomplete evidence
+	// that the host refused to publish as a replacement generation.
+	FailureClassPartialSnapshotWithheld = "partial_snapshot_withheld"
 )
 
 // MaxRetryAfterDelay caps the provider retry delay an extension can request
@@ -45,7 +49,9 @@ type extensionFailure struct {
 	// retryAfter is the provider-requested delay before the next attempt,
 	// already clamped to MaxRetryAfterDelay. Zero means no request.
 	retryAfter time.Duration
-	cause      error
+	// partialOutcome is persisted only by the fenced claim failure mutation.
+	partialOutcome *workflow.ExtensionOutcome
+	cause          error
 }
 
 func (e extensionFailure) Error() string {
@@ -76,6 +82,12 @@ func (e extensionFailure) TerminalFailure() bool {
 // MaxRetryAfterDelay, or zero when the result requested none.
 func (e extensionFailure) RetryAfterDelay() time.Duration {
 	return e.retryAfter
+}
+
+// ClaimExtensionOutcome returns the bounded partial disposition to the
+// workflow claim mutation. It carries no provider payload or warning text.
+func (e extensionFailure) ClaimExtensionOutcome() *workflow.ExtensionOutcome {
+	return e.partialOutcome
 }
 
 // retryAfterFromStatuses returns the largest retry_after_seconds across the
