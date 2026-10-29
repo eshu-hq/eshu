@@ -33,3 +33,11 @@ pins to the `sha-01c8781a...` tags published from that merge:
   (exit 0; negative control on a bogus digest fails MANIFEST_UNKNOWN).
 - Same no-perf/no-observability reasoning as above: only hex constants
   change; no code path, query, or telemetry is touched.
+
+No-Regression Evidence (seed re-pin 01c8781a): component suite 7.567s on
+clean main (`73418463ed`, throwaway worktree, same host) vs 7.4-7.5s with
+the new pins; constants-only change, manifest construction off any query,
+ingest, or graph-write path.
+
+No-Observability-Change (seed re-pin 01c8781a): no metric, span, log, or
+status field added, renamed, or removed by the new pin values.
