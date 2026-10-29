@@ -1,0 +1,40 @@
+{
+  "data": {
+    "rows": [
+      "a",
+      "b"
+    ],
+    "truncated": true
+  },
+  "truth": {
+    "level": "derived",
+    "capability": "search_code",
+    "profile": "production",
+    "basis": "hybrid",
+    "backend": "neo4j",
+    "freshness": {
+      "state": "stale",
+      "observed_at": "2026-10-29T00:00:00Z",
+      "detail": "reducer backlog",
+      "cause": "reducer_backlog",
+      "next_check": {
+        "tool": "get_reducer_status",
+        "route": "/api/v0/admin/reducer/status",
+        "reason": "drain state",
+        "params": {
+          "scope": "repo"
+        }
+      }
+    },
+    "reason": "hybrid evidence",
+    "truncated": true,
+    "omissions": [
+      {
+        "section": "citations",
+        "detail": "handles",
+        "total": 7
+      }
+    ]
+  },
+  "error": null
+}

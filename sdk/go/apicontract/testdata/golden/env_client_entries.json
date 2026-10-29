@@ -1,0 +1,131 @@
+[
+  {
+    "Name": "ESHU_API_KEY",
+    "Type": "string",
+    "Default": "",
+    "Subsystem": "api",
+    "Description": "Bearer token for API authentication. Setting it (or `ESHU_SCOPED_TOKENS_FILE`/`ESHU_AUTH_RESOURCE_URI`) also enables read enforcement: headerless requests to non-public routes are rejected with 401. With none of the three set the read surface is open (local/demo dev-mode).",
+    "Allowed": null,
+    "Aliases": null,
+    "Deprecated": false,
+    "ReplacedBy": ""
+  },
+  {
+    "Name": "ESHU_HOME",
+    "Type": "string",
+    "Default": "",
+    "Subsystem": "api",
+    "Description": "Root directory for persisted API key and configuration (defaults to ~/.eshu).",
+    "Allowed": null,
+    "Aliases": null,
+    "Deprecated": false,
+    "ReplacedBy": ""
+  },
+  {
+    "Name": "ESHU_QUERY_PROFILE",
+    "Type": "enum",
+    "Default": "production",
+    "Subsystem": "api",
+    "Description": "Query execution profile.",
+    "Allowed": [
+      "production",
+      "local_authoritative",
+      "local_lightweight"
+    ],
+    "Aliases": null,
+    "Deprecated": false,
+    "ReplacedBy": ""
+  },
+  {
+    "Name": "ESHU_GRAPH_BACKEND",
+    "Type": "enum",
+    "Default": "nornicdb",
+    "Subsystem": "graph",
+    "Description": "Graph database backend.",
+    "Allowed": [
+      "neo4j",
+      "nornicdb"
+    ],
+    "Aliases": null,
+    "Deprecated": false,
+    "ReplacedBy": ""
+  },
+  {
+    "Name": "ESHU_NEO4J_DATABASE",
+    "Type": "string",
+    "Default": "",
+    "Subsystem": "graph",
+    "Description": "Graph backend database name; defaults to neo4j for neo4j and nornic for nornicdb.",
+    "Allowed": null,
+    "Aliases": [
+      "NEO4J_DATABASE"
+    ],
+    "Deprecated": false,
+    "ReplacedBy": ""
+  },
+  {
+    "Name": "ESHU_MCP_ALLOW_UNAUTHENTICATED",
+    "Type": "bool",
+    "Default": "false",
+    "Subsystem": "mcp",
+    "Description": "Dev/loopback escape hatch (issue #5168): when true, ESHU_MCP_TRANSPORT=http is allowed to start with no resolvable credential source (no ESHU_API_KEY, no ESHU_SCOPED_TOKENS_FILE, no ESHU_AUTH_RESOURCE_URI). Without it, that configuration refuses to start. Every initialize/tools/list/tools/call/ping request and SSE session is unauthenticated in that state; never set this on a publicly reachable port.",
+    "Allowed": null,
+    "Aliases": null,
+    "Deprecated": false,
+    "ReplacedBy": ""
+  },
+  {
+    "Name": "ESHU_MCP_RESULT_SHAPE",
+    "Type": "enum",
+    "Default": "dual",
+    "Subsystem": "mcp",
+    "Description": "Wire layout of an MCP tools/call result (issue #8800). dual, the default, is today's result: a text summary, the envelope again as an embedded resource, and structuredContent. structured sends one text summary and structuredContent only, so a tool result's payload crosses the wire once; error results follow the same rule, with no eshu://tool-error/dispatch resource. The response budget counts the serialized result as sent in the connection's shape and the 262144-byte limit does not change. This sets the process default, including stdio; a client can override it with the shape query parameter: on POST /mcp/message for that request, on GET /sse for the whole SSE session (the endpoint event carries it, and a POST that names its own shape still wins). An unknown value refuses to start, and an unknown shape parameter gets a 400. Switch the connection or this default back to dual to roll back.",
+    "Allowed": [
+      "dual",
+      "structured"
+    ],
+    "Aliases": null,
+    "Deprecated": false,
+    "ReplacedBy": ""
+  },
+  {
+    "Name": "ESHU_MCP_TOKEN",
+    "Type": "string",
+    "Default": "",
+    "Subsystem": "mcp",
+    "Description": "Per-user Eshu API/MCP bearer token referenced -- never inlined -- by `eshu mcp setup` client snippets in token posture (issue #5169, F-8). Create it in the console (Profile -\u003e API tokens, issue #5164) or via POST /api/v0/auth/local/api-tokens. The MCP client process interpolates it into the Authorization header; Eshu server processes never read this variable. `eshu mcp setup --verify` uses it for the staged probes when --api-key is not set.",
+    "Allowed": null,
+    "Aliases": null,
+    "Deprecated": false,
+    "ReplacedBy": ""
+  },
+  {
+    "Name": "ESHU_MCP_TOOL_SURFACE",
+    "Type": "enum",
+    "Default": "full",
+    "Subsystem": "mcp",
+    "Description": "Which tools MCP tools/list advertises (issue #8758, epic #8752): full lists every registered tool (today's list, unchanged), router lists find_tool and call_tool only, core_router lists a small core set plus find_tool and call_tool. It changes advertisement only: a tool the surface hides still dispatches on tools/call, tools hidden by ESHU_QUERY_PROFILE stay hidden from tools/list in every mode, and the profile's per-call gate is unchanged. An unknown value refuses to start. A client can override it with the surface query parameter: on POST /mcp/message it applies to that request, and on GET /sse it applies to the whole SSE session (the endpoint event carries it, and a POST that names its own surface still wins). An unknown surface value gets a 400. router and core_router serve find_tool with the lexical ranker built at startup on every surface (issue #8771), and the server refuses to start on them without a ranker; core_router advertises find_tool, call_tool, and the 10 core tools listed in go/internal/mcp/router/core.go (issue #8759). full lists the same tools as before but also builds the ranker at startup.",
+    "Allowed": [
+      "full",
+      "router",
+      "core_router"
+    ],
+    "Aliases": null,
+    "Deprecated": false,
+    "ReplacedBy": ""
+  },
+  {
+    "Name": "ESHU_MCP_TRANSPORT",
+    "Type": "enum",
+    "Default": "http",
+    "Subsystem": "mcp",
+    "Description": "MCP server transport mode.",
+    "Allowed": [
+      "http",
+      "stdio"
+    ],
+    "Aliases": null,
+    "Deprecated": false,
+    "ReplacedBy": ""
+  }
+]

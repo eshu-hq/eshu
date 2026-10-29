@@ -1,0 +1,14 @@
+[
+  {
+    "Name": "ESHU_MCP_TRANSPOR",
+    "Kind": "unknown",
+    "Message": "ESHU_MCP_TRANSPOR is not a registered variable; did you mean ESHU_MCP_TRANSPORT?",
+    "Error": false
+  },
+  {
+    "Name": "ESHU_QUERY_PROFILE",
+    "Kind": "invalid_value",
+    "Message": "ESHU_QUERY_PROFILE=\"nonsense\" is not one of production, local_authoritative, local_lightweight",
+    "Error": true
+  }
+]

@@ -122,6 +122,71 @@ jobs:
           fi
           echo "no eshu-hq/eshu/go/internal dependency"
 
+  sdk-go-apicontract:
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'sdk-go-apicontract') }}
+    name: "SDK Go: apicontract"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: sdk/go/apicontract/go.mod
+          cache-dependency-path: sdk/go/apicontract/go.mod
+
+      - name: Install ripgrep
+        run: scripts/ci/install-apt-packages.sh ripgrep
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      # Pre-warm Go modules with retries so a dropped proxy stream fails
+      # HERE, named for what it is, instead of surfacing as a build failure
+      # that never compiled anything (#6615 follow-up to #6075). This module
+      # is outside go/ (its own go.mod, own dependency graph), so it warms
+      # sdk/go/apicontract specifically -- warming go/ would not touch this
+      # module's cache.
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh sdk/go/apicontract
+
+      - name: Build
+        working-directory: sdk/go/apicontract
+        run: go build ./...
+
+      - name: Test
+        working-directory: sdk/go/apicontract
+        run: go test ./... -count=1
+
+      - name: Vet
+        working-directory: sdk/go/apicontract
+        run: go vet ./...
+
+      - name: Check gofmt formatting
+        working-directory: sdk/go/apicontract
+        run: |
+          set -euo pipefail
+          unformatted="$(gofmt -l .)"
+          if [ -n "${unformatted}" ]; then
+            echo "::error::gofmt found unformatted files in sdk/go/apicontract:"
+            printf '%s\n' "${unformatted}"
+            exit 1
+          fi
+          echo "gofmt clean"
+
+      - name: Verify no dependency on go/internal
+        working-directory: sdk/go/apicontract
+        run: |
+          set -euo pipefail
+          deps="$(go list -deps ./...)"
+          if printf '%s\n' "${deps}" | rg 'eshu-hq/eshu/go/internal'; then
+            echo "::error::sdk/go/apicontract must not import eshu-hq/eshu/go/internal packages"
+            exit 1
+          fi
+          echo "no eshu-hq/eshu/go/internal dependency"
+
   sdk-go-factschema:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'sdk-go-factschema') }}
     name: "SDK Go: factschema"
