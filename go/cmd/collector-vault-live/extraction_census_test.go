@@ -22,6 +22,13 @@ import (
 // the cutover moves and the credential boundary the extraction must preserve.
 const censusRecordRel = "go/cmd/collector-vault-live/testdata/8869-collector-vault-live-census.md"
 
+// censusEvidenceRel is the owner-facing evidence record for #8869
+// acceptance, relative to the repository root. The cutover-confirmation test
+// below pins it with the same seven pins as the testdata copy so a future
+// edit to the evidence copy alone cannot silently diverge from the guarded
+// copy (linuxdynasty review on #9467).
+const censusEvidenceRel = "docs/internal/evidence/8869-collector-vault-live-census.md"
+
 // censusSourceFamilies are the package directories the census record must
 // account for. They are asserted against the tree so the record cannot drift
 // silently when a family moves before extraction.
@@ -158,6 +165,39 @@ func TestExtractionCensusRecordsTruthReadSurface(t *testing.T) {
 	for _, want := range censusTruthReadMustName {
 		if !strings.Contains(text, want) {
 			t.Errorf("census record %s does not name truth-read evidence %q", censusRecordRel, want)
+		}
+	}
+}
+
+// censusCutoverMustName lists strings the census record must contain once
+// the post-rc.5 cutover confirmation lands: the SDK rc.5 pin, the IaC rollout
+// PR and host image it shipped in, the first post-rollout generation with all
+// seven vault kinds emitting, and the dest v0.1.1 digest the parity baseline
+// compares against. Each entry pins one load-bearing claim so a later edit
+// that drops any of them fails this test instead of silently shrinking the
+// record.
+var censusCutoverMustName = []string{
+	"v0.1.0-rc.5",
+	"iac-eks-eshu#438",
+	"99323d9654",
+	"83a562b7",
+	"fact_count 13",
+	"38a86611",
+	"vault_auth_role facts flowing",
+}
+
+func TestExtractionCensusRecordsCutoverConfirmation(t *testing.T) {
+	root := repoRootForCensus(t)
+	for _, rel := range []string{censusRecordRel, censusEvidenceRel} {
+		body, err := os.ReadFile(filepath.Join(root, rel))
+		if err != nil {
+			t.Fatalf("read census record %s: %v", rel, err)
+		}
+		text := string(body)
+		for _, want := range censusCutoverMustName {
+			if !strings.Contains(text, want) {
+				t.Errorf("census record %s does not name cutover evidence %q", rel, want)
+			}
 		}
 	}
 }
