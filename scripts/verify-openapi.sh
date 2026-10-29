@@ -5,8 +5,9 @@
 # matching fragment entry, or a fragment entry without a matching HandleFunc
 # route.
 #
-# Scans go/internal/query/ and go/internal/serviceintelhttp/ for HandleFunc
-# registrations. Cross-references the fragments under go/internal/query/openapi/.
+# Scans go/internal/query/, go/internal/serviceintelhttp/, and
+# go/internal/cli/support/ for HandleFunc registrations. Cross-references
+# the fragments under go/internal/query/openapi/.
 #
 # Self-contained: bash scripts/verify-openapi.sh exits 0 on a clean tree.
 set -euo pipefail
@@ -16,8 +17,11 @@ if [ -z "$repo_root" ]; then
   repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 fi
 
-query_dir="${repo_root}/go/internal/query"
-si_dir="${repo_root}/go/internal/serviceintelhttp"
+# Route-source directories (query, service-intelligence, CLI-support) with
+# fail-closed absence checks live in the sourced registry, so this file
+# stays under its line cap as sources are added.
+# shellcheck source=lib/verify-openapi-scan-dirs.sh
+source "$(dirname "$0")/lib/verify-openapi-scan-dirs.sh"
 
 tmpdir="${ESHU_OPENAPI_VERIFY_TMPDIR:-}"
 cleanup_tmp=0
@@ -32,28 +36,8 @@ trap 'if [ "$cleanup_tmp" -eq 1 ]; then rm -rf "$tmpdir"; fi' EXIT
 handlefunc_route_file="${tmpdir}/handlefunc_routes.txt"
 : > "$handlefunc_route_file"
 
-# The query package is both a route source and the sole owner of the
-# OpenAPI contract fragments. Without it, the verifier has no
-# contract surface to compare and must fail closed even if another route
-# source directory exists.
-if [ ! -d "$query_dir" ]; then
-  printf '%s\n' 'OPENAPI SCAN FAILED: required OpenAPI contract source directory not found' >&2
-  printf 'Expected:\n  %s\n' "$query_dir" >&2
-  exit 1
-fi
-
-# The service-intelligence package is the second declared route source. Its
-# absence can hide a route from the comparison just as a missing query package
-# can hide the contract surface.
-if [ ! -d "$si_dir" ]; then
-  printf '%s\n' 'OPENAPI SCAN FAILED: required OpenAPI route source directory not found' >&2
-  printf 'Expected:\n  %s\n' "$si_dir" >&2
-  exit 1
-fi
-
-# Both declared input surfaces are present. They may contain zero matching Go
-# files; an existing-but-empty synthetic repository is a valid empty surface.
-scan_dirs=("$query_dir" "$si_dir")
+# Declared input surfaces come from the sourced registry above: an
+# existing-but-empty synthetic repository remains a valid empty surface.
 
 # Collect all non-test, non-openapi Go files from scan dirs into a file list.
 gofiles_tmp="${tmpdir}/gofiles.txt"

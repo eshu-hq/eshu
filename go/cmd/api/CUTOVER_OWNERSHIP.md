@@ -250,6 +250,7 @@ the `querycontract.CoreReadContractsVersion` port set.
 | `POST /api/v0/admin/repository-retirements` | AdminRetirement | paths/status/repository_retirement.go | mutation | writer: retirement marker/fencer/purger stores | newRouter |
 | `POST /api/v0/admin/skip` | Admin | paths/status/admin.go | mutation | writer: Postgres recovery/reindex/dead-letter/queue stores | newRouter |
 | `POST /api/v0/admin/work-items/query` | Admin | paths/status/admin.go | read | writer: Postgres recovery/reindex/dead-letter/queue stores | newRouter |
+| `POST /api/v0/answer-quality/score` | CLISupport | paths/cli/score.go | read | none (pure function of the request body; no store reads or writes) | wireAPI |
 | `POST /api/v0/ask` | Ask | paths/search/ask.go | read | reader (ReadStore/graph/content, no durable writes) | wireAPI |
 | `POST /api/v0/auth/admin/idp-group-mappings` | AdminIdentityMutations | paths/auth/admin_reads.go | mutation | writer: identity stores (roles, IdP mappings) | newRouter |
 | `POST /api/v0/auth/admin/provider-configs` | AdminProviderConfigMutations | paths/auth/admin_provider_configs.go | mutation | writer: provider-config stores | wireAPI |
@@ -343,14 +344,18 @@ the `querycontract.CoreReadContractsVersion` port set.
 | `POST /api/v0/infra/relationships` | Infra | paths/infrastructure/routes.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
 | `POST /api/v0/infra/resources/search` | Infra | paths/infrastructure/routes.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
 | `POST /api/v0/investigation-workflows/resolve` | InvestigationWorkflows | paths/evidence/investigation_workflows.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
+| `POST /api/v0/investigation/packet/render` | CLISupport | paths/cli/render.go | read | none (pure function of the request body; no store reads or writes) | wireAPI |
 | `POST /api/v0/query-playbooks/resolve` | Playbooks | paths/catalog/playbooks.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
 | `POST /api/v0/relationships/catalog` | Infra | paths/infrastructure/routes.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
 | `POST /api/v0/relationships/edges` | Infra | paths/infrastructure/routes.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
 | `POST /api/v0/replatforming/ownership-packets` | IaC | paths/iac/replatforming_ownership.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
 | `POST /api/v0/replatforming/plans` | IaC | paths/iac/replatforming.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
 | `POST /api/v0/replatforming/rollups` | IaC | paths/iac/replatforming_rollups.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
+| `POST /api/v0/report/bundle/capture` | CLISupport | paths/cli/capture.go | read | none (pure function of the request body; no store reads or writes) | wireAPI |
+| `POST /api/v0/report/bundle/validate` | CLISupport | paths/cli/validate.go | read | none (pure function of the request body; no store reads or writes) | wireAPI |
 | `POST /api/v0/runtime-declarations/query` | RuntimeDeclarations | paths/repository/runtime_declarations.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
 | `POST /api/v0/search/semantic` | SemanticSearch | paths/search/semantic.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
+| `POST /api/v0/service/report/compose` | CLISupport | paths/cli/compose.go | read | none (pure function of the request body; no store reads or writes) | wireAPI |
 | `POST /api/v0/supply-chain/impact/suppressions` | SupplyChain | paths/supply/chain/suppression_mutation.go | mutation | writer: VulnerabilitySuppressionMutationStore (suppressions only) | newRouter |
 | `POST /api/v0/terraform/config-state-drift/findings` | TerraformConfigStateDrift | paths/iac/terraform_config_state_drift.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
 | `POST /api/v0/visualizations/derive` | Visualization | paths/evidence/visualization_packets.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |

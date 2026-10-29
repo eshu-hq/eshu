@@ -833,6 +833,11 @@
     },
     {
       "category": "api_route",
+      "name": "POST /api/v0/answer-quality/score",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
       "name": "POST /api/v0/ask",
       "readiness": "implemented"
     },
@@ -1298,6 +1303,11 @@
     },
     {
       "category": "api_route",
+      "name": "POST /api/v0/investigation/packet/render",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
       "name": "POST /api/v0/query-playbooks/resolve",
       "readiness": "implemented"
     },
@@ -1328,12 +1338,27 @@
     },
     {
       "category": "api_route",
+      "name": "POST /api/v0/report/bundle/capture",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/report/bundle/validate",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
       "name": "POST /api/v0/runtime-declarations/query",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
       "name": "POST /api/v0/search/semantic",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/service/report/compose",
       "readiness": "implemented"
     },
     {

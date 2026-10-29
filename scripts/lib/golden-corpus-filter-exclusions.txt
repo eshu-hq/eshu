@@ -89,3 +89,18 @@ go/internal/searchnornicdb			NOT REACHABLE: not reachable via go list -deps for 
 go/internal/searchpostgres			NOT REACHABLE: not reachable via go list -deps for any of the six gate binaries
 go/internal/semanticdocs			NOT REACHABLE: not reachable via go list -deps for any of the six gate binaries
 go/internal/github			GitHub App JWT mint + installation-token exchange extracted for collector auth; the B-7 gate replays recorded cassettes credential-free and never mints a token, so this is dead code for the gate (same class as the auth family above)
+
+# --- thin-CLI support family (8874 S4, #9510) --------------------------------
+# go/internal/cli/support wires the five CLI-support routes into the api
+# binary; answerquality and reportbundle ride along as their compute
+# kernels, and the top-level cli entry covers the support leaf. All five
+# routes are pure functions of caller-supplied request bodies over no corpus
+# state, and the B-7 gate asserts no shape from them (its route inventory
+# predates #9510), so a change here cannot alter a projected or asserted
+# value -- dead code for the gate, same class as component/github above.
+# Re-check with `go list -deps` on the six gate binaries if any of these
+# packages gains an importer outside cli/support: the reason below stops
+# holding the moment a gate-asserted route can reach them.
+go/internal/answerquality		answer scoring kernel for POST /api/v0/answer-quality/score only; no gate-asserted route imports it
+go/internal/cli			linked into the api binary only through the cli/support leaf (8874-S4 routes); no gate-asserted route imports it
+go/internal/reportbundle		bundle assemble/check kernel for the report-bundle routes only; no gate-asserted route imports it

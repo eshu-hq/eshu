@@ -34,50 +34,50 @@ const defaultFactRefsUnavailableReason = "no public fact-record read surface"
 // the fail-closed validation gate.
 type CaptureInput struct {
 	// Surface is "api" or "mcp".
-	Surface string
+	Surface string `json:"surface"`
 	// Target is the endpoint path (no query string) or MCP tool name.
-	Target string
-	Method string
+	Target string `json:"target"`
+	Method string `json:"method,omitempty"`
 	// Params is the query/body parameters AS ISSUED — Capture redacts them;
 	// callers must not pre-redact (redaction rules must run exactly once).
-	Params map[string]any
+	Params map[string]any `json:"params,omitempty"`
 	// Profile is the query profile in effect at capture time, when known.
-	Profile string
+	Profile string `json:"profile,omitempty"`
 
 	// ReporterNote is the reporter's own description of what they expected.
 	// Capture scans it — it is reporter-typed input like Params, and the guide
 	// asks for a repro, so it commonly holds a pasted curl. Callers must not
 	// pre-redact it; see redactFreeText for what the scan does and does not
 	// find.
-	ReporterNote string
+	ReporterNote string `json:"reporter_note,omitempty"`
 
 	// Envelope is the query.ResponseEnvelope returned by the query. Truth is
 	// stored verbatim; Data is redacted before it is stored.
-	Envelope query.ResponseEnvelope
+	Envelope query.ResponseEnvelope `json:"envelope"`
 	// Truncated is the observed read-model truncation flag found in the
 	// response data (for example AnswerPacket.Truncated), supplied by the
 	// caller since truncation is not part of the envelope contract itself.
-	Truncated bool
+	Truncated bool `json:"truncated,omitempty"`
 
 	// Citations are share-safe citation references. Capture does not strip
 	// an Excerpt field from these because CitationRef has none by
 	// construction — see PayloadExcerpts for the private-triage path.
-	Citations []CitationRef
+	Citations []CitationRef `json:"citations,omitempty"`
 	// FactRefs are resolved fact references, when the caller could hydrate
 	// them (for example a local capture with durable-store access). When
 	// empty, Capture records FactRefsState "unavailable" with
 	// FactRefsReason defaulting to defaultFactRefsUnavailableReason unless
 	// FactRefsReason is set explicitly.
-	FactRefs       []FactRef
-	FactRefsReason string
+	FactRefs       []FactRef `json:"fact_refs,omitempty"`
+	FactRefsReason string    `json:"fact_refs_reason,omitempty"`
 
 	// IncludePayloads flips the bundle's redaction profile to
 	// ProfilePrivateTriage and attaches PayloadExcerpts/PayloadFacts
 	// verbatim (unredacted) under PayloadAttachment. Every other section of
 	// the bundle is still redacted and re-validated.
-	IncludePayloads bool
-	PayloadExcerpts []CitationExcerpt
-	PayloadFacts    []facts.Envelope
+	IncludePayloads bool              `json:"include_payloads,omitempty"`
+	PayloadExcerpts []CitationExcerpt `json:"payload_excerpts,omitempty"`
+	PayloadFacts    []facts.Envelope  `json:"payload_facts,omitempty"`
 }
 
 // nowRFC3339UTC is a seam for deterministic tests; production callers use the

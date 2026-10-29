@@ -6,11 +6,13 @@ package main
 import (
 	"database/sql"
 	"log/slog"
+	"net/http"
 	"os"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	linksfreshnessstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/support"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/query/cicd"
 	"github.com/eshu-hq/eshu/go/internal/query/incident/store"
@@ -229,4 +231,18 @@ func newFreshnessHandler(reader db.ReadStore, profile query.QueryProfile) *query
 		ServiceChangedSince: serviceChangedSince,
 		Profile:             profile,
 	}
+}
+
+// mountCLISupportEndpoints registers the CLI-support endpoints for the
+// extracted thin CLI (8874 S4): packet rendering, offline report
+// composition, bundle capture and validation, answer-quality scoring. It
+// lives here rather than inline in wireAPI to keep wiring.go cohesive; the
+// handlers are pure functions of the request body, so no stores are needed
+// (unlike the Postgres-backed service-intelligence handlers above).
+// Mounted separately from the query router for the same reason as
+// serviceintelhttp: the handler package imports query, serviceintel,
+// reportbundle, and answerquality, and the query package must not depend
+// on it back.
+func mountCLISupportEndpoints(apiMux *http.ServeMux) {
+	(&support.Handlers{}).Mount(apiMux)
 }

@@ -34,12 +34,13 @@ var cutoverDocOnlyRoutes = map[string]bool{
 
 // cutoverWireAPIProbeExclusions counts the map rows whose mounted-by column
 // is wireAPI. Those handlers (first-run setup, OIDC/SAML/GitHub login,
-// provider configs, sign-in policy, ask) are composed in wireAPI after
-// newRouter returns, once a live keyring or provider resolver exists, so the
-// newRouter-level probe cannot reach them. Their mount correctness is proven
-// by their own family tests (cited in the map's proof column); the exact
-// count below fails loudly if the excluded set grows silently.
-const cutoverWireAPIProbeExclusions = 26
+// provider configs, sign-in policy, ask, plus the five storeless 8874-S4
+// CLI-support routes mounted beside serviceintelhttp) are composed in wireAPI
+// after newRouter returns, once a live keyring or provider resolver exists,
+// so the newRouter-level probe cannot reach them. Their mount correctness is
+// proven by their own family tests (cited in the map's proof column); the
+// exact count below fails loudly if the excluded set grows silently.
+const cutoverWireAPIProbeExclusions = 31
 
 type cutoverMapRow struct {
 	route       string
@@ -207,6 +208,7 @@ var cutoverPersistenceVocabulary = map[string]bool{
 	"writer: sign-in-policy store":                                                   true,
 	"writer: retirement marker/fencer/purger stores":                                 true,
 	"writer: VulnerabilitySuppressionMutationStore (suppressions only)":              true,
+	"none (pure function of the request body; no store reads or writes)":             true,
 	"n/a (mux-level)": true,
 }
 

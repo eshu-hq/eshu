@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/openapi/paths/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/openapi/paths/catalog"
 	"github.com/eshu-hq/eshu/go/internal/query/openapi/paths/cicd"
+	"github.com/eshu-hq/eshu/go/internal/query/openapi/paths/cli"
 	"github.com/eshu-hq/eshu/go/internal/query/openapi/paths/cloud"
 	"github.com/eshu-hq/eshu/go/internal/query/openapi/paths/code"
 	"github.com/eshu-hq/eshu/go/internal/query/openapi/paths/code/dead"
@@ -113,6 +114,11 @@ func Spec() string {
 			cloud.Routes+
 			cloud.Inventory+
 			cloud.RuntimeDrift+
+			cli.Render+
+			cli.Compose+
+			cli.Capture+
+			cli.Validate+
+			cli.Score+
 			impact.Routes+
 			impact.Contract+
 			impact.Rest+

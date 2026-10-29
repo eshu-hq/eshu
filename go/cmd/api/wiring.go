@@ -427,6 +427,9 @@ func wireAPI(
 		SupplyChain: newSupplyChainEvidenceSourceWithReadStore(readStore, logger),
 	}).Mount(apiMux)
 
+	// CLI-support endpoints (8874 S4); see mountCLISupportEndpoints.
+	mountCLISupportEndpoints(apiMux)
+
 	// Record per-endpoint duration/error metrics for every API route. The
 	// middleware wraps the application mux only; the admin surface (probes,
 	// /metrics) is mounted separately and is intentionally not counted.
