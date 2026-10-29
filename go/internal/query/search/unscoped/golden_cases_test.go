@@ -79,18 +79,24 @@ func fileGoldenCases() []goldenCase {
 		{name: "exact in the probe", corpus: func() *fakeCorpus {
 			return newCorpus(20000, 50*time.Microsecond, func(i int) bool { return i%10 == 0 })
 		}, limit: 5, offset: 2},
+		// Explicit 800 ms: at the 2000 ms default the walk reaches row
+		// 15000 itself, so the tail-exhaustion path this case pins
+		// would no longer trigger (#9306).
 		{name: "exhausted by the tail", corpus: func() *fakeCorpus {
 			corpus := newCorpus(20000, 50*time.Microsecond, func(i int) bool { return i == 15000 })
 			corpus.tailCost = func(int) time.Duration { return 150 * ms }
 			return corpus
-		}, limit: 50},
+		}, budget: 800 * ms, limit: 50},
 		{name: "exhausted inside the probe window", corpus: func() *fakeCorpus {
 			return newCorpus(150, 50*time.Microsecond, func(i int) bool { return i == 7 || i == 140 })
 		}, limit: 10},
-		{name: "partial on a large document", corpus: func() *fakeCorpus { return sparsePartialCorpus(120 * ms) }, limit: 200},
+		// Both cases below run at an explicit 800 ms: at the 2000 ms
+		// default the walk fills the page, so the large-document and
+		// resume partials they pin would no longer trigger (#9306).
+		{name: "partial on a large document", corpus: func() *fakeCorpus { return sparsePartialCorpus(120 * ms) }, budget: 800 * ms, limit: 200},
 		{
 			name: "partial resumed from a cursor", corpus: func() *fakeCorpus { return sparsePartialCorpus(3 * ms) },
-			limit: 200, offset: 4, cursor: resumeAt,
+			budget: 800 * ms, limit: 200, offset: 4, cursor: resumeAt,
 		},
 		{name: "partial without progress", corpus: stalledCorpus, limit: 50},
 		{
@@ -100,14 +106,19 @@ func fileGoldenCases() []goldenCase {
 		// The three cases below pin the tail figures. The probe costs the
 		// stated time and the continuation is predicted too dear for its
 		// room, so the tail meets the budget left after the probe alone.
+		// Stated at the 2000 ms default (#9306): the floor cases leave
+		// exactly the 375 ms tail floor, and one millisecond under it.
+		// Probe 600 ms at the 2000 ms default (#9306): the first
+		// continuation step is predicted at 2.5 x 600 = 1500 ms, too
+		// dear for the 1400 ms left, so the tail binds at the cap.
 		{name: "tail timeout binds at the tail cap", corpus: func() *fakeCorpus {
-			return slowProbeCorpus(200*ms, 100*ms)
+			return slowProbeCorpus(600*ms, 100*ms)
 		}, limit: 5},
 		{name: "tail runs with exactly the tail floor left", corpus: func() *fakeCorpus {
-			return slowProbeCorpus(650*ms, 100*ms)
+			return slowProbeCorpus(1625*ms, 100*ms)
 		}, limit: 5},
 		{name: "tail skipped one millisecond under the tail floor", corpus: func() *fakeCorpus {
-			return slowProbeCorpus(651*ms, 100*ms)
+			return slowProbeCorpus(1626*ms, 100*ms)
 		}, limit: 5},
 	}
 }
@@ -130,25 +141,28 @@ func entityGoldenCases() []goldenCase {
 			return newEntityCorpus(150, 50*time.Microsecond, func(i int) bool { return i == 7 || i == 140 })
 		}, limit: 10},
 		{name: "partial on a large document", corpus: func() *fakeCorpus { return sparseEntityPartialCorpus(120 * ms) }, limit: 200},
+		// Explicit 800 ms like the file resume case: at the 2000 ms
+		// default the walk fills the page and the resume partial no
+		// longer triggers (#9306).
 		{
 			name: "partial resumed from a cursor", corpus: func() *fakeCorpus { return sparseEntityPartialCorpus(3 * ms) },
-			limit: 200, offset: 4, cursor: entityCursorAt(3299),
+			budget: 800 * ms, limit: 200, offset: 4, cursor: entityCursorAt(3299),
 		},
 		{name: "partial without progress", corpus: stalledEntityCorpus, limit: 50},
 		{
 			name: "partial at a 400 ms budget", corpus: func() *fakeCorpus { return sparseEntityPartialCorpus(2 * ms) },
 			budget: 400 * ms, limit: 30,
 		},
-		// The entity tail cap (640 ms) binds only when more than 640 ms are
+		// The entity tail cap (1600 ms) binds only when more than 1600 ms are
 		// left after the probe, so this probe costs 100 ms.
 		{name: "tail timeout binds at the tail cap", corpus: func() *fakeCorpus {
 			return slowEntityProbeCorpus(100*ms, 100*ms)
 		}, limit: 5},
 		{name: "tail runs with exactly the tail floor left", corpus: func() *fakeCorpus {
-			return slowEntityProbeCorpus(650*ms, 100*ms)
+			return slowEntityProbeCorpus(1625*ms, 100*ms)
 		}, limit: 5},
 		{name: "tail skipped one millisecond under the tail floor", corpus: func() *fakeCorpus {
-			return slowEntityProbeCorpus(651*ms, 100*ms)
+			return slowEntityProbeCorpus(1626*ms, 100*ms)
 		}, limit: 5},
 		// Rows 3, 4 and 5 share one (repo_id, relative_path); resuming after
 		// row 4 must return row 5 and not row 3 or 4.

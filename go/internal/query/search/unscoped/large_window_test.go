@@ -41,7 +41,7 @@ func cursorAt(corpus *fakeCorpus, row int) querycontract.SearchCursor {
 // cancelled after its row was paid for, the next call's probe meets the same
 // row and is cancelled too, and the call returns progressed=false: a dead end
 // for every caller. With the phase room as the timeout the window completes
-// (370 ms, inside the 440 ms phase room) or the next call's probe, whose
+// (370 ms, inside the 1100 ms phase room) or the next call's probe, whose
 // timeout is the remaining budget, completes it (470 ms, the measured cost of
 // the QA window that holds the 33.2 MB document).
 func TestResumeCrossesWindowWithLargeRow(t *testing.T) {
@@ -57,9 +57,9 @@ func TestResumeCrossesWindowWithLargeRow(t *testing.T) {
 		wantFirstDone bool
 	}{
 		{name: "370 ms row", cost: 370 * ms, maxCalls: 1, firstCancels: 0, wantFirstDone: true},
-		// Over the 440 ms phase room: call 1 cancels the step and then
+		// Over the 1100 ms phase room: call 1 cancels the step and then
 		// the tail (the row is still ahead of it); call 2's probe pays for it.
-		{name: "470 ms row", cost: 470 * ms, maxCalls: 2, firstCancels: 2},
+		{name: "1175 ms row", cost: 1175 * ms, maxCalls: 2, firstCancels: 2},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -137,14 +137,14 @@ func TestProbeWindowWithLargeRowProgresses(t *testing.T) {
 // evenly over its 200 rows, so a cancel lands within one cheap row of the
 // timeout. Matches sit at 40,000, 80,000 and 120,000, beyond the walk.
 //
-//   - (i) 600 ms window, 300 ms tail: the probe now completes and leaves the
+//   - (i) 1500 ms window, 750 ms tail: the probe now completes and leaves the
 //     tail too little room, so the call is partial and resumable. The flat
 //     300 ms probe timeout answered it exhausted with 3 rows in about 603 ms.
 //     This is the pinned cost, not a fix.
-//   - (ii) 600 ms window, 500 ms tail: the flat timeout cancelled the probe
+//   - (ii) 1500 ms window, 1250 ms tail: the flat timeout cancelled the probe
 //     and the tail, a dead end (progressed=false at about 706 ms); the call
 //     now progresses. RED on the flat timeout, GREEN now.
-//   - (iii) 900 ms window, 300 ms tail: the window costs more than the whole
+//   - (iii) 2250 ms window, 750 ms tail: the window costs more than the whole
 //     budget, the stated limit, so the probe is cancelled and the call makes
 //     no progress. The flat timeout answered it exhausted in about 601 ms:
 //     the disclosed regression. No measured window is near it.
@@ -159,9 +159,9 @@ func TestSpreadProbeWindowTrade(t *testing.T) {
 		cancels      int
 		minMS, maxMS int64
 	}{
-		{name: "(i) 600 ms window, 300 ms tail", window: 600 * ms, tail: 300 * ms, progressed: true, tailRan: true, cancels: 1, minMS: 800, maxMS: 810},
-		{name: "(ii) 600 ms window, 500 ms tail", window: 600 * ms, tail: 500 * ms, progressed: true, tailRan: true, cancels: 1, minMS: 800, maxMS: 810},
-		{name: "(iii) 900 ms window, 300 ms tail", window: 900 * ms, tail: 300 * ms, progressed: false, tailRan: false, cancels: 1, minMS: 800, maxMS: 805},
+		{name: "(i) 1500 ms window, 750 ms tail", window: 1500 * ms, tail: 750 * ms, progressed: true, tailRan: true, cancels: 1, minMS: 2000, maxMS: 2010},
+		{name: "(ii) 1500 ms window, 1250 ms tail", window: 1500 * ms, tail: 1250 * ms, progressed: true, tailRan: true, cancels: 1, minMS: 2000, maxMS: 2010},
+		{name: "(iii) 2250 ms window, 750 ms tail", window: 2250 * ms, tail: 750 * ms, progressed: false, tailRan: false, cancels: 1, minMS: 2000, maxMS: 2005},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

@@ -83,7 +83,8 @@ func TestSearchTailDoesNotRepeatTheCursorRow(t *testing.T) {
 	t.Parallel()
 
 	rows := map[int]bool{199: true, 200: true, 2199: true, 2200: true, 15000: true}
-	corpus := newCorpus(20000, 50*time.Microsecond, func(i int) bool { return rows[i] })
+	// Larger than the capped continuation can exhaust, so the tail still runs.
+	corpus := newCorpus(60000, 50*time.Microsecond, func(i int) bool { return rows[i] })
 	corpus.tailCost = func(int) time.Duration { return 334 * ms }
 	page, fdb, _, err := run(t, corpus, 200, 0, querycontract.SearchCursor{})
 	if err != nil {
@@ -104,8 +105,10 @@ func TestSearchTailDoesNotRepeatTheCursorRow(t *testing.T) {
 func TestSearchTailFilledPageReportsMore(t *testing.T) {
 	t.Parallel()
 
-	rows := map[int]bool{15000: true, 15001: true, 15002: true}
-	corpus := newCorpus(20000, 50*time.Microsecond, func(i int) bool { return rows[i] })
+	rows := map[int]bool{30000: true, 30001: true, 30002: true}
+	// Larger than the capped continuation can exhaust, so the matches wait
+	// for the tail, which fills the page.
+	corpus := newCorpus(60000, 50*time.Microsecond, func(i int) bool { return rows[i] })
 	corpus.tailCost = func(int) time.Duration { return 334 * ms }
 	page, fdb, _, err := run(t, corpus, 2, 0, querycontract.SearchCursor{})
 	if err != nil {

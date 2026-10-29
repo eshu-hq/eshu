@@ -15,11 +15,13 @@ import (
 const EnvBudgetMS = "ESHU_CONTENT_SEARCH_BUDGET_MS"
 
 const (
-	// DefaultBudget is the work budget when EnvBudgetMS is unset. It keeps the
-	// common case under the one-second end-to-end bar; a cancelled statement
-	// can still overrun its own timeout by one candidate's recheck, and the
-	// result reports that overrun.
-	DefaultBudget = 800 * time.Millisecond
+	// DefaultBudget is the work budget when EnvBudgetMS is unset. It is the
+	// smallest measured budget where a selective unscoped query completes on
+	// the QA corpus (#9306 ruling 2026-10-29: rare complete p95 1921 ms within
+	// the 2500 ms gate; 800 ms left rare 21/21 partial at ~8.3% coverage). A
+	// cancelled statement can still overrun its own timeout by one candidate's
+	// recheck, and the result reports that overrun.
+	DefaultBudget = 2000 * time.Millisecond
 	// MinBudget is the smallest accepted budget. Below it the tail floor and
 	// the phase rooms shrink under the cost of one round trip.
 	MinBudget = 100 * time.Millisecond

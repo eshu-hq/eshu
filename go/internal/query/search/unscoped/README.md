@@ -32,24 +32,24 @@ A shape needs its own measured figures: the file split does not transfer to
 another table's cost structure. The entity cursor binds `start_line`
 saturated to the int32 range of the column.
 
-Figures at the default 800 ms budget (each phase limit scales with the budget):
+Figures at the default 2000 ms budget (each phase limit scales with the budget):
 
 | Figure | `content_files` | `content_entities` |
 |---|---|---|
 | probe rows | 200 | 1,000 |
 | step rows | 500 | 5,000 |
-| phase one cap | 0.55 x budget (440 ms) | 0.20 x budget (160 ms) |
-| tail cap | 0.50 x budget (400 ms) | 0.80 x budget (640 ms) |
-| tail floor | 150 ms | 150 ms |
+| phase one cap | 0.55 x budget (1100 ms) | 0.20 x budget (400 ms) |
+| tail cap | 0.50 x budget (1000 ms) | 0.80 x budget (1600 ms) |
+| tail floor | 375 ms | 375 ms |
 | extension rows | 0 (disabled) | 35,000 (#8002) |
 
 The entity figures are triple A of the #7009 S1 shim on `content_entities` in
 the QA environment (figures in
 `docs/internal/evidence/7009-unscoped-entity-search-figures.md`; arbiter
 ruling round 2, R2.1). An ordered entity window costs bytes, not rows
-(0.3 ms plus 0.34 us per row plus 10.2 ns per byte), so 160 ms walks about
+(0.3 ms plus 0.34 us per row plus 10.2 ns per byte), so 400 ms walks about
 35,000 rows; the rare bitmap tails cost 400-462 ms warm, so the tail gets
-640 ms. Under the file figures `process_entries` and `FeaturesTab`, exact
+1600 ms. Under the file figures `process_entries` and `FeaturesTab`, exact
 today, end partial. The former disclosed trade (R2.2) is gone since #8002:
 when the last ordered window predicts the page fills inside 35,000 further
 rows, the walk extends past phase one and a decode-like common pattern at
@@ -59,7 +59,7 @@ first 70,000 rows against the 201-match page need, QA cost-2 shim of
 again (flat at about 1.1 s from any cursor on the same corpus).
 `TestEntityPolicyClasses` pins every S1 class, including the 13.1 MB value:
 a tail cancel that fires 30-170 ms into the tail waits for its recheck. At the
-default budget the entity tail timeout is about 640 ms, outside that window.
+default budget the entity tail timeout is about 1600 ms, outside that window.
 
 `TestFileRouteGolden` and `TestEntityRouteGolden` pin each route's observable
 output byte for byte (page rows, partial object, every statement text and
@@ -87,10 +87,10 @@ flowchart TD
   F -->|budget spent| P[partial: rows, cursor, elapsed, overrun, hint]
 ```
 
-The 0.55 cap (440 ms at the default budget) comes from the #7730
+The 0.55 cap (1100 ms at the default budget) comes from the #7730
 continuation shim of 2026-10-11 on the QA environment's corpus: the common
 tokens that ended partial at 0.15 have their 11th match within one 289-409 ms
-key-ordered window, and the 360 ms left after the cap still pays for the
+key-ordered window, and the 900 ms left after the cap still pays for the
 measured 268 ms zero-match and 300 ms selective tails. Caps from 0.50 to 0.60
 keep every modelled class exact that was exact before; 0.65 turns the
 selective class partial. `TestPolicyClasses` pins each class.
@@ -108,7 +108,7 @@ one call can end partial and resumable; the evidence note has the figures and
 `TestSpreadProbeWindowTrade` pins them. On the QA
 environment's corpus of 2026-10-11 the two costliest windows measured
 0.47-0.52 s (33.2 MB document) and 0.72-0.78 s (54.9 MB document), both under
-the 800 ms default.
+the 2000 ms default.
 
 At the default ratios (cap 0.55, tail cap 0.5) a cancelled tail leaves less
 budget than the after-tail continuation's next predicted step, so that phase
@@ -138,7 +138,7 @@ reading `offset + limit + 1` matches under the same budget.
   goes to the key-ordered walk; the partial reason is then
   `pattern_has_no_trigram` (unless the large-document reason above applies).
   Measured on the QA environment read replica: the skipped tail would plan a
-  parallel sequential scan at 3,930 ms warm against the 400 ms tail cap
+  parallel sequential scan at 3,930 ms warm against the 1000 ms tail cap
   (#8002).
 - The recheck tests the stored lowercase copy (`content_lower`) with `LIKE`,
   folding the pattern once, instead of a per-row `ILIKE` (#7975): ILIKE pays

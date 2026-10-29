@@ -23,17 +23,17 @@ One call is one read-only snapshot transaction:
    `503` as before.
 2. A **probe** of 1,000 rows in `repo_id, relative_path, start_line,
    entity_id` order. Its timeout is the remaining budget.
-3. **Continuation** steps of 5,000 rows, capped at 0.20 x the budget (160 ms
+3. **Continuation** steps of 5,000 rows, capped at 0.20 x the budget (400 ms
    at the default, about 35,000 rows). Common tokens whose matches sit near the
    start of the key order are answered here, without the tail. Each step's
    timeout is the room left in the cap.
 4. A **density-gated extension** (#8002): when the last ordered window holds
    matches and predicts the page fills inside 35,000 further rows, the walk
    keeps reading in key order instead of paying the tail. The extension always
-   leaves the tail floor (150 ms at the default), so a wrong prediction still reaches step 5.
+   leaves the tail floor (375 ms at the default), so a wrong prediction still reaches step 5.
    The file route has no extension.
 5. A **trigram tail** with a timeout of `min(remaining, 0.80 x budget)`
-   (up to 640 ms at the default). If less than the floor (150 ms at the
+   (up to 1600 ms at the default). If less than the floor (375 ms at the
    default) remains, the tail is skipped. It is also skipped when the pattern
    has no three-character alphanumeric run (for example `db_`), because the
    trigram index has nothing to extract; step 6 then gets the whole remaining
@@ -59,7 +59,7 @@ matches; the server reads `offset + limit + 1` matches to set `truncated`. An
 exact page carries the same rows, in the same order, with the same payload
 (`source_cache`, `metadata`) as the old unbounded statement.
 
-The budget is `ESHU_CONTENT_SEARCH_BUDGET_MS` (default 800, accepted
+The budget is `ESHU_CONTENT_SEARCH_BUDGET_MS` (default 2000, accepted
 100..10000; see [Environment Variable Reference](../env-registry/api-and-auth.md#api)), shared
 with the unscoped file search. Every internal timeout scales with it.
 
@@ -78,7 +78,7 @@ If the budget ends first, the answer is **HTTP 200**, never an error:
       "rows_scanned_in_order": 36000,
       "rows_matched": 1,
       "cursor": {"repo_id": "...", "relative_path": "...", "start_line": 12, "entity_id": "..."},
-      "budget_ms": 800, "elapsed_ms": 785, "overrun_ms": 0,
+      "budget_ms": 2000, "elapsed_ms": 1985, "overrun_ms": 0,
       "progressed": true,
       "hint": "add repo_id (repo_ids in the MCP tool) to scope the search"
     }
@@ -101,7 +101,7 @@ If the budget ends first, the answer is **HTTP 200**, never an error:
 - One large value cannot be interrupted: its recheck costs 11 to 13 ms per MB,
   and the largest entity `source_cache` measured is 13.1 MB (a recheck of 146
   to 176 ms). A tail cancel that fires about 30 to 170 ms into the tail waits
-  for it. At the default budget the tail timeout is about 640 ms, outside that
+  for it. At the default budget the tail timeout is about 1600 ms, outside that
   window. Budgets under about 220 ms put the tail cancel inside the block
   (extra wait up to about 140 ms); the `budget_exceeded_on_large_document`
   reason needs a tail timeout under about 70 ms. All figures: S1c, QA warm.

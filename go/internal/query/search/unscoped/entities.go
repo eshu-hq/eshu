@@ -103,10 +103,10 @@ var entityShape = shape[querycontract.EntitySearchHit, querycontract.SearchCurso
 	// ruling round 2, R2.1). Ordered window cost: an ordered
 	// window costs 0.3 ms plus 0.34 us per row plus 10.2 ns per byte, so a
 	// 1,000-row probe is about 5 ms and a 5,000-row step 18-43 ms, and
-	// 160 ms (0.20 x budget) walks about 35,000 rows; smaller windows lose
+	// 400 ms (0.20 x budget) walks about 35,000 rows; smaller windows lose
 	// decode at limit 200 to per-window round trips. Tail cost: the rare
 	// bitmap tails cost 400-462 ms warm (517-578 ms cold), so the tail cap is
-	// 0.80 x budget (640 ms); the 13.1 MB value's recheck blocks a tail
+	// 0.80 x budget (1600 ms); the 13.1 MB value's recheck blocks a tail
 	// cancel that fires 30-170 ms into the tail, and with these figures the
 	// default tail timeout never lands there. Model: these figures keep
 	// every class that is exact today exact at limit 10, warm and cold, with
@@ -114,12 +114,17 @@ var entityShape = shape[querycontract.EntitySearchHit, querycontract.SearchCurso
 	// FeaturesTab partial. The former disclosed trade (R2.2) is gone since
 	// #8002: the density-gated extension fills a decode-like limit-200 page
 	// in one call. TestEntityPolicyClasses pins every class.
+	// Stated at the 2000 ms default (#9306 ruling 2026-10-29: mechanical
+	// x2.5 re-base from the 800 ms statement; explicit-budget behavior is
+	// unchanged since newPlan divides by DefaultBudget. The entity default
+	// inherits by construction; the measured proof is the file-route QA
+	// baseline on 164,886 rows.)
 	figures: figures{
 		probeRows:   1000,
 		stepRows:    5000,
-		phaseOneCap: 160 * time.Millisecond,
-		tailCap:     640 * time.Millisecond,
-		tailFloor:   150 * time.Millisecond,
+		phaseOneCap: 400 * time.Millisecond,
+		tailCap:     1600 * time.Millisecond,
+		tailFloor:   375 * time.Millisecond,
 		// Extension row allowance (#8002 cost-2 shim of 2026-10-14, QA
 		// replica read of 2,721,216 rows): `decode` holds 135 matches in
 		// rows 0-35,000 and 111 in rows 35,000-70,000, so 35,000 further

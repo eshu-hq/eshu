@@ -21,7 +21,7 @@ const ms = time.Millisecond
 
 var quietLogger = slog.New(slog.NewTextHandler(io.Discard, nil))
 
-// run searches the corpus with the default 800 ms budget and a fake clock.
+// run searches the corpus with the default 2000 ms budget and a fake clock.
 func run(
 	t *testing.T,
 	corpus *fakeCorpus,
@@ -126,12 +126,14 @@ func TestSearchServesOffsetByReadingPastIt(t *testing.T) {
 // A rare token runs the probe, the continuation capped at 0.55 x budget, then
 // the trigram tail with index scans off inside a savepoint; the tail finishes,
 // so the answer is complete without any partial marker. With 25 ms steps the
-// cap pays for 17 steps (425 ms), and the tail's timeout is what is left of the
-// budget (800 - 435 = 365 ms), under the 400 ms tail cap.
+// cap pays for 44 steps (1100 ms), and the tail's timeout is what is left of
+// the budget (2000 - 1110 = 890 ms), under the 1000 ms tail cap.
 func TestSearchRareTokenFinishesInTheTail(t *testing.T) {
 	t.Parallel()
 
-	corpus := newCorpus(20000, 50*time.Microsecond, func(i int) bool { return i == 15000 })
+	// The corpus is larger than the capped continuation can exhaust (44 steps
+	// of 500 rows cover 22,200 rows), so the lone match waits for the tail.
+	corpus := newCorpus(60000, 50*time.Microsecond, func(i int) bool { return i == 45000 })
 	corpus.tailCost = func(int) time.Duration { return 334 * ms }
 	page, fdb, clock, err := run(t, corpus, 50, 0, querycontract.SearchCursor{})
 	if err != nil {
@@ -144,13 +146,13 @@ func TestSearchRareTokenFinishesInTheTail(t *testing.T) {
 		t.Fatalf("More=%v Partial=%+v, want a complete exact page", page.More, page.Partial)
 	}
 	steps := fdb.tx.labels(t, "step", "tail")
-	if len(steps) != 19 || steps[18] != "tail" {
-		t.Fatalf("phase order = %v, want probe, 17 capped steps, then the tail", steps)
+	if len(steps) != 46 || steps[45] != "tail" {
+		t.Fatalf("phase order = %v, want probe, 44 capped steps, then the tail", steps)
 	}
 	if elapsed := clock.Now().Sub(time.Unix(1_700_000_000, 0)); elapsed > unscoped.DefaultBudget {
 		t.Fatalf("elapsed = %v, want within the %v budget", elapsed, unscoped.DefaultBudget)
 	}
-	assertTailShape(t, fdb.tx, "365ms")
+	assertTailShape(t, fdb.tx, "890ms")
 }
 
 // assertTailShape checks the tail ran inside a savepoint with index scans off,
@@ -227,7 +229,9 @@ func TestSearchExactWindowBoundaryExhaustsOnNextStep(t *testing.T) {
 func TestSearchDenseLateClassReturnsPartialPrefixWithCursor(t *testing.T) {
 	t.Parallel()
 
-	corpus := newCorpus(20000, 50*time.Microsecond, func(i int) bool { return i >= 3000 && i%50 == 0 })
+	// The corpus is larger than the capped continuation can exhaust, so the
+	// tail meets the dense class and the budget ends the walk.
+	corpus := newCorpus(60000, 50*time.Microsecond, func(i int) bool { return i >= 3000 && i%500 == 0 })
 	corpus.tailCost = func(int) time.Duration { return 3 * time.Second }
 	page, fdb, clock, err := run(t, corpus, 200, 0, querycontract.SearchCursor{})
 	if err != nil {
@@ -255,8 +259,8 @@ func TestSearchDenseLateClassReturnsPartialPrefixWithCursor(t *testing.T) {
 	if partial.RowsMatched != len(got) {
 		t.Fatalf("RowsMatched = %d, want %d", partial.RowsMatched, len(got))
 	}
-	if partial.BudgetMS != 800 {
-		t.Fatalf("BudgetMS = %d, want 800", partial.BudgetMS)
+	if partial.BudgetMS != 2000 {
+		t.Fatalf("BudgetMS = %d, want 2000", partial.BudgetMS)
 	}
 	if partial.Hint != querycontract.SearchPartialHint {
 		t.Fatalf("Hint = %q", partial.Hint)
@@ -282,7 +286,7 @@ func TestSearchDenseLateClassReturnsPartialPrefixWithCursor(t *testing.T) {
 	if elapsed := clock.Now().Sub(time.Unix(1_700_000_000, 0)); elapsed > unscoped.DefaultBudget+50*ms {
 		t.Fatalf("elapsed = %v, want about the %v budget", elapsed, unscoped.DefaultBudget)
 	}
-	if partial.ElapsedMS < 700 || partial.ElapsedMS > 850 {
+	if partial.ElapsedMS < 1900 || partial.ElapsedMS > 2050 {
 		t.Fatalf("ElapsedMS = %d, want about the budget", partial.ElapsedMS)
 	}
 	if partial.OverrunMS != 0 {
@@ -295,7 +299,7 @@ func TestSearchDenseLateClassReturnsPartialPrefixWithCursor(t *testing.T) {
 func TestSearchReportsOverrunAndNamesLargeDocument(t *testing.T) {
 	t.Parallel()
 
-	corpus := newCorpus(20000, 50*time.Microsecond, func(i int) bool { return i >= 3000 && i%50 == 0 })
+	corpus := newCorpus(60000, 50*time.Microsecond, func(i int) bool { return i >= 3000 && i%500 == 0 })
 	corpus.tailCost = func(int) time.Duration { return 3 * time.Second }
 	corpus.tailLag = 338 * ms
 	page, _, _, err := run(t, corpus, 200, 0, querycontract.SearchCursor{})
@@ -321,7 +325,9 @@ func TestSearchSkipsTailBelowFloor(t *testing.T) {
 	corpus := newCorpus(20000, 50*time.Microsecond, func(int) bool { return false })
 	clock := newFakeClock()
 	fdb := newFakeDB(corpus, clock)
-	fdb.readyCost = 560 * ms
+	// After readiness 300 ms remain, under the 375 ms tail floor, so the
+	// walk answers with the partial rather than starting a doomed tail.
+	fdb.readyCost = 1700 * ms
 	page, fdb, _, err := runOn(t, fdb, clock, unscoped.DefaultBudget, 50, 0, querycontract.SearchCursor{})
 	if err != nil {
 		t.Fatalf("Search() error = %v", err)
@@ -426,8 +432,8 @@ func TestBudgetFromEnv(t *testing.T) {
 	get := func(v string) func(string) string {
 		return func(string) string { return v }
 	}
-	if got, err := unscoped.BudgetFromEnv(get("")); err != nil || got != 800*ms {
-		t.Fatalf("unset = (%v, %v), want 800ms", got, err)
+	if got, err := unscoped.BudgetFromEnv(get("")); err != nil || got != 2000*ms {
+		t.Fatalf("unset = (%v, %v), want 2000ms", got, err)
 	}
 	if got, err := unscoped.BudgetFromEnv(get(" 1200 ")); err != nil || got != 1200*ms {
 		t.Fatalf("1200 = (%v, %v)", got, err)
@@ -446,7 +452,7 @@ func TestBudgetFromEnv(t *testing.T) {
 func TestSearchPartialCarriesDocumentsNotSearched(t *testing.T) {
 	t.Parallel()
 
-	corpus := newCorpus(20000, 50*time.Microsecond, func(i int) bool { return i >= 3000 && i%50 == 0 })
+	corpus := newCorpus(60000, 50*time.Microsecond, func(i int) bool { return i >= 3000 && i%500 == 0 })
 	corpus.tailCost = func(int) time.Duration { return 3 * time.Second }
 	page, _, _, err := run(t, corpus, 200, 0, querycontract.SearchCursor{})
 	if err != nil {
@@ -486,11 +492,11 @@ func TestSearchExactCarriesZeroDocumentsNotSearched(t *testing.T) {
 func TestSearchCancelledCountReportsUnknownWithoutTouchingOverrun(t *testing.T) {
 	t.Parallel()
 
-	corpus := newCorpus(20000, 50*time.Microsecond, func(i int) bool { return i >= 3000 && i%50 == 0 })
+	corpus := newCorpus(60000, 50*time.Microsecond, func(i int) bool { return i >= 3000 && i%500 == 0 })
 	corpus.tailCost = func(int) time.Duration { return 3 * time.Second }
 	corpus.tailLag = 150 * ms
-	// The count runs under the 150 ms tail floor at the default budget; a
-	// 650 ms count is cancelled 500 ms past it, past the tail's 150 ms.
+	// The count runs under the 375 ms tail floor at the default budget; a
+	// 650 ms count is cancelled 275 ms past it, past the tail's 150 ms.
 	corpus.countCost = 650 * ms
 	page, _, _, err := run(t, corpus, 200, 0, querycontract.SearchCursor{})
 	if err != nil {

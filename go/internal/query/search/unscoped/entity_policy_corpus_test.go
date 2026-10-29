@@ -18,10 +18,13 @@ const (
 	// that is reached only by the trigram tail or by a resumed call.
 	entityPolicyRows = 100_000
 	// entityRowCost is the walk cost of one row. The S1 ordered-window fit is 0.3 ms
-	// per statement plus 0.34 us per row plus 10.2 ns per byte; 160 ms then
-	// buys about 35,000-41,500 rows. 4.5 us per row gives 36,000 rows in the
-	// 0.20 x budget phase one, the figure the S1 model uses.
-	entityRowCost = 4500 * time.Nanosecond
+	// per statement plus 0.34 us per row plus 10.2 ns per byte (a 1,000-row
+	// probe is about 5 ms and a 5,000-row step 18-43 ms); 400 ms then buys
+	// about 46,000-106,000 rows. 11.25 us per row gives 36,000 rows in the
+	// 0.20 x budget phase one at the 2000 ms default (#9306 ruling 2026-10-29:
+	// scaled x2.5 with the cap so the ordered-phase geometry is unchanged),
+	// under the fit range so the fake never lets the walk off easier than QA.
+	entityRowCost = 11250 * time.Nanosecond
 	// entityLargeValueRow is the 0-based key position of the synthetic
 	// 13.1 MB value. S1 found the five values over 1 MB at the end
 	// of the key order, where only the tail meets them.
