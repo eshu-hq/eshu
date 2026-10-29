@@ -15,6 +15,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 	"github.com/eshu-hq/eshu/go/internal/cli/demo"
+	"github.com/eshu-hq/eshu/go/internal/cli/graphinstall"
+	"github.com/spf13/cobra"
 )
 
 // cliContractRecordRel is the #8874 CLI-contract extraction record,
@@ -226,5 +228,81 @@ func TestCLIContractPinsVersionReporting(t *testing.T) {
 	t.Parallel()
 	if got := buildinfo.AppVersion(); got == "" {
 		t.Error("buildinfo.AppVersion() is empty, want a non-empty version basis")
+	}
+}
+
+// TestCLIContractRecordsInstallFilesystemSeam pins the install extraction
+// conditions the census (cli_extraction_inventory.md) carries for
+// `install nornicdb`: the managed-home path, binary name, manifest path,
+// and the caller-supplied version-reader boundary the destination must
+// preserve so an installed eshu-cli verifies binaries against the same
+// home the core supervisor reads.
+func TestCLIContractRecordsInstallFilesystemSeam(t *testing.T) {
+	t.Parallel()
+	text := readCLIContractRecord(t)
+	for _, want := range []string{
+		"## Install filesystem and source contract",
+		"`nornicdb-headless`",
+		"`<home>/bin/nornicdb-headless`",
+		"`<home>/graph-backends/nornicdb/manifest.json`",
+		"`ESHU_HOME`",
+		"`VersionReader`",
+		"`ReadGraphVersion`",
+		"`<binary> version`",
+		"#8871",
+	} {
+		if !strings.Contains(text, want) {
+			t.Errorf("contract record %s does not pin install figure %s", cliContractRecordRel, want)
+		}
+	}
+}
+
+// TestCLIContractPinsInstallFailClosedPolicy pins the fail-closed source
+// policy the record promises moves unchanged: remote HTTP/HTTPS sources
+// require --sha256, and --full with --from is rejected. The record names
+// the exact guard strings, and this test drives the real guards so a
+// silent fail-open regression fails here instead of shipping to the
+// destination. The remote drive fails in normalizeInstallSHA256 before
+// any materialize, download, or filesystem write.
+func TestCLIContractPinsInstallFailClosedPolicy(t *testing.T) {
+	t.Parallel()
+	text := readCLIContractRecord(t)
+	for _, want := range []string{
+		"`--sha256`",
+		"--full is reserved",
+		"remote nornicdb sources require --sha256",
+	} {
+		if !strings.Contains(text, want) {
+			t.Errorf("contract record %s does not pin fail-closed policy %s", cliContractRecordRel, want)
+		}
+	}
+
+	fullWithSource := &cobra.Command{}
+	fullWithSource.Flags().String("from", "/tmp/nornicdb-headless", "")
+	fullWithSource.Flags().String("sha256", "", "")
+	fullWithSource.Flags().Bool("force", false, "")
+	fullWithSource.Flags().Bool("full", true, "")
+	if err := runInstallNornicDB(fullWithSource, nil); err == nil ||
+		!strings.Contains(err.Error(), "--full is reserved for future no-argument release installs") {
+		t.Fatalf("runInstallNornicDB(--full with --from) error = %v, want the reserved-flag rejection", err)
+	}
+
+	if _, err := graphinstall.Install(graphinstall.Options{}); err == nil ||
+		!strings.Contains(err.Error(), "ReadVersion") {
+		t.Fatalf("graphinstall.Install(nil ReadVersion) error = %v, want the missing-VersionReader rejection", err)
+	}
+	if _, err := graphinstall.ManagedBinaryIfPresent(nil); err == nil ||
+		!strings.Contains(err.Error(), "VersionReader") {
+		t.Fatalf("graphinstall.ManagedBinaryIfPresent(nil) error = %v, want the missing-VersionReader rejection", err)
+	}
+
+	remoteWithoutSHA := &cobra.Command{}
+	remoteWithoutSHA.Flags().String("from", "https://example.invalid/releases/nornicdb-headless", "")
+	remoteWithoutSHA.Flags().String("sha256", "", "")
+	remoteWithoutSHA.Flags().Bool("force", false, "")
+	remoteWithoutSHA.Flags().Bool("full", false, "")
+	if err := runInstallNornicDB(remoteWithoutSHA, nil); err == nil ||
+		!strings.Contains(err.Error(), "remote nornicdb sources require --sha256") {
+		t.Fatalf("runInstallNornicDB(remote https without --sha256) error = %v, want the remote-source checksum rejection", err)
 	}
 }
