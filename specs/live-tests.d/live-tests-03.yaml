@@ -15,6 +15,10 @@ tests:
     tag: ~
     class: scheduled
     reason: "#9474 hermetic PostgreSQL 18 proof of the split advisory-evidence package legs: a lone cve-with-package_id row is returned with no affected_package sibling, a tombstoned sibling does not suppress it, a non-affected_package reference row carrying purl is returned, and both five-kind partial indexes are probed in the seed/matched CTEs with no fact_records seq scan; isolated schema per test with cleanup on pass and fail; local runs took 0.2-0.7s — promote to blocking with repeated timing evidence"
+  - file: go/internal/query/advisory_evidence_impact_repo_probe_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#9487 hermetic PostgreSQL 18 executing proof of the repository-first impact branch: repository scope resolves the live finding while a stale-generation sibling and a tombstone stay excluded, repository+service hit and miss behave, and a workload-only scope resolves; RED-first with a planted branch1 ON TRUE mutation leaking the stale CVE; isolated schema per test with cleanup on pass and fail; local runs took 0.03-0.8s — promote to blocking with repeated timing evidence"
   - file: go/internal/query/tag_history_nornicdb_live_test.go
     tag: ~
     class: scheduled
