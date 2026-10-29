@@ -74,9 +74,9 @@ Read the gates under it. A gate that completed red (an Ifá/Odù cell, a
 contract, performance, or end-to-end gate) is a finding: fix it, or link an
 issue that the active goal works. A cancelled gate is not red: rerun it. A
 cancel that repeats at the job's cap after one rerun is a completed red;
-disposition it together with the capacity issue. A
-pending check that the ruleset does not require does not block the merge; name
-every still-pending check in the merge report. Main Health is the backstop: if
+disposition it together with the capacity issue. A pending check that the
+ruleset does not require does not block the merge; name every still-pending
+check in the merge report. Main Health is the backstop: if
 `main` goes red on a gate a PR merged past, the fix-forward belongs to that
 PR's goal.
 `scripts/dev/pre-enqueue-check.sh` checks this rule. It fails on a required
