@@ -13,13 +13,13 @@ Read `doc.go` and `README.md` first.
   looks complete. Do not add a fallback that runs the old single statement.
 - No file in this package may put the search pattern into a span attribute,
   metric label, or log line.
-- The figures (200, 500, 0.5, 150 ms floor) come from the #7730 V4c
-  measurements; the 0.55 continuation cap comes from the #7730 continuation
-  shim of 2026-10-11 (`7730-continuation-shim-20261011.md`, QA environment
-  read of 2026-10-11) and `TestPolicyClasses` pins its classes. Changing a
-  figure needs a new measurement, not a guess.
+- The figures (200, 500, 0.5, 375 ms floor at the 2000 ms default) come from
+  the #7730 V4c measurements; the 0.55 continuation cap comes from the #7730
+  continuation shim of 2026-10-11 (`7730-continuation-shim-20261011.md`, QA
+  environment read of 2026-10-11) and `TestPolicyClasses` pins its classes.
+  Changing a figure needs a new measurement, not a guess.
 - The `content_entities` shape (`entities.go`) has its own figures: probe
-  1,000, step 5,000, phase one 0.20, tail cap 0.80, floor 150 ms (triple A of
+  1,000, step 5,000, phase one 0.20, tail cap 0.80, floor 375 ms (triple A of
   the #7009 S1 shim; the figures are in
   `docs/internal/evidence/7009-unscoped-entity-search-figures.md`).
   `TestEntityPolicyClasses` pins its classes. Never copy one shape's figures

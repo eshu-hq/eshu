@@ -151,7 +151,7 @@ reading `offset + limit + 1` matches under the same budget.
   resume cursor on a partial page (no completed statement read them), zero on
   a complete one, `-1` when the count statement itself was cancelled. A page
   with a nonzero count is never exact.
-- `ESHU_CONTENT_SEARCH_BUDGET_MS` (100..10000, default 800) sets the budget.
+- `ESHU_CONTENT_SEARCH_BUDGET_MS` (100..10000, default 2000) sets the budget.
   An invalid value fails startup. Every internal timeout scales with it.
 
 ## Telemetry
