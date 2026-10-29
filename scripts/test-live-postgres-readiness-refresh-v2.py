@@ -16,6 +16,7 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).parent / "lib"))
 import live_postgres_readiness_refresh_v2 as refresh  # noqa: E402
 import live_postgres_readiness_weights_refresh as cli_refresh  # noqa: E402
+from live_postgres_readiness_weights_history_cases import SourceHistoryTest  # noqa: E402,F401
 from live_postgres_readiness_weights_pooled_cases import PooledPricingTest  # noqa: E402,F401
 from live_postgres_readiness_weights_refresh_fixture import (  # noqa: E402
     OTHER_SHA, PLAN, SHA, shard_log as _log, write_sample as _sample)
@@ -207,7 +208,8 @@ class RefreshV2Cases(unittest.TestCase):
         with mock.patch.object(cli_refresh.sys, "argv", argv), \
                 contextlib.redirect_stdout(stdout):
             self.assertEqual(cli_refresh.main(), 0)
-        self.assertIn(refresh.pricing_rule(["100", "101", "102", "103"]).line() + "\n",
+        self.assertIn(refresh.pricing_rule(["100", "101", "102", "103"],
+                                           (4, 4, 4, 4)).line() + "\n",
                       stdout.getvalue())
         self.assertIn("p75 (linear inclusive)", stdout.getvalue())
 

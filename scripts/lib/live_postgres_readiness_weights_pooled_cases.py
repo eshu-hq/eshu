@@ -66,3 +66,5 @@ class PooledPricingTest(unittest.TestCase):
             "weights refresh v2: pricing mean of per-test, first-use and repeat "
             "samples over a 2-run pool 100, 101 (p75 needs at least 4 runs); "
             "cold, fixed and defaults keep their committed rules")
+        self.assertIn("over a 2-run pool 100 (5 shards), 101 (6 shards) (p75 needs",
+                      refresh.pricing_rule(["100", "101"], (5, 6)).line())
