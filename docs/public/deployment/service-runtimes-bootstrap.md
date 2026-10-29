@@ -285,13 +285,7 @@ pooler in front of the DSN must forward the `eshu.infra_inventory_writer`
 session setting; a stripped setting shows as `postgres.session_unfenced` and a
 non-zero `eshu_dp_infra_inventory_dirty_repos`.
 
-Helm renders `helm/eshu/templates/job-schema-bootstrap.yaml` from the
-eshu-deploy checkout (`$ESHU_DEPLOY_CHECKOUT`; see the
-[Helm chart](https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/README.md)).
-With `schemaBootstrap.useHelmHooks=true`, the Job runs as a
-pre-install/pre-upgrade hook. Do not attach schema verification to every
-runtime pod; repeated graph schema checks can saturate a large existing
-backend during rolling updates.
+Helm renders `helm/eshu/templates/job-schema-bootstrap.yaml` from the eshu-deploy checkout (`$ESHU_DEPLOY_CHECKOUT`, [chart README](https://github.com/eshu-hq/eshu-deploy/blob/main/helm/eshu/README.md)). With `schemaBootstrap.useHelmHooks=true`, the Job runs as a pre-install/pre-upgrade hook. Do not attach schema verification to every runtime pod; repeated graph schema checks can saturate a large existing backend during rolling updates.
 
 Do not combine Helm-hook schema bootstrap with bundled NornicDB:
 
