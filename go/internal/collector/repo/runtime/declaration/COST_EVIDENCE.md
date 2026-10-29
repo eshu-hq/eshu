@@ -133,3 +133,46 @@ Dockerfile and workflow files flow through the existing skip reasons
 (`byte_cap_exceeded`, `token_cap_exceeded`, `manifest_unparseable`,
 `value_rejected`) on the existing Git collector WARN logs; no new reason
 string, log line, or instrument was added.
+
+## .NET collector cost and signals (#9308)
+
+Performance Evidence (#9308, 2026-10-29): paired sequential local benchmarks
+ran the same config harness against base `c32b808f32` and HEAD `225e9bcad9`
+(`go test ./internal/parser/ -run XXX -bench
+'BenchmarkParseConfig/(json|nuget_project)$' -benchtime 100x -count 3
+-benchmem`, Go 1.26.10, linux/arm64; no graph backend, queue, or persisted
+rows). The `json` 10K-LOC config path the lane leaves alone apart from one
+`global.json` filename compare is unchanged: base 2.36-2.41 ms/op with
+1,851,982 B/op and 20,076 allocs/op against HEAD 2.367-2.380 ms/op with
+1,851,985 B/op and 20,076 allocs/op, identical bytes and allocs on every run.
+The `nuget_project` 10K-LOC synthetic `.csproj` (every property unconditional
+so the new evidence pass fires on each of the 10,002 lines) moves from base
+31.0-31.8 ms/op, ~25.0 MB/op, 289,789 allocs/op to HEAD 42.2-45.7 ms/op,
+~29.6 MB/op, 409,796 allocs/op: one extra bounded evidence walk over the
+document, no second file read (the parser now keeps the original bytes from
+its single source read). A realistic 6-line `App.csproj` probe (temporary
+`BenchmarkProbeSmallCsproj`, `-benchtime 1000x -count 3`, removed after the
+run) moves from base 8.2-8.6 us/op, 3,928 B/op, 63 allocs/op to HEAD
+12.1-12.5 us/op, ~5,850 B/op, 105 allocs/op: about +4 us, +1.9 KiB, and +42
+allocs per `.csproj` parse in absolute terms. The new `dotnet_global_json`
+reader (HEAD only, 10K-LOC synthetic `global.json` with one SDK pin plus a
+member-project list) costs 9.6-9.8 ms/op, 6.73 MB/op, 20,197 allocs/op and
+runs once per changed `global.json` per generation under the 1 MiB manifest
+byte cap, keeping only the detached SDK declaration. Host load was not
+controlled, so wall time is diagnostic, not a production claim; byte and
+alloc figures repeat exactly across runs.
+
+No-Regression Evidence: the `json` config path keeps identical bytes and
+allocs; the `.csproj` dependency-row output is unchanged (the existing NuGet
+parser tests and the content-ledger pin test cover it) and the additive
+evidence pass costs +42 allocs on a realistic manifest. The collector keeps
+the existing per-file byte and token caps, so an over-cap `global.json` or
+`.csproj` still emits no fact and logs the existing WARN
+`git_runtime_declaration_file_skipped`.
+
+No-Observability-Change: no metric, span, or log key was added. The
+`dotnet_global_json_sdk`, `dotnet_csproj_target_framework`, and
+`dotnet_csproj_target_frameworks` declarations ride the same content-stream
+fact count as Composer, Ruby, and JVM; malformed or capped manifests reuse
+the existing WARN `git_runtime_declaration_file_skipped` and guarded values
+reuse WARN `git_runtime_declaration_values_rejected` with the same labels.
