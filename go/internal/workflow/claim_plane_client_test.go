@@ -229,6 +229,9 @@ func TestClaimPlaneClientIdleAndPaced(t *testing.T) {
 	if deferral.RetryAfterDelay() != 5*time.Second {
 		t.Fatalf("paced retry_after = %s", deferral.RetryAfterDelay())
 	}
+	if deferral.Signal != "domain" || deferral.Domain != "jira/jira-primary" || deferral.Stuck {
+		t.Fatalf("paced deferral = %+v, want signal=domain domain=jira/jira-primary stuck=false", deferral)
+	}
 }
 
 // TestClaimPlaneClientForeignNotFoundIsError guards the idle mapping: only

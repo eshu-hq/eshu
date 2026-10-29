@@ -23,7 +23,7 @@ deployed claim-plane binary, not from this stub bound.
 Observability Evidence: the client wraps every failure with the operation
 name and maps protocol envelopes to caller errors (`stale_fence`,
 `lease_expired`, `claim_conflict` collapse to `ErrClaimRejected`;
-pacing surfaces as `ClaimPacedError` with the backoff). Server-side, each
+pacing surfaces as `ClaimPacingDeferral` with the backoff, the type the runner backoff path matches). Server-side, each
 operation carries an OpenTelemetry span plus Prometheus counters
 (`workflow_claim_grants_total`, `workflow_claim_mutations_total`,
 `workflow_commit_pins_total`, `workflow_claim_reaps_total`) and

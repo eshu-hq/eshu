@@ -28,7 +28,9 @@ func TestClassifyMapsProductionDeferral(t *testing.T) {
 	if got := Classify(wrapped); got != CodePaced {
 		t.Fatalf("Classify(wrapped deferral) = %q, want %q", got, CodePaced)
 	}
-	impostor := errors.New("claim pacing engaged on domain depth")
+	// Byte-identical message, different type: the mapping keys on the
+	// production type, never on message text.
+	impostor := errors.New(deferral.Error())
 	if got := Classify(impostor); got != CodeFault {
 		t.Fatalf("Classify(impostor) = %q, want %q", got, CodeFault)
 	}
