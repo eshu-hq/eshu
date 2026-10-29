@@ -127,12 +127,12 @@ against a populated fact table. Disposable PostgreSQL 18.6 run
 `ApplyBootstrap` left both indexes valid after 259 definitions. For an
 upgrade, the test applied the first 257 definitions, seeded 30,000 AWS
 resource facts, and held an uncommitted fact insert. While the tracked runner
-applied 240-241, `pg_stat_progress_create_index` reported an active concurrent
+applied 242/244, `pg_stat_progress_create_index` reported an active concurrent
 build and a second distinct fact write committed under a 300 ms lock timeout.
 The first writer remained open, so the build could not have completed before
 the second write. After the first writer committed, the runner completed and
 a full restart skipped all 259 receipts. A duplicate-key failure then left
-an invalid same-name concurrent index; `ApplyBootstrap` rebuilt 240 with
+an invalid same-name concurrent index; `ApplyBootstrap` rebuilt 242 with
 `recovery=true`. An ordinary `CREATE INDEX` control waited for an ungranted
 `ShareLock` on the same fact table, and its second writer failed with
 SQLSTATE 55P03 under a 200 ms lock timeout. This RED control and concurrent
@@ -149,7 +149,7 @@ reference, 30,000 distractor service/task facts) after `ANALYZE`. Before
 shared-buffer hits, service leg via the scope/generation keyset index
 removing 15,002 rows, task leg filtering 30,002 rows; seven
 `ListRunningTasks` rounds 0.0149-0.0182 s, median 0.017452 s. After
-(migrations 240-241 re-applied from `MigrationSQL`): 0.187 ms, 12
+(migrations 242/244 re-applied from `MigrationSQL`): 0.187 ms, 12
 shared-buffer hits, service leg on `fact_records_ecs_service_arn_idx`
 (4 buffers) and task leg on
 `fact_records_ecs_task_scope_cluster_group_idx` (2 rows in 0.012 ms,
