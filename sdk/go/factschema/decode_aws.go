@@ -404,3 +404,74 @@ func encodeBlockDevices(devices []awsv1.BlockDevice) []map[string]any {
 	}
 	return out
 }
+
+// DecodeSSMHostApplication decodes env.Payload into the latest
+// awsv1.SSMHostApplication struct for the "aws_ssm_host_application" fact
+// kind, dispatching on env.SchemaVersion major per Contract System v1 §3.2.
+// Callers receive either the decoded struct or a classified *DecodeError;
+// they must never substitute a zero-value struct on error. Issue #9556:
+// no reducer or query handler calls this yet — it exists so the checked-in
+// schema and fixture pack are honest against a real decode path ahead of the
+// consumers landing in sibling #9295 leaves.
+func DecodeSSMHostApplication(env Envelope) (awsv1.SSMHostApplication, error) {
+	return decodeLatestMajor[awsv1.SSMHostApplication](FactKindSSMHostApplication, env)
+}
+
+// EncodeSSMHostApplication marshals an awsv1.SSMHostApplication into the
+// map[string]any payload shape an Envelope carries. It is the inverse of
+// DecodeSSMHostApplication for schema-version-1 payloads, used by this
+// module's own round-trip tests.
+func EncodeSSMHostApplication(app awsv1.SSMHostApplication) (map[string]any, error) {
+	payload := map[string]any{
+		"partition":      app.Partition,
+		"account_id":     app.AccountID,
+		"region":         app.Region,
+		"instance_id":    app.InstanceID,
+		"resource_type":  app.ResourceType,
+		"source_type":    app.SourceType,
+		"schema_version": app.SchemaVersion,
+		"capture_time":   app.CaptureTime,
+	}
+	addStringPtr(payload, "name", app.Name)
+	addStringPtr(payload, "version", app.Version)
+	addStringPtr(payload, "release", app.Release)
+	addStringPtr(payload, "epoch", app.Epoch)
+	addStringPtr(payload, "package_id", app.PackageID)
+	addStringPtr(payload, "architecture", app.Architecture)
+	addStringPtr(payload, "collector_instance_id", app.CollectorInstanceID)
+	return payload, nil
+}
+
+// DecodeSSMHostPlatform decodes env.Payload into the latest
+// awsv1.SSMHostPlatform struct for the "aws_ssm_host_platform" fact kind,
+// dispatching on env.SchemaVersion major per Contract System v1 §3.2.
+// Callers receive either the decoded struct or a classified *DecodeError;
+// they must never substitute a zero-value struct on error. Issue #9556:
+// no reducer or query handler calls this yet — it exists so the checked-in
+// schema and fixture pack are honest against a real decode path ahead of the
+// consumers landing in sibling #9295 leaves.
+func DecodeSSMHostPlatform(env Envelope) (awsv1.SSMHostPlatform, error) {
+	return decodeLatestMajor[awsv1.SSMHostPlatform](FactKindSSMHostPlatform, env)
+}
+
+// EncodeSSMHostPlatform marshals an awsv1.SSMHostPlatform into the
+// map[string]any payload shape an Envelope carries. It is the inverse of
+// DecodeSSMHostPlatform for schema-version-1 payloads, used by this module's
+// own round-trip tests.
+func EncodeSSMHostPlatform(platform awsv1.SSMHostPlatform) (map[string]any, error) {
+	payload := map[string]any{
+		"partition":        platform.Partition,
+		"account_id":       platform.AccountID,
+		"region":           platform.Region,
+		"instance_id":      platform.InstanceID,
+		"resource_type":    platform.ResourceType,
+		"source_type":      platform.SourceType,
+		"observation_time": platform.ObservationTime,
+	}
+	addStringPtr(payload, "platform_type", platform.PlatformType)
+	addStringPtr(payload, "platform_name", platform.PlatformName)
+	addStringPtr(payload, "platform_version", platform.PlatformVersion)
+	addStringPtr(payload, "capture_time", platform.CaptureTime)
+	addStringPtr(payload, "collector_instance_id", platform.CollectorInstanceID)
+	return payload, nil
+}

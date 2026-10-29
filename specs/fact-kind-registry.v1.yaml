@@ -20,6 +20,17 @@ families:
         provider_key_independent: false
         payload_schema_overrides: {aws_dns_record: sdk/go/factschema/schema/aws_dns_record.v1.schema.json, aws_iam_permission: sdk/go/factschema/schema/aws_iam_permission.v1.schema.json, aws_image_reference: sdk/go/factschema/schema/aws_image_reference.v1.schema.json, aws_relationship: sdk/go/factschema/schema/aws_relationship.v1.schema.json, aws_resource: sdk/go/factschema/schema/aws_resource.v1.schema.json, aws_resource_policy_permission: sdk/go/factschema/schema/aws_resource_policy_permission.v1.schema.json, aws_security_group_rule: sdk/go/factschema/schema/aws_security_group_rule.v1.schema.json, aws_warning: sdk/go/factschema/schema/aws_warning.v1.schema.json}
         kinds: [aws_dns_record, aws_iam_permission, aws_image_reference, aws_relationship, aws_resource, aws_resource_policy_permission, aws_security_group_rule, aws_tag_observation, aws_warning]
+    aws_ssm_host:
+        lifecycle_owner: go/internal/facts
+        schema_version: 1.0.0
+        reducer_domain: ssm_host_inventory_materialization
+        projection_hook: ssm_host_inventory_materialization
+        admission_hook: facts.ValidateSchemaVersion
+        read_surface: "none"
+        truth_profile: provider_gated
+        provider_key_independent: false
+        payload_schema_overrides: {aws_ssm_host_application: sdk/go/factschema/schema/aws_ssm_host_application.v1.schema.json, aws_ssm_host_platform: sdk/go/factschema/schema/aws_ssm_host_platform.v1.schema.json}
+        kinds: [aws_ssm_host_application, aws_ssm_host_platform]
     azure:
         lifecycle_owner: go/internal/facts
         schema_version: 1.0.0

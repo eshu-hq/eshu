@@ -4,7 +4,7 @@
 
 Every non-exempt required surface maps to a committed scenario and the named proof gate that must pass. Exempt rows carry the audited reason that a proof class does not apply. The inventory check itself is credential-free and Docker-free; backend-required scenarios run in their named proof gates. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 453/453 surfaces satisfied (100.00%)** — mode: blocking.
+**Overall: 454/454 surfaces satisfied (100.00%)** — mode: blocking.
 
 ## Coverage by axis
 
@@ -16,19 +16,19 @@ Every non-exempt required surface maps to a committed scenario and the named pro
 | Read surfaces (API/MCP) | 27 | 27 | 100.00% | 0 | 1 |
 | Parsers | 4 | 4 | 100.00% | 0 | 0 |
 | Product claims | 11 | 11 | 100.00% | 0 | 0 |
-| Projections (cost/ordering) | 31 | 31 | 100.00% | 0 | 1 |
+| Projections (cost/ordering) | 32 | 32 | 100.00% | 0 | 2 |
 | Reducer drain (crash) | 1 | 1 | 100.00% | 0 | 0 |
 | Retractable edge types (delta) | 64 | 64 | 100.00% | 0 | 0 |
 | Retractable node types (delta) | 101 | 101 | 100.00% | 0 | 1 |
 | Collectors | 24 | 24 | 100.00% | 0 | 7 |
-| **Total** | **453** | **453** | **100.00%** | **0** | **10** |
+| **Total** | **454** | **454** | **100.00%** | **0** | **11** |
 
 ## Coverage by scenario type
 
 | Scenario type | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | baseline | 240 | 240 | 100.00% | 0 | 4 |
-| cost | 30 | 30 | 100.00% | 0 | 1 |
+| cost | 31 | 31 | 100.00% | 0 | 2 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
 | delta_tombstone | 166 | 166 | 100.00% | 0 | 1 |
 | fault | 12 | 12 | 100.00% | 0 | 4 |
@@ -46,7 +46,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 
 None. Every non-exempt required surface has a replay scenario; exemptions carry audited reasons.
 
-## Covered surfaces (453)
+## Covered surfaces (454)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact / exemption reason |
 | --- | --- | --- | --- | --- |
@@ -310,6 +310,7 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `projection:security_alert_reconciliation` | cost | go_test | go-test-race | `go/internal/replay/costcounting/security_alert_reconciliation_cost_test.go` |
 | `projection:semantic_entity_materialization` | cost | go_test | go-test-race | `go/internal/replay/costcounting/semantic_entity_cost_test.go` |
 | `projection:service_catalog_correlation` | cost | go_test | go-test-race | `go/internal/replay/costcounting/service_catalog_correlation_cost_test.go` |
+| `projection:ssm_host_inventory_materialization` | cost | exempt | — | Contract-only domain: aws_ssm_host_application and aws_ssm_host_platform are admitted facts with no reducer binding and no materialization path yet (DispositionUnconsumed, read_surface none). A cost scenario must drive the domain's real production writer; no writer exists, so there is nothing whose cost a scenario could bound. Remove when the #9295 host-inventory projection leaf lands, with its cost-counting test. |
 | `projection:submodule_pin` | cost | go_test | go-test-race | `go/internal/replay/costcounting/submodule_pin_cost_test.go` |
 | `projection:supply_chain_impact` | ordering | go_test | go-test-race | `go/internal/replay/schedulereplay/projection_ordering_scenario_test.go` |
 | `projection:supply_chain_impact` | cost | go_test | go-test-race | `go/internal/replay/costcounting/supply_chain_impact_cost_test.go` |

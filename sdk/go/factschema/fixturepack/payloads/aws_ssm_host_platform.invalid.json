@@ -1,0 +1,9 @@
+{
+  "partition": "aws",
+  "account_id": "000000000001",
+  "region": "us-east-1",
+  "instance_id": "i-00000000000000001",
+  "resource_type": "AWS::EC2::Instance",
+  "platform_type": "Linux",
+  "source_type": "describe_instance_information"
+}

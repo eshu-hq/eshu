@@ -22,6 +22,18 @@ version — pinning this module pins the fixture pack too.
 
 ### Added
 
+- New `aws_ssm_host_application` and `aws_ssm_host_platform` v1.0.0 kinds
+  (issue #9556, accepted record #9302): one allowlisted `AWS:Application`
+  inventory row per EC2 managed node per dated capture, and the platform
+  observation with its provenance (`ssm_inventory` with capture time, or
+  `describe_instance_information` with observation time only). Typed
+  structs, decode/encode seams, JSON Schemas, fixture-pack valid/invalid
+  payloads, stable-key constructors (host tuple plus capture time plus the
+  canonical allowlisted row hash; host tuple plus source type), and the
+  `aws_ssm_host` registry family. A new kind is an additive minor change;
+  `factschema-diff` reports the schemas as new. No `vulnerability.os_package`,
+  no `supply_chain_impact`, no PURL, and no image digest anywhere in the
+  contracts.
 - `vulnerability.source_snapshot` gains an optional `coverage_descriptor` for
   NVD: a versioned, normalized record of the explicit CVE set (trimmed, upper
   case, deduplicated, sorted), query mode and

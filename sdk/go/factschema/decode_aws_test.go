@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
+	"github.com/eshu-hq/eshu/sdk/go/factschema/fixturepack"
 )
 
 // TestDecodeInt32Field_FailsClosedOnMalformedNumber proves the marshal-free
@@ -240,5 +241,86 @@ func TestAWSProducerTailContractsEncodeAndDecode(t *testing.T) {
 	}
 	if _, err := DecodeAWSWarning(Envelope{FactKind: FactKindAWSWarning, SchemaVersion: "1.0.0", Payload: warningPayload}); err != nil {
 		t.Fatalf("DecodeAWSWarning() error = %v, want nil", err)
+	}
+}
+
+// TestSSMHostKindsEncodeAndDecode proves the #9556 contract-leg fixture
+// proof: the positive fixture intent (a dated complete row, an inventory
+// platform observation) decodes to the typed structs and round-trips through
+// the encode seams, while the negative fixture intent (missing capture time,
+// missing observation time) fails closed as a classified *DecodeError naming
+// the field — never a silent zero-value struct. The ambiguous leg (undated
+// zero-row responses, partial pages, stale captures) is a capture-level
+// verdict, proved by the sdk/go/collector AssessSSMHostCapture tests.
+func TestSSMHostKindsEncodeAndDecode(t *testing.T) {
+	t.Parallel()
+
+	appPayload, ok := fixturepack.ValidPayload("aws_ssm_host_application")
+	if !ok {
+		t.Fatal("fixturepack payload aws_ssm_host_application.valid.json missing")
+	}
+	app, err := DecodeSSMHostApplication(Envelope{FactKind: FactKindSSMHostApplication, SchemaVersion: "1.0.0", Payload: appPayload})
+	if err != nil {
+		t.Fatalf("DecodeSSMHostApplication(valid) error = %v, want nil", err)
+	}
+	if app.SourceType != awsv1.SSMInventoryTypeApplication {
+		t.Fatalf("DecodeSSMHostApplication(valid).SourceType = %q, want %q", app.SourceType, awsv1.SSMInventoryTypeApplication)
+	}
+	roundTrip, err := EncodeSSMHostApplication(app)
+	if err != nil {
+		t.Fatalf("EncodeSSMHostApplication() error = %v, want nil", err)
+	}
+	if _, err := DecodeSSMHostApplication(Envelope{FactKind: FactKindSSMHostApplication, SchemaVersion: "1.0.0", Payload: roundTrip}); err != nil {
+		t.Fatalf("DecodeSSMHostApplication(round-trip) error = %v, want nil", err)
+	}
+
+	badApp, ok := fixturepack.InvalidPayload("aws_ssm_host_application")
+	if !ok {
+		t.Fatal("fixturepack payload aws_ssm_host_application.invalid.json missing")
+	}
+	_, err = DecodeSSMHostApplication(Envelope{FactKind: FactKindSSMHostApplication, SchemaVersion: "1.0.0", Payload: badApp})
+	assertSSMDecodeErrorNamesField(t, err, "capture_time")
+
+	platformPayload, ok := fixturepack.ValidPayload("aws_ssm_host_platform")
+	if !ok {
+		t.Fatal("fixturepack payload aws_ssm_host_platform.valid.json missing")
+	}
+	platform, err := DecodeSSMHostPlatform(Envelope{FactKind: FactKindSSMHostPlatform, SchemaVersion: "1.0.0", Payload: platformPayload})
+	if err != nil {
+		t.Fatalf("DecodeSSMHostPlatform(valid) error = %v, want nil", err)
+	}
+	if platform.SourceType != awsv1.SSMHostPlatformSourceInventory {
+		t.Fatalf("DecodeSSMHostPlatform(valid).SourceType = %q, want %q", platform.SourceType, awsv1.SSMHostPlatformSourceInventory)
+	}
+	platformRoundTrip, err := EncodeSSMHostPlatform(platform)
+	if err != nil {
+		t.Fatalf("EncodeSSMHostPlatform() error = %v, want nil", err)
+	}
+	if _, err := DecodeSSMHostPlatform(Envelope{FactKind: FactKindSSMHostPlatform, SchemaVersion: "1.0.0", Payload: platformRoundTrip}); err != nil {
+		t.Fatalf("DecodeSSMHostPlatform(round-trip) error = %v, want nil", err)
+	}
+
+	badPlatform, ok := fixturepack.InvalidPayload("aws_ssm_host_platform")
+	if !ok {
+		t.Fatal("fixturepack payload aws_ssm_host_platform.invalid.json missing")
+	}
+	_, err = DecodeSSMHostPlatform(Envelope{FactKind: FactKindSSMHostPlatform, SchemaVersion: "1.0.0", Payload: badPlatform})
+	assertSSMDecodeErrorNamesField(t, err, "observation_time")
+}
+
+// assertSSMDecodeErrorNamesField fails the test unless err is a classified
+// input_invalid *DecodeError naming the given required field.
+func assertSSMDecodeErrorNamesField(t *testing.T, err error, field string) {
+	t.Helper()
+	if err == nil {
+		t.Fatalf("decode invalid payload: error = nil, want *DecodeError naming %q", field)
+	}
+	var decodeErr *DecodeError
+	if !errors.As(err, &decodeErr) {
+		t.Fatalf("decode invalid payload: error = %T, want *DecodeError", err)
+	}
+	if decodeErr.Classification != ClassificationInputInvalid || decodeErr.Field != field {
+		t.Fatalf("decode invalid payload: classification = %q field = %q, want input_invalid naming %q",
+			decodeErr.Classification, decodeErr.Field, field)
 	}
 }

@@ -900,6 +900,24 @@ exemptions:
       could bound. Remove when the #5393 overlay-projection leaf lands,
       with its cost-counting test.
 
+  # eshu-hq/eshu#9556: the aws_ssm_host contract-only kinds declare the
+  # ssm_host_inventory_materialization reducer domain, but no projection
+  # writer exists for it yet — the reducer/read surfaces land in sibling
+  # #9295 leaves. A cost scenario bounds a real production write path;
+  # with no writer there is no path to drive, so no credential-free
+  # scenario of any kind can exist for this surface today. The leaf that
+  # lands the projection removes this exemption and authors the cost
+  # scenario.
+  - surface: projection:ssm_host_inventory_materialization
+    reason: >-
+      Contract-only domain: aws_ssm_host_application and
+      aws_ssm_host_platform are admitted facts with no reducer binding and
+      no materialization path yet (DispositionUnconsumed, read_surface
+      none). A cost scenario must drive the domain's real production
+      writer; no writer exists, so there is nothing whose cost a scenario
+      could bound. Remove when the #9295 host-inventory projection leaf
+      lands, with its cost-counting test.
+
 # C-11 (#4364): language-parser coverage scoreboard. The denominator is every
 # language in specs/language-feature-parity-ledger.v1.yaml (32 languages). This
 # is a SEPARATE, visibility-only scoreboard from the blocking surface reconcile

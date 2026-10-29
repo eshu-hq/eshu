@@ -304,6 +304,8 @@ var payloadContracts = []struct {
 	{FactKindRDSInstancePosture, "rds_instance_posture.v1.schema.json", reflect.TypeOf(awsv1.RDSInstancePosture{})},
 	{FactKindS3BucketPosture, "s3_bucket_posture.v1.schema.json", reflect.TypeOf(awsv1.S3BucketPosture{})},
 	{FactKindS3ExternalPrincipalGrant, "s3_external_principal_grant.v1.schema.json", reflect.TypeOf(awsv1.S3ExternalPrincipalGrant{})},
+	{FactKindSSMHostApplication, "aws_ssm_host_application.v1.schema.json", reflect.TypeOf(awsv1.SSMHostApplication{})},
+	{FactKindSSMHostPlatform, "aws_ssm_host_platform.v1.schema.json", reflect.TypeOf(awsv1.SSMHostPlatform{})},
 	{FactKindAWSIAMPermission, "aws_iam_permission.v1.schema.json", reflect.TypeOf(iamv1.Permission{})},
 	{FactKindAWSResourcePolicyPermission, "aws_resource_policy_permission.v1.schema.json", reflect.TypeOf(iamv1.ResourcePolicyPermission{})},
 	{FactKindAWSIAMPrincipal, "aws_iam_principal.v1.schema.json", reflect.TypeOf(iamv1.Principal{})},

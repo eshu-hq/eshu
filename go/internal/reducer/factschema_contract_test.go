@@ -28,6 +28,12 @@ var factSchemaWireKindCases = []struct {
 	{"aws_security_group_rule", factschema.FactKindAWSSecurityGroupRule, cloud.AWSSecurityGroupRuleFactKind},
 	{"ec2_instance_posture", factschema.FactKindEC2InstancePosture, cloud.EC2InstancePostureFactKind},
 	{"s3_bucket_posture", factschema.FactKindS3BucketPosture, cloud.S3BucketPostureFactKind},
+	// NOTE (eshu-hq/eshu#9556): aws_ssm_host_application/platform rows land
+	// here with the eshu-sdk release carrying these kinds (core links the
+	// published eshu-sdk/factschema module, re-synced from sdk/go at
+	// release time): the pinned v0.1.0-rc.10 predates them, so referencing
+	// its FactKind constants cannot compile yet. The local wire-string pins
+	// live in go/internal/facts/cloud/ssm_host_test.go until then.
 	{"aws_iam_permission", factschema.FactKindAWSIAMPermission, cloud.AWSIAMPermissionFactKind},
 	{"aws_resource_policy_permission", factschema.FactKindAWSResourcePolicyPermission, cloud.AWSResourcePolicyPermissionFactKind},
 	{"aws_iam_principal", factschema.FactKindAWSIAMPrincipal, factsidentity.AWSIAMPrincipalFactKind},

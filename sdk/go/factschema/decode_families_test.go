@@ -165,6 +165,12 @@ func decodeByKind(t *testing.T, factKind string, payload map[string]any) error {
 	case FactKindS3ExternalPrincipalGrant:
 		_, err := DecodeS3ExternalPrincipalGrant(env)
 		return err
+	case FactKindSSMHostApplication:
+		_, err := DecodeSSMHostApplication(env)
+		return err
+	case FactKindSSMHostPlatform:
+		_, err := DecodeSSMHostPlatform(env)
+		return err
 	case FactKindAWSIAMPermission:
 		_, err := DecodeAWSIAMPermission(env)
 		return err
@@ -695,6 +701,8 @@ var allDecodedKinds = []string{
 	FactKindRDSInstancePosture,
 	FactKindS3BucketPosture,
 	FactKindS3ExternalPrincipalGrant,
+	FactKindSSMHostApplication,
+	FactKindSSMHostPlatform,
 	FactKindAWSIAMPermission,
 	FactKindAWSResourcePolicyPermission,
 	FactKindAWSIAMPrincipal,
@@ -982,6 +990,10 @@ func TestDecodeEachKind_UnsupportedMajorDeadLetters(t *testing.T) {
 				_, err = DecodeS3BucketPosture(env)
 			case FactKindS3ExternalPrincipalGrant:
 				_, err = DecodeS3ExternalPrincipalGrant(env)
+			case FactKindSSMHostApplication:
+				_, err = DecodeSSMHostApplication(env)
+			case FactKindSSMHostPlatform:
+				_, err = DecodeSSMHostPlatform(env)
 			case FactKindAWSIAMPermission:
 				_, err = DecodeAWSIAMPermission(env)
 			case FactKindAWSResourcePolicyPermission:
