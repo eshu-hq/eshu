@@ -110,12 +110,62 @@ every rebase. Take the first row that matches.
 | # | Case | Action |
 |---|---|---|
 | 1 | No clean prior verdict for the old head: none, `blocked`, or for another SHA or branch | Full review. Not a waiver case. |
-| 2 | An open finding, with or without conflicts | Full review. |
+| 2 | An open finding, with or without conflicts | Full review, unless the [fixed-awaiting-push transfer](#fixed-awaiting-push-transfer-across-a-content-identical-rebase) holds: then transfer, no repeat semantic review. |
 | 3 | The rebase adds a commit (a `>` line in `git range-diff`), and every other commit is `=` or a conflict resolution you read. | If the added commit meets the [small-change tier](#small-change-tier), take tier S: no review. Otherwise a scoped review of the added commit against the whole diff, plus any conflict resolutions. Write the [scoped rebase verdict](references/verdict.md#scoped-rebase-verdict). Any other non-`=` commit fails this row: take the next row that matches. |
 | 4a | Mechanical conflict, no open finding, every non-conflicted commit `=` (definition below) | No review, no verdict, no `make pre-push`, no receipt. Run the [4a checks](#row-4a-mechanical-conflict), post the PR comment, push with `--force-with-lease`. |
 | 4b | Any other conflict, no open finding | Scoped re-review of the resolutions (below). Write the [scoped rebase verdict](references/verdict.md#scoped-rebase-verdict). |
 | 5 | No conflicts, no open finding, but a commit is not `=` in `git range-diff` (changed, added, dropped, reordered, or reworded), or the patch-id changed | Full review. |
 | 6 | No conflicts, no open finding, every commit `=`, patch-id equal | [Waiver note](references/verdict.md#waiver-note), the only row that uses it. |
+
+### Fixed-awaiting-push transfer across a content-identical rebase
+
+A row 2 rebase that only replays byte-identical content onto a new base does
+not need a fresh semantic review when a clean prior full verdict already
+dispositioned every open finding as fixed and only the push remains. Without
+this exception row 2 loops forever: the threads can only resolve after the
+fix is pushed, and no CI can cover an unpushed head, so demanding a full
+review per content-identical rebase re-reviews identical content (#9476).
+
+**Fixed-awaiting-push.** The prior clean full verdict (P0=0, P1=0,
+P2-blocking=0) records the finding as fixed: the fix is landed in-tree and
+verified there, and the only remaining steps are push, the CI wave on the
+pushed head, and thread resolution. The GitHub thread still reads unresolved,
+so the finding still counts as open. The transfer never reports it as 0.
+
+The transfer holds when all of these hold; take it without an arbiter
+escalation. If any one fails, row 2 applies: full review.
+
+1. A clean prior full verdict names each open finding and records it as
+   fixed-awaiting-push, with the head SHA it covers.
+2. Content identity, all three predicates:
+   - every commit is `=` in
+     `git range-diff <old-base>..<old-head> <new-base>..<new-head>`, with
+     the same commit count on both sides;
+   - the cumulative `git diff <base>..HEAD | git patch-id --stable` value is
+     equal before and after the rebase;
+   - the reversion scan is empty and there is zero file overlap between the
+     PR range and the base range:
+     `comm -12 <(git diff --name-only <new-base>..HEAD | sort -u) <(git diff --name-only <old-base>..<new-base> | sort -u)`
+     prints nothing.
+3. No new finding: no new unresolved thread, no new review-body or
+   issue-comment finding, and no required CI job completed red on any
+   head since the prior verdict beyond what the prior verdict already
+   dispositioned.
+
+Write a transfer note and pass it as `--verdict` to
+`ci-gates review-attest capture`. Run `make pre-push` on the rebased head
+first, then write the note, capture,
+`ci-gates review-attest verify`, push. The note states the prior verdict and
+its head SHA, the four SHAs, the `range-diff` output, the equal `patch-id`
+values, the reversion-scan and zero-overlap commands with their empty output,
+each transferred thread with its fixed-awaiting-push disposition, the
+truthful open-findings count (never 0 while a thread reads unresolved), the
+re-read claims and rerun proof with exit codes, and the `make pre-push` exit
+code with its head SHA. It MUST NOT claim a new review happened.
+
+The transfer expires on any new red or any failed identity predicate. Merge
+bars are unchanged: green pushed-head CI, resolved threads, and mergeable
+state still gate the merge.
 
 ### Row 4a: mechanical conflict
 
@@ -168,6 +218,9 @@ pushed head. Add any unresolved P0, P1, or blocking P2 in the
 prior verdict. A P2 deferred with a linked issue and the owner's agreement
 quoted in the PR, and a P3, are not open findings
 ([merge-bar.md](references/merge-bar.md)).
+A thread the prior verdict dispositioned as fixed-awaiting-push is still an
+open finding for the count; it is transferable only under the
+fixed-awaiting-push transfer above, never as a zero count.
 Before a PR exists, only the prior verdict's findings count. Record
 `no PR exists yet`.
 
@@ -196,9 +249,9 @@ vet and tests of `make pre-push`, and in CI.
 and they do not wait for `make pre-push`: run their checks, post the comment,
 push. A green check on their own surface is the proof; "pushing before the
 floor exits would be pushing untested" is not a reason to wait on those lanes.
-The waiver note and the scoped rebase verdict state the
-`make pre-push` exit, so the floor runs first: `make pre-push` on the rebased
-head, then write the note or verdict, capture (`--verdict <file>`),
+The waiver note, the fixed-awaiting-push transfer note, and the scoped rebase
+verdict state the `make pre-push` exit, so the floor runs first: `make pre-push`
+on the rebased head, then write the note or verdict, capture (`--verdict <file>`),
 `ci-gates review-attest verify`, push. The file records the exit code and the
 head SHA the floor ran on. Never write it before the floor exits 0. A floor red that reproduces
 on the bare base AND passes on the CI OS for the touched surface is recorded, not
@@ -209,8 +262,9 @@ after the floor. A green CI wave on the exact
 pushed head, with two stable reads, exists only after the push. Record it in
 the PR before merge.
 
-A waiver receipt proves only that the note and the inputs did not change. It
-records no review. The note ([verdict.md](references/verdict.md#waiver-note))
+A waiver or transfer receipt proves only that the note and the inputs did
+not change. It records no review. The waiver note
+([verdict.md](references/verdict.md#waiver-note)) and the transfer note
 MUST NOT claim a new review happened. A scoped rebase verdict
 ([verdict.md](references/verdict.md#scoped-rebase-verdict)) is a review
 verdict for the receipt. It MUST claim only the scope it reviewed (the

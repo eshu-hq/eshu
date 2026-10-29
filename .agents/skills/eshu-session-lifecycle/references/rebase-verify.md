@@ -49,9 +49,12 @@ that another live agent holds is not yours; see
 
 4. **Choose the proof to rerun.** Follow the decision table in that same
    section: row 4a or tier S (file-type checks and a PR comment only), a
-   waiver note (row 6 only), the scoped re-review with its
+   waiver note (row 6 only), the fixed-awaiting-push transfer note (row 2,
+   content-identical push after a clean verdict with no new findings only;
+   every other row 2 case takes the full review), the scoped re-review with its
    [scoped rebase verdict](../../eshu-code-review/references/verdict.md#scoped-rebase-verdict)
-   (rows 3 and 4b), or the full review. Do not restate it here.
+   (rows 3 and 4b), or the full review. Merge bars are unchanged.
+   Do not restate it here.
 
    A subagent runs focused proof and the registry-selected static gates its role
    names. Only the coordinator runs `make pre-push` or `make pre-pr`.
