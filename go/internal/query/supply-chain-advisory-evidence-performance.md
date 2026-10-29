@@ -76,8 +76,10 @@ repository index), named as the next measured bottleneck with a follow-up
 issue filed in this goal. Shim index builds on the primary: 405.8s +
 398.9s sequential (804.7s combined, CONCURRENTLY, writer-safe); each index
 149MB vs 91GB table (0.16%). Combined build exceeds the 600s default, so
-the chart default `schemaBootstrap.activeDeadlineSeconds` moves 600 to
-3600 in this diff (matching the QA/AWS overlays); expect a ~14-minute
+the chart default `schemaBootstrap.activeDeadlineSeconds` must move 600 to
+3600 where the chart now lives (matching the QA/AWS overlays): the in-tree
+chart was extracted to eshu-hq/eshu-deploy (#9461), so this sizing lands as
+a follow-up in that checkout, not in this diff; expect a ~14-minute
 large-database upgrade window. Shape pins live in
 `supply_chain_advisory_evidence_sql_test.go`
 (`TestAdvisoryEvidenceQueryProbesLookupValueFirstWithoutScopeFanout`).

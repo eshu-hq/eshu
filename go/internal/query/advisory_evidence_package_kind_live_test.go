@@ -376,11 +376,19 @@ FROM generate_series(1, 20000) AS i;
 	// Build the shipped advisory-evidence lookup indexes from their
 	// migration DDL (never a hand copy), so the plan proof below runs
 	// against the exact statements deployments apply: the three identity
-	// v2 indexes ship in the fact_records base migration, and the two
-	// five-kind indexes ship in #9474 migrations 240-241.
+	// v2 indexes (active_cve/advisory/ghsa_lookup_v2) and the two
+	// affected_package package-key indexes
+	// (affected_package_lookup, package_purl_lookup) ship in the
+	// fact_records base migration, and the two five-kind indexes ship in
+	// #9474 migrations 240-241.
 	bootstrapSQL := storagepostgres.MigrationSQL("fact_records")
 	for _, stmt := range strings.Split(bootstrapSQL, ";") {
-		if strings.Contains(stmt, "CREATE INDEX") && strings.Contains(stmt, "fact_records_vulnerability_active_") {
+		if !strings.Contains(stmt, "CREATE INDEX") {
+			continue
+		}
+		if strings.Contains(stmt, "fact_records_vulnerability_active_") ||
+			strings.Contains(stmt, "fact_records_vulnerability_affected_package_lookup_idx") ||
+			strings.Contains(stmt, "fact_records_vulnerability_package_purl_lookup_idx") {
 			if _, err := db.ExecContext(ctx, stmt); err != nil {
 				t.Fatalf("apply shipped advisory lookup index: %v", err)
 			}
