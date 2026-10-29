@@ -235,9 +235,11 @@ they are. A registry that binds no non-store policy keeps today's fingerprint.
 
 ### Which files use each policy
 
-Five definitions bind a policy other than `store`. The first four are recorded
+Seven definitions bind a policy other than `store`. The first four are recorded
 in the [credential-file design record](https://github.com/eshu-hq/eshu/blob/main/docs/internal/design/8813-credential-file-exposure.md);
-`runtime.txt` was added for Python runtime declarations (#9308). Each file has
+`runtime.txt` was added for Python runtime declarations (#9308), `php.ini` and
+its companions for PHP configuration evidence (#9304), and
+`project/build.properties` for sbt launcher pins (#9308). Each file has
 its own parser definition, so the policy never reaches other `.tf`, `.hcl`,
 `.yaml`, `.yml`, or `.ini` files. Every other definition uses `store`.
 
@@ -248,6 +250,8 @@ its own parser definition, so the policy never reaches other `.tf`, `.hcl`,
 | `.npmrc` | `npmrc` | `metadata` | none (#8978) |
 | `gradle-wrapper.properties` | `gradle_wrapper` | `metadata` | none (#8822) |
 | `runtime.txt` | `runtime_txt` | `metadata` | none (#9308) |
+| `php.ini`, `.htaccess`, Apache and `php-fpm.d` confs | `php_config` | `metadata` | none (#9304) |
+| `project/build.properties` | `sbt_properties` | `metadata` | none (#9308) |
 | `gradle.properties`, `nuget.config` | none | `metadata`, if a later record admits them | none |
 
 The hcl engine parses a `.tfvars.json` body via `ParseJSON` since #9048,
