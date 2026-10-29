@@ -12,7 +12,8 @@
 // dependencies and mounts additively in go/cmd/api wiring.
 //
 // The wire rules live in docs/internal/evidence/8874-s4-endpoint-decisions.md:
-// bounded bodies, envelope errors, differential parity with the local
-// functions, and no MCP tools (these are CLI-support endpoints, not
-// user-facing query capabilities).
+// bounded bodies, strict single-object decoding (unknown fields and trailing
+// values fail with 400), per-route required-field checks, envelope errors,
+// differential parity with the local functions, and no MCP tools (these are
+// CLI-support endpoints, not user-facing query capabilities).
 package support

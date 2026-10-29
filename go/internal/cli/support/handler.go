@@ -4,6 +4,7 @@
 package support
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -42,12 +43,16 @@ func (h *Handlers) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/answer-quality/score", h.scoreEvidence)
 }
 
-// decodeBody bounds r.Body at maxBytes and decodes one JSON value into dst.
-// Malformed JSON fails with 400; an over-cap body fails with 413. It reports
-// whether the caller may proceed.
+// decodeBody bounds r.Body at maxBytes and decodes exactly one JSON object
+// into dst. Unknown fields are rejected: a misspelled field such as
+// "dossire" would otherwise be ignored while the required-field check
+// below passes on the remainder. Malformed JSON and an empty body fail with
+// 400; an over-cap body fails with 413. It reports whether the caller may
+// proceed.
 func decodeBody(w http.ResponseWriter, r *http.Request, dst any, maxBytes int64) bool {
 	r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
 	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
 	if err := dec.Decode(dst); err != nil {
 		var tooLarge *http.MaxBytesError
 		if errors.As(err, &tooLarge) {
@@ -57,13 +62,32 @@ func decodeBody(w http.ResponseWriter, r *http.Request, dst any, maxBytes int64)
 			})
 			return false
 		}
+		msg := fmt.Sprintf("decode request body: %v", err)
+		if errors.Is(err, io.EOF) {
+			msg = "request body is required"
+		}
 		query.WriteErrorEnvelope(w, r, http.StatusBadRequest, &query.ErrorEnvelope{
 			Code:    query.ErrorCodeInvalidArgument,
-			Message: fmt.Sprintf("decode request body: %v", err),
+			Message: msg,
+		})
+		return false
+	}
+	if err := dec.Decode(&struct{}{}); err != io.EOF {
+		query.WriteErrorEnvelope(w, r, http.StatusBadRequest, &query.ErrorEnvelope{
+			Code:    query.ErrorCodeInvalidArgument,
+			Message: "request body must hold one JSON object",
 		})
 		return false
 	}
 	return true
+}
+
+// refuseMissing writes the 400 for a missing required request field.
+func refuseMissing(w http.ResponseWriter, r *http.Request, message string) {
+	query.WriteErrorEnvelope(w, r, http.StatusBadRequest, &query.ErrorEnvelope{
+		Code:    query.ErrorCodeInvalidArgument,
+		Message: message,
+	})
 }
 
 // RenderRequest carries the already-fetched packet and the wanted format.
@@ -79,6 +103,13 @@ type RenderRequest struct {
 func (h *Handlers) renderPacket(w http.ResponseWriter, r *http.Request) {
 	var req RenderRequest
 	if !decodeBody(w, r, &req, maxRenderBodyBytes) {
+		return
+	}
+	// PacketID is the deterministic identity every built packet carries; an
+	// empty one means no packet was supplied, and the renderer would
+	// otherwise answer 200 with a rendering of nothing.
+	if req.Packet.PacketID == "" {
+		refuseMissing(w, r, "packet.packet_id is required")
 		return
 	}
 	format, err := query.ParseInvestigationPacketFormat(req.Format)
@@ -127,6 +158,13 @@ func (h *Handlers) composeReport(w http.ResponseWriter, r *http.Request) {
 	if !decodeBody(w, r, &req, maxComposeBodyBytes) {
 		return
 	}
+	// FromServiceStory turns a missing dossier into an empty report that
+	// always composes, so the endpoint answers 200 for no input without
+	// this check.
+	if len(req.Dossier) == 0 {
+		refuseMissing(w, r, "dossier is required")
+		return
+	}
 	input := serviceintel.FromServiceStory(req.Dossier, req.Truth)
 	if req.SupplyChain != nil {
 		input.Sections = append(input.Sections,
@@ -147,6 +185,15 @@ func (h *Handlers) composeReport(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) captureBundle(w http.ResponseWriter, r *http.Request) {
 	var input reportbundle.CaptureInput
 	if !decodeBody(w, r, &input, maxCaptureBodyBytes) {
+		return
+	}
+	// SplitTargetQuery accepts an empty target and Capture answers 200 with
+	// an empty bundle, so the fragment's required surface/target/envelope
+	// need an explicit check. A real query envelope always carries data or
+	// an error.
+	if input.Surface == "" || input.Target == "" ||
+		(input.Envelope.Data == nil && input.Envelope.Error == nil) {
+		refuseMissing(w, r, "surface, target, and envelope are required")
 		return
 	}
 	if err := reportbundle.CheckTargetCredentials(input.Target); err != nil {
@@ -217,6 +264,30 @@ func (h *Handlers) scoreEvidence(w http.ResponseWriter, r *http.Request) {
 			Code:    query.ErrorCodeInvalidArgument,
 			Message: fmt.Sprintf("read request body: %v", err),
 		})
+		return
+	}
+	// Strict structural check before ParseEvidence: it unmarshals with the
+	// default decoder, so unknown fields and trailing values would
+	// otherwise be silently ignored while scoring proceeds on the rest.
+	strict := json.NewDecoder(bytes.NewReader(raw))
+	strict.DisallowUnknownFields()
+	var shape answerquality.Evidence
+	if err := strict.Decode(&shape); err != nil {
+		query.WriteErrorEnvelope(w, r, http.StatusBadRequest, &query.ErrorEnvelope{
+			Code:    query.ErrorCodeInvalidArgument,
+			Message: fmt.Sprintf("decode answer-quality evidence: %v", err),
+		})
+		return
+	}
+	if err := strict.Decode(&struct{}{}); err != io.EOF {
+		query.WriteErrorEnvelope(w, r, http.StatusBadRequest, &query.ErrorEnvelope{
+			Code:    query.ErrorCodeInvalidArgument,
+			Message: "request body must hold one JSON object",
+		})
+		return
+	}
+	if len(bytes.TrimSpace(raw)) == 0 {
+		refuseMissing(w, r, "request body is required")
 		return
 	}
 	evidence, err := answerquality.ParseEvidence(raw)

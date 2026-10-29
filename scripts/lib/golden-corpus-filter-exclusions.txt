@@ -100,7 +100,10 @@ go/internal/github			GitHub App JWT mint + installation-token exchange extracted
 # value -- dead code for the gate, same class as component/github above.
 # Re-check with `go list -deps` on the six gate binaries if any of these
 # packages gains an importer outside cli/support: the reason below stops
-# holding the moment a gate-asserted route can reach them.
+# holding the moment a gate-asserted route can reach them. The api-binary
+# half of that re-check is automated: TestAPIServerLinksOnlyCLISupportLeaf
+# and TestAPIServerKernelsReachableOnlyThroughSupport in
+# go/internal/cli/support fail the moment the closure widens.
 go/internal/answerquality		answer scoring kernel for POST /api/v0/answer-quality/score only; no gate-asserted route imports it
 go/internal/cli			linked into the api binary only through the cli/support leaf (8874-S4 routes); no gate-asserted route imports it
 go/internal/reportbundle		bundle assemble/check kernel for the report-bundle routes only; no gate-asserted route imports it

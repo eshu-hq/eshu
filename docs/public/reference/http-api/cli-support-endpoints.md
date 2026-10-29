@@ -14,7 +14,8 @@ the same renderer the offline `investigation export` command runs. Returns raw
 bytes with the format content type (`application/json`,
 `text/markdown; charset=utf-8`, `text/html; charset=utf-8`), not an envelope:
 the caller asked for a rendering, not a query answer. Unknown formats fail
-with 400. Cap: 1 MiB, 413 above.
+with 400, as do unknown fields, trailing values, and a missing packet
+(`packet.packet_id` is required). Cap: 1 MiB, 413 above.
 
 ## `POST /api/v0/service/report/compose`
 
@@ -22,7 +23,8 @@ Composes a service intelligence report from a captured service-story dossier,
 its truth envelope, and an optional captured supply-chain inventory (plus its
 truth), running the same `FromServiceStory` / `FromSupplyChainInventory` /
 `Compose` chain the offline `service-report` command runs. Answers a report
-envelope. Malformed input fails with 400. Cap: 1 MiB, 413 above.
+envelope. Malformed input fails with 400, as do unknown fields, trailing
+values, and a missing dossier. Cap: 1 MiB, 413 above.
 
 ## `POST /api/v0/report/bundle/capture`
 
@@ -33,8 +35,9 @@ server issues no query. Credential-bearing targets are refused with 422 and
 never echoed (the contract tests reuse the CLI credential canary). Every
 other capture failure is also 422: every failure reachable over the wire is
 an input refusal, since the envelope already survived a JSON round trip on
-the way in. Malformed JSON fails with 400. Cap: 8 MiB (payload-bearing
-private-triage mode), 413 above.
+the way in. Malformed JSON fails with 400, as do unknown fields, trailing
+values, and missing surface, target, or envelope. Cap: 8 MiB
+(payload-bearing private-triage mode), 413 above.
 
 ## `POST /api/v0/report/bundle/validate`
 
@@ -42,14 +45,16 @@ Runs the share-safe validation gate over supplied bundle bytes, with the
 `require_public` posture mirroring `--require-public`. A 200 always carries
 the `{valid, message}` verdict — valid or not — because validation is a
 check, not a fetch; the CLI maps it to its exit code. Malformed JSON fails
-with 400. Cap: 1 MiB, 413 above.
+with 400, as do unknown fields and trailing values. Cap: 1 MiB, 413
+above.
 
 ## `POST /api/v0/answer-quality/score`
 
 Scores redacted answer evidence against the dogfood criteria with the same
 scorer the offline `answer-quality-scorecard` command runs. Answers a
-scorecard verdict envelope. Malformed evidence fails with 400. Cap: 1 MiB,
-413 above.
+scorecard verdict envelope. Malformed evidence fails with 400, as do
+unknown fields, trailing values, and a missing evidence version. Cap:
+1 MiB, 413 above.
 
 ## Shared rules
 
