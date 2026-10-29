@@ -6,6 +6,7 @@ read_surface: GET /api/v0/supply-chain/sbom-attestations/attachments
 payload_schema: sdk/go/factschema/schema/sbom.document.v1.schema.json
 payload_schema_registered: true
 producers:
+    - collector-sbom-attestation
     - scanner-worker
 reducer_bindings:
     - sbomattest/sbomattest_handle_sbom_attestation

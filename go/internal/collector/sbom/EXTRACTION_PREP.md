@@ -86,17 +86,19 @@ additive-optional SLSA materials/config_source fields):
 
 Family declaration: `sbom_attestation.go:78-104`
 (`SBOMAttestationFamilyDeclaration`, family `sbom_attestation`, truth profile
-`provider_gated`). Producer record is already cutover-shaped
+`provider_gated`). Producer record is cutover-shaped
 (`sbom_attestation.go:101`): `collector-sbom-attestation`, authority
 `core_issued_grant`, planned repo
-`eshu-hq/eshu-collector-sbom-attestation`. **Open discrepancy:** the record
-binds the collector to 5 kinds (`attestation.*`,
-`sbom.dependency_relationship`, `sbom.external_reference`) while the runtime
-also emits `sbom.document`, `sbom.component`, and `sbom.warning` through the
-`document/` parser — proven by parity scopes 1, 2, and 4. The same three
-kinds are additionally bound to `scanner-worker` as `core_owned`. The grant
-draft ([PRODUCER_GRANT_DRAFT](PRODUCER_GRANT_DRAFT.md)) covers all 8 emitted
-kinds; the owner must reconcile the record before issuance.
+`eshu-hq/eshu-collector-sbom-attestation`, bound to all 8 emitted kinds.
+**Reconciled:** the record previously bound the collector to 5 kinds
+(`attestation.*`, `sbom.dependency_relationship`, `sbom.external_reference`)
+while the runtime also emits `sbom.document`, `sbom.component`, and
+`sbom.warning` through the `document/` parser — proven by parity scopes 1, 2,
+and 4. The producer-record lane (`#8865`) widened the record to all 8; the
+same three kinds remain additionally bound to `scanner-worker` as
+`core_owned` (dual emission until the scanner-worker cutover). The grant
+record ([PRODUCER_GRANT_DRAFT](PRODUCER_GRANT_DRAFT.md)) covers all 8 emitted
+kinds and is now issued against the reconciled record.
 
 ## 3. Consumers (must agree at cutover)
 
@@ -288,8 +290,9 @@ public SDK surface is owned by
    verified at `v0.1.0-rc.1` (SHIM_MAP §6); each later bump re-proves it by
    building this lane green, and the pin-parity guard
    (`runtime/shim_pin_8865_test.go`) fails closed on undocumented drift.
-2. Producer-record reconciliation for the 5-vs-8 kind discrepancy (§2) and
-   first-party producer delegation live (`#6709`); grant draft recorded in
+2. Producer-record reconciliation for the former 5-vs-8 kind discrepancy
+   (§2, widened to all 8 in the producer-record lane) and first-party
+   producer delegation live (`#6709`); grant recorded in
    [PRODUCER_GRANT_DRAFT](PRODUCER_GRANT_DRAFT.md).
 3. Collector repository from the `#6710` template with the compatibility
    harness matrix (newest collector × oldest core and reverse).
