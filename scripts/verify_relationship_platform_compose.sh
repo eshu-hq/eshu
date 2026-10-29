@@ -457,10 +457,10 @@ else
     echo "Missing required compose command: docker compose or docker-compose" >&2
     exit 1
 fi
-COMPOSE_CMD+=(-f docker-compose.neo4j.yml -f docker-compose.telemetry.yml)
-COMPOSE_DISPLAY+=" -f docker-compose.neo4j.yml -f docker-compose.telemetry.yml"
-
-cd "$REPO_ROOT"
+# Compose stack moved to eshu-deploy under #8871 (CI pins the extraction commit).
+: "${ESHU_DEPLOY_CHECKOUT:?ESHU_DEPLOY_CHECKOUT must point at an eshu-hq/eshu-deploy checkout; the gate workflow checks it out at the pinned extraction commit}"
+COMPOSE_CMD+=(-f "${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.neo4j.yml" -f "${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.telemetry.yml")
+COMPOSE_DISPLAY+=" -f ${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.neo4j.yml -f ${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.telemetry.yml"
 
 if [[ -z "${ESHU_FILESYSTEM_HOST_ROOT:-}" ]]; then
     export ESHU_FILESYSTEM_HOST_ROOT="$RELATIONSHIP_PLATFORM_FIXTURE_ROOT"

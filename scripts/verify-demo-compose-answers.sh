@@ -80,17 +80,33 @@ echo "GREEN precondition: ${compose_file} exists and renders"
 #
 # The compose files are the operator-facing contract: a required (":?") var
 # there would force an operator to supply a credential before the stack boots.
+# The files live in the eshu-deploy checkout (compose/ moved there under
+# #8871), so the arrays below resolve under ${ESHU_DEPLOY_CHECKOUT}.
 # The two demo shell scripts also use ":?" but as internal wiring guards on
 # values docker-compose.demo.corpus.yaml always supplies (ESHU_DEMO_CORPUS_REPOS,
 # ESHU_POSTGRES_DSN) — defensive "this must have been wired by compose" checks,
 # not an operator-supplied credential — so they are intentionally excluded from
 # the compose-file gate below and checked separately for credential-shaped vars.
 # ----------------------------------------------------------------------------
-compose_files=(docker-compose.demo.yaml docker-compose.demo.corpus.yaml docker-compose.demo.runtime.yaml)
+compose_files=("${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.demo.yaml" "${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.demo.corpus.yaml" "${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.demo.runtime.yaml")
 demo_files=("${compose_files[@]}" scripts/demo-corpus-staging.sh scripts/demo-corpus-orchestrator.sh)
 
 log "hard gate: no required (\":?\") credential env in the demo compose files"
-if rg -n ':\?' "${compose_files[@]}"; then
+# `${VAR:?}` at the compose level forces the operator to supply a value
+# before the stack boots: that is the credential surface this gate guards.
+# `$${VAR:?}` is compose-escaped and survives into the container entrypoint
+# as an internal shell guard on values the compose file itself supplies
+# (demo.corpus.yaml's component-home bootstrap), so strip the escaped form
+# before scanning. The sed substitution preserves line numbers.
+gate_tripped=0
+for compose_scan_file in "${compose_files[@]}"; do
+	scan_output="$(sed 's/\$\${//g' "${compose_scan_file}" | rg -n '\$\{[^}]*:\?' || true)"
+	if [[ -n "${scan_output}" ]]; then
+		printf '%s:\n%s\n' "${compose_scan_file}" "${scan_output}"
+		gate_tripped=1
+	fi
+done
+if [[ "${gate_tripped}" -eq 1 ]]; then
 	die "hard gate failed: found a required (:?) env var in a demo compose file"
 fi
 echo "hard gate passed: no :? required env vars in compose files"

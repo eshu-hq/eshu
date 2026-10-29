@@ -33,8 +33,9 @@ binary (`collector-git`, `collector-terraform-state`, `eshu-ingester`,
 `eshu-reducer`, and so on).
 
 Docker Compose exposes Prometheus-format metrics on the runtime ports listed in
-[Health Checks](health-checks.md). Add `docker-compose.telemetry.yml` when you
-want a local OpenTelemetry collector and Jaeger at `http://localhost:16686` for
+[Health Checks](health-checks.md). Add `compose/docker-compose.telemetry.yml`
+from `$ESHU_DEPLOY_CHECKOUT` (the stack moved to eshu-deploy under #8871)
+when you want a local OpenTelemetry collector and Jaeger at `http://localhost:16686` for
 developer or DevOps testing.
 
 ## Reference

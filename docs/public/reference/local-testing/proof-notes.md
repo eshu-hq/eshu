@@ -74,7 +74,8 @@ bash scripts/test-verify-tagged-builds.sh
 ## Remote Collector E2E Compose Proof
 
 Use [Remote collector E2E](remote-collector-e2e.md) when changing
-`docker-compose.remote-e2e.yaml` or hosted collector recovery.
+`${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.remote-e2e.yaml`
+(the stack moved to eshu-deploy under #8871) or hosted collector recovery.
 
 Before accepting a remote collector E2E run, also run the hosted runtime-state
 gate in [Remote E2E Runtime State](../remote-e2e-runtime-state.md). It verifies
@@ -161,7 +162,8 @@ a stable API contract.
 ## Demo Compose Stack Proof
 
 Use `scripts/verify-demo-compose-answers.sh` to prove the credential-free demo
-stack (`docker-compose.demo.yaml`) converges the corpus and answers the five
+stack (`${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.demo.yaml`, moved to
+eshu-deploy under #8871) converges the corpus and answers the five
 `specs/demo-first-answers.v1.yaml` questions over HTTP. It is failing-test-first
 (red before the overlay exists, green after): it boots the stack with zero
 credential env, asserts each question over HTTP with no `Authorization` header,

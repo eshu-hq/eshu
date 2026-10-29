@@ -284,11 +284,12 @@ expected and persisted fact signatures over fact kind, schema version, stable
 key, source confidence, source ref, and payload, so payload/schema/stable-key
 drift fails the proof instead of relying on recorded counts alone. Focused
 proof: `go test ./internal/runtime -run
-TestHelmComponentExtensionCollector -count=1`,
+TestHelmPagerDutyCollectorDeployment -count=1` from `${ESHU_DEPLOY_CHECKOUT}/go`
+(the Helm contract test moved to eshu-deploy under #8871),
 `go test ./internal/collector/pagerduty -run ReferenceComponent -count=1`,
 `go test ./...` from `examples/collector-extensions/pagerduty`,
-`docker compose -p pd-ce-proof -f docker-compose.yaml -f
-docs/public/run-locally/docker-compose.component-extension-pagerduty.yaml
+`docker compose -p pd-ce-proof -f "${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.yaml" -f
+"${ESHU_DEPLOY_CHECKOUT}/compose/fragments/docker-compose.component-extension-pagerduty.yaml"
 --profile component-extension-collector config`,
 `scripts/test-verify-remote-e2e-pagerduty-component-extension.sh`, and
 `scripts/verify-remote-e2e-pagerduty-component-extension.sh --list`.

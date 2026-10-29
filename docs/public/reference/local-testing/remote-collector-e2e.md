@@ -1,8 +1,6 @@
 # Remote Collector E2E
 
-Use this gate when changing `docker-compose.remote-e2e.yaml`, the remote E2E
-hosted collector overlays, scanner-worker runtime wiring, hosted collector
-restart recovery, or remote all-collector admission.
+Use this gate when changing the remote E2E stack (`compose/` under `$ESHU_DEPLOY_CHECKOUT`, moved to eshu-deploy under #8871), the hosted collector overlays, scanner-worker runtime wiring, hosted collector restart recovery, or remote all-collector admission.
 
 The proof target is an account-local or VPN-attached host with Docker, a
 readable S3 Terraform state object, an ECR repository, and an allowlisted GitHub
@@ -12,17 +10,16 @@ Eshu data volumes from the default local Compose project.
 
 ## Render The Stack
 
-`docker-compose.remote-e2e.yaml` is an include wrapper. Foundation, runtime,
-hosted collector, and optional seed ownership live in the matching fragments.
+`compose/docker-compose.remote-e2e.yaml` under `$ESHU_DEPLOY_CHECKOUT` is an include wrapper; foundation, runtime, hosted collector, and optional seed ownership live in the matching fragments.
 
 Render the default stack and optional AWS freshness seeder before remote reads:
 
 ```bash
-docker compose --env-file .env.remote-e2e.example \
-  -f docker-compose.remote-e2e.yaml config
+docker compose --env-file "${ESHU_DEPLOY_CHECKOUT}/.env.remote-e2e.example" \
+  -f "${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.remote-e2e.yaml" config
 
-docker compose --env-file .env.remote-e2e.example \
-  -f docker-compose.remote-e2e.yaml --profile seed config seed-aws-freshness
+docker compose --env-file "${ESHU_DEPLOY_CHECKOUT}/.env.remote-e2e.example" \
+  -f "${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.remote-e2e.yaml" --profile seed config seed-aws-freshness
 ```
 
 This render proof must not start remote AWS reads, create queue rows, or change
@@ -138,8 +135,7 @@ timeout budget before changing settings.
 ## Remote Corpus Preflight
 
 The preflight runs as a one-shot Alpine container before bootstrap indexing and
-workflow-coordinator claims. The checked-in `.env.remote-e2e.example` defaults
-to smoke mode:
+workflow-coordinator claims. The checked-in `${ESHU_DEPLOY_CHECKOUT}/.env.remote-e2e.example` defaults to smoke mode:
 
 ```text
 ESHU_REMOTE_E2E_CORPUS_MODE=smoke
@@ -196,7 +192,7 @@ export ESHU_REMOTE_E2E_ADVISORY_EVIDENCE_CVE_ID="${ESHU_VULNERABILITY_E2E_CVE_ID
 export ESHU_REMOTE_E2E_VULNERABILITY_DETAIL_ID="${ESHU_REMOTE_E2E_ADVISORY_EVIDENCE_CVE_ID}"
 
 docker compose --env-file "${ESHU_REMOTE_E2E_ENV_FILE}" \
-  -f docker-compose.remote-e2e.yaml up --build
+  -f "${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.remote-e2e.yaml" up --build
 ```
 
 Representative mode defaults the advisory evidence minimum to one, so the

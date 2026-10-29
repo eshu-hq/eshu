@@ -9,8 +9,10 @@
 # Prerequisite: the local stack is up and healthy with retained data plus a
 # fresh, isolated identity surface for the default browser-session gate. Bring
 # it up with the gitignored env file first (see apps/console/README.md), e.g.:
+# (the Compose stack moved to eshu-deploy under #8871, so ESHU_DEPLOY_CHECKOUT
+# must point at that checkout first):
 #   docker compose -p eshu-3326-e2e --env-file e2e-artifacts/.env.console-e2e \
-#     -f docker-compose.yaml up --build -d
+#     -f "${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.yaml" up --build -d
 #
 # This script does NOT manage Docker; it only drives the browser gate so the
 # stack lifecycle stays explicit and operator-controlled.

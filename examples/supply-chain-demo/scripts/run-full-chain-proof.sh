@@ -37,7 +37,10 @@ API_KEY="${ESHU_API_KEY:-demo-fullchain-key}"
 KEEP=0
 [ "${1:-}" = "--keep" ] && KEEP=1
 
-COMPOSE="docker compose --env-file ${RUNDIR}/run.env -p ${PROJECT} -f ${ESHU_SRC}/docker-compose.remote-e2e.yaml"
+# The remote-e2e stack moved to eshu-deploy under #8871: ESHU_SRC still points
+# at this repo's sources, but the -f flag resolves under ESHU_DEPLOY_CHECKOUT.
+: "${ESHU_DEPLOY_CHECKOUT:?ESHU_DEPLOY_CHECKOUT must point at an eshu-hq/eshu-deploy checkout; the gate workflow checks it out at the pinned extraction commit}"
+COMPOSE="docker compose --env-file ${RUNDIR}/run.env -p ${PROJECT} -f ${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.remote-e2e.yaml"
 API="http://localhost:38080"
 
 log() { printf '\n=== %s ===\n' "$*"; }

@@ -22,7 +22,10 @@ readback_proof="${ESHU_REMOTE_E2E_READBACK_PROOF:-}"
 image_tag_candidate="${ESHU_E2E_IMAGE_TAG_CANDIDATE:-unknown}"
 backend_kind="${ESHU_GRAPH_BACKEND:-nornicdb}"
 commit_override="${ESHU_E2E_COMMIT:-}"
-compose_files="${ESHU_REMOTE_E2E_COMPOSE_FILES:-docker-compose.remote-e2e.yaml}"
+# The remote-e2e stack moved to eshu-deploy under #8871: the default resolves
+# under ESHU_DEPLOY_CHECKOUT (CI pins the extraction commit), failing closed
+# when neither an explicit override nor the checkout is set.
+compose_files="${ESHU_REMOTE_E2E_COMPOSE_FILES:-${ESHU_DEPLOY_CHECKOUT:?ESHU_DEPLOY_CHECKOUT must point at an eshu-hq/eshu-deploy checkout; the gate workflow checks it out at the pinned extraction commit}/compose/docker-compose.remote-e2e.yaml}"
 compose_env_file="${ESHU_REMOTE_E2E_ENV_FILE:-}"
 api_timeout_seconds="${ESHU_REMOTE_E2E_API_TIMEOUT_SECONDS:-30}"
 log_tail="${ESHU_E2E_LOG_TAIL:-300}"

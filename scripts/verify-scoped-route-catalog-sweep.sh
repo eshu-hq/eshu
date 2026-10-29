@@ -9,7 +9,9 @@
 # route-policy predicates (`go test ./internal/mcp -run TestCatalogSweepPolicy`,
 # the same enumeration TestEveryMCPReachableRouteIsScopedOrAnnotated gates
 # on -- never a hand-maintained list), boots the standard
-# docker-compose.e2e.yaml profile (Postgres + Neo4j + services) on a throwaway
+# ${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.e2e.yaml profile
+# (Postgres + Neo4j + services; the stack moved to eshu-deploy under #8871)
+# on a throwaway
 # project, mints a personal token carrying a covering role through the console
 # UI, calls every tools/list tool, and writes
 # e2e-artifacts/auth-mcp-e2e-catalog-sweep.json. This script runs that module
@@ -22,7 +24,8 @@
 # concurrently with that suite. All ESHU_E2E_* overrides pass through.
 # ESHU_QUERY_PROFILE overrides the mcp-server query profile for the sweep run
 # (default local_full_stack; see above). It is read from the environment by
-# docker-compose.e2e.yaml interpolation.
+# the e2e stack's interpolation (compose/docker-compose.e2e.yaml under
+# $ESHU_DEPLOY_CHECKOUT).
 #
 # Usage:
 #   scripts/verify-scoped-route-catalog-sweep.sh            # live sweep + judge
