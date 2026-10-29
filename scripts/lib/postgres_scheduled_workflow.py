@@ -38,7 +38,7 @@ JOB_TIMEOUTS = {
     "scheduled-freshness-a": "25",
     "scheduled-freshness-b": "25",
     "scheduled-ack": "40",
-    "scheduled-bulk": "40",
+    "scheduled-bulk": "60",
     "scheduled-storage": "40",
     "scheduled-aggregate": "15",
 }

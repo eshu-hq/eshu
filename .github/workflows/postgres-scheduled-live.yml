@@ -386,7 +386,8 @@ jobs:
     runs-on: ubuntu-24.04
     # Bulk leg: every family outside ACK, freshness and the root storage leg,
     # serially on one warm cache. #9488 predicts 7.6-12.7 min of steps.
-    timeout-minutes: 40
+    # 60 min covers the cold multi-package build with margin (#9492).
+    timeout-minutes: 60
     services:
       postgres:
         image: ghcr.io/eshu-hq/ci-postgres-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
