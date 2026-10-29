@@ -492,3 +492,46 @@ gates:
     requirements:
       - credentials
     ci_only_reason: "attaches a release asset with the workflow token; tag-push only, never runs on a pull_request or merge_group"
+
+  - id: scanner-digest-pins
+    name: Scanner image digest pins match the published images
+    # exactness, not build: the local runners select registry gates by
+    # category (exactness/telemetry/hygiene/docs), so a build row with a
+    # local command would never run locally.
+    category: exactness
+    layer: contract
+    purpose: "Fails when a scanner image digest drifted from its pin, its attestation fails, or scanner sources passed the anchored publish SHA."
+    tier: pre-pr
+    blocking: true
+    # Locally this runs only the hermetic RED/GREEN suite for the verifier:
+    # it needs no network and touches no registry, so a pin typo that the
+    # live check would catch stays green locally. The anchored tags, the
+    # attestations, and the main-line staleness are checked only in CI:
+    # verify-scanner-digest-pins runs the suite, then the verifier against
+    # GHCR (#9491); same workflow, same job, two more steps.
+    # The Dockerfile, the publish workflow, and the lane script select this
+    # gate but are not staleness inputs: they changed after the anchor
+    # without moving the anchored tags. The staleness inputs are the scanner
+    # Go sources the verifier diffs, minus the pin files themselves.
+    triggers:
+      - "Dockerfile"
+      - ".github/workflows/docker-publish.yml"
+      - "scripts/ci/select-docker-publish-lanes.sh"
+      - "scripts/ci/go-install-retry.sh"
+      - "scripts/verify-scanner-digest-pins.sh"
+      - "scripts/test-verify-scanner-digest-pins.sh"
+      - "go/internal/collector/scannerworker/component/manifest.go"
+      - "go/internal/collector/scannerworker/component/manifest_test.go"
+      - "go/internal/collector/scannerworker/**"
+      - "go/cmd/scanner-component-image/**"
+      - "go/cmd/scanner-component-sbom/**"
+      - "go/cmd/scanner-component-osruntime/**"
+      - "go/cmd/scanner-worker/**"
+    local:
+      command: "bash scripts/test-verify-scanner-digest-pins.sh"
+      pre_push: floor
+    ci:
+      workflow: docker-publish.yml
+      job: "verify-scanner-digest-pins"
+    requirements: []
+    ci_only_reason: ""

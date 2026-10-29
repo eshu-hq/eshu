@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Selects the eshu-side docker-publish lanes (image, apkfloors) from the
-# changed paths. The Helm chart lane moved to eshu-hq/eshu-deploy under
-# #8871: eshu-deploy's chart-release.yml owns chart publication, so the
-# chart lane and its triggers (deploy/helm/*, push-helm-chart.sh) no longer
-# live here. Only image and apkfloors remain.
+# Selects the eshu-side docker-publish lanes (image, apkfloors, scannerpins)
+# from the changed paths. The Helm chart lane moved to eshu-hq/eshu-deploy
+# under #8871: eshu-deploy's chart-release.yml owns chart publication, so
+# the chart lane and its triggers (deploy/helm/*, push-helm-chart.sh) no
+# longer live here. Only image, apkfloors, and scannerpins remain.
 
 if [[ "${GITHUB_REF_TYPE}" == tag || "${GITHUB_EVENT_NAME}" == workflow_dispatch ]]; then
   {
     echo 'image=true'
     echo 'apkfloors=true'
+    echo 'scannerpins=true'
   } >> "${GITHUB_OUTPUT}"
   exit 0
 fi
@@ -37,17 +38,38 @@ esac
 
 image=false
 apkfloors=false
+scannerpins=false
 while IFS= read -r path; do
   case "${path}" in
     Dockerfile)
       image=true
       apkfloors=true
+      scannerpins=true
       ;;
     .dockerignore)
       image=true
       ;;
     scripts/verify-apk-floors.sh|scripts/test-verify-apk-floors.sh|scripts/fixtures/apk-floors/*)
       apkfloors=true
+      ;;
+    # Scanner digest pins (#9491): the drift-gate verifier with its
+    # self-test, and the scanner Go sources the gate watches for
+    # post-anchor changes, must run the scannerpins lane (self-test plus
+    # the live anchored-tag, attestation, and staleness checks). These arms
+    # stay above go/*, which matches the same paths first and sets only
+    # the image lane.
+    scripts/verify-scanner-digest-pins.sh|scripts/test-verify-scanner-digest-pins.sh|go/internal/collector/scannerworker/*)
+      scannerpins=true
+      ;;
+    go/cmd/scanner-component-image/*|go/cmd/scanner-component-sbom/*|go/cmd/scanner-component-osruntime/*|go/cmd/scanner-worker/*)
+      scannerpins=true
+      ;;
+    # Shared installer used by the scannerpins live job (pinned crane
+    # install): a lone touch must still select this gate's lane, or the
+    # registry selects the gate while every publish job skips and the
+    # aggregator fails closed.
+    scripts/ci/go-install-retry.sh)
+      scannerpins=true
       ;;
     scripts/verify-runtime-image-tools.sh|scripts/test-verify-runtime-image-tools.sh)
       image=true
@@ -74,10 +96,12 @@ while IFS= read -r path; do
     .github/workflows/docker-publish.yml|scripts/ci/select-docker-publish-lanes.sh)
       image=true
       apkfloors=true
+      scannerpins=true
       ;;
   esac
 done < <(git diff --name-only "${base_sha}" "${head_sha}")
 {
   echo "image=${image}"
   echo "apkfloors=${apkfloors}"
+  echo "scannerpins=${scannerpins}"
 } >> "${GITHUB_OUTPUT}"

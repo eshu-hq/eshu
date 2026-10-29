@@ -23,6 +23,8 @@ on:
       'scripts/verify-runtime-image-tools.sh', 'scripts/test-verify-runtime-image-tools.sh',
       'scripts/verify-scanner-images.sh', 'scripts/test-verify-scanner-images.sh',
       'scripts/lib/rootfs-resolve.sh',
+      'scripts/verify-scanner-digest-pins.sh', 'scripts/test-verify-scanner-digest-pins.sh',
+      'scripts/ci/go-install-retry.sh',
     ]
   workflow_dispatch:
     inputs:
@@ -65,6 +67,7 @@ jobs:
     outputs:
       image: ${{ steps.filter.outputs.image }}
       apkfloors: ${{ steps.filter.outputs.apkfloors }}
+      scannerpins: ${{ steps.filter.outputs.scannerpins }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -97,6 +100,44 @@ jobs:
       - name: Verify apk floors against the Alpine repository
         if: ${{ env.LANE_APPLIES == 'true' }}
         run: bash scripts/verify-apk-floors.sh
+  # Scanner digest pins (#9491): the drift gate for the artifactDigests pins
+  # in go/internal/collector/scannerworker/component/manifest.go. Lives
+  # beside verify-apk-floors (own scannerpins lane, no dependency on the
+  # 45-minute builds): the self-test runs first so a broken verifier fails
+  # before any registry read, then the verifier resolves each pin against
+  # the immutable sha-<publish-sha> tag, re-verifies the build
+  # attestation, and fails when scanner sources advanced past the anchor.
+  # Anonymous crane reads need no login; gh attestation verify uses the
+  # in-workflow token. Full history (fetch-depth 0) feeds the
+  # merge-base staleness check.
+  verify-scanner-digest-pins:
+    needs: [changes]
+    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'verify-scanner-digest-pins')) && ((github.event_name != 'workflow_dispatch' || inputs.mode == 'release') && (github.event_name == 'pull_request' && needs.changes.outputs.scannerpins == 'true')) }}
+    env:
+      LANE_APPLIES: ${{ needs.changes.outputs.scannerpins }}
+    timeout-minutes: 10
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      attestations: read
+    steps:
+      - name: Checkout repository
+        if: ${{ env.LANE_APPLIES == 'true' }}
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Install pinned crane
+        if: ${{ env.LANE_APPLIES == 'true' }}
+        run: GOBIN="${RUNNER_TEMP}" scripts/ci/go-install-retry.sh github.com/google/go-containerregistry/cmd/crane@v0.20.6
+      - name: Self-test the scanner digest pin verifier
+        if: ${{ env.LANE_APPLIES == 'true' }}
+        run: bash scripts/test-verify-scanner-digest-pins.sh
+      - name: Verify scanner digest pins against GHCR
+        if: ${{ env.LANE_APPLIES == 'true' }}
+        env:
+          CRANE_BIN: ${{ runner.temp }}/crane
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/verify-scanner-digest-pins.sh
   build-and-push-image:
     needs: [changes]
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'build-and-push-image')) && ((github.event_name != 'workflow_dispatch' || inputs.mode == 'release') && needs.changes.outputs.image == 'true') }}

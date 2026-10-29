@@ -59,6 +59,9 @@ expected_release_condition() {
     verify-apk-floors)
       release="(${guard}) && (github.event_name == 'pull_request' && needs.changes.outputs.apkfloors == 'true')"
       ;;
+    verify-scanner-digest-pins)
+      release="(${guard}) && (github.event_name == 'pull_request' && needs.changes.outputs.scannerpins == 'true')"
+      ;;
     build-and-push-image|verify-reproducibility|build-and-push-scanner-images)
       release="(${guard}) && needs.changes.outputs.image == 'true'"
       ;;
@@ -83,7 +86,7 @@ rg -q '^        default: release$' "${workflow}" || fail 'normal dispatch defaul
 # chart-release.yml under #8871; it is no longer part of this partition.
 expected_jobs="$(printf '%s\n' changes verify-apk-floors build-and-push-image \
   build-and-push-scanner-images promote-moving-tags verify-reproducibility \
-  attach-release-sbom publish-ci-service-mirrors \
+  verify-scanner-digest-pins attach-release-sbom publish-ci-service-mirrors \
   verify-public-ci-service-mirrors | LC_ALL=C sort)"
 actual_jobs="$(awk '
   /^jobs:$/ { in_jobs = 1; next }
@@ -100,7 +103,7 @@ actual_jobs="$(awk '
 
 for job in changes verify-apk-floors build-and-push-image \
   build-and-push-scanner-images promote-moving-tags \
-  verify-reproducibility attach-release-sbom; do
+  verify-reproducibility verify-scanner-digest-pins attach-release-sbom; do
   condition="$(job_condition "${job}")"
   [[ "${condition}" == "$(expected_release_condition "${job}")" ]] ||
     fail "${job} release condition differs from its guarded exact shape"

@@ -21,6 +21,16 @@ workflows:
   - scripts/verify-scanner-images.sh
   - scripts/test-verify-scanner-images.sh
   - scripts/lib/rootfs-resolve.sh
+  - scripts/verify-scanner-digest-pins.sh
+  - scripts/test-verify-scanner-digest-pins.sh
+  - scripts/ci/go-install-retry.sh
+  - go/internal/collector/scannerworker/component/manifest.go
+  - go/internal/collector/scannerworker/component/manifest_test.go
+  - go/internal/collector/scannerworker/**
+  - go/cmd/scanner-component-image/**
+  - go/cmd/scanner-component-sbom/**
+  - go/cmd/scanner-component-osruntime/**
+  - go/cmd/scanner-worker/**
   - specs/ci-pr-workflows.d/docker-publish.yml
   jobs:
   - attach-release-sbom
@@ -32,5 +42,6 @@ workflows:
   - verify-apk-floors
   - verify-public-ci-service-mirrors
   - verify-reproducibility
+  - verify-scanner-digest-pins
   job_names:
     build-and-push-scanner-images: Build and push scanner-${{ matrix.component }}

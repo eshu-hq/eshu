@@ -57,20 +57,21 @@ run_selection() {
     PR_HEAD_SHA="${head}" BEFORE_SHA="${base}" bash scripts/ci/select-docker-publish-lanes.sh)
 }
 # The Helm chart lane moved to eshu-hq/eshu-deploy under #8871: only the
-# eshu-side image and apkfloors lanes remain selectable here.
+# eshu-side image, apkfloors, and scannerpins lanes remain selectable here.
 for mode in tag workflow_dispatch; do
   if [[ "${mode}" == tag ]]; then
     run_selection push "${base}" "${base}" tag
   else
     run_selection workflow_dispatch "${base}"
   fi
-  for lane in image apkfloors; do
+  for lane in image apkfloors scannerpins; do
     rg -q "^${lane}=true$" "${scratch}/output"
   done
 done
 run_selection merge_group "${image_head}"
 rg -q '^image=true$' "${scratch}/output"
 rg -q '^apkfloors=true$' "${scratch}/output"
+rg -q '^scannerpins=true$' "${scratch}/output"
 mkdir -p "${repo}/go"
 printf 'package sample\n' > "${repo}/go/sample.go"
 git -C "${repo}" add go/sample.go
@@ -87,12 +88,14 @@ git -C "${repo}" update-ref refs/remotes/origin/main "${go_head}"
 run_selection merge_group "${go_head}"
 rg -q '^image=false$' "${scratch}/output"
 rg -q '^apkfloors=false$' "${scratch}/output"
+rg -q '^scannerpins=false$' "${scratch}/output"
 git -C "${repo}" add scripts/ci/select-docker-publish-lanes.sh
 git -C "${repo}" commit -qm selector-helper
 selector_head="$(git -C "${repo}" rev-parse HEAD)"
 run_selection merge_group "${selector_head}"
 rg -q '^image=true$' "${scratch}/output"
 rg -q '^apkfloors=true$' "${scratch}/output"
+rg -q '^scannerpins=true$' "${scratch}/output"
 git -C "${repo}" update-ref refs/remotes/origin/main "${selector_head}"
 
 # #7762: the runtime image tool verifier and its suite select the image lane,
@@ -126,4 +129,34 @@ for repro_file in specs/ci-images.v1.json scripts/ci/build-reproducibility-image
   rg -q '^image=true$' "${scratch}/output"
   rg -q '^apkfloors=false$' "${scratch}/output"
 done
+# #9491: the scanner digest pin verifier, its suite, and the scanner Go
+# sources the gate watches select the scannerpins lane, while unrelated
+# paths leave it off.
+for pins_path in scripts/verify-scanner-digest-pins.sh scripts/test-verify-scanner-digest-pins.sh go/internal/collector/scannerworker/component/manifest.go go/cmd/scanner-component-image/main.go; do
+  pins_base="$(git -C "${repo}" rev-parse HEAD)"
+  mkdir -p "${repo}/$(dirname "${pins_path}")"
+  printf '# pins\n' > "${repo}/${pins_path}"
+  git -C "${repo}" add "${pins_path}"
+  git -C "${repo}" commit -qm "${pins_path##*/}"
+  run_selection pull_request "$(git -C "${repo}" rev-parse HEAD)" "${pins_base}"
+  rg -q '^scannerpins=true$' "${scratch}/output"
+done
+pins_base="$(git -C "${repo}" rev-parse HEAD)"
+mkdir -p "${repo}/go/internal/other"
+printf 'package other\n' > "${repo}/go/internal/other/other.go"
+git -C "${repo}" add go/internal/other/other.go
+git -C "${repo}" commit -qm unrelated-go
+run_selection pull_request "$(git -C "${repo}" rev-parse HEAD)" "${pins_base}"
+rg -q '^scannerpins=false$' "${scratch}/output"
+# #9491: the shared installer the scannerpins live job uses is a registry
+# trigger for this gate, so a lone touch must select the scannerpins lane;
+# otherwise the registry selects the gate while every publish job skips and
+# the aggregator fails closed.
+retry_base="$(git -C "${repo}" rev-parse HEAD)"
+mkdir -p "${repo}/scripts/ci"
+printf '# retry\n' > "${repo}/scripts/ci/go-install-retry.sh"
+git -C "${repo}" add scripts/ci/go-install-retry.sh
+git -C "${repo}" commit -qm go-install-retry
+run_selection pull_request "$(git -C "${repo}" rev-parse HEAD)" "${retry_base}"
+rg -q '^scannerpins=true$' "${scratch}/output"
 printf 'PASS: production workflow selector steps execute with expected event behavior\n'
