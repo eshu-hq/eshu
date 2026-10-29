@@ -32,6 +32,9 @@ the host already decodes.
   Construct with the binary `ComponentID` and the stdio streams.
 - `ManifestFor`, `RequiredGrants`, `AnalyzerFor` — per-analyzer manifests,
   the grants each manifest needs, and component-ID resolution.
+- `Seed` — chart seed-init contract: copy the running binary to
+  `<dest>/collector` and marshal the pinned manifest to
+  `<dest>/manifest.yaml`, failing closed on arg or image-ref mismatch.
 - `IDImage`, `IDSBOM`, `IDOSRuntime`, `Version` — component identities and
   the manifest version.
 - `DefaultStdoutLimitBytes` — the mirrored host stdout limit page bounds
