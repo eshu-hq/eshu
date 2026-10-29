@@ -1,0 +1,7 @@
+{
+  "name": "search_code",
+  "description": "Search code across repositories",
+  "inputSchema": {
+    "type": "object"
+  }
+}

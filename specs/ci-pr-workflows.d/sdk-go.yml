@@ -17,6 +17,8 @@ workflows:
   jobs:
   - sdk-go-collector
   - sdk-go-factschema
+  - sdk-go-apicontract
   job_names:
     sdk-go-collector: 'SDK Go: collector'
     sdk-go-factschema: 'SDK Go: factschema'
+    sdk-go-apicontract: 'SDK Go: apicontract'

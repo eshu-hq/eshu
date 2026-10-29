@@ -38,6 +38,20 @@ This table grows one row per qualified SDK/core combination. Do not remove a
 row when a newer one is added: a consumer pinned to an older tag still needs
 to find its row. Candidate availability by itself is not qualification.
 
+## API wire-contract module
+
+`sdk/go/apicontract` publishes the Eshu API wire shapes a thin client needs
+(response/truth/error envelopes, query profiles, graph backends, freshness
+causes, the MCP tool-definition shape, and the client-scoped environment
+registry with its validator), pinned byte-for-byte to the core contract
+types by committed JSON goldens with drift tests on both sides of the module
+boundary (Refs #9509, part of #6707). It has no fixture pack and no
+collector wire protocol, so it tracks outside the combination table above.
+
+| SDK module version | Core source pins | Status |
+| --- | --- | --- |
+| `sdk/go/apicontract` v0.1.0 (proposed; tag NOT cut — maintainer act per `RELEASING.md`) | `querycontract` envelopes/profiles, `toolcontract` tool shape, `envregistry` client entries at the merge commit | Prepared, not published: module source merged, in-module suites and core drift tests green. Proxy verification pending the tag; Tier-2 CLI repoint and consumer qualification follow in a separate change. |
+
 ## New repository path mapping
 
 The separate `eshu-hq/eshu-sdk` repository publishes independent Go module
