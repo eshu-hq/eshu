@@ -71,10 +71,18 @@ func TestHelmAWSActivationRedactionKeyDelivery(t *testing.T) {
 // TestHelmAWSActivationSensitiveLiveServicesNeedKey refuses a worker that
 // would reach Lambda or ECS without its configured redaction Secret.
 func TestHelmAWSActivationSensitiveLiveServicesNeedKey(t *testing.T) {
+	nestedScope := strings.Replace(awsRedactionActivation,
+		"        target_scopes:\n          account_id: \"123456789012\"\n        allowed_regions: [us-east-1]\n        allowed_services: [lambda, ecs]\n",
+		"        target_scopes:\n          - account_id: \"123456789012\"\n            allowed_regions: [us-east-1]\n            allowed_services: [\" Lambda \", ECS]\n", 1)
+	spaceInput := strings.Replace(awsRedactionActivation,
+		"        source:\n          redactionKeyEnv:",
+		"        source:\n          input: \"   \"\n          redactionKeyEnv:", 1)
 	for _, tc := range []struct {
 		name, activation, redaction, want string
 	}{
 		{"no Secret", awsRedactionActivation, "", "awsCloudCollector.redaction.secretName"},
+		{"nested target scope and normalized services", nestedScope, "", "awsCloudCollector.redaction.secretName"},
+		{"whitespace input is live", spaceInput, "", "awsCloudCollector.redaction.secretName"},
 		{"no key name", awsRedactionActivation, "awsCloudCollector:\n  redaction:\n    secretName: aws-redaction\n    keyKey: \"\"\n", "awsCloudCollector.redaction.keyKey"},
 		{"no env reference", strings.Replace(awsRedactionActivation, "          redactionKeyEnv: ESHU_AWS_REDACTION_KEY\n", "", 1), "awsCloudCollector:\n  redaction:\n    secretName: aws-redaction\n", "source.redactionKeyEnv"},
 		{"plaintext process env", strings.Replace(awsRedactionActivation, "        args: [\"--sdk-stdio\"]\n", "        args: [\"--sdk-stdio\"]\n        env: [\"ESHU_AWS_REDACTION_KEY=plaintext\"]\n", 1), "awsCloudCollector:\n  redaction:\n    secretName: aws-redaction\n", "process.env must not carry ESHU_AWS_REDACTION_KEY"},

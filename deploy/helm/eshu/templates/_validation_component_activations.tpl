@@ -181,17 +181,35 @@ secret. Credentials belong only in an activation's extraEnv secretKeyRef.
 {{- end -}}
 {{- $services := default (list) $config.allowed_services -}}
 {{- if and (not $services) (kindIs "map" $source) -}}
+{{- $services = default (list) $source.allowed_services -}}
+{{- if not $services -}}
 {{- $services = default (list) $source.services -}}
+{{- end -}}
+{{- end -}}
+{{- if not $services -}}
+{{- $scopes := default (list) $config.target_scopes -}}
+{{- if and (not $scopes) (kindIs "map" $source) -}}
+{{- $scopes = default (list) $source.target_scopes -}}
+{{- end -}}
+{{- if and (kindIs "slice" $scopes) (eq (len $scopes) 1) -}}
+{{- $scope := index $scopes 0 -}}
+{{- if kindIs "map" $scope -}}
+{{- $services = default (list) $scope.allowed_services -}}
+{{- if not $services -}}
+{{- $services = default (list) $scope.services -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
 {{- end -}}
 {{- $needsKey := false -}}
 {{- if kindIs "slice" $services -}}
 {{- range $service := $services -}}
-{{- if or (eq $service "lambda") (eq $service "ecs") -}}
+{{- if or (eq (lower (trim (toString $service))) "lambda") (eq (lower (trim (toString $service))) "ecs") -}}
 {{- $needsKey = true -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}
-{{- if and $needsKey (eq (toString (default "" $source.input)) "") -}}
+{{- if and $needsKey (eq (trim (toString (default "" $source.input))) "") -}}
 {{- if ne (toString (default "" $source.redactionKeyEnv)) "ESHU_AWS_REDACTION_KEY" -}}
 {{- fail (printf "%s.config.source.redactionKeyEnv must reference ESHU_AWS_REDACTION_KEY for live Lambda or ECS" $at) -}}
 {{- end -}}
