@@ -231,6 +231,13 @@ class RefreshV2Cases(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "cold"):
             refresh.fit_cold(categories)
 
+    def test_cold_fit_rejects_positive_but_insignificant_cold(self) -> None:
+        """A positive cold within two standard errors still fails closed."""
+        categories = {"./a": {"first_row": [0.0, 20.0], "first_later": [9.5, 9.9]},
+                      "./b": {"first_row": [0.0, 30.0], "first_later": [14.3, 14.7]}}
+        with self.assertRaisesRegex(ValueError, "significant"):
+            refresh.fit_cold(categories)
+
     def test_cold_fit_matches_unweighted_mean_at_equal_variance(self) -> None:
         """Equal-variance pairs reproduce the old arithmetic mean."""
         categories = {"./a": {"first_row": [10.0, 12.0], "first_later": [4.0, 6.0]},
