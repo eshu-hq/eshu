@@ -12,7 +12,7 @@ fallback when the v2 file is absent:
 The budget, drift, seeded-overflow, and appended-tail cases run on the model
 CI cuts, so they live in ``live_postgres_readiness_weights_budget_cases``
 (#9100): gating the live plan on the retired four-shard cut failed enrollments
-CI's five-shard cut absorbs.
+CI's six-shard cut absorbs.
 """
 
 from __future__ import annotations
