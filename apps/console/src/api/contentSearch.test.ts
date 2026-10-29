@@ -4,6 +4,29 @@ import type { EshuApiClient } from "./client";
 import { searchFileContent } from "./contentSearch";
 
 describe("searchFileContent", () => {
+  it("treats scoped truncated pages without an unread count as exact pagination", async () => {
+    const post = vi.fn().mockResolvedValue({
+      data: {
+        results: [{ repo_id: "repo-a", relative_path: "a.go", content: "match", line_count: 1 }],
+        count: 1,
+        limit: 1,
+        offset: 0,
+        truncated: true,
+      },
+      truth: { level: "derived" },
+      error: null,
+    });
+    const response = await searchFileContent({ post } as unknown as EshuApiClient, {
+      query: "match",
+      repoId: "repo-a",
+      limit: 1,
+    });
+    expect(response.incomplete).toBe(false);
+    expect(response.truncated).toBe(true);
+    expect(response.documentsNotSearched).toBe(0);
+    expect(response.resume).toBeUndefined();
+  });
+
   it("preserves partial scan evidence and sends the exact resume cursor and offset", async () => {
     const post = vi.fn().mockResolvedValue({
       data: {

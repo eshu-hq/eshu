@@ -1,9 +1,39 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, useNavigate } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
 import { ContentSearchPage } from "./ContentSearchPage";
 import type { EshuApiClient } from "../api/client";
+import {
+  loadingRepositoryCatalog,
+  readyRepositoryCatalog,
+  type RepositoryCatalogState,
+} from "../repositoryCatalogLifecycle";
+
+const repository = {
+  id: "repo-a",
+  name: "Alpha",
+  repoSlug: "alpha",
+  remoteUrl: "",
+  isDependency: false,
+  groupKey: "",
+  groupSource: "",
+  groupTruth: "",
+  groupKind: "",
+  groupReason: "",
+};
+
+function NavigateToFreshSearch(): React.JSX.Element {
+  const navigate = useNavigate();
+  return (
+    <button
+      type="button"
+      onClick={() => navigate("/content-search", { state: { query: "fresh" } })}
+    >
+      Open another search
+    </button>
+  );
+}
 
 function answer(data: Record<string, unknown>, level = "partial") {
   return { data, truth: { level }, error: null };
@@ -115,6 +145,88 @@ describe("ContentSearchPage", () => {
     });
     expect(screen.queryByText("a.go")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Resume search" })).not.toBeInTheDocument();
+  });
+
+  it("keeps an exact scoped page when the repository catalog finishes loading", async () => {
+    const post = vi.fn().mockResolvedValue(
+      answer(
+        {
+          results: [
+            {
+              repo_id: "repo-a",
+              relative_path: "a.go",
+              content: "match",
+              line_count: 1,
+            },
+          ],
+          count: 1,
+          limit: 50,
+          offset: 0,
+          truncated: true,
+        },
+        "derived",
+      ),
+    );
+    const client = { post } as unknown as EshuApiClient;
+    const entry = { pathname: "/content-search", state: { query: "seed", repoId: "repo-a" } };
+    const page = (catalog: RepositoryCatalogState) => (
+      <MemoryRouter initialEntries={[entry]}>
+        <ContentSearchPage client={client} repositoryCatalog={catalog} />
+      </MemoryRouter>
+    );
+    const view = render(page(loadingRepositoryCatalog));
+    fireEvent.click(screen.getByRole("button", { name: "Fresh search" }));
+    expect(await screen.findByText(/Exact page/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next page" })).toBeInTheDocument();
+    view.rerender(page(readyRepositoryCatalog([repository])));
+    expect(screen.getByText("a.go")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next page" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Content pattern")).toHaveValue("seed");
+  });
+
+  it("clears the old result when navigation supplies a new search state", async () => {
+    const post = vi.fn().mockResolvedValue(
+      answer(
+        {
+          results: [{ repo_id: "repo-a", relative_path: "a.go", content: "match", line_count: 1 }],
+          count: 1,
+          limit: 50,
+          offset: 0,
+          truncated: false,
+        },
+        "derived",
+      ),
+    );
+    const client = { post } as unknown as EshuApiClient;
+    render(
+      <MemoryRouter initialEntries={[{ pathname: "/content-search", state: { query: "seed" } }]}>
+        <NavigateToFreshSearch />
+        <ContentSearchPage client={client} />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Fresh search" }));
+    expect(await screen.findByText("a.go")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Open another search" }));
+    expect(screen.getByLabelText("Content pattern")).toHaveValue("fresh");
+    expect(screen.queryByText("a.go")).not.toBeInTheDocument();
+  });
+
+  it("resolves a pending repository name without replacing a user-edited query", async () => {
+    const client = { post: vi.fn() } as unknown as EshuApiClient;
+    const entry = { pathname: "/content-search", state: { query: "seed", repoName: "Alpha" } };
+    const page = (catalog: RepositoryCatalogState) => (
+      <MemoryRouter initialEntries={[entry]}>
+        <ContentSearchPage client={client} repositoryCatalog={catalog} />
+      </MemoryRouter>
+    );
+    const view = render(page(loadingRepositoryCatalog));
+    expect(screen.getByRole("button", { name: "Fresh search" })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Content pattern"), { target: { value: "edited" } });
+    view.rerender(page(readyRepositoryCatalog([repository])));
+    await waitFor(() => expect(screen.getByLabelText("Repository")).toHaveValue("repo-a"));
+    expect(screen.getByLabelText("Content pattern")).toHaveValue("edited");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Fresh search" })).toBeEnabled();
   });
 
   it("labels truth-partial without cursor metadata as incomplete", async () => {

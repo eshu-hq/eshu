@@ -68,7 +68,7 @@ interface WireResponse {
   readonly limit: number;
   readonly offset: number;
   readonly truncated: boolean;
-  readonly documents_not_searched: number;
+  readonly documents_not_searched?: number;
   readonly partial?: WirePartial;
 }
 
@@ -108,8 +108,9 @@ export async function searchFileContent(
   };
   const incomplete =
     envelope.truth.level === "partial" ||
-    data.documents_not_searched !== 0 ||
-    partial !== undefined;
+    partial !== undefined ||
+    (data.documents_not_searched !== undefined && data.documents_not_searched !== 0);
+  const documentsNotSearched = data.documents_not_searched ?? (incomplete ? -1 : 0);
   const resume =
     partial?.progressed && partial.cursor.repoId && !request.repoId
       ? { cursor: partial.cursor, offset: Math.max(0, (request.offset ?? 0) - partial.rowsMatched) }
@@ -126,7 +127,7 @@ export async function searchFileContent(
     limit: data.limit,
     offset: data.offset,
     truncated: data.truncated,
-    documentsNotSearched: data.documents_not_searched,
+    documentsNotSearched,
     partial,
     incomplete,
     resume,

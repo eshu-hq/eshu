@@ -57,21 +57,29 @@ export function ContentSearchPage({
   }, [client]);
 
   useEffect(() => {
-    if (!navigation) return;
     generation.current += 1;
     setState({ status: "idle" });
-    setQuery(navigation.query ?? "");
-    const exact = repositoryCatalog.repositories.find(
-      (repository) =>
-        repository.id === navigation.repoId ||
-        (navigation.repoName && repository.name === navigation.repoName),
+    setQuery(navigation?.query ?? "");
+    setRepoId(navigation?.repoId ?? "");
+    setLimit(navigation?.limit ?? 50);
+    setUnresolvedScope(navigation?.repoName && !navigation.repoId ? navigation.repoName : "");
+  }, [location.key, navigation]);
+
+  useEffect(() => {
+    if (
+      !unresolvedScope ||
+      repositoryCatalog.kind !== "ready" ||
+      navigation?.repoName !== unresolvedScope ||
+      navigation.repoId
+    )
+      return;
+    const matches = repositoryCatalog.repositories.filter(
+      (repository) => repository.name === unresolvedScope,
     );
-    setRepoId(exact?.id ?? navigation.repoId ?? "");
-    setLimit(navigation.limit ?? 50);
-    setUnresolvedScope(
-      navigation.repoName && !exact && !navigation.repoId ? navigation.repoName : "",
-    );
-  }, [location.key, repositoryCatalog, navigation]);
+    if (matches.length !== 1) return;
+    setRepoId(matches[0].id);
+    setUnresolvedScope("");
+  }, [navigation, repositoryCatalog, unresolvedScope]);
 
   function clearResults(): void {
     generation.current += 1;
