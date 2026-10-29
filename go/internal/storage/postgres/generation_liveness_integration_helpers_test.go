@@ -475,22 +475,20 @@ func provisionLivenessSchema(t *testing.T, db *sql.DB, seedSQL string) {
 	if _, err := db.ExecContext(ctx, generationLivenessProofSchemaSQL); err != nil {
 		t.Fatalf("create proof tables: %v", err)
 	}
-	// migration 160 (#7584): ProjectorQueue.Ack inserts its activation
-	// obligation in the Ack transaction; apply the shipped DDL, not a copy.
-	if _, err := db.ExecContext(ctx, MigrationSQL("activation_obligations")); err != nil {
-		t.Fatalf("create activation obligation table: %v", err)
-	}
-	// migration 163 (#7635): ProjectorQueue.Ack inserts its producer
-	// activation obligation in the Ack transaction; apply the shipped DDL,
-	// not a copy.
-	if _, err := db.ExecContext(ctx, MigrationSQL("producer_activation_obligations")); err != nil {
-		t.Fatalf("create producer activation obligation table: %v", err)
-	}
-	// migration 207 (#7766): the scope upsert folds the retirement marker
-	// gate over repository_retirements; apply the shipped DDL, not a copy,
-	// or every upsert on the fixture fails with 42P01.
-	if _, err := db.ExecContext(ctx, MigrationSQL("repository_retirements")); err != nil {
-		t.Fatalf("create retirement tombstone table: %v", err)
+	// Apply the shipped DDL, not a copy: migration 160 (#7584) and 163 (#7635),
+	// whose obligation tables ProjectorQueue.Ack inserts into in the Ack
+	// transaction; 207 (#7766), whose retirement marker gate the scope upsert
+	// folds (without it every upsert fails with 42P01); and 088, whose
+	// fact_work_items.reopened_at the projector re-drive upserts read (#9320).
+	for _, name := range []string{
+		"activation_obligations",
+		"producer_activation_obligations",
+		"repository_retirements",
+		"reducer_work_item_reopened_at",
+	} {
+		if _, err := db.ExecContext(ctx, MigrationSQL(name)); err != nil {
+			t.Fatalf("apply migration %s: %v", name, err)
+		}
 	}
 	if seedSQL != "" {
 		if _, err := db.ExecContext(ctx, seedSQL); err != nil {

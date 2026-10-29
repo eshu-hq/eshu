@@ -385,6 +385,12 @@ const replaySkippedNoneCTE = `SELECT 0::bigint AS n`
 // ...) planned a scan of every terminal row. AS MATERIALIZED measured no plan
 // change. See docs/internal/evidence/8205-replay-lock-order.md.
 //
+// The replay stamps reopened_at with the replay timestamp (#9320): every row it
+// touches was dead_letter or failed, so it becomes outstanding again and its
+// backlog age (COALESCE(reopened_at, created_at)) and reducer readiness-grace
+// anchor (Intent.CycleStartedAt) start from the replay, the same reset the
+// own-gate activation wake (activationWakeSetClause) applies.
+//
 // The result carries one skip count per row, and a replay that moved nothing
 // still returns one row with a NULL work_item_id, so the count commits or
 // fails together with the replay (#7130 review).
@@ -417,7 +423,8 @@ WITH skipped AS (
         failure_class = NULL,
         failure_message = NULL,
         failure_details = NULL,
-        updated_at = $1
+        updated_at = $1,
+        reopened_at = $1
     WHERE work_item_id = ANY(ARRAY(SELECT work_item_id FROM locked))
       AND status IN ('dead_letter', 'failed')
     RETURNING work_item_id
@@ -443,7 +450,8 @@ ORDER BY replayed.work_item_id
 //
 // The first %s is the shared replay predicate and the second is the skipped
 // CTE body, exactly as in replayFailedWorkItemsTemplate. $1 is the replay
-// timestamp; $2 is the row limit; the predicate placeholders start at $3.
+// timestamp, which also stamps reopened_at as in the unbounded replay; $2 is
+// the row limit; the predicate placeholders start at $3.
 const replayFailedWorkItemsBoundedTemplate = `
 WITH skipped AS (
     %[2]s
@@ -466,7 +474,8 @@ WITH skipped AS (
         failure_class = NULL,
         failure_message = NULL,
         failure_details = NULL,
-        updated_at = $1
+        updated_at = $1,
+        reopened_at = $1
     WHERE work_item_id IN (
         SELECT work_item_id FROM fact_work_items
         WHERE status IN ('dead_letter', 'failed')

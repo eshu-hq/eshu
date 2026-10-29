@@ -3,6 +3,8 @@
 
 package postgres
 
+import queuestore "github.com/eshu-hq/eshu/go/internal/storage/postgres/queue"
+
 // supersedeOrphanedActiveGenerationsQuery retires stale older active
 // generations for a scope once a newer same-scope generation is already
 // authoritative.
@@ -323,7 +325,8 @@ re_enqueued AS (
                 LEAST(COALESCE((fact_work_items.payload ->> 'liveness_recovery_attempts')::int, 0) + 1, $2)
             )
         ),
-        updated_at = EXCLUDED.updated_at
+        updated_at = EXCLUDED.updated_at,
+        reopened_at = ` + queuestore.ReopenedAtUpsertValue + `
     -- Re-verify the in-flight gate at write time, not only at the wedged
     -- CTE's read-time snapshot: a live worker's heartbeat can extend
     -- claim_until (or a fresh Claim() can move status to claimed/running)

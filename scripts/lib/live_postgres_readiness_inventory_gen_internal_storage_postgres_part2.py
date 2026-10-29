@@ -285,6 +285,15 @@ TABLE = {
             "TestCompletionWakeClaimedMissingFingerprintNotFlaggedLive",
             "TestCompletionWakeRetryConvergesAfterLostWakeLive",
         ),
+        "go/internal/storage/postgres/reopen_stamp_grace_live_test.go": (
+            "TestDeadLetterReplayGetsBoundedFreshReadinessGraceLive",
+        ),
+        "go/internal/storage/postgres/reopen_stamp_race_live_test.go": (
+            "TestReopenStampConcurrentWritersLive",
+        ),
+        "go/internal/storage/postgres/reopen_stamp_writers_live_test.go": (
+            "TestTerminalReopenWritersStampReopenedAtLive",
+        ),
         "go/internal/storage/postgres/repository_catalog_projection_live_test.go": (
             "TestLoadRepositoryCatalogProjectionMatchesWholePayloadDecode",
         ),
@@ -300,6 +309,9 @@ TABLE = {
             "TestReducerContentionGateRuntimeProducerStatesActiveGenerationOnly",
             "TestReducerContentionGateRuntimeProducerStatesNewestInFlightWorkableAt",
             "TestReducerContentionGateRuntimeProducerStatesPlanUsesScopeGenerationIndex",
+        ),
+        "go/internal/storage/postgres/shared_intent_pending_age_plan_live_test.go": (
+            "TestSharedIntentPendingAgeIndexOnlyScanLive",
         ),
         "go/internal/storage/postgres/successor_guard_recheck_plan_live_test.go": (
             "TestGuardRecheckReadPlansLive",

@@ -17,6 +17,9 @@ import (
 
 // ReplayFailedWorkItems requeues terminal work and records replay events while
 // preserving required identity status authorizations and newer worker claims.
+// Every replayed row was dead_letter or failed, so the replay stamps
+// reopened_at with the replay time (#9320) and the row's backlog age and
+// reducer readiness grace restart from the replay.
 // The replay clears failure_class on the work row, so it returns the
 // selection-time class as a trailing column and records that in the replay
 // event (#7387); the returned items carry post-update truth.
@@ -38,7 +41,8 @@ SET status = 'pending',
     failure_class = NULL,
     failure_message = NULL,
     failure_details = NULL,
-    updated_at = $1
+    updated_at = $1,
+    reopened_at = $1
 `, f.ExcludeFailureClasses...)
 	args = append([]any{now}, args...)
 	items, priorClasses, err := scanReplayedWorkItems(ctx, s.database, query, args...)

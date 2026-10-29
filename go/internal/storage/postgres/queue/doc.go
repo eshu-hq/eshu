@@ -32,6 +32,12 @@
 // production defaults a queue falls back to when its caller leaves
 // MaxRetryDelay/JitterSource unset.
 //
+// ReopenedAtUpsertValue is the shared SQL value the fact_work_items re-drive
+// upserts (reconcile re-projection, generation-liveness re-drive, zombie heal,
+// refinalize) assign to reopened_at (#9320): the upsert's timestamp when the
+// conflicting row had finished, its existing reopened_at when the row was
+// still pending, retrying, claimed, or running. It is SQL text, not a query.
+//
 // Every function here is pure: none read rows, write rows, or hold locks.
 // This package must not import the parent postgres package.
 package queuestore

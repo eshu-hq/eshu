@@ -80,7 +80,9 @@ pages. Existing pages turn over as generations rewrite them, so the heap grows
 toward about 2x heap-alone while TOAST and the indexes stay flat. Keep each of
 these a single statement; see
 `docs/internal/evidence/7389-superseded-writer-overlay.md` and
-`docs/internal/evidence/8950-writer-prototype.md`.
+`docs/internal/evidence/8950-writer-prototype.md`. Migration 245 (#9320) adds
+the nullable `shared_projection_intents.reopened_at` column the same way: no
+default, backfill, CHECK, or index, one statement.
 
 ## Keep table-locking DDL and bulk DML in separate files (#7961)
 
@@ -346,6 +348,45 @@ pay the extra B-tree entry. If the index is missing or invalid, the read
 returns the same rows, only slower, and past its 1 s deadline it fails
 closed. Main has since taken 230-232, so this branch takes 233. Evidence:
 `docs/internal/evidence/8840-security-alert-latest-work-item-index.md`.
+
+## Migrations 245 and 246: reopen-aware shared-intent age (#9320)
+
+245 adds the nullable `shared_projection_intents.reopened_at` (catalog-only;
+see above). The admin `repo_dependency` reopen and the rebuild reset stamp it,
+and the status `shared_projection_pending` aggregate reads
+`MIN(COALESCE(reopened_at, created_at))`. `created_at` stays the acceptance
+epoch and pending order key (#7323). A fresh insert leaves `reopened_at` NULL
+and the upsert never clears `completed_at`, so the COALESCE is the reopen time
+only for a reopened intent.
+
+246 adds `shared_projection_intents_domain_pending_age_idx` on
+`(projection_domain, created_at) INCLUDE (reopened_at) WHERE completed_at IS
+NULL`, the only statement, built `CONCURRENTLY` (the 108 pattern: no bootstrap
+constant). It must follow 245 because it includes the column. It is partial so
+a completion or a completed-row re-upsert adds no entry. It does not replace
+`shared_projection_intents_pending_idx`, which is not partial and serves the
+liveness `completed_at > $5` probe. Status readiness waits for the latest
+migration receipt, so it reports not ready until 246's build finishes.
+
+Performance Evidence: scope is the status `shared_projection_pending`
+aggregate, no `LIMIT`, one row per `projection_domain`, PostgreSQL 18.6, 500,000
+intents with 20,000 pending over 12 domains. Before #9320 it was an Index Only
+Scan on `shared_projection_intents_pending_idx` (1.46-1.55 ms, 207 buffers).
+With the new expression and no index it was a Bitmap Heap Scan over 8,441 heap
+blocks (11.9-12.9 ms warm). With 246 it is an Index Only Scan with Heap Fetches
+0 (1.27-1.86 ms, 101 buffers; index 808 kB).
+`TestSharedIntentPendingAgeIndexOnlyScanLive` pins the plan and fails without
+246. Writes over 500,000 rows (1,000 per statement, 5 reps): a completed-row
+re-upsert and `markIntentsCompletedSQL` write byte-identical WAL with and
+without 246; a new pending row and a reopen add one index entry each (about
+135 B of WAL). The liveness InitPlan and the partition, unhashed and
+acceptance-unit pending reads keep their plans; the `created_at`-ordered
+domain reads move to the new index and get 7-9x faster at LIMIT 200. The index
+adds no unique constraint, conflict key, or blocking lock.
+
+No-Observability-Change: the read runs inside the existing status statement
+and its read telemetry; the writers keep their existing counters and logs.
+Evidence: `docs/internal/evidence/9320-reopen-stamp-writers.md`.
 
 ## Verification
 

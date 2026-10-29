@@ -16,7 +16,9 @@ queue types themselves (`ProjectorQueue`, `ReducerQueue`) stay in the parent
 This package owns failure-cause reconciliation (`QueueFailureMetadata`,
 `DeadLetterTriageMetadata`) and retry-delay computation
 (`ComputeRetryDelay`, `DefaultRetryMaxDelayFallback`,
-`DefaultJitterSource`). The parent `postgres` package owns the queue types
+`DefaultJitterSource`), plus the shared `reopened_at` value of the
+fact_work_items re-drive upserts (`ReopenedAtUpsertValue`, #9320). The parent
+`postgres` package owns the queue types
 that call these helpers, the claim/fail/ack SQL, and the lease fencing.
 `internal/projector/failure` owns the operator-facing triage classification
 this package's dead-letter path defers to.
@@ -30,6 +32,10 @@ this package's dead-letter path defers to.
 - `BoundedFailureClassLabel(class string) string` and `FailureClassOtherLabel` (const): bound a `failure_class` metric label to `^[a-z0-9_]{1,64}$`, else `other` (#7386)
 - `DefaultRetryMaxDelayFallback time.Duration` (const)
 - `DefaultJitterSource() float64`
+- `ReopenedAtUpsertValue` (const SQL text): the `reopened_at` value of every
+  `ON CONFLICT (work_item_id) DO UPDATE` that re-drives a fact work item to
+  pending; stamps `EXCLUDED.updated_at` only when the conflicting row had
+  finished (#9320)
 
 See `doc.go` for the godoc contract.
 
@@ -44,6 +50,13 @@ None. Every function here is a pure computation; the queue types that call
 them own the retry-surge counters and failure-class attributes.
 
 ## Gotchas / invariants
+
+- `ReopenedAtUpsertValue` reads `fact_work_items.status`, the conflicting
+  row's status before the update. It only works inside an
+  `INSERT INTO fact_work_items ... ON CONFLICT DO UPDATE` that does not alias
+  the target table and whose inserted `updated_at` is the writer's timestamp. Keep `pending`, `retrying`,
+  `claimed`, and `running` on the keep branch: stamping an expired claim that
+  a sweep re-drives would understate its age and hide a stall.
 
 - `QueueFailureMetadata` and `DeadLetterTriageMetadata` never change a
   self-classifying error's own class or details; they only supply a

@@ -32,7 +32,7 @@ tests:
   - file: go/internal/query/admin/activation_wake_interleave_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#7597 200-iteration interleave of the claim-fenced activation wake, a concurrent final Fail, the public admin replay (retried on 40P01) and a claim-time supersede sweep on independent connections: zero 40P01 on the activation, zero lost wakes, every consumer reopened exactly once; about 4 s locally; enrolled in the live-postgres-readiness runner"
+    reason: "#7597 200-iteration interleave of the claim-fenced activation wake, a concurrent final Fail, the public admin replay (retried on 40P01) and a claim-time supersede sweep on independent connections: zero 40P01 on the activation, zero lost wakes, every consumer reopened exactly once, attributed by writer pid through a test-only audit trigger (#9320: both the wake and the admin replay stamp reopened_at); plus a sequential admin replay after a committed wake that must be a no-op; about 6 s locally; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
   - file: go/internal/query/admin/reopen_live_test.go
     tag: ~
@@ -63,6 +63,16 @@ tests:
     tag: ~
     class: postgres_ci
     reason: "#8261 admin repository skip (SkipRepositoryWorkItems) lock order against the recovery replay, the admin replay and the reducer claim sweep over failed rows of a superseded generation: the held-middle-row race completes in both start orders (main: 6 of 6 40P01), 150 rounds of all four with a 2 ms per-row trigger sleep and random start delays give 0 x 40P01 (main: 98 x 40P01), and the EvalPlanQual case drops a row claimed or replayed before the skip's lock step; isolated schemas; about 100-180 s locally including two 400,000-row seeds; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/query/admin/store/reopen_stamp_intent_age_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9320 PostgreSQL 18.6 full-bootstrap proof that shared projection intent age is reopen-aware through the status snapshot: a five-day-old completed intent reopened by the admin repo_dependency reopen and one reopened by the rebuild reset each report an oldest age from the reopen, while a fresh five-day-old pending intent keeps its creation age; plus the reopen races: two reopeners on one intent reopen it once and keep the winner's stamp, and a drain racing a reopen leaves the intent completed with no pending age; about 2-4 s locally in isolated schemas"
+    runner: live-postgres-readiness
+  - file: go/internal/query/admin/store/reopen_stamp_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9320 PostgreSQL 18.6 full-bootstrap proof that the admin dead-letter replay and the admin repo_dependency intent reopen stamp reopened_at with the store clock, so a 100-hour-old row ages from the admin action; about 1.6 s locally in an isolated schema"
     runner: live-postgres-readiness
   - file: go/internal/query/cloud_resource_legacy_keys_postgres_live_test.go
     tag: ~

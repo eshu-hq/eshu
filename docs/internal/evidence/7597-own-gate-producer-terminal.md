@@ -81,7 +81,8 @@ against the admin replay's unordered row locks.
 
 Replays are unchanged from main. `ReplayFailedWorkItems` and the admin replay
 wake nobody and do NOT stamp `reopened_at`; only the wake does. The missing
-`reopened_at` stamp on operator replays is a separate issue.
+`reopened_at` stamp on operator replays is a separate issue. (#9320 later
+made every replay stamp it; see `9320-reopen-stamp-writers.md`.)
 
 ### Lock order
 
@@ -206,7 +207,9 @@ counted Fail of one consumer, the public admin replay of a second dead-lettered
 consumer (retried on 40P01 with exact accounting), and a consumer-domain claim
 whose sweep supersedes an older-generation row. It requires zero 40P01 on the
 activation, zero lost wakes, and each consumer reopened exactly once (admin
-reported it XOR the wake stamped `reopened_at`).
+reported it XOR the wake stamped `reopened_at`). Since #9320 the admin replay
+stamps too, so the test attributes each reopen by writer pid through a
+test-only audit trigger instead.
 
 Final tree of this note (COLLATE "C" ordering included), `go test
 ./internal/query/admin/ -run TestActivationWakeInterleaveLive -count=5`:

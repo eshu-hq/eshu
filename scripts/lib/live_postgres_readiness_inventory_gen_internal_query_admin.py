@@ -9,6 +9,7 @@ TABLE = {
     "./internal/query/admin": {
         "go/internal/query/admin/activation_wake_interleave_live_test.go": (
             "TestActivationWakeInterleaveLive",
+            "TestAdminReplayAfterCommittedWakeIsANoOpLive",
         ),
         "go/internal/query/admin/reopen_live_test.go": (
             "TestAdminHandler_ReopenLive",

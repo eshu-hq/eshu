@@ -272,7 +272,7 @@ The response combines:
 - `queue`: depth (`total`, `outstanding`, `pending`, `in_flight`, `retrying`,
   `dead_letter`), a `claim_latency` object (`overdue_claims`,
   `oldest_outstanding_age`, `coordinator_oldest_pending`), and a `stuck` object
-  (`oldest_outstanding_age`, `blocked_conflicts`). For fact work items, `oldest_outstanding_age` and per-domain `oldest_age` are measured from `COALESCE(reopened_at, created_at)`. A reducer item reopened from `succeeded` (an OSV or refresh pass, a domain replay, an admin reopen, a completion wake) reports the time since the reopen, not since its first creation. Dead-letter and failed replays, the poison sweep, and projector re-drives do not set `reopened_at`, so those items still age from `created_at` (#9320).
+  (`oldest_outstanding_age`, `blocked_conflicts`). For fact work items, `oldest_outstanding_age` and per-domain `oldest_age` are measured from `COALESCE(reopened_at, created_at)`. An item that becomes outstanding again reports the time since that reopen, not since its first creation: a reducer item reopened from `succeeded` (an OSV or refresh pass, a domain replay, an admin reopen, a completion wake), a dead-letter or failed replay, the poison sweep, and projector re-drives all stamp `reopened_at` (#9320). A claimed or running item whose lease expired and is re-driven keeps its earlier age. Shared-projection domains measure pending intents the same way, from `COALESCE(reopened_at, created_at)`, so an intent reopened by an admin reopen or a rebuild reset ages from the reopen.
 - `reducer_domains`: per-domain backlog rows, highest pressure first, each
   retaining `retrying`, `dead_letter`, and `oldest_age` for drilldown.
 - `collector_families`: one promotion verdict per collector family with
@@ -712,7 +712,7 @@ runs two bounded statements per poll (default 5m): a supersede UPDATE bounded by
 the re-drive re-uses the existing projector enqueue path. Wedge detection and the
 `stuck` age bucket gate on real downstream blockage via an `EXISTS` subquery over
 `shared_projection_intents` keyed by `generation_id` and the partial index
-`shared_projection_intents_*_pending_idx` (`WHERE completed_at IS NULL`), plus a
+`shared_projection_intents_generation_pending_idx` (`WHERE completed_at IS NULL`), plus a
 same-generation reducer fact-work exclusion so normal reducer backlog is treated
 as progress rather than a wedge, and a source-local projector exclusion so
 in-flight recovery is not reopened before the projector processes it. Healthy

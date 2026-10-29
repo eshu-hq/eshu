@@ -156,7 +156,8 @@ SET status = 'pending',
             LEAST(COALESCE((target.payload ->> 'poison_recovery_attempts')::int, 0) + 1, $2)
         )
     ),
-    updated_at = $1
+    updated_at = $1,
+    reopened_at = $1
 WHERE target.work_item_id = ANY(ARRAY(SELECT work_item_id FROM poison_locked))
   -- Write-time re-verify (#4464-grade guard): only a row still genuinely
   -- dead_letter at UPDATE time is re-driven. A concurrent reclaim that moved

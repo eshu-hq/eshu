@@ -191,8 +191,8 @@ func TestActivationWriterGuardBitesOnAPlantedWriter(t *testing.T) {
 
 // TestActivationWakeSetClauseMatchesReplayReset keeps the wake's SET list in
 // lockstep with the recovery replay reset list it mirrors: the same
-// assignments, plus reopened_at. The replay list is derived from the shipped
-// template, not copied.
+// assignments, reopened_at included (the replay stamps it too since #9320).
+// The replay list is derived from the shipped template, not copied.
 func TestActivationWakeSetClauseMatchesReplayReset(t *testing.T) {
 	t.Parallel()
 	normalize := func(s string) string { return strings.Join(strings.Fields(s), " ") }
@@ -211,7 +211,7 @@ func TestActivationWakeSetClauseMatchesReplayReset(t *testing.T) {
 	}
 	replay := normalize(template[start+len("SET ") : end])
 	wake := normalize(activationWakeSetClause)
-	if want := replay + ", reopened_at = $1"; wake != want {
+	if want := replay; wake != want {
 		t.Fatalf("activation wake SET list drifted from the replay reset list:\n got: %s\nwant: %s", wake, want)
 	}
 }

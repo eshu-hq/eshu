@@ -198,7 +198,7 @@ Use these to locate the phase that changed before opening logs or traces:
 | Metric | Use |
 | --- | --- |
 | `eshu_dp_queue_depth` | Queue depth by queue and status. |
-| `eshu_dp_queue_oldest_age_seconds` | Oldest queued item age by queue, measured from `COALESCE(reopened_at, created_at)`. A reducer item reopened from `succeeded` restarts at its reopen, not its first creation. Dead-letter and failed replays, the poison sweep, and projector re-drives still age from `created_at` (#9320). |
+| `eshu_dp_queue_oldest_age_seconds` | Oldest queued item age by queue. The `projector` and `reducer` queues are measured from `COALESCE(reopened_at, created_at)`: an item that becomes outstanding again (a reducer reopen from `succeeded`, a dead-letter or failed replay, the poison sweep, or a projector re-drive, #9320) restarts at the reopen, while a re-driven claim whose lease expired keeps its earlier age. The `semantic_extraction` and `cross_scope_completion.*` queues have no reopen marker and are measured from `created_at`. |
 | `eshu_dp_queue_source_depth` | Queue depth by queue, source system, and status. |
 | `eshu_dp_queue_source_oldest_age_seconds` | Oldest queued item age by queue and source system, on the same clock and with the same limits as `eshu_dp_queue_oldest_age_seconds`. |
 | `eshu_dp_queue_claim_duration_seconds` | Queue claim latency. |

@@ -358,4 +358,10 @@ var orderedBootstrapDefinitionNamesLate = []string{
 	// targets queried, which supply-chain readiness joins on.
 	"vulnerability_source_state_packages",
 	"ecs_runtime_task_scope_index",
+	// Migration 245 (#9320) adds shared_projection_intents.reopened_at
+	// (catalog-only nullable column) for reopen-aware backlog age.
+	"shared_projection_intent_reopened_at",
+	// Migration 246 (#9320) adds the partial covering index that keeps the
+	// reopen-aware shared-projection backlog aggregate an Index Only Scan.
+	"shared_projection_intents_domain_pending_age_idx",
 }
