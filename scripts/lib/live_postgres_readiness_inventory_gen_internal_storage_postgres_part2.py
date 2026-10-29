@@ -330,6 +330,7 @@ TABLE = {
         ),
         "go/internal/storage/postgres/supply_chain_impact_authorized_loader_live_test.go": (
             "TestAuthorizedImpactLoaderAdmitsCompletedScanLive",
+            "TestAuthorizedImpactAdvisoriesEmptyRegistryStaysCompleteLive",
         ),
         "go/internal/storage/postgres/supply_chain_impact_evidence_live_test.go": (
             "TestSupplyChainImpactActiveEvidenceMatchesRetiredStatementLive",
