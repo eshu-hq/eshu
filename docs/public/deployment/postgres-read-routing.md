@@ -43,8 +43,10 @@ profile before a query can use it. A pod's JSON is an expected assertion and
 contract reference; it cannot authorize a privilege or substitute for the
 database-owned registry. `ESHU_POSTGRES_ROLE_BOUNDARY_REQUIRED=true` makes
 an empty contract Secret value fail before a dial. A missing or stale contract
-fails startup or a new connection. [Helm Quickstart](../deploy/kubernetes/helm-quickstart.md#postgres-role-boundary-rollout)
-describes the rollout order.
+fails startup or a new connection. Roll out the contract Secret before
+enabling the boundary flag: create the Secret, restart the pods so each
+connection attests, then set the flag. (The chart-side rollout order moved
+with the deploy lanes to eshu-hq/eshu-deploy in #9461.)
 
 Without a member inventory, both DSNs accept native pgx host lists, for example:
 
