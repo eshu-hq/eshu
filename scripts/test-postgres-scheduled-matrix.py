@@ -15,6 +15,7 @@ assert SPEC and SPEC.loader
 MODULE = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = MODULE
 SPEC.loader.exec_module(MODULE)
+import postgres_scheduled_workflow as WORKFLOW_CONTRACT  # noqa: E402
 
 
 class ScheduledMatrixTest(unittest.TestCase):
@@ -72,6 +73,45 @@ class ScheduledMatrixTest(unittest.TestCase):
             "| tee \"${RUNNER_TEMP}/seeded.jsonl\"\n")
         with self.assertRaisesRegex(ValueError, "root storage -race build"):
             MODULE.verify_root_storage_builds(seeded)
+
+    def test_aggregate_needs_and_pr_plan_name_every_leg(self) -> None:
+        """A leg left out of the aggregate needs or the PR plan jobs fails."""
+        workflow = (ROOT / MODULE.WORKFLOW).read_text()
+        expanded = MODULE.expand_actions(workflow, ROOT)
+        fragment = (ROOT / MODULE.FRAGMENT).read_text()
+        inventory = MODULE.load_inventory()
+        MODULE.verify_trigger(expanded, inventory, fragment)
+        needs = next(line for line in expanded.splitlines()
+                     if line.startswith("    needs: ["))
+        for job in MODULE.JOB_ORDER[:-1]:
+            with self.subTest(needs=job):
+                names = needs.removeprefix("    needs: [").removesuffix("]").split(", ")
+                self.assertIn(job, names)
+                dropped = "    needs: [" + ", ".join(
+                    name for name in names if name != job) + "]"
+                with self.assertRaisesRegex(ValueError, "aggregate fan-in"):
+                    MODULE.verify_trigger(
+                        expanded.replace(needs, dropped, 1), inventory, fragment)
+            with self.subTest(plan_jobs=job):
+                entry = f"  - {job}\n"
+                self.assertEqual(fragment.count(entry), 1)
+                with self.assertRaisesRegex(ValueError, "PR paths"):
+                    MODULE.verify_trigger(
+                        expanded, inventory, fragment.replace(entry, "", 1))
+
+    def test_ack_leg_cap_matches_the_storage_leg(self) -> None:
+        """#9488: ACK pays the same root storage -race build as the storage leg.
+
+        ACK took 17.0, 24.9 and 26.2 min against its 30-min cap on main
+        2026-10-27, main 2026-10-28 and PR #9483. Its test time is about 5 min;
+        the rest is the build that also sits on scheduled-storage, so both legs
+        carry the same 40-minute kill limit.
+        """
+        blocks = MODULE.job_blocks((ROOT / MODULE.WORKFLOW).read_text())
+        for job in ("scheduled-ack", "scheduled-storage"):
+            with self.subTest(job=job):
+                self.assertEqual(WORKFLOW_CONTRACT.JOB_TIMEOUTS[job], "40")
+                self.assertIn("    timeout-minutes: 40\n", blocks[job])
 
 
 if __name__ == "__main__":
