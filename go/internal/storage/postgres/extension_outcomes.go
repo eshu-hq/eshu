@@ -15,8 +15,8 @@ import (
 )
 
 // Each lateral arm is keyed by an enabled, registered extension instance.
-// The completed arm uses the partial latest-scope index; the active arm uses
-// the existing claimable key prefix. Other collector work is never scanned.
+// The outcome arm includes a withheld partial's fenced retry row so an older
+// clean completion cannot make an incomplete latest attempt look healthy.
 const workflowExtensionOutcomesQuery = `
 WITH requested AS (
     SELECT DISTINCT collector_kind, collector_instance_id
@@ -35,11 +35,23 @@ LEFT JOIN LATERAL (
     FROM (
         SELECT DISTINCT ON (scope_id)
             scope_id, extension_partial, extension_warning_count, updated_at
-        FROM workflow_work_items
-        WHERE collector_kind = requested.collector_kind
-          AND collector_instance_id = requested.collector_instance_id
-          AND status = 'completed'
-          AND extension_result_state IS NOT NULL
+        FROM (
+            SELECT scope_id, extension_partial, extension_warning_count,
+                   updated_at, work_item_id
+            FROM workflow_work_items
+            WHERE collector_kind = requested.collector_kind
+              AND collector_instance_id = requested.collector_instance_id
+              AND status = 'completed'
+              AND extension_result_state IS NOT NULL
+            UNION ALL
+            SELECT scope_id, extension_partial, extension_warning_count,
+                   updated_at, work_item_id
+            FROM workflow_work_items
+            WHERE collector_kind = requested.collector_kind
+              AND collector_instance_id = requested.collector_instance_id
+              AND status IN ('pending', 'claimed', 'failed_terminal')
+              AND extension_result_state = 'partial_withheld'
+        ) candidates
         ORDER BY scope_id, updated_at DESC, work_item_id DESC
     ) latest
 ) completed ON TRUE

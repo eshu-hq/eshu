@@ -83,7 +83,7 @@ func TestNextClaimedReportsOneResultForEveryFinalState(t *testing.T) {
 			},
 			want: ResultRecord{
 				CollectorKind: "repo", Origin: ResultOriginSDK, State: sdkcollector.ResultPartial,
-				StatusCount: 2, FactCount: 1, WarningCount: 2, SourceLatencyMS: 90, Partial: true,
+				FailureClass: FailureClassPartialSnapshotWithheld, StatusCount: 2, FactCount: 1, WarningCount: 2, SourceLatencyMS: 90, Partial: true,
 			},
 			wantRecords: 2,
 		},
@@ -392,8 +392,8 @@ func pointAttributeSets(data metricdata.Aggregation) [][]attribute.KeyValue {
 }
 
 // TestStatusTelemetryLogLevels proves the documented flood policy: one line
-// per result, INFO for complete, unchanged, and partial SDK results, and WARN
-// for retryable, terminal, and every host verdict. A nil logger writes nothing.
+// per result, INFO for clean complete and unchanged SDK results, and WARN
+// for withheld partials, retryable, terminal, and every host verdict. A nil logger writes nothing.
 func TestStatusTelemetryLogLevels(t *testing.T) {
 	t.Parallel()
 
@@ -403,7 +403,8 @@ func TestStatusTelemetryLogLevels(t *testing.T) {
 	}{
 		{ResultRecord{Origin: ResultOriginSDK, State: sdkcollector.ResultComplete}, "INFO"},
 		{ResultRecord{Origin: ResultOriginSDK, State: sdkcollector.ResultUnchanged}, "INFO"},
-		{ResultRecord{Origin: ResultOriginSDK, State: sdkcollector.ResultPartial}, "INFO"},
+		{ResultRecord{Origin: ResultOriginSDK, State: sdkcollector.ResultPartial, FailureClass: FailureClassPartialSnapshotWithheld}, "WARN"},
+		{ResultRecord{Origin: ResultOriginSDK, State: sdkcollector.ResultComplete, FailureClass: FailureClassPartialSnapshotWithheld}, "WARN"},
 		{ResultRecord{Origin: ResultOriginSDK, State: sdkcollector.ResultRetryable}, "WARN"},
 		{ResultRecord{Origin: ResultOriginSDK, State: sdkcollector.ResultTerminal}, "WARN"},
 		{ResultRecord{Origin: ResultOriginHost, State: sdkcollector.ResultTerminal, FailureClass: FailureClassInvalidResult}, "WARN"},

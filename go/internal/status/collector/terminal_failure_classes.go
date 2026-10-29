@@ -116,7 +116,7 @@ var kindFailureClasses = map[string][]string{
 // the host then writes these classes for it.
 var extensionHostFailureClasses = []string{
 	"invalid_claim", "invalid_result", "launch_failure", "source_state_record",
-	"status_record",
+	"status_record", "partial_snapshot_withheld",
 }
 
 // firstPartyKinds is every collector kind the platform ships, derived from the

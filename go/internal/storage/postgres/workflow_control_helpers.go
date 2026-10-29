@@ -194,6 +194,12 @@ func (s *WorkflowControlStore) execTerminalClaimMutation(
 	if err := validateClaimMutation(mutation); err != nil {
 		return err
 	}
+	if outcome := mutation.ExtensionOutcome; outcome != nil {
+		if outcome.State != "partial_withheld" || !outcome.Partial ||
+			outcome.WarningCount < 0 || outcome.WarningCount > 2147483647 {
+			return fmt.Errorf("invalid withheld extension outcome")
+		}
+	}
 	args := []any{mutation.ObservedAt.UTC()}
 	if includeVisibleAt {
 		args = append(args, mutation.VisibleAt.UTC())
@@ -210,6 +216,11 @@ func (s *WorkflowControlStore) execTerminalClaimMutation(
 		mutation.FailureStatusCode,
 		mutation.FailureTerminal,
 	)
+	if outcome := mutation.ExtensionOutcome; outcome != nil {
+		args = append(args, outcome.State, outcome.Partial, outcome.WarningCount)
+	} else {
+		args = append(args, nil, nil, nil)
+	}
 	result, err := s.database.ExecContext(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("mutate terminal workflow claim: %w", err)

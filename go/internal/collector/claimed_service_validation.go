@@ -71,6 +71,12 @@ func withFailure(
 	mutation.FailureOperation = failureOperationOf(err, operation)
 	mutation.FailureStatusCode = failureStatusCodeOf(err)
 	mutation.FailureTerminal = terminal || isTerminalFailure(err)
+	var partial interface {
+		ClaimExtensionOutcome() *workflow.ExtensionOutcome
+	}
+	if errors.As(err, &partial) {
+		mutation.ExtensionOutcome = partial.ClaimExtensionOutcome()
+	}
 	return mutation
 }
 

@@ -100,8 +100,7 @@ func TestNextClaimedReportsOneClaimOutcomeOnEveryExit(t *testing.T) {
 				result.Statuses = []sdkcollector.Status{{Class: sdkcollector.StatusWarning, Partial: true, WarningCount: 2, FactCount: 1}}
 				return result
 			},
-			want:          ClaimOutcome{Origin: ResultOriginSDK, State: sdkcollector.ResultPartial, Partial: true, FactCount: 1, WarningCount: 2},
-			wantCompleted: true,
+			want: ClaimOutcome{Origin: ResultOriginSDK, State: sdkcollector.ResultPartial, FailureClass: FailureClassPartialSnapshotWithheld, Partial: true, FactCount: 1, WarningCount: 2},
 		},
 		{
 			// A partial result is partial whatever its status rows say: SDK
@@ -113,8 +112,7 @@ func TestNextClaimedReportsOneClaimOutcomeOnEveryExit(t *testing.T) {
 				result.Statuses = []sdkcollector.Status{{Class: sdkcollector.StatusWarning, WarningCount: 1, FactCount: 1}}
 				return result
 			},
-			want:          ClaimOutcome{Origin: ResultOriginSDK, State: sdkcollector.ResultPartial, Partial: true, FactCount: 1, WarningCount: 1},
-			wantCompleted: true,
+			want: ClaimOutcome{Origin: ResultOriginSDK, State: sdkcollector.ResultPartial, FailureClass: FailureClassPartialSnapshotWithheld, Partial: true, FactCount: 1, WarningCount: 1},
 		},
 		{
 			// A complete result may still carry a partial status row; the
@@ -125,8 +123,7 @@ func TestNextClaimedReportsOneClaimOutcomeOnEveryExit(t *testing.T) {
 				result.Statuses = []sdkcollector.Status{{Class: sdkcollector.StatusWarning, Partial: true, WarningCount: 1, FactCount: 1}}
 				return result
 			},
-			want:          ClaimOutcome{Origin: ResultOriginSDK, State: sdkcollector.ResultComplete, Partial: true, FactCount: 1, WarningCount: 1},
-			wantCompleted: true,
+			want: ClaimOutcome{Origin: ResultOriginSDK, State: sdkcollector.ResultComplete, FailureClass: FailureClassPartialSnapshotWithheld, Partial: true, FactCount: 1, WarningCount: 1},
 		},
 		{
 			name:   "sdk retryable",

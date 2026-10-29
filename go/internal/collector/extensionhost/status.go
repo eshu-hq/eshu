@@ -79,6 +79,7 @@ func (s *Source) recordResult(
 		return
 	}
 	record.State = result.State
+	record.Partial = result.State == sdkcollector.ResultPartial
 	record.FailureClass = failureClassFromStatus(result, "")
 	if failed {
 		record.FailureClass = failure.class

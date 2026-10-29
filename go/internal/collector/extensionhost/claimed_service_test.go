@@ -41,13 +41,25 @@ func TestClaimedServiceRoutesExtensionResultsThroughWorkflowMutations(t *testing
 				result := baseResult(item, sdkcollector.ResultPartial)
 				result.Facts = []sdkcollector.Fact{testSDKFact(item)}
 				result.Statuses = []sdkcollector.Status{{
-					Class:   sdkcollector.StatusWarning,
-					Partial: true,
+					Class:        sdkcollector.StatusWarning,
+					Partial:      true,
+					WarningCount: 2,
 				}}
 				return result
 			},
-			wantCommits:  1,
-			wantComplete: 1,
+			wantRetryable:    1,
+			wantFailureClass: "partial_snapshot_withheld",
+		},
+		{
+			name: "complete with partial status",
+			result: func(item workflow.WorkItem) sdkcollector.Result {
+				result := completeResult(item, testSDKFact(item))
+				result.Statuses[0].Partial = true
+				result.Statuses[0].WarningCount = 2
+				return result
+			},
+			wantRetryable:    1,
+			wantFailureClass: "partial_snapshot_withheld",
 		},
 		{
 			name: "unchanged",
@@ -148,6 +160,14 @@ func TestClaimedServiceRoutesExtensionResultsThroughWorkflowMutations(t *testing
 			if got := store.failureClass; got != tc.wantFailureClass {
 				t.Fatalf("failure class = %q, want %q", got, tc.wantFailureClass)
 			}
+			if tc.wantFailureClass == "partial_snapshot_withheld" {
+				if got := store.failureOutcome; got == nil || got.State != "partial_withheld" || !got.Partial || got.WarningCount != 2 {
+					t.Fatalf("fenced withheld outcome = %+v, want partial and two warnings", got)
+				}
+				if got, want := store.retryVisibleAt, testObservedAt().Add(time.Millisecond); !got.Equal(want) {
+					t.Fatalf("retry visible at = %s, want %s", got, want)
+				}
+			}
 		})
 	}
 }
@@ -161,6 +181,7 @@ type serviceClaimStore struct {
 	retryableCalls int
 	terminalCalls  int
 	failureClass   string
+	failureOutcome *workflow.ExtensionOutcome
 	// retryVisibleAt is the VisibleAt the service wrote on the last
 	// retryable failure: the earliest time the work item can be re-claimed.
 	retryVisibleAt time.Time
@@ -198,6 +219,7 @@ func (s *serviceClaimStore) ReleaseClaim(context.Context, workflow.ClaimMutation
 func (s *serviceClaimStore) FailClaimRetryable(_ context.Context, mutation workflow.ClaimMutation) error {
 	s.retryableCalls++
 	s.failureClass = mutation.FailureClass
+	s.failureOutcome = mutation.ExtensionOutcome
 	s.retryVisibleAt = mutation.VisibleAt
 	s.cancel()
 	return nil

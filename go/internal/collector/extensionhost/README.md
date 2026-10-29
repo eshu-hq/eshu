@@ -72,7 +72,7 @@ proves exactly one result record per claim on every exit path.
 No-Regression Evidence: `go test ./internal/collector/extensionhost -count=1`
 proves the host passes only a bounded JSON claim/config/contract document,
 validates SDK output and declared payload schemas before fact mapping,
-deduplicates exact SDK facts, maps partial and unchanged states without direct
+deduplicates exact SDK facts, withholds partial snapshots and maps unchanged states without direct
 graph writes, and returns retryable/terminal classified errors for existing
 workflow claim mutations.
 
@@ -316,12 +316,19 @@ result and error path, not a new one.
 
 ## Claim outcomes and host-owned source state (#9420)
 
-Every validated complete, partial, or unchanged SDK result also carries a
-bounded completion summary (state, partial flag, warning count). The host
-writes it only in the fenced `CompleteClaim` mutation, so an uncommitted or
-stale claim cannot publish completed health. The operator read selects the
-newest completed result per scope of each enabled, registered extension
-instance; a clean result supersedes a prior partial.
+A validated complete or unchanged SDK result carries a bounded completion
+summary (state, partial flag, warning count) into fenced `CompleteClaim`.
+A result with state `partial`, or any partial status row, is withheld before
+fact mapping and snapshot commit. `ClaimedService` records the distinct
+`partial_snapshot_withheld` failure class on a fenced retryable claim and
+schedules its next attempt; no projector work is enqueued and prior active
+truth stays in place. The same fenced mutation stores the bounded
+`partial_withheld` state, partial flag, and warning count on the workflow item.
+The operator read includes the latest withheld partial attempt per scope so
+an older clean completion cannot make it look healthy. The per-result status
+log and metric retain the SDK state, warning count, partial flag, and host
+failure class. This is a safety hold until the host can
+prove completeness or carry forward omitted fact families (#9297).
 
 `Config.ClaimOutcomeRecorder` is an optional seam for durable state the host
 owns on behalf of an extension; the extension never sees it, so no storage
@@ -335,13 +342,29 @@ only for the `vulnerability_intelligence` kind
   `ClaimOutcome` that carries the work item, origin, state, failure class,
   terminal flag, capped retry request, partial flag, fact and warning counts,
   the host attempt time, and the generation's observed time.
-- A completed outcome (`complete`, `unchanged`, `partial`) is stashed by work
+- A completed outcome (`complete`, `unchanged`) is stashed by work
   item id. `Source.ObserveClaimedGenerationCommitted`
   (`collector.ClaimedGenerationCommitObserver`) hands it to
   `RecordClaimCommitted` after `ClaimedService` commits the generation, or
   resolves an unchanged one. The stash is cleared on every `NextClaimed` exit
   for the item and capped at 256 entries (oldest attempt evicted).
+- A withheld partial is a failed attempt with no completion observer; the
+  recorder writes a partial source state while preserving the previous success
+  timestamp and schedules the same bounded retry as the claim.
 - An attempt-row error on a completed outcome fails the claim retryable with
   `source_state_record`; an error on a failed outcome is joined to the claim
   error and never changes its class or terminality; a post-commit error is
   non-fatal.
+
+No-Regression Evidence: The partial hold creates no fact stream, fact commit,
+or projector queue row. A complete result still uses the existing commit path;
+the retryable claim mutation keeps its current fence and visible-at delay. The
+status read adds only the host's partial-withheld work items to the existing
+per-instance completion aggregate. Its non-completed arm is keyed by kind,
+instance, and status; representative Postgres plan timing remains unmeasured.
+
+Observability Evidence: The existing component-extension result metric and
+structured log carry `partial_snapshot_withheld` with bounded warning count;
+withheld results now log at WARN. The fenced workflow row persists the state,
+partial flag, and warning count for status readback, and the claim retry metric
+continues to report retry progress.

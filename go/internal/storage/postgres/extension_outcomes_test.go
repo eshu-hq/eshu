@@ -36,7 +36,9 @@ func TestReadWorkflowExtensionOutcomesAggregatesLatestScopeResults(t *testing.T)
 	if len(queryer.queries) != 1 || !strings.Contains(queryer.queries[0].query, "FROM unnest($1::text[], $2::text[])") ||
 		!strings.Contains(queryer.queries[0].query, "DISTINCT ON (scope_id)") ||
 		!strings.Contains(queryer.queries[0].query, "collector_instance_id = requested.collector_instance_id") ||
-		!strings.Contains(queryer.queries[0].query, "updated_at DESC, work_item_id DESC") {
+		!strings.Contains(queryer.queries[0].query, "updated_at DESC, work_item_id DESC") ||
+		!strings.Contains(queryer.queries[0].query, "UNION ALL") ||
+		!strings.Contains(queryer.queries[0].query, "extension_result_state = 'partial_withheld'") {
 		t.Fatalf("query = %#v, want keyed latest completed outcome per scope", queryer.queries)
 	}
 	if got := queryer.queries[0].args; len(got) != 2 ||

@@ -242,7 +242,10 @@ SET status = 'pending',
     last_failure_message = NULLIF($8, ''),
     last_failure_operation = NULLIF($9, ''),
     last_failure_status_code = NULLIF($10, 0),
-    last_failure_terminal = $11
+    last_failure_terminal = $11,
+    extension_result_state = COALESCE($12, item.extension_result_state),
+    extension_partial = COALESCE($13, item.extension_partial),
+    extension_warning_count = COALESCE($14, item.extension_warning_count)
 FROM candidate
 WHERE item.work_item_id = candidate.work_item_id
   AND EXISTS (SELECT 1 FROM updated_claim)
@@ -290,7 +293,10 @@ SET status = 'failed_terminal',
     last_failure_message = NULLIF($7, ''),
     last_failure_operation = NULLIF($8, ''),
     last_failure_status_code = NULLIF($9, 0),
-    last_failure_terminal = $10
+    last_failure_terminal = $10,
+    extension_result_state = COALESCE($11, item.extension_result_state),
+    extension_partial = COALESCE($12, item.extension_partial),
+    extension_warning_count = COALESCE($13, item.extension_warning_count)
 FROM candidate
 WHERE item.work_item_id = candidate.work_item_id
   AND EXISTS (SELECT 1 FROM updated_claim)

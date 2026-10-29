@@ -191,19 +191,35 @@ func (s *Source) resolveResult(
 		completion.Partial = completion.Partial || status.Partial
 		completion.WarningCount += status.WarningCount
 	}
-	switch result.State {
-	case sdkcollector.ResultRetryable:
+	if result.State == sdkcollector.ResultRetryable {
 		return collector.CollectedGeneration{}, false, extensionFailure{
 			class:      failureClassFromStatus(result, "retryable"),
 			retryAfter: retryAfterFromStatuses(result),
 			cause:      errors.New("extension requested retryable result"),
 		}
-	case sdkcollector.ResultTerminal:
+	}
+	if result.State == sdkcollector.ResultTerminal {
 		return collector.CollectedGeneration{}, false, extensionFailure{
 			class:    failureClassFromStatus(result, "terminal"),
 			terminal: true,
 			cause:    errors.New("extension requested terminal result"),
 		}
+	}
+	// A partial result is not a complete snapshot. Even a result labelled
+	// complete can contain a partial status for an omitted service or region.
+	// Withhold both before mapping facts so no successor can reach the durable
+	// ingestion/projector queue. ClaimedService records the fenced retry and
+	// schedules a later attempt; prior active truth remains unchanged.
+	if completion.Partial {
+		return collector.CollectedGeneration{}, false, extensionFailure{
+			class: FailureClassPartialSnapshotWithheld,
+			partialOutcome: &workflow.ExtensionOutcome{
+				State: "partial_withheld", Partial: true, WarningCount: completion.WarningCount,
+			},
+			cause: errors.New("extension snapshot is partial; generation withheld"),
+		}
+	}
+	switch result.State {
 	case sdkcollector.ResultUnchanged:
 		collected := s.collectedGeneration(item, result, nil)
 		collected.Unchanged = true
