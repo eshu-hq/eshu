@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/evidredact"
 	resultshape "github.com/eshu-hq/eshu/go/internal/mcp/result/shape"
 )
 
@@ -210,15 +211,12 @@ func ResolvePlatform(raw string) (*Platform, error) {
 // RedactToken masks a bearer token for display. It never returns the raw token.
 // A short token is fully masked; a longer token keeps a 4-character prefix so an
 // operator can recognize which key is configured without exposing it.
+//
+// Deprecated: the implementation lives with the redaction owner in
+// internal/cli/evidredact. This alias stays so existing callers keep compiling
+// while they migrate; new code must call evidredact.RedactToken directly.
 func RedactToken(token string) string {
-	t := strings.TrimSpace(token)
-	if t == "" {
-		return ""
-	}
-	if len(t) <= 8 {
-		return strings.Repeat("*", len(t))
-	}
-	return t[:4] + strings.Repeat("*", len(t)-4)
+	return evidredact.RedactToken(token)
 }
 
 // TokenReference returns the value to embed for a hosted bearer token

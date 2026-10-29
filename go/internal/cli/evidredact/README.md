@@ -109,6 +109,6 @@ their own boundary drifted once already and shipped three credentials through th
 difference, so the boundary, the percent-escape depth rule, and the free-text
 walk itself all live there in one copy.
 
-This package sits under `internal/cli` because `Endpoint`'s fallback for an
-unparseable value needs `mcpsetup.RedactToken`, and because the CLI is its only
-consumer.
+This package sits under `internal/cli` because it owns token masking for CLI
+display (`RedactToken`, formerly `mcpsetup.RedactToken`), and because the CLI
+is its only consumer.

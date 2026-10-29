@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/evidredact"
 	"github.com/eshu-hq/eshu/go/internal/cli/mcpsetup"
 	"github.com/eshu-hq/eshu/go/internal/mcp"
 )
@@ -227,7 +228,7 @@ func nextSteps(result Result) []string {
 
 // tokenReference returns a display-safe reference for the resolved bearer
 // token, never the raw value. It reuses the #1767 mcpsetup.TokenReference/
-// mcpsetup.RedactToken helpers: when a platform supports env-var references it
+// evidredact.RedactToken helpers: when a platform supports env-var references it
 // returns ${ESHU_API_KEY}; otherwise it returns a masked placeholder so the
 // operator can recognize which key is configured without exposing it. `eshu
 // hosted-setup` connects using this resolved ESHU_API_KEY (the shared admin/dev
@@ -241,7 +242,7 @@ func tokenReference(platform, apiKey string) string {
 	if p, err := mcpsetup.ResolvePlatform(platform); err == nil {
 		return mcpsetup.TokenReference(p, mcpsetup.APIKeyEnvVar, apiKey)
 	}
-	return mcpsetup.RedactToken(apiKey)
+	return evidredact.RedactToken(apiKey)
 }
 
 // setupHint renders a hosted MCP setup snippet for the requested platform

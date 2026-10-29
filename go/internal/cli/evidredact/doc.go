@@ -41,8 +41,8 @@
 // over already-scrubbed text has to find nothing new. TestScrubbedTextIsAFixedPoint
 // pins that over the package's own corpus.
 //
-// The package sits under internal/cli because its endpoint fallback needs
-// mcpsetup.RedactToken and its only consumer is the CLI. The mechanism it shares
+// The package sits under internal/cli because it owns token masking for CLI
+// display (RedactToken) and its only consumer is the CLI. The mechanism it shares
 // with internal/reportbundle lives one layer down in internal/urlredact, which
 // depends on nothing but the standard library and the collector name predicate,
 // so both walks read one definition of where a credential pair begins and ends.

@@ -292,7 +292,7 @@
   that were never varied before, which is how the drift survived review.
 - **Importing a CLI or service package from here.** This package's only
   dependency beyond the standard library is `sdk/go/collector`, for the name
-  predicate. `evidredact.Endpoint`'s `mcpsetup.RedactToken` fallback stays on
+  predicate. `evidredact.Endpoint`'s `RedactToken` fallback stays on
   the `internal/cli` side for that reason.
 - **Taking a whole name predicate from a caller.** `FreeText` ORs the caller's
   extra names with `collector.IsSensitiveKeyName` instead of accepting a
