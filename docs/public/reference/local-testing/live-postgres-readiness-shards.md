@@ -205,8 +205,9 @@ appended to the last package and prints the sizes the live-plan fit case
 rejects. Every enrollment and every refit moves the window, so run it rather
 than trusting a figure on this page. At `d363d77b85` (the #9436 refit weights
 from runs 40672571941 and 40687668044, and the 36 tests #9435 enrolled) main
-plans 738 tests, 39 of them on default prices. The fit case accepts 32
-appended tests, fails from 33 through 69, and passes again at 70.
+plans 738 tests, 39 of them on default prices. With the 608 s row budget
+(#9469) the fit case accepts 32 appended tests, fails from 33 through 71, and
+passes again at 72. Under the 675 s budget it failed from 33 through 69.
 
 Run this
 from the repository root to print the window for the checkout you are on. It
@@ -232,8 +233,8 @@ print(f"{len(plan)} tests;",
 EOF
 ```
 
-At `d363d77b85` it prints `738 tests; fails k=33..69`, so main takes 32
-appended tests before the first failure.
+On that plan with the 608 s row budget it prints `738 tests; fails k=33..71`,
+so main takes 32 appended tests before the first failure.
 
 **Why the window exists.** While shard 5 can hold at least one
 `./internal/storage/postgres` test (411 tests on main at `d363d77b85`), the
