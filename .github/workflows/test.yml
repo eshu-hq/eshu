@@ -397,10 +397,14 @@ jobs:
           # key. One key for all four shards, not one each: the repository cache
           # store is nearly full, and the shards share most compiled packages.
           # "gobuildrace" does not match go-core's "gobuild-" restore prefix, so
-          # neither lane restores the other's cache.
+          # go-core never restores a race cache.
           key: ${{ runner.os }}-${{ runner.arch }}-gobuildrace-${{ hashFiles('go/go.sum') }}
+          # The gobuild- entries (go-core's) are the fallback for a run that finds
+          # no gobuildrace- entry yet, so the first run after this key change
+          # starts from a populated cache instead of an empty one.
           restore-keys: |
             ${{ runner.os }}-${{ runner.arch }}-gobuildrace-
+            ${{ runner.os }}-${{ runner.arch }}-gobuild-
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
