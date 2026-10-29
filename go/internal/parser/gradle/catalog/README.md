@@ -10,7 +10,7 @@ only the aliases (`libs.guava`) and never the coordinate or version.
 ## Ownership boundary
 
 The package owns catalog parsing only. The parent parser package owns registry
-dispatch (`registry_definitions.go` binds the exact name `libs.versions.toml`
+dispatch (`registry_jvm.go` binds the exact name `libs.versions.toml`
 to the `gradle` definition) and the engine hook
 (`go/internal/parser/gradle_language.go`, which routes by base name). The
 build-script parser stays in `go/internal/parser/gradle`. The reducer
