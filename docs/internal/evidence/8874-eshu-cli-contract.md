@@ -126,13 +126,42 @@ entrypoint that would let `graph`/`watch` verbs appear in `eshu-cli`
 is NOT a cross-repo contract yet, so `graph`, `watch`, and `w` stay
 RETAIN until that entrypoint exists and is pinned here.
 
+## Install filesystem and source contract
+
+`install nornicdb` moves to `eshu-cli` with the fail-closed source
+policy and the managed-home filesystem seam unchanged (census `install`
+row, EXTRACT). `graph upgrade` accepts the same `--from`/`--sha256`
+source flags but stays in core under the census RETAIN `graph` row
+(sidecar lifecycle); it does not move in this cutover. The
+managed home resolves from `ESHU_HOME` when set (leading `~` expanded per
+`doc.go`/`layout.go`), otherwise per platform; it is not `~/.eshu` on any
+of them. The installed binary name
+is `nornicdb-headless`, installed at `<home>/bin/nornicdb-headless`,
+and the install manifest is `<home>/graph-backends/nornicdb/manifest.json`.
+Headless stays the default laptop artifact; full binaries install only
+through an explicit `--from` source. The version probe is `<binary> version`
+parsing `NornicDB <version>`: `graphinstall` never executes a binary itself,
+so `eshu-cli` supplies its own `VersionReader` (wired here to `ReadGraphVersion`
+in `localsupervisor`; a nil reader is rejected before any work). Remote
+`http`/`https` sources require `--sha256` with the independently verified
+artifact checksum: `remote nornicdb sources require --sha256`. `--full` with
+`--from` is rejected: `--full is reserved for future no-argument release installs`.
+The cobra flags and
+exit-code mapping stay in `go/cmd/eshu` (`package main`,
+`runInstallNornicDB`) while verification and install live in
+`go/internal/cli/graphinstall`; both move together, never repointed at
+core implementation handles. The supported CLI<->core-host pair enters
+the #8871 matrix; this record carries the CLI side of that seam.
+
 ## Cutover readiness
 
 `go/cmd/eshu/cli_extraction_contract_test.go` pins every section above
 to the tree: record anchors, demo seam figures, envelope MIME and exit
 table, live Bearer [REDACTED] and Accept headers, compose-seam override
 and miss guidance, the hidden `local-host` boundary with its `watch`
-and `mcp-stdio` subcommands, and non-empty version reporting. The
+and `mcp-stdio` subcommands, the install filesystem seam with its
+fail-closed source policy and version-reader boundary, and non-empty
+version reporting. The
 cutover PR repoints the destination at these figures, proves parity per
 the census plan, and removes the in-tree originals only after
 independent build, release, deploy, and rollback rehearsal with
