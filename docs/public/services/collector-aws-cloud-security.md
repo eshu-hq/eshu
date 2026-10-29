@@ -29,6 +29,10 @@ identity annotations, or point `serviceAccount.name` at an existing dedicated
 account. The coordinator's shared account must not receive AWS permissions.
 Restart the AWS activation Deployment after rotating the Secret: running pods
 keep their previous environment value, and a new key changes HMAC markers.
+Helm checks collisions with enabled collector ServiceAccounts in this release
+and an explicitly named schema-bootstrap account. It cannot inspect accounts
+outside the release; verify that an existing named account is dedicated to the
+AWS activation and that its IAM role is limited to the intended reads.
 
 Claim polling, lease TTL, and heartbeat are satellite activation settings
 (heartbeat must stay below the lease TTL).

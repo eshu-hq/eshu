@@ -140,6 +140,11 @@ attach the AWS role to the release's shared ServiceAccount. After rotating the
 Secret, restart that activation Deployment: environment variables in running
 pods do not update when a Secret changes. Rotation changes deterministic HMAC
 markers, so coordinate it with downstream comparison and replay expectations.
+The chart rejects AWS activation ServiceAccount names used by other enabled
+collector workloads in this release or by the explicit schema-bootstrap
+account. It cannot inspect ServiceAccounts and workloads installed outside
+this Helm release. If you name an existing account, verify that no unrelated
+workload uses it and that its IAM role grants only the intended AWS reads.
 
 The schema (`values.schema.json`) rejects unknown keys, so a misspelled key
 fails the render instead of being ignored.

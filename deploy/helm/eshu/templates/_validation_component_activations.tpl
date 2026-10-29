@@ -125,6 +125,30 @@ secret. Credentials belong only in an activation's extraEnv secretKeyRef.
 {{- if or (eq $resolvedAccountName "default") (eq $resolvedAccountName (include "eshu.serviceAccountName" $root)) -}}
 {{- fail (printf "%s.serviceAccount.name must not use the shared or default ServiceAccount for AWS permissions" $at) -}}
 {{- end -}}
+{{- $otherAccounts := dict -}}
+{{- if $root.Values.awsCloudCollector.enabled -}}
+{{- $_ := set $otherAccounts "awsCloudCollector.serviceAccount" (include "eshu.awsCloudCollectorServiceAccountName" $root) -}}
+{{- end -}}
+{{- if $root.Values.gcpCloudCollector.enabled -}}
+{{- $_ := set $otherAccounts "gcpCloudCollector.serviceAccount" (include "eshu.gcpCloudCollectorServiceAccountName" $root) -}}
+{{- end -}}
+{{- if $root.Values.kubernetesLiveCollector.enabled -}}
+{{- $_ := set $otherAccounts "kubernetesLiveCollector.serviceAccount" (include "eshu.kubernetesLiveCollectorServiceAccountName" $root) -}}
+{{- end -}}
+{{- if $root.Values.vaultLiveCollector.enabled -}}
+{{- $_ := set $otherAccounts "vaultLiveCollector.serviceAccount" (include "eshu.vaultLiveCollectorServiceAccountName" $root) -}}
+{{- end -}}
+{{- if $root.Values.azureCloudCollector.enabled -}}
+{{- $_ := set $otherAccounts "azureCloudCollector.serviceAccount" (include "eshu.azureCloudCollectorServiceAccountName" $root) -}}
+{{- end -}}
+{{- if and $root.Values.schemaBootstrap.enabled $root.Values.schemaBootstrap.serviceAccountName -}}
+{{- $_ := set $otherAccounts "schemaBootstrap.serviceAccountName" $root.Values.schemaBootstrap.serviceAccountName -}}
+{{- end -}}
+{{- range $path, $name := $otherAccounts -}}
+{{- if eq $resolvedAccountName $name -}}
+{{- fail (printf "%s.serviceAccount resolves to %q, also used by %s; AWS activation requires a dedicated account" $at $resolvedAccountName $path) -}}
+{{- end -}}
+{{- end -}}
 {{- end -}}
 {{- if not (regexMatch "^[0-9]+\\.[0-9]+\\.[0-9]+([-+][0-9A-Za-z.-]+)?$" (toString (default "" $activation.componentVersion))) -}}
 {{- fail (printf "%s.componentVersion is required and must be the semantic version in the seeded manifest" $at) -}}

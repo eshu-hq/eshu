@@ -130,6 +130,61 @@ func TestHelmAWSActivationRejectsResolvedSharedServiceAccount(t *testing.T) {
 	}
 }
 
+func TestHelmAWSActivationRejectsSchemaBootstrapServiceAccount(t *testing.T) {
+	values := "schemaBootstrap:\n  serviceAccountName: eshu-cx-aws-live\n" +
+		awsActivationValues(awsRedactionActivation, "awsCloudCollector:\n  redaction:\n    secretName: aws-redaction\n")
+	output := renderHelmChartFailure(t, "-f", writeComponentActivationValues(t, values))
+	if !strings.Contains(output, "schemaBootstrap.serviceAccountName") {
+		t.Fatalf("helm error %q does not reject schema bootstrap identity collision", output)
+	}
+}
+
+func TestHelmAWSActivationRejectsEnabledCollectorServiceAccounts(t *testing.T) {
+	const accountBlock = "      serviceAccount:\n        create: true\n        annotations:\n          eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/eshu-aws-live\n"
+	const instance = "  collectorInstances:\n    - instance_id: primary\n      collector_kind: aws\n      mode: continuous\n      enabled: true\n      claims_enabled: true\n      configuration: {}\n"
+	for _, tc := range []struct {
+		name, account, direct, want string
+	}{
+		{
+			name: "direct AWS default", account: "eshu-aws-cloud-collector", want: "awsCloudCollector.serviceAccount",
+			direct: "awsCloudCollector:\n  enabled: true\n  serviceAccount:\n    create: true\n  redaction:\n    secretName: aws-redaction\n" + instance,
+		},
+		{
+			name: "direct GCP default", account: "eshu-gcp-cloud-collector", want: "gcpCloudCollector.serviceAccount",
+			direct: "gcpCloudCollector:\n  enabled: true\n  serviceAccount:\n    create: true\n  redaction:\n    secretName: gcp-redaction\n" + strings.Replace(instance, "collector_kind: aws", "collector_kind: gcp", 1),
+		},
+		{
+			name: "Kubernetes default", account: "eshu-kubernetes-live-collector", want: "kubernetesLiveCollector.serviceAccount",
+			direct: "kubernetesLiveCollector:\n  enabled: true\n  serviceAccount:\n    create: true\n  clusters:\n    - cluster_id: primary\n      auth_mode: in_cluster\n",
+		},
+		{
+			name: "Vault default", account: "eshu-vault-live-collector", want: "vaultLiveCollector.serviceAccount",
+			direct: "vaultLiveCollector:\n  enabled: true\n  serviceAccount:\n    create: true\n  redaction:\n    secretName: vault-redaction\n    keyKey: redaction-key\n" + strings.Replace(strings.Replace(instance, "collector_kind: aws", "collector_kind: vault_live", 1), "instance_id: primary", "instance_id: vault-live-primary", 1),
+		},
+		{
+			name: "Azure default", account: "eshu-azure-cloud-collector", want: "azureCloudCollector.serviceAccount",
+			direct: "azureCloudCollector:\n  enabled: true\n  serviceAccount:\n    create: true\n  redaction:\n    secretName: azure-redaction\n" + strings.Replace(instance, "collector_kind: aws", "collector_kind: azure", 1),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			activation := strings.Replace(awsRedactionActivation, accountBlock, "      serviceAccount:\n        name: "+tc.account+"\n", 1)
+			redaction := "awsCloudCollector:\n  redaction:\n    secretName: aws-redaction\n"
+			if tc.name == "direct AWS default" {
+				redaction = ""
+			}
+			values := tc.direct + awsActivationValues(activation, redaction)
+			if tc.name == "Vault default" {
+				vaultInstance := strings.Replace(strings.Replace(instance, "collector_kind: aws", "collector_kind: vault_live", 1), "instance_id: primary", "instance_id: vault-live-primary", 1)
+				values = strings.Replace(values, "  claimsEnabled: true\n", "  claimsEnabled: true\n"+vaultInstance, 1)
+			}
+			output := renderHelmChartFailure(t, "-f", writeComponentActivationValues(t, values))
+			if !strings.Contains(output, tc.want) {
+				t.Fatalf("helm error %q does not reject %s account collision", output, tc.name)
+			}
+		})
+	}
+}
+
 // TestHelmAWSActivationSensitiveLiveServicesNeedKey refuses a worker that
 // would reach Lambda or ECS without its configured redaction Secret.
 func TestHelmAWSActivationSensitiveLiveServicesNeedKey(t *testing.T) {
