@@ -263,6 +263,19 @@ func TestScannerImageTargetAdmissionAndCompletionLive(t *testing.T) {
 	if err != nil || admission.InsertedWorkItems != 0 {
 		t.Fatalf("repeat admission = %+v, %v; want zero", admission, err)
 	}
+	// Instance flaps bump the pinned epochs but must not fork binding
+	// identity: the same completed target still suppresses to zero.
+	for _, enabled := range []bool{false, true} {
+		if _, err := database.ExecContext(ctx, `UPDATE collector_instances SET enabled=$1
+			WHERE instance_id='source-instance'`, enabled); err != nil {
+			t.Fatal(err)
+		}
+	}
+	run, items, targets = plan("flap", "domain-a")
+	admission, err = store.CreateScannerRunWithTargets(ctx, run, items, targets)
+	if err != nil || admission.InsertedWorkItems != 0 {
+		t.Fatalf("post-flap repeat admission = %+v, %v; want zero", admission, err)
+	}
 	run, items, targets = plan("third", "domain-b")
 	admission, err = store.CreateScannerRunWithTargets(ctx, run, items, targets)
 	if err != nil || admission.InsertedWorkItems != 1 {
