@@ -106,6 +106,27 @@ func TestSearchPHPConfigByModeAndDirective(t *testing.T) {
 	}
 }
 
+func TestPHPConfigSearchRejectsCredentialNamedDirective(t *testing.T) {
+	t.Parallel()
+	const seed = "SeedSMTPPass987654321"
+	for _, name := range []string{"smtp_pass", "smtp.pass", "smtp-pass", "smtpPass", "smtppass", "pass"} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			store := &phpConfigStore{byName: map[string][]querycontract.EntityContent{
+				"php_directive:" + strings.ToLower(name): {{EntityName: "php_directive:" + strings.ToLower(name), Metadata: map[string]any{"value": seed}}},
+			}}
+			mux := http.NewServeMux()
+			(&ContentHandler{Content: store}).Mount(mux)
+			req := httptest.NewRequest(http.MethodPost, "/api/v0/content/php-config/search", strings.NewReader(`{"directive":"`+name+`"}`))
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, req)
+			if rec.Code != http.StatusBadRequest || store.anyCalls != 0 || strings.Contains(rec.Body.String(), seed) {
+				t.Fatalf("credential query was not blocked: status=%d store_calls=%d leaked=%t", rec.Code, store.anyCalls, strings.Contains(rec.Body.String(), seed))
+			}
+		})
+	}
+}
+
 func TestPHPConfigSearchScopesBeforeRead(t *testing.T) {
 	t.Parallel()
 	store := &phpConfigStore{byName: map[string][]querycontract.EntityContent{"php_server_mode:mod_php": {{RepoID: "repo-a", EntityName: "php_server_mode:mod_php"}, {RepoID: "repo-b", EntityName: "php_server_mode:mod_php"}}}}

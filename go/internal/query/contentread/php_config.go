@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/phpconfig"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
@@ -52,7 +53,7 @@ func (h *ContentHandler) searchPHPConfig(w http.ResponseWriter, r *http.Request)
 	}
 	name := ""
 	if req.Directive != "" {
-		if !phpConfigNameAllowed(req.Directive) {
+		if !phpConfigNameAllowed(req.Directive) || phpconfig.CredentialKey(req.Directive) {
 			querycontract.WriteError(w, http.StatusBadRequest, "invalid directive")
 			return
 		}

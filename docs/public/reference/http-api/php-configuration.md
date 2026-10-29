@@ -8,6 +8,7 @@ exists. Repeat the same filter with `cursor=next_cursor` to enumerate the full
 ordered match set across repositories. The cursor is bound to the directive or
 mode and repository filter; repository grants are applied before each page.
 Concurrent reindexing can change the result set between pages.
+Credential-shaped directive names are rejected before the content index is read.
 
 Each result is an indexed declaration with `repo_id`, `relative_path`,
 `start_line`, `entity_name`, and guarded `metadata.value`. Mode evidence comes

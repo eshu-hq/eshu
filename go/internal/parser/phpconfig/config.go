@@ -68,6 +68,7 @@ func Parse(path string, source []byte) Result {
 	scanner := bufio.NewScanner(bytes.NewReader(source))
 	scanner.Buffer(make([]byte, 0, 4096), maxLineBytes+1)
 	section := ""
+	sectionValid := true
 	line := 0
 	for scanner.Scan() {
 		line++
@@ -90,22 +91,30 @@ func Parse(path string, source []byte) Result {
 		if strings.HasPrefix(raw, "[") {
 			if !strings.HasSuffix(raw, "]") || len(raw) < 3 {
 				result.skip(line, "invalid_section", false)
+				sectionValid = false
 				continue
 			}
 			section = strings.TrimSpace(raw[1 : len(raw)-1])
 			if sensitive(section, "") {
 				result.skip(line, "credential_shape", true)
 				section = ""
+				sectionValid = false
 				continue
 			}
 			if section == "" || !safeWord(section) {
 				result.skip(line, "invalid_section", false)
 				section = ""
+				sectionValid = false
 				continue
 			}
+			sectionValid = true
 			if fpm && !strings.EqualFold(section, "global") {
 				result.Modes = append(result.Modes, Mode{Mode: "php-fpm", Line: line})
 			}
+			continue
+		}
+		if !sectionValid && (ini || fpm) {
+			result.skip(line, "invalid_section_scope", false)
 			continue
 		}
 		if apache || htaccess {
@@ -141,7 +150,7 @@ func Parse(path string, source []byte) Result {
 }
 
 func (r *Result) addDirective(line int, name, value, section string) {
-	name = strings.ToLower(strings.TrimSpace(name))
+	name = strings.TrimSpace(name)
 	value = strings.TrimSpace(value)
 	if len(value) >= 2 && (value[0] == '\'' || value[0] == '"') {
 		if value[len(value)-1] != value[0] {
@@ -161,7 +170,7 @@ func (r *Result) addDirective(line int, name, value, section string) {
 		r.skip(line, "credential_shape", true)
 		return
 	}
-	r.Directives = append(r.Directives, Directive{Name: name, Value: value, Section: section, Line: line})
+	r.Directives = append(r.Directives, Directive{Name: strings.ToLower(name), Value: value, Section: section, Line: line})
 }
 
 func (r *Result) skip(line int, reason string, dropped bool) {
@@ -208,6 +217,9 @@ func stripINIComment(value string) string {
 }
 
 func sensitive(name, value string) bool {
+	if CredentialKey(name) {
+		return true
+	}
 	if len(detect.Spans(name+"="+value)) > 0 {
 		return true
 	}
@@ -218,4 +230,27 @@ func sensitive(name, value string) bool {
 		}
 	}
 	return strings.Contains(value, "://") && strings.Contains(strings.SplitN(value, "/", 4)[2], "@")
+}
+
+// CredentialKey reports whether a PHP configuration key names a credential.
+// It is shared with the read route so older indexed rows cannot expose one.
+func CredentialKey(name string) bool {
+	if len(detect.Spans(name+"=")) > 0 {
+		return true
+	}
+	lower := strings.ToLower(name)
+	if strings.HasSuffix(lower, "pass") {
+		return true
+	}
+	for _, part := range []string{"password", "passwd", "passphrase", "secret", "token", "api_key", "apikey", "private_key", "credential", "authorization"} {
+		if strings.Contains(lower, part) {
+			return true
+		}
+	}
+	for _, segment := range strings.FieldsFunc(name, func(ch rune) bool { return ch == '_' || ch == '.' || ch == '-' }) {
+		if strings.EqualFold(segment, "pass") || strings.Contains(segment, "Pass") {
+			return true
+		}
+	}
+	return false
 }

@@ -57,13 +57,37 @@ func TestParsePHPConfigurationOverlongLineFailsClosed(t *testing.T) {
 func TestParsePHPConfigurationDropsCredentialShapedSection(t *testing.T) {
 	t.Parallel()
 	const seed = "auth_token_SecretSection98765"
-	got := Parse("php.ini", []byte("["+seed+"]\nmemory_limit = 256M\n"))
-	if got.Dropped != 1 || len(got.Directives) != 1 || got.Directives[0].Section != "" {
-		t.Fatalf("secret section handling = %#v", got)
+	got := Parse("php.ini", []byte("["+seed+"]\nmemory_limit = 256M\n[PHP]\nmax_execution_time = 30\n"))
+	if got.Dropped != 1 || got.Unparsed != 1 || len(got.Directives) != 1 ||
+		got.Directives[0].Name != "max_execution_time" || got.Directives[0].Section != "PHP" {
+		t.Fatalf("invalid section must suppress child rows until a valid section: dropped=%d unparsed=%d directives=%d", got.Dropped, got.Unparsed, len(got.Directives))
 	}
 	for _, directive := range got.Directives {
 		if strings.Contains(directive.Section, seed) {
 			t.Fatal("secret section retained")
 		}
+	}
+}
+
+func TestParsePHPConfigurationMalformedSectionSuppressesChildRows(t *testing.T) {
+	t.Parallel()
+	got := Parse("php.ini", []byte("[broken\nmemory_limit = 256M\n[PHP]\nmax_execution_time = 30\n"))
+	if got.Unparsed != 2 || len(got.Directives) != 1 ||
+		got.Directives[0].Name != "max_execution_time" || got.Directives[0].Section != "PHP" {
+		t.Fatalf("malformed section must suppress child rows until a valid section: unparsed=%d directives=%d", got.Unparsed, len(got.Directives))
+	}
+}
+
+func TestParsePHPConfigurationDropsPassCredentialKeys(t *testing.T) {
+	t.Parallel()
+	const seed = "SeedSMTPPass987654321"
+	for _, name := range []string{"smtp_pass", "smtp.pass", "smtp-pass", "smtpPass", "smtppass", "pass"} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			got := Parse("php.ini", []byte(name+" = "+seed+"\nmemory_limit = 256M\n"))
+			if got.Dropped != 1 || len(got.Directives) != 1 || got.Directives[0].Name != "memory_limit" {
+				t.Fatalf("credential key must be dropped while safe directive remains: dropped=%d directives=%d", got.Dropped, len(got.Directives))
+			}
+		})
 	}
 }
