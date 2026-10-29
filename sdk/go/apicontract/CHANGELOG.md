@@ -15,6 +15,8 @@ Tags for this module use the Go subdirectory-module format:
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-29
+
 ### Added
 
 - Initial module (Refs #9509, part of #6707): publishes the API wire shapes
@@ -22,4 +24,7 @@ Tags for this module use the Go subdirectory-module format:
   backends, freshness causes, the MCP tool-definition shape, and the
   client-scoped environment registry with its validator — with JSON goldens
   pinned to the live core types and drift tests on both sides of the module
-  boundary.
+  boundary. Release-prepared in the `drive/8874-tier2-population` lane
+  (Tier-2 owner-approved 2026-10-29; Refs #8874, Refs #9509, part of #6707);
+  the `sdk/go/apicontract/v0.1.0` tag is NOT cut here — a maintainer cuts it
+  per [`RELEASING.md`](../../../RELEASING.md) after merge.

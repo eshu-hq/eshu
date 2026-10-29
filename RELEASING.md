@@ -1,18 +1,21 @@
 # Releasing The SDK Modules
 
-This document covers tagging `sdk/go/collector` and `sdk/go/factschema` — the
-two public Go subdirectory modules external collector authors pin. For the
+This document covers tagging `sdk/go/collector`, `sdk/go/factschema`, and
+`sdk/go/apicontract` — the three public Go subdirectory modules. External
+collector authors pin `collector` and `factschema`; thin API clients (the
+extracted `eshu-cli` Tier-2 families under #8874) pin `apicontract`. For the
 core Eshu release (`vX.Y.Z` at the repository root: Docker image, Helm chart,
 CLI binaries), use the `eshu-release` skill instead; that flow is unrelated to
 the SDK module tags described here.
 
-Both SDK modules are Go
+All three SDK modules are Go
 [subdirectory modules](https://go.dev/ref/mod#vcs-branch): each has its own
 `go.mod` inside the monorepo, and each is tagged independently with a
 `<module-dir>/vX.Y.Z` git tag rather than a bare `vX.Y.Z` tag. This is the
 standard mechanism the Go module proxy uses to resolve `go get
-github.com/eshu-hq/eshu/sdk/go/collector@vX.Y.Z` to the right subtree at the
-right commit, without requiring a whole-repository release.
+github.com/eshu-hq/eshu/sdk/go/collector@vX.Y.Z` (or any of the three module
+paths) to the right subtree at the right commit, without requiring a
+whole-repository release.
 
 ## Who does this
 
@@ -33,13 +36,23 @@ versions in its description; a maintainer runs them after the PR merges.
    it locally against the last release tag once one exists:
    `bash scripts/verify-factschema-diff.sh` (pass `-base-ref
    sdk/go/factschema/v<last>` once a prior tag exists; before the first tag,
-   the default merge-base-against-`origin/main` behavior is correct).
+   the default merge-base-against-`origin/main` behavior is correct). For a
+   `sdk/go/apicontract` release the equivalent gate is the golden drift
+   pair: `go test ./... -count=1` inside `sdk/go/apicontract` plus
+   `go test -count=1` in each core source package
+   (`go/internal/query/querycontract`, `go/internal/mcp/contract/tool`,
+   `go/internal/envregistry`) — the committed `testdata/golden/*.json`
+   pins must match the live core types on both sides with no `go/internal`
+   import in the module.
 3. The CHANGELOG's top `[Unreleased]` section is renamed to the chosen
    version with today's date, per the convention documented in
-   `sdk/go/collector/CHANGELOG.md` and `sdk/go/factschema/CHANGELOG.md`.
+   `sdk/go/collector/CHANGELOG.md`, `sdk/go/factschema/CHANGELOG.md`, and
+   `sdk/go/apicontract/CHANGELOG.md`.
 4. `docs/public/extend/sdk-compatibility.md` gains a row for the new version
    combination (SDK module version, core release, wire protocol, fixture-pack
-   version) before or in the same PR as the tag.
+   version) before or in the same PR as the tag. The `apicontract` row lives
+   in that page's API wire-contract section instead of the combination
+   table: it has no fixture pack and no collector wire protocol.
 
 ## Tag commands
 
@@ -54,20 +67,22 @@ git pull --ff-only
 git rev-parse HEAD
 ```
 
-Tag each module independently, at the same commit if cutting both together,
+Tag each module independently, at the same commit if cutting several together,
 using the Go subdirectory-module tag format:
 
 ```bash
 git tag sdk/go/collector/vX.Y.Z <sha>
 git tag sdk/go/factschema/vX.Y.Z <sha>
+git tag sdk/go/apicontract/vX.Y.Z <sha>
 ```
 
-Push both tags (each tag push is a separate, irreversible action against the
+Push each tag (each tag push is a separate, irreversible action against the
 public module proxy):
 
 ```bash
 git push origin sdk/go/collector/vX.Y.Z
 git push origin sdk/go/factschema/vX.Y.Z
+git push origin sdk/go/apicontract/vX.Y.Z
 ```
 
 ## Verifying the tag is fetchable
@@ -80,6 +95,7 @@ mkdir -p /tmp/eshu-sdk-proxy-check && cd /tmp/eshu-sdk-proxy-check
 go mod init proxycheck
 go get github.com/eshu-hq/eshu/sdk/go/collector@vX.Y.Z
 go get github.com/eshu-hq/eshu/sdk/go/factschema@vX.Y.Z
+go get github.com/eshu-hq/eshu/sdk/go/apicontract@vX.Y.Z
 ```
 
 A successful `go get` prints the resolved module version and updates
@@ -92,8 +108,9 @@ proxy cache disagree and must be fixed before announcing the release.
 | --- | --- | --- |
 | `sdk/go/collector` | `v0.1.0` | `docs/public/extend/community-extension-authoring.md` has stated the collector SDK's semver line is `v0.1.x` since the SDK was scaffolded; this is the first tag on that already-documented line, so it starts at the first release inside it rather than `v0.1.1+` or a re-numbered line. |
 | `sdk/go/factschema` | `v0.1.0` | The module is new (scaffolded in #4567) with no prior tag; following the same `v0.1.x` convention as `sdk/go/collector` for a first public release of a Go module keeps the two SDK modules' initial version schemes consistent, even though they version independently afterward. |
+| `sdk/go/apicontract` | `v0.1.0` | First tag of the API wire-contract module (scaffolded in #9529, Refs #9509, part of #6707) for the #8874 Tier-2 CLI population. Same `v0.1.x` convention as its siblings for a first public release of a Go module, versioned independently afterward. |
 
-Both are `v0.x` releases: per Go module semantics, `v0` carries no
+All three are `v0.x` releases: per Go module semantics, `v0` carries no
 backward-compatibility guarantee between minor versions, which matches these
 modules' actual maturity (in-tree consumers are the primary user; the
 external-collector story is what #4583 and #4572 exist to prove). Move either
