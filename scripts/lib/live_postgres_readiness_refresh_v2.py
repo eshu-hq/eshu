@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter, defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass
 import datetime as dt
 import math
@@ -133,12 +134,73 @@ def _parse_shard(log: str, number: int, total: int) -> tuple[
 
 
 def _mean_tenth(values: list[float], label: str, positive: bool = False) -> float:
+    return _checked_tenth(values, label, statistics.mean, positive)
+
+
+def _checked_tenth(values: list[float], label: str,
+                   statistic: Callable[[list[float]], float], positive: bool) -> float:
+    """Apply statistic to values, round to a tenth, and refuse empty or negative prices."""
     if not values:
         raise ValueError(f"no measured {label}")
-    result = round(statistics.mean(values), 1)
+    result = round(statistic(values), 1)
     if result < 0 or (positive and result <= 0):
         raise ValueError(f"measured {label} is not positive")
     return result
+
+
+QUANTILE_MIN_POOL = 4
+PRICE_PERCENTILE = 75
+
+
+@dataclass(frozen=True)
+class PricingRule:
+    """How per-test, first-use and repeat samples are priced for one source pool.
+
+    A pool of QUANTILE_MIN_POOL or more runs prices at the linear inclusive
+    p75, so one fast draw cannot pull a price below what the slower runs
+    measured (#9519). A pool of two or three runs keeps the mean, so the
+    declared two-run refits reproduce byte-for-byte. The cold fit, the fixed
+    overhead and the defaults keep their own rules in every pool.
+
+    Attributes:
+        pool: Source run IDs in the order the fit read them.
+    """
+
+    pool: tuple[str, ...]
+
+    @property
+    def quantile(self) -> bool:
+        """Whether this pool prices at the p75 instead of the mean."""
+        return len(self.pool) >= QUANTILE_MIN_POOL
+
+    def statistic(self, values: list[float]) -> float:
+        """Return the unrounded price of values under this pool's rule."""
+        if not self.quantile:
+            return statistics.mean(values)
+        if len(values) == 1:
+            return values[0]
+        return statistics.quantiles(values, n=100,
+                                    method="inclusive")[PRICE_PERCENTILE - 1]
+
+    def line(self) -> str:
+        """Render one stdout line for the refit PR body and evidence note."""
+        rule = (f"p{PRICE_PERCENTILE} (linear inclusive)" if self.quantile else "mean")
+        note = "" if self.quantile else f" (p{PRICE_PERCENTILE} needs at least {QUANTILE_MIN_POOL} runs)"
+        return (f"weights refresh v2: pricing {rule} of per-test, first-use and "
+                f"repeat samples over a {len(self.pool)}-run pool "
+                f"{', '.join(self.pool)}{note}; cold, fixed and defaults keep "
+                "their committed rules")
+
+
+def pricing_rule(source_runs: list[str]) -> PricingRule:
+    """Return the pricing rule a fit over these source run IDs applies."""
+    return PricingRule(tuple(source_runs))
+
+
+def _price_tenth(values: list[float], label: str, rule: PricingRule,
+                 positive: bool = False) -> float:
+    """Price per-test, first-use or repeat samples under the pool's rule."""
+    return _checked_tenth(values, label, rule.statistic, positive)
 
 
 MIN_COLD_PAIRS = 2
@@ -300,22 +362,24 @@ def fit_with_provenance(sources: list[Path], root: Path) -> tuple[
         fixed.extend(overhead)
     first: dict[str, float] = {}
     repeat: dict[str, float] = {}
+    rule = pricing_rule(source_runs)
     cold, cold_components = fit_cold(categories)
     for package, kinds in categories.items():
         later = kinds["first_later"]
         first_rows = kinds["first_row"]
         if later:
-            first[package] = _mean_tenth(later, f"first-use {package}")
+            first[package] = _price_tenth(later, f"first-use {package}", rule)
         elif first_rows:
-            first[package] = _mean_tenth([value - cold for value in first_rows],
-                                         f"first-use {package}")
+            first[package] = _price_tenth([value - cold for value in first_rows],
+                                          f"first-use {package}", rule)
         else:
             raise ValueError(f"no measured first use for {package}")
         if kinds["repeat"]:
-            repeat[package] = _mean_tenth(kinds["repeat"], f"repeat {package}", positive=True)
+            repeat[package] = _price_tenth(kinds["repeat"], f"repeat {package}", rule,
+                                           positive=True)
     if not repeat:
         raise ValueError("no measured repeat row category")
-    tests = {run: _mean_tenth(values, run) for run, values in sorted(test_values.items())}
+    tests = {run: _price_tenth(values, run, rule) for run, values in sorted(test_values.items())}
     if set(tests) != set(expected_plan or []):
         raise ValueError("source test prices differ from canonical inventory")
     document: dict[str, object] = {
