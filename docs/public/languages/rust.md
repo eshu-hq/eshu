@@ -42,6 +42,14 @@ Primary proof:
 - `go/internal/query/codequery/relationships/rust_graph_test.go::TestHandleRelationshipsReturnsGraphBackedRustImplBlockOwnership`
 - `go/internal/query/content_relationships_rust_test.go::TestBuildContentRelationshipSetRustImplBlockContainsMethods`
 
+## Runtime Declaration Evidence
+
+The Cargo manifest parse also carries a private, digest-bound `[package].rust-version`
+value with its source line to the Git collector for `runtime_declaration.version`.
+Other tables, including `[workspace.package]`, do not declare a package runtime.
+
+Proof: `go/internal/parser/rust/runtime_evidence_test.go::TestCargoRuntimeEvidenceUsesDecodedPackageAndSourceLine`.
+
 ## Known Limitations
 - Bounded lifetime metadata is preserved on function and impl signatures, but
   lifetime-aware graph semantics are not first-class beyond parser/query
