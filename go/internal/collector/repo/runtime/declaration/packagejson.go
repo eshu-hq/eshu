@@ -12,11 +12,10 @@ import "strings"
 var packageJSONRuntimes = [...]string{"node", "npm", "yarn", "pnpm"}
 
 // packageManagerNames are the package managers a "packageManager" field may
-// name: the three corepack permits (yarn, npm, pnpm). The issue names no other,
-// so any other name, bun included, is rejected and counted. The name becomes
+// name. The name becomes
 // the fact's runtime, so it is an allowlist: an arbitrary name would carry
 // arbitrary file text into a fact.
-var packageManagerNames = map[string]struct{}{"npm": {}, "pnpm": {}, "yarn": {}}
+var packageManagerNames = map[string]struct{}{"bun": {}, "deno": {}, "npm": {}, "pnpm": {}, "yarn": {}}
 
 // entry is one string member read from a manifest section. present is false
 // for a runtime the section does not name.
@@ -184,7 +183,7 @@ func (s packageJSONSections) declarations() (out []declaration, rejected int, er
 		name, spec, ok := packageManagerSpec(s.manager.value)
 		switch {
 		case !ok:
-			// No "@", or a name corepack does not permit: the string declares
+			// No "@", or an unlisted name: the string declares
 			// no manager and version, so it is counted, not silently absent.
 			rejected++
 		default:
@@ -194,7 +193,7 @@ func (s packageJSONSections) declarations() (out []declaration, rejected int, er
 	return out, rejected, nil
 }
 
-// packageManagerSpec splits a corepack "name@version" value into the manager
+// packageManagerSpec splits a "name@version" value into the manager
 // name and the version, dropping the "+sha512.<hex>" integrity suffix so the
 // hash never reaches a fact. ok is false when the value has no "@", or the
 // name is not an allowlisted package manager.

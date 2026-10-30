@@ -58,6 +58,9 @@ func TestEmitPackageJSONPackageManagerStripsTheIntegritySuffix(t *testing.T) {
 		{"pnpm@9", "9", "pnpm", "partial"},
 		{"yarn@berry", "berry", "yarn", "alias"},
 		{"pnpm@latest", "latest", "pnpm", "alias"},
+		{"bun@1.1.0+sha512.deadbeef", "1.1.0", "bun", "exact"},
+		{"deno@1.40.0", "1.40.0", "deno", "exact"},
+		{"bun@latest", "latest", "bun", "alias"},
 	}
 	for _, tc := range cases {
 		tc := tc
@@ -76,14 +79,27 @@ func TestEmitPackageJSONPackageManagerStripsTheIntegritySuffix(t *testing.T) {
 	}
 }
 
-func TestEmitPackageJSONPackageManagerOutsideCorepackIsRejected(t *testing.T) {
+func TestEmitPackageJSONUnlistedPackageManagerIsRejected(t *testing.T) {
 	t.Parallel()
 
-	for _, value := range []string{"bun@1.1.0", "deno@1.40.0", "PNPM@9.1.0", "pnpm9"} {
+	for _, value := range []string{"PNPM@9.1.0", "pnpm9", "other@1.0.0"} {
 		envelopes, skip := EmitFile(testContext("package.json"), "repo-1", "package.json", `{"packageManager":"`+value+`"}`)
 		if len(envelopes) != 0 || skip.Reason != SkipReasonValueRejected || skip.Rejected != 1 {
 			t.Errorf("%q: emitted %d, skip %+v, want nothing and a counted rejection", value, len(envelopes), skip)
 		}
+	}
+}
+
+func TestDenoJSONPackageVersionIsNotRuntimeVersion(t *testing.T) {
+	t.Parallel()
+
+	body := `{"name":"@example/tool","version":"1.40.0","exports":"./mod.ts",` +
+		`"engines":{"deno":"^2"},"runtimeVersion":"2.0.0"}`
+	if extraction, ok := Extract("services/tool/deno.json", body); ok || extraction.Len() != 0 {
+		t.Fatalf("deno.json extraction = (%d, %t), want no runtime declarations", extraction.Len(), ok)
+	}
+	if facts := Emit(testContext("deno.json"), "repo-1", "services/tool/deno.json", body); len(facts) != 0 {
+		t.Fatalf("deno.json emitted %d runtime facts, want none", len(facts))
 	}
 }
 
