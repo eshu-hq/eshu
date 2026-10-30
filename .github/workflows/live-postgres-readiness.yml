@@ -85,6 +85,10 @@ on:
       - 'scripts/lib/live_postgres_readiness_proof_cases.py'
       - 'scripts/lib/live_postgres_readiness_batch_mutant.py'
       - 'scripts/lib/test-run-live-postgres-readiness-proofs.sh'
+      - 'scripts/lib/test-run-live-postgres-readiness-pool.sh'
+      - 'scripts/test-live-postgres-readiness-pool.sh'
+      - 'scripts/lib/test-run-live-postgres-readiness-seed-pool.sh'
+      - 'scripts/test-live-postgres-readiness-seed-pool.sh'
       - 'scripts/ci/live-postgres-readiness-job-summary.sh'
       - 'scripts/ci/test-live-postgres-readiness-job-summary.sh'
       - 'scripts/test-run-live-postgres-readiness-selftest-seeds.sh'
@@ -130,12 +134,18 @@ jobs:
     # names a cap cancel, a failure, or an early cancel (#8241). The summary
     # step skips itself with a warning when checkout did not run, and cannot
     # fail the job. Keep CAP_MINUTES on that step equal to this value; the
-    # cigates readiness test pins it. Measured with the 30-minute cap: the self-test took about
-    # 5 minutes after #8263, so the margin is wide.
+    # cigates readiness test pins it. The self-test took about 5 minutes after
+    # #8263 and grew to 12-25 minutes by 2026-10-29 (#9582): its runner cases
+    # ran one at a time on a 4-vCPU runner and the VM speed swings about 1.7x.
+    # It now runs the per-package runner cases in a bounded pool of
+    # min(nproc, 4), and the summary names the runner CPU.
     timeout-minutes: 30
     steps:
       - name: Record hermetic job start
         run: echo "READINESS_JOB_STARTED_EPOCH=$(date +%s)" >> "$GITHUB_ENV"
+      # Output only, no gate: the hardware a slow run drew (#9582).
+      - name: Record hermetic runner CPU
+        run: lscpu | head -20 || true; nproc
       - name: Check out code
         uses: actions/checkout@v5
         with:
@@ -256,6 +266,10 @@ jobs:
           --health-timeout 10s
           --health-retries 20
     steps:
+      # Same start record and closing summary as the hermetic job, so the run
+      # summary lists every leg's wall beside the hermetic wall (#9582).
+      - name: Record shard job start
+        run: echo "READINESS_JOB_STARTED_EPOCH=$(date +%s)" >> "$GITHUB_ENV"
       # Output only, no gate: records the runner CPU so job walls can be
       # read against the hardware each shard drew (#9532). The || true keeps
       # the step from failing if a pipefail shell is set later.
@@ -406,6 +420,20 @@ jobs:
       - name: Stop disposable physical standby
         if: always()
         run: bash scripts/ci/live-postgres-standby-fixture.sh stop '${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}'
+
+      - name: Summarize shard job outcome
+        if: ${{ always() }}
+        env:
+          JOB_STATUS: ${{ job.status }}
+          READINESS_JOB_LABEL: shard ${{ matrix.shard }}/${{ matrix.total }}
+          CAP_MINUTES: '30'
+        run: |
+          script=scripts/ci/live-postgres-readiness-job-summary.sh
+          if [ ! -f "$script" ]; then
+            echo "::warning title=shard job summary skipped::$script is absent (checkout did not run)"
+            exit 0
+          fi
+          bash "$script" finish || echo "::warning title=shard job summary failed::$script finish exited $?"
 
   live-postgres-readiness:
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'live-postgres-readiness')) && (always()) }}

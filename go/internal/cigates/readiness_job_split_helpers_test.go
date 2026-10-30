@@ -168,19 +168,39 @@ const (
 	readinessStartRecord = `echo "READINESS_JOB_STARTED_EPOCH=$(date +%s)" >> "$GITHUB_ENV"`
 )
 
-// checkReadinessHermeticSummary requires the hermetic job to record its start
+// readinessRunnerCPU records the runner hardware so a job wall can be read
+// against the CPU model it drew (#9532, #9582). Output only, no gate.
+const readinessRunnerCPU = "lscpu | head -20 || true; nproc"
+
+// readinessShardLabel names a shard leg in its summary verdict.
+const readinessShardLabel = "shard ${{ matrix.shard }}/${{ matrix.total }}"
+
+// checkReadinessJobSummary requires a readiness job to record its start
 // time inline in its first step (before checkout, so no repo file is needed)
 // and to end with an always-run summary step that classifies the job by
 // status and elapsed time against the job's own cap, so a run cut off by the
 // cap reads differently from a failure (#8241). The summary step must also
 // tolerate an absent script (checkout skipped or not yet run) and a failing
 // classifier, so it can never fail a healthy job. No other step before the
-// checkout may run the repo script.
-func checkReadinessHermeticSummary(job readinessJob) string {
+// checkout may run the repo script. Both the hermetic job and each shard leg
+// carry it, so the hermetic wall reads next to the shard walls in the run
+// summary (#9582); label is the READINESS_JOB_LABEL the step must pass (empty
+// means the classifier default, hermetic), and only the hermetic job runs the
+// classifier's own test.
+func checkReadinessJobSummary(job readinessJob, what, label string, runsClassifierTest bool) string {
 	steps := job.Steps
 	if len(steps) == 0 || strings.TrimSpace(steps[0].Run) != readinessStartRecord ||
 		steps[0].If != "" || steps[0].ContinueOnError != "" {
-		return "hermetic job must record its start time inline in its first step, with no repo file"
+		return what + " job must record its start time inline in its first step, with no repo file"
+	}
+	cpu := 0
+	for _, step := range steps {
+		if strings.TrimSpace(step.Run) == readinessRunnerCPU && step.If == "" && step.ContinueOnError == "" {
+			cpu++
+		}
+	}
+	if cpu != 1 {
+		return what + " job must record its runner CPU exactly once (#9582)"
 	}
 	checkedOut := false
 	for i, step := range steps {
@@ -188,25 +208,28 @@ func checkReadinessHermeticSummary(job readinessJob) string {
 			checkedOut = true
 		}
 		if !checkedOut && i != len(steps)-1 && strings.Contains(step.Run, readinessSummaryScript) {
-			return "hermetic step runs a repo script before checkout"
+			return what + " step runs a repo script before checkout"
 		}
 	}
 	last := steps[len(steps)-1]
 	if last.If != readinessAlways || last.ContinueOnError != "" ||
 		!strings.Contains(last.Run, `bash "$script" finish`) || !strings.Contains(last.Run, "script="+readinessSummaryScript) {
-		return "hermetic job must end with an always-run summary step"
+		return what + " job must end with an always-run summary step"
 	}
 	if !strings.Contains(last.Run, `if [ ! -f "$script" ]; then`) || !strings.Contains(last.Run, "exit 0\n") {
-		return "hermetic summary step must skip, not fail, when the script is absent"
+		return what + " summary step must skip, not fail, when the script is absent"
 	}
 	if !strings.Contains(last.Run, `bash "$script" finish || echo`) {
-		return "hermetic summary step must not fail the job when the classifier fails"
+		return what + " summary step must not fail the job when the classifier fails"
 	}
 	if last.Env["JOB_STATUS"] != "${{ job.status }}" {
-		return "hermetic summary step must read the job status"
+		return what + " summary step must read the job status"
 	}
 	if last.Env["CAP_MINUTES"] != strconv.Itoa(job.TimeoutMinutes) {
-		return "hermetic summary CAP_MINUTES must equal the job timeout-minutes"
+		return what + " summary CAP_MINUTES must equal the job timeout-minutes"
+	}
+	if last.Env["READINESS_JOB_LABEL"] != label {
+		return what + " summary step must name its job"
 	}
 	runs := 0
 	for _, step := range steps {
@@ -217,8 +240,11 @@ func checkReadinessHermeticSummary(job readinessJob) string {
 			}
 		}
 	}
-	if runs != 1 {
-		return "hermetic job must run the summary classifier test exactly once"
+	if runsClassifierTest && runs != 1 {
+		return what + " job must run the summary classifier test exactly once"
+	}
+	if !runsClassifierTest && runs != 0 {
+		return what + " job must not run the summary classifier test"
 	}
 	return ""
 }
