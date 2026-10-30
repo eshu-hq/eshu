@@ -155,6 +155,7 @@ func defaultDefinitions() []Definition {
 			Admission:  AdmissionStructuredFact,
 			Extensions: []string{".pl", ".pm"},
 		},
+		perlCpanfileDefinition(),
 		phpConfigDefinition(),
 		{
 			ParserKey:  "php",
@@ -218,7 +219,7 @@ func defaultDefinitions() []Definition {
 			// path rule in LookupByPath, since its base name is too generic.
 			ExactNames: []string{
 				"Puppetfile", "Berksfile",
-				".nvmrc", ".node-version", ".tool-versions", ".python-version", ".php-version",
+				".nvmrc", ".node-version", ".tool-versions", ".python-version", ".php-version", ".perl-version",
 				".ruby-version", ".java-version", ".go-version", ".sdkmanrc",
 				".swift-version", ".terraform-version", ".terragrunt-version",
 				"rust-toolchain", "rust-toolchain.toml",
