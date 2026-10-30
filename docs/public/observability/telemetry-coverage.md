@@ -1,6 +1,6 @@
 # Telemetry Coverage Contract
 
-This page enumerates every observable stage in the Eshu data plane and the metric, span, or log key it must emit. It is the single source of truth that the CI coverage script (X2) diffs against. A new pipeline stage added to the source tree without a corresponding entry here fails the coverage gate. The five evidence markers policy (`Performance Evidence:`, `Benchmark Evidence:`, `No-Regression Evidence:`, `Observability Evidence:`, `No-Observability-Change:`) at `docs/internal/agent-guide.md:120-146` remains the per-PR discipline; this doc makes that discipline machine-enforced. Metric names match `go/internal/telemetry/instruments.go`; dimensions, span names, and log keys match `go/internal/telemetry/contract.go` and the per-family files under `go/internal/telemetry/contract/` (plus its `observability/` and `thirdparty/` subpackages). The public operator contract is `docs/public/reference/telemetry/index.md`. The schema migration `bootstrap.postgres.migration.lock_wait` and `lock_recovered` events remain the operator signals; `budget_left_ms` reports the remaining shared allowance after failed-attempt time and backoff, excludes successful migration time, and is not a strict server-side deadline because PostgreSQL applies `lock_timeout` per lock acquisition.
+This page enumerates every observable stage in the Eshu data plane and the metric, span, or log key it must emit. It is the single source of truth that the CI coverage script (X2) diffs against. A new pipeline stage added to the source tree without a corresponding entry here fails the coverage gate. The five evidence markers policy (`Performance Evidence:`, `Benchmark Evidence:`, `No-Regression Evidence:`, `Observability Evidence:`, `No-Observability-Change:`) at `docs/internal/agent-guide.md:120-146` remains the per-PR discipline; this doc makes that discipline machine-enforced. Metric names match `go/internal/telemetry/instruments.go`; dimensions, span names, and log keys match `go/internal/telemetry/contract.go` and the per-family files under `go/internal/telemetry/contract/` (plus its `observability/` and `thirdparty/` subpackages). The public operator contract is `docs/public/reference/telemetry/index.md`. The schema migration `bootstrap.postgres.migration.lock_wait` and `lock_recovered` events remain the operator signals; `budget_left_ms` reports the remaining shared allowance after failed-attempt time and backoff, excludes successful migration time, and is not a strict server-side deadline because PostgreSQL applies `lock_timeout` per lock acquisition. How the coverage gate reads this page (diff semantics, the `No-Observability-Change:` marker, stages, linked work, and affected flow) is in [Telemetry Coverage Notes](telemetry-coverage-notes.md).
 ## How To Read This Doc
 
 - The table is machine-parseable: stable column order `stage | file:line | required metric name(s) | category`, one row per stage. The metric column lists every registered name an operator needs to read at 3 AM, comma-separated. The category column names the owning sub-package or seam.
@@ -1037,11 +1037,6 @@ on phase at 3 AM.
 | drift.multi_element.prefix, multi_element.count, multi_element.source | go/internal/telemetry/contract.go:578-591 | `eshu_dp_drift_schema_unknown_composite_total` | log key |
 | drift.resource_type, attribute_key, path, error, reason | go/internal/telemetry/contract.go:598-622 | `eshu_dp_drift_schema_unknown_composite_total` | log key |
 
-## Contract Notes
-
-How the coverage gate reads this doc (diff semantics, the `No-Observability-Change:`
-marker, stages, linked work, and affected flow) is in [Telemetry Coverage Notes](telemetry-coverage-notes.md).
-
 <!-- eshu:metric:section=histogram-buckets -->
 ## Histogram Bucket Boundaries
 
@@ -1098,5 +1093,3 @@ Each documented bucket set maps a short name to the exact boundary values in `go
 | code-fingerprint-seconds | 0, 0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 5 |
 | lock-only-gate-lock-wait-seconds | 0, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 5, 10 |
 | webhook-claim-wait-seconds | 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300, 600 |
-
-Bucket sets for `eshu_dp_cloud_resource_list_*` live in `go/internal/query/cloud_resources_metrics.go`, outside this table's scope; omitted (#5548).
