@@ -27,7 +27,7 @@ type multiCVEStateView struct {
 	MultiCVETarget bool   `json:"multi_cve_target"`
 }
 
-func readMultiCVEReadiness(t *testing.T, db *sql.DB, cveID string) []multiCVEStateView {
+func readMultiCVEReadiness(t *testing.T, db *sql.DB, cveID string) ([]multiCVEStateView, []map[string]any) {
 	t.Helper()
 	handler := &SupplyChainHandler{
 		ImpactFindings: &recordingSupplyChainImpactFindingStore{},
@@ -50,7 +50,18 @@ func readMultiCVEReadiness(t *testing.T, db *sql.DB, cveID string) []multiCVESta
 	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	return body.Readiness.SourceStates
+	// Raw decode pins the documented omit shape: presence checks by
+	// consumers must see the key on multi-CVE rows and no key at all on
+	// single-CVE rows, not an explicit false.
+	var raw struct {
+		Readiness struct {
+			SourceStates []map[string]any `json:"source_states"`
+		} `json:"readiness"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &raw); err != nil {
+		t.Fatalf("decode raw response: %v", err)
+	}
+	return body.Readiness.SourceStates, raw.Readiness.SourceStates
 }
 
 func seedMultiCVENVDCommittedSnapshot(t *testing.T, ctx context.Context, db *sql.DB, now time.Time, scopeID, instanceID string, cveIDs []string) {
@@ -91,7 +102,7 @@ func TestSupplyChainImpactReadinessMultiCVETargetSaysSoLive(t *testing.T) {
 	seedMultiCVENVDCommittedSnapshot(t, ctx, db, now, "single-target", "multi-cve-instance",
 		[]string{"CVE-2026-9227"})
 
-	states := readMultiCVEReadiness(t, db, "CVE-2026-9227")
+	states, rawStates := readMultiCVEReadiness(t, db, "CVE-2026-9227")
 	got := map[string]bool{}
 	for _, state := range states {
 		if state.Source == "nvd" {
@@ -103,5 +114,28 @@ func TestSupplyChainImpactReadinessMultiCVETargetSaysSoLive(t *testing.T) {
 	}
 	if got["single-target"] {
 		t.Fatalf("multi-CVE NVD target source states = %+v, want no multi_cve_target on single-target", states)
+	}
+	rawGot := map[string]struct {
+		present bool
+		value   any
+	}{}
+	for _, state := range rawStates {
+		scopeID, _ := state["scope_id"].(string)
+		source, _ := state["source"].(string)
+		if source != "nvd" {
+			continue
+		}
+		value, present := state["multi_cve_target"]
+		rawGot[scopeID] = struct {
+			present bool
+			value   any
+		}{present: present, value: value}
+	}
+	multiRaw := rawGot["multi-target"]
+	if !multiRaw.present || multiRaw.value != true {
+		t.Fatalf("multi-target raw source state = %+v, want multi_cve_target present and true", multiRaw)
+	}
+	if singleRaw := rawGot["single-target"]; singleRaw.present {
+		t.Fatalf("single-target raw source state = %+v, want multi_cve_target key omitted, not explicit false", singleRaw)
 	}
 }
