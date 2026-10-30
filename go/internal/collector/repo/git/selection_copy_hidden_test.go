@@ -33,9 +33,9 @@ func TestPreserveFilesystemHiddenPathCoversRegistryDotfiles(t *testing.T) {
 			}
 			checked++
 			rel := filepath.ToSlash(filepath.Join("nested", "dir", name))
-			if strings.EqualFold(name, ".htaccess") {
+			if strings.EqualFold(name, ".htaccess") || strings.EqualFold(name, ".fvmrc") {
 				if !preserveFilesystemHiddenPath(name) || !preserveFilesystemHiddenPath(rel) {
-					t.Errorf("metadata-only PHP config %q must reach the parser", name)
+					t.Errorf("metadata-only config %q must reach the parser", name)
 				}
 				continue
 			}

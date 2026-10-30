@@ -195,3 +195,5 @@ even when the parser normalizes bare-CR line endings for source positions;
 it does not change the persisted content digest.
 
 `global.json` is exact-name admitted with metadata-only content storage. The JSON parser reads `sdk.version` once, carries bounded private `dotnet_runtime_evidence` with a raw-byte digest and source line, and leaves other JSON keys out of runtime facts.
+
+`.fvmrc` is exact-name admitted with metadata-only content storage. The JSON parser reads the top-level `flutter` pin once, carries bounded private `dart_runtime_evidence` with a raw-byte digest and source line, and leaves other JSON keys out of runtime facts.

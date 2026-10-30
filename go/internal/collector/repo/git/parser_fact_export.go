@@ -54,11 +54,12 @@ func ParserFileFactEnvelope(
 	_, hasIACTransport := parsedFile["iac_runtime_evidence"]
 	_, hasRustTransport := parsedFile["rust_runtime_evidence"]
 	_, hasHaskellTransport := parsedFile["haskell_runtime_evidence"]
+	_, hasDartTransport := parsedFile["dart_runtime_evidence"]
 	_, hasSwiftTransport := parsedFile["swift_runtime_evidence"]
-	if hasComposerTransport || hasPythonTransport || hasRubyTransport || hasJVMTransport || hasDotNetTransport || hasIACTransport || hasRustTransport || hasHaskellTransport || hasSwiftTransport {
+	if hasComposerTransport || hasPythonTransport || hasRubyTransport || hasJVMTransport || hasDotNetTransport || hasIACTransport || hasRustTransport || hasHaskellTransport || hasDartTransport || hasSwiftTransport {
 		clean := make(map[string]any, len(parsedFile)-1)
 		for key, value := range parsedFile {
-			if key != "composer_runtime_evidence" && key != "python_runtime_evidence" && key != "ruby_runtime_evidence" && key != "jvm_runtime_evidence" && key != "dotnet_runtime_evidence" && key != "iac_runtime_evidence" && key != "rust_runtime_evidence" && key != "haskell_runtime_evidence" && key != "swift_runtime_evidence" {
+			if key != "composer_runtime_evidence" && key != "python_runtime_evidence" && key != "ruby_runtime_evidence" && key != "jvm_runtime_evidence" && key != "dotnet_runtime_evidence" && key != "iac_runtime_evidence" && key != "rust_runtime_evidence" && key != "haskell_runtime_evidence" && key != "dart_runtime_evidence" && key != "swift_runtime_evidence" {
 				clean[key] = value
 			}
 		}
@@ -128,6 +129,16 @@ func noteSwiftCandidate(snapshot *RepositorySnapshot, candidates map[string]runt
 	return false
 }
 
+// noteDartOrSwiftCandidate notes the Dart pubspec/.fvmrc or Swift
+// Package.swift candidate, preserving the Dart-before-Swift dispatch order.
+// It reports whether either handler claimed the path.
+func noteDartOrSwiftCandidate(snapshot *RepositorySnapshot, candidates map[string]runtimedeclaration.Candidate, relativePath, body string, dropped *atomic.Bool, droppedPaths *scope.StreamDroppedPaths) bool {
+	if noteDartCandidate(snapshot, candidates, relativePath, body, dropped, droppedPaths) {
+		return true
+	}
+	return noteSwiftCandidate(snapshot, candidates, relativePath, body, dropped, droppedPaths)
+}
+
 // noteComposerOrRuntimeCandidate uses the parser's one Composer interpretation
 // when available. A changed body cannot be combined with an earlier parse.
 func noteComposerOrRuntimeCandidate(snapshot *RepositorySnapshot, candidates map[string]runtimedeclaration.Candidate, relativePath, body string, dropped *atomic.Bool, droppedPaths *scope.StreamDroppedPaths) {
@@ -137,7 +148,7 @@ func noteComposerOrRuntimeCandidate(snapshot *RepositorySnapshot, candidates map
 	if noteHaskellCandidate(snapshot, candidates, relativePath, body, dropped, droppedPaths) {
 		return
 	}
-	if noteSwiftCandidate(snapshot, candidates, relativePath, body, dropped, droppedPaths) {
+	if noteDartOrSwiftCandidate(snapshot, candidates, relativePath, body, dropped, droppedPaths) {
 		return
 	}
 	if isIACRuntimePath(relativePath) {
@@ -325,6 +336,46 @@ func noteHaskellCandidate(snapshot *RepositorySnapshot, candidates map[string]ru
 		dropped.Store(true)
 		droppedPaths.Note(relativePath)
 		runtimedeclaration.NoteUnavailableHaskellCandidate(candidates, relativePath, len(body))
+		return true
+	}
+	return false
+}
+
+// isDartRuntimePath reports whether relativePath is a Dart version source:
+// a pubspec manifest or an .fvmrc pin, at any depth.
+func isDartRuntimePath(relativePath string) bool {
+	switch filepath.Base(relativePath) {
+	case "pubspec.yaml", "pubspec.yml", ".fvmrc":
+		return true
+	default:
+		return false
+	}
+}
+
+// noteDartCandidate notes the Dart pubspec or .fvmrc candidate when the path
+// is a Dart version source. It reports whether it handled the path; a
+// changed body cannot be combined with an earlier parse.
+func noteDartCandidate(snapshot *RepositorySnapshot, candidates map[string]runtimedeclaration.Candidate, relativePath, body string, dropped *atomic.Bool, droppedPaths *scope.StreamDroppedPaths) bool {
+	if !isDartRuntimePath(relativePath) {
+		return false
+	}
+	if parsed, ok := snapshot.DartRuntime[relativePath]; ok {
+		if parsed.Digest != shared.RuntimeDigest([]byte(body)) {
+			dropped.Store(true)
+			droppedPaths.Note(relativePath)
+			return true
+		}
+		runtimedeclaration.NoteParsedDartCandidate(candidates, relativePath, parsed.Extraction)
+		return true
+	}
+	if snapshot.DartRuntimeExpected {
+		if len(body) > runtimepaths.MaxManifestBytesPerFile {
+			runtimedeclaration.NoteCappedDartCandidate(candidates, relativePath, len(body))
+			return true
+		}
+		dropped.Store(true)
+		droppedPaths.Note(relativePath)
+		runtimedeclaration.NoteUnavailableDartCandidate(candidates, relativePath, len(body))
 		return true
 	}
 	return false

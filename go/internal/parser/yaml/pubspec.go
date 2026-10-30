@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
+	yamlv3 "gopkg.in/yaml.v3"
 )
 
 func isPubspecDependencyFile(filename string) bool {
@@ -18,6 +19,65 @@ func isPubspecDependencyFile(filename string) bool {
 	default:
 		return false
 	}
+}
+
+// isPubspecManifestFile reports whether filename is a pubspec manifest rather
+// than the lockfile: only the manifest declares environment.sdk.
+func isPubspecManifestFile(filename string) bool {
+	switch strings.ToLower(strings.TrimSpace(filename)) {
+	case "pubspec.yaml", "pubspec.yml":
+		return true
+	default:
+		return false
+	}
+}
+
+// pubspecRuntimeEvidenceFromNode reads environment.sdk from one decoded
+// pubspec manifest mapping in a single pass over nodes the caller already
+// holds, keeping only the credential-guarded Dart constraint with its real
+// source line. Other environment keys never reach runtime facts.
+func pubspecRuntimeEvidenceFromNode(source []byte, root *yamlv3.Node) shared.RuntimeEvidence {
+	evidence := shared.NewRuntimeEvidence(source)
+	if evidence.State == "over_cap" {
+		return evidence
+	}
+	if root == nil || root.Kind != yamlv3.MappingNode {
+		evidence.State = "unavailable"
+		return evidence
+	}
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		key, value := root.Content[i], root.Content[i+1]
+		if key.Value != "environment" || value.Kind != yamlv3.MappingNode {
+			continue
+		}
+		for j := 0; j+1 < len(value.Content); j += 2 {
+			sdkKey, sdkValue := value.Content[j], value.Content[j+1]
+			if sdkKey.Value != "sdk" {
+				continue
+			}
+			if sdkValue.Kind != yamlv3.ScalarNode || sdkValue.Tag != "!!str" {
+				evidence.Rejected++
+				continue
+			}
+			evidence.Add("dart_pubspec_environment_sdk", "dart", sdkValue.Value, sdkValue.Line)
+		}
+	}
+	return evidence
+}
+
+// ExtractPubspecRuntimeEvidence parses a supplied pubspec manifest body for
+// the content-only path.
+func ExtractPubspecRuntimeEvidence(source []byte) shared.RuntimeEvidence {
+	evidence := shared.NewRuntimeEvidence(source)
+	if evidence.State == "over_cap" {
+		return evidence
+	}
+	var document yamlv3.Node
+	if err := yamlv3.Unmarshal(source, &document); err != nil || len(document.Content) != 1 {
+		evidence.State = "unavailable"
+		return evidence
+	}
+	return pubspecRuntimeEvidenceFromNode(source, document.Content[0])
 }
 
 func appendPubspecDependencyRows(

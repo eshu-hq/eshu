@@ -59,6 +59,14 @@ func defaultDefinitions() []Definition {
 			Extensions: []string{".dart"},
 		},
 		{
+			ParserKey:    "dart_fvmrc",
+			Language:     "json",
+			Ecosystem:    "dart",
+			Admission:    AdmissionStructuredFact,
+			ContentStore: ContentStore{Policy: ContentStoreMetadata},
+			ExactNames:   []string{".fvmrc"},
+		},
+		{
 			ParserKey:  "elixir",
 			Language:   "elixir",
 			Ecosystem:  "elixir",

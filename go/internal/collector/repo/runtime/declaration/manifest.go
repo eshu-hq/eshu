@@ -57,6 +57,8 @@ const (
 	sourceKindHelmKubeVersion           = "helm_chart_kube_version"
 	sourceKindCargoRustVersion          = "cargo_package_rust_version"
 	sourceKindStackYamlResolver         = "stack_yaml_resolver"
+	sourceKindDartPubspecSDK            = "dart_pubspec_environment_sdk"
+	sourceKindDartFvmrcFlutter          = "dart_fvmrc_flutter"
 )
 
 // section identifies the manifest section a declaration was read from.
@@ -103,6 +105,8 @@ const (
 	sectionHelmKubeVersion
 	sectionCargoRustVersion
 	sectionStackYamlResolver
+	sectionDartPubspecSDK
+	sectionDartFvmrcFlutter
 )
 
 // sectionSourceKinds maps a section to its source kind.
@@ -147,6 +151,8 @@ var sectionSourceKinds = [...]string{
 	sectionHelmKubeVersion:           sourceKindHelmKubeVersion,
 	sectionCargoRustVersion:          sourceKindCargoRustVersion,
 	sectionStackYamlResolver:         sourceKindStackYamlResolver,
+	sectionDartPubspecSDK:            sourceKindDartPubspecSDK,
+	sectionDartFvmrcFlutter:          sourceKindDartFvmrcFlutter,
 }
 
 // MaxManifestBytesPerFile bounds one package.json, Composer, or go.mod body. A manifest
@@ -185,6 +191,8 @@ const (
 	manifestHelmChart
 	manifestCargo
 	manifestStackYaml
+	manifestDartPubspec
+	manifestDartFvmrc
 )
 
 // dependencyDirs are directory names whose manifests belong to a dependency,
@@ -258,6 +266,10 @@ func manifestKindForBase(base, relativePath string) manifestKind {
 		kind = manifestTerragrunt
 	case strings.EqualFold(base, "Chart.yaml") || strings.EqualFold(base, "Chart.yml"):
 		kind = manifestHelmChart
+	case base == "pubspec.yaml" || base == "pubspec.yml":
+		kind = manifestDartPubspec
+	case base == ".fvmrc":
+		kind = manifestDartFvmrc
 	case isDockerfileName(base):
 		kind = manifestDockerfile
 	case ghactionsref.IsWorkflowPath(relativePath):
