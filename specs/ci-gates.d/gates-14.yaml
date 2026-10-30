@@ -509,10 +509,15 @@ gates:
     # attestations, and the main-line staleness are checked only in CI:
     # verify-scanner-digest-pins runs the suite, then the verifier against
     # GHCR (#9491); same workflow, same job, two more steps.
-    # The Dockerfile, the publish workflow, and the lane script select this
-    # gate but are not staleness inputs: they changed after the anchor
-    # without moving the anchored tags. The staleness inputs are the scanner
-    # Go sources the verifier diffs, minus the pin files themselves.
+    # The Dockerfile, the publish workflow, the lane script, the base-image
+    # spec, and the module files select this gate and are staleness inputs:
+    # the verifier content-hashes the scanner-relevant non-Go subset
+    # (Dockerfile base pins + builder toolchain + scanner stages, the
+    # scanner publish job plus env mirrors, xx/golang/alpine digests, raw
+    # go.mod/go.sum) at the anchor and at the merge-base, so a comment-only
+    # edit stays green while a base-pin bump or scanner-stage change fails
+    # (#9503). The remaining staleness inputs are the scanner Go sources
+    # the verifier diffs, minus the pin files themselves.
     triggers:
       - "Dockerfile"
       - ".github/workflows/docker-publish.yml"
@@ -520,6 +525,9 @@ gates:
       - "scripts/ci/go-install-retry.sh"
       - "scripts/verify-scanner-digest-pins.sh"
       - "scripts/test-verify-scanner-digest-pins.sh"
+      - "specs/ci-images.v1.json"
+      - "go/go.mod"
+      - "go/go.sum"
       - "go/internal/collector/scannerworker/component/manifest.go"
       - "go/internal/collector/scannerworker/component/manifest_test.go"
       - "go/internal/collector/scannerworker/**"
