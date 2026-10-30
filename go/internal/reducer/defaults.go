@@ -167,6 +167,16 @@ type DefaultHandlers struct {
 	// alongside ScopeRepos to resolve provider-asserted workload handles.
 	WorkloadSiblingLookup WorkloadSiblingLookup
 
+	// ECSBindingDeclarationCensus lists active Terraform/Terragrunt
+	// declarations corpus-wide for workload↔ECS-service binding (#9661).
+	// Nil keeps the workload-cloud handler on anchor-only rows; set it to
+	// enable the declaration-binding section.
+	ECSBindingDeclarationCensus ECSBindingDeclarationCensus
+	// ECSBindingInstanceEnvironments lists materialized instance
+	// environments by workload name for the binding's single-instance
+	// environment leg. Nil disables that leg.
+	ECSBindingInstanceEnvironments ECSBindingInstanceLookup
+
 	// RepoDependencyEdgeWriter writes cross-repo dependency edges resolved
 	// from durable repo-dependency intents. Optional; nil disables the
 	// repo-dependency projection runner.

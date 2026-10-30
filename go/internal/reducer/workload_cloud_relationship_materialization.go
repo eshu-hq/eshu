@@ -90,6 +90,15 @@ type WorkloadCloudRelationshipMaterializationHandler struct {
 	Instruments    *telemetry.Instruments
 	ScopeRepos     handle.ScopeRepos     // Nil resolves graph-wide (#5385).
 	WorkloadLookup WorkloadSiblingLookup // Nil keeps legacy rows (#5385).
+	// ECSDeclarationCensus lists active Terraform/Terragrunt declarations
+	// corpus-wide for workload↔ECS-service binding (#9661). Nil skips the
+	// declaration-binding section entirely (pre-#9661 behavior); the anchor
+	// path is unaffected.
+	ECSDeclarationCensus ECSBindingDeclarationCensus
+	// ECSInstanceEnvironments lists materialized instance environments by
+	// workload name for the single-instance environment leg. Nil disables
+	// that leg (environment must then come from fact or terragrunt tags).
+	ECSInstanceEnvironments ECSBindingInstanceLookup
 	// AffectedGraph runs the value-flow refresh emit gate over the committed
 	// workload ids. Nil skips the gate and reports affected (fail open);
 	// production wires the graph query runner.
@@ -155,6 +164,12 @@ func (h WorkloadCloudRelationshipMaterializationHandler) Handle(
 		// the durable queue triages it correctly.
 		return reducercontract.Result{}, err
 	}
+	rows, quarantined, ecsSummary, err := h.appendECSBindingRows(ctx, intent, envelopes, rows, &tally, quarantined)
+	if err != nil {
+		// A census or lookup failure fails the intent before any commit,
+		// so a partial binding can never retract a complete one.
+		return reducercontract.Result{}, err
+	}
 	rows, err = h.resolveWorkloadHandles(ctx, intent, rows, &tally)
 	if err != nil {
 		return reducercontract.Result{}, err
@@ -180,18 +195,20 @@ func (h WorkloadCloudRelationshipMaterializationHandler) Handle(
 		}
 		readyRows = workloadCloudRelationshipReadyRows(rows, eval)
 	}
+	summary := fmt.Sprintf(
+		"materialized %d workload cloud USES edge(s) from %d aws resource fact(s); %d candidate(s) skipped; %d input_invalid fact(s) quarantined; %d workload instance anchor(s) missing%s",
+		readyRows,
+		len(envelopes),
+		tally.totalSkipped(),
+		inputInvalidCount,
+		len(eval.Missing),
+		ecsSummary,
+	)
 	return h.finishInstanceWait(ctx, intent, wait, eval, eval.Decision.Commit, reducercontract.Result{
-		IntentID: intent.IntentID,
-		Domain:   DomainWorkloadCloudRelationshipMaterialization,
-		Status:   ResultStatusSucceeded,
-		EvidenceSummary: fmt.Sprintf(
-			"materialized %d workload cloud USES edge(s) from %d aws resource fact(s); %d candidate(s) skipped; %d input_invalid fact(s) quarantined; %d workload instance anchor(s) missing",
-			readyRows,
-			len(envelopes),
-			tally.totalSkipped(),
-			inputInvalidCount,
-			len(eval.Missing),
-		),
+		IntentID:        intent.IntentID,
+		Domain:          DomainWorkloadCloudRelationshipMaterialization,
+		Status:          ResultStatusSucceeded,
+		EvidenceSummary: summary,
 		CanonicalWrites: readyRows,
 		SubSignals:      h.refreshResultSignals(ctx, intent, factdecode.InputInvalidSubSignals(inputInvalidCount), readyRows, rows),
 	})
@@ -241,42 +258,6 @@ func (h WorkloadCloudRelationshipMaterializationHandler) instanceWait() workload
 	}
 }
 
-// commitEdges retracts this scope's USES edges and rewrites every row. The
-// retract is skipped only for the first commit of a scope's first generation;
-// recommit (an earlier commit of this generation is in the ledger) forces it.
-func (h WorkloadCloudRelationshipMaterializationHandler) commitEdges(ctx context.Context, intent reducercontract.Intent, rows []map[string]any, recommit bool) error {
-	skipRetract := false
-	if !recommit {
-		var err error
-		if skipRetract, err = h.shouldSkipRetract(ctx, intent); err != nil {
-			return err
-		}
-	}
-	if !skipRetract {
-		if err := h.EdgeWriter.RetractWorkloadCloudRelationshipEdges(
-			ctx,
-			[]string{intent.ScopeID},
-			intent.GenerationID,
-			workloadCloudRelationshipEvidenceSource,
-		); err != nil {
-			return fmt.Errorf("retract workload cloud USES edges: %w", err)
-		}
-	}
-	if len(rows) == 0 {
-		return nil
-	}
-	if err := h.EdgeWriter.WriteWorkloadCloudRelationshipEdges(
-		ctx,
-		rows,
-		intent.ScopeID,
-		intent.GenerationID,
-		workloadCloudRelationshipEvidenceSource,
-	); err != nil {
-		return fmt.Errorf("write workload cloud USES edges: %w", err)
-	}
-	return nil
-}
-
 // finishInstanceWait writes the ledger after any commit, emits the wait
 // signal, and returns the not-ready error when the wait continues.
 func (h WorkloadCloudRelationshipMaterializationHandler) finishInstanceWait(
@@ -309,17 +290,6 @@ func (h WorkloadCloudRelationshipMaterializationHandler) recordReadinessWait(ctx
 		telemetry.AttrDomain(string(DomainWorkloadCloudRelationshipMaterialization)),
 		telemetry.AttrOutcome(outcome),
 	))
-}
-
-func (h WorkloadCloudRelationshipMaterializationHandler) shouldSkipRetract(ctx context.Context, intent reducercontract.Intent) (bool, error) {
-	if h.PriorGenerationCheck == nil || intent.AttemptCount > 1 {
-		return false, nil
-	}
-	hasPrior, err := h.PriorGenerationCheck(ctx, intent.ScopeID, intent.GenerationID)
-	if err != nil {
-		return false, fmt.Errorf("check prior generation for workload cloud relationship retract: %w", err)
-	}
-	return !hasPrior, nil
 }
 
 type workloadCloudRelationshipNotReadyError struct {

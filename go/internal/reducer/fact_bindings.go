@@ -71,3 +71,15 @@ var SubmoduleHandleBinding = contract.Bind(contract.Binding{
 	ReducerDir: "go/internal/reducer", Symbol: "Handle",
 	Kinds: []string{"submodule.pin"},
 })
+
+// ECSBindingHandleBinding declares this package's verified reducer
+// consumption of the applied-state kind for workload↔ECS-service binding
+// (issue #9661, mechanism 1b phase-2 scaffold). The workload-cloud
+// handler reads terraform_state_resource facts naming managed type
+// aws_ecs_service; producer coverage is zero, so the path is proven by a
+// synthetic envelope until the producer ships. Build-time metadata only.
+var ECSBindingHandleBinding = contract.Bind(contract.Binding{
+	ID: "reducer/reducer_handle_ecs_binding", FamilyID: "terraform_state",
+	ReducerDir: "go/internal/reducer", Symbol: "Handle",
+	Kinds: []string{"terraform_state_resource"},
+})
