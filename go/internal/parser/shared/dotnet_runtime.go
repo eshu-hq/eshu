@@ -17,12 +17,15 @@ type DotNetRuntimeValue struct {
 }
 
 // DotNetRuntimeEvidence is private parser output bound to the exact source bytes.
+// TokenCount records every Add call, including rejected values and calls past
+// the cap, so an over_tokens skip carries the exact count.
 type DotNetRuntimeEvidence struct {
-	Values   []DotNetRuntimeValue
-	Rejected int
-	State    string
-	ByteSize int
-	Digest   string
+	Values     []DotNetRuntimeValue
+	Rejected   int
+	State      string
+	ByteSize   int
+	TokenCount int
+	Digest     string
 }
 
 // DotNetRuntimeDigest identifies the exact source revision, including line endings.
@@ -41,18 +44,21 @@ func NewDotNetRuntimeEvidence(source []byte) DotNetRuntimeEvidence {
 }
 
 // Add records one detached version string after the credential and byte guard.
+// It counts every call toward RuntimeVersionTokenCap and clears retained
+// values once the cap is exceeded, mirroring RuntimeEvidence.Add.
 func (e *DotNetRuntimeEvidence) Add(kind, value string, line int) {
+	e.TokenCount++
 	if e.State == "over_cap" || e.State == "unavailable" || e.State == "over_tokens" {
+		return
+	}
+	if e.TokenCount > RuntimeVersionTokenCap {
+		e.Values = nil
+		e.State = "over_tokens"
 		return
 	}
 	value = strings.TrimSpace(value)
 	if line < 1 || !SafeVersionSpec(value) {
 		e.Rejected++
-		return
-	}
-	if len(e.Values) >= 128 {
-		e.Values = nil
-		e.State = "over_tokens"
 		return
 	}
 	e.Values = append(e.Values, DotNetRuntimeValue{SourceKind: kind, Value: strings.Clone(value), Line: line})

@@ -14,7 +14,7 @@ func ExtractDotNetEvidence(e shared.DotNetRuntimeEvidence) Extraction {
 		return Extraction{skip: Skip{Reason: SkipReasonManifestUnparseable, ByteSize: e.ByteSize}}
 	}
 	if e.State == "over_tokens" {
-		return Extraction{skip: Skip{Reason: SkipReasonTokenCap, ByteSize: e.ByteSize, TokenCount: 129}}
+		return Extraction{skip: Skip{Reason: SkipReasonTokenCap, ByteSize: e.ByteSize, TokenCount: e.TokenCount}}
 	}
 	out := make([]declaration, 0, len(e.Values))
 	rejected := e.Rejected
