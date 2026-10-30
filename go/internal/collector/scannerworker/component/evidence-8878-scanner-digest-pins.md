@@ -110,3 +110,58 @@ No-Observability-Change (retry re-pin 768eeed282): no metric, span,
 log, or status field added, renamed, or removed by the new pin
 values; seed and admission failures keep the existing defect-only
 startup-error path with no new telemetry.
+
+## Re-pin after the ASCII identity fold (merge 17e42456aa, docker-publish run 41099864459)
+
+The ASCII-letters-only identity fold (#9619, commit `a6af7e40dc`)
+changed `sbomgenerator/envelope.go` and one sbomgenerator test after
+anchor `768eeed282`, so `verify-scanner-digest-pins.sh` reported STALE
+on main (the pins still matched their tags; they were only stale). This
+bump moves the anchor to
+`17e42456aaa3a411cb429babd3dcf2b63bd07941` and the three pins to the
+`sha-17e42456aa...` tags published from that merge. It is the newest
+first-parent main commit with all three immutable scanner tags, and no
+scanner input file changed on main between it and the base of this
+change:
+
+- image `2c9269e9...7b423815`, sbom `2d3b72aa...b61ee43da`,
+  osruntime `6ff09b67...955e2b574` (full hex in `manifest.go`).
+- Each digest read back with `crane digest` and its build attestation
+  verified with `gh attestation verify oci://... -R eshu-hq/eshu`, with
+  the default and the SPDX predicate (exit 0 on all six).
+- Why the images include the fold: `a6af7e40dc` is an ancestor of
+  `17e42456aa`, and each image's attestation records
+  `sourceRepositoryDigest` `17e42456aaa3a411cb429babd3dcf2b63bd07941`
+  on `refs/heads/main`. Run 41099864459 finished with every job
+  successful, including `verify-reproducibility`.
+- The mirrored in-repo chart values in the runtime contract test move
+  with the pins. The deploy repo does NOT move with this change. At
+  eshu-deploy `origin/main` 64bf912e0d4bf79f08eaa0149d3978c1d9b2c451,
+  `helm/eshu/ci/scanner-activations.values.yaml` (lines 41, 77, 108)
+  and its contract test
+  `go/internal/runtime/helm_scanner_activations_contract_test.go`
+  (lines 23-25) still hold the old digests `f92fabfc...`,
+  `cf0e10d6...`, and `3dbca86b...`. The default chart values carry no
+  scanner `seed.image` entries (commented examples only). Once an
+  environment runs an eshu build that carries the pins above, an
+  environment that applies the scanner values file with `-f` seeds
+  digests that build no longer admits, and admission fails closed
+  for the scanner components until the deploy files are bumped to
+  the same pins. Merging this change alone does not alter admission.
+  The deploy bump is a companion change owned outside this PR.
+
+No-Regression Evidence (fold re-pin 17e42456aa): component suite, same
+host and load, alternating first mover: base 30.022s and 28.854s vs
+this change 27.349s and 29.914s (about 29.4s vs 28.6s mean). `go test
+./internal/collector/scannerworker/... ./internal/runtime/ -count=1`
+green, and `scripts/verify-scanner-digest-pins.sh` PASS (3 components
+at sha-17e42456aaa3, inputs fresh) after exiting 1 STALE at the base.
+Constants-only change, manifest construction off any query, ingest, or
+graph-write path. Backend/version: no backend touched (unit suite, no
+graph backend); input shape: three pin constants plus anchor line;
+queue/row counts: none (no queue involved).
+
+No-Observability-Change (fold re-pin 17e42456aa): no metric, span,
+log, or status field added, renamed, or removed by the new pin values;
+seed and admission failures keep the existing defect-only startup-error
+path with no new telemetry.
