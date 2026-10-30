@@ -22,6 +22,7 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 // staticOnlyExpansion returns the canned envelopes as a complete static
@@ -100,6 +101,10 @@ func TestAuthorizedImpactLoaderWithoutAuthorityTablesLeavesPlainWriteLive(t *tes
 		t.Fatalf("open postgres: %v", err)
 	}
 	t.Cleanup(func() { _ = admin.Close() })
+	// Pin pg_trgm in public before creating the schema, like the shared
+	// isolated-schema helper: without it the content trigram index in
+	// migration 004 fails with gin_trgm_ops does not exist (42704).
+	postgresproof.InstallTrigramExtension(ctx, t, admin)
 	schema := fmt.Sprintf("onboarding_noschema_%d", time.Now().UnixNano())
 	if _, err := admin.ExecContext(ctx, "CREATE SCHEMA "+schema); err != nil {
 		t.Fatalf("create schema: %v", err)
@@ -111,7 +116,7 @@ func TestAuthorizedImpactLoaderWithoutAuthorityTablesLeavesPlainWriteLive(t *tes
 	if strings.Contains(adminDSN, "?") {
 		sep = "&"
 	}
-	isolated, err := sql.Open("pgx", adminDSN+sep+"search_path="+schema)
+	isolated, err := sql.Open("pgx", adminDSN+sep+"search_path="+schema+",public")
 	if err != nil {
 		t.Fatalf("open isolated pool: %v", err)
 	}
