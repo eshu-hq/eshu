@@ -16,6 +16,7 @@ choices, use [Docker Compose](https://github.com/eshu-hq/eshu-deploy/blob/main/d
 | MCP Server | MCP HTTP/SSE or stdio transport over the query surface. | optional `Deployment` | [Core runtimes](service-runtimes-core.md) |
 | Ingester | Repository sync, workspace PVC, parsing, fact emission. | `StatefulSet` | [Core runtimes](service-runtimes-core.md) |
 | Webhook Listener | Verified Git and AWS freshness trigger intake. | optional `Deployment` | [Core runtimes](service-runtimes-core.md) |
+| Webhook Intake Host | Authenticated satellite trigger admission and trigger-table schema ownership. | optional `Deployment` (ClusterIP only, no ingress) | [Core runtimes](service-runtimes-core.md) |
 | Workflow Coordinator | Collector instance reconciliation, claim creation, expired-claim reaping. | optional `Deployment` | [Core runtimes](service-runtimes-core.md) |
 | Resolution Engine | Durable queue drain, projection, retry, replay, recovery, bounded superseded-generation cleanup, package-consumption sidecar repair, and hardcoded-secret side-table rebuild (#8833). | `Deployment` | [Resolution engine](../services/resolution-engine.md) |
 | Hosted Collectors | Confluence, OCI registry, Terraform-state, AWS cloud, package-registry, SBOM, attestation, provider security-alert, PagerDuty incident-context, and Jira work-item fact intake. | optional `Deployment` | [Collector runtimes](service-runtimes-collectors.md) |

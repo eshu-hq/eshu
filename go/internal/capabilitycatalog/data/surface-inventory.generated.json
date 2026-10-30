@@ -2604,6 +2604,11 @@
     },
     {
       "category": "command",
+      "name": "webhook-intake",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
       "name": "webhook-listener",
       "readiness": "implemented"
     },

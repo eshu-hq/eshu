@@ -31,6 +31,7 @@ before restarting services or reindexing.
 | Resolution Engine | `/usr/local/bin/eshu-reducer` | Reducer queue, projection, replay, retry, recovery. | `deployment-resolution-engine.yaml` |
 | Workflow Coordinator | `/usr/local/bin/eshu-workflow-coordinator` | Collector instance reconciliation and claim lifecycle. | `deployment-workflow-coordinator.yaml` |
 | Webhook Listener | `/usr/local/bin/eshu-webhook-listener` | Verified Git, AWS, PagerDuty, and Jira webhook intake. | `deployment-webhook-listener.yaml` |
+| Webhook Intake Host | `/usr/local/bin/eshu-webhook-intake` | Authenticated satellite trigger admission plus trigger-table schema ownership (ClusterIP only, no ingress, no provider routes). | `deployment-webhook-intake.yaml` |
 
 The ingester is the only long-running Kubernetes runtime that should mount the
 workspace PVC. Stdio MCP mode does not expose the HTTP admin surface.
