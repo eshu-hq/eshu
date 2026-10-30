@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
@@ -386,5 +388,90 @@ func TestSupplyChainImpactPreservesMultipleFixedVersionBranches(t *testing.T) {
 	}
 	if finding.FixedVersion != "8.6.77" {
 		t.Fatalf("FixedVersion = %q, want 8.6.77", finding.FixedVersion)
+	}
+}
+
+// TestProvenanceMultiLineFactLeavesScalarFixedVersionBlank proves #9430: after
+// the #9421 satellite merge one affected_package fact can carry the sorted
+// union of fixes across release lines (here guzzlehttp/psr7 lines fixed in
+// 1.9.1 and 2.4.5). No single entry answers "the" fixed version without the
+// observed version, so the selector must leave the scalar blank instead of
+// publishing fixed_versions[0]. A scalar 1.9.1 would reach
+// evaluateSupplyChainVersionMatch (index.go passes finding.FixedVersion) and
+// flip the 2.0.5 install to "known fixed" through the 2.0.5 >= 1.9.1 compare.
+func TestProvenanceMultiLineFactLeavesScalarFixedVersionBlank(t *testing.T) {
+	t.Parallel()
+
+	cve := vulnerabilityCVEFactWithProvenance(
+		"psr7-cve",
+		"CVE-2026-1111",
+		"osv",
+		"GHSA-psr7-multi",
+		7.5,
+		"CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
+		"HIGH",
+		"2026-05-20T12:00:00Z",
+	)
+	pkg := facts.Envelope{
+		FactID:   "psr7-affected",
+		FactKind: chain.VulnerabilityAffectedPackageFactKind,
+		Payload: map[string]any{
+			"cve_id":       "CVE-2026-1111",
+			"advisory_id":  "GHSA-psr7-multi",
+			"source":       "osv",
+			"package_id":   "composer://packagist.org/guzzlehttp/psr7",
+			"ecosystem":    "composer",
+			"package_name": "guzzlehttp/psr7",
+			"fixed_versions": []any{
+				"1.9.1",
+				"2.4.5",
+			},
+			"affected_ranges": []any{
+				map[string]any{
+					"type": "ECOSYSTEM",
+					"events": []any{
+						map[string]any{"introduced": "1.0.0"},
+						map[string]any{"fixed": "1.9.1"},
+					},
+				},
+				map[string]any{
+					"type": "ECOSYSTEM",
+					"events": []any{
+						map[string]any{"introduced": "2.0.0"},
+						map[string]any{"fixed": "2.4.5"},
+					},
+				},
+			},
+		},
+	}
+	consume := facts.Envelope{
+		FactID:   "psr7-consume",
+		FactKind: correlation.PackageConsumptionFactKind,
+		Payload: map[string]any{
+			"package_id":       "composer://packagist.org/guzzlehttp/psr7",
+			"repository_id":    testImpactRepositoryID,
+			"dependency_range": "2.0.5",
+			"observed_version": "2.0.5",
+			"dependency_path":  []any{"guzzlehttp/psr7"},
+			"dependency_depth": 1,
+		},
+	}
+
+	findings := BuildSupplyChainImpactFindings([]facts.Envelope{cve, pkg, consume})
+	if len(findings) != 1 {
+		t.Fatalf("findings = %d, want 1", len(findings))
+	}
+	finding := findings[0]
+	if finding.FixedVersion != "" {
+		t.Fatalf("FixedVersion = %q, want blank: a two-line fact must not feed fixed_versions[0] into the matcher", finding.FixedVersion)
+	}
+	if finding.Status == SupplyChainImpactNotAffectedKnownFixed {
+		t.Fatalf("status = %q, want no known-fixed verdict derived from a cross-line scalar", finding.Status)
+	}
+	if !findingHasFixedVersionBranch(finding, "1.9.1", "ghsa") {
+		t.Fatalf("FixedVersionBranches must keep the 1.x line: %#v", finding.FixedVersionBranches)
+	}
+	if !findingHasFixedVersionBranch(finding, "2.4.5", "ghsa") {
+		t.Fatalf("FixedVersionBranches must keep the 2.x line: %#v", finding.FixedVersionBranches)
 	}
 }

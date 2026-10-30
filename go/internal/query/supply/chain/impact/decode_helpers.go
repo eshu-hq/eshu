@@ -11,6 +11,8 @@ import (
 	sbomv1 "github.com/eshu-hq/eshu-sdk/factschema/sbom/v1"
 	servicecatalogv1 "github.com/eshu-hq/eshu-sdk/factschema/servicecatalog/v1"
 	"github.com/eshu-hq/eshu/go/internal/query/decode"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"golang.org/x/mod/semver"
 )
 
 func boolPointerVal(payload map[string]any, key string) *bool {
@@ -244,4 +246,189 @@ func decodeSupplyChainComponentEvidence(fact EvidenceFact) supplyChainComponentE
 	default:
 		return supplyChainComponentEvidence{}
 	}
+}
+
+// explainAffectedRangeEvent is one introduced/fixed/last_affected/limit
+// boundary inside an affected_ranges entry decoded off a raw evidence
+// payload. It mirrors the OSV event shape the vulnerability collectors emit;
+// the query side reads it raw because vulnerability/v1.AffectedPackage's
+// typed AffectedRanges field is a different Go shape than this response
+// needs (#4795 struct gap, the same reason ParsedAffectedRange stays raw).
+type explainAffectedRangeEvent struct {
+	introduced   string
+	fixed        string
+	lastAffected string
+	limit        string
+}
+
+// decodeExplainAffectedRanges decodes the affected_ranges list off one raw
+// evidence payload into per-entry event lists. Entries without events are
+// dropped. The entry type is intentionally ignored: collectors emit
+// ECOSYSTEM, SEMVER, and GIT ranges and the per-line fix pairing lives in
+// the events either way.
+func decodeExplainAffectedRanges(payload map[string]any) [][]explainAffectedRangeEvent {
+	raw, ok := payload["affected_ranges"].([]any)
+	if !ok {
+		return nil
+	}
+	var out [][]explainAffectedRangeEvent
+	for _, item := range raw {
+		entry, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		rawEvents, ok := entry["events"].([]any)
+		if !ok {
+			continue
+		}
+		var events []explainAffectedRangeEvent
+		for _, rawEvent := range rawEvents {
+			event, ok := rawEvent.(map[string]any)
+			if !ok {
+				continue
+			}
+			events = append(events, explainAffectedRangeEvent{
+				introduced:   querycontract.StringVal(event, "introduced"),
+				fixed:        querycontract.StringVal(event, "fixed"),
+				lastAffected: querycontract.StringVal(event, "last_affected"),
+				limit:        querycontract.StringVal(event, "limit"),
+			})
+		}
+		if len(events) == 0 {
+			continue
+		}
+		out = append(out, events)
+	}
+	return out
+}
+
+// explainRangeContains reports whether one affected_ranges entry's event
+// list contains the observed version under OSV range semantics: the version
+// must pass any limit gates, reach an introduced boundary at or below
+// itself, and neither reach a fixed boundary nor pass a last_affected
+// boundary. The second value is false when any compared boundary is not a
+// parseable semver-family version. The walk shares the reducer's
+// versionRangeContainsDecision event order (limit/introduced/fixed/
+// last_affected) but deliberately diverges from the matcher in two ways:
+// it ignores the entry kind (collectors emit ECOSYSTEM ranges the
+// per-ecosystem matchers skip) and it uses one generic semver-family
+// compare instead of the per-ecosystem compares. The headline is
+// display-only; matcher input still comes from the reducer scalar.
+func explainRangeContains(events []explainAffectedRangeEvent, observed string) (bool, bool) {
+	admitted := false
+	hasLimit := false
+	for _, event := range events {
+		limit := strings.TrimSpace(event.limit)
+		if limit == "" {
+			continue
+		}
+		hasLimit = true
+		if limit == "*" {
+			admitted = true
+			break
+		}
+		cmp, ok := compareExplainSemverVersions(observed, limit)
+		if !ok {
+			return false, false
+		}
+		if cmp < 0 {
+			admitted = true
+			break
+		}
+	}
+	if hasLimit && !admitted {
+		return false, true
+	}
+	vulnerable := false
+	for _, event := range events {
+		switch {
+		case strings.TrimSpace(event.introduced) != "":
+			cmp, ok := compareExplainSemverVersions(observed, event.introduced)
+			if !ok {
+				return false, false
+			}
+			if cmp >= 0 {
+				vulnerable = true
+			}
+		case strings.TrimSpace(event.fixed) != "":
+			cmp, ok := compareExplainSemverVersions(observed, event.fixed)
+			if !ok {
+				return false, false
+			}
+			if cmp >= 0 {
+				vulnerable = false
+			}
+		case strings.TrimSpace(event.lastAffected) != "":
+			cmp, ok := compareExplainSemverVersions(observed, event.lastAffected)
+			if !ok {
+				return false, false
+			}
+			if cmp > 0 {
+				vulnerable = false
+			}
+		}
+	}
+	return vulnerable, true
+}
+
+// compareExplainSemverVersions orders two version strings in semver-family
+// version order (npm, composer, go, cargo, and the other ecosystems whose
+// fixes compare as dotted numerics with prerelease suffixes). It reports
+// false when either side is not parseable, so fixed_versions arrives in
+// ecosystem order instead of the collector's lexicographic sort (#9430)
+// while versions no semver parser reads (rpm EVR, dpkg, apk, maven
+// qualifiers) stay unordered rather than guessed.
+func compareExplainSemverVersions(left string, right string) (int, bool) {
+	leftNormalized, ok := normalizeExplainVersion(left)
+	if !ok {
+		return 0, false
+	}
+	rightNormalized, ok := normalizeExplainVersion(right)
+	if !ok {
+		return 0, false
+	}
+	return semver.Compare(leftNormalized, rightNormalized), true
+}
+
+// normalizeExplainVersion maps one semver-family version onto canonical
+// x/mod/semver form: a "v" prefix with a three-part numeric core, keeping a
+// prerelease or build suffix when one is present. Short cores pad out
+// ("10.0" orders as "v10.0.0") so partial versions still order instead of
+// dropping out. Anything without a numeric core, or with a suffix semver
+// rejects, stays unparseable.
+func normalizeExplainVersion(raw string) (string, bool) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", false
+	}
+	trimmed = strings.TrimPrefix(trimmed, "v")
+	trimmed = strings.TrimPrefix(trimmed, "V")
+	core := trimmed
+	suffix := ""
+	if index := strings.IndexAny(core, "-+"); index >= 0 {
+		suffix = core[index:]
+		core = core[:index]
+	}
+	parts := strings.Split(core, ".")
+	if len(parts) > 3 {
+		return "", false
+	}
+	for _, part := range parts {
+		if part == "" {
+			return "", false
+		}
+		for _, char := range part {
+			if char < '0' || char > '9' {
+				return "", false
+			}
+		}
+	}
+	for len(parts) < 3 {
+		parts = append(parts, "0")
+	}
+	normalized := "v" + strings.Join(parts, ".") + suffix
+	if !semver.IsValid(normalized) {
+		return "", false
+	}
+	return normalized, true
 }
