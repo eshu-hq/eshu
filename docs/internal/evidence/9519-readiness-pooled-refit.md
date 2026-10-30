@@ -279,7 +279,10 @@ cap are #9532.
 Run data came from `gh api` (`run.json`, `jobs.json`, shard logs). The
 pipeline script (pool check, refresher twice with `cmp`, holdout, planner
 bars, out-of-sample ratios, tails, suites) and the leave-one-run-out script
-are in the executor's scratchpad and are not committed. They reuse the
+are committed with the trimmed inputs under
+`scripts/dev/readiness-refit-evidence/` and
+`testdata/readiness-refit-evidence/` (#9570); `reproduce.sh` there re-derives
+every table and checks it against the recorded outputs. They reuse the
 refresher's parsers and the planner's `v2.Scorer` on the committed weights
 file. The leave-one-run-out full-pool fit is byte-identical to the committed
 v2 file.

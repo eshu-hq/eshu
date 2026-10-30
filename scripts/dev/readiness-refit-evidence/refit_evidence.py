@@ -17,6 +17,7 @@ Subcommands:
     loo        leave-one-run-out fits and the full-pool fit on extra runs
     plan       main's live plan priced under a weights file
     fixed      mean shard overhead, the v1 --fixed-job-seconds value
+    walls      wall time of each cancelled readiness shard job in the runs
 
 Usage, from the root of the evaluated checkout:
     python3 -I -B scripts/dev/readiness-refit-evidence/refit_evidence.py \
@@ -30,6 +31,7 @@ import contextlib
 import datetime as dt
 import io
 import json
+import re
 import statistics
 import sys
 from collections import Counter
@@ -46,6 +48,11 @@ import live_postgres_readiness_weights as wt  # noqa: E402
 # A plan of ordered test keys plus the shard bounds into it.
 Plan = tuple[list[str], list[int]]
 
+# The readiness shard job name, as matched by fetch.sh. Key shard jobs by the
+# shard number this parses, not by a character offset: two-digit shard counts
+# such as "shard (10/12)" break fixed-offset keying.
+SHARD_JOB_RE = re.compile(r"live-postgres-readiness \(postgres18\) shard \((\d+)/\d+\)")
+
 
 def job_wall(job: dict[str, Any]) -> float:
     """Returns a job's wall time in seconds from its start and completion."""
@@ -58,7 +65,11 @@ def job_wall(job: dict[str, Any]) -> float:
 def shard_jobs(run_dir: Path) -> dict[str, dict[str, Any]]:
     """Returns the run's readiness shard jobs keyed by shard number."""
     jobs = json.loads((run_dir / "jobs.json").read_text())["jobs"]
-    return {job["name"][-4]: job for job in jobs if "shard (" in job["name"]}
+    keyed: dict[str, dict[str, Any]] = {}
+    for job in jobs:
+        if match := SHARD_JOB_RE.fullmatch(job["name"]):
+            keyed[match.group(1)] = job
+    return keyed
 
 
 def measured_seconds(log: str) -> dict[str, float]:
@@ -352,6 +363,21 @@ def cmd_fixed(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_walls(args: argparse.Namespace) -> int:
+    """Prints the wall time of each cancelled readiness shard job in the runs.
+
+    Cancelled cap jobs carry no usable shard log, so their only archived
+    input is the jobs API listing (see fetch.sh): job identity and timing.
+    """
+    print("run | attempt | shard | job | wall s")
+    for run_dir in args.runs:
+        for number, job in sorted(shard_jobs(run_dir).items(), key=lambda item: int(item[0])):
+            if job["conclusion"] == "cancelled":
+                print(f"{run_dir.name} | {job.get('run_attempt', '?')} | {number} | "
+                      f"{job['id']} | {job_wall(job):.0f}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Returns the command-line parser for all subcommands."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -383,6 +409,9 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("fixed", help=cmd_fixed.__doc__)
     p.add_argument("runs", **paths)
     p.set_defaults(func=cmd_fixed)
+    p = sub.add_parser("walls", help=cmd_walls.__doc__)
+    p.add_argument("runs", **paths)
+    p.set_defaults(func=cmd_walls)
     return parser
 
 

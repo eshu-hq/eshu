@@ -322,6 +322,8 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	collectRubyRuntimeSnapshot(repoPath, parsedFiles, &snapshot)
 	collectDotNetRuntimeSnapshot(repoPath, parsedFiles, &snapshot)
 	collectJVMRuntimeSnapshot(repoPath, parsedFiles, &snapshot)
+	collectIACRuntimeSnapshot(repoPath, parsedFiles, &snapshot)
+	collectRustRuntimeSnapshot(repoPath, parsedFiles, &snapshot)
 
 	// Apply each definition's content-store policy before the entities are cut
 	// from the body (#8812): source_cache is then sliced from the stored body.

@@ -204,6 +204,14 @@ target_vulnerability_source_overflow AS (
 // aged here; $23..$25 map ecosystem spellings to canonical names, with $25
 // marking the spellings the collector accepts in derivation config.
 //
+// The package-name and ecosystem folds are LOWER under COLLATE "C", which
+// lowers ASCII letters only and so equals packageidentity.LowerASCII, the fold
+// that wrote vulnerability_source_state_packages (#9584). A locale LOWER
+// lowers U+0130 to i and U+212A to k, so a lookalike read the real package's
+// source state. The trailing COLLATE "default" keeps the name comparable with
+// the state-key index: a "C"-collated probe turns the index seek into a
+// sequential scan.
+//
 // Per requested package the newest matching state wins (updated_at, then
 // scope_id); the kept scopes are the distinct winners. Each lateral carries
 // OFFSET 0 so the planner keeps one index-only key seek and one primary-key
@@ -225,7 +233,7 @@ derived_vulnerability_source_config AS (
          AND JSONB_ARRAY_LENGTH(derivation.config->'ecosystems') > 0
         THEN derivation.config->'ecosystems' ELSE '["npm"]'::jsonb END) AS configured(ecosystem)
     JOIN readiness_ecosystem_aliases AS alias
-      ON alias.derivation AND alias.spelling = LOWER(TRIM(configured.ecosystem))
+      ON alias.derivation AND alias.spelling = LOWER(TRIM(configured.ecosystem) COLLATE "C") COLLATE "default"
     WHERE instance.collector_kind = 'vulnerability_intelligence'
       AND instance.enabled AND instance.deactivated_at IS NULL
       AND derivation.config->>'enabled' = 'true'
@@ -239,10 +247,10 @@ derived_request_keys AS (
     WHERE NULLIF(TRIM(key.package_id), '') IS NOT NULL
     UNION
     SELECT TRIM(consumption.payload->>'package_id'), alias.canonical,
-        LOWER(TRIM(consumption.payload->>'package_name'))
+        LOWER(TRIM(consumption.payload->>'package_name') COLLATE "C") COLLATE "default"
     FROM package_consumption_correlation_active AS consumption
     JOIN readiness_ecosystem_aliases AS alias
-      ON alias.spelling = LOWER(TRIM(consumption.payload->>'ecosystem'))
+      ON alias.spelling = LOWER(TRIM(consumption.payload->>'ecosystem') COLLATE "C") COLLATE "default"
     WHERE $11 <> '' AND NOT $20
       AND consumption.payload->>'repository_id' = $11
       AND NULLIF(TRIM(consumption.payload->>'package_id'), '') IS NOT NULL

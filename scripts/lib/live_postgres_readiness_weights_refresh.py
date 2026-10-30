@@ -207,18 +207,21 @@ def main() -> int:
                         or Path(directory).name != run):
                     raise ValueError(f"v2 --sample needs RUNID=DIR named by run ID: {item!r}")
                 sources.append(Path(directory))
-            document, images, cold_components = v2_refresh.fit_with_provenance(
+            document, images, cold_components, pool = v2_refresh.fit_with_provenance(
                 sources, Path(__file__).resolve().parents[2])
             output = render(document)
             Path(args.out).write_text(output, encoding="utf-8")
         except (ValueError, OSError) as error:
             print(f"weights refresh v2: {error}", file=sys.stderr)
             return 1
-        print(f"weights refresh v2: {len(document['test_seconds'])} tests "
+        print(f"weights refresh v2: {len(document['test_seconds'])} priced tests "
               f"from runs {document['source_runs']}")
         print(v2_refresh.pricing_rule(document["source_runs"],  # type: ignore[arg-type]
                                       images.shard_counts).line())
         print(images.line())
+        print(pool.era_line())
+        if pool.mixed:
+            print(pool.inventory_line())
         for component in cold_components:
             print(component.line())
         return 0

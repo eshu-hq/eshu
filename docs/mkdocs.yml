@@ -271,6 +271,7 @@ nav:
         - Pre-commit Hooks: reference/local-testing/pre-commit-hooks.md
         - Pre-Push Merge Step: reference/local-testing/pre-push-merge.md
         - Cgo C Dialect Flag: reference/local-testing/cgo-cflags.md
+        - CI Go Build Cache: reference/local-testing/ci-go-build-cache.md
         - Pre-PR Documentation Fast Path: reference/local-testing/pre-pr-docs-fastpath.md
         - Scale Benchmark Artifact: reference/local-testing/scale-benchmark-artifact.md
         - Collector Live Smokes: reference/local-testing/collector-live-smokes.md
@@ -363,6 +364,7 @@ nav:
       - Claim-Pacing Signals: reference/telemetry/claim-pacing.md
       - Claim Quota Signals: reference/telemetry/claim-quotas.md
       - Supply-Chain Active Evidence Signals: reference/telemetry/supply-chain-active-evidence.md
+      - Package Manifest Dependency Read Signals: reference/telemetry/package-manifest-dependency-read.md
       - Retirement Trigger And Purge Signals: reference/telemetry/retirement-purge.md
       - Id-Anchor Census: reference/telemetry/id-anchor-census.md
       - Traces: reference/telemetry/traces.md

@@ -82,11 +82,11 @@ func evaluateSupplyChainVersionMatch(
 
 	normalized := normalizedSupplyChainVersionEcosystem(ecosystem)
 	if normalized == "" {
-		normalized = strings.ToLower(strings.TrimSpace(ecosystem))
+		normalized = packageidentity.LowerASCII(strings.TrimSpace(ecosystem))
 	} else if normalized == string(packageidentity.EcosystemOS) {
 		normalized = osPackageVersionFamily(pkgs)
 		if normalized == "" {
-			normalized = strings.ToLower(strings.TrimSpace(ecosystem))
+			normalized = packageidentity.LowerASCII(strings.TrimSpace(ecosystem))
 		}
 	}
 	switch normalized {

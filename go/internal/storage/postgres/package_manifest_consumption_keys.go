@@ -15,6 +15,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/consumption"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 )
 
 const (
@@ -163,24 +166,76 @@ func packageManifestPayloadString(payload map[string]any, key string) string {
 }
 
 func refreshPackageManifestConsumptionKeys(ctx context.Context, database db.ExecQueryer, envelopes []facts.Envelope) error {
+	_, err := writePackageManifestConsumptionKeys(ctx, database, envelopes)
+	return err
+}
+
+// writePackageManifestConsumptionKeys replaces the sidecar keys of envelopes
+// and returns, by ecosystem, how many manifest facts it keyed under a package
+// name that holds non-ASCII letters (#9584). The ingester records that count;
+// the backfill rebuild discards it so a rebuilt scope is not counted twice.
+func writePackageManifestConsumptionKeys(ctx context.Context, database db.ExecQueryer, envelopes []facts.Envelope) (map[string]int64, error) {
 	if database == nil || len(envelopes) == 0 {
-		return nil
+		return nil, nil
 	}
 	factIDs := acceptedFactIDs(envelopes)
 	if len(factIDs) == 0 {
-		return nil
+		return nil, nil
 	}
 	if _, err := database.ExecContext(ctx, deletePackageManifestConsumptionKeysSQL, array.StringArray(factIDs)); err != nil {
-		return fmt.Errorf("delete package manifest consumption keys: %w", err)
+		return nil, fmt.Errorf("delete package manifest consumption keys: %w", err)
 	}
 	rows := packageManifestConsumptionKeyRows(envelopes)
 	for start := 0; start < len(rows); start += packageManifestConsumptionKeyBatchSize {
 		end := min(start+packageManifestConsumptionKeyBatchSize, len(rows))
 		if err := insertPackageManifestConsumptionKeyBatch(ctx, database, rows[start:end]); err != nil {
-			return err
+			return nil, err
 		}
 	}
-	return nil
+	return packageManifestNonASCIINameCounts(rows), nil
+}
+
+// packageManifestNonASCIINameCounts counts, by ecosystem, the distinct manifest
+// facts that hold at least one key whose package name has a non-ASCII byte.
+// LowerASCII keeps such letters as written, so every key of a non-ASCII name
+// carries them and one key is enough to classify the fact. The ecosystem is
+// the normalized key ecosystem, a closed set, so the metric label is bounded.
+func packageManifestNonASCIINameCounts(rows []packageManifestConsumptionKeyRow) map[string]int64 {
+	var counts map[string]int64
+	var counted map[string]struct{}
+	for _, row := range rows {
+		if !packageidentity.ContainsNonASCII(row.PackageName) {
+			continue
+		}
+		if counts == nil {
+			counts = make(map[string]int64)
+			counted = make(map[string]struct{})
+		}
+		if _, ok := counted[row.FactID]; ok {
+			continue
+		}
+		counted[row.FactID] = struct{}{}
+		counts[row.Ecosystem]++
+	}
+	return counts
+}
+
+// recordPackageManifestNonASCIINames adds counts to
+// eshu_dp_package_manifest_non_ascii_names_total and writes one log line per
+// ecosystem, so an operator can see how many manifest rows the #9584
+// ASCII-only fold keeps apart from an ASCII package name, and in which scope.
+func recordPackageManifestNonASCIINames(ctx context.Context, instruments *telemetry.Instruments, scopeID, generationID string, counts map[string]int64) {
+	for ecosystem, count := range counts {
+		if count <= 0 {
+			continue
+		}
+		if instruments != nil && instruments.PackageManifestNonASCIINames != nil {
+			instruments.PackageManifestNonASCIINames.Add(ctx, count, metric.WithAttributes(
+				attribute.String(telemetry.MetricDimensionEcosystem, ecosystem)))
+		}
+		log.Printf("event_name=package_manifest_consumption_keys.non_ascii_names %s=%q %s=%q ecosystem=%q rows=%d",
+			telemetry.LogKeyScopeID, scopeID, telemetry.LogKeyGenerationID, generationID, ecosystem, count)
+	}
 }
 
 func insertPackageManifestConsumptionKeyBatch(ctx context.Context, database db.ExecQueryer, rows []packageManifestConsumptionKeyRow) error {

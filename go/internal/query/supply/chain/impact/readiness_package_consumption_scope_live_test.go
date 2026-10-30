@@ -15,9 +15,37 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
+
+// TestReadinessPackageNameFoldMatchesLowerASCIILive runs the package-name
+// fold taken from the shipped derived source-state CTE on a real PostgreSQL
+// and requires it to equal packageidentity.LowerASCII (#9584). On a database
+// with a libc or ICU default collation a plain LOWER maps U+0130 to i and
+// U+212A to k; the shipped fold must not.
+func TestReadinessPackageNameFoldMatchesLowerASCIILive(t *testing.T) {
+	dsn := os.Getenv("ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN")
+	optIn := os.Getenv("ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE")
+	ctx, db := postgresproof.OpenDisposableDatabase(t, dsn, optIn, time.Minute)
+	if !strings.Contains(readinessDerivedSourceStateCTE, readinessPackageNameFoldSQL) {
+		t.Fatalf("readinessDerivedSourceStateCTE does not contain %s", readinessPackageNameFoldSQL)
+	}
+	fold := strings.Replace(readinessPackageNameFoldSQL, "consumption.payload->>'package_name'", "$1::text", 1)
+	for _, input := range []string{
+		"Ser\u0130log", " SER\u0130LOG ", "\u212Aafka", "Flas\u212A",
+		"org.apache.\u212Aafka:kafka-clients", "\u00C9COLE", "requeSTS", "MiXeD.Case_09", "@Babel/Core",
+	} {
+		var got string
+		if err := db.QueryRowContext(ctx, "SELECT "+fold, input).Scan(&got); err != nil {
+			t.Fatalf("SELECT %s with %q: %v", fold, input, err)
+		}
+		if want := packageidentity.LowerASCII(strings.TrimSpace(input)); got != want {
+			t.Fatalf("SQL fold of %q = %q, packageidentity.LowerASCII = %q", input, got, want)
+		}
+	}
+}
 
 // TestSupplyChainImpactReadinessPackageConsumptionScopeLive proves that a
 // package anchor counts manifest evidence only in repositories consuming that
@@ -34,6 +62,9 @@ func TestSupplyChainImpactReadinessPackageConsumptionScopeLive(t *testing.T) {
 	seedReadinessTopLevelManifestDependency(t, ctx, db, "consuming-one", "repository:consuming-one", "top-level-only")
 	seedReadinessManifestScope(t, ctx, db, "consuming-two", "repository:consuming-two", "lodash")
 	seedReadinessManifestScope(t, ctx, db, "unrelated", "repository:unrelated", "chalk")
+	// #9584: a Kelvin-sign lookalike of kafka must not count as kafka consumption.
+	seedReadinessManifestScope(t, ctx, db, "kafka-real", "repository:kafka-real", "kafka")
+	seedReadinessManifestScope(t, ctx, db, "kafka-lookalike", "repository:kafka-lookalike", "\u212Aafka")
 	seedReadinessAffectedPackage(t, ctx, db)
 	seedReadinessAffectedPackageIDOnly(t, ctx, db)
 	seedReadinessSBOMDocumentAndComponent(t, ctx, db)
@@ -98,6 +129,11 @@ func TestSupplyChainImpactReadinessPackageConsumptionScopeLive(t *testing.T) {
 			query:    ReadinessQuery{SubjectDigest: "sha256:readiness-7088"},
 			want:     2,
 			wantSBOM: 1,
+		},
+		{
+			name:  "package excludes a non-ASCII lookalike consumer",
+			query: ReadinessQuery{PackageID: "npm://registry.npmjs.org/kafka"},
+			want:  1,
 		},
 		{
 			name:  "package with no consumers",
