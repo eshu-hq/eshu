@@ -55,6 +55,9 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
+          # cache: false: setup-go would store the build cache a second time
+          # in the 10 GB store (#9462, #9648). Pre-warm below downloads the modules.
+          cache: false
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh
       - name: Validate determinism matrix mirror
@@ -92,6 +95,9 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
+          # cache: false: setup-go would store the build cache a second time
+          # in the 10 GB store (#9462, #9648). Pre-warm below downloads the modules.
+          cache: false
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh
       - name: Run Ifa graph-determinism matrix (N=1,2,4; demo-org + synth-multiscope, Tier 2)
@@ -143,6 +149,9 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
+          # cache: false: setup-go would store the build cache a second time
+          # in the 10 GB store (#9462, #9648). Pre-warm below downloads the modules.
+          cache: false
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh
       - name: Run Ifa dead-letter-set determinism matrix (N=1,2,4)
@@ -195,6 +204,9 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
+          # cache: false: setup-go would store the build cache a second time
+          # in the 10 GB store (#9462, #9648). Pre-warm below downloads the modules.
+          cache: false
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh
       - name: Install ripgrep

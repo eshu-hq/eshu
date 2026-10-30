@@ -133,6 +133,9 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
+          # cache: false: setup-go would store the build cache a second time
+          # in the 10 GB store (#9462, #9648). Pre-warm below downloads the modules.
+          cache: false
 
       - name: Install ripgrep
         run: scripts/ci/install-apt-packages.sh ripgrep

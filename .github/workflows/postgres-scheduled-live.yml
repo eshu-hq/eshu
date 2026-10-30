@@ -77,6 +77,9 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
+          # cache: false: setup-go would store the build cache a second time
+          # in the 10 GB store (#9462, #9648). Pre-warm below downloads the modules.
+          cache: false
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh
       - name: Check exact enrollment and negative cases
@@ -145,6 +148,9 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
+          # cache: false: setup-go would store the build cache a second time
+          # in the 10 GB store (#9462, #9648). Pre-warm below downloads the modules.
+          cache: false
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh
       - name: Create fresh freshness scale database
@@ -228,6 +234,9 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
+          # cache: false: setup-go would store the build cache a second time
+          # in the 10 GB store (#9462, #9648). Pre-warm below downloads the modules.
+          cache: false
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh
       - name: Create fresh freshness chunk A database
@@ -289,6 +298,9 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
+          # cache: false: setup-go would store the build cache a second time
+          # in the 10 GB store (#9462, #9648). Pre-warm below downloads the modules.
+          cache: false
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh
       - name: Create fresh freshness chunk B database
@@ -350,6 +362,9 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
+          # cache: false: setup-go would store the build cache a second time
+          # in the 10 GB store (#9462, #9648). Pre-warm below downloads the modules.
+          cache: false
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh
       - name: Create fresh ACK database
@@ -412,6 +427,9 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
+          # cache: false: setup-go would store the build cache a second time
+          # in the 10 GB store (#9462, #9648). Pre-warm below downloads the modules.
+          cache: false
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh
       - name: Run bulk proof families
@@ -448,6 +466,9 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
+          # cache: false: setup-go would store the build cache a second time
+          # in the 10 GB store (#9462, #9648). Pre-warm below downloads the modules.
+          cache: false
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh
       - name: Run storage proof families

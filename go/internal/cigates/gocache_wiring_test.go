@@ -229,3 +229,143 @@ func TestSetupGoCacheDisabledInTestWorkflow(t *testing.T) {
 		t.Error(problem)
 	}
 }
+
+// setupGoCacheDisabledExcept names the only workflow files whose setup-go
+// steps may keep the built-in cache, with the bounded reason each is
+// excluded from the repo-wide cache: false rule (#9648). Every other
+// workflow_call leaf runs on pull requests, so each default-cache step
+// writes a PR-scoped ~700 MB build-cache copy that counts against the 10 GB
+// store whose evictions empty main's gobuild entries.
+var setupGoCacheDisabledExcept = map[string]string{
+	// Nightly + workflow_dispatch only, never on pull_request, so it
+	// writes no PR-scoped copies. Its key is OS-isolated (macOS arm64,
+	// one 808 MB entry on main) and the 45-minute job envelope was
+	// measured with a warm cache; forcing a cold macOS compile risks
+	// that envelope for no store saving.
+	"macos.yml": "nightly-only macOS leg with an OS-isolated single main entry",
+}
+
+// loadAllWorkflowJobs parses every workflow file's jobs, keyed by file
+// name then job name, so the repo-wide no-cache rule covers workflows
+// added later without a lane entry. It reuses the pre-warm check's minimal
+// job shape: readinessJob's typed timeout-minutes cannot parse expression
+// timeouts such as static-contract-gates.yml's matrix timeout.
+func loadAllWorkflowJobs(t *testing.T) map[string]map[string]prewarmJob {
+	t.Helper()
+	dir := filepath.Join("..", "..", "..", ".github", "workflows")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	all := make(map[string]map[string]prewarmJob)
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || (!strings.HasSuffix(name, ".yml") && !strings.HasSuffix(name, ".yaml")) {
+			continue
+		}
+		raw, err := os.ReadFile(filepath.Join(dir, name)) // #nosec G304 -- dir-confined, entry name comes from os.ReadDir of that same directory
+		if err != nil {
+			t.Fatal(err)
+		}
+		var parsed prewarmWorkflowFile
+		if err := yaml.Unmarshal(raw, &parsed); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		all[name] = parsed.Jobs
+	}
+	if len(all) == 0 {
+		t.Fatal("no workflow files parsed")
+	}
+	return all
+}
+
+// checkSetupGoCacheDisabledAllWorkflows requires every actions/setup-go
+// step in every workflow to set cache: false, except allowlisted files.
+// Sorted file and job order keeps the verdict deterministic; the first
+// violation wins.
+func checkSetupGoCacheDisabledAllWorkflows(all map[string]map[string]prewarmJob) string {
+	files := make([]string, 0, len(all))
+	for f := range all {
+		files = append(files, f)
+	}
+	sort.Strings(files)
+	for _, file := range files {
+		if _, ok := setupGoCacheDisabledExcept[file]; ok {
+			continue
+		}
+		jobs := all[file]
+		keys := make([]string, 0, len(jobs))
+		for k := range jobs {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			for i, step := range jobs[key].Steps {
+				if setupGoUsesRE.MatchString(step.Uses) && setupGoCachesModule(step.With) {
+					return fmt.Sprintf("%s job %q: setup-go step %d must set cache: false so its built-in cache does not store a PR-scoped build-cache copy in the 10 GB store (#9648)", file, key, i)
+				}
+			}
+		}
+	}
+	return ""
+}
+
+// TestSetupGoCacheDisabledAllWorkflows pins the #9648 sweep: the #9462
+// cache: false rule holds repo-wide, with only the documented exceptions.
+func TestSetupGoCacheDisabledAllWorkflows(t *testing.T) {
+	t.Parallel()
+	if problem := checkSetupGoCacheDisabledAllWorkflows(loadAllWorkflowJobs(t)); problem != "" {
+		t.Error(problem)
+	}
+}
+
+// checkStaticContractCacheWiring pins the #9648 re-examination of
+// static-contract-gates.yml's 724 MB Linux-X64-go- entry: no step may use
+// the bare actions/cache action (which saves a PR-scoped copy on every
+// workflow_call run into the 10 GB store), and the single save step must
+// run only on a main push that missed the exact key, mirroring the #9598
+// go-lane pattern.
+func checkStaticContractCacheWiring(jobs map[string]prewarmJob) string {
+	keys := make([]string, 0, len(jobs))
+	for k := range jobs {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	saves := 0
+	for _, key := range keys {
+		for i, step := range jobs[key].Steps {
+			if step.Uses == "actions/cache@v4" {
+				return fmt.Sprintf("static-contract-gates.yml job %q: step %d must use actions/cache/restore, not actions/cache: the bare action saves a PR-scoped 724 MB copy on every run (#9648)", key, i)
+			}
+			if strings.HasPrefix(step.Uses, "actions/cache/save@") {
+				saves++
+				if !strings.Contains(step.If, "github.event_name == 'push'") ||
+					!strings.Contains(step.If, "refs/heads/main") ||
+					!strings.Contains(step.If, "cache-hit != 'true'") {
+					return fmt.Sprintf("static-contract-gates.yml job %q: save step %d must run only on a main push that missed the exact key (#9648)", key, i)
+				}
+			}
+		}
+	}
+	if saves != 1 {
+		return fmt.Sprintf("static-contract-gates.yml must save its cache exactly once on a main push, found %d save steps (#9648)", saves)
+	}
+	return ""
+}
+
+// TestStaticContractCacheWiring pins the converted static-contract cache:
+// restore-only on pull requests, one guarded main-push save.
+func TestStaticContractCacheWiring(t *testing.T) {
+	t.Parallel()
+	raw, err := os.ReadFile(filepath.Join("..", "..", "..", ".github", "workflows", "static-contract-gates.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var parsed prewarmWorkflowFile
+	if err := yaml.Unmarshal(raw, &parsed); err != nil {
+		t.Fatal(err)
+	}
+	if problem := checkStaticContractCacheWiring(parsed.Jobs); problem != "" {
+		t.Error(problem)
+	}
+}
