@@ -53,10 +53,11 @@ func ParserFileFactEnvelope(
 	_, hasDotNetTransport := parsedFile["dotnet_runtime_evidence"]
 	_, hasIACTransport := parsedFile["iac_runtime_evidence"]
 	_, hasRustTransport := parsedFile["rust_runtime_evidence"]
-	if hasComposerTransport || hasPythonTransport || hasRubyTransport || hasJVMTransport || hasDotNetTransport || hasIACTransport || hasRustTransport {
+	_, hasHaskellTransport := parsedFile["haskell_runtime_evidence"]
+	if hasComposerTransport || hasPythonTransport || hasRubyTransport || hasJVMTransport || hasDotNetTransport || hasIACTransport || hasRustTransport || hasHaskellTransport {
 		clean := make(map[string]any, len(parsedFile)-1)
 		for key, value := range parsedFile {
-			if key != "composer_runtime_evidence" && key != "python_runtime_evidence" && key != "ruby_runtime_evidence" && key != "jvm_runtime_evidence" && key != "dotnet_runtime_evidence" && key != "iac_runtime_evidence" && key != "rust_runtime_evidence" {
+			if key != "composer_runtime_evidence" && key != "python_runtime_evidence" && key != "ruby_runtime_evidence" && key != "jvm_runtime_evidence" && key != "dotnet_runtime_evidence" && key != "iac_runtime_evidence" && key != "rust_runtime_evidence" && key != "haskell_runtime_evidence" {
 				clean[key] = value
 			}
 		}
@@ -99,6 +100,9 @@ func noteRustCandidate(snapshot *RepositorySnapshot, candidates map[string]runti
 // when available. A changed body cannot be combined with an earlier parse.
 func noteComposerOrRuntimeCandidate(snapshot *RepositorySnapshot, candidates map[string]runtimedeclaration.Candidate, relativePath, body string, dropped *atomic.Bool, droppedPaths *scope.StreamDroppedPaths) {
 	if noteRustCandidate(snapshot, candidates, relativePath, body, dropped, droppedPaths) {
+		return
+	}
+	if noteHaskellCandidate(snapshot, candidates, relativePath, body, dropped, droppedPaths) {
 		return
 	}
 	if isIACRuntimePath(relativePath) {
@@ -248,6 +252,47 @@ func noteComposerOrRuntimeCandidate(snapshot *RepositorySnapshot, candidates map
 		}
 	}
 	runtimedeclaration.NoteRuntimeDeclarationCandidate(candidates, relativePath, body)
+}
+
+// noteHaskellCandidate notes the stack.yaml candidate when the path is a
+// Stack manifest. It reports whether it handled the path; a stack.yaml
+// without parsed evidence or an expected snapshot falls through to the other
+// runtime checks below, matching the inline dispatch it replaces, as does a
+// body the generic reader accepts with no Stack evidence (a CloudFormation
+// template carrying the stack.yaml name).
+func noteHaskellCandidate(snapshot *RepositorySnapshot, candidates map[string]runtimedeclaration.Candidate, relativePath, body string, dropped *atomic.Bool, droppedPaths *scope.StreamDroppedPaths) bool {
+	if filepath.Base(relativePath) != "stack.yaml" {
+		return false
+	}
+	if parsed, ok := snapshot.HaskellRuntime[relativePath]; ok {
+		if parsed.Digest != shared.RuntimeDigest([]byte(body)) {
+			dropped.Store(true)
+			droppedPaths.Note(relativePath)
+			return true
+		}
+		runtimedeclaration.NoteParsedHaskellCandidate(candidates, relativePath, parsed.Extraction)
+		return true
+	}
+	if snapshot.HaskellRuntimeExpected {
+		// A CloudFormation template literally named stack.yaml parses fine
+		// but carries no Stack evidence. The generic reader below admits the
+		// same body with no declarations and no skip, so fall through to it
+		// instead of marking the stream dropped with a misleading
+		// manifest_unparseable skip. A body the generic reader rejects or
+		// declares from keeps the retry path below.
+		if extraction, ok := runtimepaths.Extract(relativePath, body); ok && extraction.Len() == 0 && !extraction.Skip().Skipped() {
+			return false
+		}
+		if len(body) > runtimepaths.MaxManifestBytesPerFile {
+			runtimedeclaration.NoteCappedHaskellCandidate(candidates, relativePath, len(body))
+			return true
+		}
+		dropped.Store(true)
+		droppedPaths.Note(relativePath)
+		runtimedeclaration.NoteUnavailableHaskellCandidate(candidates, relativePath, len(body))
+		return true
+	}
+	return false
 }
 
 func isJVMRuntimePath(relativePath string) bool {

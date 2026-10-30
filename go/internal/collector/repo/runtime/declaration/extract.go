@@ -50,6 +50,8 @@ func Extract(relativePath, body string) (Extraction, bool) {
 		return Extraction{}, false
 	case manifestCargo:
 		return extractCargoManifest(body), true
+	case manifestStackYaml:
+		return extractStackManifest(body), true
 	case manifestPackageJSON:
 		return extractManifest(body, func() ([]declaration, int, error) { return extractPackageJSON(body) }), true
 	case manifestComposerJSON:

@@ -163,6 +163,27 @@ func NoteParsedRustCandidate(candidates map[string]Candidate, relativePath strin
 	candidates[relativePath] = Candidate{Manifest: true, Extraction: extraction}
 }
 
+// NoteParsedHaskellCandidate stores guarded native Stack parser evidence.
+func NoteParsedHaskellCandidate(candidates map[string]Candidate, relativePath string, extraction runtimedeclaration.Extraction) {
+	if runtimedeclaration.ClassifyPath(relativePath) != runtimedeclaration.FileManifest {
+		return
+	}
+	if extraction.Len() == 0 && !extraction.Skip().Skipped() {
+		return
+	}
+	candidates[relativePath] = Candidate{Manifest: true, Extraction: extraction}
+}
+
+// NoteUnavailableHaskellCandidate records a missing stack.yaml parse for retry.
+func NoteUnavailableHaskellCandidate(candidates map[string]Candidate, relativePath string, byteSize int) {
+	candidates[relativePath] = Candidate{Manifest: true, Extraction: runtimedeclaration.UnavailableHaskellExtraction(byteSize)}
+}
+
+// NoteCappedHaskellCandidate records a bounded stack.yaml skip.
+func NoteCappedHaskellCandidate(candidates map[string]Candidate, relativePath string, byteSize int) {
+	candidates[relativePath] = Candidate{Manifest: true, Extraction: runtimedeclaration.CappedHaskellExtraction(byteSize)}
+}
+
 // NoteUnavailableRustCandidate records a missing Cargo parse for retry.
 func NoteUnavailableRustCandidate(candidates map[string]Candidate, relativePath string, byteSize int) {
 	candidates[relativePath] = Candidate{Manifest: true, Extraction: runtimedeclaration.UnavailableRustExtraction(byteSize)}
