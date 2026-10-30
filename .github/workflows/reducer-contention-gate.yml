@@ -413,6 +413,7 @@ jobs:
         working-directory: go
         env:
           ESHU_POSTGRES_DSN: postgres://eshu:change-me@localhost:15432/eshu?sslmode=disable
+          ESHU_POSTGRES_DISPOSABLE: "1"
         # TestServiceStoryTargetSupportSQLSemanticsLive (#6794) runs the story
         # target-support statements against a seeded fixture: only each scope's
         # own active generation counts, a repeated kind counts once, and the
