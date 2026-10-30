@@ -1,0 +1,14 @@
+{
+  "partition": "aws",
+  "account_id": "000000000001",
+  "region": "us-east-1",
+  "instance_id": "i-00000000000000001",
+  "resource_type": "AWS::EC2::Instance",
+  "platform_type": "Linux",
+  "platform_name": "ExampleLinux",
+  "platform_version": "1.0",
+  "source_type": "ssm_inventory",
+  "capture_time": "2026-10-29T22:31:19Z",
+  "observation_time": "2026-10-29T22:33:02Z",
+  "collector_instance_id": "collector-1"
+}

@@ -11,7 +11,7 @@ of these structs, validated.
 
 ## Purpose
 
-Ten AWS-backed fact kinds decode through this package:
+Twelve AWS-backed fact kinds decode through this package:
 
 | Fact kind | Struct | Decode function |
 | --- | --- | --- |
@@ -25,6 +25,8 @@ Ten AWS-backed fact kinds decode through this package:
 | `rds_instance_posture` | `RDSInstancePosture` | `factschema.DecodeRDSInstancePosture` |
 | `s3_bucket_posture` | `S3BucketPosture` | `factschema.DecodeS3BucketPosture` |
 | `s3_external_principal_grant` | `S3ExternalPrincipalGrant` | `factschema.DecodeS3ExternalPrincipalGrant` |
+| `aws_ssm_host_application` | `SSMHostApplication` | `factschema.DecodeSSMHostApplication` |
+| `aws_ssm_host_platform` | `SSMHostPlatform` | `factschema.DecodeSSMHostPlatform` |
 
 ## Ownership boundary
 
@@ -39,7 +41,8 @@ outside this module.
 
 `Resource`, `Relationship`, `DNSRecord`, `ImageReference`,
 `SecurityGroupRule`, `Warning`, `EC2InstancePosture`, `RDSInstancePosture`,
-`S3BucketPosture`, `S3ExternalPrincipalGrant`, and their nested helper structs.
+`S3BucketPosture`, `S3ExternalPrincipalGrant`, `SSMHostApplication`,
+`SSMHostPlatform`, and their nested helper structs.
 See each struct's godoc comment for its full field list; the required/optional
 split below is the contract most callers need first.
 
@@ -74,6 +77,8 @@ Field mutability encodes the contract, per Contract System v1 §3.1
 | `RDSInstancePosture` | `AccountID`, `Region`, `PubliclyAccessible`, `StorageEncrypted`, `IAMDatabaseAuthenticationEnabled`, `MultiAZ`, `DeletionProtection`, `BackupRetentionPeriod`, `PerformanceInsightsEnabled`, `PerformanceInsightsRetentionDays` | RDS posture facts always emit these observed security flags and retention values, while resource identity and engine details remain optional. |
 | `S3BucketPosture` | `AccountID`, `Region` | Same either-or shape: the emitter validates `bucket_arn` OR `bucket_name` non-empty, so neither `BucketARN` nor `BucketName` is required on its own. |
 | `S3ExternalPrincipalGrant` | `AccountID`, `Region`, `PrincipalKind`, `PrincipalValue`, `GrantOutcome`, `IsPublic`, `IsCrossAccount`, `IsServicePrincipal`, `IsUnsupported` | Grant facts classify one normalized policy principal and outcome without carrying raw policy JSON. |
+| `SSMHostApplication` | `Partition`, `AccountID`, `Region`, `InstanceID`, `ResourceType`, `SourceType`, `SchemaVersion`, `CaptureTime` | One allowlisted `AWS:Application` row for one EC2 managed node in one dated capture; the six row fields (`Name`, `Version`, `Release`, `Epoch`, `PackageID`, `Architecture`) are optional-when-present. A missing or invalid `CaptureTime` emits no fact. |
+| `SSMHostPlatform` | `Partition`, `AccountID`, `Region`, `InstanceID`, `ResourceType`, `SourceType`, `ObservationTime` | The platform observation for one EC2 managed node; `CaptureTime` is set only for inventory-sourced evidence, never invented for `DescribeInstanceInformation` reads. |
 
 Missing a required identity field dead-letters as `input_invalid` rather than
 forming an empty-string graph identity — this is the accuracy fix this

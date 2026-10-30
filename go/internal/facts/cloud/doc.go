@@ -11,7 +11,8 @@
 //
 // Each family file (aws.go, azure.go, gcp.go, kubernetes_live.go,
 // terraform_state.go, ec2_instance_posture.go, rds_posture.go,
-// s3_bucket_posture.go, s3_external_principal_grant.go) declares that
+// s3_bucket_posture.go, s3_external_principal_grant.go, ssm_host.go)
+// declares that
 // family's fact-kind string constants, its schema-version string
 // constants, and two accessors: <Family>FactKinds() returns the family's
 // kinds in collector emission order, and <Family>SchemaVersion(kind)
@@ -43,6 +44,14 @@
 // The derived IAM permission fact is metadata-only: it captures a normalized
 // policy statement (effect, action set, resource pattern, condition-key
 // summary) and never the raw policy JSON body or condition values.
+//
+// SSM host inventory covers allowlisted AWS:Application rows and platform
+// observations for EC2 managed nodes (issues #9302 and #9556). Each
+// application fact is one allowlisted row in one dated capture; each
+// platform fact is the host's platform evidence with its provenance. Neither
+// kind carries raw source rows, URLs, summaries, hostnames, IPs, PURL or
+// image-digest derivations, vulnerability verdicts, or supply-chain impact:
+// both are observations, and host impact correlation belongs to #9209.
 //
 // S3 posture covers block-public-access, default-encryption detail,
 // versioning and MFA-delete, object-ownership / ACL-disabled, access-logging

@@ -17,6 +17,23 @@ Tags for this module use the Go subdirectory-module format:
 
 ## [Unreleased]
 
+### Added
+
+- SSM host inventory collection contract (issue #9556, accepted record
+  #9302): `SSMHostInventoryLimits` with fail-closed `Validate` (explicit
+  host, page, entry, age, skew, polling, and retention limits plus an
+  explicit target list; values within the arbiter ceilings of 5000
+  entries/host/capture, 100 pages/host/type/poll, 1 KiB/entry, and 50
+  KiB/page), freshness rules tied to the capture interval
+  (`CaptureIsStale`, `CrossTypeSkewOK`, and the separate
+  `DescribeInstanceInformation` platform rule), `AssessSSMHostCapture`
+  (complete pagination and coherence before supersession; partial, stale,
+  and ceiling-breach verdicts preserve the prior generation),
+  `SSMHostInventoryOutcome` (`denied`/`partial`/`stale`/`successful` with a
+  result-state mapping), and aggregate-only `SSMHostInventoryAggregates`.
+  Additive Go API only: no wire protocol change. No package values,
+  hostnames, IPs, URLs, or rows flow through these shapes.
+
 ## [0.3.0] - 2026-10-28
 
 Additive post-`v0.2.0` changes only: the new `collector-sdk/v1alpha3`

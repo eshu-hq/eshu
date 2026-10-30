@@ -1,0 +1,85 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/aws/v1/ssm_host_application.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "account_id": {
+      "type": "string"
+    },
+    "architecture": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "capture_time": {
+      "type": "string"
+    },
+    "collector_instance_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "epoch": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "instance_id": {
+      "type": "string"
+    },
+    "name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "package_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "partition": {
+      "type": "string"
+    },
+    "region": {
+      "type": "string"
+    },
+    "release": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "resource_type": {
+      "type": "string"
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "source_type": {
+      "type": "string"
+    },
+    "version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "partition",
+    "account_id",
+    "region",
+    "instance_id",
+    "resource_type",
+    "source_type",
+    "schema_version",
+    "capture_time"
+  ],
+  "title": "Eshu aws_ssm_host_application Payload (schema version 1)",
+  "type": "object"
+}

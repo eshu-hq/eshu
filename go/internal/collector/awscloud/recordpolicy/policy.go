@@ -86,7 +86,7 @@ var ipv4Keys = []string{"private_ipv4_address", "public_ip_address"}
 // enumKeys hold collector-defined enum values that carry no customer data;
 // they pass through verbatim so a learned token equal to one of their words
 // (a tag value "queue") cannot rewrite aws_sqs_queue.
-var enumKeys = []string{"resource_type", "target_type", "relationship_type", "service_kind"}
+var enumKeys = []string{"resource_type", "target_type", "relationship_type", "service_kind", "source_type"}
 
 // opaqueKeys are free text that no consumer parses: replaced wholesale.
 var opaqueKeys = []string{"description", "message", "unsupported_key"}
@@ -120,4 +120,6 @@ var keepKeys = []string{
 	"policy_grants_cross_account", "policy_grants_public", "policy_present", "public_ip_associated",
 	"publicly_accessible", "replication_enabled", "restrict_public_buckets", "storage_encrypted", "user_data_present",
 	"versioning_enabled", "versioning_status", "ignore_public_acls",
+	"architecture", "capture_time", "epoch", "observation_time", "package_id", "partition",
+	"platform_name", "platform_type", "platform_version", "release",
 }

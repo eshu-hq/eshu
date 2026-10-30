@@ -10,5 +10,11 @@
 // collector-sdk/v1alpha3 adds the optional Result.Page continuation so a
 // result that would not fit one bounded stdout write splits into resumed
 // calls, with byte-accounting helpers (PageBoundForStdout, FactWireBytes,
-// SplitFacts) that size every page against the host bound.
+// SplitFacts) that size every page against the host bound. The SSM host
+// inventory collection contract (SSMHostInventoryLimits,
+// AssessSSMHostCapture, SSMHostInventoryOutcome,
+// SSMHostInventoryAggregates) bounds inventory reads for eshu-hq/eshu#9556:
+// explicit fail-closed limits within the arbiter ceilings, freshness rules
+// tied to the capture interval, denied/partial/stale/successful outcomes,
+// and aggregate-only telemetry.
 package collector

@@ -49,6 +49,8 @@ func run() error {
 		{name: "rds_instance_posture.v1.schema.json", generate: schemagen.RDSInstancePostureSchema},
 		{name: "s3_bucket_posture.v1.schema.json", generate: schemagen.S3BucketPostureSchema},
 		{name: "s3_external_principal_grant.v1.schema.json", generate: schemagen.S3ExternalPrincipalGrantSchema},
+		{name: "aws_ssm_host_application.v1.schema.json", generate: schemagen.SSMHostApplicationSchema},
+		{name: "aws_ssm_host_platform.v1.schema.json", generate: schemagen.SSMHostPlatformSchema},
 		{name: "aws_iam_permission.v1.schema.json", generate: schemagen.AWSIAMPermissionSchema},
 		{name: "aws_resource_policy_permission.v1.schema.json", generate: schemagen.AWSResourcePolicyPermissionSchema},
 		{name: "aws_iam_principal.v1.schema.json", generate: schemagen.AWSIAMPrincipalSchema},

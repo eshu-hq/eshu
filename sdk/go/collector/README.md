@@ -36,6 +36,9 @@ The public surface includes:
   that would not fit one bounded stdout write.
 - `Contract`, `FactDeclaration`, `Validator`, and `ValidationReport` for
   fail-closed host validation.
+- `SSMHostInventoryLimits`, `AssessSSMHostCapture`,
+  `SSMHostInventoryOutcome`, and `SSMHostInventoryAggregates` for bounded
+  SSM host inventory collection (eshu-hq/eshu#9556).
 
 Collectors emit facts only. They do not write graph truth, mutate queues, run
 DDL, or import Eshu internals.
@@ -94,6 +97,60 @@ provenance-only and are not payload-shape validated.
 Exact duplicate facts are accepted as idempotent and reported in
 `ValidationReport.DuplicateCount`. Conflicting duplicates fail before host
 commit.
+
+## SSM host inventory collection contract
+
+`ssm_host_inventory.go` and `ssm_host_capture.go` bound the SSM host
+inventory collection from the accepted #9302 record (eshu-hq/eshu#9556).
+The satellite collector imports these helpers; core never configures
+collection from them.
+
+- **Ceilings** (`SSMHostInventoryMaxEntriesPerHostPerCapture` 5000,
+  `SSMHostInventoryMaxPagesPerHostPerTypePerPoll` 100,
+  `SSMHostInventoryMaxEntryBytes` 1024, `SSMHostInventoryMaxPageBytes`
+  50 KiB): arbiter-set from the 2-node captured cohort. Configured values
+  must not exceed them without a new measurement.
+- **Limits** (`SSMHostInventoryLimits.Validate`): every field is required —
+  host, page, entry, age, skew, polling, and retention limits plus an
+  explicit target list (no unlimited default). Missing limits fail closed;
+  above-ceiling values fail; freshness must cohere (stale age at least the
+  capture interval, skew within the stale age).
+- **Freshness**: `CaptureIsStale` (stale-age bound, recommended two capture
+  intervals), `CrossTypeSkewOK` (application/platform capture skew, AWS
+  promises no equal capture times across types), and
+  `PlatformObservationIsFresh` (the separate `DescribeInstanceInformation`
+  rule on observation age — that source has no inventory capture time).
+- **Outcomes** (`SSMHostInventoryOutcome`): `denied`, `partial`, `stale`,
+  and `successful`, mapped onto result states (`ToResultState`:
+  terminal, partial, unchanged, complete). Only successful inventory may
+  supersede the prior generation; a denial is not a zero inventory result.
+- **Capture assessment** (`AssessSSMHostCapture`): a complete snapshot needs
+  every page (valid nonrepeating pagination tokens), a consistent instance
+  ID, type, schema version, and capture time within the stream, volume
+  within the ceilings, and a fresh capture. Anything else preserves the
+  prior generation — never truncated-and-superseding, never an empty host.
+- **Aggregate-only telemetry** (`SSMHostInventoryAggregates.LogFields`):
+  counts plus the outcome only. No package values, hostnames, IPs, URLs, or
+  rows; assessment reasons are closed static strings.
+
+### Fixture-intent proof map (#9556)
+
+| Case | Fixture intent | Contract verdict (proved here) |
+| --- | --- | --- |
+| Positive application | Dated complete `AWS:Application` row | Decodes; round-trips; 27-page coherent capture assesses complete and may supersede |
+| Positive platform | Inventory platform observation with capture time | Decodes; round-trips |
+| Positive platform (DII) | `DescribeInstanceInformation` observation, no capture time | Decodes with provenance; no invented capture time |
+| Negative application | Row without `capture_time` | Dead-letters `input_invalid` naming `capture_time` |
+| Negative platform | Observation without `observation_time` | Dead-letters `input_invalid` naming `observation_time` |
+| Ambiguous undated | Zero-row response with no capture time | Unknown: emits no fact, cannot supersede |
+| Ambiguous partial | Page-1-only read; token repeat/chain break; split capture times; mixed types | Partial: preserves the prior generation |
+| Ambiguous ceiling breach | 101st page or 5001st entry | Partial, never superseding |
+| Ambiguous stale | Complete capture past the stale-age bound | Stale display; prior generation stands |
+
+Reducer admission, graph nodes/edges, and API/MCP output for these fixtures
+belong to the sibling #9295 reducer/read leaves: this contract fixes the
+expected verdicts they must preserve (admit the positives, dead-letter the
+negatives, hold the prior generation on every ambiguous case).
 
 ## Fixtures
 

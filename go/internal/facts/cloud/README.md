@@ -37,6 +37,10 @@ the kind and schema-version constants declared here.
   `S3BucketPostureFactKinds`/`S3BucketPostureSchemaVersion`,
   `S3ExternalPrincipalGrantFactKinds`/`S3ExternalPrincipalGrantSchemaVersion`
   — single-kind derived posture families
+- `SSMHostFactKinds`/`SSMHostSchemaVersion` — the two SSM host inventory
+  observation kinds (`aws_ssm_host_application`,
+  `aws_ssm_host_platform`, issues #9302 and #9556); contract-only until the
+  satellite emitter and reducer/read surfaces land in sibling #9295 leaves
 
 See `doc.go` for the full godoc contract and each file's fact-kind
 constants.

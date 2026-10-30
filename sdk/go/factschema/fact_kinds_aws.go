@@ -25,6 +25,13 @@ const (
 	// FactKindS3ExternalPrincipalGrant is the
 	// "s3_external_principal_grant" fact kind.
 	FactKindS3ExternalPrincipalGrant = "s3_external_principal_grant"
+	// FactKindSSMHostApplication is the "aws_ssm_host_application" fact
+	// kind: one allowlisted AWS:Application inventory row for one EC2
+	// managed node in one dated capture (eshu-hq/eshu#9556).
+	FactKindSSMHostApplication = "aws_ssm_host_application"
+	// FactKindSSMHostPlatform is the "aws_ssm_host_platform" fact kind: the
+	// platform observation for one EC2 managed node (eshu-hq/eshu#9556).
+	FactKindSSMHostPlatform = "aws_ssm_host_platform"
 	// FactKindAWSIAMPermission is the "aws_iam_permission" fact kind.
 	FactKindAWSIAMPermission = "aws_iam_permission"
 	// FactKindAWSResourcePolicyPermission is the

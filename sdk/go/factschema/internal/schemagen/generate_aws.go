@@ -94,6 +94,26 @@ func S3BucketPostureSchema() ([]byte, error) {
 	return reflectSchema(S3BucketPostureSchemaID, "Eshu s3_bucket_posture Payload (schema version 1)", &awsv1.S3BucketPosture{})
 }
 
+// SSMHostApplicationSchemaID is the checked-in JSON Schema $id for the
+// schema-version-1 "aws_ssm_host_application" payload (eshu-hq/eshu#9556).
+const SSMHostApplicationSchemaID = schemaBaseID + "aws/v1/ssm_host_application.schema.json"
+
+// SSMHostApplicationSchema returns the JSON Schema bytes for
+// awsv1.SSMHostApplication.
+func SSMHostApplicationSchema() ([]byte, error) {
+	return reflectSchema(SSMHostApplicationSchemaID, "Eshu aws_ssm_host_application Payload (schema version 1)", &awsv1.SSMHostApplication{})
+}
+
+// SSMHostPlatformSchemaID is the checked-in JSON Schema $id for the
+// schema-version-1 "aws_ssm_host_platform" payload (eshu-hq/eshu#9556).
+const SSMHostPlatformSchemaID = schemaBaseID + "aws/v1/ssm_host_platform.schema.json"
+
+// SSMHostPlatformSchema returns the JSON Schema bytes for
+// awsv1.SSMHostPlatform.
+func SSMHostPlatformSchema() ([]byte, error) {
+	return reflectSchema(SSMHostPlatformSchemaID, "Eshu aws_ssm_host_platform Payload (schema version 1)", &awsv1.SSMHostPlatform{})
+}
+
 // S3ExternalPrincipalGrantSchemaID is the checked-in JSON Schema $id for the
 // schema-version-1 "s3_external_principal_grant" payload.
 const S3ExternalPrincipalGrantSchemaID = schemaBaseID + "aws/v1/s3_external_principal_grant.schema.json"
