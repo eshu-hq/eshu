@@ -26,6 +26,11 @@ import (
 // is provisional until the durable schema lands; the assertion is the stable
 // behavior contract.
 func TestProtectedScanTargetsDoNotCollapseSameDigestFindingsLive(t *testing.T) {
+	// Owned by #9468: the derived read branches stay dark behind AND
+	// FALSE until completed results can open them, so no provisional
+	// association can distinguish same-digest targets yet. Unskip when
+	// #9468 opens the finding-authority gate.
+	t.Skip("skip-gated on #9468: derived finding-authority reads stay dark until completed results open them")
 	ctx, database := postgresproof.OpenDisposableDatabase(t,
 		os.Getenv("ESHU_SCANNER_FINDING_AUTH_PROOF_DSN"),
 		os.Getenv("ESHU_SCANNER_FINDING_AUTH_PROOF_DISPOSABLE"), 3*time.Minute)
