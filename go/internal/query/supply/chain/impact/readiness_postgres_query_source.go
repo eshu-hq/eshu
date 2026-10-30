@@ -409,8 +409,8 @@ os_package_active AS (
     -- vulnerability.os_package facts carry no image identity of their own
     -- (distro/package identity only); the scanned image is resolved through
     -- the sibling scanner_worker.analysis fact in the SAME scan scope below,
-    -- the identical join the reducer uses to stamp SubjectDigest (issue
-    -- #5463, supplychain/core/impact.go).
+    -- scope-level across committed generations (issue #8878), unlike the
+    -- reducer's pair-keyed SubjectDigest stamp (issue #5463).
     SELECT fact.payload, fact.observed_at, fact.scope_id, fact.generation_id
     FROM fact_records AS fact
     JOIN ingestion_scopes AS scope
@@ -423,23 +423,27 @@ os_package_active AS (
       AND fact.is_tombstone = FALSE
       AND generation.status = 'active'
 ),
-scanner_worker_analysis_active AS (
+scanner_worker_analysis_in_scope AS (
+    -- Same-scope image-identity evidence across committed generations, NOT
+    -- the active generation alone (issue #8878): sibling scanner tiers
+    -- write generations ~0.5ms apart under one image scope, superseding
+    -- the generation carrying the only analysis fact. The generation must
+    -- still be committed (active or superseded) and the fact not
+    -- tombstoned; the digest/image_ref anchor below bounds the read.
     SELECT fact.payload, fact.observed_at, fact.scope_id, fact.generation_id
     FROM fact_records AS fact
-    JOIN ingestion_scopes AS scope
-      ON scope.scope_id = fact.scope_id
-     AND scope.active_generation_id = fact.generation_id
     JOIN scope_generations AS generation
       ON generation.scope_id = fact.scope_id
      AND generation.generation_id = fact.generation_id
     WHERE fact.fact_kind = ANY($16::text[])
       AND fact.is_tombstone = FALSE
-      AND generation.status = 'active'
+      AND generation.status IN ('active', 'superseded')
 ),
 scanner_worker_analysis AS (
     -- Present whenever a scan completed for the requested image, whether or
     -- not it found any installed OS packages. This is the "was this image
-    -- ever scanned" signal (issue #5467).
+    -- ever scanned" signal (issue #5467); the scope-wide CTE above lets a
+    -- superseded generation's completed scan still prove it (#8878).
     SELECT
         'scanner_worker.analysis' AS family,
         COUNT(*)::int AS fact_count,
@@ -449,23 +453,22 @@ scanner_worker_analysis AS (
         NULL::text AS source_snapshots_json,
         NULL::text AS source_states_json,
         NULL::text AS unsupported_targets_json
-    FROM scanner_worker_analysis_active
+    FROM scanner_worker_analysis_in_scope
     WHERE payload->>'image_digest' IN (SELECT digest FROM target_image_digests)
        OR ($14 <> '' AND payload->>'image_reference' = $14)
 ),
 vulnerability_os_package AS (
-    -- Counted only for os_package facts whose sibling scanner_worker.analysis
-    -- (same scope_id + generation_id) resolves to the requested image, so an
-    -- unrelated scan scope's installed-package rows never count toward this
-    -- request's evidence. Deliberately a semi-join (EXISTS), not a JOIN: a
-    -- JOIN's COUNT(*) is COUNT(os_package rows) * COUNT(matching analysis
-    -- rows), which is only correct because exactly one active
-    -- scanner_worker.analysis fact exists per scope+generation today (one
-    -- analyzer, one active generation). A second analyzer emitting into the
-    -- same scope, or any other source of more than one matching analysis row,
-    -- would silently inflate fact_count under a JOIN. EXISTS counts each
-    -- os_package fact at most once regardless of how many analysis rows
-    -- match.
+    -- Counted only for ACTIVE-generation os_package facts whose scan scope
+    -- holds a digest-matching scanner_worker.analysis in a committed
+    -- generation (same scope_id, active or superseded: issue #8878), so an
+    -- unrelated scope's rows never count. Scope-only key: sibling tiers
+    -- write one scope's generations ~0.5ms apart, and the surviving active
+    -- generation's rows carry no image identity of their own. Counted rows
+    -- stay active-only (the lifecycle the reducer's advisory reader
+    -- enforces); superseded generations contribute identity, never current
+    -- package evidence. Deliberately EXISTS, not JOIN: a JOIN fans out to
+    -- COUNT(os_package) * COUNT(matching analyses) across analyzers and
+    -- sibling generations; EXISTS counts each os_package fact at most once.
     SELECT
         'vulnerability.os_package' AS family,
         COUNT(*)::int AS fact_count,
@@ -478,9 +481,8 @@ vulnerability_os_package AS (
     FROM os_package_active AS os_package
     WHERE EXISTS (
         SELECT 1
-        FROM scanner_worker_analysis_active AS analysis
+        FROM scanner_worker_analysis_in_scope AS analysis
         WHERE analysis.scope_id = os_package.scope_id
-          AND analysis.generation_id = os_package.generation_id
           AND (
               analysis.payload->>'image_digest' IN (SELECT digest FROM target_image_digests)
               OR ($14 <> '' AND analysis.payload->>'image_reference' = $14)
