@@ -59,15 +59,33 @@ def main(argv: list[str]) -> int:
         try:
             run_id, directory = split_sample(sample)
             payload = json.loads((directory / "jobs.json").read_text(encoding="utf-8"))
-        except (ValueError, OSError) as exc:
+            jobs = payload.get("jobs", [])
+            if not isinstance(jobs, list):
+                raise ValueError("jobs.json holds no job list")
+        except (ValueError, OSError, AttributeError) as exc:
             print(f"census: cannot read sample {sample!r}: {exc}", file=sys.stderr)
             return 2
         outcomes: dict[int, str] = {}
-        for job in payload.get("jobs", []):
-            match = provenance.SHARD_RE.fullmatch(job.get("name", ""))
+        for job in jobs:
+            if not isinstance(job, dict):
+                print(f"census: run {run_id} holds a job entry that is not "
+                      f"an object; refusing to guess", file=sys.stderr)
+                return 2
+            name = job.get("name")
+            if name is None:
+                continue
+            if not isinstance(name, str):
+                print(f"census: run {run_id} holds a job with a non-string "
+                      f"name; refusing to guess", file=sys.stderr)
+                return 2
+            match = provenance.SHARD_RE.fullmatch(name)
             if match is None:
                 continue
             number = int(match.group(1))
+            if number in outcomes:
+                print(f"census: run {run_id} shard {number} is listed "
+                      f"twice; refusing to guess", file=sys.stderr)
+                return 2
             try:
                 log = (directory / f"shard{number}.log").read_text(encoding="utf-8")
             except OSError as exc:

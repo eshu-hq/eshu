@@ -72,6 +72,24 @@ if census "${real}" "444=${work}/444" >/dev/null 2>&1; then
   fail "ambiguous restore section must fail closed"
 fi
 
+# A shard listed twice is refused, not collapsed to one vote.
+mkdir -p "${work}/555"
+printf '{"jobs": [{"id": 1001, "name": "live-postgres-readiness (postgres18) shard (1/6)"}, {"id": 1002, "name": "live-postgres-readiness (postgres18) shard (1/6)"}]}' \
+  >"${work}/555/jobs.json"
+printf '##[group]Run actions/cache/restore@v4\nCache restored from key: Linux-X64-gobuild-deadbeef\n##[group]Run Set up Go\n' \
+  >"${work}/555/shard1.log"
+if census "${real}" "555=${work}/555" >/dev/null 2>&1; then
+  fail "duplicate shard entry must fail closed"
+fi
+
+# A non-string job name is refused with exit 2, not a traceback exit 1.
+mkdir -p "${work}/666"
+printf '{"jobs": [{"id": 1001, "name": 42}]}' >"${work}/666/jobs.json"
+code=0
+out="$(census "${real}" "666=${work}/666" 2>&1)" || code="$?"
+[[ "${code}" -eq 2 ]] || fail "non-string job name must exit 2, got ${code}: ${out}"
+[[ "${out}" != *"Traceback"* ]] || fail "non-string job name must not print a traceback"
+
 # Seeded break: a classifier that reads every restore as a hit must fail the
 # mixed and all-miss expectations, so the cases above are load-bearing.
 mutant="${work}/census-mutant.py"
