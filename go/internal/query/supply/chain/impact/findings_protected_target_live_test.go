@@ -29,7 +29,9 @@ func TestProtectedScanTargetsDoNotCollapseSameDigestFindingsLive(t *testing.T) {
 	// Owned by #9468: the derived read branches stay dark behind AND
 	// FALSE until completed results can open them, so no provisional
 	// association can distinguish same-digest targets yet. Unskip when
-	// #9468 opens the finding-authority gate.
+	// #9468 opens the finding-authority gate, and remove this proof from
+	// LIVE_READINESS_EXTRA_SKIP in the readiness workflows at the same
+	// time (the excuse would otherwise keep masking it as skipped).
 	t.Skip("skip-gated on #9468: derived finding-authority reads stay dark until completed results open them")
 	ctx, database := postgresproof.OpenDisposableDatabase(t,
 		os.Getenv("ESHU_SCANNER_FINDING_AUTH_PROOF_DSN"),
