@@ -53,6 +53,46 @@ Not claimed today:
   dispatch, module reexports, and FFI callback reachability remain exactness
   blockers.
 
+## Runtime Version Declarations
+
+The git collector also emits `runtime_declaration.version` facts from a
+Stack `stack.yaml`: the root `resolver` string scalar (`source_kind`
+`stack_yaml_resolver`), runtime `haskell`. The resolver is the only version
+declaration this lane owns; every other `stack.yaml` key stays out of runtime
+truth.
+
+| Manifest | Declared key | Emitted declaration |
+| --- | --- | --- |
+| `stack.yaml` (exact basename) | root `resolver` plain string scalar | `stack_yaml_resolver` (`haskell`), first effective line |
+
+Only the exact `stack.yaml` name matches, so `stack.yaml.lock`,
+`cabal.project`, and freeze files never match. Only a plain string scalar
+declares a resolver: a custom-snapshot mapping or any other shape is a
+counted rejection, never a version. A file without a `resolver` key is
+absent, distinct from a malformed file, which stays a decode error. A
+CloudFormation template carrying the `stack.yaml` name falls through to the
+generic YAML handling and emits no Stack evidence. Values the credential
+guard rejects are counted drops, never facts. Parser-private evidence is
+stripped from the parsed payload before content storage and bound to the
+exact source bytes by digest, so a digest mismatch retries instead of
+emitting stale truth.
+
+Evidence pointers: `go/internal/parser/yaml/runtime_evidence.go`
+(`stackEvidenceFromDecoded`, `ExtractStackRuntimeEvidence`),
+`go/internal/collector/repo/runtime/declaration/haskell.go`
+(`ExtractHaskellEvidence`),
+`go/internal/collector/repo/git/haskell_runtime_handoff.go`,
+`go/internal/collector/repo/git/parser_fact_export.go`
+(`noteHaskellCandidate`). Pinned by
+`go/internal/parser/yaml/runtime_evidence_test.go::TestStackResolverEvidence`,
+`go/internal/parser/yaml/runtime_evidence_test.go::TestStackYamlCloudFormationFallsThrough`,
+`go/internal/collector/repo/git/haskell_runtime_handoff_test.go::TestHaskellRuntimeNativeHandoff`,
+`go/internal/collector/repo/git/haskell_runtime_handoff_test.go::TestStackYamlCloudFormationCandidateFallsThrough`,
+`go/internal/collector/repo/runtime/declaration/haskell_test.go::TestStackManifestSpecAndFailClosedCases`,
+`go/internal/collector/repo/runtime/declaration/haskell_test.go::TestStackDeclarationLineAndKind`,
+and
+`go/internal/collector/repo/runtime/declaration/haskell_test.go::TestStackLockfilesNotAdmitted`.
+
 ## Known Limitations
 - Type class instances are not modeled as inheritance relationships
 - Modules without explicit export lists do not automatically root every
