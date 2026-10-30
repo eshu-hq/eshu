@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -364,6 +365,76 @@ func TestPageBoundForStdout(t *testing.T) {
 	}
 	if _, err := PageBoundForStdout(0); err == nil {
 		t.Fatal("PageBoundForStdout(0) error = nil, want non-nil")
+	}
+}
+
+// TestSplitFactsBoundsRetainedMemory proves the bounded-emission memory
+// contract at first-scan scale (eshu-hq/eshu#9635: a first full scan emitting
+// 49,047 facts / ~72MB against a 4MiB page bound): every page's retained backing array
+// stays proportional to the page it carries, never to the whole input. A
+// splitter that sizes each page for all N facts retains N*pages fact slots
+// across the stream, which can OOM the worker the paging contract exists to
+// protect. The paging behavior (order, completeness, per-page bound, explicit
+// oversize error) is pinned alongside the bound so the fix cannot trade
+// correctness for retention.
+func TestSplitFactsBoundsRetainedMemory(t *testing.T) {
+	t.Parallel()
+
+	const factCount = 49047
+	facts := make([]Fact, 0, factCount)
+	for i := 0; i < factCount; i++ {
+		fact := testPageFact()
+		fact.StableKey = "snapshot:github.com/eshu-hq/eshu:" + strconv.Itoa(i)
+		fact.SourceRef.FactKey = fact.StableKey
+		fact.Payload = map[string]any{"score": 8.7, "blob": strings.Repeat("x", 1024)}
+		facts = append(facts, fact)
+	}
+	bound, err := PageBoundForStdout(4 * 1024 * 1024)
+	if err != nil {
+		t.Fatalf("PageBoundForStdout() error = %v, want nil", err)
+	}
+	pages, err := SplitFacts(facts, bound)
+	if err != nil {
+		t.Fatalf("SplitFacts() error = %v, want nil", err)
+	}
+
+	kept := 0
+	retained := 0
+	for index, page := range pages {
+		if len(page) == 0 {
+			t.Fatalf("SplitFacts() pages[%d] is empty", index)
+		}
+		var size int64
+		for _, fact := range page {
+			factSize, err := FactWireBytes(fact)
+			if err != nil {
+				t.Fatalf("FactWireBytes() error = %v, want nil", err)
+			}
+			size += int64(factSize)
+		}
+		if size > bound {
+			t.Fatalf("SplitFacts() pages[%d] bytes = %d, want <= %d", index, size, bound)
+		}
+		kept += len(page)
+		retained += cap(page)
+	}
+	if kept != len(facts) {
+		t.Fatalf("SplitFacts() kept %d facts, want %d", kept, len(facts))
+	}
+	var flat []Fact
+	for _, page := range pages {
+		flat = append(flat, page...)
+	}
+	for i, fact := range facts {
+		if flat[i].StableKey != fact.StableKey {
+			t.Fatalf("SplitFacts() order changed at position %d", i)
+		}
+	}
+	// Retention stays proportional to the facts carried (append growth keeps
+	// each page within ~2x its length), never to the input size times the
+	// page count.
+	if ceiling := 2*len(facts) + len(pages); retained > ceiling {
+		t.Fatalf("SplitFacts() retained %d fact slots, want <= %d (2x facts + pages)", retained, ceiling)
 	}
 }
 
