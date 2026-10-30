@@ -393,38 +393,6 @@ func pageBound(configured int64) (int64, error) {
 	return configured, nil
 }
 
-// failureClass maps an analysis error to a bounded failure class for the
-// status record. Analyzer failures carry the vocabulary class; anything else
-// is an undifferentiated component failure. Values are never interpolated:
-// raw causes can carry repository paths, image names, or scope IDs.
-func failureClass(err error) string {
-	var failure scannerworker.AnalyzerFailure
-	if errors.As(err, &failure) {
-		return string(failure.FailureClass())
-	}
-	return "component_failed"
-}
-
-// failureState maps an analysis error to the claimed result state:
-// retryable analyzer failures release the claim for a bounded retry,
-// everything else fails terminal.
-func failureState(err error) sdkcollector.ResultState {
-	var failure scannerworker.AnalyzerFailure
-	if errors.As(err, &failure) && failure.Disposition() == scannerworker.FailureRetryable {
-		return sdkcollector.ResultRetryable
-	}
-	return sdkcollector.ResultTerminal
-}
-
-// emitFailure emits a single-shot failure result for an analysis error.
-// No page envelope; see emitTerminal for why resumed calls omit it.
-func (r Runner) emitFailure(claim sdkcollector.Claim, observedAt time.Time, err error) error {
-	return r.emit(claim, observedAt, failureState(err), nil, []sdkcollector.Status{{
-		Class:        sdkcollector.StatusFailure,
-		FailureClass: failureClass(err),
-	}}, nil)
-}
-
 // emitTerminal emits a single-shot terminal result for a binary-side defect
 // (invalid output, unpageable fact) or a deterministic input defect (bad
 // config, malformed claim, forged cursor): retry cannot fix it, so the
