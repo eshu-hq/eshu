@@ -54,6 +54,7 @@ const (
 	sourceKindTerragruntConstraint      = "terragrunt_version_constraint"
 	sourceKindHelmKubeVersion           = "helm_chart_kube_version"
 	sourceKindCargoRustVersion          = "cargo_package_rust_version"
+	sourceKindStackYamlResolver         = "stack_yaml_resolver"
 )
 
 // section identifies the manifest section a declaration was read from.
@@ -97,6 +98,7 @@ const (
 	sectionTerragruntConstraint
 	sectionHelmKubeVersion
 	sectionCargoRustVersion
+	sectionStackYamlResolver
 )
 
 // sectionSourceKinds maps a section to its source kind.
@@ -138,6 +140,7 @@ var sectionSourceKinds = [...]string{
 	sectionTerragruntConstraint:      sourceKindTerragruntConstraint,
 	sectionHelmKubeVersion:           sourceKindHelmKubeVersion,
 	sectionCargoRustVersion:          sourceKindCargoRustVersion,
+	sectionStackYamlResolver:         sourceKindStackYamlResolver,
 }
 
 // MaxManifestBytesPerFile bounds one package.json, Composer, or go.mod body. A manifest
@@ -173,6 +176,7 @@ const (
 	manifestTerragrunt
 	manifestHelmChart
 	manifestCargo
+	manifestStackYaml
 )
 
 // dependencyDirs are directory names whose manifests belong to a dependency,
@@ -212,6 +216,8 @@ func manifestKindForBase(base, relativePath string) manifestKind {
 		kind = manifestGoMod
 	case base == "Cargo.toml":
 		kind = manifestCargo
+	case base == "stack.yaml":
+		kind = manifestStackYaml
 	case base == "pyproject.toml" || base == "Pipfile":
 		kind = manifestPythonTOML
 	case base == "setup.cfg":

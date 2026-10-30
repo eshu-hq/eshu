@@ -312,6 +312,37 @@ fact count as Composer, Ruby, and JVM; malformed or capped manifests reuse
 the existing WARN `git_runtime_declaration_file_skipped` and guarded values
 reuse WARN `git_runtime_declaration_values_rejected` with the same labels.
 
+## Haskell collector cost and signals
+
+Performance Evidence (#9308, 2026-10-30): paired sequential local benchmarks
+ran the shared emission benches and the representative CloudFormation YAML
+parse bench on the branch base `0701a4ae` and the Haskell lane head
+`fffa41ca28` (`go test -run '^$' -bench
+'BenchmarkParseCloudFormationTemplateRepresentative$' and `-bench
+'BenchmarkEmitPackageJSON$|BenchmarkEmitGoMod$' -benchtime 1000x -count 3
+-benchmem`, Go 1.26.6, linux/arm64, 16 CPUs; no graph or Postgres backend).
+The CloudFormation bench fixture is itself named `stack.yaml`, so it walks
+the new fall-through path: base 2.44-2.62 ms/op with 1,331,477-1,331,504
+B/op and 19,380 allocs/op against HEAD 2.52-2.63 ms/op with
+1,331,607-1,331,647 B/op and 19,382 allocs/op. `BenchmarkEmitPackageJSON`
+keeps 620 allocs on both (base 58.8-62.3 us/op, HEAD 61.5-63.5 us/op) and
+`BenchmarkEmitGoMod` keeps 233 allocs on both (base 21.3-21.7 us/op, HEAD
+21.2-22.4 us/op). A temporary head-only probe (uncommitted
+`BenchmarkProbeStackResolver`, removed after the run) reads the 62-byte
+realistic `stack.yaml` in 7.9-8.3 us/op with 9,016 B/op and 72 allocs/op,
+once per changed file per generation under the 1 MiB manifest byte cap.
+Sampled load1 sat between 10.4 and 18.3 across the run window
+(2026-10-30T18:23Z to 2026-10-30T18:32Z), above the 8.0 quiet-host ceiling,
+so wall time is diagnostic; the identical allocation counts and the
+single-decode argument carry the no-regression case.
+
+No-Observability-Change: no metric, span, or log key was added. The
+`stack_yaml_resolver` declaration rides the same content-stream fact count
+as the sibling manifest readers; a malformed or capped `stack.yaml` reuses
+the existing WARN `git_runtime_declaration_file_skipped` and a guarded
+resolver value reuses WARN `git_runtime_declaration_values_rejected` with
+the same labels.
+
 ## .NET token-cap alignment (#9548 P2-1)
 
 No-Regression Evidence (#9548 P2-1): aligning the .NET evidence cap with the

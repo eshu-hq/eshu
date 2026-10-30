@@ -117,6 +117,11 @@ type rustRuntimeSnapshot struct {
 	Digest     string
 }
 
+type haskellRuntimeSnapshot struct {
+	Extraction runtimedeclaration.Extraction
+	Digest     string
+}
+
 type pythonRuntimeSnapshot struct {
 	Extraction runtimedeclaration.Extraction
 	Digest     string
@@ -167,8 +172,12 @@ type RepositorySnapshot struct {
 	IACRuntimeExpected    bool                             `json:"-"`
 	RustRuntime           map[string]rustRuntimeSnapshot   `json:"-"`
 	RustRuntimeExpected   bool                             `json:"-"`
-	ContentFiles          []model.ContentFileSnapshot      `json:"content_files"`
-	ContentEntities       []model.ContentEntitySnapshot    `json:"content_entities"`
+	// HaskellRuntime carries guarded Stack resolver evidence only for this
+	// live snapshot.
+	HaskellRuntime         map[string]haskellRuntimeSnapshot `json:"-"`
+	HaskellRuntimeExpected bool                              `json:"-"`
+	ContentFiles           []model.ContentFileSnapshot       `json:"content_files"`
+	ContentEntities        []model.ContentEntitySnapshot     `json:"content_entities"`
 	// GitRefs carries source-observed branch/ref heads for this repository.
 	GitRefs []GitRef `json:"git_refs,omitempty"`
 	// TerraformStateCandidates carries metadata-only repo-local state-file
