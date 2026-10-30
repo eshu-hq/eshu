@@ -37,8 +37,12 @@ whose live inventory differs from the snapshot ("ordered coverage differs from
 inventory"), because evidence from a stale topology would not describe the plan
 under review. A new dispatch therefore needs a reviewed re-freeze of the
 manifest, its pins, and the bounds above.
-The manifest stays frozen on purpose until then; the re-freeze and retire
-triggers are tracked in #9585.
+The manifest stays frozen on purpose until then. Frozen is the state until
+one of two triggers fires (tracked in #9585): re-freeze when a #9532 reopen
+trigger fires or a shard-count change is proposed (re-freeze at the current
+inventory by the #9460 procedure in one reviewed PR), or retire when the #9532
+monitor closes clean (30 post-refit jobs, no trigger) and #9460 agrees (one PR
+deletes the workflow, tooling, manifest, test, gate rows, and docs).
 
 `scripts/test-live-postgres-readiness-calibration.py` checks the snapshot
 against its own pin, checks that a drifted inventory is refused, and checks the

@@ -29,6 +29,16 @@ operational lessons that future storage changes still need to respect.
   `SET plan_cache_mode = force_generic_plan` instead. `#6154` carries the
   measurements, and `facts_filtered_keyset_test.go` fails on any disjunction in
   either cursor predicate.
+- A large `= ANY($n)` or `<> ALL($n)` array that filters many scanned rows
+  through the pooled pgx statement cache needs a custom plan: pass
+  `pgx.QueryExecModeCacheDescribe` (or `QueryExecModeExec`) as the first
+  query argument. From the sixth execution of a SQL text on a connection the
+  default `QueryExecModeCacheStatement` statement runs the generic plan, which
+  compares a Param array linearly per row; only a custom plan's Const array
+  of nine or more elements is hashed. Prove the trap with `PREPARE` under both
+  forced plan modes first. `ListActivePackageManifestDependencyFacts` carries
+  the measurements (#9586,
+  `docs/internal/evidence/9586-manifest-read-custom-plan.md`).
 - `ListFactsByKindAndPayloadValue` is only for top-level JSON payload fields
   that are part of a reducer domain's truth contract. Do not use it to paper
   over missing parser metadata or to guess at nested payload shape.

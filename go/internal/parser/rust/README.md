@@ -8,7 +8,7 @@ calls, constants, statics, type aliases, root metadata, attributes, derives, and
 generic parameter metadata, conditional derive evidence, nested field and enum
 variant attributes, structured where-clause evidence, exact Axum/Actix/Rocket
 route entries for source-proven direct syntax, and Cargo dependency evidence for
-`Cargo.toml` and `Cargo.lock`.
+`Cargo.toml` and `Cargo.lock`. The Cargo manifest parse also carries a private, digest-bound `[package].rust-version` value with its source line to the Git collector for `runtime_declaration.version`. Other tables, including `[workspace.package]`, do not declare a package runtime.
 
 ## Rust parse flow
 
