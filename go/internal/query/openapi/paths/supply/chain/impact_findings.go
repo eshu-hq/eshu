@@ -326,7 +326,7 @@ const impactFindings = `
                           }
                         },
                         "missing_evidence": {"type": "array", "items": {"type": "string", "enum": ["advisory_sources", "owned_packages", "package_registry_metadata", "sbom_or_image_evidence", "target_collection_incomplete", "ambiguous_scope", "readiness_unavailable", "unsupported_targets"]}},
-                        "incomplete_reasons": {"type": "array", "items": {"type": "string"}, "description": "Collector-emitted reasons explaining why source collection is still in flight; only present when readiness_state is target_incomplete. Skip entries read osv:skipped:<reason> and are only present when readiness_state is target_skipped."},
+                        "incomplete_reasons": {"type": "array", "items": {"type": "string"}, "description": "Collector-emitted reasons explaining why source collection is still in flight; only present when readiness_state is target_incomplete. Skip entries read osv:skipped:<reason> and accompany target_skipped; they can also ride along when another scope is still in flight."},
                         "freshness": {"type": "string", "enum": ["fresh", "stale", "unknown", "pending", "rate_limited", "failed", "partial"]},
                         "counts": {
                           "type": "object",
