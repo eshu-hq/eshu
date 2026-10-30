@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 const legacyContainerImageIdentityAckQuery = `
@@ -313,6 +314,12 @@ func openContainerImageIdentityAckCapabilityProofDB(t *testing.T) *sql.DB {
 	defer cancel()
 	schema := fmt.Sprintf("eshu_5854_ack_attempt_fence_%d", time.Now().UnixNano())
 	adminDB := openActiveOCIWarningIndexProofDB(t, dsn)
+	// Pin pg_trgm to public before creating the schema (#9572): the
+	// bootstrap's unqualified CREATE EXTENSION would otherwise install the
+	// opclass into this private schema, hiding it from sibling schemas on
+	// the same shared proof database. The advisory-locked shared install
+	// serializes concurrent bootstraps on one database.
+	postgresproof.InstallTrigramExtension(ctx, t, adminDB)
 	if _, err := adminDB.ExecContext(ctx, "CREATE SCHEMA "+quoteSQLIdentifier(schema)); err != nil {
 		t.Fatalf("create ACK attempt fence schema: %v", err)
 	}

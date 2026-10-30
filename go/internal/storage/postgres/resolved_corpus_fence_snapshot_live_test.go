@@ -17,6 +17,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -47,6 +48,12 @@ func openCorpusFenceSnapshotSchema(t *testing.T) (context.Context, *sql.DB) {
 
 	schema := fmt.Sprintf("eshu_6740_fence_%d", time.Now().UnixNano())
 	admin := openCorpusFenceSnapshotDB(t, dsn)
+	// Pin pg_trgm to public before creating the schema (#9572): the
+	// bootstrap's unqualified CREATE EXTENSION would otherwise install the
+	// opclass into this private schema, hiding it from sibling schemas on
+	// the same shared proof database. The advisory-locked shared install
+	// serializes concurrent bootstraps on one database.
+	postgresproof.InstallTrigramExtension(ctx, t, admin)
 	if _, err := admin.ExecContext(ctx, "CREATE SCHEMA "+quoteSQLIdentifier(schema)); err != nil {
 		t.Fatalf("create isolated schema: %v", err)
 	}
