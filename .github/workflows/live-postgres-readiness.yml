@@ -359,6 +359,8 @@ jobs:
           ESHU_REDUCER_ACK_RECLAIM_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_REDUCER_FAIRNESS_PROOF_DISPOSABLE: '1'
           ESHU_REDUCER_FAIRNESS_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_REDUCER_HEARTBEAT_PROOF_DISPOSABLE: '1'
+          ESHU_REDUCER_HEARTBEAT_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_RUNTIME_ENVIRONMENT_EVIDENCE_POSTGRES_DISPOSABLE: '1'
           ESHU_RUNTIME_ENVIRONMENT_EVIDENCE_POSTGRES_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF_DISPOSABLE: '1'
