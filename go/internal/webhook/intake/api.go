@@ -16,8 +16,8 @@ import (
 	"strings"
 	"time"
 
-	awsfreshness "github.com/eshu-hq/eshu/go/internal/collector/awscloud/freshness"
 	gcpfreshness "github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/freshness"
+	awsfreshness "github.com/eshu-hq/eshu/go/internal/coordinator/aws/freshness"
 	"github.com/eshu-hq/eshu/go/internal/webhook"
 )
 

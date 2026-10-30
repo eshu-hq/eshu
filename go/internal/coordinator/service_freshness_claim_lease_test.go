@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
-	awsfreshness "github.com/eshu-hq/eshu/go/internal/collector/awscloud/freshness"
 	gcpcatalog "github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	gcpfreshness "github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/freshness"
+	awsfreshness "github.com/eshu-hq/eshu/go/internal/coordinator/aws/freshness"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/aws/freshness"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/gcp"
 	"github.com/eshu-hq/eshu/go/internal/scope"
