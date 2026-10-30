@@ -17,15 +17,19 @@ import (
 // silently falls behind the production schema, and the proof then fails with
 // a missing column, table, or function far from the real cause.
 //
-// The guard builds one schema through the helper under test and one through
-// the production bootstrap, then diffs their schema objects (relations,
-// columns, indexes, sequences, routines, triggers, constraints). Any object
-// the helper-built schema lacks fails the test. Extension-owned objects are
-// excluded: whichever schema bootstraps first in a pristine database hosts
-// pg_trgm, so they can never match by construction.
+// The guard builds one database through the helper under test and one
+// through the production bootstrap, then diffs their schema objects
+// (relations, columns, indexes, sequences, routines, triggers,
+// constraints). Any object the helper-built database lacks fails the test.
+// Extension-owned objects are excluded by the inventory: each disposable
+// database installs its own pg_trgm from template0, so extension ownership
+// can never match by construction.
 //
-// It is RED on the pre-fix helpers (both lack production objects) and GREEN
-// once the helpers derive from ApplyBootstrapWithoutContentSearchIndexes.
+// Both sides bootstrap fresh disposable databases on the public schema (the
+// #9299 241a/241b authority migrations are public-only, so an isolated
+// schema can no longer host the full install); the isolation unit moved
+// from schema to database, and the comparison moved with it. The historic
+// name stays because the reducer contention gate pins it.
 // It is enrolled in the reducer contention gate so a reintroduced hand-picked
 // list fails a PR, not the scheduled lane.
 func TestReducerFairnessIsolatedSchemaDerivesFromBootstrap(t *testing.T) {

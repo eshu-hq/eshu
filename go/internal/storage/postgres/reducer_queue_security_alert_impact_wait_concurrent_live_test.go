@@ -39,7 +39,7 @@ func TestReducerContentionGateSecurityAlertReconciliationImpactFenceUnderContent
 	const scopes, workers = 12, 6
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
-	db, schema := openReducerFairnessDBWithSchema(t, ctx, dsn)
+	db, targetDSN := openReducerFairnessDBWithSchema(t, ctx, dsn)
 
 	loaders := make(map[string]*impactWaitLoader, scopes)
 	for i := 0; i < scopes; i++ {
@@ -75,7 +75,7 @@ func TestReducerContentionGateSecurityAlertReconciliationImpactFenceUnderContent
 	var wg sync.WaitGroup
 	errs := make(chan error, workers)
 	for w := 0; w < workers; w++ {
-		workerDB := openReducerFairnessClaimerDB(t, ctx, dsn, schema)
+		workerDB := openReducerFairnessClaimerDB(t, ctx, targetDSN)
 		queue := ReducerQueue{
 			database: SQLDB{DB: workerDB}, LeaseOwner: fmt.Sprintf("worker-%d", w), LeaseDuration: time.Minute,
 			RetryDelay: 20 * time.Millisecond, MaxAttempts: 3, Now: func() time.Time { return time.Now().UTC() },

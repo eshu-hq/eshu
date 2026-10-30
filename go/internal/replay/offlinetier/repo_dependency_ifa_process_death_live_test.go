@@ -24,6 +24,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 const (
@@ -40,11 +41,6 @@ func TestRepoDependencyIfaProcessDeathLive(t *testing.T) {
 	if !repoDependencyConcurrencyProofEnabled(t) {
 		return
 	}
-	baseDSN := firstRepoDependencyQuarantineDSN()
-	if baseDSN == "" {
-		t.Skipf("set %s or ESHU_POSTGRES_DSN to run the process-death proof", repoDependencyQuarantineProofDSNEnv)
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	graphExec, _ := openDeltaLiveBackend(ctx, t)
@@ -54,7 +50,7 @@ func TestRepoDependencyIfaProcessDeathLive(t *testing.T) {
 	artifactIDs := repoDependencyIfaArtifactIDs(t, rows)
 	acquireRepoDependencyIfaExclusiveBackend(ctx, t, graphExec, artifactIDs)
 
-	db, scopedDSN, cleanupDB := openRepoDependencyProcessDeathProofDB(ctx, t, baseDSN)
+	db, targetDSN, cleanupDB := openRepoDependencyProcessDeathProofDB(t)
 	defer cleanupDB()
 	store := postgres.NewSharedIntentStore(postgres.SQLDB{DB: db})
 	gate := postgres.NewRepoDependencyAcceptanceUnitGate(postgres.SQLDB{DB: db})
@@ -71,7 +67,7 @@ func TestRepoDependencyIfaProcessDeathLive(t *testing.T) {
 	command.Env = append(
 		os.Environ(),
 		repoDependencyProcessDeathHelperEnv+"=1",
-		repoDependencyProcessDeathDSNEnv+"="+scopedDSN,
+		repoDependencyProcessDeathDSNEnv+"="+targetDSN,
 	)
 	stdout, err := command.StdoutPipe()
 	if err != nil {
@@ -223,40 +219,27 @@ func repoDependencyProcessDeathRow(
 	return sharedintent.Row{}
 }
 
+// openRepoDependencyProcessDeathProofDB bootstraps a fresh disposable
+// database on the public schema and returns it with a DSN targeting that
+// database (for the SIGKILL helper subprocess, which opens the same
+// database directly) and its drop. The database is dropped when the test
+// ends. Replay coordinates and acceptance fences need the ingestion
+// tables, so the full production bootstrap applies — including the lane's
+// public-only 241a/241b authority migrations, which an isolated schema
+// cannot host (the later 242a definition then fails with a missing
+// eshu_security schema).
 func openRepoDependencyProcessDeathProofDB(
-	ctx context.Context, t *testing.T, dsn string,
+	t *testing.T,
 ) (*sql.DB, string, func()) {
 	t.Helper()
-	bootstrapDB, err := sql.Open("pgx", dsn)
-	if err != nil {
-		t.Fatalf("open process-death bootstrap database: %v", err)
+	adminDSN, optIn := openRepoDependencyProofAdmin(t)
+	if adminDSN == "" {
+		t.Skipf("set %s and %s=1 (or the ESHU_POSTGRES_TEST_DSN/_DISPOSABLE pair) to run the process-death proof",
+			repoDependencyQuarantineProofDSNEnv, repoDependencyProofDisposableEnv)
 	}
-	schemaName := fmt.Sprintf("repo_dependency_process_death_%d", time.Now().UnixNano())
-	if _, err := bootstrapDB.ExecContext(ctx, "CREATE SCHEMA "+schemaName); err != nil {
-		_ = bootstrapDB.Close()
-		t.Fatalf("create process-death schema: %v", err)
-	}
-	separator := "?"
-	if strings.Contains(dsn, "?") {
-		separator = "&"
-	}
-	scopedDSN := dsn + separator + "search_path=" + schemaName
-	db, err := sql.Open("pgx", scopedDSN)
-	if err != nil {
-		_ = bootstrapDB.Close()
-		t.Fatalf("open scoped process-death database: %v", err)
-	}
-	// Replay coordinates and acceptance fences need the ingestion tables too.
-	if err := postgres.ApplyBootstrap(ctx, postgres.SQLDB{DB: db}); err != nil {
-		_ = db.Close()
-		_ = bootstrapDB.Close()
-		t.Fatalf("ensure process-death schema: %v", err)
-	}
-	return db, scopedDSN, func() {
-		_ = db.Close()
-		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cleanupCancel()
-		_, _ = bootstrapDB.ExecContext(cleanupCtx, "DROP SCHEMA "+schemaName+" CASCADE")
-		_ = bootstrapDB.Close()
-	}
+	_, db := postgresproof.OpenDisposableBootstrapDatabase(t, adminDSN, optIn, 5*time.Minute,
+		func(ctx context.Context, database *sql.DB) error {
+			return postgres.ApplyBootstrap(ctx, postgres.SQLDB{DB: database})
+		})
+	return db, openRepoDependencyProofTarget(t, adminDSN, db), func() { _ = db.Close() }
 }

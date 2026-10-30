@@ -14,7 +14,7 @@
 DO $scanner_241_public_only$
 BEGIN
     IF current_schema() IS DISTINCT FROM 'public' THEN
-        RAISE EXCEPTION 'migration 241 applies to the public schema only (current_schema() = %)', current_schema();
+        RAISE EXCEPTION 'migration 241a applies to the public schema only (current_schema() = %)', current_schema();
     END IF;
 END
 $scanner_241_public_only$;

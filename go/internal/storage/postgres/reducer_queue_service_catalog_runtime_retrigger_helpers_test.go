@@ -81,11 +81,10 @@ func (retriggerFactLoader) ListActiveRepositoryFacts(context.Context) ([]facts.E
 // retriggerProof seeds the repository scope (active generation, no producer
 // row yet) and the catalog scope (one pending catalog row).
 type retriggerProof struct {
-	db     *sql.DB
-	schema string
-	dsn    string
-	graph  *runtimeFenceGraph
-	clock  time.Time
+	db        *sql.DB
+	targetDSN string
+	graph     *runtimeFenceGraph
+	clock     time.Time
 }
 
 func newRetriggerProof(t *testing.T, ctx context.Context) *retriggerProof {
@@ -94,8 +93,7 @@ func newRetriggerProof(t *testing.T, ctx context.Context) *retriggerProof {
 	if dsn == "" {
 		t.Skip("set ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN to run the contention gate")
 	}
-	installRuntimeFenceTrigram(t, ctx, dsn)
-	db, schema := openReducerFairnessDBWithSchema(t, ctx, dsn)
+	db, targetDSN := openReducerFairnessDBWithSchema(t, ctx, dsn)
 	now := time.Now().UTC()
 	for _, seed := range []struct{ scope, gen string }{
 		{runtimeFenceRepoScope, runtimeFenceRepoGen},
@@ -122,7 +120,7 @@ func newRetriggerProof(t *testing.T, ctx context.Context) *retriggerProof {
 		domain: string(reducer.DomainServiceCatalogCorrelation), conflictDomain: "scope",
 		conflictKey: runtimeFenceCatalogScope, sourceSystem: "git", updatedAt: now.Add(-time.Minute),
 	})
-	return &retriggerProof{db: db, schema: schema, dsn: dsn, graph: &runtimeFenceGraph{}, clock: now}
+	return &retriggerProof{db: db, targetDSN: targetDSN, graph: &runtimeFenceGraph{}, clock: now}
 }
 
 // addProducer inserts a pending workload_materialization row for the

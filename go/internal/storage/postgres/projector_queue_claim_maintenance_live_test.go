@@ -7,18 +7,33 @@ import (
 	"context"
 	"database/sql"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
 
-// claimMaintenanceProofDSN returns the disposable database DSN or skips.
+// claimMaintenanceProofDSN returns the administrative DSN the projector
+// claim proofs create their disposable databases through, or skips.
+//
+// The runner's ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN/_DISPOSABLE pair wins;
+// local runs fall back to the generic ESHU_POSTGRES_TEST_DSN/_DISPOSABLE
+// pair. A family DSN set without its explicit opt-in fails closed: creating
+// databases stays behind the opt-in, and a proof that cannot isolate itself
+// must not run half-isolated. An unset pair skips, never fails.
 func claimMaintenanceProofDSN(t *testing.T) string {
 	t.Helper()
-	dsn := os.Getenv("ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN")
-	if dsn == "" {
-		t.Skip("set ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN to a disposable Postgres database")
+	if dsn := strings.TrimSpace(os.Getenv("ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN")); dsn != "" {
+		if os.Getenv("ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DISPOSABLE") != "1" {
+			t.Fatal("ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN is set without ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DISPOSABLE=1")
+		}
+		return dsn
 	}
-	return dsn
+	if dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_TEST_DSN")); dsn != "" {
+		return dsn
+	}
+	t.Skip("set ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN and ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DISPOSABLE=1 " +
+		"(or the ESHU_POSTGRES_TEST_DSN/_DISPOSABLE pair) to run the projector claim proofs")
+	return ""
 }
 
 // seedClaimMaintenanceScopes inserts one git scope per id.

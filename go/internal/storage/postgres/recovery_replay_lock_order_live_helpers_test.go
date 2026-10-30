@@ -35,17 +35,16 @@ const (
 	lockOrderSeedTimeout     = 5 * time.Minute
 )
 
-// lockOrderFixture is one seeded isolated schema.
+// lockOrderFixture is one seeded disposable database.
 type lockOrderFixture struct {
-	dsn    string
-	schema string
-	base   *sql.DB
-	scopes []string
-	ids    []string
-	at     time.Time
+	targetDSN string
+	base      *sql.DB
+	scopes    []string
+	ids       []string
+	at        time.Time
 }
 
-// openLockOrderFixture bootstraps an isolated schema, seeds the target rows
+// openLockOrderFixture bootstraps a disposable database, seeds the target rows
 // (plus the 400,000 background rows when background is set) and runs ANALYZE.
 // Only the proofs whose RED depends on the planner choosing different indexes
 // need the background. It skips without a proof DSN.
@@ -57,8 +56,8 @@ func openLockOrderFixture(t *testing.T, background bool) *lockOrderFixture {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), lockOrderSeedTimeout)
 	defer cancel()
-	base, schema := openReducerFairnessDBWithSchema(t, ctx, dsn)
-	f := &lockOrderFixture{dsn: dsn, schema: schema, base: base, at: time.Now().UTC().Add(-time.Hour).Truncate(time.Second)}
+	base, targetDSN := openReducerFairnessDBWithSchema(t, ctx, dsn)
+	f := &lockOrderFixture{targetDSN: targetDSN, base: base, at: time.Now().UTC().Add(-time.Hour).Truncate(time.Second)}
 	started := time.Now()
 	if background {
 		f.seedBackground(t, ctx)
@@ -144,12 +143,13 @@ SET status = 'dead_letter', failure_class = $2, attempt_count = 3, lease_owner =
 WHERE scope_id LIKE 'lo-s%'`, f.at, lockOrderClass)
 }
 
-// session opens one independent single-connection handle on the schema.
+// session opens one independent single-connection handle on the fixture's
+// disposable database.
 func (f *lockOrderFixture) session(t *testing.T) *sql.DB {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	return openReducerFairnessClaimerDB(t, ctx, f.dsn, f.schema)
+	return openReducerFairnessClaimerDB(t, ctx, f.targetDSN)
 }
 
 // installSleepTrigger adds a test-schema-only BEFORE UPDATE trigger that

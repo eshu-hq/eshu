@@ -35,8 +35,7 @@ import (
 // dead-lettered target is never marked satisfied. The next sweep reports
 // unschedulable work and remains reclaimable for operator repair.
 func TestCrossplaneRedriveDeadLetteredTargetIsNotPermanentlySuppressedLive(t *testing.T) {
-	dsn, schema := crossplaneRedriveProofSchema(t)
-	db := crossplaneRedriveProofConn(t, dsn, schema)
+	db, _ := crossplaneRedriveProofDB(t)
 	ctx := context.Background()
 	now := time.Now().UTC()
 
@@ -122,8 +121,7 @@ func TestCrossplaneRedriveDeadLetteredTargetIsNotPermanentlySuppressedLive(t *te
 // regression (a repeat XRD-repo sync must not re-enqueue an already-resolved
 // target forever) the correct way.
 func TestCrossplaneRedriveSuccessfulMaterializationWritesLedgerThenSkipsLive(t *testing.T) {
-	dsn, schema := crossplaneRedriveProofSchema(t)
-	db := crossplaneRedriveProofConn(t, dsn, schema)
+	db, _ := crossplaneRedriveProofDB(t)
 	ctx := context.Background()
 	now := time.Now().UTC()
 
@@ -203,8 +201,7 @@ func TestCrossplaneRedriveSuccessfulMaterializationWritesLedgerThenSkipsLive(t *
 // and a LATER sweep for the same (group, claim_kind) identity still
 // re-enqueues the target instead of wrongly skipping it as already-satisfied.
 func TestCrossplaneRedriveUnconfirmedEdgeNotLedgeredAndReenqueuedLive(t *testing.T) {
-	dsn, schema := crossplaneRedriveProofSchema(t)
-	db := crossplaneRedriveProofConn(t, dsn, schema)
+	db, _ := crossplaneRedriveProofDB(t)
 	ctx := context.Background()
 	now := time.Now().UTC()
 

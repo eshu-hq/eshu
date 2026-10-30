@@ -16,6 +16,11 @@
 // public-qualified SECURITY DEFINER bodies install into public. The caller
 // passes the administrative DSN and the explicit opt-in; neither is derived.
 //
+// WithDatabase retargets a family DSN at another database (the postgres
+// maintenance database for the administrative session, or a generated
+// disposable database learned from current_database()) without
+// string-splicing: every other setting carries over in the DSN's own form.
+//
 // OpenIsolatedSchema gives one test its own schema in the database its DSN
 // names: it installs pg_trgm in public under TrigramExtensionLockKey, creates
 // prefix_<unix nanos>, runs the caller's schema setup on a pool whose

@@ -4,7 +4,7 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #8316 migration 198 lifecycle and seek proof: the deployable_unit_gap_admitted_anchor_idx partial index applies and reapplies cleanly, the per-pass latest-decision listing plans as an index seek over it with exact rows, and rollback plus rebuild round-trips; isolated schema from ESHU_POSTGRES_TEST_DSN; enrolled in the live-postgres-readiness runner
+//eshu:readiness:reason #8316 migration 198 lifecycle and seek proof: the deployable_unit_gap_admitted_anchor_idx partial index applies and reapplies cleanly, the per-pass latest-decision listing plans as an index seek over it with exact rows, and rollback plus rebuild round-trips; disposable database from ESHU_POSTGRES_TEST_DSN; enrolled in the live-postgres-readiness runner
 //eshu:readiness:env ESHU_POSTGRES_TEST_DSN
 
 import (
@@ -45,7 +45,7 @@ func TestDeployableUnitGapAdmittedAnchorIndexLifecycleAndSeekLive(t *testing.T) 
 	}
 	ctx, cancel := context.WithTimeout(t.Context(), 300*time.Second)
 	defer cancel()
-	db, schema := openReducerFairnessDBWithSchema(t, ctx, dsn)
+	db, _ := openReducerFairnessDBWithSchema(t, ctx, dsn)
 
 	definitions := gapAdmittedAnchorIndexDefinitions(t)
 
@@ -56,7 +56,7 @@ func TestDeployableUnitGapAdmittedAnchorIndexLifecycleAndSeekLive(t *testing.T) 
 			t.Fatalf("apply gap admitted-anchor index pass %d: %v", pass, err)
 		}
 	}
-	assertChangedSinceTrimIndexState(ctx, t, db, schema, indexName, true)
+	assertChangedSinceTrimIndexState(ctx, t, db, "public", indexName, true)
 
 	w := seedFingerprintGateWorld(t, ctx, db)
 	for g := 1; g <= gens; g++ {
@@ -125,14 +125,14 @@ FROM generate_series(1, $3) AS i`,
 	if _, err := db.ExecContext(ctx, "DROP INDEX CONCURRENTLY IF EXISTS "+indexName); err != nil {
 		t.Fatalf("rollback %s: %v", indexName, err)
 	}
-	assertChangedSinceTrimIndexState(ctx, t, db, schema, indexName, false)
+	assertChangedSinceTrimIndexState(ctx, t, db, "public", indexName, false)
 	assertGapAdmittedAnchorSeek(ctx, t, db, store, indexName, false, anchors)
 
 	// Reapplying after a rollback must rebuild cleanly.
 	if err := ApplyDefinitions(ctx, SQLDB{DB: db}, definitions); err != nil {
 		t.Fatalf("rebuild gap admitted-anchor index after rollback: %v", err)
 	}
-	assertChangedSinceTrimIndexState(ctx, t, db, schema, indexName, true)
+	assertChangedSinceTrimIndexState(ctx, t, db, "public", indexName, true)
 	assertGapAdmittedAnchorSeek(ctx, t, db, store, indexName, true, anchors)
 }
 

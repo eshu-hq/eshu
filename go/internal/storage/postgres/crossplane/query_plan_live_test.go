@@ -20,8 +20,7 @@ import (
 // TestCrossplaneRedrivePagedClaimedReplayCostLive qualifies the real sweep
 // across its default 500-target page boundary with stable claim ownership.
 func testCrossplaneRedrivePagedClaimedReplayCostLive(t *testing.T) {
-	dsn, schema := crossplaneRedriveProofSchema(t)
-	db := crossplaneRedriveProofConn(t, dsn, schema)
+	db, _ := crossplaneRedriveProofDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 	defer cancel()
 	now := time.Now().UTC()
@@ -105,8 +104,7 @@ func TestCrossplaneRedriveTargetDiscoveryQueryPlanLive(t *testing.T) {
 }
 
 func testCrossplaneRedriveTargetDiscoveryQueryPlanLive(t *testing.T) {
-	dsn, schema := crossplaneRedriveProofSchema(t)
-	db := crossplaneRedriveProofConn(t, dsn, schema)
+	db, _ := crossplaneRedriveProofDB(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()

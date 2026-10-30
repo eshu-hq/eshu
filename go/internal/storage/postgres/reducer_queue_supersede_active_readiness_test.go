@@ -224,6 +224,19 @@ func seedSupersedeActiveReadinessScope(
 	insertReducerSupersedeReadinessPhaseState(t, ctx, db, scopeID, activeKey, genNew)
 }
 
+// openSupersedeReadinessClaimerDB opens an independent single-connection
+// handle pinned to the supersede-readiness proof schema. It preserves the
+// previous openReducerFairnessClaimerDB use at this call site now that the
+// fairness claimer targets disposable databases instead of named schemas.
+func openSupersedeReadinessClaimerDB(t *testing.T, ctx context.Context, dsn, schemaName string) *sql.DB {
+	t.Helper()
+	db := openLivenessProofDB(t, dsn)
+	if _, err := db.ExecContext(ctx, "SET search_path TO "+schemaName+",public"); err != nil {
+		t.Fatalf("set search_path: %v", err)
+	}
+	return db
+}
+
 // TestReducerSupersedeActiveReadinessConcurrentClaims proves the widened sweep
 // does not race with live claims: claimers draining the #7664 shape on two
 // scopes at once must each see no error, retire every stale row exactly once,
@@ -259,7 +272,7 @@ func TestReducerSupersedeActiveReadinessConcurrentClaims(t *testing.T) {
 	// pooled connection would serialize them and make this proof vacuous.
 	queues := make([]ReducerQueue, claimers)
 	for i := range queues {
-		claimerDB := openReducerFairnessClaimerDB(t, ctx, dsn, schemaName)
+		claimerDB := openSupersedeReadinessClaimerDB(t, ctx, dsn, schemaName)
 		queues[i] = ReducerQueue{
 			database:      SQLDB{DB: claimerDB},
 			LeaseOwner:    fmt.Sprintf("supersede-concurrent-%d", i),
