@@ -327,6 +327,9 @@ for entry in "${proofs[@]}"; do
 done
 out="$(run_runner)" && fail "degraded run with graph failure passed"
 [[ "${out}" == *"${first_graph}: FAIL"* ]] || fail "graph failure not named: ${out}"
+
+# Behavior-gated excuse cases live in the sourced proofs lib.
+check_extra_skip_excuse
 export ESHU_NEO4J_URI="${ESHU_EXPECTED_NEO4J_URI}"
 out="$(run_runner)" && fail "partial Neo4j env passed"
 [[ "${out}" == *"ESHU_NEO4J_USERNAME"* ]] || fail "partial Neo4j env not named: ${out}"

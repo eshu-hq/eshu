@@ -183,3 +183,28 @@ check_batched_package_failures() {
       fail "batched ${scenario} invoked ${total_calls}/${#packages[@]} packages"
   done
 }
+
+# An extra skip excuse (LIVE_READINESS_EXTRA_SKIP) covers a behavior-gated
+# proof: absence or skip passes, a failure still fails, and an unknown name
+# dies loud in parse_skips.
+check_extra_skip_excuse() {
+  local out
+  write_events
+  sed -i.bak "/\"Test\":\"${first_proof}\"/d" "$(events_of "${first_pkg}")"
+  out="$(LIVE_READINESS_EXTRA_SKIP="${first_proof}" run_runner)" ||
+    fail "extra skip of absent proof failed: ${out}"
+  [[ "${out}" == *"extra skip excuse: ${first_proof}"* ]] || fail "extra skip not named: ${out}"
+  [[ "${out}" == *"skipped: ${first_proof}"* ]] || fail "excused proof missing from summary: ${out}"
+  write_events
+  sed -i.bak "s/\"Action\":\"pass\",\"Test\":\"${first_proof}\"/\"Action\":\"skip\",\"Test\":\"${first_proof}\"/" "$(events_of "${first_pkg}")"
+  out="$(LIVE_READINESS_EXTRA_SKIP="${first_proof}" run_runner)" ||
+    fail "extra skip of skipped proof failed: ${out}"
+  write_events
+  sed -i.bak "s/\"Action\":\"pass\",\"Test\":\"${first_proof}\"/\"Action\":\"fail\",\"Test\":\"${first_proof}\"/" "$(events_of "${first_pkg}")"
+  out="$(LIVE_READINESS_EXTRA_SKIP="${first_proof}" run_runner)" && fail "extra skip of failed proof passed"
+  [[ "${out}" == *"${first_proof}: FAIL"* ]] || fail "excused failure not named: ${out}"
+  write_events
+  if out="$(LIVE_READINESS_EXTRA_SKIP="TestZzzNoSuchProof" run_runner)"; then
+    fail "unknown extra skip passed"
+  fi
+}

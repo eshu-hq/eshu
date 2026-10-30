@@ -43,11 +43,28 @@ func openIsolatedBootstrapSchema(t *testing.T, dsn, optIn, prefix string) *sql.D
 	return database
 }
 
+// disposableAdminDSN derives the administrative session for a family DSN:
+// database "postgres", every other setting byte-identical (see
+// postgresproof.WithDatabase, which dispatches on the DSN's own form the
+// way pgconn parses). It fails the test on an unparseable DSN instead of
+// opening the wrong database.
+func disposableAdminDSN(t *testing.T, dsn string) string {
+	t.Helper()
+	admin, err := postgresproof.WithDatabase(dsn, "postgres")
+	if err != nil {
+		t.Fatalf("derive postgres administrative DSN: %v", err)
+	}
+	return admin
+}
+
 // openIsolatedLiveDB is openIsolatedBootstrapSchema for the DSN in
 // ESHU_POSTGRES_DSN with the opt-in in ESHU_POSTGRES_DISPOSABLE, skipping
 // with skipMessage when the DSN is unset and skipping (never failing) when
 // the opt-in is absent, plus the 90-second proof deadline the live helpers
-// share.
+// share. ESHU_POSTGRES_DSN names the proof's working database (usually
+// "eshu"), so the administrative session is derived from it, not passed
+// through: OpenDisposableDatabase refuses any administrative database but
+// "postgres".
 func openIsolatedLiveDB(t *testing.T, prefix, skipMessage string) (*sql.DB, context.Context) {
 	t.Helper()
 	dsn := os.Getenv("ESHU_POSTGRES_DSN")
@@ -58,8 +75,26 @@ func openIsolatedLiveDB(t *testing.T, prefix, skipMessage string) (*sql.DB, cont
 	if optIn != "1" {
 		t.Skip("set ESHU_POSTGRES_DISPOSABLE=1 to run this proof on a disposable PostgreSQL database (absent opt-in skips, never fails)")
 	}
-	database := openIsolatedBootstrapSchema(t, dsn, optIn, prefix)
+	database := openIsolatedBootstrapSchema(t, disposableAdminDSN(t, dsn), optIn, prefix)
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	t.Cleanup(cancel)
 	return database, ctx
+}
+
+// TestDisposableAdminDSNDerivesPostgresDatabase pins that the family DSN in
+// ESHU_POSTGRES_DSN (whose database is the proof's working database, e.g.
+// "eshu") derives an administrative session on database "postgres" with
+// every other setting byte-identical, in both URL and keyword/value form.
+func TestDisposableAdminDSNDerivesPostgresDatabase(t *testing.T) {
+	t.Parallel()
+	cases := map[string]string{
+		"postgres://eshu:change-me@localhost:15432/eshu?sslmode=disable":                     "postgres://eshu:change-me@localhost:15432/postgres?sslmode=disable",
+		"postgres://eshu:change-me@localhost:15432/postgres?sslmode=disable":                 "postgres://eshu:change-me@localhost:15432/postgres?sslmode=disable",
+		"host=localhost port=15432 user=eshu password=change-me dbname=eshu sslmode=disable": "host=localhost port=15432 user=eshu password=change-me dbname=postgres sslmode=disable",
+	}
+	for in, want := range cases {
+		if got := disposableAdminDSN(t, in); got != want {
+			t.Errorf("disposableAdminDSN(%q) = %q, want %q", in, got, want)
+		}
+	}
 }

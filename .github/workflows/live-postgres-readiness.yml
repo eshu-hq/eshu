@@ -418,6 +418,9 @@ jobs:
           ESHU_TEST_ECS_RUNTIME_INDEX_POSTGRES_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_WEBHOOK_CLAIM_LEASE_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           # END GENERATED READINESS ENV
+          # Behavior-gated excuse (#9468): the fence proof skips until
+          # completed results open the finding-authority gate. Remove when #9468 unskips it.
+          LIVE_READINESS_EXTRA_SKIP: TestProtectedScanTargetsDoNotCollapseSameDigestFindingsLive
         run: bash scripts/run-live-postgres-readiness-tests.sh --shard "${{ matrix.shard }}/${{ matrix.total }}" --report readiness-shard-report.json
 
       - name: Upload shard coverage report
