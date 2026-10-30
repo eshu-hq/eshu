@@ -140,3 +140,41 @@ AC3.4 = 419. Post-commit targets: 0 / 0 / both-lines-present / `affected` /
 Opens at the Section 4 commit; closes at the first retention prune of a
 marked row or a satellite activation on the same scope. State the closing
 here when it passes.
+
+## Hardening (#9597 — closes review threads on #9595)
+
+Two findings from the #9595 review (threads 4420015885/4420068975 on the
+in-flight recheck, 4420015889/4420068981 on the rollback) were valid at
+merge and are fixed in `9431-qa-retire.sql` before the authorized Section 4
+QA run. No QA state changed: all proof below ran on a scratch Postgres 18
+database with dummy instance ids.
+
+- **In-flight gate.** Sections 3 and 4 capture the locked recheck with
+  `\gset` (`inflight_n`, `abort_inflight` boolean) and an `\if`-gated DO
+  block RAISEs under `ON_ERROR_STOP`, so a nonzero count aborts the `-f`
+  run with exit 3 BEFORE any `UPDATE`. Both `UPDATE`s additionally carry
+  `AND NOT EXISTS (claimed/running/retrying for the retire set)` so a
+  claim landing between recheck and write still cannot be written. The
+  Section 3 vs 4 lock+gate+`UPDATE` bodies are line-identical (diff shows
+  only the reporting tail and `COMMIT` vs `ROLLBACK` differing).
+- **Standalone rollback.** Section 4 writes `retired_prior_scope_status`
+  into the durable generation payload marker before `COMMIT` (same
+  authorized columns/rows, no DDL). Section 5 is executable SQL gated on
+  `-v rollback_ok=1` with zero session-local references (no `pg_temp`;
+  verified by scan), restoring scope pointers from the marker first, then
+  reactivating only generations whose scope now points back at them.
+  `rollback_marker_remaining` must read 0; anything higher names rows
+  whose window closed.
+
+Scratch proof (script run as committed, `-v retired_instance/-v
+satellite_instance` dummy values; psql 18.6, `ON_ERROR_STOP=1`):
+
+| Run | Setup | Result |
+|---|---|---|
+| RED (base file) | claim injected after classify | recheck printed 1, `UPDATE 2/UPDATE 2` still executed, exit 0 — the reported hole |
+| S3 abort (race) | claim injected strictly between classify and recheck, retire set of 2 | `ABORT` + `ERROR: retire ABORTED`, exit 3, 0 marker rows, both generations active, 0 NULL pointers |
+| S3 clean (full file, no gates) | no in-flight | exit 0, `dryrun_updated_generations=2`, `dryrun_marker_prior_status=2`, `dryrun_cleared_scopes=2`, rolled back to 0 markers / 0 NULL pointers |
+| S4 abort (race, `retire_ok=1`) | claim injected mid-window | `ABORT` + `ERROR`, no `UPDATE`/`COMMIT`, exit nonzero, 0 markers committed |
+| S4 commit (`retire_ok=1`) | no in-flight | exit 0, `COMMIT`, 2 generations `superseded` with `retired_issue=9431` + `retired_prior_scope_status=active`, 2 scope pointers NULL |
+| S5 fresh session (`rollback_ok=1`) | new psql session after the commit | exit 0, scopes back to `active` with pointers restored, generations `active`, payloads back to `{}`, `rollback_marker_remaining=0` |
+| S5 window-closed | one scope re-pointed at a new active generation before rollback | that scope untouched (old generation stays `superseded` with marker, pointer stays new), the other scope restored, `rollback_marker_remaining=1` |

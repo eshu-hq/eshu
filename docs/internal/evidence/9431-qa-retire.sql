@@ -19,6 +19,8 @@
 -- Dry run (BEGIN ... ROLLBACK, always safe) runs by default.
 -- Retire transaction runs ONLY with -v retire_ok=1, after step 4 of the ruling
 -- (replacement pass) is recorded in the evidence.
+-- Rollback runs ONLY with -v rollback_ok=1, from any fresh session (Section 5
+-- references no session-local state).
 --
 -- Scope-status choice (ruling step 3): set ingestion_scopes.status='failed'
 -- with active_generation_id=NULL, the value the existing no-active-generation
@@ -181,29 +183,54 @@ FROM pg_temp.retire_set;
 -- ---------------------------------------------------------------- Section 3
 -- Dry run: the exact retire body inside BEGIN ... ROLLBACK (ruling step 3).
 -- The Section 4 body is byte-identical except for the COMMIT vs ROLLBACK tail;
--- The lock + UPDATE statements match Section 4 lines-for-line (verified by diff
--- of the two blocks); only the reporting tail and COMMIT vs ROLLBACK differ.
+-- The lock + gate + UPDATE statements match Section 4 line-for-line (verified
+-- by diff of the two blocks); only the reporting tail and COMMIT vs ROLLBACK
+-- differ.
+-- In-flight gate (#9597): the recheck count and a boolean are captured with
+-- \gset, and an \if-gated DO block RAISEs under ON_ERROR_STOP, so a nonzero
+-- count aborts the -f run with a nonzero exit BEFORE any UPDATE executes.
+-- The AND NOT EXISTS predicates on both UPDATEs are the second layer: a claim
+-- landing between recheck and UPDATE still cannot be written.
 -- --------------------------------------------------------------------------
 BEGIN;
 SELECT g.scope_id, g.generation_id
 FROM scope_generations g JOIN pg_temp.retire_set r USING (scope_id, generation_id)
 ORDER BY g.scope_id, g.generation_id FOR UPDATE OF g;
-SELECT count(*) AS must_be_zero_inflight_locked
+SELECT count(*) AS inflight_n, (count(*) > 0) AS abort_inflight
 FROM fact_work_items w JOIN pg_temp.retire_set r USING (scope_id, generation_id)
-WHERE w.status IN ('claimed', 'running', 'retrying');
+WHERE w.status IN ('claimed', 'running', 'retrying') \gset
+SELECT :'inflight_n' AS must_be_zero_inflight_locked;
+\if :abort_inflight
+\echo 'ABORT: in-flight work rows are present in the retire set; blocking the retire before any UPDATE.'
+DO $$BEGIN
+  RAISE EXCEPTION 'retire ABORTED: in-flight work present in retire set; zero rows written';
+END$$;
+\endif
 UPDATE scope_generations g
 SET status = 'superseded', superseded_at = now(),
     payload = COALESCE(g.payload, '{}'::jsonb)
-      || jsonb_build_object('retired_issue', '9431', 'retired_at', now())
+      || jsonb_build_object('retired_issue', '9431', 'retired_at', now(),
+                            'retired_prior_scope_status', r.prior_scope_status)
 FROM pg_temp.retire_set r
-WHERE g.scope_id = r.scope_id AND g.generation_id = r.generation_id AND g.status = 'active';
+WHERE g.scope_id = r.scope_id AND g.generation_id = r.generation_id AND g.status = 'active'
+  AND NOT EXISTS (
+    SELECT 1 FROM fact_work_items w
+    WHERE w.scope_id = g.scope_id AND w.generation_id = g.generation_id
+      AND w.status IN ('claimed', 'running', 'retrying'));
 UPDATE ingestion_scopes s
 SET status = 'failed', active_generation_id = NULL
 FROM pg_temp.retire_set r
-WHERE s.scope_id = r.scope_id AND s.active_generation_id = r.generation_id;
+WHERE s.scope_id = r.scope_id AND s.active_generation_id = r.generation_id
+  AND NOT EXISTS (
+    SELECT 1 FROM fact_work_items w
+    WHERE w.scope_id = s.scope_id AND w.generation_id = r.generation_id
+      AND w.status IN ('claimed', 'running', 'retrying'));
 SELECT 'dryrun_updated_generations=' || count(*) FROM scope_generations g
 JOIN pg_temp.retire_set r USING (scope_id, generation_id)
 WHERE g.status = 'superseded' AND g.payload ->> 'retired_issue' = '9431';
+SELECT 'dryrun_marker_prior_status=' || count(*) FROM scope_generations g
+JOIN pg_temp.retire_set r USING (scope_id, generation_id)
+WHERE g.payload ->> 'retired_prior_scope_status' = r.prior_scope_status;
 SELECT 'dryrun_cleared_scopes=' || count(*) FROM ingestion_scopes s
 JOIN pg_temp.retire_set r USING (scope_id)
 WHERE s.active_generation_id IS NULL;
@@ -214,27 +241,45 @@ ROLLBACK;
 -- after the replacement pass (ruling step 4) is recorded in the evidence.
 -- One transaction; candidates locked in (scope_id, generation_id) order
 -- FOR UPDATE (retention lock doctrine). The rollback key (scope_id,
--- generation_id, prior scope status) is selected before COMMIT; capture the
--- psql output as the evidence rollback key.
+-- generation_id, prior scope status) is BOTH selected before COMMIT (capture
+-- the psql output as the evidence rollback key) AND persisted durably in the
+-- generation payload marker ('retired_prior_scope_status'), so Section 5 runs
+-- from a fresh session with no pg_temp reference.
 -- --------------------------------------------------------------------------
 \if :{?retire_ok}
 BEGIN;
 SELECT g.scope_id, g.generation_id
 FROM scope_generations g JOIN pg_temp.retire_set r USING (scope_id, generation_id)
 ORDER BY g.scope_id, g.generation_id FOR UPDATE OF g;
-SELECT count(*) AS must_be_zero_inflight_locked
+SELECT count(*) AS inflight_n, (count(*) > 0) AS abort_inflight
 FROM fact_work_items w JOIN pg_temp.retire_set r USING (scope_id, generation_id)
-WHERE w.status IN ('claimed', 'running', 'retrying');
+WHERE w.status IN ('claimed', 'running', 'retrying') \gset
+SELECT :'inflight_n' AS must_be_zero_inflight_locked;
+\if :abort_inflight
+\echo 'ABORT: in-flight work rows are present in the retire set; blocking the retire before any UPDATE.'
+DO $$BEGIN
+  RAISE EXCEPTION 'retire ABORTED: in-flight work present in retire set; zero rows written';
+END$$;
+\endif
 UPDATE scope_generations g
 SET status = 'superseded', superseded_at = now(),
     payload = COALESCE(g.payload, '{}'::jsonb)
-      || jsonb_build_object('retired_issue', '9431', 'retired_at', now())
+      || jsonb_build_object('retired_issue', '9431', 'retired_at', now(),
+                            'retired_prior_scope_status', r.prior_scope_status)
 FROM pg_temp.retire_set r
-WHERE g.scope_id = r.scope_id AND g.generation_id = r.generation_id AND g.status = 'active';
+WHERE g.scope_id = r.scope_id AND g.generation_id = r.generation_id AND g.status = 'active'
+  AND NOT EXISTS (
+    SELECT 1 FROM fact_work_items w
+    WHERE w.scope_id = g.scope_id AND w.generation_id = g.generation_id
+      AND w.status IN ('claimed', 'running', 'retrying'));
 UPDATE ingestion_scopes s
 SET status = 'failed', active_generation_id = NULL
 FROM pg_temp.retire_set r
-WHERE s.scope_id = r.scope_id AND s.active_generation_id = r.generation_id;
+WHERE s.scope_id = r.scope_id AND s.active_generation_id = r.generation_id
+  AND NOT EXISTS (
+    SELECT 1 FROM fact_work_items w
+    WHERE w.scope_id = s.scope_id AND w.generation_id = r.generation_id
+      AND w.status IN ('claimed', 'running', 'retrying'));
 SELECT scope_id, generation_id, prior_scope_status AS rollback_key
 FROM pg_temp.retire_set ORDER BY 1, 2;
 COMMIT;
@@ -249,23 +294,42 @@ COMMIT;
 -- carrying the step-4 marker, still superseded, with the scope pointer still
 -- NULL. After a prune, or once a satellite generation activates on the same
 -- scope, rollback is re-collection only.
+-- Standalone (#9597): this block references NO pg_temp table. The prior scope
+-- status rides in the durable payload marker ('retired_prior_scope_status',
+-- written by Section 4 before COMMIT), so it runs from a FRESH session.
+-- RUNS ONLY WITH -v rollback_ok=1, and only inside the window above.
+-- A generation is reactivated only when its scope pointer now references it
+-- (chained to the scope restore in the same transaction); a scope whose
+-- pointer is no longer NULL, or whose marker row is gone (pruned), is left
+-- untouched. The trailing count must read 0; anything higher names rows that
+-- still carry the marker (window closed for those rows).
 -- --------------------------------------------------------------------------
--- BEGIN;
--- UPDATE scope_generations g
--- SET status = 'active', superseded_at = NULL
--- WHERE g.payload ->> 'retired_issue' = '9431'
---   AND g.status = 'superseded'
---   AND EXISTS (SELECT 1 FROM ingestion_scopes s
---     WHERE s.scope_id = g.scope_id AND s.active_generation_id IS NULL);
--- UPDATE ingestion_scopes s
--- SET status = r.prior_scope_status, active_generation_id = r.generation_id
--- FROM pg_temp.retire_set r
--- WHERE s.scope_id = r.scope_id AND s.active_generation_id IS NULL
---   AND EXISTS (SELECT 1 FROM scope_generations g
---     WHERE g.scope_id = r.scope_id AND g.generation_id = r.generation_id
---       AND g.status = 'active' AND g.payload ->> 'retired_issue' = '9431');
--- COMMIT;
--- (Rollback block is commented: uncomment to execute, only inside the window.)
+\if :{?rollback_ok}
+BEGIN;
+UPDATE ingestion_scopes s
+SET status = g.payload ->> 'retired_prior_scope_status',
+    active_generation_id = g.generation_id
+FROM scope_generations g
+WHERE g.payload ->> 'retired_issue' = '9431'
+  AND g.status = 'superseded'
+  AND g.payload ? 'retired_prior_scope_status'
+  AND g.payload ->> 'retired_prior_scope_status' IS NOT NULL
+  AND s.scope_id = g.scope_id
+  AND s.active_generation_id IS NULL;
+UPDATE scope_generations g
+SET status = 'active', superseded_at = NULL,
+    payload = g.payload - 'retired_issue' - 'retired_at' - 'retired_prior_scope_status'
+WHERE g.payload ->> 'retired_issue' = '9431'
+  AND g.status = 'superseded'
+  AND EXISTS (SELECT 1 FROM ingestion_scopes s
+    WHERE s.scope_id = g.scope_id AND s.active_generation_id = g.generation_id);
+SELECT count(*) AS rollback_marker_remaining
+FROM scope_generations g
+WHERE g.payload ->> 'retired_issue' = '9431';
+COMMIT;
+\else
+\echo 'Section 5 rollback SKIPPED: re-run with -v rollback_ok=1 inside the rollback window only.'
+\endif
 
 -- ---------------------------------------------------------------- Section 6
 -- AC3 proof queries (read-only; run after ruling step 6, the post-commit
