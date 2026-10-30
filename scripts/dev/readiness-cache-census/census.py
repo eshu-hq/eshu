@@ -66,6 +66,7 @@ def main(argv: list[str]) -> int:
             print(f"census: cannot read sample {sample!r}: {exc}", file=sys.stderr)
             return 2
         outcomes: dict[int, str] = {}
+        shard_totals: set[int] = set()
         for job in jobs:
             if not isinstance(job, dict):
                 print(f"census: run {run_id} holds a job entry that is not "
@@ -81,7 +82,8 @@ def main(argv: list[str]) -> int:
             match = provenance.SHARD_RE.fullmatch(name)
             if match is None:
                 continue
-            number = int(match.group(1))
+            number, shard_total = int(match.group(1)), int(match.group(2))
+            shard_totals.add(shard_total)
             if number in outcomes:
                 print(f"census: run {run_id} shard {number} is listed "
                       f"twice; refusing to guess", file=sys.stderr)
@@ -99,6 +101,11 @@ def main(argv: list[str]) -> int:
             outcomes[number] = outcome
         if not outcomes:
             print(f"census: run {run_id} has no shard jobs in jobs.json", file=sys.stderr)
+            return 2
+        if len(shard_totals) != 1 or set(outcomes) != set(range(1, next(iter(shard_totals)) + 1)):
+            print(f"census: run {run_id} shard topology is incomplete or "
+                  f"mixed (shards {sorted(outcomes)}, totals {sorted(shard_totals)}); "
+                  f"refusing to guess", file=sys.stderr)
             return 2
         hits = sum(1 for outcome in outcomes.values() if outcome == "hit")
         total = len(outcomes)

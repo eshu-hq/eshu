@@ -42,7 +42,17 @@ make_run() {
       else
         printf 'Cache not found for input keys: Linux-X64-gobuild-deadbeef\n'
       fi
-      printf '##[endgroup]\n##[group]Run Set up Go\nCache is not found\n'
+      # The trailer belongs to a later step, so the census must ignore it:
+      # a hit fixture carries a setup-go miss line (the pre-fix double-copy
+      # shape) and a miss fixture carries a setup-go restore line. A
+      # whole-log grep reads the trailer and misclassifies; the committed
+      # section-scoped census must not.
+      printf '##[endgroup]\n##[group]Run Set up Go\n'
+      if [[ "${outcome}" == hit ]]; then
+        printf 'Cache not found for input keys: Linux-X64-setupgo-deadbeef\n'
+      else
+        printf 'Cache restored from key: Linux-X64-setupgo-deadbeef\n'
+      fi
     } >"${dir}/shard${n}.log"
   done
 }
@@ -90,6 +100,30 @@ out="$(census "${real}" "666=${work}/666" 2>&1)" || code="$?"
 [[ "${code}" -eq 2 ]] || fail "non-string job name must exit 2, got ${code}: ${out}"
 [[ "${out}" != *"Traceback"* ]] || fail "non-string job name must not print a traceback"
 
+# A run missing a shard job is refused, not tallied 5/5 all-hit.
+mkdir -p "${work}/777"
+printf '{"jobs": [%s]}' "$(for n in 1 2 3 4 5; do printf '%s{"id": %d, "name": "live-postgres-readiness (postgres18) shard (%d/6)"}' "$([ "${n}" -gt 1 ] && printf ,)" "$((1000 + n))" "${n}"; done)" \
+  >"${work}/777/jobs.json"
+for n in 1 2 3 4 5; do
+  printf '##[group]Run actions/cache/restore@v4\nCache restored from key: Linux-X64-gobuild-deadbeef\n##[endgroup]\n##[group]Run Set up Go\n' \
+    >"${work}/777/shard${n}.log"
+done
+if census "${real}" "777=${work}/777" >/dev/null 2>&1; then
+  fail "partial shard set must fail closed"
+fi
+
+# A run mixing shard totals is refused, not tallied 2/2 all-hit.
+mkdir -p "${work}/888"
+printf '{"jobs": [{"id": 1001, "name": "live-postgres-readiness (postgres18) shard (1/6)"}, {"id": 1002, "name": "live-postgres-readiness (postgres18) shard (2/8)"}]}' \
+  >"${work}/888/jobs.json"
+for n in 1 2; do
+  printf '##[group]Run actions/cache/restore@v4\nCache restored from key: Linux-X64-gobuild-deadbeef\n##[endgroup]\n##[group]Run Set up Go\n' \
+    >"${work}/888/shard${n}.log"
+done
+if census "${real}" "888=${work}/888" >/dev/null 2>&1; then
+  fail "mixed shard totals must fail closed"
+fi
+
 # Seeded break: a classifier that reads every restore as a hit must fail the
 # mixed and all-miss expectations, so the cases above are load-bearing.
 mutant="${work}/census-mutant.py"
@@ -98,6 +132,18 @@ if out="$(census "${mutant}" "111=${work}/111" "222=${work}/222" "333=${work}/33
   && has "run 222: 5/6 hit => mixed (miss: 4)" "${out}" \
   && has "run 333: 0/6 hit => all-miss" "${out}"; then
   fail "mutant that always reads hit must not satisfy the mixed/all-miss rows"
+fi
+
+# A section-unaware whole-log grep must fail the decoy rows: every fixture
+# carries the opposite marker in a later step's section.
+greplog="${work}/census-greplog-mutant.py"
+sed 's/outcome = pool.restore_outcome(log)/outcome = "hit" if "Cache restored from key:" in log else "miss"/' \
+  "${real}" >"${greplog}"
+if out="$(census "${greplog}" "111=${work}/111" "222=${work}/222" "333=${work}/333" 2>/dev/null)" \
+  && has "run 111: 6/6 hit => all-hit" "${out}" \
+  && has "run 222: 5/6 hit => mixed (miss: 4)" "${out}" \
+  && has "run 333: 0/6 hit => all-miss" "${out}"; then
+  fail "mutant that greps the whole log must not satisfy the decoy rows"
 fi
 
 printf 'test-census: PASS\n'
