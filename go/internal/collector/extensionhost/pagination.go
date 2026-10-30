@@ -139,10 +139,12 @@ func (s *Source) collectPages(ctx context.Context, runner PagedRunner, request R
 		if err != nil {
 			// A runner verdict that already classifies itself (for
 			// example the terminal oversize failure) survives the
-			// mapping; everything else matches the legacy single-call
-			// mapping where every runner error, including a spent claim
-			// deadline surfacing through the runner, is a launch failure.
-			if failure, ok := err.(extensionFailure); ok {
+			// mapping, wrapped or not; everything else matches the
+			// legacy single-call mapping where every runner error,
+			// including a spent claim deadline surfacing through the
+			// runner, is a launch failure.
+			var failure extensionFailure
+			if errors.As(err, &failure) {
 				return sdkcollector.Result{}, failure
 			}
 			return sdkcollector.Result{}, extensionFailure{

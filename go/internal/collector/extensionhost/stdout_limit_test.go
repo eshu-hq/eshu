@@ -8,6 +8,7 @@ package extensionhost
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -149,4 +150,39 @@ func TestProcessRunnerPagedStdoutLimitFailsTerminal(t *testing.T) {
 		t.Fatal("RunPagedCollector() error = nil, want terminal oversize failure")
 	}
 	assertTerminalOversize(t, err, 64, 8)
+}
+
+// TestCollectPagesPreservesTerminalRunnerVerdict pins the paged assembler's
+// verdict-preservation branch through the real path: a runner error already
+// classified terminal (bare and wrapped) must survive Source.collectPages
+// instead of degrading to retryable (eshu-hq/eshu#9653 review P1/P2).
+func TestCollectPagesPreservesTerminalRunnerVerdict(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name    string
+		failErr error
+	}{
+		{"bare", stdoutLimitExceededFailure(8, 64)},
+		{"wrapped", fmt.Errorf("satellite call failed: %w", stdoutLimitExceededFailure(8, 64))},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			runner := &scriptRunner{failAt: 0, failErr: tc.failErr}
+			source := mustNewSource(t, runner, nil)
+			_, _, err := source.NextClaimed(context.Background(), testWorkItem())
+			if err == nil {
+				t.Fatal("NextClaimed() error = nil, want terminal oversize failure")
+			}
+			var failure extensionFailure
+			if !errors.As(err, &failure) {
+				t.Fatalf("error type = %T, want extensionFailure to survive collectPages", err)
+			}
+			if !failure.TerminalFailure() {
+				t.Fatal("oversize failure is retryable after collectPages, want terminal")
+			}
+			assertTerminalOversize(t, failure, 64, 8)
+		})
+	}
 }
