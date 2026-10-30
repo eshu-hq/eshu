@@ -91,18 +91,20 @@ operational lessons that future storage changes still need to respect.
   `window_stats` CTE LEFT JOINed to the slot rows, so an empty slot or T = 0
   still reports them; an inner join would return no row and no stats.
   Vulnerability-intelligence callers also set `ExpandPackageManagerAliases`
-  (#9285): the filter selects every raw `package_manager` alias of each
-  configured ecosystem (`gradle` for `maven`, `gomod`, `go-module`, and
-  `go_module` for `go`) and the `ecosystem` column folds them onto the canonical
-  name inside SQL, so a pair declared under two aliases is one `DISTINCT ON`
-  row and one rank. A `maven` read also selects raw `sbt` rows with their
-  `sbt_cross_version`/`sbt_binary_artifact` columns (#9313); `sbt` stays out
+  (#9285) and `IncludeSBTOwnedTargets` (#9313): the filter selects every raw
+  `package_manager` alias of each configured ecosystem (`gradle` for `maven`,
+  `gomod`, `go-module`, and `go_module` for `go`) and the `ecosystem` column
+  folds them onto the canonical name inside SQL, so a pair declared under two
+  aliases is one `DISTINCT ON` row and one rank. A `maven` read with the sbt
+  flag also selects raw `sbt` rows with their
+  `sbt_cross_version`/`sbt_binary_artifact` columns; `sbt` stays out
   of the alias table on purpose, so the `ecosystem` column keeps reporting
   those rows as `sbt` and the derivation maps them onto Maven targets through
   the cross-version rule instead. The alias table lives in `workflow` and also
   drives the derivation's Go mapping, so the two cannot disagree. The filter stays a raw
-  `= ANY($1)` on the indexed expression. Package-registry callers leave the flag
-  off and keep the byte-identical raw query.
+  `= ANY($1)` on the indexed expression. Package-registry callers set the alias
+  flag but leave the sbt flag off, so they keep the #9285 selection
+  byte-identical and select no sbt rows.
 - `ListOSPackageAdvisoryTargets` and `ListSBOMComponentAdvisoryTargets` serve
   vulnerability-intelligence installed-evidence derivation. OS package reads
   stay on active `vulnerability.os_package` facts joined to the active

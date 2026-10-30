@@ -5,9 +5,10 @@
 `FactStore.ListOwnedPackageDependencyTargets`
 (`go/internal/storage/postgres/owned_package_targets.go`) selects two more
 `entity_metadata` keys (`sbt_cross_version`, `sbt_binary_artifact`) and, when
-alias expansion is on, also selects raw `sbt` rows for a `maven` read. The
-`sbt` ecosystem is never folded in SQL, the `DISTINCT ON` identity is
-unchanged, and no predicate, join, ordering, or limit moved.
+alias expansion is on and the sbt flag is set (vulnerability-intelligence
+only; package-registry reads leave it off), also selects raw `sbt` rows for
+a `maven` read. The `sbt` ecosystem is never folded in SQL, the `DISTINCT ON`
+identity is unchanged, and no predicate, join, ordering, or limit moved.
 
 ## Method
 

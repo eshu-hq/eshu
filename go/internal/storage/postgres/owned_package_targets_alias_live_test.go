@@ -4,7 +4,7 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #9285 PostgreSQL 18.6 full-bootstrap proof that the owned-package reader selects Gradle and gomod-labelled dependency facts under their canonical ecosystem, dedups a pair declared under two aliases, and keeps the raw package_manager match when expansion is off (#9313: a maven read also selects sbt rows, reported under sbt with their cross-version fields, never folded); four subtests on an isolated bootstrap schema
+//eshu:readiness:reason #9285 PostgreSQL 18.6 full-bootstrap proof that the owned-package reader selects Gradle and gomod-labelled dependency facts under their canonical ecosystem, dedups a pair declared under two aliases, and keeps the raw package_manager match when expansion is off (#9313: a maven read with the sbt flag also selects sbt rows, reported under sbt with their cross-version fields, never folded; without the flag no sbt row is selected); five subtests on an isolated bootstrap schema
 //eshu:readiness:env ESHU_POSTGRES_DSN
 
 import (
@@ -54,6 +54,7 @@ func TestListOwnedPackageDependencyTargetsAliasesLive(t *testing.T) {
 		got := read(t, workflow.OwnedPackageDependencyTargetFilter{
 			Ecosystems:                  []string{"maven"},
 			ExpandPackageManagerAliases: true,
+			IncludeSBTOwnedTargets:      true,
 		})
 		want := []string{
 			"maven|org.example:gradle-only|1.0.0",
@@ -68,10 +69,29 @@ func TestListOwnedPackageDependencyTargetsAliasesLive(t *testing.T) {
 		}
 	})
 
+	// A registry-style maven read leaves the sbt flag off: no sbt row is
+	// selected, so the registry derivation keeps the base alias selection
+	// and silently drops nothing (#9313 review).
+	t.Run("maven with aliases but no sbt flag selects no sbt rows", func(t *testing.T) {
+		got := read(t, workflow.OwnedPackageDependencyTargetFilter{
+			Ecosystems:                  []string{"maven"},
+			ExpandPackageManagerAliases: true,
+		})
+		want := []string{
+			"maven|org.example:gradle-only|1.0.0",
+			"maven|org.example:maven-only|3.0.0",
+			"maven|org.example:shared|2.0.0",
+		}
+		if !slices.Equal(got, want) {
+			t.Fatalf("targets = %#v, want %#v (no sbt rows without the flag)", got, want)
+		}
+	})
+
 	t.Run("maven with aliases reports sbt cross-version fields", func(t *testing.T) {
 		targets := readTargets(t, workflow.OwnedPackageDependencyTargetFilter{
 			Ecosystems:                  []string{"maven"},
 			ExpandPackageManagerAliases: true,
+			IncludeSBTOwnedTargets:      true,
 		})
 		byName := make(map[string]workflow.OwnedPackageDependencyTarget, len(targets))
 		for _, target := range targets {

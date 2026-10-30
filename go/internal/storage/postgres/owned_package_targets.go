@@ -54,13 +54,15 @@ func ownedPackageEcosystemExpression(expandAliases bool) string {
 // ownedPackageManagerFilterValues returns the raw package_manager values the
 // reader selects for the requested ecosystems. With alias expansion each
 // ecosystem brings its aliases; without it the values pass through unchanged.
-// A maven read also selects raw sbt rows: sbt declares Maven coordinates,
-// and the vulnerability derivation maps them onto Maven OSV targets through
-// the cross-version rule. sbt is deliberately not an alias-table row: its
-// unsuffixed coordinates must never fold onto the maven ecosystem in SQL,
-// so the ecosystem expression below keeps reporting sbt rows as sbt and
-// the derivation maps them instead.
-func ownedPackageManagerFilterValues(ecosystems []string, expandAliases bool) []string {
+// With includeSBT a maven read also selects raw sbt rows: sbt declares Maven
+// coordinates, and the vulnerability derivation maps them onto Maven OSV
+// targets through the cross-version rule. The flag is set only by the
+// vulnerability-intelligence caller; package-registry reads leave it off and
+// keep the base alias selection, so they select and drop nothing new. sbt is
+// deliberately not an alias-table row: its unsuffixed coordinates must never
+// fold onto the maven ecosystem in SQL, so the ecosystem expression below
+// keeps reporting sbt rows as sbt and the derivation maps them instead.
+func ownedPackageManagerFilterValues(ecosystems []string, expandAliases bool, includeSBT bool) []string {
 	if !expandAliases {
 		return ecosystems
 	}
@@ -68,7 +70,7 @@ func ownedPackageManagerFilterValues(ecosystems []string, expandAliases bool) []
 	for _, ecosystem := range ecosystems {
 		values = append(values, workflow.OwnedPackageManagerAliases(ecosystem)...)
 	}
-	if slices.ContainsFunc(ecosystems, func(ecosystem string) bool {
+	if includeSBT && slices.ContainsFunc(ecosystems, func(ecosystem string) bool {
 		return packageidentity.NormalizeEcosystem(packageidentity.Ecosystem(ecosystem)) == packageidentity.EcosystemMaven
 	}) {
 		values = append(values, "sbt")
@@ -301,7 +303,7 @@ func (s FactStore) readOwnedPackageWindow(
 	rows, err := s.database.QueryContext(
 		ctx,
 		listOwnedPackageDependencyTargetsQuery(filter.VersionSpecific, filter.ExpandPackageManagerAliases),
-		ownedPackageManagerFilterValues(ecosystems, filter.ExpandPackageManagerAliases),
+		ownedPackageManagerFilterValues(ecosystems, filter.ExpandPackageManagerAliases, filter.IncludeSBTOwnedTargets),
 		limit,
 		bucket,
 		targetLimit,

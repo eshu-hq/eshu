@@ -242,6 +242,13 @@ type OwnedPackageDependencyTargetFilter struct {
 	// for maven) and report them under the canonical ecosystem name. The zero
 	// value keeps the raw package_manager match.
 	ExpandPackageManagerAliases bool
+	// IncludeSBTOwnedTargets makes a maven read also select raw sbt rows,
+	// reported under the sbt ecosystem with their sbt_cross_version and
+	// sbt_binary_artifact columns, so the vulnerability derivation can map
+	// them onto Maven OSV targets through the cross-version rule (#9313).
+	// The zero value selects no sbt rows: package-registry callers leave it
+	// off and keep the base alias selection.
+	IncludeSBTOwnedTargets bool
 }
 
 // OSPackageAdvisoryTarget is one active installed OS package fact that can

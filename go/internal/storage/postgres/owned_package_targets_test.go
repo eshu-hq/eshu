@@ -176,11 +176,18 @@ func TestOwnedPackageEcosystemAliasExpansionSharesOneTable(t *testing.T) {
 	if strings.Contains(expanded, "WHEN 'sbt'") {
 		t.Fatalf("sbt must never fold onto another ecosystem in SQL:\n%s", expanded)
 	}
-	if got, want := ownedPackageManagerFilterValues([]string{"go", "maven"}, true),
+	if got, want := ownedPackageManagerFilterValues([]string{"go", "maven"}, true, true),
 		[]string{"go", "go-module", "go_module", "gomod", "gradle", "maven", "sbt"}; !slices.Equal(got, want) {
-		t.Fatalf("expanded filter values = %#v, want %#v", got, want)
+		t.Fatalf("expanded filter values with sbt = %#v, want %#v", got, want)
 	}
-	if got, want := ownedPackageManagerFilterValues([]string{"maven"}, false), []string{"maven"}; !slices.Equal(got, want) {
+	// A registry-style read leaves the sbt flag off: the filter stays the
+	// plain alias expansion with no sbt rows, so registry maven reads keep
+	// the base selection and drop nothing (#9313 review).
+	if got, want := ownedPackageManagerFilterValues([]string{"go", "maven"}, true, false),
+		[]string{"go", "go-module", "go_module", "gomod", "gradle", "maven"}; !slices.Equal(got, want) {
+		t.Fatalf("expanded filter values without sbt = %#v, want %#v", got, want)
+	}
+	if got, want := ownedPackageManagerFilterValues([]string{"maven"}, false, false), []string{"maven"}; !slices.Equal(got, want) {
 		t.Fatalf("raw filter values = %#v, want %#v", got, want)
 	}
 }
@@ -212,7 +219,7 @@ func assertOwnedPackageSlotHashOracle(ctx context.Context, t *testing.T, db *sql
 	chain := ownedPackageAllSlotsQuery(true, true)
 	chain = chain[:len(chain)-len(ownedPackageAllSlotsTail)]
 	rows, err := db.QueryContext(ctx, chain+ownedPackageSlotOracleTail,
-		ownedPackageManagerFilterValues([]string{"npm", "rubygems"}, true), int64(100000), int64(0), slotLiveTargetLimit)
+		ownedPackageManagerFilterValues([]string{"npm", "rubygems"}, true, false), int64(100000), int64(0), slotLiveTargetLimit)
 	if err != nil {
 		t.Fatalf("slot oracle query: %v", err)
 	}
@@ -255,7 +262,7 @@ func assertOwnedPackageEmptySlotWindow(ctx context.Context, t *testing.T, store 
 	wantP := workflow.OwnedPackageTargetSlotCount(total, targetLimit)
 	occupied := map[int64]bool{}
 	rows, err := db.QueryContext(ctx, ownedPackageAllSlotsQuery(true, true),
-		ownedPackageManagerFilterValues([]string{"npm", "rubygems"}, true), int64(100000), int64(0), targetLimit)
+		ownedPackageManagerFilterValues([]string{"npm", "rubygems"}, true, false), int64(100000), int64(0), targetLimit)
 	if err != nil {
 		t.Fatalf("all-slots query: %v", err)
 	}
