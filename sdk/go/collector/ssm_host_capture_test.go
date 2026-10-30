@@ -224,3 +224,29 @@ func TestAssessSSMHostCaptureReasonCarriesNoIdentifiers(t *testing.T) {
 		t.Fatal("assessment reason is empty, want a static verdict string")
 	}
 }
+
+// TestAssessSSMHostCaptureRejectsNonAllowlistedSourceType proves the P2-1
+// fix for eshu-hq/eshu#9571: a stream whose inventory type sits outside the
+// poll allowlist is partial and never supersedes, so foreign rows (file,
+// registry, custom inventory) cannot become application observations.
+func TestAssessSSMHostCaptureRejectsNonAllowlistedSourceType(t *testing.T) {
+	t.Parallel()
+
+	pages := buildSSMCapturePages(3, 120)
+	for i := range pages {
+		pages[i].SourceType = "AWS:File"
+	}
+	assessment := assessSSMCapture(t, pages)
+	if assessment.Complete {
+		t.Fatalf("non-allowlisted source stream: Complete = true, reason %q", assessment.Reason)
+	}
+	if assessment.Supersede {
+		t.Fatalf("non-allowlisted source stream: Supersede = true, reason %q", assessment.Reason)
+	}
+	if assessment.Outcome != SSMHostInventoryPartial {
+		t.Fatalf("non-allowlisted source stream: Outcome = %q, want partial", assessment.Outcome)
+	}
+	if assessment.Reason != ssmCaptureReasonSourceNotAllowlisted {
+		t.Fatalf("non-allowlisted source stream: Reason = %q, want the allowlist verdict", assessment.Reason)
+	}
+}

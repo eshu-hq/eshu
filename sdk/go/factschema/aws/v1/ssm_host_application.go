@@ -13,9 +13,10 @@ import (
 // SSMInventoryTypeApplication is the only SSM inventory source type the
 // v1.0.0 aws_ssm_host_application kind admits (eshu-hq/eshu#9556, accepted
 // record #9302). Custom inventory, file and network entries, registry
-// contents, and arbitrary command output are excluded: any other source
-// type fails collection validation in sdk/go/collector, never silently
-// becomes an application observation.
+// contents, and arbitrary command output are excluded: the poll allowlist
+// (SSMHostInventoryLimits.AllowedSourceTypes, enforced by
+// AssessSSMHostCapture) rejects any other source type as partial that never
+// supersedes; it never silently becomes an application observation.
 const SSMInventoryTypeApplication = "AWS:Application"
 
 // SSMHostApplication is the schema-version-1 typed payload for the

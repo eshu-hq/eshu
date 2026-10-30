@@ -308,6 +308,12 @@ func TestSSMHostKindsEncodeAndDecode(t *testing.T) {
 	assertSSMDecodeErrorNamesField(t, err, "observation_time")
 }
 
+// Source-type allowlist and DII/capture-time pairing enforcement live in
+// sdk/go/collector (poll allowlist plus ValidateSSMHostPlatformProvenance),
+// not in decode: decode stays presence-only per the present-but-empty
+// invariant proved by TestDecodeEachKind_PresentButEmptyRequiredFieldDecodes
+// (eshu-hq/eshu#9571 P2-1).
+
 // assertSSMDecodeErrorNamesField fails the test unless err is a classified
 // input_invalid *DecodeError naming the given required field.
 func assertSSMDecodeErrorNamesField(t *testing.T, err error, field string) {

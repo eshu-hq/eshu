@@ -68,6 +68,7 @@ const (
 	ssmCaptureReasonEntryByteBudget = "entry bytes exceed the per-entry planning budget"
 	ssmCaptureReasonPageByteBudget  = "page bytes exceed the per-page planning budget"
 	ssmCaptureReasonStale           = "capture past the stale-age bound"
+	ssmCaptureReasonSourceNotAllowlisted = "source type outside the poll allowlist"
 )
 
 // SSMHostCaptureAssessment is the verdict for one host and inventory type:
@@ -107,6 +108,18 @@ func AssessSSMHostCapture(pages []SSMInventoryPage, limits SSMHostInventoryLimit
 		return preserve(SSMHostInventoryPartial, ssmCaptureReasonNoPages)
 	}
 	first := pages[0]
+	// The poll allowlist is enforced before any coherence or budget verdict:
+	// a stream outside it is never admissible, whatever else it carries.
+	allowlisted := false
+	for _, allowed := range limits.AllowedSourceTypes {
+		if first.SourceType == allowed {
+			allowlisted = true
+			break
+		}
+	}
+	if !allowlisted {
+		return preserve(SSMHostInventoryPartial, ssmCaptureReasonSourceNotAllowlisted)
+	}
 	if first.CaptureTime == "" {
 		return preserve(SSMHostInventoryPartial, ssmCaptureReasonMissingCapture)
 	}

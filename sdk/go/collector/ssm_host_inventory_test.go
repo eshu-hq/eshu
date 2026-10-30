@@ -30,6 +30,7 @@ func exampleSSMHostInventoryLimits() SSMHostInventoryLimits {
 		MaxPlatformObservationAge:     48 * time.Hour,
 		RetentionDays:                 90,
 		Targets:                       []string{"tag:inventory-cohort"},
+		AllowedSourceTypes:            []string{"AWS:Application"},
 	}
 }
 
@@ -209,5 +210,35 @@ func TestSSMHostInventoryAggregatesCarryCountsOnly(t *testing.T) {
 		if strings.Contains(string(raw), secret) {
 			t.Fatalf("aggregate log fields leak %q", secret)
 		}
+	}
+}
+
+// TestSSMHostInventoryLimitsMissingAllowlistFailsClosed proves the poll
+// allowlist is required: no explicit source-type set means no stream is
+// admissible.
+func TestSSMHostInventoryLimitsMissingAllowlistFailsClosed(t *testing.T) {
+	t.Parallel()
+
+	limits := exampleSSMHostInventoryLimits()
+	limits.AllowedSourceTypes = nil
+	if err := limits.Validate(); err == nil {
+		t.Fatal("Validate() without allowlist: error = nil, want fail-closed")
+	}
+}
+
+// TestValidateSSMHostPlatformProvenance proves the P2-1 pairing check for
+// eshu-hq/eshu#9571: a DescribeInstanceInformation observation carrying a
+// capture time is rejected, while both valid pairings pass.
+func TestValidateSSMHostPlatformProvenance(t *testing.T) {
+	t.Parallel()
+
+	if err := ValidateSSMHostPlatformProvenance("describe_instance_information", true); err == nil {
+		t.Fatal("DII with capture time: error = nil, want rejection")
+	}
+	if err := ValidateSSMHostPlatformProvenance("describe_instance_information", false); err != nil {
+		t.Fatalf("DII without capture time: error = %v, want nil", err)
+	}
+	if err := ValidateSSMHostPlatformProvenance("ssm_inventory", true); err != nil {
+		t.Fatalf("inventory with capture time: error = %v, want nil", err)
 	}
 }

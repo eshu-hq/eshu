@@ -93,6 +93,14 @@ type SSMHostInventoryLimits struct {
 	// tag selectors, or instance lists, per deployment). Required
 	// non-empty: there is no unlimited default.
 	Targets []string
+
+	// AllowedSourceTypes is the explicit inventory-type allowlist for one
+	// poll (for example ["AWS:Application"] for an application poll).
+	// Required non-empty: a stream whose type sits outside this set is
+	// partial and never supersedes, so foreign rows cannot become
+	// observations of this poll's kind (eshu-hq/eshu#9571 P2-1). There is
+	// no permissive default.
+	AllowedSourceTypes []string
 }
 
 // Validate fails closed unless every limit is explicitly configured,
@@ -155,6 +163,24 @@ func (l SSMHostInventoryLimits) Validate() error {
 	}
 	if len(l.Targets) == 0 {
 		return fmt.Errorf("ssm host inventory: explicit target list is required (no unlimited default)")
+	}
+	if len(l.AllowedSourceTypes) == 0 {
+		return fmt.Errorf("ssm host inventory: explicit source-type allowlist is required (no permissive default)")
+	}
+	return nil
+}
+
+// ValidateSSMHostPlatformProvenance rejects a platform observation whose
+// provenance and capture-time pairing is incoherent: a
+// DescribeInstanceInformation observation carries no inventory capture time,
+// so a value here with that provenance is a contract violation
+// (eshu-hq/eshu#9571 P2-1). The satellite emitter calls this before building
+// platform facts; factschema decode stays presence-only by the shared
+// present-but-empty invariant. hasCaptureTime reports whether the
+// observation carries any capture-time value.
+func ValidateSSMHostPlatformProvenance(sourceType string, hasCaptureTime bool) error {
+	if sourceType == "describe_instance_information" && hasCaptureTime {
+		return fmt.Errorf("ssm host inventory: capture time with DescribeInstanceInformation provenance")
 	}
 	return nil
 }

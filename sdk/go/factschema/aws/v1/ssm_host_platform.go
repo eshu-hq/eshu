@@ -72,7 +72,8 @@ type SSMHostPlatform struct {
 	// inventory-sourced platform evidence. Optional: nil for
 	// DescribeInstanceInformation observations, which have no inventory
 	// capture time — a value here with that provenance is a contract
-	// violation the collector validator rejects.
+	// violation ValidateSSMHostPlatformProvenance rejects; the satellite
+	// emitter calls it before building platform facts.
 	CaptureTime *string `json:"capture_time,omitempty"`
 
 	// ObservationTime is when this platform evidence was observed
