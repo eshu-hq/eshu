@@ -116,7 +116,7 @@ func mixKeyInsideString(line string, match int) bool {
 // declaration or a rejection. A # inside a quoted region is literal text.
 func mixKeyAfterComment(line string, match int) bool {
 	inSingle, inDouble := false, false
-	for i := 0; i < match; i++ {
+	for i := 0; i <= match; i++ {
 		switch line[i] {
 		case '\\':
 			i++

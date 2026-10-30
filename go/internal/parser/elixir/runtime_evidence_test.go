@@ -85,6 +85,12 @@ func TestScanMixRuntimeP2Shapes(t *testing.T) {
 			nil,
 			0,
 		},
+		{
+			"glued trailing comment key is absent",
+			mixEvidenceBody("      version: \"0.1.0\",#elixir: \"9.9.9\""),
+			nil,
+			0,
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
