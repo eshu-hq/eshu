@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
+	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -345,14 +346,14 @@ func newComponentID(documentID string, identity string) string {
 // component_missing_identity warnings instead.
 func componentIdentity(comp Component) string {
 	if purl := strings.TrimSpace(comp.PURL); purl != "" {
-		return "purl:" + strings.ToLower(purl)
+		return "purl:" + packageidentity.LowerASCII(purl)
 	}
 	name := strings.TrimSpace(comp.Name)
 	version := strings.TrimSpace(comp.Version)
 	if name == "" || version == "" {
 		return ""
 	}
-	return "nv:" + strings.ToLower(name) + "@" + strings.ToLower(version)
+	return "nv:" + packageidentity.LowerASCII(name) + "@" + packageidentity.LowerASCII(version)
 }
 
 func normalizeSubjectDigest(raw string) (digest, warningReason string) {

@@ -9,10 +9,11 @@ worst a way for a lookalike name to inherit another package's advisory.
 
 ## The rule
 
-Every fold that turns a package name, namespace, registry host, package
-manager, or ecosystem alias into identity now uses
-`packageidentity.LowerASCII`, which maps A-Z to a-z and keeps every other
-byte. The sites:
+In the packages listed below, every fold that turns a package name,
+namespace, registry host, package manager, or ecosystem alias into identity
+now uses `packageidentity.LowerASCII`, which maps A-Z to a-z and keeps every
+other byte. Folds outside these packages are listed under "Folds this change
+leaves alone". The sites:
 
 - `go/internal/packageidentity`: `ConsumptionNameCandidates`,
   `ManifestEntityNameCandidates`, `normalizeName` for every ecosystem (so
@@ -37,6 +38,16 @@ byte. The sites:
   no longer merges with the real one. The ecosystem, package-manager, distro,
   vendor-source, OS package, npm name, and PyPI PURL-type folds in this
   package use it too.
+- `go/internal/collector/scannerworker/sbomgenerator` and
+  `go/internal/collector/sbom/document`: SBOM component identity (generated
+  SBOMs) and the CycloneDX and SPDX duplicate key. With a Unicode fold, a
+  component listed as `pkg:npm/Kafka` (Kelvin sign) ahead of the real
+  `pkg:npm/kafka` took its identity, and the generator dropped the real
+  component as a duplicate.
+- `go/internal/coordinator/vulnerability`: the derived OSV scope-id writer
+  (slot, package, and batch scope ids) and the batch scope sizer, so the
+  writer folds the ecosystem segment the way `vulnruntime` parses it; the
+  SBOM PURL-type ecosystem; and the sbt owned-target check.
 - `go/internal/query/supply/chain/impact`: the derived OSV source-state
   lookup in readiness folds package names and ecosystem spellings with
   `LOWER(TRIM(x) COLLATE "C") COLLATE "default"`. A plain `LOWER` follows
@@ -56,23 +67,35 @@ direction; #9594 tracks confirming it.
 
 ### Folds this change leaves alone
 
-`rg -n 'strings\.(ToLower|EqualFold)' --glob '!*_test.go'` over
-`go/internal/reducer/supplychain/core` and
-`go/internal/collector/vulnerabilityintelligence` lists what remains:
+`rg -n 'strings\.(ToLower|EqualFold)' --glob '!*_test.go'` over the swept
+packages (`supplychain/core`, `vulnerabilityintelligence`, `sbomgenerator`,
+`sbom/document`, `coordinator/vulnerability`) lists what remains:
 
 - Version strings, range kinds (`SEMVER`, `ECOSYSTEM`), CVE and advisory
   IDs, CVSS vectors, severity and state labels, language tags,
   missing-evidence text, advisory feed labels, scope anchors (repository,
-  service, workload, digest), CPE criteria, and secret-key redaction. None of
-  these is package identity.
+  service, workload, digest), CPE criteria, secret-key redaction, hashes
+  and subject digests, SPDX and CycloneDX spec tokens, lockfile source-type
+  and scope labels, and URL schemes. None of these is package identity.
 - Code-identifier matching in reachability: Python import roots and SCIP
   symbols, and JVM package segments. These compare source-code identifiers,
   which Python and Java allow to be non-ASCII, and Python normalizes
-  identifiers with NFKC (which maps U+212A to `K`). The correct fold there
-  follows each language, not the registry rule, so it is a separate
-  decision.
-- The readiness SQL ecosystem `LOWER`s outside the derived source-state
-  lookup. They fold operator- and parser-authored ecosystem spellings.
+  identifiers with NFKC (which maps U+212A to `K`), so NFKC is the correct
+  Python fold, not the registry rule. These matches only add reachable
+  evidence: on a match they set a positive label (`python_parser_call`,
+  `jvm_package_api_reachable`, ...), and on no match they report missing
+  evidence. They never produce a `not_called` verdict, so a loose fold can
+  over-report reachability but cannot hide a finding.
+- Identity folds in packages this change does not sweep, tracked in #9622:
+  `go/internal/storage/postgres/installed_advisory_targets.go` (the Go
+  ecosystem, distro, package-manager, vendor-source, and repository-class
+  folds, and the SQL `LOWER`s on the same columns),
+  `go/internal/storage/postgres/owned_package_targets.go` (the SQL
+  `LOWER(package_manager)` expression and the Go ecosystem fold),
+  `go/internal/reducer/securityalert/reconciliation_triage.go` (the ecosystem
+  fallback fold), and the readiness SQL ecosystem `LOWER`s outside the derived
+  source-state lookup (targets and source CTEs). These read collector- and
+  parser-authored values; converting the SQL needs live plan proof.
 
 ## Proof
 

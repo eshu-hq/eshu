@@ -27,11 +27,14 @@
   compares package identity outside this package follows the same rule in Go:
   package IDs and PURLs compare with `LowerASCII(a) == LowerASCII(b)`. SQL
   that joins a package name or ecosystem to a key Go wrote folds with
-  `LOWER(TRIM(x) COLLATE "C") COLLATE "default"`; today that is the readiness
-  derived source-state lookup, pinned by
-  `TestReadinessDerivedSourceStateFoldsASCIIOnly`. The other readiness
-  ecosystem `LOWER`s fold operator- and parser-authored spellings and still
-  follow the database collation.
+  `LOWER(TRIM(x) COLLATE "C") COLLATE "default"`. The only site converted
+  and pinned today is the readiness derived source-state lookup
+  (`TestReadinessDerivedSourceStateFoldsASCIIOnly`). Other SQL ecosystem and
+  package-manager `LOWER`s still follow the database collation: the
+  readiness targets and source CTEs, `installed_advisory_targets.go`, and
+  `owned_package_targets.go` (follow-up #9622). The evidence note
+  `docs/internal/evidence/9584-consumption-key-ascii-fold.md` lists every
+  converted package and every fold left alone.
 - Unknown ecosystem aliases must fail closed instead of guessing.
 - `sbt` is not an ecosystem alias. A `%%` row's name is the unsuffixed
   `organization:name`, which is not a published artifact, so sbt rows resolve
