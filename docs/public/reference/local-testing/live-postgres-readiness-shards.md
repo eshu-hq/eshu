@@ -298,9 +298,11 @@ falls back to v1. A present valid v2 file changes all six check names to `/6`
 and requires six matching reports. The selected aggregate fails if the plan,
 a shard, or report selection fails.
 
-To produce a v2 file (the first one, or a refit), collect at least two
+To produce a v2 file (the first one, or a refit), collect at least three
 complete, successful `main` workflow runs with the same runner image
 name, Go toolchain, Postgres image digest, proof boundaries, and cache era.
+The refresher refuses a pool of fewer than three runs, so a pair of fast
+draws cannot set the prices (#9470).
 Runs of different inventories pool only from four runs up (see
 [Inventories and cache eras](#inventories-and-cache-eras)). Save every
 shard job's metadata and log. Mixed hosted-runner image versions are accepted,
@@ -309,8 +311,8 @@ images over several days and standard runners cannot pin a version. The
 version is never used in pricing (#9411). Each shard job's first step prints
 `lscpu | head -20 || true; nproc` so a job wall can be read against the CPU it drew
 (#9532); it is output only, no gate, and the refresher ignores it. The next
-refit's fixed job overhead includes the step, about 1 s (roughly 1%). Two or
-three runs price at the
+refit's fixed job overhead includes the step, about 1 s (roughly 1%). Three
+runs price at the
 mean; four or more price at the pooled p75 (see
 [Pooled refit](#pooled-refit-four-or-more-runs)).
 Use the v2 refresher with the runs and an output outside the repository:
@@ -318,7 +320,7 @@ Use the v2 refresher with the runs and an output outside the repository:
 ```bash
 python3 scripts/lib/live_postgres_readiness_weights_refresh.py \
   --schema-version 2 --out /tmp/readiness-weights.v2.json \
-  --sample RUN_ID_1=RUN_DIR_1 --sample RUN_ID_2=RUN_DIR_2
+  --sample RUN_ID_1=RUN_DIR_1 --sample RUN_ID_2=RUN_DIR_2 --sample RUN_ID_3=RUN_DIR_3
 ```
 
 The v2 output sorts top-level keys and places two sorted table entries per
@@ -356,12 +358,15 @@ reviewer's call on the refit PR.
 ### Pooled refit (four or more runs)
 
 A two-run mean under-prices any test or package that drew fast in one run, and
-the job that holds it then runs over its prediction (#9519). With four or more
+the job that holds it then runs over its prediction (#9519). A pair of fast
+draws is worse: two fast shard-1 runs priced shard 1's packages 1.4 to 1.6x
+low, and the shard job reached 1797 s against an 1800 s timeout (#9470). The
+refresher refuses pools of fewer than three runs, so a pair cannot set the
+prices. With four or more
 `--sample` runs the v2 refresher prices each per-test, first-use, and repeat
 price at the p75 of the pooled samples: linear inclusive, which is
 `statistics.quantiles(samples, n=100, method="inclusive")[74]`. A single sample
-prices at itself. With two or three runs it keeps the mean, so the declared
-two-run refits still reproduce byte-for-byte. The cold-cache fit
+prices at itself. With three runs it keeps the mean. The cold-cache fit
 (inverse-variance weighted), the fixed job overhead, and the defaults keep
 their rules in every pool. The refresher prints the rule, the pool size, and
 the pool run IDs on one `weights refresh v2: pricing ...` line; copy it into
@@ -389,7 +394,7 @@ the newest run no longer has are dropped. First-use, repeat, cold, and fixed
 seconds still come from every run, and each run's rows are still checked
 against its own commit. A mixed pool prints a
 `weights refresh v2: inventories ...` line that names each defaulted test and
-its sample count; copy it into the refit PR body. A two- or three-run pool
+its sample count; copy it into the refit PR body. A three-run pool
 still needs one inventory.
 
 A pool also holds one cache era, read per shard job. A job without a
@@ -411,8 +416,11 @@ A pooled refit PR must meet these gates:
   4 runs, there is no maximum, and no run is skipped for its outcome. If the
   pool fails the cold fit, do not re-select runs; take the failure to the
   issue.
-- Time-ordered holdout: fit the pool minus its two newest runs and score those
-  two runs. The all-shard maximum of observed job wall over `v2.Scorer` job
+- Time-ordered holdout: fit the pool minus its newest runs and score the
+  held-out runs. The holdout fit is a refit and also needs at least three
+  runs (#9470): a pool of five or more holds out its two newest runs, while
+  a four-run pool holds out its single newest run and fits the oldest three.
+  The all-shard maximum of observed job wall over `v2.Scorer` job
   seconds must be at most 1.15.
 - Full-pool planner on main's live plan: largest predicted job at most
   1440 s, spread within 15%, and an appended-test window of at least 38
