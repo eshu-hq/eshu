@@ -230,3 +230,36 @@ func openSharedPartitionDupKeySchema(t *testing.T, ctx context.Context, dsn stri
 	}
 	return db
 }
+
+// TestSharedPartitionDupKeySchemasShareTrigramLive is the #9572 regression
+// for this PR's own pins. Two sibling schemas bootstrap in one shared
+// database through openSharedPartitionDupKeySchema, which pins pg_trgm to
+// public before the first CREATE SCHEMA: without the pin, the second
+// bootstrap fails at migration 004 with `operator class "gin_trgm_ops" does
+// not exist` (SQLSTATE 42704). Both schemas stay open at once, covering
+// coexisting siblings, and each proves its 004 trigram indexes valid.
+func TestSharedPartitionDupKeySchemasShareTrigramLive(t *testing.T) {
+	dsn := sharedPartitionDupKeyProofDSN()
+	if dsn == "" {
+		t.Skip("set ESHU_POSTGRES_DSN to run the shared-partition trigram-sharing proof")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	first := openSharedPartitionDupKeySchema(t, ctx, dsn)
+	second := openSharedPartitionDupKeySchema(t, ctx, dsn)
+	assertSharedPartitionTrigramIndexesLive(t, ctx, first, "first")
+	assertSharedPartitionTrigramIndexesLive(t, ctx, second, "second")
+}
+
+func assertSharedPartitionTrigramIndexesLive(t *testing.T, ctx context.Context, db *sql.DB, name string) {
+	t.Helper()
+	for _, index := range []string{"content_files_content_trgm_idx", "content_entities_source_trgm_idx"} {
+		var valid bool
+		if err := db.QueryRowContext(ctx, `SELECT indisvalid FROM pg_index WHERE indexrelid = to_regclass($1)`, index).Scan(&valid); err != nil {
+			t.Fatalf("%s schema: trigram index %s lookup: %v", name, index, err)
+		}
+		if !valid {
+			t.Fatalf("%s schema: trigram index %s is invalid", name, index)
+		}
+	}
+}
