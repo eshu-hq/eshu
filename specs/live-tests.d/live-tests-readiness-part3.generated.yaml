@@ -137,7 +137,7 @@ tests:
   - file: go/internal/storage/postgres/infra/inventory/fence_role_attestor_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#9299 physical-connection proof that writer role attestation runs before session hooks on every new connection and preserves DSN session attributes"
+    reason: "#9299 physical-connection proof that writer role attestation runs before session hooks on every new connection"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/ingestion_backfill_generation_guard_lifecycle_live_test.go
     tag: ~

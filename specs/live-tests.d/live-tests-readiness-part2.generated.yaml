@@ -374,11 +374,6 @@ tests:
     class: postgres_ci
     reason: "#9299 disposable PostgreSQL proof that authority epoch bumps never ABA across tenant, workspace, grant, and instance revocation cycles"
     runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/control_scanner_discovery_plan_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#9299 disposable PostgreSQL proof that the running-image derivation page returns bounded candidates with skip counts and its EXPLAIN ANALYZE plan seeks the observations primary key instead of scanning"
-    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/control_scanner_discovery_scale_live_test.go
     tag: ~
     class: postgres_ci

@@ -4,15 +4,17 @@
 
 Issue #9299 acceptance requires a performance proof on the derivation
 query (`EXPLAIN ANALYZE` on the QA corpus) before the change lands. The
-committed proof (`TestScannerDiscoveryPagePlanLive`) covers shape at
-5,100 rows on one scope. This note records the same two shipped
-statements at QA-scale cardinality: 300,000 observations across 40
-scopes, three digest kinds, with manifest verifications for half the
-config-digest rows.
+committed proof (`TestScannerDiscoveryScaleShapeLive`) covers shape at
+QA-scale cardinality: 300,000 observations across 40 scopes, three
+digest kinds, with manifest verifications for half the config-digest
+rows. The earlier 5,100-row shape proofs (`TestScannerDiscoveryPagePlanLive`,
+`TestScannerDiscoveryExhaustedPageSkipSpanLive`) were de-enrolled under the
+drift-gate option A (PR #9544) and re-enroll in the post-refit follow-up.
+This note records the same two shipped statements at that QA scale.
 
 ## Method
 
-Throwaway live test (run once, then deleted; the committed 5k test
+Throwaway live test (run once, then deleted; the committed QA-scale test
 remains the durable shape proof): bootstrap the full lane schema in a
 disposable database, seed one scanner instance plus one producer with 40
 published generations (one per scope), grants, active scopes, delivery

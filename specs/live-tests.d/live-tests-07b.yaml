@@ -24,3 +24,15 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/supply/chain/impact/findings_protected_target_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#9299 provisional protected-target proof de-enrolled from the readiness plan under drift-gate option A (PR #9544 steer 6530394665); always skips until #9468 opens the finding-authority gate so de-enrollment loses zero signal, local run skips clean in 0.00s — re-enroll post-refit when #9468 lands"
+  - file: go/internal/storage/postgres/control_scanner_discovery_plan_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#9299 small-scale derivation shape proofs de-enrolled from the readiness plan under drift-gate option A (PR #9544 steer 6530394665); bounded pages stay proven at 300k by enrolled TestScannerDiscoveryScaleShapeLive, local runs took 2.14s and 1.90s — re-enroll post-refit"
+  - file: go/internal/storage/postgres/infra/inventory/writer_role_attestor_dsn_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#9299 writer DSN-attrs proof split byte-identical from fence_role_attestor_live_test.go (markers are per-file) and de-enrolled under drift-gate option A (PR #9544 steer 6530394665); attestation ordering stays enrolled, DSN attrs stay proven on the reader path by enrolled TestDistinctReaderCredentialOnSamePhysicalPrimary, local run took 0.01s — re-enroll post-refit"

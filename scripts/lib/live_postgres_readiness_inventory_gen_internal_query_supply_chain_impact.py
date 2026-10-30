@@ -7,9 +7,6 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./internal/query/supply/chain/impact": {
-        "go/internal/query/supply/chain/impact/findings_protected_target_live_test.go": (
-            "TestProtectedScanTargetsDoNotCollapseSameDigestFindingsLive",
-        ),
         "go/internal/query/supply/chain/impact/readiness_central_pin_live_test.go": (
             "TestReadinessExcludesCentralVersionPinsLive",
         ),

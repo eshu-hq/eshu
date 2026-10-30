@@ -9,7 +9,6 @@ TABLE = {
     "./internal/storage/postgres/infra/inventory": {
         "go/internal/storage/postgres/infra/inventory/fence_role_attestor_live_test.go": (
             "TestWriterRoleAttestorRunsBeforeSessionHooksOnEveryPhysicalConnection",
-            "TestWriterRoleAttestorPreservesDSNTargetSessionAttrs",
         ),
     },
 }
