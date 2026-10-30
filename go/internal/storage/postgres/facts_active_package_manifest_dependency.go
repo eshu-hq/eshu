@@ -77,12 +77,15 @@ LIMIT $5
 // go test ./internal/storage/postgres ./internal/reducer -count=1.
 //
 // Case-Fold Evidence (#9568): the entity_name prefilter folds the stored name
-// with LOWER(TRIM(entity_name) COLLATE "C"), byte-identical to Go
-// packageidentity.LowerASCII, because the $2 candidate set is folded and
-// manifests store registry case (NuGet Newtonsoft.Json, pypi PyYAML). The
-// $2 set, the key join in packageidentity.ManifestConsumptionKeys, and the
-// join/cursor/ordering shape are unchanged, so the key join stays the accuracy
-// gate. Migration 247 adds the mirrored
+// with LOWER(TRIM(entity_name) COLLATE "C"). The LOWER under COLLATE "C" is
+// byte-identical to Go packageidentity.LowerASCII; TRIM strips spaces, which
+// matches how the $2 candidate set is trimmed for real parser output (Go
+// strings.TrimSpace would also strip other unicode whitespace, which parsers
+// never emit in a name). Manifests store registry case (NuGet Newtonsoft.Json,
+// pypi PyYAML). The $2 candidate set folds the same way, and the key join in
+// packageidentity.ManifestConsumptionKeys plus the join/cursor/ordering shape
+// are unchanged, so the key join stays the accuracy gate.
+// Migration 247 adds the mirrored
 // fact_records_active_package_dependency_folded_entity_idx expression index;
 // on a disposable PostgreSQL 18.6 fixture the folded read uses an index scan
 // with no sequential scan in every measured shape, and a selective name seeks
