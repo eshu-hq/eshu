@@ -271,6 +271,7 @@ nav:
         - Pre-commit Hooks: reference/local-testing/pre-commit-hooks.md
         - Pre-Push Merge Step: reference/local-testing/pre-push-merge.md
         - Cgo C Dialect Flag: reference/local-testing/cgo-cflags.md
+        - CI Go Build Cache: reference/local-testing/ci-go-build-cache.md
         - Pre-PR Documentation Fast Path: reference/local-testing/pre-pr-docs-fastpath.md
         - Scale Benchmark Artifact: reference/local-testing/scale-benchmark-artifact.md
         - Collector Live Smokes: reference/local-testing/collector-live-smokes.md

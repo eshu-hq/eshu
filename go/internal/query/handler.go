@@ -84,6 +84,7 @@ type APIRouter struct {
 	Infra                          *InfraHandler
 	GraphEntityInventory           *GraphEntityInventoryHandler
 	CloudInventory                 *CloudInventoryHandler
+	SSMHostInventory               *SSMHostInventoryHandler
 	CloudRuntimeDrift              *CloudRuntimeDriftHandler
 	TerraformConfigStateDrift      *TerraformConfigStateDriftHandler
 	IaC                            *IaCHandler
@@ -253,6 +254,9 @@ func (a *APIRouter) Mount(mux *http.ServeMux) {
 	}
 	if a.CloudInventory != nil {
 		a.CloudInventory.Mount(mux)
+	}
+	if a.SSMHostInventory != nil {
+		a.SSMHostInventory.Mount(mux)
 	}
 
 	// IaC

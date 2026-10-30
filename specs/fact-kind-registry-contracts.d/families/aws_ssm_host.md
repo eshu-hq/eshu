@@ -3,9 +3,9 @@
 # Fact family: aws_ssm_host
 
 - Canonical fact owner: `eshu-hq/eshu`
-- Fact definitions: `go/internal/facts/cloud` (declared at go/internal/facts/cloud/ssm_host.go:73)
+- Fact definitions: `go/internal/facts/cloud` (declared at go/internal/facts/cloud/ssm_host.go:71)
 - Reducer domain: `ssm_host_inventory_materialization`
-- Read surface: `none`
+- Read surface: `GET /api/v0/cloud/ssm-host-inventory`
 
 ## Producers
 
@@ -17,5 +17,5 @@
 
 | Kind | Producers | Reducer consumers | Read surface | Payload schema |
 | --- | --- | --- | --- | --- |
-| `aws_ssm_host_application` | `collector-aws-cloud` | `none (unconsumed)` | `none` | `sdk/go/factschema/schema/aws_ssm_host_application.v1.schema.json` |
-| `aws_ssm_host_platform` | `collector-aws-cloud` | `none (unconsumed)` | `none` | `sdk/go/factschema/schema/aws_ssm_host_platform.v1.schema.json` |
+| `aws_ssm_host_application` | `collector-aws-cloud` | `ssmhost/ssmhost_handle_aws_ssm_host_application` | `GET /api/v0/cloud/ssm-host-inventory` | `sdk/go/factschema/schema/aws_ssm_host_application.v1.schema.json` |
+| `aws_ssm_host_platform` | `collector-aws-cloud` | `ssmhost/ssmhost_handle_aws_ssm_host_platform` | `GET /api/v0/cloud/ssm-host-inventory` | `sdk/go/factschema/schema/aws_ssm_host_platform.v1.schema.json` |

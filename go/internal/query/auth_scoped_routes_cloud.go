@@ -24,6 +24,7 @@ import (
 func scopedCloudFamilyRoute(r *http.Request) bool {
 	switch {
 	case scopedCloudInventoryRoute(r),
+		scopedSSMHostInventoryRoute(r),
 		scopedCloudResourceListRoute(r),
 		scopedCloudRuntimeDriftFindingsRoute(r),
 		scopedAWSRuntimeDriftFindingsRoute(r),
@@ -57,6 +58,15 @@ func scopedCloudResourceListRoute(r *http.Request) bool {
 // (listInventory, cloud_inventory_readback.go).
 func scopedCloudInventoryRoute(r *http.Request) bool {
 	return r.Method == http.MethodGet && r.URL.Path == "/api/v0/cloud/inventory"
+}
+
+// scopedSSMHostInventoryRoute reports whether the request targets the SSM
+// host inventory readback. listHostInventory (ssm_host_inventory_handler.go)
+// binds fact_records.scope_id and graph scope_id to
+// AllowedRepositoryIDs/AllowedScopeIDs when scoped and returns an empty page
+// without a query for an empty-grant scoped caller.
+func scopedSSMHostInventoryRoute(r *http.Request) bool {
+	return r.Method == http.MethodGet && r.URL.Path == "/api/v0/cloud/ssm-host-inventory"
 }
 
 // scopedCloudRuntimeDriftFindingsRoute reports whether the request targets

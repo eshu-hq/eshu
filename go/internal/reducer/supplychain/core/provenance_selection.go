@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
@@ -50,8 +51,8 @@ func classifyAdvisorySource(payloadSource string, advisoryID string) string {
 //   - For language ecosystems (npm, pypi, go, maven, ...) GHSA beats GLAD,
 //     OSV, and NVD.
 func advisorySourcePriority(ecosystem string, source string) int {
-	ecosystem = strings.ToLower(strings.TrimSpace(ecosystem))
-	source = strings.ToLower(strings.TrimSpace(source))
+	ecosystem = packageidentity.LowerASCII(strings.TrimSpace(ecosystem))
+	source = packageidentity.LowerASCII(strings.TrimSpace(source))
 	if vendor, ok := vendorForOSPackageClass(ecosystem); ok {
 		return vendorClassPriorityRank(vendor, source)
 	}

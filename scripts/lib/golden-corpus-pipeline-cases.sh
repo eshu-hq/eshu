@@ -170,6 +170,7 @@ bash "${repo_root}/scripts/lib/test-golden-corpus-cassette-replay.sh" || fail "c
 bash "${repo_root}/scripts/lib/test-golden-corpus-service-changed-since.sh" || fail "service changed-since helper tests failed"
 bash "${repo_root}/scripts/lib/test-golden-corpus-documentation-order.sh" || fail "documentation drain ordering tests failed"
 bash "${repo_root}/scripts/lib/test-golden-corpus-metrics-source.sh" || fail "metrics source helper tests failed"
+bash "${repo_root}/scripts/lib/test-golden-corpus-vulnerability-readiness-fixture.sh" || fail "vulnerability-readiness fixture helper tests failed"
 bash "${repo_root}/scripts/lib/test-golden-corpus-relationship-evidence.sh" || fail "relationship evidence helper tests failed"
 bash "${repo_root}/scripts/lib/test-golden-corpus-aggregate-counts.sh" || fail "aggregate count helper tests failed"
 unset aggregate_counts_lib relationship_evidence_lib
@@ -210,6 +211,8 @@ require_invocation "phase-timing invocation" "emit_phase_timings_and_flags"
 require "passes phase flags to gate" "phase_flags"
 require "cross-repo dead-code fixture source" "golden-corpus-dead-code-fixtures.sh"
 require_invocation "cross-repo dead-code fixture invocation" "seed_cross_repo_dead_code_fixture"
+require "vulnerability-readiness fixture source" "golden-corpus-vulnerability-readiness-fixture.sh"
+require_invocation "vulnerability-readiness fixture invocation" "seed_golden_vulnerability_readiness_fixture"
 
 timing_lib="${repo_root}/scripts/lib/golden-corpus-phase-timings.sh"
 [[ -f "${timing_lib}" ]] || fail "missing phase-timing lib: ${timing_lib}"
@@ -217,6 +220,9 @@ bash -n "${timing_lib}" || fail "phase-timing lib has a syntax error"
 dead_code_lib="${repo_root}/scripts/lib/golden-corpus-dead-code-fixtures.sh"
 [[ -f "${dead_code_lib}" ]] || fail "missing dead-code fixture lib: ${dead_code_lib}"
 bash -n "${dead_code_lib}" || fail "dead-code fixture lib has a syntax error"
+vuln_readiness_lib="${repo_root}/scripts/lib/golden-corpus-vulnerability-readiness-fixture.sh"
+[[ -f "${vuln_readiness_lib}" ]] || fail "missing vulnerability-readiness fixture lib: ${vuln_readiness_lib}"
+bash -n "${vuln_readiness_lib}" || fail "vulnerability-readiness fixture lib has a syntax error"
 
 
 # Metadata edits must select the real B-7 cells and their existing mirror,

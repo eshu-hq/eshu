@@ -249,6 +249,11 @@ var uidConstraintLabels = []string{
 	// deprecate/delete/unlist lifecycle record scoped to a PackageVersion, the
 	// per-version timeline the epic names.
 	"RegistryEvent",
+	// SSM host inventory observation labels (eshu-hq/eshu#9558): MERGEd by
+	// stable uid, so each backend seeks the uid constraint below instead of
+	// scanning the label per row.
+	"SSMHostApplication",
+	"SSMHostPlatform",
 	"SecretsIAMSecretMetadataPath",
 	"SecretsIAMServiceAccount",
 	"SecretsIAMVaultAuthRole",

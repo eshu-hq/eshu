@@ -101,7 +101,10 @@ change leave the target uncovered, which is the only source of
 not a gap: the CVE's advisory fact decides between `ready_zero_findings` and
 `evidence_incomplete`. Only a covered snapshot with `result_count = 0`
 (`coverage_zero`, carried per state row and never exposed) certifies advisory
-absence. Source-state freshness ages by `last_success_at` only; the
+absence. A target that lists several CVEs therefore certifies none of them
+absent once NVD returned any record for that target, and the target's
+`source_states[]` row says so with `multi_cve_target: true` (#9322).
+Source-state freshness ages by `last_success_at` only; the
 collection window is reported, not aged. The window is
 `vulnsource.DefaultFreshnessWindow` (14 days), the one window every writer
 uses for OSV, NVD, KEV, EPSS, and GLAD, and each read ages every row against
@@ -130,12 +133,22 @@ the distinct winners are aged by the read cutoff, and one aggregate
 `SourceState` row (`Derived`, `derived://<source>/<ecosystem>`) reports the
 worst state and the counts. A requested package with no matching scope makes
 the row pending, so an enabled derived ecosystem with no coverage reads
-`osv:pending`. Configured targets keep one row per scope. The 200-row bound
-counts configured scopes plus aggregate rows. Known limitations: packages the
-planner skipped read as pending (follow-up under #9209); a state written
+`osv:pending`. When every unmatched package carries planner skip evidence
+from the instance's latest `workflow_runs` row, the aggregate reads `skipped`
+instead and reports `skipped_package_count` with the distinct planner
+`skip_reasons` (#9612); the planner records canonical
+(`packageidentity.ConsumptionKeys`) identities per skipped package, the same
+shape the collector writes, so the join cannot drift. Configured targets keep
+one row per scope. The 200-row bound
+counts configured scopes plus aggregate rows. Known limitations: a state written
 before the key table existed matches nothing until its scope is collected
-again, with no backfill; Swift keys are not proven; OS-distribution derived
-scopes are not joined.
+again, with no backfill, and a run written before per-package skip names
+existed joins nothing, so those skipped packages keep reading `pending`. Swift derived keys join the key table like every
+other ecosystem (proven by a live package-key join proof), and
+OS-distribution derived scopes join through their distro spellings
+(`alpine`, `debian`, `ubuntu`) to the canonical `os` keys the collector
+writes; Rocky and AlmaLinux stay unmatched until `packageidentity` maps them
+to a canonical ecosystem.
 
 Performance Evidence: the window-field guards (#9435 review) were measured
 with the same kind of scratch harness, base SQL (`08241776a0`) against guarded
@@ -201,7 +214,10 @@ Observability Evidence: `source_states[]` reports collector health and
 `source_snapshots[]` reports committed source health; a derived aggregate row
 names its worst scopes in `scope_ids` and its uncovered packages in
 `unmatched_package_count`, so an operator can find the scope behind
-`osv:failed` or `osv:pending`; when no current NVD
+`osv:failed` or `osv:pending`; when every uncovered package carries planner
+skip evidence, `readiness_state=target_skipped` and
+`incomplete_reasons[]=osv:skipped:<reason>` identify the terminal verdict
+without package names; when no current NVD
 snapshot qualifies for absence coverage, `readiness_state=target_incomplete`
 and `incomplete_reasons[]=nvd:committed_snapshot_missing` identify the gap
 without exposing the descriptor, endpoint URL, or API key. A fail-closed read

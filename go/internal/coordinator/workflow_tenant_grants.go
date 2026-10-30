@@ -197,6 +197,11 @@ func filterRequestedScopeSetJSON(raw string, allowed map[string]struct{}) (strin
 			return "", false
 		}
 		object["targets"] = filteredTargets
+		// Skip evidence carries per-package names with no scope attribution,
+		// so it cannot survive tenant filtering: the re-stored copy drops
+		// the whole section fail-closed rather than attribute denied-scope
+		// names to an authorized run (#9612).
+		delete(object, "skipped_targets")
 		filtered, err := json.Marshal(object)
 		if err != nil {
 			return "", false

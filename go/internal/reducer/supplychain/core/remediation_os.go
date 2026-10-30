@@ -3,7 +3,11 @@
 
 package core
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/packageidentity"
+)
 
 func osRemediationMissingEvidence(finding SupplyChainImpactFinding) []string {
 	var missing []string
@@ -47,7 +51,7 @@ func osRemediationMatchReasonSupported(family string, matchReason string) bool {
 }
 
 func osRemediationSourceSupported(family string, source string) bool {
-	source = strings.ToLower(strings.TrimSpace(source))
+	source = packageidentity.LowerASCII(strings.TrimSpace(source))
 	switch family {
 	case "rpm":
 		switch source {
@@ -89,7 +93,7 @@ func osRemediationFamilyForFinding(finding SupplyChainImpactFinding) string {
 }
 
 func osRemediationFamilyFromSource(source string) string {
-	switch strings.ToLower(strings.TrimSpace(source)) {
+	switch packageidentity.LowerASCII(strings.TrimSpace(source)) {
 	case "redhat", "fedora", "centos", "rocky", "alma", "amazonlinux":
 		return "rpm"
 	case "debian", "ubuntu":
@@ -102,7 +106,7 @@ func osRemediationFamilyFromSource(source string) string {
 }
 
 func osRemediationFamily(ecosystem string) string {
-	switch strings.ToLower(strings.TrimSpace(ecosystem)) {
+	switch packageidentity.LowerASCII(strings.TrimSpace(ecosystem)) {
 	case "redhat", "fedora", "centos", "rocky", "alma", "amazonlinux", "rpm":
 		return "rpm"
 	case "debian", "ubuntu", "deb", "dpkg":

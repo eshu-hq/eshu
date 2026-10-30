@@ -46,6 +46,14 @@ truth; reducers admit user-facing truth.
   store that coordinate while an advisory can name the package as a bare
   artifact, a slash Package URL path, or a package ID. It never feeds
   `ConsumptionKeys`, so persisted join keys do not change (issue #9286).
+- `LowerASCII` is the only case fold package identity uses: it maps A-Z to
+  a-z and keeps every other byte, so a non-ASCII letter such as U+0130 or the
+  Kelvin sign U+212A never folds onto an ASCII letter (#9584). It equals
+  `strings.ToLower` on every ASCII input. `ContainsNonASCII` reports a name
+  that holds any non-ASCII byte; the ingester counts those rows.
+  `docs/internal/evidence/9584-consumption-key-ascii-fold.md` names the
+  callers outside this package that were converted and the known folds not
+  yet converted (#9622).
 - `NormalizeRegistry` canonicalizes registry host/path values without hiding
   the source registry.
 - `DefaultRegistry` returns the canonical registry host for an ecosystem so
@@ -64,6 +72,31 @@ truth; reducers admit user-facing truth.
   PURL/package ID.
 - Raw fields remain available for debugging and read-surface explanations.
 - Unknown ecosystem aliases fail closed.
+- Case folding is ASCII-only in every ecosystem, for names, namespaces,
+  registry hosts, package managers, and ecosystem aliases alike. Unicode case
+  mapping would give a lookalike name (`Serİlog`) the key of the real package
+  (`Serilog`), and no registry Eshu reads defines a Unicode fold: PyPI names
+  ([name normalization](https://packaging.python.org/en/latest/specifications/name-normalization/)),
+  Go module paths (`golang.org/x/mod/module.CheckPath`), and crates.io names
+  ([manifest reference](https://doc.rust-lang.org/cargo/reference/manifest.html))
+  are ASCII-only, npm rejects names that are not URL-safe
+  (`validate-npm-package-name`), and NuGet IDs may not hold characters that are
+  not valid in a URL ([nuspec reference](https://learn.microsoft.com/en-us/nuget/reference/nuspec)).
+  A non-ASCII name therefore keeps its non-ASCII letters in its keys and joins
+  only an identically spelled advisory or registry record.
+- NuGet residual: the nuget.org gallery validates new package IDs with the
+  ASCII-only pattern `^[A-Za-z0-9_]+([.-][A-Za-z0-9_]+)*$`
+  (`NuGet/NuGetGallery`, `src/NuGetGallery.Core/Packaging/PackageIdValidator.cs`)
+  and keeps `\w` only for reading legacy IDs, so only legacy IDs can hold
+  non-ASCII letters. nuget.org compares those with .NET `ToLowerInvariant`,
+  so two legacy IDs that differ only in non-ASCII case are one package there
+  and two keys here (a false negative). Confirming nuget.org's behavior is
+  tracked in #9594.
+- Registry hosts fold ASCII letters only, the same as names. ASCII and
+  punycode hosts are unchanged. A host written in Unicode keeps its
+  non-ASCII letters, so two Unicode spellings of one internationalized host
+  give two package IDs (fail-closed, no false join). The proper fold for such
+  hosts is IDNA mapping, which is out of scope here.
 
 ## Evidence
 

@@ -75,7 +75,7 @@ func sarifStatusRule(status SnapshotStatus) (ruleID string, level string, messag
 	switch strings.TrimSpace(status.ReadinessState) {
 	case "unsupported":
 		return sarifRuleUnsupported, "error", "Eshu vulnerability scan unsupported target evidence"
-	case "not_configured", "target_incomplete", "evidence_incomplete", "readiness_unavailable":
+	case "not_configured", "target_incomplete", "target_skipped", "evidence_incomplete", "readiness_unavailable":
 		return sarifRuleEvidenceIncomplete, "warning", "Eshu vulnerability scan evidence incomplete"
 	default:
 		return "", "", ""

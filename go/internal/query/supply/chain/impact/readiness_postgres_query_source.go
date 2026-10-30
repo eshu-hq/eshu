@@ -275,7 +275,11 @@ configured_vulnerability_source_state_candidates AS (
         state.updated_at,
         target.coverage_eligible AND committed.covered AS coverage_eligible,
         target.coverage_eligible AND committed.zero_result AS coverage_zero,
-        target.coverage_eligible AND NOT committed.covered AS coverage_missing
+        target.coverage_eligible AND NOT committed.covered AS coverage_missing,
+        -- A target that lists several CVEs certifies none of them absent once
+        -- NVD returned any record for that target (#9322): absence stays per
+        -- target, and the response row says so.
+        target.source = 'nvd' AND COALESCE(JSONB_ARRAY_LENGTH(target.expected_descriptor->'cve_ids'), 0) > 1 AS multi_cve_target
     FROM (
         SELECT * FROM target_vulnerability_source_scopes
         ORDER BY collector_instance_id, scope_id, source, ecosystem
@@ -332,11 +336,24 @@ vulnerability_source_state AS (
         0::int AS fact_count,
         MAX(updated_at) AS latest_observed_at,
         BOOL_OR(coverage_missing OR freshness_state IN ('pending', 'stale', 'rate_limited', 'failed', 'partial')) AS target_incomplete,
-        ARRAY_REMOVE(ARRAY_AGG(DISTINCT CASE
+        -- A skipped aggregate is never incomplete: nothing is in flight for
+        -- it. Its planner reasons still surface here as osv:skipped:<reason>
+        -- so the envelope can name the terminal verdict without package names.
+        COALESCE(ARRAY_REMOVE(ARRAY_AGG(DISTINCT CASE
             WHEN coverage_missing THEN 'nvd:committed_snapshot_missing'
             WHEN freshness_state IN ('pending', 'stale', 'rate_limited', 'failed', 'partial')
                 THEN source || ':' || freshness_state
-            ELSE NULL END), NULL) AS incomplete_reasons,
+            ELSE NULL END), NULL), '{}'::text[])
+        || COALESCE((
+            SELECT ARRAY_AGG(DISTINCT 'osv:skipped:' || skip.skip_reason)
+            FROM vulnerability_source_state_candidates AS skipped_candidates
+            CROSS JOIN LATERAL JSONB_ARRAY_ELEMENTS_TEXT(
+                COALESCE(skipped_candidates.derived_detail->'skip_reasons', '[]'::jsonb)
+            ) AS skip(skip_reason)
+            WHERE skipped_candidates.derived_detail IS NOT NULL
+              AND NULLIF(TRIM(skip.skip_reason), '') IS NOT NULL
+              AND skipped_candidates.freshness_state = 'skipped'
+        ), '{}'::text[]) AS incomplete_reasons,
         NULL::text AS source_snapshots_json,
         COALESCE(
             JSONB_AGG(DISTINCT JSONB_STRIP_NULLS(JSONB_BUILD_OBJECT(
@@ -358,6 +375,7 @@ vulnerability_source_state AS (
                 'warning_count', warning_count,
                 'coverage_eligible', coverage_eligible,
                 'coverage_zero', coverage_zero,
+                'multi_cve_target', multi_cve_target,
                 'updated_at', TO_CHAR(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
             )) || COALESCE(derived_detail, '{}'::jsonb)) FILTER (WHERE scope_id IS NOT NULL),
             '[]'::jsonb

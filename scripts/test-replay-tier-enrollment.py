@@ -57,8 +57,8 @@ class ReplayTierEnrollmentTest(unittest.TestCase):
 
     def test_committed_inventory_and_source_are_closed(self) -> None:
         inventory = json.loads(INVENTORY.read_text(encoding="utf-8"))
-        self.assertEqual(len(inventory["files"]), 23)
-        self.assertEqual(sum(len(item["tests"]) for item in inventory["files"].values()), 27)
+        self.assertEqual(len(inventory["files"]), 24)
+        self.assertEqual(sum(len(item["tests"]) for item in inventory["files"].values()), 28)
         verify_inventory(ROOT, inventory)
 
     def test_dropped_selector_is_rejected(self) -> None:

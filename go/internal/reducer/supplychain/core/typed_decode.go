@@ -63,7 +63,7 @@ func supplyChainAffectedPackageFromEnvelope(envelope facts.Envelope) (supplychai
 		Source:           payloadcore.DerefString(pkg.Source),
 		AdvisoryID:       pkg.AdvisoryID,
 		PackageID:        canonicalSupplyChainAffectedPackageID(payloadcore.DerefString(pkg.PackageID), purl),
-		Ecosystem:        strings.ToLower(payloadcore.DerefString(pkg.Ecosystem)),
+		Ecosystem:        packageidentity.LowerASCII(payloadcore.DerefString(pkg.Ecosystem)),
 		Name:             payloadcore.DerefString(pkg.PackageName),
 		PURL:             purl,
 		AffectedVersions: pkg.AffectedVersions,
@@ -175,14 +175,14 @@ func supplyChainOSPackageFromEnvelope(envelope facts.Envelope) (supplychainmodel
 		GenerationID:         envelope.GenerationID,
 		PackageID:            packageIDFromPURL(purl),
 		PURL:                 purl,
-		Distro:               strings.ToLower(pkg.Distro),
+		Distro:               packageidentity.LowerASCII(pkg.Distro),
 		DistroVersion:        pkg.DistroVersion,
-		PackageManager:       strings.ToLower(pkg.PackageManager),
+		PackageManager:       packageidentity.LowerASCII(pkg.PackageManager),
 		Name:                 pkg.Name,
 		Arch:                 pkg.Arch,
 		InstalledVersion:     pkg.InstalledVersion,
-		RepositoryClass:      strings.ToLower(payloadcore.DerefString(pkg.RepositoryClass)),
-		VendorAdvisorySource: strings.ToLower(payloadcore.DerefString(pkg.VendorAdvisorySource)),
+		RepositoryClass:      packageidentity.LowerASCII(payloadcore.DerefString(pkg.RepositoryClass)),
+		VendorAdvisorySource: packageidentity.LowerASCII(payloadcore.DerefString(pkg.VendorAdvisorySource)),
 	}, nil
 }
 

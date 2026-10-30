@@ -112,6 +112,7 @@ var scopedTokenAdvertisedRoutes = map[string]scopedRouteClass{
 	"GET /api/v0/ci-cd/run-correlations/count":                                      scopedRouteGrantBound,
 	"GET /api/v0/ci-cd/run-correlations/inventory":                                  scopedRouteGrantBound,
 	"GET /api/v0/cloud/inventory":                                                   scopedRouteGrantBound,
+	"GET /api/v0/cloud/ssm-host-inventory":                                          scopedRouteGrantBound,
 	"GET /api/v0/cloud/resources":                                                   scopedRouteGrantBound,
 	"GET /api/v0/collector-extraction-readiness":                                    scopedRouteTenantDataFree,
 	"GET /api/v0/collector-extraction-readiness/{family}":                           scopedRouteTenantDataFree,

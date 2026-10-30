@@ -160,6 +160,16 @@ var RetractPackageRegistryEntityLabels = map[string]struct{}{
 	"PackageVersion":                   {},
 }
 
+// RetractSSMHostEntityLabels holds the SSM host inventory observation labels
+// (eshu-hq/eshu#9558): per-row application observations and per-host platform
+// observations, both scoped by scope_id and evidence_source so a scope
+// reconciliation reaps a deleted scope's observations without touching a live
+// scope's preserved truth.
+var RetractSSMHostEntityLabels = map[string]struct{}{
+	"SSMHostApplication": {},
+	"SSMHostPlatform":    {},
+}
+
 // RetractEntityLabels returns the sorted union of every entity label family
 // the canonical retract phase scans. It lives here beside the family sets it
 // unions so a label that materializes but is missing from every family is
@@ -176,6 +186,7 @@ func RetractEntityLabels() []string {
 		RetractDataEntityLabels,
 		RetractOCIEntityLabels,
 		RetractPackageRegistryEntityLabels,
+		RetractSSMHostEntityLabels,
 	} {
 		for label := range family {
 			labels[label] = struct{}{}

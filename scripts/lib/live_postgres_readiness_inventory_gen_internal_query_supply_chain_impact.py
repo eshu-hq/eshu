@@ -20,11 +20,15 @@ TABLE = {
             "TestSupplyChainImpactReadinessPackageAnchorLive",
         ),
         "go/internal/query/supply/chain/impact/readiness_package_consumption_scope_live_test.go": (
+            "TestReadinessPackageNameFoldMatchesLowerASCIILive",
             "TestSupplyChainImpactReadinessPackageConsumptionScopeLive",
         ),
         "go/internal/query/supply/chain/impact/readiness_package_manifest_repo_scope_live_test.go": (
             "TestSupplyChainImpactReadinessPackageManifestRepoScopeQueryPlanLive",
             "TestSupplyChainImpactReadinessRepoArmScopeLive",
+        ),
+        "go/internal/query/supply/chain/impact/readiness_planner_skip_explain_live_test.go": (
+            "TestSupplyChainImpactReadinessPlannerSkipQueryPlanLive",
         ),
         "go/internal/query/supply/chain/impact/readiness_scan_tier_explain_live_test.go": (
             "TestSupplyChainImpactReadinessScanTierQueryPlanLive",

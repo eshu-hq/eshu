@@ -130,6 +130,9 @@ const (
 	DomainS3LogsToMaterialization Domain = "s3_logs_to_materialization"
 	// DomainSBOMAttestationAttachment owns SBOM attestation attachment.
 	DomainSBOMAttestationAttachment Domain = "sbom_attestation_attachment"
+	// DomainSSMHostInventoryMaterialization owns SSM host inventory observation
+	// nodes and their platform-pairing edges (eshu-hq/eshu#9558).
+	DomainSSMHostInventoryMaterialization Domain = "ssm_host_inventory_materialization"
 	// DomainSQLRelationshipMaterialization owns SQL relationship materialization.
 	DomainSQLRelationshipMaterialization Domain = "sql_relationship_materialization"
 	// DomainSecretsIAMGraphProjection owns secrets/IAM graph projection.
@@ -263,6 +266,7 @@ var knownDomains = map[Domain]struct{}{
 	DomainCICDRunCorrelation:                       {},
 	DomainServiceCatalogCorrelation:                {},
 	DomainSBOMAttestationAttachment:                {},
+	DomainSSMHostInventoryMaterialization:          {},
 	DomainSupplyChainImpact:                        {},
 	DomainSecurityAlertReconciliation:              {},
 	DomainSecretsIAMTrustChain:                     {},

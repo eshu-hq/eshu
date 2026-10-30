@@ -234,9 +234,9 @@ func readinessSourceSnapshots(readiness map[string]any) []SourceCacheState {
 // plan, but the CLI does not reinterpret individual cache rows.
 //
 // Non-ready server verdicts (`not_configured`, `target_incomplete`,
-// `evidence_incomplete`, `readiness_unavailable`) already preserve fail-closed
-// semantics; the CLI passes them through unmodified rather than shadow the
-// server's missing-evidence reasons.
+// `target_skipped`, `evidence_incomplete`, `readiness_unavailable`) already
+// preserve fail-closed semantics; the CLI passes them through unmodified
+// rather than shadow the server's missing-evidence reasons.
 //
 // Broad mode short-circuits only the advisory freshness guard but still records
 // the stop threshold so the JSON envelope is honest about the wider mode.

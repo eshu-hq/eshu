@@ -57,6 +57,8 @@ cd "${repo_root}"; export GIT_TRACE2_EVENT=0 GIT_TRACE2_PERF=0 # #8673: keep fix
 . "${repo_root}/scripts/lib/golden-corpus-aggregate-counts.sh"
 # shellcheck source=scripts/lib/golden-corpus-ask-source.sh
 . "${repo_root}/scripts/lib/golden-corpus-ask-source.sh"
+# shellcheck source=scripts/lib/golden-corpus-vulnerability-readiness-fixture.sh
+. "${repo_root}/scripts/lib/golden-corpus-vulnerability-readiness-fixture.sh"
 
 # ----------------------------------------------------------------------------
 # Configuration (override via environment).
@@ -214,6 +216,14 @@ export ESHU_EMIT_DATAFLOW=true
 log "query profile: ${ESHU_QUERY_PROFILE}"
 export ESHU_API_KEY="${GATE_API_KEY}"
 export ESHU_API_ADDR=":${GATE_API_PORT}"
+# The SSM host inventory readback fails closed without freshness bounds
+# (#9558: the API/MCP handlers 503 when any bound is unset). The corpus
+# carries no SSM fixtures, so the gate asserts the empty shape served —
+# which needs the bounds configured, not absent. Values mirror the
+# coherent test limits (skew within capture age).
+export ESHU_SSM_HOST_MAX_CAPTURE_AGE="2h"
+export ESHU_SSM_HOST_MAX_CROSS_TYPE_SKEW="30m"
+export ESHU_SSM_HOST_MAX_PLATFORM_OBSERVATION_AGE="1h"
 # ESHU_AUTH_BOOTSTRAP_MODE defaults to "generated" (#4963), which requires a
 # configured data-encryption key to seal the one-time admin credential;
 # without it eshu-api fails closed at startup and /readyz never returns.
@@ -368,15 +378,7 @@ log "start eshu-api for query truth"
 golden_metrics_source_start
 golden_ask_source_start
 start_bg api api_pid "${bin_dir}/eshu-api"
-api_ready=false
-for _ in $(seq 1 30); do
-	if curl -fsS "http://localhost:${GATE_API_PORT}/readyz" >/dev/null 2>&1; then
-		api_ready=true
-		break
-	fi
-	sleep 1
-done
-[[ "${api_ready}" == "true" ]] || { tail -30 "${log_dir}/api.log" >&2 || true; die "eshu-api /readyz never returned on port ${GATE_API_PORT}"; }
+wait_for_gate_http "eshu-api /readyz never returned on port ${GATE_API_PORT}" "http://localhost:${GATE_API_PORT}/readyz" "api"
 
 log "B-7 suppression producer truth: B-expired -> hidden -> A-expired"
 # #5837: this proof runs inside the phase_graph_query window but is assertion
@@ -413,21 +415,14 @@ golden_aggregate_counts_compose_snapshot \
 
 golden_documentation_run_proof
 
-log "seed post-drain dead-letter query fixture"
+log "seed post-drain dead-letter + vulnerability-readiness query fixtures"
 seed_golden_dead_letter_fixture
+seed_golden_vulnerability_readiness_fixture
 
 log "start eshu-mcp-server (http) for MCP query truth"
 ESHU_MCP_TRANSPORT=http ESHU_MCP_ADDR=":${GATE_MCP_PORT}" \
 	start_bg mcp-server mcp_pid "${bin_dir}/eshu-mcp-server"
-mcp_ready=false
-for _ in $(seq 1 30); do
-	if curl -fsS "http://localhost:${GATE_MCP_PORT}/health" >/dev/null 2>&1; then
-		mcp_ready=true
-		break
-	fi
-	sleep 1
-done
-[[ "${mcp_ready}" == "true" ]] || { tail -30 "${log_dir}/mcp-server.log" >&2 || true; die "eshu-mcp-server /health never returned on port ${GATE_MCP_PORT}"; }
+wait_for_gate_http "eshu-mcp-server /health never returned on port ${GATE_MCP_PORT}" "http://localhost:${GATE_MCP_PORT}/health" "mcp-server"
 
 log "B-7(b) graph truth + B-7(c) query truth + B-7(d) timing"
 # Minimal-corpus graph assertions prove projection plus deterministic

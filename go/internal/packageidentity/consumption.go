@@ -45,7 +45,7 @@ func ConsumptionNameCandidates(ecosystem Ecosystem, packageName string) []string
 		return nil
 	}
 
-	candidates := []string{strings.ToLower(packageName)}
+	candidates := []string{LowerASCII(packageName)}
 	if normalizedName, ok := normalizedConsumptionName(ecosystem, packageName); ok {
 		candidates = append(candidates, normalizedName)
 	}

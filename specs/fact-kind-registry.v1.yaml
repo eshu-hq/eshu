@@ -24,9 +24,11 @@ families:
         lifecycle_owner: go/internal/facts
         schema_version: 1.0.0
         reducer_domain: ssm_host_inventory_materialization
+        reducer_dir: go/internal/reducer/ssmhost
         projection_hook: ssm_host_inventory_materialization
         admission_hook: facts.ValidateSchemaVersion
-        read_surface: "none"
+        read_surface: "GET /api/v0/cloud/ssm-host-inventory"
+        read_surface_overrides: {aws_ssm_host_application: "GET /api/v0/cloud/ssm-host-inventory", aws_ssm_host_platform: "GET /api/v0/cloud/ssm-host-inventory"}
         truth_profile: provider_gated
         provider_key_independent: false
         payload_schema_overrides: {aws_ssm_host_application: sdk/go/factschema/schema/aws_ssm_host_application.v1.schema.json, aws_ssm_host_platform: sdk/go/factschema/schema/aws_ssm_host_platform.v1.schema.json}

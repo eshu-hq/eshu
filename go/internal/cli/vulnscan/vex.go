@@ -139,6 +139,7 @@ func vexPolicy() VEXStatementPolicy {
 			"evidence_incomplete",
 			"readiness_unavailable",
 			"target_incomplete",
+			"target_skipped",
 			"unsupported",
 		},
 	}

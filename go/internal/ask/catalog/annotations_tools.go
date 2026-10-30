@@ -123,6 +123,7 @@ func askToolAnnotations() map[string]Annotation {
 		"list_terraform_config_state_drift_findings":      {Backend: BackendPostgres, Cost: CostModerate},
 		"list_ci_cd_run_correlations":                     {Backend: BackendPostgres, Cost: CostModerate},
 		"list_cloud_resource_inventory":                   {Backend: BackendPostgres, Cost: CostModerate},
+		"list_ssm_host_inventory":                         {Backend: BackendBoth, Cost: CostModerate},
 		"list_cloud_runtime_drift_findings":               {Backend: BackendPostgres, Cost: CostModerate},
 		"list_changed_since_poisoned_links":               {Backend: BackendPostgres, Cost: CostLow},
 		"list_codeowners_ownership":                       {Backend: BackendNornicDB, Cost: CostModerate},

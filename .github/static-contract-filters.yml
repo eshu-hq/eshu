@@ -482,4 +482,4 @@ readinessderive:
   - 'specs/live-tests.v1.yaml'
   - 'specs/live-tests.d/**'
   - '.github/workflows/live-postgres-readiness.yml'
-  - 'go/**/*_test.go'
+  - 'go/**/*.go'

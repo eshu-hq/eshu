@@ -35,7 +35,7 @@ golden_metrics_source_start
 : >"${log_dir}/mock-prometheus-mimir.log"
 [[ "${ESHU_PROMETHEUS_MIMIR_COLLECTOR_INSTANCE_ID}" == "golden-prometheus-range" ]] || fail "explicit instance id missing"
 jq -e '
-  length == 1
+  length == 4
   and .[0].instance_id == "golden-prometheus-range"
   and .[0].collector_kind == "prometheus_mimir"
   and .[0].mode == "continuous"
@@ -47,6 +47,23 @@ jq -e '
     enabled: true
   }]
 ' <<<"${ESHU_COLLECTOR_INSTANCES_JSON}" >/dev/null || fail "collector JSON does not pin the credential-free source"
+# Issue #9323: the fixture also registers the vulnerability-intelligence
+# instances the B-7 readiness assertions read. They reuse the cassette scopes'
+# own collector_instance_id values (testdata/cassettes/vulnerabilityintelligence/
+# supply-chain-demo.json), which #9227's coverage tests pin verbatim — the gate
+# registers those identities rather than renaming them. They ride along in the
+# same list without disturbing the metrics selection (the API selector filters
+# by collector_kind, so the extra entries are invisible to it).
+jq -e '
+  length == 4
+  and ([.[1,2,3].instance_id] | sort) == ["collector-vulnintel-nvd-known", "collector-vulnintel-nvd-zero", "collector-vulnintel-scd"]
+  and ([.[1,2,3] | select(.collector_kind != "vulnerability_intelligence")] | length) == 0
+  and ([.[1,2,3] | select(.mode != "continuous" or .enabled != true or .claims_enabled != false)] | length) == 0
+  and ([.[1,2,3].configuration.targets[] | .scope_id] | unique | length) == 5
+  and ([.[1,2,3].configuration.targets[] | select(.source == "nvd") | .cve_ids[0]] | sort) == ["CVE-2026-00000", "CVE-2026-09000", "CVE-2026-09227", "CVE-2026-19227"]
+  and ([.[] | select(.instance_id == "collector-vulnintel-scd") | .configuration.targets[] | select(.source == "osv") | .ecosystem] | join(",")) == "npm"
+  and ([.[] | select(.instance_id == "collector-vulnintel-scd") | .configuration.derive_from_owned_packages.enabled] | all) == true
+' <<<"${ESHU_COLLECTOR_INSTANCES_JSON}" >/dev/null || fail "collector JSON does not configure the golden vulnerability-intelligence fixture instances"
 rg -q 'token|credential|authorization' < <(printf '%s\n' "${ESHU_COLLECTOR_INSTANCES_JSON}") && fail "collector JSON contains a credential field"
 
 if (

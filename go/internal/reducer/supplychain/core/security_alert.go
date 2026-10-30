@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
@@ -99,7 +100,7 @@ func buildSecurityAlertImpactFinding(
 		CVEID:              securityAlertImpactCVEID(alert),
 		AdvisoryID:         securityAlertImpactAdvisoryID(alert),
 		PackageID:          alert.PackageID,
-		Ecosystem:          strings.ToLower(strings.TrimSpace(alert.Ecosystem)),
+		Ecosystem:          packageidentity.LowerASCII(strings.TrimSpace(alert.Ecosystem)),
 		PackageName:        alert.PackageName,
 		ObservedVersion:    observedVersion,
 		RequestedRange:     requestedRange,
@@ -174,7 +175,7 @@ func supplyChainAffectedPackageFromSecurityAlert(alert securityalert.ProviderSec
 		Source:           strings.TrimSpace(alert.Provider),
 		AdvisoryID:       securityAlertImpactAdvisoryID(alert),
 		PackageID:        alert.PackageID,
-		Ecosystem:        strings.ToLower(strings.TrimSpace(alert.Ecosystem)),
+		Ecosystem:        packageidentity.LowerASCII(strings.TrimSpace(alert.Ecosystem)),
 		Name:             alert.PackageName,
 		AffectedRangeRaw: normalizeSecurityAlertComparatorRange(alert.VulnerableRange),
 		FixedVersions:    payloadcore.CompactStringSlice(alert.PatchedVersion),

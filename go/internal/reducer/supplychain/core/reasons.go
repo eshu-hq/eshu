@@ -48,10 +48,10 @@ func suppressionScopeMismatchReason(finding SupplyChainImpactFinding, s vulnerab
 	if s.Scope.AdvisoryID != "" && !strings.EqualFold(s.Scope.AdvisoryID, finding.AdvisoryID) {
 		diffs = append(diffs, fmt.Sprintf("advisory_id=%q vs finding %q", s.Scope.AdvisoryID, finding.AdvisoryID))
 	}
-	if s.Scope.PackageID != "" && !strings.EqualFold(s.Scope.PackageID, finding.PackageID) {
+	if s.Scope.PackageID != "" && !packageAnchorEqual(s.Scope.PackageID, finding.PackageID) {
 		diffs = append(diffs, fmt.Sprintf("package_id=%q vs finding %q", s.Scope.PackageID, finding.PackageID))
 	}
-	if s.Scope.PURL != "" && !strings.EqualFold(s.Scope.PURL, finding.PURL) {
+	if s.Scope.PURL != "" && !packageAnchorEqual(s.Scope.PURL, finding.PURL) {
 		diffs = append(diffs, fmt.Sprintf("purl=%q vs finding %q", s.Scope.PURL, finding.PURL))
 	}
 	if s.Scope.RepositoryID != "" && !strings.EqualFold(s.Scope.RepositoryID, finding.RepositoryID) {

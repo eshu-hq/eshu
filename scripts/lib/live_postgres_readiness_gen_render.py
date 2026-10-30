@@ -19,10 +19,16 @@ FRAGMENT_NAMES = (
     "live-tests-readiness-part4.generated.yaml",
 )
 # Committed lexical cuts keep each file's destination stable as enrollment grows.
+# Rebalanced 2026-10-30 for #9322: enrollment reached 333 rows and the first
+# fragment sat at 497/499 lines, so the cuts move the bulk into later
+# fragments. The first fragment intentionally stays at 95 rows (477 lines):
+# the mirror's oversized seed adds 5 rows there and must fail closed, while
+# the stable-shard seed adds 1 row and must pass, so the first fragment must
+# stay within 95-98 rows. Later fragments carry headroom for growth.
 FRAGMENT_BOUNDARIES = (
-    "go/internal/storage/postgres/active_symbol_loader_package_fixture_live_test.go",
-    "go/internal/storage/postgres/identity_epoch_active_set_live_test.go",
-    "go/internal/storage/postgres/retention/work/items/plan_guard_live_test.go",
+    "go/internal/storage/postgres/activation/terminal_live_test.go",
+    "go/internal/storage/postgres/fact_key_foreign_key_reverse_live_test.go",
+    "go/internal/storage/postgres/projector_queue_claim_marked_guard_epq_live_test.go",
 )
 FRAGMENT_DIR = "specs/live-tests.d/"
 MAX_FRAGMENT_LINES = 499

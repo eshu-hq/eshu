@@ -36,9 +36,27 @@ start_bg() {
 	printf -v "${pidvar}" '%s' "${pid}"
 }
 
+# wait_for_gate_http <failure-message> <url> <log-name> polls url until it
+# answers, dying with the service log tail otherwise. Extracted from the
+# orchestrator's eshu-api /readyz and eshu-mcp-server /health waits to keep
+# that file under the 500-line cap; the failure messages stay identical.
+wait_for_gate_http() {
+	local failure_message="$1" url="$2" log_name="$3" ready=false
+	for _ in $(seq 1 30); do
+		if curl -fsS "${url}" >/dev/null 2>&1; then
+			ready=true
+			break
+		fi
+		sleep 1
+	done
+	[[ "${ready}" == "true" ]] || { tail -30 "${log_dir}/${log_name}.log" >&2 || true; die "${failure_message}"; }
+}
+
 # pg runs a single-value SQL query against the gate's Postgres, working in both
 # compose mode (via the postgres container) and --no-compose mode (via a local
 # psql client). Used to assert the cassette collectors actually committed.
+# Values ride in the statement text (quote-doubled by the caller when needed):
+# psql -c never interpolates :variables, so pg takes no -v pairs.
 pg() {
 	local sql="$1"
 	if [[ "${use_compose}" -eq 1 ]]; then

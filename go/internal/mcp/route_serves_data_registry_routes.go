@@ -93,6 +93,36 @@ var routeServesDataRegistryPart1 = map[string]routeServesDataSource{
 		},
 	},
 
+	// SSMHostInventoryHandler.listHostInventory reads committed
+	// SSMHostApplication/SSMHostPlatform observation nodes plus the active
+	// generation's admitted facts: fact_kind IN
+	// ('aws_ssm_host_application','aws_ssm_host_platform')
+	// (go/internal/query/ssm_host_inventory_facts.go,
+	// go/internal/query/ssm_host_inventory_read_model.go). Status is derived
+	// at read time, never stored.
+	"GET /api/v0/cloud/ssm-host-inventory": {
+		RegistrationFile: "go/internal/query/ssm_host_inventory_handler.go",
+		HandlerStruct:    "SSMHostInventoryHandler",
+		StructFile:       "go/internal/query/ssm_host_inventory_handler.go",
+		Method:           "listHostInventory",
+		MethodFile:       "go/internal/query/ssm_host_inventory_handler.go",
+		ScanFiles: []string{
+			"go/internal/query/ssm_host_inventory_handler.go",
+			"go/internal/query/ssm_host_inventory_read_model.go",
+			"go/internal/query/ssm_host_inventory_facts.go",
+		},
+		Served: []routeServedDomain{
+			{
+				Domain: "ssm_host_inventory_materialization",
+				Evidence: []routeReadEvidence{
+					{File: "go/internal/query/ssm_host_inventory_facts.go", Marker: "aws_ssm_host_application"},
+					{File: "go/internal/query/ssm_host_inventory_facts.go", Marker: "aws_ssm_host_platform"},
+					{File: "go/internal/query/ssm_host_inventory_read_model.go", Marker: "SSMHostApplication"},
+				},
+			},
+		},
+	},
+
 	// Handler.listRunCorrelations -> h.Correlations
 	// (PostgresRunCorrelationStore): fact_kind = $1 bound to
 	// "reducer_ci_cd_run_correlation"

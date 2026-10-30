@@ -5,6 +5,8 @@ package core
 
 import (
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 )
 
 // suppressionAdjacent reports whether a suppression names at least one
@@ -25,10 +27,10 @@ func suppressionAdjacent(finding SupplyChainImpactFinding, s vulnerabilitySuppre
 	if s.Scope.AdvisoryID != "" && strings.EqualFold(s.Scope.AdvisoryID, finding.AdvisoryID) {
 		return true
 	}
-	if s.Scope.PackageID != "" && strings.EqualFold(s.Scope.PackageID, finding.PackageID) {
+	if s.Scope.PackageID != "" && packageAnchorEqual(s.Scope.PackageID, finding.PackageID) {
 		return true
 	}
-	if s.Scope.PURL != "" && strings.EqualFold(s.Scope.PURL, finding.PURL) {
+	if s.Scope.PURL != "" && packageAnchorEqual(s.Scope.PURL, finding.PURL) {
 		return true
 	}
 	if s.Scope.RepositoryID != "" && strings.EqualFold(s.Scope.RepositoryID, finding.RepositoryID) {
@@ -57,10 +59,10 @@ func suppressionScopeMatchesFinding(finding SupplyChainImpactFinding, s vulnerab
 	if !scopeAnchorMatches(s.Scope.AdvisoryID, finding.AdvisoryID) {
 		return false
 	}
-	if !scopeAnchorMatches(s.Scope.PackageID, finding.PackageID) {
+	if !scopePackageAnchorMatches(s.Scope.PackageID, finding.PackageID) {
 		return false
 	}
-	if !scopeAnchorMatches(s.Scope.PURL, finding.PURL) {
+	if !scopePackageAnchorMatches(s.Scope.PURL, finding.PURL) {
 		return false
 	}
 	if !scopeAnchorMatches(s.Scope.RepositoryID, finding.RepositoryID) {
@@ -236,6 +238,25 @@ func scopeAnchorMatches(scoped, observed string) bool {
 		return true
 	}
 	return strings.EqualFold(scoped, strings.TrimSpace(observed))
+}
+
+// scopePackageAnchorMatches is scopeAnchorMatches for a package_id or purl
+// anchor. Package identity folds ASCII letters only (#9584): strings.EqualFold
+// treats U+212A (Kelvin sign) as k and U+017F (long s) as s, which let a
+// suppression written for a real package hide findings on its lookalike.
+func scopePackageAnchorMatches(scoped, observed string) bool {
+	scoped = strings.TrimSpace(scoped)
+	if scoped == "" {
+		return true
+	}
+	return packageAnchorEqual(scoped, strings.TrimSpace(observed))
+}
+
+// packageAnchorEqual compares two package IDs or PURLs ignoring ASCII case
+// only. CVE and advisory IDs stay on strings.EqualFold: they are ASCII by
+// specification.
+func packageAnchorEqual(left, right string) bool {
+	return packageidentity.LowerASCII(left) == packageidentity.LowerASCII(right)
 }
 
 func evidencePathContainsAll(observed []string, required []string) bool {

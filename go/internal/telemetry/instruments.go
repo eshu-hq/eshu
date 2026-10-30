@@ -1463,6 +1463,12 @@ type Instruments struct {
 	// (initial, dirty_repair) and outcome (cleared, left_dirty, skipped,
 	// disappeared, lock_timeout, failed).
 	PackageManifestBackfillScopeRebuilds metric.Int64Counter
+	// PackageManifestNonASCIINames counts manifest dependency rows, written by
+	// the ingester's sidecar writer, whose package name holds a non-ASCII byte.
+	// Their consumption keys keep those letters as written instead of folding
+	// them onto an ASCII name (#9584), so they join only an identically
+	// spelled advisory. Labeled by the closed ecosystem set.
+	PackageManifestNonASCIINames metric.Int64Counter
 	// InfraInventoryReconcile counts repositories the reducer's infra read
 	// model reconcile checked, by outcome: match (table equals
 	// content_entities), suspect (it differed once and is re-checked next
@@ -5037,6 +5043,13 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register PackageManifestBackfillScopeRebuilds counter: %w", err)
+	}
+	inst.PackageManifestNonASCIINames, err = meter.Int64Counter(
+		"eshu_dp_package_manifest_non_ascii_names_total",
+		metric.WithDescription("Manifest dependency rows whose package name holds non-ASCII letters, keyed without Unicode case folding (#9584), by ecosystem"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register PackageManifestNonASCIINames counter: %w", err)
 	}
 
 	inst.InfraInventoryReconcile, err = meter.Int64Counter(

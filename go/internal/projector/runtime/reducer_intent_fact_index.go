@@ -45,4 +45,4 @@ func (idx *reducerIntentFactIndex) firstAcrossKinds(
 // builder probes appendScopeGenerationReducerIntents calls, cited in README.md.
 // TestReducerIntentProbeCountMatchesDocumentedCount parses the dispatcher with
 // go/ast and fails if this count or its documented prose drifts.
-const documentedReducerIntentProbeCount = 46
+const documentedReducerIntentProbeCount = 47

@@ -59,6 +59,7 @@ var retractableGraphEdgeTypes = []edgetype.EdgeType{
 	edgetype.ReferencesTable,
 	edgetype.ReconcilesFrom,
 	edgetype.References,
+	edgetype.ReportedWith,
 	edgetype.RunsImage,
 	edgetype.RunsIn,
 	edgetype.RunsOn,

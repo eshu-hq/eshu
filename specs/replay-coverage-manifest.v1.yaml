@@ -78,6 +78,11 @@ coverage:
   - {surface: "read_surface:GET /api/v0/repositories", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/repositories", proof_gate: golden-corpus-gate-neo4j}
   - {surface: "read_surface:list_repository_files", scenario: api_mcp_golden, scenario_type: baseline, ref: "list_repository_files", proof_gate: golden-corpus-gate-neo4j}
   - {surface: "read_surface:GET /api/v0/cloud/inventory", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/cloud/inventory", proof_gate: golden-corpus-gate-neo4j}
+  # ssm-host-inventory (eshu-hq/eshu#9558): zero floor — the 20-repo corpus
+  # carries no SSM host fixtures, so the MCP query shape asserts the contract
+  # fields and route resolution (minimum_results 0), mirroring the committed
+  # snapshot entry.
+  - {surface: "read_surface:GET /api/v0/cloud/ssm-host-inventory", scenario: api_mcp_golden, scenario_type: baseline, ref: "list_ssm_host_inventory", proof_gate: golden-corpus-gate-neo4j}
   - {surface: "read_surface:GET /api/v0/cloud/resources", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/cloud/resources", proof_gate: golden-corpus-gate-neo4j}
   # kubernetes_live (#5398): the fact-kind registry read_surface was corrected
   # from the AWS/GCP cloud-posture endpoint (GET /api/v0/cloud/resources, zero
@@ -257,6 +262,7 @@ coverage:
   - {surface: capability:ci_cd.run_correlations.list, scenario: capability_claim, scenario_type: baseline, ref: ci_cd.run_correlations.list, proof_gate: capability-inventory}
   - {surface: capability:cloud_inventory.readback.list, scenario: capability_claim, scenario_type: baseline, ref: cloud_inventory.readback.list, proof_gate: capability-inventory}
   - {surface: capability:cloud_runtime_drift.readback.list, scenario: capability_claim, scenario_type: baseline, ref: cloud_runtime_drift.readback.list, proof_gate: capability-inventory}
+  - {surface: capability:ssm_host_inventory.readback.list, scenario: capability_claim, scenario_type: baseline, ref: ssm_host_inventory.readback.list, proof_gate: capability-inventory}
   - {surface: capability:code_divergence.findings, scenario: capability_claim, scenario_type: baseline, ref: code_divergence.findings, proof_gate: capability-inventory}
   - {surface: capability:code_flow.cfg_summary, scenario: capability_claim, scenario_type: baseline, ref: code_flow.cfg_summary, proof_gate: capability-inventory}
   - {surface: capability:code_flow.pdg_summary, scenario: capability_claim, scenario_type: baseline, ref: code_flow.pdg_summary, proof_gate: capability-inventory}
@@ -531,6 +537,14 @@ coverage:
   - {surface: retractable_node:SqlTable, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
   - {surface: retractable_node:SqlTrigger, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
   - {surface: retractable_node:SqlView, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
+  # SSM host inventory observations (eshu-hq/eshu#9558): no cassette carries
+  # SSM fixtures, so the live tier proves both node retracts (stale app
+  # DETACH, conflicted platform DETACH) against a real NornicDB. The same
+  # test proves the REPORTED_WITH edge dies with its platform endpoint (see
+  # the retractable_edge row below): there is deliberately no edge-only
+  # retract writer.
+  - {surface: retractable_node:SSMHostApplication, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_ssm_host_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_node:SSMHostPlatform, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_ssm_host_retract_live_test.go, proof_gate: replay-tier}
   - {surface: retractable_node:Struct, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
   - {surface: retractable_node:TerraformBackend, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
   - {surface: retractable_node:TerraformCheck, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
@@ -638,6 +652,10 @@ coverage:
   # this offlinetier package proves; live-proven by a full write+retract
   # against a real NornicDB, including both endpoint labels' node survival.
   - {surface: retractable_edge:AWS_lambda_function_uses_image, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_cloud_image_edge_retract_live_test.go, proof_gate: replay-tier}
+  # REPORTED_WITH (eshu-hq/eshu#9558): pairing edges die via endpoint DETACH
+  # DELETE — RetractPlatformNodes removes the platform node and its incident
+  # edge while the paired application node survives, live-proven below.
+  - {surface: retractable_edge:REPORTED_WITH, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_ssm_host_retract_live_test.go, proof_gate: replay-tier}
   - {surface: retractable_edge:ALLOWS_INGRESS, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_security_group_reachability_retract_live_test.go, proof_gate: replay-tier}
   - {surface: retractable_edge:ALLOWS_EGRESS, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_security_group_reachability_retract_live_test.go, proof_gate: replay-tier}
   - {surface: retractable_edge:TO, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_security_group_reachability_retract_live_test.go, proof_gate: replay-tier}
@@ -808,6 +826,7 @@ coverage:
   - {surface: projection:rds_posture_materialization, scenario: go_test, scenario_type: cost, ref: go/internal/replay/costcounting/rds_posture_cost_test.go, proof_gate: go-test-race}
   - {surface: projection:s3_external_principal_grant_materialization, scenario: go_test, scenario_type: cost, ref: go/internal/replay/costcounting/s3_external_principal_grant_cost_test.go, proof_gate: go-test-race}
   - {surface: projection:s3_internet_exposure_materialization, scenario: go_test, scenario_type: cost, ref: go/internal/replay/costcounting/s3_internet_exposure_cost_test.go, proof_gate: go-test-race}
+  - {surface: projection:ssm_host_inventory_materialization, scenario: go_test, scenario_type: cost, ref: go/internal/replay/costcounting/ssm_host_inventory_cost_test.go, proof_gate: go-test-race}
   - {surface: projection:secrets_iam_trust_chain, scenario: go_test, scenario_type: cost, ref: go/internal/replay/costcounting/secrets_iam_graph_cost_test.go, proof_gate: go-test-race}
   - {surface: projection:azure_resource_materialization, scenario: go_test, scenario_type: cost, ref: go/internal/replay/costcounting/azure_resource_materialization_cost_test.go, proof_gate: go-test-race}
   - {surface: projection:gcp_resource_materialization, scenario: go_test, scenario_type: cost, ref: go/internal/replay/costcounting/gcp_resource_materialization_cost_test.go, proof_gate: go-test-race}
@@ -900,23 +919,11 @@ exemptions:
       could bound. Remove when the #5393 overlay-projection leaf lands,
       with its cost-counting test.
 
-  # eshu-hq/eshu#9556: the aws_ssm_host contract-only kinds declare the
-  # ssm_host_inventory_materialization reducer domain, but no projection
-  # writer exists for it yet — the reducer/read surfaces land in sibling
-  # #9295 leaves. A cost scenario bounds a real production write path;
-  # with no writer there is no path to drive, so no credential-free
-  # scenario of any kind can exist for this surface today. The leaf that
-  # lands the projection removes this exemption and authors the cost
-  # scenario.
-  - surface: projection:ssm_host_inventory_materialization
-    reason: >-
-      Contract-only domain: aws_ssm_host_application and
-      aws_ssm_host_platform are admitted facts with no reducer binding and
-      no materialization path yet (DispositionUnconsumed, read_surface
-      none). A cost scenario must drive the domain's real production
-      writer; no writer exists, so there is nothing whose cost a scenario
-      could bound. Remove when the #9295 host-inventory projection leaf
-      lands, with its cost-counting test.
+  # eshu-hq/eshu#9556 contract-only exemption REMOVED by the #9558
+  # host-inventory projection leaf: ssm.HostNodeWriter lands the production
+  # write path and the cost scenario above (ssm_host_inventory_cost_test.go)
+  # drives it. This comment records the removal so the exemption's history
+  # stays auditable.
 
 # C-11 (#4364): language-parser coverage scoreboard. The denominator is every
 # language in specs/language-feature-parity-ledger.v1.yaml (32 languages). This

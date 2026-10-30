@@ -247,9 +247,17 @@ func TestOpenAPISpecIncludesSupplyChainImpactFindings(t *testing.T) {
 	}
 	readinessState := testutil.MustMapField(t, readinessProps, "readiness_state")
 	stateEnum := mustStringSliceField(t, readinessState, "enum")
-	for _, want := range []string{"ambiguous_scope", "unsupported"} {
+	for _, want := range []string{"ambiguous_scope", "target_skipped", "unsupported"} {
 		if !containsOpenAPIEnumString(stateEnum, want) {
 			t.Fatalf("readiness_state enum = %#v, want %q surfaced", stateEnum, want)
+		}
+	}
+	sourceStates := testutil.MustMapField(t, readinessProps, "source_states")
+	sourceStatesItems := testutil.MustMapField(t, sourceStates, "items")
+	sourceStatesItemProps := testutil.MustMapField(t, sourceStatesItems, "properties")
+	for _, key := range []string{"multi_cve_target"} {
+		if _, ok := sourceStatesItemProps[key]; !ok {
+			t.Fatalf("source_states items.properties missing %q", key)
 		}
 	}
 	unsupportedTargets := testutil.MustMapField(t, readinessProps, "unsupported_targets")

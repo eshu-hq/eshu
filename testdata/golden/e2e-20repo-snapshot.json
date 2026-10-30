@@ -177,8 +177,8 @@
       },
       "RuntimeDeclaration": {
         "min": 6,
-        "max": 30,
-        "note": "RuntimeDeclaration nodes from runtime_declaration.version facts (issue #8816); the go_comprehensive fixture's .tool-versions declares 4 versions on 2 lines (golang 1.22.5; nodejs 20.11.1 18.19.0 lts/iron, three tokens with order_index 0, 1 and 2), ceiling wide for future fixture pin files"
+        "max": 50,
+        "note": "RuntimeDeclaration nodes from runtime_declaration.version facts (issue #8816); the go_comprehensive fixture's .tool-versions declares 4 versions on 2 lines (golang 1.22.5; nodejs 20.11.1 18.19.0 lts/iron, three tokens with order_index 0, 1 and 2). Issues #9548/#9610 enroll .NET (global.json SDK, csproj TargetFramework/s) and IaC (terraform_required_version, terragrunt_version_constraint, terragrunt_version, helm_chart_kube_version) declarations; CI observed 38 nodes, ceiling 50 stays wide for future fixture pin files"
       }
     },
     "edge_counts": {
@@ -344,8 +344,8 @@
       },
       "DECLARES_RUNTIME": {
         "min": 4,
-        "max": 30,
-        "note": "Repository->RuntimeDeclaration edges (issue #8816), one per declaration; the go_comprehensive fixture's .tool-versions declares 4 versions (golang 1.22.5; nodejs 20.11.1 18.19.0 lts/iron), ceiling wide for future fixture pin files"
+        "max": 50,
+        "note": "Repository->RuntimeDeclaration edges (issue #8816), one per declaration; the go_comprehensive fixture's .tool-versions declares 4 versions (golang 1.22.5; nodejs 20.11.1 18.19.0 lts/iron). Issues #9548/#9610 enroll .NET and IaC declarations; CI observed 38 edges, ceiling 50 stays wide for future fixture pin files"
       },
       "PINS_SUBMODULE": {
         "min": 1,
@@ -2228,6 +2228,22 @@
           "runtime": ["dotnet"],
           "source_kind": ["dotnet_global_json_sdk", "dotnet_csproj_target_frameworks"]
         }
+      },
+      {
+        "id": "rn-rust-runtime-declaration",
+        "description": "The synthetic lib-common Cargo package declares its Rust toolchain requirement. HTTP and MCP shapes bind the complete source tuple.",
+        "label": "RuntimeDeclaration",
+        "minimum_count": 1,
+        "required_node_properties": ["runtime", "source_kind"],
+        "allowed_node_property_values": {"runtime": ["rust"], "source_kind": ["cargo_package_rust_version"]}
+      },
+      {
+        "id": "rn-iac-runtime-declarations",
+        "description": "The synthetic lib-common runtime_iac fixtures declare Terraform, Terragrunt, and Kubernetes runtime requirements. HTTP and MCP shapes bind the four complete source tuples.",
+        "label": "RuntimeDeclaration",
+        "minimum_count": 4,
+        "required_node_properties": ["runtime", "source_kind"],
+        "allowed_node_property_values": {"runtime": ["terraform", "terragrunt", "kubernetes"], "source_kind": ["terraform_required_version", "terragrunt_version_constraint", "terragrunt_version", "helm_chart_kube_version"]}
       },
       {
         "id": "rn-ruby-runtime-declaration",
@@ -4705,6 +4721,16 @@
           "resources[].attributes.runtime": "python3.12"
         }
       },
+      "list_ssm_host_inventory": {
+        "description": "MCP tool coverage shape for list_ssm_host_inventory; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Zero floor: the 20-repo corpus carries no SSM host fixtures, so this shape asserts the contract fields and route resolution only.",
+        "required_response_fields": [
+          "hosts",
+          "malformed_facts",
+          "next_cursor"
+        ],
+        "minimum_results": 0,
+        "arguments": {}
+      },
       "list_cloud_runtime_drift_findings": {
         "description": "MCP tool coverage shape for list_cloud_runtime_drift_findings; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). #5759 wired buildMultiCloudRuntimeDriftReducerIntent into appendScopeGenerationReducerIntents (triggering on gcp_cloud_resource or azure_cloud_resource facts) and added MultiCloudRuntimeDriftHandler.Handle's excludeAWSOwnedRows provider-partition filter, so DomainMultiCloudRuntimeDrift is enqueued for GCP/Azure scopes and no longer collides with DomainAWSCloudRuntimeDrift's own findings for the same AWS resource -- closing the pre-existing registered-not-enqueued gap (domain built for #1997/#1998, predates #5453). Non-vacuous: a live golden-corpus-gate run returned 10 drift_findings for this GCP scope (bounded by the requested limit:10 below, the same convention the sibling list_aws_runtime_drift_findings entry uses -- this corpus's gcp_cloud_resource cassette carries 110 keyable resources and no Terraform state/config fixture anywhere in the corpus declares a matching google_* resource, so far more than 10 orphaned findings are admitted; the request just asks for one page of 10). minimum_results is 1, which requires results_field (added here -- #5862 removed EvaluateQueryShape's implicit first-array-field inference, so an entry with minimum_results>0 and no results_field is now an unconditional hard failure regardless of live data); the row count above was established by a live golden-corpus-gate run against the underlying route before this results_field correction landed, and this corrected shape still needs confirmation on the next live run. #5453's image_version_drift value drift is separately proven non-vacuously through the sibling list_aws_runtime_drift_findings entry (reducer_aws_cloud_runtime_drift_finding, exclusively AWS-owned and unaffected by this change).",
         "required_response_fields": [
@@ -5014,6 +5040,29 @@
           ]
         },
         "arguments": {"runtime": "dotnet", "limit": 50}
+      },
+      "list_runtime_version_declarations?assert=rust_source": {
+        "description": "Synthetic Cargo package rust-version declaration from lib-common/runtime_rust, bound as one complete source tuple.",
+        "required_response_fields": ["declarations", "count", "limit", "truncated", "filters", "excluded_from_comparison", "partial_reasons"],
+        "minimum_results": 1,
+        "results_field": "declarations",
+        "required_json_object_matches": {"declarations[]": [{"runtime": "rust", "source_kind": "cargo_package_rust_version", "relative_path": "runtime_rust/Cargo.toml", "raw_spec": "1.78.0", "spec_kind": "exact", "line_number": 4, "order_index": 0}]},
+        "arguments": {"limit": 100}
+      },
+      "list_runtime_version_declarations?assert=iac_sources": {
+        "description": "Four synthetic Terraform, Terragrunt, and Helm source declarations from lib-common/runtime_iac, each bound as one complete source tuple through the deployed MCP surface.",
+        "required_response_fields": ["declarations", "count", "limit", "truncated", "filters", "excluded_from_comparison", "partial_reasons"],
+        "minimum_results": 4,
+        "results_field": "declarations",
+        "required_json_object_matches": {
+          "declarations[]": [
+            {"runtime": "terraform", "source_kind": "terraform_required_version", "relative_path": "runtime_iac/main.tf", "raw_spec": ">= 1.6.0", "spec_kind": "range", "line_number": 2, "order_index": 0},
+            {"runtime": "terraform", "source_kind": "terragrunt_version_constraint", "relative_path": "runtime_iac/terragrunt.hcl", "raw_spec": "~> 1.6", "spec_kind": "range", "line_number": 1, "order_index": 0},
+            {"runtime": "terragrunt", "source_kind": "terragrunt_version", "relative_path": "runtime_iac/.terragrunt-version", "raw_spec": "0.58.0", "spec_kind": "exact", "line_number": 1, "order_index": 0},
+            {"runtime": "kubernetes", "source_kind": "helm_chart_kube_version", "relative_path": "runtime_iac/charts/app/Chart.yaml", "raw_spec": ">= 1.27.0", "spec_kind": "range", "line_number": 4, "order_index": 0}
+          ]
+        },
+        "arguments": {"limit": 100}
       },
       "list_runtime_version_declarations?assert=ruby_sources": {
         "description": "Both synthetic Ruby runtime source declarations from ruby_rails_app/runtime-declarations, each bound as one exact source tuple through the deployed MCP tool.",
@@ -7689,6 +7738,29 @@
         },
         "request_body": {"runtime": "dotnet", "limit": 50}
       },
+      "POST /api/v0/runtime-declarations/query?assert=rust_source": {
+        "description": "Synthetic Cargo package rust-version declaration from lib-common/runtime_rust, bound as one complete source tuple.",
+        "required_response_fields": ["declarations", "count", "limit", "truncated", "filters", "excluded_from_comparison", "partial_reasons"],
+        "minimum_results": 1,
+        "results_field": "declarations",
+        "required_json_object_matches": {"declarations[]": [{"runtime": "rust", "source_kind": "cargo_package_rust_version", "relative_path": "runtime_rust/Cargo.toml", "raw_spec": "1.78.0", "spec_kind": "exact", "line_number": 4, "order_index": 0}]},
+        "request_body": {"limit": 100}
+      },
+      "POST /api/v0/runtime-declarations/query?assert=iac_sources": {
+        "description": "Four synthetic Terraform, Terragrunt, and Helm source declarations from lib-common/runtime_iac, each bound as one complete source tuple through the deployed HTTP surface.",
+        "required_response_fields": ["declarations", "count", "limit", "truncated", "filters", "excluded_from_comparison", "partial_reasons"],
+        "minimum_results": 4,
+        "results_field": "declarations",
+        "required_json_object_matches": {
+          "declarations[]": [
+            {"runtime": "terraform", "source_kind": "terraform_required_version", "relative_path": "runtime_iac/main.tf", "raw_spec": ">= 1.6.0", "spec_kind": "range", "line_number": 2, "order_index": 0},
+            {"runtime": "terraform", "source_kind": "terragrunt_version_constraint", "relative_path": "runtime_iac/terragrunt.hcl", "raw_spec": "~> 1.6", "spec_kind": "range", "line_number": 1, "order_index": 0},
+            {"runtime": "terragrunt", "source_kind": "terragrunt_version", "relative_path": "runtime_iac/.terragrunt-version", "raw_spec": "0.58.0", "spec_kind": "exact", "line_number": 1, "order_index": 0},
+            {"runtime": "kubernetes", "source_kind": "helm_chart_kube_version", "relative_path": "runtime_iac/charts/app/Chart.yaml", "raw_spec": ">= 1.27.0", "spec_kind": "range", "line_number": 4, "order_index": 0}
+          ]
+        },
+        "request_body": {"limit": 100}
+      },
       "POST /api/v0/runtime-declarations/query?assert=ruby_sources": {
         "description": "Both synthetic Ruby runtime source declarations from ruby_rails_app/runtime-declarations, each bound as one exact source tuple through the deployed HTTP route.",
         "required_response_fields": [
@@ -8779,6 +8851,48 @@
         "minimum_results": 1,
         "maximum_results": 1,
         "results_field": "findings"
+      },
+      "GET /api/v0/supply-chain/impact/findings?limit=50&cve_id=CVE-2026-00000&profile=comprehensive&assert=readiness-ready": {
+        "description": "#9323 readiness-ready floor: the same CVE-2026-00000 comprehensive query as the #5469 config_only shape, extended with the readiness envelope pin. The gate fixture registers the collector-vulnintel-scd instance with an NVD target selecting this CVE, so the answer is produced with vulnerability-intelligence targets configured — and the findings page still classifies ready_with_findings. If the readiness envelope drops from the findings response or the state misclassifies, the readiness_state pin fails this assertion.",
+        "truth_class": "deterministic",
+        "required_response_fields": [
+          "findings",
+          "count",
+          "readiness"
+        ],
+        "minimum_results": 1,
+        "results_field": "findings",
+        "required_json_values": {
+          "findings[].cve_id": "CVE-2026-00000",
+          "findings[].version_resolution_tier": "config_only",
+          "readiness.readiness_state": "ready_with_findings"
+        }
+      },
+      "GET /api/v0/supply-chain/impact/findings?limit=50&cve_id=CVE-2026-09227&assert=readiness-zero-findings": {
+        "description": "#9323 readiness zero-finding floor: CVE-2026-09227 is the cassette's NVD zero-result scope (#9227) — no advisory fact names an owned package, so the findings page is empty — and the gate fixture registers the collector-vulnintel-nvd-zero instance with a fresh, succeeded zero-result source state plus the committed zero-result snapshot. That combination certifies absence (sourceStatesHaveCoveredSuccess), so the answer classifies ready_zero_findings rather than not_configured. A missing instance row, a missing state row, or a descriptor mismatch each flip the state to target_incomplete and fail this assertion.",
+        "truth_class": "deterministic",
+        "required_response_fields": [
+          "findings",
+          "count",
+          "readiness"
+        ],
+        "required_json_values": {
+          "count": 0,
+          "readiness.readiness_state": "ready_zero_findings"
+        }
+      },
+      "GET /api/v0/supply-chain/impact/findings?limit=50&cve_id=CVE-2026-09000&assert=readiness-pending": {
+        "description": "#9323 readiness pending floor: CVE-2026-09000 is a configured NVD target (collector-vulnintel-scd) with no cassette facts and deliberately no seeded source state, so the target reads pending and the empty findings page classifies target_incomplete rather than not_configured. Removing the target from the fixture flips the state to not_configured and fails this assertion.",
+        "truth_class": "deterministic",
+        "required_response_fields": [
+          "findings",
+          "count",
+          "readiness"
+        ],
+        "required_json_values": {
+          "count": 0,
+          "readiness.readiness_state": "target_incomplete"
+        }
       },
       "GET /api/v0/supply-chain/impact/findings?limit=10&cve_id=CVE-2026-00010&workload_id=workload%3Arepository%3Ar_217415d9&profile=comprehensive": {
         "description": "#5747 non-vacuous current-runtime filter proof: the Debian OS-package finding has an empty baked workload_ids array, but its repository currently maps to workload:repository:r_217415d9 through active reducer_workload_identity evidence. The comprehensive profile is retained as the epic's inclusive OS-package proof; after #5735 this exact DPKG affected-version finding also qualifies for precise.",

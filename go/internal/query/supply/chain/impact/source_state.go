@@ -50,7 +50,19 @@ type SourceState struct {
 	PendingCount     int `json:"pending_count,omitempty"`
 	// ScopeIDs lists up to 10 kept scope ids, worst state first and oldest
 	// success first within a state.
-	ScopeIDs         []string `json:"scope_ids,omitempty"`
+	ScopeIDs []string `json:"scope_ids,omitempty"`
+	// MultiCVETarget marks a configured NVD target that lists several CVEs:
+	// absence stays per target, so the target certifies none of its CVEs
+	// absent once NVD returned any record for it (#9322).
+	MultiCVETarget bool `json:"multi_cve_target,omitempty"`
+	// SkippedPackageCount is the number of requested packages no derived
+	// scope covered that carry planner skip evidence on a derived aggregate
+	// row (#9612). It is zero on configured rows.
+	SkippedPackageCount int `json:"skipped_package_count,omitempty"`
+	// SkipReasons lists the distinct planner skip reasons behind the skipped
+	// packages, such as derived_target_non_exact_version. It carries reasons
+	// only, never package names.
+	SkipReasons      []string `json:"skip_reasons,omitempty"`
 	coverageEligible bool
 	coverageZero     bool
 }
@@ -102,6 +114,20 @@ func normalizeSourceStates(states []SourceState) []SourceState {
 func sourceSnapshotsIncomplete(snapshots []SourceSnapshot) bool {
 	for _, snapshot := range snapshots {
 		if !snapshot.Complete || snapshot.Freshness == FreshnessLabelStale {
+			return true
+		}
+	}
+	return false
+}
+
+// sourceStatesSkipped reports whether any source state carries planner skip
+// evidence for requested packages: the system already knows those packages
+// will never be planned, so the envelope reports a skip verdict instead of
+// pending. A skipped aggregate reads with freshness skipped, which no
+// incompleteness check below treats as in flight.
+func sourceStatesSkipped(states []SourceState) bool {
+	for _, state := range states {
+		if state.SkippedPackageCount > 0 {
 			return true
 		}
 	}

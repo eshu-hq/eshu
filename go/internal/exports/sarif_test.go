@@ -400,6 +400,20 @@ func assertBytesEqual(t *testing.T, want, got []byte) {
 		len(want), want, len(got), got)
 }
 
+// TestSARIFStatusRuleFlagsSkippedScan is the #9612 P1 regression: a skipped
+// scan is a terminal non-clean verdict, so it must emit the evidence
+// incomplete warning result rather than exporting zero results.
+func TestSARIFStatusRuleFlagsSkippedScan(t *testing.T) {
+	t.Parallel()
+	ruleID, level, _ := sarifStatusRule(SnapshotStatus{ReadinessState: "target_skipped"})
+	if ruleID != sarifRuleEvidenceIncomplete {
+		t.Fatalf("sarifStatusRule(target_skipped) = %q, want %q", ruleID, sarifRuleEvidenceIncomplete)
+	}
+	if level != "warning" {
+		t.Fatalf("sarifStatusRule(target_skipped) level = %q, want %q", level, "warning")
+	}
+}
+
 func assertScopeNotLeaked(t *testing.T, raw []byte, scope Scope) {
 	t.Helper()
 	body := string(raw)

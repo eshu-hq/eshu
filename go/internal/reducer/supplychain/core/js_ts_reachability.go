@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
@@ -268,7 +269,7 @@ func npmPackageNameForReachability(finding SupplyChainImpactFinding) string {
 }
 
 func normalizeNPMName(value string) string {
-	return strings.ToLower(strings.TrimSpace(value))
+	return packageidentity.LowerASCII(strings.TrimSpace(value))
 }
 
 func npmPackageBaseName(packageName string) string {

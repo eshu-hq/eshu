@@ -107,6 +107,16 @@ type jvmRuntimeSnapshot struct {
 	Digest     string
 }
 
+type iacRuntimeSnapshot struct {
+	Extraction runtimedeclaration.Extraction
+	Digest     string
+}
+
+type rustRuntimeSnapshot struct {
+	Extraction runtimedeclaration.Extraction
+	Digest     string
+}
+
 type pythonRuntimeSnapshot struct {
 	Extraction runtimedeclaration.Extraction
 	Digest     string
@@ -153,6 +163,10 @@ type RepositorySnapshot struct {
 	JVMRuntimeExpected    bool                             `json:"-"`
 	DotNetRuntime         map[string]dotNetRuntimeSnapshot `json:"-"`
 	DotNetRuntimeExpected bool                             `json:"-"`
+	IACRuntime            map[string]iacRuntimeSnapshot    `json:"-"`
+	IACRuntimeExpected    bool                             `json:"-"`
+	RustRuntime           map[string]rustRuntimeSnapshot   `json:"-"`
+	RustRuntimeExpected   bool                             `json:"-"`
 	ContentFiles          []model.ContentFileSnapshot      `json:"content_files"`
 	ContentEntities       []model.ContentEntitySnapshot    `json:"content_entities"`
 	// GitRefs carries source-observed branch/ref heads for this repository.

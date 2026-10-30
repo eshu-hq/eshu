@@ -39,7 +39,7 @@ func ExitClassification(state string, count int) (int, string) {
 		return 3, "findings_present"
 	case "unsupported":
 		return 5, "unsupported"
-	case "not_configured", "target_incomplete", "evidence_incomplete", "readiness_unavailable":
+	case "not_configured", "target_incomplete", "target_skipped", "evidence_incomplete", "readiness_unavailable":
 		return 4, strings.TrimSpace(state)
 	default:
 		if count > 0 {

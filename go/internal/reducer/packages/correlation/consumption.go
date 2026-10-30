@@ -218,7 +218,7 @@ func ExtractPackageRegistryIdentities(envelopes []facts.Envelope) []PackageRegis
 			continue
 		}
 		packageID := payloadcore.PayloadStr(envelope.Payload, "package_id")
-		ecosystem := strings.ToLower(payloadcore.PayloadStr(envelope.Payload, "ecosystem"))
+		ecosystem := packageidentity.LowerASCII(payloadcore.PayloadStr(envelope.Payload, "ecosystem"))
 		if packageID == "" || ecosystem == "" {
 			continue
 		}
@@ -282,7 +282,7 @@ func ExtractPackageManifestDependencies(envelopes []facts.Envelope) []PackageMan
 		if repositoryID == "" {
 			continue
 		}
-		packageManager := strings.ToLower(packageManifestMetadataString(envelope.Payload, "package_manager"))
+		packageManager := packageidentity.LowerASCII(packageManifestMetadataString(envelope.Payload, "package_manager"))
 		lockfile := packageManifestMetadataBoolValue(envelope.Payload, "lockfile")
 		dependency := PackageManifestDependency{
 			FactID:                    envelope.FactID,

@@ -317,18 +317,25 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 2
+      # Restore here, save only on main push (last step). A PR-scoped copy is
+      # visible to that PR alone but counts against the 10 GB store, and it
+      # evicted main's entry (#9598). PR runs fall back to main's entry.
       - name: Restore Go build cache
-        uses: actions/cache@v4
+        id: gobuild-cache
+        uses: actions/cache/restore@v4
         with:
           path: /tmp/eshu-ci/go-build
           key: ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ hashFiles('go/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-${{ runner.arch }}-gobuild-
+      # cache: false because setup-go would cache `go env GOCACHE`, which is
+      # the build cache above, a second time (#9598). The pre-warm step below
+      # downloads the modules instead.
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
-          cache-dependency-path: go/go.sum
+          cache: false
       - name: Install ripgrep
         run: scripts/ci/install-apt-packages.sh ripgrep
         env:
@@ -345,6 +352,12 @@ jobs:
       - name: Record full plan mode
         if: ${{ github.event_name == 'pull_request' && needs.pr-plan.outputs.mode == 'full' }}
         run: test "${{ needs.pr-plan.outputs.mode }}" = full
+      - name: Save Go build cache
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.gobuild-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/eshu-ci/go-build
+          key: ${{ steps.gobuild-cache.outputs.cache-primary-key }}
   go-core-complete:
     needs: [changes, go-core, pr-plan]
     if: ${{ always() }}
@@ -383,8 +396,10 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 2
+      # Restore-only on PRs; main push saves at the last step (#9598).
       - name: Restore Go build cache
-        uses: actions/cache@v4
+        id: gobuildrace-cache
+        uses: actions/cache/restore@v4
         with:
           path: /tmp/eshu-ci/go-build
           # A race build stores different objects than go-core's plain build.
@@ -401,11 +416,13 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ runner.arch }}-gobuildrace-
             ${{ runner.os }}-${{ runner.arch }}-gobuild-
+      # cache: false: setup-go would store the build cache a second time
+      # (#9598). The pre-warm step downloads the modules.
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
-          cache-dependency-path: go/go.sum
+          cache: false
       # Repointed contract tests (internal/deploy, internal/runtime,
       # internal/cli/demo) read deploy assets from the pinned eshu-deploy
       # checkout and fail closed without ESHU_DEPLOY_CHECKOUT (#8871).
@@ -441,6 +458,14 @@ jobs:
           count="$(printf '%s\n' "${pkgs}" | wc -l | tr -d ' ')"
           echo "shard ${SHARD_INDEX}/${SHARD_TOTAL}: ${count} package(s)"
           printf '%s\n' "${pkgs}" | xargs go test -count=1 -race -timeout 900s -p 2
+      # The four shards share one key; the first to finish saves it and the
+      # others log a reserve warning, as before the restore/save split.
+      - name: Save Go build cache
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.gobuildrace-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/eshu-ci/go-build
+          key: ${{ steps.gobuildrace-cache.outputs.cache-primary-key }}
   go-race-complete:
     needs: [changes, go-race, pr-plan]
     if: ${{ always() }}

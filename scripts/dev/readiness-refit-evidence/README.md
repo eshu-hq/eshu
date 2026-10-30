@@ -25,7 +25,7 @@ out-of-sample all-shard max, shards over 1.15: 1.223, 2 of 80
 ALL MATCH
 ```
 
-It exits 0 only when all 15 checks match:
+It exits 0 only when all 19 checks match:
 
 - the refit over the nine pool runs is byte-identical to the committed
   `specs/live-postgres-readiness-weights.v2.json` and `.v1.json`. The v1 fit
@@ -34,6 +34,12 @@ It exits 0 only when all 15 checks match:
 - the pool check, refresher stdout, holdout fit and holdout table, the
   out-of-sample table, per-shard ratios, both row tails, main's plan, and the
   leave-one-run-out tables priced at p75 and at the mean match `expected/`
+  byte for byte;
+- the Prediction table's remaining rows match `expected/` byte for byte:
+  main's previous weights (#9495) scored on the pool and on the 14 older
+  runs outside its fit, and the pooled-mean full-pool fit scored on the 16
+  older runs;
+- the later cap-cancellation walls match `expected/cancelled-later.txt`
   byte for byte.
 
 `EVAL_REF` selects the commit whose `scripts/lib` and weights are evaluated.
@@ -61,17 +67,32 @@ on run 40913641758's shard-1 slice: 40915510776 attempts 1 and 2 (1822 s,
 1821 s), 40916025838 attempt 1 (1819 s) and 40933609276 attempt 1 (1819 s).
 The walls come from the jobs API, so their logs are not needed.
 
+Three more shard-1 cap cancellations followed after the leave-one-run-out
+tables were recorded: 40933609276 attempt 2 (1821 s, job 123678429637) and
+40951175891 attempts 1 and 2 (about 1819 s and 1806 s; job 123743298597 is
+the attempt-2 job).
+`reproduce.sh` re-derives the two attempt-2 walls from the archived jobs API
+listings with `refit_evidence.py walls` and checks them against
+`expected/cancelled-later.txt`. Attempt 1 of 40951175891 is recorded from the
+evidence note: it was read from the attempts API on 2026-10-29 and the jobs
+API now lists only the later attempt, so it cannot be re-fetched.
+
 ## Inputs and retention
 
 The data lives in `testdata/readiness-refit-evidence/`, because it is
-fixture data rather than tooling. `inputs.tar.gz` there (about 570 KB, 3.2 MB
+fixture data rather than tooling. `inputs.tar.gz` there (about 570 KB, 3.3 MB
 unpacked) holds `runs/<run id>/` for
-the 28 runs above, trimmed by `trim_inputs.py`:
+the 28 runs above plus the two later-cancellation runs described above,
+trimmed by `trim_inputs.py`:
 
 - `jobs.json` keeps job identity, timing and step outcomes only.
-- `run.json` keeps the fields the refresher's provenance check reads. Ten
-  older runs were fetched without it; they are only scored, which needs
-  `jobs.json` alone.
+- `run.json` keeps the fields the refresher's provenance check reads. Nine
+  older runs were fetched without it (40753558584, 40777558802, 40780015081,
+  40784467495, 40784513987, 40798562144, 40800579562, 40812860062,
+  40816391526); they are only scored, which needs `jobs.json` alone.
+- The two later-cancellation runs (40933609276, 40951175891) archive only
+  `run.json` and `jobs.json`: their cancelled shard-1 jobs carry no usable
+  shard log, and only the jobs API walls are re-derived from them.
 - `shardN.log` keeps only the lines that the refresher's parser, its
   runner-profile check and its provenance check match. The raw data for
   these runs, about 288 MB, is not archived.
@@ -101,12 +122,20 @@ python3 -I scripts/dev/readiness-refit-evidence/trim_inputs.py \
 tar -C PACK -cf - runs | gzip -n -9 > testdata/readiness-refit-evidence/inputs.tar.gz
 ```
 
+The two later-cancellation runs archive only the jobs API listings (no
+shard logs to trim), so refetch just those two files per run:
+
+```bash
+gh api repos/eshu-hq/eshu/actions/runs/40933609276 > RAW_DIR/40933609276/run.json
+gh api "repos/eshu-hq/eshu/actions/runs/40933609276/jobs?per_page=100" > RAW_DIR/40933609276/jobs.json
+```
+
 ## Files
 
 | File | What it does |
 | --- | --- |
 | `reproduce.sh` | Runs every step and compares with `expected/` |
-| `refit_evidence.py` | Subcommands `poolcheck`, `score`, `shards`, `tail`, `loo`, `plan`, `fixed` |
+| `refit_evidence.py` | Subcommands `poolcheck`, `score`, `shards`, `tail`, `loo`, `plan`, `fixed`, `walls` |
 | `fetch.sh` | Fetches `run.json`, `jobs.json` and shard logs with `gh api` |
 | `trim_inputs.py` | Reduces fetched runs to the archived form |
 | `testdata/readiness-refit-evidence/expected/` | Outputs recorded when the refit was made |
@@ -114,23 +143,18 @@ tar -C PACK -cf - runs | gzip -n -9 > testdata/readiness-refit-evidence/inputs.t
 
 ## Not covered
 
-`reproduce.sh` checks the pooled p75 prices. These figures in the note can
-be computed with the scripts here but have no expected file:
+`reproduce.sh` checks the pooled p75 prices, the rows priced with main's
+previous weights (#9495), the out-of-sample "Pooled mean" row, and the two
+re-fetchable later-cancellation walls. These figures in the note are still
+prose only:
 
-- the rows priced with main's previous weights (#9495): score
-  `git show 4f3e4d862c:specs/live-postgres-readiness-weights.v2.json` with
-  `refit_evidence.py score`;
-- the out-of-sample "Pooled mean" row (all-shard max 1.311, 24 of 80).
-  Run `refit_evidence.py loo OUT --mean` with the arguments `reproduce.sh`
-  uses, then `refit_evidence.py score POOL_IDS --weights OUT/full.json
-  --runs` with the 16 older runs. `--mean` forces mean pricing on the p75
-  refresher, and `OUT/full.json` is the full-pool mean fit;
-- the shard-1 speed diagnosis linked from the note.
+- the shard-1 speed diagnosis linked from the note;
+- 40951175891 attempt 1 (about 1819 s): superseded in the jobs API, recorded
+  from the attempts API read of 2026-10-29 (see above).
 
-The note counts a fifth cancelled job, 40933609276 attempt 2 (1821 s), which
-ended after `expected/loo-p75.txt` was recorded. That job and the two later
-cancellations in run 40951175891 appear in the note's prose only. The summary
-lines of both leave-one-run-out tables also count the four recorded
+The summary lines of both leave-one-run-out tables count the four recorded
 cancelled jobs inside their shard-1 denominators (`0/23` for the extra runs,
 `0/32` for all), where the note reports 19 completed jobs and 5 cancelled
-ones separately.
+ones separately. Those tables record the fit-time state and are intentionally
+unchanged; the later cancellations are covered by `cancelled-later.txt`
+instead.

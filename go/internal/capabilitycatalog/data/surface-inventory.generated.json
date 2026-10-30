@@ -188,6 +188,11 @@
     },
     {
       "category": "api_route",
+      "name": "GET /api/v0/cloud/ssm-host-inventory",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
       "name": "GET /api/v0/codeowners/ownership",
       "readiness": "implemented"
     },
@@ -3569,6 +3574,11 @@
     },
     {
       "category": "mcp_tool",
+      "name": "list_ssm_host_inventory",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
       "name": "list_supply_chain_impact_findings",
       "readiness": "implemented"
     },
@@ -4060,6 +4070,11 @@
     {
       "category": "reducer_domain",
       "name": "sql_relationships",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "ssm_host_inventory_materialization",
       "readiness": "implemented"
     },
     {
