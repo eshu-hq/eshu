@@ -829,3 +829,6 @@ read_exemptions:
   - callsite: internal/graph/legacy/workload/detect.go:Detect
     anchor: "MATCH (w:Workload) WHERE 'workload:' + w.name = w.id AND w.generation_id IS NULL AND w.id > $after"
     reason: "#8795 operator probe for pre-#5385 name-only Workload nodes (the hosted readiness leftover count, offered on Neo4j only); the B-7 corpus writes every Workload with a workload:<repo_id>:<name> id and a generation_id, so the candidate page is empty on every execution; adding a legacy-shaped node to the corpus would move the node-count snapshot for a state the platform no longer produces"
+  - callsite: internal/query/ssm_host_inventory_committed.go:readSSMCommittedSeeds
+    anchor: "MATCH (seed) WHERE ($all_scopes OR seed.scope_id IN $scope_ids)"
+    reason: "committed-seed legs (#9602); the unlabeled anchor covers both label members (SSMHostApplication and SSMHostPlatform) as one dispatch family. The B-7 corpus carries no SSM host fixtures by design, so both legs return empty on both backends; adding SSM fixtures would move the node-count snapshot for data the corpus does not model"
