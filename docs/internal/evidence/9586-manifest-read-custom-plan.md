@@ -101,7 +101,7 @@ The generic-plan switch is gone. After the four reads on the one connection,
 14 and 15 generic plans against 5 custom each. Under `fix` it held none (the
 one remaining match is the probe query's own text).
 
-Regression test: `TestListActivePackageManifestDependencyFactsPlansEveryPageCustom`
+Regression test: `TestListActivePackageManifestDependencyFactsPassesCacheDescribeEveryPage`
 fails on origin/main (no exec mode on any page) and passes with the change, for
 the plain query over two pages and the Maven-family query.
 

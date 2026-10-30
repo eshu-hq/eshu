@@ -40,11 +40,22 @@ import (
 const manifestDependencyQueryExecMode = pgx.QueryExecModeCacheDescribe
 
 // Read label values of the eshu_dp_package_manifest_dependency_read_*
-// histograms: which query text the read ran.
+// histograms: which query text the read ran. unclassified marks a query text
+// missing from manifestDependencyReadLabels, which
+// TestManifestDependencyQueryTextsAllHaveReadLabels refuses.
 const (
-	manifestDependencyReadPlain       = "plain"
-	manifestDependencyReadMavenFamily = "maven_family"
+	manifestDependencyReadPlain        = "plain"
+	manifestDependencyReadMavenFamily  = "maven_family"
+	manifestDependencyReadUnclassified = "unclassified"
 )
+
+// manifestDependencyReadLabels names the read label of every query text
+// activePackageManifestDependencyQuery can return. A new text needs a row
+// here; without one its reads record read=unclassified, not plain.
+var manifestDependencyReadLabels = map[string]string{
+	listActivePackageManifestDependencyFactsQuery:        manifestDependencyReadPlain,
+	listActivePackageManifestDependencyFactsWithSBTQuery: manifestDependencyReadMavenFamily,
+}
 
 // recordManifestDependencyRead records one completed manifest dependency
 // read: its wall time since started and its page count, labeled by which query
@@ -54,9 +65,9 @@ func (s FactStore) recordManifestDependencyRead(ctx context.Context, query strin
 	if s.instruments == nil {
 		return
 	}
-	read := manifestDependencyReadPlain
-	if query == listActivePackageManifestDependencyFactsWithSBTQuery {
-		read = manifestDependencyReadMavenFamily
+	read, ok := manifestDependencyReadLabels[query]
+	if !ok {
+		read = manifestDependencyReadUnclassified
 	}
 	attrs := metric.WithAttributes(telemetry.AttrRead(read))
 	if s.instruments.PackageManifestDependencyReadDuration != nil {

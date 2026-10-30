@@ -37,15 +37,19 @@ func manifestDependencyFakeRow(i int) []any {
 	}
 }
 
-// TestListActivePackageManifestDependencyFactsPlansEveryPageCustom is the
-// regression guard for #9586. Under pgx's default QueryExecModeCacheStatement
-// each SQL text becomes a named prepared statement, and PostgreSQL switches it
-// to the generic plan from the sixth execution on a connection. The generic
+// TestListActivePackageManifestDependencyFactsPassesCacheDescribeEveryPage is
+// the regression guard for #9586. The fake sees only the exec-mode argument;
+// the custom plan it buys is proven on PostgreSQL in
+// docs/internal/evidence/9586-manifest-read-custom-plan.md.
+//
+// Under pgx's default QueryExecModeCacheStatement each SQL text becomes a
+// named prepared statement, and PostgreSQL switches it to the generic plan
+// from the sixth execution on a connection. The generic
 // plan compares entity_name against the $2 Param array linearly on every
 // scanned row (a hashed ScalarArrayOp needs a Const array). Every page of both
 // query texts must therefore run on the unnamed statement, which PostgreSQL
 // plans with the bound values each time.
-func TestListActivePackageManifestDependencyFactsPlansEveryPageCustom(t *testing.T) {
+func TestListActivePackageManifestDependencyFactsPassesCacheDescribeEveryPage(t *testing.T) {
 	t.Parallel()
 
 	fullPage := make([][]any, 0, listFactsByKindPageSize)

@@ -7,8 +7,9 @@ signals cover one whole read, across all of its pages (#9586).
 
 The `read` label names the query text that ran: `plain` for every ecosystem
 except Maven, `maven_family` for the Maven query that also reaches Gradle and
-sbt rows. Only completed reads record a sample; a failed read surfaces as the
-reducer intent's failure.
+sbt rows. `unclassified` means a query text shipped without a label; a test
+refuses that, so seeing it is a bug to report. Only completed reads record a
+sample; a failed read surfaces as the reducer intent's failure.
 
 - `eshu_dp_package_manifest_dependency_read_seconds`: histogram of one read's
   wall time, labeled `read`.

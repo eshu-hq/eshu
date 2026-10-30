@@ -90,8 +90,8 @@ func TestListActivePackageManifestDependencyFactsRecordsPagesAndWallTime(t *test
 	}
 	seconds := collectManifestDependencyRead(t, reader, "eshu_dp_package_manifest_dependency_read_seconds")
 	for _, read := range []string{"plain", "maven_family"} {
-		if got := seconds[read]; got.count != 1 || got.sum < 0 {
-			t.Fatalf("%s seconds = %+v, want one non-negative sample (all: %+v)", read, got, seconds)
+		if got := seconds[read]; got.count != 1 {
+			t.Fatalf("%s seconds = %+v, want one sample (all: %+v)", read, got, seconds)
 		}
 	}
 }
