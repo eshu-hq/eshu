@@ -29,6 +29,7 @@ type declaration struct {
 var fileRuntime = map[string]string{
 	sourceKindNvmrc:             "node",
 	sourceKindPHPVersion:        "php",
+	sourceKindPerlVersion:       "perl",
 	sourceKindNodeVersion:       "node",
 	sourceKindPythonVersion:     "python",
 	sourceKindRubyVersion:       "ruby",

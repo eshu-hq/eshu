@@ -37,6 +37,7 @@ const (
 	sourceKindSetupPYRequires           = "setup_py_python_requires"
 	sourceKindGemfileRuby               = "gemfile_ruby"
 	sourceKindGemfileLockRuby           = "gemfile_lock_ruby_version"
+	sourceKindCpanfilePerl              = "cpanfile_perl"
 	sourceKindDotNetGlobalSDK           = "dotnet_global_json_sdk"
 	sourceKindDotNetTargetFramework     = "dotnet_csproj_target_framework"
 	sourceKindDotNetTargetFrameworks    = "dotnet_csproj_target_frameworks"
@@ -80,6 +81,7 @@ const (
 	sectionSetupPYRequires
 	sectionGemfileRuby
 	sectionGemfileLockRuby
+	sectionCpanfilePerl
 	sectionDotNetGlobalSDK
 	sectionDotNetTargetFramework
 	sectionDotNetTargetFrameworks
@@ -121,6 +123,7 @@ var sectionSourceKinds = [...]string{
 	sectionSetupPYRequires:           sourceKindSetupPYRequires,
 	sectionGemfileRuby:               sourceKindGemfileRuby,
 	sectionGemfileLockRuby:           sourceKindGemfileLockRuby,
+	sectionCpanfilePerl:              sourceKindCpanfilePerl,
 	sectionDotNetGlobalSDK:           sourceKindDotNetGlobalSDK,
 	sectionDotNetTargetFramework:     sourceKindDotNetTargetFramework,
 	sectionDotNetTargetFrameworks:    sourceKindDotNetTargetFrameworks,
@@ -163,6 +166,7 @@ const (
 	manifestSetupPY
 	manifestGemfile
 	manifestGemfileLock
+	manifestCpanfile
 	manifestDotNetGlobal
 	manifestDotNetProject
 	manifestPom
@@ -222,6 +226,8 @@ func manifestKindForBase(base, relativePath string) manifestKind {
 		kind = manifestGemfile
 	case base == "Gemfile.lock":
 		kind = manifestGemfileLock
+	case base == "cpanfile":
+		kind = manifestCpanfile
 	case base == "global.json":
 		kind = manifestDotNetGlobal
 	case path.Ext(base) == ".csproj":

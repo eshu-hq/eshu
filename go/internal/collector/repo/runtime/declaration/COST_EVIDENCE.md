@@ -326,3 +326,30 @@ The over_tokens skip keeps the existing WARN
 `git_runtime_declaration_file_skipped` with the same labels; only the
 TokenCount it carries becomes the measured count instead of a hardcoded
 constant.
+
+## Perl collector cost and signals (#9308)
+
+Performance Evidence (#9308, 2026-10-30): a paired, sequential local
+benchmark ran the shared emission bench on the branch base `0701a4ae` and
+the Perl lane head `fa73890f`
+(`go test ./internal/collector/repo/runtime/declaration/ -run '^$' -bench
+'^BenchmarkEmitPackageJSON$' -benchtime=300ms -count=3 -benchmem`, Go
+1.26.6, linux/arm64, 16 CPUs; no graph or Postgres backend): base
+67,383/100,098/97,160 ns/op against head 91,977/77,799/68,393 ns/op, with
+620 allocs/op and ~37 KB/op on every run of both. A temporary harness
+measured the two new bodies through the production `EmitFile` path at head
+only (removed after the run): the 27-byte cpanfile emits 1 envelope at
+19,355-37,735 ns/op and 121 allocs/op, and the 7-byte `.perl-version`
+emits 1 envelope at 22,574-42,781 ns/op and 115 allocs/op.
+
+No-Regression Evidence: the shared package.json path keeps identical allocs
+with timings inside the same host-noise band; the new readers run only for
+the two new file names (exact-name registry dispatch plus one manifest
+switch case), so every other input takes the same code path plus one map
+entry and one failed string compare. The collector keeps the existing
+per-file byte and token caps, so an over-cap cpanfile emits no fact.
+
+No-Observability-Change: no metric, span, or log key was added. Capped and
+guarded cpanfile values reuse the existing WARN
+`git_runtime_declaration_file_skipped` and
+`git_runtime_declaration_values_rejected` with the same labels.
