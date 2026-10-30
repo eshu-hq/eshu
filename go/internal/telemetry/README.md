@@ -57,7 +57,7 @@ flowchart LR
   B --> E["telemetry.NewLogger\n(TraceHandler + slog.Logger)"]
   D --> F["internal/projector\ninternal/reducer\ninternal/collector\n..."]
   E --> F
-  C --> G["/metrics endpoint\n(Prometheus always active)"]
+  C --> G["/metrics endpoint\n(Prometheus always active,\nplus Go runtime and process collectors)"]
   C --> H["OTLP gRPC exporters\n(when OTEL_EXPORTER_OTLP_ENDPOINT set)"]
 ```
 

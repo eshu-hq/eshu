@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
@@ -144,6 +145,15 @@ func createMeterProvider(ctx context.Context, res *resource.Resource, hasOTLP bo
 	// attribute (host, process, sdk version, etc.) into the metric
 	// label set.
 	registry := prometheus.NewRegistry()
+	// Go runtime and process memory series (go_memstats_*, go_gc_*,
+	// process_resident_memory_bytes) sit beside the OTEL output on the same
+	// private registry. Without them an operator cannot see a heap burst
+	// against GOMEMLIMIT and the container limit (#9567). They carry no
+	// resource labels; scrape-target labels identify the service.
+	registry.MustRegister(
+		collectors.NewGoCollector(),
+		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
+	)
 	promExporter, err := otelprom.New(
 		otelprom.WithRegisterer(registry),
 		otelprom.WithResourceAsConstantLabels(

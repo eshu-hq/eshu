@@ -49,7 +49,17 @@ Use it to detect:
 
 ## Go Memory Limit
 
-`eshu_dp_gomemlimit_bytes` exposes the `GOMEMLIMIT` value configured at startup.
+`eshu_dp_gomemlimit_bytes` exposes the Go runtime's effective memory limit,
+read at each scrape. It covers a limit from the `GOMEMLIMIT` environment
+variable and one derived from the container cgroup. Before #9567 an env-set
+limit read `0` and the reducer did not register the gauge at all.
+
+Every runtime's `/metrics` also carries the Go runtime and process series:
+`go_memstats_heap_alloc_bytes`, `go_memstats_heap_inuse_bytes`,
+`go_memstats_heap_released_bytes`, `go_memstats_sys_bytes`,
+`go_gc_duration_seconds`, and `process_resident_memory_bytes` on Linux. Compare
+heap alloc against `eshu_dp_gomemlimit_bytes` and the container limit to tell a
+heap burst from non-heap growth.
 
 Use it with container RSS from cAdvisor, Docker, or your runtime platform:
 

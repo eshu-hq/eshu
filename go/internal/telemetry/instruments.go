@@ -9,6 +9,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
+	"runtime/debug"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -8662,18 +8664,28 @@ func RegisterTfstateSchemaResolverEntries(meter metric.Meter, counter func() int
 	return err
 }
 
-// RecordGOMEMLIMIT registers and records the applied GOMEMLIMIT as a gauge.
-// Call once at startup after instruments and memlimit are configured.
-func RecordGOMEMLIMIT(meter metric.Meter, limitBytes int64) error {
+// RecordGOMEMLIMIT registers eshu_dp_gomemlimit_bytes, which reports the Go
+// runtime's effective soft memory limit at each collection. It reads the live
+// limit (runtime/debug.SetMemoryLimit(-1)), so it covers a limit from the
+// GOMEMLIMIT environment variable, from runtime.ConfigureMemoryLimit's cgroup
+// detection, or from a later change; it reports 0 when no limit is set. Call
+// once at startup after runtime.ConfigureMemoryLimit. Before #9567 the gauge
+// recorded ConfigureMemoryLimit's return value, which is 0 when the limit came
+// from the environment, and the reducer never registered it.
+func RecordGOMEMLIMIT(meter metric.Meter) error {
 	if meter == nil {
 		return nil
 	}
 	_, err := meter.Int64ObservableGauge(
 		"eshu_dp_gomemlimit_bytes",
-		metric.WithDescription("Configured GOMEMLIMIT in bytes"),
+		metric.WithDescription("Effective Go runtime memory limit (GOMEMLIMIT) in bytes; 0 when no limit is set"),
 		metric.WithUnit("By"),
 		metric.WithInt64Callback(func(_ context.Context, o metric.Int64Observer) error {
-			o.Observe(limitBytes)
+			limit := debug.SetMemoryLimit(-1)
+			if limit == math.MaxInt64 {
+				limit = 0
+			}
+			o.Observe(limit)
 			return nil
 		}),
 	)

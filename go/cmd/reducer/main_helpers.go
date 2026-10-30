@@ -411,3 +411,16 @@ func newRepoDependencyProjectionRunner(
 		Logger:              logger,
 	}
 }
+
+// configureMemoryTelemetry applies the container-derived Go memory limit (an
+// explicit GOMEMLIMIT environment variable still wins) and registers
+// eshu_dp_gomemlimit_bytes, matching the ingester, projector, bootstrap-index,
+// and webhook-listener startup. The reducer skipped both before #9567, so its
+// /metrics carried no memory-limit signal during the QA OOM kills.
+func configureMemoryTelemetry(logger *slog.Logger, meter metric.Meter) error {
+	runtimecfg.ConfigureMemoryLimit(logger)
+	if err := telemetry.RecordGOMEMLIMIT(meter); err != nil {
+		return fmt.Errorf("register gomemlimit gauge: %w", err)
+	}
+	return nil
+}

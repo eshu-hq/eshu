@@ -55,4 +55,9 @@
 // When ESHU_PPROF_ADDR is set, the binary also exposes an opt-in
 // net/http/pprof endpoint via runtime.NewPprofServer, bound to 127.0.0.1
 // for port-only inputs so the default does not reach beyond the local host.
+//
+// At startup the binary applies the container-derived Go memory limit (an
+// explicit GOMEMLIMIT wins) and registers eshu_dp_gomemlimit_bytes, like the
+// other data-plane runtimes; its /metrics also carries the Go runtime and
+// process memory series (#9567).
 package main

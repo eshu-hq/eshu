@@ -69,8 +69,8 @@ func run(parent context.Context) error {
 	if err != nil {
 		return fmt.Errorf("telemetry instruments: %w", err)
 	}
-	memLimit := runtimecfg.ConfigureMemoryLimit(logger)
-	if err := telemetry.RecordGOMEMLIMIT(meter, memLimit); err != nil {
+	runtimecfg.ConfigureMemoryLimit(logger)
+	if err := telemetry.RecordGOMEMLIMIT(meter); err != nil {
 		return fmt.Errorf("register gomemlimit gauge: %w", err)
 	}
 	cfg, err := loadWebhookListenerConfig(os.Getenv)

@@ -54,6 +54,9 @@ func run(parent context.Context) error {
 	if err != nil {
 		return fmt.Errorf("telemetry instruments: %w", err)
 	}
+	if err := configureMemoryTelemetry(logger, meter); err != nil {
+		return err
+	}
 
 	logger.Info("starting reducer")
 
