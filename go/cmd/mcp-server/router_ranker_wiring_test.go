@@ -100,8 +100,10 @@ func TestMCPServerFindToolReturnsCandidatesWithTheProductionRanker(t *testing.T)
 // ranker build (rank.NewWithoutCatalog, the source the eshu-mcp port mirrors,
 // #9521 blocker 3) accepts a router-surface find_tool request and ranks it:
 // no startup refusal, no mcp_router_ranker_unavailable, and a named top
-// candidate. The builder ignores the loaded catalog entries, so the proof
-// holds for a registry that carries none.
+// candidate. The constructor builds from the registry tools alone; the HTTP
+// stack still supplies the loaded catalog entries at Rank time, so the
+// catalog-free Rank path itself (nil entries, no rebuild, CostHigh default)
+// is pinned by TestNewWithoutCatalogRanksWithNilEntries in router/rank.
 func TestMCPServerRouterSurfaceRanksWithoutCatalogEntries(t *testing.T) {
 	t.Parallel()
 
