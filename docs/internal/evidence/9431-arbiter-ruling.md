@@ -20,39 +20,39 @@ re-read by the arbiter in `/home/ubuntu/personal-repos/eshu` at ruling time.
 1. Retention never retires an active generation. The policy bounds only
    superseded source-local generations; "the active generation and the newest
    superseded generations inside the count or age window are never candidates"
-   ([generation_retention_policy.go](/home/ubuntu/personal-repos/eshu/go/internal/storage/postgres/generation_retention_policy.go:42)).
+   ([generation_retention_policy.go](https://github.com/eshu-hq/eshu/blob/761f65e2f717e861e651cecec1b4eb5e1e635ec3/go/internal/storage/postgres/generation_retention_policy.go#L42)).
    A prune candidate must have `status='superseded'` AND
    `generation_id IS DISTINCT FROM scope.active_generation_id`
-   ([targeted_candidate_lock.go](/home/ubuntu/personal-repos/eshu/go/internal/storage/postgres/retention/statements/targeted_candidate_lock.go:116)).
+   ([targeted_candidate_lock.go](https://github.com/eshu-hq/eshu/blob/761f65e2f717e861e651cecec1b4eb5e1e635ec3/go/internal/storage/postgres/retention/statements/targeted_candidate_lock.go#L116)).
    A scope never collected again keeps its stale active generation forever.
    Waiting is not a mechanism.
 2. Supersede is same-scope-only, at ack:
    `supersedeProjectorActiveGenerationQuery` updates `WHERE scope_id = $2 AND
    generation_id <> $3 AND status = 'active'`
-   ([projector_queue_sql.go](/home/ubuntu/personal-repos/eshu/go/internal/storage/postgres/projector_queue_sql.go:43)).
+   ([projector_queue_sql.go](https://github.com/eshu-hq/eshu/blob/761f65e2f717e861e651cecec1b4eb5e1e635ec3/go/internal/storage/postgres/projector_queue_sql.go#L43)).
    Superseded is terminal for the ack/replay paths
-   ([projector_queue_sql.go](/home/ubuntu/personal-repos/eshu/go/internal/storage/postgres/projector_queue_sql.go:53),
+   ([projector_queue_sql.go](https://github.com/eshu-hq/eshu/blob/761f65e2f717e861e651cecec1b4eb5e1e635ec3/go/internal/storage/postgres/projector_queue_sql.go#L53),
    fence at :349).
 3. OSV scope ids are the batch string: `vuln-intel://osv/%s/_batch?` plus
    `query=<name>@<version>&...`
-   ([intelligence_chunk_sizer.go](/home/ubuntu/personal-repos/eshu/go/internal/coordinator/vulnerability/intelligence_chunk_sizer.go:21),
+   ([intelligence_chunk_sizer.go](https://github.com/eshu-hq/eshu/blob/761f65e2f717e861e651cecec1b4eb5e1e635ec3/go/internal/coordinator/vulnerability/intelligence_chunk_sizer.go#L21),
    :59). Old batches do not recur except by coincidence (lane measured 3/139),
    so ack-supersede will not reach these generations.
 4. The data loss was the retired collector's stable key, not a storage bug.
    `deduplicateEnvelopes` keep-last-per-fact-id is the documented contract
-   ([facts.go](/home/ubuntu/personal-repos/eshu/go/internal/storage/postgres/facts.go:345),
+   ([facts.go](https://github.com/eshu-hq/eshu/blob/761f65e2f717e861e651cecec1b4eb5e1e635ec3/go/internal/storage/postgres/facts.go#L345),
    body :355-375). It stays unchanged.
 5. The impact matcher reads only facts whose generation is the scope's active
-   one ([branches.go](/home/ubuntu/personal-repos/eshu/go/internal/storage/postgres/facts/impact/branches.go:77),
+   one ([branches.go](https://github.com/eshu-hq/eshu/blob/761f65e2f717e861e651cecec1b4eb5e1e635ec3/go/internal/storage/postgres/facts/impact/branches.go#L77),
    predicate :81, :91). Clearing `active_generation_id` removes a
    generation's facts from matcher input on the next normal reducer cycle. No
    new notification machinery is needed.
 6. No generation→instance link exists for a general rule to join on.
    `scope_generations` has no collector instance column
-   ([002_scope_generations.sql](/home/ubuntu/personal-repos/eshu/schema/data-plane/postgres/002_scope_generations.sql:1));
+   ([002_scope_generations.sql](https://github.com/eshu-hq/eshu/blob/761f65e2f717e861e651cecec1b4eb5e1e635ec3/schema/data-plane/postgres/002_scope_generations.sql:1));
    the instance stamp lives on facts. A collector instance registry with
    `deactivated_at` does exist
-   ([015_workflow_coordinator_state.sql](/home/ubuntu/personal-repos/eshu/schema/data-plane/postgres/015_workflow_coordinator_state.sql:1)),
+   ([015_workflow_coordinator_state.sql](https://github.com/eshu-hq/eshu/blob/761f65e2f717e861e651cecec1b4eb5e1e635ec3/schema/data-plane/postgres/015_workflow_coordinator_state.sql:1)),
    but nothing joins it to generations, and no deactivated-instance rule
    exists in retention SQL, policy, or wiring (arbiter searched
    `deactivat|decommission|retire` over `go/internal/storage/postgres`).
@@ -113,7 +113,7 @@ proof.
    the retired in-tree QA instance, none stamped any other instance
    (mixed-instance generation → exclude and report), and no in-flight work
    (`fact_work_items.status IN ('claimed','running','retrying')`, mirroring
-   [targeted_candidate_lock.go](/home/ubuntu/personal-repos/eshu/go/internal/storage/postgres/retention/statements/targeted_candidate_lock.go:140)).
+   [targeted_candidate_lock.go](https://github.com/eshu-hq/eshu/blob/761f65e2f717e861e651cecec1b4eb5e1e635ec3/go/internal/storage/postgres/retention/statements/targeted_candidate_lock.go#L140)).
    Class W = candidates holding an advisory on the multi-entry list: the
    `eshu-9421-scan` list if locatable, else regenerated read-only against
    api.osv.dev at run time; the list is committed either way.
@@ -124,7 +124,7 @@ proof.
    `ingestion_scopes.status` consumers and picks the value an existing
    no-active-generation path writes (precedent: `failProjectorWorkQuery`
    clears the pointer with `status='failed'`,
-   [projector_queue_sql.go](/home/ubuntu/personal-repos/eshu/go/internal/storage/postgres/projector_queue_sql.go:239));
+   [projector_queue_sql.go](https://github.com/eshu-hq/eshu/blob/761f65e2f717e861e651cecec1b4eb5e1e635ec3/go/internal/storage/postgres/projector_queue_sql.go#L239));
    no invented status value.
 4. **Replacement pass.** Run/await one normal coordinator + satellite cycle.
    GHSA-67hx-6x53-jw92 (`@babel/traverse`) must end with satellite facts
@@ -135,7 +135,7 @@ proof.
    `(scope_id, generation_id)` order `FOR UPDATE` (retention lock doctrine);
    set `status='superseded'`, `superseded_at=now()`,
    `payload = payload || {"retired_issue":"9431","retired_at":…}` (payload
-   column: [002_scope_generations.sql](/home/ubuntu/personal-repos/eshu/schema/data-plane/postgres/002_scope_generations.sql:13));
+   column: [002_scope_generations.sql](https://github.com/eshu-hq/eshu/blob/761f65e2f717e861e651cecec1b4eb5e1e635ec3/schema/data-plane/postgres/002_scope_generations.sql:13));
    clear the scope pointer per step 3. Export `(scope_id, generation_id,
    prior scope status)` to the evidence before commit as the rollback key.
 6. **Re-trigger.** Await the next normal reducer supply-chain-impact cycle

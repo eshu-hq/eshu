@@ -23,7 +23,8 @@
 -- Scope-status choice (ruling step 3): set ingestion_scopes.status='failed'
 -- with active_generation_id=NULL, the value the existing no-active-generation
 -- path writes (failProjectorWorkQuery clears the pointer with status='failed',
--- go/internal/storage/postgres/projector_queue_sql.go:239-254). Consumers:
+-- https://github.com/eshu-hq/eshu/blob/761f65e2f717e861e651cecec1b4eb5e1e635ec3/go/internal/storage/postgres/projector_queue_sql.go#L239-L254).
+-- Consumers:
 -- impact matcher keys on the pointer plus generation status and never reads
 -- scope.status (facts/impact/branches.go:77-91); recover-generations reports a
 -- failed scope with only superseded generations as no_recoverable_generation,
