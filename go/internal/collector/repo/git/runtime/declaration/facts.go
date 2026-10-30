@@ -152,6 +152,27 @@ func NoteParsedIACCandidate(candidates map[string]Candidate, relativePath string
 	candidates[relativePath] = Candidate{Manifest: true, Extraction: extraction}
 }
 
+// NoteParsedRustCandidate stores guarded native Cargo parser evidence.
+func NoteParsedRustCandidate(candidates map[string]Candidate, relativePath string, extraction runtimedeclaration.Extraction) {
+	if runtimedeclaration.ClassifyPath(relativePath) != runtimedeclaration.FileManifest {
+		return
+	}
+	if extraction.Len() == 0 && !extraction.Skip().Skipped() {
+		return
+	}
+	candidates[relativePath] = Candidate{Manifest: true, Extraction: extraction}
+}
+
+// NoteUnavailableRustCandidate records a missing Cargo parse for retry.
+func NoteUnavailableRustCandidate(candidates map[string]Candidate, relativePath string, byteSize int) {
+	candidates[relativePath] = Candidate{Manifest: true, Extraction: runtimedeclaration.UnavailableRustExtraction(byteSize)}
+}
+
+// NoteCappedRustCandidate records a bounded Cargo manifest skip.
+func NoteCappedRustCandidate(candidates map[string]Candidate, relativePath string, byteSize int) {
+	candidates[relativePath] = Candidate{Manifest: true, Extraction: runtimedeclaration.CappedRustExtraction(byteSize)}
+}
+
 // NoteUnavailableIACCandidate records a parser miss for a retry.
 func NoteUnavailableIACCandidate(candidates map[string]Candidate, relativePath string, byteSize int) {
 	candidates[relativePath] = Candidate{Manifest: true, Extraction: runtimedeclaration.UnavailableIACExtraction(byteSize)}
