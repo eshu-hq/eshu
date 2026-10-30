@@ -150,7 +150,6 @@ live in the repository today.
 The service boundary is explicit in `go/cmd/`:
 
 - `api/`: HTTP API binary
-- `mcp-server/`: MCP server binary
 - `eshu/`: top-level CLI
 - `bootstrap-index/`: one-shot indexing seed
 - `collector-git/`: local collector verification runtime

@@ -31,14 +31,14 @@ import (
 // deployment whose only credentials are DB-resident) is accepted, visible via
 // logAuthEnforcementPosture, and closable with any one of the three env vars.
 //
-// F-7 (#5168) is merged. cmd/mcp-server/wiring.go computes the identical
-// expression once, as authSourceConfigured, and threads it into both its
-// startup gate (requireMCPHTTPCredentialSource) and its per-request
-// middleware (buildTransportAuthMiddleware, covering /api/v0/* and the MCP
-// HTTP transport alike). This copy stays separate rather than moving to a
-// shared cross-package helper: cmd/api and cmd/mcp-server wire their own
-// credential sources independently, so a shared helper would only take the
-// same three already-resolved inputs this function does.
+// F-7 (#5168) is merged. cmd/mcp-server/wiring.go used to compute the
+// identical expression once, as authSourceConfigured, threading it into both
+// its startup gate (requireMCPHTTPCredentialSource) and its per-request
+// middleware (buildTransportAuthMiddleware); that entrypoint was removed
+// under eshu-hq/eshu#9670. This copy stays separate rather than moving to a
+// shared cross-package helper: each entrypoint wires its own credential
+// sources independently, so a shared helper would only take the same three
+// already-resolved inputs this function does.
 func authEnforcementConfigured(
 	apiKey string,
 	fileResolver query.ScopedTokenResolver,

@@ -26,7 +26,7 @@ before restarting services or reindexing.
 | Runtime | Command | Owns | Helm template |
 | --- | --- | --- | --- |
 | API | `eshu api start --host 0.0.0.0 --port <service.port>` | HTTP query/admin reads plus the all-scopes vulnerability-suppression policy mutation. | `deployment.yaml` |
-| MCP Server | Helm: `eshu mcp start --transport http`; Compose: `/usr/local/bin/eshu-mcp-server` | MCP transport over the query surface. | `deployment-mcp-server.yaml` |
+| MCP Server | Helm: `eshu mcp start --transport http`; satellite `eshu-hq/eshu-mcp` | MCP transport over the query surface. | `deployment-mcp-server.yaml` |
 | Ingester | `/usr/local/bin/eshu-ingester` | Repository workspace, sync, parsing, fact emission. | `statefulset.yaml` |
 | Resolution Engine | `/usr/local/bin/eshu-reducer` | Reducer queue, projection, replay, retry, recovery. | `deployment-resolution-engine.yaml` |
 | Workflow Coordinator | `/usr/local/bin/eshu-workflow-coordinator` | Collector instance reconciliation and claim lifecycle. | `deployment-workflow-coordinator.yaml` |

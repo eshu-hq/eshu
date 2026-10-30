@@ -1082,7 +1082,7 @@
       "proof_signals": [
         {
           "kind": "go_test",
-          "ref": "./internal/query ./internal/mcp ./cmd/mcp-server"
+          "ref": "./internal/query ./internal/mcp"
         },
         {
           "kind": "remote_validation",
