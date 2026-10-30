@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/recordpolicy"
+	"github.com/eshu-hq/eshu/go/internal/replay/record"
 )
 
 // TestShortNumericTagValuesAreKept (round 5 F13): a numeric tag value of
@@ -25,7 +25,7 @@ func TestShortNumericTagValuesAreKept(t *testing.T) {
 		"tags":       map[string]any{"Name": "317", "CostCenter": "4711"},
 	})
 	gen = withRefs(gen, "aws:iam:"+acct+":role:317", "aws://iam/"+acct+"/role/317", "317")
-	_, envs, _ := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{gen}}, key, recordpolicy.Policy())
+	_, envs, _ := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{gen}}, key, record.Policy())
 	env := envs[0][0]
 	tags, _ := env.Payload["tags"].(map[string]any)
 	for label, got := range map[string]string{

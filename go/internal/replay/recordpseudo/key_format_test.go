@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/recordpolicy"
+	"github.com/eshu-hq/eshu/go/internal/replay/record"
 	"github.com/eshu-hq/eshu/go/internal/replay/recorder"
 	"github.com/eshu-hq/eshu/go/internal/replay/recordpseudo"
 )
@@ -21,7 +21,7 @@ import (
 // and recorder.Options show the fingerprint only.
 func TestKeyNeverFormatsItsMaterial(t *testing.T) {
 	key := mustKey(t, keyA)
-	cfg := recordpseudo.Config{Key: key, Policy: recordpolicy.Policy()}
+	cfg := recordpseudo.Config{Key: key, Policy: record.Policy()}
 	opts := recorder.Options{Path: "x", Pseudonymize: &cfg}
 	renderings := []string{
 		fmt.Sprintf("%v %+v %#v %s", key, key, key, key),

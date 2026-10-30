@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/recordpolicy"
+	"github.com/eshu-hq/eshu/go/internal/replay/record"
 )
 
 // TestAccountsInsideARNPathsArePseudonymized (round 4 F8): a 12-digit
@@ -27,7 +27,7 @@ func TestAccountsInsideARNPathsArePseudonymized(t *testing.T) {
 				"arn:aws:organizations::" + acct + ":account/o-abc123def/" + member,
 			},
 		}),
-	}}, key, recordpolicy.Policy())
+	}}, key, record.Policy())
 	resources, _ := envs[0][0].Payload["resources"].([]any)
 	if len(resources) != 2 {
 		t.Fatalf("resources = %v", resources)

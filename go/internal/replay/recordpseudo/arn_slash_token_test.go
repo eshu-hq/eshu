@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/recordpolicy"
+	"github.com/eshu-hq/eshu/go/internal/replay/record"
 )
 
 // TestSlashLedARNTypeTokensSurvive (#6987 gating re-review P1): services
@@ -33,7 +33,7 @@ func TestSlashLedARNTypeTokensSurvive(t *testing.T) {
 	}
 	_, envs, report := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{
 		generation("aws:"+acct+":us-east-1:iam", nil, map[string]any{"resources": resources}),
-	}}, key, recordpolicy.Policy())
+	}}, key, record.Policy())
 	got, _ := envs[0][0].Payload["resources"].([]any)
 	for i, want := range []string{"/restapis/", "/workspaces/", "/signing-profiles/", "/keyspace/", "/applications/"} {
 		if s := fmt.Sprint(got[i]); !strings.Contains(s, want) {

@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/recordpolicy"
+	"github.com/eshu-hq/eshu/go/internal/replay/record"
 )
 
 // TestSpacedARNComponentIDsArePseudonymized (#6965 Phase 3): the CloudFront
@@ -29,7 +29,7 @@ func TestSpacedARNComponentIDsArePseudonymized(t *testing.T) {
 			"arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity EQWERTYUIOPAS",
 		},
 	})
-	_, envs, _ := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{gen}}, key, recordpolicy.Policy())
+	_, envs, _ := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{gen}}, key, record.Policy())
 	raw, err := json.Marshal(envs[0][0].Payload)
 	if err != nil {
 		t.Fatal(err)
@@ -54,7 +54,7 @@ func TestSpacedCustomerARNNamesArePseudonymized(t *testing.T) {
 	gen := generation("aws:"+acct+":us-east-1:cloudwatch", nil, map[string]any{
 		"resources": []any{"arn:aws:cloudwatch:us-east-1:" + acct + ":alarm:Zyxcorp Payments Latency"},
 	})
-	_, envs, _ := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{gen}}, key, recordpolicy.Policy())
+	_, envs, _ := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{gen}}, key, record.Policy())
 	raw, err := json.Marshal(envs[0][0].Payload)
 	if err != nil {
 		t.Fatal(err)
@@ -77,7 +77,7 @@ func TestAWSPhraseOnlyInTheCloudFrontPrincipal(t *testing.T) {
 	gen := generation("aws:"+acct+":us-east-1:cloudwatch", nil, map[string]any{
 		"resources": []any{"arn:aws:cloudwatch:us-east-1:" + acct + ":alarm:CloudFront Origin Access Identity Plavorn Outage"},
 	})
-	_, envs, _ := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{gen}}, key, recordpolicy.Policy())
+	_, envs, _ := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{gen}}, key, record.Policy())
 	raw, err := json.Marshal(envs[0][0].Payload)
 	if err != nil {
 		t.Fatal(err)
@@ -101,7 +101,7 @@ func TestSpacedNameWordsStayInsideARNs(t *testing.T) {
 		"launch_type": "available",
 		"arn":         "arn:aws:cloudwatch:us-east-1:" + acct + ":alarm:zyxcorp running latency",
 	})
-	_, envs, _ := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{gen}}, key, recordpolicy.Policy())
+	_, envs, _ := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{gen}}, key, record.Policy())
 	p := envs[0][0].Payload
 	if got := fmt.Sprint(p["state"]); got != "running" {
 		t.Errorf("state = %q: a word learned from an ARN name rewrote a Keep field", got)

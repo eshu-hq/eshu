@@ -1,8 +1,7 @@
-# recordpolicy
+# record
 
-The AWS collector's record-mode field table for `#6965` Phase 3: which
-pseudonym shape each `aws/v1` payload key takes when `collector-aws-cloud
--mode=record` writes a cassette.
+The AWS record-mode field table for `#6965` Phase 3: which pseudonym shape
+each `aws/v1` payload key takes when record mode writes a cassette.
 
 ## Purpose
 
@@ -15,9 +14,8 @@ is collector-neutral; this table is what makes it AWS-aware.
 ## Ownership boundary
 
 This package owns the classification only. It does not pseudonymize
-(recordpseudo does), does not build envelopes (`awscloud` does), and is not
-imported by any live path: only the record-mode wiring in
-`cmd/collector-aws-cloud` and tests reach it.
+(recordpseudo does), does not build envelopes, and is not imported by any
+live path: only record-mode wiring and tests reach it.
 
 ## Exported surface
 
@@ -45,13 +43,13 @@ table does not list, so a new contract field cannot land unclassified.
 ## Telemetry
 
 None of its own. The record log event `collector.record.pseudonymized`
-(emitted by `cmd/collector-aws-cloud`) reports the opaque and unclassified
-paths this table produced.
+(emitted by record-mode wiring) reports the opaque and unclassified paths
+this table produced.
 
 ## Validation
 
 ```bash
-cd go && go test ./internal/collector/awscloud/recordpolicy -count=1
+cd go && go test ./internal/replay/record -count=1
 ```
 
 ## Performance evidence (SSM key classification, #9556)

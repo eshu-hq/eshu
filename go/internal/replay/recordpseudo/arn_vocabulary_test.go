@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/recordpolicy"
+	"github.com/eshu-hq/eshu/go/internal/replay/record"
 )
 
 // Review finding F1/F7 on 40a4ac36e (verdict-p3.md). Every literal is synthetic.
@@ -46,7 +46,7 @@ func TestARNUnknownFirstComponentIsLearned(t *testing.T) {
 		generation("aws:"+acct+":us-east-1:iam", nil, map[string]any{
 			"resources": []any{"arn:aws:sns:us-east-1:" + acct + ":acme-alerts:*", "arn:aws:s3:::acme-bucket/*"},
 		}),
-	}}, key, recordpolicy.Policy())
+	}}, key, record.Policy())
 	if rendered := fmt.Sprint(payloads[0]["resources"]); strings.Contains(rendered, "acme") {
 		t.Errorf("resources[] carries a raw name")
 	}

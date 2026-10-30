@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/recordpolicy"
+	"github.com/eshu-hq/eshu/go/internal/replay/record"
 )
 
 // TestNumericNameAfterTypedColonIsAName (round 5 F12): for services whose
@@ -34,7 +34,7 @@ func TestNumericNameAfterTypedColonIsAName(t *testing.T) {
 		},
 	})
 	gen = withRefs(gen, "aws:lambda:"+acct+":us-east-1:function:"+name, "aws://lambda/"+acct+"/function/"+name, name)
-	_, envs, _ := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{gen}}, key, recordpolicy.Policy())
+	_, envs, _ := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{gen}}, key, record.Policy())
 	env := envs[0][0]
 	mustMatch(t, "name", fmt.Sprint(env.Payload["name"]), `^`+hexName+`$`)
 	mustMatch(t, "own arn", fmt.Sprint(env.Payload["arn"]), `^arn:aws:lambda:us-east-1:`+pseudoAcct+`:function:`+hexName+`$`)
@@ -67,7 +67,7 @@ func TestNumericNameSeenOnlyInAnARNIsLearned(t *testing.T) {
 			"arn:aws:rds:us-east-1:" + acct + ":db:66123",
 		},
 	})
-	_, envs, _ := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{gen}}, key, recordpolicy.Policy())
+	_, envs, _ := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{gen}}, key, record.Policy())
 	raw, err := json.Marshal(envs)
 	if err != nil {
 		t.Fatal(err)

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package recordpolicy
+package record
 
 import "github.com/eshu-hq/eshu/go/internal/replay/recordpseudo"
 

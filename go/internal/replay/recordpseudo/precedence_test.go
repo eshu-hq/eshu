@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/recordpolicy"
+	"github.com/eshu-hq/eshu/go/internal/replay/record"
 )
 
 // Review finding F2 on 40a4ac36e (verdict-p3.md). Every literal is synthetic.
@@ -38,7 +38,7 @@ func TestNameEqualToTagValueIsDeterministic(t *testing.T) {
 			t.Fatalf("run %d differs from run 0: output depends on map iteration", i)
 		}
 	}
-	payloads, _ := wrapAll(t, &sliceSource{gens: []collector.CollectedGeneration{build()}}, key, recordpolicy.Policy())
+	payloads, _ := wrapAll(t, &sliceSource{gens: []collector.CollectedGeneration{build()}}, key, record.Policy())
 	name, _ := payloads[0]["name"].(string)
 	if !regexp.MustCompile(`^n[0-9a-f]{11}$`).MatchString(name) {
 		t.Errorf("name has shape %q, want the name format regardless of the tag", shapeOf(name))
@@ -60,7 +60,7 @@ func TestARNValuedTagKeepsGrammar(t *testing.T) {
 			"tags":     map[string]any{"aws:cloudformation:stack-id": roleARN, "Owner": "oncall@acme-demo.com"},
 			"role_arn": roleARN,
 		}),
-	}}, key, recordpolicy.Policy())
+	}}, key, record.Policy())
 	got, _ := payloads[0]["role_arn"].(string)
 	if !regexp.MustCompile(`^arn:aws:iam::0000[0-9]{8}:role/n[0-9a-f]{11}$`).MatchString(got) {
 		t.Errorf("role_arn shape %q lost its ARN grammar", shapeOf(got))

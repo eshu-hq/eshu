@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/recordpolicy"
+	"github.com/eshu-hq/eshu/go/internal/replay/record"
 )
 
 // TestUnlistedARNTypeTokensAreReported (P2): a listed service whose ARN
@@ -27,7 +27,7 @@ func TestUnlistedARNTypeTokensAreReported(t *testing.T) {
 				"arn:aws:lambda:us-east-1:" + acct + ":function:img-resizer",
 			},
 		}),
-	}}, key, recordpolicy.Policy())
+	}}, key, record.Policy())
 	if strings.Join(report.UnlistedARNTypes, ",") != "lambda:widget" || report.UnlistedARNTypeCount != 2 {
 		t.Errorf("unlisted ARN types = %v (count %d), want [lambda:widget] count 2", report.UnlistedARNTypes, report.UnlistedARNTypeCount)
 	}

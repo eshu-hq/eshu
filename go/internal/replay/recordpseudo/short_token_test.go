@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/recordpolicy"
+	"github.com/eshu-hq/eshu/go/internal/replay/record"
 )
 
 // TestShortTokensNeverRewriteStructure (P1): a tag value "1", a tag value
@@ -28,7 +28,7 @@ func TestShortTokensNeverRewriteStructure(t *testing.T) {
 			"tags":       map[string]any{"Name": "east", "Tier": "1", "Project": "us", "Version": "7"},
 		}),
 	}}
-	gens, envs, _ := wrapGens(t, src, key, recordpolicy.Policy())
+	gens, envs, _ := wrapGens(t, src, key, record.Policy())
 	payload := envs[0][0].Payload
 	mustMatch(t, "scope_id", gens[0].Scope.ScopeID, `^aws:`+pseudoAcct+`:us-east-1:lambda$`)
 	mustMatch(t, "partition_key", gens[0].Scope.PartitionKey, `^aws:`+pseudoAcct+`:us-east-1:lambda$`)

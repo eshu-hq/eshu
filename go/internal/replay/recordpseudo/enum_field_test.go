@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/recordpolicy"
+	"github.com/eshu-hq/eshu/go/internal/replay/record"
 )
 
 // TestEnumFieldsAreNeverSubstituted (#6965 Phase 3): resource_type,
@@ -27,7 +27,7 @@ func TestEnumFieldsAreNeverSubstituted(t *testing.T) {
 		"service_kind":      "sqs",
 		"tags":              map[string]any{"Kind": "queue"},
 	})
-	_, envs, _ := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{gen}}, key, recordpolicy.Policy())
+	_, envs, _ := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{gen}}, key, record.Policy())
 	p := envs[0][0].Payload
 	for field, want := range map[string]string{
 		"resource_type":     "aws_sqs_queue",
@@ -56,7 +56,7 @@ func TestEnumFieldsPseudonymizeCustomerTypes(t *testing.T) {
 	gen2 := generation("aws:"+acct+":us-east-1:cloudformation", nil, map[string]any{
 		"target_type": "Zyxcorp::Payments::Ledger",
 	})
-	_, envs, _ := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{gen, gen2}}, key, recordpolicy.Policy())
+	_, envs, _ := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{gen, gen2}}, key, record.Policy())
 	if got := fmt.Sprint(envs[0][0].Payload["resource_type"]); got != "AWS::SQS::Queue" {
 		t.Errorf("AWS type rewritten: %q", got)
 	}
@@ -80,7 +80,7 @@ func TestEnumFieldsKeepAWSEnumSpellings(t *testing.T) {
 		"resource_type": "direct-connect-gateway",
 		"state":         "ORGANIZATIONAL_UNIT",
 	})
-	_, envs, _ := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{gen}}, key, recordpolicy.Policy())
+	_, envs, _ := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{gen}}, key, record.Policy())
 	p := envs[0][0].Payload
 	for field, want := range map[string]string{
 		"target_type":   "ORGANIZATIONAL_UNIT",

@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/recordpolicy guidance
+# AGENTS.md - internal/replay/record guidance
 
 ## Read First
 

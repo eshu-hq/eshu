@@ -21,9 +21,9 @@ later fixture scopes as explicit additive extensions.
 
 - Owns: the `Key`, the `Class` shapes, the learning and substitution engine,
   `Wrap` (the `collector.Source` wrapper), `Report`, and `Verify`.
-- Does not own: which field has which class. That table is
-  collector-owned (`go/internal/collector/awscloud/recordpolicy` for AWS) so
-  the engine stays collector-neutral.
+- Does not own: which field has which class. That table lives beside the
+  engine (`go/internal/replay/record` for AWS) so the engine stays
+  collector-neutral.
 - Does not own: canonical serialization or the cassette format
   (`replay`, `replay/cassette`), nor when to record (`replay/recorder`, the
   collector commands).

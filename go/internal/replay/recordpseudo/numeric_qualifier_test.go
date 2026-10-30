@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/recordpolicy"
+	"github.com/eshu-hq/eshu/go/internal/replay/record"
 )
 
 // TestNumericNamesNeverRewriteQualifiers (round 4 F10): a numeric name
@@ -32,7 +32,7 @@ func TestNumericNamesNeverRewriteQualifiers(t *testing.T) {
 		"arn":        "arn:aws:iam::" + acct + ":role/1234",
 		"resources":  []any{"arn:aws:lambda:us-east-1:" + acct + ":function:other-fn:1234"},
 	})
-	_, envs, _ := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{one, long}}, key, recordpolicy.Policy())
+	_, envs, _ := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{one, long}}, key, record.Policy())
 
 	env := envs[0][0]
 	mustMatch(t, "lambda arn", fmt.Sprint(env.Payload["arn"]), `^arn:aws:lambda:us-east-1:`+pseudoAcct+`:function:`+hexName+`:1$`)
