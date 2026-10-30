@@ -9,6 +9,34 @@ import (
 	"testing"
 )
 
+// seedCapabilitySurfaceGate returns a copy of the capability-surface-inventory
+// gate with the console inlet trigger removed: the #9655 shape, where a PR
+// changing only the console router no longer selects the drift gate even
+// though the generator enumerates console pages from that router.
+func seedCapabilitySurfaceGate(t *testing.T, reg *Registry) Gate {
+	t.Helper()
+	for _, g := range reg.Gates {
+		if g.ID != "capability-surface-inventory" {
+			continue
+		}
+		seeded := g
+		kept := g.Triggers[:0:0]
+		for _, trigger := range g.Triggers {
+			if trigger == "apps/console/src/**" {
+				continue
+			}
+			kept = append(kept, trigger)
+		}
+		if len(kept) == len(g.Triggers) {
+			t.Fatal("seed expects the console inlet trigger to exist on the clean tree")
+		}
+		seeded.Triggers = kept
+		return seeded
+	}
+	t.Fatal("capability-surface-inventory gate missing")
+	return Gate{}
+}
+
 // seedReadinessGate returns a copy of the live-readiness-registration-drift
 // gate with the go inlet trigger removed: the #9588 shape, where a PR
 // changing only a live test's marker no longer selects the drift gate.
@@ -141,5 +169,49 @@ func TestDriftCheck_SeededGeneratorInputGapFails(t *testing.T) {
 	}
 	if !matchedTest {
 		t.Fatalf("seeded DriftCheck errors = %v, want one naming the #9588 input class go/**/*_test.go", found)
+	}
+}
+
+// TestDriftCheck_SeededCapabilitySurfaceGapFails shapes #9655 through the full
+// DriftCheck: the console inlet trigger removed, so a PR changing only the
+// console router no longer selects the drift gate. The run must fail naming
+// the uncovered console input class.
+func TestDriftCheck_SeededCapabilitySurfaceGapFails(t *testing.T) {
+	root := filepath.Join("..", "..", "..")
+	reg, err := Load(filepath.Join(root, "specs/ci-gates.v1.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	seeded := *reg
+	seeded.Gates = append([]Gate(nil), reg.Gates...)
+	replaced := false
+	for i := range seeded.Gates {
+		if seeded.Gates[i].ID == "capability-surface-inventory" {
+			seeded.Gates[i] = seedCapabilitySurfaceGate(t, reg)
+			replaced = true
+		}
+	}
+	if !replaced {
+		t.Fatal("capability-surface-inventory gate missing")
+	}
+	errs := DriftCheck(root, &seeded)
+	var found []string
+	for _, err := range errs {
+		if strings.Contains(err.Error(), "generator input") {
+			found = append(found, err.Error())
+		}
+	}
+	if len(found) == 0 {
+		t.Fatalf("seeded DriftCheck generator input errors = %v, want at least one naming the uncovered console class", errs)
+	}
+	matchedConsole := false
+	for _, msg := range found {
+		if !strings.Contains(msg, "capability-surface-inventory") {
+			t.Fatalf("seeded DriftCheck error = %v, want it to name the gate", msg)
+		}
+		matchedConsole = matchedConsole || strings.Contains(msg, "apps/console/src/App.tsx")
+	}
+	if !matchedConsole {
+		t.Fatalf("seeded DriftCheck errors = %v, want one naming the #9655 console input class apps/console/src/App.tsx", found)
 	}
 }

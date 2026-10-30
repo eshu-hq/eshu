@@ -448,6 +448,7 @@ check_ci_gate_workflow_shapes
 # shellcheck source=scripts/lib/test-verify-ci-gates-registry-generator-cases.sh
 . "${repo_root}/scripts/lib/test-verify-ci-gates-registry-generator-cases.sh"
 check_ci_gate_generator_input_coverage
+check_ci_gate_generator_input_coverage_capability_surface
 
 # ── 3. Live validate + drift — proves every script + workflow ref exists AND
 #       that .pre-commit-config.yaml / .github/workflows stay in lockstep ─────

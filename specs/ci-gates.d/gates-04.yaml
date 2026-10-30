@@ -542,12 +542,47 @@ gates:
       - "go/internal/capabilitycatalog/data/surface-inventory.generated.json"
       - "specs/surface-inventory.v1.yaml"
       - "specs/capability-catalog.v1.yaml"
+      - "apps/console/src/**"
+      - "go/internal/scope/**"
+      - "go/internal/collector/**"
+      - "go/internal/reducer/**"
+      - "go/internal/query/**"
+      - "go/internal/facts/**"
       - "scripts/dev/precommit-go.sh"
       - "scripts/lib/go-toolchain.sh"
       - "scripts/lib/precommit-go-filecap.sh"
       - "scripts/lib/cgo-cflags.sh"
       - "scripts/lib/precommit-go-gosec.sh"
       - "scripts/ci/go-mod-download-retry.sh"
+    # #9655: the machine-readable file classes whose changes can alter the
+    # regenerated inventory, following the #9621 mechanism. The drift check
+    # fails when no trigger matches one. Each class names where the generator
+    # reads it (go/cmd/capability-inventory/surfaces.go): command binaries
+    # from go/cmd dir names; MCP tools from mcp.ReadOnlyTools; console pages
+    # from the App.tsx/appRoutes.tsx router (pages/ entries are stat-checked
+    # against the router, so deleting a routed page also alters output);
+    # collector kinds from scope.AllCollectorKinds (the kind registry lives in
+    # go/internal/scope/collector_kind.go — the generator never imports
+    # go/internal/collector, which stays a trigger so collector PRs still
+    # re-verify the surface contract they feed, but is not a declared input);
+    # reducer domains from reducer.AllDomains; API routes from
+    # query.OpenAPISpec; collector fact kinds from go/internal/facts (an
+    # unmapped kind fails verify); the overlay/spec shaping from the two spec
+    # rows. Reconciler-logic changes inside go/internal/capabilitycatalog rely
+    # on CI: the mcp-schema-drift fragment names no path filter, so full mode
+    # always runs this gate's CI job.
+    generator_inputs:
+      - "go/cmd/**"
+      - "go/internal/mcp/**"
+      - "apps/console/src/App.tsx"
+      - "apps/console/src/appRoutes.tsx"
+      - "apps/console/src/pages/**"
+      - "go/internal/scope/**"
+      - "go/internal/reducer/**"
+      - "go/internal/query/**"
+      - "go/internal/facts/**"
+      - "specs/surface-inventory.v1.yaml"
+      - "specs/capability-catalog.v1.yaml"
     local:
       command: "bash scripts/dev/precommit-go.sh surface"
       test_command: ""
