@@ -150,6 +150,50 @@ persists). A changed or unparsable IaC body marks the stream dropped,
 exposing the same pre-existing drop signals as the other manifest
 readers.
 
+## Rust collector cost and signals
+
+Performance Evidence (#9308, 2026-10-30): a paired, sequential local
+benchmark ran the same snapshot-to-fact-stream probe harness on the
+branch merge base `0a9445abeb` and the Rust lane head `d2427950ab`. The
+temporary harness (`BenchmarkRustSnapshotFactStream`, SHA-256
+`174307930177b1e17d02d349aa3757926d257e1e29080c3f50f534d19ae2f357`;
+removed after the run) snapshots the same 93-byte one-file fixture (a
+`Cargo.toml` with a `[package].rust-version` pin plus one dependency
+entry) and drains the streamed generation
+(`-test.run='^$' -test.bench=BenchmarkRustSnapshotFactStream
+-benchtime=500ms -count=1 -benchmem`, Go 1.26.6, linux/arm64, 16 CPUs;
+no graph or Postgres backend). Five base-then-head rounds:
+
+| Per one-file snapshot and drained fact stream | Base | Rust head |
+| --- | ---: | ---: |
+| Median time | 2,813,285 ns | 2,859,237 ns |
+| Observed time range | 2,767,043-2,864,397 ns | 2,841,394-2,914,743 ns |
+| Drained envelopes per operation | 18.00 | 19.00 |
+| `runtime_declaration.version` facts | 0 | 1 |
+| Allocated bytes per operation, observed range | 547,463-548,279 | 570,707-572,059 |
+| Allocs per operation, observed range | 2,252-2,253 | 2,427 |
+
+The five same-round time ratios averaged 1.022 (sample SD 0.010). The
+new fact is the one `cargo_package_rust_version` declaration pinned by
+`TestRustRuntimeNativeHandoff`; the baseline did not support this
+source, so the measured extra cost accompanies the intended output.
+Load1 stayed between 0.99 and 1.15 across the run window
+(2026-10-30T12:30:49Z to 2026-10-30T12:30:58Z), under the 8.0
+quiet-host ceiling, so these local timings are diagnostic rather than a
+production throughput or no-regression claim.
+
+No-Observability-Change: no metric, span, or log key was added. The
+existing `git_runtime_declaration_file_skipped` and
+`git_runtime_declaration_values_rejected` WARN logs report bounded
+skips with reason, relative path, byte size, and rejected count
+without raw values; an over-cap manifest is skipped at the 1 MiB
+`MaxManifestBytesPerFile` bound (`SkipReasonByteCap`) and the
+collector retains only the guarded declarations, never the body
+(`TestRustRuntimeNativeHandoff` fails if private `rust_runtime_evidence`
+persists). A changed or unparsable `Cargo.toml` marks the stream
+dropped, exposing the same pre-existing drop signals as the other
+manifest readers.
+
 ## Evidence for the Dockerfile and workflow readers (#8818)
 
 No-Regression Evidence: the pin and manifest emission paths are unchanged
