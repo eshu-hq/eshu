@@ -69,11 +69,18 @@ class TaggedBuildBudgetTest(unittest.TestCase):
         self.assertEqual(restore["timeout-minutes"], 2)
         self.assertTrue(restore["continue-on-error"])
         self.assertEqual(restore["if"], "${{ matrix.key == 'taggedbuilds' }}")
-        ordinary = next(step for step in steps
-                        if step.get("uses") == "actions/cache@v4")
-        self.assertEqual(ordinary["if"], "${{ matrix.key != 'taggedbuilds' }}")
-        self.assertFalse(any(step.get("uses", "").startswith("actions/cache/save")
-                             for step in steps))
+        ordinary = [step for step in steps
+                    if step.get("uses") == "actions/cache/restore@v4"
+                    and step.get("id") != "tagged-cache"]
+        self.assertEqual(len(ordinary), 1, "one restore-only ordinary cache")
+        self.assertEqual(ordinary[0]["if"], "${{ matrix.key != 'taggedbuilds' }}")
+        saves = [step for step in steps
+                 if step.get("uses", "").startswith("actions/cache/save")]
+        self.assertEqual(len(saves), 1, "exactly one bounded save")
+        save = saves[0]
+        self.assertIn("matrix.key != 'taggedbuilds'", save["if"])
+        self.assertIn("refs/heads/main", save["if"])
+        self.assertIn("cache-hit != 'true'", save["if"])
         for step in steps:
             if "Run test mirror" in step.get("name", "") or "Run gate" in step.get("name", ""):
                 self.assertFalse(step.get("continue-on-error", False))
