@@ -143,6 +143,13 @@ var readOnlyMapBindings = map[string]string{
 	// existingAnchorsCypher: MATCH/WHERE read of anchor.workload_id and
 	// anchor.environment; nothing writes the binding's fields.
 	"anchor": "reducer/workloadinstance/lookup.go",
+	// ssmCommitNodesAppsCypher, ssmCommitNodesPlatsCypher: MATCH-only
+	// reads; h.* only anchors WHERE, nothing writes the binding's fields.
+	"h": "query/ssm_host_inventory_read_model.go",
+	// ssmHostCommittedCapturesCypher: MATCH + RETURN read;
+	// candidate_host.* only anchors WHERE and projects back as scalars,
+	// no graph write stores its fields.
+	"candidate_host": "storage/cypher/cloud/aws/ssm/host_retract.go",
 }
 
 // mapDereferencedBindings returns the UNWIND bindings other than row that lit
