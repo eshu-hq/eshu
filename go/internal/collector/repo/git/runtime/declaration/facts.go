@@ -143,6 +143,9 @@ func NoteCappedPythonCandidate(candidates map[string]Candidate, relativePath str
 
 // NoteParsedIACCandidate stores guarded native HCL or Helm parser evidence.
 func NoteParsedIACCandidate(candidates map[string]Candidate, relativePath string, extraction runtimedeclaration.Extraction) {
+	if runtimedeclaration.ClassifyPath(relativePath) != runtimedeclaration.FileManifest {
+		return
+	}
 	if extraction.Len() == 0 && !extraction.Skip().Skipped() {
 		return
 	}

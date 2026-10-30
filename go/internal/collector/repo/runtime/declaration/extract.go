@@ -88,6 +88,11 @@ func Extract(relativePath, body string) (Extraction, bool) {
 			return CappedRubyExtraction(len(body)), true
 		}
 		return ExtractRubyEvidence(rubyparser.ExtractBundlerRuntimeEvidence(path.Base(relativePath), []byte(body))), true
+	case manifestTerraform, manifestTerragrunt, manifestHelmChart:
+		// IaC declarations arrive only through the native-parser snapshot,
+		// which binds the extraction to the exact source bytes; the content
+		// walk never reads these bodies synchronously.
+		return Extraction{}, false
 	}
 	return Extraction{}, false
 }
