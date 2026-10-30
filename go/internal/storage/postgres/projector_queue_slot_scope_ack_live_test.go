@@ -3,10 +3,13 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #9432 queue-layer acceptance that two consecutive planning windows leave exactly one active generation per pinned slot scope: two slot scopes each carry a window-one active generation and a window-two pending generation, acking window two supersedes window one and repoints the scope; untagged and gated by the ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN env Skip; Postgres only; about 0.1s locally; enrolled in the live-postgres-readiness runner
+//eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
+
 import (
 	"context"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -22,12 +25,7 @@ import (
 // generations through the shipped exact-scope supersede leaves exactly one
 // active generation per slot scope.
 func TestProjectorAckLeavesOneActiveGenerationPerSlotScope(t *testing.T) {
-	dsn := os.Getenv("ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN")
-	if dsn == "" {
-		t.Skip("set ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN to a disposable Postgres database")
-	}
-
-	database := openLivenessProofDB(t, dsn)
+	database := openLivenessProofDB(t, supersessionProofDSN(t))
 	provisionLivenessSchema(t, database, "")
 	ctx := context.Background()
 	oldTime := time.Date(2026, time.October, 29, 12, 0, 0, 0, time.UTC)

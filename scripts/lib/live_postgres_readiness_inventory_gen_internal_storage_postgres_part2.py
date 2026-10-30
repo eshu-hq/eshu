@@ -22,6 +22,9 @@ TABLE = {
         "go/internal/storage/postgres/owned_package_targets_alias_live_test.go": (
             "TestListOwnedPackageDependencyTargetsAliasesLive",
         ),
+        "go/internal/storage/postgres/owned_package_targets_key_hash_live_test.go": (
+            "TestListOwnedPackageDependencyTargetsReportsKeyHashLive",
+        ),
         "go/internal/storage/postgres/owned_package_targets_slot_live_test.go": (
             "TestListOwnedPackageDependencyTargetsSlotCoverageLive",
             "TestListOwnedPackageDependencyTargetsSlotWindowStatsLive",
@@ -162,6 +165,9 @@ TABLE = {
         ),
         "go/internal/storage/postgres/projector_queue_dead_letter_live_test.go": (
             "TestProjectorDeadLetterGuardCellsLive",
+        ),
+        "go/internal/storage/postgres/projector_queue_slot_scope_ack_live_test.go": (
+            "TestProjectorAckLeavesOneActiveGenerationPerSlotScope",
         ),
         "go/internal/storage/postgres/projector_queue_zombie_heal_graph_live_test.go": (
             "TestProjectorZombieHealRestoresCanonicalNodesLive",

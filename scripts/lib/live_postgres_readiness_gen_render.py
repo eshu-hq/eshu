@@ -22,7 +22,7 @@ FRAGMENT_NAMES = (
 FRAGMENT_BOUNDARIES = (
     "go/internal/storage/postgres/active_symbol_loader_package_fixture_live_test.go",
     "go/internal/storage/postgres/identity_epoch_active_set_live_test.go",
-    "go/internal/storage/postgres/search/index/retention/drain_live_test.go",
+    "go/internal/storage/postgres/retention/work/items/plan_guard_live_test.go",
 )
 FRAGMENT_DIR = "specs/live-tests.d/"
 MAX_FRAGMENT_LINES = 499
