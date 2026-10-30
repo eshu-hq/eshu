@@ -110,6 +110,10 @@ func (s FactStore) ListActivePackageManifestDependencyFacts(
 	}
 
 	packageManagers, query := activePackageManifestDependencyQuery(ecosystems)
+	// The read label names the query text that ran: keep the pre-transform
+	// text, because on a snapshot clone the static rewrite below changes
+	// the text and no rewritten text is in the label table.
+	rawQuery := query
 	query, err := s.protectedImpactStaticFactSQL(query)
 	if err != nil {
 		return nil, err
@@ -131,7 +135,7 @@ func (s FactStore) ListActivePackageManifestDependencyFacts(
 		}
 		loaded = append(loaded, page...)
 		if len(page) < listFactsByKindPageSize {
-			s.recordManifestDependencyRead(ctx, query, started, len(loaded))
+			s.recordManifestDependencyRead(ctx, rawQuery, started, len(loaded))
 			return loaded, nil
 		}
 
