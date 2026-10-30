@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 // sharedPartitionDupKeyProofDSN reads the throwaway live-Postgres DSN this
@@ -208,6 +209,12 @@ func openSharedPartitionDupKeySchema(t *testing.T, ctx context.Context, dsn stri
 	db.SetMaxIdleConns(1)
 	t.Cleanup(func() { _ = db.Close() })
 
+	// Pin pg_trgm to public before creating the schema (#9572): the
+	// bootstrap's unqualified CREATE EXTENSION would otherwise install the
+	// opclass into this private schema, hiding it from sibling schemas on
+	// the same shared proof database. The advisory-locked shared install
+	// serializes concurrent bootstraps on one database.
+	postgresproof.InstallTrigramExtension(ctx, t, db)
 	if _, err := db.ExecContext(ctx, "CREATE SCHEMA "+schemaName); err != nil {
 		t.Fatalf("create shared-partition dupkey schema: %v", err)
 	}

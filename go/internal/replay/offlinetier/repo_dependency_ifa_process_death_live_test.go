@@ -24,6 +24,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 const (
@@ -231,6 +232,11 @@ func openRepoDependencyProcessDeathProofDB(
 	if err != nil {
 		t.Fatalf("open process-death bootstrap database: %v", err)
 	}
+	// Pin pg_trgm to public before creating the schema (#9572): this helper
+	// shares its database with the quarantine proof, and the bootstrap's
+	// unqualified CREATE EXTENSION would otherwise install the opclass into
+	// whichever private schema wins the race.
+	postgresproof.InstallTrigramExtension(ctx, t, bootstrapDB)
 	schemaName := fmt.Sprintf("repo_dependency_process_death_%d", time.Now().UnixNano())
 	if _, err := bootstrapDB.ExecContext(ctx, "CREATE SCHEMA "+schemaName); err != nil {
 		_ = bootstrapDB.Close()
@@ -240,7 +246,9 @@ func openRepoDependencyProcessDeathProofDB(
 	if strings.Contains(dsn, "?") {
 		separator = "&"
 	}
-	scopedDSN := dsn + separator + "search_path=" + schemaName
+	// public stays on the path (parent and helper subprocess alike) so the
+	// pinned pg_trgm operator classes resolve for this schema's bootstrap.
+	scopedDSN := dsn + separator + "search_path=" + schemaName + ",public"
 	db, err := sql.Open("pgx", scopedDSN)
 	if err != nil {
 		_ = bootstrapDB.Close()

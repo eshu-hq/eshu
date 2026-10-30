@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 // TestSupersededGenerationIDsSQLShapeExcludesInFlightProducers locks the
@@ -49,6 +51,13 @@ func TestSupersededGenerationIDsDefersToInFlightProducersAgainstPostgres(t *test
 
 	schema := fmt.Sprintf("eshu_7121_producer_%d", time.Now().UnixNano())
 	admin := openActiveOCIWarningIndexProofDB(t, dsn)
+	// Pin pg_trgm to public before creating the schema (#9572): the
+	// bootstrap's unqualified CREATE EXTENSION would otherwise install the
+	// opclass into this private schema, hiding it from sibling schemas on
+	// the same shared proof database, as openSupersededProofSchema documents.
+	// The advisory-locked shared install serializes concurrent bootstraps on
+	// one database.
+	postgresproof.InstallTrigramExtension(ctx, t, admin)
 	if _, err := admin.ExecContext(ctx, "CREATE SCHEMA "+quoteSQLIdentifier(schema)); err != nil {
 		t.Fatalf("create schema: %v", err)
 	}

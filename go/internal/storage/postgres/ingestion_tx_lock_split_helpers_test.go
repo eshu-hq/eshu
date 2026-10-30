@@ -18,6 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 // measureConcurrentExclusiveLockWaitDuringWork opens a shared-barrier-holding
@@ -358,6 +359,12 @@ func openIngestionTxLockSplitProofSchema(t *testing.T, dsn string) (*sql.DB, str
 	schemaName := fmt.Sprintf("ingestion_tx_lock_split_proof_%d", time.Now().UnixNano())
 	ctx := context.Background()
 	db := openIngestionTxLockSplitProofSchemaConn(t, ctx, dsn, schemaName)
+	// Pin pg_trgm to public before creating the schema (#9572): the
+	// bootstrap's unqualified CREATE EXTENSION would otherwise install the
+	// opclass into this private schema, hiding it from sibling schemas on
+	// the same shared proof database. The advisory-locked shared install
+	// serializes concurrent bootstraps on one database.
+	postgresproof.InstallTrigramExtension(ctx, t, db)
 	if _, err := db.ExecContext(ctx, "CREATE SCHEMA "+schemaName); err != nil {
 		t.Fatalf("create proof schema: %v", err)
 	}
