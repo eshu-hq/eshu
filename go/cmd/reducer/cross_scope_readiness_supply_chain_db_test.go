@@ -70,6 +70,13 @@ func (f *supplyChainReadinessWiringDB) QueryContext(
 	if strings.Contains(query, "FROM authorized ORDER BY scan_scope_id") {
 		return &crossScopeReadinessRows{}, nil
 	}
+	// The protected-policy engagement probe (#9299). No role policy is
+	// installed in this scenario, so protection reads disengaged and the
+	// handler keeps the plain static load exactly as before protection
+	// existed; the armed floor below is unaffected.
+	if strings.Contains(query, "FROM eshu_security.role_policy_state") {
+		return &crossScopeReadinessRows{}, nil
+	}
 	// Protected static branches (lane-expanded with the derived-scope and
 	// advisory-kind exclusion) answer empty like their legacy twins: the
 	// pass carries no advisory or derived facts in this scenario.
