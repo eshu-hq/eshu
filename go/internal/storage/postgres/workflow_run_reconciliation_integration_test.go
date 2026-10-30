@@ -69,6 +69,21 @@ func TestWorkflowControlStoreIntegrationReconcileWorkflowRunsRequiresMatchingSco
 		CreatedAt:           now,
 		UpdatedAt:           now,
 	})
+	// One committed fact for the item's own (scope, generation): without it
+	// the item is factless and converges vacuously under #9257, which would
+	// bypass the scope/generation matching gate this proof exists to pin.
+	// With facts committed, only a matching phase tuple can converge the run.
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO fact_records (
+    fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
+    source_system, source_fact_key, observed_at, ingested_at, payload
+) VALUES (
+    'fact-integration-workflow-mismatch', $1, $2, 'git_commit',
+    'commit:integration-mismatch', 'github', 'commit:integration-mismatch',
+    $3, $3, '{}'::jsonb
+)`, scopeValue.ScopeID, generation.GenerationID, now); err != nil {
+		t.Fatalf("insert committed fact error = %v, want nil", err)
+	}
 
 	phaseStore := NewGraphProjectionPhaseStateStore(SQLDB{DB: db})
 	if err := phaseStore.Upsert(ctx, []gpphase.PhaseState{
