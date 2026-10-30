@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	gcpcatalog "github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	gcpfreshness "github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/freshness"
 	awsfreshness "github.com/eshu-hq/eshu/go/internal/coordinator/aws/freshness"
@@ -70,7 +69,7 @@ func TestScheduleAWSFreshnessWorkContinuesPastOneAssignmentFailure(t *testing.T)
 		Kind:        awsfreshness.EventKindConfigChange,
 		AccountID:   "111111111111",
 		Region:      "us-east-1",
-		ServiceKind: catalog.ServiceLambda,
+		ServiceKind: "lambda",
 		ObservedAt:  now,
 	}, now)
 	if err != nil {
@@ -81,7 +80,7 @@ func TestScheduleAWSFreshnessWorkContinuesPastOneAssignmentFailure(t *testing.T)
 		Kind:        awsfreshness.EventKindConfigChange,
 		AccountID:   "222222222222",
 		Region:      "us-east-1",
-		ServiceKind: catalog.ServiceLambda,
+		ServiceKind: "lambda",
 		ObservedAt:  now,
 	}, now)
 	if err != nil {
@@ -269,7 +268,7 @@ func TestRunReapExpiredAWSFreshnessClaimsRecordsMetricsAndReclaims(t *testing.T)
 		Kind:        awsfreshness.EventKindConfigChange,
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: catalog.ServiceLambda,
+		ServiceKind: "lambda",
 		ObservedAt:  now,
 	}, now)
 	if err != nil {

@@ -93,7 +93,8 @@
      exported `ScanEnabled` decode for the sibling `scheduled_scan_enabled`
      flag. The package is not named `awsfreshness` because that name is
      already the repo-wide import alias for
-     `internal/collector/awscloud/freshness`
+     `internal/coordinator/aws/freshness` (the host-owned trigger and
+     service-kind vocabulary, Refs #9296)
    - `go/internal/coordinator/planner/component/extension/planner.go` and
      `component_extension_service.go` — the extracted generic
      component-extension planner and root seam; preserve activation-scoped

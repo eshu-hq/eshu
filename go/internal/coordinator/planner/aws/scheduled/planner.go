@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	awsfreshness "github.com/eshu-hq/eshu/go/internal/coordinator/aws/freshness"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/aws/freshness"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/contract"
@@ -21,7 +20,6 @@ import (
 )
 
 const (
-	awsScheduledGlobalRegion                   = "aws-global"
 	awsScheduledSkipReasonRegionalAWSGlobal    = "regional_service_aws_global"
 	awsScheduledSkipReasonGlobalRegionalRegion = "global_service_regional_region"
 )
@@ -164,25 +162,16 @@ func planAWSScheduledTargets(scopes []freshness.TargetScope) awsScheduledTargetP
 }
 
 func awsScheduledTargetAllowed(target awsfreshness.Target) (string, bool) {
-	if target.Region == awsScheduledGlobalRegion {
-		if awsScheduledServiceGlobalOnly(target.ServiceKind) {
+	if target.Region == awsfreshness.GlobalRegion {
+		if awsfreshness.IsGlobalServiceKind(target.ServiceKind) {
 			return "", true
 		}
 		return awsScheduledSkipReasonRegionalAWSGlobal, false
 	}
-	if awsScheduledServiceGlobalOnly(target.ServiceKind) {
+	if awsfreshness.IsGlobalServiceKind(target.ServiceKind) {
 		return awsScheduledSkipReasonGlobalRegionalRegion, false
 	}
 	return "", true
-}
-
-func awsScheduledServiceGlobalOnly(serviceKind string) bool {
-	switch serviceKind {
-	case catalog.ServiceCloudFront, catalog.ServiceIAM, catalog.ServiceRoute53:
-		return true
-	default:
-		return false
-	}
 }
 
 func sortedAWSScheduledTargets(byKey map[string]awsfreshness.Target) []awsfreshness.Target {

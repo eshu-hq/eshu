@@ -14,7 +14,7 @@ This package owns the DDL, upsert, claim, reap, and completion SQL for
 `aws_freshness_triggers`, and the `AWSFreshnessStore` type that runs them.
 `cmd/webhook-listener` builds the store to normalize and coalesce inbound AWS
 events; `cmd/workflow-coordinator` builds it to claim queued triggers, hand
-them off to a planned workflow, or fail them. `internal/collector/awscloud/freshness`
+them off to a planned workflow, or fail them. `internal/coordinator/aws/freshness`
 owns the `Trigger`/`StoredTrigger`/`TriggerStatus` domain types this package
 persists and reads back.
 
@@ -37,7 +37,7 @@ See `doc.go` for the godoc contract.
 
 - `internal/storage/postgres/db` for the shared `ExecQueryer`/`Rows`
   contracts.
-- `internal/collector/awscloud/freshness` for the `Trigger`/`StoredTrigger`/
+- `internal/coordinator/aws/freshness` for the `Trigger`/`StoredTrigger`/
   `TriggerStatus`/`EventKind` domain types this package persists and scans.
 
 ## Telemetry

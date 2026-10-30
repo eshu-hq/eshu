@@ -8,8 +8,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func TestTriggerValidateAcceptsBoundedTarget(t *testing.T) {
@@ -20,8 +18,8 @@ func TestTriggerValidateAcceptsBoundedTarget(t *testing.T) {
 		Kind:         EventKindConfigChange,
 		AccountID:    "123456789012",
 		Region:       "us-east-1",
-		ServiceKind:  catalog.ServiceLambda,
-		ResourceType: catalog.ResourceTypeLambdaFunction,
+		ServiceKind:  "lambda",
+		ResourceType: "aws_lambda_function",
 		ResourceID:   "function-1",
 		ObservedAt:   time.Date(2026, time.May, 15, 10, 0, 0, 0, time.UTC),
 	}
@@ -40,7 +38,7 @@ func TestTriggerValidateAcceptsBoundedTarget(t *testing.T) {
 	if err := json.Unmarshal([]byte(encoded), &decoded); err != nil {
 		t.Fatalf("AcceptanceUnitID() JSON decode error = %v", err)
 	}
-	if got, want := decoded["service_kind"], catalog.ServiceLambda; got != want {
+	if got, want := decoded["service_kind"], "lambda"; got != want {
 		t.Fatalf("service_kind = %q, want %q", got, want)
 	}
 }
@@ -61,7 +59,7 @@ func TestTriggerValidateRejectsWildcardAndUnknownService(t *testing.T) {
 				Kind:        EventKindConfigChange,
 				AccountID:   "123456789012",
 				Region:      "*",
-				ServiceKind: catalog.ServiceLambda,
+				ServiceKind: "lambda",
 				ObservedAt:  observedAt,
 			},
 			want: "region must not contain wildcard",
@@ -104,8 +102,8 @@ func TestStoredTriggerKeysCoalesceByTarget(t *testing.T) {
 		Kind:         EventKindConfigChange,
 		AccountID:    "123456789012",
 		Region:       "us-east-1",
-		ServiceKind:  catalog.ServiceLambda,
-		ResourceType: catalog.ResourceTypeLambdaFunction,
+		ServiceKind:  "lambda",
+		ResourceType: "aws_lambda_function",
 		ResourceID:   "function-a",
 		ObservedAt:   observedAt,
 	}

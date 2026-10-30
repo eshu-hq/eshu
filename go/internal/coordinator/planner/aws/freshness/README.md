@@ -69,12 +69,12 @@ move.
 
 ## Dependencies
 
-`internal/collector/awscloud/freshness` supplies `StoredTrigger`, `Target`,
-and the freshness/scope/acceptance identities. `internal/collector/awscloud/awsruntime`
-supplies `SupportsServiceKind`, which rejects a configured `service_kind` no
-registered scanner implements. `contract` validates plan keys. `facts`,
-`scope`, and `workflow` provide stable identities and durable row contracts.
-This package does not import its parent and performs no I/O.
+`internal/coordinator/aws/freshness` supplies `StoredTrigger`, `Target`,
+the freshness/scope/acceptance identities, and `SupportsServiceKind`, which
+rejects a configured `service_kind` outside the host-owned schedulable
+vocabulary (pinned to the scanner registry). `contract` validates plan keys.
+`facts`, `scope`, and `workflow` provide stable identities and durable row
+contracts. This package does not import its parent and performs no I/O.
 
 ## Telemetry
 

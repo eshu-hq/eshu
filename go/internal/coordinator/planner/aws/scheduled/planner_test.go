@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -49,7 +48,7 @@ func TestAWSScheduledWorkPlannerPlansConfiguredTargets(t *testing.T) {
 		t.Fatalf("len(items) = %d, want %d", got, want)
 	}
 	item := items[0]
-	if got, want := item.ScopeID, "aws:123456789012:us-east-1:"+catalog.ServiceLambda; got != want {
+	if got, want := item.ScopeID, "aws:123456789012:us-east-1:"+"lambda"; got != want {
 		t.Fatalf("ScopeID = %q, want %q", got, want)
 	}
 	var claimTarget struct {
@@ -63,7 +62,7 @@ func TestAWSScheduledWorkPlannerPlansConfiguredTargets(t *testing.T) {
 	if got, want := claimTarget.AccountID, "123456789012"; got != want {
 		t.Fatalf("claim account_id = %q, want %q", got, want)
 	}
-	if got, want := claimTarget.ServiceKind, catalog.ServiceLambda; got != want {
+	if got, want := claimTarget.ServiceKind, "lambda"; got != want {
 		t.Fatalf("claim service_kind = %q, want %q", got, want)
 	}
 }
@@ -105,20 +104,20 @@ func TestAWSScheduledWorkPlannerSkipsInvalidGlobalRegionPairs(t *testing.T) {
 		gotScopeIDs = append(gotScopeIDs, item.ScopeID)
 	}
 	wantScopeIDs := []string{
-		"aws:123456789012:aws-global:" + catalog.ServiceCloudFront,
-		"aws:123456789012:aws-global:" + catalog.ServiceIAM,
-		"aws:123456789012:aws-global:" + catalog.ServiceRoute53,
-		"aws:123456789012:us-east-1:" + catalog.ServiceLambda,
-		"aws:123456789012:us-east-1:" + catalog.ServiceS3,
+		"aws:123456789012:aws-global:" + "cloudfront",
+		"aws:123456789012:aws-global:" + "iam",
+		"aws:123456789012:aws-global:" + "route53",
+		"aws:123456789012:us-east-1:" + "lambda",
+		"aws:123456789012:us-east-1:" + "s3",
 	}
 	slices.Sort(gotScopeIDs)
 	if !slices.Equal(gotScopeIDs, wantScopeIDs) {
 		t.Fatalf("planned scope IDs = %#v, want %#v", gotScopeIDs, wantScopeIDs)
 	}
-	if slices.Contains(gotScopeIDs, "aws:123456789012:aws-global:"+catalog.ServiceLambda) {
+	if slices.Contains(gotScopeIDs, "aws:123456789012:aws-global:"+"lambda") {
 		t.Fatalf("planned aws-global lambda target; regional services must not run against aws-global")
 	}
-	if slices.Contains(gotScopeIDs, "aws:123456789012:us-east-1:"+catalog.ServiceIAM) {
+	if slices.Contains(gotScopeIDs, "aws:123456789012:us-east-1:"+"iam") {
 		t.Fatalf("planned regional IAM target; global services must stay on aws-global")
 	}
 
@@ -136,11 +135,11 @@ func TestAWSScheduledWorkPlannerSkipsInvalidGlobalRegionPairs(t *testing.T) {
 		t.Fatalf("skipped targets = %d, want %d in RequestedScopeSet %s", got, want, run.RequestedScopeSet)
 	}
 	wantSkipped := map[string]string{
-		"aws-global/" + catalog.ServiceLambda:    "regional_service_aws_global",
-		"aws-global/" + catalog.ServiceS3:        "regional_service_aws_global",
-		"us-east-1/" + catalog.ServiceCloudFront: "global_service_regional_region",
-		"us-east-1/" + catalog.ServiceIAM:        "global_service_regional_region",
-		"us-east-1/" + catalog.ServiceRoute53:    "global_service_regional_region",
+		"aws-global/" + "lambda":    "regional_service_aws_global",
+		"aws-global/" + "s3":        "regional_service_aws_global",
+		"us-east-1/" + "cloudfront": "global_service_regional_region",
+		"us-east-1/" + "iam":        "global_service_regional_region",
+		"us-east-1/" + "route53":    "global_service_regional_region",
 	}
 	for _, skipped := range requested.SkippedTargets {
 		key := skipped.Region + "/" + skipped.ServiceKind

@@ -6,8 +6,6 @@ package freshness
 import (
 	"testing"
 	"time"
-
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func TestNormalizeEventBridgeConfigChangeTargetsServiceTuple(t *testing.T) {
@@ -49,8 +47,8 @@ func TestNormalizeEventBridgeConfigChangeTargetsServiceTuple(t *testing.T) {
 	if trigger.Region != "us-east-1" {
 		t.Fatalf("Region = %q, want us-east-1", trigger.Region)
 	}
-	if trigger.ServiceKind != catalog.ServiceLambda {
-		t.Fatalf("ServiceKind = %q, want %q", trigger.ServiceKind, catalog.ServiceLambda)
+	if trigger.ServiceKind != "lambda" {
+		t.Fatalf("ServiceKind = %q, want %q", trigger.ServiceKind, "lambda")
 	}
 	if trigger.ResourceType != "AWS::Lambda::Function" {
 		t.Fatalf("ResourceType = %q, want AWS::Lambda::Function", trigger.ResourceType)
@@ -91,8 +89,8 @@ func TestNormalizeEventBridgeCloudTrailAPITargetsServiceTuple(t *testing.T) {
 	if trigger.Kind != EventKindCloudTrailAPI {
 		t.Fatalf("Kind = %q, want %q", trigger.Kind, EventKindCloudTrailAPI)
 	}
-	if trigger.ServiceKind != catalog.ServiceEC2 {
-		t.Fatalf("ServiceKind = %q, want %q", trigger.ServiceKind, catalog.ServiceEC2)
+	if trigger.ServiceKind != "ec2" {
+		t.Fatalf("ServiceKind = %q, want %q", trigger.ServiceKind, "ec2")
 	}
 	if trigger.Region != "us-west-2" {
 		t.Fatalf("Region = %q, want us-west-2", trigger.Region)
@@ -130,8 +128,8 @@ func TestNormalizeEventBridgeCloudTrailAPITargetsSecurityHub(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NormalizeEventBridge() error = %v, want nil", err)
 	}
-	if trigger.ServiceKind != catalog.ServiceSecurityHub {
-		t.Fatalf("ServiceKind = %q, want %q", trigger.ServiceKind, catalog.ServiceSecurityHub)
+	if trigger.ServiceKind != "securityhub" {
+		t.Fatalf("ServiceKind = %q, want %q", trigger.ServiceKind, "securityhub")
 	}
 	if trigger.Region != "us-east-1" {
 		t.Fatalf("Region = %q, want us-east-1", trigger.Region)
@@ -178,8 +176,8 @@ func TestNormalizeEventBridgeConfigChangeTargetsAPIGatewayV2(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NormalizeEventBridge() error = %v, want nil", err)
 			}
-			if trigger.ServiceKind != catalog.ServiceAPIGatewayV2 {
-				t.Fatalf("ServiceKind = %q, want %q", trigger.ServiceKind, catalog.ServiceAPIGatewayV2)
+			if trigger.ServiceKind != "apigatewayv2" {
+				t.Fatalf("ServiceKind = %q, want %q", trigger.ServiceKind, "apigatewayv2")
 			}
 			if trigger.ResourceType != tc.resourceType {
 				t.Fatalf("ResourceType = %q, want %q", trigger.ResourceType, tc.resourceType)
@@ -212,8 +210,8 @@ func TestNormalizeEventBridgeCloudTrailAPITargetsAPIGatewayV2(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NormalizeEventBridge() error = %v, want nil", err)
 	}
-	if trigger.ServiceKind != catalog.ServiceAPIGatewayV2 {
-		t.Fatalf("ServiceKind = %q, want %q", trigger.ServiceKind, catalog.ServiceAPIGatewayV2)
+	if trigger.ServiceKind != "apigatewayv2" {
+		t.Fatalf("ServiceKind = %q, want %q", trigger.ServiceKind, "apigatewayv2")
 	}
 }
 
