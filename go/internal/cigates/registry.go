@@ -170,6 +170,13 @@ type Gate struct {
 	// SelfTestTriggers narrows a distinct local.test_command. Nil always runs it.
 	// Every declared entry must also appear in Triggers.
 	SelfTestTriggers []string
+	// GeneratorInputs names the file classes whose changes can alter this
+	// gate's regenerated output (#9621). Every entry must be matched by at
+	// least one of Triggers (checked by the registry drift check), so a PR
+	// changing a generator input always selects this gate. Gates with a
+	// non-empty Regenerate map must declare this; other gates may declare
+	// it to gain the same selection proof.
+	GeneratorInputs []string
 	// Local is the local execution config. Nil when the gate is CI-only.
 	Local *Local
 	// CI is the CI execution config.
@@ -344,22 +351,17 @@ func Load(path string) (*Registry, error) {
 		if len(gf.Triggers) == 0 {
 			return nil, fmt.Errorf("ci-gates registry %s: gate %q has empty triggers (must be non-empty)", path, id)
 		}
-		// triggers: is meant to be a SET of path globs, but YAML has no set
-		// type: nothing before this rejected a LIST that carries the same
-		// entry twice. A copy-paste of one trigger line, or a near-miss merge
-		// of two sibling families' trigger blocks, silently doubled an entry
-		// with no error and no functional effect on matching -- MatchGlob
-		// against a duplicated glob behaves identically to matching it once
-		// -- so it could go unnoticed indefinitely.
-		seenTriggers := make(map[string]struct{}, len(gf.Triggers))
-		for _, trig := range gf.Triggers {
-			if _, dup := seenTriggers[trig]; dup {
-				return nil, fmt.Errorf("ci-gates registry %s: gate %q has duplicate trigger %q (triggers: must be a set, not a list)", path, id, trig)
-			}
-			seenTriggers[trig] = struct{}{}
+		seenTriggers, err := checkDuplicateTriggers(path, id, gf.Triggers)
+		if err != nil {
+			return nil, err
 		}
 
 		selfTestTriggers, err := parseSelfTestTriggers(path, id, gf.SelfTestTriggers, seenTriggers)
+		if err != nil {
+			return nil, err
+		}
+
+		generatorInputs, err := parseGeneratorInputs(path, id, gf.GeneratorInputs)
 		if err != nil {
 			return nil, err
 		}
@@ -403,6 +405,7 @@ func Load(path string) (*Registry, error) {
 			Blocking:         gf.Blocking,
 			Triggers:         gf.Triggers,
 			SelfTestTriggers: selfTestTriggers,
+			GeneratorInputs:  generatorInputs,
 			Local:            local,
 			CI: CI{
 				Workflow:   strings.TrimSpace(gf.CI.Workflow),

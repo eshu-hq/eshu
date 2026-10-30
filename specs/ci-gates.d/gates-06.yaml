@@ -186,6 +186,14 @@ gates:
       - "specs/ci-gates.v1.yaml"
       - "specs/ci-gates.d/**"
       - ".github/static-contract-filters.yml"
+    # #9621: the machine-readable file classes whose changes can alter the
+    # regenerated inventory. The drift check fails when no trigger matches
+    # one. The baseline txt is the generator's output, not an input class.
+    generator_inputs:
+      - "specs/capability-matrix.v1.yaml"
+      - "specs/capability-matrix/**"
+      - "docs/internal/remote-validation/**"
+      - "specs/remote-validation-frozen.txt"
     local:
       command: "bash scripts/generate-remote-validation-inventory.sh && git diff --exit-code -- docs/internal/remote-validation/inventory.generated.json && bash scripts/verify-remote-validation-artifacts.sh"
       test_command: "bash scripts/test-generate-remote-validation-inventory.sh && bash scripts/test-verify-remote-validation-artifacts.sh && bash scripts/test-verify-dead-iac-compose.sh && bash scripts/test-verify-remote-e2e-component-extension.sh && bash scripts/test-verify-k8s-two-team-governance-proof.sh"

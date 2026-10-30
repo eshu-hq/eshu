@@ -23,11 +23,14 @@ var generatorGlobRE = regexp.MustCompile(`joinpath\("([^"]+)"\)\.(r?glob)\(\s*"(
 // gate's triggers named only the generator and the ledger files, the PR plan
 // skipped the gate, and main went red on the merge push.
 //
-// The input classes come from the generator itself: every pathlib
+// The ground truth comes from the generator itself: every pathlib
 // glob/rglob call in the Python files the gate lists as literal triggers.
-// For each class the test builds a sample path and asserts, through the
-// real selector, that the path selects the gate. Removing or narrowing the
-// covering trigger fails the test.
+// #9621 declares those classes once, machine-readably, in the gate's
+// generator_inputs; this test asserts every parsed class is covered by a
+// declared input, and then asserts, through the real selector, that every
+// declared input selects the gate. Adding a generator scan without declaring
+// it fails the first half; removing or narrowing the covering trigger fails
+// the second (and the registry drift check).
 func TestReadinessRegistrationDriftTriggersCoverGeneratorInputs(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
 	registry, err := Load(filepath.Join(root, "specs/ci-gates.v1.yaml"))
@@ -45,26 +48,26 @@ func TestReadinessRegistrationDriftTriggersCoverGeneratorInputs(t *testing.T) {
 		t.Fatalf("gate %s missing", gateID)
 	}
 
+	// Ground truth is the scan module alone. The driver script
+	// (generate-live-postgres-readiness.py) also globs, but only for
+	// orphan OUTPUT sweeps over generated inventory fragments — outputs,
+	// not input classes — so parsing every .py trigger would demand
+	// declaring generated files as inputs of their own gate.
 	samples := map[string]string{}
-	for _, trigger := range gate.Triggers {
-		if !strings.HasSuffix(trigger, ".py") || strings.ContainsAny(trigger, "*?[") {
-			continue
+	source, err := os.ReadFile(filepath.Join(root, "scripts/lib/live_postgres_readiness_gen_scan.py"))
+	if err != nil {
+		t.Fatalf("read generator scan module: %v", err)
+	}
+	for _, m := range generatorGlobRE.FindAllStringSubmatch(string(source), -1) {
+		dir, kind, pattern := m[1], m[2], m[3]
+		name := strings.ReplaceAll(pattern, "*", "sample")
+		class := dir + "/" + pattern
+		sample := dir + "/" + name
+		if kind == "rglob" {
+			class = dir + "/**/" + pattern
+			sample = dir + "/internal/sample/" + name
 		}
-		source, err := os.ReadFile(filepath.Join(root, trigger))
-		if err != nil {
-			t.Fatalf("read generator file %s: %v", trigger, err)
-		}
-		for _, m := range generatorGlobRE.FindAllStringSubmatch(string(source), -1) {
-			dir, kind, pattern := m[1], m[2], m[3]
-			name := strings.ReplaceAll(pattern, "*", "sample")
-			class := dir + "/" + pattern
-			sample := dir + "/" + name
-			if kind == "rglob" {
-				class = dir + "/**/" + pattern
-				sample = dir + "/internal/sample/" + name
-			}
-			samples[class] = sample
-		}
+		samples[class] = sample
 	}
 	// The scan must find the marker inputs, or a parse change would pass
 	// the test vacuously.
@@ -74,19 +77,45 @@ func TestReadinessRegistrationDriftTriggersCoverGeneratorInputs(t *testing.T) {
 		}
 	}
 
-	for class, sample := range samples {
+	// Every class the generator actually scans must be covered by a
+	// declared generator_inputs entry; the drift check then proves each
+	// declared entry is trigger-covered. Coverage is probed one sample
+	// path per class through MatchGlob — the same primitive the drift
+	// check uses — so a declared entry covers a scanned class exactly
+	// when it matches that class's sample. A declared entry containing
+	// the literal text "sample" would probe true for any class and must
+	// never be declared.
+	for class := range samples {
+		covered := false
+		for _, declared := range gate.GeneratorInputs {
+			if MatchGlob(declared, sampleForInputClass(class)) {
+				covered = true
+				break
+			}
+		}
+		if !covered {
+			t.Errorf("generator scans input class %s, which no declared generator_inputs entry covers (declared: %v); declare it on gate %s",
+				class, gate.GeneratorInputs, gateID)
+		}
+	}
+	if len(gate.GeneratorInputs) == 0 {
+		t.Fatalf("gate %s declares no generator_inputs; the scanned classes above have no declared source", gateID)
+	}
+
+	for _, declared := range gate.GeneratorInputs {
+		sample := sampleForInputClass(declared)
 		selected := false
 		for _, sel := range registry.Select([]string{sample}, TierPrePR) {
 			if sel.Gate.ID == gateID {
 				selected = sel.Selected
 				if !selected {
-					t.Errorf("generator input class %s: changed path %s does not select %s (%s)",
-						class, sample, gateID, sel.Reason)
+					t.Errorf("declared generator input %s: changed path %s does not select %s (%s)",
+						declared, sample, gateID, sel.Reason)
 				}
 			}
 		}
 		if selected {
-			t.Logf("input class %s: %s selects %s", class, sample, gateID)
+			t.Logf("declared input %s: %s selects %s", declared, sample, gateID)
 		}
 	}
 }
