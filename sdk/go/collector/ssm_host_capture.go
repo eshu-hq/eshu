@@ -56,18 +56,18 @@ type SSMInventoryPage struct {
 // capture times, and instance identities never flow into operator-visible
 // text through the verdict path.
 const (
-	ssmCaptureReasonComplete        = "complete coherent capture within budgets"
-	ssmCaptureReasonTruncated       = "pagination stopped with a pending next token"
-	ssmCaptureReasonTokenRepeat     = "repeating pagination token"
-	ssmCaptureReasonTokenChain      = "broken pagination token chain"
-	ssmCaptureReasonIncoherent      = "incoherent stream identity or capture time"
-	ssmCaptureReasonMissingCapture  = "missing or invalid capture time"
-	ssmCaptureReasonNoPages         = "no pages read"
-	ssmCaptureReasonEntryCeiling    = "entry volume exceeds the per-host capture ceiling"
-	ssmCaptureReasonPageCeiling     = "page volume exceeds the per-host per-type poll ceiling"
-	ssmCaptureReasonEntryByteBudget = "entry bytes exceed the per-entry planning budget"
-	ssmCaptureReasonPageByteBudget  = "page bytes exceed the per-page planning budget"
-	ssmCaptureReasonStale           = "capture past the stale-age bound"
+	ssmCaptureReasonComplete             = "complete coherent capture within budgets"
+	ssmCaptureReasonTruncated            = "pagination stopped with a pending next token"
+	ssmCaptureReasonTokenRepeat          = "repeating pagination token"
+	ssmCaptureReasonTokenChain           = "broken pagination token chain"
+	ssmCaptureReasonIncoherent           = "incoherent stream identity or capture time"
+	ssmCaptureReasonMissingCapture       = "missing or invalid capture time"
+	ssmCaptureReasonNoPages              = "no pages read"
+	ssmCaptureReasonEntryCeiling         = "entry volume exceeds the per-host capture ceiling"
+	ssmCaptureReasonPageCeiling          = "page volume exceeds the per-host per-type poll ceiling"
+	ssmCaptureReasonEntryByteBudget      = "entry bytes exceed the per-entry planning budget"
+	ssmCaptureReasonPageByteBudget       = "page bytes exceed the per-page planning budget"
+	ssmCaptureReasonStale                = "capture past the stale-age bound"
 	ssmCaptureReasonSourceNotAllowlisted = "source type outside the poll allowlist"
 )
 
