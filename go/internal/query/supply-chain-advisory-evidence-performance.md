@@ -94,3 +94,34 @@ No-Observability-Change: the route still emits `query.advisory_evidence`, the
 Postgres query duration histogram, HTTP status/error bodies, truth envelope
 metadata, `count`, `limit`, `truncated`, and `next_cursor`. The change adds no
 graph query, queue, reducer lane, worker, runtime knob, or metric label.
+
+Performance Evidence (#9487): the `impact_candidates` CTE no longer fans
+every impact-scoped input out to one probe per active scope. A
+repository-anchored selector drives from the repository-key probe
+(`repo_probe`, guarded by `has_scope AND repository_id <> ''`) into
+`fact_records_supply_chain_impact_repository_lookup_idx` and tests
+active-generation membership after; every other selector shape keeps the
+scope-driven fan-in behind the mutually exclusive `repository_id = ''`
+guard, and the no-scope path skips the fan-in probes entirely. No DDL, no
+leg changes, no contract change. Primary corpus (91 GB fact_records,
+2026-10-29, read-only tx): repository scope r_91a70b19 (4890 evidence
+rows) 2639/2390/2264ms -> 1450/1610/1485ms, byte-identical including
+order; smaller repository scope r_c917fef9 identical (927 rows); KEV
+CVE-2021-44228 866ms -> 2ms identical (1 row); workload-only
+workload:repository:r_33474efb identical (1 row) with neutral timing
+(medians ~1000ms vs ~1017ms). Shape pin:
+`TestAdvisoryEvidenceImpactCandidatesProbeRepositoryFirst`.
+
+Bounded intermediate (#9487): `repo_probe` is MATERIALIZED but holds only
+the repository's kind/tombstone-matching finding set, probed once through
+`fact_records_supply_chain_impact_repository_lookup_idx`. On the same
+primary corpus (2026-10-29, read-only tx, shipped text at `c45a119e5c`),
+`EXPLAIN ANALYZE` shows the probe as a Nested Loop over that index with
+636 rows and loops=1 (~3-7ms) for the largest measured repository
+(`repository:r_91a70b19`); end-to-end 2521/1589/1564ms across three runs.
+With a selective service miss on the same repository the probe still
+materializes 636 rows once and the service predicate empties the rest:
+37/26/24ms end-to-end. The intermediate scales with repository findings,
+not with the 1,584-scope fan-in it replaces.
+
+No-Observability-Change (#9487): same route signals as above, unchanged.
