@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
-	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 func openRepoDependencyQuarantineProofDB(ctx context.Context, t *testing.T, dsn string) (*sql.DB, func()) {
@@ -23,11 +22,6 @@ func openRepoDependencyQuarantineProofDB(ctx context.Context, t *testing.T, dsn 
 	if err != nil {
 		t.Fatalf("open quarantine proof bootstrap database: %v", err)
 	}
-	// Pin pg_trgm to public before creating the schema (#9572): the
-	// bootstrap's unqualified CREATE EXTENSION would otherwise install the
-	// opclass into this private schema, hiding it from every sibling schema
-	// bootstrapped later in the same database.
-	postgresproof.InstallTrigramExtension(ctx, t, bootstrapDB)
 	schemaName := fmt.Sprintf("repo_dependency_odu_quarantine_%d", time.Now().UnixNano())
 	if _, err := bootstrapDB.ExecContext(ctx, "CREATE SCHEMA "+schemaName); err != nil {
 		_ = bootstrapDB.Close()
@@ -37,9 +31,7 @@ func openRepoDependencyQuarantineProofDB(ctx context.Context, t *testing.T, dsn 
 	if strings.Contains(dsn, "?") {
 		separator = "&"
 	}
-	// public stays on the path so the pg_trgm operator classes pinned above
-	// resolve for this schema's bootstrap.
-	database, err := sql.Open("pgx", dsn+separator+"search_path="+schemaName+",public")
+	database, err := sql.Open("pgx", dsn+separator+"search_path="+schemaName)
 	if err != nil {
 		_ = bootstrapDB.Close()
 		t.Fatalf("open scoped quarantine proof database: %v", err)

@@ -75,7 +75,7 @@ class IfaLedgerPolicyTest(unittest.TestCase):
         """Removing every enrolled Ifá row cannot become a legacy exemption."""
         source = flattened_ledger()
         inventory = json.loads(INVENTORY.read_text())
-        self.assertEqual(len(inventory), 7)
+        self.assertEqual(len(inventory), 8)
         rows = re.findall(
             r"(?ms)^  - file: (\S+)\n.*?(?=^  - file: |\Z)", source
         )
@@ -110,7 +110,7 @@ class IfaLedgerPolicyTest(unittest.TestCase):
             self.assertIn("Ifá scheduled rows differ", result.stderr)
 
     def test_missing_extra_and_unknown_postgres_runner(self) -> None:
-        """Only the exact seven files may use this verified class."""
+        """Only the exact eight files may use this verified class."""
         source = flattened_ledger()
         inventory = json.loads(INVENTORY.read_text())
         target = sorted(inventory)[0]

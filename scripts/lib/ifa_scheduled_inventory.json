@@ -47,5 +47,12 @@
     "package": "github.com/eshu-hq/eshu/go/internal/replay/offlinetier",
     "tag": "ifarepodependencyproof",
     "tests": []
+  },
+  "go/internal/replay/offlinetier/repo_dependency_proof_trigram_sharing_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/replay/offlinetier",
+    "tag": "ifarepodependencyproof",
+    "tests": [
+      "TestRepoDependencyProofSchemasShareTrigramLive"
+    ]
   }
 }
