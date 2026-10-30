@@ -194,6 +194,55 @@ persists). A changed or unparsable `Cargo.toml` marks the stream
 dropped, exposing the same pre-existing drop signals as the other
 manifest readers.
 
+## Node collector cost and signals
+
+Performance Evidence (#9308, 2026-10-30): a paired, sequential local
+benchmark ran the shared emission benches on the branch base `ca16186fa4`
+and the Node lane head `0c83f21047`
+(`go test -run '^$' -bench 'BenchmarkEmitPackageJSON$|BenchmarkEmitGoMod$'
+-benchtime 1000x -count 3 -benchmem`, Go 1.26.10, linux/arm64, 16 CPUs; no
+graph or Postgres backend). A temporary harness measured the two new
+bodies through the production `Emit` path at head only
+(`BenchmarkNodePackageManagerBun/Deno`, SHA-256
+`73794197f3df40f0882b91e7ed8f2d52003a59c5bf50fba885017dac130337bd`;
+removed after the run): the 46-byte bun body emits 1 envelope and the
+31-byte deno body emits 1 envelope, matching the committed
+`lib-common/runtime_node` fixtures (which add one trailing newline each).
+
+| Per operation | Base | Node head |
+| --- | ---: | ---: |
+| `BenchmarkEmitPackageJSON` median | 61,768 ns | 61,779 ns |
+| `BenchmarkEmitPackageJSON` range | 59,886-61,810 ns | 60,270-73,724 ns |
+| `BenchmarkEmitGoMod` median | 21,951 ns | 21,896 ns |
+| `BenchmarkEmitGoMod` range | 21,797-22,082 ns | 21,610-21,970 ns |
+| `BenchmarkEmitPackageJSON` allocs | 620 | 620 |
+| `BenchmarkEmitGoMod` allocs | 233 | 233 |
+| Node bun body median | n/a (rejected: unlisted name) | 10,763 ns, 114 allocs |
+| Node deno body median | n/a (rejected: unlisted name) | 10,824 ns, 113 allocs |
+
+The same-round medians agree to 1.000 (package.json) and 0.997 (go.mod)
+with identical allocation counts: the allowlist grows by two names on the
+same map-lookup path, so the shared emission cost does not move. The two
+new facts ride that unchanged path (`TestEmitPackageJSONPackageManagerStripsTheIntegritySuffix`
+pins 1 envelope each, integrity suffix cut, never stored). Load1 stayed
+between 10.8 and 13.1 across the run window (2026-10-30T14:57:35Z to
+2026-10-30T14:58:18Z), above the 8.0 quiet-host ceiling, so these local
+timings are diagnostic rather than a production throughput claim; the
+identical allocs and the unchanged-path argument carry the
+no-regression case.
+
+No-Observability-Change: no metric, span, or log key was added. The
+existing `git_runtime_declaration_file_skipped` and
+`git_runtime_declaration_values_rejected` WARN logs report bounded skips
+with reason, relative path, byte size, and rejected count without raw
+values; unlisted `packageManager` names are still rejected and counted
+(`TestEmitPackageJSONUnlistedPackageManagerIsRejected`). An over-cap
+manifest is skipped at the 1 MiB `MaxManifestBytesPerFile` bound and the
+collector retains only the guarded declarations, never the body
+(`TestNoteRuntimeDeclarationCandidateRetainsNoManifestBody`). A changed
+or unparsable `package.json` marks the stream dropped, exposing the same
+pre-existing drop signals as the other manifest readers.
+
 ## Evidence for the Dockerfile and workflow readers (#8818)
 
 No-Regression Evidence: the pin and manifest emission paths are unchanged
