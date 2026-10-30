@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
@@ -100,7 +101,7 @@ func representativeAffectedPackage(packages []supplychainmodel.AffectedPackage) 
 	if len(packages) == 1 {
 		return packages[0]
 	}
-	ecosystem := strings.ToLower(strings.TrimSpace(packages[0].Ecosystem))
+	ecosystem := packageidentity.LowerASCII(strings.TrimSpace(packages[0].Ecosystem))
 	sorted := append([]supplychainmodel.AffectedPackage(nil), packages...)
 	sort.SliceStable(sorted, func(i, j int) bool {
 		si := classifyAdvisorySource(sorted[i].Source, sorted[i].AdvisoryID)

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
+	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
@@ -50,5 +51,5 @@ func goSupplyChainReachabilityEvidencePath(finding GoVulnerabilityFinding) []str
 }
 
 func goSupplyChainReachabilityKey(osvID, modulePath, repositoryID string) string {
-	return strings.TrimSpace(osvID) + "\x00" + strings.ToLower(strings.TrimSpace(modulePath)) + "\x00" + strings.TrimSpace(repositoryID)
+	return strings.TrimSpace(osvID) + "\x00" + packageidentity.LowerASCII(strings.TrimSpace(modulePath)) + "\x00" + strings.TrimSpace(repositoryID)
 }

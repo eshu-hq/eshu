@@ -24,9 +24,14 @@
   ecosystem becomes identity (#9584). The manifest side and the advisory side
   must fold identically; `testdata/ascii_keys_golden.json` pins ASCII keys
   byte-for-byte and `lookalike_test.go` pins the non-ASCII rule. Code that
-  compares package identity outside this package follows the same rule: SQL
-  folds with `LOWER(TRIM(x) COLLATE "C") COLLATE "default"`, and Go compares
-  package IDs and PURLs with `LowerASCII(a) == LowerASCII(b)`.
+  compares package identity outside this package follows the same rule in Go:
+  package IDs and PURLs compare with `LowerASCII(a) == LowerASCII(b)`. SQL
+  that joins a package name or ecosystem to a key Go wrote folds with
+  `LOWER(TRIM(x) COLLATE "C") COLLATE "default"`; today that is the readiness
+  derived source-state lookup, pinned by
+  `TestReadinessDerivedSourceStateFoldsASCIIOnly`. The other readiness
+  ecosystem `LOWER`s fold operator- and parser-authored spellings and still
+  follow the database collation.
 - Unknown ecosystem aliases must fail closed instead of guessing.
 - `sbt` is not an ecosystem alias. A `%%` row's name is the unsuffixed
   `organization:name`, which is not a published artifact, so sbt rows resolve

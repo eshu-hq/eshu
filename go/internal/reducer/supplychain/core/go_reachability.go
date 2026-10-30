@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
@@ -175,13 +176,13 @@ func classifyGoVulnerabilityReachabilityWithQuarantine(envelopes []facts.Envelop
 	for _, moduleRows := range moduleByRepoModule {
 		modulePath := moduleRows[0].modulePath
 		repositoryID := moduleRows[0].repositoryID
-		osvIDs := advisoryByModule[strings.ToLower(modulePath)]
+		osvIDs := advisoryByModule[packageidentity.LowerASCII(modulePath)]
 		if len(osvIDs) == 0 {
 			continue
 		}
 		module := selectGoModuleEvidence(moduleRows)
 		for _, osvID := range osvIDs {
-			advisoryRows := advisoryRowsByModuleOSV[strings.ToLower(modulePath)+"\x00"+osvID]
+			advisoryRows := advisoryRowsByModuleOSV[packageidentity.LowerASCII(modulePath)+"\x00"+osvID]
 			applicability := goAdvisoryApplicabilityForModule(advisoryRows, module)
 			reachRows := goReachabilityRowsForModule(reachByRepoOSV[repositoryID+"\x00"+osvID], modulePath)
 			if !applicability.applicable && len(reachRows) == 0 {
@@ -226,7 +227,7 @@ func classifyGoVulnerabilityReachabilityWithQuarantine(envelopes []facts.Envelop
 func indexGoAdvisoryRowsByModuleOSV(rows []goAffectedPackageRow) map[string][]goAffectedPackageRow {
 	out := make(map[string][]goAffectedPackageRow, len(rows))
 	for _, row := range rows {
-		key := strings.ToLower(row.modulePath) + "\x00" + row.osvID
+		key := packageidentity.LowerASCII(row.modulePath) + "\x00" + row.osvID
 		out[key] = append(out[key], row)
 	}
 	return out

@@ -22,13 +22,21 @@ byte. The sites:
   the RubyGems Gemfile-to-lockfile join key, and the `package_manager` and
   registry `ecosystem` folds that feed the in-memory key builder.
 - `go/internal/collector/vulnerabilityintelligence`: the OSV Swift
-  reference parser, so the advisory side folds like the manifest side.
+  reference parser and the OSV ecosystem fallback, so the advisory side folds
+  like the manifest side; in `vulnruntime`, the derived scope-id, slot, and
+  configured ecosystem tokens and the OSV query ecosystem; in `checkpoint`,
+  the source-state ecosystem.
 - `go/internal/reducer/supplychain/core`: vulnerability suppression scope.
   `package_id` and `purl` anchors compare with `LowerASCII` on both sides.
   `strings.EqualFold` treats U+212A as `k` and U+017F (long s) as `s`, so a
   suppression written for `npm://registry.npmjs.org/kafka` hid findings on
   the Kelvin-sign lookalike. CVE and advisory IDs keep `EqualFold`: they are
   ASCII by specification. The sbt package-manager checks fold ASCII only too.
+  Go reachability folds module paths with `LowerASCII` where it groups module
+  evidence and advisories and where it looks them up, so a lookalike module
+  no longer merges with the real one. The ecosystem, package-manager, distro,
+  vendor-source, OS package, npm name, and PyPI PURL-type folds in this
+  package use it too.
 - `go/internal/query/supply/chain/impact`: the derived OSV source-state
   lookup in readiness folds package names and ecosystem spellings with
   `LOWER(TRIM(x) COLLATE "C") COLLATE "default"`. A plain `LOWER` follows
@@ -45,6 +53,26 @@ pattern but still reads legacy IDs with `\w`, and it compares them with .NET
 `ToLowerInvariant`. Two legacy IDs that differ only in non-ASCII case are one
 package there and two keys here. Not joining them is the fail-closed
 direction; #9594 tracks confirming it.
+
+### Folds this change leaves alone
+
+`rg -n 'strings\.(ToLower|EqualFold)' --glob '!*_test.go'` over
+`go/internal/reducer/supplychain/core` and
+`go/internal/collector/vulnerabilityintelligence` lists what remains:
+
+- Version strings, range kinds (`SEMVER`, `ECOSYSTEM`), CVE and advisory
+  IDs, CVSS vectors, severity and state labels, language tags,
+  missing-evidence text, advisory feed labels, scope anchors (repository,
+  service, workload, digest), CPE criteria, and secret-key redaction. None of
+  these is package identity.
+- Code-identifier matching in reachability: Python import roots and SCIP
+  symbols, and JVM package segments. These compare source-code identifiers,
+  which Python and Java allow to be non-ASCII, and Python normalizes
+  identifiers with NFKC (which maps U+212A to `K`). The correct fold there
+  follows each language, not the registry rule, so it is a separate
+  decision.
+- The readiness SQL ecosystem `LOWER`s outside the derived source-state
+  lookup. They fold operator- and parser-authored ecosystem spellings.
 
 ## Proof
 
