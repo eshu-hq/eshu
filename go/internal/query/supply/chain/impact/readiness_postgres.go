@@ -202,9 +202,21 @@ func (s PostgresReadinessStore) readSupplyChainImpactReadiness(
 		window = supplyChainImpactReadinessFreshnessWindow
 	}
 	freshnessCutoff := time.Now().UTC().Add(-window)
+	// Without an installed authority layout there is no authority to
+	// filter by: read the legacy statement, byte-identical to the
+	// pre-protection read. The probe is poison-free (to_regclass never
+	// errors on a missing relation), so it runs inside the snapshot.
+	authorityPresent, err := readinessAuthorityLayoutPresent(ctx, database)
+	if err != nil {
+		return ReadinessSnapshot{}, fmt.Errorf("probe supply chain impact authority layout: %w", err)
+	}
 	statement := listCurrentReadinessQuery
 	args := readinessQueryArguments(query, target, freshnessCutoff)
-	args = append(args, supplyChainImpactCallerAuthorizationArgs(ctx)...)
+	if !authorityPresent {
+		statement = ListReadinessQuery
+	} else {
+		args = append(args, supplyChainImpactCallerAuthorizationArgs(ctx)...)
+	}
 	rows, err := database.QueryContext(ctx, statement, args...)
 	if err != nil {
 		return ReadinessSnapshot{}, fmt.Errorf("read supply chain impact readiness: %w", err)
