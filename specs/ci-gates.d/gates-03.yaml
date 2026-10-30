@@ -462,9 +462,12 @@ gates:
       - "specs/live-tests.v1.yaml"
       - "specs/live-tests.d/**"
       - ".github/workflows/live-postgres-readiness.yml"
-      # The generator scans every go/**/*_test.go for readiness markers (#9614);
-      # same glob as the CI paths filter for this gate.
-      - "go/**/*_test.go"
+      # The generator reads readiness markers from go/**/*_test.go and checks
+      # each marker env var against the literals in every go/**/*.go file, so
+      # a non-test Go edit can fail it too (#9614); same glob as the gate's CI
+      # paths filter. TestReadinessRegistrationDriftTriggersCoverGeneratorInputs
+      # pins every input class the generator scans.
+      - "go/**/*.go"
     self_test_triggers:
       - "scripts/test-generate-live-postgres-readiness.sh"
       - "scripts/test-live-postgres-readiness-fragments.py"
