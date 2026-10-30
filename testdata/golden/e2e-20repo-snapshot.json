@@ -177,8 +177,8 @@
       },
       "RuntimeDeclaration": {
         "min": 6,
-        "max": 30,
-        "note": "RuntimeDeclaration nodes from runtime_declaration.version facts (issue #8816); the go_comprehensive fixture's .tool-versions declares 4 versions on 2 lines (golang 1.22.5; nodejs 20.11.1 18.19.0 lts/iron, three tokens with order_index 0, 1 and 2), ceiling wide for future fixture pin files"
+        "max": 50,
+        "note": "RuntimeDeclaration nodes from runtime_declaration.version facts (issue #8816); the go_comprehensive fixture's .tool-versions declares 4 versions on 2 lines (golang 1.22.5; nodejs 20.11.1 18.19.0 lts/iron, three tokens with order_index 0, 1 and 2). Issues #9548/#9610 enroll .NET (global.json SDK, csproj TargetFramework/s) and IaC (terraform_required_version, terragrunt_version_constraint, terragrunt_version, helm_chart_kube_version) declarations; CI observed 38 nodes, ceiling 50 stays wide for future fixture pin files"
       }
     },
     "edge_counts": {
@@ -344,8 +344,8 @@
       },
       "DECLARES_RUNTIME": {
         "min": 4,
-        "max": 30,
-        "note": "Repository->RuntimeDeclaration edges (issue #8816), one per declaration; the go_comprehensive fixture's .tool-versions declares 4 versions (golang 1.22.5; nodejs 20.11.1 18.19.0 lts/iron), ceiling wide for future fixture pin files"
+        "max": 50,
+        "note": "Repository->RuntimeDeclaration edges (issue #8816), one per declaration; the go_comprehensive fixture's .tool-versions declares 4 versions (golang 1.22.5; nodejs 20.11.1 18.19.0 lts/iron). Issues #9548/#9610 enroll .NET and IaC declarations; CI observed 38 edges, ceiling 50 stays wide for future fixture pin files"
       },
       "PINS_SUBMODULE": {
         "min": 1,
