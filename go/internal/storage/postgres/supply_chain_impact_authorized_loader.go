@@ -54,15 +54,21 @@ func authorizedImpactProtectionEngaged(ctx context.Context, queryer db.Queryer) 
 	return true, nil
 }
 
-// isAuthorityLayoutAbsent reports whether err is the policy-state relation
-// itself being absent. The probe names no other table, so the relation-name
-// check keeps an unrelated undefined-table failure from degrading.
+// isAuthorityLayoutAbsent reports whether err is the authority layout
+// itself being absent: either the policy-state relation is missing from an
+// otherwise complete schema, or the eshu_security schema never landed
+// (isolated test bootstraps skip the database-global authority layout).
+// The probe names no other table or schema, so the name checks keep an
+// unrelated undefined-table failure from degrading.
 func isAuthorityLayoutAbsent(err error) bool {
 	var pgErr *pgconn.PgError
 	if !errors.As(err, &pgErr) {
 		return false
 	}
-	return pgErr.Code == "42P01" && strings.Contains(pgErr.Message, "role_policy_state")
+	if pgErr.Code == "42P01" {
+		return strings.Contains(pgErr.Message, "role_policy_state")
+	}
+	return pgErr.Code == "3F000" && strings.Contains(pgErr.Message, "eshu_security")
 }
 
 // AuthorizedSupplyChainImpactEvidenceLoader reads static and target-local
@@ -99,7 +105,45 @@ func (l AuthorizedSupplyChainImpactEvidenceLoader) ListAuthorizedSupplyChainImpa
 		return supplychaincore.AuthorizedSupplyChainImpactLoad{}, fmt.Errorf("authorized impact intent boundary is invalid")
 	}
 	var loaded supplychaincore.AuthorizedSupplyChainImpactLoad
-	err := NewFactStore(l.database).WithSupplyChainImpactSnapshot(ctx, func(factLoader factload.FactLoader) error {
+	expandDisengaged := func() error {
+		// Protection was never onboarded here: advisory gating and
+		// target publication are not in use, so the static expansion
+		// runs over the plain store, byte-identical to the unwired
+		// path. It MUST NOT run over the snapshot clone: the clone's
+		// static predicate strips vulnerability.cve/affected_package
+		// from scope loads and its advisory bridge errors without
+		// scan receipt authority, so routing the disengaged expansion
+		// through it starves every finding on a scope with no
+		// installed authority to filter by. The writer never sees a
+		// protected set it cannot authorize.
+		staticLoad, err := static(ctx, NewFactStore(l.database), nil)
+		if err != nil {
+			return fmt.Errorf("expand authorized static impact evidence: %w", err)
+		}
+		loaded.StaticEnvelopes = cloneAuthorizedImpactEnvelopes(staticLoad.Envelopes)
+		loaded.SuppressionEnvelopes = cloneAuthorizedImpactEnvelopes(staticLoad.SuppressionEnvelopes)
+		for _, envelope := range staticLoad.Envelopes {
+			loaded.StaticNonAdvisoryEvidenceFactIDs = append(loaded.StaticNonAdvisoryEvidenceFactIDs, envelope.FactID)
+		}
+		loaded.Complete = true
+		return nil
+	}
+	// Probe engagement before opening the authority snapshot. Probing
+	// inside would poison the snapshot transaction on scopes whose
+	// authority layout is absent: a failed statement aborts the whole
+	// Postgres transaction, and the snapshot commit then reports a
+	// rollback for a read that was supposed to stay disengaged.
+	engaged, err := authorizedImpactProtectionEngaged(ctx, l.database)
+	if err != nil {
+		return supplychaincore.AuthorizedSupplyChainImpactLoad{}, err
+	}
+	if !engaged {
+		if err := expandDisengaged(); err != nil {
+			return supplychaincore.AuthorizedSupplyChainImpactLoad{}, err
+		}
+		return loaded, nil
+	}
+	err = NewFactStore(l.database).WithSupplyChainImpactSnapshot(ctx, func(factLoader factload.FactLoader) error {
 		snapshotStore, ok := factLoader.(*FactStore)
 		if !ok || snapshotStore.database == nil {
 			return fmt.Errorf("authorized impact snapshot fact store is unavailable")
@@ -109,21 +153,9 @@ func (l AuthorizedSupplyChainImpactEvidenceLoader) ListAuthorizedSupplyChainImpa
 			return err
 		}
 		if !engaged {
-			// Protection was never onboarded here: advisory gating and
-			// target publication are not in use, so the static expansion
-			// stands on its own exactly as the legacy static load. The
-			// writer never sees a protected set it cannot authorize.
-			staticLoad, err := static(ctx, factLoader, nil)
-			if err != nil {
-				return fmt.Errorf("expand authorized static impact evidence: %w", err)
-			}
-			loaded.StaticEnvelopes = cloneAuthorizedImpactEnvelopes(staticLoad.Envelopes)
-			loaded.SuppressionEnvelopes = cloneAuthorizedImpactEnvelopes(staticLoad.SuppressionEnvelopes)
-			for _, envelope := range staticLoad.Envelopes {
-				loaded.StaticNonAdvisoryEvidenceFactIDs = append(loaded.StaticNonAdvisoryEvidenceFactIDs, envelope.FactID)
-			}
-			loaded.Complete = true
-			return nil
+			// Defense in depth for authority revoked between the probe
+			// above and the snapshot: same plain-store expansion.
+			return expandDisengaged()
 		}
 		public, advisoryReason, err := loadCurrentAuthorizedPublicAdvisories(ctx, snapshotStore.database)
 		if err != nil {
