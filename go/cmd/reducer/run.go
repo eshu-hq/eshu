@@ -54,9 +54,10 @@ func run(parent context.Context) error {
 	if err != nil {
 		return fmt.Errorf("telemetry instruments: %w", err)
 	}
-	if err := configureMemoryTelemetry(logger, meter); err != nil {
-		return err
-	}
+	// Apply the container-derived Go memory limit (an explicit GOMEMLIMIT
+	// still wins), as the ingester and projector do. The reducer skipped this
+	// before #9567; NewProviders registers eshu_dp_gomemlimit_bytes.
+	runtimecfg.ConfigureMemoryLimit(logger)
 
 	logger.Info("starting reducer")
 

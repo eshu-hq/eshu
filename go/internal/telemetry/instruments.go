@@ -8668,10 +8668,12 @@ func RegisterTfstateSchemaResolverEntries(meter metric.Meter, counter func() int
 // runtime's effective soft memory limit at each collection. It reads the live
 // limit (runtime/debug.SetMemoryLimit(-1)), so it covers a limit from the
 // GOMEMLIMIT environment variable, from runtime.ConfigureMemoryLimit's cgroup
-// detection, or from a later change; it reports 0 when no limit is set. Call
-// once at startup after runtime.ConfigureMemoryLimit. Before #9567 the gauge
-// recorded ConfigureMemoryLimit's return value, which is 0 when the limit came
-// from the environment, and the reducer never registered it.
+// detection, or from a later change; it reports 0 when no limit is set.
+// NewProviders registers it for every runtime; call it directly only on a
+// meter that does not come from NewProviders, such as a test reader. Before
+// #9567 the gauge recorded ConfigureMemoryLimit's return value, which is 0
+// when the limit came from the environment, and only five runtimes registered
+// it.
 func RecordGOMEMLIMIT(meter metric.Meter) error {
 	if meter == nil {
 		return nil

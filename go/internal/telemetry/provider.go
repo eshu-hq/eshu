@@ -42,7 +42,9 @@ type providerConfig struct {
 // NewProviders creates OTEL SDK providers from the bootstrap configuration.
 // It creates trace and metric exporters based on OTEL_EXPORTER_OTLP_ENDPOINT.
 // When the endpoint is empty, OTLP exporters are skipped (local dev safe).
-// Prometheus exporter is always created for /metrics endpoint.
+// Prometheus exporter is always created for /metrics endpoint, with the Go
+// and process collectors and the eshu_dp_gomemlimit_bytes gauge registered,
+// so every runtime exports its memory signals without a per-main call.
 func NewProviders(ctx context.Context, b Bootstrap, opts ...ProviderOption) (*Providers, error) {
 	if err := b.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid bootstrap: %w", err)
@@ -98,6 +100,14 @@ func NewProviders(ctx context.Context, b Bootstrap, opts ...ProviderOption) (*Pr
 			}
 		}
 		return errors.Join(errs...)
+	}
+
+	// Every runtime builds its /metrics here, so the memory-limit gauge is
+	// registered here too rather than in each main (#9567: the reducer, api,
+	// mcp-server, and collectors never registered it).
+	if err := RecordGOMEMLIMIT(meterProvider.Meter(DefaultSignalName)); err != nil {
+		_ = shutdown(ctx)
+		return nil, fmt.Errorf("register memory-limit gauge: %w", err)
 	}
 
 	otel.SetTracerProvider(traceProvider)

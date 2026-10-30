@@ -140,7 +140,8 @@ inst, _      := telemetry.NewInstruments(meter)
 // ... wire queue and worker implementations ...
 telemetry.RegisterObservableGauges(inst, meter, queueObs, workerObs)
 telemetry.RegisterAcceptanceObservableGauges(inst, meter, acceptanceObs)
-telemetry.RecordGOMEMLIMIT(meter, limitBytes)
+// NewProviders already registered eshu_dp_gomemlimit_bytes; do not call
+// RecordGOMEMLIMIT on its meter.
 ```
 
 Calling `RegisterObservableGauges` more than once for the same meter produces a

@@ -62,9 +62,6 @@ func run(parent context.Context) error {
 	}
 
 	runtimecfg.ConfigureMemoryLimit(logger)
-	if err := telemetry.RecordGOMEMLIMIT(meter); err != nil {
-		return fmt.Errorf("register gomemlimit gauge: %w", err)
-	}
 	// Reap adopted git-helper zombies: every fetch/clone orphans one
 	// short-lived helper grandchild that reparents to PID 1, and without an
 	// init process those zombies accumulate until fork fails pod-wide.

@@ -102,9 +102,10 @@ LIMIT $3
 // 3, mixed wave) before and 142 MiB after the projection, and 227.5 vs 75.8 MiB
 // allocated per intent, with byte-identical decisions and findings. On a
 // QA-shaped native PG18 seed (799 facts, 95.5 KB mean) EXPLAIN (ANALYZE,
-// BUFFERS, SERIALIZE) over 10 interleaved runs gave p50 execution 103 -> 90 ms
-// for page 1 and 66 -> 38 ms for page 2, with 46.8 MB -> 0.3 MB serialized per
-// page and an unchanged plan. See
+// BUFFERS, SERIALIZE) of this statement against the unprojected read, 12
+// interleaved runs, gave p50 execution 122.9 -> 108.5 ms for page 1 and
+// 75.3 -> 45.7 ms for page 2, with 46.8 MB -> 0.3 MB serialized per page; the
+// plan keeps its scans, joins, and index plus a per-row Result node. See
 // docs/public/reference/telemetry/streaming-memory.md (Repository Catalog Loads).
 // Observability Evidence: eshu_dp_repository_catalog_load_rows and
 // eshu_dp_repository_catalog_load_payload_bytes record each load, labeled by

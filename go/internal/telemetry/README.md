@@ -72,8 +72,8 @@ See `doc.go` for the godoc contract. Key groups:
 - `Providers` — holds `*sdktrace.TracerProvider`, `*sdkmetric.MeterProvider`,
   `PrometheusHandler`, and a combined `Shutdown` function; built by `NewProviders`
 - `NewProviders` — configures OTLP gRPC trace and metric exporters when OTEL_EXPORTER_OTLP_ENDPOINT is set; always creates a Prometheus exporter
-- `RecordGOMEMLIMIT` — registers `eshu_dp_gomemlimit_bytes` as an observable
-  gauge at startup
+- `RecordGOMEMLIMIT` — registers `eshu_dp_gomemlimit_bytes`; `NewProviders`
+  calls it, so every runtime exports the gauge without its own call (#9567)
 
 ### Metric instruments
 

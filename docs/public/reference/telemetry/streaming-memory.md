@@ -51,8 +51,9 @@ Use it to detect:
 
 `eshu_dp_gomemlimit_bytes` exposes the Go runtime's effective memory limit,
 read at each scrape. It covers a limit from the `GOMEMLIMIT` environment
-variable and one derived from the container cgroup. Before #9567 an env-set
-limit read `0` and the reducer did not register the gauge at all.
+variable and one derived from the container cgroup. `telemetry.NewProviders`
+registers it, so every runtime exports it. Before #9567 an env-set limit read
+`0`, and only five runtimes registered the gauge (not the reducer).
 
 Every runtime's `/metrics` also carries the Go runtime and process series:
 `go_memstats_heap_alloc_bytes`, `go_memstats_heap_inuse_bytes`,
@@ -96,15 +97,16 @@ catalog per intent (799 facts, about 94 KB mean payload, about 71 MiB of JSON;
 HeapAlloc of 1,426 MiB before and 142 MiB after the projection (median of 3,
 mixed wave), and 227.5 vs 75.8 MiB allocated per intent, with byte-identical
 decisions and findings. On a QA-shaped native PostgreSQL 18 seed (799 facts,
-95.5 KB mean payload) `EXPLAIN (ANALYZE, BUFFERS, SERIALIZE)` over 10
-interleaved runs gave median execution of 103 to 90 ms for page 1 and 66 to
-38 ms for page 2, with 46.8 MB to 0.3 MB serialized per page and the same plan.
-The object-only guard reads the payload once through a lateral identity path
-(`#> '{}'`); guarding with `fact.payload` in both the type check and the
-subtraction detoasted it twice and made page 1 69% slower than the unprojected
-read. With the single read, 12 interleaved runs gave page 1 at 108.5 ms against
-111.6 ms for the unguarded projection and 122.9 ms unprojected. The projection does not explain the 4 to 11 GB live heap QA showed, so it is
-not proven to meet the 50% peak target on its own.
+95.5 KB mean payload) `EXPLAIN (ANALYZE, BUFFERS, SERIALIZE)` of the shipped
+statement against the unprojected read, 12 interleaved runs, gave median
+execution of 122.9 to 108.5 ms for page 1 and 75.3 to 45.7 ms for page 2, with
+46.8 MB to 0.3 MB serialized per page. The plan keeps the same scans, joins,
+and index, plus a per-row Result node for the lateral read. The object-only
+guard reads the payload once through a lateral identity path (`#> '{}'`);
+guarding with `fact.payload` in both the type check and the subtraction
+detoasted it twice and made page 1 69% slower than the unprojected read in its
+own round. The projection does not explain the 4 to 11 GB live heap QA showed,
+so it is not proven to meet the 50% peak target on its own.
 
 Observability Evidence: the two histograms above, recorded at the store for
 every load.

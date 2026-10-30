@@ -15,9 +15,11 @@ import (
 )
 
 // TestPrometheusExposesGoRuntimeMemoryMetrics is the #9567 regression: the
-// QA reducer's /metrics carried no Go heap or process memory series, so an
-// operator could not see the heap burst that preceded each OOM kill. Every
-// runtime's /metrics must expose the Go collector's heap and GC series (and
+// QA reducer's /metrics carried no Go heap or process memory series and no
+// memory-limit gauge, so an operator could not see the heap burst against the
+// limit that preceded each OOM kill. Every runtime builds its /metrics through
+// NewProviders, so NewProviders alone, with no per-runtime call, must expose
+// eshu_dp_gomemlimit_bytes and the Go collector's heap and GC series (and
 // process resident memory where the platform supports it).
 func TestPrometheusExposesGoRuntimeMemoryMetrics(t *testing.T) {
 	_ = os.Unsetenv("OTEL_EXPORTER_OTLP_ENDPOINT")
@@ -34,6 +36,7 @@ func TestPrometheusExposesGoRuntimeMemoryMetrics(t *testing.T) {
 	body := rec.Body.String()
 
 	want := []string{
+		"eshu_dp_gomemlimit_bytes",
 		"go_memstats_heap_alloc_bytes",
 		"go_memstats_heap_inuse_bytes",
 		"go_memstats_heap_released_bytes",

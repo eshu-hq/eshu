@@ -57,7 +57,7 @@
 // for port-only inputs so the default does not reach beyond the local host.
 //
 // At startup the binary applies the container-derived Go memory limit (an
-// explicit GOMEMLIMIT wins) and registers eshu_dp_gomemlimit_bytes, like the
-// other data-plane runtimes; its /metrics also carries the Go runtime and
-// process memory series (#9567).
+// explicit GOMEMLIMIT wins), like the other data-plane runtimes. Its /metrics
+// carries eshu_dp_gomemlimit_bytes and the Go runtime and process memory
+// series, which telemetry.NewProviders registers for every runtime (#9567).
 package main

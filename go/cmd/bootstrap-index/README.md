@@ -143,7 +143,7 @@ main -> run
   telemetry.NewBootstrap("bootstrap-index")
   telemetry.NewProviders
   telemetry.NewInstruments
-  runtimecfg.ConfigureMemoryLimit -> telemetry.RecordGOMEMLIMIT
+  runtimecfg.ConfigureMemoryLimit (NewProviders registers the gauge)
   openBootstrapDB (runtimecfg.OpenPostgres)
   applySchema (postgres.ApplyBootstrap — idempotent DDL)
   ensureBootstrapGraphSchema (verify marker; if missing: strict DDL, on Neo4j
@@ -231,7 +231,7 @@ endpoint.
 | Metric | `eshu_dp_queue_claim_conflict_retries_total` | `postgres.ProjectorQueue.Instruments` (wired in `wiring.go`), `queue=projector` × `failure_class` — claim statements retried after `40P01`/`40001`; a claim that exhausts them logs `failure_class=projector_claim_conflict` (#7122); wiring `Instruments` also lets the queue emit `eshu_dp_projector_retry_surge_total` from bootstrap-index |
 | Metric | `eshu_dp_projector_run_duration_seconds` | `instruments.ProjectorRunDuration` |
 | Metric | `eshu_dp_projections_completed_total` | `instruments.ProjectionsCompleted` |
-| Metric | `eshu_dp_gomemlimit_bytes` | `telemetry.RecordGOMEMLIMIT` |
+| Metric | `eshu_dp_gomemlimit_bytes` | `telemetry.NewProviders` (via `RecordGOMEMLIMIT`) |
 
 `source_file_kind` is one of the bounded values `code`, `package_manifest`,
 `config`, `other`, produced by `telemetry.ContentEntitySourceFileKind`. The

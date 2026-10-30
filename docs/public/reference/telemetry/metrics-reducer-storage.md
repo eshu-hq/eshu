@@ -492,7 +492,7 @@ Ambiguous or unmatched mention outcomes usually point to catalog or alias proble
 | Metric | Type | Use |
 | --- | --- | --- |
 | `eshu_dp_pipeline_overlap_seconds` | histogram | Overlap between major pipeline phases. |
-| `eshu_dp_gomemlimit_bytes` | observable gauge | Effective Go memory limit, read live at each scrape (env or cgroup); `0` when unset. Every runtime, including the reducer since #9567. |
+| `eshu_dp_gomemlimit_bytes` | observable gauge | Effective Go memory limit, read live at each scrape (env or cgroup); `0` when unset. Registered by `telemetry.NewProviders`, so every runtime exports it; before #9567 only five runtimes did, and not the reducer. |
 
 Use `eshu_dp_pipeline_overlap_seconds` when parallelism increases memory overlap
 or storage contention. Use `eshu_dp_gomemlimit_bytes` with container RSS to
