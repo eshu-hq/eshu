@@ -11,6 +11,7 @@ from pathlib import Path
 import re
 import statistics
 
+import live_postgres_readiness_refresh_v2_pool as pool_rules
 import live_postgres_readiness_refresh_v2_provenance as provenance
 import live_postgres_readiness_v2 as v2
 import live_postgres_readiness_weights as weights
@@ -334,8 +335,11 @@ def build_document(sources: list[Path], root: Path) -> dict[str, object]:
 
 
 def fit_with_provenance(sources: list[Path], root: Path) -> tuple[
-        dict[str, object], ImageProvenance, list[ColdComponent]]:
-    """Fit a v2 document and report the runner image versions it accepted.
+        dict[str, object], ImageProvenance, list[ColdComponent], pool_rules.PoolProvenance]:
+    """Fit a v2 document and report the provenance it accepted.
+
+    The pool may mix test inventories and must hold one cache era; see
+    live_postgres_readiness_refresh_v2_pool (#9566).
 
     Args:
         sources: Directories named by run ID, each with run/jobs JSON and shard logs.
@@ -343,8 +347,9 @@ def fit_with_provenance(sources: list[Path], root: Path) -> tuple[
 
     Returns:
         The validated v2 document (as from build_document), the image
-        provenance seen across every shard of every source, and the
-        per-package cold components behind the fitted cold constant.
+        provenance seen across every shard of every source, the
+        per-package cold components behind the fitted cold constant, and the
+        pool's inventories, cache era and defaulted tests.
 
     Raises:
         ValueError: A source is incomplete, incompatible, or cannot identify a
@@ -354,7 +359,7 @@ def fit_with_provenance(sources: list[Path], root: Path) -> tuple[
         raise ValueError("v2 fit needs at least two complete main runs")
     source_runs: list[str] = []
     image_versions: dict[str, dict[int, str]] = {}
-    expected_plan: list[str] | None = None
+    pool = pool_rules.PoolProvenance()
     expected_profile: tuple[str, ...] | None = None
     fixed: list[float] = []
     test_values: dict[str, list[float]] = defaultdict(list)
@@ -364,9 +369,7 @@ def fit_with_provenance(sources: list[Path], root: Path) -> tuple[
         expected_rows = provenance.source_rows(root, sha, plan, len(logs))
         if run_id in source_runs:
             raise ValueError("v2 source run IDs must be distinct")
-        if expected_plan is not None and plan != expected_plan:
-            raise ValueError("source inventories differ")
-        expected_plan = plan
+        pool.add(run_id, plan, *pool_rules.cache_era(source, run_id, logs))
         observed: list[str] = []
         row_packages: list[str] = []
         for number, log in sorted(logs.items()):
@@ -409,9 +412,8 @@ def fit_with_provenance(sources: list[Path], root: Path) -> tuple[
                                            positive=True)
     if not repeat:
         raise ValueError("no measured repeat row category")
-    tests = {run: _price_tenth(values, run, rule) for run, values in sorted(test_values.items())}
-    if set(tests) != set(expected_plan or []):
-        raise ValueError("source test prices differ from canonical inventory")
+    tests = pool.price_tests(test_values, lambda values, run: _price_tenth(values, run, rule),
+                             QUANTILE_MIN_POOL)
     document: dict[str, object] = {
         "schema_version": 2, "source_runs": source_runs, "shard_count": v2.SHARD_COUNT,
         "fixed_job_seconds": _mean_tenth(fixed, "fixed job overhead"),
@@ -426,7 +428,7 @@ def fit_with_provenance(sources: list[Path], root: Path) -> tuple[
     v2.weights_from_json(document)
     if expected_profile is None:
         raise ValueError("source runs have no shard profile")
-    return document, ImageProvenance(expected_profile[0], image_versions), cold_components
+    return document, ImageProvenance(expected_profile[0], image_versions), cold_components, pool
 
 
 def _collect_test_values(log: str, expected: list[str], values: dict[str, list[float]]) -> None:
