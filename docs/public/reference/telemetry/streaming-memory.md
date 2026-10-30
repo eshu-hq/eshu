@@ -49,7 +49,18 @@ Use it to detect:
 
 ## Go Memory Limit
 
-`eshu_dp_gomemlimit_bytes` exposes the `GOMEMLIMIT` value configured at startup.
+`eshu_dp_gomemlimit_bytes` exposes the Go runtime's effective memory limit,
+read at each scrape. It covers a limit from the `GOMEMLIMIT` environment
+variable and one derived from the container cgroup. `telemetry.NewProviders`
+registers it, so every runtime exports it. Before #9567 an env-set limit read
+`0`, and only five runtimes registered the gauge (not the reducer).
+
+Every runtime's `/metrics` also carries the Go runtime and process series:
+`go_memstats_heap_alloc_bytes`, `go_memstats_heap_inuse_bytes`,
+`go_memstats_heap_released_bytes`, `go_memstats_sys_bytes`,
+`go_gc_duration_seconds`, and `process_resident_memory_bytes` on Linux. Compare
+heap alloc against `eshu_dp_gomemlimit_bytes` and the container limit to tell a
+heap burst from non-heap growth.
 
 Use it with container RSS from cAdvisor, Docker, or your runtime platform:
 
@@ -58,6 +69,47 @@ Use it with container RSS from cAdvisor, Docker, or your runtime platform:
   the ratio.
 - If RSS is much higher than `GOMEMLIMIT`, investigate non-heap memory such as
   stacks, mmap, or native allocations.
+
+## Repository Catalog Loads
+
+Several reducer domains read the cross-scope repository catalog
+(`ListActiveRepositoryFacts`) once per intent. Two histograms record each load,
+labeled by the closed `domain` set (the five consumer domains, or `unknown`):
+
+| Metric | Type | Use |
+| --- | --- | --- |
+| `eshu_dp_repository_catalog_load_rows` | histogram | Rows one catalog load returned. |
+| `eshu_dp_repository_catalog_load_payload_bytes` | histogram | Raw payload bytes one catalog load scanned before JSON decode. |
+
+Multiply the per-load bytes by the load rate and the worker count to estimate
+how much of the reducer's allocation rate the catalog explains. Since #9567 the
+catalog payload leaves out `imports_map`, `git_refs`,
+`delta_relative_paths`, and `delta_deleted_relative_paths`, so a load should
+scan a few hundred bytes per repository. A per-load size near the full
+repository payload (tens of KB per row) means the projection regressed. Only
+an object payload is projected; a scalar or JSON-null payload passes through
+unchanged, as it did before #9567.
+
+Performance Evidence: in the QA environment the reducer was OOM-killed three
+times while `container_image_identity` and `supply_chain_impact` reloaded the
+catalog per intent (799 facts, about 94 KB mean payload, about 71 MiB of JSON;
+#9567). A local shim driving the real handlers with 8 workers measured peak
+HeapAlloc of 1,426 MiB before and 142 MiB after the projection (median of 3,
+mixed wave), and 227.5 vs 75.8 MiB allocated per intent, with byte-identical
+decisions and findings. On a QA-shaped native PostgreSQL 18 seed (799 facts,
+95.5 KB mean payload) `EXPLAIN (ANALYZE, BUFFERS, SERIALIZE)` of the shipped
+statement against the unprojected read, 12 interleaved runs, gave median
+execution of 122.9 to 108.5 ms for page 1 and 75.3 to 45.7 ms for page 2, with
+46.8 MB to 0.3 MB serialized per page. The plan keeps the same scans, joins,
+and index, plus a per-row Result node for the lateral read. The object-only
+guard reads the payload once through a lateral identity path (`#> '{}'`);
+guarding with `fact.payload` in both the type check and the subtraction
+detoasted it twice and made page 1 69% slower than the unprojected read in its
+own round. The projection does not explain the 4 to 11 GB live heap QA showed,
+so it is not proven to meet the 50% peak target on its own.
+
+Observability Evidence: the two histograms above, recorded at the store for
+every load.
 
 ## Decision Tree
 

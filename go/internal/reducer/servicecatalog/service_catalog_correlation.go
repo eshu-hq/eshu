@@ -426,7 +426,7 @@ func (h ServiceCatalogCorrelationHandler) loadActiveRepositoryFacts(ctx context.
 	if !ok {
 		return nil, nil
 	}
-	envelopes, err := loader.ListActiveRepositoryFacts(ctx)
+	envelopes, err := loader.ListActiveRepositoryFacts(telemetry.ContextWithRepositoryCatalogDomain(ctx, string(reducercontract.DomainServiceCatalogCorrelation)))
 	if err != nil {
 		return nil, factload.ClassifyFactLoadError(err)
 	}

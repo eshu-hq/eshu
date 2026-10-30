@@ -266,7 +266,7 @@ func (h PackageSourceHandler) loadActiveRepositoryFacts(ctx context.Context) ([]
 	if !ok {
 		return nil, nil
 	}
-	repositories, err := loader.ListActiveRepositoryFacts(ctx)
+	repositories, err := loader.ListActiveRepositoryFacts(telemetry.ContextWithRepositoryCatalogDomain(ctx, string(reducercontract.DomainPackageSourceCorrelation)))
 	if err != nil {
 		return nil, factload.ClassifyFactLoadError(err)
 	}
