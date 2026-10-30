@@ -8780,6 +8780,48 @@
         "maximum_results": 1,
         "results_field": "findings"
       },
+      "GET /api/v0/supply-chain/impact/findings?limit=50&cve_id=CVE-2026-00000&profile=comprehensive&assert=readiness-ready": {
+        "description": "#9323 readiness-ready floor: the same CVE-2026-00000 comprehensive query as the #5469 config_only shape, extended with the readiness envelope pin. The gate fixture registers the collector-vulnintel-scd instance with an NVD target selecting this CVE, so the answer is produced with vulnerability-intelligence targets configured — and the findings page still classifies ready_with_findings. If the readiness envelope drops from the findings response or the state misclassifies, the readiness_state pin fails this assertion.",
+        "truth_class": "deterministic",
+        "required_response_fields": [
+          "findings",
+          "count",
+          "readiness"
+        ],
+        "minimum_results": 1,
+        "results_field": "findings",
+        "required_json_values": {
+          "findings[].cve_id": "CVE-2026-00000",
+          "findings[].version_resolution_tier": "config_only",
+          "readiness.readiness_state": "ready_with_findings"
+        }
+      },
+      "GET /api/v0/supply-chain/impact/findings?limit=50&cve_id=CVE-2026-09227&assert=readiness-zero-findings": {
+        "description": "#9323 readiness zero-finding floor: CVE-2026-09227 is the cassette's NVD zero-result scope (#9227) — no advisory fact names an owned package, so the findings page is empty — and the gate fixture registers the collector-vulnintel-nvd-zero instance with a fresh, succeeded zero-result source state plus the committed zero-result snapshot. That combination certifies absence (sourceStatesHaveCoveredSuccess), so the answer classifies ready_zero_findings rather than not_configured. A missing instance row, a missing state row, or a descriptor mismatch each flip the state to target_incomplete and fail this assertion.",
+        "truth_class": "deterministic",
+        "required_response_fields": [
+          "findings",
+          "count",
+          "readiness"
+        ],
+        "required_json_values": {
+          "count": 0,
+          "readiness.readiness_state": "ready_zero_findings"
+        }
+      },
+      "GET /api/v0/supply-chain/impact/findings?limit=50&cve_id=CVE-2026-09000&assert=readiness-pending": {
+        "description": "#9323 readiness pending floor: CVE-2026-09000 is a configured NVD target (collector-vulnintel-scd) with no cassette facts and deliberately no seeded source state, so the target reads pending and the empty findings page classifies target_incomplete rather than not_configured. Removing the target from the fixture flips the state to not_configured and fails this assertion.",
+        "truth_class": "deterministic",
+        "required_response_fields": [
+          "findings",
+          "count",
+          "readiness"
+        ],
+        "required_json_values": {
+          "count": 0,
+          "readiness.readiness_state": "target_incomplete"
+        }
+      },
       "GET /api/v0/supply-chain/impact/findings?limit=10&cve_id=CVE-2026-00010&workload_id=workload%3Arepository%3Ar_217415d9&profile=comprehensive": {
         "description": "#5747 non-vacuous current-runtime filter proof: the Debian OS-package finding has an empty baked workload_ids array, but its repository currently maps to workload:repository:r_217415d9 through active reducer_workload_identity evidence. The comprehensive profile is retained as the epic's inclusive OS-package proof; after #5735 this exact DPKG affected-version finding also qualifies for precise.",
         "truth_class": "deterministic",
