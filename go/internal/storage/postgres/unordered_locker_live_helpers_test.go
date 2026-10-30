@@ -25,7 +25,7 @@ import (
 // production-shaped statistics, and drives the pair through
 // raceThroughHeldRow: the outcome then depends only on the two lock orders.
 
-// openUnorderedLockerFixture bootstraps an isolated schema, with the #8205
+// openUnorderedLockerFixture bootstraps a disposable database, with the #8205
 // background rows when background is set (never the #8205 target rows). The
 // held-row and stress proofs need the background, because their lock orders
 // come from production-shaped plans; the EvalPlanQual proofs do not. It
@@ -38,8 +38,8 @@ func openUnorderedLockerFixture(t *testing.T, background bool) *lockOrderFixture
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), lockOrderSeedTimeout)
 	defer cancel()
-	base, schema := openReducerFairnessDBWithSchema(t, ctx, dsn)
-	f := &lockOrderFixture{dsn: dsn, schema: schema, base: base, at: time.Now().UTC().Add(-time.Hour).Truncate(time.Second)}
+	base, targetDSN := openReducerFairnessDBWithSchema(t, ctx, dsn)
+	f := &lockOrderFixture{targetDSN: targetDSN, base: base, at: time.Now().UTC().Add(-time.Hour).Truncate(time.Second)}
 	started := time.Now()
 	if background {
 		f.seedBackground(t, ctx)

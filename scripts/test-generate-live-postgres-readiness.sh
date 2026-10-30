@@ -37,8 +37,8 @@ for fragment in "${repo_root}"/specs/live-tests.d/live-tests-readiness*.generate
   lines="$(wc -l <"${fragment}")"
   (( lines < 500 )) || fail "${fragment##*/} exceeds the file cap: ${lines} lines"
 done
-# drive/9299 enrolls 44 surfaces across eight generated fragments (base + parts 2-8).
-[[ "${fragment_count}" == "8" ]] || fail "want eight generated fragments, got ${fragment_count}"
+# Four generated fragments (base + parts 2-4); the count follows FRAGMENT_NAMES in render.py.
+[[ "${fragment_count}" == "4" ]] || fail "want four generated fragments, got ${fragment_count}"
 python3 "${repo_root}/scripts/test-live-postgres-readiness-fragments.py" rows "${repo_root}" || fail "generated proof rows differ from enrollment"
 
 # Scratch tree: hardlinked go/ when the scratch shares the repo's
@@ -239,4 +239,4 @@ out="$(python3 "${generator}" --root "${scratch}" 2>&1)" && fail "quoted reason 
 [[ "${out}" == *"${quote_file##*/}"* ]] || fail "quoted reason not named: ${out}"
 rm "${quote_file}"
 
-printf 'test-generate-live-postgres-readiness: GREEN (exact rows, eight capped fragments, idempotent, stable shards, missing/duplicate/orphan/boundary/oversize/stale/unregistered/quote RED)\n'
+printf 'test-generate-live-postgres-readiness: GREEN (exact rows, four capped fragments, idempotent, stable shards, missing/duplicate/orphan/boundary/oversize/stale/unregistered/quote RED)\n'

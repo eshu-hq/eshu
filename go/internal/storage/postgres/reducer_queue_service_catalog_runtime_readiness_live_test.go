@@ -20,7 +20,6 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 	producerreadiness "github.com/eshu-hq/eshu/go/internal/storage/postgres/readiness/producer"
-	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 // Real-queue proofs for the #7816 service catalog runtime fence. Everything on
@@ -96,7 +95,7 @@ func (w *runtimeFenceMaterializations) snapshot() []servicecatalog.ServiceMateri
 
 type runtimeFenceProof struct {
 	db              *sql.DB
-	schema          string
+	targetDSN       string
 	graph           *runtimeFenceGraph
 	materialization *runtimeFenceMaterializations
 	correlation     *serviceCatalogFenceNoopCorrelationWriter
@@ -108,8 +107,7 @@ type runtimeFenceProof struct {
 // row was enqueued one minute ago.
 func newRuntimeFenceProof(t *testing.T, ctx context.Context, dsn string, catalogCreated time.Duration) *runtimeFenceProof {
 	t.Helper()
-	installRuntimeFenceTrigram(t, ctx, dsn)
-	db, schema := openReducerFairnessDBWithSchema(t, ctx, dsn)
+	db, targetDSN := openReducerFairnessDBWithSchema(t, ctx, dsn)
 	now := time.Now().UTC()
 	for _, seed := range []struct{ scope, gen string }{
 		{runtimeFenceRepoScope, runtimeFenceRepoGen},
@@ -142,23 +140,9 @@ func newRuntimeFenceProof(t *testing.T, ctx context.Context, dsn string, catalog
 		conflictKey: runtimeFenceCatalogScope, sourceSystem: "git", updatedAt: now.Add(-catalogCreated),
 	})
 	return &runtimeFenceProof{
-		db: db, schema: schema, graph: &runtimeFenceGraph{},
+		db: db, targetDSN: targetDSN, graph: &runtimeFenceGraph{},
 		materialization: &runtimeFenceMaterializations{}, correlation: &serviceCatalogFenceNoopCorrelationWriter{},
 	}
-}
-
-// installRuntimeFenceTrigram pins pg_trgm in public before any proof schema
-// bootstraps. Otherwise the first bootstrap's own CREATE EXTENSION lands in
-// that proof's schema, and a second proof schema opened in the same test on a
-// fresh database fails with "operator class gin_trgm_ops does not exist".
-func installRuntimeFenceTrigram(t *testing.T, ctx context.Context, dsn string) {
-	t.Helper()
-	admin, err := sql.Open("pgx", dsn)
-	if err != nil {
-		t.Fatalf("open postgres: %v", err)
-	}
-	defer func() { _ = admin.Close() }()
-	postgresproof.InstallTrigramExtension(ctx, t, admin)
 }
 
 func (p *runtimeFenceProof) handler(db *sql.DB) servicecatalog.ServiceCatalogCorrelationHandler {

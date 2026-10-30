@@ -46,8 +46,7 @@ func (f *crossplaneRedriveFailingReplayer) ReplayCrossplaneSatisfiedByMaterializ
 // calls -- reclaims the row once its lease expires and completes the
 // remaining targets the failed attempt never reached.
 func TestCrossplaneRedriveSweepMidFanOutFailureRecoveredByCatchUpLive(t *testing.T) {
-	dsn, schema := crossplaneRedriveProofSchema(t)
-	database := crossplaneRedriveProofConn(t, dsn, schema)
+	database, _ := crossplaneRedriveProofDB(t)
 	ctx := context.Background()
 	now := time.Now().UTC()
 
@@ -171,8 +170,7 @@ func (f *crossplaneRedriveFailingQueryer) QueryContext(
 // eventually discovers and enqueues the target the failed attempt never
 // even looked for.
 func TestCrossplaneRedriveSweepXRDLookupFailureRecoveredByCatchUpLive(t *testing.T) {
-	dsn, schema := crossplaneRedriveProofSchema(t)
-	database := crossplaneRedriveProofConn(t, dsn, schema)
+	database, _ := crossplaneRedriveProofDB(t)
 	ctx := context.Background()
 	now := time.Now().UTC()
 

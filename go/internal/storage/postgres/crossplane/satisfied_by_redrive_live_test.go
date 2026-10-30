@@ -6,8 +6,8 @@ package crossplanestore_test
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -24,80 +24,73 @@ import (
 // package (e.g. ESHU_FRESHNESS_CLAIM_LEASE_PROOF_DSN).
 const crossplaneRedriveProofDSNEnv = "ESHU_CROSSPLANE_REDRIVE_PROOF_DSN"
 
-// crossplaneRedriveProofSchema creates a fresh, uniquely-named schema on the
-// proof DSN and applies the full bootstrap layout inside it (this feature's
-// target-discovery query joins fact_records, ingestion_scopes,
-// scope_generations, and fact_work_items, so the whole layout is needed, not
-// just migration 076). Returns the DSN and schema name so callers can open
-// their own independent single-connection pools pinned to the same schema --
-// necessary because search_path is a per-connection session setting, and a
-// concurrency proof needs at least two genuinely independent connections to
-// exercise a real Postgres-level race, not just two goroutines serialized
-// through one pooled connection.
-func crossplaneRedriveProofSchema(t *testing.T) (dsn string, schemaName string) {
+// crossplaneRedriveProofDisposableEnv is the explicit opt-in behind creating
+// the suite's disposable databases.
+const crossplaneRedriveProofDisposableEnv = "ESHU_CROSSPLANE_REDRIVE_PROOF_DISPOSABLE"
+
+// crossplaneRedriveProofDB creates a fresh disposable database, applies the
+// full bootstrap layout on its public schema, and returns the open pool
+// plus a DSN targeting that database (this feature's target-discovery query
+// joins fact_records, ingestion_scopes, scope_generations, and
+// fact_work_items, so the whole layout is needed, not just migration 076).
+// The database is dropped when the test ends.
+//
+// Database-level isolation (not an isolated schema): the lane's 241a/241b
+// authority migrations are public-only, so ApplyBootstrapWithOptions skips
+// them on an isolated schema and the later 242a definition then fails with
+// a missing eshu_security schema. A fresh database keeps the full install
+// and stays private to the proof.
+//
+// The runner's ESHU_CROSSPLANE_REDRIVE_PROOF_DSN/_DISPOSABLE pair wins;
+// local runs fall back to the generic ESHU_POSTGRES_TEST_DSN/_DISPOSABLE
+// pair. A family DSN set without its explicit opt-in fails closed; an
+// unset pair skips, never fails.
+func crossplaneRedriveProofDB(t *testing.T) (database *sql.DB, targetDSN string) {
 	t.Helper()
-	dsn = os.Getenv(crossplaneRedriveProofDSNEnv)
-	if dsn == "" {
-		t.Skip("set ESHU_CROSSPLANE_REDRIVE_PROOF_DSN to run the crossplane redrive integration proof")
+	adminDSN := strings.TrimSpace(os.Getenv(crossplaneRedriveProofDSNEnv))
+	var optIn string
+	if adminDSN != "" {
+		if optIn = os.Getenv(crossplaneRedriveProofDisposableEnv); optIn != "1" {
+			t.Fatal("ESHU_CROSSPLANE_REDRIVE_PROOF_DSN is set without ESHU_CROSSPLANE_REDRIVE_PROOF_DISPOSABLE=1")
+		}
+	} else {
+		adminDSN = strings.TrimSpace(os.Getenv("ESHU_POSTGRES_TEST_DSN"))
+		optIn = os.Getenv("ESHU_POSTGRES_DISPOSABLE")
 	}
-
-	setupDB, err := sql.Open("pgx", dsn)
+	if adminDSN == "" {
+		t.Skip("set ESHU_CROSSPLANE_REDRIVE_PROOF_DSN and ESHU_CROSSPLANE_REDRIVE_PROOF_DISPOSABLE=1 " +
+			"(or the ESHU_POSTGRES_TEST_DSN/_DISPOSABLE pair) to run the crossplane redrive integration proof")
+	}
+	admin, err := postgresproof.WithDatabase(adminDSN, "postgres")
 	if err != nil {
-		t.Fatalf("open proof setup connection: %v", err)
+		t.Fatalf("retarget crossplane redrive proof DSN: %v", err)
 	}
-	defer func() { _ = setupDB.Close() }()
-	setupDB.SetMaxOpenConns(1)
-
-	ctx := context.Background()
-	// Pin pg_trgm to public before creating the schema (#9572): the
-	// bootstrap's unqualified CREATE EXTENSION would otherwise install the
-	// opclass into this private schema, hiding it from sibling schemas on
-	// the same shared proof database. The advisory-locked shared install
-	// serializes concurrent bootstraps on one database.
-	postgresproof.InstallTrigramExtension(ctx, t, setupDB)
-	schemaName = fmt.Sprintf("crossplane_redrive_proof_%d", time.Now().UnixNano())
-	if _, err := setupDB.ExecContext(ctx, "CREATE SCHEMA "+schemaName); err != nil {
-		t.Fatalf("create proof schema: %v", err)
+	ctx, database := postgresproof.OpenDisposableBootstrapDatabase(t, admin, optIn, 5*time.Minute,
+		func(ctx context.Context, database *sql.DB) error {
+			return postgres.ApplyBootstrap(ctx, postgres.SQLDB{DB: database})
+		})
+	var name string
+	if err := database.QueryRowContext(ctx, "SELECT current_database()").Scan(&name); err != nil {
+		t.Fatalf("read proof database: %v", err)
 	}
-	t.Cleanup(func() {
-		cleanupDB, err := sql.Open("pgx", dsn)
-		if err != nil {
-			t.Errorf("open proof cleanup connection: %v", err)
-			return
-		}
-		defer func() { _ = cleanupDB.Close() }()
-		if _, err := cleanupDB.ExecContext(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE"); err != nil {
-			t.Errorf("drop proof schema %s: %v", schemaName, err)
-		}
-	})
-	// "public" stays on the search_path so extension-defined operator classes
-	// (pg_trgm's gin_trgm_ops, required by the content_store bootstrap
-	// definition) resolve; the schema still isolates every TABLE this test
-	// creates since schemaName is listed first.
-	if _, err := setupDB.ExecContext(ctx, "SET search_path TO "+schemaName+", public"); err != nil {
-		t.Fatalf("set search_path: %v", err)
+	if targetDSN, err = postgresproof.WithDatabase(admin, name); err != nil {
+		t.Fatalf("target crossplane redrive proof database: %v", err)
 	}
-	if err := postgres.ApplyBootstrap(ctx, postgres.SQLDB{DB: setupDB}); err != nil {
-		t.Fatalf("apply bootstrap: %v", err)
-	}
-	return dsn, schemaName
+	return database, targetDSN
 }
 
-// crossplaneRedriveProofConn opens an independent single-connection pool
-// pinned to schemaName via search_path. Independent from any other pool
-// opened this way, so two calls give two genuinely concurrent Postgres
-// sessions for a real FOR UPDATE SKIP LOCKED race proof.
-func crossplaneRedriveProofConn(t *testing.T, dsn, schemaName string) *sql.DB {
+// crossplaneRedriveProofConn opens an independent single-connection pool on
+// the proof's disposable database. Independent from any other pool opened
+// this way, so two calls give two genuinely concurrent Postgres sessions
+// for a real FOR UPDATE SKIP LOCKED race proof.
+func crossplaneRedriveProofConn(t *testing.T, targetDSN string) *sql.DB {
 	t.Helper()
-	db, err := sql.Open("pgx", dsn)
+	db, err := sql.Open("pgx", targetDSN)
 	if err != nil {
 		t.Fatalf("open proof connection: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
 	db.SetMaxOpenConns(1)
-	if _, err := db.ExecContext(context.Background(), "SET search_path TO "+schemaName+", public"); err != nil {
-		t.Fatalf("set search_path: %v", err)
-	}
 	return db
 }
 
@@ -108,9 +101,8 @@ func crossplaneRedriveProofConn(t *testing.T, dsn, schemaName string) *sql.DB {
 // prevents double-processing, so this must be proven against a real
 // Postgres, not a fake.
 func TestCrossplaneRedriveStateConcurrentClaimConvergesLive(t *testing.T) {
-	dsn, schema := crossplaneRedriveProofSchema(t)
-	dbA := crossplaneRedriveProofConn(t, dsn, schema)
-	dbB := crossplaneRedriveProofConn(t, dsn, schema)
+	dbA, targetDSN := crossplaneRedriveProofDB(t)
+	dbB := crossplaneRedriveProofConn(t, targetDSN)
 
 	stateA := crossplanestore.NewCrossplaneRedriveStateStore(postgres.SQLDB{DB: dbA})
 	stateB := crossplanestore.NewCrossplaneRedriveStateStore(postgres.SQLDB{DB: dbB})
@@ -185,8 +177,7 @@ func TestCrossplaneRedriveStateConcurrentClaimConvergesLive(t *testing.T) {
 // succeed because claimed_by still reads "same-owner-throughout"; fencing on
 // the bumped claim_fencing_token instead closes that gap.
 func TestCrossplaneRedriveStateCrashRecoveryLive(t *testing.T) {
-	dsn, schema := crossplaneRedriveProofSchema(t)
-	db := crossplaneRedriveProofConn(t, dsn, schema)
+	db, _ := crossplaneRedriveProofDB(t)
 
 	fakeNow := time.Date(2026, time.January, 2, 3, 0, 0, 0, time.UTC)
 	state := crossplanestore.NewCrossplaneRedriveStateStore(postgres.SQLDB{DB: db})

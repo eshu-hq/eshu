@@ -36,7 +36,6 @@ func runtimeProducerStoreLiveDB(t *testing.T) (*sql.DB, context.Context) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	t.Cleanup(cancel)
-	installRuntimeFenceTrigram(t, ctx, dsn)
 	db, _ := openReducerFairnessDBWithSchema(t, ctx, dsn)
 	return db, ctx
 }

@@ -177,7 +177,7 @@ import (
 // is byte-identical to the lane's pre-rebase files.
 // #9299 splits 241a's authority-epoch backfill into 241b (the five
 // INSERT ... SELECT seeds; DML half, #7961 split).
-const goldenBootstrapDefinitionsDigest = "4ba1f4992e5555b429e836cd117e3138272582527747d0f396d78d581f598130"
+const goldenBootstrapDefinitionsDigest = "fd1ceb85c8dd692075c65715254c3270f53f608c891ddaa5bd304f7ecaabebcd"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or

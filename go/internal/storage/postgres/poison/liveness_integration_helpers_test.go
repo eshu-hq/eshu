@@ -44,8 +44,8 @@ func openPoisonLivenessProofDB(t *testing.T, dsn string) *sql.DB {
 // provisionPoisonLivenessSchema creates a fresh isolated proof schema, applies
 // the production bootstrap schema, and seeds it. The schema is dropped via
 // t.Cleanup. public stays on the search_path so the pg_trgm operator classes
-// the bootstrap names still resolve, mirroring openReducerFairnessSchemaConn
-// (#7489).
+// the bootstrap names still resolve once any other bootstrap has installed
+// the extension there (#7489).
 func provisionPoisonLivenessSchema(t *testing.T, db *sql.DB, seedSQL string) {
 	t.Helper()
 	ctx := context.Background()

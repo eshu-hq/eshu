@@ -290,7 +290,7 @@ var migrationShippedChecksums = map[string]string{
 	"241_fact_records_vulnerability_active_purl_lookup_v2_idx.sql":           "a405afdcc1a2fe3a167107102cd2670cea061f44962ce5e019919462447a0255",
 	"242_ecs_runtime_service_arn_index.sql":                                  "edbcfbb5682b4a7ce9aa58375522232461af0b7559f7d969df38dedd8dd99011",
 	"240a_scanner_image_targets.sql":                                         "15a429af918f8755bdd21c51c88e82b9635154ad7f05dab2d78e1afddb019716",
-	"241a_scanner_typed_source_and_results.sql":                              "bc69562cddbd19aa54d6cff61d692908da54c3ffd02fbb3f0bdaaf1feea5b2f3",
+	"241a_scanner_typed_source_and_results.sql":                              "ffd95360d1dcb646c7ca502e8acfd0cd8326dcbd828a52a0d57ec69c8cc1826f",
 	"241b_scanner_authority_epoch_backfill.sql":                              "8b18b691871e8ae4ff84cc6ad0695da4799af214021bd242610eb8fb1585d50d",
 	"242a_scanner_role_attestation.sql":                                      "c45b3372706e7a7359b659404d78d742f26d3b72f2d212f1d1243033c94e4fbd",
 	"243a_scanner_role_policy_install.sql":                                   "77686e57b16d5350445762c00075a4b8f690ede89c4684972406692e308d5c87",
