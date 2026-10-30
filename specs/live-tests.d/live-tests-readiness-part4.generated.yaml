@@ -299,6 +299,11 @@ tests:
     class: postgres_ci
     reason: "#9299 disposable PostgreSQL proof that the authorized impact loader admits a completed scanner_worker analysis alongside its os_package fact instead of fail-closing the scan as a partial snapshot"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/supply_chain_impact_authorized_loader_onboarding_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9299 disposable PostgreSQL proof that the authorized impact loader leaves the write on the plain static path when role policy was never installed, instead of admitting a protected set the writer cannot authorize"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/supply_chain_impact_evidence_live_test.go
     tag: ~
     class: postgres_ci
