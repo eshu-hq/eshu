@@ -34,9 +34,15 @@ func TestDesiredInstancesSkipsStaleMissingActivationFile(t *testing.T) {
 		ConfigPath:    stale,
 	})
 
-	instances, err := desiredInstancesForComponent(entry, testActivationManifest("scorecard"))
+	instances, skipped, err := desiredInstancesForComponent(entry, testActivationManifest("scorecard"))
 	if err != nil {
 		t.Fatalf("desiredInstancesForComponent() error = %v, want nil (stale activation skipped)", err)
+	}
+	if got, want := len(skipped), 1; got != want {
+		t.Fatalf("stale skips = %d, want %d", got, want)
+	}
+	if got, want := skipped[0].InstanceID, "stale-removed-activation"; got != want {
+		t.Fatalf("stale skip instance = %q, want %q", got, want)
 	}
 	if got, want := len(instances), 1; got != want {
 		t.Fatalf("instances = %d, want %d (only the live activation planned)", got, want)
@@ -57,7 +63,7 @@ func TestDesiredInstancesStillFailsClosedOnUnreadableActivationFile(t *testing.T
 
 	entry := testActivationReadbackEntry(dir)
 
-	if _, err := desiredInstancesForComponent(entry, testActivationManifest("scorecard")); err == nil {
+	if _, _, err := desiredInstancesForComponent(entry, testActivationManifest("scorecard")); err == nil {
 		t.Fatal("desiredInstancesForComponent() error = nil, want closed failure for an unreadable activation file")
 	}
 }
@@ -71,7 +77,7 @@ func TestDesiredInstancesStillFailsClosedOnMalformedActivationFile(t *testing.T)
 
 	entry := testActivationReadbackEntry(bad)
 
-	if _, err := desiredInstancesForComponent(entry, testActivationManifest("scorecard")); err == nil {
+	if _, _, err := desiredInstancesForComponent(entry, testActivationManifest("scorecard")); err == nil {
 		t.Fatal("desiredInstancesForComponent() error = nil, want closed failure for a malformed activation file")
 	}
 }

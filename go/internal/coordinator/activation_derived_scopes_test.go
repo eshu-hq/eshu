@@ -175,7 +175,7 @@ config:
     ecosystems: [npm, maven]
     target_limit: 1000
 `)
-	instances, err := desiredInstancesForComponent(
+	instances, _, err := desiredInstancesForComponent(
 		testActivationReadbackEntry(path),
 		testActivationManifest(string(scope.CollectorVulnerabilityIntelligence)),
 	)
@@ -206,7 +206,7 @@ config:
   derive_from_owned_packages:
     enabled: true
 `)
-	instances, err := desiredInstancesForComponent(testActivationReadbackEntry(path), testActivationManifest("scorecard"))
+	instances, _, err := desiredInstancesForComponent(testActivationReadbackEntry(path), testActivationManifest("scorecard"))
 	if err != nil {
 		t.Fatalf("desiredInstancesForComponent() error = %v, want nil", err)
 	}

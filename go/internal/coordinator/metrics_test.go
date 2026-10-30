@@ -40,6 +40,16 @@ func TestNewMetricsPublishesReconcileMetricsAndGauges(t *testing.T) {
 		Duration:       300 * time.Millisecond,
 		ReconciledRuns: 4,
 	})
+	recorder.RecordStaleActivationSkip(context.Background(), StaleActivationSkipObservation{
+		ComponentID: "dev.eshu.examples.scorecard",
+		InstanceID:  "scorecard-stale",
+		Reconciled:  true,
+	})
+	recorder.RecordStaleActivationSkip(context.Background(), StaleActivationSkipObservation{
+		ComponentID: "dev.eshu.examples.scorecard",
+		InstanceID:  "scorecard-orphan",
+		Reconciled:  false,
+	})
 
 	var rm metricdata.ResourceMetrics
 	if err := reader.Collect(context.Background(), &rm); err != nil {
@@ -74,6 +84,16 @@ func TestNewMetricsPublishesReconcileMetricsAndGauges(t *testing.T) {
 		"outcome": runReconcileOutcomeSuccess,
 	}); got != 1 {
 		t.Fatalf("run reconcile total = %d, want 1", got)
+	}
+	if got := coordinatorCounterValue(t, rm, MetricPrefix+"stale_activation_skips_total", map[string]string{
+		"outcome": staleSkipOutcomeSuccess,
+	}); got != 1 {
+		t.Fatalf("stale activation skips total success = %d, want 1", got)
+	}
+	if got := coordinatorCounterValue(t, rm, MetricPrefix+"stale_activation_skips_total", map[string]string{
+		"outcome": staleSkipOutcomeError,
+	}); got != 1 {
+		t.Fatalf("stale activation skips total error = %d, want 1", got)
 	}
 	if got := coordinatorGaugeValue(t, rm, MetricPrefix+"last_reaped_claims"); got != 2 {
 		t.Fatalf("last reaped claims = %d, want 2", got)

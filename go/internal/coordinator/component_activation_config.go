@@ -17,15 +17,39 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-func componentCollectorInstancesFromEnv(getenv func(string) string, observer component.GrantObserver) ([]workflow.DesiredCollectorInstance, []component.Manifest, error) {
+// StaleActivationSkip describes one claims-enabled registry activation
+// dropped from startup planning because its mounted config file is absent
+// (#9634). The registry entry outlives the activation file when the values
+// tree stops rendering it, and planning it would fail the whole coordinator.
+// IDs are the exact stored bytes; presentation layers trim them.
+type StaleActivationSkip struct {
+	ComponentID string
+	InstanceID  string
+}
+
+// StaleActivationReconciliation reports one attempt to drop a stale registry
+// activation so a restart does not plan it again (#9634). Dropped reports
+// whether this call removed the entry; Err is non-nil when the drop failed.
+// Dropped false with nil Err means the entry needed no drop: already gone,
+// or its file reappeared before the drop and the next restart re-plans it.
+// A failed drop never fails startup: the skip already protects planning, so
+// the next restart retries the drop.
+type StaleActivationReconciliation struct {
+	ComponentID string
+	InstanceID  string
+	Dropped     bool
+	Err         error
+}
+
+func componentCollectorInstancesFromEnv(getenv func(string) string, observer component.GrantObserver) ([]workflow.DesiredCollectorInstance, []component.Manifest, []StaleActivationSkip, error) {
 	home := strings.TrimSpace(getenv("ESHU_COMPONENT_HOME"))
 	if home == "" {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 	registry := component.NewRegistry(home).WithGrantObserver(observer)
 	readback, err := registry.Readback(componentPolicyFromEnv(getenv))
 	if err != nil {
-		return nil, nil, fmt.Errorf("read component registry: %w", err)
+		return nil, nil, nil, fmt.Errorf("read component registry: %w", err)
 	}
 	instances := make([]workflow.DesiredCollectorInstance, 0)
 	// manifests carries the quota-contributing manifests alongside the
@@ -36,6 +60,7 @@ func componentCollectorInstancesFromEnv(getenv func(string) string, observer com
 	// this run, so its manifest contributes no budget and cannot raise
 	// a kind conflict (#8582).
 	manifests := make([]component.Manifest, 0)
+	stale := make([]StaleActivationSkip, 0)
 	for _, entry := range readback {
 		if entry.Error != nil || entry.Verification == nil || !entry.Verification.Allowed {
 			continue
@@ -59,25 +84,26 @@ func componentCollectorInstancesFromEnv(getenv func(string) string, observer com
 		}
 		manifest, err := load(entry.ID, entry.Version)
 		if err != nil {
-			return nil, nil, fmt.Errorf("load component manifest %q: %w", entry.ID, err)
+			return nil, nil, nil, fmt.Errorf("load component manifest %q: %w", entry.ID, err)
 		}
 		// The reconcile init container installed this manifest from the
 		// seeded manifest.yaml: for eshu.scanner.* it must equal the
 		// platform pin, or nothing is planned for it. A drifted seed
 		// image stops here, before any instance can claim (#8878).
 		if err := scannercomponent.VerifySeededArtifact(manifest); err != nil {
-			return nil, nil, fmt.Errorf("verify seeded scanner manifest for %q: %w", entry.ID, err)
+			return nil, nil, nil, fmt.Errorf("verify seeded scanner manifest for %q: %w", entry.ID, err)
 		}
-		componentInstances, err := desiredInstancesForComponent(entry, manifest)
+		componentInstances, skipped, err := desiredInstancesForComponent(entry, manifest)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
+		stale = append(stale, skipped...)
 		instances = append(instances, componentInstances...)
 		if len(componentInstances) > 0 {
 			manifests = append(manifests, manifest)
 		}
 	}
-	return instances, manifests, nil
+	return instances, manifests, stale, nil
 }
 
 // hasClaimsEnabledActivation reports whether the coordinator would plan at
@@ -109,12 +135,12 @@ func componentPolicyFromEnv(getenv func(string) string) component.Policy {
 func desiredInstancesForComponent(
 	entry component.RegistryReadbackComponent,
 	manifest component.Manifest,
-) ([]workflow.DesiredCollectorInstance, error) {
+) ([]workflow.DesiredCollectorInstance, []StaleActivationSkip, error) {
 	if len(entry.Activations) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 	if len(manifest.Spec.CollectorKinds) != 1 {
-		return nil, fmt.Errorf(
+		return nil, nil, fmt.Errorf(
 			"component %q hosted activation requires exactly one collector kind, got %d",
 			manifest.Metadata.ID,
 			len(manifest.Spec.CollectorKinds),
@@ -122,6 +148,7 @@ func desiredInstancesForComponent(
 	}
 	collectorKind := scope.CollectorKind(strings.TrimSpace(manifest.Spec.CollectorKinds[0]))
 	instances := make([]workflow.DesiredCollectorInstance, 0, len(entry.Activations))
+	stale := make([]StaleActivationSkip, 0)
 	for _, activation := range entry.Activations {
 		if !activation.ClaimsEnabled {
 			continue
@@ -132,18 +159,24 @@ func desiredInstancesForComponent(
 			// one stale reference from crashlooping the whole coordinator
 			// (eshu-hq/eshu#9634). Only a missing file skips: unreadable
 			// or malformed files still fail closed below, so a real
-			// config error can never hide behind this path.
+			// config error can never hide behind this path. The skip is
+			// recorded so startup reporting can warn, count, and reconcile
+			// the stale registry entry.
 			slog.Default().Warn(
 				"skipping stale component activation with a missing config file",
 				"component_id", manifest.Metadata.ID,
 				"instance_id", strings.TrimSpace(activation.InstanceID),
 				"config_path", strings.TrimSpace(activation.ConfigPath),
 			)
+			stale = append(stale, StaleActivationSkip{
+				ComponentID: entry.ID,
+				InstanceID:  activation.InstanceID,
+			})
 			continue
 		}
 		config, err := componentActivationRuntimeConfig(entry, manifest, activation, collectorKind)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		instances = append(instances, workflow.DesiredCollectorInstance{
 			InstanceID:    strings.TrimSpace(activation.InstanceID),
@@ -155,7 +188,86 @@ func desiredInstancesForComponent(
 			Configuration: config,
 		})
 	}
-	return instances, nil
+	return instances, stale, nil
+}
+
+// ReconcileStaleComponentActivations drops stale registry activations whose
+// mounted config files are absent, so a restart does not plan them again
+// (#9634). Every skip is revalidated against current registry state before
+// any write: an entry that is already gone needs no drop, and an entry
+// whose file reappeared (for example a slow volume mount catching up) is
+// left for the next restart to plan, never deleted on stale evidence. A
+// failed drop is reported on its outcome, never as a hard error: the skip
+// already protects planning, so the next restart retries the drop.
+func ReconcileStaleComponentActivations(home string, skips []StaleActivationSkip) []StaleActivationReconciliation {
+	if len(skips) == 0 {
+		return nil
+	}
+	registry := component.NewRegistry(home)
+	installed, err := registry.List()
+	if err != nil {
+		// Without current registry state nothing can be revalidated, so
+		// report every skip as unreconciled instead of deleting blindly.
+		// The skip already protects planning; the next restart retries.
+		outcomes := make([]StaleActivationReconciliation, 0, len(skips))
+		for _, skip := range skips {
+			outcomes = append(outcomes, StaleActivationReconciliation{
+				ComponentID: skip.ComponentID,
+				InstanceID:  skip.InstanceID,
+				Err:         err,
+			})
+		}
+		return outcomes
+	}
+	outcomes := make([]StaleActivationReconciliation, 0, len(skips))
+	for _, skip := range skips {
+		outcome := StaleActivationReconciliation{
+			ComponentID: skip.ComponentID,
+			InstanceID:  skip.InstanceID,
+		}
+		activation, found := findStoredActivation(installed, skip.ComponentID, skip.InstanceID)
+		if !found {
+			// An entry that is already gone needs no drop: the registry
+			// no longer references it, which is the reconciled state.
+			outcomes = append(outcomes, outcome)
+			continue
+		}
+		if !isStaleMissingActivationFile(activation.ConfigPath) {
+			// The file is back (or the path was never a missing file):
+			// leave the entry for the next restart to plan rather than
+			// deleting a live activation on stale evidence.
+			outcomes = append(outcomes, outcome)
+			continue
+		}
+		if err := registry.Disable(skip.ComponentID, skip.InstanceID); err != nil {
+			// A concurrent removal between the lookup and the drop is
+			// already healed; any other failure is reported, never fatal.
+			if component.ErrorCodeOf(err) != component.ErrorCodeNotInstalled {
+				outcome.Err = err
+			}
+		} else {
+			outcome.Dropped = true
+		}
+		outcomes = append(outcomes, outcome)
+	}
+	return outcomes
+}
+
+// findStoredActivation returns the registry activation stored under the
+// exact component and instance bytes, mirroring Registry.Disable's match
+// semantics across installed versions.
+func findStoredActivation(installed []component.InstalledComponent, componentID, instanceID string) (component.Activation, bool) {
+	for _, entry := range installed {
+		if entry.ID != componentID {
+			continue
+		}
+		for _, activation := range entry.Activations {
+			if activation.InstanceID == instanceID {
+				return activation, true
+			}
+		}
+	}
+	return component.Activation{}, false
 }
 
 // isStaleMissingActivationFile reports whether a claims-enabled activation

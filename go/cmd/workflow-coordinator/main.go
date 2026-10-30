@@ -107,6 +107,11 @@ func run(parent context.Context) error {
 		return fmt.Errorf("telemetry instruments: %w", err)
 	}
 
+	coordinatorMetrics, err := coordinator.NewMetrics(meter)
+	if err != nil {
+		return fmt.Errorf("coordinator metrics: %w", err)
+	}
+
 	// The registry readback and activation planning inside LoadConfig make the
 	// coordinator's producer-grant decisions, so the observer is built from the
 	// process telemetry runtime before the config loads (#7153).
@@ -114,15 +119,15 @@ func run(parent context.Context) error {
 	if err != nil {
 		return err
 	}
+	// Activations skipped for absent config files are reconciled and reported
+	// here so one removed activation can neither crashloop the coordinator
+	// nor disappear silently (#9634). Reporting never fails startup.
+	reportStaleActivationSkips(parent, coordinatorMetrics, logger, os.Getenv("ESHU_COMPONENT_HOME"), cfg.StaleComponentActivationSkips)
 	semanticWorkerCfg, err := coordinatorsemantic.LoadProviderWorkerConfig(os.Getenv)
 	if err != nil {
 		return err
 	}
 
-	coordinatorMetrics, err := coordinator.NewMetrics(meter)
-	if err != nil {
-		return fmt.Errorf("coordinator metrics: %w", err)
-	}
 	semanticWorkerMetrics, err := coordinatorsemantic.NewProviderWorkerMetrics(meter, coordinator.MetricPrefix)
 	if err != nil {
 		return fmt.Errorf("semantic provider worker metrics: %w", err)
