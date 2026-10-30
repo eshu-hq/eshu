@@ -430,3 +430,47 @@ No-Observability-Change: no metric, span, or log key was added. Capped and
 guarded cpanfile values reuse the existing WARN
 `git_runtime_declaration_file_skipped` and
 `git_runtime_declaration_values_rejected` with the same labels.
+
+## Dart collector cost and signals (#9308)
+
+Performance Evidence (#9308, 2026-10-30): a paired, sequential local
+benchmark ran the same snapshot-to-fact-stream probe harness on the
+lane base `0701a4aed9` and the Dart lane head. The temporary harness
+(`BenchmarkDartTwoFileSnapshotFactStream`; removed after the run)
+snapshots the same 74-byte two-file fixture (`pubspec.yaml` with an
+`environment.sdk` constraint, `.fvmrc` with a `flutter` pin) and drains
+the streamed generation (`-benchtime=500ms -count=1 -benchmem`,
+Go 1.26.10, linux/arm64, 16 CPUs; no graph or Postgres backend). Five
+base-then-head rounds:
+
+| Per two-file snapshot and drained fact stream | Base | Dart head |
+| --- | ---: | ---: |
+| Median time | 1,458,548 ns | 1,612,584 ns |
+| Observed time range | 1,398,944-6,799,800 ns | 1,523,770-8,841,141 ns |
+| Observed time range without the host-noise round | 1,398,944-1,508,477 ns | 1,523,770-1,733,688 ns |
+| Allocated bytes per operation | 542,000-545,524 | 623,444-631,070 |
+| Allocs per operation | 2,081-2,083 | 2,753-2,758 |
+| `runtime_declaration.version` facts | 0 | 2 |
+
+The five same-round time ratios averaged 1.153 (1.117 without round 4,
+when host load spiked both trees about fivefold). The new facts are the
+two Dart declarations pinned by `TestDartRuntimeNativeHandoff`; the
+baseline supports neither source, so the measured extra cost accompanies
+the intended output. Host load was not controlled (load average about 9.2
+on 16 CPUs around the run window), so these local timings are diagnostic
+rather than a production throughput or no-regression claim.
+
+No-Regression Evidence: the per-file byte and token caps are unchanged
+(the 1 MiB `MaxManifestBytesPerFile` manifest cap, the shared
+`RuntimeVersionTokenCap`), so an over-cap `pubspec.yaml` or `.fvmrc`
+still emits no fact and the existing WARN
+`git_runtime_declaration_file_skipped` fires with the same labels;
+`TestDartManifestByteCap` pins both. Dependency-row output is unchanged
+(the existing pubspec and JSON parser tests cover it).
+
+No-Observability-Change: no metric, span, or log key was added. The
+`dart_pubspec_environment_sdk` and `dart_fvmrc_flutter` declarations
+ride the same content-stream fact count as the sibling lanes; malformed
+or capped manifests reuse the existing WARN
+`git_runtime_declaration_file_skipped` and guarded values reuse WARN
+`git_runtime_declaration_values_rejected` with the same labels.
