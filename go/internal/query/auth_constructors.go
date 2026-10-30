@@ -105,7 +105,8 @@ func AuthMiddlewareWithScopedTokensAndGovernanceAudit(
 // scoped-token file OR OIDC bearer audience configured) so a
 // scoped-token-file-only or OIDC-bearer-only deployment, with no shared
 // ESHU_API_KEY, still denies headerless requests instead of serving them open.
-// See cmd/mcp-server/wiring.go.
+// The removed MCP entrypoint was one caller (removed under eshu-hq/eshu#9670;
+// the satellite eshu-mcp owns that wiring now).
 func AuthMiddlewareWithScopedTokensGovernanceAuditAndEnforcement(
 	token string,
 	resolver ScopedTokenResolver,
@@ -126,8 +127,10 @@ func AuthMiddlewareWithScopedTokensGovernanceAuditAndEnforcement(
 // identity provider, adds RFC 9728 resource_metadata (and an RFC 6750 scope) to
 // a genuine bearer-credential 401's WWW-Authenticate header. A nil
 // oauthChallenge leaves every 401 byte-identical to the *AndEnforcement
-// constructor's bare "Bearer". cmd/mcp-server/wiring.go uses this for both the
-// /api/ authed handler and the /sse + /mcp/message transport auth.
+// constructor's bare "Bearer". The removed MCP entrypoint used this for both
+// its /api/ authed handler and its /sse + /mcp/message transport auth
+// (removed under eshu-hq/eshu#9670; the satellite eshu-mcp owns that wiring
+// now).
 func AuthMiddlewareWithScopedTokensGovernanceAuditEnforcementAndOAuthChallenge(
 	token string,
 	resolver ScopedTokenResolver,
@@ -148,13 +151,14 @@ func AuthMiddlewareWithScopedTokensGovernanceAuditEnforcementAndOAuthChallenge(
 // paths. A nil allowedAudit is a safe no-op, byte-identical to the
 // *AndOAuthChallenge constructor above.
 //
-// This is the ONLY constructor that threads a non-nil allowedAudit in
-// production: cmd/mcp-server/wiring.go uses it exclusively for the MCP
-// transport middleware (GET /sse, POST /mcp/message), never for the
-// /api/v0/* authedHandler mcp-server also builds and never for cmd/api,
-// so tools/call's internal dispatch through the same credential chain does
-// not double-emit one logical MCP read. See the F-9 design addendum §2 for
-// the full route-scope rationale. allowedAudit is expected to be a
+// This was the ONLY constructor that threaded a non-nil allowedAudit in
+// production: the removed MCP entrypoint used it exclusively for the MCP
+// transport middleware (GET /sse, POST /mcp/message), never for its
+// /api/v0/* authedHandler and never for cmd/api, so tools/call's internal
+// dispatch through the same credential chain did not double-emit one
+// logical MCP read (entrypoint removed under eshu-hq/eshu#9670; the
+// satellite eshu-mcp owns that wiring now). See the F-9 design addendum §2
+// for the full route-scope rationale. allowedAudit is expected to be a
 // governanceauditasync.AsyncAppender in production so this call never adds a
 // synchronous Postgres round trip to the read path; see that package's
 // README for why.

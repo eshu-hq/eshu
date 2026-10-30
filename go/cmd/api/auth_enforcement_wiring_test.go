@@ -34,10 +34,10 @@ import (
 // why the enforcement gate is a wiring-time predicate and not a resolver-presence
 // check (the broken first attempt).
 
-// stubExecQueryer is an empty identity-token store; see the former mcp-server
-// suite's identical type for the rationale (removed under eshu-hq/eshu#9670;
-// returns no rows so the identity resolver reports not-found and the chain
-// falls through).
+// stubExecQueryer is an empty identity-token store; its identical twin lived
+// in the removed MCP entrypoint's suite (removed under eshu-hq/eshu#9670).
+// It returns no rows so the identity resolver reports not-found and the
+// chain falls through.
 type stubExecQueryer struct{}
 
 func (stubExecQueryer) QueryContext(context.Context, string, ...any) (db.Rows, error) {

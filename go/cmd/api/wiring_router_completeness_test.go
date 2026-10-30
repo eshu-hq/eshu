@@ -40,12 +40,11 @@ import (
 // RepositoryHandler.Freshness, built from db) are genuinely exercised
 // instead of trivially nil because the test passed nil dependencies.
 //
-// cmd/mcp-server/wiring_router_completeness_test.go used to carry the
-// mirror-image test (TestNewMCPQueryRouterWiresEveryFieldOrDocumentsWhyNot)
-// with its own exclusion list, since the two entrypoints were separate
-// `main` packages and could not share a helper or call each other's
-// constructors. The MCP entrypoint was removed under eshu-hq/eshu#9670; the
-// satellite eshu-mcp serves that surface now.
+// The removed MCP entrypoint used to carry the mirror-image test
+// (TestNewMCPQueryRouterWiresEveryFieldOrDocumentsWhyNot) with its own
+// exclusion list, since the two entrypoints were separate `main` packages
+// and could not share a helper or call each other's constructors (removed
+// under eshu-hq/eshu#9670; the satellite eshu-mcp serves that surface now).
 func TestNewRouterWiresEveryFieldOrDocumentsWhyNot(t *testing.T) {
 	t.Parallel()
 
@@ -201,10 +200,9 @@ var routerFieldsNotWiredByNewRouter = map[string]string{
 //     criterion on #5148's #5150 follow-up comment) --
 //
 // unless the field (or "TopField.NestedField" pair) is present in
-// exceptions. This helper was duplicated in
-// cmd/mcp-server/wiring_router_completeness_test.go while the two entrypoints
-// were separate `main` packages that could not import a shared test helper;
-// that twin was removed with the MCP entrypoint under eshu-hq/eshu#9670.
+// exceptions. This helper was duplicated in the removed MCP entrypoint's
+// twin test while the two entrypoints were separate `main` packages that
+// could not import a shared test helper (removed under eshu-hq/eshu#9670).
 func assertRouterFieldsWired(t *testing.T, router *query.APIRouter, exceptions map[string]string) {
 	t.Helper()
 	top := reflect.ValueOf(router).Elem()

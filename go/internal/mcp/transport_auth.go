@@ -22,10 +22,10 @@ type ServerOption func(*Server)
 // tools/list, tools/call, ping) -- with middleware, rather than relying on
 // tools/call's incidental internal re-dispatch through an authed handler
 // (issue #5168). Callers should pass the SAME credential chain used for
-// /api/v0/* routes (see cmd/mcp-server/wiring.go) so a credential that can
-// call a tool can also establish a session and list the catalog, and a
-// credential that cannot is refused uniformly. A nil middleware (the
-// default) leaves the transport unauthenticated.
+// /api/v0/* routes (as the removed in-tree entrypoint did; eshu-hq/eshu#9670)
+// so a credential that can call a tool can also establish a session and list
+// the catalog, and a credential that cannot is refused uniformly. A nil
+// middleware (the default) leaves the transport unauthenticated.
 func WithTransportAuth(middleware func(http.Handler) http.Handler) ServerOption {
 	return func(s *Server) {
 		s.transportAuth = middleware

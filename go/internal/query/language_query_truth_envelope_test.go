@@ -34,9 +34,10 @@ import (
 // This is a wiring proof, not a proof of the matrix's production
 // `local_lightweight: {max_truth_level: derived}` row. Under a graph-less
 // local_lightweight deployment the demotion is not what a caller actually
-// hits: both production wirings construct query.NewNeo4jReader
-// unconditionally (cmd/api/wiring.go and cmd/mcp-server/wiring.go), so
-// h.Neo4j is a non-nil *Neo4jReader wrapping a nil driver rather than a nil
+// hits: the production API wiring constructs query.NewNeo4jReader
+// unconditionally (cmd/api/wiring.go; the removed MCP entrypoint did the
+// same, eshu-hq/eshu#9670), so h.Neo4j is a non-nil *Neo4jReader wrapping a
+// nil driver rather than a nil
 // interface. Before #5761 F1 that meant every graph-backed and graph-first
 // read attempted the doomed graph call, since a plain nil check treated the
 // driverless reader as configured. F1 fixed that: querycontract.GraphConfigured

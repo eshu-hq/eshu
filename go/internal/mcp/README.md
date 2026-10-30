@@ -212,18 +212,20 @@ no credential (only `tools/call` was checked, and only incidentally, through
 its internal `/api/v0` re-dispatch). `transport_auth.go` wraps the transport
 routes with the credential middleware instead.
 
-`NewServer` accepts `WithTransportAuth(middleware)`. The wiring
-(`cmd/mcp-server/wiring.go`) passes the SAME credential chain that protects
-`/api/v0/*` — shared token (`ESHU_API_KEY`), scoped token
-(`ESHU_SCOPED_TOKENS_FILE`), and IdP bearer (`ESHU_AUTH_RESOURCE_URI`).
+`NewServer` accepts `WithTransportAuth(middleware)`. The satellite wiring
+(formerly in the removed in-tree entrypoint, eshu-hq/eshu#9670) passes the
+SAME credential chain that protects `/api/v0/*` — shared token
+(`ESHU_API_KEY`), scoped token (`ESHU_SCOPED_TOKENS_FILE`), and IdP bearer
+(`ESHU_AUTH_RESOURCE_URI`).
 `authenticatedTransportHandler` (`transport_auth.go:94`) wraps both transport
 routes. When a shared token (`ESHU_API_KEY`) is set, a credential-less request
 gets a bare 401 with no catalog or server-info disclosure. A scoped-token-file
 (`ESHU_SCOPED_TOKENS_FILE`) or OIDC-bearer (`ESHU_AUTH_RESOURCE_URI`)
-deployment with the shared token unset is treated the same: `wireAPI`
-(`cmd/mcp-server/wiring.go`) builds `transportAuth` with the SAME
+deployment with the shared token unset is treated the same: the removed
+entrypoint's `wireAPI` built `transportAuth` with the SAME
 enforcement-aware middleware and the SAME `authSourceConfigured` predicate as
-the `/api/v0/*` handler, so the dev-mode-open branch of
+the `/api/v0/*` handler (entrypoint removed under eshu-hq/eshu#9670; the
+satellite eshu-mcp owns that wiring now), so the dev-mode-open branch of
 `authMiddlewareWithRoutePolicy` (`internal/query/auth.go:210`, the
 `if !authEnforcementConfigured` guard) is closed and a headerless request is
 denied 401 rather than served open. Earlier this per-request gap was open for

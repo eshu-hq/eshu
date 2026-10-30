@@ -205,8 +205,9 @@ func observabilityCoverageScopedFixtureRow(t *testing.T) []driver.Value {
 // TestObservabilityCoverageListCorrelationsScopedGrantHitsRealStoreAndReturnsRowData
 // proves the #5167 fix against the ACTUAL production backend
 // (PostgresCorrelationStore over a real *sql.DB, the same
-// type cmd/api/wiring_handlers.go and cmd/mcp-server/wiring.go construct): a
-// scoped caller with a matching grant reaches the store, the dispatched SQL
+// type cmd/api/wiring_handlers.go constructs; the removed MCP entrypoint
+// constructed the same type): a scoped caller with a matching grant reaches
+// the store, the dispatched SQL
 // carries the access-scoping predicate with the caller's granted ids bound as
 // args, and the response surfaces the real row data the fake driver returned.
 func TestObservabilityCoverageListCorrelationsScopedGrantHitsRealStoreAndReturnsRowData(t *testing.T) {

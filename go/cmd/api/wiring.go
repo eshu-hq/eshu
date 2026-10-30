@@ -90,7 +90,7 @@ func wireAPI(
 	// fileScopedTokenResolver is captured in its own variable (not reused as
 	// scopedTokenResolver) so it survives the ChainResolvers merge below and
 	// can feed the authEnforcementConfigured predicate. Renamed to mirror
-	// F-7's cmd/mcp-server rename (#5168); that entrypoint was removed under
+	// F-7's MCP-server rename (#5168); that entrypoint was removed under
 	// eshu-hq/eshu#9670, so no future merge remains.
 	fileScopedTokenResolver, err := scopedtoken.ResolverFromEnv(getenv)
 	if err != nil {

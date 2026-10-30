@@ -39,7 +39,8 @@ Ask this before you finish any change to these surfaces:
   property → add or adjust the snapshot's `required_correlations` / `node_counts`
   / `edge_counts` / required-node-property assertions.
 - **Query or MCP tool response shape** (`go/internal/query/*`,
-  `go/internal/mcp/*`, `go/cmd/api`/`go/cmd/mcp-server` wiring): new/renamed response
+  `go/internal/mcp/*`, `go/cmd/api` wiring; MCP surface: the satellite
+  eshu-mcp since eshu-hq/eshu#9670): new/renamed response
   field, a new tool, or a new mounted route → update `query_shapes.http` /
   `query_shapes.mcp`.
 - **A new verb/ecosystem** (parser + collector + correlation): add a fixture
@@ -93,9 +94,9 @@ fixture.
 - **MCP query shapes** are asserted live: the gate unwraps the MCP truth envelope
   `{data, truth, error}` and checks the payload under `data`. A tool whose route
   is not mounted on the MCP server returns `isError`/`HTTP 404` even though it is
-  advertised — mount the route (mirror `go/cmd/api/wiring.go` in
-  `go/cmd/mcp-server/wiring.go`), do not drop the shape. See
-  `eshu-mcp-call-rigor`.
+  advertised — mount the route on the serving router (in-tree API:
+  `go/cmd/api/wiring.go`; MCP surface: the satellite eshu-mcp since
+  eshu-hq/eshu#9670), do not drop the shape. See `eshu-mcp-call-rigor`.
 - **Governance-gated families assert `max: 0`.** The SecretsIAM graph projection
   is OFF by default (`ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED`, ADR
   #1314); never enable a governed feature just to satisfy a count.

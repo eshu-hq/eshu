@@ -25,8 +25,8 @@ import (
 // authEnforcementConfigured predicate, not because the identity resolver
 // happens to have no data. stubExecQueryer's permanently-empty store cannot
 // distinguish those two cases: this type can. The rationale was shared with
-// the identical mcp-server copy (cmd/mcp-server/seeded_identity_store_test.go,
-// removed under eshu-hq/eshu#9670); duplicated per-package the same way
+// the identical twin in the removed MCP entrypoint's suite (removed under
+// eshu-hq/eshu#9670); duplicated per-package the same way
 // stubExecQueryer/emptyRows already are.
 //
 // Query dispatch matches on stable, unique substrings of the SQL text in

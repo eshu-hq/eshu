@@ -14,10 +14,11 @@ import (
 
 // TestNeo4jReaderGraphConfiguredReflectsDriverPresence is the #5761 F1 unit
 // regression for Neo4jReader.GraphConfigured(). NewNeo4jReader(nil, database)
-// always returns a non-nil *Neo4jReader -- cmd/api/wiring.go and
-// cmd/mcp-server/wiring.go call NewNeo4jReader unconditionally, even when
-// openQueryGraph returns a nil driver for local_lightweight or
-// ESHU_DISABLE_NEO4J=true (cmd/api/wiring_graph.go) -- so "h.Neo4j != nil" can
+// always returns a non-nil *Neo4jReader -- cmd/api/wiring.go calls
+// NewNeo4jReader unconditionally (the removed MCP entrypoint did the same;
+// eshu-hq/eshu#9670), even when openQueryGraph returns a nil driver for
+// local_lightweight or ESHU_DISABLE_NEO4J=true (cmd/api/wiring_graph.go) --
+// so "h.Neo4j != nil" can
 // never distinguish a graph-backed reader from a driverless one.
 // GraphConfigured is the seam that lets a caller ask.
 func TestNeo4jReaderGraphConfiguredReflectsDriverPresence(t *testing.T) {

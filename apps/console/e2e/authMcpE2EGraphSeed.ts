@@ -3,7 +3,8 @@
 //
 // Why a graph seed at all: list_indexed_repositories (GET /api/v0/repositories)
 // is GRAPH-backed in this stack — RepositoryHandler.Neo4j is wired
-// (go/cmd/mcp-server/wiring_router.go), so the handler runs
+// (the API wiring does so; the removed MCP entrypoint did the same,
+// eshu-hq/eshu#9670), so the handler runs
 // `MATCH (r:Repository) ...` against the graph, NOT the Postgres content store.
 // A psql seed therefore cannot populate it (the design's "psql cross-tenant
 // seed" wording predates that finding — see runAuthMcpE2E.ts's seed-step

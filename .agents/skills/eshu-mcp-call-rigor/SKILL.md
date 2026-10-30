@@ -45,7 +45,8 @@ session is required; `handleHTTPMessage` returns the response synchronously, so 
 plain HTTP client can `tools/call` directly. A tool registered in `tools/list`
 can still fail with an `isError` result wrapping `HTTP 404` when its route is not
 mounted on the MCP server's router — advertised is not the same as servable. Fix
-the route (mirror `go/cmd/api/wiring.go` in `go/cmd/mcp-server/wiring.go`); do
+the route on the serving router (in-tree API: `go/cmd/api/wiring.go`; MCP
+surface: the satellite eshu-mcp since eshu-hq/eshu#9670); do
 not assume a registered tool works. Tools that need a selector take it in
 `arguments` (`get_repo_summary` → `repo_name`/`repo_id`;
 `list_kubernetes_correlations` → `cluster_id`/`scope_id`/...).

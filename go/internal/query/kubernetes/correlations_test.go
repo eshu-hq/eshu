@@ -189,8 +189,9 @@ func kubernetesCorrelationScopedFixtureRow(t *testing.T) []driver.Value {
 // TestKubernetesListCorrelationsScopedGrantHitsRealStoreAndReturnsRowData
 // proves the #5167 fix against the ACTUAL production backend
 // (PostgresCorrelationStore over a real *sql.DB -- the same type
-// cmd/api/wiring_handlers.go and cmd/mcp-server/wiring.go construct), not a
-// handler-level test double: a scoped caller with a matching grant reaches
+// cmd/api/wiring_handlers.go constructs; the removed MCP entrypoint
+// constructed it too, eshu-hq/eshu#9670), not a handler-level test double:
+// a scoped caller with a matching grant reaches
 // the store, the dispatched SQL carries the access-scoping predicate with the
 // caller's granted ids bound as args, and the response surfaces the real row
 // data the fake driver returned (not just a 200/shape check).
