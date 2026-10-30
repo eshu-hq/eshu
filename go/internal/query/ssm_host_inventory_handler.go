@@ -280,9 +280,6 @@ func ssmHostInventoryResponse(readModel ssmHostInventoryReadModel) map[string]an
 			"facts_truncated":        host.FactsTruncated,
 		})
 	}
-	if hosts == nil {
-		hosts = []any{}
-	}
 	return map[string]any{
 		"hosts":           hosts,
 		"malformed_facts": readModel.MalformedFacts,
