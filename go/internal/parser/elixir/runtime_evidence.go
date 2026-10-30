@@ -57,16 +57,22 @@ func scanMixRuntime(source []byte) shared.RuntimeEvidence {
 	if evidence.State == "over_cap" {
 		return evidence
 	}
-	for lineNo, line := range strings.Split(string(source), "\n") {
+	lines := strings.Split(string(source), "\n")
+	for lineNo, line := range lines {
 		line = strings.TrimSuffix(line, "\r")
 		if strings.TrimLeft(line, " \t") == "" || strings.HasPrefix(strings.TrimLeft(line, " \t"), "#") {
 			continue
 		}
 		match := mixElixirKeyPattern.FindStringIndex(line)
-		if match == nil || mixKeyInsideString(line, match[0]) {
+		if match == nil || mixKeyInsideString(line, match[0]) || mixKeyAfterComment(line, match[0]) {
 			continue
 		}
 		rest := strings.TrimLeft(line[match[1]:], " \t")
+		valueLine := lineNo + 1
+		if rest == "" && lineNo+1 < len(lines) {
+			rest = strings.TrimLeft(strings.TrimSuffix(lines[lineNo+1], "\r"), " \t")
+			valueLine = lineNo + 2
+		}
 		if rest == "" || rest[0] != '"' {
 			evidence.Rejected++
 			continue
@@ -76,27 +82,59 @@ func scanMixRuntime(source []byte) shared.RuntimeEvidence {
 			evidence.Rejected++
 			continue
 		}
-		evidence.Add(mixRuntimeSourceKind, "elixir", value, lineNo+1)
+		evidence.Add(mixRuntimeSourceKind, "elixir", value, valueLine)
 	}
 	return evidence
 }
 
-// mixKeyInsideString reports whether the key match sits inside a
-// double-quoted string on the same line, so a description mentioning elixir:
-// never becomes a declaration or a rejection. An odd run of unescaped quotes
-// before the match means the match is quoted.
+// mixKeyInsideString reports whether the key match sits inside a quoted
+// string on the same line, so a description mentioning elixir: never becomes
+// a declaration or a rejection. Both double-quoted strings and single-quoted
+// charlists open a quoted region; a quote of one kind inside the other kind's
+// region is literal text.
 func mixKeyInsideString(line string, match int) bool {
-	quotes := 0
+	inSingle, inDouble := false, false
 	for i := 0; i < match; i++ {
-		if line[i] == '\\' {
+		switch line[i] {
+		case '\\':
 			i++
-			continue
-		}
-		if line[i] == '"' {
-			quotes++
+		case '\'':
+			if !inDouble {
+				inSingle = !inSingle
+			}
+		case '"':
+			if !inSingle {
+				inDouble = !inDouble
+			}
 		}
 	}
-	return quotes%2 == 1
+	return inSingle || inDouble
+}
+
+// mixKeyAfterComment reports whether the key match sits after an unquoted #
+// on the same line, so a trailing comment mentioning elixir: never becomes a
+// declaration or a rejection. A # inside a quoted region is literal text.
+func mixKeyAfterComment(line string, match int) bool {
+	inSingle, inDouble := false, false
+	for i := 0; i < match; i++ {
+		switch line[i] {
+		case '\\':
+			i++
+		case '\'':
+			if !inDouble {
+				inSingle = !inSingle
+			}
+		case '"':
+			if !inSingle {
+				inDouble = !inDouble
+			}
+		case '#':
+			if !inSingle && !inDouble {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // mixQuotedLiteral reads one double-quoted literal starting at rest[0]. A
