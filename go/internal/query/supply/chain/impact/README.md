@@ -133,12 +133,17 @@ the distinct winners are aged by the read cutoff, and one aggregate
 `SourceState` row (`Derived`, `derived://<source>/<ecosystem>`) reports the
 worst state and the counts. A requested package with no matching scope makes
 the row pending, so an enabled derived ecosystem with no coverage reads
-`osv:pending`. Configured targets keep one row per scope. The 200-row bound
-counts configured scopes plus aggregate rows. Known limitations: packages the
-planner skipped read as pending (follow-up under #9209; a skip state with the
-recorded reason is #9322 follow-up work); a state written
+`osv:pending`. When every unmatched package carries planner skip evidence
+from the instance's latest `workflow_runs` row, the aggregate reads `skipped`
+instead and reports `skipped_package_count` with the distinct planner
+`skip_reasons` (#9612); the planner records canonical
+(`packageidentity.ConsumptionKeys`) identities per skipped package, the same
+shape the collector writes, so the join cannot drift. Configured targets keep
+one row per scope. The 200-row bound
+counts configured scopes plus aggregate rows. Known limitations: a state written
 before the key table existed matches nothing until its scope is collected
-again, with no backfill. Swift derived keys join the key table like every
+again, with no backfill, and a run written before per-package skip names
+existed joins nothing, so those skipped packages keep reading `pending`. Swift derived keys join the key table like every
 other ecosystem (proven by a live package-key join proof), and
 OS-distribution derived scopes join through their distro spellings
 (`alpine`, `debian`, `ubuntu`) to the canonical `os` keys the collector
@@ -209,7 +214,10 @@ Observability Evidence: `source_states[]` reports collector health and
 `source_snapshots[]` reports committed source health; a derived aggregate row
 names its worst scopes in `scope_ids` and its uncovered packages in
 `unmatched_package_count`, so an operator can find the scope behind
-`osv:failed` or `osv:pending`; when no current NVD
+`osv:failed` or `osv:pending`; when every uncovered package carries planner
+skip evidence, `readiness_state=target_skipped` and
+`incomplete_reasons[]=osv:skipped:<reason>` identify the terminal verdict
+without package names; when no current NVD
 snapshot qualifies for absence coverage, `readiness_state=target_incomplete`
 and `incomplete_reasons[]=nvd:committed_snapshot_missing` identify the gap
 without exposing the descriptor, endpoint URL, or API key. A fail-closed read

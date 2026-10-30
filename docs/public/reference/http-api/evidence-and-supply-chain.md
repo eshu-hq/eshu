@@ -1245,14 +1245,15 @@ No-Observability-Change: selector resolution runs before the existing Postgres r
 The response includes a `readiness` envelope so clients can tell `nothing
 matched` from `Eshu did not have the evidence to match yet`:
 
-- `readiness_state` is one of `not_configured`, `target_incomplete`,
+- `readiness_state` is one of `not_configured`, `target_incomplete`, `target_skipped`,
   `evidence_incomplete`, `ready_zero_findings`, `ready_with_findings`,
   `ambiguous_scope`, `readiness_unavailable`, or `unsupported`.
   `ambiguous_scope` means a single explain scope matched multiple reducer-owned
   findings and the caller must narrow the request. `readiness_unavailable`
   preserves the findings page when the coverage lookup fails. `unsupported`
   means Eshu observed real target evidence the matcher cannot resolve; callers
-  MUST NOT interpret it as clean or affected.
+  MUST NOT interpret it as clean or affected, and neither is `target_skipped`
+  for planner-skipped derived packages.
 - `target_scope` echoes the bounded anchors the caller used. `impact_status`
   alone is not a fact-anchor: the readiness store skips its Postgres scan
   and returns an empty snapshot for impact_status-only requests, because
@@ -1299,9 +1300,8 @@ matched` from `Eshu did not have the evidence to match yet`:
   being retried. The list is surfaced additively alongside `ready_*` states
   when only some observed targets are unsupported, and as the dominant signal
   when `readiness_state=unsupported`.
-- `incomplete_reasons[]` lists collector-emitted reasons explaining why
-  source collection is still in flight; only populated when
-  `readiness_state` is `target_incomplete`.
+- `incomplete_reasons[]` lists collector-emitted reasons explaining in-flight
+  collection (`target_incomplete`), plus `osv:skipped:<reason>` for `target_skipped`.
 - `freshness` aggregates per-family freshness and source target state into one
   label. Values are `fresh`, `stale`, `unknown`, `pending`, `rate_limited`,
   `failed`, or `partial`.

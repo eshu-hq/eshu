@@ -336,11 +336,24 @@ vulnerability_source_state AS (
         0::int AS fact_count,
         MAX(updated_at) AS latest_observed_at,
         BOOL_OR(coverage_missing OR freshness_state IN ('pending', 'stale', 'rate_limited', 'failed', 'partial')) AS target_incomplete,
-        ARRAY_REMOVE(ARRAY_AGG(DISTINCT CASE
+        -- A skipped aggregate is never incomplete: nothing is in flight for
+        -- it. Its planner reasons still surface here as osv:skipped:<reason>
+        -- so the envelope can name the terminal verdict without package names.
+        COALESCE(ARRAY_REMOVE(ARRAY_AGG(DISTINCT CASE
             WHEN coverage_missing THEN 'nvd:committed_snapshot_missing'
             WHEN freshness_state IN ('pending', 'stale', 'rate_limited', 'failed', 'partial')
                 THEN source || ':' || freshness_state
-            ELSE NULL END), NULL) AS incomplete_reasons,
+            ELSE NULL END), NULL), '{}'::text[])
+        || COALESCE((
+            SELECT ARRAY_AGG(DISTINCT 'osv:skipped:' || skip.skip_reason)
+            FROM vulnerability_source_state_candidates AS skipped_candidates
+            CROSS JOIN LATERAL JSONB_ARRAY_ELEMENTS_TEXT(
+                COALESCE(skipped_candidates.derived_detail->'skip_reasons', '[]'::jsonb)
+            ) AS skip(skip_reason)
+            WHERE skipped_candidates.derived_detail IS NOT NULL
+              AND NULLIF(TRIM(skip.skip_reason), '') IS NOT NULL
+              AND skipped_candidates.freshness_state = 'skipped'
+        ), '{}'::text[]) AS incomplete_reasons,
         NULL::text AS source_snapshots_json,
         COALESCE(
             JSONB_AGG(DISTINCT JSONB_STRIP_NULLS(JSONB_BUILD_OBJECT(

@@ -388,6 +388,7 @@ caller to tell "clean" from "not checked."
 | `ambiguous_scope` | A single explain scope matched multiple reducer-owned findings and must be narrowed before callers interpret it as clean or affected. |
 | `readiness_unavailable` | Out-of-band signal returned when the readiness lookup itself fails; the findings page is still returned but coverage cannot be classified. |
 | `unsupported` | Eshu observed real target evidence the matcher cannot resolve — an owned dependency in an unsupported ecosystem, a package-manager file with an unsupported lockfile feature, a malformed/unsupported SBOM document, or an image target without a supported analyzer. Callers MUST NOT interpret this as clean or affected. |
+| `target_skipped` | Every other source settled and at least one requested derived package carries planner skip evidence, so the system already knows it will never plan that package. Callers MUST NOT interpret this as clean or affected. |
 
 `unsupported` only fires when bounded unsupported-target evidence exists for the
 requested scope. Missing evidence stays `evidence_incomplete`, with the gap in
@@ -403,10 +404,9 @@ the same rule ([Provider Alert Parity](security-intelligence-provider-alert-pari
 every response. The envelope is derived from existing source-fact and
 reducer-fact counts so the answer never invents findings:
 
-- `readiness_state` is one of the core states above, plus
-  `readiness_unavailable` when the lookup itself fails, `unsupported` when
-  bounded unsupported-target evidence exists, and `ambiguous_scope` on
-  explain-route refusal envelopes.
+- `readiness_state` is one of the core states above, plus `readiness_unavailable`
+  on lookup failure, `unsupported` on bounded unsupported-target evidence,
+  `target_skipped` on planner-skipped derived packages, and `ambiguous_scope` on explain refusals.
 - `target_scope` echoes the bounded scanner scope: `cve_id`, `advisory_id`,
   `package_id`, `repository_id`, `subject_digest`, `ecosystem`, `workload_id`,
   `service_id`, `environment`, `severity`, and `impact_status`.
@@ -458,16 +458,14 @@ reducer-fact counts so the answer never invents findings:
   output. The list is surfaced whenever Eshu observes such evidence —
   additively when findings exist, or as the dominant signal alongside
   `readiness_state=unsupported` when no finding could be admitted.
-- `incomplete_reasons[]` carries collector-emitted reasons explaining why
-  source collection is still in flight; only populated when
-  `readiness_state` is `target_incomplete`.
+- `incomplete_reasons[]` carries collector-emitted reasons explaining in-flight
+  collection; only populated for `target_incomplete`, plus `osv:skipped:<reason>` for `target_skipped`.
 - `freshness` summarizes the worst per-family freshness as one label.
 - `counts` reports page-local finding counts and total source-evidence facts.
 
 Readiness reflects existing facts. It does not poll collectors, dispatch reducer
-work, or change finding ownership. `target_incomplete` and `unsupported` depend
-on collector or reducer source facts; absent signals become `missing_evidence`,
-not inferred target state.
+work, or change finding ownership. `target_incomplete`, `target_skipped`, and `unsupported`
+depend on source facts; absent signals become `missing_evidence`, not inferred target state.
 
 #### Proven States
 

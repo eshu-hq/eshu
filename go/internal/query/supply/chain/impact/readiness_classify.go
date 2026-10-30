@@ -26,6 +26,15 @@ func classifyReadinessState(
 		sourceStatesIncomplete(snapshot.SourceStates) || sourceSnapshotsIncomplete(snapshot.SourceSnapshots)) {
 		return ReadinessStateTargetIncomplete
 	}
+	// A planner skip is a terminal coverage verdict, not in-flight work: every
+	// other source settled, and at least one requested derived package will
+	// never be planned. It outranks the missing-evidence states below for the
+	// same reason target_incomplete does: the envelope already names the
+	// gap, and the skip reason says what to fix. Findings still outrank it
+	// (handled by the early ready_with_findings return above).
+	if sourceStatesSkipped(snapshot.SourceStates) {
+		return ReadinessStateTargetSkipped
+	}
 	if advisoryCount == 0 &&
 		len(snapshot.SourceStates) == 0 &&
 		evidenceFactCount(sources, EvidenceFamilyPackageConsumption) == 0 &&

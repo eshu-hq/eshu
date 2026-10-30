@@ -174,6 +174,11 @@ tests:
     class: postgres_ci
     reason: "#9227 disposable PostgreSQL API proof that only a committed, current, complete NVD snapshot certifies zero findings"
     runner: live-postgres-readiness
+  - file: go/internal/query/readiness_derived_skip_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9612 disposable PostgreSQL proof that a planner-skipped derived package reports a skip state with the recorded reason instead of pending"
+    runner: live-postgres-readiness
   - file: go/internal/query/readiness_derived_source_keys_live_test.go
     tag: ~
     class: postgres_ci
@@ -278,6 +283,11 @@ tests:
     tag: ~
     class: postgres_ci
     reason: "#7529 disposable PostgreSQL 18 readiness plan and truth proof; local four-test run passed in 41.3s on 2026-10-02"
+    runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/impact/readiness_planner_skip_explain_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9612 disposable PostgreSQL proof that the planner-skip join keeps the owned-target readiness plan bounded"
     runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/readiness_scan_tier_explain_live_test.go
     tag: ~

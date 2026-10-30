@@ -269,6 +269,7 @@ Each findings response carries `readiness.readiness_state`:
 | `ready_zero_findings` | Advisory sources and owned evidence were present, and nothing matched. |
 | `not_configured` | No advisory source is configured for this scope. A zero means nothing. |
 | `target_incomplete` | No advisory facts exist for the scope yet, and a source is pending, stale, rate-limited, failed, or partial. With advisory facts present, an incomplete source shows only in `source_states[]` and the freshness value. |
+| `target_skipped` | Every other source settled and a requested derived package carries planner skip evidence, so the system already knows it will never plan that package. The reason rides in `osv:skipped:<reason>`. |
 | `evidence_incomplete` | Owned evidence is missing, for example no lockfile, SBOM, or image. |
 | `unsupported` | The ecosystem or target type has no matcher. |
 | `ambiguous_scope`, `readiness_unavailable` | The question cannot be answered as asked. |

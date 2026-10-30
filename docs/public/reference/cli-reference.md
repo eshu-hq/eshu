@@ -152,7 +152,8 @@ statements rather than the full scanner report. Eshu maps only reducer-owned
 impact statuses into statements: `affected_exact` and `affected_derived`
 become `affected`, `not_affected_known_fixed` becomes `not_affected`, and
 `possibly_affected` or `unknown_impact` remain `under_investigation`.
-`evidence_incomplete`, `unsupported`, `target_incomplete`, and
+`evidence_incomplete`, `unsupported`, `target_incomplete`,
+`target_skipped`, and
 `readiness_unavailable` readiness states do not create `not_affected`
 statements. The VEX document still carries readiness freshness, missing
 evidence, unsupported targets, evidence fact handles, and sanitized
@@ -174,7 +175,7 @@ Exit codes are part of the scanner contract:
 | --- | --- |
 | `0` | `ready_zero_findings`: required evidence is ready and no reducer-owned findings were returned. |
 | `3` | `ready_with_findings`: reducer-owned findings are present. |
-| `4` | Evidence is not cleanly ready: `not_configured`, `target_incomplete`, `evidence_incomplete`, or `readiness_unavailable`. |
+| `4` | Evidence is not cleanly ready: `not_configured`, `target_incomplete`, `target_skipped`, `evidence_incomplete`, or `readiness_unavailable`. |
 | `5` | `unsupported`: Eshu observed target evidence that the matcher cannot resolve. |
 | `1` | Runtime or transport failure before Eshu can classify readiness. |
 

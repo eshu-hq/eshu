@@ -254,6 +254,40 @@ derived_request_packages AS (
     WHERE key.ecosystem IN (SELECT ecosystem FROM derived_vulnerability_source_config)
     GROUP BY key.ecosystem, key.package_id
 ),
+-- The latest planner run per collector instance carries the skip evidence the
+-- derivation recorded for candidates it will never plan (a non-exact version,
+-- an unresolvable name). Skip rows name canonical (ecosystem, package name)
+-- keys, the same shape the collector records for a planned scope and the
+-- shape a request resolves to, so the join below cannot drift from either.
+-- Runs written before per-package skip names existed carry counts but no
+-- package entries and join nothing: those packages keep reading pending.
+latest_vulnerability_planner_runs AS (
+    SELECT DISTINCT ON (COALESCE(NULLIF(TRIM(run.requested_scope_set->>'collector_instance_id'), ''), run.requested_collector))
+        COALESCE(NULLIF(TRIM(run.requested_scope_set->>'collector_instance_id'), ''), run.requested_collector) AS collector_instance_id,
+        run.requested_scope_set AS requested_scope_set
+    FROM workflow_runs AS run
+    WHERE run.requested_collector = 'vulnerability_intelligence'
+    ORDER BY COALESCE(NULLIF(TRIM(run.requested_scope_set->>'collector_instance_id'), ''), run.requested_collector), run.updated_at DESC
+),
+planner_skipped_packages AS (
+    SELECT run.collector_instance_id,
+        NULLIF(TRIM(skip.package->>'ecosystem'), '') AS ecosystem,
+        NULLIF(TRIM(skip.package->>'package_name'), '') AS package_name,
+        NULLIF(TRIM(skipped.target->>'reason'), '') AS reason
+    FROM latest_vulnerability_planner_runs AS run
+    CROSS JOIN LATERAL JSONB_ARRAY_ELEMENTS(
+        CASE WHEN JSONB_TYPEOF(run.requested_scope_set->'skipped_targets') = 'array'
+            THEN run.requested_scope_set->'skipped_targets' ELSE '[]'::jsonb END
+    ) AS skipped(target)
+    CROSS JOIN LATERAL JSONB_ARRAY_ELEMENTS(
+        CASE WHEN JSONB_TYPEOF(skipped.target->'packages') = 'array'
+            THEN skipped.target->'packages' ELSE '[]'::jsonb END
+    ) AS skip(package)
+    WHERE TRIM(COALESCE(skipped.target->>'collector_kind', 'vulnerability_intelligence')) = 'vulnerability_intelligence'
+      AND NULLIF(TRIM(skip.package->>'ecosystem'), '') IS NOT NULL
+      AND NULLIF(TRIM(skip.package->>'package_name'), '') IS NOT NULL
+      AND NULLIF(TRIM(skipped.target->>'reason'), '') IS NOT NULL
+),
 derived_vulnerability_source_matched AS (
     SELECT DISTINCT ON (hit.collector_instance_id, hit.source, request.ecosystem, request.package_id)
         request.ecosystem, request.package_id, hit.*
@@ -300,7 +334,16 @@ derived_vulnerability_source_totals AS (
     SELECT config.collector_instance_id, config.source, config.ecosystem,
         MIN(config.derivation_ecosystem) AS derivation_ecosystem,
         COUNT(DISTINCT request.package_id) AS requested_packages,
-        COUNT(DISTINCT matched.package_id) AS matched_packages
+        COUNT(DISTINCT matched.package_id) AS matched_packages,
+        -- A matched scope wins over skip evidence for the same package: the
+        -- collector did query it. Only unmatched packages with a skip entry
+        -- count as skipped, with the distinct recorded reasons.
+        COUNT(DISTINCT request.package_id) FILTER (
+            WHERE matched.package_id IS NULL AND skip.package_name IS NOT NULL
+        ) AS skipped_packages,
+        COALESCE(JSONB_AGG(DISTINCT skip.reason) FILTER (
+            WHERE matched.package_id IS NULL AND skip.reason IS NOT NULL
+        ), '[]'::jsonb) AS skip_reasons
     FROM derived_vulnerability_source_config AS config
     JOIN derived_request_packages AS request ON request.ecosystem = config.ecosystem
     LEFT JOIN derived_vulnerability_source_matched AS matched
@@ -308,11 +351,16 @@ derived_vulnerability_source_totals AS (
      AND matched.source = config.source
      AND matched.ecosystem = config.ecosystem
      AND matched.package_id = request.package_id
+    LEFT JOIN planner_skipped_packages AS skip
+      ON skip.collector_instance_id = config.collector_instance_id
+     AND skip.ecosystem = request.ecosystem
+     AND skip.package_name = ANY(request.package_names)
     GROUP BY config.collector_instance_id, config.source, config.ecosystem
 ),
 derived_vulnerability_source_aggregates AS (
     SELECT totals.collector_instance_id, totals.source, totals.derivation_ecosystem,
         totals.requested_packages - totals.matched_packages AS unmatched_packages,
+        totals.skipped_packages,
         totals.matched_packages,
         COUNT(kept.scope_id) AS scope_count,
         (ARRAY_AGG(kept.aged_freshness ORDER BY kept.severity, kept.last_success_at NULLS FIRST, kept.scope_id))[1] AS worst_freshness,
@@ -335,6 +383,8 @@ derived_vulnerability_source_aggregates AS (
             'rate_limited_count', COUNT(*) FILTER (WHERE kept.aged_freshness = 'rate_limited'),
             'partial_count', COUNT(*) FILTER (WHERE kept.aged_freshness = 'partial'),
             'pending_count', COUNT(*) FILTER (WHERE kept.aged_freshness = 'pending'),
+            'skipped_package_count', totals.skipped_packages,
+            'skip_reasons', COALESCE(totals.skip_reasons, '[]'::jsonb),
             'scope_ids', COALESCE(TO_JSONB((ARRAY_AGG(kept.scope_id ORDER BY kept.severity,
                 kept.last_success_at NULLS FIRST, kept.scope_id) FILTER (WHERE kept.scope_id IS NOT NULL))[1:10]),
                 '[]'::jsonb)) AS derived_detail
@@ -344,10 +394,15 @@ derived_vulnerability_source_aggregates AS (
      AND kept.source = totals.source
      AND kept.ecosystem = totals.ecosystem
     GROUP BY totals.collector_instance_id, totals.source, totals.ecosystem, totals.derivation_ecosystem,
-        totals.requested_packages, totals.matched_packages
+        totals.requested_packages, totals.matched_packages, totals.skipped_packages, totals.skip_reasons
 ),
--- A requested package with no derived scope reads as pending: the aggregate
--- is never healthier than its least-covered package.
+-- A requested package with no derived scope and no skip evidence reads as
+-- pending: the aggregate is never healthier than its least-covered package.
+-- When every unmatched package carries planner skip evidence, the aggregate
+-- reads as skipped instead: the system already knows it will never plan
+-- those packages, so pending would promise collection that never comes. A
+-- partially skipped aggregate stays pending while collection is still in
+-- flight for the rest, with the skipped subset recorded in derived_detail.
 derived_vulnerability_source_state_candidates AS (
     SELECT collector_instance_id,
         'derived://' || source || '/' || derivation_ecosystem AS scope_id,
@@ -355,8 +410,12 @@ derived_vulnerability_source_state_candidates AS (
         NULL::timestamptz AS window_start, NULL::timestamptz AS window_end,
         last_attempt_at, last_success_at, next_retry_at,
         CASE WHEN unmatched_packages > 0 AND COALESCE(worst_severity, 3) >= 3 THEN NULL ELSE worst_error END AS last_error_class,
-        CASE WHEN unmatched_packages > 0 AND COALESCE(worst_severity, 3) >= 3 THEN 'pending' ELSE worst_freshness END AS freshness_state,
-        CASE WHEN unmatched_packages > 0 AND COALESCE(worst_severity, 3) >= 3 THEN 'pending' ELSE worst_terminal END AS terminal_status,
+        CASE WHEN unmatched_packages > 0 AND skipped_packages = unmatched_packages THEN 'skipped'
+            WHEN unmatched_packages > 0 AND COALESCE(worst_severity, 3) >= 3 THEN 'pending'
+            ELSE worst_freshness END AS freshness_state,
+        CASE WHEN unmatched_packages > 0 AND skipped_packages = unmatched_packages THEN 'skipped'
+            WHEN unmatched_packages > 0 AND COALESCE(worst_severity, 3) >= 3 THEN 'pending'
+            ELSE worst_terminal END AS terminal_status,
         result_count, warning_count, updated_at,
         FALSE AS coverage_eligible, FALSE AS coverage_zero, FALSE AS coverage_missing,
         FALSE AS multi_cve_target,

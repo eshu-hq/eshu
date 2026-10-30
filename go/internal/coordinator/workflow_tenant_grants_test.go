@@ -159,6 +159,31 @@ func TestCreateWorkflowWorkIfNoOpenTargetsFiltersRequestedScopes(t *testing.T) {
 	}
 }
 
+// TestFilterRequestedScopeSetJSONDropsSkippedTargets is the #9612 P2
+// regression: tenant filtering re-stores the run with denied scopes removed,
+// and skip identities carry package names without any scope attribution, so
+// they cannot survive the filter. The re-stored copy keeps the allowed
+// targets and drops the whole skipped_targets section fail-closed.
+func TestFilterRequestedScopeSetJSONDropsSkippedTargets(t *testing.T) {
+	t.Parallel()
+	raw := `{"collector_instance_id":"derived-npm","targets":[{"scope_id":"a"},{"scope_id":"b"}],` +
+		`"skipped_targets":[{"collector_kind":"vulnerability_intelligence","reason":"derived_target_non_exact_version",` +
+		`"ecosystems":["npm"],"sources":["osv"],"packages":[{"ecosystem":"npm","package_name":"left-pad"}]}]}`
+	filtered, ok := filterRequestedScopeSetJSON(raw, map[string]struct{}{"a": {}})
+	if !ok {
+		t.Fatal("filterRequestedScopeSetJSON() ok = false, want true")
+	}
+	if strings.Contains(filtered, `"scope_id":"b"`) {
+		t.Fatalf("filtered scope set kept denied scope: %s", filtered)
+	}
+	if !strings.Contains(filtered, `"scope_id":"a"`) {
+		t.Fatalf("filtered scope set dropped allowed scope: %s", filtered)
+	}
+	if strings.Contains(filtered, "left-pad") || strings.Contains(filtered, "skipped_targets") {
+		t.Fatalf("filtered scope set kept unattributable skip identities: %s", filtered)
+	}
+}
+
 func TestCreateWorkflowWorkIfNoOpenTargetsDropsUnknownScopeSetShape(t *testing.T) {
 	t.Parallel()
 
