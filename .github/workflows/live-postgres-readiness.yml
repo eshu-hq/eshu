@@ -282,7 +282,9 @@ jobs:
           go-version-file: go/go.mod
           # setup-go would download a second copy of the build cache
           # restored above (#9598). Keep this step directly after the
-          # restore: the #9566 refresher reads the restore section up to it.
+          # restore, so the restore's log group holds only its own
+          # "Cache restored from key:" or "Cache not found" line, which
+          # restore_outcome (refresh_v2_pool.py, #9604) reads.
           cache: false
 
       - name: Pre-warm Go modules
