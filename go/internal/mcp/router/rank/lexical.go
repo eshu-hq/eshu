@@ -73,6 +73,22 @@ func New(tools []toolcontract.ToolDefinition, entries map[string]catalog.Entry) 
 	return l
 }
 
+// NewWithoutCatalog builds the ranker's index from the registry tools alone,
+// without catalog entries. Curated intents are absent, so scoring uses tool
+// names, descriptions, and input-schema property names only; every tool keeps
+// the conservative CostHigh default and ties fall through Canonical (all
+// false) to name and registry position. The result stays deterministic for
+// the same tools slice.
+//
+// This is the build the extracted eshu-mcp server ports (#9521): its module
+// cannot import internal/ask/catalog, so its ranker increment mirrors this
+// constructor against its own registry types. The in-tree server keeps New
+// with entries, so curated intents, Canonical marks, and cost classes apply
+// when the catalog carries them.
+func NewWithoutCatalog(tools []toolcontract.ToolDefinition) *Lexical {
+	return New(tools, nil)
+}
+
 func (l *Lexical) build(tools []toolcontract.ToolDefinition, entries map[string]catalog.Entry) *index {
 	l.builds.Add(1)
 	return buildIndex(tools, entries)
