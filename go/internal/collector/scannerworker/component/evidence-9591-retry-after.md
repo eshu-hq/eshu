@@ -2,7 +2,7 @@
 
 ## Change
 
-`Runner.emitFailure` in `go/internal/collector/scannerworker/component/runner.go`
+`Runner.emitFailure` in `go/internal/collector/scannerworker/component/runner_failure.go`
 sets `RetryAfterSeconds: 60` on the failure status when the analyzer error
 maps to the retryable state. Terminal failures still carry zero. The SDK
 contract (`eshu-sdk/collector` validation) rejects a retryable failure
