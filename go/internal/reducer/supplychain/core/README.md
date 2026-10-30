@@ -91,6 +91,37 @@ from 0 to the matched row count for Maven scopes, which is the operator signal
 for this fix. Findings appear only after `supply_chain_impact` reruns for the
 Maven scopes (a new OSV generation or an operator replay).
 
+Manifest read filter (#9568): manifests store registry case (`Newtonsoft.Json`,
+`PyYAML`) while the `$2` candidate set is `LowerASCII`-folded, so the exact
+`entity_name = ANY($2)` match loads zero mixed-case rows for NuGet, pypi,
+rubygems, and composer. A candidate-set fix cannot work from advisory data
+alone (OSV pypi names are already normalized lowercase, so the registry case is
+unrecoverable there); the read now folds the stored name with
+`LOWER(TRIM(entity_name) COLLATE "C")`, byte-identical to Go `LowerASCII`
+(non-ASCII letters are kept, so lookalikes still miss, #9584). The `$2` set and
+the consumption-key join are unchanged; the key join stays the accuracy gate.
+The Maven-family query folds the same way in branch 1 so a mixed batch that
+contains a Maven advisory still loads the non-Maven rows, and its branch-2
+exclusion folds to match, keeping the branches disjoint.
+
+No-Regression Evidence (#9568): on a disposable PostgreSQL 18.6 fixture
+(146,000 `fact_records`, 46,000 git dependency rows with the QA case mix, 4,000
+active scopes, 17-name advisory set, three warm `EXPLAIN (ANALYZE, BUFFERS)`
+runs each): the exact predicate on the old index is a scope-driven nested loop
+at 56.5-56.9 ms returning 0 rows; with migration 247's
+`fact_records_active_package_dependency_folded_entity_idx` the folded predicate
+is the same nested-loop shape with 44,000 index searches and no sequential
+scan, returning the 26,620 registry-cased rows; with both indexes the planner
+serves the full set from the old index `package_manager` prefix plus filter at
+72-81 ms, and a selective name (400 rows) seeks the new index in 1.2-1.7 ms
+versus 16-21 ms through the old prefix. Fixture timings, not a deployed claim.
+
+No-Observability-Change: no new query, span, or metric. The existing
+`manifest_dependency_facts` count goes from 0 to the matched row count for
+mixed-case NuGet, pypi, rubygems, and composer consumers, which is the operator
+signal for this fix. Findings appear only after `supply_chain_impact` reruns
+for the affected scopes (a new advisory generation or an operator replay).
+
 Performance Evidence (#9232): `BenchmarkSBOMVersionGuard` uses the same
 five-fact npm advisory and attached image on Apple M5 Max with Go 1.26.10.
 The single-subject baseline was commit `2446f21874245d2d63a46ecf28136dfed44dfa64`.

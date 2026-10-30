@@ -364,4 +364,9 @@ var orderedBootstrapDefinitionNamesLate = []string{
 	// Migration 246 (#9320) adds the partial covering index that keeps the
 	// reopen-aware shared-projection backlog aggregate an Index Only Scan.
 	"shared_projection_intents_domain_pending_age_idx",
+	// Migration 247 (#9568) adds the partial expression index that serves
+	// the folded entity_name prefilter for registry-cased manifest rows,
+	// mirroring fact_records_active_package_dependency_entity_idx with the
+	// LOWER(TRIM(entity_name) COLLATE "C") fold.
+	"fact_records_manifest_dependency_folded_entity_index",
 }
