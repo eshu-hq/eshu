@@ -75,6 +75,7 @@ type routeServesDataBacking struct {
 var routeServesDataBackingMap = map[string]routeServesDataBacking{
 	"GET /api/v0/documentation/facts":                          {ServedDomains: []string{"documentation_materialization"}},
 	"GET /api/v0/cloud/inventory":                              {ServedDomains: []string{"aws_cloud_runtime_drift", "azure_resource_materialization", "gcp_resource_materialization"}},
+	"GET /api/v0/cloud/ssm-host-inventory":                     {ServedDomains: []string{"ssm_host_inventory_materialization"}},
 	"GET /api/v0/ci-cd/run-correlations":                       {ServedDomains: []string{"ci_cd_run_correlation"}},
 	"GET /api/v0/repositories":                                 {ServedDomains: []string{"code_graph_projection"}},
 	"GET /api/v0/supply-chain/impact/findings":                 {ServedDomains: []string{"reducer_derived_findings", "supply_chain_impact"}},

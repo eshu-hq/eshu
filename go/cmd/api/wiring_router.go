@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -197,6 +198,12 @@ func newRouterWithSemanticEmbeddingWithReadStore(
 		CloudInventory: &query.CloudInventoryHandler{
 			Content: contentReader,
 			Profile: queryProfile,
+		},
+		SSMHostInventory: &query.SSMHostInventoryHandler{
+			Content: contentReader,
+			Graph:   neo4jReader,
+			Profile: queryProfile,
+			Bounds:  loadSSMHostBounds(os.Getenv),
 		},
 		CloudRuntimeDrift: &query.CloudRuntimeDriftHandler{
 			Store:   query.NewPostgresMultiCloudRuntimeDriftStoreWithReadStore(reader),

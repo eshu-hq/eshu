@@ -105,6 +105,13 @@ var domainDataSignatures = map[string]domainDataSignature{
 	"rds_posture_materialization":          {Markers: []string{":CloudResource"}},
 	"s3_internet_exposure_materialization": {Markers: []string{":CloudResource"}},
 
+	// ssm_host_inventory_materialization reads the admitted SSM host fact
+	// kinds plus the committed SSMHostApplication/SSMHostPlatform nodes
+	// (eshu-hq/eshu#9558). The fact-kind literals are discriminative: they
+	// appear in no other registry scan file. No StoreTypes: the handler's
+	// content/graph stores are shared read surfaces, not SSM-specific.
+	"ssm_host_inventory_materialization": {Markers: []string{"aws_ssm_host_application", "aws_ssm_host_platform"}},
+
 	// incident_repository_correlation is shared by two registry families:
 	// incident_context (incident.record / incident.lifecycle_event /
 	// change.record read by /incidents/{id}/context) and work_item

@@ -18,6 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector/cloud/aws/resource"
 	awsdrift "github.com/eshu-hq/eshu/go/internal/projector/cloud/aws/runtime/drift"
 	"github.com/eshu-hq/eshu/go/internal/projector/cloud/aws/s3"
+	projectorssm "github.com/eshu-hq/eshu/go/internal/projector/cloud/aws/ssm"
 	projectorazure "github.com/eshu-hq/eshu/go/internal/projector/cloud/azure"
 	projectorgcp "github.com/eshu-hq/eshu/go/internal/projector/cloud/gcp"
 	inventory "github.com/eshu-hq/eshu/go/internal/projector/cloud/inventory"
@@ -139,6 +140,9 @@ func appendScopeGenerationReducerIntents(
 		intents = append(intents, intent)
 	}
 	if intent, ok := ec2.BuildInstanceIdentityMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
+		intents = append(intents, intent)
+	}
+	if intent, ok := projectorssm.BuildHostInventoryMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := ec2.BuildUsesProfileMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {

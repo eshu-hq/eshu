@@ -88,7 +88,14 @@ func ReadOnlyTools() []ToolDefinition {
 	tools = append(tools, runtimeDeclarationTools()...)
 	tools = append(tools, dockerfileInstallTool())
 	tools = append(tools, phpConfigurationTool())
+	tools = append(tools, ssmHostInventoryTools()...)
 	return tools
+}
+
+// ssmHostInventoryTools preserves the root package's constructor name while
+// the cloud package owns the inventory registration definition.
+func ssmHostInventoryTools() []ToolDefinition {
+	return cloudtools.SSMHostInventoryTools()
 }
 
 // documentationTools preserves the root package's constructor name while the

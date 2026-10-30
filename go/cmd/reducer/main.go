@@ -356,17 +356,22 @@ func buildReducerService(
 		// instance the ProjectedSourceEdgeBackfiller above seeded at startup,
 		// mirroring the code-interproc ledger wiring
 		// (taintstore.NewCodeInterprocProjectedEdgeStore) constructed earlier.
-		ProjectedSourceLedger:                 projectedSourceEdgeStore,
-		IAMCanAssumeEdgeWriter:                graphWriters.iamCanAssumeEdge,
-		S3LogsToEdgeWriter:                    graphWriters.s3LogsToEdge,
-		S3ExternalPrincipalGrantWriter:        graphWriters.s3ExternalPrincipalGrant,
-		RDSPostureNodeWriter:                  graphWriters.rdsPostureNode,
-		EC2InstanceIdentityNodeWriter:         graphWriters.ec2InstanceIdentityNode,
-		EC2UsesProfileEdgeWriter:              graphWriters.ec2UsesProfileEdge,
-		IAMInstanceProfileRoleEdgeWriter:      graphWriters.iamInstanceProfileRoleEdge,
-		EC2InternetExposureNodeWriter:         graphWriters.ec2InternetExposureNode,
-		EC2BlockDeviceKMSPostureNodeWriter:    graphWriters.ec2BlockDeviceKMSPostureNode,
-		S3InternetExposureNodeWriter:          graphWriters.s3InternetExposureNode,
+		ProjectedSourceLedger:              projectedSourceEdgeStore,
+		IAMCanAssumeEdgeWriter:             graphWriters.iamCanAssumeEdge,
+		S3LogsToEdgeWriter:                 graphWriters.s3LogsToEdge,
+		S3ExternalPrincipalGrantWriter:     graphWriters.s3ExternalPrincipalGrant,
+		RDSPostureNodeWriter:               graphWriters.rdsPostureNode,
+		EC2InstanceIdentityNodeWriter:      graphWriters.ec2InstanceIdentityNode,
+		EC2UsesProfileEdgeWriter:           graphWriters.ec2UsesProfileEdge,
+		IAMInstanceProfileRoleEdgeWriter:   graphWriters.iamInstanceProfileRoleEdge,
+		EC2InternetExposureNodeWriter:      graphWriters.ec2InternetExposureNode,
+		EC2BlockDeviceKMSPostureNodeWriter: graphWriters.ec2BlockDeviceKMSPostureNode,
+		S3InternetExposureNodeWriter:       graphWriters.s3InternetExposureNode,
+		// SSM host inventory (eshu-hq/eshu#9558): without explicit
+		// freshness bounds the domain stays unwired and SSM intents drain
+		// unprojected rather than projecting under unbounded rules.
+		SSMHostGraphWriter:                    ssmHostGraphWriterAdapter{writer: graphWriters.ssmHostInventory},
+		SSMHostBounds:                         loadSSMHostBounds(getenv),
 		ContainerImageIdentityWriter:          containerImageIdentityWriterFor(database),
 		ContainerImageIdentityGenerationCheck: postgres.NewGenerationFreshnessCheck(database),
 		// PackageProvenanceEdgeWriter / ContainerImageProvenanceEdgeWriter

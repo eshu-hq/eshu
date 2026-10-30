@@ -39,6 +39,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/secgroup"
 	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
+	"github.com/eshu-hq/eshu/go/internal/reducer/ssmhost"
 	"github.com/eshu-hq/eshu/go/internal/reducer/workload/retract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -402,6 +403,18 @@ type DefaultHandlers struct {
 	// it reaches the graph. The handler gates on ReadinessLookup so node
 	// properties never resolve against uncommitted EC2 nodes.
 	EC2InternetExposureNodeWriter internetexposure.EC2InternetExposureNodeWriter
+
+	// SSMHostGraphWriter projects admitted SSM host inventory observations
+	// into canonical observation nodes and platform-pairing edges
+	// (eshu-hq/eshu#9558). It must be non-nil alongside factload.FactLoader
+	// and valid SSMHostBounds for the registry to register
+	// DomainSSMHostInventoryMaterialization; missing any of the three would
+	// drop every SSM inventory intent before it reaches graph truth.
+	SSMHostGraphWriter ssmhost.HostGraphWriter
+	// SSMHostBounds carries the fail-closed freshness configuration for SSM
+	// host supersession (max capture age, cross-type skew, platform
+	// observation age). Zero bounds leave the domain unwired.
+	SSMHostBounds ssmhost.Bounds
 
 	// ContainerImageIdentityWriter persists image-reference-keyed identity
 	// decisions for Git, OCI registry, and runtime image evidence.

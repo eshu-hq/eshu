@@ -25,7 +25,7 @@ import (
 // statement the #7212 T1 shim measured on QA (124 NodeUniqueIndexSeek
 // operators, 124 db hits on a miss) and in the local cost bench. Production
 // must send exactly that text, or the measurement proves nothing about it.
-const neo4jEntityContextStatementSHA256 = "7b2345495f6aeafbdb5486d6710d74da283e236e38479fdb6fab290bacbfd6e0"
+const neo4jEntityContextStatementSHA256 = "0946c4144668ca48a8633b1e44c107203246d67976e176640d9e78c1c27c2d10"
 
 var (
 	wideUIDBranch  = regexp.MustCompile(`MATCH \(e:([\w|]+) \{uid: \$entity_id\}\) WHERE e\.id = \$entity_id`)

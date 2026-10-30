@@ -25,6 +25,7 @@ import (
 	awsrelationship "github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/relationship"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/s3"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/security/group"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/ssm"
 	azurerelationship "github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/azure/relationship"
 	gcprelationship "github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/gcp/relationship"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/resource"
@@ -94,6 +95,11 @@ type canonicalGraphWriters struct {
 	// to, so it must serialize against that gate on the identical
 	// advisory-lock key.
 	ec2InstanceIdentityNode *graphowner.EC2InstanceIdentityLockedWriter
+	// ssmHostInventory writes admitted SSM host inventory observations
+	// (eshu-hq/eshu#9558). It is unwrapped by owner/lock gates: observation
+	// uids are content-stable and host-scoped, so no cross-scope ownership
+	// or same-uid property contention applies.
+	ssmHostInventory *ssm.HostNodeWriter
 }
 
 // newGraphOwnerGates builds the two Postgres-backed gates the canonical node
@@ -176,6 +182,7 @@ func newCanonicalGraphWriters(exec sourcecypher.Executor, reader sourcecypher.Po
 		ec2InstanceIdentityNode: graphowner.NewEC2InstanceIdentityLockedWriter(
 			lockGate, rawEC2InstanceIdentityNode.WriteEC2InstanceIdentityNodes, rawEC2InstanceIdentityNode.RetractEC2InstanceIdentityNodes,
 		),
+		ssmHostInventory: ssm.NewHostNodeWriter(exec, reader, batchSize),
 	}
 }
 

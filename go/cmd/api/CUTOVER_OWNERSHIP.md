@@ -120,6 +120,7 @@ the `querycontract.CoreReadContractsVersion` port set.
 | `GET /api/v0/ci-cd/run-correlations/count` | CICD | paths/cicd/run_correlation_aggregate.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
 | `GET /api/v0/ci-cd/run-correlations/inventory` | CICD | paths/cicd/run_correlation_aggregate.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
 | `GET /api/v0/cloud/inventory` | CloudInventory | paths/cloud/inventory.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
+| `GET /api/v0/cloud/ssm-host-inventory` | SSMHostInventory | paths/cloud/ssm_host_inventory.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
 | `GET /api/v0/cloud/resources` | Infra | paths/cloud/routes.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
 | `GET /api/v0/codeowners/ownership` | CodeownersOwnership | paths/code/owners.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
 | `GET /api/v0/collector-extraction-readiness` | ExtractionReadiness | paths/status/collector_extraction_readiness.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |

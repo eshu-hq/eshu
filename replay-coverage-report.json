@@ -2,11 +2,11 @@
   "schema_version": "replay-coverage-report.v4",
   "blocking": true,
   "totals": {
-    "total": 454,
-    "covered": 443,
+    "total": 459,
+    "covered": 449,
     "uncovered": 0,
     "unresolved": 0,
-    "exempt": 11,
+    "exempt": 10,
     "percent_satisfied": 100
   },
   "registry_summaries": [
@@ -21,8 +21,8 @@
     },
     {
       "registry": "capability_matrix",
-      "total": 159,
-      "covered": 159,
+      "total": 160,
+      "covered": 160,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 0,
@@ -39,8 +39,8 @@
     },
     {
       "registry": "fact_kind_registry",
-      "total": 27,
-      "covered": 26,
+      "total": 28,
+      "covered": 27,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 1,
@@ -67,10 +67,10 @@
     {
       "registry": "projection",
       "total": 32,
-      "covered": 30,
+      "covered": 31,
       "uncovered": 0,
       "unresolved": 0,
-      "exempt": 2,
+      "exempt": 1,
       "percent_satisfied": 100
     },
     {
@@ -84,8 +84,8 @@
     },
     {
       "registry": "retractable_edge_type",
-      "total": 64,
-      "covered": 64,
+      "total": 65,
+      "covered": 65,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 0,
@@ -93,8 +93,8 @@
     },
     {
       "registry": "retractable_type",
-      "total": 101,
-      "covered": 100,
+      "total": 103,
+      "covered": 102,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 1,
@@ -113,8 +113,8 @@
   "scenario_type_summaries": [
     {
       "scenario_type": "baseline",
-      "total": 240,
-      "covered": 236,
+      "total": 242,
+      "covered": 238,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 4,
@@ -123,10 +123,10 @@
     {
       "scenario_type": "cost",
       "total": 31,
-      "covered": 29,
+      "covered": 30,
       "uncovered": 0,
       "unresolved": 0,
-      "exempt": 2,
+      "exempt": 1,
       "percent_satisfied": 100
     },
     {
@@ -140,8 +140,8 @@
     },
     {
       "scenario_type": "delta_tombstone",
-      "total": 166,
-      "covered": 165,
+      "total": 169,
+      "covered": 168,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 1,
@@ -1759,6 +1759,16 @@
     },
     {
       "registry": "capability_matrix",
+      "key": "capability:ssm_host_inventory.readback.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "ssm_host_inventory.readback.list",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"ssm_host_inventory.readback.list\" matrix profile proofs present (supported=2 refusal=2)"
+    },
+    {
+      "registry": "capability_matrix",
       "key": "capability:supply_chain.advisory_catalog.list",
       "scenario_type": "baseline",
       "status": "covered",
@@ -2096,6 +2106,16 @@
       "ref": "GET /api/v0/cloud/resources",
       "proof_gate": "golden-corpus-gate-neo4j",
       "detail": "snapshot HTTP query shape \"GET /api/v0/cloud/resources\""
+    },
+    {
+      "registry": "fact_kind_registry",
+      "key": "read_surface:GET /api/v0/cloud/ssm-host-inventory",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "api_mcp_golden",
+      "ref": "list_ssm_host_inventory",
+      "proof_gate": "golden-corpus-gate-neo4j",
+      "detail": "snapshot MCP query shape \"list_ssm_host_inventory\""
     },
     {
       "registry": "fact_kind_registry",
@@ -2765,8 +2785,11 @@
       "registry": "projection",
       "key": "projection:ssm_host_inventory_materialization",
       "scenario_type": "cost",
-      "status": "exempt",
-      "detail": "Contract-only domain: aws_ssm_host_application and aws_ssm_host_platform are admitted facts with no reducer binding and no materialization path yet (DispositionUnconsumed, read_surface none). A cost scenario must drive the domain's real production writer; no writer exists, so there is nothing whose cost a scenario could bound. Remove when the #9295 host-inventory projection leaf lands, with its cost-counting test."
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/costcounting/ssm_host_inventory_cost_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/costcounting/ssm_host_inventory_cost_test.go"
     },
     {
       "registry": "projection",
@@ -3297,6 +3320,16 @@
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go",
       "proof_gate": "replay-tier",
       "detail": "artifact present: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:REPORTED_WITH",
+      "scenario_type": "delta_tombstone",
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/offlinetier/delta_tier_reducer_ssm_host_retract_live_test.go",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: go/internal/replay/offlinetier/delta_tier_reducer_ssm_host_retract_live_test.go"
     },
     {
       "registry": "retractable_edge_type",
@@ -4117,6 +4150,26 @@
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
       "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:SSMHostApplication",
+      "scenario_type": "delta_tombstone",
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/offlinetier/delta_tier_reducer_ssm_host_retract_live_test.go",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: go/internal/replay/offlinetier/delta_tier_reducer_ssm_host_retract_live_test.go"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:SSMHostPlatform",
+      "scenario_type": "delta_tombstone",
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/offlinetier/delta_tier_reducer_ssm_host_retract_live_test.go",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: go/internal/replay/offlinetier/delta_tier_reducer_ssm_host_retract_live_test.go"
     },
     {
       "registry": "retractable_type",

@@ -1715,6 +1715,14 @@
           "limit": 5
         }
       }
+    ],
+    "list_ssm_host_inventory": [
+      {
+        "label": "default",
+        "arguments": {
+          "limit": 5
+        }
+      }
     ]
   }
 }

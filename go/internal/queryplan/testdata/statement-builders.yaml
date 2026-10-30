@@ -226,6 +226,22 @@ builders:
             - {}
           source_sha256: 97b6ee5c33bfa327382b4f973c5a32912b2ad044e3f8e7514e54c284b198997b
           exempt: B-7 differential captures contain zero executions of this retract builder on either backend (pair1+pair2 neo4j+nornicdb); retract path is pinned by leaf unit tests, not the corpus replay
+    - file: internal/storage/cypher/cloud/aws/ssm/host_retract.go
+      builders:
+        - symbol: (*HostNodeWriter).RetractPlatformNodes
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: MATCH (n:SSMHostPlatform) WHERE n.scope_id = $scope_id AND n.evidence_source = $evidence_source AND n.uid IN $uids DETACH DELETE n
+          source_sha256: a9ed57148a63358630fee3fef8f8d92a38ca8595e6d9d444a03a7b7bb0db1e1a
+          exempt: B-7 differential captures contain zero executions of this retract builder on either backend (pair1+pair2 neo4j+nornicdb); the corpus carries no SSM host fixtures, so retract path is pinned by leaf unit tests and the live NornicDB retract tier, not the corpus replay
+        - symbol: (*HostNodeWriter).RetractStaleApplicationNodes
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: MATCH (n:SSMHostApplication) WHERE n.scope_id = $scope_id AND n.evidence_source = $evidence_source AND n.partition = $partition AND n.account_id = $account_id AND n.region = $region AND n.instance_id = $instance_id AND n.capture_time_unix < $cutoff_unix DETACH DELETE n
+          source_sha256: 7981261894fc450881b70ca1a42fd1240184e004e75f387f3b5fd773e437f7b5
+          exempt: B-7 differential captures contain zero executions of this retract builder on either backend (pair1+pair2 neo4j+nornicdb); the corpus carries no SSM host fixtures, so retract path is pinned by leaf unit tests and the live NornicDB retract tier, not the corpus replay
     - file: internal/storage/cypher/cloud/azure/relationship/azure_cloud_resource_edge_writer.go
       builders:
         - symbol: (*AzureCloudResourceEdgeWriter).RetractCloudResourceEdges

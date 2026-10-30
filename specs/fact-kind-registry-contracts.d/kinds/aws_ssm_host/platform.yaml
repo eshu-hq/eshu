@@ -2,12 +2,11 @@
 family_id: aws_ssm_host
 kind: aws_ssm_host_platform
 schema_version: 1.0.0
-read_surface: none
+read_surface: GET /api/v0/cloud/ssm-host-inventory
 payload_schema: sdk/go/factschema/schema/aws_ssm_host_platform.v1.schema.json
 payload_schema_registered: true
 producers:
     - collector-aws-cloud
-disposition: unconsumed
-no_reducer_reason: 'Contract-only kind for eshu-hq/eshu#9556: the satellite SSM platform emitter and the host-inventory read surface land in sibling #9295 leaves, so no reducer decodes this kind yet.'
-no_reducer_evidence: rg -n SSMHostPlatformFactKind go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g *.go --glob !*_test.go -> 0 matches at declaration time; same for the wire string aws_ssm_host_platform
-declaration: go/internal/facts/cloud/ssm_host.go:93
+reducer_bindings:
+    - ssmhost/ssmhost_handle_aws_ssm_host_platform
+declaration: go/internal/facts/cloud/ssm_host.go:90

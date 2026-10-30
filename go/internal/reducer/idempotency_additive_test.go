@@ -168,6 +168,7 @@ var idempotencyAdditiveExemptDomains = map[reducercontract.Domain]string{
 	DomainIAMInstanceProfileRoleMaterialization:    "additive, gated on FactLoader+IAMInstanceProfileRoleEdgeWriter with readiness lookup; idempotency proven by iaminstprofile/iam_instance_profile_role_materialization_*_test.go",
 	DomainS3LogsToMaterialization:                  "additive, gated on FactLoader+S3LogsToEdgeWriter with readiness lookup; idempotency proven by s3logsto/s3_logs_to_materialization_*_test.go",
 	DomainS3ExternalPrincipalGrantMaterialization:  "additive, gated on FactLoader+S3ExternalPrincipalGrantWriter with readiness lookup; idempotency proven by s3grant/s3_external_principal_grant_*_test.go (defaults_s3_external_principal_grant_test.go)",
+	DomainSSMHostInventoryMaterialization:          "additive, gated on FactLoader+SSMHostGraphWriter with fail-closed SSMHostBounds; uid-idempotent MERGE writes with committed-capture graph read-back and host-scoped retracts; idempotency proven by ssmhost/materialization_test.go (duplicate + concurrent convergence) and ssmhost/rows_test.go (defaults_ssm_host_test.go)",
 
 	// Code evidence materializers + incident correlation + deployable-unit
 	// correlation: evidence-loader gated cross-source fan-in, proven by their own

@@ -17,6 +17,7 @@ func askRouteAnnotations() map[string]Annotation {
 		"GET /api/v0/ci-cd/run-correlations/count":                           {Backend: BackendPostgres, Cost: CostLow},
 		"GET /api/v0/ci-cd/run-correlations/inventory":                       {Backend: BackendPostgres, Cost: CostModerate},
 		"GET /api/v0/cloud/inventory":                                        {Backend: BackendPostgres, Cost: CostModerate},
+		"GET /api/v0/cloud/ssm-host-inventory":                               {Backend: BackendBoth, Cost: CostModerate},
 		"GET /api/v0/cloud/resources":                                        {Backend: BackendNornicDB, Cost: CostModerate},
 		"GET /api/v0/codeowners/ownership":                                   {Backend: BackendNornicDB, Cost: CostModerate},
 		"POST /api/v0/runtime-declarations/query":                            {Backend: BackendNornicDB, Cost: CostModerate},
