@@ -466,7 +466,12 @@ vulnerability_os_package AS (
     -- generation's rows carry no image identity of their own. Counted rows
     -- stay active-only (the lifecycle the reducer's advisory reader
     -- enforces); superseded generations contribute identity, never current
-    -- package evidence. Deliberately EXISTS, not JOIN: a JOIN fans out to
+    -- package evidence. Unlike the reducer's pair-keyed ScopeID+GenerationID
+    -- SubjectDigest stamp, this CTE attributes by scope alone and assumes one
+    -- digest per scope: if a scope is ever re-scanned for a new digest, an
+    -- old-digest request could count the new image's active packages (issue
+    -- #9685 tracks proving digest-pinned scope mint or a digest-aware guard).
+    -- Deliberately EXISTS, not JOIN: a JOIN fans out to
     -- COUNT(os_package) * COUNT(matching analyses) across analyzers and
     -- sibling generations; EXISTS counts each os_package fact at most once.
     SELECT
