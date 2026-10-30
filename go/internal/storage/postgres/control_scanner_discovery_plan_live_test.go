@@ -3,9 +3,10 @@
 
 package postgres
 
-//eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #9299 disposable PostgreSQL proof that the running-image derivation page returns bounded candidates with skip counts and its EXPLAIN ANALYZE plan seeks the observations primary key instead of scanning
-//eshu:readiness:env ESHU_POSTGRES_DISPOSABLE ESHU_POSTGRES_DSN
+// De-enrolled from the live-postgres-readiness plan under the drift-gate
+// option A (PR #9544, steer 6530394665): bounded pages stay proven at QA
+// scale by the enrolled TestScannerDiscoveryScaleShapeLive, and the code
+// below stays to re-enroll in the post-refit follow-up.
 
 import (
 	"context"

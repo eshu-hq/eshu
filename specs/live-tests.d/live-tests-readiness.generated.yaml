@@ -254,11 +254,6 @@ tests:
     class: postgres_ci
     reason: "#7009 disposable PostgreSQL 18 proof that every Terraform-free status route returns byte-identical responses with and without the Terraform-state serial and warning reads over seeded tfstate and git warnings, that pipeline and index status keep the seeded terraform_state rows, and that forcing the skip onto them changes the response"
     runner: live-postgres-readiness
-  - file: go/internal/query/supply/chain/impact/findings_protected_target_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#9299 provisional protected target association must distinguish same-digest findings before winner ranking"
-    runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/readiness_central_pin_live_test.go
     tag: ~
     class: postgres_ci
@@ -308,6 +303,7 @@ tests:
     tag: ~
     class: postgres_ci
     reason: "#9685 disposable PostgreSQL 18 rescanned-scope proof: a rescan for a new digest reuses the operator-configured scope, so scope-level sibling attribution is ambiguous there"
+    runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/readiness_scanner_authorization_live_test.go
     tag: ~
     class: postgres_ci

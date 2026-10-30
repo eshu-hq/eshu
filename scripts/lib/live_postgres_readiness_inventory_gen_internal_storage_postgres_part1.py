@@ -169,10 +169,6 @@ TABLE = {
         "go/internal/storage/postgres/control_scanner_authority_epoch_live_test.go": (
             "TestScannerAuthorityEpochNoABALive",
         ),
-        "go/internal/storage/postgres/control_scanner_discovery_plan_live_test.go": (
-            "TestScannerDiscoveryPagePlanLive",
-            "TestScannerDiscoveryExhaustedPageSkipSpanLive",
-        ),
         "go/internal/storage/postgres/control_scanner_discovery_scale_live_test.go": (
             "TestScannerDiscoveryScaleShapeLive",
         ),

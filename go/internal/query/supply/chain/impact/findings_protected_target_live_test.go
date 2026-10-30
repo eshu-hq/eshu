@@ -3,9 +3,10 @@
 
 package impact
 
-//eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #9299 provisional protected target association must distinguish same-digest findings before winner ranking
-//eshu:readiness:env ESHU_SCANNER_FINDING_AUTH_PROOF_DISPOSABLE ESHU_SCANNER_FINDING_AUTH_PROOF_DSN
+// De-enrolled from the live-postgres-readiness plan under the drift-gate
+// option A (PR #9544, steer 6530394665): this proof always skips until #9468
+// opens the finding-authority gate, so de-enrollment loses zero signal.
+// Unskip and re-enroll in the post-refit follow-up when #9468 lands.
 
 import (
 	"database/sql"
@@ -28,10 +29,8 @@ import (
 func TestProtectedScanTargetsDoNotCollapseSameDigestFindingsLive(t *testing.T) {
 	// Owned by #9468: the derived read branches stay dark behind AND
 	// FALSE until completed results can open them, so no provisional
-	// association can distinguish same-digest targets yet. Unskip when
-	// #9468 opens the finding-authority gate, and remove this proof from
-	// LIVE_READINESS_EXTRA_SKIP in the readiness workflows at the same
-	// time (the excuse would otherwise keep masking it as skipped).
+	// association can distinguish same-digest targets yet. Unskip and
+	// re-enroll when #9468 opens the finding-authority gate.
 	t.Skip("skip-gated on #9468: derived finding-authority reads stay dark until completed results open them")
 	ctx, database := postgresproof.OpenDisposableDatabase(t,
 		os.Getenv("ESHU_SCANNER_FINDING_AUTH_PROOF_DSN"),
