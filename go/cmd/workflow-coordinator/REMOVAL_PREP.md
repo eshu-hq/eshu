@@ -22,7 +22,8 @@ non-test files only.
    root `Service` + reconcile/reap loops + per-family services/planners
    that move to `eshu-workflow`. Coordinator *subpackage* consumers in
    collector trees repoint per §4, not by directory delete.
-3. `go/internal/workflow/` root (72 `.go`): repoint the 169 importers
+3. `go/internal/workflow/` root (73 `.go`, incl. the new protocol
+   compat test): repoint the 169 importers
    first (§3), land the satellite client + shared contracts module, then
    delete file-by-file with the importer census as the checklist.
    `parity/` harnesses stay until the removal lands (they prove the

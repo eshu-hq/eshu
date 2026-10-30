@@ -71,7 +71,7 @@ file's own sentence).
 
 ## 2. Workflow library (moves with the coordinator)
 
-`go/internal/workflow/` — 77 entries (72 `.go`: 64 top-level + 8 in
+`go/internal/workflow/` — 78 entries (73 `.go`: 65 top-level + 8 in
 `parity/`; 5 non-go: `AGENTS.md`, `README.md`,
 `claim-plane-client-evidence.md`, `parity/AGENTS.md`,
 `parity/README.md`), live verified via `git ls-files`. Growth since the
@@ -226,6 +226,8 @@ rollback rehearsal.
   `gh pr view 9659`, all 14 present at this HEAD, all behavior ported live
   in §§1–3 above, never deleted-by-omission). The expected 12 cmd files
   have landed; the removal diff no longer rebases around an open `#9659`.
+  (`go/internal/workflow/` counts in §2 already include the new
+  `protocol_version_test.go` from this refresh: 78 entries, 73 `.go`.)
 - Prerequisites to reuse: `#6708` SDK publication, `#6709` producer
   delegation, `#6710` standalone template, `#4047` gate implementation —
   all four CLOSED (live `gh` check 2026-10-28).
@@ -301,8 +303,10 @@ that repo's references too. Binary is dark-by-default and Postgres-only.
   HEAD; every behavior ported live in §§1–3 (stale-skip reconcile/report,
   `ReconcileStaleComponentActivations` with revalidate-before-drop,
   `stale_activation_skips_total` counter, reap-instrument split). Nothing
-  deleted-by-omission. Unchanged across the window: `go/internal/workflow/`
-  77 entries (72 `.go`), fact Kinds 187, importer set identical (169).
+  deleted-by-omission. Unchanged across the window: fact Kinds 187,
+  importer set identical (169). `go/internal/workflow/` grows 77→78
+  entries (72→73 `.go`) for the new `protocol_version_test.go` in this
+  refresh — the only delta, and it is the compat proof itself.
 - Peer-claim check 2026-10-30: all 27 `#8875` comments are owner-posted lane
   updates (no peer claim); open `#9676` (`drive/9634-thread-followup`, same
   `#9634` thread) touches `component_activation_config.go` + `metrics.go`
