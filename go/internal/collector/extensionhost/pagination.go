@@ -248,9 +248,12 @@ func (s *Source) checkPageEnvelope(call CallResult, index int, streamOpen bool) 
 		switch call.Result.State {
 		case sdkcollector.ResultComplete, sdkcollector.ResultPartial:
 		default:
+			// The state is extension-supplied and checked before SDK
+			// validation, so only its bounded description (byte length and
+			// an alphabet-restricted prefix) may reach the error (#9310).
 			return invalid(fmt.Errorf(
-				"%s extension result must not request continuation",
-				call.Result.State,
+				"extension result must not request continuation (state %s)",
+				describeRejectedValue(string(call.Result.State)),
 			))
 		}
 		return nil

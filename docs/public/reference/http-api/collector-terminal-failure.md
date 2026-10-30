@@ -116,7 +116,7 @@ Known limit, reading `unknown` rather than leaking text:
 | `commit_failed` | `scanner_worker` | Persisting the produced facts failed. |
 | `waiting_on_git_generation` | `terraform_state` | The scan kept waiting for a Git generation until the attempt budget ran out. |
 | `invalid_claim` | every kind, from the extension host | The host rejected corrupt or unsupported claim input. |
-| `invalid_result` | every kind, from the extension host | The host rejected the extension's output before commit. |
+| `invalid_result` | every kind, from the extension host | The host rejected the extension's output before commit. The rejection names the rule and a bounded description of the offending value (its byte length plus a short prefix from the allowed alphabet, e.g. `status.failure_class is not bounded (105 bytes, prefix "invalid_config.a")`), never the raw extension-supplied text; rejections that surface the SDK validator's wording keep the SDK error text. |
 | `launch_failure` | every kind, from the extension host | The host could not launch the extension. |
 | `source_state_record` | every kind, from the extension host | The host could not record a completed claim's source-state attempt row (#9420); the claim fails retryable. |
 | `status_record` | every kind, from the extension host | The host failed to record the extension's status. |

@@ -426,6 +426,36 @@ func TestLegacyRunnerPathStaysSingleCall(t *testing.T) {
 	}
 }
 
+// TestCheckPageEnvelopeContinuationErrorOmitsRawState pins eshu-hq/eshu#9310
+// for the sibling echo in the same validation path: checkPageEnvelope runs
+// before SDK validation, so a hostile extension-controlled result state
+// rejected on a continuation page must not reach the invalid_result error.
+// The hostile input leads with out-of-alphabet bytes, so the exact-match
+// assertion fails on a truncation-only mutant and pins the alphabet filter,
+// not just the length.
+func TestCheckPageEnvelopeContinuationErrorOmitsRawState(t *testing.T) {
+	t.Parallel()
+
+	hostile := sdkcollector.ResultState("!!" + strings.Repeat("z", 200))
+	call := CallResult{
+		Result: sdkcollector.Result{
+			State:           hostile,
+			ProtocolVersion: collectorSDKProtocolV1Alpha3,
+		},
+		Page: &ResultPage{PageIndex: 0, More: true, Cursor: "resume-here"},
+	}
+	err := (&Source{}).checkPageEnvelope(call, 0, false)
+	if err == nil {
+		t.Fatal("checkPageEnvelope(hostile state) error = nil, want rejection")
+	}
+	// The filter drops both '!' bytes and keeps the next 16 alphabet bytes;
+	// a truncation-only mutant would emit "!!zzzzzzzzzzzzzz".
+	want := `collector extension failure: invalid_result: extension result must not request continuation (state 202 bytes, prefix "zzzzzzzzzzzzzzzz")`
+	if err.Error() != want {
+		t.Fatalf("checkPageEnvelope error = %q, want %q", err.Error(), want)
+	}
+}
+
 // TestV1Alpha3ManifestAdmitted proves the version gate opens explicitly: a
 // v1alpha3 manifest constructs the source, while any other protocol stays
 // rejected.
