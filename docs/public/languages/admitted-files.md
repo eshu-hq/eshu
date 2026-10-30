@@ -301,7 +301,7 @@ edit. Two exemptions stay out: `.gitignore`, which the copy must not duplicate
 because it already applies the source repository's ignore rules, so `.gitignore`
 is not indexed in that mode; and the names a metadata or redact policy governs
 (`.npmrc`, `.yarnrc.yml`, `*.tfvars`), which stay pruned in filesystem mode even though
-clone mode indexes them, as does any future dotfile a metadata or redact policy governs. Discovery then applies the registry to what the copy kept,
+clone mode indexes them, as does any future dotfile a metadata or redact policy governs, except `.fvmrc`, which the copy keeps as a registry-admitted metadata-policy runtime-version pin so both modes index it. Discovery then applies the registry to what the copy kept,
 as it does in clone mode: `.mvn/extensions.xml` is admitted as text, a `.java`
 file under `.mvn/wrapper` is admitted as Java, and `.mvn/jvm.config`,
 `.mvn/maven.config` and `.mvn/wrapper/maven-wrapper.properties` have no registry entry, so they
