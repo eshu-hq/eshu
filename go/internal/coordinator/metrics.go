@@ -21,6 +21,8 @@ const (
 	reconcileOutcomeStateReadError = "state_read_error"
 	reaperOutcomeSuccess           = "success"
 	reaperOutcomeError             = "error"
+	staleSkipOutcomeSuccess        = "success"
+	staleSkipOutcomeError          = "error"
 	runReconcileOutcomeSuccess     = "success"
 	runReconcileOutcomeError       = "error"
 	freshnessReapOutcomeSuccess    = "success"
@@ -34,6 +36,10 @@ const (
 type Metrics interface {
 	RecordReconcile(context.Context, ReconcileObservation)
 	RecordReap(context.Context, ReapObservation)
+	// RecordStaleActivationSkip records one registry activation skipped at
+	// startup because its mounted config file is absent (#9634). Outcome is
+	// success when the registry entry was also dropped, error otherwise.
+	RecordStaleActivationSkip(context.Context, StaleActivationSkipObservation)
 	RecordRunReconciliation(context.Context, RunReconciliationObservation)
 	// RecordAWSFreshnessReap records one AWS freshness stuck-claim reap pass
 	// (#4576): the operator-visible signal for triggers stranded at 'claimed'
@@ -88,6 +94,7 @@ type otelMetrics struct {
 	reconcileDuration metric.Float64Histogram
 	reapTotal         metric.Int64Counter
 	reapDuration      metric.Float64Histogram
+	staleSkipTotal    metric.Int64Counter
 	runReconcileTotal metric.Int64Counter
 	runReconcileDur   metric.Float64Histogram
 
@@ -188,6 +195,36 @@ func newFreshnessReapInstruments(meter metric.Meter) (freshnessReapMetricInstrum
 	}, nil
 }
 
+// reapMetricInstruments holds the expired-claim reap counter and histogram
+// registered by newReapInstruments. Splitting this pair out of NewMetrics
+// keeps that function under the repo's funlen limit, mirroring
+// newFreshnessReapInstruments.
+type reapMetricInstruments struct {
+	total    metric.Int64Counter
+	duration metric.Float64Histogram
+}
+
+// newReapInstruments registers the expired-claim reap counter and histogram.
+func newReapInstruments(meter metric.Meter) (reapMetricInstruments, error) {
+	reapTotal, err := meter.Int64Counter(
+		MetricPrefix+"reap_total",
+		metric.WithDescription("Total workflow coordinator expired-claim reap passes"),
+	)
+	if err != nil {
+		return reapMetricInstruments{}, fmt.Errorf("register reap total counter: %w", err)
+	}
+	reapDuration, err := meter.Float64Histogram(
+		MetricPrefix+"reap_duration_seconds",
+		metric.WithDescription("Workflow coordinator expired-claim reap duration"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(0.001, 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30),
+	)
+	if err != nil {
+		return reapMetricInstruments{}, fmt.Errorf("register reap duration histogram: %w", err)
+	}
+	return reapMetricInstruments{total: reapTotal, duration: reapDuration}, nil
+}
+
 // NewMetrics registers coordinator-specific OTEL instruments.
 func NewMetrics(meter metric.Meter) (Metrics, error) {
 	if meter == nil {
@@ -210,21 +247,13 @@ func NewMetrics(meter metric.Meter) (Metrics, error) {
 	if err != nil {
 		return nil, fmt.Errorf("register reconcile duration histogram: %w", err)
 	}
-	reapTotal, err := meter.Int64Counter(
-		MetricPrefix+"reap_total",
-		metric.WithDescription("Total workflow coordinator expired-claim reap passes"),
-	)
+	reapInstruments, err := newReapInstruments(meter)
 	if err != nil {
-		return nil, fmt.Errorf("register reap total counter: %w", err)
+		return nil, err
 	}
-	reapDuration, err := meter.Float64Histogram(
-		MetricPrefix+"reap_duration_seconds",
-		metric.WithDescription("Workflow coordinator expired-claim reap duration"),
-		metric.WithUnit("s"),
-		metric.WithExplicitBucketBoundaries(0.001, 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30),
-	)
+	staleSkipTotal, err := newStaleActivationSkipInstruments(meter)
 	if err != nil {
-		return nil, fmt.Errorf("register reap duration histogram: %w", err)
+		return nil, err
 	}
 	runReconcileTotal, err := meter.Int64Counter(
 		MetricPrefix+"run_reconcile_total",
@@ -254,8 +283,9 @@ func NewMetrics(meter metric.Meter) (Metrics, error) {
 	recorder := &otelMetrics{
 		reconcileTotal:                reconcileTotal,
 		reconcileDuration:             reconcileDuration,
-		reapTotal:                     reapTotal,
-		reapDuration:                  reapDuration,
+		reapTotal:                     reapInstruments.total,
+		reapDuration:                  reapInstruments.duration,
+		staleSkipTotal:                staleSkipTotal,
 		runReconcileTotal:             runReconcileTotal,
 		runReconcileDur:               runReconcileDur,
 		awsFreshnessReapTotal:         freshnessReapInstruments.awsReapTotal,
