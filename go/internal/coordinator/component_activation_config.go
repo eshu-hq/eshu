@@ -30,6 +30,8 @@ type StaleActivationSkip struct {
 // StaleActivationReconciliation reports one attempt to drop a stale registry
 // activation so a restart does not plan it again (#9634). Dropped reports
 // whether this call removed the entry; Err is non-nil when the drop failed.
+// Dropped false with nil Err means the entry needed no drop: already gone,
+// or its file reappeared before the drop and the next restart re-plans it.
 // A failed drop never fails startup: the skip already protects planning, so
 // the next restart retries the drop.
 type StaleActivationReconciliation struct {
@@ -191,24 +193,55 @@ func desiredInstancesForComponent(
 
 // ReconcileStaleComponentActivations drops stale registry activations whose
 // mounted config files are absent, so a restart does not plan them again
-// (#9634). It disables exactly the given skips — detected by startup
-// planning before the activation load — rather than re-statting the
-// registry. A failed drop is reported on its outcome, never as a hard error:
-// the skip already protects planning, so the next restart retries the drop.
+// (#9634). Every skip is revalidated against current registry state before
+// any write: an entry that is already gone needs no drop, and an entry
+// whose file reappeared (for example a slow volume mount catching up) is
+// left for the next restart to plan, never deleted on stale evidence. A
+// failed drop is reported on its outcome, never as a hard error: the skip
+// already protects planning, so the next restart retries the drop.
 func ReconcileStaleComponentActivations(home string, skips []StaleActivationSkip) []StaleActivationReconciliation {
 	if len(skips) == 0 {
 		return nil
 	}
 	registry := component.NewRegistry(home)
+	installed, err := registry.List()
+	if err != nil {
+		// Without current registry state nothing can be revalidated, so
+		// report every skip as unreconciled instead of deleting blindly.
+		// The skip already protects planning; the next restart retries.
+		outcomes := make([]StaleActivationReconciliation, 0, len(skips))
+		for _, skip := range skips {
+			outcomes = append(outcomes, StaleActivationReconciliation{
+				ComponentID: skip.ComponentID,
+				InstanceID:  skip.InstanceID,
+				Err:         err,
+			})
+		}
+		return outcomes
+	}
 	outcomes := make([]StaleActivationReconciliation, 0, len(skips))
 	for _, skip := range skips {
 		outcome := StaleActivationReconciliation{
 			ComponentID: skip.ComponentID,
 			InstanceID:  skip.InstanceID,
 		}
-		if err := registry.Disable(skip.ComponentID, skip.InstanceID); err != nil {
+		activation, found := findStoredActivation(installed, skip.ComponentID, skip.InstanceID)
+		if !found {
 			// An entry that is already gone needs no drop: the registry
 			// no longer references it, which is the reconciled state.
+			outcomes = append(outcomes, outcome)
+			continue
+		}
+		if !isStaleMissingActivationFile(activation.ConfigPath) {
+			// The file is back (or the path was never a missing file):
+			// leave the entry for the next restart to plan rather than
+			// deleting a live activation on stale evidence.
+			outcomes = append(outcomes, outcome)
+			continue
+		}
+		if err := registry.Disable(skip.ComponentID, skip.InstanceID); err != nil {
+			// A concurrent removal between the lookup and the drop is
+			// already healed; any other failure is reported, never fatal.
 			if component.ErrorCodeOf(err) != component.ErrorCodeNotInstalled {
 				outcome.Err = err
 			}
@@ -218,6 +251,23 @@ func ReconcileStaleComponentActivations(home string, skips []StaleActivationSkip
 		outcomes = append(outcomes, outcome)
 	}
 	return outcomes
+}
+
+// findStoredActivation returns the registry activation stored under the
+// exact component and instance bytes, mirroring Registry.Disable's match
+// semantics across installed versions.
+func findStoredActivation(installed []component.InstalledComponent, componentID, instanceID string) (component.Activation, bool) {
+	for _, entry := range installed {
+		if entry.ID != componentID {
+			continue
+		}
+		for _, activation := range entry.Activations {
+			if activation.InstanceID == instanceID {
+				return activation, true
+			}
+		}
+	}
+	return component.Activation{}, false
 }
 
 // isStaleMissingActivationFile reports whether a claims-enabled activation

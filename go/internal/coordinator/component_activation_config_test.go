@@ -390,6 +390,70 @@ func TestReconcileStaleComponentActivationsSkipsEmpty(t *testing.T) {
 	}
 }
 
+func TestReconcileStaleComponentActivationsKeepsEntryWhoseFileReappeared(t *testing.T) {
+	t.Parallel()
+
+	home := installScorecardComponent(t)
+	missing := filepath.Join(t.TempDir(), "flapping-activation.yaml")
+	enableScorecardComponent(t, home, component.Activation{
+		InstanceID:    "scorecard-flapping",
+		Mode:          "scheduled",
+		ClaimsEnabled: true,
+		ConfigPath:    missing,
+	})
+	// The file arrives between planning and reconcile (for example a slow
+	// volume mount catching up): the entry is live again and must stay.
+	if err := os.WriteFile(missing, []byte("host: {}\n"), 0o600); err != nil {
+		t.Fatalf("write reappeared activation config: %v", err)
+	}
+
+	outcomes := ReconcileStaleComponentActivations(home, []StaleActivationSkip{{
+		ComponentID: "dev.eshu.examples.scorecard",
+		InstanceID:  "scorecard-flapping",
+	}})
+	if got, want := len(outcomes), 1; got != want {
+		t.Fatalf("reconcile outcomes = %d, want %d", got, want)
+	}
+	if outcomes[0].Dropped || outcomes[0].Err != nil {
+		t.Fatalf("reconcile outcome = %+v, want entry kept with nil error", outcomes[0])
+	}
+	remaining, err := component.NewRegistry(home).List()
+	if err != nil {
+		t.Fatalf("List() error = %v, want nil", err)
+	}
+	found := false
+	for _, entry := range remaining {
+		for _, activation := range entry.Activations {
+			if activation.InstanceID == "scorecard-flapping" {
+				found = true
+			}
+		}
+	}
+	if !found {
+		t.Fatal("live activation dropped on reappeared file, want it kept")
+	}
+}
+
+func TestReconcileStaleComponentActivationsReportsCorruptRegistry(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	if err := os.WriteFile(filepath.Join(home, "registry.json"), []byte("{not json"), 0o600); err != nil {
+		t.Fatalf("write corrupt registry: %v", err)
+	}
+
+	outcomes := ReconcileStaleComponentActivations(home, []StaleActivationSkip{{
+		ComponentID: "dev.eshu.examples.scorecard",
+		InstanceID:  "scorecard-stale",
+	}})
+	if got, want := len(outcomes), 1; got != want {
+		t.Fatalf("reconcile outcomes = %d, want %d", got, want)
+	}
+	if outcomes[0].Dropped || outcomes[0].Err == nil {
+		t.Fatalf("reconcile outcome = %+v, want no drop and a reported error", outcomes[0])
+	}
+}
+
 func TestLoadConfigStillFailsClosedOnUnreadableActivationConfig(t *testing.T) {
 	t.Parallel()
 

@@ -27,11 +27,14 @@ func reportStaleActivationSkips(ctx context.Context, metrics coordinator.Metrics
 	}
 	outcomes := coordinator.ReconcileStaleComponentActivations(home, skips)
 	for i, skip := range skips {
-		reconciled := false
+		// Reconciled means no stale reference remains: the entry was
+		// dropped, was already gone, or its file reappeared before the
+		// drop. Only a failed drop counts as an error.
+		reconciled := true
 		var reconcileErr error
 		if i < len(outcomes) {
-			reconciled = outcomes[i].Dropped
 			reconcileErr = outcomes[i].Err
+			reconciled = reconcileErr == nil
 		}
 		if logger != nil {
 			args := []any{

@@ -125,3 +125,56 @@ func TestReportStaleActivationSkipsEmptyIsSilent(t *testing.T) {
 		t.Fatalf("warning log = %q, want empty", got)
 	}
 }
+
+func TestReportStaleActivationSkipsCountsHealedEntryAsReconciled(t *testing.T) {
+	t.Parallel()
+
+	// The entry is already gone from the registry: nothing to drop, and
+	// the observation still reports reconciled rather than an error.
+	home := writeStaleRegistryHome(t)
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+	metrics := &staleSkipFakeMetrics{}
+
+	reportStaleActivationSkips(context.Background(), metrics, logger, home, []coordinator.StaleActivationSkip{{
+		ComponentID: "dev.eshu.examples.scorecard",
+		InstanceID:  "scorecard-already-gone",
+	}})
+
+	if got, want := len(metrics.observations), 1; got != want {
+		t.Fatalf("stale skip observations = %d, want %d", got, want)
+	}
+	if !metrics.observations[0].Reconciled {
+		t.Fatalf("stale skip observation = %+v, want reconciled for an already-gone entry", metrics.observations[0])
+	}
+	if got := logs.String(); strings.Contains(got, `"error"`) || strings.Contains(got, "error=") {
+		t.Fatalf("warning log = %q, want no error for an already-gone entry", got)
+	}
+}
+
+func TestReportStaleActivationSkipsCountsFailedDropAsError(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	if err := os.WriteFile(filepath.Join(home, "registry.json"), []byte("{not json"), 0o600); err != nil {
+		t.Fatalf("write corrupt registry: %v", err)
+	}
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+	metrics := &staleSkipFakeMetrics{}
+
+	reportStaleActivationSkips(context.Background(), metrics, logger, home, []coordinator.StaleActivationSkip{{
+		ComponentID: "dev.eshu.examples.scorecard",
+		InstanceID:  "scorecard-stale",
+	}})
+
+	if got, want := len(metrics.observations), 1; got != want {
+		t.Fatalf("stale skip observations = %d, want %d", got, want)
+	}
+	if metrics.observations[0].Reconciled {
+		t.Fatalf("stale skip observation = %+v, want unreconciled for a failed drop", metrics.observations[0])
+	}
+	if got := logs.String(); !strings.Contains(got, "scorecard-stale") {
+		t.Fatalf("warning log = %q, want stale instance id", got)
+	}
+}

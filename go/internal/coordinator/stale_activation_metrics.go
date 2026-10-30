@@ -15,8 +15,9 @@ import (
 
 // StaleActivationSkipObservation captures one registry activation skipped at
 // startup because its mounted config file is absent (#9634). Reconciled
-// reports whether the startup path also dropped the registry entry. IDs ride
-// only on the structured warning log, never on a metric label.
+// reports whether no stale reference remains: the entry was dropped, was
+// already gone, or its file reappeared before the drop. IDs ride only on
+// the structured warning log, never on a metric label.
 type StaleActivationSkipObservation struct {
 	ComponentID string
 	InstanceID  string

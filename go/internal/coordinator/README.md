@@ -259,7 +259,7 @@ OTEL instruments registered under `eshu_dp_workflow_coordinator_`:
 | `reap_duration_seconds` | histogram | reap-pass wall time |
 | `run_reconcile_total` | counter | workflow-run reconciliation passes labeled by `outcome` |
 | `run_reconcile_duration_seconds` | histogram | run-reconciliation wall time |
-| `stale_activation_skips_total` | counter | startup activations skipped for absent config files (#9634), labeled by `outcome` (`success` = registry entry also dropped) |
+| `stale_activation_skips_total` | counter | startup activations skipped for absent config files (#9634), labeled by `outcome` (`success` = no stale reference remains: dropped, already gone, or file reappeared) |
 | `desired_collector_instances` | gauge | count from `Config.CollectorInstances` |
 | `durable_collector_instances` | gauge | count returned by `Store.ListCollectorInstances` |
 | `collector_instance_drift` | gauge | absolute difference between desired and durable |
