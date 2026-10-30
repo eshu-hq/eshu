@@ -132,10 +132,14 @@ func sbtRepairStrings(t *testing.T, ctx context.Context, database *sql.DB, query
 	return out
 }
 
+// sbtRepairKeys reads a scope's sidecar keys in byte order. The expected lists
+// in these tests are byte order ('/' sorts before ':'), so the read-back query
+// pins the "C" collation instead of following the database default; the
+// production repair does not read this ordering.
 func sbtRepairKeys(t *testing.T, ctx context.Context, database *sql.DB, scope string) []string {
 	t.Helper()
 	return sbtRepairStrings(t, ctx, database,
-		`SELECT fact_id || '|' || ecosystem || '|' || package_name FROM package_manifest_consumption_keys WHERE scope_id = $1 ORDER BY 1`, scope)
+		`SELECT fact_id || '|' || ecosystem || '|' || package_name FROM package_manifest_consumption_keys WHERE scope_id = $1 ORDER BY (fact_id || '|' || ecosystem || '|' || package_name) COLLATE "C"`, scope)
 }
 
 func sbtRepairMarkerPresent(t *testing.T, ctx context.Context, database *sql.DB) bool {
