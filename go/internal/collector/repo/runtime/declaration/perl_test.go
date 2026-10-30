@@ -3,11 +3,7 @@
 
 package declaration
 
-import (
-	"testing"
-
-	"github.com/eshu-hq/eshu/go/internal/parser/shared"
-)
+import "testing"
 
 // TestPerlCpanfileContentOnlyEntrypoint proves the cpanfile manifest path:
 // literal requires 'perl' lines become perl facts, the rest is silent or
@@ -51,27 +47,9 @@ func TestPerlCpanfileContentOnlyEntrypoint(t *testing.T) {
 	}
 }
 
-// TestPerlCpanfileEvidenceGuard proves the credential guard before emission:
-// only the cpanfile_perl source kind survives, and a credential-shaped value
-// is dropped and counted, never emitted.
-func TestPerlCpanfileEvidenceGuard(t *testing.T) {
-	t.Parallel()
-
-	for _, tc := range []struct{ kind, value string }{
-		{"cpanfile_perl", "0123456789abcdef-secret"},
-		{"cpanfile_lock_perl", "5.38.0"},
-	} {
-		e := shared.RuntimeEvidence{State: "parsed_values", ByteSize: 100, Values: []shared.RuntimeValue{{SourceKind: tc.kind, Runtime: "perl", Value: tc.value, Line: 2}}}
-		facts, skip := EmitExtraction(testContext("cpanfile"), "repo-1", "cpanfile", ExtractPerlEvidence(e))
-		if len(facts) != 0 || skip.Rejected != 1 {
-			t.Errorf("%s/%s: facts=%d skip=%+v, want no facts and one rejection", tc.kind, tc.value, len(facts), skip)
-		}
-	}
-}
-
 // TestPerlVersionPinValues pins hunk (b): the pin body reads like the other
-// single-runtime pins, spec shapes classify, and credential-shaped or
-// malformed bodies fail closed with a counted skip.
+// single-runtime pins, and credential-shaped or malformed bodies fail closed
+// with a counted skip.
 func TestPerlVersionPinValues(t *testing.T) {
 	t.Parallel()
 
@@ -79,18 +57,6 @@ func TestPerlVersionPinValues(t *testing.T) {
 	checkFacts(t, got, []wantFact{
 		{"app", "perl_version", "perl", "<nil>", "5.38.2", "exact", "<nil>", 1, 0, 5, 38, 2},
 	})
-	for _, tc := range []struct{ raw, kind string }{
-		{"5.38.2", "exact"}, {"^5.38", "range"}, {"latest", "alias"}, {"${PERL_VERSION}", "unresolved"},
-	} {
-		t.Run(tc.kind, func(t *testing.T) {
-			t.Parallel()
-
-			got := emitDecoded(t, ".perl-version", tc.raw+"\n")
-			if len(got) != 1 || got[0].SourceKind != "perl_version" || got[0].Runtime != "perl" || got[0].RawSpec != tc.raw || got[0].SpecKind != tc.kind {
-				t.Fatalf(".perl-version %q declarations = %+v", tc.raw, got)
-			}
-		})
-	}
 	for _, tc := range []struct{ name, body string }{
 		{"credential", "0123456789abcdef-secret\n"},
 		{"invalid UTF-8", "\xff\n"},

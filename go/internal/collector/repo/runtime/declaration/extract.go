@@ -120,9 +120,7 @@ func extractPinFile(sourceKind, body string) Extraction {
 	case total > MaxTokensPerFile:
 		return Extraction{skip: Skip{Reason: SkipReasonTokenCap, ByteSize: len(body), TokenCount: total}}
 	}
-	// .perl-version carries the same single-version grammar as .php-version,
-	// so it shares the credential guard: a secret-shaped body is dropped and
-	// counted, never emitted as an alias.
+	// .perl-version shares the single-version pin guard.
 	if sourceKind == sourceKindPHPVersion || sourceKind == sourceKindPerlVersion {
 		kept := declarations[:0]
 		rejected := 0
