@@ -29,7 +29,7 @@ changed packages/paths: `go test` and `go test -race`, the file cap, gofumpt/lin
 `go vet ./...` on the merge of HEAD with the `origin/main` commit its summary names (the [merge step](local-testing/pre-push-merge.md);
 a conflict fails closed; `main` has no merge queue, so the required checks on the PR head are the authority), the
 registry-selected blocking exactness/telemetry/hygiene/docs/security/frontend gates, and the
-advisory docs-contradiction gate. No live lane, no push stamp (removed —
+advisory docs-contradiction gate, plus the ci-gate registry `--drift` check on every push, trigger match or not (#9615, about 1.5 s warm). No live lane, no push stamp (removed —
 see [agent-git-hygiene.md](https://github.com/eshu-hq/eshu/blob/main/docs/internal/agent-git-hygiene.md)). Push-hook bounds and bypass policy: [push stalls and bounds](local-testing/pre-commit-hooks.md#push-stalls-and-bounds).
 The gate step is an allowlist: only gates registered `local.pre_push: floor`
 in `specs/ci-gates.v1.yaml` run (lint, caps, package-docs, perf-evidence, telemetry, changed-package gosec, measurement citations, docs build, contract-registry, and repo-wide sweep gates).
@@ -215,8 +215,8 @@ must map to a gate's `hook_id` or a declared `hygiene_hooks` entry, and every
 workflow must be referenced by a gate or listed in `non_gate_workflows` with a
 reason. It also fails when a regenerate-and-diff gate's declared
 `generator_inputs` class is matched by no trigger of that gate (#9621). It
-runs in pre-commit
-(the `gate-registry-drift` hook) and in CI
+runs in pre-commit (the `gate-registry-drift` hook, for any registry fragment
+or `scripts/` change), in every `make pre-push`, and in CI
 (`verify-ci-gate-registry.yml`), so adding a workflow or hook without registering
 it fails fast. (Reconciling `make pre-pr`'s step set against the registry is
 [#4214](https://github.com/eshu-hq/eshu/issues/4214), which makes `pre-pr.sh`

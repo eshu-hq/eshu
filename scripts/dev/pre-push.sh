@@ -47,6 +47,11 @@
 #   (e) the advisory docs-contradiction gate, unconditionally. It has no CI
 #       workflow at all (docs-contradiction is local-only by design), so
 #       dropping the push stamp would otherwise remove its only enforcement.
+#   (f) the ci-gate registry drift check (verify-ci-gates-registry.sh
+#       --drift), unconditionally (#9615). Its gate's triggers are a fixed
+#       list, and an added module a gate imports matches none of them, so a
+#       trigger-gated run missed #9604's drift; about 1.5 s warm. It is not run
+#       twice when the selected-gates step already ran ci-gate-registry.
 #
 # What it deliberately does NOT run: whole-module go-build, the whole-module
 # race lane and the registry race gates, and
@@ -237,10 +242,33 @@ step_fmt_lint_build_vet() {
 	return "${status}"
 }
 
+# The selected-gates output is kept so step_registry_drift can tell whether
+# ci-gate-registry already ran there; ci-gates run prints "RUN      <id>:" for
+# every gate it starts.
+selected_gates_log=""
 step_exactness() {
+	selected_gates_log="${pre_pr_state_dir}/selected-gates.log"
 	bash "${repo_root}/scripts/dev/run-selected-gates.sh" \
 		--base "${base}" --tier pre-pr --category exactness,telemetry,hygiene,docs,security,frontend \
-		--self-tests changed --blocking-only --pre-push
+		--self-tests changed --blocking-only --pre-push 2>&1 | tee "${selected_gates_log}"
+	return "${PIPESTATUS[0]}"
+}
+
+# step_registry_drift runs the ci-gate registry drift check on every push,
+# not only when one of ci-gate-registry's triggers matches (#9615). Its
+# triggers are a fixed file list, and the drift it finds often sits in files
+# outside that list: #9604 added a scripts/lib module that two gates' commands
+# import, no trigger named it, so the check ran first in CI. Measured warm at
+# 1.3-1.9 s (load average 26-28); the selected-gates step has already compiled
+# ci-gates by the time this runs. When ci-gate-registry was selected and ran
+# above, its result is already counted and this step does not run it again.
+step_registry_drift() {
+	if [[ -n "${selected_gates_log}" && -f "${selected_gates_log}" ]] &&
+		rg -q '^RUN +ci-gate-registry:' "${selected_gates_log}"; then
+		printf 'ci-gate-registry already ran in the selected-gates step, and its result is counted there; not running it twice\n'
+		return 0
+	fi
+	bash "${repo_root}/scripts/verify-ci-gates-registry.sh" --drift
 }
 
 # step_docs_contradiction runs the advisory docs-contradiction gate
@@ -269,6 +297,7 @@ else
 	run_step "gofumpt + lint + build + vet (changed packages)" step_fmt_lint_build_vet
 	run_step "go vet on HEAD merged with ${base} (merge tree)" step_merge_vet
 	run_step "selected local gates (exactness/telemetry/hygiene/docs/security/frontend)" step_exactness
+	run_step "ci-gate registry drift (skipped if run above)" step_registry_drift
 	run_step "docs-contradiction (advisory)" step_docs_contradiction
 fi
 

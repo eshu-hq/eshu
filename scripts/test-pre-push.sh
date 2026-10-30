@@ -91,6 +91,18 @@ clean_temp_root() {
 }
 trap 'clean_temp_root' EXIT
 
+# write_registry_checker installs a verify-ci-gates-registry.sh stand-in that
+# logs its argv and exits DRIVER_REGISTRY_STATUS (default 0), so the floor's
+# unconditional registry drift step (#9615) is observable in every fixture.
+write_registry_checker() {
+	cat > "$1/scripts/verify-ci-gates-registry.sh" <<'REGISTRY'
+#!/usr/bin/env bash
+printf 'registry-drift ran %s\n' "$*" >> "${DRIVER_ARGS_LOG:-/dev/null}"
+exit "${DRIVER_REGISTRY_STATUS:-0}"
+REGISTRY
+	chmod +x "$1/scripts/verify-ci-gates-registry.sh"
+}
+
 # build_fixture creates a throwaway git repo with fake toolchain stand-ins and
 # copies the REAL driver plus its REAL sourced libs into it, so the assertions
 # below exercise pre-push.sh's actual control flow, not a paraphrase of it.
@@ -112,11 +124,21 @@ printf 'precommit-go %s\n' "$*" >> "${DRIVER_ARGS_LOG}"
 exit 0
 PRECOMMIT
 	chmod +x "${fixture}/scripts/dev/precommit-go.sh"
+	# The stand-in prints a RUN line for ci-gate-registry when a case says the
+	# gate ran, and the real SKIP line otherwise: ci-gates run names the same id
+	# on both, so the floor's skip check must match the RUN line only, and a
+	# loosened pattern stays red (#9615). Comment kept outside the heredoc for
+	# the heredoc budget.
 	cat > "${fixture}/scripts/dev/run-selected-gates.sh" <<'GATE'
 #!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' "$@" >> "${DRIVER_ARGS_LOG}"
 printf 'toolchain-env GOTOOLCHAIN=%s GOROOT=%s\n' "${GOTOOLCHAIN-unset}" "${GOROOT-unset}" >> "${DRIVER_ARGS_LOG}"
+if [[ "${DRIVER_GATE_RAN_REGISTRY:-0}" == 1 ]]; then
+	printf 'RUN      ci-gate-registry: bash scripts/verify-ci-gates-registry.sh --drift\n'
+else
+	printf 'SKIP     ci-gate-registry: no trigger matched changed paths\n'
+fi
 exit "${DRIVER_GATE_STATUS}"
 GATE
 	chmod +x "${fixture}/scripts/dev/run-selected-gates.sh"
@@ -127,6 +149,7 @@ printf 'docs-contradiction ran\n' >> "${DRIVER_ARGS_LOG}"
 exit 0
 DOCS
 	chmod +x "${fixture}/scripts/verify-docs-contradiction.sh"
+	write_registry_checker "${fixture}"
 	printf 'module example.invalid/fixture\n\ngo 1.26.10\n' > "${fixture}/go/go.mod"
 	printf 'baseline\n' > "${fixture}/README.md"
 	git -C "${fixture}" init -q
@@ -238,6 +261,7 @@ printf 'docs-contradiction ran\n' >> "${DRIVER_ARGS_LOG}"
 exit 0
 DOCS
 	chmod +x "${fixture}/scripts/verify-docs-contradiction.sh"
+	write_registry_checker "${fixture}"
 	printf 'package deleted\n' > "${fixture}/go/internal/deleted/pkg.go"
 	printf 'baseline\n' > "${fixture}/README.md"
 	git -C "${fixture}" init -q
@@ -364,6 +388,10 @@ BUILD_OUTPUT
     rg -q '^go build ' "${fixture}.args" || fail "${scenario}: build never ran"
     rg -q '^go vet ' "${fixture}.args" || fail "${scenario}: vet never ran"
 done
+
+# ── Cases L1-L3: the unconditional registry drift step (#9615) ──
+# shellcheck source=lib/test-pre-push-registry-drift-cases.sh
+source "${repo_root}/scripts/lib/test-pre-push-registry-drift-cases.sh"
 
 # ── Cases E-I: the merge-tree step (#7111 F5) ──
 # shellcheck source=lib/test-pre-push-merge-cases.sh
