@@ -78,7 +78,7 @@ over behind `ControlStore` in `#9453`), the differential parity harness
 | `fairness.go` (`FamilyFairnessScheduler` at :34) | in-memory weighted round-robin (client/dispatcher-side today; server-side after extraction) | `FamilyFairnessScheduler` |
 | `completeness.go`, `progress.go` | run reconciliation; completeness derivation reads `CollectorRunProgress` incl. reducer-owned counts | `ReconcileRunProgress` |
 | `quota.go`, `retention.go`, `defaults.go` | quota windows, work-item retention, claim defaults | quota/retention policy |
-| `*_config.go` (+ tests) | per-family collector configuration validation (cicd_run, jira, oci_registry, package_registry, pagerduty, sbom_attestation, security_alert, tfstate, vulnerability_intelligence — `vault_live` removed with the `8869` extraction) | `Validate*` fns |
+| `*_config.go` (+ tests) | per-family collector configuration validation (cicd_run, jira, oci_registry, package_registry, pagerduty, sbom_attestation, security_alert, tfstate, vulnerability_intelligence (`vault_live` planner/service removed with the `8869` extraction; `vault_live_config.go` (+ test) remains in this package and moves with it) | `Validate*` fns |
 | `types.go` (`ClaimStatus.Validate` at :111) | closed claim/work-item status enums; unknown values rejected, fencing token must be positive | status `Validate` |
 
 Decisive coupling (unchanged in kind, line refs refreshed):
