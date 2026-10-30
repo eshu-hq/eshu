@@ -19,10 +19,11 @@ request, but it still counts against the 10 GB. Before #9598 each active pull
 request wrote up to about 7 GB, and main's `gobuild-` entry was evicted every 15
 to 60 minutes. Readiness shards that started in that gap compiled cold.
 
-Each job restores with `actions/cache/restore` and saves with
-`actions/cache/save` as its last step, under
+go-core and go-race restore with `actions/cache/restore` and save with
+`actions/cache/save` as their last step, under
 `github.event_name == 'push' && github.ref == 'refs/heads/main'`. The save
-skips an exact-key hit and uses the restore step's `cache-primary-key`. A pull
+skips an exact-key hit and uses the restore step's `cache-primary-key`. The
+readiness shards restore only and never save. A pull
 request run restores main's entry, because a run can restore caches from the
 default branch
 ([GitHub docs](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching)).
@@ -46,6 +47,12 @@ took 14 to 26 s when setup-go missed its cache. A warm `Set up Go` took 40 to
 
 `go/internal/cigates/gocache_wiring_test.go` pins these rules, and
 `gocache_wiring_mutations_test.go` breaks each one. Keep the restore step
-named `Restore Go build cache`, with `Set up Go` directly after it. The
-readiness weights refresher reads the shard's cache outcome from that step's
-log section, up to the next step.
+named `Restore Go build cache`, with `Set up Go` directly after it. That keeps
+each shard log's cache outcome at a fixed landmark: the
+`Cache restored from key:` or `Cache not found for input keys` line sits inside
+that step's log group, which ends where `Set up Go` begins. With
+`cache: false`, setup-go prints no cache lines of its own there. The weights
+refresher in `scripts/lib/live_postgres_readiness_refresh_v2_pool.py` (#9604)
+reads both: `cache_era` finds the step by name and counts a shard without it
+as cold, and `restore_outcome` reads from its `actions/cache/restore` group to
+the next step.

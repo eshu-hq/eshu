@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Job-summary classifier for the live-postgres-readiness hermetic job (#8241).
+# Job-summary classifier for the live-postgres-readiness hermetic job (#8241)
+# and the shard legs (#9582).
 #
 # GitHub cancels a job that reaches `timeout-minutes` and marks it cancelled,
 # not failed, so no check turns red and the run reads like a concurrency
@@ -18,9 +19,15 @@
 # time cannot separate a concurrency cancel that lands inside the grace from a
 # real cap hit; the platform annotation on the job names the true cause.
 #
+# Every verdict names its job (READINESS_JOB_LABEL, default hermetic) and the
+# runner CPU model, so the hermetic wall reads next to each shard wall in the
+# run summary and a slow job can be matched to the hardware it drew (#9582).
+#
 # Environment (finish): JOB_STATUS, READINESS_JOB_STARTED_EPOCH, CAP_MINUTES
 # (must equal the job's timeout-minutes; the cigates readiness test pins it),
-# optional READINESS_JOB_NOW_EPOCH (tests), optional GITHUB_STEP_SUMMARY.
+# optional READINESS_JOB_LABEL, optional READINESS_RUNNER_CPU (tests; default
+# from lscpu and nproc), optional READINESS_JOB_NOW_EPOCH (tests), optional
+# GITHUB_STEP_SUMMARY.
 set -euo pipefail
 
 fail() { printf 'live-postgres-readiness-job-summary: %s\n' "$*" >&2; exit 2; }
@@ -43,17 +50,36 @@ emit() {
   done
 }
 
+# runner_cpu prints the CPU model and vCPU count, or unknown off Linux.
+runner_cpu() {
+  local model="" count=""
+  if [[ -n "${READINESS_RUNNER_CPU:-}" ]]; then
+    printf '%s' "${READINESS_RUNNER_CPU//[^[:alnum:] @()._,\/-]/}"
+    return 0
+  fi
+  model="$(lscpu 2>/dev/null | sed -n 's/^Model name:[[:space:]]*//p' | head -n 1)" || model=""
+  model="${model//[^[:alnum:] @()._,\/-]/}"
+  count="$(nproc 2>/dev/null)" || count=""
+  [[ -n "${model}" ]] || model=unknown
+  if [[ "${count}" =~ ^[0-9]+$ ]]; then printf '%s, %s vCPU' "${model}" "${count}"; else printf '%s' "${model}"; fi
+}
+
 finish() {
   local status="${JOB_STATUS:-}" started="${READINESS_JOB_STARTED_EPOCH:-}"
-  local cap="${CAP_MINUTES:-}" now cap_s threshold elapsed percent
+  local cap="${CAP_MINUTES:-}" now cap_s threshold elapsed percent label cpu head cpu_line
+  label="${READINESS_JOB_LABEL:-hermetic}"
+  [[ "${label}" =~ ^[a-z0-9][a-z0-9\ /()._-]*$ ]] || fail "READINESS_JOB_LABEL is not a plain job name: '${label}'"
   [[ "${cap}" =~ ^[1-9][0-9]*$ ]] || fail "CAP_MINUTES must be a positive integer, got '${cap}'"
+  cpu="$(runner_cpu)"
+  head="### live-postgres-readiness ${label}"
+  cpu_line="Runner CPU: ${cpu}."
   cap_s=$((cap * 60))
   threshold=$((cap_s - grace_s))
   if [[ -z "${started}" ]]; then
     case "${status}" in
-      cancelled) emit "### live-postgres-readiness hermetic: CANCELLED (start time unknown)" \
-        "The job was cancelled before its first step recorded a start time, so the cause (time cap or early cancel) cannot be told from elapsed time. Read the job annotations." ;;
-      success | failure) emit "### live-postgres-readiness hermetic: ${status^^} (start time unknown)" ;;
+      cancelled) emit "${head}: CANCELLED (start time unknown)" \
+        "The job was cancelled before its first step recorded a start time, so the cause (time cap or early cancel) cannot be told from elapsed time. Read the job annotations." "${cpu_line}" ;;
+      success | failure) emit "${head}: ${status^^} (start time unknown)" "${cpu_line}" ;;
       *) fail "unknown job status '${status}'" ;;
     esac
     return 0
@@ -66,26 +92,26 @@ finish() {
   case "${status}" in
     success)
       if [[ "${percent}" -ge "${budget_percent}" ]]; then
-        emit "### live-postgres-readiness hermetic: PASSED, over budget" \
+        emit "${head}: PASSED, over budget" \
           "Ran ${elapsed}s, ${percent}% of the ${cap}-minute cap (budget ${budget_percent}%). Split or trim the longest step before the cap cancels a run." \
-          "::warning title=hermetic job near its cap::${elapsed}s is ${percent}% of the ${cap}-minute cap"
+          "${cpu_line}" "::warning title=${label} job near its cap::${elapsed}s is ${percent}% of the ${cap}-minute cap"
       else
-        emit "### live-postgres-readiness hermetic: PASSED" \
-          "Ran ${elapsed}s, ${percent}% of the ${cap}-minute cap."
+        emit "${head}: PASSED" \
+          "Ran ${elapsed}s, ${percent}% of the ${cap}-minute cap." "${cpu_line}"
       fi
       ;;
     failure)
-      emit "### live-postgres-readiness hermetic: FAILED" \
-        "A step exited nonzero after ${elapsed}s (${percent}% of the ${cap}-minute cap). This is a failure, not a timeout: read the failing step's log."
+      emit "${head}: FAILED" \
+        "A step exited nonzero after ${elapsed}s (${percent}% of the ${cap}-minute cap). This is a failure, not a timeout: read the failing step's log." "${cpu_line}"
       ;;
     cancelled)
       if [[ "${elapsed}" -ge "${threshold}" ]]; then
-        emit "### live-postgres-readiness hermetic: CANCELLED BY THE TIME CAP" \
-          "The job ran ${elapsed}s and was cancelled at its ${cap}-minute cap. No test failed: the run was cut off. Compare the step durations and rerun; a repeat means the self-test outgrew the cap (#8241)." \
-          "::error title=hermetic job hit its ${cap}-minute cap::cancelled after ${elapsed}s, not failed by a test"
+        emit "${head}: CANCELLED BY THE TIME CAP" \
+          "The job ran ${elapsed}s and was cancelled at its ${cap}-minute cap. No test failed: the run was cut off. Compare the step durations and the runner CPU and rerun; a repeat means the job outgrew the cap (#8241, #9582)." \
+          "${cpu_line}" "::error title=${label} job hit its ${cap}-minute cap::cancelled after ${elapsed}s, not failed by a test"
       else
-        emit "### live-postgres-readiness hermetic: CANCELLED BEFORE THE CAP" \
-          "The job was cancelled after ${elapsed}s, ${percent}% of the ${cap}-minute cap. Not a timeout and not a test failure: a newer run in the same concurrency group or a manual cancel."
+        emit "${head}: CANCELLED BEFORE THE CAP" \
+          "The job was cancelled after ${elapsed}s, ${percent}% of the ${cap}-minute cap. Not a timeout and not a test failure: a newer run in the same concurrency group or a manual cancel." "${cpu_line}"
       fi
       ;;
     *) fail "unknown job status '${status}'" ;;

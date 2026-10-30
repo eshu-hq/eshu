@@ -16,10 +16,15 @@ import (
 // restores, mirroring static-contract-gates.yml.
 const goBuildCacheDir = "/tmp/eshu-ci/go-build"
 
-// goBuildRestoreStep is the restore step name every persisted lane uses. The
-// readiness weights refresher (#9566) finds the shard's cache outcome by this
-// step: it reads the log from the actions/cache/restore group to the next
-// step, so the step must keep this name and setup-go must follow it.
+// goBuildRestoreStep is the restore step name every persisted lane uses. It
+// keeps each job log's cache outcome at a stable landmark: the "Cache
+// restored from key:" or "Cache not found for input keys" line sits inside
+// this step's log group, which ends where the next step's group begins. So
+// the step keeps this name and setup-go follows it directly; any other cache
+// step placed between them would add its own outcome lines to that span.
+// In scripts/lib/live_postgres_readiness_refresh_v2_pool.py (#9604),
+// cache_era finds this step by name (a shard without it counts as cold) and
+// restore_outcome reads the shard's cache outcome from exactly that span.
 const goBuildRestoreStep = "Restore Go build cache"
 
 // goBuildSaveCondition is the only condition a build-cache save may run on
@@ -104,10 +109,10 @@ func checkGoBuildCache(job readinessJob, saves bool) string {
 		return "build-cache key must track dependencies (#8735)"
 	}
 	if restore.Name != goBuildRestoreStep {
-		return "build-cache restore must keep the step name " + goBuildRestoreStep + " (#9566 reads it)"
+		return "build-cache restore must keep the step name " + goBuildRestoreStep + " (the log landmark for the cache outcome)"
 	}
 	if restoreIndex+1 >= len(job.Steps) || !setupGoUsesRE.MatchString(job.Steps[restoreIndex+1].Uses) {
-		return "setup-go must directly follow the build-cache restore (#9566 reads the restore section up to the next step)"
+		return "setup-go must directly follow the build-cache restore (the restore's log group must hold only its own cache outcome)"
 	}
 	if !saves {
 		if saveCount != 0 {

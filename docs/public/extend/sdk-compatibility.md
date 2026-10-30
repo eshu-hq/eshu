@@ -51,7 +51,24 @@ collector wire protocol, so it tracks outside the combination table above.
 
 | SDK module version | Core source pins | Status |
 | --- | --- | --- |
-| `sdk/go/apicontract` v0.1.0 (release-prepared Refs #8874; tag `sdk/go/apicontract/v0.1.0` NOT cut — maintainer act per `RELEASING.md`) | `querycontract` envelopes/profiles, `toolcontract` tool shape, `envregistry` client entries at the prep commit | Prepared, not published: CHANGELOG versioned, module source merged, in-module suites and core drift tests green. Proxy verification pending the tag; Tier-2 CLI repoint and consumer qualification follow in a separate change. |
+| `sdk/go/apicontract` v0.1.0 (release-prepared Refs #8874; tag `sdk/go/apicontract/v0.1.0` NOT cut — maintainer act per `RELEASING.md`) | `querycontract` envelopes/profiles, `toolcontract` tool shape, `envregistry` client entries at the prep commit | Prepared, not published in place: CHANGELOG versioned, module source merged, in-module suites and core drift tests green. The shapes shipped as `wirecontract` in `eshu-sdk` (see below); proxy verification, the Tier-2 CLI repoint, and consumer qualification landed there. |
+
+The shapes shipped as the `wirecontract` module in the separate
+`eshu-hq/eshu-sdk` repository ([SDK PR #63](https://github.com/eshu-hq/eshu-sdk/pull/63),
+Refs #9509, part of #6707). The module imports no
+`github.com/eshu-hq/eshu/go/internal` packages and pins its shapes
+byte-for-byte to the core goldens (7/7 goldens byte-identical at merge, per
+the [S2 close-out comment](https://github.com/eshu-hq/eshu/issues/9509#issuecomment-6522153391)).
+
+| Published module | Tag origin | Proxy checksums | Qualified consumer pair |
+| --- | --- | --- | --- |
+| `github.com/eshu-hq/eshu-sdk/wirecontract@v0.1.0-rc.1` | `wirecontract/v0.1.0-rc.1` → `3a65364833845bf3dc4ffbe3ffb74e895a16178e` | module zip `h1:VkKpQD0/0BcSqvMuqDewjXOM6cNaOyqlBce64t1eD5o=`, `go.mod` `h1:yJlT5WyR8YqbQBKRUnyN8p6OS8FbmuRIYSYJlfMZ5j4=` | Extracted CLI at [eshu-cli #25](https://github.com/eshu-hq/eshu-cli/pull/25) (merge `c5f2d0b7b85f0e426a60eb1ebf1c8fee8748dc3d`): `go.mod` pins the exact version with no `replace`; `report.go`, `mcp.go`, `verify.go`, `config.go`, and `validate.go` repointed; `component/api.go` keeps its local mirror; `make ci` green with Tier-1 parity 155/155 per the [close-out comment](https://github.com/eshu-hq/eshu/issues/9631#issuecomment-6523137299) |
+
+The `mcp setup` offline decision is recorded in the
+[wirecontract README](https://github.com/eshu-hq/eshu-sdk/blob/main/wirecontract/README.md):
+snippet generation needs no published shape and no remote call (it renders
+from the setup request and platform alone); a remote `tools/list` response
+decoded into `ToolDefinition` serves the `--verify` tools-visible count only.
 
 ## New repository path mapping
 

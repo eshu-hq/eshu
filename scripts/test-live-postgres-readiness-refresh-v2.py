@@ -30,7 +30,8 @@ class RefreshV2Cases(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        self.sources = [_sample(self.root, 100, SHA), _sample(self.root, 101, OTHER_SHA)]
+        self.sources = [_sample(self.root, 100, SHA), _sample(self.root, 101, OTHER_SHA),
+                        _sample(self.root, 102, SHA)]
         inventory = mock.patch.object(refresh.provenance, "source_inventory",
                                       side_effect=lambda _root, _sha: PLAN)
         inventory.start()
@@ -51,7 +52,7 @@ class RefreshV2Cases(unittest.TestCase):
         self.addCleanup(rows.stop)
 
     def fit(self) -> dict[str, object]:
-        """Fit the two complete synthetic workflows."""
+        """Fit the three complete synthetic workflows."""
         return refresh.build_document(self.sources, self.root)
 
     def test_v2_render_is_sorted_and_two_entries_per_line(self) -> None:
@@ -127,7 +128,7 @@ class RefreshV2Cases(unittest.TestCase):
 
     def test_measured_first_repeat_and_cold_fit(self) -> None:
         result = self.fit()
-        self.assertEqual(result["source_runs"], ["100", "101"])
+        self.assertEqual(result["source_runs"], ["100", "101", "102"])
         self.assertEqual(result["schema_version"], 2)
         self.assertEqual(result["shard_count"], 6)
         self.assertEqual(result["cold_cache_seconds"], 3.0)
@@ -135,6 +136,18 @@ class RefreshV2Cases(unittest.TestCase):
                          {"./a": 5.0, "./b": 5.0, "./c": 5.0})
         self.assertEqual(result["package_repeat_seconds"], {"./b": 2.0})
         self.assertGreater(result["default_package_repeat_seconds"], 0)
+
+    def test_pair_of_runs_is_refused_and_three_run_pool_fits(self) -> None:
+        """A pair of fast draws must not set the prices; three runs are the minimum (#9470)."""
+        pair = self.sources[:2]
+        fast = pair[0] / "shard4.log"
+        fast.write_text(fast.read_text().replace("TestTwo: PASS elapsed=1.0s",
+                                                 "TestTwo: PASS elapsed=0.2s"))
+        with self.assertRaisesRegex(ValueError, "at least three"):
+            refresh.build_document(pair, self.root)
+        document = refresh.build_document(self.sources, self.root)
+        self.assertEqual(document["source_runs"], ["100", "101", "102"])
+        self.assertEqual(document["test_seconds"]["./c|TestTwo"], 0.7)
 
     def test_cold_fit_downweights_noisy_negative_pair(self) -> None:
         """A huge-variance negative pair must not veto a tight positive one."""
@@ -187,24 +200,26 @@ class RefreshV2Cases(unittest.TestCase):
         self.assertAlmostEqual(cold, expected, places=1)
 
     def test_pool_of_four_prices_fast_draw_at_p75(self) -> None:
-        """One fast run among four prices at p75; two or three runs keep the mean."""
-        self.sources += [_sample(self.root, 102, SHA), _sample(self.root, 103, OTHER_SHA)]
+        """One fast run among four prices at p75; three runs keep the mean."""
+        self.sources += [_sample(self.root, 103, SHA), _sample(self.root, 104, OTHER_SHA)]
         fast = self.sources[0]
         (fast / "shard2.log").write_text(_log(2, [
             ("a", "TestTwo", 8), ("b", "TestOne", 1), ("b", "TestTwo", 0)], 100))
         path = fast / "shard4.log"
         path.write_text(path.read_text().replace("TestTwo: PASS elapsed=1.0s",
                                                  "TestTwo: PASS elapsed=0.2s"))
-        priced = {4: (1.0, 5.0, 2.0), 3: (0.7, 3.7, 1.3), 2: (0.6, 3.0, 1.0)}
+        priced = {4: (1.0, 5.0, 2.0), 3: (0.7, 3.7, 1.3)}
         for runs, (test, first, repeat) in priced.items():
             result = refresh.build_document(self.sources[:runs], self.root)
             self.assertEqual((result["test_seconds"]["./c|TestTwo"],
                               result["package_first_seconds"]["./b"],
                               result["package_repeat_seconds"]["./b"]),
                              (test, first, repeat), f"{runs}-run pool")
+        with self.assertRaisesRegex(ValueError, "at least three"):
+            refresh.build_document(self.sources[:2], self.root)
         output = self.root / "weights.v2.json"
         argv = ["refresh", "--schema-version", "2", "--out", str(output)]
-        argv.extend(f"--sample={source.name}={source}" for source in self.sources)
+        argv.extend(f"--sample={source.name}={source}" for source in self.sources[:4])
         stdout = io.StringIO()
         with mock.patch.object(cli_refresh.sys, "argv", argv), \
                 contextlib.redirect_stdout(stdout):
@@ -309,6 +324,8 @@ class RefreshV2Cases(unittest.TestCase):
             "run 100 shard1=20261025.353.1 shard2=20261012.334.1 "
             "shard3=20261012.334.1 shard4=20261012.334.1; "
             "run 101 shard1=20261012.334.1 shard2=20261012.334.1 "
+            "shard3=20261012.334.1 shard4=20261012.334.1; "
+            "run 102 shard1=20261012.334.1 shard2=20261012.334.1 "
             "shard3=20261012.334.1 shard4=20261012.334.1; "
             "distinct 20261012.334.1, 20261025.353.1\n",
             stdout.getvalue())

@@ -458,4 +458,8 @@ New in #6054. The `dirgate` job.
 The `merge-group-slim` timeout remains 25 minutes per #8665. Cold compilation
 and scoped vet consumed about 10.6 and 3.6 minutes in that proof; revisit the
 envelope if p95 exceeds 20 minutes. The `go-core` job persists its compiler
-cache across fresh runners per #8735. Module downloads stay on setup-go's cache.
+cache across fresh runners per #8735. go-core and go-race set setup-go
+`cache: false` (#9598) and download modules with
+`scripts/ci/go-mod-download-retry.sh`. Of the lanes that leave `GOCACHE` at
+the runner default, `pr-plan`, `merge-group-slim` and `verify-contracts` keep
+setup-go's cache, and `dirgate` and `docs-helm-hygiene` set `cache: false`.

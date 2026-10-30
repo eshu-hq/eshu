@@ -96,10 +96,10 @@ class SourceHistoryTest(unittest.TestCase):
                 for index, shape in enumerate(shapes)]
 
     def test_five_shard_source_is_accepted_and_output_is_six_shard(self) -> None:
-        document = refresh.build_document(self.pool(5, 5), self.root)
+        document = refresh.build_document(self.pool(5, 5, 5), self.root)
         self.assertEqual(document["shard_count"], v2.SHARD_COUNT)
-        self.assertEqual(self.planned, [5, 5])
-        # Purity: the widening changes no price; a two-run pool is the plain mean.
+        self.assertEqual(self.planned, [5, 5, 5])
+        # Purity: the widening changes no price; a three-run pool is the plain mean.
         self.assertEqual((document["cold_cache_seconds"], document["fixed_job_seconds"],
                           document["package_first_seconds"], document["package_repeat_seconds"]),
                          (3.0, 10.0, {"./a": 5.0, "./b": 5.0, "./c": 5.0, "./d": 5.0},
@@ -131,7 +131,7 @@ class SourceHistoryTest(unittest.TestCase):
             self.counts[SIX_SHA] = count
             with self.subTest(count=count), self.assertRaisesRegex(
                     ValueError, "v2 source shard_count must be 5 or 6"):
-                refresh.build_document(self.pool(6, 6), self.root)
+                refresh.build_document(self.pool(6, 6, 6), self.root)
             for path in self.root.iterdir():
                 for item in path.iterdir():
                     item.unlink()
@@ -141,7 +141,7 @@ class SourceHistoryTest(unittest.TestCase):
         self.counts[SIX_SHA] = 5
         with self.assertRaisesRegex(ValueError, "reports 6 shards but its own-SHA "
                                     "weights file says 5"):
-            refresh.build_document(self.pool(6, 5), self.root)
+            refresh.build_document(self.pool(6, 5, 6), self.root)
 
     def test_source_rows_plan_five_shards_from_a_five_shard_own_file(self) -> None:
         rows = self.real_source_rows(self.root, FIVE_SHA, PLAN, 5)
@@ -196,7 +196,7 @@ class SourceHistoryTest(unittest.TestCase):
 
     def test_carried_forward_attempt_log_is_refused_and_named(self) -> None:
         """A rerun that reuses an attempt-1 shard log names both attempts (review P3-2)."""
-        sources = self.pool(5, 5)
+        sources = self.pool(5, 5, 5)
         run_path, jobs_path = sources[0] / "run.json", sources[0] / "jobs.json"
         run_path.write_text(json.dumps({**json.loads(run_path.read_text()), "run_attempt": 2}))
         payload = json.loads(jobs_path.read_text())
