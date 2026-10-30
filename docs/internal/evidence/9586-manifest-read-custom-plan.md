@@ -70,6 +70,13 @@ host load1 and a CPU-bound canary recorded before and after each round.
 | 1 | S2 | 15 | 16,777.8 | 2,109.3 |
 | 1 | S5 (0 rows) | 1 | 4,823.1 | 113.7 |
 | 1 | S6 | 20 | 13,930.7 | 2,248.7 |
+| Long read (fix first, 34.42, 388.2/361.3) | S3 | 277 | 324,350.5 | 142,939.7 |
+
+S3 is the popular-name class: npm with 50 hot names and 350 others, 138,237
+rows, on a fresh connection per mode. Under `base` its statement ran 5 custom
+and 272 generic plans. The `fix` time already includes a fresh plan for each
+of its 277 pages; EXPLAIN on this fixture puts planning at 42 to 88 ms a page
+under load.
 
 S1 is fast in both modes because its three pages are the first executions on
 the connection, before the switch.
@@ -84,8 +91,10 @@ Accuracy: in every round and mode, each read returned the same sorted
 fact-id set and the same ordered full envelope (every field plus the payload
 JSON, in returned order), with no duplicate ids. Round 1 hashes (sha256
 prefixes): S1 id set `e0ba41d2fc4e`, ordered envelope `016ea3b9ae0b`; S2
-`6b947ab63994` and `2935a10a9e53`; S6 `76f563be8a58` and `483e13e3d3d3`; S5
-empty. The id sets match the shim's.
+`6b947ab63994` and `2935a10a9e53`; S6 `76f563be8a58` and `483e13e3d3d3`; S3
+`6002d91593cd` and `374eb22fcfd3`; S5 empty. The id sets match the shim's.
+The new mode keeps binary parameters and results, so payload jsonb,
+`observed_at` and the nullable source columns decode exactly as before.
 
 The generic-plan switch is gone. After the four reads on the one connection,
 `pg_prepared_statements` held two named manifest statements under `base`, with
@@ -107,6 +116,13 @@ issue had.
 ## Not proven here
 
 - QA scale and QA plan choice; the fixture is a synthetic stand-in.
-- The next cost: even a custom plan rescans every dependency row per page,
-  because the planner picks the repository partial index. That is its own
-  shim.
+- The next cost: even a custom plan rescans every dependency row per page.
+  EXPLAIN (npm, 400 names, page 1) shows a bitmap scan of
+  `fact_records_content_entity_dependency_variable_repo_idx` estimated at 24
+  rows that returns 565,101, with 554,409 removed by the Filter (77,234
+  buffers). With bitmap scans off it is the same index as a plain index scan
+  (619,154 buffers). With that index dropped inside a rolled-back
+  transaction, the planner takes a scope-driven nested loop (793,401
+  buffers) and still never uses
+  `fact_records_active_package_dependency_entity_idx`. Why it skips the
+  per-name index is open. That is its own shim.
