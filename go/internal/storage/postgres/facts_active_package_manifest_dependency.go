@@ -44,7 +44,7 @@ WHERE fact.fact_kind = 'content_entity'
   AND fact.payload->>'entity_type' = 'Variable'
   AND fact.payload->'entity_metadata'->>'config_kind' = 'dependency'
   AND fact.payload->'entity_metadata'->>'package_manager' = ANY($1::text[])
-  AND fact.payload->>'entity_name' = ANY($2::text[])
+  AND (LOWER(TRIM(fact.payload->>'entity_name') COLLATE "C") COLLATE "default") = ANY($2::text[])
   AND generation.status = 'active'
   AND fact.is_tombstone = FALSE
   AND (
@@ -75,6 +75,21 @@ LIMIT $5
 // active-generation join, the keyset pagination cursor, ordering, and the scan
 // shape are unchanged.
 // go test ./internal/storage/postgres ./internal/reducer -count=1.
+//
+// Case-Fold Evidence (#9568): the entity_name prefilter folds the stored name
+// with LOWER(TRIM(entity_name) COLLATE "C"), byte-identical to Go
+// packageidentity.LowerASCII, because the $2 candidate set is folded and
+// manifests store registry case (NuGet Newtonsoft.Json, pypi PyYAML). The
+// $2 set, the key join in packageidentity.ManifestConsumptionKeys, and the
+// join/cursor/ordering shape are unchanged, so the key join stays the accuracy
+// gate. Migration 247 adds the mirrored
+// fact_records_active_package_dependency_folded_entity_idx expression index;
+// on a disposable PostgreSQL 18.6 fixture the folded read uses an index scan
+// with no sequential scan in every measured shape, and a selective name seeks
+// the new index in 1.2-1.7 ms versus 16-21 ms through the old prefix.
+// No-Observability-Change: the existing read_seconds/read_pages metrics cover
+// this read; the impact handler's manifest_dependency_facts count goes from 0
+// to the matched row count for mixed-case consumers.
 // Observability Evidence: each completed read records its wall time and page
 // count in eshu_dp_package_manifest_dependency_read_seconds and
 // eshu_dp_package_manifest_dependency_read_pages, labeled read (#9586).
@@ -174,7 +189,12 @@ func (s FactStore) listActivePackageManifestDependencyFactsPage(
 //
 // Both branches over-select by design: the reducer's
 // packageidentity.ManifestConsumptionKeys is the accuracy gate, so a row this
-// query admits but the helper rejects (a `%%%` row, say) joins nothing.
+// query admits but the helper rejects (a `%%%` row, say) joins nothing. Both
+// branches fold entity_name with LOWER(TRIM(entity_name) COLLATE "C") (#9568):
+// branch 1 so mixed-case manifest rows load, branch 2's exclusion so it stays
+// disjoint from branch 1 (an exact name in $2 is also a folded name in $2).
+// The sbt_binary_artifact comparison stays exact; artifacts ride the parser's
+// case the same way the Maven coordinate does (#9286).
 //
 // Performance Evidence (throwaway Postgres 18, 1.3M git dependency rows plus
 // 0.4M other content_entity rows, 13,000 sbt rows, 4,000 active scopes, 400
@@ -230,7 +250,7 @@ FROM (
     AND fact.payload->>'entity_type' = 'Variable'
     AND fact.payload->'entity_metadata'->>'config_kind' = 'dependency'
     AND fact.payload->'entity_metadata'->>'package_manager' = ANY($1::text[])
-    AND fact.payload->>'entity_name' = ANY($2::text[])
+    AND (LOWER(TRIM(fact.payload->>'entity_name') COLLATE "C") COLLATE "default") = ANY($2::text[])
     AND generation.status = 'active'
     AND fact.is_tombstone = FALSE
     AND (
@@ -270,7 +290,7 @@ FROM (
     AND fact.payload->'entity_metadata'->>'config_kind' = 'dependency'
     AND fact.payload->'entity_metadata'->>'package_manager' = 'sbt'
     AND fact.payload->'entity_metadata'->>'sbt_binary_artifact' = ANY($2::text[])
-    AND fact.payload->>'entity_name' <> ALL($2::text[])
+    AND (LOWER(TRIM(fact.payload->>'entity_name') COLLATE "C") COLLATE "default") <> ALL($2::text[])
     AND generation.status = 'active'
     AND fact.is_tombstone = FALSE
     AND (

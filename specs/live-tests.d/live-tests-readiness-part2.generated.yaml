@@ -9,6 +9,11 @@ tests:
     class: postgres_ci
     reason: "#7609 disposable PostgreSQL 18 proof of the generation-anchored manifest read: ahead manifests keep every producer candidate, the supersede-then-delta hole stays covered, and dirty non-producer scopes stay gated; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/active_package_manifest_dependency_case_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9568 disposable PostgreSQL 18 proof that ListActivePackageManifestDependencyFacts loads manifest rows whose stored entity_name keeps registry case (NuGet Newtonsoft.Json, pypi PyYAML, rubygems Sidekiq, composer Laravel/Tinker) from lowercase advisory candidate names derived through packageidentity, on both the direct and the Maven-family (sbt) query paths, while tombstoned and other-ecosystem same-name rows stay out; reads ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN with its disposable opt-in"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/active_symbol_loader_composer_live_test.go
     tag: ~
     class: postgres_ci

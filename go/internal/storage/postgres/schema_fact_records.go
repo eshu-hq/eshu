@@ -102,6 +102,19 @@ CREATE INDEX IF NOT EXISTS fact_records_active_package_dependency_entity_idx
       AND payload->>'entity_type' = 'Variable'
       AND payload->'entity_metadata'->>'config_kind' = 'dependency';
 
+CREATE INDEX IF NOT EXISTS fact_records_active_package_dependency_folded_entity_idx
+    ON fact_records (
+        (payload->'entity_metadata'->>'package_manager'),
+        ((LOWER(TRIM(fact_records.payload->>'entity_name') COLLATE "C")) COLLATE "default"),
+        observed_at ASC,
+        fact_id ASC,
+        generation_id
+    )
+    WHERE fact_kind = 'content_entity'
+      AND source_system = 'git'
+      AND payload->>'entity_type' = 'Variable'
+      AND payload->'entity_metadata'->>'config_kind' = 'dependency';
+
 CREATE INDEX IF NOT EXISTS fact_records_package_correlations_v2_lookup_idx
     ON fact_records (
         (payload->>'package_id'),
