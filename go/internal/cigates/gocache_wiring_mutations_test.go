@@ -169,3 +169,37 @@ func TestGoBuildCacheWiringMutations(t *testing.T) {
 		}
 	}
 }
+
+// TestSetupGoCacheDisabledMutations proves the test.yml no-cache rule is
+// load-bearing: re-enabling the built-in cache on any covered job fails the
+// pin with its own message.
+func TestSetupGoCacheDisabledMutations(t *testing.T) {
+	t.Parallel()
+	base := loadTestWorkflowJobs(t)
+	mutations := []struct {
+		name string
+		job  string
+		edit func(with map[string]string)
+	}{
+		{name: "cache key removed", job: "merge-group-slim", edit: func(with map[string]string) { delete(with, "cache") }},
+		{name: "cache true", job: "verify-contracts", edit: func(with map[string]string) { with["cache"] = "true" }},
+		{name: "cache true on pr-plan", job: "pr-plan", edit: func(with map[string]string) { with["cache"] = "true" }},
+	}
+	for _, mutation := range mutations {
+		t.Run(mutation.job+"/"+mutation.name, func(t *testing.T) {
+			jobs := make(map[string]readinessJob, len(base))
+			for k, v := range base {
+				jobs[k] = v
+			}
+			job := jobs[mutation.job]
+			copyJobSteps(&job)
+			i := stepIndex(t, &job, isSetupGo)
+			mutation.edit(job.Steps[i].With)
+			jobs[mutation.job] = job
+			problem := checkSetupGoCacheDisabled(jobs)
+			if !strings.Contains(problem, "must set cache: false") {
+				t.Fatalf("seeded break passed or failed for another reason: got %q", problem)
+			}
+		})
+	}
+}
