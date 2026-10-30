@@ -142,7 +142,7 @@ class InventoryPoolingTest(unittest.TestCase):
             refresh.fit_with_provenance(sources, self.root)
 
     def test_equal_inventory_pool_reports_one_inventory_and_no_defaults(self) -> None:
-        sources = [self.sample(100, SHA), self.sample(101, SHA)]
+        sources = [self.sample(100, SHA), self.sample(101, SHA), self.sample(102, SHA)]
         document, _images, _cold, pool = refresh.fit_with_provenance(sources, self.root)
         self.assertEqual(set(document["test_seconds"]), set(PLAN))
         self.assertFalse(pool.mixed)
@@ -150,36 +150,36 @@ class InventoryPoolingTest(unittest.TestCase):
         self.assertEqual(pool.era, "cold")
 
     def test_refuses_mixed_cache_eras_by_name(self) -> None:
-        sources = [self.sample(100, SHA), self.sample(101, SHA)]
+        sources = [self.sample(100, SHA), self.sample(101, SHA), self.sample(102, SHA)]
         self.set_restore(sources[1], "success")
         with self.assertRaisesRegex(ValueError, r"^source runs mix cache eras: 100 is cold "
                                     r"and 101 is warm; a pool holds one era$"):
             refresh.fit_with_provenance(sources, self.root)
 
     def test_warm_pool_is_accepted_and_named(self) -> None:
-        sources = [self.sample(100, SHA), self.sample(101, SHA)]
+        sources = [self.sample(100, SHA), self.sample(101, SHA), self.sample(102, SHA)]
         for source in sources:
             self.set_restore(source, "success")
         document, _images, _cold, pool = refresh.fit_with_provenance(sources, self.root)
         self.assertEqual(pool.era, "warm")
         self.assertEqual(pool.era_line(), "weights refresh v2: cache era warm "
-                         "(\"Restore Go build cache\" in 8 shard jobs: 8 hit, 0 missed; "
+                         "(\"Restore Go build cache\" in 12 shard jobs: 12 hit, 0 missed; "
                          "0 shard jobs without the step)")
         self.assertEqual(set(document["test_seconds"]), set(PLAN))
 
     def test_cache_miss_is_cold_and_pools_with_runs_without_the_step(self) -> None:
         """A restore step that succeeds on a miss compiles like a cold run (#9566 ruling)."""
-        sources = [self.sample(100, SHA), self.sample(101, SHA)]
+        sources = [self.sample(100, SHA), self.sample(101, SHA), self.sample(102, SHA)]
         self.set_restore(sources[1], "success", outcome="miss")
         document, _images, _cold, pool = refresh.fit_with_provenance(sources, self.root)
         self.assertEqual(pool.era, "cold")
         self.assertEqual(pool.era_line(), "weights refresh v2: cache era cold "
                          "(\"Restore Go build cache\" in 4 shard jobs: 0 hit, 4 missed; "
-                         "4 shard jobs without the step)")
+                         "8 shard jobs without the step)")
         self.assertEqual(set(document["test_seconds"]), set(PLAN))
 
     def test_refuses_a_run_whose_shards_differ_in_era(self) -> None:
-        sources = [self.sample(100, SHA), self.sample(101, SHA)]
+        sources = [self.sample(100, SHA), self.sample(101, SHA), self.sample(102, SHA)]
         self.set_restore(sources[0], "success", shards=(1, 2, 3))
         self.set_restore(sources[0], "success", shards=(4,), outcome="miss")
         with self.assertRaisesRegex(ValueError, r"^source 100 cache era differs across shards: "
@@ -188,19 +188,19 @@ class InventoryPoolingTest(unittest.TestCase):
 
     def test_era_reads_only_the_restore_step_section(self) -> None:
         """setup-go's own cache hit later in the log does not make a missed shard warm."""
-        sources = [self.sample(100, SHA), self.sample(101, SHA)]
+        sources = [self.sample(100, SHA), self.sample(101, SHA), self.sample(102, SHA)]
         for source in sources:
             self.set_restore(source, "success", outcome="miss", setup_go_hit=True)
         _document, _images, _cold, pool = refresh.fit_with_provenance(sources, self.root)
         self.assertEqual(pool.era, "cold")
 
     def test_refuses_failed_restore_and_unknown_outcome(self) -> None:
-        sources = [self.sample(100, SHA), self.sample(101, SHA)]
+        sources = [self.sample(100, SHA), self.sample(101, SHA), self.sample(102, SHA)]
         self.set_restore(sources[0], "failure")
         with self.assertRaisesRegex(ValueError, r"^source 100 shard 1 cache restore step "
                                     r"did not succeed \(failure\); its cache era is unknown$"):
             refresh.fit_with_provenance(sources, self.root)
-        sources = [self.sample(200, SHA), self.sample(201, SHA)]
+        sources = [self.sample(200, SHA), self.sample(201, SHA), self.sample(202, SHA)]
         self.set_restore(sources[0], "success", outcome=None)
         with self.assertRaisesRegex(ValueError, r"^source 200 shard 1 cache restore log shows "
                                     r"neither a hit nor a miss; its cache era is unknown$"):

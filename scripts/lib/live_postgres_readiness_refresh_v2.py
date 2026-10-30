@@ -167,6 +167,9 @@ def _checked_tenth(values: list[float], label: str,
 
 QUANTILE_MIN_POOL = 4
 PRICE_PERCENTILE = 75
+# A pair of fast draws priced whole shards 1.4 to 1.6x low (#9470), so the
+# smallest pool the refresher accepts is three runs.
+MIN_SOURCE_RUNS = 3
 
 
 @dataclass(frozen=True)
@@ -175,8 +178,8 @@ class PricingRule:
 
     A pool of QUANTILE_MIN_POOL or more runs prices at the linear inclusive
     p75, so one fast draw cannot pull a price below what the slower runs
-    measured (#9519). A pool of two or three runs keeps the mean, so the
-    declared two-run refits reproduce byte-for-byte. The cold fit, the fixed
+    measured (#9519). A pool of three runs keeps the mean; a pair is refused,
+    so two fast draws cannot set the prices (#9470). The cold fit, the fixed
     overhead and the defaults keep their own rules in every pool.
 
     Attributes:
@@ -355,8 +358,9 @@ def fit_with_provenance(sources: list[Path], root: Path) -> tuple[
         ValueError: A source is incomplete, incompatible, or cannot identify a
             cold/repeat category.
     """
-    if len(sources) < 2:
-        raise ValueError("v2 fit needs at least two complete main runs")
+    if len(sources) < MIN_SOURCE_RUNS:
+        raise ValueError("v2 fit needs at least three complete main runs; "
+                         "a pair cannot set the prices (#9470)")
     source_runs: list[str] = []
     image_versions: dict[str, dict[int, str]] = {}
     pool = pool_rules.PoolProvenance()

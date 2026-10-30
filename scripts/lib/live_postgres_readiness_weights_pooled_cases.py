@@ -1,10 +1,11 @@
 """Pooled-quantile pricing contract for the v2 weights refresher (#9519).
 
 A pool of four or more equal-inventory runs prices per-test, first-use and
-repeat samples at the linear inclusive p75; a pool of two or three keeps the
-mean, so the declared two-run refits stay reproducible byte-for-byte. The
-end-to-end pool fixture lives in `scripts/test-live-postgres-readiness-refresh-v2.py`,
-which imports and runs these cases too.
+repeat samples at the linear inclusive p75; a pool of three keeps the mean,
+and a pair is refused before pricing, so two fast draws cannot set the prices
+(#9470). The end-to-end pool fixture lives in
+`scripts/test-live-postgres-readiness-refresh-v2.py`, which imports and runs
+these cases too.
 """
 
 from __future__ import annotations
@@ -29,13 +30,11 @@ class PooledPricingTest(unittest.TestCase):
         self.assertEqual(self.price([10.0, 20.0, 20.0, 20.0], runs=4), 20.0)
         self.assertEqual(self.price([20.0, 10.0, 20.0, 20.0], runs=4), 20.0)
 
-    def test_two_and_three_run_pools_keep_the_mean(self) -> None:
-        self.assertFalse(refresh.pricing_rule(["100", "101"]).quantile)
+    def test_three_run_pool_keeps_the_mean(self) -> None:
         self.assertFalse(refresh.pricing_rule(["100", "101", "102"]).quantile)
         self.assertTrue(refresh.pricing_rule(["100", "101", "102", "103"]).quantile)
-        self.assertEqual(self.price([10.0, 20.0], runs=2), 15.0)
-        self.assertEqual(self.price([10.0, 20.0, 20.0, 20.0], runs=2), 17.5)
         self.assertEqual(self.price([10.0, 20.0, 20.0], runs=3), 16.7)
+        self.assertEqual(self.price([10.0, 20.0, 20.0, 20.0], runs=3), 17.5)
 
     def test_p75_is_linear_inclusive_on_four_and_six_samples(self) -> None:
         # Inclusive position (n - 1) * 0.75: 2.25 on four samples, 3.75 on six.
@@ -62,18 +61,23 @@ class PooledPricingTest(unittest.TestCase):
             "first-use and repeat samples over a 4-run pool 100, 101, 102, 103; "
             "cold, fixed and defaults keep their committed rules")
         self.assertEqual(
-            refresh.pricing_rule(["100", "101"]).line(),
+            refresh.pricing_rule(["100", "101", "102"]).line(),
             "weights refresh v2: pricing mean of per-test, first-use and repeat "
-            "samples over a 2-run pool 100, 101 (p75 needs at least 4 runs); "
+            "samples over a 3-run pool 100, 101, 102 (p75 needs at least 4 runs); "
             "cold, fixed and defaults keep their committed rules")
-        self.assertIn("over a 2-run pool 100 (5 shards), 101 (6 shards) (p75 needs",
-                      refresh.pricing_rule(["100", "101"], {"101": 6, "100": 5}).line())
+        self.assertIn("over a 3-run pool 100 (5 shards), 101 (6 shards), 102 (4 shards) "
+                      "(p75 needs",
+                      refresh.pricing_rule(["100", "101", "102"],
+                                           {"101": 6, "100": 5, "102": 4}).line())
 
     def test_shard_counts_pair_by_run_id_not_position(self) -> None:
         # Review P3-4: a reordered source list must not relabel the counts.
-        self.assertIn("over a 2-run pool 101 (6 shards), 100 (5 shards) (p75 needs",
-                      refresh.pricing_rule(["101", "100"], {"100": 5, "101": 6}).line())
-        for counts in ({"100": 5}, {"100": 5, "101": 6, "102": 6}, {"100": 5, "999": 6}):
+        self.assertIn("over a 3-run pool 102 (4 shards), 101 (6 shards), 100 (5 shards) "
+                      "(p75 needs",
+                      refresh.pricing_rule(["102", "101", "100"],
+                                           {"100": 5, "101": 6, "102": 4}).line())
+        for counts in ({"100": 5}, {"100": 5, "101": 6},
+                       {"100": 5, "101": 6, "102": 4, "103": 4}):
             with self.subTest(counts=counts), self.assertRaisesRegex(
                     ValueError, "pricing shard counts do not match the source pool"):
-                refresh.pricing_rule(["100", "101"], counts)
+                refresh.pricing_rule(["100", "101", "102"], counts)
