@@ -29,6 +29,20 @@ func tagExport(s *readinessStep, main, scanner string) string {
 	return "'" + export + "'"
 }
 
+// wrapExport writes an export literal as the workflow does: a plain quoted
+// literal, or a format() call over matrix.component when it carries {0}.
+func wrapExport(export string) string {
+	if strings.Contains(export, "{0}") {
+		return "format('" + export + "', matrix.component)"
+	}
+	return "'" + export + "'"
+}
+
+// tagPair returns the step's own tag and a tag that belongs to another target.
+func tagPair(s *readinessStep) (own, foreign string) {
+	return tagOf(s, "runtime", "scanner-{0}"), tagOf(s, "scanner-image", "runtime")
+}
+
 // TestDockerCacheWritersOutsideTheBuildSteps proves a second cache writer is
 // refused: a duplicate cache-to key, a docker/bake-action step, and a shell
 // build that passes --cache-to (#9632).
@@ -54,7 +68,7 @@ func TestDockerCacheWritersOutsideTheBuildSteps(t *testing.T) {
 		want string
 	}{
 		{"bake action", readinessStep{Name: "Bake", Uses: "docker/bake-action@v5"}, "docker/bake-action"},
-		{"shell build", readinessStep{Name: "Shell build", Run: "docker buildx build --cache-to type=registry,ref=x ."}, "--cache-to"},
+		{"shell build", readinessStep{Name: "Shell build", Run: "docker buildx build --cache-to type=registry,ref=x ."}, "must not export a build cache"},
 	} {
 		t.Run(extra.name, func(t *testing.T) {
 			jobs := make(map[string]readinessJob, len(clean))
@@ -156,6 +170,34 @@ func TestDockerBuildCacheWiringMutations(t *testing.T) {
 		}, "own cache tag"},
 		{"cache-from reads a foreign tag", func(s *readinessStep) {
 			s.With["cache-from"] += "\ntype=registry,ref=" + dockerCacheRef + "scanner-shared"
+		}, "own cache tag"},
+		{"two refs joined by a comma", func(s *readinessStep) {
+			own, foreign := tagPair(s)
+			s.With["cache-to"] = push(wrapExport("type=registry,ref=" + dockerCacheRef + own + ",ref=" + dockerCacheRef + foreign + ",mode=max"))
+		}, "one fixed tag per target"},
+		{"second export on a new line in one literal", func(s *readinessStep) {
+			own, foreign := tagPair(s)
+			s.With["cache-to"] = push(wrapExport("type=registry,ref=" + dockerCacheRef + own + ",mode=max\ntype=registry,ref=" + dockerCacheRef + foreign + ",mode=max"))
+		}, "one fixed tag per target"},
+		{"second type= in one export", func(s *readinessStep) {
+			own, _ := tagPair(s)
+			s.With["cache-to"] = push(wrapExport("type=registry,type=registry,ref=" + dockerCacheRef + own + ",mode=max"))
+		}, "one fixed tag per target"},
+		{"another target's ref appended after mode=max", func(s *readinessStep) {
+			own, foreign := tagPair(s)
+			s.With["cache-to"] = push(wrapExport("type=registry,ref=" + dockerCacheRef + own + ",mode=max,ref=" + dockerCacheRef + foreign))
+		}, "one fixed tag per target"},
+		{"attribute after mode=max", func(s *readinessStep) {
+			own, _ := tagPair(s)
+			s.With["cache-to"] = push(wrapExport("type=registry,ref=" + dockerCacheRef + own + ",mode=max,compression=zstd"))
+		}, "one fixed tag per target"},
+		{"cache-from line with a second ref", func(s *readinessStep) {
+			own, foreign := tagPair(s)
+			s.With["cache-from"] = "type=registry,ref=" + dockerCacheRef + strings.ReplaceAll(own, "{0}", "${{ matrix.component }}") + ",ref=" + dockerCacheRef + foreign
+		}, "own cache tag"},
+		{"cache-from line with an extra attribute", func(s *readinessStep) {
+			own, _ := tagPair(s)
+			s.With["cache-from"] = "type=registry,ref=" + dockerCacheRef + strings.ReplaceAll(own, "{0}", "${{ matrix.component }}") + ",mode=max"
 		}, "own cache tag"},
 		{"secret passed to BuildKit", setWith("secrets", "token=${{ secrets.GITHUB_TOKEN }}"), "must not pass secrets"},
 		{"secret build-arg", func(s *readinessStep) { s.With["build-args"] += "\nTOKEN=${{ secrets.GITHUB_TOKEN }}" }, "must not carry a secret"},

@@ -68,22 +68,36 @@ target (`runtime`, `scanner-image`, `scanner-sbom`, `scanner-osruntime`):
   `allow_missing` for the first run, or `dry_run` to list what would be
   deleted. The image packages are never pruned: their untagged versions are
   the per-platform manifests of live multi-arch images.
-- `go/internal/cigates/dockercache_wiring_test.go` pins the event gate, the
-  registry ref, exactly one tag per target (compared for equality, so a prefix,
-  a suffix or a shared static tag fails), no secret reaching a build (mode=max
-  exports every layer to a package that anonymous PR readers must be able to
-  pull, so it is treated as public), and no cache export outside the two build
-  steps. `dockercache_wiring_mutations_test.go` breaks each rule.
+- `go/internal/cigates/dockercache_wiring_test.go` pins, for the two
+  `docker/build-push-action` steps in `docker-publish.yml`: the event gate, the
+  registry package, and exactly one tag per target. Each `cache-to` and each
+  `cache-from` line must hold exactly one `ref=` at that package, with the
+  target's own tag compared for equality (`:runtime`, or `:scanner-<component>`;
+  a scanner may also read `:runtime`), so a prefix, a suffix, a shared tag, a
+  second ref or an extra attribute fails. The same two steps may not pass a
+  `secrets`, `secret-files`, `secret-envs` or `ssh` input or a `secrets.`
+  build-arg: `mode=max` exports every layer to a package that anonymous PR
+  readers must be able to pull, so it is treated as public.
+  `dockercache_wiring_mutations_test.go` breaks each rule.
   `buildcache_prune_workflow_test.go` pins the prune workflow's triggers,
   permissions, and dry-run switches.
-- The cache-export check covers `docker-publish.yml` only. It refuses a
-  `docker/bake-action` step, a run step with `cache-to` or a bake command, and
-  any repo-local script (`bash scripts/...`, `sh`, `./scripts/...`, `source`
-  or `.`, or a bare `scripts/...` path) a run step reaches, plus the files
-  that script sources one level deep, when the body holds `cache-to` or a bake
-  command (`dockercache_scripts_test.go`). It does not cover a script fetched
-  from elsewhere, an action pulled from another repository, a script path built
-  at run time, a source chain deeper than one level, or any other workflow.
+- The cache-export scan (`dockercache_scripts_test.go`) is a text scan of
+  `docker-publish.yml` and of repo-local files, and it is not a proof that no
+  other step can export a cache. It refuses a `docker/bake-action` step, a
+  local action (`uses: ./...`) or local reusable workflow, and any run step
+  whose text, or whose referenced files, holds `cache-to`, `cache_to`,
+  `buildx bake`, `docker bake` or `docker/bake-action`. A referenced file is a
+  path token ending in `.sh`, `.bash`, `.py`, `.yml` or `.yaml`, a path after
+  `bash`, `sh`, `zsh`, `source`, `exec` or `.` (so a script without an
+  extension is found), or a `./path`, and it must exist in the repository,
+  outside `.github/workflows/`. The scan follows the files each referenced file
+  names in turn, to four levels, and ends cycles.
+- The scan does not cover: `eval`, `bash -c` or other built commands; `make`
+  targets; a flag or path built from variables or split across quotes; a
+  script fetched at run time; an action from another repository; a chain deeper
+  than four files; a file that is not in the repository; any workflow other
+  than `docker-publish.yml`; or any build outside the two pinned steps that
+  does not appear in text the scan reads.
 
 ## Why setup-go does not cache
 

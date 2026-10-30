@@ -62,17 +62,16 @@ func checkDockerCacheTo(cacheTo string) string {
 // argument, out of a cache-to expression that already matched dockerCacheToRE.
 var dockerCacheToExportRE = regexp.MustCompile(`'([^']*)'(?:, (matrix\.component))?\)?\s*\|\|\s*''$`)
 
-// cacheRefTag returns the tag of the first ref=<dockerCacheRef><tag> in an
-// export or cache-from line: the text after the package name up to the next
-// comma. It returns ok=false when the line holds no such ref.
-func cacheRefTag(line string) (string, bool) {
-	_, after, found := strings.Cut(line, "ref="+dockerCacheRef)
-	if !found {
-		return "", false
-	}
-	tag, _, _ := strings.Cut(after, ",")
-	return strings.TrimSpace(tag), true
-}
+// cacheExportRE and cacheFromLineRE accept one export and one cache-from line
+// each, whole: exactly one type=registry, exactly one ref= at the package, a
+// tag with no comma or newline, and nothing after it but ",mode=max" for an
+// export and nothing for a read. A second ref=, a second type=, a newline
+// inside the literal, or any trailing attribute cannot match, so a target
+// cannot also write or read another target's tag (#9632).
+var (
+	cacheExportRE   = regexp.MustCompile(`^type=registry,ref=` + regexp.QuoteMeta(dockerCacheRef) + `([^,\n]+),mode=max$`)
+	cacheFromLineRE = regexp.MustCompile(`^type=registry,ref=` + regexp.QuoteMeta(dockerCacheRef) + `([^,\n]+)$`)
+)
 
 // ownCacheTag is the one tag a build step may write and must read: the
 // runtime image uses runtime; a step with a target uses the target itself
@@ -87,9 +86,10 @@ func ownCacheTag(step readinessStep) string {
 // checkDockerCacheTag requires one fixed tag per build target, compared for
 // exact equality: the runtime image writes and reads :runtime, each scanner
 // image writes :scanner-<component> and reads that tag, and a scanner build
-// may also read :runtime for the shared builder stage. A prefix, a suffix, a
-// shared static tag or another target's tag would let two targets overwrite
-// each other's cache on every main push (#9632).
+// may also read :runtime for the shared builder stage. Each export and each
+// cache-from line must hold exactly one ref (cacheExportRE, cacheFromLineRE),
+// so a prefix, a suffix, a shared static tag, another target's tag, or a
+// second ref in the same value fails (#9632).
 func checkDockerCacheTag(step readinessStep) string {
 	own := ownCacheTag(step)
 	match := dockerCacheToExportRE.FindStringSubmatch(stripExpression(step.With["cache-to"]))
@@ -100,8 +100,8 @@ func checkDockerCacheTag(step readinessStep) string {
 	if match[2] != "" {
 		export = strings.ReplaceAll(export, "{0}", "${{ "+match[2]+" }}")
 	}
-	if tag, ok := cacheRefTag(export); !ok || tag != own {
-		return "cache-to must use one fixed tag per target, exactly " + own + " (#9632)"
+	if ref := cacheExportRE.FindStringSubmatch(export); ref == nil || ref[1] != own {
+		return "cache-to must use one fixed tag per target, exactly one ref and exactly " + own + ", then only ,mode=max (#9632)"
 	}
 	owned := false
 	for _, line := range strings.Split(step.With["cache-from"], "\n") {
@@ -109,16 +109,16 @@ func checkDockerCacheTag(step readinessStep) string {
 		if line == "" {
 			continue
 		}
-		tag, ok := cacheRefTag(line)
+		ref := cacheFromLineRE.FindStringSubmatch(line)
 		switch {
-		case !ok:
-			return "cache-from must include the target's own cache tag, exactly " + own + " (#9632)"
-		case tag == own:
+		case ref == nil:
+			return "cache-from lines must each hold exactly one ref and nothing after the tag; the target's own cache tag is " + own + " (#9632)"
+		case ref[1] == own:
 			owned = true
-		case tag == "runtime" && own != "runtime":
+		case ref[1] == "runtime" && own != "runtime":
 			// A scanner build also reads the runtime builder-stage cache.
 		default:
-			return "cache-from may read only the target's own cache tag " + own + " (and :runtime for a scanner), got " + tag + " (#9632)"
+			return "cache-from may read only the target's own cache tag " + own + " (and :runtime for a scanner), got " + ref[1] + " (#9632)"
 		}
 	}
 	if !owned {
@@ -165,15 +165,20 @@ func checkDockerBuildSecrets(step readinessStep) string {
 	return ""
 }
 
-// checkOtherCacheWriters rejects any step outside the two pinned build steps
-// that could export a BuildKit cache: a bake action or a shell build with
-// --cache-to would bypass the push-only gate (#9632).
+// checkOtherCacheWriters rejects the forms of a second cache writer that show
+// in one step: a local action (its steps are not read here), a bake action,
+// and a run step whose own text holds cache-to, cache_to or a bake command.
+// Files a run step references are scanned by checkRunScriptCacheWriters.
+// Neither check is a proof that no step can export a cache (#9632).
 func checkOtherCacheWriters(step readinessStep) string {
+	if strings.HasPrefix(step.Uses, "./") {
+		return "a local action (" + step.Uses + ") is refused: its steps are not read by this test (#9632)"
+	}
 	if strings.HasPrefix(step.Uses, "docker/bake-action@") {
 		return "docker/bake-action can export a cache outside the pinned build steps (#9632)"
 	}
-	if strings.Contains(step.Run, "cache-to") {
-		return "a run step must not export a build cache with --cache-to (#9632)"
+	if found := scriptCacheWriter(step.Run); found != "" {
+		return "a run step must not export a build cache (" + found + ") (#9632)"
 	}
 	return ""
 }
@@ -183,6 +188,9 @@ func checkOtherCacheWriters(step readinessStep) string {
 func checkDockerCache(jobs map[string]readinessJob) string {
 	builds := 0
 	for name, job := range jobs {
+		if strings.HasPrefix(job.Uses, "./") {
+			return name + ": a local reusable workflow (" + job.Uses + ") is refused: its steps are not read by this test (#9632)"
+		}
 		for _, step := range job.Steps {
 			if problem := checkOtherCacheWriters(step); problem != "" {
 				return name + " " + step.Name + ": " + problem
