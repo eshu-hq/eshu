@@ -23,12 +23,10 @@
 # path branch-attributable, and where the right answer would still be to leave
 # the text alone. They are the durable record of that intent.
 
-# The comment names this path as the counter-example -- the error message that
-# "shipped naming ... a file that has never existed" -- and the constant below
-# it points at the live materialized_edge_families.go, which the test os.Stats
-# and fails on if absent. Repointing would make "has never existed" name a file
-# that does, erasing both the comment and the reason for that assertion.
-go/internal/ifa/materializededges/materialized_edges_direct_family_blindness_test.go:go/internal/reducer/direct_materialized_edge_families.go
+# GC #9670: a dead counter-example entry stood here. Its test file
+# (materialized_edges_direct_family_blindness_test.go) no longer exists in
+# the tree, so the entry could never fire. Removed to hold the 500-line
+# scripts cap.
 
 # A recorded shell transcript of how the #5428 regression was reproduced. The
 # cited path is one line of a three-line sequence whose `cp` destination and
@@ -70,15 +68,12 @@ go/internal/storage/postgres/migrations/088_reducer_work_item_reopened_at.sql:go
 # query-lane PR next touches this file.
 go/internal/query/codequery/route_query_proof_matrix_test.go:go/internal/reducer/handles_route_intents.go
 
-# #6642 local-identity family move: a dated #6450 finding record that names
-# the exact root files it inspected at the time (local_identity_api_tokens.go,
-# local_identity_api_tokens_selfservice.go, local_identity_handler_helpers.go)
-# to demonstrate a tenantless token-scope/session-issuance exposure.
-# Repointing to the new go/internal/query/local/ destination would falsify
-# the "as it stood at the time" evidentiary claim the finding depends on.
-docs/internal/evidence/6450-all-scope-browser-session-admission.md:go/internal/query/local_identity_api_tokens.go
-docs/internal/evidence/6450-all-scope-browser-session-admission.md:go/internal/query/local_identity_api_tokens_selfservice.go
-docs/internal/evidence/6450-all-scope-browser-session-admission.md:go/internal/query/local_identity_handler_helpers.go
+# GC #9670: three dead entries for the #6450 finding record were removed here.
+# The record no longer names local_identity_api_tokens.go,
+# local_identity_api_tokens_selfservice.go, or
+# local_identity_handler_helpers.go (verified with the gate's own grep
+# semantics), so the entries could never fire. Removed to hold the 500-line
+# scripts cap for the satellite entries below.
 
 # restructure-research.md is an explicitly dated 2026-08-11 measurement
 # snapshot ("Counts are a snapshot, not a contract") of the pre-restructure
@@ -157,9 +152,6 @@ docs/internal/evidence/6818-query-package-moves.md:go/internal/query/queryspan/h
 # above. These dated evidence and design docs describe the tree as it stood
 # when written; repointing would falsify the record.
 docs/internal/evidence/5167-code-family-batch-1.md:go/internal/query/queryselector/selector.go
-docs/internal/evidence/6786-nornicdb-400-409-exposure.md:go/internal/query/queryselector/entity_repo_identity.go
-docs/internal/design/6642-query-move-checklist.md:go/internal/query/queryselector/entity_repo_identity.go
-docs/internal/evidence/6786-scoped-grant-nornicdb-read-predicates.md:go/internal/query/queryselector/entity_repo_identity_test.go
 # #6818 deployment move evidence: same BEFORE-state pin as the rows above.
 # These dated evidence and design docs describe the tree as it stood when
 # written; repointing would falsify the record.
@@ -211,7 +203,6 @@ go/internal/ifa/evidence-5993-materialized-edge-dispatch.md:go/internal/ifa/mate
 scripts/docs-citations-baseline.txt:go/internal/storage/cypher/edge_writer_logging.go
 scripts/docs-citations-baseline.txt:go/internal/storage/cypher/edge_writer_nil_fence_whole_scope_test.go
 scripts/docs-citations-baseline.txt:go/internal/storage/cypher/edge_writer_retract_repo.go
-scripts/docs-citations-baseline.txt:go/internal/storage/cypher/edge_writer_retract_scope.go
 scripts/docs-citations-baseline.txt:go/internal/storage/cypher/edge_writer_sql.go
 docs/internal/evidence/5984-edge-writer-unroutable-rows.md:go/internal/storage/cypher/edge_writer.go
 
@@ -351,19 +342,14 @@ docs/internal/evidence/6693-crossplane-leaf.md:go/internal/storage/postgres/proj
 # go/internal/storage/cypher/canonical/node/templates.go (node-phase
 # templates), .../retract_labels.go (retract label sets), .../metadata.go
 # (entity-metadata helpers), and .../check.go (code-target checker).
-docs/internal/evidence/4594-graph-rebuild-from-facts.md:go/internal/storage/cypher/canonical_node_cypher.go
 docs/internal/evidence/5346-sql-migrates-performance.md:go/internal/storage/cypher/canonical_node_writer_retract_labels.go
 docs/internal/evidence/5652-followup-file-directory-edge-writeloss-investigation.md:go/internal/storage/cypher/canonical_node_cypher.go
 docs/internal/evidence/6541-directory-query-s2-corpus-timing.md:go/internal/storage/cypher/canonical_node_cypher.go
 docs/internal/evidence/6541-directory-file-ownership.md:go/internal/storage/cypher/canonical_node_cypher.go
 docs/internal/evidence/module-node-identity-6106-review-follow-ups.md:go/internal/storage/cypher/canonical_node_cypher.go
 docs/internal/evidence/module-identity-hotpath-trace.txt:go/internal/storage/cypher/canonical_node_cypher.go
-docs/internal/evidence/6786-nornicdb-label-predicates.md:go/internal/storage/cypher/canonical_check.go
-docs/internal/evidence/6793-infra-read-model.md:go/internal/storage/cypher/canonical_node_writer_metadata.go
-docs/internal/evidence/7057-divergence-uid-anchor.md:go/internal/storage/cypher/canonical_node_cypher.go
 docs/internal/evidence/7130-ack-superseded-generation-guard.md:go/internal/storage/cypher/canonical_node_cypher.go
 docs/internal/evidence/7212-schema-closed-anchor.md:go/internal/storage/cypher/canonical_node_cypher.go
-docs/internal/evidence/7380-entity-context-single-anchor.md:go/internal/storage/cypher/canonical_node_cypher.go
 go/internal/storage/cypher/evidence-5156-variable-semantic-owned.md:go/internal/storage/cypher/canonical_node_cypher.go
 go/internal/storage/cypher/evidence-5156-variable-semantic-owned.md:go/internal/storage/cypher/canonical_node_writer_retract_labels.go
 
@@ -479,16 +465,10 @@ docs/internal/evidence/5837-aws-drift-reopen.md:go/cmd/collector-terraform-state
 # successor paths exist, so the note stays as the pre-extraction record.
 docs/internal/evidence/5870-nil-schema-resolver-guard.md:go/cmd/collector-terraform-state/config.go
 docs/internal/evidence/5870-nil-schema-resolver-guard.md:go/cmd/collector-terraform-state/service.go
-# Vault-live satellite extraction (#8869): the in-tree command, source
-# package, and coordinator planner are deleted and collection now runs from
-# eshu-hq/eshu-collector-vault-live. The 6627 package-move evidence note names
-# the planner sources and root service files at their pre-extraction in-tree
-# paths as the files the move evidence was gathered on. No in-tree successor
-# paths exist, so the note stays as the pre-extraction evidence record.
-docs/internal/evidence/6627-coordinator-vault-live-package-move.md:go/internal/coordinator/service_vault_live_test.go
-docs/internal/evidence/6627-coordinator-vault-live-package-move.md:go/internal/coordinator/vault/live/planner_contract_test.go
-docs/internal/evidence/6627-coordinator-vault-live-package-move.md:go/internal/coordinator/vault/live/planner_validation_test.go
-docs/internal/evidence/6627-coordinator-vault-live-package-move.md:go/internal/coordinator/vault_live_service.go
+# GC #9670: four dead #8869 vault entries stood here. The 6627 package-move
+# note no longer names the planner sources (verified with the gate's own
+# grep semantics), so the entries could never fire. Removed to hold the
+# 500-line scripts cap.
 # Vault-live satellite extraction (#8869): the 8869 extraction census names
 # the in-tree command, source package, and planner at their pre-extraction
 # in-tree paths as the files the cutover evidence was gathered on. No in-tree
@@ -498,3 +478,15 @@ docs/internal/evidence/8869-collector-vault-live-census.md:go/cmd/collector-vaul
 docs/internal/evidence/8869-collector-vault-live-census.md:go/internal/collector/vaultlive/map.go
 docs/internal/evidence/8869-collector-vault-live-census.md:go/internal/collector/vaultlive/snapshot.go
 docs/internal/evidence/8869-collector-vault-live-census.md:go/internal/coordinator/vault/live/planner.go
+# MCP satellite extraction (#9670): dated evidence/design notes keep pre-extraction wiring paths as the record they were gathered on; the parser fixture models a synthetic repo where the mcp candidate is load-bearing. No in-tree successors; repointing would falsify.
+docs/internal/design/6642-query-move-cost.md:go/cmd/mcp-server/wiring_router.go
+docs/internal/evidence/4045-evidence-bundle-api-performance.md:go/cmd/mcp-server/wiring_router.go
+docs/internal/evidence/5052-keyword-search-scope-id.md:go/cmd/mcp-server/wiring_router.go
+docs/internal/evidence/5167-freshness-family-allowlist.md:go/cmd/mcp-server/wiring_router.go
+docs/internal/evidence/5167-freshness-family-allowlist.md:go/cmd/mcp-server/wiring_test.go
+docs/internal/evidence/6693-cloud-aws-leaf.md:go/cmd/mcp-server/status_store_wiring.go
+docs/internal/evidence/6693-governance-audit-leaf.md:go/cmd/mcp-server/wiring.go
+docs/internal/evidence/7957-snapshot-export-qualification.md:go/cmd/mcp-server/postgres_error_wire_test.go
+docs/internal/evidence/8833-cleanup-proofs.md:go/cmd/mcp-server/semantic_search_vector_wiring.go
+go/internal/query/AGENTS-evidence-history-3.md:go/cmd/mcp-server/wiring.go
+go/internal/reducer/code/call/go_package_test.go:go/cmd/mcp-server/wiring.go
