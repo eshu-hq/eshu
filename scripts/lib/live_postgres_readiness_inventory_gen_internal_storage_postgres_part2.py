@@ -332,6 +332,10 @@ TABLE = {
             "TestAuthorizedImpactLoaderAdmitsCompletedScanLive",
             "TestAuthorizedImpactAdvisoriesEmptyRegistryStaysCompleteLive",
         ),
+        "go/internal/storage/postgres/supply_chain_impact_authorized_loader_onboarding_live_test.go": (
+            "TestAuthorizedImpactLoaderWithoutPolicyStateLeavesPlainWriteLive",
+            "TestAuthorizedImpactLoaderWithoutAuthorityTablesLeavesPlainWriteLive",
+        ),
         "go/internal/storage/postgres/supply_chain_impact_evidence_live_test.go": (
             "TestSupplyChainImpactActiveEvidenceMatchesRetiredStatementLive",
             "TestSupplyChainImpactActiveEvidenceBufferBudgetLive",
