@@ -59,7 +59,7 @@ func stdoutLimitExceededFailure(limit, observed int64) extensionFailure {
 		class:    FailureClassLaunchFailure,
 		terminal: true,
 		cause: fmt.Errorf(
-			"extension stdout limit exceeded: observed_bytes=%d limit_bytes=%d: satellite result does not fit one call; use a v1alpha3 paged satellite, raise process.stdoutLimitBytes, or narrow the claim scope (for example fewer allowed_services)",
+			"extension stdout limit exceeded: observed_bytes=%d limit_bytes=%d: satellite result does not fit one call; use a v1alpha3 paged satellite, raise stdout_limit_bytes under process (process runner) or oci (OCI runner), or narrow the claim scope (for example fewer allowed_services)",
 			observed,
 			limit,
 		),

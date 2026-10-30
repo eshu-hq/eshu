@@ -383,8 +383,9 @@ counts on both runners and both call paths.
 
 Observability Evidence (#9635): oversize now surfaces as a terminal
 `launch_failure` naming `observed_bytes` and `limit_bytes` with remediation
-names (v1alpha3 paged satellite, `process.stdoutLimitBytes`, narrower claim
-scope) instead of a retryable `launch_failure` naming only the limit. No
+names (v1alpha3 paged satellite, `stdout_limit_bytes` under `process` or
+`oci`, narrower claim scope) instead of a retryable `launch_failure` naming
+only the limit. No
 payload bytes ever reach the message. An operator greps one deterministic
 failure instead of ten burned attempts; the paged assembler preserves
 runner-classified verdicts instead of re-wrapping them.

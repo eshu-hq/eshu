@@ -17,8 +17,9 @@ import (
 )
 
 // TestLimitedBufferCountsTotalBytesWritten proves the buffer reports every
-// byte the child wrote, including bytes discarded past the limit, so an
-// oversize failure can name the observed size (eshu-hq/eshu#9635).
+// byte the child wrote across chunked writes, including bytes discarded past
+// the limit, so an oversize failure can name the observed size
+// (eshu-hq/eshu#9635).
 func TestLimitedBufferCountsTotalBytesWritten(t *testing.T) {
 	t.Parallel()
 
@@ -34,6 +35,15 @@ func TestLimitedBufferCountsTotalBytesWritten(t *testing.T) {
 	}
 	if got := buffer.Total(); got != 10 {
 		t.Fatalf("Total() = %d, want 10", got)
+	}
+	// A second chunked write must accumulate, not replace, the total: a
+	// `total =` mutant passes the single-write assertion above but reports
+	// 10 instead of 20 here.
+	if n, _ := buffer.Write([]byte("abcdefghij")); n != 10 {
+		t.Fatalf("second Write() = %d, want 10", n)
+	}
+	if got := buffer.Total(); got != 20 {
+		t.Fatalf("Total() after two writes = %d, want 20", got)
 	}
 }
 
@@ -71,7 +81,7 @@ func assertTerminalOversize(t *testing.T, err error, observed, limit int64) {
 		fmt.Sprintf("observed_bytes=%d", observed),
 		fmt.Sprintf("limit_bytes=%d", limit),
 		"v1alpha3",
-		"stdoutLimitBytes",
+		"stdout_limit_bytes",
 	} {
 		if !strings.Contains(msg, want) {
 			t.Errorf("oversize error %q misses %q", msg, want)
