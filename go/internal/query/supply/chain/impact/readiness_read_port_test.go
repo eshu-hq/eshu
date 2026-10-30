@@ -51,6 +51,11 @@ type failingReadinessTransaction struct {
 
 func (tx *failingReadinessTransaction) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	tx.queries++
+	if tx.queries == 1 {
+		// The authority-layout probe runs first and reads present, so
+		// the injected failure lands on the business query as intended.
+		return &cov8ImpactRows{rows: [][]any{{"present"}}}, nil
+	}
 	return nil, tx.err
 }
 
@@ -81,7 +86,7 @@ func TestReadinessQueriesOnlyWithinGuardedSnapshot(t *testing.T) {
 	guard := &startedReadinessSnapshotStore{transaction: transaction}
 	store := NewPostgresReadinessStoreWithReadStore(guard)
 	_, err := store.ReadSupplyChainImpactReadiness(t.Context(), ReadinessQuery{RepositoryID: "repo"})
-	if !errors.Is(err, want) || guard.begins != 1 || guard.queries != 0 || transaction.queries != 1 || transaction.rollbacks != 1 {
-		t.Fatalf("error %v, begins %d, direct queries %d, transaction queries %d, rollbacks %d; want only one transaction query", err, guard.begins, guard.queries, transaction.queries, transaction.rollbacks)
+	if !errors.Is(err, want) || guard.begins != 1 || guard.queries != 0 || transaction.queries != 2 || transaction.rollbacks != 1 {
+		t.Fatalf("error %v, begins %d, direct queries %d, transaction queries %d, rollbacks %d; want only the authority probe plus one business query inside the snapshot", err, guard.begins, guard.queries, transaction.queries, transaction.rollbacks)
 	}
 }

@@ -3,7 +3,13 @@
 
 package impact
 
-import "strings"
+import (
+	"context"
+	"database/sql"
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+)
 
 // Current readiness applies the same protected target classification for every
 // caller. A trusted shared caller can cross tenant boundaries only after the
@@ -181,6 +187,34 @@ const currentScannerFactPredicate = `
             AND FALSE
         )
       )`
+
+// readinessAuthorityLayoutPresent reports whether the installed
+// role-policy layout is visible from db. Scopes bootstrapped without the
+// public-only authority layout (isolated test schemas, pre-onboarding
+// databases) have no authority to filter by, so readiness falls back to the
+// legacy statement. to_regclass returns NULL instead of erroring on a
+// missing relation, so the probe never aborts a wrapping repeatable-read
+// transaction. An existing but empty policy table still reports present:
+// with no policy row installed the receipt branch cannot fire, which the
+// legacy fact branch already handles.
+func readinessAuthorityLayoutPresent(ctx context.Context, database db.Queryer) (bool, error) {
+	rows, err := database.QueryContext(ctx, `SELECT to_regclass('eshu_security.role_policy_state')`)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		return false, nil
+	}
+	var relation sql.NullString
+	if err := rows.Scan(&relation); err != nil {
+		return false, err
+	}
+	if err := rows.Err(); err != nil {
+		return false, err
+	}
+	return relation.Valid, nil
+}
 
 func currentScannerReadinessSQL(query string) string {
 	for _, marker := range []string{
