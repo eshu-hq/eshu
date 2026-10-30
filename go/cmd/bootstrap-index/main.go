@@ -204,10 +204,7 @@ func run(
 		return fmt.Errorf("telemetry instruments: %w", err)
 	}
 
-	memLimit := runtimecfg.ConfigureMemoryLimit(logger)
-	if err := telemetry.RecordGOMEMLIMIT(meter, memLimit); err != nil {
-		return fmt.Errorf("register gomemlimit gauge: %w", err)
-	}
+	runtimecfg.ConfigureMemoryLimit(logger)
 	logger.Info("starting bootstrap-index")
 
 	pprofSrv, err := runtimecfg.NewPprofServer(getenv)

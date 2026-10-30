@@ -7,8 +7,10 @@ import (
 	"context"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 func (h SupplyChainImpactHandler) loadActiveSupplyChainImpactRepositoryFacts(
@@ -26,7 +28,7 @@ func (h SupplyChainImpactHandler) loadActiveSupplyChainImpactRepositoryFacts(
 	if len(filter.Ecosystems) == 0 || len(filter.PackageNames) == 0 {
 		return nil, nil
 	}
-	repositories, err := loader.ListActiveRepositoryFacts(ctx)
+	repositories, err := loader.ListActiveRepositoryFacts(telemetry.ContextWithRepositoryCatalogDomain(ctx, string(reducercontract.DomainSupplyChainImpact)))
 	if err != nil {
 		return nil, factload.ClassifyFactLoadError(err)
 	}

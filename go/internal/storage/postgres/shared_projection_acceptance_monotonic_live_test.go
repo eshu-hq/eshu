@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -53,6 +55,12 @@ func openAcceptanceMonotonicFixture(t *testing.T) acceptanceMonotonicFixture {
 
 	schema := fmt.Sprintf("eshu_6679_acceptance_%d", time.Now().UnixNano())
 	adminDB := openActiveOCIWarningIndexProofDB(t, dsn)
+	// Pin pg_trgm to public before creating the schema (#9572): the
+	// bootstrap's unqualified CREATE EXTENSION would otherwise install the
+	// opclass into this private schema, hiding it from sibling schemas on
+	// the same shared proof database. The advisory-locked shared install
+	// serializes concurrent bootstraps on one database.
+	postgresproof.InstallTrigramExtension(ctx, t, adminDB)
 	if _, err := adminDB.ExecContext(ctx, "CREATE SCHEMA "+quoteSQLIdentifier(schema)); err != nil {
 		t.Fatalf("create proof schema: %v", err)
 	}

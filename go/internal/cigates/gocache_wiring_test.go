@@ -4,8 +4,10 @@
 package cigates
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 
@@ -171,5 +173,59 @@ func TestGoBuildCacheWiring(t *testing.T) {
 		if problem := checkGoBuildCache(job, lane.saves); problem != "" {
 			t.Errorf("%s %s: %s", lane.workflow, lane.job, problem)
 		}
+	}
+}
+
+// loadTestWorkflowJobs parses every job in test.yml, so the no-cache rule
+// below covers jobs added later without a lane entry.
+func loadTestWorkflowJobs(t *testing.T) map[string]readinessJob {
+	t.Helper()
+	path := filepath.Join("..", "..", "..", ".github", "workflows", "test.yml")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var parsed struct {
+		Jobs map[string]readinessJob `yaml:"jobs"`
+	}
+	if err := yaml.Unmarshal(raw, &parsed); err != nil {
+		t.Fatal(err)
+	}
+	if len(parsed.Jobs) == 0 {
+		t.Fatal("test.yml: no jobs parsed")
+	}
+	return parsed.Jobs
+}
+
+// checkSetupGoCacheDisabled requires every actions/setup-go step in test.yml
+// to set cache: false. setup-go's built-in cache stores go env GOCACHE, so
+// every default-cache step writes a second build-cache copy, and each
+// PR-scoped copy counts against the 10 GB store that evicted main's gobuild
+// entries (#9462, #9598). Modules come from
+// scripts/ci/go-mod-download-retry.sh instead. Sorted job order keeps the
+// verdict deterministic; the first violation wins.
+func checkSetupGoCacheDisabled(jobs map[string]readinessJob) string {
+	keys := make([]string, 0, len(jobs))
+	for k := range jobs {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		for i, step := range jobs[key].Steps {
+			if setupGoUsesRE.MatchString(step.Uses) && setupGoCachesModule(step.With) {
+				return fmt.Sprintf("test.yml job %q: setup-go step %d must set cache: false so its built-in cache does not store the build cache a second time (#9462)", key, i)
+			}
+		}
+	}
+	return ""
+}
+
+// TestSetupGoCacheDisabledInTestWorkflow pins the #9462 tail: no setup-go
+// step in test.yml may use the built-in cache, including jobs on the default
+// GOCACHE that never shared the persisted directory.
+func TestSetupGoCacheDisabledInTestWorkflow(t *testing.T) {
+	t.Parallel()
+	if problem := checkSetupGoCacheDisabled(loadTestWorkflowJobs(t)); problem != "" {
+		t.Error(problem)
 	}
 }

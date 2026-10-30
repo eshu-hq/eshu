@@ -18,6 +18,7 @@ import (
 
 	pgstorage "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/governance/audit"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 func TestSeedInitialAdminNegativeLeakage(t *testing.T) {
@@ -115,11 +116,16 @@ func TestSeedInitialAdminAuditEventsPersistToRealGovernanceAuditStore(t *testing
 	}
 	db.SetMaxOpenConns(1)
 	t.Cleanup(func() { _ = db.Close() })
+	// Pin pg_trgm to public before creating the schema (#9572): the
+	// bootstrap's unqualified CREATE EXTENSION would otherwise install the
+	// opclass into this private schema, hiding it from sibling schemas on
+	// the same shared proof database.
+	postgresproof.InstallTrigramExtension(ctx, t, db)
 	if _, err := db.ExecContext(ctx, "CREATE SCHEMA "+schemaName); err != nil {
 		t.Fatalf("create schema: %v", err)
 	}
 	t.Cleanup(func() { _, _ = db.ExecContext(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE") })
-	if _, err := db.ExecContext(ctx, "SET search_path TO "+schemaName); err != nil {
+	if _, err := db.ExecContext(ctx, "SET search_path TO "+schemaName+", public"); err != nil {
 		t.Fatalf("set search_path: %v", err)
 	}
 	if err := pgstorage.ApplyBootstrap(ctx, pgstorage.SQLDB{DB: db}); err != nil {

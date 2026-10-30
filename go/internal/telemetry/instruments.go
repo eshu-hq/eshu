@@ -9,6 +9,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
+	"runtime/debug"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -1951,6 +1953,13 @@ type Instruments struct {
 	TerraformStateParseDuration     metric.Float64Histogram
 	OCIRegistryScanDuration         metric.Float64Histogram
 	KubernetesLiveListDuration      metric.Float64Histogram
+	// RepositoryCatalogLoadRows records rows returned by one cross-scope
+	// repository catalog load, labeled by the calling reducer domain (#9567).
+	RepositoryCatalogLoadRows metric.Int64Histogram
+	// RepositoryCatalogLoadBytes records raw payload bytes scanned by
+	// one cross-scope repository catalog load, labeled by the calling reducer
+	// domain (#9567). It is the per-intent allocation driver to watch.
+	RepositoryCatalogLoadBytes metric.Int64Histogram
 	// DependencyListDuration measures GET /api/v0/dependencies graph read
 	// latency in seconds, labeled by the bounded `direction` (forward or
 	// reverse). Owned by query.DependenciesHandler; nil-tolerant.
@@ -5553,6 +5562,27 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register TerraformStateSnapshotBytes histogram: %w", err)
 	}
 
+	repositoryCatalogRowBuckets := []float64{0, 10, 50, 100, 250, 500, 1000, 2500, 5000, 10000}
+	inst.RepositoryCatalogLoadRows, err = meter.Int64Histogram(
+		"eshu_dp_repository_catalog_load_rows",
+		metric.WithDescription("Rows returned by one cross-scope repository catalog load (ListActiveRepositoryFacts), labeled by the calling reducer domain (#9567)"),
+		metric.WithExplicitBucketBoundaries(repositoryCatalogRowBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register RepositoryCatalogLoadRows histogram: %w", err)
+	}
+
+	repositoryCatalogByteBuckets := []float64{1024, 10240, 102400, 1048576, 10485760, 52428800, 104857600, 268435456}
+	inst.RepositoryCatalogLoadBytes, err = meter.Int64Histogram(
+		"eshu_dp_repository_catalog_load_payload_bytes",
+		metric.WithDescription("Raw payload bytes scanned by one cross-scope repository catalog load (ListActiveRepositoryFacts), labeled by the calling reducer domain (#9567)"),
+		metric.WithUnit("By"),
+		metric.WithExplicitBucketBoundaries(repositoryCatalogByteBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register RepositoryCatalogLoadBytes histogram: %w", err)
+	}
+
 	tfstateParseBuckets := []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10}
 	inst.TerraformStateParseDuration, err = meter.Float64Histogram(
 		"eshu_dp_tfstate_parse_duration_seconds",
@@ -8057,6 +8087,23 @@ func AttrDomain(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionDomain, v)
 }
 
+type repositoryCatalogDomainKey struct{}
+
+// ContextWithRepositoryCatalogDomain returns a context that names the reducer
+// domain loading the cross-scope repository catalog. The fact store reads it
+// to label eshu_dp_repository_catalog_load_* and folds any value outside its
+// closed consumer set to "unknown" (#9567).
+func ContextWithRepositoryCatalogDomain(ctx context.Context, domain string) context.Context {
+	return context.WithValue(ctx, repositoryCatalogDomainKey{}, domain)
+}
+
+// RepositoryCatalogDomain returns the domain set by
+// ContextWithRepositoryCatalogDomain, or an empty string when none was set.
+func RepositoryCatalogDomain(ctx context.Context) string {
+	domain, _ := ctx.Value(repositoryCatalogDomainKey{}).(string)
+	return domain
+}
+
 // AttrExecutionMode returns an execution_mode attribute for shared-edge
 // write metrics. The value is a closed set — "group" for atomic grouped
 // execution, "artifact-sequential" for the post-commit evidence-artifact
@@ -8642,18 +8689,30 @@ func RegisterTfstateSchemaResolverEntries(meter metric.Meter, counter func() int
 	return err
 }
 
-// RecordGOMEMLIMIT registers and records the applied GOMEMLIMIT as a gauge.
-// Call once at startup after instruments and memlimit are configured.
-func RecordGOMEMLIMIT(meter metric.Meter, limitBytes int64) error {
+// RecordGOMEMLIMIT registers eshu_dp_gomemlimit_bytes, which reports the Go
+// runtime's effective soft memory limit at each collection. It reads the live
+// limit (runtime/debug.SetMemoryLimit(-1)), so it covers a limit from the
+// GOMEMLIMIT environment variable, from runtime.ConfigureMemoryLimit's cgroup
+// detection, or from a later change; it reports 0 when no limit is set.
+// NewProviders registers it for every runtime; call it directly only on a
+// meter that does not come from NewProviders, such as a test reader. Before
+// #9567 the gauge recorded ConfigureMemoryLimit's return value, which is 0
+// when the limit came from the environment, and only five runtimes registered
+// it.
+func RecordGOMEMLIMIT(meter metric.Meter) error {
 	if meter == nil {
 		return nil
 	}
 	_, err := meter.Int64ObservableGauge(
 		"eshu_dp_gomemlimit_bytes",
-		metric.WithDescription("Configured GOMEMLIMIT in bytes"),
+		metric.WithDescription("Effective Go runtime memory limit (GOMEMLIMIT) in bytes; 0 when no limit is set"),
 		metric.WithUnit("By"),
 		metric.WithInt64Callback(func(_ context.Context, o metric.Int64Observer) error {
-			o.Observe(limitBytes)
+			limit := debug.SetMemoryLimit(-1)
+			if limit == math.MaxInt64 {
+				limit = 0
+			}
+			o.Observe(limit)
 			return nil
 		}),
 	)

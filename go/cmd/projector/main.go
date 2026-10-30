@@ -70,10 +70,7 @@ func run(parent context.Context) error {
 	}
 	logger := telemetry.NewLogger(bootstrap, "projector", "projector")
 
-	memLimit := runtimecfg.ConfigureMemoryLimit(logger)
-	if err := telemetry.RecordGOMEMLIMIT(meter, memLimit); err != nil {
-		return fmt.Errorf("register gomemlimit gauge: %w", err)
-	}
+	runtimecfg.ConfigureMemoryLimit(logger)
 	logger.Info("starting projector")
 
 	pprofSrv, err := runtimecfg.NewPprofServer(os.Getenv)

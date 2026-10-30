@@ -8,6 +8,25 @@ import (
 	"strings"
 )
 
+// checkDuplicateTriggers rejects a trigger list that carries the same entry
+// twice and returns the trigger set for membership checks. A copy-paste of
+// one trigger line, or a near-miss merge of two sibling families' trigger
+// blocks, would otherwise silently double an entry with no error and no
+// functional effect on matching -- MatchGlob against a duplicated glob
+// behaves identically to matching it once -- so it could go unnoticed
+// indefinitely. triggers: is meant to be a SET of path globs, but YAML has
+// no set type: nothing before this rejected such a LIST.
+func checkDuplicateTriggers(registryPath, gateID string, triggers []string) (map[string]struct{}, error) {
+	seen := make(map[string]struct{}, len(triggers))
+	for _, trigger := range triggers {
+		if _, dup := seen[trigger]; dup {
+			return nil, fmt.Errorf("ci-gates registry %s: gate %q has duplicate trigger %q (triggers: must be a set, not a list)", registryPath, gateID, trigger)
+		}
+		seen[trigger] = struct{}{}
+	}
+	return seen, nil
+}
+
 func parseSelfTestTriggers(
 	registryPath string,
 	gateID string,

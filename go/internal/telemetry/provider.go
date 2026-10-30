@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
@@ -41,7 +42,9 @@ type providerConfig struct {
 // NewProviders creates OTEL SDK providers from the bootstrap configuration.
 // It creates trace and metric exporters based on OTEL_EXPORTER_OTLP_ENDPOINT.
 // When the endpoint is empty, OTLP exporters are skipped (local dev safe).
-// Prometheus exporter is always created for /metrics endpoint.
+// Prometheus exporter is always created for /metrics endpoint, with the Go
+// and process collectors and the eshu_dp_gomemlimit_bytes gauge registered,
+// so every runtime exports its memory signals without a per-main call.
 func NewProviders(ctx context.Context, b Bootstrap, opts ...ProviderOption) (*Providers, error) {
 	if err := b.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid bootstrap: %w", err)
@@ -99,6 +102,14 @@ func NewProviders(ctx context.Context, b Bootstrap, opts ...ProviderOption) (*Pr
 		return errors.Join(errs...)
 	}
 
+	// Every runtime builds its /metrics here, so the memory-limit gauge is
+	// registered here too rather than in each main (#9567: the reducer, api,
+	// mcp-server, and collectors never registered it).
+	if err := RecordGOMEMLIMIT(meterProvider.Meter(DefaultSignalName)); err != nil {
+		_ = shutdown(ctx)
+		return nil, fmt.Errorf("register memory-limit gauge: %w", err)
+	}
+
 	otel.SetTracerProvider(traceProvider)
 	otel.SetMeterProvider(meterProvider)
 
@@ -144,6 +155,15 @@ func createMeterProvider(ctx context.Context, res *resource.Resource, hasOTLP bo
 	// attribute (host, process, sdk version, etc.) into the metric
 	// label set.
 	registry := prometheus.NewRegistry()
+	// Go runtime and process memory series (go_memstats_*, go_gc_*,
+	// process_resident_memory_bytes) sit beside the OTEL output on the same
+	// private registry. Without them an operator cannot see a heap burst
+	// against GOMEMLIMIT and the container limit (#9567). They carry no
+	// resource labels; scrape-target labels identify the service.
+	registry.MustRegister(
+		collectors.NewGoCollector(),
+		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
+	)
 	promExporter, err := otelprom.New(
 		otelprom.WithRegisterer(registry),
 		otelprom.WithResourceAsConstantLabels(

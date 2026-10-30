@@ -89,6 +89,10 @@ covers. New reducer projection stages, new shared-edge writers, and new
 graph-write statement phases all flow through this contract; the X2 script
 is the machine-enforced gate.
 
+## Bucket Sets Outside The Table
+
+Bucket sets for `eshu_dp_cloud_resource_list_*` live in `go/internal/query/cloud_resources_metrics.go`, outside the scope of the histogram bucket table in [Telemetry Coverage Contract](telemetry-coverage.md); omitted (#5548).
+
 ## History
 
 Historical precedent for the coverage contract lives in

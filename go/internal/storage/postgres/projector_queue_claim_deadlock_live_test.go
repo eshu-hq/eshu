@@ -21,6 +21,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 // claimDeadlockLoad describes one concurrent projector claim load run.
@@ -160,6 +161,12 @@ func openClaimDeadlockProofDB(t *testing.T, dsn string, conns int) *sql.DB {
 	if err != nil {
 		t.Fatalf("open postgres: %v", err)
 	}
+	// Pin pg_trgm to public before creating the schema (#9572): the
+	// bootstrap's unqualified CREATE EXTENSION would otherwise install the
+	// opclass into this private schema, hiding it from sibling schemas on
+	// the same shared proof database. The advisory-locked shared install
+	// serializes concurrent bootstraps on one database.
+	postgresproof.InstallTrigramExtension(ctx, t, admin)
 	schemaName := fmt.Sprintf("claim_deadlock_proof_%d", time.Now().UnixNano())
 	if _, err := admin.ExecContext(ctx, "CREATE SCHEMA "+schemaName); err != nil {
 		t.Fatalf("create proof schema: %v", err)

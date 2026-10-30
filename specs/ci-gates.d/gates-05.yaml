@@ -93,6 +93,11 @@ gates:
       - "scripts/generate-env-registry-doc.sh"
       - "scripts/verify-env-registry-doc.sh"
       - "scripts/test-generate-env-registry-doc.sh"
+    # #9621: the machine-readable file classes whose changes can alter the
+    # regenerated env-registry reference. The drift check fails when no
+    # trigger matches one.
+    generator_inputs:
+      - "go/internal/envregistry/**"
     local:
       command: "bash scripts/verify-env-registry-doc.sh"
       test_command: "bash scripts/test-generate-env-registry-doc.sh"

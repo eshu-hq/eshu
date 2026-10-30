@@ -128,7 +128,10 @@ operational lessons that future storage changes still need to respect.
   skip reasons.
 - `ListActivePackageManifestDependencyFacts` serves both package-source
   correlation and supply-chain impact. The query stays indexed on active Git
-  dependency entities by `(package_manager, entity_name)`, so vulnerability
+  dependency entities by `(package_manager, entity_name)`, plus the
+  case-folded variant `fact_records_active_package_dependency_folded_entity_idx`
+  that serves the `LOWER(TRIM(entity_name) COLLATE "C")` prefilter for
+  registry-cased manifest rows (#9568), so vulnerability
   impact can load repository lockfile evidence for one advisory package without
   waiting for package-registry enrichment to finish. A Maven ecosystem filter
   expands to `gradle`, `maven`, and `sbt` rows and adds a second branch for sbt

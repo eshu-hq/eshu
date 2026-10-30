@@ -32,7 +32,7 @@ purpose: >
   The postgres-scheduled job checks its exact enrolled groups daily on
   PostgreSQL. The delta-union-scheduled job checks two exact untagged tests on
   disposable PostgreSQL and Neo4j daily and on scoped PRs. The ifa-scheduled job
-  checks eight exact tagged tests daily and
+  checks nine exact tagged tests daily and
   on scoped PRs on disposable NornicDB and PostgreSQL, with a second NornicDB
   identity endpoint. The replay-tier gate checks 27 exact tests from 23 files;
   25 require NornicDB. The NornicDB backend conformance job accounts for all nine

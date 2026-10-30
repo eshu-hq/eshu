@@ -6,6 +6,8 @@ package coordinator //nolint:dirgate // Root owns registry readback and collecto
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
+	"os"
 	"strings"
 
 	scannercomponent "github.com/eshu-hq/eshu/go/internal/collector/scannerworker/component"
@@ -124,6 +126,21 @@ func desiredInstancesForComponent(
 		if !activation.ClaimsEnabled {
 			continue
 		}
+		if isStaleMissingActivationFile(activation.ConfigPath) {
+			// The values tree removed this activation while its registry
+			// entry persists (for example a split rename). Skipping keeps
+			// one stale reference from crashlooping the whole coordinator
+			// (eshu-hq/eshu#9634). Only a missing file skips: unreadable
+			// or malformed files still fail closed below, so a real
+			// config error can never hide behind this path.
+			slog.Default().Warn(
+				"skipping stale component activation with a missing config file",
+				"component_id", manifest.Metadata.ID,
+				"instance_id", strings.TrimSpace(activation.InstanceID),
+				"config_path", strings.TrimSpace(activation.ConfigPath),
+			)
+			continue
+		}
 		config, err := componentActivationRuntimeConfig(entry, manifest, activation, collectorKind)
 		if err != nil {
 			return nil, err
@@ -139,6 +156,20 @@ func desiredInstancesForComponent(
 		})
 	}
 	return instances, nil
+}
+
+// isStaleMissingActivationFile reports whether a claims-enabled activation
+// names a config file that no longer exists. An empty path names no file at
+// all (the loader treats it as absent host metadata), so only a non-empty
+// path that stat reports missing counts as stale. Permission and other stat
+// errors return false so they keep failing closed in the loader.
+func isStaleMissingActivationFile(configPath string) bool {
+	path := strings.TrimSpace(configPath)
+	if path == "" {
+		return false
+	}
+	_, err := os.Stat(path)
+	return os.IsNotExist(err)
 }
 
 func componentActivationRuntimeConfig(

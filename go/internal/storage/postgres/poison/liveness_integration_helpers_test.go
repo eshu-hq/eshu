@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -48,6 +49,12 @@ func openPoisonLivenessProofDB(t *testing.T, dsn string) *sql.DB {
 func provisionPoisonLivenessSchema(t *testing.T, db *sql.DB, seedSQL string) {
 	t.Helper()
 	ctx := context.Background()
+	// Pin pg_trgm to public before creating the schema (#9572): the
+	// bootstrap's unqualified CREATE EXTENSION would otherwise install the
+	// opclass into this private schema, hiding it from sibling schemas on
+	// the same shared proof database. The advisory-locked shared install
+	// serializes concurrent bootstraps on one database.
+	postgresproof.InstallTrigramExtension(ctx, t, db)
 	schemaName := fmt.Sprintf("poison_liveness_proof_%d", time.Now().UnixNano())
 	if _, err := db.ExecContext(ctx, "CREATE SCHEMA "+schemaName); err != nil {
 		t.Fatalf("create proof schema: %v", err)

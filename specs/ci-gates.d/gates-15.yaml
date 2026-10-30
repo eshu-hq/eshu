@@ -480,6 +480,7 @@ gates:
       - "scripts/lib/test-verify-ci-gates-registry-parser-relationship-cases.sh"
       - "scripts/lib/test-verify-ci-gates-registry-workflow-shape-cases.sh"
       - "scripts/lib/test-verify-ci-gates-registry-path-assertions.sh"
+      - "scripts/lib/test-verify-ci-gates-registry-generator-cases.sh"
       - "scripts/test-generate-ci-gates-doc.sh"
       - "docs/public/reference/ci-gates.md"
       - ".github/workflows/**"
@@ -487,6 +488,12 @@ gates:
       - "scripts/ci/go-mod-download-retry.sh"
       - "scripts/dev/regen-conflicts.sh"
       - "scripts/test-regen-conflicts.sh"
+    # #9621: the machine-readable file classes whose changes can alter the
+    # regenerated ci-gates.md. The drift check fails when no trigger matches
+    # one.
+    generator_inputs:
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
     self_test_triggers:
       - "scripts/lib/cgo-cflags.sh"
       - "specs/ci-gates.v1.yaml"
@@ -532,6 +539,7 @@ gates:
       - "scripts/lib/test-verify-ci-gates-registry-parser-relationship-cases.sh"
       - "scripts/lib/test-verify-ci-gates-registry-workflow-shape-cases.sh"
       - "scripts/lib/test-verify-ci-gates-registry-path-assertions.sh"
+      - "scripts/lib/test-verify-ci-gates-registry-generator-cases.sh"
       - "scripts/test-generate-ci-gates-doc.sh"
       - "docs/public/reference/ci-gates.md"
       - ".github/workflows/**"

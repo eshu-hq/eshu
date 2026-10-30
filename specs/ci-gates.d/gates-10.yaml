@@ -71,6 +71,10 @@ gates:
       - "specs/ci-gates.v1.yaml"
       - "specs/ci-gates.d/**"
       - ".github/static-contract-filters.yml"
+    # #9621: the machine-readable file classes whose changes can alter the
+    # re-pinned ledger. The drift check fails when no trigger matches one.
+    generator_inputs:
+      - "go/internal/collector/repo/git/**"
     local:
       command: "cd go && go test ./internal/collector/repo/git -run '^TestGenerationContentVersionPinsCollectorOutput$' -count=1"
       test_command: "cd go && go test ./internal/collector/repo/git -run '^TestContentVersionFixtureDigestIsDeterministic$' -count=1"
@@ -130,7 +134,7 @@ gates:
     name: Ifá scheduled proof enrollment (#7533)
     category: exactness
     layer: contract
-    purpose: "Runs eight exact tagged Ifá tests against fresh NornicDB and PostgreSQL, then validates their Go events and backend identities."
+    purpose: "Runs nine exact tagged Ifá tests against fresh NornicDB and PostgreSQL, then validates their Go events and backend identities."
     tier: ci-heavy
     blocking: false
     triggers:
@@ -171,6 +175,7 @@ gates:
       - "go/internal/replay/offlinetier/repo_dependency_ifa_process_death_live_test.go"
       - "go/internal/replay/offlinetier/repo_dependency_ifa_quarantine_live_test.go"
       - "go/internal/replay/offlinetier/repo_dependency_ifa_replay_coordinates_live_test.go"
+      - "go/internal/replay/offlinetier/repo_dependency_proof_trigram_sharing_live_test.go"
     ci:
       workflow: ifa-scheduled-proofs.yml
       job: "Ifá scheduled proof vs NornicDB and PostgreSQL"

@@ -17,7 +17,7 @@ RUNNER = Path("scripts/run-ifa-scheduled-proofs.sh")
 WORKFLOW = Path(".github/workflows/ifa-scheduled-proofs.yml")
 FRAGMENT = Path("specs/ci-pr-workflows.d/ifa-scheduled-proofs.yml")
 WORKFLOW_SHA256 = "6fdfa24d2e0dd0a0e375a488a143b158475593334020978d9b231cf270c039d0"
-RUNNER_SHA256 = "63e6573b21b77cdab837b15080672368f53d97d47d6cb903c6037f663576a03e"
+RUNNER_SHA256 = "1f5b68e3b6a5c859234a6159ddaa73b2914d591154ad1e84ec5b9862700391cb"
 TEST_PATTERN = re.compile(r"^func (Test\w+)\(", re.MULTILINE)
 SOURCE_PATHS = frozenset((
     "go/cmd/reducer/ifa_group_retry_live_test.go",
@@ -27,6 +27,7 @@ SOURCE_PATHS = frozenset((
     "go/internal/replay/offlinetier/repo_dependency_ifa_process_death_live_test.go",
     "go/internal/replay/offlinetier/repo_dependency_ifa_quarantine_live_test.go",
     "go/internal/replay/offlinetier/repo_dependency_ifa_replay_coordinates_live_test.go",
+    "go/internal/replay/offlinetier/repo_dependency_proof_trigram_sharing_live_test.go",
 ))
 PR_EXTRA_PATHS = frozenset((
     ".github/workflows/ifa-scheduled-proofs.yml",
@@ -233,10 +234,10 @@ def verify_workflow_route(workflow: str, fragment: str | None = None) -> None:
 
 
 def load_inventory(path: Path = INVENTORY) -> dict[str, dict[str, object]]:
-    """Load the exact seven-file Ifá proof inventory."""
+    """Load the exact eight-file Ifá proof inventory."""
     value = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(value, dict) or set(value) != SOURCE_PATHS:
-        raise ValueError("Ifá inventory must contain exactly seven reviewed files")
+        raise ValueError("Ifá inventory must contain exactly eight reviewed files")
     return value
 
 
@@ -382,7 +383,7 @@ def main() -> int:
         inventory = load_inventory()
         verify_inventory(args.repo_root, inventory)
         if args.events is None:
-            print("Ifá scheduled inventory: seven files, eight tests verified")
+            print("Ifá scheduled inventory: eight files, nine tests verified")
             return 0
         if not args.package:
             parser.error("--package is required with --events")
