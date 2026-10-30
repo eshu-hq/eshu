@@ -205,3 +205,25 @@ Two findings arrived on the PR itself and are fixed in the same files:
   (diff shows only the reporting tail and `COMMIT` vs `ROLLBACK`); the
   `=1`-only wording now says defined-and-truthy in the header, usage
   comment, and both section headers.
+
+## Tail in-flight recheck (follow-up P2 on #9603, fixed before merge)
+
+A further review round noted the shortfall check reads generations and
+scopes but never `fact_work_items`, so a claim committed after the last
+`UPDATE` but before `COMMIT` was still invisible to every gate. Both
+sections now re-read `fact_work_items` for the retire set as the last gate
+before the section tail and raise on any hit.
+
+- RED on the prior head (shortfall-only): with a claim committed strictly
+  after the `UPDATE`s, both `UPDATE`s ran (`UPDATE 2`/`UPDATE 2`),
+  shortfall read 0, and the run `COMMIT`ted with exit 0 — two generations
+  retired while a claimed work item pointed at one of them.
+- GREEN on the fixed head, same injection point: `UPDATE 2`/`UPDATE 2`,
+  shortfall 0, tail recheck 1, `ABORT` + `ERROR`, exit 3, zero rows
+  committed (both generations active, no markers, no cleared pointers).
+- Residual window is narrowed to the tail statement's snapshot versus
+  `COMMIT` (only the read-only key `SELECT` sits between them in Section
+  4). Full closure needs claim-path coordination, out of scope for this
+  one-shot script; a claim landing inside the residual window still cannot
+  resurrect rows (superseded stays terminal, the scope pointer stays NULL),
+  and the worker-side fence re-validates at processing time.

@@ -247,6 +247,20 @@ DO $$BEGIN
   RAISE EXCEPTION 'retire ABORTED: retire set not fully retired; zero rows committed';
 END$$;
 \endif
+-- Tail in-flight recheck: a claim committed after the last UPDATE is
+-- invisible to the shortfall check, so re-read fact_work_items as the last
+-- gate before the section tail; residual window is this statement's snapshot
+-- versus the tail, and full closure needs claim-path coordination.
+SELECT count(*) AS inflight_tail_n, (count(*) > 0) AS abort_tail
+FROM fact_work_items w JOIN pg_temp.retire_set r USING (scope_id, generation_id)
+WHERE w.status IN ('claimed', 'running', 'retrying') \gset
+SELECT :'inflight_tail_n' AS must_be_zero_inflight_tail;
+\if :abort_tail
+\echo 'ABORT: in-flight work appeared after the retire UPDATEs; zero rows committed.'
+DO $$BEGIN
+  RAISE EXCEPTION 'retire ABORTED: in-flight work appeared after the retire UPDATEs; zero rows committed';
+END$$;
+\endif
 SELECT 'dryrun_updated_generations=' || count(*) FROM scope_generations g
 JOIN pg_temp.retire_set r USING (scope_id, generation_id)
 WHERE g.status = 'superseded' AND g.payload ->> 'retired_issue' = '9431';
@@ -324,6 +338,20 @@ SELECT :'shortfall_n' AS must_be_zero_shortfall;
 \echo 'ABORT: retire set not fully retired (in-flight race); zero rows committed.'
 DO $$BEGIN
   RAISE EXCEPTION 'retire ABORTED: retire set not fully retired; zero rows committed';
+END$$;
+\endif
+-- Tail in-flight recheck: a claim committed after the last UPDATE is
+-- invisible to the shortfall check, so re-read fact_work_items as the last
+-- gate before the section tail; residual window is this statement's snapshot
+-- versus the tail, and full closure needs claim-path coordination.
+SELECT count(*) AS inflight_tail_n, (count(*) > 0) AS abort_tail
+FROM fact_work_items w JOIN pg_temp.retire_set r USING (scope_id, generation_id)
+WHERE w.status IN ('claimed', 'running', 'retrying') \gset
+SELECT :'inflight_tail_n' AS must_be_zero_inflight_tail;
+\if :abort_tail
+\echo 'ABORT: in-flight work appeared after the retire UPDATEs; zero rows committed.'
+DO $$BEGIN
+  RAISE EXCEPTION 'retire ABORTED: in-flight work appeared after the retire UPDATEs; zero rows committed';
 END$$;
 \endif
 SELECT scope_id, generation_id, prior_scope_status AS rollback_key
