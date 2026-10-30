@@ -316,8 +316,8 @@ reuse WARN `git_runtime_declaration_values_rejected` with the same labels.
 
 Performance Evidence (#9308, 2026-10-30): paired sequential local benchmarks
 ran the shared emission benches and the representative CloudFormation YAML
-parse bench on the branch base `0701a4ae` and the Haskell lane head
-`fffa41ca28` (`go test -run '^$' -bench
+parse bench on the branch base `b0371c05d54ab19fd03c848d509e55fc506ea81a` and the Haskell lane head
+`4dada48751b9cb3c69d759107a8166b319c14dd2` (`go test -run '^$' -bench
 'BenchmarkParseCloudFormationTemplateRepresentative$' and `-bench
 'BenchmarkEmitPackageJSON$|BenchmarkEmitGoMod$' -benchtime 1000x -count 3
 -benchmem`, Go 1.26.6, linux/arm64, 16 CPUs; no graph or Postgres backend).

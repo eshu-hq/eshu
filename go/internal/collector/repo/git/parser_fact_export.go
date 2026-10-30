@@ -257,7 +257,9 @@ func noteComposerOrRuntimeCandidate(snapshot *RepositorySnapshot, candidates map
 // noteHaskellCandidate notes the stack.yaml candidate when the path is a
 // Stack manifest. It reports whether it handled the path; a stack.yaml
 // without parsed evidence or an expected snapshot falls through to the other
-// runtime checks below, matching the inline dispatch it replaces.
+// runtime checks below, matching the inline dispatch it replaces, as does a
+// body the generic reader accepts with no Stack evidence (a CloudFormation
+// template carrying the stack.yaml name).
 func noteHaskellCandidate(snapshot *RepositorySnapshot, candidates map[string]runtimedeclaration.Candidate, relativePath, body string, dropped *atomic.Bool, droppedPaths *scope.StreamDroppedPaths) bool {
 	if filepath.Base(relativePath) != "stack.yaml" {
 		return false
@@ -272,6 +274,15 @@ func noteHaskellCandidate(snapshot *RepositorySnapshot, candidates map[string]ru
 		return true
 	}
 	if snapshot.HaskellRuntimeExpected {
+		// A CloudFormation template literally named stack.yaml parses fine
+		// but carries no Stack evidence. The generic reader below admits the
+		// same body with no declarations and no skip, so fall through to it
+		// instead of marking the stream dropped with a misleading
+		// manifest_unparseable skip. A body the generic reader rejects or
+		// declares from keeps the retry path below.
+		if extraction, ok := runtimepaths.Extract(relativePath, body); ok && extraction.Len() == 0 && !extraction.Skip().Skipped() {
+			return false
+		}
 		if len(body) > runtimepaths.MaxManifestBytesPerFile {
 			runtimedeclaration.NoteCappedHaskellCandidate(candidates, relativePath, len(body))
 			return true
