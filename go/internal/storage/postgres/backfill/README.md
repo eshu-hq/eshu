@@ -106,7 +106,9 @@ reconciliation, plus the anchors scanner.
 - `LatestGenerationCTE`, `List*Query`, `Active*Query` constants and the
   `DeferredRelationshipFamily*SQL` fragments — the shipped SQL the root
   differential proofs derive from, never hand-copy
-- `ScanFactEnvelope` — shared fact-envelope row scanner
+- `ScanFactEnvelope` — shared fact-envelope row scanner;
+  `ScanFactEnvelopeWithPayloadSize` also returns the raw payload byte length
+  for loaders that report scanned bytes (#9567)
 
 See `doc.go` for the full contract.
 

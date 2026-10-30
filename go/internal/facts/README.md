@@ -58,6 +58,10 @@ consume these types as their input or storage shape.
 - `Envelope.Clone()` — deep-copies the envelope including nested `Payload` maps
   and slices; safe to pass to replay pipelines that must not share mutable
   state.
+- `RepositoryCatalogOmittedPayloadKeys()` and `ProjectRepositoryCatalogPayload`
+  — the repository payload keys (`imports_map`, `git_refs`, and the two delta
+  path arrays) the cross-scope repository catalog read leaves out, and the
+  in-memory twin of that SQL projection for fakes and differentials (#9567).
 - `StableID(factType, identity)` — deterministic SHA-256 hex ID derived from
   `factType` and the normalized `identity` map; used to assign a stable fact
   key that survives re-ingestion of the same source record. The

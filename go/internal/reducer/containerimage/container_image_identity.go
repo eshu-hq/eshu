@@ -319,7 +319,7 @@ func (h ContainerImageIdentityHandler) loadActiveRepositoryFacts(
 	if !ok {
 		return nil, nil
 	}
-	envelopes, err := loader.ListActiveRepositoryFacts(ctx)
+	envelopes, err := loader.ListActiveRepositoryFacts(telemetry.ContextWithRepositoryCatalogDomain(ctx, string(reducercontract.DomainContainerImageIdentity)))
 	if err != nil {
 		return nil, factload.ClassifyFactLoadError(err)
 	}

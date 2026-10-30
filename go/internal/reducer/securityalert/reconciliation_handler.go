@@ -226,7 +226,7 @@ func (h SecurityAlertReconciliationHandler) loadActiveSecurityAlertRepositoryFac
 	if len(ecosystems) == 0 || len(packageNames) == 0 {
 		return nil, nil
 	}
-	repositories, err := loader.ListActiveRepositoryFacts(ctx)
+	repositories, err := loader.ListActiveRepositoryFacts(telemetry.ContextWithRepositoryCatalogDomain(ctx, string(reducercontract.DomainSecurityAlertReconciliation)))
 	if err != nil {
 		return nil, factload.ClassifyFactLoadError(err)
 	}

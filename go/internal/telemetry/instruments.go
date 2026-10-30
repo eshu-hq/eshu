@@ -1936,6 +1936,13 @@ type Instruments struct {
 	TerraformStateParseDuration     metric.Float64Histogram
 	OCIRegistryScanDuration         metric.Float64Histogram
 	KubernetesLiveListDuration      metric.Float64Histogram
+	// RepositoryCatalogLoadRows records rows returned by one cross-scope
+	// repository catalog load, labeled by the calling reducer domain (#9567).
+	RepositoryCatalogLoadRows metric.Int64Histogram
+	// RepositoryCatalogLoadBytes records raw payload bytes scanned by
+	// one cross-scope repository catalog load, labeled by the calling reducer
+	// domain (#9567). It is the per-intent allocation driver to watch.
+	RepositoryCatalogLoadBytes metric.Int64Histogram
 	// DependencyListDuration measures GET /api/v0/dependencies graph read
 	// latency in seconds, labeled by the bounded `direction` (forward or
 	// reverse). Owned by query.DependenciesHandler; nil-tolerant.
@@ -5531,6 +5538,27 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register TerraformStateSnapshotBytes histogram: %w", err)
 	}
 
+	repositoryCatalogRowBuckets := []float64{0, 10, 50, 100, 250, 500, 1000, 2500, 5000, 10000}
+	inst.RepositoryCatalogLoadRows, err = meter.Int64Histogram(
+		"eshu_dp_repository_catalog_load_rows",
+		metric.WithDescription("Rows returned by one cross-scope repository catalog load (ListActiveRepositoryFacts), labeled by the calling reducer domain (#9567)"),
+		metric.WithExplicitBucketBoundaries(repositoryCatalogRowBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register RepositoryCatalogLoadRows histogram: %w", err)
+	}
+
+	repositoryCatalogByteBuckets := []float64{1024, 10240, 102400, 1048576, 10485760, 52428800, 104857600, 268435456}
+	inst.RepositoryCatalogLoadBytes, err = meter.Int64Histogram(
+		"eshu_dp_repository_catalog_load_payload_bytes",
+		metric.WithDescription("Raw payload bytes scanned by one cross-scope repository catalog load (ListActiveRepositoryFacts), labeled by the calling reducer domain (#9567)"),
+		metric.WithUnit("By"),
+		metric.WithExplicitBucketBoundaries(repositoryCatalogByteBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register RepositoryCatalogLoadBytes histogram: %w", err)
+	}
+
 	tfstateParseBuckets := []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10}
 	inst.TerraformStateParseDuration, err = meter.Float64Histogram(
 		"eshu_dp_tfstate_parse_duration_seconds",
@@ -8030,6 +8058,23 @@ func AttrPacingSignal(v string) attribute.KeyValue {
 // AttrDomain returns a domain attribute for metric recording.
 func AttrDomain(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionDomain, v)
+}
+
+type repositoryCatalogDomainKey struct{}
+
+// ContextWithRepositoryCatalogDomain returns a context that names the reducer
+// domain loading the cross-scope repository catalog. The fact store reads it
+// to label eshu_dp_repository_catalog_load_* and folds any value outside its
+// closed consumer set to "unknown" (#9567).
+func ContextWithRepositoryCatalogDomain(ctx context.Context, domain string) context.Context {
+	return context.WithValue(ctx, repositoryCatalogDomainKey{}, domain)
+}
+
+// RepositoryCatalogDomain returns the domain set by
+// ContextWithRepositoryCatalogDomain, or an empty string when none was set.
+func RepositoryCatalogDomain(ctx context.Context) string {
+	domain, _ := ctx.Value(repositoryCatalogDomainKey{}).(string)
+	return domain
 }
 
 // AttrExecutionMode returns an execution_mode attribute for shared-edge
