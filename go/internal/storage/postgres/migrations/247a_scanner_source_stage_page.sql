@@ -173,8 +173,8 @@ BEGIN
                AND COALESCE(observation->>'observed_revision','')='') THEN
             RAISE EXCEPTION 'running-image observation invalid';
         END IF;
-        full_repository := observation->>'registry' || '/' ||
-                           observation->>'repository';
+        full_repository := (observation->>'registry') || '/' ||
+                           (observation->>'repository');
         IF left(observation->>'runtime_image_reference',length(full_repository)+1)
            NOT IN (full_repository||':',full_repository||'@') THEN
             RAISE EXCEPTION 'running-image observation locator mismatch';

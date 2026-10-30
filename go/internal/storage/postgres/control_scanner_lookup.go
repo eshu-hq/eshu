@@ -56,7 +56,9 @@ WHERE item.work_item_id=$1 AND item.scope_id=target.scan_scope_id
   AND 1=(SELECT count(*) FROM jsonb_array_elements(COALESCE(
       scanner.configuration->'registry_domains','[]'::jsonb)) AS peer(value)
       WHERE peer.value->>'authorization_domain'=target.authorization_domain)
-FOR SHARE OF item,claim,target,binding,attempt,scanner
+-- scanner stays out: the worker holds no UPDATE on collector_instances and
+-- lockScannerAttemptAuthority already holds its FOR SHARE lock in this tx.
+FOR SHARE OF item,claim,target,binding,attempt
 `
 
 // GetScannerImageTarget resolves only the canonical observation pinned to an
