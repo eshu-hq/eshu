@@ -174,7 +174,7 @@ satellite_instance` dummy values; psql 18.6, `ON_ERROR_STOP=1`):
 | RED (base file) | claim injected after classify | recheck printed 1, `UPDATE 2/UPDATE 2` still executed, exit 0 — the reported hole |
 | S3 abort (race) | claim injected strictly between classify and recheck, retire set of 2 | `ABORT` + `ERROR: retire ABORTED`, exit 3, 0 marker rows, both generations active, 0 NULL pointers |
 | S3 clean (full file, no gates) | no in-flight | exit 0, `dryrun_updated_generations=2`, `dryrun_marker_prior_status=2`, `dryrun_cleared_scopes=2`, rolled back to 0 markers / 0 NULL pointers |
-| S4 abort (race, `retire_ok=1`) | claim injected mid-window | `ABORT` + `ERROR`, no `UPDATE`/`COMMIT`, exit nonzero, 0 markers committed |
+| S4 abort (race, `retire_ok=1`) | claim injected mid-window | `ABORT` + `ERROR`, no `UPDATE`/`COMMIT`, exit 3, 0 markers committed |
 | S4 commit (`retire_ok=1`) | no in-flight | exit 0, `COMMIT`, 2 generations `superseded` with `retired_issue=9431` + `retired_prior_scope_status=active`, 2 scope pointers NULL |
 | S5 fresh session (`rollback_ok=1`) | new psql session after the commit | exit 0, scopes back to `active` with pointers restored, generations `active`, payloads back to `{}`, `rollback_marker_remaining=0` |
 | S5 window-closed | one scope re-pointed at a new active generation before rollback | that scope untouched (old generation stays `superseded` with marker, pointer stays new), the other scope restored, `rollback_marker_remaining=1` |
