@@ -24,6 +24,7 @@ run_case() {
   : >"${summary}"
   out="$(JOB_STATUS="${status}" READINESS_JOB_STARTED_EPOCH="${started}" \
     READINESS_JOB_NOW_EPOCH="$((started + elapsed))" CAP_MINUTES="${cap}" \
+    READINESS_RUNNER_CPU="${RUN_CASE_CPU:-AMD EPYC 9V74 80-Core Processor, 4 vCPU}" \
     GITHUB_STEP_SUMMARY="${summary}" bash "${script}" finish 2>&1)" || return 1
   [[ "$(cat "${summary}")" == *"$(printf '%s' "${out}" | rg -v '^::' || true)"* ]] || return 2
   printf '%s\n' "${out}"
@@ -52,6 +53,16 @@ check_cases() {
   has "${out}" "CANCELLED BEFORE THE CAP" && has "${out}" "concurrency" || return 1
   out="$(run_case "${script}" cancelled 599 10)" || return 1
   has "${out}" "CANCELLED BY THE TIME CAP" && has "${out}" "10-minute cap" || return 1
+  # Every verdict names its job and the runner CPU, so the hermetic wall reads
+  # next to each shard wall in the run summary (#9582).
+  out="$(run_case "${script}" success 300)" || return 1
+  has "${out}" "### live-postgres-readiness hermetic: PASSED" || return 1
+  has "${out}" "Runner CPU: AMD EPYC 9V74 80-Core Processor, 4 vCPU." || return 1
+  out="$(READINESS_JOB_LABEL='shard 3/6' run_case "${script}" cancelled 1795)" || return 1
+  has "${out}" "### live-postgres-readiness shard 3/6: CANCELLED BY THE TIME CAP" || return 1
+  has "${out}" "Runner CPU: AMD EPYC" && ! has "${out}" "hermetic" || return 1
+  out="$(RUN_CASE_CPU='unknown' READINESS_JOB_LABEL='shard 1/6' run_case "${script}" failure 120)" || return 1
+  has "${out}" "### live-postgres-readiness shard 1/6: FAILED" && has "${out}" "Runner CPU: unknown." || return 1
   return 0
 }
 
@@ -66,6 +77,11 @@ JOB_STATUS=cancelled READINESS_JOB_STARTED_EPOCH=abc CAP_MINUTES=30 bash "${real
 out="$(JOB_STATUS=cancelled READINESS_JOB_STARTED_EPOCH= CAP_MINUTES=30 bash "${real}" finish 2>&1)" ||
   fail "cancel without a start time was refused"
 has "${out}" "start time unknown" && ! has "${out}" "TIME CAP" || fail "cancel without a start time was classified"
+
+# A job label outside the plain set is refused, so a matrix expression typo
+# cannot inject markdown or an annotation into the summary.
+READINESS_JOB_LABEL='x::error' JOB_STATUS=success READINESS_JOB_STARTED_EPOCH=1 READINESS_JOB_NOW_EPOCH=2 \
+  CAP_MINUTES=30 bash "${real}" finish >/dev/null 2>&1 && fail "malformed job label accepted"
 
 # The start epoch is recorded inline by the workflow, so the script has no
 # start mode and refuses one.
@@ -93,5 +109,7 @@ seed failure-as-cap '    failure)
       emit'
 seed every-cancel-is-cap 'if [[ "${elapsed}" -ge "${threshold}" ]]; then' 'if true; then'
 seed grace-dropped 'threshold=$((cap_s - grace_s))' 'threshold=$((cap_s + 1))'
+seed label-ignored 'label="${READINESS_JOB_LABEL:-hermetic}"' 'label=hermetic'
+seed cpu-dropped '"Runner CPU: ${cpu}."' '""'
 
 printf 'test-live-postgres-readiness-job-summary: PASS\n'

@@ -269,7 +269,10 @@ func checkReadinessSplit(workflow []byte, gate Gate, prPaths []string) string {
 	if problem := checkReadinessAggregate(aggregate); problem != "" {
 		return problem
 	}
-	if problem := checkReadinessHermeticSummary(hermetic); problem != "" {
+	if problem := checkReadinessJobSummary(hermetic, "hermetic", "", true); problem != "" {
+		return problem
+	}
+	if problem := checkReadinessJobSummary(shards, "shard", readinessShardLabel, false); problem != "" {
 		return problem
 	}
 	return ""

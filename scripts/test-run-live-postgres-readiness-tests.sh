@@ -14,7 +14,7 @@ command -v rg >/dev/null 2>&1 || {
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 runner="${repo_root}/scripts/run-live-postgres-readiness-tests.sh"
 seed_dir="$(mktemp -d)"
-trap 'rm -rf "${seed_dir}" ${probe_bin:-}' EXIT
+trap 'kill $(jobs -p) 2>/dev/null || true; rm -rf "${seed_dir}" ${probe_bin:-}' EXIT
 
 fail() { printf 'test-run-live-postgres-readiness-tests: %s\n' "$*" >&2; exit 1; }
 
@@ -134,9 +134,13 @@ count_in() { local e n=0; for e in "${proofs[@]}"; do [[ "${e%%|*}" == "$1" ]] &
 pkg_key() { printf '%s' "${1//[^a-z]/_}"; }
 events_of() { printf '%s/%s.jsonl' "${fake}" "$(pkg_key "$1")"; }
 
-# write_events and check_each_proof live in the sourced proofs lib.
+# write_events and check_each_proof live in the sourced proofs lib; the
+# per-package runner cases run in the bounded case pool, proven first (#9582).
 # shellcheck source=lib/test-run-live-postgres-readiness-proofs.sh
 source "${repo_root}/scripts/lib/test-run-live-postgres-readiness-proofs.sh"
+# shellcheck source=lib/test-run-live-postgres-readiness-pool.sh
+source "${repo_root}/scripts/lib/test-run-live-postgres-readiness-pool.sh"
+bash "${repo_root}/scripts/test-live-postgres-readiness-pool.sh" >/dev/null || fail "case pool self-test failed"
 
 run_runner() { bash "${runner}" 2>&1; }
 
@@ -159,12 +163,7 @@ check_batched_package_failures
 
 # A package that exits nonzero fails the run and names that package; the
 # other packages still run so one CI run reports every broken proof.
-for pkg in "${packages[@]}"; do
-  write_events
-  printf '1\n' >"${fake}/$(pkg_key "${pkg}").exit"
-  out="$(run_runner)" && fail "go nonzero exit in ${pkg} passed"
-  [[ "${out}" == *"${pkg}: go test exited 1"* ]] || fail "go exit in ${pkg} not reported: ${out}"
-done
+check_package_exits
 
 # A package that exits nonzero preserves its event stream and stderr for
 # post-mortem: the death point (mid-test cutoff vs exact-name omission) is

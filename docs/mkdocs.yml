@@ -254,6 +254,7 @@ nav:
         - Overview: reference/local-testing.md
         - Quick Verification Matrix: reference/local-testing/quick-verification-matrix.md
         - Live PostgreSQL Readiness Shards: reference/local-testing/live-postgres-readiness-shards.md
+        - Live PostgreSQL Readiness Hermetic Job: reference/local-testing/live-postgres-readiness-hermetic.md
         - First Five Minutes Benchmark: reference/local-testing/first-five-minutes-benchmark.md
         - Demo TTFA Benchmark: reference/local-testing/demo-ttfa-benchmark.md
         - Answer Quality Scorecard: reference/local-testing/answer-quality-scorecard.md

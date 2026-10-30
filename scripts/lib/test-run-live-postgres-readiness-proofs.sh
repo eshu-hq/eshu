@@ -57,34 +57,73 @@ check_proofs_direct() {
 # package and seed, every proof of that package is seeded at once, and the
 # runner must exit nonzero and print "<name>: SKIP|FAIL|missing" for each
 # proof. This catches a runner that hides or truncates the verifier verdict,
-# with one runner call per package per seed instead of one per proof.
+# with one runner call per package per seed instead of one per proof. The
+# calls are independent, so they run in the bounded case pool (#9582), each
+# on a private copy of the clean streams; every status and output is checked
+# after the drain, in package and seed order.
 check_proofs_runner() {
-  local pkg name ev action want out key
+  local i pkg name ev action want out key id rc
   local -a names
-  for pkg in "${packages[@]}"; do
+  pool_init "${seed_dir}/pool-proofs"
+  for i in "${!packages[@]}"; do
+    pkg="${packages[${i}]}"
     key="${pkg//[^a-z]/_}"
-    ev="${fake}/${key}.jsonl"
-    mapfile -t names <"${fake}/${key}.names"
-    [[ "${#names[@]}" -gt 0 ]] || fail "${pkg} has no enrolled proofs"
+    [[ -s "${fake}/${key}.names" ]] || fail "${pkg} has no enrolled proofs"
     for action in skip fail missing; do
-      cp "${ev}" "${ev}.clean"
+      id="p${i}-${action}"
+      pool_prepare "${id}"
+      ev="${pool_case}/fake/${key}.jsonl"
       if [[ "${action}" == missing ]]; then
         sed -i.bak '/"Test":"/d' "${ev}"
-        want=missing
       else
         sed -i.bak "s/\"Action\":\"pass\",\"Test\":\"/\"Action\":\"${action}\",\"Test\":\"/" "${ev}"
-        want="${action^^}"
       fi
-      cmp -s "${ev}" "${ev}.clean" && fail "${pkg} ${action} seeds changed nothing"
-      out="$(run_runner)" && fail "${pkg} ${action} events passed the runner"
+      rm -f "${ev}.bak"
+      cmp -s "${ev}" "${fake}/${key}.jsonl" && fail "${pkg} ${action} seeds changed nothing"
+      pool_start "${id}" run_runner
+    done
+  done
+  pool_drain
+  for i in "${!packages[@]}"; do
+    pkg="${packages[${i}]}"
+    mapfile -t names <"${fake}/${pkg//[^a-z]/_}.names"
+    for action in skip fail missing; do
+      id="p${i}-${action}"
+      want="${action^^}"
+      [[ "${action}" != missing ]] || want=missing
+      rc="$(pool_rc "${id}")"
+      out="$(pool_out "${id}")"
+      [[ "${rc}" -ne 0 ]] || fail "${pkg} ${action} events passed the runner"
       for name in "${names[@]}"; do
         [[ $'\n'"${out}" == *$'\n'"${name}: ${want}"* ]] ||
           fail "${pkg} ${action} events: ${name} not named by the runner: ${out}"
       done
-      mv "${ev}.clean" "${ev}"
     done
   done
-  rm -f "${fake}"/*.bak
+}
+
+# check_package_exits requires a package whose go test exits nonzero to fail
+# the run naming that package. Each package's case runs in the pool on a
+# private copy of the clean streams with that package's exit planted.
+check_package_exits() {
+  local i pkg id rc out
+  write_events
+  pool_init "${seed_dir}/pool-exits"
+  for i in "${!packages[@]}"; do
+    pkg="${packages[${i}]}"
+    id="e${i}"
+    pool_prepare "${id}"
+    printf '1\n' >"${pool_case}/fake/${pkg//[^a-z]/_}.exit"
+    pool_start "${id}" run_runner
+  done
+  pool_drain
+  for i in "${!packages[@]}"; do
+    pkg="${packages[${i}]}"
+    rc="$(pool_rc "e${i}")"
+    out="$(pool_out "e${i}")"
+    [[ "${rc}" -ne 0 ]] || fail "go nonzero exit in ${pkg} passed"
+    [[ "${out}" == *"${pkg}: go test exited 1"* ]] || fail "go exit in ${pkg} not reported: ${out}"
+  done
 }
 
 # check_each_proof runs the direct phase, then the all-names runner phase, on
