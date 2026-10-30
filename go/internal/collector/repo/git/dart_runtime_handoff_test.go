@@ -5,10 +5,13 @@ package git
 
 import (
 	"context"
+	"encoding/json"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	runtimedeclaration "github.com/eshu-hq/eshu/go/internal/collector/repo/runtime/declaration"
 	"github.com/eshu-hq/eshu/go/internal/parser"
 )
 
@@ -39,6 +42,34 @@ func TestDartRuntimeNativeHandoff(t *testing.T) {
 	}
 	if len(want) != 0 {
 		t.Fatalf("missing Dart declarations: %+v", want)
+	}
+}
+
+func TestDartRuntimeRejectsTransportInPersistedFacts(t *testing.T) {
+	root := t.TempDir()
+	writeCollectorTestFile(t, filepath.Join(root, "pubspec.yaml"), "name: demo\nenvironment:\n  sdk: '${DART_SDK}'\n")
+	writeCollectorTestFile(t, filepath.Join(root, ".fvmrc"), `{"flutter":"https://user:password@example.invalid"}`)
+	snapshot, err := (NativeRepositorySnapshotter{}).SnapshotRepository(context.Background(), SelectedRepository{RepoPath: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if skip := snapshot.DartRuntime[".fvmrc"].Extraction.Skip(); skip.Reason != runtimedeclaration.SkipReasonValueRejected || skip.Rejected != 1 {
+		t.Fatalf("fvmrc skip = %+v, want value_rejected with 1 rejection", skip)
+	}
+	collected := buildStreamingGeneration(root, testCollectorRepositoryMetadata(root), "run-dart-guard", time.Now(), snapshot, false, "")
+	envelopes := drainFactChannel(collected.Facts)
+	rows := decodeDeclarationList(t, envelopes)
+	if len(rows) != 1 || rows[0].RawSpec != "${DART_SDK}" || rows[0].SpecKind != "unresolved" {
+		t.Fatalf("declarations = %+v", rows)
+	}
+	for _, envelope := range envelopes {
+		body, err := json.Marshal(envelope.Payload)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(body), "dart_runtime_evidence") || strings.Contains(string(body), "user:password@example.invalid") {
+			t.Fatal("private Dart evidence or credential persisted")
+		}
 	}
 }
 
