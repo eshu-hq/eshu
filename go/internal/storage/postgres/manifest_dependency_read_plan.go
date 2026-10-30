@@ -30,7 +30,7 @@ import (
 // QueryExecModeCacheDescribe runs Parse, Bind and Execute on the unnamed
 // statement, which PostgreSQL plans with the bound values on every execution.
 // It caches only the parameter and result description per connection, so
-// parameters and results stay in binary format and the scan path is unchanged.
+// parameter and result formats match the pool default; the scan path is unchanged.
 // It needs the pgx description cache, which is on by default (capacity 512;
 // a DSN that sets description_cache_capacity=0 makes this read fail loudly
 // with "cannot use QueryExecModeCacheDescribe with disabled description

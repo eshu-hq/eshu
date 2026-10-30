@@ -34,7 +34,7 @@ passed as the first query argument (`manifestDependencyQueryExecMode` in
 `go/internal/storage/postgres/manifest_dependency_read_plan.go`).
 pgx sends Parse, Bind and Execute on the unnamed statement, which PostgreSQL
 plans with the bound values every time, so the array is a Const and hashed.
-Parameters and results stay binary, so the decode path is unchanged. The cost
+Parameter and result formats match the pool default, so decoding is unchanged. The cost
 is one replan per page. Nothing else on the pool changes: the mode is a
 per-call argument, not a connection setting.
 
@@ -93,7 +93,7 @@ JSON, in returned order), with no duplicate ids. Round 1 hashes (sha256
 prefixes): S1 id set `e0ba41d2fc4e`, ordered envelope `016ea3b9ae0b`; S2
 `6b947ab63994` and `2935a10a9e53`; S6 `76f563be8a58` and `483e13e3d3d3`; S3
 `6002d91593cd` and `374eb22fcfd3`; S5 empty. The id sets match the shim's.
-The new mode keeps binary parameters and results, so payload jsonb,
+Both modes bind from the same statement description and formats, so payload jsonb,
 `observed_at` and the nullable source columns decode exactly as before.
 
 The generic-plan switch is gone. After the four reads on the one connection,
