@@ -35,15 +35,49 @@ The pool keeps the step fail closed and deterministic:
   crashes or is killed leaves no status, and the drain fails and names it.
 - The drain waits for every case. A hung case holds the step until the job cap
   cancels it, so it can never pass.
-- The self-test checks every status and output after the drain, in package
-  and seed order. The first failure it reports does not depend on which case
-  finished first.
+- The self-test checks each status and output in package and seed order, as
+  the cases settle. At the first broken case it starts nothing more, waits for
+  the cases already running, and fails naming that case. Every case before it
+  was checked and passed, so the first failure it reports does not depend on
+  which case finished first. A clean run still checks every case.
 
 `bash scripts/test-live-postgres-readiness-pool.sh` proves these properties
 with stand-in cases. It runs a planted pass among cases that are still
 running, a killed case, and a hung case. It also checks seeded copies of the
-pool that drop a status, skip the wait, ignore the width, or share one output
-file. The runner self-test runs it first, before it uses the pool.
+pool that drop a status, skip the wait, ignore the width, share one output
+file, never stop early, check settled cases out of order, or skip the cases
+left after the drain. The seeds step runs it once per job, beside the seeds.
+
+## The seeded violations
+
+The step `Check self-test seeded violations`
+(`scripts/test-run-live-postgres-readiness-selftest-seeds.sh`) breaks one
+fail-closed property per seed and requires the runner self-test to fail with
+that property's first failure line.
+
+Under the #9582 pool this step took about 18 minutes on a hosted runner. It
+had taken under 4 minutes on main before that. The pool checked runner cases
+only after all of them ran, so the two seeds that break the runner
+(`runner-ignores-results` and `runner-truncates`) ran every runner case before
+the first one was read. Every seed also ran the 35-second pool self-test
+again. The early stop above and the single pool self-test run remove both
+costs (#9629).
+
+The seeds also run in the case pool
+(`scripts/lib/test-run-live-postgres-readiness-seed-pool.sh`):
+
+- Each seed gets a private copy of the pristine `scripts/` and `specs/` tree,
+  so no seed sees another seed's mutation. The runner self-test in a seed tree
+  keeps its fake `go` and streams in its own `mktemp -d` dir.
+- The two runner seeds start first, so they do not finish last.
+- Every seed is checked after the drain in its declared order, so the report
+  is the same at any width and in any finish order.
+- `LIVE_READINESS_SEED_JOBS` sets the width. It defaults to the case pool's
+  width, and `LIVE_READINESS_SEED_JOBS=1` runs the seeds one at a time.
+
+`bash scripts/test-live-postgres-readiness-seed-pool.sh` proves the order and
+first-failure rules with stub seeds at width 1 and width 4. The step prints
+each seed's seconds and writes them to the job summary.
 
 ## Job summary
 

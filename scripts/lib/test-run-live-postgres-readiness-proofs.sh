@@ -59,11 +59,10 @@ check_proofs_direct() {
 # proof. This catches a runner that hides or truncates the verifier verdict,
 # with one runner call per package per seed instead of one per proof. The
 # calls are independent, so they run in the bounded case pool (#9582), each
-# on a private copy of the clean streams; every status and output is checked
-# after the drain, in package and seed order.
+# on a private copy of the clean streams. Cases are checked in package and seed
+# order as they settle, so a broken one stops the pool early (#9629).
 check_proofs_runner() {
-  local i pkg name ev action want out key id rc
-  local -a names
+  local i pkg ev action key id
   pool_init "${seed_dir}/pool-proofs"
   for i in "${!packages[@]}"; do
     pkg="${packages[${i}]}"
@@ -81,32 +80,40 @@ check_proofs_runner() {
       rm -f "${ev}.bak"
       cmp -s "${ev}" "${fake}/${key}.jsonl" && fail "${pkg} ${action} seeds changed nothing"
       pool_start "${id}" run_runner
+      pool_check_settled proof_runner_case_check
     done
   done
-  pool_drain
-  for i in "${!packages[@]}"; do
-    pkg="${packages[${i}]}"
-    mapfile -t names <"${fake}/${pkg//[^a-z]/_}.names"
-    for action in skip fail missing; do
-      id="p${i}-${action}"
-      want="${action^^}"
-      [[ "${action}" != missing ]] || want=missing
-      rc="$(pool_rc "${id}")"
-      out="$(pool_out "${id}")"
-      [[ "${rc}" -ne 0 ]] || fail "${pkg} ${action} events passed the runner"
-      for name in "${names[@]}"; do
-        [[ $'\n'"${out}" == *$'\n'"${name}: ${want}"* ]] ||
-          fail "${pkg} ${action} events: ${name} not named by the runner: ${out}"
-      done
-    done
-  done
+  pool_check_all proof_runner_case_check
+}
+
+# proof_runner_case_check ID prints why runner case ID (p<index>-<action>) is
+# wrong and returns 1: the runner passed, or it did not name every proof of
+# the package with the seeded verdict.
+proof_runner_case_check() {
+  local id="$1" i action pkg want rc out name
+  i="${id#p}"
+  i="${i%%-*}"
+  action="${id#*-}"
+  pkg="${packages[${i}]}"
+  want="${action^^}"
+  [[ "${action}" != missing ]] || want=missing
+  rc="$(pool_rc "${id}")"
+  out="$(pool_out "${id}")"
+  [[ "${rc}" -ne 0 ]] || { printf '%s' "${pkg} ${action} events passed the runner"; return 1; }
+  while IFS= read -r name; do
+    [[ $'\n'"${out}" == *$'\n'"${name}: ${want}"* ]] || {
+      printf '%s' "${pkg} ${action} events: ${name} not named by the runner: ${out}"
+      return 1
+    }
+  done <"${fake}/${pkg//[^a-z]/_}.names"
 }
 
 # check_package_exits requires a package whose go test exits nonzero to fail
 # the run naming that package. Each package's case runs in the pool on a
-# private copy of the clean streams with that package's exit planted.
+# private copy of the clean streams with that package's exit planted, and is
+# checked in package order as it settles.
 check_package_exits() {
-  local i pkg id rc out
+  local i pkg id
   write_events
   pool_init "${seed_dir}/pool-exits"
   for i in "${!packages[@]}"; do
@@ -115,15 +122,18 @@ check_package_exits() {
     pool_prepare "${id}"
     printf '1\n' >"${pool_case}/fake/${pkg//[^a-z]/_}.exit"
     pool_start "${id}" run_runner
+    pool_check_settled package_exit_case_check
   done
-  pool_drain
-  for i in "${!packages[@]}"; do
-    pkg="${packages[${i}]}"
-    rc="$(pool_rc "e${i}")"
-    out="$(pool_out "e${i}")"
-    [[ "${rc}" -ne 0 ]] || fail "go nonzero exit in ${pkg} passed"
-    [[ "${out}" == *"${pkg}: go test exited 1"* ]] || fail "go exit in ${pkg} not reported: ${out}"
-  done
+  pool_check_all package_exit_case_check
+}
+
+# package_exit_case_check ID prints why exit case ID (e<index>) is wrong and
+# returns 1: the runner passed, or it did not name the package's exit.
+package_exit_case_check() {
+  local pkg="${packages[${1#e}]}" out
+  [[ "$(pool_rc "$1")" -ne 0 ]] || { printf '%s' "go nonzero exit in ${pkg} passed"; return 1; }
+  out="$(pool_out "$1")"
+  [[ "${out}" == *"${pkg}: go test exited 1"* ]] || { printf '%s' "go exit in ${pkg} not reported: ${out}"; return 1; }
 }
 
 # check_each_proof runs the direct phase, then the all-names runner phase, on

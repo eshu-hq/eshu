@@ -18,9 +18,11 @@
 # runner returns, through a rename, so a crashed or killed case leaves no
 # status and pool_drain fails naming it. pool_drain waits for every case, so a
 # hung case holds the step until the job cap cancels it; it can never pass.
-# Callers check every case's status and output after the drain, in the order
-# the cases were started, so the first reported failure does not depend on
-# which case finished first.
+# Callers check every case's status and output in the order the cases were
+# started, so the first reported failure does not depend on which case
+# finished first. pool_check_settled checks cases as they settle and stops the
+# pool at the first broken one (#9629); pool_check_all checks the rest after
+# the drain.
 # shellcheck disable=SC2154,SC2034  # the sourcing test defines fail and fake and reads pool_case.
 
 pool_dir=""
@@ -28,6 +30,7 @@ pool_jobs=1
 pool_case=""
 pool_ids=()
 pool_live=()
+pool_cursor=0
 
 # pool_init DIR resets the pool to an empty DIR. The width is
 # LIVE_READINESS_SELFTEST_JOBS when set, else the CPU count capped at 4 (the
@@ -40,6 +43,7 @@ pool_init() {
   pool_case=""
   pool_ids=()
   pool_live=()
+  pool_cursor=0
   if [[ -z "${jobs}" ]]; then
     jobs="$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || printf '1')"
     [[ "${jobs}" =~ ^[1-9][0-9]*$ ]] || jobs=1
@@ -119,3 +123,33 @@ pool_rc() {
 
 # pool_out ID prints case ID's combined output.
 pool_out() { cat -- "${pool_dir}/$1/out"; }
+
+# pool_check_settled CHECK runs CHECK ID on each started case, in start order,
+# whose exit status is in, and stops at the first case still running. CHECK
+# prints why a case is wrong and returns nonzero. pool_check_settled then
+# starts nothing more, waits for the cases already running, and fails with
+# that text. So a broken case stops the pool early instead of waiting behind
+# every later case (#9629: a seeded self-test ran every runner case before it
+# looked at the first). The reported case is still the first broken one in
+# start order: every case before it was checked and passed.
+pool_check_settled() {
+  local check="$1" id msg
+  while [[ "${pool_cursor}" -lt "${#pool_ids[@]}" ]]; do
+    id="${pool_ids[${pool_cursor}]}"
+    [[ -f "${pool_dir}/${id}/rc" ]] || return 0
+    msg="$("${check}" "${id}" 2>&1)" || {
+      pool_drain
+      fail "${msg}"
+    }
+    pool_cursor=$((pool_cursor + 1))
+  done
+}
+
+# pool_check_all CHECK drains the pool, then runs CHECK on every case not yet
+# checked, in start order, and fails unless every started case was checked.
+pool_check_all() {
+  pool_drain
+  pool_check_settled "$1"
+  [[ "${pool_cursor}" -eq "${#pool_ids[@]}" ]] ||
+    fail "pool checked ${pool_cursor} of ${#pool_ids[@]} cases"
+}

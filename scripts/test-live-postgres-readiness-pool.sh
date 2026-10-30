@@ -9,6 +9,8 @@
 #   planted  a case that passes while the others still run is caught by name
 #   killed   a case that dies before it writes a status fails the drain
 #   hung     a hung case holds the drain; it never reports a pass
+#   early    a broken first case stops the pool before every case starts
+#   first    a slow broken case is reported before a fast broken later one
 #
 # The seeded section breaks the pool in throwaway copies and requires the
 # scenarios to fail, so a pool that drops a status, skips the wait, or ignores
@@ -44,6 +46,12 @@ expect_all_failed() {
     [[ "${rc}" -ne 0 ]] || fail "case ${id} passed"
     [[ "$(pool_out "${id}")" == "case ${id} says ${rc}" ]] || fail "case ${id} output is not its own"
   done
+}
+
+# zero_check is the settled-case check of the early and first scenarios: a
+# case is broken when it exited nonzero.
+zero_check() {
+  [[ "$(pool_rc "$1")" -eq 0 ]] || { printf 'case %s exited nonzero' "$1"; return 1; }
 }
 
 # scenario LIB NAME runs one scenario in a subshell against pool library LIB.
@@ -102,6 +110,24 @@ scenario() {
         printf 'drained\n'
         expect_all_failed c1
         ;;
+      early)
+        for i in 1 2 3 4 5 6 7 8 9; do
+          pool_prepare "c${i}"
+          status=0
+          [[ "${i}" -ne 1 ]] || status=1
+          pool_start "c${i}" probe_case "c${i}" "${status}"
+          pool_check_settled zero_check
+        done
+        pool_check_all zero_check
+        ;;
+      first)
+        pool_prepare c1
+        pool_start c1 bash -c 'sleep 2; exit 1'
+        pool_prepare c2
+        pool_start c2 bash -c 'exit 1'
+        pool_check_settled zero_check
+        pool_check_all zero_check
+        ;;
     esac
   )
 }
@@ -115,6 +141,11 @@ scenarios() {
   [[ "${out}" == *"case c4 passed"* ]] || return 1
   out="$(scenario "${lib}" killed 2>&1)" && return 1
   [[ "${out}" == *"pool case c2 left no exit status"* ]] || return 1
+  out="$(scenario "${lib}" early 2>&1)" && return 1
+  [[ "${out}" == *"case c1 exited nonzero"* ]] || return 1
+  [[ "$(rg --files "${work}/peak" | wc -l | tr -d '[:space:]')" -lt 9 ]] || return 1
+  out="$(scenario "${lib}" first 2>&1)" && return 1
+  [[ "${out}" == *"case c1 exited nonzero"* ]] || return 1
   rm -f "${work}/hung.pid" "${work}/hung.out"
   scenario "${lib}" hung >"${work}/hung.out" 2>&1 &
   local scenario_pid=$!
@@ -165,5 +196,9 @@ seed no-drain-wait '  wait || true
   pool_live=()' '  pool_live=()'
 seed width-ignored 'while [[ "${#pool_live[@]}" -ge "${pool_jobs}" ]]; do' 'while false; do'
 seed shared-output '"$@" >"${case_dir}/out" 2>&1' '"$@" >>"${pool_dir}/out" 2>&1'
+seed no-early-stop 'msg="$("${check}" "${id}" 2>&1)" || {' 'msg="$("${check}" "${id}" 2>&1)" || [[ -z "${pool_live[*]}" ]] || {'
+seed settle-order-ignored '[[ -f "${pool_dir}/${id}/rc" ]] || return 0' '[[ -f "${pool_dir}/${id}/rc" ]] || { pool_ids+=("${id}"); pool_cursor=$((pool_cursor + 1)); continue; }'
+seed check-all-skips-rest '  pool_drain
+  pool_check_settled "$1"' '  pool_drain'
 
 printf 'test-live-postgres-readiness-pool: PASS\n'

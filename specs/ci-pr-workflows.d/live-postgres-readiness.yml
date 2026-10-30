@@ -73,6 +73,8 @@ workflows:
   - scripts/lib/test-run-live-postgres-readiness-proofs.sh
   - scripts/lib/test-run-live-postgres-readiness-pool.sh
   - scripts/test-live-postgres-readiness-pool.sh
+  - scripts/lib/test-run-live-postgres-readiness-seed-pool.sh
+  - scripts/test-live-postgres-readiness-seed-pool.sh
   - scripts/ci/live-postgres-readiness-job-summary.sh
   - scripts/ci/test-live-postgres-readiness-job-summary.sh
   - scripts/test-run-live-postgres-readiness-selftest-seeds.sh

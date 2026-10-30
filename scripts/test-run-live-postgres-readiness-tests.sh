@@ -135,12 +135,13 @@ pkg_key() { printf '%s' "${1//[^a-z]/_}"; }
 events_of() { printf '%s/%s.jsonl' "${fake}" "$(pkg_key "$1")"; }
 
 # write_events and check_each_proof live in the sourced proofs lib; the
-# per-package runner cases run in the bounded case pool, proven first (#9582).
+# per-package runner cases run in the bounded case pool (#9582).
 # shellcheck source=lib/test-run-live-postgres-readiness-proofs.sh
 source "${repo_root}/scripts/lib/test-run-live-postgres-readiness-proofs.sh"
+# The pool's own RED/GREEN self-test runs once per job in the seeds step
+# (test-run-live-postgres-readiness-selftest-seeds.sh), not in every seed run.
 # shellcheck source=lib/test-run-live-postgres-readiness-pool.sh
 source "${repo_root}/scripts/lib/test-run-live-postgres-readiness-pool.sh"
-bash "${repo_root}/scripts/test-live-postgres-readiness-pool.sh" >/dev/null || fail "case pool self-test failed"
 
 run_runner() { bash "${runner}" 2>&1; }
 
