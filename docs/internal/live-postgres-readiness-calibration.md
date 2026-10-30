@@ -27,6 +27,27 @@ run can exceed either that estimate or the 30-minute job timeout. The six-shard
 committed-model spread is above 15%, so these runs cannot be called acceptance
 proof or used to weaken the existing gate.
 
+## Frozen inventory and drift
+
+The manifest is a snapshot of the readiness inventory at the source SHA above;
+its `source_inventory_sha256` pins that inventory independently of the rows.
+The live inventory keeps growing as live tests are enrolled, so the manifest
+will not match it for long. That is deliberate: `load()` refuses a dispatch
+whose live inventory differs from the snapshot ("ordered coverage differs from
+inventory"), because evidence from a stale topology would not describe the plan
+under review. A new dispatch therefore needs a reviewed re-freeze of the
+manifest, its pins, and the bounds above.
+The manifest stays frozen on purpose until then; the re-freeze and retire
+triggers are tracked in #9585.
+
+`scripts/test-live-postgres-readiness-calibration.py` checks the snapshot
+against its own pin, checks that a drifted inventory is refused, and checks the
+report and provenance readers. It does not compare the snapshot with the live
+inventory, so an enrollment does not fail it. It runs in the hermetic readiness
+job and in the `live-postgres-readiness-shard-mirror` gate, selected by changes
+to the calibration library, manifest, workflow, and test. The provenance reader
+imports the v2 refresher, so a change to that module now runs this test too.
+
 ## Capture and read evidence
 
 After the workflow is on `main`, dispatch

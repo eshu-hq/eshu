@@ -163,6 +163,10 @@ gates:
       - "scripts/lib/live_postgres_readiness_refresh_v2.py"
       - "scripts/lib/live_postgres_readiness_refresh_v2_provenance.py"
       - "scripts/test-live-postgres-readiness-refresh-v2.py"
+      - "scripts/lib/live_postgres_readiness_calibration*.py"
+      - "scripts/test-live-postgres-readiness-calibration.py"
+      - "specs/live-postgres-readiness-calibration.v1.json"
+      - ".github/workflows/live-postgres-readiness-calibration.yml"
       - "specs/live-postgres-readiness-weights.v1.json"
       - "specs/live-postgres-readiness-weights.v*.json"
       - "scripts/test-live-postgres-readiness-shards.py"
@@ -203,12 +207,16 @@ gates:
       - "scripts/lib/live_postgres_readiness_refresh_v2.py"
       - "scripts/lib/live_postgres_readiness_refresh_v2_provenance.py"
       - "scripts/test-live-postgres-readiness-refresh-v2.py"
+      - "scripts/lib/live_postgres_readiness_calibration*.py"
+      - "scripts/test-live-postgres-readiness-calibration.py"
+      - "specs/live-postgres-readiness-calibration.v1.json"
+      - ".github/workflows/live-postgres-readiness-calibration.yml"
       - "specs/live-postgres-readiness-weights.v1.json"
       - "specs/live-postgres-readiness-weights.v*.json"
       - "scripts/test-live-postgres-readiness-shards.py"
     local:
       command: "bash scripts/test-run-live-postgres-readiness-tests.sh"
-      test_command: "bash scripts/test-run-live-postgres-readiness-selftest-seeds.sh && python3 scripts/test-live-postgres-readiness-helper.py && python3 scripts/test-live-postgres-readiness-shards.py && python3 scripts/test-live-postgres-readiness-refresh-v2.py && bash scripts/ci/test-live-postgres-readiness-job-summary.sh"
+      test_command: "bash scripts/test-run-live-postgres-readiness-selftest-seeds.sh && python3 scripts/test-live-postgres-readiness-helper.py && python3 scripts/test-live-postgres-readiness-shards.py && python3 scripts/test-live-postgres-readiness-refresh-v2.py && python3 scripts/test-live-postgres-readiness-calibration.py && bash scripts/ci/test-live-postgres-readiness-job-summary.sh"
       pre_push: floor
     ci:
       workflow: live-postgres-readiness.yml
@@ -247,6 +255,10 @@ gates:
       - "scripts/lib/live_postgres_readiness_refresh_v2.py"
       - "scripts/lib/live_postgres_readiness_refresh_v2_provenance.py"
       - "scripts/test-live-postgres-readiness-refresh-v2.py"
+      - "scripts/lib/live_postgres_readiness_calibration*.py"
+      - "scripts/test-live-postgres-readiness-calibration.py"
+      - "specs/live-postgres-readiness-calibration.v1.json"
+      - ".github/workflows/live-postgres-readiness-calibration.yml"
       - "specs/live-postgres-readiness-weights.v1.json"
       - "specs/live-postgres-readiness-weights.v*.json"
       - "scripts/test-live-postgres-readiness-shards.py"
@@ -254,7 +266,7 @@ gates:
       - "specs/ci-gates.d/**"
       - ".github/workflows/live-postgres-readiness.yml"
     local:
-      command: "python3 scripts/test-live-postgres-readiness-shards.py && python3 scripts/test-live-postgres-readiness-refresh-v2.py"
+      command: "python3 scripts/test-live-postgres-readiness-shards.py && python3 scripts/test-live-postgres-readiness-refresh-v2.py && python3 scripts/test-live-postgres-readiness-calibration.py"
     ci:
       workflow: live-postgres-readiness.yml
       job: "live-postgres-readiness hermetic"
