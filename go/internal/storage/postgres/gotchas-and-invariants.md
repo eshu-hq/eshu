@@ -95,8 +95,12 @@ operational lessons that future storage changes still need to respect.
   configured ecosystem (`gradle` for `maven`, `gomod`, `go-module`, and
   `go_module` for `go`) and the `ecosystem` column folds them onto the canonical
   name inside SQL, so a pair declared under two aliases is one `DISTINCT ON`
-  row and one rank. The alias table lives in `workflow` and also drives the
-  derivation's Go mapping, so the two cannot disagree. The filter stays a raw
+  row and one rank. A `maven` read also selects raw `sbt` rows with their
+  `sbt_cross_version`/`sbt_binary_artifact` columns (#9313); `sbt` stays out
+  of the alias table on purpose, so the `ecosystem` column keeps reporting
+  those rows as `sbt` and the derivation maps them onto Maven targets through
+  the cross-version rule instead. The alias table lives in `workflow` and also
+  drives the derivation's Go mapping, so the two cannot disagree. The filter stays a raw
   `= ANY($1)` on the indexed expression. Package-registry callers leave the flag
   off and keep the byte-identical raw query.
 - `ListOSPackageAdvisoryTargets` and `ListSBOMComponentAdvisoryTargets` serve

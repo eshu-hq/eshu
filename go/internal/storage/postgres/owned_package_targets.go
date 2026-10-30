@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -29,8 +30,10 @@ const (
 // package_manager. With expansion it folds every known alias onto its canonical
 // ecosystem (gradle onto maven), built from the same table the derivation
 // uses, so a pair declared under two aliases is one DISTINCT, ranked and
-// rotated row instead of two. The literals come from a static, test-pinned
-// table and are never caller input.
+// rotated row instead of two. sbt rows are selected but never folded: they
+// keep the sbt ecosystem so the derivation can apply the cross-version name
+// rule. The literals come from a static, test-pinned table and are never
+// caller input.
 func ownedPackageEcosystemExpression(expandAliases bool) string {
 	raw := "LOWER(fact.payload->'entity_metadata'->>'package_manager')"
 	if !expandAliases {
@@ -51,13 +54,24 @@ func ownedPackageEcosystemExpression(expandAliases bool) string {
 // ownedPackageManagerFilterValues returns the raw package_manager values the
 // reader selects for the requested ecosystems. With alias expansion each
 // ecosystem brings its aliases; without it the values pass through unchanged.
+// A maven read also selects raw sbt rows: sbt declares Maven coordinates,
+// and the vulnerability derivation maps them onto Maven OSV targets through
+// the cross-version rule. sbt is deliberately not an alias-table row: its
+// unsuffixed coordinates must never fold onto the maven ecosystem in SQL,
+// so the ecosystem expression below keeps reporting sbt rows as sbt and
+// the derivation maps them instead.
 func ownedPackageManagerFilterValues(ecosystems []string, expandAliases bool) []string {
 	if !expandAliases {
 		return ecosystems
 	}
-	values := make([]string, 0, len(ecosystems)+2)
+	values := make([]string, 0, len(ecosystems)+3)
 	for _, ecosystem := range ecosystems {
 		values = append(values, workflow.OwnedPackageManagerAliases(ecosystem)...)
+	}
+	if slices.ContainsFunc(ecosystems, func(ecosystem string) bool {
+		return packageidentity.NormalizeEcosystem(packageidentity.Ecosystem(ecosystem)) == packageidentity.EcosystemMaven
+	}) {
+		values = append(values, "sbt")
 	}
 	slices.Sort(values)
 	return slices.Compact(values)
@@ -134,7 +148,9 @@ WITH active_dependencies AS (
     COALESCE((fact.payload->'entity_metadata'->>'lockfile') = 'true', FALSE) AS lockfile,
     COALESCE(fact.payload->>'repo_id', '') AS repository_id,
     fact.fact_id,
-    COALESCE(fact.payload->'entity_metadata'->>'source_location', '') AS source_location
+    COALESCE(fact.payload->'entity_metadata'->>'source_location', '') AS source_location,
+    fact.payload->'entity_metadata'->>'sbt_cross_version' AS sbt_cross_version,
+    fact.payload->'entity_metadata'->>'sbt_binary_artifact' AS sbt_binary_artifact
 FROM fact_records AS fact
 JOIN ingestion_scopes AS scope
   ON scope.scope_id = fact.scope_id
@@ -158,7 +174,9 @@ distinct_targets AS MATERIALIZED (
     lockfile,
     repository_id,
     fact_id,
-    source_location
+    source_location,
+    sbt_cross_version,
+    sbt_binary_artifact
   FROM active_dependencies
   ORDER BY %[3]s
 ),
@@ -171,6 +189,8 @@ numbered_targets AS (
     repository_id,
     fact_id,
     source_location,
+    sbt_cross_version,
+    sbt_binary_artifact,
     ROW_NUMBER() OVER (
       ORDER BY ecosystem ASC, package_name ASC, version ASC, lockfile DESC, fact_id ASC
     ) - 1 AS target_rank,
@@ -222,6 +242,8 @@ SELECT
     window_targets.repository_id,
     window_targets.fact_id,
     window_targets.source_location,
+    window_targets.sbt_cross_version,
+    window_targets.sbt_binary_artifact,
     window_targets.key_hash_low24,
     window_stats.total_targets,
     window_stats.slot_count,
@@ -296,6 +318,7 @@ func (s FactStore) readOwnedPackageWindow(
 	for rows.Next() {
 		var (
 			ecosystem, name, version, repositoryID, factID, sourceLocation sql.NullString
+			sbtCrossVersion, sbtBinaryArtifact                             sql.NullString
 			lockfile                                                       sql.NullBool
 			keyHashLow24                                                   sql.NullInt64
 		)
@@ -307,6 +330,8 @@ func (s FactStore) readOwnedPackageWindow(
 			&repositoryID,
 			&factID,
 			&sourceLocation,
+			&sbtCrossVersion,
+			&sbtBinaryArtifact,
 			&keyHashLow24,
 			&page.Window.TotalTargets,
 			&page.Window.SlotCount,
@@ -323,13 +348,15 @@ func (s FactStore) readOwnedPackageWindow(
 		}
 		page.Window.RowsRead++
 		target := workflow.OwnedPackageDependencyTarget{
-			Ecosystem:      strings.ToLower(strings.TrimSpace(ecosystem.String)),
-			PackageName:    strings.TrimSpace(name.String),
-			Version:        strings.TrimSpace(version.String),
-			Lockfile:       lockfile.Bool,
-			RepositoryID:   repositoryID.String,
-			FactID:         factID.String,
-			SourceLocation: strings.TrimSpace(sourceLocation.String),
+			Ecosystem:         strings.ToLower(strings.TrimSpace(ecosystem.String)),
+			PackageName:       strings.TrimSpace(name.String),
+			Version:           strings.TrimSpace(version.String),
+			Lockfile:          lockfile.Bool,
+			RepositoryID:      repositoryID.String,
+			FactID:            factID.String,
+			SourceLocation:    strings.TrimSpace(sourceLocation.String),
+			SBTCrossVersion:   strings.TrimSpace(sbtCrossVersion.String),
+			SBTBinaryArtifact: strings.TrimSpace(sbtBinaryArtifact.String),
 			// #nosec G115 -- bounded: the reader projects the low 24 bits
 			// of sha256(eco|pkg|ver), always within uint32; a NULL hash
 			// scans as 0 and clamps to slot 0 deterministically.

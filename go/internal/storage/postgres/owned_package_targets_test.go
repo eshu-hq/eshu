@@ -164,13 +164,20 @@ func TestOwnedPackageEcosystemAliasExpansionSharesOneTable(t *testing.T) {
 		"WHEN 'gomod' THEN 'go'",
 		"END AS ecosystem",
 		"SELECT DISTINCT ON (ecosystem, package_name, version)",
+		"fact.payload->'entity_metadata'->>'sbt_cross_version' AS sbt_cross_version",
+		"fact.payload->'entity_metadata'->>'sbt_binary_artifact' AS sbt_binary_artifact",
+		"window_targets.sbt_cross_version",
+		"window_targets.sbt_binary_artifact",
 	} {
 		if !strings.Contains(expanded, want) {
 			t.Fatalf("alias-expanded query missing %q:\n%s", want, expanded)
 		}
 	}
+	if strings.Contains(expanded, "WHEN 'sbt'") {
+		t.Fatalf("sbt must never fold onto another ecosystem in SQL:\n%s", expanded)
+	}
 	if got, want := ownedPackageManagerFilterValues([]string{"go", "maven"}, true),
-		[]string{"go", "go-module", "go_module", "gomod", "gradle", "maven"}; !slices.Equal(got, want) {
+		[]string{"go", "go-module", "go_module", "gomod", "gradle", "maven", "sbt"}; !slices.Equal(got, want) {
 		t.Fatalf("expanded filter values = %#v, want %#v", got, want)
 	}
 	if got, want := ownedPackageManagerFilterValues([]string{"maven"}, false), []string{"maven"}; !slices.Equal(got, want) {
