@@ -33,8 +33,10 @@
   package-manager `LOWER`s still follow the database collation: the
   readiness targets and source CTEs, `installed_advisory_targets.go`, and
   `owned_package_targets.go` (follow-up #9622). The evidence note
-  `docs/internal/evidence/9584-consumption-key-ascii-fold.md` lists every
-  converted package and every fold left alone.
+  `docs/internal/evidence/9584-consumption-key-ascii-fold.md` lists the
+  converted packages and the folds left alone that the census of the swept
+  packages and the reviews found. Packages outside the sweep were not
+  audited; see #9622.
 - Unknown ecosystem aliases must fail closed instead of guessing.
 - `sbt` is not an ecosystem alias. A `%%` row's name is the unsuffixed
   `organization:name`, which is not a published artifact, so sbt rows resolve

@@ -50,10 +50,10 @@ truth; reducers admit user-facing truth.
   a-z and keeps every other byte, so a non-ASCII letter such as U+0130 or the
   Kelvin sign U+212A never folds onto an ASCII letter (#9584). It equals
   `strings.ToLower` on every ASCII input. `ContainsNonASCII` reports a name
-  that holds any non-ASCII byte; the ingester counts those rows. Callers
-  outside this package that fold identity, and the ones not yet converted
-  (#9622), are listed in
-  `docs/internal/evidence/9584-consumption-key-ascii-fold.md`.
+  that holds any non-ASCII byte; the ingester counts those rows.
+  `docs/internal/evidence/9584-consumption-key-ascii-fold.md` names the
+  callers outside this package that were converted and the known folds not
+  yet converted (#9622).
 - `NormalizeRegistry` canonicalizes registry host/path values without hiding
   the source registry.
 - `DefaultRegistry` returns the canonical registry host for an ecosystem so

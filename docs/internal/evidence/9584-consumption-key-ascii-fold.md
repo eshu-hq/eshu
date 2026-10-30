@@ -9,11 +9,14 @@ worst a way for a lookalike name to inherit another package's advisory.
 
 ## The rule
 
-In the packages listed below, every fold that turns a package name,
+In the packages listed below, the folds that turn a package name,
 namespace, registry host, package manager, or ecosystem alias into identity
-now uses `packageidentity.LowerASCII`, which maps A-Z to a-z and keeps every
-other byte. Folds outside these packages are listed under "Folds this change
-leaves alone". The sites:
+now use `packageidentity.LowerASCII`, which maps A-Z to a-z and keeps every
+other byte. `packageidentity`, `reducer/packages/correlation`, and
+`query/supply/chain/impact` were swept in the first round; the other five
+packages by the census below. "Folds this change leaves alone" names the
+folds that census and the reviews found. Packages outside the sweep were not
+audited; see #9622. The sites:
 
 - `go/internal/packageidentity`: `ConsumptionNameCandidates`,
   `ManifestEntityNameCandidates`, `normalizeName` for every ecosystem (so
@@ -86,7 +89,8 @@ packages (`supplychain/core`, `vulnerabilityintelligence`, `sbomgenerator`,
   `jvm_package_api_reachable`, ...), and on no match they report missing
   evidence. They never produce a `not_called` verdict, so a loose fold can
   over-report reachability but cannot hide a finding.
-- Identity folds in packages this change does not sweep, tracked in #9622:
+- Identity folds found outside the swept packages, tracked in #9622 (not an
+  exhaustive list; those packages were not audited):
   `go/internal/storage/postgres/installed_advisory_targets.go` (the Go
   ecosystem, distro, package-manager, vendor-source, and repository-class
   folds, and the SQL `LOWER`s on the same columns),
