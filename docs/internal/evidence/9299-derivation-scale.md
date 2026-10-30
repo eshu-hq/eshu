@@ -30,6 +30,10 @@ magnitude evidence, not a QA-hardware wall-time claim.
 
 ## Results
 
+Throwaway-host run, 2026-10-29 (parallel workers). Head-run serial-plan
+numbers (1.85 s / 1.09 s / 27.6 ms / 15.3 ms / 1.75 s) are in Performance
+Evidence below.
+
 | Statement | Window | Plan shape | Execution |
 | --- | --- | --- | --- |
 | candidates | page 1 (`after=0`) | Parallel seq scan over 300k observations, hash joins into 40-row dimensions, per-row lateral verification probes (225k loops), top-N sort, LIMIT 256; 707k buffers | 422 ms |
