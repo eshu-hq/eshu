@@ -16,48 +16,132 @@ import (
 // restores, mirroring static-contract-gates.yml.
 const goBuildCacheDir = "/tmp/eshu-ci/go-build"
 
+// goBuildRestoreStep is the restore step name every persisted lane uses. The
+// readiness weights refresher (#9566) finds the shard's cache outcome by this
+// step: it reads the log from the actions/cache/restore group to the next
+// step, so the step must keep this name and setup-go must follow it.
+const goBuildRestoreStep = "Restore Go build cache"
+
+// goBuildSaveCondition is the only condition a build-cache save may run on
+// (#9598). The repository cache store holds 10 GB and evicts by last access,
+// so PR-scoped copies (which only that PR's re-runs can restore) evict main's
+// entry. Main push alone saves; PR runs restore main's entry, which the
+// default-branch fallback of actions/cache allows. An exact-key hit saves
+// nothing, as the combined actions/cache step did before the split.
+func goBuildSaveCondition(restoreID string) string {
+	return "github.event_name == 'push' && github.ref == 'refs/heads/main' && steps." +
+		restoreID + ".outputs.cache-hit != 'true'"
+}
+
+// goBuildLane names one job that persists GOCACHE and whether it owns the save.
+type goBuildLane struct {
+	workflow string
+	job      string
+	saves    bool
+}
+
+// goBuildLanes lists every job that sets GOCACHE to goBuildCacheDir and runs
+// actions/setup-go. go-core and go-race save their keys on main push; the
+// readiness shards restore go-core's entry and never save (#9460).
+var goBuildLanes = []goBuildLane{
+	{workflow: "test.yml", job: "go-core", saves: true},
+	{workflow: "test.yml", job: "go-race", saves: true},
+	{workflow: "live-postgres-readiness.yml", job: "live-postgres-readiness-shards", saves: false},
+}
+
+// stripExpression removes one ${{ }} wrapper and surrounding space.
+func stripExpression(value string) string {
+	value = strings.TrimSpace(value)
+	if strings.HasPrefix(value, "${{") && strings.HasSuffix(value, "}}") {
+		value = strings.TrimSpace(value[3 : len(value)-2])
+	}
+	return value
+}
+
 // checkGoBuildCache requires a Go lane to restore the persisted compiler
-// cache before any go command runs (#8735). Fresh runners otherwise recompile
-// the world on every leg (measured ~2:1 compile over test time on go-race).
-// The restore runs unconditionally inside its lane: the lane job's own plan
-// guard is the only selector, so a step-level guard could only skip a cache
-// the lane then rebuilds from scratch.
-func checkGoBuildCache(job readinessJob) string {
+// cache before any go command runs (#8735), and pins who may write it
+// (#9598). Fresh runners otherwise recompile the world on every leg
+// (measured ~2:1 compile over test time on go-race). The restore runs
+// unconditionally inside its lane: the lane job's own plan guard is the only
+// selector, so a step-level guard could only skip a cache the lane then
+// rebuilds from scratch.
+func checkGoBuildCache(job readinessJob, saves bool) string {
 	if job.Env["GOCACHE"] != goBuildCacheDir {
 		return "go lane must set GOCACHE to the persisted cache dir (#8735)"
 	}
-	restored := false
-	for _, step := range job.Steps {
-		if step.Uses == "actions/cache@v4" &&
-			step.With["path"] == goBuildCacheDir {
-			if step.If != "" || step.ContinueOnError != "" {
-				return "build-cache restore must run unconditionally without waiving failure"
+	restoreIndex, saveIndex, saveCount := -1, -1, 0
+	for i, step := range job.Steps {
+		if step.With["path"] == goBuildCacheDir {
+			switch {
+			case step.Uses == "actions/cache@v4":
+				return "build-cache step must be actions/cache/restore: actions/cache saves on every PR run (#9598)"
+			case step.Uses == "actions/cache/restore@v4":
+				if restoreIndex >= 0 {
+					return "go lane must restore the build cache once"
+				}
+				restoreIndex = i
+			case strings.HasPrefix(step.Uses, "actions/cache/save@"):
+				saveIndex = i
+				saveCount++
 			}
-			if !strings.Contains(step.With["key"], "hashFiles") {
-				return "build-cache key must track dependencies (#8735)"
-			}
-			restored = true
-			continue
 		}
-		if restored {
-			continue
+		if setupGoUsesRE.MatchString(step.Uses) && setupGoCachesModule(step.With) {
+			return "setup-go must set cache: false in a persisted-GOCACHE lane: its own cache stores the build cache a second time (#9598)"
 		}
-		if strings.Contains(step.Run, "go ") ||
-			strings.Contains(step.Run, "golangci-lint") {
+		if restoreIndex < 0 && (strings.Contains(step.Run, "go ") ||
+			strings.Contains(step.Run, "golangci-lint")) {
 			return "build-cache restore must run before the first go command (#8735)"
 		}
 	}
-	if !restored {
+	if restoreIndex < 0 {
 		return "go lane must restore the persisted build cache (#8735)"
+	}
+	restore := job.Steps[restoreIndex]
+	if restore.If != "" || restore.ContinueOnError != "" {
+		return "build-cache restore must run unconditionally without waiving failure"
+	}
+	if !strings.Contains(restore.With["key"], "hashFiles") {
+		return "build-cache key must track dependencies (#8735)"
+	}
+	if restore.Name != goBuildRestoreStep {
+		return "build-cache restore must keep the step name " + goBuildRestoreStep + " (#9566 reads it)"
+	}
+	if restoreIndex+1 >= len(job.Steps) || !setupGoUsesRE.MatchString(job.Steps[restoreIndex+1].Uses) {
+		return "setup-go must directly follow the build-cache restore (#9566 reads the restore section up to the next step)"
+	}
+	if !saves {
+		if saveCount != 0 {
+			return "restore-only lane must not save the build cache (#9598)"
+		}
+		return ""
+	}
+	if saveCount != 1 {
+		return "go lane must save the build cache exactly once, on main push (#9598)"
+	}
+	if saveIndex != len(job.Steps)-1 {
+		return "build-cache save must be the last step, after every go command (#9598)"
+	}
+	save := job.Steps[saveIndex]
+	if restore.ID == "" {
+		return "build-cache restore needs an id for the save to read its key (#9598)"
+	}
+	if stripExpression(save.If) != goBuildSaveCondition(restore.ID) {
+		return "build-cache save must run only on a main push that missed the exact key (#9598)"
+	}
+	if stripExpression(save.With["key"]) != "steps."+restore.ID+".outputs.cache-primary-key" {
+		return "build-cache save key must be the restore step's primary key (#9598)"
+	}
+	if save.ContinueOnError != "" {
+		return "build-cache save must not waive failure"
 	}
 	return ""
 }
 
-// TestGoBuildCacheWiring pins GOCACHE persistence on the slow Go lanes.
-func TestGoBuildCacheWiring(t *testing.T) {
-	t.Parallel()
-	root := filepath.Join("..", "..", "..")
-	raw, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "test.yml"))
+// loadGoBuildLane parses one lane's job from its workflow file.
+func loadGoBuildLane(t *testing.T, lane goBuildLane) readinessJob {
+	t.Helper()
+	path := filepath.Join("..", "..", "..", ".github", "workflows", lane.workflow)
+	raw, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,13 +151,20 @@ func TestGoBuildCacheWiring(t *testing.T) {
 	if err := yaml.Unmarshal(raw, &parsed); err != nil {
 		t.Fatal(err)
 	}
-	for _, jobName := range []string{"go-core", "go-race"} {
-		job, ok := parsed.Jobs[jobName]
-		if !ok {
-			t.Fatalf("job %q missing", jobName)
-		}
-		if problem := checkGoBuildCache(job); problem != "" {
-			t.Fatalf("%s: %s", jobName, problem)
+	job, ok := parsed.Jobs[lane.job]
+	if !ok {
+		t.Fatalf("%s: job %q missing", lane.workflow, lane.job)
+	}
+	return job
+}
+
+// TestGoBuildCacheWiring pins GOCACHE persistence on the slow Go lanes.
+func TestGoBuildCacheWiring(t *testing.T) {
+	t.Parallel()
+	for _, lane := range goBuildLanes {
+		job := loadGoBuildLane(t, lane)
+		if problem := checkGoBuildCache(job, lane.saves); problem != "" {
+			t.Errorf("%s %s: %s", lane.workflow, lane.job, problem)
 		}
 	}
 }
