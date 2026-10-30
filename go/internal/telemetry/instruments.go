@@ -1044,6 +1044,15 @@ type Instruments struct {
 	// identity. A branch whose p95 climbs names the anchor that stopped
 	// serving it.
 	SupplyChainImpactActiveEvidenceBranchDuration metric.Float64Histogram
+	// PackageManifestDependencyReadDuration records the wall time of one
+	// completed manifest dependency read across all its keyset pages (#9586).
+	// Label: read (plain or maven_family). A tail that climbs while
+	// PackageManifestDependencyReadPages holds means each page got slower, the
+	// shape the generic-plan switch produced before #9586.
+	PackageManifestDependencyReadDuration metric.Float64Histogram
+	// PackageManifestDependencyReadPages records how many keyset pages one
+	// completed manifest dependency read issued (#9586). Label: read.
+	PackageManifestDependencyReadPages metric.Int64Histogram
 	// SupplyChainImpactActiveEvidenceBranchRows counts rows each
 	// active-evidence statement returned (#8880). Label: branch.
 	SupplyChainImpactActiveEvidenceBranchRows metric.Int64Counter
@@ -6036,6 +6045,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerSecurityAlertQueryInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerPackageManifestDependencyReadInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerInfraSearchKeyInstruments(meter, inst); err != nil {

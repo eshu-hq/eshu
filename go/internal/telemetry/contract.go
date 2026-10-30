@@ -944,6 +944,9 @@ const (
 	// with the status snapshot reader that ran. The value set is closed: one
 	// constant per reader in postgres.StatusStore.ReadStatusSnapshotFiltered
 	// (scope_counts, active_work_summary, coordinator, and so on).
+	// It also labels the eshu_dp_package_manifest_dependency_read_* histograms
+	// with the query text a manifest dependency read ran: plain or
+	// maven_family (#9586).
 	MetricDimensionRead = "read"
 
 	// MetricDimensionGauge labels the eshu_dp_gauge_snapshot_* metrics with the
