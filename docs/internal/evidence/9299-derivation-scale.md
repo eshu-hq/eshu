@@ -86,10 +86,19 @@ now on #9468 (candidates at 50k+ alongside its skip-counts proof) is the
 reopen trigger: if that proof misses its bound, the pagination strategy
 gets redesigned before producers or reads go live.
 
-Performance Evidence: throwaway scale run 2026-10-29, head `f1009986d7`,
-300k observations / 40 scopes / PG18 aarch64 dev box, cold buffers;
-candidates 422 ms page-1 / 645 ms mid-window / 3.2 ms tail,
-skip-counts 2.5 ms page span / 430 ms exhausted remainder.
+Performance Evidence: committed scale proof
+`TestScannerDiscoveryScaleShapeLive` (go/internal/storage/postgres/control_scanner_discovery_scale_live_test.go),
+run 2026-10-30 on this lane head, 300k observations / 40 scopes /
+PG18 aarch64 dev box, cold buffers, disposable PG; candidates 1.85 s
+page-1 / 1.09 s mid-window / 27.6 ms tail, skip-counts 15.3 ms page
+span / 1.75 s exhausted remainder. This replaces the stale 2026-10-29
+throwaway run (`f1009986d7`, script deleted): the statements are
+byte-identical to that run, but this host plans serial nested loops
+(1.5M buffers page-1) where the throwaway host planned parallel
+workers (422 ms / 645 ms / 3.2 ms / 2.5 ms / 430 ms) — a systematic
+environment plan choice, not a lane-code difference. The quadratic
+narrative above holds under either plan; the #9468 50k+ proof decides
+the pagination strategy on its own hardware.
 No-Regression Evidence: the committed 5k shape proof is unchanged and
 still pins the no-seqscan invariant at small scale.
 No-Observability-Change: no metric, span, or log line was added or
