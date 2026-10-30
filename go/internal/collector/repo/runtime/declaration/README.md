@@ -235,6 +235,11 @@ Bundler manifests reuse the Ruby parser’s existing Gemfile and lockfile scans.
 
 Mix manifests reuse the Elixir parser’s existing `mix.exs` read: one literal double-quoted `elixir:` requirement with its source line, carried as private digest-bound evidence through the snapshot seam. The content-only `EmitFile` path uses that same literal scanner on its supplied body. Module attributes, calls, charlists, escaped or unterminated strings, and trailing expressions fail closed and count as rejected; a `mix.exs` with Elixir syntax errors contributes no declaration while a file without the key stays absent. Hex dependency rows retain their existing interpretation. `mix.exs` needs no registry admission: it already binds via `.exs` with a stored body, so this lane makes no content-store change.
 
+### mix.exs handoff performance note
+
+- No-Regression Evidence: emitter benchmarks before (origin/main `0701a4ae`, detached worktree) and after (lane HEAD) overlap on linux/arm64 go1.26.6: `BenchmarkEmitPackageJSON` ~63µs/op at 620 allocs/op and `BenchmarkEmitGoMod` ~22µs/op at 233 allocs/op on both revisions (100k-1M ops, 3 counts each). The lane adds one constant switch case to manifest admission and one transport key to the envelope strip; the mix.exs scanner walks at most `MaxManifestBytesPerFile` (1 MiB) once, and the native path reuses the already-parsed tree for its syntax verdict, so no second parse and no new allocation lands on any other file. The full `declaration`, `parser/elixir`, collector `git`, and `git/runtime/declaration` suites pass with `go test -count=1`.
+- No-Observability-Change: the handoff detaches bounded parser evidence inside the existing snapshot parse stage and emits no new signal. `eshu_dp_collector_snapshot_stage_duration_seconds` times the stage, `eshu_dp_facts_emitted_total` covers emitted declarations, and the existing `git_runtime_declaration_file_skipped` / `git_runtime_declaration_values_rejected` warnings report invalid or guarded inputs.
+
 Rules that keep a manifest read bounded and fail closed:
 
 - Only the named runtime sections above are read. Any other `engines` key
