@@ -66,6 +66,8 @@ func (p WorkPlanner) PlanDerivedImageWork(
 		CreatedAt:          observedAt, UpdatedAt: observedAt,
 	}
 	skippedCounts := map[string]map[string]int{}
+	// Image-target skips record count-only rows: no package identity is
+	// known at these decision points (nil packages per the callee contract).
 	skippedPackages := map[string][]schedule.DerivedTargetSkippedPackage{}
 	skippedSources := map[string]struct{}{}
 	targets := make([]workflow.ScannerImageTarget, 0, len(request.Candidates))

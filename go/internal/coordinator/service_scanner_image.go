@@ -91,7 +91,7 @@ func (s Service) scheduleDerivedScannerImageWork(
 		skipped = append(skipped, schedule.DerivedTargetSkipEvidenceByReasonForClass(
 			string(instance.CollectorKind), schedule.TargetClassDerivedImage,
 			"running_image", len(targets), admission.InsertedWorkItems,
-			admission.AdmissionSkipped, nil)...)
+			admission.AdmissionSkipped, nil, map[string][]schedule.DerivedTargetSkippedPackage{})...)
 		s.recordScannerDerivedPage(ctx, ScannerDerivedPageObservation{
 			InsertedWorkItems: admission.InsertedWorkItems,
 			Skipped:           skipped,
