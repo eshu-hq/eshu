@@ -97,7 +97,8 @@ lane_input_paths() {
 # scripts/lib/test-pre-pr-fixture-consumers.sh can call fixture_consumer_dirs
 # directly against a throwaway repository and assert what it actually emits,
 # rather than text-matching its source in this file. The mapping covers the
-# B-12 golden snapshot and the root CLAUDE.md/AGENTS.md canon files. Registry
+# B-12 golden snapshot, the root CLAUDE.md/AGENTS.md canon files, and the
+# factschema schema dirs. Registry
 # and workflow self-tests now run through ci-gate-registry's test_command
 # instead of a duplicate package mapping (#5944).
 

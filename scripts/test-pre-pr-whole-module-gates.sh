@@ -290,10 +290,12 @@ awk '
 ' "${script}" || fail "go test (changed packages) is not reached on both lanes"
 
 # ─── fixture_consumer_dirs branch coverage (#5721 follow-up) ────────────────
-# fixture_consumer_dirs maps two non-Go fixture changes to the Go package
+# fixture_consumer_dirs maps three non-Go fixture changes to the Go package
 # whose tests actually load them: the B-12 golden snapshot to
-# ./cmd/golden-corpus-gate, and a root CLAUDE.md/AGENTS.md edit to
-# ./internal/runtime (TestRepositoryDocumentationStandardsAreEnforced).
+# ./cmd/golden-corpus-gate, a root CLAUDE.md/AGENTS.md edit to
+# ./internal/runtime (TestRepositoryDocumentationStandardsAreEnforced), and a
+# factschema schema/ edit to ./internal/extensionconformance
+# (TestCanonicalSchemaDirMatchesFixturePack).
 # Registry and workflow self-tests now run through ci-gate-registry's
 # local.test_command (#5944), so they deliberately have no duplicate focused
 # package mapping here.
@@ -314,7 +316,7 @@ awk '
 # fixture_consumer_dirs now lives in its own sourced-only file,
 # scripts/lib/pre-pr-fixture-consumers.sh, so
 # scripts/lib/test-pre-pr-fixture-consumers.sh can call it directly against a
-# throwaway repository and assert what it actually emits for both mappings,
+# throwaway repository and assert what it actually emits for all three mappings,
 # plus the absence of the retired #5939 registry/workflow workaround. That
 # behavioural check is strictly stronger than the text pins and the awk
 # extraction it replaces -- it fails on the exact early-return mutation that

@@ -1,5 +1,15 @@
 version: v1
 gates:
+  # #9438 decision (recorded, not promoted): this gate stays tier pre-pr
+  # without local.pre_push: floor. The incident's failing test
+  # (TestCanonicalSchemaDirMatchesFixturePack) now runs on the floor through
+  # fixture_consumer_dirs, which maps sdk/go/factschema/schema/ to
+  # ./internal/extensionconformance (schema only: pack edits stay CI-only
+  # via TestFixturePackSchemasMatchCanonical); the in-module
+  # suite measured ~3s wall but the full gate command (vet/fmt/boundary/
+  # generate/drift across a second Go module) is heavier, and all three
+  # sdk-go siblings uniformly lack a floor entry. Revisit promotion for all
+  # three together if an in-module-only failure ever passes the floor.
   - id: sdk-go-factschema
     name: "SDK Go: factschema build/test/vet/fmt/boundary/generate"
     category: exactness
