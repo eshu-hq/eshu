@@ -194,6 +194,52 @@ persists). A changed or unparsable `Cargo.toml` marks the stream
 dropped, exposing the same pre-existing drop signals as the other
 manifest readers.
 
+## Swift collector cost and signals
+
+Performance Evidence (#9308, 2026-10-30): a paired, sequential local
+benchmark ran the same temporary harness on the branch base `0701a4aed9`
+and the Swift lane head. The temporary harness
+(`BenchmarkSwiftPackageEmitHead` plus the shared-path
+`BenchmarkSwiftVersionPinEmit`, SHA-256
+`288dbba06a136e6b1b5d82df6946e4045ab80c38df3400066146828ab27b3f2d`;
+removed after the run) emits a 97-byte `Package.swift` body (one
+`swift-tools-version` marker plus a minimal manifest) and a `5.9`
+`.swift-version` pin through the production `Emit` path
+(`-benchtime=1000x -count=3 -benchmem`, Go 1.26.10, linux/arm64;
+no graph or Postgres backend):
+
+| Per operation | Base | Swift head |
+| --- | ---: | ---: |
+| `BenchmarkSwiftPackageEmitHead` envelopes | 0 (not admitted) | 1 |
+| `BenchmarkSwiftPackageEmitHead` bytes/allocs | n/a | 6,923-6,994 B, 118 allocs (identical allocs every run) |
+| `BenchmarkSwiftVersionPinEmit` bytes/allocs | 6,396-6,433 B, 109 allocs | 6,396-6,478 B, 109 allocs |
+
+The shared pin path keeps identical allocation counts (109) and byte
+figures across the pair, so the additive `manifestSwiftPackage` switch
+arm and the one `filepath.Base` compare in the Swift `Parse` entrypoint
+do not move the cost of files this lane does not read. The new
+`Package.swift` path costs about 7.0 KiB and 118 allocs per manifest per
+emission at head only; it runs once per changed `Package.swift` per
+generation under the 1 MiB manifest byte cap as a single comment-line
+scan that retains one detached declaration. Host load stayed between
+20 and 27 across the run window (around 2026-10-30T18:55Z), above the 8.0
+quiet-host ceiling, so wall time (base pin 9.7-10.2 us/op, head pin
+23.3-53.1 us/op, head package emit 22.0-35.7 us/op) is diagnostic
+rather than a production throughput or no-regression claim; the
+identical allocs and the unchanged-path argument carry the
+no-regression case.
+
+No-Observability-Change: no metric, span, or log key was added. The
+`swift_tools_version` declaration rides the same content-stream fact
+count as the sibling manifest readers; a missing marker is absent (no
+candidate), a marker without a value reuses the existing WARN
+`git_runtime_declaration_file_skipped` with `manifest_unparseable`, an
+over-cap body reuses it with `byte_cap_exceeded`, and a guarded value
+reuses WARN `git_runtime_declaration_values_rejected` with the same
+labels. The collector retains only the guarded declaration, never the
+body (`TestSwiftRuntimeNativeHandoff` fails if private
+`swift_runtime_evidence` persists).
+
 ## Node collector cost and signals
 
 Performance Evidence (#9308, 2026-10-30): a paired, sequential local
