@@ -126,7 +126,7 @@ func TestDefaultRegistryBindsCredentialFilePolicies(t *testing.T) {
 		if definition.ParserKey == "tfvars" || definition.ParserKey == "yarnrc" {
 			continue
 		}
-		if definition.ParserKey == "npmrc" || definition.ParserKey == "gradle_wrapper" || definition.ParserKey == "php_config" || definition.ParserKey == "runtime_txt" || definition.ParserKey == "sbt_properties" || definition.ParserKey == "dotnet_global_json" {
+		if definition.ParserKey == "npmrc" || definition.ParserKey == "gradle_wrapper" || definition.ParserKey == "php_config" || definition.ParserKey == "runtime_txt" || definition.ParserKey == "sbt_properties" || definition.ParserKey == "dotnet_global_json" || definition.ParserKey == "perl_cpanfile" {
 			if definition.ContentStore.Policy != ContentStoreMetadata {
 				t.Errorf("%s policy = %+v, want metadata (#8978, #8822, #9304, #9308)", definition.ParserKey, definition.ContentStore)
 			}

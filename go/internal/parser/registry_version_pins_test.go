@@ -21,6 +21,7 @@ var versionPinNames = []string{
 	".go-version",
 	".sdkmanrc",
 	".terraform-version",
+	".perl-version",
 	"rust-toolchain",
 	"rust-toolchain.toml",
 	".swift-version",

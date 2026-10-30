@@ -74,10 +74,7 @@ func (r ProcessRunner) RunCollector(ctx context.Context, request Request) (sdkco
 		)
 	}
 	if stdout.Truncated() {
-		return sdkcollector.Result{}, fmt.Errorf(
-			"extension stdout limit exceeded: limit_bytes=%d",
-			stdout.Limit(),
-		)
+		return sdkcollector.Result{}, stdoutLimitExceededFailure(stdout.Limit(), stdout.Total())
 	}
 
 	return decodeSDKResult(stdout.Bytes())
@@ -118,10 +115,7 @@ func (r ProcessRunner) RunPagedCollector(ctx context.Context, request Request) (
 		)
 	}
 	if stdout.Truncated() {
-		return CallResult{}, fmt.Errorf(
-			"extension stdout limit exceeded: limit_bytes=%d",
-			stdout.Limit(),
-		)
+		return CallResult{}, stdoutLimitExceededFailure(stdout.Limit(), stdout.Total())
 	}
 
 	return decodePagedSDKResult(stdout.Bytes())
@@ -164,6 +158,9 @@ type limitedBuffer struct {
 	limit     int64
 	buffer    bytes.Buffer
 	truncated bool
+	// total counts every byte offered to Write, including bytes discarded
+	// past the limit, so an oversize failure can name the observed size.
+	total int64
 }
 
 func newLimitedBuffer(limit int64) *limitedBuffer {
@@ -171,6 +168,7 @@ func newLimitedBuffer(limit int64) *limitedBuffer {
 }
 
 func (b *limitedBuffer) Write(payload []byte) (int, error) {
+	b.total += int64(len(payload))
 	if b.limit <= 0 {
 		b.truncated = true
 		return len(payload), nil
@@ -187,6 +185,11 @@ func (b *limitedBuffer) Write(payload []byte) (int, error) {
 	}
 	_, _ = b.buffer.Write(payload)
 	return len(payload), nil
+}
+
+// Total reports every byte written, kept or discarded.
+func (b *limitedBuffer) Total() int64 {
+	return b.total
 }
 
 func (b *limitedBuffer) Bytes() []byte {

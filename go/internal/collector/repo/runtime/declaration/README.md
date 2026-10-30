@@ -135,7 +135,7 @@ source kind. Its value passes the manifest credential guard before emission.
 
 ## Manifest sources
 
-`package.json`, `composer.json`, `composer.lock`, `Cargo.toml` and `go.mod` are matched by
+`package.json`, `composer.json`, `composer.lock`, `Cargo.toml`, `stack.yaml` and `go.mod` are matched by
 exact, case-sensitive base name at any depth, so a monorepo emits one set of facts per package directory. A copy
 inside `node_modules`, `vendor`, `bower_components` or `jspm_packages` never
 emits: discovery already prunes those directories, and the emitter refuses them
@@ -161,6 +161,7 @@ a constraint from a pin.
 | `gemfile_ruby` | literal `ruby` arguments in `Gemfile` | `ruby` |
 | `gemfile_lock_ruby_version` | `Gemfile.lock` `RUBY VERSION` | `ruby` |
 | `cargo_package_rust_version` | `Cargo.toml` `[package].rust-version` | `rust` |
+| `stack_yaml_resolver` | root `resolver` in `stack.yaml` | `haskell` |
 | `dotnet_global_json_sdk` | `global.json` `sdk.version` | `dotnet` |
 | `dotnet_csproj_target_framework` | `.csproj` unconditional `TargetFramework` | `dotnet` |
 | `dotnet_csproj_target_frameworks` | `.csproj` unconditional `TargetFrameworks` entries | `dotnet` |

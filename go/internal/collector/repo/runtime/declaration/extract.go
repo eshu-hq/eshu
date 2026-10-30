@@ -11,6 +11,7 @@ import (
 	parserjson "github.com/eshu-hq/eshu/go/internal/parser/json"
 	mavenparser "github.com/eshu-hq/eshu/go/internal/parser/maven"
 	"github.com/eshu-hq/eshu/go/internal/parser/nuget"
+	perlparser "github.com/eshu-hq/eshu/go/internal/parser/perl"
 	rubyparser "github.com/eshu-hq/eshu/go/internal/parser/ruby"
 	sbtparser "github.com/eshu-hq/eshu/go/internal/parser/sbt"
 )
@@ -49,6 +50,8 @@ func Extract(relativePath, body string) (Extraction, bool) {
 		return Extraction{}, false
 	case manifestCargo:
 		return extractCargoManifest(body), true
+	case manifestStackYaml:
+		return extractStackManifest(body), true
 	case manifestPackageJSON:
 		return extractManifest(body, func() ([]declaration, int, error) { return extractPackageJSON(body) }), true
 	case manifestComposerJSON:
@@ -90,6 +93,11 @@ func Extract(relativePath, body string) (Extraction, bool) {
 			return CappedRubyExtraction(len(body)), true
 		}
 		return ExtractRubyEvidence(rubyparser.ExtractBundlerRuntimeEvidence(path.Base(relativePath), []byte(body))), true
+	case manifestCpanfile:
+		if len(body) > MaxManifestBytesPerFile {
+			return Extraction{skip: Skip{Reason: SkipReasonByteCap, ByteSize: len(body), ByteCap: MaxManifestBytesPerFile}}, true
+		}
+		return ExtractPerlEvidence(perlparser.ExtractCpanfileRuntimeEvidence(path.Base(relativePath), []byte(body))), true
 	case manifestTerraform, manifestTerragrunt, manifestHelmChart:
 		// IaC declarations arrive only through the native-parser snapshot,
 		// which binds the extraction to the exact source bytes; the content
@@ -114,7 +122,8 @@ func extractPinFile(sourceKind, body string) Extraction {
 	case total > MaxTokensPerFile:
 		return Extraction{skip: Skip{Reason: SkipReasonTokenCap, ByteSize: len(body), TokenCount: total}}
 	}
-	if sourceKind == sourceKindPHPVersion {
+	// .perl-version shares the single-version pin guard.
+	if sourceKind == sourceKindPHPVersion || sourceKind == sourceKindPerlVersion {
 		kept := declarations[:0]
 		rejected := 0
 		for _, d := range declarations {

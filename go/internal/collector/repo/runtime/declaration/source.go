@@ -10,6 +10,7 @@ import "path"
 const (
 	sourceKindNvmrc             = "nvmrc"
 	sourceKindPHPVersion        = "php_version"
+	sourceKindPerlVersion       = "perl_version"
 	sourceKindNodeVersion       = "node_version"
 	sourceKindPythonVersion     = "python_version"
 	sourceKindRubyVersion       = "ruby_version"
@@ -34,6 +35,7 @@ const (
 var pinFileSourceKinds = map[string]string{
 	".nvmrc":              sourceKindNvmrc,
 	".php-version":        sourceKindPHPVersion,
+	".perl-version":       sourceKindPerlVersion,
 	".node-version":       sourceKindNodeVersion,
 	".python-version":     sourceKindPythonVersion,
 	".ruby-version":       sourceKindRubyVersion,

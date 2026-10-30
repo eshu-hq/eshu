@@ -98,10 +98,7 @@ func (r OCIRunner) RunCollector(ctx context.Context, request Request) (sdkcollec
 		)
 	}
 	if stdout.Truncated() {
-		return sdkcollector.Result{}, fmt.Errorf(
-			"extension stdout limit exceeded: limit_bytes=%d",
-			stdout.Limit(),
-		)
+		return sdkcollector.Result{}, stdoutLimitExceededFailure(stdout.Limit(), stdout.Total())
 	}
 	return decodeSDKResult(stdout.Bytes())
 }
@@ -138,10 +135,7 @@ func (r OCIRunner) RunPagedCollector(ctx context.Context, request Request) (Call
 		)
 	}
 	if stdout.Truncated() {
-		return CallResult{}, fmt.Errorf(
-			"extension stdout limit exceeded: limit_bytes=%d",
-			stdout.Limit(),
-		)
+		return CallResult{}, stdoutLimitExceededFailure(stdout.Limit(), stdout.Total())
 	}
 	return decodePagedSDKResult(stdout.Bytes())
 }

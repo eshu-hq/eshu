@@ -117,3 +117,12 @@ refresher in `scripts/lib/live_postgres_readiness_refresh_v2_pool.py` (#9604)
 reads both: `cache_era` finds the step by name and counts a shard without it
 as cold, and `restore_outcome` reads from its `actions/cache/restore` group to
 the next step.
+
+## The acceptance census
+
+The #9598 acceptance is the restore hit rate over at least 10 main push
+runs. Measure it with `scripts/dev/readiness-cache-census/census.py` over
+fetch.sh run directories (same layout the weights refresher reads). The
+census fails closed on any shard whose restore section shows neither a hit
+nor a miss. The first post-fix census (4 runs: 2 all-hit, 2 all-miss) is the
+evidence that the count waits on #9632.

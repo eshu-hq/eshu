@@ -406,7 +406,8 @@ run compiles. Cold residuals carry the compile time that the cache removes, so
 the refresher refuses by name a pool that mixes eras, a run whose shards
 differ in era, and any other restore state. It prints the era and the hit,
 miss, and no-step counts on a `weights refresh v2: cache era ...` line. The
-next pool is warm-era only.
+next pool is warm-era only; the measured miss rate behind that rule is
+recorded in `ci-go-build-cache.md` (#9598).
 
 A pooled refit PR must meet these gates:
 

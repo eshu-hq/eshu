@@ -305,6 +305,10 @@ func (e *Engine) parseDefinition(
 		return parseNuGetProject(resolvedPath, isDependency, options)
 	case "perl":
 		return e.parsePerl(resolvedPath, isDependency, options)
+	case "perl_cpanfile":
+		// The content-store policy keeps metadata only. The runtime reader
+		// reads original bytes in the collector and emits guarded facts.
+		return basePayload(resolvedPath, "perl_cpanfile", isDependency), nil
 	case "php_config":
 		return parsePHPConfig(resolvedPath, isDependency)
 	case "php":

@@ -37,6 +37,7 @@ const (
 	sourceKindSetupPYRequires           = "setup_py_python_requires"
 	sourceKindGemfileRuby               = "gemfile_ruby"
 	sourceKindGemfileLockRuby           = "gemfile_lock_ruby_version"
+	sourceKindCpanfilePerl              = "cpanfile_perl"
 	sourceKindDotNetGlobalSDK           = "dotnet_global_json_sdk"
 	sourceKindDotNetTargetFramework     = "dotnet_csproj_target_framework"
 	sourceKindDotNetTargetFrameworks    = "dotnet_csproj_target_frameworks"
@@ -54,6 +55,7 @@ const (
 	sourceKindTerragruntConstraint      = "terragrunt_version_constraint"
 	sourceKindHelmKubeVersion           = "helm_chart_kube_version"
 	sourceKindCargoRustVersion          = "cargo_package_rust_version"
+	sourceKindStackYamlResolver         = "stack_yaml_resolver"
 )
 
 // section identifies the manifest section a declaration was read from.
@@ -80,6 +82,7 @@ const (
 	sectionSetupPYRequires
 	sectionGemfileRuby
 	sectionGemfileLockRuby
+	sectionCpanfilePerl
 	sectionDotNetGlobalSDK
 	sectionDotNetTargetFramework
 	sectionDotNetTargetFrameworks
@@ -97,6 +100,7 @@ const (
 	sectionTerragruntConstraint
 	sectionHelmKubeVersion
 	sectionCargoRustVersion
+	sectionStackYamlResolver
 )
 
 // sectionSourceKinds maps a section to its source kind.
@@ -121,6 +125,7 @@ var sectionSourceKinds = [...]string{
 	sectionSetupPYRequires:           sourceKindSetupPYRequires,
 	sectionGemfileRuby:               sourceKindGemfileRuby,
 	sectionGemfileLockRuby:           sourceKindGemfileLockRuby,
+	sectionCpanfilePerl:              sourceKindCpanfilePerl,
 	sectionDotNetGlobalSDK:           sourceKindDotNetGlobalSDK,
 	sectionDotNetTargetFramework:     sourceKindDotNetTargetFramework,
 	sectionDotNetTargetFrameworks:    sourceKindDotNetTargetFrameworks,
@@ -138,6 +143,7 @@ var sectionSourceKinds = [...]string{
 	sectionTerragruntConstraint:      sourceKindTerragruntConstraint,
 	sectionHelmKubeVersion:           sourceKindHelmKubeVersion,
 	sectionCargoRustVersion:          sourceKindCargoRustVersion,
+	sectionStackYamlResolver:         sourceKindStackYamlResolver,
 }
 
 // MaxManifestBytesPerFile bounds one package.json, Composer, or go.mod body. A manifest
@@ -163,6 +169,7 @@ const (
 	manifestSetupPY
 	manifestGemfile
 	manifestGemfileLock
+	manifestCpanfile
 	manifestDotNetGlobal
 	manifestDotNetProject
 	manifestPom
@@ -173,6 +180,7 @@ const (
 	manifestTerragrunt
 	manifestHelmChart
 	manifestCargo
+	manifestStackYaml
 )
 
 // dependencyDirs are directory names whose manifests belong to a dependency,
@@ -212,6 +220,8 @@ func manifestKindForBase(base, relativePath string) manifestKind {
 		kind = manifestGoMod
 	case base == "Cargo.toml":
 		kind = manifestCargo
+	case base == "stack.yaml":
+		kind = manifestStackYaml
 	case base == "pyproject.toml" || base == "Pipfile":
 		kind = manifestPythonTOML
 	case base == "setup.cfg":
@@ -222,6 +232,8 @@ func manifestKindForBase(base, relativePath string) manifestKind {
 		kind = manifestGemfile
 	case base == "Gemfile.lock":
 		kind = manifestGemfileLock
+	case base == "cpanfile":
+		kind = manifestCpanfile
 	case base == "global.json":
 		kind = manifestDotNetGlobal
 	case path.Ext(base) == ".csproj":

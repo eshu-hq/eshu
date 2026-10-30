@@ -31,15 +31,8 @@ func Parse(
 
 	payload := yamlBasePayload(path, isDependency)
 	filename := filepath.Base(path)
-	if isHelmChartFile(filename) {
-		payload["iac_runtime_evidence"] = helmRuntimeEvidence(source)
-		if item := parseHelmChart(path, source); item != nil {
-			shared.AppendBucket(payload, "helm_charts", item)
-		}
-		if options.IndexSource {
-			payload["source"] = string(source)
-		}
-		return payload, nil
+	if out, handled := parseChartFile(payload, path, filename, source, options); handled {
+		return out, nil
 	}
 	if isHelmValuesFile(filename) {
 		// Decode once and share the result between the base HelmValue
@@ -143,6 +136,11 @@ func Parse(
 		return nil, fmt.Errorf("parse yaml file %q: %w", path, err)
 	}
 
+	// The Stack resolver reuses this same decode, never a second parse.
+	if out, handled := parseStackPayload(payload, filename, source, options, documents, documentNodes); handled {
+		return out, nil
+	}
+
 	for index, document := range documents {
 		object, ok := document.(map[string]any)
 		if !ok {
@@ -192,6 +190,42 @@ func Parse(
 		payload["source"] = string(source)
 	}
 	return payload, nil
+}
+
+// parseChartFile attaches the Helm chart evidence and rows for a chart file.
+// It reports whether it handled the file.
+func parseChartFile(payload map[string]any, path, filename string, source []byte, options Options) (map[string]any, bool) {
+	if !isHelmChartFile(filename) {
+		return nil, false
+	}
+	payload["iac_runtime_evidence"] = helmRuntimeEvidence(source)
+	if item := parseHelmChart(path, source); item != nil {
+		shared.AppendBucket(payload, "helm_charts", item)
+	}
+	if options.IndexSource {
+		payload["source"] = string(source)
+	}
+	return payload, true
+}
+
+// parseStackPayload attaches the Stack resolver evidence for a stack.yaml
+// file from the shared decode. It reports whether it handled the file: any
+// other name, or a CloudFormation template carrying the name, falls through
+// to the generic handling. The resolver is the only version declaration this
+// reader owns; every other stack.yaml key stays out of runtime truth.
+func parseStackPayload(payload map[string]any, filename string, source []byte, options Options, documents []any, documentNodes []*yamlv3.Node) (map[string]any, bool) {
+	if !isStackFile(filename) {
+		return nil, false
+	}
+	evidence, ok := stackEvidenceFromDecoded(source, documents, documentNodes)
+	if !ok {
+		return nil, false
+	}
+	payload["haskell_runtime_evidence"] = evidence
+	if options.IndexSource {
+		payload["source"] = string(source)
+	}
+	return payload, true
 }
 
 func yamlBasePayload(path string, isDependency bool) map[string]any {
