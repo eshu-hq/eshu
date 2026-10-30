@@ -83,5 +83,5 @@ func ManifestPackageManagersForEcosystem(ecosystem string) []string {
 }
 
 func isSBTPackageManager(packageManager string) bool {
-	return strings.EqualFold(strings.TrimSpace(packageManager), sbtPackageManager)
+	return LowerASCII(strings.TrimSpace(packageManager)) == sbtPackageManager
 }

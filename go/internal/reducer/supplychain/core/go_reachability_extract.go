@@ -4,11 +4,10 @@
 package core
 
 import (
-	"strings"
-
 	vulnerabilityv1 "github.com/eshu-hq/eshu-sdk/factschema/vulnerability/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
+	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
@@ -172,7 +171,7 @@ func extractGoAffectedPackages(envelopes []facts.Envelope) []goAffectedPackageRo
 		if err != nil {
 			continue
 		}
-		ecosystem := strings.ToLower(payloadcore.DerefString(pkg.Ecosystem))
+		ecosystem := packageidentity.LowerASCII(payloadcore.DerefString(pkg.Ecosystem))
 		if ecosystem != "go" && ecosystem != "go-module" && ecosystem != "golang" && ecosystem != "gomod" {
 			continue
 		}

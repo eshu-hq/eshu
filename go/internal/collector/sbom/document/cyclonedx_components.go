@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
+	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 )
 
 // componentIndexEntry resolves bom-refs and PURLs back to a component ID.
@@ -96,9 +97,9 @@ func cycloneDXComponentEnvelopes(
 
 func componentCanonicalKey(purl, name, version string) string {
 	if purl != "" {
-		return "purl:" + strings.ToLower(purl)
+		return "purl:" + packageidentity.LowerASCII(purl)
 	}
-	return "nv:" + strings.ToLower(strings.TrimSpace(name)) + "@" + strings.ToLower(strings.TrimSpace(version))
+	return "nv:" + packageidentity.LowerASCII(strings.TrimSpace(name)) + "@" + packageidentity.LowerASCII(strings.TrimSpace(version))
 }
 
 func cycloneDXComponentEnvelope(ctx FixtureContext, docID, componentID string, comp cycloneDXComponent, duplicate bool) facts.Envelope {

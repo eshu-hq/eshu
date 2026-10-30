@@ -302,7 +302,7 @@ type remediationVersionOperations struct {
 }
 
 func remediationEcosystemOperations(ecosystem string) (remediationVersionOperations, bool) {
-	normalized := strings.ToLower(string(packageidentity.NormalizeEcosystem(packageidentity.Ecosystem(ecosystem))))
+	normalized := packageidentity.LowerASCII(string(packageidentity.NormalizeEcosystem(packageidentity.Ecosystem(ecosystem))))
 	switch normalized {
 	case string(packageidentity.EcosystemNPM):
 		return semverRemediationOperations(evaluateNPMManifestAllowsFix), true
@@ -351,7 +351,7 @@ func remediationEcosystemOperations(ecosystem string) (remediationVersionOperati
 			manifestRequired:  true,
 		}, true
 	default:
-		switch strings.ToLower(strings.TrimSpace(ecosystem)) {
+		switch packageidentity.LowerASCII(strings.TrimSpace(ecosystem)) {
 		case "redhat", "fedora", "centos", "rocky", "alma", "amazonlinux", "rpm":
 			return remediationVersionOperations{
 				valid:            validRPMEVR,
@@ -383,7 +383,7 @@ func remediationOperationsForFinding(finding SupplyChainImpactFinding) (remediat
 	if ops, supported := remediationEcosystemOperations(finding.Ecosystem); supported {
 		return ops, true
 	}
-	if strings.ToLower(strings.TrimSpace(finding.Ecosystem)) != string(packageidentity.EcosystemOS) {
+	if packageidentity.LowerASCII(strings.TrimSpace(finding.Ecosystem)) != string(packageidentity.EcosystemOS) {
 		return remediationVersionOperations{}, false
 	}
 	switch osRemediationFamilyForFinding(finding) {

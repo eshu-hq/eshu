@@ -6,6 +6,7 @@ package core
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
@@ -32,18 +33,18 @@ func classifyAffectedPackageAdvisorySource(pkg supplychainmodel.AffectedPackage)
 	if source != "osv" && source != "" {
 		return source
 	}
-	if strings.ToLower(strings.TrimSpace(pkg.Ecosystem)) != "os" {
+	if packageidentity.LowerASCII(strings.TrimSpace(pkg.Ecosystem)) != "os" {
 		return source
 	}
 	return osPackageVendorFromPURL(pkg.PURL)
 }
 
 func osPackageIdentityFromAffectedPackage(pkg supplychainmodel.AffectedPackage) string {
-	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(pkg.PackageID)), "os://") {
-		return strings.ToLower(strings.TrimSpace(pkg.PackageID))
+	if strings.HasPrefix(packageidentity.LowerASCII(strings.TrimSpace(pkg.PackageID)), "os://") {
+		return packageidentity.LowerASCII(strings.TrimSpace(pkg.PackageID))
 	}
 	vendor := osPackageVendorFromPURL(pkg.PURL)
-	name := strings.ToLower(strings.TrimSpace(pkg.Name))
+	name := packageidentity.LowerASCII(strings.TrimSpace(pkg.Name))
 	if vendor == "" || name == "" {
 		return ""
 	}
@@ -80,7 +81,7 @@ func osPackageFamilyFromPURL(purl string) string {
 }
 
 func osPackagePURLTypeAndNamespace(purl string) (string, string) {
-	trimmed := strings.ToLower(strings.TrimSpace(purl))
+	trimmed := packageidentity.LowerASCII(strings.TrimSpace(purl))
 	if !strings.HasPrefix(trimmed, "pkg:") {
 		return "", ""
 	}
@@ -102,7 +103,7 @@ func osPackagePURLTypeAndNamespace(purl string) (string, string) {
 }
 
 func osPackageFamilyFromPackageManager(packageManager string) string {
-	switch strings.ToLower(strings.TrimSpace(packageManager)) {
+	switch packageidentity.LowerASCII(strings.TrimSpace(packageManager)) {
 	case "deb", "dpkg":
 		return "dpkg"
 	case "apk":

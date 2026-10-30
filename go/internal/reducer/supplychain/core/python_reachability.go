@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
+	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/source"
@@ -147,7 +148,7 @@ func supplyChainImpactHasPyPIEvidence(envelopes []facts.Envelope) bool {
 			if normalizedSupplyChainVersionEcosystem(payloadcore.PayloadStr(envelope.Payload, "ecosystem")) == "pypi" {
 				return true
 			}
-			if strings.HasPrefix(strings.ToLower(payloadcore.PayloadStr(envelope.Payload, "package_id")), "pkg:pypi/") {
+			if strings.HasPrefix(packageidentity.LowerASCII(payloadcore.PayloadStr(envelope.Payload, "package_id")), "pkg:pypi/") {
 				return true
 			}
 		}
@@ -274,7 +275,7 @@ func pythonPackageNameFromPackageID(packageID string) string {
 	if packageID == "" {
 		return ""
 	}
-	if strings.HasPrefix(strings.ToLower(packageID), "pkg:pypi/") {
+	if strings.HasPrefix(packageidentity.LowerASCII(packageID), "pkg:pypi/") {
 		return strings.TrimPrefix(packageID, "pkg:pypi/")
 	}
 	if idx := strings.LastIndex(packageID, "/"); idx >= 0 && idx+1 < len(packageID) {

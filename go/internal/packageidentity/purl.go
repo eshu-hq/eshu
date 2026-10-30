@@ -93,7 +93,10 @@ func parsePURLToRawIdentity(purl string) (RawIdentity, bool) {
 	if err != nil {
 		decodedPath = path
 	}
-	ecosystem := canonicalPURLEcosystem(purlType)
+	// Fold the type token once, ASCII letters only (#9584); the ecosystem and
+	// the OS package manager both come from this one value.
+	purlTypeToken := LowerASCII(strings.TrimSpace(purlType))
+	ecosystem := canonicalPURLEcosystem(purlTypeToken)
 	parts := strings.Split(decodedPath, "/")
 	name := parts[len(parts)-1]
 	namespace := strings.Join(parts[:len(parts)-1], "/")
@@ -106,7 +109,7 @@ func parsePURLToRawIdentity(purl string) (RawIdentity, bool) {
 	if ecosystem == EcosystemOS {
 		registry = namespace
 		namespace = ""
-		packageManager = strings.ToLower(strings.TrimSpace(purlType))
+		packageManager = purlTypeToken
 	}
 	if ecosystem == EcosystemNPM && strings.HasPrefix(namespace, "@") {
 		name = namespace + "/" + name
@@ -126,11 +129,12 @@ func parsePURLToRawIdentity(purl string) (RawIdentity, bool) {
 	}, true
 }
 
-// canonicalPURLEcosystem maps a purl type token to the canonical ecosystem,
-// falling back to the lowercased token when no canonical alias applies.
-func canonicalPURLEcosystem(purlType string) Ecosystem {
-	if normalized := NormalizeEcosystem(Ecosystem(purlType)); normalized != "" {
+// canonicalPURLEcosystem maps a folded purl type token to the canonical
+// ecosystem, falling back to the token itself when no canonical alias applies.
+// The caller folds the token with LowerASCII.
+func canonicalPURLEcosystem(purlTypeToken string) Ecosystem {
+	if normalized := NormalizeEcosystem(Ecosystem(purlTypeToken)); normalized != "" {
 		return normalized
 	}
-	return Ecosystem(strings.ToLower(strings.TrimSpace(purlType)))
+	return Ecosystem(purlTypeToken)
 }
