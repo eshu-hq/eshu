@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	cabalparser "github.com/eshu-hq/eshu/go/internal/parser/cabal"
 	"github.com/eshu-hq/eshu/go/internal/parser/content"
 	javaparser "github.com/eshu-hq/eshu/go/internal/parser/java"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
@@ -284,7 +285,13 @@ func (e *Engine) parseDefinition(
 	case "cpp":
 		return e.parseCPP(repoRoot, resolvedPath, isDependency, options)
 	case "cabal":
-		return e.parseCabal(resolvedPath, isDependency, options)
+		// Metadata-only: the cabal sub-package owns the tested-with reader;
+		// the single call stays inline so the capped parser directory grows
+		// by no file (#9308).
+		return cabalparser.Parse(resolvedPath, isDependency, shared.Options{
+			IndexSource:   options.IndexSource,
+			VariableScope: options.VariableScope,
+		})
 	case "dart":
 		return e.parseDart(resolvedPath, isDependency, options)
 	case "dockerfile":
