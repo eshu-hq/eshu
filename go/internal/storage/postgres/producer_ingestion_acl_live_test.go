@@ -10,7 +10,10 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"net/url"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -39,34 +42,68 @@ func TestProducerIngestionACLsLive(t *testing.T) {
 		t.Cleanup(func() { _ = database.Close() })
 		return database
 	}
+	// Each proof run gets its own database owned by its owner role: the
+	// shared fixture database serves concurrent shards, so bootstrapping
+	// its public schema as different owners collides on object
+	// ownership. A dedicated database makes the proof hermetic.
+	suffix := fmt.Sprintf("%x", time.Now().UnixNano())
+	proofDB := "producer_acl_" + suffix
+	proofDSN := func(dsn, role string) string {
+		t.Helper()
+		parsed, err := url.Parse(dsn)
+		if err != nil {
+			t.Fatalf("parse role DSN: %v", err)
+		}
+		parsed.Path = "/" + proofDB
+		if role != "" {
+			parsed.User = url.UserPassword(role, "local-proof-only")
+		}
+		return parsed.String()
+	}
 	admin := open(adminDSN)
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cleanupCancel()
+		_, _ = admin.ExecContext(cleanupCtx, `DROP DATABASE IF EXISTS "`+proofDB+`" WITH (FORCE)`)
+		_, _ = admin.ExecContext(cleanupCtx, `DROP ROLE IF EXISTS "eshu_acl_owner_`+suffix+`", "eshu_acl_producer_`+suffix+`"`)
+	})
 	if _, err := admin.ExecContext(ctx, `
-CREATE ROLE eshu_acl_owner LOGIN PASSWORD 'local-proof-only';
-CREATE ROLE eshu_acl_producer LOGIN PASSWORD 'local-proof-only';
-GRANT CREATE ON DATABASE postgres TO eshu_acl_owner;
-GRANT USAGE,CREATE ON SCHEMA public TO eshu_acl_owner;
+CREATE ROLE eshu_acl_owner_`+suffix+` LOGIN PASSWORD 'local-proof-only';
+CREATE ROLE eshu_acl_producer_`+suffix+` LOGIN PASSWORD 'local-proof-only';
 GRANT EXECUTE ON FUNCTION pg_catalog.pg_control_system()
-  TO eshu_acl_owner,eshu_acl_producer;`); err != nil {
+  TO eshu_acl_owner_`+suffix+`,eshu_acl_producer_`+suffix+`;`); err != nil {
 		t.Fatalf("prepare disposable roles: %v", err)
 	}
-	owner := open(ownerDSN)
+	if _, err := admin.ExecContext(ctx, `CREATE DATABASE "`+proofDB+`" OWNER "eshu_acl_owner_`+suffix+`"`); err != nil {
+		t.Fatalf("create proof database: %v", err)
+	}
+	proofAdmin, err := sql.Open("pgx", proofDSN(adminDSN, ""))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = proofAdmin.Close() }()
+	if _, err := proofAdmin.ExecContext(ctx, `GRANT USAGE,CREATE ON SCHEMA public TO "eshu_acl_owner_`+suffix+`"`); err != nil {
+		t.Fatalf("grant proof schema create: %v", err)
+	}
+	owner := open(proofDSN(ownerDSN, "eshu_acl_owner_"+suffix))
 	if err := ApplyDefinitions(ctx, SQLDB{DB: owner}, BootstrapDefinitions()); err != nil {
 		t.Fatalf("apply migrations as protected owner: %v", err)
 	}
 	if _, err := admin.ExecContext(ctx,
-		`REVOKE CREATE ON DATABASE postgres FROM eshu_acl_owner`); err != nil {
+		`REVOKE CREATE ON DATABASE "`+proofDB+`" FROM "eshu_acl_owner_`+suffix+`"`); err != nil {
 		t.Fatal(err)
 	}
-	const contracts = `[{
+	const contractsTemplate = `[{
   "contract_id":"typed-producer-acl", "workload_class":"collector-vulnerability-intelligence",
   "connection_route":"producer", "profile":"typed-source-producer",
   "session_role":"eshu_acl_producer", "effective_role":"eshu_acl_producer"
 }]`
+	contracts := strings.ReplaceAll(contractsTemplate, "eshu_acl_producer", "eshu_acl_producer_"+suffix)
 	if _, err := owner.ExecContext(ctx,
 		`SELECT eshu_security.install_role_policy_v1(0,1,$1::jsonb)`, contracts); err != nil {
 		t.Fatalf("install producer role policy: %v", err)
 	}
-	producer := open(producerDSN)
+	producer := open(proofDSN(producerDSN, "eshu_acl_producer_"+suffix))
 	if _, err := producer.ExecContext(ctx, `SELECT 1 FROM eshu_security.attest_connection_v1(
   'typed-producer-acl',1,'collector-vulnerability-intelligence','producer')`); err != nil {
 		t.Fatalf("attest producer connection: %v", err)

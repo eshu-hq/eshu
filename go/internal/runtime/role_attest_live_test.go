@@ -29,7 +29,12 @@ func TestPostgresRoleContractAttestsActualPhysicalSession(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = conn.Close(ctx) }()
-	const schema = `CREATE SCHEMA eshu_security;
+	// The shared fixture database may already carry the authority layout
+	// (another proof bootstraps it first), so stage the stub
+	// idempotently and clean up only the stub: dropping the whole schema
+	// could remove tables a concurrent proof still needs.
+	const schema = `CREATE SCHEMA IF NOT EXISTS eshu_security;
+DROP FUNCTION IF EXISTS eshu_security.attest_connection_v1(text,bigint,text,text);
 CREATE FUNCTION eshu_security.attest_connection_v1(text,bigint,text,text)
 RETURNS TABLE(policy_revision bigint, profile text, session_role_oid oid, effective_role_oid oid,
  database_oid oid, database_identity uuid, acl_inventory_version integer)
@@ -44,7 +49,9 @@ $$;`
 	if _, err := conn.Exec(ctx, schema).ReadAll(); err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _, _ = conn.Exec(context.Background(), `DROP SCHEMA eshu_security CASCADE`).ReadAll() }()
+	defer func() {
+		_, _ = conn.Exec(context.Background(), `DROP FUNCTION IF EXISTS eshu_security.attest_connection_v1(text,bigint,text,text)`).ReadAll()
+	}()
 	identity := conn.ExecParams(ctx, `SELECT current_user,current_database()`, nil, nil, nil, nil).Read()
 	if identity.Err != nil || len(identity.Rows) != 1 || len(identity.Rows[0]) != 2 {
 		t.Fatalf("read disposable connection identity: %v", identity.Err)

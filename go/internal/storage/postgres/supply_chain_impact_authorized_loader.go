@@ -5,7 +5,11 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
+
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
@@ -14,6 +18,52 @@ import (
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
+
+// authorizedImpactProtectionEngagedQuery probes the singleton policy row.
+// It names no other relation so an undefined-table failure unambiguously
+// means the authority layout is absent.
+const authorizedImpactProtectionEngagedQuery = `SELECT 1 FROM eshu_security.role_policy_state WHERE singleton LIMIT 1`
+
+// authorizedImpactProtectionEngaged reports whether role policy is
+// installed. A missing authority layout (isolated test bootstrap) or an
+// empty policy state (pre-onboarding store) both mean protection was never
+// onboarded, so the caller keeps the plain static load. Any other error —
+// including a connection failure — propagates so the caller surfaces the
+// real problem instead of silently downgrading.
+func authorizedImpactProtectionEngaged(ctx context.Context, queryer db.Queryer) (bool, error) {
+	rows, err := queryer.QueryContext(ctx, authorizedImpactProtectionEngagedQuery)
+	if err != nil {
+		if isAuthorityLayoutAbsent(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("read protected policy engagement: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			if isAuthorityLayoutAbsent(err) {
+				return false, nil
+			}
+			return false, fmt.Errorf("read protected policy engagement: %w", err)
+		}
+		return false, nil
+	}
+	if err := rows.Err(); err != nil {
+		return false, fmt.Errorf("read protected policy engagement: %w", err)
+	}
+	return true, nil
+}
+
+// isAuthorityLayoutAbsent reports whether err is the policy-state relation
+// itself being absent. The probe names no other table, so the relation-name
+// check keeps an unrelated undefined-table failure from degrading.
+func isAuthorityLayoutAbsent(err error) bool {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) {
+		return false
+	}
+	return pgErr.Code == "42P01" && strings.Contains(pgErr.Message, "role_policy_state")
+}
 
 // AuthorizedSupplyChainImpactEvidenceLoader reads static and target-local
 // evidence in one authority-filtered read-only repeatable-read snapshot.
@@ -53,6 +103,27 @@ func (l AuthorizedSupplyChainImpactEvidenceLoader) ListAuthorizedSupplyChainImpa
 		snapshotStore, ok := factLoader.(*FactStore)
 		if !ok || snapshotStore.database == nil {
 			return fmt.Errorf("authorized impact snapshot fact store is unavailable")
+		}
+		engaged, err := authorizedImpactProtectionEngaged(ctx, snapshotStore.database)
+		if err != nil {
+			return err
+		}
+		if !engaged {
+			// Protection was never onboarded here: advisory gating and
+			// target publication are not in use, so the static expansion
+			// stands on its own exactly as the legacy static load. The
+			// writer never sees a protected set it cannot authorize.
+			staticLoad, err := static(ctx, factLoader, nil)
+			if err != nil {
+				return fmt.Errorf("expand authorized static impact evidence: %w", err)
+			}
+			loaded.StaticEnvelopes = cloneAuthorizedImpactEnvelopes(staticLoad.Envelopes)
+			loaded.SuppressionEnvelopes = cloneAuthorizedImpactEnvelopes(staticLoad.SuppressionEnvelopes)
+			for _, envelope := range staticLoad.Envelopes {
+				loaded.StaticNonAdvisoryEvidenceFactIDs = append(loaded.StaticNonAdvisoryEvidenceFactIDs, envelope.FactID)
+			}
+			loaded.Complete = true
+			return nil
 		}
 		public, advisoryReason, err := loadCurrentAuthorizedPublicAdvisories(ctx, snapshotStore.database)
 		if err != nil {
@@ -94,6 +165,7 @@ func (l AuthorizedSupplyChainImpactEvidenceLoader) ListAuthorizedSupplyChainImpa
 		loaded.Targets, loaded.ScanPublications = targets, publications
 		loaded.CoverageReason = reason
 		loaded.Complete = reason == ""
+		loaded.ProtectionEngaged = true
 		return nil
 	})
 	if err != nil {
