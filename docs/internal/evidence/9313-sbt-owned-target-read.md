@@ -41,7 +41,7 @@ linearly, the same trade the #9285 Gradle expansion accepted (+20% targets
 for ~35 ms on the QA replica). No new index: the `sbt` prefix is served by
 the existing `package_manager` index, as the #8961 sbt branch measured.
 
-## No-Regression Evidence
+## No-Regression Evidence: same plan, cost linear in selected rows
 
 Hermetic query-shape pins (`TestOwnedPackageEcosystemAliasExpansionSharesOneTable`,
 `TestListOwnedPackageDependencyTargetsQueryIsActiveAndBounded`,
@@ -50,7 +50,7 @@ reader proof (`TestListOwnedPackageDependencyTargetsAliasesLive`, now with
 sbt rows) pass on the final tree. The `DISTINCT ON` identity and slot-hash
 inputs are untouched, so rotation and dedup behavior are unchanged.
 
-## No-Observability-Change
+## No-Observability-Change: same span and window logging
 
 Same read path, span, and window-stat logging; the two new columns ride the
 existing row scan with no new metric, log field, or knob.
