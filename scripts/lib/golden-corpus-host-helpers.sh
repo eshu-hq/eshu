@@ -55,21 +55,16 @@ wait_for_gate_http() {
 # pg runs a single-value SQL query against the gate's Postgres, working in both
 # compose mode (via the postgres container) and --no-compose mode (via a local
 # psql client). Used to assert the cassette collectors actually committed.
-# Leading -v NAME=VALUE pairs are forwarded to psql as query variables
-# (single-argument callers are unaffected).
+# Values ride in the statement text (quote-doubled by the caller when needed):
+# psql -c never interpolates :variables, so pg takes no -v pairs.
 pg() {
-	local vars=()
-	while [[ $# -gt 1 && "$1" == "-v" ]]; do
-		vars+=("$1" "$2")
-		shift 2
-	done
 	local sql="$1"
 	if [[ "${use_compose}" -eq 1 ]]; then
 		docker compose "${compose_args[@]}" exec -T postgres \
-			psql -v ON_ERROR_STOP=1 -U eshu -d eshu ${vars[@]+"${vars[@]}"} -tA -c "${sql}"
+			psql -v ON_ERROR_STOP=1 -U eshu -d eshu -tA -c "${sql}"
 	else
 		command -v psql >/dev/null 2>&1 || die "psql client required in --no-compose mode"
-		psql "${ESHU_POSTGRES_DSN}" -v ON_ERROR_STOP=1 ${vars[@]+"${vars[@]}"} -tA -c "${sql}"
+		psql "${ESHU_POSTGRES_DSN}" -v ON_ERROR_STOP=1 -tA -c "${sql}"
 	fi
 }
 

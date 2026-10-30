@@ -170,7 +170,6 @@ bash "${repo_root}/scripts/lib/test-golden-corpus-cassette-replay.sh" || fail "c
 bash "${repo_root}/scripts/lib/test-golden-corpus-service-changed-since.sh" || fail "service changed-since helper tests failed"
 bash "${repo_root}/scripts/lib/test-golden-corpus-documentation-order.sh" || fail "documentation drain ordering tests failed"
 bash "${repo_root}/scripts/lib/test-golden-corpus-metrics-source.sh" || fail "metrics source helper tests failed"
-bash "${repo_root}/scripts/lib/test-golden-corpus-host-helpers-pg.sh" || fail "host helpers pg forwarding tests failed"
 bash "${repo_root}/scripts/lib/test-golden-corpus-vulnerability-readiness-fixture.sh" || fail "vulnerability-readiness fixture helper tests failed"
 bash "${repo_root}/scripts/lib/test-golden-corpus-relationship-evidence.sh" || fail "relationship evidence helper tests failed"
 bash "${repo_root}/scripts/lib/test-golden-corpus-aggregate-counts.sh" || fail "aggregate count helper tests failed"
