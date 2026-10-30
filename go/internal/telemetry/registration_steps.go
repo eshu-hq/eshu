@@ -205,6 +205,7 @@ func registerVulnerabilityIntelligence() {
 	sourceCollectorSpans := []string{
 		contract.SpanVulnerabilityIntelligenceObserve,
 		contract.SpanVulnerabilityIntelligenceFetch,
+		contract.SpanVulnerabilityIntelligencePlan,
 		contract.SpanSecurityAlertObserve,
 		contract.SpanSecurityAlertFetch,
 		thirdparty.SpanPagerDutyObserve,

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -161,7 +162,9 @@ func assertOwnedPackageReadFollowsActiveGenerations(ctx context.Context, t *test
 }
 
 // ownedPackageStatementRows runs one owned-package statement and returns every
-// output column of every row as one string per row, in statement order.
+// output column of every row as one string per row, in statement order. It
+// scans by column count, not by a hand-copied column list, so projecting
+// another already-computed column (key_hash_low24, #9432) cannot break it.
 func ownedPackageStatementRows(ctx context.Context, t *testing.T, db *sql.DB, query string, args []any) []string {
 	t.Helper()
 	rows, err := db.QueryContext(ctx, query, args...)
@@ -169,22 +172,50 @@ func ownedPackageStatementRows(ctx context.Context, t *testing.T, db *sql.DB, qu
 		t.Fatalf("run owned-package statement: %v", err)
 	}
 	defer func() { _ = rows.Close() }()
+	columns, err := rows.Columns()
+	if err != nil {
+		t.Fatalf("owned-package columns: %v", err)
+	}
 	var out []string
 	for rows.Next() {
-		var ecosystem, name, version, repositoryID, factID, sourceLocation sql.NullString
-		var lockfile sql.NullBool
-		var total, slotCount, slot, slotSize int64
-		if err := rows.Scan(&ecosystem, &name, &version, &lockfile, &repositoryID, &factID, &sourceLocation,
-			&total, &slotCount, &slot, &slotSize); err != nil {
+		cells := make([]any, len(columns))
+		pointers := make([]any, len(columns))
+		for i := range cells {
+			pointers[i] = &cells[i]
+		}
+		if err := rows.Scan(pointers...); err != nil {
 			t.Fatalf("scan owned-package row: %v", err)
 		}
-		out = append(out, fmt.Sprintf("%s|%s|%s|%v|%s|%s|%s|%d|%d|%d|%d", ecosystem.String, name.String, version.String,
-			lockfile.Bool, repositoryID.String, factID.String, sourceLocation.String, total, slotCount, slot, slotSize))
+		text := make([]string, len(cells))
+		for i, cell := range cells {
+			text[i] = ownedPackageCellText(cell)
+		}
+		out = append(out, strings.Join(text, "|"))
 	}
 	if err := rows.Err(); err != nil {
 		t.Fatalf("owned-package rows: %v", err)
 	}
 	return out
+}
+
+// ownedPackageCellText renders one scanned cell the way the previous
+// hand-copied scan did: text as-is, booleans and integers plainly, NULL as
+// empty, so package-identity assertions read unchanged.
+func ownedPackageCellText(cell any) string {
+	switch value := cell.(type) {
+	case nil:
+		return ""
+	case string:
+		return value
+	case []byte:
+		return string(value)
+	case bool:
+		return strconv.FormatBool(value)
+	case int64:
+		return strconv.FormatInt(value, 10)
+	default:
+		return fmt.Sprintf("%v", value)
+	}
 }
 
 // ownedPackageFactScanRows runs EXPLAIN (ANALYZE, FORMAT JSON) on a statement
