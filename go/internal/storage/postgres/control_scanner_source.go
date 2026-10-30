@@ -128,6 +128,13 @@ func proveScannerSource(ctx context.Context, tx db.Queryer,
 func scannerBindingID(target workflow.ScannerImageTarget, item workflow.WorkItem,
 	source workflow.ScannerImageSourceBinding, proof scannerSourceProof,
 ) string {
+	// Binding identity covers the scan content and its generation-scoped
+	// authority, not the volatile collector-instance epochs. Instance rows
+	// flap on ordinary ops traffic (enable toggles, config edits) and their
+	// epochs only move forward, so pinning them here would fork identity on
+	// every flap and defeat completed-target suppression. The instance
+	// epochs stay pinned in the binding columns and every use rechecks them
+	// against current authority before the worker acts.
 	var key strings.Builder
 	for _, value := range [...]string{
 		target.ScanTargetID, item.CollectorInstanceID,
@@ -138,9 +145,8 @@ func scannerBindingID(target workflow.ScannerImageTarget, item workflow.WorkItem
 		proof.domainConfigHash, proof.sourcePayloadHash,
 		fmt.Sprint(proof.sourceActivationEpoch),
 		fmt.Sprint(proof.producerGrantEpoch),
-		fmt.Sprint(proof.sourceInstanceEpoch),
 		fmt.Sprint(proof.tenantEpoch), fmt.Sprint(proof.workspaceEpoch),
-		fmt.Sprint(proof.scopeGrantEpoch), fmt.Sprint(proof.registryEpoch),
+		fmt.Sprint(proof.scopeGrantEpoch),
 		fmt.Sprint(proof.rolePolicyRevision), proof.databaseIdentity,
 		fmt.Sprint(proof.manifestVerificationEpoch),
 	} {

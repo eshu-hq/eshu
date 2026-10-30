@@ -9,6 +9,8 @@ package postgres
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 )
@@ -37,37 +39,50 @@ func TestScannerAuthorityEpochNoABALive(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	read := func(table, predicate string) int64 {
+	// Authority epochs live in scanner_authority_epochs keyed by
+	// (kind, jsonb key), not as columns on the ancestor rows. The key is
+	// rebuilt in SQL so its text form always matches the trigger's.
+	read := func(kind string, parts ...string) int64 {
 		t.Helper()
+		args := make([]any, 0, len(parts)+1)
+		args = append(args, kind)
+		placeholders := make([]string, 0, len(parts))
+		for i, part := range parts {
+			args = append(args, part)
+			placeholders = append(placeholders, fmt.Sprintf("$%d::text", i+2))
+		}
 		var epoch int64
-		if err := database.QueryRowContext(ctx, `SELECT authority_epoch FROM `+table+` WHERE `+predicate).Scan(&epoch); err != nil {
+		if err := database.QueryRowContext(ctx, `SELECT authority_epoch FROM scanner_authority_epochs
+			WHERE authority_kind=$1 AND authority_key=jsonb_build_array(`+
+			strings.Join(placeholders, ",")+`)::text`, args...).Scan(&epoch); err != nil {
 			t.Fatal(err)
 		}
 		if epoch <= 0 {
-			t.Fatalf("%s authority epoch = %d, want positive", table, epoch)
+			t.Fatalf("%s %q authority epoch = %d, want positive", kind, parts, epoch)
 		}
 		return epoch
 	}
+	grantParts := []string{"epoch-tenant", "epoch-workspace", "epoch-source", "collector"}
 	grantWhere := `tenant_id='epoch-tenant' AND workspace_id='epoch-workspace' AND scope_id='epoch-source' AND subject_class='collector'`
 	tenantWhere := `tenant_id='epoch-tenant'`
 	workspaceWhere := tenantWhere + ` AND workspace_id='epoch-workspace'`
 	scannerWhere := `instance_id='epoch-scanner'`
-	grantEpoch := read("tenant_scope_grants", grantWhere)
-	tenantEpoch := read("tenants", tenantWhere)
-	workspaceEpoch := read("workspaces", workspaceWhere)
-	scannerEpoch := read("collector_instances", scannerWhere)
+	grantEpoch := read("scope_grant", grantParts...)
+	tenantEpoch := read("tenant", "epoch-tenant")
+	workspaceEpoch := read("workspace", "epoch-tenant", "epoch-workspace")
+	scannerEpoch := read("collector_instance", "epoch-scanner")
 
 	if _, err := database.ExecContext(ctx, `UPDATE tenant_scope_grants SET updated_at=$1 WHERE `+grantWhere, now.Add(time.Second)); err != nil {
 		t.Fatal(err)
 	}
-	if got := read("tenant_scope_grants", grantWhere); got != grantEpoch {
+	if got := read("scope_grant", grantParts...); got != grantEpoch {
 		t.Fatalf("metadata-only grant update changed authority epoch %d -> %d", grantEpoch, got)
 	}
 	for _, tombstone := range []any{now, nil} {
 		if _, err := database.ExecContext(ctx, `UPDATE tenant_scope_grants SET tombstoned_at=$1 WHERE `+grantWhere, tombstone); err != nil {
 			t.Fatal(err)
 		}
-		got := read("tenant_scope_grants", grantWhere)
+		got := read("scope_grant", grantParts...)
 		if got <= grantEpoch {
 			t.Fatalf("grant revoke/regrant reused authority epoch %d -> %d", grantEpoch, got)
 		}
@@ -82,14 +97,14 @@ func TestScannerAuthorityEpochNoABALive(t *testing.T) {
       VALUES ('epoch-tenant','epoch-workspace','epoch-source','collector','operator','same-policy',$1,$1,$1)`, now); err != nil {
 		t.Fatal(err)
 	}
-	if got := read("tenant_scope_grants", grantWhere); got <= grantEpoch {
+	if got := read("scope_grant", grantParts...); got <= grantEpoch {
 		t.Fatalf("deleted/reinserted grant reused authority epoch %d -> %d", grantEpoch, got)
 	}
 	for _, state := range []string{"disabled", "active"} {
 		if _, err := database.ExecContext(ctx, `UPDATE tenants SET status=$1 WHERE `+tenantWhere, state); err != nil {
 			t.Fatal(err)
 		}
-		got := read("tenants", tenantWhere)
+		got := read("tenant", "epoch-tenant")
 		if got <= tenantEpoch {
 			t.Fatalf("tenant %s reused authority epoch %d -> %d", state, tenantEpoch, got)
 		}
@@ -97,7 +112,7 @@ func TestScannerAuthorityEpochNoABALive(t *testing.T) {
 		if _, err := database.ExecContext(ctx, `UPDATE workspaces SET status=$1 WHERE `+workspaceWhere, state); err != nil {
 			t.Fatal(err)
 		}
-		got = read("workspaces", workspaceWhere)
+		got = read("workspace", "epoch-tenant", "epoch-workspace")
 		if got <= workspaceEpoch {
 			t.Fatalf("workspace %s reused authority epoch %d -> %d", state, workspaceEpoch, got)
 		}
@@ -107,7 +122,7 @@ func TestScannerAuthorityEpochNoABALive(t *testing.T) {
 		if _, err := database.ExecContext(ctx, `UPDATE collector_instances SET enabled=$1,claims_enabled=$1 WHERE `+scannerWhere, enabled); err != nil {
 			t.Fatal(err)
 		}
-		got := read("collector_instances", scannerWhere)
+		got := read("collector_instance", "epoch-scanner")
 		if got <= scannerEpoch {
 			t.Fatalf("collector enabled=%t reused authority epoch %d -> %d", enabled, scannerEpoch, got)
 		}

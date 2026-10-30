@@ -18,37 +18,30 @@ import (
 )
 
 func TestScannerImageTargetHostedBoundaryAndGrantRevocationLive(t *testing.T) {
-	database, store := openWorkflowControlIntegrationStore(t)
+	database, _ := openWorkflowControlIntegrationStore(t)
 	ctx := context.Background()
 	now := time.Now().UTC().Truncate(time.Second)
 	digest := "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	config := `{"derive_from_running_images":true,"registry_domains":[{"authorization_domain":"shared-domain","registry":"registry.example.invalid"}]}`
-	for _, instanceID := range []string{"scanner-a", "scanner-b"} {
+	for _, row := range []struct{ id, kind, cfg string }{
+		{"scanner-a", "scanner_worker", config},
+		{"scanner-b", "scanner_worker", config},
+		{"source-instance", "kubernetes_live", `{}`},
+	} {
 		if _, err := database.ExecContext(ctx, `INSERT INTO collector_instances
           (instance_id,collector_kind,mode,enabled,claims_enabled,configuration,last_observed_at,created_at,updated_at)
-          VALUES ($1,'scanner_worker','continuous',TRUE,TRUE,$2::jsonb,$3,$3,$3)`, instanceID, config, now); err != nil {
+          VALUES ($1,$2,'continuous',TRUE,TRUE,$3::jsonb,$4,$4,$4)`, row.id, row.kind, row.cfg, now); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if _, err := database.ExecContext(ctx, `INSERT INTO collector_instances
-      (instance_id,collector_kind,mode,enabled,claims_enabled,configuration,last_observed_at,created_at,updated_at)
-      VALUES ('source-instance','kubernetes_live','continuous',TRUE,TRUE,'{}'::jsonb,$1,$1,$1)`, now); err != nil {
-		t.Fatal(err)
-	}
 	if _, err := database.ExecContext(ctx, `INSERT INTO ingestion_scopes
       (scope_id,scope_kind,source_system,source_key,collector_kind,partition_key,observed_at,ingested_at,status,active_generation_id)
-      VALUES ('source-scope','kubernetes','kubernetes_live','source-scope','kubernetes_live','source-scope',$1,$1,'active','source-generation')`, now); err != nil {
+      VALUES ('source-scope','kubernetes','kubernetes_live','source-scope','kubernetes_live','source-scope',$1,$1,'active','hosted')`, now); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := database.ExecContext(ctx, `INSERT INTO scope_generations
       (generation_id,scope_id,trigger_kind,observed_at,ingested_at,status)
-      VALUES ('source-generation','source-scope','snapshot',$1,$1,'active')`, now); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := database.ExecContext(ctx, `INSERT INTO fact_records
-      (fact_id,scope_id,generation_id,fact_kind,stable_fact_key,source_system,source_fact_key,observed_at,ingested_at,payload)
-      VALUES ('source-fact','source-scope','source-generation','kubernetes_live.pod_template','source-fact',
-      'kubernetes_live','source-fact',$1,$1,'{"collector_instance_id":"source-instance","group_version_resource":"core/v1/pods","pod_phase":"Running","containers":[{"image":"registry.example.invalid/team/service:release","resolved_image_digest":"registry.example.invalid/team/service@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]}'::jsonb)`, now); err != nil {
+      VALUES ('hosted','source-scope','snapshot',$1,$1,'active')`, now); err != nil {
 		t.Fatal(err)
 	}
 	for _, suffix := range []string{"a", "b"} {
@@ -71,6 +64,41 @@ func TestScannerImageTargetHostedBoundaryAndGrantRevocationLive(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	principals := &scannerProofPrincipals{admin: database}
+	principals.producer = mustCreateScannerProofRole(t, database, ctx, "producer")
+	principals.coordinator = mustCreateScannerProofRole(t, database, ctx, "coordinator")
+	principals.worker = mustCreateScannerProofRole(t, database, ctx, "worker")
+	mustGrantScannerProofPrivileges(t, database, ctx, principals.producer, "typed-source-producer")
+	mustGrantScannerProofPrivileges(t, database, ctx, principals.coordinator, "authority-control")
+	mustGrantScannerProofPrivileges(t, database, ctx, principals.worker, "runtime-writer")
+	mustSeedScannerProofPolicy(t, database, ctx, principals)
+	coordinatorStore := NewWorkflowControlStore(SQLDB{DB: principals.coordinator.db})
+	workerStore := NewWorkflowControlStore(SQLDB{DB: principals.worker.db})
+	sourceStore := RunningImageSourceStore{DB: SQLDB{DB: principals.producer.db}}
+	observationIDs := mustStageScannerProofGeneration(t, ctx, database, sourceStore, now, "hosted",
+		[]workflow.RunningImageObservation{
+			{
+				ProducerClass:      workflow.RunningImageProducerKubernetesPod,
+				ObservationClass:   workflow.RunningImageClassRunningContainer,
+				ProducerInstanceID: "source-instance", SourceScopeID: "source-scope",
+				SourceGenerationID: "hosted", ObjectID: "pod-a", SlotID: "regular:c-a",
+				Registry: "registry.example.invalid", Repository: "team/service",
+				RuntimeImageReference: "registry.example.invalid/team/service:release",
+				RuntimeDigest:         digest, RuntimeDigestKind: workflow.RunningImageDigestManifest,
+			},
+		})
+	hostedRequest := func(instance, tenant, workspace, policy string) workflow.RunningImageDiscoveryRequest {
+		return workflow.RunningImageDiscoveryRequest{
+			ScannerCollectorInstanceID: instance,
+			AuthorizationNamespace:     workflow.ScannerAuthorizationHosted,
+			TenantID:                   tenant, WorkspaceID: workspace,
+			SubjectClass: "collector", PolicyRevisionHash: policy,
+			DiscoveryPolicyRevision:    1,
+			ExpectedRolePolicyRevision: scannerProofPolicyRevision,
+			ExpectedDatabaseIdentity:   scannerProofDatabaseIdentity,
+			Limit:                      256,
+		}
+	}
 	plan := func(suffix string) (workflow.Run, workflow.WorkItem, workflow.ScannerImageTarget) {
 		tenantID, workspaceID, policy := "tenant-"+suffix, "workspace-"+suffix, "policy-"+suffix
 		runID := "scanner_worker:hosted:" + suffix
@@ -80,10 +108,10 @@ func TestScannerImageTargetHostedBoundaryAndGrantRevocationLive(t *testing.T) {
 			TenantID: tenantID, WorkspaceID: workspaceID, SubjectClass: "collector", PolicyRevisionHash: policy,
 			AuthorizationDomain: "shared-domain", ManifestDigest: digest,
 			Sources: []workflow.ScannerImageSourceBinding{{
+				SourceObservationID: observationIDs[0], SourceCollectorInstanceID: "source-instance",
+				SourceScopeID: "source-scope", SourceGenerationID: "hosted",
 				Registry: "registry.example.invalid", Repository: "team/service",
 				RuntimeDigest: digest, RuntimeDigestKind: workflow.ScannerRuntimeDigestManifest,
-				SourceFactID: "source-fact", SourceCollectorInstanceID: "source-instance",
-				SourceScopeID: "source-scope", SourceGenerationID: "source-generation",
 				RuntimeImageReference: "registry.example.invalid/team/service:release",
 			}},
 		}
@@ -91,15 +119,15 @@ func TestScannerImageTargetHostedBoundaryAndGrantRevocationLive(t *testing.T) {
 		run := workflow.Run{
 			RunID: runID, TriggerKind: workflow.TriggerKindSchedule,
 			Status: workflow.RunStatusCollectionPending, RequestedScopeSet: "[]",
-			RequestedCollector: "scanner_worker", CreatedAt: now, UpdatedAt: now,
+			RequestedCollector: string(scope.CollectorScannerWorker), CreatedAt: now, UpdatedAt: now,
 		}
 		item := workflow.WorkItem{
 			WorkItemID: workID, RunID: runID,
 			CollectorKind: scope.CollectorScannerWorker, CollectorInstanceID: "scanner-" + suffix,
-			SourceSystem: "scanner_worker", ScopeID: target.ScanTargetID, AcceptanceUnitID: target.ScanTargetID,
+			SourceSystem: string(scope.CollectorScannerWorker), ScopeID: target.ScanTargetID,
+			AcceptanceUnitID: target.ScanTargetID, SourceRunID: runID, GenerationID: runID,
 			TenantID: tenantID, WorkspaceID: workspaceID, SubjectClass: "collector", PolicyRevisionHash: policy,
-			SourceRunID: runID, GenerationID: runID, Status: workflow.WorkItemStatusPending,
-			CreatedAt: now, UpdatedAt: now,
+			Status: workflow.WorkItemStatusPending, CreatedAt: now, UpdatedAt: now,
 		}
 		return run, item, target
 	}
@@ -108,36 +136,36 @@ func TestScannerImageTargetHostedBoundaryAndGrantRevocationLive(t *testing.T) {
 	if targetA.ScanTargetID == targetB.ScanTargetID {
 		t.Fatal("two hosted tenants share one scan scope")
 	}
-	for _, planned := range []struct {
-		run    workflow.Run
-		item   workflow.WorkItem
-		target workflow.ScannerImageTarget
-	}{
-		{runA, itemA, targetA}, {runB, itemB, targetB},
-	} {
-		admission, err := store.CreateScannerRunWithTargets(ctx, planned.run,
-			[]workflow.WorkItem{planned.item}, []workflow.ScannerImageTarget{planned.target})
-		if err != nil || admission.InsertedWorkItems != 1 {
-			t.Fatalf("hosted admission = %+v, %v; want one per tenant", admission, err)
+	admit := func(suffix string, run workflow.Run, item workflow.WorkItem, target workflow.ScannerImageTarget) {
+		t.Helper()
+		tenantID, workspaceID, policy := "tenant-"+suffix, "workspace-"+suffix, "policy-"+suffix
+		admission := mustAdmitScannerProofTargets(t, ctx, coordinatorStore, database,
+			"scanner-"+suffix, hostedRequest("scanner-"+suffix, tenantID, workspaceID, policy),
+			run, []workflow.WorkItem{item}, []workflow.ScannerImageTarget{target})
+		if admission.InsertedWorkItems != 1 {
+			t.Fatalf("hosted admission = %+v; want one per tenant", admission)
 		}
 	}
+	admit("a", runA, itemA, targetA)
+	admit("b", runB, itemB, targetB)
 	for _, planned := range []struct{ instance, workID, claimID string }{
 		{"scanner-a", itemA.WorkItemID, "claim-a"}, {"scanner-b", itemB.WorkItemID, "claim-b"},
 	} {
-		item, claim, found, err := store.ClaimNextEligible(ctx, workflow.ClaimSelector{
+		item, claim, found, err := workerStore.ClaimNextEligible(ctx, workflow.ClaimSelector{
 			CollectorKind: scope.CollectorScannerWorker, CollectorInstanceID: planned.instance,
 			OwnerID: "worker", ClaimID: planned.claimID,
 		}, now, time.Minute)
 		if err != nil || !found || item.WorkItemID != planned.workID {
 			t.Fatalf("hosted claim = %+v, %t, %v", item, found, err)
 		}
-		if _, err := store.GetScannerImageTarget(ctx, item.WorkItemID, claim.ClaimID, claim.FencingToken, claim.OwnerID); err != nil {
+		if _, err := workerStore.GetScannerImageTarget(ctx, item.WorkItemID, claim.ClaimID, claim.FencingToken, claim.OwnerID); err != nil {
 			t.Fatalf("authorized target lookup: %v", err)
 		}
-		if err := store.HeartbeatClaim(ctx, workflow.ClaimMutation{
+		if err := workerStore.HeartbeatClaim(ctx, workflow.ClaimMutation{
 			WorkItemID: item.WorkItemID, ClaimID: claim.ClaimID,
 			FencingToken: claim.FencingToken, OwnerID: claim.OwnerID,
 			ObservedAt: now.Add(time.Second), LeaseDuration: time.Minute,
+			DerivedScannerImage: true,
 		}); err != nil {
 			t.Fatalf("authorized target heartbeat: %v", err)
 		}
@@ -152,17 +180,17 @@ func TestScannerImageTargetHostedBoundaryAndGrantRevocationLive(t *testing.T) {
       WHERE work_item_id=$1`, itemA.WorkItemID).Scan(&claimID, &fence); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.GetScannerImageTarget(ctx, itemA.WorkItemID, claimID, fence, "worker"); !errors.Is(err, ErrScannerTargetNotAuthorized) {
+	if _, err := workerStore.GetScannerImageTarget(ctx, itemA.WorkItemID, claimID, fence, "worker"); !errors.Is(err, ErrScannerTargetNotAuthorized) {
 		t.Fatalf("revoked tenant target lookup = %v, want rejection", err)
 	}
-	if err := store.HeartbeatClaim(ctx, workflow.ClaimMutation{
+	if err := workerStore.HeartbeatClaim(ctx, workflow.ClaimMutation{
 		WorkItemID: itemA.WorkItemID, ClaimID: claimID,
 		FencingToken: fence, OwnerID: "worker",
 		ObservedAt: now.Add(2 * time.Second), LeaseDuration: time.Minute,
 	}); !errors.Is(err, ErrWorkflowClaimRejected) {
 		t.Fatalf("revoked tenant heartbeat = %v, want claim rejection", err)
 	}
-	if err := store.CompleteClaim(ctx, workflow.ClaimMutation{
+	if err := workerStore.CompleteClaim(ctx, workflow.ClaimMutation{
 		WorkItemID: itemA.WorkItemID, ClaimID: claimID,
 		FencingToken: fence, OwnerID: "worker", ObservedAt: now.Add(2 * time.Second),
 	}); !errors.Is(err, ErrWorkflowClaimRejected) {
@@ -172,27 +200,27 @@ func TestScannerImageTargetHostedBoundaryAndGrantRevocationLive(t *testing.T) {
       WHERE tenant_id='tenant-a' AND workspace_id='workspace-a' AND scope_id='source-scope'`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.GetScannerImageTarget(ctx, itemA.WorkItemID, claimID, fence, "worker"); !errors.Is(err, ErrScannerTargetNotAuthorized) {
-		t.Fatalf("regranted tenant old claim lookup = %v, want pinned epoch rejection", err)
+	if _, err := workerStore.GetScannerImageTarget(ctx, itemA.WorkItemID, claimID, fence, "worker"); !errors.Is(err, ErrScannerTargetNotAuthorized) {
+		t.Fatalf("regranted tenant old claim lookup = %v, want rejection", err)
 	}
-	if err := store.HeartbeatClaim(ctx, workflow.ClaimMutation{
+	if err := workerStore.HeartbeatClaim(ctx, workflow.ClaimMutation{
 		WorkItemID: itemA.WorkItemID, ClaimID: claimID,
 		FencingToken: fence, OwnerID: "worker",
 		ObservedAt: now.Add(3 * time.Second), LeaseDuration: time.Minute,
 	}); !errors.Is(err, ErrWorkflowClaimRejected) {
-		t.Fatalf("regranted tenant old claim heartbeat = %v, want pinned epoch rejection", err)
+		t.Fatalf("regranted tenant old claim heartbeat = %v, want rejection", err)
 	}
-	if err := store.CompleteClaim(ctx, workflow.ClaimMutation{
+	if err := workerStore.CompleteClaim(ctx, workflow.ClaimMutation{
 		WorkItemID: itemA.WorkItemID, ClaimID: claimID,
 		FencingToken: fence, OwnerID: "worker", ObservedAt: now.Add(3 * time.Second),
 	}); !errors.Is(err, ErrWorkflowClaimRejected) {
-		t.Fatalf("regranted tenant old claim completion = %v, want pinned epoch rejection", err)
+		t.Fatalf("regranted tenant old claim completion = %v, want rejection", err)
 	}
 	if err := database.QueryRowContext(ctx, `SELECT current_claim_id,current_fencing_token FROM workflow_work_items
       WHERE work_item_id=$1`, itemB.WorkItemID).Scan(&claimID, &fence); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.GetScannerImageTarget(ctx, itemB.WorkItemID, claimID, fence, "worker"); err != nil {
+	if _, err := workerStore.GetScannerImageTarget(ctx, itemB.WorkItemID, claimID, fence, "worker"); err != nil {
 		t.Fatalf("other tenant target lookup after unrelated revocation: %v", err)
 	}
 }

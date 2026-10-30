@@ -57,7 +57,7 @@ DECLARE
     tenant_epoch BIGINT := 0;
     workspace_epoch BIGINT := 0;
     scope_grant_epoch BIGINT := 0;
-    instance_id TEXT;
+    v_instance_id TEXT;
     domain_count INTEGER;
     domain_hash TEXT;
 BEGIN
@@ -213,15 +213,15 @@ BEGIN
        OR target_row.subject_class<>'' THEN
         RAISE EXCEPTION 'scanner attempt namespace invalid' USING ERRCODE='28000';
     END IF;
-    FOR instance_id IN
+    FOR v_instance_id IN
         SELECT DISTINCT value FROM unnest(ARRAY[
             binding_row.source_collector_instance_id,
             binding_row.scanner_collector_instance_id]) AS ids(value)
         ORDER BY value
     LOOP
-        IF instance_id=binding_row.source_collector_instance_id THEN
+        IF v_instance_id=binding_row.source_collector_instance_id THEN
             SELECT * INTO source_instance FROM public.collector_instances
-            WHERE collector_instances.instance_id=instance_id
+            WHERE collector_instances.instance_id=v_instance_id
               AND collector_kind=CASE
                     WHEN observation_row.producer_class='kubernetes_pod'
                     THEN 'kubernetes_live' ELSE 'aws' END
@@ -230,9 +230,9 @@ BEGIN
                 RAISE EXCEPTION 'scanner attempt source instance disabled' USING ERRCODE='28000';
             END IF;
         END IF;
-        IF instance_id=binding_row.scanner_collector_instance_id THEN
+        IF v_instance_id=binding_row.scanner_collector_instance_id THEN
             SELECT * INTO scanner_instance FROM public.collector_instances
-            WHERE collector_instances.instance_id=instance_id
+            WHERE collector_instances.instance_id=v_instance_id
               AND collector_kind='scanner_worker'
               AND enabled AND claims_enabled
               AND configuration->>'derive_from_running_images'='true'
@@ -243,13 +243,13 @@ BEGIN
         END IF;
         SELECT * INTO epoch_row FROM public.scanner_authority_epochs
         WHERE authority_kind='collector_instance'
-          AND authority_key=jsonb_build_array(instance_id)::text
+          AND authority_key=jsonb_build_array(v_instance_id)::text
           AND active FOR SHARE;
         IF NOT FOUND THEN RAISE EXCEPTION 'scanner attempt instance epoch absent' USING ERRCODE='28000'; END IF;
-        IF instance_id=binding_row.source_collector_instance_id THEN
+        IF v_instance_id=binding_row.source_collector_instance_id THEN
             source_instance_epoch := epoch_row.authority_epoch;
         END IF;
-        IF instance_id=binding_row.scanner_collector_instance_id THEN
+        IF v_instance_id=binding_row.scanner_collector_instance_id THEN
             scanner_instance_epoch := epoch_row.authority_epoch;
         END IF;
     END LOOP;
