@@ -51,6 +51,7 @@ build_merge_fixture() {
 	printf '#!/usr/bin/env bash\nexit 0\n' > "${fixture}/scripts/verify-docs-contradiction.sh"
 	chmod +x "${fixture}/scripts/dev/precommit-go.sh" "${fixture}/scripts/dev/run-selected-gates.sh" \
 		"${fixture}/scripts/verify-docs-contradiction.sh"
+	write_registry_checker "${fixture}"
 	printf 'module example.com/m\n\ngo 1.22\n' > "${fixture}/go/go.mod"
 	case "${scenario}" in
 		sdkonly) printf 'replace (\n\texample.com/sdk v1.0.0 => ../sdk/\n)\n' >> "${fixture}/go/go.mod" ;;

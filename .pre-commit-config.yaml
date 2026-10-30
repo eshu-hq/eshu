@@ -253,7 +253,10 @@ repos:
         name: ci-gate registry + hook/workflow drift
         entry: scripts/verify-ci-gates-registry.sh --drift
         language: script
-        files: '^(specs/ci-gates\.v1\.yaml|specs/trivy-skip-dirs\.txt|go/internal/cigates/.*|go/cmd/ci-gates/.*|\.pre-commit-config\.yaml|scripts/dev/pre-pr\.sh|scripts/dev/trivy-fs-local\.sh|scripts/lib/trivy-skip-dirs\.sh|\.github/workflows/.*\.ya?ml)$'
+        # specs/ci-gates.d/ holds every gate row, and scripts/ holds the commands and
+        # the modules they import, so an edit or a new module there runs the drift
+        # check at commit time (#9615); about 1.5 s warm.
+        files: '^(specs/ci-gates\.v1\.yaml|specs/ci-gates\.d/.*|specs/trivy-skip-dirs\.txt|go/internal/cigates/.*|go/cmd/ci-gates/.*|\.pre-commit-config\.yaml|scripts/.*|\.github/workflows/.*\.ya?ml)$'
         pass_filenames: false
         require_serial: true
 
