@@ -50,6 +50,9 @@ const (
 	sourceKindGradleKotlinToolchain     = "gradle_kotlin_jvm_toolchain"
 	sourceKindSbtScalaVersion           = "sbt_scala_version"
 	sourceKindSbtBuildVersion           = "sbt_build_properties_version"
+	sourceKindTerraformRequired         = "terraform_required_version"
+	sourceKindTerragruntConstraint      = "terragrunt_version_constraint"
+	sourceKindHelmKubeVersion           = "helm_chart_kube_version"
 )
 
 // section identifies the manifest section a declaration was read from.
@@ -89,6 +92,9 @@ const (
 	sectionGradleKotlinToolchain
 	sectionSbtScalaVersion
 	sectionSbtBuildVersion
+	sectionTerraformRequired
+	sectionTerragruntConstraint
+	sectionHelmKubeVersion
 )
 
 // sectionSourceKinds maps a section to its source kind.
@@ -126,6 +132,9 @@ var sectionSourceKinds = [...]string{
 	sectionGradleKotlinToolchain:     sourceKindGradleKotlinToolchain,
 	sectionSbtScalaVersion:           sourceKindSbtScalaVersion,
 	sectionSbtBuildVersion:           sourceKindSbtBuildVersion,
+	sectionTerraformRequired:         sourceKindTerraformRequired,
+	sectionTerragruntConstraint:      sourceKindTerragruntConstraint,
+	sectionHelmKubeVersion:           sourceKindHelmKubeVersion,
 }
 
 // MaxManifestBytesPerFile bounds one package.json, Composer, or go.mod body. A manifest
@@ -157,6 +166,9 @@ const (
 	manifestGradle
 	manifestSbt
 	manifestSbtBuildProperties
+	manifestTerraform
+	manifestTerragrunt
+	manifestHelmChart
 )
 
 // dependencyDirs are directory names whose manifests belong to a dependency,
@@ -173,8 +185,8 @@ var dependencyDirs = map[string]struct{}{
 
 // manifestKindForPath returns the manifest kind of a repository-relative path:
 // the exact base name package.json or go.mod at any depth, a Dockerfile at
-// any depth, or a GitHub Actions workflow file, each outside a dependency
-// directory. The package.json and go.mod match is case-sensitive, as npm and
+// any depth, a GitHub Actions workflow file, or a Terraform, Terragrunt, or
+// Helm chart file, each outside a dependency directory. The package.json and go.mod match is case-sensitive, as npm and
 // the go tool are; Dockerfiles match case-insensitively, as the parser
 // registry does.
 func manifestKindForPath(relativePath string) manifestKind {
@@ -216,6 +228,12 @@ func manifestKindForBase(base, relativePath string) manifestKind {
 		kind = manifestSbt
 	case base == "build.properties" && (relativePath == "project/build.properties" || strings.HasSuffix(relativePath, "/project/build.properties")):
 		kind = manifestSbtBuildProperties
+	case strings.HasSuffix(base, ".tf"):
+		kind = manifestTerraform
+	case base == "terragrunt.hcl":
+		kind = manifestTerragrunt
+	case strings.EqualFold(base, "Chart.yaml") || strings.EqualFold(base, "Chart.yml"):
+		kind = manifestHelmChart
 	case isDockerfileName(base):
 		kind = manifestDockerfile
 	case ghactionsref.IsWorkflowPath(relativePath):
@@ -252,9 +270,10 @@ const (
 	FileNotAdmitted FileClass = iota
 	// FilePin is a version-pin file; its body is parsed at emission.
 	FilePin
-	// FileManifest is a package.json, go.mod, Dockerfile or workflow file
-	// outside a dependency directory; the content walk reads it when it meets
-	// it and keeps only its extraction.
+	// FileManifest is a package.json, go.mod, Dockerfile, workflow,
+	// Terraform, Terragrunt, or Helm chart file outside a dependency
+	// directory; the content walk reads it when it meets it and keeps only
+	// its extraction.
 	FileManifest
 )
 

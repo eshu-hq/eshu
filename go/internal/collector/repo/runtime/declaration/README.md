@@ -173,6 +173,10 @@ a constraint from a pin.
 | `gradle_kotlin_jvm_toolchain` | `build.gradle[.kts]` Kotlin jvmToolchain literal | `java` |
 | `sbt_scala_version` | `build.sbt` effective literal scalaVersion | `scala` |
 | `sbt_build_properties_version` | `project/build.properties` sbt.version | `sbt` |
+| `terraform_required_version` | top-level `terraform.required_version` in `.tf` | `terraform` |
+| `terragrunt_version_constraint` | top-level `terraform_version_constraint` in `terragrunt.hcl` | `terraform` |
+| `helm_chart_kube_version` | root `kubeVersion` in `Chart.yaml` | `kubernetes` |
+| `terragrunt_version` | `.terragrunt-version` pin | `terragrunt` |
 | `runtime_txt` | `runtime.txt` `python-<spec>` line | `python` |
 | `go_mod_go` | the `go` directive | `go` |
 | `go_mod_toolchain` | the `toolchain` directive | `go` |

@@ -27,17 +27,18 @@ type declaration struct {
 
 // fileRuntime is the runtime a single-runtime pin file declares.
 var fileRuntime = map[string]string{
-	sourceKindNvmrc:            "node",
-	sourceKindPHPVersion:       "php",
-	sourceKindNodeVersion:      "node",
-	sourceKindPythonVersion:    "python",
-	sourceKindRubyVersion:      "ruby",
-	sourceKindJavaVersion:      "java",
-	sourceKindGoVersion:        "go",
-	sourceKindTerraformVersion: "terraform",
-	sourceKindRustToolchain:    "rust",
-	sourceKindSwiftVersion:     "swift",
-	sourceKindRuntimeTXT:       "python",
+	sourceKindNvmrc:             "node",
+	sourceKindPHPVersion:        "php",
+	sourceKindNodeVersion:       "node",
+	sourceKindPythonVersion:     "python",
+	sourceKindRubyVersion:       "ruby",
+	sourceKindJavaVersion:       "java",
+	sourceKindGoVersion:         "go",
+	sourceKindTerraformVersion:  "terraform",
+	sourceKindTerragruntVersion: "terragrunt",
+	sourceKindRustToolchain:     "rust",
+	sourceKindSwiftVersion:      "swift",
+	sourceKindRuntimeTXT:        "python",
 }
 
 // runtimeAliases normalises a tool token to the canonical runtime name. An

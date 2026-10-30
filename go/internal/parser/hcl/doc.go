@@ -12,7 +12,9 @@
 // lockfile providers into provider configuration rows. The package owns HCL syntax
 // parsing, local Terragrunt helper-expression
 // extraction, and per-resource attribute extraction for drift comparison.
-// Registry dispatch and parse timing remain in the parent parser package.
+// Literal version constraints are handed to the collector as private,
+// digest-bound evidence. Registry dispatch and parse timing remain in the
+// parent parser package.
 //
 // Resource attribute extraction uses cty-value evaluation via
 // hclsyntax.Expression.Value so that heredoc strings and escaped-quote strings
