@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
@@ -36,6 +37,18 @@ func MaterializationDomainDefinition() reducercontract.DomainDefinition {
 			CrossSource:    true,
 			CrossScope:     true,
 			CanonicalWrite: true,
+		},
+		// The canonical kind matches the host writer's canonical phase
+		// (storage/cypher/cloud/aws/ssm/host_writer.go): this domain owns
+		// the SSM host inventory observation truth. Its inputs are live
+		// provider observations, so the only source layer is observed
+		// resource. A blank kind fails reducer startup and stalls every
+		// domain, so truth_contract_test.go pins this gate.
+		TruthContract: truth.Contract{
+			CanonicalKind: "ssm_host_inventory",
+			SourceLayers: []truth.Layer{
+				truth.LayerObservedResource,
+			},
 		},
 	}
 }
