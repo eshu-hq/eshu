@@ -75,13 +75,15 @@ LIMIT $5
 // active-generation join, the keyset pagination cursor, ordering, and the scan
 // shape are unchanged.
 // go test ./internal/storage/postgres ./internal/reducer -count=1.
-// No-Observability-Change: reuses the existing FactStore query path and its
-// established storage instrumentation; no new query, span, or metric added.
+// Observability Evidence: each completed read records its wall time and page
+// count in eshu_dp_package_manifest_dependency_read_seconds and
+// eshu_dp_package_manifest_dependency_read_pages, labeled read (#9586).
 func (s FactStore) ListActivePackageManifestDependencyFacts(
 	ctx context.Context,
 	ecosystems []string,
 	packageNames []string,
 ) ([]facts.Envelope, error) {
+	started := time.Now()
 	if s.database == nil {
 		return nil, fmt.Errorf("fact store database is required")
 	}
@@ -107,6 +109,7 @@ func (s FactStore) ListActivePackageManifestDependencyFacts(
 		}
 		loaded = append(loaded, page...)
 		if len(page) < listFactsByKindPageSize {
+			s.recordManifestDependencyRead(ctx, query, started, len(loaded))
 			return loaded, nil
 		}
 
@@ -133,6 +136,7 @@ func (s FactStore) listActivePackageManifestDependencyFactsPage(
 	rows, err := s.database.QueryContext(
 		ctx,
 		query,
+		manifestDependencyQueryExecMode,
 		packageManagers,
 		packageNames,
 		cursor,

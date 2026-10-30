@@ -32,6 +32,7 @@ func Parse(
 	payload := yamlBasePayload(path, isDependency)
 	filename := filepath.Base(path)
 	if isHelmChartFile(filename) {
+		payload["iac_runtime_evidence"] = helmRuntimeEvidence(source)
 		if item := parseHelmChart(path, source); item != nil {
 			shared.AppendBucket(payload, "helm_charts", item)
 		}

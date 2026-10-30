@@ -125,6 +125,12 @@ tests:
     reason: exact Go JSON pass in blocking replay-tier NornicDB gate
     runner: replay-tier
     backends: nornicdb
+  - file: go/internal/replay/offlinetier/delta_tier_reducer_ssm_host_retract_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: exact Go JSON pass in blocking replay-tier NornicDB gate
+    runner: replay-tier
+    backends: nornicdb
   - file: go/internal/replay/offlinetier/delta_tier_reducer_workload_uses_edge_retract_live_test.go
     tag: ~
     class: dedicated_ci

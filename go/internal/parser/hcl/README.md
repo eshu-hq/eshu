@@ -9,7 +9,8 @@ removed blocks, checks, lockfile providers, declared PagerDuty
 module/tfvars evidence, declared Grafana Terraform resource metadata,
 Terragrunt configs, dependencies, inputs, local config asset paths, and
 Terragrunt `remote_state` blocks (including blocks inherited via the include
-chain), then returns the parser payload shape.
+chain), then returns the parser payload shape. Literal Terraform and Terragrunt version
+constraints are carried as private digest-bound runtime evidence.
 
 Black-box coverage lives beside the implementation in external `hcl_test`
 files, and it reaches the code two ways. The Terraform block, backend, and

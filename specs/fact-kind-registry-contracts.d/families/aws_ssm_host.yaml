@@ -5,12 +5,13 @@ owner_repository: eshu-hq/eshu
 lifecycle_owner: go/internal/facts
 schema_version: 1.0.0
 reducer_domain: ssm_host_inventory_materialization
+reducer_dir: go/internal/reducer/ssmhost
 projection_hook: ssm_host_inventory_materialization
 admission_hook: facts.ValidateSchemaVersion
-read_surface: none
+read_surface: GET /api/v0/cloud/ssm-host-inventory
 truth_profile: provider_gated
 provider_key_independent: false
-declaration: go/internal/facts/cloud/ssm_host.go:73
+declaration: go/internal/facts/cloud/ssm_host.go:71
 kinds:
     - aws_ssm_host_application
     - aws_ssm_host_platform

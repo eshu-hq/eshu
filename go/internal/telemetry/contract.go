@@ -666,6 +666,13 @@ const (
 	// /api/v0/cloud/resources. Distinct from the aggregate span so operators can
 	// separate per-row inventory browsing from rollup counts.
 	SpanQueryCloudResourceList = "query.cloud_resource_list"
+	// SpanQuerySSMHostInventoryReadback wraps the bounded, paged readback of
+	// admitted SSM host inventory observations with their read-time capture
+	// status served by GET /api/v0/cloud/ssm-host-inventory. The span carries
+	// only the stable http.route and eshu.capability attributes; host
+	// identities, capture times, and application row contents stay out of span
+	// and metric labels.
+	SpanQuerySSMHostInventoryReadback = "query.ssm_host_inventory_readback"
 	// SpanQueryCloudInventoryReadback wraps the bounded, paginated readback of
 	// canonical multi-cloud resource identities (reducer_cloud_resource_identity
 	// rows) served by GET /api/v0/cloud/inventory. It is distinct from the
@@ -944,6 +951,9 @@ const (
 	// with the status snapshot reader that ran. The value set is closed: one
 	// constant per reader in postgres.StatusStore.ReadStatusSnapshotFiltered
 	// (scope_counts, active_work_summary, coordinator, and so on).
+	// It also labels the eshu_dp_package_manifest_dependency_read_* histograms
+	// with the query text a manifest dependency read ran: plain or
+	// maven_family (#9586).
 	MetricDimensionRead = "read"
 
 	// MetricDimensionGauge labels the eshu_dp_gauge_snapshot_* metrics with the

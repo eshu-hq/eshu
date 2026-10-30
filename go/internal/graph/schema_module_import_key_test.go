@@ -38,9 +38,10 @@ func TestModuleImportKeyConstraintLandsOnBothBackends(t *testing.T) {
 
 // TestModuleImportKeyIsAWriteIdentityCutover proves the #8168 identity change
 // fences every pre-cutover writer. Those writers MERGE Module on (name, lang)
-// and never set import_key, so they would mint a second node. The one
-// immediate post-cutover predecessor is safe under the additive
-// DockerfileInstall uid constraint and remains compatible.
+// and never set import_key, so they would mint a second node. The immediate
+// predecessor stays safe under the additive uid-constraint bumps since the
+// cutover (DockerfileInstall, then the #9558 SSM host observation labels,
+// neither of which its writers emit) and remains compatible.
 func TestModuleImportKeyIsAWriteIdentityCutover(t *testing.T) {
 	t.Parallel()
 
@@ -55,8 +56,8 @@ func TestModuleImportKeyIsAWriteIdentityCutover(t *testing.T) {
 		preCutover  string
 		postCutover string
 	}{
-		{SchemaBackendNeo4j, graphSchemaNeo4jPreModuleImportKeyFingerprint, graphSchemaNeo4jPreDockerfileInstallFingerprint},
-		{SchemaBackendNornicDB, graphSchemaNornicDBPreModuleImportKeyFingerprint, graphSchemaNornicDBPreDockerfileInstallFingerprint},
+		{SchemaBackendNeo4j, graphSchemaNeo4jPreModuleImportKeyFingerprint, graphSchemaNeo4jPreSSMHostFingerprint},
+		{SchemaBackendNornicDB, graphSchemaNornicDBPreModuleImportKeyFingerprint, graphSchemaNornicDBPreSSMHostFingerprint},
 	} {
 		backend := tc.backend
 		app, err := SchemaApplicationForBackend(backend)

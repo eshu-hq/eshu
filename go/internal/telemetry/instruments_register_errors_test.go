@@ -128,6 +128,7 @@ func TestRegisterInstrumentsFailLoud(t *testing.T) {
 		{"producer_activation", func(m metric.Meter) error { return registerProducerActivationInstruments(m, &Instruments{}) }},
 		{"reconcile_parse_skip", func(m metric.Meter) error { return registerReconcileParseSkipDecisions(m, &Instruments{}) }},
 		{"recovery_delta_active", func(m metric.Meter) error { return registerRecoveryDeltaActiveScopes(m, &Instruments{}) }},
+		{"package_manifest_dependency_read", func(m metric.Meter) error { return registerPackageManifestDependencyReadInstruments(m, &Instruments{}) }},
 		{"repo_dependency_replay", func(m metric.Meter) error { return registerRepoDependencyReplayCounters(m, &Instruments{}) }},
 		{"repository_retirements", func(m metric.Meter) error { return registerCanonicalRepositoryRetirements(m, &Instruments{}) }},
 		{"repository_selection", func(m metric.Meter) error { return registerRepositorySelection(m, &Instruments{}) }},

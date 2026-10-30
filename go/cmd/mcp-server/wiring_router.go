@@ -390,6 +390,17 @@ func newMCPQueryRouterWithSemanticEmbeddingWithReadStore(
 			Content: contentReader,
 			Profile: queryProfile,
 		},
+		// SSMHostInventory backs the list_ssm_host_inventory MCP tool. It
+		// must be mounted here (mirroring cmd/api/wiring_router.go) or the
+		// advertised tool dispatches to /api/v0/cloud/ssm-host-inventory
+		// and 404s on the standalone MCP server; without freshness bounds
+		// the handler answers 503 rather than deriving status unbounded.
+		SSMHostInventory: &query.SSMHostInventoryHandler{
+			Content: contentReader,
+			Graph:   neo4jReader,
+			Profile: queryProfile,
+			Bounds:  ssmHostInventoryBounds(os.Getenv),
+		},
 		// TagHistory backs the list_container_image_tag_history MCP tool
 		// (#5459). It must be wired here (mirroring cmd/api/wiring_router.go)
 		// or the advertised tool re-dispatches into a nil handler on the

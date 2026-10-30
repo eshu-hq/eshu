@@ -423,7 +423,10 @@ sed '/^[[:space:]]*run: bash scripts\/verify-replay-tier\.sh$/i\
 if has_workflow_wiring "${tmp}/workflow-nonblocking-gate-step"; then
 	fail "a continue-on-error live gate step must not satisfy the guard"
 fi
-sed '/^  replay-tier:$/a\    needs: [other]' "${workflow}" >"${tmp}/workflow-smuggled-need"
+# The text goes on its own line: BSD sed (macOS) rejects GNU's one-line a\.
+sed '/^  replay-tier:$/a\
+    needs: [other]
+' "${workflow}" >"${tmp}/workflow-smuggled-need"
 if has_workflow_wiring "${tmp}/workflow-smuggled-need"; then
 	fail "a needs edge on the replay job must not satisfy the guard"
 fi

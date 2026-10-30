@@ -192,6 +192,12 @@ const (
 	ProvisionsDependencyFor EdgeType = "PROVISIONS_DEPENDENCY_FOR"
 	// ProvisionsPlatform is the "PROVISIONS_PLATFORM" graph relationship type.
 	ProvisionsPlatform EdgeType = "PROVISIONS_PLATFORM"
+	// ReportedWith is the "REPORTED_WITH" graph relationship type (an
+	// SSMHostApplication observation node to the SSMHostPlatform node admitted
+	// for its host in the same generation within the cross-type skew bound,
+	// eshu-hq/eshu#9558). Observations, never findings: no vulnerability or
+	// supply-chain semantics may be read from this edge.
+	ReportedWith EdgeType = "REPORTED_WITH"
 	// Publishes is the "PUBLISHES" graph relationship type (a Repository to
 	// the Package or PackageVersion its package-ownership or
 	// package-publication correlation decision resolved as source, issue
@@ -278,7 +284,7 @@ var registered = []EdgeType{
 	LogsTo, Manages, MapsToTable, MatchesState, Migrates, Needs, Overrides,
 	PinsSubmodule,
 	ProvisionsDependencyFor, ProvisionsPlatform, Publishes, QueriesTable, ReadsConfigFrom,
-	ReadsFrom, ReconcilesFrom, References, ReferencesTable, RepoContains,
+	ReadsFrom, ReconcilesFrom, References, ReferencesTable, RepoContains, ReportedWith,
 	RunsImage, RunsIn, RunsOn, SameName, SatisfiedBy,
 	SecretsIamAssumesIamRole, SecretsIamAuthenticatesToVaultRole, SecretsIamGrantsSecretRead, SecretsIamUsesServiceAccount,
 	SecretsIamUsesVaultPolicy, TaintFlowsTo, TargetsEnvironment, To,

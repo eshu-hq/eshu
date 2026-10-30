@@ -51,7 +51,7 @@ func joinRubyGemsLockfileManifestRanges(dependencies []PackageManifestDependency
 
 func rubyGemsManifestJoinKey(dependency PackageManifestDependency) string {
 	repositoryID := strings.TrimSpace(dependency.RepositoryID)
-	name := strings.ToLower(strings.TrimSpace(dependency.DependencyName))
+	name := packageidentity.LowerASCII(strings.TrimSpace(dependency.DependencyName))
 	if repositoryID == "" || name == "" {
 		return ""
 	}

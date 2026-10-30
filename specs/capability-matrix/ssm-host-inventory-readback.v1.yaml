@@ -1,0 +1,23 @@
+version: v1
+updated_at: 2026-10-29
+owners:
+  - platform-engineering
+# Admitted SSM host inventory observation readback. This surfaces committed
+# SSMHostApplication/SSMHostPlatform observation nodes with the read-time
+# capture status overlay (successful/partial/stale/unknown) derived from the
+# active generation's admitted aws_ssm_host_application/platform facts as a
+# bounded, host-paged list filterable by instance, account, region, and
+# status. The serving route (GET /api/v0/cloud/ssm-host-inventory) and MCP
+# tool (list_ssm_host_inventory) read committed observation truth; they
+# never synthesize vulnerability, package-correlation, or supply-chain
+# findings from host data (#9209 owns correlation). Graph-backed reads need
+# local_full_stack or production; local_lightweight and local_authoritative
+# return unsupported_capability.
+capabilities:
+  - capability: ssm_host_inventory.readback.list
+    tools: [list_ssm_host_inventory]
+    profiles:
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: account_project_or_subscription, verification: [{go_test: ./internal/query}], notes: graph-backed observation reads need committed SSMHostApplication/SSMHostPlatform nodes; lightweight local cannot serve host inventory and must return unsupported_capability}
+      local_authoritative: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: account_project_or_subscription, verification: [{go_test: ./internal/query}], notes: graph-backed observation reads need committed SSMHostApplication/SSMHostPlatform nodes; authoritative local without graph reads cannot serve host inventory and must return unsupported_capability}
+      local_full_stack: {status: supported, max_truth_level: derived, required_runtime: full_stack, p95_latency_ms: 5000, max_scope_size: account_project_or_subscription, verification: [{go_test: ./internal/query}], notes: bounded host-paged readback of committed SSM host observation nodes with read-time capture status overlay and allowlisted application rows}
+      production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 5000, max_scope_size: account_project_or_subscription, verification: [{go_test: ./internal/query}], notes: bounded host-paged readback of committed SSM host observation nodes with read-time capture status overlay and allowlisted application rows}

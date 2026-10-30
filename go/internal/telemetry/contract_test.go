@@ -212,6 +212,7 @@ func TestSpanNames(t *testing.T) {
 		"query.infra_resource_aggregate",
 		"query.cloud_resource_list",
 		"query.cloud_inventory_readback",
+		"query.ssm_host_inventory_readback",
 		"query.cloud_runtime_drift_findings",
 		"query.code_topic_investigation",
 		"query.code_topic_partition",

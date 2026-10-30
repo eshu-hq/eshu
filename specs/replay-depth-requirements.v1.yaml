@@ -151,6 +151,9 @@ retractable_node_types:
   - PackageRegistryPackageDependency
   - PackageRegistryPackageVersion
   - PackageVersion
+  # ssm host inventory observations (eshu-hq/eshu#9558)
+  - SSMHostApplication
+  - SSMHostPlatform
 
 # Retractable graph relationship types. Order is irrelevant (the lockstep test
 # compares as sets); grouping is for review only.
@@ -207,6 +210,7 @@ retractable_edge_types:
   - GRANTS_ACCESS_TO
   - HAS_ROLE
   - LOGS_TO
+  - REPORTED_WITH
   - SECRETS_IAM_USES_SERVICE_ACCOUNT
   - TAINT_FLOWS_TO
   - TO

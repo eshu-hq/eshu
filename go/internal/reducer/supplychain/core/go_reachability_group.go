@@ -6,12 +6,14 @@ package core
 import (
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 )
 
 func groupGoModuleEvidence(rows []goModuleEvidenceRow) map[string][]goModuleEvidenceRow {
 	out := make(map[string][]goModuleEvidenceRow, len(rows))
 	for _, row := range rows {
-		key := row.repositoryID + "\x00" + strings.ToLower(row.modulePath)
+		key := row.repositoryID + "\x00" + packageidentity.LowerASCII(row.modulePath)
 		out[key] = append(out[key], row)
 	}
 	return out
@@ -27,13 +29,13 @@ func groupGoReachability(rows []goReachabilityRow) map[string][]goReachabilityRo
 }
 
 func goReachabilityRowsForModule(rows []goReachabilityRow, modulePath string) []goReachabilityRow {
-	modulePath = strings.ToLower(strings.TrimSpace(modulePath))
+	modulePath = packageidentity.LowerASCII(strings.TrimSpace(modulePath))
 	if modulePath == "" {
 		return nil
 	}
 	out := make([]goReachabilityRow, 0, len(rows))
 	for _, row := range rows {
-		if strings.ToLower(strings.TrimSpace(row.deepestModule)) != modulePath {
+		if packageidentity.LowerASCII(strings.TrimSpace(row.deepestModule)) != modulePath {
 			continue
 		}
 		out = append(out, row)
@@ -45,7 +47,7 @@ func groupGoAdvisoryByModule(rows []goAffectedPackageRow) map[string][]string {
 	out := make(map[string][]string, len(rows))
 	seen := make(map[string]struct{}, len(rows))
 	for _, row := range rows {
-		key := strings.ToLower(row.modulePath)
+		key := packageidentity.LowerASCII(row.modulePath)
 		dedupKey := key + "\x00" + row.osvID
 		if _, ok := seen[dedupKey]; ok {
 			continue

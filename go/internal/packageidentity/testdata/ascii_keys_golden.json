@@ -1,0 +1,912 @@
+{
+  "consumption_keys": {
+    ".net|AutoMapper.Extensions.Microsoft.DependencyInjection": [
+      {
+        "Ecosystem": "nuget",
+        "PackageName": "automapper.extensions.microsoft.dependencyinjection"
+      }
+    ],
+    "apk|musl": [
+      {
+        "Ecosystem": "os",
+        "PackageName": "musl"
+      }
+    ],
+    "cargo|Serde_JSON": [
+      {
+        "Ecosystem": "cargo",
+        "PackageName": "serde_json"
+      }
+    ],
+    "composer|Symfony/Console": [
+      {
+        "Ecosystem": "composer",
+        "PackageName": "symfony/console"
+      }
+    ],
+    "composer|single-segment": [
+      {
+        "Ecosystem": "composer",
+        "PackageName": "single-segment"
+      }
+    ],
+    "crates.io|tokio": [
+      {
+        "Ecosystem": "cargo",
+        "PackageName": "tokio"
+      }
+    ],
+    "dart|http": [
+      {
+        "Ecosystem": "pub",
+        "PackageName": "http"
+      }
+    ],
+    "debian|libc6": [
+      {
+        "Ecosystem": "os",
+        "PackageName": "libc6"
+      }
+    ],
+    "dotnet|Microsoft.Extensions.Logging": [
+      {
+        "Ecosystem": "nuget",
+        "PackageName": "microsoft.extensions.logging"
+      }
+    ],
+    "gem|activesupport": [
+      {
+        "Ecosystem": "rubygems",
+        "PackageName": "activesupport"
+      }
+    ],
+    "generic|Some/Thing": [
+      {
+        "Ecosystem": "generic",
+        "PackageName": "Some/Thing"
+      },
+      {
+        "Ecosystem": "generic",
+        "PackageName": "some/thing"
+      }
+    ],
+    "golang|golang.org/x/mod": [
+      {
+        "Ecosystem": "gomod",
+        "PackageName": "golang.org/x/mod"
+      }
+    ],
+    "gomod|github.com/Azure/azure-sdk-for-go": [
+      {
+        "Ecosystem": "gomod",
+        "PackageName": "github.com/Azure/azure-sdk-for-go"
+      },
+      {
+        "Ecosystem": "gomod",
+        "PackageName": "github.com/azure/azure-sdk-for-go"
+      }
+    ],
+    "gomod|github.com/Masterminds/semver/v3": [
+      {
+        "Ecosystem": "gomod",
+        "PackageName": "github.com/Masterminds/semver/v3"
+      },
+      {
+        "Ecosystem": "gomod",
+        "PackageName": "github.com/masterminds/semver/v3"
+      }
+    ],
+    "gomod|github.com/aws/aws-sdk-go-v2/service/s3": [
+      {
+        "Ecosystem": "gomod",
+        "PackageName": "github.com/aws/aws-sdk-go-v2/service/s3"
+      }
+    ],
+    "gomod|gopkg.in/yaml.v3": [
+      {
+        "Ecosystem": "gomod",
+        "PackageName": "gopkg.in/yaml.v3"
+      }
+    ],
+    "go|github.com/BurntSushi/toml": [
+      {
+        "Ecosystem": "gomod",
+        "PackageName": "github.com/BurntSushi/toml"
+      },
+      {
+        "Ecosystem": "gomod",
+        "PackageName": "github.com/burntsushi/toml"
+      }
+    ],
+    "gradle|com.Google.Guava:Guava": [
+      {
+        "Ecosystem": "maven",
+        "PackageName": "com.Google.Guava/Guava"
+      },
+      {
+        "Ecosystem": "maven",
+        "PackageName": "com.google.guava:guava"
+      }
+    ],
+    "hexpm|ecto_sql": [
+      {
+        "Ecosystem": "hex",
+        "PackageName": "ecto_sql"
+      }
+    ],
+    "hex|Acme:Plug": [
+      {
+        "Ecosystem": "hex",
+        "PackageName": "Acme/plug"
+      },
+      {
+        "Ecosystem": "hex",
+        "PackageName": "acme:plug"
+      }
+    ],
+    "hex|Phoenix": [
+      {
+        "Ecosystem": "hex",
+        "PackageName": "phoenix"
+      }
+    ],
+    "hex|acme/Cowboy": [
+      {
+        "Ecosystem": "hex",
+        "PackageName": "acme/cowboy"
+      }
+    ],
+    "java|org.springframework.boot:spring-boot-starter-web": [
+      {
+        "Ecosystem": "maven",
+        "PackageName": "org.springframework.boot/spring-boot-starter-web"
+      },
+      {
+        "Ecosystem": "maven",
+        "PackageName": "org.springframework.boot:spring-boot-starter-web"
+      }
+    ],
+    "made-up|Package": null,
+    "maven|io.netty/netty-all": [
+      {
+        "Ecosystem": "maven",
+        "PackageName": "io.netty/netty-all"
+      }
+    ],
+    "maven|junit": [
+      {
+        "Ecosystem": "maven",
+        "PackageName": "junit"
+      }
+    ],
+    "maven|org.apache.maven/maven-core": [
+      {
+        "Ecosystem": "maven",
+        "PackageName": "org.apache.maven/maven-core"
+      }
+    ],
+    "maven|org.apache.maven:maven-core": [
+      {
+        "Ecosystem": "maven",
+        "PackageName": "org.apache.maven/maven-core"
+      },
+      {
+        "Ecosystem": "maven",
+        "PackageName": "org.apache.maven:maven-core"
+      }
+    ],
+    "node|lodash.merge": [
+      {
+        "Ecosystem": "npm",
+        "PackageName": "lodash.merge"
+      }
+    ],
+    "npm|": null,
+    "npm|   ": null,
+    "npm| left-pad ": [
+      {
+        "Ecosystem": "npm",
+        "PackageName": "left-pad"
+      }
+    ],
+    "npm|@Babel/Core": [
+      {
+        "Ecosystem": "npm",
+        "PackageName": "@babel/core"
+      }
+    ],
+    "npm|@types/node": [
+      {
+        "Ecosystem": "npm",
+        "PackageName": "@types/node"
+      }
+    ],
+    "npm|React-DOM": [
+      {
+        "Ecosystem": "npm",
+        "PackageName": "react-dom"
+      }
+    ],
+    "npm|react": [
+      {
+        "Ecosystem": "npm",
+        "PackageName": "react"
+      }
+    ],
+    "nuget|Newtonsoft.Json": [
+      {
+        "Ecosystem": "nuget",
+        "PackageName": "newtonsoft.json"
+      }
+    ],
+    "nuget|Serilog": [
+      {
+        "Ecosystem": "nuget",
+        "PackageName": "serilog"
+      }
+    ],
+    "os|OpenSSL": [
+      {
+        "Ecosystem": "os",
+        "PackageName": "openssl"
+      }
+    ],
+    "packagist|monolog/monolog": [
+      {
+        "Ecosystem": "composer",
+        "PackageName": "monolog/monolog"
+      }
+    ],
+    "php|laravel/framework": [
+      {
+        "Ecosystem": "composer",
+        "PackageName": "laravel/framework"
+      }
+    ],
+    "pip|Flask-SQLAlchemy": [
+      {
+        "Ecosystem": "pypi",
+        "PackageName": "flask-sqlalchemy"
+      }
+    ],
+    "pub.dev|provider": [
+      {
+        "Ecosystem": "pub",
+        "PackageName": "provider"
+      }
+    ],
+    "pub|Flutter_Bloc": [
+      {
+        "Ecosystem": "pub",
+        "PackageName": "flutter_bloc"
+      }
+    ],
+    "pypi|Django": [
+      {
+        "Ecosystem": "pypi",
+        "PackageName": "django"
+      }
+    ],
+    "pypi|Friendly_Bard...Plugin": [
+      {
+        "Ecosystem": "pypi",
+        "PackageName": "friendly-bard-plugin"
+      },
+      {
+        "Ecosystem": "pypi",
+        "PackageName": "friendly_bard...plugin"
+      }
+    ],
+    "pypi|PyYAML": [
+      {
+        "Ecosystem": "pypi",
+        "PackageName": "pyyaml"
+      }
+    ],
+    "pypi|ruamel.yaml.clib": [
+      {
+        "Ecosystem": "pypi",
+        "PackageName": "ruamel-yaml-clib"
+      },
+      {
+        "Ecosystem": "pypi",
+        "PackageName": "ruamel.yaml.clib"
+      }
+    ],
+    "pypi|typing_extensions": [
+      {
+        "Ecosystem": "pypi",
+        "PackageName": "typing-extensions"
+      },
+      {
+        "Ecosystem": "pypi",
+        "PackageName": "typing_extensions"
+      }
+    ],
+    "python|zope.interface": [
+      {
+        "Ecosystem": "pypi",
+        "PackageName": "zope-interface"
+      },
+      {
+        "Ecosystem": "pypi",
+        "PackageName": "zope.interface"
+      }
+    ],
+    "rubygems|Rails": [
+      {
+        "Ecosystem": "rubygems",
+        "PackageName": "rails"
+      }
+    ],
+    "ruby|Nokogiri": [
+      {
+        "Ecosystem": "rubygems",
+        "PackageName": "nokogiri"
+      }
+    ],
+    "rust|regex-syntax": [
+      {
+        "Ecosystem": "cargo",
+        "PackageName": "regex-syntax"
+      }
+    ],
+    "spm|Alamofire": [
+      {
+        "Ecosystem": "swift",
+        "PackageName": "alamofire"
+      }
+    ],
+    "swift|github.com/Apple/swift-nio": [
+      {
+        "Ecosystem": "swift",
+        "PackageName": "github.com/apple/swift-nio"
+      }
+    ],
+    "typescript|@angular/CLI": [
+      {
+        "Ecosystem": "npm",
+        "PackageName": "@angular/cli"
+      }
+    ]
+  },
+  "manifest_entity_names": {
+    ".net|AutoMapper.Extensions.Microsoft.DependencyInjection": [
+      "automapper.extensions.microsoft.dependencyinjection"
+    ],
+    "apk|musl": [
+      "musl"
+    ],
+    "cargo|Serde_JSON": [
+      "serde_json"
+    ],
+    "composer|Symfony/Console": [
+      "symfony/console"
+    ],
+    "composer|single-segment": [
+      "single-segment"
+    ],
+    "crates.io|tokio": [
+      "tokio"
+    ],
+    "dart|http": [
+      "http"
+    ],
+    "debian|libc6": [
+      "libc6"
+    ],
+    "dotnet|Microsoft.Extensions.Logging": [
+      "microsoft.extensions.logging"
+    ],
+    "gem|activesupport": [
+      "activesupport"
+    ],
+    "generic|Some/Thing": [
+      "Some/Thing",
+      "some/thing"
+    ],
+    "golang|golang.org/x/mod": [
+      "golang.org/x/mod"
+    ],
+    "gomod|github.com/Azure/azure-sdk-for-go": [
+      "github.com/Azure/azure-sdk-for-go",
+      "github.com/azure/azure-sdk-for-go"
+    ],
+    "gomod|github.com/Masterminds/semver/v3": [
+      "github.com/Masterminds/semver/v3",
+      "github.com/masterminds/semver/v3"
+    ],
+    "gomod|github.com/aws/aws-sdk-go-v2/service/s3": [
+      "github.com/aws/aws-sdk-go-v2/service/s3"
+    ],
+    "gomod|gopkg.in/yaml.v3": [
+      "gopkg.in/yaml.v3"
+    ],
+    "go|github.com/BurntSushi/toml": [
+      "github.com/BurntSushi/toml",
+      "github.com/burntsushi/toml"
+    ],
+    "gradle|com.Google.Guava:Guava": [
+      "com.Google.Guava/Guava",
+      "com.Google.Guava:Guava",
+      "com.google.guava:guava"
+    ],
+    "hexpm|ecto_sql": [
+      "ecto_sql"
+    ],
+    "hex|Acme:Plug": [
+      "Acme/plug",
+      "acme:plug"
+    ],
+    "hex|Phoenix": [
+      "phoenix"
+    ],
+    "hex|acme/Cowboy": [
+      "acme/cowboy"
+    ],
+    "java|org.springframework.boot:spring-boot-starter-web": [
+      "org.springframework.boot/spring-boot-starter-web",
+      "org.springframework.boot:spring-boot-starter-web"
+    ],
+    "made-up|Package": [
+      "package"
+    ],
+    "maven|io.netty/netty-all": [
+      "io.netty/netty-all",
+      "io.netty:netty-all"
+    ],
+    "maven|junit": [
+      "junit"
+    ],
+    "maven|org.apache.maven/maven-core": [
+      "org.apache.maven/maven-core",
+      "org.apache.maven:maven-core"
+    ],
+    "maven|org.apache.maven:maven-core": [
+      "org.apache.maven/maven-core",
+      "org.apache.maven:maven-core"
+    ],
+    "node|lodash.merge": [
+      "lodash.merge"
+    ],
+    "npm|": null,
+    "npm|   ": null,
+    "npm| left-pad ": [
+      "left-pad"
+    ],
+    "npm|@Babel/Core": [
+      "@babel/core"
+    ],
+    "npm|@types/node": [
+      "@types/node"
+    ],
+    "npm|React-DOM": [
+      "react-dom"
+    ],
+    "npm|react": [
+      "react"
+    ],
+    "nuget|Newtonsoft.Json": [
+      "newtonsoft.json"
+    ],
+    "nuget|Serilog": [
+      "serilog"
+    ],
+    "os|OpenSSL": [
+      "openssl"
+    ],
+    "packagist|monolog/monolog": [
+      "monolog/monolog"
+    ],
+    "php|laravel/framework": [
+      "laravel/framework"
+    ],
+    "pip|Flask-SQLAlchemy": [
+      "flask-sqlalchemy"
+    ],
+    "pub.dev|provider": [
+      "provider"
+    ],
+    "pub|Flutter_Bloc": [
+      "flutter_bloc"
+    ],
+    "pypi|Django": [
+      "django"
+    ],
+    "pypi|Friendly_Bard...Plugin": [
+      "friendly-bard-plugin",
+      "friendly_bard...plugin"
+    ],
+    "pypi|PyYAML": [
+      "pyyaml"
+    ],
+    "pypi|ruamel.yaml.clib": [
+      "ruamel-yaml-clib",
+      "ruamel.yaml.clib"
+    ],
+    "pypi|typing_extensions": [
+      "typing-extensions",
+      "typing_extensions"
+    ],
+    "python|zope.interface": [
+      "zope-interface",
+      "zope.interface"
+    ],
+    "rubygems|Rails": [
+      "rails"
+    ],
+    "ruby|Nokogiri": [
+      "nokogiri"
+    ],
+    "rust|regex-syntax": [
+      "regex-syntax"
+    ],
+    "spm|Alamofire": [
+      "alamofire"
+    ],
+    "swift|github.com/Apple/swift-nio": [
+      "github.com/apple/swift-nio"
+    ],
+    "typescript|@angular/CLI": [
+      "@angular/cli"
+    ]
+  },
+  "registry_identity_keys": {
+    "composer|Console|symfony/console|symfony": [
+      {
+        "Ecosystem": "composer",
+        "PackageName": "console"
+      },
+      {
+        "Ecosystem": "composer",
+        "PackageName": "symfony/console"
+      },
+      {
+        "Ecosystem": "composer",
+        "PackageName": "symfony/symfony/console"
+      }
+    ],
+    "gomod|github.com/Azure/go-autorest|github.com/Azure/go-autorest|github.com/Azure": [
+      {
+        "Ecosystem": "gomod",
+        "PackageName": "github.com/Azure/github.com/Azure/go-autorest"
+      },
+      {
+        "Ecosystem": "gomod",
+        "PackageName": "github.com/Azure/go-autorest"
+      },
+      {
+        "Ecosystem": "gomod",
+        "PackageName": "github.com/azure/github.com/azure/go-autorest"
+      },
+      {
+        "Ecosystem": "gomod",
+        "PackageName": "github.com/azure/go-autorest"
+      }
+    ],
+    "hex|Plug|plug|Acme": [
+      {
+        "Ecosystem": "hex",
+        "PackageName": "Acme/plug"
+      },
+      {
+        "Ecosystem": "hex",
+        "PackageName": "acme/plug"
+      },
+      {
+        "Ecosystem": "hex",
+        "PackageName": "plug"
+      }
+    ],
+    "maven|Guava|guava|com.Google.Guava": [
+      {
+        "Ecosystem": "maven",
+        "PackageName": "com.Google.Guava/guava"
+      },
+      {
+        "Ecosystem": "maven",
+        "PackageName": "com.google.guava/guava"
+      },
+      {
+        "Ecosystem": "maven",
+        "PackageName": "com.google.guava:guava"
+      },
+      {
+        "Ecosystem": "maven",
+        "PackageName": "guava"
+      }
+    ],
+    "maven|maven-core|maven-core|org.apache.maven": [
+      {
+        "Ecosystem": "maven",
+        "PackageName": "maven-core"
+      },
+      {
+        "Ecosystem": "maven",
+        "PackageName": "org.apache.maven/maven-core"
+      },
+      {
+        "Ecosystem": "maven",
+        "PackageName": "org.apache.maven:maven-core"
+      }
+    ],
+    "npm|@Babel/Core|@babel/core|babel": [
+      {
+        "Ecosystem": "npm",
+        "PackageName": "@babel/core"
+      },
+      {
+        "Ecosystem": "npm",
+        "PackageName": "babel/@babel/core"
+      }
+    ],
+    "nuget|Serilog|serilog|": [
+      {
+        "Ecosystem": "nuget",
+        "PackageName": "serilog"
+      }
+    ],
+    "pypi|Friendly_Bard|friendly-bard|": [
+      {
+        "Ecosystem": "pypi",
+        "PackageName": "friendly-bard"
+      },
+      {
+        "Ecosystem": "pypi",
+        "PackageName": "friendly_bard"
+      }
+    ],
+    "swift|swift-nio|swift-nio|github.com/apple": [
+      {
+        "Ecosystem": "swift",
+        "PackageName": "github.com/apple/swift-nio"
+      },
+      {
+        "Ecosystem": "swift",
+        "PackageName": "swift-nio"
+      }
+    ]
+  },
+  "purl_keys": {
+    "not-a-purl": null,
+    "pkg:cargo/Serde@1": [
+      {
+        "Ecosystem": "cargo",
+        "PackageName": "serde"
+      }
+    ],
+    "pkg:composer/Symfony/Console@6": [
+      {
+        "Ecosystem": "composer",
+        "PackageName": "console"
+      },
+      {
+        "Ecosystem": "composer",
+        "PackageName": "symfony/console"
+      }
+    ],
+    "pkg:gem/Rails@7.1": [
+      {
+        "Ecosystem": "rubygems",
+        "PackageName": "rails"
+      }
+    ],
+    "pkg:golang/github.com/BurntSushi/toml@v1.3.0": [
+      {
+        "Ecosystem": "gomod",
+        "PackageName": "github.com/BurntSushi/toml"
+      },
+      {
+        "Ecosystem": "gomod",
+        "PackageName": "github.com/burntsushi/toml"
+      }
+    ],
+    "pkg:hex/acme/Plug@1": [
+      {
+        "Ecosystem": "hex",
+        "PackageName": "acme/plug"
+      },
+      {
+        "Ecosystem": "hex",
+        "PackageName": "plug"
+      }
+    ],
+    "pkg:maven/org.apache.maven/maven-core@3.9.0": [
+      {
+        "Ecosystem": "maven",
+        "PackageName": "maven-core"
+      },
+      {
+        "Ecosystem": "maven",
+        "PackageName": "org.apache.maven/maven-core"
+      }
+    ],
+    "pkg:npm/%40babel/core@7.0.0": [
+      {
+        "Ecosystem": "npm",
+        "PackageName": "@babel/core"
+      },
+      {
+        "Ecosystem": "npm",
+        "PackageName": "babel/@babel/core"
+      }
+    ],
+    "pkg:npm/React@18": [
+      {
+        "Ecosystem": "npm",
+        "PackageName": "react"
+      }
+    ],
+    "pkg:nuget/Serilog@3.0.0": [
+      {
+        "Ecosystem": "nuget",
+        "PackageName": "serilog"
+      }
+    ],
+    "pkg:pub/Flutter_Bloc@8": [
+      {
+        "Ecosystem": "pub",
+        "PackageName": "flutter_bloc"
+      }
+    ],
+    "pkg:pypi/Django@4.2": [
+      {
+        "Ecosystem": "pypi",
+        "PackageName": "django"
+      }
+    ],
+    "pkg:swift/github.com/Apple/swift-nio@2": [
+      {
+        "Ecosystem": "swift",
+        "PackageName": "github.com/apple/swift-nio"
+      },
+      {
+        "Ecosystem": "swift",
+        "PackageName": "swift-nio"
+      }
+    ]
+  },
+  "package_id_keys": {
+    "cargo://crates.io/serde": [
+      {
+        "Ecosystem": "cargo",
+        "PackageName": "serde"
+      }
+    ],
+    "gomod://proxy.golang.org/github.com/BurntSushi/toml": [
+      {
+        "Ecosystem": "gomod",
+        "PackageName": "github.com/BurntSushi/toml"
+      },
+      {
+        "Ecosystem": "gomod",
+        "PackageName": "github.com/burntsushi/toml"
+      }
+    ],
+    "maven://repo.maven.apache.org/maven2/org.apache.maven:maven-core": [
+      {
+        "Ecosystem": "maven",
+        "PackageName": "org.apache.maven/maven-core"
+      },
+      {
+        "Ecosystem": "maven",
+        "PackageName": "org.apache.maven:maven-core"
+      }
+    ],
+    "npm://custom.example/foo": null,
+    "npm://registry.npmjs.org/@babel/core": [
+      {
+        "Ecosystem": "npm",
+        "PackageName": "@babel/core"
+      }
+    ],
+    "nuget://api.nuget.org/v3/index.json/serilog": [
+      {
+        "Ecosystem": "nuget",
+        "PackageName": "serilog"
+      }
+    ],
+    "pypi://pypi.org/simple/django": [
+      {
+        "Ecosystem": "pypi",
+        "PackageName": "django"
+      }
+    ]
+  },
+  "normalized_package_ids": {
+    ".net|AutoMapper.Extensions.Microsoft.DependencyInjection": "nuget://api.nuget.org/v3/index.json/automapper.extensions.microsoft.dependencyinjection",
+    "apk|musl": "os://os/musl",
+    "cargo|Serde_JSON": "cargo://crates.io/serde_json",
+    "composer|Symfony/Console": "composer://repo.packagist.org/symfony/console",
+    "composer|single-segment": "error",
+    "crates.io|tokio": "cargo://crates.io/tokio",
+    "dart|http": "pub://pub.dev/http",
+    "debian|libc6": "os://os/libc6",
+    "dotnet|Microsoft.Extensions.Logging": "nuget://api.nuget.org/v3/index.json/microsoft.extensions.logging",
+    "gem|activesupport": "rubygems://rubygems.org/activesupport",
+    "generic|Some/Thing": "generic://unknown/Some/Thing",
+    "golang|golang.org/x/mod": "gomod://proxy.golang.org/golang.org/x/mod",
+    "gomod|github.com/Azure/azure-sdk-for-go": "gomod://proxy.golang.org/github.com/Azure/azure-sdk-for-go",
+    "gomod|github.com/Masterminds/semver/v3": "gomod://proxy.golang.org/github.com/Masterminds/semver/v3",
+    "gomod|github.com/aws/aws-sdk-go-v2/service/s3": "gomod://proxy.golang.org/github.com/aws/aws-sdk-go-v2/service/s3",
+    "gomod|gopkg.in/yaml.v3": "gomod://proxy.golang.org/gopkg.in/yaml.v3",
+    "go|github.com/BurntSushi/toml": "gomod://proxy.golang.org/github.com/BurntSushi/toml",
+    "gradle|com.Google.Guava:Guava": "maven://repo.maven.apache.org/maven2/com.Google.Guava:Guava",
+    "hexpm|ecto_sql": "hex://hex.pm/ecto_sql",
+    "hex|Acme:Plug": "hex://hex.pm/acme/plug",
+    "hex|Phoenix": "hex://hex.pm/phoenix",
+    "hex|acme/Cowboy": "hex://hex.pm/acme/cowboy",
+    "java|org.springframework.boot:spring-boot-starter-web": "maven://repo.maven.apache.org/maven2/org.springframework.boot:spring-boot-starter-web",
+    "made-up|Package": "error",
+    "maven|io.netty/netty-all": "maven://repo.maven.apache.org/maven2/io.netty:netty-all",
+    "maven|junit": "error",
+    "maven|org.apache.maven/maven-core": "maven://repo.maven.apache.org/maven2/org.apache.maven:maven-core",
+    "maven|org.apache.maven:maven-core": "maven://repo.maven.apache.org/maven2/org.apache.maven:maven-core",
+    "node|lodash.merge": "npm://registry.npmjs.org/lodash.merge",
+    "npm|": "error",
+    "npm|   ": "error",
+    "npm| left-pad ": "npm://registry.npmjs.org/left-pad",
+    "npm|@Babel/Core": "npm://registry.npmjs.org/@babel/core",
+    "npm|@types/node": "npm://registry.npmjs.org/@types/node",
+    "npm|React-DOM": "npm://registry.npmjs.org/react-dom",
+    "npm|react": "npm://registry.npmjs.org/react",
+    "nuget|Newtonsoft.Json": "nuget://api.nuget.org/v3/index.json/newtonsoft.json",
+    "nuget|Serilog": "nuget://api.nuget.org/v3/index.json/serilog",
+    "os|OpenSSL": "os://os/openssl",
+    "packagist|monolog/monolog": "composer://repo.packagist.org/monolog/monolog",
+    "php|laravel/framework": "composer://repo.packagist.org/laravel/framework",
+    "pip|Flask-SQLAlchemy": "pypi://pypi.org/simple/flask-sqlalchemy",
+    "pub.dev|provider": "pub://pub.dev/provider",
+    "pub|Flutter_Bloc": "pub://pub.dev/flutter_bloc",
+    "pypi|Django": "pypi://pypi.org/simple/django",
+    "pypi|Friendly_Bard...Plugin": "pypi://pypi.org/simple/friendly-bard-plugin",
+    "pypi|PyYAML": "pypi://pypi.org/simple/pyyaml",
+    "pypi|ruamel.yaml.clib": "pypi://pypi.org/simple/ruamel-yaml-clib",
+    "pypi|typing_extensions": "pypi://pypi.org/simple/typing-extensions",
+    "python|zope.interface": "pypi://pypi.org/simple/zope-interface",
+    "rubygems|Rails": "rubygems://rubygems.org/rails",
+    "ruby|Nokogiri": "rubygems://rubygems.org/nokogiri",
+    "rust|regex-syntax": "cargo://crates.io/regex-syntax",
+    "spm|Alamofire": "error",
+    "swift|github.com/Apple/swift-nio": "error",
+    "typescript|@angular/CLI": "npm://registry.npmjs.org/@angular/cli"
+  },
+  "normalized_ecosystems": {
+    ".net": "nuget",
+    "apk": "os",
+    "cargo": "cargo",
+    "composer": "composer",
+    "crates.io": "cargo",
+    "dart": "pub",
+    "debian": "os",
+    "dotnet": "nuget",
+    "gem": "rubygems",
+    "generic": "generic",
+    "go": "gomod",
+    "golang": "gomod",
+    "gomod": "gomod",
+    "gradle": "maven",
+    "hex": "hex",
+    "hexpm": "hex",
+    "java": "maven",
+    "made-up": "",
+    "maven": "maven",
+    "node": "npm",
+    "npm": "npm",
+    "nuget": "nuget",
+    "os": "os",
+    "packagist": "composer",
+    "php": "composer",
+    "pip": "pypi",
+    "pub": "pub",
+    "pub.dev": "pub",
+    "pypi": "pypi",
+    "python": "pypi",
+    "ruby": "rubygems",
+    "rubygems": "rubygems",
+    "rust": "cargo",
+    "spm": "swift",
+    "swift": "swift",
+    "typescript": "npm"
+  }
+}

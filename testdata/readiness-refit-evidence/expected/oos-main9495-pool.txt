@@ -1,0 +1,3 @@
+pair ['40833905620', '40847362740']; out-of-sample runs 9
+weights | s1 n | s1 min | s1 p50 | s1 max | s1 >1.15 | s1 obs>pred | all n | all p50 | all p95 | all max | all >1.15 | all obs>pred | mean pred/obs
+main9495.v2 | 9 | 1.233 | 1.376 | 1.464 | 9 | 9 | 46 | 0.947 | 1.406 | 1.464 | 9 | 14 | 1.063

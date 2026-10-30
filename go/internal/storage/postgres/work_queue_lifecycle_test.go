@@ -181,11 +181,6 @@ type fakeExecCall struct {
 	args  []any
 }
 
-type fakeQueryCall struct {
-	query string
-	args  []any
-}
-
 func (f *fakeExecQueryer) ExecContext(
 	_ context.Context,
 	query string,
@@ -220,7 +215,9 @@ func (f *fakeExecQueryer) QueryContext(
 	if f.recordCallOrder {
 		f.callOrder = append(f.callOrder, "query:"+query)
 	}
-	f.queries = append(f.queries, fakeQueryCall{query: query, args: args})
+	call := newFakeQueryCall(query, args)
+	f.queries = append(f.queries, call)
+	args = call.args
 
 	// Route the per-scope deferred backfill fact query to a scope-keyed response
 	// when configured, independent of FIFO order (issue #3710). args[2] is the $3

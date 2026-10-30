@@ -26,7 +26,7 @@ Black-box Engine coverage lives beside the implementation in external `yaml_test
 This package is responsible for reading one YAML file, decoding YAML documents,
 normalizing templated YAML enough for parser-safe reads, emitting hosted Pub
 dependency rows from `pubspec.yaml` and `pubspec.lock`, and returning
-deterministic payload buckets. The parent internal/parser package still owns
+deterministic payload buckets, including private Helm kubeVersion evidence. The parent internal/parser package still owns
 registry lookup, engine dispatch, repository path resolution, and content
 metadata inference.
 

@@ -79,6 +79,7 @@ const (
 	cicdRunCorrelationsCapability                = "ci_cd.run_correlations.list"
 	cloudInventoryReadbackCapability             = "cloud_inventory.readback.list"
 	cloudRuntimeDriftReadbackCapability          = "cloud_runtime_drift.readback.list"
+	ssmHostInventoryReadbackCapability           = "ssm_host_inventory.readback.list"
 	collectorExtractionReadinessFamilyCapability = "collector_extraction_readiness.family"
 	collectorExtractionReadinessListCapability   = "collector_extraction_readiness.list"
 	factSchemaVersionDetailCapability            = "fact_schema_version.detail"

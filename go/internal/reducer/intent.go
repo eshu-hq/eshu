@@ -121,6 +121,11 @@ const (
 	// DomainSBOMAttestationAttachment attaches SBOM and attestation evidence to
 	// image digests only when subject evidence is explicit.
 	DomainSBOMAttestationAttachment = reducercontract.DomainSBOMAttestationAttachment
+	// DomainSSMHostInventoryMaterialization materializes admitted SSM host
+	// inventory observations into canonical observation nodes and
+	// platform-pairing edges (eshu-hq/eshu#9558). Observations only: no
+	// vulnerability or supply-chain finding is ever synthesized.
+	DomainSSMHostInventoryMaterialization = reducercontract.DomainSSMHostInventoryMaterialization
 	// DomainSupplyChainImpact publishes reducer-owned vulnerability impact
 	// findings only when vulnerability, package, SBOM, image, or repository
 	// evidence forms an explicit path.

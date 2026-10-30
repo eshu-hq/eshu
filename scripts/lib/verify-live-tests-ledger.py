@@ -95,10 +95,10 @@ ledger_path, repo_root = sys.argv[1], sys.argv[2]
 # exit in that module must not bypass the ledger's independent source read.
 REPLAY_PROOF_SOURCE_SHA256 = {
     "scripts/verify-replay-tier.sh": (
-        "c444a52095236b608cda143bf4bdbbedc9302e9ed23f4980bcdefeac8f81056b"
+        "41fddbd06d6a86fe2e55ad114c0d6121b2d423b39f57eb8a195110c65c5ad6a4"
     ),
     "scripts/lib/replay_tier_enrollment.py": (
-        "9a588e169c81abc96b363adced5c60918b76b9ac7bfdcda210939121880d6822"
+        "b25533f68f7de8e92524c27456a54bf21af958db5ab162cb61596d1940805faa"
     ),
     "scripts/lib/replay_tier_routes.py": (
         "866409774cba18768d4a7dacd126e83f680c74de25dfc8531970e58582ae694d"

@@ -324,7 +324,7 @@ func osPackageMatchesAffectedPackage(
 }
 
 func supportedOSPackageImpactManager(manager string) bool {
-	switch strings.ToLower(strings.TrimSpace(manager)) {
+	switch packageidentity.LowerASCII(strings.TrimSpace(manager)) {
 	case "rpm", "dpkg", "apk":
 		return true
 	default:
@@ -338,13 +338,13 @@ func osPackageEcosystemMatchesVendor(
 	vendorSource string,
 	distro string,
 ) bool {
-	ecosystem = strings.ToLower(strings.TrimSpace(ecosystem))
+	ecosystem = packageidentity.LowerASCII(strings.TrimSpace(ecosystem))
 	if ecosystem == "" {
 		return true
 	}
-	packageManager = strings.ToLower(strings.TrimSpace(packageManager))
-	vendorSource = strings.ToLower(strings.TrimSpace(vendorSource))
-	distro = strings.ToLower(strings.TrimSpace(distro))
+	packageManager = packageidentity.LowerASCII(strings.TrimSpace(packageManager))
+	vendorSource = packageidentity.LowerASCII(strings.TrimSpace(vendorSource))
+	distro = packageidentity.LowerASCII(strings.TrimSpace(distro))
 	switch ecosystem {
 	case packageManager, vendorSource, distro:
 		return true

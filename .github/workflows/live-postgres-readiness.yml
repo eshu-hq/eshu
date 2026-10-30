@@ -70,6 +70,7 @@ on:
       - 'scripts/lib/live_postgres_readiness_reports.py'
       - 'scripts/lib/live_postgres_readiness_refresh_v2.py'
       - 'scripts/lib/live_postgres_readiness_refresh_v2_provenance.py'
+      - 'scripts/lib/live_postgres_readiness_refresh_v2_pool.py'
       - 'scripts/test-live-postgres-readiness-refresh-v2.py'
       - 'scripts/lib/live_postgres_readiness_calibration*.py'
       - 'scripts/test-live-postgres-readiness-calibration.py'
@@ -291,7 +292,10 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
-          cache-dependency-path: go/go.sum
+          # setup-go would download a second copy of the build cache
+          # restored above (#9598). Keep this step directly after the
+          # restore: the #9566 refresher reads the restore section up to it.
+          cache: false
 
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh

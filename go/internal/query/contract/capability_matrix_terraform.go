@@ -171,6 +171,7 @@ var canonicalCapabilityOrder = []string{
 	"semantic_evidence.documentation_observations.list",
 	"semantic_evidence.code_hints.list",
 	"semantic_search.curated_retrieval",
+	"ssm_host_inventory.readback.list",
 	"visualization.packet_derivation",
 	"visualization.graph_query",
 }

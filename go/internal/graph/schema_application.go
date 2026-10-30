@@ -92,8 +92,22 @@ const (
 	// tf_module/tf_output evidence_source, the Neo4j-only #7057 uid indexes,
 	// the #7095/#7097 constraint retirements, #7675, and the Neo4j-only #7245
 	// infra_search_key_ft index.
-	graphSchemaNeo4jFingerprint    = "4a5cd866a90b873bf79c91d20804b7c087eb0159df54365fa5a92334c4cdee14"
-	graphSchemaNornicDBFingerprint = "838893b45d370aabddd8cd3628bd7042a75ac73601f50337958496b63ccb2d05"
+	graphSchemaNeo4jFingerprint    = "efee7a92098bc5435682a862b05f111ee71516be1ff8dcef5144640ef0113dde"
+	graphSchemaNornicDBFingerprint = "62293e2a1184853135857279221186fee30e489005295e5aeacfb20e7cc7c7e9"
+
+	// graphSchemaNeo4jPreSSMHostFingerprint and its NornicDB peer are the
+	// schema fingerprints immediately before the #9558 SSMHostApplication /
+	// SSMHostPlatform uid constraints were added. These equal
+	// graphSchemaNeo4jFingerprint / graphSchemaNornicDBFingerprint's value
+	// before this addition. The bump is additive: a writer running the
+	// predecessor schema emits no SSM host observation nodes, so the new
+	// constraints never apply to it, and the predecessor stays compatible.
+	// No lookup index rides along: both deferred edge MATCHes anchor on uid
+	// only (REPORTED_WITH matches endpoints by uid; the supersession read
+	// matches observation nodes by uid), so uid constraints are the whole
+	// seek story.
+	graphSchemaNeo4jPreSSMHostFingerprint    = "4a5cd866a90b873bf79c91d20804b7c087eb0159df54365fa5a92334c4cdee14"
+	graphSchemaNornicDBPreSSMHostFingerprint = "838893b45d370aabddd8cd3628bd7042a75ac73601f50337958496b63ccb2d05"
 
 	// graphSchemaNeo4jPreDirectoryRepoIDIndexFingerprint and its NornicDB peer
 	// are the digests immediately before that index was added, which is the

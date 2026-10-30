@@ -18,6 +18,7 @@ import live_postgres_readiness_refresh_v2 as refresh  # noqa: E402
 import live_postgres_readiness_weights_refresh as cli_refresh  # noqa: E402
 from live_postgres_readiness_weights_history_cases import SourceHistoryTest  # noqa: E402,F401
 from live_postgres_readiness_weights_pooled_cases import PooledPricingTest  # noqa: E402,F401
+from live_postgres_readiness_weights_inventory_cases import InventoryPoolingTest  # noqa: E402,F401
 from live_postgres_readiness_weights_refresh_fixture import (  # noqa: E402
     OTHER_SHA, PLAN, SHA, shard_log as _log, write_sample as _sample)
 

@@ -151,15 +151,6 @@ var grandfatheredUnconsumedKinds = map[string]string{
 	// fails on a disclosed kind with live consumer evidence.
 	"ref_overlay.branch_observation": "5b3e77a9de688c4a4fc27153fe26a8602d8d0734881d07f491a816d57e93e987",
 	"config_key_divergence":          "03a16ac79f202c0175485ad9e93febec85d6b37f140feaacfcecaec23f1942f3",
-
-	// eshu-hq/eshu#9556 contract-only kinds (aws_ssm_host family). The
-	// satellite SSM inventory emitter and the host-inventory read surface
-	// land in sibling #9295 leaves; until they do these kinds have no
-	// reducer, projector, query, storage, or relationships consumer.
-	// Remove each entry the moment its consumer lands — the gate fails on
-	// a disclosed kind with live consumer evidence.
-	"aws_ssm_host_application": "2802cd9806ea158cc6e1fbdfb2082838cd065d669df982e24f9dd71b8d7643f8",
-	"aws_ssm_host_platform":    "baa170a89229dc21a4a5ddb5471eebf369c6ec59925ce5fb65f2f3cb4fe5c36c",
 }
 
 // kindDisclosureDigest computes the SHA-256 digest of the disclosure entry
@@ -294,16 +285,6 @@ var kindDisclosureEntries = []kindDisclosureEntry{
 	// remove these entries when they do.
 	{Family: "ref_overlay_isolation", Kind: "ref_overlay.branch_observation", Reason: "eshu-hq/eshu#5393 Phase 1 contract-only kind (ref-extraction emitter and ref-scoped read surface land in sibling leaves): `rg -n \"RefOverlayBranchObservationFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"ref_overlay.branch_observation\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
 	{Family: "ref_overlay_isolation", Kind: "config_key_divergence", Reason: "eshu-hq/eshu#5393 Phase 1 contract-only kind (config-divergence emitter and dedicated divergence surface land in sibling leaves): `rg -n \"ConfigKeyDivergenceFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"config_key_divergence\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
-
-	// eshu-hq/eshu#9556 contract-only kinds (aws_ssm_host family). Each
-	// Reason carries the exact `rg` commands run against every
-	// real-consumer-signal directory for both the kind's
-	// facts.<Kind>FactKind identifier and its wire-string literal, with the
-	// confirmed-empty result. The satellite SSM inventory emitter and the
-	// host-inventory read surface land in sibling #9295 leaves, which must
-	// remove these entries when they do.
-	{Family: "ssm_host_inventory_materialization", Kind: "aws_ssm_host_application", Reason: "eshu-hq/eshu#9556 contract-only kind (satellite SSM inventory emitter and host-inventory read surface land in sibling #9295 leaves): `rg -n \"SSMHostApplicationFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"aws_ssm_host_application\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
-	{Family: "ssm_host_inventory_materialization", Kind: "aws_ssm_host_platform", Reason: "eshu-hq/eshu#9556 contract-only kind (satellite SSM platform emitter and host-inventory read surface land in sibling #9295 leaves): `rg -n \"SSMHostPlatformFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"aws_ssm_host_platform\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
 }
 
 // isKindDisclosed returns true if kind is pinned in the disclosure ledger at

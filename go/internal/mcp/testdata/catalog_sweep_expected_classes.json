@@ -170,6 +170,7 @@
     "trace_route_callers/default": "allowlisted",
     "visualize_graph_query/default": "shared_key_only",
     "search_dockerfile_installs/default": "allowlisted",
-    "search_php_configuration/default": "allowlisted"
+    "search_php_configuration/default": "allowlisted",
+    "list_ssm_host_inventory/default": "allowlisted"
   }
 }

@@ -20,6 +20,7 @@ TABLE = {
             "TestSupplyChainImpactReadinessPackageAnchorLive",
         ),
         "go/internal/query/supply/chain/impact/readiness_package_consumption_scope_live_test.go": (
+            "TestReadinessPackageNameFoldMatchesLowerASCIILive",
             "TestSupplyChainImpactReadinessPackageConsumptionScopeLive",
         ),
         "go/internal/query/supply/chain/impact/readiness_package_manifest_repo_scope_live_test.go": (

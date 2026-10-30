@@ -301,9 +301,11 @@ func (s IngestionStore) commitScopeGeneration(
 			if err := refreshRelationshipReferenceCandidateKeys(ctx, tx, batch); err != nil {
 				return err
 			}
-			if err := refreshPackageManifestConsumptionKeys(ctx, tx, batch); err != nil {
+			nonASCIINames, err := writePackageManifestConsumptionKeys(ctx, tx, batch)
+			if err != nil {
 				return err
 			}
+			recordPackageManifestNonASCIINames(ctx, s.Instruments, scopeValue.ScopeID, generation.GenerationID, nonASCIINames)
 			if err := refreshPackageRegistryIdentityKeys(ctx, tx, batch); err != nil {
 				return err
 			}

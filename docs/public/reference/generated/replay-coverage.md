@@ -4,33 +4,33 @@
 
 Every non-exempt required surface maps to a committed scenario and the named proof gate that must pass. Exempt rows carry the audited reason that a proof class does not apply. The inventory check itself is credential-free and Docker-free; backend-required scenarios run in their named proof gates. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 454/454 surfaces satisfied (100.00%)** — mode: blocking.
+**Overall: 459/459 surfaces satisfied (100.00%)** — mode: blocking.
 
 ## Coverage by axis
 
 | Axis | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | authorization_catalog | 24 | 24 | 100.00% | 0 | 0 |
-| Capability claims | 159 | 159 | 100.00% | 0 | 0 |
+| Capability claims | 160 | 160 | 100.00% | 0 | 0 |
 | Read surfaces (CLI) | 7 | 7 | 100.00% | 0 | 0 |
-| Read surfaces (API/MCP) | 27 | 27 | 100.00% | 0 | 1 |
+| Read surfaces (API/MCP) | 28 | 28 | 100.00% | 0 | 1 |
 | Parsers | 4 | 4 | 100.00% | 0 | 0 |
 | Product claims | 11 | 11 | 100.00% | 0 | 0 |
-| Projections (cost/ordering) | 32 | 32 | 100.00% | 0 | 2 |
+| Projections (cost/ordering) | 32 | 32 | 100.00% | 0 | 1 |
 | Reducer drain (crash) | 1 | 1 | 100.00% | 0 | 0 |
-| Retractable edge types (delta) | 64 | 64 | 100.00% | 0 | 0 |
-| Retractable node types (delta) | 101 | 101 | 100.00% | 0 | 1 |
+| Retractable edge types (delta) | 65 | 65 | 100.00% | 0 | 0 |
+| Retractable node types (delta) | 103 | 103 | 100.00% | 0 | 1 |
 | Collectors | 24 | 24 | 100.00% | 0 | 7 |
-| **Total** | **454** | **454** | **100.00%** | **0** | **11** |
+| **Total** | **459** | **459** | **100.00%** | **0** | **10** |
 
 ## Coverage by scenario type
 
 | Scenario type | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| baseline | 240 | 240 | 100.00% | 0 | 4 |
-| cost | 31 | 31 | 100.00% | 0 | 2 |
+| baseline | 242 | 242 | 100.00% | 0 | 4 |
+| cost | 31 | 31 | 100.00% | 0 | 1 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
-| delta_tombstone | 166 | 166 | 100.00% | 0 | 1 |
+| delta_tombstone | 169 | 169 | 100.00% | 0 | 1 |
 | fault | 12 | 12 | 100.00% | 0 | 4 |
 | ordering | 3 | 3 | 100.00% | 0 | 0 |
 
@@ -46,7 +46,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 
 None. Every non-exempt required surface has a replay scenario; exemptions carry audited reasons.
 
-## Covered surfaces (454)
+## Covered surfaces (459)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact / exemption reason |
 | --- | --- | --- | --- | --- |
@@ -209,6 +209,7 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `capability:semantic_extraction.status` | baseline | capability_claim | capability-inventory | `semantic_extraction.status` |
 | `capability:semantic_search.curated_retrieval` | baseline | capability_claim | capability-inventory | `semantic_search.curated_retrieval` |
 | `capability:service_catalog.correlations.list` | baseline | correlation | golden-corpus-gate-neo4j | `rc-1` |
+| `capability:ssm_host_inventory.readback.list` | baseline | capability_claim | capability-inventory | `ssm_host_inventory.readback.list` |
 | `capability:supply_chain.advisory_catalog.list` | baseline | capability_claim | capability-inventory | `supply_chain.advisory_catalog.list` |
 | `capability:supply_chain.advisory_evidence.list` | baseline | capability_claim | capability-inventory | `supply_chain.advisory_evidence.list` |
 | `capability:supply_chain.container_image_identities.aggregate` | baseline | capability_claim | capability-inventory | `supply_chain.container_image_identities.aggregate` |
@@ -243,6 +244,7 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `read_surface:GET /api/v0/ci-cd/run-correlations` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `GET /api/v0/ci-cd/run-correlations?limit=50&scope_id=supply-chain-demo` |
 | `read_surface:GET /api/v0/cloud/inventory` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `GET /api/v0/cloud/inventory` |
 | `read_surface:GET /api/v0/cloud/resources` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `GET /api/v0/cloud/resources` |
+| `read_surface:GET /api/v0/cloud/ssm-host-inventory` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `list_ssm_host_inventory` |
 | `read_surface:GET /api/v0/codeowners/ownership` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `GET /api/v0/codeowners/ownership?repository_id=repository:r_8477a002&limit=50` |
 | `read_surface:GET /api/v0/documentation/facts` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `GET /api/v0/documentation/facts?fact_kind=source` |
 | `read_surface:GET /api/v0/iac/resources` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `GET /api/v0/iac/resources?limit=50&include_facets=true` |
@@ -310,7 +312,7 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `projection:security_alert_reconciliation` | cost | go_test | go-test-race | `go/internal/replay/costcounting/security_alert_reconciliation_cost_test.go` |
 | `projection:semantic_entity_materialization` | cost | go_test | go-test-race | `go/internal/replay/costcounting/semantic_entity_cost_test.go` |
 | `projection:service_catalog_correlation` | cost | go_test | go-test-race | `go/internal/replay/costcounting/service_catalog_correlation_cost_test.go` |
-| `projection:ssm_host_inventory_materialization` | cost | exempt | — | Contract-only domain: aws_ssm_host_application and aws_ssm_host_platform are admitted facts with no reducer binding and no materialization path yet (DispositionUnconsumed, read_surface none). A cost scenario must drive the domain's real production writer; no writer exists, so there is nothing whose cost a scenario could bound. Remove when the #9295 host-inventory projection leaf lands, with its cost-counting test. |
+| `projection:ssm_host_inventory_materialization` | cost | go_test | go-test-race | `go/internal/replay/costcounting/ssm_host_inventory_cost_test.go` |
 | `projection:submodule_pin` | cost | go_test | go-test-race | `go/internal/replay/costcounting/submodule_pin_cost_test.go` |
 | `projection:supply_chain_impact` | ordering | go_test | go-test-race | `go/internal/replay/schedulereplay/projection_ordering_scenario_test.go` |
 | `projection:supply_chain_impact` | cost | go_test | go-test-race | `go/internal/replay/costcounting/supply_chain_impact_cost_test.go` |
@@ -364,6 +366,7 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `retractable_edge:RECONCILES_FROM` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_canonical_flux_edge_retract_live_test.go` |
 | `retractable_edge:REFERENCES` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_edge_retract_live_test.go` |
 | `retractable_edge:REFERENCES_TABLE` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go` |
+| `retractable_edge:REPORTED_WITH` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_ssm_host_retract_live_test.go` |
 | `retractable_edge:RUNS_IMAGE` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_cloud_edge_retract_live_test.go` |
 | `retractable_edge:RUNS_IN` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_runtime_edge_retract_live_test.go` |
 | `retractable_edge:RUNS_ON` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go` |
@@ -446,6 +449,8 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `retractable_node:ProtocolImplementation` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:QueryExecution` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:Record` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
+| `retractable_node:SSMHostApplication` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_ssm_host_retract_live_test.go` |
+| `retractable_node:SSMHostPlatform` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_ssm_host_retract_live_test.go` |
 | `retractable_node:ShellCommand` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:SqlColumn` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:SqlFunction` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |

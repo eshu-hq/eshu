@@ -585,7 +585,7 @@
       },
       {
         "family": "cloud_iac",
-        "description": "Cloud inventory, IaC quality, drift, import, unmanaged resource, replatforming, and cloud-resource impact reads.",
+        "description": "Cloud inventory, IaC quality, drift, import, unmanaged resource, replatforming, cloud-resource impact, and SSM host inventory reads.",
         "capability_prefixes": [
           "iac_quality.",
           "iac_management.",
@@ -594,6 +594,7 @@
           "iac_inventory.",
           "cloud_inventory.",
           "cloud_runtime_drift.",
+          "ssm_host_inventory.",
           "replatforming.",
           "platform_impact.cloud_resource_list",
           "platform_impact.infra_resource_aggregate"
@@ -11072,6 +11073,71 @@
           "owner"
         ],
         "sensitive_data": false
+      }
+    },
+    {
+      "capability": "ssm_host_inventory.readback.list",
+      "display_name": "Ssm Host Inventory Readback List",
+      "maturity": "general_availability",
+      "derived_maturity": "general_availability",
+      "surfaces": [
+        {
+          "tool": "list_ssm_host_inventory",
+          "kind": "mcp"
+        }
+      ],
+      "profiles": {
+        "local_authoritative": {
+          "status": "unsupported",
+          "max_truth_level": "unsupported",
+          "required_runtime": "local_host",
+          "max_scope_size": "account_project_or_subscription"
+        },
+        "local_full_stack": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "account_project_or_subscription"
+        },
+        "local_lightweight": {
+          "status": "unsupported",
+          "max_truth_level": "unsupported",
+          "required_runtime": "local_host",
+          "max_scope_size": "account_project_or_subscription"
+        },
+        "production": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "account_project_or_subscription"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "go_test",
+          "ref": "./internal/query"
+        }
+      ],
+      "console": false,
+      "authorization": {
+        "family": "cloud_iac",
+        "action": "cloud.iac.read",
+        "data_classes": [
+          "cloud_iac"
+        ],
+        "scope_levels": [
+          "tenant",
+          "workspace",
+          "repository",
+          "source_scope"
+        ],
+        "default_roles": [
+          "security_analyst",
+          "owner"
+        ],
+        "sensitive_data": true
       }
     },
     {

@@ -135,7 +135,7 @@ source kind. Its value passes the manifest credential guard before emission.
 
 ## Manifest sources
 
-`package.json`, `composer.json`, `composer.lock` and `go.mod` are matched by
+`package.json`, `composer.json`, `composer.lock`, `Cargo.toml` and `go.mod` are matched by
 exact, case-sensitive base name at any depth, so a monorepo emits one set of facts per package directory. A copy
 inside `node_modules`, `vendor`, `bower_components` or `jspm_packages` never
 emits: discovery already prunes those directories, and the emitter refuses them
@@ -160,6 +160,7 @@ a constraint from a pin.
 | `setup_py_python_requires` | `setup.py` bound `setuptools.setup` or `distutils.core.setup` literal keyword | `python` |
 | `gemfile_ruby` | literal `ruby` arguments in `Gemfile` | `ruby` |
 | `gemfile_lock_ruby_version` | `Gemfile.lock` `RUBY VERSION` | `ruby` |
+| `cargo_package_rust_version` | `Cargo.toml` `[package].rust-version` | `rust` |
 | `dotnet_global_json_sdk` | `global.json` `sdk.version` | `dotnet` |
 | `dotnet_csproj_target_framework` | `.csproj` unconditional `TargetFramework` | `dotnet` |
 | `dotnet_csproj_target_frameworks` | `.csproj` unconditional `TargetFrameworks` entries | `dotnet` |
@@ -173,6 +174,10 @@ a constraint from a pin.
 | `gradle_kotlin_jvm_toolchain` | `build.gradle[.kts]` Kotlin jvmToolchain literal | `java` |
 | `sbt_scala_version` | `build.sbt` effective literal scalaVersion | `scala` |
 | `sbt_build_properties_version` | `project/build.properties` sbt.version | `sbt` |
+| `terraform_required_version` | top-level `terraform.required_version` in `.tf` | `terraform` |
+| `terragrunt_version_constraint` | top-level `terraform_version_constraint` in `terragrunt.hcl` | `terraform` |
+| `helm_chart_kube_version` | root `kubeVersion` in `Chart.yaml` | `kubernetes` |
+| `terragrunt_version` | `.terragrunt-version` pin | `terragrunt` |
 | `runtime_txt` | `runtime.txt` `python-<spec>` line | `python` |
 | `go_mod_go` | the `go` directive | `go` |
 | `go_mod_toolchain` | the `toolchain` directive | `go` |
