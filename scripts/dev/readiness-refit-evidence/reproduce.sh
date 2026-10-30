@@ -61,6 +61,20 @@ mapfile -t fit_samples < <(samples "${fit_dirs[@]}")
 censored=()
 for wall in "${censored_walls[@]}"; do censored+=("$runs/40913641758:1:$wall"); done
 csv() { local IFS=,; printf '%s' "$*"; }
+# Main's previous weights (#9495, main at 4f3e4d862c): the Prediction table
+# scores the pool and the older runs on these too. Extract them from this
+# checkout, which must hold full history (see the worktree error below).
+main9495="$work/main9495.v2.json"
+if ! git -C "$repo" show 4f3e4d862c:specs/live-postgres-readiness-weights.v2.json > "$main9495" 2>"$work/weights.err"; then
+  echo "reproduce.sh: cannot read main's previous weights:" >&2
+  cat "$work/weights.err" >&2
+  echo "It needs a checkout with full history: 4f3e4d862c and each run's head SHA." >&2
+  exit 1
+fi
+# The two runs behind the later cap cancellations (the fifth cancelled job and
+# the two in 40951175891): only their jobs API listings are archived, because
+# cancelled jobs carry no usable shard log.
+later_runs=("$runs/40933609276" "$runs/40951175891")
 
 if ! git -C "$repo" worktree add --detach "$tree" "$eval_ref" >/dev/null 2>"$work/worktree.err"; then
   echo "reproduce.sh: cannot make a worktree of $eval_ref:" >&2
@@ -92,6 +106,17 @@ fixed="$("${evidence[@]}" fixed "${pool_dirs[@]}")"
   --censored "${censored[@]}" > "$out/loo-p75.txt"
 "${evidence[@]}" loo "$out/loo-mean" --mean --pool "${pool_dirs[@]}" --extra "${older_dirs[@]}" "${six_dirs[@]}" \
   --censored "${censored[@]}" > "$out/loo-mean.txt"
+# The Prediction table's remaining rows: main's previous weights on the pool
+# (fit pair excluded, though neither run is in the pool) and on the older
+# runs (main's own fit pair excluded, leaving 14), and the pooled-mean
+# full-pool fit on the 16 older runs.
+"${evidence[@]}" score "40833905620,40847362740" --weights "$main9495" \
+  --runs "${pool_dirs[@]}" > "$out/oos-main9495-pool.txt"
+"${evidence[@]}" score "40833905620,40847362740" --weights "$main9495" \
+  --runs "${older_dirs[@]}" > "$out/oos-main9495-older.txt"
+"${evidence[@]}" score "$(csv "${pool[@]}")" --weights "$out/loo-mean/full.json" \
+  --runs "${older_dirs[@]}" > "$out/oos-mean.txt"
+"${evidence[@]}" walls "${later_runs[@]}" > "$out/cancelled-later.txt"
 
 status=0
 check() { # label, produced, expected
@@ -108,7 +133,8 @@ check "v2 weights = committed $v2" "$out/v2.json" "$v2"
 check "v1 weights = committed $v1" "$out/v1.json" "$v1"
 check "loo full-pool fit = committed $v2" "$out/loo/full.json" "$v2"
 for name in poolcheck.txt refit-v2.stdout holdout.v2.json holdout.txt oos.txt pool-shards.txt \
-  tail-pool.txt tail-oos.txt plan.txt loo-p75.txt loo-mean.txt; do
+  tail-pool.txt tail-oos.txt plan.txt loo-p75.txt loo-mean.txt oos-main9495-pool.txt \
+  oos-main9495-older.txt oos-mean.txt cancelled-later.txt; do
   check "$name" "$out/$name" "$data/expected/$name"
 done
 echo "holdout all-shard max: $(awk -F' [|] ' 'NR==3 {print $11}' "$out/holdout.txt") (bar 1.15)"
