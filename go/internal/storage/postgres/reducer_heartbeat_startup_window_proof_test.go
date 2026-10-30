@@ -6,9 +6,9 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,205 +16,118 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
+// heartbeatProofStartupLease is the lease of the claim that starts the proof.
+// It stands in for a short lease that is already close to expiry when the
+// worker picks the intent up: the immediate pre-heartbeat must extend it
+// before it runs out, or the reclaim sweep sees it expire while the worker
+// holds the intent.
+const heartbeatProofStartupLease = 150 * time.Millisecond
+
 // TestReducerServiceClosesLeaseExpiryStartupWindowAgainstPostgres proves the
-// #4447 fix's runtime effect against a real Postgres fact_work_items row, not
-// just the in-memory Service.Run unit test. Set
-// ESHU_REDUCER_HEARTBEAT_PROOF_DSN to run it; it is skipped otherwise,
-// matching the sibling live proofs in this package.
+// #4447 fix's runtime effect against real Postgres, not just the in-memory
+// Service.Run unit test. Set ESHU_REDUCER_HEARTBEAT_PROOF_DSN to an
+// administrative DSN (database postgres) and
+// ESHU_REDUCER_HEARTBEAT_PROOF_DISPOSABLE=1 to run it on a disposable, fully
+// bootstrapped database. It is skipped only when the DSN is unset. With the
+// DSN set, postgresproof fails the test before any write unless the opt-in is
+// 1 and the DSN names the postgres administrative database.
 //
-// The proof seeds one claimed row with a short claim_until (simulating a
-// short-lease claim just made) and then drives reducer.Service.Run with a
-// real ReducerQueue.Heartbeat as the Heartbeater, an executor that blocks
-// past the row's original claim_until, and a HeartbeatInterval long enough
-// that the periodic ticker cannot possibly fire during the test. A
-// concurrent "reclaim sweep" query -- modeling another worker's lease
-// recovery, matching the shape of the production expired-lease reclaim added
-// in #4464 -- polls the row's claim_until against wall-clock time.
+// Claim, heartbeat and ack are production SQL; the scope, generation and
+// pending work item are seeded with the sibling test helpers.
+// reducer.Service.Run claims the intent through ReducerQueue.Claim with a
+// 150 ms lease, so the claim carries the production claim token
+// (last_attempt_at, Intent.ClaimedAt) that the token-checked heartbeat
+// requires (#6634). A second ReducerQueue with the same lease owner and a
+// 30 s lease is the Heartbeater and the WorkSink. The
+// executor blocks well past the startup lease, and HeartbeatInterval is one
+// hour, so only the immediate pre-heartbeat can extend claim_until in time. A
+// concurrent reclaim sweep, modeling another worker's expired-lease recovery
+// (#4464), polls claim_until of the in-flight row against the database clock.
 //
-//   - Unpatched (no immediate pre-heartbeat): claim_until stays at its
-//     original short expiry until the periodic ticker eventually fires. The
-//     reclaim sweep observes claim_until in the past and would reclaim the
-//     row while the original worker is still executing.
-//   - Patched: the immediate pre-heartbeat extends claim_until before
-//     Executor.Execute runs, so the reclaim sweep always observes a live
-//     claim_until and never reclaims.
+//   - Patched: the pre-heartbeat extends claim_until before Executor.Execute
+//     runs, the sweep never sees an expired lease, and the intent is acked.
+//   - Unpatched (no immediate pre-heartbeat): the sweep sees the startup lease
+//     expire while the executor holds the intent.
+//   - Rejected pre-heartbeat (for example a claim without the token, the
+//     #9545 break): Service.Run skips the executor, and the test reports that
+//     the executor never entered rather than a lease lost mid-execution.
 //
-// This test asserts the patched behavior; it is a regression guard, not a
-// two-sided harness, because the in-memory
-// TestServiceRunPreHeartbeatsImmediatelyOnClaim in
-// internal/reducer/service_heartbeat_test.go already proves the unpatched
-// code times out (no heartbeat observed before a 1h ticker interval). Here
-// the same fix is proven end-to-end against the real UPDATE ... WHERE
-// lease_owner = $4 AND status IN ('claimed','running') heartbeat query.
+// The in-memory TestServiceRunPreHeartbeatsImmediatelyOnClaim in
+// internal/reducer/service_heartbeat_test.go proves the unpatched service
+// waits for the ticker; this proof checks the same fix end to end.
 func TestReducerServiceClosesLeaseExpiryStartupWindowAgainstPostgres(t *testing.T) {
-	dsn := os.Getenv("ESHU_REDUCER_HEARTBEAT_PROOF_DSN")
-	if dsn == "" {
-		t.Skip("set ESHU_REDUCER_HEARTBEAT_PROOF_DSN to run the reducer lease heartbeat startup-window proof")
+	adminDSN := strings.TrimSpace(os.Getenv("ESHU_REDUCER_HEARTBEAT_PROOF_DSN"))
+	if adminDSN == "" {
+		t.Skip("set ESHU_REDUCER_HEARTBEAT_PROOF_DSN and ESHU_REDUCER_HEARTBEAT_PROOF_DISPOSABLE=1 to run the reducer lease heartbeat startup-window proof")
 	}
-
-	// The heartbeat, sweep, and Service.Run goroutines below all issue
-	// concurrent queries against this pool, so search_path cannot be set
-	// per-session with a bare SET statement -- a pooled connection picked up
-	// by a later query would not see it. Instead, create the proof schema on
-	// a throwaway bootstrap connection, then open the real pool with the
-	// schema baked into the DSN's search_path option so every pooled
-	// connection resolves the unqualified table name consistently.
-	bootstrapDB, err := sql.Open("pgx", dsn)
-	if err != nil {
-		t.Fatalf("open bootstrap connection: %v", err)
+	ctx, db := postgresproof.OpenDisposableDatabase(t, adminDSN,
+		os.Getenv("ESHU_REDUCER_HEARTBEAT_PROOF_DISPOSABLE"), 2*time.Minute)
+	if err := ApplyBootstrap(ctx, SQLDB{DB: db}); err != nil {
+		t.Fatalf("apply heartbeat proof schema: %v", err)
 	}
-	ctx := context.Background()
-	schemaName := fmt.Sprintf("reducer_heartbeat_proof_%d", time.Now().UnixNano())
-	if _, err := bootstrapDB.ExecContext(ctx, "CREATE SCHEMA "+schemaName); err != nil {
-		_ = bootstrapDB.Close()
-		t.Fatalf("create proof schema: %v", err)
-	}
-	t.Cleanup(func() {
-		_, _ = bootstrapDB.ExecContext(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE")
-		_ = bootstrapDB.Close()
-	})
-
-	scopedDSN := dsn + "?search_path=" + schemaName
-	if strings.Contains(dsn, "?") {
-		scopedDSN = dsn + "&search_path=" + schemaName
-	}
-	db, err := sql.Open("pgx", scopedDSN)
-	if err != nil {
-		t.Fatalf("open scoped connection pool: %v", err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
 	db.SetMaxOpenConns(4)
-
-	const minimalFactWorkItemsSchemaSQL = `
-CREATE TABLE fact_work_items (
-    work_item_id    TEXT PRIMARY KEY,
-    scope_id        TEXT NOT NULL,
-    generation_id   TEXT NOT NULL,
-    stage           TEXT NOT NULL,
-    domain          TEXT NOT NULL,
-    conflict_domain TEXT NOT NULL DEFAULT 'scope',
-    conflict_key    TEXT NULL,
-    status          TEXT NOT NULL,
-    attempt_count   INTEGER NOT NULL DEFAULT 0,
-    lease_owner     TEXT NULL,
-    claim_until     TIMESTAMPTZ NULL,
-    visible_at      TIMESTAMPTZ NULL,
-    last_attempt_at TIMESTAMPTZ NULL,
-    next_attempt_at TIMESTAMPTZ NULL,
-    failure_class   TEXT NULL,
-    failure_message TEXT NULL,
-    failure_details TEXT NULL,
-    payload         JSONB NOT NULL DEFAULT '{}'::jsonb,
-    created_at      TIMESTAMPTZ NOT NULL,
-    updated_at      TIMESTAMPTZ NOT NULL,
-    reopened_at     TIMESTAMPTZ NULL
-);
-`
-	if _, err := db.ExecContext(ctx, minimalFactWorkItemsSchemaSQL); err != nil {
-		t.Fatalf("create proof table: %v", err)
-	}
 
 	const leaseOwner = "worker-startup-window-proof"
 	const workItemID = "reducer_startup_window_proof"
-	now := time.Now().UTC()
-	// A short initial claim_until models the just-claimed lease that the
-	// stalled worker must extend before it expires.
-	shortClaimUntil := now.Add(150 * time.Millisecond)
+	seedReducerAckReclaimScope(t, ctx, db, "repository:9545")
+	seedReducerAckReclaimGeneration(t, ctx, db, "repository:9545", "generation:9545")
+	seedReducerAckReclaimWorkItem(t, ctx, db, workItemID, "repository:9545", "generation:9545")
 
-	if _, err := db.ExecContext(ctx, `
-		INSERT INTO fact_work_items (
-			work_item_id, scope_id, generation_id, stage, domain, status,
-			lease_owner, claim_until, payload, created_at, updated_at
-		) VALUES ($1, 'scope-1', 'gen-1', 'reducer', 'semantic_entity_materialization', 'claimed',
-			$2, $3, '{}'::jsonb, $4, $4)
-	`, workItemID, leaseOwner, shortClaimUntil, now); err != nil {
-		t.Fatalf("seed claimed work item: %v", err)
-	}
+	claimQueue := ReducerQueue{database: SQLDB{DB: db}, LeaseOwner: leaseOwner, LeaseDuration: heartbeatProofStartupLease}
+	workerQueue := ReducerQueue{database: SQLDB{DB: db}, LeaseOwner: leaseOwner, LeaseDuration: 30 * time.Second}
 
-	queue := NewReducerQueue(SQLDB{DB: db}, leaseOwner, 30*time.Second)
-	intent := reducercontract.Intent{
-		IntentID:     workItemID,
-		ScopeID:      "scope-1",
-		GenerationID: "gen-1",
-		Domain:       reducer.DomainSemanticEntityMaterialization,
-	}
-
-	// Reclaim sweep: models another worker's lease-expiry recovery (#4464)
-	// checking whether this row's claim_until has passed. Runs concurrently
-	// while the "worker" below is executing, polling until either it
-	// observes an expired lease (unpatched failure) or the worker finishes
-	// (patched success).
-	reclaimObserved := make(chan bool, 1)
-	sweepDone := make(chan struct{})
-	go func() {
-		defer close(sweepDone)
-		ticker := time.NewTicker(20 * time.Millisecond)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-sweepDone:
-				return
-			case <-ticker.C:
-				var claimUntil sql.NullTime
-				if err := db.QueryRowContext(ctx, `
-					SELECT claim_until FROM fact_work_items WHERE work_item_id = $1
-				`, workItemID).Scan(&claimUntil); err != nil {
-					continue
-				}
-				if claimUntil.Valid && claimUntil.Time.Before(time.Now().UTC()) {
-					select {
-					case reclaimObserved <- true:
-					default:
-					}
-					return
-				}
-			}
-		}
-	}()
-
-	release := make(chan struct{})
-	executor := &blockingProofExecutor{release: release}
-	sink := &proofWorkSink{db: db, workItemID: workItemID, leaseOwner: leaseOwner}
-	sweepStopper := make(chan struct{})
-	defer close(sweepStopper)
-
+	sweepStop := make(chan struct{})
+	sweep := startReclaimSweep(ctx, db, workItemID, sweepStop)
+	executor := &blockingProofExecutor{release: make(chan struct{}), entered: make(chan struct{})}
 	service := reducer.Service{
 		PollInterval:      10 * time.Millisecond,
-		WorkSource:        &singleIntentSource{intent: intent},
+		WorkSource:        claimQueue,
 		Executor:          executor,
-		WorkSink:          sink,
-		Heartbeater:       queue,
+		WorkSink:          workerQueue,
+		Heartbeater:       workerQueue,
 		HeartbeatInterval: time.Hour, // the ticker must not fire during this test
 		Wait:              func(context.Context, time.Duration) error { return context.Canceled },
 	}
-
-	// Give the immediate pre-heartbeat (or, unpatched, nothing) a moment to
-	// land before releasing the executor and checking the row.
 	runDone := make(chan error, 1)
 	go func() { runDone <- service.Run(ctx) }()
 
 	select {
-	case reclaimed := <-reclaimObserved:
-		close(release)
+	case <-sweep.observed:
+		close(executor.release)
 		<-runDone
-		if reclaimed {
-			t.Fatal("reclaim sweep observed an expired claim_until while the worker was still executing: the lease-expiry startup window is not closed")
+		close(sweepStop)
+		<-sweep.done
+		select {
+		case <-executor.entered:
+			t.Fatal("reclaim sweep observed an expired claim_until while the executor held the intent: the lease-expiry startup window is not closed")
+		default:
+			t.Fatal("the startup lease expired and the executor never entered: the pre-heartbeat was rejected or never ran, so Service.Run skipped the intent")
 		}
 	case <-time.After(3 * time.Second):
-		close(release)
+		close(sweepStop)
+		<-sweep.done
+		if sweep.err != nil {
+			t.Fatalf("reclaim sweep stopped after %d reads: %v", sweep.reads, sweep.err)
+		}
+		if sweep.reads == 0 {
+			t.Fatal("reclaim sweep never read the work item, so it could not have seen an expired lease")
+		}
+		select {
+		case <-executor.entered:
+		default:
+			t.Fatal("the executor never entered within 3s: Service.Run did not run the claimed intent")
+		}
+		close(executor.release)
 		if err := <-runDone; err != nil {
 			t.Fatalf("Service.Run() error = %v", err)
 		}
 	}
-	sweepDone <- struct{}{}
 
-	var claimUntil sql.NullTime
 	var status string
-	if err := db.QueryRowContext(ctx, `
-		SELECT status, claim_until FROM fact_work_items WHERE work_item_id = $1
-	`, workItemID).Scan(&status, &claimUntil); err != nil {
+	if err := db.QueryRowContext(ctx, `SELECT status FROM fact_work_items WHERE work_item_id = $1`, workItemID).Scan(&status); err != nil {
 		t.Fatalf("query final row state: %v", err)
 	}
 	if status != "succeeded" {
@@ -222,52 +135,65 @@ CREATE TABLE fact_work_items (
 	}
 }
 
+// reclaimSweep is a running poll of one work item. reads and err are safe to
+// read only after done closes.
+type reclaimSweep struct {
+	observed chan struct{} // closed once an expired in-flight lease is seen
+	done     chan struct{} // closed when the poll goroutine exits
+	reads    int           // successful reads of the work item
+	err      error         // the read error that stopped the poll, if any
+}
+
+// startReclaimSweep polls the work item every 20 ms until stop closes. It
+// closes observed once if the row is in flight (claimed or running, as the
+// production queue treats it) with a claim_until already behind the database
+// clock, the state an expired-lease reclaim would act on. A read error stops
+// the poll and is kept in err; a sweep read error or a sweep that never
+// reads fails the test.
+func startReclaimSweep(ctx context.Context, db *sql.DB, workItemID string, stop <-chan struct{}) *reclaimSweep {
+	sweep := &reclaimSweep{observed: make(chan struct{}), done: make(chan struct{})}
+	go func() {
+		defer close(sweep.done)
+		ticker := time.NewTicker(20 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-stop:
+				return
+			case <-ticker.C:
+				var expired bool
+				if err := db.QueryRowContext(ctx, `
+					SELECT COALESCE(status IN ('claimed', 'running') AND claim_until < clock_timestamp(), false)
+					FROM fact_work_items WHERE work_item_id = $1
+				`, workItemID).Scan(&expired); err != nil {
+					sweep.err = err
+					return
+				}
+				sweep.reads++
+				if expired {
+					close(sweep.observed)
+					return
+				}
+			}
+		}
+	}()
+	return sweep
+}
+
+// blockingProofExecutor closes entered when Execute starts and blocks until
+// release closes.
 type blockingProofExecutor struct {
-	release <-chan struct{}
+	release chan struct{}
+	entered chan struct{}
+	once    sync.Once
 }
 
 func (b *blockingProofExecutor) Execute(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
+	b.once.Do(func() { close(b.entered) })
 	select {
 	case <-b.release:
 		return reducercontract.Result{IntentID: intent.IntentID, Domain: intent.Domain, Status: reducer.ResultStatusSucceeded}, nil
 	case <-ctx.Done():
 		return reducercontract.Result{}, ctx.Err()
 	}
-}
-
-type singleIntentSource struct {
-	intent reducercontract.Intent
-	served bool
-}
-
-func (s *singleIntentSource) Claim(context.Context) (reducercontract.Intent, bool, error) {
-	if s.served {
-		return reducercontract.Intent{}, false, nil
-	}
-	s.served = true
-	return s.intent, true, nil
-}
-
-type proofWorkSink struct {
-	db         *sql.DB
-	workItemID string
-	leaseOwner string
-}
-
-func (p *proofWorkSink) Ack(ctx context.Context, _ reducercontract.Intent, _ reducercontract.Result) error {
-	_, err := p.db.ExecContext(ctx, `
-		UPDATE fact_work_items
-		SET status = 'succeeded', lease_owner = NULL, claim_until = NULL, updated_at = $1
-		WHERE work_item_id = $2 AND lease_owner = $3
-	`, time.Now().UTC(), p.workItemID, p.leaseOwner)
-	return err
-}
-
-func (p *proofWorkSink) Fail(ctx context.Context, _ reducercontract.Intent, execErr error) error {
-	_, err := p.db.ExecContext(ctx, `
-		UPDATE fact_work_items
-		SET status = 'dead_letter', failure_message = $1, updated_at = $2
-		WHERE work_item_id = $3
-	`, execErr.Error(), time.Now().UTC(), p.workItemID)
-	return err
 }
