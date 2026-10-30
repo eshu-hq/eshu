@@ -428,4 +428,9 @@ var orderedBootstrapDefinitionNamesLate = []string{
 	"scanner_static_impact_public_authority",
 	"scanner_static_impact_authorize",
 	"scanner_admission_authority_deny_no_row",
+	// Migrations 268-269 (#9299) add the reducer impact publication
+	// entrypoints: the authorize gate over the complete static and
+	// derived witness set, plus the immutable publication persist.
+	"scanner_impact_publication",
+	"scanner_impact_publish",
 }

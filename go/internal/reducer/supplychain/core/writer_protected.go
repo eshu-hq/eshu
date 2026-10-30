@@ -6,6 +6,7 @@ package core
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"slices"
 	"sort"
@@ -258,6 +259,163 @@ func validateScanImpactPublicationWitness(witness ScanImpactPublicationWitness) 
 		}
 	}
 	return nil
+}
+
+// impactPublicationSetDocument is the canonical set encoding the protected
+// publication entrypoints consume. Slices are never null (the SQL splits
+// them unconditionally), dependency order is pinned for hash stability, and
+// no protected identifier beyond the publication witnesses leaves this
+// document: finding payloads are the public canonical bytes.
+type impactPublicationSetDocument struct {
+	StaticFindings     []impactPublicationStaticFindingJSON `json:"static_findings"`
+	TargetPublications []impactPublicationTargetJSON        `json:"target_publications"`
+}
+
+type impactPublicationStaticFindingJSON struct {
+	FindingFactID    string                                `json:"finding_fact_id"`
+	PayloadJSON      string                                `json:"payload_json"`
+	AdvisoryEvidence []impactPublicationStaticEvidenceJSON `json:"advisory_evidence"`
+}
+
+type impactPublicationStaticEvidenceJSON struct {
+	EvidenceFactID      string `json:"evidence_fact_id"`
+	RegistrationID      string `json:"registration_id"`
+	GenerationReceiptID string `json:"generation_receipt_id"`
+	RegistrationEpoch   int64  `json:"registration_epoch"`
+	ActivationEpoch     int64  `json:"activation_epoch"`
+	EvidencePayloadSHA  string `json:"evidence_payload_sha256"`
+}
+
+type impactPublicationTargetJSON struct {
+	ScanTargetID             string                            `json:"scan_target_id"`
+	ScanGenerationID         string                            `json:"scan_generation_id"`
+	BindingID                string                            `json:"binding_id"`
+	WorkItemID               string                            `json:"work_item_id"`
+	ClaimID                  string                            `json:"claim_id"`
+	ClaimFencingToken        int64                             `json:"claim_fencing_token"`
+	ClaimOwnerID             string                            `json:"claim_owner_id"`
+	AnalysisVersion          string                            `json:"analysis_version"`
+	TenantID                 string                            `json:"tenant_id"`
+	WorkspaceID              string                            `json:"workspace_id"`
+	FindingPayloads          []impactPublicationFindingJSON    `json:"finding_payloads"`
+	EvidenceAssociations     []impactPublicationEvidenceJSON   `json:"evidence_associations"`
+	IntrinsicEvidenceFactIDs []string                          `json:"intrinsic_evidence_fact_ids"`
+	AuthorityDependencies    []impactPublicationDependencyJSON `json:"authority_dependencies"`
+}
+
+type impactPublicationFindingJSON struct {
+	FactID      string `json:"fact_id"`
+	PayloadJSON string `json:"payload_json"`
+}
+
+type impactPublicationEvidenceJSON struct {
+	FindingFactID  string `json:"finding_fact_id"`
+	EvidenceFactID string `json:"evidence_fact_id"`
+	EvidenceClass  string `json:"evidence_class"`
+	AuthorityKind  string `json:"authority_kind"`
+	AuthorityID    string `json:"authority_id"`
+	AuthorityEpoch int64  `json:"authority_epoch"`
+}
+
+type impactPublicationDependencyJSON struct {
+	Kind               string `json:"kind"`
+	ScanTargetID       string `json:"scan_target_id"`
+	ID                 string `json:"id"`
+	RevisionID         string `json:"revision_id"`
+	AuthorityEpoch     int64  `json:"authority_epoch"`
+	AdvisoryScopeEpoch int64  `json:"advisory_scope_epoch"`
+	AdvisoryScopeID    string `json:"advisory_scope_id"`
+	AdvisoryGeneration string `json:"advisory_generation_id"`
+	ConfigFingerprint  string `json:"config_fingerprint"`
+	ProviderID         string `json:"provider_id"`
+	TrustedSourceClass string `json:"trusted_source_class"`
+	ContentProfile     string `json:"content_profile"`
+}
+
+// MarshalImpactPublicationSetDocument renders the canonical publication
+// document for one validated set. The set is already sorted by its builder;
+// dependency order is pinned here so the database set hashes stay stable
+// across identical retries.
+func MarshalImpactPublicationSetDocument(set ProtectedScanImpactPublicationSet) ([]byte, error) {
+	document := impactPublicationSetDocument{
+		StaticFindings:     make([]impactPublicationStaticFindingJSON, 0, len(set.StaticFindings)),
+		TargetPublications: make([]impactPublicationTargetJSON, 0, len(set.TargetPublications)),
+	}
+	for _, finding := range set.StaticFindings {
+		entry := impactPublicationStaticFindingJSON{
+			FindingFactID:    finding.FactID,
+			PayloadJSON:      finding.PayloadJSON,
+			AdvisoryEvidence: make([]impactPublicationStaticEvidenceJSON, 0, len(finding.AdvisoryEvidence)),
+		}
+		for _, evidence := range finding.AdvisoryEvidence {
+			entry.AdvisoryEvidence = append(entry.AdvisoryEvidence,
+				impactPublicationStaticEvidenceJSON(evidence))
+		}
+		document.StaticFindings = append(document.StaticFindings, entry)
+	}
+	for _, publication := range set.TargetPublications {
+		witness := publication.Witness
+		entry := impactPublicationTargetJSON{
+			ScanTargetID:             witness.ScanTargetID,
+			ScanGenerationID:         witness.ScanGenerationID,
+			BindingID:                witness.BindingID,
+			WorkItemID:               witness.WorkItemID,
+			ClaimID:                  witness.ClaimID,
+			ClaimFencingToken:        witness.ClaimFencingToken,
+			ClaimOwnerID:             witness.ClaimOwnerID,
+			AnalysisVersion:          witness.AnalysisVersion,
+			TenantID:                 witness.TenantID,
+			WorkspaceID:              witness.WorkspaceID,
+			FindingPayloads:          make([]impactPublicationFindingJSON, 0, len(publication.FindingPayloads)),
+			EvidenceAssociations:     make([]impactPublicationEvidenceJSON, 0, len(publication.EvidenceAssociations)),
+			IntrinsicEvidenceFactIDs: append([]string{}, witness.IntrinsicEvidenceFactIDs...),
+			AuthorityDependencies:    make([]impactPublicationDependencyJSON, 0, len(witness.AuthorityDependencies)),
+		}
+		for _, payload := range publication.FindingPayloads {
+			entry.FindingPayloads = append(entry.FindingPayloads,
+				impactPublicationFindingJSON(payload))
+		}
+		for _, association := range publication.EvidenceAssociations {
+			entry.EvidenceAssociations = append(entry.EvidenceAssociations,
+				impactPublicationEvidenceJSON(association))
+		}
+		for _, dependency := range witness.AuthorityDependencies {
+			entry.AuthorityDependencies = append(entry.AuthorityDependencies, impactPublicationDependencyJSON{
+				Kind:               dependency.Kind,
+				ScanTargetID:       dependency.ScanTargetID,
+				ID:                 dependency.ID,
+				RevisionID:         dependency.RevisionID,
+				AuthorityEpoch:     dependency.AuthorityEpoch,
+				AdvisoryScopeEpoch: dependency.AdvisoryScopeEpoch,
+				AdvisoryScopeID:    dependency.AdvisoryScopeID,
+				AdvisoryGeneration: dependency.AdvisoryGenerationID,
+				ConfigFingerprint:  dependency.ConfigFingerprint,
+				ProviderID:         dependency.ProviderID,
+				TrustedSourceClass: dependency.TrustedSourceClass,
+				ContentProfile:     dependency.ContentProfile,
+			})
+		}
+		slices.Sort(entry.IntrinsicEvidenceFactIDs)
+		sort.Slice(entry.EvidenceAssociations, func(i, j int) bool {
+			a, b := entry.EvidenceAssociations[i], entry.EvidenceAssociations[j]
+			if a.FindingFactID != b.FindingFactID {
+				return a.FindingFactID < b.FindingFactID
+			}
+			return a.EvidenceFactID < b.EvidenceFactID
+		})
+		sort.Slice(entry.AuthorityDependencies, func(i, j int) bool {
+			a, b := entry.AuthorityDependencies[i], entry.AuthorityDependencies[j]
+			if a.Kind != b.Kind {
+				return a.Kind < b.Kind
+			}
+			if a.ID != b.ID {
+				return a.ID < b.ID
+			}
+			return a.AuthorityEpoch < b.AuthorityEpoch
+		})
+		document.TargetPublications = append(document.TargetPublications, entry)
+	}
+	return json.Marshal(document)
 }
 
 func protectedScanImpactEvidenceClasses(witness ScanImpactPublicationWitness) map[string]ProtectedScanImpactEvidenceAssociation {
