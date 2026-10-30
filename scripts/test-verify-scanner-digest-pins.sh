@@ -257,7 +257,8 @@ expect_rc 2 "an anchor outside history exits 2"
 fx="${tmp_root}/shortpin"
 manifest="$(make_fixture "${fx}")"
 stub="$(serve_all "${fx}")"
-sed -i 's/"cbafeeeb2bae99902838e5159bd4003e210f5cfe41891b50b0caf502b2d99dec"/"cbaf"/' "${manifest}"
+# -i.bak is the in-place form both GNU and BSD (macOS) sed accept (#9626).
+sed -i.bak 's/"cbafeeeb2bae99902838e5159bd4003e210f5cfe41891b50b0caf502b2d99dec"/"cbaf"/' "${manifest}" && rm -f "${manifest}.bak"
 run_verifier "${manifest}" "${stub}"
 expect_rc 2 "a truncated pin exits 2"
 
