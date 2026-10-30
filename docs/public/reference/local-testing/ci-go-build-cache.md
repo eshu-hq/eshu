@@ -47,16 +47,34 @@ target (`runtime`, `scanner-image`, `scanner-sbom`, `scanner-osruntime`):
   and only read, so no pull request can write a cache that main reads.
 - A missing cache is a plain miss, so the first build after the change and a
   build that cannot reach GHCR still succeed.
+- Pull-request builds do not log in to GHCR, so they read the cache
+  anonymously, which works only if the package is public. A workflow that
+  creates a package with `GITHUB_TOKEN` is documented to give it the
+  repository's visibility, but nothing in this repository verifies that for
+  `eshu-buildcache`. If the package is private, pull-request builds miss the
+  cache without any error and run cold; main pushes still write and read it,
+  and the daily prune still works because its token comes from the linked
+  repository. After the first main push that runs the Docker lanes, check
+  `gh api orgs/eshu-hq/packages/container/eshu-buildcache --jq
+  '{visibility,repository:.repository.full_name}'` (expected `public` and
+  `eshu-hq/eshu`), and confirm that a pull-request Docker lane logs
+  `importing cache manifest from ghcr.io/eshu-hq/eshu-buildcache:<target>`.
 - `ghcr-buildcache-prune.yml` deletes untagged versions older than 7 days, in
   that package only, and always keeps the 4 newest untagged versions so a tag
   that a concurrent main push just moved is never pulled from under a running
-  build. The script takes no package argument. The image packages are never
-  pruned: their untagged versions are the per-platform manifests of live
-  multi-arch images.
+  build. The script takes no package argument. A 404 from the package listing
+  fails the run, because GitHub answers 404 both for a package that does not
+  exist and for one the token cannot see; a manual dispatch can set
+  `allow_missing` for the first run, or `dry_run` to list what would be
+  deleted. The image packages are never pruned: their untagged versions are
+  the per-platform manifests of live multi-arch images.
 - `go/internal/cigates/dockercache_wiring_test.go` pins the event gate, the
-  registry ref, one fixed tag per target, and that no secret reaches a build
-  (mode=max exports every layer to a public package);
-  `dockercache_wiring_mutations_test.go` breaks each rule.
+  registry ref, one fixed tag per target, that no other step exports a cache,
+  and that no secret reaches a build (mode=max exports every layer to a
+  package that anonymous PR readers must be able to pull, so it is treated as
+  public); `dockercache_wiring_mutations_test.go` breaks each rule.
+  `buildcache_prune_workflow_test.go` pins the prune workflow's triggers,
+  permissions, and dry-run switches.
 
 ## Why setup-go does not cache
 

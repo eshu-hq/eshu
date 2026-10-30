@@ -20,6 +20,7 @@
 #   PRUNE_MIN_AGE_DAYS     retention window in days (default 7)
 #   PRUNE_NOW              epoch seconds to treat as now (tests only)
 #   PRUNE_DRY_RUN          1 lists what would be deleted and deletes nothing
+#   PRUNE_ALLOW_MISSING    1 treats a 404 as "package not created yet" (default: a 404 fails)
 set -euo pipefail
 
 readonly package="eshu-buildcache"
@@ -32,6 +33,7 @@ org="${PRUNE_ORG:-eshu-hq}"
 days="${PRUNE_MIN_AGE_DAYS:-7}"
 now="${PRUNE_NOW:-$(date -u +%s)}"
 dry_run="${PRUNE_DRY_RUN:-0}"
+allow_missing="${PRUNE_ALLOW_MISSING:-0}"
 [[ "${days}" =~ ^[0-9]+$ && "${days}" -ge 1 ]] || { echo "prune: PRUNE_MIN_AGE_DAYS must be a whole number >= 1, got '${days}'" >&2; exit 2; }
 cutoff=$((now - days * 86400))
 base="orgs/${org}/packages/container/${package}/versions"
@@ -40,8 +42,17 @@ work="$(mktemp -d)"
 trap 'rm -rf "${work}"' EXIT
 if ! gh api --paginate "${base}?per_page=100" > "${work}/versions.json" 2> "${work}/err"; then
 	if [[ "$(cat "${work}/err")" == *"HTTP 404"* ]]; then
-		echo "prune: package ${org}/${package} does not exist yet (no main push has written the cache); nothing to prune"
-		exit 0
+		# GitHub answers 404 both for a package that does not exist and for a
+		# private package the token cannot see, so a bare 404 must not look
+		# like success: a daily run that never sees the package would be green
+		# and delete nothing for ever. A caller that knows the package may be
+		# missing (the first run before any main push) opts in explicitly.
+		if [[ "${allow_missing}" == 1 ]]; then
+			echo "prune: package ${org}/${package} does not exist yet (PRUNE_ALLOW_MISSING=1); nothing to prune"
+			exit 0
+		fi
+		echo "prune: HTTP 404 listing ${org}/${package}: the package does not exist yet, or the token cannot see it (a private package that is not linked to this repository). Set PRUNE_ALLOW_MISSING=1 only if no main push has written the cache." >&2
+		exit 1
 	fi
 	cat "${work}/err" >&2
 	echo "prune: listing ${base} failed" >&2

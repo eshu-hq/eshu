@@ -21,11 +21,15 @@ import (
 const dockerCacheRef = "ghcr.io/eshu-hq/eshu-buildcache:"
 
 // dockerCacheToRE is the only shape a cache-to may take: a registry export
-// written on a push event (main or tag) and nothing on any other event. A
+// written on a push event (main or tag) and nothing on any other event. The
+// expression is exactly one push guard, one quoted literal or one
+// format(<literal>, matrix.component) call, and an empty fallback. No other
+// "||" branch, "&&" operand, event name or second expression can match, so a
 // pull_request run (including test.yml's workflow_call, whose event is the
-// caller's) and workflow_dispatch evaluate to an empty cache-to, so a PR,
+// caller's) and workflow_dispatch evaluate to an empty cache-to and a PR,
 // fork or not, never writes a cache that main reads (#9632).
-var dockerCacheToRE = regexp.MustCompile(`^github\.event_name == 'push' && (.+) \|\| ''$`)
+var dockerCacheToRE = regexp.MustCompile(
+	`^github\.event_name == 'push' && ('[^']*'|format\('[^']*', matrix\.component\)) \|\| ''$`)
 
 // dockerSecretInputs are the build-push-action inputs that hand a secret to
 // BuildKit. mode=max exports every layer, so none may appear (#9632).
@@ -40,7 +44,7 @@ func isDockerBuild(step readinessStep) bool {
 func checkDockerCacheTo(cacheTo string) string {
 	match := dockerCacheToRE.FindStringSubmatch(stripExpression(cacheTo))
 	if match == nil {
-		return "cache-to must be written only on a push event: ${{ github.event_name == 'push' && '<export>' || '' }} (#9632)"
+		return "cache-to must be written only on a push event, in exactly this shape: ${{ github.event_name == 'push' && '<export>' || '' }} (#9632)"
 	}
 	export := match[1]
 	switch {
@@ -102,11 +106,24 @@ func checkDockerCacheFrom(cacheFrom string) string {
 func checkDockerBuildSecrets(step readinessStep) string {
 	for _, input := range dockerSecretInputs {
 		if _, ok := step.With[input]; ok {
-			return "docker build must not pass " + input + ": mode=max exports every layer to a public package (#9632)"
+			return "docker build must not pass " + input + ": mode=max exports every layer to a package that anonymous PR readers must be able to pull, so it is treated as public (#9632)"
 		}
 	}
 	if strings.Contains(step.With["build-args"], "secrets.") {
-		return "docker build-args must not carry a secret: mode=max exports every layer to a public package (#9632)"
+		return "docker build-args must not carry a secret: mode=max exports every layer to a package that anonymous PR readers must be able to pull, so it is treated as public (#9632)"
+	}
+	return ""
+}
+
+// checkOtherCacheWriters rejects any step outside the two pinned build steps
+// that could export a BuildKit cache: a bake action or a shell build with
+// --cache-to would bypass the push-only gate (#9632).
+func checkOtherCacheWriters(step readinessStep) string {
+	if strings.HasPrefix(step.Uses, "docker/bake-action@") {
+		return "docker/bake-action can export a cache outside the pinned build steps (#9632)"
+	}
+	if strings.Contains(step.Run, "cache-to") {
+		return "a run step must not export a build cache with --cache-to (#9632)"
 	}
 	return ""
 }
@@ -117,6 +134,9 @@ func checkDockerCache(jobs map[string]readinessJob) string {
 	builds := 0
 	for name, job := range jobs {
 		for _, step := range job.Steps {
+			if problem := checkOtherCacheWriters(step); problem != "" {
+				return name + " " + step.Name + ": " + problem
+			}
 			if !isDockerBuild(step) {
 				continue
 			}
@@ -139,20 +159,31 @@ func checkDockerCache(jobs map[string]readinessJob) string {
 	return ""
 }
 
-// loadWorkflowJobs parses every job of one workflow file.
+// parseWorkflowJobs parses every job of one workflow file. A duplicate YAML
+// key (a second cache-to on one step) is a parse error, not a silent
+// last-one-wins.
+func parseWorkflowJobs(raw []byte) (map[string]readinessJob, error) {
+	var parsed struct {
+		Jobs map[string]readinessJob `yaml:"jobs"`
+	}
+	if err := yaml.Unmarshal(raw, &parsed); err != nil {
+		return nil, err
+	}
+	return parsed.Jobs, nil
+}
+
+// loadWorkflowJobs parses every job of one workflow file in .github/workflows.
 func loadWorkflowJobs(t *testing.T, workflow string) map[string]readinessJob {
 	t.Helper()
 	raw, err := os.ReadFile(filepath.Join("..", "..", "..", ".github", "workflows", workflow))
 	if err != nil {
 		t.Fatal(err)
 	}
-	var parsed struct {
-		Jobs map[string]readinessJob `yaml:"jobs"`
-	}
-	if err := yaml.Unmarshal(raw, &parsed); err != nil {
+	jobs, err := parseWorkflowJobs(raw)
+	if err != nil {
 		t.Fatal(err)
 	}
-	return parsed.Jobs
+	return jobs
 }
 
 // TestDockerBuildCacheWiring pins docker-publish's BuildKit cache to the GHCR

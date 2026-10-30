@@ -3,7 +3,7 @@
 # only untagged versions older than the window are deleted, a tagged version
 # never is, the 4 newest untagged versions always survive, the script can
 # only ever name the eshu-buildcache package, a missing package is a clean
-# no-op, and any API failure fails.
+# no-op only when the caller says so, and any API failure fails.
 set -euo pipefail
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 work="$(mktemp -d)"
@@ -82,9 +82,13 @@ PRUNE_DRY_RUN=1 prune || fail "dry run exited non-zero"
 echo "PASS: dry run deletes nothing"
 
 : > "${MOCK_GH_CALLS}"
-MOCK_GH_LIST=404 prune || fail "missing package must be a clean no-op"
-[[ -z "$(deletes)" ]] || fail "missing package deleted '$(deletes)'"
-echo "PASS: missing package is a no-op"
+if MOCK_GH_LIST=404 prune; then fail "a 404 must fail: a token that cannot see the package gets the same answer as a missing one"; fi
+[[ "$(cat "${work}/out")" == *"HTTP 404"* && "$(cat "${work}/out")" == *"cannot see"* ]] || fail "the 404 failure must name both causes"
+[[ -z "$(deletes)" ]] || fail "a 404 deleted '$(deletes)'"
+MOCK_GH_LIST=404 PRUNE_ALLOW_MISSING=1 prune || fail "PRUNE_ALLOW_MISSING=1 must make a 404 a clean no-op"
+[[ "$(cat "${work}/out")" == *"does not exist yet"* ]] || fail "the allowed 404 must say the package does not exist yet"
+[[ -z "$(deletes)" ]] || fail "an allowed 404 deleted '$(deletes)'"
+echo "PASS: a 404 fails loudly unless PRUNE_ALLOW_MISSING=1"
 
 : > "${MOCK_GH_CALLS}"
 if MOCK_GH_LIST=500 prune; then fail "listing failure must fail"; fi

@@ -8,6 +8,49 @@ import (
 	"testing"
 )
 
+// TestDockerCacheWritersOutsideTheBuildSteps proves a second cache writer is
+// refused: a duplicate cache-to key, a docker/bake-action step, and a shell
+// build that passes --cache-to (#9632).
+func TestDockerCacheWritersOutsideTheBuildSteps(t *testing.T) {
+	t.Parallel()
+	dup := []byte(`jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Build
+        uses: docker/build-push-action@v5
+        with:
+          cache-to: ${{ github.event_name == 'push' && 'type=registry,ref=` + dockerCacheRef + `runtime,mode=max' || '' }}
+          cache-to: type=registry,ref=` + dockerCacheRef + `runtime,mode=max
+`)
+	if _, err := parseWorkflowJobs(dup); err == nil {
+		t.Error("a duplicate cache-to key must be a parse error")
+	}
+	clean := loadWorkflowJobs(t, "docker-publish.yml")
+	for _, extra := range []struct {
+		name string
+		step readinessStep
+		want string
+	}{
+		{"bake action", readinessStep{Name: "Bake", Uses: "docker/bake-action@v5"}, "docker/bake-action"},
+		{"shell build", readinessStep{Name: "Shell build", Run: "docker buildx build --cache-to type=registry,ref=x ."}, "--cache-to"},
+	} {
+		t.Run(extra.name, func(t *testing.T) {
+			jobs := make(map[string]readinessJob, len(clean))
+			for name, j := range clean {
+				copyJobSteps(&j)
+				jobs[name] = j
+			}
+			job := jobs["build-and-push-image"]
+			job.Steps = append(job.Steps, extra.step)
+			jobs["build-and-push-image"] = job
+			if problem := checkDockerCache(jobs); !strings.Contains(problem, extra.want) {
+				t.Fatalf("want a problem containing %q, got %q", extra.want, problem)
+			}
+		})
+	}
+}
+
 // TestDockerBuildCacheWiringMutations proves each #9632 rule is load-bearing:
 // a seeded break of it, applied to each docker build step in turn, fails the
 // pin, while the unmutated workflow passes.
@@ -27,6 +70,25 @@ func TestDockerBuildCacheWiringMutations(t *testing.T) {
 			"${{ github.event_name != 'pull_request' && 'type=registry,ref="+dockerCacheRef+"runtime,mode=max' || '' }}"), "only on a push event"},
 		{"cache-to falls back to a write", setWith("cache-to",
 			"${{ github.event_name == 'push' && 'type=registry,ref="+dockerCacheRef+"runtime,mode=max' || 'type=gha,mode=max' }}"), "only on a push event"},
+		{"push gate with a pull_request OR-branch", setWith("cache-to",
+			"${{ github.event_name == 'push' && 'type=registry,ref="+dockerCacheRef+"runtime,mode=max' || github.event_name == 'pull_request' && 'type=registry,ref="+dockerCacheRef+"runtime,mode=max' || '' }}"), "only on a push event"},
+		{"push gate with an unconditional OR-branch", setWith("cache-to",
+			"${{ github.event_name == 'push' && 'type=registry,ref="+dockerCacheRef+"runtime,mode=max' || 'type=registry,ref="+dockerCacheRef+"runtime,mode=max' || '' }}"), "only on a push event"},
+		{"pull_request branch ahead of the push gate", setWith("cache-to",
+			"${{ github.event_name == 'pull_request' && 'type=registry,ref="+dockerCacheRef+"runtime,mode=max' || github.event_name == 'push' && 'type=registry,ref="+dockerCacheRef+"runtime,mode=max' || '' }}"), "only on a push event"},
+		{"push gate with an extra && operand", setWith("cache-to",
+			"${{ github.event_name == 'push' && github.ref != 'refs/heads/x' && 'type=registry,ref="+dockerCacheRef+"runtime,mode=max' || '' }}"), "only on a push event"},
+		{"push gate with a case variant", setWith("cache-to",
+			"${{ GitHub.Event_Name == 'push' && 'type=registry,ref="+dockerCacheRef+"runtime,mode=max' || '' }}"), "only on a push event"},
+		{"push gate without spaces", setWith("cache-to",
+			"${{ github.event_name=='push' && 'type=registry,ref="+dockerCacheRef+"runtime,mode=max' || '' }}"), "only on a push event"},
+		{"cache-to supplied by the matrix", setWith("cache-to", "${{ matrix.cache_to }}"), "only on a push event"},
+		{"second unconditional export on a new line", func(s *readinessStep) {
+			s.With["cache-to"] += "\ntype=registry,ref=" + dockerCacheRef + "runtime,mode=max"
+		}, "only on a push event"},
+		{"two expressions in one value", func(s *readinessStep) {
+			s.With["cache-to"] += "${{ 'type=registry,ref=" + dockerCacheRef + "runtime,mode=max' }}"
+		}, "only on a push event"},
 		{"cache-to back to the Actions cache", setWith("cache-to", push("type=gha,mode=max")), "must not use the Actions cache store"},
 		{"cache-to into the image package", setWith("cache-to", push("type=registry,ref=ghcr.io/eshu-hq/eshu:buildcache-runtime,mode=max")), "registry package"},
 		{"cache-to mode=min", setWith("cache-to", push("type=registry,ref="+dockerCacheRef+"runtime,mode=min")), "mode=max"},

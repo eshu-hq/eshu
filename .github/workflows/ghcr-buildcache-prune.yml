@@ -10,11 +10,26 @@ name: GHCR Build Cache Prune
 # schedule, which the shared static-contract matrix does not grant. The
 # blocking self-test runs on PRs in static-contract-gates.yml (Verify GHCR
 # build cache prune gate); this workflow has no pull_request trigger.
+# A manual dispatch can ask for a dry run, which lists the versions it would
+# delete, and for a missing package to be tolerated. A scheduled run sets
+# neither: a 404 there fails, because GitHub answers 404 for a package the
+# token cannot see as well as for one that does not exist.
 on:
   schedule:
     # Daily 04:47 UTC, outside the busy merge hours.
     - cron: "47 4 * * *"
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: List the versions the prune would delete and delete nothing
+        required: false
+        default: false
+        type: boolean
+      allow_missing:
+        description: Treat a 404 as "package not created yet" instead of failing
+        required: false
+        default: false
+        type: boolean
 
 permissions: {}
 
@@ -40,4 +55,6 @@ jobs:
       - name: Delete untagged build-cache versions older than 7 days
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PRUNE_DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
+          PRUNE_ALLOW_MISSING: ${{ inputs.allow_missing && '1' || '0' }}
         run: bash scripts/ci/prune-ghcr-buildcache.sh
