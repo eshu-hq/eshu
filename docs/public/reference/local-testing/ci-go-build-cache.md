@@ -95,9 +95,12 @@ target (`runtime`, `scanner-image`, `scanner-sbom`, `scanner-osruntime`):
 - The scan does not cover: `eval`, `bash -c` or other built commands; `make`
   targets; a flag or path built from variables or split across quotes; a
   script fetched at run time; an action from another repository; a chain deeper
-  than four files; a file that is not in the repository; any workflow other
-  than `docker-publish.yml`; or any build outside the two pinned steps that
-  does not appear in text the scan reads.
+  than four files; a file that is not in the repository; a script in another
+  language, such as `.rb`, `.js`, `.go` or `.ps1`; a list of files read by
+  `xargs`; a bare extensionless path that a step runs directly, with no
+  interpreter before it; a flag split across lines with a backslash; any
+  workflow other than `docker-publish.yml`; or any build outside the two
+  pinned steps that does not appear in text the scan reads.
 
 ## Why setup-go does not cache
 
