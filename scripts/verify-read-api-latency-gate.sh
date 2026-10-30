@@ -241,6 +241,13 @@ export ESHU_POSTGRES_DSN="postgresql://eshu:${GATE_POSTGRES_PASSWORD}@localhost:
 export ESHU_CONTENT_STORE_DSN="${ESHU_POSTGRES_DSN}"
 export ESHU_API_KEY="${GATE_API_KEY}"
 export ESHU_API_ADDR=":${GATE_API_PORT}"
+# The SSM host inventory readback fails closed without freshness bounds
+# (#9558: the handler 503s when any bound is unset, which the latency
+# gate counts as a HardFailed budget breach regardless of latency).
+# Values mirror the coherent test limits (skew within capture age).
+export ESHU_SSM_HOST_MAX_CAPTURE_AGE="2h"
+export ESHU_SSM_HOST_MAX_CROSS_TYPE_SKEW="30m"
+export ESHU_SSM_HOST_MAX_PLATFORM_OBSERVATION_AGE="1h"
 export ESHU_MCP_TRANSPORT="http"
 export ESHU_MCP_ADDR="127.0.0.1:${GATE_MCP_PORT}"
 export ESHU_AUTH_SECRET_ENC_KEY="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
