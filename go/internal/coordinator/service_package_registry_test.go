@@ -173,8 +173,8 @@ func TestServiceRunActiveModePassesOwnedPackageEvidenceToPackageRegistryPlanner(
 	if targetReader.requests[0].VersionSpecific {
 		t.Fatalf("package-registry target reader requested version-specific rows")
 	}
-	if targetReader.requests[0].ExpandPackageManagerAliases {
-		t.Fatalf("package-registry target reader must keep the raw package_manager match")
+	if !targetReader.requests[0].ExpandPackageManagerAliases {
+		t.Fatalf("package-registry target reader must select package_manager aliases (#9314: gradle reports under maven)")
 	}
 	if got, want := targetReader.requests[0].RotationBucket, schedule.DerivedTargetRotationBucket(now, time.Hour); got != want {
 		t.Fatalf("target reader rotation bucket = %d, want %d", got, want)

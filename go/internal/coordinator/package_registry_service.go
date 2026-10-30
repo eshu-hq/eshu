@@ -84,6 +84,10 @@ func (s Service) packageRegistryOwnedTargets(
 		Limit:          schedule.DerivedTargetReadLimit(targetLimit),
 		TargetLimit:    schedule.DerivedTargetSlotLimitForMode(derivation.PlanningMode, targetLimit),
 		RotationBucket: schedule.DerivedTargetRotationBucketForMode(derivation.PlanningMode, observedAt, interval),
+		// Gradle declares Maven coordinates, so the read selects each
+		// configured ecosystem's package_manager aliases (#9314), mirroring
+		// the vulnerability-intelligence caller.
+		ExpandPackageManagerAliases: true,
 	})
 	return page, true, err
 }
