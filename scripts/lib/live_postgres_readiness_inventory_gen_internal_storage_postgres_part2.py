@@ -220,6 +220,9 @@ TABLE = {
             "TestReducerClaimSweepKeepsActiveGenerationRowsLive",
             "TestReducerClaimSweepDropsRowClaimedBeforeItsLockLive",
         ),
+        "go/internal/storage/postgres/reducer_heartbeat_startup_window_live_test.go": (
+            "TestReducerServiceClosesLeaseExpiryStartupWindowAgainstPostgres",
+        ),
         "go/internal/storage/postgres/reducer_queue_batch_ack_reclaim_live_test.go": (
             "TestReducerQueueAckBatchFencesSupersededClaimLive",
             "TestReducerQueueExpiryInterleaveLive",
