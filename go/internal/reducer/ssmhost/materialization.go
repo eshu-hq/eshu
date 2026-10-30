@@ -95,8 +95,17 @@ type HostGraphWriter interface {
 //
 // Cross-generation interleaving is fenced by the runtime's generation
 // supersession short-circuit (a newer scope generation never runs beside an
-// older one); within one generation every write and retract is uid-idempotent,
-// so duplicate intents and concurrent workers converge.
+// older one); within one scope generation every write and retract is
+// uid-idempotent, so duplicate intents and concurrent workers converge.
+//
+// The convergence boundary is one scope: observation uids carry no scope
+// component (they mirror the #9556 stable keys), while each write SETs
+// scope-owned properties (scope_id, generation_id, source_fact_id) on the
+// shared node. Two scopes projecting the same host last-write-win flap
+// those properties, and the scope-exclusive committed-capture read gives
+// each scope a different supersession truth. Single-scope-per-host is the
+// supported deployment; scoping the uid would fork the collector, reducer,
+// and read dedup identity and needs its own design.
 type MaterializationHandler struct {
 	FactLoader  factload.FactLoader
 	GraphWriter HostGraphWriter

@@ -18,15 +18,17 @@ import (
 // dispatchRetract (sequential Execute, never ExecuteGroup) per the
 // #4367/#5128/#5152 NornicDB under-apply precedent.
 
-// ssmHostCommittedCapturesCypher reads back the newest committed evidence
-// times for one scope's hosts in a single UNWIND-anchored statement. The
-// UNWIND binding (candidate_host) and the RETURN aliases use distinct names
-// per the NornicDB variable-shadowing pitfall. Times return as unix ints so
-// no RFC3339 offset form can corrupt the comparison.
+// ssmHostCommittedCapturesCypher reads back the newest committed
+// application capture time for one scope's hosts in a single
+// UNWIND-anchored, label-anchored statement. The projection consumes only
+// the application capture (platform evidence needs no committed comparison),
+// so no platform leg is fetched. The UNWIND binding (candidate_host) and the
+// RETURN aliases use distinct names per the NornicDB variable-shadowing
+// pitfall. Times return as unix ints so no RFC3339 offset form can corrupt
+// the comparison.
 const ssmHostCommittedCapturesCypher = `UNWIND $hosts AS candidate_host
-MATCH (n)
-WHERE (n:SSMHostApplication OR n:SSMHostPlatform)
-  AND n.scope_id = $scope_id
+MATCH (n:SSMHostApplication)
+WHERE n.scope_id = $scope_id
   AND n.partition = candidate_host.partition
   AND n.account_id = candidate_host.account_id
   AND n.region = candidate_host.region
@@ -35,10 +37,7 @@ RETURN candidate_host.partition AS host_partition,
        candidate_host.account_id AS host_account_id,
        candidate_host.region AS host_region,
        candidate_host.instance_id AS host_instance_id,
-       labels(n)[0] AS node_label,
-       n.source_type AS source_type,
-       n.capture_time_unix AS capture_time_unix,
-       n.observation_time_unix AS observation_time_unix`
+       n.capture_time_unix AS capture_time_unix`
 
 const ssmHostStaleApplicationCountCypher = `MATCH (n:SSMHostApplication)
 WHERE n.scope_id = $scope_id
@@ -106,24 +105,11 @@ func (w *HostNodeWriter) ReadCommittedHosts(
 		}
 		key := HostKey(host)
 		entry := committed[key]
-		if entry.PlatformCaptures == nil {
-			entry.PlatformCaptures = map[string]time.Time{}
-		}
-		switch stringVal(row["node_label"]) {
-		case ssmHostApplicationLabel:
-			if unix, ok := intVal(row["capture_time_unix"]); ok {
-				capture := time.Unix(unix, 0).UTC()
-				if !entry.HasAppCapture || capture.After(entry.AppCapture) {
-					entry.AppCapture = capture
-					entry.HasAppCapture = true
-				}
-			}
-		case ssmHostPlatformLabel:
-			source := stringVal(row["source_type"])
-			if unix, ok := intVal(row["capture_time_unix"]); ok && source == "ssm_inventory" {
-				entry.PlatformCaptures[source] = time.Unix(unix, 0).UTC()
-			} else if unix, ok := intVal(row["observation_time_unix"]); ok {
-				entry.PlatformCaptures[source] = time.Unix(unix, 0).UTC()
+		if unix, ok := intVal(row["capture_time_unix"]); ok {
+			capture := time.Unix(unix, 0).UTC()
+			if !entry.HasAppCapture || capture.After(entry.AppCapture) {
+				entry.AppCapture = capture
+				entry.HasAppCapture = true
 			}
 		}
 		committed[key] = entry

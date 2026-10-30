@@ -56,11 +56,10 @@ func TestSSMHostInventoryHandlerListsHosts(t *testing.T) {
 			"aws_ssm_host_platform",
 		},
 	}})
-	graph := &stubSSMGraph{rows: ssmCommittedRows(
+	graph := ssmCommittedGraph(
 		[]map[string]any{ssmReadAppNode("uid-app-1", "2026-10-29T22:31:19Z", "alpha")},
 		[]map[string]any{ssmReadPlatformNode("uid-plat-1", "ssm_inventory", "2026-10-29T22:33:02Z")},
-		[][2]string{{"uid-app-1", "uid-plat-1"}},
-	)}
+	)
 	handler := &SSMHostInventoryHandler{
 		Content: NewContentReader(db),
 		Graph:   graph,
@@ -138,10 +137,10 @@ func TestSSMHostInventoryHandlerResponseCarriesNoFindings(t *testing.T) {
 		columns: []string{"envelope"},
 		rows:    [][]driver.Value{},
 	}})
-	graph := &stubSSMGraph{rows: ssmCommittedRows(
+	graph := ssmCommittedGraph(
 		[]map[string]any{ssmReadAppNode("uid-app-1", "2026-10-29T22:31:19Z", "alpha")},
-		nil, nil,
-	)}
+		nil,
+	)
 	handler := &SSMHostInventoryHandler{
 		Content: NewContentReader(db),
 		Graph:   graph,

@@ -26,8 +26,11 @@ queue, no clock I/O outside the injected `Now`).
   valid fact in the same batch still projects. Schema-major skew is fatal to
   the whole intent, never quarantined.
 - Cross-generation interleaving relies on the runtime's generation
-  supersession short-circuit; within one generation every write and retract
-  is uid-idempotent. Do not add locking to the handler.
+  supersession short-circuit; within one scope generation every write and
+  retract is uid-idempotent. Do not add locking to the handler. Convergence
+  holds within one scope only: uids carry no scope, scope-owned properties
+  flap under multi-scope projection of one host, so single-scope-per-host is
+  the supported deployment.
 
 ## Gates that will fire on your change
 

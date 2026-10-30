@@ -106,6 +106,31 @@ func TestDecodeApplicationRejectsUnsupportedMajor(t *testing.T) {
 	}
 }
 
+func TestDecodeApplicationQuarantinesMistypedOptional(t *testing.T) {
+	env := ssmEnvelope("aws_ssm_host_application", `{"partition":"aws","account_id":"000000000001","region":"us-east-1","instance_id":"i-1","resource_type":"AWS::EC2::Instance","source_type":"AWS:Application","schema_version":"1.0.0","capture_time":"2026-10-29T22:31:19Z","version":1.0}`)
+	_, err := DecodeApplication(env)
+	if err == nil {
+		t.Fatalf("DecodeApplication with numeric version succeeded, want input_invalid (present-but-malformed must quarantine, never hash as absent)")
+	}
+	if field := decodeField(err); field != "version" {
+		t.Fatalf("decode field = %q, want %q", field, "version")
+	}
+	if !isQuarantinable(err) {
+		t.Fatalf("mistyped optional is not quarantinable, want per-fact quarantine")
+	}
+}
+
+func TestDecodePlatformQuarantinesMistypedOptional(t *testing.T) {
+	env := ssmEnvelope("aws_ssm_host_platform", `{"partition":"aws","account_id":"000000000001","region":"us-east-1","instance_id":"i-1","resource_type":"AWS::EC2::Instance","source_type":"ssm_inventory","observation_time":"2026-10-29T22:50:00Z","platform_type":42}`)
+	_, err := DecodePlatform(env)
+	if err == nil {
+		t.Fatalf("DecodePlatform with numeric platform_type succeeded, want input_invalid")
+	}
+	if field := decodeField(err); field != "platform_type" {
+		t.Fatalf("decode field = %q, want %q", field, "platform_type")
+	}
+}
+
 func ssmEnvelope(kind, payload string) facts.Envelope {
 	var decoded map[string]any
 	if err := json.Unmarshal([]byte(payload), &decoded); err != nil {

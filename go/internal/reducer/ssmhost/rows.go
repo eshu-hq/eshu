@@ -139,13 +139,13 @@ func partitionFailure(quarantined []factdecode.QuarantinedFact, env facts.Envelo
 }
 
 // CommittedHost is the projection the graph already holds for one host: the
-// newest committed application capture and, per platform provenance, the
-// committed evidence time. The writer reads it back so a delayed or
-// duplicated older capture can never supersede (and retract) newer truth.
+// newest committed application capture time. The writer reads it back so a
+// delayed or duplicated older capture can never supersede (and retract)
+// newer truth. Platform evidence carries no committed comparison, so no
+// per-provenance platform time is tracked.
 type CommittedHost struct {
-	AppCapture       time.Time
-	HasAppCapture    bool
-	PlatformCaptures map[string]time.Time
+	AppCapture    time.Time
+	HasAppCapture bool
 }
 
 // Skip reasons for the bounded completion-log tally. A tombstoned fact

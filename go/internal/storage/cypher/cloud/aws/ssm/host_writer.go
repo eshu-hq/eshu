@@ -30,13 +30,13 @@ func HostKey(host HostTuple) string {
 }
 
 // CommittedHost is the projection the graph already holds for one host: the
-// newest committed application capture and, per platform provenance, the
-// committed evidence time. The reducer reads it back so a delayed or
-// duplicated older capture can never supersede (and retract) newer truth.
+// newest committed application capture time. The reducer reads it back so a
+// delayed or duplicated older capture can never supersede (and retract)
+// newer truth. Platform evidence carries no committed comparison, so no
+// per-provenance platform time is read.
 type CommittedHost struct {
-	AppCapture       time.Time
-	HasAppCapture    bool
-	PlatformCaptures map[string]time.Time
+	AppCapture    time.Time
+	HasAppCapture bool
 }
 
 const canonicalPhaseSSMHost = "ssm_host_inventory"
@@ -58,7 +58,11 @@ const reportedWithRelationship = "REPORTED_WITH"
 // canonicalSSMHostApplicationUpsertCypher MERGEs observation nodes by stable
 // uid (never CREATE: the MERGE key is the true identity, mutable properties
 // ride SET). MERGE-anchoring follows the #5652 fix: a bare-MATCH-anchored
-// UNWIND SET silently drops its write on the pinned NornicDB image.
+// UNWIND SET silently drops its write on the pinned NornicDB image. The uid
+// is host-scoped with no scope component (it mirrors the #9556 stable key),
+// so scope_id, generation_id, and source_fact_id ride SET per write: two
+// scopes projecting one host last-write-win flap them. Single-scope-per-host
+// is the supported deployment (see the reducer handler doc).
 const canonicalSSMHostApplicationUpsertCypher = `UNWIND $rows AS row
 MERGE (n:SSMHostApplication {uid: row.uid})
 SET n.partition = row.partition,

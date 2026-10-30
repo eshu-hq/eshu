@@ -90,9 +90,8 @@ func (a ssmHostGraphWriterAdapter) ReadCommittedHosts(
 			continue
 		}
 		out[ssmhost.HostKey(host)] = ssmhost.CommittedHost{
-			AppCapture:       storage.AppCapture,
-			HasAppCapture:    storage.HasAppCapture,
-			PlatformCaptures: storage.PlatformCaptures,
+			AppCapture:    storage.AppCapture,
+			HasAppCapture: storage.HasAppCapture,
 		}
 	}
 	return out, nil

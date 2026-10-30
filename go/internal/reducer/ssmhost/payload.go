@@ -143,12 +143,24 @@ func DecodeApplication(env facts.Envelope) (Application, error) {
 	if app.CaptureTime, err = get("capture_time"); err != nil {
 		return Application{}, err
 	}
-	app.Name = optionalField(payload, "name")
-	app.Version = optionalField(payload, "version")
-	app.Release = optionalField(payload, "release")
-	app.Epoch = optionalField(payload, "epoch")
-	app.PackageID = optionalField(payload, "package_id")
-	app.Architecture = optionalField(payload, "architecture")
+	optionals := []struct {
+		key    string
+		target **string
+	}{
+		{"name", &app.Name},
+		{"version", &app.Version},
+		{"release", &app.Release},
+		{"epoch", &app.Epoch},
+		{"package_id", &app.PackageID},
+		{"architecture", &app.Architecture},
+	}
+	for _, optional := range optionals {
+		value, err := optionalField(kind, payload, optional.key)
+		if err != nil {
+			return Application{}, err
+		}
+		*optional.target = value
+	}
 	return app, nil
 }
 
@@ -209,21 +221,29 @@ func DecodePlatform(env facts.Envelope) (Platform, error) {
 	if platform.ObservationTime, err = get("observation_time"); err != nil {
 		return Platform{}, err
 	}
-	if raw, ok := payload["capture_time"]; ok && raw != nil {
-		text, ok := raw.(string)
-		if !ok {
-			return Platform{}, factdecode.NewFactDecodeError(kind, &factschema.DecodeError{
-				FactKind:       kind,
-				Classification: factschema.ClassificationInputInvalid,
-				Field:          "capture_time",
-				Err:            fmt.Errorf("ssm host platform capture_time is not a string"),
-			})
-		}
-		platform.CaptureTime = &text
+	// capture_time stays optional but strict when present: DescribeInstance
+	// Information evidence carries only its observation time, and a
+	// wrong-typed capture time quarantines like any mistyped optional.
+	captureTime, err := optionalField(kind, payload, "capture_time")
+	if err != nil {
+		return Platform{}, err
 	}
-	platform.PlatformType = optionalField(payload, "platform_type")
-	platform.PlatformName = optionalField(payload, "platform_name")
-	platform.PlatformVersion = optionalField(payload, "platform_version")
+	platform.CaptureTime = captureTime
+	platformOptionals := []struct {
+		key    string
+		target **string
+	}{
+		{"platform_type", &platform.PlatformType},
+		{"platform_name", &platform.PlatformName},
+		{"platform_version", &platform.PlatformVersion},
+	}
+	for _, optional := range platformOptionals {
+		value, err := optionalField(kind, payload, optional.key)
+		if err != nil {
+			return Platform{}, err
+		}
+		*optional.target = value
+	}
 	return platform, nil
 }
 
@@ -365,16 +385,26 @@ func requiredField(payload map[string]any, key string) (string, error) {
 	return text, nil
 }
 
-func optionalField(payload map[string]any, key string) *string {
+// optionalField reads one optional string field. Absent and null stay
+// absent (nil decodes to "" downstream, so absent and present-but-empty hash
+// identically). A present-but-non-string value is an input_invalid decode
+// failure the extractor quarantines per fact: it must never silently
+// normalize to absent and hash like an empty field.
+func optionalField(kind string, payload map[string]any, key string) (*string, error) {
 	raw, ok := payload[key]
 	if !ok || raw == nil {
-		return nil
+		return nil, nil
 	}
 	text, ok := raw.(string)
 	if !ok {
-		return nil
+		return nil, factdecode.NewFactDecodeError(kind, &factschema.DecodeError{
+			FactKind:       kind,
+			Classification: factschema.ClassificationInputInvalid,
+			Field:          key,
+			Err:            fmt.Errorf("ssm host payload field %q is not a string", key),
+		})
 	}
-	return &text
+	return &text, nil
 }
 
 func schemaMajor(version string) string {

@@ -6,6 +6,7 @@ package query
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -130,7 +131,10 @@ func ssmAdmittedFactFromEnvelope(envelope map[string]any) ssmAdmittedFact {
 // assesses the latest admitted signal, and preserved prior truth comes from
 // the committed graph nodes, never from stale generations. Host tuple
 // filters apply to the payload fields; the per-host window keeps one
-// elephantine host from starving the page.
+// elephantine host from starving the page, and the host-rank cap keeps the
+// host count to the page prefix (offset+limit+1, the same prefix the
+// committed seeds fetch in the same tuple order), so an active-only fleet
+// can neither starve the page nor blow up the read.
 func buildSSMHostActiveFactsSQL(filter ssmHostInventoryFilter) (string, []any) {
 	clauses := []string{
 		"fact_records.fact_kind IN ('aws_ssm_host_application', 'aws_ssm_host_platform')",
@@ -153,7 +157,19 @@ func buildSSMHostActiveFactsSQL(filter ssmHostInventoryFilter) (string, []any) {
 			len(args)-1, len(args),
 		))
 	}
-	args = append(args, ssmHostInventoryMaxFactRowsPerHost)
+	// The window keeps one row past the cap: a host that fills the extra
+	// slot exhausted its window, so the assembler flags it truncated and
+	// forces unknown instead of verdicting a silently short-read stream.
+	// The host-rank cap keeps the first offset+limit+1 hosts in tuple order
+	// (the same prefix and order as the committed seeds and the Go merge),
+	// so the merged-union page is exact without reading the whole fleet.
+	// The budget resolves through the shared page-bounds helper so SQL and
+	// Go can never disagree on the prefix.
+	_, _, hostBudget, ok := ssmHostPageBounds(filter)
+	if !ok {
+		hostBudget = math.MaxInt
+	}
+	args = append(args, ssmHostInventoryMaxFactRowsPerHost+1, hostBudget)
 	query := fmt.Sprintf(`
 SELECT jsonb_build_object(
     'fact_id', fact_records.fact_id,
@@ -166,9 +182,12 @@ SELECT jsonb_build_object(
 FROM (
     SELECT fact_records.*,
         ROW_NUMBER() OVER (
-            PARTITION BY fact_records.payload->>'account_id', fact_records.payload->>'region', fact_records.payload->>'instance_id'
+            PARTITION BY fact_records.payload->>'partition', fact_records.payload->>'account_id', fact_records.payload->>'region', fact_records.payload->>'instance_id'
             ORDER BY fact_records.fact_id
-        ) AS host_row_number
+        ) AS host_row_number,
+        DENSE_RANK() OVER (
+            ORDER BY fact_records.payload->>'partition', fact_records.payload->>'account_id', fact_records.payload->>'region', fact_records.payload->>'instance_id'
+        ) AS host_rank
     FROM fact_records
     JOIN ingestion_scopes AS scope
       ON scope.scope_id = fact_records.scope_id
@@ -180,7 +199,8 @@ FROM (
     WHERE %s
 ) AS fact_records
 WHERE fact_records.host_row_number <= $%d
-ORDER BY fact_records.payload->>'instance_id', fact_records.fact_id
-`, strings.Join(clauses, " AND "), len(args))
+  AND fact_records.host_rank <= $%d
+ORDER BY fact_records.payload->>'partition', fact_records.payload->>'account_id', fact_records.payload->>'region', fact_records.payload->>'instance_id', fact_records.fact_id
+`, strings.Join(clauses, " AND "), len(args)-1, len(args))
 	return query, args
 }

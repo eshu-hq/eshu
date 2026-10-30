@@ -37,13 +37,15 @@ func (r *recordingGroupExecutor) ExecuteGroup(_ context.Context, stmts []sourcec
 }
 
 // stubCommittedReader scripts one read result for committed-capture and
-// stale-count queries.
+// stale-count queries, recording every issued query for shape assertions.
 type stubCommittedReader struct {
-	rows []map[string]any
-	err  error
+	rows    []map[string]any
+	err     error
+	queries []string
 }
 
-func (s *stubCommittedReader) Run(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+func (s *stubCommittedReader) Run(_ context.Context, query string, _ map[string]any) ([]map[string]any, error) {
+	s.queries = append(s.queries, query)
 	if s.err != nil {
 		return nil, s.err
 	}

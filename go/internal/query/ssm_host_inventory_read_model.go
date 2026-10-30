@@ -5,13 +5,10 @@ package query
 
 import (
 	"context"
-	"fmt"
 	"sort"
 	"strconv"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ssmhost"
 )
 
@@ -36,29 +33,66 @@ const (
 	ssmHostReasonTruncatedFacts = "admitted-fact window exhausted before coherence"
 )
 
-// ssmCommittedHostsCypher reads one host page's committed observation nodes
-// and their pairing edges in a single round trip. Hosts page first (DISTINCT
-// tuples, deterministic order, SKIP/LIMIT), then nodes and edges follow their
-// hosts, so a host never splits across a page. Status filters apply after
-// paging in Go (status needs the admitted-fact overlay), so a status-filtered
-// page may be short.
-const ssmCommittedHostsCypher = `MATCH (seed)
-WHERE (seed:SSMHostApplication OR seed:SSMHostPlatform)
-  AND ($all_scopes OR seed.scope_id IN $scope_ids)
+// Committed reads run as four label-anchored statements, never a bare
+// MATCH with a label disjunction in WHERE (which cannot seek). Seeds page
+// first (DISTINCT tuples, deterministic order, LIMIT) per label, then node
+// rows follow their hosts, so a host never splits across a page. Every leg
+// shares one ordering — partition, account, region, instance, byte-wise —
+// which must match the Go HostKey sort below; the merged-union paging proof
+// depends on all three sides (both seed legs and the admitted-fact host
+// rank) agreeing on that order.
+//
+// Hosts page first from [0, offset+limit+1): the merged committed-plus-active
+// universe pages in Go after the overlay, so the committed fetch covers the
+// page prefix rather than the page itself. Deep cursors rescan that prefix;
+// cursors only ever come from this read's own NextCursor, so walks stay
+// linear.
+const ssmCommitSeedAppsCypher = `MATCH (seed:SSMHostApplication)
+WHERE ($all_scopes OR seed.scope_id IN $scope_ids)
   AND ($instance_id = '' OR seed.instance_id = $instance_id)
   AND ($account_id = '' OR seed.account_id = $account_id)
   AND ($region = '' OR seed.region = $region)
-WITH DISTINCT seed.partition AS h_partition, seed.account_id AS h_account_id, seed.region AS h_region, seed.instance_id AS h_instance_id
+RETURN DISTINCT seed.partition AS h_partition, seed.account_id AS h_account_id, seed.region AS h_region, seed.instance_id AS h_instance_id
 ORDER BY h_partition, h_account_id, h_region, h_instance_id
-SKIP $offset LIMIT $limit_plus_one
+LIMIT $seed_limit`
+
+// ssmCommitSeedPlatsCypher seeds the platform-only leg: hosts with platform
+// observations but no application node. The read subtracts app-seeded hosts
+// in Go (a correlated NOT EXISTS would gamble on NornicDB subquery support).
+const ssmCommitSeedPlatsCypher = `MATCH (seed:SSMHostPlatform)
+WHERE ($all_scopes OR seed.scope_id IN $scope_ids)
+  AND ($instance_id = '' OR seed.instance_id = $instance_id)
+  AND ($account_id = '' OR seed.account_id = $account_id)
+  AND ($region = '' OR seed.region = $region)
+RETURN DISTINCT seed.partition AS h_partition, seed.account_id AS h_account_id, seed.region AS h_region, seed.instance_id AS h_instance_id
+ORDER BY h_partition, h_account_id, h_region, h_instance_id
+LIMIT $seed_limit`
+
+// ssmCommitNodesAppsCypher fetches one page's application nodes with their
+// paired platforms on the OPTIONAL MATCH leg. One row per (app, paired
+// platform): the read deduplicates applications by uid.
+const ssmCommitNodesAppsCypher = `UNWIND $hosts AS h
 MATCH (app:SSMHostApplication)
-WHERE app.partition = h_partition
-  AND app.account_id = h_account_id
-  AND app.region = h_region
-  AND app.instance_id = h_instance_id
+WHERE app.partition = h.partition
+  AND app.account_id = h.account_id
+  AND app.region = h.region
+  AND app.instance_id = h.instance_id
   AND ($all_scopes OR app.scope_id IN $scope_ids)
 OPTIONAL MATCH (app)-[rel:REPORTED_WITH]->(plat:SSMHostPlatform)
 RETURN app AS app, plat AS plat`
+
+// ssmCommitNodesPlatsCypher fetches one page's platform nodes, including the
+// platform-only hosts the application leg cannot return. Same-host platforms
+// merge by uid with the paired leg; the remainder become platform-only
+// committed hosts.
+const ssmCommitNodesPlatsCypher = `UNWIND $hosts AS h
+MATCH (plat:SSMHostPlatform)
+WHERE plat.partition = h.partition
+  AND plat.account_id = h.account_id
+  AND plat.region = h.region
+  AND plat.instance_id = h.instance_id
+  AND ($all_scopes OR plat.scope_id IN $scope_ids)
+RETURN plat AS plat_only`
 
 // ssmHostView is one host's served inventory: the committed observations
 // with the read-time status overlay.
@@ -94,6 +128,18 @@ type ssmHostInventoryReadModel struct {
 // admitted facts assessed through the same verdicts the reducer projects
 // with. A host appears when committed nodes or active facts exist for it;
 // anything else is absent, never an empty host.
+//
+// Hosts are the page unit and the page slices the merged committed-plus-active
+// universe: the limit binds active-only hosts exactly like committed ones,
+// and NextCursor derives from the merged length, never from one side alone.
+// Status filters apply after paging in Go (status needs the admitted-fact
+// overlay), so a status-filtered page may be short.
+//
+// Paging exactness: with K = offset+limit+1, the merged universe's first K
+// hosts are contained in the union of each side's first K (a merged-prefix
+// member has fewer than K predecessors on its own side), and both sides are
+// fetched prefix-first in the same tuple order — so the Go-side prefix,
+// slice, and has-more signal are exact.
 func ReadSSMHostInventory(
 	ctx context.Context,
 	graph GraphQuery,
@@ -105,11 +151,13 @@ func ReadSSMHostInventory(
 	if err := bounds.Validate(); err != nil {
 		return ssmHostInventoryReadModel{}, err
 	}
-	limit := filter.Limit
-	if limit <= 0 {
-		limit = ssmHostInventoryDefaultLimit
+	offset, limit, prefix, ok := ssmHostPageBounds(filter)
+	if !ok {
+		// Overflowed cursor: astronomically beyond any universe, served
+		// as a beyond-the-end empty page like the old SKIP-beyond-end.
+		return ssmHostInventoryReadModel{}, nil
 	}
-	committed, fetched, err := readSSMCommittedViews(ctx, graph, filter, limit)
+	seeded, err := readSSMCommittedSeeds(ctx, graph, filter, prefix)
 	if err != nil {
 		return ssmHostInventoryReadModel{}, err
 	}
@@ -117,355 +165,87 @@ func ReadSSMHostInventory(
 	if err != nil {
 		return ssmHostInventoryReadModel{}, err
 	}
-	observations, malformed := ssmObservationsFromFacts(active)
+	observations, signals := ssmObservationsFromFacts(active)
 	projections, _ := ssmhost.ProjectHosts(observations.apps, observations.platforms, nil, bounds, now)
 	verdicts := make(map[string]ssmhost.HostProjection, len(projections))
 	for _, projection := range projections {
 		verdicts[ssmhost.HostKey(projection.Host)] = projection
 	}
-	hosts := assembleSSMHostViews(committed, verdicts, filter, bounds, now)
-	malformedTotal := 0
-	for _, count := range malformed {
-		malformedTotal += count
+	merged := mergeSSMHostKeys(seeded, verdicts, prefix)
+	model := ssmHostInventoryReadModel{MalformedFacts: malformedTotal(signals)}
+	if len(merged) == prefix {
+		model.NextCursor = strconv.Itoa(offset + limit)
 	}
-	model := ssmHostInventoryReadModel{Hosts: hosts, MalformedFacts: malformedTotal}
-	if fetched > limit {
-		if len(model.Hosts) > limit {
-			model.Hosts = model.Hosts[:limit]
-		}
-		model.NextCursor = strconv.Itoa(filter.Offset + limit)
+	page := merged
+	if offset < len(page) {
+		page = page[offset:]
+	} else {
+		page = nil
 	}
+	if len(page) > limit {
+		page = page[:limit]
+	}
+	committed, err := readSSMCommittedNodes(ctx, graph, filter, page)
+	if err != nil {
+		return ssmHostInventoryReadModel{}, err
+	}
+	model.Hosts = assembleSSMHostViews(committed, verdicts, signals, page, filter, bounds, now)
 	return model, nil
 }
 
-type ssmCommittedHost struct {
-	host       cloud.SSMHostTuple
-	apps       []map[string]any
-	platforms  map[string]map[string]any
-	paired     map[string]bool
-	scopeID    string
-	generation string
+// ssmHostPageBounds resolves the clamped paging triple shared by the
+// committed seeds, the admitted-fact host-rank cap, and the Go-side merge:
+// the offset (negative cursors clamp to zero; the handler already rejects
+// them), the limit (defaulted when unset), and the page-prefix host budget
+// offset+limit+1. ok=false means the prefix overflowed: the cursor sits
+// beyond any servable universe. SQL and Go derive the identical budget here
+// so the merged-union page stays exact.
+func ssmHostPageBounds(filter ssmHostInventoryFilter) (offset, limit, prefix int, ok bool) {
+	offset = filter.Offset
+	if offset < 0 {
+		offset = 0
+	}
+	limit = filter.Limit
+	if limit <= 0 {
+		limit = ssmHostInventoryDefaultLimit
+	}
+	prefix = offset + limit + 1
+	if prefix <= offset {
+		return 0, 0, 0, false
+	}
+	return offset, limit, prefix, true
 }
 
-func readSSMCommittedViews(ctx context.Context, graph GraphQuery, filter ssmHostInventoryFilter, limit int) (map[string]*ssmCommittedHost, int, error) {
-	committed := map[string]*ssmCommittedHost{}
-	if graph == nil {
-		return committed, 0, nil
-	}
-	rows, err := graph.Run(ctx, ssmCommittedHostsCypher, map[string]any{
-		"all_scopes":     filter.AllScopes,
-		"scope_ids":      append([]string{}, append(filter.AllowedScopeIDs, filter.AllowedRepositoryIDs...)...),
-		"instance_id":    filter.InstanceID,
-		"account_id":     filter.AccountID,
-		"region":         filter.Region,
-		"offset":         filter.Offset,
-		"limit_plus_one": limit + 1,
-	})
-	if err != nil {
-		return nil, 0, fmt.Errorf("query ssm committed host views: %w", err)
-	}
-	for _, row := range rows {
-		app, _ := row["app"].(map[string]any)
-		if app == nil {
-			if plat, _ := row["plat_only"].(map[string]any); plat != nil {
-				host := ssmCommittedHostFor(committed, plat)
-				uid, _ := plat["uid"].(string)
-				host.platforms[uid] = plat
-			}
-			continue
+// mergeSSMHostKeys unions the committed seed keys with the verdict keys in
+// HostKey order, truncated to the page prefix. Both inputs arrive
+// prefix-first in that same order, so the truncation keeps exactly the
+// merged universe's first prefix hosts.
+func mergeSSMHostKeys(seeded []string, verdicts map[string]ssmhost.HostProjection, prefix int) []string {
+	seen := make(map[string]bool, len(seeded)+len(verdicts))
+	merged := make([]string, 0, len(seeded)+len(verdicts))
+	for _, key := range seeded {
+		if !seen[key] {
+			seen[key] = true
+			merged = append(merged, key)
 		}
-		host := ssmCommittedHostFor(committed, app)
-		host.apps = append(host.apps, app)
-		if plat, _ := row["plat"].(map[string]any); plat != nil {
-			uid, _ := plat["uid"].(string)
-			host.platforms[uid] = plat
-			if from, _ := app["uid"].(string); from != "" {
-				host.paired[from+"->"+uid] = true
-			}
-		}
-		if scope, _ := app["scope_id"].(string); scope != "" {
-			host.scopeID = scope
-		}
-		if generation, _ := app["generation_id"].(string); generation != "" {
-			host.generation = generation
-		}
-	}
-	return committed, len(committed), nil
-}
-
-func ssmCommittedHostFor(committed map[string]*ssmCommittedHost, node map[string]any) *ssmCommittedHost {
-	host := cloud.SSMHostTuple{
-		Partition:  stringFromMap(node, "partition"),
-		AccountID:  stringFromMap(node, "account_id"),
-		Region:     stringFromMap(node, "region"),
-		InstanceID: stringFromMap(node, "instance_id"),
-	}
-	key := ssmhost.HostKey(host)
-	entry, ok := committed[key]
-	if !ok {
-		entry = &ssmCommittedHost{host: host, platforms: map[string]map[string]any{}, paired: map[string]bool{}}
-		committed[key] = entry
-	}
-	return entry
-}
-
-type ssmFactObservations struct {
-	apps      []ssmhost.ApplicationObservation
-	platforms []ssmhost.PlatformObservation
-}
-
-func ssmObservationsFromFacts(active []ssmAdmittedFact) (ssmFactObservations, map[string]int) {
-	var observations ssmFactObservations
-	malformed := map[string]int{}
-	for _, fact := range active {
-		env := facts.Envelope{
-			FactID:      fact.FactID,
-			FactKind:    fact.FactKind,
-			Payload:     fact.Payload,
-			IsTombstone: fact.Tombstone,
-		}
-		switch fact.FactKind {
-		case cloud.SSMHostApplicationFactKind:
-			app, err := ssmhost.DecodeApplication(env)
-			if err != nil {
-				malformed[fact.ScopeID+"\x00"+fact.GenerationID]++
-				continue
-			}
-			observations.apps = append(observations.apps, ssmhost.ApplicationObservation{Application: app, FactID: fact.FactID, Tombstone: fact.Tombstone})
-		case cloud.SSMHostPlatformFactKind:
-			platform, err := ssmhost.DecodePlatform(env)
-			if err != nil {
-				malformed[fact.ScopeID+"\x00"+fact.GenerationID]++
-				continue
-			}
-			observations.platforms = append(observations.platforms, ssmhost.PlatformObservation{Platform: platform, FactID: fact.FactID, Tombstone: fact.Tombstone})
-		}
-	}
-	return observations, malformed
-}
-
-func assembleSSMHostViews(
-	committed map[string]*ssmCommittedHost,
-	verdicts map[string]ssmhost.HostProjection,
-	filter ssmHostInventoryFilter,
-	bounds ssmhost.Bounds,
-	now time.Time,
-) []ssmHostView {
-	keys := make([]string, 0, len(committed)+len(verdicts))
-	seen := map[string]bool{}
-	for key := range committed {
-		keys = append(keys, key)
-		seen[key] = true
 	}
 	for key := range verdicts {
 		if !seen[key] {
-			keys = append(keys, key)
+			seen[key] = true
+			merged = append(merged, key)
 		}
 	}
-	sort.Strings(keys)
-
-	var hosts []ssmHostView
-	for _, key := range keys {
-		entry := committed[key]
-		projection, assessed := verdicts[key]
-		if entry == nil && !assessed {
-			continue
-		}
-		view := ssmHostViewFor(entry, projection, assessed, bounds, now)
-		if filter.Status != "" && view.Status != filter.Status {
-			continue
-		}
-		hosts = append(hosts, view)
+	sort.Strings(merged)
+	if len(merged) > prefix {
+		merged = merged[:prefix]
 	}
-	return hosts
+	return merged
 }
 
-func ssmHostViewFor(
-	entry *ssmCommittedHost,
-	projection ssmhost.HostProjection,
-	assessed bool,
-	bounds ssmhost.Bounds,
-	now time.Time,
-) ssmHostView {
-	view := ssmHostView{Status: ssmHostStatusUnknown, StatusReason: ssmHostReasonSilent}
-	if entry != nil {
-		view.Partition = entry.host.Partition
-		view.AccountID = entry.host.AccountID
-		view.Region = entry.host.Region
-		view.InstanceID = entry.host.InstanceID
-		view.ScopeID = entry.scopeID
-		view.GenerationID = entry.generation
-		view = viewWithCommittedRows(view, entry)
+func malformedTotal(signals ssmHostReadSignals) int {
+	total := 0
+	for _, count := range signals.malformedByHost {
+		total += count
 	}
-	if !assessed {
-		// No admitted facts for this host in the active generation: the
-		// silent path. Committed truth stands; its age decides stale.
-		if entry == nil {
-			return view
-		}
-		if capture := committedAppCapture(entry); !capture.IsZero() && now.Sub(capture) > bounds.MaxCaptureAge {
-			view.Status = ssmHostStatusStale
-			view.StatusReason = ssmHostReasonStale
-		}
-		return view
-	}
-	view.Partition = projection.Host.Partition
-	view.AccountID = projection.Host.AccountID
-	view.Region = projection.Host.Region
-	view.InstanceID = projection.Host.InstanceID
-	if entry == nil {
-		// Admitted but never projected: a host the reducer has not
-		// materialized yet reads unknown with no rows, never an empty
-		// host fabricated from facts alone.
-		if !projection.AppVerdict.Absent() && !projection.AppVerdict.Complete && !projection.AppVerdict.Stale {
-			view.Status = ssmHostStatusPartial
-			view.StatusReason = ssmHostReasonPartial
-			return view
-		}
-		view.StatusReason = ssmHostReasonPending
-		return view
-	}
-	view.Status, view.StatusReason = overlayHostStatus(projection, entry, bounds, now)
-	if view.Status == "" {
-		// Every assessed stream withdrew its signal: the silent treatment.
-		view.Status = ssmHostStatusUnknown
-		view.StatusReason = ssmHostReasonSilent
-		if capture := committedAppCapture(entry); !capture.IsZero() && now.Sub(capture) > bounds.MaxCaptureAge {
-			view.Status = ssmHostStatusStale
-			view.StatusReason = ssmHostReasonStale
-		}
-	}
-	return view
-}
-
-// overlayHostStatus derives one host's status from the active generation's
-// stream verdicts over the committed truth. Severity orders
-// successful < stale < unknown < partial: a fresh negative signal always
-// wins over age, and age always wins over a bare projection match.
-func overlayHostStatus(projection ssmhost.HostProjection, entry *ssmCommittedHost, bounds ssmhost.Bounds, now time.Time) (string, string) {
-	committedCapture := committedAppCapture(entry)
-	appStatus, appReason := overlayAppStream(projection.AppVerdict, committedCapture, bounds, now)
-	platStatus, platReason := overlayPlatformStreams(projection.PlatformVerdicts)
-	if severity(appStatus) >= severity(platStatus) {
-		return appStatus, appReason
-	}
-	return platStatus, platReason
-}
-
-func severity(status string) int {
-	switch status {
-	case "":
-		return -1
-	case ssmHostStatusSuccessful:
-		return 0
-	case ssmHostStatusStale:
-		return 1
-	case ssmHostStatusUnknown:
-		return 2
-	default:
-		return 3
-	}
-}
-
-func overlayAppStream(verdict cloud.SSMHostStreamAssessment, committedCapture time.Time, bounds ssmhost.Bounds, now time.Time) (string, string) {
-	switch {
-	case verdict.Absent():
-		return "", ""
-	case verdict.Stale:
-		return ssmHostStatusStale, ssmHostReasonStale
-	case verdict.Complete:
-		switch {
-		case committedCapture.IsZero() || verdict.CaptureTime.After(committedCapture):
-			return ssmHostStatusUnknown, ssmHostReasonPending
-		case now.Sub(committedCapture) > bounds.MaxCaptureAge:
-			return ssmHostStatusStale, ssmHostReasonStale
-		default:
-			return ssmHostStatusSuccessful, ssmHostReasonProjected
-		}
-	default:
-		return ssmHostStatusPartial, ssmHostReasonPartial
-	}
-}
-
-func overlayPlatformStreams(verdicts map[string]cloud.SSMHostStreamAssessment) (string, string) {
-	status, reason := "", ""
-	for _, verdict := range verdicts {
-		var candidate, candidateReason string
-		switch {
-		case verdict.Absent():
-			continue
-		case verdict.Stale:
-			candidate, candidateReason = ssmHostStatusStale, ssmHostReasonStale
-		case verdict.Complete:
-			candidate, candidateReason = ssmHostStatusSuccessful, ssmHostReasonProjected
-		default:
-			candidate, candidateReason = ssmHostStatusPartial, ssmHostReasonPartial
-		}
-		if severity(candidate) >= severity(status) {
-			status, reason = candidate, candidateReason
-		}
-	}
-	return status, reason
-}
-
-// viewWithCommittedRows serves the committed observation rows with the
-// allowlisted fields only. Anything the extractor did not allowlist never
-// reaches the wire; the marshal-level test pins the absence of finding
-// vocabulary.
-func viewWithCommittedRows(view ssmHostView, entry *ssmCommittedHost) ssmHostView {
-	sorted := append([]map[string]any{}, entry.apps...)
-	sort.Slice(sorted, func(i, j int) bool {
-		return stringFromMap(sorted[i], "uid") < stringFromMap(sorted[j], "uid")
-	})
-	for _, app := range sorted {
-		if len(view.Applications) >= ssmHostInventoryMaxApplications {
-			view.ApplicationsTruncated = true
-			break
-		}
-		view.Applications = append(view.Applications, map[string]any{
-			"uid":          app["uid"],
-			"name":         app["name"],
-			"version":      app["version"],
-			"release":      app["release"],
-			"epoch":        app["epoch"],
-			"package_id":   app["package_id"],
-			"architecture": app["architecture"],
-			"capture_time": app["capture_time"],
-		})
-	}
-	if capture := committedAppCapture(entry); !capture.IsZero() {
-		view.CaptureTime = capture.UTC().Format(time.RFC3339)
-	}
-	var platforms []map[string]any
-	for _, plat := range entry.platforms {
-		platforms = append(platforms, map[string]any{
-			"uid":              plat["uid"],
-			"source_type":      plat["source_type"],
-			"platform_type":    plat["platform_type"],
-			"platform_name":    plat["platform_name"],
-			"platform_version": plat["platform_version"],
-			"capture_time":     plat["capture_time"],
-			"observation_time": plat["observation_time"],
-		})
-	}
-	sort.Slice(platforms, func(i, j int) bool {
-		return stringFromMap(platforms[i], "uid") < stringFromMap(platforms[j], "uid")
-	})
-	view.Platforms = platforms
-	return view
-}
-
-func committedAppCapture(entry *ssmCommittedHost) time.Time {
-	var newest time.Time
-	for _, app := range entry.apps {
-		raw, _ := app["capture_time"].(string)
-		parsed, err := time.Parse(time.RFC3339, raw)
-		if err != nil {
-			continue
-		}
-		if parsed.After(newest) {
-			newest = parsed
-		}
-	}
-	return newest
+	return total
 }

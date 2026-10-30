@@ -190,7 +190,21 @@ func TestHostWriterReadsCommittedCaptures(t *testing.T) {
 	if !committed.HasAppCapture {
 		t.Fatalf("HasAppCapture = false, want true")
 	}
-	if len(committed.PlatformCaptures) != 2 {
-		t.Fatalf("platform captures = %d, want 2", len(committed.PlatformCaptures))
+	// The projection only consumes the newest committed application capture,
+	// so the committed read is application-capture-only: one label-anchored
+	// MATCH, never a bare MATCH (n) with a label disjunction, and no
+	// per-provenance platform fetch for any verdict to consume.
+	if len(reader.queries) != 1 {
+		t.Fatalf("committed read issued %d queries, want 1 (no per-label fan-out)", len(reader.queries))
+	}
+	issued := reader.queries[0]
+	if !strings.Contains(issued, "MATCH (n:SSMHostApplication)") {
+		t.Fatalf("committed read is not label-anchored on SSMHostApplication:\n%s", issued)
+	}
+	if strings.Contains(issued, "MATCH (n)") {
+		t.Fatalf("committed read runs an unanchored full scan:\n%s", issued)
+	}
+	if strings.Contains(issued, "SSMHostPlatform") {
+		t.Fatalf("committed read still fetches platform nodes no verdict consumes:\n%s", issued)
 	}
 }

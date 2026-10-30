@@ -365,13 +365,17 @@ source_coverage:
           max_keys: 101
           max_results: 101
       - {symbol: "(*Handler).serviceWorkloadCandidatesFromQuery", count: 1, source_sha256: af43d69938947cda01f775854aa65cb9e2c29a4cb4ec6c915bef9b665ba681f4, entry_ids: [QP-SVC-RESOLVE]}
-  # ssm-host-inventory readback (eshu-hq/eshu#9558): one bounded paged
-  # committed-views read per request, scope-grant anchored with exact-match
-  # instance/account/region keys and SKIP/LIMIT paging (handler clamps limit
-  # to 100, so limit_plus_one caps rows at 101).
-  - file: ssm_host_inventory_read_model.go
+  # ssm-host-inventory readback (eshu-hq/eshu#9558): four label-anchored
+  # committed reads per request, scope-grant anchored with exact-match
+  # instance/account/region keys. Seeds fetch the page prefix
+  # (offset+limit+1 tuples per label leg; handler clamps limit to 100, so a
+  # first page caps seeds at 101 per leg) and node rows follow exactly the
+  # page hosts, so a host never splits across a page. NextCursor derives from
+  # the merged committed-plus-active length.
+  - file: ssm_host_inventory_committed.go
     calls:
-      - {symbol: "readSSMCommittedViews", count: 1, non_hot: {class: keyed_support, source_sha256: c2718a21d079817592cd0ab2eb33da43399787f64233d5f282d6a1adf9314d3d, key_bound: single_key, max_results: 101}}
+      - {symbol: "readSSMCommittedSeeds", count: 2, non_hot: {class: keyed_support, source_sha256: 27c85d42e6ffc3d6b10364fd55c89a393d1e5def186d7c499305d4ac4d182656, key_bound: single_key, max_results: 101}}
+      - {symbol: "readSSMCommittedNodes", count: 2, non_hot: {class: keyed_support, source_sha256: 847da7e7b8946aa42551b03529c7ba070fd126db105eb2b2fe8b3163c74576f1, key_bound: single_key, max_results: 101}}
   - file: status.go
     calls:
       - symbol: "(*StatusHandler).getIndexStatus"
