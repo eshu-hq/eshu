@@ -40,6 +40,8 @@ type derivedStateView struct {
 	ScopeCount            int      `json:"scope_count"`
 	PackageCount          int      `json:"package_count"`
 	UnmatchedPackageCount int      `json:"unmatched_package_count"`
+	SkippedPackageCount   int      `json:"skipped_package_count"`
+	SkipReasons           []string `json:"skip_reasons"`
 	FreshCount            int      `json:"fresh_count"`
 	FailedCount           int      `json:"failed_count"`
 	ScopeIDs              []string `json:"scope_ids"`

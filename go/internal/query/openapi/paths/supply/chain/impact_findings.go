@@ -226,7 +226,7 @@ const impactFindings = `
                       "type": "object",
                       "description": "Bounded coverage metadata so zero findings can be distinguished from missing target collection or missing required evidence. readiness_unavailable means the readiness lookup itself failed; the findings page is still returned but coverage cannot be classified.",
                       "properties": {
-                        "readiness_state": {"type": "string", "enum": ["not_configured", "target_incomplete", "evidence_incomplete", "ready_zero_findings", "ready_with_findings", "ambiguous_scope", "readiness_unavailable", "unsupported"], "description": "Coverage classification for the bounded vulnerability impact answer. ambiguous_scope fires when a single explain scope matches multiple reducer-owned findings and the caller must narrow the request; unsupported fires when Eshu observed real target evidence the matcher cannot resolve (unsupported ecosystem, package-manager file with unsupported lockfile feature, VCS/path/URL/editable dependency source, malformed/unsupported SBOM document, or unsupported image target)."},
+                        "readiness_state": {"type": "string", "enum": ["not_configured", "target_incomplete", "target_skipped", "evidence_incomplete", "ready_zero_findings", "ready_with_findings", "ambiguous_scope", "readiness_unavailable", "unsupported"], "description": "Coverage classification for the bounded vulnerability impact answer. ambiguous_scope fires when a single explain scope matches multiple reducer-owned findings and the caller must narrow the request; unsupported fires when Eshu observed real target evidence the matcher cannot resolve (unsupported ecosystem, package-manager file with unsupported lockfile feature, VCS/path/URL/editable dependency source, malformed/unsupported SBOM document, or unsupported image target); target_skipped fires when every other source settled and at least one requested derived package carries planner skip evidence, so the system already knows it will never plan that package."},
                         "target_scope": {
                           "type": "object",
                           "properties": {
@@ -297,10 +297,12 @@ const impactFindings = `
                               "last_success_at": {"type": "string"},
                               "next_retry_at": {"type": "string"},
                               "last_error_class": {"type": "string"},
-                              "freshness_state": {"type": "string", "enum": ["not_configured", "pending", "fresh", "stale", "rate_limited", "failed", "partial"]},
-                              "terminal_status": {"type": "string", "enum": ["pending", "succeeded", "partial", "failed_retryable", "failed_terminal"]},
+                              "freshness_state": {"type": "string", "enum": ["not_configured", "pending", "fresh", "stale", "rate_limited", "failed", "partial", "skipped"], "description": "Durable collection state. skipped means every unmatched package on this derived aggregate carries planner skip evidence, so nothing is in flight for it."},
+                              "terminal_status": {"type": "string", "enum": ["pending", "succeeded", "partial", "failed_retryable", "failed_terminal", "skipped"]},
                               "result_count": {"type": "integer"},
                               "warning_count": {"type": "integer"},
+                              "skipped_package_count": {"type": "integer", "description": "Requested packages no derived scope covered that carry planner skip evidence; set only on derived aggregate rows."},
+                              "skip_reasons": {"type": "array", "items": {"type": "string"}, "description": "Distinct planner skip reasons behind the skipped packages, such as derived_target_non_exact_version. Reasons only, never package names."},
                               "multi_cve_target": {"type": "boolean"},
                               "updated_at": {"type": "string"}
                             },
@@ -324,7 +326,7 @@ const impactFindings = `
                           }
                         },
                         "missing_evidence": {"type": "array", "items": {"type": "string", "enum": ["advisory_sources", "owned_packages", "package_registry_metadata", "sbom_or_image_evidence", "target_collection_incomplete", "ambiguous_scope", "readiness_unavailable", "unsupported_targets"]}},
-                        "incomplete_reasons": {"type": "array", "items": {"type": "string"}, "description": "Collector-emitted reasons explaining why source collection is still in flight; only present when readiness_state is target_incomplete."},
+                        "incomplete_reasons": {"type": "array", "items": {"type": "string"}, "description": "Collector-emitted reasons explaining why source collection is still in flight; only present when readiness_state is target_incomplete. Skip entries read osv:skipped:<reason> and are only present when readiness_state is target_skipped."},
                         "freshness": {"type": "string", "enum": ["fresh", "stale", "unknown", "pending", "rate_limited", "failed", "partial"]},
                         "counts": {
                           "type": "object",

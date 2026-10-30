@@ -78,6 +78,9 @@ TABLE = {
             "TestSupplyChainImpactReadinessCommittedCoverageEdgesLive",
             "TestSupplyChainImpactReadinessRolledBackGenerationCannotCertifyZeroLive",
         ),
+        "go/internal/query/readiness_derived_skip_live_test.go": (
+            "TestSupplyChainImpactReadinessPlannerSkippedPackageReportsSkipLive",
+        ),
         "go/internal/query/readiness_derived_source_keys_live_test.go": (
             "TestSupplyChainImpactReadinessDerivedRepositoryAcrossBatchScopesLive",
             "TestSupplyChainImpactReadinessDerivedKeyNormalizationLive",

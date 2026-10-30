@@ -26,6 +26,9 @@ TABLE = {
             "TestSupplyChainImpactReadinessPackageManifestRepoScopeQueryPlanLive",
             "TestSupplyChainImpactReadinessRepoArmScopeLive",
         ),
+        "go/internal/query/supply/chain/impact/readiness_planner_skip_explain_live_test.go": (
+            "TestSupplyChainImpactReadinessPlannerSkipQueryPlanLive",
+        ),
         "go/internal/query/supply/chain/impact/readiness_scan_tier_explain_live_test.go": (
             "TestSupplyChainImpactReadinessScanTierQueryPlanLive",
             "TestSupplyChainImpactReadinessScanTierOSPackageCountDoesNotFanOutLive",

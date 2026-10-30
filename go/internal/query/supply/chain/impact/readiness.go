@@ -19,6 +19,13 @@ const (
 	// ReadinessStateTargetIncomplete means at least one required target source
 	// reported partial or in-flight collection for the requested scope.
 	ReadinessStateTargetIncomplete ReadinessState = "target_incomplete"
+	// ReadinessStateTargetSkipped means every required target source settled
+	// and at least one requested derived package carries planner skip
+	// evidence: the system already knows it will never plan that package, so
+	// nothing is in flight for it. The planner's skip reason rides in
+	// incomplete_reasons as osv:skipped:<reason> and in the derived row's
+	// skip_reasons. Callers must not interpret this as clean or affected.
+	ReadinessStateTargetSkipped ReadinessState = "target_skipped"
 	// ReadinessStateEvidenceIncomplete means some target evidence exists but a
 	// required join family is missing for the requested scope.
 	ReadinessStateEvidenceIncomplete ReadinessState = "evidence_incomplete"
@@ -253,7 +260,7 @@ func BuildReadiness(
 		missing = nil
 	}
 	incompleteReasons := uniqueSortedReadinessStrings(snapshot.IncompleteReasons)
-	if state != ReadinessStateTargetIncomplete {
+	if state != ReadinessStateTargetIncomplete && state != ReadinessStateTargetSkipped {
 		incompleteReasons = nil
 	}
 	freshness := aggregateReadinessFreshness(sources)

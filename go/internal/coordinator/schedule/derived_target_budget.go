@@ -36,16 +36,38 @@ type DerivedTargetSkipEvidence struct {
 	SkippedCount  int      `json:"skipped_count"`
 	Ecosystems    []string `json:"ecosystems,omitempty"`
 	Sources       []string `json:"sources,omitempty"`
+	// Packages names one skipped package identity per candidate the planner
+	// could still identify: the canonical (ecosystem, package name) key the
+	// collector would have recorded had the candidate been planned, so a
+	// readiness read can join an unmatched derived package to its skip
+	// evidence exactly. Candidates the planner could not identify (a missing
+	// subject, PURL, or version) carry a count but no package entry, and
+	// budget-exhaustion rows over unread windows carry none: those names were
+	// never read. Versions are never recorded; the join is package-level.
+	Packages []DerivedTargetSkippedPackage `json:"packages,omitempty"`
+}
+
+// DerivedTargetSkippedPackage is one skipped candidate identity: the
+// canonical ecosystem and one consumption-key candidate name. Both match the
+// key columns the collector writes for a planned scope, never a raw manifest
+// spelling.
+type DerivedTargetSkippedPackage struct {
+	Ecosystem   string `json:"ecosystem"`
+	PackageName string `json:"package_name"`
 }
 
 // DerivedTargetSkipEvidenceByReason renders one evidence row per (reason,
 // ecosystem) pair with a non-zero count, in a stable sorted order.
+// skippedPackages carries the per-package identities keyed by
+// skipPackageKey(reason, ecosystem); rows without an entry keep a count but
+// no package list.
 func DerivedTargetSkipEvidenceByReason(
 	collectorKind string,
 	targetLimit int,
 	selectedCount int,
 	skippedCounts map[string]map[string]int,
 	sources []string,
+	skippedPackages map[string][]DerivedTargetSkippedPackage,
 ) []DerivedTargetSkipEvidence {
 	if len(skippedCounts) == 0 {
 		return nil
@@ -68,6 +90,7 @@ func DerivedTargetSkipEvidenceByReason(
 				SkippedCount:  count,
 				Ecosystems:    []string{ecosystem},
 				Sources:       sources,
+				Packages:      uniqueSortedSkippedPackages(skippedPackages[skipPackageKey(reason, ecosystem)]),
 			})
 		}
 	}
@@ -85,8 +108,9 @@ func DerivedTargetSkipEvidenceByReasonForClass(
 	selectedCount int,
 	skippedCounts map[string]map[string]int,
 	sources []string,
+	skippedPackages map[string][]DerivedTargetSkippedPackage,
 ) []DerivedTargetSkipEvidence {
-	out := DerivedTargetSkipEvidenceByReason(collectorKind, targetLimit, selectedCount, skippedCounts, sources)
+	out := DerivedTargetSkipEvidenceByReason(collectorKind, targetLimit, selectedCount, skippedCounts, sources, skippedPackages)
 	for i := range out {
 		out[i].TargetClass = targetClass
 		out[i].SourceFamily = sourceFamily
@@ -94,10 +118,26 @@ func DerivedTargetSkipEvidenceByReasonForClass(
 	return out
 }
 
+// skipPackageKey keys the per-package identities of one evidence row. The NUL
+// separator keeps a reason containing any printable text from colliding with
+// an ecosystem value.
+func skipPackageKey(reason, ecosystem string) string {
+	return reason + "\x00" + ecosystem
+}
+
 // RecordDerivedTargetSkip counts one skipped candidate under its reason and
-// ecosystem. Blank reasons or ecosystems are ignored rather than bucketed
-// under an empty key.
-func RecordDerivedTargetSkip(skippedCounts map[string]map[string]int, reason string, ecosystem string) {
+// ecosystem, and records the candidate's package identities alongside the
+// count when the planner could identify them. Blank reasons or ecosystems are
+// ignored rather than bucketed under an empty key, and blank or empty package
+// entries are dropped rather than recorded. A nil packages slice records a
+// count-only row.
+func RecordDerivedTargetSkip(
+	skippedCounts map[string]map[string]int,
+	skippedPackages map[string][]DerivedTargetSkippedPackage,
+	reason string,
+	ecosystem string,
+	packages []DerivedTargetSkippedPackage,
+) {
 	if reason == "" || ecosystem == "" {
 		return
 	}
@@ -105,6 +145,37 @@ func RecordDerivedTargetSkip(skippedCounts map[string]map[string]int, reason str
 		skippedCounts[reason] = map[string]int{}
 	}
 	skippedCounts[reason][ecosystem]++
+	for _, pkg := range packages {
+		if pkg.Ecosystem == "" || pkg.PackageName == "" {
+			continue
+		}
+		key := skipPackageKey(reason, ecosystem)
+		skippedPackages[key] = append(skippedPackages[key], pkg)
+	}
+}
+
+// uniqueSortedSkippedPackages dedupes package identities and returns them in
+// a stable order, or nil when none were recorded.
+func uniqueSortedSkippedPackages(packages []DerivedTargetSkippedPackage) []DerivedTargetSkippedPackage {
+	if len(packages) == 0 {
+		return nil
+	}
+	seen := make(map[DerivedTargetSkippedPackage]struct{}, len(packages))
+	out := make([]DerivedTargetSkippedPackage, 0, len(packages))
+	for _, pkg := range packages {
+		if _, ok := seen[pkg]; ok {
+			continue
+		}
+		seen[pkg] = struct{}{}
+		out = append(out, pkg)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Ecosystem != out[j].Ecosystem {
+			return out[i].Ecosystem < out[j].Ecosystem
+		}
+		return out[i].PackageName < out[j].PackageName
+	})
+	return out
 }
 
 func sortedMapKeys[V any](values map[string]V) []string {

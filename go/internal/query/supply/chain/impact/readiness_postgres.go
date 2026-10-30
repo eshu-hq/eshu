@@ -252,13 +252,18 @@ func (s PostgresReadinessStore) readSupplyChainImpactReadiness(
 			continue
 		}
 		if family == sourceStateFamilyMarker {
-			if incompleteFlag.Valid && incompleteFlag.Bool {
-				targetIncomplete = true
-				incompleteReasons = append(incompleteReasons, reasons...)
-			}
 			decodedStates, err := decodeSourceStates(sourceStatesJSON)
 			if err != nil {
 				return ReadinessSnapshot{}, err
+			}
+			if incompleteFlag.Valid && incompleteFlag.Bool {
+				targetIncomplete = true
+				incompleteReasons = append(incompleteReasons, reasons...)
+			} else if sourceStatesSkipped(decodedStates) {
+				// A skipped aggregate never marks the family incomplete, but
+				// its osv:skipped:<reason> entries still name the terminal
+				// verdict the envelope reports.
+				incompleteReasons = append(incompleteReasons, reasons...)
 			}
 			sourceStates = append(sourceStates, ageSourceStates(decodedStates, freshnessCutoff)...)
 			continue
