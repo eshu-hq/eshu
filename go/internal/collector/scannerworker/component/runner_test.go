@@ -735,8 +735,8 @@ func TestRunnerRetryableFailureCarriesRetryAfter(t *testing.T) {
 	if len(page.Statuses) != 1 || page.Statuses[0].Class != sdkcollector.StatusFailure {
 		t.Fatalf("statuses = %+v, want one failure status", page.Statuses)
 	}
-	if got := page.Statuses[0].RetryAfterSeconds; got <= 0 {
-		t.Fatalf("retry_after_seconds = %d, want a positive bounded delay on a retryable failure", got)
+	if got := page.Statuses[0].RetryAfterSeconds; got != defaultRetryAfterSeconds {
+		t.Fatalf("retry_after_seconds = %d, want exactly the advertised %d-second bounded delay on a retryable failure", got, defaultRetryAfterSeconds)
 	}
 	validator := sdkcollector.NewValidator(sdkcollector.Contract{ProtocolVersion: protocolVersion})
 	if _, err := validator.ValidateResult(page.Result); err != nil {
