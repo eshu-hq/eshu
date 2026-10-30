@@ -120,7 +120,7 @@ func TestRequiredGrantsCoverEmittedKinds(t *testing.T) {
 // contract for component images: one linux/arm64 artifact per manifest,
 // addressed as ghcr.io/eshu-hq/scanner-<name> pinned to the immutable
 // sha256 digest of the merge-head publish (docker-publish run
-// 40963555579, merge 6ce31d8b9d; each attestation verified with
+// 41000640165, merge 768eeed282; each attestation verified with
 // gh attestation verify). Any republish must update these pins together:
 // a stale digest silently runs the old analyzer binary.
 func TestManifestArtifactPinsPublishTimeDigestContract(t *testing.T) {
@@ -132,15 +132,15 @@ func TestManifestArtifactPinsPublishTimeDigestContract(t *testing.T) {
 	}{
 		scannerworker.AnalyzerImageUnpacking: {
 			name:   "image",
-			digest: "ffddf249bf17eacb0db1ba018d7e999390d2014e45aabd15e294f4c01d6c82f5",
+			digest: "f92fabfc560a7703cb92ac227b90ce42dc45522f4d25533d342c5a140e7bd372",
 		},
 		scannerworker.AnalyzerSBOMGeneration: {
 			name:   "sbom",
-			digest: "f5acc7cbdf5337d0446c5fe6db657bccd158ea2186c03b6ea59f336498988e70",
+			digest: "cf0e10d62bd4ce0c6bfdf0de1cf3260565b67ed5189fe9544d9284906c9ecd90",
 		},
 		scannerworker.AnalyzerOSPackageExtraction: {
 			name:   "osruntime",
-			digest: "fd6ed4079f7dfc1f0118c122a2b01b71b5f65fa33a224eabffbd9376dbc575e8",
+			digest: "3dbca86bcb8f068a3fb50fcb6ad6a5806f32b9dc3e567dfb9fd7e74f60821e31",
 		},
 	}
 	for kind, want := range names {

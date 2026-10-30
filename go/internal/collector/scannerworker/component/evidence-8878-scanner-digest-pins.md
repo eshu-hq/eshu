@@ -71,3 +71,42 @@ No-Observability-Change (seed re-pin 6ce31d8b9d): no metric, span, log,
 or status field added, renamed, or removed by the new pin values; seed
 and admission failures keep the existing defect-only startup-error path
 with no new telemetry.
+
+## Re-pin after the retry fix (merge 768eeed282, docker-publish run 41000640165)
+
+The retry fix (#9596) advanced scanner inputs past anchor `6ce31d8b9d`,
+so `verify-scanner-digest-pins.sh` reports STALE on current main. This
+bump moves the anchor to
+`768eeed2829b149609c17db7aa8d7788147c0173` and the three pins to the
+`sha-768eeed282...` tags published from that merge:
+
+- image `f92fabfc...0e7bd372`, sbom `cf0e10d6...4906c9ecd`,
+  osruntime `3dbca86b...f60821e31` (full hex in `manifest.go`).
+- Each digest read back with `crane digest` and its build attestation
+  re-verified with `gh attestation verify oci://... -R eshu-hq/eshu`,
+  both with the default and the SPDX predicate (exit 0 on all six).
+- Review feedback removed the #9600 fold from this PR: any
+  `runner_test.go` change reads as a scanner input newer than the
+  anchor post-merge and would re-stale the gate, so the literal-60
+  assertion stays queued for the next functional scanner change
+  (#9600 stays closed with its pointer). Same
+  no-perf/no-observability reasoning as above: only hex constants
+  change; no code path, query, or telemetry is touched. The mirrored
+  in-repo chart values in the runtime contract test move with the
+  pins; the live chart carries no scanner seed.image entries.
+
+No-Regression Evidence (retry re-pin 768eeed282): component suite
+7.971s with the prior pins on the same host vs 7.805s with the new
+pins; `go test ./internal/collector/scannerworker/...
+./internal/runtime/ -count=1` green at HEAD, and
+`scripts/verify-scanner-digest-pins.sh` PASS (3 components at
+sha-768eeed2829b, inputs fresh). Constants-only change, manifest
+construction off any query, ingest, or graph-write path.
+Backend/version: no backend touched (unit suite, no graph backend);
+input shape: three pin constants plus anchor line; queue/row counts:
+none (no queue involved).
+
+No-Observability-Change (retry re-pin 768eeed282): no metric, span,
+log, or status field added, renamed, or removed by the new pin
+values; seed and admission failures keep the existing defect-only
+startup-error path with no new telemetry.
