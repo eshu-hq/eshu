@@ -98,12 +98,18 @@ func SplitFacts(facts []Fact, maxPageBytes int64) ([][]Fact, error) {
 		return nil, fmt.Errorf("page bound must be positive")
 	}
 	pages := make([][]Fact, 0, 1)
-	current := make([]Fact, 0, len(facts))
+	// current grows by append from nil so each page retains backing
+	// proportional to the page it carries. Sizing every page for all of
+	// facts retains len(facts) slots per page across the stream, which at
+	// first-scan scale (tens of thousands of facts over tens of pages)
+	// holds hundreds of megabytes of empty slots on the worker the paging
+	// contract exists to protect (eshu-hq/eshu#9635).
+	var current []Fact
 	var currentBytes int64
 	flush := func() {
 		if len(current) > 0 {
 			pages = append(pages, current)
-			current = make([]Fact, 0, len(facts))
+			current = nil
 			currentBytes = 0
 		}
 	}
