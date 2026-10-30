@@ -1,0 +1,10 @@
+plan 749; defaulted tests 10; defaulted packages 1; stale 0; drift errors []; budget errors []
+jobs(s) 1305.2 / 1304.1 / 1275.6 / 1267.4 / 1268.8 / 1272.9; max deviation 1.78%
+  s1: tests=106 rows=7 multi={}
+  s2: tests=51 rows=9 multi={}
+  s3: tests=216 rows=2 multi={'./internal/storage/postgres': 2}
+  s4: tests=62 rows=2 multi={'./internal/storage/postgres': 2}
+  s5: tests=119 rows=2 multi={'./internal/storage/postgres': 2}
+  s6: tests=195 rows=14 multi={}
+rows 36; max row 450.9 s (s4 ./internal/storage/postgres 47 tests)
+window: fails k=43..69; contiguous=False
