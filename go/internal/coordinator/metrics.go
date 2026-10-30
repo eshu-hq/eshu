@@ -38,7 +38,9 @@ type Metrics interface {
 	RecordReap(context.Context, ReapObservation)
 	// RecordStaleActivationSkip records one registry activation skipped at
 	// startup because its mounted config file is absent (#9634). Outcome is
-	// success when the registry entry was also dropped, error otherwise.
+	// success when no stale reference remains (the entry was dropped, was
+	// already gone, or its file reappeared before the drop), and error when
+	// the drop failed.
 	RecordStaleActivationSkip(context.Context, StaleActivationSkipObservation)
 	RecordRunReconciliation(context.Context, RunReconciliationObservation)
 	// RecordAWSFreshnessReap records one AWS freshness stuck-claim reap pass

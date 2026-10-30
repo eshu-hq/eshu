@@ -239,6 +239,11 @@ func ReconcileStaleComponentActivations(home string, skips []StaleActivationSkip
 			outcomes = append(outcomes, outcome)
 			continue
 		}
+		// The revalidation holds at check time: a file arriving between
+		// this stat and the Disable below is not covered (check-then-act
+		// with an external writer). The window is one startup pass, the
+		// startup warning always names the entry, and the next start
+		// re-registers an entry whose file is present.
 		if err := registry.Disable(skip.ComponentID, skip.InstanceID); err != nil {
 			// A concurrent removal between the lookup and the drop is
 			// already healed; any other failure is reported, never fatal.
