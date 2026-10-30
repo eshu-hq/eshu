@@ -105,11 +105,10 @@ row and claim status.
   shared `TargetAuthorized`.
 - `allowed_regions` and `allowed_services` reject empty and `*` wildcard
   entries, and every `service_kind` must satisfy
-  `awsruntime.SupportsServiceKind`. That registry is empty until a
-  `runtimebind` package's `init` runs, so this package's tests blank-import
-  the bindings aggregator (`aws_bindings_test.go`) exactly as the parent's
-  test binary does. Without it, valid service kinds would be rejected and the
-  tests would fail for the wrong reason.
+  `awsfreshness.SupportsServiceKind` against the static host vocabulary
+  (pinned to the scanner registry by
+  `TestSupportedServiceKindsMatchScannerRegistry`). No bindings import is
+  needed; the empty-registry failure mode no longer exists.
 - Requested-scope metadata carries only `collector_instance_id` and, per
   target, `account_id`, `region`, `service_kind`, and `scope_id` — never
   credentials or the raw configuration.

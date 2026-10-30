@@ -61,9 +61,10 @@ unsupported `service_kind`, and any unauthorized target all fail before a
 workflow row is returned. Unauthorized targets fail the batch rather than being
 dropped, so a root/child disagreement is loud instead of silent.
 
-Tests here need the AWS scanner registry populated. `aws_bindings_test.go`
-blank-imports `awsruntime/bindings` for that; deleting it makes every valid
-`service_kind` unsupported and the failures will look like planner bugs.
+Tests here must not import the collector tree. Service-kind validation runs
+through `awsfreshness.SupportsServiceKind` against the static host
+vocabulary; the only registry touchpoint is the transitional pin in
+`servicekinds_test.go`, which retires with the scanner tree.
 
 ## Verification
 

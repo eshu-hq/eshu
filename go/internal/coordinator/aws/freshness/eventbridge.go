@@ -13,7 +13,6 @@ import (
 const (
 	eventBridgeDetailTypeConfigChange  = "Config Configuration Item Change"
 	eventBridgeDetailTypeCloudTrailAPI = "AWS API Call via CloudTrail"
-	awsGlobalRegion                    = "aws-global"
 )
 
 type eventBridgeEnvelope struct {
@@ -142,7 +141,7 @@ func serviceKindFromCloudTrail(source string, eventSource string) (string, error
 
 func normalizeTriggerRegion(serviceKind string, region string) string {
 	if isGlobalService(serviceKind) {
-		return awsGlobalRegion
+		return GlobalRegion
 	}
 	return strings.TrimSpace(region)
 }

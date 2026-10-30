@@ -35,13 +35,11 @@
   `fake.Rows`) for the fake database double, not a package-private
   `fakeExecQueryer`/`queueFakeRows`: those stayed unexported test-file code in
   root and cannot be imported from here.
-- `bindings_test.go`'s blank import of `awscloud/awsruntime/bindings` is
-  required: `store_test.go` builds fixtures through
-  `freshness.NewStoredTrigger`, which validates `ServiceKind` against the AWS
-  scanner registry, and that registry is empty until a runtimebind package's
-  `init()` runs. Root keeps its own copy (`aws_bindings_test.go`) for tests
-  that still live there; Go test binaries are built and initialized per
-  package, so each needs its own registration.
+- `store_test.go` fixtures validate through the host-owned vocabulary
+  (no registry, no bindings import): `freshness.NewStoredTrigger` checks
+  `ServiceKind` against the static set. The only registry touchpoint is the
+  transitional pin in `servicekinds_test.go`, which retires with the scanner
+  tree.
 
 ## Common changes
 

@@ -34,13 +34,10 @@ adds no queue, worker, lease, retry, metric, span, or log boundary.
 
 ## Gotchas / invariants
 
-- **A standalone test binary starts with an empty AWS scanner registry.**
-  `ParseTargetScopes` validates `service_kind` through
-  `awsruntime.SupportsServiceKind`, which is empty until a `runtimebind` package
-  `init` runs. `aws_bindings_test.go` blank-imports the bindings aggregator for
-  that reason; without it these tests fail with `unsupported AWS service_kind`,
-  an error that has nothing to do with the planner. The root package used to get
-  the registration transitively from its other tests.
+- **No registry setup needed.** `ParseTargetScopes` validates
+  `service_kind` through `awsfreshness.SupportsServiceKind` against the
+  static host vocabulary. An `unsupported AWS service_kind` failure means the
+  kind is genuinely absent from the vocabulary, not a missing test registration.
 - **Service-level cases stay at root.** The `Service.Run` tests construct a
   `Service` with `fakeStore` and live in
   `../../../aws_scheduled_service_run_test.go`; only the planner's own unit cases moved
