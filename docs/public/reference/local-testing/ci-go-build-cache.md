@@ -69,12 +69,21 @@ target (`runtime`, `scanner-image`, `scanner-sbom`, `scanner-osruntime`):
   deleted. The image packages are never pruned: their untagged versions are
   the per-platform manifests of live multi-arch images.
 - `go/internal/cigates/dockercache_wiring_test.go` pins the event gate, the
-  registry ref, one fixed tag per target, that no other step exports a cache,
-  and that no secret reaches a build (mode=max exports every layer to a
-  package that anonymous PR readers must be able to pull, so it is treated as
-  public); `dockercache_wiring_mutations_test.go` breaks each rule.
+  registry ref, exactly one tag per target (compared for equality, so a prefix,
+  a suffix or a shared static tag fails), no secret reaching a build (mode=max
+  exports every layer to a package that anonymous PR readers must be able to
+  pull, so it is treated as public), and no cache export outside the two build
+  steps. `dockercache_wiring_mutations_test.go` breaks each rule.
   `buildcache_prune_workflow_test.go` pins the prune workflow's triggers,
   permissions, and dry-run switches.
+- The cache-export check covers `docker-publish.yml` only. It refuses a
+  `docker/bake-action` step, a run step with `cache-to` or a bake command, and
+  any repo-local script (`bash scripts/...`, `sh`, `./scripts/...`, `source`
+  or `.`, or a bare `scripts/...` path) a run step reaches, plus the files
+  that script sources one level deep, when the body holds `cache-to` or a bake
+  command (`dockercache_scripts_test.go`). It does not cover a script fetched
+  from elsewhere, an action pulled from another repository, a script path built
+  at run time, a source chain deeper than one level, or any other workflow.
 
 ## Why setup-go does not cache
 

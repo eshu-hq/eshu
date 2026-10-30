@@ -8,6 +8,27 @@ import (
 	"testing"
 )
 
+// tagOf picks the main-image value for the step without a target and the
+// scanner value for a step with one.
+func tagOf(s *readinessStep, main, scanner string) string {
+	if s.With["target"] == "" {
+		return main
+	}
+	return scanner
+}
+
+// tagExport builds a registry export at the chosen tag; a scanner value that
+// contains {0} becomes a format() call over matrix.component, as the real
+// workflow writes it.
+func tagExport(s *readinessStep, main, scanner string) string {
+	tag := tagOf(s, main, scanner)
+	export := "type=registry,ref=" + dockerCacheRef + tag + ",mode=max"
+	if strings.Contains(tag, "{0}") {
+		return "format('" + export + "', matrix.component)"
+	}
+	return "'" + export + "'"
+}
+
 // TestDockerCacheWritersOutsideTheBuildSteps proves a second cache writer is
 // refused: a duplicate cache-to key, a docker/bake-action step, and a shell
 // build that passes --cache-to (#9632).
@@ -56,7 +77,12 @@ func TestDockerCacheWritersOutsideTheBuildSteps(t *testing.T) {
 // pin, while the unmutated workflow passes.
 func TestDockerBuildCacheWiringMutations(t *testing.T) {
 	t.Parallel()
-	push := func(export string) string { return "${{ github.event_name == 'push' && '" + export + "' || '' }}" }
+	push := func(export string) string {
+		if strings.HasPrefix(export, "'") || strings.HasPrefix(export, "format(") {
+			return "${{ github.event_name == 'push' && " + export + " || '' }}"
+		}
+		return "${{ github.event_name == 'push' && '" + export + "' || '' }}"
+	}
 	setWith := func(key, value string) func(*readinessStep) {
 		return func(s *readinessStep) { s.With[key] = value }
 	}
@@ -109,6 +135,27 @@ func TestDockerBuildCacheWiringMutations(t *testing.T) {
 				tag = "scanner-image"
 			}
 			s.With["cache-from"] = "type=registry,ref=" + dockerCacheRef + tag
+		}, "own cache tag"},
+		{"scanner tag shared by every component", func(s *readinessStep) {
+			s.With["cache-to"] = push(tagExport(s, "scanner-shared", "scanner-shared"))
+		}, "one fixed tag per target"},
+		{"tag extended with a suffix (prefix-match bait)", func(s *readinessStep) {
+			s.With["cache-to"] = push(tagExport(s, "runtime-x", "scanner-{0}2"))
+		}, "one fixed tag per target"},
+		{"tag that merely contains the right one", func(s *readinessStep) {
+			s.With["cache-to"] = push(tagExport(s, "old-runtime", "old-scanner-{0}"))
+		}, "one fixed tag per target"},
+		{"scanner tag pinned to one component", func(s *readinessStep) {
+			s.With["cache-to"] = push(tagExport(s, "scanner-image", "scanner-image"))
+		}, "one fixed tag per target"},
+		{"cache-from tag extended with a suffix", func(s *readinessStep) {
+			s.With["cache-from"] = "type=registry,ref=" + dockerCacheRef + tagOf(s, "runtime-x", "scanner-${{ matrix.component }}2")
+		}, "own cache tag"},
+		{"cache-from tag that merely contains the right one", func(s *readinessStep) {
+			s.With["cache-from"] = "type=registry,ref=" + dockerCacheRef + tagOf(s, "old-runtime", "old-scanner-${{ matrix.component }}")
+		}, "own cache tag"},
+		{"cache-from reads a foreign tag", func(s *readinessStep) {
+			s.With["cache-from"] += "\ntype=registry,ref=" + dockerCacheRef + "scanner-shared"
 		}, "own cache tag"},
 		{"secret passed to BuildKit", setWith("secrets", "token=${{ secrets.GITHUB_TOKEN }}"), "must not pass secrets"},
 		{"secret build-arg", func(s *readinessStep) { s.With["build-args"] += "\nTOKEN=${{ secrets.GITHUB_TOKEN }}" }, "must not carry a secret"},

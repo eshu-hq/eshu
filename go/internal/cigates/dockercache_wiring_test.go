@@ -58,21 +58,71 @@ func checkDockerCacheTo(cacheTo string) string {
 	return ""
 }
 
-// checkDockerCacheTag requires one fixed tag per build target: the runtime
-// image writes and reads :runtime, each scanner image writes :scanner-<name>
-// and reads its own tag. Two targets sharing a tag would overwrite each
-// other's cache on every main push (#9632).
-func checkDockerCacheTag(step readinessStep) string {
-	own := dockerCacheRef + "runtime"
-	if step.With["target"] != "" {
-		own = dockerCacheRef + "scanner-"
+// dockerCacheToExportRE pulls the export literal, and the optional format()
+// argument, out of a cache-to expression that already matched dockerCacheToRE.
+var dockerCacheToExportRE = regexp.MustCompile(`'([^']*)'(?:, (matrix\.component))?\)?\s*\|\|\s*''$`)
+
+// cacheRefTag returns the tag of the first ref=<dockerCacheRef><tag> in an
+// export or cache-from line: the text after the package name up to the next
+// comma. It returns ok=false when the line holds no such ref.
+func cacheRefTag(line string) (string, bool) {
+	_, after, found := strings.Cut(line, "ref="+dockerCacheRef)
+	if !found {
+		return "", false
 	}
-	cacheTo := stripExpression(step.With["cache-to"])
-	if !strings.Contains(cacheTo, own) || (own != dockerCacheRef+"runtime" && strings.Contains(cacheTo, dockerCacheRef+"runtime")) {
+	tag, _, _ := strings.Cut(after, ",")
+	return strings.TrimSpace(tag), true
+}
+
+// ownCacheTag is the one tag a build step may write and must read: the
+// runtime image uses runtime; a step with a target uses the target itself
+// (scanner-${{ matrix.component }}), so every component has its own tag.
+func ownCacheTag(step readinessStep) string {
+	if target := step.With["target"]; target != "" {
+		return target
+	}
+	return "runtime"
+}
+
+// checkDockerCacheTag requires one fixed tag per build target, compared for
+// exact equality: the runtime image writes and reads :runtime, each scanner
+// image writes :scanner-<component> and reads that tag, and a scanner build
+// may also read :runtime for the shared builder stage. A prefix, a suffix, a
+// shared static tag or another target's tag would let two targets overwrite
+// each other's cache on every main push (#9632).
+func checkDockerCacheTag(step readinessStep) string {
+	own := ownCacheTag(step)
+	match := dockerCacheToExportRE.FindStringSubmatch(stripExpression(step.With["cache-to"]))
+	if match == nil {
 		return "cache-to must use one fixed tag per target (" + own + ") (#9632)"
 	}
-	if !strings.Contains(step.With["cache-from"], own) {
-		return "cache-from must include the target's own cache tag (" + own + ") (#9632)"
+	export := match[1]
+	if match[2] != "" {
+		export = strings.ReplaceAll(export, "{0}", "${{ "+match[2]+" }}")
+	}
+	if tag, ok := cacheRefTag(export); !ok || tag != own {
+		return "cache-to must use one fixed tag per target, exactly " + own + " (#9632)"
+	}
+	owned := false
+	for _, line := range strings.Split(step.With["cache-from"], "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		tag, ok := cacheRefTag(line)
+		switch {
+		case !ok:
+			return "cache-from must include the target's own cache tag, exactly " + own + " (#9632)"
+		case tag == own:
+			owned = true
+		case tag == "runtime" && own != "runtime":
+			// A scanner build also reads the runtime builder-stage cache.
+		default:
+			return "cache-from may read only the target's own cache tag " + own + " (and :runtime for a scanner), got " + tag + " (#9632)"
+		}
+	}
+	if !owned {
+		return "cache-from must include the target's own cache tag, exactly " + own + " (#9632)"
 	}
 	return ""
 }
