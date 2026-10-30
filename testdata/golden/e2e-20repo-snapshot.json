@@ -4705,6 +4705,16 @@
           "resources[].attributes.runtime": "python3.12"
         }
       },
+      "list_ssm_host_inventory": {
+        "description": "MCP tool coverage shape for list_ssm_host_inventory; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Zero floor: the 20-repo corpus carries no SSM host fixtures, so this shape asserts the contract fields and route resolution only.",
+        "required_response_fields": [
+          "hosts",
+          "malformed_facts",
+          "next_cursor"
+        ],
+        "minimum_results": 0,
+        "arguments": {}
+      },
       "list_cloud_runtime_drift_findings": {
         "description": "MCP tool coverage shape for list_cloud_runtime_drift_findings; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). #5759 wired buildMultiCloudRuntimeDriftReducerIntent into appendScopeGenerationReducerIntents (triggering on gcp_cloud_resource or azure_cloud_resource facts) and added MultiCloudRuntimeDriftHandler.Handle's excludeAWSOwnedRows provider-partition filter, so DomainMultiCloudRuntimeDrift is enqueued for GCP/Azure scopes and no longer collides with DomainAWSCloudRuntimeDrift's own findings for the same AWS resource -- closing the pre-existing registered-not-enqueued gap (domain built for #1997/#1998, predates #5453). Non-vacuous: a live golden-corpus-gate run returned 10 drift_findings for this GCP scope (bounded by the requested limit:10 below, the same convention the sibling list_aws_runtime_drift_findings entry uses -- this corpus's gcp_cloud_resource cassette carries 110 keyable resources and no Terraform state/config fixture anywhere in the corpus declares a matching google_* resource, so far more than 10 orphaned findings are admitted; the request just asks for one page of 10). minimum_results is 1, which requires results_field (added here -- #5862 removed EvaluateQueryShape's implicit first-array-field inference, so an entry with minimum_results>0 and no results_field is now an unconditional hard failure regardless of live data); the row count above was established by a live golden-corpus-gate run against the underlying route before this results_field correction landed, and this corrected shape still needs confirmation on the next live run. #5453's image_version_drift value drift is separately proven non-vacuously through the sibling list_aws_runtime_drift_findings entry (reducer_aws_cloud_runtime_drift_finding, exclusively AWS-owned and unaffected by this change).",
         "required_response_fields": [

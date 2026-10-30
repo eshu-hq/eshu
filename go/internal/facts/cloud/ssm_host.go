@@ -63,13 +63,11 @@ func SSMHostSchemaVersion(factKind string) (string, bool) {
 // metadata: the fact-kind-registry generator discovers it statically and
 // derives the registry, shards, and catalog from it.
 //
-// Both kinds are disclosed DispositionUnconsumed: this leaf ships the
-// contract only, and the generator rejects a kind with neither a reducer
-// binding nor a disposition. The satellite collection
-// (eshu-hq/eshu-collector-aws-cloud) and the reducer/read surfaces land in
-// sibling #9295 leaves; until they do, read_surface stays "none" (the
-// recognized no-claim sentinel) so the consumer-existence gates have nothing
-// to resolve.
+// Both kinds are consumed by verified reducer bindings (issue #9558): the
+// generator rejects a kind that carries both a binding and a disposition, so
+// no disposition rides here. The read surface is the SSM host inventory
+// readback; the projection hook names the materialization domain that writes
+// the served observation nodes.
 var SSMHostFamilyDeclaration = contract.Declare(contract.Family{
 	ID:                     "aws_ssm_host",
 	FactDir:                "go/internal/facts/cloud",
@@ -77,25 +75,22 @@ var SSMHostFamilyDeclaration = contract.Declare(contract.Family{
 	LifecycleOwner:         "go/internal/facts",
 	SchemaVersion:          "1.0.0",
 	ReducerDomain:          "ssm_host_inventory_materialization",
+	ReducerDir:             "go/internal/reducer/ssmhost",
 	ProjectionHook:         "ssm_host_inventory_materialization",
 	AdmissionHook:          "facts.ValidateSchemaVersion",
-	ReadSurface:            "none",
+	ReadSurface:            "GET /api/v0/cloud/ssm-host-inventory",
 	TruthProfile:           "provider_gated",
 	ProviderKeyIndependent: false,
 	Kinds: []contract.Kind{
 		{
-			Kind:              "aws_ssm_host_application",
-			PayloadSchema:     "sdk/go/factschema/schema/aws_ssm_host_application.v1.schema.json",
-			Disposition:       contract.DispositionUnconsumed,
-			NoReducerReason:   "Contract-only kind for eshu-hq/eshu#9556: the satellite SSM inventory emitter and the host-inventory read surface land in sibling #9295 leaves, so no reducer decodes this kind yet and application observations produce zero canonical rows.",
-			NoReducerEvidence: "rg -n SSMHostApplicationFactKind go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g *.go --glob !*_test.go -> 0 matches at declaration time; same for the wire string aws_ssm_host_application",
+			Kind:          "aws_ssm_host_application",
+			PayloadSchema: "sdk/go/factschema/schema/aws_ssm_host_application.v1.schema.json",
+			ReadSurface:   "GET /api/v0/cloud/ssm-host-inventory",
 		},
 		{
-			Kind:              "aws_ssm_host_platform",
-			PayloadSchema:     "sdk/go/factschema/schema/aws_ssm_host_platform.v1.schema.json",
-			Disposition:       contract.DispositionUnconsumed,
-			NoReducerReason:   "Contract-only kind for eshu-hq/eshu#9556: the satellite SSM platform emitter and the host-inventory read surface land in sibling #9295 leaves, so no reducer decodes this kind yet.",
-			NoReducerEvidence: "rg -n SSMHostPlatformFactKind go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g *.go --glob !*_test.go -> 0 matches at declaration time; same for the wire string aws_ssm_host_platform",
+			Kind:          "aws_ssm_host_platform",
+			PayloadSchema: "sdk/go/factschema/schema/aws_ssm_host_platform.v1.schema.json",
+			ReadSurface:   "GET /api/v0/cloud/ssm-host-inventory",
 		},
 	},
 	Producers: []contract.Producer{

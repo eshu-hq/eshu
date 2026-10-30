@@ -58,10 +58,10 @@ def expected_tests(inventory: dict[str, object]) -> dict[str, set[str]]:
 
 
 def verify_inventory(root: Path, inventory: dict[str, object]) -> None:
-    """Check exactly 23 unchanged source files, 27 declarations, and selector."""
+    """Check exactly 24 unchanged source files, 28 declarations, and selector."""
     files = inventory.get("files")
-    if not isinstance(files, dict) or len(files) != 23 or inventory.get("file_count") != 23:
-        raise ValueError("replay source inventory must contain exactly 23 files")
+    if not isinstance(files, dict) or len(files) != 24 or inventory.get("file_count") != 24:
+        raise ValueError("replay source inventory must contain exactly 24 files")
     tests = []
     for filename, entry in files.items():
         if not filename.startswith(SOURCE_PATH) or not filename.endswith("_live_test.go"):
@@ -75,8 +75,8 @@ def verify_inventory(root: Path, inventory: dict[str, object]) -> None:
         if names != entry.get("tests"):
             raise ValueError(f"replay declarations changed: {filename}")
         tests.extend(names)
-    if len(tests) != 27 or len(set(tests)) != 27 or inventory.get("test_count") != 27:
-        raise ValueError("replay source must declare 27 unique tests")
+    if len(tests) != 28 or len(set(tests)) != 28 or inventory.get("test_count") != 28:
+        raise ValueError("replay source must declare 28 unique tests")
     selector = inventory.get("selector")
     expected_selector = (set(tests) - {"TestDeltaTombstoneGraphTruth",
                                       "TestDeltaTombstoneNegativeControlBrokenRetraction"})
@@ -85,7 +85,7 @@ def verify_inventory(root: Path, inventory: dict[str, object]) -> None:
     expected_selector |= ADDITIONAL_TIER_TESTS[REDUCER_PACKAGE]
     if (not isinstance(selector, str)
             or set(selector.split("|")) != expected_selector
-            or len(selector.split("|")) != 30):
+            or len(selector.split("|")) != 31):
         raise ValueError("replay selector does not name exactly the enrolled and retained tests")
     source_pins = inventory.get("proof_source_sha256")
     if (not isinstance(source_pins, dict)

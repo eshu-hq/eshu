@@ -1,0 +1,10 @@
+{
+  "scenario": "ssm-host-inventory-materialization",
+  "cassette": "none: ssm.HostNodeWriter operates over flat map[string]any rows, not a CanonicalMaterialization; the two-host fixture rows live inline in go/internal/replay/costcounting/ssm_host_inventory_cost_test.go",
+  "description": "Two deterministic hosts (one application row, one platform row, one REPORTED_WITH edge each) in one account/region, driven through the production writer over an InstrumentedExecutor in a single WriteHostObservationBatch. HostNodeWriter fans out to exactly three kind dispatches (application nodes, platform nodes, REPORTED_WITH edges, node-then-edge) and the default batch size covers all rows, so the writer emits exactly three UNWIND write statements (eshu_dp_neo4j_batches_executed_total=3, statements_executed=3). Any increase — an N+1 write cycle, an extra batch split, or a new kind dispatch — trips the gate.",
+  "refresh_path": "manual: edit the inline fixture rows in ssm_host_inventory_cost_test.go and this file together, reviewed in the same diff (no credentialed cassette refresh applies since there is no cassette)",
+  "budgets": {
+    "eshu_dp_neo4j_batches_executed_total": 3,
+    "statements_executed": 3
+  }
+}

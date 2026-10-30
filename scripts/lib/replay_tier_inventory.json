@@ -1,5 +1,5 @@
 {
-  "file_count": 23,
+  "file_count": 24,
   "files": {
     "go/internal/replay/offlinetier/delta_tier_canonical_governance_edge_retract_live_test.go": {
       "sha256": "68e0a12a4d431505aa311d0d07620d24c544c7790a3227a7dcb1461675e3d726",
@@ -131,6 +131,12 @@
         "TestReducerSQLRelationshipRetractGraphTruth"
       ]
     },
+    "go/internal/replay/offlinetier/delta_tier_reducer_ssm_host_retract_live_test.go": {
+      "sha256": "9ffe3c6cbe28270e99985f764b11207c7e0d74a73b12b23ceb087d1a5adbdf7c",
+      "tests": [
+        "TestReducerSSMHostRetractGraphTruth"
+      ]
+    },
     "go/internal/replay/offlinetier/delta_tier_reducer_workload_uses_edge_retract_live_test.go": {
       "sha256": "a15e0a52a5193267225794ffb79e5aed51dc1ee21ffffbaba113fed36ba3178f",
       "tests": [
@@ -146,10 +152,10 @@
   },
   "head": "e0e7f03f9763b25e7f5b1163e2bdafb4f5100f24",
   "proof_source_sha256": {
-    "scripts/verify-replay-tier.sh": "c444a52095236b608cda143bf4bdbbedc9302e9ed23f4980bcdefeac8f81056b",
-    "scripts/lib/replay_tier_enrollment.py": "9a588e169c81abc96b363adced5c60918b76b9ac7bfdcda210939121880d6822",
+    "scripts/verify-replay-tier.sh": "41fddbd06d6a86fe2e55ad114c0d6121b2d423b39f57eb8a195110c65c5ad6a4",
+    "scripts/lib/replay_tier_enrollment.py": "b25533f68f7de8e92524c27456a54bf21af958db5ab162cb61596d1940805faa",
     "scripts/lib/replay_tier_routes.py": "866409774cba18768d4a7dacd126e83f680c74de25dfc8531970e58582ae694d"
   },
-  "selector": "TestOfflineReplayTierGraphTruth|TestDeltaTombstone|TestDeltaEntityRetractGraphTruth|TestEntityRetractManifestBinding|TestDeltaSurvivorScopedRetractGraphTruth|TestDeltaEdgeRetractGraphTruth|TestDeltaFileRetractGraphTruth|TestReducerCodeCallEdgeRetractGraphTruth|TestReducerInheritanceEdgeRetractGraphTruth|TestReducerSQLRelationshipRetractGraphTruth|TestReducerRationaleEdgeRetractGraphTruth|TestReducerMetaclassEdgeRetractGraphTruth|TestReducerRepoDependencyEdgeRetractGraphTruth|TestReducerRuntimeEdgeRetractGraphTruth|TestReducerContentEdgeRetractGraphTruth|TestCodeInterprocTaintEdgeRetractGraphTruth|TestReducerCloudEdgeRetractGraphTruth|TestReducerSecurityGroupReachabilityEdgeRetractGraphTruth|TestReducerCanonicalGovernanceEdgeRetractGraphTruth|TestReducerWorkloadUsesEdgeRetractGraphTruth|TestReducerIAMEdgeRetractGraphTruth|TestReducerAWSCloudImageEdgeRetractGraphTruth|TestReducerSecretsIAMEdgeRetractGraphTruth|TestReducerSemanticVariableRetractGraphTruth|TestReducerKubernetesNamespaceEnvironmentRetractGraphTruth|TestReducerKubernetesNamespaceAbsentNodeRetractGraphTruth|TestReducerProvenanceReplayTombstoneGraphTruth|TestNornicDBFunctionProjectionEvaluatesAfterOptionalMatch|TestNornicDBChainedOptionalMatchEvaluatesSecondHop|TestGovScopeMaterializationEntitySourcesHaveFiles",
-  "test_count": 27
+  "selector": "TestOfflineReplayTierGraphTruth|TestDeltaTombstone|TestDeltaEntityRetractGraphTruth|TestEntityRetractManifestBinding|TestDeltaSurvivorScopedRetractGraphTruth|TestDeltaEdgeRetractGraphTruth|TestDeltaFileRetractGraphTruth|TestReducerCodeCallEdgeRetractGraphTruth|TestReducerInheritanceEdgeRetractGraphTruth|TestReducerSQLRelationshipRetractGraphTruth|TestReducerRationaleEdgeRetractGraphTruth|TestReducerMetaclassEdgeRetractGraphTruth|TestReducerRepoDependencyEdgeRetractGraphTruth|TestReducerRuntimeEdgeRetractGraphTruth|TestReducerContentEdgeRetractGraphTruth|TestCodeInterprocTaintEdgeRetractGraphTruth|TestReducerCloudEdgeRetractGraphTruth|TestReducerSecurityGroupReachabilityEdgeRetractGraphTruth|TestReducerCanonicalGovernanceEdgeRetractGraphTruth|TestReducerWorkloadUsesEdgeRetractGraphTruth|TestReducerIAMEdgeRetractGraphTruth|TestReducerAWSCloudImageEdgeRetractGraphTruth|TestReducerSecretsIAMEdgeRetractGraphTruth|TestReducerSemanticVariableRetractGraphTruth|TestReducerSSMHostRetractGraphTruth|TestReducerKubernetesNamespaceEnvironmentRetractGraphTruth|TestReducerKubernetesNamespaceAbsentNodeRetractGraphTruth|TestReducerProvenanceReplayTombstoneGraphTruth|TestNornicDBFunctionProjectionEvaluatesAfterOptionalMatch|TestNornicDBChainedOptionalMatchEvaluatesSecondHop|TestGovScopeMaterializationEntitySourcesHaveFiles",
+  "test_count": 28
 }

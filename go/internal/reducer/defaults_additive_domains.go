@@ -28,6 +28,7 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 	definitions = appendCloudResourceNodeAdditiveDomains(definitions, handlers)
 	definitions = appendCloudRelationshipAdditiveDomains(definitions, handlers)
 	definitions = appendCloudPostureEdgeAdditiveDomains(definitions, handlers)
+	definitions = appendSSMHostAdditiveDomains(definitions, handlers)
 	definitions = appendIncidentAndCodeEvidenceAdditiveDomains(definitions, handlers)
 	definitions = appendCrossplaneAdditiveDomains(definitions, handlers)
 	return definitions

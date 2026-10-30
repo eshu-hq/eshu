@@ -1226,6 +1226,13 @@ func TestEntityTypeLabelMapCoversAllSchemaLabels(t *testing.T) {
 	// uses for its own dedicated writer — NOT through the generic
 	// entityTypeLabelMap/content-entity path, so they have no entity_type
 	// mapping in this source-local map either.
+	// SSMHostApplication and SSMHostPlatform are materialized directly by the
+	// dedicated ssm HostNodeWriter
+	// (storage/cypher/cloud/aws/ssm/host_writer.go) from typed
+	// aws_ssm_host_application and aws_ssm_host_platform facts (eshu-hq/eshu#9558),
+	// the same dedicated-writer pattern — NOT through the generic
+	// entityTypeLabelMap/content-entity path, so they have no entity_type
+	// mapping in this source-local map either.
 	sourceLocalNonEntityLabels := map[string]struct{}{
 		"File":                           {},
 		"CloudResource":                  {},
@@ -1245,6 +1252,8 @@ func TestEntityTypeLabelMapCoversAllSchemaLabels(t *testing.T) {
 		"TerraformStateResource":         {},
 		"PackageArtifact":                {},
 		"PackageRegistryPackageArtifact": {},
+		"SSMHostApplication":             {},
+		"SSMHostPlatform":                {},
 		"RegistryEvent":                  {},
 		"PackageRegistryRegistryEvent":   {},
 	}

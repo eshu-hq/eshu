@@ -210,6 +210,9 @@ func selectRoute(toolName string, args map[string]any) (*routecontract.Request, 
 	if route, ok := cloudInventoryRoute(toolName, args); ok {
 		return route, nil
 	}
+	if route, ok := ssmHostInventoryRoute(toolName, args); ok {
+		return route, nil
+	}
 	if route, ok := cloudRuntimeDriftRoute(toolName, args); ok {
 		return route, nil
 	}

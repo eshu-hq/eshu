@@ -25,6 +25,7 @@ func iacDriftToolIntents() map[string]toolIntent {
 		"propose_terraform_import_plan": intents("terraform import plan", "generate terraform import blocks", "import candidates for unmanaged resources", "terraform import commands"),
 		// cloud inventory (not in a family)
 		"list_cloud_resource_inventory": intents("cloud resource inventory", "multi cloud resource identities", "resources by management origin", "list cloud resources by provider"),
+		"list_ssm_host_inventory":       intents("ssm host inventory", "instances by ssm inventory", "ssm managed instances with platform", "application inventory per host"),
 		// correlations and ownership (not in a family)
 		"list_service_catalog_correlations":        intents("service catalog ownership", "service owner from catalog", "catalog drift for service", "backstage descriptor correlation"),
 		"list_codeowners_ownership":                intents("codeowners rules", "who owns this path", "effective owner of repository", "codeowners declarations"),

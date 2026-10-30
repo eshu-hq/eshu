@@ -142,6 +142,7 @@ var retirementDomainPlans = map[reducercontract.Domain]RetireDomainPlan{
 	reducercontract.DomainSecurityGroupReachabilityMaterialization: {Class: RetireDomainNotRepositoryScoped, Reason: "edges between cloud-keyed security-group rule nodes (SecurityGroupReachabilityWriter); cross-scope, no repo key"},
 	reducercontract.DomainSecurityGroupRuleMaterialization:         {Class: RetireDomainNotRepositoryScoped, Reason: "security-group rule nodes keyed by cloud identity; cross-scope, no repo key"},
 	reducercontract.DomainServiceCatalogCorrelation:                {Class: RetireDomainNotRepositoryScoped, Reason: "Postgres correlation rows only (PostgresServiceCatalogCorrelationWriter); no graph writes"},
+	reducercontract.DomainSSMHostInventoryMaterialization:          {Class: RetireDomainNotRepositoryScoped, Reason: "host-keyed SSMHostApplication/SSMHostPlatform nodes and REPORTED_WITH edges (MERGE on uid, host-tuple/uid-listed DETACH retracts in ssm/host_writer.go); account/region/instance scope, no repo key"},
 	reducercontract.DomainSupplyChainImpact:                        {Class: RetireDomainNotRepositoryScoped, Reason: "Postgres impact findings and winner rows only (PostgresSupplyChainImpactWriter); no graph writes"},
 	reducercontract.DomainWorkloadIdentity:                         {Class: RetireDomainNotRepositoryScoped, Reason: "Postgres workload-identity facts only (PostgresWorkloadIdentityWriter); graph nodes are written under workload_materialization"},
 }

@@ -113,6 +113,7 @@ func Spec() string {
 			infrastructure.ResourceAggregate+
 			cloud.Routes+
 			cloud.Inventory+
+			cloud.SSMHostInventory+
 			cloud.RuntimeDrift+
 			cli.Render+
 			cli.Compose+
