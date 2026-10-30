@@ -206,6 +206,8 @@ func (e *Engine) preScanOnePath(resolvedRepoRoot string, rawPath string) (preSca
 		names, err = e.preScanCSharp(resolvedPath)
 	case "cpp":
 		names, err = e.preScanCPP(resolvedPath)
+	case "cabal":
+		names = nil
 	case "dart":
 		names, err = e.preScanDart(resolvedPath)
 	case "elixir":
@@ -281,6 +283,8 @@ func (e *Engine) parseDefinition(
 		return e.parseCSharp(resolvedPath, isDependency, options)
 	case "cpp":
 		return e.parseCPP(repoRoot, resolvedPath, isDependency, options)
+	case "cabal":
+		return e.parseCabal(resolvedPath, isDependency, options)
 	case "dart":
 		return e.parseDart(resolvedPath, isDependency, options)
 	case "dockerfile":

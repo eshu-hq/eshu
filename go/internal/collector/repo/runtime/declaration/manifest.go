@@ -60,6 +60,7 @@ const (
 	sourceKindStackYamlResolver         = "stack_yaml_resolver"
 	sourceKindDartPubspecSDK            = "dart_pubspec_environment_sdk"
 	sourceKindDartFvmrcFlutter          = "dart_fvmrc_flutter"
+	sourceKindCabalTestedWith           = "cabal_tested_with"
 )
 
 // section identifies the manifest section a declaration was read from.
@@ -109,6 +110,7 @@ const (
 	sectionStackYamlResolver
 	sectionDartPubspecSDK
 	sectionDartFvmrcFlutter
+	sectionCabalTestedWith
 )
 
 // sectionSourceKinds maps a section to its source kind.
@@ -156,6 +158,7 @@ var sectionSourceKinds = [...]string{
 	sectionStackYamlResolver:         sourceKindStackYamlResolver,
 	sectionDartPubspecSDK:            sourceKindDartPubspecSDK,
 	sectionDartFvmrcFlutter:          sourceKindDartFvmrcFlutter,
+	sectionCabalTestedWith:           sourceKindCabalTestedWith,
 }
 
 // MaxManifestBytesPerFile bounds one package.json, Composer, or go.mod body. A manifest
@@ -197,6 +200,7 @@ const (
 	manifestStackYaml
 	manifestDartPubspec
 	manifestDartFvmrc
+	manifestHaskellCabal
 )
 
 // dependencyDirs are directory names whose manifests belong to a dependency,
@@ -240,6 +244,8 @@ func manifestKindForBase(base, relativePath string) manifestKind {
 		kind = manifestMixExs
 	case base == "stack.yaml":
 		kind = manifestStackYaml
+	case strings.EqualFold(path.Ext(base), ".cabal"):
+		kind = manifestHaskellCabal
 	case base == "pyproject.toml" || base == "Pipfile":
 		kind = manifestPythonTOML
 	case base == "setup.cfg":

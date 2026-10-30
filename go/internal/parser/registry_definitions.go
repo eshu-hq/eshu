@@ -103,6 +103,14 @@ func defaultDefinitions() []Definition {
 			Extensions: []string{".hs"},
 		},
 		{
+			ParserKey:    "haskell_cabal",
+			Language:     "cabal",
+			Ecosystem:    "haskell",
+			Admission:    AdmissionStructuredFact,
+			ContentStore: ContentStore{Policy: ContentStoreMetadata},
+			Extensions:   []string{".cabal"},
+		},
+		{
 			ParserKey:  "hcl",
 			Language:   "hcl",
 			Ecosystem:  "terraform",
