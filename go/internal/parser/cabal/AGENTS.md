@@ -2,7 +2,7 @@
 
 ## Read first
 
-1. `README.md` - purpose, surface, and bounds.
+1. `README.md` - purpose and bounds.
 2. `doc.go` - godoc contract.
 3. `cabal.go` - the `tested-with` scanner and `Parse`.
 

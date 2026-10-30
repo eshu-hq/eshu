@@ -13,13 +13,11 @@ import (
 // sourceKindCabalTestedWith names the tested-with declaration section.
 const sourceKindCabalTestedWith = "cabal_tested_with"
 
-// ExtractCabalRuntimeEvidence reads the tested-with specs of one .cabal body.
-// Only a column-zero tested-with field is read; continuations extend it and
-// entries split on commas at the line their text starts on. An indented
-// tested-with, a conditional in continuation position, a package-level
-// conditional, a duplicate or empty field, or a NUL byte fails closed to
-// unavailable with no values retained. Every entry passes the shared
-// SafeVersionSpec guard, so credential-shaped values drop counted.
+// ExtractCabalRuntimeEvidence reads the tested-with specs of one .cabal body:
+// a column-zero field, continuations extending it, entries split on commas at
+// their line. Indented fields, in-scope conditionals, duplicates, empties, and
+// NUL bytes fail closed; every entry passes SafeVersionSpec, dropping
+// credential-shaped values counted.
 func ExtractCabalRuntimeEvidence(source []byte) shared.RuntimeEvidence {
 	evidence := shared.NewRuntimeEvidence(source)
 	if evidence.State == "over_cap" {

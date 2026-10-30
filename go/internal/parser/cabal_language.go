@@ -11,8 +11,5 @@ import (
 // parseCabal dispatches .cabal parsing through the cabal sub-package.
 // The cabal language is metadata-only: it never reaches the Haskell parser.
 func (e *Engine) parseCabal(path string, isDependency bool, options Options) (map[string]any, error) {
-	return cabalparser.Parse(path, isDependency, shared.Options{
-		IndexSource:   options.IndexSource,
-		VariableScope: options.VariableScope,
-	})
+	return cabalparser.Parse(path, isDependency, shared.Options{IndexSource: options.IndexSource, VariableScope: options.VariableScope})
 }

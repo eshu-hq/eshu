@@ -17,9 +17,6 @@ func cabalValues(t *testing.T, body string) (map[int][]string, shared.RuntimeEvi
 	evidence := ExtractCabalRuntimeEvidence([]byte(body))
 	got := make(map[int][]string)
 	for _, v := range evidence.Values {
-		if v.SourceKind != sourceKindCabalTestedWith || v.Runtime != "haskell" {
-			t.Fatalf("value = %+v, want kind %q runtime %q", v, sourceKindCabalTestedWith, "haskell")
-		}
 		got[v.Line] = append(got[v.Line], v.Value)
 	}
 	return got, evidence

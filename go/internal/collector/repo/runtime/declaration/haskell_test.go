@@ -72,17 +72,22 @@ func TestHaskellCabalManifestContentOnlyDispatch(t *testing.T) {
 	}
 }
 
-// TestHaskellCabalManifestSkips pins fail-closed, dropped, and capped reads.
+// TestHaskellCabalManifestSkips pins fail-closed, dropped, capped, and
+// excluded reads: neighbor manifests emit nothing with no skip at all.
 func TestHaskellCabalManifestSkips(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name, path, body, reason string
-		rejected                 int
+		rejected, cap            int
 	}{
-		{"cabal malformed", "demo.cabal", "name: demo\ntested-with: GHC==9.4.8\x00\n", SkipReasonManifestUnparseable, 0},
-		{"cabal credential", "demo.cabal", "tested-with: GHC==9.4.8, https://user:secret@example.invalid\n", SkipReasonValueRejected, 1},
-		{"cabal tokens", "demo.cabal", "tested-with: " + strings.Repeat("GHC==9.4.8,", 1025) + "\n", SkipReasonTokenCap, 0},
-		{"cabal bytes", "demo.cabal", "tested-with: GHC==9.4.8, " + strings.Repeat("x", MaxManifestBytesPerFile), SkipReasonByteCap, 0},
+		{"cabal malformed", "demo.cabal", "name: demo\ntested-with: GHC==9.4.8\x00\n", SkipReasonManifestUnparseable, 0, 0},
+		{"cabal credential", "demo.cabal", "tested-with: GHC==9.4.8, https://user:secret@example.invalid\n", SkipReasonValueRejected, 1, 0},
+		{"cabal tokens", "demo.cabal", "tested-with: " + strings.Repeat("GHC==9.4.8,", 1025) + "\n", SkipReasonTokenCap, 0, 0},
+		{"cabal bytes", "demo.cabal", "tested-with: GHC==9.4.8, " + strings.Repeat("x", MaxManifestBytesPerFile), SkipReasonByteCap, 0, MaxManifestBytesPerFile},
+		{"cabal.project excluded", "cabal.project", "tested-with: GHC==9.4.8\n", "", 0, 0},
+		{"cabal.project.freeze excluded", "cabal.project.freeze", "tested-with: GHC==9.4.8\n", "", 0, 0},
+		{"stack.yaml.lock excluded", "stack.yaml.lock", "tested-with: GHC==9.4.8\n", "", 0, 0},
+		{"stack.yaml excluded", "stack.yaml", "tested-with: GHC==9.4.8\n", "", 0, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -90,11 +95,7 @@ func TestHaskellCabalManifestSkips(t *testing.T) {
 			if tc.reason != SkipReasonValueRejected && len(envelopes) != 0 {
 				t.Fatalf("%s emitted %d declarations", tc.name, len(envelopes))
 			}
-			wantCap := 0
-			if tc.reason == SkipReasonByteCap {
-				wantCap = MaxManifestBytesPerFile
-			}
-			if skip.Reason != tc.reason || skip.Rejected != tc.rejected || skip.ByteCap != wantCap {
+			if skip.Reason != tc.reason || skip.Rejected != tc.rejected || skip.ByteCap != tc.cap {
 				t.Fatalf("skip = %+v, want reason=%s rejected=%d", skip, tc.reason, tc.rejected)
 			}
 			for _, env := range envelopes {
@@ -125,21 +126,6 @@ func TestStackLockfilesNotAdmitted(t *testing.T) {
 	for _, path := range []string{"stack.yaml.lock", "cabal.project", "stack.yaml.freeze", "sub/stack.yaml.lock"} {
 		if extraction, ok := Extract(path, "resolver: lts-22.43\n"); ok {
 			t.Fatalf("%s admitted with %+v", path, extraction)
-		}
-	}
-}
-
-// TestHaskellCabalClassifyPath pins .cabal admission and neighbor exclusion.
-// stack.yaml is admitted by the stack lane, so it is not in the exclusion
-// list; the stack boundary tests pin its admission.
-func TestHaskellCabalClassifyPath(t *testing.T) {
-	t.Parallel()
-	if got := ClassifyPath("services/api/demo.cabal"); got != FileManifest {
-		t.Fatalf("ClassifyPath(demo.cabal) = %v, want FileManifest", got)
-	}
-	for _, path := range []string{"cabal.project", "cabal.project.freeze", "stack.yaml.lock"} {
-		if got := ClassifyPath(path); got != FileNotAdmitted {
-			t.Fatalf("ClassifyPath(%q) = %v, want FileNotAdmitted", path, got)
 		}
 	}
 }

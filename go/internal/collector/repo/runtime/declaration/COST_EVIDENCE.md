@@ -474,3 +474,24 @@ ride the same content-stream fact count as the sibling lanes; malformed
 or capped manifests reuse the existing WARN
 `git_runtime_declaration_file_skipped` and guarded values reuse WARN
 `git_runtime_declaration_values_rejected` with the same labels.
+
+## Haskell collector cost and signals (#9308)
+
+Performance Evidence (#9308, 2026-10-30): paired sequential local benches
+(`go test ./internal/collector/repo/runtime/declaration/ -run '^$' -bench
+'^BenchmarkEmitPackageJSON$' -benchtime=300ms -count=3 -benchmem`, Go
+1.26.10 linux/arm64, no graph or Postgres backend) on the branch base
+`0701a4ae` and the cabal lane head `2400359`: base 59,652/59,392/59,643
+ns/op against head 59,680/58,860/58,155 ns/op, with 620 allocs/op on every
+run of both. A temporary head-only harness through the production `EmitFile`
+path for the new 83-byte body (removed after the run) emits 2 envelopes at
+20,238-20,310 ns/op and 220 allocs/op.
+
+No-Regression Evidence: the shared package.json path keeps identical allocs
+with timings inside the same host-noise band; the new reader runs only for
+`.cabal` (registry dispatch plus one manifest switch case). The collector
+keeps the existing per-file byte and token caps, so over-cap files emit no fact.
+
+No-Observability-Change: no metric, span, or log key was added. Capped and
+guarded values reuse WARN `git_runtime_declaration_file_skipped` and
+`git_runtime_declaration_values_rejected` with the same labels.

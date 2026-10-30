@@ -6,9 +6,7 @@ package parser
 import "testing"
 
 // TestRegistryAdmitsHaskellCabalMetadataOnly pins the Others Haskell (vi)
-// lane: a dedicated metadata-only definition binds exactly ".cabal" to the
-// Haskell ecosystem, and the neighboring Haskell-adjacent manifests stay
-// unadmitted.
+// lane: exactly ".cabal" binds metadata-only, neighbors stay unadmitted.
 func TestRegistryAdmitsHaskellCabalMetadataOnly(t *testing.T) {
 	t.Parallel()
 	registry := DefaultRegistry()
