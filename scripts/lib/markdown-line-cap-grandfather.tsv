@@ -83,20 +83,20 @@ go/internal/reducer/evidence-notes.md	804
 go/internal/relationships/README.md	532
 go/internal/storage/cypher/README.md	2123
 go/internal/storage/postgres/AGENTS.md	1170
-go/internal/storage/postgres/README.md	3766
+go/internal/storage/postgres/README.md	3765
 go/internal/storage/postgres/evidence-notes.md	1032
 go/internal/workflow/README.md	518
 
 # Docs scope introduced by #6545. Each pin is measured from origin/main;
 # the gate independently verifies imports against the immutable base.
-docs/internal/aws-relationship-edge-materialization-design.md	690
+docs/internal/aws-relationship-edge-materialization-design.md	689
 docs/internal/design/391-observability-coverage-correlation.md	624
 docs/internal/design/4389-ifa-conformance-platform.md	990
 docs/internal/design/4588-collector-claim-pacing.md	1114
 docs/internal/design/4595-wrong-answer-report-capture-plan.md	523
 docs/internal/design/5007-cross-scope-node-ownership.md	914
 docs/internal/design/5385-workload-identity-key.md	1488
-docs/internal/design/package-restructure.md	2464
+docs/internal/design/package-restructure.md	2463
 docs/internal/design/restructure-research.md	506
 docs/internal/evidence/4594-graph-rebuild-from-facts.md	975
 docs/internal/evidence/5238-account-alias-rollout-gap-signal.md	677
@@ -112,7 +112,7 @@ docs/internal/evidence/5998-rationale-retract-probe-guard.md	681
 docs/internal/evidence/publish-safety-screen-shape-coverage.md	974
 docs/public/contributing-language-support.md	503
 docs/public/observability/telemetry-coverage.md	1098
-docs/public/operate/hosted-governance.md	672
+docs/public/operate/hosted-governance.md	671
 docs/public/reference/cypher-performance.md	1821
 docs/public/reference/fact-envelope-reference.md	504
 docs/public/reference/gcp-cloud-collector-contract.md	1894
@@ -124,6 +124,6 @@ docs/public/reference/nornicdb-pitfalls.md	1265
 docs/public/reference/nornicdb-query-pitfalls.md	851
 docs/public/reference/remote-e2e-runtime-state.md	501
 docs/public/reference/search-benchmark-evidence.md	510
-docs/public/reference/security-intelligence.md	611
+docs/public/reference/security-intelligence.md	609
 docs/public/reference/telemetry/index.md	1270
 docs/public/services/collector-aws-cloud-scanners.md	505
