@@ -54,10 +54,11 @@ func ParserFileFactEnvelope(
 	_, hasIACTransport := parsedFile["iac_runtime_evidence"]
 	_, hasRustTransport := parsedFile["rust_runtime_evidence"]
 	_, hasHaskellTransport := parsedFile["haskell_runtime_evidence"]
-	if hasComposerTransport || hasPythonTransport || hasRubyTransport || hasJVMTransport || hasDotNetTransport || hasIACTransport || hasRustTransport || hasHaskellTransport {
+	_, hasSwiftTransport := parsedFile["swift_runtime_evidence"]
+	if hasComposerTransport || hasPythonTransport || hasRubyTransport || hasJVMTransport || hasDotNetTransport || hasIACTransport || hasRustTransport || hasHaskellTransport || hasSwiftTransport {
 		clean := make(map[string]any, len(parsedFile)-1)
 		for key, value := range parsedFile {
-			if key != "composer_runtime_evidence" && key != "python_runtime_evidence" && key != "ruby_runtime_evidence" && key != "jvm_runtime_evidence" && key != "dotnet_runtime_evidence" && key != "iac_runtime_evidence" && key != "rust_runtime_evidence" && key != "haskell_runtime_evidence" {
+			if key != "composer_runtime_evidence" && key != "python_runtime_evidence" && key != "ruby_runtime_evidence" && key != "jvm_runtime_evidence" && key != "dotnet_runtime_evidence" && key != "iac_runtime_evidence" && key != "rust_runtime_evidence" && key != "haskell_runtime_evidence" && key != "swift_runtime_evidence" {
 				clean[key] = value
 			}
 		}
@@ -96,6 +97,37 @@ func noteRustCandidate(snapshot *RepositorySnapshot, candidates map[string]runti
 	return false
 }
 
+// noteSwiftCandidate notes the Package.swift tools-version candidate when the
+// path is a Package.swift manifest. It reports whether it handled the path; a
+// Package.swift without parsed evidence or an expected snapshot falls through
+// to the other runtime checks below, matching the inline dispatch it
+// replaces.
+func noteSwiftCandidate(snapshot *RepositorySnapshot, candidates map[string]runtimedeclaration.Candidate, relativePath, body string, dropped *atomic.Bool, droppedPaths *scope.StreamDroppedPaths) bool {
+	if filepath.Base(relativePath) != "Package.swift" {
+		return false
+	}
+	if parsed, ok := snapshot.SwiftRuntime[relativePath]; ok {
+		if parsed.Digest != shared.RuntimeDigest([]byte(body)) {
+			dropped.Store(true)
+			droppedPaths.Note(relativePath)
+			return true
+		}
+		runtimedeclaration.NoteParsedSwiftCandidate(candidates, relativePath, parsed.Extraction)
+		return true
+	}
+	if snapshot.SwiftRuntimeExpected {
+		if len(body) > runtimepaths.MaxManifestBytesPerFile {
+			runtimedeclaration.NoteCappedSwiftCandidate(candidates, relativePath, len(body))
+			return true
+		}
+		dropped.Store(true)
+		droppedPaths.Note(relativePath)
+		runtimedeclaration.NoteUnavailableSwiftCandidate(candidates, relativePath, len(body))
+		return true
+	}
+	return false
+}
+
 // noteComposerOrRuntimeCandidate uses the parser's one Composer interpretation
 // when available. A changed body cannot be combined with an earlier parse.
 func noteComposerOrRuntimeCandidate(snapshot *RepositorySnapshot, candidates map[string]runtimedeclaration.Candidate, relativePath, body string, dropped *atomic.Bool, droppedPaths *scope.StreamDroppedPaths) {
@@ -103,6 +135,9 @@ func noteComposerOrRuntimeCandidate(snapshot *RepositorySnapshot, candidates map
 		return
 	}
 	if noteHaskellCandidate(snapshot, candidates, relativePath, body, dropped, droppedPaths) {
+		return
+	}
+	if noteSwiftCandidate(snapshot, candidates, relativePath, body, dropped, droppedPaths) {
 		return
 	}
 	if isIACRuntimePath(relativePath) {

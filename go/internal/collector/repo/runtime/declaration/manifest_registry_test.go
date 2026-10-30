@@ -26,6 +26,8 @@ func TestManifestsAreAdmittedWithTheStorePolicy(t *testing.T) {
 		"packages/web/package.json":          "json",
 		"go.mod":                             "gomod",
 		"services/api/internal/tools/go.mod": "gomod",
+		"Package.swift":                      "swift",
+		"Packages/Core/Package.swift":        "swift",
 		"Dockerfile":                         "__dockerfile__",
 		"services/api/Dockerfile.prod":       "__dockerfile__",
 		".github/workflows/ci.yml":           "yaml",

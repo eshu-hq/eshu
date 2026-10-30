@@ -51,6 +51,7 @@ const (
 	sourceKindGradleKotlinToolchain     = "gradle_kotlin_jvm_toolchain"
 	sourceKindSbtScalaVersion           = "sbt_scala_version"
 	sourceKindSbtBuildVersion           = "sbt_build_properties_version"
+	sourceKindSwiftToolsVersion         = "swift_tools_version"
 	sourceKindTerraformRequired         = "terraform_required_version"
 	sourceKindTerragruntConstraint      = "terragrunt_version_constraint"
 	sourceKindHelmKubeVersion           = "helm_chart_kube_version"
@@ -96,6 +97,7 @@ const (
 	sectionGradleKotlinToolchain
 	sectionSbtScalaVersion
 	sectionSbtBuildVersion
+	sectionSwiftToolsVersion
 	sectionTerraformRequired
 	sectionTerragruntConstraint
 	sectionHelmKubeVersion
@@ -139,6 +141,7 @@ var sectionSourceKinds = [...]string{
 	sectionGradleKotlinToolchain:     sourceKindGradleKotlinToolchain,
 	sectionSbtScalaVersion:           sourceKindSbtScalaVersion,
 	sectionSbtBuildVersion:           sourceKindSbtBuildVersion,
+	sectionSwiftToolsVersion:         sourceKindSwiftToolsVersion,
 	sectionTerraformRequired:         sourceKindTerraformRequired,
 	sectionTerragruntConstraint:      sourceKindTerragruntConstraint,
 	sectionHelmKubeVersion:           sourceKindHelmKubeVersion,
@@ -176,6 +179,7 @@ const (
 	manifestGradle
 	manifestSbt
 	manifestSbtBuildProperties
+	manifestSwiftPackage
 	manifestTerraform
 	manifestTerragrunt
 	manifestHelmChart
@@ -244,6 +248,8 @@ func manifestKindForBase(base, relativePath string) manifestKind {
 		kind = manifestGradle
 	case base == "build.sbt":
 		kind = manifestSbt
+	case base == "Package.swift":
+		kind = manifestSwiftPackage
 	case base == "build.properties" && (relativePath == "project/build.properties" || strings.HasSuffix(relativePath, "/project/build.properties")):
 		kind = manifestSbtBuildProperties
 	case strings.HasSuffix(base, ".tf"):
@@ -289,9 +295,9 @@ const (
 	// FilePin is a version-pin file; its body is parsed at emission.
 	FilePin
 	// FileManifest is a package.json, go.mod, Dockerfile, workflow,
-	// Terraform, Terragrunt, or Helm chart file outside a dependency
-	// directory; the content walk reads it when it meets it and keeps only
-	// its extraction.
+	// Terraform, Terragrunt, Helm chart, or Package.swift file outside a
+	// dependency directory; the content walk reads it when it meets it and
+	// keeps only its extraction.
 	FileManifest
 )
 

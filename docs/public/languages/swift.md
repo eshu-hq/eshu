@@ -41,6 +41,14 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
   (`swift-5.9-RELEASE`) or a snapshot name stays an `alias` as written. Nothing
   reads the fact yet (graph projection #8816, query tool #8817). The file holds
   a toolchain version or a snapshot name and no credentials.
+- A `Package.swift` `swift-tools-version` comment emits a second
+  `runtime_declaration.version` fact (runtime `swift`, `source_kind`
+  `swift_tools_version`, the marker's own line). The Swift parser owns the
+  bounded evidence from the file's own bytes and the collector carries it
+  through the snapshot seam; only the first marker counts, a missing marker is
+  absent, a marker without a value is malformed, and every value passes the
+  credential guard before emission. This lane makes no content-store change:
+  `Package.swift` keeps its existing `.swift` stored-body admission.
 - SwiftPM `Package.resolved` dependency evidence is handled by the JSON
   exact-name parser, not the `.swift` source parser. Only remote
   source-control pins with an exact `state.version` become dependency rows;

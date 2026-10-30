@@ -122,6 +122,13 @@ type haskellRuntimeSnapshot struct {
 	Digest     string
 }
 
+// swiftRuntimeSnapshot binds one Package.swift tools-version outcome to its
+// exact source bytes.
+type swiftRuntimeSnapshot struct {
+	Extraction runtimedeclaration.Extraction
+	Digest     string
+}
+
 type pythonRuntimeSnapshot struct {
 	Extraction runtimedeclaration.Extraction
 	Digest     string
@@ -176,6 +183,8 @@ type RepositorySnapshot struct {
 	// live snapshot.
 	HaskellRuntime         map[string]haskellRuntimeSnapshot `json:"-"`
 	HaskellRuntimeExpected bool                              `json:"-"`
+	SwiftRuntime           map[string]swiftRuntimeSnapshot   `json:"-"`
+	SwiftRuntimeExpected   bool                              `json:"-"`
 	ContentFiles           []model.ContentFileSnapshot       `json:"content_files"`
 	ContentEntities        []model.ContentEntitySnapshot     `json:"content_entities"`
 	// GitRefs carries source-observed branch/ref heads for this repository.

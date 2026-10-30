@@ -204,6 +204,28 @@ func NoteCappedIACCandidate(candidates map[string]Candidate, relativePath string
 	candidates[relativePath] = Candidate{Manifest: true, Extraction: runtimedeclaration.CappedIACExtraction(byteSize)}
 }
 
+// NoteParsedSwiftCandidate stores guarded native Package.swift evidence.
+func NoteParsedSwiftCandidate(candidates map[string]Candidate, relativePath string, extraction runtimedeclaration.Extraction) {
+	if runtimedeclaration.ClassifyPath(relativePath) != runtimedeclaration.FileManifest {
+		return
+	}
+	if extraction.Len() == 0 && !extraction.Skip().Skipped() {
+		return
+	}
+	candidates[relativePath] = Candidate{Manifest: true, Extraction: extraction}
+}
+
+// NoteUnavailableSwiftCandidate records a malformed Package.swift for retry.
+func NoteUnavailableSwiftCandidate(candidates map[string]Candidate, relativePath string, byteSize int) {
+	candidates[relativePath] = Candidate{Manifest: true, Extraction: runtimedeclaration.UnavailableSwiftExtraction(byteSize)}
+}
+
+// NoteCappedSwiftCandidate records an over-cap Package.swift without
+// retaining its body.
+func NoteCappedSwiftCandidate(candidates map[string]Candidate, relativePath string, byteSize int) {
+	candidates[relativePath] = Candidate{Manifest: true, Extraction: runtimedeclaration.CappedSwiftExtraction(byteSize)}
+}
+
 // NoteUnavailableComposerCandidate records a typed skip for a Composer file
 // whose native parser failed or was not run.
 func NoteUnavailableComposerCandidate(candidates map[string]Candidate, relativePath string, byteSize int) {

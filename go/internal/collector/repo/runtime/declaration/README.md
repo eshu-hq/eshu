@@ -5,10 +5,11 @@
 `go/internal/collector/repo/runtime/declaration` turns the version-pin files a
 repository commits, the `engines`, `volta` and `packageManager` sections of its
 `package.json` files, the `go` and `toolchain` directives of its `go.mod`
-files, the `FROM` base-image tags of its Dockerfiles, and the `setup-*`
+files, the `swift-tools-version` comment of its `Package.swift` files, the
+`FROM` base-image tags of its Dockerfiles, and the `setup-*`
 `with:` version inputs of its GitHub Actions workflows into durable
 `runtime_declaration.version` facts (issue #8815, epic #8807; Dockerfile and
-workflow sources issue #8818). One fact is one runtime version declared in one
+workflow sources issue #8818; Swift tools version issue #9308). One fact is one runtime version declared in one
 file. A line that lists several versions is one fact per token.
 
 ## Where this fits
@@ -135,7 +136,8 @@ source kind. Its value passes the manifest credential guard before emission.
 
 ## Manifest sources
 
-`package.json`, `composer.json`, `composer.lock`, `Cargo.toml`, `stack.yaml` and `go.mod` are matched by
+`package.json`, `composer.json`, `composer.lock`, `Cargo.toml`, `stack.yaml`, `go.mod` and
+`Package.swift` are matched by
 exact, case-sensitive base name at any depth, so a monorepo emits one set of facts per package directory. A copy
 inside `node_modules`, `vendor`, `bower_components` or `jspm_packages` never
 emits: discovery already prunes those directories, and the emitter refuses them
@@ -175,6 +177,7 @@ a constraint from a pin.
 | `gradle_kotlin_jvm_toolchain` | `build.gradle[.kts]` Kotlin jvmToolchain literal | `java` |
 | `sbt_scala_version` | `build.sbt` effective literal scalaVersion | `scala` |
 | `sbt_build_properties_version` | `project/build.properties` sbt.version | `sbt` |
+| `swift_tools_version` | `Package.swift` `swift-tools-version` comment | `swift` |
 | `terraform_required_version` | top-level `terraform.required_version` in `.tf` | `terraform` |
 | `terragrunt_version_constraint` | top-level `terraform_version_constraint` in `terragrunt.hcl` | `terraform` |
 | `helm_chart_kube_version` | root `kubeVersion` in `Chart.yaml` | `kubernetes` |
@@ -213,6 +216,13 @@ expressions, f-strings, `**kwargs` overrides, and shadowed calls emit nothing.
 It counts bound calls past `MaxTokensPerFile` (1,024) without retaining more
 values, then skips the whole file with the exact count instead of emitting a
 prefix.
+`Package.swift` binds through the existing `.swift` registry extension with a
+stored body, so this lane makes no content-store change. The Swift parser owns
+the bounded `swift-tools-version` evidence from those same bytes with its real
+source line; the collector binds the extraction to that digest through the
+snapshot seam and never re-parses the comment. Only the first marker counts. A
+file without the marker is absent (no candidate); a marker without a value is
+malformed. Every value passes the shared credential guard before emission.
 `runtime.txt` has a separate exact-name registry entry under metadata-only
 content storage: its original body reaches this guarded reader, while content
 and file facts keep only the path and source digest. It admits one effective
