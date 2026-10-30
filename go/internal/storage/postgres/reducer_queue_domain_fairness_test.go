@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -284,6 +285,12 @@ func openReducerFairnessDBWithSchema(t *testing.T, ctx context.Context, dsn stri
 	schemaName := fmt.Sprintf("reducer_fairness_%d", time.Now().UnixNano())
 	db := openReducerFairnessSchemaConn(t, ctx, dsn, schemaName)
 
+	// Pin pg_trgm to public before creating the schema (#9572): the
+	// bootstrap's unqualified CREATE EXTENSION would otherwise install the
+	// opclass into this private schema, hiding it from sibling schemas on
+	// the same shared proof database. The advisory-locked shared install
+	// serializes concurrent bootstraps on one database.
+	postgresproof.InstallTrigramExtension(ctx, t, db)
 	if _, err := db.ExecContext(ctx, "CREATE SCHEMA "+schemaName); err != nil {
 		t.Fatalf("create fairness schema: %v", err)
 	}

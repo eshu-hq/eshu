@@ -44,6 +44,7 @@ workflows:
   - go/internal/replay/offlinetier/repo_dependency_ifa_process_death_live_test.go
   - go/internal/replay/offlinetier/repo_dependency_ifa_quarantine_live_test.go
   - go/internal/replay/offlinetier/repo_dependency_ifa_replay_coordinates_live_test.go
+  - go/internal/replay/offlinetier/repo_dependency_proof_trigram_sharing_live_test.go
   - specs/ci-pr-workflows.d/ifa-scheduled-proofs.yml
   jobs:
   - ifa-scheduled

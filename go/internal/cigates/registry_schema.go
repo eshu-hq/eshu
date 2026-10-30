@@ -25,6 +25,7 @@ type gateFile struct {
 	Blocking         bool              `yaml:"blocking"`
 	Triggers         []string          `yaml:"triggers"`
 	SelfTestTriggers *[]string         `yaml:"self_test_triggers"`
+	GeneratorInputs  []string          `yaml:"generator_inputs"`
 	Local            *localFile        `yaml:"local"`
 	CI               ciFile            `yaml:"ci"`
 	Requirements     []string          `yaml:"requirements"`

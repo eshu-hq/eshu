@@ -177,7 +177,7 @@ func TestActivationDeriveRulesMatchAtStartupAndReconcile(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			path := writeActivationFile(t, vulnerabilityActivationFileYAML(tc.source, tc.kind, tc.yamlBlock))
-			_, startupErr := desiredInstancesForComponent(
+			_, _, startupErr := desiredInstancesForComponent(
 				testActivationReadbackEntry(path), testActivationManifest(testVulnerabilityKind))
 
 			now := time.Date(2026, time.October, 27, 22, 15, 0, 0, time.UTC)

@@ -6,6 +6,8 @@ package telemetry
 import (
 	"context"
 	"errors"
+	"math"
+	"runtime/debug"
 	"testing"
 
 	"go.opentelemetry.io/otel/metric"
@@ -397,22 +399,31 @@ func TestRegisterTfstateSchemaResolverEntries(t *testing.T) {
 	}
 }
 
-// TestRecordGOMEMLIMIT proves nil skipping, value reporting, and
-// duplicate-registration failure.
+// TestRecordGOMEMLIMIT proves nil skipping, that the gauge reports the
+// runtime's effective memory limit (including one set by the GOMEMLIMIT
+// environment variable, which ConfigureMemoryLimit reports as 0; #9567), that
+// no limit reads 0, and duplicate-registration failure. It changes the
+// process-wide memory limit, so it does not run in parallel.
 func TestRecordGOMEMLIMIT(t *testing.T) {
-	t.Parallel()
+	previous := debug.SetMemoryLimit(-1)
+	t.Cleanup(func() { debug.SetMemoryLimit(previous) })
 
-	if err := RecordGOMEMLIMIT(nil, 1024); err != nil {
+	if err := RecordGOMEMLIMIT(nil); err != nil {
 		t.Fatalf("nil meter err = %v, want nil skip", err)
 	}
 	meter, reader := gaugeTestMeter()
-	if err := RecordGOMEMLIMIT(meter, 2048); err != nil {
+	if err := RecordGOMEMLIMIT(meter); err != nil {
 		t.Fatalf("record err = %v, want nil", err)
 	}
-	if got := collectIntGauges(t, reader)["eshu_dp_gomemlimit_bytes"]; got != 2048 {
-		t.Fatalf("gomemlimit = %d, want 2048", got)
+	debug.SetMemoryLimit(3 << 30)
+	if got := collectIntGauges(t, reader)["eshu_dp_gomemlimit_bytes"]; got != 3<<30 {
+		t.Fatalf("gomemlimit = %d, want %d (the live runtime limit)", got, int64(3<<30))
 	}
-	if err := RecordGOMEMLIMIT(flakyTestMeter(1), 2048); err == nil {
+	debug.SetMemoryLimit(math.MaxInt64)
+	if got := collectIntGauges(t, reader)["eshu_dp_gomemlimit_bytes"]; got != 0 {
+		t.Fatalf("gomemlimit with no limit = %d, want 0", got)
+	}
+	if err := RecordGOMEMLIMIT(flakyTestMeter(1)); err == nil {
 		t.Fatal("failing registration succeeded, want the SDK error")
 	}
 }

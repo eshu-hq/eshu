@@ -20,12 +20,12 @@ import (
 // named prepared statement per connection. PostgreSQL then switches it to the
 // generic plan from its sixth execution, because the generic cost estimate is
 // no higher than the custom one. The generic plan keeps the custom plan's
-// shape and buffers, but filters entity_name = ANY($2) against a Param array
-// with a linear compare on every scanned row. A custom plan sees a Const array,
-// which PostgreSQL hashes once it has nine or more elements
+// shape and buffers, but filters the folded entity_name = ANY($2) against a
+// Param array with a linear compare on every scanned row. A custom plan sees
+// a Const array, which PostgreSQL hashes once it has nine or more elements
 // (convert_saop_to_hashed_saop in src/backend/optimizer/util/clauses.c). The
-// sbt branch's entity_name <> ALL($2) has the same trap. Every later read on
-// that long-lived reducer connection paid the generic cost from page one.
+// sbt branch's folded entity_name <> ALL($2) has the same trap. Every later
+// read on that long-lived reducer connection paid the generic cost from page one.
 //
 // QueryExecModeCacheDescribe runs Parse, Bind and Execute on the unnamed
 // statement, which PostgreSQL plans with the bound values on every execution.

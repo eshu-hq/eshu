@@ -68,7 +68,7 @@ python3 scripts/lib/ifa_scheduled_manifest.py --primary "${primary}" --mismatch 
 
 cd go
 verify_reviewed_source
-go test -json -race -p=1 -count=1 -timeout=6m -tags ifarepodependencyproof ./internal/replay/offlinetier -run '^(TestRepoDependencyIfaCleanupPreservesUnrelatedArtifact|TestRepoDependencyIfaConcurrencyLive|TestRepoDependencyIfaProcessDeathLive|TestRepoDependencyIfaProofCleansAmbiguousCommittedLock|TestRepoDependencyIfaProofRejectsMismatchedHTTPBackend|TestRepoDependencyIfaProofRejectsNonDisposableDatabase|TestRepoDependencyIfaQuarantineLive)$' | tee "${events_dir}/repo.jsonl"
+go test -json -race -p=1 -count=1 -timeout=6m -tags ifarepodependencyproof ./internal/replay/offlinetier -run '^(TestRepoDependencyIfaCleanupPreservesUnrelatedArtifact|TestRepoDependencyIfaConcurrencyLive|TestRepoDependencyIfaProcessDeathLive|TestRepoDependencyIfaProofCleansAmbiguousCommittedLock|TestRepoDependencyIfaProofRejectsMismatchedHTTPBackend|TestRepoDependencyIfaProofRejectsNonDisposableDatabase|TestRepoDependencyIfaQuarantineLive|TestRepoDependencyProofSchemasShareTrigramLive)$' | tee "${events_dir}/repo.jsonl"
 python3 ../scripts/lib/ifa_scheduled_events.py --events "${events_dir}/repo.jsonl" --package github.com/eshu-hq/eshu/go/internal/replay/offlinetier
 verify_reviewed_source
 go test -json -race -p=1 -count=1 -timeout=6m -tags ifafaultinjection ./cmd/reducer -run '^TestReducerGroupedRetrySeamLiveNornicDB$' | tee "${events_dir}/reducer.jsonl"

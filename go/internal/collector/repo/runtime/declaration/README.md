@@ -147,7 +147,7 @@ a constraint from a pin.
 | --- | --- | --- |
 | `package_json_engines` | `engines.node`, `.npm`, `.yarn`, `.pnpm` | the key |
 | `package_json_volta` | `volta.node`, `.npm`, `.yarn`, `.pnpm` | the key |
-| `package_json_package_manager` | `packageManager` (`name@version`) | the name: `npm`, `pnpm` or `yarn` |
+| `package_json_package_manager` | `packageManager` (`name@version`) | the name: `bun`, `deno`, `npm`, `pnpm` or `yarn` |
 | `composer_json_require_php` | `composer.json` `require.php` | `php` |
 | `composer_json_platform_php` | `composer.json` `config.platform.php` | `php` |
 | `composer_lock_platform_php` | `composer.lock` `platform.php` | `php` |
@@ -182,11 +182,18 @@ a constraint from a pin.
 | `go_mod_go` | the `go` directive | `go` |
 | `go_mod_toolchain` | the `toolchain` directive | `go` |
 
+`deno.json` is not a runtime-version source. Its top-level `version` is a JSR
+package version, and `name` and `exports` describe that package. Neither those
+fields nor invented `engines.deno` or `runtimeVersion` fields declare the Deno
+runtime. This collector emits Deno only from an admitted version declaration,
+such as `package.json` `packageManager` or a supported version-pin file.
+
 | Input | Result |
 | --- | --- |
 | `"engines": {"node": ">=18 <21"}`, `"^18 \|\| ^20"`, `"18 - 20"` | `range`, read by `Classify` |
 | `"volta": {"node": "20.11.1"}` | `exact` 20.11.1 |
 | `"packageManager": "pnpm@9.1.0+sha512.<hex>"` | runtime `pnpm`, `raw_spec` `9.1.0`, `exact`: the integrity suffix is cut and never stored |
+| `"packageManager": "bun@1.1.0"` or `"deno@2.0.0"` | a declared tool version, using the same guarded source kind; this does not imply Corepack support |
 | `"lts/*"`, `"latest"`, `"*"`, `"workspace:*"`, `"catalog:"`, `"npm:node@20"` | `alias`, never resolved offline |
 | `"${NODE_VERSION}"` | `unresolved`, `raw_spec` verbatim |
 | `go 1.22`, `go 1.22.1`, `go 1.21rc1` | `partial`, `exact`, `partial` |
@@ -236,12 +243,11 @@ Rules that keep a manifest read bounded and fail closed:
   underscores, and is not a URL. A failing value is dropped and counted, never
   truncated or masked; the file's other declarations still emit. "Failing"
   covers a string that declares nothing: an empty or whitespace-only value, a
-  `packageManager` with no `@`, with an empty version after it, or with a name
-  corepack does not permit. A value that is not a string (a number, `null`, an
-  object) is absent, not rejected. The
-  `packageManager` name must be one of the three package managers corepack
-  permits (`npm`, `pnpm`, `yarn`), so the name cannot carry file text either;
-  any other, `bun` and `deno` included, is rejected and counted.
+  `packageManager` with no `@`, with an empty version after it, or with an
+  unlisted name. A value that is not a string (a number, `null`, an object) is
+  absent, not rejected. The `packageManager` name must be one of `bun`, `deno`,
+  `npm`, `pnpm`, or `yarn`, so the name cannot carry file text either; any other
+  name is rejected and counted.
 - `line_number` is the line of the key (`go` and `toolchain` for `go.mod`).
   `order_index` counts declarations already placed on the same line, so a
   minified one-line `package.json` still gets distinct stable keys. Declarations

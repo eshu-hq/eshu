@@ -22,6 +22,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/secretcrypto"
 	pgstorage "github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 func TestGenerateSecretIsRandomAndSized(t *testing.T) {
@@ -113,11 +114,16 @@ func TestAdminInitialCredentialAndResetRoundTrip(t *testing.T) {
 	}
 	database.SetMaxOpenConns(1)
 	t.Cleanup(func() { _ = database.Close() })
+	// Pin pg_trgm to public before creating the schema (#9572): the
+	// bootstrap's unqualified CREATE EXTENSION would otherwise install the
+	// opclass into this private schema, hiding it from sibling schemas on
+	// the same shared proof database.
+	postgresproof.InstallTrigramExtension(ctx, t, database)
 	if _, err := database.ExecContext(ctx, "CREATE SCHEMA "+schemaName); err != nil {
 		t.Fatalf("create schema: %v", err)
 	}
 	t.Cleanup(func() { _, _ = database.ExecContext(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE") })
-	if _, err := database.ExecContext(ctx, "SET search_path TO "+schemaName); err != nil {
+	if _, err := database.ExecContext(ctx, "SET search_path TO "+schemaName+", public"); err != nil {
 		t.Fatalf("set search_path: %v", err)
 	}
 	if err := pgstorage.ApplyBootstrap(ctx, pgstorage.SQLDB{DB: database}); err != nil {
@@ -125,7 +131,9 @@ func TestAdminInitialCredentialAndResetRoundTrip(t *testing.T) {
 	}
 
 	dek := "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=" // base64 of 32 raw bytes
-	t.Setenv("ESHU_POSTGRES_DSN", dsn+"?search_path="+schemaName)
+	// public stays on the CLI's path so the pinned pg_trgm operator classes
+	// resolve for the same schema (#9572).
+	t.Setenv("ESHU_POSTGRES_DSN", dsn+"?search_path="+schemaName+",public")
 	t.Setenv("ESHU_AUTH_SECRET_ENC_KEY", dek)
 
 	now := time.Now().UTC()

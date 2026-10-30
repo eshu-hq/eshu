@@ -149,6 +149,15 @@ var matrixVariableRE = regexp.MustCompile(`\$\{\{\s*matrix\.([A-Za-z0-9_]+)\s*\}
 //     The same check requires every literal trigger of a blocking owner
 //     row to match the workflow's pull_request paths:, or to match no paths-ignore:
 //     entry (checkOwnerRowTriggers).
+//
+//  14. Generator input → own trigger coverage (#9621): every gate with a
+//     regenerate: map must declare its generator's input classes in
+//     generator_inputs, and every declared class must be matched by one of
+//     that gate's own triggers and resolve to a tracked file. Otherwise a PR
+//     changing only a generator input skips the drift gate locally and first
+//     fails in CI — the #9588 shape. See checkGeneratorInputCoverage
+//     (generatorinputs.go) for the covered gates and the recorded
+//     not-yet-covered ones with their reasons.
 func DriftCheck(repoRoot string, reg *Registry) []error {
 	var errs []error
 
@@ -173,6 +182,7 @@ func DriftCheck(repoRoot string, reg *Registry) []error {
 	errs = append(errs, checkSetupGoPrewarmOrdering(repoRoot)...)
 	errs = append(errs, checkJobOwnership(repoRoot, reg)...)
 	errs = append(errs, checkOwnerRowTriggers(repoRoot, reg)...)
+	errs = append(errs, checkGeneratorInputCoverageForDrift(repoRoot, reg)...)
 
 	return errs
 }

@@ -108,7 +108,7 @@ def verify_bundle(root: Path, directory: Path, *, allow_local: bool = False) -> 
         }
         if not expected or not verify_events(directory / filename, package, expected, sys.stderr):
             raise ValueError(f"Ifá bundle lacks passing named events: {package}")
-    print(f"Ifá bundle PASS: seven files, eight tests, manifest {manifest['environment']}")
+    print(f"Ifá bundle PASS: eight files, nine tests, manifest {manifest['environment']}")
     return True
 
 

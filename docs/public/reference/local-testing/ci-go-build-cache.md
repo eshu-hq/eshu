@@ -80,16 +80,25 @@ target (`runtime`, `scanner-image`, `scanner-sbom`, `scanner-osruntime`):
 
 `actions/setup-go` caches `go env GOMODCACHE` and `go env GOCACHE`. With
 `GOCACHE` set to the persisted directory, its entry held the build cache a
-second time, and a readiness shard downloaded both copies. These jobs set
+second time, and a readiness shard downloaded both copies. Those lanes set
 `cache: false`, and `scripts/ci/go-mod-download-retry.sh` downloads the
 modules. In go-core and go-race runs before this change, the pre-warm step
 took 14 to 26 s when setup-go missed its cache. A warm `Set up Go` took 40 to
 82 s, most of it downloading a 1.8 GB entry that held the build cache again.
 
+Since #9462 every other `setup-go` step in `test.yml` (`pr-plan`,
+`merge-group-slim`, `verify-contracts`) sets `cache: false` too. They run on
+the default `GOCACHE`, so they never shared the persisted directory — but each
+PR-scoped copy still counts against the 10 GB store whose evictions were
+emptying main's `gobuild-` entries. Each of those jobs already pre-warms its
+modules, so the only cost is the 14 to 26 s download on a cold runner.
+
 ## The pin
 
 `go/internal/cigates/gocache_wiring_test.go` pins these rules, and
-`gocache_wiring_mutations_test.go` breaks each one. Keep the restore step
+`gocache_wiring_mutations_test.go` breaks each one — including
+`TestSetupGoCacheDisabledInTestWorkflow`, which fails any `setup-go` step in
+`test.yml` that re-enables the built-in cache. Keep the restore step
 named `Restore Go build cache`, with `Set up Go` directly after it. That keeps
 each shard log's cache outcome at a fixed landmark: the
 `Cache restored from key:` or `Cache not found for input keys` line sits inside

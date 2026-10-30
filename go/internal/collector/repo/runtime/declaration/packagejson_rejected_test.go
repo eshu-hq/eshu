@@ -30,7 +30,9 @@ func TestEmitPackageJSONCountsEveryStringThatYieldsNoDeclaration(t *testing.T) {
 		{"packageManager that names no version", `{"packageManager":"pnpm"}`, 0, 1},
 		{"empty packageManager", `{"packageManager":""}`, 0, 1},
 		{"whitespace-only packageManager", `{"packageManager":"  "}`, 0, 1},
-		{"unlisted packageManager name", `{"packageManager":"bun@1.1.0"}`, 0, 1},
+		{"unlisted packageManager name", `{"packageManager":"other@1.1.0"}`, 0, 1},
+		{"bun without a version", `{"packageManager":"bun@"}`, 0, 1},
+		{"deno URL is not a version", `{"packageManager":"deno@https://example.invalid/token"}`, 0, 1},
 		{"valid packageManager is not counted", `{"packageManager":"pnpm@9.1.0"}`, 1, 0},
 		{"non-string packageManager is absent, not rejected", `{"packageManager":42}`, 0, 0},
 	}

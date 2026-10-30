@@ -16,6 +16,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/crossplane"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 // crossplaneRedriveProofDSNEnv gates this suite against a real Postgres
@@ -48,6 +49,12 @@ func crossplaneRedriveProofSchema(t *testing.T) (dsn string, schemaName string) 
 	setupDB.SetMaxOpenConns(1)
 
 	ctx := context.Background()
+	// Pin pg_trgm to public before creating the schema (#9572): the
+	// bootstrap's unqualified CREATE EXTENSION would otherwise install the
+	// opclass into this private schema, hiding it from sibling schemas on
+	// the same shared proof database. The advisory-locked shared install
+	// serializes concurrent bootstraps on one database.
+	postgresproof.InstallTrigramExtension(ctx, t, setupDB)
 	schemaName = fmt.Sprintf("crossplane_redrive_proof_%d", time.Now().UnixNano())
 	if _, err := setupDB.ExecContext(ctx, "CREATE SCHEMA "+schemaName); err != nil {
 		t.Fatalf("create proof schema: %v", err)

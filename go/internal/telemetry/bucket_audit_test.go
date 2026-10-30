@@ -154,6 +154,8 @@ func bucketAuditTable() []bucketAuditEntry {
 		{MetricName: "eshu_dp_reducer_input_invalid_fact_write_batch_size", Buckets: []float64{0, 1, 2, 5, 10, 25, 50, 100, 250, 500}},
 		{MetricName: "eshu_dp_gcp_freshness_fanout_scope_count", Buckets: []float64{1, 2, 4, 8, 16, 32, 64}},
 		{MetricName: "eshu_dp_tfstate_snapshot_bytes", Buckets: []float64{1024, 10240, 102400, 1048576, 10485760, 52428800, 104857600}},
+		{MetricName: "eshu_dp_repository_catalog_load_rows", Buckets: []float64{0, 10, 50, 100, 250, 500, 1000, 2500, 5000, 10000}},
+		{MetricName: "eshu_dp_repository_catalog_load_payload_bytes", Buckets: []float64{1024, 10240, 102400, 1048576, 10485760, 52428800, 104857600, 268435456}},
 		{MetricName: "eshu_dp_scanner_worker_target_count", Buckets: []float64{1, 10, 100, 1000, 10000, 100000}},
 		{MetricName: "eshu_dp_scanner_worker_result_count", Buckets: []float64{1, 10, 100, 1000, 10000, 100000}},
 		{MetricName: "eshu_dp_scanner_worker_memory_bytes", Buckets: []float64{1048576, 16777216, 67108864, 268435456, 1073741824, 2147483648, 4294967296, 8589934592, 17179869184}},

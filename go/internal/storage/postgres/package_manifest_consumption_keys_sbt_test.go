@@ -98,10 +98,10 @@ func TestListActivePackageManifestDependencyFactsReachesSBTAndGradleRows(t *test
 	}
 	for _, want := range []string{
 		"fact.payload->'entity_metadata'->>'package_manager' = ANY($1::text[])",
-		"fact.payload->>'entity_name' = ANY($2::text[])",
+		`(LOWER(TRIM(fact.payload->>'entity_name') COLLATE "C") COLLATE "default") = ANY($2::text[])`,
 		"fact.payload->'entity_metadata'->>'package_manager' = 'sbt'",
 		"fact.payload->'entity_metadata'->>'sbt_binary_artifact' = ANY($2::text[])",
-		"fact.payload->>'entity_name' <> ALL($2::text[])",
+		`(LOWER(TRIM(fact.payload->>'entity_name') COLLATE "C") COLLATE "default") <> ALL($2::text[])`,
 		"UNION ALL",
 	} {
 		if !strings.Contains(call.query, want) {

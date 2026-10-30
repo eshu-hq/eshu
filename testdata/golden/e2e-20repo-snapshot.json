@@ -2238,6 +2238,14 @@
         "allowed_node_property_values": {"runtime": ["rust"], "source_kind": ["cargo_package_rust_version"]}
       },
       {
+        "id": "rn-node-package-manager-declarations",
+        "description": "Synthetic Bun and Deno packageManager declarations from lib-common/runtime_node. HTTP and MCP shapes bind both complete source tuples.",
+        "label": "RuntimeDeclaration",
+        "minimum_count": 2,
+        "required_node_properties": ["runtime", "source_kind"],
+        "allowed_node_property_values": {"runtime": ["bun", "deno"], "source_kind": ["package_json_package_manager"]}
+      },
+      {
         "id": "rn-iac-runtime-declarations",
         "description": "The synthetic lib-common runtime_iac fixtures declare Terraform, Terragrunt, and Kubernetes runtime requirements. HTTP and MCP shapes bind the four complete source tuples.",
         "label": "RuntimeDeclaration",
@@ -5049,6 +5057,17 @@
         "required_json_object_matches": {"declarations[]": [{"runtime": "rust", "source_kind": "cargo_package_rust_version", "relative_path": "runtime_rust/Cargo.toml", "raw_spec": "1.78.0", "spec_kind": "exact", "line_number": 4, "order_index": 0}]},
         "arguments": {"limit": 100}
       },
+      "list_runtime_version_declarations?assert=node_package_managers": {
+        "description": "Synthetic Bun and Deno packageManager declarations from lib-common/runtime_node, each bound as one complete source tuple through the deployed MCP tool.",
+        "required_response_fields": ["declarations", "count", "limit", "truncated", "filters", "excluded_from_comparison", "partial_reasons"],
+        "minimum_results": 2,
+        "results_field": "declarations",
+        "required_json_object_matches": {"declarations[]": [
+          {"runtime": "bun", "source_kind": "package_json_package_manager", "relative_path": "runtime_node/bun/package.json", "raw_spec": "1.1.0", "spec_kind": "exact", "line_number": 1, "order_index": 0},
+          {"runtime": "deno", "source_kind": "package_json_package_manager", "relative_path": "runtime_node/deno/package.json", "raw_spec": "2.0.0", "spec_kind": "exact", "line_number": 1, "order_index": 0}
+        ]},
+        "arguments": {"limit": 100}
+      },
       "list_runtime_version_declarations?assert=iac_sources": {
         "description": "Four synthetic Terraform, Terragrunt, and Helm source declarations from lib-common/runtime_iac, each bound as one complete source tuple through the deployed MCP surface.",
         "required_response_fields": ["declarations", "count", "limit", "truncated", "filters", "excluded_from_comparison", "partial_reasons"],
@@ -7744,6 +7763,17 @@
         "minimum_results": 1,
         "results_field": "declarations",
         "required_json_object_matches": {"declarations[]": [{"runtime": "rust", "source_kind": "cargo_package_rust_version", "relative_path": "runtime_rust/Cargo.toml", "raw_spec": "1.78.0", "spec_kind": "exact", "line_number": 4, "order_index": 0}]},
+        "request_body": {"limit": 100}
+      },
+      "POST /api/v0/runtime-declarations/query?assert=node_package_managers": {
+        "description": "Synthetic Bun and Deno packageManager declarations from lib-common/runtime_node, each bound as one complete source tuple through the deployed HTTP route.",
+        "required_response_fields": ["declarations", "count", "limit", "truncated", "filters", "excluded_from_comparison", "partial_reasons"],
+        "minimum_results": 2,
+        "results_field": "declarations",
+        "required_json_object_matches": {"declarations[]": [
+          {"runtime": "bun", "source_kind": "package_json_package_manager", "relative_path": "runtime_node/bun/package.json", "raw_spec": "1.1.0", "spec_kind": "exact", "line_number": 1, "order_index": 0},
+          {"runtime": "deno", "source_kind": "package_json_package_manager", "relative_path": "runtime_node/deno/package.json", "raw_spec": "2.0.0", "spec_kind": "exact", "line_number": 1, "order_index": 0}
+        ]},
         "request_body": {"limit": 100}
       },
       "POST /api/v0/runtime-declarations/query?assert=iac_sources": {

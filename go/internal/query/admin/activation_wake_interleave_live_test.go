@@ -27,6 +27,7 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 // TestActivationWakeInterleaveLive races, on independent connections and for
@@ -376,6 +377,11 @@ func interleaveConn(t *testing.T, ctx context.Context, dsn, schema string, creat
 	db.SetMaxOpenConns(1)
 	t.Cleanup(func() { _ = db.Close() })
 	if create {
+		// Pin pg_trgm to public before creating the schema (#9572): the
+		// bootstrap's unqualified CREATE EXTENSION would otherwise install
+		// the opclass into this private schema, hiding it from sibling
+		// schemas on the same shared proof database.
+		postgresproof.InstallTrigramExtension(ctx, t, db)
 		if _, err := db.ExecContext(ctx, "CREATE SCHEMA "+schema); err != nil {
 			t.Fatalf("create schema: %v", err)
 		}

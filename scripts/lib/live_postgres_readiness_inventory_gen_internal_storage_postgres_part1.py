@@ -16,6 +16,10 @@ TABLE = {
             "TestReducerContentionGateActiveCodeCallSymbolLoaderSupersedeThenDeltaHole",
             "TestReducerContentionGateActiveCodeCallSymbolLoaderDirtyNonProducerStaysGated",
         ),
+        "go/internal/storage/postgres/active_package_manifest_dependency_case_live_test.go": (
+            "TestListActivePackageManifestDependencyFactsLoadsMixedCaseNamesLive",
+            "TestListActivePackageManifestDependencyFactsLoadsMixedCaseNamesThroughSBTQueryLive",
+        ),
         "go/internal/storage/postgres/active_symbol_loader_composer_live_test.go": (
             "TestReducerContentionGateActiveCodeCallSymbolLoaderAnchorsComposerKeys",
             "TestReducerContentionGateActiveCodeCallSymbolLoaderKeepsNpmAndComposerNamesApart",

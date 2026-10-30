@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/admin"
 	"github.com/eshu-hq/eshu/go/internal/query/admin/store"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -35,6 +36,11 @@ func TestAdminWorkItemListingExposesPriorFailureAndNote(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open postgres: %v", err)
 	}
+	// Pin pg_trgm to public before creating the schema (#9572): the
+	// bootstrap's unqualified CREATE EXTENSION would otherwise install the
+	// opclass into this private schema, hiding it from sibling schemas on
+	// the same shared proof database.
+	postgresproof.InstallTrigramExtension(ctx, t, root)
 	schema := fmt.Sprintf("prior_failure_listing_%d", time.Now().UnixNano())
 	if _, err := root.ExecContext(ctx, "CREATE SCHEMA "+schema); err != nil {
 		t.Fatalf("create schema: %v", err)
@@ -47,7 +53,9 @@ func TestAdminWorkItemListingExposesPriorFailureAndNote(t *testing.T) {
 	if strings.Contains(dsn, "?") {
 		sep = "&"
 	}
-	database, err := sql.Open("pgx", dsn+sep+"search_path="+schema)
+	// public stays on the path so the pinned pg_trgm operator classes resolve
+	// for this schema's bootstrap.
+	database, err := sql.Open("pgx", dsn+sep+"search_path="+schema+",public")
 	if err != nil {
 		t.Fatalf("open proof pool: %v", err)
 	}

@@ -21,6 +21,16 @@ import (
 // primary consumers; the root fact families share it through this seam so the
 // row shape has one home (issue #7794).
 func ScanFactEnvelope(rows db.Rows) (facts.Envelope, error) {
+	envelope, _, err := ScanFactEnvelopeWithPayloadSize(rows)
+	return envelope, err
+}
+
+// ScanFactEnvelopeWithPayloadSize scans one fact_records row like
+// ScanFactEnvelope and also returns the length in bytes of the raw payload
+// column as the driver delivered it, before JSON decoding. Loaders use it to
+// report scanned bytes (for example eshu_dp_repository_catalog_load_payload_bytes,
+// issue #9567) without re-encoding the decoded payload.
+func ScanFactEnvelopeWithPayloadSize(rows db.Rows) (facts.Envelope, int, error) {
 	var factID string
 	var scopeID string
 	var generationID string
@@ -56,12 +66,12 @@ func ScanFactEnvelope(rows db.Rows) (facts.Envelope, error) {
 		&isTombstone,
 		&rawPayload,
 	); err != nil {
-		return facts.Envelope{}, err
+		return facts.Envelope{}, 0, err
 	}
 
 	payload, err := payloadstore.UnmarshalPayload(rawPayload)
 	if err != nil {
-		return facts.Envelope{}, err
+		return facts.Envelope{}, 0, err
 	}
 
 	return facts.Envelope{
@@ -85,5 +95,5 @@ func ScanFactEnvelope(rows db.Rows) (facts.Envelope, error) {
 			SourceURI:      sourceURI,
 			SourceRecordID: sourceRecordID,
 		},
-	}, nil
+	}, len(rawPayload), nil
 }

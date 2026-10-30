@@ -15,6 +15,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 const (
@@ -47,6 +48,12 @@ func openContainerImageIdentityPerfSchema(
 ) *sql.DB {
 	t.Helper()
 	adminDB := openContainerImageIdentityPerfDB(t, dsn)
+	// Pin pg_trgm to public before creating the schema (#9572): the
+	// bootstrap's unqualified CREATE EXTENSION would otherwise install the
+	// opclass into this private schema, hiding it from sibling schemas on
+	// the same shared proof database. The schema DSN already keeps public
+	// on the search_path.
+	postgresproof.InstallTrigramExtension(ctx, t, adminDB)
 	schema := containerImageIdentityPerfVariantSchema(variant, scenario)
 	if _, err := adminDB.ExecContext(ctx, `CREATE SCHEMA "`+schema+`"`); err != nil {
 		t.Fatalf("create performance schema: %v", err)

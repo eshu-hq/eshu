@@ -259,6 +259,7 @@ OTEL instruments registered under `eshu_dp_workflow_coordinator_`:
 | `reap_duration_seconds` | histogram | reap-pass wall time |
 | `run_reconcile_total` | counter | workflow-run reconciliation passes labeled by `outcome` |
 | `run_reconcile_duration_seconds` | histogram | run-reconciliation wall time |
+| `stale_activation_skips_total` | counter | startup activations skipped for absent config files (#9634), labeled by `outcome` (`success` = no stale reference remains: dropped, already gone, or file reappeared) |
 | `desired_collector_instances` | gauge | count from `Config.CollectorInstances` |
 | `durable_collector_instances` | gauge | count returned by `Store.ListCollectorInstances` |
 | `collector_instance_drift` | gauge | absolute difference between desired and durable |
@@ -269,12 +270,14 @@ Outcome labels: `success`, `reconcile_error`, `state_read_error` for reconcile;
 `success`/`error` elsewhere (retention adds `canceled`: `work-item-retention.md`).
 
 Structured log events: startup mode message (info), collector instance drift
-warning, collector scheduling skips by egress policy, and component extension
-scheduling skips by egress policy. Drift fields are
+warning, collector scheduling skips by egress policy, component extension
+scheduling skips by egress policy, and stale component activation skips at
+startup (#9634). Drift fields are
 `desired_collector_instances`, `durable_collector_instances`, and
 `collector_instance_drift`; collector egress skips include `collector_kind` and
 `reason`; extension egress skips include `collector_kind`, `component_id`,
-`instance_id`, and `reason`.
+`instance_id`, and `reason`; stale activation skips include `component_id`,
+`instance_id`, and `reconciled`.
 
 Denied or unavailable hosted collector and component-extension egress decisions
 also append validation-safe governance audit events when a private audit sink is
@@ -297,6 +300,11 @@ already prove the allowed scheduling path.
   `eshu_dp_workflow_coordinator_run_reconcile_total` are zero in dark mode.
   Confirm `ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE=active` before
   investigating metric absence.
+- `eshu_dp_workflow_coordinator_stale_activation_skips_total` counting up
+  means the values tree stopped rendering an activation file while the
+  registry still references it. The startup warning names the instance; a
+  nonzero count with `outcome="error"` means the registry drop failed (for
+  example a read-only component home) and needs operator attention.
 - Keep `ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL` separate from
   `ESHU_WORKFLOW_COORDINATOR_RUN_RECONCILE_INTERVAL`: one controls desired
   state and scheduled-work planning, the other controls status freshness.

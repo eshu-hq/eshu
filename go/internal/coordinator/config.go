@@ -56,6 +56,11 @@ type Config struct {
 	ExtensionEgressPolicy   egress.ExtensionPolicy
 	TenantBoundary          WorkflowTenantBoundary
 	CollectorInstances      []workflow.DesiredCollectorInstance
+	// StaleComponentActivationSkips lists claims-enabled registry activations
+	// dropped from startup planning because their mounted config files are
+	// absent (#9634). Informational: Validate ignores it, and the process
+	// startup path reports and reconciles each entry.
+	StaleComponentActivationSkips []StaleActivationSkip
 	// QuotaLookup resolves the enforced per-component generation quota for
 	// a collector kind (#8471, #8561). It is built from the admitted
 	// manifests of components planning at least one claims-enabled
@@ -181,7 +186,7 @@ func LoadConfigObserved(getenv func(string) string, observer component.GrantObse
 	if err != nil {
 		return Config{}, fmt.Errorf("parse ESHU_COLLECTOR_INSTANCES_JSON: %w", err)
 	}
-	componentInstances, quotaManifests, err := componentCollectorInstancesFromEnv(getenv, observer)
+	componentInstances, quotaManifests, staleSkips, err := componentCollectorInstancesFromEnv(getenv, observer)
 	if err != nil {
 		return Config{}, err
 	}
@@ -221,6 +226,7 @@ func LoadConfigObserved(getenv func(string) string, observer component.GrantObse
 		TenantBoundary:                      tenantBoundary,
 		CollectorInstances:                  instances,
 		QuotaLookup:                         quotaLookup,
+		StaleComponentActivationSkips:       staleSkips,
 		WorkItemRetention:                   workItemRetention,
 	}
 	cfg = cfg.withDefaults()

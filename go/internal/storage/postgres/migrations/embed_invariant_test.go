@@ -167,13 +167,16 @@ import (
 // covering index that keeps that backlog aggregate an Index Only Scan; one
 // CREATE INDEX CONCURRENTLY). It follows 244 (#9307), the highest number
 // on main; gaps are tolerated, shared sequence numbers are not.
-const goldenBootstrapDefinitionsDigest = "0e60a98af2f9bf261282e17ed4ffd9b8dcdb463ee360d681227f2e4c43c6896d"
+// #9568 adds 247_fact_records_manifest_dependency_folded_entity_index.sql
+// (the partial expression index that serves the folded entity_name prefilter
+// for registry-cased manifest rows; one CREATE INDEX CONCURRENTLY).
+const goldenBootstrapDefinitionsDigest = "c068c2ef4edb354e8991fedba88de73a86b48ca5b83de0b2cea02faedd028b5e"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 264
+const goldenBootstrapDefinitionsCount = 265
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()
