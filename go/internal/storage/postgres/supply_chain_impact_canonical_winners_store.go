@@ -392,7 +392,10 @@ func (t *supplyChainImpactTx) protectedPolicyPins(ctx context.Context) (int64, s
 	}
 	defer func() { _ = rows.Close() }()
 	if !rows.Next() {
-		return 0, "", fmt.Errorf("protected policy state is absent: %w", rows.Err())
+		if err := rows.Err(); err != nil {
+			return 0, "", fmt.Errorf("read protected policy pins: %w", err)
+		}
+		return 0, "", errors.New("protected policy state is absent")
 	}
 	var revision int64
 	var identity string
