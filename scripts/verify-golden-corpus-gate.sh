@@ -216,6 +216,14 @@ export ESHU_EMIT_DATAFLOW=true
 log "query profile: ${ESHU_QUERY_PROFILE}"
 export ESHU_API_KEY="${GATE_API_KEY}"
 export ESHU_API_ADDR=":${GATE_API_PORT}"
+# The SSM host inventory readback fails closed without freshness bounds
+# (#9558: the API/MCP handlers 503 when any bound is unset). The corpus
+# carries no SSM fixtures, so the gate asserts the empty shape served —
+# which needs the bounds configured, not absent. Values mirror the
+# coherent test limits (skew within capture age).
+export ESHU_SSM_HOST_MAX_CAPTURE_AGE="2h"
+export ESHU_SSM_HOST_MAX_CROSS_TYPE_SKEW="30m"
+export ESHU_SSM_HOST_MAX_PLATFORM_OBSERVATION_AGE="1h"
 # ESHU_AUTH_BOOTSTRAP_MODE defaults to "generated" (#4963), which requires a
 # configured data-encryption key to seal the one-time admin credential;
 # without it eshu-api fails closed at startup and /readyz never returns.
