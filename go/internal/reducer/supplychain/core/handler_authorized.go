@@ -51,7 +51,14 @@ type AuthorizedStaticSupplyChainImpactLoad struct {
 
 // AuthorizedStaticSupplyChainImpactExpansion runs the existing static impact
 // expansion over the loader's authority-filtered fact store while its single
-// repeatable-read snapshot remains open.
+// repeatable-read snapshot remains open. A nil publicAdvisories selects the
+// full legacy expansion for stores where protection was never onboarded
+// (byte-identical to the unwired path, including the os-package advisory
+// stage); a non-nil slice, even empty, selects the static-only snapshot
+// the engaged path merges with its receipt-backed advisories, so legacy
+// target-specific expansion cannot double-count the authorized target load.
+// Callers must preserve the distinction: the loader passes literal nil only
+// on the disengaged branch and the cloned advisory set on the engaged one.
 type AuthorizedStaticSupplyChainImpactExpansion func(
 	context.Context, factload.FactLoader, []facts.Envelope,
 ) (AuthorizedStaticSupplyChainImpactLoad, error)
@@ -109,7 +116,7 @@ func (h SupplyChainImpactHandler) loadAuthorizedSupplyChainImpactEvidence(
 		staticHandler.AuthorizedEvidenceLoader = nil
 		staticHandler.RequireAuthorizedEvidenceLoader = false
 		staticHandler.FactLoader = loader
-		staticHandler.authorizedStaticOnly = true
+		staticHandler.authorizedStaticOnly = publicAdvisories != nil
 		staticHandler.authorizedStaticAdvisories = publicAdvisories
 		loaded, timing, err := staticHandler.loadSupplyChainImpactEvidence(ctx, intent)
 		if err != nil {
@@ -141,10 +148,11 @@ func (h SupplyChainImpactHandler) loadAuthorizedSupplyChainImpactEvidence(
 		return supplyChainImpactLoadedEvidence{}, timing, authorizedImpactCoverageIncompleteError{reason: reason}
 	}
 	if !snapshot.ProtectionEngaged {
-		// Protection was never onboarded: the static expansion above
-		// already populated the plain load, so keep it exactly as the
-		// legacy static path would. The writer never sees a protected
-		// set it cannot authorize.
+		// Protection was never onboarded: the nil advisory set above
+		// selected the full legacy expansion, so the plain load already
+		// carries the os-package advisory evidence the unwired path
+		// carries, and the build derives the same findings. The writer
+		// never sees a protected set it cannot authorize.
 		return staticLoaded, timing, nil
 	}
 	if len(snapshot.Targets) != len(snapshot.ScanPublications) {
