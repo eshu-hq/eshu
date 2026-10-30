@@ -430,10 +430,13 @@ func TestLegacyRunnerPathStaysSingleCall(t *testing.T) {
 // for the sibling echo in the same validation path: checkPageEnvelope runs
 // before SDK validation, so a hostile extension-controlled result state
 // rejected on a continuation page must not reach the invalid_result error.
+// The hostile input leads with out-of-alphabet bytes, so the exact-match
+// assertion fails on a truncation-only mutant and pins the alphabet filter,
+// not just the length.
 func TestCheckPageEnvelopeContinuationErrorOmitsRawState(t *testing.T) {
 	t.Parallel()
 
-	hostile := sdkcollector.ResultState(strings.Repeat("z", 200) + "!$(touch /tmp/eshu-9310)\nSECOND-LINE")
+	hostile := sdkcollector.ResultState("!!" + strings.Repeat("z", 200))
 	call := CallResult{
 		Result: sdkcollector.Result{
 			State:           hostile,
@@ -445,8 +448,11 @@ func TestCheckPageEnvelopeContinuationErrorOmitsRawState(t *testing.T) {
 	if err == nil {
 		t.Fatal("checkPageEnvelope(hostile state) error = nil, want rejection")
 	}
-	if strings.Contains(err.Error(), string(hostile)) {
-		t.Fatalf("checkPageEnvelope error echoes raw state: %v", err)
+	// The filter drops both '!' bytes and keeps the next 16 alphabet bytes;
+	// a truncation-only mutant would emit "!!zzzzzzzzzzzzzz".
+	want := `collector extension failure: invalid_result: extension result must not request continuation (state 202 bytes, prefix "zzzzzzzzzzzzzzzz")`
+	if err.Error() != want {
+		t.Fatalf("checkPageEnvelope error = %q, want %q", err.Error(), want)
 	}
 }
 

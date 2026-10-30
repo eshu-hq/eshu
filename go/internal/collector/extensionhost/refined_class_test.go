@@ -55,11 +55,13 @@ func TestValidateBoundedStatusesRefinedClass(t *testing.T) {
 // status with an over-long failure_class containing characters outside the
 // pattern is rejected with an error that never carries the raw
 // extension-supplied value, so untrusted text cannot reach operator logs or
-// the stored failure message through invalid_result.
+// the stored failure message through invalid_result. The hostile input leads
+// with out-of-alphabet bytes, so the exact-match assertion fails on a
+// truncation-only mutant and pins the alphabet filter, not just the length.
 func TestValidateBoundedStatusesErrorOmitsRawValue(t *testing.T) {
 	t.Parallel()
 
-	hostile := "invalid_config." + strings.Repeat("a", 90) + "!$(touch /tmp/eshu-9310)\nSECOND-LINE"
+	hostile := "!$(x)" + strings.Repeat("b", 100)
 	result := sdkcollector.Result{Statuses: []sdkcollector.Status{{
 		Class:        sdkcollector.StatusFailure,
 		FailureClass: hostile,
@@ -68,10 +70,10 @@ func TestValidateBoundedStatusesErrorOmitsRawValue(t *testing.T) {
 	if err == nil {
 		t.Fatal("validateBoundedStatuses(hostile) error = nil, want rejection")
 	}
-	// %q escapes control characters, so assert on the long distinctive run
-	// that survives quoting verbatim: the unbounded extension text reaches
-	// the error either way.
-	if run := strings.Repeat("a", 90); strings.Contains(err.Error(), run) {
-		t.Fatalf("validateBoundedStatuses error echoes raw failure_class: %v", err)
+	// The filter drops '!', '$', '(', ')' and keeps 'x' plus the next 15
+	// alphabet bytes; a truncation-only mutant would emit "!$(x)bbbbbbbbbbb".
+	want := `status.failure_class is not bounded (105 bytes, prefix "x` + strings.Repeat("b", 15) + `")`
+	if err.Error() != want {
+		t.Fatalf("validateBoundedStatuses error = %q, want %q", err.Error(), want)
 	}
 }

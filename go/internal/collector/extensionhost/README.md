@@ -173,13 +173,16 @@ in the failure message, `ClaimedService` persists it unsanitized as
 `last_failure_class`, and the metric label admits it like any other class.
 `TestValidateBoundedStatusesRefinedClass`, the refined case in
 `TestSourceRoutesRetryableAndTerminalResultsThroughClaimFailures`, and the
-telemetry and `ClaimedService` pins keep that true. A rejected value never
-reaches the error verbatim: the host reports the rule and a bounded
-description (byte length plus a short prefix from the allowed alphabet, e.g.
+telemetry and `ClaimedService` pins keep that true. A value rejected by the
+host's own bounded checks never reaches the error verbatim: the host reports
+the rule and a bounded description (byte length plus a short prefix from the
+allowed alphabet, e.g.
 `status.failure_class is not bounded (105 bytes, prefix "invalid_config.a")`),
 and the same holds for the continuation-state rejection in `checkPageEnvelope`.
 `TestValidateBoundedStatusesErrorOmitsRawValue` and
-`TestCheckPageEnvelopeContinuationErrorOmitsRawState` pin that.
+`TestCheckPageEnvelopeContinuationErrorOmitsRawState` pin that. Rejections
+that surface the SDK validator's wording keep the SDK error text; bounding
+those echoes is separate follow-up work, not part of this change.
 
 Bounded Rejection No-Regression Evidence (#9310): the bounded description
 replaces the raw echo only on the rejection path; the accept path is the same
@@ -193,7 +196,8 @@ accepted-class check measures 486-495 ns/op with zero allocs. Safe because the
 rejection runs at most once per invalid result on the terminal-failure path,
 never in the per-page streaming loop.
 
-Bounded Rejection Observability Evidence (#9310): the `invalid_result` cause
+Bounded Rejection Observability Evidence (#9310): for the host's
+bounded-class and continuation-state rejections, the `invalid_result` cause
 changes from the raw value to the rule plus the bounded description, e.g.
 `status.failure_class is not bounded (105 bytes, prefix "invalid_config.a")`
 and `extension result must not request continuation (state 200 bytes, prefix
