@@ -17,7 +17,8 @@ directives of `go.mod`, PHP constraints and platform pins in `composer.json`
 and `composer.lock`, the `.php-version` pin, the `FROM` base-image tag of a
 `Dockerfile`, Python constraints in `pyproject.toml`, `Pipfile`, `setup.cfg`
 and literal `setup.py` calls, the `runtime.txt` pin, literal Ruby requirements in `Gemfile` and the `Gemfile.lock` `RUBY VERSION` pin, .NET `global.json` SDK and `.csproj` framework declarations, or the
-`with.*-version` inputs of a GitHub Actions workflow step. A pin-file line
+`with.*-version` inputs of a GitHub Actions workflow step, and the
+`swift-tools-version` comment of a `Package.swift` file. A pin-file line
 that lists several versions is one row per token. There is no effective-version view in v1: a repository with a root
 `.nvmrc` and a `services/web/.nvmrc` returns both rows, each with its
 `scope_dir` (`.` at the repository root).
@@ -36,7 +37,7 @@ that lists several versions is one row per token. There is no effective-version 
 `gradle_java_toolchain`, `gradle_java_source_compatibility`,
 `gradle_java_target_compatibility`,
 `gradle_kotlin_jvm_toolchain`, `sbt_scala_version`,
-`sbt_build_properties_version`), and one per new reader
+`sbt_build_properties_version`, `swift_tools_version`), and one per new reader
 (`runtime_txt`, `dockerfile_from`,
 `workflow_setup_version`). The filter is an exact match on an open set.
 

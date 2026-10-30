@@ -4,6 +4,7 @@
 package swift
 
 import (
+	"path/filepath"
 	"slices"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
@@ -38,6 +39,13 @@ func Parse(path string, isDependency bool, options shared.Options, parser *tree_
 
 	root := tree.RootNode()
 	payload := shared.BasePayload(path, "swift", isDependency)
+	// Package.swift binds through the .swift registry extension with a stored
+	// body (#9308 Others lane ii makes no content-store change), so the
+	// tools-version evidence rides the bytes this parse already read. Other
+	// Swift files carry no runtime declaration and keep their payload shape.
+	if filepath.Base(path) == "Package.swift" {
+		payload["swift_runtime_evidence"] = ExtractSwiftToolsVersionEvidence(source)
+	}
 	payload["structs"] = []map[string]any{}
 	payload["enums"] = []map[string]any{}
 	payload["protocols"] = []map[string]any{}

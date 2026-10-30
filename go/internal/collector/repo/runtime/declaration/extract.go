@@ -98,6 +98,8 @@ func Extract(relativePath, body string) (Extraction, bool) {
 			return Extraction{skip: Skip{Reason: SkipReasonByteCap, ByteSize: len(body), ByteCap: MaxManifestBytesPerFile}}, true
 		}
 		return ExtractPerlEvidence(perlparser.ExtractCpanfileRuntimeEvidence(path.Base(relativePath), []byte(body))), true
+	case manifestSwiftPackage:
+		return extractSwiftPackageManifest(body), true
 	case manifestTerraform, manifestTerragrunt, manifestHelmChart:
 		// IaC declarations arrive only through the native-parser snapshot,
 		// which binds the extraction to the exact source bytes; the content
