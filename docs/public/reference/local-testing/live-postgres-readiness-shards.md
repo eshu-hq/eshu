@@ -408,6 +408,13 @@ differ in era, and any other restore state. It prints the era and the hit,
 miss, and no-step counts on a `weights refresh v2: cache era ...` line. The
 next pool is warm-era only.
 
+Measured restore history (#9598): the 10 main push runs before the fix
+missed on at least one shard in 5 of them, and 2 of the first 4 main runs
+after the fix missed on all six shards because the saved entry was evicted
+within minutes (#9632). A warm-era pool admits only all-hit runs. Measure
+the acceptance count with `scripts/dev/readiness-cache-census/census.py`
+over at least 10 main push runs after #9632 lands.
+
 A pooled refit PR must meet these gates:
 
 - Declare the pool before the fit: every green `main` push run of
