@@ -54,9 +54,44 @@ type Definition struct {
 // publicOnlyMigrationPaths is the exact set of PublicOnly definitions, keyed
 // by embedded path. It exists because the SQL files themselves are immutable
 // (#7002): the marker cannot live in the migration body.
+// Authority-coupled scanner migrations (#9299) apply only where the
+// database-global authority layout exists. Each file below touches an
+// authority object at apply time, directly (%ROWTYPE on eshu_security
+// or a 241a-owned table, ALTER/REFERENCES/CREATE TRIGGER on one,
+// top-level DML into one, CREATE/REVOKE of an eshu_security function)
+// or transitively (DDL against a table owned by an earlier file in this
+// list, e.g. 258-260 build on 257/247 tables), so an isolated-schema
+// bootstrap that skips 241a must skip these too. 240a (own
+// targets/sources/attempts tables plus a base-table trigger), 253 (own
+// discovery-cursors table), and 264 (pure base-table function) stay
+// applicable everywhere.
 var publicOnlyMigrationPaths = map[string]bool{
-	"go/internal/storage/postgres/migrations/241a_scanner_typed_source_and_results.sql": true,
-	"go/internal/storage/postgres/migrations/241b_scanner_authority_epoch_backfill.sql": true,
+	"go/internal/storage/postgres/migrations/241a_scanner_typed_source_and_results.sql":        true,
+	"go/internal/storage/postgres/migrations/241b_scanner_authority_epoch_backfill.sql":        true,
+	"go/internal/storage/postgres/migrations/242a_scanner_role_attestation.sql":                true,
+	"go/internal/storage/postgres/migrations/243a_scanner_role_policy_install.sql":             true,
+	"go/internal/storage/postgres/migrations/244a_scanner_protected_capability.sql":            true,
+	"go/internal/storage/postgres/migrations/247_scanner_scan_result_receipts.sql":             true,
+	"go/internal/storage/postgres/migrations/248_scanner_source_collection_start.sql":          true,
+	"go/internal/storage/postgres/migrations/249_scanner_source_stage_page.sql":                true,
+	"go/internal/storage/postgres/migrations/250_scanner_source_publish.sql":                   true,
+	"go/internal/storage/postgres/migrations/251_scanner_existing_static_findings.sql":         true,
+	"go/internal/storage/postgres/migrations/252_scanner_attempt_authority.sql":                true,
+	"go/internal/storage/postgres/migrations/254_scanner_discovery_cursor_api.sql":             true,
+	"go/internal/storage/postgres/migrations/255_scanner_canonical_admission_authority.sql":    true,
+	"go/internal/storage/postgres/migrations/256_scanner_public_advisory_policy.sql":           true,
+	"go/internal/storage/postgres/migrations/257_scanner_public_advisory_stage.sql":            true,
+	"go/internal/storage/postgres/migrations/258_scanner_public_advisory_complete.sql":         true,
+	"go/internal/storage/postgres/migrations/259_scanner_public_advisory_publish.sql":          true,
+	"go/internal/storage/postgres/migrations/260_scanner_scan_fact_integrity.sql":              true,
+	"go/internal/storage/postgres/migrations/261_scanner_advisory_epoch_guards.sql":            true,
+	"go/internal/storage/postgres/migrations/262_scanner_public_advisory_completion_guard.sql": true,
+	"go/internal/storage/postgres/migrations/263_scanner_advisory_producer_ingestion_acl.sql":  true,
+	"go/internal/storage/postgres/migrations/265_scanner_static_impact_public_authority.sql":   true,
+	"go/internal/storage/postgres/migrations/266_scanner_static_impact_authorize.sql":          true,
+	"go/internal/storage/postgres/migrations/267_scanner_admission_authority_deny_no_row.sql":  true,
+	"go/internal/storage/postgres/migrations/268_scanner_impact_publication.sql":               true,
+	"go/internal/storage/postgres/migrations/269_scanner_impact_publish.sql":                   true,
 }
 
 // BootstrapDefinitions returns the ordered Wave 2 bootstrap layout, sourced

@@ -35,7 +35,9 @@ func supplyChainImpactProtectedSourcePredicateSQL(
         OR (finding_class.source_class = 'static' AND finding_class.lifecycle = 'active'
             AND ` + supplyChainImpactCurrentStaticAuthoritySQL(readAt) + `))
        AND finding_association.finding_fact_id IS NULL
-       AND fact.scope_id NOT LIKE 'image://derived/%')
+       AND fact.scope_id NOT LIKE 'image://derived/%'
+       AND (finding_class.finding_fact_id IS NULL
+            OR (finding_class.source_class = 'static' AND finding_class.lifecycle = 'active')))
       OR (finding_class.source_class = 'derived'
           AND finding_class.lifecycle = 'active'
           AND finding_association.finding_fact_id IS NOT NULL

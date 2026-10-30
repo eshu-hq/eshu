@@ -20,7 +20,14 @@ import (
 // StaticEnvelopes are classified source facts; each target has its own scan
 // generation and advisory set. The loader checks protected authority before
 // applying any limit and owns immutable copies until classification returns.
+// ProtectionEngaged reports whether role policy is installed: when no policy
+// state exists the protected publication path is not onboarded and the
+// handler keeps the plain static load (Complete stays true, asAuthorized
+// stays nil), so stores that never installed policy keep draining exactly
+// as before protection existed. A registered-but-broken authority still
+// fail-closes through the coverage-reason path, never through this flag.
 type AuthorizedSupplyChainImpactLoad struct {
+	ProtectionEngaged                bool
 	StaticEnvelopes                  []facts.Envelope
 	Targets                          []AuthorizedScanImpactEvidence
 	ScanPublications                 []ScanImpactPublicationWitness
@@ -132,6 +139,13 @@ func (h SupplyChainImpactHandler) loadAuthorizedSupplyChainImpactEvidence(
 				slog.String("coverage_reason", reason))
 		}
 		return supplyChainImpactLoadedEvidence{}, timing, authorizedImpactCoverageIncompleteError{reason: reason}
+	}
+	if !snapshot.ProtectionEngaged {
+		// Protection was never onboarded: the static expansion above
+		// already populated the plain load, so keep it exactly as the
+		// legacy static path would. The writer never sees a protected
+		// set it cannot authorize.
+		return staticLoaded, timing, nil
 	}
 	if len(snapshot.Targets) != len(snapshot.ScanPublications) {
 		return supplyChainImpactLoadedEvidence{}, timing, fmt.Errorf("authorized scan targets and publication witnesses differ")

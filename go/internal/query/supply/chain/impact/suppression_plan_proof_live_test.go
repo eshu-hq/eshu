@@ -81,11 +81,21 @@ func (n suppressionPlanTree) appendTypes(into []string) []string {
 	return into
 }
 
+// suppressionCallerPlanArgs derives the trailing caller-authorization
+// arguments from production instead of hand-freezing them: the query
+// templates grew $25+ authority placeholders under these vectors once
+// already, and a hand-frozen copy drifts silently while a derived one
+// fails loudly on arity. The proof runs without an auth context, so this
+// resolves to the shared-mode defaults production uses for the same call.
+func suppressionCallerPlanArgs() []any {
+	return supplyChainImpactCallerAuthorizationArgs(context.Background())
+}
+
 func suppressionListPlanArgs(
 	filter FindingFilter,
 	readAt time.Time,
 ) []any {
-	return []any{
+	return append([]any{
 		FindingFactKind,
 		filter.CVEID,
 		filter.PackageID,
@@ -110,14 +120,14 @@ func suppressionListPlanArgs(
 		array.Of(filter.AllowedRepositoryIDs),
 		array.Of(filter.AllowedScopeIDs),
 		readAt,
-	}
+	}, suppressionCallerPlanArgs()...)
 }
 
 func suppressionAggregatePlanArgs(
 	filter AggregateFilter,
 	readAt time.Time,
 ) []any {
-	return []any{
+	return append([]any{
 		filter.CVEID,
 		filter.PackageID,
 		filter.RepositoryID,
@@ -138,11 +148,11 @@ func suppressionAggregatePlanArgs(
 		array.Of(filter.AllowedRepositoryIDs),
 		array.Of(filter.AllowedScopeIDs),
 		readAt,
-	}
+	}, suppressionCallerPlanArgs()...)
 }
 
 func suppressionExplainPlanArgs(readAt time.Time) []any {
-	return []any{
+	return append([]any{
 		FindingFactKind,
 		"finding:000501",
 		"",
@@ -156,5 +166,5 @@ func suppressionExplainPlanArgs(readAt time.Time) []any {
 		array.Of([]string(nil)),
 		array.Of([]string(nil)),
 		readAt,
-	}
+	}, suppressionCallerPlanArgs()...)
 }
