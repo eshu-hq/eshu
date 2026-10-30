@@ -33,6 +33,31 @@ push to that pull request recompiles the packages the `go.sum` change touches,
 until main saves the new key. This trades some pull-request compile time for
 less pressure on the store.
 
+## Why Docker builds do not use the Actions cache
+
+`docker-publish.yml` used to export its BuildKit cache to the same store
+(`cache-to: type=gha,mode=max`). Each main push wrote about 8.8 GB of layer
+blobs, and each pull-request Docker run about 4 GB, so the Go entries were
+evicted within minutes of their save (#9632). The Docker builds now keep their
+cache in the GHCR package `ghcr.io/eshu-hq/eshu-buildcache`, one fixed tag per
+target (`runtime`, `scanner-image`, `scanner-sbom`, `scanner-osruntime`):
+
+- Only a `push` event (main or tag) writes the cache. A pull request, including
+  test.yml's `workflow_call`, and `workflow_dispatch` get an empty `cache-to`
+  and only read, so no pull request can write a cache that main reads.
+- A missing cache is a plain miss, so the first build after the change and a
+  build that cannot reach GHCR still succeed.
+- `ghcr-buildcache-prune.yml` deletes untagged versions older than 7 days, in
+  that package only, and always keeps the 4 newest untagged versions so a tag
+  that a concurrent main push just moved is never pulled from under a running
+  build. The script takes no package argument. The image packages are never
+  pruned: their untagged versions are the per-platform manifests of live
+  multi-arch images.
+- `go/internal/cigates/dockercache_wiring_test.go` pins the event gate, the
+  registry ref, one fixed tag per target, and that no secret reaches a build
+  (mode=max exports every layer to a public package);
+  `dockercache_wiring_mutations_test.go` breaks each rule.
+
 ## Why setup-go does not cache
 
 `actions/setup-go` caches `go env GOMODCACHE` and `go env GOCACHE`. With

@@ -444,6 +444,13 @@ dockerhublogin:
   - '**/docker-compose*.y*ml'
   - 'specs/ci-gates.v1.yaml'
   - 'specs/ci-gates.d/**'
+buildcacheprune:
+  - '.github/workflows/static-contract-gates.yml'
+  - '.github/static-contract-filters.yml'
+  - '.github/workflows/ghcr-buildcache-prune.yml'
+  - 'scripts/ci/prune-ghcr-buildcache.sh'
+  - 'scripts/ci/test-prune-ghcr-buildcache.sh'
+  - 'scripts/ci/fixtures/gh-packages.sh'
 workflowscriptcheckout:
   - '.github/workflows/static-contract-gates.yml'
   - 'specs/ci-gates.v1.yaml'

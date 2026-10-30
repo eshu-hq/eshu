@@ -27,3 +27,44 @@ gates:
     requirements: []
     ci_only_reason: ""
     hook_id: ""
+
+  - id: ghcr-buildcache-prune
+    name: GHCR build cache prune self-test
+    category: hygiene
+    layer: hygiene
+    purpose: "Fails when the eshu-buildcache prune deletes a tagged, recent or newest-4 version, names another package, or hides an API error (#9632)."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - ".github/workflows/ghcr-buildcache-prune.yml"
+      - "scripts/ci/prune-ghcr-buildcache.sh"
+      - "scripts/ci/test-prune-ghcr-buildcache.sh"
+      - "scripts/ci/fixtures/gh-packages.sh"
+      - ".github/workflows/static-contract-gates.yml"
+      - ".github/static-contract-filters.yml"
+    local:
+      command: "bash scripts/ci/test-prune-ghcr-buildcache.sh"
+      test_command: ""
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify GHCR build cache prune gate"
+    requirements: []
+    ci_only_reason: ""
+    hook_id: ""
+
+  - id: ghcr-buildcache-prune-run
+    name: GHCR build cache prune (daily)
+    category: hygiene
+    layer: secondary
+    purpose: "Deletes untagged eshu-buildcache versions older than 7 days, keeping the 4 newest; that GHCR package holds the docker-publish BuildKit cache (#9632)."
+    tier: ci-heavy
+    blocking: false
+    triggers:
+      - ".github/workflows/ghcr-buildcache-prune.yml"
+      - "scripts/ci/prune-ghcr-buildcache.sh"
+    ci:
+      workflow: ghcr-buildcache-prune.yml
+      job: "GHCR build cache prune"
+    requirements:
+      - credentials
+    ci_only_reason: "scheduled delete against the live GHCR package with packages: write; the blocking ghcr-buildcache-prune row runs its hermetic self-test"
