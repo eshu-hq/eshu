@@ -14,6 +14,7 @@ import (
 
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 // TestServiceStoryTargetSupportSQLSemanticsLive is the committed #6794 parity
@@ -34,7 +35,9 @@ import (
 //     any other kind whatever payload keys it carries, is source-only, and a
 //     link to another repository is neither evidence nor source-only (#7138).
 //
-// Skipped unless ESHU_POSTGRES_DSN names a disposable Postgres.
+// Skipped unless ESHU_POSTGRES_DSN is set with ESHU_POSTGRES_DISPOSABLE=1:
+// the proof runs on a fresh disposable database (#9299: the 241a/241b
+// authority migrations are public-only).
 func TestServiceStoryTargetSupportSQLSemanticsLive(t *testing.T) {
 	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
 	if dsn == "" {
@@ -107,32 +110,36 @@ func TestServiceStoryTargetSupportSQLSemanticsLive(t *testing.T) {
 	}
 }
 
+// openStorySupportSchema opens a fresh disposable database with the full
+// bootstrap on its public schema. Database-level isolation (not an isolated
+// schema): the lane's 241a/241b authority migrations are public-only and
+// fail closed under any other search_path (#7033), so the full install
+// needs a fresh database. The database is dropped when the test ends.
+//
+// Skipped unless ESHU_POSTGRES_DSN is set; a set DSN without
+// ESHU_POSTGRES_DISPOSABLE=1 fails closed.
 func openStorySupportSchema(ctx context.Context, t *testing.T, dsn string) *sql.Conn {
 	t.Helper()
-	database, err := sql.Open("pgx", dsn)
-	if err != nil {
-		t.Fatalf("open postgres: %v", err)
+	if strings.TrimSpace(dsn) == "" {
+		t.Skip("set ESHU_POSTGRES_DSN to run the #6794 story target-support semantics proof")
 	}
-	t.Cleanup(func() { _ = database.Close() })
+	optIn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DISPOSABLE"))
+	if optIn != "1" {
+		t.Fatal("ESHU_POSTGRES_DSN is set without ESHU_POSTGRES_DISPOSABLE=1")
+	}
+	admin, err := postgresproof.WithDatabase(dsn, "postgres")
+	if err != nil {
+		t.Fatalf("retarget story support proof DSN: %v", err)
+	}
+	_, database := postgresproof.OpenDisposableBootstrapDatabase(t, admin, optIn, 5*time.Minute,
+		func(ctx context.Context, database *sql.DB) error {
+			return storagepostgres.ApplyBootstrap(ctx, storagepostgres.SQLDB{DB: database})
+		})
 	conn, err := database.Conn(ctx)
 	if err != nil {
-		t.Fatalf("open postgres connection: %v", err)
+		t.Fatalf("open proof connection: %v", err)
 	}
-	schema := fmt.Sprintf("story_support_%d", time.Now().UnixNano())
-	t.Cleanup(func() {
-		_, _ = conn.ExecContext(context.Background(), "DROP SCHEMA "+schema+" CASCADE")
-		_ = conn.Close()
-	})
-	for _, stmt := range []string{"CREATE SCHEMA " + schema, "SET search_path TO " + schema + ", public"} {
-		if _, err := conn.ExecContext(ctx, stmt); err != nil {
-			t.Fatalf("%s: %v", stmt, err)
-		}
-	}
-	for _, def := range storagepostgres.BootstrapDefinitions() {
-		if _, err := conn.ExecContext(ctx, def.SQL); err != nil {
-			t.Fatalf("apply migration %s: %v", def.Name, err)
-		}
-	}
+	t.Cleanup(func() { _ = conn.Close() })
 	return conn
 }
 
