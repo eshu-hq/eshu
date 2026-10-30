@@ -48,6 +48,24 @@ type extensionFailure struct {
 	cause      error
 }
 
+// stdoutLimitExceededFailure reports a satellite result that does not fit
+// one runner call. Oversize is deterministic for identical inputs — retrying
+// the same claim reproduces the same bytes — so the verdict is terminal
+// instead of burning the attempt budget on retryable launch failures
+// (eshu-hq/eshu#9635). The message carries byte counts and remediation
+// names only; no payload bytes ever reach it.
+func stdoutLimitExceededFailure(limit, observed int64) extensionFailure {
+	return extensionFailure{
+		class:    FailureClassLaunchFailure,
+		terminal: true,
+		cause: fmt.Errorf(
+			"extension stdout limit exceeded: observed_bytes=%d limit_bytes=%d: satellite result does not fit one call; use a v1alpha3 paged satellite, raise stdout_limit_bytes under process (process runner) or oci (OCI runner), or narrow the claim scope (for example fewer allowed_services)",
+			observed,
+			limit,
+		),
+	}
+}
+
 func (e extensionFailure) Error() string {
 	if e.cause == nil {
 		return "collector extension failure: " + e.class

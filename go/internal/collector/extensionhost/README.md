@@ -368,3 +368,24 @@ only for the `vulnerability_intelligence` kind
   `source_state_record`; an error on a failed outcome is joined to the claim
   error and never changes its class or terminality; a post-commit error is
   non-fatal.
+
+No-Regression Evidence (#9635): the stdout byte counter adds one int64 add
+per `Write` with no branch and no allocation. Microbenchmark of the old
+`Write` logic versus the new one (32 KiB chunks, 100k writes, count 3,
+linux/arm64, this tree's toolchain): old 325.3-331.1 ns/op, new 325.3-330.9
+ns/op (~100 GB/s both) — the delta is below run-to-run noise, so the hot
+stdout path is unmoved. Baseline: pre-change `Write`; after: this tree.
+`TestLimitedBufferCountsTotalBytesWritten`,
+`TestProcessRunnerStdoutLimitFailsTerminal`,
+`TestProcessRunnerPagedStdoutLimitFailsTerminal`, and
+`TestOCIRunnerStdoutLimitFailsTerminal` pin the terminal verdict and the byte
+counts on both runners and both call paths.
+
+Observability Evidence (#9635): oversize now surfaces as a terminal
+`launch_failure` naming `observed_bytes` and `limit_bytes` with remediation
+names (v1alpha3 paged satellite, `stdout_limit_bytes` under `process` or
+`oci`, narrower claim scope) instead of a retryable `launch_failure` naming
+only the limit. No
+payload bytes ever reach the message. An operator greps one deterministic
+failure instead of ten burned attempts; the paged assembler preserves
+runner-classified verdicts instead of re-wrapping them.
