@@ -50,7 +50,11 @@ type SourceState struct {
 	PendingCount     int `json:"pending_count,omitempty"`
 	// ScopeIDs lists up to 10 kept scope ids, worst state first and oldest
 	// success first within a state.
-	ScopeIDs         []string `json:"scope_ids,omitempty"`
+	ScopeIDs []string `json:"scope_ids,omitempty"`
+	// MultiCVETarget marks a configured NVD target that lists several CVEs:
+	// absence stays per target, so the target certifies none of its CVEs
+	// absent once NVD returned any record for it (#9322).
+	MultiCVETarget   bool `json:"multi_cve_target,omitempty"`
 	coverageEligible bool
 	coverageZero     bool
 }

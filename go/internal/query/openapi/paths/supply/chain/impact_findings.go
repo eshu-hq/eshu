@@ -301,6 +301,7 @@ const impactFindings = `
                               "terminal_status": {"type": "string", "enum": ["pending", "succeeded", "partial", "failed_retryable", "failed_terminal"]},
                               "result_count": {"type": "integer"},
                               "warning_count": {"type": "integer"},
+                              "multi_cve_target": {"type": "boolean"},
                               "updated_at": {"type": "string"}
                             },
                             "required": ["scope_id", "source", "freshness_state", "terminal_status", "result_count", "warning_count"]

@@ -252,6 +252,14 @@ func TestOpenAPISpecIncludesSupplyChainImpactFindings(t *testing.T) {
 			t.Fatalf("readiness_state enum = %#v, want %q surfaced", stateEnum, want)
 		}
 	}
+	sourceStates := testutil.MustMapField(t, readinessProps, "source_states")
+	sourceStatesItems := testutil.MustMapField(t, sourceStates, "items")
+	sourceStatesItemProps := testutil.MustMapField(t, sourceStatesItems, "properties")
+	for _, key := range []string{"multi_cve_target"} {
+		if _, ok := sourceStatesItemProps[key]; !ok {
+			t.Fatalf("source_states items.properties missing %q", key)
+		}
+	}
 	unsupportedTargets := testutil.MustMapField(t, readinessProps, "unsupported_targets")
 	unsupportedTargetsItems := testutil.MustMapField(t, unsupportedTargets, "items")
 	unsupportedTargetsItemProps := testutil.MustMapField(t, unsupportedTargetsItems, "properties")

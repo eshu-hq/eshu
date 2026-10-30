@@ -275,7 +275,11 @@ configured_vulnerability_source_state_candidates AS (
         state.updated_at,
         target.coverage_eligible AND committed.covered AS coverage_eligible,
         target.coverage_eligible AND committed.zero_result AS coverage_zero,
-        target.coverage_eligible AND NOT committed.covered AS coverage_missing
+        target.coverage_eligible AND NOT committed.covered AS coverage_missing,
+        -- A target that lists several CVEs certifies none of them absent once
+        -- NVD returned any record for that target (#9322): absence stays per
+        -- target, and the response row says so.
+        target.source = 'nvd' AND COALESCE(JSONB_ARRAY_LENGTH(target.expected_descriptor->'cve_ids'), 0) > 1 AS multi_cve_target
     FROM (
         SELECT * FROM target_vulnerability_source_scopes
         ORDER BY collector_instance_id, scope_id, source, ecosystem
@@ -358,6 +362,7 @@ vulnerability_source_state AS (
                 'warning_count', warning_count,
                 'coverage_eligible', coverage_eligible,
                 'coverage_zero', coverage_zero,
+                'multi_cve_target', multi_cve_target,
                 'updated_at', TO_CHAR(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
             )) || COALESCE(derived_detail, '{}'::jsonb)) FILTER (WHERE scope_id IS NOT NULL),
             '[]'::jsonb

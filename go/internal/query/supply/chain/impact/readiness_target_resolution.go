@@ -135,10 +135,15 @@ func readinessTargetKeyPackageIDs(target readinessTarget) []string {
 
 // readinessDerivationEcosystems lists the ecosystem spellings the
 // vulnerability-intelligence collector accepts in derive_from_owned_packages
-// and derive_from_installed_evidence (vulnruntime normalizeDerivedTargetConfig),
-// minus the OS distributions, whose package keys readiness has not proven.
+// and derive_from_installed_evidence (vulnruntime normalizeDerivedTargetConfig).
+// OS distributions join through their distro spellings to the canonical os
+// package keys the collector writes (#9322). Only the distributions with a
+// canonical packageidentity ecosystem join today (rocky and alma are accepted
+// by the collector but normalize to no ecosystem, so they stay unmatched
+// until packageidentity maps them).
 var readinessDerivationEcosystems = []string{
 	"npm", "pypi", "go", "maven", "nuget", "composer", "rubygems", "cargo", "swift", "hex", "pub",
+	"alpine", "debian", "ubuntu",
 }
 
 // readinessEcosystemAliases returns the spelling-to-canonical table the

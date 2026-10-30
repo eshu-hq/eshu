@@ -77,7 +77,10 @@ func TestReadinessQueryArgumentsMatchPlaceholders(t *testing.T) {
 // TestReadinessEcosystemAliasesUseCanonicalNames pins the derivation spelling
 // table: the collector's "go" maps to packageidentity's "gomod", and a
 // canonical name the collector rejects in derivation config is not marked as
-// a derivation spelling.
+// a derivation spelling. OS distributions with a canonical ecosystem join
+// through their distro spellings (#9322, live-proven); Rocky and AlmaLinux
+// have no canonical ecosystem, so they stay out until packageidentity maps
+// them.
 func TestReadinessEcosystemAliasesUseCanonicalNames(t *testing.T) {
 	t.Parallel()
 	spellings, canonicals, derivation := readinessEcosystemAliases()
@@ -86,17 +89,24 @@ func TestReadinessEcosystemAliasesUseCanonicalNames(t *testing.T) {
 		got[spelling] = [2]string{canonicals[index], derivation[index]}
 	}
 	for spelling, want := range map[string][2]string{
-		"go":    {"gomod", "true"},
-		"gomod": {"gomod", "false"},
-		"npm":   {"npm", "true"},
-		"pypi":  {"pypi", "true"},
-		"maven": {"maven", "true"},
+		"go":     {"gomod", "true"},
+		"gomod":  {"gomod", "false"},
+		"npm":    {"npm", "true"},
+		"pypi":   {"pypi", "true"},
+		"maven":  {"maven", "true"},
+		"swift":  {"swift", "true"},
+		"alpine": {"os", "true"},
+		"debian": {"os", "true"},
+		"ubuntu": {"os", "true"},
+		"os":     {"os", "false"},
 	} {
 		if got[spelling] != want {
 			t.Fatalf("alias %q = %v, want %v (all = %v)", spelling, got[spelling], want, got)
 		}
 	}
-	if _, ok := got["alpine"]; ok {
-		t.Fatal("OS distributions must stay out of the derived readiness alias table until proven")
+	for _, spelling := range []string{"rocky", "alma"} {
+		if _, ok := got[spelling]; ok {
+			t.Fatalf("alias %q must stay out of the derived readiness alias table until packageidentity maps it", spelling)
+		}
 	}
 }
