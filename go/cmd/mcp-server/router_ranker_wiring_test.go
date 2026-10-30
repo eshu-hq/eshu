@@ -20,6 +20,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/mcp"
 	toolcontract "github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
 	"github.com/eshu-hq/eshu/go/internal/mcp/router"
+	"github.com/eshu-hq/eshu/go/internal/mcp/router/rank"
 	"github.com/eshu-hq/eshu/go/internal/query"
 )
 
@@ -92,6 +93,40 @@ func TestMCPServerFindToolReturnsCandidatesWithTheProductionRanker(t *testing.T)
 				t.Fatalf("first candidate has no name: %v", first)
 			}
 		})
+	}
+}
+
+// TestMCPServerRouterSurfaceRanksWithoutCatalogEntries proves the portable
+// ranker build (rank.NewWithoutCatalog, the source the eshu-mcp port mirrors,
+// #9521 blocker 3) accepts a router-surface find_tool request and ranks it:
+// no startup refusal, no mcp_router_ranker_unavailable, and a named top
+// candidate. The constructor builds from the registry tools alone; the HTTP
+// stack still supplies the loaded catalog entries at Rank time, so the
+// catalog-free Rank path itself (nil entries, no rebuild, CostHigh default)
+// is pinned by TestNewWithoutCatalogRanksWithNilEntries in router/rank.
+func TestMCPServerRouterSurfaceRanksWithoutCatalogEntries(t *testing.T) {
+	t.Parallel()
+
+	withoutCatalog := func(tools []toolcontract.ToolDefinition, _ map[string]catalog.Entry) router.Ranker {
+		return rank.NewWithoutCatalog(tools)
+	}
+	server, build, err := newMCPServer(http.NewServeMux(), discardLogger(), nil,
+		query.ProfileProduction, router.SurfaceRouter, withoutCatalog)
+	if err != nil {
+		t.Fatalf("newMCPServer(router) error = %v", err)
+	}
+	if !build.built || build.tools == 0 {
+		t.Fatalf("ranker build = %+v, want a built catalog-free ranker over the registry tools", build)
+	}
+	result := findToolOverHTTP(t, server.Handler(nil), "list the indexed repositories")
+	structured, _ := result["structuredContent"].(map[string]any)
+	candidates, _ := structured["candidates"].([]any)
+	if len(candidates) == 0 {
+		t.Fatalf("find_tool returned no candidates: %v", result)
+	}
+	first, _ := candidates[0].(map[string]any)
+	if first["name"] == "" || first["name"] == nil {
+		t.Fatalf("first candidate has no name: %v", first)
 	}
 }
 

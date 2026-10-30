@@ -19,6 +19,9 @@ must not import `internal/mcp`; `TestRankDoesNotImportMCPRoot` enforces that.
 ## Exported surface
 
 - `New(tools, entries)` builds the index once. Call it at server start.
+- `NewWithoutCatalog(tools)` builds the same index with no catalog entries
+  (names, descriptions, and schema properties only). The eshu-mcp port
+  mirrors this build (#9521).
 - `(*Lexical).Rank` implements `router.Ranker`.
 - `ErrNilAllowed` is returned when `allowed` is nil.
 
