@@ -340,6 +340,9 @@ TABLE = {
             "TestSupplyChainImpactBranchPlansStayOnAnchorsLive",
             "TestSupplyChainImpactNewIndexInsertCostLive",
         ),
+        "go/internal/storage/postgres/supply_chain_impact_protected_publish_live_test.go": (
+            "TestSupplyChainImpactProtectedStaticPublishLive",
+        ),
         "go/internal/storage/postgres/terms_foreign_key_migration_budget_live_test.go": (
             "TestTermsForeignKeyDropFailsCleanlyWhenItsLockStaysBusyLive",
         ),
