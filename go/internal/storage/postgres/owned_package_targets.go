@@ -330,7 +330,10 @@ func (s FactStore) readOwnedPackageWindow(
 			RepositoryID:   repositoryID.String,
 			FactID:         factID.String,
 			SourceLocation: strings.TrimSpace(sourceLocation.String),
-			KeyHashLow24:   uint32(max(keyHashLow24.Int64, 0)),
+			// #nosec G115 -- bounded: the reader projects the low 24 bits
+			// of sha256(eco|pkg|ver), always within uint32; a NULL hash
+			// scans as 0 and clamps to slot 0 deterministically.
+			KeyHashLow24: uint32(max(keyHashLow24.Int64, 0)),
 		}
 		if target.Ecosystem == "" || target.PackageName == "" {
 			continue
