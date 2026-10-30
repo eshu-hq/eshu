@@ -50,7 +50,7 @@ now() { date -u +"%Y-%m-%dT%H:%M:%SZ"; }
 mtime() {
   # GNU stat differs from BSD stat. Probe GNU first: BSD `stat -f` on GNU
   # prints a filesystem dump to stdout before failing, which pollutes the
-  # epoch comparison below. BSD `stat -c` fails cleanly with no stdout, so
+  # epoch comparison below. GNU `stat -c` fails cleanly with no stdout, so
   # macOS still falls through to the second probe.
   stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null || echo 0
 }
