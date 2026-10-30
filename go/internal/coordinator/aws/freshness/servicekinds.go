@@ -194,6 +194,16 @@ var globalServiceKinds = []string{
 	serviceRoute53,
 }
 
+// supportedServiceKindSet mirrors supportedServiceKinds for O(1) membership
+// checks, matching the registry map lookup this vocabulary replaces.
+var supportedServiceKindSet = func() map[string]struct{} {
+	set := make(map[string]struct{}, len(supportedServiceKinds))
+	for _, kind := range supportedServiceKinds {
+		set[kind] = struct{}{}
+	}
+	return set
+}()
+
 // SupportedServiceKinds returns the schedulable service_kind values in
 // sorted order. The returned slice is a copy; callers must not mutate it.
 func SupportedServiceKinds() []string {
@@ -202,7 +212,8 @@ func SupportedServiceKinds() []string {
 
 // SupportsServiceKind reports whether service is a schedulable service kind.
 func SupportsServiceKind(service string) bool {
-	return slices.Contains(supportedServiceKinds, service)
+	_, ok := supportedServiceKindSet[service]
+	return ok
 }
 
 // IsGlobalServiceKind reports whether service is a global family whose
