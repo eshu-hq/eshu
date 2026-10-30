@@ -239,6 +239,14 @@ func ReconcileStaleComponentActivations(home string, skips []StaleActivationSkip
 			outcomes = append(outcomes, outcome)
 			continue
 		}
+		// The revalidation holds at check time: a file arriving between
+		// this stat and the Disable below is not covered (check-then-act
+		// with an external writer). The window is one startup pass and
+		// the startup warning always names the entry. Recovery is
+		// topology-scoped: activations-mode topologies re-seed the
+		// pod-local registry from the ConfigMap on the next start, so a
+		// present file re-registers; on durable registries the drop
+		// stands until the operator re-enables the activation.
 		if err := registry.Disable(skip.ComponentID, skip.InstanceID); err != nil {
 			// A concurrent removal between the lookup and the drop is
 			// already healed; any other failure is reported, never fatal.
