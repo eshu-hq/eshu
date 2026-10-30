@@ -53,3 +53,15 @@ paths this table produced.
 ```bash
 cd go && go test ./internal/collector/awscloud/recordpolicy -count=1
 ```
+
+## Performance evidence (SSM key classification, #9556)
+
+No-Regression Evidence: classifying the 11 SSM inventory keys adds 11 map
+insertions to the `Policy()` table build and changes no call site. Baseline
+table 214 fields, after 225. Measured after-cost on this host:
+`Policy()` ~9.7us/op, 6 allocs/op, 3 runs of 100k iters. The delta is bounded
+by the extra inserts (~5% of the build); alloc shape unchanged (single make
+plus amortized inserts).
+
+No-Observability-Change: this package emits nothing. The only record event is
+emitted by the satellite record-mode wiring, untouched by this change.
