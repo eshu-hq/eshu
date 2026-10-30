@@ -59,9 +59,10 @@
 - Dropping the `claim_fencing_token` match from `MarkTriggersHandedOff`/
   `MarkTriggersFailed` lets a stale claimant complete a claim a different
   owner already re-claimed.
-- Forgetting `bindings_test.go` (or its blank import) makes any test that
-  builds a fixture through `freshness.NewStoredTrigger` panic with
-  "unsupported service_kind" instead of failing an assertion.
+- An `unsupported service_kind` failure from `freshness.NewStoredTrigger`
+  means the kind is genuinely absent from the static host vocabulary
+  (`SupportsServiceKind` fails closed); no bindings file or blank import
+  exists or is needed in this package.
 
 ## Verification
 
