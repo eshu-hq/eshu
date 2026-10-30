@@ -213,6 +213,14 @@ type OwnedPackageDependencyTarget struct {
 	// two cannot drift. Zero when the target did not come from the reader;
 	// it then plans into virtual slot 0 deterministically.
 	KeyHashLow24 uint32
+	// SBTCrossVersion is the row's sbt_cross_version label and
+	// SBTBinaryArtifact is its sbt_binary_artifact coordinate. Both are
+	// sbt-only: the vulnerability derivation maps sbt rows onto Maven OSV
+	// targets through the same cross-version rule the reducer join uses
+	// (see packageidentity.ManifestConsumptionKeys). Other ecosystems leave
+	// both blank.
+	SBTCrossVersion   string
+	SBTBinaryArtifact string
 }
 
 // OwnedPackageDependencyTargetFilter bounds active dependency target reads.
@@ -234,6 +242,13 @@ type OwnedPackageDependencyTargetFilter struct {
 	// for maven) and report them under the canonical ecosystem name. The zero
 	// value keeps the raw package_manager match.
 	ExpandPackageManagerAliases bool
+	// IncludeSBTOwnedTargets makes a maven read also select raw sbt rows,
+	// reported under the sbt ecosystem with their sbt_cross_version and
+	// sbt_binary_artifact columns, so the vulnerability derivation can map
+	// them onto Maven OSV targets through the cross-version rule (#9313).
+	// The zero value selects no sbt rows: package-registry callers leave it
+	// off and keep the base alias selection.
+	IncludeSBTOwnedTargets bool
 }
 
 // OSPackageAdvisoryTarget is one active installed OS package fact that can

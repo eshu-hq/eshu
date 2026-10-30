@@ -195,7 +195,7 @@ func TestListOwnedPackageDependencyTargetsSlotDifferentialLive(t *testing.T) {
 	store := NewFactStore(SQLDB{DB: db})
 
 	rows, err := db.QueryContext(ctx, ownedPackageAllSlotsQuery(true, true),
-		ownedPackageManagerFilterValues([]string{"npm", "rubygems"}, true), int64(100000), int64(0), slotLiveTargetLimit)
+		ownedPackageManagerFilterValues([]string{"npm", "rubygems"}, true, false), int64(100000), int64(0), slotLiveTargetLimit)
 	if err != nil {
 		t.Fatalf("all-slots differential query: %v", err)
 	}

@@ -123,7 +123,7 @@ func assertOwnedPackageReadFollowsActiveGenerations(ctx context.Context, t *test
 	total := active
 	shipped := listOwnedPackageDependencyTargetsQuery(true, true)
 	history := ownedPackageAllHistoryQuery(true, true)
-	filter := ownedPackageManagerFilterValues([]string{"npm", "rubygems"}, true)
+	filter := ownedPackageManagerFilterValues([]string{"npm", "rubygems"}, true, false)
 	slots := workflow.OwnedPackageTargetSlotCount(total, slotLiveTargetLimit)
 
 	var all []string

@@ -405,17 +405,24 @@ dependency facts carry a different `package_manager` spelling for the same OSV
 ecosystem, so the coordinator reads those facts and reports them under the
 configured name. Configuring `maven` also derives targets from Gradle
 dependencies, because Gradle declares Maven `group:artifact` coordinates and OSV
-publishes their advisories under Maven. Configuring `go` also covers the older
+publishes their advisories under Maven. Vulnerability derivation also covers
+sbt dependencies: `%` rows query the plain coordinate they name, while `%%`
+rows query the Scala-version-suffixed artifact OSV publishes
+(`group:artifact_<binary version>`), taken from the row's
+`sbt_binary_artifact`. A row whose Scala version cannot be determined derives
+nothing and is counted. Configuring `go` also covers the older
 `gomod`, `go-module`, and `go_module` spellings. Aliases follow the same
 exact-version rule as the configured ecosystem, which skips unresolved
 versions such as `${version}`, `$version`, `latest.release`, `1.0!!`, and
 `1.0@jar`, and package names that still hold a `${...}` or `$name` reference.
 A package and version that Gradle and Maven manifests both declare produces one
-target. `gradle` is not a
-valid value for `ecosystems`; validation rejects it with `unsupported
-ecosystem`, so a configuration cannot select Gradle without Maven. Skipped
-Gradle dependencies are counted under `maven` in the derived-target skip
-evidence. Package-registry derivation does not expand aliases.
+target. Neither `gradle` nor `sbt` is a
+valid value for `ecosystems`; validation rejects them with `unsupported
+ecosystem`, so a configuration cannot select Gradle or sbt without Maven. Skipped
+Gradle and sbt dependencies are counted under `maven` in the derived-target skip
+evidence. Package-registry derivation expands aliases but never selects sbt
+rows: it leaves the reader's sbt flag off, so its selection is the alias
+expansion with no sbt rows.
 
 Inside `ESHU_COLLECTOR_INSTANCES_JSON`, vulnerability targets may set
 `fallback_urls` for source mirrors. The instance configuration may also set
