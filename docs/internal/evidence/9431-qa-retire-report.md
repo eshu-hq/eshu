@@ -178,3 +178,30 @@ satellite_instance` dummy values; psql 18.6, `ON_ERROR_STOP=1`):
 | S4 commit (`retire_ok=1`) | no in-flight | exit 0, `COMMIT`, 2 generations `superseded` with `retired_issue=9431` + `retired_prior_scope_status=active`, 2 scope pointers NULL |
 | S5 fresh session (`rollback_ok=1`) | new psql session after the commit | exit 0, scopes back to `active` with pointers restored, generations `active`, payloads back to `{}`, `rollback_marker_remaining=0` |
 | S5 window-closed | one scope re-pointed at a new active generation before rollback | that scope untouched (old generation stays `superseded` with marker, pointer stays new), the other scope restored, `rollback_marker_remaining=1` |
+
+## Follow-up review on #9603 (P1 + P2, fixed before merge)
+
+Two findings arrived on the PR itself and are fixed in the same files:
+
+- **P1 — all-or-nothing retire.** The second-layer `NOT EXISTS` predicates
+  skip a raced row per statement, so a claim committed after the recheck
+  under `READ COMMITTED` retired the rest of the set with exit 0 (proven RED
+  on the committed head: recheck 0, `UPDATE 1`/`UPDATE 1`, `COMMIT`, one
+  generation retired while the raced scope stayed active). Sections 3 and 4
+  now re-count non-fully-retired rows after the `UPDATE`s and raise before
+  the section tail on any shortfall. GREEN with a claim committed strictly
+  between recheck and `UPDATE`s: `UPDATE 1`/`UPDATE 1` (raced row skipped),
+  `must_be_zero_shortfall=1`, `ABORT` + `ERROR`, exit 3, zero rows committed
+  (both generations active, no markers, no cleared pointers). The remaining
+  check-to-tail window holds no writes, only the read-only key `SELECT`.
+- **P2 — falsy gate values.** `:{?var}` tests definedness, so `-v
+  retire_ok=0` took the run path (silently skipping via a misbound `\else`;
+  no write occurred, but the operator got no message). Both gates now test
+  defined AND truthy (`lower(value) IN (1/true/t/on/yes/y)`, unset and falsy
+  values print the `SKIPPED` line). Proof: `-v retire_ok=0`, `rollback_ok=0`,
+  and `retire_ok=off` each exit 0 with both sections skipped and zero
+  markers; `-v retire_ok=TRUE` runs the retire (`COMMIT`, 2 markers).
+- The Section 3 vs 4 lock+gate+`UPDATE`+check bodies remain line-identical
+  (diff shows only the reporting tail and `COMMIT` vs `ROLLBACK`); the
+  `=1`-only wording now says defined-and-truthy in the header, usage
+  comment, and both section headers.

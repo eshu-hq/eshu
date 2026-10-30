@@ -17,10 +17,11 @@
 --     -v satellite_instance=<satellite QA instance> \
 --     -f docs/internal/evidence/9431-qa-retire.sql
 -- Dry run (BEGIN ... ROLLBACK, always safe) runs by default.
--- Retire transaction runs ONLY with -v retire_ok=1, after step 4 of the ruling
--- (replacement pass) is recorded in the evidence.
--- Rollback runs ONLY with -v rollback_ok=1, from any fresh session (Section 5
--- references no session-local state).
+-- Retire transaction runs ONLY with -v retire_ok=1 (defined AND truthy: 0,
+-- off, false, or empty skip), after step 4 of the ruling (replacement pass)
+-- is recorded in the evidence.
+-- Rollback runs ONLY with -v rollback_ok=1 (same defined-and-truthy rule),
+-- from any fresh session (Section 5 references no session-local state).
 --
 -- Scope-status choice (ruling step 3): set ingestion_scopes.status='failed'
 -- with active_generation_id=NULL, the value the existing no-active-generation
@@ -225,6 +226,27 @@ WHERE s.scope_id = r.scope_id AND s.active_generation_id = r.generation_id
     SELECT 1 FROM fact_work_items w
     WHERE w.scope_id = s.scope_id AND w.generation_id = r.generation_id
       AND w.status IN ('claimed', 'running', 'retrying'));
+-- All-or-nothing check (#9603 review): a claim committed after the recheck is
+-- invisible to the recheck but visible to the UPDATEs under READ COMMITTED,
+-- so one raced row would otherwise retire partially with exit 0. Any retire-set
+-- row that is not (superseded with marker / cleared pointer) aborts the run
+-- with a nonzero exit before the section tail; zero rows commit.
+SELECT count(*) AS shortfall_n, (count(*) > 0) AS abort_shortfall
+FROM pg_temp.retire_set r
+WHERE NOT EXISTS (
+    SELECT 1 FROM scope_generations g
+    WHERE g.scope_id = r.scope_id AND g.generation_id = r.generation_id
+      AND g.status = 'superseded' AND g.payload ->> 'retired_issue' = '9431')
+   OR NOT EXISTS (
+    SELECT 1 FROM ingestion_scopes s
+    WHERE s.scope_id = r.scope_id AND s.active_generation_id IS NULL) \gset
+SELECT :'shortfall_n' AS must_be_zero_shortfall;
+\if :abort_shortfall
+\echo 'ABORT: retire set not fully retired (in-flight race); zero rows committed.'
+DO $$BEGIN
+  RAISE EXCEPTION 'retire ABORTED: retire set not fully retired; zero rows committed';
+END$$;
+\endif
 SELECT 'dryrun_updated_generations=' || count(*) FROM scope_generations g
 JOIN pg_temp.retire_set r USING (scope_id, generation_id)
 WHERE g.status = 'superseded' AND g.payload ->> 'retired_issue' = '9431';
@@ -237,7 +259,8 @@ WHERE s.active_generation_id IS NULL;
 ROLLBACK;
 
 -- ---------------------------------------------------------------- Section 4
--- Retire transaction (ruling step 5). RUNS ONLY WITH -v retire_ok=1, and only
+-- Retire transaction (ruling step 5). RUNS ONLY WITH -v retire_ok=1
+-- (defined-and-truthy), and only
 -- after the replacement pass (ruling step 4) is recorded in the evidence.
 -- One transaction; candidates locked in (scope_id, generation_id) order
 -- FOR UPDATE (retention lock doctrine). The rollback key (scope_id,
@@ -247,6 +270,8 @@ ROLLBACK;
 -- from a fresh session with no pg_temp reference.
 -- --------------------------------------------------------------------------
 \if :{?retire_ok}
+SELECT lower(:'retire_ok') IN ('1', 'true', 't', 'on', 'yes', 'y') AS go_retire \gset
+\if :go_retire
 BEGIN;
 SELECT g.scope_id, g.generation_id
 FROM scope_generations g JOIN pg_temp.retire_set r USING (scope_id, generation_id)
@@ -280,9 +305,33 @@ WHERE s.scope_id = r.scope_id AND s.active_generation_id = r.generation_id
     SELECT 1 FROM fact_work_items w
     WHERE w.scope_id = s.scope_id AND w.generation_id = r.generation_id
       AND w.status IN ('claimed', 'running', 'retrying'));
+-- All-or-nothing check (#9603 review): a claim committed after the recheck is
+-- invisible to the recheck but visible to the UPDATEs under READ COMMITTED,
+-- so one raced row would otherwise retire partially with exit 0. Any retire-set
+-- row that is not (superseded with marker / cleared pointer) aborts the run
+-- with a nonzero exit before the section tail; zero rows commit.
+SELECT count(*) AS shortfall_n, (count(*) > 0) AS abort_shortfall
+FROM pg_temp.retire_set r
+WHERE NOT EXISTS (
+    SELECT 1 FROM scope_generations g
+    WHERE g.scope_id = r.scope_id AND g.generation_id = r.generation_id
+      AND g.status = 'superseded' AND g.payload ->> 'retired_issue' = '9431')
+   OR NOT EXISTS (
+    SELECT 1 FROM ingestion_scopes s
+    WHERE s.scope_id = r.scope_id AND s.active_generation_id IS NULL) \gset
+SELECT :'shortfall_n' AS must_be_zero_shortfall;
+\if :abort_shortfall
+\echo 'ABORT: retire set not fully retired (in-flight race); zero rows committed.'
+DO $$BEGIN
+  RAISE EXCEPTION 'retire ABORTED: retire set not fully retired; zero rows committed';
+END$$;
+\endif
 SELECT scope_id, generation_id, prior_scope_status AS rollback_key
 FROM pg_temp.retire_set ORDER BY 1, 2;
 COMMIT;
+\else
+\echo 'Section 4 retire transaction SKIPPED: re-run with -v retire_ok=1 after step 4 is evidenced.'
+\endif
 \else
 \echo 'Section 4 retire transaction SKIPPED: re-run with -v retire_ok=1 after step 4 is evidenced.'
 \endif
@@ -297,7 +346,8 @@ COMMIT;
 -- Standalone (#9597): this block references NO pg_temp table. The prior scope
 -- status rides in the durable payload marker ('retired_prior_scope_status',
 -- written by Section 4 before COMMIT), so it runs from a FRESH session.
--- RUNS ONLY WITH -v rollback_ok=1, and only inside the window above.
+-- RUNS ONLY WITH -v rollback_ok=1 (defined-and-truthy), and only inside the
+-- window above.
 -- A generation is reactivated only when its scope pointer now references it
 -- (chained to the scope restore in the same transaction); a scope whose
 -- pointer is no longer NULL, or whose marker row is gone (pruned), is left
@@ -305,6 +355,8 @@ COMMIT;
 -- still carry the marker (window closed for those rows).
 -- --------------------------------------------------------------------------
 \if :{?rollback_ok}
+SELECT lower(:'rollback_ok') IN ('1', 'true', 't', 'on', 'yes', 'y') AS go_rollback \gset
+\if :go_rollback
 BEGIN;
 UPDATE ingestion_scopes s
 SET status = g.payload ->> 'retired_prior_scope_status',
@@ -327,6 +379,9 @@ SELECT count(*) AS rollback_marker_remaining
 FROM scope_generations g
 WHERE g.payload ->> 'retired_issue' = '9431';
 COMMIT;
+\else
+\echo 'Section 5 rollback SKIPPED: re-run with -v rollback_ok=1 inside the rollback window only.'
+\endif
 \else
 \echo 'Section 5 rollback SKIPPED: re-run with -v rollback_ok=1 inside the rollback window only.'
 \endif
