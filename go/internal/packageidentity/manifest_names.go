@@ -29,7 +29,7 @@ func ManifestEntityNameCandidates(ecosystem Ecosystem, packageName string) []str
 	if !ok {
 		return candidates
 	}
-	return uniqueSortedStrings(append(candidates, coordinate, strings.ToLower(coordinate)))
+	return uniqueSortedStrings(append(candidates, coordinate, LowerASCII(coordinate)))
 }
 
 // mavenColonCoordinate converts a group-qualified Maven name written as

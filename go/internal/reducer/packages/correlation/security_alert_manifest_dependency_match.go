@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
@@ -102,7 +103,7 @@ func securityAlertManifestConsumptionMatches(
 }
 
 func packageManifestDependencyNameCandidates(dependency PackageManifestDependency) []string {
-	if strings.EqualFold(strings.TrimSpace(dependency.PackageManager), "sbt") {
+	if packageidentity.LowerASCII(strings.TrimSpace(dependency.PackageManager)) == "sbt" {
 		return sbtDependencyNameCandidates(dependency)
 	}
 	names := []string{dependency.DependencyName}
@@ -133,12 +134,14 @@ func SecurityAlertPackageNameMatchesDependency(
 // SecurityAlertPackageNameMatches reports whether a manifest dependency name
 // matches a provider alert's package identity in any of its forms: the raw
 // alert package name, or a name parsed from the alert package ID as either an
-// Eshu package-registry URI or a package URL. It travels with the
-// manifest-dependency bridge (it takes securityalert.ProviderSecurityAlert,
-// so payloadcore's no-family-dependencies boundary excludes it) and is
-// exported because supply-chain impact scopes manifest evidence through it.
+// Eshu package-registry URI or a package URL. Case folds ASCII letters only,
+// so a name with a non-ASCII lookalike letter never matches the ASCII package
+// (#9584). It travels with the manifest-dependency bridge (it takes
+// securityalert.ProviderSecurityAlert, so payloadcore's no-family-dependencies
+// boundary excludes it) and is exported because supply-chain impact scopes
+// manifest evidence through it.
 func SecurityAlertPackageNameMatches(alert securityalert.ProviderSecurityAlert, dependencyName string) bool {
-	dependencyName = strings.ToLower(strings.TrimSpace(dependencyName))
+	dependencyName = packageidentity.LowerASCII(strings.TrimSpace(dependencyName))
 	if dependencyName == "" {
 		return false
 	}
@@ -147,7 +150,7 @@ func SecurityAlertPackageNameMatches(alert securityalert.ProviderSecurityAlert, 
 		payloadcore.PackageNameFromPackageID(alert.PackageID),
 		payloadcore.PackageNameFromPURL(alert.PackageID),
 	} {
-		if strings.ToLower(strings.TrimSpace(candidate)) == dependencyName {
+		if packageidentity.LowerASCII(strings.TrimSpace(candidate)) == dependencyName {
 			return true
 		}
 	}

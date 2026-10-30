@@ -136,7 +136,7 @@ func Normalize(raw RawIdentity) (Identity, error) {
 // NormalizeEcosystem converts package-manager aliases into Eshu's canonical
 // ecosystem names.
 func NormalizeEcosystem(value Ecosystem) Ecosystem {
-	switch strings.ToLower(strings.TrimSpace(string(value))) {
+	switch LowerASCII(strings.TrimSpace(string(value))) {
 	case "npm", "node", "nodejs", "javascript", "typescript":
 		return EcosystemNPM
 	case "pypi", "pip", "python":
@@ -177,7 +177,7 @@ func NormalizeRegistry(raw string) string {
 	}
 	parsed, err := url.Parse(trimmed)
 	if err == nil && parsed.Host != "" {
-		host := strings.ToLower(parsed.Host)
+		host := LowerASCII(parsed.Host)
 		path := strings.Trim(parsed.EscapedPath(), "/")
 		if path == "" {
 			return host
@@ -186,9 +186,9 @@ func NormalizeRegistry(raw string) string {
 	}
 	host, path, ok := strings.Cut(trimmed, "/")
 	if !ok {
-		return strings.ToLower(host)
+		return LowerASCII(host)
 	}
-	return strings.ToLower(host) + "/" + strings.Trim(path, "/")
+	return LowerASCII(host) + "/" + strings.Trim(path, "/")
 }
 
 func normalizeName(ecosystem Ecosystem, rawName, namespace string) (string, string, error) {
@@ -196,7 +196,7 @@ func normalizeName(ecosystem Ecosystem, rawName, namespace string) (string, stri
 	case EcosystemNPM:
 		return normalizeNPMName(rawName)
 	case EcosystemPyPI:
-		return pypiNormalizePattern.ReplaceAllString(strings.ToLower(rawName), "-"), "", nil
+		return pypiNormalizePattern.ReplaceAllString(LowerASCII(rawName), "-"), "", nil
 	case EcosystemGoModule:
 		return rawName, goModuleNamespace(rawName), nil
 	case EcosystemMaven:
@@ -207,13 +207,13 @@ func normalizeName(ecosystem Ecosystem, rawName, namespace string) (string, stri
 	case EcosystemComposer:
 		return normalizeTwoSegmentName(rawName, namespace, "composer")
 	case EcosystemNuGet:
-		return strings.ToLower(rawName), "", nil
+		return LowerASCII(rawName), "", nil
 	case EcosystemRubyGems, EcosystemCargo, EcosystemPub, EcosystemOS:
-		return strings.ToLower(rawName), "", nil
+		return LowerASCII(rawName), "", nil
 	case EcosystemSwift:
 		return normalizeSwiftName(rawName, namespace)
 	case EcosystemHex:
-		return strings.ToLower(rawName), strings.ToLower(strings.TrimSpace(namespace)), nil
+		return LowerASCII(rawName), LowerASCII(strings.TrimSpace(namespace)), nil
 	case EcosystemGeneric:
 		return rawName, namespace, nil
 	default:
@@ -222,7 +222,7 @@ func normalizeName(ecosystem Ecosystem, rawName, namespace string) (string, stri
 }
 
 func normalizeNPMName(rawName string) (string, string, error) {
-	name := strings.ToLower(rawName)
+	name := LowerASCII(rawName)
 	if strings.HasPrefix(name, "@") {
 		scope, packageName, ok := strings.Cut(strings.TrimPrefix(name, "@"), "/")
 		if !ok || strings.TrimSpace(scope) == "" || strings.TrimSpace(packageName) == "" {
@@ -234,8 +234,8 @@ func normalizeNPMName(rawName string) (string, string, error) {
 }
 
 func normalizeTwoSegmentName(rawName, namespace, ecosystem string) (string, string, error) {
-	value := strings.ToLower(strings.TrimSpace(rawName))
-	ns := strings.ToLower(strings.TrimSpace(namespace))
+	value := LowerASCII(strings.TrimSpace(rawName))
+	ns := LowerASCII(strings.TrimSpace(namespace))
 	if ns == "" {
 		left, right, ok := strings.Cut(value, "/")
 		if !ok || strings.TrimSpace(left) == "" || strings.TrimSpace(right) == "" {
@@ -251,11 +251,11 @@ func normalizeTwoSegmentName(rawName, namespace, ecosystem string) (string, stri
 }
 
 func normalizeSwiftName(rawName, namespace string) (string, string, error) {
-	ns := strings.ToLower(strings.TrimSuffix(NormalizeRegistry(namespace), ".git"))
+	ns := LowerASCII(strings.TrimSuffix(NormalizeRegistry(namespace), ".git"))
 	if ns == "" {
 		return "", "", fmt.Errorf("swift package identity requires source namespace")
 	}
-	name := strings.ToLower(strings.Trim(strings.TrimSuffix(strings.TrimSpace(rawName), ".git"), "/"))
+	name := LowerASCII(strings.Trim(strings.TrimSuffix(strings.TrimSpace(rawName), ".git"), "/"))
 	name = strings.TrimPrefix(name, ns+"/")
 	if strings.Contains(name, "/") {
 		segments := strings.Split(strings.Trim(name, "/"), "/")
@@ -337,7 +337,7 @@ func encodeNPMNameForPURL(name string) string {
 }
 
 func normalizePackageManager(raw string, ecosystem Ecosystem) string {
-	value := strings.ToLower(strings.TrimSpace(raw))
+	value := LowerASCII(strings.TrimSpace(raw))
 	if value != "" {
 		return value
 	}

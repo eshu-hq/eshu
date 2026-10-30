@@ -19,6 +19,14 @@
   lowercase string rule.
 - Package IDs identify package identity, not installed versions. Versioned
   identity belongs in PURL, BOMRef, or the caller's version-specific fact ID.
+- Fold case with `LowerASCII`, never `strings.ToLower`, `unicode.ToLower`, or
+  `strings.EqualFold`, anywhere a package name, namespace, registry, or
+  ecosystem becomes identity (#9584). The manifest side and the advisory side
+  must fold identically; `testdata/ascii_keys_golden.json` pins ASCII keys
+  byte-for-byte and `lookalike_test.go` pins the non-ASCII rule. Code that
+  compares package identity outside this package follows the same rule: SQL
+  folds with `LOWER(TRIM(x) COLLATE "C") COLLATE "default"`, and Go compares
+  package IDs and PURLs with `LowerASCII(a) == LowerASCII(b)`.
 - Unknown ecosystem aliases must fail closed instead of guessing.
 - `sbt` is not an ecosystem alias. A `%%` row's name is the unsuffixed
   `organization:name`, which is not a published artifact, so sbt rows resolve
