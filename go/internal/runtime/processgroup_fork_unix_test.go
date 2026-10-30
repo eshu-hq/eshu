@@ -12,7 +12,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -34,9 +36,83 @@ const (
 
 // groupAlive reports whether any process is still a member of process group
 // pgid. Wait has already reaped the group leader by the time callers ask, so a
-// nil error means a surviving descendant.
+// nil error means a surviving descendant. Zombies answer signal 0 too, so the
+// raw probe also reports a fully-dead group as alive until PID 1 reaps it;
+// groupHasLiveMember is the check that tells the two apart.
 func groupAlive(pgid int) bool {
 	return syscall.Kill(-pgid, 0) == nil
+}
+
+// procState reports the single-letter state in /proc/pid/stat ("Z" for
+// zombie, "R"/"S" while running), or "" when the pid is gone or unreadable.
+func procState(pid int) string {
+	data, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/stat")
+	if err != nil {
+		return ""
+	}
+	s := string(data)
+	paren := strings.LastIndex(s, ")")
+	if paren < 0 {
+		return ""
+	}
+	fields := strings.Fields(s[paren+2:])
+	if len(fields) == 0 {
+		return ""
+	}
+	return fields[0]
+}
+
+// groupHasLiveMember reports whether pgid still has a member that is not a
+// zombie. On Linux it scans /proc for a group member outside state Z,
+// following the processAlive pattern in processgroup_test.go; where /proc is
+// unavailable the raw probe is the only signal and every member counts.
+func groupHasLiveMember(pgid int) bool {
+	if runtime.GOOS == "linux" {
+		want := strconv.Itoa(pgid)
+		entries, err := os.ReadDir("/proc")
+		if err != nil {
+			return groupAlive(pgid)
+		}
+		for _, e := range entries {
+			if _, err := strconv.Atoi(e.Name()); err != nil {
+				continue
+			}
+			data, err := os.ReadFile("/proc/" + e.Name() + "/stat")
+			if err != nil {
+				continue
+			}
+			s := string(data)
+			paren := strings.LastIndex(s, ")")
+			if paren < 0 {
+				continue
+			}
+			fields := strings.Fields(s[paren+2:])
+			if len(fields) > 2 && fields[2] == want && fields[0] != "Z" {
+				return true
+			}
+		}
+		return false
+	}
+	return groupAlive(pgid)
+}
+
+// waitForGroupEmpty polls until pgid has no live (non-zombie) member or the
+// timeout passes. Orphaned grandchildren reparent to PID 1 on cancel and read
+// as group members until init reaps them; under load that reap lags the kill,
+// so an instant probe flakes (#9560). A genuinely missed child holds the
+// command's pipes and already trips the Wait bound above, so waiting here
+// cannot mask a real survivor.
+func waitForGroupEmpty(pgid int, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for {
+		if !groupHasLiveMember(pgid) {
+			return true
+		}
+		if time.Now().After(deadline) {
+			return false
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
 }
 
 // TestNewProcessGroupCommandKillsChildForkedDuringCancel is the #7066
@@ -104,7 +180,7 @@ func TestNewProcessGroupCommandKillsChildForkedDuringCancel(t *testing.T) {
 			}
 			<-done
 		}
-		if groupAlive(pgid) {
+		if !waitForGroupEmpty(pgid, 10*time.Second) {
 			t.Errorf("iteration %d: process group %d still has a live member after cancel", i, pgid)
 			for groupAlive(pgid) {
 				_ = syscall.Kill(-pgid, syscall.SIGKILL)
@@ -112,6 +188,45 @@ func TestNewProcessGroupCommandKillsChildForkedDuringCancel(t *testing.T) {
 			}
 		}
 	}
+}
+
+// TestGroupProbeIgnoresZombieDescendant is the #9560 regression. A SIGKILLed
+// group member stays visible to kill(-pgid, 0) until PID 1 reaps it: a zombie
+// answers signal 0, so the raw probe reports a fully-dead group as alive and
+// the post-cancel check flaked under floor load when the reap lagged the
+// kill. The group check must therefore ignore zombies.
+func TestGroupProbeIgnoresZombieDescendant(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("zombie observation needs Linux /proc")
+	}
+	cmd := exec.Command("sleep", "60")
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	pgid := cmd.Process.Pid
+	if err := cmd.Process.Signal(syscall.SIGKILL); err != nil {
+		t.Fatalf("Signal() error = %v", err)
+	}
+	// Only this test can reap its own child, so once /proc reports Z the
+	// process is guaranteed to stay an unreaped zombie until cmd.Wait below.
+	deadline := time.Now().Add(10 * time.Second)
+	for procState(pgid) != "Z" {
+		if time.Now().After(deadline) {
+			_ = cmd.Wait()
+			t.Fatal("SIGKILLed child never reached zombie state; test setup is broken")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if err := syscall.Kill(-pgid, 0); err != nil {
+		_ = cmd.Wait()
+		t.Fatalf("raw probe already reports the zombie group empty; this test cannot demonstrate the flaw it pins: %v", err)
+	}
+	if groupHasLiveMember(pgid) {
+		_ = cmd.Wait()
+		t.Fatal("groupHasLiveMember reports a live member for a group whose only member is a zombie")
+	}
+	_ = cmd.Wait()
 }
 
 // TestNewProcessGroupCommandKeepsSuccessWhenDescendantHoldsPipes pins that a
