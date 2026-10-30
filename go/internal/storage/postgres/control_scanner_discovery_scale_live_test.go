@@ -218,6 +218,32 @@ func TestScannerDiscoveryScaleShapeLive(t *testing.T) {
 	explain("skip-counts window-remainder", scannerDiscoverySkipCountsStatement(true),
 		shapeArgs(0, "", maxID))
 
+	// The mid-window page stays full and bounded: position the cursor the
+	// way a consumer halfway through the cycle would have left it and
+	// assert the store returns a full page without exhausting the window.
+	exec(`INSERT INTO scanner_image_discovery_cursors
+		(scanner_collector_instance_id,authorization_namespace,tenant_id,workspace_id,subject_class,
+		 policy_revision_hash,discovery_policy_revision,version,cycle_upper_observation_id,
+		 after_observation_id,after_authorization_domain,advanced_at)
+		VALUES ($1,'local','','','', '',1,1,$2,$3,'',$4)
+		ON CONFLICT (scanner_collector_instance_id,authorization_namespace,tenant_id,workspace_id,
+		 subject_class,policy_revision_hash,discovery_policy_revision)
+		DO UPDATE SET version=EXCLUDED.version,
+		 cycle_upper_observation_id=EXCLUDED.cycle_upper_observation_id,
+		 after_observation_id=EXCLUDED.after_observation_id,
+		 after_authorization_domain=EXCLUDED.after_authorization_domain,
+		 advanced_at=EXCLUDED.advanced_at`,
+		scannerID, maxID, 150000, now)
+	mid, err := store.ListAuthorizedRunningImageObservationsPage(ctx, request)
+	if err != nil {
+		t.Fatalf("list scale mid-window page: %v", err)
+	}
+	if len(mid.Candidates) != 256 || mid.Exhausted {
+		t.Fatalf("scale mid-window candidates=%d exhausted=%v, want 256/false past observation 150000",
+			len(mid.Candidates), mid.Exhausted)
+	}
+	t.Logf("scale mid-window: 256 candidates exhausted=%v", mid.Exhausted)
+
 	// The tail page terminates the cycle short. The store resolves its
 	// window from the persisted cursor row, so position the cursor the
 	// way a consumer that paged to the tail would have left it; at most

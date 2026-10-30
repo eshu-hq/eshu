@@ -430,9 +430,10 @@ func (a *argCapturingSupplyChainImpactReadinessQueryer) QueryContext(
 func TestPostgresSupplyChainImpactReadinessBindsScanTierFactKindArrays(t *testing.T) {
 	t.Parallel()
 
-	// Regression for #5467/#7088: the repository-only path stays a single
-	// bounded statement and binds scan-tier arrays plus the empty target-key
-	// arrays used by the package-consumption sidecar CTEs.
+	// Regression for #5467/#7088: the repository-only path stays bounded
+	// (authority-layout probe plus one business statement) and binds
+	// scan-tier arrays plus the empty target-key arrays used by the
+	// package-consumption sidecar CTEs.
 	db := &argCapturingSupplyChainImpactReadinessQueryer{}
 	store := impact.NewPostgresReadinessStore(db)
 	_, _ = store.ReadSupplyChainImpactReadiness(
