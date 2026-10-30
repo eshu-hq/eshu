@@ -124,14 +124,16 @@ printf 'precommit-go %s\n' "$*" >> "${DRIVER_ARGS_LOG}"
 exit 0
 PRECOMMIT
 	chmod +x "${fixture}/scripts/dev/precommit-go.sh"
+	# The stand-in prints a RUN line for ci-gate-registry when a case says the
+	# gate ran, and the real SKIP line otherwise: ci-gates run names the same id
+	# on both, so the floor's skip check must match the RUN line only, and a
+	# loosened pattern stays red (#9615). Comment kept outside the heredoc for
+	# the heredoc budget.
 	cat > "${fixture}/scripts/dev/run-selected-gates.sh" <<'GATE'
 #!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' "$@" >> "${DRIVER_ARGS_LOG}"
 printf 'toolchain-env GOTOOLCHAIN=%s GOROOT=%s\n' "${GOTOOLCHAIN-unset}" "${GOROOT-unset}" >> "${DRIVER_ARGS_LOG}"
-# ci-gates run prints a RUN line for a gate it starts and a SKIP line naming
-# the same id for one it does not, so the floor's skip check must match the
-# RUN line only; printing both shapes keeps a loosened pattern red (#9615).
 if [[ "${DRIVER_GATE_RAN_REGISTRY:-0}" == 1 ]]; then
 	printf 'RUN      ci-gate-registry: bash scripts/verify-ci-gates-registry.sh --drift\n'
 else
