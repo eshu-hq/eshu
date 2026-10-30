@@ -668,6 +668,9 @@ func TestRunnerOversizeFactFailsTerminal(t *testing.T) {
 	if len(page.Statuses) != 1 || page.Statuses[0].Class != sdkcollector.StatusFailure {
 		t.Fatalf("statuses = %+v, want one failure status", page.Statuses)
 	}
+	if got := page.Statuses[0].RetryAfterSeconds; got != 0 {
+		t.Fatalf("retry_after_seconds = %d, want zero on a terminal failure", got)
+	}
 	if page.Statuses[0].FailureClass == "" {
 		t.Fatal("failure status carries no bounded class")
 	}
@@ -705,6 +708,39 @@ func TestRunnerAnalyzerErrorMapsToFailureResult(t *testing.T) {
 	}
 	if len(page.Facts) != 0 {
 		t.Fatalf("facts = %d, want none on the failure result", len(page.Facts))
+	}
+}
+
+// TestRunnerRetryableFailureCarriesRetryAfter proves a retryable analyzer
+// failure emits retry_after_seconds on its failure status: the SDK contract
+// rejects a retryable failure status with a zero delay, so without it every
+// retryable failure dies as invalid_result instead of retrying (#9591).
+func TestRunnerRetryableFailureCarriesRetryAfter(t *testing.T) {
+	t.Parallel()
+
+	scopeID := "image://registry.example/missing@sha256:deadbeef"
+	missing := filepath.Join(t.TempDir(), "no-such-rootfs")
+	claim := testClaim(IDImage, scopeID, "scanner-worker:generation-test")
+	config := map[string]any{
+		"targets": []any{map[string]any{
+			"scope_id":    scopeID,
+			"rootfs_path": missing,
+		}},
+		"acceptance_unit_id": "image:sha256:deadbeef",
+	}
+	page, _ := runRaw(t, IDImage, testRequest(t, claim, config))
+	if page.State != sdkcollector.ResultRetryable {
+		t.Fatalf("state = %q, want retryable for the missing rootfs", page.State)
+	}
+	if len(page.Statuses) != 1 || page.Statuses[0].Class != sdkcollector.StatusFailure {
+		t.Fatalf("statuses = %+v, want one failure status", page.Statuses)
+	}
+	if got := page.Statuses[0].RetryAfterSeconds; got <= 0 {
+		t.Fatalf("retry_after_seconds = %d, want a positive bounded delay on a retryable failure", got)
+	}
+	validator := sdkcollector.NewValidator(sdkcollector.Contract{ProtocolVersion: protocolVersion})
+	if _, err := validator.ValidateResult(page.Result); err != nil {
+		t.Fatalf("ValidateResult() error = %v, want the host to accept the retryable page", err)
 	}
 }
 
