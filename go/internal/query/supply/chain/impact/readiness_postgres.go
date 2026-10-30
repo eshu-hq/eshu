@@ -205,14 +205,19 @@ func (s PostgresReadinessStore) readSupplyChainImpactReadiness(
 	// Without an installed authority layout there is no authority to
 	// filter by: read the legacy statement, byte-identical to the
 	// pre-protection read. The probe is poison-free (to_regclass never
-	// errors on a missing relation), so it runs inside the snapshot.
-	authorityPresent, err := readinessAuthorityLayoutPresent(ctx, database)
-	if err != nil {
-		return ReadinessSnapshot{}, fmt.Errorf("probe supply chain impact authority layout: %w", err)
+	// errors on a missing relation), so it runs inside the snapshot. A
+	// probe failure means the layout could not be observed, so the read
+	// stays on the protected statement and fails closed at the main
+	// query instead of silently downgrading: the hermetic queryer seam
+	// cannot fabricate rows, so its probe always fails, and the business
+	// query behind it must still run.
+	protected := true
+	if present, err := readinessAuthorityLayoutPresent(ctx, database); err == nil {
+		protected = present
 	}
 	statement := listCurrentReadinessQuery
 	args := readinessQueryArguments(query, target, freshnessCutoff)
-	if !authorityPresent {
+	if !protected {
 		statement = ListReadinessQuery
 	} else {
 		args = append(args, supplyChainImpactCallerAuthorizationArgs(ctx)...)
