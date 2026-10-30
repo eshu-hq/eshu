@@ -206,6 +206,13 @@ type OwnedPackageDependencyTarget struct {
 	RepositoryID   string
 	FactID         string
 	SourceLocation string
+	// KeyHashLow24 is the low 24 bits of the reader's sha256 slot key
+	// (ecosystem|package|version, #9422) the statement already computes to
+	// place the target in its hash slot. The vulnerability planner groups
+	// slot scopes (#9432) on it directly and never rehashes in Go, so the
+	// two cannot drift. Zero when the target did not come from the reader;
+	// it then plans into virtual slot 0 deterministically.
+	KeyHashLow24 uint32
 }
 
 // OwnedPackageDependencyTargetFilter bounds active dependency target reads.

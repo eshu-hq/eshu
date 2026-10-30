@@ -222,6 +222,7 @@ SELECT
     window_targets.repository_id,
     window_targets.fact_id,
     window_targets.source_location,
+    window_targets.key_hash_low24,
     window_stats.total_targets,
     window_stats.slot_count,
     window_stats.window_slot,
@@ -296,6 +297,7 @@ func (s FactStore) readOwnedPackageWindow(
 		var (
 			ecosystem, name, version, repositoryID, factID, sourceLocation sql.NullString
 			lockfile                                                       sql.NullBool
+			keyHashLow24                                                   sql.NullInt64
 		)
 		if err := rows.Scan(
 			&ecosystem,
@@ -305,6 +307,7 @@ func (s FactStore) readOwnedPackageWindow(
 			&repositoryID,
 			&factID,
 			&sourceLocation,
+			&keyHashLow24,
 			&page.Window.TotalTargets,
 			&page.Window.SlotCount,
 			&page.Window.Slot,
@@ -327,6 +330,10 @@ func (s FactStore) readOwnedPackageWindow(
 			RepositoryID:   repositoryID.String,
 			FactID:         factID.String,
 			SourceLocation: strings.TrimSpace(sourceLocation.String),
+			// #nosec G115 -- bounded: the reader projects the low 24 bits
+			// of sha256(eco|pkg|ver), always within uint32; a NULL hash
+			// scans as 0 and clamps to slot 0 deterministically.
+			KeyHashLow24: uint32(max(keyHashLow24.Int64, 0)),
 		}
 		if target.Ecosystem == "" || target.PackageName == "" {
 			continue

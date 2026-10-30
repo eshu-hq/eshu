@@ -248,10 +248,12 @@ func VulnerabilitySuppressionMutationOutcomes() []string {
 }
 
 // Vulnerability-intelligence source-collector spans (from
-// contract/vulnerability_intelligence.go).
+// contract/vulnerability_intelligence.go) and the plan span (from
+// contract/vulnerability_plan.go).
 const (
 	SpanVulnerabilityIntelligenceObserve = contract.SpanVulnerabilityIntelligenceObserve
 	SpanVulnerabilityIntelligenceFetch   = contract.SpanVulnerabilityIntelligenceFetch
+	SpanVulnerabilityIntelligencePlan    = contract.SpanVulnerabilityIntelligencePlan
 	MetricDimensionPageCount             = contract.MetricDimensionPageCount
 )
 

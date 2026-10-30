@@ -249,6 +249,7 @@ func TestSpanNames(t *testing.T) {
 		"query.advisory_catalog",
 		"vulnerability_intelligence.observe",
 		"vulnerability_intelligence.fetch",
+		"vulnerability_intelligence.plan",
 		"security_alert.observe",
 		"security_alert.fetch",
 		"pagerduty.observe",
