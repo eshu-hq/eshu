@@ -1,0 +1,5 @@
+n=80 p50=0.98 p95=1.04 p99=1.14 max=1.29
+repeat residual n=9 median=12.6 max=15.3
+worst ratio=1.288 run=40887740898 shard=5 tests=46 predicted=177.7 measured=228.8
+worst ratio=1.100 run=40878710102 shard=4 tests=29 predicted=330.1 measured=363.1
+worst ratio=1.094 run=40887740898 shard=5 tests=45 predicted=221.9 measured=242.8
