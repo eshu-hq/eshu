@@ -19,11 +19,11 @@ tests. The image no longer builds `/go-bin/eshu-mcp-server`.
 
 ## Census honesty note
 
-In-tree registry census is **171 tools**
-(`go/internal/mcp/tool_registry_census_test.go:36`, `censusToolCount`),
-pinned with order, schemas, dispatch bounds, and router surface by the
-census suite, all green at this head. History: 168 → 169 → 170 → 171
-as tools landed. The deleted `CUTOVER_OWNERSHIP.md` said 169 (stale).
+In-tree registry census is **171 tools** (`censusToolCount` in
+`go/internal/mcp/tool_registry_census_test.go`), pinned with order,
+schemas, dispatch bounds, and router surface by the census suite, all
+green at this head. History: 168 → 169 → 170 → 171 as tools landed.
+The deleted `CUTOVER_OWNERSHIP.md` said 169 (stale).
 No contract assertion migrates out: the registry census and the
 router surface (`go/internal/mcp/router`) stay in-tree as the
 reproduction contract the satellite already satisfies. Deleted with the
