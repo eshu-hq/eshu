@@ -214,11 +214,13 @@ The `--drift` check (#4220) keeps `.pre-commit-config.yaml` and
 must map to a gate's `hook_id` or a declared `hygiene_hooks` entry, and every
 workflow must be referenced by a gate or listed in `non_gate_workflows` with a
 reason. It also fails when a regenerate-and-diff gate's declared
-`generator_inputs` class is matched by no trigger of that gate (#9621), so a
-PR changing only a generator input still selects the gate. It runs in
-pre-commit (the `gate-registry-drift` hook) and in CI
+`generator_inputs` class is matched by no trigger of that gate (#9621). It
+runs in pre-commit
+(the `gate-registry-drift` hook) and in CI
 (`verify-ci-gate-registry.yml`), so adding a workflow or hook without registering
-it fails fast.
+it fails fast. (Reconciling `make pre-pr`'s step set against the registry is
+[#4214](https://github.com/eshu-hq/eshu/issues/4214), which makes `pre-pr.sh`
+registry-driven via the gate selector instead of a hard-coded step list.)
 
 ### CI workflow shape
 
