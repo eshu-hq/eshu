@@ -257,7 +257,7 @@ tests:
   - file: go/internal/storage/postgres/owned_package_targets_alias_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#9285 PostgreSQL 18.6 full-bootstrap proof that the owned-package reader selects Gradle and gomod-labelled dependency facts under their canonical ecosystem, dedups a pair declared under two aliases, and keeps the raw package_manager match when expansion is off; three subtests on an isolated bootstrap schema"
+    reason: "#9285 PostgreSQL 18.6 full-bootstrap proof that the owned-package reader selects Gradle and gomod-labelled dependency facts under their canonical ecosystem, dedups a pair declared under two aliases, and keeps the raw package_manager match when expansion is off (#9313: a maven read with the sbt flag also selects sbt rows, reported under sbt with their cross-version fields, never folded; without the flag no sbt row is selected); five subtests on an isolated bootstrap schema"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/owned_package_targets_key_hash_live_test.go
     tag: ~
