@@ -230,8 +230,12 @@ def pricing_rule(source_runs: list[str],
         shard_counts: Optional shard count per run ID for the stdout line.
 
     Raises:
-        ValueError: shard_counts does not name exactly the source runs.
+        ValueError: Fewer than three source runs, or shard_counts does not
+            name exactly the source runs.
     """
+    if len(source_runs) < MIN_SOURCE_RUNS:
+        raise ValueError("pricing needs at least three source runs; "
+                         "a pair cannot set the prices (#9470)")
     return PricingRule(tuple(source_runs), dict(shard_counts or {}))
 
 
@@ -355,8 +359,8 @@ def fit_with_provenance(sources: list[Path], root: Path) -> tuple[
         pool's inventories, cache era and defaulted tests.
 
     Raises:
-        ValueError: A source is incomplete, incompatible, or cannot identify a
-            cold/repeat category.
+        ValueError: Fewer than three sources, or a source is incomplete,
+            incompatible, or cannot identify a cold/repeat category.
     """
     if len(sources) < MIN_SOURCE_RUNS:
         raise ValueError("v2 fit needs at least three complete main runs; "

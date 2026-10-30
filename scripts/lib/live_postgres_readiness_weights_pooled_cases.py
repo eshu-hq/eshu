@@ -30,6 +30,11 @@ class PooledPricingTest(unittest.TestCase):
         self.assertEqual(self.price([10.0, 20.0, 20.0, 20.0], runs=4), 20.0)
         self.assertEqual(self.price([20.0, 10.0, 20.0, 20.0], runs=4), 20.0)
 
+    def test_pricing_rule_refuses_a_pair(self) -> None:
+        """The factory itself refuses a pair, not just the fit entry (#9470)."""
+        with self.assertRaisesRegex(ValueError, "at least three"):
+            refresh.pricing_rule(["100", "101"])
+
     def test_three_run_pool_keeps_the_mean(self) -> None:
         self.assertFalse(refresh.pricing_rule(["100", "101", "102"]).quantile)
         self.assertTrue(refresh.pricing_rule(["100", "101", "102", "103"]).quantile)
