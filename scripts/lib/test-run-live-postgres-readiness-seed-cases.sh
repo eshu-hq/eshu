@@ -16,8 +16,10 @@ for location in empty malformed; do
   cp "${repo_root}"/scripts/lib/live_postgres_readiness_inventory*.py "${seed_dir}/${location}/"
 done
 # The assembler deep-merges per-package tables (sharded packages share one
-# key), so emptying means dropping the merge loop, not a brace block.
-sed '/^PACKAGES = {}$/,$c\PACKAGES = {}' "${repo_root}/scripts/lib/live_postgres_readiness_inventory_generated.py" \
+# key), so emptying means dropping the merge loop, not a brace block. awk
+# keeps every line up to the empty PACKAGES line and drops the rest; GNU
+# sed's one-line `c\` did the same but BSD sed on macOS rejects it (#9627).
+awk '{ print } /^PACKAGES = \{\}$/ { exit }' "${repo_root}/scripts/lib/live_postgres_readiness_inventory_generated.py" \
   >"${seed_dir}/empty/live_postgres_readiness_inventory_generated.py"
 cmp -s "${repo_root}/scripts/lib/live_postgres_readiness_inventory_generated.py" "${seed_dir}/empty/live_postgres_readiness_inventory_generated.py" && fail "empty seed changed nothing"
 out="$(python3 "${seed_dir}/empty/live_postgres_readiness_results.py" list-packages 2>&1)" && fail "empty PACKAGES listed"
