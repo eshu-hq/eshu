@@ -71,6 +71,10 @@ on:
       - 'scripts/lib/live_postgres_readiness_refresh_v2.py'
       - 'scripts/lib/live_postgres_readiness_refresh_v2_provenance.py'
       - 'scripts/test-live-postgres-readiness-refresh-v2.py'
+      - 'scripts/lib/live_postgres_readiness_calibration*.py'
+      - 'scripts/test-live-postgres-readiness-calibration.py'
+      - 'specs/live-postgres-readiness-calibration.v1.json'
+      - '.github/workflows/live-postgres-readiness-calibration.yml'
       - 'specs/live-postgres-readiness-weights.v1.json'
       - 'specs/live-postgres-readiness-weights.v2.json'
       - 'scripts/test-live-postgres-readiness-shards.py'
@@ -155,6 +159,9 @@ jobs:
 
       - name: Check v2 refresher provenance
         run: python3 scripts/test-live-postgres-readiness-refresh-v2.py
+
+      - name: Check calibration schedule and reader contract
+        run: python3 scripts/test-live-postgres-readiness-calibration.py
 
       - name: Check job summary classifier
         run: bash scripts/ci/test-live-postgres-readiness-job-summary.sh

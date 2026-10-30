@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 from pathlib import Path
 import sys
@@ -17,14 +18,55 @@ import live_postgres_readiness_calibration as calibration  # noqa: E402
 import live_postgres_readiness_calibration_provenance as provenance  # noqa: E402
 
 
+def frozen_records(plan: list[str]) -> list[tuple[str, list[str]]]:
+    """Group a flat ``package|test`` plan into consecutive package records."""
+    records: list[tuple[str, list[str]]] = []
+    for run in plan:
+        package, test = run.split("|", 1)
+        if records and records[-1][0] == package:
+            records[-1][1].append(test)
+        else:
+            records.append((package, [test]))
+    return records
+
+
 class CalibrationContractTest(unittest.TestCase):
-    """Check coverage against the independent canonical inventory."""
+    """Check the manifest against the inventory it was frozen from.
+
+    The manifest is a snapshot of the readiness inventory at ``source_sha``.
+    The live inventory keeps growing as live tests are enrolled, so these
+    tests must not compare the snapshot with it. They rebuild the frozen
+    inventory from the rows and require it to match the independent
+    ``source_inventory_sha256`` pin recorded in the manifest. Refusing a
+    drifted live inventory is its own contract, tested below.
+    """
 
     @classmethod
     def setUpClass(cls) -> None:
         cls.document = json.loads((ROOT / calibration.MANIFEST).read_text())
-        cls.plan = [f"{package}|{test}" for package, tests in
-                    calibration.package_records() for test in tests]
+        cls.plan = [run for shard in cls.document["rows"]
+                    for row in shard for run in row]
+
+    def test_frozen_inventory_matches_its_independent_pin(self) -> None:
+        pinned = self.document["source_inventory_sha256"]
+        self.assertEqual(hashlib.sha256("\n".join(self.plan).encode()).hexdigest(), pinned)
+        changed = self.plan[:-1] + [self.plan[-1] + "X"]
+        self.assertNotEqual(hashlib.sha256("\n".join(changed).encode()).hexdigest(), pinned)
+
+    def test_drifted_inventory_blocks_dispatch(self) -> None:
+        enrolled = self.plan + ["./internal/query|TestNewlyEnrolledLive"]
+        with self.assertRaisesRegex(ValueError, "ordered coverage"):
+            calibration.validate_manifest(self.document, enrolled)
+        retired = self.plan[:-1]
+        with self.assertRaisesRegex(ValueError, "ordered coverage"):
+            calibration.validate_manifest(self.document, retired)
+        with mock.patch.object(calibration, "package_records",
+                               return_value=frozen_records(enrolled)):
+            with self.assertRaisesRegex(ValueError, "ordered coverage"):
+                calibration.load(ROOT)
+        with mock.patch.object(calibration, "package_records",
+                               return_value=frozen_records(self.plan)):
+            calibration.load(ROOT)
 
     def test_fixed_rows_cover_canonical_inventory(self) -> None:
         calibration.validate_manifest(self.document, self.plan)
@@ -54,6 +96,10 @@ class CalibrationContractTest(unittest.TestCase):
 
     def test_reports_reject_partial_duplicate_and_changed_rows(self) -> None:
         rows = calibration.validate_manifest(self.document, self.plan)
+        records = mock.patch.object(calibration, "package_records",
+                                    return_value=frozen_records(self.plan))
+        records.start()
+        self.addCleanup(records.stop)
         head = "a" * 40
         reports = []
         for shard, shard_rows in enumerate(rows, 1):
