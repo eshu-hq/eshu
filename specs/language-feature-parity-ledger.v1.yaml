@@ -293,8 +293,9 @@ language_features:
     read_surfaces: [content_relationships]
   - language: perl
     docs_claim: docs/public/languages/perl.md
-    ecosystem: none
-    ecosystem_reason: "Perl dependency manifests (cpanfile) are not claimed as admitted files yet."
+    ecosystem: perl
+    manifest_files: [cpanfile]
+    pin_files: []
     parser_backing: tree-sitter-backed
     no_provider_required: true
     supported_features: [source-entities, graph-surface, perl-literal-mojolicious-dancer-route-truth]
