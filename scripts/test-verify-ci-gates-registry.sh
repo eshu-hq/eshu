@@ -445,6 +445,10 @@ require "non_gate_workflows"  "non_gate_workflows:" "${registry}"
 . "${repo_root}/scripts/lib/test-verify-ci-gates-registry-workflow-shape-cases.sh"
 check_ci_gate_workflow_shapes
 
+# shellcheck source=scripts/lib/test-verify-ci-gates-registry-generator-cases.sh
+. "${repo_root}/scripts/lib/test-verify-ci-gates-registry-generator-cases.sh"
+check_ci_gate_generator_input_coverage
+
 # ── 3. Live validate + drift — proves every script + workflow ref exists AND
 #       that .pre-commit-config.yaml / .github/workflows stay in lockstep ─────
 

@@ -22,6 +22,11 @@ gates:
       - ".github/workflows/sdk-go.yml"
       - "scripts/ci/install-apt-packages.sh"
       - "scripts/ci/go-mod-download-retry.sh"
+    # #9621: the machine-readable file classes whose changes can alter the
+    # generated factschema artifacts. The drift check fails when no trigger
+    # matches one.
+    generator_inputs:
+      - "sdk/go/factschema/**"
     local:
       command: "cd sdk/go/factschema && go build ./... && go test ./... -count=1 && go vet ./... && test -z \"$(gofmt -l .)\" && ! go list -deps ./... | rg -q 'eshu-hq/eshu/go/internal' && go generate ./... && test -z \"$(git status --porcelain -- .)\""
       test_command: ""
@@ -508,6 +513,12 @@ gates:
       - "specs/collector_fact_contract.v1.yaml"
       - "scripts/test-verify-collector-entrypoints-generated.sh"
       - "scripts/verify-collector-entrypoints-generated.sh"
+    # #9621: the machine-readable file classes whose changes can alter the
+    # generated entrypoints. The drift check fails when no trigger matches
+    # one. The fact-contract spec it validates against is already a trigger;
+    # the generator itself reads only the manifest package below.
+    generator_inputs:
+      - "go/internal/collector/entrypoints/**"
     local:
       command: "bash scripts/verify-collector-entrypoints-generated.sh"
       test_command: "bash scripts/test-verify-collector-entrypoints-generated.sh"

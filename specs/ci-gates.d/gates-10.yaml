@@ -71,6 +71,10 @@ gates:
       - "specs/ci-gates.v1.yaml"
       - "specs/ci-gates.d/**"
       - ".github/static-contract-filters.yml"
+    # #9621: the machine-readable file classes whose changes can alter the
+    # re-pinned ledger. The drift check fails when no trigger matches one.
+    generator_inputs:
+      - "go/internal/collector/repo/git/**"
     local:
       command: "cd go && go test ./internal/collector/repo/git -run '^TestGenerationContentVersionPinsCollectorOutput$' -count=1"
       test_command: "cd go && go test ./internal/collector/repo/git -run '^TestContentVersionFixtureDigestIsDeterministic$' -count=1"

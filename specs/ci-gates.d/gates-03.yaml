@@ -468,6 +468,11 @@ gates:
       # paths filter. TestReadinessRegistrationDriftTriggersCoverGeneratorInputs
       # pins every input class the generator scans.
       - "go/**/*.go"
+    # #9621: the machine-readable file classes whose changes can alter the
+    # regenerated ledger. The drift check fails when no trigger matches one.
+    generator_inputs:
+      - "go/**/*.go"
+      - "go/**/*_test.go"
     self_test_triggers:
       - "scripts/test-generate-live-postgres-readiness.sh"
       - "scripts/test-live-postgres-readiness-fragments.py"
