@@ -56,6 +56,7 @@ const (
 	sourceKindTerragruntConstraint      = "terragrunt_version_constraint"
 	sourceKindHelmKubeVersion           = "helm_chart_kube_version"
 	sourceKindCargoRustVersion          = "cargo_package_rust_version"
+	sourceKindMixExsElixir              = "mix_exs_elixir"
 	sourceKindStackYamlResolver         = "stack_yaml_resolver"
 	sourceKindDartPubspecSDK            = "dart_pubspec_environment_sdk"
 	sourceKindDartFvmrcFlutter          = "dart_fvmrc_flutter"
@@ -104,6 +105,7 @@ const (
 	sectionTerragruntConstraint
 	sectionHelmKubeVersion
 	sectionCargoRustVersion
+	sectionMixExsElixir
 	sectionStackYamlResolver
 	sectionDartPubspecSDK
 	sectionDartFvmrcFlutter
@@ -150,6 +152,7 @@ var sectionSourceKinds = [...]string{
 	sectionTerragruntConstraint:      sourceKindTerragruntConstraint,
 	sectionHelmKubeVersion:           sourceKindHelmKubeVersion,
 	sectionCargoRustVersion:          sourceKindCargoRustVersion,
+	sectionMixExsElixir:              sourceKindMixExsElixir,
 	sectionStackYamlResolver:         sourceKindStackYamlResolver,
 	sectionDartPubspecSDK:            sourceKindDartPubspecSDK,
 	sectionDartFvmrcFlutter:          sourceKindDartFvmrcFlutter,
@@ -190,6 +193,7 @@ const (
 	manifestTerragrunt
 	manifestHelmChart
 	manifestCargo
+	manifestMixExs
 	manifestStackYaml
 	manifestDartPubspec
 	manifestDartFvmrc
@@ -232,6 +236,8 @@ func manifestKindForBase(base, relativePath string) manifestKind {
 		kind = manifestGoMod
 	case base == "Cargo.toml":
 		kind = manifestCargo
+	case base == "mix.exs":
+		kind = manifestMixExs
 	case base == "stack.yaml":
 		kind = manifestStackYaml
 	case base == "pyproject.toml" || base == "Pipfile":

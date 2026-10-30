@@ -5,7 +5,9 @@ package elixir
 
 import (
 	"fmt"
+	"path/filepath"
 	"slices"
+	"strings"
 
 	tree_sitter_elixir "github.com/tree-sitter/tree-sitter-elixir/bindings/go"
 
@@ -46,6 +48,9 @@ func ParseWithParser(path string, isDependency bool, options shared.Options, par
 	payload["modules"] = []map[string]any{}
 	payload["protocols"] = []map[string]any{}
 	appendHexDependencyRows(payload, path, string(source))
+	if strings.EqualFold(filepath.Base(path), "mix.exs") {
+		payload["elixir_runtime_evidence"] = mixRuntimeEvidence(source, tree.RootNode().HasError())
+	}
 
 	extractor := newElixirExtractor(payload, source, isDependency, options)
 	extractor.extract(tree.RootNode())

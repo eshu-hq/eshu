@@ -325,6 +325,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	collectJVMRuntimeSnapshot(repoPath, parsedFiles, &snapshot)
 	collectIACRuntimeSnapshot(repoPath, parsedFiles, &snapshot)
 	collectRustRuntimeSnapshot(repoPath, parsedFiles, &snapshot)
+	collectElixirRuntimeSnapshot(repoPath, parsedFiles, &snapshot)
 	collectHaskellRuntimeSnapshot(repoPath, parsedFiles, &snapshot)
 	collectSwiftRuntimeSnapshot(repoPath, parsedFiles, &snapshot)
 

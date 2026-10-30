@@ -163,6 +163,17 @@ func NoteParsedRustCandidate(candidates map[string]Candidate, relativePath strin
 	candidates[relativePath] = Candidate{Manifest: true, Extraction: extraction}
 }
 
+// NoteParsedElixirCandidate stores guarded native mix.exs parser evidence.
+func NoteParsedElixirCandidate(candidates map[string]Candidate, relativePath string, extraction runtimedeclaration.Extraction) {
+	if runtimedeclaration.ClassifyPath(relativePath) != runtimedeclaration.FileManifest {
+		return
+	}
+	if extraction.Len() == 0 && !extraction.Skip().Skipped() {
+		return
+	}
+	candidates[relativePath] = Candidate{Manifest: true, Extraction: extraction}
+}
+
 // NoteParsedHaskellCandidate stores guarded native Stack parser evidence.
 func NoteParsedHaskellCandidate(candidates map[string]Candidate, relativePath string, extraction runtimedeclaration.Extraction) {
 	if runtimedeclaration.ClassifyPath(relativePath) != runtimedeclaration.FileManifest {
@@ -172,6 +183,16 @@ func NoteParsedHaskellCandidate(candidates map[string]Candidate, relativePath st
 		return
 	}
 	candidates[relativePath] = Candidate{Manifest: true, Extraction: extraction}
+}
+
+// NoteUnavailableElixirCandidate records a missing mix.exs parse for retry.
+func NoteUnavailableElixirCandidate(candidates map[string]Candidate, relativePath string, byteSize int) {
+	candidates[relativePath] = Candidate{Manifest: true, Extraction: runtimedeclaration.UnavailableElixirExtraction(byteSize)}
+}
+
+// NoteCappedElixirCandidate records a bounded mix.exs manifest skip.
+func NoteCappedElixirCandidate(candidates map[string]Candidate, relativePath string, byteSize int) {
+	candidates[relativePath] = Candidate{Manifest: true, Extraction: runtimedeclaration.CappedElixirExtraction(byteSize)}
 }
 
 // NoteUnavailableHaskellCandidate records a missing stack.yaml parse for retry.
