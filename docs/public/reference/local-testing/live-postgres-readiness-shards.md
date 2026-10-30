@@ -203,11 +203,13 @@ the case passes, fails for a range of appended tests, then passes again.
 **Where the window is.** The snippet below counts default-priced tests
 appended to the last package and prints the sizes the live-plan fit case
 rejects. Every enrollment and every refit moves the window, so run it rather
-than trusting a figure on this page. At `d363d77b85` (the #9436 refit weights
-from runs 40672571941 and 40687668044, and the 36 tests #9435 enrolled) main
-plans 738 tests, 39 of them on default prices. With the 608 s row budget
-(#9469) the fit case accepts 32 appended tests, fails from 33 through 71, and
-passes again at 72. Under the 675 s budget it failed from 33 through 69.
+than trusting a figure on this page. At `9ffd76a581` (2026-10-29), on the
+pooled refit (#9519: p75 prices from nine main runs, 40867705415 through
+40900152112), main plans 749 tests, 10 of them on default prices. With the
+608 s row budget (#9469) the fit case accepts 42 appended tests, fails from
+43 through 51 and from 61 through 69, and passes from 52 through 60 and from
+70.
+At `d363d77b85` (the #9436 weights, 738 tests) it failed from 33 through 71.
 
 Run this
 from the repository root to print the window for the checkout you are on. It
@@ -233,10 +235,13 @@ print(f"{len(plan)} tests;",
 EOF
 ```
 
-On that plan with the 608 s row budget it prints `738 tests; fails k=33..71`,
-so main takes 32 appended tests before the first failure.
+On that plan with the 608 s row budget it prints `749 tests; fails k=43..69`,
+so main takes 42 appended tests before the first failure. The line prints only
+the first and last failing `k`; on that plan `k` from 52 through 60 also
+passes.
 
-**Why the window exists.** While shard 5 can hold at least one
+**Why the window exists.** This explanation was not re-derived on the
+six-shard cut; its figures are from the five-shard cut at `d363d77b85`. While shard 5 can hold at least one
 `./internal/storage/postgres` test (411 tests on main at `d363d77b85`), the
 fourth cut sits inside that package, and shard 5 pays the package's first-use
 price a second time. As the appended tail grows, shard 5 reaches the 1440 s
@@ -261,8 +266,8 @@ lands, a spread raise at the edge of a window is not proof that no cut exists.
    enrollment across PRs when it is larger. Run the snippet on your branch to
    see where you stand. The drift gate also caps the defaulted tests at 40, so
    the usable headroom is the lower of the fit window and 40 minus the tests
-   the plan already prices at defaults. At `d363d77b85` that is 1 (39 of 40
-   defaulted). Print the count with:
+   the plan already prices at defaults. At `9ffd76a581` on the pooled refit
+   that is 30 (10 of 40 defaulted). Print the count with:
 
    ```bash
    python3 -I -B -c 'import sys; sys.path.insert(0, "scripts/lib")
