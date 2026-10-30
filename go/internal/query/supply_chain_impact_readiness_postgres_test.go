@@ -398,8 +398,8 @@ func TestPostgresSupplyChainImpactReadinessScansForRepositoryOnlyScope(t *testin
 		context.Background(),
 		impact.ReadinessQuery{RepositoryID: "repository:readiness"},
 	)
-	if db.called != 1 {
-		t.Fatalf("QueryContext invocations = %d, want 1 for repository-only scope", db.called)
+	if db.called != 2 {
+		t.Fatalf("QueryContext invocations = %d, want 2 for repository-only scope (authority probe plus business query)", db.called)
 	}
 }
 
