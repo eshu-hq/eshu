@@ -379,6 +379,11 @@ tests:
     class: postgres_ci
     reason: "#9299 disposable PostgreSQL proof that the running-image derivation page returns bounded candidates with skip counts and its EXPLAIN ANALYZE plan seeks the observations primary key instead of scanning"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/control_scanner_discovery_scale_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9299 disposable PostgreSQL proof that re-measures the shipped derivation statements at QA-scale cardinality (300k observations, 40 scopes) with plan shapes and wall times logged at this head"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/control_scanner_targets_tenant_live_test.go
     tag: ~
     class: postgres_ci

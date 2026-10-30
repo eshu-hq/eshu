@@ -336,6 +336,9 @@ TABLE = {
             "TestAuthorizedImpactLoaderWithoutPolicyStateLeavesPlainWriteLive",
             "TestAuthorizedImpactLoaderWithoutAuthorityTablesLeavesPlainWriteLive",
         ),
+        "go/internal/storage/postgres/supply_chain_impact_disengaged_build_live_test.go": (
+            "TestAuthorizedImpactLoaderDisengagedBuildsAdvisoryFindingLive",
+        ),
         "go/internal/storage/postgres/supply_chain_impact_evidence_live_test.go": (
             "TestSupplyChainImpactActiveEvidenceMatchesRetiredStatementLive",
             "TestSupplyChainImpactActiveEvidenceBufferBudgetLive",
@@ -346,6 +349,7 @@ TABLE = {
         ),
         "go/internal/storage/postgres/supply_chain_impact_protected_publish_live_test.go": (
             "TestSupplyChainImpactProtectedStaticPublishLive",
+            "TestProtectedPolicyPinsAbsentStateReportsCleanErrorLive",
         ),
         "go/internal/storage/postgres/terms_foreign_key_migration_budget_live_test.go": (
             "TestTermsForeignKeyDropFailsCleanlyWhenItsLockStaysBusyLive",
