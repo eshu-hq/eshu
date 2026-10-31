@@ -137,6 +137,15 @@ func TestSupplyChainImpactReadinessCommittedCoverageEdgesLive(t *testing.T) {
 			if err != nil {
 				t.Fatalf("expire source snapshot: %v", err)
 			}
+			// A snapshot this old is only expired when nothing fetched the source
+			// since. A fresh success state with an old snapshot is the shape of a
+			// skipped unchanged fetch (#9694), which readiness treats as fresh, so
+			// the source state ages with the snapshot here.
+			if _, err := db.ExecContext(ctx, `UPDATE vulnerability_source_states
+                SET last_attempt_at = $1, last_success_at = $1, updated_at = $1`,
+				now.Add(-30*24*time.Hour)); err != nil {
+				t.Fatalf("age source state: %v", err)
+			}
 		}},
 	}
 	for _, tc := range cases {
@@ -163,6 +172,35 @@ func TestSupplyChainImpactReadinessCommittedCoverageEdgesLive(t *testing.T) {
 				t.Fatalf("%s readiness = %+v, want %s", tc.name, readiness, want)
 			}
 		})
+	}
+}
+
+// TestSupplyChainImpactReadinessCommittedCoverageSurvivesSkippedFetchLive pins
+// the other side of the "expired snapshot" edge above. When the source state is
+// a fresh success but the committed snapshot's facts are 30 days old, nothing
+// is stale: the fetch ran inside the window and the answer was unchanged, so
+// the host skipped the duplicate generation and left the facts at the time of
+// the last real change (#9694). The committed zero-coverage snapshot still
+// certifies zero findings, and the snapshot reports the fetch time.
+func TestSupplyChainImpactReadinessCommittedCoverageSurvivesSkippedFetchLive(t *testing.T) {
+	ctx, db, now := readinessScopeLiveDatabase(t)
+	seedReadinessScopeInstance(t, ctx, db, now, "coverage-skip", []map[string]any{{
+		"source": "nvd", "scope_id": "coverage-skip-scope", "cve_ids": []string{"CVE-2026-9227"},
+	}})
+	seedReadinessScopeState(t, ctx, db, now, "coverage-skip", "coverage-skip-scope", "nvd", "fresh", "succeeded")
+	seedReadinessNVDCommittedSnapshot(t, ctx, db, now, "coverage-skip-scope", "coverage-skip", "CVE-2026-9227")
+	old := now.Add(-30 * 24 * time.Hour)
+	if _, err := db.ExecContext(ctx, `UPDATE fact_records
+        SET observed_at = $1, payload = JSONB_SET(payload, '{cache_updated_at}', TO_JSONB($2::text))`,
+		old, old.Format(time.RFC3339)); err != nil {
+		t.Fatalf("age the committed snapshot facts: %v", err)
+	}
+	readiness := readReadinessScopeAPI(t, db, "CVE-2026-9227")
+	if readiness.State != impact.ReadinessStateReadyZeroFindings {
+		t.Fatalf("a snapshot confirmed by a fresh fetch readiness = %+v, want %s", readiness, impact.ReadinessStateReadyZeroFindings)
+	}
+	if len(readiness.SourceSnapshots) != 1 || readiness.SourceSnapshots[0].Freshness != impact.FreshnessLabelFresh {
+		t.Fatalf("source snapshots = %+v, want one snapshot labelled fresh from the fetch", readiness.SourceSnapshots)
 	}
 }
 

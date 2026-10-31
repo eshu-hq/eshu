@@ -76,6 +76,7 @@ TABLE = {
         "go/internal/query/readiness_committed_coverage_live_test.go": (
             "TestSupplyChainImpactReadinessAdvisoryDoesNotCertifyUncommittedCoverageLive",
             "TestSupplyChainImpactReadinessCommittedCoverageEdgesLive",
+            "TestSupplyChainImpactReadinessCommittedCoverageSurvivesSkippedFetchLive",
             "TestSupplyChainImpactReadinessRolledBackGenerationCannotCertifyZeroLive",
         ),
         "go/internal/query/readiness_derived_skip_live_test.go": (
