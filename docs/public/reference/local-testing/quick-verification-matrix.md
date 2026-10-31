@@ -16,7 +16,7 @@ change regardless of surface.
 | Remote full-corpus degradation report classifier | `bash scripts/test-verify-remote-e2e-degradation-report.sh` |
 | Docs, `AGENTS.md`, or README files | `bash scripts/test-verify-docs-build-changed.sh` and `bash scripts/verify-docs-build-changed.sh` (changed-path mkdocs build, mirrors pre-push hook); also `cd go && go run ./cmd/capability-inventory -mode docs` and `uv run --with mkdocs --with mkdocs-material --with pymdown-extensions mkdocs build --strict --clean --config-file docs/mkdocs.yml` for a full build |
 | GitHub workflow or CodeQL setup guidance | `scripts/test-verify-codeql-setup.sh` and `scripts/verify-codeql-setup.sh` |
-| CLI/runtime wiring | `cd go && go test ./cmd/eshu ./cmd/api ./cmd/mcp-server -count=1` |
+| CLI/runtime wiring | `cd go && go test ./cmd/eshu ./cmd/api -count=1` |
 | Pre-change impact or developer change plan API/MCP/CLI surface | `cd go && go test ./internal/query ./internal/mcp ./cmd/eshu -run 'TestDeveloperChangePlan|TestPreChangeImpact|TestChangePlan|TestFetchChangePlan|TestRunChangePlan|TestResolveRouteMapsDeveloperChangePlan|TestOpenAPIDeveloperChangePlan' -count=1` |
 | Status/admin or completeness contract | `cd go && go test ./internal/status ./internal/query ./cmd/api -count=1` and `cd go && go vet ./internal/status ./internal/query ./cmd/api` |
 | Replatforming plan, ownership-packet, or rollup API/MCP surface | `cd go && go test ./internal/mcp -run TestReplatforming -count=1` (see [Verification gates → Replatforming API/MCP parity proof](verification-gates.md#replatforming-apimcp-parity-proof)) |

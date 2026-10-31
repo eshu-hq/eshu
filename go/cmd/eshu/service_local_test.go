@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -13,7 +14,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/eshu-hq/eshu/go/internal/cli/localsupervisor"
 	"github.com/eshu-hq/eshu/go/internal/cli/procexec"
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
 )
@@ -196,33 +196,22 @@ func TestRunMCPStartSSEAttachesRunningWorkspaceOwner(t *testing.T) {
 
 	restore, calls := stubServiceRuntime()
 	defer restore()
-	restoreOwner := stubLocalOwnerForMCP(t, repoRoot, eshulocal.OwnerRecord{
-		PID:                1234,
-		WorkspaceID:        "workspace-123",
-		PostgresPort:       15439,
-		PostgresSocketPath: "/tmp/.s.PGSQL.15439",
-		Profile:            "local_authoritative",
-		GraphBackend:       "nornicdb",
-		GraphAddress:       "127.0.0.1",
-		GraphBoltPort:      17687,
-		GraphUsername:      "admin",
-		GraphPassword:      "workspace-secret",
-	})
-	defer restoreOwner()
-
-	wantExecErr := errors.New("exec sentinel")
 	calls.getwd = func() (string, error) { return repoRoot, nil }
-	calls.lookPath = func(binary string) (string, error) {
-		if binary != "eshu-mcp-server" {
-			t.Fatalf("LookPath(%q), want eshu-mcp-server", binary)
-		}
-		return "/tmp/eshu-mcp-server", nil
+	calls.exec = func(string, []string, []string) error {
+		t.Fatal("exec called, want RunAttachedMCPHTTP delegation instead")
+		return nil
 	}
-	calls.exec = func(binary string, args []string, env []string) error {
-		calls.binary = binary
-		calls.args = append([]string(nil), args...)
-		calls.env = append([]string(nil), env...)
-		return wantExecErr
+
+	originalDelegate := runAttachedMCPHTTP
+	defer func() { runAttachedMCPHTTP = originalDelegate }()
+	var gotLayout eshulocal.Layout
+	var gotHost string
+	var gotPort int
+	runAttachedMCPHTTP = func(_ context.Context, layout eshulocal.Layout, host string, port int) error {
+		gotLayout = layout
+		gotHost = host
+		gotPort = port
+		return nil
 	}
 
 	cmd := newMCPStartTestCommand()
@@ -239,33 +228,26 @@ func TestRunMCPStartSSEAttachesRunningWorkspaceOwner(t *testing.T) {
 		t.Fatalf("Set(workspace-root) error = %v, want nil", err)
 	}
 
-	err := runMCPStart(cmd, nil)
-	if !errors.Is(err, wantExecErr) {
-		t.Fatalf("runMCPStart() error = %v, want %v", err, wantExecErr)
+	if err := runMCPStart(cmd, nil); err != nil {
+		t.Fatalf("runMCPStart() error = %v, want nil", err)
 	}
 
-	if got, want := calls.binary, "/tmp/eshu-mcp-server"; got != want {
-		t.Fatalf("exec binary = %q, want %q", got, want)
+	wantRoot := mustEvalSymlinks(t, repoRoot)
+	if got := mustEvalSymlinks(t, gotLayout.WorkspaceRoot); got != wantRoot {
+		t.Fatalf("delegate workspace root = %q, want %q", got, wantRoot)
 	}
-	if got, want := calls.args, []string{"eshu-mcp-server"}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("exec args = %#v, want %#v", got, want)
+	if gotHost != "127.0.0.1" {
+		t.Fatalf("delegate host = %q, want 127.0.0.1", gotHost)
 	}
-	assertEnvValue(t, calls.env, "ESHU_MCP_TRANSPORT", "http")
-	assertEnvValue(t, calls.env, "ESHU_MCP_ADDR", "127.0.0.1:18191")
-	assertEnvValue(t, calls.env, "ESHU_QUERY_PROFILE", "local_authoritative")
-	assertEnvValue(t, calls.env, "ESHU_GRAPH_BACKEND", "nornicdb")
-	assertEnvValue(t, calls.env, "ESHU_NEO4J_URI", "bolt://127.0.0.1:17687")
-	assertEnvValue(t, calls.env, "ESHU_NEO4J_USERNAME", "admin")
-	assertEnvValue(t, calls.env, "ESHU_NEO4J_PASSWORD", "workspace-secret")
-	assertEnvValue(t, calls.env, "ESHU_POSTGRES_DSN", "host=127.0.0.1 port=15439 user=eshu password=change-me dbname=postgres sslmode=disable")
-	// #5168: local `eshu mcp start --transport http` is the documented
-	// loopback/dev flow and must keep working with zero credential setup, so
-	// it defaults ESHU_MCP_ALLOW_UNAUTHENTICATED=true unless the operator's
-	// own environment already sets it (see the override test below).
-	assertEnvValue(t, calls.env, "ESHU_MCP_ALLOW_UNAUTHENTICATED", "true")
+	if gotPort != 18191 {
+		t.Fatalf("delegate port = %d, want 18191", gotPort)
+	}
 }
 
-func TestRunMCPStartSSEWithWorkspaceRootRequiresRunningOwner(t *testing.T) {
+// TestRunMCPStartHTTPWithWorkspaceRootPropagatesDelegateError proves a
+// missing or unhealthy owner surfaces from the delegate instead of falling
+// back to an Exec.
+func TestRunMCPStartHTTPWithWorkspaceRootPropagatesDelegateError(t *testing.T) {
 	base := t.TempDir()
 	repoRoot := filepath.Join(base, "repo")
 	if err := os.MkdirAll(filepath.Join(repoRoot, ".git"), 0o755); err != nil {
@@ -274,27 +256,29 @@ func TestRunMCPStartSSEWithWorkspaceRootRequiresRunningOwner(t *testing.T) {
 
 	restore, calls := stubServiceRuntime()
 	defer restore()
-	restoreOwner := stubLocalOwnerForMCP(t, repoRoot, eshulocal.OwnerRecord{})
-	defer restoreOwner()
-
 	calls.getwd = func() (string, error) { return repoRoot, nil }
-	calls.lookPath = func(string) (string, error) { return "/tmp/eshu-mcp-server", nil }
 	calls.exec = func(string, []string, []string) error {
-		t.Fatalf("exec called, want owner preflight error")
+		t.Fatal("exec called, want RunAttachedMCPHTTP delegation instead")
 		return nil
 	}
 
+	originalDelegate := runAttachedMCPHTTP
+	defer func() { runAttachedMCPHTTP = originalDelegate }()
+	wantErr := errors.New("no running local Eshu service owner for workspace")
+	runAttachedMCPHTTP = func(context.Context, eshulocal.Layout, string, int) error {
+		return wantErr
+	}
+
 	cmd := newMCPStartTestCommand()
-	if err := cmd.Flags().Set("transport", "sse"); err != nil {
+	if err := cmd.Flags().Set("transport", "http"); err != nil {
 		t.Fatalf("Set(transport) error = %v, want nil", err)
 	}
 	if err := cmd.Flags().Set("workspace-root", repoRoot); err != nil {
 		t.Fatalf("Set(workspace-root) error = %v, want nil", err)
 	}
 
-	err := runMCPStart(cmd, nil)
-	if err == nil || !strings.Contains(err.Error(), "no running local Eshu service owner") {
-		t.Fatalf("runMCPStart() error = %v, want missing owner error", err)
+	if err := runMCPStart(cmd, nil); !errors.Is(err, wantErr) {
+		t.Fatalf("runMCPStart() error = %v, want %v", err, wantErr)
 	}
 }
 
@@ -354,45 +338,6 @@ func stubServiceRuntime() (func(), *serviceRuntimeCalls) {
 	}, calls
 }
 
-func stubLocalOwnerForMCP(t *testing.T, repoRoot string, record eshulocal.OwnerRecord) func() {
-	t.Helper()
-
-	originalBuildLayout := localsupervisor.BuildLayout
-	originalReadOwnerRecord := localsupervisor.ReadOwnerRecord
-	originalProcessAlive := localsupervisor.ProcessAlive
-	originalSocketHealthy := localsupervisor.SocketHealthy
-	originalGraphHealthy := localsupervisor.GraphHealthy
-
-	workspaceRoot := mustEvalSymlinks(t, repoRoot)
-	localsupervisor.BuildLayout = func(root string) (eshulocal.Layout, error) {
-		if got := mustEvalSymlinks(t, root); got != workspaceRoot {
-			t.Fatalf("BuildLayout(%q) resolved to %q, want %q", root, got, workspaceRoot)
-		}
-		return eshulocal.Layout{
-			WorkspaceRoot:   workspaceRoot,
-			WorkspaceID:     "workspace-123",
-			OwnerRecordPath: filepath.Join(t.TempDir(), "owner.json"),
-		}, nil
-	}
-	localsupervisor.ReadOwnerRecord = func(string) (eshulocal.OwnerRecord, error) {
-		if record.PID == 0 {
-			return eshulocal.OwnerRecord{}, os.ErrNotExist
-		}
-		return record, nil
-	}
-	localsupervisor.ProcessAlive = func(int) bool { return record.PID != 0 }
-	localsupervisor.SocketHealthy = func(string) bool { return record.PID != 0 }
-	localsupervisor.GraphHealthy = func(eshulocal.OwnerRecord) bool { return record.PID != 0 }
-
-	return func() {
-		localsupervisor.BuildLayout = originalBuildLayout
-		localsupervisor.ReadOwnerRecord = originalReadOwnerRecord
-		localsupervisor.ProcessAlive = originalProcessAlive
-		localsupervisor.SocketHealthy = originalSocketHealthy
-		localsupervisor.GraphHealthy = originalGraphHealthy
-	}
-}
-
 func assertEnvValue(t *testing.T, env []string, key, want string) {
 	t.Helper()
 	if got := envValue(env, key); got != want {
@@ -406,6 +351,7 @@ func newMCPStartTestCommand() *cobra.Command {
 	cmd.Flags().String("host", "127.0.0.1", "")
 	cmd.Flags().Int("port", 0, "")
 	cmd.Flags().String("workspace-root", "", "")
+	cmd.Flags().String("core-base-url", "", "")
 	cmd.Flags().String("profile", "", "")
 	return cmd
 }

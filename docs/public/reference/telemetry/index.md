@@ -629,41 +629,40 @@ No-Regression Evidence: recording adds one in-memory route match
 (`mux.Handler`) and two metric records per request on the read path; no graph
 write, query, worker, or queue behavior changes. Backend: NornicDB (Bolt) /
 Postgres read path unchanged. Verified by
-`go test ./internal/telemetry ./internal/query ./cmd/api ./cmd/mcp-server
+`go test ./internal/telemetry ./internal/query ./cmd/api
 -count=1`.
 
 ### Allowed-read governance-audit async appender (F-9, #5170)
 
 The mcp-server MCP transport middleware (`GET /sse`, `POST /mcp/message`)
-records an ALLOWED `read_authorization` governance-audit event for every
+recorded an ALLOWED `read_authorization` governance-audit event for every
 scoped-token or OIDC-bearer credential that resolves successfully,
 immediately before dispatch — the allowed counterpart of the DENIED events
 the same middleware already recorded synchronously. A naive synchronous
 append would add a Postgres round trip to every successful MCP read, so
-emission goes through `governanceauditasync.AsyncAppender`: a bounded
+emission went through `governanceauditasync.AsyncAppender`: a bounded
 (default 1024), single-worker, non-blocking buffered-channel appender that
 drops rather than blocks when full, and flushes batches to the durable
 `governance_audit_events` store from a background worker. See
 `go/internal/governanceauditasync/README.md` for the full design.
 
-Three counters, all label-free, expose the appender's drop-observability:
+Three counters, all label-free, exposed the appender's drop-observability:
 
-- `eshu_dp_governance_audit_allowed_emitted_total` — events accepted into the
-  buffer. The volume dial.
+- `eshu_dp_governance_audit_allowed_emitted_total` — events accepted into the buffer (the volume dial).
 - `eshu_dp_governance_audit_allowed_dropped_total` — events rejected because
-  the buffer was full or the appender was closed. Non-zero means governance
-  data loss is happening; this is the signal an operator should alert on.
+  the buffer was full or the appender was closed. Non-zero meant governance
+  data loss was happening; this was the signal an operator should alert on.
 - `eshu_dp_governance_audit_allowed_persist_failures_total` — events accepted
-  but a flush to the durable store failed. Non-zero points at the durable
+  but a flush to the durable store failed. Non-zero pointed at the durable
   store itself (bad connection, schema mismatch), not the appender.
 
-Only the mcp-server MCP transport middleware wires a non-nil allowed-read
+Only the mcp-server MCP transport middleware wired a non-nil allowed-read
 sink; the `/api/v0/*` HTTP API surface and `cmd/api` do not, since
 `tools/call` already dispatches internally through the same credential chain
 and wiring both would double-emit one logical MCP read.
 
-Enabling this path adds one `governance_audit_events` row per allowed MCP
-transport request, so it assumes the deployment has the hosted retention job
+Enabling this path added one `governance_audit_events` row per allowed MCP
+transport request, so it assumed the deployment has the hosted retention job
 configured (`GovernanceAuditStore.DeleteExpired`,
 `go/internal/storage/postgres/governance/audit/store.go`); see
 [Hosted Retention And Deletion Policy](../hosted-retention-deletion-policy.md)
@@ -676,8 +675,8 @@ deliberately blocked sink under concurrent overflow, and sink persist
 failures; `go/internal/query/auth_allowed_read_audit_test.go` proves the
 emission site records exactly one event per allowed scoped/OIDC-bearer read
 and zero events for shared-key, dev-open, denied, and resolver-error paths.
-`go/internal/telemetry/instruments_test.go` proves all three counters
-register against a real meter.
+`go/internal/telemetry/instruments_test.go` covered counter registration
+against a real meter before the counters were retired with the wiring above.
 
 No-Regression Evidence: `AsyncAppender.Append` costs one struct copy plus one
 non-blocking channel send (~130ns/op serial, ~3.5ns/op amortized under

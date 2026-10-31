@@ -79,8 +79,10 @@ func TestEmbeddedPostgresConfigRoutesStartupLogsToWorkspaceFile(t *testing.T) {
 // test fails in both cases.
 //
 // Sources for the list, to check it against when a process is added:
-//   - internal/cli/localsupervisor/host.go starts eshu-reducer, eshu-ingester
-//     and eshu-mcp-server as supervised children.
+//   - internal/cli/localsupervisor/host.go starts eshu-reducer and
+//     eshu-ingester as supervised children, and StartMCPSession starts one
+//     session eshu-api per MCP session (the satellite eshu-mcp-server holds
+//     no pool; it reads through the session API).
 //   - cmd/eshu/gotchas-read-surface-commands.md documents `eshu vuln-scan repo`
 //     attaching to a running owner and launching eshu-api plus
 //     eshu-bootstrap-index against that owner's Postgres.
@@ -90,7 +92,7 @@ func TestLocalPostgresPoolHoldersCoverEveryLocalProcessThatOpensAPool(t *testing
 	want := []string{
 		"eshu-reducer",
 		"eshu-ingester",
-		"eshu-mcp-server",
+		"eshu-api",
 		"eshu-api",
 		"eshu-bootstrap-index",
 	}

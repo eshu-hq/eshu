@@ -84,8 +84,8 @@
   response-budget, envelope, and telemetry ownership.
 - `find_dead_iac` returning empty results with a Postgres-backed
   reachability store may mean the IaC reachability field is not wired in the
-  binary — check `cmd/mcp-server/wiring_router.go` at
-  `newMCPQueryRouterWithSemanticEmbedding` before assuming this package's
+  serving binary — that wiring moved to the satellite eshu-mcp under
+  eshu-hq/eshu#9670, so check the satellite before assuming this package's
   route is wrong; the same symptom is documented in `../../AGENTS.md`.
 
 ## Anti-patterns

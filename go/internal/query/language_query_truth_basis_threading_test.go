@@ -95,9 +95,10 @@ func TestHandleLanguageQueryGraphBackedBranchReportsHybridWhenContentEnriches(t 
 // (not the old hardcoded TruthBasisAuthoritativeGraph) when h.Neo4j is nil --
 // the content store served the entire read, with no graph involved at all.
 //
-// This covers a defensive path, not a production configuration: both wirings
-// construct query.NewNeo4jReader unconditionally (cmd/api/wiring.go,
-// cmd/mcp-server/wiring.go), so a shipped handler always has a non-nil
+// This covers a defensive path, not a production configuration: the API wiring
+// constructs query.NewNeo4jReader unconditionally (cmd/api/wiring.go; the
+// removed MCP entrypoint did the same, eshu-hq/eshu#9670), so a shipped
+// handler always has a non-nil
 // GraphQuery. The branch is still worth pinning because the basis it reports
 // decides whether classifyAnswerTruth may treat the answer as fact, so a
 // future wiring that does leave Neo4j nil must not silently claim

@@ -289,10 +289,11 @@ func recordScopedRouteAuthorizationDeniedWithReason(
 // denial helpers need for a real synchronous Postgres call would be
 // unnecessary overhead here.
 //
-// allowedAudit is nil for every constructor except the mcp-server transport
-// middleware (see cmd/mcp-server/wiring.go), so this is a no-op — byte
-// identical to today — everywhere else, including cmd/api and the
-// /api/v0/* authedHandler mcp-server also builds.
+// allowedAudit is nil for every remaining in-tree constructor (the removed
+// MCP entrypoint threaded a non-nil appender through its transport
+// middleware; removed under eshu-hq/eshu#9670, the satellite eshu-mcp owns
+// that wiring now), so this is a no-op — byte identical to today —
+// everywhere in-tree, including cmd/api's /api/v0/* authedHandler.
 func recordScopedReadAuthorized(r *http.Request, allowedAudit GovernanceAuditAppender, authCtx AuthContext) {
 	if allowedAudit == nil {
 		return

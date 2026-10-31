@@ -317,6 +317,10 @@ require_in "parent-shell pid capture" "${host_helpers_lib}" "printf -v"
 # Failure must surface the host-binary logs before the work dir is removed. That
 # logic lives in the extracted cleanup lib chunk now, not the orchestrator body.
 require_in "failure log dump" "${cleanup_lib}" "host binary logs (failure)"
+# shellcheck source=scripts/lib/test-golden-corpus-satellite-cases.sh
+. "${repo_root}/scripts/lib/test-golden-corpus-satellite-cases.sh"
+[[ "${satellite_cases_completed:-0}" -eq 1 ]] ||
+	fail "test-golden-corpus-satellite-cases.sh did not run to completion"
 # Every Compose operation must carry the same explicit, uniquely overridable
 # project name. Host binaries connect over private ports, while `-p` prevents
 # containers and volumes from colliding with another worktree's gate.
@@ -483,12 +487,8 @@ require "populated-then-drained guard" 'require-populated-domains="repo_dependen
 # shellcheck source=scripts/lib/test-golden-corpus-private-data.sh
 . "${repo_root}/scripts/lib/test-golden-corpus-private-data.sh"
 
-# golden-corpus-lock-cases.sh is not only executable cases: it also carries one
-# invariant-routed assertion of its own -- require "live gate mutex"
-# 'acquire_live_gate_lock' -- so the enforced set is 77 assertions, the 76 in
-# this file plus that one. A mutation sweep enumerated from this file alone
-# misses it. It is genuinely enforced: mutating the orchestrator's call reports
-# `missing live gate mutex` with rc=1.
+# Plus golden-corpus-lock-cases.sh's own invariant-routed assertion (require
+# "live gate mutex"): 81 enforced = 76 here + 4 satellite-cases + 1 there.
 . "${repo_root}/scripts/lib/golden-corpus-lock-cases.sh"
 [[ "${lock_cases_completed:-0}" -eq 1 ]] ||
 	fail "golden-corpus-lock-cases.sh did not run to completion (gutted, or returned early)"

@@ -320,17 +320,33 @@ func RunOwnedHostWithLayout(ctx context.Context, out io.Writer, layout eshulocal
 		return WaitManagedChildren(ctx, children, "")
 	}
 
-	mcpServer, err := StartChildProcess("eshu-mcp-server", []string{"eshu-mcp-server"}, ChildEnv(managedPostgres.DSN, runtimeConfig, managedGraph, localHostMCPStdioOverrides()))
+	// The MCP session is a loopback eshu-api plus the satellite, owned by this
+	// process: the bridge below owns the process stdio and the session ends
+	// when the bridge sees EOF.
+	session, err := StartMCPSession(ctx, managedPostgres.DSN, runtimeConfig, managedGraph, layout)
 	if err != nil {
 		return err
 	}
 	defer func() {
-		if err := StopChildProcess(mcpServer, ShutdownTimeout); err != nil && retErr == nil {
+		if err := session.Close(); err != nil && retErr == nil {
 			retErr = err
 		}
 	}()
-	children = append(children, Child{name: "eshu-mcp-server", cmd: mcpServer})
-	return WaitManagedChildren(ctx, children, "eshu-mcp-server")
+	children = append(children, session.Children()...)
+	bridgeErr := make(chan error, 1)
+	go func() {
+		bridgeErr <- runMCPStdioBridge(ctx, session, os.Stdin, os.Stdout)
+	}()
+	waitErr := make(chan error, 1)
+	go func() {
+		waitErr <- WaitManagedChildren(ctx, children, "")
+	}()
+	select {
+	case err := <-waitErr:
+		return err
+	case err := <-bridgeErr:
+		return err
+	}
 }
 
 // ChildOverrides adds the log-mode and log-directory settings every supervised
@@ -343,13 +359,6 @@ func ChildOverrides(layout eshulocal.Layout, overrides map[string]string, getenv
 	setOverrideIfUnset(merged, getenv, LogModeEnv, LogModeFile)
 	setOverrideIfUnset(merged, getenv, LogDirEnv, layout.LogsDir)
 	return merged
-}
-
-func localHostMCPStdioOverrides() map[string]string {
-	return map[string]string{
-		"ESHU_MCP_TRANSPORT": "stdio",
-		LogModeEnv:           LogModeTerminal,
-	}
 }
 
 func localHostProgressEnabled(getenv func(string) string) bool {
@@ -433,9 +442,12 @@ func RunAttachedMCPStdio(ctx context.Context, layout eshulocal.Layout) (bool, er
 		)
 	}
 
-	mcpServer, err := StartChildProcess("eshu-mcp-server", []string{"eshu-mcp-server"}, ChildEnv(dsn, runtimeConfig, ManagedGraphFromRecord(record), localHostMCPStdioOverrides()))
+	session, err := StartMCPSession(ctx, dsn, runtimeConfig, ManagedGraphFromRecord(record), layout)
 	if err != nil {
 		return true, err
 	}
-	return true, localHostWaitChildProcess(ctx, mcpServer)
+	defer func() {
+		_ = session.Close()
+	}()
+	return true, runMCPStdioBridge(ctx, session, os.Stdin, os.Stdout)
 }

@@ -223,7 +223,7 @@ already tell an operator whether the gate was active for a given run, which is
 the question this issue existed because nobody could answer.
 
 No-Regression Evidence: `go test ./internal/collector ./internal/query
-./internal/mcp ./cmd/api ./cmd/mcp-server ./cmd/capability-inventory
+./internal/mcp ./cmd/api ./cmd/capability-inventory
 ./internal/capabilitycatalog -count=1` covers the collector/API/MCP readback.
 The baseline input is the existing gate-off and no-`dataflow_functions` snapshot
 shape; the after input adds one parser-emitted function row with one CFG block

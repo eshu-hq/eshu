@@ -115,7 +115,7 @@ resolution, unknown missing-evidence reporting, required-input validation,
 blocked next calls for missing anchors, HTTP handler envelopes, scoped-token
 allowlist, MCP registry, MCP route mapping, and workflow next-call parameter
 alignment with MCP tool schemas. The aggregate static-route gate is
-`cd go && go test ./internal/query ./internal/mcp ./cmd/api ./cmd/mcp-server -run 'InvestigationWorkflow|AuthMiddlewareWithScopedTokensAllowsInvestigationWorkflow|EveryRegisteredToolHasDispatchRoute|ReadOnlyTools|MCPToolContractMatrix|RuntimeSurface|Wiring' -count=1`.
+`cd go && go test ./internal/query ./internal/mcp ./cmd/api -run 'InvestigationWorkflow|AuthMiddlewareWithScopedTokensAllowsInvestigationWorkflow|EveryRegisteredToolHasDispatchRoute|ReadOnlyTools|MCPToolContractMatrix|RuntimeSurface|Wiring' -count=1`.
 
 Dogfood Evidence: `TestInvestigationWorkflowDogfoodRoutesFewerCallsThanAtomicOnly`
 uses the three starter prompt families as bounded prompt runs. For vulnerable

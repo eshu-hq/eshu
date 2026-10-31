@@ -94,13 +94,14 @@ Compose and reads no `ESHU_PG_MAX_CONNECTIONS`; its ceiling is derived in
 ```
 
 Five, and they are enumerated in `localPostgresPoolHolders` rather than counted:
-the local supervisor starts `eshu-reducer`, `eshu-ingester` and
-`eshu-mcp-server` as children, and `eshu vuln-scan repo` attaches to a running
-owner and launches a short-lived `eshu-api` plus `eshu-bootstrap-index` against
-that same Postgres. All five take the shared 30-connection default, so the worst
-case is concurrent rather than hypothetical. The ceiling is `len()` of that list,
-so adding a holder raises it in the same edit; a new local process that opens a
-pool must be added there.
+the local supervisor starts `eshu-reducer` and `eshu-ingester` as children, each
+MCP session adds one session `eshu-api`, and `eshu vuln-scan repo` attaches to a
+running owner and launches a short-lived `eshu-api` plus `eshu-bootstrap-index`
+against that same Postgres. The satellite `eshu-mcp-server` holds no pool — it
+reads through the session API — so it is not listed. All five take the shared
+30-connection default, so the worst case is concurrent rather than hypothetical.
+The ceiling is `len()` of that list, so adding a holder raises it in the same
+edit; a new local process that opens a pool must be added there.
 
 If that inequality fails, reduce per-runtime pools or add a measured pooling
 layer outside Eshu. Do not raise every runtime to the same number just because

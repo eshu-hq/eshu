@@ -60,7 +60,7 @@ Validate (core tests in this repo, chart lint in the eshu-deploy checkout):
 
 ```bash
 cd go
-go test ./cmd/eshu ./cmd/api ./cmd/mcp-server -count=1
+go test ./cmd/eshu ./cmd/api -count=1
 cd "$ESHU_DEPLOY_CHECKOUT"
 helm lint helm/eshu
 git diff --check

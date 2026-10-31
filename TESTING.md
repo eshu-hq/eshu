@@ -34,7 +34,7 @@ Go package or command slice:
 
 ```bash
 cd go
-go test ./cmd/eshu ./cmd/api ./cmd/mcp-server ./internal/query -count=1
+go test ./cmd/eshu ./cmd/api ./internal/query -count=1
 ```
 
 Deploy-contract packages (`internal/deploy`, `internal/runtime`,

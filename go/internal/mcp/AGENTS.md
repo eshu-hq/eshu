@@ -276,8 +276,9 @@
 
 - Symptom: `find_dead_iac` returns empty results with a Postgres-backed
   reachability store → the IaC reachability field may not be wired in
-  the binary; check `cmd/mcp-server/wiring_router.go` at
-  `newMCPQueryRouterWithSemanticEmbedding`.
+  the serving binary; that wiring moved to the satellite eshu-mcp under
+  eshu-hq/eshu#9670 (formerly `newMCPQueryRouterWithSemanticEmbedding` in
+  the removed in-tree entrypoint).
 
 ## Anti-patterns specific to this package
 

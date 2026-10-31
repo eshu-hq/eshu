@@ -218,7 +218,7 @@ byte-stable.
 
 No-Regression Evidence: `cd go && go test ./internal/query ./internal/mcp
 ./internal/searchhybrid ./internal/searchretrieval ./internal/searchembed
-./internal/searchdocs -count=1` and `go test ./cmd/api ./cmd/mcp-server
+./internal/searchdocs -count=1` and `go test ./cmd/api
 -count=1` pass with the ranker wired; behavior is identical to the prior lexical
 path when the ranker is nil or reports a no-op.
 

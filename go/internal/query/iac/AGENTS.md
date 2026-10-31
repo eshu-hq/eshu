@@ -137,7 +137,7 @@ existing contract; do not change it here. Never write a `LookupError`'s
   — they must always equal root's `contract/replatforming.go` constants;
   changing either side alone silently desyncs the capability gate.
 - `Handler`'s exported field names (`Content`, `Reachability`, `Management`,
-  `Inventory`, `Graph`, `Profile`) — `cmd/api/wiring_router.go` and
-  `cmd/mcp-server/wiring_iac.go` construct this struct with keyed literals
-  through the root alias; a field rename breaks both without a compiler error
-  pointing here (the field name mismatch surfaces in `cmd/api`/`cmd/mcp-server`).
+  `Inventory`, `Graph`, `Profile`) — `cmd/api/wiring_router.go` constructs
+  this struct with keyed literals through the root alias (the removed MCP
+  entrypoint did the same; eshu-hq/eshu#9670); a field rename breaks the
+  wiring without a compiler error pointing here.

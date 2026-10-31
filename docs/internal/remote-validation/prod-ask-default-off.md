@@ -32,16 +32,19 @@ enforces that behavior.
 
 ## Committed reproducible evidence
 
-**Default-off posture** — `go/cmd/mcp-server/ask_wiring_test.go`:
+**Default-off posture** — `go/internal/askwiring/askwiring_test.go`:
+`TestBuildAskHandlerDefaultOffNoProfileConfigured` (proves the shared ask
+wiring stays not-ready without a configured provider profile even when
+enabled; the MCP-entrypoint integration tests
 `TestMCPServerAskDefaultOffNoProfileConfigured` and
-`TestMCPServerAskResponseBodyContainsUnavailableState` (proves the deployed MCP wiring returns
-`unavailable` without a configured provider profile), and
+`TestMCPServerAskResponseBodyContainsUnavailableState` were removed with the
+entrypoint under eshu-hq/eshu#9670), and
 `go/internal/query/ask/handler_test.go`: `TestAskHandler_Disabled` and
 `TestAskHandler_DisabledNoEngineConstruction` (proves the HTTP route never constructs the engine
 when disabled). Reproduce:
 
 ```bash
-cd go && go test ./cmd/mcp-server -run TestMCPServerAsk -count=1
+cd go && go test ./internal/askwiring -run TestBuildAskHandlerDefaultOff -count=1
 cd go && go test ./internal/query/ask -run TestAskHandler_Disabled -count=1
 ```
 

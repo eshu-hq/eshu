@@ -232,11 +232,12 @@ func TestNewRouterMountsPostgresBackedHandlers(t *testing.T) {
 	if router.LocalIdentity.Sessions != nil {
 		t.Fatal("newRouter().LocalIdentity.Sessions != nil with nil db, want unavailable session store")
 	}
-	// #5143 regression: cmd/mcp-server/wiring.go duplicates this struct
+	// #5143 regression: the removed MCP entrypoint duplicated this struct
 	// literal and once shipped without Repositories.Freshness wired, 503ing
 	// get_repository_freshness on the standalone MCP server even though
-	// cmd/api was correct. Guard both entrypoints so a future handler
-	// addition can't ship half-wired the same way.
+	// cmd/api was correct (entrypoint removed under eshu-hq/eshu#9670).
+	// This guard now covers the remaining API entrypoint so a future
+	// handler addition can't ship half-wired the same way.
 	if router.Repositories == nil {
 		t.Fatal("newRouter().Repositories = nil, want repository routes mounted")
 	}

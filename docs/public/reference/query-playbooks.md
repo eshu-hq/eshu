@@ -160,7 +160,7 @@ resolver does not execute calls, read Postgres, read the graph backend, call
 providers, or expose raw Cypher. Unknown playbooks, undeclared inputs, and
 missing required inputs fail with bounded errors.
 
-No-Regression Evidence: `cd go && go test ./cmd/api ./cmd/mcp-server ./cmd/eshu
+No-Regression Evidence: `cd go && go test ./cmd/api ./cmd/eshu
 ./internal/query ./internal/mcp/... -count=1` covers the HTTP handler, API and MCP
 binary wiring, child registration contract, MCP registry and dispatch, CLI
 resolver helper, OpenAPI assembly, and capability-matrix contract for the static

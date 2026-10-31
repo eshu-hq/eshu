@@ -4,63 +4,11 @@
 package localsupervisor
 
 import (
-	"fmt"
 	"net"
-	"os"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/cli/procexec"
-	"github.com/eshu-hq/eshu/go/internal/eshulocal"
-	"github.com/eshu-hq/eshu/go/internal/query"
 )
-
-// MCPHTTPEnvFromOwner builds the environment for an HTTP MCP server that
-// attaches to the workspace's running local owner, so graph and content reads hit
-// the same workspace-scoped stores the owner supervises. It refuses when no
-// healthy owner holds the workspace rather than starting a second one.
-func MCPHTTPEnvFromOwner(layout eshulocal.Layout, host string, port int) ([]string, error) {
-	record, err := ReadOwnerRecord(layout.OwnerRecordPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("no running local Eshu service owner for workspace %q; start it with eshu graph start --workspace-root %q", layout.WorkspaceRoot, layout.WorkspaceRoot)
-		}
-		return nil, err
-	}
-	if record.WorkspaceID != "" && record.WorkspaceID != layout.WorkspaceID {
-		return nil, fmt.Errorf("owner record workspace %q does not match requested workspace %q", record.WorkspaceID, layout.WorkspaceID)
-	}
-	if !ProcessAlive(record.PID) {
-		return nil, fmt.Errorf("no running local Eshu service owner for workspace %q; recorded owner pid %d is not alive", layout.WorkspaceRoot, record.PID)
-	}
-	if !SocketHealthy(record.PostgresSocketPath) {
-		return nil, fmt.Errorf("local Eshu service owner for workspace %q has an unhealthy Postgres socket", layout.WorkspaceRoot)
-	}
-	if record.PostgresPort <= 0 {
-		return nil, fmt.Errorf("owner record for workspace %q missing postgres_port", layout.WorkspaceRoot)
-	}
-
-	runtimeConfig, err := RuntimeConfigFromOwnerRecord(record)
-	if err != nil {
-		return nil, err
-	}
-	if runtimeConfig.Profile == query.ProfileLocalAuthoritative && !GraphHealthy(record) {
-		return nil, fmt.Errorf("local Eshu service owner for workspace %q has an unhealthy graph backend", layout.WorkspaceRoot)
-	}
-
-	overrides := map[string]string{
-		"ESHU_MCP_TRANSPORT": "http",
-		"ESHU_MCP_ADDR":      fmt.Sprintf("%s:%d", host, port),
-	}
-	for key, value := range MCPHTTPAllowUnauthenticatedOverride(host) {
-		overrides[key] = value
-	}
-	return ChildEnv(
-		eshulocal.PostgresDSN("127.0.0.1", record.PostgresPort),
-		runtimeConfig,
-		ManagedGraphFromRecord(record),
-		overrides,
-	), nil
-}
 
 // MCPHTTPAllowUnauthenticatedOverride returns an ESHU_MCP_ALLOW_UNAUTHENTICATED
 // override for the local `eshu mcp start --transport http` path, unless the

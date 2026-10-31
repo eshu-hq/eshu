@@ -155,8 +155,8 @@ func TestBuildNarrationPostureDefaultClosed(t *testing.T) {
 
 // TestBuildAskHandlerRouteIsRegistered proves that the handler returned by
 // BuildAskHandler can be mounted and replies to POST /api/v0/ask (503, not
-// 404) when in default-off mode — mirroring the integration test in
-// cmd/mcp-server/ask_wiring_test.go.
+// 404) when in default-off mode — mirroring the former integration test in
+// the removed MCP entrypoint (removed under eshu-hq/eshu#9670).
 func TestBuildAskHandlerRouteIsRegistered(t *testing.T) {
 	t.Parallel()
 

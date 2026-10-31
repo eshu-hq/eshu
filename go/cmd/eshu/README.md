@@ -18,7 +18,14 @@ orchestration. It does not own service runtime internals:
 Command logic that is not process wiring is moving out into `go/internal/cli/*`
 under epic #6053, because this directory is `package main`, so nothing can
 import it: logic that has to be shared or unit-tested from outside has to live
-outside it. `eshu report` is one of those: `operator_digest_cmd.go` here reads
+outside it. Service launch detail: `eshu mcp start` stdio and standalone HTTP
+exec into `local-host mcp-stdio` and `eshu-mcp-server`
+(`-addr`/`-core-base-url`); the `--workspace-root` HTTP path instead delegates
+in-process to `localsupervisor.RunAttachedMCPHTTP`, which supervises a session
+`eshu-api` plus the satellite. The satellite address travels on flags, never
+on `ESHU_MCP_ADDR` (retired).
+
+`eshu report` is one of those: `operator_digest_cmd.go` here reads
 the flags, prints, and maps errors to exit codes, while the digest model, the
 artifact wrapper, and the share-safe scope rules live in
 `go/internal/cli/opdigest`.
@@ -165,7 +172,7 @@ Root flags `--version` and `-v`, plus the `eshu version` command, print the
 build-time application version from `internal/buildinfo`. Subcommands define
 their own flags. Service launch reads the runtime env contract (`ESHU_API_ADDR`,
 `ESHU_MCP_TRANSPORT`,
-`ESHU_MCP_ADDR`, `ESHU_POSTGRES_DSN`, `ESHU_GRAPH_BACKEND`, `NEO4J_*`).
+`ESHU_POSTGRES_DSN`, `ESHU_GRAPH_BACKEND`, `NEO4J_*`).
 
 ## Telemetry
 

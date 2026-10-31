@@ -41,7 +41,6 @@ gates:
       - "go/cmd/mock-prometheus-mimir/**"
       - "go/cmd/mock-openai-compatible/**"
       - "go/internal/demospec/**"
-      - "go/cmd/mcp-server/**"
       - "go/internal/mcp/**"
       - "go/internal/goldengate/**"
       - "go/internal/graph/**"
@@ -203,6 +202,10 @@ gates:
       - "scripts/test-compare-backend-latency.sh"
       - "scripts/lib/live-gate-lock.sh"
       - "scripts/lib/golden-corpus-host-helpers.sh"
+      # Sourced by golden-corpus-host-helpers.sh for the satellite mcp-server
+      # clone: without this row a PR editing only the git wrapper would not
+      # select this gate locally and would first fail in CI (#9670).
+      - "scripts/lib/golden-corpus-git.sh"
       - "scripts/lib/compose_verification_runtime_common.sh"
       - "scripts/ci/install-apt-packages.sh"
       - "scripts/ci/go-mod-download-retry.sh"
@@ -340,7 +343,6 @@ gates:
       - "go/cmd/mock-prometheus-mimir/**"
       - "go/cmd/mock-openai-compatible/**"
       - "go/internal/demospec/**"
-      - "go/cmd/mcp-server/**"
       - "go/internal/mcp/**"
       - "go/internal/goldengate/**"
       - "go/internal/graph/**"

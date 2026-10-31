@@ -336,12 +336,6 @@ linters:
       - path: 'internal/cli/localsupervisor/host\.go'
         linters:
           - funlen
-      - path: 'cmd/mcp-server/wiring\.go'
-        linters:
-          - funlen
-      - path: 'cmd/mcp-server/wiring_router\.go'
-        linters:
-          - funlen
       - path: 'cmd/reducer/main\.go'
         linters:
           - funlen

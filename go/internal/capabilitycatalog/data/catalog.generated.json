@@ -1051,21 +1051,21 @@
       ],
       "profiles": {
         "local_authoritative": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "derived",
           "required_runtime": "local_host_plus_graph_plus_agent_reasoning_provider",
           "p95_latency_ms": 10000,
           "max_scope_size": "indexed_workspace"
         },
         "local_full_stack": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "derived",
           "required_runtime": "full_stack_plus_agent_reasoning_provider",
           "p95_latency_ms": 15000,
           "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "derived",
           "required_runtime": "local_host_plus_agent_reasoning_provider",
           "p95_latency_ms": 10000,
@@ -1082,7 +1082,7 @@
       "proof_signals": [
         {
           "kind": "go_test",
-          "ref": "./internal/query ./internal/mcp ./cmd/mcp-server"
+          "ref": "./internal/query ./internal/mcp"
         },
         {
           "kind": "remote_validation",
