@@ -32,7 +32,7 @@ const (
 )
 
 // Scanner-Publish-SHA anchors the pins below to the merge-head publish
-// that produced them (docker-publish run 41099864459, merge 17e42456aa;
+// that produced them (docker-publish run 41156813471, merge dec23a17d9;
 // each digest's build attestation verified with gh attestation verify
 // before pinning). The verify-scanner-digest-pins gate
 // (scripts/verify-scanner-digest-pins.sh, blocking tier pre-pr row
@@ -42,7 +42,7 @@ const (
 // in two changes: the publish itself, then a reviewed follow-up PR
 // bumping this SHA and the pins together (the pattern #9494 uses) —
 // the publish workflow never auto-updates this file.
-// Scanner-Publish-SHA: 17e42456aaa3a411cb429babd3dcf2b63bd07941
+// Scanner-Publish-SHA: dec23a17d9cf6aa196f1ec66c3570a441164c867
 //
 // Pin semantics (#8878): these pins are platform-side admission truth, not
 // seed-time comparisons. Seed checks only that --image-ref has the
@@ -58,9 +58,9 @@ const (
 // values; live-chart sync rides the re-pin PR process with admission as the
 // fail-closed backstop).
 var artifactDigests = map[string]string{
-	IDImage:     "2c9269e917dbfbf4116a1b9550694fc18238c8a3e6847df98af37d1b7b423815",
-	IDSBOM:      "2d3b72aa4850ee818af1e652343e497e45c80bdd9c82eaae11da9e6b61ee43da",
-	IDOSRuntime: "6ff09b67b40741b5ed2d1e7674163124a7372d7b76ecfdd790c33dc955e2b574",
+	IDImage:     "552d9087d69ae5b1e7754054d9b17431a93dfad720dca5c24bf7f1e41b4bda09",
+	IDSBOM:      "fcd10e5ee8044182d539f20735103f0381c44e8e685a10d673573acd3f95fea1",
+	IDOSRuntime: "40d93b0ed5ee542984d3d4b1fc45084b6fed8e68286e87808cc7a35dd4e675e4",
 }
 
 // AnalyzerFor resolves a component ID back to its analyzer. Unknown IDs fail
