@@ -314,7 +314,7 @@ stays HELD until every row below is green.
 | Gate | Result 2026-10-31 | Evidence |
 | --- | --- | --- |
 | Census current (§6) | GREEN | 169 / 61 / 57 / 17 / 32 re-counted; no code commits since `#9686` (only this docs refresh) |
-| Compat pin, 15 called routes | GREEN | `go test ./internal/workflow/ -run TestClaimPlaneClient`: 5/5 PASS |
+| Compat pin, 15 called routes | GREEN | `go test ./internal/workflow/ -run TestClaimPlaneClient`: 8/8 PASS |
 | Compat pin, 5 uncalled routes | HELD | No in-tree client methods for the read/report routes core never calls; pin must land in `eshu-workflow` (different repo/lane) |
 | Parity, in-tree legs | GREEN | `go test ./internal/workflow/parity/`: PinGap + Classify + Truncate PASS on local isolated PG |
 | Parity, satellite legs | HELD (skipped, zero writes) | Needs `PARITY_SATELLITE_URL/DSN` + synthetic-write grant; last bind `03d9f976` stands |
