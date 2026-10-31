@@ -36,8 +36,8 @@ capture_stage_run="$(extract_capture_run 'Require and stage all four recordings'
   fail 'differential join must stage downloaded artifacts'
 [[ "${capture_stage_run}" == *'"${{ runner.temp }}/diff-capture" '* ]] ||
   fail 'differential join must reconstruct the compare/coverage paths'
-[[ "${capture_stage_run}" == *'"${{ github.run_attempt }}" '* ]] ||
-  fail 'differential join must select the current attempt'
+[[ "${capture_stage_run}" == *'"${{ github.run_id }}" '* ]] ||
+  fail 'differential join must select the current run'
 [[ "${capture_stage_run}" == *'"${{ needs.differential-capture.result }}"'* ]] ||
   fail 'differential join must block when a matrix leg failed'
 join_header="$(sed -n '/^  differential:$/,/^    steps:$/p' "${workflow}")"

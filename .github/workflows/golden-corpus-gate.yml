@@ -192,6 +192,9 @@ jobs:
           name: differential-capture-${{ github.run_id }}-pair${{ matrix.pair }}-${{ matrix.graph_backend }}
           path: ${{ runner.temp }}/diff-capture/pair${{ matrix.pair }}/${{ matrix.graph_backend }}/
           if-no-files-found: error
+          # run_id is stable across attempts: a full re-run re-uploads the
+          # same names, and v4 409s without overwrite (#9702).
+          overwrite: true
 
       - name: Dump service logs on failure
         if: ${{ failure() }}
@@ -292,3 +295,5 @@ jobs:
           name: differential-joined-capture-${{ github.run_id }}
           path: ${{ runner.temp }}/diff-capture
           if-no-files-found: warn
+          # Same stable-name reasoning as the per-leg upload above (#9702).
+          overwrite: true
