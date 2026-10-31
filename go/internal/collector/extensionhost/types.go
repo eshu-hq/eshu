@@ -151,8 +151,10 @@ type Config struct {
 	// entry for each claimed work item onto the satellite claim
 	// (eshu-hq/eshu#9432). Nil means no transport: claims carry no scope
 	// queries and slot scopes keep their fail-closed behavior. A resolver
-	// error fails the claim terminal with FailureClassInvalidClaim before
-	// the satellite launches.
+	// error wrapping collector.ErrSlotScopeTransport fails the claim
+	// terminal with FailureClassInvalidClaim before the satellite launches;
+	// any other resolver error (a store-transport fault) fails it retryable
+	// with FailureClassLaunchFailure (eshu-hq/eshu#9730).
 	ScopeQueryResolver collector.ScopeQueryResolver
 	// ClaimOutcomeRecorder, when set, receives every claim outcome and, for
 	// completed claims, the post-commit confirmation (#9420). The host sets

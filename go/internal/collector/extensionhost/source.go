@@ -131,13 +131,25 @@ func (s *Source) nextClaimed(
 	}
 	request, err := s.requestForWorkItem(ctx, item)
 	if err != nil {
-		// The transport read failed: the satellite never launches and
-		// the claim plane never retries, because retry cannot produce
-		// queries for a run row that has none.
+		if errors.Is(err, collector.ErrSlotScopeTransport) {
+			// Fail-closed transport semantics: the run row is
+			// missing or its entry is unusable, so the satellite
+			// never launches and the claim plane never retries,
+			// because retry cannot produce queries for a run row
+			// that has none.
+			return collector.CollectedGeneration{}, false, sdkcollector.Result{}, ResultOriginHost, extensionFailure{
+				class:    FailureClassInvalidClaim,
+				terminal: true,
+				cause:    err,
+			}
+		}
+		// A store-transport fault (connection reset, statement
+		// timeout, any other DB error) fails retryable as a host-side
+		// launch failure so the claim plane retries the claim
+		// (eshu-hq/eshu#9730).
 		return collector.CollectedGeneration{}, false, sdkcollector.Result{}, ResultOriginHost, extensionFailure{
-			class:    FailureClassInvalidClaim,
-			terminal: true,
-			cause:    err,
+			class: FailureClassLaunchFailure,
+			cause: err,
 		}
 	}
 	if s.tokenProvider != nil {
