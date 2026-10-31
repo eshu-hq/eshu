@@ -75,6 +75,7 @@ jobs:
       collectorcutoverrollback: ${{ steps.filter.outputs.collectorcutoverrollback }}
       dockerpublish: ${{ steps.filter.outputs.dockerpublish }}
       dockerhublogin: ${{ steps.filter.outputs.dockerhublogin }}
+      buildcacheprune: ${{ steps.filter.outputs.buildcacheprune }}
       workflowscriptcheckout: ${{ steps.filter.outputs.workflowscriptcheckout }}
       readinessderive: ${{ steps.filter.outputs.readinessderive }}
       matrix: ${{ steps.gate-matrix.outputs.matrix }}
@@ -183,6 +184,7 @@ jobs:
           # default would be cancelled; 30 minutes (1800 s) leaves 1.65x margin
           # over the slowest sample.
           append_gate "${{ steps.filter.outputs.dockerhublogin }}" "dockerhublogin" "Verify Docker Hub login gate" "bash scripts/test-verify-dockerhub-login.sh && bash scripts/test-ci-image-compose.sh && bash scripts/ci/test-image-overrides.sh && bash scripts/ci/test-build-reproducibility-image.sh && bash scripts/ci/test-mirror-images.sh && python3 scripts/ci/test-tools-workflow.py" "bash scripts/verify-dockerhub-login.sh" "dockerhub-login" 30
+          append_gate "${{ steps.filter.outputs.buildcacheprune }}" "buildcacheprune" "Verify GHCR build cache prune gate" "bash scripts/ci/test-prune-ghcr-buildcache.sh" "bash scripts/ci/test-prune-ghcr-buildcache.sh" "ghcr-buildcache-prune"
           append_gate "${{ steps.filter.outputs.workflowscriptcheckout }}" "workflowscriptcheckout" "Verify workflow script checkout gate" "bash scripts/test-verify-workflow-script-checkout.sh" "bash scripts/verify-workflow-script-checkout.sh" "workflow-script-checkout"
           append_gate "${{ steps.filter.outputs.readinessderive }}" "readinessderive" "Verify live-readiness registration drift gate" "python3 scripts/test-live-postgres-readiness-child-env.py && bash scripts/test-generate-live-postgres-readiness.sh" "bash scripts/verify-live-postgres-readiness-drift.sh" "live-readiness-registration-drift"
           # The observed cold sweep took 25m31s for 73 configurations. Its old

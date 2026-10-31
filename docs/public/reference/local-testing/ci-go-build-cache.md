@@ -33,6 +33,75 @@ push to that pull request recompiles the packages the `go.sum` change touches,
 until main saves the new key. This trades some pull-request compile time for
 less pressure on the store.
 
+## Why Docker builds do not use the Actions cache
+
+`docker-publish.yml` used to export its BuildKit cache to the same store
+(`cache-to: type=gha,mode=max`). Each main push wrote about 8.8 GB of layer
+blobs, and each pull-request Docker run about 4 GB, so the Go entries were
+evicted within minutes of their save (#9632). The Docker builds now keep their
+cache in the GHCR package `ghcr.io/eshu-hq/eshu-buildcache`, one fixed tag per
+target (`runtime`, `scanner-image`, `scanner-sbom`, `scanner-osruntime`):
+
+- Only a `push` event (main or tag) writes the cache. A pull request, including
+  test.yml's `workflow_call`, and `workflow_dispatch` get an empty `cache-to`
+  and only read, so no pull request can write a cache that main reads.
+- A missing cache is a plain miss, so the first build after the change and a
+  build that cannot reach GHCR still succeed.
+- Pull-request builds do not log in to GHCR, so they read the cache
+  anonymously, which works only if the package is public. A workflow that
+  creates a package with `GITHUB_TOKEN` is documented to give it the
+  repository's visibility, but nothing in this repository verifies that for
+  `eshu-buildcache`. If the package is private, pull-request builds miss the
+  cache without any error and run cold; main pushes still write and read it,
+  and the daily prune still works because its token comes from the linked
+  repository. After the first main push that runs the Docker lanes, check
+  `gh api orgs/eshu-hq/packages/container/eshu-buildcache --jq
+  '{visibility,repository:.repository.full_name}'` (expected `public` and
+  `eshu-hq/eshu`), and confirm that a pull-request Docker lane logs
+  `importing cache manifest from ghcr.io/eshu-hq/eshu-buildcache:<target>`.
+- `ghcr-buildcache-prune.yml` deletes untagged versions older than 7 days, in
+  that package only, and always keeps the 4 newest untagged versions so a tag
+  that a concurrent main push just moved is never pulled from under a running
+  build. The script takes no package argument. A 404 from the package listing
+  fails the run, because GitHub answers 404 both for a package that does not
+  exist and for one the token cannot see; a manual dispatch can set
+  `allow_missing` for the first run, or `dry_run` to list what would be
+  deleted. The image packages are never pruned: their untagged versions are
+  the per-platform manifests of live multi-arch images.
+- `go/internal/cigates/dockercache_wiring_test.go` pins, for the two
+  `docker/build-push-action` steps in `docker-publish.yml`: the event gate, the
+  registry package, and exactly one tag per target. Each `cache-to` and each
+  `cache-from` line must hold exactly one `ref=` at that package, with the
+  target's own tag compared for equality (`:runtime`, or `:scanner-<component>`;
+  a scanner may also read `:runtime`), so a prefix, a suffix, a shared tag, a
+  second ref or an extra attribute fails. The same two steps may not pass a
+  `secrets`, `secret-files`, `secret-envs` or `ssh` input or a `secrets.`
+  build-arg: `mode=max` exports every layer to a package that anonymous PR
+  readers must be able to pull, so it is treated as public.
+  `dockercache_wiring_mutations_test.go` breaks each rule.
+  `buildcache_prune_workflow_test.go` pins the prune workflow's triggers,
+  permissions, and dry-run switches.
+- The cache-export scan (`dockercache_scripts_test.go`) is a text scan of
+  `docker-publish.yml` and of repo-local files, and it is not a proof that no
+  other step can export a cache. It refuses a `docker/bake-action` step, a
+  local action (`uses: ./...`) or local reusable workflow, and any run step
+  whose text, or whose referenced files, holds `cache-to`, `cache_to`,
+  `buildx bake`, `docker bake` or `docker/bake-action`. A referenced file is a
+  path token ending in `.sh`, `.bash`, `.py`, `.yml` or `.yaml`, a path after
+  `bash`, `sh`, `zsh`, `source`, `exec` or `.` (so a script without an
+  extension is found), or a `./path`, and it must exist in the repository,
+  outside `.github/workflows/`. The scan follows the files each referenced file
+  names in turn, to four levels, and ends cycles.
+- The scan does not cover: `eval`, `bash -c` or other built commands; `make`
+  targets; a flag or path built from variables or split across quotes; a
+  script fetched at run time; an action from another repository; a chain deeper
+  than four files; a file that is not in the repository; a script in another
+  language, such as `.rb`, `.js`, `.go` or `.ps1`; a list of files read by
+  `xargs`; a bare extensionless path that a step runs directly, with no
+  interpreter before it; a flag split across lines with a backslash; any
+  workflow other than `docker-publish.yml`; or any build outside the two
+  pinned steps that does not appear in text the scan reads.
+
 ## Why setup-go does not cache
 
 `actions/setup-go` caches `go env GOMODCACHE` and `go env GOCACHE`. With

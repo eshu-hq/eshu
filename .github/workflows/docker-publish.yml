@@ -209,8 +209,14 @@ jobs:
           provenance: false
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.labels.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # #9632: the BuildKit cache lives in the eshu-buildcache GHCR package,
+          # not the 10 GB Actions cache store, where mode=max blobs (~8.8 GB
+          # per main push) evicted the Go build caches. Only a push event
+          # (main or tag) writes it; pull_request (test.yml's workflow_call
+          # carries the caller's event) and workflow_dispatch get an empty
+          # cache-to and only read. A missing cache is a plain miss.
+          cache-from: type=registry,ref=ghcr.io/eshu-hq/eshu-buildcache:runtime
+          cache-to: ${{ github.event_name == 'push' && 'type=registry,ref=ghcr.io/eshu-hq/eshu-buildcache:runtime,mode=max' || '' }}
           no-cache-filters: runtime
           platforms: ${{ env.IMAGE_PLATFORMS }}
       - name: Generate artifact attestation
@@ -353,8 +359,13 @@ jobs:
           provenance: false
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.labels.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # #9632: same registry cache and push-only write as the main image
+          # build. The runtime tag is read too: the targets share the builder
+          # stage, which the old shared type=gha scope reused across builds.
+          cache-from: |
+            type=registry,ref=ghcr.io/eshu-hq/eshu-buildcache:scanner-${{ matrix.component }}
+            type=registry,ref=ghcr.io/eshu-hq/eshu-buildcache:runtime
+          cache-to: ${{ github.event_name == 'push' && format('type=registry,ref=ghcr.io/eshu-hq/eshu-buildcache:scanner-{0},mode=max', matrix.component) || '' }}
           platforms: ${{ env.IMAGE_PLATFORMS }}
       - name: Generate artifact attestation
         if: ${{ github.event_name != 'pull_request' }}

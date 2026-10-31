@@ -1,0 +1,60 @@
+name: GHCR Build Cache Prune
+
+# #9632: docker-publish.yml exports its BuildKit cache to one fixed tag per
+# target in ghcr.io/eshu-hq/eshu-buildcache. Each main push moves the tag and
+# leaves the old cache manifest untagged; GHCR keeps untagged versions until
+# they are deleted. This daily job deletes the untagged versions older than
+# 7 days, in that one package only (the image packages hold untagged
+# per-platform manifests of live multi-arch images and are never touched).
+# A standalone workflow because the delete needs packages: write on a
+# schedule, which the shared static-contract matrix does not grant. The
+# blocking self-test runs on PRs in static-contract-gates.yml (Verify GHCR
+# build cache prune gate); this workflow has no pull_request trigger.
+# A manual dispatch can ask for a dry run, which lists the versions it would
+# delete, and for a missing package to be tolerated. A scheduled run sets
+# neither: a 404 there fails, because GitHub answers 404 for a package the
+# token cannot see as well as for one that does not exist.
+on:
+  schedule:
+    # Daily 04:47 UTC, outside the busy merge hours.
+    - cron: "47 4 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: List the versions the prune would delete and delete nothing
+        required: false
+        default: false
+        type: boolean
+      allow_missing:
+        description: Treat a 404 as "package not created yet" instead of failing
+        required: false
+        default: false
+        type: boolean
+
+permissions: {}
+
+concurrency:
+  group: ghcr-buildcache-prune
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    name: GHCR build cache prune
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Self-test the prune script
+        run: bash scripts/ci/test-prune-ghcr-buildcache.sh
+      - name: Delete untagged build-cache versions older than 7 days
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PRUNE_DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
+          PRUNE_ALLOW_MISSING: ${{ inputs.allow_missing && '1' || '0' }}
+        run: bash scripts/ci/prune-ghcr-buildcache.sh
