@@ -32,7 +32,7 @@ const scannerActivationValues = `
   componentVersion: 0.1.0
   mode: scheduled
   seed:
-    image: ghcr.io/eshu-hq/scanner-image@sha256:552d9087d69ae5b1e7754054d9b17431a93dfad720dca5c24bf7f1e41b4bda09
+    image: ghcr.io/eshu-hq/scanner-image@sha256:0945164c39f3e392e64b6640e2c5de023b591a0bea9e72dabaac91fa04c461ee
     command: ["/usr/local/bin/eshu-scanner-component-image", "seed"]
     pullPolicy: IfNotPresent
   grants:
@@ -57,7 +57,7 @@ const scannerActivationValues = `
   componentVersion: 0.1.0
   mode: scheduled
   seed:
-    image: ghcr.io/eshu-hq/scanner-sbom@sha256:fcd10e5ee8044182d539f20735103f0381c44e8e685a10d673573acd3f95fea1
+    image: ghcr.io/eshu-hq/scanner-sbom@sha256:19b1def7f3649bb2efb3d53d8a8336dba2ae019233a8cb2d58cf0dd854fa3dca
     command: ["/usr/local/bin/eshu-scanner-component-sbom", "seed"]
     pullPolicy: IfNotPresent
   grants:
@@ -78,7 +78,7 @@ const scannerActivationValues = `
   componentVersion: 0.1.0
   mode: scheduled
   seed:
-    image: ghcr.io/eshu-hq/scanner-osruntime@sha256:40d93b0ed5ee542984d3d4b1fc45084b6fed8e68286e87808cc7a35dd4e675e4
+    image: ghcr.io/eshu-hq/scanner-osruntime@sha256:9f81bd96390a50ecc1deac8757103e6282e27ba2689b0bb9ec2028ae8a561056
     command: ["/usr/local/bin/eshu-scanner-component-osruntime", "seed"]
     pullPolicy: IfNotPresent
   grants:
