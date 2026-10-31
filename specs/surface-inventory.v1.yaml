@@ -194,19 +194,21 @@ surfaces:
   - category: collector
     name: scanner_worker
     readiness: implemented
-    owner: internal/collector/scannerworker
+    owner: internal/coordinator/scanner/worker
     proof: reference/collector-reducer-readiness.md#promotion-proof
     docs: [reference/collector-reducer-readiness.md]
     notes: >-
-      The worker runtime and warning analyzer are implemented and charted;
-      concrete secret/license/source/misconfiguration analyzers stay
-      fixture-proven and off by default until live proof.
+      The in-tree producer (go/cmd/scanner-worker,
+      go/internal/collector/scannerworker) was removed after the satellite
+      cutover (#8878); collection runs from eshu-hq/eshu-scanner-worker
+      while the coordinator still plans scanner_worker claims and the
+      reducer/query surfaces still serve the fact kinds.
     collector_contract:
       fact_kinds: [scanner_worker.analysis, scanner_worker.warning]
       projection_surfaces: [sbom_attestation_attachment, supply_chain_impact]
       read_surfaces: [GET /api/v0/supply-chain/impact/findings, GET /api/v0/supply-chain/vulnerability-scanner/contract, list_supply_chain_impact_findings]
-      proof_gates: [cd go && go test ./cmd/scanner-worker ./internal/collector/scannerworker ./internal/reducer ./internal/query ./internal/mcp -count=1]
-      fixture_refs: [go/internal/collector/scannerworker/testdata, docs/public/reference/security-intelligence.md#scanner-worker]
+      proof_gates: [cd go && go test ./internal/collector/scannercomponent ./internal/collector/extensionhost ./internal/reducer ./internal/query ./internal/mcp -count=1]
+      fixture_refs: [go/internal/collector/extensionhost/testdata/scanner-parity, docs/public/reference/security-intelligence.md#scanner-worker]
       truth_profile: fixture_gated
   - category: collector
     name: grafana

@@ -233,7 +233,7 @@ func TestBoundedFailureClassesMatchTheCollectorWriters(t *testing.T) {
 	check(scope.CollectorPackageRegistry, append(slices.Clone(registry),
 		declared(t, "collector/registry/package/runtime", namePrefix("failureClass"), nil)...))
 	check(scope.CollectorVulnerabilityIntelligence, declared(t, "vulnsource", namePrefix("ErrorClass"), nil))
-	check(scope.CollectorScannerWorker, declared(t, "collector/scannerworker", typedAs("FailureClass"), nil))
+	check(scope.CollectorScannerWorker, declared(t, "collector/scannercomponent", typedAs("FailureClass"), nil))
 
 	if got := methodCount(t, "collector/terraformstate", "FailureClass"); got != 1 {
 		t.Errorf("terraformstate declares %d FailureClass methods, want 1; tie the new class here", got)

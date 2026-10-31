@@ -11,12 +11,11 @@ The parent `factschema` package provides the public decode/encode seam:
 `scanner_worker.analysis` records successful image analysis coverage.
 `scanner_worker.warning` records explicit unsupported or unscanned evidence.
 Both kinds feed the supply-chain impact/readiness surfaces.
-`scanner_worker.analysis` is emitted by
-`go/internal/collector/scannerworker/imageanalyzer`. `scanner_worker.warning`
-has two producers: the same image analyzer (carrying image identity and
-extraction evidence) and `go/internal/collector/scannerworker`'s
-`WarningAnalyzer` fallback, which runs when no concrete analyzer source is
-configured and has only the claim's target scope.
+`scanner_worker.analysis` is emitted by the satellite image analyzer.
+`scanner_worker.warning` has two producers: the same image analyzer (carrying
+image identity and extraction evidence) and the satellite's warning fallback,
+which runs when no concrete analyzer source is configured and has only the
+claim's target scope.
 
 `Analysis` required fields match the image analyzer's unconditional payload
 fields. `Warning` required fields are only the common core every warning

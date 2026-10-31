@@ -12,7 +12,7 @@
 | Producer | Repository | Path | Planned repository | Authority | Emitted kinds |
 | --- | --- | --- | --- | --- | --- |
 | `collector-sbom-attestation` | `eshu-hq/eshu` | `go/internal/collector/sbom` | `eshu-hq/eshu-collector-sbom-attestation` | `core_issued_grant` | `attestation.signature_verification, attestation.slsa_provenance, attestation.statement, sbom.component, sbom.dependency_relationship, sbom.document, sbom.external_reference, sbom.warning` |
-| `scanner-worker` | `eshu-hq/eshu` | `go/internal/collector/scannerworker` | `` | `core_owned` | `sbom.component, sbom.document, sbom.warning` |
+| `scanner-worker` | `eshu-hq/eshu-scanner-worker` | `.` | `` | `core_issued_grant` | `sbom.component, sbom.document, sbom.warning` |
 
 ## Kinds
 

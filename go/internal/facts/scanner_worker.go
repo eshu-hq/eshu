@@ -68,6 +68,6 @@ var ScannerWorkerFamilyDeclaration = contract.Declare(contract.Family{
 		{Kind: "scanner_worker.warning", PayloadSchema: "sdk/go/factschema/schema/scanner_worker.warning.v1.schema.json", Disposition: "read_only", NoReducerReason: "Consumed by read surfaces only; no reducer domain decodes it.", NoReducerEvidence: "read consumption in query read model"},
 	},
 	Producers: []contract.Producer{
-		{ID: "scanner-worker", Repository: "eshu-hq/eshu", Path: "go/internal/collector/scannerworker", AuthorityMode: "core_owned", Kinds: []string{"scanner_worker.analysis", "scanner_worker.warning"}},
+		{ID: "scanner-worker", Repository: "eshu-hq/eshu-scanner-worker", Path: ".", PlannedRepository: "", AuthorityMode: "core_issued_grant", Kinds: []string{"scanner_worker.analysis", "scanner_worker.warning"}},
 	},
 })

@@ -17,9 +17,9 @@ kinds:
     - scanner_worker.warning
 producers:
     - id: scanner-worker
-      repository: eshu-hq/eshu
-      path: go/internal/collector/scannerworker
-      authority_mode: core_owned
+      repository: eshu-hq/eshu-scanner-worker
+      path: .
+      authority_mode: core_issued_grant
       kinds:
         - scanner_worker.analysis
         - scanner_worker.warning

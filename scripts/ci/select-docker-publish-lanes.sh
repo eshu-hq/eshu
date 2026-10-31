@@ -53,15 +53,11 @@ while IFS= read -r path; do
       apkfloors=true
       ;;
     # Scanner digest pins (#9491): the drift-gate verifier with its
-    # self-test, and the scanner Go sources the gate watches for
-    # post-anchor changes, must run the scannerpins lane (self-test plus
-    # the live anchored-tag, attestation, and staleness checks). These arms
-    # stay above go/*, which matches the same paths first and sets only
-    # the image lane.
-    scripts/verify-scanner-digest-pins.sh|scripts/test-verify-scanner-digest-pins.sh|go/internal/collector/scannerworker/*)
-      scannerpins=true
-      ;;
-    go/cmd/scanner-component-image/*|go/cmd/scanner-component-sbom/*|go/cmd/scanner-component-osruntime/*|go/cmd/scanner-worker/*)
+    # self-test, and the relocated scannercomponent leaf carrying the pins
+    # (#8878), must run the scannerpins lane (self-test plus the live
+    # anchored-tag and attestation checks). This arm stays above go/*,
+    # which matches the same paths first and sets only the image lane.
+    scripts/verify-scanner-digest-pins.sh|scripts/test-verify-scanner-digest-pins.sh|go/internal/collector/scannercomponent/*)
       scannerpins=true
       ;;
     # Shared installer used by the scannerpins live job (pinned crane
@@ -74,10 +70,11 @@ while IFS= read -r path; do
     scripts/verify-runtime-image-tools.sh|scripts/test-verify-runtime-image-tools.sh)
       image=true
       ;;
-    # Destination scanner-<name> images (#8878): the scanner verifier with
-    # its self-test, and the shared rootfs-resolve library both verifiers
-    # source, must run the image lane (build + reproducibility + verify).
-    scripts/verify-scanner-images.sh|scripts/test-verify-scanner-images.sh|scripts/lib/rootfs-resolve.sh)
+    # The shared rootfs-resolve library the runtime image verifier sources
+    # must run the image lane (build + reproducibility + verify). The
+    # scanner destination images moved to the eshu-scanner-worker satellite
+    # with #8878, so no scanner verifier selects a lane here anymore.
+    scripts/lib/rootfs-resolve.sh)
       image=true
       ;;
     # The reproducibility build asserts the canonical mirror digests from
@@ -85,9 +82,9 @@ while IFS= read -r path; do
     # change to either file must run the image lane (build + reproducibility).
     # Without this the registry selects docker-image-reproducibility while
     # every publish job skips, and the aggregator fails closed.
-    # The base-image spec additionally feeds the scanner content hash
-    # (#9503), so it must also run the scannerpins lane; the
-    # reproducibility builder itself stays image-only.
+    # The base-image spec change is worth a pins re-verification, so it
+    # also runs the scannerpins lane; the reproducibility builder itself
+    # stays image-only.
     specs/ci-images.v1.json)
       image=true
       scannerpins=true
@@ -95,9 +92,9 @@ while IFS= read -r path; do
     scripts/ci/build-reproducibility-image.sh)
       image=true
       ;;
-    # Scanner module files (#9503): the content-hash section watches raw
-    # go.mod/go.sum bytes, so a bump must run the scannerpins lane as well
-    # as the image lane (which go/* below would otherwise select alone).
+    # Scanner module files: a go.mod/go.sum bump is worth a pins
+    # re-verification, so it runs the scannerpins lane as well as the image
+    # lane (which go/* below would otherwise select alone).
     # Stays above go/*, which matches the same paths first.
     go/go.mod|go/go.sum)
       if [[ "${merge_group_lane}" == false ]]; then

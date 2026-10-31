@@ -8,19 +8,42 @@ import (
 	"testing"
 )
 
-func TestScannerWorkerBinaryIsBuiltInstalledAndDocumented(t *testing.T) {
+// TestScannerWorkerRunsFromSatelliteNotInTreeBinaries proves the scanner
+// worker no longer ships as an in-tree binary: collection runs from the
+// extracted satellite (eshu-hq/eshu-scanner-worker) since #8878, so no
+// in-tree Dockerfile build, installer line, cmd entry, or core runtime row
+// may remain. The coordinator still plans scanner_worker claims and the
+// component-extension worker still hosts the satellite-seeded components.
+func TestScannerWorkerRunsFromSatelliteNotInTreeBinaries(t *testing.T) {
 	t.Parallel()
 
-	for file, want := range map[string]string{
-		"Dockerfile":                                 "-o /go-bin/eshu-scanner-worker ./cmd/scanner-worker",
-		"scripts/install-local-binaries.sh":          "go build -trimpath -ldflags=\"$LDFLAGS\" -o \"$INSTALL_DIR/eshu-scanner-worker\" ./cmd/scanner-worker",
-		"go/cmd/README.md":                           "`eshu-scanner-worker`",
-		"docs/public/deployment/service-runtimes.md": "Scanner Worker",
+	for file, forbidden := range map[string]string{
+		"Dockerfile":                        "./cmd/scanner-worker",
+		"scripts/install-local-binaries.sh": "./cmd/scanner-worker",
+		"go/cmd/README.md":                  "`eshu-scanner-worker`",
 	} {
 		content := readRepositoryFile(t, "../../..", file)
-		if !strings.Contains(content, want) {
-			t.Fatalf("%s missing %q", file, want)
+		if strings.Contains(content, forbidden) {
+			t.Fatalf("%s still references in-tree %q, want satellite-only execution", file, forbidden)
 		}
+	}
+	for _, binary := range []string{
+		"eshu-scanner-component-image",
+		"eshu-scanner-component-sbom",
+		"eshu-scanner-component-osruntime",
+	} {
+		for _, file := range []string{"Dockerfile", "scripts/install-local-binaries.sh"} {
+			content := readRepositoryFile(t, "../../..", file)
+			if strings.Contains(content, binary) {
+				t.Fatalf("%s still builds in-tree %q, want satellite-only execution", file, binary)
+			}
+		}
+	}
+	// The service-runtimes lockstep entry stays read: the runtime table
+	// still carries the scanner worker as a satellite runtime.
+	runtimes := readRepositoryFile(t, "../../..", "docs/public/deployment/service-runtimes.md")
+	if !strings.Contains(runtimes, "Scanner Worker (satellite)") {
+		t.Fatal("service-runtimes.md lost the Scanner Worker (satellite) row")
 	}
 }
 

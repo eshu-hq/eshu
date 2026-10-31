@@ -10,7 +10,7 @@ import (
 	"os"
 	"strings"
 
-	scannercomponent "github.com/eshu-hq/eshu/go/internal/collector/scannerworker/component"
+	scannercomponent "github.com/eshu-hq/eshu/go/internal/collector/scannercomponent"
 	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/component/activation"
 	"github.com/eshu-hq/eshu/go/internal/scope"

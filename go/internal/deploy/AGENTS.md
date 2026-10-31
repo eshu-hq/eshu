@@ -25,9 +25,9 @@ deploy contract (issue #8871).
 
 ## Patterns to follow
 
-- Mirror the `go/cmd/scanner-worker/extraction_census_test.go`
-  precedent: record-relative path constant, family list asserted both as
-  named in the record and present in the tree.
+- Mirror the `go/internal/collector/scannercomponent/vocabulary_test.go`
+  precedent: assert every frozen string verbatim so a rename, removal, or
+  value change fails loudly instead of drifting silently.
 - Register any new test-read docs file in
   `specs/ci-docs-lockstep-paths.txt`, `go/internal/cigates/docsset.go`,
   and the workflow `lockstep` filters (`test.yml`,

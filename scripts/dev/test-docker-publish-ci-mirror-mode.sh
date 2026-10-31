@@ -62,7 +62,7 @@ expected_release_condition() {
     verify-scanner-digest-pins)
       release="(${guard}) && (github.event_name == 'pull_request' && needs.changes.outputs.scannerpins == 'true')"
       ;;
-    build-and-push-image|verify-reproducibility|build-and-push-scanner-images)
+    build-and-push-image|verify-reproducibility)
       release="(${guard}) && needs.changes.outputs.image == 'true'"
       ;;
     promote-moving-tags)
@@ -85,7 +85,7 @@ rg -q '^        default: release$' "${workflow}" || fail 'normal dispatch defaul
 # The chart lane (package-and-push-chart) moved to eshu-deploy's
 # chart-release.yml under #8871; it is no longer part of this partition.
 expected_jobs="$(printf '%s\n' changes verify-apk-floors build-and-push-image \
-  build-and-push-scanner-images promote-moving-tags verify-reproducibility \
+  promote-moving-tags verify-reproducibility \
   verify-scanner-digest-pins attach-release-sbom publish-ci-service-mirrors \
   verify-public-ci-service-mirrors | LC_ALL=C sort)"
 actual_jobs="$(awk '
@@ -102,7 +102,7 @@ actual_jobs="$(awk '
 [[ "${actual_jobs}" == "${expected_jobs}" ]] || fail 'workflow jobs differ from the guarded release-plus-mirror partition'
 
 for job in changes verify-apk-floors build-and-push-image \
-  build-and-push-scanner-images promote-moving-tags \
+  promote-moving-tags \
   verify-reproducibility verify-scanner-digest-pins attach-release-sbom; do
   condition="$(job_condition "${job}")"
   [[ "${condition}" == "$(expected_release_condition "${job}")" ]] ||

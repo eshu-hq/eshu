@@ -279,8 +279,9 @@ run_phase_focused() {
         ./internal/query/...
         ./internal/mcp/...
         ./internal/collector/vulnerabilityintelligence
-        ./internal/collector/scannerworker
-        ./cmd/scanner-worker
+        ./internal/collector/scannercomponent
+        ./internal/collector/extensionhost
+        ./internal/coordinator/...
     )
     local log="${out_dir}/focused.log"
     if (cd "${repo_root}/go" && go test "${pkgs[@]}" -count=1) >"${log}" 2>&1; then

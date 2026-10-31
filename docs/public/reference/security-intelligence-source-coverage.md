@@ -329,13 +329,12 @@ the existing `reducer_supply_chain_impact_finding` payload fields
 `match_reason`, and `missing_evidence`), `SupplyChainImpactFindings` reducer
 counters, and the `query.supply_chain_impact_findings` span.
 
-No-Regression Evidence: `go test ./internal/collector/ospackagevulnerability
--run 'TestParseRPM|TestBuildEnvelopesEmitsOSPackage' -count=1` and `go test
-./internal/reducer -run
+No-Regression Evidence: `go test ./internal/reducer -run
 'TestBuildSupplyChainImpactFindings(UsesVendorRPMOSPackageEvidence|SkipsAmbiguousRPMOSPackageEvidence)'
--count=1` prove RPM queryformat package evidence preserves EVR, distro,
-repository, PURL/BOMRef identity, and joins Red Hat advisories only for
-vendor-class RPM rows with matching distro/version/vendor source evidence.
+-count=1` proves RPM queryformat evidence preserves EVR, distro, repository,
+PURL/BOMRef identity, and joins Red Hat advisories only for vendor-class RPM
+rows with matching source evidence. The RPM parser runs in the satellite
+since #8878, which owns its parser proof.
 
 No-Observability-Change: the RPM parser emits existing `vulnerability.warning`
 facts for raw rpmdb bytes, third-party repositories, unknown repositories, and
