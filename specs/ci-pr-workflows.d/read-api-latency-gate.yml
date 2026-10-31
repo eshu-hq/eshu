@@ -34,6 +34,7 @@ workflows:
   - scripts/lib/test-compare-backend-latency-report.json
   - scripts/lib/live-gate-lock.sh
   - scripts/lib/golden-corpus-host-helpers.sh
+  - scripts/lib/golden-corpus-git.sh
   - scripts/lib/compose_verification_runtime_common.sh
   - scripts/ci/install-apt-packages.sh
   - scripts/ci/go-mod-download-retry.sh

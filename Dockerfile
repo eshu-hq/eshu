@@ -76,6 +76,17 @@ RUN cd go \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-bootstrap-data-plane ./cmd/bootstrap-data-plane \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-admin-status ./cmd/admin-status
 
+# mcp-satellite: the extracted MCP server (#9670). The in-tree go/cmd/mcp-server
+# is gone, but the E2E fresh stack (compose/docker-compose.e2e.yaml under
+# $ESHU_DEPLOY_CHECKOUT) still builds this image with ESHU_REPO_ROOT at this
+# checkout and starts it with command ["/usr/local/bin/eshu-mcp-server"].
+# COPY the digest-pinned satellite release binary under its old path so the
+# unmodified stack keeps serving the same contract. 0.2.0 is digest
+# sha256:93390eefc87f67761d160f907c9a94092438f730cb59908572f9e72286e82346
+# (ghcr.io/eshu-hq/eshu-mcp tags 0.2.0/0.2/latest). Like the mocks below, this
+# stage MUST stay before "Production stage".
+FROM ghcr.io/eshu-hq/eshu-mcp:0.2.0@sha256:93390eefc87f67761d160f907c9a94092438f730cb59908572f9e72286e82346 AS mcp-satellite
+
 # mock-oidc-idp: E2E-only synthetic OIDC IdP (issue #4971), built and shipped
 # as its own image, never as part of the product image below. A no-auth,
 # any-caller token-minting IdP must not ship inside the released Eshu image
@@ -228,6 +239,11 @@ RUN apk add --no-cache git openssh-client curl "c-ares>=1.34.9-r0" \
 
 # Copy Go binaries
 COPY --from=builder /go-bin/ /usr/local/bin/
+# Removed in-tree MCP server replaced by the pinned satellite release (#9670):
+# the E2E fresh stack starts this image with command
+# ["/usr/local/bin/eshu-mcp-server"], so the satellite binary keeps its old
+# path. Same contract the gate serves (scripts/lib/golden-corpus-host-helpers.sh).
+COPY --from=mcp-satellite /eshu-mcp /usr/local/bin/eshu-mcp-server
 
 # Create the runtime user and writable working directories.
 RUN adduser -D -u 10001 eshu \
