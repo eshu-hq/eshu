@@ -74,7 +74,7 @@ func TestRefinalizeRetirementBlocksReducerClaimBatchUntilCommit(t *testing.T) {
 				t.Fatalf("ClaimBatch returned before recovery commit: intents=%#v err=%v", result.intents, result.err)
 			case <-time.After(250 * time.Millisecond):
 			}
-			assertBackendWaitingOnFactWorkItemsLock(t, ctx, database, claimPID, "RowExclusiveLock")
+			assertBackendWaitingOnFactWorkItemsLock(t, ctx, database, claimPID, "RowShareLock")
 
 			releaseRecovery()
 			if err := <-recoveryDone; err != nil {
