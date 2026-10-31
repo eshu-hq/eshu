@@ -47,8 +47,8 @@ func loadWebhookIntakeConfig(getenv func(string) string) (webhookIntakeConfig, e
 // intakeBodyBytesFromEnv resolves the intake body cap. Unset means the
 // default; an explicitly set but non-positive or non-numeric value is a
 // configuration error, never a silent fallback: a wrong cap changes the
-// provider-visible 413 boundary. The error names the variable, never the
-// Bearer.
+// provider-visible 413 boundary. The error carries no values, only the
+// constraint — never the Bearer.
 func intakeBodyBytesFromEnv(getenv func(string) string) (int64, error) {
 	raw := strings.TrimSpace(getenv("ESHU_WEBHOOK_MAX_BODY_BYTES"))
 	if raw == "" {
