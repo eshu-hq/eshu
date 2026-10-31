@@ -81,14 +81,21 @@ EOF
 # on lockstep-only PRs: selected through the registry, skipped at runtime.
 run_lockstep_checks() {
 	local t="$1" s="$2" m="$3" manifest="$4"
-	local wf entry line ok_all=1
+	local wf entry line lockstep_quantifier ok_all=1
 	for wf in "${t}" "${s}" "${m}"; do
 		if ! rg -q -- "^[[:space:]]+id: lockstep$" "${wf}"; then
 			bad "$(basename "${wf}") has no dorny lockstep step (P1: lockstep-only PRs strand code-gated lanes)"
 			ok_all=0
 			continue
 		fi
-		if ! awk '/id: lockstep$/{f=1} f && /predicate-quantifier:/{print; exit}' "${wf}" | rg -q "'some'"; then
+		# Read the quantifier line into a variable first. Piping awk
+		# straight into `rg -q` lets rg exit on the match while the
+		# producer is still writing; the producer then dies of SIGPIPE
+		# and `set -o pipefail` turns a found match into a failed check
+		# (Refs #9123 fixed the same race for job_needs; the slow-awk
+		# self-test reproduces it deterministically).
+		lockstep_quantifier="$(awk '/id: lockstep$/{f=1} f && /predicate-quantifier:/{print; exit}' "${wf}")"
+		if ! rg -q "'some'" <<<"${lockstep_quantifier}"; then
 			bad "$(basename "${wf}") lockstep step must use the some quantifier (every over all-positive entries selects nothing)"
 			ok_all=0
 		fi
