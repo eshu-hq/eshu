@@ -29,7 +29,7 @@ fails, or keeps the Compose stack for debugging.
 | `runAuthMcpE2E.ts` | Orchestrator. Bootstraps the first-run wizard, seeds one graph repository, then runs each shape module and the leakage module in the load-bearing order A → C → B → leakage. Also has a standalone `credentialless` fast path (`ESHU_E2E_MCP_MODULE=credentialless`) with no browser/wizard, used by the sensitivity gate. |
 | `authMcpE2ETokenFlow.ts` | Shape A (token-only). |
 | `authMcpE2EGithubFlow.ts` | Shape C (GitHub, stubbed against `mock-github`). |
-| `authMcpE2EShapeB.ts` | Shape B (OIDC via the mock IdP): provider CRUD, discovery-flip poll, precedence regression, `require_sso` flip. |
+| `authMcpE2EShapeB.ts` | Shape B (OIDC via the mock IdP): provider CRUD, static-discovery assertion (no live flip under static config), precedence regression, `require_sso` flip. |
 | `authMcpE2EOauthClient.ts` | Pure-`fetch` scripted RFC 9728 + RFC 7636 (PKCE) OAuth client — MCP OAuth is a machine flow, no browser. Includes the in-network→localhost URL rewrite the browser gets via Chromium `--host-resolver-rules`. |
 | `authMcpE2ELeakage.ts` + `authMcpE2ELeakageDenials.ts` | Negative-leakage module: credential-less probes, the distinct bad-credential denial matrix, the non-vacuous cross-scope row filter, and the raw-token-absence scan. |
 | `authMcpE2EGraphSeed.ts` | Seeds one `Repository` node into Neo4j with `docker compose exec neo4j cypher-shell`, and parses the resolver's denial-outcome log lines. |
@@ -41,7 +41,7 @@ Verifiers: `scripts/verify-auth-mcp-e2e-manifest.sh` (report vs
 negative module). Both run in the `auth-mcp-e2e` CI job
 (`.github/workflows/frontend.yml`, registered in `specs/ci-gates.v1.yaml`).
 
-## Two adaptations worth knowing
+## Three adaptations worth knowing
 
 - **Row-filter dimension is scope grant, not tenant.** `list_indexed_repositories`
   is graph-backed here, and repositories carry no `tenant_id` (only `id`/`name`).
@@ -51,19 +51,29 @@ negative module). Both run in the `auth-mcp-e2e` CI job
   identity tokens and OIDC bearers both resolve to `AuthModeScoped` with an
   empty grant — so the AllScopes reader is shape B's surviving SSO-admin cookie
   session.
-- **Denial distinctness comes from resolver logs + challenge shape.** The matrix
-  asserts the oidcbearer resolver's structured-log `outcome` (`unknown_issuer` /
-  `wrong_audience` / `malformed`) and the RFC 9728 challenge shape (pre-match →
-  `resource_metadata`, post-match → bare `Bearer`). Those outcomes now also land
-  in `governance_audit_events.reason_code`, so the same distinctions are
-  queryable from the audit table; credential verdicts record `decision=denied`,
-  while `grant_resolution_unavailable` and `jwks_fetch_failure` record
-  `decision=unavailable`. The matrix still asserts logs and challenge shape
-  because those are what this browser-driven e2e can observe without querying
-  Postgres. The
+- **Denial distinctness comes from edge logs + challenge shape.** The matrix
+  asserts the satellite edge's structured-log `outcome` (`unknown_issuer` /
+  `wrong_audience` / `malformed` on the `oidc Bearer denied` line — the same
+  message and fields core's oidcbearer resolver emits) and the RFC 9728
+  challenge shape (pre-match → `resource_metadata`, post-match → bare
+  `Bearer`). Edge denials never reach core, so — unlike the retired in-tree
+  transport — they record no `governance_audit_events` row at all; the
+  matrix asserts logs and challenge shape because those are what this
+  browser-driven e2e can observe without querying Postgres. Denial-side audit
+  parity is tracked in eshu-hq/eshu#5567. The
   revoked-token matrix row is intentionally omitted (it is the identity-token
   resolver's path, not oidcbearer, and is owner-self-scoped — only the
   post-`require_sso`-flip-dead wizard session could revoke it).
+- **Discovery is static operator config, not DB state (eshu-hq/eshu#9731).**
+  The satellite serves the RFC 9728 document from boot whenever the stack
+  configures issuers (`ESHU_AUTH_AUTHORIZATION_SERVERS`), so shapes A and C
+  assert a static 200 (not a 404), credential-less 401s steer to discovery
+  (not bare `Bearer`), shape B asserts the document instead of polling for a
+  live flip, and `eshu mcp setup --hosted` auto-resolves SSO posture whenever
+  the edge advertises issuers. Likewise, satellite-forwarded reads emit no
+  `scoped_read_allowed` audit row (that sink lived only in the retired in-tree
+  MCP transport middleware), so shape A asserts the count stays flat. Step
+  ids are unchanged for the manifest gate; the asserted contracts moved.
 
 ## Local-only, not in CI
 
