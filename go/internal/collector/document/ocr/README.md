@@ -34,6 +34,38 @@ See `doc.go` for the godoc-rendered package contract.
   output without source-specific types.
 - `Extract` runs preflight, calls the engine when allowed, and returns
   ready-to-persist fact envelopes.
+- `LocalEngine` (with `LocalOptions`) is the in-tree QA-tier `Engine`
+  backend: dependency-free 5x7 template matching over PNG, JPEG, and
+  first-frame GIF. No network, subprocess, temp file, cgo, or logging.
+
+## Local engine bounds
+
+`LocalOptions` caps every recognition; non-positive fields take defaults:
+
+| Field | Default | Meaning |
+|---|---|---|
+| `MaxInputBytes` | 8 MiB | Rejects larger encoded bodies before decoding |
+| `MaxPixels` | 8,000,000 | Rejects larger decoded images (bounds allocations) |
+| `Timeout` | 10s | Bounds one `Recognize` call; context cancel always honored |
+| `MaxRegions` | 512 | Fails past the cap instead of silently truncating |
+| `MinConfidence` | 0.60 | Minimum template match fraction kept as text |
+
+Recognized charset: `A-Z 0-9 @ . , - _ : / +`. Lowercase, proportional
+fonts, and tight multi-line pitch are known QA-tier limits: unsupported
+glyphs split words and are skipped, and close line bands may merge.
+Recognized text reaches facts only through `Extract`, which redacts
+sensitive regions before persistence.
+
+Gate-2 sandbox/runtime evidence for this backend:
+
+```sh
+cd go && go test ./internal/collector/document/ocr -count=1
+cd go && go test -race ./internal/collector/document/ocr -count=1
+```
+
+The engine tests prove bounded recognition, cap rejection, cancellation,
+determinism, template-free input handling, and end-to-end PII redaction
+before facts.
 
 ## Dependencies
 
