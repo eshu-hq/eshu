@@ -34,6 +34,55 @@ See `doc.go` for the godoc-rendered package contract.
   output without source-specific types.
 - `Extract` runs preflight, calls the engine when allowed, and returns
   ready-to-persist fact envelopes.
+- `LocalEngine` (with `LocalOptions`) is the in-tree QA-tier `Engine`
+  backend: dependency-free 5x7 template matching over PNG, JPEG, and
+  first-frame GIF. No network, subprocess, temp file, cgo, or logging.
+
+## Local engine bounds
+
+`LocalOptions` caps every recognition; non-positive fields take defaults:
+
+| Field | Default | Meaning |
+|---|---|---|
+| `MaxInputBytes` | 8 MiB | Rejects larger encoded bodies before decoding |
+| `MaxPixels` | 8,000,000 | Rejects larger decoded images (bounds allocations) |
+| `Timeout` | 10s | Bounds one `Recognize` call; context cancel always honored |
+| `MaxRegions` | 512 | Fails past the cap instead of silently truncating |
+| `MinConfidence` | 0.60 | Minimum template match fraction kept as text |
+
+Recognized charset: `A-Z 0-9 @ . , - _ : / +`. Lowercase, proportional
+fonts, and tight multi-line pitch are known QA-tier limits: unsupported
+glyphs split words and are skipped, and close line bands may merge.
+Recognized text reaches facts only through `Extract`, which redacts
+sensitive regions before persistence.
+
+Gate-2 sandbox/runtime evidence for this backend:
+
+```sh
+cd go && go test ./internal/collector/document/ocr -count=1
+cd go && go test -race ./internal/collector/document/ocr -count=1
+```
+
+The engine tests prove bounded recognition, cap rejection, cancellation,
+determinism, template-free input handling, and end-to-end PII redaction
+before facts.
+
+Benchmark Evidence: `go test -run=NONE
+-bench=BenchmarkLocalEngineRecognize -benchmem
+./internal/collector/document/ocr -count=1` on backend `eshu-local-ocr`
+0.1.0 recognizes a two-word 232x44 fixture as 2 regions in ~0.12 ms/op at
+~106 KB/op and 90 allocs/op (down from ~10298 allocs/op via packed Pix
+sampling), bounded by the 8 MiB input, 8M pixel, 10s, and 512-region caps.
+
+No-Regression Evidence: `go test ./internal/collector/document/ocr
+-count=1` and `go test -race ./internal/collector/document/ocr
+./internal/collector/preflight/picture -count=1` pass, including the
+pre-existing extraction, skip, GIF first-frame, and redaction suites.
+
+No-Observability-Change: this backend emits no metric, span, log, or status
+row of its own; extraction throughput stays covered by the git-source
+collector metrics that cover documentation export throughput (see the
+collector documentation row in `docs/public/observability/telemetry-coverage.md`).
 
 ## Dependencies
 
