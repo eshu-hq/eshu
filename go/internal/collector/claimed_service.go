@@ -13,6 +13,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
+	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -39,6 +40,29 @@ var (
 type ClaimedSource interface {
 	NextClaimed(context.Context, workflow.WorkItem) (CollectedGeneration, bool, error)
 }
+
+// ErrSlotScopeTransport marks a claim-time scope query transport failure
+// with fail-closed semantics: the run row is missing, its
+// requested_scope_set is unparsable, or the claimed scope's entry is
+// absent, ambiguous, or malformed (eshu-hq/eshu#9432). Only an error
+// wrapping this sentinel fails the claim terminal: the satellite never
+// launches and the claim plane never retries, because retry cannot produce
+// queries. Any other resolver error — a store connection reset, a statement
+// timeout, or any other DB fault — stays retryable so the claim plane
+// retries the claim (eshu-hq/eshu#9730).
+var ErrSlotScopeTransport = errors.New("slot scope transport failed")
+
+// ScopeQueryResolver delivers the run's requested_scope_set entry for one
+// claimed work item: the per-scope query list for scope ids that name a
+// shard rather than its contents (pinned virtual-slot scopes,
+// eshu-hq/eshu#9432). It reads the workflow run row by item RunID, so it
+// observes the tenant-filtered set the coordinator persisted at plan time.
+// A nil resolver means no transport: slot claims keep the fail-closed
+// behavior they have without it. A non-nil resolver returns nil queries
+// for every legacy scope id without touching the run store. A resolver
+// error wrapping ErrSlotScopeTransport fails the claim terminal; any other
+// resolver error fails it retryable.
+type ScopeQueryResolver func(context.Context, workflow.WorkItem) ([]sdkcollector.ScopeQuery, error)
 
 // FailureClassAttemptBudgetExhausted labels claims that the bounded retry
 // guard routed to FailClaimTerminal after the work item's prior AttemptCount

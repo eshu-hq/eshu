@@ -473,8 +473,12 @@ github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f h1:Y/CXytFA4m6
 github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f/go.mod h1:vw97MGsxSvLiUE2X8qFplwetxpGLQrlU1Q9AUEIzCaM=
 github.com/eshu-hq/embedded-postgres v1.34.0-eshu.1 h1:SBFlZaq6+VZ04JxcrJl2DU4F/P1NJAtd+p3LHABxAA0=
 github.com/eshu-hq/embedded-postgres v1.34.0-eshu.1/go.mod h1:1sJQmsa9f9xLU2bfoXpeLb7Px/AUfIJKo+Yiez8nFC0=
+github.com/eshu-hq/eshu-sdk v0.0.0-20261031040557-d966966bbbda/go.mod h1:Rjx9bP3+4z73CqiSzdX4HUv4bA7sb8OzfOlyOLCP7eE=
+github.com/eshu-hq/eshu-sdk v0.0.0-20261031143710-a663423f89ff h1:kg1SRt6I7NqMy51tx0sJXtG0GPSogP3FSbhn2UaiyVM=
 github.com/eshu-hq/eshu-sdk/collector v0.1.0-rc.5 h1:rfosrilhoBLciSvWhiQ+RtkRnfAwDr0rs5EcCFtaag0=
 github.com/eshu-hq/eshu-sdk/collector v0.1.0-rc.5/go.mod h1:PPYMfpF8xIytKCLpAP/1T7bGJzUTc5tboKH1+j8ZK20=
+github.com/eshu-hq/eshu-sdk/collector v0.2.0-rc.1.0.20261031143710-a663423f89ff h1:dtYHZVwZWZ8LzkUeQw0vJfaX2Kg6xob8kpnvhvTc3Sk=
+github.com/eshu-hq/eshu-sdk/collector v0.2.0-rc.1.0.20261031143710-a663423f89ff/go.mod h1:PPYMfpF8xIytKCLpAP/1T7bGJzUTc5tboKH1+j8ZK20=
 github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.10 h1:+8IpD4At2XmaSePQ5FdYi6BFAXQA9a1RRnrAYfMbdcc=
 github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.10/go.mod h1:GysO1GSvcUYSSl7ydDx34MYRSw4yI2DgADT0twajVXY=
 github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5KwzbycvMj4=

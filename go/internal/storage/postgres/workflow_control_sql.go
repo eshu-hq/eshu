@@ -3,6 +3,15 @@
 
 package postgres
 
+// getWorkflowRunScopeSetQuery reads one run's requested_scope_set by its
+// primary key for claim-time scope query transport (eshu-hq/eshu#9432).
+// The run_id primary key serves the equality predicate; no new index.
+const getWorkflowRunScopeSetQuery = `
+SELECT requested_scope_set
+FROM workflow_runs
+WHERE run_id = $1
+`
+
 const createWorkflowRunQuery = `
 INSERT INTO workflow_runs (
     run_id,
