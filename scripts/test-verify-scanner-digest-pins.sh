@@ -86,68 +86,39 @@ make_fixture() {
 	# for the three base images, and the module files. Committed with the
 	# inputs so the anchor covers them.
 	cat >"${dir}/Dockerfile" <<'DOCKER'
-ARG ESHU_XX_IMAGE=tonistiigi/xx:1.5.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-ARG ESHU_GO_IMAGE=golang:1.26.10-alpine@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-ARG ESHU_ALPINE_IMAGE=alpine:3.21@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-
-FROM --platform=$BUILDPLATFORM ${ESHU_GO_IMAGE} AS builder
-ARG TARGETPLATFORM
-ARG ESHU_VERSION=dev
-RUN cd go \
-    && export CGO_ENABLED=1 \
-    && LDFLAGS="-s -w" \
-    && xx-go build -o /go-bin/eshu ./cmd/eshu \
-    && xx-go build -o /go-bin/eshu-scanner-component-image ./cmd/scanner-component-image \
-    && xx-go build -o /go-bin/eshu-scanner-component-sbom ./cmd/scanner-component-sbom \
-    && xx-go build -o /go-bin/eshu-scanner-component-osruntime ./cmd/scanner-component-osruntime
-
+ARG ESHU_XX_IMAGE=xx@sha256:aaaa
+ARG ESHU_GO_IMAGE=golang@sha256:bbbb
+ARG ESHU_ALPINE_IMAGE=alpine@sha256:cccc
+FROM ${ESHU_GO_IMAGE} AS builder
+RUN apk add --no-cache git clang lld
+RUN xx-go build -o /b/img ./cmd/image
 FROM ${ESHU_ALPINE_IMAGE} AS scanner-image
-COPY --from=builder /go-bin/eshu-scanner-component-image /usr/local/bin/eshu-scanner-component-image
-RUN adduser -D -u 10001 scanner
-USER scanner
-CMD ["eshu-scanner-component-image"]
-
+COPY --from=builder /b/img /usr/local/bin/img
+CMD ["img"]
 FROM ${ESHU_ALPINE_IMAGE} AS scanner-sbom
-COPY --from=builder /go-bin/eshu-scanner-component-sbom /usr/local/bin/eshu-scanner-component-sbom
-RUN adduser -D -u 10001 scanner
-USER scanner
-CMD ["eshu-scanner-component-sbom"]
-
-FROM ${ESHU_ALPINE_IMAGE} AS scanner-osruntime
-COPY --from=builder /go-bin/eshu-scanner-component-osruntime /usr/local/bin/eshu-scanner-component-osruntime
-RUN adduser -D -u 10001 scanner
-USER scanner
-CMD ["eshu-scanner-component-osruntime"]
-
+COPY --from=builder /b/sbom /usr/local/bin/sbom
+CMD ["sbom"]
 FROM ${ESHU_ALPINE_IMAGE} AS runtime
 RUN apk add --no-cache git curl
-COPY --from=builder /go-bin/ /usr/local/bin/
-CMD ["eshu-api"]
 DOCKER
 	mkdir -p "${dir}/.github/workflows" "${dir}/specs"
 	cat >"${dir}/.github/workflows/docker-publish.yml" <<'YAML'
-name: Publish Image
 env:
-  ESHU_XX_IMAGE: ghcr.io/eshu-hq/ci-mirror-xx@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-  ESHU_GO_IMAGE: ghcr.io/eshu-hq/ci-mirror-golang@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-  ESHU_ALPINE_IMAGE: ghcr.io/eshu-hq/ci-mirror-alpine@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+  ESHU_XX_IMAGE: xx@sha256:aaaa
+  ESHU_GO_IMAGE: go@sha256:bbbb
+  ESHU_ALPINE_IMAGE: al@sha256:cccc
   IMAGE_PLATFORMS: linux/amd64,linux/arm64
 jobs:
   build-and-push-scanner-images:
-    name: Build and push scanner
     steps:
-      - name: Build and push scanner image
+      - name: Build scanner image
         with:
-          target: scanner-${{ matrix.component }}
-          build-args: |
-            ESHU_XX_IMAGE=${{ env.ESHU_XX_IMAGE }}
-            ESHU_GO_IMAGE=${{ env.ESHU_GO_IMAGE }}
-            ESHU_ALPINE_IMAGE=${{ env.ESHU_ALPINE_IMAGE }}
+          target: scanner-x
           platforms: ${{ env.IMAGE_PLATFORMS }}
   build-and-push-image:
     name: Build and push runtime
     steps:
-      - name: Build and push runtime image
+      - name: Build runtime image
         with:
           target: runtime
 YAML
@@ -319,7 +290,7 @@ expect_output "${PIN_IMAGE}" "RED still names the expected digest"
 fx="${tmp_root}/basepin"
 manifest="$(make_fixture "${fx}")"
 stub="$(serve_all "${fx}")"
-sed -i.bak 's/^ARG ESHU_ALPINE_IMAGE=alpine:3.21@sha256:cccc.*/ARG ESHU_ALPINE_IMAGE=alpine:3.22@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/' "${fx}/Dockerfile" && rm -f "${fx}/Dockerfile.bak"
+sed -i.bak 's/^ARG ESHU_ALPINE_IMAGE=alpine@sha256:cccc$/ARG ESHU_ALPINE_IMAGE=alpine@sha256:dddd/' "${fx}/Dockerfile" && rm -f "${fx}/Dockerfile.bak"
 git -C "${fx}" add -A
 git -C "${fx}" commit -qm base-bump
 git -C "${fx}" update-ref refs/remotes/origin/main HEAD
@@ -332,13 +303,26 @@ expect_output "Dockerfile" "RED names the Dockerfile input class"
 fx="${tmp_root}/stage"
 manifest="$(make_fixture "${fx}")"
 stub="$(serve_all "${fx}")"
-sed -i.bak 's|^COPY --from=builder /go-bin/eshu-scanner-component-image /usr/local/bin/eshu-scanner-component-image$|COPY --from=builder /go-bin/eshu-scanner-component-image /usr/local/bin/eshu-scanner-component-image\nCOPY --from=builder /go-bin/eshu-scanner-component-image /usr/local/bin/eshu-scanner-component-image-debug|' "${fx}/Dockerfile" && rm -f "${fx}/Dockerfile.bak"
+sed -i.bak 's|^COPY --from=builder /b/img /usr/local/bin/img$|COPY --from=builder /b/img /usr/local/bin/img\nCOPY --from=builder /b/img /usr/local/bin/img-debug|' "${fx}/Dockerfile" && rm -f "${fx}/Dockerfile.bak"
 git -C "${fx}" add -A
 git -C "${fx}" commit -qm scanner-stage-change
 git -C "${fx}" update-ref refs/remotes/origin/main HEAD
 run_verifier "${manifest}" "${stub}"
 expect_rc 1 "RED: a scanner-stage Dockerfile change fails"
 expect_output "STALE" "RED names the staleness verdict for a stage change"
+
+# --- RED: a builder toolchain setup line changed after the anchor. -----------
+fx="${tmp_root}/builder"
+manifest="$(make_fixture "${fx}")"
+stub="$(serve_all "${fx}")"
+sed -i.bak 's/^RUN apk add --no-cache git clang lld$/RUN apk add --no-cache git clang lld lldb/' "${fx}/Dockerfile" && rm -f "${fx}/Dockerfile.bak"
+git -C "${fx}" add -A
+git -C "${fx}" commit -qm builder-toolchain-change
+git -C "${fx}" update-ref refs/remotes/origin/main HEAD
+run_verifier "${manifest}" "${stub}"
+expect_rc 1 "RED: a builder toolchain setup change fails"
+expect_output "STALE" "RED names the staleness verdict for a builder change"
+expect_output "Dockerfile" "RED names the Dockerfile input class"
 
 # --- RED: the scanner publish job changed after the anchor. ------------------
 fx="${tmp_root}/workflow"
@@ -357,12 +341,45 @@ expect_output "docker-publish" "RED names the workflow input class"
 fx="${tmp_root}/comment"
 manifest="$(make_fixture "${fx}")"
 stub="$(serve_all "${fx}")"
-sed -i.bak 's/^CMD \["eshu-scanner-component-sbom"\]$/# still the sbom entrypoint\nCMD ["eshu-scanner-component-sbom"]/' "${fx}/Dockerfile" && rm -f "${fx}/Dockerfile.bak"
+sed -i.bak 's/^CMD \["sbom"\]$/# still the sbom entrypoint\nCMD ["sbom"]/' "${fx}/Dockerfile" && rm -f "${fx}/Dockerfile.bak"
 git -C "${fx}" add -A
 git -C "${fx}" commit -qm scanner-comment
 git -C "${fx}" update-ref refs/remotes/origin/main HEAD
 run_verifier "${manifest}" "${stub}"
 expect_rc 0 "GREEN: a comment-only change inside a scanner stage passes"
+
+# --- GREEN: a comment-only edit to a base-pin ARG. ---------------------------
+fx="${tmp_root}/argcomment"
+manifest="$(make_fixture "${fx}")"
+stub="$(serve_all "${fx}")"
+sed -i.bak 's/^ARG ESHU_GO_IMAGE=golang@sha256:bbbb$/ARG ESHU_GO_IMAGE=golang@sha256:bbbb # still the same pin/' "${fx}/Dockerfile" && rm -f "${fx}/Dockerfile.bak"
+git -C "${fx}" add -A
+git -C "${fx}" commit -qm arg-comment
+git -C "${fx}" update-ref refs/remotes/origin/main HEAD
+run_verifier "${manifest}" "${stub}"
+expect_rc 0 "GREEN: a comment-only edit to a base-pin ARG passes"
+
+# --- GREEN: a comment-only edit to the workflow env mirrors. -----------------
+fx="${tmp_root}/wfcomment"
+manifest="$(make_fixture "${fx}")"
+stub="$(serve_all "${fx}")"
+printf '# ESHU_GO_IMAGE: still the same mirror\n' >>"${fx}/.github/workflows/docker-publish.yml"
+git -C "${fx}" add -A
+git -C "${fx}" commit -qm workflow-mirror-comment
+git -C "${fx}" update-ref refs/remotes/origin/main HEAD
+run_verifier "${manifest}" "${stub}"
+expect_rc 0 "GREEN: a comment-only workflow mirror edit passes"
+
+# --- GREEN: a trailing comment on a workflow env mirror line. ----------------
+fx="${tmp_root}/wftrail"
+manifest="$(make_fixture "${fx}")"
+stub="$(serve_all "${fx}")"
+sed -i.bak 's/^  ESHU_GO_IMAGE: go@sha256:bbbb$/  ESHU_GO_IMAGE: go@sha256:bbbb # same mirror/' "${fx}/.github/workflows/docker-publish.yml" && rm -f "${fx}/.github/workflows/docker-publish.yml.bak"
+git -C "${fx}" add -A
+git -C "${fx}" commit -qm workflow-mirror-trailing-comment
+git -C "${fx}" update-ref refs/remotes/origin/main HEAD
+run_verifier "${manifest}" "${stub}"
+expect_rc 0 "GREEN: a trailing comment on a workflow mirror passes"
 
 # --- GREEN: an unrelated-stage change (runtime + non-scanner job). -----------
 fx="${tmp_root}/unrelated"

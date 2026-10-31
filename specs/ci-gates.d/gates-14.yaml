@@ -512,7 +512,7 @@ gates:
     # The Dockerfile, the publish workflow, the lane script, the base-image
     # spec, and the module files select this gate and are staleness inputs:
     # the verifier content-hashes the scanner-relevant non-Go subset
-    # (Dockerfile base pins + builder toolchain + scanner stages, the
+    # (Dockerfile base pins + builder stage body + scanner stages, the
     # scanner publish job plus env mirrors, xx/golang/alpine digests, raw
     # go.mod/go.sum) at the anchor and at the merge-base, so a comment-only
     # edit stays green while a base-pin bump or scanner-stage change fails

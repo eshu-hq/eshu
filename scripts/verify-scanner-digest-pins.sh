@@ -189,9 +189,9 @@ fi
 # false-positive, and unrelated stages/jobs are excluded entirely.
 nongo_dockerfile_at() {
 	git -C "${manifest_repo}" show "$1:Dockerfile" 2>/dev/null | awk '
-		/^ARG ESHU_/ { print; next }
+		/^ARG ESHU_/ { line = $0; sub(/[[:space:]][[:space:]]*#.*$/, "", line); print line; next }
 		/^FROM[[:space:]]/ { stage = $NF; if (stage == "builder" || stage ~ /^scanner-/) { line = $0; sub(/[[:space:]][[:space:]]*#.*$/, "", line); print line }; next }
-		stage == "builder" && (/scanner/ || /LDFLAGS/ || /GOFLAGS/ || /CGO_ENABLED/ || /TARGETPLATFORM/ || /SOURCE_DATE_EPOCH/ || /^ARG /) { emit = 1 }
+		stage == "builder" { emit = 1 }
 		stage ~ /^scanner-/ { emit = 1 }
 		emit { line = $0; sub(/^[[:space:]]*#.*$/, "", line); sub(/[[:space:]][[:space:]]*#.*$/, "", line); if (line !~ /^[[:space:]]*$/) print line; emit = 0 }
 	' || true
@@ -199,7 +199,8 @@ nongo_dockerfile_at() {
 nongo_workflow_at() {
 	{
 		git -C "${manifest_repo}" show "$1:.github/workflows/docker-publish.yml" 2>/dev/null |
-			grep -E 'ESHU_(XX|GO|ALPINE)_IMAGE:|IMAGE_PLATFORMS:' || true
+			grep -E 'ESHU_(XX|GO|ALPINE)_IMAGE:|IMAGE_PLATFORMS:' |
+			sed -e 's/[[:space:]][[:space:]]*#.*$//' -e '/^[[:space:]]*#/d' -e '/^[[:space:]]*$/d' || true
 		git -C "${manifest_repo}" show "$1:.github/workflows/docker-publish.yml" 2>/dev/null | awk '
 			/^  build-and-push-scanner-images:/ { in_job = 1; next }
 			/^  [A-Za-z]/ { in_job = 0 }
