@@ -69,6 +69,10 @@ if [[ "${1:-}" == attestation && "${2:-}" == verify ]]; then
 	fi
 	exit 0
 fi
+STUB
+# Split into two heredocs: one 687-byte body would exceed the 512-byte
+# heredoc budget and deadlock macOS Homebrew bash (#5074).
+cat >>"${stubbin}/gh" <<'STUB'
 if [[ "${1:-}" == api && "${2:-}" == repos/*/commits/* ]]; then
 	if [[ "${GH_STUB_UNKNOWN_ANCHOR:-}" == 1 ]]; then
 		echo "stub gh: 404 commit not found" >&2

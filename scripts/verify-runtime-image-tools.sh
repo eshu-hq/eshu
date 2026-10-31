@@ -13,9 +13,12 @@
 #   git   repository collector clone, fetch, and committed-tree reads
 #   ssh   git transport for ESHU_GIT_AUTH_METHOD=ssh (GIT_SSH_COMMAND)
 #   curl  the image HEALTHCHECK
-#   eshu-scanner-component-image/sbom/osruntime (#8878) per-analyzer scanner
-#         stdio components exec'd by the extension host over the
-#         collector-sdk/v1alpha3 paged contract
+#
+# The per-analyzer scanner stdio components
+# (eshu-scanner-component-image/sbom/osruntime) were removed here by #8878:
+# execution lives in the eshu-scanner-worker satellite, so the in-tree
+# runtime image no longer ships those binaries and the extension host no
+# longer execs them.
 #
 # A tool passes when <rootfs>/{usr/bin,bin,usr/local/bin}/<tool> resolves,
 # inside the rootfs, to an executable regular file. The path is resolved one
@@ -32,7 +35,7 @@
 # shellcheck disable=SC2034
 set -euo pipefail
 
-REQUIRED_TOOLS=(git ssh curl eshu-scanner-component-image eshu-scanner-component-sbom eshu-scanner-component-osruntime)
+REQUIRED_TOOLS=(git ssh curl)
 SEARCH_DIRS=(usr/bin bin usr/local/bin)
 MAX_LINK_HOPS=16
 
