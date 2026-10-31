@@ -21,7 +21,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/../../scripts/lib/golden-corpus-git.sh"
 
 # ESHU_MCP_REF pins the eshu-mcp satellite release whose serving binary the
 # gates run after the in-tree removal (#9670). Tag, not a branch: reproducible.
-: "${ESHU_MCP_REF:=v0.2.0}"
+: "${ESHU_MCP_REF:=v0.2.1}"
 
 # build_satellite_bin clones the satellite at ESHU_MCP_REF and builds
 # ./cmd/eshu-mcp as ${bin_dir}/eshu-mcp-server. The satellite replaced the

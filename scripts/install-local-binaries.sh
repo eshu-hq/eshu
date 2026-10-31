@@ -81,7 +81,7 @@ main() {
     # satellite release under that name. Same tag pin as the gates
     # (scripts/lib/golden-corpus-host-helpers.sh); override with ESHU_MCP_REF
     # only to measure another satellite release.
-    : "${ESHU_MCP_REF:=v0.2.0}"
+    : "${ESHU_MCP_REF:=v0.2.1}"
     MCP_SRC_DIR="$(mktemp -d)"
     git clone --depth 1 --branch "$ESHU_MCP_REF" https://github.com/eshu-hq/eshu-mcp.git "$MCP_SRC_DIR"
     CGO_ENABLED=0 go -C "$MCP_SRC_DIR" build -trimpath -o "$INSTALL_DIR/eshu-mcp-server" ./cmd/eshu-mcp

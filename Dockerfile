@@ -79,13 +79,14 @@ RUN cd go \
 # mcp-satellite: the extracted MCP server (#9670). The in-tree go/cmd/mcp-server
 # is gone, but the E2E fresh stack (compose/docker-compose.e2e.yaml under
 # $ESHU_DEPLOY_CHECKOUT) still builds this image with ESHU_REPO_ROOT at this
-# checkout and starts it with command ["/usr/local/bin/eshu-mcp-server"].
+# checkout and starts the binary at its old path with satellite flags
+# (-addr/-core-base-url).
 # COPY the digest-pinned satellite release binary under its old path so the
-# unmodified stack keeps serving the same contract. 0.2.0 is digest
-# sha256:93390eefc87f67761d160f907c9a94092438f730cb59908572f9e72286e82346
-# (ghcr.io/eshu-hq/eshu-mcp tags 0.2.0/0.2/latest). Like the mocks below, this
+# stack keeps serving the same contract. 0.2.1 is digest
+# sha256:beda6c485e1e70d3b28afb078da15fe75b6756273a12a164fc2b6d8f5e6c81d9
+# (ghcr.io/eshu-hq/eshu-mcp tags 0.2.1/0.2/latest). Like the mocks below, this
 # stage MUST stay before "Production stage".
-FROM ghcr.io/eshu-hq/eshu-mcp:0.2.0@sha256:93390eefc87f67761d160f907c9a94092438f730cb59908572f9e72286e82346 AS mcp-satellite
+FROM ghcr.io/eshu-hq/eshu-mcp:0.2.1@sha256:beda6c485e1e70d3b28afb078da15fe75b6756273a12a164fc2b6d8f5e6c81d9 AS mcp-satellite
 
 # mock-oidc-idp: E2E-only synthetic OIDC IdP (issue #4971), built and shipped
 # as its own image, never as part of the product image below. A no-auth,
