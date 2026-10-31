@@ -207,3 +207,42 @@ No-Observability-Change (re-pin dec23a17d9): no metric, span,
 log, or status field added, renamed, or removed by the new pin values;
 seed and admission failures keep the existing defect-only startup-error
 path with no new telemetry.
+
+## Re-pin past #8876 webhook-intake builder change (merge 96487a0bd0, docker-publish run 41186690550)
+
+#8876 ("add core webhook intake host", commit 50ba1f2a70) added a
+builder-toolchain line (`eshu-webhook-intake`) to the `Dockerfile`.
+That line feeds the scanner images, so the gate reports STALE past
+anchor `dec23a17d9` on any merge tree at or after `96487a0bd0`
+(first seen as the single red on PR #9679's wave). The `96487a0bd0`
+merge-head publish (run 41186690550) pushed all three scanner images;
+the `sha-96487a0bd0...` tags carry new index digests. This bump moves
+the anchor to
+`96487a0bd0f0ec71ff85255c06900af522328e74` and the three pins to those
+tags:
+
+- image `0945164c...04c461ee`, sbom `19b1def7...854fa3dca`,
+  osruntime `9f81bd96...a561056` (full hex in `manifest.go`).
+- Each index digest read back with `crane digest` against its
+  `sha-96487a0bd0...` tag, and each subject carries two attestation
+  bundles on the attestations API; `scripts/verify-scanner-digest-pins.sh`
+  PASSes locally (3/3 pins match, attestations verified) when run with a
+  gh that carries the `attestation` subcommand (local system gh 2.46.0
+  lacks it; proof used gh 2.103.3 via `GH_BIN`).
+- `git log 96487a0bd0..origin/main` over the script's scanner inputs
+  is empty, so the new anchor stays green on current main. No
+  fold-ins: only the anchor line, the three pins, their mirrored test
+  copies, and this note change.
+
+No-Regression Evidence (re-pin 96487a0bd0): RED-first —
+`TestManifestArtifactPinsPublishTimeDigestContract` with the new
+expectations failed against the old pins, then passed with the fix;
+`TestScannerActivationSeedImagesMatchPinnedManifests` failed on the old
+mirrored YAML the same way, then passed.
+Constants-only change, manifest construction off any query, ingest, or
+graph-write path.
+
+No-Observability-Change (re-pin 96487a0bd0): no metric, span,
+log, or status field added, renamed, or removed by the new pin values;
+seed and admission failures keep the existing defect-only startup-error
+path with no new telemetry.
