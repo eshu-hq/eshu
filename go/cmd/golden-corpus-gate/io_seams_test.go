@@ -84,7 +84,11 @@ func pinnedSelfLoopCounts() map[string]int64 {
 // rn-terraform-resource-attribute-promotion,
 // rn-terraform-state-provider-binding, rn-codeowner-team-ref,
 // rn-cloud-resource-running-image, rn-ec2-instance-identity-ami,
-// rn-ec2-ami-node) so a
+// rn-ec2-ami-node,
+// rn-elixir-mix-declaration, rn-swift-tools-version-declaration,
+// rn-dart-pubspec-declaration, rn-dart-fvmrc-declaration,
+// rn-perl-cpanfile-declaration, rn-perl-version-declaration,
+// rn-haskell-stack-declaration, rn-haskell-cabal-declaration) so a
 // minimal-gate test can satisfy the snapshot's required nodes while focusing
 // on its own assertion. The two GCP posture-only entries pin identity via a
 // single CloudResource node carrying the matching resource_type value; the
@@ -125,7 +129,7 @@ func fileLanguageFloor() (map[string]int64, map[string][]string) {
 		"FluxHelmRepository":     1,
 		"TerraformStateResource": 1,
 		"CodeownerTeam":          1,
-		"RuntimeDeclaration":     20,
+		"RuntimeDeclaration":     28,
 		"PackageArtifact":        1,
 		"RegistryEvent":          1,
 	}
@@ -183,14 +187,14 @@ func fileLanguageFloor() (map[string]int64, map[string][]string) {
 		"TerraformStateResource|tf_attr_instance_type": {"t3.micro"},
 		"TerraformStateResource|provider":              {"aws"},
 		"CodeownerTeam|ref":                            {"@eshu-hq/platform"},
-		"RuntimeDeclaration|repo_id":                   {"repository:r_go", "repository:r_php", "repository:r_python", "repository:r_ruby", "repository:r_ruby", "repository:r_jvm", "repository:r_jvm", "repository:r_jvm", "repository:r_jvm", "repository:r_jvm", "repository:r_go", "repository:r_go", "repository:r_go", "repository:r_iac", "repository:r_iac", "repository:r_iac", "repository:r_iac", "repository:r_rust", "repository:r_node", "repository:r_node"},
-		"RuntimeDeclaration|relative_path":             {".tool-versions", "composer.json", "runtime_sources/runtime.txt", "runtime-declarations/Gemfile", "runtime-declarations/Gemfile.lock", "runtime_jvm/pom.xml", "runtime_jvm/build.gradle", "runtime_jvm/build.gradle.kts", "runtime_jvm/build.sbt", "runtime_jvm/project/build.properties", "runtime-declarations/dotnet/global.json", "runtime-declarations/dotnet/App.csproj", "runtime-declarations/dotnet/App.csproj", "runtime_iac/main.tf", "runtime_iac/terragrunt.hcl", "runtime_iac/.terragrunt-version", "runtime_iac/charts/app/Chart.yaml", "runtime_rust/Cargo.toml", "runtime_node/bun/package.json", "runtime_node/deno/package.json"},
-		"RuntimeDeclaration|line_number":               {"1", "6", "1", "2", "10", "4", "1", "1", "1", "1", "3", "3", "3", "2", "1", "1", "4", "4", "1", "1"},
-		"RuntimeDeclaration|runtime":                   {"go", "php", "python", "ruby", "ruby", "java", "java", "java", "scala", "sbt", "dotnet", "dotnet", "dotnet", "terraform", "terraform", "terragrunt", "kubernetes", "rust", "bun", "deno"},
-		"RuntimeDeclaration|source_kind":               {"tool_versions", "composer_json_require_php", "runtime_txt", "gemfile_ruby", "gemfile_lock_ruby_version", "pom_maven_compiler_release", "gradle_java_toolchain", "gradle_kotlin_jvm_toolchain", "sbt_scala_version", "sbt_build_properties_version", "dotnet_global_json_sdk", "dotnet_csproj_target_frameworks", "dotnet_csproj_target_frameworks", "terraform_required_version", "terragrunt_version_constraint", "terragrunt_version", "helm_chart_kube_version", "cargo_package_rust_version", "package_json_package_manager", "package_json_package_manager"},
-		"RuntimeDeclaration|order_index":               {"0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "1", "0", "0", "0", "0", "0", "0", "0"},
-		"RuntimeDeclaration|raw_spec":                  {"1.22.5", ">=8.1", "python-3.11.2", ">= 3.2, < 4.0", "ruby 3.3.1p55", "21", "21", "21", "3.3.1", "1.9.9", "8.0.300", "net8.0", "net9.0", ">= 1.6.0", "~> 1.6", "0.58.0", ">= 1.27.0", "1.78.0", "1.1.0", "2.0.0"},
-		"RuntimeDeclaration|spec_kind":                 {"exact", "range", "exact", "range", "exact", "partial", "partial", "partial", "exact", "exact", "exact", "alias", "alias", "range", "range", "exact", "range", "exact", "exact", "exact"},
+		"RuntimeDeclaration|repo_id":                   {"repository:r_go", "repository:r_php", "repository:r_python", "repository:r_ruby", "repository:r_ruby", "repository:r_jvm", "repository:r_jvm", "repository:r_jvm", "repository:r_jvm", "repository:r_jvm", "repository:r_go", "repository:r_go", "repository:r_go", "repository:r_iac", "repository:r_iac", "repository:r_iac", "repository:r_iac", "repository:r_rust", "repository:r_node", "repository:r_node", "repository:r_elixir", "repository:r_swift", "repository:r_dart", "repository:r_dart", "repository:r_perl", "repository:r_perl", "repository:r_haskell", "repository:r_haskell"},
+		"RuntimeDeclaration|relative_path":             {".tool-versions", "composer.json", "runtime_sources/runtime.txt", "runtime-declarations/Gemfile", "runtime-declarations/Gemfile.lock", "runtime_jvm/pom.xml", "runtime_jvm/build.gradle", "runtime_jvm/build.gradle.kts", "runtime_jvm/build.sbt", "runtime_jvm/project/build.properties", "runtime-declarations/dotnet/global.json", "runtime-declarations/dotnet/App.csproj", "runtime-declarations/dotnet/App.csproj", "runtime_iac/main.tf", "runtime_iac/terragrunt.hcl", "runtime_iac/.terragrunt-version", "runtime_iac/charts/app/Chart.yaml", "runtime_rust/Cargo.toml", "runtime_node/bun/package.json", "runtime_node/deno/package.json", "runtime_elixir/mix.exs", "runtime_swift/Package.swift", "runtime_dart/pubspec.yaml", "runtime_dart/.fvmrc", "runtime_perl/cpanfile", "runtime_perl/.perl-version", "runtime_haskell_stack/stack.yaml", "runtime_haskell_cabal/demo.cabal"},
+		"RuntimeDeclaration|line_number":               {"1", "6", "1", "2", "10", "4", "1", "1", "1", "1", "3", "3", "3", "2", "1", "1", "4", "4", "1", "1", "8", "1", "3", "1", "1", "1", "3", "1"},
+		"RuntimeDeclaration|runtime":                   {"go", "php", "python", "ruby", "ruby", "java", "java", "java", "scala", "sbt", "dotnet", "dotnet", "dotnet", "terraform", "terraform", "terragrunt", "kubernetes", "rust", "bun", "deno", "elixir", "swift", "dart", "dart", "perl", "perl", "haskell", "haskell"},
+		"RuntimeDeclaration|source_kind":               {"tool_versions", "composer_json_require_php", "runtime_txt", "gemfile_ruby", "gemfile_lock_ruby_version", "pom_maven_compiler_release", "gradle_java_toolchain", "gradle_kotlin_jvm_toolchain", "sbt_scala_version", "sbt_build_properties_version", "dotnet_global_json_sdk", "dotnet_csproj_target_frameworks", "dotnet_csproj_target_frameworks", "terraform_required_version", "terragrunt_version_constraint", "terragrunt_version", "helm_chart_kube_version", "cargo_package_rust_version", "package_json_package_manager", "package_json_package_manager", "mix_exs_elixir", "swift_tools_version", "dart_pubspec_environment_sdk", "dart_fvmrc_flutter", "cpanfile_perl", "perl_version", "stack_yaml_resolver", "cabal_tested_with"},
+		"RuntimeDeclaration|order_index":               {"0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "1", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0"},
+		"RuntimeDeclaration|raw_spec":                  {"1.22.5", ">=8.1", "python-3.11.2", ">= 3.2, < 4.0", "ruby 3.3.1p55", "21", "21", "21", "3.3.1", "1.9.9", "8.0.300", "net8.0", "net9.0", ">= 1.6.0", "~> 1.6", "0.58.0", ">= 1.27.0", "1.78.0", "1.1.0", "2.0.0", "~> 1.17", "5.9", ">=3.0.0 <4.0.0", "3.22.0", "5.38.0", "5.38.2", "lts-22.43", "GHC==9.4.8"},
+		"RuntimeDeclaration|spec_kind":                 {"exact", "range", "exact", "range", "exact", "partial", "partial", "partial", "exact", "exact", "exact", "alias", "alias", "range", "range", "exact", "range", "exact", "exact", "exact", "range", "partial", "range", "exact", "exact", "exact", "alias", "alias"},
 		"CloudResource|running_image_ref": {
 			"123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo:latest",
 			"123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo:latest",

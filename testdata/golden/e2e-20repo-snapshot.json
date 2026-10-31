@@ -178,7 +178,7 @@
       "RuntimeDeclaration": {
         "min": 6,
         "max": 50,
-        "note": "RuntimeDeclaration nodes from runtime_declaration.version facts (issue #8816); the go_comprehensive fixture's .tool-versions declares 4 versions on 2 lines (golang 1.22.5; nodejs 20.11.1 18.19.0 lts/iron, three tokens with order_index 0, 1 and 2). Issues #9548/#9610 enroll .NET (global.json SDK, csproj TargetFramework/s) and IaC (terraform_required_version, terragrunt_version_constraint, terragrunt_version, helm_chart_kube_version) declarations; CI observed 38 nodes, ceiling 50 stays wide for future fixture pin files"
+        "note": "RuntimeDeclaration nodes from runtime_declaration.version facts (issue #8816); the go_comprehensive fixture's .tool-versions declares 4 versions on 2 lines (golang 1.22.5; nodejs 20.11.1 18.19.0 lts/iron, three tokens with order_index 0, 1 and 2). Issues #9548/#9610 enroll .NET (global.json SDK, csproj TargetFramework/s) and IaC (terraform_required_version, terragrunt_version_constraint, terragrunt_version, helm_chart_kube_version) declarations; #9660 enrolls eight more Others declarations (mix.exs, Package.swift, pubspec.yaml + .fvmrc, cpanfile + .perl-version, stack.yaml, *.cabal); CI observed 38 nodes, ceiling 50 stays wide for future fixture pin files"
       }
     },
     "edge_counts": {
@@ -345,7 +345,7 @@
       "DECLARES_RUNTIME": {
         "min": 4,
         "max": 50,
-        "note": "Repository->RuntimeDeclaration edges (issue #8816), one per declaration; the go_comprehensive fixture's .tool-versions declares 4 versions (golang 1.22.5; nodejs 20.11.1 18.19.0 lts/iron). Issues #9548/#9610 enroll .NET and IaC declarations; CI observed 38 edges, ceiling 50 stays wide for future fixture pin files"
+        "note": "Repository->RuntimeDeclaration edges (issue #8816), one per declaration; the go_comprehensive fixture's .tool-versions declares 4 versions (golang 1.22.5; nodejs 20.11.1 18.19.0 lts/iron). Issues #9548/#9610 enroll .NET and IaC declarations; #9660 enrolls eight more Others declarations (mix.exs, Package.swift, pubspec.yaml + .fvmrc, cpanfile + .perl-version, stack.yaml, *.cabal); CI observed 38 edges, ceiling 50 stays wide for future fixture pin files"
       },
       "PINS_SUBMODULE": {
         "min": 1,
@@ -2271,6 +2271,70 @@
             "gemfile_lock_ruby_version"
           ]
         }
+      },
+      {
+        "id": "rn-elixir-mix-declaration",
+        "description": "The lib-common runtime_elixir mix.exs declares Elixir ~> 1.17 (range) at line 8. HTTP and MCP shapes bind the complete source tuple.",
+        "label": "RuntimeDeclaration",
+        "minimum_count": 1,
+        "required_node_properties": ["runtime", "source_kind"],
+        "allowed_node_property_values": {"runtime": ["elixir"], "source_kind": ["mix_exs_elixir"]}
+      },
+      {
+        "id": "rn-swift-tools-version-declaration",
+        "description": "The lib-common runtime_swift Package.swift tools-version marker declares Swift 5.9 (partial) at line 1. HTTP and MCP shapes bind the complete source tuple.",
+        "label": "RuntimeDeclaration",
+        "minimum_count": 1,
+        "required_node_properties": ["runtime", "source_kind"],
+        "allowed_node_property_values": {"runtime": ["swift"], "source_kind": ["swift_tools_version"]}
+      },
+      {
+        "id": "rn-dart-pubspec-declaration",
+        "description": "The lib-common runtime_dart pubspec.yaml declares the Dart SDK >=3.0.0 <4.0.0 (range) at line 3. HTTP and MCP shapes bind the complete source tuple.",
+        "label": "RuntimeDeclaration",
+        "minimum_count": 1,
+        "required_node_properties": ["runtime", "source_kind"],
+        "allowed_node_property_values": {"runtime": ["dart"], "source_kind": ["dart_pubspec_environment_sdk"]}
+      },
+      {
+        "id": "rn-dart-fvmrc-declaration",
+        "description": "The lib-common runtime_dart .fvmrc pins Flutter 3.22.0 (exact) at line 1. HTTP and MCP shapes bind the complete source tuple.",
+        "label": "RuntimeDeclaration",
+        "minimum_count": 1,
+        "required_node_properties": ["runtime", "source_kind"],
+        "allowed_node_property_values": {"runtime": ["dart"], "source_kind": ["dart_fvmrc_flutter"]}
+      },
+      {
+        "id": "rn-perl-cpanfile-declaration",
+        "description": "The lib-common runtime_perl cpanfile requires Perl 5.38.0 (exact) at line 1. HTTP and MCP shapes bind the complete source tuple.",
+        "label": "RuntimeDeclaration",
+        "minimum_count": 1,
+        "required_node_properties": ["runtime", "source_kind"],
+        "allowed_node_property_values": {"runtime": ["perl"], "source_kind": ["cpanfile_perl"]}
+      },
+      {
+        "id": "rn-perl-version-declaration",
+        "description": "The lib-common runtime_perl .perl-version pins Perl 5.38.2 (exact) at line 1. HTTP and MCP shapes bind the complete source tuple.",
+        "label": "RuntimeDeclaration",
+        "minimum_count": 1,
+        "required_node_properties": ["runtime", "source_kind"],
+        "allowed_node_property_values": {"runtime": ["perl"], "source_kind": ["perl_version"]}
+      },
+      {
+        "id": "rn-haskell-stack-declaration",
+        "description": "The lib-common runtime_haskell_stack stack.yaml resolver names lts-22.43 (alias) at line 3. HTTP and MCP shapes bind the complete source tuple.",
+        "label": "RuntimeDeclaration",
+        "minimum_count": 1,
+        "required_node_properties": ["runtime", "source_kind"],
+        "allowed_node_property_values": {"runtime": ["haskell"], "source_kind": ["stack_yaml_resolver"]}
+      },
+      {
+        "id": "rn-haskell-cabal-declaration",
+        "description": "The lib-common runtime_haskell_cabal demo.cabal tested-with names GHC==9.4.8 (alias) at line 1. HTTP and MCP shapes bind the complete source tuple.",
+        "label": "RuntimeDeclaration",
+        "minimum_count": 1,
+        "required_node_properties": ["runtime", "source_kind"],
+        "allowed_node_property_values": {"runtime": ["haskell"], "source_kind": ["cabal_tested_with"]}
       },
       {
         "id": "rn-cloud-resource-running-image",
@@ -5141,6 +5205,70 @@
         },
         "arguments": {"runtime": "python", "limit": 50}
       },
+      "list_runtime_version_declarations?assert=elixir_mix": {
+        "description": "Synthetic Elixir version declaration from lib-common/runtime_elixir/mix.exs, bound as one complete source tuple through the deployed MCP tool.",
+        "required_response_fields": ["declarations", "count", "limit", "truncated", "filters", "excluded_from_comparison", "partial_reasons"],
+        "minimum_results": 1,
+        "results_field": "declarations",
+        "required_json_object_matches": {"declarations[]": [{"runtime": "elixir", "source_kind": "mix_exs_elixir", "relative_path": "runtime_elixir/mix.exs", "raw_spec": "~> 1.17", "spec_kind": "range", "line_number": 8, "order_index": 0}]},
+        "arguments": {"runtime": "elixir", "limit": 50}
+      },
+      "list_runtime_version_declarations?assert=swift_tools_version": {
+        "description": "Synthetic Swift tools-version declaration from lib-common/runtime_swift/Package.swift, bound as one complete source tuple through the deployed MCP tool.",
+        "required_response_fields": ["declarations", "count", "limit", "truncated", "filters", "excluded_from_comparison", "partial_reasons"],
+        "minimum_results": 1,
+        "results_field": "declarations",
+        "required_json_object_matches": {"declarations[]": [{"runtime": "swift", "source_kind": "swift_tools_version", "relative_path": "runtime_swift/Package.swift", "raw_spec": "5.9", "spec_kind": "partial", "line_number": 1, "order_index": 0}]},
+        "arguments": {"runtime": "swift", "limit": 50}
+      },
+      "list_runtime_version_declarations?assert=dart_pubspec": {
+        "description": "Synthetic Dart SDK declaration from lib-common/runtime_dart/pubspec.yaml, bound as one complete source tuple through the deployed MCP tool.",
+        "required_response_fields": ["declarations", "count", "limit", "truncated", "filters", "excluded_from_comparison", "partial_reasons"],
+        "minimum_results": 1,
+        "results_field": "declarations",
+        "required_json_object_matches": {"declarations[]": [{"runtime": "dart", "source_kind": "dart_pubspec_environment_sdk", "relative_path": "runtime_dart/pubspec.yaml", "raw_spec": ">=3.0.0 <4.0.0", "spec_kind": "range", "line_number": 3, "order_index": 0}]},
+        "arguments": {"runtime": "dart", "limit": 50}
+      },
+      "list_runtime_version_declarations?assert=dart_fvmrc": {
+        "description": "Synthetic Flutter version declaration from lib-common/runtime_dart/.fvmrc, bound as one complete source tuple through the deployed MCP tool.",
+        "required_response_fields": ["declarations", "count", "limit", "truncated", "filters", "excluded_from_comparison", "partial_reasons"],
+        "minimum_results": 1,
+        "results_field": "declarations",
+        "required_json_object_matches": {"declarations[]": [{"runtime": "dart", "source_kind": "dart_fvmrc_flutter", "relative_path": "runtime_dart/.fvmrc", "raw_spec": "3.22.0", "spec_kind": "exact", "line_number": 1, "order_index": 0}]},
+        "arguments": {"runtime": "dart", "limit": 50}
+      },
+      "list_runtime_version_declarations?assert=perl_cpanfile": {
+        "description": "Synthetic Perl requirement from lib-common/runtime_perl/cpanfile, bound as one complete source tuple through the deployed MCP tool.",
+        "required_response_fields": ["declarations", "count", "limit", "truncated", "filters", "excluded_from_comparison", "partial_reasons"],
+        "minimum_results": 1,
+        "results_field": "declarations",
+        "required_json_object_matches": {"declarations[]": [{"runtime": "perl", "source_kind": "cpanfile_perl", "relative_path": "runtime_perl/cpanfile", "raw_spec": "5.38.0", "spec_kind": "exact", "line_number": 1, "order_index": 0}]},
+        "arguments": {"runtime": "perl", "limit": 50}
+      },
+      "list_runtime_version_declarations?assert=perl_version_pin": {
+        "description": "Synthetic Perl version pin from lib-common/runtime_perl/.perl-version, bound as one complete source tuple through the deployed MCP tool.",
+        "required_response_fields": ["declarations", "count", "limit", "truncated", "filters", "excluded_from_comparison", "partial_reasons"],
+        "minimum_results": 1,
+        "results_field": "declarations",
+        "required_json_object_matches": {"declarations[]": [{"runtime": "perl", "source_kind": "perl_version", "relative_path": "runtime_perl/.perl-version", "raw_spec": "5.38.2", "spec_kind": "exact", "line_number": 1, "order_index": 0}]},
+        "arguments": {"runtime": "perl", "limit": 50}
+      },
+      "list_runtime_version_declarations?assert=haskell_stack": {
+        "description": "Synthetic Haskell resolver declaration from lib-common/runtime_haskell_stack/stack.yaml, bound as one complete source tuple through the deployed MCP tool.",
+        "required_response_fields": ["declarations", "count", "limit", "truncated", "filters", "excluded_from_comparison", "partial_reasons"],
+        "minimum_results": 1,
+        "results_field": "declarations",
+        "required_json_object_matches": {"declarations[]": [{"runtime": "haskell", "source_kind": "stack_yaml_resolver", "relative_path": "runtime_haskell_stack/stack.yaml", "raw_spec": "lts-22.43", "spec_kind": "alias", "line_number": 3, "order_index": 0}]},
+        "arguments": {"runtime": "haskell", "limit": 50}
+      },
+      "list_runtime_version_declarations?assert=haskell_cabal": {
+        "description": "Synthetic Haskell tested-with declaration from lib-common/runtime_haskell_cabal/demo.cabal, bound as one complete source tuple through the deployed MCP tool.",
+        "required_response_fields": ["declarations", "count", "limit", "truncated", "filters", "excluded_from_comparison", "partial_reasons"],
+        "minimum_results": 1,
+        "results_field": "declarations",
+        "required_json_object_matches": {"declarations[]": [{"runtime": "haskell", "source_kind": "cabal_tested_with", "relative_path": "runtime_haskell_cabal/demo.cabal", "raw_spec": "GHC==9.4.8", "spec_kind": "alias", "line_number": 1, "order_index": 0}]},
+        "arguments": {"runtime": "haskell", "limit": 50}
+      },
       "list_kubernetes_correlations": {
         "description": "Returns k8s workload correlations for a cluster; confirms the WorkloadInstance correlation ran. Needs a cluster selector. Also isolates the #5437 selector_match verb (cold-review finding 1): minimum_results:1 alone was already satisfied by the pre-existing owner_reference correlation, so a broken selector_match pass would pass this shape undetected without the required_json_values pin.",
         "required_response_fields": [
@@ -7848,6 +7976,70 @@
           ]
         },
         "request_body": {"runtime": "python", "limit": 50}
+      },
+      "POST /api/v0/runtime-declarations/query?assert=elixir_mix": {
+        "description": "Synthetic Elixir version declaration from lib-common/runtime_elixir/mix.exs, bound as one complete source tuple through the deployed HTTP route.",
+        "required_response_fields": ["declarations", "count", "limit", "truncated", "filters", "excluded_from_comparison", "partial_reasons"],
+        "minimum_results": 1,
+        "results_field": "declarations",
+        "required_json_object_matches": {"declarations[]": [{"runtime": "elixir", "source_kind": "mix_exs_elixir", "relative_path": "runtime_elixir/mix.exs", "raw_spec": "~> 1.17", "spec_kind": "range", "line_number": 8, "order_index": 0}]},
+        "request_body": {"runtime": "elixir", "limit": 50}
+      },
+      "POST /api/v0/runtime-declarations/query?assert=swift_tools_version": {
+        "description": "Synthetic Swift tools-version declaration from lib-common/runtime_swift/Package.swift, bound as one complete source tuple through the deployed HTTP route.",
+        "required_response_fields": ["declarations", "count", "limit", "truncated", "filters", "excluded_from_comparison", "partial_reasons"],
+        "minimum_results": 1,
+        "results_field": "declarations",
+        "required_json_object_matches": {"declarations[]": [{"runtime": "swift", "source_kind": "swift_tools_version", "relative_path": "runtime_swift/Package.swift", "raw_spec": "5.9", "spec_kind": "partial", "line_number": 1, "order_index": 0}]},
+        "request_body": {"runtime": "swift", "limit": 50}
+      },
+      "POST /api/v0/runtime-declarations/query?assert=dart_pubspec": {
+        "description": "Synthetic Dart SDK declaration from lib-common/runtime_dart/pubspec.yaml, bound as one complete source tuple through the deployed HTTP route.",
+        "required_response_fields": ["declarations", "count", "limit", "truncated", "filters", "excluded_from_comparison", "partial_reasons"],
+        "minimum_results": 1,
+        "results_field": "declarations",
+        "required_json_object_matches": {"declarations[]": [{"runtime": "dart", "source_kind": "dart_pubspec_environment_sdk", "relative_path": "runtime_dart/pubspec.yaml", "raw_spec": ">=3.0.0 <4.0.0", "spec_kind": "range", "line_number": 3, "order_index": 0}]},
+        "request_body": {"runtime": "dart", "limit": 50}
+      },
+      "POST /api/v0/runtime-declarations/query?assert=dart_fvmrc": {
+        "description": "Synthetic Flutter version declaration from lib-common/runtime_dart/.fvmrc, bound as one complete source tuple through the deployed HTTP route.",
+        "required_response_fields": ["declarations", "count", "limit", "truncated", "filters", "excluded_from_comparison", "partial_reasons"],
+        "minimum_results": 1,
+        "results_field": "declarations",
+        "required_json_object_matches": {"declarations[]": [{"runtime": "dart", "source_kind": "dart_fvmrc_flutter", "relative_path": "runtime_dart/.fvmrc", "raw_spec": "3.22.0", "spec_kind": "exact", "line_number": 1, "order_index": 0}]},
+        "request_body": {"runtime": "dart", "limit": 50}
+      },
+      "POST /api/v0/runtime-declarations/query?assert=perl_cpanfile": {
+        "description": "Synthetic Perl requirement from lib-common/runtime_perl/cpanfile, bound as one complete source tuple through the deployed HTTP route.",
+        "required_response_fields": ["declarations", "count", "limit", "truncated", "filters", "excluded_from_comparison", "partial_reasons"],
+        "minimum_results": 1,
+        "results_field": "declarations",
+        "required_json_object_matches": {"declarations[]": [{"runtime": "perl", "source_kind": "cpanfile_perl", "relative_path": "runtime_perl/cpanfile", "raw_spec": "5.38.0", "spec_kind": "exact", "line_number": 1, "order_index": 0}]},
+        "request_body": {"runtime": "perl", "limit": 50}
+      },
+      "POST /api/v0/runtime-declarations/query?assert=perl_version_pin": {
+        "description": "Synthetic Perl version pin from lib-common/runtime_perl/.perl-version, bound as one complete source tuple through the deployed HTTP route.",
+        "required_response_fields": ["declarations", "count", "limit", "truncated", "filters", "excluded_from_comparison", "partial_reasons"],
+        "minimum_results": 1,
+        "results_field": "declarations",
+        "required_json_object_matches": {"declarations[]": [{"runtime": "perl", "source_kind": "perl_version", "relative_path": "runtime_perl/.perl-version", "raw_spec": "5.38.2", "spec_kind": "exact", "line_number": 1, "order_index": 0}]},
+        "request_body": {"runtime": "perl", "limit": 50}
+      },
+      "POST /api/v0/runtime-declarations/query?assert=haskell_stack": {
+        "description": "Synthetic Haskell resolver declaration from lib-common/runtime_haskell_stack/stack.yaml, bound as one complete source tuple through the deployed HTTP route.",
+        "required_response_fields": ["declarations", "count", "limit", "truncated", "filters", "excluded_from_comparison", "partial_reasons"],
+        "minimum_results": 1,
+        "results_field": "declarations",
+        "required_json_object_matches": {"declarations[]": [{"runtime": "haskell", "source_kind": "stack_yaml_resolver", "relative_path": "runtime_haskell_stack/stack.yaml", "raw_spec": "lts-22.43", "spec_kind": "alias", "line_number": 3, "order_index": 0}]},
+        "request_body": {"runtime": "haskell", "limit": 50}
+      },
+      "POST /api/v0/runtime-declarations/query?assert=haskell_cabal": {
+        "description": "Synthetic Haskell tested-with declaration from lib-common/runtime_haskell_cabal/demo.cabal, bound as one complete source tuple through the deployed HTTP route.",
+        "required_response_fields": ["declarations", "count", "limit", "truncated", "filters", "excluded_from_comparison", "partial_reasons"],
+        "minimum_results": 1,
+        "results_field": "declarations",
+        "required_json_object_matches": {"declarations[]": [{"runtime": "haskell", "source_kind": "cabal_tested_with", "relative_path": "runtime_haskell_cabal/demo.cabal", "raw_spec": "GHC==9.4.8", "spec_kind": "alias", "line_number": 1, "order_index": 0}]},
+        "request_body": {"runtime": "haskell", "limit": 50}
       },
       "POST /api/v0/impact/entity-map": {
         "description": "Positive repository-to-workload entity map for the deployable-config fixture through the deployed HTTP query surface. Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",
