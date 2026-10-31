@@ -24,6 +24,8 @@ workflows:
   - scripts/verify-scanner-digest-pins.sh
   - scripts/test-verify-scanner-digest-pins.sh
   - scripts/ci/go-install-retry.sh
+  - go/go.mod
+  - go/go.sum
   - go/internal/collector/scannerworker/component/manifest.go
   - go/internal/collector/scannerworker/component/manifest_test.go
   - go/internal/collector/scannerworker/**

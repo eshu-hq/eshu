@@ -85,8 +85,25 @@ while IFS= read -r path; do
     # change to either file must run the image lane (build + reproducibility).
     # Without this the registry selects docker-image-reproducibility while
     # every publish job skips, and the aggregator fails closed.
-    specs/ci-images.v1.json|scripts/ci/build-reproducibility-image.sh)
+    # The base-image spec additionally feeds the scanner content hash
+    # (#9503), so it must also run the scannerpins lane; the
+    # reproducibility builder itself stays image-only.
+    specs/ci-images.v1.json)
       image=true
+      scannerpins=true
+      ;;
+    scripts/ci/build-reproducibility-image.sh)
+      image=true
+      ;;
+    # Scanner module files (#9503): the content-hash section watches raw
+    # go.mod/go.sum bytes, so a bump must run the scannerpins lane as well
+    # as the image lane (which go/* below would otherwise select alone).
+    # Stays above go/*, which matches the same paths first.
+    go/go.mod|go/go.sum)
+      if [[ "${merge_group_lane}" == false ]]; then
+        image=true
+      fi
+      scannerpins=true
       ;;
     go/*)
       if [[ "${merge_group_lane}" == false ]]; then

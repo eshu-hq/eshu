@@ -159,4 +159,25 @@ git -C "${repo}" add scripts/ci/go-install-retry.sh
 git -C "${repo}" commit -qm go-install-retry
 run_selection pull_request "$(git -C "${repo}" rev-parse HEAD)" "${retry_base}"
 rg -q '^scannerpins=true$' "${scratch}/output"
+# #9503: the non-Go staleness inputs the content-hash section watches (the
+# base-image spec and the module files) select the scannerpins lane, while
+# the reproducibility builder stays image-only; otherwise the registry
+# selects scanner-digest-pins while every publish job skips and the
+# aggregator fails closed.
+for nongo_path in specs/ci-images.v1.json go/go.mod go/go.sum; do
+  nongo_base="$(git -C "${repo}" rev-parse HEAD)"
+  mkdir -p "${repo}/$(dirname "${nongo_path}")"
+  printf '# nongo\n' > "${repo}/${nongo_path}"
+  git -C "${repo}" add "${nongo_path}"
+  git -C "${repo}" commit -qm "${nongo_path##*/}"
+  run_selection pull_request "$(git -C "${repo}" rev-parse HEAD)" "${nongo_base}"
+  rg -q '^scannerpins=true$' "${scratch}/output"
+done
+builder_base="$(git -C "${repo}" rev-parse HEAD)"
+printf '# builder again\n' >> "${repo}/scripts/ci/build-reproducibility-image.sh"
+git -C "${repo}" add scripts/ci/build-reproducibility-image.sh
+git -C "${repo}" commit -qm builder-again
+run_selection pull_request "$(git -C "${repo}" rev-parse HEAD)" "${builder_base}"
+rg -q '^image=true$' "${scratch}/output"
+rg -q '^scannerpins=false$' "${scratch}/output"
 printf 'PASS: production workflow selector steps execute with expected event behavior\n'

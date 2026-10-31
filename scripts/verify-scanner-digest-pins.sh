@@ -25,11 +25,24 @@
 #      (manifest.go carries the pins and the anchor; manifest_test.go repeats
 #      the pins, so a follow-up pin PR touching only those stays green).
 #      The Dockerfile, the publish workflow, and the base-image pins are NOT
-#      staleness inputs: they changed after the anchor without moving the
-#      anchored tags, and file-granularity tracking cannot tell a comment
-#      from a stage change. A republish driven only by those files moves the
-#      latest digests without reddening this gate; the anchored digest and
+#      file-granularity staleness inputs: they changed after the anchor
+#      without moving the anchored tags, and file-granularity tracking
+#      cannot tell a comment from a stage change. Section 4 below covers
+#      them with a normalized content hash instead, so a republish driven
+#      only by those files now reddens this gate; the anchored digest and
 #      attestation checks still pin the activation contract.
+#   4. Non-Go staleness (#9503): the normalized content hash of the
+#      scanner-relevant non-Go inputs is identical at the anchor and at the
+#      merge-base. The hashed content is the Dockerfile base-pin ARGs, the
+#      builder toolchain lines feeding the scanner binaries, and the
+#      scanner-* stages (comments and blank lines stripped, so a
+#      comment-only edit stays green); the workflow env mirrors plus the
+#      scanner publish job; the xx/golang/alpine digests from
+#      specs/ci-images.v1.json; and the raw go/go.mod + go/go.sum bytes (a
+#      module bump fails here and is recorded as staleness). Both hashes are
+#      recomputed from history with `git show`: no new pin file, no stored
+#      hash to drift. A mismatch names the differing input class and points
+#      at the follow-up pin PR flow.
 #
 # Usage:
 #   scripts/verify-scanner-digest-pins.sh [--manifest PATH]
@@ -82,7 +95,7 @@ while (($# > 0)); do
 done
 
 [[ -r "${manifest}" ]] || die "cannot read manifest: ${manifest}"
-for tool in "${crane_bin}" "${gh_bin}" git; do
+for tool in "${crane_bin}" "${gh_bin}" git python3 sha256sum; do
 	command -v "${tool}" >/dev/null 2>&1 || die "required tool not found: ${tool}"
 done
 
@@ -162,6 +175,77 @@ stale="$(printf '%s\n' "${changed}" | grep '\.go$' |
 if [[ -n "${stale}" ]]; then
 	printf 'STALE scanner inputs advanced past anchor %s:\n' "${anchor}" >&2
 	printf '%s\n' "${stale}" | sed 's/^/  /' >&2
+	printf 'File a follow-up pin PR bumping Scanner-Publish-SHA and the pins together (the pattern #9494 uses).\n' >&2
+	for comp in "${components[@]}"; do
+		printf 'stale pin scanner-%s; expected digest: %s\n' "${comp}" "${pin_of[${comp}]}" >&2
+	done
+	drift=1
+fi
+
+# Content-hash staleness for scanner-relevant non-Go inputs (#9503). Each
+# *_at helper prints the normalized class content at a git ref (empty when
+# the file is absent there, so a file missing at both ends hashes the same).
+# Comments and blank lines are stripped where file-granularity tracking would
+# false-positive, and unrelated stages/jobs are excluded entirely.
+nongo_dockerfile_at() {
+	git -C "${manifest_repo}" show "$1:Dockerfile" 2>/dev/null | awk '
+		/^ARG ESHU_/ { line = $0; sub(/[[:space:]][[:space:]]*#.*$/, "", line); print line; next }
+		/^FROM[[:space:]]/ { stage = $NF; if (stage == "builder" || stage ~ /^scanner-/) { line = $0; sub(/[[:space:]][[:space:]]*#.*$/, "", line); print line }; next }
+		stage == "builder" { emit = 1 }
+		stage ~ /^scanner-/ { emit = 1 }
+		emit { line = $0; sub(/^[[:space:]]*#.*$/, "", line); sub(/[[:space:]][[:space:]]*#.*$/, "", line); if (line !~ /^[[:space:]]*$/) print line; emit = 0 }
+	' || true
+}
+nongo_workflow_at() {
+	{
+		git -C "${manifest_repo}" show "$1:.github/workflows/docker-publish.yml" 2>/dev/null |
+			grep -E 'ESHU_(XX|GO|ALPINE)_IMAGE:|IMAGE_PLATFORMS:' |
+			sed -e 's/[[:space:]][[:space:]]*#.*$//' -e '/^[[:space:]]*#/d' -e '/^[[:space:]]*$/d' || true
+		git -C "${manifest_repo}" show "$1:.github/workflows/docker-publish.yml" 2>/dev/null | awk '
+			/^  build-and-push-scanner-images:/ { in_job = 1; next }
+			/^  [A-Za-z]/ { in_job = 0 }
+			in_job { line = $0; sub(/^[[:space:]]*#.*$/, "", line); sub(/[[:space:]][[:space:]]*#.*$/, "", line); if (line !~ /^[[:space:]]*$/) print line }
+		' || true
+	} || true
+}
+nongo_ciimages_at() {
+	git -C "${manifest_repo}" show "$1:specs/ci-images.v1.json" 2>/dev/null | python3 -c '
+import json, sys
+try:
+    doc = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+for img in doc.get("images", []):
+    if img.get("id") in ("xx", "golang", "alpine") and img.get("digest"):
+        print(img["digest"])
+' 2>/dev/null || true
+}
+nongo_gomod_at() {
+	{
+		git -C "${manifest_repo}" show "$1:go/go.mod" 2>/dev/null || true
+		printf '%s\n' '--- go.sum ---'
+		git -C "${manifest_repo}" show "$1:go/go.sum" 2>/dev/null || true
+	} || true
+}
+
+nongo_classes=(dockerfile workflow ciimages gomod)
+nongo_label_dockerfile="Dockerfile (base pins, builder toolchain, scanner stages)"
+nongo_label_workflow=".github/workflows/docker-publish.yml (env mirrors, scanner job)"
+nongo_label_ciimages="specs/ci-images.v1.json (xx/golang/alpine digests)"
+nongo_label_gomod="go/go.mod + go/go.sum (module files)"
+nongo_changed=()
+for class in "${nongo_classes[@]}"; do
+	fn="nongo_${class}_at"
+	old_hash="$("${fn}" "${anchor}" | sha256sum | cut -d' ' -f1)"
+	new_hash="$("${fn}" "${end}" | sha256sum | cut -d' ' -f1)"
+	[[ "${old_hash}" == "${new_hash}" ]] || nongo_changed+=("${class}")
+done
+if ((${#nongo_changed[@]} > 0)); then
+	printf 'STALE scanner non-Go inputs advanced past anchor %s (content-hash):\n' "${anchor}" >&2
+	for class in "${nongo_changed[@]}"; do
+		label_var="nongo_label_${class}"
+		printf '  %s\n' "${!label_var}" >&2
+	done
 	printf 'File a follow-up pin PR bumping Scanner-Publish-SHA and the pins together (the pattern #9494 uses).\n' >&2
 	for comp in "${components[@]}"; do
 		printf 'stale pin scanner-%s; expected digest: %s\n' "${comp}" "${pin_of[${comp}]}" >&2

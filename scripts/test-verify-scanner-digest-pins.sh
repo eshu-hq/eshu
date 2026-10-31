@@ -81,6 +81,59 @@ make_fixture() {
 		printf 'package main\n' >"${dir}/go/cmd/scanner-component-${comp}/main.go"
 	done
 	printf 'package main\n' >"${dir}/go/cmd/scanner-worker/main.go"
+	# Non-Go scanner inputs (#9503): Dockerfile base pins + scanner stages,
+	# the publish workflow env mirrors + scanner job, the ci-images digests
+	# for the three base images, and the module files. Committed with the
+	# inputs so the anchor covers them.
+	cat >"${dir}/Dockerfile" <<'DOCKER'
+ARG ESHU_XX_IMAGE=xx@sha256:aaaa
+ARG ESHU_GO_IMAGE=golang@sha256:bbbb
+ARG ESHU_ALPINE_IMAGE=alpine@sha256:cccc
+FROM ${ESHU_GO_IMAGE} AS builder
+RUN apk add --no-cache git clang lld
+RUN xx-go build -o /b/img ./cmd/image
+FROM ${ESHU_ALPINE_IMAGE} AS scanner-image
+COPY --from=builder /b/img /usr/local/bin/img
+CMD ["img"]
+FROM ${ESHU_ALPINE_IMAGE} AS scanner-sbom
+COPY --from=builder /b/sbom /usr/local/bin/sbom
+CMD ["sbom"]
+FROM ${ESHU_ALPINE_IMAGE} AS runtime
+RUN apk add --no-cache git curl
+DOCKER
+	mkdir -p "${dir}/.github/workflows" "${dir}/specs"
+	cat >"${dir}/.github/workflows/docker-publish.yml" <<'YAML'
+env:
+  ESHU_XX_IMAGE: xx@sha256:aaaa
+  ESHU_GO_IMAGE: go@sha256:bbbb
+  ESHU_ALPINE_IMAGE: al@sha256:cccc
+  IMAGE_PLATFORMS: linux/amd64,linux/arm64
+jobs:
+  build-and-push-scanner-images:
+    steps:
+      - name: Build scanner image
+        with:
+          target: scanner-x
+          platforms: ${{ env.IMAGE_PLATFORMS }}
+  build-and-push-image:
+    name: Build and push runtime
+    steps:
+      - name: Build runtime image
+        with:
+          target: runtime
+YAML
+	cat >"${dir}/specs/ci-images.v1.json" <<'JSON'
+{
+  "version": 1,
+  "images": [
+    {"id": "xx", "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+    {"id": "golang", "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
+    {"id": "alpine", "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"}
+  ]
+}
+JSON
+	printf 'module example.com/fixture\n\ngo 1.26.10\n' >"${dir}/go/go.mod"
+	printf 'example.com/mod v1.0.0 h1:abc=\n' >"${dir}/go/go.sum"
 	git -C "${dir}" init -q -b main
 	git -C "${dir}" config user.name CI
 	git -C "${dir}" config user.email ci@example.invalid
@@ -232,6 +285,126 @@ expect_output "go/cmd/scanner-component-image/main.go" "RED names the changed in
 expect_output "follow-up" "RED points at the follow-up pin PR flow"
 expect_output "scanner-image" "RED still names the component"
 expect_output "${PIN_IMAGE}" "RED still names the expected digest"
+
+# --- RED: a base-image pin bumped after the anchor (#9503). ------------------
+fx="${tmp_root}/basepin"
+manifest="$(make_fixture "${fx}")"
+stub="$(serve_all "${fx}")"
+sed -i.bak 's/^ARG ESHU_ALPINE_IMAGE=alpine@sha256:cccc$/ARG ESHU_ALPINE_IMAGE=alpine@sha256:dddd/' "${fx}/Dockerfile" && rm -f "${fx}/Dockerfile.bak"
+git -C "${fx}" add -A
+git -C "${fx}" commit -qm base-bump
+git -C "${fx}" update-ref refs/remotes/origin/main HEAD
+run_verifier "${manifest}" "${stub}"
+expect_rc 1 "RED: a base-image pin bump fails"
+expect_output "STALE" "RED names the staleness verdict for a base-pin bump"
+expect_output "Dockerfile" "RED names the Dockerfile input class"
+
+# --- RED: a scanner-stage Dockerfile change after the anchor. ----------------
+fx="${tmp_root}/stage"
+manifest="$(make_fixture "${fx}")"
+stub="$(serve_all "${fx}")"
+sed -i.bak 's|^COPY --from=builder /b/img /usr/local/bin/img$|COPY --from=builder /b/img /usr/local/bin/img\nCOPY --from=builder /b/img /usr/local/bin/img-debug|' "${fx}/Dockerfile" && rm -f "${fx}/Dockerfile.bak"
+git -C "${fx}" add -A
+git -C "${fx}" commit -qm scanner-stage-change
+git -C "${fx}" update-ref refs/remotes/origin/main HEAD
+run_verifier "${manifest}" "${stub}"
+expect_rc 1 "RED: a scanner-stage Dockerfile change fails"
+expect_output "STALE" "RED names the staleness verdict for a stage change"
+
+# --- RED: a builder toolchain setup line changed after the anchor. -----------
+fx="${tmp_root}/builder"
+manifest="$(make_fixture "${fx}")"
+stub="$(serve_all "${fx}")"
+sed -i.bak 's/^RUN apk add --no-cache git clang lld$/RUN apk add --no-cache git clang lld lldb/' "${fx}/Dockerfile" && rm -f "${fx}/Dockerfile.bak"
+git -C "${fx}" add -A
+git -C "${fx}" commit -qm builder-toolchain-change
+git -C "${fx}" update-ref refs/remotes/origin/main HEAD
+run_verifier "${manifest}" "${stub}"
+expect_rc 1 "RED: a builder toolchain setup change fails"
+expect_output "STALE" "RED names the staleness verdict for a builder change"
+expect_output "Dockerfile" "RED names the Dockerfile input class"
+
+# --- RED: the scanner publish job changed after the anchor. ------------------
+fx="${tmp_root}/workflow"
+manifest="$(make_fixture "${fx}")"
+stub="$(serve_all "${fx}")"
+sed -i.bak 's/^  IMAGE_PLATFORMS: linux\/amd64,linux\/arm64$/  IMAGE_PLATFORMS: linux\/amd64/' "${fx}/.github/workflows/docker-publish.yml" && rm -f "${fx}/.github/workflows/docker-publish.yml.bak"
+git -C "${fx}" add -A
+git -C "${fx}" commit -qm scanner-platforms-change
+git -C "${fx}" update-ref refs/remotes/origin/main HEAD
+run_verifier "${manifest}" "${stub}"
+expect_rc 1 "RED: a scanner-job workflow change fails"
+expect_output "STALE" "RED names the staleness verdict for a workflow change"
+expect_output "docker-publish" "RED names the workflow input class"
+
+# --- GREEN: a comment-only change inside a scanner stage. --------------------
+fx="${tmp_root}/comment"
+manifest="$(make_fixture "${fx}")"
+stub="$(serve_all "${fx}")"
+sed -i.bak 's/^CMD \["sbom"\]$/# still the sbom entrypoint\nCMD ["sbom"]/' "${fx}/Dockerfile" && rm -f "${fx}/Dockerfile.bak"
+git -C "${fx}" add -A
+git -C "${fx}" commit -qm scanner-comment
+git -C "${fx}" update-ref refs/remotes/origin/main HEAD
+run_verifier "${manifest}" "${stub}"
+expect_rc 0 "GREEN: a comment-only change inside a scanner stage passes"
+
+# --- GREEN: a comment-only edit to a base-pin ARG. ---------------------------
+fx="${tmp_root}/argcomment"
+manifest="$(make_fixture "${fx}")"
+stub="$(serve_all "${fx}")"
+sed -i.bak 's/^ARG ESHU_GO_IMAGE=golang@sha256:bbbb$/ARG ESHU_GO_IMAGE=golang@sha256:bbbb # still the same pin/' "${fx}/Dockerfile" && rm -f "${fx}/Dockerfile.bak"
+git -C "${fx}" add -A
+git -C "${fx}" commit -qm arg-comment
+git -C "${fx}" update-ref refs/remotes/origin/main HEAD
+run_verifier "${manifest}" "${stub}"
+expect_rc 0 "GREEN: a comment-only edit to a base-pin ARG passes"
+
+# --- GREEN: a comment-only edit to the workflow env mirrors. -----------------
+fx="${tmp_root}/wfcomment"
+manifest="$(make_fixture "${fx}")"
+stub="$(serve_all "${fx}")"
+printf '# ESHU_GO_IMAGE: still the same mirror\n' >>"${fx}/.github/workflows/docker-publish.yml"
+git -C "${fx}" add -A
+git -C "${fx}" commit -qm workflow-mirror-comment
+git -C "${fx}" update-ref refs/remotes/origin/main HEAD
+run_verifier "${manifest}" "${stub}"
+expect_rc 0 "GREEN: a comment-only workflow mirror edit passes"
+
+# --- GREEN: a trailing comment on a workflow env mirror line. ----------------
+fx="${tmp_root}/wftrail"
+manifest="$(make_fixture "${fx}")"
+stub="$(serve_all "${fx}")"
+sed -i.bak 's/^  ESHU_GO_IMAGE: go@sha256:bbbb$/  ESHU_GO_IMAGE: go@sha256:bbbb # same mirror/' "${fx}/.github/workflows/docker-publish.yml" && rm -f "${fx}/.github/workflows/docker-publish.yml.bak"
+git -C "${fx}" add -A
+git -C "${fx}" commit -qm workflow-mirror-trailing-comment
+git -C "${fx}" update-ref refs/remotes/origin/main HEAD
+run_verifier "${manifest}" "${stub}"
+expect_rc 0 "GREEN: a trailing comment on a workflow mirror passes"
+
+# --- GREEN: an unrelated-stage change (runtime + non-scanner job). -----------
+fx="${tmp_root}/unrelated"
+manifest="$(make_fixture "${fx}")"
+stub="$(serve_all "${fx}")"
+sed -i.bak 's/^RUN apk add --no-cache git curl$/RUN apk add --no-cache git curl htop/' "${fx}/Dockerfile" && rm -f "${fx}/Dockerfile.bak"
+sed -i.bak 's/^          target: runtime$/          target: runtime\n          no-cache: true/' "${fx}/.github/workflows/docker-publish.yml" && rm -f "${fx}/.github/workflows/docker-publish.yml.bak"
+git -C "${fx}" add -A
+git -C "${fx}" commit -qm runtime-change
+git -C "${fx}" update-ref refs/remotes/origin/main HEAD
+run_verifier "${manifest}" "${stub}"
+expect_rc 0 "GREEN: an unrelated-stage change passes"
+
+# --- RED: go.mod advanced after the anchor (recorded as staleness). ----------
+fx="${tmp_root}/gomod"
+manifest="$(make_fixture "${fx}")"
+stub="$(serve_all "${fx}")"
+printf '\nrequire example.com/extra v1.2.3\n' >>"${fx}/go/go.mod"
+git -C "${fx}" add -A
+git -C "${fx}" commit -qm gomod-bump
+git -C "${fx}" update-ref refs/remotes/origin/main HEAD
+run_verifier "${manifest}" "${stub}"
+expect_rc 1 "RED: a go.mod bump fails"
+expect_output "STALE" "RED names the staleness verdict for a go.mod bump"
+expect_output "go.mod" "RED names the go.mod input"
 
 # --- Fail closed: bad anchor lines, unknown anchors, missing pins. ----------
 fx="${tmp_root}/noanchor"
