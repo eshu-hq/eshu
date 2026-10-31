@@ -4,9 +4,11 @@
 
 `localsupervisor` is the local Eshu service. It takes ownership of a workspace,
 starts embedded Postgres and (in `local_authoritative`) a NornicDB graph
-backend, supervises the ingester, reducer, and MCP server as child processes,
-and tears all of it back down on exit. It also owns the read side an operator
-sees through `eshu graph status`, `eshu graph logs`, `eshu graph stop`, and
+backend, supervises the ingester and reducer as child processes, serves MCP
+sessions (a loopback `eshu-api` plus the satellite `eshu-mcp-server` with a
+stdio-to-HTTP bridge, see `mcpbridge.go`), and tears all of it back down on
+exit. It also owns the read side an operator sees through
+`eshu graph status`, `eshu graph logs`, `eshu graph stop`, and
 `eshu graph upgrade`.
 
 Three CLI paths reach it: `eshu graph start` and `eshu watch` re-exec into
@@ -81,7 +83,8 @@ See `doc.go` for the godoc contract. The surface splits three ways:
   `RuntimeConfigFromOwnerRecord`, `ManagedGraph`, `ManagedGraphFromRecord`,
   `StartManagedNornicDB`, `StopManagedGraph`, `ChildEnv`, `ChildOverrides`,
   `Child`, `StartChildProcess`, `StopChildProcess`, `WaitManagedChildren`,
-  `WaitOwnerChildren`, `MCPHTTPEnvFromOwner`,
+  `WaitOwnerChildren`, `MCPSession`, `StartMCPSession`, `RunMCPBridge`,
+  `RunAttachedMCPHTTP`,
   `MCPHTTPAllowUnauthenticatedOverride`, and the health/record seams
   `ReadOwnerRecord`, `ProcessAlive`, `SocketHealthy`, `GraphHealthy`.
 

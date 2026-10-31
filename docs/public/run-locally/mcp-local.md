@@ -41,6 +41,23 @@ For an HTTP MCP endpoint backed by the same running local service, use:
 eshu mcp start --workspace-root /path/to/repo --transport http --host 127.0.0.1 --port 8081
 ```
 
+That spawns a session `eshu-api` plus the satellite `eshu-mcp-server` at your
+host:port and waits on both (Ctrl-C stops both). Without `--workspace-root`
+the satellite is exec'd directly and needs a core to read through: start an
+`eshu-api` yourself and point at it, or rely on the CLI default (the resolved
+API base URL, `http://localhost:8080` out of the box):
+
+```bash
+eshu mcp start --transport http --host 127.0.0.1 --port 8081 --core-base-url http://127.0.0.1:8080
+```
+
+Under the hood, every local MCP session is a loopback `eshu-api` plus the
+pinned satellite `eshu-mcp-server` (`scripts/install-local-binaries.sh`
+builds it from `ESHU_MCP_REF`); stdio sessions add a bridge that forwards
+JSON-RPC lines to the satellite. The client-visible surface is unchanged:
+`eshu mcp start` over stdio still attaches-or-boots, and no client config
+migration is needed.
+
 The legacy `--transport sse` value is accepted as an alias for the HTTP
 transport.
 
