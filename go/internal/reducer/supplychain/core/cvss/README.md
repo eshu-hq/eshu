@@ -42,6 +42,12 @@ Base SI and SA take H, L, or N only. Safety (S) exists only for the modified
 metrics MSI and MSA (CVSS v4.0 specification, Table 23), which we validate and
 ignore, so `SI:S` or `SA:S` in a base vector is malformed.
 
+`BaseScore` accepts metrics in any order, a deliberate leniency: the
+specification fixes the order of the metric names (Table 23 for v4.0), but the
+score does not depend on it and sources vary. A metric given twice, base or
+optional, is malformed (`ErrMalformedVector`), so a later value can never
+silently replace an earlier one.
+
 A malformed or unsupported vector (CVSS v2, an unknown version, a missing or
 repeated metric, an unknown metric or value) is ignored and the label, if any,
 decides. A vector that scores 0.0 (no impact) also defers to the label.
