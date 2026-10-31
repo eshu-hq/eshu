@@ -6,8 +6,8 @@ package runtime
 // De-enrolled from the live-postgres-readiness plan under the drift-gate
 // option A (PR #9544, steer 6530394665, second round): the session-against-
 // rotation refinement is suspended while physical-connection attestation
-// stays proven by the enrolled seven-role proof and the enrolled hook-
-// ordering proof, and the code below stays to re-enroll in the post-refit
+// stays proven by the enrolled hook-ordering proof (no seven-role proof
+// stays enrolled), and the code below stays to re-enroll in the post-refit
 // follow-up.
 
 import (

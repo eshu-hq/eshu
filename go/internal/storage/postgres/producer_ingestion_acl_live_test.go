@@ -5,9 +5,9 @@ package postgres
 
 // De-enrolled from the live-postgres-readiness plan under the drift-gate
 // option A (PR #9544, steer 6530394665, second round): the producer
-// write-scope refinement is suspended while the producer role itself stays
-// attested by the enrolled seven-role proof, and the code below stays to
-// re-enroll in the post-refit follow-up.
+// write-scope refinement is suspended with no producer-role attestation
+// proof enrolled, and the code below stays to re-enroll in the post-refit
+// follow-up.
 
 import (
 	"context"
