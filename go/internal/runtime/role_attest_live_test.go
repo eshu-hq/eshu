@@ -3,9 +3,12 @@
 
 package runtime
 
-//eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #9299 disposable PostgreSQL proof that the installed role policy attests the actual physical session against role rotation
-//eshu:readiness:env ESHU_ROLE_ATTEST_DISPOSABLE ESHU_ROLE_ATTEST_DSN
+// De-enrolled from the live-postgres-readiness plan under the drift-gate
+// option A (PR #9544, steer 6530394665, second round): the session-against-
+// rotation refinement is suspended while physical-connection attestation
+// stays proven by the enrolled seven-role proof and the enrolled hook-
+// ordering proof, and the code below stays to re-enroll in the post-refit
+// follow-up.
 
 import (
 	"context"

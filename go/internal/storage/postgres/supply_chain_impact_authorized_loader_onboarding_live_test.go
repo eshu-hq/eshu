@@ -3,9 +3,11 @@
 
 package postgres
 
-//eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #9299 disposable PostgreSQL proof that the authorized impact loader leaves the write on the plain static path when role policy was never installed, instead of admitting a protected set the writer cannot authorize
-//eshu:readiness:env ESHU_POSTGRES_DSN ESHU_POSTGRES_DISPOSABLE
+// De-enrolled from the live-postgres-readiness plan under the drift-gate
+// option A (PR #9544, steer 6530394665, second round): the no-policy
+// plain-write API assertions are suspended while the no-policy path stays
+// proven end to end by the enrolled Disengaged handler test, and the code
+// below stays to re-enroll in the post-refit follow-up.
 
 import (
 	"context"

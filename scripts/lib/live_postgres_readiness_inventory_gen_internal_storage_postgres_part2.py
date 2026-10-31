@@ -72,9 +72,6 @@ TABLE = {
         "go/internal/storage/postgres/prefetch_batch_plan_live_test.go": (
             "TestPrefetchBatchQueriesUsePrimaryKeyLive",
         ),
-        "go/internal/storage/postgres/producer_ingestion_acl_live_test.go": (
-            "TestProducerIngestionACLsLive",
-        ),
         "go/internal/storage/postgres/projector_ack_supersede_lock_order_live_test.go": (
             "TestProjectorAckSupersedeHeldRowRaceLive",
             "TestProjectorAckSupersedeDropsRowClaimedBeforeItsLockLive",
@@ -331,9 +328,6 @@ TABLE = {
         "go/internal/storage/postgres/supply_chain_impact_authorized_loader_live_test.go": (
             "TestAuthorizedImpactLoaderAdmitsCompletedScanLive",
             "TestAuthorizedImpactAdvisoriesEmptyRegistryStaysCompleteLive",
-        ),
-        "go/internal/storage/postgres/supply_chain_impact_authorized_loader_onboarding_live_test.go": (
-            "TestAuthorizedImpactLoaderWithoutAuthorityTablesLeavesPlainWriteLive",
         ),
         "go/internal/storage/postgres/supply_chain_impact_disengaged_build_live_test.go": (
             "TestAuthorizedImpactLoaderDisengagedBuildsAdvisoryFindingLive",

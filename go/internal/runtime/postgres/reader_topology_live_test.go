@@ -3,9 +3,11 @@
 
 package postgres
 
-//eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #9299 disposable PostgreSQL proof that the reader uses a distinct credential on the same physical primary with role-attested session hooks
-//eshu:readiness:env ESHU_READER_TEST_WRITER_DSN ESHU_ROLE_ATTEST_DISPOSABLE ESHU_POSTGRES_DSN
+// De-enrolled from the live-postgres-readiness plan under the drift-gate
+// option A (PR #9544, steer 6530394665, second round): the reader
+// distinct-credential topology proof is suspended while the reader role
+// itself stays attested by the enrolled seven-role proof, and the code
+// below stays to re-enroll in the post-refit follow-up.
 
 import (
 	"context"

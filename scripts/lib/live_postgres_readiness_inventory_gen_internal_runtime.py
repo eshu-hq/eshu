@@ -7,9 +7,6 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./internal/runtime": {
-        "go/internal/runtime/role_attest_live_test.go": (
-            "TestPostgresRoleContractAttestsActualPhysicalSession",
-        ),
         "go/internal/runtime/role_migration_live_test.go": (
             "TestInstalledRolePolicyAttestsRuntimePhysicalConnection",
         ),

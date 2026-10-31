@@ -360,10 +360,6 @@ jobs:
           ESHU_POSTGRES_TEST_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_PREFETCH_BATCH_PLAN_PROOF_DISPOSABLE: '1'
           ESHU_PREFETCH_BATCH_PLAN_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
-          ESHU_PRODUCER_ACL_DISPOSABLE: '1'
-          ESHU_PRODUCER_ACL_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
-          ESHU_PRODUCER_ACL_OWNER_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
-          ESHU_PRODUCER_ACL_PRODUCER_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DISPOSABLE: '1'
           ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_PROJECTOR_SUPERSESSION_PROOF_DISPOSABLE: '1'
@@ -372,7 +368,6 @@ jobs:
           ESHU_REACHABILITY_COMPLETED_INDEX_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_REACHABILITY_EDGES_SCOPE_PROOF_DISPOSABLE: '1'
           ESHU_REACHABILITY_EDGES_SCOPE_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
-          ESHU_READER_TEST_WRITER_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_READINESS_CONTAINER_IDENTITY_PROOF_DISPOSABLE: '1'
           ESHU_READINESS_CONTAINER_IDENTITY_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_RECOVERY_DELTA_ACTIVE_PROOF_DISPOSABLE: '1'
