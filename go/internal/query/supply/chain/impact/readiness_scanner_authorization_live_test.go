@@ -140,7 +140,140 @@ WHERE scanner.instance_id='scanner-read';
 `); err != nil {
 		t.Fatalf("seed target bindings and grants: %v", err)
 	}
+	seedReadinessCompletedReceipts(t, ctx, database)
 	return digest
+}
+
+// seedReadinessCompletedReceipts completes the receipt chain behind the
+// fixture bindings (#9468): a published source generation, live activation,
+// producer grant, authority epochs, role policy, completed attempts with the
+// exact authority vector, receipts, and fact associations for the analysis,
+// package, and warning facts of each target. Epoch literals are distinct per
+// pin so a cross-wired join fails instead of passing.
+func seedReadinessCompletedReceipts(t *testing.T, ctx context.Context, database *sql.DB) {
+	t.Helper()
+	if _, err := database.ExecContext(ctx, `
+INSERT INTO eshu_security.role_policy_state
+  (policy_revision, database_oid, database_identity, system_identifier,
+   inventory_version, owner_role_oid, authority_epoch, active)
+SELECT 3, (SELECT oid FROM pg_database WHERE datname=current_database()),
+  '33333333-3333-3333-3333-333333333333',
+  (SELECT system_identifier FROM pg_control_system()), 1,
+  (SELECT oid FROM pg_roles WHERE rolname=current_user), 1, TRUE;
+INSERT INTO scanner_running_image_producer_grants
+  (principal_oid, producer_instance_id, source_scope_id, producer_class,
+   observation_class, contract_version, grant_epoch, active)
+SELECT 10, 'source-read', 'read-source-' || suffix, 'kubernetes_pod',
+       'running_container', 1, 11, TRUE
+FROM (VALUES ('a1'), ('a2'), ('b')) AS sources(suffix);
+INSERT INTO scanner_running_image_generations
+  (producer_instance_id, source_scope_id, source_generation_id, principal_oid,
+   collection_fence, producer_grant_epoch, producer_class, observation_class,
+   status, observed_from, observed_through, consistency_class, publication_epoch)
+SELECT 'source-read', 'read-source-' || suffix, 'read-gen-' || suffix, 10,
+       1, 11, 'kubernetes_pod', 'running_container',
+       'published', now(), now(), 'observed_interval', 12
+FROM (VALUES ('a1'), ('a2'), ('b')) AS sources(suffix);
+INSERT INTO scanner_running_image_delivery_receipts
+  (producer_instance_id, source_scope_id, source_generation_id, delivery_id,
+   request_sha256)
+SELECT 'source-read', 'read-source-' || suffix, 'read-gen-' || suffix,
+       'read-delivery-' || suffix,
+       'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
+FROM (VALUES ('a1'), ('a2'), ('b')) AS sources(suffix);
+INSERT INTO scanner_running_image_observations
+  (observation_id, producer_instance_id, source_scope_id, source_generation_id,
+   delivery_id, object_id, slot_id, producer_class, observation_class,
+   registry, repository, runtime_image_reference, runtime_digest, runtime_digest_kind,
+   payload_sha256)
+SELECT 9000 + row_number() OVER (),
+       'source-read', 'read-source-' || suffix, 'read-gen-' || suffix,
+       'read-delivery-' || suffix, 'read-object-' || suffix, 'regular:' || suffix,
+       'kubernetes_pod', 'running_container',
+       'registry.example.invalid', 'team/service',
+       'registry.example.invalid/team/service@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+       'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'manifest',
+       'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'
+FROM (VALUES ('a1'), ('a2'), ('b')) AS sources(suffix);
+INSERT INTO scanner_running_image_active_scopes
+  (producer_instance_id, source_scope_id, published_generation_id,
+   activation_epoch, active, published_at)
+SELECT 'source-read', 'read-source-' || suffix, 'read-gen-' || suffix,
+       12, TRUE, now()
+FROM (VALUES ('a1'), ('a2'), ('b')) AS sources(suffix);
+UPDATE scanner_authority_epochs SET authority_epoch=13, active=TRUE
+WHERE authority_kind='collector_instance'
+  AND authority_key=(jsonb_build_array('source-read'))::text;
+UPDATE scanner_authority_epochs SET authority_epoch=17, active=TRUE
+WHERE authority_kind='collector_instance'
+  AND authority_key=(jsonb_build_array('scanner-read'))::text;
+UPDATE scanner_authority_epochs SET authority_epoch=14, active=TRUE
+WHERE authority_kind='tenant' AND authority_key LIKE '%read-tenant-%';
+UPDATE scanner_authority_epochs SET authority_epoch=15, active=TRUE
+WHERE authority_kind='workspace';
+UPDATE scanner_authority_epochs SET authority_epoch=16, active=TRUE
+WHERE authority_kind='scope_grant';
+UPDATE scanner_image_target_sources AS binding SET
+  canonical_observation_id=observation.observation_id,
+  pinned_source_activation_epoch=12, pinned_producer_grant_epoch=11,
+  pinned_source_instance_epoch=13, pinned_tenant_epoch=14,
+  pinned_workspace_epoch=15, pinned_scope_grant_epoch=16,
+  pinned_registry_epoch=17, pinned_role_policy_revision=3,
+  pinned_database_identity='33333333-3333-3333-3333-333333333333'
+FROM scanner_running_image_observations AS observation
+WHERE observation.producer_instance_id='source-read'
+  AND observation.source_scope_id=binding.source_scope_id
+  AND observation.source_generation_id=binding.source_generation_id;
+`); err != nil {
+		t.Fatalf("seed scanner publication chain: %v", err)
+	}
+	if _, err := database.ExecContext(ctx, `
+INSERT INTO scanner_image_target_attempts
+  (work_item_id, scan_scope_id, binding_id, status, created_at, finished_at,
+   claim_id, claim_fencing_token, claim_owner_id, completed_authority_vector)
+SELECT 'read-work-' || suffix,
+       CASE WHEN suffix='b' THEN 'read-target-b' ELSE 'read-target-a' END,
+       'read-binding-' || suffix, 'completed', now(), now(),
+       'read-claim-' || suffix, 7, 'read-owner',
+       jsonb_build_object(
+         'source_activation_epoch',12, 'producer_grant_epoch',11,
+         'source_instance_epoch',13, 'tenant_epoch',14,
+         'workspace_epoch',15, 'scope_grant_epoch',16,
+         'registry_epoch',17, 'role_policy_revision',3,
+         'database_identity','33333333-3333-3333-3333-333333333333')
+FROM (VALUES ('a1'), ('a2'), ('b')) AS sources(suffix);
+INSERT INTO scanner_image_scan_results
+  (result_receipt_id, work_item_id, binding_id, scan_scope_id, scan_generation_id,
+   claim_id, claim_fencing_token, claim_owner_id, completed_authority_vector, completed_at)
+SELECT 'read-receipt-' || suffix, 'read-work-' || suffix, 'read-binding-' || suffix,
+       CASE WHEN suffix='b' THEN 'read-target-b' ELSE 'read-target-a' END,
+       CASE WHEN suffix='b' THEN 'read-scan-b' ELSE 'read-scan-a' END,
+       'read-claim-' || suffix, 7, 'read-owner',
+       jsonb_build_object(
+         'source_activation_epoch',12, 'producer_grant_epoch',11,
+         'source_instance_epoch',13, 'tenant_epoch',14,
+         'workspace_epoch',15, 'scope_grant_epoch',16,
+         'registry_epoch',17, 'role_policy_revision',3,
+         'database_identity','33333333-3333-3333-3333-333333333333'),
+       now()
+FROM (VALUES ('a1'), ('a2'), ('b')) AS sources(suffix);
+UPDATE fact_records SET fencing_token=7
+WHERE fact_id IN ('analysis-target-a', 'os-a', 'warning-a', 'analysis-target-b', 'os-b', 'warning-b');
+INSERT INTO scanner_image_scan_fact_associations
+  (fact_id, result_receipt_id, scan_scope_id, scan_generation_id, fact_kind,
+   payload_sha256, fencing_token)
+SELECT fact.fact_id, 'read-receipt-' || receipt.suffix,
+       fact.scope_id, fact.generation_id, fact.fact_kind,
+       encode(sha256(convert_to(fact.payload::text, 'UTF8')), 'hex'),
+       fact.fencing_token
+FROM fact_records AS fact
+JOIN (VALUES ('a1', ARRAY['warning-a']),
+             ('a2', ARRAY['analysis-target-a', 'os-a']),
+             ('b', ARRAY['analysis-target-b', 'os-b', 'warning-b'])) AS receipt(suffix, facts)
+  ON fact.fact_id = ANY(receipt.facts);
+`); err != nil {
+		t.Fatalf("seed completed scan receipts: %v", err)
+	}
 }
 
 func readReadinessAnalysisPackages(t *testing.T, ctx context.Context, database *sql.DB, digest, tenant string, scopeIDs ...string) (int, int) {
@@ -194,6 +327,15 @@ func TestReadinessScannerSourceBindingAuthorizationLive(t *testing.T) {
 	if analysis, packages := readReadinessAnalysisPackages(t, ctx, database, digest, "read-tenant-a", "image://derived/orphan"); analysis != 0 || packages != 0 {
 		t.Errorf("unassociated derived scope leaked through static branch: analysis=%d packages=%d, want 0/0", analysis, packages)
 	}
+	if analysis, packages := readReadinessAnalysisPackages(t, ctx, database, digest, "read-tenant-a", "read-source-a1", "read-source-a2"); analysis != 1 || packages != 1 {
+		t.Fatalf("tenant A duplicate bindings: analysis=%d packages=%d, want 1/1", analysis, packages)
+	}
+	if analysis, packages := readReadinessAnalysisPackages(t, ctx, database, digest, "read-tenant-b", "read-source-b"); analysis != 1 || packages != 1 {
+		t.Fatalf("tenant B: analysis=%d packages=%d, want 1/1", analysis, packages)
+	}
+	if warnings := readReadinessImageWarnings(t, ctx, database, digest, "read-tenant-a", "read-source-a1", "read-source-a2"); warnings != 1 {
+		t.Fatalf("tenant A warnings=%d, want 1", warnings)
+	}
 	// A hosted AllScopes flag without source grants must not bypass binding
 	// authorization even when a direct store caller skips route middleware.
 	allScopesContext := auth.ContextWithAuthContext(ctx, auth.AuthContext{
@@ -222,7 +364,31 @@ func TestReadinessScannerSourceBindingAuthorizationLive(t *testing.T) {
 	}
 	if _, err := database.ExecContext(ctx, `UPDATE collector_instances SET configuration =
         '{"derive_from_running_images":true,"registry_domains":[{"authorization_domain":"read-domain","registry":"registry.example.invalid"}]}'::jsonb
-        WHERE instance_id='scanner-read'`); err != nil {
+        WHERE instance_id='scanner-read';
+-- Re-enable rewrites the scanner configuration, which bumps the collector
+-- epoch; re-pin the bindings the way a re-admission would, rebuilding the
+-- receipt and attempt vectors that embed the pins (#9468).
+UPDATE scanner_image_target_sources SET pinned_registry_epoch=(
+  SELECT authority_epoch FROM scanner_authority_epochs
+  WHERE authority_kind='collector_instance'
+    AND authority_key=(jsonb_build_array('scanner-read'))::text);
+UPDATE scanner_image_scan_results AS receipt SET completed_authority_vector=(
+  SELECT jsonb_build_object(
+    'source_activation_epoch',binding.pinned_source_activation_epoch,
+    'producer_grant_epoch',binding.pinned_producer_grant_epoch,
+    'source_instance_epoch',binding.pinned_source_instance_epoch,
+    'tenant_epoch',binding.pinned_tenant_epoch,
+    'workspace_epoch',binding.pinned_workspace_epoch,
+    'scope_grant_epoch',binding.pinned_scope_grant_epoch,
+    'registry_epoch',binding.pinned_registry_epoch,
+    'role_policy_revision',binding.pinned_role_policy_revision,
+    'database_identity',binding.pinned_database_identity)
+  FROM scanner_image_target_sources AS binding
+  WHERE binding.binding_id=receipt.binding_id);
+UPDATE scanner_image_target_attempts AS attempt SET completed_authority_vector=(
+  SELECT receipt.completed_authority_vector
+  FROM scanner_image_scan_results AS receipt
+  WHERE receipt.work_item_id=attempt.work_item_id);`); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := database.ExecContext(ctx, `UPDATE fact_records SET payload='{"collector_instance_id":"changed"}'::jsonb
@@ -242,8 +408,17 @@ WHERE generation_id='read-gen-a1';
 INSERT INTO scope_generations (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status)
 VALUES ('read-gen-a1-replacement', 'read-source-a1', 'snapshot', now(), now(), 'active');
 UPDATE ingestion_scopes SET active_generation_id='read-gen-a1-replacement'
-WHERE scope_id='read-source-a1';`); err != nil {
+WHERE scope_id='read-source-a1';
+-- The source moved on: the scanner publication for read-gen-a1 is retired
+-- with it, so the a1 binding goes stale while a2 stays live (#9468). The
+-- later ingestion-only revert cannot resurrect the retired publication.
+UPDATE scanner_running_image_generations SET status='failed'
+WHERE producer_instance_id='source-read' AND source_scope_id='read-source-a1'
+  AND source_generation_id='read-gen-a1';`); err != nil {
 		t.Fatal(err)
+	}
+	if analysis, packages := readReadinessAnalysisPackages(t, ctx, database, digest, "read-tenant-a", "read-source-a1", "read-source-a2"); analysis != 1 || packages != 1 {
+		t.Fatalf("tenant A one live binding remains after source generation switch: analysis=%d packages=%d, want 1/1", analysis, packages)
 	}
 	if _, err := database.ExecContext(ctx, `
 UPDATE scope_generations SET status='superseded', superseded_at=now()
@@ -261,6 +436,9 @@ WHERE scope_id='read-source-a1';`); err != nil {
 WHERE tenant_id='read-tenant-a' AND scope_id='read-source-a1'`); err != nil {
 		t.Fatal(err)
 	}
+	if analysis, packages := readReadinessAnalysisPackages(t, ctx, database, digest, "read-tenant-a", "read-source-a1", "read-source-a2"); analysis != 1 || packages != 1 {
+		t.Fatalf("tenant A one live binding remains after first grant revocation: analysis=%d packages=%d, want 1/1", analysis, packages)
+	}
 	if _, err := database.ExecContext(ctx, `UPDATE tenant_scope_grants SET tombstoned_at=now()
 WHERE tenant_id='read-tenant-a' AND scope_id='read-source-a2'`); err != nil {
 		t.Fatal(err)
@@ -270,6 +448,12 @@ WHERE tenant_id='read-tenant-a' AND scope_id='read-source-a2'`); err != nil {
 	}
 	if warnings := readReadinessImageWarnings(t, ctx, database, digest, "read-tenant-a", "read-source-a1", "read-source-a2"); warnings != 0 {
 		t.Fatalf("tenant A revoked warnings=%d, want 0", warnings)
+	}
+	if analysis, packages := readReadinessAnalysisPackages(t, ctx, database, digest, "read-tenant-b", "read-source-b"); analysis != 1 || packages != 1 {
+		t.Fatalf("tenant B after A revocation: analysis=%d packages=%d, want 1/1", analysis, packages)
+	}
+	if warnings := readReadinessImageWarnings(t, ctx, database, digest, "read-tenant-b", "read-source-b"); warnings != 1 {
+		t.Fatalf("tenant B warnings after A revocation=%d, want 1", warnings)
 	}
 	if _, err := database.ExecContext(ctx, `UPDATE tenant_scope_grants SET tombstoned_at=NULL
 WHERE tenant_id='read-tenant-a' AND scope_id IN ('read-source-a1','read-source-a2')`); err != nil {

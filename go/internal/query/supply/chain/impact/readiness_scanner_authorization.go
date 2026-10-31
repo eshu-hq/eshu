@@ -16,9 +16,10 @@ import (
 var listCurrentReadinessQuery = currentScannerReadinessSQL(ListReadinessQuery)
 
 // The scan-result receipt owns exact analysis, warning, and OS-package fact
-// membership. The final guard remains closed until the protected completion
-// writer and full current source vector are available; a target-scope fact by
-// itself cannot make readiness current.
+// membership. The branch opens only behind a completed attempt whose claim
+// and exact authority vector match the receipt, over a published source
+// generation with a live activation, grant, and epoch chain (#9468); a
+// target-scope fact by itself cannot make readiness current.
 const currentScannerFactPredicate = `
       AND (
         (fact.scope_id NOT LIKE 'image://derived/%'
@@ -46,6 +47,13 @@ const currentScannerFactPredicate = `
            AND attempt.claim_fencing_token = receipt.claim_fencing_token
            AND attempt.claim_owner_id = receipt.claim_owner_id
            AND attempt.completed_authority_vector = receipt.completed_authority_vector
+      JOIN fact_records AS source_fact
+        ON source_fact.fact_id = binding.source_fact_id
+       AND source_fact.scope_id = binding.source_scope_id
+       AND source_fact.generation_id = binding.source_generation_id
+       AND source_fact.is_tombstone = FALSE
+       AND encode(sha256(convert_to(source_fact.payload::text,'UTF8')),'hex')
+         = binding.source_payload_sha256
       JOIN scanner_running_image_observations AS observation
         ON observation.observation_id = binding.canonical_observation_id
        AND observation.producer_instance_id = binding.source_collector_instance_id
@@ -183,7 +191,6 @@ const currentScannerFactPredicate = `
                  AND target.subject_class = $29
                  AND binding.policy_revision_hash = $30
                  AND binding.source_scope_id = ANY($31::text[])))
-            AND FALSE
         )
       )`
 
