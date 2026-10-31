@@ -13,8 +13,10 @@ planners), `go/internal/queue/doc.go`, workflow tables and migrations under
 storage `workflow_*` store files (stay until cutover), Dockerfile and Helm
 and compose deployment surfaces, org repos, deployment.
 
-Verified at worktree HEAD `6ca3ad9294` (`drive/8875-acceptance-removal`,
-2026-10-30; equals `origin/main`, no rebase drift). Prior lock
+Verified at worktree HEAD `8ec6d11ddf` (`drive/8875-acceptance-removal`,
+2026-10-30; equals `origin/main` after rebase, zero local commits replayed
+— the pre-rebase head `2625a58342` had already merged via `#9666`, so the
+rebase fast-forwarded with no conflicts). Prior lock
 `dc65b4d597` (2026-10-28) is superseded by this refresh. Dest
 `eshu-hq/eshu-workflow` is a full implementation repo at `origin/main`
 `be170b3` (protocol, claim-plane server, coordinator port, both binaries,
@@ -33,18 +35,27 @@ worktree. All counts below are `git grep` / `git ls-files` at this HEAD
 
 ## 1. Command surface
 
-`go/cmd/workflow-coordinator/` — 10 files at this HEAD (7 `.go`:
+`go/cmd/workflow-coordinator/` — 12 files at this HEAD (9 `.go`:
 `main.go`, `doc.go`, `tenant_grants.go`, `grant_observer.go` (+ test),
-`workflow_control_store_wiring.go` (+ test); plus `AGENTS.md`,
-`README.md`, this census file), live verified via `git ls-files`:
+`stale_activation.go` (+ test), `workflow_control_store_wiring.go`
+(+ test); plus `AGENTS.md`, `README.md`, this census file), live verified
+via `git ls-files`. Growth since the `6ca3ad9294` refresh (+2): the
+`#9659`-landed stale-activation reconcile/report pair (merged
+2026-10-30, `2cda8cb318`):
 
 | File | Role | Key symbol |
 | --- | --- | --- |
-| `main.go` | entry point, Postgres-only wiring (`runtimecfg.OpenPostgres`), per-family planner registration | `func main`, `eshu-workflow-coordinator` version flag |
+| `main.go` | entry point, Postgres-only wiring (`runtimecfg.OpenPostgres`), per-family planner registration; builds `coordinatorMetrics` before config load so stale-skip reporting is instrumented | `func main`, `eshu-workflow-coordinator` version flag |
 | `doc.go` | package contract | binary purpose, dark-by-default note |
 | `tenant_grants.go` | tenant-grant reader wiring for claim scope | grant re-check inputs |
 | `grant_observer.go` (+ test) | grant observation | observer wiring |
+| `stale_activation.go` (+ test, `#9659`) | reconcile + report registry activations skipped at startup for absent config files; best-effort, never fails startup | `reportStaleActivationSkips` |
 | `workflow_control_store_wiring.go` (+ test) | `WorkflowControlStore` construction | store wiring |
+
+(Plus `REMOVAL_PREP.md`: removal sequence plan — assembly order,
+symbol-family repointing, 169-file importer census, throughput PREP,
+provenance — PREP ONLY, no removal. Counted separately from the 12
+assembly files above.)
 
 The binary opens Postgres only and never writes the graph: zero
 `neo4j|nornic|cypher` hits (no graph-backend driver or query language) in
@@ -60,7 +71,7 @@ file's own sentence).
 
 ## 2. Workflow library (moves with the coordinator)
 
-`go/internal/workflow/` — 77 entries (72 `.go`: 64 top-level + 8 in
+`go/internal/workflow/` — 78 entries (73 `.go`: 65 top-level + 8 in
 `parity/`; 5 non-go: `AGENTS.md`, `README.md`,
 `claim-plane-client-evidence.md`, `parity/AGENTS.md`,
 `parity/README.md`), live verified via `git ls-files`. Growth since the
@@ -90,13 +101,23 @@ share this transaction and must replace it explicitly (see §6).
 
 ## 3. Coordinator tree (moves with the coordinator)
 
-`go/internal/coordinator/` — 102 top-level `.go` files (39 non-test +
+`go/internal/coordinator/` — 103 top-level `.go` files (40 non-test +
 63 test) plus
 `planner/{aws,component,contract,gcp,grafana,jira,loki,pagerduty,prometheus,tempo,tfstate}`
-(11 dirs, unchanged). Net +7 since the lock: activation derivation/startup
-tests, stale-skip tests (`#9659` area), package/scheduler/slot tests; minus
-`vault_live_service.go` + `vault/live/` planner (3 files deleted with the
-`8869` extraction).
+(11 dirs, unchanged). Net +1 since the `6ca3ad9294` refresh: the
+`#9659`-landed `stale_activation_metrics.go` (new `stale_activation_skips_total`
+counter + `RecordStaleActivationSkip`; reap instruments split into
+`newReapInstruments` under the funlen limit); the top-level test-file set is
+unchanged across the rebase window. `#9659` behavior ported live (no
+delete-by-omission): `StaleActivationSkip` / `StaleActivationReconciliation`
+/ `ReconcileStaleComponentActivations` (revalidate-before-drop per owner
+review) in `component_activation_config.go`, `Config.StaleComponentActivationSkips`
+(plumbed in `config.go`, ignored by `Validate`), `Metrics.RecordStaleActivationSkip`
++ `StaleActivationSkipObservation` in `metrics.go` / `stale_activation_metrics.go`,
+README + activation-derive/startup/stale-skip test updates.
+Watch: open follow-up `#9676` (`drive/9634-thread-followup`) touches
+`component_activation_config.go` + `metrics.go` doc lines only — no lane
+takeover; the next refresh re-checks those files post-merge.
 `service.go` holds the `Service` reconcile/reap loops and per-family planner
 interfaces (TerraformState, OCI, PackageRegistry, VulnIntel, AWSScheduled,
 plus cicd/run, sbom/attestation, scanner/worker, security/alert
@@ -134,13 +155,16 @@ github.com/eshu-hq/eshu/go`, `go 1.26.10`.
   optional `ClaimPacingChecker.CheckClaimPacing`. This is the true external
   claim surface; collector binaries stay out of `eshu-workflow`.
 - Coordinator + claimed collectors + `storage/postgres` `workflow_*` files
-  are the full in-tree consumer set: 166 non-test files import the
-  `go/internal/workflow` root package, all inside `{coordinator,
-  collector, storage/postgres, workflow-coordinator + collector cmds +
-  scanner-worker cmd, api metrics_source}` (exact-match `git grep`
-  census). Removing `go/internal/workflow` must repoint every one of
-  these; the count is the floor for the per-file importer census, not a
-  substitute for it.
+  are the full in-tree consumer set: 169 non-test files import the
+  `go/internal/workflow` root package — 61 `go/internal/coordinator`, 57
+  `go/internal/collector`, 17 `go/internal/storage`, 2 `go/internal/workflow`
+  self (parity harness), 1 `go/cmd/workflow-coordinator`, 1
+  `go/cmd/scanner-worker`, 1 `go/cmd/api`, 29 collector cmds (exact-match
+  `git grep` census at `8ec6d11ddf`; the importer *set* is identical at
+  `6ca3ad9294`, so the +3 vs the earlier 166 figure is method — recounting
+  the old commit with this method also yields 169 — not drift). Removing
+  `go/internal/workflow` must repoint every one of these; the count is the
+  floor for the per-file importer census, not a substitute for it.
 - Read plane replaces direct table reads in `workflow_status.go:40-102` and
   backpressure status (runs, work items, completeness, collector
   instances, queue depth).
@@ -196,13 +220,14 @@ rollback rehearsal.
   leases, and scheduler state; the satellite owns nothing until a
   standing cutover claim, which is HELD per the 2026-10-30
   approval-coverage ruling. No in-tree deletion: removal stays gated on
-  production acceptance per `#8875`, and additionally on `#9659`
-  merged/closed (open PR on `drive/9634`: stale-registry-activation
-  counting/reconcile; adds `go/cmd/workflow-coordinator/stale_activation.go`
-  (+ test) and edits `main.go` plus coordinator activation/config/metrics
-  files — file list verified via `gh pr view 9659` 2026-10-30 — so the
-  next refresh expects 12 cmd files and the removal diff rebases around it
-  with no takeover).
+  production acceptance per `#8875`, and additionally on `#9659`, which
+  is now MERGED (`2cda8cb318`, 2026-10-30: stale-registry-activation
+  counting/reconcile from `drive/9634`, 14 files — file list verified via
+  `gh pr view 9659`, all 14 present at this HEAD, all behavior ported live
+  in §§1–3 above, never deleted-by-omission). The expected 12 cmd files
+  have landed; the removal diff no longer rebases around an open `#9659`.
+  (`go/internal/workflow/` counts in §2 already include the new
+  `protocol_version_test.go` from this refresh: 78 entries, 73 `.go`.)
 - Prerequisites to reuse: `#6708` SDK publication, `#6709` producer
   delegation, `#6710` standalone template, `#4047` gate implementation —
   all four CLOSED (live `gh` check 2026-10-28).
@@ -265,6 +290,41 @@ that repo's references too. Binary is dark-by-default and Postgres-only.
 - Removal stays HELD: needs the `#9376` proofs + `#9659` merged/closed +
   this fresh census + the file-level boundary (assembly
   `go/cmd/workflow-coordinator/` + assets first once the satellite is
-  standing-authoritative, then per-file importer census from the 166-file
+  standing-authoritative, then per-file importer census from the 169-file
   floor in §5, then symbol-family repointing to the tagged module — no
   `git rm -r` of `go/internal/workflow` / `go/internal/coordinator`).
+
+## 11. Census refresh — 2026-10-30 post-`#9659` (this file only; no code, no removal)
+
+- Refresh base: `8ec6d11ddf` (= `origin/main` after rebase; pre-rebase head
+  `2625a58342` had merged via `#9666`, so zero commits replayed, no
+  conflicts). Method: `git ls-files` / `git grep` throughout.
+- `#9659` MERGED (`2cda8cb318`): all 14 activation files present at this
+  HEAD; every behavior ported live in §§1–3 (stale-skip reconcile/report,
+  `ReconcileStaleComponentActivations` with revalidate-before-drop,
+  `stale_activation_skips_total` counter, reap-instrument split). Nothing
+  deleted-by-omission. Unchanged across the window: fact Kinds 187,
+  importer set identical (169). `go/internal/workflow/` grows 77→78
+  entries (72→73 `.go`) for the new `protocol_version_test.go` in this
+  refresh — the only delta, and it is the compat proof itself.
+- Peer-claim check 2026-10-30: all 27 `#8875` comments are owner-posted lane
+  updates (no peer claim); open `#9676` (`drive/9634-thread-followup`, same
+  `#9634` thread) touches `component_activation_config.go` + `metrics.go`
+  doc lines only — this lane edits no code files, so no takeover; the next
+  refresh re-checks those two files post-merge.
+- Still HELD (no removal merge): `#9376` proofs (compat matrix,
+  acceptance-scope contention/lock-ordering, provenance; in-cluster
+  throughput needs its own write grant — PREP only), standing cutover
+  claim, satellite standing-authoritative, per-file importer census +
+  symbol-family repointing plan.
+- `#9376` proofs advanced this refresh (see `REMOVAL_PREP.md` §§3–5 for
+  the audit notes): compat matrix — new `protocol_version_test.go`
+  (`TestClaimPlaneClientPinsProtocolMajorOne` over all 15 client routes,
+  `TestClaimPlaneClientVersionMismatchIsInvalidNotRejected`; both
+  mutation-proven; oldest=newest=v1); contention/lock-ordering — static
+  audit (single item→claim order, reap inversion neutralized by
+  SKIP LOCKED, advisory single-per-txn, dispatcher mutex config-only);
+  provenance — digest `03d9f976` ← run `40779192627` @ `b6497fce`
+  re-verified, dark state confirmed live read-only, 18-commit satellite
+  drift noted, SLSA absent. Deployed-binary contention + in-cluster
+  throughput still need the write grant (PREP only, procedure in §4).
