@@ -35,4 +35,8 @@
 // expected provider fact kinds, stable keys and full payload maps. The maps
 // carry producer metadata beyond this module's typed CVE and source-snapshot
 // fields; the per-kind valid/invalid examples remain the schema-shape fixtures.
+//
+// OSVSeverityGolden supplies synthetic OSV records and the cvss_vector and
+// severity_label a conforming OSV collector writes on vulnerability.cve for
+// each, so core and the extracted collector prove the same severity rules.
 package fixturepack

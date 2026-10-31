@@ -1,0 +1,195 @@
+{
+  "description": "Synthetic OSV records and the severity fields a conforming OSV collector must write on the vulnerability.cve payload. cvss_vector comes from the severity[] entry of the highest CVSS version (CVSS_V4, then CVSS_V3); CVSS_V2 and unknown types never fill it. severity_label comes from database_specific.severity, lower-cased, with MODERATE mapped to medium; an unrecognized or non-string value leaves it empty. No case carries cvss_score.",
+  "cases": [
+    {
+      "name": "v3_vector_and_high_label",
+      "record": {
+        "schema_version": "1.6.0",
+        "id": "GHSA-aaaa-0001-0001",
+        "aliases": ["CVE-2026-1001"],
+        "severity": [
+          {"type": "CVSS_V3", "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"}
+        ],
+        "database_specific": {"severity": "HIGH"}
+      },
+      "expected": {
+        "advisory_id": "GHSA-aaaa-0001-0001",
+        "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+        "severity_label": "high",
+        "severity": [
+          {"type": "CVSS_V3", "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"}
+        ]
+      }
+    },
+    {
+      "name": "v4_preferred_over_v3_and_moderate_is_medium",
+      "record": {
+        "schema_version": "1.6.0",
+        "id": "GHSA-aaaa-0002-0002",
+        "aliases": ["CVE-2026-1002"],
+        "severity": [
+          {"type": "CVSS_V3", "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"},
+          {"type": "CVSS_V4", "score": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N"}
+        ],
+        "database_specific": {"severity": "MODERATE"}
+      },
+      "expected": {
+        "advisory_id": "GHSA-aaaa-0002-0002",
+        "cvss_vector": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N",
+        "severity_label": "medium",
+        "severity": [
+          {"type": "CVSS_V3", "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"},
+          {"type": "CVSS_V4", "score": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N"}
+        ]
+      }
+    },
+    {
+      "name": "first_v3_entry_wins",
+      "record": {
+        "schema_version": "1.6.0",
+        "id": "GHSA-aaaa-0003-0003",
+        "severity": [
+          {"type": "CVSS_V3", "score": "CVSS:3.0/AV:L/AC:L/PR:L/UI:N/S:U/C:L/I:L/A:L"},
+          {"type": "CVSS_V3", "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"}
+        ],
+        "database_specific": {"severity": "LOW"}
+      },
+      "expected": {
+        "advisory_id": "GHSA-aaaa-0003-0003",
+        "cvss_vector": "CVSS:3.0/AV:L/AC:L/PR:L/UI:N/S:U/C:L/I:L/A:L",
+        "severity_label": "low",
+        "severity": [
+          {"type": "CVSS_V3", "score": "CVSS:3.0/AV:L/AC:L/PR:L/UI:N/S:U/C:L/I:L/A:L"},
+          {"type": "CVSS_V3", "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"}
+        ]
+      }
+    },
+    {
+      "name": "v2_only_leaves_vector_empty",
+      "record": {
+        "schema_version": "1.6.0",
+        "id": "GHSA-aaaa-0004-0004",
+        "severity": [
+          {"type": "CVSS_V2", "score": "AV:N/AC:L/Au:N/C:P/I:P/A:P"}
+        ],
+        "database_specific": {"severity": "CRITICAL"}
+      },
+      "expected": {
+        "advisory_id": "GHSA-aaaa-0004-0004",
+        "cvss_vector": "",
+        "severity_label": "critical",
+        "severity": [
+          {"type": "CVSS_V2", "score": "AV:N/AC:L/Au:N/C:P/I:P/A:P"}
+        ]
+      }
+    },
+    {
+      "name": "v3_beats_v2_when_both_present",
+      "record": {
+        "schema_version": "1.6.0",
+        "id": "GHSA-aaaa-0005-0005",
+        "severity": [
+          {"type": "CVSS_V2", "score": "AV:N/AC:L/Au:N/C:P/I:P/A:P"},
+          {"type": "CVSS_V3", "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"}
+        ],
+        "database_specific": {"severity": "HIGH"}
+      },
+      "expected": {
+        "advisory_id": "GHSA-aaaa-0005-0005",
+        "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+        "severity_label": "high",
+        "severity": [
+          {"type": "CVSS_V2", "score": "AV:N/AC:L/Au:N/C:P/I:P/A:P"},
+          {"type": "CVSS_V3", "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"}
+        ]
+      }
+    },
+    {
+      "name": "malformed_v4_falls_back_to_valid_v3",
+      "record": {
+        "schema_version": "1.6.0",
+        "id": "GHSA-aaaa-0006-0006",
+        "severity": [
+          {"type": "CVSS_V4", "score": "9.8"},
+          {"type": "CVSS_V3", "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"}
+        ],
+        "database_specific": {"severity": "HIGH"}
+      },
+      "expected": {
+        "advisory_id": "GHSA-aaaa-0006-0006",
+        "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+        "severity_label": "high",
+        "severity": [
+          {"type": "CVSS_V4", "score": "9.8"},
+          {"type": "CVSS_V3", "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"}
+        ]
+      }
+    },
+    {
+      "name": "unknown_type_and_unknown_label_are_ignored",
+      "record": {
+        "schema_version": "1.6.0",
+        "id": "GHSA-aaaa-0007-0007",
+        "severity": [
+          {"type": "Ubuntu", "score": "medium"}
+        ],
+        "database_specific": {"severity": "SEVERE"}
+      },
+      "expected": {
+        "advisory_id": "GHSA-aaaa-0007-0007",
+        "cvss_vector": "",
+        "severity_label": "",
+        "severity": [
+          {"type": "Ubuntu", "score": "medium"}
+        ]
+      }
+    },
+    {
+      "name": "non_string_label_is_ignored",
+      "record": {
+        "schema_version": "1.6.0",
+        "id": "GHSA-aaaa-0008-0008",
+        "database_specific": {"severity": 7}
+      },
+      "expected": {
+        "advisory_id": "GHSA-aaaa-0008-0008",
+        "cvss_vector": "",
+        "severity_label": "",
+        "severity": null
+      }
+    },
+    {
+      "name": "no_severity_anywhere",
+      "record": {
+        "schema_version": "1.6.0",
+        "id": "GHSA-aaaa-0009-0009"
+      },
+      "expected": {
+        "advisory_id": "GHSA-aaaa-0009-0009",
+        "cvss_vector": "",
+        "severity_label": "",
+        "severity": null
+      }
+    },
+    {
+      "name": "mixed_case_and_whitespace_are_trimmed",
+      "record": {
+        "schema_version": "1.6.0",
+        "id": "GHSA-aaaa-0010-0010",
+        "severity": [
+          {"type": " cvss_v3 ", "score": "  CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H  "}
+        ],
+        "database_specific": {"severity": "  Moderate "}
+      },
+      "expected": {
+        "advisory_id": "GHSA-aaaa-0010-0010",
+        "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+        "severity_label": "medium",
+        "severity": [
+          {"type": "cvss_v3", "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"}
+        ]
+      }
+    }
+  ],
+  "expected_absent_payload_keys": ["cvss_score"]
+}
