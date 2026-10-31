@@ -202,4 +202,9 @@ func TestValidateReturnedClaimComparesScopeQueries(t *testing.T) {
 	if err := validateReturnedClaim(withQueries, tampered); err == nil {
 		t.Fatal("tampered scope query version accepted, want identity mismatch")
 	}
+	reordered := withQueries
+	reordered.ScopeQueries = []sdkcollector.ScopeQuery{slotQueries()[1], slotQueries()[0]}
+	if err := validateReturnedClaim(withQueries, reordered); err == nil {
+		t.Fatal("reordered scope queries accepted, want identity mismatch")
+	}
 }
