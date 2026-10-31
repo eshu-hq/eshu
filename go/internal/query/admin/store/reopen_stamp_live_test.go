@@ -3,10 +3,6 @@
 
 package store
 
-//eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #9320 PostgreSQL 18.6 full-bootstrap proof that the admin dead-letter replay and the admin repo_dependency intent reopen stamp reopened_at with the store clock, so a 100-hour-old row ages from the admin action; about 1.6 s locally in an isolated schema
-//eshu:readiness:env ESHU_POSTGRES_DSN
-
 import (
 	"context"
 	"database/sql"
