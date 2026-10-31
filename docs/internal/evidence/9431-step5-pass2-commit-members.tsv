@@ -1,0 +1,2 @@
+scope_id	generation_id	prior_scope_status	class	in_oracle90
+vuln-intel://osv/npm/axios?version=1.18.1&version=1.19.0&version=1.20.0&version=1.5.0	vulnerability_intelligence:defdbf479abd3cb9ef86666d267ac311c8b8ce2e53f1338571258b3619a1506f	active	W	yes
