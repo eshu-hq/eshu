@@ -64,7 +64,7 @@ flowchart LR
   webhook[webhook-listener] --> postgres
   api[api] --> graph
   api --> postgres
-  mcp[mcp-server] --> api
+  mcp[eshu-mcp-server satellite] --> api
 ```
 
 For the full lifecycle of any one binary, open its `README.md` and

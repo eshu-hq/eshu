@@ -104,7 +104,7 @@ probe cadence, never on the query or graph-write hot paths. The schema probe is
 one indexed receipt lookup plus a zero-row schema check on the existing Postgres
 pool. The other probes check Postgres and Bolt connectivity. No new pool, worker, queue, or goroutine pool is
 introduced. Verified
-by `go test ./internal/runtime ./cmd/api ./cmd/mcp-server -count=1`.
+by `go test ./internal/runtime ./cmd/api -count=1`.
 
 Observability Evidence: `/readyz` `503` responses name the failing dependency
 and its error, so an operator can triage graph-down vs. Postgres pool-exhaustion
