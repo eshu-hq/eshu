@@ -34,8 +34,8 @@ INVENTORY = Path(__file__).with_name("postgres_scheduled_inventory.json")
 WORKFLOW = Path(".github/workflows/postgres-scheduled-live.yml")
 FRAGMENT = Path("specs/ci-pr-workflows.d/postgres-scheduled-live.yml")
 WORKFLOW_SHA256 = "3b4804b1ee185b3a397d052ecf768e75e556ae2240e92a3eb37f518fa100eb0f"
-BULK_ACTION_SHA256 = "937bb489c42ec113d8886a594a10c56fae2872610ccf667ff72c0a25203e848b"
-STORAGE_ACTION_SHA256 = "53327aaa04e313ce57aae169e84ef977773f07afdb9df899ffd1e9ea01c5370a"
+BULK_ACTION_SHA256 = "cc73318d9296499ccedf5593a4aadb7a84a301cd2c89e5c2c962fb9c07dbbd54"
+STORAGE_ACTION_SHA256 = "4e56bd463ece4061342043abedc420580c498ff91810396e6ac5d861ecf38587"
 TEST_PATTERN = re.compile(r"^func (Test\w+)\(", re.MULTILINE)
 GROUP_LABELS = {
     "crossplane": "Crossplane",

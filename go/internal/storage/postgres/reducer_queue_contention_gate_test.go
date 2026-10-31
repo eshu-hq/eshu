@@ -56,7 +56,7 @@ func TestReducerContentionGateNoDoubleClaimUnderConcurrency(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	owningDB, schemaName := openReducerFairnessDBWithSchema(t, ctx, dsn)
+	owningDB, targetDSN := openReducerFairnessDBWithSchema(t, ctx, dsn)
 
 	const (
 		items   = 16
@@ -82,7 +82,7 @@ func TestReducerContentionGateNoDoubleClaimUnderConcurrency(t *testing.T) {
 	queues := make([]ReducerQueue, workers)
 	for i := range queues {
 		queues[i] = ReducerQueue{
-			database:      SQLDB{DB: openReducerFairnessClaimerDB(t, ctx, dsn, schemaName)},
+			database:      SQLDB{DB: openReducerFairnessClaimerDB(t, ctx, targetDSN)},
 			LeaseOwner:    fmt.Sprintf("contention-worker-%d", i),
 			LeaseDuration: time.Hour, // long lease: anything claimed stays live for the round
 			ClaimDomains:  []reducercontract.Domain{contentionGateClaimDomain},
@@ -153,7 +153,7 @@ func TestReducerContentionGateFencingTokenStrictlyIncreases(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	db, schemaName := openReducerFairnessDBWithSchema(t, ctx, dsn)
+	db, targetDSN := openReducerFairnessDBWithSchema(t, ctx, dsn)
 	now := time.Date(2026, time.June, 28, 8, 30, 0, 0, time.UTC)
 	seedReducerFairnessScope(t, ctx, db, "scope-fence", now)
 	insertReducerFairnessWorkItem(t, ctx, db, reducerFairnessWorkItem{
@@ -171,7 +171,7 @@ func TestReducerContentionGateFencingTokenStrictlyIncreases(t *testing.T) {
 	const lease = 250 * time.Millisecond
 	newQueue := func(owner string) ReducerQueue {
 		return ReducerQueue{
-			database:      SQLDB{DB: openReducerFairnessClaimerDB(t, ctx, dsn, schemaName)},
+			database:      SQLDB{DB: openReducerFairnessClaimerDB(t, ctx, targetDSN)},
 			LeaseOwner:    owner,
 			LeaseDuration: lease,
 			ClaimDomains:  []reducercontract.Domain{contentionGateClaimDomain},
@@ -210,7 +210,7 @@ func TestReducerContentionGateStaleLeaseReapingUnderRealClock(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	db, schemaName := openReducerFairnessDBWithSchema(t, ctx, dsn)
+	db, targetDSN := openReducerFairnessDBWithSchema(t, ctx, dsn)
 	now := time.Date(2026, time.June, 28, 9, 0, 0, 0, time.UTC)
 	seedReducerFairnessScope(t, ctx, db, "scope-reap", now)
 	insertReducerFairnessWorkItem(t, ctx, db, reducerFairnessWorkItem{
@@ -226,7 +226,7 @@ func TestReducerContentionGateStaleLeaseReapingUnderRealClock(t *testing.T) {
 	const lease = 300 * time.Millisecond
 	newQueue := func(owner string) ReducerQueue {
 		return ReducerQueue{
-			database:      SQLDB{DB: openReducerFairnessClaimerDB(t, ctx, dsn, schemaName)},
+			database:      SQLDB{DB: openReducerFairnessClaimerDB(t, ctx, targetDSN)},
 			LeaseOwner:    owner,
 			LeaseDuration: lease,
 			ClaimDomains:  []reducercontract.Domain{contentionGateClaimDomain},
@@ -270,7 +270,7 @@ func TestReducerContentionGateConflictKeyMutualExclusionCommittedHolder(t *testi
 	}
 
 	ctx := context.Background()
-	owningDB, schemaName := openReducerFairnessDBWithSchema(t, ctx, dsn)
+	owningDB, targetDSN := openReducerFairnessDBWithSchema(t, ctx, dsn)
 	now := time.Date(2026, time.June, 28, 9, 30, 0, 0, time.UTC)
 	seedReducerFairnessScope(t, ctx, owningDB, "scope-excl", now)
 
@@ -289,7 +289,7 @@ func TestReducerContentionGateConflictKeyMutualExclusionCommittedHolder(t *testi
 
 	// Commit one holder on the shared key first.
 	holder := ReducerQueue{
-		database:      SQLDB{DB: openReducerFairnessClaimerDB(t, ctx, dsn, schemaName)},
+		database:      SQLDB{DB: openReducerFairnessClaimerDB(t, ctx, targetDSN)},
 		LeaseOwner:    "excl-holder",
 		LeaseDuration: time.Hour,
 		ClaimDomains:  []reducercontract.Domain{contentionGateClaimDomain},
@@ -309,7 +309,7 @@ func TestReducerContentionGateConflictKeyMutualExclusionCommittedHolder(t *testi
 	)
 	for i := 0; i < racers; i++ {
 		q := ReducerQueue{
-			database:      SQLDB{DB: openReducerFairnessClaimerDB(t, ctx, dsn, schemaName)},
+			database:      SQLDB{DB: openReducerFairnessClaimerDB(t, ctx, targetDSN)},
 			LeaseOwner:    fmt.Sprintf("excl-racer-%d", i),
 			LeaseDuration: time.Hour,
 			ClaimDomains:  []reducercontract.Domain{contentionGateClaimDomain},
@@ -357,7 +357,7 @@ func TestReducerContentionGateConflictKeyMutualExclusionConcurrentPendingSibling
 	}
 
 	ctx := context.Background()
-	owningDB, schemaName := openReducerFairnessDBWithSchema(t, ctx, dsn)
+	owningDB, targetDSN := openReducerFairnessDBWithSchema(t, ctx, dsn)
 	now := time.Date(2026, time.June, 28, 10, 0, 0, 0, time.UTC)
 	seedReducerFairnessScope(t, ctx, owningDB, "scope-race", now)
 
@@ -381,7 +381,7 @@ func TestReducerContentionGateConflictKeyMutualExclusionConcurrentPendingSibling
 	queues := make([]ReducerQueue, workers)
 	for i := range queues {
 		queues[i] = ReducerQueue{
-			database:      SQLDB{DB: openReducerFairnessClaimerDB(t, ctx, dsn, schemaName)},
+			database:      SQLDB{DB: openReducerFairnessClaimerDB(t, ctx, targetDSN)},
 			LeaseOwner:    fmt.Sprintf("race-worker-%d", i),
 			LeaseDuration: time.Hour, // long: a claimed sibling stays live for the round
 			ClaimDomains:  []reducercontract.Domain{contentionGateClaimDomain},

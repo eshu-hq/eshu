@@ -345,13 +345,13 @@ VALUES ($1, 'aws:consumer', 'drift-current', 'reducer', 'aws_cloud_runtime_drift
 }
 
 // openProducerContractSchema opens one arm of the settle/epoch differential
-// with its own isolated bootstrap schema.
+// with its own disposable bootstrap database.
 func openProducerContractSchema(t *testing.T, prefix string) *sql.DB {
 	t.Helper()
 	if os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE") != "1" {
 		t.Skip("set ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE=1 for disposable PostgreSQL proof")
 	}
-	return openIsolatedBootstrapSchema(t, testfixtures.DSNForDeferredPartitionMemoProof(t), prefix)
+	return openIsolatedBootstrapSchema(t, testfixtures.DSNForDeferredPartitionMemoProof(t), os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE"), prefix)
 }
 
 // seedProducerContractFixture seeds both differential arms identically:

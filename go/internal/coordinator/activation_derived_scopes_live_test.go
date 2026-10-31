@@ -5,7 +5,7 @@ package coordinator
 
 //eshu:readiness live-postgres-readiness
 //eshu:readiness:reason #9311 real coordinator Service and PostgreSQL admission proof that a vulnerability activation's derived OSV scopes ride a second run beside the open host scope, re-plan idempotently, and admit once under two concurrent coordinators
-//eshu:readiness:env ESHU_POSTGRES_DSN
+//eshu:readiness:env ESHU_POSTGRES_DISPOSABLE ESHU_POSTGRES_DSN
 
 import (
 	"context"
@@ -22,8 +22,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-// openActivationDerivedProof stores one vulnerability activation in an
-// isolated schema and returns the database and a service planning it with a
+// openActivationDerivedProof stores one vulnerability activation in a
+// disposable database and returns the database and a service planning it with a
 // fake owned-package reader (the reader's SQL is unchanged by #9311; this
 // proof is about durable admission).
 func openActivationDerivedProof(t *testing.T, now *time.Time) (*sql.DB, Service, []workflow.CollectorInstance) {
@@ -32,7 +32,9 @@ func openActivationDerivedProof(t *testing.T, now *time.Time) (*sql.DB, Service,
 	if dsn == "" {
 		t.Skip("ESHU_POSTGRES_DSN is not set")
 	}
-	database := postgresproof.OpenIsolatedSchema(t, dsn, "activation_derived_scopes", func(ctx context.Context, db *sql.DB) error {
+	// Disposable database (#9299): the lane's public-qualified SECURITY
+	// DEFINER bodies cannot install into an isolated schema.
+	_, database := postgresproof.OpenDisposableBootstrapDatabase(t, dsn, os.Getenv("ESHU_POSTGRES_DISPOSABLE"), 5*time.Minute, func(ctx context.Context, db *sql.DB) error {
 		return postgres.ApplyBootstrap(ctx, postgres.SQLDB{DB: db})
 	})
 	store := postgres.NewWorkflowControlStore(postgres.SQLDB{DB: database})

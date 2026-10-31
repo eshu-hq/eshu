@@ -347,26 +347,90 @@ var orderedBootstrapDefinitionNamesLate = []string{
 	// Migrations 240/241 (#9474) add the five-kind package_id/purl partial
 	// indexes that give the advisory-evidence package legs index probes.
 	"fact_records_vulnerability_active_package_lookup_v2_idx",
+	// Migration 240a (#9299) lays the scanner running-image foundation:
+	// durable boundary-partitioned targets. It sorts after main's 240 by
+	// path order; the letter suffix keeps the lane off main's sequence.
+	"scanner_image_targets",
 	"fact_records_vulnerability_active_purl_lookup_v2_idx",
+	// Migration 241a (#9299) adds the typed-source tables (observations,
+	// generations, grants, receipts) with the public-schema guard.
+	"scanner_typed_source_and_results",
+	// Migration 241b (#9299) holds 241a's authority-epoch backfill (the five
+	// INSERT ... SELECT seeds; DML half, #7961 split). It sorts after 241a
+	// ("241a_" < "241b_") so the DDL half applies first.
+	"scanner_authority_epoch_backfill",
 	// Migrations 242/244 (#9307) build exact ECS service and task read
 	// indexes concurrently, one statement per file on populated fact_records
 	// (numbered 242/244: main owns 240/241 for #9474 and 243 for #9227;
 	// sequence gaps are tolerated; bootstrap order follows the numeric path,
 	// so 244 sorts after 243).
 	"ecs_runtime_service_arn_index",
+	// Migration 242a (#9299) adds scanner role attestation. It sorts after
+	// main's 242 ("242_" < "242a") so the ECS index applies first.
+	"scanner_role_attestation",
 	// Migration 243 (#9227) adds the package keys derived vulnerability source
 	// targets queried, which supply-chain readiness joins on.
 	"vulnerability_source_state_packages",
+	// Migration 243a (#9299) installs the scanner role policy. It sorts
+	// after 243 ("243_" < "243a") so the pre-existing 243 applies first.
+	"scanner_role_policy_install",
 	"ecs_runtime_task_scope_index",
+	// Migration 244a (#9299) adds the scanner protected capability. It sorts
+	// after main's 244 ("244_" < "244a") so the ECS index applies first.
+	// Migrations 244a-253 continue the scanner control plane: protected
+	// capability, scan result receipts, the source stage/publish path,
+	// static-findings support, attempt authority, discovery cursors, and
+	// canonical admission authority.
+	"scanner_protected_capability",
 	// Migration 245 (#9320) adds shared_projection_intents.reopened_at
 	// (catalog-only nullable column) for reopen-aware backlog age.
 	"shared_projection_intent_reopened_at",
+	// Migration 245a (#9299) adds scan result receipts. It sorts after
+	// main's 245 ("245_" < "245a") so the shared-projection column applies
+	// first.
+	"scanner_scan_result_receipts",
 	// Migration 246 (#9320) adds the partial covering index that keeps the
 	// reopen-aware shared-projection backlog aggregate an Index Only Scan.
 	"shared_projection_intents_domain_pending_age_idx",
+	// Migration 246a (#9299) starts source collection. It sorts after
+	// main's 246 ("246_" < "246a") so the covering index applies first.
+	"scanner_source_collection_start",
 	// Migration 247 (#9568) adds the partial expression index that serves
 	// the folded entity_name prefilter for registry-cased manifest rows,
 	// mirroring fact_records_active_package_dependency_entity_idx with the
 	// LOWER(TRIM(entity_name) COLLATE "C") fold.
 	"fact_records_manifest_dependency_folded_entity_index",
+	// Migration 247a (#9299) adds the source stage page. It sorts after
+	// main's 247 so the folded-entity index applies first.
+	"scanner_source_stage_page",
+	"scanner_source_publish",
+	"scanner_existing_static_findings",
+	"scanner_attempt_authority",
+	"scanner_discovery_cursors",
+	"scanner_discovery_cursor_api",
+	"scanner_canonical_admission_authority",
+	// Migrations 254-260 (#9299) carry the public-advisory authority path:
+	// policy, stage/complete/publish generations, scan fact integrity,
+	// epoch guards, and the completion guard.
+	"scanner_public_advisory_policy",
+	"scanner_public_advisory_stage",
+	"scanner_public_advisory_complete",
+	"scanner_public_advisory_publish",
+	"scanner_scan_fact_integrity",
+	"scanner_advisory_epoch_guards",
+	"scanner_public_advisory_completion_guard",
+	// Migrations 261-265 (#9299) close the producer and static-impact
+	// surface: producer ingestion ACL, static identity boundary, static
+	// impact public authority plus its authorize gate, and the admission
+	// authority deny-no-row guard.
+	"scanner_advisory_producer_ingestion_acl",
+	"scanner_static_identity_support_boundary",
+	"scanner_static_impact_public_authority",
+	"scanner_static_impact_authorize",
+	"scanner_admission_authority_deny_no_row",
+	// Migrations 268-269 (#9299) add the reducer impact publication
+	// entrypoints: the authorize gate over the complete static and
+	// derived witness set, plus the immutable publication persist.
+	"scanner_impact_publication",
+	"scanner_impact_publish",
 }

@@ -17,6 +17,7 @@ TABLE = {
             "TestReadinessAdvisoryFreshAfterSkippedUnchangedFetchLive",
             "TestReadinessAdvisoryStaleWhenNeverRefetchedLive",
             "TestReadinessKeepsAdvisorySourcesForARefusedShrinkFromTheExtractedCollectorLive",
+            "TestReadinessGlobalLayoutWithoutLocalClaimColumnsUsesLegacyLive",
         ),
         "go/internal/query/supply/chain/impact/readiness_orphan_package_keys_live_test.go": (
             "TestReadinessIgnoresOrphanPackageKeysLive",
@@ -42,6 +43,9 @@ TABLE = {
         ),
         "go/internal/query/supply/chain/impact/readiness_scan_tier_rescan_live_test.go": (
             "TestSupplyChainImpactReadinessScanTierRescannedScopeLive",
+        ),
+        "go/internal/query/supply/chain/impact/readiness_scanner_authorization_live_test.go": (
+            "TestReadinessScannerSourceBindingAuthorizationLive",
         ),
         "go/internal/query/supply/chain/impact/runtime_environment_store_live_test.go": (
             "TestRuntimeEnvironmentEvidenceHotDigestUsesArtifactIndexLive",

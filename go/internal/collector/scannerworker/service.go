@@ -39,6 +39,7 @@ type ClaimedFactCommitter interface {
 type Service struct {
 	ControlStore        ClaimControlStore
 	Committer           ClaimedFactCommitter
+	DerivedCommitter    DerivedImageResultCommitter
 	Analyzer            Analyzer
 	AnalyzerKind        AnalyzerKind
 	CollectorInstanceID string
@@ -180,6 +181,9 @@ func (s Service) processClaimed(ctx context.Context, item workflow.WorkItem, cla
 		ctx, span = s.Tracer.Start(ctx, telemetry.SpanScannerWorkerFactEmitBatch)
 		defer span.End()
 	}
+	if strings.HasPrefix(input.Target.ScopeID, derivedImageScopePrefix) {
+		return s.commitDerivedImageResult(ctx, input, commitMutation, scopeValue, generation, result, stopHeartbeat, heartbeatErr)
+	}
 	if err := s.Committer.CommitClaimedScopeGeneration(
 		ctx,
 		commitMutation,
@@ -281,21 +285,6 @@ func (s Service) resourceLimits() (ResourceLimits, error) {
 		return ResourceLimits{}, err
 	}
 	return s.ResourceLimits, nil
-}
-
-func (s Service) claimMutation(item workflow.WorkItem, claim workflow.Claim) workflow.ClaimMutation {
-	return workflow.ClaimMutation{
-		WorkItemID:         item.WorkItemID,
-		ClaimID:            claim.ClaimID,
-		FencingToken:       claim.FencingToken,
-		OwnerID:            claim.OwnerID,
-		ObservedAt:         s.now(),
-		LeaseDuration:      s.ClaimLeaseTTL,
-		TenantID:           item.TenantID,
-		WorkspaceID:        item.WorkspaceID,
-		SubjectClass:       item.SubjectClass,
-		PolicyRevisionHash: item.PolicyRevisionHash,
-	}
 }
 
 func (s Service) startHeartbeatLoop(ctx context.Context, mutation workflow.ClaimMutation) <-chan error {

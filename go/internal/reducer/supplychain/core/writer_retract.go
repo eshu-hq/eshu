@@ -37,13 +37,15 @@ func runSupplyChainImpactTx(
 	beginner SupplyChainImpactBeginner,
 	write SupplyChainImpactWrite,
 	rows []factwrite.VersionedRow,
+	protected ProtectedScanImpactPublicationSet,
+	hasProtected bool,
 	now time.Time,
 ) (int, error) {
 	tx, err := beginner.BeginSupplyChainImpactTx(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("begin supply chain impact transaction: %w", err)
 	}
-	retracted, err := commitSupplyChainImpactRows(ctx, tx, write, rows, now)
+	retracted, err := commitSupplyChainImpactRows(ctx, tx, write, rows, protected, hasProtected, now)
 	if err != nil {
 		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
 			return 0, fmt.Errorf("%w; rollback: %v", err, rbErr)
@@ -63,9 +65,27 @@ func commitSupplyChainImpactRows(
 	tx SupplyChainImpactTx,
 	write SupplyChainImpactWrite,
 	rows []factwrite.VersionedRow,
+	protected ProtectedScanImpactPublicationSet,
+	hasProtected bool,
 	now time.Time,
 ) (int, error) {
-	// Lock first, before any row lock this transaction takes, so the only
+	var publisher ProtectedScanImpactPublisher
+	var authorizer ProtectedScanImpactAuthorizer
+	if hasProtected {
+		var ok bool
+		publisher, ok = tx.(ProtectedScanImpactPublisher)
+		if !ok {
+			return 0, fmt.Errorf("protected scan impact publication transaction is required")
+		}
+		authorizer, ok = tx.(ProtectedScanImpactAuthorizer)
+		if !ok {
+			return 0, fmt.Errorf("protected scan impact authorization transaction is required")
+		}
+		if err := authorizer.AuthorizeProtectedScanImpactResults(ctx, protected); err != nil {
+			return 0, fmt.Errorf("authorize protected scan impact result: %w", err)
+		}
+	}
+	// Lock before any impact row lock this transaction takes, so the only
 	// wait two passes of one (scope, generation) can form is on this lock:
 	// no lock-order cycle is possible. Passes for other scopes or
 	// generations hash to other keys and never wait here.
@@ -96,6 +116,11 @@ func commitSupplyChainImpactRows(
 	// round-trips rather than one ExecContext per finding.
 	if err := factwrite.BatchInsertVersionedFacts(ctx, tx, rows); err != nil {
 		return 0, fmt.Errorf("write supply chain impact fact: %w", err)
+	}
+	if hasProtected {
+		if err := publisher.PublishProtectedScanImpactResults(ctx, protected); err != nil {
+			return 0, fmt.Errorf("publish protected scan impact result: %w", err)
+		}
 	}
 	if write.PartialEvidence {
 		return 0, nil

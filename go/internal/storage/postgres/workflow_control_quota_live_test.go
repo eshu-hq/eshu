@@ -411,15 +411,10 @@ func TestClaimQuotaUnreadableFallsBackToFloorRate(t *testing.T) {
 	base := time.Now().UTC().Truncate(time.Millisecond)
 	seedQuotaBacklog(t, store, ctx, "quota-floor-run", base, 4)
 
-	// Shield the unreadable simulation from a polluted search_path: other
-	// suites have been observed bootstrapping stray tables into public,
-	// and unqualified quota references would fall through to them after
-	// the schema-local drop. Drop the public leftover (if any), then the
-	// schema-local table, then prove unqualified resolution fails before
-	// any claim runs.
-	if _, err := database.ExecContext(ctx, `DROP TABLE IF EXISTS public.component_quota_windows`); err != nil {
-		t.Fatalf("drop public quota leftover error = %v, want nil", err)
-	}
+	// The test database is disposable and bootstrapped into public, so the
+	// quota table lives in public and there is no separate schema-local
+	// copy: drop it directly, then prove unqualified resolution fails
+	// before any claim runs.
 	if _, err := database.ExecContext(ctx, `DROP TABLE component_quota_windows`); err != nil {
 		t.Fatalf("drop quota table error = %v, want nil", err)
 	}

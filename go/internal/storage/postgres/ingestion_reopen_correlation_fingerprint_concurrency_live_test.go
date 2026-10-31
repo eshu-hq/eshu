@@ -4,7 +4,7 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #8283 concurrency: four maintenance passes on separate connections over gated items finish with no error and the exact changed/unchanged split; 40 rounds of a stale claim's success write ordered before, after and concurrently with a reclaim plus the fresh claim's write always end on the fresh claim's row with the fresh write never rejected; 40 rounds of a success write racing the retention cascade never deadlock and never leave a fingerprint row behind its work item; isolated schema from ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN; 2.9 s on local PostgreSQL 18.6 on 2026-10-17, also run under -race; enrolled in the live-postgres-readiness runner
+//eshu:readiness:reason #8283 concurrency: four maintenance passes on separate connections over gated items finish with no error and the exact changed/unchanged split; 40 rounds of a stale claim's success write ordered before, after and concurrently with a reclaim plus the fresh claim's write always end on the fresh claim's row with the fresh write never rejected; 40 rounds of a success write racing the retention cascade never deadlock and never leave a fingerprint row behind its work item; disposable database from ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN; 2.9 s on local PostgreSQL 18.6 on 2026-10-17, also run under -race; enrolled in the live-postgres-readiness runner
 //eshu:readiness:env ESHU_POSTGRES_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
 
 import (
@@ -38,7 +38,7 @@ func TestDeployableUnitReopenFingerprintConcurrentPassesLive(t *testing.T) {
 		t.Skip("set ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN to run the #8283 reopen gate proof")
 	}
 	ctx := context.Background()
-	db, schema := openReducerFairnessDBWithSchema(t, ctx, dsn)
+	db, targetDSN := openReducerFairnessDBWithSchema(t, ctx, dsn)
 	w := seedFingerprintGateWorld(t, ctx, db)
 	const items = 30
 	for i := range items {
@@ -50,7 +50,7 @@ func TestDeployableUnitReopenFingerprintConcurrentPassesLive(t *testing.T) {
 	}
 	conns := make([]*sql.DB, 4)
 	for i := range conns {
-		conns[i] = openReducerFairnessClaimerDB(t, ctx, dsn, schema)
+		conns[i] = openReducerFairnessClaimerDB(t, ctx, targetDSN)
 	}
 
 	var wg sync.WaitGroup
@@ -96,11 +96,11 @@ func TestDeployableUnitReopenFingerprintWriteRacesReclaimLive(t *testing.T) {
 		t.Skip("set ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN to run the #8283 reopen gate proof")
 	}
 	ctx := context.Background()
-	db, schema := openReducerFairnessDBWithSchema(t, ctx, dsn)
+	db, targetDSN := openReducerFairnessDBWithSchema(t, ctx, dsn)
 	a := fingerprintGateScope{scopeID: "git:8283-a", genID: "gen-a-1", repoID: "repo-a"}
 	seedFingerprintGateScope(t, ctx, db, a)
-	staleDB := openReducerFairnessClaimerDB(t, ctx, dsn, schema)
-	freshDB := openReducerFairnessClaimerDB(t, ctx, dsn, schema)
+	staleDB := openReducerFairnessClaimerDB(t, ctx, targetDSN)
+	freshDB := openReducerFairnessClaimerDB(t, ctx, targetDSN)
 	fingerprint := readFingerprintGateInput(t, ctx, db, []string{"repo-a"})
 	base := time.Now().UTC().Truncate(time.Microsecond).Add(-time.Hour)
 
@@ -170,9 +170,9 @@ func TestDeployableUnitReopenFingerprintWriteRacesRetentionLive(t *testing.T) {
 		t.Skip("set ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN to run the #8283 reopen gate proof")
 	}
 	ctx := context.Background()
-	db, schema := openReducerFairnessDBWithSchema(t, ctx, dsn)
-	writerDB := openReducerFairnessClaimerDB(t, ctx, dsn, schema)
-	pruneDB := openReducerFairnessClaimerDB(t, ctx, dsn, schema)
+	db, targetDSN := openReducerFairnessDBWithSchema(t, ctx, dsn)
+	writerDB := openReducerFairnessClaimerDB(t, ctx, targetDSN)
+	pruneDB := openReducerFairnessClaimerDB(t, ctx, targetDSN)
 	base := time.Now().UTC().Truncate(time.Microsecond).Add(-time.Hour)
 
 	for round := range fingerprintGateRounds {

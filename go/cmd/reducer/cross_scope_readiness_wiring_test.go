@@ -365,6 +365,12 @@ func crossScopeReadinessAssign(dest, value any) error {
 			return errors.New("fixture value is not an int64")
 		}
 		*target = v
+	case *int:
+		v, ok := value.(int)
+		if !ok {
+			return errors.New("fixture value is not an int")
+		}
+		*target = v
 	case *time.Time:
 		v, ok := value.(time.Time)
 		if !ok {

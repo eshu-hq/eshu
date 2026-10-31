@@ -223,7 +223,9 @@ func buildReducerSupplyChainSecurityHandlers(
 		SBOMAttestationAttachmentWriter: sbomattest.PostgresSBOMAttestationAttachmentWriter{
 			DB: database,
 		},
-		SupplyChainImpactWriter: supplyChainImpactWriterFor(database),
+		SupplyChainImpactWriter:                          supplyChainImpactWriterFor(database),
+		SupplyChainImpactAuthorizedEvidenceLoader:        postgres.NewAuthorizedSupplyChainImpactEvidenceLoader(database),
+		RequireSupplyChainImpactAuthorizedEvidenceLoader: true,
 		// #7142: the fencing-token issuer is required alongside the writer; the
 		// additive-domain registry leaves supply_chain_impact unregistered when it
 		// is nil. nextval() needs only a query connection, no transaction.

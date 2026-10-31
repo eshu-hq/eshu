@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sync/atomic"
 	"testing"
 )
 
@@ -203,6 +204,60 @@ func TestNewClientDoesNotMutateSharedHTTPClientRedirectPolicy(t *testing.T) {
 	}
 	if *redirectAuthB != wantB {
 		t.Fatalf("registryB same-host redirect auth = %q, want %q", *redirectAuthB, wantB)
+	}
+}
+
+func TestClientRejectsHTTPSRedirectDowngrade(t *testing.T) {
+	t.Parallel()
+	const registryHost = "registry.secure.test"
+	var downgraded atomic.Bool
+	registry := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/insecure" {
+			downgraded.Store(true)
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		http.Redirect(w, r, "http://"+registryHost+"/insecure", http.StatusTemporaryRedirect)
+	}))
+	defer registry.Close()
+	client, err := NewClient(ClientConfig{
+		BaseURL: "https://" + registryHost, Username: "AWS", Password: "secret",
+		Client: &http.Client{Transport: &rewritingTransport{hostToBackend: map[string]string{
+			registryHost: mustHostPort(t, registry.URL),
+		}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.GetBlob(context.Background(), "team/api", "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"); err == nil {
+		t.Fatal("HTTPS downgrade redirect was accepted")
+	}
+	if downgraded.Load() {
+		t.Fatal("registry credential followed HTTPS downgrade")
+	}
+}
+
+func TestClientDoesNotForwardCredentialToSameHostnameDifferentPort(t *testing.T) {
+	t.Parallel()
+	var receivedAuth atomic.Value
+	blobStore := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth.Store(r.Header.Get("Authorization"))
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer blobStore.Close()
+	registry := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, blobStore.URL+"/blob", http.StatusTemporaryRedirect)
+	}))
+	defer registry.Close()
+	client, err := NewClient(ClientConfig{BaseURL: registry.URL, Username: "AWS", Password: "secret"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.GetBlob(context.Background(), "team/api", "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"); err != nil {
+		t.Fatal(err)
+	}
+	if auth, ok := receivedAuth.Load().(string); !ok || auth != "" {
+		t.Fatalf("credential forwarded across port: %q", auth)
 	}
 }
 

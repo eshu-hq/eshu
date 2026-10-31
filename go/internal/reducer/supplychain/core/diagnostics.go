@@ -26,6 +26,7 @@ type supplyChainImpactTiming struct {
 	loadResolvedDigestEvidenceDuration time.Duration
 	loadPythonReachabilityDuration     time.Duration
 	loadJVMReachabilityDuration        time.Duration
+	loadAuthorizedTargetsDuration      time.Duration
 	securityAlertScopingDuration       time.Duration
 	buildFindingsDuration              time.Duration
 	evaluateSuppressionsDuration       time.Duration
@@ -140,6 +141,7 @@ func supplyChainImpactSubDurations(t supplyChainImpactTiming) map[string]float64
 		"load_resolved_digest_evidence": t.loadResolvedDigestEvidenceDuration.Seconds(),
 		"load_python_reachability":      t.loadPythonReachabilityDuration.Seconds(),
 		"load_jvm_reachability":         t.loadJVMReachabilityDuration.Seconds(),
+		"load_authorized_targets":       t.loadAuthorizedTargetsDuration.Seconds(),
 		"security_alert_scoping":        t.securityAlertScopingDuration.Seconds(),
 		"build_findings":                t.buildFindingsDuration.Seconds(),
 		"evaluate_suppressions":         t.evaluateSuppressionsDuration.Seconds(),

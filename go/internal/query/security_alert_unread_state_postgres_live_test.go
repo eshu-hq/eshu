@@ -44,7 +44,7 @@ VALUES ($1, $2, TRUE, $3, $4, $5, $6)`, generation, scope, len(unread)+5, len(un
 }
 
 func TestSecurityAlertUnreadRepositoriesLive(t *testing.T) {
-	f := newCollectionStateLiveFixture(t, "sa_unread_state")
+	f := newCollectionStateLiveFixture(t)
 	// t-org: the active generation left two repositories unread; an older
 	// superseded generation left a third that must not be reported.
 	f.readState("t-org", "gen-org-old", false, []string{"org_repository_read_failed"},
@@ -121,7 +121,7 @@ func TestSecurityAlertUnreadRepositoriesLive(t *testing.T) {
 // the child read is a primary-key probe on (generation_id, repository) and logs
 // the plan's execution time and buffers.
 func TestSecurityAlertUnreadRepositoriesPlanLive(t *testing.T) {
-	f := newCollectionStateLiveFixture(t, "sa_unread_plan")
+	f := newCollectionStateLiveFixture(t)
 	f.exec(`INSERT INTO ingestion_scopes (scope_id, scope_kind, source_system, source_key, collector_kind,
     partition_key, observed_at, ingested_at, status)
 SELECT 'target-' || t, 'security_alert', 'security_alert', 'target-' || t, 'security_alert', 'p', $1, $1, 'active'

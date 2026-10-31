@@ -152,44 +152,85 @@ func withDSNParam(dsn, param string) string {
 	return dsn + "?" + param
 }
 
-// openClaimDeadlockProofDB bootstraps a fresh schema in the disposable
-// database and returns a pool whose connections all use it.
+// openClaimDeadlockProofDB bootstraps a fresh disposable database on the
+// public schema and returns a pool on it. The database is dropped when the
+// test ends.
+//
+// Database-level isolation (not an isolated schema): the lane's 241a/241b
+// authority migrations are public-only, so ApplyBootstrapWithOptions skips
+// them on an isolated schema and the later 242a definition then fails with
+// a missing eshu_security schema. A fresh database keeps the full install
+// and stays private to the proof. It follows the Lane F
+// disposable-public pattern (openDisposablePublicBootstrapDB).
 func openClaimDeadlockProofDB(t *testing.T, dsn string, conns int) *sql.DB {
 	t.Helper()
-	ctx := context.Background()
-	admin, err := sql.Open("pgx", dsn)
-	if err != nil {
-		t.Fatalf("open postgres: %v", err)
-	}
-	// Pin pg_trgm to public before creating the schema (#9572): the
-	// bootstrap's unqualified CREATE EXTENSION would otherwise install the
-	// opclass into this private schema, hiding it from sibling schemas on
-	// the same shared proof database. The advisory-locked shared install
-	// serializes concurrent bootstraps on one database.
-	postgresproof.InstallTrigramExtension(ctx, t, admin)
-	schemaName := fmt.Sprintf("claim_deadlock_proof_%d", time.Now().UnixNano())
-	if _, err := admin.ExecContext(ctx, "CREATE SCHEMA "+schemaName); err != nil {
-		t.Fatalf("create proof schema: %v", err)
-	}
-	t.Cleanup(func() {
-		_, _ = admin.ExecContext(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE")
-		_ = admin.Close()
-	})
-	// public stays on the path so the pg_trgm operator classes the content-entity
-	// index bootstrap names still resolve once any other bootstrap has installed
-	// the extension there. The proof schema comes first, so every unqualified
-	// table still resolves to this schema's own copy (#7489).
-	pool, err := sql.Open("pgx", withDSNParam(dsn, "search_path="+schemaName+",public"))
-	if err != nil {
-		t.Fatalf("open proof pool: %v", err)
-	}
+	pool := openDisposablePublicBootstrapDB(t, claimDeadlockProofAdminDSN(t, dsn), claimDeadlockProofOptIn(t, dsn),
+		"set ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN and ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DISPOSABLE=1 "+
+			"(or the ESHU_POSTGRES_TEST_DSN/_DISPOSABLE pair) to run the projector claim proofs",
+		func(ctx context.Context, database *sql.DB) error {
+			return ApplyBootstrapWithoutContentSearchIndexes(ctx, SQLDB{DB: database})
+		})
 	pool.SetMaxOpenConns(conns)
 	pool.SetMaxIdleConns(conns)
-	t.Cleanup(func() { _ = pool.Close() })
-	if err := ApplyBootstrapWithoutContentSearchIndexes(ctx, SQLDB{DB: pool}); err != nil {
-		t.Fatalf("apply bootstrap schema: %v", err)
-	}
 	return pool
+}
+
+// claimDeadlockProofAdminDSN resolves the administrative DSN openClaimDeadlockProofDB
+// creates its disposable database through: the passed family DSN retargeted
+// at the postgres maintenance database (scheduled runners name a fresh
+// per-group database the helper must not install into).
+func claimDeadlockProofAdminDSN(t *testing.T, dsn string) string {
+	t.Helper()
+	admin, err := postgresproof.WithDatabase(dsn, "postgres")
+	if err != nil {
+		t.Fatalf("retarget claim deadlock proof DSN: %v", err)
+	}
+	return admin
+}
+
+// claimDeadlockProofOptIn routes the disposable opt-in for the DSN the
+// caller resolved: the claim-deadlock family's own opt-in (fail-closed when
+// the family DSN is set without it), the supersession family's for the
+// write-marker replay proof, the fairness family's for the isolated-schema
+// derivation guard's reference database, else the generic fallback the
+// local pair sets. An opt-in other than "1" skips in
+// openDisposablePublicBootstrapDB: a proof that cannot isolate itself must
+// not run half-isolated.
+func claimDeadlockProofOptIn(t *testing.T, dsn string) string {
+	t.Helper()
+	if family := strings.TrimSpace(os.Getenv("ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN")); family != "" && dsn == family {
+		if os.Getenv("ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DISPOSABLE") != "1" {
+			t.Fatal("ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN is set without ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DISPOSABLE=1")
+		}
+		return "1"
+	}
+	for _, family := range [][2]string{
+		{"ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN", "ESHU_PROJECTOR_SUPERSESSION_PROOF_DISPOSABLE"},
+		{"ESHU_REDUCER_FAIRNESS_PROOF_DSN", "ESHU_REDUCER_FAIRNESS_PROOF_DISPOSABLE"},
+	} {
+		if value := strings.TrimSpace(os.Getenv(family[0])); value != "" && dsn == value {
+			return os.Getenv(family[1])
+		}
+	}
+	return os.Getenv("ESHU_POSTGRES_DISPOSABLE")
+}
+
+// proofTargetDSN rewrites adminDSN to the database control is connected to
+// (learned from current_database()), so race and lock-order proofs open
+// genuinely independent sessions against the same disposable-database
+// fixture instead of the shared administrative database. Host, credentials,
+// and TLS carry over; only the database changes.
+func proofTargetDSN(ctx context.Context, t *testing.T, control *sql.DB, adminDSN string) string {
+	t.Helper()
+	var database string
+	if err := control.QueryRowContext(ctx, "SELECT current_database()").Scan(&database); err != nil {
+		t.Fatalf("read proof database: %v", err)
+	}
+	target, err := postgresproof.WithDatabase(adminDSN, database)
+	if err != nil {
+		t.Fatalf("retarget proof DSN at %q: %v", database, err)
+	}
+	return target
 }
 
 // runClaimDeadlockLoad seeds scopes, then runs a generation producer, claim

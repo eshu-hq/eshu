@@ -222,15 +222,18 @@ func sortedCounts(prefix string, counts map[string]int) []string {
 	return lines
 }
 
-// openSessionOnProofSchema opens a one-connection pool whose search_path is
-// control's proof schema, so a second session sees the same fixture.
+// openSessionOnProofSchema opens a one-connection pool on control's
+// database with control's search_path, so a second session sees the same
+// fixture. Control may sit on a disposable database (the admin DSN names a
+// different database) or on an isolated schema of the DSN's own database;
+// proofTargetDSN covers both by retargeting at control's current database.
 func openSessionOnProofSchema(ctx context.Context, t *testing.T, control *sql.DB, dsn string) *sql.DB {
 	t.Helper()
 	var searchPath string
 	if err := control.QueryRowContext(ctx, "SHOW search_path").Scan(&searchPath); err != nil {
 		t.Fatalf("read proof search_path: %v", err)
 	}
-	session := openLivenessProofDB(t, dsn)
+	session := openLivenessProofDB(t, proofTargetDSN(ctx, t, control, dsn))
 	if _, err := session.ExecContext(ctx, "SET search_path TO "+searchPath); err != nil {
 		t.Fatalf("set session search_path: %v", err)
 	}

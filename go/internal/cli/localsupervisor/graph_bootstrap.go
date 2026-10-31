@@ -113,12 +113,12 @@ func markLocalGraphSchemaApplied(
 	if err != nil {
 		return err
 	}
-	db, err := runtimecfg.OpenPostgres(ctx, func(key string) string {
+	db, err := runtimecfg.OpenPostgresForWorkload(ctx, func(key string) string {
 		if key == "ESHU_POSTGRES_DSN" {
 			return postgresDSN
 		}
 		return os.Getenv(key)
-	})
+	}, runtimecfg.PostgresWorkloadRuntime)
 	if err != nil {
 		return fmt.Errorf("open local postgres graph schema marker connection: %w", err)
 	}

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
@@ -104,9 +105,28 @@ func OpenWriterDB(dsn string, extraSessionSQL ...string) (*sql.DB, error) {
 // OpenWriterDBWithHooks is OpenWriterDB with connect hooks
 // (WriterConnectOptionWithHooks).
 func OpenWriterDBWithHooks(dsn string, hooks []ConnectHook, extraSessionSQL ...string) (*sql.DB, error) {
+	return OpenWriterDBWithRoleAttestorHooks(dsn, nil, hooks, extraSessionSQL...)
+}
+
+// OpenWriterDBWithRoleAttestorHooks verifies each physical connection before
+// any derive-aware session statement or caller hook runs. An attestor error
+// keeps the rejected connection out of the database/sql pool.
+func OpenWriterDBWithRoleAttestorHooks(dsn string, attestor pgconn.ValidateConnectFunc, hooks []ConnectHook, extraSessionSQL ...string) (*sql.DB, error) {
 	config, err := pgx.ParseConfig(dsn)
 	if err != nil {
 		return nil, fmt.Errorf("parse postgres dsn: %w", err)
+	}
+	if attestor != nil {
+		parsedValidator := config.ValidateConnect
+		config.ValidateConnect = func(ctx context.Context, conn *pgconn.PgConn) error {
+			if err := attestor(ctx, conn); err != nil {
+				return err
+			}
+			if parsedValidator != nil {
+				return parsedValidator(ctx, conn)
+			}
+			return nil
+		}
 	}
 	return stdlib.OpenDB(*config, WriterConnectOptionWithHooks(hooks, extraSessionSQL...)), nil
 }

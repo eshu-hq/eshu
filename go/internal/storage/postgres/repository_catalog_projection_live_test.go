@@ -5,7 +5,7 @@ package postgres
 
 //eshu:readiness live-postgres-readiness
 //eshu:readiness:reason #8082 disposable PostgreSQL 18 differential proof that the repository-catalog loader's SQL key projection returns the same entries and observed_at freshness keys as the pre-#8082 whole-payload statement and Go decode over a numeric repo_id, an absent name, a JSON-null slug, a whitespace-only remote_url, two generations and a same-timestamp tie of one repository, and array, string and null payloads, and that the loader ships no row over 4 KiB although two 1 MiB payloads are seeded; reuses the ESHU_TARGETED_MAINTENANCE_PROOF_DSN disposable server; enrolled in the live-postgres-readiness runner; wall time is logged, not gated
-//eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
+//eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN ESHU_TARGETED_MAINTENANCE_PROOF_DISPOSABLE ESHU_TARGETED_MAINTENANCE_PROOF_DSN
 
 // Live differential for the repository-catalog key projection (#8082).
 //
@@ -23,6 +23,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -177,7 +178,7 @@ VALUES ($1, $2, $3, 'repository', $1, 'git', $1, $4, $4, $5::jsonb)`,
 // and that the loader ships only the projected object.
 func TestLoadRepositoryCatalogProjectionMatchesWholePayloadDecode(t *testing.T) {
 	dsn := targetedMaintenanceProofDSN(t)
-	database := openIsolatedBootstrapSchema(t, dsn, "catalog8082")
+	database := openIsolatedBootstrapSchema(t, dsn, os.Getenv("ESHU_TARGETED_MAINTENANCE_PROOF_DISPOSABLE"), "catalog8082")
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	t.Cleanup(cancel)
 

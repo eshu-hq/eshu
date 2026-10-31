@@ -154,6 +154,34 @@ func TestOpenDisposableDatabaseLiveIsPristineFromTemplate0(t *testing.T) {
 	}
 }
 
+// TestOpenDisposableBootstrapDatabaseLiveAppliesBeforeReturn pins the
+// bootstrap helper's contract: it opens a disposable database the same way
+// OpenDisposableDatabase does (same admin DSN and explicit opt-in, no
+// derivation), runs the caller's apply on it before returning, and hands
+// back a usable public-schema handle. Set
+// ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN (an administrative postgres-database
+// DSN) and ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE=1 to run it.
+func TestOpenDisposableBootstrapDatabaseLiveAppliesBeforeReturn(t *testing.T) {
+	ctx, db := OpenDisposableBootstrapDatabase(t,
+		os.Getenv("ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN"),
+		os.Getenv("ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE"),
+		time.Minute,
+		func(ctx context.Context, db *sql.DB) error {
+			_, err := db.ExecContext(ctx, `CREATE TABLE public.eshu_proof_bootstrap_probe (id integer PRIMARY KEY)`)
+			return err
+		})
+	var schema string
+	if err := db.QueryRowContext(ctx, "SELECT current_schema()").Scan(&schema); err != nil {
+		t.Fatalf("read proof database schema: %v", err)
+	}
+	if schema != "public" {
+		t.Fatalf("current_schema() = %q, want public: the bootstrap helper must keep the disposable public search path", schema)
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO public.eshu_proof_bootstrap_probe (id) VALUES (1)`); err != nil {
+		t.Fatalf("write through the bootstrapped handle: %v", err)
+	}
+}
+
 // disposableProofTemplate1DSN rewrites an administrative postgres-database DSN
 // to the same cluster's template1, which is the database a template plant
 // must connect to.

@@ -241,11 +241,10 @@ func openProviderConfigLiveSchema(t *testing.T, ctx context.Context, dsn string)
 }
 
 // openProviderConfigLiveSchemaConn opens a pgx handle capped at one
-// connection, pinned to schemaName's search_path, mirroring
-// openReducerFairnessSchemaConn (reducer_queue_domain_fairness_test.go) —
-// the package's established live-Postgres concurrency-proof pattern. One
-// connection per handle is what lets two handles represent two genuinely
-// separate backend sessions whose FOR UPDATE locks can actually contend.
+// connection, pinned to schemaName's search_path — the package's established
+// live-Postgres concurrency-proof pattern. One connection per handle is what
+// lets two handles represent two genuinely separate backend sessions whose
+// FOR UPDATE locks can actually contend.
 func openProviderConfigLiveSchemaConn(t *testing.T, ctx context.Context, dsn, schemaName string) *sql.DB {
 	t.Helper()
 	database, err := sql.Open("pgx", dsn)

@@ -135,7 +135,7 @@ func wireAPI(
 	// ESHU_POSTGRES_MAX_OPEN_CONNS/idle/lifetime is reported regardless of graph
 	// backend availability (validation-before-datastore invariant). It is applied
 	// after sql.Open below.
-	pgPoolCfg, err := pgaccess.LoadConfig(getenv)
+	pgPoolCfg, err := pgaccess.LoadRoleAttestedConfig(getenv, internalruntime.PostgresWorkloadMCP)
 	if err != nil {
 		return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("load postgres pool config: %w", err)
 	}

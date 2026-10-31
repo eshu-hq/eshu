@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -86,6 +87,135 @@ func OpenDisposableDatabase(
 		t.Fatalf("ping disposable PostgreSQL database: %v", err)
 	}
 	return ctx, targetDB
+}
+
+// OpenDisposableBootstrapDatabase opens a disposable database exactly the
+// way OpenDisposableDatabase does (template0, search_path=public, the same
+// administrative DSN and explicit opt-in checks) and runs apply on it before
+// returning, so a full production bootstrap lands in public instead of an
+// isolated schema. The caller passes the administrative DSN and the opt-in
+// explicitly, read from the proof family's own environment variables; the
+// helper never derives either one, and an absent DSN skips like
+// OpenDisposableDatabase does. An apply error fails the test before any
+// caller can use a half-built database.
+func OpenDisposableBootstrapDatabase(
+	t testing.TB,
+	adminDSN string,
+	optIn string,
+	timeout time.Duration,
+	apply func(context.Context, *sql.DB) error,
+) (context.Context, *sql.DB) {
+	t.Helper()
+	ctx, database := OpenDisposableDatabase(t, adminDSN, optIn, timeout)
+	if err := apply(ctx, database); err != nil {
+		t.Fatalf("apply schema to disposable PostgreSQL database: %v", err)
+	}
+	return ctx, database
+}
+
+// WithDatabase returns dsn with its database replaced by database, so a
+// proof holding a family DSN can derive the administrative session (database
+// "postgres", which OpenDisposableDatabase requires) or a session on a
+// generated disposable database (whose name the proof learns from
+// current_database()). Credentials, host, port, and every other setting
+// carry over byte-identical; only the database changes, in the DSN's own
+// form (URL or keyword/value, dispatched the way pgconn parses). An
+// unparseable DSN is reported instead of opening the wrong database.
+//
+// pgx's ConnString cannot do this: it replays the originally parsed string,
+// so mutating the parsed config's Database never reaches the emitted DSN.
+func WithDatabase(dsn, database string) (string, error) {
+	if _, err := pgx.ParseConfig(dsn); err != nil {
+		return "", fmt.Errorf("parse DSN: %w", err)
+	}
+	if strings.HasPrefix(dsn, "postgres://") || strings.HasPrefix(dsn, "postgresql://") {
+		return withDatabaseURL(dsn, database)
+	}
+	return withDatabaseKeyword(dsn, database)
+}
+
+// withDatabaseURL replaces the path database of a URL-form DSN, keeping
+// userinfo, host, port, and query parameters untouched.
+func withDatabaseURL(dsn, database string) (string, error) {
+	parsed, err := url.Parse(dsn)
+	if err != nil {
+		return "", fmt.Errorf("parse DSN URL: %w", err)
+	}
+	parsed.Path = "/" + database
+	return parsed.String(), nil
+}
+
+// withDatabaseKeyword replaces (or appends) the dbname setting of a
+// keyword/value-form DSN, keeping every other setting and its quoting.
+// Values with whitespace or quotes stay single-quoted per libpq rules.
+func withDatabaseKeyword(dsn, database string) (string, error) {
+	tokens, err := splitKeywordDSN(dsn)
+	if err != nil {
+		return "", err
+	}
+	replacement := "dbname=" + quoteKeywordValue(database)
+	replaced := false
+	for i, token := range tokens {
+		if keywordName(token) == "dbname" {
+			tokens[i] = replacement
+			replaced = true
+		}
+	}
+	if !replaced {
+		tokens = append(tokens, replacement)
+	}
+	return strings.Join(tokens, " "), nil
+}
+
+// splitKeywordDSN splits a keyword/value DSN on unquoted whitespace,
+// following libpq quoting (single quotes with backslash and ” escapes).
+func splitKeywordDSN(dsn string) ([]string, error) {
+	var tokens []string
+	var current strings.Builder
+	var quoted bool
+	for i := 0; i < len(dsn); i++ {
+		char := dsn[i]
+		switch {
+		case quoted && char == '\\' && i+1 < len(dsn):
+			current.WriteByte(char)
+			i++
+			current.WriteByte(dsn[i])
+		case char == '\'':
+			quoted = !quoted
+			current.WriteByte(char)
+		case !quoted && (char == ' ' || char == '\t' || char == '\n'):
+			if current.Len() > 0 {
+				tokens = append(tokens, current.String())
+				current.Reset()
+			}
+		default:
+			current.WriteByte(char)
+		}
+	}
+	if quoted {
+		return nil, fmt.Errorf("parse DSN: unterminated quoted value")
+	}
+	if current.Len() > 0 {
+		tokens = append(tokens, current.String())
+	}
+	return tokens, nil
+}
+
+// keywordName returns the setting name before the first '='.
+func keywordName(token string) string {
+	if i := strings.IndexByte(token, '='); i >= 0 {
+		return token[:i]
+	}
+	return ""
+}
+
+// quoteKeywordValue single-quotes a keyword value when it carries
+// whitespace or quotes, escaping embedded quotes per libpq rules.
+func quoteKeywordValue(value string) string {
+	if strings.ContainsAny(value, " \t\n'\\") {
+		return "'" + strings.ReplaceAll(value, "'", "\\'") + "'"
+	}
+	return value
 }
 
 // cloneRuntimeParams copies a pgx runtime-parameter map so the disposable

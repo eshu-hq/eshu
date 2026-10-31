@@ -41,11 +41,6 @@ func TestRepoDependencyIfaQuarantineLive(t *testing.T) {
 	if !repoDependencyConcurrencyProofEnabled(t) {
 		return
 	}
-	dsn := firstRepoDependencyQuarantineDSN()
-	if dsn == "" {
-		t.Skipf("set %s or ESHU_POSTGRES_DSN to run the real-Postgres quarantine proof", repoDependencyQuarantineProofDSNEnv)
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	exec, _ := openDeltaLiveBackend(ctx, t)
@@ -55,7 +50,7 @@ func TestRepoDependencyIfaQuarantineLive(t *testing.T) {
 	artifactIDs := repoDependencyIfaArtifactIDs(t, rows)
 	acceptedGeneration := repoDependencyIfaAcceptedGeneration(rows)
 	acquireRepoDependencyIfaExclusiveBackend(ctx, t, exec, artifactIDs)
-	sqlDB, cleanupDB := openRepoDependencyQuarantineProofDB(ctx, t, dsn)
+	sqlDB, cleanupDB := openRepoDependencyQuarantineProofDB(t)
 	defer cleanupDB()
 	database := postgres.SQLDB{DB: sqlDB}
 	store := postgres.NewSharedIntentStore(database)
@@ -217,15 +212,6 @@ type repoDependencyQuarantinedLease struct {
 	partitionCount int
 	owner          string
 	expiresAt      time.Time
-}
-
-func firstRepoDependencyQuarantineDSN() string {
-	for _, name := range []string{repoDependencyQuarantineProofDSNEnv, "ESHU_SHARED_PROJECTION_RESCALE_PROOF_DSN", "ESHU_POSTGRES_DSN"} {
-		if value := strings.TrimSpace(os.Getenv(name)); value != "" {
-			return value
-		}
-	}
-	return ""
 }
 
 func prepareRepoDependencyQuarantinePhase(ctx context.Context, t *testing.T, database *sql.DB, store *postgres.SharedIntentStore, exec liveExecutor, odu ifa.Odu, artifactIDs []string, rows []sharedintent.Row) {

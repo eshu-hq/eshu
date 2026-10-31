@@ -33,7 +33,16 @@
 //
 // The exported surface is the join contract other families program against:
 // the impact builders and finding type (BuildSupplyChainImpactFindings,
-// SupplyChainImpactFinding), the suppression evaluation
+// BuildAuthorizedScanImpactFindings, SupplyChainImpactFinding). The authorized
+// builder accepts already-classified legacy findings and complete server-authorized
+// target snapshots, returning one union for a complete writer pass. It rejects
+// incomplete or mismatched target authority and any derived finding passed as
+// legacy input. The handler uses it only after a trusted loader proves the
+// static source split and protected prewrite authorization and association
+// ports are wired. Incomplete authorized coverage stops publication; the
+// writer commits a complete union and protected associations in one
+// transaction. The other
+// exported surface includes the suppression evaluation
 // (BuildVulnerabilitySuppressions, EvaluateSupplyChainSuppression,
 // SupplyChainSuppressionDecision), the handler and writers
 // (SupplyChainImpactHandler, PostgresSupplyChainImpactWriter,

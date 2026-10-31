@@ -95,16 +95,23 @@ type AWSScheduledPlanner interface {
 
 // Service is the workflow coordinator runner.
 type Service struct {
-	Config                            Config
-	Store                             Store
-	Metrics                           Metrics
-	Logger                            *slog.Logger
-	TerraformStatePlanner             TerraformStatePlanner
-	OCIRegistryPlanner                OCIRegistryPlanner
-	PackageRegistryPlanner            PackageRegistryPlanner
-	VulnerabilityIntelligencePlanner  VulnerabilityIntelligencePlanner
-	SBOMAttestationPlanner            SBOMAttestationPlanner
-	ScannerWorkerPlanner              ScannerWorkerPlanner
+	Config                           Config
+	Store                            Store
+	Metrics                          Metrics
+	Logger                           *slog.Logger
+	TerraformStatePlanner            TerraformStatePlanner
+	OCIRegistryPlanner               OCIRegistryPlanner
+	PackageRegistryPlanner           PackageRegistryPlanner
+	VulnerabilityIntelligencePlanner VulnerabilityIntelligencePlanner
+	SBOMAttestationPlanner           SBOMAttestationPlanner
+	ScannerWorkerPlanner             ScannerWorkerPlanner
+	ScannerImagePlanner              ScannerImagePlanner
+	ScannerImageDiscoveryStore       ScannerImageDiscoveryStore
+	PublicAdvisoryPolicyStore        PublicAdvisoryPolicyStore
+	// ControlRolePolicyRevision and ControlDatabaseIdentity pin protected
+	// coordinator operations to the startup-attested control connection.
+	ControlRolePolicyRevision         int64
+	ControlDatabaseIdentity           string
 	SecurityAlertPlanner              SecurityAlertPlanner
 	CICDRunPlanner                    CICDRunPlanner
 	CICDRunActionsTriggers            CICDRunActionsTriggerStore
@@ -238,6 +245,13 @@ func (s Service) runReconcile(ctx context.Context) error {
 	observedAt := s.now().UTC()
 	desiredCount := len(s.Config.CollectorInstances)
 
+	if err := s.reconcilePublicAdvisoryPolicy(ctx); err != nil {
+		s.recordReconcile(ctx, ReconcileObservation{
+			Outcome:  reconcileOutcomeReconcileError,
+			Duration: time.Since(startedAt), DesiredCount: desiredCount,
+		})
+		return err
+	}
 	if err := s.Store.ReconcileCollectorInstances(ctx, observedAt, s.Config.CollectorInstances); err != nil {
 		s.recordReconcile(ctx, ReconcileObservation{
 			Outcome:      reconcileOutcomeReconcileError,

@@ -96,14 +96,14 @@ func TestProducerActivationQuietAckLeavesConsumerUnreplayedLive(t *testing.T) {
 	}
 }
 
-// openProducerActivationProofDB opens an isolated schema with the full
+// openProducerActivationProofDB opens a disposable database with the full
 // production bootstrap applied, on the deferred-partition proof DSN.
 func openProducerActivationProofDB(t *testing.T) *sql.DB {
 	t.Helper()
 	if os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE") != "1" {
 		t.Skip("set ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE=1 for disposable PostgreSQL proof")
 	}
-	return openIsolatedBootstrapSchema(t, testfixtures.DSNForDeferredPartitionMemoProof(t), "producer_activation")
+	return openIsolatedBootstrapSchema(t, testfixtures.DSNForDeferredPartitionMemoProof(t), os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE"), "producer_activation")
 }
 
 // producerOCIFacts is one generation's OCI evidence: the manifest at digest

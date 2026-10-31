@@ -34,33 +34,26 @@ const (
 
 func TestSupplyChainSuppressionPathsPerformanceLive(t *testing.T) {
 	ctx, db := openSuppressionPathsProofDB(t)
-	requiredDefinitions := map[string]bool{
-		"ingestion_scopes":                            true,
-		"scope_generations":                           true,
-		"fact_records":                                true,
-		"supply_chain_impact_canonical_winners":       true,
-		"supply_chain_impact_winners_materialization": true,
-	}
-	var definitions []storagepostgres.Definition
+	// The suppression queries join the scanner authority chain
+	// (classifications, associations, static-advisory revisions, and the
+	// advisory registration/approval tables behind them), which lives in
+	// the public-only authority layout that refuses isolated schemas.
+	// The proof measures join shape on empty authority, so it takes the
+	// full public layout in a fresh database; every gate below is either
+	// data-anchored or self-comparative across two runs of this same
+	// layout, never pinned to the old subset shape.
 	var findingIDIndex storagepostgres.Definition
 	for _, definition := range storagepostgres.BootstrapDefinitions() {
-		if requiredDefinitions[definition.Name] {
-			definitions = append(definitions, definition)
-		}
 		if definition.Name == "supply_chain_impact_finding_id_index" {
 			findingIDIndex = definition
 		}
 	}
-	if len(definitions) != len(requiredDefinitions) {
-		t.Fatalf("proof definitions = %d, want %d", len(definitions), len(requiredDefinitions))
-	}
 	if findingIDIndex.Name == "" {
 		t.Fatal("supply-chain impact finding-ID index definition missing")
 	}
-	if err := storagepostgres.ApplyDefinitions(
+	if err := storagepostgres.ApplyBootstrap(
 		ctx,
 		storagepostgres.SQLDB{DB: db},
-		definitions,
 	); err != nil {
 		t.Fatalf("apply Postgres bootstrap schema: %v", err)
 	}
@@ -312,16 +305,19 @@ func openSuppressionPathsProofDB(t *testing.T) (context.Context, *sql.DB) {
 	}
 	t.Cleanup(func() { _ = adminDB.Close() })
 
-	schemaName := fmt.Sprintf("suppression_paths_5465_%d", time.Now().UnixNano())
-	if _, err := adminDB.ExecContext(ctx, "CREATE SCHEMA "+array.QuoteIdentifier(schemaName)); err != nil {
-		t.Fatalf("create isolated schema: %v", err)
+	// The proof needs the full public authority layout, so the
+	// isolation unit is a fresh database (public schema), not an
+	// isolated schema: authority migrations refuse non-public schemas.
+	databaseName := fmt.Sprintf("suppression_paths_5465_%d_%d", time.Now().UnixNano(), os.Getpid())
+	if _, err := adminDB.ExecContext(ctx, "CREATE DATABASE "+array.QuoteIdentifier(databaseName)+" TEMPLATE template0"); err != nil {
+		t.Fatalf("create proof database: %v", err)
 	}
 	t.Cleanup(func() {
-		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 15*time.Second)
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cleanupCancel()
 		_, _ = adminDB.ExecContext(
 			cleanupCtx,
-			"DROP SCHEMA "+array.QuoteIdentifier(schemaName)+" CASCADE",
+			"DROP DATABASE IF EXISTS "+array.QuoteIdentifier(databaseName)+" WITH (FORCE)",
 		)
 	})
 
@@ -329,16 +325,15 @@ func openSuppressionPathsProofDB(t *testing.T) (context.Context, *sql.DB) {
 	if err != nil {
 		t.Fatalf("parse ESHU_POSTGRES_TEST_DSN: %v", err)
 	}
-	params := targetURL.Query()
-	params.Set("search_path", schemaName)
-	targetURL.RawQuery = params.Encode()
+	targetURL.Path = "/" + databaseName
+	targetURL.RawQuery = targetURL.Query().Encode()
 	db, err := sql.Open("pgx", targetURL.String())
 	if err != nil {
-		t.Fatalf("open isolated Postgres schema: %v", err)
+		t.Fatalf("open proof database: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
 	if err := db.PingContext(ctx); err != nil {
-		t.Fatalf("ping isolated Postgres schema: %v", err)
+		t.Fatalf("ping proof database: %v", err)
 	}
 	return ctx, db
 }

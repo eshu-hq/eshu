@@ -89,8 +89,7 @@ func TestCrossplaneSatisfiedByRedriveClosesXRDLagWindowLive(t *testing.T) {
 }
 
 func testCrossplaneSatisfiedByRedriveClosesXRDLagWindowLive(t *testing.T) {
-	dsn, schema := crossplaneRedriveProofSchema(t)
-	db := crossplaneRedriveProofConn(t, dsn, schema)
+	db, _ := crossplaneRedriveProofDB(t)
 	ctx := context.Background()
 	now := time.Now().UTC()
 
@@ -221,8 +220,7 @@ func assertCrossplaneRedriveWorkItemPending(ctx context.Context, t *testing.T, d
 // pass observes no XRD, activation schedules redrive while that same reducer
 // row is still running, and its ACK must preserve one replay pass.
 func testCrossplaneRedriveDuringRunningClaimReturnsAckToPendingLive(t *testing.T) {
-	dsn, schema := crossplaneRedriveProofSchema(t)
-	db := crossplaneRedriveProofConn(t, dsn, schema)
+	db, _ := crossplaneRedriveProofDB(t)
 	ctx := context.Background()
 	now := time.Now().UTC()
 	const (
@@ -323,8 +321,7 @@ func (d *crossplaneReplayInsertWinner) ExecContext(ctx context.Context, query st
 }
 
 func testCrossplaneRedriveConcurrentInsertWinnerKeepsReplayDebtLive(t *testing.T) {
-	dsn, schema := crossplaneRedriveProofSchema(t)
-	db := crossplaneRedriveProofConn(t, dsn, schema)
+	db, _ := crossplaneRedriveProofDB(t)
 	ctx := context.Background()
 	const (
 		scopeID      = "scope-claim-insert-winner"
@@ -375,8 +372,7 @@ func testCrossplaneRedriveConcurrentInsertWinnerKeepsReplayDebtLive(t *testing.T
 // sequence and the fixed scheduler on the same claimed row and connection.
 // It asserts state after each pair; timing is recorded for review, not gated.
 func testCrossplaneReplayClaimedRowCostLive(t *testing.T) {
-	dsn, schema := crossplaneRedriveProofSchema(t)
-	db := crossplaneRedriveProofConn(t, dsn, schema)
+	db, _ := crossplaneRedriveProofDB(t)
 	ctx := context.Background()
 	const (
 		scopeID      = "scope-claim-replay-cost"

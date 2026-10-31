@@ -26,7 +26,7 @@ func (s IngestionStore) CommitScopeGenerationWithStreamError(
 	factStream <-chan facts.Envelope,
 	factStreamErr func() error,
 ) error {
-	return s.commitScopeGeneration(ctx, workflow.ClaimMutation{}, false, scopeValue, generation, factStream, factStreamErr, nil)
+	return s.commitScopeGeneration(ctx, workflow.ClaimMutation{}, false, scopeValue, generation, factStream, factStreamErr, nil, nil, nil)
 }
 
 // CommitClaimedScopeGenerationWithStreamError persists one claimed generation
@@ -44,7 +44,7 @@ func (s IngestionStore) CommitClaimedScopeGenerationWithStreamError(
 		drainFacts(factStream)
 		return err
 	}
-	return s.commitScopeGeneration(ctx, mutation, true, scopeValue, generation, factStream, factStreamErr, nil)
+	return s.commitScopeGeneration(ctx, mutation, true, scopeValue, generation, factStream, factStreamErr, nil, nil, nil)
 }
 
 // CommitClaimedScopeGenerationWithState persists one claimed generation and
@@ -71,7 +71,7 @@ func (s IngestionStore) CommitClaimedScopeGenerationWithState(
 		drainFacts(factStream)
 		return err
 	}
-	return s.commitScopeGeneration(ctx, mutation, true, scopeValue, generation, factStream, factStreamErr, stateWriter)
+	return s.commitScopeGeneration(ctx, mutation, true, scopeValue, generation, factStream, factStreamErr, stateWriter, nil, nil)
 }
 
 // writeGenerationState runs the optional state writer on the commit

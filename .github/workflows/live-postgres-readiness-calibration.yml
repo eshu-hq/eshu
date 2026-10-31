@@ -90,6 +90,8 @@ jobs:
           export ESHU_GRAPH_BACKEND=neo4j ESHU_NEO4J_DATABASE=neo4j
           export ESHU_NEO4J_URI='neo4j://127.0.0.1:7687'
           export ESHU_NEO4J_USERNAME=neo4j ESHU_NEO4J_PASSWORD=local-proof-only
+          # Behavior-gated excuse (#9468): remove when #9468 unskips the fence proof.
+          export LIVE_READINESS_EXTRA_SKIP=TestProtectedScanTargetsDoNotCollapseSameDigestFindingsLive
           echo "calibration-start shard=${{ matrix.shard }}/6"
           bash scripts/run-live-postgres-readiness-tests.sh --calibration \
             --shard '${{ matrix.shard }}/6' --report calibration-shard-report.json

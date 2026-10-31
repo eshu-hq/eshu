@@ -9,9 +9,10 @@ package impact
 // grants ($18/$19) — before any count, grouping, ordering, limit, or offset so
 // aggregate totals and inventory buckets never include unauthorized rows.
 
-// AggregateCanonicalFactsCTE is the shared canonical-facts CTE every
+// aggregateCanonicalFactsCTETemplate is the shared canonical-facts CTE every
 // aggregate/inventory query below builds on; see the package comment above.
-var AggregateCanonicalFactsCTE = `
+// It still carries the protected-reads mode marker until substitution below.
+var aggregateCanonicalFactsCTETemplate = `
 WITH ` + supplyChainImpactRuntimeFilterCTE("$8", "$9", "$10", "$18", "$19") + `,
 source_candidates AS (
   SELECT fact.fact_id,
@@ -19,7 +20,7 @@ source_candidates AS (
          COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') AS suppression_state,
          COALESCE(NULLIF(fact.payload->>'priority_score', '')::int, 0) AS priority_score,
          ` + supplyChainImpactPayloadFindingIDPresentSQL + ` AS has_payload_finding_id,
-         ` + CanonicalFindingKeySQL + ` AS canonical_key,
+         ` + supplyChainImpactProtectedSourceCanonicalKeySQL + ` AS canonical_key,
          COALESCE(fact.payload->>'impact_status', '') AS impact_status,
          COALESCE(fact.payload->>'priority_bucket', '') AS priority_bucket,
          ` + severityBucketFactSQL + ` AS severity_bucket,
@@ -32,10 +33,12 @@ source_candidates AS (
   JOIN scope_generations AS generation
     ON generation.scope_id = fact.scope_id
    AND generation.generation_id = fact.generation_id
+` + supplyChainImpactProtectedSourceJoinsSQL + `
   WHERE fact.fact_kind = 'reducer_supply_chain_impact_finding'
     AND fact.is_tombstone = FALSE
     AND generation.status = 'active'
     AND fact.scope_id <> '` + supplyChainImpactOperatorSuppressionScopeID + `'
+` + supplyChainImpactProtectedSourcePredicateSQL("$21", "$22", "$23", "$24", "$25", "$26", "$19", "$20") + `
     AND ($1 = '' OR fact.payload->>'cve_id' = $1)
     AND ($2 = '' OR fact.payload->>'package_id' = $2)
     AND ($3 = '' OR fact.payload->>'repository_id' = $3)
@@ -88,6 +91,7 @@ source_candidates AS (
           (COALESCE(cardinality($18::text[]), 0) = 0 AND COALESCE(cardinality($19::text[]), 0) = 0)
           OR fact.payload->>'repository_id' = ANY($18::text[])
           OR fact.scope_id = ANY($19::text[])
+          OR finding_class.source_class = 'derived'
         )
 ),
 operator_candidates AS (
@@ -159,6 +163,12 @@ canonical_facts AS (
 )
 `
 
+// AggregateCanonicalFactsCTE substitutes the protected-reads mode marker so
+// no composed aggregate query can reach Postgres with a raw marker. Derived
+// reads stay closed through the substituted FALSE branch; this matches the
+// ListFindings composition in findings_split_queries.go.
+var AggregateCanonicalFactsCTE = supplyChainImpactReadModeSQL(aggregateCanonicalFactsCTETemplate, false)
+
 // AggregateCountQuery returns the total finding count and the per-status
 // breakdown (affected/affected_exact/affected_derived/possibly_affected/
 // not_affected) over the canonical, scope-bounded fact set.
@@ -203,5 +213,5 @@ SELECT ` + supplyChainImpactInventoryGroupExpressionPlaceholder + ` AS bucket, C
 FROM canonical_facts AS fact
 GROUP BY bucket
 ORDER BY bucket_count DESC, bucket
-LIMIT $21 OFFSET $22;
+LIMIT $27 OFFSET $28;
 `

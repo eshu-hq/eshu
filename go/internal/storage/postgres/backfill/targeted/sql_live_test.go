@@ -10,6 +10,7 @@ package targeted_test
 import (
 	"context"
 	"fmt"
+	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -29,7 +30,7 @@ import (
 // newest generation is pending with no active pointer, a superseded
 // generation, and a cloud scope with no repository fact.
 func TestBoundedRepositoryGenerationReadsMatchShippedRead(t *testing.T) {
-	database := openIsolatedBootstrapSchema(t, targetedMaintenanceProofDSN(t), "tgt7584_bounded")
+	database := openIsolatedBootstrapSchema(t, targetedMaintenanceProofDSN(t), os.Getenv("ESHU_TARGETED_MAINTENANCE_PROOF_DISPOSABLE"), "tgt7584_bounded")
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	t.Cleanup(cancel)
 	exec := func(query string, args ...any) {

@@ -353,6 +353,7 @@ jobs:
           ESHU_PACKAGE_MANIFEST_REPO_SCOPE_EXPLAIN_PROOF_DISPOSABLE: '1'
           ESHU_PACKAGE_MANIFEST_REPO_SCOPE_EXPLAIN_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_POISON_LIVENESS_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_POSTGRES_DISPOSABLE: '1'
           ESHU_POSTGRES_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_POSTGRES_TEST_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_PREFETCH_BATCH_PLAN_PROOF_DISPOSABLE: '1'
@@ -377,6 +378,8 @@ jobs:
           ESHU_REDUCER_HEARTBEAT_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_RUNTIME_ENVIRONMENT_EVIDENCE_POSTGRES_DISPOSABLE: '1'
           ESHU_RUNTIME_ENVIRONMENT_EVIDENCE_POSTGRES_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_SCANNER_READINESS_AUTH_PROOF_DISPOSABLE: '1'
+          ESHU_SCANNER_READINESS_AUTH_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF_DISPOSABLE: '1'
           ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_SCOPED_SEARCH_PROOF_DISPOSABLE: '1'

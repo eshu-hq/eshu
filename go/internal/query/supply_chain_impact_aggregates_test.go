@@ -264,8 +264,9 @@ func TestSupplyChainImpactAggregateQueriesUseListProfileAndSuppressionPredicates
 		}
 	}
 	// Scoped-token grant arrays occupy $18/$19 and the bound suppression
-	// evaluation clock occupies $20, so inventory limit/offset use $21/$22.
-	if !strings.Contains(impact.InventoryQueryTemplate, "LIMIT $21 OFFSET $22") {
+	// evaluation clock occupies $20; the six caller-visibility args occupy
+	// $21-$26, so inventory limit/offset use $27/$28.
+	if !strings.Contains(impact.InventoryQueryTemplate, "LIMIT $27 OFFSET $28") {
 		t.Fatalf("inventory query must keep limit/offset after filter parameters:\n%s", impact.InventoryQueryTemplate)
 	}
 }

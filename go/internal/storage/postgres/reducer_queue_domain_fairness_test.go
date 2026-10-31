@@ -259,81 +259,94 @@ func reducerDomainFairnessDSN() string {
 	return strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
 }
 
+// reducerFairnessProofOptIn routes the disposable opt-in for the DSN the
+// caller resolved through reducerDomainFairnessDSN (or, for one enrolled
+// proof, ESHU_POSTGRES_TEST_DSN directly): the fairness family's own
+// opt-in, fail-closed when the family DSN is set without it, else the
+// generic fallback the local pair sets. An opt-in other than "1" skips in
+// openDisposablePublicBootstrapDB: a proof that cannot isolate itself must
+// not run half-isolated.
+func reducerFairnessProofOptIn(t *testing.T, dsn string) string {
+	t.Helper()
+	if family := strings.TrimSpace(os.Getenv("ESHU_REDUCER_FAIRNESS_PROOF_DSN")); family != "" && dsn == family {
+		if os.Getenv("ESHU_REDUCER_FAIRNESS_PROOF_DISPOSABLE") != "1" {
+			t.Fatal("ESHU_REDUCER_FAIRNESS_PROOF_DSN is set without ESHU_REDUCER_FAIRNESS_PROOF_DISPOSABLE=1")
+		}
+		return "1"
+	}
+	return os.Getenv("ESHU_POSTGRES_DISPOSABLE")
+}
+
 func openReducerFairnessDB(t *testing.T, ctx context.Context, dsn string) *sql.DB {
 	t.Helper()
 	db, _ := openReducerFairnessDBWithSchema(t, ctx, dsn)
 	return db
 }
 
-// openReducerFairnessDBWithSchema creates an isolated throwaway schema, applies
-// the production bootstrap schema, and returns the owning handle plus the
-// schema name. The handle is capped at one connection so its session-local
-// search_path stays pinned to the new schema. The schema name lets concurrency
-// proofs open additional independent connections against the SAME schema (see
-// openReducerFairnessClaimerDB), which is required to exercise real concurrent
-// claim statements rather than serializing behind one pooled connection.
+// openReducerFairnessDBWithSchema bootstraps a fresh disposable database on
+// the public schema and returns the owning handle plus a DSN targeting that
+// database, so concurrency proofs can open additional independent
+// connections against the SAME database (see openReducerFairnessClaimerDB),
+// which is required to exercise real concurrent claim statements rather
+// than serializing behind one pooled connection.
 //
-// The schema derives from ApplyBootstrapWithoutContentSearchIndexes (#6680):
+// Database-level isolation (not an isolated schema): the lane's 241a/241b
+// authority migrations are public-only, so ApplyBootstrapWithOptions skips
+// them on an isolated schema and the later 242a definition then fails with
+// a missing eshu_security schema. A fresh database keeps the full install
+// and stays private to the proof.
+//
+// The layout derives from ApplyBootstrapWithoutContentSearchIndexes (#6680):
 // the previous hand-picked definition list silently fell behind the
 // production schema on every migration a claim or Ack path depended on
 // (provenance_edge_identity_upgrade_required, projector_scope_claim_fences,
-// delta_baseline_commit_sha, ...). A full isolated bootstrap costs about two
-// seconds; TestReducerFairnessIsolatedSchemaDerivesFromBootstrap guards the
-// derivation.
+// delta_baseline_commit_sha, ...).
+// TestReducerFairnessIsolatedSchemaDerivesFromBootstrap guards the
+// derivation against the same production bootstrap.
 func openReducerFairnessDBWithSchema(t *testing.T, ctx context.Context, dsn string) (*sql.DB, string) {
 	t.Helper()
-	schemaName := fmt.Sprintf("reducer_fairness_%d", time.Now().UnixNano())
-	db := openReducerFairnessSchemaConn(t, ctx, dsn, schemaName)
+	admin, err := postgresproof.WithDatabase(dsn, "postgres")
+	if err != nil {
+		t.Fatalf("retarget fairness proof DSN: %v", err)
+	}
+	_, database := postgresproof.OpenDisposableBootstrapDatabase(t, admin,
+		reducerFairnessProofOptIn(t, dsn), 5*time.Minute,
+		func(ctx context.Context, database *sql.DB) error {
+			return ApplyBootstrapWithoutContentSearchIndexes(ctx, SQLDB{DB: database})
+		})
+	target, err := postgresproof.WithDatabase(admin, currentProofDatabase(ctx, t, database))
+	if err != nil {
+		t.Fatalf("target fairness proof database: %v", err)
+	}
+	return database, target
+}
 
-	// Pin pg_trgm to public before creating the schema (#9572): the
-	// bootstrap's unqualified CREATE EXTENSION would otherwise install the
-	// opclass into this private schema, hiding it from sibling schemas on
-	// the same shared proof database. The advisory-locked shared install
-	// serializes concurrent bootstraps on one database.
-	postgresproof.InstallTrigramExtension(ctx, t, db)
-	if _, err := db.ExecContext(ctx, "CREATE SCHEMA "+schemaName); err != nil {
-		t.Fatalf("create fairness schema: %v", err)
+// currentProofDatabase returns the database a proof handle is connected to.
+func currentProofDatabase(ctx context.Context, t *testing.T, db *sql.DB) string {
+	t.Helper()
+	var database string
+	if err := db.QueryRowContext(ctx, "SELECT current_database()").Scan(&database); err != nil {
+		t.Fatalf("read proof database: %v", err)
 	}
-	t.Cleanup(func() {
-		_, _ = db.ExecContext(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE")
-	})
-	if err := ApplyBootstrapWithoutContentSearchIndexes(ctx, SQLDB{DB: db}); err != nil {
-		t.Fatalf("apply fairness schema: %v", err)
-	}
-	return db, schemaName
+	return database
 }
 
 // openReducerFairnessClaimerDB opens an independent single-connection handle
-// bound to an already-created fairness schema. Concurrency proofs give each
+// on the fairness proof's disposable database. Concurrency proofs give each
 // concurrent claimer its own handle so that N claimers hold N live Postgres
 // connections and their claim statements truly interleave at the database;
 // sharing one handle (which caps at a single pooled connection) would serialize
-// them and make a fence/atomicity proof vacuous.
-func openReducerFairnessClaimerDB(t *testing.T, ctx context.Context, dsn, schemaName string) *sql.DB {
+// them and make a fence/atomicity proof vacuous. targetDSN is the second
+// value openReducerFairnessDBWithSchema returns.
+func openReducerFairnessClaimerDB(t *testing.T, ctx context.Context, targetDSN string) *sql.DB {
 	t.Helper()
-	return openReducerFairnessSchemaConn(t, ctx, dsn, schemaName)
-}
-
-// openReducerFairnessSchemaConn opens a pgx handle capped at one connection and
-// pins its session-local search_path to schemaName. The single-connection cap
-// is what keeps SET search_path durable for the handle: search_path is
-// connection-local, so a multi-connection pool would hand out fresh connections
-// that no longer see the schema's tables. Each handle still represents one live
-// connection, so distinct handles run concurrently. public stays on the path so
-// the pg_trgm operator classes the content-entity index bootstrap names still
-// resolve once any other bootstrap has installed the extension there (#7489).
-func openReducerFairnessSchemaConn(t *testing.T, ctx context.Context, dsn, schemaName string) *sql.DB {
-	t.Helper()
-	db, err := sql.Open("pgx", dsn)
+	db, err := sql.Open("pgx", targetDSN)
 	if err != nil {
 		t.Fatalf("open postgres: %v", err)
 	}
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
 	t.Cleanup(func() { _ = db.Close() })
-	if _, err := db.ExecContext(ctx, "SET search_path TO "+schemaName+",public"); err != nil {
-		t.Fatalf("set search_path: %v", err)
-	}
 	return db
 }
 

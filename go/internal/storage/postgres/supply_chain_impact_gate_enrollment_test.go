@@ -46,6 +46,16 @@ func TestSupplyChainImpactLiveProofsRunInTheReducerContentionGate(t *testing.T) 
 	if !strings.Contains(step, supplyChainImpactProofRequiredEnv+": \"1\"") {
 		t.Fatalf("the step that runs the supply-chain impact proofs in %s must set %s=1 so an unset DSN fails them instead of skipping", workflowPath, supplyChainImpactProofRequiredEnv)
 	}
+	// Proofs that read the lane query surface bootstrap a fresh database
+	// through the family disposable pair (the lane's authority migrations
+	// are public-only). Without the pair they skip in CI while the filter
+	// above stays green, so the step must carry both lines.
+	if !strings.Contains(step, "ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DSN:") {
+		t.Fatalf("the step that runs the supply-chain impact proofs in %s no longer passes ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DSN: the disposable-database proofs would skip in CI", workflowPath)
+	}
+	if !strings.Contains(step, "ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DISPOSABLE: \"1\"") {
+		t.Fatalf("the step that runs the supply-chain impact proofs in %s must set ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DISPOSABLE=1 so the disposable-database proofs run instead of failing closed in CI", workflowPath)
+	}
 	helper, err := os.ReadFile("supply_chain_impact_live_dsn_test.go")
 	if err != nil {
 		t.Fatalf("read the live DSN helper: %v", err)

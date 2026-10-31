@@ -37,6 +37,7 @@ for fragment in "${repo_root}"/specs/live-tests.d/live-tests-readiness*.generate
   lines="$(wc -l <"${fragment}")"
   (( lines < 500 )) || fail "${fragment##*/} exceeds the file cap: ${lines} lines"
 done
+# Four generated fragments (base + parts 2-4); the count follows FRAGMENT_NAMES in render.py.
 [[ "${fragment_count}" == "4" ]] || fail "want four generated fragments, got ${fragment_count}"
 python3 "${repo_root}/scripts/test-live-postgres-readiness-fragments.py" rows "${repo_root}" || fail "generated proof rows differ from enrollment"
 
@@ -86,10 +87,11 @@ out="$(REPO_ROOT="${scratch}" LEDGER_PATH="${manifest}" bash "${ledger_validator
   fail "duplicate fragment reference passed ledger validation"
 [[ "${out}" == *"duplicate fragment reference"* ]] || fail "duplicate reference misclassified: ${out}"
 mv "${manifest}.saved" "${manifest}"
-orphan_part="${scratch}/specs/live-tests.d/live-tests-readiness-part5.generated.yaml"
+# part9 is the first non-enrolled part (drive/9299 enrolls base + parts 2-8).
+orphan_part="${scratch}/specs/live-tests.d/live-tests-readiness-part9.generated.yaml"
 cp "${part4}" "${orphan_part}"
 out="$(scratch_check)" && fail "orphan generated fragment passed --check"
-[[ "${out}" == *"orphan"* && "${out}" == *"part5"* ]] || fail "orphan fragment not named: ${out}"
+[[ "${out}" == *"orphan"* && "${out}" == *"part9"* ]] || fail "orphan fragment not named: ${out}"
 python3 "${generator}" --root "${scratch}" >/dev/null || fail "orphan cleanup failed"
 [[ ! -e "${orphan_part}" ]] || fail "orphan generated fragment survived regeneration"
 

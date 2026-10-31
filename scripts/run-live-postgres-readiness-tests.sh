@@ -100,6 +100,17 @@ elif [[ "${#neo4j_missing[@]}" -eq 3 ]]; then
 else
   die "${neo4j_missing[*]} must name the Neo4j proof backend (set all three or none)"
 fi
+# Behavior-gated excuses: space-separated enrolled proofs that skip
+# unconditionally until their behavior lands (e.g. a test skip-gated on a
+# follow-up issue). verify excuses absence or skip but still fails a real
+# failure, and parse_skips rejects unknown names, so a typo dies loud.
+# Remove a name when its gate opens. Workflows set this; local runs without
+# it fail the skipped proof loud instead of silently degrading.
+if [[ -n "${LIVE_READINESS_EXTRA_SKIP:-}" ]]; then
+  # shellcheck disable=SC2086
+  for name in ${LIVE_READINESS_EXTRA_SKIP}; do skip_args+=(--skip "${name}"); done
+  printf 'live-postgres-readiness: extra skip excuse: %s\n' "${LIVE_READINESS_EXTRA_SKIP}"
+fi
 
 python3 "${results}" verify-ledger "${ledger}" "${repo_root}" ||
   die "postgres_ci ledger selection is invalid"

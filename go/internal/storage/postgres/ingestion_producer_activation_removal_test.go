@@ -22,7 +22,7 @@ func TestProducerRemovalOnlyGenerationReopensConsumersLive(t *testing.T) {
 	if os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE") != "1" {
 		t.Skip("set ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE=1 for disposable PostgreSQL proof")
 	}
-	database := openIsolatedBootstrapSchema(t, testfixtures.DSNForDeferredPartitionMemoProof(t), "producer_removal")
+	database := openIsolatedBootstrapSchema(t, testfixtures.DSNForDeferredPartitionMemoProof(t), os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE"), "producer_removal")
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	seedProducerRemovalCorpus(t, ctx, database)
@@ -68,7 +68,7 @@ func TestProducerRemovalTiedTimestampReopensLive(t *testing.T) {
 	if os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE") != "1" {
 		t.Skip("set ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE=1 for disposable PostgreSQL proof")
 	}
-	database := openIsolatedBootstrapSchema(t, testfixtures.DSNForDeferredPartitionMemoProof(t), "producer_remtie")
+	database := openIsolatedBootstrapSchema(t, testfixtures.DSNForDeferredPartitionMemoProof(t), os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE"), "producer_remtie")
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	seedProducerRemovalTiedCorpus(t, ctx, database)
@@ -105,7 +105,7 @@ func TestProducerPartialRemovalReopensBothLive(t *testing.T) {
 	if os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE") != "1" {
 		t.Skip("set ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE=1 for disposable PostgreSQL proof")
 	}
-	database := openIsolatedBootstrapSchema(t, testfixtures.DSNForDeferredPartitionMemoProof(t), "producer_partial")
+	database := openIsolatedBootstrapSchema(t, testfixtures.DSNForDeferredPartitionMemoProof(t), os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE"), "producer_partial")
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	seedProducerPartialRemovalCorpus(t, ctx, database)
@@ -129,7 +129,7 @@ func TestProducerTombstoneWithoutPredecessorStaysInapplicableLive(t *testing.T) 
 	if os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE") != "1" {
 		t.Skip("set ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE=1 for disposable PostgreSQL proof")
 	}
-	database := openIsolatedBootstrapSchema(t, testfixtures.DSNForDeferredPartitionMemoProof(t), "producer_nopred")
+	database := openIsolatedBootstrapSchema(t, testfixtures.DSNForDeferredPartitionMemoProof(t), os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE"), "producer_nopred")
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	seedProducerNoPredecessorCorpus(t, ctx, database)
@@ -159,7 +159,7 @@ func TestProducerRemovalKindPrefilterDifferentialLive(t *testing.T) {
 	if os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE") != "1" {
 		t.Skip("set ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE=1 for disposable PostgreSQL proof")
 	}
-	database := openIsolatedBootstrapSchema(t, testfixtures.DSNForDeferredPartitionMemoProof(t), "producer_remdiff")
+	database := openIsolatedBootstrapSchema(t, testfixtures.DSNForDeferredPartitionMemoProof(t), os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE"), "producer_remdiff")
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	seedProducerRemovalCorpus(t, ctx, database)
@@ -198,7 +198,7 @@ func TestProducerRemovalOwedKeysPlanLive(t *testing.T) {
 	if os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE") != "1" {
 		t.Skip("set ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE=1 for disposable PostgreSQL proof")
 	}
-	database := openIsolatedBootstrapSchema(t, testfixtures.DSNForDeferredPartitionMemoProof(t), "producer_remplan")
+	database := openIsolatedBootstrapSchema(t, testfixtures.DSNForDeferredPartitionMemoProof(t), os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE"), "producer_remplan")
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	seedProducerRemovalCorpus(t, ctx, database)

@@ -41,6 +41,9 @@ func (f *staleSkipFakeMetrics) RecordGCPFreshnessReap(_ context.Context, _ coord
 func (f *staleSkipFakeMetrics) RecordIncidentFreshnessReap(_ context.Context, _ coordinator.FreshnessReapObservation) {
 }
 
+func (f *staleSkipFakeMetrics) RecordScannerDerivedPage(_ context.Context, _ coordinator.ScannerDerivedPageObservation) {
+}
+
 func writeStaleRegistryHome(t *testing.T) string {
 	t.Helper()
 

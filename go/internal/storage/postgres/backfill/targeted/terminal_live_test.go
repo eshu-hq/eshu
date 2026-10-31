@@ -101,16 +101,16 @@ func shippedReadMapsGeneration(ctx context.Context, database *sql.DB, scopeID, g
 	return false, rows.Err()
 }
 
-// openActivationObligationProofDB opens an isolated schema with the full
+// openActivationObligationProofDB opens a disposable database with the full
 // production bootstrap applied. Every activation obligation proof drives real
-// queue Claims, so it must never share a schema (#7479).
+// queue Claims, so it must never share a database (#7479).
 func openActivationObligationProofDB(t *testing.T, prefix string) (context.Context, *sql.DB) {
 	t.Helper()
 	if os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE") != "1" {
 		t.Skip("set ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE=1 for disposable PostgreSQL proof")
 	}
 	dsn := testfixtures.DSNForDeferredPartitionMemoProof(t)
-	database := openIsolatedBootstrapSchema(t, dsn, prefix)
+	database := openIsolatedBootstrapSchema(t, dsn, os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE"), prefix)
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 	t.Cleanup(cancel)
 	return ctx, database

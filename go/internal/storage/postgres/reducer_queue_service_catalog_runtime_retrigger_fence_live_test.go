@@ -94,7 +94,7 @@ func TestReducerContentionGateServiceCatalogConcurrentAcksReopenOnce(t *testing.
 	queues := make([]ReducerQueue, len(owners))
 	for i, owner := range owners {
 		p.addProducer(t, ctx, "wm-checkout-8169-"+owner)
-		conn := openReducerFairnessClaimerDB(t, ctx, p.dsn, p.schema)
+		conn := openReducerFairnessClaimerDB(t, ctx, p.targetDSN)
 		queues[i] = p.queue(conn, owner, reducer.DomainWorkloadMaterialization)
 		intent, claimed, err := queues[i].Claim(ctx)
 		if err != nil || !claimed {

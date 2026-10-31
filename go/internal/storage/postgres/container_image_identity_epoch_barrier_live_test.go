@@ -5,7 +5,7 @@ package postgres
 
 //eshu:readiness live-postgres-readiness
 //eshu:readiness:reason #6502 disposable PostgreSQL 18 proof that a projection reading the activation epoch ahead of activation defers and retries without dead-lettering, that the released generation proceeds and acks, that a superseded generation acks as superseded, and that every epoch miss wraps the not-active sentinel; enrolled in the live-postgres-readiness runner
-//eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DISPOSABLE ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
+//eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DISPOSABLE ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_POSTGRES_DISPOSABLE ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
 
 import (
 	"context"
@@ -114,6 +114,36 @@ UPDATE ingestion_scopes SET active_generation_id = $2 WHERE scope_id = $1
 	}
 }
 
+// openEpochBarrierProofDB opens a fresh disposable database through the
+// production bootstrap on the public schema, and returns its pool. The
+// database is dropped when the test ends.
+//
+// Database-level isolation (not an isolated schema): the lane's 241a/241b
+// authority migrations are public-only, so ApplyBootstrapWithOptions skips
+// them on an isolated schema and the later 242a definition then fails with
+// a missing eshu_security schema. A fresh database keeps the full install
+// and stays private to the proof. It follows the Lane F
+// disposable-public pattern (openDisposablePublicBootstrapDB).
+//
+// The runner's family pair wins; local runs fall back to the generic
+// disposable pair.
+func openEpochBarrierProofDB(t *testing.T) *sql.DB {
+	t.Helper()
+	adminDSN := strings.TrimSpace(os.Getenv("ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DSN"))
+	optIn := os.Getenv("ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DISPOSABLE")
+	if adminDSN == "" {
+		adminDSN = strings.TrimSpace(os.Getenv("ESHU_POSTGRES_TEST_DSN"))
+		optIn = os.Getenv("ESHU_POSTGRES_DISPOSABLE")
+	} else if optIn != "1" {
+		t.Fatal("ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DSN is set without ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DISPOSABLE=1")
+	}
+	return openDisposablePublicBootstrapDB(t, adminDSN, optIn,
+		"set ESHU_POSTGRES_TEST_DSN and ESHU_POSTGRES_DISPOSABLE=1 (or the ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DSN/_DISPOSABLE pair) to run the epoch barrier proof",
+		func(ctx context.Context, database *sql.DB) error {
+			return ApplyBootstrap(ctx, SQLDB{DB: database})
+		})
+}
+
 // TestContainerImageIdentityEpochBarrierDefersPendingLive holds generation B's
 // activation behind a controlled barrier while the projection reads B's epoch
 // first. A transient inactive generation must defer and retry (non-counting),
@@ -121,16 +151,7 @@ UPDATE ingestion_scopes SET active_generation_id = $2 WHERE scope_id = $1
 // superseded A is then superseded rather than dead-lettered. The loud
 // missing-epoch path is pinned by the sentinel test below. Issue #6502.
 func TestContainerImageIdentityEpochBarrierDefersPendingLive(t *testing.T) {
-	// Bridge the live-postgres-readiness runner's family DSN onto the shared
-	// helper's generic variable, as the retention proofs do. Local runs keep
-	// using ESHU_POSTGRES_TEST_DSN directly.
-	if dsn := strings.TrimSpace(os.Getenv("ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DSN")); dsn != "" {
-		if os.Getenv("ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DISPOSABLE") != "1" {
-			t.Fatal("ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DSN is set without ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DISPOSABLE=1")
-		}
-		t.Setenv("ESHU_POSTGRES_TEST_DSN", dsn)
-	}
-	db := openContainerImageIdentityAckCapabilityProofDB(t)
+	db := openEpochBarrierProofDB(t)
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancel()
 	now := time.Date(2026, time.October, 8, 12, 0, 0, 0, time.UTC)
@@ -287,13 +308,7 @@ WHERE work_item_id IN ($1, $2, $3) AND status = 'dead_letter'
 // ErrContainerImageIdentityGenerationNotActive for a pending, superseded, or
 // unknown generation alike, while the active generation reads its epoch.
 func TestContainerImageIdentityActivationEpochMissIsSentinelLive(t *testing.T) {
-	if dsn := strings.TrimSpace(os.Getenv("ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DSN")); dsn != "" {
-		if os.Getenv("ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DISPOSABLE") != "1" {
-			t.Fatal("ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DSN is set without ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DISPOSABLE=1")
-		}
-		t.Setenv("ESHU_POSTGRES_TEST_DSN", dsn)
-	}
-	db := openContainerImageIdentityAckCapabilityProofDB(t)
+	db := openEpochBarrierProofDB(t)
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancel()
 

@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"testing"
+	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
@@ -15,14 +16,19 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
-// openIsolatedBootstrapSchema gives one test its own schema with the full
-// production bootstrap (postgres.ApplyBootstrap) applied. Every activation
-// live proof drives real queue claims, so none may share a schema (#7479).
-func openIsolatedBootstrapSchema(t *testing.T, dsn, prefix string) *sql.DB {
+// openIsolatedBootstrapSchema gives one test its own disposable database
+// with the full production bootstrap (postgres.ApplyBootstrap) applied
+// (#9299: an isolated schema cannot host the lane's public-qualified
+// SECURITY DEFINER bodies). Every activation live proof drives real queue
+// claims, so none may share a database (#7479). The dsn names the
+// administrative postgres database and optIn carries that family's explicit
+// disposable opt-in.
+func openIsolatedBootstrapSchema(t *testing.T, dsn, optIn, prefix string) *sql.DB {
 	t.Helper()
-	return postgresproof.OpenIsolatedSchema(t, dsn, prefix, func(ctx context.Context, database *sql.DB) error {
+	_, database := postgresproof.OpenDisposableBootstrapDatabase(t, dsn, optIn, 5*time.Minute, func(ctx context.Context, database *sql.DB) error {
 		return postgres.ApplyBootstrap(ctx, postgres.SQLDB{DB: database})
 	})
+	return database
 }
 
 // counterValue sums an int64 counter's data points, restricted to the points

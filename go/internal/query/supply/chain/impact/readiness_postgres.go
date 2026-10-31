@@ -202,7 +202,28 @@ func (s PostgresReadinessStore) readSupplyChainImpactReadiness(
 		window = supplyChainImpactReadinessFreshnessWindow
 	}
 	freshnessCutoff := time.Now().UTC().Add(-window)
-	rows, err := database.QueryContext(ctx, ListReadinessQuery, readinessQueryArguments(query, target, freshnessCutoff)...)
+	// Without the full authority objects there is no authority to
+	// filter by: read the legacy statement, byte-identical to the
+	// pre-protection read. The probe checks the global role-policy
+	// layout plus the schema-visible 241a claim columns (isolated test
+	// schemas skip every public-only migration, so a globally
+	// installed layout alone must still fall back) and is poison-free
+	// (to_regclass never errors on a missing relation), so it runs
+	// inside the snapshot. A probe failure means the layout could not
+	// be observed, so the read stays on the protected statement and
+	// fails closed at the main query instead of silently downgrading.
+	protected := true
+	if present, err := readinessAuthorityLayoutPresent(ctx, database); err == nil {
+		protected = present
+	}
+	statement := listCurrentReadinessQuery
+	args := readinessQueryArguments(query, target, freshnessCutoff)
+	if !protected {
+		statement = ListReadinessQuery
+	} else {
+		args = append(args, supplyChainImpactCallerAuthorizationArgs(ctx)...)
+	}
+	rows, err := database.QueryContext(ctx, statement, args...)
 	if err != nil {
 		return ReadinessSnapshot{}, fmt.Errorf("read supply chain impact readiness: %w", err)
 	}

@@ -82,6 +82,59 @@ Layer paths are ordered from base to top layer. Unsupported image shapes emit
 results. Missing image digests are unsupported coverage evidence; tag-only
 image configuration does not emit package facts.
 
+Derived image scans use the same `image_unpacking` analyzer with
+`derive_from_running_images: true`. The coordinator admits immutable runtime
+digests into durable claim-bound target rows. At claim time the worker checks
+that the target and source generation remain active, matches its authorization
+domain to an explicitly configured registry, and reads the registry credential
+from process environment or ECR authorization. A missing domain or credential
+fails the claim; credential values never enter workflow rows or facts. Static
+`image_targets` continue to run in the same instance. Derived scopes use the
+reserved `image://derived/` prefix; a static target may not claim that prefix.
+
+```json
+{
+  "analyzer": "image_unpacking",
+  "derive_from_running_images": true,
+  "registry_domains": [
+    {
+      "authorization_domain": "public-images",
+      "registry": "registry.example",
+      "base_url": "https://registry.example",
+      "auth_mode": "bearer_env",
+      "bearer_token_env": "REGISTRY_PULL_TOKEN"
+    }
+  ]
+}
+```
+
+Auth modes are `anonymous`, `basic_env` (username/password environment names),
+`bearer_env`, and `ecr` (AWS region and optional profile). A verified image
+manifest must match the observed manifest digest or declare the observed config
+digest. An image index without a proven platform-specific manifest does not
+produce package facts. The worker checks manifest, config, and ordered layer
+SHA-256 digests, bounds compressed and expanded bytes, and removes staged files
+after success or failure. Ambiguous manifest JSON, including nested duplicate
+keys, is rejected before descriptor interpretation. Failed acquisition stays
+retryable; invalid image shape and resource-limit failures dead-letter with
+bounded classes.
+The scan-duration metric covers resolution, download, staging, and parsing.
+CPU usage samples the process user-CPU counter over that whole interval;
+concurrent claims can contribute to it. `peak_memory_bytes` tracks retained
+manifest and stream-buffer bytes plus package-parser metadata, not process RSS
+or an exact heap peak.
+Derived scanner facts use the verified manifest digest as their image digest
+and digest-only image reference. Analysis and image-level warnings use the
+boundary-local scan-target ID as `source_record_id`; package facts retain
+package-local record IDs. Runtime references, repositories, source fact IDs,
+and the verified manifest/config relationship stay in authorized source-binding
+rows, not shared scanner facts. Read paths resolve a runtime config digest
+through those bindings before attributing a shared scan.
+The worker writes each derived result's facts, protected authority receipt,
+exact fact associations, and successful claim completion in one transaction.
+It stops the concurrent claim heartbeat before acquiring source and grant locks
+for that commit. A stale claim or revoked source rolls the whole result back.
+
 `sbom_generation` repository targets are configured inside the selected
 `scanner_worker` collector instance:
 

@@ -52,6 +52,43 @@ No-Observability-Change (#9430): no new metric, span, log key, or queue
 stage. The existing persisted finding (`fixed_version` blank for multi-line
 facts, branches unchanged) and the existing impact-explanation read carry the
 corrected headline.
+`BuildAuthorizedScanImpactFindings` is the pure classifier seam for derived
+image targets. It accepts already-classified legacy findings and one complete
+active scan generation per immutable target. Raw legacy advisory envelopes
+cannot enter this API. Target advisory facts require server-owned public
+registration or target-bound private binding. The builder rejects incomplete
+loads, scans without a typed completed/scanned analysis, stale scan generations,
+mismatched trusted source classes, malformed
+advisories, and derived findings passed as legacy input. It never infers
+sharing from a fact kind, source label, URL, or missing tenant field. Each
+target is classified separately even when another target has the same manifest
+digest; legacy findings and target findings form one writer set.
+Conflicting current fixed versions for the same advisory and applicable
+branch yield `possibly_affected` with `advisory_fixed_version_conflict`, both
+source fact IDs, and no selected fix. A pair of explicit, disjoint comparable
+ranges remains distinct. Target IDs, attempt generations, and authority
+references stay on the internal finding for protected persistence; the public
+payload does not contain them. The authorized handler path requires one
+protected loader snapshot that classifies static sources and each target's
+advisories before any evidence limit. Its separate static input must exclude
+every derived and target-private source, including sources absent from the
+target list. Unknown source classification blocks publication with a distinct
+coverage-incomplete failure class. Static suppression facts apply only to
+static findings; a derived finding stays visible until target-bound suppression
+authority exists. The writer requires a complete-set flag and in-transaction
+protected authorization and publication ports, including a rebuild with zero
+targets. The authorization port locks and validates source and advisory
+authority before the impact owner lock, admission, or fact write. Each derived
+fact row ID includes the admitted impact fence, so a later pass retains the
+prior row and its original authority association for audit; logical finding
+IDs and canonical target keys remain stable. Generic stable fact keys carry
+an opaque target digest rather than the protected scan scope identifier. The
+publication port checks the
+same complete set, persists target/fact/evidence associations and advisory
+authority dependencies after the one fact batch upsert, then retires only
+prior publications of that impact owner before the one full-set retraction. The
+Postgres loader and publication adapter must be wired before this runtime path
+is promoted.
 
 Manifest read filter (#9286): the impact handler asks Postgres for manifest
 dependency rows with an exact `entity_name = ANY(names)` match, so the name set

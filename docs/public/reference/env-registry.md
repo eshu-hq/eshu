@@ -11,8 +11,8 @@ Subsystem anchors such as `#api` and `#auth` moved to the family pages when this
 | Page | Covers | Variables |
 | --- | --- | --- |
 | [API, auth, and MCP](env-registry/api-and-auth.md) | Listen addresses, authentication, browser sessions, OIDC and GitHub login, and the MCP server. | 48 |
-| [Runtime and storage](env-registry/runtime-and-storage.md) | Shared runtime settings, Postgres, the graph backend, and backend conformance test knobs. | 56 |
-| [Reducer and projection](env-registry/reducer-and-projection.md) | The reducer, projector, workflow coordinator, push hooks, and semantic providers. | 96 |
+| [Runtime and storage](env-registry/runtime-and-storage.md) | Shared runtime settings, Postgres, the graph backend, and backend conformance test knobs. | 60 |
+| [Reducer and projection](env-registry/reducer-and-projection.md) | The reducer, projector, workflow coordinator, push hooks, and semantic providers. | 98 |
 | [Ingester and collector framework](env-registry/collectors-platform.md) | The ingester's git collector, the component package manager, and the component-extension collector. | 38 |
 | [Infrastructure and registry collectors](env-registry/collectors-infrastructure.md) | Cloud, Kubernetes, OCI registry, and package registry collectors. AWS cloud and Terraform state now collect from their extracted satellites (eshu-hq/eshu-collector-aws-cloud, eshu-hq/eshu-collector-terraform-state). Vault now collects from its extracted satellite (eshu-hq/eshu-collector-vault-live). | 29 |
 | [Observability, delivery, and security collectors](env-registry/collectors-signals.md) | Grafana, Prometheus/Mimir, PagerDuty, CI/CD run, security alert, SBOM, and vulnerability collectors. Jira now collects from its extracted satellite (eshu-hq/eshu-collector-jira). Tempo now collects from its extracted satellite (eshu-hq/eshu-collector-tempo). Loki now collects from its extracted satellite (eshu-hq/eshu-collector-loki). | 35 |
@@ -39,10 +39,10 @@ Subsystem anchors such as `#api` and `#auth` moved to the family pages when this
 | [`collector-security-alerts`](env-registry/collectors-signals.md#collector-security-alerts) | 5 | Observability, delivery, and security collectors |
 | [`collector-vulnerability-intelligence`](env-registry/collectors-signals.md#collector-vulnerability-intelligence) | 5 | Observability, delivery, and security collectors |
 | [`component`](env-registry/collectors-platform.md#component) | 7 | Ingester and collector framework |
-| [`coordinator`](env-registry/reducer-and-projection.md#coordinator) | 21 | Reducer and projection |
+| [`coordinator`](env-registry/reducer-and-projection.md#coordinator) | 23 | Reducer and projection |
 | [`graph`](env-registry/runtime-and-storage.md#graph) | 18 | Runtime and storage |
 | [`mcp`](env-registry/api-and-auth.md#mcp) | 6 | API, auth, and MCP |
-| [`postgres`](env-registry/runtime-and-storage.md#postgres) | 16 | Runtime and storage |
+| [`postgres`](env-registry/runtime-and-storage.md#postgres) | 20 | Runtime and storage |
 | [`projector`](env-registry/reducer-and-projection.md#projector) | 3 | Reducer and projection |
 | [`push-hooks`](env-registry/reducer-and-projection.md#push-hooks) | 1 | Reducer and projection |
 | [`reducer`](env-registry/reducer-and-projection.md#reducer) | 65 | Reducer and projection |

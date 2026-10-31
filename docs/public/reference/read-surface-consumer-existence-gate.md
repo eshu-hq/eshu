@@ -394,11 +394,6 @@ Seed entries (from #5475):
   decode seam or query read-model consumer.
 - Five `service_catalog` kinds (`api_link`, `dependency`, `scorecard_definition`,
   `scorecard_result`, `warning`) — no decode-side consumer today.
-- `vulnerability.warning` — no reducer decode, no query reader (#5462 owns).
-  Also has no pipeline-consumer signal now that v1's pipeline-consumer check
-  is gone — it was the P1 the #5474 signal-rebuild found: v1's registry
-  metadata reported it consumed via the pipeline signal while it was
-  simultaneously disclosed as unconsumed.
 - Three `ci_cd_run` kinds (`ci.job`, `ci.pipeline_definition`, `ci.warning`) —
   emitted by collector, no reducer decode call (Wave 4d deferred).
 

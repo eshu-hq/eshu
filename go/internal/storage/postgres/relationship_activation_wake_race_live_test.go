@@ -4,7 +4,7 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #7597 activation-wake races: an activation waits for an in-flight final Fail and wakes it, a final Fail that waited on the activation lock is reopened by its own post-dead-letter wake, and a held consumer row makes the activation fail with a retryable 55P03 that rolls back and the retry wakes; isolated schema per test, about 5 s locally; enrolled in the live-postgres-readiness runner
+//eshu:readiness:reason #7597 activation-wake races: an activation waits for an in-flight final Fail and wakes it, a final Fail that waited on the activation lock is reopened by its own post-dead-letter wake, and a held consumer row makes the activation fail with a retryable 55P03 that rolls back and the retry wakes; disposable database per test, about 5 s locally; enrolled in the live-postgres-readiness runner
 //eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
 
 import (
@@ -79,11 +79,11 @@ func TestActivationWaitsForAnInflightFinalFailLive(t *testing.T) {
 		t.Skip("set ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN to run the #7597 race proof")
 	}
 	ctx := context.Background()
-	base, schema := openReducerFairnessDBWithSchema(t, ctx, dsn)
+	base, targetDSN := openReducerFairnessDBWithSchema(t, ctx, dsn)
 	clock := time.Now().UTC()
 	f := seedRaceFixture(t, ctx, base, &clock)
 
-	failConn := openReducerFairnessClaimerDB(t, ctx, dsn, schema)
+	failConn := openReducerFairnessClaimerDB(t, ctx, targetDSN)
 	tx, err := failConn.BeginTx(ctx, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -99,7 +99,7 @@ func TestActivationWaitsForAnInflightFinalFailLive(t *testing.T) {
 
 	activated := make(chan error, 1)
 	go func() {
-		activated <- NewRelationshipStore(SQLDB{DB: openReducerFairnessClaimerDB(t, ctx, dsn, schema)}).
+		activated <- NewRelationshipStore(SQLDB{DB: openReducerFairnessClaimerDB(t, ctx, targetDSN)}).
 			ActivateResolutionGenerationForClaim(ctx, f.gen, f.scope, f.dm.IntentID, *f.dm.ClaimedAt)
 	}()
 	select {
@@ -165,12 +165,12 @@ func TestFinalFailAfterTheActivationLockIsWokenLive(t *testing.T) {
 		t.Skip("set ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN to run the #7597 race proof")
 	}
 	ctx := context.Background()
-	base, schema := openReducerFairnessDBWithSchema(t, ctx, dsn)
+	base, targetDSN := openReducerFairnessDBWithSchema(t, ctx, dsn)
 	clock := time.Now().UTC()
 	f := seedRaceFixture(t, ctx, base, &clock)
 
 	paused := &pausedActivationDB{
-		SQLDB:  SQLDB{DB: openReducerFairnessClaimerDB(t, ctx, dsn, schema)},
+		SQLDB:  SQLDB{DB: openReducerFairnessClaimerDB(t, ctx, targetDSN)},
 		locked: make(chan struct{}), release: make(chan struct{}),
 	}
 	t.Cleanup(func() {
@@ -194,7 +194,7 @@ func TestFinalFailAfterTheActivationLockIsWokenLive(t *testing.T) {
 	}
 	failed := make(chan error, 1)
 	go func() {
-		q := newOwnGateQueue(openReducerFairnessClaimerDB(t, ctx, dsn, schema), &clock, reducer.DomainDeployableUnitCorrelation)
+		q := newOwnGateQueue(openReducerFairnessClaimerDB(t, ctx, targetDSN), &clock, reducer.DomainDeployableUnitCorrelation)
 		failed <- q.Fail(ctx, f.consumer, producerDeadError(f.scope, f.gen))
 	}()
 	select {
@@ -223,11 +223,11 @@ func TestActivationLockTimeoutFailsRetryablyLive(t *testing.T) {
 		t.Skip("set ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN to run the #7597 lock-timeout proof")
 	}
 	ctx := context.Background()
-	base, schema := openReducerFairnessDBWithSchema(t, ctx, dsn)
+	base, targetDSN := openReducerFairnessDBWithSchema(t, ctx, dsn)
 	clock := time.Now().UTC()
 	f := seedRaceFixture(t, ctx, base, &clock)
 
-	holder, err := openReducerFairnessClaimerDB(t, ctx, dsn, schema).BeginTx(ctx, nil)
+	holder, err := openReducerFairnessClaimerDB(t, ctx, targetDSN).BeginTx(ctx, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -235,7 +235,7 @@ func TestActivationLockTimeoutFailsRetryablyLive(t *testing.T) {
 	if _, err := holder.ExecContext(ctx, `SELECT 1 FROM fact_work_items WHERE work_item_id = 'c-1' FOR UPDATE`); err != nil {
 		t.Fatal(err)
 	}
-	store := NewRelationshipStore(SQLDB{DB: openReducerFairnessClaimerDB(t, ctx, dsn, schema)})
+	store := NewRelationshipStore(SQLDB{DB: openReducerFairnessClaimerDB(t, ctx, targetDSN)})
 	store.activationLockTimeout = 200 * time.Millisecond
 	err = store.ActivateResolutionGenerationForClaim(ctx, f.gen, f.scope, f.dm.IntentID, *f.dm.ClaimedAt)
 	var contention ActivationWakeContentionError
