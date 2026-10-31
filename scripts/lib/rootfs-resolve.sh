@@ -10,9 +10,9 @@
 #   resolved="$(resolve_in_rootfs "usr/bin/<tool>")"
 #
 # Sourced by scripts/verify-runtime-image-tools.sh (every tool the runtime
-# image ships) and scripts/verify-scanner-images.sh (the one component
-# binary each destination scanner-<name> image ships). One copy keeps the
-# jail behavior identical for both verifiers; both self-tests prove it.
+# image ships). The scanner destination images moved to the
+# eshu-scanner-worker satellite with #8878; the runtime verifier's self-test
+# proves the jail behavior.
 # shellcheck disable=SC2034,SC2154  # globals are shared with the sourcing verifier
 
 # resolve_in_rootfs REL: print the rootfs-relative path REL finally points at,

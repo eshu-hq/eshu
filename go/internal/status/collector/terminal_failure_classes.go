@@ -82,9 +82,9 @@ var registryFailureClasses = []string{
 //     class (collector/vulnerabilityintelligence/vulnruntime/source_state.go
 //     over vulnsource.ErrorClassNonRetryable). Its rate_limited and retryable
 //     classes are common.
-//   - scanner_worker: the scannerworker.FailureClass vocabulary
-//     (collector/scannerworker/failure.go). The worker dead-letters a claim
-//     with FailClaimTerminal and the analyzer's class.
+//   - scanner_worker: the scannercomponent.FailureClass vocabulary
+//     (collector/scannercomponent/vocabulary.go). The worker dead-letters a
+//     claim with FailClaimTerminal and the analyzer's class.
 //   - terraform_state: waiting_on_git_generation, the class of
 //     terraformstate.WaitingOnGitGenerationError, which reaches a terminal
 //     row when the attempt budget runs out on the wait.

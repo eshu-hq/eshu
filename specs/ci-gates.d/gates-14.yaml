@@ -299,29 +299,6 @@ gates:
       - docker
     ci_only_reason: "requires hosted Docker Buildx; PR runs build with push disabled"
 
-  - id: scanner-image-build
-    name: Scanner destination image build smoke
-    category: build
-    layer: hygiene
-    purpose: "Smoke-tests that the three scanner-<name> destination images still build and push successfully in CI, so the digest-pinned activation artifacts exist."
-    tier: ci-heavy
-    blocking: true
-    triggers:
-      - "Dockerfile"
-      - ".dockerignore"
-      - ".github/workflows/docker-publish.yml"
-      - "scripts/ci/select-docker-publish-lanes.sh"
-    ci:
-      workflow: docker-publish.yml
-      job: "build-and-push-scanner-images"
-      check_names:
-        - "Build and push scanner-image"
-        - "Build and push scanner-sbom"
-        - "Build and push scanner-osruntime"
-    requirements:
-      - docker
-    ci_only_reason: "requires hosted Docker Buildx; PR runs build with push disabled"
-
   - id: docker-image-reproducibility
     name: Docker image reproducibility
     category: build
@@ -499,24 +476,23 @@ gates:
     # local command would never run locally.
     category: exactness
     layer: contract
-    purpose: "Fails when a scanner image digest drifted from its pin, its attestation fails, or scanner sources passed the anchored publish SHA."
+    purpose: "Fails when a scanner image digest drifted from its pin, its satellite attestation fails, or the anchor names an unknown satellite publish."
     tier: pre-pr
     blocking: true
     # Locally this runs only the hermetic RED/GREEN suite for the verifier:
     # it needs no network and touches no registry, so a pin typo that the
-    # live check would catch stays green locally. The anchored tags, the
-    # attestations, and the main-line staleness are checked only in CI:
-    # verify-scanner-digest-pins runs the suite, then the verifier against
-    # GHCR (#9491); same workflow, same job, two more steps.
-    # The Dockerfile, the publish workflow, the lane script, the base-image
-    # spec, and the module files select this gate and are staleness inputs:
-    # the verifier content-hashes the scanner-relevant non-Go subset
-    # (Dockerfile base pins + builder stage body + scanner stages, the
-    # scanner publish job plus env mirrors, xx/golang/alpine digests, raw
-    # go.mod/go.sum) at the anchor and at the merge-base, so a comment-only
-    # edit stays green while a base-pin bump or scanner-stage change fails
-    # (#9503). The remaining staleness inputs are the scanner Go sources
-    # the verifier diffs, minus the pin files themselves.
+    # live check would catch stays green locally. The anchored tags and the
+    # satellite attestations are checked only in CI: verify-scanner-digest-pins
+    # runs the suite, then the verifier against GHCR (#9491); same workflow,
+    # same job, two more steps.
+    # Execution moved to the eshu-scanner-worker satellite with #8878, so
+    # the anchor names the satellite repo's publish commit and the verifier
+    # checks the anchor against the satellite repo, not in-tree history.
+    # In-tree scanner sources are gone: the pin leaf moved to
+    # go/internal/collector/scannercomponent and the satellite owns the
+    # staleness inputs the verifier used to diff, so the trigger list keeps
+    # the verifier, its suite, the relocated leaf, and the shared infra
+    # files that still select the lane.
     triggers:
       - "Dockerfile"
       - ".github/workflows/docker-publish.yml"
@@ -527,13 +503,9 @@ gates:
       - "specs/ci-images.v1.json"
       - "go/go.mod"
       - "go/go.sum"
-      - "go/internal/collector/scannerworker/component/manifest.go"
-      - "go/internal/collector/scannerworker/component/manifest_test.go"
-      - "go/internal/collector/scannerworker/**"
-      - "go/cmd/scanner-component-image/**"
-      - "go/cmd/scanner-component-sbom/**"
-      - "go/cmd/scanner-component-osruntime/**"
-      - "go/cmd/scanner-worker/**"
+      - "go/internal/collector/scannercomponent/manifest.go"
+      - "go/internal/collector/scannercomponent/manifest_test.go"
+      - "go/internal/collector/scannercomponent/**"
     local:
       command: "bash scripts/test-verify-scanner-digest-pins.sh"
       pre_push: floor

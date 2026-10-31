@@ -12,15 +12,14 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker"
-	scannercomponent "github.com/eshu-hq/eshu/go/internal/collector/scannerworker/component"
+	scannercomponent "github.com/eshu-hq/eshu/go/internal/collector/scannercomponent"
 	"github.com/eshu-hq/eshu/go/internal/component"
 )
 
 // driftedSeedImage returns a well-formed seed image for one scanner
 // component that differs from the platform ManifestFor pin: exactly what a
 // stale chart seed.image stamps, and what admission must deny (#8878).
-func driftedSeedImage(t *testing.T, kind scannerworker.AnalyzerKind) string {
+func driftedSeedImage(t *testing.T, kind scannercomponent.AnalyzerKind) string {
 	t.Helper()
 
 	manifest, err := scannercomponent.ManifestFor(kind)
@@ -39,7 +38,7 @@ func driftedSeedImage(t *testing.T, kind scannerworker.AnalyzerKind) string {
 // home with its RequiredGrants recorded and one claims-enabled activation,
 // exactly as the chart reconcile init container leaves it. imageOverride
 // replaces the artifact image before install (empty keeps the pin).
-func installScannerComponent(t *testing.T, home string, kind scannerworker.AnalyzerKind, imageOverride string) string {
+func installScannerComponent(t *testing.T, home string, kind scannercomponent.AnalyzerKind, imageOverride string) string {
 	t.Helper()
 
 	manifest, err := scannercomponent.ManifestFor(kind)
@@ -108,7 +107,7 @@ func TestLoadRuntimeConfigAdmitsPinnedScannerArtifact(t *testing.T) {
 	t.Parallel()
 
 	home := t.TempDir()
-	id := installScannerComponent(t, home, scannerworker.AnalyzerImageUnpacking, "")
+	id := installScannerComponent(t, home, scannercomponent.AnalyzerImageUnpacking, "")
 
 	config, err := loadRuntimeConfig(scannerWorkerEnv(home, id))
 	if err != nil {
@@ -117,7 +116,7 @@ func TestLoadRuntimeConfigAdmitsPinnedScannerArtifact(t *testing.T) {
 	if len(config.Manifest.Spec.Artifacts) != 1 {
 		t.Fatalf("artifacts = %d, want exactly 1", len(config.Manifest.Spec.Artifacts))
 	}
-	pinned, err := scannercomponent.ManifestFor(scannerworker.AnalyzerImageUnpacking)
+	pinned, err := scannercomponent.ManifestFor(scannercomponent.AnalyzerImageUnpacking)
 	if err != nil {
 		t.Fatalf("ManifestFor() error = %v", err)
 	}
@@ -134,8 +133,8 @@ func TestLoadRuntimeConfigDeniesDriftedScannerArtifact(t *testing.T) {
 	t.Parallel()
 
 	home := t.TempDir()
-	drifted := driftedSeedImage(t, scannerworker.AnalyzerImageUnpacking)
-	id := installScannerComponent(t, home, scannerworker.AnalyzerImageUnpacking, drifted)
+	drifted := driftedSeedImage(t, scannercomponent.AnalyzerImageUnpacking)
+	id := installScannerComponent(t, home, scannercomponent.AnalyzerImageUnpacking, drifted)
 
 	_, err := loadRuntimeConfig(scannerWorkerEnv(home, id))
 	if err == nil {

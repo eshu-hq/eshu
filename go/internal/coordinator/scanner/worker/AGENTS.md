@@ -14,8 +14,9 @@
 - Do not import the parent coordinator package.
 - Preserve requested-scope privacy, configured target order, IDs, and fairness
   keys.
-- Treat the direct collector `scannerworker` analyzer and target-kind contracts
-  as future extraction debt; this leaf is not independently extractable.
+- Treat the collector `scannercomponent` analyzer and target-kind contracts
+  (`scannercomponent/vocabulary.go`, frozen since the #8878 extraction) as
+  read-only input; this leaf is not independently extractable.
 
 ## Common changes
 

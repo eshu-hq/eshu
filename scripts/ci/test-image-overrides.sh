@@ -44,11 +44,12 @@ if [[ "$(yq -r '.env.CI_BUILDKIT_IMAGE // ""' .github/workflows/docker-publish.y
   echo 'FAIL: Docker publication has no canonical BuildKit mirror' >&2
   failures=$((failures + 1))
 fi
-# Four Buildx setups: the main image, tag-promotion, and reproducibility jobs
-# plus the scanner-images publish job (#8878). Every one must pin the
-# canonical mirror image; the count pins against a silent fifth.
+# Three Buildx setups: the main image, tag-promotion, and reproducibility jobs
+# (the scanner-images publish job moved to the satellite with #8878). Every
+# one must pin the canonical mirror image; the count pins against a silent
+# fourth.
 builders="$(yq -o=json '.jobs' .github/workflows/docker-publish.yml | jq '[.[] | .steps[]? | select(.uses == "docker/setup-buildx-action@v3")]')"
-if ! jq -e 'length == 4 and all(.[]; .with["driver-opts"] == "image=${{ env.CI_BUILDKIT_IMAGE }}")' <<< "${builders}" >/dev/null; then
+if ! jq -e 'length == 3 and all(.[]; .with["driver-opts"] == "image=${{ env.CI_BUILDKIT_IMAGE }}")' <<< "${builders}" >/dev/null; then
   echo 'FAIL: a Buildx setup still uses an implicit image' >&2
   failures=$((failures + 1))
 fi

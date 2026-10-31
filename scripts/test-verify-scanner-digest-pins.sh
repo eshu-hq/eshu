@@ -1,20 +1,21 @@
 #!/usr/bin/env bash
 #
 # test-verify-scanner-digest-pins.sh - hermetic tests for
-# scripts/verify-scanner-digest-pins.sh (#9491). No network, no Docker, no gh
-# auth: `crane` and `gh` resolve to PATH stubs under mktemp, and git runs
-# against tmp fixture repos that mirror the scanner source layout.
+# scripts/verify-scanner-digest-pins.sh (#9491, satellite semantics #8878).
+# No network, no Docker, no gh auth: `crane` and `gh` resolve to PATH stubs
+# under mktemp, and git runs against tmp fixture repos that mirror the
+# relocated pin leaf.
 #
 # The seeded RED/GREEN pair:
 #   GREEN a fixture manifest whose pins equal what the stub registry serves,
-#         with no scanner Go input newer than the anchored SHA: exit 0.
-#   RED   a one-character typo in any pin, a MANIFEST_UNKNOWN tag (404), a
-#         failing attestation, or a scanner Go input committed after the
-#         anchor: exit 1 naming the component and the expected digest.
-# Fail-closed cases: a missing or malformed Scanner-Publish-SHA line, an
-# anchor that is not history, a missing pin, and an unreadable manifest must
-# all exit 2, never 0. A network-shaped crane failure (not MANIFEST_UNKNOWN)
-# also exits 2.
+#         with a known anchor commit in the publish repo: exit 0.
+#   RED   a one-character typo in any pin, a MANIFEST_UNKNOWN tag (404), or a
+#         failing attestation: exit 1 naming the component and the expected
+#         digest.
+# Fail-closed cases: a missing or malformed Scanner-Publish-SHA line, a
+# missing or malformed Scanner-Publish-Repo line, an unknown anchor commit,
+# a missing pin, and an unreadable manifest must all exit 2, never 0.
+# A network-shaped crane failure (not MANIFEST_UNKNOWN) also exits 2.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -32,6 +33,8 @@ record_fail() { FAIL=$((FAIL + 1)); printf 'not ok - %s\n' "$1" >&2; }
 PIN_IMAGE="d2967a1ab642747ec5bafed484b4a5384839b90b59c9562ee38e67b3fa547d49"
 PIN_SBOM="cbafeeeb2bae99902838e5159bd4003e210f5cfe41891b50b0caf502b2d99dec"
 PIN_OS="e302cf4e398f23974210f69988a3c53510738100ae7525ead6d11d992d7be3a8"
+ANCHOR="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+PUBLISH_REPO="eshu-hq/eshu-scanner-worker"
 
 # --- PATH stubs -----------------------------------------------------------
 stubbin="${tmp_root}/stubbin"
@@ -51,106 +54,54 @@ dir="${CRANE_STUB_DIR:?need CRANE_STUB_DIR}"
 [[ -e "${dir}/fail-${comp}" ]] && { echo "MANIFEST_UNKNOWN: ${comp}" >&2; exit 1; }
 cat "${dir}/digest-${comp}"
 STUB
-# Stub gh passes attestation unless GH_STUB_ATTEST_FAIL names the component.
+# Stub gh passes attestation unless GH_STUB_ATTEST_FAIL names the component,
+# and resolves anchor commits unless GH_STUB_UNKNOWN_ANCHOR is set.
 cat >"${stubbin}/gh" <<'STUB'
 #!/usr/bin/env bash
 set -euo pipefail
-[[ "${1:-}" == attestation && "${2:-}" == verify ]] || { echo "stub gh: want 'attestation verify ...'" >&2; exit 2; }
-ref="$3"
-comp="$(printf '%s' "${ref}" | sed -n 's|.*scanner-\([a-z]*\)@sha256:[0-9a-f]*|\1|p')"
-[[ -n "${comp}" ]] || { echo "stub gh: cannot parse component from ${ref}" >&2; exit 2; }
-if [[ "${GH_STUB_ATTEST_FAIL:-}" == "${comp}" ]]; then
-	echo "stub gh: no attestation found for ${ref}" >&2
-	exit 1
+if [[ "${1:-}" == attestation && "${2:-}" == verify ]]; then
+	ref="$3"
+	comp="$(printf '%s' "${ref}" | sed -n 's|.*scanner-\([a-z]*\)@sha256:[0-9a-f]*|\1|p')"
+	[[ -n "${comp}" ]] || { echo "stub gh: cannot parse component from ${ref}" >&2; exit 2; }
+	if [[ "${GH_STUB_ATTEST_FAIL:-}" == "${comp}" ]]; then
+		echo "stub gh: no attestation found for ${ref}" >&2
+		exit 1
+	fi
+	exit 0
 fi
-exit 0
+if [[ "${1:-}" == api && "${2:-}" == repos/*/commits/* ]]; then
+	if [[ "${GH_STUB_UNKNOWN_ANCHOR:-}" == 1 ]]; then
+		echo "stub gh: 404 commit not found" >&2
+		exit 1
+	fi
+	printf '{"sha":"%s"}\n' "${2##*/}"
+	exit 0
+fi
+echo "stub gh: unexpected args: $*" >&2
+exit 2
 STUB
 chmod +x "${stubbin}/crane" "${stubbin}/gh"
 
-# make_fixture DIR [SHA_LINE_MODE] writes a fixture repo whose manifest pins
-# the three PIN_* digests. SHA_LINE_MODE selects the anchor line: valid
-# (anchor = the inputs commit), missing, malformed, or foreign (valid hex,
-# not history). Prints the fixture manifest path.
+# make_fixture DIR [MODE] writes a fixture repo whose manifest pins the
+# three PIN_* digests at the relocated leaf path with the anchor lines.
+# MODE selects the anchor block: valid, missing-sha, malformed-sha,
+# missing-repo, or malformed-repo. Prints the fixture manifest path.
 make_fixture() {
 	local dir="$1" mode="${2:-valid}"
-	mkdir -p "${dir}/go/internal/collector/scannerworker/component"
-	mkdir -p "${dir}/go/cmd/scanner-component-image" "${dir}/go/cmd/scanner-component-sbom"
-	mkdir -p "${dir}/go/cmd/scanner-component-osruntime" "${dir}/go/cmd/scanner-worker"
-	printf 'package scannerworker\n' >"${dir}/go/internal/collector/scannerworker/analyzer.go"
-	for comp in image sbom osruntime; do
-		printf 'package main\n' >"${dir}/go/cmd/scanner-component-${comp}/main.go"
-	done
-	printf 'package main\n' >"${dir}/go/cmd/scanner-worker/main.go"
-	# Non-Go scanner inputs (#9503): Dockerfile base pins + scanner stages,
-	# the publish workflow env mirrors + scanner job, the ci-images digests
-	# for the three base images, and the module files. Committed with the
-	# inputs so the anchor covers them.
-	cat >"${dir}/Dockerfile" <<'DOCKER'
-ARG ESHU_XX_IMAGE=xx@sha256:aaaa
-ARG ESHU_GO_IMAGE=golang@sha256:bbbb
-ARG ESHU_ALPINE_IMAGE=alpine@sha256:cccc
-FROM ${ESHU_GO_IMAGE} AS builder
-RUN apk add --no-cache git clang lld
-RUN xx-go build -o /b/img ./cmd/image
-FROM ${ESHU_ALPINE_IMAGE} AS scanner-image
-COPY --from=builder /b/img /usr/local/bin/img
-CMD ["img"]
-FROM ${ESHU_ALPINE_IMAGE} AS scanner-sbom
-COPY --from=builder /b/sbom /usr/local/bin/sbom
-CMD ["sbom"]
-FROM ${ESHU_ALPINE_IMAGE} AS runtime
-RUN apk add --no-cache git curl
-DOCKER
-	mkdir -p "${dir}/.github/workflows" "${dir}/specs"
-	cat >"${dir}/.github/workflows/docker-publish.yml" <<'YAML'
-env:
-  ESHU_XX_IMAGE: xx@sha256:aaaa
-  ESHU_GO_IMAGE: go@sha256:bbbb
-  ESHU_ALPINE_IMAGE: al@sha256:cccc
-  IMAGE_PLATFORMS: linux/amd64,linux/arm64
-jobs:
-  build-and-push-scanner-images:
-    steps:
-      - name: Build scanner image
-        with:
-          target: scanner-x
-          platforms: ${{ env.IMAGE_PLATFORMS }}
-  build-and-push-image:
-    name: Build and push runtime
-    steps:
-      - name: Build runtime image
-        with:
-          target: runtime
-YAML
-	cat >"${dir}/specs/ci-images.v1.json" <<'JSON'
-{
-  "version": 1,
-  "images": [
-    {"id": "xx", "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
-    {"id": "golang", "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
-    {"id": "alpine", "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"}
-  ]
-}
-JSON
-	printf 'module example.com/fixture\n\ngo 1.26.10\n' >"${dir}/go/go.mod"
-	printf 'example.com/mod v1.0.0 h1:abc=\n' >"${dir}/go/go.sum"
-	git -C "${dir}" init -q -b main
-	git -C "${dir}" config user.name CI
-	git -C "${dir}" config user.email ci@example.invalid
-	git -C "${dir}" add -A
-	git -C "${dir}" commit -qm inputs
-	local anchor
-	anchor="$(git -C "${dir}" rev-parse HEAD)"
-	local sha_line="// Scanner-Publish-SHA: ${anchor}"
+	mkdir -p "${dir}/go/internal/collector/scannercomponent"
+	local sha_line="// Scanner-Publish-SHA: ${ANCHOR}"
+	local repo_line="// Scanner-Publish-Repo: ${PUBLISH_REPO}"
 	case "${mode}" in
-		missing) sha_line="// no anchor here" ;;
-		malformed) sha_line="// Scanner-Publish-SHA: xyz" ;;
-		foreign) sha_line="// Scanner-Publish-SHA: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" ;;
+		missing-sha) sha_line="// no anchor here" ;;
+		malformed-sha) sha_line="// Scanner-Publish-SHA: xyz" ;;
+		missing-repo) repo_line="// no publish repo here" ;;
+		malformed-repo) repo_line="// Scanner-Publish-Repo: not a repo" ;;
 	esac
-	cat >"${dir}/go/internal/collector/scannerworker/component/manifest.go" <<EOF
-package component
+	cat >"${dir}/go/internal/collector/scannercomponent/manifest.go" <<EOF
+package scannercomponent
 
 ${sha_line}
+${repo_line}
 
 var artifactDigests = map[string]string{
 	IDImage:     "${PIN_IMAGE}",
@@ -158,10 +109,8 @@ var artifactDigests = map[string]string{
 	IDOSRuntime: "${PIN_OS}",
 }
 EOF
-	git -C "${dir}" add -A
-	git -C "${dir}" commit -qm pins
-	git -C "${dir}" update-ref refs/remotes/origin/main HEAD
-	printf '%s\n' "${dir}/go/internal/collector/scannerworker/component/manifest.go"
+	git -C "${dir}" init -q -b main 2>/dev/null || true
+	printf '%s\n' "${dir}/go/internal/collector/scannercomponent/manifest.go"
 }
 
 # serve_all DIR writes stub digest files matching the fixture pins.
@@ -180,6 +129,7 @@ run_verifier() {
 	set +e
 	env PATH="${stubbin}:${PATH}" CRANE_BIN=crane GH_BIN=gh \
 		CRANE_STUB_DIR="$2" GH_STUB_ATTEST_FAIL="${GH_STUB_ATTEST_FAIL:-}" \
+		GH_STUB_UNKNOWN_ANCHOR="${GH_STUB_UNKNOWN_ANCHOR:-}" \
 		bash "${verifier}" --manifest "$1" >"${out_file}" 2>&1
 	rc=$?
 	set -e
@@ -205,30 +155,18 @@ expect_output() {
 	fi
 }
 
-# --- GREEN: pins match the stub registry, inputs predate the anchor. -------
+# --- GREEN: pins match the stub registry, anchor known. --------------------
 fx="${tmp_root}/green"
 manifest="$(make_fixture "${fx}")"
 stub="$(serve_all "${fx}")"
 run_verifier "${manifest}" "${stub}"
-expect_rc 0 "GREEN: matching pins with fresh inputs pass"
+expect_rc 0 "GREEN: matching pins with a known anchor pass"
 expect_output "PASS" "GREEN prints the PASS summary"
 
-# A pin-file-only change after the anchor is not staleness: bump a comment
-# in the fixture manifest and move origin/main past it.
+# A comment-only manifest edit stays green.
 printf '// follow-up pin bump\n' >>"${manifest}"
-git -C "${fx}" add -A
-git -C "${fx}" commit -qm pin-bump
-git -C "${fx}" update-ref refs/remotes/origin/main HEAD
 run_verifier "${manifest}" "${stub}"
-expect_rc 0 "GREEN: a pin-file-only change after the anchor stays fresh"
-
-# A non-Go file under the scanner tree is not a scanner input either.
-printf '# notes\n' >"${fx}/go/internal/collector/scannerworker/NOTES.md"
-git -C "${fx}" add -A
-git -C "${fx}" commit -qm notes
-git -C "${fx}" update-ref refs/remotes/origin/main HEAD
-run_verifier "${manifest}" "${stub}"
-expect_rc 0 "GREEN: a non-Go file under the scanner tree is not an input"
+expect_rc 0 "GREEN: a comment-only manifest edit passes"
 
 # --- RED: one-character typo in any pin. ------------------------------------
 for comp_pin in "image:${PIN_IMAGE}" "sbom:${PIN_SBOM}" "osruntime:${PIN_OS}"; do
@@ -245,6 +183,7 @@ new = {"image": "d2967a1b", "sbom": "cbafeeec", "osruntime": "e302cf4f"}[comp]
 assert text.count(old) == 1, (comp, text.count(old))
 open(path, "w").write(text.replace(old, new))
 PY
+
 	run_verifier "${manifest}" "${stub}"
 	expect_rc 1 "RED: a typo in the ${comp} pin fails"
 	expect_output "scanner-${comp}" "RED names the stale component scanner-${comp}"
@@ -270,161 +209,39 @@ expect_rc 1 "RED: a failing attestation fails"
 expect_output "scanner-osruntime" "RED names the component with no attestation"
 expect_output "expected digest: ${PIN_OS}" "RED names the expected osruntime digest"
 
-# --- RED: a scanner Go input landed after the anchor. ------------------------
-fx="${tmp_root}/stale"
-manifest="$(make_fixture "${fx}")"
-stub="$(serve_all "${fx}")"
-printf '// new analyzer input\n' >>"${fx}/go/cmd/scanner-component-image/main.go"
-git -C "${fx}" add -A
-git -C "${fx}" commit -qm analyzer-change
-git -C "${fx}" update-ref refs/remotes/origin/main HEAD
-run_verifier "${manifest}" "${stub}"
-expect_rc 1 "RED: a scanner input newer than the anchor fails"
-expect_output "STALE" "RED names the staleness verdict"
-expect_output "go/cmd/scanner-component-image/main.go" "RED names the changed input"
-expect_output "follow-up" "RED points at the follow-up pin PR flow"
-expect_output "scanner-image" "RED still names the component"
-expect_output "${PIN_IMAGE}" "RED still names the expected digest"
-
-# --- RED: a base-image pin bumped after the anchor (#9503). ------------------
-fx="${tmp_root}/basepin"
-manifest="$(make_fixture "${fx}")"
-stub="$(serve_all "${fx}")"
-sed -i.bak 's/^ARG ESHU_ALPINE_IMAGE=alpine@sha256:cccc$/ARG ESHU_ALPINE_IMAGE=alpine@sha256:dddd/' "${fx}/Dockerfile" && rm -f "${fx}/Dockerfile.bak"
-git -C "${fx}" add -A
-git -C "${fx}" commit -qm base-bump
-git -C "${fx}" update-ref refs/remotes/origin/main HEAD
-run_verifier "${manifest}" "${stub}"
-expect_rc 1 "RED: a base-image pin bump fails"
-expect_output "STALE" "RED names the staleness verdict for a base-pin bump"
-expect_output "Dockerfile" "RED names the Dockerfile input class"
-
-# --- RED: a scanner-stage Dockerfile change after the anchor. ----------------
-fx="${tmp_root}/stage"
-manifest="$(make_fixture "${fx}")"
-stub="$(serve_all "${fx}")"
-sed -i.bak 's|^COPY --from=builder /b/img /usr/local/bin/img$|COPY --from=builder /b/img /usr/local/bin/img\nCOPY --from=builder /b/img /usr/local/bin/img-debug|' "${fx}/Dockerfile" && rm -f "${fx}/Dockerfile.bak"
-git -C "${fx}" add -A
-git -C "${fx}" commit -qm scanner-stage-change
-git -C "${fx}" update-ref refs/remotes/origin/main HEAD
-run_verifier "${manifest}" "${stub}"
-expect_rc 1 "RED: a scanner-stage Dockerfile change fails"
-expect_output "STALE" "RED names the staleness verdict for a stage change"
-
-# --- RED: a builder toolchain setup line changed after the anchor. -----------
-fx="${tmp_root}/builder"
-manifest="$(make_fixture "${fx}")"
-stub="$(serve_all "${fx}")"
-sed -i.bak 's/^RUN apk add --no-cache git clang lld$/RUN apk add --no-cache git clang lld lldb/' "${fx}/Dockerfile" && rm -f "${fx}/Dockerfile.bak"
-git -C "${fx}" add -A
-git -C "${fx}" commit -qm builder-toolchain-change
-git -C "${fx}" update-ref refs/remotes/origin/main HEAD
-run_verifier "${manifest}" "${stub}"
-expect_rc 1 "RED: a builder toolchain setup change fails"
-expect_output "STALE" "RED names the staleness verdict for a builder change"
-expect_output "Dockerfile" "RED names the Dockerfile input class"
-
-# --- RED: the scanner publish job changed after the anchor. ------------------
-fx="${tmp_root}/workflow"
-manifest="$(make_fixture "${fx}")"
-stub="$(serve_all "${fx}")"
-sed -i.bak 's/^  IMAGE_PLATFORMS: linux\/amd64,linux\/arm64$/  IMAGE_PLATFORMS: linux\/amd64/' "${fx}/.github/workflows/docker-publish.yml" && rm -f "${fx}/.github/workflows/docker-publish.yml.bak"
-git -C "${fx}" add -A
-git -C "${fx}" commit -qm scanner-platforms-change
-git -C "${fx}" update-ref refs/remotes/origin/main HEAD
-run_verifier "${manifest}" "${stub}"
-expect_rc 1 "RED: a scanner-job workflow change fails"
-expect_output "STALE" "RED names the staleness verdict for a workflow change"
-expect_output "docker-publish" "RED names the workflow input class"
-
-# --- GREEN: a comment-only change inside a scanner stage. --------------------
-fx="${tmp_root}/comment"
-manifest="$(make_fixture "${fx}")"
-stub="$(serve_all "${fx}")"
-sed -i.bak 's/^CMD \["sbom"\]$/# still the sbom entrypoint\nCMD ["sbom"]/' "${fx}/Dockerfile" && rm -f "${fx}/Dockerfile.bak"
-git -C "${fx}" add -A
-git -C "${fx}" commit -qm scanner-comment
-git -C "${fx}" update-ref refs/remotes/origin/main HEAD
-run_verifier "${manifest}" "${stub}"
-expect_rc 0 "GREEN: a comment-only change inside a scanner stage passes"
-
-# --- GREEN: a comment-only edit to a base-pin ARG. ---------------------------
-fx="${tmp_root}/argcomment"
-manifest="$(make_fixture "${fx}")"
-stub="$(serve_all "${fx}")"
-sed -i.bak 's/^ARG ESHU_GO_IMAGE=golang@sha256:bbbb$/ARG ESHU_GO_IMAGE=golang@sha256:bbbb # still the same pin/' "${fx}/Dockerfile" && rm -f "${fx}/Dockerfile.bak"
-git -C "${fx}" add -A
-git -C "${fx}" commit -qm arg-comment
-git -C "${fx}" update-ref refs/remotes/origin/main HEAD
-run_verifier "${manifest}" "${stub}"
-expect_rc 0 "GREEN: a comment-only edit to a base-pin ARG passes"
-
-# --- GREEN: a comment-only edit to the workflow env mirrors. -----------------
-fx="${tmp_root}/wfcomment"
-manifest="$(make_fixture "${fx}")"
-stub="$(serve_all "${fx}")"
-printf '# ESHU_GO_IMAGE: still the same mirror\n' >>"${fx}/.github/workflows/docker-publish.yml"
-git -C "${fx}" add -A
-git -C "${fx}" commit -qm workflow-mirror-comment
-git -C "${fx}" update-ref refs/remotes/origin/main HEAD
-run_verifier "${manifest}" "${stub}"
-expect_rc 0 "GREEN: a comment-only workflow mirror edit passes"
-
-# --- GREEN: a trailing comment on a workflow env mirror line. ----------------
-fx="${tmp_root}/wftrail"
-manifest="$(make_fixture "${fx}")"
-stub="$(serve_all "${fx}")"
-sed -i.bak 's/^  ESHU_GO_IMAGE: go@sha256:bbbb$/  ESHU_GO_IMAGE: go@sha256:bbbb # same mirror/' "${fx}/.github/workflows/docker-publish.yml" && rm -f "${fx}/.github/workflows/docker-publish.yml.bak"
-git -C "${fx}" add -A
-git -C "${fx}" commit -qm workflow-mirror-trailing-comment
-git -C "${fx}" update-ref refs/remotes/origin/main HEAD
-run_verifier "${manifest}" "${stub}"
-expect_rc 0 "GREEN: a trailing comment on a workflow mirror passes"
-
-# --- GREEN: an unrelated-stage change (runtime + non-scanner job). -----------
-fx="${tmp_root}/unrelated"
-manifest="$(make_fixture "${fx}")"
-stub="$(serve_all "${fx}")"
-sed -i.bak 's/^RUN apk add --no-cache git curl$/RUN apk add --no-cache git curl htop/' "${fx}/Dockerfile" && rm -f "${fx}/Dockerfile.bak"
-sed -i.bak 's/^          target: runtime$/          target: runtime\n          no-cache: true/' "${fx}/.github/workflows/docker-publish.yml" && rm -f "${fx}/.github/workflows/docker-publish.yml.bak"
-git -C "${fx}" add -A
-git -C "${fx}" commit -qm runtime-change
-git -C "${fx}" update-ref refs/remotes/origin/main HEAD
-run_verifier "${manifest}" "${stub}"
-expect_rc 0 "GREEN: an unrelated-stage change passes"
-
-# --- RED: go.mod advanced after the anchor (recorded as staleness). ----------
-fx="${tmp_root}/gomod"
-manifest="$(make_fixture "${fx}")"
-stub="$(serve_all "${fx}")"
-printf '\nrequire example.com/extra v1.2.3\n' >>"${fx}/go/go.mod"
-git -C "${fx}" add -A
-git -C "${fx}" commit -qm gomod-bump
-git -C "${fx}" update-ref refs/remotes/origin/main HEAD
-run_verifier "${manifest}" "${stub}"
-expect_rc 1 "RED: a go.mod bump fails"
-expect_output "STALE" "RED names the staleness verdict for a go.mod bump"
-expect_output "go.mod" "RED names the go.mod input"
-
 # --- Fail closed: bad anchor lines, unknown anchors, missing pins. ----------
 fx="${tmp_root}/noanchor"
-manifest="$(make_fixture "${fx}" missing)"
+manifest="$(make_fixture "${fx}" missing-sha)"
 stub="$(serve_all "${fx}")"
 run_verifier "${manifest}" "${stub}"
 expect_rc 2 "a missing anchor line exits 2"
 expect_output "FAIL-CLOSED" "a missing anchor line says FAIL-CLOSED"
 
 fx="${tmp_root}/badanchor"
-manifest="$(make_fixture "${fx}" malformed)"
+manifest="$(make_fixture "${fx}" malformed-sha)"
 stub="$(serve_all "${fx}")"
 run_verifier "${manifest}" "${stub}"
 expect_rc 2 "a malformed anchor line exits 2"
 
-fx="${tmp_root}/foreign"
-manifest="$(make_fixture "${fx}" foreign)"
+fx="${tmp_root}/norepo"
+manifest="$(make_fixture "${fx}" missing-repo)"
 stub="$(serve_all "${fx}")"
 run_verifier "${manifest}" "${stub}"
-expect_rc 2 "an anchor outside history exits 2"
+expect_rc 2 "a missing publish-repo line exits 2"
+expect_output "FAIL-CLOSED" "a missing publish-repo line says FAIL-CLOSED"
+
+fx="${tmp_root}/badrepo"
+manifest="$(make_fixture "${fx}" malformed-repo)"
+stub="$(serve_all "${fx}")"
+run_verifier "${manifest}" "${stub}"
+expect_rc 2 "a malformed publish-repo line exits 2"
+
+fx="${tmp_root}/unknown"
+manifest="$(make_fixture "${fx}")"
+stub="$(serve_all "${fx}")"
+GH_STUB_UNKNOWN_ANCHOR=1 run_verifier "${manifest}" "${stub}"
+expect_rc 2 "an unknown anchor commit exits 2"
+expect_output "FAIL-CLOSED" "an unknown anchor says FAIL-CLOSED"
 
 # A pin that is not 64-hex fails closed, never passes.
 fx="${tmp_root}/shortpin"

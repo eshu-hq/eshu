@@ -15,7 +15,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/extensionhost"
-	scannercomponent "github.com/eshu-hq/eshu/go/internal/collector/scannerworker/component"
+	scannercomponent "github.com/eshu-hq/eshu/go/internal/collector/scannercomponent"
 	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"

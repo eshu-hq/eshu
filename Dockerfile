@@ -65,10 +65,6 @@ RUN cd go \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-pagerduty ./cmd/collector-pagerduty \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-grafana ./cmd/collector-grafana \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-prometheus-mimir ./cmd/collector-prometheus-mimir \
-    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-scanner-worker ./cmd/scanner-worker \
-    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-scanner-component-image ./cmd/scanner-component-image \
-    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-scanner-component-sbom ./cmd/scanner-component-sbom \
-    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-scanner-component-osruntime ./cmd/scanner-component-osruntime \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-gcp-cloud ./cmd/collector-gcp-cloud \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-azure-cloud ./cmd/collector-azure-cloud \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-webhook-listener ./cmd/webhook-listener \
@@ -159,54 +155,6 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 CMD ["eshu-mock-github"]
 
-# scanner-image / scanner-sbom / scanner-osruntime: destination images for
-# the per-analyzer scanner stdio components (#8878). Each image COPYs only
-# its own component binary from the builder stage under usr/local/bin — the
-# same binary the runtime image ships — and the extension host launches one
-# process per call, with each ComponentPackage manifest
-# (go/internal/collector/scannerworker/component) pinning exactly one
-# artifact image, so scripts/verify-scanner-images.sh fails a stage whose
-# own binary does not resolve under usr/bin, bin, or usr/local/bin, or that
-# gains a sibling-component name under any of those three directories. No
-# ports, no HEALTHCHECK: stdio components read the v1alpha3 page request on
-# stdin and write the result page on stdout; there is no server to probe.
-# The base is the same digest-pinned Alpine the production stage uses.
-# These stages MUST stay before "Production stage": plain `docker build .`
-# resolves to whichever stage is LAST in this file, and services needing
-# another stage use an explicit `target:` (e.g. mock-oidc-idp in
-# docker-compose.e2e.yaml). Published as
-# ghcr.io/eshu-hq/scanner-<name> by docker-publish.yml's
-# build-and-push-scanner-images job; the manifest placeholder digest is
-# swapped for the published digest after the first publish.
-FROM ${ESHU_ALPINE_IMAGE} AS scanner-image
-
-COPY --from=builder /go-bin/eshu-scanner-component-image /usr/local/bin/eshu-scanner-component-image
-
-RUN adduser -D -u 10001 scanner
-
-USER scanner
-
-CMD ["eshu-scanner-component-image"]
-
-FROM ${ESHU_ALPINE_IMAGE} AS scanner-sbom
-
-COPY --from=builder /go-bin/eshu-scanner-component-sbom /usr/local/bin/eshu-scanner-component-sbom
-
-RUN adduser -D -u 10001 scanner
-
-USER scanner
-
-CMD ["eshu-scanner-component-sbom"]
-
-FROM ${ESHU_ALPINE_IMAGE} AS scanner-osruntime
-
-COPY --from=builder /go-bin/eshu-scanner-component-osruntime /usr/local/bin/eshu-scanner-component-osruntime
-
-RUN adduser -D -u 10001 scanner
-
-USER scanner
-
-CMD ["eshu-scanner-component-osruntime"]
 
 # Production stage. MUST remain the last stage in this file — see the
 # mock-oidc-idp comment above. It is named `runtime` because

@@ -99,11 +99,11 @@ rg -q '^scannerpins=true$' "${scratch}/output"
 git -C "${repo}" update-ref refs/remotes/origin/main "${selector_head}"
 
 # #7762: the runtime image tool verifier and its suite select the image lane,
-# whose verify-reproducibility job runs both against the built rootfs.
-# #8878: the scanner image verifier, its suite, and the shared
-# rootfs-resolve library they source select the same lane, since the
-# scanner-images gate depends on verify-reproducibility running via it.
-for tool_script in scripts/verify-runtime-image-tools.sh scripts/test-verify-runtime-image-tools.sh scripts/verify-scanner-images.sh scripts/test-verify-scanner-images.sh scripts/lib/rootfs-resolve.sh; do
+# whose verify-reproducibility job runs them against the built rootfs. The
+# scanner destination images moved to the eshu-scanner-worker satellite with
+# #8878, so no scanner image verifier selects a lane here anymore; the
+# shared rootfs-resolve library the runtime verifier sources still does.
+for tool_script in scripts/verify-runtime-image-tools.sh scripts/test-verify-runtime-image-tools.sh scripts/lib/rootfs-resolve.sh; do
   tool_base="$(git -C "${repo}" rev-parse HEAD)"
   mkdir -p "${repo}/$(dirname "${tool_script}")"
   printf '#!/usr/bin/env bash\n' > "${repo}/${tool_script}"
@@ -129,10 +129,10 @@ for repro_file in specs/ci-images.v1.json scripts/ci/build-reproducibility-image
   rg -q '^image=true$' "${scratch}/output"
   rg -q '^apkfloors=false$' "${scratch}/output"
 done
-# #9491: the scanner digest pin verifier, its suite, and the scanner Go
-# sources the gate watches select the scannerpins lane, while unrelated
-# paths leave it off.
-for pins_path in scripts/verify-scanner-digest-pins.sh scripts/test-verify-scanner-digest-pins.sh go/internal/collector/scannerworker/component/manifest.go go/cmd/scanner-component-image/main.go; do
+# #9491: the scanner digest pin verifier, its suite, and the relocated pin
+# leaf (#8878) select the scannerpins lane, while unrelated paths leave it
+# off.
+for pins_path in scripts/verify-scanner-digest-pins.sh scripts/test-verify-scanner-digest-pins.sh go/internal/collector/scannercomponent/manifest.go; do
   pins_base="$(git -C "${repo}" rev-parse HEAD)"
   mkdir -p "${repo}/$(dirname "${pins_path}")"
   printf '# pins\n' > "${repo}/${pins_path}"

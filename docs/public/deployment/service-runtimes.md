@@ -20,7 +20,7 @@ choices, use [Docker Compose](https://github.com/eshu-hq/eshu-deploy/blob/main/d
 | Workflow Coordinator | Collector instance reconciliation, claim creation, expired-claim reaping. | optional `Deployment` | [Core runtimes](service-runtimes-core.md) |
 | Resolution Engine | Durable queue drain, projection, retry, replay, recovery, bounded superseded-generation cleanup, package-consumption sidecar repair, and hardcoded-secret side-table rebuild (#8833). | `Deployment` | [Resolution engine](../services/resolution-engine.md) |
 | Hosted Collectors | Confluence, OCI registry, Terraform-state, AWS cloud, package-registry, SBOM, attestation, provider security-alert, PagerDuty incident-context, and Jira work-item fact intake. | optional `Deployment` | [Collector runtimes](service-runtimes-collectors.md) |
-| Scanner Worker | Claim-driven CPU-heavy and memory-heavy security analyzers that emit source facts only. | optional `Deployment` | [Security Intelligence](../reference/security-intelligence.md#scanner-worker-boundary) |
+| Scanner Worker (satellite) | Claim-driven CPU-heavy and memory-heavy security analyzers that emit source facts only; execution runs in the `eshu-hq/eshu-scanner-worker` satellite while the coordinator still plans `scanner_worker` claims. | optional `Deployment` | [Security Intelligence](../reference/security-intelligence.md#scanner-worker-boundary) |
 | Bootstrap Index | One-shot initial indexing. | operator-run helper, not chart steady state | [Bootstrap runtimes](service-runtimes-bootstrap.md) |
 
 The direct service binaries are the release artifacts and support `--version`

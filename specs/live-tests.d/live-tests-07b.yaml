@@ -64,10 +64,6 @@ tests:
     tag: ~
     class: scheduled
     reason: "#9320 shared intent reopen-age and reopen-race proofs de-enrolled from the readiness plan under drift-gate option A (PR #9544 third round: the branch enrollment pushed defaulted tests to 41 over the 40 limit with admin/store one of three unweighted new packages); the file keeps no marker so the plan drops both slots, the tests stay in the Go suite and skip clean without proof DSNs (0.00s locally) — re-enroll post-refit"
-  - file: go/internal/storage/postgres/supply_chain_impact_authorized_loader_live_test.go
-    tag: ~
-    class: scheduled
-    reason: "#9299 authorized impact loader admit + empty-registry proofs de-enrolled from the readiness plan under drift-gate option A (PR #9544 fourth round: the branch enrollment pushed defaulted tests to 46 over the 40 limit); the file keeps no marker so the plan drops both slots, the tests stay in the Go suite and skip clean without proof DSNs (0.00s locally), end-to-end cover stays enrolled via the disengaged-handler proof — re-enroll post-refit"
   - file: go/internal/storage/postgres/supply_chain_impact_protected_publish_live_test.go
     tag: ~
     class: scheduled

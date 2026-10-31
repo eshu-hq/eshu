@@ -21,7 +21,6 @@ on:
       '.github/workflows/docker-publish.yml', 'scripts/ci/select-docker-publish-lanes.sh', 'scripts/verify-apk-floors.sh',
       'scripts/test-verify-apk-floors.sh', 'scripts/fixtures/apk-floors/**',
       'scripts/verify-runtime-image-tools.sh', 'scripts/test-verify-runtime-image-tools.sh',
-      'scripts/verify-scanner-images.sh', 'scripts/test-verify-scanner-images.sh',
       'scripts/lib/rootfs-resolve.sh',
       'scripts/verify-scanner-digest-pins.sh', 'scripts/test-verify-scanner-digest-pins.sh',
       'scripts/ci/go-install-retry.sh',
@@ -101,15 +100,13 @@ jobs:
         if: ${{ env.LANE_APPLIES == 'true' }}
         run: bash scripts/verify-apk-floors.sh
   # Scanner digest pins (#9491): the drift gate for the artifactDigests pins
-  # in go/internal/collector/scannerworker/component/manifest.go. Lives
+  # in go/internal/collector/scannercomponent/manifest.go. Lives
   # beside verify-apk-floors (own scannerpins lane, no dependency on the
   # 45-minute builds): the self-test runs first so a broken verifier fails
   # before any registry read, then the verifier resolves each pin against
-  # the immutable sha-<publish-sha> tag, re-verifies the build
-  # attestation, and fails when scanner sources advanced past the anchor.
-  # Anonymous crane reads need no login; gh attestation verify uses the
-  # in-workflow token. Full history (fetch-depth 0) feeds the
-  # merge-base staleness check.
+  # the immutable satellite-published sha-<publish-sha> tag and re-verifies
+  # the satellite build attestation. Anonymous crane reads need no login;
+  # gh attestation verify uses the in-workflow token.
   verify-scanner-digest-pins:
     needs: [changes]
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'verify-scanner-digest-pins')) && ((github.event_name != 'workflow_dispatch' || inputs.mode == 'release') && (github.event_name == 'pull_request' && needs.changes.outputs.scannerpins == 'true')) }}
@@ -276,154 +273,6 @@ jobs:
           gh attestation verify "${OCI_IMAGE_REF}" \
             -R "${GITHUB_REPOSITORY}" \
             --predicate-type https://spdx.dev/Document/v2.3
-  # Destination scanner-<name> images (#8878): one minimal image per analyzer,
-  # each carrying exactly its eshu-scanner-component-<name> binary from the
-  # Dockerfile scanner-<name> stage. Published as
-  # ghcr.io/<owner>/scanner-<name> so the ComponentPackage manifest artifact
-  # (go/internal/collector/scannerworker/component) can pin the published
-  # digest after the first publish. Downstream activation consumes these
-  # images by digest alone (a tag is rejected at render time), mirroring
-  # the main image job (semver tags included on release-tag events).
-  build-and-push-scanner-images:
-    needs: [changes]
-    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'build-and-push-scanner-images')) && ((github.event_name != 'workflow_dispatch' || inputs.mode == 'release') && needs.changes.outputs.image == 'true') }}
-    name: Build and push scanner-${{ matrix.component }}
-    strategy:
-      matrix:
-        component: [image, sbom, osruntime]
-    env:
-      LANE_APPLIES: ${{ needs.changes.outputs.image }}
-      SCANNER_IMAGE_NAME: ${{ github.repository_owner }}/scanner-${{ matrix.component }}
-    timeout-minutes: 45
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-      packages: write
-      id-token: write
-      attestations: write
-    steps:
-      - name: Checkout repository
-        if: ${{ env.LANE_APPLIES == 'true' }}
-        uses: actions/checkout@v5
-      - name: Set up Docker Buildx
-        if: ${{ env.LANE_APPLIES == 'true' }}
-        uses: docker/setup-buildx-action@v3
-        with:
-          driver-opts: image=${{ env.CI_BUILDKIT_IMAGE }}
-      - name: Log in to Container Registry
-        if: ${{ github.event_name != 'pull_request' }}
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Extract metadata
-        if: ${{ env.LANE_APPLIES == 'true' }}
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.SCANNER_IMAGE_NAME }}
-          tags: |
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=sha,prefix=sha-,format=long
-      - name: Compute source date epoch
-        if: ${{ env.LANE_APPLIES == 'true' }}
-        id: epoch
-        run: echo "epoch=$(git log -1 --format=%ct)" >> "$GITHUB_OUTPUT"
-      - name: Pin deterministic labels
-        if: ${{ env.LANE_APPLIES == 'true' }}
-        id: labels
-        run: |
-          CREATED="$(date -u -d "@${{ steps.epoch.outputs.epoch }}" '+%Y-%m-%dT%H:%M:%SZ')"
-          printf '%s\n' '${{ steps.meta.outputs.labels }}' > /tmp/labels.txt
-          sed -i "s|org\.opencontainers\.image\.created=.*|org.opencontainers.image.created=${CREATED}|" /tmp/labels.txt
-          { echo 'labels<<EOF'; cat /tmp/labels.txt; echo 'EOF'; } >> "${GITHUB_OUTPUT}"
-      - name: Build and push scanner image
-        if: ${{ env.LANE_APPLIES == 'true' }}
-        id: build
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile
-          target: scanner-${{ matrix.component }}
-          push: ${{ github.event_name != 'pull_request' }}
-          build-args: |
-            ESHU_XX_IMAGE=${{ env.ESHU_XX_IMAGE }}
-            ESHU_GO_IMAGE=${{ env.ESHU_GO_IMAGE }}
-            ESHU_ALPINE_IMAGE=${{ env.ESHU_ALPINE_IMAGE }}
-            ESHU_VERSION=${{ github.ref_type == 'tag' && github.ref_name || github.sha }}
-            SOURCE_DATE_EPOCH=${{ steps.epoch.outputs.epoch }}
-          provenance: false
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.labels.outputs.labels }}
-          # #9632: same registry cache and push-only write as the main image
-          # build. The runtime tag is read too: the targets share the builder
-          # stage, which the old shared type=gha scope reused across builds.
-          cache-from: |
-            type=registry,ref=ghcr.io/eshu-hq/eshu-buildcache:scanner-${{ matrix.component }}
-            type=registry,ref=ghcr.io/eshu-hq/eshu-buildcache:runtime
-          cache-to: ${{ github.event_name == 'push' && format('type=registry,ref=ghcr.io/eshu-hq/eshu-buildcache:scanner-{0},mode=max', matrix.component) || '' }}
-          platforms: ${{ env.IMAGE_PLATFORMS }}
-      - name: Generate artifact attestation
-        if: ${{ github.event_name != 'pull_request' }}
-        uses: actions/attest-build-provenance@v1
-        with:
-          subject-name: ${{ env.REGISTRY }}/${{ env.SCANNER_IMAGE_NAME }}
-          subject-digest: ${{ steps.build.outputs.digest }}
-          push-to-registry: true
-      - name: Install cosign
-        if: ${{ github.event_name != 'pull_request' }}
-        uses: sigstore/cosign-installer@v4.1.0
-      - name: Sign scanner image
-        if: ${{ github.event_name != 'pull_request' }}
-        env:
-          IMAGE_REF: ${{ env.REGISTRY }}/${{ env.SCANNER_IMAGE_NAME }}@${{ steps.build.outputs.digest }}
-        run: cosign sign --yes "${IMAGE_REF}"
-      - name: Verify scanner image signature
-        if: ${{ github.event_name != 'pull_request' }}
-        env:
-          CERTIFICATE_IDENTITY: https://github.com/${{ github.workflow_ref }}
-          IMAGE_REF: ${{ env.REGISTRY }}/${{ env.SCANNER_IMAGE_NAME }}@${{ steps.build.outputs.digest }}
-        run: |
-          cosign verify "${IMAGE_REF}" \
-            --certificate-identity "${CERTIFICATE_IDENTITY}" \
-            --certificate-oidc-issuer "https://token.actions.githubusercontent.com"
-      - name: Prepare release metadata output
-        if: ${{ github.event_name != 'pull_request' }}
-        run: mkdir -p dist
-      - name: Generate scanner image SBOM
-        if: ${{ github.event_name != 'pull_request' }}
-        uses: anchore/sbom-action@v0
-        with:
-          image: ${{ env.REGISTRY }}/${{ env.SCANNER_IMAGE_NAME }}@${{ steps.build.outputs.digest }}
-          format: spdx-json
-          output-file: dist/eshu-scanner-${{ matrix.component }}.spdx.json
-          artifact-name: eshu-scanner-${{ matrix.component }}-sbom.spdx.json
-          upload-artifact: true
-          upload-release-assets: false
-      - name: Generate scanner SBOM attestation
-        if: ${{ github.event_name != 'pull_request' }}
-        uses: actions/attest@v4
-        with:
-          subject-name: ${{ env.REGISTRY }}/${{ env.SCANNER_IMAGE_NAME }}
-          subject-digest: ${{ steps.build.outputs.digest }}
-          sbom-path: dist/eshu-scanner-${{ matrix.component }}.spdx.json
-          push-to-registry: true
-          create-storage-record: false
-      - name: Verify scanner image attestations
-        if: ${{ github.event_name != 'pull_request' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          OCI_IMAGE_REF: oci://${{ env.REGISTRY }}/${{ env.SCANNER_IMAGE_NAME }}@${{ steps.build.outputs.digest }}
-        run: |
-          gh attestation verify "${OCI_IMAGE_REF}" \
-            -R "${GITHUB_REPOSITORY}"
-          gh attestation verify "${OCI_IMAGE_REF}" \
-            -R "${GITHUB_REPOSITORY}" \
-            --predicate-type https://spdx.dev/Document/v2.3
   promote-moving-tags:
     needs: [changes, build-and-push-image]
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'promote-moving-tags')) && ((github.event_name != 'workflow_dispatch' || inputs.mode == 'release') && needs.changes.outputs.image == 'true' && needs.build-and-push-image.result == 'success' && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch')) }}
@@ -460,12 +309,10 @@ jobs:
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'verify-reproducibility')) && ((github.event_name != 'workflow_dispatch' || inputs.mode == 'release') && needs.changes.outputs.image == 'true') }}
     env:
       LANE_APPLIES: ${{ needs.changes.outputs.image }}
-    # The scanner destination builds (#8878) added three rootfs builds plus
-    # verifier runs to this job; measured need is ~40 min (13 first build +
-    # ~11 shared-builder scanner builds + 13 second no-cache build + compare;
-    # the pre-fix shape needed ~54 min and died at the 30- and 45-minute
-    # envelopes with no test failing). 60 leaves 1.5x margin over the
-    # measured need.
+    # The scanner destination builds moved to the eshu-scanner-worker
+    # satellite with #8878: this job builds only the runtime image twice
+    # (first build + second no-cache build + compare). 60 leaves margin over
+    # the measured need.
     timeout-minutes: 60
     runs-on: ubuntu-24.04
     permissions:
@@ -497,36 +344,6 @@ jobs:
         # list against the rootfs this job just built rather than the
         # Dockerfile text.
         run: bash scripts/verify-runtime-image-tools.sh /tmp/out1
-      - name: Self-test the scanner image verifier
-        if: ${{ env.LANE_APPLIES == 'true' }}
-        run: bash scripts/test-verify-scanner-images.sh
-      - name: Build and verify scanner destination images
-        if: ${{ env.LANE_APPLIES == 'true' }}
-        # #8878: each scanner-<name> stage must export a rootfs carrying
-        # only its own component binary under the enforced directories.
-        # Same mirrored bases and reproducibility flags as
-        # scripts/ci/build-reproducibility-image.sh, but WITHOUT --no-cache:
-        # the verifier asserts content, not cold-build reproducibility (the
-        # main-image compare below owns that), and the three targets share
-        # one builder stage, so the second and third builds reuse its layers
-        # instead of recompiling Go twice more (~14 min saved; the first
-        # build on a fresh runner is inherently cold).
-        run: |
-          for component in image sbom osruntime; do
-            dest="/tmp/scan-${component}"
-            docker buildx build \
-              --platform linux/amd64 \
-              --target "scanner-${component}" \
-              --build-arg "SOURCE_DATE_EPOCH=${{ steps.epoch.outputs.epoch }}" \
-              --build-arg ESHU_VERSION=reproducibility-test \
-              --build-arg "ESHU_XX_IMAGE=${{ env.ESHU_XX_IMAGE }}" \
-              --build-arg "ESHU_GO_IMAGE=${{ env.ESHU_GO_IMAGE }}" \
-              --build-arg "ESHU_ALPINE_IMAGE=${{ env.ESHU_ALPINE_IMAGE }}" \
-              --provenance=false \
-              --output "type=local,dest=${dest}" \
-              .
-            bash scripts/verify-scanner-images.sh "${component}" "${dest}"
-          done
       - name: Build image (second, no cache)
         if: ${{ env.LANE_APPLIES == 'true' }}
         run: |

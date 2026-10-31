@@ -5,21 +5,18 @@ package extensionhost
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
 	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
-	"github.com/eshu-hq/eshu/go/internal/collector/ospackagevulnerability/osruntime"
-	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker"
-	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker/imageanalyzer"
-	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker/sbomgenerator"
 	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/factenvelope"
+	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -31,6 +28,12 @@ import (
 const parityPageBound = int64(8 * 1024)
 
 const parityComponentID = "eshu.scanner.parity"
+
+// parityGoldenDir holds one committed FactOutput per scanner analyzer family,
+// captured from the in-tree analyzers at the #8878 removal and frozen since.
+// The satellite owns analyzer execution now; regenerating these envelopes is
+// satellite work, not an in-tree edit.
+const parityGoldenDir = "testdata/scanner-parity"
 
 // parityManifest declares every fact kind the three scanner analyzers emit,
 // with the schema versions and confidence the analyzers actually produce.
@@ -166,183 +169,114 @@ func parityWorkItemAndClaim(t *testing.T, collectorInstanceID, scopeID, acceptan
 	return item, claim
 }
 
-func parityClaimInput(t *testing.T, kind scannerworker.AnalyzerKind) (workflow.WorkItem, scannerworker.ClaimInput) {
+// loadParityGolden reads one committed analyzer-family FactOutput. The
+// envelopes carry their own scope and generation identity; the caller
+// rebuilds the claim around them.
+func loadParityGolden(t *testing.T, name string) []facts.Envelope {
 	t.Helper()
 
-	scopeID := "scanner-worker://repository/parity-repo"
-	acceptanceUnitID := "repository:parity-repo"
-	if kind != scannerworker.AnalyzerSBOMGeneration {
-		scopeID = "image://registry.example/parity@sha256:deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
-		acceptanceUnitID = "image:sha256:deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
-	}
-	item, claim := parityWorkItemAndClaim(t, "scanner-parity", scopeID, acceptanceUnitID)
-	target, err := scannerworker.TargetScopeFromWorkItem(item)
+	raw, err := os.ReadFile(filepath.Join(parityGoldenDir, name+".json"))
 	if err != nil {
-		t.Fatalf("TargetScopeFromWorkItem() error = %v, want nil", err)
+		t.Fatalf("%s: read golden: %v", name, err)
 	}
-	limits, err := scannerworker.DefaultResourceLimits(kind)
-	if err != nil {
-		t.Fatalf("DefaultResourceLimits() error = %v, want nil", err)
+	var envelopes []facts.Envelope
+	if err := json.Unmarshal(raw, &envelopes); err != nil {
+		t.Fatalf("%s: decode golden: %v", name, err)
 	}
-	input, err := scannerworker.NewClaimInputAt(item, claim, kind, target, limits, testObservedAt())
-	if err != nil {
-		t.Fatalf("NewClaimInputAt() error = %v, want nil", err)
+	if len(envelopes) == 0 {
+		t.Fatalf("%s: golden holds no facts", name)
 	}
-	return item, input
+	return envelopes
 }
 
-type paritySBOMSource struct {
-	inventory sbomgenerator.Inventory
-}
-
-func (s *paritySBOMSource) Collect(_ context.Context, _ scannerworker.ClaimInput) (sbomgenerator.Inventory, error) {
-	return s.inventory, nil
-}
-
-func paritySBOMOutput(t *testing.T, _ workflow.WorkItem, input scannerworker.ClaimInput) scannerworker.FactOutput {
+// goldenWorkItem rebuilds the claim identity around committed envelopes so
+// the host-admitted facts compare against the golden truth on the same
+// scope and generation.
+func goldenWorkItem(t *testing.T, envelopes []facts.Envelope) workflow.WorkItem {
 	t.Helper()
 
-	var components []sbomgenerator.Component
-	for i := 0; i < 40; i++ {
-		name := fmt.Sprintf("parity-pkg-%04d", i)
-		components = append(components, sbomgenerator.Component{
-			PURL:             "pkg:npm/" + name + "@1.2.3",
-			Name:             name,
-			Version:          "1.2.3",
-			Type:             "library",
-			BomRef:           fmt.Sprintf("parity-bom-%04d", i),
-			Ecosystem:        "npm",
-			EvidenceSource:   "repository_lockfile",
-			LockfilePath:     "package-lock.json",
-			DependencyScope:  "dependencies",
-			DependencyType:   "runtime",
-			ExtractionReason: "lockfile_parsed",
-		})
-	}
-	analyzer := sbomgenerator.Analyzer{
-		Source: &paritySBOMSource{inventory: sbomgenerator.Inventory{
-			SubjectDigest: "sha256:11111111111111111111111111111111111111111111111111111111111111aa",
-			SpecVersion:   "1.6",
-			SourceTool:    "eshu_scanner_sbom_generator 0.0.1",
-			FileCount:     10,
-			InputBytes:    1024,
-			Components:    components,
-		}},
-		Now: testObservedAt,
-	}
-	result, err := analyzer.Analyze(context.Background(), input)
-	if err != nil {
-		t.Fatalf("sbomgenerator Analyze() error = %v, want nil", err)
-	}
-	return result.Output
+	first := envelopes[0]
+	item, _ := parityWorkItemAndClaim(t, "scanner-parity", first.ScopeID, first.ScopeID)
+	item.SourceRunID = first.GenerationID
+	item.GenerationID = first.GenerationID
+	return item
 }
 
-func parityRootFS(t *testing.T, packages int) string {
+// projectParityGolden converts committed envelopes to SDK wire facts,
+// proving projection preserves identity: kind, stable key, generation, and
+// scope must survive SDKFactFromInternal unchanged.
+func projectParityGolden(t *testing.T, name string, envelopes []facts.Envelope) []sdkcollector.Fact {
 	t.Helper()
 
-	root := t.TempDir()
-	write := func(rel, body string) {
-		t.Helper()
-		path := filepath.Join(root, filepath.FromSlash(rel))
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			t.Fatalf("MkdirAll: %v", err)
+	wire := make([]sdkcollector.Fact, 0, len(envelopes))
+	for i, envelope := range envelopes {
+		fact, err := factenvelope.SDKFactFromInternal(envelope)
+		if err != nil {
+			t.Fatalf("%s: SDKFactFromInternal(envelopes[%d]) error = %v", name, i, err)
 		}
-		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
-			t.Fatalf("WriteFile: %v", err)
+		if fact.Kind != envelope.FactKind || fact.StableKey != envelope.StableFactKey ||
+			fact.SourceRef.GenerationID != envelope.GenerationID || fact.SourceRef.ScopeID != envelope.SourceRef.ScopeID {
+			t.Fatalf("%s: envelopes[%d] projection changed identity: got %+v", name, i, fact.SourceRef)
+		}
+		wire = append(wire, fact)
+	}
+	return wire
+}
+
+// pageGoldenFacts chunks wire facts into pages that fit the parity bound,
+// standing in for the satellite-side paging the host reassembles. Failing
+// here means the bound or the golden changed shape; failing later (host
+// admission) means the satellite contract needs more emission work, not that
+// paging lost facts.
+func pageGoldenFacts(t *testing.T, name string, wire []sdkcollector.Fact) [][]sdkcollector.Fact {
+	t.Helper()
+
+	var pages [][]sdkcollector.Fact
+	var current []sdkcollector.Fact
+	currentBytes := 0
+	flush := func() {
+		if len(current) > 0 {
+			pages = append(pages, current)
+			current = nil
+			currentBytes = 0
 		}
 	}
-	write("etc/os-release", "ID=alpine\nVERSION_ID=3.19.1\n")
-	write("etc/apk/repositories", "https://dl-cdn.alpinelinux.org/alpine/v3.19/main\n")
-	var db strings.Builder
-	for i := 0; i < packages; i++ {
-		fmt.Fprintf(&db, "P:parity-pkg-%04d\nV:3.1.4-r5\nA:x86_64\no:parity-pkg-%04d\n\n", i, i)
+	for i, fact := range wire {
+		raw, err := json.Marshal(fact)
+		if err != nil {
+			t.Fatalf("%s: marshal wire fact %d: %v", name, i, err)
+		}
+		if int64(len(raw)) > parityPageBound {
+			t.Fatalf("%s: wire fact %d is %d bytes, above bound %d", name, i, len(raw), parityPageBound)
+		}
+		if currentBytes+len(raw) > int(parityPageBound) {
+			flush()
+		}
+		current = append(current, fact)
+		currentBytes += len(raw)
 	}
-	write("lib/apk/db/installed", db.String())
-	return root
-}
-
-func parityImageOutput(t *testing.T, item workflow.WorkItem, input scannerworker.ClaimInput) scannerworker.FactOutput {
-	t.Helper()
-
-	digest := "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	analyzer, err := imageanalyzer.NewAnalyzer(imageanalyzer.AnalyzerConfig{
-		CollectorInstanceID: item.CollectorInstanceID,
-		Targets: []imageanalyzer.TargetConfig{{
-			ScopeID:        item.ScopeID,
-			RootFSPath:     parityRootFS(t, 60),
-			SourceURI:      "oci://registry.example/parity@sha256:deadbeef",
-			SourceRecordID: "sha256:deadbeef",
-			ImageReference: "registry.example/parity:1.0",
-			ImageDigest:    digest,
-		}},
-		Now: testObservedAt,
-	})
-	if err != nil {
-		t.Fatalf("imageanalyzer NewAnalyzer() error = %v, want nil", err)
-	}
-	result, err := analyzer.Analyze(context.Background(), input)
-	if err != nil {
-		t.Fatalf("imageanalyzer Analyze() error = %v, want nil", err)
-	}
-	return result.Output
-}
-
-func parityOSRuntimeOutput(t *testing.T, item workflow.WorkItem, input scannerworker.ClaimInput) scannerworker.FactOutput {
-	t.Helper()
-
-	analyzer, err := osruntime.NewAnalyzer(osruntime.AnalyzerConfig{
-		CollectorInstanceID: item.CollectorInstanceID,
-		Targets: []osruntime.TargetConfig{{
-			ScopeID:        item.ScopeID,
-			RootFSPath:     parityRootFS(t, 60),
-			SourceURI:      "oci://registry.example/parity@sha256:deadbeef",
-			SourceRecordID: "sha256:deadbeef",
-		}},
-		Now: testObservedAt,
-	})
-	if err != nil {
-		t.Fatalf("osruntime NewAnalyzer() error = %v, want nil", err)
-	}
-	result, err := analyzer.Analyze(context.Background(), input)
-	if err != nil {
-		t.Fatalf("osruntime Analyze() error = %v, want nil", err)
-	}
-	return result.Output
-}
-
-// splitParityOutput pages one analyzer's real FactOutput at the small parity
-// bound and projects every page to SDK wire facts, returning one scripted
-// satellite call per page. Failing here means paging itself changed fact
-// truth; failing later (host admission) means the satellite contract needs
-// more analyzer emission work, not that paging lost facts.
-func splitParityOutput(t *testing.T, name string, item workflow.WorkItem, output scannerworker.FactOutput) []CallResult {
-	t.Helper()
-
-	if len(output.Facts) == 0 {
-		t.Fatalf("%s: analyzer emitted no facts", name)
-	}
-	pages, err := scannerworker.SplitFactOutput(output, parityPageBound)
-	if err != nil {
-		t.Fatalf("%s: SplitFactOutput() error = %v", name, err)
-	}
+	flush()
 	if len(pages) < 2 {
 		t.Fatalf("%s: pages = %d, want multi-page output at bound %d", name, len(pages), parityPageBound)
 	}
+	return pages
+}
+
+// splitParityGolden pages one analyzer family's committed envelopes at the
+// small parity bound and projects every page to SDK wire facts, returning one
+// scripted satellite call per page.
+func splitParityGolden(t *testing.T, name string, item workflow.WorkItem, envelopes []facts.Envelope) []CallResult {
+	t.Helper()
+
+	wire := projectParityGolden(t, name, envelopes)
+	pages := pageGoldenFacts(t, name, wire)
 	var calls []CallResult
-	for index, page := range pages {
-		var pageFacts []sdkcollector.Fact
-		for i, envelope := range page.Facts {
-			wire, err := factenvelope.SDKFactFromInternal(envelope)
-			if err != nil {
-				t.Fatalf("%s: SDKFactFromInternal(pages[%d] facts[%d]) error = %v", name, index, i, err)
-			}
-			pageFacts = append(pageFacts, wire)
-		}
+	for index, pageFacts := range pages {
 		result := completeResult(item, pageFacts...)
 		result.Claim = parityClaim(item)
 		result.Generation = parityGeneration(item)
 		result.ProtocolVersion = collectorSDKProtocolV1Alpha3
-		callPage := &ResultPage{PageIndex: index, TotalFacts: len(output.Facts)}
+		callPage := &ResultPage{PageIndex: index, TotalFacts: len(wire)}
 		if index < len(pages)-1 {
 			callPage.Cursor = fmt.Sprintf("parity-cursor-%d", index)
 			callPage.More = true
@@ -372,78 +306,53 @@ func paritySource(t *testing.T, item workflow.WorkItem, name string, calls []Cal
 	return source
 }
 
-// TestAnalyzerPagedProjectionParity proves paging preserves fact truth for
-// all three scanner analyzers: real analyzer outputs split at a small bound
-// and reassembled carry the identical kinds, stable keys, generations, and
-// scopes as the in-tree output on the same target.
-func TestAnalyzerPagedProjectionParity(t *testing.T) {
+// TestScannerGoldenPagedProjectionParity proves paging preserves fact truth
+// for all three scanner analyzer families: committed golden envelopes split
+// at a small bound and reassembled carry the identical kinds, stable keys,
+// generations, and scopes as the golden output.
+func TestScannerGoldenPagedProjectionParity(t *testing.T) {
 	t.Parallel()
 
-	drivers := map[string]func(t *testing.T) (workflow.WorkItem, scannerworker.FactOutput){
-		"sbomgenerator": func(t *testing.T) (workflow.WorkItem, scannerworker.FactOutput) {
-			item, input := parityClaimInput(t, scannerworker.AnalyzerSBOMGeneration)
-			return item, paritySBOMOutput(t, item, input)
-		},
-		"imageanalyzer": func(t *testing.T) (workflow.WorkItem, scannerworker.FactOutput) {
-			item, input := parityClaimInput(t, scannerworker.AnalyzerImageUnpacking)
-			return item, parityImageOutput(t, item, input)
-		},
-		"osruntime": func(t *testing.T) (workflow.WorkItem, scannerworker.FactOutput) {
-			item, input := parityClaimInput(t, scannerworker.AnalyzerOSPackageExtraction)
-			return item, parityOSRuntimeOutput(t, item, input)
-		},
-	}
-	for name, drive := range drivers {
-		item, output := drive(t)
-		calls := splitParityOutput(t, name, item, output)
+	for _, name := range []string{"sbom", "image", "osruntime"} {
+		envelopes := loadParityGolden(t, name)
+		item := goldenWorkItem(t, envelopes)
+		calls := splitParityGolden(t, name, item, envelopes)
 		var reassembled []sdkcollector.Fact
 		for _, call := range calls {
 			reassembled = append(reassembled, call.Result.Facts...)
 		}
-		if len(reassembled) != len(output.Facts) {
-			t.Fatalf("%s: reassembled %d facts, want %d", name, len(reassembled), len(output.Facts))
+		if len(reassembled) != len(envelopes) {
+			t.Fatalf("%s: reassembled %d facts, want %d", name, len(reassembled), len(envelopes))
 		}
-		for i, envelope := range output.Facts {
+		for i, envelope := range envelopes {
 			got := reassembled[i]
 			if got.Kind != envelope.FactKind || got.StableKey != envelope.StableFactKey ||
 				got.SourceRef.GenerationID != envelope.GenerationID || got.SourceRef.ScopeID != envelope.SourceRef.ScopeID {
 				t.Fatalf("%s: facts[%d] projection changed identity: got %+v", name, i, got.SourceRef)
 			}
 		}
-		t.Logf("%s: facts=%d pages=%d projection-parity=PASS", name, len(output.Facts), len(calls))
+		t.Logf("%s: facts=%d pages=%d projection-parity=PASS", name, len(envelopes), len(calls))
 	}
 }
 
-// TestAnalyzerSDKAdmissionEnforced proves the #9407 identity wiring is
-// enforced: every analyzer's real paged output is admitted by the host — the
-// fail-closed gaps are gone, and admitted facts carry the identical kinds,
-// stable keys, generations, and scopes as the in-tree output:
+// TestScannerGoldenSDKAdmissionEnforced proves the #9407 identity wiring is
+// enforced: every analyzer family's committed paged output is admitted by
+// the host — the fail-closed gaps are gone, and admitted facts carry the
+// identical kinds, stable keys, generations, and scopes as the golden
+// output:
 //
-//   - sbomgenerator: every fact projects the sanitized claim scope as
+//   - sbom: every fact projects the sanitized claim scope as
 //     source_ref.uri with per-fact snapshot records.
-//   - imageanalyzer/osruntime: vulnerability.os_package facts keep the
+//   - image/osruntime: vulnerability.os_package facts keep the
 //     analyzer collector kind but carry the planner-owned scanner_worker
 //     claim identity the SDK contract admits.
-func TestAnalyzerSDKAdmissionEnforced(t *testing.T) {
+func TestScannerGoldenSDKAdmissionEnforced(t *testing.T) {
 	t.Parallel()
 
-	kinds := map[string]scannerworker.AnalyzerKind{
-		"sbomgenerator": scannerworker.AnalyzerSBOMGeneration,
-		"imageanalyzer": scannerworker.AnalyzerImageUnpacking,
-		"osruntime":     scannerworker.AnalyzerOSPackageExtraction,
-	}
-	for name, kind := range kinds {
-		item, input := parityClaimInput(t, kind)
-		var output scannerworker.FactOutput
-		switch kind {
-		case scannerworker.AnalyzerSBOMGeneration:
-			output = paritySBOMOutput(t, item, input)
-		case scannerworker.AnalyzerImageUnpacking:
-			output = parityImageOutput(t, item, input)
-		default:
-			output = parityOSRuntimeOutput(t, item, input)
-		}
-		calls := splitParityOutput(t, name, item, output)
+	for _, name := range []string{"sbom", "image", "osruntime"} {
+		envelopes := loadParityGolden(t, name)
+		item := goldenWorkItem(t, envelopes)
+		calls := splitParityGolden(t, name, item, envelopes)
 		source := paritySource(t, item, name, calls)
 		collected, ok, err := source.NextClaimed(context.Background(), item)
 		if err != nil || !ok {
@@ -459,10 +368,10 @@ func TestAnalyzerSDKAdmissionEnforced(t *testing.T) {
 				t.Fatalf("%s: FactStreamErr() = %v, want nil", name, err)
 			}
 		}
-		if len(admitted) != len(output.Facts) {
-			t.Fatalf("%s: admitted %d facts, want %d", name, len(admitted), len(output.Facts))
+		if len(admitted) != len(envelopes) {
+			t.Fatalf("%s: admitted %d facts, want %d", name, len(admitted), len(envelopes))
 		}
-		for i, envelope := range output.Facts {
+		for i, envelope := range envelopes {
 			want := envelope.FactKind + "\x00" + envelope.StableFactKey +
 				"\x00" + envelope.ScopeID + "\x00" + envelope.GenerationID
 			if admitted[i] != want {

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	collectorscannerworker "github.com/eshu-hq/eshu/go/internal/collector/scannerworker"
+	scannercomponent "github.com/eshu-hq/eshu/go/internal/collector/scannercomponent"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/contract"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -37,11 +37,11 @@ type scannerWorkerRuntimeConfiguration struct {
 }
 
 type scannerWorkerTargetConfiguration struct {
-	ScopeID    string                            `json:"scope_id"`
-	RootPath   string                            `json:"root_path"`
-	RootFSPath string                            `json:"rootfs_path"`
-	LayerPaths []string                          `json:"layer_paths"`
-	TargetKind collectorscannerworker.TargetKind `json:"-"`
+	ScopeID    string                      `json:"scope_id"`
+	RootPath   string                      `json:"root_path"`
+	RootFSPath string                      `json:"rootfs_path"`
+	LayerPaths []string                    `json:"layer_paths"`
+	TargetKind scannercomponent.TargetKind `json:"-"`
 }
 
 // PlanScannerWorkerWork returns one run and one work item per configured
@@ -107,14 +107,14 @@ func validateScannerWorkerPlanRequest(request PlanRequest) error {
 	return nil
 }
 
-func parseScannerWorkerRuntimeTargets(raw string) (collectorscannerworker.AnalyzerKind, []scannerWorkerTargetConfiguration, error) {
+func parseScannerWorkerRuntimeTargets(raw string) (scannercomponent.AnalyzerKind, []scannerWorkerTargetConfiguration, error) {
 	var decoded scannerWorkerRuntimeConfiguration
 	if err := json.Unmarshal([]byte(defaultScannerWorkerConfiguration(raw)), &decoded); err != nil {
 		return "", nil, fmt.Errorf("decode scanner-worker collector configuration: %w", err)
 	}
-	analyzer := collectorscannerworker.AnalyzerKind(strings.TrimSpace(decoded.Analyzer))
+	analyzer := scannercomponent.AnalyzerKind(strings.TrimSpace(decoded.Analyzer))
 	if analyzer == "" {
-		analyzer = collectorscannerworker.AnalyzerSourceAnalysis
+		analyzer = scannercomponent.AnalyzerSourceAnalysis
 	}
 	targets := scannerWorkerTargetsForAnalyzer(analyzer, decoded)
 	for i := range targets {
@@ -135,16 +135,16 @@ func defaultScannerWorkerConfiguration(raw string) string {
 }
 
 func scannerWorkerTargetsForAnalyzer(
-	analyzer collectorscannerworker.AnalyzerKind,
+	analyzer scannercomponent.AnalyzerKind,
 	decoded scannerWorkerRuntimeConfiguration,
 ) []scannerWorkerTargetConfiguration {
 	switch analyzer {
-	case collectorscannerworker.AnalyzerSBOMGeneration:
-		return scannerWorkerTargetsWithKind(decoded.SBOMTargets, collectorscannerworker.TargetRepository)
-	case collectorscannerworker.AnalyzerImageUnpacking:
-		return scannerWorkerTargetsWithKind(decoded.ImageTargets, collectorscannerworker.TargetImage)
-	case collectorscannerworker.AnalyzerOSPackageExtraction:
-		return scannerWorkerTargetsWithKind(decoded.OSPackageTargets, collectorscannerworker.TargetImage)
+	case scannercomponent.AnalyzerSBOMGeneration:
+		return scannerWorkerTargetsWithKind(decoded.SBOMTargets, scannercomponent.TargetRepository)
+	case scannercomponent.AnalyzerImageUnpacking:
+		return scannerWorkerTargetsWithKind(decoded.ImageTargets, scannercomponent.TargetImage)
+	case scannercomponent.AnalyzerOSPackageExtraction:
+		return scannerWorkerTargetsWithKind(decoded.OSPackageTargets, scannercomponent.TargetImage)
 	default:
 		return nil
 	}
@@ -152,7 +152,7 @@ func scannerWorkerTargetsForAnalyzer(
 
 func scannerWorkerTargetsWithKind(
 	targets []scannerWorkerTargetConfiguration,
-	kind collectorscannerworker.TargetKind,
+	kind scannercomponent.TargetKind,
 ) []scannerWorkerTargetConfiguration {
 	out := make([]scannerWorkerTargetConfiguration, 0, len(targets))
 	for _, target := range targets {
@@ -163,7 +163,7 @@ func scannerWorkerTargetsWithKind(
 }
 
 func validateScannerWorkerTarget(
-	analyzer collectorscannerworker.AnalyzerKind,
+	analyzer scannercomponent.AnalyzerKind,
 	target scannerWorkerTargetConfiguration,
 ) (scannerWorkerTargetConfiguration, error) {
 	target.ScopeID = strings.TrimSpace(target.ScopeID)
@@ -174,15 +174,15 @@ func validateScannerWorkerTarget(
 		return scannerWorkerTargetConfiguration{}, fmt.Errorf("scanner-worker target scope_id is required")
 	}
 	switch analyzer {
-	case collectorscannerworker.AnalyzerSBOMGeneration:
+	case scannercomponent.AnalyzerSBOMGeneration:
 		if target.RootPath == "" {
 			return scannerWorkerTargetConfiguration{}, fmt.Errorf("scanner-worker sbom_generation target root_path is required")
 		}
-	case collectorscannerworker.AnalyzerImageUnpacking:
+	case scannercomponent.AnalyzerImageUnpacking:
 		if target.RootFSPath == "" && len(target.LayerPaths) == 0 {
 			return scannerWorkerTargetConfiguration{}, fmt.Errorf("scanner-worker image_unpacking target rootfs_path or layer_paths is required")
 		}
-	case collectorscannerworker.AnalyzerOSPackageExtraction:
+	case scannercomponent.AnalyzerOSPackageExtraction:
 		if target.RootFSPath == "" {
 			return scannerWorkerTargetConfiguration{}, fmt.Errorf("scanner-worker os_package_extraction target rootfs_path is required")
 		}
@@ -235,7 +235,7 @@ func scannerWorkerTriggerKind(instance workflow.CollectorInstance) workflow.Trig
 
 func scannerWorkerRequestedScopeSet(
 	instance workflow.CollectorInstance,
-	analyzer collectorscannerworker.AnalyzerKind,
+	analyzer scannercomponent.AnalyzerKind,
 	targets []scannerWorkerTargetConfiguration,
 ) string {
 	type requestedTarget struct {
@@ -269,7 +269,7 @@ func scannerWorkerRequestedScopeSet(
 
 func scannerWorkerWorkItem(
 	instance workflow.CollectorInstance,
-	analyzer collectorscannerworker.AnalyzerKind,
+	analyzer scannercomponent.AnalyzerKind,
 	target scannerWorkerTargetConfiguration,
 	runID string,
 	planKey string,

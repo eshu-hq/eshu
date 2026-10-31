@@ -9,3 +9,4 @@
 # review checked the name against naming.md. The gate stays blocking for
 # everything without a row.
 go/internal/testutil/contentreader	Fake content-read database/sql driver leaf; nesting as content/reader would force clause reader and stutter reader.Reader* at every call site (naming.md rule 4); zero collisions measured for contentreader	#6818
+go/internal/collector/scannercomponent	Arbiter-mandated admission-leaf home per binding #8878 removal ruling 2026-10-31 (owner finish-consent covers removal); scanner qualifier kept at call sites; zero collisions measured	#8878

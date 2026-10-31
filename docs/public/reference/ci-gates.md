@@ -39,7 +39,7 @@ An **Odù** is one of its scenarios: a set of recorded facts whose expected
 results are derived from the inputs rather than written by hand. See
 [the Ifá conformance platform](../concepts/ifa-conformance-platform.md).
 
-### Hygiene: Is the change well-formed? (60 gates)
+### Hygiene: Is the change well-formed? (59 gates)
 
 - `go-fmt` (blocking): Checks Go source is formatted with gofumpt so diffs stay consistent.
 - `go-lint` (blocking): Runs golangci-lint across the Go module to catch style and correctness issues.
@@ -90,7 +90,6 @@ results are derived from the inputs rather than written by hand. See
 - `ifa-replay-drive` (blocking): Statically checks the structure of the Ifá replay-drive verifier script; it does not start Docker or replay any cassette.
 - `trivy-image` (advisory): Scans the published GHCR container image for known vulnerabilities after publish.
 - `docker-image-build` (blocking): Smoke-tests that the Docker image still builds successfully in CI.
-- `scanner-image-build` (blocking): Smoke-tests that the three scanner-<name> destination images still build and push successfully in CI, so the digest-pinned activation artifacts exist.
 - `docker-publish-shape` (blocking): Statically checks the publish workflow's per-sha concurrency, immutable build tags, promotion wiring, and per-sha scan resolver; it never pushes an image.
 - `dockerhub-login` (blocking): Fails when a merge_group or pull_request job reaches Docker Hub (reads the CI image ledger); other Docker Hub-pulling jobs need a gated login before a pull.
 - `workflow-script-checkout` (blocking): Fails when a workflow job runs a repository shell script with no preceding actions/checkout step in that job.
@@ -112,7 +111,7 @@ results are derived from the inputs rather than written by hand. See
 - `code-coverage-report` (advisory): Runs the full Go test suite with coverage and regenerates the public coverage report and badge; advisory only.
 - `go-test-race` (blocking): Runs the replay and scheduling test packages under Go's race detector to catch data races.
 
-### Contract: Do declared or generated artifacts match the code? (64 gates)
+### Contract: Do declared or generated artifacts match the code? (63 gates)
 
 - `slim-collector-entrypoints` (blocking): Fails the queue entry when the generated collector entrypoints file drifts from the collector fact contract spec.
 - `openapi-surface` (blocking): Fails when a registered HTTP route has no matching OpenAPI fragment, or vice versa.
@@ -170,9 +169,8 @@ results are derived from the inputs rather than written by hand. See
 - `cassette-author` (blocking): Scans committed cassettes for leaked private data and validates each one against the v1 cassette-format schema.
 - `authz-scoped-route-tests` (blocking): Confirms scoped-token route authorization in code matches the declared authorization-catalog and replay-coverage specs.
 - `docker-image-reproducibility` (blocking): Builds the Docker image twice and checks the two outputs are identical, proving the build is reproducible.
-- `scanner-digest-pins` (blocking): Fails when a scanner image digest drifted from its pin, its attestation fails, or scanner sources passed the anchored publish SHA.
+- `scanner-digest-pins` (blocking): Fails when a scanner image digest drifted from its pin, its satellite attestation fails, or the anchor names an unknown satellite publish.
 - `runtime-image-tools` (blocking): Fails when the built runtime image is missing any tool in the verifier's REQUIRED_TOOLS list.
-- `scanner-images` (blocking): Fails when a built scanner-<name> destination image is missing its own eshu-scanner-component-<name> binary or carries a sibling component binary.
 - `apk-floors` (blocking): Fails when an apk add version floor in the Dockerfile's final stage is below the version the Alpine repository serves.
 - `pg-statement-report` (blocking): Checks the pg-statement-report script keeps its read-only, no-DDL-without-install, privacy-filter, and not-preloaded contract against a stub psql.
 - `collector-cutover-rollback` (blocking): Checks the collector cutover rollback script keeps its step order, refusal gates, and idempotence against stubbed eshu, kubectl, helm, and psql.
@@ -364,20 +362,18 @@ results are derived from the inputs rather than written by hand. See
 | `auth-sso-e2e` | SSO auth E2E (browser, fresh stack) | exactness | ci-heavy | false | `bash scripts/run-auth-e2e.sh` | frontend.yml / SSO auth E2E (browser, fresh stack) | 15 path(s): scripts/lib/auth_e2e_cli.sh, scripts/test-auth-e2e-cli.sh, scripts/run-auth-e2e.sh, … |
 | `trivy-image` | Trivy image scan (GHCR) | security | ci-heavy | false | — (CI-only: requires published container image and GHCR credentials) | security-scan.yml / Trivy image scan (ghcr.io/eshu-hq/eshu) | 2 path(s): go/**, Dockerfile |
 | `docker-image-build` | Docker image build smoke | build | ci-heavy | true | — (CI-only: requires hosted Docker Buildx; PR runs build with push disabled) | docker-publish.yml / build-and-push-image | 4 path(s): Dockerfile, .dockerignore, .github/workflows/docker-publish.yml, … |
-| `scanner-image-build` | Scanner destination image build smoke | build | ci-heavy | true | — (CI-only: requires hosted Docker Buildx; PR runs build with push disabled) | docker-publish.yml / Build and push scanner-image, Build and push scanner-sbom, Build and push scanner-osruntime | 4 path(s): Dockerfile, .dockerignore, .github/workflows/docker-publish.yml, … |
 | `docker-image-reproducibility` | Docker image reproducibility | build | ci-heavy | true | — (CI-only: requires two clean hosted Docker Buildx builds) | docker-publish.yml / verify-reproducibility | 6 path(s): Dockerfile, .dockerignore, .github/workflows/docker-publish.yml, … |
 | `docker-publish-shape` | Docker publish workflow shape | build | pre-pr | true | `bash scripts/test-verify-docker-publish-moving-tags.sh && bash scripts/test-verify-docker-publish-pr-platforms.sh && bash scripts/test-promote-moving-tags.sh && bash scripts/test-resolve-image-scan-ref.sh && bash scripts/dev/test-publish-ci-image-mirrors.sh && bash scripts/dev/test-docker-publish-ci-mirror-mode.sh && bash scripts/ci/test-docker-publish-extracted-steps.sh` | static-contract-gates.yml / Verify docker-publish shape gate | 23 path(s): docs/internal/ci-service-image-mirrors.md, .github/workflows/docker-publish.yml, .github/workflows/security-scan.yml, … |
 | `dockerhub-login` | Docker Hub login in image-pulling workflows | hygiene | pre-pr | true | `bash scripts/verify-dockerhub-login.sh`<br>then self-test: `bash scripts/test-verify-dockerhub-login.sh` | static-contract-gates.yml / Verify Docker Hub login gate | 11 path(s): .github/**, **/*.*sh, scripts/lib/dockerhub-login-*.awk, … |
 | `workflow-script-checkout` | Workflow jobs check out before running repo scripts | hygiene | pre-pr | true | `bash scripts/verify-workflow-script-checkout.sh`<br>then self-test: `bash scripts/test-verify-workflow-script-checkout.sh` | static-contract-gates.yml / Verify workflow script checkout gate | 5 path(s): .github/**, scripts/verify-workflow-script-checkout.sh, scripts/test-verify-workflow-script-checkout.sh, … |
 | `docker-image-promotion` | Moving image tag promotion | build | ci-heavy | false | — (CI-only: requires a pushed digest and GHCR write credentials; push-only job, never runs on PRs) | docker-publish.yml / promote-moving-tags | 5 path(s): Dockerfile, .dockerignore, .github/workflows/docker-publish.yml, … |
 | `release-sbom-attach` | Release SBOM attach | release | ci-heavy | false | — (CI-only: attaches a release asset with the workflow token; tag-push only, never runs on a pull_request or merge_group) | docker-publish.yml / attach-release-sbom | 3 path(s): Dockerfile, .dockerignore, .github/workflows/docker-publish.yml |
-| `scanner-digest-pins` | Scanner image digest pins match the published images | exactness | pre-pr | true | `bash scripts/test-verify-scanner-digest-pins.sh` | docker-publish.yml / verify-scanner-digest-pins | 16 path(s): Dockerfile, .github/workflows/docker-publish.yml, scripts/ci/select-docker-publish-lanes.sh, … |
+| `scanner-digest-pins` | Scanner image digest pins match the published images | exactness | pre-pr | true | `bash scripts/test-verify-scanner-digest-pins.sh` | docker-publish.yml / verify-scanner-digest-pins | 12 path(s): Dockerfile, .github/workflows/docker-publish.yml, scripts/ci/select-docker-publish-lanes.sh, … |
 | `ci-service-mirror-publish` | CI service image mirror publish | release | manual | false | — (CI-only: manual main-only dispatch with packages: write and a GHCR login; no merge depends on it and it never runs on a pull_request or merge_group) | docker-publish.yml / publish-ci-service-mirrors | 6 path(s): .github/workflows/docker-publish.yml, scripts/dev/publish-ci-image-mirrors.sh, scripts/dev/test-publish-ci-image-mirrors.sh, … |
 | `ci-service-mirror-verify-public` | CI service image mirror public verify | release | manual | false | — (CI-only: manual main-only dispatch that needs live registry reads; no merge depends on it and it never runs on a pull_request or merge_group) | docker-publish.yml / verify-public-ci-service-mirrors | 6 path(s): .github/workflows/docker-publish.yml, scripts/dev/publish-ci-image-mirrors.sh, scripts/dev/test-publish-ci-image-mirrors.sh, … |
 | `cgo-cflags-guard` | Go workflows and entrypoints set the cgo C dialect flag | hygiene | pre-push | true | `bash scripts/verify-cgo-cflags-guard.sh`<br>then self-test: `bash scripts/test-verify-cgo-cflags-guard.sh` | verify-agent-hygiene.yml / Agent hygiene gate | 21 path(s): .github/workflows/*.yml, scripts/**/*.sh, Makefile, … |
 | `changelog-unreleased` | CHANGELOG.md Unreleased section integrity | hygiene | pre-push | true | `bash scripts/verify-changelog-unreleased.sh`<br>then self-test: `bash scripts/test-verify-changelog-unreleased.sh && bash scripts/test-changelog-union-merge.sh` | static-contract-gates.yml / Verify changelog-unreleased gate | 8 path(s): CHANGELOG.md, .gitattributes, scripts/verify-changelog-unreleased.sh, … |
 | `runtime-image-tools` | Runtime image ships required tools | exactness | pre-pr | true | `bash scripts/test-verify-runtime-image-tools.sh` | docker-publish.yml / verify-reproducibility | 6 path(s): Dockerfile, .github/workflows/docker-publish.yml, scripts/ci/select-docker-publish-lanes.sh, … |
-| `scanner-images` | Scanner destination images carry their component binary | exactness | pre-pr | true | `bash scripts/test-verify-scanner-images.sh` | docker-publish.yml / verify-reproducibility | 6 path(s): Dockerfile, .github/workflows/docker-publish.yml, scripts/ci/select-docker-publish-lanes.sh, … |
 | `apk-floors` | Alpine apk floors match the repository | exactness | pre-pr | true | `bash scripts/verify-apk-floors.sh`<br>then self-test: `bash scripts/test-verify-apk-floors.sh` | docker-publish.yml / verify-apk-floors | 6 path(s): Dockerfile, .github/workflows/docker-publish.yml, scripts/ci/select-docker-publish-lanes.sh, … |
 | `apk-floors-drift` | Alpine apk floors drift (daily) | exactness | ci-heavy | false | — (CI-only: daily scheduled run against the live Alpine repository; the blocking apk-floors row runs the same script) | apk-floors-drift.yml / Apk floors drift (daily) | 5 path(s): Dockerfile, .github/workflows/apk-floors-drift.yml, scripts/verify-apk-floors.sh, … |
 | `docker-publish` | Docker image publication | release | manual | false | — (CI-only: post-merge publication requires registry push credentials and cannot block its own merge) | docker-publish.yml / build-and-push-image | 2 path(s): go/**, Dockerfile |

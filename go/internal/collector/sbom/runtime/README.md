@@ -16,10 +16,10 @@ typed `sbom.*` or `attestation.*` fact envelopes.
   `attestation.signature_verification` facts.
 - Reducers attach SBOM/attestation facts to image truth and decide verification
   status.
-- Bounded SBOM **generation** does not live here. The scanner-worker analyzer
-  in `internal/collector/scannerworker/sbomgenerator` is the lane for building
-  new CycloneDX-compatible source facts from a repository, image, or artifact
-  target when the scanner-worker source can provide a subject digest. This
+- Bounded SBOM **generation** does not live here. The `sbom_generation`
+  analyzer in the `eshu-hq/eshu-scanner-worker` satellite is the lane for
+  building new CycloneDX-compatible source facts from a repository, image, or
+  artifact target when the satellite source can provide a subject digest. This
   runtime stays focused on fetching and parsing already-published documents.
 
 Parser-emitted SBOM document facts keep `verification_status` blank. A hosted

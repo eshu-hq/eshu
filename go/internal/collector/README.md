@@ -282,10 +282,10 @@ evidence (No-Regression and No-Observability-Change) for this section lives in
   source facts for log signals, rules, and coverage warnings without retaining
   log lines, raw LogQL, label values, tenant IDs, credentials, private URLs, or
   provider response bodies.
-- `scannerworker` subpackage — scanner-worker claim processing, analyzer port,
-  bounded target scope, resource limits, source-fact output validation, and
-  retry/dead-letter payloads. Concrete heavy analyzers plug in behind this
-  boundary.
+- `scannercomponent` subpackage — frozen scanner vocabulary (analyzer, target,
+  and failure kinds) plus component-admission truth: per-analyzer manifests,
+  required grants, and seeded-artifact verification. Analyzer execution lives
+  in the `eshu-hq/eshu-scanner-worker` satellite.
 
 ## Dependencies
 

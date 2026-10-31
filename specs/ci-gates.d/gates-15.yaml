@@ -32,37 +32,6 @@ gates:
     requirements: []
     ci_only_reason: ""
 
-  - id: scanner-images
-    name: Scanner destination images carry their component binary
-    # exactness, not build: same local-runner category reasoning as
-    # runtime-image-tools above.
-    category: exactness
-    layer: contract
-    purpose: "Fails when a built scanner-<name> destination image is missing its own eshu-scanner-component-<name> binary or carries a sibling component binary."
-    tier: pre-pr
-    blocking: true
-    # Locally this runs only the hermetic RED/GREEN suite for the verifier: it
-    # needs no Docker and does not inspect an image, so a Dockerfile edit that
-    # drops or contaminates a binary stays green locally. The images themselves
-    # are checked only in CI: verify-reproducibility runs the suite, then the
-    # verifier against each linux/amd64 scanner-<name> rootfs that job builds
-    # (#8878); same workflow, same job, two more steps.
-    triggers:
-      - "Dockerfile"
-      - ".github/workflows/docker-publish.yml"
-      - "scripts/ci/select-docker-publish-lanes.sh"
-      - "scripts/verify-scanner-images.sh"
-      - "scripts/test-verify-scanner-images.sh"
-      - "scripts/lib/rootfs-resolve.sh"
-    local:
-      command: "bash scripts/test-verify-scanner-images.sh"
-      pre_push: floor
-    ci:
-      workflow: docker-publish.yml
-      job: "verify-reproducibility"
-    requirements: []
-    ci_only_reason: ""
-
   - id: apk-floors
     name: Alpine apk floors match the repository
     category: exactness

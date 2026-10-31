@@ -2051,12 +2051,12 @@
       "category": "collector",
       "name": "scanner_worker",
       "readiness": "implemented",
-      "owner": "internal/collector/scannerworker",
+      "owner": "internal/coordinator/scanner/worker",
       "proof": "reference/collector-reducer-readiness.md#promotion-proof",
       "docs": [
         "reference/collector-reducer-readiness.md"
       ],
-      "notes": "The worker runtime and warning analyzer are implemented and charted; concrete secret/license/source/misconfiguration analyzers stay fixture-proven and off by default until live proof.",
+      "notes": "The in-tree producer (go/cmd/scanner-worker, go/internal/collector/scannerworker) was removed after the satellite cutover (#8878); collection runs from eshu-hq/eshu-scanner-worker while the coordinator still plans scanner_worker claims and the reducer/query surfaces still serve the fact kinds.",
       "collector_contract": {
         "fact_kinds": [
           "scanner_worker.analysis",
@@ -2072,11 +2072,11 @@
           "list_supply_chain_impact_findings"
         ],
         "proof_gates": [
-          "cd go \u0026\u0026 go test ./cmd/scanner-worker ./internal/collector/scannerworker ./internal/reducer ./internal/query ./internal/mcp -count=1"
+          "cd go \u0026\u0026 go test ./internal/collector/scannercomponent ./internal/collector/extensionhost ./internal/reducer ./internal/query ./internal/mcp -count=1"
         ],
         "fixture_refs": [
           "docs/public/reference/security-intelligence.md#scanner-worker",
-          "go/internal/collector/scannerworker/testdata"
+          "go/internal/collector/extensionhost/testdata/scanner-parity"
         ],
         "truth_profile": "fixture_gated"
       }
@@ -2560,26 +2560,6 @@
     {
       "category": "command",
       "name": "replay-coverage-gate",
-      "readiness": "implemented"
-    },
-    {
-      "category": "command",
-      "name": "scanner-component-image",
-      "readiness": "implemented"
-    },
-    {
-      "category": "command",
-      "name": "scanner-component-osruntime",
-      "readiness": "implemented"
-    },
-    {
-      "category": "command",
-      "name": "scanner-component-sbom",
-      "readiness": "implemented"
-    },
-    {
-      "category": "command",
-      "name": "scanner-worker",
       "readiness": "implemented"
     },
     {

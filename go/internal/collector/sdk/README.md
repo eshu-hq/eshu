@@ -340,10 +340,11 @@ intentional owner-boundary files:
   extension-host process and OCI-runner protocol failure vocabulary. It validates
   extension SDK output and records bounded workflow classes after a process
   result, so the collector HTTP SDK is not the right abstraction.
-- `go/internal/collector/scannerworker/failure.go` remains the isolated
-  scanner-worker retry and dead-letter payload contract. Scanner workers own
-  analyzer process limits, source-fact allowlists, and claim fencing rather than
-  provider HTTP calls.
+- `go/internal/collector/scannercomponent/vocabulary.go` holds the frozen
+  scanner-worker failure vocabulary (`FailureClass`, `FailureDisposition`).
+  Scanner workers own analyzer process limits, source-fact allowlists, and
+  claim fencing rather than provider HTTP calls; execution lives in the
+  satellite.
 - `go/internal/collector/securityalerts/alertruntime/failure.go` remains a
   Dependabot/GitHub runtime wrapper for rate-limit metadata. Generic HTTP status
   class decisions delegate to `sdk.ClassifyProviderFailure`.

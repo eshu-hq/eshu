@@ -11,7 +11,7 @@
 
 | Producer | Repository | Path | Planned repository | Authority | Emitted kinds |
 | --- | --- | --- | --- | --- | --- |
-| `scanner-worker` | `eshu-hq/eshu` | `go/internal/collector/scannerworker` | `` | `core_owned` | `scanner_worker.analysis, scanner_worker.warning` |
+| `scanner-worker` | `eshu-hq/eshu-scanner-worker` | `.` | `` | `core_issued_grant` | `scanner_worker.analysis, scanner_worker.warning` |
 
 ## Kinds
 

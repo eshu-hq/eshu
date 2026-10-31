@@ -31,7 +31,6 @@ exact binary set on `PATH`.
 | `eshu-collector-pagerduty` | `collector-pagerduty/` | Long-running PagerDuty incident-context collector |
 | `eshu-collector-grafana` | `collector-grafana/` | Long-running live Grafana metadata collector |
 | `eshu-collector-prometheus-mimir` | `collector-prometheus-mimir/` | Long-running live Prometheus and Mimir metadata collector |
-| `eshu-scanner-worker` | `scanner-worker/` | Long-running isolated security analyzer worker |
 | `eshu-collector-gcp-cloud` | `collector-gcp-cloud/` | Long-running GCP Cloud Asset Inventory collector |
 | `eshu-webhook-listener` | `webhook-listener/` | Long-running GitHub/GitLab webhook intake |
 | `eshu-admin-status` | `admin-status/` | Admin/status read helper |
@@ -60,7 +59,6 @@ flowchart LR
   grafana[collector-grafana] --> postgres
   metrics[collector-prometheus-mimir] --> postgres
   gcp[collector-gcp-cloud] --> postgres
-  scanner[scanner-worker] --> postgres
   webhook[webhook-listener] --> postgres
   api[api] --> graph
   api --> postgres

@@ -197,7 +197,7 @@ Current contract flow:
 flowchart LR
   coordinator["Workflow coordinator<br/>plans scanner_worker work item"]
   workflow["workflow.WorkItem + workflow.Claim<br/>claim id and fencing token"]
-  scanner_contract["scannerworker.ClaimInput<br/>target scope + resource limits"]
+  scanner_contract["scanner claim input<br/>target scope + resource limits"]
   analyzer["isolated analyzer process<br/>CPU and memory bounded"]
   source_facts["scanner_worker.* source facts<br/>fenced fact envelopes"]
   fact_store["Postgres fact store"]
@@ -245,7 +245,7 @@ Analyzer lane ownership:
 | Analyzer profile | Lane | Reason |
 | --- | --- | --- |
 | SBOM generation | `scanner_worker` | Can read repository, image, or artifact inputs and produce many component facts. |
-| Image unpacking | `scanner_worker` | CPU, disk, and memory pressure must be isolated. The current analyzer reads configured local rootfs metadata or ordered OCI layer tar streams and emits coverage facts, package facts only when apk/dpkg database proof exists, or unsupported warning evidence. |
+| Image unpacking | `scanner_worker` | CPU, disk, and memory pressure must be isolated. The satellite analyzer reads configured local rootfs metadata or ordered OCI layer tar streams and emits coverage facts, package facts only when apk/dpkg database proof exists, or unsupported warning evidence. |
 | Source analysis | `scanner_worker` | Repository-size dependent CPU and memory cost. |
 | OS package extraction | `scanner_worker` | Image/rootfs extraction belongs outside reducers. |
 | Secret scanning | `scanner_worker` | High-cardinality file scanning with bounded output. |
@@ -346,7 +346,7 @@ and SQLite bytes remain unsupported warning evidence.
 
 ## Scanner Observability
 
-The hosted scanner-worker service records these signals:
+The satellite scanner-worker service records these signals:
 
 - counters: `eshu_dp_scanner_worker_claims_total`,
   `eshu_dp_scanner_worker_retries_total`,
@@ -364,14 +364,14 @@ running the analyzer, hitting a resource limit, producing too many facts,
 retrying transiently, or dead-lettering terminally without reading raw target
 names.
 
-No-Regression Evidence: scanner-worker runtime behavior is covered by
-`go test ./internal/collector/scannerworker ./internal/collector/scannerworker/sbomgenerator ./cmd/scanner-worker ./internal/runtime -run 'Test(Service|DefaultResourceLimits|WarningAnalyzer|Analyzer|LoadRuntimeConfig|RepositorySBOMSource|ScannerWorkerBinary|RemoteE2EComposeIncludesScannerWorker|HelmClaimDrivenCollectorDeployments)' -count=1`.
-That proof covers source fact emission, retryable analyzer failure, terminal
-dead-letter payloads, silent-clean rejection, resource-limit defaults, runtime
-config, configured repository SBOM generation, binary packaging, Compose pprof
-wiring, and Helm rendering. Remote Compose acceptance still records target and
-fact counts, runtime, memory, CPU, queue state, retries, dead letters, and
-pprof availability before enabling additional analyzers by default.
+No-Regression Evidence: `go test ./internal/collector/scannercomponent
+./internal/collector/extensionhost ./internal/coordinator/...
+./internal/reducer ./internal/runtime ./internal/status/collector
+./internal/facts/... -count=1` covers the frozen vocabulary, component
+admission, golden-envelope paging and host admission, planner derivation,
+SBOM attachment, activation rendering, terminal-failure classes, and the
+fact-kind registry; analyzer execution runs in the eshu-scanner-worker
+satellite, which owns its proof.
 
 ## Readiness Semantics
 

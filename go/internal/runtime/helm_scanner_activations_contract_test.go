@@ -11,7 +11,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	scannercomponent "github.com/eshu-hq/eshu/go/internal/collector/scannerworker/component"
+	scannercomponent "github.com/eshu-hq/eshu/go/internal/collector/scannercomponent"
 )
 
 // scannerActivationValues carries the reviewed eshu-side activation contract

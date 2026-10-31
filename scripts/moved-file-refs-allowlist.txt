@@ -75,6 +75,11 @@ go/internal/query/codequery/route_query_proof_matrix_test.go:go/internal/reducer
 # semantics), so the entries could never fire. Removed to hold the 500-line
 # scripts cap for the satellite entries below.
 
+# #8878 in-tree scanner removal: dated evidence notes recording pre-removal
+# paths; repointing would falsify the record.
+go/internal/collector/scannercomponent/evidence-9591-retry-after.md:go/internal/collector/scannerworker/component/runner_failure.go
+go/internal/reducer/evidence-6626-batch6-bucket8-result.md:go/internal/collector/scannerworker/service.go
+
 # restructure-research.md is an explicitly dated 2026-08-11 measurement
 # snapshot ("Counts are a snapshot, not a contract") of the pre-restructure
 # citation inventory that justified this whole #6053/#6061 move -- its table

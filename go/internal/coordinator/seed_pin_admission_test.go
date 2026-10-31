@@ -12,8 +12,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker"
-	scannercomponent "github.com/eshu-hq/eshu/go/internal/collector/scannerworker/component"
+	scannercomponent "github.com/eshu-hq/eshu/go/internal/collector/scannercomponent"
 	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -22,7 +21,7 @@ import (
 // RequiredGrants recorded and one claims-enabled activation, mirroring the
 // chart reconcile state. imageOverride replaces the artifact image before
 // install (empty keeps the platform pin).
-func installScannerActivation(t *testing.T, kind scannerworker.AnalyzerKind, imageOverride string) string {
+func installScannerActivation(t *testing.T, kind scannercomponent.AnalyzerKind, imageOverride string) string {
 	t.Helper()
 
 	manifest, err := scannercomponent.ManifestFor(kind)
@@ -91,7 +90,7 @@ func scannerCoordinatorEnv(home, componentID string) func(string) string {
 func TestLoadConfigPlansPinnedScannerActivation(t *testing.T) {
 	t.Parallel()
 
-	home := installScannerActivation(t, scannerworker.AnalyzerImageUnpacking, "")
+	home := installScannerActivation(t, scannercomponent.AnalyzerImageUnpacking, "")
 
 	cfg, err := LoadConfig(scannerCoordinatorEnv(home, scannercomponent.IDImage))
 	if err != nil {
@@ -116,7 +115,7 @@ func TestLoadConfigPlansPinnedScannerActivation(t *testing.T) {
 func TestLoadConfigDeniesDriftedScannerActivation(t *testing.T) {
 	t.Parallel()
 
-	pinned, err := scannercomponent.ManifestFor(scannerworker.AnalyzerImageUnpacking)
+	pinned, err := scannercomponent.ManifestFor(scannercomponent.AnalyzerImageUnpacking)
 	if err != nil {
 		t.Fatalf("ManifestFor() error = %v", err)
 	}
@@ -124,7 +123,7 @@ func TestLoadConfigDeniesDriftedScannerActivation(t *testing.T) {
 	if drifted == pinned.Spec.Artifacts[0].Image {
 		t.Fatal("drifted seed image equals the pin, want a differing ref")
 	}
-	home := installScannerActivation(t, scannerworker.AnalyzerImageUnpacking, drifted)
+	home := installScannerActivation(t, scannercomponent.AnalyzerImageUnpacking, drifted)
 
 	_, err = LoadConfig(scannerCoordinatorEnv(home, scannercomponent.IDImage))
 	if err == nil {

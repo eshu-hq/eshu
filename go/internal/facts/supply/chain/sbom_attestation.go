@@ -99,6 +99,6 @@ var SBOMAttestationFamilyDeclaration = contract.Declare(contract.Family{
 	},
 	Producers: []contract.Producer{
 		{ID: "collector-sbom-attestation", Repository: "eshu-hq/eshu", Path: "go/internal/collector/sbom", PlannedRepository: "eshu-hq/eshu-collector-sbom-attestation", AuthorityMode: "core_issued_grant", Kinds: []string{"attestation.signature_verification", "attestation.slsa_provenance", "attestation.statement", "sbom.component", "sbom.dependency_relationship", "sbom.document", "sbom.external_reference", "sbom.warning"}},
-		{ID: "scanner-worker", Repository: "eshu-hq/eshu", Path: "go/internal/collector/scannerworker", AuthorityMode: "core_owned", Kinds: []string{"sbom.component", "sbom.document", "sbom.warning"}},
+		{ID: "scanner-worker", Repository: "eshu-hq/eshu-scanner-worker", Path: ".", PlannedRepository: "", AuthorityMode: "core_issued_grant", Kinds: []string{"sbom.component", "sbom.document", "sbom.warning"}},
 	},
 })
