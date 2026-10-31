@@ -249,7 +249,9 @@ export ESHU_SSM_HOST_MAX_CAPTURE_AGE="2h"
 export ESHU_SSM_HOST_MAX_CROSS_TYPE_SKEW="30m"
 export ESHU_SSM_HOST_MAX_PLATFORM_OBSERVATION_AGE="1h"
 export ESHU_MCP_TRANSPORT="http"
-export ESHU_MCP_ADDR="127.0.0.1:${GATE_MCP_PORT}"
+export ESHU_MCP_QUERY_PROFILE="${ESHU_QUERY_PROFILE:-}"
+# NOTE: the satellite eshu-mcp replaced the in-tree server (#9670) and does
+# not read ESHU_MCP_ADDR; the listen address travels on the -addr flag below.
 export ESHU_AUTH_SECRET_ENC_KEY="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 export ESHU_LISTEN_ADDR="127.0.0.1:0"
 export ESHU_METRICS_ADDR="127.0.0.1:0"

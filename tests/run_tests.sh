@@ -17,7 +17,6 @@ UNIT_PACKAGES=(
 INTEGRATION_PACKAGES=(
     ./cmd/eshu
     ./cmd/api
-    ./cmd/mcp-server
     ./cmd/bootstrap-index
     ./cmd/ingester
     ./cmd/reducer
