@@ -42,9 +42,9 @@ var othersRuntimeLanes = []othersRuntimeLane{
 // runtime/source_kind, so without this mirror a wrong raw_spec, line_number,
 // or relative_path in a full tuple is locally false-green (issue #9710).
 //
-// The 16 shape keys land on main with #9709; until then each lane subtest
-// skips with the merge it awaits, so the file compiles and stays green on
-// either side of the merge.
+// The 16 shape keys landed on main with #9709 (merge 96487a0bd0); each lane
+// subtest asserts against the committed snapshot, so a deleted shape key
+// fails instead of skipping.
 func TestGoldenSnapshotPinsOthersRuntimeOnBothReadSurfaces(t *testing.T) {
 	t.Parallel()
 	snap, err := LoadSnapshot(goldenSnapshotPath())
@@ -67,9 +67,6 @@ func TestGoldenSnapshotPinsOthersRuntimeOnBothReadSurfaces(t *testing.T) {
 			surface, shape := surface, shape
 			t.Run(lane.assertSuffix+"/"+surface, func(t *testing.T) {
 				t.Parallel()
-				if shape.Description == "" && shape.ResultsField == "" && len(shape.RequiredResponseFields) == 0 {
-					t.Skipf("shape for %s not in snapshot yet (awaits #9709 merge)", lane.assertSuffix)
-				}
 				args := shape.Arguments
 				if surface == "http" {
 					args = shape.RequestBody
@@ -95,20 +92,11 @@ func TestGoldenSnapshotPinsOthersRuntimeOnBothReadSurfaces(t *testing.T) {
 		}
 	}
 
-	// The 8 rn-* required-node rows land with the same merge; skip until one
-	// of them is present, then require all 8 with their runtime/source_kind pins.
+	// The 8 rn-* required-node rows landed with the same merge; require all 8
+	// with their runtime/source_kind pins.
 	byID := map[string]RequiredNode{}
 	for _, node := range snap.Graph.RequiredNodes {
 		byID[node.ID] = node
-	}
-	anyPresent := false
-	for _, lane := range othersRuntimeLanes {
-		if _, ok := byID[lane.rnID]; ok {
-			anyPresent = true
-		}
-	}
-	if !anyPresent {
-		t.Skip("rn-* Others required nodes not in snapshot yet (awaits #9709 merge)")
 	}
 	for _, lane := range othersRuntimeLanes {
 		node, ok := byID[lane.rnID]
