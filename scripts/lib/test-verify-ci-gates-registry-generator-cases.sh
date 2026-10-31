@@ -52,3 +52,52 @@ check_ci_gate_generator_input_coverage() {
 	rm -f "${backup}" "${seeded_output}"
 	printf 'PASS: generator_inputs drift subcheck fails on the seeded #9588-shaped gap\n'
 }
+
+# Seeded RED/GREEN for the #9655 capability-surface-inventory inputs.
+#
+# The subcheck fails `verify-ci-gates-registry.sh --drift` when a
+# generator_inputs class of the surface gate is matched by no trigger of that
+# gate. The RED half below removes the gate's console inlet trigger, so a PR
+# changing only the console router no longer selects the gate even though the
+# generator enumerates console pages from it. The GREEN half is the existing
+# live `validate --drift` step in the parent script — this file restores the
+# fragment before asserting, so that step proves the clean tree on the
+# restored bytes, and a checksum pins the restore.
+check_ci_gate_generator_input_coverage_capability_surface() {
+	local fragment backup seeded_output status checksum_before checksum_after
+	fragment="${repo_root}/specs/ci-gates.d/gates-04.yaml"
+	backup=""
+	seeded_output=""
+	backup="$(mktemp)" || fail "could not create backup tempfile"
+	seeded_output="$(mktemp)" || fail "could not create output tempfile"
+	cp "${fragment}" "${backup}" || fail "could not back up ${fragment}"
+	checksum_before=""
+	checksum_before="$(shasum -a 256 "${fragment}" | cut -d' ' -f1)"
+
+	# The console inlet trigger is unique to the surface gate in this
+	# fragment, so a fixed-string delete seeds exactly the #9655 shape: the
+	# declared console input classes with no trigger matching them.
+	rg --fixed-strings --invert-match '      - "apps/console/src/**"' \
+		"${fragment}" >"${backup}.seeded" || fail "could not seed ${fragment}"
+	mv "${backup}.seeded" "${fragment}" || fail "could not install seeded ${fragment}"
+
+	if bash "${script}" --drift >"${seeded_output}" 2>&1; then
+		status=0
+	else
+		status=$?
+	fi
+	# Restore before asserting: a `fail` below exits the whole run, and the
+	# tree must never be left seeded.
+	cp "${backup}" "${fragment}" || fail "could not restore ${fragment}"
+	checksum_after=""
+	checksum_after="$(shasum -a 256 "${fragment}" | cut -d' ' -f1)"
+
+	[[ "${status}" -ne 0 ]] ||
+		fail "seeded capability-surface gap passed ${script} --drift (exit 0); want the #9655 shape to fail"
+	rg --fixed-strings 'generator input "apps/console/src/App.tsx"' "${seeded_output}" >/dev/null ||
+		fail "seeded run names no uncovered apps/console/src/App.tsx class — see ${seeded_output}"
+	[[ "${checksum_before}" == "${checksum_after}" ]] ||
+		fail "fragment restore mismatch on ${fragment}"
+	rm -f "${backup}" "${seeded_output}"
+	printf 'PASS: generator_inputs drift subcheck fails on the seeded #9655-shaped gap\n'
+}

@@ -93,9 +93,11 @@ func checkGeneratorInputCoverageForDrift(repoRoot string, reg *Registry) []error
 //
 //   - live-readiness-registration-drift, env-registry-doc,
 //     collector-content-pin, ci-gate-registry, sdk-go-factschema,
-//     collector-entrypoints-generated, remote-validation-artifacts: declare
-//     generator_inputs; the drift check below proves their triggers cover
-//     every class.
+//     collector-entrypoints-generated, remote-validation-artifacts,
+//     capability-surface-inventory: declare generator_inputs; the drift check
+//     below proves their triggers cover every class. The surface gate has no
+//     regenerate map (its local command verifies in place) and declares its
+//     inputs voluntarily to gain the same proof (#9655).
 //   - slim-collector-entrypoints: intentionally uncovered. It is the pre-push
 //     slim-lane mirror of collector-entrypoints-generated; its input classes
 //     are owned by that pre-pr gate. Widening slim triggers changes
@@ -104,10 +106,7 @@ func checkGeneratorInputCoverageForDrift(repoRoot string, reg *Registry) []error
 //     commands regenerate unconditionally and never diff, so a selection gap
 //     rewrites rather than reddens — there is no stale-output failure to
 //     select for.
-//   - capability-surface-inventory: intentionally uncovered for now. Its
-//     generator reads the command, collector, reducer, API, MCP, and console
-//     surfaces; naming that class list honestly needs the surface contract,
-//     not a hand-kept glob beside this check. Filed as a follow-up.
+
 func checkGeneratorInputCoverage(repoRoot string, reg *Registry, tracked *trackedPaths) []error {
 	var errs []error
 	for _, g := range reg.Gates {
