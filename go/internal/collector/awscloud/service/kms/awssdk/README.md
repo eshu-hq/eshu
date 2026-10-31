@@ -35,9 +35,11 @@ EnableKeyRotation, DisableKeyRotation, PutKeyPolicy, CreateGrant,
 RevokeGrant, RetireGrant, ReplicateKey, ImportKeyMaterial,
 DeleteImportedKeyMaterial, UpdateKeyDescription, CreateAlias,
 UpdateAlias, DeleteAlias, TagResource, UntagResource, RotateKeyOnDemand,
-UpdatePrimaryRegion, or GetKeyPolicy. The adapter-local `apiClient`
+or UpdatePrimaryRegion. The adapter-local `apiClient`
 interface is the entire SDK surface this package consumes; a test
 reflects over it and fails if a forbidden method ever appears.
+`GetKeyPolicy` is the one carve-out: owner-approved for deriving
+metadata-only resource-policy statements, with raw bodies never persisted.
 
 ## Exported surface
 

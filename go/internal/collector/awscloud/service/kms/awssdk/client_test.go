@@ -319,8 +319,10 @@ func TestClientListKeysSkipsRotationCallForDisabledKeys(t *testing.T) {
 // TestClientListKeysSurfacesUnexpectedRotationErrors proves the adapter does
 // not silently downgrade an unexpected GetKeyRotationStatus failure into
 // rotation_status_known=false. A credential or config outage that surfaces as
-// something other than UnsupportedOperation/AccessDenied must fail the scan so
-// the operator sees the real failure instead of a false "rotation unknown".
+// something other than UnsupportedOperation/AccessDenied or the rotation-race
+// shapes (DisabledException, KMSInvalidStateException, NotFoundException)
+// must fail the scan so the operator sees the real failure instead of a
+// false "rotation unknown".
 func TestClientListKeysSurfacesUnexpectedRotationErrors(t *testing.T) {
 	keyID := "managed-key"
 	api := &fakeKMSAPI{
