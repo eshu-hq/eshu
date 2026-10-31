@@ -141,6 +141,7 @@ func (s IngestionStore) skipUnchangedGeneration(
 		}
 	}
 	s.backfillStore().RecordSkippedRefresh(ctx, scopeValue, generation, candidate.GenerationID, reason)
+	s.clearSuccessorHold(scopeValue)
 	return true, successorPrior{}, nil
 }
 
@@ -448,3 +449,39 @@ func deriveQueryAtMarker(shipped, marker, conjunct string) string {
 }
 
 const correlationReopenStageMarker = targeted.CorrelationReopenStageMarker
+
+// recordSuccessorRefusal counts one destructive-successor refusal against the
+// scope and returns the consecutive run length (#9694). Reaching
+// telemetry.SuccessorHoldThreshold logs the successor_held_stale stage once
+// per further refusal, so an operator at 3 AM can find the scope from the
+// held-stale gauge: the gauge carries only the collector kind, the log names
+// the scope and the generation that was refused. Nil instruments record
+// nothing and return 0.
+func (s IngestionStore) recordSuccessorRefusal(
+	ctx context.Context,
+	scopeValue scope.IngestionScope,
+	generation scope.ScopeGeneration,
+) int {
+	if s.Instruments == nil {
+		return 0
+	}
+	consecutive := s.Instruments.SuccessorHolds.RecordRefusal(scopeValue.ScopeID, string(scopeValue.CollectorKind))
+	if consecutive >= telemetry.SuccessorHoldThreshold {
+		s.logCommitStage(ctx, scopeValue, generation, "successor_held_stale", time.Now(),
+			slog.Int("consecutive_refusals", consecutive),
+			slog.Int("hold_threshold", telemetry.SuccessorHoldThreshold))
+	}
+	return consecutive
+}
+
+// clearSuccessorHold ends the scope's refusal run. The commit calls it after the
+// transaction commits durably, and the duplicate check calls it when the source
+// matches the active generation, because either way the scope is no longer held
+// stale. The guard decision alone does not end a hold: a later step of the same
+// commit can still fail and store nothing.
+func (s IngestionStore) clearSuccessorHold(scopeValue scope.IngestionScope) {
+	if s.Instruments == nil {
+		return
+	}
+	s.Instruments.SuccessorHolds.Clear(scopeValue.ScopeID)
+}

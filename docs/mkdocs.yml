@@ -457,6 +457,7 @@ nav:
     - Delta-Base Union: operate/graph-delta-union.md
     - Troubleshooting: operate/troubleshooting.md
     - Park-Holder Runbook: operate/park-holder-runbook.md
+    - Vulnerability Source Held Stale: operate/vulnerability-source-held-stale.md
     - "3 AM Operator Runbook": operate/3am-operator-runbook.md
     - Hosted Operations Runbook: operate/hosted-operations-runbook.md
     - Hosted Project Onboarding: deployment/hosted-onboarding.md

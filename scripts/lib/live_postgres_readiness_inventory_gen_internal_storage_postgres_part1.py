@@ -404,5 +404,11 @@ TABLE = {
             "TestGuardRecheckUnchangedScopeReadsOnceLive",
             "TestGuardRecheckScopeRowBlocksCommitAndAckLive",
         ),
+        "go/internal/storage/postgres/ingestion_vulnerability_successor_live_test.go": (
+            "TestVulnerabilityUnchangedHintSkipsAndDriftCommitsLive",
+            "TestVulnerabilityTrustedShrinkPassesAndUntrustedIsRefusedLive",
+            "TestVulnerabilityRepeatedRefusalsHoldScopeStaleLive",
+            "TestVulnerabilityConcurrentCommitsSerializeOnTheScopeRowLive",
+        ),
     },
 }

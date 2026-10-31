@@ -298,6 +298,12 @@ func (s PostgresReadinessStore) readSupplyChainImpactReadiness(
 		return ReadinessSnapshot{}, fmt.Errorf("read supply chain impact readiness: %w", err)
 	}
 
+	// A hint-skipped fetch leaves the active facts old, so freshness for the
+	// advisory families and the NVD snapshot comes from the source state's last
+	// successful fetch (#9694).
+	freshenFamiliesFromFetch(families, sourceStates)
+	sourceSnapshots = freshenSnapshotsFromFetch(sourceSnapshots, sourceStates)
+
 	sources := make([]EvidenceFamily, 0, len(families))
 	for _, family := range supplyChainImpactReadinessFamilies {
 		entry, ok := families[family]

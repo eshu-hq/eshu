@@ -1,4 +1,24 @@
 tests:
+  - file: go/internal/storage/postgres/activation/redelivery_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7584 composed concurrency: duplicate projector Ack redelivery, a re-activating Ack racing catch-up, and two catch-ups re-owing one obsolete row (free and held-lock races), plus supersession between claim and finalize through the real projector path, on the full bootstrap schema in isolated disposable PostgreSQL schemas"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/activation/retention_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7584 activation obligation FK cascade under the real generation-retention prune, bounded finished-row prune and state census on the full bootstrap schema in an isolated disposable PostgreSQL schema"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/activation/scope_lock_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7584 composed concurrency: a held real ingestion commit and a held projector Ack racing Finalize's scope lock (wait then re-read the pointer; lock_timeout leaves durable state unchanged and the next claimer completes), on the full bootstrap schema in isolated disposable PostgreSQL schemas"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/activation/targeted_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7584 activation obligation consumer with the production partition-scoped maintainer on the full bootstrap schema in an isolated disposable PostgreSQL schema: real catalog_changed and no_memo_baseline refusals are held one callback per lease and complete after the epoch whole pass with no consumer pass; a real repo_id collision loser retires inapplicable after one callback"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/activation/terminal_live_test.go
     tag: ~
     class: postgres_ci

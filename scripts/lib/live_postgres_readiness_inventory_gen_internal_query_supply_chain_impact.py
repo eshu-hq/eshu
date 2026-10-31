@@ -13,6 +13,11 @@ TABLE = {
         "go/internal/query/supply/chain/impact/readiness_container_identity_live_test.go": (
             "TestSupplyChainImpactReadinessMutableRefIncludesEveryCurrentDigestLive",
         ),
+        "go/internal/query/supply/chain/impact/readiness_fetch_recency_live_test.go": (
+            "TestReadinessAdvisoryFreshAfterSkippedUnchangedFetchLive",
+            "TestReadinessAdvisoryStaleWhenNeverRefetchedLive",
+            "TestReadinessKeepsAdvisorySourcesForARefusedShrinkFromTheExtractedCollectorLive",
+        ),
         "go/internal/query/supply/chain/impact/readiness_orphan_package_keys_live_test.go": (
             "TestReadinessIgnoresOrphanPackageKeysLive",
         ),
