@@ -167,13 +167,16 @@ func TestPostgresSupplyChainImpactReadinessQueryShape(t *testing.T) {
 		"generation.status IN ('active', 'superseded')",
 		// os_package facts carry no image identity of their own; the
 		// readiness count resolves it through the sibling
-		// scanner_worker.analysis fact in the SAME scan scope (scope-level
-		// across committed generations, issue #8878) — deliberately NOT
-		// the reducer's pair-keyed ScopeID+GenerationID SubjectDigest
-		// join, which goes blind when sibling tiers supersede the
-		// analysis generation under the active os_package generation.
+		// scanner_worker.analysis fact, pair-keyed first (same
+		// scope+generation, the reducer's SubjectDigest key: issue #9685)
+		// with a scope-level fallback across committed generations for
+		// provably single-digest scopes (issue #8878: sibling tiers
+		// supersede the analysis generation under the active os_package
+		// generation). The fallback is withheld on multi-digest scopes,
+		// where it would count another image's packages.
 		"os_package_active AS (",
 		"scanner_worker_analysis_in_scope AS (",
+		"scope_with_multiple_digests AS (",
 		// A semi-join (EXISTS), never a JOIN: a JOIN's COUNT(*) fans out to
 		// COUNT(os_package rows) * COUNT(matching analysis rows), and
 		// analyses now legitimately span sibling generations, so more than
@@ -187,11 +190,31 @@ func TestPostgresSupplyChainImpactReadinessQueryShape(t *testing.T) {
 			"        SELECT 1\n" +
 			"        FROM scanner_worker_analysis_in_scope AS analysis\n" +
 			"        WHERE analysis.scope_id = os_package.scope_id\n" +
+			"          AND analysis.generation_id = os_package.generation_id\n" +
+			"          -- Both-anchor rule: a digest-anchored request only resolves\n" +
+			"          -- through the analysis carrying that digest; the reference arm\n" +
+			"          -- below serves ref-only requests.\n" +
+			"          AND ($12 = '' OR analysis.payload->>'image_digest' = $12)\n" +
 			"          AND (\n" +
 			"              analysis.payload->>'image_digest' IN (SELECT digest FROM target_image_digests)\n" +
-			"              OR ($14 <> '' AND analysis.payload->>'image_reference' = $14)\n" +
+			"              -- The image_reference arm is withheld on multi-digest scopes\n" +
+			"              -- (issue #9691 P1): both generations of a rescan share one\n" +
+			"              -- reference, so a ref match alone would attribute another\n" +
+			"              -- image's packages to an old-digest request.\n" +
+			"              OR ($14 <> '' AND analysis.payload->>'image_reference' = $14\n" +
+			"                  AND NOT EXISTS (\n" +
+			"                      SELECT 1\n" +
+			"                      FROM scope_with_multiple_digests AS guarded\n" +
+			"                      WHERE guarded.scope_id = os_package.scope_id\n" +
+			"                  ))\n" +
 			"          )\n" +
-			"      )",
+			"      )\n" +
+			"       OR (\n" +
+			"        NOT EXISTS (\n" +
+			"            SELECT 1\n" +
+			"            FROM scope_with_multiple_digests AS mixed\n" +
+			"            WHERE mixed.scope_id = os_package.scope_id\n" +
+			"        )",
 		// Both scan-tier families are anchored to the requested image the
 		// same way container_image.identity is: the resolved digest set or
 		// an explicit image_ref, never an unbounded scan.
@@ -237,32 +260,6 @@ func TestListSupplyChainImpactReadinessQueryDoesNotCapMutableRefDigests(t *testi
 		if strings.Contains(identityBranch, forbidden) {
 			t.Fatalf("container-image readiness branch retains truncating seam %q:\n%s", forbidden, identityBranch)
 		}
-	}
-}
-
-// TestPostgresSupplyChainImpactReadinessOSPackageCountUsesSemiJoinNotFanOut
-// is a regression for a JOIN-vs-EXISTS review finding: an inner JOIN between
-// os_package_active and scanner_worker_analysis_in_scope would make
-// vulnerability_os_package's COUNT(*) fan out to
-// COUNT(os_package rows) * COUNT(matching analysis rows) whenever more than
-// one scanner_worker.analysis fact matches a scope (a second analyzer, or
-// analyses spread across sibling generations since #8878, for example). The
-// shipped query must use EXISTS so each os_package fact is counted at most
-// once regardless of how many analysis rows match, and the sibling key must
-// stay scope-level: re-adding a generation equality reintroduces the #8878
-// blind spot where a superseded analysis generation orphans the active
-// generation's os_package rows.
-func TestPostgresSupplyChainImpactReadinessOSPackageCountUsesSemiJoinNotFanOut(t *testing.T) {
-	t.Parallel()
-
-	if strings.Contains(listSupplyChainImpactReadinessQuery, "JOIN scanner_worker_analysis_in_scope AS analysis") {
-		t.Fatalf("listSupplyChainImpactReadinessQuery joins scanner_worker_analysis_in_scope directly into vulnerability_os_package's FROM clause, which fans out COUNT(*) whenever more than one analysis fact matches a scope; use EXISTS instead:\n%s", listSupplyChainImpactReadinessQuery)
-	}
-	if !strings.Contains(listSupplyChainImpactReadinessQuery, "FROM os_package_active AS os_package\n    WHERE EXISTS (") {
-		t.Fatalf("listSupplyChainImpactReadinessQuery does not count vulnerability.os_package via an EXISTS semi-join on scanner_worker_analysis_in_scope:\n%s", listSupplyChainImpactReadinessQuery)
-	}
-	if strings.Contains(listSupplyChainImpactReadinessQuery, "analysis.generation_id = os_package.generation_id") {
-		t.Fatalf("listSupplyChainImpactReadinessQuery re-keys the os_package sibling attribution to scope+generation, which blinds vulnerability.os_package whenever the analysis generation is superseded (#8878); the key must stay scope-level:\n%s", listSupplyChainImpactReadinessQuery)
 	}
 }
 

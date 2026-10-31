@@ -25,14 +25,24 @@ const (
 	// image reference resolves to. os_package facts carry no image identity
 	// of their own (sdk/go/factschema/vulnerability/v1/os_package.go); the
 	// readiness store resolves the digest through the sibling
-	// scanner_worker.analysis fact in the SAME scan scope. Unlike the
-	// reducer's pair-keyed ScopeID+GenerationID SubjectDigest stamp
-	// (go/internal/reducer/supplychain/core/impact.go), readiness attributes
-	// by scope alone across committed generations (issue #8878). A
-	// present-but-zero count
-	// for an image that DID scan (see EvidenceFamilyScannerWorkerAnalysis) is
-	// a valid "no installed packages found" observation, not missing
-	// evidence.
+	// scanner_worker.analysis fact, pair-keyed first (same scope and
+	// generation, the reducer's SubjectDigest key:
+	// go/internal/reducer/supplychain/core/impact.go) with a scope-level
+	// fallback across committed generations for provably single-digest
+	// scopes (issue #8878: sibling tiers supersede the analysis generation
+	// under the active os_package generation). The fallback is withheld on
+	// rescanned multi-digest scopes (issue #9685), where scope-level
+	// attribution would count another image's packages; the pair-keyed
+	// image_reference arm is withheld there too (issue #9691), since both
+	// generations of a rescan share one reference. A present-but-zero
+	// count for an image that DID scan (see
+	// EvidenceFamilyScannerWorkerAnalysis) is therefore ambiguous on its
+	// own: on a single-digest scope it is a valid "no installed packages
+	// found" observation, while on a multi-digest scope with an older
+	// subject digest it is a deliberately withheld attribution, not a
+	// clean scan and not missing evidence. Tell the two apart by the
+	// scope's digest cardinality (scope_with_multiple_digests), never by
+	// the zero alone.
 	EvidenceFamilyVulnerabilityOSPackage = "vulnerability.os_package"
 	// EvidenceFamilyScannerWorkerAnalysis groups scanner-worker image
 	// analysis facts, which the analyzer emits only for a completed image
