@@ -328,3 +328,72 @@ after step 6.
 Rollback window: OPEN at commit (no prune or satellite activation on a
 retired scope observed at verify time ~16:01 UTC). Closing is recorded here
 when it passes.
+
+## Step 5 — retire transaction pass 2 (COMMITTED 2026-10-31 16:28:46 UTC, gate PASS)
+
+Authorization: same arbiter APPROVE ruling decision 3 (repeat the gated pass
+as scopes drain; no new ruling needed) plus the owner production-write
+approval. Scope unchanged: QA only, predicate rows only, no DELETE/DDL, no
+worker changes, no script edits. Script identity: `diff -q` of
+[9431-qa-retire.sql](9431-qa-retire.sql) against the main checkout exits 0;
+the committed script ran unmodified (sha256
+`11fe5a117cb83e6413a50d943a87e0466660f509985372417173eb351c13e962`
+both local and in-pod copy).
+
+Connection note: the in-pod `dsn` secret host (`eshu-postgresql`) timed out
+from inside the pod (exit 2); the run used `-h localhost` with the pod
+`password` secret against the same primary (`eshu-postgresql-0`). Same
+database, same committed script, same variables.
+
+Same-window mechanism proof first: fresh dry run 2026-10-31 ~16:1x UTC
+(committed script, QA primary, exit 0, Section 4 SKIPPED without
+`retire_ok`, ROLLBACK): classification
+`candidates=47 classW=1 classS_eligible=0 mixed=0 inflight=0`, retire set 1
+(axios W, 0 blockers), `dryrun_*=1/1/1` reconciled, 0 new markers and 0 new
+NULL-pointer scopes after. Its N is evidence only.
+
+Universe accounting (why `candidates=47`, not 136): pass 1 retired 89 rows,
+all verified still superseded with markers immediately pre-commit (89
+markers, 89 NULL-pointer OSV scopes, all 89 `active` prior status). 136 −
+89 = 47, exactly the observed count: 46 Class S-remainder rows (still no
+satellite coverage, listed as 46 uncovered-advisory rows, stay active by
+ruling decision 1) plus the drained axios Class W row (in-flight 1 → 0
+since pass 1; the claim completed). No other drift: no new candidates, no
+resurrected rows. The ruling's `candidates=136` closure condition is
+satisfied in its decision-3 form — the delta is fully explained by
+pass-1-committed rows verified intact, which is the only way the universe
+can change between passes.
+
+COMMIT invocation 2026-10-31 16:28:46 UTC (`-v retire_ok=1`, exit 0):
+classification `candidates=47 classW=1 classS_eligible=0 mixed=0
+inflight=0`; Section 3 dry-run body `UPDATE 1/UPDATE 1` then ROLLBACK;
+Section 4 lock + gate + `UPDATE 1/UPDATE 1`, all six `must_be_zero_*`
+gates 0 (inflight-locked, shortfall, inflight-tail in both sections),
+rollback key 1 row (prior status `active`), `COMMIT`; Section 5 SKIPPED.
+Zero `ABORT`/`ERROR`/`FATAL` in the log.
+
+Restated gate verified from THAT invocation's log plus read-only queries
+immediately after (exit 0), all PASS:
+
+| Condition | Evidence |
+|---|---|
+| `mixed=0` | Classification line `mixed=0`; mixed listing `(0 rows)`. |
+| Universe closed (47 = 136 − 89 intact) | Classification `candidates=47`; pre-commit read: 89 markers + 89 NULL-pointer scopes, all pass-1 rows superseded; 47 = 46 S-remainder + 1 axios W. |
+| Committed W in oracle 72 W | Committed 1 W row (axios batch scope, generation `...:defdbf...`): the exact oracle-minus-committed row recorded in pass 1 (W-flagged, fail-closed then). Committed-minus-oracle is 0 rows. |
+| Committed S fully covered at classify | 0 S rows committed (classS_eligible=0); vacuous. |
+| Every oracle row not committed accounted | Zero: 89 (pass 1) + 1 (this pass) = 90 = full oracle. Oracle-minus-committed is 0 rows. |
+| Marker count = committed N; rollback key captured | Live `retired_issue='9431'` count = 90 (89 + 1); NULL-pointer OSV scopes = 90; axios row superseded + pointer cleared + `retired_prior_scope_status=active`. Key in the Section 4 log output and durably in the payload marker. |
+
+Per-row membership (1 row: scope, generation, prior status, W/S class,
+oracle member): [9431-step5-pass2-commit-members.tsv](9431-step5-pass2-commit-members.tsv).
+No redaction needed (public npm axios scope). Both-direction diff across
+both passes: committed-minus-oracle 0 rows; oracle-minus-committed 0 rows.
+
+Immediate post-commit state: AC3.1=0, AC3.2=0 (Section 6 of the COMMIT
+invocation), AC3.4=834. AC3.3a holds (both GHSA-67hx release lines live in
+the same log). AC3.3b still `possibly_affected` ×3 inside the commit
+invocation (pre-reducer-cycle, expected); the flip awaits ruling step 6.
+
+Rollback window: still OPEN at pass-2 commit (markers 90/90 intact,
+pointers cleared; no prune or satellite activation on a retired scope at
+verify time ~16:30 UTC). Closing is recorded here when it passes.
