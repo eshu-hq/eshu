@@ -79,3 +79,26 @@ QA-scale cardinality; this 50k run adds no shipped code and changes no
 statement text.
 No-Observability-Change: no metric, span, or log line was added or
 changed for this measurement.
+
+## Observed QA per #9296 (criterion 6 state, 2026-10-31)
+
+Read-only census per #9296 (read replica,
+`default_transaction_read_only=on`; counts and shapes only):
+
+- Three `scanner_worker` collector instances registered and enabled
+  (image, SBOM, OS runtime roles).
+- Two active scanner scopes: one pinned registry-image digest and one
+  SBOM repository scope. No running-image scope exists.
+- Exactly one `scanner_worker.analysis` fact (completed registry-image
+  scan, `target_kind=image`), plus its OS-package findings. Zero
+  analysis facts with `target_kind=running_image`, zero with
+  `workload_ids`.
+
+Criterion 6 (analysis facts for running digests surfacing with
+workload context after R0) is NOT yet observable: the R0 data does
+not exist in QA. No lane code change can produce it; the read path
+for it is live-proven behind completed results in
+`TestDerivedFindingAuthorityOpensBehindCurrentPublicationLive`.
+Reopen trigger: a `scanner_worker.analysis` fact with
+`target_kind=running_image` appears in QA — then re-run this census
+and check workload linkage before closing the criterion.
