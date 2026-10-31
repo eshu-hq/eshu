@@ -254,9 +254,18 @@ class ActiveBudgetContractTest(unittest.TestCase):
         self.assertLessEqual(max(jobs), wt.BUDGET_SECONDS, jobs)
 
     def test_seeded_count_split_already_fails_the_gate_on_the_unchanged_plan(self) -> None:
+        # The weighted cut stays load-bearing: a naive count split fails the
+        # live-plan fit through the budget or the 15% spread, the same two
+        # gates the weighted fit case must pass. A refit that prices every
+        # package can pull the naive split under the 1440 s budget while the
+        # package lumps keep its spread outside the band, so a budget-only
+        # premise would forbid a correct refit (#9371).
         naive = self.jobs(self.plan, self.weights,
                           naive_count_bounds(len(self.plan), self.count))
-        self.assertGreater(max(naive), wt.BUDGET_SECONDS, naive)
+        mean = sum(naive) / len(naive)
+        spread_broken = (max(naive) / mean - 1 > 0.15
+                         or min(naive) / mean - 1 < -0.15)
+        self.assertTrue(max(naive) > wt.BUDGET_SECONDS or spread_broken, naive)
 
     def test_tests_appended_at_the_end_are_absorbed(self) -> None:
         # Size the tail to the tail shard's headroom on the live cut (#9371).
