@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -35,10 +36,15 @@ func TestOSVSeverityGoldenContentAndCopy(t *testing.T) {
 func TestOSVSeverityGoldenRejectsSeededCorruption(t *testing.T) {
 	original := string(OSVSeverityGolden())
 	cases := map[string][2]string{
-		"unsupported label":    {`"severity_label": "medium",`, `"severity_label": "moderate",`},
-		"v2 vector accepted":   {`"cvss_vector": "",`, `"cvss_vector": "AV:N/AC:L/Au:N/C:P/I:P/A:P",`},
-		"score key allowed":    {`"expected_absent_payload_keys": ["cvss_score"]`, `"expected_absent_payload_keys": []`},
-		"v3 preferred over v4": {`"cvss_vector": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N",`, `"cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",`},
+		"unsupported label":                    {`"severity_label": "medium",`, `"severity_label": "moderate",`},
+		"v2 vector accepted":                   {`"cvss_vector": "",`, `"cvss_vector": "AV:N/AC:L/Au:N/C:P/I:P/A:P",`},
+		"score key allowed":                    {`"expected_absent_payload_keys": ["cvss_score"]`, `"expected_absent_payload_keys": []`},
+		"label drifted from database_specific": {`"severity_label": "medium",`, `"severity_label": "high",`},
+		"record label changed, expected kept":  {`"database_specific": {"severity": "HIGH"}`, `"database_specific": {"severity": "LOW"}`},
+		"cvss_score in expected":               {`"advisory_id": "GHSA-aaaa-0001-0001",`, `"advisory_id": "GHSA-aaaa-0001-0001", "cvss_score": 9.8,`},
+		"advisory id drifted":                  {`"advisory_id": "GHSA-aaaa-0001-0001",`, `"advisory_id": "GHSA-WRONG",`},
+		"severity echo drifted":                {`"severity": null`, `"severity": []`},
+		"v3 preferred over v4":                 {`"cvss_vector": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N",`, `"cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",`},
 	}
 	for name, replacement := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -53,18 +59,47 @@ func TestOSVSeverityGoldenRejectsSeededCorruption(t *testing.T) {
 	}
 }
 
-// osvSeverityLabels is the label vocabulary a conforming OSV collector writes.
-var osvSeverityLabels = map[string]bool{"": true, "critical": true, "high": true, "medium": true, "low": true}
+// osvSeverityLabel is the documented label rule: trim, upper-case, MODERATE as
+// medium, one of CRITICAL, HIGH, MEDIUM, LOW, otherwise empty. A non-string
+// value gives empty.
+func osvSeverityLabel(value any) string {
+	raw, ok := value.(string)
+	if !ok {
+		return ""
+	}
+	switch strings.ToUpper(strings.TrimSpace(raw)) {
+	case "CRITICAL":
+		return "critical"
+	case "HIGH":
+		return "high"
+	case "MODERATE", "MEDIUM":
+		return "medium"
+	case "LOW":
+		return "low"
+	}
+	return ""
+}
 
+// osvExpectedKeys is the exact key set of every case's expected map. Any other
+// key, such as cvss_score, is drift.
+var osvExpectedKeys = map[string]bool{"advisory_id": true, "cvss_vector": true, "severity_label": true, "severity": true}
+
+type osvGoldenSeverityEntry struct {
+	Type  string `json:"type"`
+	Score string `json:"score"`
+}
+
+// validateOSVSeverityGolden derives every expected field from the case's own
+// OSV record by the documented rules and requires the expected map to match,
+// so a drifted expectation cannot pass by being internally consistent.
 func validateOSVSeverityGolden(raw []byte) error {
 	var golden struct {
 		Cases []struct {
 			Name   string `json:"name"`
 			Record struct {
-				Severity []struct {
-					Type  string `json:"type"`
-					Score string `json:"score"`
-				} `json:"severity"`
+				ID       string                   `json:"id"`
+				Severity []osvGoldenSeverityEntry `json:"severity"`
+				Database map[string]any           `json:"database_specific"`
 			} `json:"record"`
 			Expected map[string]any `json:"expected"`
 		} `json:"cases"`
@@ -80,17 +115,34 @@ func validateOSVSeverityGolden(raw []byte) error {
 		return fmt.Errorf("OSV severity golden must pin cvss_score as absent, got %v", golden.Absent)
 	}
 	for _, tc := range golden.Cases {
+		for key := range tc.Expected {
+			if !osvExpectedKeys[key] {
+				return fmt.Errorf("case %q expected map carries %q; the OSV envelope emits only advisory_id, cvss_vector, severity_label, severity", tc.Name, key)
+			}
+		}
+		for _, key := range golden.Absent {
+			if _, present := tc.Expected[key]; present {
+				return fmt.Errorf("case %q expects the absent key %q", tc.Name, key)
+			}
+		}
+		if id := strings.TrimSpace(tc.Record.ID); id == "" || tc.Expected["advisory_id"] != id {
+			return fmt.Errorf("case %q advisory_id %v does not equal the record id %q", tc.Name, tc.Expected["advisory_id"], id)
+		}
 		label, _ := tc.Expected["severity_label"].(string)
-		if !osvSeverityLabels[label] {
-			return fmt.Errorf("case %q label %q is outside critical, high, medium, low or empty", tc.Name, label)
+		if want := osvSeverityLabel(tc.Record.Database["severity"]); label != want {
+			return fmt.Errorf("case %q severity_label %q does not follow database_specific.severity (want %q)", tc.Name, label, want)
 		}
 		vector, _ := tc.Expected["cvss_vector"].(string)
 		// A vector must come from a CVSS_V3 or CVSS_V4 entry of the record, and
 		// CVSS_V4 outranks CVSS_V3. CVSS_V2 and unknown types never fill it.
 		want, hasV4 := "", false
+		var echo []osvGoldenSeverityEntry
 		for _, entry := range tc.Record.Severity {
 			kind := strings.ToUpper(strings.TrimSpace(entry.Type))
 			score := strings.TrimSpace(entry.Score)
+			if kind != "" || score != "" {
+				echo = append(echo, osvGoldenSeverityEntry{Type: strings.TrimSpace(entry.Type), Score: score})
+			}
 			switch {
 			case kind == "CVSS_V4" && strings.HasPrefix(score, "CVSS:4.0/") && !hasV4:
 				want, hasV4 = score, true
@@ -100,6 +152,19 @@ func validateOSVSeverityGolden(raw []byte) error {
 		}
 		if vector != want {
 			return fmt.Errorf("case %q cvss_vector %q does not follow the V4, V3, never-V2 rule (want %q)", tc.Name, vector, want)
+		}
+		// The raw severity array echoes the record's entries, trimmed; no
+		// entries gives null, not an empty array.
+		wantRaw, err := json.Marshal(echo)
+		if err != nil {
+			return fmt.Errorf("case %q derived severity is not JSON: %w", tc.Name, err)
+		}
+		var wantEcho any
+		if err := json.Unmarshal(wantRaw, &wantEcho); err != nil {
+			return fmt.Errorf("case %q derived severity does not decode: %w", tc.Name, err)
+		}
+		if !reflect.DeepEqual(tc.Expected["severity"], wantEcho) {
+			return fmt.Errorf("case %q severity %v does not echo the record entries %v", tc.Name, tc.Expected["severity"], wantEcho)
 		}
 		payload := map[string]any{"advisory_id": tc.Expected["advisory_id"], "source": "osv"}
 		if vector != "" {
