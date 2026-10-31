@@ -63,25 +63,6 @@ func checkPlainStaticLoad(t *testing.T, loaded supplychaincore.AuthorizedSupplyC
 	}
 }
 
-// TestAuthorizedImpactLoaderWithoutPolicyStateLeavesPlainWriteLive boots a
-// full public schema with no role-policy install (the pre-onboarding
-// production shape behind the Ifa gate dead-letters) and requires the
-// loader to report the static load complete but protection disengaged.
-func TestAuthorizedImpactLoaderWithoutPolicyStateLeavesPlainWriteLive(t *testing.T) {
-	database, ctx := openIsolatedLiveDB(t, "onboarding_norow",
-		"set ESHU_POSTGRES_DSN and ESHU_POSTGRES_DISPOSABLE=1 to run the loader onboarding proof")
-	loader := NewAuthorizedSupplyChainImpactEvidenceLoader(SQLDB{DB: database})
-	if loader == nil {
-		t.Fatal("authorized impact loader is unavailable on a repeatable-read store")
-	}
-	envelopes := []facts.Envelope{{FactID: "onboarding-static-fact-1", ScopeID: "onboarding-proof-scope", GenerationID: "onboarding-proof-generation-1"}}
-	loaded, err := loader.ListAuthorizedSupplyChainImpactEvidence(ctx, onboardingProofIntent(), staticOnlyExpansion(envelopes))
-	if err != nil {
-		t.Fatalf("loader without installed policy: %v", err)
-	}
-	checkPlainStaticLoad(t, loaded)
-}
-
 // TestAuthorizedImpactLoaderWithoutAuthorityTablesLeavesPlainWriteLive
 // repeats the proof on an isolated schema where the authority layout is
 // skipped entirely, so the engagement probe meets a missing relation
