@@ -178,7 +178,7 @@
       "RuntimeDeclaration": {
         "min": 6,
         "max": 50,
-        "note": "RuntimeDeclaration nodes from runtime_declaration.version facts (issue #8816); the go_comprehensive fixture's .tool-versions declares 4 versions on 2 lines (golang 1.22.5; nodejs 20.11.1 18.19.0 lts/iron, three tokens with order_index 0, 1 and 2). Issues #9548/#9610 enroll .NET (global.json SDK, csproj TargetFramework/s) and IaC (terraform_required_version, terragrunt_version_constraint, terragrunt_version, helm_chart_kube_version) declarations; #9660 enrolls eight more Others declarations (mix.exs, Package.swift, pubspec.yaml + .fvmrc, cpanfile + .perl-version, stack.yaml, *.cabal); CI observed 38 nodes, ceiling 50 stays wide for future fixture pin files"
+        "note": "RuntimeDeclaration nodes from runtime_declaration.version facts (issue #8816); the go_comprehensive fixture's .tool-versions declares 4 versions on 2 lines (golang 1.22.5; nodejs 20.11.1 18.19.0 lts/iron, three tokens with order_index 0, 1 and 2). Issues #9548/#9610 enroll .NET (global.json SDK, csproj TargetFramework/s) and IaC (terraform_required_version, terragrunt_version_constraint, terragrunt_version, helm_chart_kube_version) declarations; #9638/#9646 enroll Rust (Cargo.toml package rust-version) and Bun/Deno (package.json packageManager) declarations, and #9660 enrolls eight more Others declarations (mix.exs, Package.swift, pubspec.yaml + .fvmrc, cpanfile + .perl-version, stack.yaml, *.cabal); CI observed 49 nodes, ceiling 50 stays wide for future fixture pin files"
       }
     },
     "edge_counts": {
@@ -345,7 +345,7 @@
       "DECLARES_RUNTIME": {
         "min": 4,
         "max": 50,
-        "note": "Repository->RuntimeDeclaration edges (issue #8816), one per declaration; the go_comprehensive fixture's .tool-versions declares 4 versions (golang 1.22.5; nodejs 20.11.1 18.19.0 lts/iron). Issues #9548/#9610 enroll .NET and IaC declarations; #9660 enrolls eight more Others declarations (mix.exs, Package.swift, pubspec.yaml + .fvmrc, cpanfile + .perl-version, stack.yaml, *.cabal); CI observed 38 edges, ceiling 50 stays wide for future fixture pin files"
+        "note": "Repository->RuntimeDeclaration edges (issue #8816), one per declaration; the go_comprehensive fixture's .tool-versions declares 4 versions (golang 1.22.5; nodejs 20.11.1 18.19.0 lts/iron). Issues #9548/#9610 enroll .NET and IaC declarations; #9638/#9646 enroll Rust and Bun/Deno declarations, and #9660 enrolls eight more Others declarations (mix.exs, Package.swift, pubspec.yaml + .fvmrc, cpanfile + .perl-version, stack.yaml, *.cabal); CI observed 49 edges, ceiling 50 stays wide for future fixture pin files"
       },
       "PINS_SUBMODULE": {
         "min": 1,
