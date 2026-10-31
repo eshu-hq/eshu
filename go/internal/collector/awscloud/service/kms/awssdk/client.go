@@ -286,7 +286,9 @@ func (c *Client) listKeyPolicies(ctx context.Context, keyID string) ([]string, e
 // keyRotationStatus probes GetKeyRotationStatus for the keys that support it.
 // AWS responds with UnsupportedOperationException for asymmetric, HMAC, and
 // AWS-managed keys, and may respond with AccessDenied when the caller lacks
-// kms:GetKeyRotationStatus. Those two cases are treated as "rotation status
+// kms:GetKeyRotationStatus. A key that passes the gate can still prove
+// unanswerable mid-scan (DisabledException, KMSInvalidStateException, or
+// NotFoundException). All three categories are treated as "rotation status
 // unknown" so the scanner omits the rotation_enabled attribute rather than
 // reporting a false answer. Any other failure (for example an expired
 // credential or a regional outage) is propagated so the scan fails loudly
@@ -304,7 +306,7 @@ func (c *Client) keyRotationStatus(ctx context.Context, keyID string, metadata *
 		return err
 	})
 	if err != nil {
-		if isUnsupportedOperation(err) || isAccessDeniedError(err) {
+		if isUnsupportedOperation(err) || isAccessDeniedError(err) || isRotationUnanswerable(err) {
 			return rotationStatus{known: false}, nil
 		}
 		return rotationStatus{}, err

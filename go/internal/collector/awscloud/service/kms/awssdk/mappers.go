@@ -183,8 +183,9 @@ func primaryKeyARN(config *kmstypes.MultiRegionConfiguration) string {
 
 // rotationCheckSupported reports whether GetKeyRotationStatus is meaningful
 // for this key. AWS returns UnsupportedOperationException for asymmetric,
-// HMAC, AWS-managed, and pending-deletion keys. We avoid the API call in
-// those cases to keep noise out of the throttle/error counters.
+// HMAC, AWS-managed, and pending-deletion keys, and DisabledException or
+// KMSInvalidStateException for disabled and pending-import keys. We avoid the
+// API call in those cases to keep noise out of the throttle/error counters.
 func rotationCheckSupported(metadata *kmstypes.KeyMetadata) bool {
 	if metadata == nil {
 		return false
@@ -202,7 +203,9 @@ func rotationCheckSupported(metadata *kmstypes.KeyMetadata) bool {
 	case kmstypes.KeyStatePendingDeletion,
 		kmstypes.KeyStatePendingReplicaDeletion,
 		kmstypes.KeyStateUnavailable,
-		kmstypes.KeyStateCreating:
+		kmstypes.KeyStateCreating,
+		kmstypes.KeyStateDisabled,
+		kmstypes.KeyStatePendingImport:
 		return false
 	}
 	return true
@@ -210,9 +213,11 @@ func rotationCheckSupported(metadata *kmstypes.KeyMetadata) bool {
 
 // rotationStatus carries the resolved automatic-rotation answer for a key.
 // known is false when GetKeyRotationStatus is not meaningful for the key type
-// or when AWS reports UnsupportedOperation/AccessDenied; the adapter
-// propagates any other GetKeyRotationStatus failure as an error rather than
-// recording it here, so a real outage never masquerades as "rotation unknown".
+// or when AWS reports UnsupportedOperation/AccessDenied or a rotation
+// race-window shape (DisabledException, KMSInvalidStateException,
+// NotFoundException); the adapter propagates any other GetKeyRotationStatus
+// failure as an error rather than recording it here, so a real outage never
+// masquerades as "rotation unknown".
 type rotationStatus struct {
 	known   bool
 	enabled bool

@@ -95,3 +95,20 @@ func isAccessDeniedError(err error) bool {
 	}
 	return false
 }
+
+// isRotationUnanswerable reports the KMS error shapes AWS raises when the key
+// cannot answer GetKeyRotationStatus despite passing rotationCheckSupported:
+// a key disabled, deleted, or moved to pending import between DescribeKey and
+// the rotation call. These map to unknown, like the gate skip, instead of
+// failing the scan.
+func isRotationUnanswerable(err error) bool {
+	var apiErr smithy.APIError
+	if !errors.As(err, &apiErr) {
+		return false
+	}
+	switch apiErr.ErrorCode() {
+	case "DisabledException", "KMSInvalidStateException", "NotFoundException":
+		return true
+	}
+	return false
+}
