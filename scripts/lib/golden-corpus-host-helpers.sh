@@ -14,9 +14,38 @@
 # shellcheck source=cgo-cflags.sh
 # (The literal scripts/ path lets the ci-gates trigger walk see this dependency.)
 source "$(dirname "${BASH_SOURCE[0]}")/../../scripts/lib/cgo-cflags.sh"
+# shellcheck source=golden-corpus-git.sh
+# All gate git traffic runs through golden_corpus_git (sanitized env/config),
+# including the satellite clone below.
+source "$(dirname "${BASH_SOURCE[0]}")/../../scripts/lib/golden-corpus-git.sh"
+
+# ESHU_MCP_REF pins the eshu-mcp satellite release whose serving binary the
+# gates run after the in-tree removal (#9670). Tag, not a branch: reproducible.
+: "${ESHU_MCP_REF:=v0.2.2}"
+
+# build_satellite_bin clones the satellite at ESHU_MCP_REF and builds
+# ./cmd/eshu-mcp as ${bin_dir}/eshu-mcp-server. The satellite replaced the
+# deleted in-tree go/cmd/mcp-server; it honors the same ESHU_MCP_* env contract
+# except the listen address and core origin, which moved to the -addr and
+# -core-base-url flags the gate start lines pass explicitly.
+build_satellite_bin() {
+	local src_dir="${work_dir}/eshu-mcp-src"
+	rm -rf "${src_dir}"
+	golden_corpus_git clone --depth 1 --branch "${ESHU_MCP_REF}" https://github.com/eshu-hq/eshu-mcp.git "${src_dir}" \
+		|| die "clone eshu-mcp ${ESHU_MCP_REF} failed"
+	# Record the resolved commit: tags are mutable, so the gate log pins the
+	# exact satellite tree the serving binary was built from.
+	echo "eshu-mcp ${ESHU_MCP_REF} resolved to $(git -C "${src_dir}" rev-parse HEAD)"
+	CGO_ENABLED=0 go -C "${src_dir}" build -trimpath -o "${bin_dir}/eshu-mcp-server" ./cmd/eshu-mcp \
+		|| die "build satellite mcp-server ${ESHU_MCP_REF} failed"
+}
 
 build_bin() {
 	local cmd="$1"
+	if [[ "${cmd}" == "mcp-server" ]]; then
+		build_satellite_bin
+		return
+	fi
 	eshu_export_cgo_cflags
 	CGO_ENABLED=1 go -C go build -o "${bin_dir}/eshu-${cmd}" "./cmd/${cmd}" \
 		|| die "build ${cmd} failed"

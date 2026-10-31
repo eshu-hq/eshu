@@ -33,8 +33,10 @@ func (f *fakeScopedTokenResolver) ResolveScopedToken(_ context.Context, credenti
 
 // authedTestServer builds a Server whose GET /sse and POST /mcp/message
 // transport endpoints require a bearer credential resolved by resolver,
-// mirroring how cmd/mcp-server/wiring.go wires the SAME credential chain used
-// for tools/call's internal dispatch (issue #5168).
+// mirroring how the removed in-tree entrypoint wired the SAME credential
+// chain used for tools/call's internal dispatch (issue #5168; entrypoint
+// removed under eshu-hq/eshu#9670, the satellite eshu-mcp owns that wiring
+// now).
 func authedTestServer(t *testing.T, resolver query.ScopedTokenResolver) *Server {
 	t.Helper()
 	mux := http.NewServeMux()

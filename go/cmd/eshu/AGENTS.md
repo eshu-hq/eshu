@@ -55,15 +55,19 @@
   that same `rootCmd` literal calls
   `os.Setenv("ESHU_RUNTIME_DB_TYPE", globalDatabase)`. This affects every child
   process exec'd in the same process.
-- **Service-launch replaces the process image** — `eshu mcp start` (both paths),
-  `eshu api start`, `eshu serve`, `eshu graph start`, `eshu watch`, and
-  `eshu index` all reach `syscall.Exec`, so no Eshu logic runs after the exec
-  point: nothing deferred, no flush, no cleanup. Anything the operator must see
-  has to be written before the call. Which route they take differs and matters
+- **Service-launch replaces the process image** — `eshu mcp start` (stdio and
+  standalone HTTP), `eshu api start`, `eshu serve`, `eshu graph start`,
+  `eshu watch`, and `eshu index` all reach `syscall.Exec`, so no Eshu logic
+  runs after the exec point: nothing deferred, no flush, no cleanup. Anything
+  the operator must see has to be written before the call. The
+  `--workspace-root` HTTP path is the exception: it delegates to
+  `localsupervisor.RunAttachedMCPHTTP`, which stays in-process and supervises
+  the session children. Which route they take differs and matters
   when you write a test — `procexec.Exec` for `mcp start` (`service.go`),
   `graph start` (`graph.go`), and `watch` (`basic.go`); a bare `syscall.Exec`
   for `api start` and `serve` (`service.go`); the local `indexExec` var for
-  `index` (`basic.go`).
+  `index` (`basic.go`); the `runAttachedMCPHTTP` var for the workspace-root
+  HTTP delegate (`service.go`).
 - **Flag names printed by an `internal/cli` package are declared there** — the
   `eshu component` family's `--instance`, `--version`, `--id`, `--publisher`,
   and `--fact-kind` appear in `--<flag> is required` errors raised inside
@@ -128,8 +132,10 @@
 ## Failure modes and how to debug
 
 - Symptom: `eshu mcp start` prints `eshu-mcp-server binary not found in PATH`
-  → cause: `exec.LookPath("eshu-mcp-server")` failed; rebuild with
-  `cd go && go build -o bin/ ./cmd/mcp-server/` and add `go/bin` to `PATH`.
+  → cause: `exec.LookPath("eshu-mcp-server")` failed; install it with
+  `scripts/install-local-binaries.sh` (pinned `ESHU_MCP_REF` satellite build)
+  and keep it on `PATH` — every HTTP path needs that binary, including the
+  `--workspace-root` session.
 
 - Symptom: `eshu index` prints `eshu-bootstrap-index binary not found in PATH`
   → cause: `indexLookPath("eshu-bootstrap-index")` failed; rebuild

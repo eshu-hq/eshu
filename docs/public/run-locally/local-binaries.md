@@ -37,8 +37,10 @@ that the local Eshu service needs to supervise.
 
 Do not use `go install .../cmd/eshu@latest` as your first local setup path. That
 command installs only the `eshu` binary. It does not install
-`eshu-ingester`, `eshu-reducer`, `eshu-mcp-server`, `eshu-bootstrap-index`, or
-the other helper binaries that local service mode expects on `PATH`.
+`eshu-ingester`, `eshu-reducer`, `eshu-bootstrap-index`, or
+the other helper binaries that local service mode expects on `PATH`. The MCP
+server binary (`eshu-mcp-server`) is no longer built from this repository; it
+ships with the extracted satellite `eshu-hq/eshu-mcp`.
 
 Plain `go install` names binaries after the command directory, so `./cmd/api`
 becomes `api`, not `eshu-api`. Local Eshu service mode expects the
@@ -54,7 +56,7 @@ By default the script installs to `GOBIN`, or to `$(go env GOPATH)/bin` when
 
 The script installs:
 
-- owner and API binaries: `eshu`, `eshu-api`, `eshu-mcp-server`
+- owner and API binaries: `eshu`, `eshu-api` (`eshu-mcp-server` ships with the satellite `eshu-hq/eshu-mcp`)
 - indexing and runtime binaries: `eshu-bootstrap-index`, `eshu-ingester`,
   `eshu-reducer`, `eshu-projector`
 - collector and control-plane binaries: `eshu-workflow-coordinator`,

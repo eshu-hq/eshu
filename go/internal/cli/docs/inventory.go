@@ -254,7 +254,6 @@ func defaultEnvironmentTruth() []string {
 		"ESHU_FACT_STORE_DSN",
 		"ESHU_GRAPH_BACKEND",
 		"ESHU_HOME",
-		"ESHU_MCP_ADDR",
 		"ESHU_POSTGRES_DSN",
 		"ESHU_QUERY_PROFILE",
 		"ESHU_REMOTE_TIMEOUT_SECONDS",

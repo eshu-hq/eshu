@@ -22,8 +22,9 @@ import (
 // `Logger: h.Logger` pass-through there. The mount has since been hoisted:
 // CodeHandler lives in internal/query/codequery, which cannot import package
 // query back to build a LanguageQueryHandler, so APIRouter carries a sibling
-// Language field that both cmd wirings construct with Neo4j/Content/Profile/
-// Logger (cmd/api/wiring_router.go, cmd/mcp-server/wiring_router.go).
+// Language field that the API wiring constructs with Neo4j/Content/Profile/
+// Logger (cmd/api/wiring_router.go; the MCP twin was removed under
+// eshu-hq/eshu#9670).
 //
 // This test pins the relocated contract at the router level: it builds the
 // APIRouter the way production does -- Code and Language sharing one logger --

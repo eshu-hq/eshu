@@ -140,6 +140,157 @@ func TestRunOwnedLocalHostWithLayoutAuthoritativeWatchStartsReducerAndIngester(t
 	}
 }
 
+// TestRunOwnedLocalHostWithLayoutMCPStdioStartsSessionAndBridges proves the
+// owner-booted stdio path supervises a session (loopback eshu-api plus
+// satellite) next to the reducer and ingester, and hands the session to the
+// bridge that owns the process stdio.
+func TestRunOwnedLocalHostWithLayoutMCPStdioStartsSessionAndBridges(t *testing.T) {
+	t.Setenv("ESHU_QUERY_PROFILE", string(query.ProfileLocalAuthoritative))
+
+	originalPrepareWorkspace := localHostPrepareWorkspace
+	originalStartEmbeddedPostgres := localHostStartEmbeddedPostgres
+	originalStartManagedGraph := localHostStartManagedGraph
+	originalWriteOwnerRecord := localHostWriteOwnerRecord
+	originalHostname := localHostHostname
+	originalStartChild := StartChildProcess
+	originalWaitManagedChildren := WaitManagedChildren
+	originalApplyBootstrap := localHostApplyBootstrap
+	originalApplyGraphBootstrap := localHostApplyGraphBootstrap
+	originalMarkGraphSchemaApplied := localHostMarkGraphSchemaApplied
+	originalExpectedProjectors := localHostContentSearchIndexExpectedProjectors
+	originalStartIaCReachabilityFinalizer := localHostStartIaCReachabilityFinalizer
+	originalReserve := mcpSessionReservePort
+	originalWaitHTTP := mcpSessionWaitHTTP
+	originalBridge := runMCPStdioBridge
+	t.Cleanup(func() {
+		localHostPrepareWorkspace = originalPrepareWorkspace
+		localHostStartEmbeddedPostgres = originalStartEmbeddedPostgres
+		localHostStartManagedGraph = originalStartManagedGraph
+		localHostWriteOwnerRecord = originalWriteOwnerRecord
+		localHostHostname = originalHostname
+		StartChildProcess = originalStartChild
+		WaitManagedChildren = originalWaitManagedChildren
+		localHostApplyBootstrap = originalApplyBootstrap
+		localHostApplyGraphBootstrap = originalApplyGraphBootstrap
+		localHostMarkGraphSchemaApplied = originalMarkGraphSchemaApplied
+		localHostContentSearchIndexExpectedProjectors = originalExpectedProjectors
+		localHostStartIaCReachabilityFinalizer = originalStartIaCReachabilityFinalizer
+		mcpSessionReservePort = originalReserve
+		mcpSessionWaitHTTP = originalWaitHTTP
+		runMCPStdioBridge = originalBridge
+	})
+
+	localHostPrepareWorkspace = func(layout eshulocal.Layout) (*eshulocal.OwnerLock, error) {
+		return &eshulocal.OwnerLock{}, nil
+	}
+	localHostStartEmbeddedPostgres = func(ctx context.Context, layout eshulocal.Layout) (*eshulocal.ManagedPostgres, error) {
+		return &eshulocal.ManagedPostgres{
+			DSN:        "host=127.0.0.1 port=15439 user=eshu password=change-me dbname=postgres sslmode=disable",
+			Port:       15439,
+			DataDir:    "/workspace/postgres/data",
+			SocketDir:  "/tmp/eshu",
+			SocketPath: "/tmp/eshu/.s.PGSQL.15439",
+			PID:        21,
+		}, nil
+	}
+	localHostStartManagedGraph = func(ctx context.Context, layout eshulocal.Layout, runtimeConfig RuntimeConfig) (*ManagedGraph, error) {
+		return &ManagedGraph{
+			Backend:  query.GraphBackendNornicDB,
+			Address:  "127.0.0.1",
+			BoltPort: 17687,
+			HTTPPort: 17474,
+			Username: "admin",
+			Password: "workspace-secret",
+			PID:      88,
+			Cmd:      &exec.Cmd{},
+		}, nil
+	}
+	localHostWriteOwnerRecord = func(path string, record eshulocal.OwnerRecord) error {
+		return nil
+	}
+	localHostHostname = func() (string, error) {
+		return "local-test", nil
+	}
+	localHostApplyBootstrap = func(ctx context.Context, dsn string) error {
+		return nil
+	}
+	localHostApplyGraphBootstrap = func(ctx context.Context, runtimeConfig RuntimeConfig, graph *ManagedGraph) error {
+		return nil
+	}
+	localHostMarkGraphSchemaApplied = func(ctx context.Context, dsn string, runtimeConfig RuntimeConfig, graph *ManagedGraph) error {
+		return nil
+	}
+	localHostContentSearchIndexExpectedProjectors = func(workspaceRoot string) (int, error) {
+		return 1, nil
+	}
+	localHostStartIaCReachabilityFinalizer = func(ctx context.Context, out io.Writer, dsn string, expectedProjectors int) (func() error, error) {
+		return func() error { return nil }, nil
+	}
+
+	var started []string
+	StartChildProcess = func(name string, args []string, env []string) (*exec.Cmd, error) {
+		started = append(started, name)
+		return &exec.Cmd{}, nil
+	}
+	ports := []int{19391, 19392}
+	mcpSessionReservePort = func() (int, error) {
+		port := ports[0]
+		ports = ports[1:]
+		return port, nil
+	}
+	mcpSessionWaitHTTP = func(context.Context, string, time.Duration) error { return nil }
+
+	var waited []string
+	var allowGot string
+	waitDone := make(chan struct{})
+	bridgeStarted := make(chan struct{})
+	WaitManagedChildren = func(ctx context.Context, children []Child, allowCleanExit string) error {
+		// The bridge owns stdio, so the wait side must not win the
+		// production select before the bridge goroutine is observed
+		// running; otherwise the run returns with no session bridged.
+		<-bridgeStarted
+		for _, child := range children {
+			waited = append(waited, child.name)
+		}
+		allowGot = allowCleanExit
+		close(waitDone)
+		return nil
+	}
+	var bridged *MCPSession
+	runMCPStdioBridge = func(_ context.Context, session *MCPSession, stdin io.Reader, stdout io.Writer) error {
+		bridged = session
+		close(bridgeStarted)
+		<-waitDone
+		return nil
+	}
+
+	err := RunOwnedHostWithLayout(context.Background(), io.Discard, eshulocal.Layout{
+		WorkspaceID:     "workspace-id",
+		WorkspaceRoot:   "/workspace/repo",
+		OwnerRecordPath: "/workspace/owner.json",
+		CacheDir:        "/workspace/cache",
+		LogsDir:         "/workspace/logs",
+		GraphDir:        "/workspace/graph",
+	}, ModeMCPStdio)
+	if err != nil {
+		t.Fatalf("RunOwnedHostWithLayout() error = %v, want nil", err)
+	}
+
+	wantChildren := []string{"eshu-reducer", "eshu-ingester", "eshu-api", "eshu-mcp-server"}
+	if !slices.Equal(started, wantChildren) {
+		t.Fatalf("started children = %#v, want %#v", started, wantChildren)
+	}
+	if !slices.Equal(waited, wantChildren) {
+		t.Fatalf("waited children = %#v, want %#v", waited, wantChildren)
+	}
+	if allowGot != "" {
+		t.Fatalf("allowCleanExit = %q, want unset (bridge EOF is the clean end)", allowGot)
+	}
+	if bridged == nil {
+		t.Fatal("bridge got no session, want the session to own stdio")
+	}
+}
+
 func TestRunOwnedLocalHostWithLayoutLightweightWatchStartsOnlyIngester(t *testing.T) {
 	originalPrepareWorkspace := localHostPrepareWorkspace
 	originalStartEmbeddedPostgres := localHostStartEmbeddedPostgres

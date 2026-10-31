@@ -87,12 +87,13 @@ func TestStartEmbeddedPostgresBootstrapsThroughForkedDriverLive(t *testing.T) {
 	// applies it. The unit guard checks the derived value; this checks that the
 	// postmaster booted with it.
 	//
-	// The composition is the five roles in localPostgresPoolHolders -- reducer,
-	// ingester and mcp-server from the supervisor, plus the api and
-	// bootstrap-index that `eshu vuln-scan repo` attaches. An earlier version of
-	// this comment said "API + MCP + indexing", which was the three-holder
-	// composition review repudiated: the API is not a supervised child at all
-	// (#6603 review).
+	// The composition is the five roles in localPostgresPoolHolders -- reducer
+	// and ingester from the supervisor, the MCP session api, plus the api and
+	// bootstrap-index that `eshu vuln-scan repo` attaches. The satellite
+	// eshu-mcp-server holds no pool; it reads through the session api. An
+	// earlier version of this comment said "API + MCP + indexing", which was
+	// the three-holder composition review repudiated: the API is not a
+	// supervised child at all (#6603 review).
 	//
 	// Compare against the RESOLVED value, not the floor constant. The server is
 	// started from ResolveLocalPostgresMaxConnections(os.Getenv), so an

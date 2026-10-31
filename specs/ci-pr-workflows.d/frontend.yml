@@ -71,7 +71,6 @@ workflows:
   - docker-compose.e2e.mutation.yaml
   - testdata/golden/auth-mcp-e2e-baseline.json
   - go/cmd/mock-github/**
-  - go/cmd/mcp-server/**
   - go/internal/oidcbearer/**
   - go/internal/githublogin/**
   - go/internal/query/**

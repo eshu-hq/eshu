@@ -194,7 +194,6 @@ gates:
       - "testdata/golden/auth-mcp-e2e-baseline.json"
       - "go/cmd/mock-github/**"
       - "go/cmd/mock-oidc-idp/**"
-      - "go/cmd/mcp-server/**"
       - "go/internal/oidcbearer/**"
       - "go/internal/githublogin/**"
       - "go/internal/query/**"

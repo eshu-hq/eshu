@@ -304,7 +304,7 @@ then rejected with `401`. With none of the three set the read surface is open
 [Docker Compose](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/run-locally/docker-compose.md)). Seeded bootstrap identities
 and console-minted tokens are not enforcement signals on their own — close the
 open read surface with one of those three environment variables. Both `cmd/api`
-and `cmd/mcp-server` log the resolved posture (`auth.enforcement.configured` or
+and the `eshu-mcp-server` satellite log the resolved posture (`auth.enforcement.configured` or
 `auth.enforcement.open`) once at startup.
 
 ### All-scope credentials on grant-filtered routes
@@ -355,7 +355,7 @@ session cookie is not a credential there at all. See
 [Hosted Governance](../operate/hosted-governance.md).
 
 When `ESHU_AUTH_RESOURCE_URI` and at least one OIDC bearer provider are
-configured, `cmd/mcp-server` also publishes an
+configured, the `eshu-mcp-server` satellite also publishes an
 [RFC 9728](https://www.rfc-editor.org/rfc/rfc9728.html) OAuth 2.0 Protected
 Resource Metadata document at the unauthenticated
 `/.well-known/oauth-protected-resource` route so OAuth-capable MCP clients can

@@ -50,7 +50,6 @@ main() {
 
     go build "${ESHU_BUILD_TAG_ARGS[@]}" -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu" ./cmd/eshu
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-api" ./cmd/api
-    go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-mcp-server" ./cmd/mcp-server
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-bootstrap-index" ./cmd/bootstrap-index
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-ingester" ./cmd/ingester
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-reducer" ./cmd/reducer
@@ -75,6 +74,19 @@ main() {
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-webhook-intake" ./cmd/webhook-intake
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-bootstrap-data-plane" ./cmd/bootstrap-data-plane
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-admin-status" ./cmd/admin-status
+
+    # #9670: the in-tree mcp-server moved to the eshu-mcp satellite. Local
+    # launchers (`eshu mcp start`, the local supervisor, `eshu doctor`) still
+    # resolve `eshu-mcp-server` from PATH, so the installer builds the pinned
+    # satellite release under that name. Same tag pin as the gates
+    # (scripts/lib/golden-corpus-host-helpers.sh); override with ESHU_MCP_REF
+    # only to measure another satellite release.
+    : "${ESHU_MCP_REF:=v0.2.2}"
+    MCP_SRC_DIR="$(mktemp -d)"
+    git clone --depth 1 --branch "$ESHU_MCP_REF" https://github.com/eshu-hq/eshu-mcp.git "$MCP_SRC_DIR"
+    echo "eshu-mcp $ESHU_MCP_REF resolved to $(git -C "$MCP_SRC_DIR" rev-parse HEAD)"
+    CGO_ENABLED=0 go -C "$MCP_SRC_DIR" build -trimpath -o "$INSTALL_DIR/eshu-mcp-server" ./cmd/eshu-mcp
+    rm -rf "$MCP_SRC_DIR"
 
     echo "Installed Eshu binaries to $INSTALL_DIR"
     if [[ -n "$ESHU_BUILD_TAGS" ]]; then

@@ -419,9 +419,10 @@ log "seed post-drain dead-letter + vulnerability-readiness query fixtures"
 seed_golden_dead_letter_fixture
 seed_golden_vulnerability_readiness_fixture
 
-log "start eshu-mcp-server (http) for MCP query truth"
-ESHU_MCP_TRANSPORT=http ESHU_MCP_ADDR=":${GATE_MCP_PORT}" \
-	start_bg mcp-server mcp_pid "${bin_dir}/eshu-mcp-server"
+log "start satellite eshu-mcp (http) for MCP query truth"
+ESHU_MCP_TRANSPORT=http ESHU_MCP_QUERY_PROFILE="${ESHU_QUERY_PROFILE:-}" \
+	start_bg mcp-server mcp_pid "${bin_dir}/eshu-mcp-server" \
+		-addr=":${GATE_MCP_PORT}" -core-base-url="http://localhost:${GATE_API_PORT}"
 wait_for_gate_http "eshu-mcp-server /health never returned on port ${GATE_MCP_PORT}" "http://localhost:${GATE_MCP_PORT}/health" "mcp-server"
 
 log "B-7(b) graph truth + B-7(c) query truth + B-7(d) timing"

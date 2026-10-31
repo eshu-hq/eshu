@@ -6,6 +6,7 @@ package localsupervisor
 import (
 	"context"
 	"errors"
+	"io"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -18,10 +19,15 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query"
 )
 
+// TestRunAttachedLocalMCPStdioUsesRecordedPostgresPort proves attach-stdio
+// serves a session (loopback eshu-api plus satellite) on the recorded
+// Postgres port, with the bridge owning the process stdio.
 func TestRunAttachedLocalMCPStdioUsesRecordedPostgresPort(t *testing.T) {
 	layout := eshulocal.Layout{
 		WorkspaceID:     "workspace-id",
+		WorkspaceRoot:   "/workspace/repo",
 		OwnerRecordPath: "/tmp/owner.json",
+		LogsDir:         t.TempDir(),
 	}
 	record := eshulocal.OwnerRecord{
 		PID:                42,
@@ -34,13 +40,17 @@ func TestRunAttachedLocalMCPStdioUsesRecordedPostgresPort(t *testing.T) {
 	originalProcessAlive := ProcessAlive
 	originalSocketHealthy := SocketHealthy
 	originalStartChild := StartChildProcess
-	originalWaitChild := localHostWaitChildProcess
+	originalReserve := mcpSessionReservePort
+	originalWait := mcpSessionWaitHTTP
+	originalBridge := runMCPStdioBridge
 	t.Cleanup(func() {
 		ReadOwnerRecord = originalReadOwnerRecord
 		ProcessAlive = originalProcessAlive
 		SocketHealthy = originalSocketHealthy
 		StartChildProcess = originalStartChild
-		localHostWaitChildProcess = originalWaitChild
+		mcpSessionReservePort = originalReserve
+		mcpSessionWaitHTTP = originalWait
+		runMCPStdioBridge = originalBridge
 	})
 
 	ReadOwnerRecord = func(path string) (eshulocal.OwnerRecord, error) {
@@ -53,12 +63,27 @@ func TestRunAttachedLocalMCPStdioUsesRecordedPostgresPort(t *testing.T) {
 		return path == record.PostgresSocketPath
 	}
 
-	var gotEnv []string
+	var satelliteEnv []string
+	var waitedURLs []string
+	ports := []int{19391, 19392}
+	mcpSessionReservePort = func() (int, error) {
+		port := ports[0]
+		ports = ports[1:]
+		return port, nil
+	}
+	mcpSessionWaitHTTP = func(_ context.Context, url string, _ time.Duration) error {
+		waitedURLs = append(waitedURLs, url)
+		return nil
+	}
 	StartChildProcess = func(name string, args []string, env []string) (*exec.Cmd, error) {
-		gotEnv = append([]string(nil), env...)
+		if name == "eshu-mcp-server" {
+			satelliteEnv = append([]string(nil), env...)
+		}
 		return &exec.Cmd{}, nil
 	}
-	localHostWaitChildProcess = func(ctx context.Context, cmd *exec.Cmd) error {
+	var bridged *MCPSession
+	runMCPStdioBridge = func(_ context.Context, session *MCPSession, stdin io.Reader, stdout io.Writer) error {
+		bridged = session
 		return nil
 	}
 
@@ -70,15 +95,25 @@ func TestRunAttachedLocalMCPStdioUsesRecordedPostgresPort(t *testing.T) {
 		t.Fatal("RunAttachedMCPStdio() attached = false, want true")
 	}
 
-	dsn := envValue(gotEnv, "ESHU_POSTGRES_DSN")
+	dsn := envValue(satelliteEnv, "ESHU_POSTGRES_DSN")
 	if !strings.Contains(dsn, "host=127.0.0.1") || !strings.Contains(dsn, "port=15439") {
 		t.Fatalf("ESHU_POSTGRES_DSN = %q, want loopback DSN with recorded port", dsn)
 	}
-	if got := envValue(gotEnv, "ESHU_MCP_TRANSPORT"); got != "stdio" {
-		t.Fatalf("ESHU_MCP_TRANSPORT = %q, want stdio", got)
+	if got := envValue(satelliteEnv, "ESHU_MCP_TRANSPORT"); got != "http" {
+		t.Fatalf("ESHU_MCP_TRANSPORT = %q, want http (satellite speaks HTTP behind the bridge)", got)
 	}
-	if got := envValue(gotEnv, "ESHU_LOCAL_LOG_MODE"); got != "terminal" {
-		t.Fatalf("ESHU_LOCAL_LOG_MODE = %q, want terminal for MCP stdio", got)
+	if got := envValue(satelliteEnv, "ESHU_MCP_ADDR"); got != "" {
+		t.Fatalf("ESHU_MCP_ADDR = %q, want unset (listen address travels on -addr only)", got)
+	}
+	wantWaits := []string{"http://127.0.0.1:19391/healthz", "http://127.0.0.1:19392/health"}
+	if strings.Join(waitedURLs, ",") != strings.Join(wantWaits, ",") {
+		t.Fatalf("waited on %v, want %v", waitedURLs, wantWaits)
+	}
+	if bridged == nil {
+		t.Fatal("bridge got no session, want the session to own stdio")
+	}
+	if got := bridged.SatelliteMessageURL(); got != "http://127.0.0.1:19392/mcp/message" {
+		t.Fatalf("bridged satellite URL = %q, want http://127.0.0.1:19392/mcp/message", got)
 	}
 }
 

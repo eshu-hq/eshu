@@ -48,7 +48,6 @@ RUN cd go \
     && LDFLAGS="-s -w -buildid= -extldflags '-static' -X github.com/eshu-hq/eshu/go/internal/buildinfo.Version=${ESHU_VERSION}" \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu ./cmd/eshu \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-api ./cmd/api \
-    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-mcp-server ./cmd/mcp-server \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-ingester ./cmd/ingester \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-bootstrap-index ./cmd/bootstrap-index \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-reducer ./cmd/reducer \
@@ -76,6 +75,18 @@ RUN cd go \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-webhook-intake ./cmd/webhook-intake \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-bootstrap-data-plane ./cmd/bootstrap-data-plane \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-admin-status ./cmd/admin-status
+
+# mcp-satellite: the extracted MCP server (#9670). The in-tree go/cmd/mcp-server
+# is gone, but the E2E fresh stack (compose/docker-compose.e2e.yaml under
+# $ESHU_DEPLOY_CHECKOUT) still builds this image with ESHU_REPO_ROOT at this
+# checkout and starts the binary at its old path with satellite flags
+# (-addr/-core-base-url).
+# COPY the digest-pinned satellite release binary under its old path so the
+# stack keeps serving the same contract. 0.2.2 is digest
+# sha256:43fd1ed5fb5ccd6eac7d3bebb66f6c3d1de4fdd2d7bf400de4da1f9e1c7c3401
+# (ghcr.io/eshu-hq/eshu-mcp tags 0.2.2/0.2/latest). Like the mocks below, this
+# stage MUST stay before "Production stage".
+FROM ghcr.io/eshu-hq/eshu-mcp:0.2.2@sha256:43fd1ed5fb5ccd6eac7d3bebb66f6c3d1de4fdd2d7bf400de4da1f9e1c7c3401 AS mcp-satellite
 
 # mock-oidc-idp: E2E-only synthetic OIDC IdP (issue #4971), built and shipped
 # as its own image, never as part of the product image below. A no-auth,
@@ -229,6 +240,11 @@ RUN apk add --no-cache git openssh-client curl "c-ares>=1.34.9-r0" \
 
 # Copy Go binaries
 COPY --from=builder /go-bin/ /usr/local/bin/
+# Removed in-tree MCP server replaced by the pinned satellite release (#9670):
+# the E2E fresh stack starts this image with command
+# ["/usr/local/bin/eshu-mcp-server"], so the satellite binary keeps its old
+# path. Same contract the gate serves (scripts/lib/golden-corpus-host-helpers.sh).
+COPY --from=mcp-satellite /eshu-mcp /usr/local/bin/eshu-mcp-server
 
 # Create the runtime user and writable working directories.
 RUN adduser -D -u 10001 eshu \

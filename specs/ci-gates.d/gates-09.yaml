@@ -340,7 +340,6 @@ gates:
       - "go/cmd/reducer/**"
       - "go/cmd/bootstrap-index/**"
       - "go/cmd/api/**"
-      - "go/cmd/mcp-server/**"
       - "specs/backend-divergence-allowlist.v1.yaml"
       - "scripts/verify-golden-corpus-gate.sh"
       - "scripts/test-verify-golden-corpus-gate.sh"

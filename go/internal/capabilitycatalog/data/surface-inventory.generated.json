@@ -2490,11 +2490,6 @@
     },
     {
       "category": "command",
-      "name": "mcp-server",
-      "readiness": "implemented"
-    },
-    {
-      "category": "command",
       "name": "mock-github",
       "readiness": "implemented"
     },

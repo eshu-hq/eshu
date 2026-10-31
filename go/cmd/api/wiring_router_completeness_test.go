@@ -4,15 +4,11 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"io"
 	"log/slog"
-	"os"
-	"path/filepath"
 	"reflect"
-	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/component"
@@ -44,11 +40,11 @@ import (
 // RepositoryHandler.Freshness, built from db) are genuinely exercised
 // instead of trivially nil because the test passed nil dependencies.
 //
-// cmd/mcp-server/wiring_router_completeness_test.go carries the
-// mirror-image test (TestNewMCPQueryRouterWiresEveryFieldOrDocumentsWhyNot)
-// with its own exclusion list, since the two entrypoints are separate
-// `main` packages and cannot share a helper or call each other's
-// constructors.
+// The removed MCP entrypoint used to carry the mirror-image test
+// (TestNewMCPQueryRouterWiresEveryFieldOrDocumentsWhyNot) with its own
+// exclusion list, since the two entrypoints were separate `main` packages
+// and could not share a helper or call each other's constructors (removed
+// under eshu-hq/eshu#9670; the satellite eshu-mcp serves that surface now).
 func TestNewRouterWiresEveryFieldOrDocumentsWhyNot(t *testing.T) {
 	t.Parallel()
 
@@ -166,12 +162,12 @@ func newFullyWiredTestRouter(t *testing.T) *query.APIRouter {
 // leaves nil, with why. Top-level fields fall into two groups: fields wired
 // later by the outer wireAPI (wiring.go) once a live provider-secret
 // keyring, bootstrap mode, or OIDC/SAML provider resolver exists -- outside
-// this constructor's scope -- and APIRouter.Ask, which neither entrypoint
-// ever assigns (POST /api/v0/ask is mounted directly on the mux instead).
+// this constructor's scope -- and APIRouter.Ask, which this entrypoint
+// never assigns (POST /api/v0/ask is mounted directly on the mux instead).
 var routerFieldsNotWiredByNewRouter = map[string]string{
-	"AdminDeadLetters":               "MCP-only: the API's Admin handler already covers dead-letter queries; cmd/mcp-server has no Admin handler so it gets a dedicated read-only AdminDeadLetters handler instead",
-	"AdminInputInvalidFacts":         "MCP-only: the API's Admin handler already covers input-invalid-facts queries (AdminHandler.Mount, issue #4630); cmd/mcp-server has no Admin handler so it gets a dedicated read-only AdminInputInvalidFacts handler instead",
-	"AdminChangedSincePoisonedLinks": "MCP-only: the API's Admin handler already covers changed-since poisoned-links queries (AdminHandler.Mount, issue #7290); cmd/mcp-server has no Admin handler so it gets a dedicated read-only AdminChangedSincePoisonedLinks handler instead",
+	"AdminDeadLetters":               "the API's Admin handler already covers dead-letter queries; no separate handler is wired on this entrypoint (a dedicated read-only one existed only on the MCP entrypoint removed under eshu-hq/eshu#9670)",
+	"AdminInputInvalidFacts":         "the API's Admin handler already covers input-invalid-facts queries (AdminHandler.Mount, issue #4630); no separate handler is wired on this entrypoint (a dedicated read-only one existed only on the MCP entrypoint removed under eshu-hq/eshu#9670)",
+	"AdminChangedSincePoisonedLinks": "the API's Admin handler already covers changed-since poisoned-links queries (AdminHandler.Mount, issue #7290); no separate handler is wired on this entrypoint (a dedicated read-only one existed only on the MCP entrypoint removed under eshu-hq/eshu#9670)",
 	"Setup":                          "wired later by wireAPI once providerSecretKeyring/bootstrapMode exist",
 	"OIDCLogin":                      "wired later by wireAPI once a live OIDC provider resolver exists",
 	"SAML":                           "wired later by wireAPI once a live SAML provider resolver exists",
@@ -204,9 +200,9 @@ var routerFieldsNotWiredByNewRouter = map[string]string{
 //     criterion on #5148's #5150 follow-up comment) --
 //
 // unless the field (or "TopField.NestedField" pair) is present in
-// exceptions. Duplicated in
-// cmd/mcp-server/wiring_router_completeness_test.go: the two entrypoints
-// are separate `main` packages and cannot import a shared test helper.
+// exceptions. This helper was duplicated in the removed MCP entrypoint's
+// twin test while the two entrypoints were separate `main` packages that
+// could not import a shared test helper (removed under eshu-hq/eshu#9670).
 func assertRouterFieldsWired(t *testing.T, router *query.APIRouter, exceptions map[string]string) {
 	t.Helper()
 	top := reflect.ValueOf(router).Elem()
@@ -255,48 +251,4 @@ type staticMetricsSource struct{}
 
 func (staticMetricsSource) RangeQuery(context.Context, query.MetricsRangeQuery) ([]query.MetricPoint, error) {
 	return nil, nil
-}
-
-// TestAssertRouterFieldsWiredCopiesStayInSync guards the deliberate
-// duplication of assertRouterFieldsWired across the two entrypoints (they are
-// separate main packages and cannot import a shared test helper): if the
-// reflective logic is ever changed in one copy but not the other, the two
-// structural gates would drift silently and one binary could regress the
-// #5143/#5150 wiring class unnoticed. The copies differ only in the
-// entrypoint-specific tokens their error messages name (constructor and
-// exception-map identifiers); those are normalized to placeholders before the
-// byte comparison so only genuine logic drift fails.
-func TestAssertRouterFieldsWiredCopiesStayInSync(t *testing.T) {
-	t.Parallel()
-
-	extract := func(path, constructor, exceptionsVar string) string {
-		t.Helper()
-		src, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatalf("read %s: %v", path, err)
-		}
-		const marker = "func assertRouterFieldsWired("
-		start := bytes.Index(src, []byte(marker))
-		if start < 0 {
-			t.Fatalf("%s: %q not found", path, marker)
-		}
-		body := string(src[start:])
-		// The function's closing brace is the first "}" at column zero.
-		end := strings.Index(body, "\n}\n")
-		if end < 0 {
-			t.Fatalf("%s: closing brace of assertRouterFieldsWired not found", path)
-		}
-		body = body[:end+2]
-		body = strings.ReplaceAll(body, exceptionsVar, "EXCEPTIONS_VAR")
-		body = strings.ReplaceAll(body, constructor, "CONSTRUCTOR")
-		return strings.TrimSpace(body)
-	}
-
-	api := extract("wiring_router_completeness_test.go",
-		"newRouter()", "routerFieldsNotWiredByNewRouter")
-	mcp := extract(filepath.Join("..", "mcp-server", "wiring_router_completeness_test.go"),
-		"newMCPQueryRouter()", "routerFieldsNotWiredByNewMCPQueryRouter")
-	if api != mcp {
-		t.Fatalf("assertRouterFieldsWired has drifted between cmd/api and cmd/mcp-server; update both copies to match")
-	}
 }

@@ -388,8 +388,9 @@ check_stage_table_rows
 #
 # A reference, not a `.Add(`/`.Record(` call, is the signal. Several
 # instruments are emitted indirectly -- passed into a struct field and
-# recorded from there, as go/cmd/mcp-server/wiring.go does with
-# GovernanceAuditAllowedEmitted -- and requiring a literal call site at the
+# recorded from there, as the removed MCP entrypoint did with
+# GovernanceAuditAllowedEmitted (wiring moved to the satellite eshu-mcp under
+# eshu-hq/eshu#9670) -- and requiring a literal call site at the
 # field would flag those as dead when they are not.
 sync_fields_tmp="$(mktemp)"
 referenced_fields_tmp="$(mktemp)"

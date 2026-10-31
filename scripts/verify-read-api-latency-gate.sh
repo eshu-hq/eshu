@@ -249,7 +249,9 @@ export ESHU_SSM_HOST_MAX_CAPTURE_AGE="2h"
 export ESHU_SSM_HOST_MAX_CROSS_TYPE_SKEW="30m"
 export ESHU_SSM_HOST_MAX_PLATFORM_OBSERVATION_AGE="1h"
 export ESHU_MCP_TRANSPORT="http"
-export ESHU_MCP_ADDR="127.0.0.1:${GATE_MCP_PORT}"
+export ESHU_MCP_QUERY_PROFILE="${ESHU_QUERY_PROFILE:-}"
+# NOTE: the satellite eshu-mcp replaced the in-tree server (#9670) and does
+# not read ESHU_MCP_ADDR; the listen address travels on the -addr flag below.
 export ESHU_AUTH_SECRET_ENC_KEY="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 export ESHU_LISTEN_ADDR="127.0.0.1:0"
 export ESHU_METRICS_ADDR="127.0.0.1:0"
@@ -423,8 +425,9 @@ done
 # check that the process we started is still the one alive.
 kill -0 "${api_pid}" 2>/dev/null || die "eshu-api (pid ${api_pid}) is not running even though /readyz answered — a different process is likely bound to port ${GATE_API_PORT}"
 
-log "start MCP HTTP transport"
-start_bg mcp-server mcp_pid "${bin_dir}/eshu-mcp-server"
+log "start satellite eshu-mcp HTTP transport"
+start_bg mcp-server mcp_pid "${bin_dir}/eshu-mcp-server" \
+	-addr="127.0.0.1:${GATE_MCP_PORT}" -core-base-url="http://127.0.0.1:${GATE_API_PORT}"
 mcp_ready=false
 for _ in $(seq 1 240); do
 	if curl -fsS "http://127.0.0.1:${GATE_MCP_PORT}/health" >/dev/null 2>&1; then

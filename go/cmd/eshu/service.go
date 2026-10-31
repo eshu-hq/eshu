@@ -50,6 +50,7 @@ func init() {
 	mcpStartCmd.Flags().String("host", "0.0.0.0", "Host to bind HTTP MCP server")
 	mcpStartCmd.Flags().IntP("port", "p", 8080, "Port for HTTP MCP server")
 	mcpStartCmd.Flags().String("workspace-root", "", "Explicit workspace root for the local Eshu owner")
+	mcpStartCmd.Flags().String("core-base-url", "", "Core read-API base URL the satellite MCP server reads through (for example http://127.0.0.1:8080). Defaults to the CLI's resolved API base URL. Standalone --transport http only: with --workspace-root the session API supplies it.")
 	mcpStartCmd.Flags().String("profile", "", "Runtime profile for a new local owner: local_authoritative (default; embedded NornicDB graph for call-graph and Cypher answers) or local_lightweight (Postgres only, no graph). For a Neo4j-backed authoritative owner, set ESHU_QUERY_PROFILE and ESHU_GRAPH_BACKEND instead.")
 	mcpCmd.AddCommand(mcpStartCmd)
 
@@ -100,6 +101,12 @@ func init() {
 	rootCmd.AddCommand(startAlias)
 }
 
+// runAttachedMCPHTTP spawns a session eshu-api plus the satellite MCP server
+// for --transport http with --workspace-root and waits on both. It is a
+// variable so tests can prove the delegation without binding ports or
+// spawning processes.
+var runAttachedMCPHTTP = localsupervisor.RunAttachedMCPHTTP
+
 func runMCPStart(cmd *cobra.Command, args []string) error {
 	rawTransport, _ := cmd.Flags().GetString("transport")
 	host, _ := cmd.Flags().GetString("host")
@@ -140,24 +147,11 @@ func runMCPStart(cmd *cobra.Command, args []string) error {
 		return procexec.Exec(binary, []string{procexec.CleanExecutableArg0(binary), "local-host", "mcp-stdio", workspaceRoot}, env)
 	}
 
-	binary, err := procexec.LookPath("eshu-mcp-server")
-	if err != nil {
-		printError("eshu-mcp-server binary not found in PATH.")
-		fmt.Println("\nThe MCP server is a Go binary. Ensure:")
-		fmt.Println("  1. Go binaries are built: cd go && make build")
-		fmt.Println("  2. Binary is in PATH: export PATH=$PATH:$(pwd)/go/bin")
-		return fmt.Errorf("eshu-mcp-server not found")
-	}
-
-	httpOverrides := map[string]string{
-		"ESHU_MCP_TRANSPORT": transport,
-		"ESHU_MCP_ADDR":      fmt.Sprintf("%s:%d", host, port),
-	}
-	for key, value := range localsupervisor.MCPHTTPAllowUnauthenticatedOverride(host) {
-		httpOverrides[key] = value
-	}
-	env := procexec.MergeEnvironment(procexec.Environ(), httpOverrides)
+	coreBaseURLFlag, _ := cmd.Flags().GetString("core-base-url")
 	if strings.TrimSpace(workspaceRootFlag) != "" {
+		if strings.TrimSpace(coreBaseURLFlag) != "" {
+			return fmt.Errorf("--core-base-url is not valid with --workspace-root; the session API supplies the core URL")
+		}
 		startPath, err := procexec.Getwd()
 		if err != nil {
 			return fmt.Errorf("resolve current working directory: %w", err)
@@ -170,14 +164,34 @@ func runMCPStart(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return err
 		}
-		env, err = localsupervisor.MCPHTTPEnvFromOwner(layout, host, port)
-		if err != nil {
-			return err
-		}
+		fmt.Printf("Starting Eshu MCP Server (%s transport)...\n", transport)
+		return runAttachedMCPHTTP(cmd.Context(), layout, host, port)
 	}
 
+	binary, err := procexec.LookPath("eshu-mcp-server")
+	if err != nil {
+		printError("eshu-mcp-server binary not found in PATH.")
+		fmt.Println("\nThe satellite MCP server is a separate binary. Either:")
+		fmt.Println("  1. Install it with scripts/install-local-binaries.sh (pinned ESHU_MCP_REF build),")
+		fmt.Println("  2. Start an eshu-api and pass its URL with --core-base-url, or")
+		fmt.Println("  3. Use --workspace-root so this command starts a session API for you.")
+		return fmt.Errorf("eshu-mcp-server not found")
+	}
+
+	coreBaseURL := strings.TrimSpace(coreBaseURLFlag)
+	if coreBaseURL == "" {
+		coreBaseURL = NewAPIClient("", "", "").BaseURL
+	}
+	httpOverrides := map[string]string{
+		"ESHU_MCP_TRANSPORT": transport,
+	}
+	for key, value := range localsupervisor.MCPHTTPAllowUnauthenticatedOverride(host) {
+		httpOverrides[key] = value
+	}
+	env := procexec.MergeEnvironment(procexec.Environ(), httpOverrides)
+
 	fmt.Printf("Starting Eshu MCP Server (%s transport)...\n", transport)
-	return procexec.Exec(binary, []string{"eshu-mcp-server"}, env)
+	return procexec.Exec(binary, []string{"eshu-mcp-server", "-addr=" + fmt.Sprintf("%s:%d", host, port), "-core-base-url=" + coreBaseURL}, env)
 }
 
 // mcpStartProfileOverrides translates an explicit --profile request into the
