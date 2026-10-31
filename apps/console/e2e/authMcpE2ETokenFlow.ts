@@ -87,11 +87,8 @@ async function assertLoginPageTokenOnlyPosture(ctx: ShapeAContext): Promise<stri
 // gate; only the asserted contract changed.
 async function assertDiscoveryStaticFromBoot(ctx: ShapeAContext): Promise<string> {
   // The first read retries briefly: a fresh stack answers readiness probes
-  // before discovery is servable.
+  // before discovery is servable. The helper only returns on 200.
   const res = await fetchStaticDiscoveryDocWithRetry(ctx.mcpBase);
-  if (res.status !== 200) {
-    throw new Error(`expected 200 from static discovery with configured issuers, got ${res.status}`);
-  }
   const doc = (await res.json()) as Record<string, unknown>;
   if (doc.resource !== ctx.mcpBase) {
     throw new Error(`discovery resource = ${String(doc.resource)}, want ${ctx.mcpBase}`);

@@ -66,15 +66,25 @@ export async function fetchStaticDiscoveryDocWithRetry(
   intervalMs = 1000,
 ): Promise<Response> {
   const deadline = Date.now() + timeoutMs;
-  let lastStatus = 0;
+  let lastFailure = "no attempt made";
   for (;;) {
-    const res = await fetch(`${mcpBase}/.well-known/oauth-protected-resource`);
-    if (res.status === 200) {
-      return res;
+    let res: Response | undefined;
+    try {
+      res = await fetch(`${mcpBase}/.well-known/oauth-protected-resource`);
+    } catch (err) {
+      // Fresh-stack window: the port is not accepting connections yet.
+      lastFailure = err instanceof Error ? err.message : String(err);
     }
-    lastStatus = res.status;
+    if (res) {
+      if (res.status === 200) {
+        return res;
+      }
+      // Drain the body so the socket is released before the next poll.
+      lastFailure = `status ${res.status}`;
+      await res.arrayBuffer().catch(() => undefined);
+    }
     if (Date.now() >= deadline) {
-      throw new Error(`static discovery expected 200 within ${timeoutMs}ms, got ${lastStatus}`);
+      throw new Error(`static discovery expected 200 within ${timeoutMs}ms, got ${lastFailure}`);
     }
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }

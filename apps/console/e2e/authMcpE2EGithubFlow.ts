@@ -281,13 +281,8 @@ export async function driveGithubLoginExpectSuccess(
 // shapeC_discovery_and_challenge_unaffected step id for the manifest gate.
 async function assertDiscoveryStillStatic(mcpBase: string): Promise<string> {
   // The first read retries briefly: a fresh stack answers readiness probes
-  // before discovery is servable.
-  const discoveryRes = await fetchStaticDiscoveryDocWithRetry(mcpBase);
-  if (discoveryRes.status !== 200) {
-    throw new Error(
-      `expected static discovery to STILL serve 200 with only a GitHub provider configured, got ${discoveryRes.status}`,
-    );
-  }
+  // before discovery is servable. The helper only returns on 200.
+  await fetchStaticDiscoveryDocWithRetry(mcpBase);
   const initRes = await fetch(`${mcpBase}/mcp/message`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
