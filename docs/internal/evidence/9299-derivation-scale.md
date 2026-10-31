@@ -4,18 +4,21 @@
 
 Issue #9299 acceptance requires a performance proof on the derivation
 query (`EXPLAIN ANALYZE` on the QA corpus) before the change lands. The
-committed proof (`TestScannerDiscoveryScaleShapeLive`) covers shape at
-QA-scale cardinality: 300,000 observations across 40 scopes, three
-digest kinds, with manifest verifications for half the config-digest
-rows. The earlier 5,100-row shape proofs (`TestScannerDiscoveryPagePlanLive`,
-`TestScannerDiscoveryExhaustedPageSkipSpanLive`) were de-enrolled under the
-drift-gate option A (PR #9544) and re-enroll in the post-refit follow-up.
+committed proof (`TestScannerDiscoveryScaleShapeLive`) gates bounded pages
+(page-1/mid-window/tail) at QA-scale cardinality: 300,000 observations across
+40 scopes, three digest kinds, with manifest verifications for half the
+config-digest rows; it logs plans without asserting plan shape. The earlier
+5,100-row proofs (`TestScannerDiscoveryPagePlanLive`,
+`TestScannerDiscoveryExhaustedPageSkipSpanLive`) carried the no-seqscan
+EXPLAIN gate and exact skip counts; both are de-enrolled under the drift-gate
+option A (PR #9544) and re-enroll in the post-refit follow-up.
 This note records the same two shipped statements at that QA scale.
 
 ## Method
 
 Throwaway live test (run once, then deleted; the committed QA-scale test
-remains the durable shape proof): bootstrap the full lane schema in a
+remains the durable bounded-page proof, with the no-seqscan gate suspended
+per the No-Regression line below): bootstrap the full lane schema in a
 disposable database, seed one scanner instance plus one producer with 40
 published generations (one per scope), grants, active scopes, delivery
 receipts and 300,000 observations (80% manifest / 10% config / 10%
@@ -105,7 +108,10 @@ workers (422 ms / 645 ms / 3.2 ms / 2.5 ms / 430 ms) — a systematic
 environment plan choice, not a lane-code difference. The quadratic
 narrative above holds under either plan; the #9468 50k+ proof decides
 the pagination strategy on its own hardware.
-No-Regression Evidence: the committed 5k shape proof is unchanged and
-still pins the no-seqscan invariant at small scale.
+No-Regression Evidence: the small-scale no-seqscan gate is SUSPENDED while
+`TestScannerDiscoveryPagePlanLive` and `TestScannerDiscoveryExhaustedPageSkipSpanLive`
+are de-enrolled (drift-gate option A, PR #9544) — the enrolled scale proof logs
+plans but asserts no Seq Scan absence. The gate re-arms when the post-refit
+follow-up re-enrolls both proofs; their code is retained byte-identical for that.
 No-Observability-Change: no metric, span, or log line was added or
 changed for this measurement.

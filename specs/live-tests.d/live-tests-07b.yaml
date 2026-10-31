@@ -35,4 +35,4 @@ tests:
   - file: go/internal/storage/postgres/infra/inventory/writer_role_attestor_dsn_live_test.go
     tag: ~
     class: scheduled
-    reason: "#9299 writer DSN-attrs proof split byte-identical from fence_role_attestor_live_test.go (markers are per-file) and de-enrolled under drift-gate option A (PR #9544 steer 6530394665); attestation ordering stays enrolled, DSN attrs stay proven on the reader path by enrolled TestDistinctReaderCredentialOnSamePhysicalPrimary, local run took 0.01s — re-enroll post-refit"
+    reason: "#9299 writer DSN-attrs proof split byte-identical from fence_role_attestor_live_test.go (markers are per-file) and de-enrolled under drift-gate option A (PR #9544 steer 6530394665); writer-path standby rejection (writerValidator) is SUSPENDED with no CI coverage until re-enroll — accepted risk recorded here, not implied coverage (the enrolled reader test pins only readerValidator), local run took 0.01s — re-enroll post-refit"
