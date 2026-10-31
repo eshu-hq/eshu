@@ -17,6 +17,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/extensionhost"
+	"github.com/eshu-hq/eshu/go/internal/collector/vulnerabilityintelligence/vulnruntime"
 	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -103,6 +104,12 @@ func buildClaimedService(
 	if err != nil {
 		return collector.ClaimedService{}, err
 	}
+	// The scope query resolver delivers the run's requested_scope_set
+	// entry on the satellite claim for pinned slot scopes
+	// (eshu-hq/eshu#9432). It reads the workflow_runs row the coordinator
+	// persisted at plan time through the same control store that serves
+	// claims below.
+	controlStore := postgres.NewWorkflowControlStore(database)
 	source, err := extensionhost.NewSource(extensionhost.Config{
 		Manifest:            config.Manifest,
 		CollectorInstanceID: config.Instance.InstanceID,
@@ -110,6 +117,7 @@ func buildClaimedService(
 		ConfigHandle:        config.ConfigHandle,
 		Config:              config.ExtensionConfig,
 		Runner:              runner,
+		ScopeQueryResolver:  vulnruntime.SlotScopeQueryResolver(controlStore),
 		// StatusTelemetry turns the extension's SDK status rows into the
 		// eshu_dp_component_extension_* instruments and one bounded log
 		// line per claim result (#8908); an extracted collector emits no
@@ -142,7 +150,7 @@ func buildClaimedService(
 	committer.Logger = logger
 	committer.Instruments = instruments
 	return collector.ClaimedService{
-		ControlStore:        postgres.NewWorkflowControlStore(database),
+		ControlStore:        controlStore,
 		Source:              source,
 		Committer:           committer,
 		CollectorKind:       config.CollectorKind,
