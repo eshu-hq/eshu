@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	collectorscannerworker "github.com/eshu-hq/eshu/go/internal/collector/scannerworker"
+	scannercomponent "github.com/eshu-hq/eshu/go/internal/collector/scannercomponent"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/schedule"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -54,7 +54,7 @@ func (p WorkPlanner) PlanDerivedImageWork(
 	if err := json.Unmarshal([]byte(request.Instance.Configuration), &config); err != nil {
 		return empty(fmt.Errorf("scanner image discovery configuration: %w", err))
 	}
-	if !config.DeriveFromRunningImages || config.Analyzer != string(collectorscannerworker.AnalyzerImageUnpacking) {
+	if !config.DeriveFromRunningImages || config.Analyzer != string(scannercomponent.AnalyzerImageUnpacking) {
 		return empty(fmt.Errorf("scanner image discovery requires enabled instance opt-in"))
 	}
 	observedAt := request.ObservedAt.UTC()
@@ -109,9 +109,9 @@ func (p WorkPlanner) PlanDerivedImageWork(
 	for i := range targets {
 		target := &targets[i]
 		metadata := scannerWorkerTargetConfiguration{
-			ScopeID: target.ScanTargetID, TargetKind: collectorscannerworker.TargetImage,
+			ScopeID: target.ScanTargetID, TargetKind: scannercomponent.TargetImage,
 		}
-		item, err := scannerWorkerWorkItem(request.Instance, collectorscannerworker.AnalyzerImageUnpacking,
+		item, err := scannerWorkerWorkItem(request.Instance, scannercomponent.AnalyzerImageUnpacking,
 			metadata, run.RunID, request.PlanKey, observedAt)
 		if err != nil {
 			return empty(err)
@@ -133,7 +133,7 @@ func (p WorkPlanner) PlanDerivedImageWork(
 	}
 	targets = kept
 	run.RequestedScopeSet = scannerWorkerRequestedScopeSet(request.Instance,
-		collectorscannerworker.AnalyzerImageUnpacking, metadataTargets)
+		scannercomponent.AnalyzerImageUnpacking, metadataTargets)
 	sources := make([]string, 0, len(skippedSources))
 	for source := range skippedSources {
 		if source != "" {
