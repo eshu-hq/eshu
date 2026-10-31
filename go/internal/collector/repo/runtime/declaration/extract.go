@@ -51,6 +51,8 @@ func Extract(relativePath, body string) (Extraction, bool) {
 		return Extraction{}, false
 	case manifestCargo:
 		return extractCargoManifest(body), true
+	case manifestMixExs:
+		return extractMixExsManifest(body), true
 	case manifestStackYaml:
 		return extractStackManifest(body), true
 	case manifestPackageJSON:

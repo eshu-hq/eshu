@@ -117,6 +117,12 @@ type rustRuntimeSnapshot struct {
 	Digest     string
 }
 
+// elixirRuntimeSnapshot binds one mix.exs parser outcome to its exact bytes.
+type elixirRuntimeSnapshot struct {
+	Extraction runtimedeclaration.Extraction
+	Digest     string
+}
+
 type haskellRuntimeSnapshot struct {
 	Extraction runtimedeclaration.Extraction
 	Digest     string
@@ -187,6 +193,8 @@ type RepositorySnapshot struct {
 	IACRuntimeExpected    bool                             `json:"-"`
 	RustRuntime           map[string]rustRuntimeSnapshot   `json:"-"`
 	RustRuntimeExpected   bool                             `json:"-"`
+	ElixirRuntime         map[string]elixirRuntimeSnapshot `json:"-"`
+	ElixirRuntimeExpected bool                             `json:"-"`
 	// HaskellRuntime carries guarded Stack resolver evidence only for this
 	// live snapshot.
 	HaskellRuntime         map[string]haskellRuntimeSnapshot `json:"-"`

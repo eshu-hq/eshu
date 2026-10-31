@@ -7,7 +7,10 @@ importing the parent `internal/parser` package. It emits the Elixir payload,
 pre-scan names, `dead_code_root_kinds`, `exactness_blockers`, modules,
 protocols, functions, imports, attributes, variables, bounded call metadata,
 and Hex dependency evidence from literal `mix.exs` deps plus `mix.lock`
-entries. All Elixir source symbols are extracted from the tree-sitter AST. A
+entries. The `mix.exs` parse also carries a private, digest-bound literal
+`elixir:` requirement with its source line to the Git collector for
+`runtime_declaration.version`. Dynamic values fail closed and never declare a
+runtime. All Elixir source symbols are extracted from the tree-sitter AST. A
 single walk of the parse tree produces module, function, import, attribute, and
 call rows keyed by node spans, so module membership, end lines, decorators,
 multiline signatures, and per-clause context follow the tree rather than a text

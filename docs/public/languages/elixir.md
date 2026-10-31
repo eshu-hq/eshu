@@ -31,6 +31,10 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 - Multiple function clause heads for the same function are each captured as separate entries
 - Pipe operator (`|>`) chains are not collapsed into a single call chain node
 
+## Runtime declarations
+
+A literal double-quoted `elixir:` requirement in an admitted `mix.exs` emits a `mix_exs_elixir` runtime declaration with its source line. It uses the existing runtime declaration fact and query contract. Module attributes, calls, charlists, and escaped or unterminated strings are not evaluated, and a `mix.exs` with malformed Elixir syntax contributes no runtime declaration.
+
 ## Dead-Code Support
 
 Elixir dead-code support is `derived`, not exact. The parser emits
