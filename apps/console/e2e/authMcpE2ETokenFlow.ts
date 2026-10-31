@@ -14,6 +14,7 @@ import { apiFetchInPage } from "./authE2EOidcFlow.ts";
 import type { AuthE2EStep } from "./authE2EStepRecorder.ts";
 import {
   extractToolCallStructuredContent,
+  fetchStaticDiscoveryDocWithRetry,
   mcpInitialize,
   mcpToolsCall,
   mcpToolsList,
@@ -85,7 +86,9 @@ async function assertLoginPageTokenOnlyPosture(ctx: ShapeAContext): Promise<stri
 // the trust root. Keeps the shapeA_discovery_404 step id for the manifest
 // gate; only the asserted contract changed.
 async function assertDiscoveryStaticFromBoot(ctx: ShapeAContext): Promise<string> {
-  const res = await fetch(`${ctx.mcpBase}/.well-known/oauth-protected-resource`);
+  // The first read retries briefly: a fresh stack answers readiness probes
+  // before discovery is servable.
+  const res = await fetchStaticDiscoveryDocWithRetry(ctx.mcpBase);
   if (res.status !== 200) {
     throw new Error(`expected 200 from static discovery with configured issuers, got ${res.status}`);
   }
@@ -149,7 +152,8 @@ async function assertMcpToolCallRowFiltered(ctx: ShapeAContext, token: string): 
 }
 
 // scopedReadAllowedFilter names the async allowed-read audit event shape A's
-// MCP reads produce (F-9 part 1).
+// MCP reads must not produce (F-9 part 1, retired sink): the filter below
+// asserts its count stays flat.
 const scopedReadAllowedFilter = {
   eventType: "read_authorization",
   decision: "allowed",

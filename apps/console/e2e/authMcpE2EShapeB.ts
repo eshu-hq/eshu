@@ -22,7 +22,7 @@ import {
   enableRequireSSO,
 } from "./authE2ERequireSSOFlow.ts";
 import type { AuthE2EStep } from "./authE2EStepRecorder.ts";
-import { mcpInitialize, mcpToolsList } from "./authMcpE2EJsonRpc.ts";
+import { fetchStaticDiscoveryDocWithRetry, mcpInitialize, mcpToolsList } from "./authMcpE2EJsonRpc.ts";
 import {
   assertScriptedTokenWorksAgainstMcp,
   mintJwtFromMockIdp,
@@ -47,19 +47,18 @@ export interface ShapeBContext extends ShapeCContext {
   readonly breakglassRecoveryCode: string;
 }
 
-// fetchStaticDiscoveryDoc GETs /.well-known/oauth-protected-resource once
-// and returns the document: under static satellite discovery
+// fetchStaticDiscoveryDoc GETs /.well-known/oauth-protected-resource and
+// returns the document: under static satellite discovery
 // (eshu-hq/eshu#9731) the edge serves it from boot, so there is no flip to
-// poll for. The retired in-tree transport derived this per request from
-// Postgres (oidcbearer issuer snapshot, 30s TTL) and flipped live when shape
-// B's OIDC provider was added; the satellite's static operator config makes
-// the flip a no-op. Keeps the shapeB_discovery_flips_live step id for the
-// manifest gate; only the asserted contract changed.
+// poll for. The first read retries briefly (~30s) because a fresh stack
+// answers readiness probes before discovery is servable. The retired in-tree
+// transport derived this per request from Postgres (oidcbearer issuer
+// snapshot, 30s TTL) and flipped live when shape B's OIDC provider was
+// added; the satellite's static operator config makes the flip a no-op.
+// Keeps the shapeB_discovery_flips_live step id for the manifest gate; only
+// the asserted contract changed.
 async function fetchStaticDiscoveryDoc(mcpBase: string): Promise<Record<string, unknown>> {
-  const res = await fetch(`${mcpBase}/.well-known/oauth-protected-resource`);
-  if (res.status !== 200) {
-    throw new Error(`static discovery expected 200 from boot, got ${res.status}`);
-  }
+  const res = await fetchStaticDiscoveryDocWithRetry(mcpBase);
   return (await res.json()) as Record<string, unknown>;
 }
 

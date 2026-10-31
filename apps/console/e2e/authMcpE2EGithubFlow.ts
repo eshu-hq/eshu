@@ -16,6 +16,7 @@ import type { Browser, Page } from "playwright";
 
 import { apiFetchInPage, chromiumLaunchArgs as baseChromiumLaunchArgs } from "./authE2EOidcFlow.ts";
 import { resolveEshuCommand, type EshuCommand } from "./authE2ECredential.ts";
+import { fetchStaticDiscoveryDocWithRetry } from "./authMcpE2EJsonRpc.ts";
 import type { AuthE2EStep } from "./authE2EStepRecorder.ts";
 import { assertMcpToolCallRowFiltered, type ShapeAContext } from "./authMcpE2ETokenFlow.ts";
 
@@ -279,7 +280,9 @@ export async function driveGithubLoginExpectSuccess(
 // the same static 200 + discovery challenge shape A saw. Keeps the
 // shapeC_discovery_and_challenge_unaffected step id for the manifest gate.
 async function assertDiscoveryStillStatic(mcpBase: string): Promise<string> {
-  const discoveryRes = await fetch(`${mcpBase}/.well-known/oauth-protected-resource`);
+  // The first read retries briefly: a fresh stack answers readiness probes
+  // before discovery is servable.
+  const discoveryRes = await fetchStaticDiscoveryDocWithRetry(mcpBase);
   if (discoveryRes.status !== 200) {
     throw new Error(
       `expected static discovery to STILL serve 200 with only a GitHub provider configured, got ${discoveryRes.status}`,
