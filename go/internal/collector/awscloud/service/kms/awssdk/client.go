@@ -304,7 +304,7 @@ func (c *Client) keyRotationStatus(ctx context.Context, keyID string, metadata *
 		return err
 	})
 	if err != nil {
-		if isUnsupportedOperation(err) || isAccessDeniedError(err) {
+		if isUnsupportedOperation(err) || isAccessDeniedError(err) || isRotationUnanswerable(err) {
 			return rotationStatus{known: false}, nil
 		}
 		return rotationStatus{}, err

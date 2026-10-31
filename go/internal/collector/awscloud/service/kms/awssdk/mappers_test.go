@@ -90,6 +90,25 @@ func TestRotationCheckSupportedRejectsPendingDeletion(t *testing.T) {
 	}
 }
 
+// TestRotationCheckSupportedRejectsDisabledAndPendingImport proves
+// rotationCheckSupported returns false for disabled and pending-import keys.
+// AWS raises DisabledException/KMSInvalidStateException for
+// GetKeyRotationStatus on those keys, so one such key would otherwise fail
+// the entire KMS service read on every collection.
+func TestRotationCheckSupportedRejectsDisabledAndPendingImport(t *testing.T) {
+	for _, state := range []kmstypes.KeyState{kmstypes.KeyStateDisabled, kmstypes.KeyStatePendingImport} {
+		key := &kmstypes.KeyMetadata{
+			KeyManager: kmstypes.KeyManagerTypeCustomer,
+			KeyUsage:   kmstypes.KeyUsageTypeEncryptDecrypt,
+			KeySpec:    kmstypes.KeySpecSymmetricDefault,
+			KeyState:   state,
+		}
+		if rotationCheckSupported(key) {
+			t.Fatalf("rotationCheckSupported = true for %q key, want false", state)
+		}
+	}
+}
+
 // TestRotationCheckSupportedAcceptsEligibleSymmetricKey proves
 // rotationCheckSupported returns true only for customer-managed, symmetric,
 // encrypt-decrypt, non-pending keys — the exact set for which

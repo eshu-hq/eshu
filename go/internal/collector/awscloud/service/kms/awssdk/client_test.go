@@ -242,6 +242,43 @@ func TestClientListKeysTreatsUnsupportedOperationAsUnknownRotation(t *testing.T)
 	}
 }
 
+// TestClientListKeysTreatsUnanswerableRotationAsUnknown proves a key that
+// passes the gate but cannot answer GetKeyRotationStatus — disabled, invalid
+// state, or deleted between DescribeKey and the rotation call — maps to
+// rotation unknown instead of failing the scan.
+func TestClientListKeysTreatsUnanswerableRotationAsUnknown(t *testing.T) {
+	for _, code := range []string{"DisabledException", "KMSInvalidStateException", "NotFoundException"} {
+		keyID := "mid-scan-key"
+		api := &fakeKMSAPI{
+			listKeysPages: []*awskms.ListKeysOutput{{
+				Keys: []kmstypes.KeyListEntry{{KeyId: aws.String(keyID)}},
+			}},
+			describeKey: map[string]*kmstypes.KeyMetadata{
+				keyID: {
+					KeyId:      aws.String(keyID),
+					KeyManager: kmstypes.KeyManagerTypeCustomer,
+					KeyUsage:   kmstypes.KeyUsageTypeEncryptDecrypt,
+					KeySpec:    kmstypes.KeySpecSymmetricDefault,
+					KeyState:   kmstypes.KeyStateEnabled,
+				},
+			},
+			rotationErr: &smithy.GenericAPIError{Code: code, Message: "state changed mid-scan"},
+		}
+		adapter := &Client{
+			client:   api,
+			boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceKMS},
+		}
+
+		keys, err := adapter.ListKeys(context.Background())
+		if err != nil {
+			t.Fatalf("ListKeys() with %s error = %v, want nil", code, err)
+		}
+		if keys[0].RotationStatusKnown {
+			t.Fatalf("RotationStatusKnown should be false after %s", code)
+		}
+	}
+}
+
 // TestClientListKeysSurfacesUnexpectedRotationErrors proves the adapter does
 // not silently downgrade an unexpected GetKeyRotationStatus failure into
 // rotation_status_known=false. A credential or config outage that surfaces as

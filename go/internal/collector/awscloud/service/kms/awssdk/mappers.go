@@ -183,8 +183,9 @@ func primaryKeyARN(config *kmstypes.MultiRegionConfiguration) string {
 
 // rotationCheckSupported reports whether GetKeyRotationStatus is meaningful
 // for this key. AWS returns UnsupportedOperationException for asymmetric,
-// HMAC, AWS-managed, and pending-deletion keys. We avoid the API call in
-// those cases to keep noise out of the throttle/error counters.
+// HMAC, AWS-managed, and pending-deletion keys, and DisabledException or
+// KMSInvalidStateException for disabled and pending-import keys. We avoid the
+// API call in those cases to keep noise out of the throttle/error counters.
 func rotationCheckSupported(metadata *kmstypes.KeyMetadata) bool {
 	if metadata == nil {
 		return false
@@ -202,7 +203,9 @@ func rotationCheckSupported(metadata *kmstypes.KeyMetadata) bool {
 	case kmstypes.KeyStatePendingDeletion,
 		kmstypes.KeyStatePendingReplicaDeletion,
 		kmstypes.KeyStateUnavailable,
-		kmstypes.KeyStateCreating:
+		kmstypes.KeyStateCreating,
+		kmstypes.KeyStateDisabled,
+		kmstypes.KeyStatePendingImport:
 		return false
 	}
 	return true
