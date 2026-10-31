@@ -367,6 +367,7 @@ func TestClaimOutcomeCarriesAPartialStatusOnACompleteResult(t *testing.T) {
 		wantWarn    int
 	}{
 		{"partial status", sdkcollector.Status{Class: sdkcollector.StatusComplete, FactCount: 2, Partial: true, WarningCount: 1}, true, 1},
+		{"partial status without a warning count", sdkcollector.Status{Class: sdkcollector.StatusComplete, FactCount: 2, Partial: true}, true, 0},
 		{"clean status", sdkcollector.Status{Class: sdkcollector.StatusComplete, FactCount: 2}, false, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
