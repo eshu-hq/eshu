@@ -11,6 +11,14 @@ Verified at `8ec6d11ddf` (= `origin/main`, 2026-10-30). Method:
 exact-match `git grep` for the `go/internal/workflow` root import path,
 non-test files only.
 
+Re-verified at `5e427b908d` (= `origin/main`, 2026-10-31, removal lane):
+no workflow-dir code commits since `#9686` (`69331f88`) — the only
+commit in range is this docs refresh; counts below re-run green —
+169 non-test importers (61 coordinator / 57 collector /
+17 storage + 2 workflow-self harness / 32 cmd), 73 `.go` in
+`go/internal/workflow/` (65 root incl. the compat test + 8 `parity/`).
+No census drift; the per-file lists in §6 still match.
+
 ## 1. Assembly order
 
 1. `go/cmd/workflow-coordinator/` (12 files, §2 first group) + binary
@@ -90,7 +98,7 @@ fresh digest bind (satellite main is 18 commits ahead of the deployed
 4. Set the no-regression bar from history, drain to zero, verify residue
    0/0/0, return to dark.
 
-## 5. Provenance (re-verified read-only 2026-10-30)
+## 5. Provenance (re-verified read-only 2026-10-30, 2026-10-31)
 
 - Deployed (read-only kubectl against the designated cluster named on
   `#8875`): `eshu-workflow-claim-plane` and
@@ -99,6 +107,11 @@ fresh digest bind (satellite main is 18 commits ahead of the deployed
   satellite args carry `--deployment-mode=dark`, no `--claims-enabled`;
   in-tree `eshu-workflow-coordinator` owns authority
   (`eshu:sha-5eb6dd84…`). Dark post-revert state holds.
+- Re-verified 2026-10-31 (removal lane, read-only `kubectl get
+  deployments` against the designated cluster named on `#8875`):
+  both satellite deployments still on `03d9f976`, still
+  `--deployment-mode=dark` with no `--claims-enabled`.
+  No new deploy since the abort-to-dark revert; in-tree still authoritative.
 - Build chain: digest `03d9f976` ← publish run `40779192627` (success) at
   `b6497fce` (merge of `eshu-workflow#7`, startup-retry fix).
 - Drift: satellite main (`09e23b93`, 2026-10-29) is 18 commits ahead of
@@ -291,3 +304,27 @@ importers are out of scope (shared, stays).
 - `go/cmd/collector-vulnerability-intelligence/service.go`
 - `go/cmd/scanner-worker/config.go`
 - `go/cmd/workflow-coordinator/workflow_control_store_wiring.go`
+
+## 7. Removal-lane gate checklist (2026-10-31, `origin/main` `5e427b908d`)
+
+Runnable proofs re-run by the removal lane; unrunnable items name their
+exact missing input. No code is deleted by this refresh: removal landing
+stays HELD until every row below is green.
+
+| Gate | Result 2026-10-31 | Evidence |
+| --- | --- | --- |
+| Census current (§6) | GREEN | 169 / 61 / 57 / 17 / 32 re-counted; no code commits since `#9686` (only this docs refresh) |
+| Compat pin, 15 called routes | GREEN | `go test ./internal/workflow/ -run TestClaimPlaneClient`: 5/5 PASS |
+| Compat pin, 5 uncalled routes | HELD | No in-tree client methods for the read/report routes core never calls; pin must land in `eshu-workflow` (different repo/lane) |
+| Parity, in-tree legs | GREEN | `go test ./internal/workflow/parity/`: PinGap + Classify + Truncate PASS on local isolated PG |
+| Parity, satellite legs | HELD (skipped, zero writes) | Needs `PARITY_SATELLITE_URL/DSN` + synthetic-write grant; last bind `03d9f976` stands |
+| Deployed-binary contention | HELD | Needs its own synthetic-write grant per the 2026-10-30 proof-closure ruling; static audit (§3) unchanged |
+| In-cluster throughput | HELD | Procedure in §4; needs the grant + a fresh digest bind (deploy lane) |
+| Satellite standing-authoritative | HELD | Still dark on `03d9f976` (§5); in-tree still owns claims |
+| `#9659` merged/closed | GREEN | State MERGED (stale-activation fix) |
+| Importer repointing (169 files) | HELD | Zero of 169 repointed; assembly order in §1 unchanged |
+
+`#9376` stays OPEN. `#9659` MERGED, `#9686` MERGED. SLSA attestation
+still absent. The first deletable assembly (§1 step 1) unlocks only when
+the satellite is standing-authoritative with the contention proof bound
+to its digest.
