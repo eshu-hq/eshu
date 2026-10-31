@@ -19,7 +19,7 @@ shed the churn at its source; this note records the micro-proof.
   retains nothing: 16 racing workers pay for one pass, and sequential
   callers always reread the database.
 
-## Benchmark Evidence
+## Benchmark Evidence: deferred bulk-load shed and shared fleet passes
 
 Hermetic in-process fake-DB harnesses (no live Postgres; the probe SQL
 semantics carry a CI integration live test,
@@ -59,7 +59,7 @@ win is passes and bytes, which is what feeds the 1 GB/s churn. The
 post-fix per-op bytes include the 16 defensive copies each served caller
 gets so no caller can mutate shared rows.
 
-## Observability Evidence
+## Observability Evidence: existing signals cover the new paths
 
 No-Observability-Change: the pre-gate emits no signal of its own. A
 deferral surfaces as the durable failure class
