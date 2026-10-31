@@ -230,17 +230,21 @@ type SuppressionDecisionRow struct {
 // other source observation as an alternate so callers can explain selection
 // and detect vendor/upstream disagreement.
 type Provenance struct {
-	SelectedSeveritySource     string               `json:"selected_severity_source,omitempty"`
-	SelectedSeverityScore      float64              `json:"selected_severity_score,omitempty"`
-	SelectedSeverityVector     string               `json:"selected_severity_vector,omitempty"`
-	SelectedSeverityLabel      string               `json:"selected_severity_label,omitempty"`
-	SelectedFixedVersionSource string               `json:"selected_fixed_version_source,omitempty"`
-	SelectedRangeSource        string               `json:"selected_range_source,omitempty"`
-	SelectedEPSSScoreDate      string               `json:"selected_epss_score_date,omitempty"`
-	SelectedEPSSModelVersion   string               `json:"selected_epss_model_version,omitempty"`
-	AlternateSeverities        []AlternateSeverity  `json:"alternate_severities,omitempty"`
-	FixedVersionBranches       []FixedVersionBranch `json:"fixed_version_branches,omitempty"`
-	AdvisorySources            []AdvisorySource     `json:"advisory_sources,omitempty"`
+	SelectedSeveritySource string  `json:"selected_severity_source,omitempty"`
+	SelectedSeverityScore  float64 `json:"selected_severity_score,omitempty"`
+	// SelectedSeverityScoreSource is "derived_from_vector" when the reducer
+	// computed SelectedSeverityScore from SelectedSeverityVector, and absent
+	// when the source reported the score (#9693).
+	SelectedSeverityScoreSource string               `json:"selected_severity_score_source,omitempty"`
+	SelectedSeverityVector      string               `json:"selected_severity_vector,omitempty"`
+	SelectedSeverityLabel       string               `json:"selected_severity_label,omitempty"`
+	SelectedFixedVersionSource  string               `json:"selected_fixed_version_source,omitempty"`
+	SelectedRangeSource         string               `json:"selected_range_source,omitempty"`
+	SelectedEPSSScoreDate       string               `json:"selected_epss_score_date,omitempty"`
+	SelectedEPSSModelVersion    string               `json:"selected_epss_model_version,omitempty"`
+	AlternateSeverities         []AlternateSeverity  `json:"alternate_severities,omitempty"`
+	FixedVersionBranches        []FixedVersionBranch `json:"fixed_version_branches,omitempty"`
+	AdvisorySources             []AdvisorySource     `json:"advisory_sources,omitempty"`
 }
 
 // AlternateSeverity is one non-selected source severity preserved
@@ -248,8 +252,11 @@ type Provenance struct {
 type AlternateSeverity struct {
 	Source string  `json:"source"`
 	Score  float64 `json:"score,omitempty"`
-	Vector string  `json:"vector,omitempty"`
-	Label  string  `json:"label,omitempty"`
+	// ScoreSource is "derived_from_vector" when Score was computed from Vector,
+	// and absent when the source reported it.
+	ScoreSource string `json:"score_source,omitempty"`
+	Vector      string `json:"vector,omitempty"`
+	Label       string `json:"label,omitempty"`
 }
 
 // FixedVersionBranch is one source-attributed fixed-version branch

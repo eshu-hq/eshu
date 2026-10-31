@@ -151,6 +151,7 @@ const impactFindings = `
                             "properties": {
                               "selected_severity_source": {"type": "string", "description": "Advisory source whose severity was selected."},
                               "selected_severity_score": {"type": "number"},
+                              "selected_severity_score_source": {"type": "string", "enum": ["derived_from_vector"], "description": "Present and set to derived_from_vector when Eshu computed selected_severity_score from selected_severity_vector because the source published no score. Absent means the source reported the score."},
                               "selected_severity_vector": {"type": "string"},
                               "selected_severity_label": {"type": "string"},
                               "selected_fixed_version_source": {"type": "string", "description": "Advisory source whose fixed-version branch was selected."},
@@ -165,6 +166,7 @@ const impactFindings = `
                                   "properties": {
                                     "source": {"type": "string"},
                                     "score": {"type": "number"},
+                                    "score_source": {"type": "string", "enum": ["derived_from_vector"], "description": "Present when score was computed from vector rather than reported by the source."},
                                     "vector": {"type": "string"},
                                     "label": {"type": "string"}
                                   },

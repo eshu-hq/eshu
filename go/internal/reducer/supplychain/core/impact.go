@@ -261,6 +261,7 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 
 	phaseStarted = time.Now()
 	h.emitCounters(ctx, counts, suppressionCounts, remediationCounts)
+	h.emitSeverityDecisions(ctx, findings)
 	h.emitRetraction(ctx, intent, writeResult.FactsRetracted)
 	h.emitEvidenceTruncation(ctx, intent, loaded, len(findings))
 	timing.emitCountersDuration = time.Since(phaseStarted)

@@ -725,7 +725,7 @@ model query runs.
 | `workload_id`, `service_id`, `environment` | derived, missing-evidence driven | Current active workload-identity, service-catalog, and CI/CD repository mappings resolved at read time; stale reducer impact arrays do not satisfy these filters. |
 | `ecosystem` | exact, unsupported | Impact payload ecosystem predicate; unsupported ecosystems stay in readiness gaps. |
 | `language` | unsupported | No scanner read model maps source language to vulnerability impact truth. |
-| `severity` | derived | CVSS-derived impact severity buckets: `critical`, `high`, `medium`, `low`, `none`. |
+| `severity` | derived | Impact severity bucket from the CVSS score (source-reported, or computed from the source's CVSS vector) and from the source's severity label when there is no score: `critical`, `high`, `medium`, `low`, `none`. See [Severity derivation](vulnerability-impact.md#severity-derivation). |
 | `impact_status`, `reconciliation_status` | exact, provider-only | Reducer impact truth and provider reconciliation truth stay separate. |
 | `readiness` | missing-evidence driven | Readiness is reported in envelopes and reports, not accepted as a row filter. |
 | `provider_state`, `provider` | provider-only | Provider alert reconciliation facts; these never change Eshu impact truth. |
@@ -919,7 +919,7 @@ plus alternate severities reported by other sources for the same advisory:
 
 - `provenance.selected_severity_source`, `selected_severity_score`,
   `selected_severity_vector`, `selected_severity_label`: the chosen source's
-  severity attribution.
+  severity attribution; `selected_severity_score_source` is `derived_from_vector` when Eshu computed the score from the vector, absent when the source reported it ([Severity derivation](vulnerability-impact.md#severity-derivation)).
 - `provenance.selected_fixed_version_source`,
   `provenance.selected_range_source`: which source supplied the selected
   fixed version and the selected vulnerable-range expression.
@@ -942,8 +942,8 @@ matchers are npm, Go module, PyPI, Composer, RubyGems, NuGet, Cargo, Pub,
 Swift, Hex, and Maven today; vendor-backed OS package facts use the OS package
 priority above. Matcher-unimplemented ecosystems remain source-only, missing,
 or unsupported evidence rather than finding rows. If the selected source did
-not publish a severity, the reducer falls back to the next-best source instead
-of emitting a zero severity.
+not publish a severity, selection continues by tier: a vector-derived score,
+then a label (see [Severity derivation](vulnerability-impact.md#severity-derivation)).
 Exact owned lockfile dependency rows can prove the observed package version.
 Npm, Composer, RubyGems, Cargo, Go module, PyPI, Hex, Pub, Swift, and NuGet
 lockfile-backed findings may include `dependency_path`,

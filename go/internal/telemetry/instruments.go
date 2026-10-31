@@ -1085,6 +1085,14 @@ type Instruments struct {
 	// ecosystem support to graduate from unknown without re-running the
 	// reducer.
 	SupplyChainRemediationDecisions metric.Int64Counter
+	// SupplyChainSeverityDecisions counts, per supply-chain impact finding,
+	// where the finding's severity came from (#9693). Labels: domain
+	// (supply_chain_impact) and outcome (closed set: source_reported,
+	// derived_from_vector, label_only, none). Operators read the
+	// derived_from_vector and label_only rate to see OSV scopes regenerate
+	// after the vector/label derivation lands, and a persistent none rate
+	// on a source that publishes severity as a collector gap.
+	SupplyChainSeverityDecisions    metric.Int64Counter
 	ConfluenceHTTPRequests          metric.Int64Counter
 	ConfluencePermissionDeniedPages metric.Int64Counter
 	ConfluenceDocumentsObserved     metric.Int64Counter
@@ -4629,6 +4637,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SupplyChainRemediationDecisions counter: %w", err)
+	}
+
+	inst.SupplyChainSeverityDecisions, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_severity_decisions_total",
+		metric.WithDescription("Total supply-chain impact findings by reducer domain and severity outcome: source_reported, derived_from_vector, label_only, or none"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SupplyChainSeverityDecisions counter: %w", err)
 	}
 
 	inst.ConfluenceHTTPRequests, err = meter.Int64Counter(

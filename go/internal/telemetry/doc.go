@@ -126,7 +126,11 @@
 // installed_version_missing, installed_version_malformed) so operators can
 // see how often Eshu produces an exact advisory-only safe-upgrade path
 // versus how many findings still need additional ecosystem support to
-// graduate from unknown.
+// graduate from unknown. It also registers SupplyChainSeverityDecisions
+// (eshu_dp_supply_chain_severity_decisions_total), labeled by reducer domain
+// and outcome (source_reported, derived_from_vector, label_only, none), so
+// operators can watch vector- and label-derived severity replace "none" as
+// scopes regenerate (#9693).
 // Search decay scoring registers SearchDecayPolicyApplications
 // (eshu_dp_search_decay_policy_applications_total), labeled by bounded
 // policy_id, evidence_class, and outcome, so operators can diagnose which
