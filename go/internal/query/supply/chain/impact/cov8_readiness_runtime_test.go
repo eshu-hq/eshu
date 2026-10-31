@@ -142,6 +142,19 @@ func (tx *cov8ImpactTx) Rollback() error {
 	return nil
 }
 
+// cov8AuthorityPresentStep scripts the authority-layout probe every main
+// read issues before its business query. The layout reads present, so the
+// protected statement runs exactly as on a fully bootstrapped database.
+func cov8AuthorityPresentStep() cov8ImpactStep {
+	return cov8ImpactStep{rows: [][]any{{true}}}
+}
+
+// cov8AuthorityAbsentStep scripts the probe for a schema without the
+// authority objects: the legacy statement serves the business query.
+func cov8AuthorityAbsentStep() cov8ImpactStep {
+	return cov8ImpactStep{rows: [][]any{{false}}}
+}
+
 // cov8ImpactReadStore opens the scripted transaction.
 type cov8ImpactReadStore struct {
 	tx       *cov8ImpactTx
@@ -214,7 +227,7 @@ func TestCov8ReadinessSnapshotRows(t *testing.T) {
 
 	fresh := time.Now().UTC().Add(-time.Hour)
 	stale := time.Now().UTC().Add(-30 * 24 * time.Hour)
-	tx := &cov8ImpactTx{steps: []cov8ImpactStep{{rows: [][]any{
+	tx := &cov8ImpactTx{steps: []cov8ImpactStep{cov8AuthorityPresentStep(), {rows: [][]any{
 		cov8ReadinessRow(EvidenceFamilyVulnerabilityAdvisory, 2, fresh, false, nil, nil, nil, nil),
 		cov8ReadinessRow(EvidenceFamilyVulnerabilityAdvisory, 1, stale, nil, nil, nil, nil, nil),
 		cov8ReadinessRow(EvidenceFamilyPackageRegistry, 1, nil, nil, nil, nil, nil, nil),
@@ -261,8 +274,8 @@ func TestCov8ReadinessSnapshotRows(t *testing.T) {
 	if len(snapshot.SourceSnapshots) != 1 || snapshot.SourceSnapshots[0].Source != "nvd" {
 		t.Errorf("source snapshots = %+v, want the nvd entry", snapshot.SourceSnapshots)
 	}
-	if tx.commits != 1 || tx.rollbacks != 1 || tx.queries != 1 {
-		t.Errorf("tx use = %d queries %d commits %d rollbacks, want 1 1 1",
+	if tx.commits != 1 || tx.rollbacks != 1 || tx.queries != 2 {
+		t.Errorf("tx use = %d queries %d commits %d rollbacks, want 2 1 1 (authority probe plus business query)",
 			tx.queries, tx.commits, tx.rollbacks)
 	}
 }
@@ -273,7 +286,7 @@ func TestCov8ReadinessStaleFamily(t *testing.T) {
 	t.Parallel()
 
 	stale := time.Now().UTC().Add(-30 * 24 * time.Hour)
-	tx := &cov8ImpactTx{steps: []cov8ImpactStep{{rows: [][]any{
+	tx := &cov8ImpactTx{steps: []cov8ImpactStep{cov8AuthorityPresentStep(), {rows: [][]any{
 		cov8ReadinessRow(EvidenceFamilyScannerWorkerAnalysis, 1, stale, nil, nil, nil, nil, nil),
 	}}}}
 	store := NewPostgresReadinessStoreWithReadStore(&cov8ImpactReadStore{tx: tx})
@@ -297,21 +310,21 @@ func TestCov8ReadinessErrorArms(t *testing.T) {
 
 	want := errors.New("snapshot query down")
 	store := NewPostgresReadinessStoreWithReadStore(&cov8ImpactReadStore{
-		tx: &cov8ImpactTx{steps: []cov8ImpactStep{{err: want}}},
+		tx: &cov8ImpactTx{steps: []cov8ImpactStep{cov8AuthorityPresentStep(), {err: want}}},
 	})
 	if _, err := store.ReadSupplyChainImpactReadiness(ctx, query); !errors.Is(err, want) {
 		t.Errorf("query failure = %v, want wrap of %v", err, want)
 	}
 
 	badScan := NewPostgresReadinessStoreWithReadStore(&cov8ImpactReadStore{
-		tx: &cov8ImpactTx{steps: []cov8ImpactStep{{rows: [][]any{{42}}}}},
+		tx: &cov8ImpactTx{steps: []cov8ImpactStep{cov8AuthorityPresentStep(), {rows: [][]any{{42}}}}},
 	})
 	if _, err := badScan.ReadSupplyChainImpactReadiness(ctx, query); err == nil {
 		t.Error("scan failure = nil, want wrapped scan error")
 	}
 
 	cursorDown := NewPostgresReadinessStoreWithReadStore(&cov8ImpactReadStore{
-		tx: &cov8ImpactTx{steps: []cov8ImpactStep{{
+		tx: &cov8ImpactTx{steps: []cov8ImpactStep{cov8AuthorityPresentStep(), {
 			rows:    [][]any{cov8ReadinessRow(EvidenceFamilyPackageRegistry, 1, nil, nil, nil, nil, nil, nil)},
 			rowsErr: errors.New("cursor lost"),
 		}}},
@@ -321,7 +334,7 @@ func TestCov8ReadinessErrorArms(t *testing.T) {
 	}
 
 	badMarker := NewPostgresReadinessStoreWithReadStore(&cov8ImpactReadStore{
-		tx: &cov8ImpactTx{steps: []cov8ImpactStep{{rows: [][]any{
+		tx: &cov8ImpactTx{steps: []cov8ImpactStep{cov8AuthorityPresentStep(), {rows: [][]any{
 			cov8ReadinessRow(sourceSnapshotFamilyMarker, 0, nil, false, nil, "{oops", nil, nil),
 		}}}},
 	})
@@ -330,7 +343,10 @@ func TestCov8ReadinessErrorArms(t *testing.T) {
 	}
 
 	commitDown := NewPostgresReadinessStoreWithReadStore(&cov8ImpactReadStore{
-		tx: &cov8ImpactTx{commitErr: errors.New("commit down")},
+		tx: &cov8ImpactTx{
+			steps:     []cov8ImpactStep{cov8AuthorityPresentStep()},
+			commitErr: errors.New("commit down"),
+		},
 	})
 	if _, err := commitDown.ReadSupplyChainImpactReadiness(ctx, query); err == nil {
 		t.Error("commit failure = nil, want wrapped commit error")
@@ -468,5 +484,42 @@ func TestCov8ListRuntimeContext(t *testing.T) {
 	}}}}, false)
 	if _, err := badJSON.ListSupplyChainImpactRuntimeContext(ctx, []string{"repo-1"}, nil, nil); err == nil {
 		t.Error("payload decode failure = nil, want wrapped error")
+	}
+}
+
+// TestReadinessAuthorityProbeContract pins the probe's fallback polarity: a
+// layout with the claim columns reads true, a schema without them reads
+// false so the caller takes the legacy statement, and a probe failure
+// surfaces so the caller fails closed to the protected statement.
+func TestReadinessAuthorityProbeContract(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	for _, tc := range []struct {
+		name string
+		want bool
+	}{
+		{"layout and claim columns present", true},
+		{"layout without claim columns", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			step := cov8AuthorityPresentStep()
+			if !tc.want {
+				step = cov8AuthorityAbsentStep()
+			}
+			tx := &cov8ImpactTx{steps: []cov8ImpactStep{step}}
+			got, err := readinessAuthorityLayoutPresent(ctx, tx)
+			if err != nil {
+				t.Fatalf("probe() error = %v", err)
+			}
+			if got != tc.want {
+				t.Errorf("probe() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+	want := errors.New("probe down")
+	tx := &cov8ImpactTx{steps: []cov8ImpactStep{{err: want}}}
+	if _, err := readinessAuthorityLayoutPresent(ctx, tx); !errors.Is(err, want) {
+		t.Errorf("probe failure = %v, want wrap of %v", err, want)
 	}
 }

@@ -162,12 +162,12 @@ tests:
   - file: go/internal/storage/postgres/relationship_activation_wake_race_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#7597 activation-wake races: an activation waits for an in-flight final Fail and wakes it, a final Fail that waited on the activation lock is reopened by its own post-dead-letter wake, and a held consumer row makes the activation fail with a retryable 55P03 that rolls back and the retry wakes; isolated schema per test, about 5 s locally; enrolled in the live-postgres-readiness runner"
+    reason: "#7597 activation-wake races: an activation waits for an in-flight final Fail and wakes it, a final Fail that waited on the activation lock is reopened by its own post-dead-letter wake, and a held consumer row makes the activation fail with a retryable 55P03 that rolls back and the retry wakes; disposable database per test, about 5 s locally; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/relationship_store_completion_wake_contention_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#8294 completion-wake contention on the full bootstrap schema: lock_timeout gives up as classified retryable 55P03 behind a held row and succeeds after release, the locking subquery's EvalPlanQual recheck drops a row a concurrent maintenance reopen moved to pending (sentinel reopened_at preserved), wake/maintenance-reopen/production-claim races over 20 changed items escape no raw deadlock and leave none succeeded, and wake outcomes emit eshu_dp_reducer_completion_wake_total (reopened then noop) plus eshu_dp_correlation_reopened_total; isolated schemas from ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN; about 12 s on local PostgreSQL 18 on 2026-10-19; enrolled in the live-postgres-readiness runner"
+    reason: "#8294 completion-wake contention on the full bootstrap schema: lock_timeout gives up as classified retryable 55P03 behind a held row and succeeds after release, the locking subquery's EvalPlanQual recheck drops a row a concurrent maintenance reopen moved to pending (sentinel reopened_at preserved), wake/maintenance-reopen/production-claim races over 20 changed items escape no raw deadlock and leave none succeeded, and wake outcomes emit eshu_dp_reducer_completion_wake_total (reopened then noop) plus eshu_dp_correlation_reopened_total; disposable database from ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN; about 12 s on local PostgreSQL 18 on 2026-10-19; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/relationship_store_completion_wake_live_test.go
     tag: ~
@@ -294,6 +294,11 @@ tests:
     class: postgres_ci
     reason: "#8750 disposable PostgreSQL 18 measurement of the destructive-successor guard's in-tx recheck reads (the candidate read and the active read) with EXPLAIN (ANALYZE, BUFFERS) on a proof scope seeded with 3,000 generations beside 3,000 other-scope generations; reuses the #7978 bootstrapped proof schema; plans and timings are logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/supply_chain_impact_disengaged_build_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9299 disposable PostgreSQL proof that the disengaged impact load runs the full legacy expansion, so the os-package advisory evidence reaches the build and a finding is derived exactly as the unwired legacy path derives it"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/supply_chain_impact_evidence_live_test.go
     tag: ~
     class: postgres_ci
@@ -303,6 +308,11 @@ tests:
     tag: ~
     class: postgres_ci
     reason: "#8880 disposable PostgreSQL 18 proof that every supply-chain impact active-evidence branch plans on its catalog anchor under force_generic_plan and force_custom_plan, and that dropping each new anchor index (RED) moves the plan off it at higher buffer cost until the migration statement rebuilds it (GREEN); wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/supply_chain_impact_protected_static_publish_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9299 disposable PostgreSQL proof that a complete protected static impact write commits its finding fact and authority revision instead of dead-lettering on the missing publication transaction"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/terms_foreign_key_migration_budget_live_test.go
     tag: ~

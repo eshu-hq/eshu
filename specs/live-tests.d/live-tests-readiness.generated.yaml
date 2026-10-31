@@ -64,16 +64,6 @@ tests:
     class: postgres_ci
     reason: "#8261 admin repository skip (SkipRepositoryWorkItems) lock order against the recovery replay, the admin replay and the reducer claim sweep over failed rows of a superseded generation: the held-middle-row race completes in both start orders (main: 6 of 6 40P01), 150 rounds of all four with a 2 ms per-row trigger sleep and random start delays give 0 x 40P01 (main: 98 x 40P01), and the EvalPlanQual case drops a row claimed or replayed before the skip's lock step; isolated schemas; about 100-180 s locally including two 400,000-row seeds; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
-  - file: go/internal/query/admin/store/reopen_stamp_intent_age_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#9320 PostgreSQL 18.6 full-bootstrap proof that shared projection intent age is reopen-aware through the status snapshot: a five-day-old completed intent reopened by the admin repo_dependency reopen and one reopened by the rebuild reset each report an oldest age from the reopen, while a fresh five-day-old pending intent keeps its creation age; plus the reopen races: two reopeners on one intent reopen it once and keep the winner's stamp, and a drain racing a reopen leaves the intent completed with no pending age; about 2-4 s locally in isolated schemas"
-    runner: live-postgres-readiness
-  - file: go/internal/query/admin/store/reopen_stamp_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#9320 PostgreSQL 18.6 full-bootstrap proof that the admin dead-letter replay and the admin repo_dependency intent reopen stamp reopened_at with the store clock, so a 100-hour-old row ages from the admin action; about 1.6 s locally in an isolated schema"
-    runner: live-postgres-readiness
   - file: go/internal/query/cloud_resource_legacy_keys_postgres_live_test.go
     tag: ~
     class: postgres_ci
@@ -137,7 +127,7 @@ tests:
   - file: go/internal/query/content_reader_repository_catalog_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#8837 disposable PostgreSQL proof of the grant-to-slug catalog read: repository and scope id grants map to their catalog entries, other scope kinds are excluded, and EXPLAIN (ANALYZE, BUFFERS) over a 10,000-repository catalog at grant sizes 1, 100 and 5,000 is logged, not gated; isolated bootstrapped schema per test"
+    reason: "#8837 disposable PostgreSQL proof of the grant-to-slug catalog read: repository and scope id grants map to their catalog entries, other scope kinds are excluded, and EXPLAIN (ANALYZE, BUFFERS) over a 10,000-repository catalog at grant sizes 1, 100 and 5,000 is logged, not gated; disposable bootstrapped database per test"
     runner: live-postgres-readiness
   - file: go/internal/query/content_reader_search_scoped_union_probe_live_test.go
     tag: ~
@@ -227,12 +217,12 @@ tests:
   - file: go/internal/query/security_alert_collection_state_postgres_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#8803 disposable PostgreSQL proof of the security-alert empty-answer collection-state reads on the bootstrapped schema: only enabled, non-deactivated security_alert instances contribute configuration; the latest work item per target is chosen by updated_at with the lowest work_item_id on a tie and ignores other collector kinds; a failed_terminal row with NULL last_failure_terminal (pre-migration-185) reads as failed_terminal with the flag false; a committed generation is active, superseded, or completed only; a target with no work items still returns a row; the 64-instance and 1024-target bounds fail with ErrSecurityAlertCollectionStateBound; EXPLAIN shows the lateral latest-item read as an index-only probe of workflow_work_items_security_alert_scope_updated_idx (#8840) with no sort over a 20,000-item history, and it returns the same rows as the pre-#8840 plan forced by dropping the index in a rolled-back transaction, including updated_at ties; isolated bootstrapped schema per test; wall time and plan timing are logged, not gated"
+    reason: "#8803 disposable PostgreSQL proof of the security-alert empty-answer collection-state reads on the bootstrapped database: only enabled, non-deactivated security_alert instances contribute configuration; the latest work item per target is chosen by updated_at with the lowest work_item_id on a tie and ignores other collector kinds; a failed_terminal row with NULL last_failure_terminal (pre-migration-185) reads as failed_terminal with the flag false; a committed generation is active, superseded, or completed only; a target with no work items still returns a row; the 64-instance and 1024-target bounds fail with ErrSecurityAlertCollectionStateBound; EXPLAIN shows the lateral latest-item read as an index-only probe of workflow_work_items_security_alert_scope_updated_idx (#8840) with no sort over a 20,000-item history, and it returns the same rows as the pre-#8840 plan forced by dropping the index in a rolled-back transaction, including updated_at ties; disposable bootstrapped database per test; wall time and plan timing are logged, not gated"
     runner: live-postgres-readiness
   - file: go/internal/query/security_alert_reconciliation_queue_postgres_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#8839 disposable PostgreSQL proof of the security_alert_reconciliation per-scope queue read: outstanding (pending, claimed, running, retrying) and dead-lettered counts per covering scope, other domains and terminal rows excluded, and EXPLAIN (ANALYZE, BUFFERS) over a 500,000-item backlog logged, not gated; isolated bootstrapped schema per test"
+    reason: "#8839 disposable PostgreSQL proof of the security_alert_reconciliation per-scope queue read: outstanding (pending, claimed, running, retrying) and dead-lettered counts per covering scope, other domains and terminal rows excluded, and EXPLAIN (ANALYZE, BUFFERS) over a 500,000-item backlog logged, not gated; disposable bootstrapped database per test"
     runner: live-postgres-readiness
   - file: go/internal/query/security_alert_target_set_postgres_live_test.go
     tag: ~
@@ -303,6 +293,11 @@ tests:
     tag: ~
     class: postgres_ci
     reason: "#9685 disposable PostgreSQL 18 rescanned-scope proof: a rescan for a new digest reuses the operator-configured scope, so scope-level sibling attribution is ambiguous there"
+    runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/impact/readiness_scanner_authorization_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9299 disposable PostgreSQL source-binding authorization and revocation proof"
     runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/runtime_environment_store_live_test.go
     tag: ~

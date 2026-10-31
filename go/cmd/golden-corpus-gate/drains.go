@@ -76,7 +76,7 @@ type sqlDrainQuerier struct {
 // openDrainQuerier opens a Postgres connection from the environment using the
 // same loader the services under test use.
 func openDrainQuerier(ctx context.Context, getenv func(string) string, advisoryDomains, populatedDomains string) (*sqlDrainQuerier, func(), error) {
-	db, err := runtimecfg.OpenPostgres(ctx, getenv)
+	db, err := runtimecfg.OpenPostgresForWorkload(ctx, getenv, runtimecfg.PostgresWorkloadRuntime)
 	if err != nil {
 		return nil, nil, fmt.Errorf("open postgres: %w", err)
 	}

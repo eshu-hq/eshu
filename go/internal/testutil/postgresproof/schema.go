@@ -70,6 +70,13 @@ func InstallTrigramExtension(ctx context.Context, t testing.TB, admin *sql.DB) {
 // rows other tests left behind. Unlike OpenDisposableDatabase it does not
 // validate dsn or require an opt-in, and its connections do not run the infra
 // writer SET; point it only at a disposable server.
+//
+// Subset-DDL-only since the #9299 lane: apply must be a small hand-written
+// setup, never the full production bootstrap. The lane's migrations carry
+// public-qualified SECURITY DEFINER bodies that an isolated schema cannot
+// host (unqualified tables land in the isolated schema while the bodies bind
+// public), so a full bootstrap must go through
+// OpenDisposableBootstrapDatabase on a disposable database instead.
 func OpenIsolatedSchema(t testing.TB, dsn, prefix string, apply func(context.Context, *sql.DB) error) *sql.DB {
 	t.Helper()
 	admin, err := sql.Open("pgx", dsn)

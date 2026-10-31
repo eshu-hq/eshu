@@ -100,21 +100,29 @@ func Open(ctx context.Context, cfg Config, observer Observer) (*Access, error) {
 	openStarted := time.Now()
 	if cfg.WriterDSN == "" || cfg.ReadDSN == "" || cfg.WriterMaxOpenConns < 1 || cfg.ReadMaxOpenConns < 1 ||
 		cfg.WriterMaxIdleConns < 0 || cfg.ReadMaxIdleConns < 0 || cfg.WriterMaxIdleConns > cfg.WriterMaxOpenConns ||
-		cfg.ReadMaxIdleConns > cfg.ReadMaxOpenConns || cfg.SamePrimary != (cfg.WriterDSN == cfg.ReadDSN) ||
+		cfg.ReadMaxIdleConns > cfg.ReadMaxOpenConns ||
+		(!cfg.ExplicitReaderTopology && cfg.SamePrimary != (cfg.WriterDSN == cfg.ReadDSN)) ||
+		(cfg.ExplicitReaderTopology && !cfg.SamePrimary && cfg.WriterDSN == cfg.ReadDSN) ||
 		cfg.ReplayTimeout <= 0 || cfg.PingTimeout <= 0 {
 		return nil, errors.New("invalid Postgres reader access configuration")
 	}
 	if err := validateExpectedSystemID(cfg.ExpectedSystemID); err != nil {
 		return nil, err
 	}
+	if cfg.roleBoundaryConfigured && (cfg.WriterRoleAttestor == nil || cfg.ReaderRoleAttestor == nil) {
+		return nil, errors.New("postgres role boundary requires writer and reader role attestors")
+	}
 	writerCfg, err := parsePhysicalEndpoint(cfg.WriterDSN)
 	if err != nil {
 		return nil, err
 	}
+	parsedWriterValidator := writerCfg.ValidateConnect
+	writerCfg.ValidateConnect = attestThenValidate(cfg.WriterRoleAttestor, parsedWriterValidator)
 	readCfg, err := parsePhysicalEndpoint(cfg.ReadDSN)
 	if err != nil {
 		return nil, err
 	}
+	parsedReaderValidator := readCfg.ValidateConnect
 	if len(cfg.ReadMembers) > 0 && (cfg.SamePrimary || len(readCfg.Fallbacks) > 0 || cfg.ReadMaxOpenConns/len(cfg.ReadMembers) < 4 || cfg.ReadMaxIdleConns/len(cfg.ReadMembers) < 4) {
 		return nil, errors.New("invalid physical reader member configuration")
 	}
@@ -153,7 +161,8 @@ func Open(ctx context.Context, cfg Config, observer Observer) (*Access, error) {
 	// primary-facing validators share one lineage so a restart observed by
 	// either pool is published for both and for the checkpoint.
 	lineage := newWriterLineage(identity, observed, cfg.Logger)
-	writerCfg.ValidateConnect = writerValidator(lineage)
+	writerCfg.ValidateConnect = attestThenValidate(cfg.WriterRoleAttestor,
+		validateThenValidate(parsedWriterValidator, writerValidator(lineage)))
 	writer := openWriterPool(writerCfg, cfg.Logger)
 	writer.SetMaxOpenConns(cfg.WriterMaxOpenConns)
 	writer.SetMaxIdleConns(cfg.WriterMaxIdleConns)
@@ -165,14 +174,16 @@ func Open(ctx context.Context, cfg Config, observer Observer) (*Access, error) {
 	readCfg.RuntimeParams["default_transaction_read_only"] = "on"
 	exportQualification := newSnapshotExportQualification(cfg.SnapshotExportBuilds)
 	if cfg.SamePrimary {
-		readCfg.ValidateConnect = samePrimaryReaderValidator(lineage, exportQualification)
+		readCfg.ValidateConnect = attestThenValidate(cfg.ReaderRoleAttestor,
+			validateThenValidate(parsedReaderValidator, samePrimaryReaderValidator(lineage, exportQualification)))
 	} else {
-		readCfg.ValidateConnect = readerValidator(identity, exportQualification)
+		readCfg.ValidateConnect = attestThenValidate(cfg.ReaderRoleAttestor,
+			validateThenValidate(parsedReaderValidator, readerValidator(identity, exportQualification)))
 	}
 	var reader *sql.DB
 	var members []physicalReaderMember
 	if len(cfg.ReadMembers) > 0 {
-		members, err = openReaderMembers(pingCtx, stageBudget, cfg, readCfg, identity)
+		members, err = openReaderMembers(pingCtx, stageBudget, cfg, readCfg, identity, parsedReaderValidator)
 		if err != nil {
 			_ = writer.Close()
 			return nil, privateFailure(failureReaderPing, err)

@@ -7,14 +7,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"net/url"
 	"os"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -34,43 +31,25 @@ func TestActiveOCIWarningIndexMigrationLifecycleLive(t *testing.T) {
 		t.Skip("set ESHU_POSTGRES_TEST_DSN to run the active OCI warning index lifecycle proof")
 	}
 
+	preUpgrade, migration := activeOCIWarningIndexUpgradeDefinitions(t)
 	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
 	defer cancel()
-	schema := fmt.Sprintf("eshu_5854_oci_warning_index_%d", time.Now().UnixNano())
-	adminDB := openActiveOCIWarningIndexProofDB(t, dsn)
-	// Pin pg_trgm to public before creating the schema (#9572): the
-	// bootstrap's unqualified CREATE EXTENSION would otherwise install the
-	// opclass into this private schema, hiding it from sibling schemas on
-	// the same shared proof database. The advisory-locked shared install
-	// serializes concurrent bootstraps on one database.
-	postgresproof.InstallTrigramExtension(ctx, t, adminDB)
-	if _, err := adminDB.ExecContext(
-		ctx,
-		"CREATE SCHEMA "+quoteSQLIdentifier(schema),
-	); err != nil {
-		t.Fatalf("create isolated warning-index schema: %v", err)
-	}
-	t.Cleanup(func() {
-		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cleanupCancel()
-		if _, err := adminDB.ExecContext(
-			cleanupCtx,
-			"DROP SCHEMA IF EXISTS "+quoteSQLIdentifier(schema)+" CASCADE",
-		); err != nil {
-			t.Errorf("drop isolated warning-index schema: %v", err)
-		}
-	})
+	// PreUpgrade installs the lane's public-only authority migrations, so
+	// the proof bootstraps a fresh database (public schema, where the 241
+	// guard passes) instead of an isolated schema, where it fails closed.
+	// One handle serves every role: the separate pools existed to share one
+	// database, and a fresh database is already private to this proof.
+	db := openDisposablePublicBootstrapDB(t, dsn,
+		os.Getenv("ESHU_POSTGRES_DISPOSABLE"),
+		"set ESHU_POSTGRES_TEST_DSN to run the active OCI warning index lifecycle proof",
+		func(applyCtx context.Context, database *sql.DB) error {
+			return ApplyDefinitions(applyCtx, SQLDB{DB: database}, preUpgrade)
+		})
+	db.SetMaxOpenConns(5)
+	db.SetMaxIdleConns(5)
+	applyDB, blockerDB, writerDB := db, db, db
 
-	schemaDSN := activeOCIWarningIndexSchemaDSN(t, dsn, schema)
-	applyDB := openActiveOCIWarningIndexProofDB(t, schemaDSN)
-	blockerDB := openActiveOCIWarningIndexProofDB(t, schemaDSN)
-	writerDB := openActiveOCIWarningIndexProofDB(t, schemaDSN)
-	preUpgrade, migration := activeOCIWarningIndexUpgradeDefinitions(t)
 	exec := SQLDB{DB: applyDB}
-
-	if err := ApplyDefinitions(ctx, exec, preUpgrade); err != nil {
-		t.Fatalf("apply pre-087 bootstrap definitions: %v", err)
-	}
 	// Fresh bootstrap schema carries the read index for new installations.
 	// Remove it here to recreate the populated pre-087 upgrade state that the
 	// standalone concurrent migration must handle.
@@ -94,7 +73,7 @@ func TestActiveOCIWarningIndexMigrationLifecycleLive(t *testing.T) {
 			5*time.Second,
 		)
 	}()
-	waitForActiveOCIWarningIndexSnapshotPhase(t, ctx, adminDB, schema)
+	waitForActiveOCIWarningIndexSnapshotPhase(t, ctx, db)
 	assertActiveOCIWarningIndexWriterAvailable(t, ctx, writerDB)
 	if err := blocker.Rollback(); err != nil {
 		t.Fatalf("release first index-build snapshot: %v", err)
@@ -142,11 +121,19 @@ func TestActiveOCIWarningIndexMigrationLifecycleLive(t *testing.T) {
 			5*time.Second,
 		)
 	}()
-	waitForActiveOCIWarningIndexSnapshotPhase(t, ctx, adminDB, schema)
+	waitForActiveOCIWarningIndexSnapshotPhase(t, ctx, db)
 	cancelBuild()
 	if err := <-cancelErrors; err == nil {
 		t.Fatal("cancelled migration 087 error = nil, want cancellation")
 	}
+	// A client-observed cancellation is not a server-side abort: the
+	// concurrent build leaves its invalid index row behind from the start,
+	// so the read below cannot tell an aborted build from one still
+	// shutting down. If blocker.Rollback lands first, the surviving backend
+	// completes the build instead of aborting it, and the retry keeps the
+	// same OID. Wait for the backend to go idle before releasing the
+	// snapshot; a timeout fails loudly, never silently.
+	waitForActiveOCIWarningIndexBuildAbort(t, ctx, db)
 	invalid := readActiveOCIWarningIndexState(t, ctx, writerDB)
 	if invalid.valid {
 		t.Fatalf("cancelled warning index is valid before releasing old snapshot, want invalid: %+v", invalid)
@@ -263,20 +250,22 @@ func waitForActiveOCIWarningIndexSnapshotPhase(
 	t *testing.T,
 	ctx context.Context,
 	db *sql.DB,
-	schema string,
 ) {
 	t.Helper()
 	ticker := time.NewTicker(5 * time.Millisecond)
 	defer ticker.Stop()
 	for {
 		var phase string
+		// Unqualified names resolve through the proof database's
+		// public search_path: the proof owns the whole database, so no
+		// schema qualification is needed to isolate the wait.
 		err := db.QueryRowContext(ctx, `
 SELECT phase
 FROM pg_stat_progress_create_index
 WHERE relid = to_regclass($1)
   AND index_relid = to_regclass($2)
   AND command = 'CREATE INDEX CONCURRENTLY'
-`, schema+".fact_records", schema+"."+activeOCIWarningIndexName).Scan(&phase)
+`, "fact_records", activeOCIWarningIndexName).Scan(&phase)
 		if err == nil && strings.Contains(phase, "waiting for old snapshots") {
 			return
 		}
@@ -287,6 +276,47 @@ WHERE relid = to_regclass($1)
 		case <-ticker.C:
 		case <-ctx.Done():
 			t.Fatalf("wait for warning-index old-snapshot phase: %v", ctx.Err())
+		}
+	}
+}
+
+// waitForActiveOCIWarningIndexBuildAbort waits until no backend is still
+// actively running the cancelled 087 index build. The build backend reports
+// its migration SQL as its query text, so an active row with that text is
+// the build still shutting down; only an idle cluster (for this database)
+// means the abort completed and blocker.Rollback cannot revive the build.
+// Scoped to the proof database, which no other test shares.
+func waitForActiveOCIWarningIndexBuildAbort(
+	t *testing.T,
+	ctx context.Context,
+	db *sql.DB,
+) {
+	t.Helper()
+	deadlineCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	ticker := time.NewTicker(5 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		var active int
+		// The poll query itself contains the migration name, so it would
+		// match its own activity row without the pid guard below.
+		if err := db.QueryRowContext(deadlineCtx, `
+SELECT count(*)
+FROM pg_stat_activity
+WHERE datname = current_database()
+  AND state = 'active'
+  AND pid <> pg_backend_pid()
+  AND query LIKE '%fact_records_active_oci_warning_idx%'
+`).Scan(&active); err != nil {
+			t.Fatalf("inspect warning-index build backend: %v", err)
+		}
+		if active == 0 {
+			return
+		}
+		select {
+		case <-ticker.C:
+		case <-deadlineCtx.Done():
+			t.Fatalf("wait for cancelled warning-index build to stop: %v", deadlineCtx.Err())
 		}
 	}
 }

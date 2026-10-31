@@ -57,7 +57,9 @@ def verify_fragment_failures(root: pathlib.Path) -> None:
     else:
         raise ValueError("deleted boundary passed")
     oversized = enrolled.copy()
-    for index in range(5):
+    # 100 five-line seeds (502 lines) overflow any single fragment even empty,
+    # so the cap seed stays RED as enrollment rebalances across fragments.
+    for index in range(100):
         oversized[f"go/000-seeded-{index}_live_test.go"] = {
             "reason": "seeded cap proof"
         }

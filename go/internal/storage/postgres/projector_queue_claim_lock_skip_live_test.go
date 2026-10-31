@@ -180,7 +180,7 @@ UPDATE fact_work_items SET claim_until = now() + interval '1 minute' WHERE work_
 // pauses, so the test can find it in pg_stat_activity.
 const pausedClaimApplicationName = "eshu_7108_paused_claimer"
 
-// openPausedClaimPool installs a test-only trigger in the proof schema that
+// openPausedClaimPool installs a test-only trigger in the proof database that
 // sleeps 1.5 s inside a claim's supersede UPDATE, after the statement
 // snapshot, and returns a pool whose sessions enable it. Only sessions opened
 // through the returned pool pause; the caller's pool races them.
@@ -204,7 +204,8 @@ FOR EACH ROW EXECUTE FUNCTION proof_pause_on_supersede();
 	if err := database.QueryRow("SHOW search_path").Scan(&searchPath); err != nil {
 		t.Fatalf("read search_path: %v", err)
 	}
-	pausedDSN := withDSNParam(withDSNParam(withDSNParam(dsn,
+	pausedDSN := withDSNParam(withDSNParam(withDSNParam(
+		proofTargetDSN(context.Background(), t, database, dsn),
 		"search_path="+strings.TrimSpace(searchPath)),
 		"eshu_proof.pause=on"),
 		"application_name="+pausedClaimApplicationName)

@@ -4,8 +4,8 @@
 package query
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #8837 disposable PostgreSQL proof of the grant-to-slug catalog read: repository and scope id grants map to their catalog entries, other scope kinds are excluded, and EXPLAIN (ANALYZE, BUFFERS) over a 10,000-repository catalog at grant sizes 1, 100 and 5,000 is logged, not gated; isolated bootstrapped schema per test
-//eshu:readiness:env ESHU_POSTGRES_DSN
+//eshu:readiness:reason #8837 disposable PostgreSQL proof of the grant-to-slug catalog read: repository and scope id grants map to their catalog entries, other scope kinds are excluded, and EXPLAIN (ANALYZE, BUFFERS) over a 10,000-repository catalog at grant sizes 1, 100 and 5,000 is logged, not gated; disposable bootstrapped database per test
+//eshu:readiness:env ESHU_POSTGRES_DISPOSABLE ESHU_POSTGRES_DSN
 
 import (
 	"context"
@@ -24,8 +24,8 @@ import (
 
 const grantCatalogLiveSkip = "set ESHU_POSTGRES_DSN to run the #8837 grant-to-slug catalog live proofs"
 
-// grantCatalogLiveFixture seeds ingestion_scopes in an isolated bootstrapped
-// schema.
+// grantCatalogLiveFixture seeds ingestion_scopes in a disposable bootstrapped
+// database.
 type grantCatalogLiveFixture struct {
 	t        *testing.T
 	ctx      context.Context
@@ -33,17 +33,18 @@ type grantCatalogLiveFixture struct {
 	asOf     time.Time
 }
 
-func newGrantCatalogLiveFixture(t *testing.T, prefix string) *grantCatalogLiveFixture {
+func newGrantCatalogLiveFixture(t *testing.T) *grantCatalogLiveFixture {
 	t.Helper()
 	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
 	if dsn == "" {
 		t.Skip(grantCatalogLiveSkip)
 	}
-	database := postgresproof.OpenIsolatedSchema(t, dsn, prefix, func(ctx context.Context, db *sql.DB) error {
+	// Disposable database (#9299): the lane's public-qualified SECURITY
+	// DEFINER bodies cannot install into an isolated schema; isolation comes
+	// from the database, so no per-test schema prefix is needed.
+	ctx, database := postgresproof.OpenDisposableBootstrapDatabase(t, dsn, os.Getenv("ESHU_POSTGRES_DISPOSABLE"), 5*time.Minute, func(ctx context.Context, db *sql.DB) error {
 		return storagepostgres.ApplyBootstrap(ctx, storagepostgres.SQLDB{DB: db})
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	t.Cleanup(cancel)
 	return &grantCatalogLiveFixture{t: t, ctx: ctx, database: database, asOf: time.Now().UTC().Truncate(time.Second)}
 }
 
@@ -74,7 +75,7 @@ VALUES ('scope:org_decoy', 'organization', 'test', 'org-key', 'test', 'org-part'
 // id each map to their entry, an unknown id maps to nothing, and a
 // non-repository-kind row carrying the same repo_id is excluded.
 func TestMatchRepositoriesByIDsLive(t *testing.T) {
-	f := newGrantCatalogLiveFixture(t, "grant_catalog_map")
+	f := newGrantCatalogLiveFixture(t)
 	f.seedRepositoryCatalog(10)
 
 	reader := NewContentReader(f.database)
@@ -105,7 +106,7 @@ func TestMatchRepositoriesByIDsLive(t *testing.T) {
 // gated; the figures feed
 // docs/internal/evidence/8837-security-alert-grant-scope.md.
 func TestMatchRepositoriesByIDsPlanLive(t *testing.T) {
-	f := newGrantCatalogLiveFixture(t, "grant_catalog_plan")
+	f := newGrantCatalogLiveFixture(t)
 	f.seedRepositoryCatalog(10000)
 
 	grantIDs := func(n int) []string {

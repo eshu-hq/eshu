@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -84,7 +85,15 @@ source_candidates AS (
         CASE WHEN NULLIF(fact.payload->>'finding_id', '') IS NULL THEN 0 ELSE 1 END AS has_payload_finding_id,
         COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') AS suppression_state
     FROM active_facts AS fact
+    LEFT JOIN scanner_image_result_fact_classifications AS finding_class
+      ON finding_class.finding_fact_id = fact.fact_id
+    LEFT JOIN scanner_image_result_fact_associations AS finding_association
+      ON finding_association.finding_fact_id = fact.fact_id
     WHERE fact.scope_id <> 'operator:vulnerability_suppressions'
+      AND finding_association.finding_fact_id IS NULL
+      AND fact.scope_id NOT LIKE 'image://derived/%'
+      AND (finding_class.finding_fact_id IS NULL
+           OR (finding_class.source_class = 'static' AND finding_class.lifecycle = 'active'))
 ),
 source_ranked AS (
     SELECT source.*,
@@ -282,11 +291,119 @@ func (b SupplyChainImpactBeginner) BeginSupplyChainImpactTx(
 	if err != nil {
 		return nil, err
 	}
-	return supplyChainImpactTx{tx: tx}, nil
+	return &supplyChainImpactTx{tx: tx}, nil
 }
 
 type supplyChainImpactTx struct {
 	tx db.Transaction
+
+	// authorizedPublicationHash pins the exact set Authorize accepted, so
+	// Publish rejects a different set in the same transaction.
+	authorizedPublicationHash [32]byte
+	authorizedPublication     bool
+}
+
+var (
+	_ supplychaincore.ProtectedScanImpactPublisher  = (*supplyChainImpactTx)(nil)
+	_ supplychaincore.ProtectedScanImpactAuthorizer = (*supplyChainImpactTx)(nil)
+)
+
+// supplyChainImpactPolicyPinsQuery reads the current protected policy pins
+// inside the caller's transaction. The runtime-writer profile holds SELECT
+// on the policy state by inventory; the DEFINER entrypoints recheck them
+// against the singleton under lock.
+const supplyChainImpactPolicyPinsQuery = `SELECT policy_revision, database_identity
+FROM eshu_security.role_policy_state WHERE singleton`
+
+// authorizeImpactPublicationQuery and publishImpactPublicationQuery call the
+// protected publication entrypoints (#9299). Explicit casts keep pgx from
+// inferring text for the jsonb and uuid parameters.
+const authorizeImpactPublicationQuery = `SELECT eshu_security.authorize_impact_publication_v1(
+$1,$2,$3,$4::jsonb,$5,$6::uuid)`
+
+const publishImpactPublicationQuery = `SELECT eshu_security.publish_impact_publication_v1(
+$1,$2,$3,$4::jsonb,$5,$6::uuid)`
+
+// AuthorizeProtectedScanImpactResults locks and validates the complete
+// authorized source and advisory set before the impact conflict lock. The
+// database retains every SHARE lock until this transaction commits or rolls
+// back.
+func (t *supplyChainImpactTx) AuthorizeProtectedScanImpactResults(
+	ctx context.Context,
+	set supplychaincore.ProtectedScanImpactPublicationSet,
+) error {
+	if t.tx == nil {
+		return fmt.Errorf("protected impact publication transaction is unavailable")
+	}
+	if !set.CompleteSet {
+		return fmt.Errorf("protected impact publication set is not complete")
+	}
+	document, err := supplychaincore.MarshalImpactPublicationSetDocument(set)
+	if err != nil {
+		return fmt.Errorf("marshal protected impact publication set: %w", err)
+	}
+	revision, identity, err := t.protectedPolicyPins(ctx)
+	if err != nil {
+		return err
+	}
+	if _, err := t.tx.ExecContext(ctx, authorizeImpactPublicationQuery,
+		set.ImpactScopeID, set.ImpactGenerationID, set.ImpactFencingToken,
+		string(document), revision, identity); err != nil {
+		return fmt.Errorf("authorize protected scan impact results: %w", err)
+	}
+	t.authorizedPublicationHash = sha256.Sum256(document)
+	t.authorizedPublication = true
+	return nil
+}
+
+// PublishProtectedScanImpactResults persists the authorized set inside the
+// transaction that wrote its finding facts. A set that differs from the
+// authorized one is rejected before any publication row is touched.
+func (t *supplyChainImpactTx) PublishProtectedScanImpactResults(
+	ctx context.Context,
+	set supplychaincore.ProtectedScanImpactPublicationSet,
+) error {
+	if t.tx == nil {
+		return fmt.Errorf("protected impact publication transaction is unavailable")
+	}
+	document, err := supplychaincore.MarshalImpactPublicationSetDocument(set)
+	if err != nil {
+		return fmt.Errorf("marshal protected impact publication set: %w", err)
+	}
+	if !t.authorizedPublication || t.authorizedPublicationHash != sha256.Sum256(document) {
+		return fmt.Errorf("protected impact publication set differs from the authorized set")
+	}
+	revision, identity, err := t.protectedPolicyPins(ctx)
+	if err != nil {
+		return err
+	}
+	if _, err := t.tx.ExecContext(ctx, publishImpactPublicationQuery,
+		set.ImpactScopeID, set.ImpactGenerationID, set.ImpactFencingToken,
+		string(document), revision, identity); err != nil {
+		return fmt.Errorf("publish protected scan impact results: %w", err)
+	}
+	return nil
+}
+
+func (t *supplyChainImpactTx) protectedPolicyPins(ctx context.Context) (int64, string, error) {
+	rows, err := t.tx.QueryContext(ctx, supplyChainImpactPolicyPinsQuery)
+	if err != nil {
+		return 0, "", fmt.Errorf("read protected policy pins: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return 0, "", fmt.Errorf("read protected policy pins: %w", err)
+		}
+		return 0, "", errors.New("protected policy state is absent")
+	}
+	var revision int64
+	var identity string
+	if err := rows.Scan(&revision, &identity); err != nil {
+		_ = rows.Close()
+		return 0, "", fmt.Errorf("read protected policy pins: %w", err)
+	}
+	return revision, identity, rows.Err()
 }
 
 func (t supplyChainImpactTx) ExecContext(

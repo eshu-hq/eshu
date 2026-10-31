@@ -5,7 +5,7 @@ package coordinator
 
 //eshu:readiness live-postgres-readiness
 //eshu:readiness:reason #9146 real coordinator Service and PostgreSQL inbox/admission proof for a 100-delivery claim group, late arrival, independent coordinators, and partial ACK recovery
-//eshu:readiness:env ESHU_POSTGRES_DSN
+//eshu:readiness:env ESHU_POSTGRES_DISPOSABLE ESHU_POSTGRES_DSN
 
 import (
 	"context"
@@ -40,7 +40,9 @@ func openCICDBurstProof(t *testing.T) (*sql.DB, Service, *actionsstore.Store, *t
 	if dsn == "" {
 		t.Skip("ESHU_POSTGRES_DSN is not set")
 	}
-	database := postgresproof.OpenIsolatedSchema(t, dsn, "cicd_service_burst", func(ctx context.Context, db *sql.DB) error {
+	// Disposable database (#9299): the lane's public-qualified SECURITY
+	// DEFINER bodies cannot install into an isolated schema.
+	_, database := postgresproof.OpenDisposableBootstrapDatabase(t, dsn, os.Getenv("ESHU_POSTGRES_DISPOSABLE"), 5*time.Minute, func(ctx context.Context, db *sql.DB) error {
 		return postgres.ApplyBootstrap(ctx, postgres.SQLDB{DB: db})
 	})
 	store := postgres.NewWorkflowControlStore(postgres.SQLDB{DB: database})

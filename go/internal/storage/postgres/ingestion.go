@@ -139,7 +139,7 @@ func (s IngestionStore) CommitScopeGeneration(
 	generation scope.ScopeGeneration,
 	factStream <-chan facts.Envelope,
 ) error {
-	return s.commitScopeGeneration(ctx, workflow.ClaimMutation{}, false, scopeValue, generation, factStream, nil, nil)
+	return s.commitScopeGeneration(ctx, workflow.ClaimMutation{}, false, scopeValue, generation, factStream, nil, nil, nil, nil)
 }
 
 // CommitClaimedScopeGeneration persists one claimed generation only while the
@@ -157,7 +157,7 @@ func (s IngestionStore) CommitClaimedScopeGeneration(
 		drainFacts(factStream)
 		return err
 	}
-	return s.commitScopeGeneration(ctx, mutation, true, scopeValue, generation, factStream, nil, nil)
+	return s.commitScopeGeneration(ctx, mutation, true, scopeValue, generation, factStream, nil, nil, nil, nil)
 }
 
 func (s IngestionStore) commitScopeGeneration(
@@ -169,6 +169,8 @@ func (s IngestionStore) commitScopeGeneration(
 	factStream <-chan facts.Envelope,
 	factStreamErr func() error,
 	stateWriter collector.GenerationStateWriter,
+	beforeClaim func(context.Context, db.ExecQueryer) error,
+	onAcceptedBatch func(context.Context, db.ExecQueryer, []facts.Envelope) error,
 ) error {
 	if err := backfill.ValidateGenerationInput(scopeValue, generation); err != nil {
 		return errors.Join(err, drainFactsAndCheckStream(factStream, factStreamErr))
@@ -201,6 +203,11 @@ func (s IngestionStore) commitScopeGeneration(
 			drainFacts(factStream)
 		}
 	}()
+	if beforeClaim != nil {
+		if err := beforeClaim(ctx, tx); err != nil {
+			return fmt.Errorf("verify source authority before workflow claim lock: %w", err)
+		}
+	}
 
 	if requireClaimFence {
 		mutation.ObservedAt = s.now()
@@ -297,7 +304,15 @@ func (s IngestionStore) commitScopeGeneration(
 		factStream,
 		scopeValue.ScopeID,
 		generation.GenerationID,
-		func(batch []facts.Envelope) error {
+		func(batch []facts.Envelope, attempted int) error {
+			if onAcceptedBatch != nil {
+				if len(batch) != attempted {
+					return fmt.Errorf("protected advisory fact batch lost an attempted fact to fencing")
+				}
+				if err := onAcceptedBatch(ctx, tx, batch); err != nil {
+					return err
+				}
+			}
 			if err := refreshRelationshipReferenceCandidateKeys(ctx, tx, batch); err != nil {
 				return err
 			}

@@ -37,6 +37,37 @@ func TestManifestDependencyQueryTextsAllHaveReadLabels(t *testing.T) {
 	}
 }
 
+// TestListActivePackageManifestDependencyFactsLabelsEngagedSnapshotReads
+// pins the #9299 engaged path: on a snapshot clone the static rewrite
+// changes the query text, but the read label still names the query that
+// ran (plain/maven_family), never unclassified.
+func TestListActivePackageManifestDependencyFactsLabelsEngagedSnapshotReads(t *testing.T) {
+	t.Parallel()
+
+	reader := sdkmetric.NewManualReader()
+	instruments, err := telemetry.NewInstruments(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("test"))
+	if err != nil {
+		t.Fatalf("NewInstruments: %v", err)
+	}
+	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{}, {}}}
+	store := NewFactStore(db).WithInstruments(instruments)
+	store.impactStaticSnapshot = true
+	if _, err := store.ListActivePackageManifestDependencyFacts(context.Background(), []string{"npm"}, []string{"left-pad"}); err != nil {
+		t.Fatalf("engaged plain read: %v", err)
+	}
+	if _, err := store.ListActivePackageManifestDependencyFacts(context.Background(), []string{"maven"}, []string{"g:a"}); err != nil {
+		t.Fatalf("engaged maven read: %v", err)
+	}
+
+	pages := collectManifestDependencyRead(t, reader, "eshu_dp_package_manifest_dependency_read_pages")
+	if got, want := pages["plain"], (manifestDependencyReadSample{count: 1, sum: 1}); got != want {
+		t.Fatalf("engaged plain pages = %+v, want %+v (all: %+v)", got, want, pages)
+	}
+	if got, want := pages["maven_family"], (manifestDependencyReadSample{count: 1, sum: 1}); got != want {
+		t.Fatalf("engaged maven_family pages = %+v, want %+v (all: %+v)", got, want, pages)
+	}
+}
+
 // TestRecordManifestDependencyReadLabelsUnknownTextUnclassified pins the
 // fail-closed default: a query text missing from the label table records
 // read=unclassified, never a silent plain.

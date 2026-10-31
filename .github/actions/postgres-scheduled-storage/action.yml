@@ -14,6 +14,7 @@ runs:
       working-directory: go
       env:
         ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN: postgres://eshu:change-me@localhost:15432/eshu_claim_scheduled?sslmode=disable
+        ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DISPOSABLE: '1'
         ESHU_POSTGRES_DSN: postgres://eshu:change-me@localhost:15432/eshu_claim_scheduled?sslmode=disable
         ESHU_REDUCER_FAIRNESS_PROOF_DSN: postgres://eshu:change-me@localhost:15432/eshu_claim_scheduled?sslmode=disable
       shell: bash
@@ -106,6 +107,7 @@ runs:
       working-directory: go
       env:
         ESHU_REDUCER_FAIRNESS_PROOF_DSN: postgres://eshu:change-me@localhost:15432/eshu_readiness_scheduled?sslmode=disable
+        ESHU_REDUCER_FAIRNESS_PROOF_DISPOSABLE: '1'
         ESHU_POSTGRES_DSN: postgres://eshu:change-me@localhost:15432/eshu_readiness_scheduled?sslmode=disable
       shell: bash
       run: |

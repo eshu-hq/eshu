@@ -58,7 +58,7 @@ const (
 	quietTargetID    = "quiet-target-current"
 )
 
-// openQuietGenerationProofDB opens an isolated schema with the full
+// openQuietGenerationProofDB opens a disposable database with the full
 // production bootstrap applied (ApplyBootstrap), on the deferred-partition
 // proof DSN, never a hand-extended partial schema.
 func openQuietGenerationProofDB(t *testing.T) *sql.DB {
@@ -66,7 +66,7 @@ func openQuietGenerationProofDB(t *testing.T) *sql.DB {
 	if os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE") != "1" {
 		t.Skip("set ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE=1 for disposable PostgreSQL proof")
 	}
-	return openIsolatedBootstrapSchema(t, testfixtures.DSNForDeferredPartitionMemoProof(t), "quiet_generation")
+	return openIsolatedBootstrapSchema(t, testfixtures.DSNForDeferredPartitionMemoProof(t), os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE"), "quiet_generation")
 }
 
 // quietRepositoryFacts is one generation's repository fact plus, when alias

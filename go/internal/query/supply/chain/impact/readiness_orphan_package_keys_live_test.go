@@ -5,7 +5,7 @@ package impact
 
 //eshu:readiness live-postgres-readiness
 //eshu:readiness:reason #7420 disposable PostgreSQL proof that orphan package manifest consumption and registry identity key rows (foreign keys dropped by migrations 189 and 190) change no readiness evidence or ownership, with a live-owner sensitivity check, enrolled in the live-postgres-readiness runner; reads ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN with its disposable opt-in. local run passed in 1.70s of test time on PostgreSQL 18.6 on 2026-10-15
-//eshu:readiness:env ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN ESHU_POSTGRES_DSN
+//eshu:readiness:env ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN ESHU_POSTGRES_DISPOSABLE ESHU_POSTGRES_DSN
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
@@ -28,21 +29,27 @@ import (
 // no second registry owner (which would make ownership ambiguous).
 func TestReadinessIgnoresOrphanPackageKeysLive(t *testing.T) {
 	// The readiness runner provides the package consumption family DSN with
-	// its disposable opt-in; a local run may use ESHU_POSTGRES_DSN instead.
+	// its disposable opt-in; a local run may use ESHU_POSTGRES_DSN with
+	// ESHU_POSTGRES_DISPOSABLE=1 instead. Either leg opens a disposable
+	// database (#9299: the lane's public-qualified SECURITY DEFINER bodies
+	// cannot install into an isolated schema).
 	dsn := strings.TrimSpace(os.Getenv("ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN"))
-	if dsn != "" && os.Getenv("ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE") != "1" {
-		t.Fatal("ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN is set without ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE=1")
-	}
-	if dsn == "" {
+	var optIn string
+	if dsn != "" {
+		if os.Getenv("ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE") != "1" {
+			t.Fatal("ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN is set without ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE=1")
+		}
+		optIn = os.Getenv("ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE")
+	} else {
 		dsn = strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
+		optIn = os.Getenv("ESHU_POSTGRES_DISPOSABLE")
 	}
 	if dsn == "" {
 		t.Skip("set ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN or ESHU_POSTGRES_DSN to run the orphan package key reader proof")
 	}
-	db := postgresproof.OpenIsolatedSchema(t, dsn, "eshu_7420_orphan_keys", func(ctx context.Context, db *sql.DB) error {
+	ctx, db := postgresproof.OpenDisposableBootstrapDatabase(t, dsn, optIn, 5*time.Minute, func(ctx context.Context, db *sql.DB) error {
 		return storagepostgres.ApplyBootstrap(ctx, storagepostgres.SQLDB{DB: db})
 	})
-	ctx := context.Background()
 	seedReadinessManifestScope(t, ctx, db, "consuming-one", "repository:consuming-one", "lodash")
 	seedReadinessManifestScope(t, ctx, db, "consuming-two", "repository:consuming-two", "lodash")
 	seedReadinessRegistryPackage(t, ctx, db, "registry-default", "npm://registry.npmjs.org/lodash")

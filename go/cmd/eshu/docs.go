@@ -209,7 +209,7 @@ func defaultDocsVerifyDeps() docs.Deps {
 // writes to. It lives here rather than in the docs package because resolving
 // the DSN reads the process environment.
 func openDocsVerifyPostgresPersistence(ctx context.Context) (docs.Persistence, func() error, error) {
-	db, err := runtimecfg.OpenPostgres(ctx, os.Getenv)
+	db, err := runtimecfg.OpenPostgresForWorkload(ctx, os.Getenv, runtimecfg.PostgresWorkloadRuntime)
 	if err != nil {
 		return nil, nil, err
 	}

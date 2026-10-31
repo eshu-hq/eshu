@@ -53,7 +53,9 @@ func TargetedMaintenanceProofDSN(t *testing.T) string {
 	return dsn
 }
 
-// NewTargetedDiffPair opens two isolated production schemas. Callers supply
+// NewTargetedDiffPair opens two isolated proof databases through open (the
+// #9299 lane needs database isolation: an isolated schema cannot host the
+// lane's public-qualified SECURITY DEFINER bodies). Callers supply
 // only their package-owned bootstrap and real whole-pass entrypoint.
 func NewTargetedDiffPair(
 	t *testing.T, dsn string,

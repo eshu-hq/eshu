@@ -16,6 +16,7 @@ import (
 
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // ReaderMember names one directly reachable physical standby. Host is a DNS
@@ -31,19 +32,23 @@ type ReaderMember struct {
 // Candidates must resolve to one accepted physical primary and its streaming
 // standbys; routing does not imply failover or promotion safety.
 type Config struct {
-	WriterDSN          string
-	ReadDSN            string
-	ReadMembers        []ReaderMember
-	SamePrimary        bool
-	WriterMaxOpenConns int
-	ReadMaxOpenConns   int
-	WriterMaxIdleConns int
-	ReadMaxIdleConns   int
-	ConnMaxLifetime    time.Duration
-	ConnMaxIdleTime    time.Duration
-	PingTimeout        time.Duration
-	ReplayTimeout      time.Duration
-	ExpectedSystemID   string
+	WriterDSN   string
+	ReadDSN     string
+	ReadMembers []ReaderMember
+	SamePrimary bool
+	// ExplicitReaderTopology means SamePrimary came from an operator-declared
+	// primary/standby route, which permits separate reader credentials on the
+	// same primary. Physical connection validation still proves the route.
+	ExplicitReaderTopology bool
+	WriterMaxOpenConns     int
+	ReadMaxOpenConns       int
+	WriterMaxIdleConns     int
+	ReadMaxIdleConns       int
+	ConnMaxLifetime        time.Duration
+	ConnMaxIdleTime        time.Duration
+	PingTimeout            time.Duration
+	ReplayTimeout          time.Duration
+	ExpectedSystemID       string
 	// SnapshotExportBuilds declares PostgreSQL reader builds an operator has
 	// qualified for shared-snapshot export below the compiled version floor
 	// (#7957). Empty means deny-by-default: only a reader at or above the
@@ -52,6 +57,12 @@ type Config struct {
 	// Logger receives the postgres.store.error record for a failed writer-pool
 	// driver call. A nil Logger uses slog.Default.
 	Logger *slog.Logger
+	// WriterRoleAttestor and ReaderRoleAttestor validate each new physical
+	// connection before it reaches a bootstrap read or a pooled query.
+	// Nil preserves the legacy connection contract.
+	WriterRoleAttestor     pgconn.ValidateConnectFunc
+	ReaderRoleAttestor     pgconn.ValidateConnectFunc
+	roleBoundaryConfigured bool
 }
 
 // LoadConfig resolves the optional reader endpoint and validates the shared
@@ -90,6 +101,31 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 	read := strings.TrimSpace(getenv("ESHU_POSTGRES_READ_DSN"))
 	if read == "" {
 		read = writer
+	}
+	readTopology := strings.TrimSpace(getenv("ESHU_POSTGRES_READ_TOPOLOGY"))
+	samePrimary := read == writer
+	switch readTopology {
+	case "":
+	case "primary":
+		samePrimary = true
+	case "standby":
+		samePrimary = false
+	default:
+		return Config{}, fmt.Errorf("ESHU_POSTGRES_READ_TOPOLOGY must be primary or standby")
+	}
+	if readTopology == "standby" && read == writer {
+		return Config{}, fmt.Errorf("ESHU_POSTGRES_READ_TOPOLOGY=standby requires a distinct reader DSN")
+	}
+	requiredRoleBoundary := strings.TrimSpace(getenv("ESHU_POSTGRES_ROLE_BOUNDARY_REQUIRED"))
+	if requiredRoleBoundary != "" && requiredRoleBoundary != "true" {
+		return Config{}, fmt.Errorf("ESHU_POSTGRES_ROLE_BOUNDARY_REQUIRED must be true or unset")
+	}
+	roleBoundaryConfigured := strings.TrimSpace(getenv("ESHU_POSTGRES_ROLE_CONTRACT_JSON")) != ""
+	if requiredRoleBoundary == "true" && !roleBoundaryConfigured {
+		return Config{}, fmt.Errorf("ESHU_POSTGRES_ROLE_CONTRACT_JSON is required by the Postgres role boundary")
+	}
+	if roleBoundaryConfigured && (readTopology == "" || read == writer) {
+		return Config{}, fmt.Errorf("ESHU_POSTGRES_ROLE_CONTRACT_JSON requires explicit reader topology and a distinct reader DSN")
 	}
 	for _, endpoint := range []string{writer, read} {
 		if _, err := parsePhysicalEndpoint(endpoint); err != nil {
@@ -152,12 +188,14 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 		}
 	}
 	return Config{
-		WriterDSN: writer, ReadDSN: read, ReadMembers: members, SamePrimary: read == writer,
-		WriterMaxOpenConns: writeOpen, ReadMaxOpenConns: readOpen,
+		WriterDSN: writer, ReadDSN: read, ReadMembers: members, SamePrimary: samePrimary,
+		ExplicitReaderTopology: readTopology != "",
+		WriterMaxOpenConns:     writeOpen, ReadMaxOpenConns: readOpen,
 		WriterMaxIdleConns: base.MaxIdleConns - readIdle, ReadMaxIdleConns: readIdle,
 		ConnMaxLifetime: base.ConnMaxLifetime, ConnMaxIdleTime: base.ConnMaxIdleTime,
 		PingTimeout: base.PingTimeout, ReplayTimeout: 2 * time.Second,
 		ExpectedSystemID: expectedSystemID, SnapshotExportBuilds: exportBuilds,
+		roleBoundaryConfigured: roleBoundaryConfigured,
 	}, nil
 }
 

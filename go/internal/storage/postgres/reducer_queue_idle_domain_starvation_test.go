@@ -143,7 +143,7 @@ func TestClaimBatchIdleDomainPriorityHoldsUnderConcurrentClaimers(t *testing.T) 
 	}
 
 	ctx := context.Background()
-	db, schemaName := openReducerFairnessDBWithSchema(t, ctx, dsn)
+	db, targetDSN := openReducerFairnessDBWithSchema(t, ctx, dsn)
 
 	const (
 		busyDomain    = reducer.DomainContainerImageIdentity
@@ -199,7 +199,7 @@ func TestClaimBatchIdleDomainPriorityHoldsUnderConcurrentClaimers(t *testing.T) 
 			// Each claimer holds its own connection so the four claim
 			// statements truly interleave at the database instead of
 			// serializing behind one pooled connection.
-			cdb := openReducerFairnessClaimerDB(t, ctx, dsn, schemaName)
+			cdb := openReducerFairnessClaimerDB(t, ctx, targetDSN)
 			q := ReducerQueue{
 				database:      SQLDB{DB: cdb},
 				LeaseOwner:    fmt.Sprintf("conc-claimer-%d", c),

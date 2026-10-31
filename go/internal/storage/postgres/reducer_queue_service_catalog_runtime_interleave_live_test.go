@@ -120,11 +120,11 @@ func TestReducerContentionGateServiceCatalogRuntimeFenceConcurrentWorkers(t *tes
 		defer cancel()
 		p := newRuntimeFenceProof(t, ctx, dsn, time.Minute)
 
-		producerDB := openReducerFairnessClaimerDB(t, ctx, dsn, p.schema)
+		producerDB := openReducerFairnessClaimerDB(t, ctx, p.targetDSN)
 		catalogDBs := []*sql.DB{
-			openReducerFairnessClaimerDB(t, ctx, dsn, p.schema),
-			openReducerFairnessClaimerDB(t, ctx, dsn, p.schema),
-			openReducerFairnessClaimerDB(t, ctx, dsn, p.schema),
+			openReducerFairnessClaimerDB(t, ctx, p.targetDSN),
+			openReducerFairnessClaimerDB(t, ctx, p.targetDSN),
+			openReducerFairnessClaimerDB(t, ctx, p.targetDSN),
 		}
 		var deferrals atomic.Int64
 		var wg sync.WaitGroup
@@ -290,11 +290,11 @@ func testPeerDrainedRuntimeFence(t *testing.T, dsn string) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	p := newRuntimeFenceProof(t, ctx, dsn, time.Minute)
-	producerDB := openReducerFairnessClaimerDB(t, ctx, dsn, p.schema)
+	producerDB := openReducerFairnessClaimerDB(t, ctx, p.targetDSN)
 	catalogDBs := []*sql.DB{
-		openReducerFairnessClaimerDB(t, ctx, dsn, p.schema),
-		openReducerFairnessClaimerDB(t, ctx, dsn, p.schema),
-		openReducerFairnessClaimerDB(t, ctx, dsn, p.schema),
+		openReducerFairnessClaimerDB(t, ctx, p.targetDSN),
+		openReducerFairnessClaimerDB(t, ctx, p.targetDSN),
+		openReducerFairnessClaimerDB(t, ctx, p.targetDSN),
 	}
 	type claimResult struct {
 		worker  int

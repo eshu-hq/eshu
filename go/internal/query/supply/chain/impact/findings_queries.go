@@ -133,7 +133,7 @@ func supplyChainImpactPayloadWithSuppressionOverlaySQL(
 // window, no sort spill) and joins fact_records by winner_fact_id only for the
 // page payloads.
 //
-// It takes the SAME 24-parameter slice as ListFindingsQuery so
+// It takes the SAME 30-parameter slice as ListFindingsQuery so
 // the store can swap queries without rebuilding args; $1 (fact_kind) is not a
 // filter here because the winners table is impact-only, but it is referenced in a
 // trivially-true guard so every bound parameter is used.
@@ -143,7 +143,7 @@ func supplyChainImpactPayloadWithSuppressionOverlaySQL(
 // NOT re-join the active-generation tables — that join defeats O(page) (measured)
 // and the maintainer already excludes inactive winners. Output is byte-identical
 // to the read-time-dedup query (verified across the filter/sort/cursor matrix).
-var ListFindingsFromWinnersQuery = `
+var listFindingsFromWinnersQueryTemplate = `
 WITH ` + supplyChainImpactRuntimeFilterCTE("$9", "$10", "$11", "$22", "$23") + `,
 ` + supplyChainImpactOperatorCandidatesCTE("$1") + `,
 operator_overrides AS MATERIALIZED (
@@ -168,6 +168,13 @@ filtered AS NOT MATERIALIZED (
 ) + ` AS effective_suppression_state
     FROM supply_chain_impact_canonical_winners AS w
     WHERE ($1 = $1)
+      AND $25::boolean IS NOT NULL
+      AND $26::text IS NOT NULL
+      AND $27::text IS NOT NULL
+      AND $28::text IS NOT NULL
+      AND $29::text IS NOT NULL
+      AND $30::text[] IS NOT NULL
+` + supplyChainImpactStaticWinnerPredicateSQL + `
       AND ($2 = '' OR w.cve_id = $2)
       AND ($3 = '' OR w.package_id = $3)
       AND ($4 = '' OR w.repository_id = $4)
@@ -276,3 +283,6 @@ ORDER BY
   CASE WHEN $18 = 'priority_score_asc' THEN page.priority_score END ASC,
   page.finding_id ASC
 `
+
+// ListFindingsFromWinnersQuery is the legacy materialized winner read.
+var ListFindingsFromWinnersQuery = supplyChainImpactReadModeSQL(listFindingsFromWinnersQueryTemplate, false)

@@ -27,6 +27,23 @@ func retractTestWrite() SupplyChainImpactWrite {
 	}
 }
 
+func TestWriteSupplyChainImpactDerivedRequiresProtectedPublication(t *testing.T) {
+	inserts := &testutil.FakeExecer{}
+	beginner := newFakeImpactBeginner(inserts)
+	write := retractTestWrite()
+	write.Findings = write.Findings[:1]
+	write.Findings[0].ScanTargetID = "image://derived/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	write.Findings[0].ScanGenerationID = "scan-generation"
+
+	_, err := (PostgresSupplyChainImpactWriter{DB: beginner}).WriteSupplyChainImpactFindings(context.Background(), write)
+	if err == nil {
+		t.Fatal("derived finding published without protected target association")
+	}
+	if len(inserts.Execs) != 0 || beginner.state.commits != 0 {
+		t.Fatal("derived finding wrote public facts before protected publication was available")
+	}
+}
+
 // TestWriteSupplyChainImpactFindingsLocksUpsertsThenRetracts pins the #6831
 // and #7142 statement order inside the one transaction: conflict-domain lock
 // first, then the fencing admission, then the batched upsert, then the

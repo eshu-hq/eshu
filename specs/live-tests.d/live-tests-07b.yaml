@@ -24,3 +24,67 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/supply/chain/impact/findings_protected_target_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#9299 provisional protected-target proof de-enrolled from the readiness plan under drift-gate option A (PR #9544 steer 6530394665); always skips until #9468 opens the finding-authority gate so de-enrollment loses zero signal, local run skips clean in 0.00s — re-enroll post-refit when #9468 lands"
+  - file: go/internal/storage/postgres/control_scanner_discovery_plan_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#9299 small-scale derivation shape proofs de-enrolled from the readiness plan under drift-gate option A (PR #9544 steer 6530394665); bounded pages stay proven at 300k by enrolled TestScannerDiscoveryScaleShapeLive, local runs took 2.14s and 1.90s — re-enroll post-refit"
+  - file: go/internal/storage/postgres/infra/inventory/writer_role_attestor_dsn_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#9299 writer DSN-attrs proof split byte-identical from fence_role_attestor_live_test.go (markers are per-file) and de-enrolled under drift-gate option A (PR #9544 steer 6530394665); writer-path standby rejection (writerValidator) is SUSPENDED with no CI coverage until re-enroll — accepted risk recorded here, not implied coverage (the enrolled reader test pins only readerValidator), local run took 0.01s — re-enroll post-refit"
+  - file: go/internal/storage/postgres/authorized_loader_without_policy_state_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#9299 no-policy loader API proof split byte-identical from the onboarding file (markers are per-file) and de-enrolled under drift-gate option A (PR #9544 steer 6530394665, 5th pick after base-side #9683 added one); the no-policy path stays proven end to end by enrolled TestAuthorizedImpactLoaderDisengagedBuildsAdvisoryFindingLive, suspending only these API-level assertions — local run took 1.87s — re-enroll post-refit"
+  - file: go/internal/storage/postgres/producer_ingestion_acl_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#9299 producer write-scope proof de-enrolled from the readiness plan under drift-gate option A (PR #9544 steer 6530394665, second round after base-side #9674 added six); the producer write-scope refinement is suspended with no producer-role attestation proof enrolled — re-enroll post-refit"
+  - file: go/internal/runtime/postgres/reader_topology_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#9299 reader distinct-credential topology proof de-enrolled from the readiness plan under drift-gate option A (PR #9544 steer 6530394665, second round after base-side #9674 added six); the topology refinement is suspended with no reader-role attestation proof enrolled — re-enroll post-refit"
+  - file: go/internal/runtime/role_attest_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#9299 session-against-rotation attestation proof de-enrolled from the readiness plan under drift-gate option A (PR #9544 steer 6530394665, second round after base-side #9674 added six); the rotation refinement is suspended while physical-connection attestation stays proven by the enrolled hook-ordering proof TestWriterRoleAttestorRunsBeforeSessionHooksOnEveryPhysicalConnection (no seven-role proof stays enrolled) — re-enroll post-refit"
+  - file: go/internal/storage/postgres/supply_chain_impact_authorized_loader_onboarding_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#9299 no-policy plain-write API proof de-enrolled from the readiness plan under drift-gate option A (PR #9544 steer 6530394665, second round after base-side #9674 added six); the no-policy path stays proven end to end by the enrolled Disengaged handler test, suspending only these API-level assertions — re-enroll post-refit"
+  - file: go/internal/query/admin/store/reopen_stamp_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#9320 admin reopen stamp proof de-enrolled from the readiness plan under drift-gate option A (PR #9544 third round: the branch enrollment pushed defaulted tests to 41 over the 40 limit with admin/store one of three unweighted new packages); the file keeps no marker so the plan drops the slot, the test stays in the Go suite and skips clean without proof DSNs (0.00s locally) — re-enroll post-refit"
+  - file: go/internal/query/admin/store/reopen_stamp_intent_age_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#9320 shared intent reopen-age and reopen-race proofs de-enrolled from the readiness plan under drift-gate option A (PR #9544 third round: the branch enrollment pushed defaulted tests to 41 over the 40 limit with admin/store one of three unweighted new packages); the file keeps no marker so the plan drops both slots, the tests stay in the Go suite and skip clean without proof DSNs (0.00s locally) — re-enroll post-refit"
+  - file: go/internal/storage/postgres/supply_chain_impact_authorized_loader_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#9299 authorized impact loader admit + empty-registry proofs de-enrolled from the readiness plan under drift-gate option A (PR #9544 fourth round: the branch enrollment pushed defaulted tests to 46 over the 40 limit); the file keeps no marker so the plan drops both slots, the tests stay in the Go suite and skip clean without proof DSNs (0.00s locally), end-to-end cover stays enrolled via the disengaged-handler proof — re-enroll post-refit"
+  - file: go/internal/storage/postgres/supply_chain_impact_protected_publish_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#9299 protected-policy pins error-text proof de-enrolled from the readiness plan under drift-gate option A (PR #9544 fourth round: the branch enrollment pushed defaulted tests to 46 over the 40 limit); the static-publish proof moved byte-identical to supply_chain_impact_protected_static_publish_live_test.go which keeps the marker, this file keeps no marker so the plan drops the slot, the test stays in the Go suite and skips clean without proof DSNs (0.00s locally) — re-enroll post-refit"
+  - file: go/internal/storage/postgres/control_scanner_admission_authority_matrix_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#9299 admission authority denial-matrix proof de-enrolled from the readiness plan under drift-gate option A (PR #9544 fourth round: the branch enrollment pushed defaulted tests to 46 over the 40 limit); the file keeps no marker so the plan drops the slot, the test stays in the Go suite and skips clean without proof DSNs (0.00s locally), rejection cover stays enrolled via the atomicity proof and source-binding auth — re-enroll post-refit"
+  - file: go/internal/storage/postgres/control_scanner_authority_epoch_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#9299 authority-epoch ABA proof de-enrolled from the readiness plan under drift-gate option A (PR #9544 fourth round: the branch enrollment pushed defaulted tests to 46 over the 40 limit); the file keeps no marker so the plan drops the slot, the test stays in the Go suite and skips clean without proof DSNs (0.00s locally) — re-enroll post-refit"
+  - file: go/internal/storage/postgres/control_scanner_admission_skip_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#9299 admission bad-binding skip proof de-enrolled from the readiness plan under drift-gate option A (PR #9544 fourth round: the branch enrollment pushed defaulted tests to 46 over the 40 limit); the file keeps no marker so the plan drops the slot, the test stays in the Go suite and skips clean without proof DSNs (0.00s locally), rejection cover stays enrolled via the atomicity proof — re-enroll post-refit"
+  - file: go/internal/runtime/role_migration_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#9299 installed-role attestation proof de-enrolled from the readiness plan under drift-gate option A (PR #9544 fourth round: the branch enrollment pushed defaulted tests to 46 over the 40 limit); the file keeps no marker so the plan drops the slot, the test stays in the Go suite and skips clean without proof DSNs (0.00s locally), attestation cover stays enrolled via the hook-ordering proof TestWriterRoleAttestorRunsBeforeSessionHooksOnEveryPhysicalConnection (no seven-role proof stays enrolled) — re-enroll post-refit"

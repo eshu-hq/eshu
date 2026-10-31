@@ -95,7 +95,7 @@ func run(parent context.Context) error {
 		}()
 	}
 
-	db, err := runtimecfg.OpenPostgres(parent, os.Getenv)
+	db, err := runtimecfg.OpenPostgresForWorkload(parent, os.Getenv, runtimecfg.PostgresWorkloadCoordinator)
 	if err != nil {
 		return err
 	}
@@ -123,6 +123,15 @@ func run(parent context.Context) error {
 	// here so one removed activation can neither crashloop the coordinator
 	// nor disappear silently (#9634). Reporting never fails startup.
 	reportStaleActivationSkips(parent, coordinatorMetrics, logger, os.Getenv("ESHU_COMPONENT_HOME"), cfg.StaleComponentActivationSkips)
+	scannerRoleContract, err := runtimecfg.LoadPostgresRoleContract(os.Getenv,
+		runtimecfg.PostgresWorkloadCoordinator, runtimecfg.PostgresRouteControl)
+	if err != nil {
+		return err
+	}
+	if (cfg.ScannerImageDiscovery.Mode != coordinator.ScannerImageDiscoveryDisabled ||
+		cfg.PublicAdvisoryPolicy.Explicit) && scannerRoleContract == nil {
+		return fmt.Errorf("protected scanner and advisory policy requires a PostgreSQL role contract")
+	}
 	semanticWorkerCfg, err := coordinatorsemantic.LoadProviderWorkerConfig(os.Getenv)
 	if err != nil {
 		return err
@@ -237,6 +246,9 @@ func run(parent context.Context) error {
 		VulnerabilityIntelligencePlanner:  vulnerability.IntelligenceWorkPlanner{},
 		SBOMAttestationPlanner:            attestation.WorkPlanner{},
 		ScannerWorkerPlanner:              scannerworker.WorkPlanner{},
+		ScannerImagePlanner:               scannerworker.WorkPlanner{},
+		ScannerImageDiscoveryStore:        store,
+		PublicAdvisoryPolicyStore:         store,
 		SecurityAlertPlanner:              alert.WorkPlanner{ShardScopes: retirement.NewReader(securityAlertShardScopesDB), Logger: logger},
 		CICDRunPlanner:                    cicdrun.WorkPlanner{},
 		CICDRunActionsTriggers:            actionsStore,
@@ -266,6 +278,10 @@ func run(parent context.Context) error {
 		Metrics:                           coordinatorMetrics,
 		WorkItemRetention:                 items.NewSweeper(workItemRetentionDB),
 		Logger:                            logger,
+	}
+	if scannerRoleContract != nil {
+		serviceRunner.ControlRolePolicyRevision = scannerRoleContract.PolicyRevision
+		serviceRunner.ControlDatabaseIdentity = scannerRoleContract.DatabaseIdentity
 	}
 	if semanticWorkerCfg.Enabled {
 		// Default no-network client: real outbound provider traffic is intentionally

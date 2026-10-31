@@ -17,16 +17,17 @@ import (
 
 const workflowControlIntegrationDSNEnv = "ESHU_POSTGRES_DSN"
 
-// openWorkflowControlIntegrationStore opens a WorkflowControlStore over a schema
-// of its own, with the full bootstrap applied, and skips when no DSN is set.
+// openWorkflowControlIntegrationStore opens a WorkflowControlStore over a
+// database of its own, with the full bootstrap applied, and skips when no
+// DSN is set.
 //
 // These proofs create runs, work items and scope generations under fixed ids and
-// read reducer rows back. On the shared schema a rerun hit the previous run's
+// read reducer rows back. On a shared database a rerun hit the previous run's
 // generation ("generation already published or terminal") and only passed
 // because the dead-letter bridge tests, which sort earlier, emptied the shared
 // reducer tables first, which also wiped the eshu:global anchor migrations 115
-// and 116 seed (#7489). A schema per proof has no stale fixture rows and leaves
-// the shared schema alone.
+// and 116 seed (#7489). A database per proof has no stale fixture rows and leaves
+// shared databases alone.
 func openWorkflowControlIntegrationStore(t *testing.T) (*sql.DB, *WorkflowControlStore) {
 	t.Helper()
 

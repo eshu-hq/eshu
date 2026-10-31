@@ -87,9 +87,11 @@ WITH candidate AS (
                AND workspaces.workspace_id = tenant_scope_grants.workspace_id
               WHERE tenant_scope_grants.tenant_id = item.tenant_id
                 AND tenant_scope_grants.workspace_id = item.workspace_id
-                AND tenant_scope_grants.scope_id = item.scope_id
+                AND tenant_scope_grants.scope_id = COALESCE(NULLIF(item.authorization_scope_id, ''), item.scope_id)
                 AND tenant_scope_grants.subject_class = item.subject_class
                 AND tenant_scope_grants.policy_revision_hash = item.policy_revision_hash
+                AND tenants.policy_revision_hash = item.policy_revision_hash
+                AND workspaces.policy_revision_hash = item.policy_revision_hash
                 AND tenants.status = 'active'
                 AND workspaces.status = 'active'
                 AND tenants.tombstoned_at IS NULL
@@ -100,6 +102,7 @@ WITH candidate AS (
               FOR SHARE OF tenant_scope_grants, tenants, workspaces
           )
       )
+` + scannerDerivedClaimAuthority + `
       AND claim.fencing_token = $3
       AND claim.owner_id = $4
       AND claim.status = 'active'
@@ -147,9 +150,11 @@ WITH candidate AS (
                AND workspaces.workspace_id = tenant_scope_grants.workspace_id
               WHERE tenant_scope_grants.tenant_id = item.tenant_id
                 AND tenant_scope_grants.workspace_id = item.workspace_id
-                AND tenant_scope_grants.scope_id = item.scope_id
+                AND tenant_scope_grants.scope_id = COALESCE(NULLIF(item.authorization_scope_id, ''), item.scope_id)
                 AND tenant_scope_grants.subject_class = item.subject_class
                 AND tenant_scope_grants.policy_revision_hash = item.policy_revision_hash
+                AND tenants.policy_revision_hash = item.policy_revision_hash
+                AND workspaces.policy_revision_hash = item.policy_revision_hash
                 AND tenants.status = 'active'
                 AND workspaces.status = 'active'
                 AND tenants.tombstoned_at IS NULL
@@ -160,6 +165,7 @@ WITH candidate AS (
               FOR SHARE OF tenant_scope_grants, tenants, workspaces
           )
       )
+` + scannerDerivedClaimAuthority + `
       AND claim.fencing_token = $3
       AND claim.owner_id = $4
       AND claim.status = 'active'

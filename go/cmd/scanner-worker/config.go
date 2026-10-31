@@ -35,24 +35,27 @@ const (
 )
 
 type runtimeConfig struct {
-	Instance          workflow.DesiredCollectorInstance
-	OwnerID           string
-	PollInterval      time.Duration
-	ClaimLeaseTTL     time.Duration
-	HeartbeatInterval time.Duration
-	Analyzer          scannerworker.AnalyzerKind
-	Limits            scannerworker.ResourceLimits
-	SBOMTargets       []sbomgenerator.RepositoryTarget
-	OSPackageTargets  []osruntime.TargetConfig
-	ImageTargets      []imageanalyzer.TargetConfig
+	Instance                workflow.DesiredCollectorInstance
+	OwnerID                 string
+	PollInterval            time.Duration
+	ClaimLeaseTTL           time.Duration
+	HeartbeatInterval       time.Duration
+	Analyzer                scannerworker.AnalyzerKind
+	Limits                  scannerworker.ResourceLimits
+	SBOMTargets             []sbomgenerator.RepositoryTarget
+	OSPackageTargets        []osruntime.TargetConfig
+	ImageTargets            []imageanalyzer.TargetConfig
+	DeriveFromRunningImages bool
 }
 
 type scannerInstanceConfig struct {
-	Analyzer         string                           `json:"analyzer"`
-	ResourceLimits   resourceLimitsJSON               `json:"resource_limits"`
-	SBOMTargets      []sbomgenerator.RepositoryTarget `json:"sbom_targets"`
-	OSPackageTargets []osruntime.TargetConfig         `json:"os_package_targets"`
-	ImageTargets     []imageanalyzer.TargetConfig     `json:"image_targets"`
+	Analyzer                string                           `json:"analyzer"`
+	ResourceLimits          resourceLimitsJSON               `json:"resource_limits"`
+	SBOMTargets             []sbomgenerator.RepositoryTarget `json:"sbom_targets"`
+	OSPackageTargets        []osruntime.TargetConfig         `json:"os_package_targets"`
+	ImageTargets            []imageanalyzer.TargetConfig     `json:"image_targets"`
+	DeriveFromRunningImages bool                             `json:"derive_from_running_images"`
+	RegistryDomains         []registryDomainConfig           `json:"registry_domains"`
 }
 
 type resourceLimitsJSON struct {
@@ -109,16 +112,17 @@ func loadRuntimeConfig(getenv func(string) string) (runtimeConfig, error) {
 		return runtimeConfig{}, fmt.Errorf("scanner-worker heartbeat interval must be less than claim lease TTL")
 	}
 	return runtimeConfig{
-		Instance:          instance,
-		OwnerID:           ownerID(getenv),
-		PollInterval:      pollInterval,
-		ClaimLeaseTTL:     claimLeaseTTL,
-		HeartbeatInterval: heartbeatInterval,
-		Analyzer:          analyzer,
-		Limits:            limits,
-		SBOMTargets:       decoded.SBOMTargets,
-		OSPackageTargets:  decoded.OSPackageTargets,
-		ImageTargets:      decoded.ImageTargets,
+		Instance:                instance,
+		OwnerID:                 ownerID(getenv),
+		PollInterval:            pollInterval,
+		ClaimLeaseTTL:           claimLeaseTTL,
+		HeartbeatInterval:       heartbeatInterval,
+		Analyzer:                analyzer,
+		Limits:                  limits,
+		SBOMTargets:             decoded.SBOMTargets,
+		OSPackageTargets:        decoded.OSPackageTargets,
+		ImageTargets:            decoded.ImageTargets,
+		DeriveFromRunningImages: decoded.DeriveFromRunningImages,
 	}, nil
 }
 

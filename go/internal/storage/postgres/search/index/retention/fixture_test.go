@@ -16,7 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
-// liveFixture is one isolated, fully migrated schema with one scope: an
+// liveFixture is one disposable, fully migrated database with one scope: an
 // active generation, a superseded generation and a pending generation, each
 // with its own search index rows. Generation ids carry a per-test suffix
 // because advisory locks are database-wide, not schema-wide.
@@ -34,22 +34,27 @@ func openLiveFixture(t *testing.T) *liveFixture {
 	t.Helper()
 	// The live-postgres-readiness runner provides the retention family's
 	// disposable DSN; a developer run may use ESHU_POSTGRES_DSN instead.
+	// Either leg opens a disposable database (#9299: the lane's
+	// public-qualified SECURITY DEFINER bodies cannot install into an
+	// isolated schema).
 	dsn := os.Getenv("ESHU_GENERATION_RETENTION_PROOF_DSN")
-	if dsn != "" && os.Getenv("ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE") != "1" {
-		t.Fatal("ESHU_GENERATION_RETENTION_PROOF_DSN is set without ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE=1")
-	}
-	if dsn == "" {
+	var optIn string
+	if dsn != "" {
+		if os.Getenv("ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE") != "1" {
+			t.Fatal("ESHU_GENERATION_RETENTION_PROOF_DSN is set without ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE=1")
+		}
+		optIn = os.Getenv("ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE")
+	} else {
 		dsn = os.Getenv("ESHU_POSTGRES_DSN")
+		optIn = os.Getenv("ESHU_POSTGRES_DISPOSABLE")
 	}
 	if dsn == "" {
 		t.Skip("set ESHU_GENERATION_RETENTION_PROOF_DSN or ESHU_POSTGRES_DSN to run the search index pre-delete live proofs")
 	}
-	database := postgresproof.OpenIsolatedSchema(t, dsn, "idxret7427", func(ctx context.Context, db *sql.DB) error {
+	ctx, database := postgresproof.OpenDisposableBootstrapDatabase(t, dsn, optIn, 3*time.Minute, func(ctx context.Context, db *sql.DB) error {
 		return postgres.ApplyBootstrap(ctx, postgres.SQLDB{DB: db})
 	})
 	database.SetMaxOpenConns(8)
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
-	t.Cleanup(cancel)
 	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
 	f := &liveFixture{
 		ctx: ctx, db: database, database: postgres.SQLDB{DB: database},

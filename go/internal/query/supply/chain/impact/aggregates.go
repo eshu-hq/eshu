@@ -167,9 +167,7 @@ func (s PostgresAggregateStore) CountSupplyChainImpactFindings(
 	}
 
 	readAt := SuppressionReadAt(s.Now)
-	row := s.queryer().QueryRowContext(
-		ctx,
-		AggregateCountQuery,
+	args := []any{
 		filter.CVEID,
 		filter.PackageID,
 		filter.RepositoryID,
@@ -190,7 +188,9 @@ func (s PostgresAggregateStore) CountSupplyChainImpactFindings(
 		array.Of(filter.AllowedRepositoryIDs),
 		array.Of(filter.AllowedScopeIDs),
 		readAt,
-	)
+	}
+	args = append(args, supplyChainImpactCallerAuthorizationArgs(ctx)...)
+	row := s.queryer().QueryRowContext(ctx, AggregateCountQuery, args...)
 	var total, affected, affectedExact, affectedDerived, possiblyAffected, notAffected sql.NullInt64
 	if err := row.Scan(&total, &affected, &affectedExact, &affectedDerived, &possiblyAffected, &notAffected); err != nil {
 		return AggregateCount{}, fmt.Errorf("count supply chain impact findings: %w", err)
@@ -222,9 +222,7 @@ func (s PostgresAggregateStore) fillPriorityBuckets(
 	readAt time.Time,
 	count *AggregateCount,
 ) error {
-	rows, err := s.queryer().QueryContext(
-		ctx,
-		AggregatePriorityCountQuery,
+	args := []any{
 		filter.CVEID,
 		filter.PackageID,
 		filter.RepositoryID,
@@ -245,7 +243,9 @@ func (s PostgresAggregateStore) fillPriorityBuckets(
 		array.Of(filter.AllowedRepositoryIDs),
 		array.Of(filter.AllowedScopeIDs),
 		readAt,
-	)
+	}
+	args = append(args, supplyChainImpactCallerAuthorizationArgs(ctx)...)
+	rows, err := s.queryer().QueryContext(ctx, AggregatePriorityCountQuery, args...)
 	if err != nil {
 		return fmt.Errorf("count supply chain impact priority buckets: %w", err)
 	}
@@ -267,9 +267,7 @@ func (s PostgresAggregateStore) fillSeverityBuckets(
 	readAt time.Time,
 	count *AggregateCount,
 ) error {
-	rows, err := s.queryer().QueryContext(
-		ctx,
-		AggregateSeverityCountQuery,
+	args := []any{
 		filter.CVEID,
 		filter.PackageID,
 		filter.RepositoryID,
@@ -290,7 +288,9 @@ func (s PostgresAggregateStore) fillSeverityBuckets(
 		array.Of(filter.AllowedRepositoryIDs),
 		array.Of(filter.AllowedScopeIDs),
 		readAt,
-	)
+	}
+	args = append(args, supplyChainImpactCallerAuthorizationArgs(ctx)...)
+	rows, err := s.queryer().QueryContext(ctx, AggregateSeverityCountQuery, args...)
 	if err != nil {
 		return fmt.Errorf("count supply chain impact severity buckets: %w", err)
 	}
@@ -334,9 +334,7 @@ func (s PostgresAggregateStore) SupplyChainImpactInventory(
 	}
 	q := InventoryQuery(groupExpr)
 	readAt := SuppressionReadAt(s.Now)
-	rows, err := s.queryer().QueryContext(
-		ctx,
-		q,
+	args := []any{
 		filter.CVEID,
 		filter.PackageID,
 		filter.RepositoryID,
@@ -357,9 +355,10 @@ func (s PostgresAggregateStore) SupplyChainImpactInventory(
 		array.Of(filter.AllowedRepositoryIDs),
 		array.Of(filter.AllowedScopeIDs),
 		readAt,
-		limit,
-		offset,
-	)
+	}
+	args = append(args, supplyChainImpactCallerAuthorizationArgs(ctx)...)
+	args = append(args, limit, offset)
+	rows, err := s.queryer().QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, fmt.Errorf("inventory supply chain impact findings: %w", err)
 	}

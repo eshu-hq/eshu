@@ -49,14 +49,13 @@ func (s Service) scheduleScannerWorkerWork(
 		if err != nil {
 			return fmt.Errorf("plan scanner-worker work for %q: %w", instance.InstanceID, err)
 		}
-		if len(items) == 0 {
-			continue
-		}
-		if _, err := s.createWorkflowWorkIfNoOpenTargets(ctx, instance, run, items); err != nil {
-			return fmt.Errorf("create scanner-worker scheduled work for %q: %w", instance.InstanceID, err)
+		if len(items) != 0 {
+			if _, err := s.createWorkflowWorkIfNoOpenTargets(ctx, instance, run, items); err != nil {
+				return fmt.Errorf("create scanner-worker scheduled work for %q: %w", instance.InstanceID, err)
+			}
 		}
 	}
-	return nil
+	return s.scheduleDerivedScannerImageWork(ctx, observedAt, instances)
 }
 
 func shouldScheduleScannerWorker(instance workflow.CollectorInstance) bool {

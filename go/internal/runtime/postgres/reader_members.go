@@ -35,16 +35,16 @@ type physicalReaderMember struct {
 	snapshotExport *snapshotExportQualification
 }
 
-func openReaderMembers(ctx context.Context, stageBudget time.Duration, cfg Config, template *pgx.ConnConfig, writer physicalIdentity) ([]physicalReaderMember, error) {
+func openReaderMembers(ctx context.Context, stageBudget time.Duration, cfg Config, template *pgx.ConnConfig, writer physicalIdentity, parsedValidator pgconn.ValidateConnectFunc) ([]physicalReaderMember, error) {
 	if len(cfg.ReadMembers) == 0 || cfg.SamePrimary || len(template.Fallbacks) != 0 || cfg.ReadMaxOpenConns/len(cfg.ReadMembers) < 4 {
 		return nil, errors.New("invalid physical reader member configuration")
 	}
 	return qualifyReaderCandidates(ctx, cfg.ReadMembers, stageBudget, func(memberCtx context.Context, index int, member ReaderMember) (physicalReaderMember, error) {
-		return qualifyReaderMember(memberCtx, cfg, template, writer, index, member)
+		return qualifyReaderMember(memberCtx, cfg, template, writer, index, member, parsedValidator)
 	})
 }
 
-func qualifyReaderMember(ctx context.Context, cfg Config, template *pgx.ConnConfig, writer physicalIdentity, index int, member ReaderMember) (physicalReaderMember, error) {
+func qualifyReaderMember(ctx context.Context, cfg Config, template *pgx.ConnConfig, writer physicalIdentity, index int, member ReaderMember, parsedValidator pgconn.ValidateConnectFunc) (physicalReaderMember, error) {
 	config := template.Copy()
 	originalDialFunc := config.DialFunc
 	dialTracker := &bootstrapDialTracker{}
@@ -77,6 +77,12 @@ func qualifyReaderMember(ctx context.Context, cfg Config, template *pgx.ConnConf
 	if err != nil {
 		return physicalReaderMember{}, errors.Join(fmt.Errorf("reader member connect: %w", err), dialTracker.closeAll())
 	}
+	if cfg.ReaderRoleAttestor != nil {
+		if err := cfg.ReaderRoleAttestor(ctx, conn.PgConn()); err != nil {
+			closeErr := conn.Close(ctx)
+			return physicalReaderMember{}, errors.Join(fmt.Errorf("reader member role attestation: %w", err), closeErr, dialTracker.closeAll())
+		}
+	}
 	id, readErr := readPhysicalPGX(ctx, conn)
 	var serverAddress string
 	if readErr == nil {
@@ -89,7 +95,8 @@ func qualifyReaderMember(ctx context.Context, cfg Config, template *pgx.ConnConf
 		return physicalReaderMember{}, err
 	}
 	config.DialFunc = originalDialFunc
-	config.ValidateConnect = memberValidator(writer, id.incarnation, physicalAddresses)
+	config.ValidateConnect = attestThenValidate(cfg.ReaderRoleAttestor,
+		validateThenValidate(parsedValidator, memberValidator(writer, id.incarnation, physicalAddresses)))
 	pool := stdlib.OpenDB(*config)
 	maxOpen := cfg.ReadMaxOpenConns / len(cfg.ReadMembers)
 	if index < cfg.ReadMaxOpenConns%len(cfg.ReadMembers) {

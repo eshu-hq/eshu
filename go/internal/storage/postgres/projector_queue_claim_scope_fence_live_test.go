@@ -231,7 +231,7 @@ func seedBusyScopeProof(t *testing.T, database *sql.DB) {
 	})
 }
 
-// openBoundedLockPool opens a pool on the proof schema whose sessions give up
+// openBoundedLockPool opens a pool on the proof database whose sessions give up
 // on a row lock after 5 s, so a claim that waits fails instead of hanging.
 func openBoundedLockPool(t *testing.T, database *sql.DB, dsn string) *sql.DB {
 	t.Helper()
@@ -239,7 +239,9 @@ func openBoundedLockPool(t *testing.T, database *sql.DB, dsn string) *sql.DB {
 	if err := database.QueryRow("SHOW search_path").Scan(&searchPath); err != nil {
 		t.Fatalf("read search_path: %v", err)
 	}
-	bounded, err := sql.Open("pgx", withDSNParam(withDSNParam(dsn, "search_path="+strings.TrimSpace(searchPath)), "lock_timeout=5000"))
+	bounded, err := sql.Open("pgx", withDSNParam(withDSNParam(
+		proofTargetDSN(context.Background(), t, database, dsn),
+		"search_path="+strings.TrimSpace(searchPath)), "lock_timeout=5000"))
 	if err != nil {
 		t.Fatalf("open bounded pool: %v", err)
 	}

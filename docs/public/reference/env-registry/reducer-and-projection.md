@@ -23,9 +23,11 @@ The reducer, projector, workflow coordinator, push hooks, and semantic providers
 | `ESHU_WORKFLOW_COORDINATOR_GCP_FRESHNESS_CLAIM_LEASE_DURATION` | duration | `5m` | Claim lease duration for GCP freshness trigger handoff (#4576). |
 | `ESHU_WORKFLOW_COORDINATOR_HEARTBEAT_INTERVAL` | duration | — | Heartbeat interval for claim owners. |
 | `ESHU_WORKFLOW_COORDINATOR_INCIDENT_FRESHNESS_CLAIM_LEASE_DURATION` | duration | `5m` | Claim lease duration for incident freshness trigger handoff (#9379). |
+| `ESHU_WORKFLOW_COORDINATOR_PUBLIC_ADVISORY_POLICY_JSON` | string | — | Operator-managed JSON policy with expected_revision, a higher desired_revision, and the complete set of advisory-owned vulnerability_intelligence instance IDs. Blank leaves public advisory registration disabled. Each selected instance must explicitly declare public_advisory_targets; each public target requires scope_id and max_age_seconds (1 to 2592000). A startup-attested Postgres control role contract is required. |
 | `ESHU_WORKFLOW_COORDINATOR_REAP_INTERVAL` | duration | — | Expired-claim reaping interval. |
 | `ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL` | duration | `30s` | Workflow state reconciliation interval. |
 | `ESHU_WORKFLOW_COORDINATOR_RUN_RECONCILE_INTERVAL` | duration | `30s` | Run-level reconciliation interval. |
+| `ESHU_WORKFLOW_COORDINATOR_SCANNER_IMAGE_DISCOVERY_POLICY_JSON` | string | — | Revisioned JSON policy for scanner running-image discovery. Blank disables derivation; an explicit mode is disabled, local, or hosted. Local mode requires exact source scope IDs, and hosted mode requires a configured tenant boundary. |
 | `ESHU_WORKFLOW_COORDINATOR_TENANT_BOUNDARY_JSON` | string | — | JSON tenant boundary configuration. |
 | `ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_AGE` | duration | `720h` | How long the active-mode coordinator keeps a completed or failed_terminal workflow_work_items row before retention deletes it (#8829); on by default, 0 turns retention off, otherwise at least 48h. Deleted history cannot be restored. |
 | `ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_BATCH_SIZE` | int | `1000` | Rows one retention batch transaction examines and may delete; 1 to 10000. |

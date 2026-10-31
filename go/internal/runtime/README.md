@@ -23,7 +23,7 @@ flowchart TB
 
   subgraph runtime["internal/runtime"]
     LC["LoadConfig\nNewLifecycle"]
-    DS["OpenPostgres\nOpenNeo4jDriver\nLoadGraphBackend"]
+    DS["OpenPostgresForWorkload\nOpenNeo4jDriver\nLoadGraphBackend"]
     AS["NewStatusAdminServer\nNewStatusAdminMux\nNewAdminMux"]
     RP["LoadRetryPolicyConfig"]
     AK["ResolveAPIKey"]
@@ -51,7 +51,7 @@ The call sequence for a typical long-running binary (`cmd/ingester`,
 flowchart TB
   A["main: telemetry.NewBootstrap"] --> B["LoadConfig(serviceName)"]
   B --> C["ConfigureMemoryLimit(logger)"]
-  C --> D["OpenPostgres(ctx, os.Getenv)"]
+  C --> D["OpenPostgresForWorkload(ctx, os.Getenv, PostgresWorkloadRuntime)"]
   D --> E["OpenNeo4jDriver(ctx, os.Getenv)\nor LoadGraphBackend + nornicdb path"]
   E --> F["LoadRetryPolicyConfig(os.Getenv, stage)"]
   F --> G["app.NewHostedWithStatusServer\n  -> NewLifecycle(cfg)\n  -> NewStatusAdminServer(cfg, reader, opts...)"]
@@ -108,7 +108,21 @@ ComposeLifecycles in `internal/app` chains multiple Lifecycle values
   `ESHU_NEO4J_URI` / `NEO4J_URI`, `ESHU_NEO4J_USERNAME` / `NEO4J_USERNAME`,
   `ESHU_NEO4J_PASSWORD` / `NEO4J_PASSWORD`, and optional pool knobs
 - `OpenPostgres(ctx, getenv)` — opens, tunes via `ConfigurePostgresPool`, and
-  pings a Postgres connection; returns `*sql.DB`
+  pings a Postgres connection for legacy callers; rejects a configured role
+  contract before connecting
+- `OpenPostgresForWorkload` / `OpenPostgresForWorkloadWithSessionHooks` — bind a
+  compiled workload and writer, control, bootstrap, or advisory producer route to the protected
+  database contract on each physical connection before hooks or application
+  SQL; nil contract preserves the legacy path except an explicit coordinator
+  scanner policy or the advisory producer route, which require authority attestation.
+  The advisory producer uses only `ESHU_POSTGRES_PRODUCER_DSN`; it never falls
+  back to the ordinary runtime writer credential.
+- `LoadPostgresRoleContract` / `PostgresRoleContract.Attest` — parse expected
+  revision, database, login/effective roles, and contract ID from
+  `ESHU_POSTGRES_ROLE_CONTRACT_JSON`; the security-invoker database checker
+  verifies actual session identity and the bootstrap-owned privilege profile
+- `ESHU_POSTGRES_ROLE_BOUNDARY_REQUIRED=true` is a required-mode assertion
+  emitted by Helm; an empty contract Secret value then fails before any dial
 - `OpenNeo4jDriver(ctx, getenv)` — opens a Neo4j/NornicDB Bolt driver,
   applies `ApplyNeo4jConfig`, verifies connectivity; returns
   `neo4jdriver.DriverWithContext`

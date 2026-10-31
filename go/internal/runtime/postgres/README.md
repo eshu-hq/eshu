@@ -15,8 +15,7 @@ uses exactly one member. Native multi-host reader candidates without that
 inventory retain guarded cursor, row, and single-connection snapshot reads,
 but not snapshot sets: PostgreSQL exported snapshots cannot cross servers.
 Their request boundary must call
-`ContextWithCheckpoint` after authorization and before business SQL. A request with no checkpoint fails
-before borrowing a reader.
+`ContextWithCheckpoint` after authorization and before business SQL. A request with no checkpoint fails before borrowing a reader.
 
 ## Configuration
 
@@ -117,10 +116,7 @@ business read. Pool metrics aggregate all reader members. In legacy mode,
 guarded borrows and readiness checks own one permit from the reader budget
 until their connection is returned. If a legacy snapshot set's permit wait
 expires while the request remains live, it releases its partial reservation
-and reports a typed capacity error. The
-code-topic handler may
-then make one single-statement attempt through the same fenced reader and
-checkpoint. Dial, identity, replay, snapshot setup, and business-query errors
+and reports a typed capacity error. The code-topic handler may then make one single-statement attempt through the same fenced reader and checkpoint. Dial, identity, replay, snapshot setup, and business-query errors
 do not trigger that fallback. The legacy permit wait retains the configured
 reader deadline (two seconds by default), so a contended fallback is not a
 subsecond-latency claim.
@@ -288,9 +284,11 @@ follow the same rule, including rollback and Close. Existing closed `role`,
 `stage`, and `outcome` telemetry identifies failed work without endpoint,
 SQL, or driver text in labels.
 
-The application database role needs `EXECUTE` on `pg_control_system()` on the
-writer and reader; grant that specific function if a hardened role revokes its
-public default. No superuser role, automatic grant, or DDL is required.
+The application database roles need `EXECUTE` on
+`pg_catalog.pg_control_system()` on both writer and reader connections. A
+database administrator must grant that exact function before installing a
+role-bound policy; PostgreSQL restricts it by default. The fixed role ACL
+inventory checks the grant. Do not grant `pg_monitor` or a superuser role.
 
 This contract assumes one static physical replication stream and redundant
 routes to its accepted primary. A scalar LSN and system identifier do not

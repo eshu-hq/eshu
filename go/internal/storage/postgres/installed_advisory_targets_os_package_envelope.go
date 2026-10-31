@@ -68,6 +68,9 @@ func (s FactStore) ListOSPackageAdvisoryFactEnvelopes(
 	if s.database == nil {
 		return nil, 0, false, fmt.Errorf("fact store database is required")
 	}
+	if s.impactStaticSnapshot {
+		return nil, 0, false, fmt.Errorf("protected impact coverage unavailable: legacy OS package bridge has no scan receipt authority")
+	}
 	ecosystems = cleanStringFilterValues(ecosystems)
 	packageIDs = cleanStringFilterValues(packageIDs)
 	if len(ecosystems) == 0 || len(packageIDs) == 0 {

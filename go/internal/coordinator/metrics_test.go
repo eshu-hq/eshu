@@ -12,6 +12,8 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+
+	"github.com/eshu-hq/eshu/go/internal/coordinator/schedule"
 )
 
 func TestNewMetricsPublishesReconcileMetricsAndGauges(t *testing.T) {
@@ -100,6 +102,71 @@ func TestNewMetricsPublishesReconcileMetricsAndGauges(t *testing.T) {
 	}
 	if got := coordinatorGaugeValue(t, rm, MetricPrefix+"last_reconciled_runs"); got != 4 {
 		t.Fatalf("last reconciled runs = %d, want 4", got)
+	}
+}
+
+func TestNewMetricsPublishesScannerDerivedPageMetrics(t *testing.T) {
+	t.Parallel()
+
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	recorder, err := NewMetrics(provider.Meter("test"))
+	if err != nil {
+		t.Fatalf("NewMetrics() error = %v, want nil", err)
+	}
+
+	recorder.RecordScannerDerivedPage(context.Background(), ScannerDerivedPageObservation{
+		InsertedWorkItems: 2,
+		PageCandidates:    5,
+		Skipped: []schedule.DerivedTargetSkipEvidence{
+			{Reason: schedule.DerivedTargetSkipReasonAdmissionUnauthorized, SkippedCount: 2},
+			{Reason: schedule.DerivedTargetSkipReasonConflictingDuplicate, SkippedCount: 1},
+			{Reason: "", SkippedCount: 7},
+			{Reason: schedule.DerivedTargetSkipReasonBudgetExhausted, SkippedCount: 0},
+		},
+	})
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v, want nil", err)
+	}
+
+	if got := coordinatorCounterValue(t, rm, "eshu_dp_workflow_coordinator_scanner_derived_admitted_total", map[string]string{}); got != 2 {
+		t.Fatalf("scanner derived admitted total = %d, want 2", got)
+	}
+	gotReasons := map[string]int64{}
+	for _, scopeMetrics := range rm.ScopeMetrics {
+		for _, metricRecord := range scopeMetrics.Metrics {
+			if metricRecord.Name != "eshu_dp_workflow_coordinator_scanner_derived_skipped_total" {
+				continue
+			}
+			sum, ok := metricRecord.Data.(metricdata.Sum[int64])
+			if !ok {
+				t.Fatalf("metric %s data = %T, want metricdata.Sum[int64]", metricRecord.Name, metricRecord.Data)
+			}
+			for _, dp := range sum.DataPoints {
+				for _, attr := range dp.Attributes.ToSlice() {
+					if string(attr.Key) == "reason" {
+						gotReasons[attr.Value.AsString()] += dp.Value
+					}
+				}
+			}
+		}
+	}
+	wantReasons := map[string]int64{
+		schedule.DerivedTargetSkipReasonAdmissionUnauthorized: 2,
+		schedule.DerivedTargetSkipReasonConflictingDuplicate:  1,
+	}
+	if len(gotReasons) != len(wantReasons) {
+		t.Fatalf("scanner derived skipped reasons = %v, want %v", gotReasons, wantReasons)
+	}
+	for reason, want := range wantReasons {
+		if gotReasons[reason] != want {
+			t.Fatalf("scanner derived skipped reasons = %v, want %v", gotReasons, wantReasons)
+		}
+	}
+	if got := coordinatorGaugeValue(t, rm, "eshu_dp_workflow_coordinator_scanner_derived_backlog"); got != 3 {
+		t.Fatalf("scanner derived backlog = %d, want 3", got)
 	}
 }
 

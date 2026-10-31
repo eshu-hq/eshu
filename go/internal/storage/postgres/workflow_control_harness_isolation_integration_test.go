@@ -75,12 +75,20 @@ func TestWorkflowControlHarnessLeavesSharedSchemaUntouched(t *testing.T) {
 	if after := sharedReducerRowCounts(ctx, t, shared); after != before {
 		t.Fatalf("shared schema changed while the harness ran: before=%+v after=%+v, want identical", before, after)
 	}
-	var schema string
-	if err := db.QueryRowContext(ctx, `SELECT current_schema()`).Scan(&schema); err != nil {
-		t.Fatalf("read harness schema: %v", err)
+	// The harness bootstraps a disposable database per test, so its public
+	// schema is test-private. The isolation contract is that it never
+	// writes the shared database: prove that by database identity, which
+	// is stronger than the old schema-name check (a shared database could
+	// host a non-public schema too).
+	var harnessDB, sharedDB string
+	if err := db.QueryRowContext(ctx, `SELECT current_database()`).Scan(&harnessDB); err != nil {
+		t.Fatalf("read harness database: %v", err)
 	}
-	if schema == "public" {
-		t.Fatalf("harness runs in schema %q, want a schema of its own", schema)
+	if err := shared.QueryRowContext(ctx, `SELECT current_database()`).Scan(&sharedDB); err != nil {
+		t.Fatalf("read shared database: %v", err)
+	}
+	if harnessDB == sharedDB {
+		t.Fatalf("harness runs in shared database %q, want a database of its own", harnessDB)
 	}
 }
 

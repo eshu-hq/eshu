@@ -159,10 +159,12 @@ func TestSupplyChainImpactWriterPartialEvidenceSkipsRetractionLive(t *testing.T)
 
 func openReplaceSetLiveDB(t *testing.T) (context.Context, *sql.DB) {
 	t.Helper()
-	dsn := supplyChainImpactLiveDSN(t, "#6831 replace-set proof")
+	// Route the proof through the family switch explicitly; the disposable
+	// database itself resolves inside the opener.
+	_ = supplyChainImpactLiveDSN(t, "#6831 replace-set proof")
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	t.Cleanup(cancel)
-	db := openAdvisorySuppressionIsolatedDB(t, ctx, dsn)
+	db := openAdvisorySuppressionIsolatedDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 	replaceSetSeedScope(t, ctx, db)
 	return ctx, db

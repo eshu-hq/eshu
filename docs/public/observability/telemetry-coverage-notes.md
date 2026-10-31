@@ -101,3 +101,7 @@ which proved defined-but-never-registered instruments are a real failure
 class. In-flight adoption was [#3680](https://github.com/eshu-hq/eshu/issues/3680)
 (open, 2026-06-24), which lands per-collector envelope telemetry at the
 shared claimed-service dispatch seam.
+
+## Histogram Bucket Boundaries
+
+Bucket sets for `eshu_dp_cloud_resource_list_*` live in `go/internal/query/cloud_resources_metrics.go`, outside the coverage table's scope; omitted (#5548).

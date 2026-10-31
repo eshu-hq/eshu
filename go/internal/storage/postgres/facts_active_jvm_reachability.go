@@ -175,6 +175,10 @@ func (s FactStore) listActiveJVMReachabilityFactsPage(
 	cursorObservedAt *time.Time,
 	cursorFactID string,
 ) ([]facts.Envelope, error) {
+	query, err := s.protectedImpactStaticFactSQL(listActiveJVMReachabilityFactsQuery)
+	if err != nil {
+		return nil, err
+	}
 	var cursor any
 	if cursorObservedAt != nil {
 		cursor = cursorObservedAt.UTC()
@@ -182,7 +186,7 @@ func (s FactStore) listActiveJVMReachabilityFactsPage(
 
 	rows, err := s.database.QueryContext(
 		ctx,
-		listActiveJVMReachabilityFactsQuery,
+		query,
 		repositoryIDs,
 		apiPackages,
 		cursor,

@@ -7,7 +7,7 @@ package impact
 // applies suppression and pagination, then fetches JSON payloads for the bounded
 // page. Keeping payloads out of the canonical-key sorts avoids width-driven
 // spills while preserving source-owned finding truth and operator-only overlays.
-var ListFindingsQuery = `
+var listFindingsQueryTemplate = `
 WITH ` + supplyChainImpactRuntimeFilterCTE("$9", "$10", "$11", "$22", "$23") + `,
 source_candidates AS (
   SELECT fact.fact_id,
@@ -17,7 +17,7 @@ source_candidates AS (
          COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') AS suppression_state,
          COALESCE(NULLIF(fact.payload->>'priority_score', '')::int, 0) AS priority_score,
          ` + supplyChainImpactPayloadFindingIDPresentSQL + ` AS has_payload_finding_id,
-         ` + CanonicalFindingKeySQL + ` AS canonical_key
+         ` + supplyChainImpactProtectedSourceCanonicalKeySQL + ` AS canonical_key
   FROM fact_records AS fact
   JOIN ingestion_scopes AS scope
     ON scope.scope_id = fact.scope_id
@@ -25,10 +25,12 @@ source_candidates AS (
   JOIN scope_generations AS generation
     ON generation.scope_id = fact.scope_id
    AND generation.generation_id = fact.generation_id
+` + supplyChainImpactProtectedSourceJoinsSQL + `
   WHERE fact.fact_kind = $1
     AND fact.is_tombstone = FALSE
     AND generation.status = 'active'
     AND fact.scope_id <> '` + supplyChainImpactOperatorSuppressionScopeID + `'
+` + supplyChainImpactProtectedSourcePredicateSQL("$25", "$26", "$27", "$28", "$29", "$30", "$23", "$24") + `
     AND ($2 = '' OR fact.payload->>'cve_id' = $2)
     AND ($3 = '' OR fact.payload->>'package_id' = $3)
     AND ($4 = '' OR fact.payload->>'repository_id' = $4)
@@ -69,6 +71,7 @@ source_candidates AS (
           (COALESCE(cardinality($22::text[]), 0) = 0 AND COALESCE(cardinality($23::text[]), 0) = 0)
           OR fact.payload->>'repository_id' = ANY($22::text[])
           OR fact.scope_id = ANY($23::text[])
+          OR finding_class.source_class = 'derived'
         )
 ),
 operator_candidates AS (
@@ -170,3 +173,10 @@ ORDER BY
   CASE WHEN $18 = 'priority_score_asc' THEN page.priority_score END ASC,
   page.finding_id ASC
 `
+
+// ListFindingsQuery preserves legacy static reads when protected mode is off.
+var ListFindingsQuery = supplyChainImpactReadModeSQL(listFindingsQueryTemplate, false)
+
+// ListFindingsProtectedQuery requires current protected source authority before
+// selecting canonical winners and applying pagination.
+var ListFindingsProtectedQuery = supplyChainImpactReadModeSQL(listFindingsQueryTemplate, true)

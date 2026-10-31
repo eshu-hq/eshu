@@ -48,6 +48,41 @@ func (f *supplyChainReadinessWiringDB) QueryContext(
 			{"oci_registry:ghcr.io/acme", false},
 		}}, nil
 	}
+	// Advisory-gated publication is not in use here: no public advisory
+	// authority is registered, so the expected-authorities count is zero and
+	// the generation list is empty. Checked before the generic fact_records
+	// branch below, whose substring the list query's joins do not carry but
+	// the target CTEs might. Zero registrations keep the pass on static
+	// evidence alone; a registered set with a broken witness fail-closes in
+	// production and is covered by the live admission tests.
+	if strings.Contains(query, "FROM scanner_advisory_public_registrations") {
+		if strings.HasPrefix(strings.TrimSpace(query), "SELECT count(*)") {
+			return &crossScopeReadinessRows{rows: [][]any{{0}}}, nil
+		}
+		return &crossScopeReadinessRows{}, nil
+	}
+	// Authorized scan targets are absent too: no local-namespace target
+	// exists, and the current-target and receipt censuses are empty, so the
+	// targets load completes with nothing to publish.
+	if strings.Contains(query, "FROM scanner_image_targets WHERE authorization_namespace") {
+		return &crossScopeReadinessRows{rows: [][]any{{false}}}, nil
+	}
+	if strings.Contains(query, "FROM authorized ORDER BY scan_scope_id") {
+		return &crossScopeReadinessRows{}, nil
+	}
+	// The protected-policy engagement probe (#9299). No role policy is
+	// installed in this scenario, so protection reads disengaged and the
+	// handler keeps the plain static load exactly as before protection
+	// existed; the armed floor below is unaffected.
+	if strings.Contains(query, "FROM eshu_security.role_policy_state") {
+		return &crossScopeReadinessRows{}, nil
+	}
+	// Protected static branches (lane-expanded with the derived-scope and
+	// advisory-kind exclusion) answer empty like their legacy twins: the
+	// pass carries no advisory or derived facts in this scenario.
+	if strings.Contains(query, "fact.fact_kind NOT IN ('vulnerability.cve'") {
+		return &crossScopeReadinessRows{}, nil
+	}
 	// The shared cross-scope active-evidence read resolves nothing: every
 	// #8880 branch statement, the repository scope resolution, and the
 	// canonical identity page answer empty. Checked before the generic fact_records branch below, which the

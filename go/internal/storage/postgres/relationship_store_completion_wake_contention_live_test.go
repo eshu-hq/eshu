@@ -4,7 +4,7 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #8294 completion-wake contention on the full bootstrap schema: lock_timeout gives up as classified retryable 55P03 behind a held row and succeeds after release, the locking subquery's EvalPlanQual recheck drops a row a concurrent maintenance reopen moved to pending (sentinel reopened_at preserved), wake/maintenance-reopen/production-claim races over 20 changed items escape no raw deadlock and leave none succeeded, and wake outcomes emit eshu_dp_reducer_completion_wake_total (reopened then noop) plus eshu_dp_correlation_reopened_total; isolated schemas from ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN; about 12 s on local PostgreSQL 18 on 2026-10-19; enrolled in the live-postgres-readiness runner
+//eshu:readiness:reason #8294 completion-wake contention on the full bootstrap schema: lock_timeout gives up as classified retryable 55P03 behind a held row and succeeds after release, the locking subquery's EvalPlanQual recheck drops a row a concurrent maintenance reopen moved to pending (sentinel reopened_at preserved), wake/maintenance-reopen/production-claim races over 20 changed items escape no raw deadlock and leave none succeeded, and wake outcomes emit eshu_dp_reducer_completion_wake_total (reopened then noop) plus eshu_dp_correlation_reopened_total; disposable database from ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN; about 12 s on local PostgreSQL 18 on 2026-10-19; enrolled in the live-postgres-readiness runner
 //eshu:readiness:env ESHU_POSTGRES_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
 
 import (
@@ -28,11 +28,11 @@ func TestCompletionWakeLockTimeoutClassifiedLive(t *testing.T) {
 		t.Skip("set ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN to run the #8294 completion wake proof")
 	}
 	ctx := context.Background()
-	db, schema := openReducerFairnessDBWithSchema(t, ctx, dsn)
+	db, targetDSN := openReducerFairnessDBWithSchema(t, ctx, dsn)
 	w := seedFingerprintGateWorld(t, ctx, db)
 	upsertFingerprintGateDeploysFrom(t, ctx, db, w.b.genID, "repo-b-worker", "repo-a")
 
-	holder := openReducerFairnessClaimerDB(t, ctx, dsn, schema)
+	holder := openReducerFairnessClaimerDB(t, ctx, targetDSN)
 	holderTx, err := holder.BeginTx(ctx, nil)
 	if err != nil {
 		t.Fatalf("begin holder: %v", err)
@@ -44,7 +44,7 @@ func TestCompletionWakeLockTimeoutClassifiedLive(t *testing.T) {
 		t.Fatalf("hold duc-a row lock: %v", err)
 	}
 
-	store := completionWakeStore(openReducerFairnessClaimerDB(t, ctx, dsn, schema))
+	store := completionWakeStore(openReducerFairnessClaimerDB(t, ctx, targetDSN))
 	store.completionWakeLockTimeout = 300 * time.Millisecond
 	started := time.Now()
 	_, err = store.ReopenDeployableUnitCorrelationsForRepos(ctx, []string{"repo-a", "repo-b-worker"})
@@ -77,11 +77,11 @@ func TestCompletionWakeEvalPlanQualDropsReopenedRowLive(t *testing.T) {
 		t.Skip("set ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN to run the #8294 completion wake proof")
 	}
 	ctx := context.Background()
-	db, schema := openReducerFairnessDBWithSchema(t, ctx, dsn)
+	db, targetDSN := openReducerFairnessDBWithSchema(t, ctx, dsn)
 	w := seedFingerprintGateWorld(t, ctx, db)
 	upsertFingerprintGateDeploysFrom(t, ctx, db, w.b.genID, "repo-b-worker", "repo-a")
 
-	holder := openReducerFairnessClaimerDB(t, ctx, dsn, schema)
+	holder := openReducerFairnessClaimerDB(t, ctx, targetDSN)
 	holderTx, err := holder.BeginTx(ctx, nil)
 	if err != nil {
 		t.Fatalf("begin holder: %v", err)
@@ -93,7 +93,7 @@ func TestCompletionWakeEvalPlanQualDropsReopenedRowLive(t *testing.T) {
 		t.Fatalf("hold duc-a row lock: %v", err)
 	}
 
-	store := completionWakeStore(openReducerFairnessClaimerDB(t, ctx, dsn, schema))
+	store := completionWakeStore(openReducerFairnessClaimerDB(t, ctx, targetDSN))
 	store.completionWakeLockTimeout = 10 * time.Second
 	done := make(chan struct {
 		reopened int64
@@ -149,7 +149,7 @@ func TestCompletionWakeConcurrentWithMaintenanceAndClaimLive(t *testing.T) {
 		t.Skip("set ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN to run the #8294 completion wake proof")
 	}
 	ctx := context.Background()
-	db, schema := openReducerFairnessDBWithSchema(t, ctx, dsn)
+	db, targetDSN := openReducerFairnessDBWithSchema(t, ctx, dsn)
 	w := seedFingerprintGateWorld(t, ctx, db)
 	const items = 20
 	itemIDs := make([]string, 0, items)
@@ -165,9 +165,9 @@ func TestCompletionWakeConcurrentWithMaintenanceAndClaimLive(t *testing.T) {
 		repos = append(repos, fmt.Sprintf("repo-w%02d", i))
 	}
 
-	wakeDB := openReducerFairnessClaimerDB(t, ctx, dsn, schema)
-	maintDB := openReducerFairnessClaimerDB(t, ctx, dsn, schema)
-	claimDB := openReducerFairnessClaimerDB(t, ctx, dsn, schema)
+	wakeDB := openReducerFairnessClaimerDB(t, ctx, targetDSN)
+	maintDB := openReducerFairnessClaimerDB(t, ctx, targetDSN)
+	claimDB := openReducerFairnessClaimerDB(t, ctx, targetDSN)
 	var wg sync.WaitGroup
 	errs := make(chan error, 64)
 	start := make(chan struct{})

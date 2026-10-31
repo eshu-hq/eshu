@@ -3,10 +3,6 @@
 
 package store
 
-//eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #9320 PostgreSQL 18.6 full-bootstrap proof that shared projection intent age is reopen-aware through the status snapshot: a five-day-old completed intent reopened by the admin repo_dependency reopen and one reopened by the rebuild reset each report an oldest age from the reopen, while a fresh five-day-old pending intent keeps its creation age; plus the reopen races: two reopeners on one intent reopen it once and keep the winner's stamp, and a drain racing a reopen leaves the intent completed with no pending age; about 2-4 s locally in isolated schemas
-//eshu:readiness:env ESHU_POSTGRES_DSN
-
 import (
 	"context"
 	"database/sql"

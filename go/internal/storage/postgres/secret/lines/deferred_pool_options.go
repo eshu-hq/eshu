@@ -28,15 +28,15 @@ type PostgresOpener interface {
 // which read the DSN and pool bounds from the environment.
 type RuntimePostgresOpener struct{}
 
-// Open opens a plain runtime pool (runtime.OpenPostgres).
+// Open opens a plain bootstrap pool with a per-physical owner-role check.
 func (RuntimePostgresOpener) Open(ctx context.Context, getenv func(string) string) (*sql.DB, error) {
-	return runtimecfg.OpenPostgres(ctx, getenv)
+	return runtimecfg.OpenPostgresForWorkload(ctx, getenv, runtimecfg.PostgresWorkloadBootstrap)
 }
 
 // OpenWithSessionHooks opens a runtime pool with per-connection hooks
-// (runtime.OpenPostgresWithSessionHooks).
+// after the bootstrap owner-role check.
 func (RuntimePostgresOpener) OpenWithSessionHooks(ctx context.Context, getenv func(string) string, hooks []inventory.ConnectHook, extraSessionSQL ...string) (*sql.DB, error) {
-	return runtimecfg.OpenPostgresWithSessionHooks(ctx, getenv, hooks, extraSessionSQL...)
+	return runtimecfg.OpenPostgresForWorkloadWithSessionHooks(ctx, getenv, runtimecfg.PostgresWorkloadBootstrap, hooks, extraSessionSQL...)
 }
 
 // BootstrapDeferredPoolOptions is the one composition of OpenDeferredWriterPool

@@ -75,7 +75,7 @@ func run(parent context.Context) error {
 		}()
 	}
 
-	db, err := runtimecfg.OpenPostgres(parent, os.Getenv)
+	db, err := runtimecfg.OpenPostgresForWorkload(parent, os.Getenv, runtimecfg.PostgresWorkloadRuntime)
 	if err != nil {
 		return err
 	}
@@ -340,7 +340,7 @@ func openSecretLinesLockPool(ctx context.Context, config secretLinesRepairConfig
 	if !config.Enabled {
 		return nil, nil
 	}
-	pool, err := runtimecfg.OpenPostgres(ctx, getenv)
+	pool, err := runtimecfg.OpenPostgresForWorkload(ctx, getenv, runtimecfg.PostgresWorkloadRuntime)
 	if err != nil {
 		return nil, err
 	}

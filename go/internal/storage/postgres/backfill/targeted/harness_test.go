@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -42,8 +43,11 @@ func targetedDiffReopenDomains() []string {
 
 func newTargetedDiffPair(t *testing.T) *targetedDiffPair {
 	t.Helper()
+	open := func(t *testing.T, dsn, prefix string) *sql.DB {
+		return openIsolatedBootstrapSchema(t, dsn, os.Getenv("ESHU_TARGETED_MAINTENANCE_PROOF_DISPOSABLE"), prefix)
+	}
 	return testfixtures.NewTargetedDiffPair(t, testfixtures.TargetedMaintenanceProofDSN(t),
-		openIsolatedBootstrapSchema, targetedDiffReopenDomains(),
+		open, targetedDiffReopenDomains(),
 		func(ctx context.Context, database *sql.DB, at time.Time) error {
 			return targetedDiffStore(database, at).BackfillAllRelationshipEvidence(ctx, nil, nil)
 		})
@@ -63,14 +67,15 @@ func targetedDiffStoreWithConfig(database db.ExecQueryer, now time.Time, batchSi
 	return store
 }
 
-func openIsolatedBootstrapSchema(t *testing.T, dsn, prefix string) *sql.DB {
+func openIsolatedBootstrapSchema(t *testing.T, dsn, optIn, prefix string) *sql.DB {
 	t.Helper()
-	return postgresproof.OpenIsolatedSchema(t, dsn, prefix, func(ctx context.Context, database *sql.DB) error {
+	_, database := postgresproof.OpenDisposableBootstrapDatabase(t, dsn, optIn, 5*time.Minute, func(ctx context.Context, database *sql.DB) error {
 		if err := postgres.ApplyBootstrap(ctx, postgres.SQLDB{DB: database}); err != nil {
 			return fmt.Errorf("apply bootstrap schema: %w", err)
 		}
 		return nil
 	})
+	return database
 }
 
 type hookedDB struct {

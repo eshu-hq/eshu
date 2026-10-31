@@ -4,7 +4,7 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #8283 pass-vs-claim-vs-ACK double-pass interleave: pass A snapshots the changed-evidence listing, pass B reopens and commits, a worker claims, pass A's resumed reopen UPDATE is a status-guard no-op, the worker's claim-fenced success write lands and its ACK succeeds, the next pass leaves the unchanged item succeeded, and a later foreign change re-opens it; isolated schema from ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN; 2.6 s on local PostgreSQL 18.6 on 2026-10-17, also run under -race; enrolled in the live-postgres-readiness runner
+//eshu:readiness:reason #8283 pass-vs-claim-vs-ACK double-pass interleave: pass A snapshots the changed-evidence listing, pass B reopens and commits, a worker claims, pass A's resumed reopen UPDATE is a status-guard no-op, the worker's claim-fenced success write lands and its ACK succeeds, the next pass leaves the unchanged item succeeded, and a later foreign change re-opens it; disposable database from ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN; 2.6 s on local PostgreSQL 18.6 on 2026-10-17, also run under -race; enrolled in the live-postgres-readiness runner
 //eshu:readiness:env ESHU_POSTGRES_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
 
 import (
@@ -34,16 +34,16 @@ import (
 //  7. a foreign change after that is not lost: the next pass reopens it.
 //
 // Pass A holds its snapshot on its own single-connection handle while every
-// other step runs on a second handle against the same isolated schema, so the
-// overlap is a real database interleave, not pool serialization.
+// other step runs on a second handle against the same disposable database,
+// so the overlap is a real database interleave, not pool serialization.
 func TestDeployableUnitReopenFingerprintInterleavePassVsClaimVsAckVsWriteLive(t *testing.T) {
 	dsn := reducerDomainFairnessDSN()
 	if dsn == "" {
 		t.Skip("set ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN to run the #8283 reopen interleave proof")
 	}
 	ctx := context.Background()
-	dbA, schemaName := openReducerFairnessDBWithSchema(t, ctx, dsn)
-	dbB := openReducerFairnessClaimerDB(t, ctx, dsn, schemaName)
+	dbA, targetDSN := openReducerFairnessDBWithSchema(t, ctx, dsn)
+	dbB := openReducerFairnessClaimerDB(t, ctx, targetDSN)
 	w := seedFingerprintGateWorld(t, ctx, dbB)
 
 	// A re-run deployment_mapping appends a row under scope B's already-active

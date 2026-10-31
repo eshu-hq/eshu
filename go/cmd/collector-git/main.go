@@ -83,7 +83,7 @@ func run(parent context.Context) error {
 	// fails (see internal/runtime OrphanReaper).
 	runtimecfg.StartOrphanReaper(parent, logger)
 
-	db, err := runtimecfg.OpenPostgres(parent, os.Getenv)
+	db, err := runtimecfg.OpenPostgresForWorkload(parent, os.Getenv, runtimecfg.PostgresWorkloadRuntime)
 	if err != nil {
 		return err
 	}

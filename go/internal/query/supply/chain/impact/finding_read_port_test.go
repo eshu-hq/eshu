@@ -13,6 +13,7 @@ import (
 
 type rejectingImpactReader struct {
 	queries int
+	begins  int
 	err     error
 }
 
@@ -30,8 +31,9 @@ type rejectingImpactRow struct{ err error }
 
 func (r rejectingImpactRow) Scan(...any) error { return r.err }
 
-func (*rejectingImpactReader) BeginReadOnlySnapshot(context.Context) (db.ReadTransaction, error) {
-	return nil, errors.New("snapshot not needed")
+func (r *rejectingImpactReader) BeginReadOnlySnapshot(context.Context) (db.ReadTransaction, error) {
+	r.begins++
+	return nil, r.err
 }
 
 type findingThenRejectingImpactReader struct {
@@ -117,8 +119,8 @@ func TestImpactExplanationGuardedReadPort(t *testing.T) {
 	guard := &rejectingImpactReader{err: want}
 	store := NewPostgresFindingStoreWithReadStore(guard, false)
 	_, err := store.ExplainSupplyChainImpact(t.Context(), ExplanationFilter{FindingID: "finding:abc"})
-	if !errors.Is(err, want) || guard.queries != 1 {
-		t.Fatalf("error %v, guarded queries %d; want stale reader and one query", err, guard.queries)
+	if !errors.Is(err, want) || guard.begins != 1 || guard.queries != 0 {
+		t.Fatalf("error %v, snapshot starts %d, guarded queries %d; want stale reader before business SQL", err, guard.begins, guard.queries)
 	}
 }
 
