@@ -19,31 +19,34 @@ import (
 
 type scannerResultMembershipDB struct {
 	rows             [][]any
-	execQueries      []string
+	queries          []string
 	requestedFactIDs []string
 }
 
 func (f *scannerResultMembershipDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
-	if query != scannerResultFactMembershipQuery || len(args) != 3 {
+	f.queries = append(f.queries, query)
+	switch query {
+	case scannerResultFactMembershipQuery:
+		if len(args) != 3 {
+			return nil, errors.New("unexpected scanner result query")
+		}
+		ids, ok := args[2].([]string)
+		if !ok {
+			return nil, errors.New("scanner result query did not filter emitted IDs")
+		}
+		f.requestedFactIDs = append([]string(nil), ids...)
+		return &queueFakeRows{rows: f.rows}, nil
+	case scannerResultPolicyPinsQuery:
+		return &queueFakeRows{rows: [][]any{{int64(9), "11111111-1111-1111-1111-111111111111"}}}, nil
+	case scannerResultCommitQuery:
+		return &queueFakeRows{rows: [][]any{{int64(1), int64(len(f.rows))}}}, nil
+	default:
 		return nil, errors.New("unexpected scanner result query")
 	}
-	ids, ok := args[2].([]string)
-	if !ok {
-		return nil, errors.New("scanner result query did not filter emitted IDs")
-	}
-	f.requestedFactIDs = append([]string(nil), ids...)
-	return &queueFakeRows{rows: f.rows}, nil
 }
 
 func (f *scannerResultMembershipDB) ExecContext(_ context.Context, query string, _ ...any) (sql.Result, error) {
-	f.execQueries = append(f.execQueries, query)
-	if query == scannerResultReceiptInsertQuery {
-		return fakeRowsAffected{n: 1}, nil
-	}
-	if query == scannerResultFactAssociationsInsertQuery {
-		return fakeRowsAffected{n: int64(len(f.rows))}, nil
-	}
-	return nil, errors.New("unexpected scanner result write")
+	return nil, errors.New("scanner result commit must not use direct writes: " + query)
 }
 
 func TestScannerResultMembershipRequiresExactPersistedFacts(t *testing.T) {
@@ -90,15 +93,16 @@ func TestScannerResultMembershipRequiresExactPersistedFacts(t *testing.T) {
 			fake := &scannerResultMembershipDB{rows: test.rows}
 			err := writeScannerImageResult(context.Background(), fake, claim, receipt, test.expected)
 			if test.wantError {
-				if err == nil || len(fake.execQueries) != 0 {
-					t.Fatalf("write result = %v, writes = %d; want refusal before receipt", err, len(fake.execQueries))
+				if err == nil || len(fake.queries) != 1 {
+					t.Fatalf("write result = %v, queries = %d; want refusal before commit", err, len(fake.queries))
 				}
 				return
 			}
-			if err != nil || len(fake.requestedFactIDs) != len(test.expected) || len(fake.execQueries) != 2 ||
-				fake.execQueries[0] != scannerResultReceiptInsertQuery ||
-				fake.execQueries[1] != scannerResultFactAssociationsInsertQuery {
-				t.Fatalf("write result = %v, writes = %d; want receipt then exact associations", err, len(fake.execQueries))
+			if err != nil || len(fake.requestedFactIDs) != len(test.expected) || len(fake.queries) != 3 ||
+				fake.queries[0] != scannerResultFactMembershipQuery ||
+				fake.queries[1] != scannerResultPolicyPinsQuery ||
+				fake.queries[2] != scannerResultCommitQuery {
+				t.Fatalf("write result = %v, queries = %v; want membership, pins, then protected commit", err, fake.queries)
 			}
 		})
 	}

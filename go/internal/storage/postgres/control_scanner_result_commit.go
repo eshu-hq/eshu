@@ -25,22 +25,17 @@ SELECT fact_id,fact_kind,fencing_token,source_system,is_tombstone
 FROM fact_records
 WHERE scope_id=$1 AND generation_id=$2 AND fact_id=ANY($3::text[])`
 
-const scannerResultReceiptInsertQuery = `
-INSERT INTO scanner_image_scan_results
-(result_receipt_id,work_item_id,binding_id,scan_scope_id,scan_generation_id,
- claim_id,claim_fencing_token,claim_owner_id,completed_authority_vector,completed_at)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10)
-ON CONFLICT DO NOTHING`
+const scannerResultPolicyPinsQuery = `SELECT policy_revision, database_identity
+FROM eshu_security.role_policy_state WHERE singleton`
 
-const scannerResultFactAssociationsInsertQuery = `
-INSERT INTO scanner_image_scan_fact_associations
-(fact_id,result_receipt_id,scan_scope_id,scan_generation_id,fact_kind,
- payload_sha256,fencing_token)
-SELECT fact_id,$1,$2,$3,fact_kind,
-       encode(sha256(convert_to(payload::text,'UTF8')),'hex'),fencing_token
-FROM fact_records
-WHERE scope_id=$2 AND generation_id=$3 AND fact_id=ANY($4::text[])
-ON CONFLICT DO NOTHING`
+// scannerResultCommitQuery persists the receipt and its fact associations
+// through the protected definer entrypoint (#9468): the runtime writer
+// holds no protected DML, so direct inserts would fail closed here while
+// passing hermetic fakes. Explicit casts keep pgx from inferring text for
+// the jsonb, timestamptz, array, and uuid parameters.
+const scannerResultCommitQuery = `SELECT o_receipt_rows, o_association_rows
+FROM eshu_security.commit_scanner_result_v1(
+ $1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::timestamptz,$11::text[],$12,$13::uuid)`
 
 // CommitDerivedImageResult commits a claimed image generation, its protected
 // source receipt and exact fact membership, and claim completion atomically.
@@ -219,31 +214,48 @@ func writeScannerImageResult(ctx context.Context, tx db.ExecQueryer, mutation wo
 	receiptID := facts.StableID("scanner-image-scan-result", map[string]any{
 		"work_item_id": receipt.WorkItemID,
 	})
-	inserted, err := tx.ExecContext(ctx, scannerResultReceiptInsertQuery,
+	pinRows, err := tx.QueryContext(ctx, scannerResultPolicyPinsQuery)
+	if err != nil {
+		return fmt.Errorf("read scanner result policy pins: %w", err)
+	}
+	var revision int64
+	var identity string
+	if !pinRows.Next() {
+		_ = pinRows.Close()
+		return errors.New("scanner result policy pins missing")
+	}
+	if err := pinRows.Scan(&revision, &identity); err != nil {
+		_ = pinRows.Close()
+		return fmt.Errorf("read scanner result policy pins: %w", err)
+	}
+	if err := pinRows.Close(); err != nil {
+		return fmt.Errorf("read scanner result policy pins: %w", err)
+	}
+	commitRows, err := tx.QueryContext(ctx, scannerResultCommitQuery,
 		receiptID, receipt.WorkItemID, receipt.BindingID, receipt.ScanScopeID,
 		receipt.ScanGenerationID, receipt.ClaimID, receipt.ClaimFencingToken,
-		receipt.ClaimOwnerID, string(receipt.CompletedAuthorityVector), mutation.ObservedAt.UTC())
+		receipt.ClaimOwnerID, string(receipt.CompletedAuthorityVector),
+		mutation.ObservedAt.UTC(), factIDs, revision, identity)
 	if err != nil {
-		return fmt.Errorf("insert derived image scan receipt: %w", err)
+		return fmt.Errorf("commit derived image scan result: %w", err)
 	}
-	if err := scannerResultRowsAffected(inserted, 1); err != nil {
-		return err
+	var receiptRows, associationRows int64
+	if !commitRows.Next() {
+		_ = commitRows.Close()
+		return errors.New("scanner result commit returned no row counts")
 	}
-	associated, err := tx.ExecContext(ctx, scannerResultFactAssociationsInsertQuery,
-		receiptID, receipt.ScanScopeID, receipt.ScanGenerationID, factIDs)
-	if err != nil {
-		return fmt.Errorf("associate derived image facts: %w", err)
+	if err := commitRows.Scan(&receiptRows, &associationRows); err != nil {
+		_ = commitRows.Close()
+		return fmt.Errorf("read scanner result commit row counts: %w", err)
 	}
-	return scannerResultRowsAffected(associated, int64(len(expected)))
-}
-
-func scannerResultRowsAffected(result interface{ RowsAffected() (int64, error) }, want int64) error {
-	got, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("read derived image result row count: %w", err)
+	if err := commitRows.Close(); err != nil {
+		return fmt.Errorf("read scanner result commit row counts: %w", err)
 	}
-	if got != want {
-		return fmt.Errorf("derived image result row count %d, want %d", got, want)
+	if receiptRows != 1 {
+		return fmt.Errorf("derived image scan receipt rows %d, want 1", receiptRows)
+	}
+	if associationRows != int64(len(expected)) {
+		return fmt.Errorf("derived image fact association rows %d, want %d", associationRows, len(expected))
 	}
 	return nil
 }

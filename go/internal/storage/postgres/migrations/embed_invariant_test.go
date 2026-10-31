@@ -177,13 +177,17 @@ import (
 // is byte-identical to the lane's pre-rebase files.
 // #9299 splits 241a's authority-epoch backfill into 241b (the five
 // INSERT ... SELECT seeds; DML half, #7961 split).
-const goldenBootstrapDefinitionsDigest = "3d9d4f0a015639274ab38d6349596abe1f3cbe81896bef986a6a1c99b5bd932b"
+// #9468 adds 270_scanner_result_commit.sql (commit_scanner_result_v1:
+// the protected receipt + association + attempt-stamp persist the
+// runtime writer cannot do directly; follows 269, the highest number
+// on main).
+const goldenBootstrapDefinitionsDigest = "d0e024daf9e4bf0a731258429f32314a088e7852039e41f41efad84729474a7c"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 294
+const goldenBootstrapDefinitionsCount = 295
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

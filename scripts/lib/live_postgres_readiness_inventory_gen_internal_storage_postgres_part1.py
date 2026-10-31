@@ -163,6 +163,9 @@ TABLE = {
         "go/internal/storage/postgres/control_scanner_discovery_scale_live_test.go": (
             "TestScannerDiscoveryScaleShapeLive",
         ),
+        "go/internal/storage/postgres/control_scanner_result_commit_live_test.go": (
+            "TestScannerResultCommitAdmitsAnalyzesCompletesLive",
+        ),
         "go/internal/storage/postgres/control_scanner_targets_tenant_live_test.go": (
             "TestScannerImageTargetHostedBoundaryAndGrantRevocationLive",
         ),
