@@ -12,7 +12,7 @@ fails on version drift in either direction and on built SDK modules with
 no recorded pin. Newer tags MUST NOT be substituted without that reviewed
 update):
 
-- `github.com/eshu-hq/eshu-sdk/collector v0.1.0-rc.5`
+- `github.com/eshu-hq/eshu-sdk/collector v0.2.0-rc.2`
 - `github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.10`
 
 Pin history: proxy-verified 2026-10-24 at collector/factschema
@@ -27,7 +27,9 @@ and to collector `rc.5` for the vault auth-role metadata allowlist
 `token_policy_name_fingerprints`; eshu-hq/eshu#8869, proxy-verified
 2026-10-28 via `go mod download`), and to factschema `rc.10` for the
 `vulnerability.source_snapshot` NVD coverage fields (eshu-hq/eshu#9435,
-proxy-verified 2026-10-28).
+proxy-verified 2026-10-28), and to collector `v0.2.0-rc.2`, retargeting the
+pseudo-version at `a663423f89` to the published tag (eshu-hq/eshu#9432 /
+eshu-hq/eshu#9730, proxy-verified 2026-10-31 via `go mod download`).
 The extracted port
 (`eshu-collector-sbom-attestation` main, observed 2026-10-27) still builds
 at collector/factschema `v0.1.0-rc.2` — that drift is open until the port
