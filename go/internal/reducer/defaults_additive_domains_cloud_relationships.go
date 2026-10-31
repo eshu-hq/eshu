@@ -63,6 +63,8 @@ func appendCloudRelationshipAdditiveDomains(definitions []DomainDefinition, hand
 			Instruments:               handlers.Instruments,
 			ScopeRepos:                handlers.ScopeRepos,
 			WorkloadLookup:            handlers.WorkloadSiblingLookup,
+			ECSDeclarationCensus:      handlers.ECSBindingDeclarationCensus,
+			ECSInstanceEnvironments:   handlers.ECSBindingInstanceEnvironments,
 		}
 		definitions = append(definitions, workloadCloud)
 	}

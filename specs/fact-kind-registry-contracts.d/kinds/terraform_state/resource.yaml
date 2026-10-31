@@ -7,7 +7,6 @@ payload_schema: sdk/go/factschema/schema/terraform_state_resource.v1.schema.json
 payload_schema_registered: true
 producers:
     - collector-terraform-state
-disposition: projector_only
-no_reducer_reason: Consumed by canonical projection; no reducer domain decodes it.
-no_reducer_evidence: projector consumption in go/internal/projector/canonical, go/internal/projector/decode, go/internal/projector/runtime
+reducer_bindings:
+    - reducer/reducer_handle_ecs_binding
 declaration: go/internal/facts/cloud/terraform_state.go:110

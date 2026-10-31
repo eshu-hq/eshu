@@ -22,7 +22,7 @@
 | `terraform_state_module` | `collector-terraform-state` | `none (projector_only)` | `GET /api/v0/iac/resources` | `sdk/go/factschema/schema/terraform_state_module.v1.schema.json` |
 | `terraform_state_output` | `collector-terraform-state` | `none (projector_only)` | `GET /api/v0/iac/resources` | `sdk/go/factschema/schema/terraform_state_output.v1.schema.json` |
 | `terraform_state_provider_binding` | `collector-terraform-state` | `none (projector_only)` | `GET /api/v0/iac/resources` | `sdk/go/factschema/schema/terraform_state_provider_binding.v1.schema.json` |
-| `terraform_state_resource` | `collector-terraform-state` | `none (projector_only)` | `GET /api/v0/iac/resources` | `sdk/go/factschema/schema/terraform_state_resource.v1.schema.json` |
+| `terraform_state_resource` | `collector-terraform-state` | `reducer/reducer_handle_ecs_binding` | `GET /api/v0/iac/resources` | `sdk/go/factschema/schema/terraform_state_resource.v1.schema.json` |
 | `terraform_state_snapshot` | `collector-terraform-state` | `none (projector_only)` | `GET /api/v0/iac/resources` | `sdk/go/factschema/schema/terraform_state_snapshot.v1.schema.json` |
 | `terraform_state_tag_observation` | `collector-terraform-state` | `none (projector_only)` | `GET /api/v0/iac/resources` | `sdk/go/factschema/schema/terraform_state_tag_observation.v1.schema.json` |
 | `terraform_state_warning` | `collector-terraform-state` | `none (unconsumed)` | `GET /api/v0/iac/resources` | `sdk/go/factschema/schema/terraform_state_warning.v1.schema.json` |

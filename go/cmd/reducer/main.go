@@ -342,12 +342,18 @@ func buildReducerService(
 		GCPCloudResourceEdgeWriter:            graphWriters.gcpCloudResourceEdge,
 		AzureCloudResourceEdgeWriter:          graphWriters.azureCloudResourceEdge,
 		WorkloadCloudRelationshipEdgeWriter:   graphWriters.workloadCloudRelationshipEdge,
-		SecurityGroupEndpointNodeWriter:       graphWriters.securityGroupEndpointNode,
-		SecurityGroupRuleNodeWriter:           graphWriters.securityGroupReachability,
-		SecurityGroupReachabilityWriter:       graphWriters.securityGroupReachability,
-		IAMEscalationEdgeWriter:               graphWriters.iamEscalationEdge,
-		IAMCanPerformEdgeWriter:               graphWriters.iamCanPerformEdge,
-		ObservabilityCoverageEdgeWriter:       graphWriters.observabilityCoverageEdge,
+		// Workload↔ECS-service binding (#9661): the global declaration
+		// census plus per-workload instance environments feed the
+		// declaration-binding section of the workload-cloud handler. A nil
+		// graphReader disables the instance leg; the census always reads.
+		ECSBindingDeclarationCensus:     postgres.NewECSBindingDeclarationCensusStore(database, 0),
+		ECSBindingInstanceEnvironments:  neo4jECSBindingInstanceLookup{reader: graphReader},
+		SecurityGroupEndpointNodeWriter: graphWriters.securityGroupEndpointNode,
+		SecurityGroupRuleNodeWriter:     graphWriters.securityGroupReachability,
+		SecurityGroupReachabilityWriter: graphWriters.securityGroupReachability,
+		IAMEscalationEdgeWriter:         graphWriters.iamEscalationEdge,
+		IAMCanPerformEdgeWriter:         graphWriters.iamCanPerformEdge,
+		ObservabilityCoverageEdgeWriter: graphWriters.observabilityCoverageEdge,
 		// ProjectedSourceLedger (issue #4858, #4881) is shared by the AWS,
 		// Azure, GCP relationship, observability-coverage, and
 		// security-group-reachability handlers above; each handler keys its

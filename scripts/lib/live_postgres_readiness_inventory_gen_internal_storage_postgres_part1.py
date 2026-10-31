@@ -200,6 +200,12 @@ TABLE = {
         "go/internal/storage/postgres/drifted_bucket_skip_live_test.go": (
             "TestDriftedPathologicalBucketSkippedLive",
         ),
+        "go/internal/storage/postgres/ecs_binding_declaration_census_live_test.go": (
+            "TestECSBindingCensusReadsActiveDeclarationsLive",
+            "TestECSBindingCensusTruncationIsVisibleLive",
+            "TestECSBindingCensusPlanIsIndexBackedLive",
+            "TestECSBindingCensusEntityTypesMatchSQL",
+        ),
         "go/internal/storage/postgres/ecs_task_index_migration_live_test.go": (
             "TestECSRuntimeIndexFreshBootstrapLive",
             "TestECSRuntimeIndexUpgradeLive",

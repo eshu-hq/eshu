@@ -389,6 +389,11 @@ tests:
     class: postgres_ci
     reason: "#7228 overfull-band-bucket skip proof, enrolled in the live-postgres-readiness runner on ESHU_DRIFTED_BUCKET_SKIP_PROOF_DSN: a 307-member bucket nominates no pairs while the same repo's small-bucket pairs are unchanged, with skipped-bucket/max-bucket/pairs-considered stats. Local run passed in 1.3s on postgres:18 on 2026-10-08; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/ecs_binding_declaration_census_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9661 disposable PostgreSQL proof that the workload-to-ECS-service binding declaration census reads active-generation Terraform and Terragrunt content entities with verbatim metadata, excludes tombstones and superseded generations and other entity types and facts, reports truncation instead of silently subsetting, and plans index-backed with no sequential scan on fact_records at 25k-row scale; isolated temp tables per test, rolled back"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/ecs_task_index_migration_live_test.go
     tag: ~
     class: postgres_ci
