@@ -114,7 +114,17 @@ vulnerability_os_package AS (
           AND analysis.generation_id = os_package.generation_id
           AND (
               analysis.payload->>'image_digest' IN (SELECT digest FROM target_image_digests)
-              OR ($14 <> '' AND analysis.payload->>'image_reference' = $14)
+              -- The image_reference arm is withheld on multi-digest scopes
+              -- (issue #9691 P1): both generations of a rescan share one
+              -- reference, so a ref match alone would attribute another
+              -- image's packages to an old-digest request. The digest arm
+              -- above still pair-matches both-anchor requests.
+              OR ($14 <> '' AND analysis.payload->>'image_reference' = $14
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM scope_with_multiple_digests AS guarded
+                      WHERE guarded.scope_id = os_package.scope_id
+                  ))
           )
       )
        OR (

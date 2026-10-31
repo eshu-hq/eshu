@@ -97,9 +97,9 @@ ANALYZE scope_generations;
 		t.Fatalf("seed os_package rows: %v", err)
 	}
 
-	queryFamilies := func(digest string) map[string]int {
+	queryFamilies := func(digest, ref string) map[string]int {
 		t.Helper()
-		args := readinessArgsForQuery(ReadinessQuery{SubjectDigest: digest})
+		args := readinessArgsForQuery(ReadinessQuery{SubjectDigest: digest, ImageRef: ref})
 		rows, err := db.QueryContext(ctx, ListReadinessQuery, args...)
 		if err != nil {
 			t.Fatalf("query production shape for %s: %v", digest, err)
@@ -124,14 +124,32 @@ ANALYZE scope_generations;
 		return families
 	}
 
-	oldFamilies := queryFamilies(oldDigest)
+	oldFamilies := queryFamilies(oldDigest, "")
 	if got := oldFamilies["scanner_worker.analysis"]; got != 1 {
 		t.Fatalf("old digest families[scanner_worker.analysis] = %d, want 1 (its own digest-matching scan proof)", got)
 	}
 	if got := oldFamilies["vulnerability.os_package"]; got != 0 {
 		t.Fatalf("old digest families[vulnerability.os_package] = %d, want 0 (scope holds two digests, so scope-level attribution is withheld; got the new image's %d active packages)", got, newOSPackageCount)
 	}
-	newFamilies := queryFamilies(newDigest)
+	// Both generations name the same image_reference. A request carrying the
+	// OLD digest plus the shared ref must still withhold: the pair-keyed
+	// image_reference arm must not bypass the multi-digest guard (issue
+	// #9691 P1). A request carrying the NEW digest plus the shared ref
+	// counts the active generation through the digest arm.
+	const sharedRef = "registry.example.com/team/rescanned:prod"
+	// scanner_worker.analysis keeps its pre-existing digest-OR-ref union
+	// semantics (both generations' scans completed under the shared ref),
+	// so only the os_package sibling attribution is pinned here — that is
+	// the #9691 P1 finding's scope.
+	oldRefFamilies := queryFamilies(oldDigest, sharedRef)
+	if got := oldRefFamilies["vulnerability.os_package"]; got != 0 {
+		t.Fatalf("old digest+ref families[vulnerability.os_package] = %d, want 0 (ref arm must not attribute the new image's packages on a multi-digest scope)", got)
+	}
+	newRefFamilies := queryFamilies(newDigest, sharedRef)
+	if got := newRefFamilies["vulnerability.os_package"]; got != newOSPackageCount {
+		t.Fatalf("new digest+ref families[vulnerability.os_package] = %d, want %d (digest arm pair-matches the active generation)", got, newOSPackageCount)
+	}
+	newFamilies := queryFamilies(newDigest, "")
 	if got := newFamilies["scanner_worker.analysis"]; got != 1 {
 		t.Fatalf("new digest families[scanner_worker.analysis] = %d, want 1 (its own digest-matching scan proof)", got)
 	}
