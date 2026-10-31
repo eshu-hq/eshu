@@ -91,6 +91,12 @@ func TestScanMixRuntimeP2Shapes(t *testing.T) {
 			nil,
 			0,
 		},
+		{
+			"heredoc block key is absent",
+			"defmodule Demo.MixProject do\n  use Mix.Project\n\n  def project do\n    [\n      app: :demo,\n      version: \"0.1.0\",\n      description: \"\"\"\n      docs mention elixir: \"~> 9.9\",\n      more text\n      \"\"\",\n      deps: deps()\n    ]\n  end\nend\n",
+			nil,
+			0,
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

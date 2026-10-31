@@ -51,17 +51,33 @@ func mixRuntimeEvidence(source []byte, hasSyntaxError bool) shared.RuntimeEviden
 // scanMixRuntime keeps every literal double-quoted elixir: value with its
 // source line. Anything else on the key is fail-closed and counted: module
 // attributes, calls, charlists, and unterminated or escaped strings are never
-// evaluated, and Elixir code is never executed.
+// evaluated, key matches inside triple-quoted heredoc regions are never read,
+// and Elixir code is never executed.
 func scanMixRuntime(source []byte) shared.RuntimeEvidence {
 	evidence := shared.NewRuntimeEvidence(source)
 	if evidence.State == "over_cap" {
 		return evidence
 	}
 	lines := strings.Split(string(source), "\n")
+	heredoc := ""
 	for lineNo, line := range lines {
 		line = strings.TrimSuffix(line, "\r")
+		if heredoc != "" {
+			idx := mixHeredocCloser(line, heredoc)
+			if idx < 0 {
+				continue
+			}
+			line = line[idx+len(heredoc):]
+			heredoc = ""
+		}
 		if strings.TrimLeft(line, " \t") == "" || strings.HasPrefix(strings.TrimLeft(line, " \t"), "#") {
 			continue
+		}
+		if delim, pos, ok := mixEntersHeredoc(line); ok {
+			heredoc = delim
+			if match := mixElixirKeyPattern.FindStringIndex(line); match != nil && match[0] >= pos {
+				continue
+			}
 		}
 		match := mixElixirKeyPattern.FindStringIndex(line)
 		if match == nil || mixKeyInsideString(line, match[0]) || mixKeyAfterComment(line, match[0]) {
@@ -135,6 +151,77 @@ func mixKeyAfterComment(line string, match int) bool {
 		}
 	}
 	return false
+}
+
+// mixHeredocOpener finds the first triple-quoted heredoc opener in the code
+// portion of line: outside single-line strings and before any unquoted #.
+// Sigils stay out of scope for this reader. Returns the byte offset and the
+// delimiter, which is either triple double quotes or triple single quotes.
+func mixHeredocOpener(line string) (int, string, bool) {
+	inSingle, inDouble := false, false
+	for i := 0; i < len(line); i++ {
+		switch line[i] {
+		case '\\':
+			i++
+		case '\'':
+			if !inDouble {
+				if !inSingle && strings.HasPrefix(line[i:], "'''") {
+					return i, "'''", true
+				}
+				inSingle = !inSingle
+			}
+		case '"':
+			if !inSingle {
+				if !inDouble && strings.HasPrefix(line[i:], `"""`) {
+					return i, `"""`, true
+				}
+				inDouble = !inDouble
+			}
+		case '#':
+			if !inSingle && !inDouble {
+				return 0, "", false
+			}
+		}
+	}
+	return 0, "", false
+}
+
+// mixHeredocCloser finds the closing delimiter in a heredoc body line. An
+// escaped delimiter is heredoc content, not the end of the region.
+func mixHeredocCloser(line, delim string) int {
+	for i := 0; i+len(delim) <= len(line); i++ {
+		if line[i] == '\\' {
+			i++
+			continue
+		}
+		if strings.HasPrefix(line[i:], delim) {
+			return i
+		}
+	}
+	return -1
+}
+
+// mixEntersHeredoc reports whether line opens a triple-quoted heredoc that
+// does not close on the same line, with the opener offset. A single-line
+// heredoc never spans lines, so only an unclosed opener puts later lines
+// inside a heredoc region; the existing single-line guards already read keys
+// around a same-line pair.
+func mixEntersHeredoc(line string) (string, int, bool) {
+	base := 0
+	for base < len(line) {
+		pos, delim, ok := mixHeredocOpener(line[base:])
+		if !ok {
+			return "", 0, false
+		}
+		pos += base
+		rest := line[pos+len(delim):]
+		if idx := mixHeredocCloser(rest, delim); idx >= 0 {
+			base = pos + len(delim) + idx + len(delim)
+			continue
+		}
+		return delim, pos, true
+	}
+	return "", 0, false
 }
 
 // mixQuotedLiteral reads one double-quoted literal starting at rest[0]. A
