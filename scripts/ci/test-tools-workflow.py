@@ -56,7 +56,11 @@ class ToolsWorkflowTest(unittest.TestCase):
             self.assertTrue(gate["env"][name].startswith("/tmp/"))
         uses = [step.get("uses", "") for step in steps]
         self.assertNotIn("actions/setup-go@v6", uses)
-        self.assertIn("actions/cache@v4", uses)
+        self.assertTrue(
+            "actions/cache@v4" in uses
+            or "actions/cache/restore@v4" in uses,
+            "gate must wire a cache transport (full or restore-only)",
+        )
         runs = [step.get("run", "") for step in steps]
         self.assertFalse(any("install-apt-packages.sh" in run for run in runs))
 
