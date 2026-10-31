@@ -63,7 +63,10 @@ func readRecencyRows(t *testing.T, advisoryObserved time.Time, exploitObserved *
 		}
 		rows = append(rows, cov8ReadinessRow(sourceSnapshotFamilyMarker, 0, nil, false, nil, string(snapshotsJSON), nil, nil))
 	}
-	tx := &cov8ImpactTx{steps: []cov8ImpactStep{{rows: rows}}}
+	// The lane's protected read probes the authority layout before the
+	// business query, so script the probe present exactly as the sibling
+	// readiness tests do (base #9719 added this helper without it).
+	tx := &cov8ImpactTx{steps: []cov8ImpactStep{cov8AuthorityPresentStep(), {rows: rows}}}
 	store := NewPostgresReadinessStoreWithReadStore(&cov8ImpactReadStore{tx: tx})
 	snapshot, err := store.ReadSupplyChainImpactReadiness(context.Background(), ReadinessQuery{RepositoryID: "repo-1"})
 	if err != nil {
