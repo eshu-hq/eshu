@@ -17,7 +17,7 @@ RUNNER = Path("scripts/run-ifa-scheduled-proofs.sh")
 WORKFLOW = Path(".github/workflows/ifa-scheduled-proofs.yml")
 FRAGMENT = Path("specs/ci-pr-workflows.d/ifa-scheduled-proofs.yml")
 WORKFLOW_SHA256 = "9f8227dae6ad3b0b6f408a1d8c9ee1fc526280a5532b2f4d4718157f396b6896"
-RUNNER_SHA256 = "1f5b68e3b6a5c859234a6159ddaa73b2914d591154ad1e84ec5b9862700391cb"
+RUNNER_SHA256 = "a872c95921e011a6ce28ed98e057798314ffff02627be5f13868a3e103e7a207"
 TEST_PATTERN = re.compile(r"^func (Test\w+)\(", re.MULTILINE)
 SOURCE_PATHS = frozenset((
     "go/cmd/reducer/ifa_group_retry_live_test.go",
