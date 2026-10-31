@@ -24,7 +24,7 @@ shapes the target reducer release consumes.
 - `payloads/nvd_paging_golden.json` — two synthetic NVD response pages and the
   exact source-snapshot/CVE payloads expected from complete collection. The
   published SDK fixture must remain byte-identical to this canonical source.
-- `payloads/osv_severity_golden.json` — ten synthetic OSV records and the
+- `payloads/osv_severity_golden.json` — twelve synthetic OSV records and the
   `cvss_vector` and `severity_label` a conforming OSV collector writes for each
   (#9692). `cvss_vector` is the first well-formed `severity[]` entry of the
   highest CVSS version, CVSS_V4 then CVSS_V3; CVSS_V2 and unknown types never
