@@ -98,7 +98,9 @@ readback surfaces already carry the emitted documentation facts.
   package must not emit claim candidates, graph relationships, ownership truth,
   deployment truth, incident truth, or service truth.
 - A caller must provide a transcript engine; there is no default engine or
-  hosted provider fallback.
+  hosted provider fallback. The only in-tree backend is the local
+  deterministic DTMF decoder in `dtmf/` (#9729), suitable for explicit
+  QA-tier injection only.
 
 ## Related docs
 
