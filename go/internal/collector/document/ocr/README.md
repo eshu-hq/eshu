@@ -67,6 +67,23 @@ The engine tests prove bounded recognition, cap rejection, cancellation,
 determinism, template-free input handling, and end-to-end PII redaction
 before facts.
 
+Benchmark Evidence: `go test -run=NONE
+-bench=BenchmarkLocalEngineRecognize -benchmem
+./internal/collector/document/ocr -count=1` on backend `eshu-local-ocr`
+0.1.0 recognizes a two-word 232x44 fixture as 2 regions in ~0.12 ms/op at
+~106 KB/op and 90 allocs/op (down from ~10298 allocs/op via packed Pix
+sampling), bounded by the 8 MiB input, 8M pixel, 10s, and 512-region caps.
+
+No-Regression Evidence: `go test ./internal/collector/document/ocr
+-count=1` and `go test -race ./internal/collector/document/ocr
+./internal/collector/preflight/picture -count=1` pass, including the
+pre-existing extraction, skip, GIF first-frame, and redaction suites.
+
+No-Observability-Change: this backend emits no metric, span, log, or status
+row of its own; extraction throughput stays covered by the git-source
+collector metrics that cover documentation export throughput (see the
+collector documentation row in `docs/public/observability/telemetry-coverage.md`).
+
 ## Dependencies
 
 The package depends on `internal/collector/preflight/picture` for metadata-only

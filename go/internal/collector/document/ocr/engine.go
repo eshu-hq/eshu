@@ -170,6 +170,7 @@ type localWord struct {
 // through periodic context checks.
 func binarize(ctx context.Context, img image.Image, bounds image.Rectangle) ([][]bool, error) {
 	width, height := bounds.Dx(), bounds.Dy()
+	sampler := pixelSampler(img)
 	grid := make([][]bool, height)
 	for y := 0; y < height; y++ {
 		if y%256 == 0 {
@@ -179,13 +180,43 @@ func binarize(ctx context.Context, img image.Image, bounds image.Rectangle) ([][
 		}
 		row := make([]bool, width)
 		for x := 0; x < width; x++ {
-			r, g, b, _ := img.At(bounds.Min.X+x, bounds.Min.Y+y).RGBA()
-			luma := (299*r + 587*g + 114*b) / 1000
-			row[x] = luma < 0x8000
+			row[x] = sampler(bounds.Min.X+x, bounds.Min.Y+y)
 		}
 		grid[y] = row
 	}
 	return grid, nil
+}
+
+// pixelSampler returns a closure reporting whether a pixel is ink. Packed
+// image types read their Pix slices directly so recognition allocates per
+// row, not per pixel; other types fall back to the generic At path.
+func pixelSampler(img image.Image) func(x, y int) bool {
+	switch decoded := img.(type) {
+	case *image.RGBA:
+		return func(x, y int) bool {
+			offset := decoded.PixOffset(x, y)
+			return rgbIsInk(decoded.Pix[offset], decoded.Pix[offset+1], decoded.Pix[offset+2])
+		}
+	case *image.NRGBA:
+		return func(x, y int) bool {
+			offset := decoded.PixOffset(x, y)
+			return rgbIsInk(decoded.Pix[offset], decoded.Pix[offset+1], decoded.Pix[offset+2])
+		}
+	case *image.Gray:
+		return func(x, y int) bool {
+			return decoded.Pix[decoded.PixOffset(x, y)] < 0x80
+		}
+	default:
+		return func(x, y int) bool {
+			r, g, b, _ := img.At(x, y).RGBA()
+			return (299*r+587*g+114*b)/1000 < 0x8000
+		}
+	}
+}
+
+// rgbIsInk thresholds 8-bit samples at mid-gray.
+func rgbIsInk(r, g, b uint8) bool {
+	return (299*uint32(r)+587*uint32(g)+114*uint32(b))/1000 < 0x80
 }
 
 // lineBands groups rows with ink into bands, merging dotted-glyph gaps

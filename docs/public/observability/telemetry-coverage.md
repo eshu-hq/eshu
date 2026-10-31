@@ -715,6 +715,7 @@ Every collector family runs under the shared claimed-service worker harness (`go
 | Archive preflight | go/internal/collector/preflight/archive/*.go | `No-Observability-Change: git-source collector metrics cover archive preflight throughput` | collector preflight |
 | Export manifest preflight | go/internal/collector/preflight/manifest/*.go | `No-Observability-Change: git-source collector metrics cover export-manifest preflight throughput` | collector preflight |
 | Image preflight | go/internal/collector/preflight/picture/*.go | `No-Observability-Change: git-source collector metrics cover image preflight throughput` | collector preflight |
+| Local OCR engine | go/internal/collector/document/ocr/engine.go, go/internal/collector/document/ocr/font.go | `No-Observability-Change: default-off QA-tier OCR backend with no metric, span, log, or status row of its own and no network, subprocess, temp file, or cgo execution; recognized text reaches facts only through Extract redaction, and extraction throughput stays covered by git-source collector metrics (FactsEmitted, RepoSnapshotDuration, CollectorSnapshotStageDuration)` | collector documentation |
 | Media preflight and transcript engine | go/internal/collector/preflight/media/*.go, go/internal/collector/document/media/dtmf/*.go | `No-Observability-Change: git-source collector metrics cover media preflight throughput; the local deterministic DTMF transcript decoder behind the media Engine contract is pure in-process Goertzel analysis with bounded buffers and no metric, span, log, status, network, filesystem, or temp-file I/O of its own, and facts it helps emit stay counted by eshu_dp_facts_emitted_total and eshu_dp_facts_committed_total once a caller is wired (no caller wired in this slice)` | collector preflight, collector documentation |
 | PDF preflight | go/internal/collector/preflight/pdf/*.go | `No-Observability-Change: git-source collector metrics cover PDF preflight throughput` | collector preflight |
 | OOXML preflight | go/internal/collector/preflight/ooxml/*.go | `No-Observability-Change: git-source collector metrics cover OOXML preflight throughput` | collector preflight |
@@ -837,8 +838,7 @@ diagnose failure causes. Each row maps a canonical phase to its metric.
 <!-- eshu:metric:section=mcp-api-routes -->
 ## MCP / API Routes
 
-Every query API and MCP read route emits two metrics through one middleware (`go/internal/query/metrics/request.go`).
-One row covers the route catalog; per-route variants share the same `route` label dimension.
+Every query API and MCP read route emits two metrics through one middleware (`go/internal/query/metrics/request.go`). One row covers the route catalog; per-route variants share the same `route` label dimension.
 
 | stage | file:line | required metric name(s) | category |
 | --- | --- | --- | --- |

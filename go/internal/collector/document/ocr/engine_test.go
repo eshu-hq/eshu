@@ -161,10 +161,29 @@ func TestLocalEngineSkipsUnknownGlyphs(t *testing.T) {
 	}
 }
 
+func BenchmarkLocalEngineRecognize(b *testing.B) {
+	body := renderTextPNG(b, "OCR 123")
+	engine := NewLocalEngine(LocalOptions{})
+	img := Image{SourceName: "docs/bench.png", Format: picture.FormatPNG, Body: body}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := engine.Recognize(context.Background(), img); err != nil {
+			b.Fatalf("Recognize() error = %v, want nil", err)
+		}
+	}
+}
+
+// fixtureTB is the minimal testing surface shared by tests and benchmarks
+// that render image fixtures.
+type fixtureTB interface {
+	Helper()
+	Fatalf(string, ...any)
+}
+
 // renderTextPNG draws text with the engine template set at a fixed scale so
 // recognition tests exercise segmentation and matching instead of the font
 // data itself. Glyph advance is one cell; words split on wide gaps.
-func renderTextPNG(t *testing.T, text string) []byte {
+func renderTextPNG(t fixtureTB, text string) []byte {
 	t.Helper()
 
 	const scale = 4
@@ -223,7 +242,7 @@ func renderTextPNG(t *testing.T, text string) []byte {
 
 // solidBlockPNG returns an image with no template resemblance: one solid
 // ink rectangle that scores below every template.
-func solidBlockPNG(t *testing.T, width, height int) []byte {
+func solidBlockPNG(t fixtureTB, width, height int) []byte {
 	t.Helper()
 
 	img := image.NewRGBA(image.Rect(0, 0, width, height))
