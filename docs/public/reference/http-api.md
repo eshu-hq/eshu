@@ -355,7 +355,7 @@ session cookie is not a credential there at all. See
 [Hosted Governance](../operate/hosted-governance.md).
 
 When `ESHU_AUTH_RESOURCE_URI` and at least one OIDC bearer provider are
-configured, `cmd/mcp-server` also publishes an
+configured, the `eshu-mcp-server` satellite also publishes an
 [RFC 9728](https://www.rfc-editor.org/rfc/rfc9728.html) OAuth 2.0 Protected
 Resource Metadata document at the unauthenticated
 `/.well-known/oauth-protected-resource` route so OAuth-capable MCP clients can
