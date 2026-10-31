@@ -42,7 +42,7 @@ source_candidates AS (
 	"$10",
 	"$11",
 ) + `
-    AND ($12 = '' OR ` + supplyChainImpactSeverityBucketFactSQL + ` = $12)
+    AND ($12 = '' OR ` + severityBucketFactSQL + ` = $12)
     AND (
           $13 = ''
           OR fact.payload->>'detection_profile' = $13

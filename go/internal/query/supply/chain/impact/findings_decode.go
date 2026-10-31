@@ -181,14 +181,15 @@ func decodeSupplyChainImpactProvenance(payload map[string]any) *Provenance {
 		return nil
 	}
 	provenance := Provenance{
-		SelectedSeveritySource:     querycontract.StringVal(raw, "selected_severity_source"),
-		SelectedSeverityScore:      querycontract.FloatVal(raw, "selected_severity_score"),
-		SelectedSeverityVector:     querycontract.StringVal(raw, "selected_severity_vector"),
-		SelectedSeverityLabel:      querycontract.StringVal(raw, "selected_severity_label"),
-		SelectedFixedVersionSource: querycontract.StringVal(raw, "selected_fixed_version_source"),
-		SelectedRangeSource:        querycontract.StringVal(raw, "selected_range_source"),
-		SelectedEPSSScoreDate:      querycontract.StringVal(raw, "selected_epss_score_date"),
-		SelectedEPSSModelVersion:   querycontract.StringVal(raw, "selected_epss_model_version"),
+		SelectedSeveritySource:      querycontract.StringVal(raw, "selected_severity_source"),
+		SelectedSeverityScore:       querycontract.FloatVal(raw, "selected_severity_score"),
+		SelectedSeverityScoreSource: querycontract.StringVal(raw, "selected_severity_score_source"),
+		SelectedSeverityVector:      querycontract.StringVal(raw, "selected_severity_vector"),
+		SelectedSeverityLabel:       querycontract.StringVal(raw, "selected_severity_label"),
+		SelectedFixedVersionSource:  querycontract.StringVal(raw, "selected_fixed_version_source"),
+		SelectedRangeSource:         querycontract.StringVal(raw, "selected_range_source"),
+		SelectedEPSSScoreDate:       querycontract.StringVal(raw, "selected_epss_score_date"),
+		SelectedEPSSModelVersion:    querycontract.StringVal(raw, "selected_epss_model_version"),
 	}
 	provenance.AlternateSeverities = decodeAlternateSeverities(raw["alternate_severities"])
 	provenance.FixedVersionBranches = decodeFixedVersionBranches(raw["fixed_version_branches"])
@@ -202,6 +203,7 @@ func decodeSupplyChainImpactProvenance(payload map[string]any) *Provenance {
 func (p Provenance) isEmpty() bool {
 	return p.SelectedSeveritySource == "" &&
 		p.SelectedSeverityScore == 0 &&
+		p.SelectedSeverityScoreSource == "" &&
 		p.SelectedSeverityVector == "" &&
 		p.SelectedSeverityLabel == "" &&
 		p.SelectedFixedVersionSource == "" &&
@@ -225,10 +227,11 @@ func decodeAlternateSeverities(raw any) []AlternateSeverity {
 			continue
 		}
 		out = append(out, AlternateSeverity{
-			Source: querycontract.StringVal(row, "source"),
-			Score:  querycontract.FloatVal(row, "score"),
-			Vector: querycontract.StringVal(row, "vector"),
-			Label:  querycontract.StringVal(row, "label"),
+			Source:      querycontract.StringVal(row, "source"),
+			Score:       querycontract.FloatVal(row, "score"),
+			ScoreSource: querycontract.StringVal(row, "score_source"),
+			Vector:      querycontract.StringVal(row, "vector"),
+			Label:       querycontract.StringVal(row, "label"),
 		})
 	}
 	if len(out) == 0 {

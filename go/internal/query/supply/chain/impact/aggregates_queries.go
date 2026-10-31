@@ -22,7 +22,7 @@ source_candidates AS (
          ` + CanonicalFindingKeySQL + ` AS canonical_key,
          COALESCE(fact.payload->>'impact_status', '') AS impact_status,
          COALESCE(fact.payload->>'priority_bucket', '') AS priority_bucket,
-         ` + supplyChainImpactSeverityBucketFactSQL + ` AS severity_bucket,
+         ` + severityBucketFactSQL + ` AS severity_bucket,
          COALESCE(fact.payload->>'repository_id', '') AS repository_id,
          COALESCE(LOWER(fact.payload->>'ecosystem'), '') AS ecosystem
   FROM fact_records AS fact
@@ -49,7 +49,7 @@ source_candidates AS (
 	"$9",
 	"$10",
 ) + `
-    AND ($11 = '' OR ` + supplyChainImpactSeverityBucketFactSQL + ` = $11)
+    AND ($11 = '' OR ` + severityBucketFactSQL + ` = $11)
     AND (
           $12 = ''
           OR fact.payload->>'detection_profile' = $12

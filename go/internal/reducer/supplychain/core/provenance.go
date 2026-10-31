@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core/cvss"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
@@ -133,23 +134,25 @@ func buildAdvisoryProvenanceObservations(
 	observations := make([]AdvisoryProvenanceObservation, 0, len(cves)+len(packages))
 	matchedAffected := make(map[string]bool, len(packages))
 	for _, cve := range cves {
+		severity := cvss.DeriveSeverity(cve.CVSSScore, cve.CVSSVector, cve.SeverityLabel)
 		matched := matchAffectedForCVE(cve, packages, matchedAffected)
 		source := classifyAdvisorySource(cve.Source, cve.AdvisoryID)
 		if packageSource := classifyAffectedPackageAdvisorySource(matched); packageSource != "" {
 			source = packageSource
 		}
 		observations = append(observations, AdvisoryProvenanceObservation{
-			Source:          source,
-			AdvisoryID:      payloadcore.FirstNonBlank(cve.AdvisoryID, cve.CVEID),
-			SourceUpdatedAt: strings.TrimSpace(cve.SourceUpdatedAt),
-			SeverityScore:   cve.CVSSScore,
-			SeverityVector:  strings.TrimSpace(cve.CVSSVector),
-			SeverityLabel:   strings.TrimSpace(cve.SeverityLabel),
-			FixedVersions:   append([]string(nil), matched.FixedVersions...),
-			AffectedRange:   supplyChainAffectedRangeSummary(matched),
-			WithdrawnAt:     strings.TrimSpace(cve.WithdrawnAt),
-			CVEFactID:       cve.FactID,
-			AffectedFactID:  matched.FactID,
+			Source:              source,
+			AdvisoryID:          payloadcore.FirstNonBlank(cve.AdvisoryID, cve.CVEID),
+			SourceUpdatedAt:     strings.TrimSpace(cve.SourceUpdatedAt),
+			SeverityScore:       severity.Score,
+			SeverityScoreSource: derivedScoreSource(severity),
+			SeverityVector:      strings.TrimSpace(cve.CVSSVector),
+			SeverityLabel:       strings.TrimSpace(cve.SeverityLabel),
+			FixedVersions:       append([]string(nil), matched.FixedVersions...),
+			AffectedRange:       supplyChainAffectedRangeSummary(matched),
+			WithdrawnAt:         strings.TrimSpace(cve.WithdrawnAt),
+			CVEFactID:           cve.FactID,
+			AffectedFactID:      matched.FactID,
 		})
 	}
 	for _, pkg := range packages {
@@ -202,9 +205,14 @@ type AdvisoryProvenanceObservation struct {
 	AdvisoryID string
 	// SourceUpdatedAt records when the source last modified its advisory.
 	SourceUpdatedAt string
-	// SeverityScore is the source-reported CVSS base score. Zero means the
-	// source did not publish a score for this advisory.
+	// SeverityScore is the CVSS base score for this observation: the
+	// source-reported score, or the score computed from SeverityVector when the
+	// source published only a vector (#9693). Zero means neither exists.
 	SeverityScore float64
+	// SeverityScoreSource is cvss.ScoreSourceDerivedFromVector when
+	// SeverityScore was computed from SeverityVector, and empty when the source
+	// reported it.
+	SeverityScoreSource string
 	// SeverityVector is the source-reported CVSS vector string.
 	SeverityVector string
 	// SeverityLabel is the source-reported severity label (CRITICAL, HIGH, ...).
@@ -230,8 +238,11 @@ type AdvisoryProvenanceObservation struct {
 type AlternateSeverity struct {
 	Source string
 	Score  float64
-	Vector string
-	Label  string
+	// ScoreSource is cvss.ScoreSourceDerivedFromVector when Score was computed
+	// from Vector rather than reported by Source, and empty otherwise.
+	ScoreSource string
+	Vector      string
+	Label       string
 }
 
 // FixedVersionBranch records one source-attributed fixed-version branch.
@@ -256,8 +267,15 @@ type AdvisorySourceObservation struct {
 // ecosystem-aware source priority to a per-(cve_id, package_id) set of
 // observations.
 type advisoryProvenanceSelection struct {
-	SeveritySource       string
+	SeveritySource string
+	// IdentitySource is the source whose advisory id names the finding. It is
+	// set only by a source-reported score, the one rule that has always chosen
+	// the advisory identity. A derived score or a label sets SeveritySource but
+	// never IdentitySource, so deriving severity cannot move advisory_id,
+	// finding_id, or advisory-scoped suppression matching (#9693).
+	IdentitySource       string
 	SeverityScore        float64
+	SeverityScoreSource  string
 	SeverityVector       string
 	SeverityLabel        string
 	AlternateSeverities  []AlternateSeverity
@@ -273,7 +291,70 @@ type advisoryProvenanceSelection struct {
 	EvidenceFactIDs []string
 }
 
-// classifyAdvisorySource maps the source-fact payload's collector source name
-// and the advisory identifier prefix to a logical advisory source name. OSV
-// transports advisories from many upstream feeds (GHSA, PYSEC, MAL, RUSTSEC,
-// GO, etc.), so the prefix decides which logical source we attribute to.
+func supplyChainImpactProvenancePayload(finding SupplyChainImpactFinding) map[string]any {
+	out := map[string]any{}
+	if finding.EPSSScoreDate != "" {
+		out["selected_epss_score_date"] = finding.EPSSScoreDate
+	}
+	if finding.EPSSModelVersion != "" {
+		out["selected_epss_model_version"] = finding.EPSSModelVersion
+	}
+	if finding.SeveritySource != "" {
+		out["selected_severity_source"] = finding.SeveritySource
+	}
+	if finding.SeverityVector != "" {
+		out["selected_severity_vector"] = finding.SeverityVector
+	}
+	if finding.SeverityLabel != "" {
+		out["selected_severity_label"] = finding.SeverityLabel
+	}
+	if finding.CVSSScore != 0 {
+		out["selected_severity_score"] = finding.CVSSScore
+	}
+	if finding.SeverityScoreSource != "" {
+		out["selected_severity_score_source"] = finding.SeverityScoreSource
+	}
+	if finding.FixedVersionSource != "" {
+		out["selected_fixed_version_source"] = finding.FixedVersionSource
+	}
+	if finding.RangeSource != "" {
+		out["selected_range_source"] = finding.RangeSource
+	}
+	if alternates := serializeAlternateSeverities(finding.AlternateSeverities); len(alternates) > 0 {
+		out["alternate_severities"] = alternates
+	}
+	if branches := serializeFixedVersionBranches(finding.FixedVersionBranches); len(branches) > 0 {
+		out["fixed_version_branches"] = branches
+	}
+	if advisories := serializeAdvisorySources(finding.AdvisorySources); len(advisories) > 0 {
+		out["advisory_sources"] = advisories
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func serializeAlternateSeverities(values []AlternateSeverity) []map[string]any {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make([]map[string]any, 0, len(values))
+	for _, value := range values {
+		row := map[string]any{"source": value.Source}
+		if value.Score != 0 {
+			row["score"] = value.Score
+		}
+		if value.ScoreSource != "" {
+			row["score_source"] = value.ScoreSource
+		}
+		if value.Vector != "" {
+			row["vector"] = value.Vector
+		}
+		if value.Label != "" {
+			row["label"] = value.Label
+		}
+		out = append(out, row)
+	}
+	return out
+}

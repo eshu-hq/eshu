@@ -3,7 +3,16 @@
 
 package core
 
-import "github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
+import (
+	"context"
+
+	"go.opentelemetry.io/otel/metric"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core/cvss"
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+)
 
 // SupplyChainImpactFinding is one reducer-owned vulnerability impact finding.
 //
@@ -28,12 +37,17 @@ type SupplyChainImpactFinding struct {
 	// expression on the canonical finding payload so list-route callers see
 	// the same vulnerable range as the explain route without re-loading raw
 	// advisory facts.
-	VulnerableRange       string
-	MatchReason           string
-	Status                SupplyChainImpactStatus
-	Confidence            string
-	CVSSScore             float64
-	SeveritySource        string
+	VulnerableRange string
+	MatchReason     string
+	Status          SupplyChainImpactStatus
+	Confidence      string
+	CVSSScore       float64
+	SeveritySource  string
+	// SeverityScoreSource says where CVSSScore came from. It is
+	// cvss.ScoreSourceDerivedFromVector when the reducer computed the score from
+	// SeverityVector, and empty when the source reported the score (or there is
+	// none). A derived score must never be shown as source-reported (#9693).
+	SeverityScoreSource   string
 	SeverityVector        string
 	SeverityLabel         string
 	AdvisoryPublishedAt   string
@@ -147,5 +161,47 @@ func bakeSupplyChainCIDeclaredArtifactIdentity(
 	if hasImageRefMatch {
 		finding.CIDeclaredArtifactDigest = firstImageRefMatch.ArtifactDigest
 		finding.CIDeclaredImageRef = firstImageRefMatch.ImageRef
+	}
+}
+
+// Severity outcomes counted by eshu_dp_supply_chain_severity_decisions_total
+// (#9693). The set is closed so the metric label stays bounded.
+const (
+	severityOutcomeSourceReported = "source_reported"
+	severityOutcomeDerived        = "derived_from_vector"
+	severityOutcomeLabelOnly      = "label_only"
+	severityOutcomeNone           = "none"
+)
+
+// supplyChainSeverityOutcome classifies where a finding's severity came from.
+func supplyChainSeverityOutcome(finding SupplyChainImpactFinding) string {
+	switch {
+	case finding.CVSSScore > 0 && finding.SeverityScoreSource == cvss.ScoreSourceDerivedFromVector:
+		return severityOutcomeDerived
+	case finding.CVSSScore > 0:
+		return severityOutcomeSourceReported
+	case cvss.LabelBucket(finding.SeverityLabel) != cvss.BucketNone:
+		return severityOutcomeLabelOnly
+	default:
+		return severityOutcomeNone
+	}
+}
+
+// emitSeverityDecisions records one severity outcome per finding. It runs once
+// per reducer pass after the write, beside the other per-finding counters, and
+// adds at most four series.
+func (h SupplyChainImpactHandler) emitSeverityDecisions(ctx context.Context, findings []SupplyChainImpactFinding) {
+	if h.Instruments == nil || h.Instruments.SupplyChainSeverityDecisions == nil {
+		return
+	}
+	counts := make(map[string]int64, 4)
+	for _, finding := range findings {
+		counts[supplyChainSeverityOutcome(finding)]++
+	}
+	for outcome, count := range counts {
+		h.Instruments.SupplyChainSeverityDecisions.Add(ctx, count, metric.WithAttributes(
+			telemetry.AttrDomain(string(reducercontract.DomainSupplyChainImpact)),
+			telemetry.AttrOutcome(outcome),
+		))
 	}
 }

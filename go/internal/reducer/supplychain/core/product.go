@@ -10,6 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core/cvss"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
@@ -50,12 +51,16 @@ func baseSupplyChainImpactProductFinding(
 	product supplychainmodel.AffectedProduct,
 	index supplyChainImpactIndex,
 ) SupplyChainImpactFinding {
+	severity := cvss.DeriveSeverity(cve.CVSSScore, cve.CVSSVector, cve.SeverityLabel)
 	finding := SupplyChainImpactFinding{
 		CVEID:               cve.CVEID,
 		AdvisoryID:          payloadcore.FirstNonBlank(cve.AdvisoryID, cve.CVEID),
 		ProductCriteria:     product.Criteria,
 		MatchCriteriaID:     product.MatchCriteriaID,
-		CVSSScore:           cve.CVSSScore,
+		CVSSScore:           severity.Score,
+		SeverityScoreSource: derivedScoreSource(severity),
+		SeverityVector:      strings.TrimSpace(cve.CVSSVector),
+		SeverityLabel:       strings.TrimSpace(cve.SeverityLabel),
 		AdvisoryPublishedAt: cve.PublishedAt,
 		AdvisoryUpdatedAt:   cve.SourceUpdatedAt,
 		EvidencePath:        []string{chain.VulnerabilityCVEFactKind, chain.VulnerabilityAffectedProductFactKind},
@@ -84,6 +89,7 @@ func baseSupplyChainImpactFinding(
 		PURL:                 pkg.PURL,
 		FixedVersion:         provenance.FixedVersion,
 		CVSSScore:            provenance.SeverityScore,
+		SeverityScoreSource:  provenance.SeverityScoreSource,
 		SeveritySource:       provenance.SeveritySource,
 		SeverityVector:       provenance.SeverityVector,
 		SeverityLabel:        provenance.SeverityLabel,
@@ -106,11 +112,14 @@ func baseSupplyChainImpactFinding(
 // row. The selected severity source's advisory identifier wins so the row
 // matches the source the operator sees as the primary signal; falling back
 // to the first advisory observation keeps the row populated when no source
-// published a CVSS score.
+// reported a CVSS score. Only a source-reported score (IdentitySource) picks
+// the identity: a score derived from a vector or a label selects the severity
+// source but must not move advisory_id, which feeds finding_id and
+// advisory-scoped suppression matching (#9693).
 func provenanceAdvisoryID(provenance advisoryProvenanceSelection, cves supplyChainCVEGroup) string {
-	if provenance.SeveritySource != "" {
+	if provenance.IdentitySource != "" {
 		for _, advisory := range provenance.AdvisorySources {
-			if advisory.Source == provenance.SeveritySource {
+			if advisory.Source == provenance.IdentitySource {
 				return advisory.AdvisoryID
 			}
 		}

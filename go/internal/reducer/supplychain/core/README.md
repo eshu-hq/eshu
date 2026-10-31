@@ -207,6 +207,65 @@ Observability Evidence: The existing per-fact input-invalid dead-letter metric
 and structured log identify malformed date facts; selected date and optional
 model version are available in finding provenance.
 
+## Severity derivation
+
+A source that publishes only a CVSS vector or only a severity label used to
+leave the finding's bucket at `none`, because the bucket came from
+`cvss_score` alone (#9693). The reducer now derives severity per source
+observation with `cvss.DeriveSeverity`
+(`go/internal/reducer/supplychain/core/cvss`), on the advisory path
+(`buildAdvisoryProvenanceObservations`), the NVD product path
+(`baseSupplyChainImpactProductFinding`), and the provider-alert path
+(`buildSecurityAlertImpactFinding`). Order of precedence:
+
+1. A source-reported score above zero is used as published.
+2. Otherwise a valid CVSS v3.0, v3.1, or v4.0 vector yields the computed base
+   score. The finding carries `SeverityScoreSource = derived_from_vector`,
+   serialized as `provenance.selected_severity_score_source` (and
+   `score_source` on an alternate severity). A reported score carries no
+   marker.
+3. Otherwise a recognized label sets the bucket only. No score is invented.
+   Across sources, selection has three tiers, each in source-priority order:
+   a source-reported score first (the pre-#9693 rule, so existing selections
+   do not move), then a vector-derived score, then a recognized label. A
+   reported score therefore beats a derived one even from a lower-priority
+   source, and a lower-priority source with a score still beats a
+   higher-priority source with only a label. The losing observations stay as
+   alternates, with `score_source` kept on a derived one.
+4. Otherwise `none`.
+
+A malformed or unsupported vector never panics and never produces a score; the
+label, if any, decides.
+
+The finding's stored `cvss_score` now holds the derived score, so
+`cvssPriorityContribution` awards the CVSS priority contribution to
+vector-only findings the same way it does for reported scores. That raises
+the priority of OSV findings that carried a vector and no score; it is the
+only change to priority scoring.
+
+The SQL bucket reads `cvss_score` first and falls back to
+`provenance.selected_severity_label` only when the score is zero or absent.
+Both SQL sites call `cvss.BucketSQL`: the winners recompute
+(`supplyChainImpactWinnerSelectSQL`) and the read-time queries
+(`impact.severityBucketFactSQL`). A derived score appears only when the
+scope's `supply_chain_impact` runs again. A label the alert path already
+stored rebuckets at deploy, and the winners table follows within one 30 s
+resweep. See "Severity convergence" in the vulnerability-impact HTTP API
+reference.
+
+No-Regression Evidence: `BenchmarkBaseScore` measures about 0.5 us per v3.1
+vector and 8.6 to 10.9 us per v4.0 vector (51 allocations; the range spans an idle
+and a loaded run) on an Apple M-series host, one
+call per finding that has a vector and no score; there is no new query. The
+SQL `CASE` was measured on 1,000,000 synthetic finding payloads (50% no
+severity, 30% label-only, 20% scored) with interleaved runs: 157 ms before,
+230 ms after, about 72 ns per row, because the label branch now runs for rows
+without a score. The label path extracts the JSONB path once per row.
+
+Observability Evidence: `eshu_dp_supply_chain_severity_decisions_total`
+counts findings by `outcome` (`source_reported`, `derived_from_vector`,
+`label_only`, `none`) and shows convergence as OSV scopes regenerate.
+
 ## Files
 
 Non-test files fall into these groups: the `impact*` and other short-named

@@ -9,8 +9,13 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core/cvss"
 )
 
+// classifyAdvisorySource maps the source-fact payload's collector source name
+// and the advisory identifier prefix to a logical advisory source name. OSV
+// transports advisories from many upstream feeds (GHSA, PYSEC, MAL, RUSTSEC,
+// GO, etc.), so the prefix decides which logical source we attribute to.
 func classifyAdvisorySource(payloadSource string, advisoryID string) string {
 	source := strings.ToLower(strings.TrimSpace(payloadSource))
 	id := strings.ToUpper(strings.TrimSpace(advisoryID))
@@ -173,9 +178,11 @@ func selectAdvisoryProvenance(
 		if observation.WithdrawnAt != "" {
 			continue
 		}
-		if selection.SeveritySource == "" && observation.SeverityScore > 0 {
+		if selection.SeveritySource == "" && observation.SeverityScore > 0 && observation.SeverityScoreSource == "" {
 			selection.SeveritySource = observation.Source
+			selection.IdentitySource = observation.Source
 			selection.SeverityScore = observation.SeverityScore
+			selection.SeverityScoreSource = observation.SeverityScoreSource
 			selection.SeverityVector = observation.SeverityVector
 			selection.SeverityLabel = observation.SeverityLabel
 		}
@@ -189,6 +196,8 @@ func selectAdvisoryProvenance(
 		}
 	}
 
+	selectFallbackSeverity(&selection, sorted)
+
 	for _, observation := range sorted {
 		if observation.WithdrawnAt == "" && observation.Source == selection.SeveritySource {
 			continue
@@ -197,10 +206,11 @@ func selectAdvisoryProvenance(
 			continue
 		}
 		selection.AlternateSeverities = append(selection.AlternateSeverities, AlternateSeverity{
-			Source: observation.Source,
-			Score:  observation.SeverityScore,
-			Vector: observation.SeverityVector,
-			Label:  observation.SeverityLabel,
+			Source:      observation.Source,
+			Score:       observation.SeverityScore,
+			ScoreSource: observation.SeverityScoreSource,
+			Vector:      observation.SeverityVector,
+			Label:       observation.SeverityLabel,
 		})
 	}
 
@@ -280,4 +290,57 @@ func singleFixedVersion(versions []string) string {
 		}
 	}
 	return out
+}
+
+// derivedScoreSource returns the score-source marker a finding or observation
+// carries: cvss.ScoreSourceDerivedFromVector when the reducer computed the
+// score, and empty for a source-reported score or no score. Reported scores
+// stay unmarked so an absent marker reads as "the source said so" and existing
+// payloads do not change shape.
+func derivedScoreSource(severity cvss.Severity) string {
+	if severity.ScoreSource == cvss.ScoreSourceDerivedFromVector {
+		return cvss.ScoreSourceDerivedFromVector
+	}
+	return ""
+}
+
+// selectFallbackSeverity picks the severity source when no non-withdrawn
+// observation carries a source-reported score. Severity selection has three
+// tiers, each walked in source-priority order:
+//
+//  1. a source-reported score (the first loop in selectAdvisoryProvenance,
+//     unchanged from before #9693);
+//  2. a score derived from the observation's own CVSS vector;
+//  3. a recognized severity label, which sets the bucket only and never a
+//     score.
+//
+// A reported score therefore outranks every derived score even from a
+// lower-priority source, because it is the source's own number and the
+// pre-#9693 selection already preferred it. A derived score outranks a label,
+// and a lower-priority source with a score still beats a higher-priority
+// source with only a label.
+func selectFallbackSeverity(selection *advisoryProvenanceSelection, sorted []AdvisoryProvenanceObservation) {
+	if selection.SeveritySource != "" {
+		return
+	}
+	for _, observation := range sorted {
+		if observation.WithdrawnAt != "" || observation.SeverityScore <= 0 {
+			continue
+		}
+		selection.SeveritySource = observation.Source
+		selection.SeverityScore = observation.SeverityScore
+		selection.SeverityScoreSource = observation.SeverityScoreSource
+		selection.SeverityVector = observation.SeverityVector
+		selection.SeverityLabel = observation.SeverityLabel
+		return
+	}
+	for _, observation := range sorted {
+		if observation.WithdrawnAt != "" || cvss.LabelBucket(observation.SeverityLabel) == cvss.BucketNone {
+			continue
+		}
+		selection.SeveritySource = observation.Source
+		selection.SeverityVector = observation.SeverityVector
+		selection.SeverityLabel = observation.SeverityLabel
+		return
+	}
 }

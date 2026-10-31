@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core/cvss"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
@@ -96,30 +97,34 @@ func buildSecurityAlertImpactFinding(
 		alert.PatchedVersion,
 		[]supplychainmodel.AffectedPackage{pkg},
 	)
+	alertVector := securityAlertCVSSVector(alert.CVSS)
+	alertLabel := strings.ToLower(strings.TrimSpace(alert.Severity))
+	severity := cvss.DeriveSeverity(securityAlertCVSSScore(alert.CVSS), alertVector, alertLabel)
 	finding := SupplyChainImpactFinding{
-		CVEID:              securityAlertImpactCVEID(alert),
-		AdvisoryID:         securityAlertImpactAdvisoryID(alert),
-		PackageID:          alert.PackageID,
-		Ecosystem:          packageidentity.LowerASCII(strings.TrimSpace(alert.Ecosystem)),
-		PackageName:        alert.PackageName,
-		ObservedVersion:    observedVersion,
-		RequestedRange:     requestedRange,
-		FixedVersion:       strings.TrimSpace(alert.PatchedVersion),
-		VulnerableRange:    strings.TrimSpace(alert.VulnerableRange),
-		CVSSScore:          securityAlertCVSSScore(alert.CVSS),
-		SeveritySource:     strings.TrimSpace(alert.Provider),
-		SeverityVector:     securityAlertCVSSVector(alert.CVSS),
-		SeverityLabel:      strings.ToLower(strings.TrimSpace(alert.Severity)),
-		EPSSProbability:    securityAlertEPSSValue(alert.EPSS["percentage"]),
-		EPSSPercentile:     securityAlertEPSSValue(alert.EPSS["percentile"]),
-		AdvisoryUpdatedAt:  strings.TrimSpace(alert.UpdatedAt),
-		FixedVersionSource: strings.TrimSpace(alert.Provider),
-		RangeSource:        strings.TrimSpace(alert.Provider),
-		RepositoryID:       consumption.RepositoryID,
-		DependencyScope:    payloadcore.FirstNonBlank(strings.TrimSpace(consumption.DependencyScope), strings.TrimSpace(alert.DependencyScope)),
-		DependencyPath:     append([]string(nil), consumption.DependencyPath...),
-		DependencyDepth:    consumption.DependencyDepth,
-		DirectDependency:   cloneBoolPointer(consumption.DirectDependency),
+		CVEID:               securityAlertImpactCVEID(alert),
+		AdvisoryID:          securityAlertImpactAdvisoryID(alert),
+		PackageID:           alert.PackageID,
+		Ecosystem:           packageidentity.LowerASCII(strings.TrimSpace(alert.Ecosystem)),
+		PackageName:         alert.PackageName,
+		ObservedVersion:     observedVersion,
+		RequestedRange:      requestedRange,
+		FixedVersion:        strings.TrimSpace(alert.PatchedVersion),
+		VulnerableRange:     strings.TrimSpace(alert.VulnerableRange),
+		CVSSScore:           severity.Score,
+		SeverityScoreSource: derivedScoreSource(severity),
+		SeveritySource:      strings.TrimSpace(alert.Provider),
+		SeverityVector:      alertVector,
+		SeverityLabel:       alertLabel,
+		EPSSProbability:     securityAlertEPSSValue(alert.EPSS["percentage"]),
+		EPSSPercentile:      securityAlertEPSSValue(alert.EPSS["percentile"]),
+		AdvisoryUpdatedAt:   strings.TrimSpace(alert.UpdatedAt),
+		FixedVersionSource:  strings.TrimSpace(alert.Provider),
+		RangeSource:         strings.TrimSpace(alert.Provider),
+		RepositoryID:        consumption.RepositoryID,
+		DependencyScope:     payloadcore.FirstNonBlank(strings.TrimSpace(consumption.DependencyScope), strings.TrimSpace(alert.DependencyScope)),
+		DependencyPath:      append([]string(nil), consumption.DependencyPath...),
+		DependencyDepth:     consumption.DependencyDepth,
+		DirectDependency:    cloneBoolPointer(consumption.DirectDependency),
 		EvidencePath: []string{
 			facts.SecurityAlertRepositoryAlertFactKind,
 			securityAlertConsumptionEvidenceKind(consumption),
