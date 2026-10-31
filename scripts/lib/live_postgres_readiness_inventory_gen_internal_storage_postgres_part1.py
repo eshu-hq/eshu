@@ -160,15 +160,6 @@ TABLE = {
         "go/internal/storage/postgres/control_scanner_admission_atomicity_live_test.go": (
             "TestScannerAdmissionRejectsConflictingDuplicateSourceLive",
         ),
-        "go/internal/storage/postgres/control_scanner_admission_authority_matrix_live_test.go": (
-            "TestScannerAdmissionAuthorityDenialMatrixLive",
-        ),
-        "go/internal/storage/postgres/control_scanner_admission_skip_live_test.go": (
-            "TestScannerAdmissionSkipsBadBindingAndAdvancesCursorLive",
-        ),
-        "go/internal/storage/postgres/control_scanner_authority_epoch_live_test.go": (
-            "TestScannerAuthorityEpochNoABALive",
-        ),
         "go/internal/storage/postgres/control_scanner_discovery_scale_live_test.go": (
             "TestScannerDiscoveryScaleShapeLive",
         ),

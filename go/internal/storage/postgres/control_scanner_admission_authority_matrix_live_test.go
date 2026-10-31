@@ -3,9 +3,9 @@
 
 package postgres
 
-//eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #9299 disposable PostgreSQL function-level classification matrix for the admission authority: every authority-state denial returns no rows (a counted skip) while caller-shape denials raise
-//eshu:readiness:env ESHU_POSTGRES_DISPOSABLE ESHU_POSTGRES_DSN
+// Readiness enrollment suspended under drift-gate option A (PR #9544 fourth
+// round): the matrix proof below stays in the Go suite and skips clean
+// without proof DSNs; re-enroll post-refit. See live-tests-07b.yaml.
 
 import (
 	"context"
