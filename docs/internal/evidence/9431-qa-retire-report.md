@@ -271,3 +271,60 @@ before the section tail and raise on any hit.
   one-shot script; a claim landing inside the residual window still cannot
   resurrect rows (superseded stays terminal, the scope pointer stays NULL),
   and the worker-side fence re-validates at processing time.
+
+## Step 5 — retire transaction (COMMITTED 2026-10-31 ~16:00 UTC, gate PASS)
+
+Authorization: arbiter APPROVE ruling (subset-plus-accounting gate bound to
+the COMMIT invocation) plus the owner production-write approval; together
+they cover this COMMIT. Scope is unchanged from the original ruling: QA
+only, predicate rows only, no DELETE/DDL, no worker changes, no script
+edits. Script identity: `diff -q` of
+[9431-qa-retire.sql](9431-qa-retire.sql) against the main checkout exits 0;
+the committed script ran unmodified.
+
+Same-window mechanism proof first: fresh Sections 0–3 dry run
+2026-10-31 ~15:59 UTC (committed script, QA primary, exit 0, Section 4
+SKIPPED without `retire_ok`, ROLLBACK): classification
+`candidates=136 classW=71 classS_eligible=18 mixed=0 inflight=1`, retire set
+89 (71 W + 18 S, 1 in-flight blocker), `dryrun_*=89/89/89` reconciled,
+0 markers and 0 NULL-pointer OSV scopes after. Its N is evidence only.
+
+COMMIT invocation 2026-10-31 ~16:00 UTC (`-v retire_ok=1`, exit 0):
+classification `candidates=136 classW=71 classS_eligible=18 mixed=0
+inflight=1`; Section 3 dry-run body `UPDATE 89/89` then ROLLBACK; Section 4
+lock + gate + `UPDATE 89/89`, all six `must_be_zero_*` gates 0
+(inflight-locked, shortfall, inflight-tail in both sections), rollback key
+89 rows, `COMMIT`; Section 5 SKIPPED; Section 6 post-commit reads
+AC3.1=1, AC3.2=27, AC3.4=826. Zero `ABORT`/`ERROR`/`FATAL` in the log.
+
+Restated gate verified from THAT invocation's log plus read-only queries
+immediately after (exit 0), all PASS:
+
+| Condition | Evidence |
+|---|---|
+| `mixed=0` | Classification line `mixed=0`; mixed listing `(0 rows)`. |
+| `candidates=136` | Classification line `candidates=136` (any drift was a STOP; none). |
+| Every committed W in oracle 72 W | Committed 71 W-flagged rows; committed-minus-oracle is 0 rows; the single oracle-minus-committed row is W-flagged, so committed W = oracle W minus that row. W flags recomputed live per row (facts untouched by the commit). |
+| Every committed S fully covered at classify | Committed S = 18 = oracle S (no S row beyond the oracle 18); script classify marked all 18 eligible and retired them; live recompute immediately post-commit: 18/18 fully satellite-covered. |
+| Every oracle row not committed accounted | Exactly 1: `vuln-intel://osv/npm/axios?...` / `vulnerability_intelligence:defdbf...`, present in the COMMIT run's Section 1 in-flight listing (claimed at classify, excluded fail-closed). |
+| Marker count = committed N; rollback key captured | Live `retired_issue='9431'` count = 89; NULL-pointer OSV scopes = 89; all 89 committed rows superseded + pointer cleared + `retired_prior_scope_status` present (all values `active`). Key in the Section 4 log output and durably in each payload marker. |
+
+Per-row membership (89 rows: scope, generation, prior status, W/S class,
+oracle member): [9431-step5-commit-members.tsv](9431-step5-commit-members.tsv).
+Scope ids in that file redact one proprietary npm org scope as
+`REDACTED-ORG` (3 rows redacted, generation ids and classes intact); the
+unredacted key is in the COMMIT log and the durable payload markers.
+Both-direction diff: committed-minus-oracle 0 rows; oracle-minus-committed
+the single axios in-flight row above (W, excluded fail-closed).
+
+Immediate post-commit state (step 6 pending): AC3.1=1 (axios only, still
+active + in-flight), AC3.2=27 (down from 497), both GHSA-67hx-6x53-jw92
+scopes (`@babel/runtime`, `@babel/traverse` batches) retired with markers —
+the step-4 replacement is now the only live line. Per the APPROVE ruling
+decision 3 this partial pass does NOT close #9431: repeat the gated pass as
+the remaining scope drains (axios), close only when AC3.1/AC3.2 read 0
+after step 6.
+
+Rollback window: OPEN at commit (no prune or satellite activation on a
+retired scope observed at verify time ~16:01 UTC). Closing is recorded here
+when it passes.
