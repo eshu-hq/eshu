@@ -108,7 +108,24 @@ Source-state freshness ages by `last_success_at` only; the
 collection window is reported, not aged. The window is
 `vulnsource.DefaultFreshnessWindow` (14 days), the one window every writer
 uses for OSV, NVD, KEV, EPSS, and GLAD, and each read ages every row against
-one cutoff (#9423). Malformed CVE elements, duplicate
+one cutoff (#9423). An unchanged
+upstream answer stores no new generation (#9694), so the active
+`vulnerability.advisory` and `vulnerability.exploitability` facts keep the
+`observed_at` of the last real change. Fact age alone would call a fetched,
+current source stale after the window, so `freshenFamiliesFromFetch` and
+`freshenSnapshotsFromFetch` (`readiness_source_age.go`) label such a family or
+an NVD snapshot fresh when every aged source state for its sources (OSV and NVD
+for advisories, KEV and EPSS for exploitability) is a fresh success.
+`latest_observed_at` still reports the fact time. One stale, partial, failed,
+or missing state leaves the label stale, and `advisory_sources` is reported.
+Both collectors mark an unproven fetch partial (the in-tree one before the
+commit, the extracted one through a Partial status the host records after the
+commit, even when the guard refuses the generation), so a refused shrink keeps
+the state non-fresh and `advisory_sources` is reported. Known limit: a refusal
+the collector did not flag leaves a fresh state over old facts. That is a
+replay of stored cache facts (offline mode, or the `UseCachedOnFetchError`
+fallback), or a custom provider that neither attests nor warns; the held-stale
+gauge covers those cases, not readiness. Malformed CVE elements, duplicate
 scope IDs, and window fields the collector's config parse refuses fail the
 readiness lookup closed as `source_targets_malformed`, and the findings and
 explain handlers log the fail-closed cause. A present `modified_start` or

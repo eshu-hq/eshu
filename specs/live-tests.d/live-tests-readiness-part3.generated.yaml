@@ -199,6 +199,11 @@ tests:
     class: postgres_ci
     reason: "#8750 disposable PostgreSQL 18 proof that the destructive-successor guard re-reads its prior on the commit transaction after the scope row lock: a same-scope commit or Ack that lands between the pre-tx sizing and the lock is re-sized (W1, W2), an unchanged scope costs one read (W3), and the held scope row blocks a concurrent commit and Ack until the guarded commit ends (W4); reuses the #7978 bootstrapped proof schema; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/ingestion_vulnerability_successor_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9694 disposable PostgreSQL 18 proof of the vulnerability-intelligence commit path: an unchanged hint skips, drift commits, a trusted 3-to-1 shrink stores, an untrusted under-half or empty successor is refused and counted, repeated refusals hold the scope stale until a commit passes, and concurrent commits on one scope serialize on the scope row without deadlock or a stored refused successor; reuses the #7978 bootstrapped proof schema; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/maintenance/repository_reindex_live_test.go
     tag: ~
     class: postgres_ci

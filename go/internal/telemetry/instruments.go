@@ -1227,6 +1227,13 @@ type Instruments struct {
 	// decisions (#8750) by kind (full, delta), the closed
 	// SuccessorGuardRule* rule set, and outcome (stored, refused).
 	IngestionSuccessorGuardDecisions metric.Int64Counter
+	// IngestionSuccessorHeldStaleScopes reports, by collector_kind, the scopes
+	// whose consecutive commits the destructive-successor guard keeps
+	// refusing (#9694). SuccessorHolds is the process-local tracker that
+	// feeds it; the ingestion store records into it. Registered in
+	// refresh.go.
+	IngestionSuccessorHeldStaleScopes metric.Int64ObservableGauge
+	SuccessorHolds                    *SuccessorHoldTracker
 	// ProjectorDeltaUnion counts delta-base union fact-load decisions by the
 	// closed outcome set (union_base_found, union_base_missing_refused,
 	// union_resolve_failed, union_scope_mismatch),
@@ -6194,6 +6201,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 			"and outcome (stored, refused)"),
 	); err != nil {
 		return nil, fmt.Errorf("register IngestionSuccessorGuardDecisions counter: %w", err)
+	}
+	if err := registerSuccessorHeldStaleScopes(meter, inst); err != nil {
+		return nil, err
 	}
 	if err := registerProjectorDeltaUnion(meter, inst); err != nil {
 		return nil, err

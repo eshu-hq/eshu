@@ -441,7 +441,9 @@ func (s IngestionStore) refuseDestructiveSuccessor(
 	}
 	s.backfillStore().RecordSkippedRefresh(ctx, scopeValue, generation, prior.candidate.GenerationID,
 		telemetry.RefreshSkipReasonDestructiveSuccessor)
+	consecutive := s.recordSuccessorRefusal(ctx, scopeValue, generation)
 	s.logCommitStage(ctx, scopeValue, generation, "refuse_destructive_successor", guardStart,
+		slog.Int("consecutive_refusals", consecutive),
 		slog.String("candidate_generation_id", prior.candidate.GenerationID),
 		slog.String("rule", decision.Rule),
 		slog.Int("prior_fact_count", prior.counts.Collector),

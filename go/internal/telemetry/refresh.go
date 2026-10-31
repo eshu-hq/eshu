@@ -4,8 +4,15 @@
 package telemetry
 
 import (
+	"context"
+	"fmt"
 	"slices"
+	"strings"
+	"sync"
 	"sync/atomic"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 )
 
 // Refresh skip reasons label eshu_runtime_refresh_skipped_by_reason_total and
@@ -182,4 +189,120 @@ func SuccessorGuardRule(rule string) string {
 		return rule
 	}
 	return SuccessorGuardRuleOther
+}
+
+// SuccessorHoldThreshold is how many consecutive destructive-successor
+// refusals make a scope "held stale" (#9694). One refusal is a normal guard
+// decision the next collection re-evaluates. Three in a row mean the source
+// keeps returning a shrunken or empty snapshot that the store keeps
+// rejecting, so the scope's active generation is going stale and an operator
+// has to look.
+const SuccessorHoldThreshold = 3
+
+// SuccessorHoldTracker counts consecutive destructive-successor refusals per
+// scope inside one process. The ingestion store records a refusal when the
+// guard refuses a commit and clears the run when the same scope durably stores
+// a generation or is skipped as unchanged. It is process-local by design: it
+// feeds the eshu_dp_ingestion_successor_held_stale_scopes gauge and adds no
+// Postgres read or write to the commit path.
+//
+// What that costs, exactly. Each replica counts only the refusals it handled,
+// and clears only what it saw:
+//
+//   - a run split across replicas reaches the threshold late or not at all;
+//   - a scope that replica A holds and replica B later stores stays held on A
+//     until A next handles that scope (a phantom hold);
+//   - summing the gauge across replicas can count one scope twice, so sum is an
+//     upper bound; max by collector_kind is a lower bound (two replicas each
+//     holding a different scope read 1);
+//   - a restart drops every held scope from the gauge until three more
+//     refusals arrive on that process.
+//
+// The successor_held_stale commit log names the scope and is the per-scope
+// source of truth.
+type SuccessorHoldTracker struct {
+	mu     sync.Mutex
+	scopes map[string]successorHold
+}
+
+type successorHold struct {
+	collectorKind string
+	refusals      int
+}
+
+// NewSuccessorHoldTracker returns an empty tracker.
+func NewSuccessorHoldTracker() *SuccessorHoldTracker {
+	return &SuccessorHoldTracker{scopes: make(map[string]successorHold)}
+}
+
+// RecordRefusal counts one refusal for scopeID and returns the consecutive
+// run length. A nil tracker or a blank scope records nothing and returns 0.
+func (t *SuccessorHoldTracker) RecordRefusal(scopeID, collectorKind string) int {
+	scopeID = strings.TrimSpace(scopeID)
+	if t == nil || scopeID == "" {
+		return 0
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	hold := t.scopes[scopeID]
+	hold.refusals++
+	hold.collectorKind = strings.TrimSpace(collectorKind)
+	t.scopes[scopeID] = hold
+	return hold.refusals
+}
+
+// Clear ends scopeID's refusal run. It is a no-op for an unknown scope, so
+// the commit path can call it on every stored or skipped outcome.
+func (t *SuccessorHoldTracker) Clear(scopeID string) {
+	if t == nil {
+		return
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	delete(t.scopes, strings.TrimSpace(scopeID))
+}
+
+// HeldByKind returns, per collector kind, how many scopes have reached
+// SuccessorHoldThreshold consecutive refusals.
+func (t *SuccessorHoldTracker) HeldByKind() map[string]int64 {
+	held := make(map[string]int64)
+	if t == nil {
+		return held
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	for _, hold := range t.scopes {
+		if hold.refusals >= SuccessorHoldThreshold {
+			held[hold.collectorKind]++
+		}
+	}
+	return held
+}
+
+// registerSuccessorHeldStaleScopes registers the #9694 gauge of scopes held
+// stale by repeated destructive-successor refusals and the tracker that
+// feeds it. The callback reads process-local state only, so a scrape adds no
+// query. A collector_kind series exists only while some scope of that kind is
+// held on this process; an absent series means this process holds none. With
+// several replicas max by collector_kind is a lower bound and sum an upper
+// bound (see SuccessorHoldTracker for the per-replica limits).
+func registerSuccessorHeldStaleScopes(meter metric.Meter, inst *Instruments) error {
+	inst.SuccessorHolds = NewSuccessorHoldTracker()
+	var err error
+	inst.IngestionSuccessorHeldStaleScopes, err = meter.Int64ObservableGauge(
+		"eshu_dp_ingestion_successor_held_stale_scopes",
+		metric.WithDescription("Scopes whose last "+fmt.Sprint(SuccessorHoldThreshold)+" or more consecutive commits were refused by the "+
+			"destructive-successor guard (#9694), by collector_kind; the scope's active generation is going stale. "+
+			"Process-local and per replica: max by collector_kind is a lower bound and sum an upper bound; a series exists only while this process holds a scope"),
+		metric.WithInt64Callback(func(_ context.Context, o metric.Int64Observer) error {
+			for kind, count := range inst.SuccessorHolds.HeldByKind() {
+				o.Observe(count, metric.WithAttributes(attribute.String(MetricDimensionCollectorKind, kind)))
+			}
+			return nil
+		}),
+	)
+	if err != nil {
+		return fmt.Errorf("register IngestionSuccessorHeldStaleScopes gauge: %w", err)
+	}
+	return nil
 }

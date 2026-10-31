@@ -403,6 +403,9 @@ func (s IngestionStore) commitScopeGeneration(
 	}
 	transactionClosed = true
 	s.logCommitStage(ctx, scopeValue, generation, "commit_transaction", stageStart)
+	// The scope has a durable generation, so a destructive-successor hold on it
+	// ends here and not at the guard, which runs before the commit can fail.
+	s.clearSuccessorHold(scopeValue)
 	s.recordSharedLockHoldDuration(ctx, time.Since(sharedLockAcquiredAt))
 
 	// Merge the committed repository identities into the shared catalog only

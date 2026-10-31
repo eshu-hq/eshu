@@ -350,3 +350,36 @@ func TestPendingClaimOutcomesStayBounded(t *testing.T) {
 		t.Fatal("take(oldest) ok = true, want the oldest entry evicted first")
 	}
 }
+
+// TestClaimOutcomeCarriesAPartialStatusOnACompleteResult pins the host half of
+// the #9694 held-stale chain (review G1). The extracted vulnerability collector
+// reports an unproven fetch as a complete result whose status is Partial with a
+// warning count. The outcome must carry Partial, so the source-state recorder
+// writes a partial row; a clean status must stay clean.
+func TestClaimOutcomeCarriesAPartialStatusOnACompleteResult(t *testing.T) {
+	t.Parallel()
+	observed := time.Date(2026, 5, 22, 10, 0, 0, 0, time.UTC)
+	item := workflow.WorkItem{ScopeID: "vuln-intel://cisa/kev"}
+	for _, tc := range []struct {
+		name        string
+		status      sdkcollector.Status
+		wantPartial bool
+		wantWarn    int
+	}{
+		{"partial status", sdkcollector.Status{Class: sdkcollector.StatusComplete, FactCount: 2, Partial: true, WarningCount: 1}, true, 1},
+		{"clean status", sdkcollector.Status{Class: sdkcollector.StatusComplete, FactCount: 2}, false, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			result := sdkcollector.Result{
+				State:      sdkcollector.ResultComplete,
+				Generation: sdkcollector.Generation{ObservedAt: observed},
+				Statuses:   []sdkcollector.Status{tc.status},
+			}
+			outcome := claimOutcome(item, observed, result, ResultOriginSDK, nil)
+			if !outcome.Completed() || outcome.Partial != tc.wantPartial || outcome.WarningCount != tc.wantWarn || outcome.FactCount != 2 {
+				t.Fatalf("outcome = %+v, want completed, Partial=%v, WarningCount=%d, FactCount=2", outcome, tc.wantPartial, tc.wantWarn)
+			}
+		})
+	}
+}
