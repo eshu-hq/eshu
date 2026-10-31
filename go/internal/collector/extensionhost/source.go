@@ -96,6 +96,7 @@ func NewSource(config Config) (*Source, error) {
 		maxPages:            config.MaxResultPages,
 		outcomeRecorder:     config.ClaimOutcomeRecorder,
 		pendingOutcomes:     newPendingClaimOutcomes(),
+		scopeQueryResolver:  config.ScopeQueryResolver,
 	}, nil
 }
 
@@ -128,7 +129,29 @@ func (s *Source) nextClaimed(
 			cause:    err,
 		}
 	}
-	request := s.requestForWorkItem(item)
+	request, err := s.requestForWorkItem(ctx, item)
+	if err != nil {
+		if errors.Is(err, collector.ErrSlotScopeTransport) {
+			// Fail-closed transport semantics: the run row is
+			// missing or its entry is unusable, so the satellite
+			// never launches and the claim plane never retries,
+			// because retry cannot produce queries for a run row
+			// that has none.
+			return collector.CollectedGeneration{}, false, sdkcollector.Result{}, ResultOriginHost, extensionFailure{
+				class:    FailureClassInvalidClaim,
+				terminal: true,
+				cause:    err,
+			}
+		}
+		// A store-transport fault (connection reset, statement
+		// timeout, any other DB error) fails retryable as a host-side
+		// launch failure so the claim plane retries the claim
+		// (eshu-hq/eshu#9730).
+		return collector.CollectedGeneration{}, false, sdkcollector.Result{}, ResultOriginHost, extensionFailure{
+			class: FailureClassLaunchFailure,
+			cause: err,
+		}
+	}
 	if s.tokenProvider != nil {
 		// Mint before launch: a denial fails the claim terminal without
 		// ever starting the satellite, and the key never leaves the host.

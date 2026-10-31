@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -132,6 +133,42 @@ func (s *WorkflowControlStore) createRunWithExecutor(ctx context.Context, execut
 		return fmt.Errorf("create workflow run: %w", err)
 	}
 	return nil
+}
+
+// GetRunRequestedScopeSet returns the persisted requested_scope_set JSON
+// for one workflow run. The claim-time scope query transport
+// (eshu-hq/eshu#9432) reads it by the work item's run ID, so the claim
+// carries the tenant-filtered set the coordinator persisted at plan time.
+// A missing run row is an error: the claim must fail terminal rather than
+// resolve an empty transport. The missing-row error wraps
+// workflow.ErrRunNotFound so claim transport can tell it apart from a
+// retryable read fault. The run_id primary key serves the lookup.
+func (s *WorkflowControlStore) GetRunRequestedScopeSet(ctx context.Context, runID string) (string, error) {
+	if s.database == nil {
+		return "", fmt.Errorf("workflow control store database is required")
+	}
+	if strings.TrimSpace(runID) == "" {
+		return "", fmt.Errorf("workflow run id is required")
+	}
+	rows, err := s.database.QueryContext(ctx, getWorkflowRunScopeSetQuery, runID)
+	if err != nil {
+		return "", fmt.Errorf("read workflow run requested scope set: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return "", fmt.Errorf("read workflow run requested scope set: %w", err)
+		}
+		return "", fmt.Errorf("workflow run %q not found: %w", runID, workflow.ErrRunNotFound)
+	}
+	var scopeSet string
+	if err := rows.Scan(&scopeSet); err != nil {
+		return "", fmt.Errorf("read workflow run requested scope set: %w", err)
+	}
+	if err := rows.Err(); err != nil {
+		return "", fmt.Errorf("read workflow run requested scope set: %w", err)
+	}
+	return scopeSet, nil
 }
 
 // EnqueueWorkItems inserts workflow work items in batches.
