@@ -11,7 +11,7 @@ snippet shapes it emits.
 
 ## What the server publishes
 
-When enabled, `cmd/mcp-server` serves the metadata document at
+When enabled, the `eshu-mcp-server` satellite serves the metadata document at
 `/.well-known/oauth-protected-resource` (and, when the resource identifier
 carries a path such as `/mcp`, at the RFC 9728 section 3 path-suffixed URL
 `/.well-known/oauth-protected-resource/mcp`). The route is **unauthenticated** —

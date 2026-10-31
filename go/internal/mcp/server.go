@@ -437,8 +437,8 @@ func (s *Server) advertisedTools(ctx context.Context) []ToolDefinition {
 
 // ToolSurfaceSummary reports the process surface, how many tools its
 // tools/list advertises, and the size in bytes of the marshaled tools/list
-// result. cmd/mcp-server logs it once at startup so an operator can confirm
-// which surface a deployment serves and what it costs a client.
+// result. Serving entrypoints log it once at startup so an operator can
+// confirm which surface a deployment serves and what it costs a client.
 func (s *Server) ToolSurfaceSummary() (surface router.Surface, count int, bytes int) {
 	surface = s.processSurface()
 	tools := router.Advertise(s.tools, surface)

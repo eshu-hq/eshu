@@ -9,7 +9,7 @@ timeout, a cancellation, an early refusal, and a panic all count.
 
 The dispatcher is not only the MCP transport. The ask engine runs its tools
 through `mcp.RunReadOnlyTool`, which calls the same dispatcher in process, and
-both `cmd/api` and `cmd/mcp-server` wire the ask engine. Every ask-engine tool
+both `cmd/api` and the `eshu-mcp-server` satellite wire the ask engine. Every ask-engine tool
 run is therefore counted too, in whichever process served the ask request, and no
 label tells it apart from a client `tools/call`. `eshu_dp_mcp_response_bytes`
 has the same property. The examples select the MCP server process with

@@ -84,6 +84,7 @@ main() {
     : "${ESHU_MCP_REF:=v0.2.2}"
     MCP_SRC_DIR="$(mktemp -d)"
     git clone --depth 1 --branch "$ESHU_MCP_REF" https://github.com/eshu-hq/eshu-mcp.git "$MCP_SRC_DIR"
+    echo "eshu-mcp $ESHU_MCP_REF resolved to $(git -C "$MCP_SRC_DIR" rev-parse HEAD)"
     CGO_ENABLED=0 go -C "$MCP_SRC_DIR" build -trimpath -o "$INSTALL_DIR/eshu-mcp-server" ./cmd/eshu-mcp
     rm -rf "$MCP_SRC_DIR"
 

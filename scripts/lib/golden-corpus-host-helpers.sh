@@ -33,6 +33,9 @@ build_satellite_bin() {
 	rm -rf "${src_dir}"
 	golden_corpus_git clone --depth 1 --branch "${ESHU_MCP_REF}" https://github.com/eshu-hq/eshu-mcp.git "${src_dir}" \
 		|| die "clone eshu-mcp ${ESHU_MCP_REF} failed"
+	# Record the resolved commit: tags are mutable, so the gate log pins the
+	# exact satellite tree the serving binary was built from.
+	echo "eshu-mcp ${ESHU_MCP_REF} resolved to $(git -C "${src_dir}" rev-parse HEAD)"
 	CGO_ENABLED=0 go -C "${src_dir}" build -trimpath -o "${bin_dir}/eshu-mcp-server" ./cmd/eshu-mcp \
 		|| die "build satellite mcp-server ${ESHU_MCP_REF} failed"
 }
