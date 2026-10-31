@@ -246,3 +246,39 @@ No-Observability-Change (re-pin 96487a0bd0): no metric, span,
 log, or status field added, renamed, or removed by the new pin values;
 seed and admission failures keep the existing defect-only startup-error
 path with no new telemetry.
+
+## Re-pin after the satellite-takeover Dockerfile move (merge a371d1e21f, docker-publish run 41237451240)
+
+Base #9679 moved the Dockerfile scanner stages past anchor
+`96487a0bd0f0ec71ff85255c06900af522328e74`, so
+`verify-scanner-digest-pins.sh` reports STALE (non-Go content hash) on
+current main. This bump moves the anchor to
+`a371d1e21f6ba013925ea5d263d8de6c6b54d428` and the three pins to the
+`sha-a371d1e21f6ba013925ea5d263d8de6c6b54d428` tags published from that
+merge:
+
+- image `450f81b8...736b6ce`, sbom `76d36e27...534e1fe8`,
+  osruntime `04eea122...949a697` (full hex in `manifest.go`).
+- Each index digest read back with `crane digest` against its tag (3/3
+  match the publish job logs); the publish log binds each digest to SLSA
+  provenance plus a cosign signature; the attestations API serves 2
+  Sigstore bundles per digest. `gh attestation verify` could not run
+  locally (sandbox gh 2.46.0 lacks the `attestation` subcommand); the gate
+  re-verifies all three in CI and fails closed without them.
+- `git log a371d1e21f..origin/main` over the script's scanner inputs
+  holds only the workflow-pin change (#9742, no Go/scanner inputs), so the
+  new anchor stays green on current main. No fold-ins: only the anchor
+  lines, the three pins, their mirrored test copies, and this note change.
+
+No-Regression Evidence (re-pin a371d1e21f): RED-first —
+`TestManifestArtifactPinsPublishTimeDigestContract` with the new
+expectations failed against the old pins, then passed with the fix;
+`TestScannerActivationSeedImagesMatchPinnedManifests` failed on the old
+mirrored YAML the same way, then passed.
+Constants-only change, manifest construction off any query, ingest, or
+graph-write path.
+
+No-Observability-Change (re-pin a371d1e21f): no metric, span,
+log, or status field added, renamed, or removed by the new pin values;
+seed and admission failures keep the existing defect-only startup-error
+path with no new telemetry.
