@@ -243,7 +243,12 @@ func TestRunOwnedLocalHostWithLayoutMCPStdioStartsSessionAndBridges(t *testing.T
 	var waited []string
 	var allowGot string
 	waitDone := make(chan struct{})
+	bridgeStarted := make(chan struct{})
 	WaitManagedChildren = func(ctx context.Context, children []Child, allowCleanExit string) error {
+		// The bridge owns stdio, so the wait side must not win the
+		// production select before the bridge goroutine is observed
+		// running; otherwise the run returns with no session bridged.
+		<-bridgeStarted
 		for _, child := range children {
 			waited = append(waited, child.name)
 		}
@@ -253,8 +258,9 @@ func TestRunOwnedLocalHostWithLayoutMCPStdioStartsSessionAndBridges(t *testing.T
 	}
 	var bridged *MCPSession
 	runMCPStdioBridge = func(_ context.Context, session *MCPSession, stdin io.Reader, stdout io.Writer) error {
-		<-waitDone
 		bridged = session
+		close(bridgeStarted)
+		<-waitDone
 		return nil
 	}
 
