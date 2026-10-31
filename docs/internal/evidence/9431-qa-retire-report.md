@@ -397,3 +397,48 @@ invocation (pre-reducer-cycle, expected); the flip awaits ruling step 6.
 Rollback window: still OPEN at pass-2 commit (markers 90/90 intact,
 pointers cleared; no prune or satellite activation on a retired scope at
 verify time ~16:30 UTC). Closing is recorded here when it passes.
+
+## Step 6 — re-trigger (CYCLE OBSERVED 2026-10-31 17:01:05 UTC; AC3.3b FAILS, issue stays open)
+
+Post-commit reducer supply-chain-impact cycle awaited per ruling step 6 and
+observed live: the work item for the satellite GHSA-67hx scope generation
+(`...:f75e567f...`) moved `pending` (16:50:05) → `claimed` (17:00:24) →
+`succeeded` (17:01:05 UTC), and its finding row refreshed at 17:01:05
+(post-commit 16:28:46). Cycle timestamp recorded.
+
+Post-cycle proof (committed script read-only re-run 2026-10-31 ~17:06 UTC,
+exit 0 — postdates the 17:01:05 refresh; classification `candidates=46
+classW=0 classS_eligible=0 mixed=0 inflight=3`, retire set 0 — the 46 are
+S-remainder, 3 transiently in-flight, all excluded fail-closed):
+
+| AC | Result | Evidence |
+|---|---|---|
+| AC3.1: 0 Class W rows | PASS | `ac3_1_class_w_remaining = 0` (commit log and post-cycle run). |
+| AC3.2: 0 live retired Class W facts | PASS | `ac3_2_live_retired_class_w_facts = 0` (both runs). |
+| AC3.3a: both satellite lines live | PASS | Both `@babel/traverse` ranges (`[0,fixed 7.23.2]`, `[8.0.0-alpha.0,fixed 8.0.0-alpha.4]`) live in the active satellite generation (commit log + post-cycle run). |
+| AC3.3b: 7.29.7 pin reads `affected` | FAIL | Post-cycle finding (refreshed 17:01:05): `possibly_affected / version_not_in_advisory_range / >=0 <7.23.2`. The two pre-commit rows (`>=8.0.0-alpha.0 <8.0.0-alpha.4`, in pass-1-retired superseded generations) persist untombstoned — retraction runs per (scope,generation) pass and no pass revisits pointer-cleared scopes (their queue items sit `succeeded` since 16:03:36); retention prune will delete them later. |
+| AC3.4: satellite facts ≥ baseline | PASS | `ac3_4_live_satellite_facts = 835` (834 at commit; baseline 389). |
+| AC3.5: API shows the 7.x range | PASS | `GET /api/v0/supply-chain/vulnerabilities/GHSA-67hx-6x53-jw92` on QA (exit 0, ~16:5x UTC): `affected_ranges` carry `[introduced 0, fixed 7.23.2]` and `[introduced 8.0.0-alpha.0, fixed 8.0.0-alpha.4]` with `fixed_versions ["7.23.2","8.0.0-alpha.4"]`, resolved from active facts. |
+
+Root cause of the AC3.3b miss (read from source, not a measurement gap):
+OSV ground truth (`api.osv.dev/v1/vulns/GHSA-67hx-6x53-jw92`, re-fetched
+2026-10-31) fixes the 7.x line at 7.23.2, so the 7.29.7 pin is NOT
+vulnerable; the only all-versions entry (`babel-traverse`, unscoped,
+introduced 0, no fixed) names a different package and correctly does not
+match `@babel/traverse` consumption. The matcher
+(`evaluateNPMSemverMatch`, `version_match.go:163`) returns `affected`
+only for in-range versions; 7.29.7 falls through to
+`possibly_affected / version_not_in_advisory_range` — the factually
+correct, fail-closed answer. The ruling's `affected` expectation is
+unsatisfiable on this deployment evidence; no curator, satellite, or
+reducer behavior observed in three evaluation rounds (15:38, 16:26
+pre-commit, 17:01 post-commit) supports it. This needs an arbiter
+re-ruling on AC3.3b (close as "pin not vulnerable, fail-closed
+possibly_affected correct" or restate the line) — not another retire
+pass, not a matcher change, and not silence.
+
+Per the APPROVE ruling decision 3 and the executor handoff, #9431 stays
+OPEN with the remaining set named: AC3.3b only (all other AC3 lines
+pass). The retire itself is complete and verified: 90/90 oracle rows
+retired with markers, both gates PASS, rollback window still OPEN (no
+prune observed as of ~17:10 UTC).
