@@ -61,9 +61,9 @@ owns its own registry for the MCP transport it now serves.
 
 ## Left for the api/cli lanes and the orchestrator
 
-`go/cmd/eshu/service.go` launchers still exec `eshu-mcp-server`
-from `PATH`, plus its tests and the local-supervisor PATH docs;
-`Dockerfile` api/cli lines untouched. Gate serving legs still start
-the in-tree binary (`verify-golden-corpus-gate.sh`,
-`verify-read-api-latency-gate.sh`, compose `mcp-server` service);
-rewiring them to the satellite is sequenced by the orchestrator.
+`Dockerfile` api/cli lines untouched (api #9669 and cli #9671 own them; no
+Go imports cross cmd trees, so this removal compiles cleanly). The satellite
+rewiring once sequenced here has landed in this head: service launchers
+session-delegate plus satellite Exec (`d65b13c`, `2155a64`), the digest-pinned
+Dockerfile satellite stage (`b769fae`), gate serving legs build and start the
+pinned satellite, and the latency profile mapping is pinned.
