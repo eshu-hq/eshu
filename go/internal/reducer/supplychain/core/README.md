@@ -21,7 +21,18 @@ For package advisories, an attached SBOM image path preserves package and
 image evidence while the ecosystem matcher decides version truth. In-range
 versions are `affected_exact`; known fixed versions remain
 `not_affected_known_fixed`; missing, malformed, conflicting, or outside-range
-versions remain `possibly_affected`. The product/CPE-only image path keeps its
+versions remain `possibly_affected`. Each consuming repository classifies its
+own manifest finding: one (CVE, package) pair yields one finding per repository
+with consumption evidence, and the lockfile/installed-version preference only
+picks the representative row within a repository, so a preferred lockfile row
+never drops another repository's consumer (#9725). A manifest row with no
+observed version and only an `==`-pinned requirement stays `possibly_affected`
+with reason `range_only_manifest`: the pin is a requirement, not
+installed-version proof, so it never claims `affected_exact`.
+
+Benchmark Evidence (#9725): `BenchmarkBuildSupplyChainImpactFindingsAlertEPSS` on linux/arm64, Go 1.26.6, same single-input envelope set, three one-second samples: baseline `32fc75a3a2` 15160/15269/15118 ns/op (15444 B/op, 116 allocs/op); after 15081/15004/14826 ns/op (15444 B/op, 116 allocs/op). Ranges overlap with identical allocations: no per-finding classification regression. The two-repository #9725 input (one CVE, one affected package, two consumption rows) classifies at 58430–59007 ns/op for two findings — one in-memory classify per extra consuming repository, with no new backend call, queue stage, lock, or graph write.
+
+No-Observability-Change (#9725): per-repository findings reuse the existing persisted finding, counters, spans, and quarantine signals; no new metric, span, log key, queue stage, or runtime setting. The product/CPE-only image path keeps its
 separate `affected_derived` rule. The existing finding payload and counters
 expose these decisions without a new queue stage or metric label. One package
 advisory can now produce separate findings for every verified SBOM image

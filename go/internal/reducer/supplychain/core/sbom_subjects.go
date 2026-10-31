@@ -6,6 +6,7 @@ package core
 import (
 	"encoding/json"
 	"sort"
+	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
@@ -27,7 +28,7 @@ func appendSupplyChainImpactPackageFindings(
 	pkg := representativeAffectedPackage(pkgs)
 	paths := supplyChainSBOMPaths(pkg, index)
 	if len(paths) == 0 {
-		return appendSupplyChainImpactFinding(findings, classifySupplyChainImpactPackage(cves, pkgs, index))
+		return appendSupplyChainImpactManifestFindings(findings, cves, pkgs, index)
 	}
 	if len(paths) == 1 && firstConsumption(pkg.PackageID, index.consumption).FactID == "" && !hasMatchingOSPackage(pkg, index) {
 		return appendSupplyChainImpactFinding(findings, classifySupplyChainImpactPackage(cves, pkgs, index))
@@ -70,10 +71,76 @@ func appendSupplyChainImpactPackageFindings(
 	base := index
 	base.components = nil
 	base.osPackages = baseOS
-	if firstConsumption(pkg.PackageID, base.consumption).FactID != "" || hasMatchingOSPackage(pkg, base) {
-		findings = appendSupplyChainImpactFinding(findings, classifySupplyChainImpactPackage(cves, pkgs, base))
+	if len(consumptionRepositoriesForPackage(pkg.PackageID, base.consumption)) > 0 || hasMatchingOSPackage(pkg, base) {
+		findings = appendSupplyChainImpactManifestFindings(findings, cves, pkgs, base)
 	}
 	return findings
+}
+
+// appendSupplyChainImpactManifestFindings classifies one finding per consuming
+// repository instead of one representative consumption per package (issue
+// #9725). A single firstConsumption winner silently drops every other
+// consumer — every non-lockfile manifest row loses to the preferred lockfile
+// row — so each distinct repository classifies over its own rows, with
+// firstConsumption still picking the representative row within a repository.
+// Repositories sort for deterministic output; the writer and coalesce keys
+// already carry repository_id, so per-repo findings persist side by side.
+// With no consumption rows the single unscoped classification stands (OS-only
+// evidence, or the owned-anchor drop when nothing anchors the package).
+func appendSupplyChainImpactManifestFindings(
+	findings []SupplyChainImpactFinding,
+	cves supplyChainCVEGroup,
+	pkgs []supplychainmodel.AffectedPackage,
+	index supplyChainImpactIndex,
+) []SupplyChainImpactFinding {
+	pkg := representativeAffectedPackage(pkgs)
+	repositories := consumptionRepositoriesForPackage(pkg.PackageID, index.consumption)
+	if len(repositories) == 0 {
+		return appendSupplyChainImpactFinding(findings, classifySupplyChainImpactPackage(cves, pkgs, index))
+	}
+	for _, repositoryID := range repositories {
+		scoped := index
+		scoped.consumption = map[string][]supplychainmodel.PackageConsumption{
+			pkg.PackageID: consumptionRowsForRepository(index.consumption[pkg.PackageID], repositoryID),
+		}
+		findings = appendSupplyChainImpactFinding(findings, classifySupplyChainImpactPackage(cves, pkgs, scoped))
+	}
+	return findings
+}
+
+// consumptionRepositoriesForPackage returns the sorted distinct non-blank
+// repository IDs with consumption rows for a package. Blank repository rows
+// cannot anchor a finding, matching the firstConsumption skip.
+func consumptionRepositoriesForPackage(
+	packageID string,
+	consumption map[string][]supplychainmodel.PackageConsumption,
+) []string {
+	var repositories []string
+	seen := make(map[string]bool)
+	for _, row := range consumption[packageID] {
+		if strings.TrimSpace(row.RepositoryID) == "" || seen[row.RepositoryID] {
+			continue
+		}
+		seen[row.RepositoryID] = true
+		repositories = append(repositories, row.RepositoryID)
+	}
+	sort.Strings(repositories)
+	return repositories
+}
+
+// consumptionRowsForRepository returns the rows of one repository in index
+// order so firstConsumption keeps its within-repository preference.
+func consumptionRowsForRepository(
+	rows []supplychainmodel.PackageConsumption,
+	repositoryID string,
+) []supplychainmodel.PackageConsumption {
+	var out []supplychainmodel.PackageConsumption
+	for _, row := range rows {
+		if row.RepositoryID == repositoryID {
+			out = append(out, row)
+		}
+	}
+	return out
 }
 
 func hasMatchingOSPackage(pkg supplychainmodel.AffectedPackage, index supplyChainImpactIndex) bool {
