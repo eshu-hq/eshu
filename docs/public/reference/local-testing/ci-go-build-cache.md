@@ -161,3 +161,18 @@ fetch.sh run directories (same layout the weights refresher reads). The
 census fails closed on any shard whose restore section shows neither a hit
 nor a miss. The first post-fix census (4 runs: 2 all-hit, 2 all-miss) is the
 evidence that the count waits on #9632.
+
+## Pre-fix eviction evidence gap (#9706)
+
+Whether LRU eviction alone removed the pre-#9632 `gobuild-` entry cannot be
+proven from the exposed APIs, and this is accepted as a permanent gap. The
+audit established: the entry disappeared inside an ~11.5-minute window
+(parent go-core success 01:33:44Z to restore miss 01:45:15Z on the dec23a17
+push, same `go.sum`); the store read over the 10 GB limit on both sides
+(24.53 GB the day before, 10.55 GB active hours after); a concurrent PR-9544
+docker blob flood (1.29 GB at 01:45:15.8Z) hit the same over-limit store at
+the miss second; key-mismatch, branch-scope, and 7-day-expiry are ruled out.
+What the REST API cannot supply: timestamped eviction/deletion records and
+historical store totals — only a 1.60 GB survivor lower bound is derivable,
+and a manual delete inside the window is unfalsifiable. LRU eviction is the
+sole surviving automatic mechanism, but that is elimination, not observation.
