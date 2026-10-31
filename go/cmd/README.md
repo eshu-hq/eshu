@@ -16,7 +16,7 @@ exact binary set on `PATH`.
 | --- | --- | --- |
 | `eshu` (CLI) | `eshu/` | One-shot CLI commands plus subcommand dispatch |
 | `eshu-api` | `api/` | Long-running HTTP API |
-| `eshu-mcp-server` | `mcp-server/` | Long-running MCP tool server |
+| `eshu-mcp-server` | External satellite (installed via `scripts/install-local-binaries.sh`) | Long-running MCP tool server |
 | `eshu-ingester` | `ingester/` | Long-running git sync + parse + fact emission |
 | `eshu-projector` | `projector/` | Long-running source-local projection (local profiles) |
 | `eshu-reducer` | `reducer/` | Long-running cross-domain materialization |

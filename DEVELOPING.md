@@ -110,7 +110,6 @@ matrix here.
 The service boundary is explicit:
 
 - `go/cmd/api/`
-- `go/cmd/mcp-server/`
 - `go/cmd/bootstrap-index/`
 - `go/cmd/ingester/`
 - `go/cmd/reducer/`
