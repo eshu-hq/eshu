@@ -69,20 +69,25 @@ ORDER BY observed_at ASC, fact_id ASC
 type FactStore struct {
 	database      db.ExecQueryer
 	identityCache *IdentityEpochCache
-	instruments   *telemetry.Instruments
-	logger        *slog.Logger
+	// fleetShared coalesces concurrent duplicate fleet-wide fact loads
+	// (container-image SLSA actives, repository catalog) across reducer
+	// workers (#9697). It retains nothing, so sharing never serves stale
+	// truth; a nil group keeps zero-value test wiring on the direct path.
+	fleetShared *sharedFleetLoadGroup
+	instruments *telemetry.Instruments
+	logger      *slog.Logger
 }
 
 // NewFactStore constructs a Postgres-backed fact store without identity caching.
 // Use NewFactStoreWithIdentityCache to enable the identity-fact epoch cache.
 func NewFactStore(database db.ExecQueryer) *FactStore {
-	return &FactStore{database: database}
+	return &FactStore{database: database, fleetShared: newSharedFleetLoadGroup()}
 }
 
 // NewFactStoreWithIdentityCache constructs a Postgres-backed fact store with
 // the identity-fact epoch cache enabled.
 func NewFactStoreWithIdentityCache(database db.ExecQueryer, cache *IdentityEpochCache) *FactStore {
-	return &FactStore{database: database, identityCache: cache}
+	return &FactStore{database: database, identityCache: cache, fleetShared: newSharedFleetLoadGroup()}
 }
 
 // WithInstruments returns a copy that records manifest tag outcomes on the

@@ -115,6 +115,24 @@ func (s FactStore) ListActiveRepositoryFacts(ctx context.Context) ([]facts.Envel
 		return nil, fmt.Errorf("fact store database is required")
 	}
 
+	// #9697: concurrent workers racing the catalog share the leader's single
+	// pass; the group retains nothing, so truth stays exact. Each served
+	// caller still records its own load histogram from the shared rows, so
+	// per-domain observability is unchanged.
+	res, err := s.fleetShared.doResult(ctx, sharedFleetLoadKeyRepositoryCatalog,
+		func(ctx context.Context) (fleetLoadResult, error) {
+			rows, payloadBytes, err := s.loadActiveRepositoryFactsUncached(ctx)
+			return fleetLoadResult{rows: rows, payloadBytes: payloadBytes}, err
+		})
+	if err != nil {
+		return nil, err
+	}
+	s.recordRepositoryCatalogLoad(ctx, len(res.rows), res.payloadBytes)
+	return res.rows, nil
+}
+
+// loadActiveRepositoryFactsUncached performs the paginated load without sharing.
+func (s FactStore) loadActiveRepositoryFactsUncached(ctx context.Context) ([]facts.Envelope, int64, error) {
 	var loaded []facts.Envelope
 	var payloadBytes int64
 	var cursorObservedAt *time.Time
@@ -122,13 +140,12 @@ func (s FactStore) ListActiveRepositoryFacts(ctx context.Context) ([]facts.Envel
 	for {
 		page, pageBytes, err := s.listActiveRepositoryFactsPage(ctx, cursorObservedAt, cursorFactID)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		loaded = append(loaded, page...)
 		payloadBytes += pageBytes
 		if len(page) < listFactsByKindPageSize {
-			s.recordRepositoryCatalogLoad(ctx, len(loaded), payloadBytes)
-			return loaded, nil
+			return loaded, payloadBytes, nil
 		}
 
 		last := page[len(page)-1]

@@ -213,6 +213,10 @@ tests:
     tag: integration
     class: scheduled
     reason: full-stack cost unmeasured on this tree; promote to blocking after a measured green run
+  - file: go/internal/storage/postgres/workload_candidate_precondition_live_test.go
+    tag: integration
+    class: scheduled
+    reason: full-stack cost unmeasured on this tree; promote to blocking after a measured green run
   - file: go/internal/storage/postgres/facts_cicd_run_history_latest_snapshot_live_test.go
     tag: ~
     class: scheduled

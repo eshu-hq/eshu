@@ -160,6 +160,11 @@ func (l CorrelatedWorkloadProjectionInputLoader) LoadWorkloadProjectionScopeInpu
 	if l.FactLoader == nil {
 		return WorkloadProjectionInputs{}, fmt.Errorf("correlated workload projection fact loader is required")
 	}
+	// #9697: cheap readiness probes before the bulk load below; a deferred
+	// intent must not pay for facts it discards.
+	if err := l.deferUnlessReadyForBulkLoad(ctx, intent); err != nil {
+		return WorkloadProjectionInputs{}, err
+	}
 
 	envelopes, err := factload.LoadFactsForKinds(
 		ctx,
@@ -174,14 +179,11 @@ func (l CorrelatedWorkloadProjectionInputLoader) LoadWorkloadProjectionScopeInpu
 
 	candidates, deploymentEnvironments := ExtractWorkloadCandidates(envelopes)
 	// Fail closed before the resolved-relationship read, mirroring the
-	// deployable-unit correlation gate: an inactive own generation means the
-	// pinned own-scope load and the by-repos load are both partial, and
-	// workload materialization succeeding on that partial input is never
-	// reopened (#6184). The own-scope check is deliberately own-scope only
-	// (foreign scopes are undiscoverable before the read itself); the
-	// corpus-wide fence below covers the foreign side.
-	// A closed gate reads the own deployment_mapping producer (#7597): a
-	// dead-lettered producer returns a counting error, never this deferral.
+	// deployable-unit correlation gate: an inactive own generation means both
+	// resolved loads are partial, and succeeding on partial input is never
+	// reopened (#6184). The own-scope check cannot see foreign scopes; the
+	// corpus-wide fence below covers them. A closed gate reads the own
+	// deployment_mapping producer (#7597): dead-lettered counts, never defers.
 	gate := crossrepo.EvaluateOwnGate(ctx, l.ResolutionActiveLookup, l.ResolutionProducerLookup,
 		intent, len(candidates) > 0, time.Now().UTC())
 	if gate.Err != nil {

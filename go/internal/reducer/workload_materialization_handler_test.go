@@ -960,11 +960,22 @@ func TestWorkloadMaterializationHandlerRequiresFactLoader(t *testing.T) {
 type stubFactLoader struct {
 	envelopes []facts.Envelope
 	calls     int
+	// mayHoldCandidates backs the #9697 candidate-precondition probe: false
+	// (the default) keeps every existing test on the load-then-gate path,
+	// true lets pre-gate tests exercise the shed-the-bulk-load branch.
+	mayHoldCandidates bool
 }
 
 func (f *stubFactLoader) ListFacts(_ context.Context, _, _ string) ([]facts.Envelope, error) {
 	f.calls++
 	return f.envelopes, nil
+}
+
+func (f *stubFactLoader) ScopeMayHoldWorkloadCandidates(
+	_ context.Context,
+	_, _ string,
+) (bool, error) {
+	return f.mayHoldCandidates, nil
 }
 
 type stubResolvedRelationshipLoader struct {
