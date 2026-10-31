@@ -6,6 +6,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -194,5 +195,113 @@ func TestBuildIntakeServerRequiresToken(t *testing.T) {
 
 	if _, err := buildIntakeServer(webhookIntakeConfig{MaxRequestBodyBytes: defaultMaxWebhookIntakeBodyBytes}, testIntakeStores(), nil); err == nil {
 		t.Fatal("buildIntakeServer() error = nil, want fail-closed token error")
+	}
+}
+
+// Every non-repository family serves through the production host
+// constructor: a valid submission per family is accepted with 202, proving
+// the bundled fakes are actually wired and not just constructed.
+func TestIntakeHostServesAllFamilies(t *testing.T) {
+	t.Parallel()
+
+	handler := testIntakeServer(t, webhookIntakeConfig{
+		IntakeToken:         "serve-token",
+		MaxRequestBodyBytes: defaultMaxWebhookIntakeBodyBytes,
+	})
+	for _, tc := range []struct {
+		name  string
+		route string
+		body  string
+	}{
+		{"incident", "/api/v1/webhook/intake/incident", `{
+			"api_version": "v1",
+			"provider": "pagerduty",
+			"event_kind": "incident.triggered",
+			"event_id": "evt-1",
+			"scope_id": "pagerduty:account:example"
+		}`},
+		{"aws", "/api/v1/webhook/intake/aws", `{
+			"api_version": "v1",
+			"event_id": "evt-aws-1",
+			"kind": "config_change",
+			"account_id": "123456789012",
+			"region": "us-east-1",
+			"service_kind": "ec2",
+			"resource_type": "AWS::EC2::Instance",
+			"resource_id": "i-123",
+			"observed_at": "2026-10-31T00:00:00Z"
+		}`},
+		{"gcp", "/api/v1/webhook/intake/gcp", `{
+			"api_version": "v1",
+			"event_id": "evt-gcp-1",
+			"kind": "asset_change",
+			"parent_scope_kind": "project",
+			"parent_scope_id": "p-1",
+			"asset_type": "compute.googleapis.com/Instance",
+			"location": "us-central1",
+			"observed_at": "2026-10-31T00:00:00Z"
+		}`},
+		{"actions", "/api/v1/webhook/intake/actions", `{
+			"api_version": "v1",
+			"provider": "github",
+			"delivery_id": "actions-delivery-1",
+			"event_kind": "workflow_run",
+			"action": "completed",
+			"repository_id": "42",
+			"repository": "example/repo",
+			"run_id": "123"
+		}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			rec := postIntake(t, handler, tc.route, []byte(tc.body), "serve-token")
+			if rec.Code != http.StatusAccepted {
+				t.Fatalf("%s status = %d, want %d body=%q", tc.name, rec.Code, http.StatusAccepted, rec.Body.String())
+			}
+		})
+	}
+}
+
+// An unwired family answers 503 (keep for redelivery), never 500: this pins
+// the host's always-wired contract from the failure side.
+func TestIntakeHostUnwiredFamilyReturns503(t *testing.T) {
+	t.Parallel()
+
+	stores := testIntakeStores()
+	stores.Incident = nil
+	server, err := buildIntakeServer(webhookIntakeConfig{
+		IntakeToken:         "serve-token",
+		MaxRequestBodyBytes: defaultMaxWebhookIntakeBodyBytes,
+	}, stores, nil)
+	if err != nil {
+		t.Fatalf("buildIntakeServer() error = %v, want nil", err)
+	}
+	rec := postIntake(t, server.Mux(), "/api/v1/webhook/intake/incident", []byte(`{
+		"api_version": "v1",
+		"provider": "pagerduty",
+		"event_kind": "incident.triggered",
+		"event_id": "evt-1",
+		"scope_id": "pagerduty:account:example"
+	}`), "serve-token")
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("unwired incident status = %d, want %d body=%q", rec.Code, http.StatusServiceUnavailable, rec.Body.String())
+	}
+}
+
+// Store wiring fails closed without a database: openTriggerStores aborts
+// startup on the first EnsureSchema error instead of serving intake without
+// durable storage. A closed *sql.DB needs no live Postgres.
+func TestOpenTriggerStoresFailsClosedWithoutDatabase(t *testing.T) {
+	t.Parallel()
+
+	db, err := sql.Open("pgx", "host=127.0.0.1 port=1 user=closed dbname=closed")
+	if err != nil {
+		t.Fatalf("sql.Open() error = %v, want nil", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("db.Close() error = %v, want nil", err)
+	}
+	if _, err := openTriggerStores(context.Background(), db, nil, nil); err == nil {
+		t.Fatal("openTriggerStores() on a closed database = nil, want schema error")
 	}
 }

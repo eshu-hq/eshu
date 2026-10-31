@@ -93,5 +93,3 @@ See `doc.go` for the full godoc contract.
 - Listener command (provider-facing, pre-removal):
   `go/cmd/webhook-listener/AGENTS.md`
 - Runtime map: `docs/public/deployment/service-runtimes-core.md`
-- Roll-forward runbook:
-  `docs/public/operate/webhook-satellite-roll-forward.md`
