@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os/exec"
@@ -226,6 +227,48 @@ func TestRunMCPBridgeForwardsRequestsAndSkipsNotifications(t *testing.T) {
 		if resp.JSONRPC != "2.0" || resp.ID != i+1 {
 			t.Fatalf("stdout line %d = %q, want jsonrpc 2.0 response with id %d", i, line, i+1)
 		}
+	}
+}
+
+// TestRunMCPBridgeSynthesizesErrorOnBadStatusWithBody proves a non-2xx
+// satellite answer carrying a body (a proxy HTML error page, not JSON-RPC)
+// is converted into a JSON-RPC error with the request id instead of being
+// relayed verbatim. Relaying it verbatim would hand the client an HTML line
+// it must reject.
+func TestRunMCPBridgeSynthesizesErrorOnBadStatusWithBody(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		w.WriteHeader(http.StatusBadGateway)
+		_, _ = io.WriteString(w, "<html><body>bad gateway</body></html>")
+	}))
+	defer server.Close()
+
+	stdin := `{"jsonrpc":"2.0","id":7,"method":"tools/list","params":{}}` + "\n"
+	var stdout strings.Builder
+	if err := RunMCPBridge(context.Background(), server.URL+"/mcp/message", "test-key", strings.NewReader(stdin), &stdout); err != nil {
+		t.Fatalf("RunMCPBridge() error = %v, want nil", err)
+	}
+
+	line := strings.TrimRight(stdout.String(), "\n")
+	var resp struct {
+		JSONRPC string `json:"jsonrpc"`
+		ID      int    `json:"id"`
+		Error   struct {
+			Code    int    `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(line), &resp); err != nil {
+		t.Fatalf("stdout is not one JSON object: %v: %q", err, line)
+	}
+	if resp.JSONRPC != "2.0" || resp.ID != 7 || resp.Error.Code == 0 {
+		t.Fatalf("stdout = %q, want JSON-RPC error with id 7", line)
+	}
+	if !strings.Contains(resp.Error.Message, "502") {
+		t.Fatalf("error message = %q, want the satellite status", resp.Error.Message)
+	}
+	if strings.Contains(line, "<html>") {
+		t.Fatalf("stdout relays the proxy HTML verbatim: %q", line)
 	}
 }
 

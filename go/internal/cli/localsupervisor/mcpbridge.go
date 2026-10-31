@@ -260,6 +260,16 @@ func postBridgeLine(ctx context.Context, client *http.Client, satelliteMessageUR
 	if resp.StatusCode == http.StatusNoContent {
 		return nil
 	}
+	if resp.StatusCode/100 != 2 {
+		snippet := strings.TrimSpace(string(body))
+		if len(snippet) > 300 {
+			snippet = snippet[:300] + "…"
+		}
+		if !hasID {
+			return fmt.Errorf("post MCP message: satellite answered %d: %s", resp.StatusCode, snippet)
+		}
+		return writeBridgeError(stdout, id, fmt.Sprintf("satellite answered %d: %s", resp.StatusCode, snippet))
+	}
 	trimmed := strings.TrimSpace(string(body))
 	if trimmed == "" {
 		if !hasID {
