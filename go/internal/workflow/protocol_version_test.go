@@ -9,10 +9,38 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
+	"sort"
 	"strings"
 	"testing"
 	"time"
 )
+
+// claimPlaneVersionedMethods names every exported ClaimPlaneClient method.
+// Invariant: all ClaimPlaneClient HTTP traffic goes through
+// (*ClaimPlaneClient).post, the sole Workflow-Protocol-Version setter, so
+// every name listed here must be exercised below and observed with major "1".
+// The list is centralized here (not scattered across stub and test) so that
+// adding a client method forces a test update: the reflect pin below fails on
+// any method outside this list, and wantRoutes fails on any listed method the
+// test stops exercising.
+var claimPlaneVersionedMethods = []string{
+	"CheckClaimPacing",
+	"ClaimNextEligible",
+	"CompleteClaim",
+	"CreateRun",
+	"EnqueueWorkItems",
+	"FailClaimRetryable",
+	"FailClaimTerminal",
+	"HeartbeatClaim",
+	"ListCollectorInstances",
+	"PinClaimForCommit",
+	"ReapExpiredClaims",
+	"ReconcileCollectorInstances",
+	"ReconcileWorkflowRuns",
+	"ReleaseClaim",
+	"UpsertCompletenessStates",
+}
 
 // versionRecordingPlane records the Workflow-Protocol-Version header of every
 // request while serving minimal valid workflow.v1 bodies. It proves the
@@ -165,7 +193,22 @@ func TestClaimPlaneClientPinsProtocolMajorOne(t *testing.T) {
 		t.Fatalf("reap: %v", err)
 	}
 
-	const wantRoutes = 15
+	// Pin the client surface: any exported method added to *ClaimPlaneClient
+	// without joining claimPlaneVersionedMethods (and a versioned-path call
+	// below) fails here instead of slipping past the route count.
+	clientType := reflect.TypeOf(&ClaimPlaneClient{})
+	var have []string
+	for i := range clientType.NumMethod() {
+		have = append(have, clientType.Method(i).Name)
+	}
+	sort.Strings(have)
+	want := append([]string(nil), claimPlaneVersionedMethods...)
+	sort.Strings(want)
+	if !reflect.DeepEqual(have, want) {
+		t.Fatalf("ClaimPlaneClient methods = %v, want %v", have, want)
+	}
+
+	wantRoutes := len(claimPlaneVersionedMethods)
 	if len(plane.seen) != wantRoutes {
 		t.Fatalf("recorded %d versioned requests, want %d", len(plane.seen), wantRoutes)
 	}
