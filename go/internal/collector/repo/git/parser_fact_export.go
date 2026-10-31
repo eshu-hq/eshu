@@ -55,12 +55,13 @@ func ParserFileFactEnvelope(
 	_, hasRustTransport := parsedFile["rust_runtime_evidence"]
 	_, hasElixirTransport := parsedFile["elixir_runtime_evidence"]
 	_, hasHaskellTransport := parsedFile["haskell_runtime_evidence"]
+	_, hasCabalTransport := parsedFile["cabal_runtime_evidence"]
 	_, hasDartTransport := parsedFile["dart_runtime_evidence"]
 	_, hasSwiftTransport := parsedFile["swift_runtime_evidence"]
-	if hasComposerTransport || hasPythonTransport || hasRubyTransport || hasJVMTransport || hasDotNetTransport || hasIACTransport || hasRustTransport || hasElixirTransport || hasHaskellTransport || hasDartTransport || hasSwiftTransport {
+	if hasComposerTransport || hasPythonTransport || hasRubyTransport || hasJVMTransport || hasDotNetTransport || hasIACTransport || hasRustTransport || hasElixirTransport || hasHaskellTransport || hasCabalTransport || hasDartTransport || hasSwiftTransport {
 		clean := make(map[string]any, len(parsedFile)-1)
 		for key, value := range parsedFile {
-			if key != "composer_runtime_evidence" && key != "python_runtime_evidence" && key != "ruby_runtime_evidence" && key != "jvm_runtime_evidence" && key != "dotnet_runtime_evidence" && key != "iac_runtime_evidence" && key != "rust_runtime_evidence" && key != "elixir_runtime_evidence" && key != "haskell_runtime_evidence" && key != "dart_runtime_evidence" && key != "swift_runtime_evidence" {
+			if key != "composer_runtime_evidence" && key != "python_runtime_evidence" && key != "ruby_runtime_evidence" && key != "jvm_runtime_evidence" && key != "dotnet_runtime_evidence" && key != "iac_runtime_evidence" && key != "rust_runtime_evidence" && key != "elixir_runtime_evidence" && key != "haskell_runtime_evidence" && key != "cabal_runtime_evidence" && key != "dart_runtime_evidence" && key != "swift_runtime_evidence" {
 				clean[key] = value
 			}
 		}

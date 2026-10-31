@@ -7,6 +7,7 @@ import (
 	"path"
 	"strings"
 
+	cabalparser "github.com/eshu-hq/eshu/go/internal/parser/cabal"
 	gradleparser "github.com/eshu-hq/eshu/go/internal/parser/gradle"
 	parserjson "github.com/eshu-hq/eshu/go/internal/parser/json"
 	mavenparser "github.com/eshu-hq/eshu/go/internal/parser/maven"
@@ -55,6 +56,8 @@ func Extract(relativePath, body string) (Extraction, bool) {
 		return extractMixExsManifest(body), true
 	case manifestStackYaml:
 		return extractStackManifest(body), true
+	case manifestHaskellCabal:
+		return ExtractHaskellCabalEvidence(cabalparser.ExtractCabalRuntimeEvidence([]byte(body))), true
 	case manifestPackageJSON:
 		return extractManifest(body, func() ([]declaration, int, error) { return extractPackageJSON(body) }), true
 	case manifestComposerJSON:

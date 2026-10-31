@@ -37,6 +37,8 @@ var benchExemptParsers = map[string]string{
 		"cost would measure only map allocation.",
 	"sbt_properties": "sbt_properties emits metadata only; the guarded version " +
 		"reader runs in the collector, so parser cost would measure only map allocation.",
+	"haskell_cabal": "haskell_cabal emits metadata only; the guarded tested-with " +
+		"reader runs in the collector, so parser cost would measure only map allocation.",
 	"tfvars": "tfvars is a routing-only definition (#8833): parseDefinition sends it to " +
 		"parseHCL, which the hcl benchmark already measures, so a separate figure would " +
 		"duplicate that number.",

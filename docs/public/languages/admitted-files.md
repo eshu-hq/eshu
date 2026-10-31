@@ -47,6 +47,7 @@ a line there.
 | `gradle_wrapper` | java | L2 structured fact | metadata |  | `gradle-wrapper.properties` |  |
 | `groovy` | groovy | L2 structured fact | store | `.groovy` |  |  |
 | `haskell` | haskell | L2 structured fact | store | `.hs` |  |  |
+| `haskell_cabal` | haskell | L2 structured fact | metadata | `.cabal` |  |  |
 | `hcl` | terraform | L2 structured fact | store | `.hcl`, `.tf` |  |  |
 | `java` | java | L2 structured fact | store | `.java` |  |  |
 | `java_metadata` | java | L2 structured fact | store |  |  |  |

@@ -50,3 +50,32 @@ func CappedHaskellExtraction(byteSize int) Extraction {
 func extractStackManifest(body string) Extraction {
 	return ExtractHaskellEvidence(yamlparser.ExtractStackRuntimeEvidence([]byte(body)))
 }
+
+// ExtractHaskellCabalEvidence normalizes private Cabal tested-with values
+// into guarded runtime facts, re-applying the credential guard at emission.
+func ExtractHaskellCabalEvidence(e shared.RuntimeEvidence) Extraction {
+	if e.ByteSize > MaxManifestBytesPerFile || e.State == "over_cap" {
+		return Extraction{skip: Skip{Reason: SkipReasonByteCap, ByteSize: e.ByteSize, ByteCap: MaxManifestBytesPerFile}}
+	}
+	if e.State == "unavailable" {
+		return Extraction{skip: Skip{Reason: SkipReasonManifestUnparseable, ByteSize: e.ByteSize}}
+	}
+	if e.State == "over_tokens" {
+		return Extraction{skip: Skip{Reason: SkipReasonTokenCap, ByteSize: e.ByteSize, TokenCount: e.TokenCount}}
+	}
+	out := make([]declaration, 0, len(e.Values))
+	rejected, lineOrders := e.Rejected, make(map[int]int)
+	for _, v := range e.Values {
+		if v.SourceKind != sourceKindCabalTestedWith || v.Runtime != "haskell" || v.Line < 1 || !safeSpec(v.Value) {
+			rejected++
+			continue
+		}
+		out = append(out, declaration{line: v.Line, order: lineOrders[v.Line], runtime: "haskell", rawSpec: v.Value, section: sectionCabalTestedWith})
+		lineOrders[v.Line]++
+	}
+	extraction := Extraction{declarations: detach(out)}
+	if rejected > 0 {
+		extraction.skip = Skip{Reason: SkipReasonValueRejected, ByteSize: e.ByteSize, Rejected: rejected}
+	}
+	return extraction
+}
