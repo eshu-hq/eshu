@@ -146,7 +146,13 @@ func (tx *cov8ImpactTx) Rollback() error {
 // read issues before its business query. The layout reads present, so the
 // protected statement runs exactly as on a fully bootstrapped database.
 func cov8AuthorityPresentStep() cov8ImpactStep {
-	return cov8ImpactStep{rows: [][]any{{"present"}}}
+	return cov8ImpactStep{rows: [][]any{{true}}}
+}
+
+// cov8AuthorityAbsentStep scripts the probe for a schema without the
+// authority objects: the legacy statement serves the business query.
+func cov8AuthorityAbsentStep() cov8ImpactStep {
+	return cov8ImpactStep{rows: [][]any{{false}}}
 }
 
 // cov8ImpactReadStore opens the scripted transaction.
@@ -478,5 +484,42 @@ func TestCov8ListRuntimeContext(t *testing.T) {
 	}}}}, false)
 	if _, err := badJSON.ListSupplyChainImpactRuntimeContext(ctx, []string{"repo-1"}, nil, nil); err == nil {
 		t.Error("payload decode failure = nil, want wrapped error")
+	}
+}
+
+// TestReadinessAuthorityProbeContract pins the probe's fallback polarity: a
+// layout with the claim columns reads true, a schema without them reads
+// false so the caller takes the legacy statement, and a probe failure
+// surfaces so the caller fails closed to the protected statement.
+func TestReadinessAuthorityProbeContract(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	for _, tc := range []struct {
+		name string
+		want bool
+	}{
+		{"layout and claim columns present", true},
+		{"layout without claim columns", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			step := cov8AuthorityPresentStep()
+			if !tc.want {
+				step = cov8AuthorityAbsentStep()
+			}
+			tx := &cov8ImpactTx{steps: []cov8ImpactStep{step}}
+			got, err := readinessAuthorityLayoutPresent(ctx, tx)
+			if err != nil {
+				t.Fatalf("probe() error = %v", err)
+			}
+			if got != tc.want {
+				t.Errorf("probe() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+	want := errors.New("probe down")
+	tx := &cov8ImpactTx{steps: []cov8ImpactStep{{err: want}}}
+	if _, err := readinessAuthorityLayoutPresent(ctx, tx); !errors.Is(err, want) {
+		t.Errorf("probe failure = %v, want wrap of %v", err, want)
 	}
 }

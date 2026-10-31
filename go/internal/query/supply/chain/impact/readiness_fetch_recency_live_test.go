@@ -297,3 +297,44 @@ func TestReadinessKeepsAdvisorySourcesForARefusedShrinkFromTheExtractedCollector
 		})
 	}
 }
+
+// TestReadinessGlobalLayoutWithoutLocalClaimColumnsUsesLegacyLive pins the
+// #9544 shard-2/6 failure deterministically: a database-global authority
+// layout (left behind here, as a shard mate's full bootstrap does) with an
+// isolated schema that skipped the public-only migrations must read the
+// legacy statement, not fail on the missing 241a claim columns.
+func TestReadinessGlobalLayoutWithoutLocalClaimColumnsUsesLegacyLive(t *testing.T) {
+	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
+	if dsn == "" {
+		t.Skip("set ESHU_POSTGRES_DSN to a disposable Postgres database to run the mixed-layout fallback proof")
+	}
+	ctx := context.Background()
+	admin, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatalf("open admin database: %v", err)
+	}
+	defer func() { _ = admin.Close() }()
+	// Install only what a foreign full bootstrap would leave globally, and
+	// remove only what this test creates: a pre-existing real layout stays.
+	var layoutExists bool
+	if err := admin.QueryRowContext(ctx, `SELECT to_regclass('eshu_security.role_policy_state') IS NOT NULL`).Scan(&layoutExists); err != nil {
+		t.Fatalf("probe global layout: %v", err)
+	}
+	if !layoutExists {
+		if _, err := admin.ExecContext(ctx, `CREATE SCHEMA IF NOT EXISTS eshu_security`); err != nil {
+			t.Fatalf("create eshu_security schema: %v", err)
+		}
+		if _, err := admin.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS eshu_security.role_policy_state (probe_stub BOOLEAN NOT NULL DEFAULT TRUE)`); err != nil {
+			t.Fatalf("create role_policy_state stub: %v", err)
+		}
+		t.Cleanup(func() {
+			_, _ = admin.ExecContext(context.Background(), `DROP TABLE IF EXISTS eshu_security.role_policy_state`)
+		})
+	}
+	p := openRecencyProof(t)
+	p.claim(time.Now().UTC().Add(-30 * 24 * time.Hour))
+	envelope := p.readiness()
+	if !ReadinessMissingContains(envelope.MissingEvidence, MissingEvidenceAdvisorySources) {
+		t.Fatalf("missing_evidence = %v, want %s for a source not fetched in 30 days", envelope.MissingEvidence, MissingEvidenceAdvisorySources)
+	}
+}
