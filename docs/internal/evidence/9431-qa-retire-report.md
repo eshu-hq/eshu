@@ -124,9 +124,53 @@ replacements (e.g. GHSA-6w3j-5fw6-r9vr/`joi`, both entries proven live),
 which could carry the same end-to-end proof. The ruling names GHSA-67hx;
 that substitution needs a recorded ruling, not lane discretion.
 
-## Step 5 — retire transaction (PENDING step 4)
+## Step 4 — update 2026-10-31 14:48 UTC (collection PROVEN, impact flip pending retire)
 
-Runs script Section 4 with `-v retire_ok=1`; rollback key captured from output.
+Watch fired on the read replica (`eshu-postgresql-read-0`, read-only
+transactions, 15–60s `statement_timeout`, all exits 0). Note: the
+`eshu-postgresql-read` ClusterIP timed out on every attempt (even `SELECT
+1`), so reads went to the replica pod IP directly; still replica-only, no
+primary reads except the authorized dry run below.
+
+- AC3.3a shape PROVEN live: 2 satellite live `affected_package` facts for
+  GHSA-67hx-6x53-jw92 in the active generation. The `@babel/traverse` row
+  carries both release lines (`[{"introduced":"0"},{"fixed":"7.23.2"}]`
+  and `[{"introduced":"8.0.0-alpha.0"},{"fixed":"8.0.0-alpha.4"}]`) and
+  both fixed versions `["7.23.2","8.0.0-alpha.4"]` — every entry, not
+  last-wins. (Second row is the unscoped `babel-traverse` package name in
+  the same satellite scope.)
+- Retired-instance GHSA-67hx facts still live (4) — expected pre-retire.
+- Impact for the 7.29.7 pin still `possibly_affected` ×3 (one new
+  `>=0 <7.23.2` row beside the two `>=8.0.0-alpha.0 <8.0.0-alpha.4`
+  rows). The flip to `affected` is expected only after the retire commit
+  (ruling step 6), so this is the pre-retire baseline, not a regression.
+- `_slot` scopes on QA: **0**. Slot scopes (#9587) are not enabled on the
+  QA satellite; collection still runs legacy batch scopes, so the V/P
+  rotation math is unchanged — but the ~91 h ETA is moot for GHSA-67hx:
+  the natural cycle already delivered the replacement.
+- Dry run re-run (committed hardened script, primary, Sections 0–3 + 6,
+  exit 0, Section 4 SKIPPED without `retire_ok`, rolled back):
+  classification `136 / 67 / 18 / 0 / 5` vs the 2026-10-30 `136 / 72 /
+  12 / 0 / 0`. Drift reconciled: 5 Class W generations carry
+  seconds-old `claimed` reducer rows and are excluded fail-closed (same
+  mechanism as the earlier 72→69 move); Class S eligible grew 12→18 as
+  satellite coverage grew (AC3.4 live satellite facts 419→795).
+  Retire set **85** (67 W + 18 S), `must_be_zero_blockers=5` (the 5
+  in-flight, excluded). `dryrun_updated_generations=85`,
+  `dryrun_marker_prior_status=85`, `dryrun_cleared_scopes=85`.
+- Post-run: 0 rows carry the `retired_issue=9431` marker, 0 OSV scopes
+  with NULL pointer. No data changed.
+- The §step-4 question (substituting a proven Class W advisory such as
+  GHSA-6w3j for GHSA-67hx) is moot: GHSA-67hx itself now has the live
+  both-lines replacement. No ruling change needed.
+
+## Step 5 — retire transaction (READY pending coordinator go-ahead)
+
+Step 4 collection is proven above; the impact flip (AC3.3b) follows the
+commit per the ruling. Run script Section 4 with `-v retire_ok=1` after
+a fresh Sections 0–3 dry run at execution time (the retire set is
+recomputed then; in-flight membership fluctuates). Rollback key captured
+from output.
 
 ## Step 6 + AC3 (PENDING step 5)
 
