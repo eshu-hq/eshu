@@ -9,6 +9,7 @@ import (
 	"time"
 
 	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
+	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -146,6 +147,13 @@ type Config struct {
 	// DefaultMaxResultPages; negative fails Source construction. It never
 	// trims facts: breaching it fails the claim terminal naming the bound.
 	MaxResultPages int
+	// ScopeQueryResolver, when set, delivers the run's requested_scope_set
+	// entry for each claimed work item onto the satellite claim
+	// (eshu-hq/eshu#9432). Nil means no transport: claims carry no scope
+	// queries and slot scopes keep their fail-closed behavior. A resolver
+	// error fails the claim terminal with FailureClassInvalidClaim before
+	// the satellite launches.
+	ScopeQueryResolver collector.ScopeQueryResolver
 	// ClaimOutcomeRecorder, when set, receives every claim outcome and, for
 	// completed claims, the post-commit confirmation (#9420). The host sets
 	// it only for collector kinds with host-owned source state; nil costs one
@@ -181,6 +189,8 @@ type Source struct {
 	grantObserver component.GrantObserver
 	// maxPages bounds paged reassembly; zero means DefaultMaxResultPages.
 	maxPages int
+	// scopeQueryResolver delivers claim transport; nil disables it.
+	scopeQueryResolver collector.ScopeQueryResolver
 	// outcomeRecorder receives claim outcomes; nil disables the seam.
 	outcomeRecorder ClaimOutcomeRecorder
 	// pendingOutcomes holds completed outcomes until the commit hook fires.

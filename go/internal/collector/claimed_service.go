@@ -13,6 +13,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
+	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -39,6 +40,18 @@ var (
 type ClaimedSource interface {
 	NextClaimed(context.Context, workflow.WorkItem) (CollectedGeneration, bool, error)
 }
+
+// ScopeQueryResolver delivers the run's requested_scope_set entry for one
+// claimed work item: the per-scope query list for scope ids that name a
+// shard rather than its contents (pinned virtual-slot scopes,
+// eshu-hq/eshu#9432). It reads the workflow run row by item RunID, so it
+// observes the tenant-filtered set the coordinator persisted at plan time.
+// A nil resolver means no transport: slot claims keep the fail-closed
+// behavior they have without it. A non-nil resolver returns nil queries
+// for every legacy scope id without touching the run store. A resolver
+// error fails the claim terminal: the satellite never launches and the
+// claim plane never retries, because retry cannot produce queries.
+type ScopeQueryResolver func(context.Context, workflow.WorkItem) ([]sdkcollector.ScopeQuery, error)
 
 // FailureClassAttemptBudgetExhausted labels claims that the bounded retry
 // guard routed to FailClaimTerminal after the work item's prior AttemptCount

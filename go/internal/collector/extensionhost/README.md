@@ -42,6 +42,39 @@ A mint denial fails the claim terminal with class `auth_denied` before the
 satellite launches; a transient mint fault stays retryable. With no provider
 the config passes through byte-identically (the `token_env` escape hatch).
 
+Claim scope query transport (#9432): `Config.ScopeQueryResolver`, when set,
+delivers the run's `requested_scope_set` entry for the claimed scope onto the
+satellite claim as `Claim.ScopeQueries` (at most `MaxScopeQueries` entries).
+The resolver returns nil for every legacy scope id, and `omitempty` keeps
+those claims byte-identical to the legacy shape. A resolver error fails the
+claim terminal with class `invalid_claim` before the satellite launches. The
+returned-claim echo compares `ScopeQueries` strictly: a stripped, injected,
+or reordered list fails with `identity_mismatch`.
+
+No-Observability-Change: transport adds no metric, label, span, or log key.
+Resolver failures reuse the existing `invalid_claim` class and its
+instruments; the echo reuses `identity_mismatch`. Failing transports record
+`last_failure_class invalid_claim` (satellite path, terminal) or a
+`non_retryable` source state (in-tree path).
+
+No-Regression Evidence: claim building with transport adds ~40 ns/op and one
+primary-key run-row read per claim. Baseline
+`BenchmarkRequestForWorkItemWithoutResolver`: 228-231 ns/op, 336 B/op,
+2 allocs/op. After `BenchmarkRequestForWorkItemWithScopeQueries` (2 queries
+delivered): 260-278 ns/op, 432 B/op, 3 allocs/op. Transport JSON parse
+`BenchmarkResolveSlotScopeQueries` (4 targets, 25-query slot entry):
+20.4 µs/op, 9144 B/op, 110 allocs/op (linux/arm64, go1.26.6, 3 runs each on
+a shared host, so run-to-run noise applies). Store read
+`GetRunRequestedScopeSet`: `EXPLAIN (ANALYZE, BUFFERS)` on Postgres 16
+shows `Index Scan using workflow_runs_pkey`, 1 row, 0.041 ms execution,
+2 shared buffers; a one-off live read of a persisted run row passed in
+0.13s on Postgres 16 (JSONB document round-trips; output spacing differs,
+so the transport parses rather than string-compares). Terminal counts:
+one row read per claim; no queue, batch, lease, or retry-budget change. Safe because ~21 µs plus one indexed read
+sits beside the satellite subprocess launch (milliseconds to seconds) and
+the heartbeats and completion writes the claim path already issues, and
+unconfigured claims skip the resolver and stay byte-identical.
+
 The in-tree SDK's [validation contract](../../../../sdk/go/collector/README.md#validation)
 admits only the documented Kubernetes posture values in their exact fact
 contexts. `ProcessRunner` preserves those values through JSON transport. That
