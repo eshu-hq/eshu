@@ -165,3 +165,45 @@ No-Observability-Change (fold re-pin 17e42456aa): no metric, span,
 log, or status field added, renamed, or removed by the new pin values;
 seed and admission failures keep the existing defect-only startup-error
 path with no new telemetry.
+
+## Re-pin past #9657 GHCR-cache drift (merge dec23a17d9, docker-publish run 41156813471)
+
+#9657 ("Move the Docker build cache to a GHCR registry cache",
+commit e94f6fca44) rewrote the `build-and-push-scanner-images` job body in
+`.github/workflows/docker-publish.yml` (gha cache to
+`type=registry,ref=ghcr.io/eshu-buildcache:...`, push-only write). That job
+body is a watched non-Go input of the #9503 content-hash section, so the
+gate reports STALE past anchor `17e42456aaa3a411cb429babd3dcf2b63bd07941`
+on any merge tree at or after `dec23a17d9` (first seen as the single red
+on PR #9684's wave). The `dec23a17d9` merge-head publish (run 41156813471)
+pushed all three scanner images; the `sha-dec23a17d9...` tags carry new
+index digests. This bump moves the anchor to
+`dec23a17d9cf6aa196f1ec66c3570a441164c867` and the three pins to those
+tags:
+
+- image `552d9087...4bda09`, sbom `fcd10e5e...95fea1`,
+  osruntime `40d93b0e...4e675e` (full hex in `manifest.go`).
+- Each index digest read back with `crane digest` against its
+  `sha-dec23a17d9...` tag, and each subject carries an attestation bundle
+  on the attestations API (parity with the currently pinned digests, which
+  also list one bundle each); the authoritative `gh attestation verify`
+  runs in the gate itself on the PR wave (local gh 2.46.0 lacks the
+  `attestation` subcommand, so local proof delegates that step to CI and
+  states it here instead of claiming it).
+- `git log dec23a17d9..origin/main` over the script's scanner inputs is
+  empty, so the new anchor stays green on current main. No fold-ins: only
+  the anchor line, the three pins, their mirrored test copies, and this
+  note change.
+
+No-Regression Evidence (re-pin dec23a17d9): RED-first —
+`TestManifestArtifactPinsPublishTimeDigestContract` with the new
+expectations failed against the old pins, then passed with the fix;
+`TestScannerActivationSeedImagesMatchPinnedManifests` failed on the old
+mirrored YAML the same way, then passed.
+Constants-only change, manifest construction off any query, ingest, or
+graph-write path.
+
+No-Observability-Change (re-pin dec23a17d9): no metric, span,
+log, or status field added, renamed, or removed by the new pin values;
+seed and admission failures keep the existing defect-only startup-error
+path with no new telemetry.
