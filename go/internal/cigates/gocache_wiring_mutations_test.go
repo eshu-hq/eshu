@@ -5,8 +5,12 @@ package cigates
 
 import (
 	"maps"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 // goBuildMutation breaks one rule of checkGoBuildCache on a copy of a lane.
@@ -168,6 +172,147 @@ func TestGoBuildCacheWiringMutations(t *testing.T) {
 			})
 		}
 	}
+}
+
+// TestSetupGoCacheDisabledAllWorkflowsMutations proves the repo-wide
+// no-cache rule is load-bearing and its exception list is honest:
+// re-enabling the built-in cache on a covered workflow fails the pin with
+// that workflow's name, and every allowlisted file still holds a caching
+// setup-go step, so a stale exception cannot linger once the file goes
+// cache: false.
+func TestSetupGoCacheDisabledAllWorkflowsMutations(t *testing.T) {
+	t.Parallel()
+	base := loadAllWorkflowJobs(t)
+	t.Run("seeded re-enable fails", func(t *testing.T) {
+		t.Parallel()
+		all := make(map[string]map[string]prewarmJob, len(base))
+		for f, jobs := range base {
+			all[f] = jobs
+		}
+		jobs := make(map[string]prewarmJob, len(all["bench.yml"]))
+		for k, v := range all["bench.yml"] {
+			steps := make([]prewarmStep, len(v.Steps))
+			for i, step := range v.Steps {
+				step.With = maps.Clone(step.With)
+				steps[i] = step
+			}
+			v.Steps = steps
+			jobs[k] = v
+		}
+		all["bench.yml"] = jobs
+		seeded := false
+		for key, job := range jobs {
+			for i, step := range job.Steps {
+				if setupGoUsesRE.MatchString(step.Uses) {
+					delete(job.Steps[i].With, "cache")
+					seeded = true
+					break
+				}
+			}
+			if seeded {
+				jobs[key] = job
+				break
+			}
+		}
+		if !seeded {
+			t.Fatal("mutation anchor step missing: bench.yml has no setup-go step")
+		}
+		problem := checkSetupGoCacheDisabledAllWorkflows(all)
+		if !strings.Contains(problem, "bench.yml") || !strings.Contains(problem, "must set cache: false") {
+			t.Fatalf("seeded break passed or failed for another reason: got %q", problem)
+		}
+	})
+	t.Run("exceptions still cache", func(t *testing.T) {
+		t.Parallel()
+		for file := range setupGoCacheDisabledExcept {
+			caching := false
+			for _, job := range base[file] {
+				for _, step := range job.Steps {
+					if setupGoUsesRE.MatchString(step.Uses) && setupGoCachesModule(step.With) {
+						caching = true
+					}
+				}
+			}
+			if !caching {
+				t.Errorf("allowlisted %s holds no caching setup-go step: remove the stale exception", file)
+			}
+		}
+	})
+}
+
+// loadStaticContractJobs parses the gate job of static-contract-gates.yml
+// for the cache-wiring mutation seeds below.
+func loadStaticContractJobs(t *testing.T) map[string]prewarmJob {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join("..", "..", "..", ".github", "workflows", "static-contract-gates.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var parsed prewarmWorkflowFile
+	if err := yaml.Unmarshal(raw, &parsed); err != nil {
+		t.Fatal(err)
+	}
+	return parsed.Jobs
+}
+
+// TestStaticContractCacheWiringMutations proves the static-contract cache
+// rule is load-bearing: restoring the bare save-on-every-run action or
+// loosening the save guard fails the pin.
+func TestStaticContractCacheWiringMutations(t *testing.T) {
+	t.Parallel()
+	base := loadStaticContractJobs(t)
+	t.Run("bare cache action fails", func(t *testing.T) {
+		t.Parallel()
+		jobs := make(map[string]prewarmJob, len(base))
+		for k, v := range base {
+			jobs[k] = v
+		}
+		job := jobs["gate"]
+		steps := make([]prewarmStep, len(job.Steps))
+		copy(steps, job.Steps)
+		seeded := false
+		for i, step := range steps {
+			if step.Uses == "actions/cache/restore@v4" && step.With["path"] == "/tmp/eshu-ci" {
+				steps[i].Uses = "actions/cache@v4"
+				seeded = true
+				break
+			}
+		}
+		if !seeded {
+			t.Fatal("mutation anchor step missing: gate has no /tmp/eshu-ci restore")
+		}
+		job.Steps = steps
+		jobs["gate"] = job
+		if problem := checkStaticContractCacheWiring(jobs); !strings.Contains(problem, "must use actions/cache/restore") {
+			t.Fatalf("seeded break passed or failed for another reason: got %q", problem)
+		}
+	})
+	t.Run("unguarded save fails", func(t *testing.T) {
+		t.Parallel()
+		jobs := make(map[string]prewarmJob, len(base))
+		for k, v := range base {
+			jobs[k] = v
+		}
+		job := jobs["gate"]
+		steps := make([]prewarmStep, len(job.Steps))
+		copy(steps, job.Steps)
+		seeded := false
+		for i, step := range steps {
+			if strings.HasPrefix(step.Uses, "actions/cache/save@") {
+				steps[i].If = "${{ always() }}"
+				seeded = true
+				break
+			}
+		}
+		if !seeded {
+			t.Fatal("mutation anchor step missing: gate has no save step")
+		}
+		job.Steps = steps
+		jobs["gate"] = job
+		if problem := checkStaticContractCacheWiring(jobs); !strings.Contains(problem, "only on a main push") {
+			t.Fatalf("seeded break passed or failed for another reason: got %q", problem)
+		}
+	})
 }
 
 // TestSetupGoCacheDisabledMutations proves the test.yml no-cache rule is

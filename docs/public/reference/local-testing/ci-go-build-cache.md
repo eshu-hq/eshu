@@ -119,12 +119,30 @@ PR-scoped copy still counts against the 10 GB store whose evictions were
 emptying main's `gobuild-` entries. Each of those jobs already pre-warms its
 modules, so the only cost is the 14 to 26 s download on a cold runner.
 
+Since #9648 the rule holds repo-wide: every `setup-go` step in every
+workflow sets `cache: false`, except `macos.yml`. That workflow is nightly +
+`workflow_dispatch` only, never on pull requests, so it writes no PR-scoped
+copies; its key is OS-isolated (one 808 MB macOS arm64 entry on main) and
+the 45-minute job envelope was measured with a warm cache.
+
+The same issue converted `static-contract-gates.yml`'s 724 MB
+`Linux-X64-go-` entry to the main-push-only pattern: the gate job restores
+with `actions/cache/restore` (plus the pre-existing restore-only
+`taggedbuilds` arm) and saves once, as its last step, only when a main push
+misses the exact key. Pull requests restore main's entry through the
+default-branch fallback and save nothing. Matrix legs upload identical
+content for one key on a main push; the first finisher wins.
+
 ## The pin
 
 `go/internal/cigates/gocache_wiring_test.go` pins these rules, and
 `gocache_wiring_mutations_test.go` breaks each one — including
 `TestSetupGoCacheDisabledInTestWorkflow`, which fails any `setup-go` step in
-`test.yml` that re-enables the built-in cache. Keep the restore step
+`test.yml` that re-enables the built-in cache,
+`TestSetupGoCacheDisabledAllWorkflows`, which fails any re-enabled step in
+any other workflow outside the documented exceptions, and
+`TestStaticContractCacheWiring`, which fails a bare `actions/cache` step or
+an unguarded save in `static-contract-gates.yml`. Keep the restore step
 named `Restore Go build cache`, with `Set up Go` directly after it. That keeps
 each shard log's cache outcome at a fixed landmark: the
 `Cache restored from key:` or `Cache not found for input keys` line sits inside

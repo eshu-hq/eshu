@@ -70,6 +70,7 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
+          cache: false
       - name: Install contract dependencies
         run: scripts/ci/install-apt-packages.sh ripgrep
         env:

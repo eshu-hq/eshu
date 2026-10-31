@@ -56,6 +56,9 @@ jobs:
         with:
           go-version-file: examples/collector-extensions/scorecard/go.mod
           cache-dependency-path: examples/collector-extensions/scorecard/go.sum
+          # cache: false: setup-go would store the build cache a second time
+          # in the 10 GB store (#9462, #9648). Pre-warm below downloads the modules.
+          cache: false
 
       # Pre-warm Go modules with retries so a dropped proxy stream fails
       # HERE, named for what it is, instead of surfacing as a conformance

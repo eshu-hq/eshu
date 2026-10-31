@@ -228,8 +228,14 @@ jobs:
           repository: eshu-hq/eshu-deploy
           ref: 6b6164d4fd95b8959284c5af0ba9a233fe032134
           path: eshu-deploy
-      - if: ${{ matrix.key != 'taggedbuilds' }}
-        uses: actions/cache@v4
+      # Restore-only on pull requests: this entry is 724 MB, and a PR-scoped
+      # save per workflow_call run churns the 10 GB store whose evictions
+      # emptied main's gobuild entries (#9648). A main push saves a fresh
+      # copy on a miss in the last step.
+      - name: Restore static-contract cache
+        id: static-cache
+        if: ${{ matrix.key != 'taggedbuilds' }}
+        uses: actions/cache/restore@v4
         with: {path: /tmp/eshu-ci, key: "${{ runner.os }}-${{ runner.arch }}-go-${{ hashFiles('go/go.sum') }}"}
       # Cache transport is acceleration, not proof. Tagged builds must run on a
       # cache miss and must not archive its large cache after the assertions.
@@ -291,3 +297,15 @@ jobs:
         timeout-minutes: ${{ matrix.key == 'taggedbuilds' && 35 || matrix.timeout }}
         if: ${{ matrix.run_gate }}
         run: ${{ matrix.gate }}
+      # Save the entry future runs restore, only when a main push missed
+      # the exact key (#9648, the #9598 pattern). Pull requests restore
+      # main's entry through the default-branch fallback and save nothing
+      # of their own. Matrix legs upload identical content for one key;
+      # the first finisher wins and the rest is bounded main-push-only
+      # upload waste.
+      - name: Save static-contract cache
+        if: ${{ matrix.key != 'taggedbuilds' && github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.static-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/eshu-ci
+          key: ${{ steps.static-cache.outputs.cache-primary-key }}

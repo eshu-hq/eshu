@@ -72,6 +72,9 @@ jobs:
         with:
           go-version-file: sdk/go/collector/go.mod
           cache-dependency-path: sdk/go/collector/go.mod
+          # cache: false: setup-go would store the build cache a second time
+          # in the 10 GB store (#9462, #9648). Pre-warm below downloads the modules.
+          cache: false
 
       - name: Install ripgrep
         run: scripts/ci/install-apt-packages.sh ripgrep
@@ -137,6 +140,9 @@ jobs:
         with:
           go-version-file: sdk/go/apicontract/go.mod
           cache-dependency-path: sdk/go/apicontract/go.mod
+          # cache: false: setup-go would store the build cache a second time
+          # in the 10 GB store (#9462, #9648). Pre-warm below downloads the modules.
+          cache: false
 
       - name: Install ripgrep
         run: scripts/ci/install-apt-packages.sh ripgrep
@@ -202,6 +208,9 @@ jobs:
         with:
           go-version-file: sdk/go/factschema/go.mod
           cache-dependency-path: sdk/go/factschema/go.sum
+          # cache: false: setup-go would store the build cache a second time
+          # in the 10 GB store (#9462, #9648). Pre-warm below downloads the modules.
+          cache: false
 
       - name: Install ripgrep
         run: scripts/ci/install-apt-packages.sh ripgrep
