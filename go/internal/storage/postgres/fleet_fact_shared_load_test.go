@@ -108,6 +108,73 @@ func (q *countingFleetQueryer) queryCount() int {
 	return q.calls
 }
 
+// TestSharedFleetLoadPanickingLeaderFailsWaitersCleanly pins the #9697
+// flight-safety contract: when the leader's load panics, parked waiters get
+// an error instead of hanging on a flight that never closes, and the panic
+// still propagates to the leader's caller.
+func TestSharedFleetLoadPanickingLeaderFailsWaitersCleanly(t *testing.T) {
+	t.Parallel()
+
+	group := newSharedFleetLoadGroup()
+	release := make(chan struct{})
+	leaderErr := make(chan any, 1)
+	go func() {
+		defer func() { leaderErr <- recover() }()
+		_, _ = group.doResult(context.Background(), "panic-key",
+			func(context.Context) (fleetLoadResult, error) {
+				<-release
+				panic("simulated fleet load panic")
+			})
+	}()
+	// Wait for the leader to register its flight (bounded poll, not a
+	// timing assertion): only then can the waiter deterministically join
+	// it instead of winning the registration race and leading itself.
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		group.mu.Lock()
+		_, registered := group.flights["panic-key"]
+		group.mu.Unlock()
+		if registered {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("leader flight never registered")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	var waiterErr error
+	var waiterDone sync.WaitGroup
+	waiterDone.Add(1)
+	go func() {
+		defer waiterDone.Done()
+		_, waiterErr = group.doResult(context.Background(), "panic-key",
+			func(context.Context) (fleetLoadResult, error) {
+				return fleetLoadResult{}, nil
+			})
+	}()
+	// Park margin, not a timing assertion: the join is microsecond-scale,
+	// so 50ms guarantees the waiter parks before release lets the leader
+	// panic (a waiter arriving after the unwind would start its own trivial
+	// flight instead of proving the stranded flight fails cleanly).
+	time.Sleep(50 * time.Millisecond)
+	close(release)
+	waiterDone.Wait()
+	if waiterErr == nil {
+		t.Fatal("waiter error = nil, want the aborted-flight error")
+	}
+	if got := <-leaderErr; got == nil {
+		t.Fatal("leader recovered = nil, want the simulated panic to propagate")
+	}
+	// The flight is gone: the next call loads fresh instead of joining a
+	// dead flight.
+	if _, err := group.doResult(context.Background(), "panic-key",
+		func(context.Context) (fleetLoadResult, error) {
+			return fleetLoadResult{}, nil
+		}); err != nil {
+		t.Fatalf("post-panic doResult: %v", err)
+	}
+}
+
 // TestSharedFleetLoadCoalescesConcurrentSLSALoads is the #9697 failing-first
 // regression for the per-intent fleet-wide SLSA reloads: 16 workers racing
 // the same cross-scope SLSA set must share one underlying load.
