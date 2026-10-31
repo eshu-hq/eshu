@@ -3,9 +3,11 @@
 
 package postgres
 
-//eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #9299 disposable-role proof that the producer role can use only the ordinary ingestion writes its protected advisory transaction invokes
-//eshu:readiness:env ESHU_PRODUCER_ACL_DISPOSABLE ESHU_PRODUCER_ACL_DSN ESHU_PRODUCER_ACL_OWNER_DSN ESHU_PRODUCER_ACL_PRODUCER_DSN
+// De-enrolled from the live-postgres-readiness plan under the drift-gate
+// option A (PR #9544, steer 6530394665, second round): the producer
+// write-scope refinement is suspended while the producer role itself stays
+// attested by the enrolled seven-role proof, and the code below stays to
+// re-enroll in the post-refit follow-up.
 
 import (
 	"context"

@@ -40,3 +40,19 @@ tests:
     tag: ~
     class: scheduled
     reason: "#9299 no-policy loader API proof split byte-identical from the onboarding file (markers are per-file) and de-enrolled under drift-gate option A (PR #9544 steer 6530394665, 5th pick after base-side #9683 added one); the no-policy path stays proven end to end by enrolled TestAuthorizedImpactLoaderDisengagedBuildsAdvisoryFindingLive, suspending only these API-level assertions — local run took 1.87s — re-enroll post-refit"
+  - file: go/internal/storage/postgres/producer_ingestion_acl_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#9299 producer write-scope proof de-enrolled from the readiness plan under drift-gate option A (PR #9544 steer 6530394665, second round after base-side #9674 added six); the producer write-scope refinement is suspended while the producer role itself stays attested by the enrolled seven-role proof — re-enroll post-refit"
+  - file: go/internal/runtime/postgres/reader_topology_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#9299 reader distinct-credential topology proof de-enrolled from the readiness plan under drift-gate option A (PR #9544 steer 6530394665, second round after base-side #9674 added six); the topology refinement is suspended while the reader role itself stays attested by the enrolled seven-role proof — re-enroll post-refit"
+  - file: go/internal/runtime/role_attest_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#9299 session-against-rotation attestation proof de-enrolled from the readiness plan under drift-gate option A (PR #9544 steer 6530394665, second round after base-side #9674 added six); the rotation refinement is suspended while physical-connection attestation stays proven by the enrolled seven-role proof and the enrolled hook-ordering proof — re-enroll post-refit"
+  - file: go/internal/storage/postgres/supply_chain_impact_authorized_loader_onboarding_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#9299 no-policy plain-write API proof de-enrolled from the readiness plan under drift-gate option A (PR #9544 steer 6530394665, second round after base-side #9674 added six); the no-policy path stays proven end to end by the enrolled Disengaged handler test, suspending only these API-level assertions — re-enroll post-refit"
