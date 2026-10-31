@@ -35,6 +35,9 @@ TABLE = {
             "TestSupplyChainImpactReadinessScanTierOSPackageCountDoesNotFanOutLive",
             "TestSupplyChainImpactReadinessScanTierSupersededGenerationLive",
         ),
+        "go/internal/query/supply/chain/impact/readiness_scan_tier_rescan_live_test.go": (
+            "TestSupplyChainImpactReadinessScanTierRescannedScopeLive",
+        ),
         "go/internal/query/supply/chain/impact/runtime_environment_store_live_test.go": (
             "TestRuntimeEnvironmentEvidenceHotDigestUsesArtifactIndexLive",
             "TestRuntimeEnvironmentEvidenceCurrentAuthorizedTruthMatrixLive",

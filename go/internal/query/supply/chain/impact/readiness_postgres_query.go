@@ -9,6 +9,7 @@ package impact
 // per evidence family for the requested target.
 const ListReadinessQuery = ListReadinessQueryCore +
 	listSupplyChainImpactReadinessQueryUnsupportedAndSource +
+	listSupplyChainImpactReadinessQueryScanTier +
 	listSupplyChainImpactReadinessQuerySelect
 
 // ListReadinessQueryCore is the first half of ListReadinessQuery: one CTE per

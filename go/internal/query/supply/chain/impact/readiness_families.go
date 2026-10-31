@@ -25,10 +25,14 @@ const (
 	// image reference resolves to. os_package facts carry no image identity
 	// of their own (sdk/go/factschema/vulnerability/v1/os_package.go); the
 	// readiness store resolves the digest through the sibling
-	// scanner_worker.analysis fact in the SAME scan scope. Unlike the
-	// reducer's pair-keyed ScopeID+GenerationID SubjectDigest stamp
-	// (go/internal/reducer/supplychain/core/impact.go), readiness attributes
-	// by scope alone across committed generations (issue #8878). A
+	// scanner_worker.analysis fact, pair-keyed first (same scope and
+	// generation, the reducer's SubjectDigest key:
+	// go/internal/reducer/supplychain/core/impact.go) with a scope-level
+	// fallback across committed generations for provably single-digest
+	// scopes (issue #8878: sibling tiers supersede the analysis generation
+	// under the active os_package generation). The fallback is withheld on
+	// rescanned multi-digest scopes (issue #9685), where scope-level
+	// attribution would count another image's packages. A
 	// present-but-zero count
 	// for an image that DID scan (see EvidenceFamilyScannerWorkerAnalysis) is
 	// a valid "no installed packages found" observation, not missing
