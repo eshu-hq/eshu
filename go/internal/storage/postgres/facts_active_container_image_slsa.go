@@ -79,6 +79,21 @@ func (s FactStore) ListActiveContainerImageSLSAFacts(ctx context.Context) ([]fac
 		return nil, fmt.Errorf("fact store database is required")
 	}
 
+	// #9697: concurrent workers racing the same fleet-wide set share the
+	// leader's single pass; the group retains nothing, so truth stays exact.
+	res, err := s.fleetShared.doResult(ctx, sharedFleetLoadKeyContainerImageSLSA,
+		func(ctx context.Context) (fleetLoadResult, error) {
+			rows, err := s.loadActiveContainerImageSLSAFactsUncached(ctx)
+			return fleetLoadResult{rows: rows}, err
+		})
+	if err != nil {
+		return nil, err
+	}
+	return res.rows, nil
+}
+
+// loadActiveContainerImageSLSAFactsUncached performs the paginated load without sharing.
+func (s FactStore) loadActiveContainerImageSLSAFactsUncached(ctx context.Context) ([]facts.Envelope, error) {
 	var loaded []facts.Envelope
 	var cursorObservedAt *time.Time
 	var cursorFactID string
