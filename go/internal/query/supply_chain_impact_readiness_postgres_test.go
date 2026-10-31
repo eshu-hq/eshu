@@ -191,13 +191,16 @@ func TestPostgresSupplyChainImpactReadinessQueryShape(t *testing.T) {
 			"        FROM scanner_worker_analysis_in_scope AS analysis\n" +
 			"        WHERE analysis.scope_id = os_package.scope_id\n" +
 			"          AND analysis.generation_id = os_package.generation_id\n" +
+			"          -- Both-anchor rule: a digest-anchored request only resolves\n" +
+			"          -- through the analysis carrying that digest; the reference arm\n" +
+			"          -- below serves ref-only requests.\n" +
+			"          AND ($12 = '' OR analysis.payload->>'image_digest' = $12)\n" +
 			"          AND (\n" +
 			"              analysis.payload->>'image_digest' IN (SELECT digest FROM target_image_digests)\n" +
 			"              -- The image_reference arm is withheld on multi-digest scopes\n" +
 			"              -- (issue #9691 P1): both generations of a rescan share one\n" +
 			"              -- reference, so a ref match alone would attribute another\n" +
-			"              -- image's packages to an old-digest request. The digest arm\n" +
-			"              -- above still pair-matches both-anchor requests.\n" +
+			"              -- image's packages to an old-digest request.\n" +
 			"              OR ($14 <> '' AND analysis.payload->>'image_reference' = $14\n" +
 			"                  AND NOT EXISTS (\n" +
 			"                      SELECT 1\n" +

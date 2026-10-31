@@ -87,6 +87,15 @@ vulnerability_os_package AS (
     -- scopes, where scope-level attribution would count another image's
     -- packages for an old-digest request.
     --
+    -- Both-anchor rule (issue #9691): target_image_digests unions the
+    -- subject digest with every identity digest matching the image
+    -- reference, so on a rescanned scope a both-anchor request would pull
+    -- the other generation's digest into the set and the digest arm would
+    -- match it. When the request carries a subject digest ($12), the
+    -- sibling analysis must carry that exact digest; the reference only
+    -- resolves unanchored (ref-only) requests. This matches
+    -- resolveReadinessImageDigests, which intersects digest+ref.
+    --
     -- Scope-level fallback (issue #8878) for provably single-digest scopes
     -- only: sibling tiers write generations ~0.5ms apart, so the surviving
     -- active generation's rows carry no image identity of their own while
@@ -112,13 +121,16 @@ vulnerability_os_package AS (
         FROM scanner_worker_analysis_in_scope AS analysis
         WHERE analysis.scope_id = os_package.scope_id
           AND analysis.generation_id = os_package.generation_id
+          -- Both-anchor rule: a digest-anchored request only resolves
+          -- through the analysis carrying that digest; the reference arm
+          -- below serves ref-only requests.
+          AND ($12 = '' OR analysis.payload->>'image_digest' = $12)
           AND (
               analysis.payload->>'image_digest' IN (SELECT digest FROM target_image_digests)
               -- The image_reference arm is withheld on multi-digest scopes
               -- (issue #9691 P1): both generations of a rescan share one
               -- reference, so a ref match alone would attribute another
-              -- image's packages to an old-digest request. The digest arm
-              -- above still pair-matches both-anchor requests.
+              -- image's packages to an old-digest request.
               OR ($14 <> '' AND analysis.payload->>'image_reference' = $14
                   AND NOT EXISTS (
                       SELECT 1
@@ -137,6 +149,8 @@ vulnerability_os_package AS (
             SELECT 1
             FROM scanner_worker_analysis_in_scope AS analysis
             WHERE analysis.scope_id = os_package.scope_id
+              -- Both-anchor rule, as in the pair-keyed branch above.
+              AND ($12 = '' OR analysis.payload->>'image_digest' = $12)
               AND (
                   analysis.payload->>'image_digest' IN (SELECT digest FROM target_image_digests)
                   OR ($14 <> '' AND analysis.payload->>'image_reference' = $14)

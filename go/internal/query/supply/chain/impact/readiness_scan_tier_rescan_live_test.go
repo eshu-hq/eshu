@@ -96,6 +96,23 @@ ANALYZE scope_generations;
 `); err != nil {
 		t.Fatalf("seed os_package rows: %v", err)
 	}
+	// Reducer identity knows the shared ref under BOTH digests (the rescan
+	// target did not move), so target_image_digests for a both-anchor
+	// request is {old,new} — the production shape the withhold pin must
+	// hold in, not just an empty identity table (issue #9691 P2). Seeded
+	// through the legacy fact arm of container_image_identity_current_supports:
+	// the ingestion_scopes trigger already owns the state row (no active
+	// set), so only the reducer_container_image_identity facts under the
+	// active generation are added here.
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload)
+VALUES ('rescan-identity-old', 'rescan-scope', 'rescan-gen-new', 'reducer_container_image_identity', 'rescan-identity-old-key', 'reducer', 'rescan-identity-old', clock_timestamp(), clock_timestamp(), FALSE,
+  jsonb_build_object('digest', $1::text, 'image_ref', 'registry.example.com/team/rescanned:prod')),
+ ('rescan-identity-new', 'rescan-scope', 'rescan-gen-new', 'reducer_container_image_identity', 'rescan-identity-new-key', 'reducer', 'rescan-identity-new', clock_timestamp(), clock_timestamp(), FALSE,
+  jsonb_build_object('digest', $2::text, 'image_ref', 'registry.example.com/team/rescanned:prod'));
+`, oldDigest, newDigest); err != nil {
+		t.Fatalf("seed identity rows: %v", err)
+	}
 
 	queryFamilies := func(digest, ref string) map[string]int {
 		t.Helper()
