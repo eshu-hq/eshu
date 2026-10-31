@@ -2,7 +2,7 @@
 set -euo pipefail
 
 usage() {
-  echo 'usage: stage-differential-capture.sh check-leg DIR | stage DOWNLOAD_ROOT OUTPUT_ROOT ATTEMPT CAPTURE_RESULT' >&2
+  echo 'usage: stage-differential-capture.sh check-leg DIR | stage DOWNLOAD_ROOT OUTPUT_ROOT RUN_ID CAPTURE_RESULT' >&2
   exit 2
 }
 
@@ -35,7 +35,7 @@ case "${1:-}" in
     [[ "$#" -eq 5 ]] || usage
     download_root="$2"
     output_root="$3"
-    attempt="$4"
+    run_id="$4"
     capture_result="$5"
     if [[ "${capture_result}" != success ]]; then
       echo "::error title=Differential capture failed::matrix result is ${capture_result}" >&2
@@ -46,12 +46,12 @@ case "${1:-}" in
       exit 1
     fi
     for leg in pair1-nornicdb pair1-neo4j pair2-nornicdb pair2-neo4j; do
-      source_dir="${download_root}/differential-capture-${attempt}-${leg}"
+      source_dir="${download_root}/differential-capture-${run_id}-${leg}"
       require_recordings "${source_dir}"
     done
     trap 'rm -rf "${output_root}"' ERR
     for leg in pair1-nornicdb pair1-neo4j pair2-nornicdb pair2-neo4j; do
-      source_dir="${download_root}/differential-capture-${attempt}-${leg}"
+      source_dir="${download_root}/differential-capture-${run_id}-${leg}"
       pair="${leg%-*}"
       backend="${leg#*-}"
       target_dir="${output_root}/${pair}/${backend}"

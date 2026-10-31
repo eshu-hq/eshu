@@ -189,7 +189,7 @@ jobs:
       - name: Upload capture recording
         uses: actions/upload-artifact@v4
         with:
-          name: differential-capture-${{ github.run_attempt }}-pair${{ matrix.pair }}-${{ matrix.graph_backend }}
+          name: differential-capture-${{ github.run_id }}-pair${{ matrix.pair }}-${{ matrix.graph_backend }}
           path: ${{ runner.temp }}/diff-capture/pair${{ matrix.pair }}/${{ matrix.graph_backend }}/
           if-no-files-found: error
 
@@ -223,10 +223,13 @@ jobs:
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh
 
-      - name: Download this attempt's capture artifacts
+      # Keyed by run_id (not run_attempt): a failed-jobs re-run increments
+      # the attempt counter without re-running green capture legs, so
+      # attempt-keyed names made the join download zero artifacts (#9702).
+      - name: Download this run's capture artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: differential-capture-${{ github.run_attempt }}-*
+          pattern: differential-capture-${{ github.run_id }}-*
           path: ${{ runner.temp }}/diff-artifacts
           merge-multiple: false
 
@@ -237,7 +240,7 @@ jobs:
           bash scripts/lib/stage-differential-capture.sh stage
           "${{ runner.temp }}/diff-artifacts"
           "${{ runner.temp }}/diff-capture"
-          "${{ github.run_attempt }}"
+          "${{ github.run_id }}"
           "${{ needs.differential-capture.result }}"
 
       - name: Build golden-corpus-gate
@@ -286,6 +289,6 @@ jobs:
         if: ${{ failure() || steps.compare.outcome == 'failure' }}
         uses: actions/upload-artifact@v4
         with:
-          name: differential-joined-capture-${{ github.run_attempt }}
+          name: differential-joined-capture-${{ github.run_id }}
           path: ${{ runner.temp }}/diff-capture
           if-no-files-found: warn
