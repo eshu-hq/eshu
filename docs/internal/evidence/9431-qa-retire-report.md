@@ -271,3 +271,174 @@ before the section tail and raise on any hit.
   one-shot script; a claim landing inside the residual window still cannot
   resurrect rows (superseded stays terminal, the scope pointer stays NULL),
   and the worker-side fence re-validates at processing time.
+
+## Step 5 — retire transaction (COMMITTED 2026-10-31 ~16:00 UTC, gate PASS)
+
+Authorization: arbiter APPROVE ruling (subset-plus-accounting gate bound to
+the COMMIT invocation) plus the owner production-write approval; together
+they cover this COMMIT. Scope is unchanged from the original ruling: QA
+only, predicate rows only, no DELETE/DDL, no worker changes, no script
+edits. Script identity: `diff -q` of
+[9431-qa-retire.sql](9431-qa-retire.sql) against the main checkout exits 0;
+the committed script ran unmodified.
+
+Same-window mechanism proof first: fresh Sections 0–3 dry run
+2026-10-31 ~15:59 UTC (committed script, QA primary, exit 0, Section 4
+SKIPPED without `retire_ok`, ROLLBACK): classification
+`candidates=136 classW=71 classS_eligible=18 mixed=0 inflight=1`, retire set
+89 (71 W + 18 S, 1 in-flight blocker), `dryrun_*=89/89/89` reconciled,
+0 markers and 0 NULL-pointer OSV scopes after. Its N is evidence only.
+
+COMMIT invocation 2026-10-31 ~16:00 UTC (`-v retire_ok=1`, exit 0):
+classification `candidates=136 classW=71 classS_eligible=18 mixed=0
+inflight=1`; Section 3 dry-run body `UPDATE 89/89` then ROLLBACK; Section 4
+lock + gate + `UPDATE 89/89`, all six `must_be_zero_*` gates 0
+(inflight-locked, shortfall, inflight-tail in both sections), rollback key
+89 rows, `COMMIT`; Section 5 SKIPPED; Section 6 post-commit reads
+AC3.1=1, AC3.2=27, AC3.4=826. Zero `ABORT`/`ERROR`/`FATAL` in the log.
+
+Restated gate verified from THAT invocation's log plus read-only queries
+immediately after (exit 0), all PASS:
+
+| Condition | Evidence |
+|---|---|
+| `mixed=0` | Classification line `mixed=0`; mixed listing `(0 rows)`. |
+| `candidates=136` | Classification line `candidates=136` (any drift was a STOP; none). |
+| Every committed W in oracle 72 W | Committed 71 W-flagged rows; committed-minus-oracle is 0 rows; the single oracle-minus-committed row is W-flagged, so committed W = oracle W minus that row. W flags recomputed live per row (facts untouched by the commit). |
+| Every committed S fully covered at classify | Committed S = 18 = oracle S (no S row beyond the oracle 18); script classify marked all 18 eligible and retired them; live recompute immediately post-commit: 18/18 fully satellite-covered. |
+| Every oracle row not committed accounted | Exactly 1: `vuln-intel://osv/npm/axios?...` / `vulnerability_intelligence:defdbf...`, present in the COMMIT run's Section 1 in-flight listing (claimed at classify, excluded fail-closed). |
+| Marker count = committed N; rollback key captured | Live `retired_issue='9431'` count = 89; NULL-pointer OSV scopes = 89; all 89 committed rows superseded + pointer cleared + `retired_prior_scope_status` present (all values `active`). Key in the Section 4 log output and durably in each payload marker. |
+
+Per-row membership (89 rows: scope, generation, prior status, W/S class,
+oracle member): [9431-step5-commit-members.tsv](9431-step5-commit-members.tsv).
+Scope ids in that file redact one proprietary npm org scope as
+`REDACTED-ORG` (3 rows redacted, generation ids and classes intact); the
+unredacted key is in the COMMIT log and the durable payload markers.
+Both-direction diff: committed-minus-oracle 0 rows; oracle-minus-committed
+the single axios in-flight row above (W, excluded fail-closed).
+
+Immediate post-commit state (step 6 pending): AC3.1=1 (axios only, still
+active + in-flight), AC3.2=27 (down from 497), both GHSA-67hx-6x53-jw92
+scopes (`@babel/runtime`, `@babel/traverse` batches) retired with markers —
+the step-4 replacement is now the only live line. Per the APPROVE ruling
+decision 3 this partial pass does NOT close #9431: repeat the gated pass as
+the remaining scope drains (axios), close only when AC3.1/AC3.2 read 0
+after step 6.
+
+Rollback window: OPEN at commit (no prune or satellite activation on a
+retired scope observed at verify time ~16:01 UTC). Closing is recorded here
+when it passes.
+
+## Step 5 — retire transaction pass 2 (COMMITTED 2026-10-31 16:28:46 UTC, gate PASS)
+
+Authorization: same arbiter APPROVE ruling decision 3 (repeat the gated pass
+as scopes drain; no new ruling needed) plus the owner production-write
+approval. Scope unchanged: QA only, predicate rows only, no DELETE/DDL, no
+worker changes, no script edits. Script identity: `diff -q` of
+[9431-qa-retire.sql](9431-qa-retire.sql) against the main checkout exits 0;
+the committed script ran unmodified (sha256
+`11fe5a117cb83e6413a50d943a87e0466660f509985372417173eb351c13e962`
+both local and in-pod copy).
+
+Connection note: the in-pod `dsn` secret host (`eshu-postgresql`) timed out
+from inside the pod (exit 2); the run used `-h localhost` with the pod
+`password` secret against the same primary (`eshu-postgresql-0`). Same
+database, same committed script, same variables.
+
+Same-window mechanism proof first: fresh dry run 2026-10-31 ~16:1x UTC
+(committed script, QA primary, exit 0, Section 4 SKIPPED without
+`retire_ok`, ROLLBACK): classification
+`candidates=47 classW=1 classS_eligible=0 mixed=0 inflight=0`, retire set 1
+(axios W, 0 blockers), `dryrun_*=1/1/1` reconciled, 0 new markers and 0 new
+NULL-pointer scopes after. Its N is evidence only.
+
+Universe accounting (why `candidates=47`, not 136): pass 1 retired 89 rows,
+all verified still superseded with markers immediately pre-commit (89
+markers, 89 NULL-pointer OSV scopes, all 89 `active` prior status). 136 −
+89 = 47, exactly the observed count: 46 Class S-remainder rows (still no
+satellite coverage, listed as 46 uncovered-advisory rows, stay active by
+ruling decision 1) plus the drained axios Class W row (in-flight 1 → 0
+since pass 1; the claim completed). No other drift: no new candidates, no
+resurrected rows. The ruling's `candidates=136` closure condition is
+satisfied in its decision-3 form — the delta is fully explained by
+pass-1-committed rows verified intact, which is the only way the universe
+can change between passes.
+
+COMMIT invocation 2026-10-31 16:28:46 UTC (`-v retire_ok=1`, exit 0):
+classification `candidates=47 classW=1 classS_eligible=0 mixed=0
+inflight=0`; Section 3 dry-run body `UPDATE 1/UPDATE 1` then ROLLBACK;
+Section 4 lock + gate + `UPDATE 1/UPDATE 1`, all six `must_be_zero_*`
+gates 0 (inflight-locked, shortfall, inflight-tail in both sections),
+rollback key 1 row (prior status `active`), `COMMIT`; Section 5 SKIPPED.
+Zero `ABORT`/`ERROR`/`FATAL` in the log.
+
+Restated gate verified from THAT invocation's log plus read-only queries
+immediately after (exit 0), all PASS:
+
+| Condition | Evidence |
+|---|---|
+| `mixed=0` | Classification line `mixed=0`; mixed listing `(0 rows)`. |
+| Universe closed (47 = 136 − 89 intact) | Classification `candidates=47`; pre-commit read: 89 markers + 89 NULL-pointer scopes, all pass-1 rows superseded; 47 = 46 S-remainder + 1 axios W. |
+| Committed W in oracle 72 W | Committed 1 W row (axios batch scope, generation `...:defdbf...`): the exact oracle-minus-committed row recorded in pass 1 (W-flagged, fail-closed then). Committed-minus-oracle is 0 rows. |
+| Committed S fully covered at classify | 0 S rows committed (classS_eligible=0); vacuous. |
+| Every oracle row not committed accounted | Zero: 89 (pass 1) + 1 (this pass) = 90 = full oracle. Oracle-minus-committed is 0 rows. |
+| Marker count = committed N; rollback key captured | Live `retired_issue='9431'` count = 90 (89 + 1); NULL-pointer OSV scopes = 90; axios row superseded + pointer cleared + `retired_prior_scope_status=active`. Key in the Section 4 log output and durably in the payload marker. |
+
+Per-row membership (1 row: scope, generation, prior status, W/S class,
+oracle member): [9431-step5-pass2-commit-members.tsv](9431-step5-pass2-commit-members.tsv).
+No redaction needed (public npm axios scope). Both-direction diff across
+both passes: committed-minus-oracle 0 rows; oracle-minus-committed 0 rows.
+
+Immediate post-commit state: AC3.1=0, AC3.2=0 (Section 6 of the COMMIT
+invocation), AC3.4=834. AC3.3a holds (both GHSA-67hx release lines live in
+the same log). AC3.3b still `possibly_affected` ×3 inside the commit
+invocation (pre-reducer-cycle, expected); the flip awaits ruling step 6.
+
+Rollback window: still OPEN at pass-2 commit (markers 90/90 intact,
+pointers cleared; no prune or satellite activation on a retired scope at
+verify time ~16:30 UTC). Closing is recorded here when it passes.
+
+## Step 6 — re-trigger (CYCLE OBSERVED 2026-10-31 17:01:05 UTC; AC3.3b FAILS, issue stays open)
+
+Post-commit reducer supply-chain-impact cycle awaited per ruling step 6 and
+observed live: the work item for the satellite GHSA-67hx scope generation
+(`...:f75e567f...`) moved `pending` (16:50:05) → `claimed` (17:00:24) →
+`succeeded` (17:01:05 UTC), and its finding row refreshed at 17:01:05
+(post-commit 16:28:46). Cycle timestamp recorded.
+
+Post-cycle proof (committed script read-only re-run 2026-10-31 ~17:06 UTC,
+exit 0 — postdates the 17:01:05 refresh; classification `candidates=46
+classW=0 classS_eligible=0 mixed=0 inflight=3`, retire set 0 — the 46 are
+S-remainder, 3 transiently in-flight, all excluded fail-closed):
+
+| AC | Result | Evidence |
+|---|---|---|
+| AC3.1: 0 Class W rows | PASS | `ac3_1_class_w_remaining = 0` (commit log and post-cycle run). |
+| AC3.2: 0 live retired Class W facts | PASS | `ac3_2_live_retired_class_w_facts = 0` (both runs). |
+| AC3.3a: both satellite lines live | PASS | Both `@babel/traverse` ranges (`[0,fixed 7.23.2]`, `[8.0.0-alpha.0,fixed 8.0.0-alpha.4]`) live in the active satellite generation (commit log + post-cycle run). |
+| AC3.3b: 7.29.7 pin reads `affected` | FAIL | Post-cycle finding (refreshed 17:01:05): `possibly_affected / version_not_in_advisory_range / >=0 <7.23.2`. The two pre-commit rows (`>=8.0.0-alpha.0 <8.0.0-alpha.4`, in pass-1-retired superseded generations) persist untombstoned — retraction runs per (scope,generation) pass and no pass revisits pointer-cleared scopes (their queue items sit `succeeded` since 16:03:36); retention prune will delete them later. |
+| AC3.4: satellite facts ≥ baseline | PASS | `ac3_4_live_satellite_facts = 835` (834 at commit; baseline 389). |
+| AC3.5: API shows the 7.x range | PASS | `GET /api/v0/supply-chain/vulnerabilities/GHSA-67hx-6x53-jw92` on QA (exit 0, ~16:5x UTC): `affected_ranges` carry `[introduced 0, fixed 7.23.2]` and `[introduced 8.0.0-alpha.0, fixed 8.0.0-alpha.4]` with `fixed_versions ["7.23.2","8.0.0-alpha.4"]`, resolved from active facts. |
+
+Root cause of the AC3.3b miss (read from source, not a measurement gap):
+OSV ground truth (`api.osv.dev/v1/vulns/GHSA-67hx-6x53-jw92`, re-fetched
+2026-10-31) fixes the 7.x line at 7.23.2, so the 7.29.7 pin is NOT
+vulnerable; the only all-versions entry (`babel-traverse`, unscoped,
+introduced 0, no fixed) names a different package and correctly does not
+match `@babel/traverse` consumption. The matcher
+(`evaluateNPMSemverMatch`, `version_match.go:163`) returns `affected`
+only for in-range versions; 7.29.7 falls through to
+`possibly_affected / version_not_in_advisory_range` — the factually
+correct, fail-closed answer. The ruling's `affected` expectation is
+unsatisfiable on this deployment evidence; no curator, satellite, or
+reducer behavior observed in three evaluation rounds (15:38, 16:26
+pre-commit, 17:01 post-commit) supports it. This needs an arbiter
+re-ruling on AC3.3b (close as "pin not vulnerable, fail-closed
+possibly_affected correct" or restate the line) — not another retire
+pass, not a matcher change, and not silence.
+
+Per the APPROVE ruling decision 3 and the executor handoff, #9431 stays
+OPEN with the remaining set named: AC3.3b only (all other AC3 lines
+pass). The retire itself is complete and verified: 90/90 oracle rows
+retired with markers, both gates PASS, rollback window still OPEN (no
+prune observed as of ~17:10 UTC).
