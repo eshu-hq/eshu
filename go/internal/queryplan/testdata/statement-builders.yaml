@@ -832,3 +832,6 @@ read_exemptions:
   - callsite: internal/query/ssm_host_inventory_committed.go:readSSMCommittedSeeds
     anchor: "MATCH (seed) WHERE ($all_scopes OR seed.scope_id IN $scope_ids)"
     reason: "committed-seed legs (#9602); the unlabeled anchor covers both label members (SSMHostApplication and SSMHostPlatform) as one dispatch family. The B-7 corpus carries no SSM host fixtures by design, so both legs return empty on both backends; adding SSM fixtures would move the node-count snapshot for data the corpus does not model"
+  - callsite: cmd/reducer/ecs_binding_lookups.go:(neo4jECSBindingInstanceLookup).ListECSBindingInstanceEnvironments
+    anchor: "MATCH (w:Workload)<-[:INSTANCE_OF]-(i:WorkloadInstance) WHERE w.name IN $names"
+    reason: "ECS declaration binder (#9661) single-instance-environment leg; the B-7 corpus binds ECS service names (deployable-source, supply-chain-demo) with no matching materialized WorkloadInstance environments at reducer time, so the read returns empty (one execution per pair, all empty on neo4j); empty is fail-closed by design, the environment falls back to the fact-tag and terragrunt legs"
