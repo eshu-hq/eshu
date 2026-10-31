@@ -82,6 +82,16 @@ func StartMCPSession(ctx context.Context, dsn string, runtimeConfig RuntimeConfi
 		_ = StopChildProcess(apiCmd, ShutdownTimeout)
 		return nil, err
 	}
+	// The bridge forwards the first stdin line as soon as the session
+	// returns, the way the old in-process server answered immediately. A
+	// client sends initialize within milliseconds of spawn, so the satellite
+	// must be serving before the session is handed over — otherwise the
+	// first real request fails while the satellite is still booting.
+	if err := mcpSessionWaitHTTP(ctx, "http://"+satelliteAddr+"/health", mcpSessionStartupTimeout); err != nil {
+		_ = StopChildProcess(satelliteCmd, ShutdownTimeout)
+		_ = StopChildProcess(apiCmd, ShutdownTimeout)
+		return nil, err
+	}
 	return &MCPSession{
 		apiCmd:              apiCmd,
 		satelliteCmd:        satelliteCmd,
@@ -108,7 +118,7 @@ func startMCPSessionAPI(ctx context.Context, dsn string, runtimeConfig RuntimeCo
 		return nil, "", err
 	}
 	baseURL := "http://" + apiAddr
-	if err := mcpSessionWaitAPI(ctx, baseURL, mcpSessionStartupTimeout); err != nil {
+	if err := mcpSessionWaitHTTP(ctx, baseURL+"/healthz", mcpSessionStartupTimeout); err != nil {
 		_ = StopChildProcess(apiCmd, ShutdownTimeout)
 		return nil, "", err
 	}
@@ -362,9 +372,12 @@ func RunAttachedMCPHTTP(ctx context.Context, layout eshulocal.Layout, host strin
 // It is a variable so session tests prove the wiring without binding ports.
 var mcpSessionReservePort = reserveMCPSessionLoopbackPort
 
-// mcpSessionWaitAPI blocks until a session eshu-api answers /healthz. It is
-// a variable so session tests prove the wiring without serving HTTP.
-var mcpSessionWaitAPI = waitMCPSessionAPIReady
+// mcpSessionWaitHTTP polls a session child health URL until it answers 200
+// or the timeout expires: the session eshu-api /healthz after its spawn, the
+// satellite /health after its spawn. Transport errors are retried rather than
+// returned, because the child is still starting when the first attempts fail.
+// It is a variable so session tests prove the wiring without serving HTTP.
+var mcpSessionWaitHTTP = waitMCPSessionHTTPReady
 
 // reserveMCPSessionLoopbackPort asks the kernel for a free loopback port and
 // releases it immediately, so a session child can bind it. The gap between
@@ -386,10 +399,10 @@ func reserveMCPSessionLoopbackPort() (int, error) {
 	return addr.Port, nil
 }
 
-// waitMCPSessionAPIReady polls the session API /healthz until it answers 200
-// or the timeout expires. Transport errors are retried rather than returned,
-// because the API is still starting when the first attempts fail.
-func waitMCPSessionAPIReady(ctx context.Context, baseURL string, timeout time.Duration) error {
+// waitMCPSessionHTTPReady polls url until it answers 200 or the timeout
+// expires. Transport errors are retried rather than returned, because the
+// child is still starting when the first attempts fail.
+func waitMCPSessionHTTPReady(ctx context.Context, url string, timeout time.Duration) error {
 	waitCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -398,7 +411,7 @@ func waitMCPSessionAPIReady(ctx context.Context, baseURL string, timeout time.Du
 	defer ticker.Stop()
 
 	for {
-		req, err := http.NewRequestWithContext(waitCtx, http.MethodGet, strings.TrimRight(baseURL, "/")+"/healthz", nil)
+		req, err := http.NewRequestWithContext(waitCtx, http.MethodGet, url, nil)
 		if err != nil {
 			return err
 		}
@@ -413,7 +426,7 @@ func waitMCPSessionAPIReady(ctx context.Context, baseURL string, timeout time.Du
 
 		select {
 		case <-waitCtx.Done():
-			return fmt.Errorf("wait for MCP session API timed out after %s: %w", timeout, waitCtx.Err())
+			return fmt.Errorf("wait for MCP session child %s timed out after %s: %w", url, timeout, waitCtx.Err())
 		case <-ticker.C:
 		}
 	}

@@ -27,11 +27,11 @@ func stubMCPSessionChildren(t *testing.T, apiPort, mcpPort int) (started *[]chil
 
 	originalStartChild := StartChildProcess
 	originalReserve := mcpSessionReservePort
-	originalWait := mcpSessionWaitAPI
+	originalWait := mcpSessionWaitHTTP
 	t.Cleanup(func() {
 		StartChildProcess = originalStartChild
 		mcpSessionReservePort = originalReserve
-		mcpSessionWaitAPI = originalWait
+		mcpSessionWaitHTTP = originalWait
 	})
 
 	starts := &[]childStart{}
@@ -47,8 +47,8 @@ func stubMCPSessionChildren(t *testing.T, apiPort, mcpPort int) (started *[]chil
 	}
 
 	waits := &[]string{}
-	mcpSessionWaitAPI = func(ctx context.Context, baseURL string, timeout time.Duration) error {
-		*waits = append(*waits, baseURL)
+	mcpSessionWaitHTTP = func(ctx context.Context, url string, timeout time.Duration) error {
+		*waits = append(*waits, url)
 		return nil
 	}
 
@@ -112,8 +112,9 @@ func TestStartMCPSessionSpawnsAPIThenSatellite(t *testing.T) {
 		t.Fatalf("ESHU_MCP_ALLOW_UNAUTHENTICATED = %q, want true for loopback session", got)
 	}
 
-	if len(*waits) != 1 || (*waits)[0] != "http://127.0.0.1:19191" {
-		t.Fatalf("waited on %v, want [http://127.0.0.1:19191]", *waits)
+	wantWaits := []string{"http://127.0.0.1:19191/healthz", "http://127.0.0.1:19192/health"}
+	if strings.Join(*waits, ",") != strings.Join(wantWaits, ",") {
+		t.Fatalf("waited on %v, want %v", *waits, wantWaits)
 	}
 	if got := session.APIBaseURL(); got != "http://127.0.0.1:19191" {
 		t.Fatalf("APIBaseURL() = %q, want http://127.0.0.1:19191", got)
@@ -332,7 +333,7 @@ func TestRunAttachedMCPHTTPStartsSessionChildrenAndWaits(t *testing.T) {
 	originalGraphHealthy := GraphHealthy
 	originalStartChild := StartChildProcess
 	originalReserve := mcpSessionReservePort
-	originalWait := mcpSessionWaitAPI
+	originalWait := mcpSessionWaitHTTP
 	originalWaitManaged := WaitManagedChildren
 	t.Cleanup(func() {
 		ReadOwnerRecord = originalReadOwnerRecord
@@ -341,7 +342,7 @@ func TestRunAttachedMCPHTTPStartsSessionChildrenAndWaits(t *testing.T) {
 		GraphHealthy = originalGraphHealthy
 		StartChildProcess = originalStartChild
 		mcpSessionReservePort = originalReserve
-		mcpSessionWaitAPI = originalWait
+		mcpSessionWaitHTTP = originalWait
 		WaitManagedChildren = originalWaitManaged
 	})
 
@@ -364,9 +365,9 @@ func TestRunAttachedMCPHTTPStartsSessionChildrenAndWaits(t *testing.T) {
 		return &exec.Cmd{}, nil
 	}
 	mcpSessionReservePort = func() (int, error) { return 19391, nil }
-	var waitedBase string
-	mcpSessionWaitAPI = func(_ context.Context, baseURL string, _ time.Duration) error {
-		waitedBase = baseURL
+	var waitedURLs []string
+	mcpSessionWaitHTTP = func(_ context.Context, url string, _ time.Duration) error {
+		waitedURLs = append(waitedURLs, url)
 		return nil
 	}
 	var waited []Child
@@ -388,8 +389,8 @@ func TestRunAttachedMCPHTTPStartsSessionChildrenAndWaits(t *testing.T) {
 	}
 	assertArgEquals(t, starts[1].args, "-addr", "127.0.0.1:8081")
 	assertArgEquals(t, starts[1].args, "-core-base-url", "http://127.0.0.1:19391")
-	if waitedBase != "http://127.0.0.1:19391" {
-		t.Fatalf("waited on %q, want http://127.0.0.1:19391", waitedBase)
+	if len(waitedURLs) != 1 || waitedURLs[0] != "http://127.0.0.1:19391/healthz" {
+		t.Fatalf("waited on %v, want [http://127.0.0.1:19391/healthz]", waitedURLs)
 	}
 	if len(waited) != 2 || waited[0].name != "eshu-api" || waited[1].name != "eshu-mcp-server" {
 		t.Fatalf("waited children = %v, want [eshu-api eshu-mcp-server]", waited)

@@ -160,7 +160,7 @@ func TestRunOwnedLocalHostWithLayoutMCPStdioStartsSessionAndBridges(t *testing.T
 	originalExpectedProjectors := localHostContentSearchIndexExpectedProjectors
 	originalStartIaCReachabilityFinalizer := localHostStartIaCReachabilityFinalizer
 	originalReserve := mcpSessionReservePort
-	originalWaitAPI := mcpSessionWaitAPI
+	originalWaitHTTP := mcpSessionWaitHTTP
 	originalBridge := runMCPStdioBridge
 	t.Cleanup(func() {
 		localHostPrepareWorkspace = originalPrepareWorkspace
@@ -176,7 +176,7 @@ func TestRunOwnedLocalHostWithLayoutMCPStdioStartsSessionAndBridges(t *testing.T
 		localHostContentSearchIndexExpectedProjectors = originalExpectedProjectors
 		localHostStartIaCReachabilityFinalizer = originalStartIaCReachabilityFinalizer
 		mcpSessionReservePort = originalReserve
-		mcpSessionWaitAPI = originalWaitAPI
+		mcpSessionWaitHTTP = originalWaitHTTP
 		runMCPStdioBridge = originalBridge
 	})
 
@@ -238,7 +238,7 @@ func TestRunOwnedLocalHostWithLayoutMCPStdioStartsSessionAndBridges(t *testing.T
 		ports = ports[1:]
 		return port, nil
 	}
-	mcpSessionWaitAPI = func(context.Context, string, time.Duration) error { return nil }
+	mcpSessionWaitHTTP = func(context.Context, string, time.Duration) error { return nil }
 
 	var waited []string
 	var allowGot string

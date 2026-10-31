@@ -41,7 +41,7 @@ func TestRunAttachedLocalMCPStdioUsesRecordedPostgresPort(t *testing.T) {
 	originalSocketHealthy := SocketHealthy
 	originalStartChild := StartChildProcess
 	originalReserve := mcpSessionReservePort
-	originalWait := mcpSessionWaitAPI
+	originalWait := mcpSessionWaitHTTP
 	originalBridge := runMCPStdioBridge
 	t.Cleanup(func() {
 		ReadOwnerRecord = originalReadOwnerRecord
@@ -49,7 +49,7 @@ func TestRunAttachedLocalMCPStdioUsesRecordedPostgresPort(t *testing.T) {
 		SocketHealthy = originalSocketHealthy
 		StartChildProcess = originalStartChild
 		mcpSessionReservePort = originalReserve
-		mcpSessionWaitAPI = originalWait
+		mcpSessionWaitHTTP = originalWait
 		runMCPStdioBridge = originalBridge
 	})
 
@@ -64,15 +64,15 @@ func TestRunAttachedLocalMCPStdioUsesRecordedPostgresPort(t *testing.T) {
 	}
 
 	var satelliteEnv []string
-	var apiAddr string
+	var waitedURLs []string
 	ports := []int{19391, 19392}
 	mcpSessionReservePort = func() (int, error) {
 		port := ports[0]
 		ports = ports[1:]
 		return port, nil
 	}
-	mcpSessionWaitAPI = func(_ context.Context, baseURL string, _ time.Duration) error {
-		apiAddr = baseURL
+	mcpSessionWaitHTTP = func(_ context.Context, url string, _ time.Duration) error {
+		waitedURLs = append(waitedURLs, url)
 		return nil
 	}
 	StartChildProcess = func(name string, args []string, env []string) (*exec.Cmd, error) {
@@ -105,8 +105,9 @@ func TestRunAttachedLocalMCPStdioUsesRecordedPostgresPort(t *testing.T) {
 	if got := envValue(satelliteEnv, "ESHU_MCP_ADDR"); got != "" {
 		t.Fatalf("ESHU_MCP_ADDR = %q, want unset (listen address travels on -addr only)", got)
 	}
-	if apiAddr != "http://127.0.0.1:19391" {
-		t.Fatalf("session API base = %q, want http://127.0.0.1:19391", apiAddr)
+	wantWaits := []string{"http://127.0.0.1:19391/healthz", "http://127.0.0.1:19392/health"}
+	if strings.Join(waitedURLs, ",") != strings.Join(wantWaits, ",") {
+		t.Fatalf("waited on %v, want %v", waitedURLs, wantWaits)
 	}
 	if bridged == nil {
 		t.Fatal("bridge got no session, want the session to own stdio")
