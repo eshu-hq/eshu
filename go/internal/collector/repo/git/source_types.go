@@ -140,6 +140,12 @@ type dotNetRuntimeSnapshot struct {
 	Digest     string
 }
 
+// dartRuntimeSnapshot binds one Dart parser outcome to its exact bytes.
+type dartRuntimeSnapshot struct {
+	Extraction runtimedeclaration.Extraction
+	Digest     string
+}
+
 // composerRuntimeUnparsed is a discovered Composer file without accepted parser
 // evidence. A deterministic skip is bound to the failed file's bytes (or its
 // over-cap state); empty SkipReason leaves a transient parser miss to retry.
@@ -175,6 +181,8 @@ type RepositorySnapshot struct {
 	JVMRuntimeExpected    bool                             `json:"-"`
 	DotNetRuntime         map[string]dotNetRuntimeSnapshot `json:"-"`
 	DotNetRuntimeExpected bool                             `json:"-"`
+	DartRuntime           map[string]dartRuntimeSnapshot   `json:"-"`
+	DartRuntimeExpected   bool                             `json:"-"`
 	IACRuntime            map[string]iacRuntimeSnapshot    `json:"-"`
 	IACRuntimeExpected    bool                             `json:"-"`
 	RustRuntime           map[string]rustRuntimeSnapshot   `json:"-"`

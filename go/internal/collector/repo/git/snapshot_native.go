@@ -321,6 +321,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	collectPythonRuntimeSnapshot(repoPath, parsedFiles, &snapshot)
 	collectRubyRuntimeSnapshot(repoPath, parsedFiles, &snapshot)
 	collectDotNetRuntimeSnapshot(repoPath, parsedFiles, &snapshot)
+	collectDartRuntimeSnapshot(repoPath, parsedFiles, &snapshot)
 	collectJVMRuntimeSnapshot(repoPath, parsedFiles, &snapshot)
 	collectIACRuntimeSnapshot(repoPath, parsedFiles, &snapshot)
 	collectRustRuntimeSnapshot(repoPath, parsedFiles, &snapshot)

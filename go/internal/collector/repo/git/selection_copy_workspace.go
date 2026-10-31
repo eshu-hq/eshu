@@ -109,6 +109,10 @@ func preserveFilesystemHiddenPath(rel string) bool {
 	if base == ".htaccess" {
 		return true
 	}
+	// .fvmrc must reach the JSON parser even though its content-store body is withheld.
+	if base == ".fvmrc" {
+		return true
+	}
 	if base == ".mvn" || base == ".gitmodules" {
 		return true
 	}

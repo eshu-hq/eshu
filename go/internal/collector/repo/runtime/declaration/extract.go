@@ -14,6 +14,7 @@ import (
 	perlparser "github.com/eshu-hq/eshu/go/internal/parser/perl"
 	rubyparser "github.com/eshu-hq/eshu/go/internal/parser/ruby"
 	sbtparser "github.com/eshu-hq/eshu/go/internal/parser/sbt"
+	yamlparser "github.com/eshu-hq/eshu/go/internal/parser/yaml"
 )
 
 // Extraction is the declarations read from one admitted file, before they
@@ -88,6 +89,10 @@ func Extract(relativePath, body string) (Extraction, bool) {
 		return ExtractDotNetEvidence(parserjson.ExtractDotNetGlobalEvidence([]byte(body))), true
 	case manifestDotNetProject:
 		return ExtractDotNetEvidence(nuget.ExtractDotNetProjectEvidence([]byte(body))), true
+	case manifestDartPubspec:
+		return ExtractDartEvidence(yamlparser.ExtractPubspecRuntimeEvidence([]byte(body))), true
+	case manifestDartFvmrc:
+		return ExtractDartEvidence(parserjson.ExtractDartFvmrcEvidence([]byte(body))), true
 	case manifestGemfile, manifestGemfileLock:
 		if len(body) > MaxManifestBytesPerFile {
 			return CappedRubyExtraction(len(body)), true

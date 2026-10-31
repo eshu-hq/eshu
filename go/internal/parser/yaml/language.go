@@ -150,7 +150,7 @@ func Parse(
 		if index < len(documentNodes) {
 			rootNode = documentNodes[index]
 		}
-		appendYAMLDocument(payload, path, filename, object, rootNode)
+		appendYAMLDocument(payload, path, filename, object, rootNode, source)
 	}
 
 	for _, bucket := range []string{
@@ -264,7 +264,7 @@ func yamlBasePayload(path string, isDependency bool) map[string]any {
 	return payload
 }
 
-func appendYAMLDocument(payload map[string]any, path string, filename string, document map[string]any, rootNode *yamlv3.Node) {
+func appendYAMLDocument(payload map[string]any, path string, filename string, document map[string]any, rootNode *yamlv3.Node, source []byte) {
 	lineNumber := shared.IntValue(document["__eshu_line_number"])
 	delete(document, "__eshu_line_number")
 	if lineNumber <= 0 {
@@ -272,6 +272,9 @@ func appendYAMLDocument(payload map[string]any, path string, filename string, do
 	}
 	if isPubspecDependencyFile(filename) {
 		appendPubspecDependencyRows(payload, filename, document, path, lineNumber)
+		if isPubspecManifestFile(filename) {
+			payload["dart_runtime_evidence"] = pubspecRuntimeEvidenceFromNode(source, rootNode)
+		}
 		return
 	}
 	if cloudformation.IsTemplate(document) {

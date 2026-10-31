@@ -38,6 +38,7 @@ a line there.
 | `c_sharp` | csharp | L2 structured fact | store | `.cs`, `.csx` |  |  |
 | `cpp` | cpp | L2 structured fact | store | `.cc`, `.cpp`, `.cxx`, `.h`, `.hh`, `.hpp`, `.hxx` |  |  |
 | `dart` | dart | L2 structured fact | store | `.dart` |  |  |
+| `dart_fvmrc` | dart | L2 structured fact | metadata |  | `.fvmrc` |  |
 | `dotnet_global_json` | csharp | L2 structured fact | metadata |  | `global.json` |  |
 | `elixir` | elixir | L2 structured fact | store | `.ex`, `.exs` | `mix.lock` |  |
 | `go` | go | L2 structured fact | store | `.go` |  |  |
@@ -300,7 +301,7 @@ edit. Two exemptions stay out: `.gitignore`, which the copy must not duplicate
 because it already applies the source repository's ignore rules, so `.gitignore`
 is not indexed in that mode; and the names a metadata or redact policy governs
 (`.npmrc`, `.yarnrc.yml`, `*.tfvars`), which stay pruned in filesystem mode even though
-clone mode indexes them, as does any future dotfile a metadata or redact policy governs. Discovery then applies the registry to what the copy kept,
+clone mode indexes them, as does any future dotfile a metadata or redact policy governs, except the explicit metadata-only delivery exceptions (`.htaccess`, `.fvmrc`), which the copy keeps so their declarations reach discovery in both modes. Discovery then applies the registry to what the copy kept,
 as it does in clone mode: `.mvn/extensions.xml` is admitted as text, a `.java`
 file under `.mvn/wrapper` is admitted as Java, and `.mvn/jvm.config`,
 `.mvn/maven.config` and `.mvn/wrapper/maven-wrapper.properties` have no registry entry, so they

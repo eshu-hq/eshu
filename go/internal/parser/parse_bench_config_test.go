@@ -48,6 +48,7 @@ var configBenchCases = []configBenchCase{
 	{language: "hcl", parserKey: "hcl", fileName: "main.tf", build: buildHCL},
 	{language: "json", parserKey: "json", fileName: "config.json", build: buildJSON},
 	{language: "dotnet_global_json", parserKey: "dotnet_global_json", fileName: "global.json", build: buildDotNetGlobalJSON},
+	{language: "dart_fvmrc", parserKey: "dart_fvmrc", fileName: ".fvmrc", build: buildDartFvmrc},
 	{language: "maven", parserKey: "maven", fileName: "pom.xml", build: buildMavenPOM},
 	{language: "node_lockfile", parserKey: "node_lockfile", fileName: "yarn.lock", build: buildYarnLock},
 	{language: "npmrc", parserKey: "npmrc", fileName: ".npmrc", build: buildNpmrc},
@@ -288,6 +289,28 @@ func buildDotNetGlobalJSON(minLOC int) []byte {
 		b.WriteString(",\n")
 	}
 	b.WriteString("  ]\n}\n")
+	return b.Bytes()
+}
+
+// buildDartFvmrc returns a valid .fvmrc of >= minLOC lines: one flutter pin
+// plus a large "flavors" map of distinct flavor names. The map keeps the
+// document schema-plausible (FVM flavors name per-flavor Flutter versions)
+// while a repeated scalar would not survive a schema-aware reader.
+func buildDartFvmrc(minLOC int) []byte {
+	var b bytes.Buffer
+	b.WriteString("{\n  \"flutter\": \"3.22.0\",\n  \"flavors\": {\n")
+	i := 0
+	for {
+		fmt.Fprintf(&b, "    \"flavor%06d\": \"3.22.0\"", i)
+		i++
+		// Reserve room for the closing lines; stop once the floor is reached.
+		if bytes.Count(b.Bytes(), []byte("\n")) >= minLOC {
+			b.WriteString("\n")
+			break
+		}
+		b.WriteString(",\n")
+	}
+	b.WriteString("  }\n}\n")
 	return b.Bytes()
 }
 

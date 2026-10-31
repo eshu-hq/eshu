@@ -49,6 +49,10 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
   an output-preserving optimization (byte-identical `function_calls`, guarded by
   the frozen `oracleWalkDartCallSites` differential), not a behavior change.
 
+## Runtime Declarations
+- A `pubspec.yaml` `environment.sdk` constraint emits a `runtime_declaration.version` fact (runtime `dart`, `source_kind` `dart_pubspec_environment_sdk`, the constraint's own line). The YAML parser owns the bounded evidence from the file's own bytes and the collector carries it through the snapshot seam; a missing constraint is absent and every value passes the credential guard before emission. This lane makes no content-store change: `pubspec.yaml` keeps its existing `.yaml` stored-body admission.
+- An `.fvmrc` `flutter` pin emits a second `runtime_declaration.version` fact (runtime `dart`, `source_kind` `dart_fvmrc_flutter`, the pin's own line). The JSON parser owns the bounded evidence and the file binds the metadata-only content-store policy, so the collector carries the declaration without the body; a missing pin is absent, a malformed file is unavailable, and every value passes the credential guard before emission.
+
 ## Dead-Code Support
 
 Maturity: `derived`.
