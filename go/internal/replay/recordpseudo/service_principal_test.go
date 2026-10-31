@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/recordpolicy"
+	"github.com/eshu-hq/eshu/go/internal/replay/record"
 	"github.com/eshu-hq/eshu/go/internal/replay/recordpseudo"
 )
 
@@ -31,7 +31,7 @@ func TestServicePrincipalLabelIsNeverRewritten(t *testing.T) {
 			"assume_principals": []any{"monitoring.amazonaws.com", "ecs-tasks.amazonaws.com"},
 		},
 	)
-	_, envs, _ := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{gen}}, key, recordpolicy.Policy())
+	_, envs, _ := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{gen}}, key, record.Policy())
 	// The names are customer data and are still pseudonymized.
 	for i := 0; i < 2; i++ {
 		mustMatch(t, "customer name", fmt.Sprint(envs[0][i].Payload["name"]), `^`+hexName+`$`)

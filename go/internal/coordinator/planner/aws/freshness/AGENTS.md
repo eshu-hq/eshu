@@ -33,7 +33,7 @@
 - Do not read `scheduled_scan_enabled` here. It shares the configuration
   document but belongs to the scheduled AWS family at root.
 - Use package name `freshness`. Where both packages are referenced, alias
-  `internal/collector/awscloud/freshness` as `awsfreshness`.
+  `internal/coordinator/aws/freshness` as `awsfreshness`.
 
 ## Common changes
 
@@ -45,8 +45,11 @@ retries, and telemetry changes belong in the parent
 
 Adding a new AWS service kind: register it under
 `internal/collector/awscloud/service/<service>/runtimebind` and in the
-`awsruntime/bindings` aggregator. Nothing here needs to change —
-`normalizeList` asks `awsruntime.SupportsServiceKind`.
+`awsruntime/bindings` aggregator, then extend the host-owned vocabulary in
+`internal/coordinator/aws/freshness/servicekinds.go` in the same change —
+`normalizeList` asks the host `SupportsServiceKind`, and the registry pin
+test fails until both agree. Uses of the kind in EventBridge normalization
+take the package-private `serviceX` constant, never a new literal.
 
 ## Failure modes
 
@@ -58,9 +61,10 @@ unsupported `service_kind`, and any unauthorized target all fail before a
 workflow row is returned. Unauthorized targets fail the batch rather than being
 dropped, so a root/child disagreement is loud instead of silent.
 
-Tests here need the AWS scanner registry populated. `aws_bindings_test.go`
-blank-imports `awsruntime/bindings` for that; deleting it makes every valid
-`service_kind` unsupported and the failures will look like planner bugs.
+Tests here must not import the collector tree. Service-kind validation runs
+through `awsfreshness.SupportsServiceKind` against the static host
+vocabulary; the only registry touchpoint is the transitional pin in
+`servicekinds_test.go`, which retires with the scanner tree.
 
 ## Verification
 

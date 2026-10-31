@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/recordpolicy"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -20,6 +19,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
+	"github.com/eshu-hq/eshu/go/internal/replay/record"
 	"github.com/eshu-hq/eshu/go/internal/replay/recordpseudo"
 )
 
@@ -263,7 +263,7 @@ func TestAWSCorpusShapePreserved(t *testing.T) {
 
 	// Fact-level bijection retains the baseline assertion and also covers the
 	// AppSync and EKS extensions in the full corpus.
-	wrapped, _, err := recordpseudo.Wrap(committedSource(t, "awscloud"), key, recordpolicy.Policy())
+	wrapped, _, err := recordpseudo.Wrap(committedSource(t, "awscloud"), key, record.Policy())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -375,7 +375,7 @@ func TestAWSCorpusSiblingsJoin(t *testing.T) {
 func sameDictionary(t *testing.T, key recordpseudo.Key, policy recordpseudo.Policy, text string) string {
 	t.Helper()
 	joined := recordpseudo.Policy{Fields: map[string]recordpseudo.Class{"document": recordpseudo.ClassKeep}}
-	for k, v := range recordpolicy.Policy().Fields {
+	for k, v := range record.Policy().Fields {
 		joined.Fields[k] = v
 	}
 	for k, v := range policy.Fields {

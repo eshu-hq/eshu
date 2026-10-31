@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/recordpolicy"
+	"github.com/eshu-hq/eshu/go/internal/replay/record"
 )
 
 // TestS3KeyPathComponentsArePseudonymized (P0): a prefix-scoped S3 policy
@@ -26,7 +26,7 @@ func TestS3KeyPathComponentsArePseudonymized(t *testing.T) {
 		}),
 	}}
 	src.gens[0] = withStableKey(src.gens[0], "aws:iam:"+acct+":policy:"+arn)
-	_, envs, _ := wrapGens(t, src, key, recordpolicy.Policy())
+	_, envs, _ := wrapGens(t, src, key, record.Policy())
 	payload := envs[0][0].Payload
 	want := `^arn:aws:s3:::` + hexName + `/` + hexName + `/` + hexName + `/\*$`
 	got, _ := payload["arn"].(string)

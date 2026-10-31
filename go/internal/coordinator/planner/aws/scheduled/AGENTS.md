@@ -19,8 +19,10 @@
   and root's `scheduled_work.go` reads it once for every scheduled planner.
 - Do not import the root `coordinator` package; root imports this one to wire
   the `AWSScheduledPlanner` port, and the reverse import cycles.
-- `aws_bindings_test.go` must stay. It is the only thing populating the AWS
-  scanner registry for this package's test binary.
+- Service-kind validation is the static host vocabulary in
+  `internal/coordinator/aws/freshness/servicekinds.go`, pinned by
+  `TestSupportedServiceKindsMatchScannerRegistry`. No bindings import is
+  needed or allowed in this package's tests.
 
 ## Anti-patterns
 

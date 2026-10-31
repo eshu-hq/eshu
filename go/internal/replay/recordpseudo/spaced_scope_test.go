@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/recordpolicy"
+	"github.com/eshu-hq/eshu/go/internal/replay/record"
 )
 
 // TestSpacedNameWordIsPseudonymizedInClassifiedFields (#6965 review M1): a
@@ -24,7 +24,7 @@ func TestSpacedNameWordIsPseudonymizedInClassifiedFields(t *testing.T) {
 		"name": "Quorvex",
 		"tags": map[string]any{"Owner": "Quorvex"},
 	})
-	_, envs, _ := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{gen}}, key, recordpolicy.Policy())
+	_, envs, _ := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{gen}}, key, record.Policy())
 	raw, _ := json.Marshal(envs[0][0].Payload)
 	if strings.Contains(string(raw), "Quorvex") {
 		t.Errorf("a word learned from an alarm name stayed raw in a classified field: %s", raw)
@@ -42,7 +42,7 @@ func TestCloudFrontPrincipalPhraseSurvivesAlarmWords(t *testing.T) {
 			"arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity E1ABCD23EFGH4I",
 		},
 	})
-	_, envs, _ := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{gen}}, key, recordpolicy.Policy())
+	_, envs, _ := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{gen}}, key, record.Policy())
 	resources, _ := envs[0][0].Payload["resources"].([]any)
 	principal := fmt.Sprint(resources[1])
 	if !strings.HasPrefix(principal, "arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity ") {
@@ -62,7 +62,7 @@ func TestAlexaTypesAreAWSOwned(t *testing.T) {
 		"resource_type": "Alexa::ASK::Skill",
 		"state":         "Skill",
 	})
-	_, envs, _ := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{gen}}, key, recordpolicy.Policy())
+	_, envs, _ := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{gen}}, key, record.Policy())
 	p := envs[0][0].Payload
 	if got := fmt.Sprint(p["resource_type"]); got != "Alexa::ASK::Skill" {
 		t.Errorf("resource_type = %q, want verbatim", got)

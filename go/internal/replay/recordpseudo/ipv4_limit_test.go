@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/recordpolicy"
+	"github.com/eshu-hq/eshu/go/internal/replay/record"
 	"github.com/eshu-hq/eshu/go/internal/replay/recordpseudo"
 )
 
@@ -29,13 +29,13 @@ func TestIPv4CeilingIsAnError(t *testing.T) {
 	}
 	_, envs, report := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{
 		generation("aws:"+acct+":us-east-1:ec2", nil, addresses(762)...),
-	}}, key, recordpolicy.Policy())
+	}}, key, record.Policy())
 	if len(envs[0]) != 762 || report.IPv4Addresses != 762 {
 		t.Fatalf("762 addresses: facts=%d report.IPv4Addresses=%d", len(envs[0]), report.IPv4Addresses)
 	}
 	wrapped, _, err := recordpseudo.Wrap(&sliceSource{gens: []collector.CollectedGeneration{
 		generation("aws:"+acct+":us-east-1:ec2", nil, addresses(763)...),
-	}}, key, recordpolicy.Policy())
+	}}, key, record.Policy())
 	if err != nil {
 		t.Fatal(err)
 	}

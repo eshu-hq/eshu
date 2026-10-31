@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/recordpolicy"
+	"github.com/eshu-hq/eshu/go/internal/replay/record"
 )
 
 // TestShortWholeNamesAreRewrittenInComposites (round 3 F2): a name of three
@@ -23,7 +23,7 @@ func TestShortWholeNamesAreRewrittenInComposites(t *testing.T) {
 		"account_id": acct, "region": "us-east-1", "name": "abc", "arn": roleARN,
 	})
 	gen = withRefs(gen, "aws:lambda:"+acct+":us-east-1:function:abc:1", "aws://iam/"+acct+"/role/abc", "abc")
-	_, envs, _ := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{gen}}, key, recordpolicy.Policy())
+	_, envs, _ := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{gen}}, key, record.Policy())
 	env := envs[0][0]
 	mustMatch(t, "name", fmt.Sprint(env.Payload["name"]), `^`+hexName+`$`)
 	mustMatch(t, "arn", fmt.Sprint(env.Payload["arn"]), `^arn:aws:iam::`+pseudoAcct+`:role/`+hexName+`$`)

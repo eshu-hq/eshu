@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/recordpolicy"
+	"github.com/eshu-hq/eshu/go/internal/replay/record"
 	"github.com/eshu-hq/eshu/go/internal/replay/recordpseudo"
 )
 
@@ -39,7 +39,7 @@ func TestARNWildcardAndCloudFrontAccountsAreKept(t *testing.T) {
 			"resources":      resources,
 			"principal_arns": []any{wildcardAndCloudFrontARNs[3]},
 		}),
-	}}, key, recordpolicy.Policy())
+	}}, key, record.Policy())
 	payload := envs[0][0].Payload
 	gotResources, _ := payload["resources"].([]any)
 	gotPrincipals, _ := payload["principal_arns"].([]any)

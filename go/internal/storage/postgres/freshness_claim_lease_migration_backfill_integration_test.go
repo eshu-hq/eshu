@@ -13,9 +13,9 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
-	awsfreshness "github.com/eshu-hq/eshu/go/internal/collector/awscloud/freshness"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	gcpfreshness "github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/freshness"
+	awsfreshness "github.com/eshu-hq/eshu/go/internal/coordinator/aws/freshness"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/aws"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/gcp"
 )

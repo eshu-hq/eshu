@@ -239,8 +239,8 @@ one enabled bounded scope; invalid configurations fail validation.
   `DesiredCollectorInstance`.
 - `internal/telemetry` — `MetricDimensionOutcome` attribute key used in
   `otelMetrics`.
-- `internal/collector/awscloud/freshness` — normalized AWS freshness trigger
-  and target identity used by the AWS freshness planner.
+- `internal/coordinator/aws/freshness` — host-owned AWS freshness trigger,
+  target identity, and schedulable service-kind vocabulary.
 - `internal/webhook` — normalized PagerDuty and Jira incident freshness
   triggers used by the coordinator handoff.
 - `internal/governanceaudit` — validation-safe event envelope for denied or

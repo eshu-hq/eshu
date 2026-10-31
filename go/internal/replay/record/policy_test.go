@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package recordpolicy_test
+package record_test
 
 import (
 	"encoding/json"
@@ -10,11 +10,11 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/recordpolicy"
+	"github.com/eshu-hq/eshu/go/internal/replay/record"
 	"github.com/eshu-hq/eshu/go/internal/replay/recordpseudo"
 )
 
-const schemaDir = "../../../../../sdk/go/factschema/schema"
+const schemaDir = "../../../../sdk/go/factschema/schema"
 
 // schemaKeys walks every aws_*.json contract schema and collects each
 // declared property key at any depth (object properties, array items,
@@ -71,7 +71,7 @@ func schemaKeys(t *testing.T) []string {
 // be opaque at record time -- silently losing truth -- so it fails here
 // first, naming the key.
 func TestPolicyCoversEveryAWSSchemaKey(t *testing.T) {
-	policy := recordpolicy.Policy()
+	policy := record.Policy()
 	if err := policy.Validate(); err != nil {
 		t.Fatalf("Validate: %v", err)
 	}
@@ -82,19 +82,19 @@ func TestPolicyCoversEveryAWSSchemaKey(t *testing.T) {
 		}
 	}
 	if len(missing) > 0 {
-		t.Fatalf("%d aws/v1 schema key(s) are not classified by recordpolicy.Policy: %v", len(missing), missing)
+		t.Fatalf("%d aws/v1 schema key(s) are not classified by record.Policy: %v", len(missing), missing)
 	}
 }
 
 // TestPolicyIsCopiedPerCall: adjusting one call's table must not leak into
 // the next caller.
 func TestPolicyIsCopiedPerCall(t *testing.T) {
-	first := recordpolicy.Policy()
+	first := record.Policy()
 	first.Fields["account_id"] = recordpseudo.ClassKeep
-	if recordpolicy.Policy().Fields["account_id"] != recordpseudo.ClassAccount {
+	if record.Policy().Fields["account_id"] != recordpseudo.ClassAccount {
 		t.Fatal("Policy() returned a shared map")
 	}
-	if recordpolicy.Policy().Fields["attributes"] != recordpseudo.ClassKeep {
+	if record.Policy().Fields["attributes"] != recordpseudo.ClassKeep {
 		t.Fatal("attributes must be Keep so the engine recurses per child key")
 	}
 }

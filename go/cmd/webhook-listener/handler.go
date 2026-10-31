@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/freshness"
 	gcpfreshness "github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/freshness"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/aws/freshness"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/webhook"
 	log "github.com/eshu-hq/eshu/go/pkg/log"

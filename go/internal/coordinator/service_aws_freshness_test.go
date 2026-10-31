@@ -12,8 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
-	awsfreshness "github.com/eshu-hq/eshu/go/internal/collector/awscloud/freshness"
+	awsfreshness "github.com/eshu-hq/eshu/go/internal/coordinator/aws/freshness"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/aws/freshness"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -128,7 +127,7 @@ func TestServiceRunActiveModeHandsOffAWSFreshnessTriggers(t *testing.T) {
 		Kind:        awsfreshness.EventKindConfigChange,
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: catalog.ServiceLambda,
+		ServiceKind: "lambda",
 		ObservedAt:  now,
 	}, now)
 	if err != nil {
@@ -197,7 +196,7 @@ func TestServiceRunActiveModeSkipsAWSFreshnessWhenPriorTargetIsOpen(t *testing.T
 		Kind:        awsfreshness.EventKindConfigChange,
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: catalog.ServiceLambda,
+		ServiceKind: "lambda",
 		ObservedAt:  now,
 	}, now)
 	if err != nil {
@@ -272,7 +271,7 @@ func TestRunAWSFreshnessHandoffUsesDurableInstancesBetweenReconciles(t *testing.
 		Kind:        awsfreshness.EventKindConfigChange,
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: catalog.ServiceLambda,
+		ServiceKind: "lambda",
 		ObservedAt:  now,
 	}, now)
 	if err != nil {
@@ -319,7 +318,7 @@ func TestScheduleAWSFreshnessWorkRequiresPlannerBeforeClaim(t *testing.T) {
 		Kind:        awsfreshness.EventKindConfigChange,
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: catalog.ServiceLambda,
+		ServiceKind: "lambda",
 		ObservedAt:  now,
 	}, now)
 	if err != nil {

@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/recordpolicy"
+	"github.com/eshu-hq/eshu/go/internal/replay/record"
 	"github.com/eshu-hq/eshu/go/internal/replay/recordpseudo"
 )
 
@@ -36,7 +36,7 @@ func TestVerifyAdmitsProducedAWSEndpoints(t *testing.T) {
 	}
 	_, envs, report := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{
 		generation("aws:"+acct+":us-east-1:elbv2", nil, payloads...),
-	}}, key, recordpolicy.Policy())
+	}}, key, record.Policy())
 	var doc strings.Builder
 	doc.WriteString("{")
 	for i, env := range envs[0] {

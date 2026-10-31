@@ -2,10 +2,19 @@
 
 ## Purpose
 
-`internal/collector/awscloud/freshness` defines the normalized AWS freshness
+`internal/coordinator/aws/freshness` defines the normalized AWS freshness
 trigger contract for EventBridge and AWS Config wake-up signals. It maps an
 event to an existing AWS collector claim target: account, region, and
 service-kind.
+
+The package is host-owned scheduling state (coordinator area, Refs #9296):
+the trigger store, the freshness and scheduled planners, and webhook intake
+import it, and it resolves to no collector or satellite code, so the
+coordinator keeps scheduling AWS work after the in-tree collector tree is
+deleted. The schedulable service-kind vocabulary lives here too
+(`servicekinds.go`, pinned to the scanner registry); the satellite meets the
+host through the versioned intake contract and the factschema schemas, never
+through a Go import.
 
 Freshness triggers do not make graph truth fresh. They only ask the normal AWS
 collector to rescan a bounded slice. Scheduled scans remain authoritative.
@@ -32,6 +41,10 @@ flowchart LR
 - `EventKindConfigChange` and `EventKindCloudTrailAPI` - bounded trigger kinds.
 - `TriggerStatusQueued`, `TriggerStatusClaimed`, `TriggerStatusHandedOff`, and
   `TriggerStatusFailed` - durable handoff states.
+- `SupportedServiceKinds` / `SupportsServiceKind` - the host-owned
+  schedulable service-kind vocabulary, pinned to the scanner registry.
+- `IsGlobalServiceKind` and `GlobalRegion` - the aws-global scheduling
+  boundary for global service families.
 
 ## Invariants
 

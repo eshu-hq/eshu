@@ -14,7 +14,7 @@ This package owns the DDL, upsert, claim, reap, and completion SQL for
 `aws_freshness_triggers`, and the `AWSFreshnessStore` type that runs them.
 `cmd/webhook-listener` builds the store to normalize and coalesce inbound AWS
 events; `cmd/workflow-coordinator` builds it to claim queued triggers, hand
-them off to a planned workflow, or fail them. `internal/collector/awscloud/freshness`
+them off to a planned workflow, or fail them. `internal/coordinator/aws/freshness`
 owns the `Trigger`/`StoredTrigger`/`TriggerStatus` domain types this package
 persists and reads back.
 
@@ -37,7 +37,7 @@ See `doc.go` for the godoc contract.
 
 - `internal/storage/postgres/db` for the shared `ExecQueryer`/`Rows`
   contracts.
-- `internal/collector/awscloud/freshness` for the `Trigger`/`StoredTrigger`/
+- `internal/coordinator/aws/freshness` for the `Trigger`/`StoredTrigger`/
   `TriggerStatus`/`EventKind` domain types this package persists and scans.
 
 ## Telemetry
@@ -86,3 +86,20 @@ text is unchanged so no plan or lifecycle proof is re-owed.
 From `go/`, run `go test ./internal/storage/postgres/... -race -count=1` and
 `go vet ./internal/storage/postgres/...`. From the repository root, run
 `scripts/verify-package-docs.sh`.
+
+No-Regression Evidence (Lane 1 #9296): the trigger-type home move changes one
+import line in `store.go` (collector freshness path to coordinator freshness
+path); the SQL text, method set, and validation outcomes are unchanged.
+Baseline: pre-move validation through the scanner registry. After: validation
+through the host-owned service-kind set, pinned equal to the live registry by
+`TestSupportedServiceKindsMatchScannerRegistry` (mutation-proven: a planted
+skew fails naming the diff). Input shape is trigger `Validate` calls on
+`StoreTrigger`; no predicate, projection, or row-count change, so no query
+plan or lifecycle proof is re-owed. Hermetic store unit tests green
+(`go test ./internal/storage/postgres/freshness/aws/ -count=1`); live-PG
+claim-lease proofs are DSN-gated and skip locally exactly as on base, covered
+by CI.
+
+No-Observability-Change (Lane 1 #9296): no new metric, span, or log field.
+The `eshu_dp_aws_freshness_*` counters are emitted by the unchanged caller
+instrumentation wrappers around the same store methods.

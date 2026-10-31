@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/recordpolicy"
+	"github.com/eshu-hq/eshu/go/internal/replay/record"
 )
 
 // TestNumericNamesAreLearned (round 3 F4): a purely numeric resource name
@@ -27,7 +27,7 @@ func TestNumericNamesAreLearned(t *testing.T) {
 		"resources":   []any{"arn:aws:lambda:us-east-1:" + acct + ":function:img-resizer:12"},
 	})
 	gen = withRefs(gen, "aws:iam:"+acct+":role:1234", "aws://iam/"+acct+"/role/1234", "1234")
-	gens, envs, _ := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{gen}}, key, recordpolicy.Policy())
+	gens, envs, _ := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{gen}}, key, record.Policy())
 	env := envs[0][0]
 	mustMatch(t, "name", fmt.Sprint(env.Payload["name"]), `^`+hexName+`$`)
 	mustMatch(t, "arn", fmt.Sprint(env.Payload["arn"]), `^arn:aws:iam::`+pseudoAcct+`:role/`+hexName+`$`)

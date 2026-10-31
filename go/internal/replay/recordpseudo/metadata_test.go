@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/recordpolicy"
+	"github.com/eshu-hq/eshu/go/internal/replay/record"
 	"github.com/eshu-hq/eshu/go/internal/replay/recordpseudo"
 )
 
@@ -22,7 +22,7 @@ func TestMetadataUnknownKeyIsOpaque(t *testing.T) {
 	key := mustKey(t, keyA)
 	wrapped, report, err := recordpseudo.Wrap(&sliceSource{gens: []collector.CollectedGeneration{
 		generation("aws:"+acct+":us-east-1:eks", map[string]string{"account_id": acct, "region": "us-east-1", "cluster_name": "acme-prod-cluster"}, map[string]any{"name": "x"}),
-	}}, key, recordpolicy.Policy())
+	}}, key, record.Policy())
 	if err != nil {
 		t.Fatal(err)
 	}

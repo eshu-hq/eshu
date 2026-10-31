@@ -15,10 +15,10 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/recordpolicy"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
+	"github.com/eshu-hq/eshu/go/internal/replay/record"
 	"github.com/eshu-hq/eshu/go/internal/replay/recorder"
 	"github.com/eshu-hq/eshu/go/internal/replay/recordpseudo"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -106,7 +106,7 @@ func pseudonymOf(t *testing.T, key recordpseudo.Key, field, value string) string
 	t.Helper()
 	payloads, _ := wrapAll(t, &sliceSource{gens: []collector.CollectedGeneration{
 		generation("aws:"+acct+":us-east-1:iam", nil, map[string]any{field: value}),
-	}}, key, recordpolicy.Policy())
+	}}, key, record.Policy())
 	got, _ := payloads[0][field].(string)
 	return got
 }
@@ -115,7 +115,7 @@ func recordBytes(t *testing.T, path string, src collector.Source, key recordpseu
 	t.Helper()
 	err := recorder.Run(context.Background(), src, recorder.Options{
 		Path: path, CollectorLabel: "aws",
-		Pseudonymize: &recordpseudo.Config{Key: key, Policy: recordpolicy.Policy()},
+		Pseudonymize: &recordpseudo.Config{Key: key, Policy: record.Policy()},
 	})
 	if err != nil {
 		t.Fatalf("recorder.Run: %v", err)
@@ -164,7 +164,7 @@ func TestEqualInputsAgreeAcrossSources(t *testing.T) {
 			"account_id": acct, "repository_name": "payments-api",
 			"uri": acct + ".dkr.ecr.us-east-1.amazonaws.com/payments-api",
 		}),
-	}}, key, recordpolicy.Policy())
+	}}, key, record.Policy())
 	ociPolicy := recordpseudo.Policy{Fields: map[string]recordpseudo.Class{
 		"registry": recordpseudo.ClassHost, "repository": recordpseudo.ClassIdent, "descriptor_id": recordpseudo.ClassIdent,
 	}}
@@ -269,7 +269,7 @@ func TestIPv4IntoRFC5737(t *testing.T) {
 			map[string]any{"private_ipv4_address": "10.0.0.2"},
 			map[string]any{"private_ipv4_address": "10.0.0.3"},
 		),
-	}}, key, recordpolicy.Policy())
+	}}, key, record.Policy())
 	seen := map[string]int{}
 	for _, p := range payloads {
 		seen[p["private_ipv4_address"].(string)]++
@@ -399,7 +399,7 @@ func TestPolicyRejectsUnknownAndEmpty(t *testing.T) {
 	if err := bad.Validate(); err == nil {
 		t.Error("policy with an explicit unknown class validated")
 	}
-	if _, _, err := recordpseudo.Wrap(&sliceSource{}, recordpseudo.Key{}, recordpolicy.Policy()); err == nil {
+	if _, _, err := recordpseudo.Wrap(&sliceSource{}, recordpseudo.Key{}, record.Policy()); err == nil {
 		t.Error("Wrap accepted the zero key")
 	}
 	if _, err := recordpseudo.NewKey([]byte(strings.Repeat("k", recordpseudo.MinKeyBytes-1))); err == nil {
@@ -429,7 +429,7 @@ func TestTypedPayloadValuesAreNotFailOpen(t *testing.T) {
 			"weight":                 1.5,
 			"evaluate_target_health": true,
 		}),
-	}}, key, recordpolicy.Policy())
+	}}, key, record.Policy())
 	rendered := fmt.Sprint(payloads[0])
 	for _, raw := range []string{acct, "orders-deployer", "org-demo", "team-orders"} {
 		if strings.Contains(rendered, raw) {

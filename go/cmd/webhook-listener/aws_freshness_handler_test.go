@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/freshness"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/aws/freshness"
 )
 
 func TestWebhookHandlerAcceptsAWSFreshnessEventBridgePayload(t *testing.T) {

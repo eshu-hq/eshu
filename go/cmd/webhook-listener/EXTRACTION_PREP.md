@@ -6,7 +6,7 @@ removal. This manifest records the current in-tree truth so the cutover gate
 
 Scope: `go/cmd/webhook-listener/` (binary `eshu-webhook-listener`) and
 webhook-owned implementation: `go/internal/webhook/`,
-`go/internal/collector/awscloud/freshness/`,
+`go/internal/coordinator/aws/freshness/`,
 `go/internal/collector/gcpcloud/freshness/`,
 `go/internal/storage/postgres/webhook/` (trigger store + `actions/` inbox),
 `go/internal/storage/postgres/freshness/{aws,gcp,incident}/`.
@@ -42,7 +42,7 @@ deployment.
 
 ### Freshness normalizers (move with the listener)
 
-- `go/internal/collector/awscloud/freshness/eventbridge.go`, `types.go`
+- `go/internal/coordinator/aws/freshness/eventbridge.go`, `types.go`
 - `go/internal/collector/gcpcloud/freshness/pubsub.go`, `types.go`
 
 ### Durable stores (core Postgres owns durable state; store packages move with the listener)

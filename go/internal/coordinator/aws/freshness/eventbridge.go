@@ -8,15 +8,11 @@ import (
 	"fmt"
 	"strings"
 	"time"
-
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 const (
 	eventBridgeDetailTypeConfigChange  = "Config Configuration Item Change"
 	eventBridgeDetailTypeCloudTrailAPI = "AWS API Call via CloudTrail"
-	awsGlobalRegion                    = "aws-global"
 )
 
 type eventBridgeEnvelope struct {
@@ -135,7 +131,7 @@ func serviceKindFromCloudTrail(source string, eventSource string) (string, error
 		}
 		if strings.HasPrefix(candidate, "aws.") {
 			service := strings.TrimPrefix(candidate, "aws.")
-			if awsruntime.SupportsServiceKind(service) {
+			if SupportsServiceKind(service) {
 				return service, nil
 			}
 		}
@@ -145,18 +141,13 @@ func serviceKindFromCloudTrail(source string, eventSource string) (string, error
 
 func normalizeTriggerRegion(serviceKind string, region string) string {
 	if isGlobalService(serviceKind) {
-		return awsGlobalRegion
+		return GlobalRegion
 	}
 	return strings.TrimSpace(region)
 }
 
 func isGlobalService(serviceKind string) bool {
-	switch serviceKind {
-	case catalog.ServiceIAM, catalog.ServiceRoute53, catalog.ServiceCloudFront:
-		return true
-	default:
-		return false
-	}
+	return IsGlobalServiceKind(serviceKind)
 }
 
 func cloudTrailResourceID(serviceKind string, params map[string]any, resources []string) string {
@@ -210,93 +201,93 @@ func firstNonEmpty(values ...string) string {
 }
 
 var configResourceTypeServices = map[string]string{
-	"AWS::ApiGateway::RestApi":                  catalog.ServiceAPIGateway,
-	"AWS::ApiGateway::Stage":                    catalog.ServiceAPIGateway,
-	"AWS::ApiGatewayV2::Api":                    catalog.ServiceAPIGatewayV2,
-	"AWS::ApiGatewayV2::Stage":                  catalog.ServiceAPIGatewayV2,
-	"AWS::CloudFront::Distribution":             catalog.ServiceCloudFront,
-	"AWS::DynamoDB::Table":                      catalog.ServiceDynamoDB,
-	"AWS::EC2::NetworkInterface":                catalog.ServiceEC2,
-	"AWS::EC2::SecurityGroup":                   catalog.ServiceEC2,
-	"AWS::EC2::Subnet":                          catalog.ServiceEC2,
-	"AWS::EC2::VPC":                             catalog.ServiceEC2,
-	"AWS::ECR::Repository":                      catalog.ServiceECR,
-	"AWS::ECS::Cluster":                         catalog.ServiceECS,
-	"AWS::ECS::Service":                         catalog.ServiceECS,
-	"AWS::ECS::TaskDefinition":                  catalog.ServiceECS,
-	"AWS::EKS::Cluster":                         catalog.ServiceEKS,
-	"AWS::ElasticLoadBalancingV2::Listener":     catalog.ServiceELBv2,
-	"AWS::ElasticLoadBalancingV2::LoadBalancer": catalog.ServiceELBv2,
-	"AWS::ElasticLoadBalancingV2::TargetGroup":  catalog.ServiceELBv2,
-	"AWS::Events::EventBus":                     catalog.ServiceEventBridge,
-	"AWS::Events::Rule":                         catalog.ServiceEventBridge,
-	"AWS::Glue::Connection":                     catalog.ServiceGlue,
-	"AWS::Glue::Crawler":                        catalog.ServiceGlue,
-	"AWS::Glue::Database":                       catalog.ServiceGlue,
-	"AWS::Glue::Job":                            catalog.ServiceGlue,
-	"AWS::Glue::Table":                          catalog.ServiceGlue,
-	"AWS::Glue::Trigger":                        catalog.ServiceGlue,
-	"AWS::Glue::Workflow":                       catalog.ServiceGlue,
-	"AWS::IAM::InstanceProfile":                 catalog.ServiceIAM,
-	"AWS::IAM::ManagedPolicy":                   catalog.ServiceIAM,
-	"AWS::IAM::Policy":                          catalog.ServiceIAM,
-	"AWS::IAM::Role":                            catalog.ServiceIAM,
-	"AWS::Lambda::Function":                     catalog.ServiceLambda,
-	"AWS::Logs::LogGroup":                       catalog.ServiceCloudWatchLogs,
-	"AWS::RDS::DBCluster":                       catalog.ServiceRDS,
-	"AWS::RDS::DBInstance":                      catalog.ServiceRDS,
-	"AWS::RDS::DBSubnetGroup":                   catalog.ServiceRDS,
-	"AWS::Redshift::Cluster":                    catalog.ServiceRedshift,
-	"AWS::Redshift::ClusterParameterGroup":      catalog.ServiceRedshift,
-	"AWS::Redshift::ClusterSnapshot":            catalog.ServiceRedshift,
-	"AWS::Redshift::ClusterSubnetGroup":         catalog.ServiceRedshift,
-	"AWS::RedshiftServerless::Namespace":        catalog.ServiceRedshift,
-	"AWS::RedshiftServerless::Workgroup":        catalog.ServiceRedshift,
-	"AWS::Route53::HostedZone":                  catalog.ServiceRoute53,
-	"AWS::S3::Bucket":                           catalog.ServiceS3,
-	"AWS::SecretsManager::Secret":               catalog.ServiceSecretsManager,
-	"AWS::SecurityHub::Hub":                     catalog.ServiceSecurityHub,
-	"AWS::SNS::Topic":                           catalog.ServiceSNS,
-	"AWS::SQS::Queue":                           catalog.ServiceSQS,
-	"AWS::SSM::Parameter":                       catalog.ServiceSSM,
+	"AWS::ApiGateway::RestApi":                  serviceAPIGateway,
+	"AWS::ApiGateway::Stage":                    serviceAPIGateway,
+	"AWS::ApiGatewayV2::Api":                    serviceAPIGatewayV2,
+	"AWS::ApiGatewayV2::Stage":                  serviceAPIGatewayV2,
+	"AWS::CloudFront::Distribution":             serviceCloudFront,
+	"AWS::DynamoDB::Table":                      serviceDynamoDB,
+	"AWS::EC2::NetworkInterface":                serviceEC2,
+	"AWS::EC2::SecurityGroup":                   serviceEC2,
+	"AWS::EC2::Subnet":                          serviceEC2,
+	"AWS::EC2::VPC":                             serviceEC2,
+	"AWS::ECR::Repository":                      serviceECR,
+	"AWS::ECS::Cluster":                         serviceECS,
+	"AWS::ECS::Service":                         serviceECS,
+	"AWS::ECS::TaskDefinition":                  serviceECS,
+	"AWS::EKS::Cluster":                         serviceEKS,
+	"AWS::ElasticLoadBalancingV2::Listener":     serviceELBv2,
+	"AWS::ElasticLoadBalancingV2::LoadBalancer": serviceELBv2,
+	"AWS::ElasticLoadBalancingV2::TargetGroup":  serviceELBv2,
+	"AWS::Events::EventBus":                     serviceEventBridge,
+	"AWS::Events::Rule":                         serviceEventBridge,
+	"AWS::Glue::Connection":                     serviceGlue,
+	"AWS::Glue::Crawler":                        serviceGlue,
+	"AWS::Glue::Database":                       serviceGlue,
+	"AWS::Glue::Job":                            serviceGlue,
+	"AWS::Glue::Table":                          serviceGlue,
+	"AWS::Glue::Trigger":                        serviceGlue,
+	"AWS::Glue::Workflow":                       serviceGlue,
+	"AWS::IAM::InstanceProfile":                 serviceIAM,
+	"AWS::IAM::ManagedPolicy":                   serviceIAM,
+	"AWS::IAM::Policy":                          serviceIAM,
+	"AWS::IAM::Role":                            serviceIAM,
+	"AWS::Lambda::Function":                     serviceLambda,
+	"AWS::Logs::LogGroup":                       serviceCloudWatchLogs,
+	"AWS::RDS::DBCluster":                       serviceRDS,
+	"AWS::RDS::DBInstance":                      serviceRDS,
+	"AWS::RDS::DBSubnetGroup":                   serviceRDS,
+	"AWS::Redshift::Cluster":                    serviceRedshift,
+	"AWS::Redshift::ClusterParameterGroup":      serviceRedshift,
+	"AWS::Redshift::ClusterSnapshot":            serviceRedshift,
+	"AWS::Redshift::ClusterSubnetGroup":         serviceRedshift,
+	"AWS::RedshiftServerless::Namespace":        serviceRedshift,
+	"AWS::RedshiftServerless::Workgroup":        serviceRedshift,
+	"AWS::Route53::HostedZone":                  serviceRoute53,
+	"AWS::S3::Bucket":                           serviceS3,
+	"AWS::SecretsManager::Secret":               serviceSecretsManager,
+	"AWS::SecurityHub::Hub":                     serviceSecurityHub,
+	"AWS::SNS::Topic":                           serviceSNS,
+	"AWS::SQS::Queue":                           serviceSQS,
+	"AWS::SSM::Parameter":                       serviceSSM,
 }
 
 var cloudTrailSourceServices = map[string]string{
-	"apigateway.amazonaws.com":           catalog.ServiceAPIGateway,
-	"apigatewayv2.amazonaws.com":         catalog.ServiceAPIGatewayV2,
-	"cloudfront.amazonaws.com":           catalog.ServiceCloudFront,
-	"dynamodb.amazonaws.com":             catalog.ServiceDynamoDB,
-	"ec2.amazonaws.com":                  catalog.ServiceEC2,
-	"ecr.amazonaws.com":                  catalog.ServiceECR,
-	"ecs.amazonaws.com":                  catalog.ServiceECS,
-	"eks.amazonaws.com":                  catalog.ServiceEKS,
-	"elasticloadbalancing.amazonaws.com": catalog.ServiceELBv2,
-	"events.amazonaws.com":               catalog.ServiceEventBridge,
-	"glue.amazonaws.com":                 catalog.ServiceGlue,
-	"iam.amazonaws.com":                  catalog.ServiceIAM,
-	"lambda.amazonaws.com":               catalog.ServiceLambda,
-	"logs.amazonaws.com":                 catalog.ServiceCloudWatchLogs,
-	"rds.amazonaws.com":                  catalog.ServiceRDS,
-	"redshift.amazonaws.com":             catalog.ServiceRedshift,
-	"redshift-serverless.amazonaws.com":  catalog.ServiceRedshift,
-	"route53.amazonaws.com":              catalog.ServiceRoute53,
-	"s3.amazonaws.com":                   catalog.ServiceS3,
-	"secretsmanager.amazonaws.com":       catalog.ServiceSecretsManager,
-	"securityhub.amazonaws.com":          catalog.ServiceSecurityHub,
-	"sns.amazonaws.com":                  catalog.ServiceSNS,
-	"sqs.amazonaws.com":                  catalog.ServiceSQS,
-	"ssm.amazonaws.com":                  catalog.ServiceSSM,
+	"apigateway.amazonaws.com":           serviceAPIGateway,
+	"apigatewayv2.amazonaws.com":         serviceAPIGatewayV2,
+	"cloudfront.amazonaws.com":           serviceCloudFront,
+	"dynamodb.amazonaws.com":             serviceDynamoDB,
+	"ec2.amazonaws.com":                  serviceEC2,
+	"ecr.amazonaws.com":                  serviceECR,
+	"ecs.amazonaws.com":                  serviceECS,
+	"eks.amazonaws.com":                  serviceEKS,
+	"elasticloadbalancing.amazonaws.com": serviceELBv2,
+	"events.amazonaws.com":               serviceEventBridge,
+	"glue.amazonaws.com":                 serviceGlue,
+	"iam.amazonaws.com":                  serviceIAM,
+	"lambda.amazonaws.com":               serviceLambda,
+	"logs.amazonaws.com":                 serviceCloudWatchLogs,
+	"rds.amazonaws.com":                  serviceRDS,
+	"redshift.amazonaws.com":             serviceRedshift,
+	"redshift-serverless.amazonaws.com":  serviceRedshift,
+	"route53.amazonaws.com":              serviceRoute53,
+	"s3.amazonaws.com":                   serviceS3,
+	"secretsmanager.amazonaws.com":       serviceSecretsManager,
+	"securityhub.amazonaws.com":          serviceSecurityHub,
+	"sns.amazonaws.com":                  serviceSNS,
+	"sqs.amazonaws.com":                  serviceSQS,
+	"ssm.amazonaws.com":                  serviceSSM,
 }
 
 var cloudTrailResourceIDKeys = map[string][]string{
-	catalog.ServiceEC2:    {"groupId", "vpcId", "subnetId", "networkInterfaceId", "instanceId"},
-	catalog.ServiceECR:    {"repositoryName"},
-	catalog.ServiceECS:    {"service", "cluster", "taskDefinition", "task"},
-	catalog.ServiceEKS:    {"name", "clusterName", "nodegroupName"},
-	catalog.ServiceELBv2:  {"loadBalancerArn", "listenerArn", "targetGroupArn", "ruleArn"},
-	catalog.ServiceLambda: {"functionName", "uuid"},
-	catalog.ServiceRDS:    {"dBInstanceIdentifier", "dBClusterIdentifier", "dBSubnetGroupName"},
-	catalog.ServiceRedshift: {
+	serviceEC2:    {"groupId", "vpcId", "subnetId", "networkInterfaceId", "instanceId"},
+	serviceECR:    {"repositoryName"},
+	serviceECS:    {"service", "cluster", "taskDefinition", "task"},
+	serviceEKS:    {"name", "clusterName", "nodegroupName"},
+	serviceELBv2:  {"loadBalancerArn", "listenerArn", "targetGroupArn", "ruleArn"},
+	serviceLambda: {"functionName", "uuid"},
+	serviceRDS:    {"dBInstanceIdentifier", "dBClusterIdentifier", "dBSubnetGroupName"},
+	serviceRedshift: {
 		"clusterIdentifier",
 		"parameterGroupName",
 		"clusterSubnetGroupName",
@@ -307,11 +298,11 @@ var cloudTrailResourceIDKeys = map[string][]string{
 		"workgroupArn",
 		"scheduledActionName",
 	},
-	catalog.ServiceS3:             {"bucketName"},
-	catalog.ServiceSecretsManager: {"secretId"},
-	catalog.ServiceSecurityHub:    {"hubArn", "standardsSubscriptionArn", "standardsControlArn", "insightArn", "actionTargetArn", "accountId"},
-	catalog.ServiceSSM:            {"name"},
-	catalog.ServiceGlue:           {"databaseName", "tableName", "crawlerName", "jobName", "triggerName", "workflowName", "connectionName"},
+	serviceS3:             {"bucketName"},
+	serviceSecretsManager: {"secretId"},
+	serviceSecurityHub:    {"hubArn", "standardsSubscriptionArn", "standardsControlArn", "insightArn", "actionTargetArn", "accountId"},
+	serviceSSM:            {"name"},
+	serviceGlue:           {"databaseName", "tableName", "crawlerName", "jobName", "triggerName", "workflowName", "connectionName"},
 }
 
 var genericCloudTrailResourceIDKeys = []string{"resourceId", "resourceName", "id", "name"}

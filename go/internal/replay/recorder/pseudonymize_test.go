@@ -15,10 +15,10 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/recordpolicy"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
+	"github.com/eshu-hq/eshu/go/internal/replay/record"
 	"github.com/eshu-hq/eshu/go/internal/replay/recorder"
 	"github.com/eshu-hq/eshu/go/internal/replay/recordpseudo"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -199,7 +199,7 @@ func TestRunPseudonymizesIdentifiersBeforeWrite(t *testing.T) {
 		CollectorLabel: "aws",
 		Pseudonymize: &recordpseudo.Config{
 			Key:    key,
-			Policy: recordpolicy.Policy(),
+			Policy: record.Policy(),
 		},
 		RequirePseudonymization: true,
 		OnPseudonymized:         func(r recordpseudo.Report) { report = r },
@@ -279,7 +279,7 @@ func TestRunRefusesWithoutKeyWhenRequired(t *testing.T) {
 // Verify must refuse it, and no file may exist afterwards.
 func TestRunWritesNothingWhenVerifyRefuses(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "leak.json")
-	leaky := recordpolicy.Policy()
+	leaky := record.Policy()
 	leaky.Fields["hosted_zone_name"] = recordpseudo.ClassKeep
 	err := recorder.Run(context.Background(), &fakeSource{gens: []collector.CollectedGeneration{awsShapedGeneration()}}, recorder.Options{
 		Path:           path,

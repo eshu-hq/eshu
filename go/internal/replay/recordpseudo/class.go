@@ -107,8 +107,8 @@ func (c Class) String() string {
 }
 
 // Policy is the fail-closed field table: JSON object key -> Class. It is
-// collector-owned (the aws table lives in collector/awscloud/recordpolicy);
-// the engine is collector-neutral. A key absent from Fields is ClassUnknown.
+// table-owned (the aws table lives in replay/record); the engine is
+// collector-neutral. A key absent from Fields is ClassUnknown.
 type Policy struct {
 	// Fields maps a JSON object key, at any depth of a payload, to its class.
 	Fields map[string]Class

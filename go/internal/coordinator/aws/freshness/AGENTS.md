@@ -4,13 +4,20 @@
 
 1. `doc.go` - package contract.
 2. `types.go` - trigger, target, and durable key rules.
-3. `eventbridge.go` - AWS Config/EventBridge normalization rules.
-4. `README.md` - flow, invariants, and telemetry notes.
-5. `../README.md` - AWS collector fact and boundary contract.
-6. `../../../workflow/README.md` - workflow claim lifecycle.
+3. `servicekinds.go` - host-owned schedulable service-kind vocabulary.
+4. `eventbridge.go` - AWS Config/EventBridge normalization rules.
+5. `README.md` - flow, invariants, and telemetry notes.
+6. `../../README.md` - coordinator ownership boundary and loop structure.
+7. `../../../../workflow/README.md` - workflow claim lifecycle.
 
 ## Invariants
 
+- This package resolves to no collector or satellite code
+  (`TestProductionFilesHaveNoCollectorImports`). Test-only registry pins are
+  the only exception, and they retire with the scanner tree.
+- Keep the schedulable vocabulary in `servicekinds.go` pinned to the scanner
+  registry (`TestSupportedServiceKindsMatchScannerRegistry`): adding a scanner
+  means extending the host list in the same change.
 - Treat AWS freshness events as wake-up signals only. They never prove graph,
   workload, deployment, or resource truth.
 - Keep trigger targets bounded to one account, one region, and one supported

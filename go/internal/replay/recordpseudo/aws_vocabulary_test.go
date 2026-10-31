@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/recordpolicy"
+	"github.com/eshu-hq/eshu/go/internal/replay/record"
 )
 
 // TestAWSVocabularyWordsAreNeverLearned (round 4 F9): a tag value or name
@@ -33,7 +33,7 @@ func TestAWSVocabularyWordsAreNeverLearned(t *testing.T) {
 		"name":         "iam",
 	})
 	iam = withRefs(iam, "aws:iam:"+acct+":role:iam", "aws://iam/"+acct+"/role/iam", "iam")
-	gens, envs, _ := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{rds, iam}}, key, recordpolicy.Policy())
+	gens, envs, _ := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{rds, iam}}, key, record.Policy())
 
 	env := envs[0][0]
 	mustMatch(t, "rds scope_id", gens[0].Scope.ScopeID, `^aws:`+pseudoAcct+`:us-east-1:rds$`)
