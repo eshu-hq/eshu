@@ -199,6 +199,106 @@ ANALYZE scope_generations;
 	}
 }
 
+// TestSupplyChainImpactReadinessScanTierSupersededGenerationLive is the
+// #8878 regression: one image scope whose two scanner tiers wrote two
+// generations ~0.5ms apart, so single-active-generation lifecycle superseded
+// the image tier's generation (carrying the only scanner_worker.analysis
+// fact) under the osruntime tier's generation (os_package rows, no
+// analysis). The shipped query must still attribute the scope's evidence to
+// the scanned digest: scanner_worker.analysis counts the superseded
+// generation's digest-matching fact, and vulnerability.os_package counts the
+// ACTIVE generation's rows through that same-scope sibling.
+//
+// Counted os_package rows stay active-generation-only on purpose: the
+// reducer's advisory reader drops non-active candidates
+// (installed_advisory_targets.go: candidate.active), so counting superseded
+// rows here would disagree with reducer graph truth and double-count the
+// overlapping tier emissions as current evidence (28+28 in QA, not 56
+// installed packages). Superseded generations contribute image identity
+// (their digest-matching analysis), never current package evidence. That is
+// why this asserts M, not N+M: N superseded rows prove the lifecycle still
+// holds while M active rows prove the attribution is fixed. Current code
+// returns 0/0.
+func TestSupplyChainImpactReadinessScanTierSupersededGenerationLive(t *testing.T) {
+	dsn := os.Getenv("ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF_DSN")
+	optIn := os.Getenv("ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF_DISPOSABLE")
+	ctx, db := postgresproof.OpenDisposableDatabase(t, dsn, optIn, 3*time.Minute)
+	if err := storagepostgres.ApplyBootstrap(ctx, storagepostgres.SQLDB{DB: db}); err != nil {
+		t.Fatalf("ApplyBootstrap(): %v", err)
+	}
+	targetDigest := "sha256:" + strings.Repeat("c7", 32)
+	const supersededOSPackageCount = 3
+	const activeOSPackageCount = 5
+
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO ingestion_scopes (scope_id, scope_kind, source_system, source_key, collector_kind, partition_key, observed_at, ingested_at, status, payload)
+VALUES ('scan-scope-superseded', 'container_image', 'scanner_worker', 'scan-superseded', 'scanner_worker', 'scan-superseded', clock_timestamp(), clock_timestamp(), 'active', '{}'::jsonb);
+INSERT INTO scope_generations (scope_id, generation_id, trigger_kind, observed_at, ingested_at, status)
+VALUES ('scan-scope-superseded', 'scan-gen-superseded-a', 'sync', clock_timestamp(), clock_timestamp(), 'superseded'),
+       ('scan-scope-superseded', 'scan-gen-superseded-b', 'sync', clock_timestamp(), clock_timestamp(), 'active');
+UPDATE ingestion_scopes SET active_generation_id = 'scan-gen-superseded-b' WHERE scope_id = 'scan-scope-superseded';
+`); err != nil {
+		t.Fatalf("seed superseded scope: %v", err)
+	}
+	// The sole analysis fact lives in the SUPERSEDED generation — the exact
+	// QA shape (gen 9e230d39) the active-generation join blinds.
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload)
+VALUES ('scan-analysis-superseded', 'scan-scope-superseded', 'scan-gen-superseded-a', 'scanner_worker.analysis', 'scan-analysis-superseded-key', 'scanner_worker', 'scan-analysis-superseded', clock_timestamp(), clock_timestamp(), FALSE,
+  jsonb_build_object('analyzer', 'image_unpacking', 'target_kind', 'image', 'target_locator_hash', md5('scan-superseded'), 'analysis_status', 'completed', 'coverage_status', 'supported',
+    'result_count', 8, 'fact_count', 8, 'image_reference', 'registry.example.com/team/superseded:prod',
+    'image_digest', $1::text, 'evidence_source', 'scanner_worker', 'extraction_reason', 'scheduled_scan'))
+`, targetDigest); err != nil {
+		t.Fatalf("seed superseded analysis fact: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload)
+SELECT 'scan-ospkg-superseded-' || p, 'scan-scope-superseded', 'scan-gen-superseded-a', 'vulnerability.os_package', 'scan-ospkg-superseded-key-' || p, 'scanner_worker', 'scan-ospkg-superseded-' || p, clock_timestamp(), clock_timestamp(), FALSE,
+  jsonb_build_object('distro', 'debian', 'distro_version', '12', 'package_manager', 'dpkg', 'name', 'pkg-superseded-' || p, 'arch', 'amd64',
+    'installed_version_raw', '1.0.' || p, 'repository_class', 'vendor', 'vendor_advisory_source', 'debian')
+FROM generate_series(1, 3) AS p;
+INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload)
+SELECT 'scan-ospkg-active-' || p, 'scan-scope-superseded', 'scan-gen-superseded-b', 'vulnerability.os_package', 'scan-ospkg-active-key-' || p, 'scanner_worker', 'scan-ospkg-active-' || p, clock_timestamp(), clock_timestamp(), FALSE,
+  jsonb_build_object('distro', 'debian', 'distro_version', '12', 'package_manager', 'dpkg', 'name', 'pkg-active-' || p, 'arch', 'amd64',
+    'installed_version_raw', '2.0.' || p, 'repository_class', 'vendor', 'vendor_advisory_source', 'debian')
+FROM generate_series(1, 5) AS p;
+ANALYZE fact_records;
+ANALYZE ingestion_scopes;
+ANALYZE scope_generations;
+`); err != nil {
+		t.Fatalf("seed os_package rows: %v", err)
+	}
+
+	args := readinessArgsForQuery(ReadinessQuery{SubjectDigest: targetDigest})
+	rows, err := db.QueryContext(ctx, ListReadinessQuery, args...)
+	if err != nil {
+		t.Fatalf("query production shape: %v", err)
+	}
+	defer func() { _ = rows.Close() }()
+	families := map[string]int{}
+	for rows.Next() {
+		var family string
+		var factCount int
+		var latest sql.NullTime
+		var incompleteFlag sql.NullBool
+		var reasons array.StringArray
+		var a, b, c sql.NullString
+		if err := rows.Scan(&family, &factCount, &latest, &incompleteFlag, &reasons, &a, &b, &c); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		families[family] = factCount
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("rows: %v", err)
+	}
+	if got := families["scanner_worker.analysis"]; got != 1 {
+		t.Fatalf("families[scanner_worker.analysis] = %d, want 1 (superseded-but-same-scope analysis counts for its digest)", got)
+	}
+	if got, want := families["vulnerability.os_package"], activeOSPackageCount; got != want {
+		t.Fatalf("families[vulnerability.os_package] = %d, want %d (active-generation rows attributed via the same-scope sibling; superseded rows stay historical, so not %d)", got, want, supersededOSPackageCount+activeOSPackageCount)
+	}
+}
+
 // seedScanTierReadinessExplainCorpus seeds a representative fact_records
 // corpus — noise across the pre-existing readiness families plus the
 // worst-case scan-tier shape (500 installed packages, the

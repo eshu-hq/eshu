@@ -25,9 +25,11 @@ const (
 	// image reference resolves to. os_package facts carry no image identity
 	// of their own (sdk/go/factschema/vulnerability/v1/os_package.go); the
 	// readiness store resolves the digest through the sibling
-	// scanner_worker.analysis fact in the SAME scan scope, mirroring exactly
-	// how the reducer stamps SubjectDigest for an os_package finding
-	// (go/internal/reducer/supplychain/core/impact.go). A present-but-zero count
+	// scanner_worker.analysis fact in the SAME scan scope. Unlike the
+	// reducer's pair-keyed ScopeID+GenerationID SubjectDigest stamp
+	// (go/internal/reducer/supplychain/core/impact.go), readiness attributes
+	// by scope alone across committed generations (issue #8878). A
+	// present-but-zero count
 	// for an image that DID scan (see EvidenceFamilyScannerWorkerAnalysis) is
 	// a valid "no installed packages found" observation, not missing
 	// evidence.
