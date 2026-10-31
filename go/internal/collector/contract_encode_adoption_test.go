@@ -121,14 +121,6 @@ func TestContractEncodeAdoptionRatchet(t *testing.T) {
 			},
 		},
 		{
-			path: "scannerworker/sbomgenerator/envelope.go",
-			calls: []string{
-				"EncodeSBOMComponent",
-				"EncodeSBOMDocument",
-				"EncodeSBOMWarning",
-			},
-		},
-		{
 			path: "cicdrun/github_actions_fixture.go",
 			calls: []string{
 				"EncodeCICDArtifact",

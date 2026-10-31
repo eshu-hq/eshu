@@ -26,8 +26,10 @@
 // Claim-aware collection copies hosted tenant boundaries from workflow work
 // items into commit mutations so storage can fence fact persistence.
 //
-// The scannerworker subpackage owns the hosted boundary for isolated security
-// analyzers. It defines claim input, target scope, resource limits,
-// source-fact output validation, retry/dead-letter payloads, and the claim loop
-// used by scanner-worker runtimes while reducers keep finding truth ownership.
+// The scannercomponent subpackage owns the scanner vocabulary and the
+// component-admission contract after the #8878 in-tree scanner removal. The
+// execution half (claim input, analyzers, runners, retry/dead-letter
+// payloads, the claim loop) lives in the eshu-hq/eshu-scanner-worker
+// satellite; this tree never executes an analyzer while reducers keep finding
+// truth ownership.
 package collector

@@ -120,12 +120,19 @@ fresh digest bind (satellite main is 18 commits ahead of the deployed
   re-bind; the "only CI/docs delta" note no longer covers the gap.
 - SLSA attestation: absent (no attest workflow in `eshu-workflow`).
 
-## 6. Per-file importer census (169 non-test files)
+## 6. Per-file importer census (163 non-test files)
 
 Regenerate: `git grep -l 'go/internal/workflow"' -- '*.go' | rg -v
 '_test.go$'`. Every file below must repoint (§2) before its assembly
 lands. Parity-harness files stay until removal lands; `queue/doc.go`
 importers are out of scope (shared, stays).
+
+Amendment 2026-10-31 (#8878 removal): six entries whose files are
+deleted by the #8878 in-tree scanner removal are dropped — five
+collector scannerworker files and one scanner-worker command config —
+so there is nothing left to repoint. Counts 169→163, §6b 57→52, §6c
+`go/cmd` 32→31. The 8875 lane re-verifies this census on its next
+rebase.
 
 ### 6a. `go/internal/coordinator` (61)
 
@@ -191,7 +198,7 @@ importers are out of scope (shared, stays).
 - `go/internal/coordinator/vulnerability_intelligence_service.go`
 - `go/internal/coordinator/workflow_tenant_grants.go`
 
-### 6b. `go/internal/collector` (57)
+### 6b. `go/internal/collector` (52)
 
 - `go/internal/collector/awscloud/awsruntime/record_source.go`
 - `go/internal/collector/awscloud/awsruntime/source.go`
@@ -238,11 +245,6 @@ importers are out of scope (shared, stays).
 - `go/internal/collector/sbom/runtime/attestation.go`
 - `go/internal/collector/sbom/runtime/attestation_slsa.go`
 - `go/internal/collector/sbom/runtime/source.go`
-- `go/internal/collector/scannerworker/claim.go`
-- `go/internal/collector/scannerworker/defaults.go`
-- `go/internal/collector/scannerworker/service.go`
-- `go/internal/collector/scannerworker/service_telemetry.go`
-- `go/internal/collector/scannerworker/types.go`
 - `go/internal/collector/securityalerts/alertruntime/envelopes.go`
 - `go/internal/collector/securityalerts/alertruntime/retire.go`
 - `go/internal/collector/securityalerts/alertruntime/source.go`
@@ -251,7 +253,7 @@ importers are out of scope (shared, stays).
 - `go/internal/collector/tfstateruntime/source_helpers.go`
 - `go/internal/collector/vulnerabilityintelligence/vulnruntime/source.go`
 
-### 6c. `go/internal/storage/postgres` (17) + workflow self (2) + `go/cmd` (32)
+### 6c. `go/internal/storage/postgres` (17) + workflow self (2) + `go/cmd` (31)
 
 - `go/internal/storage/postgres/claim_replay_ack.go`
 - `go/internal/storage/postgres/generation_freshness_reproject.go`
@@ -302,7 +304,6 @@ importers are out of scope (shared, stays).
 - `go/cmd/collector-security-alerts/service.go`
 - `go/cmd/collector-vulnerability-intelligence/config.go`
 - `go/cmd/collector-vulnerability-intelligence/service.go`
-- `go/cmd/scanner-worker/config.go`
 - `go/cmd/workflow-coordinator/workflow_control_store_wiring.go`
 
 ## 7. Removal-lane gate checklist (2026-10-31, `origin/main` `5e427b908d`)

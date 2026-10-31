@@ -96,16 +96,12 @@ LINE docs/internal/design/4588-collector-claim-pacing.md go/internal/storage/pos
 LINE docs/internal/design/4595-wrong-answer-report-capture-plan.md go/internal/ifa/odu.go:25
 LINE docs/internal/design/4595-wrong-answer-report-capture-plan.md go/internal/ifa/odu.go:26
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/reducer/workload_identity_writer.go:17
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/awscloud/ec2_posture_envelope.go:23
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/awscloud/envelope.go:1
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/awscloud/posture_envelope.go:23
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/awscloud/resource_policy_permission_envelope.go:76
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/awscloud/s3_external_principal_grant_envelope.go:103
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/gcpcloud/generation.go:95
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/gcpcloud/iam_policy_observation.go:98
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/gcpcloud/relationship.go:101
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/scannerworker/imageanalyzer/analyzer.go:190
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/servicecatalog/facts_builder.go:37
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/terraformstate/parser.go:223
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/terraformstate/resources.go:179
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projector/tfstate_canonical.go:1

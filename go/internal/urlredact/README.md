@@ -101,7 +101,7 @@ fixed text, and an unrecognized message fails closed to a generic reason.
 Consumers: `cli/report`'s `targetAuthority` (the refusal), and the collector
 sanitizers in `securityalerts`, `servicecatalog`, `registry/oci`,
 `vulnerabilityintelligence`, `kuberneteslive`, `registry/package`
-(+ `registry/package/runtime`), `sbom/runtime`, `ospackagevulnerability`, and `cicdrun`
+(+ `registry/package/runtime`), `sbom/runtime`, and `cicdrun`
 (both its deployment-URL sanitizer and the envelope `stripSensitiveURL` every
 source_ref passes through), which drop a non-hierarchical value that carries
 userinfo instead of re-stringing it. `sdk/go/collector`'s `validateSourceURI`
