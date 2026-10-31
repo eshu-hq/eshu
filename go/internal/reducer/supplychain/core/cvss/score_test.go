@@ -262,3 +262,38 @@ func TestBaseScoreRefusesOversizedVectorsBeforeSplitting(t *testing.T) {
 		t.Fatalf("BaseScore(longest real vector, %d bytes) error = %v", len(longest), err)
 	}
 }
+
+// TestBaseScoreRejectsSafetyInTheBaseSubsequentMetrics pins a reviewed decision
+// (PR #9701). The CVSS v4.0 specification, Table 23
+// (https://www.first.org/cvss/v4-0/specification-document), gives the base
+// Subsequent System Integrity and Availability metrics (SI, SA) the values
+// High, Low, and None only. Safety (S) exists only for the modified metrics
+// MSI and MSA (section 4.2: it is "not included in the Base Subsequent System
+// impact metrics"). So SI:S and SA:S in a base vector are malformed, and a
+// modified metric such as MSI:S is accepted as an environmental metric and
+// ignored, because BaseScore scores the base group only.
+func TestBaseScoreRejectsSafetyInTheBaseSubsequentMetrics(t *testing.T) {
+	t.Parallel()
+
+	rejected := map[string]string{
+		"SI:S": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:H/SI:S/SA:H",
+		"SA:S": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:H/SI:H/SA:S",
+	}
+	for name, vector := range rejected {
+		got, err := BaseScore(vector)
+		if !errors.Is(err, ErrMalformedVector) || got.Score != 0 {
+			t.Errorf("%s: BaseScore(%q) = %+v, %v; want a zero score and ErrMalformedVector", name, vector, got, err)
+		}
+	}
+
+	baseline, err := BaseScore("CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:H/SI:H/SA:H")
+	if err != nil {
+		t.Fatalf("baseline BaseScore error = %v", err)
+	}
+	for _, suffix := range []string{"/MSI:S", "/MSA:S", "/MSI:S/MSA:S"} {
+		got, err := BaseScore("CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:H/SI:H/SA:H" + suffix)
+		if err != nil || got.Score != baseline.Score {
+			t.Errorf("suffix %s: BaseScore = %+v, %v; want the base score %v with the modified metric ignored", suffix, got, err, baseline.Score)
+		}
+	}
+}

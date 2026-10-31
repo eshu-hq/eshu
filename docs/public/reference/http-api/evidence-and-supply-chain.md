@@ -942,8 +942,8 @@ matchers are npm, Go module, PyPI, Composer, RubyGems, NuGet, Cargo, Pub,
 Swift, Hex, and Maven today; vendor-backed OS package facts use the OS package
 priority above. Matcher-unimplemented ecosystems remain source-only, missing,
 or unsupported evidence rather than finding rows. If the selected source did
-not publish a severity, the reducer falls back to the next-best source instead
-of emitting a zero severity.
+not publish a severity, selection continues by tier: a vector-derived score,
+then a label (see [Severity derivation](vulnerability-impact.md#severity-derivation)).
 Exact owned lockfile dependency rows can prove the observed package version.
 Npm, Composer, RubyGems, Cargo, Go module, PyPI, Hex, Pub, Swift, and NuGet
 lockfile-backed findings may include `dependency_path`,

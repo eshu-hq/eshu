@@ -38,6 +38,10 @@ applies:
 Across sources the reducer ranks reported scores ahead of derived ones (see
 the `core` README); `DeriveSeverity` only decides within one source.
 
+Base SI and SA take H, L, or N only. Safety (S) exists only for the modified
+metrics MSI and MSA (CVSS v4.0 specification, Table 23), which we validate and
+ignore, so `SI:S` or `SA:S` in a base vector is malformed.
+
 A malformed or unsupported vector (CVSS v2, an unknown version, a missing or
 repeated metric, an unknown metric or value) is ignored and the label, if any,
 decides. A vector that scores 0.0 (no impact) also defers to the label.

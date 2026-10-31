@@ -241,16 +241,18 @@ Selection rules:
 - An OSV record whose advisory id begins with `GHSA-`, `PYSEC-`, `GO-`,
   `RUSTSEC-`, or `MAL-` is classified by that upstream prefix, so a GHSA
   collected through OSV still ranks as a GHSA observation.
-- If the highest-priority source did not publish a CVSS score, the next
-  source in priority order supplies the selected severity.
+- Severity is selected in three tiers, each in priority order: a reported CVSS
+  score, a score derived from the CVSS vector (marked `derived_from_vector`),
+  then a label (bucket only). A reported score beats a derived one.
 
 The `provenance` block on `GET /api/v0/supply-chain/impact/findings` and the
 MCP `list_supply_chain_impact_findings` tool carries:
 `selected_severity_source`, `selected_severity_score`,
 `selected_severity_vector`, `selected_severity_label`,
+`selected_severity_score_source` (only for a derived score),
 `selected_fixed_version_source`, `selected_range_source`,
-`alternate_severities[]`, `fixed_version_branches[]`, and
-`advisory_sources[]` (with `source`, `advisory_id`, `source_updated_at`, and
+`alternate_severities[]` (`score_source` when derived), `fixed_version_branches[]`,
+and `advisory_sources[]` (with `source`, `advisory_id`, `source_updated_at`, and
 `withdrawn_at`). Raw advisory bodies are not returned.
 
 Source-only advisory evidence is exposed separately through
