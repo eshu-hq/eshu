@@ -58,7 +58,7 @@ Resolver failures reuse the existing `invalid_claim` class and its
 instruments; the echo reuses `identity_mismatch`. Fail-closed transports
 record `last_failure_class invalid_claim` (satellite path, terminal) or a
 `non_retryable` source state (in-tree path, fail-closed); transient store
-faults retry through the normal plane retry instead.
+faults retry through the normal plane retry, consuming attempt budget as usual.
 
 No-Regression Evidence: claim building with transport adds ~40 ns/op and one
 primary-key run-row read per claim. Baseline
@@ -73,7 +73,7 @@ shows `Index Scan using workflow_runs_pkey`, 1 row, 0.041 ms execution,
 2 shared buffers; a one-off live read of a persisted run row passed in
 0.13s on Postgres 16 (JSONB document round-trips; output spacing differs,
 so the transport parses rather than string-compares). Terminal counts:
-one row read per slot claim; no queue, batch, lease, or retry-budget change. Safe because ~21 µs plus one indexed read
+one row read per slot claim; no queue, batch, or lease change. Safe because ~21 µs plus one indexed read
 sits beside the satellite subprocess launch (milliseconds to seconds) and
 the heartbeats and completion writes the claim path already issues, and
 unconfigured claims skip the resolver and stay byte-identical.
