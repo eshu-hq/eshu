@@ -25,8 +25,12 @@ FRAGMENT_NAMES = (
 # the mirror's oversized seed adds 5 rows there and must fail closed, while
 # the stable-shard seed adds 1 row and must pass, so the first fragment must
 # stay within 95-98 rows. Later fragments carry headroom for growth.
+# Rebalanced 2026-10-31 for #9694: enrollment reached 343 rows and the first
+# fragment held 99, so the stable-shard seed (one more row) rendered 502 lines
+# over the 499 budget. The first cut moves to the 96th path, which returns the
+# first fragment to 95 rows (477 lines) and gives the second fragment 85.
 FRAGMENT_BOUNDARIES = (
-    "go/internal/storage/postgres/activation/terminal_live_test.go",
+    "go/internal/storage/postgres/activation/redelivery_live_test.go",
     "go/internal/storage/postgres/fact_key_foreign_key_reverse_live_test.go",
     "go/internal/storage/postgres/projector_queue_claim_marked_guard_epq_live_test.go",
 )
