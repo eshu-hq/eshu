@@ -140,7 +140,9 @@ func (s *WorkflowControlStore) createRunWithExecutor(ctx context.Context, execut
 // (eshu-hq/eshu#9432) reads it by the work item's run ID, so the claim
 // carries the tenant-filtered set the coordinator persisted at plan time.
 // A missing run row is an error: the claim must fail terminal rather than
-// resolve an empty transport. The run_id primary key serves the lookup.
+// resolve an empty transport. The missing-row error wraps
+// workflow.ErrRunNotFound so claim transport can tell it apart from a
+// retryable read fault. The run_id primary key serves the lookup.
 func (s *WorkflowControlStore) GetRunRequestedScopeSet(ctx context.Context, runID string) (string, error) {
 	if s.database == nil {
 		return "", fmt.Errorf("workflow control store database is required")
@@ -157,7 +159,7 @@ func (s *WorkflowControlStore) GetRunRequestedScopeSet(ctx context.Context, runI
 		if err := rows.Err(); err != nil {
 			return "", fmt.Errorf("read workflow run requested scope set: %w", err)
 		}
-		return "", fmt.Errorf("workflow run %q not found", runID)
+		return "", fmt.Errorf("workflow run %q not found: %w", runID, workflow.ErrRunNotFound)
 	}
 	var scopeSet string
 	if err := rows.Scan(&scopeSet); err != nil {

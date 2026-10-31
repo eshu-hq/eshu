@@ -5,8 +5,11 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 const testRunScopeSetJSON = `{"collector_instance_id":"collector-vulnerability-intelligence",` +
@@ -52,8 +55,32 @@ func TestGetRunRequestedScopeSetMissingRun(t *testing.T) {
 	}
 	store := NewWorkflowControlStore(db)
 
-	if _, err := store.GetRunRequestedScopeSet(context.Background(), "run-missing"); err == nil {
+	_, err := store.GetRunRequestedScopeSet(context.Background(), "run-missing")
+	if err == nil {
 		t.Fatal("GetRunRequestedScopeSet() accepted a missing run, want error")
+	}
+	if !errors.Is(err, workflow.ErrRunNotFound) {
+		t.Fatalf("GetRunRequestedScopeSet() error = %v, want workflow.ErrRunNotFound", err)
+	}
+}
+
+// TestGetRunRequestedScopeSetQueryErrorIsNotNotFound proves a transport
+// read fault stays distinguishable from a missing run row: the claim plane
+// must retry the former and fail the latter terminal (eshu-hq/eshu#9730).
+func TestGetRunRequestedScopeSetQueryErrorIsNotNotFound(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{{err: errors.New("connection reset by peer")}},
+	}
+	store := NewWorkflowControlStore(db)
+
+	_, err := store.GetRunRequestedScopeSet(context.Background(), "run-9")
+	if err == nil {
+		t.Fatal("GetRunRequestedScopeSet() accepted a failed read, want error")
+	}
+	if errors.Is(err, workflow.ErrRunNotFound) {
+		t.Fatalf("GetRunRequestedScopeSet() error = %v matches ErrRunNotFound, want a plain transport error", err)
 	}
 }
 

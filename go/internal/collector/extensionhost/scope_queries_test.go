@@ -7,10 +7,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
 	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
+	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -71,20 +73,43 @@ func TestRequestForWorkItemOmitsScopeQueriesWithoutResolver(t *testing.T) {
 	}
 }
 
-// TestNextClaimedResolverFailureIsTerminalInvalidClaim proves a broken
-// transport fails the claim before the satellite ever launches: retry
-// cannot produce queries.
+// TestNextClaimedResolverFailureIsTerminalInvalidClaim proves a fail-closed
+// transport failure (an error wrapping collector.ErrSlotScopeTransport, as
+// the in-tree resolver returns for a missing run row or an unusable entry)
+// fails the claim terminal before the satellite ever launches: retry cannot
+// produce queries.
 func TestNextClaimedResolverFailureIsTerminalInvalidClaim(t *testing.T) {
 	t.Parallel()
 
 	runner := &recordingRunner{result: completeResult(testWorkItem())}
 	source := mustNewSource(t, runner, &recordingStatusRecorder{})
 	source.scopeQueryResolver = func(context.Context, workflow.WorkItem) ([]sdkcollector.ScopeQuery, error) {
-		return nil, errors.New("workflow run row missing")
+		return nil, fmt.Errorf("%w: no requested scope set entry", collector.ErrSlotScopeTransport)
 	}
 
 	_, _, err := source.NextClaimed(context.Background(), testWorkItem())
 	assertFailure(t, err, FailureClassInvalidClaim, true)
+	if len(runner.requests) != 0 {
+		t.Fatalf("runner invoked %d times, want 0 (satellite must not launch)", len(runner.requests))
+	}
+}
+
+// TestNextClaimedResolverTransientErrorIsRetryable proves finding 2 of
+// eshu-hq/eshu#9730: a store-transport fault from the resolver (anything
+// not wrapping collector.ErrSlotScopeTransport, such as a connection reset
+// or statement timeout) fails the claim retryable as a host-side launch
+// failure, so the claim plane retries it instead of failing it terminal.
+func TestNextClaimedResolverTransientErrorIsRetryable(t *testing.T) {
+	t.Parallel()
+
+	runner := &recordingRunner{result: completeResult(testWorkItem())}
+	source := mustNewSource(t, runner, &recordingStatusRecorder{})
+	source.scopeQueryResolver = func(context.Context, workflow.WorkItem) ([]sdkcollector.ScopeQuery, error) {
+		return nil, errors.New("read workflow run requested scope set: connection reset by peer")
+	}
+
+	_, _, err := source.NextClaimed(context.Background(), testWorkItem())
+	assertFailure(t, err, FailureClassLaunchFailure, false)
 	if len(runner.requests) != 0 {
 		t.Fatalf("runner invoked %d times, want 0 (satellite must not launch)", len(runner.requests))
 	}
