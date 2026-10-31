@@ -244,6 +244,11 @@ tests:
     class: postgres_ci
     reason: "#7009 disposable PostgreSQL 18 proof that every Terraform-free status route returns byte-identical responses with and without the Terraform-state serial and warning reads over seeded tfstate and git warnings, that pipeline and index status keep the seeded terraform_state rows, and that forcing the skip onto them changes the response"
     runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/impact/finding_authority_derived_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9468 read proof for the derived finding-authority gate"
+    runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/readiness_central_pin_live_test.go
     tag: ~
     class: postgres_ci

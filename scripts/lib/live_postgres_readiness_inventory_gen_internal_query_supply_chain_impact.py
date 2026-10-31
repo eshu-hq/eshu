@@ -7,6 +7,9 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./internal/query/supply/chain/impact": {
+        "go/internal/query/supply/chain/impact/finding_authority_derived_live_test.go": (
+            "TestDerivedFindingAuthorityOpensBehindCurrentPublicationLive",
+        ),
         "go/internal/query/supply/chain/impact/readiness_central_pin_live_test.go": (
             "TestReadinessExcludesCentralVersionPinsLive",
         ),

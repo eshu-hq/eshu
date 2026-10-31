@@ -23,9 +23,11 @@ const supplyChainImpactProtectedSourceJoinsSQL = `
   LEFT JOIN scanner_image_result_fact_associations AS finding_association
     ON finding_association.finding_fact_id = fact.fact_id`
 
-// The derived branch remains closed until advisory dependencies, fenced
-// reuse eligibility and caller visibility join the current source vector in
-// this same statement. The protected association is identity, not authority.
+// The derived branch opens only behind a current publication whose
+// advisory dependencies all resolve, fenced reuse eligibility, and caller
+// visibility in this same statement (#9468). The protected association is
+// identity, not authority: without the publication and its vector the
+// finding stays dark.
 func supplyChainImpactProtectedSourcePredicateSQL(
 	scoped, tenant, workspace, subjectClass, policy, allowedScopes, filterScopes, readAt string,
 ) string {
@@ -43,8 +45,7 @@ func supplyChainImpactProtectedSourcePredicateSQL(
           AND finding_association.finding_fact_id IS NOT NULL
           AND ` + supplyChainImpactCurrentSourceVectorForCallerSQL(
 		scoped, tenant, workspace, subjectClass, policy, allowedScopes, filterScopes, readAt,
-	) + `
-          AND FALSE)
+	) + `)
     )`
 }
 
