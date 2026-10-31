@@ -433,4 +433,7 @@ var orderedBootstrapDefinitionNamesLate = []string{
 	// derived witness set, plus the immutable publication persist.
 	"scanner_impact_publication",
 	"scanner_impact_publish",
+	// Migration 270 (#9468) adds the fenced result-commit definer the
+	// runtime writer calls instead of protected DML.
+	"scanner_result_commit",
 }

@@ -95,6 +95,7 @@ var publicOnlyMigrationPaths = map[string]bool{
 	"go/internal/storage/postgres/migrations/265_scanner_admission_authority_deny_no_row.sql":  true,
 	"go/internal/storage/postgres/migrations/268_scanner_impact_publication.sql":               true,
 	"go/internal/storage/postgres/migrations/269_scanner_impact_publish.sql":                   true,
+	"go/internal/storage/postgres/migrations/270_scanner_result_commit.sql":                    true,
 }
 
 // BootstrapDefinitions returns the ordered Wave 2 bootstrap layout, sourced
