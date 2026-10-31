@@ -17,6 +17,7 @@ TABLE = {
             "TestReadinessAdvisoryFreshAfterSkippedUnchangedFetchLive",
             "TestReadinessAdvisoryStaleWhenNeverRefetchedLive",
             "TestReadinessKeepsAdvisorySourcesForARefusedShrinkFromTheExtractedCollectorLive",
+            "TestReadinessGlobalLayoutWithoutLocalClaimColumnsUsesLegacyLive",
         ),
         "go/internal/query/supply/chain/impact/readiness_orphan_package_keys_live_test.go": (
             "TestReadinessIgnoresOrphanPackageKeysLive",

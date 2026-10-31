@@ -5,7 +5,6 @@ package impact
 
 import (
 	"context"
-	"database/sql"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -188,17 +187,26 @@ const currentScannerFactPredicate = `
         )
       )`
 
-// readinessAuthorityLayoutPresent reports whether the installed
-// role-policy layout is visible from db. Scopes bootstrapped without the
-// public-only authority layout (isolated test schemas, pre-onboarding
-// databases) have no authority to filter by, so readiness falls back to the
-// legacy statement. to_regclass returns NULL instead of erroring on a
-// missing relation, so the probe never aborts a wrapping repeatable-read
-// transaction. An existing but empty policy table still reports present:
-// with no policy row installed the receipt branch cannot fire, which the
-// legacy fact branch already handles.
+// readinessAuthorityLayoutPresent reports whether the protected
+// statement can run from db. That needs the global role-policy layout
+// AND the 241a claim columns on the schema-visible attempts table:
+// isolated test schemas skip every public-only migration, so a database
+// whose global eshu_security layout is installed (by another test's
+// full bootstrap, e.g. CI shard mates) still has no authority objects
+// in the querying schema, and readiness must fall back to the legacy
+// statement instead of failing on the missing columns (#9544 shard
+// 2/6: column attempt.claim_id does not exist). to_regclass resolves
+// through the same search_path as the business query and returns NULL
+// instead of erroring on a missing relation, so the probe never aborts
+// a wrapping repeatable-read transaction. An existing but empty policy
+// table still reports present: with no policy row installed the receipt
+// branch cannot fire, which the legacy fact branch already handles.
 func readinessAuthorityLayoutPresent(ctx context.Context, database db.Queryer) (bool, error) {
-	rows, err := database.QueryContext(ctx, `SELECT to_regclass('eshu_security.role_policy_state')`)
+	rows, err := database.QueryContext(ctx, `SELECT to_regclass('eshu_security.role_policy_state') IS NOT NULL
+   AND (SELECT count(*) FROM pg_attribute
+        WHERE attrelid = to_regclass('scanner_image_target_attempts')
+          AND attname IN ('claim_id', 'claim_fencing_token', 'claim_owner_id', 'completed_authority_vector')
+          AND NOT attisdropped) = 4`)
 	if err != nil {
 		return false, err
 	}
@@ -206,14 +214,14 @@ func readinessAuthorityLayoutPresent(ctx context.Context, database db.Queryer) (
 	if !rows.Next() {
 		return false, nil
 	}
-	var relation sql.NullString
-	if err := rows.Scan(&relation); err != nil {
+	var present bool
+	if err := rows.Scan(&present); err != nil {
 		return false, err
 	}
 	if err := rows.Err(); err != nil {
 		return false, err
 	}
-	return relation.Valid, nil
+	return present, nil
 }
 
 func currentScannerReadinessSQL(query string) string {
