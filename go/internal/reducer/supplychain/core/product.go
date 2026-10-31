@@ -104,6 +104,7 @@ func baseSupplyChainImpactFinding(
 		EvidencePath:         []string{chain.VulnerabilityCVEFactKind, chain.VulnerabilityAffectedPackageFactKind},
 		EvidenceFactIDs:      provenance.EvidenceFactIDs,
 	}
+	finding.AdvisoryRetraction = index.retractionFor(cves.cveID, observations)
 	applyRiskSignals(&finding, index.riskSignals[cves.cveID])
 	return finding
 }

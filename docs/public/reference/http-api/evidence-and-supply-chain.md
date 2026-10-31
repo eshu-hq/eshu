@@ -832,20 +832,18 @@ comprehensive evidence bar.
 
 ### Suppression Filtering
 
-`suppression_state` filters by the reducer's VEX/operator-policy decision.
-Valid suppression states are `active`, `not_affected`, `accepted_risk`,
-`false_positive`, `ignored`, `expired`, `provider_dismissed`, and
-`scope_mismatch`. Operator-asserted hidden states (`not_affected`,
-`accepted_risk`, `false_positive`, `ignored`) require
-`include_suppressed=true` to be returned; `expired`, `provider_dismissed`,
-and `scope_mismatch` stay visible by default because they preserve audit
-signal. Every finding row carries a `suppression` block (always populated,
-`state=active` when nothing matched) with the source (`vex_statement`,
-`eshu_policy`, or `provider_dismissal`), justification, author, timestamps,
-reason, evidence reference, and any VEX document/statement IDs so callers
-can explain why a finding is hidden or why a related suppression did not
-apply. Provider dismissals are evidence: the reducer surfaces them as
-`provider_dismissed` without removing the finding from the default view.
+`suppression_state` filters by the reducer's VEX/operator-policy decision. Valid suppression states are `active`, `not_affected`, `accepted_risk`, `false_positive`,
+`ignored`, `expired`, `provider_dismissed`, `scope_mismatch`, and `advisory_retracted`. Hidden states (`not_affected`, `accepted_risk`, `false_positive`, `ignored`,
+`advisory_retracted`) require `include_suppressed=true` to be returned; `expired`, `provider_dismissed`, and `scope_mismatch` stay visible by default because they
+preserve audit signal. Every finding row carries a `suppression` block (always populated, `state=active` when nothing matched) with the source (`vex_statement`,
+`eshu_policy`, `provider_dismissal`, or `advisory_retraction`), justification, author, timestamps, reason, evidence reference, and any VEX document/statement IDs so
+callers can explain why a finding is hidden or why a related suppression did not apply. Provider dismissals are evidence: the reducer surfaces them as
+`provider_dismissed` without removing the finding from the default view. `advisory_retracted` is set by the reducer alone, when every source record of the CVE is an NVD
+`Rejected` record or an OSV withdrawn record, and a live source keeps the finding active; the reason and any `replaced_by` CVE ids ride in
+`provenance.advisory_retraction`. Another scope that also derived the finding (KEV or EPSS enrichment, another advisory source) keeps its own copy until it next commits
+a generation, and a stale active copy can win over the retracted one (by a higher `priority_score` or the `fact_id` tie-break), so a retracted finding can read as
+`active`; after a record is restored, a stale `advisory_retracted` copy can hide the real vulnerability the same way. After item 1.4 the lag has no bound. The fan-out
+follow-up (1.5b, merged in the same sequence as this change, issue #9695) closes it; the operator scope's copy is refreshed only by a suppression mutation until then.
 
 Version fields intentionally do not collapse into one string:
 
@@ -928,10 +926,12 @@ plus alternate severities reported by other sources for the same advisory:
 - `provenance.fixed_version_branches[]`: every source-reported fixed-version
   branch with the originating source preserved, including prerelease branches
   one source publishes and another does not.
-- `provenance.advisory_sources[]`: every contributing source observation,
-  including `source`, `advisory_id`, `source_updated_at`, and `withdrawn_at`
-  so callers can explain selection and detect withdrawn records that were
-  excluded from selection. Withdrawn observations remain visible.
+- `provenance.advisory_sources[]`: every contributing source observation, including `source`,
+  `advisory_id`, `source_updated_at`, `withdrawn_at`, `status`, and `replaced_by`, so callers can
+  explain selection and detect retracted records that were excluded from selection. Retracted
+  observations remain visible. When every observation of the CVE is rejected or withdrawn,
+  `provenance.advisory_retraction` (`reason_code`, `reason`, `sources[]`, and `replaced_by` when a
+  source states one) explains why the finding is `advisory_retracted`.
 
 Selection uses documented per-ecosystem priority: vendor advisories (Red Hat,
 Debian, Ubuntu, Alpine, SUSE, Wolfi, Chainguard, Amazon Linux, Oracle Linux)

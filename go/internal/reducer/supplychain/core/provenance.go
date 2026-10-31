@@ -28,9 +28,12 @@ type supplyChainCVEGroup struct {
 // list. Group-level callers do not know the package ecosystem, so the
 // language-class priority table supplies the ranking; for the product-only
 // CPE path the only source emitting `affected_product` facts is NVD, which
-// remains the deterministic tail of that ranking. Withdrawn observations
-// are only returned when every observation in the group is withdrawn, so
-// callers still get a row with `WithdrawnAt` set rather than the zero value.
+// remains the deterministic tail of that ranking. Withdrawn observations are
+// only returned when every observation in the group is withdrawn, so callers
+// still get a row with `WithdrawnAt` set rather than the zero value. Only the
+// withdrawn timestamp excludes a record here, exactly as before the status
+// field existed: the representative names the finding's advisory id, and a
+// rejected status must not move a finding's identity (#9695).
 func (g supplyChainCVEGroup) representative() supplychainmodel.ImpactCVE {
 	if len(g.observations) == 0 {
 		return supplychainmodel.ImpactCVE{CVEID: g.cveID}
@@ -52,6 +55,14 @@ func (g supplyChainCVEGroup) representative() supplychainmodel.ImpactCVE {
 		return g.observations[0]
 	}
 	return g.observations[best]
+}
+
+// supplyChainCVEGroupKey is the one definition of the key a vulnerability.cve
+// fact groups under: its trimmed cve_id, or its advisory_id when it has none. The
+// decode that fills ImpactCVE.CVEID and the unreadable-record guard both call it,
+// so a quarantined record is recorded under the key its group would have used.
+func supplyChainCVEGroupKey(cveID, advisoryID string) string {
+	return payloadcore.FirstNonBlank(cveID, advisoryID)
 }
 
 func groupSupplyChainCVEsByID(observations []supplychainmodel.ImpactCVE) map[string]supplyChainCVEGroup {
@@ -151,6 +162,8 @@ func buildAdvisoryProvenanceObservations(
 			FixedVersions:       append([]string(nil), matched.FixedVersions...),
 			AffectedRange:       supplyChainAffectedRangeSummary(matched),
 			WithdrawnAt:         strings.TrimSpace(cve.WithdrawnAt),
+			Status:              strings.TrimSpace(cve.Status),
+			ReplacedBy:          cleanReplacementIDs(cve.ReplacedBy),
 			CVEFactID:           cve.FactID,
 			AffectedFactID:      matched.FactID,
 		})
@@ -224,6 +237,11 @@ type AdvisoryProvenanceObservation struct {
 	// WithdrawnAt records when the source withdrew the advisory; non-empty
 	// observations must not be selected for severity, fixed-version, or range.
 	WithdrawnAt string
+	// Status is the source-reported lifecycle status, verbatim. A "rejected" or
+	// "withdrawn" status retracts the observation exactly as WithdrawnAt does.
+	Status string
+	// ReplacedBy lists the CVE ids the source names as the replacement.
+	ReplacedBy []string
 	// CVEFactID is the source-fact id of the cve envelope that contributed this
 	// observation, used to wire EvidenceFactIDs in the resulting finding.
 	CVEFactID string
@@ -261,6 +279,10 @@ type AdvisorySourceObservation struct {
 	AdvisoryID      string
 	SourceUpdatedAt string
 	WithdrawnAt     string
+	// Status and ReplacedBy repeat what the source reported, so a group that
+	// only one source retracted still shows that rejection (#9695).
+	Status     string
+	ReplacedBy []string
 }
 
 // advisoryProvenanceSelection is the consolidated result of applying
@@ -328,6 +350,9 @@ func supplyChainImpactProvenancePayload(finding SupplyChainImpactFinding) map[st
 	}
 	if advisories := serializeAdvisorySources(finding.AdvisorySources); len(advisories) > 0 {
 		out["advisory_sources"] = advisories
+	}
+	if retraction := serializeAdvisoryRetraction(finding.AdvisoryRetraction); retraction != nil {
+		out["advisory_retraction"] = retraction
 	}
 	if len(out) == 0 {
 		return nil

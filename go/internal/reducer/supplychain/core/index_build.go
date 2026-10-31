@@ -47,6 +47,7 @@ func buildSupplyChainImpactIndexWithQuarantine(envelopes []facts.Envelope) (supp
 		jsTSPackageReachability: buildJSTSPackageReachabilityIndex(envelopes),
 		pythonReachability:      map[string]pythonReachabilityRepositoryEvidence{},
 		jvmReachability:         buildJVMReachabilityIndex(envelopes),
+		unreadableCVEs:          map[string]struct{}{},
 	}
 	// Computed once over the full batch (#5887): the consensus-aware winner
 	// pick addSupplyChainImpactIndexEntry uses for reducercontract.ContainerImageIdentityFactKind
@@ -120,7 +121,11 @@ func addSupplyChainImpactIndexEntry(
 	case chain.VulnerabilityCVEFactKind:
 		cve, err := supplyChainCVEFromEnvelope(envelope)
 		if err != nil {
-			return factdecode.PartitionDecodeFailures(envelope, err)
+			q, isQuarantine, fatal := factdecode.PartitionDecodeFailures(envelope, err)
+			if isQuarantine {
+				recordUnreadableSupplyChainCVE(index, envelope)
+			}
+			return q, isQuarantine, fatal
 		}
 		if cve.CVEID != "" {
 			index.cves = append(index.cves, cve)

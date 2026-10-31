@@ -194,6 +194,7 @@ func decodeSupplyChainImpactProvenance(payload map[string]any) *Provenance {
 	provenance.AlternateSeverities = decodeAlternateSeverities(raw["alternate_severities"])
 	provenance.FixedVersionBranches = decodeFixedVersionBranches(raw["fixed_version_branches"])
 	provenance.AdvisorySources = decodeAdvisorySources(raw["advisory_sources"])
+	provenance.AdvisoryRetraction = decodeAdvisoryRetraction(raw["advisory_retraction"])
 	if provenance.isEmpty() {
 		return nil
 	}
@@ -212,7 +213,8 @@ func (p Provenance) isEmpty() bool {
 		p.SelectedEPSSModelVersion == "" &&
 		len(p.AlternateSeverities) == 0 &&
 		len(p.FixedVersionBranches) == 0 &&
-		len(p.AdvisorySources) == 0
+		len(p.AdvisorySources) == 0 &&
+		p.AdvisoryRetraction == nil
 }
 
 func decodeAlternateSeverities(raw any) []AlternateSeverity {
@@ -278,10 +280,61 @@ func decodeAdvisorySources(raw any) []AdvisorySource {
 			AdvisoryID:      querycontract.StringVal(row, "advisory_id"),
 			SourceUpdatedAt: querycontract.StringVal(row, "source_updated_at"),
 			WithdrawnAt:     querycontract.StringVal(row, "withdrawn_at"),
+			Status:          querycontract.StringVal(row, "status"),
+			ReplacedBy:      querycontract.StringSliceVal(row, "replaced_by"),
 		})
 	}
 	if len(out) == 0 {
 		return nil
 	}
 	return out
+}
+
+// AdvisoryRetraction is the explanation the reducer attaches to a finding whose
+// every source record rejected or withdrew its advisory (#9695). ReplacedBy
+// repeats only what a source stated; Eshu never infers a replacement.
+type AdvisoryRetraction struct {
+	ReasonCode string             `json:"reason_code"`
+	Reason     string             `json:"reason"`
+	ReplacedBy []string           `json:"replaced_by,omitempty"`
+	Sources    []RetractionSource `json:"sources,omitempty"`
+}
+
+// RetractionSource is one source record that retracted its advisory.
+type RetractionSource struct {
+	Source      string   `json:"source"`
+	AdvisoryID  string   `json:"advisory_id,omitempty"`
+	ReasonCode  string   `json:"reason_code"`
+	Status      string   `json:"status,omitempty"`
+	WithdrawnAt string   `json:"withdrawn_at,omitempty"`
+	ReplacedBy  []string `json:"replaced_by,omitempty"`
+}
+
+func decodeAdvisoryRetraction(raw any) *AdvisoryRetraction {
+	row, ok := raw.(map[string]any)
+	if !ok || len(row) == 0 {
+		return nil
+	}
+	retraction := AdvisoryRetraction{
+		ReasonCode: querycontract.StringVal(row, "reason_code"),
+		Reason:     querycontract.StringVal(row, "reason"),
+		ReplacedBy: querycontract.StringSliceVal(row, "replaced_by"),
+	}
+	if items, ok := row["sources"].([]any); ok {
+		for _, item := range items {
+			source, ok := item.(map[string]any)
+			if !ok {
+				continue
+			}
+			retraction.Sources = append(retraction.Sources, RetractionSource{
+				Source:      querycontract.StringVal(source, "source"),
+				AdvisoryID:  querycontract.StringVal(source, "advisory_id"),
+				ReasonCode:  querycontract.StringVal(source, "reason_code"),
+				Status:      querycontract.StringVal(source, "status"),
+				WithdrawnAt: querycontract.StringVal(source, "withdrawn_at"),
+				ReplacedBy:  querycontract.StringSliceVal(source, "replaced_by"),
+			})
+		}
+	}
+	return &retraction
 }

@@ -68,7 +68,8 @@ func IsSupportedSuppressionState(state string) bool {
 		"ignored",
 		"expired",
 		"provider_dismissed",
-		"scope_mismatch":
+		"scope_mismatch",
+		"advisory_retracted":
 		return true
 	default:
 		return false

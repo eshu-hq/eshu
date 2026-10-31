@@ -46,7 +46,7 @@ const supplyChainImpactPayloadFindingIDPresentSQL = `CASE
 // score falls back to provenance.selected_severity_label (#9693).
 var severityBucketFactSQL = cvss.BucketSQL("fact.payload")
 
-const supplyChainImpactHiddenSuppressionStatesSQL = "'not_affected','accepted_risk','false_positive','ignored'"
+const supplyChainImpactHiddenSuppressionStatesSQL = "'not_affected','accepted_risk','false_positive','ignored','advisory_retracted'"
 
 func supplyChainImpactEffectiveSuppressionStateSQL(
 	scopeExpr string,

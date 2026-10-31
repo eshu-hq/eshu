@@ -247,13 +247,13 @@ Selection rules:
 
 The `provenance` block on `GET /api/v0/supply-chain/impact/findings` and the
 MCP `list_supply_chain_impact_findings` tool carries:
-`selected_severity_source`, `selected_severity_score`,
-`selected_severity_vector`, `selected_severity_label`,
-`selected_severity_score_source` (only for a derived score),
-`selected_fixed_version_source`, `selected_range_source`,
+`selected_severity_source`, `selected_severity_score`, `selected_severity_vector`,
+`selected_severity_label`, `selected_severity_score_source` (only for a derived
+score), `selected_fixed_version_source`, `selected_range_source`,
 `alternate_severities[]` (`score_source` when derived), `fixed_version_branches[]`,
-and `advisory_sources[]` (with `source`, `advisory_id`, `source_updated_at`, and
-`withdrawn_at`). Raw advisory bodies are not returned.
+and `advisory_sources[]` (with `source`, `advisory_id`, `source_updated_at`,
+`withdrawn_at`, `status`, and `replaced_by`), plus `advisory_retraction` when every
+source rejected or withdrew the CVE. Raw advisory bodies are not returned.
 
 Source-only advisory evidence is exposed separately through
 `GET /api/v0/supply-chain/advisories/evidence` and the MCP

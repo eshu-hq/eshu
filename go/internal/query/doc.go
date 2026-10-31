@@ -225,7 +225,7 @@
 // Supply-chain impact rows also carry a reducer suppression decision that
 // captures the VEX or operator-policy state (active, not_affected,
 // accepted_risk, false_positive, ignored, expired, provider_dismissed,
-// scope_mismatch) plus source, justification, author, timestamps, reason,
+// scope_mismatch, advisory_retracted) plus source, justification, author, timestamps, reason,
 // evidence reference, and VEX document/statement IDs. The listing route
 // accepts include_suppressed and suppression_state filters so callers can
 // include or exclude operator-suppressed findings and explain why; provider

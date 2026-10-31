@@ -124,6 +124,12 @@ type SupplyChainImpactFinding struct {
 	// payload so API and MCP callers can include or exclude suppressed
 	// findings and explain the rationale.
 	Suppression SupplyChainSuppressionDecision
+	// AdvisoryRetraction is non-nil when every source observation of the CVE
+	// group rejected or withdrew its advisory (#9695). It is the input to the
+	// advisory_retracted suppression state and the source of the reason and
+	// replaced_by the finding carries. The finding keeps its identity: a
+	// restored advisory re-derives the same finding id.
+	AdvisoryRetraction *AdvisoryRetraction
 	// Remediation is the advisory-only safe-upgrade recommendation Eshu
 	// computes for this finding (issue #595). The reducer never auto-opens
 	// pull requests; this block exists so API and MCP callers can explain

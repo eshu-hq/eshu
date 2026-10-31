@@ -120,12 +120,12 @@ func supplyChainTools() []ToolDefinition {
 					},
 					"suppression_state": map[string]any{
 						"type":        "string",
-						"description": "Optional reducer suppression-state filter. Operator-asserted suppressions (not_affected, accepted_risk, false_positive, ignored) require include_suppressed=true to appear.",
-						"enum":        []string{"active", "not_affected", "accepted_risk", "false_positive", "ignored", "expired", "provider_dismissed", "scope_mismatch"},
+						"description": "Optional reducer suppression-state filter. Hidden states (not_affected, accepted_risk, false_positive, ignored, advisory_retracted) require include_suppressed=true to appear.",
+						"enum":        []string{"active", "not_affected", "accepted_risk", "false_positive", "ignored", "expired", "provider_dismissed", "scope_mismatch", "advisory_retracted"},
 					},
 					"include_suppressed": map[string]any{
 						"type":        "boolean",
-						"description": "Include findings hidden by operator-asserted VEX or policy suppression (not_affected, accepted_risk, false_positive, ignored). Expired, provider-dismissed, and scope-mismatched findings are visible regardless because they keep audit signal.",
+						"description": "Include findings hidden by operator-asserted VEX or policy suppression (not_affected, accepted_risk, false_positive, ignored) or by a source retraction of the advisory (advisory_retracted). Expired, provider-dismissed, and scope-mismatched findings are visible regardless because they keep audit signal.",
 						"default":     false,
 					},
 					"after_finding_id": map[string]any{

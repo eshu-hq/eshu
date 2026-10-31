@@ -355,7 +355,49 @@ func serializeAdvisorySources(values []AdvisorySourceObservation) []map[string]a
 		if value.WithdrawnAt != "" {
 			row["withdrawn_at"] = value.WithdrawnAt
 		}
+		if value.Status != "" {
+			row["status"] = value.Status
+		}
+		if len(value.ReplacedBy) > 0 {
+			row["replaced_by"] = value.ReplacedBy
+		}
 		out = append(out, row)
+	}
+	return out
+}
+
+// serializeAdvisoryRetraction renders the retraction block a retracted
+// finding carries under provenance.advisory_retraction (#9695). It returns nil
+// for a finding whose advisory still stands.
+func serializeAdvisoryRetraction(retraction *AdvisoryRetraction) map[string]any {
+	if retraction == nil {
+		return nil
+	}
+	sources := make([]map[string]any, 0, len(retraction.Sources))
+	for _, source := range retraction.Sources {
+		row := map[string]any{
+			"source":      source.Source,
+			"advisory_id": source.AdvisoryID,
+			"reason_code": source.Code,
+		}
+		if source.Status != "" {
+			row["status"] = source.Status
+		}
+		if source.WithdrawnAt != "" {
+			row["withdrawn_at"] = source.WithdrawnAt
+		}
+		if len(source.ReplacedBy) > 0 {
+			row["replaced_by"] = source.ReplacedBy
+		}
+		sources = append(sources, row)
+	}
+	out := map[string]any{
+		"reason_code": retraction.ReasonCode,
+		"reason":      retraction.Reason,
+		"sources":     sources,
+	}
+	if len(retraction.ReplacedBy) > 0 {
+		out["replaced_by"] = retraction.ReplacedBy
 	}
 	return out
 }

@@ -65,6 +65,11 @@ type supplyChainImpactIndex struct {
 	jsTSPackageReachability  jsTSPackageReachabilityIndex
 	pythonReachability       map[string]pythonReachabilityRepositoryEvidence
 	jvmReachability          jvmReachabilityIndex
+	// unreadableCVEs holds the cve_id of every vulnerability.cve fact that failed
+	// typed decode and was quarantined. A group with an unreadable member is not
+	// provably retracted: the unreadable record may be the one that still asserts
+	// the vulnerability, so retraction fails toward showing the finding.
+	unreadableCVEs map[string]struct{}
 }
 
 // buildSupplyChainImpactIndex and buildSupplyChainImpactIndexWithQuarantine

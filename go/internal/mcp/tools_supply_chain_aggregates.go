@@ -94,12 +94,12 @@ func supplyChainImpactAggregateTools() []ToolDefinition {
 					},
 					"suppression_state": map[string]any{
 						"type":        "string",
-						"description": "Optional reducer suppression-state filter. Operator-asserted suppressions require include_suppressed=true to be counted.",
-						"enum":        []string{"active", "not_affected", "accepted_risk", "false_positive", "ignored", "expired", "provider_dismissed", "scope_mismatch"},
+						"description": "Optional reducer suppression-state filter. Hidden states (operator suppressions and advisory_retracted) require include_suppressed=true to be counted.",
+						"enum":        []string{"active", "not_affected", "accepted_risk", "false_positive", "ignored", "expired", "provider_dismissed", "scope_mismatch", "advisory_retracted"},
 					},
 					"include_suppressed": map[string]any{
 						"type":        "boolean",
-						"description": "Include findings hidden by operator-asserted VEX or policy suppression.",
+						"description": "Include findings hidden by operator-asserted VEX or policy suppression, or by a source retraction of the advisory (advisory_retracted).",
 						"default":     false,
 					},
 				},
@@ -195,12 +195,12 @@ func supplyChainImpactAggregateTools() []ToolDefinition {
 					},
 					"suppression_state": map[string]any{
 						"type":        "string",
-						"description": "Optional reducer suppression-state filter applied before grouping. Operator-asserted suppressions require include_suppressed=true to be included.",
-						"enum":        []string{"active", "not_affected", "accepted_risk", "false_positive", "ignored", "expired", "provider_dismissed", "scope_mismatch"},
+						"description": "Optional reducer suppression-state filter applied before grouping. Hidden states (operator suppressions and advisory_retracted) require include_suppressed=true to be included.",
+						"enum":        []string{"active", "not_affected", "accepted_risk", "false_positive", "ignored", "expired", "provider_dismissed", "scope_mismatch", "advisory_retracted"},
 					},
 					"include_suppressed": map[string]any{
 						"type":        "boolean",
-						"description": "Include findings hidden by operator-asserted VEX or policy suppression before grouping.",
+						"description": "Include findings hidden by operator-asserted VEX or policy suppression, or by a source retraction of the advisory (advisory_retracted), before grouping.",
 						"default":     false,
 					},
 					"limit": map[string]any{

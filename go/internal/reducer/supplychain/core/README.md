@@ -314,6 +314,66 @@ Observability Evidence: `eshu_dp_supply_chain_severity_decisions_total`
 counts findings by `outcome` (`source_reported`, `derived_from_vector`,
 `label_only`, `none`) and shows convergence as OSV scopes regenerate.
 
+## Advisory retraction
+
+A source can say its own record no longer stands: NVD sets `vulnStatus` to
+`Rejected`, and OSV sets `withdrawn`. The collectors put that on
+`vulnerability.cve` as `status` (and OSV keeps its `withdrawn_at`). The reducer
+reads both through `advisoryRetractionCode`, and `retractionFromObservations`
+decides per finding.
+
+- **Rule.** A finding retracts only when EVERY source that contributes evidence
+  for it retracted. The sources are the observations the severity selection
+  reads: one per `vulnerability.cve` fact, plus one per `affected_package` fact
+  that no CVE fact matched. A source whose CVE fact is missing, or was
+  quarantined by a failed decode (`unreadableCVEs`, keyed by
+  `supplyChainCVEGroupKey`), counts as live, so a decode failure or a partial
+  load never hides a vulnerability that source still asserts. A rejected CVE
+  with a live GHSA alias, or a withdrawn GHSA whose CVE has a live NVD record,
+  keeps the finding active. The retracting source still shows under
+  `provenance.advisory_sources[]` with its `status` and `replaced_by`.
+- **What retracts.** Exactly `rejected` and `withdrawn` (case-insensitive,
+  trimmed) or a non-empty `withdrawn_at`. Any other status retracts nothing.
+- **What "retract" means here.** The finding stays in the table with
+  `suppression_state=advisory_retracted`, hidden from the default view and
+  returned with `include_suppressed=true`; the reason and any `replaced_by` ride
+  in `suppression.reason` and `provenance.advisory_retraction`. The reducer sets
+  it from source evidence alone. An operator suppression is authoritative over
+  the operator's risk decision, never over whether the advisory exists: a
+  retraction outranks it, and once the source is restored the operator's
+  unexpired decision applies again. It is not the writer's tombstone retraction
+  (`findings_retracted`), which removes a finding a pass no longer derives.
+- **Identity and `status`.** A rejected status never moves `finding_id`,
+  `advisory_id`, or the stable fact key: identity selection ignores `status`. A
+  withdrawn timestamp still excludes a record from identity selection, as before
+  this change, so in a multi-source group restoring a withdrawn record can move
+  `advisory_id`. A restored record returns the finding to its pre-retraction
+  state in the scope that re-derives: `active`, or hidden for an operator's
+  decision when one applies.
+- **`replaced_by`.** Reported as supplied and never followed. Neither NVD API
+  2.0 nor OSV states a replacement, so it is empty until the CVE List v5
+  collector (item 4.1) fills it from `cnaRejectedContainer.replacedBy`.
+- **Alerts.** A provider security alert whose CVE group is fully retracted can
+  still seed an active finding when no package-path finding exists for that
+  repository and package; the alert path does not read the group.
+- **Convergence limit, both directions.** The winners table keeps one copy per
+  canonical key, and another scope may hold its own copy (KEV or EPSS
+  enrichment, another advisory source, the operator suppression scope). A copy
+  changes only when its scope reruns, and the tie between copies falls to
+  `fact_id`, effectively arbitrary. So a retracted copy can lose to a stale
+  active copy, and a stale `advisory_retracted` copy can win over a re-derived
+  active copy after a restore and hide a real vulnerability. The lag is each
+  scope's own cadence, with no bound after item 1.4; the operator scope's copy
+  refreshes only on a suppression mutation. The fix is the follow-up 1.5b, a
+  fan-out from the committing pass to every holder scope with no winners-order
+  change. This change merges only as the first half of 1.5a plus 1.5b: 1.5a
+  merges once 1.5b has a clean review and green CI on the stack, and issue #9695
+  closes on 1.5b's merge. Sorting retracted copies first is not a fix. Probes:
+  `docs/internal/evidence/9695-advisory-retraction.md`.
+- **Operator signal.** `eshu_dp_supply_chain_suppression_decisions_total` with
+  `outcome=advisory_retracted`, the `suppression_advisory_retracted=` field
+  of the evidence summary, and the `advisory_retracted_findings` sub-signal.
+
 ## Files
 
 Non-test files fall into these groups: the `impact*` and other short-named
@@ -331,6 +391,7 @@ the directory name.
 | `writer_retract.go` | Replace-set transaction (#6831): per-(scope, generation) advisory lock, upsert, tombstone of superseded findings |
 | `winners_maintainer.go` | `SupplyChainImpactWinnersMaintainer` read-model resweep |
 | `evaluation.go`, `decode.go`, `reasons.go`, `scope.go` | Suppression story: Decision + Evaluate, decode, reasons, scope match |
+| `retraction.go` | Advisory retraction (#9695): per-observation code, per-CVE-group rule, reason text |
 | `go_reachability*.go` | Go module/call reachability classification |
 | `cross_scope_test_doubles_test.go` | Family-local test doubles (each side keeps its own copy) |
 

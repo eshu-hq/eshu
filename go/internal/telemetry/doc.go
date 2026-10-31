@@ -111,8 +111,8 @@
 // The supply-chain reducer registers SupplyChainSuppressionDecisions
 // (eshu_dp_supply_chain_suppression_decisions_total), labeled by reducer
 // domain and outcome state (active, not_affected, accepted_risk,
-// false_positive, ignored, expired, provider_dismissed, scope_mismatch),
-// so operators can detect VEX/operator-policy suppression drift without
+// false_positive, ignored, expired, provider_dismissed, scope_mismatch,
+// advisory_retracted), so operators can detect VEX/operator-policy suppression drift without
 // re-running the reducer; provider-dismissed and scope-mismatch counts
 // stay separated from operator-asserted hides because they keep audit
 // signal rather than hiding findings. The same reducer registers
