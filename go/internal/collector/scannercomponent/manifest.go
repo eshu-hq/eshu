@@ -42,6 +42,7 @@ const (
 // bumping this SHA and the pins together (the pattern #9494 uses) —
 // the publish workflow never auto-updates this file.
 // Scanner-Publish-SHA: a371d1e21f6ba013925ea5d263d8de6c6b54d428
+// Scanner-Publish-Repo: eshu-hq/eshu
 //
 // Pin semantics (#8878): these pins are platform-side admission truth, not
 // seed-time comparisons. Seed checks only that --image-ref has the

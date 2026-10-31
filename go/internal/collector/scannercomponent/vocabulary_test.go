@@ -145,9 +145,9 @@ func TestArtifactDigestPinsArePinnedVerbatim(t *testing.T) {
 	t.Parallel()
 
 	for id, want := range map[string]string{
-		IDImage:     "0945164c39f3e392e64b6640e2c5de023b591a0bea9e72dabaac91fa04c461ee",
-		IDSBOM:      "19b1def7f3649bb2efb3d53d8a8336dba2ae019233a8cb2d58cf0dd854fa3dca",
-		IDOSRuntime: "9f81bd96390a50ecc1deac8757103e6282e27ba2689b0bb9ec2028ae8a561056",
+		IDImage:     "450f81b8195120a59decc55fe85ab648d974371269ed1f1602e3b8dff736b6ce",
+		IDSBOM:      "76d36e278eac680e3508fd17e26bc4ad2324a1a64438bec083c5b534e1fe834f",
+		IDOSRuntime: "04eea122b2843569e07c695b2d6a5795c5fe1f2a6f92d43d77b3bc469949a697",
 	} {
 		got, ok := artifactDigests[id]
 		if !ok {
