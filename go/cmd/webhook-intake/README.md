@@ -62,8 +62,9 @@ See `doc.go` for the full godoc contract.
 
 ## Telemetry
 
-- Health/readiness: `/healthz` and `/readyz` on the shared admin mux (plus
-  the intake subtree's own `/healthz`).
+- Health/readiness: `/healthz` and `/readyz` answer on the shared admin
+  mux (the intake subtree's own `/healthz` is shadowed there by
+  longest-prefix match, as in the listener).
 - Metrics: shared `telemetry.Instruments` on the `webhook-intake` service
   name plus `/metrics` via the Prometheus handler; no intake-specific
   metric names were introduced, so no dashboard renames were needed.
