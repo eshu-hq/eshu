@@ -1,6 +1,6 @@
 # Evidence: #8878 in-tree scanner removal
 
-## No-Regression Evidence
+## No-Regression Evidence:
 
 The removal deletes the execution half and keeps every decision surface
 proved:
@@ -34,9 +34,9 @@ proved:
 - Digest pins: `scripts/test-verify-scanner-digest-pins.sh` passes 29/29
   (seeded typo/404/attestation RED cases, fail-closed anchor cases).
 
-## Observability Evidence
+## Observability Evidence:
 
-No-Observability-Change with one ownership move: the
+No-Observability-Change: with one ownership move, the
 `eshu_dp_scanner_worker_*` instruments and span names stay registered in
 `go/internal/telemetry/instruments.go`; the satellite emits its own copies
 with the frozen analyzer, target-kind, and failure-class label values pinned
