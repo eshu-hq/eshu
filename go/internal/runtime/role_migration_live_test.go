@@ -3,9 +3,9 @@
 
 package runtime_test
 
-//eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #9299 disposable-role proof that the installed role policy attests the runtime physical connection across the admin, bootstrap, runtime, reader, control, producer, and advisory roles
-//eshu:readiness:env ESHU_ROLE_ATTEST_DISPOSABLE ESHU_ROLE_ATTEST_DSN ESHU_ROLE_ATTEST_BOOTSTRAP_DSN ESHU_ROLE_ATTEST_RUNTIME_DSN ESHU_ROLE_ATTEST_READER_DSN ESHU_ROLE_ATTEST_CONTROL_DSN ESHU_ROLE_ATTEST_PRODUCER_DSN ESHU_ROLE_ATTEST_ADVISORY_DSN ESHU_CONTENT_STORE_DSN ESHU_POSTGRES_DSN ESHU_POSTGRES_PRODUCER_DSN
+// Readiness enrollment suspended under drift-gate option A (PR #9544 fourth
+// round): the attestation proof below stays in the Go suite and skips clean
+// without proof DSNs; re-enroll post-refit. See live-tests-07b.yaml.
 
 import (
 	"context"

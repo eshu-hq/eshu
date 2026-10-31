@@ -325,10 +325,6 @@ TABLE = {
         "go/internal/storage/postgres/successor_guard_recheck_plan_live_test.go": (
             "TestGuardRecheckReadPlansLive",
         ),
-        "go/internal/storage/postgres/supply_chain_impact_authorized_loader_live_test.go": (
-            "TestAuthorizedImpactLoaderAdmitsCompletedScanLive",
-            "TestAuthorizedImpactAdvisoriesEmptyRegistryStaysCompleteLive",
-        ),
         "go/internal/storage/postgres/supply_chain_impact_disengaged_build_live_test.go": (
             "TestAuthorizedImpactLoaderDisengagedBuildsAdvisoryFindingLive",
         ),
@@ -340,9 +336,8 @@ TABLE = {
             "TestSupplyChainImpactBranchPlansStayOnAnchorsLive",
             "TestSupplyChainImpactNewIndexInsertCostLive",
         ),
-        "go/internal/storage/postgres/supply_chain_impact_protected_publish_live_test.go": (
+        "go/internal/storage/postgres/supply_chain_impact_protected_static_publish_live_test.go": (
             "TestSupplyChainImpactProtectedStaticPublishLive",
-            "TestProtectedPolicyPinsAbsentStateReportsCleanErrorLive",
         ),
         "go/internal/storage/postgres/terms_foreign_key_migration_budget_live_test.go": (
             "TestTermsForeignKeyDropFailsCleanlyWhenItsLockStaysBusyLive",

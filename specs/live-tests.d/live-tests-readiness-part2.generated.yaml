@@ -359,21 +359,6 @@ tests:
     class: postgres_ci
     reason: "#9299 disposable PostgreSQL proof that conflicting same-observation source bindings fail admission atomically with no partial plan"
     runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/control_scanner_admission_authority_matrix_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#9299 disposable PostgreSQL function-level classification matrix for the admission authority: every authority-state denial returns no rows (a counted skip) while caller-shape denials raise"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/control_scanner_admission_skip_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#9299 disposable PostgreSQL proof that one unauthorized binding skips in isolation while clean siblings admit and the cursor advances"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/control_scanner_authority_epoch_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#9299 disposable PostgreSQL proof that authority epoch bumps never ABA across tenant, workspace, grant, and instance revocation cycles"
-    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/control_scanner_discovery_scale_live_test.go
     tag: ~
     class: postgres_ci

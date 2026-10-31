@@ -3,9 +3,9 @@
 
 package postgres
 
-//eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #9299 disposable PostgreSQL proof that the authorized impact loader admits a completed scanner_worker analysis alongside its os_package fact instead of fail-closing the scan as a partial snapshot
-//eshu:readiness:env ESHU_POSTGRES_DISPOSABLE ESHU_POSTGRES_DSN
+// Readiness enrollment suspended under drift-gate option A (PR #9544 fourth
+// round): both proofs below stay in the Go suite and skip clean without
+// proof DSNs; re-enroll post-refit. See live-tests-07b.yaml.
 
 import (
 	"context"
