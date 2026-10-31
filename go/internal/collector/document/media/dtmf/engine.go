@@ -248,6 +248,7 @@ func goertzelCoeffs(sampleRate int) [8]float64 {
 		coeffs[i] = 2 * math.Cos(2*math.Pi*freq/float64(sampleRate))
 	}
 	for i, freq := range colFrequencies {
+		// #nosec G602 -- colFrequencies holds exactly the 4 DTMF column tones, so 4+i stays inside coeffs[8].
 		coeffs[4+i] = 2 * math.Cos(2*math.Pi*freq/float64(sampleRate))
 	}
 	return coeffs
@@ -265,6 +266,7 @@ func readFrame(audio pcmAudio, start int, frame []float64) {
 				continue
 			}
 			if audio.bitsPerSample == 16 {
+				// #nosec G115 -- two's-complement reinterpretation of a guarded 2-byte little-endian PCM sample.
 				raw := int16(binary.LittleEndian.Uint16(audio.data[at : at+2]))
 				sum += float64(raw) / 32768
 			} else {
