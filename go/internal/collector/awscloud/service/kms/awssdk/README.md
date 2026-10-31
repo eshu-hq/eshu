@@ -69,10 +69,12 @@ error payloads stay out of metric labels.
 ## Gotchas / invariants
 
 - `GetKeyRotationStatus` is skipped for asymmetric, HMAC, AWS-managed,
-  and pending-deletion keys because AWS returns
-  `UnsupportedOperationException` for them. Pending-creation keys are
-  also skipped. The scanner reports `rotation_status_known=false` for
-  those keys.
+  pending-deletion, pending-replica-deletion, unavailable, creating,
+  disabled, and pending-import keys. A key that passes the gate but still
+  cannot answer (`DisabledException`, `KMSInvalidStateException`,
+  `NotFoundException` from a mid-scan state change) also reports
+  `rotation_status_known=false` instead of failing the scan. Any other
+  rotation error still propagates.
 - `ListResourceTags` may return `AccessDeniedException` for keys outside
   the credential's permissions. The adapter treats that as "no tags
   reported" rather than failing the whole scan.
@@ -82,6 +84,22 @@ error payloads stay out of metric labels.
   pairs when mapping grants. They never reach the scanner type.
 - SDK adapters translate AWS records into scanner-owned types; scanner
   tests should not mock AWS SDK pagination.
+
+## Performance Evidence
+
+- No-Regression Evidence: the rotation-gate change strictly removes
+  `GetKeyRotationStatus` calls (disabled and pending-import keys skip the
+  API entirely; the race-window tolerance only reclassifies errors AWS
+  would otherwise raise). No new calls, pages, retries, goroutines,
+  locks, or batching on any path. Measured by
+  `go test ./internal/collector/awscloud/service/kms/...`: pre-fix, all
+  pre-existing tests pass and exactly the two new regression tests fail
+  for the intended reason; post-fix, all three packages ok, including
+  the gate/tolerance tests and the pre-existing outage-propagation test.
+  Input shape is the fixture/fake-driven unit suite, no live backend;
+  rotation-call counters assert zero calls for skipped states.
+- No-Observability-Change: no new spans, metrics, logs, or status
+  fields; error returns keep their existing types and callers.
 
 ## Related docs
 
