@@ -36,3 +36,7 @@ tests:
     tag: ~
     class: scheduled
     reason: "#9299 writer DSN-attrs proof split byte-identical from fence_role_attestor_live_test.go (markers are per-file) and de-enrolled under drift-gate option A (PR #9544 steer 6530394665); writer-path standby rejection (writerValidator) is SUSPENDED with no CI coverage until re-enroll — accepted risk recorded here, not implied coverage (the enrolled reader test pins only readerValidator), local run took 0.01s — re-enroll post-refit"
+  - file: go/internal/storage/postgres/authorized_loader_without_policy_state_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#9299 no-policy loader API proof split byte-identical from the onboarding file (markers are per-file) and de-enrolled under drift-gate option A (PR #9544 steer 6530394665, 5th pick after base-side #9683 added one); the no-policy path stays proven end to end by enrolled TestAuthorizedImpactLoaderDisengagedBuildsAdvisoryFindingLive, suspending only these API-level assertions — local run took 1.87s — re-enroll post-refit"

@@ -219,7 +219,7 @@ func readinessAuthorityLayoutPresent(ctx context.Context, database db.Queryer) (
 func currentScannerReadinessSQL(query string) string {
 	for _, marker := range []string{
 		"WHERE fact.fact_kind = 'scanner_worker.warning'\n      AND fact.is_tombstone = FALSE\n      AND generation.status = 'active'",
-		"WHERE fact.fact_kind = ANY($16::text[])\n      AND fact.is_tombstone = FALSE\n      AND generation.status = 'active'",
+		"WHERE fact.fact_kind = ANY($16::text[])\n      AND fact.is_tombstone = FALSE\n      AND generation.status IN ('active', 'superseded')",
 	} {
 		if strings.Count(query, marker) != 1 {
 			panic("scanner readiness SQL authorization marker changed")
