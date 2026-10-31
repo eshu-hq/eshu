@@ -97,7 +97,9 @@ error payloads stay out of metric labels.
   for the intended reason; post-fix, all three packages ok, including
   the gate/tolerance tests and the pre-existing outage-propagation test.
   Input shape is the fixture/fake-driven unit suite, no live backend;
-  rotation-call counters assert zero calls for skipped states.
+  rotation-call counters assert zero calls for skipped states
+  (`TestClientListKeysSkipsRotationCallForDisabledKeys` fails on any
+  `GetKeyRotationStatus` call for a disabled key).
 - No-Observability-Change: no new spans, metrics, logs, or status
   fields; error returns keep their existing types and callers.
 

@@ -213,9 +213,11 @@ func rotationCheckSupported(metadata *kmstypes.KeyMetadata) bool {
 
 // rotationStatus carries the resolved automatic-rotation answer for a key.
 // known is false when GetKeyRotationStatus is not meaningful for the key type
-// or when AWS reports UnsupportedOperation/AccessDenied; the adapter
-// propagates any other GetKeyRotationStatus failure as an error rather than
-// recording it here, so a real outage never masquerades as "rotation unknown".
+// or when AWS reports UnsupportedOperation/AccessDenied or a rotation
+// race-window shape (DisabledException, KMSInvalidStateException,
+// NotFoundException); the adapter propagates any other GetKeyRotationStatus
+// failure as an error rather than recording it here, so a real outage never
+// masquerades as "rotation unknown".
 type rotationStatus struct {
 	known   bool
 	enabled bool
