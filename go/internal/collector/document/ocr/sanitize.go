@@ -4,6 +4,7 @@
 package ocr
 
 import (
+	"math"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -109,14 +110,21 @@ func labelValueRegions(regions []Region) []bool {
 }
 
 // rightOfOnSameRow reports whether region starts past label's right edge and
-// overlaps its row. An engine that reports no height has no row, so the
-// reading-order window is all that applies to it.
+// overlaps its row. Bounds that are not usable have no row, so only the
+// reading-order window applies to them.
 func rightOfOnSameRow(region Bounds, label Bounds) bool {
-	if region.Height <= 0 || label.Height <= 0 || region.X < label.X+label.Width {
+	if !usableBounds(region) || !usableBounds(label) || region.X < label.X+label.Width {
 		return false
 	}
 	overlap := min(region.Y+region.Height, label.Y+label.Height) - max(region.Y, label.Y)
 	return overlap >= minLabelRowOverlap*min(region.Height, label.Height)
+}
+
+// usableBounds rejects a region with no height and any NaN or infinite value,
+// which an engine should never report and which compare unpredictably.
+func usableBounds(bounds Bounds) bool {
+	sum := bounds.X + bounds.Y + bounds.Width + bounds.Height
+	return bounds.Height > 0 && !math.IsNaN(sum) && !math.IsInf(sum, 0)
 }
 
 func safeIdentity(value string, prefix string) (string, bool) {

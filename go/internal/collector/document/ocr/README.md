@@ -117,8 +117,10 @@ A region is a value when either holds:
 - Row: it starts past the marker region's right edge and overlaps that region's
   row by at least half the shorter height (`minLabelRowOverlap`). Tesseract
   reads columns as separate blocks, which can put a value many regions after its
-  label. The order of the two columns does not matter. An engine that reports no
-  height gets the window only.
+  label. The order of the two columns does not matter. A region with no height
+  or with a NaN or infinite bound has no row, so it gets the window only. A
+  region that starts exactly at the marker's right edge, or overlaps exactly half
+  the shorter height, counts as on the row.
 
 `Extract` never sorts. `EngineResult.Regions` must be in reading order, because
 layout order is more accurate than a position sort on a multi-column page.
@@ -145,6 +147,7 @@ Limits:
 Proof: `TestExtractRedactsValuesThatFollowALabelInReadingOrder`,
 `TestExtractRedactsValueInTheColumnBesideALabel`,
 `TestExtractFollowsEngineRegionOrder`,
+`TestExtractRowClauseHandlesInvalidAndTiedGeometry`,
 `TestExtractLabelValueRedactionStaysTruthful`, and the `form-stacked.png` and
 `form-columns.png` fixtures in `TestSandboxRealTesseract`.
 
@@ -153,7 +156,7 @@ Performance Evidence: `BenchmarkBuildSectionsNoLabels` and
 with before and after test binaries run in turn at `-benchtime=2000x`, six runs
 each. Medians on a shared host: ordinary text went from 3.06 ms/op to 3.14 ms/op
 (13,405 to 13,906 allocs/op, one lowercase per region). The worst case for the
-row clause, 250 regions followed by 250 labels, went from 1.88 ms/op to 2.02
+row clause, 250 regions followed by 250 labels, went from 1.88 ms/op to 2.06
 ms/op. The row clause is regions times marker regions, so 500 regions bound it.
 Either figure is small next to about 200 ms for one tesseract run.
 
