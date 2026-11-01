@@ -56,6 +56,18 @@ func TestExtractRedactsValueInTheColumnBesideALabel(t *testing.T) {
 			want: []string{"[redacted]", "[redacted]", "[redacted]", "Rotate them after an incident", "[redacted]"},
 		},
 		{
+			name: "value on the row of the second of two stacked labels",
+			regions: []Region{
+				label,
+				{Text: "api_key:", Bounds: Bounds{X: 0.02, Y: 0.35, Width: 0.11, Height: 0.05}},
+				{Text: "Filler one", Bounds: Bounds{X: 0.02, Y: 0.44, Width: 0.45, Height: 0.05}},
+				{Text: "Filler two", Bounds: Bounds{X: 0.02, Y: 0.53, Width: 0.45, Height: 0.05}},
+				{Text: "Filler three", Bounds: Bounds{X: 0.02, Y: 0.62, Width: 0.45, Height: 0.05}},
+				{Text: labelValueCanary, Bounds: Bounds{X: 0.53, Y: 0.35, Width: 0.30, Height: 0.05}},
+			},
+			want: []string{"[redacted]", "[redacted]", "[redacted]", "[redacted]", "[redacted]", "[redacted]"},
+		},
+		{
 			name: "region left of the label stays",
 			regions: []Region{
 				{Text: "Field one", Bounds: Bounds{X: 0.53, Y: 0.26, Width: 0.11, Height: 0.05}},

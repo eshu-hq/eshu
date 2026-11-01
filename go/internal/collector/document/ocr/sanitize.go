@@ -14,11 +14,11 @@ import (
 )
 
 const (
-	// labelValueWindow is how many regions with a letter or digit after a marker
-	// region count as its value. One covers a value directly below its label. The second
-	// covers a caption or other line between the two. Every extra region hides
-	// one more line of ordinary text from a document, so the window stays small
-	// and the row clause covers columns instead.
+	// labelValueWindow is how many regions with a letter or digit after a
+	// marker region count as its value. One covers a value directly below its
+	// label. The second covers a caption or other line between the two. Every
+	// extra region hides one more line of ordinary text from a document, so the
+	// window stays small and the row clause covers columns instead.
 	labelValueWindow = 2
 
 	// minLabelRowOverlap is the share of the shorter region's height that must
@@ -73,9 +73,9 @@ func isLetterOrDigit(r rune) bool {
 // when it falls in the window of labelValueWindow regions after a marker
 // region, or when it sits to the right of a marker region on the same row. Each
 // marker region adds a full window once, however many marker words it holds, so
-// stacked labels each cover their own value. The row clause exists because tesseract reads columns as separate
-// blocks, which can put a value in the next column many regions after its
-// label.
+// stacked labels each cover their own value. The row clause exists because
+// tesseract reads columns as separate blocks, which can put a value in the next
+// column many regions after its label.
 //
 // A region with no letter or digit does not use up the window, because box
 // edges reach OCR as "|" or "_". That region is still withheld, since a password
