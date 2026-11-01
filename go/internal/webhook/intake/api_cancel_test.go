@@ -308,6 +308,13 @@ func TestIntakeLostAcknowledgementRetryCoalesces(t *testing.T) {
 
 	h := newCancelHarness(t)
 	h.hold = make(chan struct{})
+	// The handler parks on h.hold, and httptest.Server.Close (registered by
+	// newCancelHarness) waits for handlers. Register the release after it so
+	// LIFO cleanup frees the handler first, and an early t.Fatal fails fast
+	// instead of hanging until the go test timeout.
+	var releaseOnce sync.Once
+	releaseHold := func() { releaseOnce.Do(func() { close(h.hold) }) }
+	t.Cleanup(releaseHold)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, h.server.URL+cancelPath, strings.NewReader(cancelBody))
@@ -339,7 +346,7 @@ func TestIntakeLostAcknowledgementRetryCoalesces(t *testing.T) {
 	if err := <-clientDone; !errors.Is(err, context.Canceled) {
 		t.Fatalf("client error = %v, want context.Canceled", err)
 	}
-	close(h.hold)
+	releaseHold()
 	h.waitFinished(t)
 	if got := h.store.rowCount(); got != 1 {
 		t.Fatalf("rows after lost acknowledgement = %d, want 1 (fact not lost)", got)
