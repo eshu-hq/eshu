@@ -23,8 +23,9 @@
   speaker names, local paths, private URLs, credentials, usernames, attendee
   lists, or sensitive transcript text.
 - Warning classes must stay low-cardinality and design-owned.
-- Judge redaction in time order across segments, not one segment alone: the
-  segments after a keyword are its value (README "Value segments"). Redaction
+- Judge redaction across segments, not one segment alone: the segments after a
+  keyword are its value, in time order and in slice order (README "Value
+  segments"). Over-redaction on out-of-order input is accepted policy. Redaction
   stays in `Extract`, never in an engine package.
 
 ## Common changes and how to scope them

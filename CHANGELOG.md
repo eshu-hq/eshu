@@ -36,7 +36,8 @@ recent shipped work grouped by feature area.
 - **`media.Extract` now redacts the segments after a sensitive keyword**
   ([#9786](https://github.com/eshu-hq/eshu/issues/9786)). "The password is"
   followed by "swordfish." used to redact the first segment and persist the
-  second. A keyword now opens a two-segment window, judged in time order.
+  second. A keyword now opens a two-segment window, judged in time order and
+  again in slice order, so out-of-order engine output can over-redact.
   Emails, URLs, tickets, and paths open no window. Redacted sections carry
   hashes of the `[redacted]` placeholder instead of a sha256 of the withheld
   text, so a `text_hash` cannot confirm a guess at a short spoken value. Two

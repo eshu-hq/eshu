@@ -70,12 +70,12 @@ without adding discovery, queue, graph, or runtime work.
 
 No-Regression Evidence: the value-segment walk (#9786) adds a small cost. It
 sorts the segments, capped at 1,000 by the `whispercpp` engine, and makes two
-passes over them. Baseline is `d2e483870d`, measured at `909e664b5b`. A
+passes over them. Baseline is `d2e483870d`, measured at `9e2cb253b2`. A
 throwaway benchmark of `buildSections` on 1,000 benign synthetic segments, 5
-runs of 3,000 iterations each on arm64, went from a median of 8.28 ms/op to
-8.44 ms/op, about 2% more, with 1,003 more allocations per call (24,913 to
-25,916). There is no backend, queue, or row count: this is in-memory work with
-no production caller, and it holds no lock and starts no worker.
+runs of 3,000 iterations each on arm64, went from a median of 8.27 ms/op to
+8.43 ms/op, about 2% more, with about 1,004 more allocations per call (24,913
+to 25,917). There is no backend, queue, or row count: this is in-memory work
+with no production caller, and it holds no lock and starts no worker.
 
 Collector Observability Evidence: this package emits no facts outside the
 returned envelopes and has no runtime side effects. Future runtime wiring must
@@ -110,27 +110,33 @@ introduces it, so `Extract` does not judge segments only one at a time (#9786).
   mention facts.
 - Emails, URLs, tickets, and local paths redact their own segment and open no
   window. They are values, not words that introduce one.
-- The walk is in time order, by start then end, because the `Engine` contract
-  does not promise sorted output. Section order and fallback section IDs stay
-  in engine order.
+- The walk runs twice, and every keyword segment opens a window in both: once
+  in time order, by start then end, because the `Engine` contract does not
+  promise sorted output, and once in slice order, because timestamps cannot be
+  trusted to place a keyword. A wrong time can still look valid and sort away
+  from the value, and a duration bound does not help: the real engine returned
+  an end of 6500 ms on the 5783 ms split fixture. The passes agree on
+  time-sorted input. On out-of-order input the second pass only adds redaction,
+  and that over-redaction is accepted policy. Section order and fallback
+  section IDs stay in engine order.
 - Only a segment with a letter or digit uses up the window. Blank,
   punctuation-only, and zero-width segments stay redacted inside it but leave
   it open, so "The password is", ".", "...", "swordfish." still covers the
   value. A long silence does not close it either: the window counts segments,
   not milliseconds.
-- A keyword segment with invalid timing never reaches a section, but its text
-  was spoken and its timestamps cannot place it. It opens a window in time
-  order and again in slice order, which only adds redaction. Invalid-timing
-  segments use up no window.
+- A segment with invalid timing never reaches a section and uses up no window,
+  but a keyword in it still opens one: its text was spoken.
 - Each keyword segment adds a full window, so stacked markers each cover their
   own value.
 - The window is 2 so it covers an immediate value, plus a value the engine
   broke in two or a filler spoken before it. It stays small because every
   segment in the window loses its text.
 - Any keyword opens the window, not only one that ends its segment. This is a
-  deliberate deviation from a "marker-ending" rule. Raw whisper output heard
-  the fixture's "as follows" variously as "El Falon", "Alpha alone", and "El
-  Paolo", so a heuristic that reads the words after a keyword fails open.
+  deliberate deviation from a "marker-ending" rule. Through the real engine
+  path (16 kHz stdin), `base.en` hears the fixture's "The password is as
+  follows." as "The password in a column". Direct `whisper-cli` runs on the
+  22.05 kHz file heard "as follows" as "El Falon", "Alpha alone", and "El
+  Paolo". A heuristic that reads the words after a keyword fails open.
 - The cost is lost speech. One keyword segment can redact two following
   segments, and n consecutive keyword segments can redact n+1 segments after
   the last one, so "The password was rotated." costs ordinary speech. That loss
@@ -141,6 +147,8 @@ Known limits:
 - A value spoken before its keyword ("swordfish is the password") is not
   redacted, because the window only looks forward (#9792).
 - A value spoken past the window keeps its text.
+- Two self-redacting segments in a row, such as an email and a ticket, use up
+  the window, so a value behind them keeps its text.
 - Only the keywords above are matched, so spoken forms such as "API key" open
   no window and are not redacted (#9788).
 

@@ -249,12 +249,12 @@ is as follows." then, after a 3 s SSML break, "Swordfish." Recorded result,
 base.en hears the synthetic phrase "payments worker" as "payment swearcare".
 The same happens after sox's very-high-quality resampler, so this is a model
 limit on synthetic speech. The proof asserts words that are stable across
-resamplers. It also hears "The password is as follows." as "The password in
-El Falon", which is why `media.Extract` does not read the words after a
-keyword (`../README.md`, "Value segments"). The split-segment proof first
-requires that the value really is the canary in a later segment, then checks
-the text the engine produced is absent from every envelope, so a mishearing
-cannot pass it.
+resamplers. Through this engine it also hears "The password is as follows." as
+"The password in a column", which is why `media.Extract` does not read the
+words after a keyword (`../README.md`, "Value segments"). The split-segment
+proof first requires that the value really is the canary in a later segment,
+then checks the text the engine produced is absent from every envelope, so a
+mishearing cannot pass it.
 
 ## Packaging
 
