@@ -37,9 +37,10 @@ import (
 // fields keep their pre-existing raw payload read (each marked with a
 // struct-gap comment in evidence_model.go) alongside
 // the fields that do decode losslessly.
-// vulnerability.affected_product's typed struct is missing six of the nine
-// fields the response model reads (VersionStart/EndIncluding/Excluding,
-// SourceConfigurationOperator/Negate, SourceNodeOperator/Negate), so that
+// vulnerability.affected_product's typed struct declares the four
+// SourceConfigurationOperator/Negate and SourceNodeOperator/Negate flags since
+// factschema rc.12, but it still has no field for the version bounds
+// (version_start/end_including/excluding) the response model reads, so that
 // read site stays on the raw path rather than adding a wrapper this package
 // could not call losslessly.
 
