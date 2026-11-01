@@ -34,9 +34,14 @@ See `doc.go` for the godoc-rendered package contract.
   output without source-specific types.
 - `Extract` runs preflight, calls the engine when allowed, and returns
   ready-to-persist fact envelopes.
-- `LocalEngine` (with `LocalOptions`) is the in-tree QA-tier `Engine`
-  backend: dependency-free 5x7 template matching over PNG, JPEG, and
-  first-frame GIF. No network, subprocess, temp file, cgo, or logging.
+- `LocalEngine` (with `LocalOptions`) is the in-tree deterministic fixture
+  backend and fail-closed fallback: dependency-free 5x7 template matching
+  over PNG, JPEG, and first-frame GIF. No network, subprocess, temp file,
+  cgo, or logging.
+- The general-purpose backend is the `tesseract` subpackage: a pinned
+  tesseract 5.5.0 LSTM binary run out of process per image, with its own
+  bounds, digest pinning, and OCR telemetry. See its README and
+  `docs/internal/design/9728-ocr-engine-backend.md`.
 
 ## Local engine bounds
 

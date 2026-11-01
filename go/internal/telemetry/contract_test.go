@@ -316,6 +316,8 @@ func TestSpanNames(t *testing.T) {
 		"mcp.router.find",
 		"mcp.router.call",
 		"owned_package_targets.read",
+		"ocr.extract",
+		"ocr.recognize",
 	}
 
 	got := SpanNames()

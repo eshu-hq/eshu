@@ -118,6 +118,12 @@ const (
 	EventOwnedPackageTargetsWindow = contract.EventOwnedPackageTargetsWindow
 )
 
+// Out-of-process OCR spans (from contract/ocr.go, #9728).
+const (
+	SpanOCRExtract   = contract.SpanOCRExtract
+	SpanOCRRecognize = contract.SpanOCRRecognize
+)
+
 // Kubernetes correlation query span (from contract/kubernetes.go).
 const SpanQueryKubernetesCorrelations = contract.SpanQueryKubernetesCorrelations
 
