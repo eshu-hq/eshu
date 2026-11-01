@@ -95,7 +95,7 @@ deployed acceptance is NOT_CHECKED.
 
 | Original published module | New module identity | Available first candidate | Other published candidate | Preferred candidate | Latest candidate pinned by merged core |
 | --- | --- | --- | --- | --- | --- |
-| `github.com/eshu-hq/eshu/sdk/go/collector@v0.2.0` | `github.com/eshu-hq/eshu-sdk/collector` | `collector/v0.1.0-rc.1` | `collector/v0.2.0-rc.1` | `collector/v0.1.0-rc.2` (published; proxy verified) | `collector/v0.1.0-rc.3` (published; proxy verified; pinned by core #9111) |
+| `github.com/eshu-hq/eshu/sdk/go/collector@v0.2.0` | `github.com/eshu-hq/eshu-sdk/collector` | `collector/v0.1.0-rc.1` | `collector/v0.2.0-rc.1` | `collector/v0.1.0-rc.2` (published; proxy verified) | `collector/v0.2.0-rc.3` (published; proxy verified; adds `collector-sdk/v1alpha3` pagination; pinned by core #9385) |
 | `github.com/eshu-hq/eshu/sdk/go/factschema@v0.2.0` | `github.com/eshu-hq/eshu-sdk/factschema` | `factschema/v0.1.0-rc.1` | `factschema/v0.1.0-rc.2` | `factschema/v0.1.0-rc.2` (published; proxy verified) | `factschema/v0.1.0-rc.4` (published; proxy verified; adds `runtime_declaration.version`) and `factschema/v0.1.0-rc.5` (published; proxy verified; adds additive optional `dependency_resolution_state`; pinned by core #9111) |
 
 `factschema/v0.1.0-rc.6` is published at SDK merge commit

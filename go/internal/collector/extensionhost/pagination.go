@@ -18,10 +18,10 @@ import (
 // collectorSDKProtocolV1Alpha3 is the paged collector extension wire
 // contract. It mirrors collector.ProtocolVersionV1Alpha3 in the
 // sdk/go/collector module: the host decodes the page envelope at the JSON
-// level (see ResultPage) so this package keeps working against the pinned
-// eshu-sdk/collector module, which predates pagination. The string values
-// must stay identical; TestPagedDecodeAcceptsLegacyAndPaged pins the mirror
-// against the SDK module's own paged fixture.
+// level into its own ResultPage, which shadows the Result.Page field the
+// pinned eshu-sdk/collector module carries since v0.2.0-rc.3. The string
+// values must stay identical; TestPagedDecodeAcceptsLegacyAndPaged pins the
+// mirror against the SDK module's own paged fixture.
 const collectorSDKProtocolV1Alpha3 = "collector-sdk/v1alpha3"
 
 // DefaultMaxResultPages bounds how many satellite calls one claim may
@@ -240,8 +240,8 @@ func (s *Source) checkPageEnvelope(call CallResult, index int, streamOpen bool) 
 			call.Page.PageIndex, index,
 		))
 	}
-	// The pinned eshu-sdk/collector validator cannot see the page envelope,
-	// so the SDK module's page rules are mirrored here: a continuation page
+	// pagedWireResult shadows Result.Page, so the SDK validator never sees
+	// the page envelope and its page rules are mirrored here: a continuation page
 	// must name its resume cursor and carry a completable state, a final
 	// page must not carry a cursor, and the declared total cannot be
 	// negative.

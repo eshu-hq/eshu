@@ -473,8 +473,8 @@ github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f h1:Y/CXytFA4m6
 github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f/go.mod h1:vw97MGsxSvLiUE2X8qFplwetxpGLQrlU1Q9AUEIzCaM=
 github.com/eshu-hq/embedded-postgres v1.34.0-eshu.1 h1:SBFlZaq6+VZ04JxcrJl2DU4F/P1NJAtd+p3LHABxAA0=
 github.com/eshu-hq/embedded-postgres v1.34.0-eshu.1/go.mod h1:1sJQmsa9f9xLU2bfoXpeLb7Px/AUfIJKo+Yiez8nFC0=
-github.com/eshu-hq/eshu-sdk/collector v0.2.0-rc.2 h1:A3CKoAMu0O/Kc4/7PwjiZqcrEQHSD8NS5dhkZzBcJm0=
-github.com/eshu-hq/eshu-sdk/collector v0.2.0-rc.2/go.mod h1:PPYMfpF8xIytKCLpAP/1T7bGJzUTc5tboKH1+j8ZK20=
+github.com/eshu-hq/eshu-sdk/collector v0.2.0-rc.3 h1:m+sfCl0YZdWtuMY4hIiYYs5Ip/3t9o2kDlX2BaxsF9M=
+github.com/eshu-hq/eshu-sdk/collector v0.2.0-rc.3/go.mod h1:PPYMfpF8xIytKCLpAP/1T7bGJzUTc5tboKH1+j8ZK20=
 github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.12 h1:+79iPzcIHjTyLQ6dZ0Fxt8OqG/DraUiu3OeqwPjQSZE=
 github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.12/go.mod h1:GysO1GSvcUYSSl7ydDx34MYRSw4yI2DgADT0twajVXY=
 github.com/eshu-hq/eshu-workflow v0.1.0 h1:6lo25B8MtqSY0TX+5pqnyEOqCRuOu7KhZpO4LuAthFE=
