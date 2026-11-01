@@ -39,9 +39,12 @@ recent shipped work grouped by feature area.
   second. A keyword now opens a two-segment window, judged in time order.
   Emails, URLs, tickets, and paths open no window. Redacted sections carry
   hashes of the `[redacted]` placeholder instead of a sha256 of the withheld
-  text, so a `text_hash` cannot confirm a guess at a short spoken value. Up to
-  two segments of ordinary speech after a keyword lose their text. Nothing
-  calls the transcript path in production yet. The real-binary proof
+  text, so a `text_hash` cannot confirm a guess at a short spoken value. Two
+  segments of ordinary speech after a keyword lose their text, and n
+  consecutive keyword segments can cost n+1 after the last one. A value spoken
+  before its keyword stays in clear text
+  ([#9792](https://github.com/eshu-hq/eshu/issues/9792)). Nothing calls the
+  transcript path in production yet. The real-binary proof
   (`scripts/verify-media-transcript-sandbox.sh`) gained a fixture whose canary
   sits in its own segment.
 
