@@ -452,6 +452,7 @@ nav:
     - Retire Leftover Workload Nodes: operate/legacy-workload-retirement-runbook.md
     - Collector Cutover Rollback: operate/collector-cutover-rollback.md
     - Collector Cutover Rollback, Direct Producer: operate/collector-cutover-rollback-direct.md
+    - Webhook Satellite Roll Forward: operate/webhook-satellite-roll-forward.md
     - Collector Cutover Truth Checks: operate/collector-cutover-truth-checks.md
     - QA Drill Window: operate/qa-drill-window.md
     - Delta-Base Union: operate/graph-delta-union.md

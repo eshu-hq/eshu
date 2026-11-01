@@ -33,6 +33,7 @@ queued work.
 | Prepare identity, token, session, role, grant, audit, and revocation proof | [User Management Runbook](user-management-runbook.md) |
 | Decide whether a community extension may run in hosted Eshu | [Hosted Extension Operator Policy](hosted-extension-policy.md) |
 | Hand a collector back to its in-tree producer after a cutover | [Collector cutover rollback](collector-cutover-rollback.md) |
+| Rebuild the webhook satellite or intake host forward after the provider endpoint moves | [Webhook satellite roll forward](webhook-satellite-roll-forward.md) |
 | Understand service ownership | [Service Runtimes](../deployment/service-runtimes.md) |
 | Prove a local change before handoff | [Local Testing Reference](../reference/local-testing.md) |
 | Validate hosted or Kubernetes behavior | [Cloud Validation Runbook](../reference/cloud-validation.md) |
