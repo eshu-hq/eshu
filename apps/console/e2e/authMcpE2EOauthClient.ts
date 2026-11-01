@@ -30,6 +30,8 @@
 import { createHash, randomBytes } from "node:crypto";
 
 import { callMcpMessage, extractToolCallStructuredContent, mcpInitialize, mcpToolsCall } from "./authMcpE2EJsonRpc.ts";
+import { repositoryListFromEnvelope } from "./authMcpE2ERepositoryRows.ts";
+import { retryUntilAuthenticated } from "./authMcpE2EWarmup.ts";
 
 export interface HostRewriteTable {
   readonly [inNetworkHostPort: string]: string;
@@ -247,16 +249,33 @@ export async function mintJwtFromMockIdp(mockIdpBase: string, resource: string):
 }
 
 // assertScriptedTokenWorksAgainstMcp drives step 6: a tools/call authenticated
-// with the scripted client's minted bearer token must succeed (200) and
-// return real structured content — proving the OAuth-minted token is a
-// genuinely accepted MCP credential, not merely that the flow completed.
+// with the scripted client's minted bearer token must succeed and return a real
+// repository list — proving the OAuth-minted token is a genuinely accepted
+// MCP credential, not merely that the flow completed.
+//
+// The satellite returns HTTP 200 even when core refused the forwarded token, so
+// the verdict has to come from the truth envelope. repositoryListFromEnvelope
+// throws on an envelope error, so a core 401 fails this step instead of
+// passing with a made-up total. The call is retried only while core answers
+// `unauthenticated`: core's OIDC provider snapshot refreshes at most every 30
+// seconds and the provider was created after boot (see authMcpE2EWarmup.ts).
+const WARMUP_ATTEMPTS = 30;
+const WARMUP_DELAY_MS = 2000;
+
 export async function assertScriptedTokenWorksAgainstMcp(mcpBase: string, accessToken: string): Promise<string> {
-  const call = await mcpToolsCall(mcpBase, "list_indexed_repositories", { limit: 10, offset: 0 }, accessToken);
-  if (call.httpStatus !== 200) {
-    throw new Error(`tools/call with the scripted OAuth token expected 200, got ${call.httpStatus}: ${call.bodyText}`);
-  }
-  const parsed = extractToolCallStructuredContent(call) as { total?: number };
-  return `tools/call succeeded with the scripted-OAuth-minted bearer token (total=${parsed.total ?? 0})`;
+  const { structured, attempts } = await retryUntilAuthenticated(
+    async () => {
+      const call = await mcpToolsCall(mcpBase, "list_indexed_repositories", { limit: 10, offset: 0 }, accessToken);
+      if (call.httpStatus !== 200) {
+        throw new Error(`tools/call with the scripted OAuth token expected 200, got ${call.httpStatus}: ${call.bodyText}`);
+      }
+      return extractToolCallStructuredContent(call);
+    },
+    { attempts: WARMUP_ATTEMPTS, delayMs: WARMUP_DELAY_MS },
+  );
+  const { total } = repositoryListFromEnvelope(structured);
+  const warmup = attempts > 1 ? `; core admitted it on attempt ${attempts} after its provider snapshot refreshed` : "";
+  return `tools/call succeeded with the scripted-OAuth-minted bearer token (total=${total ?? 0})${warmup}`;
 }
 
 export { callMcpMessage };

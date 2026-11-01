@@ -131,7 +131,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: eshu-hq/eshu-deploy
-          ref: a69de49daa8ac73a2d16d5ba3ba7cc499a1b4de8
+          ref: 93f0e763c0da12ca89099183fb12cf8a670acf1d
           path: eshu-deploy
       - name: Run the fresh-stack SSO auth E2E
         env:
@@ -179,7 +179,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: eshu-hq/eshu-deploy
-          ref: a69de49daa8ac73a2d16d5ba3ba7cc499a1b4de8
+          ref: 93f0e763c0da12ca89099183fb12cf8a670acf1d
           path: eshu-deploy
       - name: Run the fresh-stack MCP-identity auth E2E
         env:
