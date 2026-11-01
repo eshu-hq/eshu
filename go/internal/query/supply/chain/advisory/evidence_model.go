@@ -96,13 +96,13 @@ func (a *advisoryEvidenceAccumulator) addFact(fact EvidenceFactRow) {
 	case "vulnerability.affected_package":
 		a.addAffectedPackage(fact, source, advisoryID, cveID, ghsaID)
 	case "vulnerability.affected_product":
-		// vulnerability/v1.AffectedProduct (sdk/go/factschema) does not yet
-		// declare six of the nine fields this response reads
-		// (version_start/end_including/excluding,
-		// source_configuration_operator/negate, source_node_operator/negate),
-		// so this kind stays on the raw payload path rather than adding a
-		// decode wrapper this package could not call losslessly. Flag for a
-		// future W1 struct-completion pass.
+		// vulnerability/v1.AffectedProduct (sdk/go/factschema) declares the
+		// source_configuration_operator/negate and source_node_operator/negate
+		// flags since rc.12 but not the version bounds this response also reads
+		// (version_start/end_including/excluding), so this kind stays on the
+		// raw payload path rather than adding a decode wrapper this package
+		// could not call losslessly. Flag for a future W1 struct-completion
+		// pass.
 		a.addAffectedProduct(fact, source, cveID)
 	case "vulnerability.epss_score":
 		score, err := decodeVulnerabilityEPSSScore(supplyChainFactDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: payload})

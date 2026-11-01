@@ -13,7 +13,7 @@ no recorded pin. Newer tags MUST NOT be substituted without that reviewed
 update):
 
 - `github.com/eshu-hq/eshu-sdk/collector v0.2.0-rc.2`
-- `github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.10`
+- `github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.12`
 
 Pin history: proxy-verified 2026-10-24 at collector/factschema
 `v0.1.0-rc.1`; in-tree moved to standalone modules at collector `rc.3` +
@@ -27,7 +27,7 @@ and to collector `rc.5` for the vault auth-role metadata allowlist
 `token_policy_name_fingerprints`; eshu-hq/eshu#8869, proxy-verified
 2026-10-28 via `go mod download`), and to factschema `rc.10` for the
 `vulnerability.source_snapshot` NVD coverage fields (eshu-hq/eshu#9435,
-proxy-verified 2026-10-28), and to collector `v0.2.0-rc.2`, retargeting the
+proxy-verified 2026-10-28), and to factschema `rc.12` for the `vulnerability.cve` `status` and `replaced_by` fields and the `vulnerability.affected_product` NVD operator and negate fields (eshu-hq/eshu#9695, eshu-hq/eshu#9696; zip `h1:+79iPzcIHjTyLQ6dZ0Fxt8OqG/DraUiu3OeqwPjQSZE=`, proxy-verified 2026-10-31 via `go mod download`), and to collector `v0.2.0-rc.2`, retargeting the
 pseudo-version at `a663423f89` to the published tag (eshu-hq/eshu#9432 /
 eshu-hq/eshu#9730, proxy-verified 2026-10-31 via `go mod download`).
 The extracted port
