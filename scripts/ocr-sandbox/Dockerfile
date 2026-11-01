@@ -28,8 +28,18 @@ RUN mkdir /fixtures && cd /fixtures \
     && rm base.png
 
 FROM ${ESHU_ALPINE_IMAGE} AS proof
-RUN apk add --no-cache "tesseract-ocr=5.5.0-r0" "tesseract-ocr-data-eng=5.5.0-r0" \
-        "leptonica=1.84.1-r0" "libwebp=1.4.0-r0"
+# Every package that owns an object ldd lists for /usr/bin/tesseract (15
+# objects, 15 packages, from `apk info -W`), plus the model package, at its
+# exact Alpine-signed version. The same versions install on arm64 and amd64.
+# A version that leaves the Alpine 3.21 index fails the build instead of
+# floating. Keep these in step with the digests in scripts/prove-ocr-sandbox.sh.
+RUN apk add --no-cache \
+        "tesseract-ocr=5.5.0-r0" "tesseract-ocr-data-eng=5.5.0-r0" \
+        "leptonica=1.84.1-r0" "libwebp=1.4.0-r0" "libwebpmux=1.4.0-r0" \
+        "libsharpyuv=1.4.0-r0" "musl=1.2.5-r11" "libgcc=14.2.0-r4" \
+        "libgomp=14.2.0-r4" "libstdc++=14.2.0-r4" "giflib=5.2.2-r2" \
+        "libjpeg-turbo=3.0.4-r0" "libpng=1.6.59-r0" "tiff=4.7.2-r0" \
+        "zlib=1.3.2-r0" "zstd-libs=1.5.6-r2"
 COPY --from=fixtures /fixtures/ /ocr/fixtures/
 COPY ocr-sandbox.test /ocr/ocr-sandbox.test
 USER 65532:65532

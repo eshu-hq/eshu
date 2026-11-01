@@ -60,13 +60,16 @@ new `go/internal/collector/document/ocr/tesseract` package.
 - Environment: only `OMP_THREAD_LIMIT=1`, `LC_ALL=C`, and `HOME`/`TMPDIR`
   set to a private 0700 scratch directory. The FAQ documents
   `OMP_THREAD_LIMIT=1` as the way to disable multithreading.
-- Provenance of record: the digest-pinned Alpine 3.21 base plus exact apk
-  versions `tesseract-ocr=5.5.0-r0`, `tesseract-ocr-data-eng=5.5.0-r0`,
-  `leptonica=1.84.1-r0`, and `libwebp=1.4.0-r0` in
-  `scripts/ocr-sandbox/Dockerfile`. Image-level pinning is the real
-  provenance; the per-file hashes below are the runtime tamper check. The
-  arbiter's confirmation that image-level pinning is acceptable is
-  requested (see section 6).
+- Provenance of record: the digest-pinned Alpine 3.21 index
+  (`alpine:3.21@sha256:48b0309c…`) plus the exact, Alpine-signed apk version
+  of every package that owns an object `ldd` lists for `/usr/bin/tesseract`
+  (15 objects, 15 packages, same versions on arm64 and amd64) in
+  `scripts/ocr-sandbox/Dockerfile`. The per-architecture digests in
+  `scripts/prove-ocr-sandbox.sh` (binary, library set, eng.traineddata) are
+  the pin the proof enforces after every build and the engine re-checks at
+  construction and per call. Gate-2 criterion 'model digest pinned in the
+  image' is met for eng.traineddata (`sha256:daa0c97d…`); arbiter-eshu
+  ruling 2026-11-01 (pinning).
 - Runtime tamper check: `New` hashes, and each call re-stats (identity,
   size, mtime):
   - the 67 KB `tesseract` front end;
@@ -90,7 +93,13 @@ new `go/internal/collector/document/ocr/tesseract` package.
 - Not adopted: exec through the verified file descriptor (fexecve). The
   loader still maps the libraries by path, and an in-place write to the held
   inode would defeat it too. The sandbox's read-only root filesystem is what
-  prevents in-place modification.
+  prevents in-place modification. The loader opens each `.so.N` symlink,
+  while the `Config` paths are the `readlink -f` targets, so a re-pointed
+  symlink is not caught by the stat check; the read-only root is the defense
+  there too. `ldd` lists only DT_NEEDED objects, and `libgomp.so.1` can
+  `dlopen` offload plugins, but none is installed, the environment is
+  scrubbed (`runner.go`), and the root is read-only, so no plugin load path
+  exists.
 - Regions: TSV words grouped into lines. Redaction in `ocr.Extract` judges
   each region as one unit, so a `password: <value>` line must stay one
   region. A mutation to word-level regions fails the redaction test. A label
@@ -198,9 +207,12 @@ covered end to end, and there is no QA-tier caller.
   `ocr.Extract`'s markers do not match a bare value.
   `TestExtractLeavesValueOnlyLineUnredacted` pins today's behavior; the fix
   belongs to the caller lane in #9782.
-- Pinning: the arbiter's confirmation is requested that image-level pinning
-  (base image digest plus apk versions) is the provenance of record, with the
-  per-file hashes as the runtime tamper check.
+- Pins in the product image (caller lane): the product or ingester image
+  must verify the pins at build time (`RUN sha256sum -c` over the binary,
+  the 15 libraries, and the model), so "pinned in the image" is enforced by
+  the build and not only by the proof script. The engine's `Config` pins
+  must come from a checked-in per-architecture pin file, not free-form
+  environment.
 - Mixed architectures: binary and library digests differ per architecture,
   so `ocr_engine_version` differs between an arm64 and an amd64 worker for
   the same release. A caller running mixed nodes sees version churn in

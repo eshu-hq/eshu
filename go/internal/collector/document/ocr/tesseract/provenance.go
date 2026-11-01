@@ -182,7 +182,12 @@ func (w *limitedWriter) Write(p []byte) (int, error) {
 // execs by path, not through the verified descriptor: the loader maps the
 // libraries by path regardless, and an in-place write to the held inode
 // would defeat fexecve too. The sandbox's read-only root filesystem is what
-// prevents in-place modification.
+// prevents in-place modification. The loader opens each .so.N symlink while
+// Config paths are the readlink -f targets, so a re-pointed symlink is not
+// caught here; the read-only root is the defense. ldd lists only DT_NEEDED
+// objects, and libgomp can dlopen offload plugins, but none is installed,
+// run scrubs the environment, and the root is read-only, so no plugin load
+// path exists.
 func (e *Engine) unchangedSinceConstruction() error {
 	for _, pinned := range e.pinned {
 		current, err := os.Stat(pinned.path)

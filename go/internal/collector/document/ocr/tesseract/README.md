@@ -152,18 +152,28 @@ proves behavior, not telemetry.
 - `MaxAddressSpaceBytes` is best effort: the limit lands just after exec and
   binfmt emulation applies it to qemu. The sandbox cgroup is the real
   memory ceiling.
-- Provenance of record is the image: the digest-pinned Alpine base plus the
-  apk versions in `scripts/ocr-sandbox/Dockerfile`. The per-file hashes
-  (binary, the 15-file library set from `ldd`, model) are the runtime tamper
-  check. Binary and library digests are per architecture;
-  `scripts/prove-ocr-sandbox.sh` pins arm64 and amd64 for
-  `tesseract-ocr=5.5.0-r0`.
+- Provenance of record: the digest-pinned Alpine 3.21 index
+  (`alpine:3.21@sha256:48b0309c…`) plus the exact, Alpine-signed apk version
+  of every package that owns an object `ldd` lists for `/usr/bin/tesseract`
+  (15 objects, 15 packages, same versions on arm64 and amd64) in
+  `scripts/ocr-sandbox/Dockerfile`. The per-architecture digests in
+  `scripts/prove-ocr-sandbox.sh` (binary, library set, eng.traineddata) are
+  the pin the proof enforces after every build and the engine re-checks at
+  construction and per call. Gate-2 criterion 'model digest pinned in the
+  image' is met for eng.traineddata (`sha256:daa0c97d…`); arbiter-eshu
+  ruling 2026-11-01 (pinning).
 - Because those digests are per architecture, `ocr_engine_version` differs
   between arm64 and amd64 workers for the same release. A caller on mixed
   nodes must not treat that difference as a reason to re-extract.
 - The engine execs by path, not through the verified descriptor: the loader
   maps libraries by path anyway, and the read-only root filesystem is what
-  prevents in-place modification.
+  prevents in-place modification. The loader opens each `.so.N` symlink,
+  while the `Config` paths are the `readlink -f` targets, so a re-pointed
+  symlink is not caught by the stat check; the read-only root is the defense
+  there too. `ldd` lists only DT_NEEDED objects, and `libgomp.so.1` can
+  `dlopen` offload plugins, but none is installed, the environment is
+  scrubbed (`runner.go`), and the root is read-only, so no plugin load path
+  exists.
 
 ## Related docs
 
