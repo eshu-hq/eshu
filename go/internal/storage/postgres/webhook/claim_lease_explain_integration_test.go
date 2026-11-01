@@ -8,7 +8,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -89,7 +88,7 @@ func openClaimLeaseExplainDB(t *testing.T, ctx context.Context, dsn string) *sql
 	if strings.Contains(dsn, "?") {
 		separator = "&"
 	}
-	db, err := sql.Open("pgx", dsn+separator+"options="+url.QueryEscape("-c search_path="+schemaName))
+	db, err := sql.Open("pgx", dsn+separator+"search_path="+schemaName)
 	if err != nil {
 		t.Fatalf("open proof connection: %v", err)
 	}

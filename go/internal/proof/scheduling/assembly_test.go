@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codetopicparallel"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type fakeAssemblyRows struct {
@@ -30,6 +31,7 @@ func (rows *fakeAssemblyRows) FieldDescriptions() []pgconn.FieldDescription { re
 func (rows *fakeAssemblyRows) Values() ([]any, error)                       { return nil, errors.New("not used") }
 func (rows *fakeAssemblyRows) RawValues() [][]byte                          { return nil }
 func (rows *fakeAssemblyRows) Conn() *pgx.Conn                              { return nil }
+func (rows *fakeAssemblyRows) TypeMap() *pgtype.Map                         { return nil }
 
 func (rows *fakeAssemblyRows) Next() bool {
 	if rows.index >= len(rows.values) {

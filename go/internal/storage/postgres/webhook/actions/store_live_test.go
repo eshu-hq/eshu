@@ -52,7 +52,7 @@ func localActionsStore(t *testing.T) (*actionsstore.Store, *sql.DB) {
 		t.Fatal(err)
 	}
 	query := parsed.Query()
-	query.Set("options", "-c search_path="+schema)
+	query.Set("search_path", schema)
 	parsed.RawQuery = query.Encode()
 	db, err := sql.Open("pgx", parsed.String())
 	if err != nil {
