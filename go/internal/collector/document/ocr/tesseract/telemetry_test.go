@@ -8,7 +8,10 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -128,7 +131,7 @@ func TestExtractRedactsCanariesBeforeFactsAndRecordsTelemetry(t *testing.T) {
 		ObservedAt:   time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC),
 		SourceName:   "docs/runbook.png",
 		DocumentID:   "doc:runbook",
-		Body:         fakePNG(t, 200, 100, "ok"),
+		Body:         append(fakePNG(t, 200, 100, "ok"), gateOnRSSSample(t, engine)...),
 	})
 	if err != nil {
 		t.Fatalf("Extract: %v", err)
@@ -261,6 +264,26 @@ func TestExtractWithNilTelemetryIsSafe(t *testing.T) {
 	if len(result.Sections) != 3 || result.Sections[0].SourceMetadata["ocr_engine"] != EngineName {
 		t.Fatalf("unexpected sections: %+v", result.Sections)
 	}
+}
+
+// gateOnRSSSample holds the next fake child alive until the engine's sampler
+// has read a non-zero VmHWM from it. It returns the token to append to the
+// image bytes. Call it before the engine serves a request.
+func gateOnRSSSample(t *testing.T, engine *Engine) []byte {
+	t.Helper()
+	gate := filepath.Join(t.TempDir(), "sampled")
+	var once sync.Once
+	engine.onRSSSample = func(value int64) {
+		if value <= 0 {
+			return
+		}
+		once.Do(func() {
+			if err := os.WriteFile(gate, nil, 0o600); err != nil {
+				t.Errorf("open gate: %v", err)
+			}
+		})
+	}
+	return []byte(fakeGateToken + gate + " ")
 }
 
 func assertNoCanary(t *testing.T, where, text string) {

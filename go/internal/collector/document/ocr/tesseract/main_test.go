@@ -55,6 +55,7 @@ func runFakeTesseract(stdin io.Reader, stdout io.Writer, stderr io.Writer) int {
 		}
 		mode = string(rest[:end])
 	}
+	waitForFakeGate(body)
 	_, _ = fmt.Fprintln(stderr, "Estimating resolution as 264")
 	switch mode {
 	case "ok":
@@ -159,6 +160,35 @@ func runFakeTesseract(stdin io.Reader, stdout io.Writer, stderr io.Writer) int {
 		return 0
 	default:
 		return 2
+	}
+}
+
+// fakeGateToken marks a gated run. The fake blocks after reading stdin until
+// the file named after the token exists, so a test can keep the child alive
+// until the parent's /proc sampler has read it. A zombie has no VmHWM, so a
+// child that exits first leaves the run with no peak-RSS sample.
+const fakeGateToken = "FAKEGATE:"
+
+// fakeGateTimeout bounds the wait so a lost handshake fails the calling
+// test instead of hanging it.
+const fakeGateTimeout = 10 * time.Second
+
+// waitForFakeGate polls for the gate file named in body, if any.
+func waitForFakeGate(body []byte) {
+	idx := bytes.Index(body, []byte(fakeGateToken))
+	if idx < 0 {
+		return
+	}
+	rest := body[idx+len(fakeGateToken):]
+	end := bytes.IndexAny(rest, " \n\x00")
+	if end < 0 {
+		end = len(rest)
+	}
+	path := string(rest[:end])
+	for deadline := time.Now().Add(fakeGateTimeout); time.Now().Before(deadline); time.Sleep(time.Millisecond) {
+		if _, err := os.Stat(path); err == nil {
+			return
+		}
 	}
 }
 

@@ -118,8 +118,12 @@ func (e *Engine) run(ctx context.Context, body []byte) (runResult, error) {
 		ticker := time.NewTicker(rssSampleInterval)
 		defer ticker.Stop()
 		for {
-			if value := sampleHighWaterRSS(cmd.Process.Pid); value > peak.Load() {
+			value := sampleHighWaterRSS(cmd.Process.Pid)
+			if value > peak.Load() {
 				peak.Store(value)
+			}
+			if e.onRSSSample != nil {
+				e.onRSSSample(value)
 			}
 			select {
 			case <-stopSampling:
