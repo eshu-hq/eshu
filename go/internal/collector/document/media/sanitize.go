@@ -19,10 +19,11 @@ import (
 // small because every segment in the window loses its text.
 const valueWindowSegments = 2
 
-// sensitiveKeywords are the words that mark a transcript segment as sensitive.
-// Unlike the patterns below, a keyword names a value rather than being one, so
-// only a keyword opens a value window.
-var sensitiveKeywords = []string{
+// legacyKeywords are the substring keywords the rule started with (#9786).
+// They stay the whole rule for source identities and mention hints, which are
+// labels such as "token-service", not speech. A transcript segment also gets the
+// spoken forms in spoken_keyword.go.
+var legacyKeywords = []string{
 	"credential_marker", "secret_marker", "token_marker", "password", "api_key", "private_key",
 }
 
@@ -34,23 +35,42 @@ var (
 	windowsPathPattern = regexp.MustCompile(`(?i)\b[a-z]:\\[^\s]+`)
 )
 
+// containsSensitiveMarker is the label rule for source identities and mention
+// hints: a legacy keyword or a value pattern. It does not fold spoken forms, so
+// a name such as "token-service" or "pin-assignments.wav" stays readable.
 func containsSensitiveMarker(text string) bool {
-	return containsSensitiveKeyword(text) ||
-		emailPattern.MatchString(text) ||
+	return containsLegacyKeyword(text) || containsSensitiveValuePattern(text)
+}
+
+// containsSensitiveSegment is the rule for one transcript segment: a spoken
+// keyword or a value pattern.
+func containsSensitiveSegment(text string) bool {
+	return containsSensitiveKeyword(text) || containsSensitiveValuePattern(text)
+}
+
+func containsSensitiveValuePattern(text string) bool {
+	return emailPattern.MatchString(text) ||
 		schemePattern.MatchString(text) ||
 		ticketPattern.MatchString(text) ||
 		unixPathPattern.MatchString(text) ||
 		windowsPathPattern.MatchString(text)
 }
 
-func containsSensitiveKeyword(text string) bool {
+func containsLegacyKeyword(text string) bool {
 	lower := strings.ToLower(text)
-	for _, keyword := range sensitiveKeywords {
+	for _, keyword := range legacyKeywords {
 		if strings.Contains(lower, keyword) {
 			return true
 		}
 	}
 	return false
+}
+
+// containsSensitiveKeyword reports whether a transcript segment holds a word
+// that names a secret, in any spoken form (#9788). Only a keyword opens a value
+// window; a value pattern does not.
+func containsSensitiveKeyword(text string) bool {
+	return containsLegacyKeyword(text) || containsSpokenKeyword(text)
 }
 
 // valueSegments reports, by index into segments, which segments fall in the

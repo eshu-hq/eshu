@@ -336,7 +336,7 @@ func skippedStatus(preflight media.Result) string {
 // segment has no marker of its own.
 func persistedContent(text string, maxChars int, isValue bool) (string, []string, bool) {
 	warnings := []string{}
-	if isValue || containsSensitiveMarker(text) {
+	if isValue || containsSensitiveSegment(text) {
 		return "[redacted]", []string{string(media.WarningSensitiveValueRedacted)}, true
 	}
 	if maxChars <= 0 {
