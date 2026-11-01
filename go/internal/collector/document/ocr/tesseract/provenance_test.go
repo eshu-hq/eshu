@@ -4,7 +4,9 @@
 package tesseract
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"os"
 	"regexp"
 	"strings"
@@ -151,14 +153,13 @@ func TestExtractClassifiesPreflightFailure(t *testing.T) {
 	}
 }
 
-// TestExtractLeavesValueOnlyLineUnredacted pins a known residual: line
-// grouping protects a secret only when tesseract puts its label on the same
-// line. In a form or column layout the value can land on its own line, and
-// ocr.Extract's marker list does not match a bare value. Tracked for the
-// caller lane in #9782.
-func TestExtractLeavesValueOnlyLineUnredacted(t *testing.T) {
+// TestExtractRedactsValueOnLineBelowLabel proves the #9782 rule through the
+// engine: tesseract puts the label and value on separate lines, the regions
+// stay separate, and ocr.Extract withholds the value. The redaction lives in
+// ocr.Extract; this package only observes its result.
+func TestExtractRedactsValueOnLineBelowLabel(t *testing.T) {
 	t.Parallel()
-	engine, _ := newTestEngine(t, nil)
+	engine, h := newTelemetryEngine(t, nil)
 
 	result, err := engine.Extract(context.Background(), ocr.Request{
 		ScopeID: "scope-ocr", GenerationID: "gen-1", SourceName: "docs/form.png",
@@ -170,10 +171,29 @@ func TestExtractLeavesValueOnlyLineUnredacted(t *testing.T) {
 	if len(result.Sections) != 2 {
 		t.Fatalf("sections = %d, want 2", len(result.Sections))
 	}
-	if result.Sections[0].SourceMetadata["redacted"] != "true" {
-		t.Fatal("label line was not redacted")
+	for index, section := range result.Sections {
+		if section.SourceMetadata["redacted"] != "true" || section.Content != "[redacted]" {
+			t.Fatalf("section %d = %q, want redacted", index, section.Content)
+		}
 	}
-	if result.Sections[1].Content != canaryPassword {
-		t.Fatalf("value-only line content = %q; if this now redacts, the residual is fixed: update this test, the README, and the issue", result.Sections[1].Content)
+	if got := h.counter(t, "eshu_dp_ocr_redacted_regions_total", nil); got != 2 {
+		t.Fatalf("redacted regions = %d, want 2", got)
+	}
+	persisted, err := json.Marshal(result.Envelopes)
+	if err != nil {
+		t.Fatalf("marshal envelopes: %v", err)
+	}
+	if bytes.Contains(persisted, []byte(canaryPassword)) {
+		t.Fatal("persisted envelopes carry the canary value")
+	}
+	if strings.Contains(h.logs.String(), canaryPassword) {
+		t.Fatal("logs carry the canary value")
+	}
+	for _, span := range h.spans.Ended() {
+		for _, attr := range span.Attributes() {
+			if strings.Contains(attr.Value.String(), canaryPassword) {
+				t.Fatalf("span %s attribute %s carries the canary value", span.Name(), attr.Key)
+			}
+		}
 	}
 }

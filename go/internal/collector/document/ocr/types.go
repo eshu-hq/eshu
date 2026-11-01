@@ -55,6 +55,8 @@ type Image struct {
 }
 
 // EngineResult is the source-neutral OCR output accepted by this package.
+// Regions must be in reading order. Extract keeps that order for sections and
+// uses it to find the value that follows a sensitive label.
 type EngineResult struct {
 	EngineName    string
 	EngineVersion string

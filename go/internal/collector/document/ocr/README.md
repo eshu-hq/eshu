@@ -90,6 +90,97 @@ row of its own; extraction throughput stays covered by the git-source
 collector metrics that cover documentation export throughput (see the
 collector documentation row in `docs/public/observability/telemetry-coverage.md`).
 
+## Label and value redaction
+
+A region is judged on its own text, so a bare value such as `Hunter2` matches no
+marker when OCR places it away from its `Password:` label. `Extract` closes that
+gap before any content is persisted (#9782). It withholds those values with the
+same `[redacted]` content, metadata, and warning as a marker hit. The rule lives
+in `labelValueRegions` in `sanitize.go`.
+
+Any region with a marker word from `sensitiveMarkers` opens a value window, not
+only one shaped like a label. The words around a marker are the least reliable
+part of OCR text, and each shape rule tried here left a hole: `(Password)`,
+`Password required`, `Password: I`. The STT twin in `document/media` uses the
+same rule (#9786). An email, URL, path, or ticket redacts its own region. If its
+text has no marker word, it opens no window: it is a value, not a word that
+introduces one. A pattern region that also holds a marker word, such as
+`password alice@example.com`, opens a window like any other marker region.
+
+A region is a value when either holds:
+
+- Window: it is one of the 2 regions after a marker region in engine order
+  (`labelValueWindow`). One covers a value directly below its label, and the
+  second covers a caption or other line between the two. Each marker region adds
+  a full window once, so stacked labels each cover their own value. A region
+  with no letter or digit does not use up the window, because box edges reach
+  OCR as `|` or `_`. That region is still withheld, since a password can be all
+  symbols. A blank region never becomes a section.
+- Row: it starts past the marker region's right edge and overlaps that region's
+  row by at least half the shorter height (`minLabelRowOverlap`). Tesseract
+  reads columns as separate blocks, which can put a value many regions after its
+  label. The order of the two columns does not matter. A region with no height
+  or width, or with a NaN or infinite bound, has no row, so it gets the window
+  only. A region that starts exactly at the marker's right edge, or overlaps
+  exactly half the shorter height, counts as on the row.
+
+`Extract` never sorts. `EngineResult.Regions` must be in reading order, because
+layout order is more accurate than a position sort on a multi-column page.
+
+The tradeoff is deliberate. Up to 2 ordinary lines after any marker region are
+hidden, including after a line that already holds its value, such as
+`password: hunter2`, and after prose that mentions a password. That costs a
+little documentation evidence. A leaked secret costs more, and ordinary text
+that follows no marker region is untouched. Windows add but stay bounded: k marker
+regions in a row hide at most k+1 regions with a letter or digit after them.
+Symbol-only regions between them are also withheld without using up the window,
+so the number of regions withheld can exceed k+1.
+
+Limits:
+
+- Marker words decide everything, so a label the word list misses opens no
+  window: `Secret:`, `API Key:`, and a misread `Passw0rd:` are not markers. In a
+  probe of degraded renders, `Password` came back verbatim or was lost whole, as
+  in `Confirm passwort`.
+- `Token:` and `Credentials:` are not markers either. #9793 tracks the marker
+  list.
+- A value more than 2 regions after its marker region, on another row, is not
+  caught.
+- A value above its label, or left of its label on the same row, is not withheld.
+- A region opens one window however many marker words it holds, so
+  `password: api_key:` followed by three values leaves the third in clear.
+- A table column is not covered. A header row such as `Service Password Owner`
+  opens a window over the next rows only, and each cell further down stays in
+  clear. That needs a column rule, not this one.
+
+Proof: `TestExtractRedactsValuesThatFollowALabelInReadingOrder`,
+`TestExtractRedactsValueInTheColumnBesideALabel`,
+`TestExtractFollowsEngineRegionOrder`,
+`TestExtractRowClauseHandlesInvalidAndTiedGeometry`,
+`TestExtractLabelValueRedactionStaysTruthful`, and the `form-stacked.png` and
+`form-columns.png` fixtures in `TestSandboxRealTesseract`.
+
+Performance Evidence: `BenchmarkBuildSectionsNoLabels` and
+`BenchmarkBuildSectionsLabelHeavy` on 500 regions, the tesseract default cap,
+with before and after test binaries run in turn at `-benchtime=2000x`, six runs
+each. Medians on a shared host: ordinary text went from 3.06 ms/op to 3.14 ms/op
+(13,405 to 13,906 allocs/op, one lowercase per region). The worst case for the
+row clause, 250 regions followed by 250 labels, went from 1.88 ms/op to 2.06
+ms/op. The row clause is regions times marker regions. The default cap of 500
+bounds it, but `Config.MaxRegions` has no upper limit, so a caller that raises
+the cap raises this cost. Either figure is small next to about 200 ms for one
+tesseract run.
+
+No-Regression Evidence: `go test -race ./internal/collector/document/ocr/...
+-count=1` passes, including the pre-existing extraction, skip, GIF, redaction,
+and local-engine PII suites.
+
+No-Observability-Change: the rule adds no metric, span, or log. A withheld value
+is a redacted section, so `eshu_dp_ocr_redacted_regions_total`, the
+`ocr.redacted_region_count` span attribute, and the `redacted_region_count` log
+field count it with no change. `TestExtractRedactsValueOnLineBelowLabel` asserts
+the count and that no canary reaches logs, spans, or envelopes.
+
 ## Dependencies
 
 The package depends on `internal/collector/preflight/picture` for metadata-only
@@ -135,7 +226,12 @@ readback surfaces already carry the emitted documentation facts.
   document IDs, external IDs, canonical URIs, source URIs, and source record
   IDs.
 - Sensitive-looking OCR text is not persisted as content. The section keeps
-  redaction metadata and stable hashes instead.
+  redaction metadata instead. Its `text_hash` and `excerpt_hash` are hashes of
+  the `[redacted]` placeholder, because an unsalted SHA-256 of a short secret
+  confirms a guess at it. `section_id` and `ordinal_path` keep the stable IDs of
+  redacted sections distinct.
+- A value that follows a sensitive label is withheld too, even when its own
+  text looks harmless. See "Label and value redaction".
 - OCR text remains document evidence. This package must not emit entity
   mentions, claim candidates, graph relationships, ownership truth, deployment
   truth, incident truth, or service truth.

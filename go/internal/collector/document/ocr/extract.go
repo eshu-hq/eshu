@@ -158,12 +158,19 @@ func buildSections(
 	sourceHash string,
 ) []docs.SectionPayload {
 	sections := make([]docs.SectionPayload, 0, len(ocrResult.Regions))
+	labelValues := labelValueRegions(ocrResult.Regions)
 	for i, region := range ocrResult.Regions {
 		text := strings.TrimSpace(region.Text)
 		if text == "" {
 			continue
 		}
-		content, warnings, redacted := persistedContent(text, req.Options.MaxSectionChars)
+		content, warnings, redacted := persistedContent(text, labelValues[i], req.Options.MaxSectionChars)
+		excerptHash := hashText(content)
+		textHash := hashText(text)
+		if redacted {
+			// A plain digest of a short secret confirms a guess at it.
+			textHash = excerptHash
+		}
 		regionID := firstNonEmpty(cleanID(region.RegionID), strconv.Itoa(i+1))
 		metadata := map[string]string{
 			"format_family":               formatImageOCR,
@@ -198,8 +205,8 @@ func buildSections(
 			OrdinalPath:      []int{len(sections) + 1},
 			Content:          content,
 			ContentFormat:    "text/plain",
-			TextHash:         hashText(text),
-			ExcerptHash:      hashText(content),
+			TextHash:         textHash,
+			ExcerptHash:      excerptHash,
 			SourceStartRef:   "frame:0",
 			SourceEndRef:     "frame:0",
 			SourceMetadata:   metadata,
@@ -221,9 +228,12 @@ func skipPreflight(preflight picture.Result) bool {
 	return false
 }
 
-func persistedContent(text string, maxChars int) (string, []string, bool) {
+// persistedContent returns the text a section may keep. It redacts a region
+// whose own text is sensitive and a labelValue region, whose text may look
+// harmless but sits where a label's value goes.
+func persistedContent(text string, labelValue bool, maxChars int) (string, []string, bool) {
 	warnings := []string{}
-	if containsSensitiveMarker(text) {
+	if labelValue || containsSensitiveMarker(text) {
 		return "[redacted]", []string{string(picture.WarningSensitiveValueRedacted)}, true
 	}
 	if maxChars <= 0 {

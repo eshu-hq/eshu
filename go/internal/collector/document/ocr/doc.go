@@ -9,6 +9,8 @@
 // documentation document and section facts; it does not infer services,
 // deployments, ownership, incidents, graph edges, or claim candidates from OCR
 // text. Unsafe source locations and source identity fields are redacted before
-// persistence. Runtime enablement, sandboxing, telemetry wiring, and dependency
+// persistence, as are sensitive regions and the regions that hold a sensitive
+// label's value, which is why engines must report regions in reading order.
+// Runtime enablement, sandboxing, telemetry wiring, and dependency
 // review remain caller-owned before any hosted extraction path is turned on.
 package ocr

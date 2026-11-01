@@ -28,6 +28,41 @@ var liveFixtureLines = []string{
 	"Contact " + canaryEmail + " today",
 }
 
+// liveFormFixture is a rendered form where tesseract splits a label from its
+// value, so the proof exercises the label and value rule in ocr.Extract.
+type liveFormFixture struct {
+	name          string
+	firstLine     string // exact text of the first region
+	valueDistance int    // regions from the label to the value; pins the layout
+	sections      int
+	redacted      int
+	keptLine      string // ordinary line that must survive the rule
+}
+
+// liveFormFixtures are the form layouts scripts/ocr-sandbox/Dockerfile renders.
+// The window redacts the two regions after the label, so form-stacked.png
+// redacts the label, the value, and one ordinary line. In form-columns.png the
+// window covers the labels below "Password:", and only the row clause reaches
+// the value.
+var liveFormFixtures = []liveFormFixture{
+	{
+		name:          "form-stacked.png",
+		firstLine:     "Deploy the Checkout Service to staging",
+		valueDistance: 1,
+		sections:      5,
+		redacted:      3,
+		keptLine:      "Ask the platform team for access",
+	},
+	{
+		name:          "form-columns.png",
+		firstLine:     "Credentials for the staging cluster live",
+		valueDistance: 5,
+		sections:      10,
+		redacted:      4,
+		keptLine:      "The checkout team owns these and they",
+	},
+}
+
 // liveEvidence is the per-fixture JSON line the sandbox proof script keeps.
 type liveEvidence struct {
 	Fixture        string  `json:"fixture"`
@@ -79,7 +114,7 @@ func TestSandboxRealTesseract(t *testing.T) {
 		if err != nil {
 			t.Fatalf("read %s: %v", name, err)
 		}
-		evidence := liveRecognize(t, engine, name, body)
+		evidence := liveRecognize(t, engine, name, body, liveFixtureLines[0])
 		evidence.Fixture = name
 		liveExtract(t, engine, name, body, &evidence)
 		line, _ := json.Marshal(evidence)
@@ -89,7 +124,58 @@ func TestSandboxRealTesseract(t *testing.T) {
 		}
 		assertLiveExtract(t, name, evidence)
 	}
+	for _, form := range liveFormFixtures {
+		liveForm(t, engine, fixtures, form)
+	}
 	liveBounds(t, cfg, fixtures)
+}
+
+// liveForm proves one form layout end to end. It first checks that tesseract
+// really split the label from the value, because a layout that keeps them on
+// one line would pass without exercising the rule. It logs only indexes and
+// counts, never region text.
+func liveForm(t *testing.T, engine *Engine, fixtures string, form liveFormFixture) {
+	t.Helper()
+	body, err := os.ReadFile(filepath.Join(fixtures, form.name))
+	if err != nil {
+		t.Fatalf("read %s: %v", form.name, err)
+	}
+	evidence := liveRecognize(t, engine, form.name, body, form.firstLine)
+	evidence.Fixture = form.name
+	recognized, err := engine.Recognize(context.Background(), ocr.Image{Body: body})
+	if err != nil {
+		t.Fatalf("%s Recognize: %v", form.name, err)
+	}
+	label, value := -1, -1
+	for index, region := range recognized.Regions {
+		switch region.Text {
+		case "Password:":
+			label = index
+		case canaryPassword:
+			value = index
+		}
+	}
+	if label < 0 || value-label != form.valueDistance {
+		t.Fatalf("%s: label at region %d, value at region %d, want the value %d regions after the label; the fixture no longer reproduces the layout",
+			form.name, label, value, form.valueDistance)
+	}
+	result := liveExtract(t, engine, form.name, body, &evidence)
+	line, _ := json.Marshal(evidence)
+	t.Logf("OCR_SANDBOX_EVIDENCE %s", line)
+	if !evidence.Deterministic || !evidence.CleanLineMatch || evidence.CanaryLeak {
+		t.Fatalf("%s failed sandbox evidence: %s", form.name, line)
+	}
+	if evidence.ExtractStatus != "completed" || evidence.Sections != form.sections || evidence.Redacted != form.redacted {
+		t.Fatalf("%s: status %q, %d sections, %d redacted, want completed, %d, %d",
+			form.name, evidence.ExtractStatus, evidence.Sections, evidence.Redacted, form.sections, form.redacted)
+	}
+	kept := false
+	for _, section := range result.Sections {
+		kept = kept || section.Content == form.keptLine
+	}
+	if !kept {
+		t.Fatalf("%s: an ordinary line past the rule was not kept", form.name)
+	}
 }
 
 // assertLiveExtract pins the extraction result per format. PNG, JPEG, and
@@ -133,7 +219,7 @@ func parseLibraryPins(t *testing.T, value string) []PinnedFile {
 	return pins
 }
 
-func liveRecognize(t *testing.T, engine *Engine, name string, body []byte) liveEvidence {
+func liveRecognize(t *testing.T, engine *Engine, name string, body []byte, firstLine string) liveEvidence {
 	t.Helper()
 	const runs = 5
 	var first ocr.EngineResult
@@ -165,11 +251,11 @@ func liveRecognize(t *testing.T, engine *Engine, name string, body []byte) liveE
 	}
 	textSum := sha256.Sum256([]byte(strings.Join(texts, "\n")))
 	evidence.TextSHA256 = hex.EncodeToString(textSum[:])
-	evidence.CleanLineMatch = len(first.Regions) > 0 && first.Regions[0].Text == liveFixtureLines[0]
+	evidence.CleanLineMatch = len(first.Regions) > 0 && first.Regions[0].Text == firstLine
 	return evidence
 }
 
-func liveExtract(t *testing.T, engine *Engine, name string, body []byte, evidence *liveEvidence) {
+func liveExtract(t *testing.T, engine *Engine, name string, body []byte, evidence *liveEvidence) ocr.Result {
 	t.Helper()
 	result, err := engine.Extract(context.Background(), ocr.Request{
 		ScopeID: "scope-ocr-sandbox", GenerationID: "gen-sandbox",
@@ -189,6 +275,7 @@ func liveExtract(t *testing.T, engine *Engine, name string, body []byte, evidenc
 	}
 	persisted, _ := json.Marshal(result.Envelopes)
 	evidence.CanaryLeak = bytes.Contains(persisted, []byte("Hunter2")) || bytes.Contains(persisted, []byte("alice.canary"))
+	return result
 }
 
 // liveBounds proves the caps fail closed against the real binary.

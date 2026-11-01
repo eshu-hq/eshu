@@ -39,8 +39,12 @@
 - Safe images with no OCR regions emit a document fact with `ocr_status=no_text`.
 - Multi-frame GIF input emits first-frame OCR sections and keeps
   `partial_extraction` metadata.
-- Sensitive OCR regions persist redacted content with hashes and redaction
-  metadata.
+- Sensitive OCR regions persist redacted content, redaction metadata, and
+  hashes of the placeholder. Never persist a digest of the original text.
+- A region that holds a label's value persists the same way, even when its own
+  text looks harmless. The rule is in the README under "Label and value
+  redaction". It depends on `EngineResult.Regions` being in reading order, and
+  `Extract` must not sort them.
 
 ## Anti-patterns
 
