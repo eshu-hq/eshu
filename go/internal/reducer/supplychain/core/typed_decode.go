@@ -95,6 +95,11 @@ func canonicalSupplyChainAffectedPackageID(packageID string, purl string) string
 // MatchCriteriaID are an either-or identity), so the only decode error this
 // can return is a genuine malformed-payload or unsupported-major condition,
 // never a missing-field input_invalid classification.
+//
+// The four NVD logic fields (configuration and node operator and negate) are
+// optional on the typed struct. An absent negate flag decodes to false, so a
+// fact from before the collector kept the flag, or from a non-NVD source, is
+// never read as negated. Negated() on the returned row decides the downgrade.
 func supplyChainAffectedProductFromEnvelope(envelope facts.Envelope) (supplychainmodel.AffectedProduct, error) {
 	product, err := schemadecode.DecodeVulnerabilityAffectedProduct(envelope)
 	if err != nil {
@@ -106,6 +111,11 @@ func supplyChainAffectedProductFromEnvelope(envelope facts.Envelope) (supplychai
 		Criteria:        payloadcore.DerefString(product.Criteria),
 		MatchCriteriaID: payloadcore.DerefString(product.MatchCriteriaID),
 		Vulnerable:      product.Vulnerable != nil && *product.Vulnerable,
+
+		ConfigurationOperator: payloadcore.DerefString(product.SourceConfigurationOperator),
+		ConfigurationNegate:   product.SourceConfigurationNegate != nil && *product.SourceConfigurationNegate,
+		NodeOperator:          payloadcore.DerefString(product.SourceNodeOperator),
+		NodeNegate:            product.SourceNodeNegate != nil && *product.SourceNodeNegate,
 	}, nil
 }
 

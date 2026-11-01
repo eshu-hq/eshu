@@ -144,7 +144,16 @@ func addSupplyChainImpactIndexEntry(
 			return factdecode.PartitionDecodeFailures(envelope, err)
 		}
 		if product.CVEID != "" && product.Criteria != "" && product.Vulnerable {
-			index.affectedProducts[product.CVEID] = append(index.affectedProducts[product.CVEID], product)
+			// A match inside a negated NVD configuration or node inverts the
+			// claim, so it must never become an affected result. Facts carry no
+			// node id, which rules out evaluating the inverted expression; the
+			// conservative downgrade is to leave the match out of the index
+			// (#9696). The count keeps the exclusion visible to operators.
+			if product.Negated() {
+				index.negatedProductsExcluded++
+			} else {
+				index.affectedProducts[product.CVEID] = append(index.affectedProducts[product.CVEID], product)
+			}
 		}
 	case correlation.PackageConsumptionFactKind:
 		consumption, err := supplyChainConsumptionFromEnvelope(envelope)

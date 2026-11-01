@@ -67,12 +67,39 @@ type AffectedRangeEvent struct {
 
 // AffectedProduct is the reducer's internal projection of one CPE-based
 // affected-product match record for an advisory.
+//
+// The four logic fields carry the NVD applicability-tree context the
+// collector keeps on every match. Facts carry no node id, so the reducer can
+// not rebuild AND semantics: the operators are retained for operators and a
+// future node-id contract, and only the negate flags change a result (see
+// Negated).
 type AffectedProduct struct {
 	FactID          string
 	CVEID           string
 	Criteria        string
 	MatchCriteriaID string
 	Vulnerable      bool
+
+	// ConfigurationOperator is the NVD configuration-level operator ("AND"
+	// or "OR"), or "" when the fact did not carry one.
+	ConfigurationOperator string
+	// ConfigurationNegate reports that the whole NVD configuration holding
+	// this match is negated.
+	ConfigurationNegate bool
+	// NodeOperator is the NVD node-level operator ("AND" or "OR"), or ""
+	// when the fact did not carry one.
+	NodeOperator string
+	// NodeNegate reports that the NVD node holding this match is negated.
+	NodeNegate bool
+}
+
+// Negated reports whether NVD negates the configuration or the node that holds
+// this match. A negated match inverts the vulnerability claim, so a reducer
+// must never report it as an affected product. This is the conservative
+// downgrade: it refuses an affected result without trying to evaluate the
+// inverted boolean expression, which needs node ids the facts do not carry.
+func (p AffectedProduct) Negated() bool {
+	return p.ConfigurationNegate || p.NodeNegate
 }
 
 // PackageConsumption is the reducer's internal projection of one

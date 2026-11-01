@@ -70,6 +70,10 @@ type supplyChainImpactIndex struct {
 	// provably retracted: the unreadable record may be the one that still asserts
 	// the vulnerability, so retraction fails toward showing the finding.
 	unreadableCVEs map[string]struct{}
+
+	// negatedProductsExcluded counts vulnerable CPE matches left out of
+	// affectedProducts because their NVD configuration or node is negated.
+	negatedProductsExcluded int
 }
 
 // buildSupplyChainImpactIndex and buildSupplyChainImpactIndexWithQuarantine

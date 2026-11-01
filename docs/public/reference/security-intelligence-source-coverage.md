@@ -303,7 +303,7 @@ precise findings; manifest ranges remain partial evidence. RubyGems matching
 uses the same reducer-owned exact-version gate as other precise lockfile
 ecosystems: git/path Bundler dependencies remain ambiguous source evidence and
 are not admitted as public RubyGems registry versions. SBOM versions match only for supported package ecosystems when the installed version matches the advisory.
-Missing, conflicting, malformed, or outside-range versions remain `possibly_affected` despite image attachment; product/CPE paths are separate.
+Missing, conflicting, malformed, or outside-range versions remain `possibly_affected` despite image attachment; product/CPE paths are separate. A CPE match whose NVD configuration or node is negated never produces an affected result, because negation inverts the claim. When one CPE repeats across configurations of a CVE, the collector keeps it negated only if every occurrence is negated. NVD AND/OR operators are kept but change no result: facts carry no node id, so the reducer cannot rebuild AND groups.
 Findings preserve `observed_version`,
 `requested_range`, the advisory vulnerable range (`vulnerable_range`),
 `fixed_version`, malformed or unsupported state, and `match_reason` as separate

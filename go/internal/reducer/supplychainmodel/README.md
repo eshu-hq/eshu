@@ -48,7 +48,7 @@ alongside the DTOs — see "Exported surface" below.
 | `AffectedPackage` | one advisory-to-package affected-range record |
 | `AffectedRange` | one typed version-range event group |
 | `AffectedRangeEvent` | one introduced/fixed/last-affected/limit boundary |
-| `AffectedProduct` | one CPE-based affected-product match |
+| `AffectedProduct` | one CPE-based affected-product match, with its NVD operator and negate flags (`Negated()` blocks an affected result) |
 | `PackageConsumption` | one manifest/lockfile package-consumption correlation |
 | `SBOMComponent` | one SBOM component record |
 | `OSPackage` | one OS-package vulnerability-scan record |

@@ -17,6 +17,14 @@ through the default domain catalog; `go/cmd/reducer` wires the Postgres
 writer. Query surfaces read the durable facts; they never import this
 package.
 
+A CPE match whose NVD configuration or node is negated is not indexed and never
+produces an affected result: negation inverts the claim and facts carry no node
+id, so the reducer does not evaluate it. The NVD collector emits a match negated
+only when every occurrence is, so order does not matter. The operators are
+decoded but change no result. Each pass reports the excluded count as
+`Result.SubSignals["negated_affected_products_excluded"]` (0 when none; per
+pass, no CVE id, includes matches that would not have produced a finding).
+
 For package advisories, an attached SBOM image path preserves package and
 image evidence while the ecosystem matcher decides version truth. In-range
 versions are `affected_exact`; known fixed versions remain
