@@ -43,6 +43,30 @@ version — pinning this module pins the fixture pack too.
   fields the SQL readiness reader already uses. This is an additive payload
   schema change; no external SDK release is claimed here (#9227).
 
+- `vulnerability.cve` gains two optional fields, `status` and `replaced_by`
+  (issue #9695, additive minor). `status` is the source-reported lifecycle
+  status: the NVD collector writes the CVE API 2.0 `vulnStatus` verbatim, and
+  the OSV collector will write `withdrawn` on a record whose `withdrawn`
+  timestamp is set (#9695; the extracted collector does not emit it yet). A reducer compares it case-insensitively and treats only `rejected`
+  and `withdrawn` as the source retracting the advisory; any other value, new
+  or unknown, retracts nothing. `replaced_by` lists the CVE ids a source names
+  as the replacement, in source order. It is filled only from structured source
+  data (the CVE Record Format `cnaRejectedContainer.replacedBy`); the NVD API
+  2.0 and OSV formats have no such field, so their collectors never write it. A
+  fact without either key decodes as before. A value of the wrong JSON type (a
+  number for `status`, a string for `replaced_by`) now fails the decode and
+  quarantines the fact as `input_invalid`, where the extra key used to be
+  ignored. Mirrors `github.com/eshu-hq/eshu-sdk/factschema` `v0.1.0-rc.12`.
+- `vulnerability.affected_product` gains four optional fields the NVD
+  collector already emitted: `source_configuration_operator`,
+  `source_configuration_negate`, `source_node_operator`, and
+  `source_node_negate` (issue #9696, additive minor). A nil negate flag means
+  an older fact that did not carry it. Facts carry no node id, so a reducer can
+  use the negate flags only to refuse an affected result; it cannot rebuild AND
+  groups from the operators. A flag of the wrong JSON type now fails the decode
+  and quarantines the fact as `input_invalid`. Mirrors
+  `github.com/eshu-hq/eshu-sdk/factschema` `v0.1.0-rc.12`.
+
 ## [0.3.0] - 2026-10-28
 
 Additive post-`v0.2.0` changes only — new fact kinds and optional fields,
