@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	// labelValueWindow is how many non-blank regions after a marker word count
-	// as its value. One covers a value directly below its label. The second
+	// labelValueWindow is how many regions with a letter or digit after a marker
+	// region count as its value. One covers a value directly below its label. The second
 	// covers a caption or other line between the two. Every extra region hides
 	// one more line of ordinary text from a document, so the window stays small
 	// and the row clause covers columns instead.
@@ -70,10 +70,10 @@ func isLetterOrDigit(r rune) bool {
 // marker. Any region with a marker word opens a window, not only one shaped
 // like a label: the words around a marker are the least reliable part of OCR
 // text, and a leaked secret costs more than a hidden line. A region is a value
-// when it falls in the window of labelValueWindow non-blank regions after a
-// marker word, or when it sits to the right of a marker word on the same row.
-// Each marker word adds a full window, so stacked labels each cover their own
-// value. The row clause exists because tesseract reads columns as separate
+// when it falls in the window of labelValueWindow regions after a marker
+// region, or when it sits to the right of a marker region on the same row. Each
+// marker region adds a full window once, however many marker words it holds, so
+// stacked labels each cover their own value. The row clause exists because tesseract reads columns as separate
 // blocks, which can put a value in the next column many regions after its
 // label.
 //
@@ -120,11 +120,11 @@ func rightOfOnSameRow(region Bounds, label Bounds) bool {
 	return overlap >= minLabelRowOverlap*min(region.Height, label.Height)
 }
 
-// usableBounds rejects a region with no height and any NaN or infinite value,
-// which an engine should never report and which compare unpredictably.
+// usableBounds rejects a region with no height or width and any NaN or infinite
+// value, which an engine should never report and which compare unpredictably.
 func usableBounds(bounds Bounds) bool {
 	sum := bounds.X + bounds.Y + bounds.Width + bounds.Height
-	return bounds.Height > 0 && !math.IsNaN(sum) && !math.IsInf(sum, 0)
+	return bounds.Width > 0 && bounds.Height > 0 && !math.IsNaN(sum) && !math.IsInf(sum, 0)
 }
 
 func safeIdentity(value string, prefix string) (string, bool) {

@@ -93,6 +93,29 @@ func TestExtractRedactsValueInTheColumnBesideALabel(t *testing.T) {
 	}
 }
 
+// TestExtractPatternRegionOpensNoRow pins that an email, URL, path, or ticket
+// redacts only its own region. It is a value, not a word that introduces one,
+// so the text beside it on the row stays.
+func TestExtractPatternRegionOpensNoRow(t *testing.T) {
+	t.Parallel()
+
+	for _, pattern := range []string{"alice@example.com", "https://internal.example.com/x", "/home/alice/notes", "OPS-1234"} {
+		pattern := pattern
+		t.Run(pattern, func(t *testing.T) {
+			t.Parallel()
+
+			regions := []Region{
+				{Text: pattern, Bounds: Bounds{X: 0.02, Y: 0.26, Width: 0.11, Height: 0.05}},
+				{Text: "Release checklist", Bounds: Bounds{X: 0.53, Y: 0.26, Width: 0.30, Height: 0.05}},
+			}
+			got := persistedContents(extractRegions(t, Options{}, regions))
+			if want := "[redacted]|Release checklist"; strings.Join(got, "|") != want {
+				t.Fatalf("persisted content = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
 // TestExtractRowClauseHandlesInvalidAndTiedGeometry keeps the row clause
 // deterministic on bounds an engine should never send and on exact ties. Bad
 // geometry gets no row match, so the region falls back to the reading-order
@@ -115,6 +138,13 @@ func TestExtractRowClauseHandlesInvalidAndTiedGeometry(t *testing.T) {
 		{name: "probe starts exactly at the marker's right edge", marker: marker, probe: Bounds{X: 0.25, Y: 0.25, Width: 0.25, Height: 0.5}, wantRedacted: true},
 		{name: "probe overlaps exactly half the shorter height", marker: marker, probe: Bounds{X: 0.5, Y: 0.5, Width: 0.25, Height: 0.5}, wantRedacted: true},
 		{name: "probe overlaps under half the shorter height", marker: marker, probe: Bounds{X: 0.5, Y: 0.625, Width: 0.25, Height: 0.5}},
+		{name: "tall value over half the shorter height, under half the taller", marker: Bounds{Y: 0.3, Width: 0.25, Height: 0.1}, probe: Bounds{X: 0.5, Y: 0.25, Width: 0.25, Height: 0.5}, wantRedacted: true},
+		{name: "probe overlaps just under half the shorter height", marker: marker, probe: Bounds{X: 0.5, Y: 0.5025, Width: 0.25, Height: 0.5}},
+		{name: "probe starts inside the marker's horizontal span", marker: marker, probe: Bounds{X: 0.125, Y: 0.25, Width: 0.25, Height: 0.5}},
+		{name: "negative marker width does not reach a region left of the marker", marker: Bounds{X: 0.5, Y: 0.25, Width: -0.45, Height: 0.5}, probe: Bounds{X: 0.2, Y: 0.25, Width: 0.1, Height: 0.5}},
+		{name: "zero marker width", marker: Bounds{X: 0.1, Y: 0.25, Height: 0.5}, probe: onRow},
+		{name: "negative probe width", marker: marker, probe: Bounds{X: 0.5, Y: 0.25, Width: -0.25, Height: 0.5}},
+		{name: "zero probe width", marker: marker, probe: Bounds{X: 0.5, Y: 0.25, Height: 0.5}},
 		{name: "zero probe height", marker: marker, probe: Bounds{X: 0.5, Y: 0.25, Width: 0.25}},
 		{name: "negative probe height", marker: marker, probe: Bounds{X: 0.5, Y: 0.25, Width: 0.25, Height: -0.5}},
 		{name: "zero marker height", marker: Bounds{Width: 0.25, Y: 0.25}, probe: onRow},

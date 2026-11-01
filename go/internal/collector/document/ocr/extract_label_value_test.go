@@ -107,6 +107,16 @@ func TestExtractRedactsValuesThatFollowALabelInReadingOrder(t *testing.T) {
 			want:    []string{redacted, redacted, redacted, redacted, redacted},
 		},
 		{
+			name:    "a region with two marker words opens one window",
+			regions: stackedRegions("password: api_key:", labelValueCanary, "SecondCanaryValue", "Rollback steps"),
+			want:    []string{redacted, redacted, redacted, "Rollback steps"},
+		},
+		{
+			name:    "a value of digits only uses a window slot",
+			regions: stackedRegions("Password:", "123456", "Next", "Rollback"),
+			want:    []string{redacted, redacted, redacted, "Rollback"},
+		},
+		{
 			name:    "a value of symbols only is withheld and keeps the window open",
 			regions: stackedRegions("Password:", "*!#$%", "Release checklist", "Next step", "Rollback steps"),
 			want:    []string{redacted, redacted, redacted, redacted, "Rollback steps"},
@@ -317,6 +327,22 @@ func TestExtractRedactedSectionHashesConfirmNoGuess(t *testing.T) {
 	kept := result.Sections[5]
 	if kept.TextHash != hashText("Rollback steps") || kept.ExcerptHash != hashText("Rollback steps") {
 		t.Fatalf("kept section hashes = (%q, %q), want the hash of its text", kept.TextHash, kept.ExcerptHash)
+	}
+}
+
+// TestExtractRedactedSectionsWithOneRegionIDKeepDistinctStableIDs covers an
+// engine that repeats a region ID. Both hashes are of the placeholder, so the
+// ordinal path alone keeps the two redacted sections apart.
+func TestExtractRedactedSectionsWithOneRegionIDKeepDistinctStableIDs(t *testing.T) {
+	t.Parallel()
+
+	regions := stackedRegions("Password:", labelValueCanary)
+	regions[0].RegionID, regions[1].RegionID = "repeated", "repeated"
+	result := extractRegions(t, Options{}, regions)
+
+	first, second := docs.SectionStableID(result.Sections[0]), docs.SectionStableID(result.Sections[1])
+	if first == second {
+		t.Fatalf("both redacted sections have stable id %q", first)
 	}
 }
 
