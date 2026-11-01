@@ -5,6 +5,7 @@ package tesseract
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"os/exec"
 	"strconv"
@@ -12,6 +13,11 @@ import (
 
 	"golang.org/x/sys/unix"
 )
+
+// errNonPositiveAddressSpace guards the int64 to uint64 conversion in
+// limitAddressSpace. Config validation already rejects such a limit; this
+// keeps the helper safe on its own.
+var errNonPositiveAddressSpace = errors.New("address-space limit must be positive")
 
 // configureProcess starts the child in its own process group and makes
 // cancellation kill the whole group, so an OpenMP worker or helper the
@@ -35,7 +41,10 @@ func configureProcess(cmd *exec.Cmd) {
 // model or decodes the image. The sandbox cgroup stays the authoritative
 // memory ceiling.
 func limitAddressSpace(pid int, limit int64) error {
-	value := uint64(limit)
+	if limit <= 0 {
+		return errNonPositiveAddressSpace
+	}
+	value := uint64(limit) // #nosec G115 -- limit is checked positive just above
 	return unix.Prlimit(pid, unix.RLIMIT_AS, &unix.Rlimit{Cur: value, Max: value}, nil)
 }
 

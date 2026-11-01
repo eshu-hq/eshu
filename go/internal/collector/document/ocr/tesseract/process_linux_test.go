@@ -5,6 +5,7 @@ package tesseract
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"strings"
 	"testing"
@@ -79,6 +80,19 @@ func TestParseVmHWM(t *testing.T) {
 	for input, want := range cases {
 		if got := parseVmHWM([]byte(input)); got != want {
 			t.Fatalf("parseVmHWM(%q) = %d, want %d", input, got, want)
+		}
+	}
+}
+
+// TestLimitAddressSpaceRejectsNonPositive pins the guard in front of the
+// int64 to uint64 conversion: a zero or negative limit must never reach
+// prlimit, where it would become a huge or a zero cap. The pid is one no
+// process owns, so a missing guard would surface as a different error.
+func TestLimitAddressSpaceRejectsNonPositive(t *testing.T) {
+	for _, limit := range []int64{0, -1, -1 << 40} {
+		err := limitAddressSpace(1<<22+7, limit)
+		if !errors.Is(err, errNonPositiveAddressSpace) {
+			t.Fatalf("limitAddressSpace(%d) = %v, want errNonPositiveAddressSpace", limit, err)
 		}
 	}
 }

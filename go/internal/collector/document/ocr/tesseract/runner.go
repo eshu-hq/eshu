@@ -70,9 +70,9 @@ func (b *cappedBuffer) state() (bool, int64) {
 }
 
 // run executes the pinned binary once: no shell, no PATH, a scrubbed
-// environment, a private 0700 working directory removed on every exit path,
-// image bytes on stdin, capped stdout and stderr, RLIMIT_AS on the child,
-// and the run deadline. Stderr content is counted and discarded; it is never
+// environment, a private working directory (os.MkdirTemp creates it 0700)
+// removed on every exit path, image bytes on stdin, capped stdout and stderr,
+// RLIMIT_AS on the child, and the run deadline. Stderr content is counted and discarded; it is never
 // returned or logged.
 func (e *Engine) run(ctx context.Context, body []byte) (runResult, error) {
 	scratch, err := os.MkdirTemp(e.cfg.ScratchDir, "eshu-ocr-")
@@ -80,9 +80,6 @@ func (e *Engine) run(ctx context.Context, body []byte) (runResult, error) {
 		return runResult{}, failure(OutcomeInternal, "create scratch dir", err)
 	}
 	defer func() { _ = os.RemoveAll(scratch) }()
-	if err := os.Chmod(scratch, 0o700); err != nil {
-		return runResult{}, failure(OutcomeInternal, "restrict scratch dir", err)
-	}
 
 	runCtx, cancel := context.WithTimeout(ctx, e.cfg.Timeout)
 	defer cancel()
