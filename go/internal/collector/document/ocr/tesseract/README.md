@@ -150,6 +150,10 @@ or changed; the seam is not an operator signal.
 
 ## Gotchas / invariants
 
+- A start failure is classified like a running one: a caller context that
+  ended is `canceled` and a passed run deadline is `timeout`, even when
+  `cmd.Start` returns before the process exists. Only a start failure with
+  both contexts live (missing or non-executable binary) is `exec_failed`.
 - Never put subprocess stdout or stderr into an error, log, or span.
 - Keep regions line-grouped; word regions split a secret from its label and
   defeat redaction.
