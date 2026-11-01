@@ -3,9 +3,10 @@
 ## Purpose
 
 `whispercpp` is the local speech-to-text backend behind the
-`document/media` `Engine` contract (#9729, gate 2 of #8879). It runs a pinned
-whisper.cpp `whisper-cli` binary out of process with a pinned ggml model and
-returns timed transcript segments. `media.Extract` then redacts and emits
+`document/media` `Engine` contract (#9729, gate 2 of #8879). It runs a
+whisper.cpp `whisper-cli` binary, built from a pinned source tag and
+digest-verified at construction, out of process with a sha256-pinned ggml
+model, and returns timed transcript segments. `media.Extract` then redacts and emits
 facts through its existing path. The DTMF decoder in `../dtmf` stays as the
 deterministic fixture backend.
 
@@ -49,12 +50,15 @@ unchanged. Cloud or hosted transcription is excluded by design 1737
 
 | Item | Pin |
 | --- | --- |
-| whisper.cpp | `v1.9.5`, tag commit `d1be6fde11ac6e0407606b4e42fe72d34add8037`, MIT |
+| whisper.cpp source | `v1.9.5`, tag commit `d1be6fde11ac6e0407606b4e42fe72d34add8037`, MIT. Source-pinned: the build checks out the tag and fails unless HEAD equals that commit. |
+| whisper-cli binary | Built from that source; the binary digest is not reproducible across toolchains. The operator passes the digest of the binary it built, and `New` verifies it. The proof script hashes the binary it extracts from its own image. |
 | Model | `ggml-base.en.bin`, Hugging Face `ggerganov/whisper.cpp` revision `5359861c739e955e79d9a303bcbc70fb988958b1`, 147964211 bytes, sha256 `a03779c86df3323075f5e796cb2ce5029f00ec8869eee3fdfb897afe36c6d002`, model card license MIT |
 | Build | static ggml/whisper libraries, `GGML_NATIVE=OFF`, `GGML_OPENMP=OFF`, no ffmpeg, SDL, or curl |
 
-`New` refuses to build an `Engine` unless both the binary and the model match
-their sha256 pins (`ErrDigestMismatch`). Section facts record
+`New` refuses to build an `Engine` unless the built binary matches the
+digest the caller supplies and the model matches its fixed sha256 pin
+(`ErrDigestMismatch`). The proof Dockerfile also pins its frontend and base
+image by digest and every apk package by exact version. Section facts record
 `transcript_engine=whisper.cpp`, `transcript_engine_version`,
 `transcript_model`, and `transcript_model_digest`.
 
@@ -102,7 +106,49 @@ suppressed; plain linear interpolation let it through at 0.589 of input RMS.
 16 kHz input is copied without resampling. The engine therefore parses only
 a WAV this package wrote.
 
+### Limits and design ceilings
+
+Defaults sit at or below the design 1737 section 6 audio/video ceilings, and
+`New` rejects any configured value above them. Raising one needs a design
+update and security review.
+
+| Limit | Default | Ceiling (section 6) |
+| --- | ---: | ---: |
+| `MaxInputBytes` | 64 MiB | 250 MiB |
+| `MaxDurationMillis` | 10 minutes | 30 minutes |
+| `Timeout` | 10 minutes | 10 minutes |
+| `MaxSegments` | 1,000 | 1,000 chunks |
+| `MaxSegmentChars` | 4,096 runes | 16 KiB per chunk (4,096 runes at 4 bytes) |
+| `MaxStdoutBytes` | 16 MiB | 512 MiB scratch |
+| `MaxStderrBytes` | 64 KiB | none in section 6 |
+| `MaxAddressSpaceBytes` | off | none in section 6; the container memory cap applies |
+
 ## Execution and bounds
+
+### Required runtime sandbox (caller-applied)
+
+The engine does not sandbox itself. A caller MUST run the engine, meaning
+the Go process that calls `Transcribe` and therefore its `whisper-cli`
+children, inside a container or namespace with this profile:
+
+- no network (`--network none`); design 1737 section 6 requires external
+  network access disabled for transcript extraction;
+- a read-only root filesystem (`--read-only`), with the binary and model on
+  it, so the files `New` hashed cannot change afterwards;
+- all capabilities dropped (`--cap-drop ALL`) and
+  `--security-opt no-new-privileges:true`;
+- a non-root user (the proof uses `65532:65532`);
+- memory and PID caps (the proof uses `--memory 2g --memory-swap 2g
+  --pids-limit 64 --cpus 4`).
+
+This is the gate-2 profile the arbiter ruling of 2026-11-01 requires and
+that `scripts/verify-media-transcript-sandbox.sh` proves. `runProcess` only
+adds an empty environment, `Dir=/`, its own process group, and the optional
+`RLIMIT_AS`. Wiring the engine into a networked or writable process meets
+every in-package check and still violates the design, so the caller lane
+must prove this profile in its own deployment.
+
+### In-process bounds
 
 `runProcess` uses `exec.CommandContext` with the fixed argument vector, an
 empty environment, `Dir=/`, stdin audio, and its own process group. It
@@ -110,9 +156,10 @@ creates no temporary files. Cancellation, the wall-clock `Timeout`, and any
 stdout or stderr cap breach kill the whole process group. `WaitDelay` bounds
 pipe draining. Input bytes and header duration are checked before decode
 and exec. Segment count and length are checked after parsing.
-`MaxAddressSpaceBytes` sets `RLIMIT_AS` through `prlimit` right after start
-(Linux only), a few microseconds before model load. The container memory
-limit stays the primary memory cap. Other Unix systems reject a configured
+`MaxAddressSpaceBytes` sets `RLIMIT_AS` through `prlimit` right after
+`Start` (Linux only). The engine runs uncapped between exec and that call,
+and the length of that window was not measured. The container memory limit
+stays the primary memory cap. Other Unix systems reject a configured
 address-space cap. Non-Unix platforms are rejected because they lack
 process-group kill.
 
@@ -218,8 +265,9 @@ the `eshu-ingester` satellite.
   after decoding. The wall-clock cap is what bounds compute.
 - `New` hashes the model, about 150 MB, once per construction. Build one
   `Engine` and reuse it.
-- Pins are checked at construction. Keep the binary and model on a
-  read-only filesystem so they cannot change after verification.
+- Pins are checked once, in `New`. Later runs exec the same paths without
+  rehashing, so the read-only filesystem in the required runtime sandbox
+  is what keeps the verified files from changing afterwards.
 
 ## Related docs
 

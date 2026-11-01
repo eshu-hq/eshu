@@ -11,8 +11,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -23,6 +25,13 @@ import (
 // with this name; TestMain sees the name and runs fakeWhisper instead of the
 // test suite.
 const fakeBinaryName = "whisper-cli"
+
+// grandchildArg makes the fake sleep as a helper process; grandchildPIDFile
+// is where the "grandchild" mode records that helper's PID.
+const (
+	grandchildArg     = "fake-grandchild-sleep"
+	grandchildPIDFile = "grandchild.pid"
+)
 
 // canaryTranscript is sensitive-looking text the fake engine "hears". It must
 // never appear in persisted facts, error strings, span attributes, or logs.
@@ -42,6 +51,10 @@ func TestMain(m *testing.M) {
 // fakeWhisper emulates whisper-cli. The model file content selects the
 // behavior, so the pinned model digest also pins the fake's mode.
 func fakeWhisper(args []string) int {
+	if len(args) == 1 && args[0] == grandchildArg {
+		time.Sleep(time.Minute)
+		return 0
+	}
 	if len(os.Environ()) != 0 {
 		fmt.Fprintln(os.Stderr, "environment was not scrubbed")
 		return 65
@@ -118,6 +131,20 @@ func fakeWhisper(args []string) int {
 	case "exit":
 		fmt.Fprintln(os.Stderr, canaryStderr)
 		return 3
+	case "grandchild":
+		// Spawn a helper that inherits stdout and sleeps, record its PID
+		// beside the model file, then hang. Only a process-group kill
+		// reaches the helper.
+		child := exec.Command(os.Args[0], grandchildArg)
+		child.Stdout = os.Stdout
+		if err := child.Start(); err != nil {
+			return 72
+		}
+		pidFile := filepath.Join(filepath.Dir(modelPath), grandchildPIDFile)
+		if err := os.WriteFile(pidFile, []byte(strconv.Itoa(child.Process.Pid)), 0o600); err != nil {
+			return 73
+		}
+		time.Sleep(time.Minute)
 	case "memory":
 		// 8 GiB of address space with one touched page: under the cap the
 		// mmap fails; without the cap only one page is committed, so the

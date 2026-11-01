@@ -19,12 +19,14 @@ set -euo pipefail
 # The proof run itself has no network.
 #
 # Usage (from repo root): scripts/verify-media-transcript-sandbox.sh
+# ESHU_SANDBOX_WORKDIR_BASE (default ~/.cache) holds one mktemp directory per
+# run; the proof log stays there after the run.
 
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null || (cd "$(dirname "$0")/.." && pwd))"
 runtime="${ESHU_OCI_RUNTIME:-docker}"
 image="eshu-media-transcript-sandbox:local"
 model_sha256="a03779c86df3323075f5e796cb2ce5029f00ec8869eee3fdfb897afe36c6d002"
-work="${ESHU_SANDBOX_WORKDIR:-${HOME}/.cache/eshu-media-transcript-sandbox}"
+work_base="${ESHU_SANDBOX_WORKDIR_BASE:-${HOME}/.cache}"
 
 die() {
 	printf 'verify-media-transcript-sandbox: %s\n' "$*" >&2
@@ -35,8 +37,22 @@ command -v "${runtime}" >/dev/null || die "${runtime} is not installed"
 command -v go >/dev/null || die "go is not installed"
 command -v rg >/dev/null || die "rg is not installed"
 
-rm -rf "${work}"
-mkdir -p "${work}/ctx" "${work}/extract"
+# Each run gets its own mktemp directory. The script never deletes a path
+# it did not create: cleanup removes only the build inputs inside this run's
+# directory and keeps proof.log for the evidence record.
+[[ "${work_base}" == /* && -d "${work_base}" ]] || die "work base ${work_base} must be an existing absolute directory"
+work="$(mktemp -d "${work_base}/eshu-media-transcript-sandbox.XXXXXX")"
+[[ -d "${work}" && "${work}" == "${work_base}"/eshu-media-transcript-sandbox.?????? ]] ||
+	die "mktemp returned an unexpected path: ${work}"
+mkdir "${work}/ctx" "${work}/extract"
+container=""
+cleanup() {
+	if [[ -n "${container}" ]]; then
+		"${runtime}" rm -f "${container}" >/dev/null 2>&1 || true
+	fi
+	rm -rf -- "${work:?}/ctx" "${work:?}/extract"
+}
+trap cleanup EXIT
 
 arch="$("${runtime}" version --format '{{.Server.Arch}}')"
 (
@@ -49,8 +65,6 @@ arch="$("${runtime}" version --format '{{.Server.Arch}}')"
 	-t "${image}" "${work}/ctx"
 
 container="$("${runtime}" create "${image}")"
-cleanup() { "${runtime}" rm -f "${container}" >/dev/null 2>&1 || true; }
-trap cleanup EXIT
 "${runtime}" cp "${container}:/opt/whisper/bin/whisper-cli" "${work}/extract/whisper-cli"
 "${runtime}" cp "${container}:/opt/whisper/models/ggml-base.en.bin" "${work}/extract/model.bin"
 "${runtime}" cp "${container}:/opt/whisper/fixtures/speech.wav" "${work}/extract/speech.wav"

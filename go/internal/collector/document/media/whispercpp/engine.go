@@ -36,8 +36,23 @@ const (
 	defaultTimeout           = 10 * time.Minute
 	defaultMaxStdoutBytes    = int64(16 << 20)
 	defaultMaxStderrBytes    = int64(64 << 10)
-	defaultMaxSegments       = 2000
+	defaultMaxSegments       = 1000
 	defaultMaxSegmentChars   = 4096
+)
+
+// Design ceilings from design 1737 section 6 (audio/video transcript
+// column). Runtime config may lower a limit; New rejects any value above its
+// ceiling because raising one needs a design update and security review.
+const (
+	ceilingInputBytes     = int64(250 << 20)
+	ceilingDurationMillis = int64(30 * 60 * 1000)
+	ceilingTimeout        = 10 * time.Minute
+	ceilingSegments       = 1000
+	// ceilingSegmentChars keeps a stored chunk within 16 KiB at up to 4
+	// bytes per rune.
+	ceilingSegmentChars = 4096
+	// ceilingStdoutBytes matches the 512 MiB decoded-bytes scratch budget.
+	ceilingStdoutBytes = int64(512 << 20)
 )
 
 var (
@@ -46,6 +61,7 @@ var (
 )
 
 // Limits bounds one engine run. Zero fields take the documented defaults.
+// Values above the design 1737 section 6 ceilings are rejected by New.
 type Limits struct {
 	// MaxInputBytes caps the media body, checked before any decode or exec.
 	MaxInputBytes int64
@@ -134,6 +150,9 @@ func New(cfg Config) (*Engine, error) {
 	if err := verifyPinnedFile("model", cfg.ModelPath, cfg.ModelSHA256); err != nil {
 		return nil, err
 	}
+	if err := checkCeilings(cfg.Limits); err != nil {
+		return nil, err
+	}
 	if err := checkPlatform(cfg.Limits); err != nil {
 		return nil, err
 	}
@@ -164,6 +183,26 @@ func buildArgs(model, language string, threads int) []string {
 		"-tp", "0",
 		"-nf",
 	}
+}
+
+// checkCeilings rejects any configured limit above its design 1737 section 6
+// ceiling. Zero fields take defaults, which sit at or below the ceilings.
+func checkCeilings(limits Limits) error {
+	switch {
+	case limits.MaxInputBytes > ceilingInputBytes:
+		return fmt.Errorf("whisper.cpp input cap exceeds the 250 MiB design ceiling")
+	case limits.MaxDurationMillis > ceilingDurationMillis:
+		return fmt.Errorf("whisper.cpp duration cap exceeds the 30 minute design ceiling")
+	case limits.Timeout > ceilingTimeout:
+		return fmt.Errorf("whisper.cpp timeout exceeds the 10 minute design ceiling")
+	case limits.MaxSegments > ceilingSegments:
+		return fmt.Errorf("whisper.cpp segment cap exceeds the 1000 chunk design ceiling")
+	case limits.MaxSegmentChars > ceilingSegmentChars:
+		return fmt.Errorf("whisper.cpp segment text cap exceeds the 16 KiB chunk design ceiling")
+	case limits.MaxStdoutBytes > ceilingStdoutBytes:
+		return fmt.Errorf("whisper.cpp stdout cap exceeds the 512 MiB scratch design ceiling")
+	}
+	return nil
 }
 
 func normalizeLimits(limits Limits) Limits {

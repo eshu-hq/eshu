@@ -3,10 +3,11 @@
 
 // Package whispercpp implements a local speech-to-text engine behind the
 // media Engine contract (go/internal/collector/document/media) by running a
-// pinned whisper.cpp whisper-cli binary out of process.
+// whisper.cpp whisper-cli binary, built from a pinned source tag, out of
+// process.
 //
-// New verifies the sha256 digests of the pinned binary and ggml model before
-// it returns an Engine. Transcribe validates the WAV body in process
+// New verifies the sha256 digest of the built binary and the pinned ggml
+// model before it returns an Engine. Transcribe validates the WAV body in process
 // (format, layout, byte cap, header-derived duration cap), normalizes it to
 // 16 kHz mono 16-bit PCM with integer arithmetic, and pipes that canonical
 // WAV to the engine on stdin. The engine writes full JSON on stdout. There is
@@ -29,6 +30,12 @@
 // text and never persists anything itself. Each run emits one span, the
 // eshu_dp_media_transcript_engine_* metrics, and one log line, all without
 // transcript text.
+//
+// The engine does not sandbox itself. A caller must run it in a container
+// or namespace with no network, a read-only root filesystem holding the
+// binary and model, all capabilities dropped, no-new-privileges, a non-root
+// user, and memory and PID caps, as design 1737 section 6 and the gate-2
+// arbiter ruling require. New rejects limits above the section 6 ceilings.
 //
 // The backend decision, sandbox profile, and image packaging status are
 // recorded in README.md. No production caller is wired; enablement stays

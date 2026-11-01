@@ -244,6 +244,19 @@ func TestTranscribeEnforcesAddressSpaceCap(t *testing.T) {
 	}
 }
 
+// TestDefaultLimitsStayWithinDesignCeilings pins the design 1737 section 6
+// audio/video limits: 250 MiB source, 30 minutes, 10 minutes wall time,
+// 1,000 transcript chunks, and 16 KiB per stored chunk (4,096 runes at most
+// 4 bytes each).
+func TestDefaultLimitsStayWithinDesignCeilings(t *testing.T) {
+	t.Parallel()
+	got := normalizeLimits(Limits{})
+	if got.MaxInputBytes > 250<<20 || got.MaxDurationMillis > 30*60*1000 || got.Timeout > 10*time.Minute ||
+		got.MaxSegments > 1000 || got.MaxSegmentChars > 4096 || got.MaxStdoutBytes > 512<<20 {
+		t.Fatalf("default limits exceed design 1737 section 6: %+v", got)
+	}
+}
+
 func TestNewVerifiesPinnedDigestsAndConfig(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -258,6 +271,12 @@ func TestNewVerifiesPinnedDigestsAndConfig(t *testing.T) {
 		{name: "missing engine version", mutate: func(c *Config) { c.EngineVersion = "" }},
 		{name: "bad language", mutate: func(c *Config) { c.Language = "en; rm -rf /" }},
 		{name: "negative threads", mutate: func(c *Config) { c.Threads = -1 }},
+		{name: "input cap above design ceiling", mutate: func(c *Config) { c.Limits.MaxInputBytes = 250<<20 + 1 }},
+		{name: "duration cap above design ceiling", mutate: func(c *Config) { c.Limits.MaxDurationMillis = 30*60*1000 + 1 }},
+		{name: "timeout above design ceiling", mutate: func(c *Config) { c.Limits.Timeout = 10*time.Minute + time.Second }},
+		{name: "segment cap above design ceiling", mutate: func(c *Config) { c.Limits.MaxSegments = 1001 }},
+		{name: "segment text above design ceiling", mutate: func(c *Config) { c.Limits.MaxSegmentChars = 4097 }},
+		{name: "stdout cap above design ceiling", mutate: func(c *Config) { c.Limits.MaxStdoutBytes = 512<<20 + 1 }},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

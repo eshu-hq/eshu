@@ -12,6 +12,14 @@
 
 ## Invariants
 
+- The engine does not sandbox itself. Any caller MUST run it in a container
+  or namespace with no network, a read-only root filesystem holding the
+  binary and model, all capabilities dropped, no-new-privileges, a non-root
+  user, and memory and PID caps (design 1737 section 6; arbiter ruling
+  2026-11-01; README "Required runtime sandbox"). Do not document or wire a
+  caller that skips this profile.
+- Keep defaults at or below the design 1737 section 6 ceilings, and keep
+  `New` rejecting values above them.
 - Execute the engine only through `runProcess`: no shell, empty
   environment, fixed argument vector built in `New`, stdin input, stdout
   output, no temporary files. No argument may derive from media content,
@@ -19,7 +27,8 @@
 - Keep decoding deterministic: greedy (`-bs 1 -bo 1`), `-tp 0`, `-nf`, fixed
   threads, fixed language. Do not enable language auto-detection, beam
   search, VAD, diarization, or grammar sampling without a decision update.
-- Verify binary and model sha256 pins in `New`. Never add an unpinned path.
+- Verify the built binary digest and the model sha256 pin in `New`. Never
+  add an unverified path.
 - Check every input cap before exec. Cap breaches, timeouts, cancellation,
   bad exits, and malformed output fail closed with a classified `*Error`.
 - Never put transcript text, stderr, paths, or source names in error
