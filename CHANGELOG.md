@@ -17,6 +17,12 @@ recent shipped work grouped by feature area.
   and validates claim scope queries: at most 100 entries, each with a
   non-blank package name and version. The host keeps its own page decoder and
   reassembly. No other module version moved.
+- **A paged result on a single-call runner now fails closed**
+  ([#9385](https://github.com/eshu-hq/eshu/issues/9385)). Once the SDK `Result`
+  type gained `Page`, strict decoding stopped refusing it, so a runner without
+  paged support would have committed one page as the whole generation. The
+  host now fails that claim terminal as `invalid_result`. The OCI and process
+  runners both support paging, so neither takes this path in production.
 
 ### Extension-host extraction: remote claim client seam, eshu-workflow v0.1.0 pin
 

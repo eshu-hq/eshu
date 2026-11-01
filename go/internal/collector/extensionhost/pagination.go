@@ -106,6 +106,22 @@ func decodePagedSDKResult(payload []byte) (CallResult, error) {
 	return CallResult{Result: wire.Result, Page: wire.Page}, nil
 }
 
+// rejectPageEnvelope fails a single-call result that carries a page envelope.
+// That path cannot fetch later pages, so accepting it would commit one page as
+// the whole generation and silently drop the rest. The verdict is terminal:
+// the same runner and satellite reproduce it on every retry. The message
+// names no cursor, path, or other satellite-supplied value.
+func rejectPageEnvelope(result sdkcollector.Result) error {
+	if result.Page == nil {
+		return nil
+	}
+	return extensionFailure{
+		class:    FailureClassInvalidResult,
+		terminal: true,
+		cause:    errors.New("extension result carries a page envelope but the runner does not support paging"),
+	}
+}
+
 // collectPages reassembles one claim's pages by re-invoking a paged runner
 // until a final page closes the generation. It returns the assembled result
 // (all pages' facts and statuses, first page's generation) for the existing

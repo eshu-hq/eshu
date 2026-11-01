@@ -11,7 +11,10 @@ re-invokes the runner with the cursor until a final page closes the
 generation, reassembling one identical fact set. Legacy single-shot
 satellites are unaffected: runners without paged support keep the exact
 single-call path, and the first paged request stays byte-identical to the
-legacy request.
+legacy request. That single-call path cannot fetch later pages, so a result
+that carries a page envelope there fails terminal as `invalid_result`
+(`TestNextClaimedFailsClosedOnPageFromSingleCallRunner`) instead of committing
+one page as the whole generation.
 
 The package owns only the intake boundary:
 
