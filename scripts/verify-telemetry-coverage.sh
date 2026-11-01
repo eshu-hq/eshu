@@ -138,7 +138,13 @@ rg -o 'eshu_dp_[a-zA-Z0-9_]+' "$all_rows_tmp" 2>/dev/null | sort -u >"$doc_docum
 # the script does not require them to be registered.
 required_rows_tmp="$(mktemp)"
 trap 'rm -f "$doc_required_tmp" "$doc_documented_tmp" "$doc_files_tmp" "$instruments_metrics_tmp" "$new_stages_tmp" "$tmp_diff" "$all_rows_tmp" "$required_rows_tmp"' EXIT
-rg -v 'No-Observability-Change:' "$all_rows_tmp" >"$required_rows_tmp" 2>/dev/null || true
+# The exclusion is anchored to the metric column (the third pipe-separated
+# cell: stage | file:line | metric | category), with an optional opening
+# backtick or whitespace before the marker. A row that only mentions the
+# marker later in the cell, or in another cell, stays in required_rows_tmp so
+# its eshu_dp_* names must still be registered (#9790).
+no_change_cell_pattern='^\|[^|]*\|[^|]*\|[[:space:]]*`?No-Observability-Change:'
+rg -v "$no_change_cell_pattern" "$all_rows_tmp" >"$required_rows_tmp" 2>/dev/null || true
 rg -o 'eshu_dp_[a-zA-Z0-9_]+' "$required_rows_tmp" 2>/dev/null | sort -u >"$doc_required_tmp" || true
 
 # doc_files_tmp: file:line dispatcher column. Replaced by
