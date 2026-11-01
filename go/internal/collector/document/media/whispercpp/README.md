@@ -252,9 +252,10 @@ limit on synthetic speech. The proof asserts words that are stable across
 resamplers. Through this engine it also hears "The password is as follows." as
 "The password in a column", which is why `media.Extract` does not read the
 words after a keyword (`../README.md`, "Value segments"). The split-segment
-proof first requires that the value really is the canary in a later segment,
-then checks the text the engine produced is absent from every envelope, so a
-mishearing cannot pass it.
+proof reads its marker and value positions from the one transcript
+`media.Extract` consumed, requires that the value really is the canary in a
+later segment, then checks the text the engine produced is absent from every
+envelope and that both sections are redacted, so a mishearing cannot pass it.
 
 ## Packaging
 
