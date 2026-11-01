@@ -104,6 +104,9 @@ A region is a **label** when either holds:
 - It ends in a marker word and has at most 3 words (`maxBareLabelWords`):
   `Password`, `Confirm password`. A boxed form renders these with no colon.
 
+A trailing parenthetical note is ignored, so `Password (required)` and
+`Password: (min 12)` are labels.
+
 Marker words are the word list in `sensitiveMarkers`. An email, URL, path, or
 ticket redacts its own region but is not a label. A region that carries text
 after the marker, such as `password: hunter2`, holds its own value and is not a
@@ -113,7 +116,9 @@ A region is a **value** when either holds:
 
 - Window: it is one of the 2 non-blank regions after a label in engine order
   (`labelValueWindow`). Each label restarts the window, so two stacked labels
-  cover two values. A blank region does not use up the window.
+  cover two values. A blank region does not use up the window, and neither
+  does a region with no letter or digit, because box edges reach OCR as `|` or
+  `_`. That region is still withheld, since a password can be all symbols.
 - Row: it starts past the label's right edge and overlaps the label's row by at
   least half the shorter height (`minLabelRowOverlap`). Tesseract reads columns
   as separate blocks, which can put a value many regions after its label. The
@@ -134,8 +139,11 @@ Limits:
 - Three or more labels stacked above their values in one column, with no shared
   row, reach only the first two values. Tesseract did not produce this shape in
   the layouts probed for #9782; columns split this way share a row.
-- A label followed by text on the same line is not a label: `Password (min 12)`
-  with no separator opens no window.
+- A table column is not covered. A header row such as `Service Password Owner`
+  is one line that opens no window, and each cell below it stays in clear. That
+  needs a column rule, not this one.
+- Other text after the marker is not a label: `Password required` opens no
+  window.
 - `text_hash` on a withheld section is an unsalted SHA-256 of the region text,
   the same as any redacted region. It lets a holder confirm a guessed value.
 
@@ -148,10 +156,10 @@ Proof: `TestExtractRedactsValuesThatFollowALabelInReadingOrder`,
 Performance Evidence: `BenchmarkBuildSectionsNoLabels` and
 `BenchmarkBuildSectionsLabelHeavy` on 500 regions, the tesseract default cap,
 with before and after test binaries run in turn at `-benchtime=2000x`, six runs
-each. Medians on a shared host: ordinary text went from 3.06 ms/op to 3.10 ms/op
+each. Medians on a shared host: ordinary text went from 3.05 ms/op to 3.12 ms/op
 (13,405 to 14,406 allocs/op, from lowercasing and splitting each region once).
 The worst case for the row clause, 250 labels followed by 250 regions past every
-window, went from 1.88 ms/op to 2.00 ms/op. The row clause is regions times
+window, went from 1.88 ms/op to 2.02 ms/op. The row clause is regions times
 labels, so 500 regions bound it. Either figure is small next to about 200 ms for
 one tesseract run.
 

@@ -101,6 +101,36 @@ func TestExtractRedactsValuesThatFollowALabelInReadingOrder(t *testing.T) {
 			want:    []string{redacted, redacted},
 		},
 		{
+			name:    "punctuation noise does not use up the window",
+			regions: stackedRegions("Password:", "|", "_", "--", labelValueCanary),
+			want:    []string{redacted, redacted, redacted, redacted, redacted},
+		},
+		{
+			name:    "a value of symbols only is withheld and keeps the window open",
+			regions: stackedRegions("Password:", "*!#$%", "Release checklist", "Next step", "Rollback steps"),
+			want:    []string{redacted, redacted, redacted, redacted, "Rollback steps"},
+		},
+		{
+			name:    "label with a parenthetical note",
+			regions: stackedRegions("Password (required)", labelValueCanary),
+			want:    []string{redacted, redacted},
+		},
+		{
+			name:    "label with a separator and a parenthetical note",
+			regions: stackedRegions("Password: (min 12 characters)", labelValueCanary),
+			want:    []string{redacted, redacted},
+		},
+		{
+			name:    "parenthetical inside a line does not make a label",
+			regions: stackedRegions("password (see runbook) rotation schedule", "Release checklist"),
+			want:    []string{redacted, "Release checklist"},
+		},
+		{
+			name:    "parenthetical before the marker does not shorten a label",
+			regions: stackedRegions("the old (very old) password", "Release checklist"),
+			want:    []string{redacted, "Release checklist"},
+		},
+		{
 			name:    "one caption line between label and value",
 			regions: stackedRegions("Password:", "at least 12 characters", labelValueCanary),
 			want:    []string{redacted, redacted, redacted},

@@ -42,6 +42,10 @@ var (
 	ticketPattern      = regexp.MustCompile(`\b[A-Z][A-Z0-9]+-[0-9]+\b`)
 	unixPathPattern    = regexp.MustCompile(`(?i)(^|[^a-z0-9])/(users|home|var|etc|private|volumes|tmp)/\S+`)
 	windowsPathPattern = regexp.MustCompile(`(?i)\b[a-z]:\\[^\s]+`)
+
+	// trailingNotePattern matches the note a form prints after a label, as in
+	// "Password (required)". The note is not the label's value.
+	trailingNotePattern = regexp.MustCompile(`\s*\([^()]*\)$`)
 )
 
 func containsSensitiveMarker(text string) bool {
@@ -76,19 +80,25 @@ func endsWithMarkerWord(lower string) bool {
 // isValueLabel reports whether a region names a secret and leaves its value
 // for another region. Text ending in ":" or "=" after a marker word is a
 // label, as is a short region that ends in a marker word, such as the
-// "Confirm password" a boxed form renders with no colon. Only marker words
-// qualify: an email or URL is a value, not a label for the next region. A
-// region that carries text after the marker, such as "password: hunter2", holds
-// its own value and opens no window.
+// "Confirm password" a boxed form renders with no colon. A trailing
+// parenthetical note is ignored. Only marker words qualify: an email or URL is
+// a value, not a label for the next region. A region that carries other text
+// after the marker, such as "password: hunter2", holds its own value and opens
+// no window.
 func isValueLabel(text string) bool {
 	lower := strings.ToLower(strings.TrimSpace(text))
-	body := strings.TrimRightFunc(lower, func(r rune) bool {
-		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
-	})
+	if strings.HasSuffix(lower, ")") {
+		lower = trailingNotePattern.ReplaceAllString(lower, "")
+	}
+	body := strings.TrimRightFunc(lower, func(r rune) bool { return !isLetterOrDigit(r) })
 	if strings.ContainsAny(lower[len(body):], ":=") {
 		return containsMarkerWord(body)
 	}
 	return len(strings.Fields(body)) <= maxBareLabelWords && endsWithMarkerWord(body)
+}
+
+func isLetterOrDigit(r rune) bool {
+	return unicode.IsLetter(r) || unicode.IsDigit(r)
 }
 
 // labelValueRegions marks the regions that hold a label's value, in engine
@@ -98,6 +108,9 @@ func isValueLabel(text string) bool {
 // row. The row clause exists because tesseract reads columns as separate
 // blocks, which can put a value in the next column many regions after its
 // label. Blank regions never become sections, so they do not use up the window.
+// A region with no letter or digit does not use it up either, because box edges
+// reach OCR as "|" or "_". That region is still withheld, since a password can
+// be all symbols.
 //
 // The function reads engine order and never sorts: on a multi-column page,
 // layout order is more accurate than a sort by position.
@@ -112,7 +125,9 @@ func labelValueRegions(regions []Region) []bool {
 		}
 		if remaining > 0 {
 			values[i] = true
-			remaining--
+			if strings.ContainsFunc(text, isLetterOrDigit) {
+				remaining--
+			}
 		}
 		if isValueLabel(text) {
 			remaining = labelValueWindow
