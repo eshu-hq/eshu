@@ -165,6 +165,12 @@ func buildSections(
 			continue
 		}
 		content, warnings, redacted := persistedContent(text, labelValues[i], req.Options.MaxSectionChars)
+		excerptHash := hashText(content)
+		textHash := hashText(text)
+		if redacted {
+			// A plain digest of a short secret confirms a guess at it.
+			textHash = excerptHash
+		}
 		regionID := firstNonEmpty(cleanID(region.RegionID), strconv.Itoa(i+1))
 		metadata := map[string]string{
 			"format_family":               formatImageOCR,
@@ -199,8 +205,8 @@ func buildSections(
 			OrdinalPath:      []int{len(sections) + 1},
 			Content:          content,
 			ContentFormat:    "text/plain",
-			TextHash:         hashText(text),
-			ExcerptHash:      hashText(content),
+			TextHash:         textHash,
+			ExcerptHash:      excerptHash,
 			SourceStartRef:   "frame:0",
 			SourceEndRef:     "frame:0",
 			SourceMetadata:   metadata,

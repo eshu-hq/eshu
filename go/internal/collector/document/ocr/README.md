@@ -141,8 +141,6 @@ Limits:
 - A table column is not covered. A header row such as `Service Password Owner`
   opens a window over the next rows only, and each cell further down stays in
   clear. That needs a column rule, not this one.
-- `text_hash` on a withheld section is an unsalted SHA-256 of the region text,
-  the same as any redacted region. It lets a holder confirm a guessed value.
 
 Proof: `TestExtractRedactsValuesThatFollowALabelInReadingOrder`,
 `TestExtractRedactsValueInTheColumnBesideALabel`,
@@ -214,7 +212,10 @@ readback surfaces already carry the emitted documentation facts.
   document IDs, external IDs, canonical URIs, source URIs, and source record
   IDs.
 - Sensitive-looking OCR text is not persisted as content. The section keeps
-  redaction metadata and stable hashes instead.
+  redaction metadata instead. Its `text_hash` and `excerpt_hash` are hashes of
+  the `[redacted]` placeholder, because an unsalted SHA-256 of a short secret
+  confirms a guess at it. `section_id` and `ordinal_path` keep the stable IDs of
+  redacted sections distinct.
 - A value that follows a sensitive label is withheld too, even when its own
   text looks harmless. See "Label and value redaction".
 - OCR text remains document evidence. This package must not emit entity

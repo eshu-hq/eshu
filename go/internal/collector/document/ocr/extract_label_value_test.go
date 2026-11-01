@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/preflight/picture"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 const labelValueCanary = "Hunter2CanarySecret"
@@ -362,9 +363,6 @@ func TestExtractLabelValueRedactionStaysTruthful(t *testing.T) {
 	if !value.ContainsWarnings {
 		t.Fatal("ContainsWarnings = false, want true on a withheld value")
 	}
-	if value.TextHash == "" || value.ExcerptHash != hashText("[redacted]") {
-		t.Fatalf("hashes = (%q, %q), want a text hash and the redacted excerpt hash", value.TextHash, value.ExcerptHash)
-	}
 	if got := result.Sections[4].SourceMetadata["redacted"]; got != "" {
 		t.Fatalf("region past the window redacted = %q, want unset", got)
 	}
@@ -375,6 +373,34 @@ func TestExtractLabelValueRedactionStaysTruthful(t *testing.T) {
 	}
 	if bytes.Contains(persisted, []byte(labelValueCanary)) {
 		t.Fatal("persisted envelopes carry the canary value")
+	}
+}
+
+// TestExtractRedactedSectionHashesConfirmNoGuess pins that a redacted section
+// carries no digest of its original text: an unsalted hash of a short secret
+// confirms a guess at it. Both hashes are of the placeholder, so section
+// identity rests on section_id and ordinal_path, and an unredacted section keeps
+// the hash of its text.
+func TestExtractRedactedSectionHashesConfirmNoGuess(t *testing.T) {
+	t.Parallel()
+
+	result := extractRegions(t, Options{}, stackedRegions("Password:", "hunter2", "api_key: other", "Next", "Last", "Rollback steps"))
+
+	placeholder := hashText("[redacted]")
+	seen := map[string]bool{}
+	for _, section := range result.Sections[:5] {
+		if section.TextHash != placeholder || section.ExcerptHash != placeholder {
+			t.Fatalf("section %s hashes = (%q, %q), want the placeholder hash", section.SectionID, section.TextHash, section.ExcerptHash)
+		}
+		id := docs.SectionStableID(section)
+		if seen[id] {
+			t.Fatalf("section %s reuses stable id %q", section.SectionID, id)
+		}
+		seen[id] = true
+	}
+	kept := result.Sections[5]
+	if kept.TextHash != hashText("Rollback steps") || kept.ExcerptHash != hashText("Rollback steps") {
+		t.Fatalf("kept section hashes = (%q, %q), want the hash of its text", kept.TextHash, kept.ExcerptHash)
 	}
 }
 
