@@ -103,7 +103,8 @@ new `go/internal/collector/document/ocr/tesseract` package.
 - Regions: TSV words grouped into lines. Redaction in `ocr.Extract` judges
   each region as one unit, so a `password: <value>` line must stay one
   region. A mutation to word-level regions fails the redaction test. A label
-  and value on separate lines are not covered (section 6).
+  and value on separate lines are handled in `ocr.Extract`, not here (#9782,
+  section 6).
 
 ### 3.1 Determinism and the "greedy" wording
 
@@ -172,8 +173,13 @@ docker run --network none --read-only --cap-drop ALL
 
 The fixtures render three DejaVu Sans lines: `Deploy the Checkout Service to
 staging`, `password: Hunter2CanarySecret`, and `Contact
-alice.canary@example.com today`. The proof test asserts each row below.
-Results on 2026-11-01:
+alice.canary@example.com today`. Two PNG form layouts cover a value split from
+its label (#9782): `form-stacked.png` puts `Password:` above the value, and
+`form-columns.png` has five-row columns that tesseract reads as separate
+blocks, so the value lands five regions after its label on the same row. Each
+form check first asserts that tesseract split the label from the value, so a
+layout that stops reproducing the gap fails instead of passing empty. The
+proof test asserts each row below. Results on 2026-11-01:
 
 | Check | arm64 (native) | amd64 (qemu) |
 |---|---|---|
@@ -181,6 +187,8 @@ Results on 2026-11-01:
 | 5 runs identical, all 4 formats | pass | pass |
 | PNG/JPEG/GIF Extract: completed, 3 sections, 2 redacted, no canary in envelopes | pass | pass |
 | WebP Extract | skipped by preflight | skipped by preflight |
+| `form-stacked.png` Extract: completed, 5 sections, 3 redacted, no canary in envelopes | pass | NOT_CHECKED |
+| `form-columns.png` Extract: completed, 10 sections, 4 redacted, no canary in envelopes | pass | NOT_CHECKED |
 | Timeout 5 ms | `timeout` | `timeout` |
 | RLIMIT_AS 48 MiB | `signaled` | not asserted (cap lands on qemu) |
 | stdout cap 64 B | `output_oversize` | `output_oversize` |
@@ -201,12 +209,19 @@ covered end to end, and there is no QA-tier caller.
 - WebP: the engine reads WebP, but `preflight/picture` still classifies it
   as `unsupported_codec`, so `ocr.Extract` skips it before the engine runs.
   Admitting WebP is a reviewed change to `picture`, tracked in #9780.
-- Label and value on separate lines: line grouping protects a secret only
-  when tesseract puts its label on the same line. In a form, column, or
-  label-above-value layout, the value can be its own region, and
-  `ocr.Extract`'s markers do not match a bare value.
-  `TestExtractLeavesValueOnlyLineUnredacted` pins today's behavior; the fix
-  belongs to the caller lane in #9782.
+- Label and value on separate lines: resolved in `ocr.Extract` by #9782. A
+  value is withheld when it is one of the two non-blank regions after a label,
+  or sits to the right of a label on the same row. The rule and its limits are
+  in the OCR README under "Label and value redaction".
+  `TestExtractRedactsValueOnLineBelowLabel`,
+  `TestExtractRedactsValuesThatFollowALabelInReadingOrder`, and
+  `TestExtractRedactsValueInTheColumnBesideALabel` prove it with fakes. The
+  `form-stacked.png` and `form-columns.png` fixtures in
+  `TestSandboxRealTesseract` prove it on the real binary. Against the pre-fix
+  `ocr.Extract`, `form-stacked.png` fails with 1 of 5 sections redacted and
+  the canary in the envelopes. With the row clause disabled,
+  `form-columns.png` fails with 3 of 10 redacted and the canary in the
+  envelopes.
 - Pins in the product image (caller lane): the product or ingester image
   must verify the pins at build time (`RUN sha256sum -c` over the binary,
   the 15 libraries, and the model), so "pinned in the image" is enforced by
