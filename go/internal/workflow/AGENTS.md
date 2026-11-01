@@ -38,6 +38,15 @@
   checks so their text stays the full validator's. Do not move this rule into
   `ValidateVulnerabilityIntelligenceCollectorConfiguration`: in-tree instances
   keep their blank-list defaults (#9311).
+- **Derive ecosystems are validated per section** — the
+  `derive_from_owned_packages` section accepts only the OSV language ecosystems
+  (`VulnerabilityOwnedDerivationEcosystems`) and
+  `derive_from_installed_evidence` accepts those plus the OS distros
+  (`VulnerabilityInstalledDerivationEcosystems`). Both come from one table in
+  `vulnerability_intelligence_config.go`; the refusal keeps the
+  `unsupported ecosystem "x"` prefix and appends `(supported: ...)`. A name
+  belongs in a set only when the reader, derivation, and `vulnruntime`
+  provider can act on it; `vulnruntime` pins the provider side (#9221).
 - **collectorContracts lookup must be exhaustive** — unknown collector kinds
   return an empty phase list; `ReconcileRunProgress` will treat them as having
   no requirements, which may silently permit premature `complete` transitions.
