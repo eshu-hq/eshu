@@ -3,7 +3,8 @@
 ## Read first
 
 1. `go/internal/telemetry/README.md` — full metric, span, and log inventory,
-   including the "Package layout" section for the contract subpackages
+   including the "Package layout" section for the contract subpackages; the
+   histogram table lives in `go/internal/telemetry/histograms.md`
 2. `go/internal/telemetry/contract.go` — the majority-share frozen span
    names, log keys, metric dimension keys, and the `Bootstrap` type
 3. `go/internal/telemetry/registration.go` and `registration_steps.go` — the
