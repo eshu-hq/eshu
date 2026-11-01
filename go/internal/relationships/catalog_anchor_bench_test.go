@@ -201,18 +201,10 @@ func benchmarkDeferredBackfillDiscovery(b *testing.B, fleetSize, orphanPerRepo i
 	}
 }
 
-// nonRepoIDAnchorsSim2 mirrors backfillNonRepoIDAnchorTerms for the benchmark:
-// CatalogPayloadAnchors over each entry's aliases with the repo_id (Aliases[0])
-// stripped, lowercased.
+// nonRepoIDAnchorsSim2 is CatalogNonRepoIDPayloadAnchors, lowercased for the
+// benchmark.
 func nonRepoIDAnchorsSim2(catalog []CatalogEntry) []string {
-	stripped := make([]CatalogEntry, 0, len(catalog))
-	for _, entry := range catalog {
-		if len(entry.Aliases) <= 1 {
-			continue
-		}
-		stripped = append(stripped, CatalogEntry{RepoID: entry.RepoID, Aliases: entry.Aliases[1:]})
-	}
-	anchors := CatalogPayloadAnchors(stripped)
+	anchors := CatalogNonRepoIDPayloadAnchors(catalog)
 	out := make([]string, 0, len(anchors))
 	for _, a := range anchors {
 		out = append(out, strings.ToLower(a))

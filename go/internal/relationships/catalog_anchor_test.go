@@ -34,9 +34,10 @@ func TestCatalogPayloadAnchorsSingleTokenAlias(t *testing.T) {
 func TestCatalogPayloadAnchorsMultiTokenAliasUsesLongestToken(t *testing.T) {
 	t.Parallel()
 
-	// "team payments service" tokenizes to ["team","payments","service"]; the
-	// longest token "payments" is the most selective single substring that is
-	// guaranteed present whenever the alias matched a candidate.
+	// "team payments service" tokenizes to ["team","payments","service"]. It has no
+	// slash, so nothing says which token is the name and the longest one stands in
+	// as the likely rarest. A slash alias takes its last token instead, which the
+	// owner-token regression pins.
 	got := CatalogPayloadAnchors([]CatalogEntry{
 		{RepoID: "repo:payments", Aliases: []string{"team payments service"}},
 	})
@@ -121,12 +122,11 @@ func TestCatalogPayloadAnchorsEmptyCatalog(t *testing.T) {
 	}
 }
 
-// TestCatalogPayloadAnchorsSupersetOfMatcherTokens proves the superset
-// invariant directly: for every alias, every token the matcher tokenizes from
-// that alias must be a substring of at least one derived anchor. If an alias
-// matched a candidate, all its tokens are substrings of that candidate, so any
-// anchor that is itself one of those tokens (or a substring of one) keeps the
-// fact selected.
+// TestCatalogPayloadAnchorsSupersetOfMatcherTokens proves the superset invariant
+// directly: for every alias, some derived anchor must be a substring of one of the
+// tokens the matcher reads from that alias. If an alias matched a candidate, all
+// its tokens are substrings of that candidate, so that anchor keeps the fact
+// selected. Which token it is only decides how many other facts come along.
 func TestCatalogPayloadAnchorsSupersetOfMatcherTokens(t *testing.T) {
 	t.Parallel()
 
@@ -136,30 +136,26 @@ func TestCatalogPayloadAnchorsSupersetOfMatcherTokens(t *testing.T) {
 		"terraform-modules-aws",
 		"infra.config.yaml",
 		"orders_api",
+		"acme-corporation/svc-api",
+		"github.com/acme-corporation/svc-api.git",
 	}
 	for _, alias := range aliases {
 		entry := CatalogEntry{RepoID: "repo:x", Aliases: []string{alias}}
 		anchors := CatalogPayloadAnchors([]CatalogEntry{entry})
 		tokens := catalogMatchTokens(alias)
 		if len(tokens) == 0 {
-			continue
-		}
-		// The longest token must be covered by some anchor as a substring.
-		longest := tokens[0]
-		for _, token := range tokens {
-			if len(token) > len(longest) {
-				longest = token
-			}
+			t.Fatalf("alias %q has no tokens, so this case proves nothing", alias)
 		}
 		covered := false
 		for _, anchor := range anchors {
-			if anchor == longest || containsToken(anchor, longest) {
-				covered = true
-				break
+			for _, token := range tokens {
+				if containsToken(token, anchor) {
+					covered = true
+				}
 			}
 		}
 		if !covered {
-			t.Fatalf("alias %q: longest token %q not covered by anchors %v", alias, longest, anchors)
+			t.Fatalf("alias %q: no anchor in %v is a substring of a token in %v", alias, anchors, tokens)
 		}
 	}
 }

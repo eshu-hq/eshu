@@ -1212,7 +1212,7 @@ latest-generation sibling of the full query, with an added predicate
 `lower(payload::text) LIKE ANY($1)`. The anchors come from
 `backfillRelationshipAnchorTerms`: `relationships.CatalogPayloadAnchors` over the
 newly onboarded repositories' catalog entries, plus the unconditional
-`argoCDOverSelectAnchors`. The corpus-wide deferred path
+`relationships.UnconditionalPayloadMarkers`. The corpus-wide deferred path
 (`BackfillAllRelationshipEvidence`) now scopes its load the same way — see
 [Corpus-wide deferred fact load (#3569)](#corpus-wide-deferred-fact-load-3569).
 
@@ -1224,26 +1224,27 @@ lowercased candidate. Content/file payloads store candidate strings verbatim
 (file bodies are raw UTF-8 under `content`/`content_body`; `parsed_file_data` is
 nested JSON whose `/`, `.`, and `-` survive escaping), and gcp facts store the
 resource names verbatim, so every needed token is a substring of
-`lower(payload::text)`. Two correctness carve-outs:
+`lower(payload::text)`. Three correctness carve-outs:
 
 - **Private Terraform registry modules.** For a catalog alias
   `terraform-modules-<provider>` the matcher resolves via
   `privateTerraformRegistryProvider`, where only the `<provider>` path segment
   appears in the payload, never the full alias. `CatalogPayloadAnchors` therefore
   also emits the captured `<provider>` suffix as an anchor.
+- **Repo id namespace and Flux remotes.** Every payload stores its own `repo_id`,
+  so the anchor skips the `repository` namespace token when an alias has another token. A slug anchors on its repository token, never the owner that every clone path holds.
+  Flux resolves `RemoteURL` by equality after decoding percent-encoding, so no token reaches every
+  spelling: the last `RemoteURL` token is an anchor, and a marker selects any row holding a GitRepository.
 - **ArgoCD ApplicationSet template synthesis (two-phase load).**
-  `discoverArgoCDDocumentEvidence` renders candidate repoURLs by substituting
-  template parameters harvested from a *different* config repository's content and
-  from `normalizePlatformToken`'d path basenames, so the matched token need not
-  appear in the ArgoCD fact's own payload. ArgoCD-shaped facts are over-selected
-  unconditionally via `argoCDOverSelectAnchors` (`kind: Application`,
-  `kind: ApplicationSet`, `argocd_applications`, `argocd_applicationsets`,
-  `"artifact_type":"argocd"`) — that is **phase one**. But an ApplicationSet's git
-  file generator targets an *external* config repo, and the deploy repoURL is
-  synthesized from that config file's params (e.g. `team` + `service`), so the
-  newly-onboarded deploy repo's alias appears in neither the ApplicationSet
-  payload nor the config file. Neither the alias anchors nor the ArgoCD markers
-  select that external config file, so phase one alone would drop the deploy edge.
+  `discoverArgoCDDocumentEvidence` renders candidate repoURLs from template
+  parameters harvested from a config repository's content and from
+  `normalizePlatformToken`'d path basenames, so the matched token need not appear
+  in the ArgoCD fact's own payload. ArgoCD-shaped facts are over-selected via
+  `relationships.UnconditionalPayloadMarkers` (`kind: Application`, `kind: ApplicationSet`, `"artifact_type": "argocd"`,
+  and an ArgoCD bucket that holds a row, spelled as `jsonb` prints it: `"argocd_applications": [{`) —
+  that is **phase one**. The git file generator's config repo may be external or
+  the control repo itself (#7778), and neither the alias anchors nor the ArgoCD
+  markers select its files, so phase one alone would drop the deploy edge.
   **Phase two** repairs this: `ResolveArgoCDGeneratorConfigRepos` parses the loaded
   ApplicationSets' generator repoURLs, resolves the config repos against the full
   catalog, and `loadArgoCDGeneratorConfigFacts` reloads those repos' generator-path
@@ -1251,10 +1252,9 @@ resource names verbatim, so every needed token is a substring of
   into the scoped load so the content index `DiscoverEvidence` builds is complete.
   `backfillScopedCatalog` additionally adds the config repos' catalog entries
   because the deploy edge resolves the intermediate config repoURL against the
-  catalog before the target — the same intermediate-match pattern as GCP source
-  resolution. Adding a config repo cannot create a spurious edge: the deploy target
-  must still be a catalog entry (a new repo), and the config repo is excluded as a
-  deploy target by discovery.
+  catalog before the target. Adding a config repo cannot create a spurious edge: a deploy target must
+  still be a catalog entry. A config repo can be a target through discovery and self-reference evidence;
+  the only hard skip is a template source resolving to the control repo. Proof: `docs/internal/evidence/9209-catalog-anchor-namespace-token.md`, `docs/internal/evidence/9781-argocd-content-markers.md`.
 
 Over-selection is safe; under-selection would drop correlation truth. Accuracy is
 pinned by `TestCatalogPayloadAnchorsSelectsEveryExtractorFamily` (one matching
@@ -1319,9 +1319,9 @@ dropping it would break the superset guarantee and lose real cross-repo edges.
 The deferred pass therefore uses a dedicated query,
 `listDeferredScopedRelationshipFactRecordsQuery`, with two arms:
 
-- `$1` — non-repo_id anchors: `CatalogPayloadAnchors` over each entry's aliases
+- `$1` — non-repo_id anchors: `CatalogNonRepoIDPayloadAnchors` over each entry's aliases
   with the repo_id (`Aliases[0]`) stripped (`backfillNonRepoIDAnchorTerms`),
-  unioned with `argoCDOverSelectAnchors`. A fact matching `$1` carries a
+  unioned with `relationships.UnconditionalPayloadMarkers`. A fact matching `$1` carries a
   cross-repo reference not keyed on its own repo_id.
 - `$2` — raw lowercase full repo_id values (`relationships.CatalogRepoIDValues`)
   paired with compact reference keys. The primary path joins those keys to
@@ -1881,10 +1881,10 @@ the WRITE side (`writeDeferredBackfillPartitionMemos`) so they always reload; th
 read gate therefore needs no ArgoCD probe and stays a single indexed memo lookup.
 The carve-out uses a PRECISE signal (`argoproj.io`, a non-empty parsed
 `argocd_applicationsets`/`argocd_applications` array, or `artifact_type=argocd`),
-NOT the broad `argoCDOverSelectAnchors`: those anchors include the substrings
-`argocd_applications`/`argocd_applicationsets`, which are empty struct keys
-`parsed_file_data` serializes into every parsed file's payload, so a substring
-scan over them flags every partition (measured 869 of 869) and defeats the memo.
+NOT a substring scan over the bare key names:
+`argocd_applications`/`argocd_applicationsets` are empty struct keys that
+`parsed_file_data` serializes into every parsed file's payload, so such a
+scan flags every partition (measured 869 of 869) and defeats the memo.
 
 Performance Evidence: live `eshufull` corpus (Postgres 18, 4.09M fact_records,
 869 fact-bearing partitions). The precise ArgoCD signal flags 23 partitions

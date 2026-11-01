@@ -177,8 +177,8 @@ func (s Store) resolveTargetedMaintenanceClosure(
 // evidence touches an owed repository in load, and the sources of that
 // evidence in sourceRepoIDs.
 //
-// Each group's evidence is discovered from the group plus the external ArgoCD
-// config files its own ApplicationSets reference, because the ApplicationSet
+// Each group's evidence is discovered from the group plus the ArgoCD config
+// files its own ApplicationSets reference, because the ApplicationSet
 // renders its deploy edges from those files. Evidence the config files would
 // produce on their own is attributed to the group too; that can only widen the
 // affected set, and a wider set still equals the whole pass on every partition

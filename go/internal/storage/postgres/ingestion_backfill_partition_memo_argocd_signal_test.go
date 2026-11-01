@@ -16,10 +16,9 @@ import (
 // TestArgoCDBearingSignalIgnoresEmptyParsedStructKeys is the regression guard for
 // the #3624 Track 1 / B' carve-out precision bug: parsed_file_data serializes the
 // empty struct keys "argocd_applications" and "argocd_applicationsets" into EVERY
-// parsed file's payload, so a substring marker over lower(payload::text) — as the
-// broad argoCDOverSelectAnchors set does for the query's $1 over-select arm —
-// matches every file fact and would force EVERY partition to reload, defeating the
-// memo. This test drives backfill.LoadArgoCDBearingPartitions directly and proves the
+// parsed file's payload, so a substring marker for the bare key over
+// lower(payload::text) matches every file fact and would force EVERY partition to
+// reload, defeating the memo. This test drives backfill.LoadArgoCDBearingPartitions directly and proves the
 // precise signal (non-empty parsed array / argoproj.io / artifact_type=argocd)
 // does NOT flag a plain file that merely carries the empty keys, while it DOES
 // flag a genuine ArgoCD ApplicationSet.

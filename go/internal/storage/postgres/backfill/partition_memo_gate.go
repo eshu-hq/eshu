@@ -24,16 +24,16 @@ import (
 // DIFFERENT repo (the external config repo) changes (issue #3624 Track 1 / B',
 // design point 4). Such partitions must always reload regardless of memo state.
 //
-// The signal is deliberately PRECISE, not the broad argoCDOverSelectAnchors used
-// by ListDeferredScopedRelationshipFactRecordsQuery's $1 over-select arm. Those
-// anchors include the substrings "argocd_applications" / "argocd_applicationsets",
-// which are EMPTY STRUCT KEYS that parsed_file_data serializes into EVERY parsed
-// file's payload (even when the arrays are empty). Reusing them here would flag
-// every partition as ArgoCD-bearing and force a full reload each pass — defeating
-// the memo entirely (measured: all ~910 partitions matched, versus ~23 genuine
-// ApplicationSet holders). Over-selection is safe for the $1 arm (the in-memory
-// matcher refines it) but catastrophic for this carve-out, whose whole purpose is
-// to reload the SMALL genuinely-cross-repo subset and skip the rest.
+// The signal is deliberately PRECISE, not a substring scan over the bare key
+// names "argocd_applications" / "argocd_applicationsets". Those are EMPTY STRUCT
+// KEYS that parsed_file_data serializes into EVERY parsed file's payload (even
+// when the arrays are empty). A scan over them would flag every partition as
+// ArgoCD-bearing and force a full reload each pass — defeating the memo entirely
+// (measured: all ~910 partitions matched, versus ~23 genuine ApplicationSet
+// holders). Over-selection is safe for the $1 arm of
+// ListDeferredScopedRelationshipFactRecordsQuery (the in-memory matcher refines
+// it) but catastrophic for this carve-out, whose whole purpose is to reload the
+// SMALL genuinely-cross-repo subset and skip the rest.
 //
 // A partition is ArgoCD-bearing when it has a fact that (a) mentions the ArgoCD
 // API group argoproj.io — present in every ApplicationSet manifest's apiVersion,

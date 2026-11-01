@@ -51,7 +51,7 @@ func BackfillRelationshipEvidenceForNewRepositories(
 	// Derive payload anchors from only the newly onboarded repositories' catalog
 	// aliases (issue #3570) and load just the latest-generation content, file, and
 	// gcp_cloud_relationship facts whose payload could reference one of them, plus
-	// the always-loaded ArgoCD-shaped facts and their external config files. This
+	// the always-loaded ArgoCD-shaped facts and their config files. This
 	// replaces an O(all-repos) full-corpus fact load that shipped every
 	// repository's facts on every onboarding commit even though the scoped catalog
 	// could only match the onboarding delta. The anchor predicate is a provable
@@ -100,8 +100,9 @@ func BackfillRelationshipEvidenceForNewRepositories(
 // BackfillScopedCatalog returns the catalog entries the per-commit relationship
 // backfill must match against: every newly onboarded repository, plus the source
 // repositories of any supported gcp_cloud_relationship fact whose target is one
-// of those new repositories (issue #3500), plus the external config repositories
-// any loaded ArgoCD ApplicationSet's git generator targets (issue #3570).
+// of those new repositories (issue #3500), plus the config repositories any
+// loaded ArgoCD ApplicationSet's git generator targets (issue #3570), the control
+// repository included when the generator reads it (#7778).
 //
 // Most content-derived evidence (Terraform, Helm, Kustomize, ...) carries its
 // source repo in the fact envelope and only catalog-matches the target, so a
@@ -119,9 +120,10 @@ func BackfillRelationshipEvidenceForNewRepositories(
 //     repoURL from that config repo's files; the deploy edge resolves to nothing
 //     unless the config repo's catalog entry is present.
 //     ResolveArgoCDGeneratorConfigRepos adds those config repo entries. Adding a
-//     config repo cannot create a spurious edge: the deploy target must still be a
-//     catalog entry (a new repo), and the config repo itself is excluded as a
-//     deploy target by discovery.
+//     config repo cannot create a spurious edge: a deploy target must still be a
+//     catalog entry. The config repo can itself be a target, through discovery and
+//     self-reference evidence, which is true evidence. The only hard skip is a
+//     template source that resolves to the control repo.
 //
 // The scope therefore stays bounded to the onboarding delta plus its inbound GCP
 // sources and ArgoCD config repos, never the whole fleet, preserving the

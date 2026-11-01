@@ -22,7 +22,7 @@ import (
 // corpus-wide deferred backfill (issue #3659). It accepts seven parameters:
 //
 //	$1 array.StringArray — LIKE terms derived from non-repo_id aliases (name,
-//	   slug tokens) and the unconditional ArgoCD over-select markers. This arm is
+//	   slug tokens) and the unconditional payload markers. This arm is
 //	   intentionally guarded by DeferredRelationshipFamilyCandidatePredicateSQL:
 //	   a content/file fact must first look like a relationship extractor family
 //	   before the broad alias substring scan can select it. That preserves
