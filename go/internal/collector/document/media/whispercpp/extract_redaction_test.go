@@ -15,7 +15,7 @@ import (
 )
 
 // TestExtractRedactsEngineTranscriptCanariesBeforeFacts runs the real engine
-// adapter (against the fake binary) through the unchanged media.Extract path
+// adapter (against the fake binary) through the media.Extract path
 // and proves sensitive transcript text never reaches a persisted envelope.
 func TestExtractRedactsEngineTranscriptCanariesBeforeFacts(t *testing.T) {
 	t.Parallel()

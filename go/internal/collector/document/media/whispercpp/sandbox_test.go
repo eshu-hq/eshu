@@ -20,6 +20,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	docmedia "github.com/eshu-hq/eshu/go/internal/collector/document/media"
 )
@@ -64,7 +65,7 @@ func sandboxEngine(t *testing.T, limits Limits) *Engine {
 
 // TestSandboxRealSpeechRedactedAndDeterministic transcribes the synthesized
 // speech fixture three times, requires identical output, and requires the
-// password canary to be redacted by the unchanged media.Extract path.
+// password canary to be redacted by the media.Extract path.
 func TestSandboxRealSpeechRedactedAndDeterministic(t *testing.T) {
 	engine := sandboxEngine(t, Limits{Timeout: 2 * time.Minute, MaxAddressSpaceBytes: 6 << 30})
 	body := sandboxFixture(t)
@@ -129,6 +130,91 @@ func TestSandboxRealSpeechRedactedAndDeterministic(t *testing.T) {
 		t.Fatalf("password canary was not redacted before facts (redacted sections %d)", redacted)
 	}
 	t.Logf("EVIDENCE redaction sections=%d redacted=%d canary_in_facts=false", len(extracted.Sections), redacted)
+}
+
+// recordingEngine wraps the real engine and keeps the result of every
+// Transcribe call, so a test can read the transcript media.Extract consumed
+// instead of trusting a second, separate engine run to match it.
+type recordingEngine struct {
+	inner   docmedia.Engine
+	results []docmedia.EngineResult
+}
+
+// Transcribe forwards to the wrapped engine and records a successful result.
+func (r *recordingEngine) Transcribe(ctx context.Context, media docmedia.Media) (docmedia.EngineResult, error) {
+	result, err := r.inner.Transcribe(ctx, media)
+	if err == nil {
+		r.results = append(r.results, result)
+	}
+	return result, err
+}
+
+// TestSandboxCanaryInOwnSegmentIsRedacted feeds the fixture with a silence
+// between the marker and the value and proves two things against the real
+// binary: whisper.cpp really does put the value in a later segment than the
+// marker, and media.Extract still keeps that value out of every envelope. The
+// marker and value positions and the value text come from the transcript that
+// media.Extract itself consumed (recorded by a wrapper around the engine), not
+// from a separate engine run, so the verdict never depends on two runs agreeing.
+// The check compares against the text the engine produced, not only the
+// expected canary spelling, so a mishearing cannot make it pass. Failure
+// messages carry positions and counts only: transcript text must stay out of
+// the proof log.
+func TestSandboxCanaryInOwnSegmentIsRedacted(t *testing.T) {
+	engine := &recordingEngine{inner: sandboxEngine(t, Limits{Timeout: 2 * time.Minute, MaxAddressSpaceBytes: 6 << 30})}
+	body, err := os.ReadFile(os.Getenv("ESHU_WHISPERCPP_SPLIT_SPEECH_FIXTURE"))
+	if err != nil {
+		t.Fatalf("read split speech fixture: %v", err)
+	}
+	extracted, err := docmedia.Extract(context.Background(), docmedia.Request{
+		SourceName: "fixture/speech-split.wav",
+		Body:       body,
+		Engine:     engine,
+	})
+	if err != nil {
+		t.Fatalf("Extract() error = %v", err)
+	}
+	if len(engine.results) != 1 {
+		t.Fatalf("Extract made %d successful Transcribe calls, want exactly 1", len(engine.results))
+	}
+	transcript := engine.results[0]
+	marker, value := -1, -1
+	for i, segment := range transcript.Segments {
+		switch text := strings.ToLower(segment.Text); {
+		case strings.Contains(text, "password"):
+			marker, value = i, -1
+		case marker >= 0 && value < 0:
+			value = i
+		}
+	}
+	if marker < 0 || value < 0 {
+		t.Fatalf("fixture did not split: segments=%d marker=%d value=%d", len(transcript.Segments), marker, value)
+	}
+	valueText := strings.Trim(strings.ToLower(transcript.Segments[value].Text), " .,!?")
+	heardCanary := strings.Contains(valueText, "swordfish")
+	t.Logf("EVIDENCE split segments=%d marker_segment=%d value_segment=%d value_runes=%d value_is_canary=%t",
+		len(transcript.Segments), marker, value, utf8.RuneCountInString(valueText), heardCanary)
+	if !heardCanary {
+		t.Fatalf("value segment %d is not the canary, so this run proves nothing about it", value)
+	}
+
+	redacted := 0
+	for _, section := range extracted.Sections {
+		if section.SourceMetadata["redacted"] == "true" {
+			redacted++
+		}
+	}
+	encoded, err := json.Marshal(extracted.Envelopes)
+	if err != nil {
+		t.Fatalf("marshal envelopes: %v", err)
+	}
+	if strings.Contains(strings.ToLower(string(encoded)), valueText) {
+		t.Fatalf("value segment reached the facts (sections %d, redacted %d)", len(extracted.Sections), redacted)
+	}
+	if len(extracted.Sections) != 2 || redacted != len(extracted.Sections) {
+		t.Fatalf("want 2 sections both redacted, got sections %d redacted %d", len(extracted.Sections), redacted)
+	}
+	t.Logf("EVIDENCE split-redaction sections=%d redacted=%d canary_in_facts=false", len(extracted.Sections), redacted)
 }
 
 // TestSandboxSilenceIsNoSpeech feeds six seconds of digital silence.

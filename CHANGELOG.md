@@ -31,6 +31,25 @@ recent shipped work grouped by feature area.
   a `v1alpha1` fixture carrying a page now fails `fixture_contract_failed`
   instead of passing with the page dropped, and a `v1alpha3` continuation page
   with no cursor fails `fixture_contract_failed`.
+### Media transcripts: redact a value that lands in its own segment
+
+- **`media.Extract` now redacts the segments after a sensitive keyword**
+  ([#9786](https://github.com/eshu-hq/eshu/issues/9786)). "The password is"
+  followed by "swordfish." used to redact the first segment and persist the
+  second. A keyword now opens a two-segment window, judged in time order and
+  again in slice order, so out-of-order engine output can over-redact.
+  Emails, URLs, tickets, and paths with no keyword in their text open no
+  window. Redacted sections carry
+  hashes of the `[redacted]` placeholder instead of a sha256 of the withheld
+  text, so a `text_hash` cannot confirm a guess at a short spoken value. Two
+  segments of ordinary speech after a keyword lose their text, and n
+  consecutive keyword segments can cost n+1 after the last one on valid,
+  time-sorted input, and up to 2n when their timing is invalid. A value spoken
+  before its keyword stays in clear text
+  ([#9792](https://github.com/eshu-hq/eshu/issues/9792)). Nothing calls the
+  transcript path in production yet. The real-binary proof
+  (`scripts/verify-media-transcript-sandbox.sh`) gained a fixture whose canary
+  sits in its own segment.
 
 ### Extension-host extraction: remote claim client seam, eshu-workflow v0.1.0 pin
 

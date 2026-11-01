@@ -172,12 +172,19 @@ func buildSections(
 	sourceHash string,
 ) []transcriptSection {
 	sections := make([]transcriptSection, 0, len(transcript.Segments))
+	isValue := valueSegments(transcript.Segments)
 	for i, segment := range transcript.Segments {
 		text := strings.TrimSpace(segment.Text)
-		if text == "" || segment.EndMillis < segment.StartMillis || segment.StartMillis < 0 {
+		if text == "" || !hasValidTiming(segment) {
 			continue
 		}
-		content, warnings, redacted := persistedContent(text, req.Options.MaxSectionChars)
+		content, warnings, redacted := persistedContent(text, req.Options.MaxSectionChars, isValue[i])
+		excerptHash := hashText(content)
+		textHash := hashText(text)
+		if redacted {
+			// A plain digest of a short spoken value confirms a guess at it.
+			textHash = excerptHash
+		}
 		segmentID := firstNonEmpty(cleanID(segment.SegmentID), strconv.Itoa(i+1))
 		metadata := map[string]string{
 			"format_family":               formatMediaTranscript,
@@ -221,8 +228,8 @@ func buildSections(
 				OrdinalPath:      []int{len(sections) + 1},
 				Content:          content,
 				ContentFormat:    "text/plain",
-				TextHash:         hashText(text),
-				ExcerptHash:      hashText(content),
+				TextHash:         textHash,
+				ExcerptHash:      excerptHash,
 				SourceStartRef:   "time:" + formatMillis(segment.StartMillis),
 				SourceEndRef:     "time:" + formatMillis(segment.EndMillis),
 				SourceMetadata:   metadata,
@@ -233,6 +240,10 @@ func buildSections(
 		})
 	}
 	return sections
+}
+
+func hasValidTiming(segment Segment) bool {
+	return segment.StartMillis >= 0 && segment.EndMillis >= segment.StartMillis
 }
 
 func safeMentionHints(hints []doctruth.MentionHint) []doctruth.MentionHint {
@@ -319,9 +330,13 @@ func skippedStatus(preflight media.Result) string {
 	return "skipped"
 }
 
-func persistedContent(text string, maxChars int) (string, []string, bool) {
+// persistedContent returns the text to persist for one segment, its warning
+// classes, and whether the text was withheld. isValue marks a segment that
+// valueSegments placed in a keyword's window, which is withheld even though the
+// segment has no marker of its own.
+func persistedContent(text string, maxChars int, isValue bool) (string, []string, bool) {
 	warnings := []string{}
-	if containsSensitiveMarker(text) {
+	if isValue || containsSensitiveMarker(text) {
 		return "[redacted]", []string{string(media.WarningSensitiveValueRedacted)}, true
 	}
 	if maxChars <= 0 {

@@ -9,8 +9,11 @@
 #              ggml/whisper libraries, CPU only, no ffmpeg/SDL/curl.
 #   model    - fetches ggml-base.en.bin at a pinned Hugging Face revision and
 #              verifies its sha256 at build time.
-#   fixture  - synthesizes the speech fixture offline with espeak-ng. The text
-#              carries a password canary that redaction must remove.
+#   fixture  - synthesizes the speech fixtures offline with espeak-ng. Both
+#              carry a password canary that redaction must remove. speech.wav
+#              says marker and value together. speech-split.wav puts an SSML
+#              silence between them so the value lands in its own segment
+#              (#9786).
 #   proof    - alpine runtime with the binary, model, fixture, and the static
 #              Go test binary compiled with -tags whispercpp_sandbox.
 #
@@ -46,6 +49,8 @@ FROM ${ESHU_ALPINE_IMAGE} AS fixture
 RUN apk add --no-cache espeak-ng=1.51.1-r1
 RUN mkdir -p /out && espeak-ng -v en-us -s 140 -w /out/speech.wav \
 	"Please restart the payments worker before noon. The password is swordfish."
+RUN espeak-ng -v en-us -s 140 -m -w /out/speech-split.wav \
+	'The password is as follows. <break time="3s"/> Swordfish.'
 
 FROM ${ESHU_ALPINE_IMAGE} AS proof
 RUN apk add --no-cache libstdc++=14.2.0-r4 libgcc=14.2.0-r4 \
@@ -53,6 +58,7 @@ RUN apk add --no-cache libstdc++=14.2.0-r4 libgcc=14.2.0-r4 \
 COPY --from=whisper /out/whisper-cli /opt/whisper/bin/whisper-cli
 COPY --from=model --chmod=0444 /out/ggml-base.en.bin /opt/whisper/models/ggml-base.en.bin
 COPY --from=fixture --chmod=0444 /out/speech.wav /opt/whisper/fixtures/speech.wav
+COPY --from=fixture --chmod=0444 /out/speech-split.wav /opt/whisper/fixtures/speech-split.wav
 COPY --chmod=0555 whispercpp.test /opt/whisper/proof/whispercpp.test
 USER 65532:65532
 ENTRYPOINT ["/opt/whisper/proof/whispercpp.test"]

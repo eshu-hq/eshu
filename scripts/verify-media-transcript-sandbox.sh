@@ -4,7 +4,7 @@ set -euo pipefail
 # Sandbox proof for the whisper.cpp media transcript engine (#9729).
 #
 # Builds scripts/lib/media-transcript-sandbox/Dockerfile (pinned whisper.cpp
-# v1.9.5, pinned ggml-base.en model, espeak-ng speech fixture, and the Go
+# v1.9.5, pinned ggml-base.en model, espeak-ng speech fixtures, and the Go
 # whispercpp test binary compiled with -tags whispercpp_sandbox), verifies
 # the model digest on the host and records the built binary digest, then runs
 # the proof tests under the gate-2 sandbox profile, where New verifies both
@@ -70,13 +70,16 @@ container="$("${runtime}" create "${image}")"
 "${runtime}" cp "${container}:/opt/whisper/bin/whisper-cli" "${work}/extract/whisper-cli"
 "${runtime}" cp "${container}:/opt/whisper/models/ggml-base.en.bin" "${work}/extract/model.bin"
 "${runtime}" cp "${container}:/opt/whisper/fixtures/speech.wav" "${work}/extract/speech.wav"
+"${runtime}" cp "${container}:/opt/whisper/fixtures/speech-split.wav" "${work}/extract/speech-split.wav"
 binary_sha256="$(sha256sum "${work}/extract/whisper-cli" | cut -d' ' -f1)"
 got_model="$(sha256sum "${work}/extract/model.bin" | cut -d' ' -f1)"
 [[ "${got_model}" == "${model_sha256}" ]] || die "model digest ${got_model} != pinned ${model_sha256}"
 printf 'EVIDENCE whisper-cli sha256=%s\n' "${binary_sha256}"
 printf 'EVIDENCE model ggml-base.en.bin sha256=%s\n' "${got_model}"
-printf 'EVIDENCE fixture speech.wav sha256=%s bytes=%s\n' \
-	"$(sha256sum "${work}/extract/speech.wav" | cut -d' ' -f1)" "$(wc -c <"${work}/extract/speech.wav")"
+for fixture in speech.wav speech-split.wav; do
+	printf 'EVIDENCE fixture %s sha256=%s bytes=%s\n' "${fixture}" \
+		"$(sha256sum "${work}/extract/${fixture}" | cut -d' ' -f1)" "$(wc -c <"${work}/extract/${fixture}")"
+done
 
 log="${work}/proof.log"
 set +e
@@ -89,6 +92,7 @@ set +e
 	-e ESHU_WHISPERCPP_MODEL_SHA256="${model_sha256}" \
 	-e ESHU_WHISPERCPP_VERSION=v1.9.5 \
 	-e ESHU_WHISPERCPP_SPEECH_FIXTURE=/opt/whisper/fixtures/speech.wav \
+	-e ESHU_WHISPERCPP_SPLIT_SPEECH_FIXTURE=/opt/whisper/fixtures/speech-split.wav \
 	"${image}" -test.v -test.count=1 -test.run '^TestSandbox' >"${log}" 2>&1
 status=$?
 set -e
@@ -100,7 +104,7 @@ if rg -qi 'swordfish' "${log}"; then
 	die "password canary appeared in proof output or engine logs"
 fi
 for test_name in TestSandboxProfileIsEnforced TestSandboxRealSpeechRedactedAndDeterministic \
-	TestSandboxSilenceIsNoSpeech TestSandboxBoundsFailClosed; do
+	TestSandboxCanaryInOwnSegmentIsRedacted TestSandboxSilenceIsNoSpeech TestSandboxBoundsFailClosed; do
 	rg -q -- "--- PASS: ${test_name} " "${log}" || die "${test_name} did not pass"
 done
 printf 'verify-media-transcript-sandbox: PASS (log %s)\n' "${log}"

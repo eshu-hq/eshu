@@ -14,8 +14,9 @@ provenance without promoting transcript text to graph truth.
 
 This package owns the post-preflight transcript fact boundary for local media
 inputs. It calls `media` preflight first, invokes only an injected transcript
-engine for supported inputs, redacts sensitive-looking transcript segments, and
-emits `documentation_document`, timestamped `documentation_section`, and
+engine for supported inputs, redacts sensitive-looking transcript segments and
+the segments that follow a sensitive keyword (see "Value segments"), and emits
+`documentation_document`, timestamped `documentation_section`, and
 provenance-only `documentation_entity_mention` envelopes.
 
 It does not discover repositories, add runtime flags, create temp files, call
@@ -67,6 +68,15 @@ transcript fact construction is bounded by media preflight limits, synthetic
 transcript segments, section text bounds, and deterministic mention extraction
 without adding discovery, queue, graph, or runtime work.
 
+No-Regression Evidence: the value-segment walk (#9786) adds a small cost. It
+sorts the segments, capped at 1,000 by the `whispercpp` engine, and makes two
+passes over them. Baseline is `d2e483870d`, measured at `9e2cb253b2`. A
+throwaway benchmark of `buildSections` on 1,000 benign synthetic segments, 5
+runs of 3,000 iterations each on arm64, went from a median of 8.27 ms/op to
+8.43 ms/op, about 2% more, with about 1,004 more allocations per call (24,913
+to 25,917). There is no backend, queue, or row count: this is in-memory work
+with no production caller, and it holds no lock and starts no worker.
+
 Collector Observability Evidence: this package emits no facts outside the
 returned envelopes and has no runtime side effects. Future runtime wiring must
 add collector signals for attempted media preflight and transcription,
@@ -84,6 +94,69 @@ query, graph write, HTTP handler, MCP tool, runtime flag, hosted collector path,
 metric, span, log, or status row. Existing collector, fact-store, HTTP, and MCP
 readback surfaces already carry the emitted documentation facts.
 
+No-Observability-Change: the value-segment rule (#9786) adds none of these and
+no error text. A value section carries the existing `redacted` and
+`redaction_class` metadata, which is what a future caller counts.
+
+## Value segments
+
+A speech engine can put a secret's value in a later segment than the word that
+introduces it, so `Extract` does not judge segments only one at a time (#9786).
+
+- A segment with a sensitive keyword (`password`, `api_key`, `private_key`, or
+  a `*_marker` keyword) opens a window of `valueWindowSegments` (2) segments.
+  Those segments persist as `[redacted]`, with the same `redacted`,
+  `redaction_class`, and warning metadata as a marker segment, and emit no
+  mention facts.
+- Emails, URLs, tickets, and local paths with no keyword in their text redact
+  their own segment and open no window. They are values, not words that
+  introduce one. A segment that has both a keyword and one of these patterns,
+  such as "password alice@example.com", still opens a window, because the
+  keyword alone decides that.
+- The walk runs twice, and every keyword segment opens a window in both: once
+  in time order, by start then end, because the `Engine` contract does not
+  promise sorted output, and once in slice order, because timestamps cannot be
+  trusted to place a keyword. A wrong time can still look valid and sort away
+  from the value, and a duration bound does not help: the real engine returned
+  an end of 6500 ms on the 5783 ms split fixture. The passes agree on
+  time-sorted input. On out-of-order input the second pass only adds redaction,
+  and that over-redaction is accepted policy. Section order and fallback
+  section IDs stay in engine order.
+- Only a segment with a letter or digit uses up the window. Blank,
+  punctuation-only, and zero-width segments stay redacted inside it but leave
+  it open, so "The password is", ".", "...", "swordfish." still covers the
+  value. A long silence does not close it either: the window counts segments,
+  not milliseconds.
+- A segment with invalid timing never reaches a section and uses up no window,
+  but a keyword in it still opens one: its text was spoken.
+- Each keyword segment adds a full window, so stacked markers each cover their
+  own value.
+- The window is 2 so it covers an immediate value, plus a value the engine
+  broke in two or a filler spoken before it. It stays small because every
+  segment in the window loses its text.
+- Any keyword opens the window, not only one that ends its segment. This is a
+  deliberate deviation from a "marker-ending" rule. Through the real engine
+  path (16 kHz stdin), `base.en` hears the fixture's "The password is as
+  follows." as "The password in a column". Direct `whisper-cli` runs on the
+  22.05 kHz file heard "as follows" as "El Falon", "Alpha alone", and "El
+  Paolo". A heuristic that reads the words after a keyword fails open.
+- The cost is lost speech. One keyword segment can redact two following
+  segments. On valid, time-sorted input, n consecutive keyword segments can
+  redact n+1 segments after the last one; a keyword segment with invalid timing
+  arms a window without spending a slot, so a run of those can cost up to 2n.
+  So "The password was rotated." costs ordinary speech. That loss
+  shows in section metadata; a persisted secret cannot be taken back.
+
+Known limits:
+
+- A value spoken before its keyword ("swordfish is the password") is not
+  redacted, because the window only looks forward (#9792).
+- A value spoken past the window keeps its text.
+- Two self-redacting segments in a row, such as an email and a ticket, use up
+  the window, so a value behind them keeps its text.
+- Only the keywords above are matched, so spoken forms such as "API key" open
+  no window and are not redacted (#9788).
+
 ## Gotchas / invariants
 
 - Non-WAV media stays unsupported until a codec/container dependency review
@@ -95,8 +168,10 @@ readback surfaces already carry the emitted documentation facts.
 - Speaker labels are never persisted as raw names. Sections may record only a
   presence marker and stable hash.
 - Sensitive-looking transcript text is not persisted as content. The section
-  keeps redaction metadata and stable hashes instead. Redacted sections do not
-  emit mention facts, even when the caller supplied mention hints.
+  keeps redaction metadata instead. Its `text_hash` and `excerpt_hash` are
+  hashes of the `[redacted]` placeholder, because an unsalted sha256 of a short
+  spoken value would confirm a guess at it. Redacted sections do not emit
+  mention facts, even when the caller supplied mention hints.
 - Sensitive-looking mention hints are dropped before doctruth extraction; a
   hint must not be used to bypass transcript redaction.
 - Transcript text and transcript mentions remain document evidence. This
