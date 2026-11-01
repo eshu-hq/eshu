@@ -47,6 +47,29 @@
   `unsupported ecosystem "x"` prefix and appends `(supported: ...)`. A name
   belongs in a set only when the reader, derivation, and `vulnruntime`
   provider can act on it; `vulnruntime` pins the provider side (#9221).
+- **OSV directory names are a closed list** — `OSVDirectoryEcosystem`
+  (`osv_directory_ecosystems.go`) maps the 11 OSV change-feed bucket
+  directories (`npm`, `PyPI`, `Go`, `Maven`, `NuGet`, `Packagist`, `RubyGems`,
+  `crates.io`, `Pub`, `Hex`, `SwiftURL`) to the derivation ecosystems and fails
+  closed on any other name; the match is exact and case-sensitive. It holds no
+  second table: it resolves through `packageidentity.NormalizeEcosystem` and
+  `CanonicalOwnedPackageEcosystem`, so it differs from packageidentity only
+  where the derivation already does (Go: `go`, not `gomod`). A test pins the 11
+  directories one-to-one onto `VulnerabilityOwnedDerivationEcosystems`, and a
+  `vulnruntime` test pins the round trip through `osvQueryEcosystem`. Add a
+  derivation ecosystem and its directory together (#9777).
+
+  No-Regression Evidence: `OSVDirectoryEcosystem` is a pure function with no
+  caller yet. Baseline: none (new). After: mapping all 11 directories costs
+  about 420 ns (about 38 ns per call, 80 B and 9 allocs per 11 calls) on an
+  Apple M5 Max under a busy host (load 20-38),
+  `go test -bench -benchtime=200000x -count=3` (415.8, 420.9, 428.5 ns/op),
+  from a throwaway benchmark that is not committed.
+  Input: the 11 OSV directory names; no Postgres or graph backend, so there
+  are no queue or row counts. It takes no lock, spawns no goroutine, and
+  touches no shared state, so it is safe under any concurrency.
+  No-Observability-Change: a pure lookup emits no metric, span, or log. Its
+  future callers (the feed reader, #9777) own the operator signals.
 - **collectorContracts lookup must be exhaustive** — unknown collector kinds
   return an empty phase list; `ReconcileRunProgress` will treat them as having
   no requirements, which may silently permit premature `complete` transitions.
