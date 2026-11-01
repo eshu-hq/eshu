@@ -25,12 +25,16 @@ From the grant comment, 2026-11-01:
 - Synthetic writes confined to the **satellite's own database** (claims,
   items, runs, pins). Row ids use the prefix `parity-%` or
   `synth-8875-rehearsal-*`. This spec uses only `synth-8875-rehearsal-`.
-- The **isolated in-tree leg schema**: the `parity_`-prefixed schema that
-  `postgresproof.OpenIsolatedSchema(t, dsn, "parity", …)` creates and drops
-  inside the database named by `PARITY_INTREE_DSN`
-  (`go/internal/workflow/parity/backend.go`, `openInTreeBackend`). The
-  executing lane records the exact generated schema name before the first
-  write. `PARITY_INTREE_DSN` must not name the core QA-environment database.
+- The **disposable in-tree leg database**: a throwaway database that the
+  harness creates and force-drops itself
+  (`postgresproof.OpenDisposableBootstrapDatabase`, called from
+  `openInTreeBackend` in `go/internal/workflow/parity/backend.go`). It runs
+  on a **non-core Postgres server** (a local container). `PARITY_INTREE_DSN`
+  is that server's administrative DSN naming the `postgres` database, and
+  `PARITY_INTREE_DISPOSABLE=1` opts in. The executing lane records the exact
+  generated database name before the first write. `PARITY_INTREE_DSN` must
+  not point at the core QA-environment server or database; the in-tree leg
+  never touches core data.
 - Claim-flow enablement on the **enumerated synthetic instances only**,
   through a reviewed IaC PR with a pre-authored revert PR (the `#448`/`#449`
   pattern). The enablement PR number and the revert PR number are linked on
@@ -67,7 +71,7 @@ and section 7 refer to these rows by name.
 | `digest_under_test` | `ghcr.io/eshu-hq/eshu-workflow@sha256:db5a3a53a2bc8c5d9279403d95179950b13069a7c82b9568ff6a3f0e36e86dbc` (source `33f48f4a`), or the digest bound by the parity re-bind if `main` moved |
 | `iac_enable_pr`, `iac_revert_pr` | numbers linked on `#8875`; set by the executing lane |
 | `authority_decision` | link to the `#9727` decision; set by the executing lane |
-| `intree_schema_name` | generated `parity_*` schema name; set at run start |
+| `intree_database_name` | generated disposable database name; set at run start |
 | `worker_counts` | production worker count per claim-capable kind, read-only from deployed config; run at 1x and 2x of the largest |
 | `lease_ttl`, `heartbeat_interval`, `reap_interval` | read from `ESHU_WORKFLOW_COORDINATOR_CLAIM_LEASE_TTL`, `..._HEARTBEAT_INTERVAL`, `..._REAP_INTERVAL` ([`config.go:123`](https://github.com/eshu-hq/eshu/blob/15caae83c5cd1595480c20173bab20f1f65614f7/go/internal/coordinator/config.go#L123)) |
 | `backlog_items` | peak nonterminal `workflow_work_items` depth from production history; if history is smaller, 100,000 synthetic items across at least 200 synthetic scopes |
@@ -86,7 +90,7 @@ column, and only the in-tree store implements
 `CreateRunWithWorkItemsIfNoOpenTargets`; the satellite refuses a client-side
 shim, #9428 ruling, and its server exposes 20 routes with no such route).
 
-| Step | In-tree leg (isolated schema) | Satellite leg | Pass criteria that apply |
+| Step | In-tree leg (disposable database) | Satellite leg | Pass criteria that apply |
 | --- | --- | --- | --- |
 | 1 claim | applies | applies | exactly-once, fencing, starvation |
 | 2 heartbeat | applies | applies | single-holder, fencing |
@@ -153,7 +157,7 @@ consecutive seeds are clean. Steps follow section 3 for applicability.
    fencing token after their claim was reaped and re-claimed.
 
 Snapshots: before step 1, record row counts and counters for every satellite
-table the run can touch (and the in-tree schema's tables), split into
+table the run can touch (and the in-tree disposable database's tables), split into
 prefixed and non-prefixed rows. After cleanup, diff.
 
 ## 6. Pass criteria (all must hold on every leg where the step applies)
@@ -212,7 +216,7 @@ lost item, or a non-synthetic id touched. Also abort on:
 3. Delete synthetic rows by the prefix `synth-8875-rehearsal-` only, child
    tables first (claims, pacing, quota state, then work items, then runs), in
    bounded batches; rerun the residue queries until all three zeros hold. On
-   the in-tree leg the harness drops its `parity_*` schema at test end.
+   the in-tree leg the harness force-drops its disposable database at test end.
    Never `TRUNCATE`.
 4. Merge the pre-authored revert PR (`iac_revert_pr`) to return the target to
    dark (`--deployment-mode=dark`, no `--claims-enabled`) and confirm the
@@ -224,7 +228,7 @@ standing rollback policy (`PLANE_DECLARATION_9376.md` §7) holds.
 
 ## 9. Evidence to capture
 
-Per leg and seed: command lines, seed, digest, `intree_schema_name`,
+Per leg and seed: command lines, seed, digest, `intree_database_name`,
 start/end timestamps, ops count per operation, rejection counts by type,
 reclaim latency percentiles, max lock wait, deadlock count, sampler output,
 the residue queries and their results, and the `NOT_APPLICABLE` records from
