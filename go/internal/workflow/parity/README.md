@@ -41,8 +41,9 @@ PARITY_SATELLITE_DSN='postgres://USER:PASS@127.0.0.1:PORT/parity_satellite?sslmo
   go test ./internal/workflow/parity/ -count=1
 ```
 
-With the legs configured, e.g. a local flip container on :18181 and two
-isolated databases. Without the environment the suite skips. Never point
+With the legs configured, e.g. a local flip container on :18181 and one
+database for the satellite leg (the harness creates and drops the in-tree
+leg's database itself). Without the environment the suite skips. Never point
 the satellite leg at an authoritative deployment, and never replay live
 claims: synthetic run and scope IDs plus cleanup only.
 

@@ -25,16 +25,20 @@ From the grant comment, 2026-11-01:
 - Synthetic writes confined to the **satellite's own database** (claims,
   items, runs, pins). Row ids use the prefix `parity-%` or
   `synth-8875-rehearsal-*`. This spec uses only `synth-8875-rehearsal-`.
-- The **disposable in-tree leg database**: a throwaway database that the
-  harness creates and force-drops itself
+- The **isolated in-tree leg schema** (quoted from the grant).
+
+  Harness reading, recorded as the executing lane's reading and not as grant
+  text: the in-tree leg now uses a **disposable database on a non-core, local
+  Postgres server**. The harness creates and force-drops it itself
   (`postgresproof.OpenDisposableBootstrapDatabase`, called from
-  `openInTreeBackend` in `go/internal/workflow/parity/backend.go`). It runs
-  on a **non-core Postgres server** (a local container). `PARITY_INTREE_DSN`
-  is that server's administrative DSN naming the `postgres` database, and
-  `PARITY_INTREE_DISPOSABLE=1` opts in. The executing lane records the exact
-  generated database name before the first write. `PARITY_INTREE_DSN` must
-  not point at the core QA-environment server or database; the in-tree leg
-  never touches core data.
+  `openInTreeBackend` in `go/internal/workflow/parity/backend.go`).
+  `PARITY_INTREE_DSN` is that server's administrative DSN naming the
+  `postgres` database, and `PARITY_INTREE_DISPOSABLE=1` opts in. This is a
+  narrower reading than a schema inside an arbitrary database: it touches no
+  core data, and DDL on the core server stays not granted. Before the first
+  write the executing lane records the **host and port** of
+  `PARITY_INTREE_DSN` and confirms it is the local container, never the core
+  QA-environment server, plus the generated database name.
 - Claim-flow enablement on the **enumerated synthetic instances only**,
   through a reviewed IaC PR with a pre-authored revert PR (the `#448`/`#449`
   pattern). The enablement PR number and the revert PR number are linked on
