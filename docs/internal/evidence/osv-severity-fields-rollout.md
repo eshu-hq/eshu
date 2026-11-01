@@ -2,8 +2,9 @@
 
 Item 1.1 of the advisory-intelligence epic (#9209, issue #9692, defect D1).
 This note records what shipped, how it was proved, what a deploy changes, and how
-to read the result back in the QA environment. It carries no code. The design
-context is in
+to read the result back in the QA environment. It carries no code. The shared
+golden and the in-tree collector it describes were merged in eshu#9750. The
+design context is in
 [the advisory-intelligence phases](../design/advisory-intelligence-phases.md).
 
 ## What changed
@@ -14,10 +15,21 @@ envelope wrote only a raw `severity` array and `database_specific`, so the
 reducer, which decodes `cvss_score`, `cvss_vector` and `severity_label`, saw
 nothing for most OSV findings.
 
-- `cvss_vector` is the first well-formed entry of the highest CVSS version in
-  the record's top-level `severity[]`: CVSS_V4 (prefix `CVSS:4.0/`), then CVSS_V3
-  (prefix `CVSS:3.`). CVSS_V2 and unknown types never fill it, because a v2
-  vector has no prefix and the reducer's score calculator (`go/internal/reducer/supplychain/core/cvss`) reads v3.0, v3.1, and v4.0 only.
+- `cvss_vector` is the first entry of the highest CVSS type in the record's
+  top-level `severity[]` whose score starts with that type's prefix: CVSS_V4
+  (prefix `CVSS:4.0/`), then CVSS_V3 (prefix `CVSS:3.`). CVSS_V2 and unknown
+  types never fill it, because a v2 vector has no prefix and the reducer's score
+  calculator (`go/internal/reducer/supplychain/core/cvss`) reads v3.0, v3.1, and
+  v4.0 only.
+- The collector's selection is prefix-only. It does not validate the vector and
+  does not rank v3 minor versions: the first `CVSS:3.`-prefixed entry wins,
+  whether 3.0 or 3.1. A malformed V4 value with the right prefix is therefore
+  selected and hides a valid V3 entry (a prefix-only string such as `CVSS:3.1/`
+  also passes). The validation boundary is the reducer: `cvss.BaseScore`
+  validates the vector, and a malformed, unsupported, or zero-scoring vector
+  yields no score, so the label sets the bucket. A populated `cvss_vector` is
+  not proof of usable severity; read the reducer's `derived_from_vector` and
+  `label_only` decisions for that.
 - `severity_label` is `database_specific.severity`, trimmed and lower-cased, with
   `MODERATE` read as `medium`; the vocabulary is critical, high, medium, low. An
   unrecognized, missing, or non-string value leaves it empty.
@@ -37,8 +49,8 @@ One file defines the rule for both collectors:
 | Property | Value |
 | --- | --- |
 | SHA-256 | `9e7b53ee9e490c3d71130762f3f73beae2f586aecff87e86d9003e97eff54fee` |
-| Cases | 12: V3 with a high label, V4 over V3 with `MODERATE`, first V3 wins, V2 only, V3 beats V2, a malformed V4 falling back to V3, an unknown type and label, a non-string label, no severity, mixed case and whitespace, V4 only, and an empty `severity: []` (echoed as null) |
-| Owner | the factschema fixture pack: the canonical copy and the in-tree collector arrive with the core 1.1 change (#9692), and this note merges after it; the eshu-sdk port is published with each factschema tag |
+| Cases | 12: V3 with a high label, V4 over V3 with `MODERATE`, first V3 wins, V2 only, V3 beats V2, a V4 without the vector prefix falling back to V3, an unknown type and label, a non-string label, no severity, mixed case and whitespace, V4 only, and an empty `severity: []` (echoed as null) |
+| Owner | the factschema fixture pack: the canonical copy and the in-tree collector were merged in eshu#9750; the eshu-sdk port is published with each factschema tag |
 | Readers | the in-tree collector (reads the canonical file by path), and the extracted collector (reads `fixturepack.OSVSeverityGolden()` from the published module; merged as its #35) |
 
 The fixture pack's own test derives every expected field from the case's record
@@ -81,11 +93,20 @@ test uses no SDK API.
 - Each OSV scope re-emits once after the new collector rolls out. That
   re-emission is also how stored facts get the fields: until a scope is
   collected again, its stored facts carry neither field.
-- Derived OSV targets rotate through hash slots, one slot per reconcile window,
-  so every target is replanned within P windows (P is the smallest power of two
-  with P times the target limit at least twice the target count). The deployed
-  window length and the wall-clock time to full regeneration have not been
-  measured.
+- Derived OSV targets rotate through hash slots, one slot per reconcile window.
+  P is the smallest power of two with P times the target limit at least twice
+  the target count, which bounds the mean slot size, not the largest slot. Every
+  target is replanned within P windows only if P stays stable (the target count
+  does not cross a power-of-two multiple of half the target limit), P
+  consecutive windows run and succeed, and no slot exhausts the read or planning
+  limits. A slot that does is cut short on every rotation, and the targets past
+  the limit are never planned in it.
+- Before declaring regeneration complete, check the coordinator's log line
+  "workflow coordinator read owned package target window" for `truncated=false`
+  on every window, and the run's skip evidence for any
+  `derived_target_budget_exhausted` entry (it names the unread count). Either
+  one means some targets were not replanned. The deployed window length and the
+  wall-clock time to full regeneration have not been measured.
 
 ## Release gate state
 
@@ -121,10 +142,14 @@ read-only queries each time and record the time of each read:
 2. The rate of `eshu_dp_supply_chain_severity_decisions_total` by `outcome`
    (`derived_from_vector` and `label_only` should rise), and findings counted by
    `provenance.selected_severity_score_source` on the active generation.
-3. A sample of OSV `vulnerability.cve` facts: both keys present, and a
-   non-empty `severity_label` wherever the record carries
-   `database_specific.severity`. The vector count can be lower than the label
-   count, because CVSS_V2 entries do not fill it.
+3. A sample of OSV `vulnerability.cve` facts: both keys present. Expect a
+   non-empty `severity_label` only where `database_specific.severity` is a
+   recognized string (critical, high, medium, moderate, or low, any case, with
+   surrounding space ignored); `moderate` and `medium` both give `medium`.
+   Expect an empty label where the value is missing, an unrecognized string, or
+   not a string: the collector leaves those empty on purpose, so an empty label
+   there is correct output, not a failure. The vector count can be lower than
+   the label count, because CVSS_V2 entries do not fill it.
 
 If nothing moves inside the hour, that is a finding to diagnose, not a reason to
 wait: check that the collector instance is running the new build, that OSV
