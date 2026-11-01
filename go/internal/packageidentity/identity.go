@@ -6,7 +6,6 @@ package packageidentity
 import (
 	"fmt"
 	"net/url"
-	"regexp"
 	"strings"
 )
 
@@ -73,8 +72,6 @@ type Identity struct {
 	SourceSpecificID string
 	PackageID        string
 }
-
-var pypiNormalizePattern = regexp.MustCompile(`[-_.]+`)
 
 // Normalize applies ecosystem-specific identity rules and returns a stable
 // package identity. It preserves raw fields for source debugging.
@@ -196,7 +193,7 @@ func normalizeName(ecosystem Ecosystem, rawName, namespace string) (string, stri
 	case EcosystemNPM:
 		return normalizeNPMName(rawName)
 	case EcosystemPyPI:
-		return pypiNormalizePattern.ReplaceAllString(LowerASCII(rawName), "-"), "", nil
+		return NormalizePyPIName(rawName), "", nil
 	case EcosystemGoModule:
 		return rawName, goModuleNamespace(rawName), nil
 	case EcosystemMaven:

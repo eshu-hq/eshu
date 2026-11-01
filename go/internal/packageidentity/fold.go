@@ -3,7 +3,23 @@
 
 package packageidentity
 
-import "strings"
+import (
+	"regexp"
+	"strings"
+)
+
+// PyPINameSeparatorRun is the regular expression for a run of the separators
+// PEP 503 folds together. Every PyPI normalization uses it, including the SQL
+// the owned-package resolver filters with, so Go and SQL agree byte for byte.
+const PyPINameSeparatorRun = `[-_.]+`
+
+var pypiNormalizePattern = regexp.MustCompile(PyPINameSeparatorRun)
+
+// NormalizePyPIName returns the PEP 503 spelling of a PyPI name: ASCII-folded,
+// with each separator run replaced by one "-".
+func NormalizePyPIName(name string) string {
+	return pypiNormalizePattern.ReplaceAllString(LowerASCII(name), "-")
+}
 
 // LowerASCII returns value with only the ASCII letters A-Z mapped to a-z. Every
 // other byte, including each byte of a non-ASCII letter, is kept as written.

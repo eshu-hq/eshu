@@ -34,8 +34,8 @@ cycle.
   `DerivedTargetReadLimit`. The owned-package reader selects hash slot
   `bucket mod P` (#9422); the installed-advisory readers still page by
   `bucket * limit` until #9427.
-- `ExactOwnedDependencyVersion`, `NonVersionOwnedDependencyPrefix`,
-  `FirstNonBlank`.
+- `ExactOwnedDependencyVersion`, `ExactOwnedDependencyVersionForEcosystem`,
+  `NonVersionOwnedDependencyPrefix`, `FirstNonBlank`.
 - `ScanIntervalConfigKey`, `ParseScanInterval` (one configuration document),
   and `ParseScanIntervalValue` (the JSON value under that key). The
   coordinator validates and plans with them; the status reader in
@@ -84,6 +84,10 @@ existing reconcile telemetry is unchanged.
 - `ExactOwnedDependencyVersion` rejects ranges, tags, and non-registry
   references (git/http/workspace/etc. prefixes) even when they parse as valid
   semver after a `v` prefix is added.
+- `ExactOwnedDependencyVersionForEcosystem` is the rule the vulnerability
+  planner applies. The owned-package resolver in `storage/postgres` calls it
+  too, so a stored row the planner would never query is not reported as
+  affected by a changed OSV name.
 - `DerivedTargetReadLimit` widens by exactly one row
   (`budgetExhaustionLookahead`) so a caller can distinguish "exactly at
   budget" from "budget exhausted with more waiting"; it returns the raw limit

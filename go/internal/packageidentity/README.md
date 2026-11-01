@@ -54,6 +54,12 @@ truth; reducers admit user-facing truth.
   `docs/internal/evidence/9584-consumption-key-ascii-fold.md` names the
   callers outside this package that were converted and the known folds not
   yet converted (#9622).
+- `NormalizePyPIName` and `PyPINameSeparatorRun` are the one PEP 503 fold.
+  `SwiftOSVSourceLocation` is the name the vulnerability planner queries for a
+  stored swift location, and `SwiftRepositoryKey` is the host/path spelling that
+  feed names and stored locations compare on (#9777). The OSV SwiftURL feed
+  writes `github.com/apple/swift-nio`, a manifest writes a clone URL, and bare
+  feed names have no key. The key drops `.git` in any case.
 - `NormalizeRegistry` canonicalizes registry host/path values without hiding
   the source registry.
 - `DefaultRegistry` returns the canonical registry host for an ecosystem so
