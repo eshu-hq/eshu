@@ -90,6 +90,81 @@ row of its own; extraction throughput stays covered by the git-source
 collector metrics that cover documentation export throughput (see the
 collector documentation row in `docs/public/observability/telemetry-coverage.md`).
 
+## Label and value redaction
+
+A region is judged on its own text, so a bare value such as `Hunter2` matches no
+marker when OCR places it away from its `Password:` label. `Extract` closes that
+gap before any content is persisted (#9782). It finds labels, then withholds
+their values with the same `[redacted]` content, metadata, and warning as a
+marker hit. The rule lives in `labelValueRegions` in `sanitize.go`.
+
+A region is a **label** when either holds:
+
+- It ends in `:` or `=` and contains a marker word: `Password (required):`.
+- It ends in a marker word and has at most 3 words (`maxBareLabelWords`):
+  `Password`, `Confirm password`. A boxed form renders these with no colon.
+
+Marker words are the word list in `sensitiveMarkers`. An email, URL, path, or
+ticket redacts its own region but is not a label. A region that carries text
+after the marker, such as `password: hunter2`, holds its own value and is not a
+label either.
+
+A region is a **value** when either holds:
+
+- Window: it is one of the 2 non-blank regions after a label in engine order
+  (`labelValueWindow`). Each label restarts the window, so two stacked labels
+  cover two values. A blank region does not use up the window.
+- Row: it starts past the label's right edge and overlaps the label's row by at
+  least half the shorter height (`minLabelRowOverlap`). Tesseract reads columns
+  as separate blocks, which can put a value many regions after its label. The
+  order of the two columns does not matter. An engine that reports no height
+  gets the window only.
+
+`Extract` never sorts. `EngineResult.Regions` must be in reading order, because
+layout order is more accurate than a position sort on a multi-column page.
+
+The tradeoff is deliberate. Up to 2 ordinary lines after a label are hidden,
+which costs a little documentation evidence. A leaked secret costs more, and
+ordinary text that follows no label is untouched.
+
+Limits:
+
+- Marker words decide everything, so a label the word list misses opens no
+  window: `Secret:`, `API Key:`, and a misread `Passw0rd:` are not labels.
+- Three or more labels stacked above their values in one column, with no shared
+  row, reach only the first two values. Tesseract did not produce this shape in
+  the layouts probed for #9782; columns split this way share a row.
+- A label followed by text on the same line is not a label: `Password (min 12)`
+  with no separator opens no window.
+- `text_hash` on a withheld section is an unsalted SHA-256 of the region text,
+  the same as any redacted region. It lets a holder confirm a guessed value.
+
+Proof: `TestExtractRedactsValuesThatFollowALabelInReadingOrder`,
+`TestExtractRedactsValueInTheColumnBesideALabel`,
+`TestExtractFollowsEngineRegionOrder`,
+`TestExtractLabelValueRedactionStaysTruthful`, and the `form-stacked.png` and
+`form-columns.png` fixtures in `TestSandboxRealTesseract`.
+
+Performance Evidence: `BenchmarkBuildSectionsNoLabels` and
+`BenchmarkBuildSectionsLabelHeavy` on 500 regions, the tesseract default cap,
+with before and after test binaries run in turn at `-benchtime=2000x`, six runs
+each. Medians on a shared host: ordinary text went from 3.06 ms/op to 3.10 ms/op
+(13,405 to 14,406 allocs/op, from lowercasing and splitting each region once).
+The worst case for the row clause, 250 labels followed by 250 regions past every
+window, went from 1.88 ms/op to 2.00 ms/op. The row clause is regions times
+labels, so 500 regions bound it. Either figure is small next to about 200 ms for
+one tesseract run.
+
+No-Regression Evidence: `go test -race ./internal/collector/document/ocr/...
+-count=1` passes, including the pre-existing extraction, skip, GIF, redaction,
+and local-engine PII suites.
+
+No-Observability-Change: the rule adds no metric, span, or log. A withheld value
+is a redacted section, so `eshu_dp_ocr_redacted_regions_total`, the
+`ocr.redacted_region_count` span attribute, and the `redacted_region_count` log
+field count it with no change. `TestExtractRedactsValueOnLineBelowLabel` asserts
+the count and that no canary reaches logs, spans, or envelopes.
+
 ## Dependencies
 
 The package depends on `internal/collector/preflight/picture` for metadata-only
@@ -136,6 +211,8 @@ readback surfaces already carry the emitted documentation facts.
   IDs.
 - Sensitive-looking OCR text is not persisted as content. The section keeps
   redaction metadata and stable hashes instead.
+- A value that follows a sensitive label is withheld too, even when its own
+  text looks harmless. See "Label and value redaction".
 - OCR text remains document evidence. This package must not emit entity
   mentions, claim candidates, graph relationships, ownership truth, deployment
   truth, incident truth, or service truth.

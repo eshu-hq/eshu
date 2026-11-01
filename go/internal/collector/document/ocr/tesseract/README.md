@@ -142,10 +142,10 @@ proves behavior, not telemetry.
 - Keep regions line-grouped; word regions split a secret from its label and
   defeat redaction.
 - Line grouping does not cover a label and value on separate lines (forms,
-  columns, label above value). The value becomes its own region and
-  `ocr.Extract`'s markers do not match it.
-  `TestExtractLeavesValueOnlyLineUnredacted` pins this residual; the fix is
-  #9782.
+  columns, label above value). `ocr.Extract` handles that case, not this
+  package: see "Label and value redaction" in the OCR README.
+  `TestExtractRedactsValueOnLineBelowLabel` and the `form-stacked.png` and
+  `form-columns.png` sandbox fixtures prove it through this engine.
 - Image preflight in `preflight/picture` still reports WebP as an
   unsupported codec, so `Engine.Extract` skips WebP even though
   `Engine.Recognize` reads it. Enabling WebP extraction is #9780.
