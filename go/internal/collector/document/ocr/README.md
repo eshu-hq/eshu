@@ -107,29 +107,29 @@ opens no window. It is a value, not a word that introduces one.
 
 A region is a value when either holds:
 
-- Window: it is one of the 2 non-blank regions after a marker word in engine
-  order (`labelValueWindow`). One covers a value directly below its label, and
-  the second covers a caption or other line between the two. Each marker word
-  adds a full window, so stacked labels each cover their own value. A blank
-  region does not use up the window, and neither does a region with no letter
-  or digit, because box edges reach OCR as `|` or `_`. That region is still
-  withheld, since a password can be all symbols.
+- Window: it is one of the 2 regions after a marker region in engine order
+  (`labelValueWindow`). One covers a value directly below its label, and the
+  second covers a caption or other line between the two. Each marker region adds
+  a full window once, so stacked labels each cover their own value. A region
+  with no letter or digit does not use up the window, because box edges reach
+  OCR as `|` or `_`. That region is still withheld, since a password can be all
+  symbols. A blank region never becomes a section.
 - Row: it starts past the marker region's right edge and overlaps that region's
   row by at least half the shorter height (`minLabelRowOverlap`). Tesseract
   reads columns as separate blocks, which can put a value many regions after its
   label. The order of the two columns does not matter. A region with no height
-  or with a NaN or infinite bound has no row, so it gets the window only. A
-  region that starts exactly at the marker's right edge, or overlaps exactly half
-  the shorter height, counts as on the row.
+  or width, or with a NaN or infinite bound, has no row, so it gets the window
+  only. A region that starts exactly at the marker's right edge, or overlaps
+  exactly half the shorter height, counts as on the row.
 
 `Extract` never sorts. `EngineResult.Regions` must be in reading order, because
 layout order is more accurate than a position sort on a multi-column page.
 
-The tradeoff is deliberate. Up to 2 ordinary lines after any marker word are
+The tradeoff is deliberate. Up to 2 ordinary lines after any marker region are
 hidden, including after a line that already holds its value, such as
 `password: hunter2`, and after prose that mentions a password. That costs a
 little documentation evidence. A leaked secret costs more, and ordinary text
-that follows no marker word is untouched. Windows add but stay bounded: k marker
+that follows no marker region is untouched. Windows add but stay bounded: k marker
 regions in a row hide at most k+1 regions after them.
 
 Limits:
@@ -138,8 +138,13 @@ Limits:
   window: `Secret:`, `API Key:`, and a misread `Passw0rd:` are not markers. In a
   probe of degraded renders, `Password` came back verbatim or was lost whole, as
   in `Confirm passwort`.
-- A value more than 2 regions after its marker word, on another row, is not
+- `Token:` and `Credentials:` are not markers either. #9793 tracks the marker
+  list.
+- A value more than 2 regions after its marker region, on another row, is not
   caught.
+- A value above its label, or left of its label on the same row, is not withheld.
+- A region opens one window however many marker words it holds, so
+  `password: api_key:` followed by three values leaves the third in clear.
 - A table column is not covered. A header row such as `Service Password Owner`
   opens a window over the next rows only, and each cell further down stays in
   clear. That needs a column rule, not this one.
@@ -157,8 +162,10 @@ with before and after test binaries run in turn at `-benchtime=2000x`, six runs
 each. Medians on a shared host: ordinary text went from 3.06 ms/op to 3.14 ms/op
 (13,405 to 13,906 allocs/op, one lowercase per region). The worst case for the
 row clause, 250 regions followed by 250 labels, went from 1.88 ms/op to 2.06
-ms/op. The row clause is regions times marker regions, so 500 regions bound it.
-Either figure is small next to about 200 ms for one tesseract run.
+ms/op. The row clause is regions times marker regions. The default cap of 500
+bounds it, but `Config.MaxRegions` has no upper limit, so a caller that raises
+the cap raises this cost. Either figure is small next to about 200 ms for one
+tesseract run.
 
 No-Regression Evidence: `go test -race ./internal/collector/document/ocr/...
 -count=1` passes, including the pre-existing extraction, skip, GIF, redaction,
