@@ -125,14 +125,16 @@ is one bounded subprocess per image with no caller wired, so no terminal
 queue or row counts apply. It is safe because every cap fails closed and
 nothing calls it in production yet.
 
-Observability Evidence: the same proof run records each run's outcome,
-duration, and sampled peak RSS through `eshu_dp_ocr_recognitions_total`,
+Observability Evidence: each run's outcome, duration, and sampled peak RSS
+are recorded through `eshu_dp_ocr_recognitions_total`,
 `eshu_dp_ocr_recognition_duration_seconds`, and
 `eshu_dp_ocr_engine_peak_rss_bytes`, and each extraction through
 `eshu_dp_ocr_extractions_total` and `eshu_dp_ocr_redacted_regions_total`.
-`TestExtractRedactsCanariesBeforeFactsAndRecordsTelemetry` asserts those
-series, the `ocr.extract` and `ocr.recognize` spans, and the outcome log
-fields, and asserts that no canary reaches any of them.
+`TestExtractRedactsCanariesBeforeFactsAndRecordsTelemetry`, which runs
+against a fake binary, asserts those series, the `ocr.extract` and
+`ocr.recognize` spans, and the outcome log fields, and asserts that no canary
+reaches any of them. The real-binary sandbox proof wires no instruments: it
+proves behavior, not telemetry.
 
 ## Gotchas / invariants
 
