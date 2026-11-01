@@ -164,7 +164,7 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 	envelopes := loaded.envelopes
 
 	phaseStarted := time.Now()
-	findings, quarantinedVulnerabilityFacts, err := buildAuthorizedSupplyChainImpactFindings(loaded)
+	findings, quarantinedVulnerabilityFacts, negatedProductsExcluded, err := buildAuthorizedSupplyChainImpactFindings(loaded)
 	if err != nil {
 		// A non-decode error (transient fact-load or other fatal condition
 		// factdecode.PartitionDecodeFailures did NOT quarantine) fails the whole intent so
@@ -276,6 +276,7 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 	}
 	subSignals["findings_retracted"] = float64(writeResult.FactsRetracted)
 	fanOut.mergeSubSignals(subSignals)
+	subSignals[negatedProductsExcludedSubSignal] = float64(negatedProductsExcluded)
 	subDurations := supplyChainImpactSubDurations(timing)
 	loaded.activeEvidence.mergeInto(subSignals, subDurations)
 	return reducercontract.Result{
@@ -361,23 +362,32 @@ func BuildSupplyChainImpactFindings(envelopes []facts.Envelope) []SupplyChainImp
 	return findings
 }
 
+// negatedProductsExcludedSubSignal is the Result.SubSignals key counting NVD CPE
+// matches a pass excluded as negated; 0 when none, so a clean pass is visible (#9696).
+const negatedProductsExcludedSubSignal = "negated_affected_products_excluded"
+
 // buildSupplyChainImpactFindingsWithQuarantine is the quarantine-aware
-// counterpart BuildSupplyChainImpactFindings delegates to and
-// SupplyChainImpactHandler.Handle calls directly, so the reducer intent path
-// can report each malformed vulnerability.* fact as a visible input_invalid
-// dead-letter via factdecode.RecordQuarantinedFacts. A non-decode error (a fatal
-// condition factdecode.PartitionDecodeFailures did not quarantine) is returned so the
-// caller fails the whole intent for durable triage. The classification logic
-// itself is unchanged from BuildSupplyChainImpactFindings.
+// counterpart BuildSupplyChainImpactFindings delegates to. It wraps
+// buildSupplyChainImpactFindingsAndExclusions, which Handle calls so the intent
+// path can report each malformed vulnerability.* fact as a visible input_invalid
+// dead-letter via factdecode.RecordQuarantinedFacts. A non-decode error is
+// returned so the caller fails the whole intent for durable triage.
 func buildSupplyChainImpactFindingsWithQuarantine(envelopes []facts.Envelope) ([]SupplyChainImpactFinding, []factdecode.QuarantinedFact, error) {
+	findings, quarantined, _, err := buildSupplyChainImpactFindingsAndExclusions(envelopes)
+	return findings, quarantined, err
+}
+
+// buildSupplyChainImpactFindingsAndExclusions is the quarantine-aware builder plus
+// the count of NVD CPE matches the index excluded as negated.
+func buildSupplyChainImpactFindingsAndExclusions(envelopes []facts.Envelope) ([]SupplyChainImpactFinding, []factdecode.QuarantinedFact, int, error) {
 	index, quarantined, err := buildSupplyChainImpactIndexWithQuarantine(envelopes)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, 0, err
 	}
 	findings := appendSupplyChainImpactIndexFindings(nil, index)
 	findings, securityAlertQuarantined, err := appendSecurityAlertImpactFindings(findings, envelopes, index)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, 0, err
 	}
 	// Merge the security-alert decode quarantines with the vulnerability
 	// quarantines so SupplyChainImpactHandler.Handle records every malformed
@@ -386,7 +396,7 @@ func buildSupplyChainImpactFindingsWithQuarantine(envelopes []facts.Envelope) ([
 	// aborts the whole supply_chain_impact generation.
 	quarantined = append(quarantined, securityAlertQuarantined...)
 	findings = coalesceAndSortSupplyChainImpactFindings(findings)
-	return findings, quarantined, nil
+	return findings, quarantined, index.negatedProductsExcluded, nil
 }
 
 func appendSupplyChainImpactFinding(
