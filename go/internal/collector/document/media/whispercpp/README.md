@@ -151,10 +151,28 @@ No signal carries transcript text, stderr, paths, or source names. Redaction
 counts belong to `media.Extract` output (section `redacted` metadata); the
 caller lane must count them when it wires extraction.
 
-Collector Performance Evidence: in the sandbox proof the 5.55 s fixture
-transcribes in 1.94-2.01 s wall time with about 246 MB engine peak RSS
-(arm64, 4 threads, `--cpus 4`). WAV normalization is a single pass with a
-bounded tap table (at most 1024 phases).
+Collector Performance Evidence: baseline is no speech engine in tree (the
+DTMF decoder returns zero segments on speech), so there is no prior
+before-number for this path. After: `scripts/verify-media-transcript-sandbox.sh`
+on 2026-11-01, arm64, whisper.cpp v1.9.5 with `ggml-base.en.bin`, 4 threads,
+`--cpus 4 --memory 2g`. Input shape: one 5.551 s, 22.05 kHz mono 16-bit
+espeak-ng WAV (244864 bytes). Each of 3 runs took 1.94-2.01 s wall time,
+returned 2 segments, wrote 5487 stdout bytes, and peaked at about 246 MB
+engine RSS. 6 s of silence took 1.78 s and ended `no_speech`. Normalization
+is one pass over the input with a bounded tap table (at most 1024 phases),
+and every run is capped by input bytes, duration, wall time, and output
+bytes. The engine adds no worker, queue, graph write, or storage work. It is
+safe because nothing calls it yet and each run fails closed at a cap.
+
+Observability Evidence: each run emits the `media.transcript_engine.run`
+span, `eshu_dp_media_transcript_engine_runs_total`,
+`eshu_dp_media_transcript_engine_duration_seconds`,
+`eshu_dp_media_transcript_engine_segments_total`, and one log line.
+`telemetry_test.go` asserts outcome labels, segment kinds, span attributes,
+and the absence of transcript text for completed, no_speech,
+engine_failed, and timeout runs. The sandbox log lines above carried
+`outcome`, `elapsed_seconds`, and `engine_peak_rss_bytes`, and the proof
+script found no canary text in them.
 
 ## Sandbox proof
 

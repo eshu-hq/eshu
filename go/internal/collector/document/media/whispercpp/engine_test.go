@@ -224,6 +224,13 @@ func TestTranscribeEnforcesAddressSpaceCap(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("address-space cap uses Linux prlimit")
 	}
+	if raceEnabled {
+		// The fake engine is this test binary; under -race its sanitizer
+		// shadow mappings count against RLIMIT_AS on some architectures,
+		// so the control run is not meaningful. The sandbox proof covers
+		// the cap against the real engine.
+		t.Skip("address-space cap is not measurable with a race-instrumented fake engine")
+	}
 	limits := Limits{MaxAddressSpaceBytes: 3 << 30}
 	// The same cap must admit a normal run, so the failure below is the cap
 	// stopping the 8 GiB allocation, not the cap breaking process start.
