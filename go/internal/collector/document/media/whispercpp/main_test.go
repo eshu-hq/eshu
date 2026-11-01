@@ -26,6 +26,14 @@ import (
 // test suite.
 const fakeBinaryName = "whisper-cli"
 
+// helperStartupDeadline bounds a wait on the re-executed fake engine. A -race
+// test binary can take seconds to start on a busy host.
+const helperStartupDeadline = 30 * time.Second
+
+// engineStartedFile is the marker the "sleep" mode writes beside the model
+// once it has read its input and is about to hang.
+const engineStartedFile = "engine.started"
+
 // grandchildArg makes the fake sleep as a helper process; grandchildPIDFile
 // is where the "grandchild" mode records that helper's PID.
 const (
@@ -112,6 +120,9 @@ func fakeWhisper(args []string) int {
 		b.WriteString("]}")
 		fmt.Fprint(os.Stdout, b.String())
 	case "sleep":
+		if err := os.WriteFile(filepath.Join(filepath.Dir(modelPath), engineStartedFile), nil, 0o600); err != nil {
+			return 73
+		}
 		time.Sleep(time.Minute)
 	case "flood":
 		chunk := bytes.Repeat([]byte("x"), 64<<10)

@@ -42,10 +42,14 @@ func (e *Engine) runProcess(ctx context.Context, audio []byte, stats *runStats) 
 	configureProcess(cmd)
 
 	if err := cmd.Start(); err != nil {
-		// Start fails with the context error when cancellation or the
-		// deadline lands just before exec; report that, not a broken engine.
+		// Start fails with the context error when cancellation, the caller's
+		// deadline, or the run's own cap lands just before exec; report that,
+		// not a broken engine.
 		if ctxErr := contextError(ctx); ctxErr != nil {
 			return nil, ctxErr
+		}
+		if errors.Is(runCtx.Err(), context.DeadlineExceeded) {
+			return nil, wrapped(ClassTimeout, "engine wall-clock cap reached", runCtx.Err())
 		}
 		return nil, classified(ClassEngineFailed, "engine process did not start")
 	}

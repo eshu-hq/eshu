@@ -6,6 +6,9 @@ package whispercpp
 import (
 	"context"
 	"errors"
+	"io/fs"
+	"os"
+	"path/filepath"
 	"reflect"
 	"runtime"
 	"strconv"
@@ -165,18 +168,48 @@ func TestTranscribeClassifiesFailuresWithoutLeakingText(t *testing.T) {
 	}
 }
 
+// TestTranscribeKillsEngineOnCancellation cancels only after the fake engine
+// reports it has read its input, and times from that cancel. Resampling runs in
+// process before exec and is slow under -race, so its cost stays outside the
+// kill bound, and a cancel cannot land before there is an engine to kill.
 func TestTranscribeKillsEngineOnCancellation(t *testing.T) {
 	t.Parallel()
 	engine := newFakeEngine(t, "sleep", Limits{})
+	marker := filepath.Join(filepath.Dir(engine.cfg.ModelPath), engineStartedFile)
 	ctx, cancel := context.WithCancel(context.Background())
-	time.AfterFunc(200*time.Millisecond, cancel)
-	started := time.Now()
+	defer cancel()
+	canceledAt := make(chan time.Time, 1)
+	go func() {
+		waitForFile(ctx, marker)
+		canceledAt <- time.Now()
+		cancel()
+	}()
 	_, err := engine.Transcribe(ctx, wavMedia(t))
+	killTime := time.Since(<-canceledAt)
 	if got := ClassOf(err); got != ClassCanceled {
 		t.Fatalf("ClassOf(%v) = %q, want canceled", err, got)
 	}
-	if elapsed := time.Since(started); elapsed > 5*time.Second {
-		t.Fatalf("cancellation took %s, want the engine killed promptly", elapsed)
+	if _, statErr := os.Stat(marker); statErr != nil {
+		t.Fatalf("engine never started, so this run proved no kill: %v", statErr)
+	}
+	if killTime > 5*time.Second {
+		t.Fatalf("Transcribe returned %s after cancel, want the engine killed promptly", killTime)
+	}
+}
+
+// waitForFile returns once path exists, ctx ends, or helperStartupDeadline
+// passes.
+func waitForFile(ctx context.Context, path string) {
+	ctx, cancel := context.WithTimeout(ctx, helperStartupDeadline)
+	defer cancel()
+	for ctx.Err() == nil {
+		if _, err := os.Stat(path); err == nil {
+			return
+		}
+		select {
+		case <-ctx.Done():
+		case <-time.After(10 * time.Millisecond):
+		}
 	}
 }
 
@@ -308,6 +341,58 @@ func TestNewRejectsBadLimitsBeforeDigestIO(t *testing.T) {
 	}
 }
 
+// TestNewErrorsCarryNoPaths holds the rule that error strings never carry
+// file paths, for every way a pinned file can fail verification. Returning the
+// *fs.PathError from os.Open would put the configured path in the message and
+// in the error chain.
+func TestNewErrorsCarryNoPaths(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name   string
+		mutate func(*Config)
+		want   string
+	}{
+		{name: "missing model", mutate: func(c *Config) { c.ModelPath += ".missing" }, want: "whisper.cpp model not found"},
+		{name: "missing binary", mutate: func(c *Config) { c.BinaryPath += ".missing" }, want: "whisper.cpp binary not found"},
+		{
+			// ENOTDIR fails open for every user, including root, unlike a
+			// permission bit.
+			name: "unreadable model", want: "whisper.cpp model unreadable",
+			mutate: func(c *Config) { c.ModelPath = filepath.Join(c.ModelPath, "child") },
+		},
+		{
+			name: "binary is a directory", want: "whisper.cpp binary must be a regular file",
+			mutate: func(c *Config) { c.BinaryPath = filepath.Dir(c.BinaryPath) },
+		},
+		{
+			name: "model digest mismatch", want: ErrDigestMismatch.Error(),
+			mutate: func(c *Config) { c.ModelSHA256 = strings.Repeat("0", 64) },
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := fakeConfig(t, "success")
+			dir := filepath.Dir(cfg.ModelPath)
+			tc.mutate(&cfg)
+			_, err := New(cfg)
+			if err == nil {
+				t.Fatal("New() error = nil, want rejection")
+			}
+			if !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("New() error = %q, want it to contain %q", err, tc.want)
+			}
+			if strings.Contains(err.Error(), dir) || strings.Contains(err.Error(), "ggml-fake") {
+				t.Fatalf("New() error carries a path: %q", err)
+			}
+			var pathErr *fs.PathError
+			if errors.As(err, &pathErr) {
+				t.Fatalf("New() error chain exposes the path %q", pathErr.Path)
+			}
+		})
+	}
+}
+
 // TestRunProcessClassifiesStartAfterCancellation is the regression for a
 // race seen under -race: cancellation landing between the entry check and
 // cmd.Start made Start fail with the context error, which was reported as
@@ -324,5 +409,32 @@ func TestRunProcessClassifiesStartAfterCancellation(t *testing.T) {
 	defer stop()
 	if _, err := engine.runProcess(expired, nil, &runStats{}); ClassOf(err) != ClassTimeout {
 		t.Fatalf("expired start: ClassOf(%v) = %q, want timeout", err, ClassOf(err))
+	}
+}
+
+// TestRunProcessClassifiesExpiredWallClockCap is the regression for a cap that
+// expires before exec. Start then fails with the run context's deadline error
+// while the caller's context is still live, so checking only the caller left
+// the run reported as engine_failed instead of timeout.
+func TestRunProcessClassifiesExpiredWallClockCap(t *testing.T) {
+	t.Parallel()
+	engine := newFakeEngine(t, "fail-if-called", Limits{Timeout: time.Nanosecond})
+	for name, run := range map[string]func() error{
+		"runProcess": func() error {
+			_, err := engine.runProcess(context.Background(), nil, &runStats{})
+			return err
+		},
+		"Transcribe": func() error {
+			_, err := engine.Transcribe(context.Background(), wavMedia(t))
+			return err
+		},
+	} {
+		err := run()
+		if got := ClassOf(err); got != ClassTimeout {
+			t.Fatalf("%s: ClassOf(%v) = %q, want %q", name, err, got, ClassTimeout)
+		}
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("%s: error %v does not wrap context.DeadlineExceeded", name, err)
+		}
 	}
 }

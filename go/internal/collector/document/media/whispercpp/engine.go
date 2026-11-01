@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -239,24 +240,38 @@ func verifyPinnedFile(role, path, digest string) error {
 	}
 	file, err := os.Open(path) // #nosec G304 -- operator-pinned absolute path, digest-verified below.
 	if err != nil {
-		return fmt.Errorf("open whisper.cpp %s: %w", role, err)
+		return pinnedFileError(role, err)
 	}
 	defer func() { _ = file.Close() }()
 	info, err := file.Stat()
 	if err != nil {
-		return fmt.Errorf("stat whisper.cpp %s: %w", role, err)
+		return pinnedFileError(role, err)
 	}
 	if !info.Mode().IsRegular() {
 		return fmt.Errorf("whisper.cpp %s must be a regular file", role)
 	}
 	hash := sha256.New()
 	if _, err := io.Copy(hash, file); err != nil {
-		return fmt.Errorf("hash whisper.cpp %s: %w", role, err)
+		return pinnedFileError(role, err)
 	}
 	if got := hex.EncodeToString(hash.Sum(nil)); got != digest {
 		return fmt.Errorf("whisper.cpp %s: %w", role, ErrDigestMismatch)
 	}
 	return nil
+}
+
+// pinnedFileError reports a failed read of a pinned file by role and reason.
+// It unwraps *fs.PathError because that type's message and field both carry
+// the configured path, which error strings must never hold.
+func pinnedFileError(role string, err error) error {
+	if errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("whisper.cpp %s not found: %w", role, fs.ErrNotExist)
+	}
+	var pathErr *fs.PathError
+	if errors.As(err, &pathErr) {
+		return fmt.Errorf("whisper.cpp %s unreadable: %w", role, pathErr.Err)
+	}
+	return fmt.Errorf("whisper.cpp %s unreadable", role)
 }
 
 // Transcribe validates and normalizes the WAV input in process, runs the

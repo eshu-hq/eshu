@@ -19,11 +19,6 @@ import (
 	"time"
 )
 
-// helperStartupDeadline bounds the wait for the re-executed fake engine to
-// record its helper. A -race test binary can take seconds to start on a busy
-// host.
-const helperStartupDeadline = 30 * time.Second
-
 // firstHelperTimeout is the first wall-clock cap the timeout case tries.
 const firstHelperTimeout = 500 * time.Millisecond
 
