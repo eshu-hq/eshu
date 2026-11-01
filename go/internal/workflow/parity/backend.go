@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -175,18 +176,36 @@ func (b *inTreeBackend) ListCollectorInstances(ctx context.Context) ([]workflow.
 	return instances, wrapLegErr(b.Name(), "ListCollectorInstances", err)
 }
 
-// openInTreeBackend opens the in-tree store over a fresh isolated schema
-// of the database named by dsn. The schema is dropped when the test ends,
-// so reruns never see another scenario's rows.
-func openInTreeBackend(t *testing.T, dsn string) Backend {
+// inTreeDSNEnv names the administrative DSN of the disposable Postgres
+// server the in-tree leg runs on. The DSN must name the "postgres"
+// maintenance database: the harness creates and force-drops its own
+// database there.
+const inTreeDSNEnv = "PARITY_INTREE_DSN"
+
+// inTreeOptInEnv is the explicit destructive-proof opt-in the disposable
+// database helper requires. It must equal "1".
+const inTreeOptInEnv = "PARITY_INTREE_DISPOSABLE"
+
+// openInTreeBackend opens the in-tree store over a fresh disposable database
+// created through the administrative DSN. A full production bootstrap runs
+// in that database's public schema: the claim guard SQL joins
+// scanner_image_scan_results, a table only the public-only migrations create,
+// and an isolated schema cannot host them (the bootstrap skips them there).
+// The database is force-dropped when the test ends, so reruns never see
+// another scenario's rows and no schema state outlives the run.
+func openInTreeBackend(t *testing.T, adminDSN string) Backend {
 	t.Helper()
-	if strings.TrimSpace(dsn) == "" {
-		t.Skip("PARITY_INTREE_DSN is not set; skipping in-tree parity leg")
+	if strings.TrimSpace(adminDSN) == "" {
+		t.Skip(inTreeDSNEnv + " is not set; skipping in-tree parity leg")
 	}
-	db := postgresproof.OpenIsolatedSchema(t, dsn, "parity", func(ctx context.Context, database *sql.DB) error {
+	optIn := os.Getenv(inTreeOptInEnv)
+	if optIn != "1" {
+		t.Fatalf("%s is set but %s is not \"1\"; the in-tree leg creates and drops a database on that server, so it needs the explicit opt-in", inTreeDSNEnv, inTreeOptInEnv)
+	}
+	ctx, db := postgresproof.OpenDisposableBootstrapDatabase(t, adminDSN, optIn, 5*time.Minute, func(ctx context.Context, database *sql.DB) error {
 		// Full bootstrap first, then the workflow schema: claim mutations
-		// join tenant_scope_grants, which the workflow-only schema does
-		// not create. This mirrors openWorkflowControlIntegrationStore.
+		// join tenant_scope_grants and scanner_image_scan_results, which
+		// the workflow-only schema does not create.
 		if err := postgres.ApplyBootstrap(ctx, postgres.SQLDB{DB: database}); err != nil {
 			return fmt.Errorf("apply bootstrap schema: %w", err)
 		}
@@ -197,7 +216,7 @@ func openInTreeBackend(t *testing.T, dsn string) Backend {
 		return nil
 	})
 	store := postgres.NewWorkflowControlStore(postgres.SQLDB{DB: db})
-	if err := store.EnsureSchema(context.Background()); err != nil {
+	if err := store.EnsureSchema(ctx); err != nil {
 		t.Fatalf("ensure workflow schema: %v", err)
 	}
 	return &inTreeBackend{store: store}

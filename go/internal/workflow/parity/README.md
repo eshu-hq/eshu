@@ -14,8 +14,17 @@ read-plane-observable state.
 
 ## Dependencies
 
-- In-tree leg: `storage/postgres` (`WorkflowControlStore`) over the
-  database named by `PARITY_INTREE_DSN`, one isolated schema per run.
+- In-tree leg: `storage/postgres` (`WorkflowControlStore`) over a
+  disposable database that `postgresproof.OpenDisposableBootstrapDatabase`
+  creates (from template0) on the Postgres server named by
+  `PARITY_INTREE_DSN`, then force-drops at test end. The DSN must name the
+  `postgres` maintenance database, and `PARITY_INTREE_DISPOSABLE=1` is the
+  required opt-in. The full production bootstrap runs in that database's
+  `public` schema because the claim guard SQL joins
+  `scanner_image_scan_results`, which only the public-only migrations create;
+  an isolated schema skips them and complete/heartbeat fail with
+  `relation "scanner_image_scan_results" does not exist` (SQLSTATE 42P01).
+  Point it only at a disposable server; nothing else on it is touched.
 - Satellite leg: any workflow.v1 server at `PARITY_SATELLITE_URL`
   (local flip container or dark deployment) with direct DB access at
   `PARITY_SATELLITE_DSN` for truncation reset.
@@ -25,7 +34,11 @@ read-plane-observable state.
 ## Operating the suite
 
 ```sh
-go test ./internal/workflow/parity/ -count=1
+PARITY_INTREE_DSN='postgres://USER:PASS@127.0.0.1:PORT/postgres?sslmode=disable' \
+PARITY_INTREE_DISPOSABLE=1 \
+PARITY_SATELLITE_URL=http://127.0.0.1:18181 \
+PARITY_SATELLITE_DSN='postgres://USER:PASS@127.0.0.1:PORT/parity_satellite?sslmode=disable' \
+  go test ./internal/workflow/parity/ -count=1
 ```
 
 With the legs configured, e.g. a local flip container on :18181 and two

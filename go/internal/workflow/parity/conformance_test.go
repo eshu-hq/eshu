@@ -188,7 +188,8 @@ func sliceOne() []scenario {
 
 // TestParityConformance runs slice 1 against both legs and requires
 // identical outcome records. Backend legs come from the environment:
-// PARITY_INTREE_DSN feeds the in-tree store on its own database, and
+// PARITY_INTREE_DSN (administrative DSN, database "postgres") plus
+// PARITY_INTREE_DISPOSABLE=1 feed the in-tree store on a disposable database, and
 // PARITY_SATELLITE_URL plus PARITY_SATELLITE_DSN feed the satellite leg
 // (local flip container or dark deployment) on its own database.
 func TestParityConformance(t *testing.T) {
