@@ -11,10 +11,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
-
-	"github.com/eshu-hq/eshu/go/internal/webhook/intake"
 )
 
 // This file is the #9377 seven-provider signature/dedup/ordering parity
@@ -33,6 +32,12 @@ type parityWorld struct {
 	gcp      *parityGCPStore
 	actions  *parityActionsStore
 	intake   *httptest.Server
+	client   *intakeClient
+	// serverMux holds the intake API handler; setServerToken swaps it.
+	serverMux atomic.Pointer[http.ServeMux]
+	// intakeGate, when set, may intercept an intake request before the API
+	// sees it (return true when handled); box 7 proofs use it to stall core.
+	intakeGate atomic.Pointer[func(http.ResponseWriter, *http.Request) bool]
 }
 
 func newParityWorld(t *testing.T, listenerToken string) *parityWorld {
@@ -44,24 +49,16 @@ func newParityWorld(t *testing.T, listenerToken string) *parityWorld {
 		gcp:      &parityGCPStore{},
 		actions:  &parityActionsStore{},
 	}
-	fixedNow := time.Date(2026, time.October, 28, 12, 0, 0, 0, time.UTC)
-	intakeServer := intake.NewServer(
-		intake.ServerConfig{Token: "listener-token", Clock: func() time.Time { return fixedNow }},
-		intake.Stores{
-			Repository: world.repo,
-			Incident:   world.incident,
-			AWS:        world.aws,
-			GCP:        world.gcp,
-			Actions:    world.actions,
-		},
-	)
-	world.intake = httptest.NewServer(intakeServer.Mux())
+	fixedNow := parityFixedNow
+	world.setServerToken("listener-token")
+	world.intake = httptest.NewServer(http.HandlerFunc(world.serveIntake))
 	t.Cleanup(world.intake.Close)
 
 	client, err := newIntakeClient(world.intake.URL, listenerToken)
 	if err != nil {
 		t.Fatalf("newIntakeClient() error = %v, want nil", err)
 	}
+	world.client = client
 	cfg := webhookListenerConfig{
 		GitHubSecret:        "secret",
 		GitHubPath:          "/webhooks/github",
