@@ -233,7 +233,7 @@ func skipPreflight(preflight picture.Result) bool {
 // harmless but sits where a label's value goes.
 func persistedContent(text string, labelValue bool, maxChars int) (string, []string, bool) {
 	warnings := []string{}
-	if labelValue || containsSensitiveMarker(text) {
+	if labelValue || containsSensitiveText(text) {
 		return "[redacted]", []string{string(picture.WarningSensitiveValueRedacted)}, true
 	}
 	if maxChars <= 0 {

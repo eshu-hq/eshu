@@ -172,7 +172,7 @@ docker run --network none --read-only --cap-drop ALL
 ```
 
 The fixtures render three DejaVu Sans lines: `Deploy the Checkout Service to
-staging`, `password: Hunter2CanarySecret`, and `Contact
+staging`, `password: Hunter2CanaryValue`, and `Contact
 alice.canary@example.com today`. Two PNG form layouts cover a value split from
 its label (#9782): `form-stacked.png` puts `Password:` above the value, and
 `form-columns.png` has five-row columns that tesseract reads as separate

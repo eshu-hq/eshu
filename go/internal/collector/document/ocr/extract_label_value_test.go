@@ -16,7 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
-const labelValueCanary = "Hunter2CanarySecret"
+const labelValueCanary = "Hunter2CanaryValue"
 
 // stackedRegions builds one region per line in reading order, each on its own
 // row, so no two regions share a row unless a test says so.
