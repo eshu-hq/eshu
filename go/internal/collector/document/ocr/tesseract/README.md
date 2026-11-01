@@ -93,6 +93,32 @@ tesseract (`TestMain`). The sandbox script runs the real pinned binary under
 `--network none --read-only --cap-drop ALL --user 65532:65532 --memory 512m
 --pids-limit 64` against rendered fixtures with PII canaries.
 
+## Evidence
+
+Performance Evidence: this is a new path with no prior general-purpose
+engine, so there is no before figure on this backend. The closest baseline
+is `ocr.LocalEngine` (0.1.0), at about 0.12 ms/op on a 232x44 fixture, which
+cannot read mixed-case text at all. After: tesseract 5.5.0 with
+eng.traineddata (`sha256:daa0c97d…`), `--oem 1 --psm 3`,
+`OMP_THREAD_LIMIT=1`, on a 900x200 three-line screenshot rendered in DejaVu
+Sans 28 pt. `scripts/prove-ocr-sandbox.sh` at commit a2a237e7a6 measured
+about 0.21 s per recognition and about 80 MB child peak RSS on native arm64,
+and about 6.6 s and about 92 MB on amd64 under qemu emulation. Each run was
+5 recognitions per fixture across PNG, JPEG, GIF, and WebP, all identical.
+There is no queue, lease, batch, worker, Cypher, or graph write. The path
+is one bounded subprocess per image with no caller wired, so no terminal
+queue or row counts apply. It is safe because every cap fails closed and
+nothing calls it in production yet.
+
+Observability Evidence: the same proof run records each run's outcome,
+duration, and sampled peak RSS through `eshu_dp_ocr_recognitions_total`,
+`eshu_dp_ocr_recognition_duration_seconds`, and
+`eshu_dp_ocr_engine_peak_rss_bytes`, and each extraction through
+`eshu_dp_ocr_extractions_total` and `eshu_dp_ocr_redacted_regions_total`.
+`TestExtractRedactsCanariesBeforeFactsAndRecordsTelemetry` asserts those
+series, the `ocr.extract` and `ocr.recognize` spans, and the outcome log
+fields, and asserts that no canary reaches any of them.
+
 ## Gotchas / invariants
 
 - Never put subprocess stdout or stderr into an error, log, or span.
