@@ -305,9 +305,9 @@ Both SQL sites call `cvss.BucketSQL`: the winners recompute
 (`supplyChainImpactWinnerSelectSQL`) and the read-time queries
 (`impact.severityBucketFactSQL`). A derived score appears only when the
 scope's `supply_chain_impact` runs again. A label the alert path already
-stored rebuckets at deploy, and the winners table follows within one 30 s
-resweep. See "Severity convergence" in the vulnerability-impact HTTP API
-reference.
+stored rebuckets at deploy, and the winners table follows on the next
+resweep (30 s pause, about 72 s per QA tick). See "Severity convergence" in the
+vulnerability-impact HTTP API reference.
 
 No-Regression Evidence: `BenchmarkBaseScore` measures about 0.5 us per v3.1
 vector and 8.6 to 10.9 us per v4.0 vector (51 allocations; the range spans an idle
@@ -409,7 +409,7 @@ the directory name.
 | `finding.go` | `SupplyChainImpactFinding` (carries the `Suppression` field: impact + suppression are one unit) |
 | `writer.go` | `PostgresSupplyChainImpactWriter`, batched versioned inserts |
 | `writer_retract.go` | Replace-set transaction (#6831): per-(scope, generation) advisory lock, upsert, tombstone of superseded findings |
-| `winners_maintainer.go` | `SupplyChainImpactWinnersMaintainer` read-model resweep |
+| `winners_maintainer.go` | `SupplyChainImpactWinnersMaintainer` read-model resweep (writes changed rows only, skips while another is in flight, #9774) and its span, metrics, and log |
 | `evaluation.go`, `decode.go`, `reasons.go`, `scope.go` | Suppression story: Decision + Evaluate, decode, reasons, scope match |
 | `retraction.go` | Advisory retraction (#9695): per-observation code, per-CVE-group rule, reason text |
 | `go_reachability*.go` | Go module/call reachability classification |

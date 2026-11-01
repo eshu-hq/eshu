@@ -71,7 +71,7 @@ ALTER TABLE supply_chain_impact_canonical_winners
 		t.Fatalf("apply populated finding-ID index migration: %v", err)
 	}
 
-	winners := storagepostgres.NewSupplyChainImpactWinnersStore(db)
+	winners := storagepostgres.NewSupplyChainImpactWinnersStore(storagepostgres.SQLDB{DB: db})
 	if err := winners.RebuildAllWinners(ctx, time.Now().UTC()); err != nil {
 		t.Fatalf("initial winners rebuild: %v", err)
 	}
@@ -172,9 +172,10 @@ ALTER TABLE supply_chain_impact_canonical_winners
 			pathRun.name, suppressionPathMedian(values), suppressionPathP95(values))
 	}
 
-	// Vacuum the rebuild-churned tables so both EXPLAIN runs observe identical
-	// heap state instead of racing autovacuum: each rebuild upserts all
-	// 50,000 canonical winners, leaving ~150k dead tuples behind (#7553).
+	// Vacuum and analyze the winners tables so both EXPLAIN runs observe
+	// identical heap state instead of racing autovacuum. Since #9774 an
+	// unchanged rebuild writes no winner row, so the winners table carries no
+	// rebuild churn here; the watermark row still moves on every rebuild.
 	if _, err := db.ExecContext(ctx, `VACUUM (ANALYZE)
 supply_chain_impact_canonical_winners,
 supply_chain_impact_winners_materialization`); err != nil {

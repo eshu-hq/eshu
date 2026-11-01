@@ -102,7 +102,7 @@ flowchart TB
 | 7. Load | `SupplyChainImpactHandler.Handle` | At most 8 expansion rounds and 100,000 envelopes. Hitting a cap marks the evidence partial: upsert only, no retraction. |
 | 8. Decide | `buildSupplyChainImpactFindingsWithQuarantine` | Group by CVE, then package. The product path runs only when no package rows exist. An owned anchor is required. |
 | 9. Write | `writer.go` | Replace-set per (scope, generation) under an advisory lock plus a fencing check. |
-| 10. Dedup | `SupplyChainImpactWinnersMaintainer.RunOnce` | Full resweep every 30 s by default (`defaultSupplyChainImpactWinnersInterval`). One winner per `canonical_key`, chosen by `priority_score DESC`. |
+| 10. Dedup | `SupplyChainImpactWinnersMaintainer.RunOnce` | Full resweep, then a 30 s pause by default (`defaultSupplyChainImpactWinnersInterval`). On QA a tick is about 72 s: a resweep of about 40 s plus the 30 s pause. One winner per `canonical_key`, chosen by `priority_score DESC`. |
 
 ## 3. Read path
 

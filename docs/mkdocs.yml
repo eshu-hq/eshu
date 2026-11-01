@@ -351,6 +351,7 @@ nav:
       - Content File Upsert Outcomes: reference/telemetry/content-file-upserts.md
       - Unscoped Content Search Signals: reference/telemetry/unscoped-file-search.md
       - Deferred Backfill Block Timing: reference/telemetry/deferred-backfill-blocks.md
+      - Supply-Chain Impact Winners Resweep: reference/telemetry/supply-chain-impact-winners.md
       - Package Manifest Backfill Page Timing: reference/telemetry/package-manifest-backfill.md
       - Generation Retention Search Index Pre-Delete: reference/telemetry/generation-retention-search-index.md
       - Workflow Work Item Retention: reference/telemetry/workflow-work-item-retention.md

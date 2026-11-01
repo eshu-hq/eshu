@@ -84,6 +84,7 @@ var registrationSteps = []func(){
 	registerOCR,
 	registerStoredAdvisoryNames,
 	registerOwnedPackageResolver,
+	registerSupplyChainImpactWinners,
 }
 
 func init() {

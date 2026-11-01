@@ -360,6 +360,16 @@ tests:
     class: dedicated_ci
     reason: "linuxdynasty: reducer-contention verified 4/4 named Go test passes with -json -race (summed test elapsed 12.50s); docs/internal/evidence/7533-contention-live-proof.md"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_winners_concurrency_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "lane-9774: reducer-contention verified 5/5 named Go test passes with -json -race (summed test elapsed 15.03s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_winners_write_on_change_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "lane-9774: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 5.68s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_suppression_migration_live_test.go
     tag: ~
     class: scheduled

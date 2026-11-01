@@ -1005,7 +1005,7 @@ span, the `eshu_dp_postgres_query_duration_seconds` histogram, the readiness
 envelope, truth envelope, and `count`/`limit`/`truncated`/`next_cursor`. The gate
 adds one boolean env var; no metric, label, graph write, or queue consumer is
 added. Operators can confirm which read path is active from the endpoint latency
-and the winners table's `MAX(materialized_at)` recency. (Surfacing winners
+and the watermark's `materialized_at` recency (since #9774 a winner row's own value is its last change). (Surfacing winners
 freshness in the truth envelope is the immediate follow-up and is the prerequisite
 for enabling the gate in production.)
 

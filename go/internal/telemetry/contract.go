@@ -368,6 +368,11 @@ const (
 	// fan-out (#9695): the holder read and the reopen statements. Attributes
 	// carry the source scope, generation, holder count, and outcome counts.
 	SpanSupplyChainImpactFanOut = "supply_chain_impact.fanout"
+	// SpanSupplyChainImpactWinnersResweep wraps one supply-chain impact winners
+	// resweep (#9774): the lease-held transaction that reconciles the winners
+	// read model. Attributes carry the inserted, updated, deleted and unchanged
+	// row counts, or skipped when another resweep was in flight.
+	SpanSupplyChainImpactWinnersResweep = "supply_chain_impact.winners_resweep"
 	// SpanMediaTranscriptEngineRun wraps one out-of-process local
 	// speech-to-text engine run behind the document/media Engine contract
 	// (#9729). Attributes carry the engine name, closed outcome, input bytes,

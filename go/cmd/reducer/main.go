@@ -484,10 +484,13 @@ func buildReducerService(
 			Logger:           logger,
 		},
 		SupplyChainImpactWinnersMaintainer: &supplychaincore.SupplyChainImpactWinnersMaintainer{
-			Rebuilder:    postgres.NewSupplyChainImpactWinnersStore(database),
-			LeaseManager: intentStore,
-			LeaseOwner:   defaultSupplyChainImpactWinnersLeaseOwner(),
-			Logger:       logger,
+			Rebuilder:       postgres.NewSupplyChainImpactWinnersStore(database),
+			WatermarkReader: postgres.NewSupplyChainImpactWinnersStore(database),
+			LeaseManager:    intentStore,
+			LeaseOwner:      defaultSupplyChainImpactWinnersLeaseOwner(),
+			Logger:          logger,
+			Instruments:     instruments,
+			Tracer:          tracer,
 		},
 		CollectorEvidenceSummaryMaintainer: &evidence.Maintainer{
 			Rebuilder:    postgres.NewCollectorEvidenceSummaryStore(database),

@@ -108,6 +108,16 @@
 // and duration instruments for metadata-only trace-signal collection. Raw tag
 // values, tenant IDs, trace IDs, spans, request attributes, TraceQL bodies, and
 // provider response bodies stay out of metric labels.
+// The winners maintainer registers SupplyChainImpactWinnersResweepDuration
+// (eshu_dp_supply_chain_impact_winners_resweep_duration_seconds),
+// SupplyChainImpactWinnersRows (eshu_dp_supply_chain_impact_winners_rows_total,
+// labeled action: inserted, updated, deleted, unchanged),
+// SupplyChainImpactWinnersResweepSkipped
+// (eshu_dp_supply_chain_impact_winners_resweep_skipped_total) and
+// SupplyChainImpactWinnersWatermarkAge
+// (eshu_dp_supply_chain_impact_winners_watermark_age_seconds, an observable
+// gauge that ages the watermark at scrape time so it climbs through a stall),
+// #9774.
 // The supply-chain reducer registers SupplyChainImpactFanOut
 // (eshu_dp_supply_chain_impact_fanout_total), labeled by reducer domain and
 // outcome, so an operator can see whether a source retraction reached the scopes
