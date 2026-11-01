@@ -414,6 +414,19 @@ func (t supplyChainImpactTx) ExecContext(
 	return t.tx.ExecContext(ctx, query, args...)
 }
 
+// QueryContext runs a read inside the write transaction.
+func (t supplyChainImpactTx) QueryContext(
+	ctx context.Context,
+	query string,
+	args ...any,
+) (supplychaincore.SupplyChainImpactRows, error) {
+	rows, err := t.tx.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
 func (t supplyChainImpactTx) Commit() error   { return t.tx.Commit() }
 func (t supplyChainImpactTx) Rollback() error { return t.tx.Rollback() }
 

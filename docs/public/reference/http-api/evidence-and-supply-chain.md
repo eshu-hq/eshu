@@ -840,10 +840,7 @@ preserve audit signal. Every finding row carries a `suppression` block (always p
 callers can explain why a finding is hidden or why a related suppression did not apply. Provider dismissals are evidence: the reducer surfaces them as
 `provider_dismissed` without removing the finding from the default view. `advisory_retracted` is set by the reducer alone, when every source record of the CVE is an NVD
 `Rejected` record or an OSV withdrawn record, and a live source keeps the finding active; the reason and any `replaced_by` CVE ids ride in
-`provenance.advisory_retraction`. Another scope that also derived the finding (KEV or EPSS enrichment, another advisory source) keeps its own copy until it next commits
-a generation, and a stale active copy can win over the retracted one (by a higher `priority_score` or the `fact_id` tie-break), so a retracted finding can read as
-`active`; after a record is restored, a stale `advisory_retracted` copy can hide the real vulnerability the same way. After item 1.4 the lag has no bound. The fan-out
-follow-up (1.5b, merged in the same sequence as this change, issue #9695) closes it; the operator scope's copy is refreshed only by a suppression mutation until then.
+`provenance.advisory_retraction`. After the reducer commits a pass that changed or retracted a finding, it reopens every other scope that holds an active copy of the same CVE (including the operator suppression scope), so those copies re-derive and the retraction, or its reversal, reaches each copy once that holder's next pass runs, instead of waiting for the scope's own cadence; a restored record returns each copy to its state before the retraction.
 
 Version fields intentionally do not collapse into one string:
 

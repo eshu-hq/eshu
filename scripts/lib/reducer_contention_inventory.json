@@ -307,6 +307,84 @@
       "TestSupplyChainImpactCappedScopeConvergesLive"
     ]
   },
+  "go/internal/storage/postgres/supply_chain_impact_fanout_convergence_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestFailedHolderReadRetriesTheWholePassAndStillConvergesLive",
+      "TestFanOutReopenedPassesDoNotFanOutAgainLive",
+      "TestRejectedAdvisoryReopensOperatorScopeAndRetractsItsAcceptedRiskCopyLive",
+      "TestRescanThatRejectsTheRecordFansOutLive",
+      "TestRescanWithIdenticalContentFansOutNothingLive",
+      "TestRestoredAdvisoryFansOutToStaleRetractedHolderCopiesLive",
+      "TestRestoredAdvisoryReopensOperatorScopeAndRestoresItsAcceptedRiskDecisionLive"
+    ]
+  },
+  "go/internal/storage/postgres/supply_chain_impact_fanout_fleet_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestFanOutRaceFleetBurstCostOfTheInFlightReadLive"
+    ]
+  },
+  "go/internal/storage/postgres/supply_chain_impact_fanout_inflight_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestFanOutRaceAFlaggedRerunIsItselfFlaggableLive",
+      "TestFanOutRaceHolderCommitsAndAcksBetweenTheTwoReadsLive",
+      "TestFanOutRaceHolderSucceedsBetweenTheReadAndTheReopenLive",
+      "TestFanOutRaceInFlightHolderThatNeverHeldTheCVELive",
+      "TestFanOutRaceInFlightItemAtAnOlderGenerationIsHarmlessLive",
+      "TestFanOutRaceRunningHolderWithRowsOnlyInAnOlderGenerationLive",
+      "TestFanOutRaceTwoSourcesFlagTheSameInFlightHolderOnceLive",
+      "TestFindInFlightScopesLive",
+      "TestFindInFlightScopesTimesOutUnderALockedTableLive"
+    ]
+  },
+  "go/internal/storage/postgres/supply_chain_impact_fanout_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestFindHolderScopesReturnsOperatorSuppressionScopeLive",
+      "TestReopenHolderResolvesOperatorScopeActiveGenerationLive",
+      "TestReopenHolderTransitionsLive",
+      "TestReopenHolderWaitsForARunningAckAndReopensLive"
+    ]
+  },
+  "go/internal/storage/postgres/supply_chain_impact_fanout_owed_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestFailureBeforeTheCommitLeavesNoMarkerLive",
+      "TestOwedMarkerLifecycleLive",
+      "TestUpdateFanOutStateKeepsTheOwedMarkerWhileHoldersAreOwedLive",
+      "TestZombiePassCannotCommitAndItsReplacementFansOutOnceLive"
+    ]
+  },
+  "go/internal/storage/postgres/supply_chain_impact_fanout_races_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestFanOutRaceConcurrentStressLive",
+      "TestFanOutRaceInFlightFirstPassOfNewGenerationIsFlaggedLive",
+      "TestFanOutRaceStampDuringDrainKeepsTheContinuationLive",
+      "TestFanOutRaceStampOnRunningPassKeepsItsRetryFanOutLive"
+    ]
+  },
+  "go/internal/storage/postgres/supply_chain_impact_fanout_state_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestFindHolderScopesTimesOutUnderALockedTableLive",
+      "TestUpdateFanOutStateCarriesAContinuationAcrossClaimsLive",
+      "TestUpdateFanOutStateConsumeOnlyLeavesTheListAloneLive",
+      "TestUpdateFanOutStateConsumesTheOriginStampLive",
+      "TestUpdateFanOutStateFailsWhenTheLeaseIsLostLive",
+      "TestUpdateFanOutStateKeepsANewerStampLive",
+      "TestUpdateFanOutStateRejectsAStaleAttemptLive"
+    ]
+  },
+  "go/internal/storage/postgres/supply_chain_impact_fanout_writer_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestMutualFanOutHasNoDeadlockLive",
+      "TestWriterReportsChangesAgainstThePreviousGenerationLive"
+    ]
+  },
   "go/internal/storage/postgres/supply_chain_impact_fencing_live_test.go": {
     "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
     "tests": [

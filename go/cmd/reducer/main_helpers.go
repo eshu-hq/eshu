@@ -52,6 +52,11 @@ const reducerClaimLeaseDuration = time.Minute
 // running item: half of the claim lease.
 const reducerHeartbeatInterval = reducerClaimLeaseDuration / 2
 
+// reducerWorkQueueLeaseOwner is the lease owner of the reducer work queue. The
+// supply_chain_impact holder fan-out fences its own-item update on the same
+// value the queue fences an acknowledgement on, so both read this constant.
+const reducerWorkQueueLeaseOwner = "reducer"
+
 // configureReducerQueue builds the reducer work queue and applies the retry,
 // claim-domain, projector-drain, and semantic-claim tuning loaded from the
 // environment, logging the source-local-projector and semantic-claim-limit
@@ -68,7 +73,7 @@ func configureReducerQueue(
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
 ) postgres.ReducerQueue {
-	workQueue := postgres.NewReducerQueue(database, "reducer", reducerClaimLeaseDuration)
+	workQueue := postgres.NewReducerQueue(database, reducerWorkQueueLeaseOwner, reducerClaimLeaseDuration)
 	// Injected clock for lease TTL / claim visibility / retry timing (#4121);
 	// clock.System().Now() == time.Now() in production, swappable for replay.
 	workQueue.Now = clk.Now

@@ -32,6 +32,45 @@ type fakeImpactTxState struct {
 	// rowsAffected overrides the RowsAffected the fake reports for a query, so a
 	// test can make the fencing admission report a rejection (0 rows).
 	rowsAffected map[string]int64
+	// stored feeds the changed-row read inside the write transaction; cveRows
+	// feeds the recovery CVE read. A nil queryErr means the reads succeed.
+	stored   []fakeStoredFinding
+	cveRows  []string
+	queryErr error
+}
+
+// fakeStoredFinding is one ACTIVE fact_records row the changed-row read returns;
+// the production query excludes tombstoned rows.
+type fakeStoredFinding struct {
+	factID       string
+	generationID string
+	stableKey    string
+	digest       string
+	cveID        string
+	fencingToken int64
+}
+
+// fakeImpactRows is a SupplyChainImpactRows over fixed rows of scan values.
+type fakeImpactRows struct {
+	rows [][]any
+	at   int
+}
+
+func (r *fakeImpactRows) Next() bool   { r.at++; return r.at <= len(r.rows) }
+func (r *fakeImpactRows) Err() error   { return nil }
+func (r *fakeImpactRows) Close() error { return nil }
+func (r *fakeImpactRows) Scan(dest ...any) error {
+	for i, value := range r.rows[r.at-1] {
+		switch d := dest[i].(type) {
+		case *string:
+			*d = value.(string)
+		case *bool:
+			*d = value.(bool)
+		case *int64:
+			*d = value.(int64)
+		}
+	}
+	return nil
 }
 
 // fakeImpactResult is a sql.Result reporting a fixed affected-row count.
@@ -64,6 +103,28 @@ func (t fakeImpactTx) ExecContext(ctx context.Context, query string, args ...any
 		return t.inserts.ExecContext(ctx, query, args...)
 	}
 	return t.state.control.ExecContext(ctx, query, args...)
+}
+
+func (t fakeImpactTx) QueryContext(_ context.Context, query string, args ...any) (SupplyChainImpactRows, error) {
+	t.state.all = append(t.state.all, testutil.ExecCall{Query: query, Args: args})
+	if t.state.queryErr != nil {
+		return nil, t.state.queryErr
+	}
+	switch query {
+	case listStoredSupplyChainImpactFindingsQuery:
+		rows := make([][]any, 0, len(t.state.stored))
+		for _, row := range t.state.stored {
+			rows = append(rows, []any{row.factID, row.generationID, row.stableKey, row.digest, row.cveID, row.fencingToken})
+		}
+		return &fakeImpactRows{rows: rows}, nil
+	case listSupplyChainImpactCVEIDsQuery:
+		rows := make([][]any, 0, len(t.state.cveRows))
+		for _, id := range t.state.cveRows {
+			rows = append(rows, []any{id})
+		}
+		return &fakeImpactRows{rows: rows}, nil
+	}
+	return nil, errors.New("unexpected query " + query)
 }
 
 func (t fakeImpactTx) Commit() error   { t.state.commits++; return nil }

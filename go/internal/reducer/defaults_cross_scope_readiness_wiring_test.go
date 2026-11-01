@@ -9,9 +9,12 @@ import (
 	"log/slog"
 	"testing"
 
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/cicdrun"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 )
 
@@ -168,4 +171,71 @@ func TestSupplyChainImpactRegistrationCarriesTheReadinessSeam(t *testing.T) {
 	if handler.Logger != logger {
 		t.Fatal("Logger is not the one passed to DefaultHandlers: cross-scope deferrals would be invisible")
 	}
+}
+
+// TestSupplyChainImpactRegistrationCarriesTheFanOutSeam guards the #9695 wire. A
+// nil fan-out port means "no fan-out" on purpose, so every handler logic test
+// stays green while production silently goes back to leaving stale copies in the
+// scopes the pass did not rerun. Observing the call proves it is the port that
+// was passed, not some other non-nil value.
+func TestSupplyChainImpactRegistrationCarriesTheFanOutSeam(t *testing.T) {
+	t.Parallel()
+
+	port := &registrationFanOut{}
+	tracer := sdktrace.NewTracerProvider().Tracer("registration")
+	definitions := appendSupplyChainCorrelationAdditiveDomains(nil, DefaultHandlers{
+		Tracer:     tracer,
+		FactLoader: &stubSupplyChainImpactFactLoader{},
+		SupplyChainSecurityHandlers: SupplyChainSecurityHandlers{
+			SupplyChainImpactWriter:             &recordingSupplyChainImpactWriter{},
+			SupplyChainImpactFencingTokenIssuer: fixedSupplyChainImpactFencingTokenIssuer{token: 1},
+			SupplyChainImpactFanOut:             port,
+		},
+	})
+	for _, definition := range definitions {
+		if definition.Domain != DomainSupplyChainImpact {
+			continue
+		}
+		handler, ok := definition.Handler.(supplychaincore.SupplyChainImpactHandler)
+		if !ok {
+			t.Fatalf("handler for %s = %T, want supplychaincore.SupplyChainImpactHandler", definition.Domain, definition.Handler)
+		}
+		if handler.FanOut == nil {
+			t.Fatal("FanOut is nil on the registered handler: the holder fan-out would ship inert")
+		}
+		if handler.Tracer != tracer {
+			t.Fatal("Tracer on the registered handler is not the one passed: the supply_chain_impact.fanout span would never exist")
+		}
+		if _, err := handler.FanOut.FindHolderScopes(context.Background(), "own", []string{"CVE-1"}); err != nil {
+			t.Fatalf("FindHolderScopes() error = %v", err)
+		}
+		if port.finds != 1 {
+			t.Fatalf("fan-out port calls = %d, want 1: the registration wired a different port", port.finds)
+		}
+		return
+	}
+	t.Fatalf("no %s registration found", DomainSupplyChainImpact)
+}
+
+type registrationFanOut struct{ finds int }
+
+func (p *registrationFanOut) FindHolderScopes(context.Context, string, []string) ([]string, error) {
+	p.finds++
+	return nil, nil
+}
+
+func (p *registrationFanOut) ReopenHolder(context.Context, string, supplychaincore.FanOutOrigin) (supplychaincore.FanOutOutcome, error) {
+	return supplychaincore.FanOutPendingNoop, nil
+}
+
+func (p *registrationFanOut) FindInFlightScopes(context.Context, string) ([]string, error) {
+	return nil, nil
+}
+
+func (p *registrationFanOut) OwedRecorder(reducercontract.Intent) supplychaincore.FanOutOwedRecorder {
+	return nil
+}
+
+func (p *registrationFanOut) UpdateFanOutState(context.Context, reducercontract.Intent, supplychaincore.FanOutState) error {
+	return nil
 }

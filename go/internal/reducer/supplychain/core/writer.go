@@ -48,10 +48,15 @@ func (w PostgresSupplyChainImpactWriter) WriteSupplyChainImpactFindings(
 	}
 	now := factwrite.Now(w.Now)
 	rows := make([]factwrite.VersionedRow, 0, len(write.Findings))
+	meta := make([]changedRow, 0, len(write.Findings))
 	for _, finding := range write.Findings {
-		payload, err := factschema.EncodeReducerSupplyChainImpactFinding(
-			supplyChainImpactTypedPayload(write, finding),
-		)
+		typed := supplyChainImpactTypedPayload(write, finding)
+		digest := contentDigestOf(typed)
+		if typed.Provenance == nil {
+			typed.Provenance = map[string]any{}
+		}
+		typed.Provenance[contentDigestProvenanceKey] = digest
+		payload, err := factschema.EncodeReducerSupplyChainImpactFinding(typed)
 		if err != nil {
 			return SupplyChainImpactWriteResult{}, fmt.Errorf("encode supply chain impact payload: %w", err)
 		}
@@ -59,8 +64,10 @@ func (w PostgresSupplyChainImpactWriter) WriteSupplyChainImpactFindings(
 		if err != nil {
 			return SupplyChainImpactWriteResult{}, fmt.Errorf("marshal supply chain impact payload: %w", err)
 		}
+		factID := supplyChainImpactFactID(write, finding)
+		meta = append(meta, changedRow{factID: factID, stableKey: supplyChainImpactStableFactKey(write, finding), digest: digest, cveID: finding.CVEID})
 		rows = append(rows, factwrite.VersionedRow{
-			FactID:           supplyChainImpactFactID(write, finding),
+			FactID:           factID,
 			ScopeID:          write.ScopeID,
 			GenerationID:     write.GenerationID,
 			FactKind:         supplyChainImpactFactKind,
@@ -80,15 +87,18 @@ func (w PostgresSupplyChainImpactWriter) WriteSupplyChainImpactFindings(
 	if err != nil {
 		return SupplyChainImpactWriteResult{}, fmt.Errorf("prepare protected scan impact publication: %w", err)
 	}
-	retracted, err := runSupplyChainImpactTx(ctx, w.DB, write, rows, protected, hasProtected, now)
+	outcome, err := runSupplyChainImpactTx(ctx, w.DB, write, rows, meta, protected, hasProtected, now)
 	if err != nil {
 		return SupplyChainImpactWriteResult{}, err
 	}
+	retracted := outcome.retracted
 	canonicalWrites := supplyChainImpactCanonicalWrites(write.Findings)
 	return SupplyChainImpactWriteResult{
 		CanonicalWrites: canonicalWrites,
 		FactsWritten:    len(write.Findings),
 		FactsRetracted:  retracted,
+		ChangedCVEIDs:   outcome.changedCVEs,
+		RecoveryCVEIDs:  outcome.recoveryCVEs,
 		EvidenceSummary: fmt.Sprintf(
 			"wrote supply chain impact findings=%d canonical_writes=%d retracted=%d",
 			len(write.Findings), canonicalWrites, retracted,

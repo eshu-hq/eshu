@@ -104,10 +104,18 @@ func TestSupplyChainImpactProtectedStaticPublishLive(t *testing.T) {
 	for _, statement := range []string{
 		`GRANT CONNECT ON DATABASE "` + dbName + `" TO "` + roleName + `"`,
 		// Ordinary fact and admission DML the writer path issues outside
-		// any DEFINER body. Production wires these through the base
-		// schema grants; the proof grants them explicitly.
+		// any DEFINER body. Base-table privileges are a DBA pregrant outside
+		// the migration set (243a); the proof grants them explicitly.
 		`GRANT SELECT, INSERT, UPDATE ON supply_chain_impact_write_admission TO "` + roleName + `"`,
 		`GRANT SELECT, INSERT, UPDATE ON fact_records TO "` + roleName + `"`,
+		// The change set behind the holder fan-out (#9695) reads scope_generations
+		// inside the write transaction to find the previous generation. The
+		// runtime-writer login already needs this SELECT on main, for every
+		// reducer claim (storage/postgres/reducer_generation_filter_sql.go:121-123)
+		// and for the impact load (storage/postgres/facts/impact/branches.go:82).
+		// It is an ordinary base table, not a protected object; the inventory
+		// above is unchanged.
+		`GRANT SELECT ON scope_generations TO "` + roleName + `"`,
 	} {
 		if _, err := admin.ExecContext(ctx, statement); err != nil {
 			t.Fatalf("grant proof privilege: %v", err)

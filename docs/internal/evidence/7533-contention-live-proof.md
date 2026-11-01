@@ -72,6 +72,14 @@ Go package terminal elapsed values were `github.com/eshu-hq/eshu/go/internal/sto
 | `go/internal/storage/postgres/status_active_work_semantics_live_test.go` | 8 | 25.26s |
 | `go/internal/storage/postgres/status_blockage_leases_live_test.go` | 2 | 15.24s |
 | `go/internal/storage/postgres/supply_chain_impact_capped_scope_live_test.go` | 1 | 2.36s |
+| `go/internal/storage/postgres/supply_chain_impact_fanout_convergence_live_test.go` | 7 | 8.62s |
+| `go/internal/storage/postgres/supply_chain_impact_fanout_fleet_live_test.go` | 1 | 11.44s |
+| `go/internal/storage/postgres/supply_chain_impact_fanout_inflight_live_test.go` | 9 | 10.71s |
+| `go/internal/storage/postgres/supply_chain_impact_fanout_live_test.go` | 4 | 8.84s |
+| `go/internal/storage/postgres/supply_chain_impact_fanout_owed_live_test.go` | 4 | 4.43s |
+| `go/internal/storage/postgres/supply_chain_impact_fanout_races_live_test.go` | 4 | 37.96s |
+| `go/internal/storage/postgres/supply_chain_impact_fanout_state_live_test.go` | 7 | 6.43s |
+| `go/internal/storage/postgres/supply_chain_impact_fanout_writer_live_test.go` | 2 | 1.99s |
 | `go/internal/storage/postgres/supply_chain_impact_fencing_live_test.go` | 6 | 18.66s |
 | `go/internal/storage/postgres/supply_chain_impact_replace_set_concurrency_live_test.go` | 2 | 7.98s |
 | `go/internal/storage/postgres/supply_chain_impact_replace_set_live_test.go` | 4 | 12.50s |
@@ -80,3 +88,9 @@ Go package terminal elapsed values were `github.com/eshu-hq/eshu/go/internal/sto
 The file values sum the Go terminal `Elapsed` values for tests declared in that file.
 Tests can run in parallel, so these sums are not additive wall time.
 The committed inventory records each exact Test name and package; the runner checks it against source and selector text.
+
+The eight `supply_chain_impact_fanout_*` rows (#9695, the holder fan-out) were
+measured separately from the first 43 files: private native Postgres 18.6 on
+macOS arm64, `go1.26.10`, `-race -count=1 -json`, one run, the 38 exact Test
+names the inventory records for those files. Their elapsed values are one
+sample, not a baseline.

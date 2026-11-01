@@ -64,6 +64,22 @@ func supplyChainImpactWriterFor(database db.ExecQueryer) supplychaincore.SupplyC
 	}
 }
 
+// supplyChainImpactFanOutFor builds the one-hop holder fan-out store (#9695)
+// over the same database as the writer. It is nil exactly when the writer is
+// nil (no transaction beginner), in which case supply_chain_impact is not
+// registered at all, so the seam never ships inert on a registered handler.
+func supplyChainImpactFanOutFor(database db.ExecQueryer) supplychaincore.SupplyChainImpactFanOut {
+	beginner := reducerBeginner(database)
+	if beginner == nil {
+		return nil
+	}
+	return postgres.SupplyChainImpactFanOutStore{
+		Beginner:   beginner,
+		DB:         database,
+		LeaseOwner: reducerWorkQueueLeaseOwner,
+	}
+}
+
 // buildReducerDriftHandlers assembles the provider config-vs-state and
 // cloud-runtime drift adapters (reducer.DriftHandlers; see
 // internal/reducer/defaults_handlers.go). All three terraform members must be
@@ -226,6 +242,10 @@ func buildReducerSupplyChainSecurityHandlers(
 		SupplyChainImpactWriter:                          supplyChainImpactWriterFor(database),
 		SupplyChainImpactAuthorizedEvidenceLoader:        postgres.NewAuthorizedSupplyChainImpactEvidenceLoader(database),
 		RequireSupplyChainImpactAuthorizedEvidenceLoader: true,
+		// #9695: after its writer commit a pass reopens the scopes that hold stale
+		// copies of what it changed. Wired beside the writer; the registration test
+		// fails when either side of this line is dropped.
+		SupplyChainImpactFanOut: supplyChainImpactFanOutFor(database),
 		// #7142: the fencing-token issuer is required alongside the writer; the
 		// additive-domain registry leaves supply_chain_impact unregistered when it
 		// is nil. nextval() needs only a query connection, no transaction.

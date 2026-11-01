@@ -236,6 +236,13 @@ type SupplyChainSecurityHandlers struct {
 	// fallback: a defaulted token would make the stale-pass fence inert).
 	SupplyChainImpactFencingTokenIssuer supplychaincore.SupplyChainImpactFencingTokenIssuer
 
+	// SupplyChainImpactFanOut reopens the scopes that hold stale copies of the
+	// CVEs a supply_chain_impact pass changed (#9695). Optional at registration:
+	// nil keeps the pre-fan-out behavior, but production wiring always sets it
+	// beside the writer, and TestSupplyChainImpactRegistrationCarriesTheFanOutSeam
+	// fails when the registration drops it.
+	SupplyChainImpactFanOut supplychaincore.SupplyChainImpactFanOut
+
 	// SecurityAlertReconciliationWriter persists provider alert comparison
 	// state without promoting provider alerts into impact truth.
 	SecurityAlertReconciliationWriter securityalert.SecurityAlertReconciliationWriter

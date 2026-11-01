@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cicdrun"
@@ -121,6 +123,11 @@ type SupplyChainImpactHandler struct {
 	Logger         *slog.Logger
 	ScopeRepos     handle.ScopeRepos // Nil resolves graph-wide (#5385).
 	WorkloadLookup handle.Lookup     // Nil keeps legacy scopes (#5385).
+	// FanOut reopens the scopes that hold stale copies of the CVEs this pass
+	// changed (#9695). Optional: nil keeps the pre-fan-out behavior.
+	FanOut SupplyChainImpactFanOut
+	// Tracer wraps the fan-out in one span. Optional.
+	Tracer trace.Tracer
 }
 
 // Handle executes one supply-chain impact reducer intent.
@@ -209,33 +216,21 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 	emitAnchorProbe6702(ctx, h.Logger, intent, loaded.floorArmed, loaded.crossScopeProducerDelta, false, envelopes, findings)
 
 	phaseStarted = time.Now()
-	write := SupplyChainImpactWrite{
-		IntentID:     intent.IntentID,
-		ScopeID:      intent.ScopeID,
-		GenerationID: intent.GenerationID,
-		SourceSystem: intent.SourceSystem,
-		Cause:        intent.Cause,
-		Findings:     findings,
-		// A load truncated for a cause that can change a finding's identity
-		// is not the complete finding set, so the writer must not retract
-		// rows it did not reach (#6831). A suppression-tail truncation does
-		// not qualify: suppression is not part of a finding's identity, so
-		// such a pass still converges (#7154).
-		PartialEvidence: loaded.truncation.partial(),
-		FencingToken:    fencingToken,
-	}
-	if loaded.asAuthorized != nil {
-		write.ScanPublications = loaded.asAuthorized.ScanPublications
-		write.StaticAdvisoryEvidence = loaded.asAuthorized.StaticAdvisoryEvidence
-		write.StaticNonAdvisoryEvidenceFactIDs = loaded.asAuthorized.StaticNonAdvisoryEvidenceFactIDs
-		write.ProtectedCompleteSet = true
-	}
+	write := h.impactWrite(intent, findings, loaded, fencingToken)
 	writeResult, err := h.Writer.WriteSupplyChainImpactFindings(ctx, write)
 	if err != nil {
 		h.emitWriteSuperseded(ctx, intent, fencingToken, err)
 		return reducercontract.Result{}, fmt.Errorf("write supply chain impact findings: %w", err)
 	}
 	timing.writeFindingsDuration = time.Since(phaseStarted)
+
+	// After the writer commit and before the queue acknowledgement (Handle
+	// returns first): reopen the scopes that hold stale copies of what this pass
+	// changed. A failed read or reopen fails the pass so the queue retries it.
+	fanOut, err := h.fanOutHolders(ctx, intent, writeResult)
+	if err != nil {
+		return reducercontract.Result{}, err
+	}
 
 	phaseStarted = time.Now()
 	h.emitCounters(ctx, counts, suppressionCounts, remediationCounts)
@@ -280,6 +275,7 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 		subSignals[key] = value
 	}
 	subSignals["findings_retracted"] = float64(writeResult.FactsRetracted)
+	fanOut.mergeSubSignals(subSignals)
 	subDurations := supplyChainImpactSubDurations(timing)
 	loaded.activeEvidence.mergeInto(subSignals, subDurations)
 	return reducercontract.Result{
@@ -291,6 +287,42 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 		SubDurations:    subDurations,
 		SubSignals:      subSignals,
 	}, nil
+}
+
+// impactWrite assembles the writer input for one pass: the findings, the
+// truncation flag, the fencing token, the fan-out recovery and owed seams
+// (#9695), and the protected scan publication witnesses when the evidence load
+// was authorized.
+func (h SupplyChainImpactHandler) impactWrite(
+	intent reducercontract.Intent,
+	findings []SupplyChainImpactFinding,
+	loaded supplyChainImpactLoadedEvidence,
+	fencingToken int64,
+) SupplyChainImpactWrite {
+	write := SupplyChainImpactWrite{
+		IntentID:     intent.IntentID,
+		ScopeID:      intent.ScopeID,
+		GenerationID: intent.GenerationID,
+		SourceSystem: intent.SourceSystem,
+		Cause:        intent.Cause,
+		Findings:     findings,
+		// A load truncated for a cause that can change a finding's identity
+		// is not the complete finding set, so the writer must not retract
+		// rows it did not reach (#6831). A suppression-tail truncation does
+		// not qualify: suppression is not part of a finding's identity, so
+		// such a pass still converges (#7154).
+		PartialEvidence: loaded.truncation.partial(),
+		FencingToken:    fencingToken,
+		Recovery:        fanOutOwed(intent) && len(fanOutRemaining(intent)) == 0,
+		Owed:            h.owedRecorder(intent),
+	}
+	if loaded.asAuthorized != nil {
+		write.ScanPublications = loaded.asAuthorized.ScanPublications
+		write.StaticAdvisoryEvidence = loaded.asAuthorized.StaticAdvisoryEvidence
+		write.StaticNonAdvisoryEvidenceFactIDs = loaded.asAuthorized.StaticNonAdvisoryEvidenceFactIDs
+		write.ProtectedCompleteSet = true
+	}
+	return write
 }
 
 // applySupplyChainImpactSuppressions evaluates per-finding suppressions at one

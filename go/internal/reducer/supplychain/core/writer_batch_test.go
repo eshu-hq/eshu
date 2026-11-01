@@ -91,7 +91,14 @@ func TestPostgresSupplyChainImpactWriterPersistsBatchedFacts(t *testing.T) {
 		if got, want := row.SchemaVersion, facts.ReducerDerivedSchemaVersionV1; got != want {
 			t.Fatalf("row %d SchemaVersion = %q, want %q (governed reducer-derived fact must keep its schema version)", i, got, want)
 		}
-		wantPayload, err := json.Marshal(supplyChainImpactPayload(write, finding))
+		wantMap := supplyChainImpactPayload(write, finding)
+		wantProvenance, _ := wantMap["provenance"].(map[string]any)
+		if wantProvenance == nil {
+			wantProvenance = map[string]any{}
+			wantMap["provenance"] = wantProvenance
+		}
+		wantProvenance["content_digest"] = supplyChainImpactContentDigest(write, finding)
+		wantPayload, err := json.Marshal(wantMap)
 		if err != nil {
 			t.Fatalf("marshal expected payload: %v", err)
 		}
