@@ -53,6 +53,9 @@ covering signals once a caller is wired.
 
 ## Gotchas / invariants
 
+- This is the deterministic fixture backend. Speech transcription is the
+  out-of-process `../whispercpp` engine (#9729); this decoder does not
+  discharge gate 2 on its own.
 - Only genuine tones become text. Speech-like or toneless audio yields zero
   segments; the engine never invents lexical content.
 - Multi-digit runs (two or more consecutive digits) are withheld as

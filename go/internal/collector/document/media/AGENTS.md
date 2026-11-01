@@ -39,8 +39,8 @@
   emit a skipped document fact with warning metadata and no section facts.
 - Safe media with no transcript segments emits a document fact with
   `transcript_status=no_text`.
-- Media preflight no-speech warnings emit a document fact with
-  `transcript_status=no_speech`.
+- Media preflight no-speech warnings, and engine errors wrapping
+  `ErrNoSpeech`, emit a document fact with `transcript_status=no_speech`.
 - Sensitive transcript segments persist redacted content with hashes and
   redaction metadata.
 

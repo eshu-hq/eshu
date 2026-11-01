@@ -20,8 +20,10 @@
 // bounded frame buffers, honors context cancellation, and returns
 // bit-identical output for identical input, so it is the only backend that
 // satisfies the sandbox, determinism, and redaction constraints without a
-// separate dependency review. Full speech transcription remains out of scope
-// until that reviewed design lands.
+// separate dependency review. A 2026-11-01 arbiter ruling found that this
+// decoder does not discharge gate 2 because it hears no speech; speech
+// transcription now lives in the out-of-process whispercpp package, and this
+// decoder stays as the deterministic fixture backend.
 //
 // Bounded execution: Options caps input bytes, header-derived duration,
 // emitted segment count, and per-segment text length. Caps are checked before
