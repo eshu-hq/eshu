@@ -129,7 +129,7 @@ func normalizeWAV(ctx context.Context, info wavInfo) ([]byte, error) {
 					return nil, err
 				}
 			}
-			binary.LittleEndian.PutUint16(out[wavHeaderBytes+2*i:], uint16(int16(info.monoSample(i))))
+			binary.LittleEndian.PutUint16(out[wavHeaderBytes+2*i:], uint16(int16(info.monoSample(i)))) // #nosec G115 -- monoSample is on a 16-bit scale by construction; int16 to uint16 stores the two's complement PCM sample
 		}
 		return out, nil
 	}
@@ -140,7 +140,7 @@ func normalizeWAV(ctx context.Context, info wavInfo) ([]byte, error) {
 				return nil, err
 			}
 		}
-		binary.LittleEndian.PutUint16(out[wavHeaderBytes+2*i:], uint16(resample.at(i, srcFrames, info.monoSample)))
+		binary.LittleEndian.PutUint16(out[wavHeaderBytes+2*i:], uint16(resample.at(i, srcFrames, info.monoSample))) // #nosec G115 -- resampler.at clamps to int16; int16 to uint16 stores the two's complement PCM sample
 	}
 	return out, nil
 }
@@ -153,7 +153,7 @@ func (w wavInfo) monoSample(frame int64) int32 {
 	for c := range w.channels {
 		sum += int64(w.sample(w.data[base+c*width:]))
 	}
-	return int32(sum / int64(w.channels))
+	return int32(sum / int64(w.channels)) // #nosec G115 -- the mean of int32 samples stays within int32
 }
 
 func (w wavInfo) sample(b []byte) int32 {
@@ -168,16 +168,16 @@ func (w wavInfo) sample(b []byte) int32 {
 	case w.bits == 8:
 		return (int32(b[0]) - 128) << 8
 	case w.bits == 16:
-		return int32(int16(binary.LittleEndian.Uint16(b)))
+		return int32(int16(binary.LittleEndian.Uint16(b))) // #nosec G115 -- uint16 to int16 reinterprets a signed 16-bit PCM sample
 	case w.bits == 24:
-		return int32(uint32(b[0])<<8|uint32(b[1])<<16|uint32(b[2])<<24) >> 16
+		return int32(uint32(b[0])<<8|uint32(b[1])<<16|uint32(b[2])<<24) >> 16 // #nosec G115 -- the three bytes are placed in the top of a uint32 so the sign bit lands in bit 31, then shifted to 16 bits
 	default:
-		return int32(binary.LittleEndian.Uint32(b)) >> 16
+		return int32(binary.LittleEndian.Uint32(b)) >> 16 // #nosec G115 -- uint32 to int32 reinterprets a signed 32-bit PCM sample, then shifted to 16 bits
 	}
 }
 
 func writeCanonicalHeader(out []byte, frames int64) {
-	dataSize := uint32(2 * frames)
+	dataSize := uint32(2 * frames) // #nosec G115 -- frames is bounded by MaxDurationMillis (at most 30 minutes at 16 kHz) checked before normalizeWAV, so 2*frames fits uint32
 	copy(out[0:4], "RIFF")
 	binary.LittleEndian.PutUint32(out[4:8], 36+dataSize)
 	copy(out[8:16], "WAVEfmt ")
