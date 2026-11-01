@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 	"testing"
@@ -152,6 +153,68 @@ func TestExtractRedactsValueSegmentsAfterMarker(t *testing.T) {
 				timedSegment(value, 3000),
 			},
 			wantRedacted: []bool{true, true},
+		},
+		{
+			name: "keyword with start after end, value earlier in time",
+			segments: []Segment{
+				{Text: "The password is", StartMillis: 5000, EndMillis: 1000},
+				timedSegment(value, 3000),
+			},
+			wantRedacted: []bool{true},
+		},
+		{
+			name: "keyword with max start, value earlier in time",
+			segments: []Segment{
+				{Text: "The password is", StartMillis: math.MaxInt64},
+				timedSegment(value, 3000),
+			},
+			wantRedacted: []bool{true},
+		},
+		{
+			name: "keyword with negative start sorts ahead of its value",
+			segments: []Segment{
+				timedSegment("Check one.", 1000),
+				timedSegment("Check two.", 2000),
+				{Text: "The password is", StartMillis: -1, EndMillis: 0},
+				timedSegment(value, 3000),
+			},
+			wantRedacted: []bool{true, true, true},
+		},
+		{
+			name: "stacked invalid-timing keywords each add a window",
+			segments: []Segment{
+				{Text: "The password is", StartMillis: 5000, EndMillis: 1000},
+				{Text: "The api_key is", StartMillis: 6000, EndMillis: 1000},
+				timedSegment(value, 1000),
+				timedSegment("hunter2.", 2000),
+				timedSegment("correcthorse.", 3000),
+			},
+			wantRedacted: []bool{true, true, true},
+		},
+		{
+			name:         "two blank segments do not use up the window",
+			segments:     sequentialSegments("The password is", "   ", "\t\n", "let me check", value),
+			wantRedacted: []bool{true, true, true},
+		},
+		{
+			name:         "punctuation segments do not use up the window",
+			segments:     sequentialSegments("The password is", ".", "...", value),
+			wantRedacted: []bool{true, true, true, true},
+		},
+		{
+			name:         "zero-width segments do not use up the window",
+			segments:     sequentialSegments("The password is", "\u200b", "\u200b", value),
+			wantRedacted: []bool{true, true, true, true},
+		},
+		{
+			name:         "digit-only segments use up the window",
+			segments:     sequentialSegments("The password is", "1234", "5678", "Restart the worker."),
+			wantRedacted: []bool{true, true, true, false},
+		},
+		{
+			name:         "punctuation outside a window keeps its text",
+			segments:     sequentialSegments("Restart the worker.", "...", "Read the logs."),
+			wantRedacted: []bool{false, false, false},
 		},
 		{
 			name:         "misheard words after the keyword, as base.en heard the fixture",

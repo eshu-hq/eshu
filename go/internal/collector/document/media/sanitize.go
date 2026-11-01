@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"unicode"
 )
 
 // valueWindowSegments is how many spoken segments after a keyword segment are
@@ -53,12 +54,15 @@ func containsSensitiveKeyword(text string) bool {
 }
 
 // valueSegments reports, by index into segments, which segments fall in the
-// value window of an earlier keyword segment. The walk is in time order because
-// the Engine contract does not promise sorted output; callers keep their slice
-// order. Blank and invalid-timing segments never reach a section, so they do
-// not use up the window, but an invalid-timing keyword segment still opens one:
-// its text was spoken even though its timestamps are unusable. Each keyword
-// segment adds a full window, so stacked markers each cover their own value.
+// value window of a keyword segment. The walk is in time order because the
+// Engine contract does not promise sorted output; callers keep their slice
+// order. Each keyword segment adds a full window, so stacked markers each cover
+// their own value.
+//
+// An invalid-timing keyword segment never reaches a section, but its text was
+// spoken and its timestamps cannot place it. Sorting on them can put its window
+// anywhere, so it also opens a window in slice order. That pass only adds
+// redaction.
 //
 // Any keyword segment opens a window, not only one that ends on the keyword.
 // The words around a keyword are the least reliable part of a transcript:
@@ -67,32 +71,51 @@ func containsSensitiveKeyword(text string) bool {
 // from one already spoken. Losing a segment of speech is visible in section
 // metadata; a persisted secret is not recoverable.
 func valueSegments(segments []Segment) []bool {
-	order := make([]int, len(segments))
-	for i := range order {
-		order[i] = i
+	timeOrder := make([]int, len(segments))
+	for i := range timeOrder {
+		timeOrder[i] = i
 	}
-	slices.SortStableFunc(order, func(a, b int) int {
+	sliceOrder := slices.Clone(timeOrder)
+	slices.SortStableFunc(timeOrder, func(a, b int) int {
 		return cmp.Or(
 			cmp.Compare(segments[a].StartMillis, segments[b].StartMillis),
 			cmp.Compare(segments[a].EndMillis, segments[b].EndMillis),
 		)
 	})
 	isValue := make([]bool, len(segments))
+	markValueWindows(segments, timeOrder, isValue, func(segment Segment) bool {
+		return containsSensitiveKeyword(segment.Text)
+	})
+	markValueWindows(segments, sliceOrder, isValue, func(segment Segment) bool {
+		return !hasValidTiming(segment) && containsSensitiveKeyword(segment.Text)
+	})
+	return isValue
+}
+
+// markValueWindows walks segments in the given order and sets isValue for each
+// segment inside a window that opens reports opening. Only a segment with a
+// letter or digit uses up the window. Blank, punctuation-only, and zero-width
+// segments hold nothing a value could be, so a value behind them stays covered.
+// A segment with invalid timing never reaches a section and uses up nothing.
+func markValueWindows(segments []Segment, order []int, isValue []bool, opens func(Segment) bool) {
 	remaining := 0
 	for _, i := range order {
-		text := strings.TrimSpace(segments[i].Text)
-		if text == "" {
-			continue
-		}
 		if remaining > 0 && hasValidTiming(segments[i]) {
 			isValue[i] = true
-			remaining--
+			if hasLexicalContent(segments[i].Text) {
+				remaining--
+			}
 		}
-		if containsSensitiveKeyword(text) {
+		if opens(segments[i]) {
 			remaining += valueWindowSegments
 		}
 	}
-	return isValue
+}
+
+func hasLexicalContent(text string) bool {
+	return strings.IndexFunc(text, func(r rune) bool {
+		return unicode.IsLetter(r) || unicode.IsDigit(r)
+	}) >= 0
 }
 
 func safeIdentity(value string, prefix string) (string, bool) {
