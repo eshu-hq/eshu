@@ -122,7 +122,7 @@ describe("pollScriptedTokenWorks", () => {
     const clock = fakeClock();
     const probe = scripted([unauthenticated]);
     await expect(pollScriptedTokenWorks(probe.call, clock)).rejects.toThrow(
-      new RegExp(`not converged within ${scriptedTokenPollTimeoutMs}ms.*unauthenticated.*authentication is required`),
+      new RegExp(`still unauthenticated after ${scriptedTokenPollTimeoutMs}ms.*permanent denial.*unauthenticated.*authentication is required`),
     );
     // One attempt per interval across the whole budget, including t=0 and t=timeout.
     expect(probe.count()).toBe(scriptedTokenPollTimeoutMs / scriptedTokenPollIntervalMs + 1);

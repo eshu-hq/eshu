@@ -18,8 +18,14 @@
 import { extractToolCallStructuredContent, type McpJsonRpcResult } from "./authMcpE2EJsonRpc.ts";
 import { repositoryListFromEnvelope } from "./authMcpE2ERepositoryRows.ts";
 
-// The envelope error code core answers while its provider snapshot is stale.
-const notConvergedErrorCode = "unauthenticated";
+// The envelope error code that is retried. Core answers every OIDC bearer
+// denial with this one code (unknown_issuer, wrong_audience, expired,
+// bad_signature, malformed, no_grants, ...; go/internal/query/auth.go and
+// querycontract/unauthorized.go), so it is also the stale-snapshot signal but
+// cannot be told apart from a permanent denial at this layer. It is retried
+// only because the stale snapshot is the transient case; exhausting the budget
+// points at a permanent denial, not at lag.
+const retriedErrorCode = "unauthenticated";
 
 // scriptedTokenPollTimeoutMs MUST stay above go/internal/oidcbearer's
 // defaultTTL (30s): a budget shorter than the snapshot TTL can time out on a
@@ -47,7 +53,8 @@ function envelopeErrorCode(structured: unknown): string | undefined {
 }
 
 // classifyScriptedTokenCall turns one tools/call result into a verdict. An
-// `unauthenticated` envelope error means core has not converged: retry. Every
+// `unauthenticated` envelope error is retried (it may be core's stale provider
+// snapshot; see retriedErrorCode). Every
 // other problem (HTTP not 200, another error code, a missing or malformed
 // payload) throws so it fails the step immediately.
 export function classifyScriptedTokenCall(call: McpJsonRpcResult): ScriptedTokenVerdict {
@@ -55,7 +62,7 @@ export function classifyScriptedTokenCall(call: McpJsonRpcResult): ScriptedToken
     throw new Error(`tools/call with the scripted OAuth token expected 200, got ${call.httpStatus}: ${call.bodyText}`);
   }
   const structured = extractToolCallStructuredContent(call);
-  if (envelopeErrorCode(structured) === notConvergedErrorCode) {
+  if (envelopeErrorCode(structured) === retriedErrorCode) {
     return { kind: "retry", detail: JSON.stringify((structured as { error: unknown }).error) };
   }
   return { kind: "ok", repositoryCount: repositoryListFromEnvelope(structured).rows.length };
@@ -94,7 +101,9 @@ export async function pollScriptedTokenWorks(
     }
     if (elapsedMs >= timeoutMs) {
       throw new Error(
-        `scripted OAuth token not converged within ${timeoutMs}ms (${attempts} attempt(s)); last observed error: ${verdict.detail}`,
+        `scripted OAuth token still unauthenticated after ${timeoutMs}ms (${attempts} attempt(s)); ` +
+          `that outlasts core's 30s provider-snapshot TTL, so suspect a permanent denial ` +
+          `(unknown issuer, audience, missing grant mapping), not convergence lag; last observed error: ${verdict.detail}`,
       );
     }
     await sleep(intervalMs);

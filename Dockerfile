@@ -80,7 +80,7 @@ RUN cd go \
 # COPY the digest-pinned satellite release binary under its old path so the
 # stack keeps serving the same contract. 0.2.8 is digest
 # sha256:fb370fd3ff8ef8cf19804bf2d1535cfd06d4ef275a165766611b3e658b9cc489
-# (ghcr.io/eshu-hq/eshu-mcp tags 0.2.8/0.2/latest). Like the mocks below, this
+# (ghcr.io/eshu-hq/eshu-mcp tags 0.2.8/0.2/0/latest). Like the mocks below, this
 # stage MUST stay before "Production stage".
 FROM ghcr.io/eshu-hq/eshu-mcp:0.2.8@sha256:fb370fd3ff8ef8cf19804bf2d1535cfd06d4ef275a165766611b3e658b9cc489 AS mcp-satellite
 
