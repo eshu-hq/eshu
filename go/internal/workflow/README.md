@@ -244,11 +244,11 @@ installed version, and image/scope subject evidence. SBOM component rows require
 an attached subject digest plus PURL-derived package ecosystem, name, and exact
 version. Partial installed-evidence rows stay skipped with stable aggregate
 reason codes by ecosystem and source family, without package names or versions
-in skip status.
-The configuration can also declare
-`source_cache` for refresh or offline advisory-source cache lifecycle and
-`fallback_urls` for source mirrors; validation keeps cache modes, durations,
-and mirror URLs bounded before the desired collector instance is persisted.
+in skip status. Each derive section checks `ecosystems` against its own set
+(language names; installed evidence adds the OS distros). The configuration
+can also declare `source_cache` for refresh or offline advisory-source cache
+lifecycle and `fallback_urls` for source mirrors; validation keeps cache
+modes, durations, and mirror URLs bounded before the instance is persisted.
 Derived package and vulnerability target reads rotate their bounded slice on
 each coordinator reconcile bucket by default, so a target limit smaller than
 the full corpus does not repeatedly schedule only the first sorted page. Set

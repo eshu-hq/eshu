@@ -315,7 +315,7 @@ func (c Config) Validate() error {
 	activeClaimCollectors := 0
 	for _, instance := range c.CollectorInstances {
 		if err := instance.Validate(); err != nil {
-			return fmt.Errorf("workflow coordinator collector instance: %w", err)
+			return fmt.Errorf("workflow coordinator collector instance %q: %w", instance.InstanceID, err)
 		}
 		derivesImages, err := scannerInstanceDerivesFromRunningImages(instance)
 		if err != nil {
