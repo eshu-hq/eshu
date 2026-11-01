@@ -142,9 +142,11 @@ introduces it, so `Extract` does not judge segments only one at a time (#9786).
   Paolo". A heuristic that reads the words after a keyword fails open.
 - The cost is lost speech. One keyword segment can redact two following
   segments. On valid, time-sorted input, n consecutive keyword segments can
-  redact n+1 segments after the last one; a keyword segment with invalid timing
-  arms a window without spending a slot, so a run of those can cost up to 2n.
-  So "The password was rotated." costs ordinary speech. That loss
+  redact n+1 segments after the last one. With invalid or out-of-order timing
+  the two passes can withhold different segments: each pass withholds at most
+  2n segments that have a letter or digit for n keyword segments (every keyword
+  adds two slots and each such segment uses one), so the union of the passes
+  can reach 4n. So "The password was rotated." costs ordinary speech. That loss
   shows in section metadata; a persisted secret cannot be taken back.
 
 Known limits:

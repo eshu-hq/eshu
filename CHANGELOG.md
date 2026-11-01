@@ -44,7 +44,8 @@ recent shipped work grouped by feature area.
   text, so a `text_hash` cannot confirm a guess at a short spoken value. Two
   segments of ordinary speech after a keyword lose their text, and n
   consecutive keyword segments can cost n+1 after the last one on valid,
-  time-sorted input, and up to 2n when their timing is invalid. A value spoken
+  time-sorted input; with invalid or out-of-order timing the two passes can
+  withhold different segments, up to 4n in the worst case. A value spoken
   before its keyword stays in clear text
   ([#9792](https://github.com/eshu-hq/eshu/issues/9792)). Nothing calls the
   transcript path in production yet. The real-binary proof
