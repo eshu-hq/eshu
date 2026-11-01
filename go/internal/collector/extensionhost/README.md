@@ -104,6 +104,24 @@ Runner path is untouched (exact single-call flow, covered by
 `TestLegacyRunnerPathStaysSingleCall`) and the page bound trims nothing (a
 breach fails the claim terminal naming the bound).
 
+No-Regression Evidence: `BenchmarkCollectPagesReassembly` (linux/arm64,
+go1.26.10, six runs each, in-process `scriptRunner`, no backend) admits one
+30-fact generation one-shot (1 call) and split 10/10/10 (3 calls). Baseline is
+merge base `fb4fef62ab` on collector `v0.2.0-rc.2`; after is this branch's
+pin-and-guard commits (measured before they were rebased onto main) on
+`v0.2.0-rc.3`. One-shot mean went from 289,976 to 293,841 ns/op (+1.3%), with
+1,677 allocs/op both. Three pages mean went from 294,732 to 297,901 ns/op
+(+1.1%), with 1,695 allocs/op both and one after run at 1,696. B/op moved under
+0.2%. The benchmark measures `collectPages` reassembly on valid pages. It does
+not isolate the rc.3 dependency bump, which sits inside both deltas, and it does
+not run the rejection path. Safe because the guard adds one nil check per
+satellite call, and each call is a subprocess launch in production.
+
+No-Observability-Change: the page-envelope guards add no metric, label, span,
+or log key. A rejected claim reports through the existing
+`eshu_dp_component_extension_results_total{failure_class="invalid_result"}`
+path.
+
 No-Observability-Change: pagination adds no metric, label, span, or log key.
 `StatusTelemetry` instruments and the `ResultRecord` shape are unchanged;
 paged page counts surface only through the existing summed `FactCount` and

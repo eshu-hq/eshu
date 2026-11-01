@@ -81,7 +81,7 @@ The preferred collector `v0.1.0-rc.2` and factschema `v0.1.0-rc.2`
 candidates are now published and verified together through the public Go
 proxy. Fresh proxy proof for the historical collector `v0.2.0-rc.1` remains
 pending. No new-path pair has completed qualification or deployed acceptance;
-merged core PR [#9111](https://github.com/eshu-hq/eshu/pull/9111) pins the
+merged core PR [#9111](https://github.com/eshu-hq/eshu/pull/9111) pinned the
 `collector/v0.1.0-rc.3` + `factschema/v0.1.0-rc.5` pair.
 `collector/v0.1.0-rc.3` and `factschema/v0.1.0-rc.3` are published and
 proxy-verified; `factschema/v0.1.0-rc.4` is published and proxy-verified and
