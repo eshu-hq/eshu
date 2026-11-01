@@ -65,11 +65,15 @@ Collector Performance Evidence: `go test ./internal/collector/document/media
 ./internal/collector/preflight/media ./internal/doctruth -count=1` proves
 transcript fact construction is bounded by media preflight limits, synthetic
 transcript segments, section text bounds, and deterministic mention extraction
-without adding discovery, queue, graph, or runtime work. The value-segment walk
-adds one sort over the segments, capped at 1,000 by the `whispercpp` engine.
-`buildSections` on 1,000 segments, 3 runs of 3,000 iterations on arm64, took
-8.47-8.75 ms/op before and 8.45-8.47 ms/op after, with 1,002 more allocations
-per call (24,913 to 25,915).
+without adding discovery, queue, graph, or runtime work.
+
+No-Regression Evidence: the value-segment walk (#9786) adds one sort over the
+segments, capped at 1,000 by the `whispercpp` engine. Baseline is `d2e483870d`.
+A throwaway benchmark of `buildSections` on 1,000 benign synthetic segments, 3
+runs of 3,000 iterations each on arm64, took 8.47-8.75 ms/op before and
+8.45-8.47 ms/op after, with 1,002 more allocations per call (24,913 to 25,915).
+There is no backend, queue, or row count: this is in-memory work with no
+production caller, and it holds no lock and starts no worker.
 
 Collector Observability Evidence: this package emits no facts outside the
 returned envelopes and has no runtime side effects. Future runtime wiring must
@@ -87,6 +91,10 @@ No-Observability-Change: this package adds no worker, queue consumer, database
 query, graph write, HTTP handler, MCP tool, runtime flag, hosted collector path,
 metric, span, log, or status row. Existing collector, fact-store, HTTP, and MCP
 readback surfaces already carry the emitted documentation facts.
+
+No-Observability-Change: the value-segment rule (#9786) adds none of these and
+no error text. A value section carries the existing `redacted` and
+`redaction_class` metadata, which is what a future caller counts.
 
 ## Value segments
 
