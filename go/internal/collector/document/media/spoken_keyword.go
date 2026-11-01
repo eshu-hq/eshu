@@ -79,8 +79,9 @@ var homoglyphs = map[rune]rune{
 }
 
 // containsSpokenKeyword reports whether the folded form of text holds a spoken
-// secret keyword. The legacy substring list is checked by the caller, so this
-// only adds the forms the original list missed.
+// secret keyword. Folding turns "_" into a space, so the rules also cover every
+// legacy keyword ("api_key" folds to "api key"); sanitize_keyword_test.go pins
+// that.
 func containsSpokenKeyword(text string) bool {
 	folded := foldSpoken(text)
 	for _, rule := range spokenKeywordRules {

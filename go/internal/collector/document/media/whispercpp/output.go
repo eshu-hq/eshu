@@ -16,7 +16,8 @@ import (
 // nonSpeechPattern matches a segment that is only a bracketed, parenthesized,
 // starred, or music-note annotation such as "[BLANK_AUDIO]", "(silence)",
 // "*music*", or "♪". whisper.cpp emits these for non-speech audio; they are
-// not lexical content and are dropped before facts.
+// not lexical content and are dropped before facts, unless the annotation names
+// a secret (see keepsAnnotation).
 var nonSpeechPattern = regexp.MustCompile(`^(\[[^\[\]]*\]|\([^()]*\)|\*[^*]*\*|♪[^♪]*♪?)[\s.!?♪]*$`)
 
 // engineOutput mirrors the subset of `whisper-cli -ojf` JSON this engine
@@ -41,6 +42,17 @@ type engineOutput struct {
 type parsedOutput struct {
 	language string
 	segments []docmedia.Segment
+}
+
+// keepsAnnotation reports whether a bracketed annotation must reach
+// media.Extract anyway. whisper.cpp wraps quiet or unclear speech in brackets,
+// so "(The password is)" is a spoken keyword, and dropping it here would leave
+// the value after it with no window to cover it (#9788). The engine only stops
+// dropping the segment. Redaction stays in media.Extract, which withholds the
+// text and opens the value window. The known non-speech tags hold no keyword,
+// so they are still dropped.
+func keepsAnnotation(text string) bool {
+	return docmedia.ContainsSensitiveKeyword(text)
 }
 
 // parseOutput converts engine JSON into speech segments. Raw control bytes
@@ -70,7 +82,7 @@ func parseOutput(raw []byte, limits Limits, stats *runStats) (parsedOutput, erro
 		if text == "" {
 			continue
 		}
-		if nonSpeechPattern.MatchString(text) {
+		if nonSpeechPattern.MatchString(text) && !keepsAnnotation(text) {
 			stats.segmentsDropped++
 			continue
 		}

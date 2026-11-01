@@ -70,7 +70,7 @@ func containsLegacyKeyword(text string) bool {
 // that names a secret, in any spoken form (#9788). Only a keyword opens a value
 // window; a value pattern does not.
 func containsSensitiveKeyword(text string) bool {
-	return containsLegacyKeyword(text) || containsSpokenKeyword(text)
+	return containsSpokenKeyword(text)
 }
 
 // valueSegments reports, by index into segments, which segments fall in the

@@ -3,7 +3,10 @@
 
 package media
 
-import "testing"
+import (
+	"context"
+	"testing"
+)
 
 // TestContainsSensitiveKeywordSpokenForms pins the #9788 rule: the transcript
 // keyword check folds a segment (case, compatibility forms, diacritics,
@@ -24,6 +27,8 @@ func TestContainsSensitiveKeywordSpokenForms(t *testing.T) {
 		{"api_key", "The api_key is", true},
 		{"private_key", "the private_key is", true},
 		{"credential_marker", "credential_marker gateway-api", true},
+		{"embedded api_key", "xapi_key=abc", true},
+		{"embedded private_key", "myprivate_key", true},
 		{"secret_marker", "secret_marker was spoken", true},
 		{"token_marker", "token_marker-service", true},
 
@@ -114,7 +119,14 @@ func TestContainsSensitiveKeywordSpokenForms(t *testing.T) {
 		{"private alone", "a private meeting", false},
 		{"credit", "the credit is applied", false},
 		{"p i n inside words", "up in the air", false},
+		{"betoken", "it does betoken trouble", false},
+		{"spin", "give it a spin", false},
 		{"letters apart", "p is in n", false},
+
+		// A rejected occurrence must not hide a later accepted one.
+		{"rejected pin then accepted pin", "the spinning fan, pin 1234", true},
+		{"compass word then pass word", "compass word, the pass word is", true},
+		{"tokenize then token", "tokenize it, the token is", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -164,5 +176,30 @@ func TestValueWindowOpensOnSpokenForms(t *testing.T) {
 				t.Fatalf("valueSegments(%q) = %v, want %v", text, got, want)
 			}
 		}
+	}
+}
+
+// TestExtractRedactsSpokenKeywordSegmentAndValue runs the new forms through
+// Extract: the keyword segment redacts itself and its value, and the engine's
+// ordinary speech after the window keeps its text.
+func TestExtractRedactsSpokenKeywordSegmentAndValue(t *testing.T) {
+	t.Parallel()
+
+	for _, text := range []string{"The PIN is", "The pass word is", "The p\u0430ssword is", "The token is"} {
+		engine := &fakeTranscriptEngine{result: EngineResult{
+			Segments: sequentialSegments(text, "swordfish.", "hunter2.", "Restart the worker."),
+		}}
+		result, err := Extract(context.Background(), testRequest("docs/standup.wav", encodeTestWAV(t, 5000), engine))
+		if err != nil {
+			t.Fatalf("Extract(%q) error = %v", text, err)
+		}
+		want := []bool{true, true, true, false}
+		if len(result.Sections) != len(want) {
+			t.Fatalf("Extract(%q) sections = %d, want %d", text, len(result.Sections), len(want))
+		}
+		for i, section := range result.Sections {
+			assertSectionRedaction(t, i, section, want[i])
+		}
+		assertAbsentFromEnvelopes(t, result, "swordfish")
 	}
 }
