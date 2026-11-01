@@ -114,7 +114,10 @@ Do not insert rows or POST to the intake API by hand.
    row, c2 bad signature 401 with no row, c3 duplicate coalesces to one row
    with `duplicate_count` 1, c4 oversized body 413 with no row, c5 outage then
    retry heals to one row, c6 three queued rows claim in FIFO order, c7 intake
-   auth (no token 401, bad token 401, valid token not 401), c8 Actions exact
+   auth, checked against the intake API itself (no token 401, bad token 401,
+   valid token not 401; at the provider edge a wrong listener-to-core token
+   surfaces as 500 so the provider redelivers, which the hermetic test
+   `TestIntakeParityIntakeAuthFailureSurfaces500` proves), c8 Actions exact
    replay 202 twice and a conflicting identity 409 with one row. The pass bar
    was 16/16 with cleanup residue 0/0. The hermetic equivalent that lives in
    the repo is `go/cmd/webhook-listener/intake_parity_cases_test.go`.
