@@ -185,3 +185,54 @@ func TestPagedRunnerStillDecodesPageEnvelope(t *testing.T) {
 		t.Fatalf("collected facts = %d, want 1", len(got))
 	}
 }
+
+// TestCollectPagesRejectsPageOnEmbeddedResult proves a paged runner cannot
+// truncate a generation by carrying its continuation on the embedded SDK
+// result. collectPages reads only CallResult.Page, and the SDK validator
+// accepts a well-formed v1alpha3 page, so without the guard a continuation
+// page there commits as the whole generation.
+func TestCollectPagesRejectsPageOnEmbeddedResult(t *testing.T) {
+	t.Parallel()
+
+	item := testWorkItem()
+	continuation := &sdkcollector.ResultPage{Cursor: "resume-token-1", More: true, TotalFacts: 2}
+
+	tests := []struct {
+		name string
+		page *ResultPage
+	}{
+		{name: "call page nil", page: nil},
+		{name: "call page final", page: &ResultPage{}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			call := CallResult{Result: pagedSDKResult(item, continuation), Page: tc.page}
+			script := &scriptRunner{calls: []CallResult{call}}
+			source := mustNewPagedSource(t, script, 0)
+
+			collected, ok, err := source.NextClaimed(context.Background(), item)
+			if err == nil || ok {
+				t.Fatalf("NextClaimed() ok=%t error=%v, want false and a failure", ok, err)
+			}
+			if got := collectFacts(t, collected); len(got) != 0 {
+				t.Fatalf("collected facts = %d, want 0", len(got))
+			}
+			assertFailure(t, err, FailureClassInvalidResult, true)
+			if got := len(script.requests); got != 1 {
+				t.Fatalf("runner calls = %d, want 1", got)
+			}
+			message := err.Error()
+			if !strings.Contains(message, "page envelope") {
+				t.Fatalf("error = %q, want it to name the page envelope", message)
+			}
+			if strings.Contains(message, "does not support paging") {
+				t.Fatalf("error = %q, must not claim the runner lacks paging", message)
+			}
+			if strings.Contains(message, "resume-token-1") {
+				t.Fatalf("error = %q, must not carry the satellite cursor", message)
+			}
+		})
+	}
+}

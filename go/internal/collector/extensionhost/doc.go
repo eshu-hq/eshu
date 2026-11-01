@@ -23,7 +23,9 @@
 // closes the generation, then validates and commits the reassembled result
 // as one. Runners without paged support keep the legacy single-call path,
 // which fails a result carrying a page envelope terminal as invalid_result
-// instead of committing one page as the whole generation.
+// instead of committing one page as the whole generation. A paged runner
+// returns the page on CallResult.Page; a page on the embedded SDK result fails
+// the same way.
 //
 // The host is the owning decision site for the activation and emission stages
 // of producer-grant admission. Config.GrantObserver receives one allow or deny

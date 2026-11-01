@@ -21,8 +21,16 @@ recent shipped work grouped by feature area.
   ([#9385](https://github.com/eshu-hq/eshu/issues/9385)). Once the SDK `Result`
   type gained `Page`, strict decoding stopped refusing it, so a runner without
   paged support would have committed one page as the whole generation. The
-  host now fails that claim terminal as `invalid_result`. The OCI and process
-  runners both support paging, so neither takes this path in production.
+  host now fails that claim terminal as `invalid_result`. A paged runner that
+  puts the page on the SDK result instead of the call result fails the same
+  way. The OCI and process runners both support paging and decode the page
+  into the call result, so neither takes these paths in production.
+- **Extension conformance verdicts move with the pin**
+  ([#9385](https://github.com/eshu-hq/eshu/issues/9385)). A `v1alpha3` manifest
+  with a valid paged fixture now passes instead of failing `manifest_invalid`,
+  a `v1alpha1` fixture carrying a page now fails `fixture_contract_failed`
+  instead of passing with the page dropped, and a `v1alpha3` continuation page
+  with no cursor fails `fixture_contract_failed`.
 
 ### Extension-host extraction: remote claim client seam, eshu-workflow v0.1.0 pin
 

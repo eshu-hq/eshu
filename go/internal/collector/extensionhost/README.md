@@ -14,7 +14,9 @@ single-call path, and the first paged request stays byte-identical to the
 legacy request. That single-call path cannot fetch later pages, so a result
 that carries a page envelope there fails terminal as `invalid_result`
 (`TestNextClaimedFailsClosedOnPageFromSingleCallRunner`) instead of committing
-one page as the whole generation.
+one page as the whole generation. A paged runner returns the page on
+`CallResult.Page`; a page on the embedded SDK result fails the same way
+(`TestCollectPagesRejectsPageOnEmbeddedResult`).
 
 The package owns only the intake boundary:
 

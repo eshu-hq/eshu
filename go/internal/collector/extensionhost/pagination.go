@@ -229,7 +229,9 @@ func (s *Source) collectPages(ctx context.Context, runner PagedRunner, request R
 
 // checkPageEnvelope enforces the stream framing before any content
 // validation: pages must be versioned v1alpha3, indexed gaplessly from zero,
-// and present on every call once a continuation opens the stream.
+// and present on every call once a continuation opens the stream. The page
+// belongs only on CallResult.Page: collectPages never reads Result.Page, so a
+// runner that set it could stop the stream after one page.
 func (s *Source) checkPageEnvelope(call CallResult, index int, streamOpen bool) error {
 	invalid := func(cause error) error {
 		return extensionFailure{
@@ -237,6 +239,9 @@ func (s *Source) checkPageEnvelope(call CallResult, index int, streamOpen bool) 
 			terminal: true,
 			cause:    cause,
 		}
+	}
+	if call.Result.Page != nil {
+		return invalid(errors.New("extension result carries a page envelope on the SDK result instead of the call result"))
 	}
 	if call.Page == nil {
 		if streamOpen {
@@ -256,11 +261,11 @@ func (s *Source) checkPageEnvelope(call CallResult, index int, streamOpen bool) 
 			call.Page.PageIndex, index,
 		))
 	}
-	// pagedWireResult shadows Result.Page, so the SDK validator never sees
-	// the page envelope and its page rules are mirrored here: a continuation page
-	// must name its resume cursor and carry a completable state, a final
-	// page must not carry a cursor, and the declared total cannot be
-	// negative.
+	// Result.Page is nil past the check above, and pagedWireResult shadows it
+	// on decode, so the SDK validator never sees the page envelope and its
+	// page rules are mirrored here: a continuation page must name its resume
+	// cursor and carry a completable state, a final page must not carry a
+	// cursor, and the declared total cannot be negative.
 	if call.Page.TotalFacts < 0 {
 		return invalid(errors.New("extension result total_facts must be >= 0"))
 	}
