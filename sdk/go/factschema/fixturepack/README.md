@@ -26,10 +26,11 @@ shapes the target reducer release consumes.
   published SDK fixture must remain byte-identical to this canonical source.
 - `payloads/osv_severity_golden.json` — twelve synthetic OSV records and the
   `cvss_vector` and `severity_label` a conforming OSV collector writes for each
-  (#9692). `cvss_vector` is the first well-formed `severity[]` entry of the
-  highest CVSS version, CVSS_V4 then CVSS_V3; CVSS_V2 and unknown types never
-  fill it. `severity_label` is `database_specific.severity` lower-cased, with
-  `MODERATE` as `medium`; an unrecognized or non-string value leaves it empty.
+  (#9692). `cvss_vector` is the first prefixed `severity[]` entry of the
+  highest CVSS type, CVSS_V4 then CVSS_V3 (a prefix check, not a validation);
+  CVSS_V2 and unknown types never fill it. `severity_label` is
+  `database_specific.severity` lower-cased, with `MODERATE` as `medium`; an
+  unrecognized or non-string value leaves it empty.
   The collector writes no `cvss_score`. Both the in-tree collector and the
   extracted collector replay these records against their own envelope code.
 
