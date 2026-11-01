@@ -144,16 +144,16 @@ func New(cfg Config) (*Engine, error) {
 	if strings.TrimSpace(cfg.EngineVersion) == "" {
 		return nil, fmt.Errorf("whisper.cpp engine version pin is required")
 	}
-	if err := verifyPinnedFile("binary", cfg.BinaryPath, cfg.BinarySHA256); err != nil {
-		return nil, err
-	}
-	if err := verifyPinnedFile("model", cfg.ModelPath, cfg.ModelSHA256); err != nil {
-		return nil, err
-	}
 	if err := checkCeilings(cfg.Limits); err != nil {
 		return nil, err
 	}
 	if err := checkPlatform(cfg.Limits); err != nil {
+		return nil, err
+	}
+	if err := verifyPinnedFile("binary", cfg.BinaryPath, cfg.BinarySHA256); err != nil {
+		return nil, err
+	}
+	if err := verifyPinnedFile("model", cfg.ModelPath, cfg.ModelSHA256); err != nil {
 		return nil, err
 	}
 	return &Engine{

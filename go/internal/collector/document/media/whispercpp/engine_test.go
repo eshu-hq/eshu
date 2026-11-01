@@ -295,6 +295,19 @@ func TestNewVerifiesPinnedDigestsAndConfig(t *testing.T) {
 	}
 }
 
+// TestNewRejectsBadLimitsBeforeDigestIO keeps config checks ahead of the
+// pinned-file hashing, which reads a model of about 150 MB. The missing model
+// shows the order: reaching the digest step reports the open failure instead.
+func TestNewRejectsBadLimitsBeforeDigestIO(t *testing.T) {
+	t.Parallel()
+	cfg := fakeConfig(t, "success")
+	cfg.ModelPath += ".missing"
+	cfg.Limits.MaxSegments = ceilingSegments + 1
+	if _, err := New(cfg); err == nil || !strings.Contains(err.Error(), "design ceiling") {
+		t.Fatalf("New() error = %v, want the design ceiling rejection", err)
+	}
+}
+
 // TestRunProcessClassifiesStartAfterCancellation is the regression for a
 // race seen under -race: cancellation landing between the entry check and
 // cmd.Start made Start fail with the context error, which was reported as

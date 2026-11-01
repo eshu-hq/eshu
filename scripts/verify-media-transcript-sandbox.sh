@@ -6,8 +6,9 @@ set -euo pipefail
 # Builds scripts/lib/media-transcript-sandbox/Dockerfile (pinned whisper.cpp
 # v1.9.5, pinned ggml-base.en model, espeak-ng speech fixture, and the Go
 # whispercpp test binary compiled with -tags whispercpp_sandbox), verifies
-# the binary and model digests on the host, then runs the proof tests under
-# the gate-2 sandbox profile:
+# the model digest on the host and records the built binary digest, then runs
+# the proof tests under the gate-2 sandbox profile, where New verifies both
+# digests inside the container:
 #
 #   --network none --read-only --cap-drop ALL --security-opt no-new-privileges
 #   --user 65532:65532 --memory 2g --memory-swap 2g --pids-limit 64 --cpus 4
@@ -40,7 +41,8 @@ command -v rg >/dev/null || die "rg is not installed"
 # Each run gets its own mktemp directory. The script never deletes a path
 # it did not create: cleanup removes only the build inputs inside this run's
 # directory and keeps proof.log for the evidence record.
-[[ "${work_base}" == /* && -d "${work_base}" ]] || die "work base ${work_base} must be an existing absolute directory"
+[[ "${work_base}" == /* ]] || die "work base ${work_base} must be an absolute path"
+mkdir -p "${work_base}"
 work="$(mktemp -d "${work_base}/eshu-media-transcript-sandbox.XXXXXX")"
 [[ -d "${work}" && "${work}" == "${work_base}"/eshu-media-transcript-sandbox.?????? ]] ||
 	die "mktemp returned an unexpected path: ${work}"

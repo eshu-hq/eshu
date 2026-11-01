@@ -22,9 +22,9 @@ func configureProcess(cmd *exec.Cmd) {
 	}
 }
 
-// applyAddressSpaceLimit sets RLIMIT_AS on the started engine. The limit
-// lands microseconds after exec, before the engine loads its model; the
-// container memory limit stays the primary cap.
+// applyAddressSpaceLimit sets RLIMIT_AS on the started engine. The engine runs
+// uncapped between exec and this call, and the length of that window was not
+// measured; the container memory limit stays the primary cap.
 func applyAddressSpaceLimit(pid int, limit uint64) error {
 	if limit == 0 {
 		return nil

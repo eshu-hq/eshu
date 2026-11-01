@@ -140,8 +140,14 @@ func fakeWhisper(args []string) int {
 		if err := child.Start(); err != nil {
 			return 72
 		}
+		// The rename publishes the PID whole: a kill between the write
+		// and the rename leaves no PID file, never a truncated one.
 		pidFile := filepath.Join(filepath.Dir(modelPath), grandchildPIDFile)
-		if err := os.WriteFile(pidFile, []byte(strconv.Itoa(child.Process.Pid)), 0o600); err != nil {
+		pending := pidFile + ".tmp"
+		if err := os.WriteFile(pending, []byte(strconv.Itoa(child.Process.Pid)), 0o600); err != nil {
+			return 73
+		}
+		if err := os.Rename(pending, pidFile); err != nil {
 			return 73
 		}
 		time.Sleep(time.Minute)
