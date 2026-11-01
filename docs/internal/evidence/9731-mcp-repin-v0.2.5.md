@@ -14,6 +14,4 @@ the same default), and the pinned digest verified identical on tags 0.2.5,
 0.2, and latest with `gh attestation verify` exit 0. Full CI on the PR head
 re-runs the suite, including the E2E legs that exercise the new satellite.
 
-No-Observability-Change: no metric, span, log line, status endpoint, or
-alert threshold is added, removed, or renamed; operators keep the existing
-installer, gate, and E2E signals.
+No-Observability-Change (in-tree): this repo's edits add, remove, or rename no metric, span, log line, status endpoint, or alert threshold; operators keep the existing installer, gate, and E2E signals. Separately, the pinned v0.2.5 satellite runtime itself emits new OIDC-denial log lines carrying `iss` and `outcome` fields (its `internal/mcpserver/auth.go`): that is the adopted runtime behavior under test, proven by the satellite's own gates, and those denial signals are what the #9731 E2E legs exercise.
