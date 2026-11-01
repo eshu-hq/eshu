@@ -13,7 +13,7 @@ RUN apk add --no-cache "imagemagick=7.1.1.41-r0" "imagemagick-jpeg=7.1.1.41-r0" 
         "imagemagick-webp=7.1.1.41-r0" "font-dejavu=2.37-r5"
 # Mixed-case proportional text (DejaVu Sans) plus two synthetic PII canaries
 # that ocr.Extract must redact. Keep these lines in sync with
-# liveFixtureLines in go/internal/collector/document/ocr/tesseract/sandbox_live_test.go.
+# liveFixtureLines in go/internal/collector/document/ocr/tesseract/sandbox_proof_test.go.
 RUN mkdir /fixtures && cd /fixtures \
     && magick -size 900x200 xc:white -font /usr/share/fonts/dejavu/DejaVuSans.ttf \
         -pointsize 28 -fill black \

@@ -50,8 +50,8 @@ type liveEvidence struct {
 // starts with --network none, --read-only, --cap-drop ALL, and a non-root
 // user; everywhere else it skips.
 func TestSandboxRealTesseract(t *testing.T) {
-	if os.Getenv("ESHU_OCR_SANDBOX_LIVE") != "1" {
-		t.Skip("set ESHU_OCR_SANDBOX_LIVE=1 inside the OCR sandbox image (scripts/prove-ocr-sandbox.sh)")
+	if os.Getenv("ESHU_OCR_SANDBOX_PROOF") != "1" {
+		t.Skip("set ESHU_OCR_SANDBOX_PROOF=1 inside the OCR sandbox image (scripts/prove-ocr-sandbox.sh)")
 	}
 	cfg := Config{
 		BinaryPath:    os.Getenv("ESHU_OCR_TESSERACT_BIN"),

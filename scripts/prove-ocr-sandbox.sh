@@ -107,7 +107,7 @@ docker run --rm --platform "${platform}" \
 	--network none --read-only --cap-drop ALL --security-opt no-new-privileges \
 	--user 65532:65532 --memory 512m --memory-swap 512m --pids-limit 64 --cpus 1 \
 	--tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m \
-	-e ESHU_OCR_SANDBOX_LIVE=1 \
+	-e ESHU_OCR_SANDBOX_PROOF=1 \
 	-e ESHU_OCR_SANDBOX_EMULATED="${emulated}" \
 	-e ESHU_OCR_TESSERACT_BIN=/usr/bin/tesseract \
 	-e ESHU_OCR_TESSERACT_SHA256="${binary_sha}" \

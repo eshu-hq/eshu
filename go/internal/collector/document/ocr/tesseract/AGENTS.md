@@ -48,4 +48,4 @@
   is the ceiling.
 - Raising a cap past design 1737 section 6 without a design update.
 - Asserting real-tesseract behavior in default unit tests. Use
-  `sandbox_live_test.go`, which runs only inside the proof container.
+  `sandbox_proof_test.go`, which runs only inside the proof container.
