@@ -206,6 +206,16 @@ func TestExtractRedactsValuesThatFollowALabelInReadingOrder(t *testing.T) {
 			regions: stackedRegions("alice@example.com:", "Release checklist"),
 			want:    []string{redacted, "Release checklist"},
 		},
+		{
+			name:    "pattern region with no marker word opens no window",
+			regions: stackedRegions("Contact alice@example.com", "Release checklist", "Rollback steps"),
+			want:    []string{redacted, "Release checklist", "Rollback steps"},
+		},
+		{
+			name:    "pattern region that also holds a marker word opens a window",
+			regions: stackedRegions("password alice@example.com", "Release checklist", "Rollback steps", "Final step"),
+			want:    []string{redacted, redacted, redacted, "Final step"},
+		},
 	}
 	for _, tt := range tests {
 		tt := tt

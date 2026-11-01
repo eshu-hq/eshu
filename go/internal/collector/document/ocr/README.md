@@ -102,8 +102,10 @@ Any region with a marker word from `sensitiveMarkers` opens a value window, not
 only one shaped like a label. The words around a marker are the least reliable
 part of OCR text, and each shape rule tried here left a hole: `(Password)`,
 `Password required`, `Password: I`. The STT twin in `document/media` uses the
-same rule (#9786). An email, URL, path, or ticket redacts its own region but
-opens no window. It is a value, not a word that introduces one.
+same rule (#9786). An email, URL, path, or ticket redacts its own region. If its
+text has no marker word, it opens no window: it is a value, not a word that
+introduces one. A pattern region that also holds a marker word, such as
+`password alice@example.com`, opens a window like any other marker region.
 
 A region is a value when either holds:
 
@@ -130,7 +132,9 @@ hidden, including after a line that already holds its value, such as
 `password: hunter2`, and after prose that mentions a password. That costs a
 little documentation evidence. A leaked secret costs more, and ordinary text
 that follows no marker region is untouched. Windows add but stay bounded: k marker
-regions in a row hide at most k+1 regions after them.
+regions in a row hide at most k+1 regions with a letter or digit after them.
+Symbol-only regions between them are also withheld without using up the window,
+so the number of regions withheld can exceed k+1.
 
 Limits:
 
