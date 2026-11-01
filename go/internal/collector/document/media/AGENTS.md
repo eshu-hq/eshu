@@ -23,6 +23,9 @@
   speaker names, local paths, private URLs, credentials, usernames, attendee
   lists, or sensitive transcript text.
 - Warning classes must stay low-cardinality and design-owned.
+- Judge redaction in time order across segments, not one segment alone: the
+  segments after a keyword are its value (README "Value segments"). Redaction
+  stays in `Extract`, never in an engine package.
 
 ## Common changes and how to scope them
 
@@ -41,8 +44,8 @@
   `transcript_status=no_text`.
 - Media preflight no-speech warnings, and engine errors wrapping
   `ErrNoSpeech`, emit a document fact with `transcript_status=no_speech`.
-- Sensitive transcript segments persist redacted content with hashes and
-  redaction metadata.
+- Sensitive transcript segments, and the value segments after a keyword,
+  persist redacted content with placeholder hashes and redaction metadata.
 
 ## Anti-patterns
 

@@ -14,8 +14,8 @@ provenance without promoting transcript text to graph truth.
 
 This package owns the post-preflight transcript fact boundary for local media
 inputs. It calls `media` preflight first, invokes only an injected transcript
-engine for supported inputs, redacts sensitive-looking transcript segments, and
-emits `documentation_document`, timestamped `documentation_section`, and
+engine for supported inputs, redacts sensitive-looking transcript segments and
+the segments that follow a sensitive keyword (see "Value segments"), and emits `documentation_document`, timestamped `documentation_section`, and
 provenance-only `documentation_entity_mention` envelopes.
 
 It does not discover repositories, add runtime flags, create temp files, call
@@ -65,7 +65,11 @@ Collector Performance Evidence: `go test ./internal/collector/document/media
 ./internal/collector/preflight/media ./internal/doctruth -count=1` proves
 transcript fact construction is bounded by media preflight limits, synthetic
 transcript segments, section text bounds, and deterministic mention extraction
-without adding discovery, queue, graph, or runtime work.
+without adding discovery, queue, graph, or runtime work. The value-segment walk
+adds one sort over the segments, capped at 1,000 by the `whispercpp` engine.
+`buildSections` on 1,000 segments, 3 runs of 3,000 iterations on arm64, took
+8.47-8.75 ms/op before and 8.45-8.47 ms/op after, with 1,002 more allocations
+per call (24,913 to 25,915).
 
 Collector Observability Evidence: this package emits no facts outside the
 returned envelopes and has no runtime side effects. Future runtime wiring must
@@ -84,6 +88,37 @@ query, graph write, HTTP handler, MCP tool, runtime flag, hosted collector path,
 metric, span, log, or status row. Existing collector, fact-store, HTTP, and MCP
 readback surfaces already carry the emitted documentation facts.
 
+## Value segments
+
+A speech engine can put a secret's value in a later segment than the word that
+introduces it, so `Extract` does not judge segments only one at a time (#9786).
+
+- A segment with a sensitive keyword (`password`, `api_key`, `private_key`, or
+  a `*_marker` keyword) opens a window of `valueWindowSegments` (2) segments.
+  Those segments persist as `[redacted]`, with the same `redacted`,
+  `redaction_class`, and warning metadata as a marker segment, and emit no
+  mention facts.
+- Emails, URLs, tickets, and local paths redact their own segment and open no
+  window. They are values, not words that introduce one.
+- The walk is in time order, by start then end, because the `Engine` contract
+  does not promise sorted output. Section order and fallback section IDs stay
+  in engine order.
+- Blank and invalid-timing segments do not use up the window. A long silence
+  does not close it: the window counts segments, not milliseconds.
+- Each keyword segment adds a full window, so stacked markers each cover their
+  own value.
+- The window is 2 so it covers an immediate value, plus a value the engine
+  broke in two or a filler spoken before it. It stays small because every
+  segment in the window loses its text.
+- Any keyword opens the window, not only one that ends its segment. The words
+  after a keyword are the least reliable part of a transcript: `base.en` hears
+  the sandbox fixture's "The password is as follows." as "The password in El
+  Falon". The cost is that speech after a segment such as "The password was
+  rotated." loses up to two segments. That loss shows in section metadata; a
+  persisted secret cannot be taken back.
+- A segment outside the window keeps its text, so a value spoken more than two
+  segments after its keyword is not caught.
+
 ## Gotchas / invariants
 
 - Non-WAV media stays unsupported until a codec/container dependency review
@@ -95,8 +130,10 @@ readback surfaces already carry the emitted documentation facts.
 - Speaker labels are never persisted as raw names. Sections may record only a
   presence marker and stable hash.
 - Sensitive-looking transcript text is not persisted as content. The section
-  keeps redaction metadata and stable hashes instead. Redacted sections do not
-  emit mention facts, even when the caller supplied mention hints.
+  keeps redaction metadata instead. Its `text_hash` and `excerpt_hash` are
+  hashes of the `[redacted]` placeholder, because an unsalted sha256 of a short
+  spoken value would confirm a guess at it. Redacted sections do not emit
+  mention facts, even when the caller supplied mention hints.
 - Sensitive-looking mention hints are dropped before doctruth extraction; a
   hint must not be used to bypass transcript redaction.
 - Transcript text and transcript mentions remain document evidence. This

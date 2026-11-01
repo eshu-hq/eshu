@@ -228,15 +228,18 @@ script found no canary text in them.
 the host, and runs the `whispercpp_sandbox` tests in a container with
 `--network none --read-only --cap-drop ALL --security-opt
 no-new-privileges:true --user 65532:65532 --memory 2g --memory-swap 2g
---pids-limit 64 --cpus 4`. The fixture is synthesized at build time by
-Alpine's `espeak-ng` from "Please restart the payments worker before noon.
-The password is swordfish." Recorded result, 2026-11-01, arm64:
+--pids-limit 64 --cpus 4`. Both fixtures are synthesized at build time by
+Alpine's `espeak-ng`. `speech.wav` says "Please restart the payments worker
+before noon. The password is swordfish." `speech-split.wav` says "The password
+is as follows." then, after a 3 s SSML break, "Swordfish." Recorded result,
+2026-11-01, arm64:
 
 | Case | Outcome |
 | --- | --- |
 | Profile | uid 65532, root filesystem write denied, network unreachable |
 | Speech, 3 runs | identical results, 2 segments each, 1.94-2.01 s |
 | Redaction via `media.Extract` | 2 sections, 1 redacted, canary absent from facts and logs |
+| Canary in its own segment (#9786) | value in segment 1 after marker in segment 0; 2 sections, 2 redacted, canary absent from facts and logs |
 | 6 s digital silence | `no_speech` |
 | 50 ms wall-clock cap | `timeout` after 0.087 s |
 | 64-byte stdout cap | `resource_limit_exceeded` |
@@ -246,7 +249,12 @@ The password is swordfish." Recorded result, 2026-11-01, arm64:
 base.en hears the synthetic phrase "payments worker" as "payment swearcare".
 The same happens after sox's very-high-quality resampler, so this is a model
 limit on synthetic speech. The proof asserts words that are stable across
-resamplers.
+resamplers. It also hears "The password is as follows." as "The password in
+El Falon", which is why `media.Extract` does not read the words after a
+keyword (`../README.md`, "Value segments"). The split-segment proof first
+requires that the value really is the canary in a later segment, then checks
+the text the engine produced is absent from every envelope, so a mishearing
+cannot pass it.
 
 ## Packaging
 
