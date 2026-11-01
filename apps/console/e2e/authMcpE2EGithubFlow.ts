@@ -1,19 +1,22 @@
 // authMcpE2EGithubFlow.ts — shape C (GitHub, stubbed) step bodies for the
 // MCP-identity E2E suite (F-9, issue #5170, design §4 "Shape C"). Runs AFTER
-// shape A and BEFORE shape B (design §1's load-bearing phase order: a
-// GitHub-only provider must NOT enable RFC 9728 discovery — that only
-// happens once shape B's OIDC provider is added). Proves the admin
-// drawer's GitHub provider CRUD (F-5), that a team-role mapping is REQUIRED
-// for login to succeed at all (not merely for permissions — mirrors
+// shape A and BEFORE shape B (design §1's load-bearing phase order). Proves
+// the admin drawer's GitHub provider CRUD (F-5), that a team-role mapping is
+// REQUIRED for login to succeed at all (not merely for permissions — mirrors
 // authE2EOidcFlow.ts's createMemberGroupRoleMapping doc comment), the real
-// browser OAuth2 round trip against go/cmd/mock-github, and that MCP's
-// posture stays token-only with a GitHub-only provider configured.
+// browser OAuth2 round trip against go/cmd/mock-github, and that MCP still
+// authenticates the existing personal token with a GitHub-only provider
+// configured. Discovery and challenge posture no longer depend on DB
+// provider rows: the satellite serves static discovery from boot
+// (eshu-hq/eshu#9731), so a GitHub-only deployment advertises the same
+// static document shape A saw.
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { Browser, Page } from "playwright";
 
 import { apiFetchInPage, chromiumLaunchArgs as baseChromiumLaunchArgs } from "./authE2EOidcFlow.ts";
 import { resolveEshuCommand, type EshuCommand } from "./authE2ECredential.ts";
+import { fetchStaticDiscoveryDocWithRetry } from "./authMcpE2EJsonRpc.ts";
 import type { AuthE2EStep } from "./authE2EStepRecorder.ts";
 import { assertMcpToolCallRowFiltered, type ShapeAContext } from "./authMcpE2ETokenFlow.ts";
 
@@ -268,18 +271,18 @@ export async function driveGithubLoginExpectSuccess(
   return context;
 }
 
-// assertDiscoveryStillNotEnabled proves design §4's shape-C posture
-// cross-check: a GitHub-only provider must NOT enable RFC 9728 discovery
-// (GitHub is never an oidcbearer issuer — auth_oauth_discovery.go's
-// zero-active-issuers 404 gate), and the credential-less MCP 401 challenge
-// stays bare for the same reason.
-async function assertDiscoveryStillNotEnabled(mcpBase: string): Promise<string> {
-  const discoveryRes = await fetch(`${mcpBase}/.well-known/oauth-protected-resource`);
-  if (discoveryRes.status !== 404) {
-    throw new Error(
-      `expected discovery to STILL 404 with only a GitHub provider configured, got ${discoveryRes.status}`,
-    );
-  }
+// assertDiscoveryStillStatic proves the shape-C posture cross-check under
+// static discovery (eshu-hq/eshu#9731): adding a GitHub-only provider changes
+// neither the discovery document nor the credential-less challenge, because
+// both come from the satellite's static operator config, not DB provider
+// rows. GitHub is never an oidcbearer issuer, so under the retired in-tree
+// transport this 404'd with a bare challenge; under the satellite it serves
+// the same static 200 + discovery challenge shape A saw. Keeps the
+// shapeC_discovery_and_challenge_unaffected step id for the manifest gate.
+async function assertDiscoveryStillStatic(mcpBase: string): Promise<string> {
+  // The first read retries briefly: a fresh stack answers readiness probes
+  // before discovery is servable. The helper only returns on 200.
+  await fetchStaticDiscoveryDocWithRetry(mcpBase);
   const initRes = await fetch(`${mcpBase}/mcp/message`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -289,12 +292,12 @@ async function assertDiscoveryStillNotEnabled(mcpBase: string): Promise<string> 
     throw new Error(`expected 401 from credential-less initialize, got ${initRes.status}`);
   }
   const challenge = initRes.headers.get("WWW-Authenticate");
-  if (challenge !== "Bearer") {
+  if (challenge === null || !challenge.includes("resource_metadata=")) {
     throw new Error(
-      `expected the bare "Bearer" challenge with only a GitHub provider configured, got: ${challenge}`,
+      `expected the resource_metadata challenge with only a GitHub provider configured, got: ${challenge}`,
     );
   }
-  return "discovery route STILL 404s and the credential-less 401 challenge STILL bare with only a GitHub provider configured";
+  return "discovery route STILL serves the static 200 and the credential-less 401 challenge STILL steers to discovery with only a GitHub provider configured";
 }
 
 export function resolveMcpSetupCommand(
@@ -311,24 +314,33 @@ export function resolveMcpSetupCommand(
   ]);
 }
 
-// assertMcpSetupPostureIsToken shells out to `eshu mcp setup --hosted
+// assertMcpSetupPostureIsSso shells out to `eshu mcp setup --hosted
 // --service-url <mcpBase>` (design §4 item 6, F-8) and asserts the printed
-// snippet references the per-user token env var, not an OAuth-only shape —
-// the CLI's own discovery probe against mcpBase should resolve postureToken
-// because the discovery route still 404s (see assertDiscoveryStillNotEnabled).
-async function assertMcpSetupPostureIsToken(
+// snippet wires the OAuth flow, not the per-user token env var. The CLI's
+// auto probe resolves SSO whenever the discovery document advertises issuers,
+// and the satellite serves static discovery from boot (eshu-hq/eshu#9731) —
+// even with only a GitHub provider registered in the DB. The retired
+// in-tree transport 404'd here, so the probe resolved token posture; under
+// the satellite it resolves SSO. Keeps the shapeC_mcp_setup_posture_is_token
+// step id for the manifest gate.
+async function assertMcpSetupPostureIsSso(
   repoGoDir: string,
   mcpBase: string,
   eshuBinary = process.env.ESHU_E2E_ESHU_BINARY ?? "",
 ): Promise<string> {
   const command = resolveMcpSetupCommand(eshuBinary, repoGoDir, mcpBase);
   const { stdout } = await execFileAsync(command.file, command.args, { timeout: 60000 });
-  if (!stdout.includes("ESHU_MCP_TOKEN")) {
+  if (stdout.includes("ESHU_MCP_TOKEN")) {
     throw new Error(
-      `expected the printed MCP setup snippet to reference ESHU_MCP_TOKEN (token posture): ${stdout}`,
+      `expected the printed MCP setup snippet to wire OAuth (SSO posture), not the per-user token: ${stdout}`,
     );
   }
-  return "eshu mcp setup --hosted resolved token posture (snippet references ESHU_MCP_TOKEN)";
+  if (!stdout.includes("authenticate via OAuth")) {
+    throw new Error(
+      `expected the printed MCP setup snippet to carry the SSO guidance (OAuth posture): ${stdout}`,
+    );
+  }
+  return "eshu mcp setup --hosted resolved SSO posture (snippet wires OAuth against the advertised issuer, no ESHU_MCP_TOKEN)";
 }
 
 export interface ShapeCContext extends ShapeAContext {
@@ -405,7 +417,7 @@ export async function runShapeC(
   if (memberContext) await memberContext.close();
 
   await step("shapeC_discovery_and_challenge_unaffected", () =>
-    assertDiscoveryStillNotEnabled(ctx.mcpBase),
+    assertDiscoveryStillStatic(ctx.mcpBase),
   );
 
   await step("shapeC_mcp_still_works_via_personal_token", () =>
@@ -413,6 +425,6 @@ export async function runShapeC(
   );
 
   await step("shapeC_mcp_setup_posture_is_token", () =>
-    assertMcpSetupPostureIsToken(ctx.repoGoDir, ctx.mcpBase),
+    assertMcpSetupPostureIsSso(ctx.repoGoDir, ctx.mcpBase),
   );
 }

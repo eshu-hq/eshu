@@ -82,13 +82,13 @@ export async function collectComposeServiceLogs(
 
 // parseOidcBearerDenialOutcomes extracts the distinct set of `outcome` values
 // from the mcp-server JSON log's "oidc bearer token denied" lines
-// (go/internal/oidcbearer/resolver.go's deny() emits the message plus
-// iss + outcome only, never the raw token). The unified telemetry logger
-// renames slog's "msg" key to "message" (go/internal/telemetry/logging.go's
-// unifiedReplaceAttr), so the JSON carries "message", not "msg". This is the
-// observable the distinct-denial matrix asserts on, because denial-side
-// governance_audit reason_codes do not exist yet (tracked follow-up:
-// eshu-hq/eshu#5567).
+// The satellite edge verifier emits the message plus iss + outcome
+// (mirroring core's deny()), never the raw token. Plain slog carries the message
+// as "msg" while core's unified telemetry logger renames it to "message"
+// (go/internal/telemetry/logging.go's unifiedReplaceAttr), so both keys are
+// accepted. This is the observable the distinct-denial matrix asserts on,
+// because denial-side governance_audit reason_codes do not exist on the
+// satellite path (tracked follow-up: eshu-hq/eshu#5567).
 export function parseOidcBearerDenialOutcomes(logs: string): Set<string> {
   const outcomes = new Set<string>();
   for (const line of logs.split("\n")) {

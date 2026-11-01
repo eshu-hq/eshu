@@ -53,6 +53,43 @@ export async function callMcpMessage(
   };
 }
 
+// fetchStaticDiscoveryDocWithRetry GETs
+// `/.well-known/oauth-protected-resource` until it serves 200 or timeoutMs
+// elapses (polling every intervalMs): a fresh stack answers readiness probes
+// before discovery is servable, so the first read tolerates startup skew. It
+// asserts nothing about the document — the caller shape-checks the 200 body,
+// so there are no flip semantics. A persistent non-200 fails with the last
+// status.
+export async function fetchStaticDiscoveryDocWithRetry(
+  mcpBase: string,
+  timeoutMs = 30000,
+  intervalMs = 1000,
+): Promise<Response> {
+  const deadline = Date.now() + timeoutMs;
+  let lastFailure = "no attempt made";
+  for (;;) {
+    let res: Response | undefined;
+    try {
+      res = await fetch(`${mcpBase}/.well-known/oauth-protected-resource`);
+    } catch (err) {
+      // Fresh-stack window: the port is not accepting connections yet.
+      lastFailure = err instanceof Error ? err.message : String(err);
+    }
+    if (res) {
+      if (res.status === 200) {
+        return res;
+      }
+      // Drain the body so the socket is released before the next poll.
+      lastFailure = `status ${res.status}`;
+      await res.arrayBuffer().catch(() => undefined);
+    }
+    if (Date.now() >= deadline) {
+      throw new Error(`static discovery expected 200 within ${timeoutMs}ms, got ${lastFailure}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+}
+
 // mcpInitialize/mcpToolsList/mcpToolsCall are thin, named wrappers so call
 // sites read like the MCP method they exercise rather than a bare string.
 export const mcpInitialize = (mcpBase: string, credential?: string): Promise<McpJsonRpcResult> =>

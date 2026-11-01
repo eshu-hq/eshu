@@ -1,9 +1,11 @@
 // authMcpE2EShapeB.ts — shape B (Okta-style OIDC via the mock IdP) step
 // bodies for the MCP-identity E2E suite (F-9, issue #5170, design §4 "Shape
 // B"). Runs LAST (after shape A and shape C — design §1's load-bearing
-// order): this is the only shape that flips RFC 9728 discovery live and ends
-// with the require_sso guardrail, which revokes local sessions and must not
-// precede shape C's browser work.
+// order): this is the only shape that registers an OIDC provider (which the
+// retired in-tree transport needed to flip RFC 9728 discovery live; the
+// satellite serves it statically from boot) and ends with the require_sso
+// guardrail, which revokes local sessions and must not precede shape C's
+// browser work.
 import type { Browser, Page } from "playwright";
 
 import {
@@ -20,7 +22,7 @@ import {
   enableRequireSSO,
 } from "./authE2ERequireSSOFlow.ts";
 import type { AuthE2EStep } from "./authE2EStepRecorder.ts";
-import { mcpInitialize, mcpToolsList } from "./authMcpE2EJsonRpc.ts";
+import { fetchStaticDiscoveryDocWithRetry, mcpInitialize, mcpToolsList } from "./authMcpE2EJsonRpc.ts";
 import {
   assertScriptedTokenWorksAgainstMcp,
   mintJwtFromMockIdp,
@@ -45,26 +47,19 @@ export interface ShapeBContext extends ShapeCContext {
   readonly breakglassRecoveryCode: string;
 }
 
-// pollForDiscoveryEnabled polls GET /.well-known/oauth-protected-resource
-// until it returns 200 or deadlineMs elapses (design §4 shape B item 3: the
-// oidcbearer issuer snapshot has a fixed 30s TTL — go/internal/oidcbearer/
-// resolver.go's defaultTTL — with no configurable knob, so this bounds a
-// real poll rather than relying on one).
-async function pollForDiscoveryEnabled(
-  mcpBase: string,
-  deadlineMs: number,
-): Promise<Record<string, unknown>> {
-  const start = Date.now();
-  let lastStatus = 0;
-  while (Date.now() - start < deadlineMs) {
-    const res = await fetch(`${mcpBase}/.well-known/oauth-protected-resource`);
-    lastStatus = res.status;
-    if (res.status === 200) {
-      return (await res.json()) as Record<string, unknown>;
-    }
-    await new Promise((r) => setTimeout(r, 1000));
-  }
-  throw new Error(`discovery never flipped to 200 within ${deadlineMs}ms (last status ${lastStatus})`);
+// fetchStaticDiscoveryDoc GETs /.well-known/oauth-protected-resource and
+// returns the document: under static satellite discovery
+// (eshu-hq/eshu#9731) the edge serves it from boot, so there is no flip to
+// poll for. The first read retries briefly (~30s) because a fresh stack
+// answers readiness probes before discovery is servable. The retired in-tree
+// transport derived this per request from Postgres (oidcbearer issuer
+// snapshot, 30s TTL) and flipped live when shape B's OIDC provider was
+// added; the satellite's static operator config makes the flip a no-op.
+// Keeps the shapeB_discovery_flips_live step id for the manifest gate; only
+// the asserted contract changed.
+async function fetchStaticDiscoveryDoc(mcpBase: string): Promise<Record<string, unknown>> {
+  const res = await fetchStaticDiscoveryDocWithRetry(mcpBase);
+  return (await res.json()) as Record<string, unknown>;
 }
 
 // runShapeB returns the OAuth-minted bearer access token (member group ->
@@ -132,7 +127,7 @@ export async function runShapeB(
 
   let discoveryDoc: Record<string, unknown> = {};
   await step("shapeB_discovery_flips_live", async () => {
-    discoveryDoc = await pollForDiscoveryEnabled(ctx.mcpBase, 60000);
+    discoveryDoc = await fetchStaticDiscoveryDoc(ctx.mcpBase);
     const resource = discoveryDoc.resource;
     const servers = discoveryDoc.authorization_servers as readonly string[] | undefined;
     const bearerMethods = discoveryDoc.bearer_methods_supported as readonly string[] | undefined;
@@ -149,7 +144,7 @@ export async function runShapeB(
     if (!scopes || !scopes.includes("groups")) {
       throw new Error(`discovery scopes_supported = ${JSON.stringify(scopes)}, missing "groups"`);
     }
-    return `discovery flipped to 200 with resource=${String(resource)}, authorization_servers=[${memberOidcIssuer}]`;
+    return `static discovery serves 200 from boot with resource=${String(resource)}, authorization_servers=[${memberOidcIssuer}] (no live flip under static config)`;
   });
 
   let oauthAccessToken = "";
