@@ -38,11 +38,13 @@ recent shipped work grouped by feature area.
   followed by "swordfish." used to redact the first segment and persist the
   second. A keyword now opens a two-segment window, judged in time order and
   again in slice order, so out-of-order engine output can over-redact.
-  Emails, URLs, tickets, and paths open no window. Redacted sections carry
+  Emails, URLs, tickets, and paths with no keyword in their text open no
+  window. Redacted sections carry
   hashes of the `[redacted]` placeholder instead of a sha256 of the withheld
   text, so a `text_hash` cannot confirm a guess at a short spoken value. Two
   segments of ordinary speech after a keyword lose their text, and n
-  consecutive keyword segments can cost n+1 after the last one. A value spoken
+  consecutive keyword segments can cost n+1 after the last one on valid,
+  time-sorted input, and up to 2n when their timing is invalid. A value spoken
   before its keyword stays in clear text
   ([#9792](https://github.com/eshu-hq/eshu/issues/9792)). Nothing calls the
   transcript path in production yet. The real-binary proof

@@ -108,8 +108,11 @@ introduces it, so `Extract` does not judge segments only one at a time (#9786).
   Those segments persist as `[redacted]`, with the same `redacted`,
   `redaction_class`, and warning metadata as a marker segment, and emit no
   mention facts.
-- Emails, URLs, tickets, and local paths redact their own segment and open no
-  window. They are values, not words that introduce one.
+- Emails, URLs, tickets, and local paths with no keyword in their text redact
+  their own segment and open no window. They are values, not words that
+  introduce one. A segment that has both a keyword and one of these patterns,
+  such as "password alice@example.com", still opens a window, because the
+  keyword alone decides that.
 - The walk runs twice, and every keyword segment opens a window in both: once
   in time order, by start then end, because the `Engine` contract does not
   promise sorted output, and once in slice order, because timestamps cannot be
@@ -138,8 +141,10 @@ introduces it, so `Extract` does not judge segments only one at a time (#9786).
   22.05 kHz file heard "as follows" as "El Falon", "Alpha alone", and "El
   Paolo". A heuristic that reads the words after a keyword fails open.
 - The cost is lost speech. One keyword segment can redact two following
-  segments, and n consecutive keyword segments can redact n+1 segments after
-  the last one, so "The password was rotated." costs ordinary speech. That loss
+  segments. On valid, time-sorted input, n consecutive keyword segments can
+  redact n+1 segments after the last one; a keyword segment with invalid timing
+  arms a window without spending a slot, so a run of those can cost up to 2n.
+  So "The password was rotated." costs ordinary speech. That loss
   shows in section metadata; a persisted secret cannot be taken back.
 
 Known limits:
