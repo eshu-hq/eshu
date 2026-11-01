@@ -251,7 +251,7 @@ for the same reason.
   `internal/telemetry/instruments.go` and emitted from
   `SupplyChainImpactHandler.emitCounters` with the closed-enum `outcome`
   label (active, not_affected, accepted_risk, false_positive, ignored,
-  expired, provider_dismissed, scope_mismatch), so a 3 AM operator can
+  expired, provider_dismissed, scope_mismatch, advisory_retracted), so a 3 AM operator can
   detect VEX or operator-policy drift without re-running the reducer.
   `SupplyChainImpactHandler` evaluates `vulnerability.suppression` facts
   against each finding via `EvaluateSupplyChainSuppression`. The decision is

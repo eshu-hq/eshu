@@ -48,6 +48,17 @@ const (
 	// path. Preserved so operators can audit drift between the suppression's
 	// intent and the actual finding shape.
 	SupplyChainSuppressionStateScopeMismatch SupplyChainSuppressionState = "scope_mismatch"
+	// SupplyChainSuppressionStateAdvisoryRetracted means every source
+	// observation of the finding's CVE group rejected or withdrew its advisory
+	// (NVD Rejected, OSV withdrawn). The reducer sets it from source evidence
+	// alone; no suppression fact or operator can assert it. Hidden from the
+	// default view, with the reason and any replacement kept on the finding.
+	// An operator suppression is authoritative over the operator's risk
+	// decision and never over whether the advisory exists, so in the derivation
+	// a retraction outranks every operator suppression (#9695). The materialized
+	// view follows once the operator scope has re-derived; until then its older
+	// copy can still override the source copy's state in the winners query.
+	SupplyChainSuppressionStateAdvisoryRetracted SupplyChainSuppressionState = "advisory_retracted"
 )
 
 // SupplyChainSuppressionStates returns every state the reducer can emit.
@@ -61,6 +72,7 @@ func SupplyChainSuppressionStates() []SupplyChainSuppressionState {
 		SupplyChainSuppressionStateExpired,
 		SupplyChainSuppressionStateProviderDismissed,
 		SupplyChainSuppressionStateScopeMismatch,
+		SupplyChainSuppressionStateAdvisoryRetracted,
 	}
 }
 
@@ -74,6 +86,7 @@ func SupplyChainSuppressionHiddenStates() []SupplyChainSuppressionState {
 		SupplyChainSuppressionStateAcceptedRisk,
 		SupplyChainSuppressionStateFalsePositive,
 		SupplyChainSuppressionStateIgnored,
+		SupplyChainSuppressionStateAdvisoryRetracted,
 	}
 }
 
@@ -173,6 +186,9 @@ type SupplyChainSuppressionDecision struct {
 // EvaluateSupplyChainSuppression returns the suppression decision for one
 // finding. Selection is deterministic:
 //
+//  0. A source retraction of the whole advisory (finding.AdvisoryRetraction)
+//     wins over everything below: the advisory no longer stands, so no
+//     operator decision about it can keep the finding visible.
 //  1. Active operator/VEX suppression (unexpired, scope matches) wins; ties
 //     broken by latest AuthoredAt, then lexicographic SuppressionID.
 //  2. Provider-dismissal evidence wins when no operator suppression matched.
@@ -188,6 +204,9 @@ func EvaluateSupplyChainSuppression(
 	suppressions []vulnerabilitySuppression,
 	now time.Time,
 ) SupplyChainSuppressionDecision {
+	if finding.AdvisoryRetraction != nil {
+		return decisionFromAdvisoryRetraction(*finding.AdvisoryRetraction)
+	}
 	if len(suppressions) == 0 {
 		return SupplyChainSuppressionDecision{State: SupplyChainSuppressionStateActive}
 	}
@@ -261,6 +280,18 @@ func decisionFromActiveOperatorSuppression(s vulnerabilitySuppression) SupplyCha
 		EvidenceRef:    s.EvidenceRef,
 		VEXDocumentID:  s.VEXDocumentID,
 		VEXStatementID: s.VEXStatementID,
+	}
+}
+
+// advisoryRetractionDecisionSource names the decision source for a retraction
+// that comes from advisory evidence rather than a suppression fact.
+const advisoryRetractionDecisionSource = "advisory_retraction"
+
+func decisionFromAdvisoryRetraction(retraction AdvisoryRetraction) SupplyChainSuppressionDecision {
+	return SupplyChainSuppressionDecision{
+		State:  SupplyChainSuppressionStateAdvisoryRetracted,
+		Source: advisoryRetractionDecisionSource,
+		Reason: retraction.Reason,
 	}
 }
 

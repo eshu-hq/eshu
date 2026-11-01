@@ -54,3 +54,24 @@ func TestRenderProviderParitySummaryReportsMismatchRowCount(t *testing.T) {
 		t.Fatalf("summary = %q, want %q", got, want)
 	}
 }
+
+// TestParityStatusTreatsARetractedAdvisoryAsDismissed proves a finding whose
+// source retracted the advisory (#9695) counts as closed when compared with a
+// provider alert, the way an operator-closed finding does, and that a live
+// finding still reads as open.
+func TestParityStatusTreatsARetractedAdvisoryAsDismissed(t *testing.T) {
+	retracted := map[string]any{
+		"impact_status": "affected_exact",
+		"suppression":   map[string]any{"state": "advisory_retracted"},
+	}
+	if got := parityStatusFromFinding(retracted); got != vulnerabilityparity.StatusDismissed {
+		t.Fatalf("retracted finding status = %v, want dismissed", got)
+	}
+	live := map[string]any{
+		"impact_status": "affected_exact",
+		"suppression":   map[string]any{"state": "active"},
+	}
+	if got := parityStatusFromFinding(live); got != vulnerabilityparity.StatusOpen {
+		t.Fatalf("live finding status = %v, want open", got)
+	}
+}

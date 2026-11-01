@@ -275,6 +275,7 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 	subSignals["suppression_evidence_truncated"] = boolSignal(loaded.truncation.suppressionTail)
 	subSignals["evidence_envelopes"] = float64(loaded.evidenceEnvelopeCount())
 	subSignals["evidence_expansion_envelopes"] = float64(loaded.expansionEnvelopes)
+	subSignals[advisoryRetractedFindingsSubSignal] = float64(supplyChainAdvisoryRetractedCount(findings))
 	for key, value := range factdecode.InputInvalidSubSignals(inputInvalidCount) {
 		subSignals[key] = value
 	}

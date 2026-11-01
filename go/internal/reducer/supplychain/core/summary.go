@@ -31,6 +31,21 @@ func supplyChainSuppressionCounts(findings []SupplyChainImpactFinding) map[Suppl
 	return counts
 }
 
+// advisoryRetractedFindingsSubSignal is the Result.SubSignals key counting the
+// findings a pass published in the advisory_retracted state (#9695). It is not
+// findings_retracted, which counts rows the writer tombstoned.
+const advisoryRetractedFindingsSubSignal = "advisory_retracted_findings"
+
+func supplyChainAdvisoryRetractedCount(findings []SupplyChainImpactFinding) int {
+	count := 0
+	for _, finding := range findings {
+		if finding.Suppression.State == SupplyChainSuppressionStateAdvisoryRetracted {
+			count++
+		}
+	}
+	return count
+}
+
 func supplyChainImpactSummary(
 	evaluated int,
 	counts map[SupplyChainImpactStatus]int,
@@ -41,7 +56,7 @@ func supplyChainImpactSummary(
 		"supply chain impact evaluated=%d affected_exact=%d affected_derived=%d possibly_affected=%d not_affected_known_fixed=%d unknown_impact=%d "+
 			"suppression_active=%d suppression_not_affected=%d suppression_accepted_risk=%d suppression_false_positive=%d "+
 			"suppression_ignored=%d suppression_expired=%d suppression_provider_dismissed=%d suppression_scope_mismatch=%d "+
-			"canonical_writes=%d",
+			"suppression_advisory_retracted=%d canonical_writes=%d",
 		evaluated,
 		counts[SupplyChainImpactAffectedExact],
 		counts[SupplyChainImpactAffectedDerived],
@@ -56,6 +71,7 @@ func supplyChainImpactSummary(
 		suppressionCounts[SupplyChainSuppressionStateExpired],
 		suppressionCounts[SupplyChainSuppressionStateProviderDismissed],
 		suppressionCounts[SupplyChainSuppressionStateScopeMismatch],
+		suppressionCounts[SupplyChainSuppressionStateAdvisoryRetracted],
 		canonicalWrites,
 	)
 }

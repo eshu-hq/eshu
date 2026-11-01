@@ -23,6 +23,12 @@ type ImpactCVE struct {
 	PublishedAt     string
 	SourceUpdatedAt string
 	WithdrawnAt     string
+	// Status is the source-reported advisory lifecycle status, verbatim (for
+	// example "Rejected" or "withdrawn"). Empty when the source reported none.
+	Status string
+	// ReplacedBy lists the CVE ids the source names as replacing this advisory,
+	// in source order. Empty unless the source stated a replacement.
+	ReplacedBy []string
 }
 
 // AffectedPackage is the reducer's internal projection of one

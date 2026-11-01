@@ -1067,7 +1067,7 @@ type Instruments struct {
 	// outcomes per supply-chain impact finding. Labels: domain
 	// (supply_chain_impact) and outcome (one of active, not_affected,
 	// accepted_risk, false_positive, ignored, expired, provider_dismissed,
-	// scope_mismatch). Lets operators detect drift between VEX/operator
+	// scope_mismatch, advisory_retracted). Lets operators detect drift between VEX/operator
 	// suppression intent and finding identity at 3 AM without re-running the
 	// reducer.
 	SupplyChainSuppressionDecisions metric.Int64Counter

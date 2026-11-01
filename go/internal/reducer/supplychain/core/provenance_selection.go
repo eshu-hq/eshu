@@ -170,17 +170,36 @@ func selectAdvisoryProvenance(
 		if sorted[i].Source != sorted[j].Source {
 			return sorted[i].Source < sorted[j].Source
 		}
-		return sorted[i].AdvisoryID < sorted[j].AdvisoryID
+		if sorted[i].AdvisoryID != sorted[j].AdvisoryID {
+			return sorted[i].AdvisoryID < sorted[j].AdvisoryID
+		}
+		if sorted[i].WithdrawnAt != sorted[j].WithdrawnAt {
+			return sorted[i].WithdrawnAt < sorted[j].WithdrawnAt
+		}
+		return sorted[i].Status < sorted[j].Status
 	})
 
 	selection := advisoryProvenanceSelection{}
+	// Identity is chosen before, and apart from, the retraction-aware selection
+	// below. A rejected record keeps naming the finding exactly as it did before
+	// the status field existed, so rejecting or restoring a record never moves
+	// advisory_id or finding_id (#9695). Only a withdrawn timestamp excludes a
+	// record from identity, as it always has.
 	for _, observation := range sorted {
 		if observation.WithdrawnAt != "" {
 			continue
 		}
+		if observation.SeverityScore > 0 && observation.SeverityScoreSource == "" {
+			selection.IdentitySource = observation.Source
+			break
+		}
+	}
+	for _, observation := range sorted {
+		if observation.retracted() {
+			continue
+		}
 		if selection.SeveritySource == "" && observation.SeverityScore > 0 && observation.SeverityScoreSource == "" {
 			selection.SeveritySource = observation.Source
-			selection.IdentitySource = observation.Source
 			selection.SeverityScore = observation.SeverityScore
 			selection.SeverityScoreSource = observation.SeverityScoreSource
 			selection.SeverityVector = observation.SeverityVector
@@ -199,7 +218,7 @@ func selectAdvisoryProvenance(
 	selectFallbackSeverity(&selection, sorted)
 
 	for _, observation := range sorted {
-		if observation.WithdrawnAt == "" && observation.Source == selection.SeveritySource {
+		if !observation.retracted() && observation.Source == selection.SeveritySource {
 			continue
 		}
 		if observation.SeverityScore == 0 && strings.TrimSpace(observation.SeverityVector) == "" && strings.TrimSpace(observation.SeverityLabel) == "" {
@@ -217,7 +236,7 @@ func selectAdvisoryProvenance(
 	branches := make([]FixedVersionBranch, 0)
 	seenBranch := make(map[string]struct{})
 	for _, observation := range sorted {
-		if observation.WithdrawnAt != "" {
+		if observation.retracted() {
 			continue
 		}
 		for _, version := range observation.FixedVersions {
@@ -250,6 +269,8 @@ func selectAdvisoryProvenance(
 			AdvisoryID:      observation.AdvisoryID,
 			SourceUpdatedAt: observation.SourceUpdatedAt,
 			WithdrawnAt:     observation.WithdrawnAt,
+			Status:          observation.Status,
+			ReplacedBy:      observation.ReplacedBy,
 		})
 	}
 	selection.AdvisorySources = advisories
@@ -324,7 +345,7 @@ func selectFallbackSeverity(selection *advisoryProvenanceSelection, sorted []Adv
 		return
 	}
 	for _, observation := range sorted {
-		if observation.WithdrawnAt != "" || observation.SeverityScore <= 0 {
+		if observation.retracted() || observation.SeverityScore <= 0 {
 			continue
 		}
 		selection.SeveritySource = observation.Source
@@ -335,7 +356,7 @@ func selectFallbackSeverity(selection *advisoryProvenanceSelection, sorted []Adv
 		return
 	}
 	for _, observation := range sorted {
-		if observation.WithdrawnAt != "" || cvss.LabelBucket(observation.SeverityLabel) == cvss.BucketNone {
+		if observation.retracted() || cvss.LabelBucket(observation.SeverityLabel) == cvss.BucketNone {
 			continue
 		}
 		selection.SeveritySource = observation.Source

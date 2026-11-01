@@ -21,8 +21,11 @@ func appendSupplyChainImpactIndexFindings(findings []SupplyChainImpactFinding, i
 		}
 		products := index.affectedProducts[cveID]
 		if len(products) > 0 {
+			representative, retraction := group.representative(), group.retraction(index)
 			for _, product := range products {
-				findings = appendSupplyChainImpactFinding(findings, classifySupplyChainImpactProduct(group.representative(), product, index))
+				finding := classifySupplyChainImpactProduct(representative, product, index)
+				finding.AdvisoryRetraction = retraction
+				findings = appendSupplyChainImpactFinding(findings, finding)
 			}
 			continue
 		}

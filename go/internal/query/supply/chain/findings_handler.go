@@ -78,7 +78,7 @@ func (h *Handler) listImpactFindings(w http.ResponseWriter, r *http.Request) {
 	}
 	suppressionState := querycontract.QueryParam(r, "suppression_state")
 	if suppressionState != "" && !impact.IsSupportedSuppressionState(suppressionState) {
-		querycontract.WriteError(w, http.StatusBadRequest, "suppression_state must be one of active, not_affected, accepted_risk, false_positive, ignored, expired, provider_dismissed, scope_mismatch")
+		querycontract.WriteError(w, http.StatusBadRequest, "suppression_state must be one of active, not_affected, accepted_risk, false_positive, ignored, expired, provider_dismissed, scope_mismatch, advisory_retracted")
 		return
 	}
 	includeSuppressed, ok := impact.ParseIncludeSuppressed(w, r)

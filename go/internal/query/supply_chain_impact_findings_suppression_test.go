@@ -164,7 +164,7 @@ func TestListSupplyChainImpactFindingsQueryHandlesSuppressionPredicates(t *testi
 		"'expired'",
 		"effective_suppression_state = $20",
 		"$21::boolean",
-		"NOT IN ('not_affected','accepted_risk','false_positive','ignored')",
+		"NOT IN ('not_affected','accepted_risk','false_positive','ignored','advisory_retracted')",
 	} {
 		if !strings.Contains(impact.ListFindingsQuery, want) {
 			t.Fatalf("impact.ListFindingsQuery missing suppression predicate %q:\n%s", want, impact.ListFindingsQuery)

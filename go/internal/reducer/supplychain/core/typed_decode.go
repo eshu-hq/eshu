@@ -33,7 +33,7 @@ func supplyChainCVEFromEnvelope(envelope facts.Envelope) (supplychainmodel.Impac
 	}
 	return supplychainmodel.ImpactCVE{
 		FactID:          envelope.FactID,
-		CVEID:           payloadcore.FirstNonBlank(payloadcore.DerefString(cve.CVEID), cve.AdvisoryID),
+		CVEID:           supplyChainCVEGroupKey(payloadcore.DerefString(cve.CVEID), cve.AdvisoryID),
 		AdvisoryID:      cve.AdvisoryID,
 		Source:          payloadcore.DerefString(cve.Source),
 		CVSSScore:       derefFloat64(cve.CVSSScore),
@@ -42,6 +42,8 @@ func supplyChainCVEFromEnvelope(envelope facts.Envelope) (supplychainmodel.Impac
 		PublishedAt:     payloadcore.DerefString(cve.PublishedAt),
 		SourceUpdatedAt: payloadcore.DerefString(cve.ModifiedAt),
 		WithdrawnAt:     payloadcore.DerefString(cve.WithdrawnAt),
+		Status:          payloadcore.DerefString(cve.Status),
+		ReplacedBy:      cve.ReplacedBy,
 	}, nil
 }
 

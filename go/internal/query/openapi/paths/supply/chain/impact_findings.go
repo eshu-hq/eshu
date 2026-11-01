@@ -28,8 +28,8 @@ const impactFindings = `
           {"name": "priority_bucket", "in": "query", "schema": {"type": "string", "enum": ["critical", "high", "medium", "low", "informational"]}, "description": "Reducer triage priority filter; does not change impact truth."},
           {"name": "min_priority_score", "in": "query", "schema": {"type": "integer", "minimum": 0, "maximum": 100}, "description": "Minimum reducer priority score. Zero is the default no-op value and does not bound a request by itself."},
           {"name": "sort", "in": "query", "schema": {"type": "string", "enum": ["finding_id", "priority", "priority_score_desc", "priority_score_asc"]}},
-          {"name": "suppression_state", "in": "query", "description": "Filter by reducer suppression decision. Operator-asserted hidden states (not_affected, accepted_risk, false_positive, ignored) require include_suppressed=true to be returned.", "schema": {"type": "string", "enum": ["active", "not_affected", "accepted_risk", "false_positive", "ignored", "expired", "provider_dismissed", "scope_mismatch"]}},
-          {"name": "include_suppressed", "in": "query", "description": "Include findings hidden by operator-asserted suppression. Expired, provider-dismissed, and scope-mismatched findings stay visible regardless because they preserve operator audit signal.", "schema": {"type": "boolean", "default": false}},
+          {"name": "suppression_state", "in": "query", "description": "Filter by reducer suppression decision. Hidden states (not_affected, accepted_risk, false_positive, ignored, advisory_retracted) require include_suppressed=true to be returned.", "schema": {"type": "string", "enum": ["active", "not_affected", "accepted_risk", "false_positive", "ignored", "expired", "provider_dismissed", "scope_mismatch", "advisory_retracted"]}},
+          {"name": "include_suppressed", "in": "query", "description": "Include findings hidden by an operator-asserted suppression or by a source retraction of the advisory (advisory_retracted). Expired, provider-dismissed, and scope-mismatched findings stay visible regardless because they preserve operator audit signal.", "schema": {"type": "boolean", "default": false}},
           {"name": "after_finding_id", "in": "query", "schema": {"type": "string"}},
           {"name": "limit", "in": "query", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 200}}
         ],
@@ -99,11 +99,11 @@ const impactFindings = `
                           "evidence_fact_ids": {"type": "array", "items": {"type": "string"}},
                           "suppression": {
                             "type": "object",
-                            "description": "Reducer VEX/operator-policy suppression decision for this finding. Always populated; state=active means no suppression matched. Operator suppressions (not_affected, accepted_risk, false_positive, ignored) hide the finding from the default view; expired, provider_dismissed, and scope_mismatch states keep the finding visible while preserving suppression provenance.",
+                            "description": "Reducer VEX/operator-policy suppression decision for this finding. Always populated; state=active means no suppression matched. Operator suppressions (not_affected, accepted_risk, false_positive, ignored) and a source retraction of the whole advisory (advisory_retracted, with the reason and any replacement in the finding's provenance.advisory_retraction block) hide the finding from the default view; expired, provider_dismissed, and scope_mismatch states keep the finding visible while preserving suppression provenance.",
                             "properties": {
-                              "state": {"type": "string", "enum": ["active", "not_affected", "accepted_risk", "false_positive", "ignored", "expired", "provider_dismissed", "scope_mismatch"]},
+                              "state": {"type": "string", "enum": ["active", "not_affected", "accepted_risk", "false_positive", "ignored", "expired", "provider_dismissed", "scope_mismatch", "advisory_retracted"]},
                               "suppression_id": {"type": "string"},
-                              "source": {"type": "string", "enum": ["vex_statement", "eshu_policy", "provider_dismissal"]},
+                              "source": {"type": "string", "enum": ["vex_statement", "eshu_policy", "provider_dismissal", "advisory_retraction"]},
                               "justification": {"type": "string", "enum": ["not_affected", "accepted_risk", "false_positive", "ignored", "provider_dismissed"]},
                               "author": {"type": "string"},
                               "authored_at": {"type": "string"},
@@ -187,17 +187,44 @@ const impactFindings = `
                               },
                               "advisory_sources": {
                                 "type": "array",
-                                "description": "Every advisory source observation, including source-reported update timestamp and withdrawal timestamp.",
+                                "description": "Every advisory source observation, including source-reported update timestamp, withdrawal timestamp, lifecycle status, and any stated replacement.",
                                 "items": {
                                   "type": "object",
                                   "properties": {
                                     "source": {"type": "string"},
                                     "advisory_id": {"type": "string"},
                                     "source_updated_at": {"type": "string"},
-                                    "withdrawn_at": {"type": "string"}
+                                    "withdrawn_at": {"type": "string"},
+                                    "status": {"type": "string", "description": "Source-reported lifecycle status, verbatim (for example Rejected or withdrawn)."},
+                                    "replaced_by": {"type": "array", "items": {"type": "string"}, "description": "CVE ids the source states replace this advisory. Present only when the source states a replacement."}
                                   },
                                   "required": ["source"]
                                 }
+                              },
+                              "advisory_retraction": {
+                                "type": "object",
+                                "description": "Present only when state=advisory_retracted: every source record of the CVE was rejected or withdrawn. Names why the finding is hidden and any replacement a source stated.",
+                                "properties": {
+                                  "reason_code": {"type": "string", "enum": ["rejected", "withdrawn", "rejected_and_withdrawn"]},
+                                  "reason": {"type": "string"},
+                                  "replaced_by": {"type": "array", "items": {"type": "string"}, "description": "Sorted union of the replacement CVE ids the retracting sources stated. Never inferred."},
+                                  "sources": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "source": {"type": "string"},
+                                        "advisory_id": {"type": "string"},
+                                        "reason_code": {"type": "string", "enum": ["rejected", "withdrawn"]},
+                                        "status": {"type": "string"},
+                                        "withdrawn_at": {"type": "string"},
+                                        "replaced_by": {"type": "array", "items": {"type": "string"}}
+                                      },
+                                      "required": ["source", "reason_code"]
+                                    }
+                                  }
+                                },
+                                "required": ["reason_code", "reason"]
                               }
                             }
                           },

@@ -255,7 +255,7 @@ func TestSupplyChainImpactAggregateQueriesUseListProfileAndSuppressionPredicates
 			"'expired'",
 			"fact.suppression_state = $15",
 			"$16::boolean",
-			"NOT IN ('not_affected','accepted_risk','false_positive','ignored')",
+			"NOT IN ('not_affected','accepted_risk','false_positive','ignored','advisory_retracted')",
 			"fact.payload->>'image_ref' = $17",
 		} {
 			if !strings.Contains(query, want) {

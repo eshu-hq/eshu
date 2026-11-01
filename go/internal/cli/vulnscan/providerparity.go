@@ -222,7 +222,7 @@ func parityStatusFromFinding(row map[string]any) vulnerabilityparity.FindingStat
 // operator having closed the finding.
 func suppressionDismissesFinding(state string) bool {
 	switch state {
-	case "accepted_risk", "false_positive", "ignored", "not_affected", "provider_dismissed", "scope_mismatch":
+	case "accepted_risk", "false_positive", "ignored", "not_affected", "provider_dismissed", "scope_mismatch", "advisory_retracted":
 		return true
 	default:
 		return false

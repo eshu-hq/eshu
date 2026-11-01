@@ -42,9 +42,10 @@ type FindingStore interface {
 // DetectionProfile only narrows an already scoped read. SuppressionState
 // filters by the reducer suppression decision (active, not_affected,
 // accepted_risk, false_positive, ignored, expired, provider_dismissed,
-// scope_mismatch); IncludeSuppressed admits findings whose suppression
-// state hides them from the default view (not_affected, accepted_risk,
-// false_positive, ignored). Expired, provider_dismissed, and
+// scope_mismatch, advisory_retracted); IncludeSuppressed admits findings
+// whose suppression state hides them from the default view (not_affected,
+// accepted_risk, false_positive, ignored, advisory_retracted). Expired,
+// provider_dismissed, and
 // scope_mismatch findings remain visible regardless because they keep
 // operator audit signal.
 type FindingFilter struct {
@@ -245,6 +246,8 @@ type Provenance struct {
 	AlternateSeverities         []AlternateSeverity  `json:"alternate_severities,omitempty"`
 	FixedVersionBranches        []FixedVersionBranch `json:"fixed_version_branches,omitempty"`
 	AdvisorySources             []AdvisorySource     `json:"advisory_sources,omitempty"`
+	// AdvisoryRetraction explains an advisory_retracted finding (#9695).
+	AdvisoryRetraction *AdvisoryRetraction `json:"advisory_retraction,omitempty"`
 }
 
 // AlternateSeverity is one non-selected source severity preserved
@@ -274,6 +277,9 @@ type AdvisorySource struct {
 	AdvisoryID      string `json:"advisory_id,omitempty"`
 	SourceUpdatedAt string `json:"source_updated_at,omitempty"`
 	WithdrawnAt     string `json:"withdrawn_at,omitempty"`
+	// Status and ReplacedBy are what the source reported (#9695).
+	Status     string   `json:"status,omitempty"`
+	ReplacedBy []string `json:"replaced_by,omitempty"`
 }
 
 // FindingQueryer is the minimal Postgres surface PostgresFindingStore needs;
