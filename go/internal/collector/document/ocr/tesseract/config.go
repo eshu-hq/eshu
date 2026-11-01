@@ -118,6 +118,11 @@ type Engine struct {
 	pinned    []pinnedIdentity
 	args      []string
 	execCount atomic.Int64
+	// onRSSSample is a test seam: run calls it with each VmHWM reading
+	// (0 when the read missed) so a test can hold the fake child until a
+	// real sample landed. It is nil in production and is never set after
+	// the engine starts serving calls.
+	onRSSSample func(value int64)
 }
 
 // allowedPageSegModes are the --psm values that need no OSD model.

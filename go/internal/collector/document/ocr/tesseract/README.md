@@ -136,6 +136,18 @@ against a fake binary, asserts those series, the `ocr.extract` and
 reaches any of them. The real-binary sandbox proof wires no instruments: it
 proves behavior, not telemetry.
 
+No-Regression Evidence: the runner change adds one nil check per sampler
+tick (every 25 ms) for the unexported `onRSSSample` test seam, which is nil
+in production. Sampling, the `peakRSS > 0` guard, and every recorded series
+are unchanged. A child that exits before its first `/proc` read still
+records no `eshu_dp_ocr_engine_peak_rss_bytes` sample: a zombie has no
+`VmHWM`, and `ru_maxrss` reports the Go parent's RSS, so no exit-time sample
+is possible. The tests gate their fake child on the seam so it outlives the
+first reading (#9794).
+
+No-Observability-Change: no metric, span, log key, or status field is added
+or changed; the seam is not an operator signal.
+
 ## Gotchas / invariants
 
 - Never put subprocess stdout or stderr into an error, log, or span.
