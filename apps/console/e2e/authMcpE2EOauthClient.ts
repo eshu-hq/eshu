@@ -29,7 +29,8 @@
 // a Chromium flag (a plain fetch() has no host-resolver-rules equivalent).
 import { createHash, randomBytes } from "node:crypto";
 
-import { callMcpMessage, extractToolCallStructuredContent, mcpInitialize, mcpToolsCall } from "./authMcpE2EJsonRpc.ts";
+import { callMcpMessage, mcpInitialize, mcpToolsCall } from "./authMcpE2EJsonRpc.ts";
+import { pollScriptedTokenWorks } from "./authMcpE2EScriptedTokenPoll.ts";
 
 export interface HostRewriteTable {
   readonly [inNetworkHostPort: string]: string;
@@ -248,15 +249,15 @@ export async function mintJwtFromMockIdp(mockIdpBase: string, resource: string):
 
 // assertScriptedTokenWorksAgainstMcp drives step 6: a tools/call authenticated
 // with the scripted client's minted bearer token must succeed (200) and
-// return real structured content — proving the OAuth-minted token is a
-// genuinely accepted MCP credential, not merely that the flow completed.
+// return a real `data.repositories` list — proving the OAuth-minted token is a
+// genuinely accepted MCP credential, not merely that the flow completed. It
+// fails closed on any envelope error or missing list, and polls (bounded, see
+// authMcpE2EScriptedTokenPoll.ts) through core's `unauthenticated` window while
+// the oidcbearer provider snapshot (defaultTTL 30s) refreshes.
 export async function assertScriptedTokenWorksAgainstMcp(mcpBase: string, accessToken: string): Promise<string> {
-  const call = await mcpToolsCall(mcpBase, "list_indexed_repositories", { limit: 10, offset: 0 }, accessToken);
-  if (call.httpStatus !== 200) {
-    throw new Error(`tools/call with the scripted OAuth token expected 200, got ${call.httpStatus}: ${call.bodyText}`);
-  }
-  const parsed = extractToolCallStructuredContent(call) as { total?: number };
-  return `tools/call succeeded with the scripted-OAuth-minted bearer token (total=${parsed.total ?? 0})`;
+  return pollScriptedTokenWorks(() =>
+    mcpToolsCall(mcpBase, "list_indexed_repositories", { limit: 10, offset: 0 }, accessToken),
+  );
 }
 
 export { callMcpMessage };
