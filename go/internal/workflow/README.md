@@ -245,10 +245,10 @@ an attached subject digest plus PURL-derived package ecosystem, name, and exact
 version. Partial installed-evidence rows stay skipped with stable aggregate
 reason codes by ecosystem and source family, without package names or versions
 in skip status. Each derive section checks `ecosystems` against its own set
-(language names; installed evidence adds the OS distros). The configuration
-can also declare `source_cache` for refresh or offline advisory-source cache
-lifecycle and `fallback_urls` for source mirrors; validation keeps cache
-modes, durations, and mirror URLs bounded before the instance is persisted.
+(language names; installed evidence adds the OS distros).
+`OSVDirectoryEcosystem` maps the 11 OSV change-feed bucket directories onto
+the language names and refuses any other. `source_cache` and `fallback_urls`
+are validated as bounded before persistence.
 Derived package and vulnerability target reads rotate their bounded slice on
 each coordinator reconcile bucket by default, so a target limit smaller than
 the full corpus does not repeatedly schedule only the first sorted page. Set

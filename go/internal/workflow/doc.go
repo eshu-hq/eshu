@@ -25,7 +25,8 @@
 // known document formats, vulnerability intelligence collector instances
 // validate bounded source targets, supported exact-version derivation
 // ecosystems (each derive section against its own set, see
-// VulnerabilityOwnedDerivationEcosystems), mirror URLs, source-cache modes, and cache freshness durations
+// VulnerabilityOwnedDerivationEcosystems; OSVDirectoryEcosystem maps the 11
+// OSV change-feed bucket directories onto them), mirror URLs, source-cache modes, and cache freshness durations
 // (a component activation's derive sections also need explicit sources and
 // ecosystems lists, reported as DeriveListNotExplicitError), and security-alert collector instances validate repository allowlists plus
 // HTTPS credentialed API base URLs before the coordinator plans claimable work
