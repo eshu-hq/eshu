@@ -84,6 +84,10 @@ proof cannot pass by accident.
   this package rather than treating fixture-only validation as remote proof.
 - The idempotent re-emission check validates the same fixture twice through the
   SDK validator. A fixture must remain stable under repeated host validation.
+- Fixtures decode into the SDK `Result`, so a `page` envelope reaches the SDK
+  validator: it must sit on `collector-sdk/v1alpha3` and be well formed, or the
+  fixture fails `fixture_contract_failed`
+  (`TestRunFixtureModeJudgesPagedFixtures`).
 
 ## Related docs
 

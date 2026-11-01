@@ -18,10 +18,10 @@ import (
 // collectorSDKProtocolV1Alpha3 is the paged collector extension wire
 // contract. It mirrors collector.ProtocolVersionV1Alpha3 in the
 // sdk/go/collector module: the host decodes the page envelope at the JSON
-// level (see ResultPage) so this package keeps working against the pinned
-// eshu-sdk/collector module, which predates pagination. The string values
-// must stay identical; TestPagedDecodeAcceptsLegacyAndPaged pins the mirror
-// against the SDK module's own paged fixture.
+// level into its own ResultPage, which shadows the Result.Page field the
+// pinned eshu-sdk/collector module carries since v0.2.0-rc.3. The string
+// values must stay identical; TestPagedDecodeAcceptsLegacyAndPaged pins the
+// mirror against the SDK module's own paged fixture.
 const collectorSDKProtocolV1Alpha3 = "collector-sdk/v1alpha3"
 
 // DefaultMaxResultPages bounds how many satellite calls one claim may
@@ -104,6 +104,22 @@ func decodePagedSDKResult(payload []byte) (CallResult, error) {
 		return CallResult{}, fmt.Errorf("decode extension result trailer: %w", err)
 	}
 	return CallResult{Result: wire.Result, Page: wire.Page}, nil
+}
+
+// rejectPageEnvelope fails a single-call result that carries a page envelope.
+// That path cannot fetch later pages, so accepting it would commit one page as
+// the whole generation and silently drop the rest. The verdict is terminal:
+// the same runner and satellite reproduce it on every retry. The message
+// names no cursor, path, or other satellite-supplied value.
+func rejectPageEnvelope(result sdkcollector.Result) error {
+	if result.Page == nil {
+		return nil
+	}
+	return extensionFailure{
+		class:    FailureClassInvalidResult,
+		terminal: true,
+		cause:    errors.New("extension result carries a page envelope but the runner does not support paging"),
+	}
 }
 
 // collectPages reassembles one claim's pages by re-invoking a paged runner
@@ -213,7 +229,9 @@ func (s *Source) collectPages(ctx context.Context, runner PagedRunner, request R
 
 // checkPageEnvelope enforces the stream framing before any content
 // validation: pages must be versioned v1alpha3, indexed gaplessly from zero,
-// and present on every call once a continuation opens the stream.
+// and present on every call once a continuation opens the stream. The page
+// belongs only on CallResult.Page: collectPages never reads Result.Page, so a
+// runner that set it could stop the stream after one page.
 func (s *Source) checkPageEnvelope(call CallResult, index int, streamOpen bool) error {
 	invalid := func(cause error) error {
 		return extensionFailure{
@@ -221,6 +239,9 @@ func (s *Source) checkPageEnvelope(call CallResult, index int, streamOpen bool) 
 			terminal: true,
 			cause:    cause,
 		}
+	}
+	if call.Result.Page != nil {
+		return invalid(errors.New("extension result carries a page envelope on the SDK result instead of the call result"))
 	}
 	if call.Page == nil {
 		if streamOpen {
@@ -240,11 +261,11 @@ func (s *Source) checkPageEnvelope(call CallResult, index int, streamOpen bool) 
 			call.Page.PageIndex, index,
 		))
 	}
-	// The pinned eshu-sdk/collector validator cannot see the page envelope,
-	// so the SDK module's page rules are mirrored here: a continuation page
-	// must name its resume cursor and carry a completable state, a final
-	// page must not carry a cursor, and the declared total cannot be
-	// negative.
+	// Result.Page is nil past the check above, and pagedWireResult shadows it
+	// on decode, so the SDK validator never sees the page envelope and its
+	// page rules are mirrored here: a continuation page must name its resume
+	// cursor and carry a completable state, a final page must not carry a
+	// cursor, and the declared total cannot be negative.
 	if call.Page.TotalFacts < 0 {
 		return invalid(errors.New("extension result total_facts must be >= 0"))
 	}

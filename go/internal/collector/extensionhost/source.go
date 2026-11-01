@@ -195,12 +195,21 @@ func (s *Source) nextClaimed(
 
 // runClaim executes one claim through the satellite. Runners with paged
 // support reassemble every continuation page into one result; all other
-// runners keep the exact legacy single-call path.
+// runners keep the legacy single-call path, which fails closed on a page
+// envelope because it has no way to fetch the later pages. The check sits here
+// as well as in decodeSDKResult because a Runner need not use that decoder.
 func (s *Source) runClaim(ctx context.Context, request Request) (sdkcollector.Result, error) {
 	if paged, ok := s.runner.(PagedRunner); ok {
 		return s.collectPages(ctx, paged, request)
 	}
-	return s.runner.RunCollector(ctx, request)
+	result, err := s.runner.RunCollector(ctx, request)
+	if err != nil {
+		return sdkcollector.Result{}, err
+	}
+	if err := rejectPageEnvelope(result); err != nil {
+		return sdkcollector.Result{}, err
+	}
+	return result, nil
 }
 
 // resolveResult maps a validated SDK result state to the ClaimedService

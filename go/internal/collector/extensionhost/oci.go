@@ -198,7 +198,8 @@ func defaultOCIExec(ctx context.Context, name string, args []string, stdin []byt
 
 // decodeSDKResult decodes exactly one SDK result from either bounded runner
 // stdout buffer. It preserves JSON numbers for typed payload consumers and
-// rejects unknown fields and trailing JSON.
+// rejects unknown fields, trailing JSON, and a page envelope. This is the
+// single-call decode: paged output goes through decodePagedSDKResult.
 func decodeSDKResult(payload []byte) (sdkcollector.Result, error) {
 	var result sdkcollector.Result
 	decoder := json.NewDecoder(bytes.NewReader(payload))
@@ -213,6 +214,9 @@ func decodeSDKResult(payload []byte) (sdkcollector.Result, error) {
 			return sdkcollector.Result{}, errors.New("decode extension result: trailing JSON value")
 		}
 		return sdkcollector.Result{}, fmt.Errorf("decode extension result trailer: %w", err)
+	}
+	if err := rejectPageEnvelope(result); err != nil {
+		return sdkcollector.Result{}, err
 	}
 	return result, nil
 }
