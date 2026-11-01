@@ -3,7 +3,8 @@
 ## Purpose
 
 `collector/document/ocr/tesseract` is the general-purpose OCR backend for
-image documentation (#9728, gate 2 of #8879). It reads mixed-case,
+image documentation (#9728, toward gate 2 of #8879, which it does not meet
+on its own; see the design record). It reads mixed-case,
 proportional-font text from PNG, JPEG, first-frame GIF, and WebP by running a
 pinned tesseract binary out of process, one bounded subprocess per image.
 The backend decision and its alternatives are recorded in
@@ -24,9 +25,11 @@ fail-closed fallback.
 See `doc.go` for the godoc contract.
 
 - `Config` pins and bounds one installation: `BinaryPath`, `BinarySHA256`,
-  `TessdataDir`, `ModelSHA256`, `EngineVersion` (required), plus caps and
-  optional `Instruments`, `Tracer`, and `Logger`.
-- `New` validates the config and verifies both digests.
+  `Libraries`, `TessdataDir`, `ModelSHA256`, `EngineVersion` (required),
+  plus caps and optional `Instruments`, `Tracer`, and `Logger`.
+- `PinnedFile` is one runtime library path with its pinned digest.
+- `New` validates the config, verifies every digest (binary, each library,
+  model), and runs `tesseract --version` once to confirm `EngineVersion`.
 - `Engine.Recognize` implements `ocr.Engine`.
 - `Engine.Extract` runs `ocr.Extract` with this engine and records
   extraction telemetry.
@@ -43,6 +46,7 @@ lower them.
 |---|---|---|
 | `MaxInputBytes` | 25 MiB | before exec |
 | `MaxPixels` | 50,000,000 | before exec, from the image header |
+| `MaxDecodedBytes` | 128 MiB | before exec: pixels x 4 bytes (leptonica 32 bpp), so about 33.5 MP binds first |
 | `Timeout` | 30 s | context deadline; kills the process group |
 | `MaxOutputBytes` | 8 MiB | stdout; overflow kills the run |
 | `MaxStderrBytes` | 64 KiB | stderr is counted and discarded, never logged |
@@ -50,14 +54,24 @@ lower them.
 | `MaxAddressSpaceBytes` | 2 GiB | RLIMIT_AS via prlimit just after exec (Linux) |
 
 The child runs `tesseract stdin stdout --oem 1 --psm 3 -l eng
---tessdata-dir <dir> tsv` with the environment set to `OMP_THREAD_LIMIT=1`,
-`LC_ALL=C`, and `HOME`/`TMPDIR` pointing at its private scratch directory.
+--tessdata-dir <dir> -c tessedit_create_tsv=1 -c tessedit_create_txt=0`
+with the environment set to `OMP_THREAD_LIMIT=1`, `LC_ALL=C`, and
+`HOME`/`TMPDIR` pointing at its private scratch directory. The `-c` flags
+replace the `tsv` config name, which would read the unpinned
+`tessdata/configs/tsv`. Only `--psm` modes that need no OSD model are
+accepted (3-11, 13).
+
+The engine does not bound concurrency. N parallel calls run N processes,
+each allowed the full `MaxAddressSpaceBytes`, so the caller must size its
+worker count against the sandbox memory limit.
 
 ## Determinism
 
 Each image gets a fresh process, so no adaptive state carries over. The LSTM
 decoder is tesseract's fixed-width beam search with fixed weights and no
-sampling. `OMP_THREAD_LIMIT=1` keeps it single threaded. The sandbox proof ran
+sampling. `OMP_THREAD_LIMIT=1` keeps it single threaded. Arbiter-eshu ruled
+on 2026-11-01 (F3-a) that this meets the determinism intent of "greedy";
+see the design record. The sandbox proof ran
 each fixture 5 times per architecture with identical output. Output bytes are
 not identical across architectures: arm64 and amd64 (qemu) differ in output
 hash while the recognized clean line and redaction results match. See the
@@ -101,8 +115,9 @@ is `ocr.LocalEngine` (0.1.0), at about 0.12 ms/op on a 232x44 fixture, which
 cannot read mixed-case text at all. After: tesseract 5.5.0 with
 eng.traineddata (`sha256:daa0c97d…`), `--oem 1 --psm 3`,
 `OMP_THREAD_LIMIT=1`, on a 900x200 three-line screenshot rendered in DejaVu
-Sans 28 pt. `scripts/prove-ocr-sandbox.sh` at commit a2a237e7a6 measured
-about 0.21 s per recognition and about 80 MB child peak RSS on native arm64,
+Sans 28 pt. `scripts/prove-ocr-sandbox.sh` on 2026-11-01, after library
+pinning, measured about 0.2 s per recognition and about 80 MB child peak
+RSS on native arm64,
 and about 6.6 s and about 92 MB on amd64 under qemu emulation. Each run was
 5 recognitions per fixture across PNG, JPEG, GIF, and WebP, all identical.
 There is no queue, lease, batch, worker, Cypher, or graph write. The path
@@ -124,15 +139,29 @@ fields, and asserts that no canary reaches any of them.
 - Never put subprocess stdout or stderr into an error, log, or span.
 - Keep regions line-grouped; word regions split a secret from its label and
   defeat redaction.
+- Line grouping does not cover a label and value on separate lines (forms,
+  columns, label above value). The value becomes its own region and
+  `ocr.Extract`'s markers do not match it.
+  `TestExtractLeavesValueOnlyLineUnredacted` pins this residual; the fix is
+  #9782.
 - Image preflight in `preflight/picture` still reports WebP as an
   unsupported codec, so `Engine.Extract` skips WebP even though
-  `Engine.Recognize` reads it. Enabling WebP extraction is a separate
-  reviewed change to `picture`.
+  `Engine.Recognize` reads it. Enabling WebP extraction is #9780.
 - `MaxAddressSpaceBytes` is best effort: the limit lands just after exec and
   binfmt emulation applies it to qemu. The sandbox cgroup is the real
   memory ceiling.
-- Binary digests are per architecture; `scripts/prove-ocr-sandbox.sh` pins
-  arm64 and amd64 for `tesseract-ocr=5.5.0-r0`.
+- Provenance of record is the image: the digest-pinned Alpine base plus the
+  apk versions in `scripts/ocr-sandbox/Dockerfile`. The per-file hashes
+  (binary, the 15-file library set from `ldd`, model) are the runtime tamper
+  check. Binary and library digests are per architecture;
+  `scripts/prove-ocr-sandbox.sh` pins arm64 and amd64 for
+  `tesseract-ocr=5.5.0-r0`.
+- Because those digests are per architecture, `ocr_engine_version` differs
+  between arm64 and amd64 workers for the same release. A caller on mixed
+  nodes must not treat that difference as a reason to re-extract.
+- The engine execs by path, not through the verified descriptor: the loader
+  maps libraries by path anyway, and the read-only root filesystem is what
+  prevents in-place modification.
 
 ## Related docs
 

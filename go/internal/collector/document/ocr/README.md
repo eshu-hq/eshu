@@ -61,7 +61,8 @@ glyphs split words and are skipped, and close line bands may merge.
 Recognized text reaches facts only through `Extract`, which redacts
 sensitive regions before persistence.
 
-Gate-2 sandbox/runtime evidence for this backend:
+Fixture evidence for this backend (it does not discharge gate 2 of #8879;
+the general-purpose backend is the `tesseract` subpackage):
 
 ```sh
 cd go && go test ./internal/collector/document/ocr -count=1

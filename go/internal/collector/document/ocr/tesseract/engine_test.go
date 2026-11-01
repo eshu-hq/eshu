@@ -273,7 +273,13 @@ func TestRecognizeDetectsBinarySwapAfterConstruction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	if err := os.WriteFile(copyPath, append(body, 0), 0o700); err != nil {
+	// Swap by rename, as a package upgrade does; rewriting a binary in place
+	// can hit ETXTBSY while any process is executing it.
+	swapped := filepath.Join(dir, "tesseract.new")
+	if err := os.WriteFile(swapped, append(body, 0), 0o700); err != nil {
+		t.Fatalf("write swapped binary: %v", err)
+	}
+	if err := os.Rename(swapped, copyPath); err != nil {
 		t.Fatalf("swap binary: %v", err)
 	}
 

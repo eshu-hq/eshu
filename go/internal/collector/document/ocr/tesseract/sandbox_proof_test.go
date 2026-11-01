@@ -60,6 +60,7 @@ func TestSandboxRealTesseract(t *testing.T) {
 		ModelSHA256:   os.Getenv("ESHU_OCR_MODEL_SHA256"),
 		EngineVersion: os.Getenv("ESHU_OCR_ENGINE_VERSION"),
 		ScratchDir:    os.Getenv("ESHU_OCR_SCRATCH_DIR"),
+		Libraries:     parseLibraryPins(t, os.Getenv("ESHU_OCR_LIBRARIES")),
 		Timeout:       20 * time.Second,
 	}
 	fixtures := os.Getenv("ESHU_OCR_FIXTURE_DIR")
@@ -67,6 +68,11 @@ func TestSandboxRealTesseract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
+	wantLibs := "libs=sha256:" + os.Getenv("ESHU_OCR_LIBS_SHA256") + " "
+	if !strings.Contains(engine.EngineVersion(), wantLibs) {
+		t.Fatalf("EngineVersion %q does not record the pinned library set %q", engine.EngineVersion(), wantLibs)
+	}
+	t.Logf("OCR_SANDBOX_ENGINE_VERSION %s", engine.EngineVersion())
 
 	for _, name := range []string{"fixture.png", "fixture.jpg", "fixture.gif", "fixture.webp"} {
 		body, err := os.ReadFile(filepath.Join(fixtures, name))
@@ -81,8 +87,50 @@ func TestSandboxRealTesseract(t *testing.T) {
 		if !evidence.Deterministic || !evidence.CleanLineMatch || evidence.CanaryLeak {
 			t.Fatalf("%s failed sandbox evidence: %s", name, line)
 		}
+		assertLiveExtract(t, name, evidence)
 	}
 	liveBounds(t, cfg, fixtures)
+}
+
+// assertLiveExtract pins the extraction result per format. PNG, JPEG, and
+// GIF must yield one section per fixture line with both canary lines
+// redacted. WebP must be skipped: preflight/picture still classifies it as
+// an unsupported codec, so ocr.Extract never calls the engine for it.
+func assertLiveExtract(t *testing.T, name string, evidence liveEvidence) {
+	t.Helper()
+	if strings.HasSuffix(name, ".webp") {
+		if evidence.ExtractStatus != "skipped" || evidence.Sections != 0 {
+			t.Fatalf("%s: extract status %q with %d sections, want skipped with 0", name, evidence.ExtractStatus, evidence.Sections)
+		}
+		return
+	}
+	if evidence.ExtractStatus != "completed" {
+		t.Fatalf("%s: extract status %q, want completed", name, evidence.ExtractStatus)
+	}
+	if evidence.Sections != len(liveFixtureLines) {
+		t.Fatalf("%s: %d sections, want %d", name, evidence.Sections, len(liveFixtureLines))
+	}
+	if evidence.Redacted != 2 {
+		t.Fatalf("%s: %d redacted sections, want 2", name, evidence.Redacted)
+	}
+}
+
+// parseLibraryPins reads "path=sha256hex;path=sha256hex" from the proof
+// script.
+func parseLibraryPins(t *testing.T, value string) []PinnedFile {
+	t.Helper()
+	pins := []PinnedFile{}
+	for _, item := range strings.Split(value, ";") {
+		if item = strings.TrimSpace(item); item == "" {
+			continue
+		}
+		path, digest, ok := strings.Cut(item, "=")
+		if !ok {
+			t.Fatalf("malformed library pin %q", item)
+		}
+		pins = append(pins, PinnedFile{Path: path, SHA256: digest})
+	}
+	return pins
 }
 
 func liveRecognize(t *testing.T, engine *Engine, name string, body []byte) liveEvidence {

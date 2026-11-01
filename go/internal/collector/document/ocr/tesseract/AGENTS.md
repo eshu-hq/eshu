@@ -34,9 +34,10 @@
   possible, add a fake-binary test that proves fail-closed behavior, and
   update the README bounds table.
 - New tesseract or model version: update the apk pins in
-  `scripts/ocr-sandbox/Dockerfile`, the digests in
-  `scripts/prove-ocr-sandbox.sh`, and rerun the sandbox proof on every
-  architecture.
+  `scripts/ocr-sandbox/Dockerfile`, the binary, library-set, and model
+  digests in `scripts/prove-ocr-sandbox.sh` (a placeholder pin fails
+  closed and prints the measured value), and rerun the sandbox proof on
+  every architecture.
 - New fake behavior: add a mode to `runFakeTesseract` in `main_test.go`. The
   fake picks its mode from a `FAKEOCR:<mode>` token in the image bytes,
   because the engine scrubs the environment and fixes the argument vector.

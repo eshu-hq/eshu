@@ -52,9 +52,14 @@ func (e *Engine) validateInput(img ocr.Image) (validatedImage, error) {
 		return validatedImage{}, failure(OutcomeInputRejected,
 			fmt.Sprintf("degenerate dimensions %dx%d", width, height), nil)
 	}
-	if pixels := int64(width) * int64(height); pixels > e.cfg.MaxPixels {
+	pixels := int64(width) * int64(height)
+	if pixels > e.cfg.MaxPixels {
 		return validatedImage{}, failure(OutcomeInputRejected,
 			fmt.Sprintf("pixels %d exceed cap %d", pixels, e.cfg.MaxPixels), nil)
+	}
+	if decoded := pixels * decodedBytesPerPixel; decoded > e.cfg.MaxDecodedBytes {
+		return validatedImage{}, failure(OutcomeInputRejected,
+			fmt.Sprintf("estimated decoded bytes %d exceed cap %d", decoded, e.cfg.MaxDecodedBytes), nil)
 	}
 	return validatedImage{format: format, width: width, height: height}, nil
 }

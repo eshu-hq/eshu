@@ -5,6 +5,7 @@ package tesseract
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -63,7 +64,7 @@ func (e *Engine) Extract(ctx context.Context, req ocr.Request) (ocr.Result, erro
 	}
 	span.SetAttributes(attrs...)
 	if err != nil {
-		span.SetStatus(codes.Error, string(OutcomeOf(err)))
+		span.SetStatus(codes.Error, extractFailureClass(err))
 	}
 	if inst := e.cfg.Instruments; inst != nil {
 		statusAttr := metric.WithAttributes(attribute.String(telemetry.MetricDimensionStatus, status))
@@ -84,11 +85,26 @@ func (e *Engine) Extract(ctx context.Context, req ocr.Request) (ocr.Result, erro
 		}
 		if err != nil {
 			level = slog.LevelWarn
-			logAttrs = append(logAttrs, slog.String(telemetry.LogKeyFailureClass, string(OutcomeOf(err))))
+			logAttrs = append(logAttrs, slog.String(telemetry.LogKeyFailureClass, extractFailureClass(err)))
 		}
 		logger.LogAttrs(ctx, level, "ocr extraction finished", logAttrs...)
 	}
 	return result, err
+}
+
+// failureClassPreflight labels an Extract error that came from image
+// preflight rather than from this engine, such as a canceled context.
+const failureClassPreflight = "preflight_error"
+
+// extractFailureClass returns the engine outcome for an engine error and
+// preflight_error for any other ocr.Extract error. The engine is always set
+// before ocr.Extract runs, so a non-engine error comes from preflight.
+func extractFailureClass(err error) string {
+	var classified *Error
+	if errors.As(err, &classified) {
+		return string(classified.Outcome)
+	}
+	return failureClassPreflight
 }
 
 func (e *Engine) tracer() trace.Tracer {

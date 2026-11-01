@@ -24,6 +24,10 @@ import (
 // vector, so the fake recognizes itself by that vector and picks its behavior
 // from a FAKEOCR:<mode> token embedded in the image bytes on stdin.
 func TestMain(m *testing.M) {
+	if len(os.Args) == 2 && os.Args[1] == "--version" {
+		_, _ = os.Stdout.WriteString("tesseract 5.5.0\n leptonica-1.84.1\n")
+		os.Exit(0)
+	}
 	if len(os.Args) > 2 && os.Args[1] == "stdin" && os.Args[2] == "stdout" {
 		os.Exit(runFakeTesseract(os.Stdin, os.Stdout, os.Stderr))
 	}
@@ -65,6 +69,21 @@ func runFakeTesseract(stdin io.Reader, stdout io.Writer, stderr io.Writer) int {
 			"5\t1\t1\t1\t3\t1\t10\t70\t60\t20\t92.0\tContact\n"+
 			"5\t1\t1\t1\t3\t2\t80\t70\t110\t20\t88.0\t"+canaryEmail+"\n"+
 			"5\t1\t1\t1\t3\t3\t195\t70\t5\t20\t-1\t \n")
+		return 0
+	case "args":
+		var builder strings.Builder
+		builder.WriteString(fakeTSVHeader)
+		for i, arg := range os.Args[1:] {
+			fmt.Fprintf(&builder, "5\t1\t1\t1\t%d\t1\t1\t1\t1\t1\t90\t%s\n", i+1, arg)
+		}
+		_, _ = io.WriteString(stdout, builder.String())
+		return 0
+	case "formlayout":
+		// A form layout: the label and its value land on separate tesseract
+		// lines, so they become separate regions.
+		_, _ = io.WriteString(stdout, fakeTSVHeader+
+			"5\t1\t1\t1\t1\t1\t10\t10\t80\t20\t93.0\tpassword:\n"+
+			"5\t1\t1\t1\t2\t1\t10\t40\t90\t20\t91.0\t"+canaryPassword+"\n")
 		return 0
 	case "hold":
 		held := make([]byte, 32<<20)
@@ -167,6 +186,7 @@ type fixture struct {
 	binaryDigest string
 	tessdata     string
 	modelDigest  string
+	libraries    []PinnedFile
 	scratch      string
 }
 
@@ -181,11 +201,22 @@ func newFixture(t *testing.T) fixture {
 	if err := os.WriteFile(filepath.Join(tessdata, "eng.traineddata"), model, 0o600); err != nil {
 		t.Fatalf("write model: %v", err)
 	}
+	libDir := t.TempDir()
+	libraries := []PinnedFile{}
+	for _, name := range []string{"libtesseract.so.5", "libleptonica.so.6"} {
+		body := []byte("synthetic " + name)
+		path := filepath.Join(libDir, name)
+		if err := os.WriteFile(path, body, 0o600); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+		libraries = append(libraries, PinnedFile{Path: path, SHA256: sha256Hex(body)})
+	}
 	return fixture{
 		binary:       binary,
 		binaryDigest: fileDigest(t, binary),
 		tessdata:     tessdata,
 		modelDigest:  sha256Hex(model),
+		libraries:    libraries,
 		scratch:      t.TempDir(),
 	}
 }
@@ -196,6 +227,7 @@ func (f fixture) config() Config {
 		BinarySHA256:  f.binaryDigest,
 		TessdataDir:   f.tessdata,
 		ModelSHA256:   f.modelDigest,
+		Libraries:     append([]PinnedFile(nil), f.libraries...),
 		EngineVersion: "5.5.0",
 		ScratchDir:    f.scratch,
 		// The fake is this Go test binary; under -race its runtime maps

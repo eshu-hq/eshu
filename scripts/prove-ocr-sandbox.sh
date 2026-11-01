@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 #
-# prove-ocr-sandbox.sh - gate-2 sandbox proof for the tesseract OCR engine
+# prove-ocr-sandbox.sh - sandbox proof for the tesseract OCR engine
 # (#9728, design 1737 section 7.3).
 #
 # Builds the engine test binary (static, CGO off), bakes it with the pinned
-# tesseract 5.5.0 binary, the pinned eng.traineddata, and rendered PNG/JPEG/
-# GIF/WebP fixtures into scripts/ocr-sandbox/Dockerfile, verifies both pinned
-# digests, then runs TestSandboxRealTesseract inside:
+# tesseract 5.5.0 binary, its runtime library set, the pinned
+# eng.traineddata, and rendered PNG/JPEG/GIF/WebP fixtures into
+# scripts/ocr-sandbox/Dockerfile, verifies every pin, then runs
+# TestSandboxRealTesseract inside:
 #
 #   docker run --network none --read-only --cap-drop ALL
 #     --security-opt no-new-privileges --user 65532:65532
@@ -24,13 +25,28 @@
 # missing tool.
 set -euo pipefail
 
-# Pinned digests. eng.traineddata is architecture independent; the
-# tesseract binary digest is per architecture for tesseract-ocr=5.5.0-r0.
+# Pinned digests. Provenance of record is the digest-pinned Alpine base plus
+# the exact apk versions in scripts/ocr-sandbox/Dockerfile; these per-file
+# hashes are the runtime tamper check. eng.traineddata is architecture
+# independent. The tesseract binary is a 67 KB CLI front end, so the OCR code
+# is pinned through the library set: every object ldd lists for the binary,
+# hashed as SHA-256 over sorted "<path> <sha256>" lines, the same formula the
+# engine records as libs=sha256:... in EngineVersion. Both are per
+# architecture for tesseract-ocr=5.5.0-r0.
 EXPECTED_MODEL_SHA256="daa0c97d651c19fba3b25e81317cd697e9908c8208090c94c3905381c23fc047"
 declare -A EXPECTED_BINARY_SHA256=(
 	[arm64]="62a760cd1c23d95211e7c42dddc761c2c9cb9488628941e9be6cd9b6748e9c77"
 	[amd64]="38b441bd41257037a03d6a15d9f849d8bd83da4c24dab1df428a7a4ad265332f"
 )
+declare -A EXPECTED_LIBS_SHA256=(
+	[arm64]="5556b1aae5d04ee66b47756a2112813798281d32abbd84eb240cf1a1a7414d24"
+	[amd64]="7a62cadddfc8cbfdb4591c635050a75fc18f8b8b1455f2418f82fe42c24693a6"
+)
+# Lists the resolved library set of the tesseract binary inside the image as
+# "<sha256>  <path>" lines. It runs in the container shell, so the awk
+# program must not expand here.
+# shellcheck disable=SC2016
+LIBRARY_LISTER='ldd /usr/bin/tesseract | awk '\''{ if ($2 == "=>") print $3; else print $1 }'\'' | xargs -n1 readlink -f | LC_ALL=C sort -u | xargs sha256sum'
 ENGINE_VERSION="5.5.0"
 
 usage_error() {
@@ -100,6 +116,16 @@ if [[ "${binary_sha}" != "${EXPECTED_BINARY_SHA256[${arch}]}" ]]; then
 	printf 'FAIL - tesseract %s digest %s != pinned %s\n' "${arch}" "${binary_sha}" "${EXPECTED_BINARY_SHA256[${arch}]}" >&2
 	exit 1
 fi
+library_digests="$(docker run --rm --platform "${platform}" --network none --entrypoint /bin/sh \
+	"${image}" -c "${LIBRARY_LISTER}")"
+library_lines="$(awk '{print $2" "$1}' <<<"${library_digests}" | LC_ALL=C sort)"
+libs_sha="$(printf '%s\n' "${library_lines}" | sha256sum | awk '{print $1}')"
+library_pins="$(awk '{printf "%s=%s;", $1, $2}' <<<"${library_lines}")"
+printf 'runtime libraries (%d files) sha256:%s\n%s\n' "$(wc -l <<<"${library_lines}")" "${libs_sha}" "${library_lines}"
+if [[ "${libs_sha}" != "${EXPECTED_LIBS_SHA256[${arch}]}" ]]; then
+	printf 'FAIL - %s library set digest %s != pinned %s\n' "${arch}" "${libs_sha}" "${EXPECTED_LIBS_SHA256[${arch}]}" >&2
+	exit 1
+fi
 
 printf '== run proof under the sandbox profile\n'
 set +e
@@ -113,6 +139,8 @@ docker run --rm --platform "${platform}" \
 	-e ESHU_OCR_TESSERACT_SHA256="${binary_sha}" \
 	-e ESHU_OCR_TESSDATA_DIR=/usr/share/tessdata \
 	-e ESHU_OCR_MODEL_SHA256="${model_sha}" \
+	-e ESHU_OCR_LIBRARIES="${library_pins}" \
+	-e ESHU_OCR_LIBS_SHA256="${libs_sha}" \
 	-e ESHU_OCR_ENGINE_VERSION="${ENGINE_VERSION}" \
 	-e ESHU_OCR_SCRATCH_DIR=/tmp \
 	-e ESHU_OCR_FIXTURE_DIR=/ocr/fixtures \
