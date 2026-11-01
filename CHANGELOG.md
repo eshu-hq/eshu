@@ -9,6 +9,24 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### Extension-host extraction: remote claim client seam, eshu-workflow v0.1.0 pin
+
+- **Additive `remote/claim` package pinned to `eshu-workflow` v0.1.0**
+  ([#8877](https://github.com/eshu-hq/eshu/issues/8877)). A client for the
+  `workflow.v1` claim plane under `go/internal/collector/extensionhost/remote/claim`,
+  covered by a contract test against the pinned server handler. Nothing in
+  the production path imports it. Pinning v0.1.0 raises shared modules for
+  every binary: `pgx` 5.9.2 to 5.11.0, `otel` 1.45.0 to 1.47.0,
+  `prometheus/client_golang` 1.24.1 to 1.25.0, `prometheus/common` to 0.72.0,
+  `protobuf` to 1.36.12. pgx 5.11 parses DSNs like libpq (`+` stays literal,
+  userinfo ends at the first `@`, a repeated parameter takes the last value,
+  a bare IPv6 host is rejected, key=value strings honor backslash escapes),
+  returns `time.Local` from text-format `timestamptz` scans, and adds
+  `TypeMap` to `pgx.Rows`. Four live-Postgres test helpers that sent the
+  schema as `options=-c search_path=…` (a `+` for the space) now pass
+  `search_path` directly, because pgx 5.11 reads `+` in a query value
+  literally.
+
 ### Deploy lanes move to eshu-deploy: in-tree Helm, Compose, and deploy docs removed
 
 - **Deploy assets now live in

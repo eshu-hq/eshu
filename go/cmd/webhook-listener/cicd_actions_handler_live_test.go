@@ -87,7 +87,7 @@ func TestSignedActionsDeliveryPersistsInRealInboxLive(t *testing.T) {
 		t.Fatal(err)
 	}
 	query := parsed.Query()
-	query.Set("options", "-c search_path="+schema)
+	query.Set("search_path", schema)
 	parsed.RawQuery = query.Encode()
 	database, err := sql.Open("pgx", parsed.String())
 	if err != nil {

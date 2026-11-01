@@ -7,7 +7,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -54,7 +53,7 @@ func webhookLeaseProofStore(t *testing.T) (*webhookstore.WebhookTriggerStore, *s
 	if strings.Contains(dsn, "?") {
 		separator = "&"
 	}
-	schemaDSN := dsn + separator + "options=" + url.QueryEscape("-c search_path="+schemaName)
+	schemaDSN := dsn + separator + "search_path=" + schemaName
 	db, err := sql.Open("pgx", schemaDSN)
 	if err != nil {
 		t.Fatalf("open proof connection: %v", err)
