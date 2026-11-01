@@ -6,6 +6,7 @@ package media
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -67,6 +68,13 @@ func Extract(ctx context.Context, req Request) (Result, error) {
 		AudioStreamCount: preflight.AudioStreamCount,
 		Body:             append([]byte(nil), req.Body...),
 	})
+	if errors.Is(err, ErrNoSpeech) {
+		document.SourceMetadata["transcript_status"] = "no_speech"
+		addWarnings(document.SourceMetadata, string(media.WarningTranscriptNoSpeech))
+		result.Document = document
+		result.Envelopes = append(result.Envelopes, envelope(req, docs.DocumentFactKind, docs.DocumentStableID(document), document))
+		return result, nil
+	}
 	if err != nil {
 		return Result{}, fmt.Errorf("transcribe media segments: %w", err)
 	}
@@ -184,6 +192,12 @@ func buildSections(
 		}
 		if transcript.Language != "" {
 			metadata["language"] = transcript.Language
+		}
+		if model := strings.TrimSpace(transcript.ModelName); model != "" {
+			metadata["transcript_model"] = model
+		}
+		if digest := strings.TrimSpace(transcript.ModelDigest); digest != "" {
+			metadata["transcript_model_digest"] = digest
 		}
 		if strings.TrimSpace(segment.SpeakerLabel) != "" {
 			metadata["speaker_label_present"] = "true"

@@ -3074,6 +3074,15 @@ type Instruments struct {
 	IdentityCacheReloadDuration metric.Float64Histogram
 	// IdentityCacheProbeDuration records the duration of identity-fact epoch probe queries (#5438).
 	IdentityCacheProbeDuration metric.Float64Histogram
+	// MediaTranscriptEngineRuns counts local media transcript engine runs by
+	// closed outcome (#9729).
+	MediaTranscriptEngineRuns metric.Int64Counter
+	// MediaTranscriptEngineDuration records one engine run's wall time by
+	// closed outcome (#9729).
+	MediaTranscriptEngineDuration metric.Float64Histogram
+	// MediaTranscriptEngineSegments counts engine segments by closed kind:
+	// kept or non_speech_dropped (#9729).
+	MediaTranscriptEngineSegments metric.Int64Counter
 }
 
 // NewInstruments creates and registers all OTEL metric instruments using the
@@ -6189,6 +6198,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerCICDRunWebhookInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerMediaTranscriptEngineInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerSharedProjectionCycle(meter, inst); err != nil {

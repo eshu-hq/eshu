@@ -357,6 +357,7 @@ nav:
       - Metrics: reference/telemetry/metrics.md
       - Ingestion And Collector Metrics: reference/telemetry/metrics-ingestion-collectors.md
       - CI/CD Run Telemetry: reference/telemetry/metrics-cicd-run.md
+      - Media Transcript Engine Telemetry: reference/telemetry/media-transcript-engine.md
       - Reducer And Storage Metrics: reference/telemetry/metrics-reducer-storage.md
       - Identity Fact Cache Metrics: reference/telemetry/metrics-identity-cache.md
       - Graph-read Safety: reference/telemetry/graph-read-safety.md

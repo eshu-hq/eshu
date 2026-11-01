@@ -5,6 +5,7 @@ package media
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/preflight/media"
@@ -12,6 +13,13 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
+
+// ErrNoSpeech is the sentinel an Engine wraps when it ran successfully but
+// heard no speech in the media. Extract records it as a document fact with
+// transcript_status=no_speech and the transcript_no_speech warning class
+// instead of failing the extraction, so the outcome stays visible through
+// fact readback.
+var ErrNoSpeech = errors.New("transcript engine heard no speech")
 
 // Engine transcribes a preflight-approved local media artifact.
 type Engine interface {
@@ -58,8 +66,14 @@ type Media struct {
 type EngineResult struct {
 	EngineName    string
 	EngineVersion string
-	Language      string
-	Segments      []Segment
+	// ModelName is the model file base name a model-backed engine loaded,
+	// recorded as transcript_model section metadata when non-empty.
+	ModelName string
+	// ModelDigest is the pinned "sha256:<hex>" digest of that model file,
+	// recorded as transcript_model_digest section metadata when non-empty.
+	ModelDigest string
+	Language    string
+	Segments    []Segment
 }
 
 // Segment describes one transcript segment from a local engine result.

@@ -34,7 +34,12 @@ See `doc.go` for the godoc-rendered package contract.
 - `Request` describes one media artifact revision and durable scope metadata.
 - `Options` forwards media preflight limits and section text bounds.
 - `Media`, `EngineResult`, and `Segment` describe bounded transcript input and
-  output without source-specific types.
+  output without source-specific types. `EngineResult.ModelName` and
+  `ModelDigest` become `transcript_model` and `transcript_model_digest`
+  section metadata when a model-backed engine sets them.
+- `ErrNoSpeech` is the sentinel an engine wraps when it ran cleanly but heard
+  no speech. `Extract` records it as `transcript_status=no_speech` with the
+  `transcript_no_speech` warning instead of failing.
 - `Extract` runs preflight, calls the engine when allowed, and returns
   ready-to-persist fact envelopes. Callers may pass known `doctruth.Entity`
   values and per-segment mention hints; this package emits mention facts only
@@ -98,9 +103,10 @@ readback surfaces already carry the emitted documentation facts.
   package must not emit claim candidates, graph relationships, ownership truth,
   deployment truth, incident truth, or service truth.
 - A caller must provide a transcript engine; there is no default engine or
-  hosted provider fallback. The only in-tree backend is the local
-  deterministic DTMF decoder in `dtmf/` (#9729), suitable for explicit
-  QA-tier injection only.
+  hosted provider fallback. In-tree backends are the out-of-process
+  whisper.cpp speech-to-text engine in `whispercpp/` (#9729) and the
+  deterministic DTMF decoder in `dtmf/`, kept as a fixture backend. Both are
+  for explicit QA-tier injection only.
 
 ## Related docs
 

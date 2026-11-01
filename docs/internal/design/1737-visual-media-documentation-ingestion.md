@@ -195,6 +195,11 @@ for text documentation. No implementation may treat a transcript assertion as
 verified architecture, deployment, ownership, or incident truth without a
 separate comparison against source-owned truth.
 
+The first local transcription backend is the out-of-process whisper.cpp
+engine in `go/internal/collector/document/media/whispercpp` (#9729). Its
+README records the backend decision, the pinned binary and model digests,
+the WAV-only format scope, and the sandbox proof.
+
 ## 8. Privacy, ACL, And Redaction
 
 All extracted content inherits the source artifact ACL. API/MCP evidence reads

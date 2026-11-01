@@ -368,6 +368,11 @@ const (
 	// fan-out (#9695): the holder read and the reopen statements. Attributes
 	// carry the source scope, generation, holder count, and outcome counts.
 	SpanSupplyChainImpactFanOut = "supply_chain_impact.fanout"
+	// SpanMediaTranscriptEngineRun wraps one out-of-process local
+	// speech-to-text engine run behind the document/media Engine contract
+	// (#9729). Attributes carry the engine name, closed outcome, input bytes,
+	// audio duration, and segment counts; never transcript text or paths.
+	SpanMediaTranscriptEngineRun = "media.transcript_engine.run"
 	// SpanReducerChangedSinceLink wraps one changed-since link transaction
 	// (#7127 PR-3a): one activation of one scope linked, broken or retried.
 	SpanReducerChangedSinceLink = "reducer.changed_since_link"
