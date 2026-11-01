@@ -81,7 +81,7 @@ func TestExtractRedactsValuesThatFollowALabelInReadingOrder(t *testing.T) {
 			want:    []string{redacted, redacted},
 		},
 		{
-			name:    "qualified label that a colon marks as a label",
+			name:    "label with a note before the separator",
 			regions: stackedRegions("Password (required):", labelValueCanary),
 			want:    []string{redacted, redacted},
 		},
@@ -121,16 +121,6 @@ func TestExtractRedactsValuesThatFollowALabelInReadingOrder(t *testing.T) {
 			want:    []string{redacted, redacted},
 		},
 		{
-			name:    "parenthetical inside a line does not make a label",
-			regions: stackedRegions("password (see runbook) rotation schedule", "Release checklist"),
-			want:    []string{redacted, "Release checklist"},
-		},
-		{
-			name:    "parenthetical before the marker does not shorten a label",
-			regions: stackedRegions("the old (very old) password", "Release checklist"),
-			want:    []string{redacted, "Release checklist"},
-		},
-		{
 			name:    "one caption line between label and value",
 			regions: stackedRegions("Password:", "at least 12 characters", labelValueCanary),
 			want:    []string{redacted, redacted, redacted},
@@ -156,9 +146,14 @@ func TestExtractRedactsValuesThatFollowALabelInReadingOrder(t *testing.T) {
 			want:    []string{redacted, redacted, redacted, "Rollback steps"},
 		},
 		{
-			name:    "a second label restarts the window",
+			name:    "a second label adds to the window",
 			regions: stackedRegions("Password:", labelValueCanary, "api_key:", "SecondCanaryValue", "Next line", "Rollback steps"),
 			want:    []string{redacted, redacted, redacted, redacted, redacted, "Rollback steps"},
+		},
+		{
+			name:    "three stacked labels then three values",
+			regions: stackedRegions("Password:", "api_key:", "private_key:", labelValueCanary, "SecondCanaryValue", "ThirdCanaryValue", "Next line", "Rollback steps"),
+			want:    []string{redacted, redacted, redacted, redacted, redacted, redacted, redacted, "Rollback steps"},
 		},
 		{
 			name:    "region before the label stays",
@@ -171,19 +166,29 @@ func TestExtractRedactsValuesThatFollowALabelInReadingOrder(t *testing.T) {
 			want:    []string{"Release checklist", "Rollback steps", "Ask the platform team"},
 		},
 		{
-			name:    "value on the label line does not open a window",
-			regions: stackedRegions("password: "+labelValueCanary, "Release checklist"),
-			want:    []string{redacted, "Release checklist"},
+			name:    "any marker opens the window, even with text after it",
+			regions: stackedRegions("Password required", labelValueCanary, "Next step", "Rollback steps"),
+			want:    []string{redacted, redacted, redacted, "Rollback steps"},
 		},
 		{
-			name:    "prose that ends in a marker does not open a window",
-			regions: stackedRegions("Please rotate every staging password", "Release checklist"),
-			want:    []string{redacted, "Release checklist"},
+			name:    "marker with OCR garble after it opens the window",
+			regions: stackedRegions("Password: I", labelValueCanary),
+			want:    []string{redacted, redacted},
 		},
 		{
-			name:    "marker inside a line does not open a window",
-			regions: stackedRegions("password rotation schedule", "Release checklist"),
-			want:    []string{redacted, "Release checklist"},
+			name:    "marker inside parentheses opens the window",
+			regions: stackedRegions("(Password)", labelValueCanary),
+			want:    []string{redacted, redacted},
+		},
+		{
+			name:    "marker in prose opens the same bounded window",
+			regions: stackedRegions("Please rotate every staging password", "Next step", "Second step", "Rollback steps"),
+			want:    []string{redacted, redacted, redacted, "Rollback steps"},
+		},
+		{
+			name:    "value on the marker line opens the same bounded window",
+			regions: stackedRegions("password: "+labelValueCanary, "Next step", "Second step", "Rollback steps"),
+			want:    []string{redacted, redacted, redacted, "Rollback steps"},
 		},
 		{
 			name:    "personal data pattern is not a label",
@@ -390,13 +395,13 @@ func TestExtractRedactsAnOversizedValueInsteadOfTruncatingIt(t *testing.T) {
 }
 
 // BenchmarkBuildSectionsLabelHeavy is the worst case for the row clause: half
-// the regions are labels, and the rest sit past every window, so each one is
-// compared with every label.
+// the regions are labels, and the rest come before them, outside every window,
+// so each one is compared with every label.
 func BenchmarkBuildSectionsLabelHeavy(b *testing.B) {
 	lines := make([]string, 500)
 	for i := range lines {
 		lines[i] = "Deploy the Checkout Service to staging"
-		if i < len(lines)/2 {
+		if i >= len(lines)/2 {
 			lines[i] = "Password:"
 		}
 	}

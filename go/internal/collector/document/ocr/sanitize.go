@@ -13,25 +13,21 @@ import (
 )
 
 const (
-	// labelValueWindow is how many non-blank regions after a label count as
-	// its value. Two is the smallest window that covers the shapes reading
-	// order produces: two labels stacked above two values, because each label
-	// restarts the window, and one caption line between a label and its value.
-	// Every extra region hides one more line of ordinary text from a document,
-	// so the window stays small and the row clause covers columns instead.
+	// labelValueWindow is how many non-blank regions after a marker word count
+	// as its value. One covers a value directly below its label. The second
+	// covers a caption or other line between the two. Every extra region hides
+	// one more line of ordinary text from a document, so the window stays small
+	// and the row clause covers columns instead.
 	labelValueWindow = 2
 
-	// maxBareLabelWords caps a label with no ":" or "=" separator. "Confirm
-	// password" is a form label; "Please rotate every staging password" is
-	// prose, which keeps its own redaction but opens no window.
-	maxBareLabelWords = 3
-
 	// minLabelRowOverlap is the share of the shorter region's height that must
-	// overlap a label for the two to count as one row.
+	// overlap a marker region for the two to count as one row.
 	minLabelRowOverlap = 0.5
 )
 
 // sensitiveMarkers are the words that make a region sensitive on their own.
+// Unlike the patterns below, a marker word names a value rather than being one,
+// so only a marker word opens a value window.
 var sensitiveMarkers = []string{
 	"credential_marker", "secret_marker", "token_marker", "password", "api_key", "private_key",
 }
@@ -42,10 +38,6 @@ var (
 	ticketPattern      = regexp.MustCompile(`\b[A-Z][A-Z0-9]+-[0-9]+\b`)
 	unixPathPattern    = regexp.MustCompile(`(?i)(^|[^a-z0-9])/(users|home|var|etc|private|volumes|tmp)/\S+`)
 	windowsPathPattern = regexp.MustCompile(`(?i)\b[a-z]:\\[^\s]+`)
-
-	// trailingNotePattern matches the note a form prints after a label, as in
-	// "Password (required)". The note is not the label's value.
-	trailingNotePattern = regexp.MustCompile(`\s*\([^()]*\)$`)
 )
 
 func containsSensitiveMarker(text string) bool {
@@ -68,49 +60,26 @@ func containsMarkerWord(lower string) bool {
 	return false
 }
 
-func endsWithMarkerWord(lower string) bool {
-	for _, marker := range sensitiveMarkers {
-		if strings.HasSuffix(lower, marker) {
-			return true
-		}
-	}
-	return false
-}
-
-// isValueLabel reports whether a region names a secret and leaves its value
-// for another region. Text ending in ":" or "=" after a marker word is a
-// label, as is a short region that ends in a marker word, such as the
-// "Confirm password" a boxed form renders with no colon. A trailing
-// parenthetical note is ignored. Only marker words qualify: an email or URL is
-// a value, not a label for the next region. A region that carries other text
-// after the marker, such as "password: hunter2", holds its own value and opens
-// no window.
-func isValueLabel(text string) bool {
-	lower := strings.ToLower(strings.TrimSpace(text))
-	if strings.HasSuffix(lower, ")") {
-		lower = trailingNotePattern.ReplaceAllString(lower, "")
-	}
-	body := strings.TrimRightFunc(lower, func(r rune) bool { return !isLetterOrDigit(r) })
-	if strings.ContainsAny(lower[len(body):], ":=") {
-		return containsMarkerWord(body)
-	}
-	return len(strings.Fields(body)) <= maxBareLabelWords && endsWithMarkerWord(body)
-}
-
 func isLetterOrDigit(r rune) bool {
 	return unicode.IsLetter(r) || unicode.IsDigit(r)
 }
 
 // labelValueRegions marks the regions that hold a label's value, in engine
 // order, so Extract can withhold them even though their own text matches no
-// marker. A region is a value when it is one of the labelValueWindow non-blank
-// regions after a label, or when it sits to the right of a label on the same
-// row. The row clause exists because tesseract reads columns as separate
+// marker. Any region with a marker word opens a window, not only one shaped
+// like a label: the words around a marker are the least reliable part of OCR
+// text, and a leaked secret costs more than a hidden line. A region is a value
+// when it falls in the window of labelValueWindow non-blank regions after a
+// marker word, or when it sits to the right of a marker word on the same row.
+// Each marker word adds a full window, so stacked labels each cover their own
+// value. The row clause exists because tesseract reads columns as separate
 // blocks, which can put a value in the next column many regions after its
-// label. Blank regions never become sections, so they do not use up the window.
-// A region with no letter or digit does not use it up either, because box edges
-// reach OCR as "|" or "_". That region is still withheld, since a password can
-// be all symbols.
+// label.
+//
+// A region with no letter or digit does not use up the window, because box
+// edges reach OCR as "|" or "_". That region is still withheld, since a password
+// can be all symbols. A blank region never becomes a section, so its mark is
+// unused.
 //
 // The function reads engine order and never sorts: on a multi-column page,
 // layout order is more accurate than a sort by position.
@@ -120,17 +89,14 @@ func labelValueRegions(regions []Region) []bool {
 	remaining := 0
 	for i, region := range regions {
 		text := strings.TrimSpace(region.Text)
-		if text == "" {
-			continue
-		}
 		if remaining > 0 {
 			values[i] = true
 			if strings.ContainsFunc(text, isLetterOrDigit) {
 				remaining--
 			}
 		}
-		if isValueLabel(text) {
-			remaining = labelValueWindow
+		if containsMarkerWord(strings.ToLower(text)) {
+			remaining += labelValueWindow
 			labels = append(labels, region.Bounds)
 		}
 	}

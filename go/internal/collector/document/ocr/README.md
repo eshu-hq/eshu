@@ -94,56 +94,53 @@ collector documentation row in `docs/public/observability/telemetry-coverage.md`
 
 A region is judged on its own text, so a bare value such as `Hunter2` matches no
 marker when OCR places it away from its `Password:` label. `Extract` closes that
-gap before any content is persisted (#9782). It finds labels, then withholds
-their values with the same `[redacted]` content, metadata, and warning as a
-marker hit. The rule lives in `labelValueRegions` in `sanitize.go`.
+gap before any content is persisted (#9782). It withholds those values with the
+same `[redacted]` content, metadata, and warning as a marker hit. The rule lives
+in `labelValueRegions` in `sanitize.go`.
 
-A region is a **label** when either holds:
+Any region with a marker word from `sensitiveMarkers` opens a value window, not
+only one shaped like a label. The words around a marker are the least reliable
+part of OCR text, and each shape rule tried here left a hole: `(Password)`,
+`Password required`, `Password: I`. The STT twin in `document/media` uses the
+same rule (#9786). An email, URL, path, or ticket redacts its own region but
+opens no window. It is a value, not a word that introduces one.
 
-- It ends in `:` or `=` and contains a marker word: `Password (required):`.
-- It ends in a marker word and has at most 3 words (`maxBareLabelWords`):
-  `Password`, `Confirm password`. A boxed form renders these with no colon.
+A region is a value when either holds:
 
-A trailing parenthetical note is ignored, so `Password (required)` and
-`Password: (min 12)` are labels.
-
-Marker words are the word list in `sensitiveMarkers`. An email, URL, path, or
-ticket redacts its own region but is not a label. A region that carries text
-after the marker, such as `password: hunter2`, holds its own value and is not a
-label either.
-
-A region is a **value** when either holds:
-
-- Window: it is one of the 2 non-blank regions after a label in engine order
-  (`labelValueWindow`). Each label restarts the window, so two stacked labels
-  cover two values. A blank region does not use up the window, and neither
-  does a region with no letter or digit, because box edges reach OCR as `|` or
-  `_`. That region is still withheld, since a password can be all symbols.
-- Row: it starts past the label's right edge and overlaps the label's row by at
-  least half the shorter height (`minLabelRowOverlap`). Tesseract reads columns
-  as separate blocks, which can put a value many regions after its label. The
-  order of the two columns does not matter. An engine that reports no height
-  gets the window only.
+- Window: it is one of the 2 non-blank regions after a marker word in engine
+  order (`labelValueWindow`). One covers a value directly below its label, and
+  the second covers a caption or other line between the two. Each marker word
+  adds a full window, so stacked labels each cover their own value. A blank
+  region does not use up the window, and neither does a region with no letter
+  or digit, because box edges reach OCR as `|` or `_`. That region is still
+  withheld, since a password can be all symbols.
+- Row: it starts past the marker region's right edge and overlaps that region's
+  row by at least half the shorter height (`minLabelRowOverlap`). Tesseract
+  reads columns as separate blocks, which can put a value many regions after its
+  label. The order of the two columns does not matter. An engine that reports no
+  height gets the window only.
 
 `Extract` never sorts. `EngineResult.Regions` must be in reading order, because
 layout order is more accurate than a position sort on a multi-column page.
 
-The tradeoff is deliberate. Up to 2 ordinary lines after a label are hidden,
-which costs a little documentation evidence. A leaked secret costs more, and
-ordinary text that follows no label is untouched.
+The tradeoff is deliberate. Up to 2 ordinary lines after any marker word are
+hidden, including after a line that already holds its value, such as
+`password: hunter2`, and after prose that mentions a password. That costs a
+little documentation evidence. A leaked secret costs more, and ordinary text
+that follows no marker word is untouched. Windows add but stay bounded: k marker
+regions in a row hide at most k+1 regions after them.
 
 Limits:
 
 - Marker words decide everything, so a label the word list misses opens no
-  window: `Secret:`, `API Key:`, and a misread `Passw0rd:` are not labels.
-- Three or more labels stacked above their values in one column, with no shared
-  row, reach only the first two values. Tesseract did not produce this shape in
-  the layouts probed for #9782; columns split this way share a row.
+  window: `Secret:`, `API Key:`, and a misread `Passw0rd:` are not markers. In a
+  probe of degraded renders, `Password` came back verbatim or was lost whole, as
+  in `Confirm passwort`.
+- A value more than 2 regions after its marker word, on another row, is not
+  caught.
 - A table column is not covered. A header row such as `Service Password Owner`
-  is one line that opens no window, and each cell below it stays in clear. That
-  needs a column rule, not this one.
-- Other text after the marker is not a label: `Password required` opens no
-  window.
+  opens a window over the next rows only, and each cell further down stays in
+  clear. That needs a column rule, not this one.
 - `text_hash` on a withheld section is an unsalted SHA-256 of the region text,
   the same as any redacted region. It lets a holder confirm a guessed value.
 
@@ -156,12 +153,11 @@ Proof: `TestExtractRedactsValuesThatFollowALabelInReadingOrder`,
 Performance Evidence: `BenchmarkBuildSectionsNoLabels` and
 `BenchmarkBuildSectionsLabelHeavy` on 500 regions, the tesseract default cap,
 with before and after test binaries run in turn at `-benchtime=2000x`, six runs
-each. Medians on a shared host: ordinary text went from 3.05 ms/op to 3.12 ms/op
-(13,405 to 14,406 allocs/op, from lowercasing and splitting each region once).
-The worst case for the row clause, 250 labels followed by 250 regions past every
-window, went from 1.88 ms/op to 2.02 ms/op. The row clause is regions times
-labels, so 500 regions bound it. Either figure is small next to about 200 ms for
-one tesseract run.
+each. Medians on a shared host: ordinary text went from 3.06 ms/op to 3.14 ms/op
+(13,405 to 13,906 allocs/op, one lowercase per region). The worst case for the
+row clause, 250 regions followed by 250 labels, went from 1.88 ms/op to 2.02
+ms/op. The row clause is regions times marker regions, so 500 regions bound it.
+Either figure is small next to about 200 ms for one tesseract run.
 
 No-Regression Evidence: `go test -race ./internal/collector/document/ocr/...
 -count=1` passes, including the pre-existing extraction, skip, GIF, redaction,

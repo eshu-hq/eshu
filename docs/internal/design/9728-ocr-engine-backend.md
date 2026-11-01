@@ -210,9 +210,9 @@ covered end to end, and there is no QA-tier caller.
   as `unsupported_codec`, so `ocr.Extract` skips it before the engine runs.
   Admitting WebP is a reviewed change to `picture`, tracked in #9780.
 - Label and value on separate lines: resolved in `ocr.Extract` by #9782. A
-  value is withheld when it is one of the two non-blank regions after a label,
-  or sits to the right of a label on the same row. The rule and its limits are
-  in the OCR README under "Label and value redaction".
+  value is withheld when it is one of the two non-blank regions after a marker
+  word, or sits to the right of one on the same row. The rule and its limits
+  are in the OCR README under "Label and value redaction".
   `TestExtractRedactsValueOnLineBelowLabel`,
   `TestExtractRedactsValuesThatFollowALabelInReadingOrder`, and
   `TestExtractRedactsValueInTheColumnBesideALabel` prove it with fakes. The
