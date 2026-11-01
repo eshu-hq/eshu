@@ -46,7 +46,8 @@ func TestWriteSupplyChainImpactDerivedRequiresProtectedPublication(t *testing.T)
 
 // TestWriteSupplyChainImpactFindingsLocksUpsertsThenRetracts pins the #6831
 // and #7142 statement order inside the one transaction: conflict-domain lock
-// first, then the fencing admission, then the batched upsert, then the
+// first, then the fencing admission, then the read of the rows about to be
+// overwritten (#9695), then the batched upsert, then the
 // retraction keyed to exactly the fact ids just written, then one commit.
 func TestWriteSupplyChainImpactFindingsLocksUpsertsThenRetracts(t *testing.T) {
 	t.Parallel()
@@ -61,8 +62,8 @@ func TestWriteSupplyChainImpactFindingsLocksUpsertsThenRetracts(t *testing.T) {
 		t.Fatalf("WriteSupplyChainImpactFindings() error = %v", err)
 	}
 	all := beginner.state.all
-	if got, want := len(all), 4; got != want {
-		t.Fatalf("statements = %d, want %d (lock, admit, upsert, retract)", got, want)
+	if got, want := len(all), 5; got != want {
+		t.Fatalf("statements = %d, want %d (lock, admit, stored read, upsert, retract)", got, want)
 	}
 	if all[0].Query != lockSupplyChainImpactConflictDomainQuery {
 		t.Fatalf("statement 0 = %q, want the conflict-domain lock", all[0].Query)
@@ -73,12 +74,15 @@ func TestWriteSupplyChainImpactFindingsLocksUpsertsThenRetracts(t *testing.T) {
 	if all[1].Query != supplyChainImpactAdmissionQuery {
 		t.Fatalf("statement 1 = %q, want the fencing admission", all[1].Query)
 	}
-	if all[2].Query != factwrite.BatchInsertVersionedQuery {
-		t.Fatalf("statement 2 = %q, want the batched upsert", all[2].Query)
+	if all[2].Query != listStoredSupplyChainImpactFindingsQuery {
+		t.Fatalf("statement 2 = %q, want the stored-row read", all[2].Query)
 	}
-	retract := all[3]
+	if all[3].Query != factwrite.BatchInsertVersionedQuery {
+		t.Fatalf("statement 3 = %q, want the batched upsert", all[3].Query)
+	}
+	retract := all[4]
 	if retract.Query != retractSupersededSupplyChainImpactFindingsQuery {
-		t.Fatalf("statement 3 = %q, want the retraction", retract.Query)
+		t.Fatalf("statement 4 = %q, want the retraction", retract.Query)
 	}
 	wantArgs := []any{supplyChainImpactFactKind, write.ScopeID, write.GenerationID}
 	for i, want := range wantArgs {

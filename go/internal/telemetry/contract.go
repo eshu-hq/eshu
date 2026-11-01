@@ -364,6 +364,10 @@ const (
 	SpanReducerIntentEnqueue = "reducer_intent.enqueue"
 	SpanReducerRun           = "reducer.run"
 	SpanReducerBatchClaim    = "reducer.batch_claim"
+	// SpanSupplyChainImpactFanOut wraps one supply-chain impact pass's holder
+	// fan-out (#9695): the holder read and the reopen statements. Attributes
+	// carry the source scope, generation, holder count, and outcome counts.
+	SpanSupplyChainImpactFanOut = "supply_chain_impact.fanout"
 	// SpanReducerChangedSinceLink wraps one changed-since link transaction
 	// (#7127 PR-3a): one activation of one scope linked, broken or retried.
 	SpanReducerChangedSinceLink = "reducer.changed_since_link"

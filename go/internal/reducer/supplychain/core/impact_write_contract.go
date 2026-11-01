@@ -42,6 +42,15 @@ type SupplyChainImpactWrite struct {
 	// no fresher pass was admitted for the (scope, generation), stamps every
 	// upserted and retracted row with it, and rejects a zero token.
 	FencingToken int64
+	// Recovery asks the writer to also report every CVE the scope's finding
+	// rows name (RecoveryCVEIDs). It is set on a retry, when an earlier attempt
+	// may have committed and died before its fan-out, so the rerun's own
+	// rewrite shows no change and cannot say what the fan-out owes.
+	Recovery bool
+	// Owed, when set, is run inside the write transaction once the pass's changed
+	// CVEs are known and are not empty, so the marker "this commit owes a
+	// fan-out" commits with the rows or not at all. A failure rolls the write back.
+	Owed FanOutOwedRecorder
 }
 
 // SupplyChainImpactWriteResult summarizes durable impact publication.
@@ -52,6 +61,15 @@ type SupplyChainImpactWriteResult struct {
 	// this pass tombstoned because it no longer derives them (#6831).
 	FactsRetracted  int
 	EvidenceSummary string
+	// ChangedCVEIDs are the CVE ids, sorted and de-duplicated, of every finding
+	// row this pass wrote that was new, revived, or different in content from the
+	// stored row, plus every row it retracted (#9695). The holder fan-out asks
+	// for the holders of exactly these CVEs.
+	ChangedCVEIDs []string
+	// RecoveryCVEIDs are the CVE ids of every active and tombstoned finding row
+	// the scope holds at this generation. Set only when the write asked for
+	// Recovery.
+	RecoveryCVEIDs []string
 }
 
 // SupplyChainImpactWriter persists reducer-owned impact findings.

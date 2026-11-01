@@ -301,6 +301,46 @@ tests:
     class: dedicated_ci
     reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 2.36s); docs/internal/evidence/7533-contention-live-proof.md"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_fanout_convergence_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "dev-1-5: reducer-contention verified 7/7 named Go test passes with -json -race (summed test elapsed 8.62s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_fanout_fleet_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "dev-1-5: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 11.44s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_fanout_inflight_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "dev-1-5: reducer-contention verified 9/9 named Go test passes with -json -race (summed test elapsed 10.71s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_fanout_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "dev-1-5: reducer-contention verified 4/4 named Go test passes with -json -race (summed test elapsed 8.84s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_fanout_owed_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "dev-1-5: reducer-contention verified 4/4 named Go test passes with -json -race (summed test elapsed 4.43s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_fanout_races_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "dev-1-5: reducer-contention verified 4/4 named Go test passes with -json -race (summed test elapsed 37.96s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_fanout_state_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "dev-1-5: reducer-contention verified 7/7 named Go test passes with -json -race (summed test elapsed 6.43s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_fanout_writer_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "dev-1-5: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 1.99s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_fencing_live_test.go
     tag: ~
     class: dedicated_ci

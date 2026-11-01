@@ -356,20 +356,30 @@ decides per finding.
 - **Alerts.** A provider security alert whose CVE group is fully retracted can
   still seed an active finding when no package-path finding exists for that
   repository and package; the alert path does not read the group.
-- **Convergence limit, both directions.** The winners table keeps one copy per
+- **Convergence: the holder fan-out.** The winners table keeps one copy per
   canonical key, and another scope may hold its own copy (KEV or EPSS
-  enrichment, another advisory source, the operator suppression scope). A copy
-  changes only when its scope reruns, and the tie between copies falls to
-  `fact_id`, effectively arbitrary. So a retracted copy can lose to a stale
-  active copy, and a stale `advisory_retracted` copy can win over a re-derived
-  active copy after a restore and hide a real vulnerability. The lag is each
-  scope's own cadence, with no bound after item 1.4; the operator scope's copy
-  refreshes only on a suppression mutation. The fix is the follow-up 1.5b, a
-  fan-out from the committing pass to every holder scope with no winners-order
-  change. This change merges only as the first half of 1.5a plus 1.5b: 1.5a
-  merges once 1.5b has a clean review and green CI on the stack, and issue #9695
-  closes on 1.5b's merge. Sorting retracted copies first is not a fix. Probes:
-  `docs/internal/evidence/9695-advisory-retraction.md`.
+  enrichment, another advisory source, the operator suppression scope). After
+  the writer commit and before the queue acknowledgement, a pass that changed or
+  retracted rows reopens the `supply_chain_impact` item of every scope that holds
+  an active copy of those CVEs (`fanout.go`, `writer_changed.go`, and the store
+  in `storage/postgres/supply_chain_impact_fanout.go`). The reopened pass
+  re-derives its copy, so a retraction, or its reversal, reaches each copy once
+  that holder's next pass runs. The winners query has no precedence rule. The
+  rules (changed rows, holders, one hop, the owed marker, failures) and the known
+  limit are in `HOLDER_FANOUT.md`.
+- **In-flight cost.** During a burst of N changed passes about every pass in flight
+  at each commit is flagged, so the burst costs about 2N passes and drains in
+  about twice the time; continuous changed arrivals above roughly a third of
+  the domain's worker capacity (W=4) are not kept up with until they stop; an
+  idle scope and an unchanged rescan cost nothing. Measured (N=24, W=4, 400 ms
+  pass): 50 passes in 5.67 s, against 24 in 2.80 s with the read off; the
+  capacity ceiling is a model. One scope can rerun back to back (14 reruns in 6 s
+  at 150 ms arrivals); no cascade. At 3 AM compare `replay_flagged` with
+  `reopened` and `pending_noop` on `eshu_dp_supply_chain_impact_fanout_total`,
+  the domain's `eshu_dp_reducer_executions_total` rate, and
+  `eshu_runtime_domain_oldest_age_seconds`: a storm has `replay_flagged` near
+  the execution rate, `reopened` flat, and age rising. Consumers see it as
+  `eshu_dp_security_alert_reconciliation_impact_wait_total{outcome="deferred_in_flight"}`.
 - **Operator signal.** `eshu_dp_supply_chain_suppression_decisions_total` with
   `outcome=advisory_retracted`, the `suppression_advisory_retracted=` field
   of the evidence summary, and the `advisory_retracted_findings` sub-signal.
@@ -386,6 +396,8 @@ the directory name.
 | File | Covers |
 | --- | --- |
 | `impact.go` | `SupplyChainImpactHandler`, finding pipeline |
+| `fanout.go` | the holder fan-out: port, one-hop rule, continuation, retryable failure class |
+| `writer_changed.go` | the content digest and the changed-row and recovery reads |
 | `finding.go` | `SupplyChainImpactFinding` (carries the `Suppression` field: impact + suppression are one unit) |
 | `writer.go` | `PostgresSupplyChainImpactWriter`, batched versioned inserts |
 | `writer_retract.go` | Replace-set transaction (#6831): per-(scope, generation) advisory lock, upsert, tombstone of superseded findings |

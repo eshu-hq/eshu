@@ -1071,6 +1071,18 @@ type Instruments struct {
 	// suppression intent and finding identity at 3 AM without re-running the
 	// reducer.
 	SupplyChainSuppressionDecisions metric.Int64Counter
+	// SupplyChainImpactFanOut counts the outcomes of the one-hop holder
+	// fan-out a supply-chain impact pass runs after its writer commit (#9695).
+	// Labels: domain (supply_chain_impact) and outcome (reopened,
+	// replay_flagged, pending_noop, enqueued, crash_recovery, deferred,
+	// read_error, read_timeout, reopen_error, state_error). reopened, replay_flagged, pending_noop and
+	// enqueued count holder scopes; crash_recovery counts a pass that fanned out
+	// only because its attempt count showed an earlier attempt may have died
+	// before the fan-out; deferred counts holders carried to a later claim;
+	// read_error, read_timeout, reopen_error and state_error count a failed
+	// holder read, reopen, or own-item state update, each of which fails the
+	// pass so the queue retries it.
+	SupplyChainImpactFanOut metric.Int64Counter
 	// SupplyChainRemediationDecisions counts reducer-owned advisory-only
 	// safe-upgrade decisions per supply-chain impact finding (issue #595).
 	// Labels: domain (supply_chain_impact), outcome (confidence label
@@ -4619,6 +4631,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SupplyChainSuppressionDecisions counter: %w", err)
+	}
+
+	inst.SupplyChainImpactFanOut, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_fanout_total",
+		metric.WithDescription("Total one-hop holder fan-out outcomes after a supply-chain impact write, by reducer domain and outcome"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SupplyChainImpactFanOut counter: %w", err)
 	}
 
 	inst.SupplyChainRemediationDecisions, err = meter.Int64Counter(

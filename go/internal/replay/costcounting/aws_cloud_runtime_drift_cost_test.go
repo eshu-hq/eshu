@@ -120,8 +120,9 @@ const awsCloudRuntimeDriftFixtureFencingToken int64 = 1
 
 // postgresExecCountingQueryer is an in-memory db.ExecQueryer that
 // records each ExecContext call. QueryContext is never exercised by
-// PostgresAWSCloudRuntimeDriftWriter (it only writes) and is implemented as a
-// no-op solely to satisfy the db.ExecQueryer interface.
+// PostgresAWSCloudRuntimeDriftWriter (it only writes). The supply_chain_impact
+// writer reads the rows it is about to overwrite inside its transaction
+// (#9695), so QueryContext returns an empty cursor, not nil rows.
 type postgresExecCountingQueryer struct {
 	execCalls atomic.Int64
 }
@@ -132,8 +133,16 @@ func (q *postgresExecCountingQueryer) ExecContext(_ context.Context, _ string, _
 }
 
 func (q *postgresExecCountingQueryer) QueryContext(_ context.Context, _ string, _ ...any) (db.Rows, error) {
-	return nil, nil
+	return postgresEmptyRows{}, nil
 }
+
+// postgresEmptyRows is a db.Rows cursor with no rows.
+type postgresEmptyRows struct{}
+
+func (postgresEmptyRows) Next() bool        { return false }
+func (postgresEmptyRows) Scan(...any) error { return nil }
+func (postgresEmptyRows) Err() error        { return nil }
+func (postgresEmptyRows) Close() error      { return nil }
 
 func (q *postgresExecCountingQueryer) count() int64 { return q.execCalls.Load() }
 

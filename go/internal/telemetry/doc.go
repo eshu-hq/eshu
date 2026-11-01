@@ -108,7 +108,14 @@
 // and duration instruments for metadata-only trace-signal collection. Raw tag
 // values, tenant IDs, trace IDs, spans, request attributes, TraceQL bodies, and
 // provider response bodies stay out of metric labels.
-// The supply-chain reducer registers SupplyChainSuppressionDecisions
+// The supply-chain reducer registers SupplyChainImpactFanOut
+// (eshu_dp_supply_chain_impact_fanout_total), labeled by reducer domain and
+// outcome, so an operator can see whether a source retraction reached the scopes
+// that hold stale copies (reopened, replay_flagged, pending_noop, enqueued,
+// deferred) and whether a pass fanned out only because a retry showed an earlier
+// attempt may have died first (crash_recovery) or failed to read its holders
+// (read_error, read_timeout), reopen a holder (reopen_error), or record its own
+// state (state_error). The supply-chain reducer registers SupplyChainSuppressionDecisions
 // (eshu_dp_supply_chain_suppression_decisions_total), labeled by reducer
 // domain and outcome state (active, not_affected, accepted_risk,
 // false_positive, ignored, expired, provider_dismissed, scope_mismatch,

@@ -18,6 +18,9 @@ import (
 // superseded findings must commit or roll back together (#6831).
 type SupplyChainImpactTx interface {
 	factwrite.Execer
+	// QueryContext runs a read inside the write transaction: the changed-row
+	// read and the recovery CVE read (#9695).
+	QueryContext(ctx context.Context, query string, args ...any) (SupplyChainImpactRows, error)
 	Commit() error
 	Rollback() error
 }
@@ -37,52 +40,63 @@ func runSupplyChainImpactTx(
 	beginner SupplyChainImpactBeginner,
 	write SupplyChainImpactWrite,
 	rows []factwrite.VersionedRow,
+	meta []changedRow,
 	protected ProtectedScanImpactPublicationSet,
 	hasProtected bool,
 	now time.Time,
-) (int, error) {
+) (supplyChainImpactTxOutcome, error) {
 	tx, err := beginner.BeginSupplyChainImpactTx(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("begin supply chain impact transaction: %w", err)
+		return supplyChainImpactTxOutcome{}, fmt.Errorf("begin supply chain impact transaction: %w", err)
 	}
-	retracted, err := commitSupplyChainImpactRows(ctx, tx, write, rows, protected, hasProtected, now)
+	outcome, err := commitSupplyChainImpactRows(ctx, tx, write, rows, meta, protected, hasProtected, now)
 	if err != nil {
 		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
-			return 0, fmt.Errorf("%w; rollback: %v", err, rbErr)
+			return supplyChainImpactTxOutcome{}, fmt.Errorf("%w; rollback: %v", err, rbErr)
 		}
-		return 0, err
+		return supplyChainImpactTxOutcome{}, err
 	}
 	if err := tx.Commit(); err != nil {
-		return 0, fmt.Errorf("commit supply chain impact transaction: %w", err)
+		return supplyChainImpactTxOutcome{}, fmt.Errorf("commit supply chain impact transaction: %w", err)
 	}
-	return retracted, nil
+	return outcome, nil
+}
+
+// supplyChainImpactTxOutcome is what one committed pass reports: how many rows
+// it retracted, which CVEs its rows changed, and, for a recovery write, every
+// CVE the scope's rows name.
+type supplyChainImpactTxOutcome struct {
+	retracted    int
+	changedCVEs  []string
+	recoveryCVEs []string
 }
 
 // commitSupplyChainImpactRows runs one pass's statements inside tx and returns
-// how many superseded finding rows it retracted.
+// what it retracted and changed.
 func commitSupplyChainImpactRows(
 	ctx context.Context,
 	tx SupplyChainImpactTx,
 	write SupplyChainImpactWrite,
 	rows []factwrite.VersionedRow,
+	meta []changedRow,
 	protected ProtectedScanImpactPublicationSet,
 	hasProtected bool,
 	now time.Time,
-) (int, error) {
+) (supplyChainImpactTxOutcome, error) {
 	var publisher ProtectedScanImpactPublisher
 	var authorizer ProtectedScanImpactAuthorizer
 	if hasProtected {
 		var ok bool
 		publisher, ok = tx.(ProtectedScanImpactPublisher)
 		if !ok {
-			return 0, fmt.Errorf("protected scan impact publication transaction is required")
+			return supplyChainImpactTxOutcome{}, fmt.Errorf("protected scan impact publication transaction is required")
 		}
 		authorizer, ok = tx.(ProtectedScanImpactAuthorizer)
 		if !ok {
-			return 0, fmt.Errorf("protected scan impact authorization transaction is required")
+			return supplyChainImpactTxOutcome{}, fmt.Errorf("protected scan impact authorization transaction is required")
 		}
 		if err := authorizer.AuthorizeProtectedScanImpactResults(ctx, protected); err != nil {
-			return 0, fmt.Errorf("authorize protected scan impact result: %w", err)
+			return supplyChainImpactTxOutcome{}, fmt.Errorf("authorize protected scan impact result: %w", err)
 		}
 	}
 	// Lock before any impact row lock this transaction takes, so the only
@@ -93,7 +107,7 @@ func commitSupplyChainImpactRows(
 		ctx, lockSupplyChainImpactConflictDomainQuery,
 		supplyChainImpactConflictDomainKey(write.ScopeID, write.GenerationID),
 	); err != nil {
-		return 0, fmt.Errorf("lock supply chain impact conflict domain: %w", err)
+		return supplyChainImpactTxOutcome{}, fmt.Errorf("lock supply chain impact conflict domain: %w", err)
 	}
 	// Admission second, still before any row is touched: a pass whose fencing
 	// token is older than one already admitted for this (scope, generation) is
@@ -103,33 +117,57 @@ func commitSupplyChainImpactRows(
 	// other: it upserts, and only the retraction below is skipped.
 	admitted, err := tryAdmitSupplyChainImpactWrite(ctx, tx, write.ScopeID, write.GenerationID, write.FencingToken, now)
 	if err != nil {
-		return 0, err
+		return supplyChainImpactTxOutcome{}, err
 	}
 	if !admitted {
-		return 0, supplyChainImpactWriteSupersededError{
+		return supplyChainImpactTxOutcome{}, supplyChainImpactWriteSupersededError{
 			scopeID:      write.ScopeID,
 			generationID: write.GenerationID,
 			fencingToken: write.FencingToken,
 		}
 	}
+	// Read what the pass is about to overwrite, after the lock (no concurrent
+	// pass of this conflict domain can change it) and before the upsert, so the
+	// change set compares the new rows with the rows they replace (#9695).
+	stored, err := readStoredSupplyChainImpactFindings(ctx, tx, write.ScopeID, write.GenerationID)
+	if err != nil {
+		return supplyChainImpactTxOutcome{}, err
+	}
 	// Bounded chunked bulk insert: findings are upserted in O(N/batchSize)
 	// round-trips rather than one ExecContext per finding.
 	if err := factwrite.BatchInsertVersionedFacts(ctx, tx, rows); err != nil {
-		return 0, fmt.Errorf("write supply chain impact fact: %w", err)
+		return supplyChainImpactTxOutcome{}, fmt.Errorf("write supply chain impact fact: %w", err)
 	}
 	if hasProtected {
 		if err := publisher.PublishProtectedScanImpactResults(ctx, protected); err != nil {
-			return 0, fmt.Errorf("publish protected scan impact result: %w", err)
+			return supplyChainImpactTxOutcome{}, fmt.Errorf("publish protected scan impact result: %w", err)
 		}
 	}
-	if write.PartialEvidence {
-		return 0, nil
+	outcome := supplyChainImpactTxOutcome{
+		changedCVEs: changedCVEIDs(meta, stored, write.GenerationID, write.FencingToken, !write.PartialEvidence),
 	}
-	keep := make([]string, 0, len(rows))
-	for _, row := range rows {
-		keep = append(keep, row.FactID)
+	if write.Owed != nil && len(outcome.changedCVEs) > 0 {
+		if err := write.Owed.RecordFanOutOwed(ctx, tx); err != nil {
+			return supplyChainImpactTxOutcome{}, fmt.Errorf("record supply chain impact fan-out owed: %w", err)
+		}
 	}
-	return retractSupersededSupplyChainImpactFindings(ctx, tx, write.ScopeID, write.GenerationID, keep, write.FencingToken)
+	if !write.PartialEvidence {
+		keep := make([]string, 0, len(rows))
+		for _, row := range rows {
+			keep = append(keep, row.FactID)
+		}
+		outcome.retracted, err = retractSupersededSupplyChainImpactFindings(ctx, tx, write.ScopeID, write.GenerationID, keep, write.FencingToken)
+		if err != nil {
+			return supplyChainImpactTxOutcome{}, err
+		}
+	}
+	if write.Recovery {
+		outcome.recoveryCVEs, err = readSupplyChainImpactCVEIDs(ctx, tx, write.ScopeID, write.GenerationID)
+		if err != nil {
+			return supplyChainImpactTxOutcome{}, err
+		}
+	}
+	return outcome, nil
 }
 
 // lockSupplyChainImpactConflictDomainQuery serializes the write transactions
