@@ -410,3 +410,9 @@ func registerComponentExtensionStatus() {
 func registerOwnedPackageTargets() {
 	spanNames = append(spanNames, contract.SpanOwnedPackageTargetsRead)
 }
+
+// registerOCR appends the #9728 out-of-process OCR extract and recognize
+// spans, unconditionally at the end and independent of every earlier step.
+func registerOCR() {
+	spanNames = append(spanNames, contract.SpanOCRExtract, contract.SpanOCRRecognize)
+}

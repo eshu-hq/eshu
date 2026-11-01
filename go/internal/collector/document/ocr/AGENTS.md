@@ -45,7 +45,8 @@
 ## Anti-patterns
 
 - Adding cloud OCR, vision models, network fetches, renderer execution, or temp
-  file handling here.
+  file handling here. The out-of-process engine and its scratch directory
+  live in the `tesseract` subpackage; keep this package free of them.
 - Treating OCR text as canonical service, deployment, owner, incident, or graph
   truth.
 - Hiding malformed or unsupported media as an empty successful document.

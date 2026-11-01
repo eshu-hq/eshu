@@ -2824,6 +2824,16 @@ type Instruments struct {
 	ComponentExtensionSourceLatency    metric.Float64Histogram
 	ComponentExtensionRetryAfter       metric.Float64Gauge
 
+	// OCRRecognitions, OCRRecognitionDuration, OCRPeakRSS, OCRExtractions,
+	// and OCRRedactedRegions are the #9728 out-of-process OCR family the
+	// tesseract engine records. Labels are outcome (recognitions, duration)
+	// and status (extractions) only. Registered by registerOCRInstruments.
+	OCRRecognitions        metric.Int64Counter
+	OCRRecognitionDuration metric.Float64Histogram
+	OCRPeakRSS             metric.Int64Histogram
+	OCRExtractions         metric.Int64Counter
+	OCRRedactedRegions     metric.Int64Counter
+
 	// Pipeline overlap metric — how long collector and projector ran concurrently
 	PipelineOverlapDuration metric.Float64Histogram
 
@@ -6132,6 +6142,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerComponentExtensionInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerOCRInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 
