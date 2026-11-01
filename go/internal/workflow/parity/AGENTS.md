@@ -10,7 +10,9 @@
 ## Invariants this package enforces
 
 - **Two isolated databases, never shared tables** — the in-tree leg uses
-  one `postgresproof` schema per run; the satellite leg truncates only
+  one disposable `postgresproof` database per run, fully bootstrapped in
+  `public` (an isolated schema skips the public-only migrations the claim
+  guard SQL needs, #8875); the satellite leg truncates only
   satellite-owned tables. A scenario that needs cross-leg reads filters
   by its deterministic run prefix.
 - **Every scenario drains what it seeds** — `drainScenario` asserts the
