@@ -83,6 +83,9 @@ This phase changes deployment configuration only.
 - **Dependency.** The QA target (506 to 0) needs item 1.1 deployed and the OSV
   scopes regenerated. Stored OSV facts carry neither `cvss_vector` nor
   `severity_label` today.
+  Item 1.1's change, shared golden, publication proof, rollout effect, and
+  readback plan are in
+  [the OSV severity fields evidence note](../evidence/osv-severity-fields-rollout.md).
 
 ### Item 1.4 details
 
