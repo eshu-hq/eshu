@@ -64,6 +64,9 @@ Read these files first:
   harness (`intake_parity_stores_test.go`,
   `intake_parity_cases_test.go`). The submitter performs zero SQL; receipt
   shape changes stay in lockstep with `go/internal/webhook/intake`.
+  Revoked-token and cancellation proofs (#8876 box 7) live in
+  `intake_box7_proofs_test.go`; keep them green when changing auth or
+  context handling.
 - Add GCP freshness Pub/Sub push OIDC verification behavior in
   `gcp_freshness_oidc.go` and cover it in `gcp_freshness_oidc_test.go`, using
   the injected `gcpPushOIDCValidator` seam (never make a live call to Google

@@ -10,6 +10,7 @@ Read these files first:
 2. `wire.go`
 3. `api.go`
 4. `api_test.go`
+5. `api_cancel_test.go` (disconnect and cancellation proofs)
 
 ## Invariants
 

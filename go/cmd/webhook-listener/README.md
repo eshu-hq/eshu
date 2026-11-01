@@ -79,6 +79,19 @@ intake API on its combined mux, so `/healthz` and `/readyz` cover the intake
 path on the same port; trigger families without a configured store answer
 503 so the satellite keeps the delivery for redelivery.
 
+### Revoked authority and cancellation proofs (#8876 box 7)
+
+`intake_box7_proofs_test.go` runs the real listener, submitter, and intake
+API over the in-memory stores, with no database. After core rotates the
+bearer token, a validly signed delivery sent with the old token gets 401 at
+the intake API and 500 at the listener (the provider redelivers) and stores
+no row. Once the listener holds the new token the redelivery lands, giving
+exactly two rows for two distinct deliveries. A provider that hangs up
+mid-submit stores nothing, and its redelivery stores exactly one row. The
+submit client returns `context.Canceled` promptly and leaks no goroutine.
+The matching intake API disconnect cases are in
+`go/internal/webhook/intake/api_cancel_test.go`.
+
 ### Served intake evidence (#9404)
 
 No-Regression Evidence: baseline `origin/main` (merge `a5252ea`) vs this
