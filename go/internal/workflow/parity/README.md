@@ -80,3 +80,21 @@ rows remain satellite-side, no local schema remains.
 
 No-Observability-Change: no new spans, metrics, logs, or dashboards; the
 test emits only the standard `go test` verdict lines.
+
+Performance Evidence: the in-tree leg now bootstraps a full database per
+test instead of an isolated schema (change in `openInTreeBackend`). Baseline:
+the suite with the public schema bootstrapped by hand, 8.6 s and 9.1 s wall
+time across two runs, Postgres 18.6, the pinned `eshu-workflow` image.
+After: 6.3 s (and 9.8 s under `-race`) on the same shape, 7 top-level tests
+including the 30-claim throughput probe. Terminal counts: 0 rows in the
+satellite tables, no leftover `parity_*` schema, and the per-test databases
+dropped (`pg_database` lists only `postgres`, `template0`, `template1`).
+
+No-Regression Evidence: pass set unchanged apart from the 12 tests that
+failed on a fresh database before this change; production code, the claim
+guard SQL and `postgresproof` are untouched, and the tests still skip when
+`PARITY_INTREE_DSN` is unset.
+
+Observability Evidence: none needed. This is a test-only package; a failing
+run prints both outcome records with the underlying error texts, and the
+opt-in or admin-DSN guards fail with the variable name.
