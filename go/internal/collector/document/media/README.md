@@ -38,6 +38,9 @@ See `doc.go` for the godoc-rendered package contract.
   output without source-specific types. `EngineResult.ModelName` and
   `ModelDigest` become `transcript_model` and `transcript_model_digest`
   section metadata when a model-backed engine sets them.
+- `ContainsSensitiveKeyword` is the keyword check `Extract` uses to open a value
+  window. An engine may use it to keep a segment it would drop; it must not
+  redact on the result.
 - `ErrNoSpeech` is the sentinel an engine wraps when it ran cleanly but heard
   no speech. `Extract` records it as `transcript_status=no_speech` with the
   `transcript_no_speech` warning instead of failing.
@@ -51,8 +54,9 @@ See `doc.go` for the godoc-rendered package contract.
 The package depends on `internal/collector/preflight/media` for metadata-only
 media gating, `internal/doctruth` for conservative mention extraction,
 `internal/facts` for documentation payload and envelope contracts, and
-`internal/scope` for the documentation collector kind. It uses only the Go
-standard library otherwise.
+`internal/scope` for the documentation collector kind. It uses
+`golang.org/x/text/unicode/norm` for keyword folding and only the Go standard
+library otherwise.
 
 ## Telemetry
 
@@ -103,8 +107,8 @@ no error text. A value section carries the existing `redacted` and
 A speech engine can put a secret's value in a later segment than the word that
 introduces it, so `Extract` does not judge segments only one at a time (#9786).
 
-- A segment with a sensitive keyword (`password`, `api_key`, `private_key`, or
-  a `*_marker` keyword) opens a window of `valueWindowSegments` (2) segments.
+- A segment with a sensitive keyword (see "Keyword forms" below) opens a window
+  of `valueWindowSegments` (2) segments.
   Those segments persist as `[redacted]`, with the same `redacted`,
   `redaction_class`, and warning metadata as a marker segment, and emit no
   mention facts.
@@ -149,6 +153,54 @@ introduces it, so `Extract` does not judge segments only one at a time (#9786).
   can reach 4n. So "The password was rotated." costs ordinary speech. That loss
   shows in section metadata; a persisted secret cannot be taken back.
 
+### Keyword forms
+
+The keyword check (#9788) folds the segment text before it matches, so the
+forms a speech engine or an evasion produces fold to the same word:
+
+- Case, Unicode compatibility forms (fullwidth letters, ligatures, no-break and
+  ideographic spaces), and combining accents fold away ("pássword").
+- Format characters are dropped: soft hyphen, zero-width space and joiners,
+  word joiner, byte order mark, and bidirectional marks.
+- A bounded set of Cyrillic, Greek, and Latin look-alikes of the keyword
+  letters folds to Latin (`homoglyphs` in `spoken_keyword.go`). It is not the
+  full Unicode confusables table.
+- A run of white space, dash, `_`, or `.` becomes one space, so "pass word",
+  "pass-word", "pass_word", "pass.word", "API key", and "P.I.N." fold like their
+  joined forms.
+
+The folded text is matched against `spokenKeywordRules`. The boundary of each
+rule is deliberate:
+
+| Rule | Words | Boundary | Why |
+| --- | --- | --- | --- |
+| Substring | `password`, `passphrase`, `passcode`, `passwd`, `pwd`, `credential`, `api key`, `apikey`, `private key`, and the `*_marker` keywords | none | No ordinary word contains them; "passwords" and "credentials" are the same vocabulary. This is the original behavior. |
+| Start-bounded | `pass word`, `pass phrase`, `pass code` | no letter before | "compass word" and "bypass wording" stay clear. |
+| Whole word | `token`, `tokens`, `pin`, `p i n` | no letter on either side | "tokenize", "tokenizer", "pinned", "spinning", "mapping", "shipping", "betoken", and "spin" stay clear. |
+
+Source names, document IDs, and mention hints keep the original substring list,
+because they are labels such as `token-service` and `pin-assignments.wav`, not
+speech. Only a transcript segment gets the folded rules.
+
+Measured cost, on 206,780 sentences of four or more words from this
+repository's `docs/public` and `docs/internal` Markdown (a security-heavy
+corpus, so an upper bound for ordinary meeting speech): the original list hit
+290 sentences (0.14%); the folded rules hit 3,492 (1.69%). The added hits came
+from `token` 1,216, `credential` 1,015, `pin` 581, `tokens` 307, `api key` 30,
+`pwd` 30, `private key` 17, `apikey` 5, and `passwd` 1. Each hit also withholds
+the next two segments with a letter or digit. The sandbox fixture sentences
+("Please restart the payments worker before noon.", "The password is
+swordfish.", "The password is as follows.", "Swordfish.") match as before.
+
+The whisper.cpp engine drops a segment that is only a bracketed, parenthesized,
+starred, or music-note annotation, such as "[BLANK_AUDIO]". Whisper also wraps
+quiet speech that way, so "(The password is)" used to vanish before `Extract`
+could open a window for it. The engine now keeps an annotation that holds a
+keyword, using the exported `ContainsSensitiveKeyword`, and still redacts
+nothing; `Extract` withholds the text and opens the window. Other annotations
+are still dropped, and a dropped annotation that held a value is lost, not
+persisted.
+
 Known limits:
 
 - A value spoken before its keyword ("swordfish is the password") is not
@@ -156,8 +208,10 @@ Known limits:
 - A value spoken past the window keeps its text.
 - Two self-redacting segments in a row, such as an email and a ticket, use up
   the window, so a value behind them keeps its text.
-- Only the keywords above are matched, so spoken forms such as "API key" open
-  no window and are not redacted (#9788).
+- Only the forms above are matched. Leetspeak ("p4ssword"), a homoglyph outside
+  the bounded set, a misheard keyword, and unlisted secret words ("secret",
+  "passkey", "login") open no window and are not redacted.
+- `tokenized`, `tokenizer`, and `pins` keep their text by design.
 
 ## Gotchas / invariants
 

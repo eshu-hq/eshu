@@ -11,7 +11,8 @@
 // ownership, incidents, graph edges, or claim candidates from transcript text.
 // Unsafe source locations and source identity fields are redacted before
 // persistence, the segments that follow a sensitive keyword in time or slice
-// order are redacted as its value, redacted transcript sections do not emit
+// order are redacted as its value (the keyword is matched in its spoken forms,
+// such as "pass word", "PIN", and "token", after the text is folded), redacted transcript sections do not emit
 // mention facts, and sensitive-looking mention hints are dropped before
 // extraction. An engine that heard no speech wraps ErrNoSpeech; Extract records
 // that as a no_speech document instead of an error. Runtime enablement,
