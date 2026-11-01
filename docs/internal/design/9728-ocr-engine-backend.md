@@ -109,11 +109,13 @@ because `os/exec` has no pre-exec rlimit hook. The sandbox cgroup
 
 Peak RSS is sampled from `/proc/<pid>/status` VmHWM. `ru_maxrss` is wrong
 for this: Go spawns with `CLONE_VFORK|CLONE_VM`, and execve folds the shared
-parent mm's high-water mark into the child. A scratch probe showed the child
-reporting 13, 310, and 823 MB for parents of 10, 300, and 800 MiB, while the
-child's own VmHWM was 1.8 MB. The first race-detector run then failed every
-real recognition against a 1 GiB RSS cap. `TestRunReportsChildOnlyPeakRSS`
-is the regression for this.
+parent mm's high-water mark into the child. In a scratch probe, a `/bin/sh`
+child reported `ru_maxrss` of 13,232, 310,448, and 822,960 KiB under parents
+holding 10, 300, and 800 MiB. Its own VmHWM was 1,828 kB each time. An
+earlier draft enforced a 1 GiB cap on `ru_maxrss`. Under `-race`, the
+parent's RSS pushed every fake-binary unit-test run past that cap
+(`memory_exceeded`). `TestRunReportsChildOnlyPeakRSS` is the regression for
+this.
 
 ## 5. Sandbox proof
 
