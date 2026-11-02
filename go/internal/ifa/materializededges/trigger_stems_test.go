@@ -170,6 +170,12 @@ var materializedEdgeFamilyTriggerStems = map[string]string{
 	// (scripts/lib/ifa_fault_injection_cloud_resource_cells.sh), the
 	// determinism drive/assert file, and the Odù the triggers name.
 	"cloud_resource": "cloud_resource",
+	// semantic_entity_containment joins them with the #6228
+	// semantic_entity_containment live drive: same stem shape, read off
+	// the fault cells file
+	// (scripts/lib/ifa_fault_injection_semantic_entity_containment_cells.sh),
+	// the fault cases file, and the Odù the triggers name.
+	"semantic_entity_containment": "semantic_entity_containment",
 }
 
 // TestEveryCoveredFamilyTriggersBothLiveGates closes the third side of the

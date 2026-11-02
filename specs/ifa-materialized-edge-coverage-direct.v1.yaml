@@ -48,14 +48,15 @@
 # mistake commit 42e188ba1 made for documentation_edges and had to withdraw; it
 # is not repeated here.
 #
-# TWENTY OF THEM NOW HAVE ALL FOUR. kubernetes_namespace_environment,
+# TWENTY-ONE OF THEM NOW HAVE ALL FOUR. kubernetes_namespace_environment,
 # iam_instance_profile_role, iam_can_assume, iam_can_perform,
 # ec2_uses_profile, s3_logs_to, iam_escalation, authenticates_vault_role,
 # uses_vault_policy, grants_secret_read, built_from,
 # cloud_resource_container_image,
 # crossplane_satisfied_by, derived_from, code_interproc_evidence,
 # code_taint_evidence, observability_coverage, and incident_routing_evidence
-# code_taint_evidence, observability_coverage, publishes, and cloud_resource
+# code_taint_evidence, observability_coverage, publishes, cloud_resource,
+# and semantic_entity_containment
 # each carry a cataloged Odù, a registered
 # edge-type set, a vacuity guard dispatched from MaterializedEdgeOduResolver,
 # a hand-derived expected-edge-set fixture their guard reproduces exactly,
@@ -71,7 +72,8 @@
 # (with the #8539 per-statement hold kill cell) for grants_secret_read,
 # and the publishes live leaf for
 # publishes, and the cloud_resource live leaf for
-# cloud_resource -- live
+# cloud_resource, and the semantic_entity_containment live drive for
+# semantic_entity_containment -- live
 # ifa-determinism AND
 # ifa-fault-injection
 # matrices driving the family
@@ -482,6 +484,23 @@ coverage:
     scenario: odu
     scenario_type: fault
     ref: "odu:ifa-cloud-resource-family"
+  # semantic_entity_containment: fault-free baseline plus kill-worker and
+  # fail-graph-write recovery, all asserting the four-edge CONTAINS exact
+  # set with identical graph digests (#6228 semantic_entity_containment
+  # live drive). The Go Function, Python async Function, and Python
+  # Annotation rows resolve against the projector-committed canonical
+  # nodes (canonical stamp); the Elixir module-attribute Variable
+  # resolves against the semantic-owned node (semantic stamp); the plain
+  # Python Function and the Go Class resolve to nothing on either path.
+  - surface: "materialized_edges:semantic_entity_containment"
+    scenario: odu
+    scenario_type: baseline
+    ref: "odu:ifa-semantic-entity-containment-family"
+    proof_gate: ifa-determinism
+  - surface: "materialized_edges:semantic_entity_containment"
+    scenario: odu
+    scenario_type: fault
+    ref: "odu:ifa-semantic-entity-containment-family"
     proof_gate: ifa-fault-injection
 
 waivers:
@@ -545,16 +564,6 @@ waivers:
     issue: "#6228"
     waived: "2026-08-23"
     reason: "WriteSecurityGroupSGRuleEdges -> cypher/security_group_reachability_edge_writer.go merges ALLOWS_INGRESS / ALLOWS_EGRESS from a CLOSED direction vocabulary (truth correction: the vocabulary was never open); split verdict D kind C: the retract names [rel:ALLOWS_INGRESS|ALLOWS_EGRESS], edge types registered in the multi-type direct table with foreign-edge regression proof (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Stays waived: no Odu, expected-edge-set fixture, or live matrix yet (per-family leaf owns coverage rows + roster flag)"
-  - surface: "materialized_edges:semantic_entity_containment"
-    proof_gate: ifa-determinism
-    issue: "#6228"
-    waived: "2026-08-23"
-    reason: "WriteSemanticEntities -> cypher/semantic_entity_statements.go merges CONTAINS; direct materialization; the dedicated [rel:CONTAINS] edge retract, registered edge types, endpoint-label + stamp fence, offline Odu, vacuity guard, expected-edge-set fixture, and cassette landed in the #8359 change (foreign-edge survival proven live on pinned Neo4j). The shared-cell question is settled by the #8359 arbiter verdict (a): shared N={1,2,4} cell with the exact-set assert scoped to the family's own fixture repo — no sibling subtraction, no dedicated cell — wired through registry row 22 plus the shared direct-family drive/assert. Stays waived until the first live drive records the actual stamped population on NornicDB, the fixture is reconciled to that measured truth, and the determinism gate goes green at N=1,2,4"
-  - surface: "materialized_edges:semantic_entity_containment"
-    proof_gate: ifa-fault-injection
-    issue: "#6228"
-    waived: "2026-08-23"
-    reason: "WriteSemanticEntities -> cypher/semantic_entity_statements.go merges CONTAINS; direct materialization; dedicated edge retract + registration + offline Odu/guard/fixture/cassette landed in the #8359 change (family stays waived: no fault cells and no live determinism drive yet)"
   - surface: "materialized_edges:uses_service_account"
     proof_gate: ifa-determinism
     issue: "#6228"
