@@ -6,7 +6,8 @@
 // The binary connects to one or more configured Kubernetes clusters with
 // read-only credentials (a kubeconfig file or the in-cluster service account),
 // lists a fixed core resource set (namespaces, pods, deployments, replicasets,
-// services, ingresses, ServiceAccounts, and RBAC objects), maps those objects
+// statefulsets, daemonsets, jobs, cronjobs, services, ingresses,
+// ServiceAccounts, and RBAC objects), maps those objects
 // into typed kubernetes_live facts (pod_template, relationship, warning) and
 // secrets_iam_posture facts, and commits them through the shared Postgres
 // ingestion store via collector.Service. GKE Workload Identity annotation

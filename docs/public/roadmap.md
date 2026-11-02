@@ -132,8 +132,10 @@ record.
 
 ### Retrieval And Graph Backend Evaluation
 
-NornicDB remains the default graph backend for current Compose and Kubernetes
-work. Semantic retrieval, BM25, and vector search are separate evaluation
+Neo4j is the supported canonical graph backend and NornicDB is secondary,
+not supported for deployment (decision #7331); the Compose and local CLI
+startup pins follow that decision's phase-2 landing. Semantic retrieval, BM25,
+and vector search are separate evaluation
 tracks. They should only move into default runtime behavior after memory,
 startup, query latency, accuracy, and operator-debug evidence justify the
 trade-off.

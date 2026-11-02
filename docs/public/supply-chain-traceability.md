@@ -2,9 +2,13 @@
 
 Eshu traces a vulnerability from a published CVE all the way to a running
 workload, and refuses to publish an impact finding until it owns the evidence
-that connects them. This page is the entry point for that capability: the
-chain, the surfaces that expose it, and the honest line between what is
-production-promoted and what is gated or on the roadmap.
+that connects them. The join to a running workload holds only when the image
+digest is known and joins through CI deployment evidence or a digest-matched
+ECS, Lambda, or Kubernetes `RUNS_IMAGE` edge; EC2 and host-package evidence,
+ECS images outside ECR, and Kubernetes images from a registry Eshu never
+collected stop at the last joined step. This page is the entry point for that
+capability: the chain, the surfaces that expose it, and the honest line
+between what is production-promoted and what is gated or on the roadmap.
 
 The chain Eshu models, end to end:
 
@@ -31,7 +35,10 @@ SUSE vendor advisory correlation remains unsupported and fails closed with
 an empty vendor source and a warning. A package receives a vendor advisory
 source only with a matching package-level repository-origin binding.
 QA scanner-worker deployment and live RPM coverage are tracked by #9296 and
-#9300; this code support does not establish deployed coverage.
+#9300; this code support does not establish deployed coverage. Claim
+dependency: this RPM wording tracks the R4 landing (#9300, closed), and the
+runtime instance counts on the deployment story track R10 (#9307, open) —
+re-check both rows when those PRs move.
 
 ## The Differentiated Claims
 
