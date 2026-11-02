@@ -5,7 +5,7 @@ package config
 
 // ProviderConfigMutationAdmission is the #8872 admission boundary for
 // admin provider-config mutations: POST create, update, revert, enable,
-// disable, and test-connection on
+// and disable on
 // /api/v0/auth/admin/provider-configs. Write-only secrets stay sealed —
 // no response, log line, or audit event ever carries plaintext or sealed
 // ciphertext — and every attempt is governance-audited.
