@@ -5,6 +5,7 @@ package ocr
 
 import (
 	"bytes"
+	"strings"
 	"unicode"
 	"unicode/utf8"
 )
@@ -36,7 +37,7 @@ var labelFamilies = struct {
 	exact    [][]byte
 	phrases  []markerPhrase
 }{
-	contains: foldedList("password", "passwd", "passphrase", "passcode", "credential", "apikey", "privatekey"),
+	contains: foldedList("password", "passwd", "passphrase", "passcode", "pincode", "credential", "apikey", "privatekey"),
 	endsWith: foldedList("secret", "token"),
 	exact:    foldedList("pin", "pwd"),
 	phrases: []markerPhrase{
@@ -55,14 +56,26 @@ type markerPhrase struct {
 	second        [][]byte
 }
 
-// foldRune lowercases r and maps the digits and symbols that OCR reads in place
-// of a letter onto that letter: 0 for o, 3 for e, 4 and @ for a, 5 and $ for s.
-// The letters i and l and the digit 1 are one class, because a capital I, a
-// lowercase l, and a 1 look alike in most fonts and the marker list holds no
-// word that depends on telling them apart. The map is exact, so it costs one
-// rune lookup and finds no word that is not a marker once folded.
+// plainRune maps a fullwidth ASCII letter or digit (U+FF01 to U+FF5E, as in
+// `Ｐａｓｓｗｏｒｄ`) to its ASCII form and lowercases the result.
+func plainRune(r rune) rune {
+	if r >= 0xFF01 && r <= 0xFF5E {
+		r -= 0xFEE0
+	}
+	return unicode.ToLower(r)
+}
+
+// foldRune maps r onto the letter a marker word would spell: it applies
+// plainRune, then folds the digits and symbols that OCR reads in place of a
+// letter onto that letter: 0 for o, 3 for e, 4 and @ for a, 5 and $ for s. The
+// letters i and l and the digit 1 are one class, because a capital I, a
+// lowercase l, and a 1 look alike in most fonts. The one word that class
+// cannot bear is a short one: `PLN` is not a misread `PIN`, so a whole word
+// that holds a letter l never matches `pin` (see wordIsMarker). The map is
+// exact, so it costs one rune lookup and finds no word that is not a marker
+// once folded.
 func foldRune(r rune) rune {
-	switch r = unicode.ToLower(r); r {
+	switch r = plainRune(r); r {
 	case '0':
 		return 'o'
 	case '3':
@@ -107,33 +120,59 @@ func appendFolded(b []byte, r rune) []byte {
 	return utf8.AppendRune(b, foldRune(r))
 }
 
-// containsMarkerWord reports whether text holds a label from labelFamilies. It
-// reads text once, stops at the first match, and keeps its three working
-// buffers on the stack for any word shorter than 64 bytes, so ordinary text
-// costs no allocation.
+// containsMarkerWord reports whether text holds a label from labelFamilies, or
+// any marker from the source-name list as a raw substring in any case. The
+// second clause keeps the rule a superset of the substring list it replaced,
+// so a label the word split misses (`API_KEY2`, `private_keyfile`, `API_kEY`)
+// is still caught. The scan makes a fixed number of passes over text, stops at
+// the first match, and keeps its working buffers on the stack for any word
+// shorter than 64 bytes, so ordinary text costs no allocation.
 func containsMarkerWord(text string) bool {
+	if containsSourceMarker(text) {
+		return true
+	}
 	var pieceBuf, runBuf, prevBuf [64]byte
 	piece, run, prev := pieceBuf[:0], runBuf[:0], prevBuf[:0] // the word, the run of letters and digits, and the word before
 	var prevRune rune                                         // the last word rune read, or 0 after a separator
+	// pieceTail and runTail are the lengths of piece and run without the
+	// digits at their end, so `token2` is the word `token`. pieceL and runL
+	// report a letter l, which the fold would otherwise read as i.
+	var pieceTail, runTail int
+	var pieceL, runL bool
 	// havePrev reports that prev holds a word. gapOK reports that only space,
 	// hyphen, or underscore has come since it, and linked freezes that answer
 	// for the word being read.
 	havePrev, gapOK, linked := false, true, false
+	add := func(r rune) {
+		piece, run = appendFolded(piece, r), appendFolded(run, r)
+		if !unicode.IsDigit(r) {
+			pieceTail, runTail = len(piece), len(run)
+		}
+		if plainRune(r) == 'l' {
+			pieceL, runL = true, true
+		}
+	}
 	endPiece := func() bool {
 		if len(piece) == 0 {
 			return false
 		}
-		matched := pieceIsMarker(piece) || (linked && phraseEndsHere(prev, piece))
+		word := piece[:pieceTail]
+		matched := wordIsMarker(word, pieceL) || (linked && phraseEndsHere(prev, word))
 		prev = append(prev[:0], piece...)
-		piece = piece[:0]
+		piece, pieceTail, pieceL = piece[:0], 0, false
 		havePrev, gapOK = true, true
+		return matched
+	}
+	endRun := func() bool {
+		matched := runIsMarker(run, run[:runTail], runL)
+		run, runTail, runL = run[:0], 0, false
 		return matched
 	}
 	for i := 0; i < len(text); {
 		r, size := utf8.DecodeRuneInString(text[i:])
 		if symbols := inWordSymbols(text[i:], prevRune); symbols > 0 {
 			for _, symbol := range text[i : i+symbols] {
-				piece, run = appendFolded(piece, symbol), appendFolded(run, symbol)
+				add(symbol)
 				prevRune = foldRune(symbol)
 			}
 			i += symbols
@@ -141,10 +180,9 @@ func containsMarkerWord(text string) bool {
 		}
 		i += size
 		if !isWordRune(r) {
-			if endPiece() || runIsMarker(run) {
+			if endPiece() || endRun() {
 				return true
 			}
-			run = run[:0]
 			gapOK = gapOK && isPhraseGap(r)
 			prevRune = 0
 			continue
@@ -157,21 +195,76 @@ func containsMarkerWord(text string) bool {
 		if len(piece) == 0 {
 			linked = havePrev && gapOK
 		}
-		piece, run = appendFolded(piece, r), appendFolded(run, r)
+		add(r)
 		prevRune = r
 	}
-	return endPiece() || runIsMarker(run)
+	return endPiece() || endRun()
+}
+
+// containsSourceMarker reports whether text holds a source-name marker as a
+// raw substring, ignoring case. ASCII text is searched in place; text with any
+// other byte is lowercased first, as the source-name check does.
+func containsSourceMarker(text string) bool {
+	ascii := true
+	for i := 0; i < len(text); i++ {
+		if text[i] >= utf8.RuneSelf {
+			ascii = false
+			break
+		}
+	}
+	if !ascii {
+		lower := strings.ToLower(text)
+		for _, marker := range identityMarkers {
+			if strings.Contains(lower, marker) {
+				return true
+			}
+		}
+		return false
+	}
+	for _, marker := range identityMarkers {
+		if containsFoldASCII(text, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+// containsFoldASCII reports whether ASCII text holds marker, a lowercase ASCII
+// string, ignoring case. It allocates nothing.
+func containsFoldASCII(text string, marker string) bool {
+	for i := 0; i+len(marker) <= len(text); i++ {
+		j := 0
+		for j < len(marker) && lowerASCII(text[i+j]) == marker[j] {
+			j++
+		}
+		if j == len(marker) {
+			return true
+		}
+	}
+	return false
+}
+
+func lowerASCII(b byte) byte {
+	if b >= 'A' && b <= 'Z' {
+		return b + ('a' - 'A')
+	}
+	return b
 }
 
 // inWordSymbols returns how many bytes of text start a run of `@` or `$` that
 // sits inside a word, as in `P@ssword` or `pa$$w0rd`, or 0. A symbol at the edge
-// of a word (`$PIN`, `@token`) is a separator, not a letter.
+// of a word (`$PIN`, `@token`) is a separator, not a letter. It checks that a
+// word came before the run first, so a long run of symbols is measured once,
+// when it follows a word, and not again from every position inside it.
 func inWordSymbols(text string, prevRune rune) int {
+	if prevRune == 0 || (text[0] != '@' && text[0] != '$') {
+		return 0
+	}
 	n := 0
 	for n < len(text) && (text[n] == '@' || text[n] == '$') {
 		n++
 	}
-	if n == 0 || prevRune == 0 || n == len(text) {
+	if n == len(text) {
 		return 0
 	}
 	if next, _ := utf8.DecodeRuneInString(text[n:]); !isWordRune(next) {
@@ -191,16 +284,22 @@ func startsCamelWord(prev rune, r rune, next rune, after rune) bool {
 	return unicode.IsLower(prev) || (unicode.IsUpper(prev) && unicode.IsLower(next) && unicode.IsLower(after))
 }
 
-// pieceIsMarker checks one word against the families that need a word
-// boundary.
-func pieceIsMarker(piece []byte) bool {
-	for _, word := range labelFamilies.endsWith {
-		if endsWithWord(piece, word) {
+// wordIsMarker checks one word, without its trailing digits, against the
+// families that need a word boundary. hasL reports a letter l in the word: the
+// fold reads l as i, so `PLN` would otherwise be `pin`, and a whole-word marker
+// with an i never matches a word that holds an l. `PlN` as a misread of `PIN`
+// is the price.
+func wordIsMarker(word []byte, hasL bool) bool {
+	for _, marker := range labelFamilies.endsWith {
+		if endsWithWord(word, marker) {
 			return true
 		}
 	}
-	for _, word := range labelFamilies.exact {
-		if isWord(piece, word) {
+	for _, marker := range labelFamilies.exact {
+		if hasL && bytes.IndexByte(marker, 'i') >= 0 {
+			continue
+		}
+		if isWord(word, marker) {
 			return true
 		}
 	}
@@ -224,15 +323,17 @@ func phraseEndsHere(prev []byte, piece []byte) bool {
 	return false
 }
 
-// runIsMarker checks the letters and digits between two separators for the
-// families that match anywhere inside a word.
-func runIsMarker(run []byte) bool {
-	for _, word := range labelFamilies.contains {
-		if bytes.Contains(run, word) {
+// runIsMarker checks the letters and digits between two separators. The
+// families that match anywhere inside a word see the whole run. The families
+// that need a word boundary see the run without its trailing digits, so a case
+// change inside a word (`ToKen`, `PiN`) does not split it away from its marker.
+func runIsMarker(run []byte, word []byte, hasL bool) bool {
+	for _, marker := range labelFamilies.contains {
+		if bytes.Contains(run, marker) {
 			return true
 		}
 	}
-	return false
+	return wordIsMarker(word, hasL)
 }
 
 // isWord reports whether piece is word or its plural.

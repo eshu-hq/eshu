@@ -13,7 +13,10 @@ var markerLabelForms = map[string][]string{
 		"Password", "PASSWORD:", "PassWord", "passwords", "Password1", "DB_PASSWORD", "mypassword",
 		"Passw0rd:", "P@ssword", "P@ssw0rd", "Pa55word", "pa$$word", "Pa$$w0rd", "Passw0rd1",
 	},
-	"passwd and pwd": {"Passwd:", "PASSWD", "PWD:", "pwd", "Pwd=", "PWDs"},
+	"passwd and pwd": {"Passwd:", "PASSWD", "PWD:", "pwd", "Pwd=", "PWDs", "pwd2", "PWD1:"},
+	"digit tail":     {"Token2:", "secret2", "PIN2", "api key1", "API_KEY2", "access key3", "Secret1:", "TOKEN9="},
+	"case misread":   {"ToKen:", "SeCret:", "tOken", "ToKeN2", "PiN:", "PaSsWoRd"},
+	"fullwidth":      {"Ｐａｓｓｗｏｒｄ", "Ｔｏｋｅｎ:", "ＡＰＩ Ｋｅｙ"},
 	"secret": {
 		"Secret:", "SECRET", "secrets", "Client Secret:", "client-secret", "client_secret",
 		"clientSecret", "ClientSecret", "Top secret", "S3cret:", "5ecret",
@@ -31,7 +34,7 @@ var markerLabelForms = map[string][]string{
 	"credential":  {"Credential:", "Credentials", "credentials.json", "Cr3dentials", "Credentia1s"},
 	"passphrase":  {"Passphrase:", "Pass phrase", "pass-phrase", "PassPhrase"},
 	"passcode":    {"Passcode:", "Pass code", "PassCode", "PASS_CODE"},
-	"pin":         {"PIN:", "Pin", "pin code", "Enter PIN", "p1n", "PINs", "$PIN", "(PIN)"},
+	"pin":         {"PIN:", "Pin", "pin code", "Enter PIN", "p1n", "PINs", "$PIN", "(PIN)", "Pincode:", "PINCODE", "pin_code"},
 	"legacy": {
 		"credential_marker visible label", "secret_marker", "token_marker", "private_key", "api_key",
 	},
@@ -47,7 +50,8 @@ var ordinaryLines = []string{
 	"public key", "primary key", "foreign key", "access control", "API gateway", "private network",
 	"private", "access", "key", "api", "bypass code", "compass code", "Pass the code review",
 	"Call the API, key facts follow", "Access: key facts", "broken link", "taken offline", "v5.0.1",
-	"Level 5 of 10", "pass through", "the shop is open", "Hello world", "Cost is $5 per seat",
+	"Level 5 of 10", "pass through", "500 PLN", "PLN", "Price 20 PLN", "spin2", "tokenize2", "secretary2",
+	"keyboard1", "Pinterest2", "pinned1", "the shop is open", "Hello world", "Cost is $5 per seat",
 }
 
 func TestContainsMarkerWordMatchesEveryLabelForm(t *testing.T) {
