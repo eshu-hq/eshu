@@ -7,7 +7,8 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
-	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/provider/config"
 )
 
 // providerConfigIDBytes/providerConfigRevisionIDBytes size the random
@@ -104,67 +105,29 @@ type providerConfigRevertRequest struct {
 	RevisionID string `json:"revision_id"`
 }
 
-// Detail is the metadata-only admin view returned by GET
-// routes. It never carries a secret; HasSecret/SecretFingerprint/SecretKeyID
-// are derived, non-reversible metadata. ShadowedByEnvironment is derived at
-// read time (never stored) — true when an env-file-backed provider already
-// occupies this identity key, making the DB row read-only and its
-// sealed_secret never consulted for login. ManagedBy is "environment" for
-// both a pure env-file-only provider (no DB row at all — synthesized by the
-// read adapter, see ListProviderConfigDetails) and a colliding, shadowed DB
-// row (ShadowedByEnvironment=true); it is "database" for a normal,
-// admin-editable DB-backed provider. Every "environment" provider — whether
-// synthesized or shadowed — rejects edit/delete with a clear error (see
-// MutationStore's doc comment).
-type Detail struct {
-	ProviderConfigID      string
-	ProviderKind          string
-	Status                string
-	ActiveRevisionID      string
-	Configuration         map[string]any
-	HasSecret             bool
-	SecretFingerprint     string
-	SecretKeyID           string
-	ShadowedByEnvironment bool
-	ManagedBy             string // "database" | "environment"
-	CreatedAt             time.Time
-	UpdatedAt             time.Time
-}
-
-// RevisionItem is one row of a provider config's revision
-// history, metadata only.
-type RevisionItem struct {
-	RevisionID   string
-	Status       string
-	HasSecret    bool
-	CreatedAt    time.Time
-	ActivatedAt  time.Time
-	SupersededAt time.Time
-}
-
-// WriteResult is returned by every provider-config
-// mutation.
-type WriteResult struct {
-	ProviderConfigID string
-	RevisionID       string
-	Status           string
-	Found            bool
-	Changed          bool
-}
-
-// ConnectionTestResult reports a test-connection outcome.
-// Detail never carries a secret or plaintext credential — only a bounded,
-// operator-safe diagnostic string (e.g. an HTTP status class or a parse
-// failure reason). RevisionID is the active revision that was actually
-// tested; the enable path passes it back to
-// MutationStore.EnableProviderConfig as a
-// compare-and-swap guard so a concurrent Update/Revert cannot slip an
-// untested revision into "active" between the test and the enable call.
-type ConnectionTestResult struct {
-	OK         bool
-	Detail     string
-	RevisionID string
-}
+// The seven wire DTOs live in the neutral leaf
+// internal/query/querycontract/provider/config so both this family's
+// in-package tests and query/testutil can name them without an import
+// cycle (#7715). These forwarding aliases keep the family's compatibility
+// surface identical: config.Detail and friends resolve to the same types,
+// and the root query aliases (admin_alias.go) are unchanged.
+type (
+	// Detail is the metadata-only admin view returned by GET routes; see the
+	// querycontract/provider/config leaf for the full contract.
+	Detail = config.Detail
+	// RevisionItem is one row of a provider config's revision history.
+	RevisionItem = config.RevisionItem
+	// WriteResult is returned by every provider-config mutation.
+	WriteResult = config.WriteResult
+	// ConnectionTestResult reports a test-connection outcome.
+	ConnectionTestResult = config.ConnectionTestResult
+	// CreateRequest is the store-facing create request.
+	CreateRequest = config.CreateRequest
+	// UpdateRequest is the store-facing update request.
+	UpdateRequest = config.UpdateRequest
+	// RevertRequest is the store-facing revert request.
+	RevertRequest = config.RevertRequest
+)
 
 // MutationStore is the write surface the provider-config
 // admin handler uses. Every method is tenant-scoped and none accepts or
@@ -205,48 +168,4 @@ type ReadStore interface {
 // not prove (no live browser authorization-code round trip is attempted).
 type ConnectionTester interface {
 	TestProviderConnection(ctx context.Context, providerConfigID, tenantID string) (ConnectionTestResult, error)
-}
-
-// CreateRequest is the store-facing create request built
-// by the handler from providerConfigWriteRequest.
-type CreateRequest struct {
-	ProviderConfigID  string
-	TenantID          string
-	ProviderKind      string
-	ProviderKeyHash   string
-	IssuerHash        string
-	ClientIDHash      string
-	MetadataURLHash   string
-	EntityIDHash      string
-	RevisionID        string
-	Configuration     string
-	ConfigurationHash string
-	MetadataHash      string
-	PlaintextSecret   string
-	Now               time.Time
-}
-
-// UpdateRequest is the store-facing update request.
-type UpdateRequest struct {
-	ProviderConfigID string
-	TenantID         string
-	// ProviderKind must match the existing provider config's immutable kind;
-	// the store rejects a mismatch with ErrAdminProviderConfigKindMismatch.
-	ProviderKind      string
-	RevisionID        string
-	Configuration     string
-	ConfigurationHash string
-	MetadataHash      string
-	PlaintextSecret   string
-	Now               time.Time
-}
-
-// RevertRequest is the store-facing revert request.
-// Named with a numeric suffix to avoid colliding with the JSON body type
-// providerConfigRevertRequest above.
-type RevertRequest struct {
-	ProviderConfigID string
-	TenantID         string
-	TargetRevisionID string
-	Now              time.Time
 }
