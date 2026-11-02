@@ -35,10 +35,20 @@ func (r *runner) startWatcher(report *Report) *watcher {
 		ctx, cancel := context.WithTimeout(r.workCtx, sampleTimeout)
 		s, err := r.leg.Headroom.Sample(ctx)
 		cancel()
+		if err == nil && r.spec.Target == TargetLive {
+			err = missingCeilings(s, r.spec.Headroom)
+		}
 		if err == nil {
 			w.deadlockBase = s.DeadlocksTotal
 			report.Headroom.Baseline = &s
+		} else if r.spec.Target == TargetLive {
+			// The live target needs one complete reading before the
+			// isolation probe: otherwise the first writes run blind.
+			r.abortFrom(SourceWatcher, violation(TriggerSamplerUnavailable,
+				"no complete headroom reading before the first write: %v", err))
 		}
+	} else if r.spec.Target == TargetLive {
+		r.abortFrom(SourceWatcher, violation(TriggerSamplerUnavailable, "the live target has no headroom source"))
 	}
 	w.tick()
 	go func() {

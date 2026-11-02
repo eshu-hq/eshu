@@ -194,7 +194,9 @@ that lacks an enforced series counts as a failed read: connections, lock
 waiters, and the deadlock counter always, and replication lag when its
 ceiling is set. An exporter URL aimed at the wrong port-forward still
 returns a valid Prometheus page, so three such reads abort the run. A live
-run where an enforced ceiling was never measured is `INCOMPLETE`.
+run where an enforced ceiling was never measured is `INCOMPLETE`. The live
+target also needs one complete headroom reading before the isolation probe.
+Without it, the run aborts with nothing written.
 
 These §7 triggers are enforced in code and need nothing from the operator:
 
@@ -208,7 +210,10 @@ reversal still runs. `signal.NotifyContext` keeps catching signals until
 the test returns, so a second Ctrl-C during cleanup is held, not acted on.
 SIGKILL skips cleanup entirely. In that case delete the seed's rows by
 hand, child tables first, with the statements under "Manual cleanup" below.
-A headroom breach during the reversal is recorded as an abort, but it does
+The reversal runs on its own 15 min `cleanupBudget`, outside
+`wall_clock_cap` (reported as `cleanup_budget`): a run can end up to 15 min
+after the cap fires. A headroom breach during the reversal is recorded as an
+abort, but it does
 not pause the batched deletes. Spec §8 puts removing the synthetic rows
 ahead of everything else.
 
@@ -278,8 +283,10 @@ throwaway server (`wf9727-pg-it`). It refuses a server that holds an `eshu`
 or `workflow_claims` database, or that is the satellite DSN's server (same
 `system_identifier`, or the same host and port when that cannot be read).
 Every DSN must also be loopback on its first host and on every pgx fallback
-host. A host name is resolved, and every address it resolves to must be
-loopback; a name that does not resolve is refused. The in-tree DSN must name
+host. On a local target a host name is resolved, and every address it
+resolves to must be loopback; a name that does not resolve is refused. The
+live target accepts loopback IP literals only (`127.0.0.1` or `[::1]`), so no
+name is resolved between the check and the dial. The in-tree DSN must name
 exactly one server (a TLS fallback to the same host is still one server).
 The disposable-database helper dials it again, so a second host could be a
 server the safety check never saw.
@@ -435,7 +442,9 @@ DELETE FROM workflow_work_items WHERE work_item_id LIKE 'synth-8875-rehearsal-wi
 DELETE FROM workflow_runs WHERE run_id LIKE 'synth-8875-rehearsal-run-<seed>-%';
 ```
 
-On the live database, batch each statement (`ctid IN (SELECT ctid ...
+The `component_quota_windows` statement is not seed-scoped, matching
+`DeletePrefixed`: quota scope ids carry no seed. On the live database, batch
+each statement (`ctid IN (SELECT ctid ...
 LIMIT 1000)`) as `DeletePrefixed` does. Then rerun the residue counts.
 
 ## Related docs

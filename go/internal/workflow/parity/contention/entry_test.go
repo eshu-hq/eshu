@@ -303,9 +303,11 @@ func dsnHost(t *testing.T, dsn string) string {
 	return net.JoinHostPort(cfg.Host, strconv.Itoa(int(cfg.Port)))
 }
 
+// requireLoopbackDSN and requireLoopbackURL read the target from the
+// environment: the live target accepts loopback IP literals only.
 func requireLoopbackDSN(t *testing.T, env, dsn string) {
 	t.Helper()
-	if err := loopbackOnly(dsn); err != nil {
+	if err := loopbackOnly(dsn, liveTarget()); err != nil {
 		t.Fatalf("%s: %v; the harness only reaches local containers or port-forwards", env, err)
 	}
 }
@@ -313,9 +315,9 @@ func requireLoopbackDSN(t *testing.T, env, dsn string) {
 func requireLoopbackURL(t *testing.T, raw string) {
 	t.Helper()
 	u, err := url.Parse(raw)
-	if err != nil || !isLoopback(u.Hostname()) {
+	if err != nil || hostAllowed(u.Hostname(), liveTarget()) != nil {
 		t.Fatalf("%s=%q must be a loopback URL (local container or port-forward)", envSatelliteURL, raw)
 	}
 }
 
-func isLoopback(host string) bool { return resolvesToLoopback(host) == nil }
+func liveTarget() bool { return Target(os.Getenv(EnvTarget)) == TargetLive }

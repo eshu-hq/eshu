@@ -20,7 +20,7 @@ import (
 
 // loopbackOnly refuses a DSN that can reach any non-loopback host: pgx dials
 // the fallback hosts in order, so every one of them must be loopback.
-func loopbackOnly(dsn string) error {
+func loopbackOnly(dsn string, live bool) error {
 	cfg, err := pgx.ParseConfig(dsn)
 	if err != nil {
 		return fmt.Errorf("parse DSN: %w", err)
@@ -30,11 +30,22 @@ func loopbackOnly(dsn string) error {
 		hosts = append(hosts, fb.Host)
 	}
 	for _, host := range hosts {
-		if err := resolvesToLoopback(host); err != nil {
+		if err := hostAllowed(host, live); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// hostAllowed is the loopback rule for one host. On the live target only a
+// loopback IP literal passes (127.0.0.1, ::1): no name is resolved, so
+// nothing can change between the check and the dial. Elsewhere a name is
+// resolved and every address must be loopback.
+func hostAllowed(host string, live bool) error {
+	if live && net.ParseIP(host) == nil {
+		return fmt.Errorf("host %q is a name; the live target accepts loopback IP literals only", host)
+	}
+	return resolvesToLoopback(host)
 }
 
 // resolvesToLoopback accepts a loopback IP, or a host name whose every
@@ -46,7 +57,7 @@ func resolvesToLoopback(host string) error {
 		}
 		return nil
 	}
-	addrs, err := net.LookupHost(host)
+	addrs, err := lookupHost(host)
 	if err != nil {
 		return fmt.Errorf("host %q does not resolve: %w", host, err)
 	}
@@ -95,6 +106,27 @@ func singleServer(dsn string) error {
 	return nil
 }
 
+// lookupHost is the resolver resolvesToLoopback uses; tests swap it.
+var lookupHost = net.LookupHost
+
+// endpointsOverlap returns an endpoint both DSNs can dial, or "" when they
+// share none. Every host of each DSN counts, not only the first.
+func endpointsOverlap(adminDSN, satelliteDSN string) (string, error) {
+	mine, err1 := dsnEndpoints(adminDSN)
+	theirs, err2 := dsnEndpoints(satelliteDSN)
+	if err := errors.Join(err1, err2); err != nil {
+		return "", err
+	}
+	for _, m := range mine {
+		for _, o := range theirs {
+			if m == o {
+				return m, nil
+			}
+		}
+	}
+	return "", nil
+}
+
 // coreDatabases are the databases a disposable in-tree server must never
 // hold: the core database and the satellite's.
 var coreDatabases = []string{"eshu", "workflow_claims"}
@@ -132,17 +164,12 @@ func inTreeServerSafe(ctx context.Context, admin *sql.DB, adminDSN, satelliteDSN
 		}
 		return nil
 	}
-	mineEnd, err1 := dsnEndpoints(adminDSN)
-	theirEnds, err2 := dsnEndpoints(satelliteDSN)
-	if err := errors.Join(err1, err2); err != nil {
+	shared, err := endpointsOverlap(adminDSN, satelliteDSN)
+	if err != nil {
 		return errors.Join(fmt.Errorf("compare servers: %w", err), errMine, errTheirs)
 	}
-	for _, mine := range mineEnd {
-		for _, theirs := range theirEnds {
-			if mine == theirs {
-				return fmt.Errorf("in-tree server and satellite DSN share the endpoint %s", mine)
-			}
-		}
+	if shared != "" {
+		return fmt.Errorf("in-tree server and satellite DSN share the endpoint %s", shared)
 	}
 	return nil
 }

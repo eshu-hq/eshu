@@ -28,6 +28,10 @@ func TestLiveExporterWithoutPgSeriesIsNotClean(t *testing.T) {
 	if report.Abort == nil || report.Abort.Trigger != TriggerSamplerUnavailable {
 		t.Fatalf("abort = %+v, want %s from the failed headroom reads", report.Abort, TriggerSamplerUnavailable)
 	}
+	// The first reading is already incomplete, so nothing may be written.
+	if report.Created != 0 || !report.Phases.WindowStart.IsZero() {
+		t.Fatalf("wrote %d items on a blind exporter before aborting", report.Created)
+	}
 }
 
 // TestLiveCeilingNeverMeasuredIsIncomplete: a live headroom source that
@@ -149,5 +153,35 @@ func TestIncompleteNamesUnmeasuredCeiling(t *testing.T) {
 	r.spec.Headroom.MaxLagSeconds = 0
 	if reason := r.incomplete(report); reason != "" {
 		t.Fatalf("no lag ceiling set: incomplete = %q, want complete", reason)
+	}
+	none := &runner{spec: liveSpec(), opt: Options{MaxSampleErrors: 5}}
+	none.samples.count = 10
+	if reason := none.incomplete(report); reason == "" {
+		t.Fatalf("a live run with no headroom reading at all was not INCOMPLETE")
+	}
+}
+
+// TestLiveNeedsACompleteHeadroomReadingBeforeAnyWrite: on the live target the
+// run takes one complete headroom reading before the isolation probe, so an
+// exporter that never answers stops it with nothing written.
+func TestLiveNeedsACompleteHeadroomReadingBeforeAnyWrite(t *testing.T) {
+	hang := make(chan struct{})
+	page := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { <-hang }))
+	defer page.Close()
+	defer close(hang)
+	leg := newFakeLeg(faults{}, false, 0)
+	l := fakeLegFor(leg, ExporterHeadroom{URL: page.URL, Client: &http.Client{Timeout: 200 * time.Millisecond}}, true)
+	l.Quota, l.Advisory = false, false
+	opt := fastOptions()
+	opt.CoreResidue = func(context.Context) (int, error) { return 0, nil }
+	report, err := Run(context.Background(), liveSpec(), l, opt)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if report.Abort == nil || report.Abort.Trigger != TriggerSamplerUnavailable {
+		t.Fatalf("abort = %+v, want %s before any write", report.Abort, TriggerSamplerUnavailable)
+	}
+	if leg.isSeeded() || report.Created != 0 || !report.Phases.WindowStart.IsZero() {
+		t.Fatalf("wrote %d items before a complete headroom reading", report.Created)
 	}
 }

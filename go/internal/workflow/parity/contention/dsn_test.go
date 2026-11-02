@@ -4,6 +4,7 @@
 package contention
 
 import (
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -21,7 +22,7 @@ func TestLoopbackHostsChecksEveryFallback(t *testing.T) {
 		"postgres://u@10.0.0.5:5432/x":                                      false,
 	}
 	for dsn, ok := range cases {
-		err := loopbackOnly(dsn)
+		err := loopbackOnly(dsn, false)
 		if ok && err != nil {
 			t.Fatalf("%s: refused a loopback DSN: %v", dsn, err)
 		}
@@ -75,10 +76,78 @@ func TestInTreeDSNMustNameOneServer(t *testing.T) {
 // TestLocalhostMustResolveToLoopback: a host name is resolved, and every
 // address must be loopback; a name that does not resolve is refused.
 func TestLocalhostMustResolveToLoopback(t *testing.T) {
-	if err := loopbackOnly("postgres://u@localhost:5432/x"); err != nil {
+	if err := loopbackOnly("postgres://u@localhost:5432/x", false); err != nil {
 		t.Fatalf("localhost refused: %v", err)
 	}
-	if err := loopbackOnly("postgres://u@no-such-host.invalid:5432/x"); err == nil {
+	if err := loopbackOnly("postgres://u@no-such-host.invalid:5432/x", false); err == nil {
 		t.Fatalf("an unresolvable host name was accepted")
+	}
+}
+
+// fakeResolver swaps the package resolver for one test.
+func fakeResolver(t *testing.T, answers map[string][]string) {
+	t.Helper()
+	saved := lookupHost
+	lookupHost = func(host string) ([]string, error) {
+		if a, ok := answers[host]; ok {
+			return a, nil
+		}
+		return nil, &net.DNSError{Err: "no such host", Name: host, IsNotFound: true}
+	}
+	t.Cleanup(func() { lookupHost = saved })
+}
+
+// TestResolvedNamesMustBeLoopbackOnly: every resolved address counts; one
+// routable address among loopback ones is enough to refuse the name.
+func TestResolvedNamesMustBeLoopbackOnly(t *testing.T) {
+	fakeResolver(t, map[string][]string{
+		"pg-forward": {"127.0.0.1", "::1"},
+		"core-db":    {"10.0.0.5"},
+		"mixed":      {"127.0.0.1", "10.0.0.5"},
+	})
+	if err := loopbackOnly("postgres://u@pg-forward:5432/x", false); err != nil {
+		t.Fatalf("all-loopback name refused: %v", err)
+	}
+	for _, host := range []string{"core-db", "mixed"} {
+		if err := loopbackOnly("postgres://u@"+host+":5432/x", false); err == nil {
+			t.Fatalf("%s resolves to a routable address and was accepted", host)
+		}
+	}
+}
+
+// TestLiveHostsMustBeIPLiterals: the live target accepts loopback IP
+// literals only, so no name is resolved between the check and the dial.
+func TestLiveHostsMustBeIPLiterals(t *testing.T) {
+	fakeResolver(t, map[string][]string{"localhost": {"127.0.0.1"}})
+	if err := loopbackOnly("postgres://u@localhost:5432/x", true); err == nil {
+		t.Fatalf("live accepted a host name")
+	}
+	for _, dsn := range []string{"postgres://u@127.0.0.1:5432/x", "postgres://u@[::1]:5432/x"} {
+		if err := loopbackOnly(dsn, true); err != nil {
+			t.Fatalf("live refused loopback literal %s: %v", dsn, err)
+		}
+	}
+	if err := loopbackOnly("postgres://u@localhost:5432/x", false); err != nil {
+		t.Fatalf("local refused localhost: %v", err)
+	}
+}
+
+// TestEndpointsOverlapChecksEveryHost: the in-tree endpoint is compared with
+// every host the satellite DSN can dial, not only its first.
+func TestEndpointsOverlapChecksEveryHost(t *testing.T) {
+	inTree := "postgres://u@127.0.0.1:32780/postgres?sslmode=disable"
+	cases := map[string]bool{
+		"postgres://u@127.0.0.1:5000,127.0.0.1:32780/workflow_claims?sslmode=disable": true,
+		"postgres://u@127.0.0.1:32780,127.0.0.1:5000/workflow_claims?sslmode=disable": true,
+		"postgres://u@127.0.0.1:5000,127.0.0.1:5001/workflow_claims?sslmode=disable":  false,
+	}
+	for satellite, want := range cases {
+		shared, err := endpointsOverlap(inTree, satellite)
+		if err != nil {
+			t.Fatalf("%s: %v", satellite, err)
+		}
+		if (shared != "") != want {
+			t.Fatalf("%s: shared endpoint %q, want overlap=%v", satellite, shared, want)
+		}
 	}
 }

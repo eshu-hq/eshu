@@ -161,8 +161,9 @@ func TestLiveVerdictNeedsCoreResidueAndHeadroom(t *testing.T) {
 	if r := runLive(t, &fakeHeadroom{}, nil, fastOptions()); r.Verdict != VerdictIncomplete {
 		t.Fatalf("live run without the core residue: verdict %s, want INCOMPLETE", r.Verdict)
 	}
-	if r := runLive(t, nil, zero, fastOptions()); r.Verdict != VerdictIncomplete {
-		t.Fatalf("live run without headroom: verdict %s, want INCOMPLETE", r.Verdict)
+	// Without a headroom source the live run stops before its first write.
+	if r := runLive(t, nil, zero, fastOptions()); r.Verdict != VerdictAborted || r.Created != 0 {
+		t.Fatalf("live run without headroom: verdict %s, %d items created, want ABORTED before any write", r.Verdict, r.Created)
 	}
 }
 

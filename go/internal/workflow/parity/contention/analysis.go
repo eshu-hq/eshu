@@ -312,7 +312,10 @@ func (r *runner) incomplete(report *Report) string {
 }
 
 // abortPostRun records a violation found by the end-of-run analysis.
-func (r *runner) abortPostRun(v *Violation) {
-	v.Source = SourcePostRun
+func (r *runner) abortPostRun(v *Violation) { r.abortFrom(SourcePostRun, v) }
+
+// abortFrom tags a violation with the detector that found it and aborts.
+func (r *runner) abortFrom(source string, v *Violation) {
+	v.Source = source
 	r.abort(v)
 }
