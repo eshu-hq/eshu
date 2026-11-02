@@ -237,6 +237,7 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 	h.emitSeverityDecisions(ctx, findings)
 	h.emitRetraction(ctx, intent, writeResult.FactsRetracted)
 	h.emitEvidenceTruncation(ctx, intent, loaded, len(findings))
+	h.recordEvidenceHeadroom(intent, loaded)
 	timing.emitCountersDuration = time.Since(phaseStarted)
 	timing.totalDuration = time.Since(totalStarted)
 
@@ -270,6 +271,7 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 	subSignals["suppression_evidence_truncated"] = boolSignal(loaded.truncation.suppressionTail)
 	subSignals["evidence_envelopes"] = float64(loaded.evidenceEnvelopeCount())
 	subSignals["evidence_expansion_envelopes"] = float64(loaded.expansionEnvelopes)
+	h.addHeadroomSubSignals(subSignals, loaded)
 	subSignals[advisoryRetractedFindingsSubSignal] = float64(supplyChainAdvisoryRetractedCount(findings))
 	for key, value := range factdecode.InputInvalidSubSignals(inputInvalidCount) {
 		subSignals[key] = value

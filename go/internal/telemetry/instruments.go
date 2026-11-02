@@ -1033,6 +1033,12 @@ type Instruments struct {
 	// this on every pass keeps its stale findings; the WARN log line carries
 	// the scope and generation.
 	SupplyChainImpactEvidenceTruncated metric.Int64Counter
+	// SupplyChainImpactPartialScopes and SupplyChainImpactEvidenceBudgetRatio
+	// are the #9778 headroom gauges; SupplyChainImpactHeadroom is the
+	// process-local tracker behind them (supply_chain_impact_headroom.go).
+	SupplyChainImpactPartialScopes       metric.Int64ObservableGauge
+	SupplyChainImpactEvidenceBudgetRatio metric.Float64ObservableGauge
+	SupplyChainImpactHeadroom            *SupplyChainImpactHeadroomTracker
 	// SupplyChainImpactWriteSuperseded counts supply-chain impact passes the
 	// writer rejected because a fresher pass (a higher fencing token) was
 	// already admitted for the same (scope, generation) (#7142). The pass
@@ -6261,6 +6267,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register IngestionSuccessorGuardDecisions counter: %w", err)
 	}
 	if err := registerSuccessorHeldStaleScopes(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerSupplyChainImpactHeadroom(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerProjectorDeltaUnion(meter, inst); err != nil {

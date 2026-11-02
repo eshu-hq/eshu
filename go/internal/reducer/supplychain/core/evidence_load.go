@@ -35,9 +35,15 @@ type supplyChainImpactLoadedEvidence struct {
 	// short: a suppression candidate set that is not provably complete is
 	// discarded so findings fail open.
 	suppressionEvidenceTruncated bool
-	// expansionEnvelopes counts the expansion envelopes charged against the
-	// per-intent evidence budget.
+	// expansionEnvelopes counts the expansion envelopes in the evidence set:
+	// the static load's charged envelopes plus, on the protected-scan path, the
+	// derived facts added after it.
 	expansionEnvelopes int
+	// budgetEnvelopes is what the pass charged against the per-intent evidence
+	// budget (budget.used) and nothing else. The #9778 headroom gauge and the
+	// evidence_budget_ratio sub-signal read it, because the protected-scan path
+	// raises expansionEnvelopes with derived facts the budget never charged.
+	budgetEnvelopes int
 	// activeEvidence is the pass's per-statement active-evidence accounting
 	// (#8880), merged into the success log's sub-signals and sub-durations.
 	activeEvidence                  supplyChainImpactActiveEvidenceTally
@@ -226,6 +232,7 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 		truncation:                      truncation,
 		suppressionEvidenceTruncated:    truncation.any(),
 		expansionEnvelopes:              budget.used,
+		budgetEnvelopes:                 budget.used,
 		activeEvidence:                  budget.activeEvidence,
 		osPackageAdvisoryFacts:          osPackageAdvisoryFacts,
 		osPackageAdvisoryTargetsSkipped: osPackageAdvisorySkipped,

@@ -34,3 +34,42 @@ carries the same accounting summed over the pass:
 `active_evidence_payload_pages`, `active_evidence_guard_rows`, and
 `active_evidence_truncated_loads` sub-signals. Read them next to
 `sub_duration_load_active_evidence_seconds`.
+
+## Evidence headroom
+
+A pass may charge 100,000 expansion envelopes to its evidence budget. Above
+that it goes partial: it upserts but retracts nothing, so a scope that crosses
+the limit on every pass keeps its stale findings (#7154). Two gauges show the
+climb before the limit and the scopes already past it (#9778):
+
+| Metric | Type | Key labels | Use |
+| --- | --- | --- | --- |
+| `eshu_dp_supply_chain_impact_partial_scopes` | observable gauge | `cause` (`active_expansion_rounds`, `evidence_budget`, `other`) | Scopes whose last recorded pass on this process ended partial. Every cause reports, zero included, so none stuck reads 0. A later complete pass of the scope releases it. A suppression-tail truncation is not counted: it does not stop retraction. |
+| `eshu_dp_supply_chain_impact_evidence_budget_ratio` | observable gauge | none | The widest pass in the last hour, as envelopes charged to the budget over the budget. 1 means the budget is spent; above 1 a pass crossed it, because the load that crosses the limit is kept. No series until a pass has run in the window. |
+
+The ratio counts only what the budget charged. A protected-scan pass also holds
+derived OS-package, analysis, and advisory facts it adds after the static load;
+those are not charged, cannot make the pass partial, and are not in the ratio
+(they are in `sub_signal_evidence_expansion_envelopes`).
+
+Both gauges are process-local and per replica, and add no Postgres query. Read
+them as a per-replica view, not a global count, and not as a bound in either
+direction:
+
+- A scope that replica A last saw partial and replica B later completed stays
+  partial on A until A next handles it, which overstates A.
+- A restart empties the gauge until each scope is handled again, which
+  understates it.
+- A scope two replicas both saw partial counts once on each, so summing
+  replicas can count it twice, and a scope partial for two causes counts under
+  both.
+- The tracker keeps the pass that recorded last for a scope. Two admitted
+  passes of one scope can record out of order, so the gauge can show the older
+  pass until the scope's next pass.
+
+The WARN line `supply chain impact evidence truncated; findings not retracted`
+names the scope and is the exact source.
+
+The success line also carries `sub_signal_evidence_partial` (1 when the pass
+did not retract) and `sub_signal_evidence_budget_ratio`, so a log search can
+count partial passes directly.

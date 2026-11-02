@@ -3,7 +3,13 @@
 
 package core
 
-import "math"
+import (
+	"math"
+	"time"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+)
 
 // Truncation causes reported by the evidence load (#7154). The set is closed
 // and low cardinality on purpose: each value is a metric attribute.
@@ -11,11 +17,11 @@ const (
 	// supplyChainImpactTruncationRounds means the active-evidence expansion
 	// stopped at maxSupplyChainImpactActiveEvidenceLoads rounds, so evidence
 	// reachable only through later rounds was never loaded.
-	supplyChainImpactTruncationRounds = "active_expansion_rounds"
+	supplyChainImpactTruncationRounds = telemetry.SupplyChainImpactPartialCauseRounds
 	// supplyChainImpactTruncationBudget means the per-intent evidence budget
 	// (maxSupplyChainImpactEvidenceEnvelopesPerIntent) was spent, so later
 	// expansion stages were skipped or stopped early.
-	supplyChainImpactTruncationBudget = "evidence_budget"
+	supplyChainImpactTruncationBudget = telemetry.SupplyChainImpactPartialCauseBudget
 )
 
 // supplyChainImpactTruncation records why one pass's bounded evidence load
@@ -127,4 +133,50 @@ func (b *supplyChainImpactEvidenceBudget) remaining() int {
 // exhausted reports whether the pass has spent its budget.
 func (b *supplyChainImpactEvidenceBudget) exhausted() bool {
 	return b != nil && b.used > b.limit
+}
+
+// recordEvidenceHeadroom feeds the #9778 headroom gauges after the writer
+// admitted a pass: the scope's last recorded partial state, so a complete pass
+// releases it, and the envelopes the pass charged to its budget over that budget.
+// Derived facts the protected-scan path adds after the static load are not
+// charged, so they are not part of the ratio.
+// A pass the writer rejected or that failed earlier never reaches here, so a
+// superseded older pass cannot overwrite the newer pass's state. It reads the
+// same partial() the writer's PartialEvidence uses, so the gauge follows the
+// retraction contract and a suppression-tail truncation is not counted.
+func (h SupplyChainImpactHandler) recordEvidenceHeadroom(
+	intent reducercontract.Intent,
+	loaded supplyChainImpactLoadedEvidence,
+) {
+	if h.Instruments == nil {
+		return
+	}
+	h.Instruments.SupplyChainImpactHeadroom.RecordPass(
+		intent.ScopeID,
+		loaded.truncation.causes(),
+		loaded.budgetEnvelopes,
+		h.evidenceBudgetLimit(),
+		// Wall clock, not evaluationNow: the gauge callback windows on time.Now,
+		// and h.Now is a finding-evaluation clock that tests and replays pin.
+		time.Now(),
+	)
+}
+
+// evidenceBudgetLimit is the expansion envelope budget a pass runs under: the
+// handler override, or the package default.
+func (h SupplyChainImpactHandler) evidenceBudgetLimit() int {
+	return newSupplyChainImpactEvidenceBudget(h.EvidenceBudget).limit
+}
+
+// addHeadroomSubSignals puts the #9778 success-line fields on subSignals: 1
+// when the pass did not retract, and the envelopes the pass charged to its
+// budget over that budget (budgetEnvelopes, never expansionEnvelopes: the
+// protected-scan path adds uncharged derived facts to the latter). Before these the line carried only the two cause booleans, so a log
+// search could not count partial passes or see how close one came.
+func (h SupplyChainImpactHandler) addHeadroomSubSignals(
+	subSignals map[string]float64,
+	loaded supplyChainImpactLoadedEvidence,
+) {
+	subSignals["evidence_partial"] = boolSignal(loaded.truncation.partial())
+	subSignals["evidence_budget_ratio"] = float64(loaded.budgetEnvelopes) / float64(h.evidenceBudgetLimit())
 }
