@@ -175,6 +175,10 @@ import (
 // taken by main, so the lane keeps the letter-suffixed sequence precedent
 // (skipped by the unique-sequence guard, ordered by path sort); SQL content
 // is byte-identical to the lane's pre-rebase files.
+// #9805 adds 272_supply_chain_impact_winners_dirty_log.sql (the winners dirty
+// log and the pointer and delete triggers on ingestion_scopes) and the
+// public-only 272a_scanner_winners_dirty_capture.sql (the capture triggers on
+// the two scanner tables).
 // #9299 splits 241a's authority-epoch backfill into 241b (the five
 // INSERT ... SELECT seeds; DML half, #7961 split).
 // #9776 adds 271_owned_target_slot_progress.sql (DDL only: the persisted
@@ -182,13 +186,13 @@ import (
 // held by another lane's unmerged migration, so this lane took the next number.
 // #9376 adds 270_generation_commit_fences.sql (DDL only: the claim-plane
 // commit fence table), which sorts and applies before 271.
-const goldenBootstrapDefinitionsDigest = "252c6d4bf00db727eb85424f4ea8015a2d38ff3598df520a2a17c1bf1023846c"
+const goldenBootstrapDefinitionsDigest = "73f12f40021350d5446ab3a4c2744dcc067f2793076261bc897a859948a17396"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 296
+const goldenBootstrapDefinitionsCount = 298
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

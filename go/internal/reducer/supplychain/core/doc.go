@@ -50,7 +50,11 @@
 // that changed, skips when another resweep is in flight, and reports inserted,
 // updated, deleted and unchanged counts (#9774); the writer replaces a (scope,
 // generation)'s finding set in one locked transaction and tombstones the
-// findings a pass no longer derives, #6831), and the Go reachability classifier
+// findings a pass no longer derives, #6831; with a keyed rebuilder the
+// maintainer runs one full resweep at startup, then keyed ticks that recompute
+// only the keys the writer, activation and scanner captures logged, plus a
+// full-recompute audit that queues any key the capture missed, #9805), and the
+// Go reachability classifier
 // (ClassifyGoVulnerabilityReachability). Test seams for the reducer root's
 // own wiring test live in the parent's compat stanza, following the
 // containerimage precedent; family-local test doubles live in

@@ -117,7 +117,12 @@
 // SupplyChainImpactWinnersWatermarkAge
 // (eshu_dp_supply_chain_impact_winners_watermark_age_seconds, an observable
 // gauge that ages the watermark at scrape time so it climbs through a stall),
-// #9774.
+// #9774. The keyed resweep (#9805) adds the closed path label (full, keyed,
+// audit) to the duration histogram and registers
+// SupplyChainImpactWinnersKeysPerSweep, ...IdentifiersConsumed,
+// ...CaptureRows (labeled source, counted by the writer through
+// RecordSupplyChainImpactWinnersCapture), ...BackstopRepairs, and the observable
+// gauges ...DirtyLogDepth and ...DirtyLogOldestAge.
 // The supply-chain reducer registers SupplyChainImpactFanOut
 // (eshu_dp_supply_chain_impact_fanout_total), labeled by reducer domain and
 // outcome, so an operator can see whether a source retraction reached the scopes

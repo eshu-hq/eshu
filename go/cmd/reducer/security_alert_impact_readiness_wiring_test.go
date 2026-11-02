@@ -17,7 +17,7 @@ import (
 func TestBuildReducerSupplyChainSecurityHandlersWiresTheImpactProducerReadiness(t *testing.T) {
 	t.Parallel()
 
-	handlers := buildReducerSupplyChainSecurityHandlers(nil, postgres.FactStore{}, nil, endpointPresenceWirings{})
+	handlers := buildReducerSupplyChainSecurityHandlers(nil, postgres.FactStore{}, nil, endpointPresenceWirings{}, nil)
 	if handlers.SecurityAlertImpactProducerReadiness == nil {
 		t.Fatal("SecurityAlertImpactProducerReadiness is nil: the reconciliation impact fence would ship inert")
 	}

@@ -43,7 +43,7 @@ type fakeWinnersLeaseManager struct {
 func (f *fakeWinnersLeaseManager) ClaimPartitionLease(_ context.Context, domain string, partitionID, partitionCount int, _ string, _ time.Duration) (bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if domain != SupplyChainImpactWinnersDomain || partitionID != 0 || partitionCount != 1 {
+	if (domain != SupplyChainImpactWinnersDomain && domain != SupplyChainImpactWinnersAuditDomain) || partitionID != 0 || partitionCount != 1 {
 		return false, errors.New("unexpected lease scope")
 	}
 	if f.claimErr != nil {

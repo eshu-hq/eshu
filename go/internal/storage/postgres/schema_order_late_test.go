@@ -439,4 +439,7 @@ var orderedBootstrapDefinitionNamesLate = []string{
 	// progress of the owned-package slot selection. Numbered 271 because
 	// 270 is held by an unmerged sibling migration.
 	"owned_target_slot_progress",
+	// Migration 272 (#9805) adds the winners dirty log and its capture triggers.
+	"supply_chain_impact_winners_dirty_log",
+	"scanner_winners_dirty_capture",
 }

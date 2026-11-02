@@ -320,6 +320,8 @@ var migrationShippedChecksums = map[string]string{
 	"269_scanner_impact_publish.sql":                                         "fdb2b822b4fdb88fac6f7b59477fe6cd72097f3a4de0622456d8ee11f66f0a0c",
 	"270_generation_commit_fences.sql":                                       "3e202d1b460a962dfc0cf32f446bf5b893d409c67cfb6d34bf78e22c39a5c4d9",
 	"271_owned_target_slot_progress.sql":                                     "370d0cd6ddb45855e2d62a1414f31fd0d94e6ac8fa0d5b7875791cb4b238b906",
+	"272a_scanner_winners_dirty_capture.sql":                                 "f100c94e12c34adb8cf8e1749128df3fa5586758e93b14d7f8d6e1eddac54f18",
+	"272_supply_chain_impact_winners_dirty_log.sql":                          "08869acd33a715f8d6c33dad16c2b1a18a7cbe1b9ac6532e85ff64b4e581617a",
 	"243_vulnerability_source_state_packages.sql":                            "548ad5e4d9442064ba81026b49b7443590ae8244282aa138190d9c7182417438",
 	"244_ecs_runtime_task_scope_index.sql":                                   "04879797b6faf565ad46a774716ee9000c79358d082df1aa05b6ee8a760dace3",
 	"245_shared_projection_intent_reopened_at.sql":                           "c00bc4a7c9953d3b84dbd03f241ec2c5adc1f9f5e97860cdf52586aa7d62e1da",

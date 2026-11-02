@@ -7,10 +7,11 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
@@ -82,6 +83,30 @@ type SupplyChainImpactWinnersResweep struct {
 	// Skipped is true when another resweep was in flight, so this one wrote
 	// nothing, stamped nothing and left the watermark to that resweep.
 	Skipped bool
+	// Path is the path that ran: telemetry.SupplyChainImpactWinnersPathFull or
+	// ...PathKeyed. It is empty for a result from a rebuilder that predates the
+	// keyed resweep (#9805), which the maintainer reads as full.
+	Path string
+	// Identifiers is the number of dirty-log identifier rows a keyed tick
+	// consumed and Keys the number of canonical keys it recomputed. They are zero
+	// on the full path.
+	Identifiers int64
+	Keys        int64
+	// TriggerCaptured is the consumed dirty-log rows by the capture sources
+	// whose owner is a database trigger (activation, operator, scanner). A
+	// trigger cannot emit a Go metric, so the maintainer counts them when it
+	// consumes them. fact_upsert and fact_retract are counted by their writers
+	// at capture time, and audit by the audit, so none of them is here.
+	TriggerCaptured WinnersTriggerCaptured
+}
+
+// WinnersTriggerCaptured is the dirty-log rows one keyed tick consumed, by the
+// capture sources a database trigger owns (#9805). It is a plain struct so a
+// resweep result stays comparable.
+type WinnersTriggerCaptured struct {
+	Activation int64
+	Operator   int64
+	Scanner    int64
 }
 
 // SupplyChainImpactWinnersLeaseManager is the single-owner lease seam, satisfied
@@ -112,6 +137,15 @@ type SupplyChainImpactWinnersMaintainer struct {
 	// span, byte-identical to the behavior before #9774.
 	Instruments *telemetry.Instruments
 	Tracer      trace.Tracer
+	// KeyedRebuilder, Auditor, AuditInterval and DirtyLogReader enable the keyed
+	// resweep of #9805. With KeyedRebuilder nil the maintainer is the full-resweep
+	// maintainer of #9774. Run then runs one full resweep at startup and keyed
+	// ticks after it. The audit runs only when Auditor is set and AuditInterval
+	// is positive. DirtyLogReader feeds the dirty-log gauges every tick.
+	KeyedRebuilder SupplyChainImpactWinnersKeyedRebuilder
+	Auditor        SupplyChainImpactWinnersAuditor
+	AuditInterval  time.Duration
+	DirtyLogReader SupplyChainImpactWinnersDirtyLogReader
 }
 
 func (m SupplyChainImpactWinnersMaintainer) now() time.Time {
@@ -153,67 +187,49 @@ func (m SupplyChainImpactWinnersMaintainer) validate() error {
 }
 
 // RunOnce claims the single-owner lease and, if acquired, runs one atomic
-// resweep. It returns rebuilt=true only when this instance held the lease and
-// the resweep committed; a resweep skipped because another is in flight returns
-// rebuilt=false and no error. The lease is always released before returning so
-// a crashed/slow instance does not block takeover beyond the TTL.
+// full resweep. It returns rebuilt=true only when this instance held the lease
+// and the resweep committed; a resweep skipped because another is in flight
+// returns rebuilt=false and no error. The lease is always released before
+// returning so a crashed/slow instance does not block takeover beyond the TTL.
 func (m SupplyChainImpactWinnersMaintainer) RunOnce(ctx context.Context) (rebuilt bool, err error) {
-	if err := m.validate(); err != nil {
-		return false, err
-	}
-	m.sampleWatermark(ctx)
-	claimed, err := m.LeaseManager.ClaimPartitionLease(
-		ctx, SupplyChainImpactWinnersDomain, 0, 1, m.leaseOwner(), m.leaseTTL(),
-	)
-	if err != nil {
-		return false, fmt.Errorf("claim winners lease: %w", err)
-	}
-	if !claimed {
-		return false, nil
-	}
-	defer func() {
-		if relErr := m.LeaseManager.ReleasePartitionLease(
-			ctx, SupplyChainImpactWinnersDomain, 0, 1, m.leaseOwner(),
-		); relErr != nil && err == nil {
-			err = fmt.Errorf("release winners lease: %w", relErr)
-		}
-	}()
-
-	stamp := m.now()
-	ctx, span := m.startResweepSpan(ctx)
-	started := time.Now()
-	result, rbErr := m.Rebuilder.ResweepWinners(ctx, stamp)
-	elapsed := time.Since(started)
-	if rbErr != nil {
-		span.RecordError(rbErr)
-		span.SetStatus(codes.Error, "winners resweep failed")
-		span.End()
-		return false, fmt.Errorf("resweep winners: %w", rbErr)
-	}
-	if result.Skipped {
-		m.emitResweepSkipped(ctx, span)
-		span.End()
-		return false, nil
-	}
-	m.emitResweep(ctx, span, stamp, result, elapsed)
-	span.End()
-	return true, nil
+	return m.runTick(ctx, false)
 }
 
 // Run resweeps once immediately (startup backfill/reconcile) and then on the
-// configured cadence until ctx is cancelled. Errors are logged and retried with
+// configured cadence until ctx is cancelled. With a KeyedRebuilder, the startup
+// reconcile is the one full resweep and every later tick is keyed; the audit
+// runs on its own cadence beside them. Errors are logged and retried with
 // exponential backoff capped at maxSupplyChainImpactWinnersBackoff; the loop
 // never exits on a transient resweep error so the read model keeps converging.
 func (m SupplyChainImpactWinnersMaintainer) Run(ctx context.Context) error {
 	if err := m.validate(); err != nil {
 		return err
 	}
+	var fullDone atomic.Bool
+	var audits sync.WaitGroup
+	if m.Auditor != nil && m.AuditInterval > 0 {
+		audits.Add(1)
+		go func() {
+			defer audits.Done()
+			m.runAuditLoop(ctx, &fullDone)
+		}()
+	}
+	defer audits.Wait()
 	backoff := m.interval()
 	for {
 		if ctx.Err() != nil {
 			return nil
 		}
-		_, err := m.RunOnce(ctx)
+		var err error
+		if m.KeyedRebuilder != nil && fullDone.Load() {
+			_, err = m.runKeyedTick(ctx)
+		} else {
+			var rebuilt bool
+			rebuilt, err = m.RunOnce(ctx)
+			if rebuilt && m.KeyedRebuilder != nil {
+				fullDone.Store(true)
+			}
+		}
 		switch {
 		case err != nil:
 			if m.Logger != nil {
@@ -300,7 +316,13 @@ func (m SupplyChainImpactWinnersMaintainer) emitResweep(
 	r SupplyChainImpactWinnersResweep,
 	elapsed time.Duration,
 ) {
+	path := r.Path
+	if path == "" {
+		path = telemetry.SupplyChainImpactWinnersPathFull
+	}
 	span.SetAttributes(
+		attribute.String(telemetry.MetricDimensionPath, path),
+		attribute.Int64("keys", r.Keys),
 		attribute.Int64("inserted", r.Inserted),
 		attribute.Int64("updated", r.Updated),
 		attribute.Int64("deleted", r.Deleted),
@@ -314,7 +336,7 @@ func (m SupplyChainImpactWinnersMaintainer) emitResweep(
 	}
 	if in := m.Instruments; in != nil {
 		if in.SupplyChainImpactWinnersResweepDuration != nil {
-			in.SupplyChainImpactWinnersResweepDuration.Record(ctx, elapsed.Seconds())
+			in.SupplyChainImpactWinnersResweepDuration.Record(ctx, elapsed.Seconds(), metric.WithAttributes(telemetry.AttrPath(path)))
 		}
 		if in.SupplyChainImpactWinnersRows != nil {
 			for action, n := range map[string]int64{
@@ -328,12 +350,16 @@ func (m SupplyChainImpactWinnersMaintainer) emitResweep(
 				}
 			}
 		}
+		m.recordKeyedSignals(ctx, r)
 		in.RecordSupplyChainImpactWinnersWatermark(stamp)
 	}
 	if m.Logger == nil {
 		return
 	}
 	m.Logger.InfoContext(ctx, "supply chain impact winners resweep committed",
+		slog.String("path", path),
+		slog.Int64("identifiers", r.Identifiers),
+		slog.Int64("keys", r.Keys),
 		slog.Int64("inserted", r.Inserted),
 		slog.Int64("updated", r.Updated),
 		slog.Int64("deleted", r.Deleted),

@@ -194,10 +194,11 @@ var retirementLeaseDomains = map[string]RetirementLeaseDomain{
 	string(reducercontract.DomainCodeCalls):      {Class: RetirementLeaseRepoGraphWriter, Reason: "code-call projection runner claim and heartbeat (code/call/projection/runner.go, lease.go)"},
 	string(reducercontract.DomainRepoDependency): {Class: RetirementLeaseRepoGraphWriter, Reason: "repo-dependency projection runner claim and heartbeat (repo_dependency_projection_runner.go, repo_dependency_projection_telemetry.go)"},
 	// Maintenance leases: named so 2b' can skip them.
-	"graph_orphan_sweep":            {Class: RetirementLeaseMaintenance, Reason: "orphan sweep maintenance runner (maintenance/orphan/runner.go); sweeps disconnected nodes, never writes repo edges"},
-	"collector_evidence_summary":    {Class: RetirementLeaseMaintenance, Reason: "collector evidence summary maintainer (maintenance/evidence/maintainer.go); reaps summary rows, never writes repo edges"},
-	"code_value_flow_stale_cleanup": {Class: RetirementLeaseMaintenance, Reason: "value-flow stale cleanup runner (code/value/cleanup/runner.go); deletes stale rows, never writes repo edges"},
-	"supply_chain_impact_winners":   {Class: RetirementLeaseMaintenance, Reason: "supply-chain winners maintainer (supplychain/core/winners_maintainer.go); reconciles winner rows, never writes repo edges"},
+	"graph_orphan_sweep":                {Class: RetirementLeaseMaintenance, Reason: "orphan sweep maintenance runner (maintenance/orphan/runner.go); sweeps disconnected nodes, never writes repo edges"},
+	"collector_evidence_summary":        {Class: RetirementLeaseMaintenance, Reason: "collector evidence summary maintainer (maintenance/evidence/maintainer.go); reaps summary rows, never writes repo edges"},
+	"code_value_flow_stale_cleanup":     {Class: RetirementLeaseMaintenance, Reason: "value-flow stale cleanup runner (code/value/cleanup/runner.go); deletes stale rows, never writes repo edges"},
+	"supply_chain_impact_winners":       {Class: RetirementLeaseMaintenance, Reason: "supply-chain winners maintainer (supplychain/core/winners_maintainer.go); reconciles winner rows, never writes repo edges"},
+	"supply_chain_impact_winners_audit": {Class: RetirementLeaseMaintenance, Reason: "supply-chain winners keyed-resweep audit (supplychain/core/winners_keyed_maintainer.go); re-queues drifted winner keys on a bounded cadence, never writes repo edges (#9805)"},
 }
 
 // RetirementLeaseDomainFor returns the 2b' classification for one

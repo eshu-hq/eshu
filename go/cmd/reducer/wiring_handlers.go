@@ -54,13 +54,13 @@ func awsCloudRuntimeDriftWriterFor(database db.ExecQueryer) awscloud.AWSCloudRun
 // transaction beginner the writer is nil, so the additive-domain gate keeps
 // supply_chain_impact unregistered rather than wiring a writer that cannot
 // retract. Mirrors awsCloudRuntimeDriftWriterFor.
-func supplyChainImpactWriterFor(database db.ExecQueryer) supplychaincore.SupplyChainImpactWriter {
+func supplyChainImpactWriterFor(database db.ExecQueryer, instruments *telemetry.Instruments) supplychaincore.SupplyChainImpactWriter {
 	beginner := reducerBeginner(database)
 	if beginner == nil {
 		return nil
 	}
 	return supplychaincore.PostgresSupplyChainImpactWriter{
-		DB: postgres.SupplyChainImpactBeginner{Beginner: beginner},
+		DB: postgres.SupplyChainImpactBeginner{Beginner: beginner, Instruments: instruments},
 	}
 }
 
@@ -234,12 +234,13 @@ func buildReducerSupplyChainSecurityHandlers(
 	factStore postgres.FactStore,
 	secretsIAMGraphWriter secretsiam.SecretsIAMGraphWriter,
 	presence endpointPresenceWirings,
+	instruments *telemetry.Instruments,
 ) reducer.SupplyChainSecurityHandlers {
 	return reducer.SupplyChainSecurityHandlers{
 		SBOMAttestationAttachmentWriter: sbomattest.PostgresSBOMAttestationAttachmentWriter{
 			DB: database,
 		},
-		SupplyChainImpactWriter:                          supplyChainImpactWriterFor(database),
+		SupplyChainImpactWriter:                          supplyChainImpactWriterFor(database, instruments),
 		SupplyChainImpactAuthorizedEvidenceLoader:        postgres.NewAuthorizedSupplyChainImpactEvidenceLoader(database),
 		RequireSupplyChainImpactAuthorizedEvidenceLoader: true,
 		// #9695: after its writer commit a pass reopens the scopes that hold stale

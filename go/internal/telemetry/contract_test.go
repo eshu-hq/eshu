@@ -121,6 +121,7 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"trigger",
 		"quota_kind",
 		"branch",
+		"path",
 	}
 
 	got := MetricDimensionKeys()

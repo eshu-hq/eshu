@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // SupplyChainImpactTx is the transaction surface one impact write runs in.
@@ -138,6 +139,16 @@ func commitSupplyChainImpactRows(
 	if err := factwrite.BatchInsertVersionedFacts(ctx, tx, rows); err != nil {
 		return supplyChainImpactTxOutcome{}, fmt.Errorf("write supply chain impact fact: %w", err)
 	}
+	// Name the keys this pass changed for the winners keyed resweep (#9805), in
+	// the transaction that changes them. A rewrite to an identical digest names
+	// nothing, so an unchanged rerun issues no extra statement.
+	if capturer, ok := tx.(SupplyChainImpactWinnersCapturer); ok {
+		if idents := dirtyIdentifiersToCapture(meta, stored, write.GenerationID); len(idents) > 0 {
+			if _, err := capturer.CaptureWinnersDirtyFacts(ctx, idents); err != nil {
+				return supplyChainImpactTxOutcome{}, fmt.Errorf("capture supply chain impact winners dirty keys: %w", err)
+			}
+		}
+	}
 	if hasProtected {
 		if err := publisher.PublishProtectedScanImpactResults(ctx, protected); err != nil {
 			return supplyChainImpactTxOutcome{}, fmt.Errorf("publish protected scan impact result: %w", err)
@@ -159,6 +170,11 @@ func commitSupplyChainImpactRows(
 		outcome.retracted, err = retractSupersededSupplyChainImpactFindings(ctx, tx, write.ScopeID, write.GenerationID, keep, write.FencingToken)
 		if err != nil {
 			return supplyChainImpactTxOutcome{}, err
+		}
+		// The retract statement appended one dirty-log row per tombstoned
+		// finding, so its affected-row count is the capture count.
+		if capturer, ok := tx.(SupplyChainImpactWinnersCapturer); ok {
+			capturer.RecordWinnersCapture(ctx, telemetry.SupplyChainImpactWinnersSourceFactRetract, int64(outcome.retracted))
 		}
 	}
 	if write.Recovery {
@@ -215,16 +231,33 @@ func supplyChainImpactConflictDomainKey(scopeID, generationID string) string {
 // upsert guard (existing <= EXCLUDED) refuses a stale pass's revive of it.
 // Legacy rows written before the token existed carry 0 and are retracted by any
 // pass (0 <= $5).
+//
+// The tombstoned rows' keys are appended to the winners dirty log by the same
+// statement (#9805): one log row per retracted finding, so the affected-row
+// count of the INSERT is the retracted count and no Go change is needed to name
+// a retracted finding's key. A retracted row is always a change.
 const retractSupersededSupplyChainImpactFindingsQuery = `
-UPDATE fact_records
-SET is_tombstone = TRUE,
-    fencing_token = $5
-WHERE fact_kind = $1
-  AND scope_id = $2
-  AND generation_id = $3
-  AND is_tombstone = FALSE
-  AND fact_id NOT IN (SELECT unnest($4::text[]))
-  AND fencing_token <= $5
+WITH retracted AS (
+    UPDATE fact_records
+    SET is_tombstone = TRUE,
+        fencing_token = $5
+    WHERE fact_kind = $1
+      AND scope_id = $2
+      AND generation_id = $3
+      AND is_tombstone = FALSE
+      AND fact_id NOT IN (SELECT unnest($4::text[]))
+      AND fencing_token <= $5
+    RETURNING
+        COALESCE(payload->>'package_id', '') AS package_id,
+        COALESCE(payload->>'repository_id', '') AS repository_id,
+        COALESCE(payload->>'subject_digest', '') AS subject_digest,
+        COALESCE(NULLIF(payload->>'cve_id', ''), NULLIF(payload->>'advisory_id', ''), '') AS c0,
+        COALESCE(payload->>'advisory_id', '') AS advisory_id
+)
+INSERT INTO supply_chain_impact_winners_dirty_log
+    (kind, source, package_id, repository_id, subject_digest, c0, advisory_id)
+SELECT 'fact', 'fact_retract', package_id, repository_id, subject_digest, c0, advisory_id
+FROM retracted
 `
 
 // retractSupersededSupplyChainImpactFindings runs the replace-set retraction
