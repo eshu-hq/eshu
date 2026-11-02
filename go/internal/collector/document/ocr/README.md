@@ -130,9 +130,12 @@ Only space, hyphen, underscore, and a case change may sit between the two words
 of a phrase. A comma or any other mark ends it. Digits after a marker word do
 not hide it (`Token2:`, `PIN2`, `api key1`, `API_KEY2`), and a case change
 inside a word does not split it away from its marker (`ToKen:`, `SeCret:`,
-`PiN:`). Fullwidth letters (`Ｐａｓｓｗｏｒｄ`) are read as ASCII. A whole word
-that holds a letter l never matches `pin`, because the fold reads l as i and
-`500 PLN` is a currency; `PlN` as a misread `PIN` is the price.
+`PiN:`). Fullwidth ASCII (letters, digits, `＿`, `－`, `＠`, `＄`) is read as its
+ASCII twin, so `ＡＰＩ＿ＫＥＹ` and `Ｐ＠ｓｓｗｏｒｄ` match. A digit at the end of a
+word is checked both ways, without it (`token2`) and as the letter the fold
+reads (`Pass cod3`). A whole word that holds a capital L never matches `pin`,
+because the fold reads l as i and `PLN` is a currency; lowercase `pln` and `PlN`
+still match as a misread `PIN`.
 
 The rule is a superset of the list it replaced. Every source-name marker
 (`identityMarkers`: `password`, `api_key`, `private_key`, and the three synthetic
@@ -201,9 +204,9 @@ Limits:
   no `passwort`, `passkey`, or `ssh key`.
 - Misses found by probing, none matched: `Pasword` (a dropped letter), `PW:`,
   `Pass:`, `A.P.I. key` (punctuation inside a word), Cyrillic `раssword` and
-  other homoglyphs outside fullwidth ASCII, `PlN` (see the l rule above), and
-  `ApI Key` with a case change inside `api` and a space before `key`. Only
-  digit, symbol, case, and fullwidth variants are handled.
+  other homoglyphs outside fullwidth ASCII, and `ApI Key` (a case change inside
+  `api`, a space before `key`). Only digit, symbol, case, and fullwidth variants
+  are handled.
 - A fused lowercase compound such as `clientsecret` matches only through its
   ending. `pin` and `token` in plain prose are markers like `password` in
   prose, so "Pin the base image" hides the two lines after it (#9793).
@@ -248,14 +251,14 @@ and local-engine PII suites.
 
 Marker-list Performance Evidence (#9793): the same two benchmarks on 500 regions,
 before (origin/main) and after test binaries run in turn at `-benchtime=2000x`,
-seven runs each, medians, on a shared 16-core host at load average 27, so the
-spread is wide. Ordinary text went from 3.37 ms/op to 4.36 ms/op (13,906 to
-12,906 allocs/op), and the label-heavy case from 2.17 ms/op to 2.73 ms/op
-(13,415 to 12,663 allocs/op). The scan makes a fixed number of passes per region
-(one for the source-name substrings, one for the words), twice per region (once
-for the value window and once for the region's own text), and keeps its buffers
-on the stack, so it allocates less than the lowercase copy it replaces. The
-added 0.5 to 1.0 ms per 500 regions is about 0.5 percent of one tesseract run.
+seven runs each, medians, on a shared 16-core host at load average 9.6.
+Ordinary text went from 3.16 ms/op to 4.26 ms/op (13,906 to 12,906 allocs/op),
+and the label-heavy case from 2.14 ms/op to 2.58 ms/op (13,415 to 12,663
+allocs/op). The scan makes a fixed number of passes per region (one for the
+source-name substrings, one for the words), twice per region (once for the value
+window and once for the region's own text), and keeps its buffers on the stack,
+so it allocates less than the lowercase copy it replaces. The added 0.4 to 1.1
+ms per 500 regions is about 0.5 percent of one tesseract run.
 `TestContainsMarkerWordIsLinear` pins the time on 1 MiB of symbols, camel case,
 digits, and glued words. A run of `@` or `$` outside a word was once measured
 again from every position; review measured 1.67 s for one 64 KiB region
@@ -269,7 +272,7 @@ log field count it with no change.
 
 Marker-list False-positive Evidence (#9793): the rule is a superset of the old
 one on every corpus below, and costs more only where the text holds a new word.
-The unit corpus `ordinaryLines` (44 lines, each holding a marker word as a
+The unit corpus `ordinaryLines` (53 lines, each holding a marker word as a
 substring or one edit away) flags none. The sandbox fixtures hold 15 distinct
 texts: the old rule flagged 2 (both true labels), and the new rule flagged 4
 before two fixtures were reworded, adding the value `Hunter2CanarySecret` and
@@ -283,15 +286,20 @@ line the old rule flagged missed. By family, on lines the old rule did not flag:
 `pwd` 43, `private key` 36, `access key` 32, `apikey` 7. Each costs a bounded
 window of 2 regions, as `password` always did.
 
-Marker-list Mutation Evidence (#9793): 34 planted mutants each turn at least one
-test red: each family word removed (14), the `secret` and `token` boundary and
-the `pin` and `pwd` boundary loosened to a substring, plural removed from both
-whole-word rules, folding removed whole and each of 0, 5 and `$`, `@`, 3, and
-`1`/`l` removed, camel splitting and its plural guard removed, the phrase gap
-loosened and its check removed, the first-word suffix removed, a word-edge
-symbol read as a letter, in-word symbols disabled, region text matched with the
-source-name list, the window opened by the source-name list, and the source-name
-list widened to the label matcher.
+Marker-list Mutation Evidence (#9793): 45 planted mutants each turn at least one
+test red. They are each family word removed (14), the `secret` and `token`
+boundary and the `pin` and `pwd` boundary loosened to a substring, plural
+removed from both whole-word rules, folding removed whole and each of 0, 5 and
+`$`, `@`, 3, and `1`/`l` removed, camel splitting and its plural guard removed,
+the phrase gap loosened and its check removed, the first-word suffix removed,
+in-word symbols disabled, the symbol-run early exit removed (the linearity test
+fails after 8 minutes 46 seconds), the source-name substring check and its
+non-ASCII path removed, trailing digits left on a word, the run-level word check
+removed, the whole-word check of
+a digit-ended word removed, the capital L rule removed and widened to any l,
+fullwidth folding removed at the decode site and in a symbol run, `pincode`
+removed, region text matched with the source-name list, the window opened by the
+source-name list, and the source-name list widened to the label matcher.
 
 No-Observability-Change: the rule adds no metric, span, or log. A withheld value
 is a redacted section, so `eshu_dp_ocr_redacted_regions_total`, the

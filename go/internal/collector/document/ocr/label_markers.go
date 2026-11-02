@@ -352,7 +352,7 @@ func runIsMarker(run []byte, word []byte, hasL bool) bool {
 			return true
 		}
 	}
-	return wordIsMarker(word, hasL) || (len(word) != len(run) && wordIsMarker(run, hasL))
+	return wordIsMarker(word, hasL)
 }
 
 // isWord reports whether piece is word or its plural.
