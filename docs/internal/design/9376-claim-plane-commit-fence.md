@@ -149,6 +149,47 @@ finalized-replay semantics, and the margin bounds it.
   `margin < lease - lease/3`; skew and commit p99 are measured on the
   test cluster before the real-scope flip.
 
+## 6.2 Runbook: confirm the 5 s margin on the test cluster (read-only, before Phase C)
+
+The margin must satisfy `margin >= 2 * (skew_bound + commit_p99)` and
+`margin < lease - lease/3` (40 s at the 60 s lease). Measure both inputs on
+the test cluster for the collector kind that will flip first. Every step
+reads; nothing writes. Record the raw samples and the verdict on #8875.
+
+1. Clock skew. The collector pod, the satellite pod, and the shared
+   Postgres server are the three clocks; Postgres is the reference because
+   core and the claim plane share that server. For each pod, take 20
+   bracketed samples from the drive host:
+
+   ```bash
+   a=$(kubectl -n eshu exec <pod> -- date +%s.%N)
+   b=$(kubectl -n eshu exec eshu-postgresql-0 -c postgresql -- \
+     psql -U eshu -d postgres -Atc 'select extract(epoch from clock_timestamp())')
+   c=$(kubectl -n eshu exec <pod> -- date +%s.%N)
+   # offset = b - (a + c) / 2, rtt = c - a
+   ```
+
+   `skew_bound = max|offset_collector| + max|offset_satellite| + max(rtt)`.
+   The `kubectl exec` hops inflate `rtt`, so the bound is conservative.
+2. Commit p99. From the flipped collector's logs over the last 24 h, take
+   the `duration_seconds` of every `ingestion commit stage completed`
+   record with `stage=commit_transaction` and compute the p99:
+
+   ```bash
+   kubectl -n eshu logs deploy/<collector> --since=24h \
+     | jq -r 'select(.msg == "ingestion commit stage completed"
+                     and .stage == "commit_transaction") | .duration_seconds' \
+     | sort -n | awk '{v[NR]=$1} END {print v[int(NR*0.99)]}'
+   ```
+
+3. Verdict. If `2 * (skew_bound + commit_p99) <= 5 s`, the margin stands.
+   If not, raise `DefaultClaimFenceMargin` in a follow-up PR before
+   Phase C (it is a constant on purpose, not a runtime knob), keeping it
+   below `lease - lease/3`. After the flip,
+   `eshu_dp_ingestion_commit_pin_slack_seconds` is the live check: healthy
+   samples sit between 40 s and 60 s, and any `deadline` rejection means
+   the margin or the plane needs attention.
+
 ## 7. Proof
 
 Recorded in `go/internal/storage/postgres/evidence-9376-claim-plane-commit-fence.md`:
