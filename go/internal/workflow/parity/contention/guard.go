@@ -5,6 +5,7 @@ package contention
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -57,17 +58,40 @@ func (g *guardedBackend) checkItems(op string, items []workflow.WorkItem) error 
 		if it.CollectorInstanceID != g.instanceID {
 			return g.refuse(op, "item %q names collector instance %q, not %q", it.WorkItemID, it.CollectorInstanceID, g.instanceID)
 		}
-		if err := g.checkIDs(op, it.WorkItemID, it.RunID, it.ScopeID); err != nil {
+		if err := g.checkIDs(op, it.WorkItemID, it.RunID, it.ScopeID, it.AcceptanceUnitID,
+			it.SourceRunID, it.GenerationID, it.SourceSystem); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
+// checkRun refuses a run that is not synthetic or that names a real
+// collector or scope set. The harness sets neither field; an empty value
+// passes.
+func (g *guardedBackend) checkRun(op string, run workflow.Run) error {
+	if err := g.checkIDs(op, run.RunID); err != nil {
+		return err
+	}
+	if run.RequestedCollector != "" {
+		if err := g.checkIDs(op, run.RequestedCollector); err != nil {
+			return err
+		}
+	}
+	if run.RequestedScopeSet == "" {
+		return nil
+	}
+	var scopes []string
+	if err := json.Unmarshal([]byte(run.RequestedScopeSet), &scopes); err != nil {
+		return g.refuse(op, "requested scope set %q is not a list of synthetic scope ids", run.RequestedScopeSet)
+	}
+	return g.checkIDs(op, scopes...)
+}
+
 func (g *guardedBackend) Name() string { return g.inner.Name() }
 
 func (g *guardedBackend) CreateRun(ctx context.Context, run workflow.Run) error {
-	if err := g.checkIDs("CreateRun", run.RunID); err != nil {
+	if err := g.checkRun("CreateRun", run); err != nil {
 		return err
 	}
 	return g.inner.CreateRun(ctx, run) //nolint:wrapcheck // pass-through keeps the leg error chain for parity.Classify
@@ -81,7 +105,7 @@ func (g *guardedBackend) EnqueueWorkItems(ctx context.Context, items []workflow.
 }
 
 func (g *guardedBackend) AdmitGuarded(ctx context.Context, run workflow.Run, items []workflow.WorkItem) (workflow.RunAdmission, error) {
-	if err := g.checkIDs("AdmitGuarded", run.RunID); err != nil {
+	if err := g.checkRun("AdmitGuarded", run); err != nil {
 		return workflow.RunAdmission{}, err
 	}
 	if err := g.checkItems("AdmitGuarded", items); err != nil {

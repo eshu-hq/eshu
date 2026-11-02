@@ -32,6 +32,18 @@ func TestGuardRefusesWritesOutsideTheSyntheticInstance(t *testing.T) {
 	foreign.CollectorInstanceID = "synth-8875-tfstate"
 	realID := syntheticItem()
 	realID.WorkItemID = "wi-real"
+	realAU := syntheticItem()
+	realAU.AcceptanceUnitID = "au-real"
+	realGen := syntheticItem()
+	realGen.GenerationID = "gen-real"
+	realSource := syntheticItem()
+	realSource.SourceSystem = "terraform"
+	realSourceRun := syntheticItem()
+	realSourceRun.SourceRunID = "sr-real"
+	scopedRun := newRun(Prefix+"run-1-8", now)
+	scopedRun.RequestedScopeSet = `["scope-real"]`
+	collectorRun := newRun(Prefix+"run-1-9", now)
+	collectorRun.RequestedCollector = "terraform-state-real"
 	cases := map[string]func(g *guardedBackend) error{
 		"enqueue on another instance": func(g *guardedBackend) error {
 			return g.EnqueueWorkItems(ctx, []workflow.WorkItem{foreign})
@@ -44,6 +56,20 @@ func TestGuardRefusesWritesOutsideTheSyntheticInstance(t *testing.T) {
 			return err
 		},
 		"create a non-synthetic run": func(g *guardedBackend) error { return g.CreateRun(ctx, newRun("run-real", now)) },
+		"enqueue a real acceptance unit": func(g *guardedBackend) error {
+			return g.EnqueueWorkItems(ctx, []workflow.WorkItem{realAU})
+		},
+		"enqueue a real generation": func(g *guardedBackend) error {
+			return g.EnqueueWorkItems(ctx, []workflow.WorkItem{realGen})
+		},
+		"enqueue a real source system": func(g *guardedBackend) error {
+			return g.EnqueueWorkItems(ctx, []workflow.WorkItem{realSource})
+		},
+		"enqueue a real source run": func(g *guardedBackend) error {
+			return g.EnqueueWorkItems(ctx, []workflow.WorkItem{realSourceRun})
+		},
+		"create a run naming a real scope set": func(g *guardedBackend) error { return g.CreateRun(ctx, scopedRun) },
+		"create a run naming a real collector": func(g *guardedBackend) error { return g.CreateRun(ctx, collectorRun) },
 		"claim on another instance": func(g *guardedBackend) error {
 			_, _, _, err := g.ClaimNextEligible(ctx, workflow.ClaimSelector{
 				CollectorKind:       "terraform_state",

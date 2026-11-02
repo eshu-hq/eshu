@@ -9,9 +9,11 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -111,5 +113,17 @@ func requireInTreeServerSafe(t *testing.T, admin string) {
 	defer func() { _ = db.Close() }()
 	if err := inTreeServerSafe(context.Background(), db, admin, os.Getenv(envSatelliteDSN)); err != nil {
 		t.Fatalf("%s refused: %v", envInTreeDSN, err)
+	}
+}
+
+// claimPlaneHTTPClient is the satellite leg's client: a bounded timeout, and
+// no redirects, so a redirect from the forwarded claim plane can never carry
+// harness writes to another address.
+func claimPlaneHTTPClient() *http.Client {
+	return &http.Client{
+		Timeout: 30 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
 	}
 }

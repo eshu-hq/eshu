@@ -3,7 +3,11 @@
 
 package contention
 
-import "testing"
+import (
+	"net/http"
+	"net/http/httptest"
+	"testing"
+)
 
 // TestLoopbackHostsChecksEveryFallback: pgx dials fallback hosts in order,
 // so a loopback first host does not make the DSN local.
@@ -24,5 +28,25 @@ func TestLoopbackHostsChecksEveryFallback(t *testing.T) {
 		if !ok && err == nil {
 			t.Fatalf("%s: accepted a DSN that can reach a non-loopback host", dsn)
 		}
+	}
+}
+
+// TestClaimPlaneHTTPClientRefusesRedirects: a redirect from the forwarded
+// claim plane must not carry harness writes to another address.
+func TestClaimPlaneHTTPClientRefusesRedirects(t *testing.T) {
+	hits := 0
+	elsewhere := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { hits++ }))
+	defer elsewhere.Close()
+	redirector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, elsewhere.URL, http.StatusTemporaryRedirect)
+	}))
+	defer redirector.Close()
+	resp, err := claimPlaneHTTPClient().Post(redirector.URL, "application/json", nil)
+	if err != nil {
+		t.Fatalf("post: %v", err)
+	}
+	_ = resp.Body.Close()
+	if hits != 0 || resp.StatusCode != http.StatusTemporaryRedirect {
+		t.Fatalf("redirect followed: hits=%d status=%d", hits, resp.StatusCode)
 	}
 }

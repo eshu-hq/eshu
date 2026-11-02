@@ -116,6 +116,8 @@ It does not prove:
   hop and the emulator distort latency, so no throughput or latency bar can
   be derived from either. The live leg yields correctness and headroom only.
   The binding throughput comparison is `REMOVAL_PREP.md` §4.
+- **Grant or revert state.** The harness cannot see the grant expire or
+  the revert PR merge; the operator watches both.
 - **Authority.** A pass moves no authority, and a new digest voids it (spec
   §10).
 
@@ -148,6 +150,17 @@ Supporting measurements:
   1. It then scans 49,750 rows in each of 200 loops: 18.7 s per claim at
   100,000 items, against 7.8-12 ms after `ANALYZE` (local shim, Postgres
   18.6).
+- **Sampler cost.** `EXPLAIN (ANALYZE, BUFFERS)` of each observer query on
+  100,000 items and 100,000 claims, with the v0.1.1 satellite schema on
+  local Postgres 18.6, three repetitions:
+  - Every 1 s tick: snapshot item counts 17-20 ms (parallel seq scan), and
+    active claims 3.3 ms (bitmap on `workflow_claims_active_expiry_idx`).
+  - Every 10 ticks: fencing 123-160 ms (index-only scan of the
+    `(work_item_id, fencing_token)` key, merged with the item primary key),
+    double terminal 31 ms, and census of items 16-17 ms, claims 20-21 ms,
+    and runs 0.06 ms.
+  - About 40 ms of database time per second on average: roughly 4% of one
+    backend on the server the sampler watches.
 - **Workers in practice.** At W=3 and the default mix, the window runs about
   5 claims/s. The 2% long holds of 30 s dominate, and the drain then runs at
   about 140 items/s locally.
@@ -220,10 +233,16 @@ The §2 fields (all required; `LoadSpec` names every blank one):
 (a number, or `NOT_APPLICABLE`), `_WINDOW_SECONDS`, `_WALL_CLOCK_CAP` (at
 most 2h), `_STARVATION_BOUND_SECONDS`, `_LOCK_WAIT_BOUND_MS`,
 `_PG_MAX_CONNECTIONS`, `_PG_MAX_LAG_SECONDS`, `_PG_MAX_CPU_MILLICORES`,
-`_PG_MAX_LOCK_WAITERS`, `_BASELINE_THROUGHPUT`, `_SEED`. A local target may
-set `not_applicable_local` for the IaC PRs, the authority decision, lag, and
-CPU. A live target refuses that value and needs
-`ESHU_CONTENTION_LIVE_GRANT=6558745112`. `_LEASE_TTL`, `_HEARTBEAT_INTERVAL`,
+`_PG_MAX_MEMORY_MI`, `_PG_MAX_LOCK_WAITERS`, `_BASELINE_THROUGHPUT`, `_SEED`.
+A local target may set `not_applicable_local` for the IaC PRs, the authority
+decision, lag, CPU, and memory. A live target refuses that value and needs
+`ESHU_CONTENTION_LIVE_GRANT=6558745112`. That value is the operator's
+acknowledgement that the run sits under the standing grant; the harness
+cannot read the grant, so it is not an authorization check. The harness
+enforces connections, lag, and lock waiters itself. CPU and memory are
+container figures that no SQL view or exporter series carries: the report
+records them as operator-enforced, and the step-4 watch loop enforces them
+from the same variables. `_LEASE_TTL`, `_HEARTBEAT_INTERVAL`,
 and `_REAP_INTERVAL` default to `workflow/defaults.go` (60s/20s/20s).
 
 Leg wiring: `PARITY_INTREE_DSN` + `PARITY_INTREE_DISPOSABLE=1` (in-tree);
@@ -301,19 +320,22 @@ then more seeds until two consecutive seeds are clean.
    ```
 
 4. **Abort watch** for what the exporter cannot see: CPU, memory, satellite
-   mode drift, and restarts. Six consecutive samples over a ceiling is the
-   sustained 60 s. Any hit writes the abort file. The watcher reads it every
+   mode drift, and restarts. Export the step-5 variables first, in the same
+   shell: the loop reads the abort file path and the CPU and memory ceilings
+   from them. Six consecutive samples over the CPU ceiling is the sustained
+   60 s. Any hit writes the abort file. The watcher reads it every
    `SampleInterval` (1 s) from before the first write until cleanup ends,
    so the harness aborts and reverses within one sample.
 
    ```sh
-   ABORT=/home/ubuntu/.cache/wf9727-abort; rm -f "$ABORT"; over=0
+   ABORT="$ESHU_CONTENTION_ABORT_FILE"; rm -f "$ABORT"; over=0
+   CPU_MAX="$ESHU_CONTENTION_PG_MAX_CPU_MILLICORES" MEM_MAX="$ESHU_CONTENTION_PG_MAX_MEMORY_MI"
    while sleep 10; do
      read -r cpu mem < <(kubectl -n eshu top pod eshu-postgresql-0 --containers --no-headers \
        | awk '$2=="postgresql"{gsub("m","",$3); m=$4; if (m ~ /Gi$/) {sub("Gi","",m); m*=1024} else sub("Mi","",m); print $3, m}')
-     if [ "${cpu:-0}" -gt 10000 ]; then over=$((over+1)); else over=0; fi
-     [ "$over" -ge 6 ] && echo "postgres cpu ${cpu}m over 10000m for 60s" > "$ABORT"
-     [ "${mem%.*}" -gt 63488 ] && echo "postgres memory ${mem}Mi over 62Gi" > "$ABORT"
+     if [ "${cpu:-0}" -gt "$CPU_MAX" ]; then over=$((over+1)); else over=0; fi
+     [ "$over" -ge 6 ] && echo "postgres cpu ${cpu}m over ${CPU_MAX}m for 60s" > "$ABORT"
+     [ "${mem%.*}" -gt "$MEM_MAX" ] && echo "postgres memory ${mem}Mi over ${MEM_MAX}Mi" > "$ABORT"
      args=$(kubectl -n eshu get deploy eshu-workflow-coordinator-satellite -o jsonpath='{.spec.template.spec.containers[0].args}')
      case "$args" in *--deployment-mode=active*--claims-enabled=true*) ;; *) echo "satellite mode drift: $args" > "$ABORT";; esac
      restarts=$(kubectl -n eshu get pods -o jsonpath='{range .items[*]}{.metadata.name}={.status.containerStatuses[0].restartCount}{"\n"}{end}' | rg 'workflow-(claim-plane|coordinator-satellite)' | awk -F= '{s+=$2} END {print s+0}')
@@ -331,8 +353,9 @@ then more seeds until two consecutive seeds are clean.
    export ESHU_CONTENTION_SATELLITE_DATABASE=workflow_claims ESHU_CONTENTION_SATELLITE_QUOTAS=none
    export ESHU_CONTENTION_PG_EXPORTER_URL=http://127.0.0.1:19187/metrics ESHU_CONTENTION_PG_LOCK_DATABASE=eshu
    export ESHU_CONTENTION_CORE_DSN="postgres://$CORE_RO_USER:$CORE_RO_PASS@127.0.0.1:15432/eshu?sslmode=disable"
-   export ESHU_CONTENTION_ABORT_FILE=/home/ubuntu/.cache/wf9727-abort
-   export ESHU_CONTENTION_REPORT_DIR=/home/ubuntu/.cache/wf9727-reports/live
+   export ESHU_CONTENTION_ABORT_FILE="$RUN_DIR/abort"     # RUN_DIR: a private local directory
+   export ESHU_CONTENTION_REPORT_DIR="$RUN_DIR/reports"
+   export ESHU_CONTENTION_PG_MAX_CPU_MILLICORES=10000 ESHU_CONTENTION_PG_MAX_MEMORY_MI=63488
    # plus every §2 field from step 1 (QUOTA_BUDGET=NOT_APPLICABLE)
    go test ./internal/workflow/parity/contention/ -count=1 -v -timeout 150m \
      -run 'TestContentionSatellite$'
@@ -343,6 +366,11 @@ then more seeds until two consecutive seeds are clean.
    step-8 injected 1 ms timeouts, one per replayed call (compare the count
    with the report's `*_replay_first` codes). They are not an abort signal.
    Any other new WARN or ERROR line is.
+
+   Budget the go test timeout as `wall_clock_cap` plus the 15 min cleanup
+   budget: the reversal runs on its own deadline after the cap fires, so a
+   run can end up to 15 min after the cap. The report records it as
+   `cleanup_budget`.
 
    The live leg never calls the reap route. The deployed claim-plane reaper
    (`--reap-interval` default 20 s) and the satellite coordinator's reap loop

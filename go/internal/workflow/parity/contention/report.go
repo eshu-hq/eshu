@@ -121,7 +121,10 @@ type Report struct {
 	Final              Census                    `json:"final_census"`
 	Deleted            map[string]int            `json:"deleted_rows"`
 	// CleanupSkipped says why the reversal deleted nothing, when it did not.
-	CleanupSkipped string               `json:"cleanup_skipped,omitempty"`
+	CleanupSkipped string `json:"cleanup_skipped,omitempty"`
+	// CleanupBudget is the reversal's own deadline, which runs after the
+	// wall-clock cap: a run can end up to this long after the cap fires.
+	CleanupBudget  string               `json:"cleanup_budget"`
 	Residue        Residue              `json:"residue"`
 	NotApplicable  map[string]string    `json:"not_applicable"`
 	SpecReadings   []SpecReading        `json:"spec_readings"`

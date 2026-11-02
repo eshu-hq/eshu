@@ -29,6 +29,7 @@ func localEnv() map[string]string {
 		EnvPGMaxConnections:   "80",
 		EnvPGMaxLagSeconds:    NotApplicableLocal,
 		EnvPGMaxCPUMillicores: NotApplicableLocal,
+		EnvPGMaxMemoryMi:      NotApplicableLocal,
 		EnvPGMaxLockWaiters:   "5",
 		EnvBaselineThroughput: "892.8 in-tree / 894.5 satellite ops/s",
 		EnvSeed:               "1",
@@ -78,7 +79,7 @@ func TestLoadSpecRejectsLocalSentinelsOnLiveTarget(t *testing.T) {
 	if err == nil {
 		t.Fatalf("live target accepted %q sentinels", NotApplicableLocal)
 	}
-	for _, key := range []string{EnvIACEnablePR, EnvIACRevertPR, EnvAuthority, EnvPGMaxLagSeconds, EnvPGMaxCPUMillicores} {
+	for _, key := range []string{EnvIACEnablePR, EnvIACRevertPR, EnvAuthority, EnvPGMaxLagSeconds, EnvPGMaxCPUMillicores, EnvPGMaxMemoryMi} {
 		if !strings.Contains(err.Error(), key) {
 			t.Fatalf("error %q does not name %s", err, key)
 		}
@@ -93,6 +94,7 @@ func TestLoadSpecLiveTargetNeedsGrantAndPRNumbers(t *testing.T) {
 	env[EnvAuthority] = "https://github.com/eshu-hq/eshu/issues/8875#issuecomment-6579288965"
 	env[EnvPGMaxLagSeconds] = "30"
 	env[EnvPGMaxCPUMillicores] = "10000"
+	env[EnvPGMaxMemoryMi] = "63488"
 	if _, err := LoadSpec(lookup(env)); err == nil || !strings.Contains(err.Error(), EnvLiveGrant) {
 		t.Fatalf("live target without %s: err=%v", EnvLiveGrant, err)
 	}

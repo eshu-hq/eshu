@@ -77,6 +77,7 @@ func Run(ctx context.Context, spec Spec, leg Leg, opt Options) (*Report, error) 
 	r.maxItems = r.plannedItems()
 	report := newReport(spec, leg, opt)
 	report.MaxItems = r.maxItems
+	report.CleanupBudget = cleanupBudget.String()
 	capCtx, capCancel := context.WithTimeout(ctx, spec.WallClockCap)
 	defer capCancel()
 	r.workCtx, r.cancel = context.WithCancel(capCtx)

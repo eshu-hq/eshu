@@ -8,7 +8,6 @@ import (
 	"database/sql"
 	"fmt"
 	"net"
-	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
@@ -148,7 +147,7 @@ func TestContentionSatellite(t *testing.T) {
 	}
 	leg := Leg{
 		Name: "satellite", Observer: observer, Pin: true, Quota: quota,
-		Backend:       parity.NewSatelliteBackend(workflow.NewClaimPlaneClient(baseURL, &http.Client{Timeout: 30 * time.Second})),
+		Backend:       parity.NewSatelliteBackend(workflow.NewClaimPlaneClient(baseURL, claimPlaneHTTPClient())),
 		HarnessReaper: spec.Target == TargetLocal, ServerLatency: satelliteNoLatency, DatabaseName: name,
 		ClockSkew: clockSkew(t, spec),
 	}

@@ -36,6 +36,7 @@ const (
 	EnvPGMaxLagSeconds    = "ESHU_CONTENTION_PG_MAX_LAG_SECONDS"
 	EnvPGMaxCPUMillicores = "ESHU_CONTENTION_PG_MAX_CPU_MILLICORES"
 	EnvPGMaxLockWaiters   = "ESHU_CONTENTION_PG_MAX_LOCK_WAITERS"
+	EnvPGMaxMemoryMi      = "ESHU_CONTENTION_PG_MAX_MEMORY_MI"
 	EnvBaselineThroughput = "ESHU_CONTENTION_BASELINE_THROUGHPUT"
 	EnvSeed               = "ESHU_CONTENTION_SEED"
 	// Optional overrides; the defaults are workflow/defaults.go (60s/20s/20s).
@@ -43,7 +44,9 @@ const (
 	EnvHeartbeatInterval = "ESHU_CONTENTION_HEARTBEAT_INTERVAL"
 	EnvReapInterval      = "ESHU_CONTENTION_REAP_INTERVAL"
 	// EnvLiveGrant must name the standing synthetic-write grant comment on a
-	// live target; any other value refuses the run.
+	// live target; any other value refuses the run. It is an operator
+	// acknowledgement that the run sits under that grant, not an
+	// authorization check: the harness cannot read the grant itself.
 	EnvLiveGrant = "ESHU_CONTENTION_LIVE_GRANT"
 )
 
@@ -79,10 +82,16 @@ var (
 
 // Headroom holds the pg_headroom abort ceilings. A zero value is a ceiling the
 // target cannot measure (recorded with NotApplicableLocal), never "unlimited".
+// The harness enforces connections, lag, and lock waiters from its headroom
+// source. CPU and memory are container figures no SQL view or exporter
+// series carries: they are recorded here and enforced by the operator's
+// watch loop, which reads the same environment variables and writes the
+// abort file (README runbook step 4).
 type Headroom struct {
 	MaxConnections   int     `json:"max_connections"`
 	MaxLagSeconds    float64 `json:"max_replication_lag_seconds"`
-	MaxCPUMillicores int     `json:"max_cpu_millicores"`
+	MaxCPUMillicores int     `json:"max_cpu_millicores_operator_enforced"`
+	MaxMemoryMi      int     `json:"max_memory_mi_operator_enforced"`
 	MaxLockWaiters   int     `json:"max_lock_waiters"`
 }
 
@@ -271,6 +280,19 @@ func readPR(r *fieldReader, key string) string {
 	return value
 }
 
+// readOperatorCeiling reads a ceiling the operator's watch loop enforces.
+func readOperatorCeiling(r *fieldReader, key, unit string) int {
+	value, local := r.localOnly(key)
+	if local || value == "" {
+		return 0
+	}
+	v, err := strconv.Atoi(value)
+	if err != nil || v <= 0 {
+		r.errs = append(r.errs, fmt.Sprintf("%s=%q must be a positive number of %s", key, value, unit))
+	}
+	return v
+}
+
 func readHeadroom(r *fieldReader) Headroom {
 	h := Headroom{MaxConnections: r.positiveInt(EnvPGMaxConnections), MaxLockWaiters: r.positiveInt(EnvPGMaxLockWaiters)}
 	if lag, local := r.localOnly(EnvPGMaxLagSeconds); !local && lag != "" {
@@ -280,12 +302,7 @@ func readHeadroom(r *fieldReader) Headroom {
 		}
 		h.MaxLagSeconds = v
 	}
-	if cpu, local := r.localOnly(EnvPGMaxCPUMillicores); !local && cpu != "" {
-		v, err := strconv.Atoi(cpu)
-		if err != nil || v <= 0 {
-			r.errs = append(r.errs, fmt.Sprintf("%s=%q must be positive millicores", EnvPGMaxCPUMillicores, cpu))
-		}
-		h.MaxCPUMillicores = v
-	}
+	h.MaxCPUMillicores = readOperatorCeiling(r, EnvPGMaxCPUMillicores, "millicores")
+	h.MaxMemoryMi = readOperatorCeiling(r, EnvPGMaxMemoryMi, "MiB")
 	return h
 }
