@@ -109,11 +109,10 @@ func TestExtractRecordsSkippedImagesAsDocumentWarnings(t *testing.T) {
 		wantClass  string
 	}{
 		{
-			name:       "unsupported_webp",
+			name:       "no_text_webp",
 			sourceName: "docs/screenshot.webp",
-			body:       []byte("RIFF\x10\x00\x00\x00WEBPVP8 \x00\x00\x00\x00"),
-			wantStatus: "skipped",
-			wantClass:  string(picture.WarningUnsupportedCodec),
+			body:       []byte("RIFF\x1e\x00\x00\x00WEBPVP8 \x0a\x00\x00\x00\x10\x00\x00\x9d\x01\x2a\x80\x02\xe0\x01"),
+			wantStatus: "no_text",
 		},
 		{
 			name:       "malformed_media",
@@ -162,6 +161,60 @@ func TestExtractRecordsSkippedImagesAsDocumentWarnings(t *testing.T) {
 				t.Fatalf("section fact count = %d, want 0", got)
 			}
 		})
+	}
+}
+
+// TestExtractCompletesWebPWithRedaction proves (#9780) that a header-valid
+// WebP passes preflight, reaches the engine, and keeps the redaction rule:
+// the marker line is withheld while the ordinary line survives.
+func TestExtractCompletesWebPWithRedaction(t *testing.T) {
+	t.Parallel()
+
+	body := []byte("RIFF\x1e\x00\x00\x00WEBPVP8 \x0a\x00\x00\x00\x10\x00\x00\x9d\x01\x2a\x80\x02\xe0\x01") // 640x480 lossy
+	engine := &fakeEngine{result: EngineResult{
+		EngineName:    "synthetic-ocr",
+		EngineVersion: "fixture",
+		Language:      "en",
+		Regions: []Region{
+			{RegionID: "line1", Text: "Deploy the Checkout Service to staging", Bounds: Bounds{X: 0, Y: 0, Width: 1, Height: 0.2}, Confidence: 0.90},
+			{RegionID: "line2", Text: "password: Hunter2CanarySecret", Bounds: Bounds{X: 0, Y: 0.3, Width: 1, Height: 0.2}, Confidence: 0.90},
+		},
+	}}
+
+	result, err := Extract(context.Background(), testRequest("docs/screenshot.webp", body, engine))
+	if err != nil {
+		t.Fatalf("Extract() error = %v", err)
+	}
+	assertEngineImage(t, engine.lastImage, picture.FormatWEBP, 640, 480, 0)
+	if engine.calls != 1 {
+		t.Fatalf("OCR engine calls = %d, want 1", engine.calls)
+	}
+	document := payloadByKind(t, result.Envelopes, docs.DocumentFactKind)
+	metadata := stringMapValue(t, document, "source_metadata")
+	if got := metadata["ocr_status"]; got != "completed" {
+		t.Fatalf("ocr_status = %q, want completed", got)
+	}
+	if got := metadata["image_format"]; got != picture.FormatWEBP {
+		t.Fatalf("image_format = %q, want %q", got, picture.FormatWEBP)
+	}
+	var sections []map[string]any
+	for _, envelope := range result.Envelopes {
+		if envelope.FactKind == docs.SectionFactKind {
+			sections = append(sections, envelope.Payload)
+		}
+	}
+	if len(sections) != 2 {
+		t.Fatalf("section count = %d, want 2", len(sections))
+	}
+	if got := sections[0]["content"]; got != "Deploy the Checkout Service to staging" {
+		t.Fatalf("ordinary section content = %#v", got)
+	}
+	if got := sections[1]["content"]; got != "[redacted]" {
+		t.Fatalf("marker section content = %#v, want [redacted]", got)
+	}
+	sectionMeta := stringMapValue(t, sections[1], "source_metadata")
+	if sectionMeta["redacted"] != "true" || sectionMeta["redaction_class"] != string(picture.WarningSensitiveValueRedacted) {
+		t.Fatalf("marker section metadata = %#v, want redacted with sensitive class", sectionMeta)
 	}
 }
 

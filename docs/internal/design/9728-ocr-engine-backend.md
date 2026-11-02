@@ -186,7 +186,7 @@ proof test asserts each row below. Results on 2026-11-01:
 | Clean mixed-case line exact, all 4 formats | pass | pass |
 | 5 runs identical, all 4 formats | pass | pass |
 | PNG/JPEG/GIF Extract: completed, 3 sections, 2 redacted, no canary in envelopes | pass | pass |
-| WebP Extract | skipped by preflight | skipped by preflight |
+| WebP Extract: completed, 3 sections, 2 redacted, no canary in envelopes | pass (re-run 2026-11-02, #9780) | NOT_CHECKED (local qemu SIGTRAP; the 2026-11-01 leg recorded the pre-#9780 skip) |
 | `form-stacked.png` Extract: completed, 5 sections, 3 redacted, no canary in envelopes | pass | NOT_CHECKED |
 | `form-columns.png` Extract: completed, 10 sections, 4 redacted, no canary in envelopes | pass | NOT_CHECKED |
 | Timeout 5 ms | `timeout` | `timeout` |
@@ -203,12 +203,28 @@ and the first library-set run, both against placeholder pins.
 
 ## 6. Residuals
 
-This PR does not meet gate 2 of #8879. The design-1737 format list is not
-covered end to end, and there is no QA-tier caller.
+Gate 2 of #8879 is met on the design-1737 format-list criterion: with #9780
+admitted, PNG, JPEG, GIF, and WebP all complete through `ocr.Extract`. The
+QA-tier caller is still the open residual.
 
-- WebP: the engine reads WebP, but `preflight/picture` still classifies it
-  as `unsupported_codec`, so `ocr.Extract` skips it before the engine runs.
-  Admitting WebP is a reviewed change to `picture`, tracked in #9780.
+- WebP: resolved by #9780. `preflight/picture` reads the WebP canvas size with
+  the bounded RIFF header parser (same shape as `tesseract/input.go`, no
+  decoder dependency), and the sandbox proof shows WebP completing with both
+  canary lines redacted.
+
+  - No-Regression Evidence: same-host arm64 comparison of the two
+    `TestSandboxRealTesseract` runs recorded above (baseline commit
+    `0211283d28`, after = this change; pinned tesseract 5.5.0 on the pinned
+    Alpine 3.21 digest; input = the four rendered fixtures plus two form
+    layouts). Per-fixture wall time stays about 0.14 s and peak RSS about
+    80 MB; the added WebP completion only parses 20 header bytes before the
+    identical engine call, so totals are directly comparable. Terminal
+    counts: PNG/JPEG/GIF/WebP 3 sections 2 redacted each; forms 5/3 and
+    10/4; no canary in any envelope.
+  - No-Observability-Change: same metric and span set as the section 5
+    table (`eshu_dp_ocr_*`); no new operator signal was added or removed.
+    The change is safe because it replaces one early-return branch with an
+    O(1) bounded header read inside the already-tested `classifyImage`.
 - Label and value on separate lines: resolved in `ocr.Extract` by #9782. A
   value is withheld when it is one of the two regions with a letter or digit
   after a marker region (symbol-only regions between them are withheld too),

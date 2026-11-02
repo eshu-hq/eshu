@@ -6,6 +6,7 @@ package picture
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"image"
 	"image/color"
@@ -24,10 +25,15 @@ func TestPreflightAcceptsSafeImageMetadata(t *testing.T) {
 		sourceName string
 		body       []byte
 		wantFormat string
+		wantWidth  int
+		wantHeight int
 	}{
 		{name: "png", sourceName: "architecture.png", body: encodePNG(t, 2, 1), wantFormat: FormatPNG},
 		{name: "jpeg", sourceName: "dashboard.jpg", body: encodeJPEG(t, 2, 1), wantFormat: FormatJPEG},
 		{name: "gif", sourceName: "flow.gif", body: encodeGIF(t, 1), wantFormat: FormatGIF},
+		{name: "webp_lossy", sourceName: "shot.webp", body: webpLossy(640, 480), wantFormat: FormatWEBP, wantWidth: 640, wantHeight: 480},
+		{name: "webp_lossless", sourceName: "icon.webp", body: webpLossless(321, 123), wantFormat: FormatWEBP, wantWidth: 321, wantHeight: 123},
+		{name: "webp_extended", sourceName: "anim.webp", body: webpExtended(1000, 700), wantFormat: FormatWEBP, wantWidth: 1000, wantHeight: 700},
 	}
 	for _, tt := range tests {
 		tt := tt
@@ -47,6 +53,12 @@ func TestPreflightAcceptsSafeImageMetadata(t *testing.T) {
 			if result.Width == 0 || result.Height == 0 || result.PixelCount == 0 {
 				t.Fatalf("image dimensions were not counted: %#v", result)
 			}
+			if tt.wantWidth != 0 && (result.Width != tt.wantWidth || result.Height != tt.wantHeight) {
+				t.Fatalf("%s: dimensions = %dx%d, want %dx%d", tt.name, result.Width, result.Height, tt.wantWidth, tt.wantHeight)
+			}
+			if tt.wantWidth != 0 && result.PixelCount != int64(tt.wantWidth)*int64(tt.wantHeight) {
+				t.Fatalf("%s: pixel count = %d, want %d", tt.name, result.PixelCount, int64(tt.wantWidth)*int64(tt.wantHeight))
+			}
 		})
 	}
 }
@@ -62,7 +74,9 @@ func TestPreflightClassifiesUnsupportedMalformedAndLimits(t *testing.T) {
 		wantClass  WarningClass
 	}{
 		{name: "unsupported_format", sourceName: "diagram.bmp", body: []byte("ignored"), wantClass: WarningUnsupportedFormat},
-		{name: "unsupported_webp_codec", sourceName: "screenshot.webp", body: webpHeader(), wantClass: WarningUnsupportedCodec},
+		{name: "truncated_webp", sourceName: "screenshot.webp", body: webpHeader(), wantClass: WarningMalformedMedia},
+		{name: "riff_not_webp", sourceName: "screenshot.webp", body: []byte("RIFF\x10\x00\x00\x00WAVEfmt "), wantClass: WarningMalformedMedia},
+		{name: "webp_unknown_chunk", sourceName: "screenshot.webp", body: riffWebP("ANIM", nil), wantClass: WarningMalformedMedia},
 		{name: "empty_image", sourceName: "empty.png", body: nil, wantClass: WarningMalformedMedia},
 		{name: "corrupt_png", sourceName: "broken.png", body: []byte("not an image"), wantClass: WarningMalformedMedia},
 		{name: "oversized_source", sourceName: "large.png", body: encodePNG(t, 1, 1), options: Options{MaxSourceBytes: 4}, wantClass: WarningResourceLimitExceeded},
@@ -197,6 +211,45 @@ func solidImage(width int, height int) image.Image {
 
 func webpHeader() []byte {
 	return []byte("RIFF\x10\x00\x00\x00WEBPVP8 \x00\x00\x00\x00")
+}
+
+// riffWebP builds a minimal RIFF/WEBP container with one chunk. The RIFF
+// length field is intentionally zero: the bounded header parser reads only
+// the chunk fourCC and size.
+func riffWebP(fourcc string, payload []byte) []byte {
+	body := []byte("RIFF\x00\x00\x00\x00WEBP")
+	body = append(body, fourcc...)
+	var size [4]byte
+	binary.LittleEndian.PutUint32(size[:], uint32(len(payload)))
+	body = append(body, size[:]...)
+	return append(body, payload...)
+}
+
+func webpLossy(width, height int) []byte {
+	return riffWebP("VP8 ", []byte{
+		0x10, 0x00, 0x00, 0x9d, 0x01, 0x2a,
+		byte(width), byte(width >> 8), byte(height), byte(height >> 8),
+	})
+}
+
+func webpLossless(width, height int) []byte {
+	var payload [5]byte
+	payload[0] = 0x2f
+	binary.LittleEndian.PutUint32(payload[1:], uint32(width-1)|uint32(height-1)<<14)
+	return riffWebP("VP8L", payload[:])
+}
+
+func webpExtended(width, height int) []byte {
+	payload := make([]byte, 10)
+	putUint24(payload[4:], width-1)
+	putUint24(payload[7:], height-1)
+	return riffWebP("VP8X", payload)
+}
+
+func putUint24(b []byte, v int) {
+	b[0] = byte(v)
+	b[1] = byte(v >> 8)
+	b[2] = byte(v >> 16)
 }
 
 func assertWarning(t *testing.T, result Result, class WarningClass) {
