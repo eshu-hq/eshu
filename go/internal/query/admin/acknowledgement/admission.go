@@ -34,7 +34,8 @@ var _ TerminalFailureAdmission = (*pgstorage.TerminalFailureAckStore)(nil)
 // and calls this versioned port, which the core-owned Postgres store
 // satisfies. A breaking change to the ledger shape fails the frozen
 // method-set test until that list is deliberately updated; bump this
-// version alongside so dest consumers can pin the shape.
+// version alongside (manually — the bump is convention, the frozen list is
+// the enforcement) so dest consumers can pin the shape.
 const ReplayLedgerAdmissionContractVersion = "v0"
 
 // ReplayLedgerAdmission is the versioned admission-contract port the API

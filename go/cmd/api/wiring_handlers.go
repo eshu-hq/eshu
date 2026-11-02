@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/cli/support"
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/admin/retirement"
 	"github.com/eshu-hq/eshu/go/internal/query/cicd"
 	"github.com/eshu-hq/eshu/go/internal/query/incident/store"
 	"github.com/eshu-hq/eshu/go/internal/query/kubernetes"
@@ -99,6 +100,25 @@ func newSupplyChainHandler(
 		PacketResponder:              query.NewSupplyChainImpactPacketResponder(),
 		Profile:                      profile,
 		Instruments:                  instruments,
+	}
+}
+
+// newRetirementHandler builds the operator repository retirement trigger
+// handler with its catalog reader and core-owned trigger.
+//
+// The single bounded trigger travels through the versioned #8872
+// retirement admission contract, not a direct trigger handle: the caller
+// binds the core-owned mark/fence/purge Trigger implementation and the
+// handler carries the port. See retirement.RetirementAdmission.
+func newRetirementHandler(
+	catalog retirement.Catalog,
+	triggerer query.RetirementAdmission,
+	audit query.GovernanceAuditAppender,
+) *query.AdminRetirementHandler {
+	return &query.AdminRetirementHandler{
+		Catalog:   catalog,
+		Triggerer: triggerer,
+		Audit:     audit,
 	}
 }
 

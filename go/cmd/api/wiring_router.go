@@ -362,19 +362,20 @@ func newRouterWithSemanticEmbeddingWithReadStore(
 	}
 	// Operator-driven repository retirement trigger (#8602): the only
 	// production wiring of the tombstone mark, the phase-1 fence, and the
-	// narrowed purge. The API writer backs all three steps.
+	// narrowed purge. The API writer backs all three steps; the trigger
+	// travels through the versioned #8872 retirement admission contract.
 	retirementDB := pgstatus.SQLDB{DB: writer}
-	router.AdminRetirement = &query.AdminRetirementHandler{
-		Catalog: contentReader,
-		Triggerer: &retirement.Trigger{
+	router.AdminRetirement = newRetirementHandler(
+		contentReader,
+		&retirement.Trigger{
 			Marker:      pgstatus.NewRetirementStore(retirementDB),
 			Fencer:      pgstatus.NewRetirementFencer(retirementDB, retirementDB),
 			Purger:      pgstatus.NewRetirementPurger(retirementDB, retirementDB),
 			Instruments: instruments,
 			Audit:       adminRecoveryAuditAppender(governanceAudit),
 		},
-		Audit: adminRecoveryAuditAppender(governanceAudit),
-	}
+		adminRecoveryAuditAppender(governanceAudit),
+	)
 	// Operator acknowledgement of a collector terminal failure (#8830). The API
 	// writer backs the acknowledgement transaction and the shared replay
 	// idempotency ledger; the status read that consumes the rows runs on the
