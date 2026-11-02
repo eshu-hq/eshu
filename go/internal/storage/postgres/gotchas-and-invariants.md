@@ -418,3 +418,24 @@ Observability Evidence: no new signal. The derivation reports skipped targets
 by reason and ecosystem through the existing derived-target skip evidence; a
 skipped Gradle dependency now appears under `maven`. Existing Postgres
 query-duration telemetry covers the read.
+
+## Owned-target slot progress moves only under the admission lock (#9776)
+
+`owned_target_slot_progress` (migration 271) is written by
+`advanceOwnedTargetSlots` inside `createRunWithWorkItemsIfNoOpenTargets`, after
+the per-instance `pg_advisory_xact_lock` and before commit, on the insert,
+terminal-skip and zero-eligible paths. An empty pick with no work item takes
+`advanceSlotsOnly`, which uses the same lock key. The write is a
+compare-and-set (`WHERE last_planned_window_start < EXCLUDED.last_planned_window_start`):
+zero rows moved is a lost race, not an error. The key is the window start time in
+unix seconds, never an index in scan intervals, so changing `scan_interval` on
+an enabled instance does not reorder the stored progress. A repeat tick inside
+one window picks `same_bucket_reuse` and the coordinator writes nothing for it.
+
+The flag-off reader statement is hash-pinned in
+`owned_package_targets_slot_progress_test.go`. Edit the progress tail, not the
+shared head, unless you mean to re-derive that pin.
+
+Observability Evidence: `eshu_dp_owned_target_slot_selection_total` and
+`eshu_dp_owned_target_oldest_slot_age_seconds` (see
+`docs/public/reference/telemetry/owned-target-slot-progress.md`).

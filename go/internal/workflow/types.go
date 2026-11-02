@@ -237,6 +237,9 @@ type OwnedPackageDependencyTargetFilter struct {
 	// RotationBucket is the truncated-clock bucket of the reconcile window.
 	// The read selects slot RotationBucket mod P; single_pass passes 0.
 	RotationBucket int64
+	// SlotProgress opts the read into progress-ordered virtual-slot selection
+	// (#9776). The zero value keeps the clock slot, the rollback state.
+	SlotProgress OwnedTargetSlotSelector
 	// ExpandPackageManagerAliases makes the read select every raw
 	// package_manager alias of each requested ecosystem (for example gradle
 	// for maven) and report them under the canonical ecosystem name. The zero

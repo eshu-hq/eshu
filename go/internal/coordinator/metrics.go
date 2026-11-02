@@ -64,6 +64,10 @@ type Metrics interface {
 	// derivation read reported against its freshness bound (#9775), so an
 	// operator reads a lagging rotation from a gauge instead of a trace.
 	RecordOwnedTargetRotation(context.Context, OwnedTargetRotationObservation)
+	// RecordOwnedTargetSlotSelection records one progress-ordered owned-package
+	// planning pass (#9776): its selection outcomes and the oldest planned slot
+	// age, so a missed window shows as a gauge and a counter, not a trace.
+	RecordOwnedTargetSlotSelection(context.Context, OwnedTargetSlotObservation)
 }
 
 // ReconcileObservation captures one reconcile-loop outcome.
@@ -130,6 +134,9 @@ type otelMetrics struct {
 
 	// ownedRotation serves the #9775 owned-target rotation freshness gauges.
 	ownedRotation *ownedTargetRotationGauges
+	// ownedSlots serves the #9776 oldest-slot-age gauge and the slot selection
+	// outcome counter.
+	ownedSlots *ownedTargetSlotInstruments
 
 	// workItemRetention holds the workflow_work_items retention instruments
 	// (#8829), registered in retention_metrics.go.
@@ -306,8 +313,14 @@ func NewMetrics(meter metric.Meter) (Metrics, error) {
 		return nil, err
 	}
 
+	ownedSlots, err := newOwnedTargetSlotInstruments(meter)
+	if err != nil {
+		return nil, err
+	}
+
 	recorder := &otelMetrics{
 		ownedRotation:                 ownedRotation,
+		ownedSlots:                    ownedSlots,
 		reconcileTotal:                reconcileTotal,
 		reconcileDuration:             reconcileDuration,
 		reapTotal:                     reapInstruments.total,

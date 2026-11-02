@@ -39,7 +39,10 @@ type fakeOwnedPackageTargetReader struct {
 	requests []workflow.OwnedPackageDependencyTargetFilter
 	targets  []workflow.OwnedPackageDependencyTarget
 	window   workflow.OwnedPackageDependencyTargetWindow
-	err      error
+	// selection is returned on the page as the progress-ordered selection of
+	// the read (#9776); the zero value models a clock-ordered read.
+	selection workflow.OwnedTargetSlotSelection
+	err       error
 }
 
 type fakeGovernanceAuditAppender struct {
@@ -67,7 +70,7 @@ func (f *fakeOwnedPackageTargetReader) ListOwnedPackageDependencyTargets(
 	if filter.Limit > 0 && len(targets) > filter.Limit {
 		targets = targets[:filter.Limit]
 	}
-	return workflow.OwnedPackageDependencyTargetPage{Targets: targets, Window: f.window}, nil
+	return workflow.OwnedPackageDependencyTargetPage{Targets: targets, Window: f.window, Selection: f.selection}, nil
 }
 
 func (f *fakeStore) ReconcileCollectorInstances(_ context.Context, observedAt time.Time, desired []workflow.DesiredCollectorInstance) error {
@@ -187,6 +190,7 @@ type fakeMetrics struct {
 	incidentFreshnessReapObserved []FreshnessReapObservation
 	scannerDerivedPagesObserved   []ScannerDerivedPageObservation
 	ownedTargetRotationObserved   []OwnedTargetRotationObservation
+	ownedTargetSlotObserved       []OwnedTargetSlotObservation
 }
 
 func (f *fakeMetrics) RecordReconcile(_ context.Context, observation ReconcileObservation) {
@@ -223,4 +227,8 @@ func (f *fakeMetrics) RecordScannerDerivedPage(_ context.Context, observation Sc
 
 func (f *fakeMetrics) RecordOwnedTargetRotation(_ context.Context, observation OwnedTargetRotationObservation) {
 	f.ownedTargetRotationObserved = append(f.ownedTargetRotationObserved, observation)
+}
+
+func (f *fakeMetrics) RecordOwnedTargetSlotSelection(_ context.Context, observation OwnedTargetSlotObservation) {
+	f.ownedTargetSlotObserved = append(f.ownedTargetSlotObserved, observation)
 }

@@ -388,6 +388,21 @@ No-Observability-Change: the read runs inside the existing status statement
 and its read telemetry; the writers keep their existing counters and logs.
 Evidence: `docs/internal/evidence/9320-reopen-stamp-writers.md`.
 
+## Migration 271: owned-target slot progress (#9776)
+
+`271_owned_target_slot_progress.sql` creates `owned_target_slot_progress`: one row
+per (collector instance, derivation kind, virtual slot), at most 1,024 per
+instance whatever the target total. It is DDL only on a new empty table, so it
+takes no lock on an existing relation, and `REVOKE ALL ... FROM PUBLIC` keeps it
+with the owning role. A missing row orders as the oldest slot, so a
+deleted row costs one repeat window, never a missed target. Numbered 271
+because 270 was held by an unmerged migration; re-derive the digest, the count
+and the manifest row in `embed_invariant_test.go` and
+`migration_checksum_manifest_test.go` if the number moves on rebase.
+
+No-Observability-Change: the table is read and written only by the slot-progress
+path, which reports `eshu_dp_owned_target_slot_selection_total`.
+
 ## Verification
 
 ```bash

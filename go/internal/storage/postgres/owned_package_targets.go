@@ -122,6 +122,14 @@ const ownedPackageSlotCountExpression = `CASE WHEN $4::bigint <= 0 THEN 1::bigin
 // Binds: $1 raw package_manager values, $2 read limit, $3 rotation bucket,
 // $4 target limit (zero or less means one slot).
 func listOwnedPackageDependencyTargetsQuery(versionSpecific bool, expandAliases bool) string {
+	return fmt.Sprintf(ownedPackageSlotQueryTemplate, ownedPackageStatementArgs(versionSpecific, expandAliases)...)
+}
+
+// ownedPackageStatementArgs returns the six builder verbs both renderings of
+// the owned-package statement share (see [ownedPackageSlotQueryTemplate]): the
+// ecosystem expression, DISTINCT ON columns and order, slot key, slot count and
+// active-generation predicate.
+func ownedPackageStatementArgs(versionSpecific bool, expandAliases bool) []any {
 	distinctColumns := "ecosystem, package_name"
 	distinctOrder := "ecosystem ASC, package_name ASC, CASE WHEN source_location <> '' THEN 0 ELSE 1 END ASC, lockfile DESC, version ASC, fact_id ASC"
 	// COALESCE keeps a NULL version or name in a slot: sha256(NULL) is NULL,
@@ -132,16 +140,22 @@ func listOwnedPackageDependencyTargetsQuery(versionSpecific bool, expandAliases 
 		distinctOrder = "ecosystem ASC, package_name ASC, version ASC, CASE WHEN source_location <> '' THEN 0 ELSE 1 END ASC, lockfile DESC, fact_id ASC"
 		slotKey = "COALESCE(ecosystem, '') || '|' || COALESCE(package_name, '') || '|' || COALESCE(version, '')"
 	}
-	return fmt.Sprintf(ownedPackageSlotQueryTemplate,
+	return []any{
 		ownedPackageEcosystemExpression(expandAliases), distinctColumns, distinctOrder, slotKey,
-		ownedPackageSlotCountExpression, ownedPackageActiveGenerationPredicate)
+		ownedPackageSlotCountExpression, ownedPackageActiveGenerationPredicate,
+	}
 }
 
 // ownedPackageSlotQueryTemplate is the measured statement with its six
 // builder verbs: %[1]s ecosystem expression, %[2]s DISTINCT ON columns,
 // %[3]s DISTINCT ON order, %[4]s slot key expression, %[5]s slot count,
 // %[6]s active-generation predicate.
-const ownedPackageSlotQueryTemplate = `
+const ownedPackageSlotQueryTemplate = ownedPackageSlotQueryHead + ownedPackageClockSlotQueryTail
+
+// ownedPackageSlotQueryHead is the measured CTE chain up to the slot partition,
+// shared by the clock statement and the progress-ordered statement (#9776) so
+// the fact scan, ranking, hashing and slot sizing cannot drift between them.
+const ownedPackageSlotQueryHead = `
 WITH active_dependencies AS (
   SELECT
     %[1]s AS ecosystem,
@@ -211,7 +225,12 @@ sized_targets AS (
     %[5]s
   FROM numbered_targets
 ),
-slotted_targets AS (
+`
+
+// ownedPackageClockSlotQueryTail is the clock-ordered rest of the statement: the
+// slot is the rotation bucket mod P. Instances without the slot-progress flag
+// run exactly this text.
+const ownedPackageClockSlotQueryTail = `slotted_targets AS (
   SELECT
     sized_targets.*,
     MOD(key_hash_low24::bigint, slot_count) AS slot_of_key,
@@ -300,14 +319,21 @@ func (s FactStore) readOwnedPackageWindow(
 	bucket int64,
 	targetLimit int,
 ) (workflow.OwnedPackageDependencyTargetPage, error) {
-	rows, err := s.database.QueryContext(
-		ctx,
-		listOwnedPackageDependencyTargetsQuery(filter.VersionSpecific, filter.ExpandPackageManagerAliases),
+	query := listOwnedPackageDependencyTargetsQuery(filter.VersionSpecific, filter.ExpandPackageManagerAliases)
+	args := []any{
 		ownedPackageManagerFilterValues(ecosystems, filter.ExpandPackageManagerAliases, filter.IncludeSBTOwnedTargets),
 		limit,
 		bucket,
 		targetLimit,
-	)
+	}
+	progressOrdered := filter.SlotProgress.Enabled()
+	if progressOrdered {
+		query = listOwnedPackageDependencySlotProgressQuery(filter.VersionSpecific, filter.ExpandPackageManagerAliases)
+		args = append(args, int64(workflow.OwnedPackageVirtualSlotCount),
+			filter.SlotProgress.CollectorInstanceID, filter.SlotProgress.DerivationKind,
+			max(filter.SlotProgress.WindowStartUnix, 0))
+	}
+	rows, err := s.database.QueryContext(ctx, query, args...)
 	if err != nil {
 		return workflow.OwnedPackageDependencyTargetPage{}, fmt.Errorf("list owned package dependency targets: %w", err)
 	}
@@ -317,6 +343,10 @@ func (s FactStore) readOwnedPackageWindow(
 		Targets: make([]workflow.OwnedPackageDependencyTarget, 0, limit),
 	}
 	statsRows := 0
+	var (
+		progressColumns slotProgressColumns
+		rowSlots        []int
+	)
 	for rows.Next() {
 		var (
 			ecosystem, name, version, repositoryID, factID, sourceLocation sql.NullString
@@ -324,7 +354,7 @@ func (s FactStore) readOwnedPackageWindow(
 			lockfile                                                       sql.NullBool
 			keyHashLow24                                                   sql.NullInt64
 		)
-		if err := rows.Scan(
+		dest := []any{
 			&ecosystem,
 			&name,
 			&version,
@@ -339,7 +369,12 @@ func (s FactStore) readOwnedPackageWindow(
 			&page.Window.SlotCount,
 			&page.Window.Slot,
 			&page.Window.SlotSize,
-		); err != nil {
+		}
+		if progressOrdered {
+			dest = append(dest, &progressColumns.mode, &progressColumns.picked,
+				&progressColumns.oldestWindowStart, &progressColumns.progressRows)
+		}
+		if err := rows.Scan(dest...); err != nil {
 			return workflow.OwnedPackageDependencyTargetPage{}, fmt.Errorf("list owned package dependency targets: %w", err)
 		}
 		statsRows++
@@ -349,6 +384,10 @@ func (s FactStore) readOwnedPackageWindow(
 			continue
 		}
 		page.Window.RowsRead++
+		if progressOrdered {
+			// #nosec G115 -- bounded: the low 24 bits of sha256, as below.
+			rowSlots = append(rowSlots, workflow.VirtualSlotOfKeyHash(uint32(max(keyHashLow24.Int64, 0))))
+		}
 		target := workflow.OwnedPackageDependencyTarget{
 			Ecosystem:         strings.ToLower(strings.TrimSpace(ecosystem.String)),
 			PackageName:       strings.TrimSpace(name.String),
@@ -379,6 +418,13 @@ func (s FactStore) readOwnedPackageWindow(
 	if err := checkOwnedPackageWindow(page.Window, bucket, targetLimit); err != nil {
 		return workflow.OwnedPackageDependencyTargetPage{}, err
 	}
+	if progressOrdered {
+		selection, err := ownedPackageSlotProgressSelection(progressColumns, rowSlots, page.Window, max(filter.SlotProgress.WindowStartUnix, 0), filter.TargetLimit)
+		if err != nil {
+			return workflow.OwnedPackageDependencyTargetPage{}, err
+		}
+		page.Selection = selection
+	}
 	return page, nil
 }
 
@@ -395,6 +441,14 @@ func recordOwnedPackageWindow(span trace.Span, page workflow.OwnedPackageDepende
 		attribute.Int64("owned_package_targets.rows_read", page.Window.RowsRead),
 		attribute.Int("owned_package_targets.selected", len(page.Targets)),
 		attribute.Bool("owned_package_targets.truncated", page.Window.Truncated()),
+	}
+	if page.Selection.Mode != "" {
+		attributes = append(attributes,
+			attribute.String("owned_package_targets.selection_mode", page.Selection.Mode),
+			attribute.Int("owned_package_targets.selected_virtual_slots", len(page.Selection.PickedSlots)),
+			attribute.Int64("owned_package_targets.oldest_slot_age_seconds", int64(page.Selection.OldestSlotAge.Seconds())),
+			attribute.Bool("owned_package_targets.head_truncated", page.Selection.HeadTruncated),
+		)
 	}
 	span.SetAttributes(attributes...)
 	span.AddEvent(telemetry.EventOwnedPackageTargetsWindow, trace.WithAttributes(append(attributes,

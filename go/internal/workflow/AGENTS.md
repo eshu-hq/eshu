@@ -58,6 +58,12 @@
   directories one-to-one onto `VulnerabilityOwnedDerivationEcosystems`, and a
   `vulnruntime` test pins the round trip through `osvQueryEcosystem`. Add a
   derivation ecosystem and its directory together (#9777).
+- **Slot progress is in-tree OSV only** — `derive_from_owned_packages.slot_progress`
+  (`owned_target_slot_progress.go`, `vulnerability_intelligence_config.go`) is
+  refused on a component activation, `derive_from_installed_evidence`, and
+  `planning_mode: single_pass`. `OwnedPackageVirtualSlotCount` (V = 1,024) is a
+  pinned constant the coordinator's slot scopes and the persisted progress rows
+  share; changing it orphans every progress row (#9776).
 
   No-Regression Evidence: `OSVDirectoryEcosystem` is a pure function with no
   caller yet. Baseline: none (new). After: mapping all 11 directories costs

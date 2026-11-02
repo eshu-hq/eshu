@@ -117,9 +117,23 @@ func (s Service) createWorkflowWorkIfNoOpenTargets(
 	run workflow.Run,
 	items []workflow.WorkItem,
 ) (int, error) {
+	admitted, err := s.createWorkflowWork(ctx, instance, run, items, nil)
+	return admitted.inserted, err
+}
+
+// createWorkflowWork is the shared admission step. A non-nil advance moves the
+// owned-package slot progress in the same transaction as the admission, or in
+// an advance-only transaction when no work item reaches the store (#9776).
+func (s Service) createWorkflowWork(
+	ctx context.Context,
+	instance workflow.CollectorInstance,
+	run workflow.Run,
+	items []workflow.WorkItem,
+	advance *workflow.OwnedTargetSlotAdvance,
+) (workAdmission, error) {
 	authorizedItems, denied, err := s.authorizeWorkflowWorkItems(ctx, run, items)
 	if err != nil {
-		return 0, err
+		return workAdmission{}, err
 	}
 	if denied > 0 && s.Logger != nil {
 		s.Logger.Info(
@@ -133,14 +147,17 @@ func (s Service) createWorkflowWorkIfNoOpenTargets(
 		)
 	}
 	if len(authorizedItems) == 0 {
-		return 0, nil
+		// A pick that yields no admitted work still owes its slots an advance,
+		// or the same slots are oldest at every tick (#9776).
+		result, err := s.advanceSlotsWithoutWork(ctx, advance)
+		return workAdmission{advance: result, noWork: true}, err
 	}
 	if denied > 0 {
 		run = filterWorkflowRunRequestedScopeSet(run, authorizedItems)
 	}
-	admission, err := s.Store.CreateRunWithWorkItemsIfNoOpenTargets(ctx, run, authorizedItems)
+	admission, result, err := s.admitWorkflowWork(ctx, run, authorizedItems, advance)
 	if err != nil {
-		return 0, err
+		return workAdmission{}, err
 	}
 	// The two shortfalls are different events and are logged as such. A target
 	// the open-target guard dropped is already being collected by an open run,
@@ -172,7 +189,7 @@ func (s Service) createWorkflowWorkIfNoOpenTargets(
 			"reason", "insert_conflict_dropped_row",
 		)
 	}
-	return admission.InsertedWorkItems, nil
+	return workAdmission{inserted: admission.InsertedWorkItems, advance: result}, nil
 }
 
 // logScanIntervalOverrides records, once at startup before the first

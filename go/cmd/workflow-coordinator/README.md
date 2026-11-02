@@ -221,6 +221,10 @@ that reads the value:
   may be shorter than the configured interval. Derived-target rotation for
   package-registry and vulnerability-intelligence instances indexes the same
   truncated bucket, so the page of targets and the plan key change together.
+  With `derive_from_owned_packages.slot_progress` on an in-tree OSV instance the
+  page follows persisted progress instead of the bucket (`owned_target_slot_progress`,
+  #9776); `*postgres.WorkflowControlStore` is asserted to implement
+  `coordinator.SlotProgressStore` at build time.
 - Freshness-triggered (webhook) planners never read this field, and
   bootstrap instances ignore it: their plan key is the fixed `bootstrap` and
   their derived-target rotation stays on the global reconcile interval. The

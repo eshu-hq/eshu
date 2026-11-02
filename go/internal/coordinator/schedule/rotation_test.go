@@ -60,3 +60,33 @@ func TestDerivedTargetRotationBucketForMode(t *testing.T) {
 		t.Fatalf("rotation offset = %d, want bucket*limit %d", got, want)
 	}
 }
+
+// TestDerivedTargetWindowStartUnixIsIntervalInvariant pins the #9776 fix: the
+// window start is a time, so a window opened under a 30 minute interval and one
+// opened under a 1 hour interval order by when they started, where the
+// interval-relative bucket index would let the wider interval look decades older.
+func TestDerivedTargetWindowStartUnixIsIntervalInvariant(t *testing.T) {
+	t.Parallel()
+
+	at := time.Date(2026, time.November, 2, 10, 45, 30, 0, time.UTC)
+	if got, want := DerivedTargetWindowStartUnix(at, 30*time.Minute), time.Date(2026, time.November, 2, 10, 30, 0, 0, time.UTC).Unix(); got != want {
+		t.Fatalf("30m window start = %d, want %d", got, want)
+	}
+	if got, want := DerivedTargetWindowStartUnix(at, time.Hour), time.Date(2026, time.November, 2, 10, 0, 0, 0, time.UTC).Unix(); got != want {
+		t.Fatalf("1h window start = %d, want %d", got, want)
+	}
+	before := DerivedTargetWindowStartUnix(at, 30*time.Minute)
+	after := DerivedTargetWindowStartUnix(at.Add(time.Hour), time.Hour)
+	if after <= before {
+		t.Fatalf("1h window after a 30m window started at %d, want later than %d", after, before)
+	}
+	if got := DerivedTargetRotationBucket(at.Add(time.Hour), time.Hour); got >= DerivedTargetRotationBucket(at, 30*time.Minute) {
+		t.Fatalf("bucket index %d did not shrink when the interval doubled; the premise of the defect changed", got)
+	}
+	if got := DerivedTargetWindowStartUnix(time.Time{}, time.Hour); got != 0 {
+		t.Fatalf("zero clock window start = %d, want 0", got)
+	}
+	if got := DerivedTargetWindowStartUnix(time.Date(1960, 1, 1, 0, 0, 0, 0, time.UTC), time.Hour); got != 0 {
+		t.Fatalf("pre-1970 window start = %d, want 0", got)
+	}
+}

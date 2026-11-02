@@ -379,7 +379,7 @@ admission computes target eligibility with one `VALUES`-backed query per run
 and acquires one sorted transaction-scoped Postgres advisory planning lock per
 `(collector_kind, collector_instance_id)` batch instead of one lock per target.
 It also proves newly discovered targets are not appended to an already-terminal
-deterministic run id.
+deterministic run id. The same transaction also raises `owned_target_slot_progress` rows by compare-and-set for the OSV owned-package derivation (#9776).
 
 Observability Evidence: no new storage metric was needed because workflow
 target suppression remains visible through workflow work-item rows,

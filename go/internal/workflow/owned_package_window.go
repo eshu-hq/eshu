@@ -72,6 +72,10 @@ func (w OwnedPackageDependencyTargetWindow) UnreadTargets() int64 {
 type OwnedPackageDependencyTargetPage struct {
 	Targets []OwnedPackageDependencyTarget
 	Window  OwnedPackageDependencyTargetWindow
+	// Selection reports what a progress-ordered read chose and what admission
+	// must advance (#9776). The zero value means the read used the clock slot
+	// because progress selection was not enabled.
+	Selection OwnedTargetSlotSelection
 }
 
 // SelectedByEcosystem counts the page's targets per ecosystem. It returns the

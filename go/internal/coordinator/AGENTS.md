@@ -306,6 +306,14 @@ because schedulers stop at the first error. One predicate enforces it:
   `config.go` and the derived-target plan-key and rotation helpers read; document the change in `README.md` and the configuration
   table; verify that `Config.Validate` still passes with the new default.
 
+- **Owned-target slot progress** → `owned_target_slot_progress.go` owns the
+  optional `SlotProgressStore` and the advance rules; a pass advances only the
+  slots the read covered in full (`workflow.ResolveSlotAdvance`), on every path
+  that commits (insert, terminal skip, zero-eligible skip, and an advance-only
+  transaction for an empty pick). A store without the interface is a loud error,
+  never a silent clock fallback. Keep `Metrics` fakes in step when you add a
+  `Record*` method (#9776).
+
 - **Plan keys for a periodic scheduled planner** → call
   `s.scanInterval(instance)` then `scheduledPlanKey(instance, observedAt,
   interval)` from `scheduled_work.go`; never add a per-kind copy of the

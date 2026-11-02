@@ -271,7 +271,7 @@ func (s Service) scheduleVulnerabilityActivationDerivedScopes(
 	// checkActivationDerivation refuses an enabled derivation without a
 	// vulnerability_intelligence host, so Host is set here.
 	sourceSystem, hostScopeID := config.Host.SourceSystem, config.Host.Scope.ID
-	ownedPage, err := s.vulnerabilityOwnedTargets(ctx, derivation.DeriveFromOwnedPackages, observedAt, interval)
+	ownedPage, err := s.vulnerabilityOwnedTargets(ctx, derivation.DeriveFromOwnedPackages, observedAt, interval, workflow.OwnedTargetSlotSelector{})
 	if err != nil {
 		return fmt.Errorf("load vulnerability intelligence derived targets for %q: %w", instance.InstanceID, err)
 	}
