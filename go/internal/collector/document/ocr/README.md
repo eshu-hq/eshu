@@ -205,6 +205,14 @@ A region is a value when either holds:
 `Extract` never sorts. `EngineResult.Regions` must be in reading order, because
 layout order is more accurate than a position sort on a multi-column page.
 
+A secret that runs past the window (#9799). A PEM key body is 12 to 50 lines and
+a token can wrap across lines, and tesseract returns one region per line, so the
+window of 2 left the rest in clear. `extendSecretRuns` in `secret_runs.go` runs
+after the window and row passes and only turns a region from kept to withheld,
+through four clauses: chain, tail, symbol, and seed. The rule, its thresholds,
+its limits, and its measured cost are in [SECRET_RUNS.md](SECRET_RUNS.md). The
+decision is `docs/internal/evidence/9799-multiline-arbiter-ruling.md`.
+
 The tradeoff is deliberate. Up to 2 ordinary lines after any marker region are
 hidden, including after a line that already holds its value, such as
 `password: hunter2`, and after prose that mentions a password. That costs a
@@ -241,8 +249,10 @@ Limits:
 - A fused lowercase compound such as `clientsecret` matches only through its
   ending. `pin` and `token` in plain prose are markers like `password` in
   prose, so "Pin the base image" hides the two lines after it (#9793).
-- A value more than 2 regions after its marker region, on another row, is not
-  caught.
+- Limits of the run rule (a wrapped line under 16 characters, a cropped body
+  with a stray space in every line, a cropped letters-only or lowercase-only
+  token, the seed cost class, a fence inside a run) are in
+  [SECRET_RUNS.md](SECRET_RUNS.md#limits).
 - A value above its label, or left of its label on the same row, is not withheld.
 - A region opens one window however many marker words it holds, so
   `password: api_key:` followed by three values leaves the third in clear.
@@ -262,8 +272,13 @@ Proof: `TestContainsMarkerWordMatchesEveryLabelForm`,
 `TestExtractRedactsValueInTheColumnBesideALabel`,
 `TestExtractFollowsEngineRegionOrder`,
 `TestExtractRowClauseHandlesInvalidAndTiedGeometry`,
-`TestExtractLabelValueRedactionStaysTruthful`, and the `form-stacked.png` and
-`form-columns.png` fixtures in `TestSandboxRealTesseract`.
+`TestExtractLabelValueRedactionStaysTruthful`,
+`TestExtractWithholdsASecretThatSpansManyLines`,
+`TestExtractContinuesASecretRunPastTheWindow`,
+`TestExtractContinuesAColumnValueThatWrapsBelowItsRow`,
+`TestSecretTokenShapes`, `TestExtendSecretRunsIsLinear`, and the
+`form-stacked.png`, `form-columns.png`, and `key-body.png` fixtures in
+`TestSandboxRealTesseract`.
 
 Performance Evidence: `BenchmarkBuildSectionsNoLabels` and
 `BenchmarkBuildSectionsLabelHeavy` on 500 regions, the tesseract default cap,
@@ -279,6 +294,12 @@ tesseract run.
 No-Regression Evidence: `go test -race ./internal/collector/document/ocr/...
 -count=1` passes, including the pre-existing extraction, skip, GIF, redaction,
 and local-engine PII suites.
+
+
+Performance Evidence (#9799) and No-Regression Evidence (#9799) are in
+[SECRET_RUNS.md](SECRET_RUNS.md#proof-and-cost). No-Observability-Change (#9799):
+the run scan adds no metric, span, or log, and a region it withholds is a
+redacted section that `eshu_dp_ocr_redacted_regions_total` already counts.
 
 Marker-list Performance Evidence (#9793): the same two benchmarks on 500 regions,
 before (origin/main) and after test binaries run in turn at `-benchtime=2000x`,
@@ -405,6 +426,8 @@ readback surfaces already carry the emitted documentation facts.
 
 ## Related docs
 
+- `SECRET_RUNS.md` (the secret run rule, its limits, and its cost, #9799)
+- `docs/internal/evidence/9799-multiline-arbiter-ruling.md`
 - `docs/internal/design/1737-visual-media-documentation-ingestion.md`
 - `go/internal/collector/preflight/picture/README.md`
 - `docs/public/reference/local-testing.md`

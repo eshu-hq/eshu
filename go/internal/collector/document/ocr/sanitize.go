@@ -90,6 +90,9 @@ func isLetterOrDigit(r rune) bool {
 // can be all symbols. A blank region never becomes a section, so its mark is
 // unused.
 //
+// A value that runs past the window, such as the body of a PEM key or a token
+// wrapped across lines, is extended by extendSecretRuns in secret_runs.go.
+//
 // The function reads engine order and never sorts: on a multi-column page,
 // layout order is more accurate than a sort by position.
 func labelValueRegions(regions []Region) []bool {
@@ -114,6 +117,7 @@ func labelValueRegions(regions []Region) []bool {
 			return rightOfOnSameRow(region.Bounds, label)
 		})
 	}
+	extendSecretRuns(regions, values)
 	return values
 }
 

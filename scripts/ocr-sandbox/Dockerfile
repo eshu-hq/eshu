@@ -56,6 +56,31 @@ RUN cd /fixtures \
         -annotate +640+180 "useast" \
         -strip form-columns.png
 
+# A PEM private key whose body runs far past the two-region label window
+# (#9799). Tesseract reads one region per line, so the body is nine regions
+# after the armor line. Keep it in sync with liveKeyBody in
+# sandbox_proof_test.go.
+RUN cd /fixtures \
+    && magick -size 900x510 xc:white -pointsize 20 -fill black \
+        -font /usr/share/fonts/dejavu/DejaVuSans.ttf -annotate +20+40 "Deploy the Checkout Service to staging" \
+        -font /usr/share/fonts/dejavu/DejaVuSansMono.ttf \
+        -annotate +20+80 "-----BEGIN PRIVATE KEY-----" \
+        -annotate +20+108 "zwZWdfRLgxL+Z1bvxbT7WrKL8ozFiA2auK7Z7GtQbU4WWEOCV81K2LSnAwqRzZHb" \
+        -annotate +20+136 "4gzQt8HQT0PMPSlWW0Sao/dgPuXJkBGrbwzrzx1vLXEvz4dncnNobfxl4K41gIlp" \
+        -annotate +20+164 "9Qg3l0Ukw4YwrZsAtlYVh1d0szAOZAnV4ah17kZCNnJEH1mvlYMyzWh6qQQ5x1Wu" \
+        -annotate +20+192 "gaj7wX98VJe6BOq/JqAjBo0hVRGyEGrdlU4H1dYO+VijuJZWtKOQRTLEwVtdUrGr" \
+        -annotate +20+220 "3YnWOS/BdwMe4KUV4vgoFyCmUQBkllP/2JFtUoqpEwidTCkz1dW0GbehUM3ADZQX" \
+        -annotate +20+248 "mHgX3TAEy5JVdr3Q9LvUd+aM3ZWR8fWgVJeed1yJegpq/YMDE3HoYGlXigBlZuOU" \
+        -annotate +20+276 "sxSnhZ5HDtdSKwCtowfTJCDWbcrgJA3O3Kv/2whpsOifIEcipNinfb44ChJxPCk/" \
+        -annotate +20+304 "42peNkyaIj6+rKCGKQ0Y2CCPpbaNB3kXRkW1NnX1xMJimgUjPEIg8yQl9bn5ggX6" \
+        -annotate +20+332 "kTYqQdtJd3SArzKB2L26NKA=" \
+        -annotate +20+360 "-----END PRIVATE KEY-----" \
+        -font /usr/share/fonts/dejavu/DejaVuSans.ttf \
+        -annotate +20+400 "Review the owner list" \
+        -annotate +20+440 "Rotate the staging keys every week" \
+        -annotate +20+480 "Ask the platform team for access" \
+        -strip key-body.png
+
 FROM ${ESHU_ALPINE_IMAGE} AS proof
 # Every package that owns an object ldd lists for /usr/bin/tesseract (15
 # objects, 15 packages, from `apk info -W`), plus the model package, at its

@@ -1,0 +1,186 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package ocr
+
+import (
+	"math/rand"
+	"slices"
+	"strings"
+	"testing"
+)
+
+const (
+	base64Alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+	urlAlphabet    = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+)
+
+// randomLines returns n deterministic lines of width characters drawn from
+// alphabet, the shape of a PEM body or a wrapped token. The last line is
+// shortened to tail characters when tail is positive, as a real body ends.
+func randomLines(seed int64, alphabet string, n int, width int, tail int) []string {
+	source := rand.New(rand.NewSource(seed))
+	lines := make([]string, n)
+	for i := range lines {
+		size := width
+		if i == n-1 && tail > 0 {
+			size = tail
+		}
+		line := make([]byte, size)
+		for j := range line {
+			line[j] = alphabet[source.Intn(len(alphabet))]
+		}
+		lines[i] = string(line)
+	}
+	return lines
+}
+
+// multilineLayout is one screenshot layout whose secret spans several regions.
+type multilineLayout struct {
+	name    string
+	regions []string
+	secrets []string
+	keep    []string
+}
+
+// multilineLayouts are the realistic shapes of a secret that runs past the
+// two-region label window (#9799).
+func multilineLayouts() []multilineLayout {
+	rsa := randomLines(1, base64Alphabet, 26, 64, 44)
+	openssh := randomLines(2, base64Alphabet, 12, 70, 36)
+	wrapped := randomLines(3, urlAlphabet, 3, 40, 22)
+	long := randomLines(4, urlAlphabet, 6, 32, 9)
+	jwt := randomLines(5, urlAlphabet, 5, 48, 30)
+	encrypted := randomLines(6, base64Alphabet, 18, 64, 20)
+	column := randomLines(7, urlAlphabet, 5, 36, 14)
+	armorless := randomLines(8, base64Alphabet, 12, 64, 60)
+	// A bare AWS key pair with no marker word anywhere: the 40 character secret
+	// is a seed and the walk back takes the 20 character key id before it. The
+	// prefix is joined at run time so no scanner reads the fixture as a key.
+	awsKeyID := "AK" + "IA" + "Z4QW8MNB2LK9XCV7"
+	awsSecret := "Q7mXk2LpR9tVb4NcZ8sYh1WdF5gJa3EuT6oIe0Ky"
+	// A JWT over three lines with no label: line one is a seed, line two is a
+	// run token, and the short last line falls in the tail slot.
+	jwtLines := []string{
+		"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyIn0",
+		randomLines(10, urlAlphabet, 1, 48, 0)[0],
+		"_adQssw5c",
+	}
+	// The body of the sandbox fixture key-body.png as tesseract 5.5.0 read it:
+	// the BEGIN armor line is gone, a stray space sits inside two lines, and
+	// several characters are misread.
+	sandbox := []string{
+		"zwZWd fRLgXL+Z1bvxbT7WrKL80zFiA2auK7Z7GtQbU4WWEOCV81K2LSnAwqRzZHb",
+		"4gzQt8HQTOPMPS1WWOSao/dgPuXJkBGrbwzrzx1vLXEvz4dncnNobfx14K41gIlp",
+		"9Q9310Ukw4YwrZsAt1YVh1d0szA0ZAnV4ah17kZCNnJEH1Imv1YMyzWh6qQQ5x1Wu",
+		"gaj7wX98VJe6B0q/IqAjBoBhVRGYEGrd1U4H1dY0+VijuJZWtKOQRTLEWVtdUrGr",
+		"3YnW0S/BdwMe4KUV4vgoFyCmUQBK11P/2JFtUoqpEwidTCkz1dW@GbehUM3ADZQX",
+		"mHgX3TAEy5JVdr3Q9LvUd+aM3ZwWR8 fWgVleedlyJegpq/YMDE3HOYG1XigB1Zuou",
+		"sxSnhZ5HDtdSKwCtowfTICDWbcrgJA303Kv/2whps0ifIEcipNinfb44ChIxPCk/",
+		"42peNkyalj6+rKCGKQOY2CCPpbaNB3kXRkW1NnX1xMJimgUjPEIg8yQl9bn5ggX6",
+		"KTYqQdtJId3SArzKB2L26NKA=",
+	}
+	return []multilineLayout{
+		{
+			name:    "RSA private key, armor and 26 body lines",
+			regions: slices.Concat([]string{"-----BEGIN RSA PRIVATE KEY-----"}, rsa, []string{"-----END RSA PRIVATE KEY-----", "Rotate this key quarterly", "Review owner list", "Owner is the platform team"}),
+			secrets: rsa,
+			keep:    []string{"Owner is the platform team"},
+		},
+		{
+			name:    "OpenSSH private key, armor and 12 body lines",
+			regions: slices.Concat([]string{"-----BEGIN OPENSSH PRIVATE KEY-----"}, openssh, []string{"-----END OPENSSH PRIVATE KEY-----", "Deploy notes", "Review owner list", "Rollback steps"}),
+			secrets: openssh,
+			keep:    []string{"Rollback steps"},
+		},
+		{
+			name:    "encrypted key with headers before the body",
+			regions: slices.Concat([]string{"-----BEGIN RSA PRIVATE KEY-----", "Proc-Type: 4,ENCRYPTED", "DEK-Info: AES-256-CBC,9F3A5C7E1B2D4F60A8C0E2D4B6F8A0C2"}, encrypted, []string{"-----END RSA PRIVATE KEY-----", "Deploy notes", "Review owner list", "Rollback steps"}),
+			secrets: encrypted,
+			keep:    []string{"Rollback steps"},
+		},
+		{
+			name:    "token wrapped across three lines under a label",
+			regions: slices.Concat([]string{"API Token:"}, wrapped, []string{"Created by the platform team", "Rollback steps"}),
+			secrets: wrapped,
+			keep:    []string{"Rollback steps"},
+		},
+		{
+			name:    "token wrapped across six lines with a caption between",
+			regions: slices.Concat([]string{"Secret:", "copy the whole value"}, long, []string{"Rollback steps", "Ask the platform team"}),
+			secrets: long,
+			keep:    []string{"Ask the platform team"},
+		},
+		{
+			name:    "bearer token wrapped across five lines",
+			regions: slices.Concat([]string{"Authorization token"}, jwt, []string{"Release checklist", "Rollback steps", "Ask the platform team"}),
+			secrets: jwt,
+			keep:    []string{"Ask the platform team"},
+		},
+		{
+			name:    "key body as tesseract read it, with no BEGIN line and a stray space in two lines",
+			regions: slices.Concat([]string{"Deploy the Checkout Service to staging"}, sandbox, []string{"---- END PRIVATE KEY-----", "Review the owner list", "Rotate the staging keys every week", "Ask the platform team for access"}),
+			secrets: sandbox,
+			keep:    []string{"Deploy the Checkout Service to staging", "Ask the platform team for access"},
+		},
+		{
+			name:    "key body without its armor line",
+			regions: slices.Concat([]string{"Release checklist", "Rollback steps"}, armorless, []string{"Ask the platform team"}),
+			secrets: armorless,
+			keep:    []string{"Release checklist", "Rollback steps", "Ask the platform team"},
+		},
+		{
+			name:    "wrapped value in the column beside its label",
+			regions: slices.Concat([]string{"Token:"}, column, []string{"Rollback steps", "Ask the platform team"}),
+			secrets: column,
+			keep:    []string{"Ask the platform team"},
+		},
+		{
+			name:    "bare AWS access key pair with no marker word",
+			regions: []string{"Deploy user keys", awsKeyID, awsSecret, "Region us-east-1", "Rollback steps"},
+			secrets: []string{awsKeyID, awsSecret},
+			keep:    []string{"Deploy user keys", "Region us-east-1"},
+		},
+		{
+			name:    "JWT over three lines with no label",
+			regions: slices.Concat([]string{"Release checklist"}, jwtLines, []string{"Ask the platform team"}),
+			secrets: jwtLines,
+			keep:    []string{"Release checklist", "Ask the platform team"},
+		},
+	}
+}
+
+// leakedSecrets returns the secret lines that still appear in persisted
+// content.
+func leakedSecrets(contents []string, secrets []string) []string {
+	leaked := []string{}
+	for _, secret := range secrets {
+		for _, content := range contents {
+			if strings.Contains(content, secret) {
+				leaked = append(leaked, secret)
+				break
+			}
+		}
+	}
+	return leaked
+}
+
+func TestExtractWithholdsASecretThatSpansManyLines(t *testing.T) {
+	t.Parallel()
+
+	for _, layout := range multilineLayouts() {
+		t.Run(layout.name, func(t *testing.T) {
+			t.Parallel()
+			result := extractRegions(t, Options{}, stackedRegions(layout.regions...))
+			contents := persistedContents(result)
+			if leaked := leakedSecrets(contents, layout.secrets); len(leaked) > 0 {
+				t.Errorf("%d of %d secret lines persisted in clear: first %q", len(leaked), len(layout.secrets), leaked[0])
+			}
+			for _, keep := range layout.keep {
+				if !slices.Contains(contents, keep) {
+					t.Errorf("ordinary line %q was withheld, want kept", keep)
+				}
+			}
+		})
+	}
+}

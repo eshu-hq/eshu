@@ -127,6 +127,7 @@ func TestSandboxRealTesseract(t *testing.T) {
 	for _, form := range liveFormFixtures {
 		liveForm(t, engine, fixtures, form)
 	}
+	liveKeyBody(t, engine, fixtures)
 	liveBounds(t, cfg, fixtures)
 }
 
