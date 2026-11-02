@@ -180,7 +180,7 @@ import (
 // #9776 adds 271_owned_target_slot_progress.sql (DDL only: the persisted
 // least-recently-planned slot progress table and its oldest-slot index). 270 is
 // held by another lane's unmerged migration, so this lane took the next number.
-const goldenBootstrapDefinitionsDigest = "2b8a379c8e00700fb1980905af7348063cc828836dc1f3b489de25b8942f2af1"
+const goldenBootstrapDefinitionsDigest = "2491581951a837ca66d0d3bb65799537a522eed713da30579885f71e95608884"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or

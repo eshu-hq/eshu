@@ -21,11 +21,17 @@ import (
 
 const progLiveInstance = "osv-live-9776"
 
-func progLiveSelector() workflow.OwnedTargetSlotSelector {
+// progLiveWindowStart is the unix-second start of the n-th 30 minute reconcile
+// window, the interval the original subtests run under.
+func progLiveWindowStart(bucket int64) int64 {
+	return bucket * int64((30 * time.Minute).Seconds())
+}
+
+func progLiveSelector(bucket int64) workflow.OwnedTargetSlotSelector {
 	return workflow.OwnedTargetSlotSelector{
 		CollectorInstanceID: progLiveInstance,
 		DerivationKind:      workflow.SlotDerivationKindVulnerability,
-		Interval:            30 * time.Minute,
+		WindowStartUnix:     progLiveWindowStart(bucket),
 	}
 }
 
@@ -38,7 +44,7 @@ func progLiveRead(ctx context.Context, t *testing.T, store *FactStore, bucket in
 		cut, err := store.ListOwnedPackageDependencyTargets(ctx, workflow.OwnedPackageDependencyTargetFilter{
 			Ecosystems: []string{"npm", "rubygems"}, Limit: readLimit, TargetLimit: slotLiveTargetLimit,
 			VersionSpecific: true, ExpandPackageManagerAliases: true, RotationBucket: bucket,
-			SlotProgress: progLiveSelector(),
+			SlotProgress: progLiveSelector(bucket),
 		})
 		if err != nil {
 			t.Fatalf("limited progress read (limit %d): %v", readLimit, err)
@@ -46,7 +52,7 @@ func progLiveRead(ctx context.Context, t *testing.T, store *FactStore, bucket in
 		return cut
 	}
 	return readSlotLiveWindowFilter(ctx, t, store, workflow.OwnedPackageDependencyTargetFilter{
-		RotationBucket: bucket, SlotProgress: progLiveSelector(),
+		RotationBucket: bucket, SlotProgress: progLiveSelector(bucket),
 	})
 }
 
@@ -55,7 +61,7 @@ func progLiveAdvanceFor(slots []int, bucket int64) workflow.OwnedTargetSlotAdvan
 		CollectorKind:       scope.CollectorVulnerabilityIntelligence,
 		CollectorInstanceID: progLiveInstance,
 		DerivationKind:      workflow.SlotDerivationKindVulnerability,
-		Bucket:              bucket,
+		WindowStartUnix:     progLiveWindowStart(bucket),
 		PlannedAt:           time.Now(),
 		Slots:               slots,
 	}
@@ -177,7 +183,7 @@ func TestOwnedTargetSlotProgressLive(t *testing.T) {
 			t.Fatalf("clock statement planned every target with bucket 3 never read; the planted miss did not reproduce")
 		}
 		seen := map[string]bool{}
-		interval := progLiveSelector().Interval
+		const interval = 30 * time.Minute
 		advances := 0
 		for w := 0; w < windows+1; w++ {
 			if w == 3 {
@@ -346,7 +352,7 @@ func TestOwnedTargetSlotProgressLive(t *testing.T) {
 		const tinyLimit = 2 // L=2 gives P=4096, above V=1024
 		clock := readSlotLiveWindowFilterLimit(ctx, t, facts, workflow.OwnedPackageDependencyTargetFilter{RotationBucket: bucket}, tinyLimit)
 		prog := readSlotLiveWindowFilterLimit(ctx, t, facts, workflow.OwnedPackageDependencyTargetFilter{
-			RotationBucket: bucket, SlotProgress: progLiveSelector(),
+			RotationBucket: bucket, SlotProgress: progLiveSelector(bucket),
 		}, tinyLimit)
 		if prog.Selection.Mode != workflow.SlotSelectionClockFallback || len(prog.Selection.AdvanceSlots) != 0 {
 			t.Fatalf("mode %q advance %v, want clock_fallback and no advance", prog.Selection.Mode, prog.Selection.AdvanceSlots)
@@ -402,9 +408,9 @@ func TestOwnedTargetSlotProgressLive(t *testing.T) {
 				t.Fatalf("iteration %d: stale bucket advance = %+v, want a lost race", iteration, stale)
 			}
 			var stored int64
-			if err := db.QueryRowContext(ctx, `SELECT min(last_planned_bucket) FROM owned_target_slot_progress WHERE virtual_slot = ANY($1)`,
-				[]int64{int64(slots[0]), int64(slots[1])}).Scan(&stored); err != nil || stored != bucket {
-				t.Fatalf("iteration %d: stored bucket %d, %v; want %d", iteration, stored, err, bucket)
+			if err := db.QueryRowContext(ctx, `SELECT min(last_planned_window_start) FROM owned_target_slot_progress WHERE virtual_slot = ANY($1)`,
+				[]int64{int64(slots[0]), int64(slots[1])}).Scan(&stored); err != nil || stored != progLiveWindowStart(bucket) {
+				t.Fatalf("iteration %d: stored window start %d, %v; want %d", iteration, stored, err, progLiveWindowStart(bucket))
 			}
 		}
 	})
@@ -453,7 +459,7 @@ func TestOwnedTargetSlotProgressSurvivesPFlipLive(t *testing.T) {
 
 // assertProgLiveGaugeSources checks the three figures the oldest-slot-age gauge
 // is built from: how many virtual slots have a progress row, the smallest
-// planned bucket on file, and that bucket's age in reconcile intervals.
+// planned window start on file, and that window's age in seconds.
 func assertProgLiveGaugeSources(
 	t *testing.T,
 	selection workflow.OwnedTargetSlotSelection,
@@ -469,9 +475,9 @@ func assertProgLiveGaugeSources(
 	if wantRows == 0 {
 		return
 	}
-	if selection.OldestPlannedBucket != firstBucket {
-		t.Fatalf("oldest planned bucket = %d, want the first window's bucket %d (MIN of last_planned_bucket)",
-			selection.OldestPlannedBucket, firstBucket)
+	if want := progLiveWindowStart(firstBucket); selection.OldestPlannedWindowStartUnix != want {
+		t.Fatalf("oldest planned window start = %d, want the first window's start %d (MIN of last_planned_window_start)",
+			selection.OldestPlannedWindowStartUnix, want)
 	}
 	if want := time.Duration(readBucket-firstBucket) * interval; selection.OldestSlotAge != want {
 		t.Fatalf("oldest slot age = %v at bucket %d, want %v", selection.OldestSlotAge, readBucket, want)

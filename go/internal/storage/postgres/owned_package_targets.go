@@ -330,7 +330,8 @@ func (s FactStore) readOwnedPackageWindow(
 	if progressOrdered {
 		query = listOwnedPackageDependencySlotProgressQuery(filter.VersionSpecific, filter.ExpandPackageManagerAliases)
 		args = append(args, int64(workflow.OwnedPackageVirtualSlotCount),
-			filter.SlotProgress.CollectorInstanceID, filter.SlotProgress.DerivationKind)
+			filter.SlotProgress.CollectorInstanceID, filter.SlotProgress.DerivationKind,
+			max(filter.SlotProgress.WindowStartUnix, 0))
 	}
 	rows, err := s.database.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -371,7 +372,7 @@ func (s FactStore) readOwnedPackageWindow(
 		}
 		if progressOrdered {
 			dest = append(dest, &progressColumns.mode, &progressColumns.picked,
-				&progressColumns.oldestBucket, &progressColumns.progressRows)
+				&progressColumns.oldestWindowStart, &progressColumns.progressRows)
 		}
 		if err := rows.Scan(dest...); err != nil {
 			return workflow.OwnedPackageDependencyTargetPage{}, fmt.Errorf("list owned package dependency targets: %w", err)
@@ -418,7 +419,7 @@ func (s FactStore) readOwnedPackageWindow(
 		return workflow.OwnedPackageDependencyTargetPage{}, err
 	}
 	if progressOrdered {
-		selection, err := ownedPackageSlotProgressSelection(progressColumns, rowSlots, page.Window, bucket, filter.SlotProgress.Interval, filter.TargetLimit)
+		selection, err := ownedPackageSlotProgressSelection(progressColumns, rowSlots, page.Window, max(filter.SlotProgress.WindowStartUnix, 0), filter.TargetLimit)
 		if err != nil {
 			return workflow.OwnedPackageDependencyTargetPage{}, err
 		}

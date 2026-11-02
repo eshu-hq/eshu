@@ -146,7 +146,7 @@ func TestServiceSlotProgressAdvancesPickedSlotsWithAdmission(t *testing.T) {
 		window:  workflow.OwnedPackageDependencyTargetWindow{TotalTargets: 3, SlotCount: 1, SlotSize: 3, RowsRead: 3},
 		selection: workflow.OwnedTargetSlotSelection{
 			Mode: workflow.SlotSelectionOldest, PickedSlots: []int{3, 9}, AdvanceSlots: []int{3, 9},
-			ProgressRows: workflow.OwnedPackageVirtualSlotCount, OldestPlannedBucket: 10, OldestSlotAge: 90 * time.Minute,
+			ProgressRows: workflow.OwnedPackageVirtualSlotCount, OldestPlannedWindowStartUnix: 10, OldestSlotAge: 90 * time.Minute,
 		},
 	}
 	metrics := &fakeMetrics{}
@@ -156,7 +156,7 @@ func TestServiceSlotProgressAdvancesPickedSlotsWithAdmission(t *testing.T) {
 	want := workflow.OwnedTargetSlotSelector{
 		CollectorInstanceID: "collector-vulnerability-intelligence",
 		DerivationKind:      workflow.SlotDerivationKindVulnerability,
-		Interval:            time.Hour,
+		WindowStartUnix:     schedule.DerivedTargetWindowStartUnix(now, time.Hour),
 	}
 	if got := reader.requests[0].SlotProgress; got != want {
 		t.Fatalf("selector = %#v, want %#v", got, want)
@@ -168,8 +168,8 @@ func TestServiceSlotProgressAdvancesPickedSlotsWithAdmission(t *testing.T) {
 	if !slices.Equal(advance.Slots, []int{3, 9}) || advance.CollectorInstanceID != want.CollectorInstanceID ||
 		advance.DerivationKind != workflow.SlotDerivationKindVulnerability ||
 		advance.CollectorKind != scope.CollectorVulnerabilityIntelligence ||
-		advance.Bucket != schedule.DerivedTargetRotationBucket(now, time.Hour) {
-		t.Fatalf("advance = %#v, want slots [3 9], bucket %d, this instance", advance, schedule.DerivedTargetRotationBucket(now, time.Hour))
+		advance.WindowStartUnix != schedule.DerivedTargetWindowStartUnix(now, time.Hour) {
+		t.Fatalf("advance = %#v, want slots [3 9], window start %d, this instance", advance, schedule.DerivedTargetWindowStartUnix(now, time.Hour))
 	}
 	if got, want := slotOutcomes(metrics), []string{workflow.SlotSelectionOldest, workflow.SlotSelectionAdvanced}; !slices.Equal(got, want) {
 		t.Fatalf("outcomes = %v, want %v", got, want)
@@ -334,7 +334,7 @@ func TestServiceSlotProgressWarnsWhenOldestSlotExceedsMaxStaleness(t *testing.T)
 		window:  workflow.OwnedPackageDependencyTargetWindow{TotalTargets: 3, SlotCount: 1, SlotSize: 3, RowsRead: 3},
 		selection: workflow.OwnedTargetSlotSelection{
 			Mode: workflow.SlotSelectionOldest, PickedSlots: []int{3}, AdvanceSlots: []int{3},
-			ProgressRows: workflow.OwnedPackageVirtualSlotCount, OldestPlannedBucket: 1, OldestSlotAge: 30 * time.Hour,
+			ProgressRows: workflow.OwnedPackageVirtualSlotCount, OldestPlannedWindowStartUnix: 1, OldestSlotAge: 30 * time.Hour,
 		},
 	}
 	metrics := &fakeMetrics{}

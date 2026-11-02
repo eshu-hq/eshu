@@ -119,6 +119,23 @@ func DerivedTargetRotationBucket(observedAt time.Time, interval time.Duration) i
 	return bucket
 }
 
+// DerivedTargetWindowStartUnix returns the start of the reconcile window that
+// contains observedAt, in whole seconds since the Unix epoch. It is the same
+// truncated clock [DerivedTargetRotationBucket] indexes, expressed as a time
+// instead of a count of intervals, so the value means the same thing whatever
+// interval produced it. The owned-package slot progress compares, orders, and
+// ages by it, which keeps an instance's stored progress valid when an operator
+// changes scan_interval (#9776). A zero or pre-1970 clock is 0.
+func DerivedTargetWindowStartUnix(observedAt time.Time, interval time.Duration) int64 {
+	if observedAt.IsZero() {
+		return 0
+	}
+	if interval <= 0 {
+		interval = DefaultReconcileInterval
+	}
+	return max(observedAt.UTC().Truncate(interval).Unix(), 0)
+}
+
 // DerivedTargetRotationOffsetForMode is [DerivedTargetRotationOffset] for a
 // rotating instance and a fixed zero offset for a single-pass one.
 func DerivedTargetRotationOffsetForMode(

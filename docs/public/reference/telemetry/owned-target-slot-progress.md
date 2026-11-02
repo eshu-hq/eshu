@@ -17,7 +17,7 @@ says so.
 
 | Metric | Labels | Meaning |
 | --- | --- | --- |
-| `eshu_dp_owned_target_oldest_slot_age_seconds` | `collector_instance_id` | Age of the least recently planned virtual slot at the latest read: bucket distance times the reconcile interval. Reported only once all 1,024 slots have a progress row and the read is not in clock fallback; before that the first rotation is still warming up and the gauge is absent. At the 1x defaults (P = 1,024, one slot per window, 30 minute interval) that is about 21.3 days after enablement. |
+| `eshu_dp_owned_target_oldest_slot_age_seconds` | `collector_instance_id` | Age of the least recently planned virtual slot at the latest read: the time from the start of the window that planned it to the start of the window being read. Reported only once all 1,024 slots have a progress row and the read is not in clock fallback; before that the first rotation is still warming up and the gauge is absent. At the 1x defaults (P = 1,024, one slot per window, 30 minute interval) that is about 21.3 days after enablement. |
 | `eshu_dp_owned_target_slot_selection_total` | `collector_instance_id`, `outcome` | Selection outcomes per planning pass. |
 
 `outcome` is a closed set. A pass counts its selection mode (`oldest`,
@@ -60,14 +60,25 @@ says so.
 
 ## Reading them
 
-The age counts *planned* buckets: it moves when a slot is put into a run, not
+The age counts *planned* windows: it moves when a slot is put into a run, not
 when the run finishes. A work item that fails after admission leaves its slot
 advanced. Read it beside the work-item failure signals, not instead of them.
 
 A healthy instance shows `oldest` and `advanced` climbing together with the
 age flat near one rotation. `lost_race` climbing with `advanced` flat means
-fresh picks keep finding the bucket already recorded, so another coordinator is
+fresh picks keep finding the window already recorded, so another coordinator is
 doing the work. `clock_fallback` means the progress
 flag is on but not in effect; shrink T per target limit or raise the target
 limit. The age rising past `max_staleness` with `advanced` flat means
 the coordinator stopped planning; check the coordinator, not the table.
+
+## Changing `scan_interval`
+
+Progress is stored as the start time of the window that planned each slot, in
+unix seconds, not as a count of scan intervals. An operator can raise or lower
+`scan_interval` on an enabled instance without a migration and without
+resetting the rotation. After a raise, the slots planned in the last
+old-width window can look newer than the first new window for at most that
+one window; the next window picks the oldest slots as usual. After a lower, no
+row looks older than it is. Disabling the flag and enabling it later resumes
+oldest-first from the stored window starts, whatever interval wrote them.

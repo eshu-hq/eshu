@@ -18,10 +18,12 @@ import (
 // clock slot with the V/P least recently planned virtual slots, read in the same
 // statement because P is only known from T here:
 //
-//   - reused_slots: the slots already recorded for this bucket. A repeat
-//     reconcile inside one bucket must reproduce the same plan, because the plan
-//     key and run id derive from the truncated clock.
-//   - oldest_slots: otherwise the V/P slots with the smallest last_planned_bucket,
+//   - reused_slots: the slots already recorded for this window. A repeat
+//     reconcile inside one window must reproduce the same plan, because the plan
+//     key and run id derive from the truncated clock. Windows compare by start
+//     time ($8), never by interval index, so an operator changing scan_interval
+//     cannot reorder the stored progress (#9776).
+//   - oldest_slots: otherwise the V/P slots with the smallest last_planned_window_start,
 //     a missing row ordering first (-1) and virtual_slot breaking ties, so two
 //     coordinators that both read "nothing recorded" pick the same set.
 //   - slot_pick: the mode and the picked slots. When P exceeds V a window cannot
@@ -29,7 +31,7 @@ import (
 //     reports clock_fallback.
 //
 // Binds beyond the clock statement: $5 V, $6 collector instance id, $7
-// derivation kind. The final ORDER BY leads with virtual_slot so a read cut by
+// derivation kind, $8 window start in unix seconds. The final ORDER BY leads with virtual_slot so a read cut by
 // LIMIT $2 cuts whole trailing slots. The six head verbs are the same.
 const ownedPackageSlotProgressQueryTail = `slotted_targets AS (
   SELECT
@@ -55,7 +57,7 @@ reused_slots AS (
   FROM owned_target_slot_progress AS reused
   WHERE reused.collector_instance_id = $6::text
     AND reused.derivation_kind = $7::text
-    AND reused.last_planned_bucket = $3::bigint
+    AND reused.last_planned_window_start = $8::bigint
 ),
 oldest_slots AS (
   SELECT array_agg(oldest.virtual_slot ORDER BY oldest.virtual_slot) AS slots
@@ -66,12 +68,12 @@ oldest_slots AS (
       ON progress.collector_instance_id = $6::text
      AND progress.derivation_kind = $7::text
      AND progress.virtual_slot = slots.virtual_slot
-    ORDER BY COALESCE(progress.last_planned_bucket, -1) ASC, slots.virtual_slot ASC
+    ORDER BY COALESCE(progress.last_planned_window_start, -1) ASC, slots.virtual_slot ASC
     LIMIT (SELECT $5::bigint / window_stats.slot_count FROM window_stats)
   ) AS oldest
 ),
 progress_stats AS (
-  SELECT MIN(last_planned_bucket) AS oldest_bucket, COUNT(*) AS progress_rows
+  SELECT MIN(last_planned_window_start) AS oldest_window_start, COUNT(*) AS progress_rows
   FROM owned_target_slot_progress
   WHERE collector_instance_id = $6::text
     AND derivation_kind = $7::text
@@ -86,7 +88,7 @@ slot_pick AS (
          ELSE 'oldest' END AS selection_mode,
     CASE WHEN window_stats.slot_count > $5::bigint THEN ARRAY[]::bigint[]
          ELSE COALESCE(reused_slots.slots, oldest_slots.slots, ARRAY[]::bigint[]) END AS picked_slots,
-    progress_stats.oldest_bucket,
+    progress_stats.oldest_window_start,
     progress_stats.progress_rows
   FROM window_stats
   CROSS JOIN reused_slots
@@ -120,7 +122,7 @@ SELECT
     COALESCE(window_targets.slot_size, 0) AS slot_size,
     slot_pick.selection_mode,
     array_to_string(slot_pick.picked_slots, ',') AS picked_slots,
-    slot_pick.oldest_bucket,
+    slot_pick.oldest_window_start,
     slot_pick.progress_rows
 FROM slot_pick
 LEFT JOIN window_targets ON TRUE
@@ -132,7 +134,7 @@ LIMIT $2
 // owned-package statement (#9776) for the same identity and alias modes as
 // [listOwnedPackageDependencyTargetsQuery]. Binds: $1 raw package_manager
 // values, $2 read limit, $3 rotation bucket, $4 target limit, $5 V, $6
-// collector instance id, $7 derivation kind.
+// collector instance id, $7 derivation kind, $8 window start in unix seconds.
 func listOwnedPackageDependencySlotProgressQuery(versionSpecific bool, expandAliases bool) string {
 	return fmt.Sprintf(ownedPackageSlotQueryHead+ownedPackageSlotProgressQueryTail,
 		ownedPackageStatementArgs(versionSpecific, expandAliases)...)
@@ -141,10 +143,10 @@ func listOwnedPackageDependencySlotProgressQuery(versionSpecific bool, expandAli
 // slotProgressColumns holds the four extra columns the progress-ordered
 // statement returns beside the clock statement's fourteen.
 type slotProgressColumns struct {
-	mode         string
-	picked       string
-	oldestBucket sql.NullInt64
-	progressRows int64
+	mode              string
+	picked            string
+	oldestWindowStart sql.NullInt64
+	progressRows      int64
 }
 
 // ownedPackageSlotProgressSelection turns the scanned progress columns and the
@@ -154,8 +156,7 @@ func ownedPackageSlotProgressSelection(
 	columns slotProgressColumns,
 	rowSlots []int,
 	window workflow.OwnedPackageDependencyTargetWindow,
-	bucket int64,
-	interval time.Duration,
+	windowStartUnix int64,
 	targetLimit int,
 ) (workflow.OwnedTargetSlotSelection, error) {
 	picked, err := parsePickedVirtualSlots(columns.picked)
@@ -181,10 +182,13 @@ func ownedPackageSlotProgressSelection(
 		selection.Truncated = window.Truncated() || (targetLimit > 0 && window.RowsRead > int64(targetLimit))
 		selection.AdvanceSlots, selection.HeadTruncated = workflow.ResolveSlotAdvance(picked, rowSlots, selection.Truncated)
 	}
-	if columns.oldestBucket.Valid && columns.progressRows > 0 {
-		selection.OldestPlannedBucket = columns.oldestBucket.Int64
-		if age := bucket - columns.oldestBucket.Int64; age > 0 {
-			selection.OldestSlotAge = time.Duration(age) * interval
+	if columns.oldestWindowStart.Valid && columns.progressRows > 0 {
+		selection.OldestPlannedWindowStartUnix = columns.oldestWindowStart.Int64
+		// Both ends are times, so the age is right whichever scan_interval wrote
+		// the oldest row. A row from a window that opened after this one (the
+		// last old-width window after a raise) clamps to zero.
+		if age := windowStartUnix - columns.oldestWindowStart.Int64; age > 0 {
+			selection.OldestSlotAge = time.Duration(age) * time.Second
 		}
 	}
 	return selection, nil

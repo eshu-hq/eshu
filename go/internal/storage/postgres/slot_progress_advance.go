@@ -12,27 +12,29 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-// workflowSlotProgressAdvanceQuery moves the picked virtual slots to the
-// bucket they were planned in (#9776). It is an upsert compare-and-set: a row
-// moves only when the stored bucket is lower, so a coordinator whose clock is
-// one bucket behind moves zero rows and can never regress a slot. RowsAffected
-// counts only inserted or raised rows, which makes zero the lost-race signal.
-// Binds: $1 collector instance, $2 derivation kind, $3 bucket, $4 planned-at,
-// $5 virtual slots.
+// workflowSlotProgressAdvanceQuery moves the picked virtual slots to the start
+// of the window they were planned in (#9776). It is an upsert compare-and-set: a
+// row moves only when the stored window start is earlier, so a coordinator whose
+// clock is one window behind moves zero rows and can never regress a slot. The
+// comparison is between times, so it holds across a scan_interval change.
+// RowsAffected counts only inserted or raised rows, which makes zero the
+// lost-race signal.
+// Binds: $1 collector instance, $2 derivation kind, $3 window start in unix
+// seconds, $4 planned-at, $5 virtual slots.
 const workflowSlotProgressAdvanceQuery = `
 INSERT INTO owned_target_slot_progress (
     collector_instance_id,
     derivation_kind,
     virtual_slot,
-    last_planned_bucket,
+    last_planned_window_start,
     last_planned_at
 )
 SELECT $1::text, $2::text, picked.virtual_slot::integer, $3::bigint, $4::timestamptz
 FROM unnest($5::bigint[]) AS picked(virtual_slot)
 ON CONFLICT (collector_instance_id, derivation_kind, virtual_slot) DO UPDATE
-SET last_planned_bucket = EXCLUDED.last_planned_bucket,
+SET last_planned_window_start = EXCLUDED.last_planned_window_start,
     last_planned_at = EXCLUDED.last_planned_at
-WHERE owned_target_slot_progress.last_planned_bucket < EXCLUDED.last_planned_bucket
+WHERE owned_target_slot_progress.last_planned_window_start < EXCLUDED.last_planned_window_start
 `
 
 // CreateRunWithWorkItemsAdvancingSlotProgress is
@@ -144,7 +146,7 @@ func advanceOwnedTargetSlots(
 		slots[i] = int64(slot)
 	}
 	result, err := executor.ExecContext(ctx, workflowSlotProgressAdvanceQuery,
-		advance.CollectorInstanceID, advance.DerivationKind, advance.Bucket, advance.PlannedAt.UTC(), slots)
+		advance.CollectorInstanceID, advance.DerivationKind, advance.WindowStartUnix, advance.PlannedAt.UTC(), slots)
 	if err != nil {
 		return workflow.SlotAdvanceResult{}, fmt.Errorf("advance owned target slot progress: write progress: %w", err)
 	}
@@ -156,7 +158,7 @@ func advanceOwnedTargetSlots(
 }
 
 // validateSlotAdvance rejects an advance that names no instance, kind, or
-// collector, a negative bucket, or a slot outside [0, V).
+// collector, a negative window start, or a slot outside [0, V).
 func validateSlotAdvance(advance *workflow.OwnedTargetSlotAdvance) error {
 	if advance == nil {
 		return nil
@@ -168,8 +170,8 @@ func validateSlotAdvance(advance *workflow.OwnedTargetSlotAdvance) error {
 		return fmt.Errorf("advance owned target slot progress: collector instance id is required")
 	case strings.TrimSpace(advance.DerivationKind) == "":
 		return fmt.Errorf("advance owned target slot progress: derivation kind is required")
-	case advance.Bucket < 0:
-		return fmt.Errorf("advance owned target slot progress: bucket %d is negative", advance.Bucket)
+	case advance.WindowStartUnix < 0:
+		return fmt.Errorf("advance owned target slot progress: window start %d is negative", advance.WindowStartUnix)
 	}
 	seen := make(map[int]struct{}, len(advance.Slots))
 	for _, slot := range advance.Slots {

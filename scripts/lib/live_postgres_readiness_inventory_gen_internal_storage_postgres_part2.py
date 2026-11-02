@@ -38,6 +38,9 @@ TABLE = {
             "TestListOwnedPackageDependencyTargetsSlotWindowStatsLive",
             "TestListOwnedPackageDependencyTargetsSlotDifferentialLive",
         ),
+        "go/internal/storage/postgres/owned_target_slot_progress_interval_live_test.go": (
+            "TestOwnedTargetSlotProgressSurvivesScanIntervalChangeLive",
+        ),
         "go/internal/storage/postgres/owned_target_slot_progress_live_test.go": (
             "TestOwnedTargetSlotProgressLive",
             "TestOwnedTargetSlotProgressSurvivesPFlipLive",

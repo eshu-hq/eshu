@@ -18,7 +18,7 @@ func slotProgressAdvanceFixture(items []workflow.WorkItem) workflow.OwnedTargetS
 		CollectorKind:       items[0].CollectorKind,
 		CollectorInstanceID: items[0].CollectorInstanceID,
 		DerivationKind:      workflow.SlotDerivationKindVulnerability,
-		Bucket:              100,
+		WindowStartUnix:     180000,
 		PlannedAt:           time.Date(2026, time.May, 21, 12, 0, 0, 0, time.UTC),
 		Slots:               []int{3, 9},
 	}
@@ -103,15 +103,15 @@ func TestWorkflowControlStoreSlotProgressAdvancesOnEveryCommitPath(t *testing.T)
 }
 
 // TestWorkflowControlStoreSlotProgressCompareAndSetIsMonotonic is T8: the
-// statement only ever raises last_planned_bucket, so a coordinator whose clock
+// statement only ever raises last_planned_window_start, so a coordinator whose clock
 // is one bucket behind moves zero rows and never regresses a slot, and zero
 // moved rows is reported as a lost race rather than an error.
 func TestWorkflowControlStoreSlotProgressCompareAndSetIsMonotonic(t *testing.T) {
 	t.Parallel()
 
 	if !strings.Contains(workflowSlotProgressAdvanceQuery,
-		"WHERE owned_target_slot_progress.last_planned_bucket < EXCLUDED.last_planned_bucket") {
-		t.Fatalf("compare-and-set is not monotonic (< on last_planned_bucket):\n%s", workflowSlotProgressAdvanceQuery)
+		"WHERE owned_target_slot_progress.last_planned_window_start < EXCLUDED.last_planned_window_start") {
+		t.Fatalf("compare-and-set is not monotonic (< on last_planned_window_start):\n%s", workflowSlotProgressAdvanceQuery)
 	}
 	// Exec 1 is the advisory lock, exec 2 the compare-and-set; it moves 0 rows.
 	recorder := &orderedStatementRecorder{execRows: []int64{1, 0}}

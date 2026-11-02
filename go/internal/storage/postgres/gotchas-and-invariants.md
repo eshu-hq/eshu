@@ -426,8 +426,11 @@ query-duration telemetry covers the read.
 the per-instance `pg_advisory_xact_lock` and before commit, on the insert,
 terminal-skip and zero-eligible paths. An empty pick with no work item takes
 `advanceSlotsOnly`, which uses the same lock key. The write is a
-compare-and-set (`WHERE last_planned_bucket < EXCLUDED.last_planned_bucket`):
-zero rows moved is a lost race, not an error.
+compare-and-set (`WHERE last_planned_window_start < EXCLUDED.last_planned_window_start`):
+zero rows moved is a lost race, not an error. The key is the window start time in
+unix seconds, never an index in scan intervals, so changing `scan_interval` on
+an enabled instance does not reorder the stored progress. A repeat tick inside
+one window picks `same_bucket_reuse` and the coordinator writes nothing for it.
 
 The flag-off reader statement is hash-pinned in
 `owned_package_targets_slot_progress_test.go`. Edit the progress tail, not the

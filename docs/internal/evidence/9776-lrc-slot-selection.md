@@ -35,6 +35,17 @@ progress rows for one instance, through the primary key. An earlier shim with a
 different slot-pick formulation gave the same result (deltas within 0.02%); the
 shipped text was then re-measured as above.
 
+The joined-statement table above was measured before the second review moved the
+progress key from an interval index to the window start time. That change edits
+only the progress subplans: the fact-scan head is byte-identical, and the
+`$8` window-start bind replaces `$3` in the reuse predicate. Those subplans were
+re-run on a private PostgreSQL 18.6 against a table of 2 x 1,024 rows (two
+instances, one filtered): the reuse lookup is an index-only scan on
+`owned_target_slot_progress_oldest_idx`, 6 buffers, 0.042 ms; the oldest-slot
+pick is a 1,024-row hash join with a top-N sort, 18 buffers, 0.413 ms; the
+MIN and COUNT stats are one 18-buffer scan, 0.177 ms. The 1,584,xxx-buffer
+joined figures were not re-run on the new text (NOT_CHECKED).
+
 No-Regression Evidence: the flag-off path runs the unchanged statement. The
 `slot_progress` path adds one progress read inside the existing statement (above)
 and one extra compare-and-set `INSERT ... ON CONFLICT` of at most V/P rows inside
@@ -73,8 +84,9 @@ Conflict domain: one `(collector_kind, collector_instance_id)` pair. Progress ro
 change only under the existing transaction-scoped `pg_advisory_xact_lock` keyed by
 the FNV of that pair, the same lock `CreateRunWithWorkItemsIfNoOpenTargets`
 takes. The advance is an upsert compare-and-set
-(`WHERE last_planned_bucket < EXCLUDED.last_planned_bucket`), so a coordinator
-whose clock is one bucket behind moves zero rows and can never regress a slot.
+(`WHERE last_planned_window_start < EXCLUDED.last_planned_window_start`), so a
+coordinator whose clock is one window behind moves zero rows and can never
+regress a slot.
 `RowsAffected` zero for a requested move is not an error. The coordinator counts
 it as `lost_race` only for a fresh pick (`oldest`); a repeat tick in the same
 bucket is `same_bucket_reuse`, because the ticker runs many times per bucket.
@@ -85,10 +97,24 @@ A pick with no work items (a virtual slot with no targets) takes an advance-only
 transaction under the same lock key and retry budget; without it the same empty
 slot stays oldest at every tick and the rotation stalls. Lock order: the advisory
 lock first, then the progress rows. No path takes a second lock, so there is no
-ordering cycle to deadlock on. A repeat reconcile inside one bucket finds rows
-already at that bucket and reuses exactly those slots (`same_bucket_reuse`), so
-the plan key and run id, which derive from the truncated clock, reproduce the
-same plan.
+ordering cycle to deadlock on. A repeat reconcile inside one window finds rows
+already at that window start and reuses exactly those slots
+(`same_bucket_reuse`), so the plan key and run id, which derive from the
+truncated clock, reproduce the same plan. Every row such a tick picked is
+already at this window start, so the compare-and-set could only move zero rows;
+the coordinator builds no advance for it, which spares the row locks and, for an
+empty pick, an advisory-locked transaction on each of the ticker's repeats.
+
+Changing `scan_interval`: the key is the window start time in unix seconds
+(`last_planned_window_start`), not a count of scan intervals. The first design
+stored unix time divided by the interval, so doubling the interval halved every
+new key below every stored one: the compare-and-set moved nothing, the same V/P
+slots were planned forever, and the age gauge read zero (found in review 2).
+Halving the interval doubled the keys and reported a 28 year old slot. With a
+time key, a raise leaves the rows written in the last old-width window up to
+one new window ahead of the new window start, so those slots wait one window;
+a lower leaves nothing looking old. No migration is needed when an operator
+changes the interval.
 
 Truncation: the final `ORDER BY` is `(virtual_slot, target_rank)`, so a read cut
 by its limit drops whole trailing slots. The advance covers the picked slots
@@ -101,7 +127,7 @@ Proof, on the private cluster (`TestOwnedTargetSlotProgressLive` and
 
 - A bucket never read leaves the clock statement with missed targets (planted
   RED), while progress order plans all 2,319 targets within one rotation.
-- A repeat reconcile reproduces the plan, and the second advance loses the race.
+- A repeat reconcile reproduces the plan, and the second advance moves no row (`same_bucket_reuse`).
 - A deleted progress row is picked first; an empty slot and a failed work item
   both advance so neither pins the head.
 - An oversize head advances with `head_truncated`; a partial later slot does not.
@@ -109,6 +135,11 @@ Proof, on the private cluster (`TestOwnedTargetSlotProgressLive` and
 - A P flip in the middle of a rotation keeps planned slots out of the next pick.
 - Two concurrent coordinators move each slot exactly once over ten iterations,
   and a stale bucket moves nothing.
+- Raising `scan_interval` from 30 minutes to 1 hour after 40 warm windows keeps
+  the rotation on the oldest group each window with every row moved, and the
+  first new window reads a 16 hour age (`TestOwnedTargetSlotProgressSurvivesScanIntervalChangeLive`,
+  RED on the interval-index key: 0 of 32 rows moved). Lowering 1 hour to 30
+  minutes reads the true 32 hour age (RED: 249,144 hours).
 - Seeded violation: removing the compare-and-set from each of the three commit
   paths turned the per-path guard test (`slot_progress_advance_test.go`)
   RED, and restoring it turned it GREEN.
@@ -129,7 +160,7 @@ acts on. The window log line adds `selection_mode`, `virtual_slots` and
 `head_truncated`. At 3 AM: age rising with `advanced` flat means the coordinator
 stopped planning; `lost_race` rising with `advanced` flat means fresh picks
 find the bucket already recorded, so another coordinator is doing the work; `clock_fallback` means the flag is on but not in
-effect. The age counts planned buckets, not collected ones. Reference:
+effect. The age counts planned windows, not collected ones. Reference:
 `docs/public/reference/telemetry/owned-target-slot-progress.md`.
 
 ## Why the miss matters
@@ -143,7 +174,7 @@ and #9426.
 
 ## Migration number
 
-The table is migration 271. Number 270 is held by an unmerged sibling migration,
+The table is migration 271, and its column is `last_planned_window_start`. Number 270 is held by an unmerged sibling migration,
 so this change uses the next free number. If 270 lands first, rebase and
 re-derive the embedded count, the digest in `embed_invariant_test.go` and the
 manifest row in `migration_checksum_manifest_test.go`. Never edit an applied
@@ -153,5 +184,7 @@ migration file.
 
 - Live QA gauge values: the flag is off by default and has not been turned on in
   a shared environment.
+- The joined-statement buffers on the post-review text (only the progress
+  subplans were re-measured; see Performance Evidence).
 - `TestSchemaBootstrapCoordinationDefaultsFitTheJobDeadline` needs
   `ESHU_DEPLOY_CHECKOUT` and fails the same way without this change.

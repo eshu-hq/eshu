@@ -68,8 +68,8 @@ func TestOwnedPackageSlotProgressStatementShape(t *testing.T) {
 		for _, want := range []string{
 			"reused.collector_instance_id = $6",
 			"reused.derivation_kind = $7",
-			"reused.last_planned_bucket = $3::bigint",
-			"ORDER BY COALESCE(progress.last_planned_bucket, -1) ASC, slots.virtual_slot ASC",
+			"reused.last_planned_window_start = $8::bigint",
+			"ORDER BY COALESCE(progress.last_planned_window_start, -1) ASC, slots.virtual_slot ASC",
 			"MOD(key_hash_low24::bigint, $5::bigint) AS virtual_slot_of_key",
 			"WHEN window_stats.slot_count > $5::bigint THEN 'clock_fallback'",
 			"ORDER BY window_targets.virtual_slot_of_key ASC, window_targets.target_rank ASC\nLIMIT $2",
@@ -124,12 +124,12 @@ func TestOwnedPackageSlotProgressSelectionTreatsTheLookaheadRowAsTruncation(t *t
 	const targetLimit = 4
 	columns := slotProgressColumns{
 		mode: workflow.SlotSelectionOldest, picked: "3,7", progressRows: 1024,
-		oldestBucket: sql.NullInt64{Int64: 90, Valid: true},
+		oldestWindowStart: sql.NullInt64{Int64: 90, Valid: true},
 	}
 	rowSlots := []int{3, 3, 3, 7, 7} // five rows: L+1, the last one in slot 7
 	window := workflow.OwnedPackageDependencyTargetWindow{SlotSize: 5, RowsRead: 5}
 
-	got, err := ownedPackageSlotProgressSelection(columns, rowSlots, window, 100, 30*time.Minute, targetLimit)
+	got, err := ownedPackageSlotProgressSelection(columns, rowSlots, window, 100, targetLimit)
 	if err != nil {
 		t.Fatalf("ownedPackageSlotProgressSelection() error = %v", err)
 	}
@@ -138,11 +138,51 @@ func TestOwnedPackageSlotProgressSelectionTreatsTheLookaheadRowAsTruncation(t *t
 	}
 
 	within, err := ownedPackageSlotProgressSelection(columns, rowSlots[:4], workflow.OwnedPackageDependencyTargetWindow{SlotSize: 4, RowsRead: 4},
-		100, 30*time.Minute, targetLimit)
+		100, targetLimit)
 	if err != nil {
 		t.Fatalf("ownedPackageSlotProgressSelection() error = %v", err)
 	}
 	if within.Truncated || !slices.Equal(within.AdvanceSlots, []int{3, 7}) {
 		t.Fatalf("selection at exactly L rows = %#v, want not truncated and both slots advanced", within)
+	}
+}
+
+// TestOwnedPackageSlotProgressSelectionAgesBySecondsWhateverTheInterval pins the
+// second review's P1 (#9776) in the age arithmetic. Both ends of the age are
+// window start times in unix seconds, so a row written under a 30 minute
+// interval and read under a 1 hour one (or the reverse) reports the true
+// elapsed time, and a row newer than the read window clamps to zero instead of
+// going negative.
+func TestOwnedPackageSlotProgressSelectionAgesBySecondsWhateverTheInterval(t *testing.T) {
+	t.Parallel()
+
+	hour := int64(time.Hour.Seconds())
+	cases := []struct {
+		name         string
+		oldestStart  int64
+		readStart    int64
+		wantAge      time.Duration
+		wantOldestAt int64
+	}{
+		{"oldest row written under a narrower interval", 1000 * hour, 1032 * hour, 32 * time.Hour, 1000 * hour},
+		{"oldest row written under a wider interval", 1000 * hour, 1032*hour + hour/2, 32*time.Hour + 30*time.Minute, 1000 * hour},
+		{"oldest row opened after the read window", 1032*hour + hour/2, 1032 * hour, 0, 1032*hour + hour/2},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			columns := slotProgressColumns{
+				mode: workflow.SlotSelectionOldest, picked: "3", progressRows: workflow.OwnedPackageVirtualSlotCount,
+				oldestWindowStart: sql.NullInt64{Int64: tc.oldestStart, Valid: true},
+			}
+			window := workflow.OwnedPackageDependencyTargetWindow{SlotSize: 1, RowsRead: 1}
+			got, err := ownedPackageSlotProgressSelection(columns, []int{3}, window, tc.readStart, 0)
+			if err != nil {
+				t.Fatalf("ownedPackageSlotProgressSelection() error = %v", err)
+			}
+			if got.OldestSlotAge != tc.wantAge || got.OldestPlannedWindowStartUnix != tc.wantOldestAt {
+				t.Fatalf("age=%v oldest=%d, want age=%v oldest=%d", got.OldestSlotAge, got.OldestPlannedWindowStartUnix, tc.wantAge, tc.wantOldestAt)
+			}
+		})
 	}
 }

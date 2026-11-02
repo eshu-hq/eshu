@@ -31,7 +31,7 @@ const (
 	// SlotSelectionOldest means the read chose the V/P least recently planned
 	// virtual slots.
 	SlotSelectionOldest = "oldest"
-	// SlotSelectionSameBucketReuse means the bucket already had recorded slots,
+	// SlotSelectionSameBucketReuse means the window already had recorded slots,
 	// so a repeat reconcile reproduced the same plan.
 	SlotSelectionSameBucketReuse = "same_bucket_reuse"
 	// SlotSelectionClockFallback means P exceeds V, so the window cannot hold
@@ -58,9 +58,11 @@ type OwnedTargetSlotSelector struct {
 	// DerivationKind scopes the progress rows to one derivation, for example
 	// [SlotDerivationKindVulnerability].
 	DerivationKind string
-	// Interval is the reconcile bucket width. The read multiplies bucket ages
-	// by it to report the oldest planned slot age in seconds.
-	Interval time.Duration
+	// WindowStartUnix is the start of the reconcile window being read, in whole
+	// seconds since the Unix epoch. Progress is stored and compared as a window
+	// start time, never as an interval index, so the oldest-slot age and the
+	// same-window reuse stay right when an operator changes scan_interval.
+	WindowStartUnix int64
 }
 
 // Enabled reports whether the read should select by persisted progress.
@@ -91,11 +93,13 @@ type OwnedTargetSlotSelection struct {
 	// ProgressRows is how many virtual slots have a progress row; below V the
 	// first rotation is still warming up.
 	ProgressRows int64
-	// OldestPlannedBucket is the smallest last_planned_bucket on file, valid
-	// when ProgressRows is positive.
-	OldestPlannedBucket int64
-	// OldestSlotAge is (bucket - OldestPlannedBucket) times the interval,
-	// valid when ProgressRows is positive.
+	// OldestPlannedWindowStartUnix is the smallest last_planned_window_start on
+	// file, in unix seconds, valid when ProgressRows is positive.
+	OldestPlannedWindowStartUnix int64
+	// OldestSlotAge is the read's window start minus OldestPlannedWindowStartUnix,
+	// valid when ProgressRows is positive. Zero when the oldest row opened after
+	// this window, which only the last old-width window after a scan_interval
+	// raise can do.
 	OldestSlotAge time.Duration
 }
 
@@ -111,11 +115,12 @@ type OwnedTargetSlotAdvance struct {
 	CollectorKind       scope.CollectorKind
 	CollectorInstanceID string
 	DerivationKind      string
-	// Bucket is the truncated-clock bucket the slots were planned in.
-	Bucket int64
-	// PlannedAt is the wall clock written beside the bucket.
+	// WindowStartUnix is the start of the reconcile window the slots were
+	// planned in, in whole seconds since the Unix epoch.
+	WindowStartUnix int64
+	// PlannedAt is the wall clock written beside the window start.
 	PlannedAt time.Time
-	// Slots are the virtual slots to move to Bucket, in ascending order.
+	// Slots are the virtual slots to move to WindowStartUnix, in ascending order.
 	Slots []int
 }
 
@@ -123,12 +128,12 @@ type OwnedTargetSlotAdvance struct {
 type SlotAdvanceResult struct {
 	// Requested is the number of slots the transaction tried to move.
 	Requested int
-	// Moved is the number of rows whose last_planned_bucket increased.
+	// Moved is the number of rows whose last_planned_window_start increased.
 	Moved int
 }
 
 // LostRace reports whether the transaction asked to move slots and moved none:
-// another coordinator already recorded the bucket.
+// another coordinator already recorded the window.
 func (r SlotAdvanceResult) LostRace() bool {
 	return r.Requested > 0 && r.Moved == 0
 }

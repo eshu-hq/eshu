@@ -58,6 +58,7 @@ type workAdmission struct {
 func ownedSlotSelector(
 	instance workflow.CollectorInstance,
 	derivation vulnerability.DerivationConfiguration,
+	observedAt time.Time,
 	interval time.Duration,
 ) workflow.OwnedTargetSlotSelector {
 	if !derivation.Enabled || !derivation.SlotProgress || instance.Bootstrap ||
@@ -67,29 +68,35 @@ func ownedSlotSelector(
 	return workflow.OwnedTargetSlotSelector{
 		CollectorInstanceID: instance.InstanceID,
 		DerivationKind:      workflow.SlotDerivationKindVulnerability,
-		Interval:            interval,
+		// A time, not an interval index: see OwnedTargetSlotSelector.
+		WindowStartUnix: schedule.DerivedTargetWindowStartUnix(observedAt, interval),
 	}
 }
 
 // ownedSlotAdvance builds the progress movement for one read, or nil when the
-// read was not progress-ordered, fell back to the clock slot, or covered no
-// slot in full. The clock fallback never advances: its window is not a set of
-// whole virtual slots.
+// read was not progress-ordered, fell back to the clock slot, reused the slots
+// already recorded for this window, or covered no slot in full. The clock
+// fallback never advances: its window is not a set of whole virtual slots. A
+// reuse tick finds every picked row already at this window start, so the
+// compare-and-set could only move zero rows; skipping it spares the row locks
+// and, for an empty pick, a whole advisory-locked transaction on each of the
+// ticker's repeats inside one window.
 func ownedSlotAdvance(
 	instance workflow.CollectorInstance,
 	page workflow.OwnedPackageDependencyTargetPage,
-	bucket int64,
+	windowStartUnix int64,
 	plannedAt time.Time,
 ) *workflow.OwnedTargetSlotAdvance {
 	selection := page.Selection
-	if selection.Mode == "" || selection.Mode == workflow.SlotSelectionClockFallback || len(selection.AdvanceSlots) == 0 {
+	if selection.Mode == "" || selection.Mode == workflow.SlotSelectionClockFallback ||
+		selection.Mode == workflow.SlotSelectionSameBucketReuse || len(selection.AdvanceSlots) == 0 {
 		return nil
 	}
 	return &workflow.OwnedTargetSlotAdvance{
 		CollectorKind:       instance.CollectorKind,
 		CollectorInstanceID: instance.InstanceID,
 		DerivationKind:      workflow.SlotDerivationKindVulnerability,
-		Bucket:              bucket,
+		WindowStartUnix:     windowStartUnix,
 		PlannedAt:           plannedAt.UTC(),
 		Slots:               selection.AdvanceSlots,
 	}
