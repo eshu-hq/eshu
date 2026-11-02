@@ -13,7 +13,10 @@ package query
 // Sessions, the assertion verifier, and the sign-in policy reader stay
 // wired alongside the store and outside this contract, mirroring how the
 // OIDC and GitHub login contracts leave session issuance to the
-// BrowserSessions family's own seam.
+// BrowserSessions family's own seam. The optional SAMLProviderIDLister
+// is not part of v0: a dest client implementing only the 5 aliased
+// methods silently drops runtime provider discovery
+// (RegisteredProviderIDs returns nil).
 type SAMLLoginAdmission = SAMLStore
 
 // SAMLLoginAdmissionContractVersion pins the versioned shape of

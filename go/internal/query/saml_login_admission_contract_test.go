@@ -14,7 +14,9 @@ import (
 // removed, or re-signed method fails here until that list is deliberately
 // updated; bump SAMLLoginAdmissionContractVersion alongside so dest
 // consumers can pin the shape, keeping the eshu-api extraction boundary
-// from drifting silently.
+// from drifting silently. The optional SAMLProviderIDLister is
+// deliberately outside v0 (dest clients implementing only these 5
+// methods get no runtime provider discovery).
 var frozenSAMLLoginAdmission = []string{
 	"ConsumeSAMLRequest func(context.Context, string, string, string, time.Time) (string, bool, error)",
 	"CreateSAMLRequest func(context.Context, string, query.SAMLRequestCreateRecord) error",
