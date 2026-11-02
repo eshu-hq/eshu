@@ -29,7 +29,8 @@
 // The scannercomponent subpackage owns the scanner vocabulary and the
 // component-admission contract after the #8878 in-tree scanner removal. The
 // execution half (claim input, analyzers, runners, retry/dead-letter
-// payloads, the claim loop) was removed from eshu in #9741 and its port into
-// eshu-hq/eshu-scanner-worker is in progress (#8878 box 10); this tree never
-// executes an analyzer while reducers keep finding truth ownership.
+// payloads, the claim loop) was removed from eshu in #9741. It now lives in
+// eshu-hq/eshu-scanner-worker, which builds and attests the images (#8878 box 10
+// stays open until the re-pin is deployed). This tree never executes an
+// analyzer while reducers keep finding truth ownership.
 package collector

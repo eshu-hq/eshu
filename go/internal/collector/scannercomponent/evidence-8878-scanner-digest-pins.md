@@ -298,7 +298,8 @@ that release published:
   oci://ghcr.io/eshu-hq/scanner-<name>@sha256:<pin> --repo
   eshu-hq/eshu-scanner-worker` exits 0 for all three; the certificate
   names `eshu-hq/eshu-scanner-worker` at `b18339cc438e`, ref `refs/heads/main`,
-  trigger `push`, run 41401606694.
+  trigger `push`, release run 41401606694 (the certificates cite attempt 2 for
+  image and sbom and attempt 5 for osruntime, after reruns of that run).
 - `scripts/verify-scanner-digest-pins.sh` against GHCR: PASS, exit 0.
 
 Admission reads only image and platform

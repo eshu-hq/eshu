@@ -488,8 +488,9 @@ gates:
     # Scanner sources were removed from eshu with #9741 and the port into
     # eshu-scanner-worker landed (#8878 box 10), so the anchor names the
     # satellite's publish commit and the verifier checks the anchor against
-    # that repo, not in-tree history. In-tree scanner sources are gone: the pin leaf moved to
-    # go/internal/collector/scannercomponent and the publishing repo owns the
+    # that repo, not in-tree history. In-tree scanner sources are gone: the pin
+    # leaf moved to go/internal/collector/scannercomponent and the publishing
+    # repo owns the
     # staleness inputs the verifier used to diff, so the trigger list keeps
     # the verifier, its suite, the relocated leaf, and the shared infra
     # files that still select the lane.
