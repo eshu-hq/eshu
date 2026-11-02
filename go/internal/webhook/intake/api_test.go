@@ -343,6 +343,8 @@ func (f *fakeIncidentStore) StoreIncidentFreshnessTrigger(_ context.Context, tri
 type fakeAWSStore struct {
 	calls int
 	err   error
+	// duplicateCount is reported as the stored row's coalesced-delivery count.
+	duplicateCount int
 }
 
 func (f *fakeAWSStore) StoreTrigger(_ context.Context, trigger awsfreshness.Trigger, receivedAt time.Time) (awsfreshness.StoredTrigger, error) {
@@ -356,12 +358,16 @@ func (f *fakeAWSStore) StoreTrigger(_ context.Context, trigger awsfreshness.Trig
 		Status:     awsfreshness.TriggerStatusQueued,
 		ReceivedAt: receivedAt,
 		UpdatedAt:  receivedAt,
+
+		DuplicateCount: f.duplicateCount,
 	}, nil
 }
 
 type fakeGCPStore struct {
 	calls int
 	err   error
+	// duplicateCount is reported as the stored row's coalesced-delivery count.
+	duplicateCount int
 }
 
 func (f *fakeGCPStore) StoreTrigger(_ context.Context, trigger gcpfreshness.Trigger, receivedAt time.Time) (gcpfreshness.StoredTrigger, error) {
@@ -375,6 +381,8 @@ func (f *fakeGCPStore) StoreTrigger(_ context.Context, trigger gcpfreshness.Trig
 		Status:     catalog.TriggerStatusQueued,
 		ReceivedAt: receivedAt,
 		UpdatedAt:  receivedAt,
+
+		DuplicateCount: f.duplicateCount,
 	}, nil
 }
 

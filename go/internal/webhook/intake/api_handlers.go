@@ -137,6 +137,7 @@ func (s *Server) handleAWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	obs.stored(d, storeStarted, string(stored.Status))
+	obs.freshnessStored(d, stored.DuplicateCount)
 	s.logOutcome(r, "intake trigger stored",
 		slog.String("route", "aws"),
 		slog.String("status", string(stored.Status)),
@@ -182,6 +183,7 @@ func (s *Server) handleGCP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	obs.stored(d, storeStarted, string(stored.Status))
+	obs.freshnessStored(d, stored.DuplicateCount)
 	s.logOutcome(r, "intake trigger stored",
 		slog.String("route", "gcp"),
 		slog.String("status", string(stored.Status)),

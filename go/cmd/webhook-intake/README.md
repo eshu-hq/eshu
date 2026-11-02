@@ -78,7 +78,11 @@ See `doc.go` for the full godoc contract.
   durable write is counted as `status="failed"`, and so is a delivery that
   coalesces into an already-failed row. Separate them with
   `store_operations_total{outcome="failed"}` or `requests_total{reason="store_failed"}`.
-  No new metric names were introduced; the intake package bounds every label.
+  The AWS and GCP routes also feed `eshu_dp_aws_freshness_events_total{kind,action}`
+  and `eshu_dp_gcp_freshness_events_total{kind,action,auth_path}` with actions
+  `intake_stored`, `intake_coalesced`, and `intake_failed` (#9814); `auth_path`
+  is always `n/a`. No new metric names were introduced; the intake package
+  bounds every label.
 - Traces: OTEL providers with the `webhook-intake` service name; Postgres
   store spans flow through the instrumented stores.
 - Logs: structured intake outcomes through the intake server logger

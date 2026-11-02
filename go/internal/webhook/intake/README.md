@@ -50,7 +50,17 @@ plus `eshu_dp_webhook_store_operations_total`,
 EshuTriggerHandoffFailed alert selects; a delivery that coalesces into an
 already-failed row also reads `failed`, so tell the two apart with
 `store_operations_total{outcome="failed"}` or `requests_total{reason="store_failed"}`.
-`/healthz` is not counted. Labels are
+`/healthz` is not counted. The AWS and GCP routes also feed the freshness
+counters the runbook queries select (#9814):
+`eshu_dp_aws_freshness_events_total{kind,action}` and
+`eshu_dp_gcp_freshness_events_total{kind,action,auth_path}`, with action
+`intake_stored` (store ok, no coalesced delivery), `intake_coalesced` (store ok,
+`DuplicateCount > 0`), or `intake_failed` (store error or no store configured).
+`auth_path` is always `n/a` (`telemetry.AuthPathNotApplicable`): the host's caller
+is the satellite presenting the intake bearer, so the host did not observe the
+provider's auth. The host never emits `intake_rejected` or `intake_ignored`;
+provider-edge rejects and ignores happen in the satellite, and a host-side
+rejection is on `eshu_dp_webhook_requests_total{outcome="rejected"}`. Labels are
 fixed sets: a free-text wire `reason` or incident `event_kind` outside the
 known values becomes `other`, and no delivery id or repository name is a label.
 
@@ -83,6 +93,29 @@ counter adds (requests, store operations, decisions) and two histogram records
 to the store call, its ordering, or its transaction. The
 `go/internal/telemetry/instruments.go` edit in this PR is godoc and metric HELP
 text only, so it changes no runtime behavior.
+
+No-Regression Evidence (#9814): `BenchmarkIntakeGCPRequest` in
+`metrics_bench_test.go`, run with
+`go test ./internal/webhook/intake/ -run '^$' -bench IntakeGCPRequest -benchtime=20000x -count=6`.
+Same input shape, backend, and host as above, on the GCP freshness route.
+Uninstrumented: 7.3-7.5 us/op, 60 allocs/op. Instrumented: 11.1-12.0 us/op,
+79 allocs/op, 11,740 B/op. Before the freshness counter (the same code with
+`freshnessEvent` returning early): instrumented 10.8-11.4 us/op, 75 allocs/op,
+11,314 B/op, so the counter costs 4 allocations and about 426 B (both exact).
+The ns/op swing on this shared host between runs (the same uninstrumented case
+read 7.3 us in one run and 8.1-11.9 us in the other) is larger than the
+counter's cost, so no timing delta is claimed. Safe because the added work is
+one counter add with 2-3 attributes on the AWS and GCP routes only, no lock,
+goroutine, or change to the store call. The `go/internal/telemetry/instruments.go`
+and `contract.go` edits are godoc and one string constant.
+
+Observability Evidence (#9814): `TestIntakeFreshnessActionsFollowTheStoreOutcome`
+forces stored, coalesced, store-failure and no-store outcomes on both routes and
+reads exact label sets; `TestIntakeFreshnessRejectionsEmitNoActions` pins that
+rejections emit nothing on the freshness counters;
+`TestIntakeHostEmitsFreshnessActionSeries` (`go/cmd/webhook-intake`) scrapes the
+production providers and finds `intake_coalesced` with `auth_path="n/a"`.
+The runbook query on a live environment is not evaluated.
 
 Observability Evidence: the intake routes now emit
 `eshu_dp_webhook_requests_total`, `eshu_dp_webhook_request_duration_seconds`,

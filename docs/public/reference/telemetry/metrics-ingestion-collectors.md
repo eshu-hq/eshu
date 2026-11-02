@@ -419,7 +419,7 @@ and the host pprof endpoint on `eshu-scanner-worker`.
 | `eshu_dp_aws_resources_emitted_total` | `service`, `account`, `region`, `resource_type` | AWS resource fact volume. |
 | `eshu_dp_aws_relationships_emitted_total` | `service`, `account`, `region` | AWS relationship fact volume. |
 | `eshu_dp_aws_tag_observations_emitted_total` | `service`, `account`, `region` | Tag observation fact volume. |
-| `eshu_dp_aws_freshness_events_total` | `kind`, `action` | AWS Config/EventBridge freshness intake and handoff. |
+| `eshu_dp_aws_freshness_events_total` | `kind`, `action` | AWS Config/EventBridge freshness intake and handoff. The intake host emits `intake_stored`, `intake_coalesced`, and `intake_failed` (#9814); the coordinator emits the handoff actions; the in-tree listener, until removed, also emits `intake_rejected`. |
 | `eshu_dp_aws_org_access_skipped_total` | `service`, `account`, `region`, `reason` | Organizations scans skipped because credentials were not org-aware. |
 | `eshu_dp_aws_scan_duration_seconds` | `service`, `account`, `region`, `result` | One service claim before durable commit. |
 | `eshu_dp_aws_claim_concurrency` | `account` | Active AWS claims by account. |
@@ -435,7 +435,7 @@ metric labels. Access Analyzer finding aggregate buckets are counted through
 
 | Metric | Key labels | Use |
 | --- | --- | --- |
-| `eshu_dp_gcp_freshness_events_total` | `kind`, `action` | Cloud Asset Inventory Pub/Sub push freshness intake and handoff. |
+| `eshu_dp_gcp_freshness_events_total` | `kind`, `action`, `auth_path` | Cloud Asset Inventory Pub/Sub push freshness intake and handoff. The intake host emits `intake_stored`, `intake_coalesced`, and `intake_failed` with `auth_path="n/a"` (#9814: the host is not the hop that authenticates the provider push); the coordinator emits the handoff actions with `n/a`; the in-tree listener, until removed, emits the full intake set (`intake_rejected`, `intake_ignored` too) with the real `auth_path` (`shared_token`, `oidc`, `none`). |
 
 `kind` is one of `asset_change`, `asset_deleted`, or `unknown`. Raw CAI asset
 names, parent scope ids, and push payload bodies stay out of metric labels;

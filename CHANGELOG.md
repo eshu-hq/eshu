@@ -11,6 +11,17 @@ recent shipped work grouped by feature area.
 
 ### Webhook intake host: request-path telemetry
 
+- **The intake host keeps the AWS and GCP freshness actions observable**
+  ([#9814](https://github.com/eshu-hq/eshu/issues/9814)). Only the in-tree
+  listener emitted `intake_stored`, `intake_coalesced`, and `intake_failed` on
+  `eshu_dp_aws_freshness_events_total` and `eshu_dp_gcp_freshness_events_total`,
+  so the freshness runbook queries went empty once the listener is removed. The
+  intake host now emits them from the AWS and GCP routes. The GCP series carries
+  `auth_path="n/a"` (the new `telemetry.AuthPathNotApplicable`), because the host
+  is not the hop that authenticates the provider push. The host does not emit
+  `intake_rejected` or `intake_ignored`; those are provider-edge outcomes that
+  need satellite metrics. The runbook lives in the eshu-deploy repo.
+
 - **The intake host now emits the webhook request-path series**
   ([#9811](https://github.com/eshu-hq/eshu/issues/9811)). Only the in-tree
   listener incremented `eshu_dp_webhook_requests_total`,

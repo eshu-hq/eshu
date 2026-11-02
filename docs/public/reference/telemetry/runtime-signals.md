@@ -57,7 +57,7 @@ A scrape that gathers no series at all still returns `500`.
 | MCP Server | Tool logs and query spans. Keep list-style calls bounded with limit, timeout, ordering, and truncation. |
 | Ingester | `collector.observe`, `fact.emit`, `projector.run`, fact counters, and queue age. |
 | Projector | `projector.run`, `canonical.projection`, `canonical.write`, projector stage duration, and queue age. |
-| Webhook Listener and Intake Host | `eshu_dp_webhook_requests_total`, `eshu_dp_webhook_trigger_decisions_total`, webhook duration metrics, `webhook.handle`, and `webhook.store` (spans from the listener only). |
+| Webhook Listener and Intake Host | `eshu_dp_webhook_requests_total`, `eshu_dp_webhook_trigger_decisions_total`, webhook duration metrics, `webhook.handle`, and `webhook.store` (spans from the listener only). The intake host also emits `eshu_dp_aws_freshness_events_total` and `eshu_dp_gcp_freshness_events_total` actions `intake_stored`, `intake_coalesced`, and `intake_failed` (#9814). |
 | Workflow Coordinator | `eshu_runtime_coordinator_*` status gauges plus `eshu_dp_workflow_coordinator_*` reconcile and reap metrics. |
 | AWS Cloud Collector | AWS API, throttle, budget, checkpoint, freshness, emitted-resource, and `aws.service.pagination.page` signals. |
 | Package Registry Collector | Request, rate-limit, parse-failure, emitted-fact, observation-lag, and failure-class signals. |

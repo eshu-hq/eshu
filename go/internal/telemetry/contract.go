@@ -169,8 +169,9 @@ const (
 	// series with a bounded four-value enum: "shared_token" or "oidc" (the
 	// webhook listener's accepted auth path that authenticated the inbound
 	// push), "none" (the webhook listener rejected the request — neither path
-	// matched), or "n/a" (the coordinator's downstream handoff loop, which has
-	// no request to authenticate). Every producer of this counter MUST set
+	// matched), or "n/a" (AuthPathNotApplicable: the coordinator's downstream
+	// handoff loop, which has no request to authenticate, and the webhook
+	// intake host, which is not the provider-authenticating hop). Every producer of this counter MUST set
 	// this label so all series share one label set; producers must never use
 	// a raw header, token, or claim value here.
 	MetricDimensionAuthPath  = "auth_path"
