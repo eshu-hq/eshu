@@ -14,6 +14,7 @@ gates:
       - "scripts/*verify-telemetry-coverage*.sh"
       - "scripts/lib/telemetry-coverage-bucket-check.sh"
       - "scripts/lib/telemetry-coverage-row-check.sh"
+      - "scripts/lib/telemetry-coverage-required-names.sh"
       - "scripts/lib/test-verify-telemetry-coverage-*"
       - ".github/workflows/static-contract-gates.yml"
       - "specs/ci-gates.v1.yaml"
@@ -23,6 +24,7 @@ gates:
       - "scripts/*verify-telemetry-coverage*.sh"
       - "scripts/lib/telemetry-coverage-bucket-check.sh"
       - "scripts/lib/telemetry-coverage-row-check.sh"
+      - "scripts/lib/telemetry-coverage-required-names.sh"
       - "scripts/lib/test-verify-telemetry-coverage-*"
     local:
       command: "bash scripts/verify-telemetry-coverage.sh"

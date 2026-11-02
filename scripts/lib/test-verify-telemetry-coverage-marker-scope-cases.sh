@@ -5,9 +5,10 @@
 # caller's init_repo(), expect_pass(), expect_fail(). Extracted to keep
 # scripts/test-verify-telemetry-coverage.sh under the repo's 500-line cap.
 #
-# The "must be registered" check skips a row only when the No-Observability-
-# Change: marker starts the row's metric column. A marker anywhere else must
-# not hide the row's eshu_dp_* names from the check.
+# The "must be registered" check skips only the metric cell of a row whose
+# metric column starts with the No-Observability-Change: marker. A marker
+# anywhere else hides nothing, and the rest of a marker-first row (its
+# category cell, any glued row) is still checked.
 
 # Case M1: the marker follows a real metric name inside the metric cell and
 # the row also names a bogus eshu_dp_ metric. Must fail: the cell does not
@@ -49,3 +50,44 @@ MD
 git -C "${case_marker_bare}" add .
 git -C "${case_marker_bare}" commit -q -m "add bare marker row retiring a metric"
 expect_pass "passes when the marker starts the metric cell without a backtick" "${case_marker_bare}"
+
+# Case M5 (#9790 review): the marker starts the metric cell, but the category
+# cell names a bogus eshu_dp_ metric. Must fail: only the metric cell is exempt.
+case_marker_first_later_bogus="$(init_repo case-marker-first-later-bogus)"
+cat >>"${case_marker_first_later_bogus}/docs/public/observability/telemetry-coverage.md" <<'MD'
+| marker-first stage | go/internal/reducer/service.go:3 | `No-Observability-Change: retired counter prose only` | reducer runtime (see eshu_dp_ghost_metric_total) |
+MD
+git -C "${case_marker_first_later_bogus}" add .
+git -C "${case_marker_first_later_bogus}" commit -q -m "add marker-first row with a bogus metric in the category cell"
+expect_fail "fails when a marker-first row names an unregistered metric outside the metric cell" "${case_marker_first_later_bogus}"
+
+# Case M6: the marker starts the metric cell and that cell retires a bogus
+# name. Must pass: retirement prose in the metric cell stays exempt.
+case_marker_first_retired="$(init_repo case-marker-first-retired)"
+cat >>"${case_marker_first_retired}/docs/public/observability/telemetry-coverage.md" <<'MD'
+| marker-first retired | go/internal/reducer/service.go:3 | `No-Observability-Change: eshu_dp_retired_counter_total was removed; eshu_dp_queue_claim_duration_seconds still covers the path` | reducer runtime |
+MD
+git -C "${case_marker_first_retired}" add .
+git -C "${case_marker_first_retired}" commit -q -m "add marker-first row retiring a metric in the metric cell"
+expect_pass "passes when a marker-first row retires an unregistered name inside the metric cell" "${case_marker_first_retired}"
+
+# Case M7: the marker starts the metric cell and the category cell names only
+# registered metrics. Must pass.
+case_marker_first_later_clean="$(init_repo case-marker-first-later-clean)"
+cat >>"${case_marker_first_later_clean}/docs/public/observability/telemetry-coverage.md" <<'MD'
+| marker-first clean | go/internal/reducer/service.go:3 | `No-Observability-Change: no new signal` | reducer runtime (see eshu_dp_reducer_run_duration_seconds) |
+MD
+git -C "${case_marker_first_later_clean}" add .
+git -C "${case_marker_first_later_clean}" commit -q -m "add marker-first row with a registered metric in the category cell"
+expect_pass "passes when a marker-first row names only registered metrics outside the metric cell" "${case_marker_first_later_clean}"
+
+# Case M8: two rows glued onto one line (as telemetry-coverage.md has today).
+# The first is marker-first; the second names a bogus metric in its own metric
+# cell. Must fail: a row separator ends the exemption.
+case_marker_glued_bogus="$(init_repo case-marker-glued-bogus)"
+cat >>"${case_marker_glued_bogus}/docs/public/observability/telemetry-coverage.md" <<'MD'
+| glued first | go/internal/reducer/service.go:3 | `No-Observability-Change: prose only` | reducer runtime || glued second | go/internal/reducer/service.go:4 | `eshu_dp_ghost_metric_total` | reducer runtime |
+MD
+git -C "${case_marker_glued_bogus}" add .
+git -C "${case_marker_glued_bogus}" commit -q -m "add glued rows with a bogus metric in the second row"
+expect_fail "fails when a glued row after a marker-first row names an unregistered metric" "${case_marker_glued_bogus}"

@@ -131,20 +131,18 @@ rg -N --no-line-number '^\|' "$repo_root/$doc_path" >"$all_rows_tmp" 2>/dev/null
 rg -o 'eshu_dp_[a-zA-Z0-9_]+' "$all_rows_tmp" 2>/dev/null | sort -u >"$doc_documented_tmp" || true
 
 # doc_required_tmp: every eshu_dp_* name that must be registered in
-# instruments.go. Excludes metric names that appear ONLY inside a row whose
-# metric column starts with No-Observability-Change:, because those names
-# describe counters that the X1 doc explicitly retires. The marker names
-# still count as documented (so the inverse check passes for them), but
-# the script does not require them to be registered.
+# instruments.go. A row whose metric column starts with
+# No-Observability-Change: is exempt only inside that metric cell, because
+# those names describe counters the X1 doc explicitly retires; they still
+# count as documented (so the inverse check passes for them). Every other
+# name, including one in a marker-first row's category cell or in a row glued
+# after it, must be registered. The selection lives in the sourced helper
+# (#9790).
+# shellcheck source=scripts/lib/telemetry-coverage-required-names.sh
+source "${script_dir}/lib/telemetry-coverage-required-names.sh"
 required_rows_tmp="$(mktemp)"
 trap 'rm -f "$doc_required_tmp" "$doc_documented_tmp" "$doc_files_tmp" "$instruments_metrics_tmp" "$new_stages_tmp" "$tmp_diff" "$all_rows_tmp" "$required_rows_tmp"' EXIT
-# The exclusion is anchored to the metric column (the third pipe-separated
-# cell: stage | file:line | metric | category), with an optional opening
-# backtick or whitespace before the marker. A row that only mentions the
-# marker later in the cell, or in another cell, stays in required_rows_tmp so
-# its eshu_dp_* names must still be registered (#9790).
-no_change_cell_pattern='^\|[^|]*\|[^|]*\|[[:space:]]*`?No-Observability-Change:'
-rg -v "$no_change_cell_pattern" "$all_rows_tmp" >"$required_rows_tmp" 2>/dev/null || true
+telemetry_required_rows "$all_rows_tmp" >"$required_rows_tmp"
 rg -o 'eshu_dp_[a-zA-Z0-9_]+' "$required_rows_tmp" 2>/dev/null | sort -u >"$doc_required_tmp" || true
 
 # doc_files_tmp: file:line dispatcher column. Replaced by
