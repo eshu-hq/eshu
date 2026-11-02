@@ -115,13 +115,12 @@ no exporter), same command and host as above, base = the #9814 commit.
 Base: uninstrumented 9.0-10.8 us/op, 68 allocs/op, 11,701 B/op; instrumented
 11.5-13.0 us/op, 83 allocs/op, 13,586 B/op. With the span change and a nil
 `Tracer`: uninstrumented 8.7-9.3 us/op, 68 allocs/op, 11,799 B/op; instrumented
-11.2-11.9 us/op, 83 allocs/op, 13,684 B/op. A nil tracer therefore adds zero
+11.3-12.5 us/op, 83 allocs/op, 13,683 B/op. A nil tracer therefore adds zero
 allocations; the only change is about 98 B per request for the larger request
-state (exact). With a tracer: never sampled 12.3-12.5 us/op, 97 allocs/op,
-15,079 B/op (+14 allocs, +1,395 B over instrumented); always sampled 13.7-14.1
-us/op, 101 allocs/op, 16,938 B/op (+18 allocs, +3,254 B over instrumented), about
-+1.1 us and +2.4 us per request on a shared host whose run-to-run swing is of the
-same order. Production sampling is the OTEL environment's decision, and the
+state (exact). With a tracer: never sampled 12.4-13.0 us/op, 97 allocs/op,
+15,079 B/op (+14 allocs, +1,396 B over instrumented); always sampled 14.3-15.6
+us/op, 101 allocs/op, 16,938 B/op (+18 allocs, +3,255 B over instrumented), on a
+shared host whose run-to-run swing is of the same order as the time difference. Production sampling is the OTEL environment's decision, and the
 request is dominated by the Postgres round trip, which costs milliseconds. Safe
 because spans add no lock or goroutine and no change to the store call except
 that it now runs under the store span's context. Terminal counts: every
@@ -135,7 +134,14 @@ the allow-list exactly. `TestIntakeStoreFailureMarksSpans` pins status Error wit
 a fixed description and no recorded error; `TestIntakeRejectedRequestEmitsHandleSpanOnly`,
 `TestIntakeUnconfiguredStoreEmitsHandleSpanOnly`,
 `TestIntakeActionsConflictMarksStoreSpanRejected` and
-`TestIntakeWithoutTracerEmitsNoSpans` pin the other paths. `TestIntakeHostEmitsRequestAndStoreSpans`
+`TestIntakeWithoutTracerEmitsNoSpans` pin the other paths.
+`TestIntakeLogsCarryTheHandleSpan` runs a stored and a store-failed request
+through the production telemetry logger and finds the handle span's `trace_id`
+and `span_id` on the intake log line (a nil-tracer request logs no trace field),
+`TestIntakeRejectionsEndTheHandleSpanOnce` covers every pre-store rejection,
+`TestIntakeStorePanicStillEndsBothSpans` pins that a panicking store leaves no
+open span, and `TestIntakeStoreContextKeepsRequestCancellation` pins that the
+store context still carries the request's cancellation. `TestIntakeHostEmitsRequestAndStoreSpans`
 (`go/cmd/webhook-intake`) builds through `buildIntakeServer` with a recording
 tracer. A live trace backend was not queried.
 

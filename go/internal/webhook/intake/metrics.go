@@ -105,6 +105,7 @@ func (o *requestObs) reject(reason string) {
 // it so every return path, including panics unwinding through net/http, is
 // counted exactly once.
 func (o *requestObs) finish() {
+	o.abandonStoreSpan()
 	defer o.endHandleSpan()
 	if o.instruments == nil {
 		return

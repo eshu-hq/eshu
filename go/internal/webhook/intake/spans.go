@@ -5,6 +5,7 @@ package intake
 
 import (
 	"context"
+	"net/http"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -42,6 +43,29 @@ func (o *requestObs) startHandleSpan(tracer trace.Tracer) {
 	o.spans.tracer = tracer
 	o.ctx, o.spans.handle = tracer.Start(o.ctx, telemetry.SpanWebhookHandle,
 		trace.WithAttributes(telemetry.AttrProvider(o.provider)))
+}
+
+// bind returns the request carrying the handle span's context, so the log
+// lines written through it share the span's trace_id and span_id. A request
+// with no tracer is returned unchanged, without the shallow copy
+// http.Request.WithContext would allocate.
+func (o *requestObs) bind(r *http.Request) *http.Request {
+	if o.spans.handle == nil {
+		return r
+	}
+	return r.WithContext(o.ctx)
+}
+
+// abandonStoreSpan ends a store span the handler never closed, which only
+// happens when the store call panicked. The request counts as a failed handoff
+// so neither span stays open. It is a no-op once the store span has ended.
+func (o *requestObs) abandonStoreSpan() {
+	if o.spans.store == nil {
+		return
+	}
+	o.outcome = outcomeFailed
+	o.reason = reasonStoreFailed
+	o.endStoreSpan(outcomeFailed, statusFailed)
 }
 
 // noteDecision records the labels the handle span ends with.

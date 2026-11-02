@@ -14,6 +14,7 @@ import (
 func (s *Server) handleRepository(w http.ResponseWriter, r *http.Request) {
 	obs := s.observe(r, valueUnknown)
 	defer obs.finish()
+	r = obs.bind(r)
 	var request RepositoryIntakeRequest
 	if !s.decodeRequest(w, r, obs, &request) {
 		return
@@ -62,6 +63,7 @@ func (s *Server) handleRepository(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleIncident(w http.ResponseWriter, r *http.Request) {
 	obs := s.observe(r, valueUnknown)
 	defer obs.finish()
+	r = obs.bind(r)
 	var request IncidentIntakeRequest
 	if !s.decodeRequest(w, r, obs, &request) {
 		return
@@ -108,6 +110,7 @@ func (s *Server) handleIncident(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleAWS(w http.ResponseWriter, r *http.Request) {
 	obs := s.observe(r, providerAWSFreshness)
 	defer obs.finish()
+	r = obs.bind(r)
 	var request AWSIntakeRequest
 	if !s.decodeRequest(w, r, obs, &request) {
 		return
@@ -154,6 +157,7 @@ func (s *Server) handleAWS(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleGCP(w http.ResponseWriter, r *http.Request) {
 	obs := s.observe(r, providerGCPFreshness)
 	defer obs.finish()
+	r = obs.bind(r)
 	var request GCPIntakeRequest
 	if !s.decodeRequest(w, r, obs, &request) {
 		return
@@ -200,6 +204,7 @@ func (s *Server) handleGCP(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleActions(w http.ResponseWriter, r *http.Request) {
 	obs := s.observe(r, string(webhook.ProviderGitHub))
 	defer obs.finish()
+	r = obs.bind(r)
 	var request ActionsIntakeRequest
 	if !s.decodeRequest(w, r, obs, &request) {
 		return

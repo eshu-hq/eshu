@@ -19,7 +19,8 @@ recent shipped work grouped by feature area.
   and the store call runs under the store span so the Postgres spans nest. The
   attributes are the listener's closed set (`provider`, `event_kind`, `decision`,
   `outcome`, `reason`, `status`); a failed write sets status Error with a fixed
-  description and records no raw error. A nil tracer emits nothing.
+  description and records no raw error. Intake log lines now carry the handle
+  span's `trace_id` and `span_id`. A nil tracer emits nothing.
 
 - **The intake host keeps the AWS and GCP freshness actions observable**
   ([#9814](https://github.com/eshu-hq/eshu/issues/9814)). Only the in-tree

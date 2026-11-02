@@ -33,7 +33,9 @@ Read these files first:
   `status`; never a trigger id, delivery id, repository, account, or scope id, and
   never `RecordError` the raw store error. The store call must receive the context
   `beginStore` returns so the stores' spans nest under `webhook.store`
-  (`spans_test.go` pins it).
+  (`spans_test.go` pins it). Each handler rebinds the request with `obs.bind(r)`
+  so intake log lines carry the handle span's trace_id and span_id
+  (`spans_logs_test.go`).
 - Keep the AWS and GCP freshness counters to `intake_stored`,
   `intake_coalesced`, and `intake_failed` with GCP `auth_path` set to
   `telemetry.AuthPathNotApplicable`. Do not emit `intake_rejected` or
