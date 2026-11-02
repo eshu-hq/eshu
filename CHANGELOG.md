@@ -45,6 +45,20 @@ recent shipped work grouped by feature area.
   `collector.ClaimedService` refuses to start with a claim-plane control
   store and an unfenced committer, or with a fenced committer and the core
   control store.
+### Workflow extraction: executable claim-plane contention harness
+
+- **The #9727 contention workload now exists as code**
+  ([#9727](https://github.com/eshu-hq/eshu/issues/9727)).
+  `go/internal/workflow/parity/contention` runs the nine-step mix from
+  `REMOVAL_CONTENTION_SPEC.md` against either leg: the in-tree store on a
+  disposable local database, or a claim plane over HTTP. It runs W = 1x and 2x
+  the production worker count over a configurable backlog. A per-second
+  sampler and a happens-before client tracker enforce the abort triggers
+  (dual claim, fencing regression, lost item, non-synthetic id) in code. Every
+  exit path ends in prefix-only cleanup and the three-zero residue check, and
+  each run writes a JSON report and a summary. It has run against local
+  containers only; the live leg is gated and its runbook is in the package
+  README. `parity` gains `NewInTreeBackend` and `NewSatelliteBackend`.
 
 ### Telemetry coverage doc: split into parts under the line cap
 
