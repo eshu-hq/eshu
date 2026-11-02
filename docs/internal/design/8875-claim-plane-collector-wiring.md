@@ -119,7 +119,7 @@ the variable on a real instance needs both P1 and P2 (ruling Phase C).
   emitted at the client's single `post` chokepoint. `operation` is the closed
   set of protocol operations. `outcome` is the closed set `ok`, `rejected`,
   `not_found`, `paced`, `invalid`, `server_error`, `timeout`,
-  `transport_error`, `decode_error`.
+  `transport_error`, `decode_error`, `request_error`.
 
 ## Performance and concurrency
 
