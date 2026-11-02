@@ -39,6 +39,31 @@ const (
 // an empty redirect URL with no error of its own.
 var errGitHubLoginRedirectEmpty = errors.New("github login service returned an empty redirect URL")
 
+// GitHubLoginAdmissionContractVersion versions the #8872
+// admission-contract shape for GitHub login (GET
+// /api/v0/auth/github/login, GET /api/v0/auth/github/callback).
+// Canonical logins persist through explicit core-owned admission
+// contracts: eshu-api keeps the HTTP shape and calls this versioned
+// port, which the core-owned Service implementation satisfies. A renamed,
+// added, removed, or re-signed method fails the frozen method-set test
+// until that list is deliberately updated in the same diff; bump this
+// version alongside so dest consumers can pin the shape they code
+// against.
+//
+// The optional GitHubProviderLister is not part of v0: a dest client
+// that implements only the 2 admission methods silently drops runtime
+// provider discovery (RegisteredProviders returns nil). Dest must also
+// implement the lister or accept DB-row-only discovery. Browser-session
+// issuance on callback belongs to the BrowserSessions family's own seam,
+// not this contract.
+const GitHubLoginAdmissionContractVersion = "v0"
+
+// GitHubLoginAdmission is the versioned admission-contract port the API
+// handler depends on instead of a concrete login service. It aliases the
+// narrow login service so existing fakes and the core-owned Service
+// implementation keep satisfying it unchanged.
+type GitHubLoginAdmission = GitHubLoginService
+
 // GitHubLoginService resolves GitHub Authorization Code login requests into
 // Eshu browser-session authorization contexts.
 type GitHubLoginService interface {

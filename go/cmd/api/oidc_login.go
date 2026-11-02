@@ -67,6 +67,24 @@ type fallbackOIDCGrantResolver struct {
 	fallback oidclogin.GrantResolver
 }
 
+var (
+	_ query.OIDCLoginAdmission = oidcServiceAdapter{}
+	_ query.OIDCProviderLister = oidcServiceAdapter{}
+)
+
+// oidcLoginAdmission binds the assembled OIDC login service through the
+// versioned #8872 admission contract. A nil service yields an untyped nil
+// port (never a value adapter wrapping nil) so the handler's serviceReady
+// check fails closed to 503 instead of panicking on a nil backing
+// service. NewService never returns nil today and disabled configs return
+// early, so this guards the binding invariant rather than a live path.
+func oidcLoginAdmission(service *oidclogin.Service) query.OIDCLoginAdmission {
+	if service == nil {
+		return nil
+	}
+	return oidcServiceAdapter{service}
+}
+
 func newOIDCLoginHandler(
 	getenv func(string) string,
 	database *sql.DB,
@@ -163,7 +181,7 @@ func newOIDCLoginHandler(
 		return nil, fmt.Errorf("configure cookie secure mode: %w", err)
 	}
 	return &query.OIDCLoginHandler{
-		Service:              oidcServiceAdapter{service},
+		Service:              oidcLoginAdmission(service),
 		SessionIssuer:        newBrowserSessionHandler(database, instruments, cookieSecureMode),
 		SessionRefreshWindow: sessionRefreshWindow,
 	}, nil

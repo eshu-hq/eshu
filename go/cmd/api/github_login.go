@@ -42,6 +42,25 @@ type githubServiceAdapter struct {
 	*githublogin.Service
 }
 
+var (
+	_ query.GitHubLoginAdmission = githubServiceAdapter{}
+	_ query.GitHubProviderLister = githubServiceAdapter{}
+)
+
+// githubLoginAdmission binds the assembled GitHub login service through
+// the versioned #8872 admission contract. A nil service yields an untyped
+// nil port (never a value adapter wrapping nil) so the handler's
+// serviceReady check fails closed to 503 instead of panicking on a nil
+// backing service. NewService never returns nil today and disabled
+// configs return early, so this guards the binding invariant rather than
+// a live path.
+func githubLoginAdmission(service *githublogin.Service) query.GitHubLoginAdmission {
+	if service == nil {
+		return nil
+	}
+	return githubServiceAdapter{service}
+}
+
 // ListGitHubProviderIDs implements query.GitHubProviderLister. No sensitive
 // fields (client id, secret, base URL, allowed orgs) are included.
 func (a githubServiceAdapter) ListGitHubProviderIDs() []query.GitHubRegisteredProvider {
@@ -181,7 +200,7 @@ func newGitHubLoginHandler(
 		return nil, fmt.Errorf("configure cookie secure mode: %w", err)
 	}
 	return &query.GitHubLoginHandler{
-		Service:              githubServiceAdapter{service},
+		Service:              githubLoginAdmission(service),
 		SessionIssuer:        newBrowserSessionHandler(database, instruments, cookieSecureMode),
 		SessionRefreshWindow: sessionRefreshWindow,
 	}, nil
