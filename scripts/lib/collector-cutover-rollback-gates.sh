@@ -309,7 +309,8 @@ in_tree_rolled_out() {
 # read_direct_running sets DIRECT_LIVE to yes, no, or unknown for the direct
 # collector Deployment. It is running when spec.replicas or status.replicas is
 # above zero, so a pod still stopping after a scale-down counts. An unreadable,
-# missing, or malformed answer is unknown, and callers treat unknown as running:
+# missing, or malformed answer is unknown, and authority callers treat unknown
+# as running (the restore gate below instead refuses on unknown):
 # a mistyped Deployment name must never read as "no producer is live".
 DIRECT_LIVE="unknown"
 DIRECT_NOTE=""
