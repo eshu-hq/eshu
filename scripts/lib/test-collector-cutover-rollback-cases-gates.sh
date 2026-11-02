@@ -214,6 +214,17 @@ printf '0\n' >"${FAKE_STATE}/intree_replicas"
 expect_refused "verification refuses when the restored Deployment runs zero replicas" 4 6 -- "psql truth"
 expect_out "the step 6 refusal names the zero replica count" "reports 0 desired and 0 observed replica(s)"
 
+# --- step 4 gate: desired zero with pods still terminating is not restored ----
+# A manual scale-down mid-restore leaves desired=0 with observed>0 while pods
+# terminate. The authority OR still reads that as running, but the restore
+# gate refuses: the restore is not in effect.
+
+new_clear_state in-tree-desired-zero-5
+printf '0\n' >"${FAKE_STATE}/intree_replicas"
+printf '2\n' >"${FAKE_STATE}/intree_status_pods"
+expect_refused "replay refuses when desired is zero with pods still terminating" 4 5 "${since_args[@]}" -- "psql replay"
+expect_out "the refusal names the zero desired count" "reports desired=0 (observed 2): the restore is not in effect"
+
 # An unreadable or malformed count fails closed: the gate refuses instead of
 # reading the Deployment as stopped or as rolled out.
 

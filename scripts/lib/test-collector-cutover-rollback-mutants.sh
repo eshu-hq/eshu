@@ -118,6 +118,7 @@
 #   M101 main  --gitops-repo is not required in the mode
 #   M102 gates  the zero-replica branch of the restore gate never refuses
 #   M103 gates  the unreadable-count branch of the restore gate never refuses
+#   M104 gates  the desired-zero branch of the restore gate never refuses
 
 # The single-quoted anchors are literal source text to find, not expansions.
 # shellcheck disable=SC2016
@@ -281,6 +282,7 @@ define_mutants() {
 	add M101 main "$(pairs "${T}[[ -n \"\$gitops_repo\" ]] ||${NL}${T}${T}die \"\$EX_USAGE\" \"--activations-mode needs --gitops-repo DIR: a local checkout holding the removal commit\"${NL}" "")"
 	add M102 gates "$(pairs "${T}if [[ \"\$DIRECT_LIVE\" == \"no\" ]]; then" "${T}if false; then")"
 	add M103 gates "$(pairs "${T}if [[ \"\$DIRECT_LIVE\" == \"unknown\" ]]; then" "${T}if false; then")"
+	add M104 gates "$(pairs "|| ((10#\$desired_replicas == 0)); then" "|| false; then")"
 	add M64 main "$(pairs '"${TMPDIR:-/tmp}/eshu-rollback.XXXXXX"' '"/tmp/eshu-rollback.XXXXXX"')"
 }
 
