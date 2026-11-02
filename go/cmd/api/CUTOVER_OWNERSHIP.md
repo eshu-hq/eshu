@@ -74,7 +74,7 @@ the `querycontract.CoreReadContractsVersion` port set.
 | SignInPolicyMutations | sign-in-policy store | via admission contract |
 | LocalIdentity | identity/session/token stores | session issuance via admission contract |
 | BrowserSessions | browser-session store | session lifecycle via admission contract |
-| Setup | bootstrap stores | first-run flow via admission contract |
+| Setup | bootstrap stores | first-run flow via admission contract (SetupAdmission v0) |
 | OIDCLogin | login-state/session stores | login flow via admission contract |
 | SAML | login-state/session stores | login flow via admission contract |
 | GitHubLogin | login-state/session stores | login flow via admission contract |

@@ -15,6 +15,23 @@ import (
 // not concrete backend drivers). Every method here receives or returns
 // already-hashed/already-verified values, the same "caller hashes/seals,
 // store only persists" split LocalIdentityStore uses.
+// SetupAdmissionContractVersion versions the #8872 admission-contract
+// shape for the first-run setup wizard (epic #4962, issue #4965).
+// Canonical mutations persist through explicit core-owned admission
+// contracts: eshu-api keeps the HTTP shape and calls this versioned port,
+// which the core-owned Postgres implementation satisfies. A renamed,
+// added, removed, or re-signed method fails the frozen method-set test
+// until that list is deliberately updated in the same diff; bump this
+// version alongside so dest consumers can pin the shape they code against.
+// Field-level input-shape changes remain a documented convention.
+const SetupAdmissionContractVersion = "v0"
+
+// SetupAdmission is the versioned admission-contract port the API handler
+// depends on instead of a direct table handle. It aliases the narrow setup
+// store so existing fakes and the core-owned Postgres implementation keep
+// satisfying it unchanged.
+type SetupAdmission = SetupStore
+
 type SetupStore interface {
 	// SetupNeeded reports whether the wizard should still be reachable: a
 	// retrievable (unconsumed) bootstrap credential exists for the fixed

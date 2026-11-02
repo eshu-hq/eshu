@@ -321,7 +321,7 @@ func wireAPI(
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("configure setup wizard: %w", err)
 	}
-	router.Setup = newSetupHandler(rawDB, providerSecretKeyring, instruments, governanceAudit, cookieSecureMode, bootstrapMode)
+	router.Setup = newSetupHandler(newPostgresSetupAdapter(rawDB, providerSecretKeyring, instruments), rawDB, instruments, governanceAudit, cookieSecureMode, bootstrapMode)
 
 	oidcLoginHandler, err := newOIDCLoginHandler(getenv, rawDB, instruments, providerSecretKeyring, logger)
 	if err != nil {
