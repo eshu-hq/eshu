@@ -67,7 +67,8 @@ advanced. Read it beside the work-item failure signals, not instead of them.
 A healthy instance shows `oldest` and `advanced` climbing together with the
 age flat near one rotation. `lost_race` climbing with `advanced` flat means
 fresh picks keep finding the window already recorded, so another coordinator is
-doing the work. `clock_fallback` means the progress
+doing the work. The one expected exception is a single window right after a
+`scan_interval` raise (see below). `clock_fallback` means the progress
 flag is on but not in effect; shrink T per target limit or raise the target
 limit. The age rising past `max_staleness` with `advanced` flat means
 the coordinator stopped planning; check the coordinator, not the table.
@@ -77,8 +78,34 @@ the coordinator stopped planning; check the coordinator, not the table.
 Progress is stored as the start time of the window that planned each slot, in
 unix seconds, not as a count of scan intervals. An operator can raise or lower
 `scan_interval` on an enabled instance without a migration and without
-resetting the rotation. After a raise, the slots planned in the last
-old-width window can look newer than the first new window for at most that
-one window; the next window picks the oldest slots as usual. After a lower, no
-row looks older than it is. Disabling the flag and enabling it later resumes
-oldest-first from the stored window starts, whatever interval wrote them.
+resetting the rotation: the stored rows keep their order whichever interval
+wrote them. Disabling the flag and enabling it later resumes oldest-first from
+the stored window starts.
+
+After a lower, no row looks older than it is, and the rotation carries on.
+
+After a raise, the new window starts at the clock truncated to the wider
+interval, which can fall before windows that already opened at the old width.
+A slot planned in such a window looks newer than the new window, so the new
+window cannot advance it. Two cases follow:
+
+- A raise by a small factor (30 minutes to 1 hour, say). The old window that
+  opened exactly at the new window start has recorded slots, so the first new
+  window reads `same_bucket_reuse`, plans those slots again and writes
+  nothing. The next window picks the oldest slots and the rotation resumes.
+- A raise to an interval longer than one full rotation at the old interval
+  (P times the old interval; at a target limit of 1,500 with P = 64 that is 32
+  hours, so a raise to 2 days). Every row looks newer than the new window. The
+  first new window's compare-and-set moves nothing, its ticks count
+  `lost_race`, and the age gauge reads 0. The next window plans the same slots
+  again, still at their old starts, and moves them; the rotation then runs
+  normally. At the 1x defaults (P = 1,024, a rotation of about 21.3 days) this
+  case is out of practical reach.
+
+No target is missed in either case. The cost is one window whose progress is
+not recorded and one group planned twice.
+
+To tell this from a second coordinator doing the work: it lasts one window,
+starts right after the interval change, shows the gauge at 0 and then
+recovering, and `advanced` returns on the next window. A real loser counts
+`lost_race` on every window.

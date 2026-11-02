@@ -111,10 +111,22 @@ stored unix time divided by the interval, so doubling the interval halved every
 new key below every stored one: the compare-and-set moved nothing, the same V/P
 slots were planned forever, and the age gauge read zero (found in review 2).
 Halving the interval doubled the keys and reported a 28 year old slot. With a
-time key, a raise leaves the rows written in the last old-width window up to
-one new window ahead of the new window start, so those slots wait one window;
-a lower leaves nothing looking old. No migration is needed when an operator
-changes the interval.
+time key, a lower leaves nothing looking old. A raise has two shapes, because
+the new window start is the clock truncated to the wider interval and can fall
+before old-width windows that already opened. Every slot planned since that
+start looks newer than it. For a small factor the old window that opened exactly
+at the new start recorded slots, so the first new window reads
+`same_bucket_reuse`, plans them again and writes nothing, and rotation resumes
+the next window. When the new interval is longer than one rotation at the old
+interval (P times the old interval; 32 hours at L = 1,500, P = 64), every row
+looks newer: the first new window moves 0 rows, its ticks count `lost_race`, the
+gauge reads 0, and the next window plans the same slots again and resumes
+(review 3 reproduced a 24 hour raise after 40 warm 30 minute windows: 0 of 32
+moved, age 0, then 32 of 32 and a 20 hour age). No target is missed; the cost is
+one unrecorded window and one repeated group. An operator tells it from a real
+second coordinator by its length (one window, right after the change, gauge 0
+then recovering) where a real loser repeats. No migration is needed when an
+operator changes the interval.
 
 Truncation: the final `ORDER BY` is `(virtual_slot, target_rank)`, so a read cut
 by its limit drops whole trailing slots. The advance covers the picked slots
