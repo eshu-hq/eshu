@@ -270,6 +270,8 @@ func (r MaterializedEdgeOduResolver) Resolve(entry replaycoverage.CoverageEntry)
 		return resolveS3ExternalPrincipalGrantMaterializedEdges(odu, s3ExternalPrincipalGrantExpectedEdgesPath(r.RepoRoot))
 	case usesServiceAccountFamily:
 		return resolveUsesServiceAccountMaterializedEdges(odu, usesServiceAccountExpectedEdgesPath(r.RepoRoot))
+	case assumesIAMRoleFamily:
+		return resolveAssumesIAMRoleMaterializedEdges(odu, assumesIAMRoleExpectedEdgesPath(r.RepoRoot))
 	case authenticatesVaultRoleFamily:
 		return resolveAuthenticatesVaultRoleMaterializedEdges(odu, authenticatesVaultRoleExpectedEdgesPath(r.RepoRoot))
 	case usesVaultPolicyFamily:

@@ -57,7 +57,10 @@ func edgeSet(edges []sharedCellEdge) map[sharedCellEdge]bool {
 // head, and the five USE_S identities follow the role-to-policy mapping in
 // grants_secret_read_family_odu.go lanes A/B/7/8 (role 1 fans out to policies
 // 1-2, role 2 to policy 3, role 3 to policy 4, role 4 to policy 5), which the
-// PR review verified independently. The fault cells drive each family on a
+// PR review verified independently. The assumes additions below follow the
+// lane mapping in assumes_iam_role_family_odu.go (lane A binds Vault roles
+// 1-2, lane B role 3), cross-checked against the offline guard's own chain
+// output for that Odù. The fault cells drive each family on a
 // fresh per-family database, so the scope-local files below stay at their
 // landed counts.
 func TestVaultSharedCellLiveEdgeSets(t *testing.T) {
@@ -88,6 +91,11 @@ func TestVaultSharedCellLiveEdgeSets(t *testing.T) {
 		{authRel, "sha256:sa-grants-app-a", "sha256:grants-vault-role-1"},
 		{authRel, "sha256:sa-grants-app-b", "sha256:grants-vault-role-2"},
 	}
+	assumesAuth := []sharedCellEdge{
+		{authRel, "sha256:sa-assumes-app-a", "sha256:assumes-vault-role-1"},
+		{authRel, "sha256:sa-assumes-app-a", "sha256:assumes-vault-role-2"},
+		{authRel, "sha256:sa-assumes-app-b", "sha256:assumes-vault-role-3"},
+	}
 	wantAuthLive := edgeSet(authLocal)
 	for _, e := range usesAuth {
 		wantAuthLive[e] = true
@@ -95,8 +103,11 @@ func TestVaultSharedCellLiveEdgeSets(t *testing.T) {
 	for _, e := range grantsAuth {
 		wantAuthLive[e] = true
 	}
+	for _, e := range assumesAuth {
+		wantAuthLive[e] = true
+	}
 	if got := edgeSet(authLive); !equalEdgeSets(got, wantAuthLive) {
-		t.Fatalf("authenticates live set = %d edges, want scope-local 2 + uses 2 + grants 4 = 8", len(authLive))
+		t.Fatalf("authenticates live set = %d edges, want scope-local 2 + uses 2 + grants 4 + assumes 3 = 11", len(authLive))
 	}
 
 	const usesRel = "SECRETS_IAM_USES_VAULT_POLICY"

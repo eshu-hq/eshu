@@ -177,6 +177,9 @@ uses_vault_policy_expected_edges="${repo_root}/go/internal/ifa/testdata/usesvaul
 uses_vault_policy_live_expected_edges="${repo_root}/go/internal/ifa/testdata/usesvaultpolicy/ifa-uses-vault-policy-family-expected-edges-live.json"
 grants_secret_read_cassette="${repo_root}/testdata/cassettes/grantssecretread/ifa-grants-secret-read-family.json"
 grants_secret_read_expected_edges="${repo_root}/go/internal/ifa/testdata/grantssecretread/ifa-grants-secret-read-family-expected-edges.json"
+assumes_iam_role_cassette="${repo_root}/testdata/cassettes/assumesiamrole/ifa-assumes-iam-role-family.json"
+assumes_iam_role_expected_edges="${repo_root}/go/internal/ifa/testdata/assumesiamrole/ifa-assumes-iam-role-family-expected-edges.json"
+assumes_iam_role_live_expected_edges="${repo_root}/go/internal/ifa/testdata/assumesiamrole/ifa-assumes-iam-role-family-expected-edges-live.json"
 kubernetes_correlation_cassette="${repo_root}/testdata/cassettes/kubernetescorrelation/ifa-kubernetes-correlation-family.json"
 kubernetes_correlation_expected_edges="${repo_root}/go/internal/ifa/testdata/kubernetescorrelation/ifa-kubernetes-correlation-family-expected-edges.json"
 # semantic_entity_containment family cassette (#8359, #6228 arbiter verdict
@@ -407,6 +410,9 @@ ifa_family_fixtures_require() {
 	[[ -f "${uses_vault_policy_live_expected_edges}" ]] || { echo "${gate}: uses-vault-policy live expected-edge set not found: ${uses_vault_policy_live_expected_edges}" >&2; exit 1; }
 	[[ -f "${grants_secret_read_cassette}" ]] || { echo "${gate}: grants-secret-read cassette not found: ${grants_secret_read_cassette}" >&2; exit 1; }
 	[[ -f "${grants_secret_read_expected_edges}" ]] || { echo "${gate}: grants-secret-read expected-edge set not found: ${grants_secret_read_expected_edges}" >&2; exit 1; }
+	[[ -f "${assumes_iam_role_cassette}" ]] || { echo "${gate}: assumes-iam-role cassette not found: ${assumes_iam_role_cassette}" >&2; exit 1; }
+	[[ -f "${assumes_iam_role_expected_edges}" ]] || { echo "${gate}: assumes-iam-role expected-edge set not found: ${assumes_iam_role_expected_edges}" >&2; exit 1; }
+	[[ -f "${assumes_iam_role_live_expected_edges}" ]] || { echo "${gate}: assumes-iam-role live expected-edge set not found: ${assumes_iam_role_live_expected_edges}" >&2; exit 1; }
 	[[ -f "${kubernetes_correlation_cassette}" ]] || { echo "${gate}: kubernetes-correlation cassette not found: ${kubernetes_correlation_cassette}" >&2; exit 1; }
 	[[ -f "${kubernetes_correlation_expected_edges}" ]] || { echo "${gate}: kubernetes-correlation expected-edge set not found: ${kubernetes_correlation_expected_edges}" >&2; exit 1; }
 	[[ -f "${semantic_entity_containment_cassette}" ]] || { echo "${gate}: semantic-entity-containment cassette not found: ${semantic_entity_containment_cassette}" >&2; exit 1; }

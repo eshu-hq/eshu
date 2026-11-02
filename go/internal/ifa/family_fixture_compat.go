@@ -24,6 +24,7 @@ type (
 
 const (
 	CloudResourceFamilyOduName                  = familyodu.CloudResourceFamilyOduName
+	AssumesIAMRoleFamilyOduName                 = familyodu.AssumesIAMRoleFamilyOduName
 	AuthenticatesVaultRoleFamilyOduName         = familyodu.AuthenticatesVaultRoleFamilyOduName
 	CodeownersFamilyOduName                     = familyodu.CodeownersFamilyOduName
 	CodeCallFamilyOduName                       = familyodu.CodeCallFamilyOduName
@@ -166,6 +167,12 @@ func WorkloadDependencyFamilyCassetteFullPath(repoRoot string) string {
 
 // IAMCanAssumeFamilyOdu returns the cataloged IAM can-assume family Odù.
 func IAMCanAssumeFamilyOdu() CatalogOdu { return familyodu.IAMCanAssumeFamilyOdu() }
+
+// AssumesIAMRoleFamilyOdu returns the cataloged assumes IAM role family
+// Odù.
+func AssumesIAMRoleFamilyOdu() CatalogOdu {
+	return familyodu.AssumesIAMRoleFamilyOdu()
+}
 
 // AuthenticatesVaultRoleFamilyOdu returns the cataloged authenticates vault
 // role family Odù.

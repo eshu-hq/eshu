@@ -468,6 +468,11 @@ workflows:
   - scripts/lib/ifa_fault_injection_semantic_entity_containment_cells.sh
   - scripts/lib/test-ifa-fault-injection-semantic-entity-containment-cases.sh
   - testdata/cassettes/semanticentitycontainment/**
+  - go/internal/ifa/familyodu/assumes_iam_role_family_odu.go
+  - go/internal/ifa/testdata/assumesiamrole/**
+  - scripts/lib/ifa_fault_injection_assumes_iam_role_cells.sh
+  - scripts/lib/test-ifa-fault-injection-assumes-iam-role-cases.sh
+  - testdata/cassettes/assumesiamrole/**
   jobs:
   - dead-letter-matrix
   - determinism-matrix

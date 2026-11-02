@@ -42,6 +42,7 @@ const (
 	// authenticatesVaultRoleFamilyCassettePath,
 	// usesVaultPolicyFamilyCassettePath,
 	// grantsSecretReadFamilyCassettePath,
+	// assumesIAMRoleFamilyCassettePath,
 	// semanticEntityContainmentFamilyCassettePath,
 	// cloudResourceFamilyCassettePath, codeTaintEvidenceFamilyCassettePath,
 	// observabilityCoverageFamilyCassettePath,
@@ -65,6 +66,7 @@ const (
 	ec2UsesProfileFamilyCassettePath                 = "testdata/cassettes/ec2usesprofile/ifa-ec2-uses-profile-family.json"
 	s3LogsToFamilyCassettePath                       = "testdata/cassettes/s3logsto/ifa-s3-logs-to-family.json"
 	authenticatesVaultRoleFamilyCassettePath         = "testdata/cassettes/authenticatesvaultrole/ifa-authenticates-vault-role-family.json"
+	assumesIAMRoleFamilyCassettePath                 = "testdata/cassettes/assumesiamrole/ifa-assumes-iam-role-family.json"
 	usesVaultPolicyFamilyCassettePath                = "testdata/cassettes/usesvaultpolicy/ifa-uses-vault-policy-family.json"
 	grantsSecretReadFamilyCassettePath               = "testdata/cassettes/grantssecretread/ifa-grants-secret-read-family.json"
 	builtFromFamilyCassettePath                      = "testdata/cassettes/builtfrom/ifa-built-from-family.json"
@@ -235,6 +237,19 @@ func S3LogsToFamilyCassetteFullPath(repoRoot string) string {
 // counterpart to LoadEC2UsesProfileFamilyOdu.
 func LoadS3LogsToFamilyOdu(cassettePath string) (familyodu.Odu, error) {
 	return loadDirectFamilyOdu(cassettePath, S3LogsToFamilyOduName)
+}
+
+// AssumesIAMRoleFamilyCassetteFullPath joins repoRoot onto the
+// committed assumes_iam_role family cassette path.
+func AssumesIAMRoleFamilyCassetteFullPath(repoRoot string) string {
+	return filepath.Join(repoRoot, assumesIAMRoleFamilyCassettePath)
+}
+
+// LoadAssumesIAMRoleFamilyOdu reads the committed cassette and projects it
+// onto the fact envelopes the reducer's extractor consumes, the
+// assumes_iam_role counterpart to LoadAuthenticatesVaultRoleFamilyOdu.
+func LoadAssumesIAMRoleFamilyOdu(cassettePath string) (familyodu.Odu, error) {
+	return loadDirectFamilyOdu(cassettePath, AssumesIAMRoleFamilyOduName)
 }
 
 // AuthenticatesVaultRoleFamilyCassetteFullPath joins repoRoot onto the

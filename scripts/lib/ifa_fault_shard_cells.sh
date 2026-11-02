@@ -219,6 +219,16 @@ IFA_FAULT_ALL_CELLS=(
 	cell_baseline_semantic_entity_containment
 	cell_killworker_semantic_entity_containment
 	cell_failgraphwrite_semantic_entity_containment
+	# assumes_iam_role (#6228 assumes_iam_role live leaf): twenty-fourth
+	# direct-materialization family in this gate, full trio -- baseline
+	# plus the family's own MERGE-anchored graph-write recovery cell plus
+	# the per-statement hold kill cell; its baseline writes
+	# digests[baseline_assumes_iam_role] (and the retry baseline the kill
+	# cell asserts above), so the trio must stay co-located -- see
+	# IFA_FAULT_ATOMIC_GROUPS below.
+	cell_baseline_assumes_iam_role
+	cell_kill_assumes_iam_role
+	cell_failgraphwrite_assumes_iam_role
 	cell_baseline_inheritance
 	cell_killworker_inheritance
 	cell_failgraphwrite_inheritance
@@ -304,6 +314,7 @@ IFA_FAULT_ATOMIC_GROUPS=(
 	"cell_baseline_s3_external_principal_grant cell_killworker_s3_external_principal_grant cell_failgraphwrite_s3_external_principal_grant"
 	"cell_baseline_grants_secret_read cell_kill_grants_secret_read cell_failgraphwrite_grants_secret_read"
 	"cell_baseline_semantic_entity_containment cell_killworker_semantic_entity_containment cell_failgraphwrite_semantic_entity_containment"
+	"cell_baseline_assumes_iam_role cell_kill_assumes_iam_role cell_failgraphwrite_assumes_iam_role"
 	"cell_baseline_inheritance cell_killworker_inheritance cell_failgraphwrite_inheritance"
 	"cell_baseline_shell_exec cell_killworker_shell_exec cell_failgraphwrite_shell_exec"
 	"cell_baseline_workload_dependency cell_killworker_workload_dependency cell_failgraphwrite_workload_dependency"

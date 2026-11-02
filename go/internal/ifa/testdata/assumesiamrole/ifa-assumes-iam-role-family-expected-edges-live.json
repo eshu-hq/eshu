@@ -1,0 +1,86 @@
+{
+  "odu": "odu:ifa-assumes-iam-role-family",
+  "note": "The shared-cell live variant of the assumes_iam_role expected set. The per-Odu file (ifa-assumes-iam-role-family-expected-edges.json) names the two edges the assumes fixture scope produces; a shared determinism cell graph ALSO holds the authenticates, uses, and grants fixture scopes, whose exact chains resolve the same IAM-role endpoint and therefore materialize eight more SECRETS_IAM_ASSUMES_IAM_ROLE edges (sa-auth-app-a/b through roles auth-app-a/b, sa-uses-app-a/b through roles uses-app-a/b, and sa-grants-app-7/8/a/b through roles grants-app-7/8/a/b). The projection handler writes every edge set its read models resolve in one run, so the type's exact live set is ten edges, not two. Fresh-stack fault cells drive one vault cassette and keep asserting the two-edge file; only the shared-cell determinism assert uses this file. The assume_mode property follows the IAM-role evidence kind per scope (web_identity for IRSA lanes, pod_identity for EKS Pod Identity lanes); the CloudResource targets are the redaction-safe uids each scope's trust chain resolves from its aws_iam_principal scan boundary and role ARN.",
+  "edges": [
+    {
+      "relationship_type": "SECRETS_IAM_ASSUMES_IAM_ROLE",
+      "source_entity_id": "sha256:sa-assumes-app-a",
+      "target_entity_id": "2fcd5d661b490f1960e76b4ebfa77783c81d2fa5494d7af247b6f98a8b56276b",
+      "properties": {
+        "assume_mode": "web_identity"
+      }
+    },
+    {
+      "relationship_type": "SECRETS_IAM_ASSUMES_IAM_ROLE",
+      "source_entity_id": "sha256:sa-assumes-app-b",
+      "target_entity_id": "2076a606cce97ffc40f318b6a13c277207f938bb5bc5604f8e9f5f04777a95c2",
+      "properties": {
+        "assume_mode": "pod_identity"
+      }
+    },
+    {
+      "relationship_type": "SECRETS_IAM_ASSUMES_IAM_ROLE",
+      "source_entity_id": "sha256:sa-auth-app-a",
+      "target_entity_id": "6ed9437c7d78e129ec6f766321fa786f6031741ac659f9e05e2e46c1298bbf95",
+      "properties": {
+        "assume_mode": "web_identity"
+      }
+    },
+    {
+      "relationship_type": "SECRETS_IAM_ASSUMES_IAM_ROLE",
+      "source_entity_id": "sha256:sa-auth-app-b",
+      "target_entity_id": "9a320df84390661f7e8afa831c0ea114e2e1ab054ecd1d64c70f37b77fbd7380",
+      "properties": {
+        "assume_mode": "pod_identity"
+      }
+    },
+    {
+      "relationship_type": "SECRETS_IAM_ASSUMES_IAM_ROLE",
+      "source_entity_id": "sha256:sa-uses-app-a",
+      "target_entity_id": "a2a52bba6aadcb46247daa410df1d9e651de6eaa4514c14e71d8a0b2a5216cac",
+      "properties": {
+        "assume_mode": "web_identity"
+      }
+    },
+    {
+      "relationship_type": "SECRETS_IAM_ASSUMES_IAM_ROLE",
+      "source_entity_id": "sha256:sa-uses-app-b",
+      "target_entity_id": "2822dc3c73c4451b8fda7cc12b874f8de79b7ab9719f69ecc81959fe51e104f8",
+      "properties": {
+        "assume_mode": "pod_identity"
+      }
+    },
+    {
+      "relationship_type": "SECRETS_IAM_ASSUMES_IAM_ROLE",
+      "source_entity_id": "sha256:sa-grants-app-7",
+      "target_entity_id": "1bd6b634a15dd08a75d87261dd72e5f8dd58e117a703ad139bcd62e308ca0dfd",
+      "properties": {
+        "assume_mode": "web_identity"
+      }
+    },
+    {
+      "relationship_type": "SECRETS_IAM_ASSUMES_IAM_ROLE",
+      "source_entity_id": "sha256:sa-grants-app-8",
+      "target_entity_id": "3b763bd9785d6a952ea5f5a69acc8b63b1a9c9818f821af6185535fd14de5919",
+      "properties": {
+        "assume_mode": "web_identity"
+      }
+    },
+    {
+      "relationship_type": "SECRETS_IAM_ASSUMES_IAM_ROLE",
+      "source_entity_id": "sha256:sa-grants-app-a",
+      "target_entity_id": "b2a08be903d9cb64598bf8b7e9950d9d1a9dfb10f9ea536d13e640b488685635",
+      "properties": {
+        "assume_mode": "web_identity"
+      }
+    },
+    {
+      "relationship_type": "SECRETS_IAM_ASSUMES_IAM_ROLE",
+      "source_entity_id": "sha256:sa-grants-app-b",
+      "target_entity_id": "3744b0b31d98b38e1da06d4f5062fcfa900b9c7484b8aea0a197691477f82230",
+      "properties": {
+        "assume_mode": "pod_identity"
+      }
+    }
+  ]
+}

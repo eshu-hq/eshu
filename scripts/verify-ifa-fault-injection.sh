@@ -429,6 +429,14 @@ ifa_fault_shard_run cell_failgraphwrite_security_group_rule_endpoint
 ifa_fault_shard_run cell_baseline_s3_external_principal_grant
 ifa_fault_shard_run cell_killworker_s3_external_principal_grant
 ifa_fault_shard_run cell_failgraphwrite_s3_external_principal_grant
+# assumes_iam_role (#6228 assumes_iam_role live leaf): twenty-fourth
+# direct family, per-statement-hold kill trio (statement_hold wait, no
+# handler wait -- the shared handler wait stays first-landed-owned by
+# authenticates_vault_role, arbiter verdict Option B on #6228), baseline
+# first, same trio shape as above.
+ifa_fault_shard_run cell_baseline_assumes_iam_role
+ifa_fault_shard_run cell_kill_assumes_iam_role
+ifa_fault_shard_run cell_failgraphwrite_assumes_iam_role
 # inheritance_edges (#5996) and shell_exec (#6001): generic dispatch, baseline
 # first in each trio (sole writer of that family's digest and retry baseline;
 # the atomic-group ordering check enforces it). Both are FAULT_SHARED_DRIVE=0,

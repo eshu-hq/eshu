@@ -132,6 +132,13 @@ func deriveEvidenceNodeDetachTypes(t *testing.T, family string, entry materializ
 		// Single static MERGE type: read the relationship type straight out
 		// of the held write template.
 		return map[string]struct{}{mergeRelTypeFromWriteCypher(t, family, entry.IdentityCypher): {}}
+	case "assumes_iam_role":
+		// Single static MERGE type, same split shape as
+		// authenticates_vault_role: IdentityCypher holds the ServiceAccount
+		// NODE upsert (the one template that MERGEs the evidence label), so
+		// the edge type is read off the held edge upsert instead. Both are
+		// held production consts of the same writer, never copied literals.
+		return map[string]struct{}{mergeRelTypeFromWriteCypher(t, family, iam.SecretsIAMAssumesIAMRoleEdgeUpsertCypher): {}}
 	case "authenticates_vault_role":
 		// Single static MERGE type, but the writer splits node and edge
 		// templates: IdentityCypher holds the role NODE upsert (the one
