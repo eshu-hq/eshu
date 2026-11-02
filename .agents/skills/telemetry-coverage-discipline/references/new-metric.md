@@ -13,7 +13,9 @@ Paths in backticks are repository-relative.
    constructor.
 3. **Emit from the dispatcher.** Pick the chokepoint (the function or
    goroutine that owns the seam), not the leaves.
-4. **Add a row to `docs/public/observability/telemetry-coverage.md`.** The
+4. **Add a row to the owning part of the coverage doc.** The index
+   `docs/public/observability/telemetry-coverage.md` lists each
+   `telemetry-coverage-<area>.md` part and the stages it holds. The
    `file:line` column points at the dispatcher; the
    `required metric name(s)` column lists the new metric.
 5. **If existing signals cover the path, use the marker** in step 4

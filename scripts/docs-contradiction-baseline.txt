@@ -26,8 +26,8 @@ languages/python.md polarity:parser-python-semantics
 languages/python.md polarity:python-semantics-test
 languages/support-maturity.md duplicate-row:c
 languages/support-maturity.md polarity:language-page-update
-observability/telemetry-coverage.md duplicate-row:c-parser
-observability/telemetry-coverage.md duplicate-row:typed-payload-decode-observability-metadata-view-converters-
+observability/telemetry-coverage-projector-parser.md duplicate-row:c-parser
+observability/telemetry-coverage-reducer-domains.md duplicate-row:typed-payload-decode-observability-metadata-view-converters-
 reference/collector-performance-envelope.md duplicate-row:git
 reference/collector-reducer-readiness.md duplicate-row:concrete-scanner-analyzers
 reference/dead-code-language-maturity.md duplicate-row:c
