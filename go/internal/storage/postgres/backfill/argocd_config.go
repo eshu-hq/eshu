@@ -14,20 +14,21 @@ import (
 )
 
 // ListArgoCDGeneratorConfigFactRecordsQuery loads the latest-generation
-// content/file facts of an ArgoCD ApplicationSet's external git-generator config
+// content/file facts of an ArgoCD ApplicationSet's git-generator config
 // repositories, restricted to the .yaml/.yml/.json paths the generator can match.
 //
-// It is phase two of the per-commit backfill fact load (issue #3570). The marker
-// anchors load the ApplicationSet facts (phase one), but an ApplicationSet's
-// synthesized deploy edges depend on config files that live in a DIFFERENT
-// repository (the git file generator's repoURL), keyed in DiscoverEvidence's
-// content index by the config repo's id. Those config files reference the
-// newly-onboarded deploy repo only through template parameters
-// (team/service/path basename), so neither the alias anchors nor the ArgoCD
-// markers select them. Without them the content index is incomplete and
-// argocdEvaluatedTemplateSources / argocdConfigIdentityDeploySources cannot
-// synthesize the deploy repoURL, dropping the edge. This query reloads exactly
-// those config files so the content index is complete.
+// It is phase two of the per-commit backfill fact load (issue #3570). The
+// marker anchors load the ApplicationSet facts (phase one), but an
+// ApplicationSet's synthesized deploy edges depend on config files in the git
+// file generator's repoURL, which may be another repository or the control
+// repository itself (#7778). Either way the markers do not select them. They
+// are keyed in DiscoverEvidence's content index by the config repo's id. Those
+// config files reference the newly-onboarded deploy repo only through template
+// parameters (team/service/path basename), so neither the alias anchors nor
+// the ArgoCD markers select them. Without them the content index is incomplete
+// and argocdEvaluatedTemplateSources / argocdConfigIdentityDeploySources
+// cannot synthesize the deploy repoURL, dropping the edge. This query reloads
+// exactly those config files so the content index is complete.
 //
 // The path filter is a provable superset of the files the generator can read:
 // isArgoCDGitFileGeneratorPath only accepts .yaml/.yml/.json suffixes, so every
@@ -70,8 +71,8 @@ ORDER BY fact.observed_at ASC, fact.fact_id ASC
 // LoadArgoCDGeneratorConfigFacts loads the latest-generation .yaml/.yml/.json
 // content/file facts whose payload repo_id is one of the supplied config repo
 // IDs. It returns nil without querying when configRepoIDs is empty, so the
-// per-commit backfill skips phase two when no ApplicationSet targets an external
-// config repo.
+// per-commit backfill skips phase two when no ApplicationSet targets a config
+// repo.
 func LoadArgoCDGeneratorConfigFacts(
 	ctx context.Context,
 	queryer db.Queryer,

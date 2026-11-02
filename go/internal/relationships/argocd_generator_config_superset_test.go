@@ -101,7 +101,7 @@ func TestTwoPhaseScopedLoadIncludesExternalArgoCDConfig(t *testing.T) {
 	// Phase one: the marker anchors select the ApplicationSet but NOT the external
 	// config file (its payload contains neither the payments-api alias nor an
 	// ArgoCD marker).
-	markerAnchors := argoCDOverSelectMarkersSim
+	markerAnchors := UnconditionalPayloadMarkers()
 	var phaseOne []facts.Envelope
 	for _, envelope := range fullCorpus {
 		if payloadMatchesAnchorsSim(t, envelope, append(CatalogPayloadAnchors(scopedCatalog), markerAnchors...)) {

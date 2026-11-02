@@ -105,25 +105,14 @@ func containsRepoIDAtBoundary(text, value string) bool {
 	}
 }
 
-// nonRepoIDAnchorsSim mirrors backfillNonRepoIDAnchorTerms in the postgres
-// package: CatalogPayloadAnchors over each entry's aliases with the first alias
-// (the repo_id) stripped, unioned with the ArgoCD over-select markers.
+// nonRepoIDAnchorsSim builds the deferred $1 anchors the way
+// backfillNonRepoIDAnchorTerms in the postgres package does.
 func nonRepoIDAnchorsSim(catalog []CatalogEntry) []string {
-	stripped := make([]CatalogEntry, 0, len(catalog))
-	for _, entry := range catalog {
-		if len(entry.Aliases) <= 1 {
-			continue
-		}
-		stripped = append(stripped, CatalogEntry{
-			RepoID:  entry.RepoID,
-			Aliases: entry.Aliases[1:],
-		})
-	}
-	anchors := CatalogPayloadAnchors(stripped)
+	anchors := CatalogNonRepoIDPayloadAnchors(catalog)
 	if len(anchors) == 0 {
 		return nil
 	}
-	return append(append([]string(nil), anchors...), argoCDOverSelectMarkersSim...)
+	return append(anchors, UnconditionalPayloadMarkers()...)
 }
 
 // representativeDeferredFixture is a content/file fact whose payload carries its

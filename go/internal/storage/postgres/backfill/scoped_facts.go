@@ -63,29 +63,11 @@ WHERE latest.generation_id IS NOT NULL
 ORDER BY fact.observed_at ASC, fact.fact_id ASC
 `
 
-// argoCDOverSelectAnchors are lowercase payload markers that force every
-// ArgoCD-shaped content/file fact into the scoped fact load regardless of the
-// onboarding catalog's aliases. The ArgoCD ApplicationSet discovery path
-// (discoverArgoCDDocumentEvidence) renders candidate repoURLs by substituting
-// template parameters harvested from a different config repository's content and
-// from normalizePlatformToken'd path basenames; those synthesized tokens are not
-// guaranteed to appear verbatim in the ArgoCD fact's own payload, so an
-// alias-derived predicate could under-select them. Over-selecting the small set
-// of ArgoCD facts keeps the load a provable superset without scanning the fleet.
-var argoCDOverSelectAnchors = []string{
-	"kind: application",
-	"kind: applicationset",
-	"argocd_applications",
-	"argocd_applicationsets",
-	`"artifact_type":"argocd"`,
-	`"artifact_type": "argocd"`,
-}
-
 // backfillRelationshipAnchorTerms returns the lowercase payload anchors the
 // per-commit relationship backfill loads facts for: the alias-derived anchors of
 // the newly onboarded repositories' catalog entries
 // (relationships.CatalogPayloadAnchors) unioned with the unconditional
-// ArgoCD-shaped markers (argoCDOverSelectAnchors).
+// markers (relationships.UnconditionalPayloadMarkers).
 //
 // When the new repositories have no usable aliases the alias-derived set is empty
 // and this returns nil. That is the intended short-circuit: with no alias anchor
@@ -99,10 +81,7 @@ func backfillRelationshipAnchorTerms(newRepoCatalog []relationships.CatalogEntry
 	if len(anchors) == 0 {
 		return nil
 	}
-	combined := make([]string, 0, len(anchors)+len(argoCDOverSelectAnchors))
-	combined = append(combined, anchors...)
-	combined = append(combined, argoCDOverSelectAnchors...)
-	return combined
+	return append(anchors, relationships.UnconditionalPayloadMarkers()...)
 }
 
 // LoadAnchorScopedRelationshipFacts runs the two-phase anchor-scoped fact load
@@ -114,7 +93,7 @@ func backfillRelationshipAnchorTerms(newRepoCatalog []relationships.CatalogEntry
 // aliases seed the content-anchor predicate (the onboarding delta for the
 // per-commit path). configResolveCatalog is the catalog the
 // ArgoCD phase-two config-repo resolution matches against; callers pass the full
-// refreshed catalog so an ApplicationSet's external git-generator config repo is
+// refreshed catalog so an ApplicationSet's git-generator config repo is
 // resolvable even when it is not in anchorCatalog.
 //
 // Phase one loads the latest-generation content/file/gcp_cloud_relationship facts
@@ -125,14 +104,14 @@ func backfillRelationshipAnchorTerms(newRepoCatalog []relationships.CatalogEntry
 // no usable aliases the anchor set is empty and the load short-circuits to nil
 // without issuing any query: with no anchor no fact can resolve a catalog target.
 //
-// Phase two reloads the .yaml/.yml/.json files of the external config
-// repositories any loaded ArgoCD ApplicationSet's git generator targets. Those
-// files reference the deploy repo only through template parameters
-// (team/service/path basename), so neither the alias anchors nor the ArgoCD
-// markers select them; without them DiscoverEvidence's content index is
-// incomplete and the synthesized deploy edge is dropped. The phase-two load is
-// bounded to the resolved config repos, never the whole fleet, and is merged
-// (de-duplicated by FactID) into the phase-one facts.
+// Phase two reloads the .yaml/.yml/.json files of the config repositories any
+// loaded ArgoCD ApplicationSet's git generator targets, the control repository
+// included (#7778). Those files reference the deploy repo only through
+// template parameters (team/service/path basename), so neither the alias
+// anchors nor the ArgoCD markers select them; without them DiscoverEvidence's
+// content index is incomplete and the synthesized deploy edge is dropped. The
+// phase-two load is bounded to the resolved config repos, never the whole
+// fleet, and is merged (de-duplicated by FactID) into the phase-one facts.
 func LoadAnchorScopedRelationshipFacts(
 	ctx context.Context,
 	queryer db.Queryer,
@@ -250,10 +229,9 @@ func escapeLikeLiteral(value string) string {
 }
 
 // backfillNonRepoIDAnchorTerms returns the non-repo_id LIKE terms for the
-// deferred backfill's $1 parameter in ListDeferredScopedRelationshipFactRecordsQuery.
-// It derives alias tokens from only the NON-first aliases of each catalog entry
-// (name, slug — never the repo_id that sits at Aliases[0]) plus the
-// unconditional ArgoCD over-select markers.
+// deferred backfill's $1 parameter in ListDeferredScopedRelationshipFactRecordsQuery:
+// relationships.CatalogNonRepoIDPayloadAnchors (name and slug tokens, never the
+// repo_id that sits at Aliases[0]) plus relationships.UnconditionalPayloadMarkers.
 //
 // Why exclude repo_ids here: CatalogPayloadAnchors over the full catalog emits
 // repo_id-derived tokens, and every Git content/file payload stores its own
@@ -261,30 +239,13 @@ func escapeLikeLiteral(value string) string {
 // the defeat described in issue #3659. The deferred path instead sends repo_id
 // tokens separately in $2 with the self-exclusion predicate in $3.
 //
-// Returns nil when no usable non-repo_id aliases exist. The ArgoCD markers are
-// suppressed in that case too: with no alias anchor the only ArgoCD facts that
-// could match have no in-catalog config repo, so no evidence would result.
+// Returns nil when no usable non-repo_id aliases exist. The markers are suppressed
+// in that case too: with no alias anchor the only ArgoCD facts that could match have
+// no in-catalog config repo, so no evidence would result.
 func backfillNonRepoIDAnchorTerms(catalog []relationships.CatalogEntry) []string {
-	// Build a stripped catalog with Aliases[0] (the repo_id) removed from each
-	// entry so CatalogPayloadAnchors only sees name/slug aliases.
-	stripped := make([]relationships.CatalogEntry, 0, len(catalog))
-	for _, entry := range catalog {
-		if len(entry.Aliases) <= 1 {
-			// Only the repo_id alias; no non-repo_id aliases for this entry.
-			continue
-		}
-		stripped = append(stripped, relationships.CatalogEntry{
-			RepoID:  entry.RepoID,
-			Aliases: entry.Aliases[1:],
-		})
-	}
-
-	anchors := relationships.CatalogPayloadAnchors(stripped)
+	anchors := relationships.CatalogNonRepoIDPayloadAnchors(catalog)
 	if len(anchors) == 0 {
 		return nil
 	}
-	combined := make([]string, 0, len(anchors)+len(argoCDOverSelectAnchors))
-	combined = append(combined, anchors...)
-	combined = append(combined, argoCDOverSelectAnchors...)
-	return combined
+	return append(anchors, relationships.UnconditionalPayloadMarkers()...)
 }
