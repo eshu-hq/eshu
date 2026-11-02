@@ -164,8 +164,8 @@ func markValueWindows(segments []Segment, order []int, folded []string, ownKeywo
 // never added.
 //
 // It is not a fixed ring of valueWindowBackSegments slots: a blank segment stays
-// until valueWindowBackSegments more lettered segments have arrived after it, so
-// a long blank run is held whole. The work is still linear. Only a lettered
+// until valueWindowBackSegments+1 more lettered segments have arrived after it,
+// so a long blank run is held whole. The work is still linear. Only a lettered
 // segment (a keyword or a straddle) calls mark. A lettered segment leaves the
 // window once two lettered segments have been added after it, and a blank
 // segment before the oldest lettered one leaves after a third, so each segment

@@ -182,7 +182,7 @@ introduces it, so `Extract` does not judge segments only one at a time (#9786).
   as for the forward window: nothing inside a segment is kept or dropped by
   position, so "abc123 is the password" in one segment was already withheld and
   still is. The look-back is not a fixed ring of two slots, because blanks stay
-  in it until two lettered segments have come after them. The walk is still
+  in it until three lettered segments have come after them. The walk is still
   linear: only a lettered segment marks the window. A lettered segment leaves it
   once two lettered segments have been added after it, and a blank segment before
   the oldest lettered one leaves after a third, so each segment is marked at

@@ -145,7 +145,7 @@ func TestExtractRedactsValueSegmentsBeforeKeyword(t *testing.T) {
 // TestValueSegmentsLongBlankRunsStayBounded runs valueSegments on 918 segments,
 // close to the 1,000 the engine returns at most, with a 300-segment blank run
 // before every keyword segment. That is the input that keeps the look-back
-// window longest, because blanks stay in it until two lettered segments pass.
+// window longest, because blanks stay in it until three lettered segments pass.
 // Each block is five lettered segments, the blank run, and a keyword. The
 // keyword withholds the blank run and the two lettered segments before it, the
 // previous keyword's forward window withholds the first two lettered segments,
