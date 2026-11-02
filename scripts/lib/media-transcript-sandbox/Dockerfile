@@ -16,6 +16,8 @@
 #              (#9786). speech-apikey.wav, speech-apikey-split.wav, and
 #              speech-pin.wav carry the spoken "API key" and "PIN" keyword
 #              forms (#9788), the second with the value in its own segment.
+#              speech-before.wav speaks the value before the keyword, after a
+#              silence (#9792).
 #   proof    - alpine runtime with the binary, model, fixture, and the static
 #              Go test binary compiled with -tags whispercpp_sandbox.
 #
@@ -59,6 +61,8 @@ RUN espeak-ng -v en-us -s 140 -m -w /out/speech-apikey-split.wav \
 	'The API key is. <break time="3s"/> Swordfish.'
 RUN espeak-ng -v en-us -s 140 -w /out/speech-pin.wav \
 	"The PIN is swordfish."
+RUN espeak-ng -v en-us -s 140 -m -w /out/speech-before.wav \
+	'Swordfish. <break time="3s"/> The password is.'
 
 FROM ${ESHU_ALPINE_IMAGE} AS proof
 RUN apk add --no-cache libstdc++=14.2.0-r4 libgcc=14.2.0-r4 \
@@ -70,6 +74,7 @@ COPY --from=fixture --chmod=0444 /out/speech-split.wav /opt/whisper/fixtures/spe
 COPY --from=fixture --chmod=0444 /out/speech-apikey.wav /opt/whisper/fixtures/speech-apikey.wav
 COPY --from=fixture --chmod=0444 /out/speech-apikey-split.wav /opt/whisper/fixtures/speech-apikey-split.wav
 COPY --from=fixture --chmod=0444 /out/speech-pin.wav /opt/whisper/fixtures/speech-pin.wav
+COPY --from=fixture --chmod=0444 /out/speech-before.wav /opt/whisper/fixtures/speech-before.wav
 COPY --chmod=0555 whispercpp.test /opt/whisper/proof/whispercpp.test
 USER 65532:65532
 ENTRYPOINT ["/opt/whisper/proof/whispercpp.test"]

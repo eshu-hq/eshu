@@ -24,8 +24,9 @@
   lists, or sensitive transcript text.
 - Warning classes must stay low-cardinality and design-owned.
 - Judge redaction across segments, not one segment alone: the segments after a
-  keyword are its value, in time order and in slice order (README "Value
-  segments"). Over-redaction on out-of-order input is accepted policy. Redaction
+  keyword and the ones just before it are its value, in time order and in slice
+  order (README "Value segments"). A value is spoken before its label as often
+  as after it, so do not shrink the look-back to match the forward window. Over-redaction on out-of-order input is accepted policy. Redaction
   stays in `Extract`, never in an engine package.
 
 ## Common changes and how to scope them
@@ -45,7 +46,7 @@
   `transcript_status=no_text`.
 - Media preflight no-speech warnings, and engine errors wrapping
   `ErrNoSpeech`, emit a document fact with `transcript_status=no_speech`.
-- Sensitive transcript segments, and the value segments after a keyword,
+- Sensitive transcript segments, and the value segments around a keyword,
   persist redacted content with placeholder hashes and redaction metadata.
 
 ## Anti-patterns

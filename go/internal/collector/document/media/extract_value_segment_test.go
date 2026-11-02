@@ -100,9 +100,9 @@ func TestExtractRedactsValueSegmentsAfterMarker(t *testing.T) {
 			wantRedacted: []bool{true, true, true, true, true, true},
 		},
 		{
-			name:         "marker in the last segment",
+			name:         "marker in the last segment withholds the segment before it",
 			segments:     sequentialSegments("Restart the worker.", "The password is"),
-			wantRedacted: []bool{false, true},
+			wantRedacted: []bool{true, true},
 		},
 		{
 			name:         "value segment carries its own marker",
