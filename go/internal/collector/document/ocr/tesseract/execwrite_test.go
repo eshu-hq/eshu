@@ -21,11 +21,17 @@ import (
 // inherit it. Go forks hold the lock for writing until the child has exec'd.
 func writeExecutable(t *testing.T, path string, body []byte) {
 	t.Helper()
-	syscall.ForkLock.RLock()
-	defer syscall.ForkLock.RUnlock()
-	if err := os.WriteFile(path, body, 0o700); err != nil {
+	if err := writeExecutableFile(path, body); err != nil {
 		t.Fatalf("write executable %s: %v", path, err)
 	}
+}
+
+// writeExecutableFile is writeExecutable without the testing.T, for goroutines
+// that must not call t.Fatalf. It returns the write error to the caller.
+func writeExecutableFile(path string, body []byte) error {
+	syscall.ForkLock.RLock()
+	defer syscall.ForkLock.RUnlock()
+	return os.WriteFile(path, body, 0o700)
 }
 
 // TestWriteExecutableSurvivesConcurrentForks proves that exec of a file just
@@ -62,19 +68,31 @@ func TestWriteExecutableSurvivesConcurrentForks(t *testing.T) {
 
 	var writers sync.WaitGroup
 	var mu sync.Mutex
-	var busy []string
+	var busy, failed []string
+	var succeeded int
 	for w := 0; w < 3; w++ {
 		writers.Add(1)
 		go func(w int) {
 			defer writers.Done()
 			for n := 0; time.Now().Before(deadline); n++ {
 				path := filepath.Join(dir, fmt.Sprintf("bin-%d-%d", w, n))
-				writeExecutable(t, path, body)
-				if err := exec.Command(path, "--version").Run(); err != nil && strings.Contains(err.Error(), "text file busy") {
-					mu.Lock()
-					busy = append(busy, err.Error())
-					mu.Unlock()
+				werr := writeExecutableFile(path, body)
+				var rerr error
+				if werr == nil {
+					rerr = exec.Command(path, "--version").Run()
 				}
+				mu.Lock()
+				switch {
+				case werr != nil:
+					failed = append(failed, werr.Error())
+				case rerr == nil:
+					succeeded++
+				case strings.Contains(rerr.Error(), "text file busy"):
+					busy = append(busy, rerr.Error())
+				default:
+					failed = append(failed, rerr.Error())
+				}
+				mu.Unlock()
 				_ = os.Remove(path)
 			}
 		}(w)
@@ -84,5 +102,13 @@ func TestWriteExecutableSurvivesConcurrentForks(t *testing.T) {
 	forkers.Wait()
 	if len(busy) > 0 {
 		t.Fatalf("%d exec(s) hit ETXTBSY after writeExecutable, first: %s", len(busy), busy[0])
+	}
+	// A run where no exec succeeded, or any other write or exec failed, proves
+	// nothing about ETXTBSY, so it must not pass.
+	if len(failed) > 0 {
+		t.Fatalf("%d write or exec(s) failed for a reason other than ETXTBSY, first: %s", len(failed), failed[0])
+	}
+	if succeeded == 0 {
+		t.Fatal("no exec succeeded, so the stress run proved nothing")
 	}
 }
