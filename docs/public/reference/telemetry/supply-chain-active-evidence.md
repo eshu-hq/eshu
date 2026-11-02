@@ -44,7 +44,7 @@ climb before the limit and the scopes already past it (#9778):
 
 | Metric | Type | Key labels | Use |
 | --- | --- | --- | --- |
-| `eshu_dp_supply_chain_impact_partial_scopes` | observable gauge | `cause` (`active_expansion_rounds`, `evidence_budget`, `other`) | Scopes whose last recorded pass on this process ended partial. Every cause reports, zero included, so none stuck reads 0. A later complete pass of the scope releases it. A suppression-tail truncation is not counted: it does not stop retraction. |
+| `eshu_dp_supply_chain_impact_partial_scopes` | observable gauge | `cause` (`active_expansion_rounds`, `evidence_budget`, `other`) | Scopes whose last recorded pass on this process ended partial. Once the process has recorded a pass, every cause reports, zero included, so none stuck reads 0. Before that there is no series, so a binary that never runs the domain exports no constant 0. A later complete pass of the scope releases it. A suppression-tail truncation is not counted: it does not stop retraction. |
 | `eshu_dp_supply_chain_impact_evidence_budget_ratio` | observable gauge | none | The widest pass in the last hour, as envelopes charged to the budget over the budget. 1 means the budget is spent; above 1 a pass crossed it, because the load that crosses the limit is kept. No series until a pass has run in the window. |
 
 The ratio counts only what the budget charged. A protected-scan pass also holds

@@ -229,6 +229,29 @@ func TestInstrumentsReportSupplyChainImpactHeadroomGauges(t *testing.T) {
 	}
 }
 
+func TestInstrumentsOmitPartialScopesBeforeAnyPass(t *testing.T) {
+	t.Parallel()
+
+	reader := sdkmetric.NewManualReader()
+	meter := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("test")
+	if _, err := NewInstruments(meter); err != nil {
+		t.Fatalf("NewInstruments() error = %v", err)
+	}
+	var collected metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &collected); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	for _, scopeMetrics := range collected.ScopeMetrics {
+		for _, m := range scopeMetrics.Metrics {
+			if m.Name == "eshu_dp_supply_chain_impact_partial_scopes" {
+				if gauge, ok := m.Data.(metricdata.Gauge[int64]); ok && len(gauge.DataPoints) != 0 {
+					t.Fatalf("partial_scopes reported %v before any pass; a constant 0 on a process that cannot own the signal reads as healthy", gauge.DataPoints)
+				}
+			}
+		}
+	}
+}
+
 func TestInstrumentsOmitBudgetRatioBeforeAnyPass(t *testing.T) {
 	t.Parallel()
 

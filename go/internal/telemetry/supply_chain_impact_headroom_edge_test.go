@@ -48,6 +48,31 @@ func TestSupplyChainImpactHeadroomTrackerSkipsBucketsFromTheFuture(t *testing.T)
 	}
 }
 
+// TestSupplyChainImpactHeadroomTrackerReportsNoCausesBeforeAnyPass pins that a
+// process which has recorded no pass reports no cause series. Every binary
+// registers the instruments, but only the reducer runs the domain: a constant 0
+// elsewhere would read as a healthy reducer. A recorded pass, complete or not,
+// brings back the full closed set with explicit zeros.
+func TestSupplyChainImpactHeadroomTrackerReportsNoCausesBeforeAnyPass(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+	tracker := NewSupplyChainImpactHeadroomTracker()
+	if got := tracker.PartialByCause(); len(got) != 0 {
+		t.Fatalf("PartialByCause() before any pass = %v, want no causes", got)
+	}
+	tracker.RecordPass("scope-a", nil, 10, 100, now)
+	got := tracker.PartialByCause()
+	if len(got) != len(supplyChainImpactPartialCauses) {
+		t.Fatalf("PartialByCause() after a complete pass = %v, want every cause present", got)
+	}
+	for cause, count := range got {
+		if count != 0 {
+			t.Fatalf("PartialByCause()[%q] = %d after a complete pass, want 0", cause, count)
+		}
+	}
+}
+
 // TestSupplyChainImpactHeadroomTrackerCountsAScopeOnceForRepeatedUnknownCauses
 // pins that several unknown causes on one scope fold to one "other" entry, so
 // one stuck scope is not counted twice under the same label.

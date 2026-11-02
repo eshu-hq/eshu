@@ -76,6 +76,9 @@ type SupplyChainImpactHeadroomTracker struct {
 	mu      sync.Mutex
 	partial map[string][]string
 	buckets [headroomBuckets]headroomBucket
+	// recorded is true once this process has recorded any admitted pass, so a
+	// process that never runs the domain reports no cause series at all.
+	recorded bool
 }
 
 // headroomBucket holds the widest pass ratio seen in one minute. minute is the
@@ -109,6 +112,7 @@ func (t *SupplyChainImpactHeadroomTracker) RecordPass(
 	scopeID = strings.TrimSpace(scopeID)
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	t.recorded = true
 	if scopeID != "" {
 		if len(causes) == 0 {
 			delete(t.partial, scopeID)
@@ -144,18 +148,24 @@ func (t *SupplyChainImpactHeadroomTracker) recordRatio(ratio float64, now time.T
 }
 
 // PartialByCause returns, for every cause in the closed set, how many scopes'
-// last recorded pass on this process ended partial for it. Every cause is present,
-// zero included, so a dashboard reads "none stuck" as 0 rather than no data.
+// last recorded pass on this process ended partial for it. Once this process
+// has recorded a pass, every cause is present, zero included, so a dashboard
+// reads "none stuck" as 0 rather than no data. Before any pass the map is
+// empty: every binary registers the gauge but only the reducer runs the domain,
+// and a constant 0 elsewhere would read as a healthy reducer.
 func (t *SupplyChainImpactHeadroomTracker) PartialByCause() map[string]int64 {
 	counts := make(map[string]int64, len(supplyChainImpactPartialCauses))
 	if t == nil {
 		return counts
 	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if !t.recorded {
+		return counts
+	}
 	for _, cause := range supplyChainImpactPartialCauses {
 		counts[cause] = 0
 	}
-	t.mu.Lock()
-	defer t.mu.Unlock()
 	for _, causes := range t.partial {
 		for _, cause := range causes {
 			counts[cause]++
@@ -210,6 +220,7 @@ func registerSupplyChainImpactHeadroom(meter metric.Meter, inst *Instruments) er
 			"(active_expansion_rounds, evidence_budget, other) (#9778). A scope that stays partial keeps its stale findings. "+
 			"A per-replica view, not a global count: a scope another replica later completed can linger here, a restart empties it, "+
 			"a scope partial for two causes counts under both, and passes of one scope that record out of order show the older one until the next pass. "+
+			"No series until this process has recorded a pass, so only a reducer that has handled a scope reports 0. "+
 			"The WARN line names the exact scopes"),
 		metric.WithInt64Callback(func(_ context.Context, o metric.Int64Observer) error {
 			for cause, count := range inst.SupplyChainImpactHeadroom.PartialByCause() {

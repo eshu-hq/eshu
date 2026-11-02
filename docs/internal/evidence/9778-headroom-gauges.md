@@ -14,8 +14,9 @@ Two process-local observable gauges and two success-log sub-signals. Nothing
 pages, and the budget and retraction rules do not change.
 
 - `eshu_dp_supply_chain_impact_partial_scopes{cause}`: scopes whose last
-  recorded pass on this process ended partial, per cause. Every cause reports,
-  zero included.
+  recorded pass on this process ended partial, per cause. Once the process has
+  recorded a pass, every cause reports, zero included. Before that there is no
+  series, so a binary that never runs the domain does not export a constant 0.
 - `eshu_dp_supply_chain_impact_evidence_budget_ratio`: the widest pass in the
   last hour, as the envelopes the pass charged to its budget over the budget.
   Derived facts the protected-scan path adds after the static load are not
