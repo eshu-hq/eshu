@@ -149,6 +149,14 @@ func containsMarkerWord(text string) bool {
 	// otherwise read as i.
 	var pieceTail, runTail int
 	var pieceL, runL bool
+	// alt holds the letters read after the last in-word symbol of the current
+	// word, as a word of its own. `PRIV@TE` is one word, but `DB$PWD` holds the
+	// word `pwd`, and nothing in the text tells the two apart, so both are
+	// checked. prevAlt is the alt of the word before.
+	var altBuf, prevAltBuf [64]byte
+	alt, prevAlt := altBuf[:0], prevAltBuf[:0]
+	var altTail int
+	var altOn, altL bool
 	// havePrev reports that prev holds a word. gapOK reports that only space,
 	// hyphen, or underscore has come since it, and linked freezes that answer
 	// for the word being read.
@@ -161,6 +169,13 @@ func containsMarkerWord(text string) bool {
 		if r == 'L' {
 			pieceL, runL = true, true
 		}
+		if altOn {
+			alt = appendFolded(alt, r)
+			if !unicode.IsDigit(r) {
+				altTail = len(alt)
+			}
+			altL = altL || r == 'L'
+		}
 	}
 	endPiece := func() bool {
 		if len(piece) == 0 {
@@ -171,8 +186,17 @@ func containsMarkerWord(text string) bool {
 		if !matched && pieceTail != len(piece) {
 			matched = wordIsMarker(piece, pieceL) || (linked && phraseEndsHere(prev, piece))
 		}
+		if !matched && altOn && altTail > 0 {
+			altWord := alt[:altTail]
+			matched = wordIsMarker(altWord, altL) || (linked && phraseEndsHere(prev, altWord))
+		}
+		if !matched && linked && len(prevAlt) > 0 {
+			matched = phraseEndsHere(prevAlt, word)
+		}
 		prev = append(prev[:0], piece...)
+		prevAlt = append(prevAlt[:0], alt[:altTail]...)
 		piece, pieceTail, pieceL = piece[:0], 0, false
+		alt, altTail, altOn, altL = alt[:0], 0, false, false
 		havePrev, gapOK = true, true
 		return matched
 	}
@@ -185,10 +209,13 @@ func containsMarkerWord(text string) bool {
 		r, size := utf8.DecodeRuneInString(text[i:])
 		r = widthFold(r)
 		if symbols := inWordSymbols(text[i:], prevRune); symbols > 0 {
+			// A symbol never starts a camel split, so `PRIV@TE` stays one word.
+			// The letters after it are also read as a word of their own (alt).
 			for _, symbol := range text[i : i+symbols] {
 				add(symbol)
 				prevRune = widthFold(symbol)
 			}
+			alt, altTail, altL, altOn = alt[:0], 0, false, true
 			i += symbols
 			continue
 		}

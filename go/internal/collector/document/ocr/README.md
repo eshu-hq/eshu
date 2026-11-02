@@ -117,7 +117,9 @@ case. A digit or symbol that OCR reads for a letter folds to that letter before
 matching: `0` to o, `3` to e, `4` and `@` to a, `5` and `$` to s, and `1`, `l`,
 and `i` are one letter, so `Passw0rd`, `P@ssword`, `Pa55word`, `S3cret`, and
 `Credentia1s` match. A symbol at the edge of a word (`$PIN`, `@token`) is a
-separator, not a letter. Each family picks the boundary its word can bear:
+separator, not a letter. A symbol inside a word does not start a case split, so
+`PRIV@TE KEY` and `ACCE$S KEY` match; the letters after it are also read as a
+word of their own, so `DB$PWD` and `Card@PIN` match too. Each family picks the boundary its word can bear:
 
 | Family | Words | Matches |
 |---|---|---|
@@ -307,20 +309,23 @@ line the old rule flagged missed. By family, on lines the old rule did not flag:
 `pwd` 43, `private key` 36, `access key` 32, `apikey` 7. Each costs a bounded
 window of 2 regions, as `password` always did.
 
-Marker-list Mutation Evidence (#9793): 46 planted mutants each turn at least one
-test red. They are each family word removed (15), the `secret` and `token`
-boundary and the `pin` and `pwd` boundary loosened to a substring, plural
-removed from both whole-word rules, folding removed whole and each of 0, 5 and
-`$`, `@`, 3, and `1`/`l` removed, camel splitting and its plural guard removed,
-the phrase gap loosened and its check removed, the first-word suffix removed,
-in-word symbols disabled, the symbol-run early exit removed (the linearity test
-fails after 8 minutes 46 seconds), the source-name substring check and its
-non-ASCII path removed, trailing digits left on a word, the run-level word check
-removed, the whole-word check of
-a digit-ended word removed, the capital L rule removed and widened to any l,
-fullwidth folding removed at the decode site and in a symbol run, `pincode`
-removed, region text matched with the source-name list, the window opened by the
-source-name list, and the source-name list widened to the label matcher.
+Marker-list Mutation Evidence (#9793): 58 planted mutants each turn at least one
+test red, run on a `git archive` copy. They are each family word removed (15),
+the `secret` and `token` boundary and the `pin` and `pwd` boundary loosened to a
+substring, plural removed from both whole-word rules, folding removed whole and
+each of 0, 5 and `$`, `@`, 3, 4, and `1`/`l` removed, camel splitting and its
+plural guard removed, the phrase gap loosened and its check removed, the
+first-word suffix removed, in-word symbols disabled, the symbol-run early exit
+removed (the linearity test fails after minutes), the source-name substring
+check and its non-ASCII path removed, trailing digits left on a word, the
+run-level word check removed, the whole-word check of a digit-ended word
+removed, the capital L rule removed and widened to any l, fullwidth folding
+removed at the decode site and in a symbol run, `pincode` removed, the word
+after an in-word symbol dropped and its use in a phrase dropped, a symbol that
+keeps the folded rune, match-anywhere turned into a prefix match, each plural
+second word removed, the six-entry source-name list shortened in either
+package, region text matched with the source-name list, the window opened by
+the source-name list, and the source-name list widened to the label matcher.
 
 No-Observability-Change: the rule adds no metric, span, or log. A withheld value
 is a redacted section, so `eshu_dp_ocr_redacted_regions_total`, the
