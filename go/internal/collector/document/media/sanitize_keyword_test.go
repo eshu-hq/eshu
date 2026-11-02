@@ -143,6 +143,7 @@ func TestContainsSensitiveKeywordSpokenForms(t *testing.T) {
 		{"PrivateKey joined", "the PrivateKey is", true},
 		{"MyAccessKey embedded", "the MyAccessKey is", true},
 		{"embedded accesskey", "the myaccesskey is", true},
+		{"access keystone stays clear", "the access keystone", false},
 		{"access keyboard stays clear", "the access keyboard layout", false},
 		{"accessible keyboard stays clear", "an accessible keyboard", false},
 		{"access to the key stays clear", "access to the key", false},
