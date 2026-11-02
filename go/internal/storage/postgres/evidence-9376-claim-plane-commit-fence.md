@@ -50,30 +50,49 @@ No-Regression Evidence: in-tree commit path (ClaimPlane nil): the only change on
 nil checks, and `TestIngestionStoreCommitClaimedScopeGenerationFencesClaimInTransaction`
 (statement sequence) plus `TestInTreeClaimedCommitWritesNoFenceRow` pin
 the unchanged statements. Measured: `BenchmarkIngestionStoreCatalogLoadsPerCommit/cached`
-(200 commits per op, fake DB), 6 runs each on the same shared host,
-before (`c98bb3d7e7`) median 84.6 ms/op (71.5-89.3), after (`653445387a`)
-median 87.1 ms/op (83.9-92.1), 110.04 MB/op on both. The 3% median gap
-is inside the before run's own 25% spread on a loaded host; allocation
-bytes are identical, so no regression is claimed or shown.
+(200 commits per op, fake DB), 6 runs each, interleaved before/after on
+the same shared host (load average about 18 on 16 cores): before
+(`578d2d38e6`, the PR-A tip PR-B stacks on) median 80.6 ms/op
+(67.6-182.3, one outlier run), after (`aaf37e8d2d`) median 70.2 ms/op
+(69.4-86.9), 110.04-110.05 MB/op and about 647,400 allocs/op on both.
+The time gap is inside the host's run-to-run noise and allocation bytes
+are identical, so neither a regression nor a speedup is claimed.
 
-Correctness and concurrency, all against the disposable Postgres:
+Correctness and concurrency, all against the disposable Postgres, run
+on a freshly created, empty database (nothing in `public`), `-race`:
 `TestClaimPlaneFenceRefusesReclaimedStaleWriterLive` (red with the fence
 row write removed: the stale writer's commit returned nil; green with
 it), `TestClaimPlaneFenceDeadlineRollsBackLive`,
 `TestClaimPlaneFenceStaleRepinCancelsCommitLive`,
+`TestClaimPlaneFenceHungRepinDoesNotHoldADurableCommitLive` (red before
+the keeper fix: the commit never returned while a re-pin hung),
 `TestClaimPlaneFenceReplayAndCrossItemLive`,
-`TestClaimPlaneFenceConcurrentWritersAckAndMaintenanceLive` (`-race`,
-5 runs: 8 writers per race, race 1 committed 1-3 and refused the rest,
-race 2 with a concurrent projector Ack mixed commits, refusals, and
-finalized skips; stored fence token always equal to the highest committed
-fact token; maintenance exclusive holder took the lock 5-9 times per run;
-no deadlock inside 30 s), and
-`TestIngestionCommitAndMaintenanceLockOrderingNeverDeadlocks` with odd
+`TestClaimPlaneFenceConcurrentWritersAckAndMaintenanceLive` (5 runs:
+8 writers per race, race 1 committed 1-5 and refused the rest, race 2
+with a concurrent projector Ack mixed commits, refusals, and finalized
+skips plus one guaranteed late-writer skip; stored fence token always
+equal to the highest committed fact token; maintenance exclusive holder
+took the lock 7-8 times per run; no deadlock inside 30 s), the three
+`ingestion_tx_lock_split_integration_test.go` proofs (10 of 10 passed in one run, counting the lock-order proof below).
+
+An earlier T3 pass was a false green: a stale re-pin cancels the commit
+context, database/sql discards that connection, and the replacement lost
+the session `SET search_path`, so the verification counted rows in
+`public` of a shared database. On a clean database it failed 3 of 3. The
+helper now sets `search_path` as a connection startup parameter, and the
+fence proofs refuse any verification connection whose `current_schema()`
+is not the proof schema (seeded: the old helper against a polluted
+`public` fails with that message).
+
+Lock order: `TestIngestionCommitAndMaintenanceLockOrderingNeverDeadlocks`
+with odd
 slots on the plane path (60 fence rows asserted). Parity:
 `TestParityStaleWriterCommitFence` on both legs against `claim-plane`
 built from `eshu-workflow` `v0.1.1` (`8311ed6`). Migration 270:
 bootstrap at the pre-270 tree, apply 270, re-apply; schema dumps identical
-apart from pg_dump's per-run `\restrict` nonce. Terminal counts: the
+apart from pg_dump's per-run `\restrict` nonce. The later edit to 270
+adds header comments only (the lock note); the statement is unchanged,
+and every live run above applied it to a fresh schema. Terminal counts: the
 harness dropped its per-test databases; only the shim databases remain.
 
 ## Observability
