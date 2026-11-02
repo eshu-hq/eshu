@@ -334,7 +334,6 @@ LINE docs/public/observability/telemetry-coverage.md go/internal/telemetry/contr
 LINE docs/public/observability/telemetry-coverage.md go/internal/telemetry/contract.go:387
 LINE docs/public/observability/telemetry-coverage.md go/internal/telemetry/contract.go:388
 LINE docs/public/observability/telemetry-coverage.md go/internal/telemetry/contract.go:491
-LINE docs/public/observability/telemetry-coverage.md go/internal/telemetry/contract.go:497
 LINE docs/public/observability/telemetry-coverage.md go/internal/telemetry/contract.go:499
 LINE docs/public/observability/telemetry-coverage.md go/internal/telemetry/contract.go:501
 LINE docs/public/observability/telemetry-coverage.md go/internal/telemetry/contract.go:503

@@ -996,7 +996,7 @@ the right name when adding a new stage.
 | mcp.router.find | go/internal/telemetry/contract/mcp_router.go (`SpanMCPRouterFind`) | `eshu_dp_mcp_router_find_total` | span mcp |
 | mcp.router.call | go/internal/telemetry/contract/mcp_router.go (`SpanMCPRouterCall`) | `eshu_dp_mcp_router_call_total` | span mcp |
 | tfstate.collector.* (claim/parse/emit) | go/internal/telemetry/contract.go:491-496 | `eshu_dp_tfstate_snapshots_observed_total`, `eshu_dp_tfstate_resources_emitted_total`, `eshu_dp_tfstate_outputs_emitted_total`, `eshu_dp_tfstate_modules_emitted_total`, `eshu_dp_tfstate_warnings_emitted_total`, `eshu_dp_tfstate_redactions_applied_total`, `eshu_dp_tfstate_s3_conditional_get_not_modified_total`, `eshu_dp_tfstate_parse_duration_seconds` | span tfstate |
-| webhook.handle / webhook.store | go/internal/telemetry/contract.go:724-725, go/internal/webhook/intake/spans.go | `eshu_dp_webhook_request_duration_seconds`, `eshu_dp_webhook_store_duration_seconds` | span webhook |
+| webhook.handle / webhook.store | go/internal/telemetry/contract.go, go/internal/webhook/intake/spans.go | `eshu_dp_webhook_request_duration_seconds`, `eshu_dp_webhook_store_duration_seconds` | span webhook |
 | oci_registry.scan / oci_registry.api_call | go/internal/telemetry/contract.go:499-500 | `eshu_dp_oci_registry_scan_duration_seconds` | span OCI |
 | kubernetes_live.snapshot / kubernetes_live.api_call | go/internal/telemetry/contract.go:501-502 | `eshu_dp_kubernetes_list_duration_seconds` | span Kubernetes |
 | vault_live.snapshot | go/internal/telemetry/contract.go:503 | `No-Observability-Change: Vault snapshot metrics share SecretsIAMSource* counters and span is parent-only` | span vault |
