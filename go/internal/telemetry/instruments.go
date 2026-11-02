@@ -1959,6 +1959,14 @@ type Instruments struct {
 	// the batch drain instead.
 	CollectorSweepYields metric.Int64Counter
 
+	// VulnerabilityIntelligenceAffectedEntriesSkipped counts OSV affected
+	// entries left out of a record by source, target ecosystem, and reason.
+	VulnerabilityIntelligenceAffectedEntriesSkipped metric.Int64Counter
+	// VulnerabilityIntelligenceRecordsSkipped counts whole OSV records left out
+	// because no affected entry was usable, by source, target ecosystem, and
+	// reason.
+	VulnerabilityIntelligenceRecordsSkipped metric.Int64Counter
+
 	// DriftSchemaUnknownComposite counts Terraform-state composite attributes
 	// the streaming nested walker dropped because the loaded
 	// ProviderSchemaResolver did not recognize the (resource_type,
@@ -3932,6 +3940,22 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register VulnerabilityIntelligenceRateLimited counter: %w", err)
+	}
+
+	inst.VulnerabilityIntelligenceAffectedEntriesSkipped, err = meter.Int64Counter(
+		"eshu_dp_vulnerability_intelligence_affected_entries_skipped_total",
+		metric.WithDescription("Total OSV affected entries skipped by source, target ecosystem, and reason"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register VulnerabilityIntelligenceAffectedEntriesSkipped counter: %w", err)
+	}
+
+	inst.VulnerabilityIntelligenceRecordsSkipped, err = meter.Int64Counter(
+		"eshu_dp_vulnerability_intelligence_records_skipped_total",
+		metric.WithDescription("Total OSV records skipped whole because no affected entry was usable, by source, target ecosystem, and reason"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register VulnerabilityIntelligenceRecordsSkipped counter: %w", err)
 	}
 
 	inst.SecurityAlertProviderRequests, err = meter.Int64Counter(
