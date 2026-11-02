@@ -22,15 +22,14 @@
 #   3. Anchor validity: the anchor names a commit in the publish repository
 #      (`gh api repos/<repo>/commits/<sha>`). An unknown anchor fails closed.
 #
-# Publish-repo semantics (#8878): execution moved to the
-# eshu-hq/eshu-scanner-worker satellite, so the anchor names the satellite
-# repo's publish commit going forward. The anchor carried by the removal
-# itself still names the last eshu-side publish (eshu-hq/eshu); the first
-# satellite re-pin flips both anchor lines together with the pins. In-tree
-# scanner sources are gone, so this gate no longer diffs scanner inputs for
-# post-anchor staleness: satellite-source staleness is the satellite repo's
-# own gate responsibility, and the anchor advances only through reviewed
-# re-pin PRs.
+# Publish-repo semantics (#8878): the scanner sources were removed from eshu
+# in #9741, and the port into eshu-hq/eshu-scanner-worker is in progress
+# (#8878 box 10). The anchor currently names the last eshu-side publish
+# (eshu-hq/eshu); the first re-pin from a satellite publish flips both anchor
+# lines together with the pins. In-tree scanner sources are gone, so this
+# gate no longer diffs scanner inputs for post-anchor staleness: source
+# staleness becomes the satellite repo's own gate responsibility once the
+# port lands, and the anchor advances only through reviewed re-pin PRs.
 #
 # Usage:
 #   scripts/verify-scanner-digest-pins.sh [--manifest PATH]

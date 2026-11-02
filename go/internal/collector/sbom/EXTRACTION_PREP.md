@@ -114,9 +114,12 @@ kinds and is now issued against the reconciled record.
   registry entries).
 - Golden fixtures: `testdata/cassettes/sbomattestation/supply-chain-demo.json`,
   `testdata/cassettes/replayoffline/sbom-attestation-attachment.cost-budget.json`.
-- Co-emitter of three kinds: `go/internal/collector/scannerworker/sbomgenerator/`
-  (bounded SBOM **generation**; this runtime only fetches and parses
-  already-published documents — `runtime/README.md` boundary).
+- Co-emitter of three kinds: the `scanner-sbom` component (bounded SBOM
+  **generation**; this runtime only fetches and parses already-published
+  documents — `runtime/README.md` boundary). The in-tree
+  `go/internal/collector/scannerworker/sbomgenerator/` package this census
+  first cited was removed by #8878 (#9741); the component's admission
+  contract now lives in `go/internal/collector/scannercomponent/`.
 
 ## 4. Durable-state owner
 

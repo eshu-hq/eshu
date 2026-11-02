@@ -223,9 +223,9 @@ func TestRemoteE2EWorkerPprofOverlayBindsWorkersToHostLoopback(t *testing.T) {
 func TestHostedWorkerCommandsStartPprofServer(t *testing.T) {
 	t.Parallel()
 
-	// The scanner worker runs from its extracted satellite
-	// (eshu-hq/eshu-scanner-worker) since #8878: no in-tree main, so no
-	// in-tree pprof assertion. The satellite owns its own startup contract.
+	// The scanner worker has no in-tree main since #9741 (its sources are being
+	// ported to eshu-hq/eshu-scanner-worker, #8878 box 10), so no in-tree
+	// pprof assertion.
 	for _, sourcePath := range []string{
 		"go/cmd/collector-git/main.go",
 		"go/cmd/collector-oci-registry/main.go",

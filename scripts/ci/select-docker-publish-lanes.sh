@@ -72,8 +72,8 @@ while IFS= read -r path; do
       ;;
     # The shared rootfs-resolve library the runtime image verifier sources
     # must run the image lane (build + reproducibility + verify). The
-    # scanner destination images moved to the eshu-scanner-worker satellite
-    # with #8878, so no scanner verifier selects a lane here anymore.
+    # scanner destination image builds were removed from eshu with #9741 (port
+    # into eshu-scanner-worker in progress, #8878 box 10), so no scanner verifier selects a lane here anymore.
     scripts/lib/rootfs-resolve.sh)
       image=true
       ;;

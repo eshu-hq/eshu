@@ -9,9 +9,9 @@ import (
 )
 
 // TestScannerWorkerRunsFromSatelliteNotInTreeBinaries proves the scanner
-// worker no longer ships as an in-tree binary: collection runs from the
-// extracted satellite (eshu-hq/eshu-scanner-worker) since #8878, so no
-// in-tree Dockerfile build, installer line, cmd entry, or core runtime row
+// worker no longer ships as an in-tree binary: its execution sources were
+// removed from eshu in #9741 (the port into eshu-hq/eshu-scanner-worker is in
+// progress, #8878 box 10), so no in-tree Dockerfile build, installer line, cmd entry, or core runtime row
 // may remain. The coordinator still plans scanner_worker claims and the
 // component-extension worker still hosts the satellite-seeded components.
 func TestScannerWorkerRunsFromSatelliteNotInTreeBinaries(t *testing.T) {

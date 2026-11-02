@@ -100,8 +100,8 @@ git -C "${repo}" update-ref refs/remotes/origin/main "${selector_head}"
 
 # #7762: the runtime image tool verifier and its suite select the image lane,
 # whose verify-reproducibility job runs them against the built rootfs. The
-# scanner destination images moved to the eshu-scanner-worker satellite with
-# #8878, so no scanner image verifier selects a lane here anymore; the
+# scanner destination image builds were removed from eshu with #9741 (port
+# into eshu-scanner-worker in progress, #8878 box 10), so no scanner image verifier selects a lane here anymore; the
 # shared rootfs-resolve library the runtime verifier sources still does.
 for tool_script in scripts/verify-runtime-image-tools.sh scripts/test-verify-runtime-image-tools.sh scripts/lib/rootfs-resolve.sh; do
   tool_base="$(git -C "${repo}" rev-parse HEAD)"

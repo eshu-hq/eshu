@@ -10,8 +10,8 @@
 #   resolved="$(resolve_in_rootfs "usr/bin/<tool>")"
 #
 # Sourced by scripts/verify-runtime-image-tools.sh (every tool the runtime
-# image ships). The scanner destination images moved to the
-# eshu-scanner-worker satellite with #8878; the runtime verifier's self-test
+# image ships). The scanner destination image builds were
+# removed from eshu with #9741 (port into eshu-scanner-worker in progress); the runtime verifier's self-test
 # proves the jail behavior.
 # shellcheck disable=SC2034,SC2154  # globals are shared with the sourcing verifier
 

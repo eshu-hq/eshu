@@ -284,8 +284,9 @@ evidence (No-Regression and No-Observability-Change) for this section lives in
   provider response bodies.
 - `scannercomponent` subpackage — frozen scanner vocabulary (analyzer, target,
   and failure kinds) plus component-admission truth: per-analyzer manifests,
-  required grants, and seeded-artifact verification. Analyzer execution lives
-  in the `eshu-hq/eshu-scanner-worker` satellite.
+  required grants, and seeded-artifact verification. Analyzer execution sources
+  were removed from eshu in #9741; the destination port into
+  `eshu-hq/eshu-scanner-worker` is in progress (#8878 box 10).
 
 ## Dependencies
 

@@ -16,7 +16,8 @@
 #
 # The per-analyzer scanner stdio components
 # (eshu-scanner-component-image/sbom/osruntime) were removed here by #8878:
-# execution lives in the eshu-scanner-worker satellite, so the in-tree
+# the execution sources were removed from eshu in #9741 (destination port
+# into eshu-scanner-worker in progress, #8878 box 10), so the in-tree
 # runtime image no longer ships those binaries and the extension host no
 # longer execs them.
 #

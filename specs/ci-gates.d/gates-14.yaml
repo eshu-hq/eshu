@@ -485,11 +485,12 @@ gates:
     # satellite attestations are checked only in CI: verify-scanner-digest-pins
     # runs the suite, then the verifier against GHCR (#9491); same workflow,
     # same job, two more steps.
-    # Execution moved to the eshu-scanner-worker satellite with #8878, so
-    # the anchor names the satellite repo's publish commit and the verifier
-    # checks the anchor against the satellite repo, not in-tree history.
-    # In-tree scanner sources are gone: the pin leaf moved to
-    # go/internal/collector/scannercomponent and the satellite owns the
+    # Scanner sources were removed from eshu with #9741 and the port into
+    # eshu-scanner-worker is in progress (#8878 box 10), so the anchor names
+    # the publishing repo's commit (eshu today, the satellite after the port)
+    # and the verifier checks the anchor against that repo, not in-tree
+    # history. In-tree scanner sources are gone: the pin leaf moved to
+    # go/internal/collector/scannercomponent and the publishing repo owns the
     # staleness inputs the verifier used to diff, so the trigger list keeps
     # the verifier, its suite, the relocated leaf, and the shared infra
     # files that still select the lane.

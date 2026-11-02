@@ -370,8 +370,7 @@ No-Regression Evidence: `go test ./internal/collector/scannercomponent
 ./internal/facts/... -count=1` covers the frozen vocabulary, component
 admission, golden-envelope paging and host admission, planner derivation,
 SBOM attachment, activation rendering, terminal-failure classes, and the
-fact-kind registry; analyzer execution runs in the eshu-scanner-worker
-satellite, which owns its proof.
+fact-kind registry; analyzer execution sources were removed from eshu in #9741 and the port into eshu-scanner-worker is in progress (#8878 box 10), so that proof is not in this tree.
 
 ## Readiness Semantics
 
