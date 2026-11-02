@@ -19,6 +19,14 @@ TABLE = {
         "go/internal/storage/postgres/migration_169_reader_bound_live_test.go": (
             "TestMigration169PhasedBackfillReaderBoundLive",
         ),
+        "go/internal/storage/postgres/owned_package_resolver_live_test.go": (
+            "TestResolveOwnedPackageNamesDifferentialLive",
+            "TestResolveOwnedPackageNamesMatchesTheFeedLive",
+            "TestResolveOwnedPackageNamesFindsEverySwiftURLNameLive",
+            "TestResolveOwnedPackageNamesFollowsThePlannerRulesLive",
+            "TestResolveOwnedPackageNamesChunksLongBatchesLive",
+            "TestResolveOwnedPackageNamesSpanLive",
+        ),
         "go/internal/storage/postgres/owned_package_targets_alias_live_test.go": (
             "TestListOwnedPackageDependencyTargetsAliasesLive",
         ),

@@ -319,6 +319,7 @@ func TestSpanNames(t *testing.T) {
 		"ocr.extract",
 		"ocr.recognize",
 		"stored_advisory_names.read",
+		"owned_package_targets.resolve",
 	}
 
 	got := SpanNames()
