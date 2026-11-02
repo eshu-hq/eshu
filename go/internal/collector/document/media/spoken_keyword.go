@@ -29,23 +29,28 @@ type phraseRule struct {
 // The boundary choice for each rule is deliberate:
 //
 //   - Substring (no flags): password, passphrase, passcode, passwd, pwd,
-//     credential, api key, private key, and the *_marker test keywords. None is
-//     a fragment of an ordinary English word, and a hit inside a longer word
-//     ("credentials", "passwords") is the same secret vocabulary.
+//     pincode, credential, api key, private key, and the *_marker test
+//     keywords. None is a fragment of an ordinary English word, and a hit
+//     inside a longer word ("credentials", "passwords") is the same secret
+//     vocabulary.
 //   - Start-bounded: the split spellings "pass word", "pass phrase", and
 //     "pass code". Unbounded they would fire inside "compass word" or "bypass
 //     wording". The joined spellings need no bound.
-//   - Whole word: token, tokens, pin, and the spelled-out p i n. A substring
-//     "token" would redact "tokenize" and "tokenizer", and "pin" would redact
-//     "spinning", "pinned", "mapping", and "shipping". The cost is that
-//     "tokenized" and "pins" stay in clear text, which is the intended trade:
-//     whisper writes a spoken secret label as its own word.
+//   - Whole word: secret, secrets, token, tokens, pin, and the spelled-out
+//     p i n and p w d. A substring "token" would redact "tokenize" and
+//     "tokenizer", and "pin" would redact "spinning", "pinned", "mapping", and
+//     "shipping". The cost is that "tokenized" and "pins" stay in clear text,
+//     which is the intended trade: whisper writes a spoken secret label as its
+//     own word. "secret" fails closed on purpose: "a secret garden" redacts
+//     two following segments, which is visible in section metadata, while a
+//     persisted client secret is not recoverable.
 var spokenKeywordRules = []phraseRule{
 	{phrase: "password"},
 	{phrase: "passphrase"},
 	{phrase: "passcode"},
 	{phrase: "passwd"},
 	{phrase: "pwd"},
+	{phrase: "pincode"},
 	{phrase: "credential"},
 	{phrase: "api key"},
 	{phrase: "apikey"},
@@ -55,27 +60,41 @@ var spokenKeywordRules = []phraseRule{
 	{phrase: "pass word", before: true},
 	{phrase: "pass phrase", before: true},
 	{phrase: "pass code", before: true},
+	{phrase: "a p i key", before: true},
+	{phrase: "secret", before: true, after: true},
+	{phrase: "secrets", before: true, after: true},
 	{phrase: "token", before: true, after: true},
 	{phrase: "tokens", before: true, after: true},
 	{phrase: "pin", before: true, after: true},
 	{phrase: "p i n", before: true, after: true},
+	{phrase: "p w d", before: true, after: true},
 }
 
 // homoglyphs folds the lower-case Cyrillic, Greek, and Latin look-alikes of
-// the Latin letters in the keywords above. It is a bounded set, not the full
-// Unicode confusables table: a look-alike for a letter no keyword uses is not
-// worth a rule, and a letter outside this set is a documented limit.
+// the Latin letters that the keywords above use (a c d e h i k l m n o p r s t
+// v w y). It is a bounded set, not the full Unicode confusables table: a
+// look-alike for a letter no keyword uses is not worth a rule, and a letter
+// outside this set is a documented limit. foldSpoken lower-cases a rune before
+// it looks here, so a capital look-alike folds through its lower-case form,
+// except the two in capitalHomoglyphs.
 var homoglyphs = map[rune]rune{
 	// Cyrillic.
-	'а': 'a', 'е': 'e', 'о': 'o', 'р': 'p', 'с': 'c',
-	'х': 'x', 'у': 'y', 'і': 'i', 'ј': 'j', 'ѕ': 's',
-	'һ': 'h', 'ԁ': 'd', 'ԛ': 'q', 'ԝ': 'w', 'к': 'k',
-	'ѵ': 'v', 'т': 't', 'н': 'h', 'м': 'm',
+	'\u0430': 'a', '\u0435': 'e', '\u043e': 'o', '\u0440': 'p', '\u0441': 'c',
+	'\u0443': 'y', '\u0456': 'i', '\u0455': 's', '\u04bb': 'h', '\u0501': 'd',
+	'\u051d': 'w', '\u043a': 'k', '\u0475': 'v', '\u0442': 't', '\u043c': 'm',
+	'\u043f': 'n', '\u04cf': 'l',
 	// Greek.
-	'ο': 'o', 'ρ': 'p', 'ν': 'v', 'α': 'a', 'ε': 'e',
-	'ι': 'i', 'κ': 'k', 'τ': 't', 'υ': 'u', 'χ': 'x',
+	'\u03bf': 'o', '\u03c1': 'p', '\u03bd': 'v', '\u03b1': 'a', '\u03b5': 'e',
+	'\u03b9': 'i', '\u03ba': 'k', '\u03c4': 't', '\u03b7': 'n',
 	// Latin.
-	'ı': 'i', 'ɡ': 'g',
+	'\u0131': 'i',
+}
+
+// capitalHomoglyphs holds the capitals whose lower-case form looks like a
+// different letter: Greek capital nu looks like N, but small nu looks like v;
+// Greek capital upsilon looks like Y.
+var capitalHomoglyphs = map[rune]rune{
+	'\u039d': 'n', '\u03a5': 'y',
 }
 
 // containsSpokenKeyword reports whether the folded form of text holds a spoken
@@ -83,13 +102,30 @@ var homoglyphs = map[rune]rune{
 // legacy keyword ("api_key" folds to "api key"); sanitize_keyword_test.go pins
 // that.
 func containsSpokenKeyword(text string) bool {
-	folded := foldSpoken(text)
+	return foldedHasKeyword(foldSpoken(text))
+}
+
+// foldedHasKeyword reports whether already-folded text matches a keyword rule.
+func foldedHasKeyword(folded string) bool {
 	for _, rule := range spokenKeywordRules {
 		if containsPhrase(folded, rule) {
 			return true
 		}
 	}
 	return false
+}
+
+// joinedHasKeyword reports whether a keyword straddles two consecutive
+// segments, such as "The API" then "key is". Both arguments are folded. A
+// caller passes only a pair where neither segment holds a keyword alone, so a
+// hit is a keyword that needed both halves. The join is one space, which is
+// what the fold makes of any separator, so "pass" then "word" reads as
+// "pass word". The work is linear in the two lengths.
+func joinedHasKeyword(prevFolded, curFolded string) bool {
+	if prevFolded == "" || curFolded == "" {
+		return false
+	}
+	return foldedHasKeyword(prevFolded + " " + curFolded)
 }
 
 // foldSpoken returns text in the form the spoken keyword rules match on. It
@@ -102,9 +138,10 @@ func containsSpokenKeyword(text string) bool {
 //     joiner, byte order mark, bidirectional marks), which are invisible in a
 //     transcript but split a word for a byte-wise match;
 //   - lower-cases and maps the homoglyph set above to Latin;
-//   - turns every run of white space, dash punctuation, underscore, and dot
-//     into one space, so "pass-word", "pass_word", and "pass.word" fold like
-//     "pass word" and "P.I.N." folds to "p i n".
+//   - turns every run of white space, dash punctuation, underscore, dot, and
+//     comma into one space, so "pass-word", "pass_word", and "pass.word" fold
+//     like "pass word", "P.I.N." and "P, I, N" fold to "p i n", and "A.P.I.
+//     key" folds to "a p i key".
 func foldSpoken(text string) string {
 	var out strings.Builder
 	out.Grow(len(text))
@@ -113,13 +150,17 @@ func foldSpoken(text string) string {
 		switch {
 		case unicode.Is(unicode.Mn, r), unicode.Is(unicode.Cf, r):
 			continue
-		case unicode.IsSpace(r), r == '_', r == '.', unicode.Is(unicode.Pd, r):
+		case unicode.IsSpace(r), r == '_', r == '.', r == ',', unicode.Is(unicode.Pd, r):
 			pendingSpace = out.Len() > 0
 			continue
 		}
-		r = unicode.ToLower(r)
-		if latin, ok := homoglyphs[r]; ok {
+		if latin, ok := capitalHomoglyphs[r]; ok {
 			r = latin
+		} else {
+			r = unicode.ToLower(r)
+			if latin, ok := homoglyphs[r]; ok {
+				r = latin
+			}
 		}
 		if pendingSpace {
 			out.WriteByte(' ')

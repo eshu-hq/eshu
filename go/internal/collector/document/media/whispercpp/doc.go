@@ -23,7 +23,10 @@
 // stderr, paths, or source names. A run that hears only non-speech
 // annotations, or nothing, returns a ClassNoSpeech error wrapping
 // media.ErrNoSpeech, which media.Extract records as transcript_status
-// no_speech.
+// no_speech. An annotation that holds a sensitive keyword, such as
+// "(The password is)", is speech whisper.cpp wrapped in brackets: the engine
+// keeps it and leaves the redaction to media.Extract, so a run with only that
+// annotation returns one segment, not ClassNoSpeech.
 //
 // Results record the engine name, pinned version, model file name, and model
 // digest. Redaction stays in media.Extract: this package returns raw segment

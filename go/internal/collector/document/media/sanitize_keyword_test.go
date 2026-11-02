@@ -91,6 +91,40 @@ func TestContainsSensitiveKeywordSpokenForms(t *testing.T) {
 		{"ideographic space separator", "The pass\u3000word is", true},
 		{"soft hyphen in token", "The tok\u00aden is", true},
 
+		// F1: secret as a whole word. Fails closed on "a secret garden" on purpose.
+		{"secret", "The secret is", true},
+		{"secrets", "the secrets are", true},
+		{"secret key", "the secret key is", true},
+		{"client secret", "The client secret is", true},
+		{"secret garden fails closed", "a secret garden", true},
+		{"secretary stays clear", "the secretary called", false},
+		{"secretive stays clear", "a secretive plan", false},
+		{"secretion stays clear", "the secretion rate", false},
+		{"unsecret is not a word", "an insecret", false},
+
+		// F4: comma and spelled-out forms.
+		{"P, I, N", "the P, I, N is", true},
+		{"p,i,n", "the p,i,n is", true},
+		{"A.P.I. key", "the A.P.I. key is", true},
+		{"A P I key", "the A P I key is", true},
+		{"A-P-I key", "the A-P-I key is", true},
+		{"P-W-D", "the P-W-D is", true},
+		{"P W D", "the P W D is", true},
+		{"pincode", "the pincode is", true},
+		{"PINcode", "the PINcode is", true},
+		{"pass, word", "the pass, word is", true},
+		{"upwd not p w d", "up w dishes", false},
+
+		// F5: capital homoglyphs fold to the letter they look like.
+		{"greek capital rho iota nu", "the \u03a1\u0399\u039d is", true},
+		{"greek capital token with nu", "the TOKE\u039d is", true},
+		{"greek capital key with upsilon", "the api KE\u03a5 is", true},
+		{"greek eta as n", "the pi\u03b7 is", true},
+		{"cyrillic pe as n", "the pi\u043f is", true},
+		{"cyrillic palochka as l", "the credentia\u04cf is", true},
+		{"cyrillic ha as h", "the pass p\u04bbrase is", true},
+		{"small nu stays v", "the pri\u03bdate key is", true},
+
 		// Ordinary words stay clear.
 		{"empty", "", false},
 		{"ordinary speech", "Restart the payments worker.", false},
@@ -169,7 +203,7 @@ func TestValueWindowOpensOnSpokenForms(t *testing.T) {
 		"The pwd is", "The PIN is", "The token is", "The credential is", "The API key is",
 		"The p\u0430ssword is", "The pass\u00adword is",
 	} {
-		got := valueSegments(sequentialSegments(text, "swordfish.", "Restart the worker."))
+		got, _ := valueSegments(sequentialSegments(text, "swordfish.", "Restart the worker."))
 		want := []bool{false, true, true}
 		for i := range want {
 			if got[i] != want[i] {
@@ -201,5 +235,68 @@ func TestExtractRedactsSpokenKeywordSegmentAndValue(t *testing.T) {
 			assertSectionRedaction(t, i, section, want[i])
 		}
 		assertAbsentFromEnvelopes(t, result, "swordfish")
+	}
+}
+
+// TestValueWindowOpensOnKeywordSplitAcrossSegments pins the #9788 review
+// finding: a keyword the engine splits across two segments still opens a
+// window, at the second segment, in both walk orders.
+func TestValueWindowOpensOnKeywordSplitAcrossSegments(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		segments []Segment
+		want     []bool
+	}{
+		{
+			"api then key", sequentialSegments("The API", "key is", "swordfish.", "hunter2.", "Restart the worker."),
+			[]bool{false, true, true, true, false},
+		},
+		{
+			"pass then word", sequentialSegments("The pass", "word is", "swordfish.", "hunter2.", "Restart the worker."),
+			[]bool{false, true, true, true, false},
+		},
+		{
+			"private then key", sequentialSegments("my private", "key is", "swordfish.", "hunter2.", "Restart the worker."),
+			[]bool{false, true, true, true, false},
+		},
+		{
+			"letters spelled across", sequentialSegments("The P I", "N is", "swordfish.", "hunter2.", "Restart the worker."),
+			[]bool{false, true, true, true, false},
+		},
+		{
+			"blank segment between halves", sequentialSegments("The API", "  ", "key is", "swordfish.", "hunter2.", "ok."),
+			[]bool{false, false, true, true, true, false},
+		},
+		{
+			"unrelated pair stays clear", sequentialSegments("Follow the compass", "word is out", "Restart the worker."),
+			[]bool{false, false, false},
+		},
+		{
+			"key alone stays clear", sequentialSegments("The deploy", "key is on the desk", "Restart the worker."),
+			[]bool{false, false, false},
+		},
+		{"out of order, slice order pair", []Segment{
+			timedSegment("key is", 2000), timedSegment("The API", 1000), timedSegment("swordfish.", 3000),
+		}, []bool{true, false, true}},
+		{
+			"keyword alone does not also straddle", sequentialSegments("The api key", "key is", "swordfish.", "hunter2.", "Restart the worker."),
+			[]bool{false, true, true, false, false},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, _ := valueSegments(tt.segments)
+			if len(got) != len(tt.want) {
+				t.Fatalf("len = %d, want %d", len(got), len(tt.want))
+			}
+			for i := range tt.want {
+				if got[i] != tt.want[i] {
+					t.Fatalf("valueSegments = %v, want %v", got, tt.want)
+				}
+			}
+		})
 	}
 }
