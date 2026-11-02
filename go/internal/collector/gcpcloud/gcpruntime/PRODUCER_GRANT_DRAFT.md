@@ -19,16 +19,26 @@ this grant authorizes emission only.
   `gcp_iam_trust_policy` (all `1.0.0`)
 - Lifetime: bounded `--expires-in` (rotation expected; no non-expiring grants)
 
-## Open item: mirror-kind authority
+## Decided: mirror-kind authority (arbiter verdict on #8856: re-stamp wins,
+producer-record correction verified 2026-11-02)
 
-Today the 3 mirror kinds' producer record names `secrets-iam-posture`
-(`go/internal/facts/identity/iam.go`, producer `secrets-iam-posture`) and their envelopes stamp
-`collector_kind = "secrets_iam_posture"`, while this collector emits them.
-Either the grant binds all 10 kinds to `dev.eshu.collector.gcp-cloud`
-(re-stamp at extraction), or the extracted component carries a second
-`secrets-iam-posture` delegation. Decide with `#6709` before issuance;
-the parity pack (`source_parity_8856_test.go`) pins the current stamping so
-either choice is verifiable.
+The 3 mirror kinds' envelopes stamp `collector_kind = "gcp"` (in-tree
+`restampMirrorEnvelope`; `SourceSystem` stays `"secrets_iam_posture"`,
+payloads and stable keys byte-identical). The issued grant binds all 10
+kinds to `dev.eshu.collector.gcp-cloud`, scope `gcp`.
+
+Correction on the record half: the in-tree family producer metadata stays
+as-is. `scripts/generate-fact-kind-registry.sh` enforces producer-kinds ⊆
+family-kinds and fails closed on moving the 3 kinds to the `collector-gcp-cloud`
+record while their kind definitions live in the `secrets_iam` family; moving
+kind ownership across families would rewrite reducer domains, read surfaces,
+and registry shards for no pre-cutover gain. Enforcement reads live grants +
+the component manifest (`Spec.CollectorKinds`), not this metadata
+(`grantedCoreKinds` in `go/internal/component/producer_grant.go`). The
+destination manifest (`collectorKinds: ["gcp"]`, ten families) becomes the
+cutover-shaped record; the in-tree metadata retires with the in-tree
+implementation at removal. The parity pack (`source_parity_8856_test.go`)
+records the re-stamped emission.
 
 ## Issuance (operator commands at cutover)
 
@@ -52,7 +62,7 @@ eshu component grant dev.eshu.collector.gcp-cloud \
   --schema-version 1.1.0 \
   --scope gcp \
   --expires-in 2160h
-# Plus one grant per mirror kind above once the §open-item decision lands.
+# Plus one grant per mirror kind above, scope gcp (re-stamp decision recorded).
 eshu component grants --component-home ~/.eshu/components \
   --producer dev.eshu.collector.gcp-cloud
 ```

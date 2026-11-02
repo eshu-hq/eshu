@@ -26,6 +26,18 @@ var gcpServiceAccountImpersonationRoles = map[string]string{
 	"roles/iam.workloadIdentityUser":       posture.GCPImpersonationModeWorkloadIdentity,
 }
 
+// restampMirrorEnvelope binds one secrets/IAM mirror envelope to the gcp-cloud
+// producer (issue #8856, arbiter verdict: re-stamp wins). The posture builders
+// stamp collector_kind "secrets_iam_posture" for the posture collector's own
+// facts; envelopes this collector emits must carry "gcp" so the cutover grant,
+// the claim host-stamping, and the in-tree path agree on one producer. Only
+// CollectorKind is touched: SourceSystem, payloads, and stable keys stay
+// byte-identical, so reducer outputs do not move.
+func restampMirrorEnvelope(env facts.Envelope) facts.Envelope {
+	env.CollectorKind = catalog.CollectorKind
+	return env
+}
+
 // secretsIAMEnvelopes projects the generation's Cloud Asset Inventory IAM
 // bindings into the GCP secrets/IAM source-fact mirror (issue #2347): one
 // gcp_iam_principal per distinct service-account grantee (deduplicated by the
@@ -89,7 +101,7 @@ func (g *Generation) secretsIAMEnvelopes() ([]facts.Envelope, error) {
 					if err != nil {
 						return nil, err
 					}
-					principals[fingerprint] = principalEnv
+					principals[fingerprint] = restampMirrorEnvelope(principalEnv)
 				}
 				permissionEnv, err := posture.NewGCPPermissionPolicyEnvelope(posture.GCPPermissionPolicyObservation{
 					Context:              ctx,
@@ -105,7 +117,7 @@ func (g *Generation) secretsIAMEnvelopes() ([]facts.Envelope, error) {
 				if err != nil {
 					return nil, err
 				}
-				permissions = append(permissions, permissionEnv)
+				permissions = append(permissions, restampMirrorEnvelope(permissionEnv))
 			}
 		}
 	}
@@ -189,7 +201,7 @@ func (g *Generation) gcpTrustPolicyEnvelopes(
 		if err != nil {
 			return nil, err
 		}
-		envelopes = append(envelopes, env)
+		envelopes = append(envelopes, restampMirrorEnvelope(env))
 	}
 	return envelopes, nil
 }

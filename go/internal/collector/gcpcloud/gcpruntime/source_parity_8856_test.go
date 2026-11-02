@@ -18,13 +18,13 @@
 // store. The in-tree path pins the emission half; the external path must
 // additionally fail closed on missing, expired, or revoked grants.
 //
-// Known delegation deltas pinned (not fixed) by this pack:
-//   - mirror envelopes (gcp_iam_principal, gcp_iam_permission_policy,
-//     gcp_iam_trust_policy) carry collector_kind "secrets_iam_posture", not
-//     "gcp", because the posture envelope builder stamps its own kind.
-//   - the producer record for those mirror kinds names "secrets-iam-posture"
-//     (go/internal/facts/identity/iam.go), not "collector-gcp-cloud".
-// The cutover grant must reconcile both before production cutover.
+// Delegation stamping recorded by this pack (arbiter verdict on #8856:
+// re-stamp wins): mirror envelopes (gcp_iam_principal,
+// gcp_iam_permission_policy, gcp_iam_trust_policy) carry collector_kind
+// "gcp" via restampMirrorEnvelope, while SourceSystem stays
+// "secrets_iam_posture" and payloads/stable keys are byte-identical.
+// The producer record reconciliation (gcp.go widening, iam.go narrowing)
+// is the remaining grant-issuance input, not an emission delta.
 
 package gcpruntime
 
