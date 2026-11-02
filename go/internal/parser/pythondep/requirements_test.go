@@ -4,6 +4,7 @@
 package pythondep
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -303,4 +304,213 @@ func findRowByValueContains(rows []map[string]any, needle string) map[string]any
 		}
 	}
 	return nil
+}
+
+// requirementsUserinfoSecret builds a credential-shaped value by
+// concatenation so no source line looks like a committed secret to push
+// protection.
+func requirementsUserinfoSecret() string {
+	return "tok" + "en-" + "value-9f3a"
+}
+
+// TestParseRequirementsStripsUserinfoKeepsHostNameAndRefs proves a
+// requirements URL or VCS row never persists userinfo: value, source_url,
+// and raw keep the host, path, VCS ref, and package name with the
+// `user[:password]@` component cut, and the row withholds its source_cache
+// so the file's raw line range cannot reintroduce it (#9074). VCS refs such
+// as @v1 and branches containing / survive the cut.
+func TestParseRequirementsStripsUserinfoKeepsHostNameAndRefs(t *testing.T) {
+	t.Parallel()
+
+	secret := requirementsUserinfoSecret()
+	path := writeTempFile(t, "requirements.txt", strings.Join([]string{
+		"privpkg @ https://ci-user:" + secret + "@host.example/p.whl",
+		"git+https://ci-user:" + secret + "@git.example.com/acme/privvcs.git@v1.0.0#egg=privvcs",
+		"git+https://ci-user:" + secret + "@git.example.com/acme/privbranch.git@feature/foo#egg=privbranch",
+		"https://ci-user:" + secret + "@files.example.com/bare-1.0.tar.gz",
+	}, "\n"))
+	payload, err := ParseRequirements(path)
+	if err != nil {
+		t.Fatalf("ParseRequirements error = %v", err)
+	}
+	if text := fmt.Sprintf("%#v", payload); strings.Contains(text, secret) || strings.Contains(text, "ci-user") {
+		t.Fatalf("payload carries credential text: %s", text)
+	}
+	rows := variableRows(t, payload)
+	if len(rows) != 4 {
+		t.Fatalf("len(rows) = %d, want 4: %#v", len(rows), rows)
+	}
+	byName := rowsByName(rows)
+	for name, kind := range map[string]string{
+		"privpkg":    "url_dependency",
+		"privvcs":    "vcs_dependency",
+		"privbranch": "vcs_dependency",
+	} {
+		row, ok := byName[name]
+		if !ok {
+			t.Fatalf("%s missing from %#v", name, rows)
+		}
+		if got := row["config_kind"]; got != kind {
+			t.Errorf("%s config_kind = %#v, want %q", name, got, kind)
+		}
+		for _, field := range []string{"value", "source_url", "raw"} {
+			got, _ := row[field].(string)
+			if got == "" {
+				t.Errorf("%s %s is empty, want the scrubbed line kept", name, field)
+			}
+			if strings.Contains(got, "@ci-user") || strings.Contains(got, secret) {
+				t.Errorf("%s %s = %q, want no userinfo", name, field, got)
+			}
+		}
+		if row["source_cache_withheld"] != true {
+			t.Errorf("%s source_cache_withheld = %#v, want true: the file line range still holds the raw line", name, row["source_cache_withheld"])
+		}
+	}
+	if got, _ := byName["privpkg"]["value"].(string); got != "https://host.example/p.whl" {
+		t.Errorf("privpkg value = %q, want host and path kept", got)
+	}
+	if got, _ := byName["privvcs"]["value"].(string); got != "git+https://git.example.com/acme/privvcs.git@v1.0.0#egg=privvcs" {
+		t.Errorf("privvcs value = %q, want ref and fragment kept", got)
+	}
+	if got, _ := byName["privbranch"]["value"].(string); got != "git+https://git.example.com/acme/privbranch.git@feature/foo#egg=privbranch" {
+		t.Errorf("privbranch value = %q, want slash branch kept", got)
+	}
+	if got, _ := byName["privbranch"]["source_url"].(string); got != "git+https://git.example.com/acme/privbranch.git@feature/foo" {
+		t.Errorf("privbranch source_url = %q, want fragment stripped, ref kept", got)
+	}
+	bare := findRowByValueContains(rows, "files.example.com")
+	if bare == nil {
+		t.Fatalf("expected a url row for the bare wheel URL in %#v", rows)
+	}
+	if got := bare["config_kind"]; got != "url_dependency" {
+		t.Errorf("bare url config_kind = %#v, want url_dependency", got)
+	}
+	if name, _ := bare["name"].(string); name != "" {
+		t.Errorf("bare url name = %q, want empty (no egg fragment)", name)
+	}
+	if got, _ := bare["value"].(string); got != "https://files.example.com/bare-1.0.tar.gz" {
+		t.Errorf("bare url value = %q, want host and path kept", got)
+	}
+}
+
+// TestParseRequirementsRefusesUncleanableSourceText proves a requirements
+// line that cannot be scrubbed reliably keeps its kind but loses its text: a
+// password with a raw "/" moves the real userinfo past the authority cut, and
+// a scheme-less "user@host:path" line cannot separate userinfo from a host.
+// Both rows withhold their source_cache (#9074).
+func TestParseRequirementsRefusesUncleanableSourceText(t *testing.T) {
+	t.Parallel()
+
+	secret := requirementsUserinfoSecret()
+	path := writeTempFile(t, "requirements.txt", strings.Join([]string{
+		"slash-url @ https://ci-user:" + "pa/" + secret + "@files.example.com/slash-url-1.0.tar.gz",
+		"bare-user:" + secret + "@host.example.com/pkg",
+	}, "\n"))
+	payload, err := ParseRequirements(path)
+	if err != nil {
+		t.Fatalf("ParseRequirements error = %v", err)
+	}
+	if text := fmt.Sprintf("%#v", payload); strings.Contains(text, secret) || strings.Contains(text, "ci-user") {
+		t.Fatalf("payload carries credential text: %s", text)
+	}
+	rows := variableRows(t, payload)
+	if len(rows) != 2 {
+		t.Fatalf("len(rows) = %d, want 2: %#v", len(rows), rows)
+	}
+	slash, ok := rowsByName(rows)["slash-url"]
+	if !ok {
+		t.Fatalf("slash-url missing from %#v", rows)
+	}
+	if got := slash["config_kind"]; got != "url_dependency" {
+		t.Errorf("slash-url config_kind = %#v, want url_dependency", got)
+	}
+	for _, field := range []string{"value", "source_url", "raw"} {
+		if got, _ := slash[field].(string); got != "" {
+			t.Errorf("slash-url %s = %q, want it dropped", field, got)
+		}
+	}
+	if slash["source_cache_withheld"] != true {
+		t.Errorf("slash-url source_cache_withheld = %#v, want true", slash["source_cache_withheld"])
+	}
+	bare := rows[1]
+	if got := bare["config_kind"]; got != "malformed_dependency" {
+		t.Errorf("scheme-less userinfo line config_kind = %#v, want malformed_dependency", got)
+	}
+	if name, _ := bare["name"].(string); name != "" {
+		t.Errorf("scheme-less userinfo line name = %q, want it dropped", name)
+	}
+	for _, field := range []string{"value", "raw"} {
+		if got, _ := bare[field].(string); got != "" {
+			t.Errorf("scheme-less userinfo line %s = %q, want it dropped", field, got)
+		}
+	}
+}
+
+// TestParseRequirementsDemotesUnsafeMarkers proves a requirements row whose
+// marker holds URL-shaped text is demoted to a nameless, valueless malformed
+// row — never left with the marker merely cleared, which would collapse two
+// lines differing only in their markers onto one content identity (#9074).
+func TestParseRequirementsDemotesUnsafeMarkers(t *testing.T) {
+	t.Parallel()
+
+	secret := requirementsUserinfoSecret()
+	path := writeTempFile(t, "requirements.txt", strings.Join([]string{
+		"marked==2.0 ; python_version > '3' and platform_node == 'https://ci-user:" + secret + "@m.example'",
+		"plain==3.0 ; python_version >= '3.9'",
+	}, "\n"))
+	payload, err := ParseRequirements(path)
+	if err != nil {
+		t.Fatalf("ParseRequirements error = %v", err)
+	}
+	if text := fmt.Sprintf("%#v", payload); strings.Contains(text, secret) {
+		t.Fatalf("payload carries credential text: %s", text)
+	}
+	rows := variableRows(t, payload)
+	if len(rows) != 2 {
+		t.Fatalf("len(rows) = %d, want 2: %#v", len(rows), rows)
+	}
+	marked := rows[0]
+	if got := marked["config_kind"]; got != "malformed_dependency" {
+		t.Errorf("marked config_kind = %#v, want malformed_dependency", got)
+	}
+	if name, _ := marked["name"].(string); name != "" {
+		t.Errorf("marked name = %q, want it dropped", name)
+	}
+	for _, field := range []string{"value", "marker", "raw"} {
+		if got, _ := marked[field].(string); got != "" {
+			t.Errorf("marked %s = %q, want it dropped", field, got)
+		}
+	}
+	plain := rows[1]
+	if got := plain["marker"]; got != "python_version >= '3.9'" {
+		t.Errorf("plain marker = %#v, want the PEP 508 marker kept", got)
+	}
+	if _, withheld := plain["source_cache_withheld"]; withheld {
+		t.Errorf("plain requirements pin sets source_cache_withheld: %#v", plain)
+	}
+}
+
+// TestParseRequirementsNormalizesURLRawToParsedLine proves a requirements URL
+// or VCS row stores the trimmed parsed line as raw, never the scanner's raw
+// line: a trailing inline comment can carry URL text the row scrubbed.
+func TestParseRequirementsNormalizesURLRawToParsedLine(t *testing.T) {
+	t.Parallel()
+
+	path := writeTempFile(t, "requirements.txt",
+		"cleanpkg @ https://host.example/clean-1.0.tar.gz # internal mirror\n")
+	payload, err := ParseRequirements(path)
+	if err != nil {
+		t.Fatalf("ParseRequirements error = %v", err)
+	}
+	rows := variableRows(t, payload)
+	if len(rows) != 1 {
+		t.Fatalf("len(rows) = %d, want 1: %#v", len(rows), rows)
+	}
+	row := rows[0]
+	if got, _ := row["raw"].(string); got != "cleanpkg @ https://host.example/clean-1.0.tar.gz" {
+		t.Errorf("raw = %#v, want the trimmed parsed line without the comment", got)
+	}
+	if _, withheld := row["source_cache_withheld"]; withheld {
+		t.Errorf("clean url row sets source_cache_withheld: %#v", row)
+	}
 }

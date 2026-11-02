@@ -173,8 +173,8 @@ func parseRequirementLine(content string, raw string, section string, dev bool, 
 	}
 	builder.Marker = marker
 
-	if name, extras, source, ok := splitDirectReference(content); ok {
-		populateDirectReferenceRow(&builder, name, extras, source, editable)
+	if name, extras, source, left, ok := splitDirectReference(content); ok {
+		populateDirectReferenceRow(&builder, name, extras, source, left, editable)
 		return builder
 	}
 
@@ -202,160 +202,38 @@ func parseRequirementLine(content string, raw string, section string, dev bool, 
 	builder.Extras = extras
 	builder.Value = value
 	builder.ConfigKind = configKindDependency
+	builder.applyRequirementsPolicy()
 	return builder
 }
 
-func splitDirectReference(content string) (string, []string, string, bool) {
-	left, right, ok := strings.Cut(content, "@")
-	if !ok {
-		return "", nil, "", false
-	}
-	name, extras, value, valid := splitNameSpecifier(strings.TrimSpace(left))
-	if !valid || name == "" || value != "" {
-		return "", nil, "", false
-	}
-	source := strings.TrimSpace(right)
-	if source == "" {
-		return "", nil, "", false
-	}
-	return name, extras, source, true
-}
-
-func populateDirectReferenceRow(
-	builder *rowBuilder,
-	name string,
-	extras []string,
-	source string,
-	editable bool,
-) {
-	builder.Name = name
-	builder.Extras = extras
-	switch {
-	case isVCSRequirement(source):
-		populateVCSRow(builder, source, editable)
-	case isURLRequirement(source):
-		populateURLRow(builder, source, editable)
-	case looksLikePathRequirement(source, editable):
-		populatePathRow(builder, source, editable)
-	default:
-		builder.Value = source
-		builder.ConfigKind = configKindMalformed
-		builder.Malformed = true
+// applyRequirementsPolicy keeps credential-shaped text out of registry rows.
+// A version specifier never holds "@" or "://", and a PEP 508 marker never
+// holds them either (see safeMarker): either one proves the line is not the
+// plain pin it parses as — an scp-style "user:secret@host:path" line or a
+// marker smuggling URL text. The row is demoted to malformed with its text
+// fields dropped and its source_cache withheld, mirroring the constraints
+// policy, so no requirements row can carry URL userinfo in a fact (#9074).
+func (b *rowBuilder) applyRequirementsPolicy() {
+	if b.ConfigKind == configKindDependency &&
+		(strings.Contains(b.Value, "@") || strings.Contains(b.Value, "://")) {
+		b.Name = ""
+		b.Value = ""
+		b.Marker = ""
+		b.Raw = ""
+		b.SourceCacheWithheld = true
+		b.ConfigKind = configKindMalformed
+		b.Malformed = true
 		return
 	}
-	builder.Name = name
-	builder.Extras = extras
-}
-
-func isVCSRequirement(content string) bool {
-	lower := strings.ToLower(content)
-	for _, prefix := range []string{"git+", "hg+", "svn+", "bzr+"} {
-		if strings.HasPrefix(lower, prefix) {
-			return true
-		}
+	if b.ConfigKind == configKindDependency && !safeMarker(b.Marker) {
+		b.Name = ""
+		b.Value = ""
+		b.Marker = ""
+		b.Raw = ""
+		b.SourceCacheWithheld = true
+		b.ConfigKind = configKindMalformed
+		b.Malformed = true
 	}
-	return false
-}
-
-func isURLRequirement(content string) bool {
-	lower := strings.ToLower(content)
-	switch {
-	case strings.HasPrefix(lower, "http://"),
-		strings.HasPrefix(lower, "https://"),
-		strings.HasPrefix(lower, "ftp://"),
-		strings.HasPrefix(lower, "file://"):
-		return true
-	}
-	return false
-}
-
-func looksLikePathRequirement(content string, editable bool) bool {
-	if editable {
-		return true
-	}
-	if strings.HasPrefix(content, "./") || strings.HasPrefix(content, "../") {
-		return true
-	}
-	if strings.HasPrefix(content, "/") {
-		return true
-	}
-	return false
-}
-
-func populateVCSRow(builder *rowBuilder, content string, editable bool) {
-	builder.SourceKind = "vcs"
-	builder.SourceURL = stripFragment(content)
-	builder.Name = eggNameFromURL(content)
-	builder.Value = content
-	if editable {
-		builder.ConfigKind = configKindEditable
-	} else {
-		builder.ConfigKind = configKindVCS
-	}
-}
-
-func populateURLRow(builder *rowBuilder, content string, editable bool) {
-	builder.SourceKind = "url"
-	builder.SourceURL = stripFragment(content)
-	builder.Name = eggNameFromURL(content)
-	builder.Value = content
-	if editable {
-		builder.ConfigKind = configKindEditable
-	} else {
-		builder.ConfigKind = configKindURL
-	}
-}
-
-func populatePathRow(builder *rowBuilder, content string, editable bool) {
-	builder.SourceKind = "path"
-	builder.Value = content
-	builder.Name = filepath.Base(strings.TrimRight(content, "/"))
-	if editable {
-		builder.ConfigKind = configKindEditable
-	} else {
-		builder.ConfigKind = configKindPath
-	}
-	if builder.Name == "" || builder.Name == "." || builder.Name == ".." {
-		builder.Name = content
-	}
-}
-
-func stripFragment(content string) string {
-	if index := strings.Index(content, "#"); index >= 0 {
-		return content[:index]
-	}
-	return content
-}
-
-// eggNameFromURL reads the `egg` key of a URL fragment. The fragment starts at
-// the first "#" after the authority: a "#" inside userinfo is not a fragment,
-// and text there must never become a package name.
-func eggNameFromURL(content string) string {
-	rest, start := content, 0
-	if scheme := strings.Index(content, "://"); scheme >= 0 {
-		start = scheme + 3
-		if slash := strings.IndexByte(content[start:], '/'); slash >= 0 {
-			start += slash
-		} else {
-			return ""
-		}
-		rest = content[start:]
-	}
-	hash := strings.Index(rest, "#")
-	if hash < 0 {
-		return ""
-	}
-	fragment := rest[hash+1:]
-	for _, part := range strings.Split(fragment, "&") {
-		key, value, ok := strings.Cut(part, "=")
-		if !ok {
-			continue
-		}
-		if strings.EqualFold(strings.TrimSpace(key), "egg") {
-			return strings.TrimSpace(value)
-		}
-	}
-	return ""
 }
 
 // splitNameSpecifier parses "name[extra1,extra2] specifier". It returns the

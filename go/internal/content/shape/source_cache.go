@@ -74,7 +74,8 @@ func entitySourceCache(label string, item Entity, body string, startLine int, en
 
 // sourceCacheWithheld reports whether the parser asked for this entity's
 // snippet to be dropped with source_cache_withheld=true (the pip constraints
-// rows, #8821). The snippet is the raw source line, which can carry text the
+// rows, #8821, and the scrubbed or refused pip requirements URL/VCS rows,
+// #9074). The snippet is the raw source line, which can carry text the
 // parser already scrubbed from the row's fields. Only the boolean true counts.
 // The flag stays in the entity metadata so a reader can see why the snippet is
 // empty. The file body is separate and unaffected.
