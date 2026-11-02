@@ -107,8 +107,9 @@ non-overlapping bands, so the cost at a typical size is 15-22% and at the cap
 branch 27.6, 42.0 and 44.2 ms (85), 663, 718 and 1,370 ms (4,096). An earlier
 revision that joined whole segments and folded each segment twice measured
 717-921 ms on the capped case, which is why the fast path, the 24-byte join
-edge, and the shared result exist. The absolute cost is a few milliseconds per
-transcript in memory. There is no backend, queue, or row count: no production
+edge, and the shared result exist. At a typical segment size the absolute cost
+is a few milliseconds per transcript, and about 30 ms at the capped size, in
+memory. There is no backend, queue, or row count: no production
 caller exists, and the work holds no lock and starts no worker.
 
 Collector Observability Evidence: this package emits no facts outside the
@@ -234,8 +235,9 @@ rule is deliberate:
 bread" withhold the next two segments, which shows in section metadata, while a
 client secret that stays in clear text cannot be taken back.
 
-The OCR lane (#9793) keeps its own list for text read from a picture. The two
-lists cover the same secret words, with differences that follow from the input:
+OCR in this tree still matches the six original markers. #9793 tracks a wider
+OCR list that is not merged here. The differences planned against that list,
+which follow from the input:
 
 - Digit-for-letter reads (`passw0rd`, `p4ssword`, `s3cret`) are OCR only. A
   speech engine writes letters.
@@ -244,12 +246,12 @@ lists cover the same secret words, with differences that follow from the input:
 - Joined compounds (`clientsecret`, `accesstoken`, `authtoken`, `apitoken`) are
   OCR only. A speech engine writes them as separate words, which the whole-word
   rules already match.
-- `pins` is matched by OCR and kept clear here by design.
-- `pwd` is a substring here and a whole word in OCR.
+- `pins` is matched by the planned OCR list and kept clear here by design.
+- `pwd` is a substring here and a whole word in the planned OCR list.
 - `accesskey` is matched here after lower-casing, so "AccessKey" and "accesskey"
-  both hit. OCR matches "AccessKey" by splitting it at the case change, but it
-  reads an all-lower "accesskey" as one word and does not match it. Both lists
-  leave out `passkey` and `login`.
+  both hit. The planned OCR list matches "AccessKey" by splitting it at the
+  case change, but it reads an all-lower "accesskey" as one word and does not
+  match it. Neither list matches `passkey` or `login`.
 
 Source names, document IDs, and mention hints keep the original substring list,
 because they are labels such as `token-service` and `pin-assignments.wav`, not
