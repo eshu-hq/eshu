@@ -19,6 +19,9 @@ This leaf owns the request contract only:
   the consumed-key text a refusal after the ledger claim carries.
 - `outcome.go` - the encoding of a recorded acknowledgement in the ledger's
   outcome list, and the 200 body.
+- `admission.go` - the versioned `TerminalFailureAdmission` port,
+  `TerminalFailureAdmissionContractVersion`, and the core-store
+  compile-time assertion.
 
 The acknowledgement table (migration 231), `TerminalFailureAckStore`, and the
 status read that consumes the rows live in `go/internal/storage/postgres`

@@ -379,12 +379,12 @@ func newRouterWithSemanticEmbeddingWithReadStore(
 	// writer backs the acknowledgement transaction and the shared replay
 	// idempotency ledger; the status read that consumes the rows runs on the
 	// status reader.
-	router.AdminTerminalFailure = &query.AdminTerminalFailureHandler{
-		Acknowledger: pgstatus.NewTerminalFailureAckStore(pgstatus.SQLDB{DB: writer}, pgstatus.SQLDB{DB: writer}),
-		Ledger:       query.NewPostgresAdminStore(writer),
-		Audit:        adminRecoveryAuditAppender(governanceAudit),
-		Instruments:  instruments,
-	}
+	router.AdminTerminalFailure = newTerminalFailureHandler(
+		pgstatus.NewTerminalFailureAckStore(pgstatus.SQLDB{DB: writer}, pgstatus.SQLDB{DB: writer}),
+		query.NewPostgresAdminStore(writer),
+		adminRecoveryAuditAppender(governanceAudit),
+		instruments,
+	)
 	return router, nil
 }
 
