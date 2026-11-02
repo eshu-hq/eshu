@@ -125,6 +125,11 @@ Check this before promising a promotion: the split is decided by whether the
 fixture's signature can avoid the family's types, not by how much duplication
 you would like to remove.
 
+The provider-config doubles (#7715) show the resolution path: the seven DTOs
+moved to the neutral leaf `querycontract/provider/config`, so
+`provider_config_doubles.go` names only that leaf and both consumers delegate
+to it without a cycle.
+
 ## Adapting a fake without churning its callers
 
 `graph.FakeGraphReader` arrived with 155 root files already constructing the

@@ -10,11 +10,15 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
 // fakeAdminProviderConfigReadStore is keyed by tenant_id, mirroring
 // fakeAdminIdentityReadStore's convention in ../../identity/reads_test.go.
+// It is an adapter over testutil.FakeAdminProviderConfigReadStore, the
+// single shared copy landed for #7715; the keyed-literal field names stay
+// so the call sites are unchanged, and every method delegates.
 type fakeAdminProviderConfigReadStore struct {
 	details   map[string]Detail // provider_config_id -> detail
 	list      map[string][]Detail
@@ -22,26 +26,19 @@ type fakeAdminProviderConfigReadStore struct {
 	forceErr  error
 }
 
-func (f *fakeAdminProviderConfigReadStore) GetProviderConfigDetail(_ context.Context, providerConfigID, _ string) (Detail, bool, error) {
-	if f.forceErr != nil {
-		return Detail{}, false, f.forceErr
-	}
-	detail, ok := f.details[providerConfigID]
-	return detail, ok, nil
+func (f *fakeAdminProviderConfigReadStore) GetProviderConfigDetail(ctx context.Context, providerConfigID, tenantID string) (Detail, bool, error) {
+	return (&testutil.FakeAdminProviderConfigReadStore{Details: f.details, List: f.list, Revisions: f.revisions, ForceErr: f.forceErr}).
+		GetProviderConfigDetail(ctx, providerConfigID, tenantID)
 }
 
-func (f *fakeAdminProviderConfigReadStore) ListProviderConfigDetails(_ context.Context, tenantID string) ([]Detail, error) {
-	if f.forceErr != nil {
-		return nil, f.forceErr
-	}
-	return f.list[tenantID], nil
+func (f *fakeAdminProviderConfigReadStore) ListProviderConfigDetails(ctx context.Context, tenantID string) ([]Detail, error) {
+	return (&testutil.FakeAdminProviderConfigReadStore{Details: f.details, List: f.list, Revisions: f.revisions, ForceErr: f.forceErr}).
+		ListProviderConfigDetails(ctx, tenantID)
 }
 
-func (f *fakeAdminProviderConfigReadStore) ListProviderConfigRevisions(_ context.Context, providerConfigID, _ string) ([]RevisionItem, error) {
-	if f.forceErr != nil {
-		return nil, f.forceErr
-	}
-	return f.revisions[providerConfigID], nil
+func (f *fakeAdminProviderConfigReadStore) ListProviderConfigRevisions(ctx context.Context, providerConfigID, tenantID string) ([]RevisionItem, error) {
+	return (&testutil.FakeAdminProviderConfigReadStore{Details: f.details, List: f.list, Revisions: f.revisions, ForceErr: f.forceErr}).
+		ListProviderConfigRevisions(ctx, providerConfigID, tenantID)
 }
 
 func newProviderConfigReadMux(store ReadStore) *http.ServeMux {
