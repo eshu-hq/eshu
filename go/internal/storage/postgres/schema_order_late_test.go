@@ -433,4 +433,8 @@ var orderedBootstrapDefinitionNamesLate = []string{
 	// derived witness set, plus the immutable publication persist.
 	"scanner_impact_publication",
 	"scanner_impact_publish",
+	// Migration 271 (#9776) adds the persisted least-recently-planned
+	// progress of the owned-package slot selection. Numbered 271 because
+	// 270 is held by an unmerged sibling migration.
+	"owned_target_slot_progress",
 }

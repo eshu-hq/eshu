@@ -4,11 +4,17 @@
 package main
 
 import (
+	"github.com/eshu-hq/eshu/go/internal/coordinator"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
+
+// The production store must advance owned-target slot progress (#9776): an
+// instance that turns slot_progress on is refused at run time against a store
+// that cannot, so this assertion keeps the wiring honest at compile time.
+var _ coordinator.SlotProgressStore = (*postgres.WorkflowControlStore)(nil)
 
 // newWorkflowControlStore constructs the workflow coordinator's
 // WorkflowControlStore and wires the shared meter-provider instruments and

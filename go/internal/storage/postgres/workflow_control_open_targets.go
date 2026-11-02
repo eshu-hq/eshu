@@ -45,46 +45,71 @@ func (s *WorkflowControlStore) CreateRunWithWorkItemsIfNoOpenTargets(
 	run workflow.Run,
 	items []workflow.WorkItem,
 ) (workflow.RunAdmission, error) {
+	admission, _, err := s.createRunWithWorkItemsIfNoOpenTargets(ctx, run, items, nil)
+	return admission, err
+}
+
+// createRunWithWorkItemsIfNoOpenTargets is the guarded admission shared by the
+// plain entry point and the slot-progress entry point (#9776). A non-nil
+// advance moves the picked owned-package slots inside the same transaction, on
+// every path that commits.
+func (s *WorkflowControlStore) createRunWithWorkItemsIfNoOpenTargets(
+	ctx context.Context,
+	run workflow.Run,
+	items []workflow.WorkItem,
+	advance *workflow.OwnedTargetSlotAdvance,
+) (workflow.RunAdmission, workflow.SlotAdvanceResult, error) {
 	if s.database == nil {
-		return workflow.RunAdmission{}, fmt.Errorf("workflow control store database is required")
+		return workflow.RunAdmission{}, workflow.SlotAdvanceResult{}, fmt.Errorf("workflow control store database is required")
 	}
 	if s.beginner == nil {
-		return workflow.RunAdmission{}, fmt.Errorf("workflow control store transaction support is required")
+		return workflow.RunAdmission{}, workflow.SlotAdvanceResult{}, fmt.Errorf("workflow control store transaction support is required")
 	}
 	if err := run.Validate(); err != nil {
-		return workflow.RunAdmission{}, fmt.Errorf("create guarded workflow run: %w", err)
+		return workflow.RunAdmission{}, workflow.SlotAdvanceResult{}, fmt.Errorf("create guarded workflow run: %w", err)
 	}
 	for _, item := range items {
 		if err := item.Validate(); err != nil {
-			return workflow.RunAdmission{}, fmt.Errorf("create guarded workflow run: %w", err)
+			return workflow.RunAdmission{}, workflow.SlotAdvanceResult{}, fmt.Errorf("create guarded workflow run: %w", err)
 		}
 	}
+	if err := validateSlotAdvance(advance); err != nil {
+		return workflow.RunAdmission{}, workflow.SlotAdvanceResult{}, err
+	}
+	if err := validateSlotAdvanceMatchesItems(advance, items); err != nil {
+		return workflow.RunAdmission{}, workflow.SlotAdvanceResult{}, err
+	}
 	if len(items) == 0 {
-		return workflow.RunAdmission{}, nil
+		// No work item means no transaction on the plain path. A slot-progress
+		// caller still owes the picked slots an advance, or an empty slot is
+		// oldest at every tick and pins the rotation (#9776).
+		result, err := s.advanceSlotsOnly(ctx, advance)
+		return workflow.RunAdmission{}, result, err
 	}
 
 	var lastErr error
 	for attempt := 1; attempt <= workflowGuardedRunCreateMaxAttempts; attempt++ {
-		admission, err := s.createRunWithWorkItemsIfNoOpenTargetsOnce(ctx, run, items)
+		admission, result, err := s.createRunWithWorkItemsIfNoOpenTargetsOnce(ctx, run, items, advance)
 		if err == nil {
-			return admission, nil
+			return admission, result, nil
 		}
 		lastErr = err
 		if !isRetryableWorkflowReconciliationError(err) || attempt >= workflowGuardedRunCreateMaxAttempts {
 			break
 		}
 	}
-	return workflow.RunAdmission{}, lastErr
+	return workflow.RunAdmission{}, workflow.SlotAdvanceResult{}, lastErr
 }
 
 func (s *WorkflowControlStore) createRunWithWorkItemsIfNoOpenTargetsOnce(
 	ctx context.Context,
 	run workflow.Run,
 	items []workflow.WorkItem,
-) (workflow.RunAdmission, error) {
+	advance *workflow.OwnedTargetSlotAdvance,
+) (workflow.RunAdmission, workflow.SlotAdvanceResult, error) {
 	tx, err := s.beginner.Begin(ctx)
 	if err != nil {
-		return workflow.RunAdmission{}, fmt.Errorf("create guarded workflow run: begin transaction: %w", err)
+		return workflow.RunAdmission{}, workflow.SlotAdvanceResult{}, fmt.Errorf("create guarded workflow run: begin transaction: %w", err)
 	}
 	rollback := tx.Rollback
 	defer func() { _ = rollback() }()
@@ -119,32 +144,40 @@ func (s *WorkflowControlStore) createRunWithWorkItemsIfNoOpenTargetsOnce(
 	// TestWorkflowControlStoreGuardedRunTakesPlanningLockBeforeReadingTargets,
 	// which fails if the lock is removed OR merely moved after the read.
 	if err := lockWorkflowOpenTargets(ctx, tx, items); err != nil {
-		return workflow.RunAdmission{}, err
+		return workflow.RunAdmission{}, workflow.SlotAdvanceResult{}, err
 	}
 	terminal, err := s.workflowRunIsTerminal(ctx, tx, run.RunID)
 	if err != nil {
-		return workflow.RunAdmission{}, err
+		return workflow.RunAdmission{}, workflow.SlotAdvanceResult{}, err
 	}
 	if terminal {
+		result, err := advanceOwnedTargetSlots(ctx, tx, advance)
+		if err != nil {
+			return workflow.RunAdmission{}, workflow.SlotAdvanceResult{}, err
+		}
 		if err := tx.Commit(); err != nil {
-			return workflow.RunAdmission{}, fmt.Errorf("create guarded workflow run: commit terminal-run skip: %w", err)
+			return workflow.RunAdmission{}, workflow.SlotAdvanceResult{}, fmt.Errorf("create guarded workflow run: commit terminal-run skip: %w", err)
 		}
 		rollback = func() error { return nil }
-		return workflow.RunAdmission{}, nil
+		return workflow.RunAdmission{}, result, nil
 	}
 	eligible, err := s.workItemsWithoutOpenTargets(ctx, tx, run.RunID, items)
 	if err != nil {
-		return workflow.RunAdmission{}, err
+		return workflow.RunAdmission{}, workflow.SlotAdvanceResult{}, err
 	}
 	if len(eligible) == 0 {
+		result, err := advanceOwnedTargetSlots(ctx, tx, advance)
+		if err != nil {
+			return workflow.RunAdmission{}, workflow.SlotAdvanceResult{}, err
+		}
 		if err := tx.Commit(); err != nil {
-			return workflow.RunAdmission{}, fmt.Errorf("create guarded workflow run: commit skipped transaction: %w", err)
+			return workflow.RunAdmission{}, workflow.SlotAdvanceResult{}, fmt.Errorf("create guarded workflow run: commit skipped transaction: %w", err)
 		}
 		rollback = func() error { return nil }
-		return workflow.RunAdmission{}, nil
+		return workflow.RunAdmission{}, result, nil
 	}
 	if err := s.createRunWithExecutor(ctx, tx, run); err != nil {
-		return workflow.RunAdmission{}, err
+		return workflow.RunAdmission{}, workflow.SlotAdvanceResult{}, err
 	}
 	// Count rows the database accepted alongside the targets the guard admitted.
 	// The INSERT ends in ON CONFLICT DO NOTHING and workflow_work_items carries
@@ -161,15 +194,19 @@ func (s *WorkflowControlStore) createRunWithWorkItemsIfNoOpenTargetsOnce(
 		}
 		batchInserted, err := s.enqueueWorkItemBatchWithExecutor(ctx, tx, eligible[i:end])
 		if err != nil {
-			return workflow.RunAdmission{}, err
+			return workflow.RunAdmission{}, workflow.SlotAdvanceResult{}, err
 		}
 		admission.InsertedWorkItems += batchInserted
 	}
+	result, err := advanceOwnedTargetSlots(ctx, tx, advance)
+	if err != nil {
+		return workflow.RunAdmission{}, workflow.SlotAdvanceResult{}, err
+	}
 	if err := tx.Commit(); err != nil {
-		return workflow.RunAdmission{}, fmt.Errorf("create guarded workflow run: commit transaction: %w", err)
+		return workflow.RunAdmission{}, workflow.SlotAdvanceResult{}, fmt.Errorf("create guarded workflow run: commit transaction: %w", err)
 	}
 	rollback = func() error { return nil }
-	return admission, nil
+	return admission, result, nil
 }
 
 func lockWorkflowOpenTargets(ctx context.Context, executor db.Executor, items []workflow.WorkItem) error {

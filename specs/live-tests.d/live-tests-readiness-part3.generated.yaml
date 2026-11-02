@@ -284,6 +284,11 @@ tests:
     class: postgres_ci
     reason: "#9422 PostgreSQL 18.6 full-bootstrap proof that the owned-package reader's hash-slot window plans every target of a 319-row minority ecosystem within P windows while a 2,000-row majority block grows by one target per window, and that the window stats report T, P, slot and slot_size; #9426 subcase proves the read pays only for active-generation fact rows under eleven superseded generations with output identical to the all-history statement; isolated bootstrap schema"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/owned_target_slot_progress_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9776 PostgreSQL 18.6 full-bootstrap proof that least-recently-planned owned-package slot selection plans every target within one rotation even when a bucket is never read (the clock statement misses that bucket's slot), reproduces the same plan on a repeat reconcile, picks a missing progress row first, survives a P flip, advances empty and failed slots so they cannot pin the head, falls back to the clock slot with no progress write when P exceeds V, advances an oversize head slot but not a partial later slot, and lets exactly one of two concurrent coordinators move a slot while a stale bucket moves nothing; isolated bootstrap schema"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/package_manifest_central_pin_live_test.go
     tag: ~
     class: postgres_ci

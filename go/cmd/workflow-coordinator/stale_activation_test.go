@@ -47,6 +47,9 @@ func (f *staleSkipFakeMetrics) RecordScannerDerivedPage(_ context.Context, _ coo
 func (f *staleSkipFakeMetrics) RecordOwnedTargetRotation(_ context.Context, _ coordinator.OwnedTargetRotationObservation) {
 }
 
+func (f *staleSkipFakeMetrics) RecordOwnedTargetSlotSelection(_ context.Context, _ coordinator.OwnedTargetSlotObservation) {
+}
+
 func writeStaleRegistryHome(t *testing.T) string {
 	t.Helper()
 

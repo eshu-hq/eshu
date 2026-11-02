@@ -419,7 +419,7 @@ reason counts by ecosystem, source-backed Swift package names with slashes are
 encoded into storage-safe `scope_id` values, the coordinator passes active
 owned dependency rows to both planners, and both hosted collector commands parse
 the new derivation config. Planning remains bounded by
-`derive_from_owned_packages.target_limit`; the default remains 100 derived
+`derive_from_owned_packages.target_limit` (and, with the in-tree OSV `slot_progress` flag, selected by persisted least-recently-planned virtual slots, #9776); the default remains 100 derived
 targets, and operators can explicitly raise the cap up to 5000 for full-corpus
 proofs. Package-registry derivation reads package-level identities and defaults
 omitted derived `version_limit` values to one registry version when metadata is
