@@ -61,8 +61,8 @@ recover from partial failure.
 The reducer materializes canonical nodes and edges, gating edge writes behind
 readiness phases so endpoints exist before an edge is merged:
 
-- **NornicDB** — default graph backend for local and deployable service paths
-- **Neo4j** — explicit Bolt-compatible official alternative
+- **Neo4j** — the supported canonical graph backend (decision #7331)
+- **NornicDB** — secondary, not supported for deployment
 - **PostgreSQL** — content store for source text retrieval and full-text search
 
 Direct facts (files, functions, Terraform resources, K8s manifests, images,

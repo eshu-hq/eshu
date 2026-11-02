@@ -92,9 +92,10 @@ start the local MCP surface.
 
 ## NornicDB runtime mode
 
-NornicDB is the default local graph backend. For normal local binary installs,
-there is nothing else to install: `eshu graph start` uses the embedded
-library-mode runtime in the `eshu` process.
+NornicDB is the graph backend an unset `ESHU_GRAPH_BACKEND` selects for local
+binary installs, and there is nothing else to install: `eshu graph start` uses
+the embedded library-mode runtime in the `eshu` process. The supported
+canonical backend for deployed services is Neo4j (decision #7331).
 
 Use an external process only when you are testing a specific NornicDB build:
 

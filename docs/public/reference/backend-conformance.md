@@ -2,10 +2,11 @@
 
 Backend conformance is the gate that keeps graph adapters honest.
 
-Eshu supports two official graph backends today:
+Eshu reads two graph backends today:
 
-- NornicDB, the default backend
-- Neo4j, the official alternative backend
+- Neo4j, the supported canonical backend (decision #7331)
+- NornicDB, secondary and not supported for deployment; it is what an unset
+  `ESHU_GRAPH_BACKEND` selects for the local CLI processes
 
 Both backends serve the same user-facing API and MCP capabilities. They do not
 get to be called supported just because they accept Cypher. They have to pass
@@ -202,7 +203,7 @@ default into the other backend unless a same-shape proof supports it.
 
 ## Promotion Rule
 
-NornicDB remains the default. Neo4j is the official alternative when it passes
-the same matrices, live corpus, profile gates, and schema-first performance
-evidence. Keep `eshu-bootstrap-data-plane` complete before every
+Neo4j is the supported canonical graph backend and the merge-gate reference;
+NornicDB is secondary and not supported for deployment (decision #7331).
+Keep `eshu-bootstrap-data-plane` complete before every
 production-profile graph timing.

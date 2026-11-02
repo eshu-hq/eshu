@@ -75,8 +75,9 @@ an AuraDB instance.
 eshu neo4j setup
 ```
 
-The default graph backend is NornicDB. Use Neo4j only when you are intentionally
-testing that compatibility path.
+An unset `ESHU_GRAPH_BACKEND` selects the embedded NornicDB runtime for the CLI
+processes. The supported canonical graph backend for deployed services is
+Neo4j (decision #7331).
 
 ## `eshu config`
 

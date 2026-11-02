@@ -62,7 +62,11 @@ families, Secrets excluded, no wildcards, no `cluster-admin`.
 ## Resource set (core, foundation)
 
 namespaces, pods, deployments, replicasets, services, ingresses — listed with
-bounded pagination (`Limit` + `Continue`).
+bounded pagination (`Limit` + `Continue`). Later expansion added statefulsets,
+daemonsets, jobs, and cronjobs to the same read-only set (see
+`go/internal/collector/kuberneteslive/clientgo/client_workload_kinds.go`); the
+identity lane adds ServiceAccounts, Roles, ClusterRoles, RoleBindings, and
+ClusterRoleBindings.
 
 ## Cluster targeting
 

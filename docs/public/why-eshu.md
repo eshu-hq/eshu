@@ -70,8 +70,8 @@ label that boundary instead of pretending every answer is exact. See
 - collectors observe source truth and emit versioned facts
 - Postgres stores facts, queues, content, status, and recovery state
 - reducers admit evidence, correlate it, and materialize graph truth
-- NornicDB is the default graph backend; Neo4j is compatibility-only behind the
-  same ports
+- Neo4j is the supported canonical graph backend; NornicDB is secondary and
+  not supported for deployment (decision #7331)
 - handlers and MCP tools read through bounded query contracts
 
 Backends are supported only when they satisfy Eshu's capability contract for the
