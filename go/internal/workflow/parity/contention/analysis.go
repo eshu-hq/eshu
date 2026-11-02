@@ -70,6 +70,9 @@ func (r *runner) analyzeItems(ctx context.Context, report *Report) {
 	if err == nil && int64(snap.ItemTotal) < report.Created {
 		r.abort(violation(TriggerLostItem, "after the run %d synthetic items exist, %d created", snap.ItemTotal, report.Created))
 	}
+	if err == nil && snap.ItemTotal > r.maxItems {
+		r.abort(violation(TriggerQueueDepth, "after the run %d synthetic items exist, cap %d", snap.ItemTotal, r.maxItems))
+	}
 	if bad, err := r.leg.Observer.FencingViolations(ctx); err == nil && len(bad) > 0 {
 		r.abort(violation(TriggerFencingRegression, "final fencing check: %v", bad))
 	}

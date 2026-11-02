@@ -38,6 +38,7 @@ type runner struct {
 	violation *Violation
 
 	created      atomic.Int64
+	maxItems     int
 	quotaHeldMax int
 	zombiesMu    sync.Mutex
 	zombies      []*zombie
@@ -64,7 +65,12 @@ func Run(ctx context.Context, spec Spec, leg Leg, opt Options) (*Report, error) 
 		rec:       newRecorder(),
 		drainDone: make(chan struct{}),
 	}
+	// Every write goes through the guard: synthetic ids only, this
+	// harness's own instance only, no global routes.
+	r.leg.Backend = newGuardedBackend(leg.Backend, leg.HarnessReaper, r.abort)
+	r.maxItems = r.plannedItems()
 	report := newReport(spec, leg, opt)
+	report.MaxItems = r.maxItems
 	capCtx, capCancel := context.WithTimeout(ctx, spec.WallClockCap)
 	defer capCancel()
 	r.workCtx, r.cancel = context.WithCancel(capCtx)
@@ -155,6 +161,20 @@ func (r *runner) execute(report *Report) error {
 	close(stopBG)
 	bg.Wait()
 	return nil
+}
+
+// plannedItems is the queue-depth cap: the backlog, the quota workload, and
+// at most one admitted advisory round per interval (plus one for timer
+// slack). The sampler aborts when synthetic rows exceed it.
+func (r *runner) plannedItems() int {
+	n := r.spec.BacklogItems
+	if r.leg.Quota && r.spec.QuotaBudget > 0 {
+		n += r.spec.QuotaBudget + max(2, r.spec.QuotaBudget/2) + r.spec.QuotaBudget - 1
+	}
+	if r.leg.Advisory && r.opt.AdvisoryInterval > 0 {
+		n += (int(r.spec.Window/r.opt.AdvisoryInterval) + 1) * r.opt.AdvisoryItems
+	}
+	return n
 }
 
 // waitForStats waits, read-only, until workflow_work_items was analyzed

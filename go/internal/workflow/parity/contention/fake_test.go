@@ -27,6 +27,7 @@ type faults struct {
 	terminalTwice  int  // the n-th grant's item also gets a phantom completed claim row
 	dbDualAt       int  // the n-th grant's item also gets a second active claim row the client never sees
 	staleBeatOK    bool // only stale heartbeats succeed (no state change the database detectors see)
+	growAt         int  // the n-th grant makes the server insert 50 unplanned synthetic items
 }
 
 type fakeItem struct {
@@ -188,6 +189,12 @@ func (l *fakeLeg) ClaimNextEligible(_ context.Context, sel workflow.ClaimSelecto
 				id:   sel.ClaimID + "-phantom-" + phantom,
 				item: pick.item.WorkItemID, owner: sel.OwnerID, token: -int64(n), status: "completed",
 			}
+		}
+	}
+	if l.f.growAt > 0 && l.grants == l.f.growAt {
+		for n := range 50 {
+			id := fmt.Sprintf("%sphantom-%d", Prefix, n)
+			l.items[id] = &fakeItem{item: workflow.WorkItem{WorkItemID: id, Status: workflow.WorkItemStatusCompleted}}
 		}
 	}
 	if l.f.dbDualAt > 0 && l.grants == l.f.dbDualAt {

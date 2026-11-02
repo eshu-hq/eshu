@@ -29,6 +29,9 @@ const (
 	TriggerHeadroom          Trigger = "pg_headroom"
 	TriggerWallClock         Trigger = "wall_clock_cap"
 	TriggerExternal          Trigger = "external_abort"
+	// TriggerQueueDepth fires when synthetic rows exceed the planned
+	// maximum: the run never grows the queue past what it seeded.
+	TriggerQueueDepth Trigger = "queue_depth_cap"
 )
 
 // Violation is one detected abort condition.

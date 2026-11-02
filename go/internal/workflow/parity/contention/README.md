@@ -85,59 +85,76 @@ See `AGENTS.md`. The ones that bite:
 | §8 reversal | `run.go` `reverse`; `sqlobserver.go` `DeletePrefixed` |
 | §9 evidence | `report.go` |
 
-## Readings of the spec
+## What a pass proves and does not prove
 
-Each reading below is the harness's interpretation. The arbiter reads it with
-the evidence.
+A clean seed proves this much. The claim plane under test, at one digest and
+at the recorded W and backlog, held the §6 criteria for the steps that apply
+to its leg. Those criteria are exactly-once, fencing monotonicity,
+stale-fence rejection, reclaim, replay acks, starvation bound, no overshoot,
+zero deadlocks, zero loss, drain, and three-zero residue. The live leg also
+proves the core server stayed inside pg_headroom while it ran.
 
-- **Planner statistics.** After seeding, the harness waits (read only,
-  bounded by `Options.StatsWait`, default 5m) until autovacuum has analyzed
-  `workflow_work_items`. Without statistics the in-tree claim statement
+It does not prove:
+
+- **The cross-service commit fence.** Core does not consume the commit pin
+  on `origin/main` (`PLANE_DECLARATION_9376.md` §4). The pin step proves the
+  satellite route's single-holder and stale rejection only, not
+  generation-level fencing.
+- **Behavior of real collectors.** The claimers are harness goroutines with
+  a synthetic instance, synthetic items, and no fact emission or commits.
+  No real collector claims a harness item.
+- **Throughput.** The live leg runs through `kubectl port-forward` from the
+  drive host, and the local satellite leg runs an emulated amd64 image. The
+  hop and the emulator distort latency, so no throughput or latency bar can
+  be derived from either. The live leg yields correctness and headroom only.
+  The binding throughput comparison is `REMOVAL_PREP.md` §4.
+- **Authority.** A pass moves no authority, and a new digest voids it (spec
+  §10).
+
+## Spec readings
+
+Each row interprets one spec sentence. `SpecReadings()` in `readings.go`
+holds the same list, and every report carries it under `spec_readings`, so
+the arbiter can accept or reject each reading at the live-run review. Line
+numbers refer to `REMOVAL_CONTENTION_SPEC.md` on this branch.
+
+| ID | Spec | Reading |
+| --- | --- | --- |
+| `workers` | §5 step 1, line 145 | W = `WORKER_COUNTS` x `WORKER_MULTIPLE`. Each worker is one claim loop with its own owner id and one claim at a time, the production shape. |
+| `quota_held` | §5 step 5, line 153; §6, line 188 | `no_overshoot` passes when no (kind, scope, hour) bucket is above budget and one reached it. Held items are informational and excluded from drain; a new hour bucket may drain them. |
+| `pin` | §5 step 7, lines 158-160 | Pin before complete. A short pin outlived while the lease lives must still complete. Half the abandoned claims are pinned past their lease, and the reaper must wait. Stale pins join step 9. |
+| `replay` | §5 step 8, line 161 | "Terminal" means Complete and FailTerminal. The first call gets a 1 ms deadline, then one replay must ack. Release and FailRetryable are not replayed. |
+| `stale_writers` | §5 step 9, line 163 | One write with the old token after the item is re-granted at a higher token. Success aborts; a non-rejection code fails. |
+| `reclaim` | §6, line 181 | `finished_at` of the expired claim minus the later of `lease_expires_at` and the pin, against `reap_interval` + the longest reap pass + 1 s + skew. The requeue delay is not in the bound. |
+| `starvation` | §6, line 186 | Longest ClaimNext call under the bound, and every backlog scope granted inside the window. Enqueue-to-claim wait is not judged. |
+| `drain` | §6, line 195 | After the window, workers claim and complete the rest until only quota-held items are non-terminal, no claim is live, and every stale writer fired. |
+| `planner_statistics` | §2 `backlog_items`, line 84 | Wait read-only (default 5m) for autovacuum to analyze `workflow_work_items` after seeding; `stats_ready=false` records a cold-statistics window. |
+| `lock_waiters` | §2 `pg_headroom`, line 89 | Live counts lock waiters on core's database only. Locally the ceiling sits above the 25 advisory goroutines plus W. |
+
+Supporting measurements:
+
+- **Planner statistics.** Without statistics, the in-tree claim statement
   picks `workflow_work_items_family_queue_depth_idx` with a row estimate of
   1. It then scans 49,750 rows in each of 200 loops: 18.7 s per claim at
   100,000 items, against 7.8-12 ms after `ANALYZE` (local shim, Postgres
-  18.6). Production tables carry statistics, so the window starts from that
-  state. The report records `stats_wait_seconds` and `stats_ready`. A run
-  whose bound expired measured cold statistics, and says so.
-- **Workers.** W = `WORKER_COUNTS` x `WORKER_MULTIPLE` (1 or 2). Each worker
-  is one claim loop with its own owner id, one claim at a time: the
-  production shape (one claim loop per collector Deployment).
-- **Drain.** After the window, the chaos mix stops. Workers then claim and
-  complete the rest of the backlog until every non-quota item is terminal,
-  no claim is live, and every armed stale writer has fired.
-- **Reclaim.** The reclaim time is the reap time (`finished_at` on the
-  expired claim row) minus the later of `lease_expires_at` and the commit
-  pin. The bound is `reap_interval` + the longest measured reap pass + 1 s +
-  clock skew. The requeue delay (5 s) applies after the reap, so it is not
-  part of this bound.
-- **Starvation.** The longest ClaimNext call, issued or idle, must stay under
-  `starvation_bound_seconds`, and every backlog scope must get a grant
-  inside the window. With a 100,000-item backlog, the wait from enqueue to
-  first claim is minutes by construction. The report does not judge it.
-- **Replay.** A seeded share of Complete and FailTerminal calls get a 1 ms
-  injected timeout, then one replay on a fresh deadline. The replay must ack
-  whether or not the first attempt applied. Release and FailRetryable are
-  not replayed: a replay after another worker re-claims the item is rightly
-  rejected, and that case belongs to step 9.
-- **Pin.** The satellite leg pins a seeded share before completing (expect
-  ok). A short pin whose deadline passes while the lease lives must still
-  complete. Half of the abandoned claims are pinned past their lease, and
-  the reaper must wait for the pin (`reaped_before_pin_deadline` stays empty).
-  Stale pins rotate into the step-9 writes.
-- **Stale writers.** An abandoned claim's worker writes once with the old
-  token (heartbeat, complete, fail_terminal, or pin) after the tracker sees
-  the item re-granted at a higher token. The write must return the fence
-  rejection. A success aborts, and a generic error fails the criterion.
-- **Quota.** Budget is per (kind, scope, hour) on both legs
-  (`component_quota_windows`). `no_overshoot` passes when no bucket row is
-  above budget and at least one reached it (the reservation path ran under
-  overload). If the run crosses an hour boundary, a new bucket opens, and
-  the held items may drain legitimately. `quota_held_items` is informational.
-- **Lock waiters.** A local in-tree advisory round puts up to 24 sessions
-  on `pg_advisory_xact_lock` by design. Set the local
-  `PG_MAX_LOCK_WAITERS` above the advisory goroutines plus W (40). On the
-  live leg, `ESHU_CONTENTION_PG_LOCK_DATABASE=eshu` counts waiters on core's
-  database only, against the DP-A ceiling of 5.
+  18.6).
+- **Workers in practice.** At W=3 and the default mix, the window runs about
+  5 claims/s. The 2% long holds of 30 s dominate, and the drain then runs at
+  about 140 items/s locally.
+
+## Write guard and abort independence
+
+`Run` wraps the leg backend in a guard (`guard.go`). It refuses, before the
+backend sees it, any write that names a non-synthetic id or a collector
+instance other than `InstanceID`, or that calls a global route. A refusal
+aborts with `non_synthetic_id_touched`. Every §7 trigger is enforced in code:
+dual claim, fencing regression, lost item, non-synthetic id, exactly-once,
+stale write accepted, queue-depth cap, deadlock, lock wait, pg_headroom
+(exporter ceilings), wall-clock cap, and residue. None depends on the abort
+file. The abort file and SIGINT exist only for signals the harness cannot
+read itself: container CPU and memory, mode drift, and restarts. The
+queue-depth cap (`queue_depth_cap` in the report) is the backlog, plus the
+quota workload, plus one advisory round per interval.
 
 ## Abort triggers and their two detectors
 
@@ -146,12 +163,13 @@ the evidence.
 | `dual_claim` | grant landed while an earlier epoch was provably held (abandoned, ended only later, or its holder's own write fenced away inside its live lease) | item with two `active` claim rows |
 | `fencing_regression` | duplicate token, or a token not above one already returned | claim token above the item's current token, or a duplicate token |
 | `lost_item` | client-acked terminal that is not terminal in the database | fewer synthetic rows than created |
-| `non_synthetic_id_touched` | grant or reaped claim without the prefix; dry claim issued | non-synthetic census changed against the baseline |
+| `non_synthetic_id_touched` | guard refused a write; grant or reaped claim without the prefix; dry claim issued | non-synthetic census changed against the baseline |
 | `exactly_once` | grant after a terminal ack; two terminal acks | item with two terminal claim rows |
 | `stale_write_accepted` | a superseded-token write succeeded | — |
 | `deadlock_detected`, `lock_wait_above_bound`, `pg_headroom` | SQLSTATE 40P01 on any call | headroom sample against the ceilings |
 | `wall_clock_cap`, `external_abort` | cap context | abort file present |
 | `residue_nonzero` | — | baseline already prefixed; any zero broken after cleanup |
+| `queue_depth_cap` | — | more synthetic rows than the run planned |
 
 ## Environment
 

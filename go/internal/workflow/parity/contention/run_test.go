@@ -109,6 +109,7 @@ func TestRunAbortsOnSeededViolations(t *testing.T) {
 		// one detector, so each detector has its own RED case.
 		{"server-side dual claim", faults{dbDualAt: 20}, []Trigger{TriggerDualClaim}},
 		{"stale heartbeat accepted", faults{staleBeatOK: true}, []Trigger{TriggerStaleWriteAccept}},
+		{"queue grows past plan", faults{growAt: 20}, []Trigger{TriggerQueueDepth}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

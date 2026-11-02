@@ -93,6 +93,7 @@ type Report struct {
 	Mix                Mix                       `json:"mix"`
 	Phases             Phases                    `json:"phases"`
 	Created            int64                     `json:"created_items"`
+	MaxItems           int                       `json:"queue_depth_cap"`
 	Terminal           int                       `json:"terminal_acked_items"`
 	QuotaHeld          int                       `json:"quota_held_items"`
 	OpsTotal           int                       `json:"ops_total"`
@@ -118,6 +119,7 @@ type Report struct {
 	Deleted            map[string]int            `json:"deleted_rows"`
 	Residue            Residue                   `json:"residue"`
 	NotApplicable      map[string]string         `json:"not_applicable"`
+	SpecReadings       []SpecReading             `json:"spec_readings"`
 	Criteria           map[string]Criterion      `json:"criteria"`
 	Abort              *Violation                `json:"abort,omitempty"`
 	Verdict            string                    `json:"verdict"`
@@ -141,7 +143,7 @@ func newReport(spec Spec, leg Leg, opt Options) *Report {
 		Workers: spec.Workers(), WorkerMultiple: spec.WorkerMultiple, FullSize: spec.FullSize(),
 		Mix: opt.Mix, DatabaseName: leg.DatabaseName, ServerLatency: leg.ServerLatency,
 		NotApplicable: map[string]string{}, Criteria: map[string]Criterion{},
-		IntreeDatabaseName: NotApplicable,
+		IntreeDatabaseName: NotApplicable, SpecReadings: SpecReadings(),
 	}
 	if leg.Name == "in-tree" {
 		r.IntreeDatabaseName = leg.DatabaseName

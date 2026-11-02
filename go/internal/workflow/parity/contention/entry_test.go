@@ -29,21 +29,23 @@ import (
 
 // Leg wiring environment, beyond the §2 fields in spec.go.
 const (
-	envInTreeDSN        = "PARITY_INTREE_DSN"
-	envInTreeOptIn      = "PARITY_INTREE_DISPOSABLE"
-	envSatelliteURL     = "ESHU_CONTENTION_SATELLITE_URL"
-	envSatelliteDSN     = "ESHU_CONTENTION_SATELLITE_DSN"
-	envSatelliteDB      = "ESHU_CONTENTION_SATELLITE_DATABASE"
-	envSatelliteQuotas  = "ESHU_CONTENTION_SATELLITE_QUOTAS"
-	envExporterURL      = "ESHU_CONTENTION_PG_EXPORTER_URL"
-	envLockDatabase     = "ESHU_CONTENTION_PG_LOCK_DATABASE"
-	envCoreDSN          = "ESHU_CONTENTION_CORE_DSN"
-	envReportDir        = "ESHU_CONTENTION_REPORT_DIR"
-	envAbortFile        = "ESHU_CONTENTION_ABORT_FILE"
-	envClockSkew        = "ESHU_CONTENTION_CLOCK_SKEW"
-	envSamplerDisabled  = "ESHU_CONTENTION_SAMPLER_DISABLED"
-	envSampleInterval   = "ESHU_CONTENTION_SAMPLE_INTERVAL"
-	satelliteNoLatency  = "NOT_AVAILABLE: claim-plane v0.1.1 exports no latency histogram (counters only)"
+	envInTreeDSN       = "PARITY_INTREE_DSN"
+	envInTreeOptIn     = "PARITY_INTREE_DISPOSABLE"
+	envSatelliteURL    = "ESHU_CONTENTION_SATELLITE_URL"
+	envSatelliteDSN    = "ESHU_CONTENTION_SATELLITE_DSN"
+	envSatelliteDB     = "ESHU_CONTENTION_SATELLITE_DATABASE"
+	envSatelliteQuotas = "ESHU_CONTENTION_SATELLITE_QUOTAS"
+	envExporterURL     = "ESHU_CONTENTION_PG_EXPORTER_URL"
+	envLockDatabase    = "ESHU_CONTENTION_PG_LOCK_DATABASE"
+	envCoreDSN         = "ESHU_CONTENTION_CORE_DSN"
+	envReportDir       = "ESHU_CONTENTION_REPORT_DIR"
+	envAbortFile       = "ESHU_CONTENTION_ABORT_FILE"
+	envClockSkew       = "ESHU_CONTENTION_CLOCK_SKEW"
+	envSamplerDisabled = "ESHU_CONTENTION_SAMPLER_DISABLED"
+	envSampleInterval  = "ESHU_CONTENTION_SAMPLE_INTERVAL"
+	satelliteNoLatency = "NOT_AVAILABLE: claim-plane v0.1.1 (8311ed6) internal/telemetry registers only workflow_claim_grants_total, " +
+		"workflow_claim_mutations_total, workflow_commit_pins_total, workflow_claim_reaps_total, workflow_claim_degraded_total (counters) " +
+		"and workflow_queue_depth (gauge); no latency histogram exists"
 	inTreeServerLatency = "in-process WorkflowControlStore call: server side equals client side on this leg"
 )
 

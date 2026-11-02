@@ -109,6 +109,9 @@ func (r *runner) sampleOnce(tick int, baseline Census, deadlockBase float64) *Vi
 	if int64(snap.ItemTotal) < created {
 		return violation(TriggerLostItem, "sampled %d synthetic items, %d created", snap.ItemTotal, created)
 	}
+	if snap.ItemTotal > r.maxItems {
+		return violation(TriggerQueueDepth, "sampled %d synthetic items, cap %d", snap.ItemTotal, r.maxItems)
+	}
 	if tick%r.opt.FencingEvery == 0 {
 		bad, err := r.leg.Observer.FencingViolations(ctx)
 		if err != nil {
