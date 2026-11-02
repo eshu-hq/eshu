@@ -36,7 +36,7 @@ gates:
     name: Alpine apk floors match the repository
     category: exactness
     layer: contract
-    purpose: "Fails when an apk add version floor in the Dockerfile's final stage is below the version the Alpine repository serves."
+    purpose: "Fails when a Dockerfile final-stage apk floor is below the lowest version served across built arches; splits print SPLIT but stay green."
     tier: pre-pr
     blocking: true
     # Path-triggered only: the Dockerfile, the publish workflow, and the

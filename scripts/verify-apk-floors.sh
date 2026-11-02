@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 # verify-apk-floors.sh - fails when an `apk add "pkg>=version"` floor in the
-# Dockerfile's final stage is older than the version the Alpine repository
-# currently serves (#7571).
+# Dockerfile's final stage is older than the lowest version the Alpine
+# repository currently serves across the built arches (#7571). When arches
+# serve different versions, the minimum governs: apk installs each arch's
+# own newest, so a floor above any arch's newest would break that arch's
+# build. A split prints a SPLIT note but stays green; reunification at a
+# higher version turns the gate red again to prompt the bump.
 #
 # Why: the published image once shipped libssl3/libcrypto3 3.3.7-r1 although
 # the repository already served 3.3.7-r2, because a reused layer-cache entry
@@ -196,30 +200,65 @@ for arch in ${arches}; do
 		cat "${index}" >>"${work}/served.${arch}"
 		printf '\n' >>"${work}/served.${arch}"
 	done
+done
 
-	while read -r pkg floor; do
-		[[ -n "$(version_parts "${floor}")" ]] ||
-			die "floor '${pkg}>=${floor}' is not of the form N(.N)*[-rN]"
+# A floor guards every built arch, and apk installs each arch's own newest
+# served version. A floor is therefore stale only when it is below the
+# lowest version served across arches: a floor above any arch's newest
+# breaks that arch's image build, so under a split repository no single
+# floor satisfies both sides except the minimum. A split is reported but
+# non-blocking.
+while read -r pkg floor; do
+	[[ -n "$(version_parts "${floor}")" ]] ||
+		die "floor '${pkg}>=${floor}' is not of the form N(.N)*[-rN]"
+	arch_maxes=()
+	arch_names=()
+	for arch in ${arches}; do
 		versions="$(served_versions "${work}/served.${arch}" "${pkg}")"
 		[[ -n "${versions}" ]] ||
 			die "package '${pkg}' is not listed in ${branch} (${repos}) for ${arch}"
+		arch_max=""
 		while read -r served; do
 			[[ -n "$(version_parts "${served}")" ]] ||
 				die "${branch}/${arch} serves '${pkg}' at '${served}', which is not of the form N(.N)*-rN"
-			checked=$((checked + 1))
-			case "$(version_cmp "${floor}" "${served}")" in
-				-1)
-					stale=$((stale + 1))
-					printf 'FAIL %s %s: floor %s is below the %s served by the repository\n' \
-						"${arch}" "${pkg}" "${floor}" "${served}" >&2
-					;;
-				0) printf 'ok   %s %s: floor %s equals the served version\n' "${arch}" "${pkg}" "${floor}" ;;
-				1) printf 'note %s %s: floor %s is above the served %s; the image build itself fails closed\n' \
-					"${arch}" "${pkg}" "${floor}" "${served}" ;;
-			esac
+			if [[ -z "${arch_max}" ]] || [[ "$(version_cmp "${served}" "${arch_max}")" == "1" ]]; then
+				arch_max="${served}"
+			fi
 		done <<<"${versions}"
-	done <"${work}/floors.txt"
-done
+		arch_maxes+=("${arch_max}")
+		arch_names+=("${arch}")
+	done
+	(( ${#arch_maxes[@]} > 0 )) || die "no architectures to compare"
+	floor_min="${arch_maxes[0]}"
+	min_arch="${arch_names[0]}"
+	detail="${arch_names[0]} serves ${arch_maxes[0]}"
+	split=0
+	for ((i = 1; i < ${#arch_maxes[@]}; i++)); do
+		detail="${detail}, ${arch_names[$i]} serves ${arch_maxes[$i]}"
+		if [[ "$(version_cmp "${arch_maxes[$i]}" "${floor_min}")" == "-1" ]]; then
+			floor_min="${arch_maxes[$i]}"
+			min_arch="${arch_names[$i]}"
+		fi
+		if [[ "$(version_cmp "${arch_maxes[$i]}" "${arch_maxes[0]}")" != "0" ]]; then
+			split=1
+		fi
+	done
+	checked=$((checked + ${#arch_maxes[@]}))
+	if ((split == 1)); then
+		printf 'SPLIT %s: floor %s governs the lowest-served arch (%s)\n' \
+			"${pkg}" "${floor}" "${detail}"
+	fi
+	case "$(version_cmp "${floor}" "${floor_min}")" in
+		-1)
+			stale=$((stale + 1))
+			printf 'FAIL %s %s: floor %s is below the %s served by the repository (lowest across arches)\n' \
+				"${min_arch}" "${pkg}" "${floor}" "${floor_min}" >&2
+			;;
+		0) printf 'ok   %s %s: floor %s equals the served version\n' "${min_arch}" "${pkg}" "${floor}" ;;
+		1) printf 'note %s %s: floor %s is above the lowest served %s; the image build itself fails closed\n' \
+			"${min_arch}" "${pkg}" "${floor}" "${floor_min}" ;;
+	esac
+done <"${work}/floors.txt"
 
 ((checked > 0)) || die "no floor was compared; refusing to pass"
 

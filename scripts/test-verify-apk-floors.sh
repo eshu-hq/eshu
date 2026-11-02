@@ -51,6 +51,11 @@ make_mirror() {
 				where=main
 				if [[ "${ver}" == *@* ]]; then where="${ver#*@}"; ver="${ver%%@*}"; fi
 				[[ "${where}" == "${repo}" ]] || continue
+				# A ^arch suffix pins the record to one arch, modelling a
+				# cross-arch version split in the served index.
+				forarch="${ver##*^}"
+				if [[ "${ver}" == *^* ]]; then ver="${ver%%^*}"; else forarch="${arch}"; fi
+				[[ "${forarch}" == "${arch}" ]] || continue
 				printf 'C:Q1x\nP:%s\nV:%s\nA:%s\n\n' "${pkg}" "${ver}" "${arch}" >>"${stage}/APKINDEX"
 			done
 			tar -czf "${dir}/${branch}/${repo}/${arch}/APKINDEX.tar.gz" -C "${stage}" APKINDEX
@@ -104,7 +109,14 @@ make_mirror "${mirror}" v3.21 "c-ares=1.34.8-r0" "libexpat=2.8.4-r0" \
 run_verifier "${red_dockerfile}" "${mirror}"
 expect_rc 1 "RED: r1 floors fail against a repository serving r2"
 expect_output "FAIL x86_64 libssl3: floor 3.3.7-r1 is below the 3.3.7-r2" "RED names the stale package and both versions"
-expect_output "FAIL aarch64 libcrypto3" "RED checks every arch"
+expect_output "FAIL x86_64 libcrypto3" "RED names the lowest-served arch"
+# The FAIL names whichever arch serves the minimum, not always the first.
+mirror="${tmp_root}/red-min-aarch"
+make_mirror "${mirror}" v3.21 "foo=1.1-r0^x86_64" "foo=1.0-r0^aarch64"
+printf 'FROM alpine:3.21\nRUN apk add --no-cache "foo>=0.9-r0"\n' >"${tmp_root}/minarch.Dockerfile"
+run_verifier "${tmp_root}/minarch.Dockerfile" "${mirror}"
+expect_rc 1 "floor below both arches fails"
+expect_output "FAIL aarch64 foo: floor 0.9-r0 is below the 1.0-r0" "the FAIL names the minimum arch (aarch64)"
 
 # --- GREEN: the repository Dockerfile against its own floors. --------------
 specs=()
@@ -152,6 +164,30 @@ mirror="${tmp_root}/rev"
 make_mirror "${mirror}" v3.21 "foo=1.0-r10"
 run_verifier "${tmp_root}/rev.Dockerfile" "${mirror}"
 expect_rc 1 "two-digit revision: served r10 is newer than floor r2"
+
+# Cross-arch split: the floor only needs to satisfy the lowest-served
+# arch, since apk installs each arch's own newest. A floor at the minimum is
+# current (the split is reported but non-blocking); a floor below the minimum
+# is stale even when it satisfies one arch.
+printf 'FROM alpine:3.21\nRUN apk add --no-cache "foo>=1.0-r0"\n' >"${tmp_root}/split.Dockerfile"
+mirror="${tmp_root}/split-at-min"
+make_mirror "${mirror}" v3.21 "foo=1.0-r0^x86_64" "foo=1.1-r0^aarch64"
+run_verifier "${tmp_root}/split.Dockerfile" "${mirror}"
+expect_rc 0 "split with floor at the minimum passes"
+expect_output "SPLIT" "the split is reported"
+printf 'FROM alpine:3.21\nRUN apk add --no-cache "foo>=0.9-r0"\n' >"${tmp_root}/splitlow.Dockerfile"
+mirror="${tmp_root}/split-below-min"
+make_mirror "${mirror}" v3.21 "foo=1.0-r0^x86_64" "foo=1.1-r0^aarch64"
+run_verifier "${tmp_root}/splitlow.Dockerfile" "${mirror}"
+expect_rc 1 "split with floor below the minimum fails"
+mirror="${tmp_root}/split-reversed"
+make_mirror "${mirror}" v3.21 "foo=1.1-r0^x86_64" "foo=1.0-r0^aarch64"
+run_verifier "${tmp_root}/split.Dockerfile" "${mirror}"
+expect_rc 0 "reversed split with floor at the minimum passes"
+mirror="${tmp_root}/reunified"
+make_mirror "${mirror}" v3.21 "foo=1.1-r0"
+run_verifier "${tmp_root}/split.Dockerfile" "${mirror}"
+expect_rc 1 "reunified higher version with old floor fails (bump still triggers)"
 
 # Several records of one package: the highest served version is what counts,
 # whichever order the index lists them in.
