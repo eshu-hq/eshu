@@ -6,8 +6,9 @@ Read first: `README.md`, `select.go`, `url.go`, and
 ## Invariants
 
 - Unset or blank `ESHU_WORKFLOW_CLAIM_PLANE_URL` returns the injected Postgres
-  store unchanged. Do not wrap it, decorate it, or build a second one: every
-  existing deployment depends on that path being identical.
+  store unchanged. Do not wrap it, decorate it, or build a second one: the
+  claim path must stay unchanged (pointer identity asserted). The only
+  additions are one startup log and one counter tick.
 - Never fall back from the claim plane to Postgres, on any error. A silent
   fallback would split claim authority across two databases.
 - Never echo the raw URL in an error or log. It may carry a credential the

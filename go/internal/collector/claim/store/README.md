@@ -31,12 +31,15 @@ See `doc.go`. The surface is `New`, `Options`, `Selection`, `Backend` with
 
 ## Behavior
 
-- Unset or blank: `New` returns `Options.Postgres` unchanged.
+- Unset or blank: `New` returns `Options.Postgres` unchanged, so the claim
+  path is unchanged (pointer identity asserted). It adds one startup log and
+  one counter tick.
 - Valid URL: `http` or `https`, a host, and an empty or `/` path. `New` returns
   a `workflow.ClaimPlaneClient` with a `RequestTimeout` (10 s) HTTP client.
   There is no client retry and no fallback to Postgres.
-- Invalid URL: user info, query, fragment, path, or another scheme stops
-  startup. The error names the variable and never echoes the raw value.
+- Invalid URL: user info, query, fragment, path, another scheme, a host that
+  is not printable ASCII (whitespace included), or a port outside 1-65535
+  stops startup. The error names the variable and never echoes the raw value.
 - `Options.CoreOnlyReason` set and the variable set: startup stops with
   `ErrClaimPlaneUnsupported` and the reason.
 
@@ -57,7 +60,8 @@ See [Workflow Claim Store Signals](../../../../../docs/public/reference/telemetr
 
 ## Performance and concurrency
 
-Unset: no new work; the injected store is returned as is. Claim-plane mode
+Unset: no new work on the claim path; the injected store is returned as is,
+with one startup log and one counter tick. Claim-plane mode
 replaces one SQL round trip per claim operation with one HTTP round trip. The
 client holds no mutable state after construction and `http.Client` is safe for
 concurrent use, so the store is shared across a collector's workers exactly

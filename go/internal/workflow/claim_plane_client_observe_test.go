@@ -170,6 +170,39 @@ func TestClaimPlaneClientObserveReportsTransportError(t *testing.T) {
 	}
 }
 
+// TestClaimPlaneClientObserveReportsCanceled proves a request cut short by
+// the caller's context cancellation (a SIGTERM during a rollout) reports
+// canceled, not transport_error, so a rollout does not look like an
+// unreachable claim plane on the outage dashboard.
+func TestClaimPlaneClientObserveReportsCanceled(t *testing.T) {
+	t.Parallel()
+	release := make(chan struct{})
+	arrived := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		close(arrived)
+		select {
+		case <-release:
+		case <-request.Context().Done():
+		}
+	}))
+	defer server.Close()
+	defer close(release)
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		<-arrived
+		cancel()
+	}()
+	log := &observationLog{}
+	client := NewClaimPlaneClient(server.URL, server.Client())
+	client.Observe = log.observe
+	if err := client.HeartbeatClaim(ctx, ClaimMutation{}); err == nil {
+		t.Fatal("HeartbeatClaim error = nil, want cancellation")
+	}
+	if got := log.only(t); got.outcome != ClaimPlaneOutcomeCanceled {
+		t.Fatalf("outcome = %s, want %s", got.outcome, ClaimPlaneOutcomeCanceled)
+	}
+}
+
 func TestClaimPlaneClientWithoutObserveStillServes(t *testing.T) {
 	t.Parallel()
 	server := httptest.NewServer(respondWith(http.StatusOK, `{"ok":true}`))

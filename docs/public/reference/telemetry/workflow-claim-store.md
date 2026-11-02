@@ -49,6 +49,7 @@ from this closed set:
 | `invalid` | `invalid` or `version_mismatch` envelope. Check the protocol version on both sides. |
 | `server_error` | Any other non-200 response, including a proxy page that is not a protocol envelope. |
 | `timeout` | The 10 s client timeout or the caller's deadline expired. |
+| `canceled` | The caller's context was canceled first, for example by SIGTERM during a rollout. Not a claim-plane fault. |
 | `transport_error` | Connection refused, reset, or DNS failure. |
 | `decode_error` | 200 response whose body did not match the operation's shape. |
 | `request_error` | The client could not build the request. Nothing reached the network. |
@@ -56,7 +57,8 @@ from this closed set:
 ## Reading an outage
 
 A rising `timeout` or `transport_error` rate on `ClaimNext` means the claim
-plane is slow or unreachable. The collector exits on a failed `ClaimNext`, and
+plane is slow or unreachable. A rollout shows up as `canceled`, not
+`transport_error`. The collector exits on a failed `ClaimNext`, and
 the orchestrator restarts it with backoff, the same path a core Postgres
 outage takes. A rising `timeout` on `HeartbeatClaim` with no restarts means
 leases are at risk: the claim plane's reaper reclaims an item whose lease

@@ -22,7 +22,7 @@ One shared constructor, `store.New` in the new package
 
 | Variable state | Store | Notes |
 | --- | --- | --- |
-| unset or blank | the Postgres store the caller passed in, returned unchanged | every existing deployment is byte-for-byte unchanged |
+| unset or blank | the Postgres store the caller passed in, returned unchanged | the claim path is unchanged (pointer identity asserted); adds one startup log and one counter tick |
 | valid `http`/`https` URL | `workflow.ClaimPlaneClient` with a bounded HTTP client | no fallback to Postgres, ever |
 | invalid URL | startup error naming the variable | credentials in the URL are rejected and never echoed |
 
@@ -49,7 +49,9 @@ flowchart LR
 
 ## URL validation
 
-- Scheme must be `http` or `https`; host must be non-empty.
+- Scheme must be `http` or `https`; host must be non-empty printable ASCII
+  with no whitespace (a Cyrillic look-alike or a non-breaking space is
+  rejected; use the punycode form). A port, when present, must be 1-65535.
 - User info (`user:pass@`) is rejected. The error message redacts it.
 - Query strings and fragments are rejected. The path must be empty or `/`,
   because the client appends `/workflow.v1/<Operation>` to the base.
@@ -112,19 +114,19 @@ the variable on a real instance needs both P1 and P2 (ruling Phase C).
 - Startup log `event_name=collector.workflow_control_store.selected` with
   `workflow_control_store` (`postgres` or `claim_plane`) and, for the claim
   plane, `claim_plane_endpoint` (scheme and host only).
-- `eshu_dp_workflow_control_store_selections_total{backend}`: incremented once
+- `eshu_dp_workflow_control_store_selections_total{backend_kind}`: incremented once
   at startup. It shows which store each pod runs.
 - `eshu_dp_workflow_claim_plane_requests_total{operation,outcome}` and
   `eshu_dp_workflow_claim_plane_request_duration_seconds{operation,outcome}`:
   emitted at the client's single `post` chokepoint. `operation` is the closed
   set of protocol operations. `outcome` is the closed set `ok`, `rejected`,
   `not_found`, `paced`, `invalid`, `server_error`, `timeout`,
-  `transport_error`, `decode_error`, `request_error`.
+  `canceled`, `transport_error`, `decode_error`, `request_error`.
 
 ## Performance and concurrency
 
-Unset variable: no new work on any path. The constructor returns the caller's
-store. Claim-plane mode: one HTTP round trip per claim operation instead of
+Unset variable: no new work on any claim path. The constructor returns the
+caller's store and adds one startup log and one counter tick. Claim-plane mode: one HTTP round trip per claim operation instead of
 one SQL round trip. The per-operation cost is the satellite's to bound, under
 the ruling's section 6 demand bar (Phase C). The client is safe for concurrent
 use: `http.Client` is concurrency-safe, the client holds no mutable state, and
@@ -162,7 +164,7 @@ asserts the `collector.workflow_control_store.selected` log fields, the
 increment, and the
 `eshu_dp_workflow_claim_plane_requests_total{operation=HeartbeatClaim,outcome=ok}`
 increment. `TestClaimPlaneClientObserveReportsOutcomePerProtocolResult`, the
-timeout case, and the transport case cover every `outcome` path except
-`request_error`, which needs an unmarshalable body or a malformed base URL
-that `store.New` already rejects. `TestClaimPlaneInstrumentsRegisterAndEmit`
+timeout case, the canceled case, and the transport case cover every `outcome`
+path except `request_error`, which needs an unmarshalable body or a malformed
+base URL that `store.New` already rejects. `TestClaimPlaneInstrumentsRegisterAndEmit`
 pins registration and the histogram bounds.

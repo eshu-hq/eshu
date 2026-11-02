@@ -1,0 +1,76 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package main
+
+import (
+	"context"
+	"log/slog"
+	"strings"
+	"testing"
+
+	metricnoop "go.opentelemetry.io/otel/metric/noop"
+	"go.opentelemetry.io/otel/trace/noop"
+
+	"github.com/eshu-hq/eshu/go/internal/collector"
+	"github.com/eshu-hq/eshu/go/internal/collector/claim/store"
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/azure"
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/azure/runtime"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/workflow"
+)
+
+// TestBuildClaimedServiceSelectsClaimStoreFromEnv proves the collector wires
+// its claim store through store.New: unset keeps the core Postgres
+// store, a valid ESHU_WORKFLOW_CLAIM_PLANE_URL selects the claim-plane
+// client, and an invalid one fails startup naming the variable (#8875).
+//
+// buildClaimedService builds the live cloud provider before the claim store,
+// and the production factory resolves real cloud credentials. The test stubs
+// the newAzureLiveProviderFactory package seam so it needs no credentials or network. It
+// swaps a package variable, so it does not run in parallel.
+func TestBuildClaimedServiceSelectsClaimStoreFromEnv(t *testing.T) {
+	oldFactory := newAzureLiveProviderFactory
+	t.Cleanup(func() { newAzureLiveProviderFactory = oldFactory })
+	newAzureLiveProviderFactory = func(context.Context, string) (runtime.PageProviderFactory, error) {
+		return runtime.StaticFixtureFactory(runtime.NewFixturePageProvider(nil, azure.ScopeAccess{})), nil
+	}
+	build := func(raw string) (collector.ClaimedService, error) {
+		return buildClaimedService(
+			context.Background(),
+			postgres.SQLDB{},
+			smokeRedactionKey(t),
+			func(key string) string {
+				if key == store.EnvClaimPlaneURL {
+					return raw
+				}
+				return claimedRuntimeEnv(key)
+			},
+			noop.NewTracerProvider().Tracer("test"),
+			metricnoop.NewMeterProvider().Meter("test"),
+			nil,
+			slog.Default(),
+		)
+	}
+
+	service, err := build("")
+	if err != nil {
+		t.Fatalf("buildClaimedService(unset) error = %v, want nil", err)
+	}
+	if _, ok := service.ControlStore.(*postgres.WorkflowControlStore); !ok {
+		t.Fatalf("unset ControlStore = %T, want *postgres.WorkflowControlStore", service.ControlStore)
+	}
+
+	service, err = build("http://eshu-workflow-claim-plane:8080")
+	if err != nil {
+		t.Fatalf("buildClaimedService(claim plane) error = %v, want nil", err)
+	}
+	if _, ok := service.ControlStore.(*workflow.ClaimPlaneClient); !ok {
+		t.Fatalf("claim-plane ControlStore = %T, want *workflow.ClaimPlaneClient", service.ControlStore)
+	}
+
+	_, err = build("ftp://claim-plane")
+	if err == nil || !strings.Contains(err.Error(), store.EnvClaimPlaneURL) {
+		t.Fatalf("buildClaimedService(invalid) error = %v, want one naming %s", err, store.EnvClaimPlaneURL)
+	}
+}

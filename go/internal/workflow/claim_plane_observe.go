@@ -35,6 +35,10 @@ const (
 	// ClaimPlaneOutcomeTimeout is a request that hit the HTTP client timeout
 	// or the caller's context deadline.
 	ClaimPlaneOutcomeTimeout ClaimPlaneOutcome = "timeout"
+	// ClaimPlaneOutcomeCanceled is a request the caller's context canceled
+	// before it finished, for example during a SIGTERM shutdown. It is not a
+	// claim-plane fault.
+	ClaimPlaneOutcomeCanceled ClaimPlaneOutcome = "canceled"
 	// ClaimPlaneOutcomeTransportError is any other failure to send the
 	// request or read the response (refused connection, reset, DNS).
 	ClaimPlaneOutcomeTransportError ClaimPlaneOutcome = "transport_error"
@@ -68,11 +72,15 @@ func envelopeOutcome(code string) ClaimPlaneOutcome {
 	}
 }
 
-// transportOutcome separates timeouts from other transport failures so an
-// operator can tell a slow claim plane from an unreachable one.
+// transportOutcome separates timeouts and caller cancellations from other
+// transport failures so an operator can tell a slow claim plane, a rollout,
+// and an unreachable claim plane apart.
 func transportOutcome(err error) ClaimPlaneOutcome {
 	if errors.Is(err, context.DeadlineExceeded) {
 		return ClaimPlaneOutcomeTimeout
+	}
+	if errors.Is(err, context.Canceled) {
+		return ClaimPlaneOutcomeCanceled
 	}
 	var netErr net.Error
 	if errors.As(err, &netErr) && netErr.Timeout() {

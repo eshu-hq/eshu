@@ -24,7 +24,7 @@ func registerClaimPlaneInstruments(meter metric.Meter, inst *Instruments) error 
 	var err error
 	if inst.WorkflowClaimPlaneRequests, err = meter.Int64Counter(
 		"eshu_dp_workflow_claim_plane_requests_total",
-		metric.WithDescription("Collector requests to the workflow claim plane by protocol operation and outcome (ok, rejected, not_found, paced, invalid, server_error, timeout, transport_error, decode_error, request_error) (#8875)"),
+		metric.WithDescription("Collector requests to the workflow claim plane by protocol operation and outcome (ok, rejected, not_found, paced, invalid, server_error, timeout, canceled, transport_error, decode_error, request_error) (#8875)"),
 	); err != nil {
 		return fmt.Errorf("register WorkflowClaimPlaneRequests counter: %w", err)
 	}

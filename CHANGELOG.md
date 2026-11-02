@@ -32,8 +32,9 @@ recent shipped work grouped by feature area.
   behind one variable**
   ([#8875](https://github.com/eshu-hq/eshu/issues/8875)). The new
   `ESHU_WORKFLOW_CLAIM_PLANE_URL` points a hosted collector at the claim plane.
-  Unset or blank keeps the core Postgres workflow store, so existing deployments
-  do not change. When set, the collector claims through the claim plane with a
+  Unset or blank keeps the core Postgres workflow store: the claim path is
+  unchanged (pointer identity asserted); it adds one startup log and one counter
+  tick. When set, the collector claims through the claim plane with a
   10 s request timeout and never falls back to Postgres; an invalid URL or one
   that carries credentials stops startup with an error that names the variable.
   `collector-vulnerability-intelligence` and `collector-component-extension`
