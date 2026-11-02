@@ -322,6 +322,10 @@ TABLE = {
         "go/internal/storage/postgres/shared_intent_pending_age_plan_live_test.go": (
             "TestSharedIntentPendingAgeIndexOnlyScanLive",
         ),
+        "go/internal/storage/postgres/stored_advisory_names_live_test.go": (
+            "TestListStoredAdvisoryPackageNamesReturnsDroppedNameLive",
+            "TestListStoredAdvisoryPackageNamesChunksTheIDListLive",
+        ),
         "go/internal/storage/postgres/successor_guard_recheck_plan_live_test.go": (
             "TestGuardRecheckReadPlansLive",
         ),
