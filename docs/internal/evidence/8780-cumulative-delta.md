@@ -159,17 +159,116 @@ chaining? `eshu_dp_projector_delta_union_total{outcome="union_base_found"}`
 rises while
 `eshu_dp_projector_delta_baseline_fence_total{outcome="refused_base_missing"}`
 and `eshu_dp_collector_reconciliation_full_snapshots_total{reason="repository_reindex_requested"}`
-stay flat.
+stay flat. The `union_base_found` counter is not currently emitted on this
+path (see Gap in After-measurement; wiring tracked in #9890), so until then
+chaining is corroborated from DB counts, not from that counter.
 
-## After-measurement (owner, post-deploy)
+## After-measurement (hosted QA, 2026-11-02, pinned image)
 
-Same corpus, topology, and event boundaries as the shim: per cumulative delta
-on the busiest repository over one interval, the touched count, parse and
-store wall, union projection wall, intents emitted, and push-to-visible. Hard
-bar: every cumulative delta faster than the forced full it replaces. Report
-p95 push-to-visible against the quiet-repository band (63-194 s), the valve
-fire count (expected zero), and per scope the stored, activated,
-refused-by-class, and forced-full counts. Not run by this change.
+Deployment pin (a): CONFIRMED. The hosted QA cluster (namespace `eshu`) runs
+`ghcr.io/eshu-hq/eshu:sha-a854ed2a42d36f29a22c34295ab382fbaaf41180`
+on every workload; `git merge-base --is-ancestor f0b35f531c a854ed2a...`
+holds (2,351 commits after the #8892 merge). All pods (re)started
+2026-11-02T21:51:12-44Z, so the window below (21:51:44Z to about 22:52Z, roughly
+one hour) is entirely post-deploy. Sources are read-only: Prometheus
+(`monitoring-kube-prometheus-prometheus`), the ingester `/metrics` endpoint via
+`kubectl exec eshu-0`, ingester pod logs, and the QA read replica
+(`eshu-postgresql-read-0`, `pg_is_in_recovery() = true`,
+`default_transaction_read_only = on`).
+
+Chained deltas project and activate (b); the refused-then-forced-full path is gone:
+
+- 13 delta generations ingested post-deploy across 6 repository scopes, every
+  one carrying `delta_union_base_commit_sha`; 12 activated, max `activated_at`
+  2026-11-02T22:52:30Z (the 13th was superseded before activation and its retry
+  activated).
+- The busiest scope (`r_33474efb`, 5 deltas) ran a 4-deep chained sequence
+  `fffec9b4 -> 14a7bccd -> 2ae279ff -> e72b923e`, each baselined on the previous
+  delta, all activated, no forced full between them. A second scope
+  (`r_a26b5a1b`) ran a 3-deep chain `ae8617db -> acc2a3a2 -> d52a915e` on one
+  union base (`fee38917`), all activated. Three more chained activations
+  (`168e2be9`, `ccb623ae`, `42bdbd6f`) carry `active_is_delta = true` in the
+  collector log. This is acceptance criterion 1 running on the pinned image.
+- `eshu_dp_projector_delta_baseline_fence_total`: post-deploy `matched = 11`
+  (ack), `refused_active_differs = 1` (preflight). No `refused_base_missing`
+  series on the pinned pod, and none on any ingester instance in the trailing
+  7d window (only `matched` plus `refused_active_differs`).
+- `eshu_dp_collector_reconciliation_full_snapshots_total`: post-deploy
+  `interval_elapsed = 18` only. Trailing 7d shows `interval_elapsed` plus one
+  `never_reconciled` (a first-seen scope), and no
+  `repository_reindex_requested` anywhere.
+- `fact_work_items` post-deploy: 390 `succeeded`, 0 `dead_letter`, 0 rows with
+  a refusal failure class. One `superseded` row with
+  `projector_delta_baseline_mismatch` is the benign in-flight case (the active
+  moved while that delta was queued; its retry activated) and accounts for the
+  single `refused_active_differs`. One `retrying` row is
+  `supply_chain_impact_fanout_failed`, an unrelated domain. Two `claimed` rows
+  carry `reducer_handler_abandoned_at_shutdown`, restart fallout from the
+  21:51Z rollout.
+
+Per cumulative delta (busiest scope `r_33474efb` first, then the other scopes;
+`observed_at == ingested_at` on every row, so observed-to-active is the
+push-to-visible proxy):
+
+| head | scope | status | chained (baseline is delta) | touched (changed+deleted) | observed to active s | write started to active s |
+|---|---|---|---|---|---|---|
+| fffec9b4 | r_33474efb | superseded (was active) | yes | not log-detailed | 155 | 83 |
+| 14a7bccd | r_33474efb | superseded (was active) | yes | not log-detailed | 472 | 88 |
+| 2ae279ff | r_33474efb | superseded (was active) | yes | 79 + 1 = 80 | 107 | 56 |
+| e72b923e | r_33474efb | active | yes | 84 + 1 = 85 | 109 | 65 |
+| ae8617db | r_a26b5a1b | superseded (was active) | yes | not log-detailed | 6 | 2 |
+| acc2a3a2 | r_a26b5a1b | superseded (was active) | yes | not log-detailed | 5 | 1 |
+| d52a915e | r_a26b5a1b | active | yes | not log-detailed | 4 | 1 |
+| 168e2be9 | r_0a05b11a | active | yes | not log-detailed | 33 | 30 |
+| 7ac4bbd9 | r_79581267 | active | no (baseline is full) | not log-detailed | 3 | 1 |
+| 37bb6bf0 | r_12780cc2 | superseded (was active) | yes | not log-detailed | 102 | 95 |
+| 42bdbd6f | r_12780cc2 | active | yes | not log-detailed | 27 | 13 |
+| ccb623ae | r_a09c7db8 | active | yes | not log-detailed | 127 | 96 |
+
+Touched counts come from the `git repository sync completed` log
+(`delta_changed_count`, `delta_deleted_count`, both `active_is_delta = true`,
+union base `f69b61ac`, a repository on branch `dev` (scope `r_33474efb`):
+79+1 and 84+1 files, far below half of any full. Distribution bound over all
+cumulative diffs: `eshu_dp_collector_delta_touched_ratio{outcome = delta}` has
+12 post-deploy observations with bucket counts `le = 0.25 -> 10` and
+`le = 0.5 -> 12`, so the max touched ratio sits in (0.25, 0.5] and the mean is
+about 0.08. Only the two table rows above have per-delta log detail; older log
+lines for the other ten diffs had aged out of the pod log buffer.
+
+Push-to-visible against the quiet band (63-194 s): completed values are 3, 4,
+5, 6, 27, 33, 102, 107, 109, 127, 155, and 472 s. Eleven of twelve sit inside
+or below the band. The 472 s outlier is the `14a7bccd` supersede-then-retry
+cycle (first attempt superseded by the moved-baseline mismatch, retry queued
+about 384 s, projection tail 88 s), not projection cost. Projection tails
+(`projection_write_started_at` to `activated_at`) run 1-96 s; the projector
+work-item wall averages 39 s with max 116 s (n = 12). A per-delta parse versus
+store split is not separable from the available signals (the stage histogram is
+not delta-labelled); that granularity stays NOT_CHECKED.
+
+Valve fire count: `eshu_dp_collector_delta_baseline_fallback_total` has no
+series on the pinned pod, so zero fires, corroborated by the touched-ratio
+buckets (max at most 0.5). Trailing-7d maxima on pre-pin instances
+(`delta_exceeds_base_half` 15, `no_projected_baseline` 2) are pre-deploy
+behavior outside this window.
+
+Gap (one): `eshu_dp_projector_delta_union_total{outcome = "union_base_found"}`
+does not rise because it is never emitted: zero series at the ingester
+`/metrics` endpoint (`kubectl -n eshu exec eshu-0 -- sh -c 'wget -qO-
+http://127.0.0.1:9464/metrics' | grep "^eshu_dp_projector_delta_union"`
+exits 1) and zero samples in Prometheus over 7d, although the counter is
+registered in code (`registerProjectorDeltaUnion`,
+`go/internal/telemetry/instruments.go`) and 12 union-based deltas activated
+through its `recordDeltaUnion` call sites. The DB count above (13 union-based
+deltas, 12 activated, max 22:52:30Z) is the corroborating signal; wiring the
+instrument on this path (or proving it intentionally nil here) is follow-up
+work, not part of this measurement.
+
+Per-scope post-deploy ledger: 38 generations ingested (19 full active, 6 full
+superseded by reconcile, 6 delta active, 7 delta superseded after activation or
+retry); refused-by-class 0; forced-full 0. Hard bar: every cumulative delta
+was faster than the 8-9 minute forced full it replaces on the busiest
+repository; the slowest completed delta took 472 s end to end with an 88 s
+projection tail.
 
 ## Known windows
 
