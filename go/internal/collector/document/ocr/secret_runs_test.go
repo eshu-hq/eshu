@@ -83,9 +83,14 @@ func TestExtractContinuesASecretRunPastTheWindow(t *testing.T) {
 			want:    []string{redacted, redacted, redacted, "abcdefghijklmnop", "Rollback steps"},
 		},
 		{
-			name:    "a line with a stray space still continues the run",
-			regions: stackedRegions("Password:", "x1", "y2", "Ab3dEf6h Ij9lMn2p", "Rollback steps"),
-			want:    []string{redacted, redacted, redacted, redacted, "Rollback steps"},
+			name:    "a line with a stray space continues a run of tokens",
+			regions: stackedRegions("Password:", runLine, runLineB, "Qr5tUv8x Yz1bCd4e", runLine, "Rollback steps"),
+			want:    []string{redacted, redacted, redacted, redacted, redacted, "Rollback steps"},
+		},
+		{
+			name:    "a line with a stray space does not continue past a label or a value that is no token",
+			regions: stackedRegions("Password:", "x1", "y2", "- `ESHU_CHECK=false`", "Rollback steps"),
+			want:    []string{redacted, redacted, redacted, "- `ESHU_CHECK=false`", "Rollback steps"},
 		},
 		{
 			name:    "a line with a space every few characters does not continue the run",
@@ -93,9 +98,24 @@ func TestExtractContinuesASecretRunPastTheWindow(t *testing.T) {
 			want:    []string{redacted, redacted, redacted, "Ab3d Ef6h Ij9l Mn2p", "Rollback steps"},
 		},
 		{
-			name:    "a seed line with a stray space starts a run",
-			regions: stackedRegions("Release checklist", seedLine[:20]+" "+seedLine[20:], runLine, "Qk9x==", "Rollback steps"),
-			want:    []string{"Release checklist", redacted, redacted, redacted, "Rollback steps"},
+			name:    "a line with a stray space is no seed and starts no run",
+			regions: stackedRegions("Release checklist", seedLine[:20]+" "+seedLine[20:], runLine, "Rollback steps"),
+			want:    []string{"Release checklist", seedLine[:20] + " " + seedLine[20:], runLine, "Rollback steps"},
+		},
+		{
+			name:    "run tokens before a seed join its run, whatever their spaces",
+			regions: stackedRegions("Release checklist", runLine, runLineB[:8]+" "+runLineB[8:], seedLine, "Qk9x==", "Rollback steps"),
+			want:    []string{"Release checklist", redacted, redacted, redacted, redacted, "Rollback steps"},
+		},
+		{
+			name:    "the walk back over run tokens stops at a prose line",
+			regions: stackedRegions("Release checklist", runLine, "Review the owner list", runLineB, seedLine, "Rollback steps"),
+			want:    []string{"Release checklist", runLine, "Review the owner list", redacted, redacted, "Rollback steps"},
+		},
+		{
+			name:    "the walk back stops at a symbol region",
+			regions: stackedRegions("Release checklist", runLine, "|", seedLine, "Rollback steps"),
+			want:    []string{"Release checklist", runLine, "|", redacted, "Rollback steps"},
 		},
 		{
 			name:    "a long token with no label before it stays",
@@ -175,7 +195,7 @@ func TestSecretTokenShapes(t *testing.T) {
 		{name: "two spaces in 32 characters", text: "Ab3dEf6hIj9lMn2 pQr5tUv8xYz1bCd 45", run: true},
 		{name: "a space every four characters", text: "Ab3d Ef6h Ij9l Mn2p"},
 		{name: "a sentence", text: "Deploy the Checkout Service to staging 2026"},
-		{name: "one stray space in a seed", text: seedLine[:20] + " " + seedLine[20:], run: true, seed: true},
+		{name: "one stray space in a seed", text: seedLine[:20] + " " + seedLine[20:], run: true},
 		{name: "three spaces in a seed", text: seedLine[:10] + " " + seedLine[10:20] + " " + seedLine[20:30] + " " + seedLine[30:]},
 		{name: "40 characters of all three classes", text: seedLine, run: true, seed: true},
 		{name: "39 characters", text: seedLine[:39], run: true},

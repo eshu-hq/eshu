@@ -34,7 +34,10 @@ const (
 // A region joins the run when it was not withheld already and any of these holds:
 //
 //   - the region before it (the nearest one with text) was withheld, and its own
-//     text is a run token: at least minRunTokenLen characters, a digit or one of
+//     text is a run token that has no space, or has a stray one and the region
+//     before it was a run token too (a line of a key that tesseract split once
+//     is still a line of the key, but a bullet of inline code under a label is
+//     not): at least minRunTokenLen characters, a digit or one of
 //     `+/=`, and at most a stray space (see denseSpaceShare). Prose has a space
 //     every five or six characters, so it ends a run at the first line of
 //     ordinary text.
@@ -43,12 +46,14 @@ const (
 //     keeps the tail of the key out of the facts. It holds for one region only,
 //     and it needs two tokens before it, so one withheld value such as a
 //     password does not hide the single word under it.
-//   - it holds no letter or digit and the region before it was withheld. Box
-//     edges reach OCR as "|", and the label window treats them the same way. Such a
-//     region neither ends the run nor adds to it.
+//   - it holds no letter or digit and the region before it was a withheld run
+//     token. Box edges reach OCR as "|". Such a region neither ends the run nor
+//     adds to it.
 //   - its own text is a seed token (see isSeedToken), whatever came before. A
 //     key body cropped from its armor line has no label to open a window. A
-//     seed counts as two tokens, because it is long enough to stand alone.
+//     seed counts as two tokens, because it is long enough to stand alone. The
+//     run tokens right before a seed join it (withholdTokensBefore), because a
+//     line of the key that holds a stray space is no seed and may come first.
 //
 // A label region needs no mark of its own: the two regions after it are in the
 // window already, so the first region of a run is always a value. The scan reads
@@ -65,21 +70,22 @@ func extendSecretRuns(regions []Region, values []bool) {
 			continue
 		}
 		if !strings.ContainsFunc(text, isLetterOrDigit) {
-			// Box edges reach OCR as "|" or "_". Like the window, the run
-			// withholds such a region and neither ends nor extends it.
-			values[i] = values[i] || previousWithheld
+			// Box edges reach OCR as "|" or "_". Inside a run of tokens such a
+			// region is withheld and neither ends nor extends the run.
+			values[i] = values[i] || (previousWithheld && tokens > 0)
 			continue
 		}
 		withheld := values[i]
 		token := isRunToken(text)
 		switch {
 		case withheld:
-		case previousWithheld && token:
+		case previousWithheld && token && (tokens > 0 || !hasSpace(text)):
 			withheld = true
 		case tokens >= minTokensBeforeTail && isDense(text, 1):
 			withheld, token = true, false
 		case isSeedToken(text):
 			withheld = true
+			withholdTokensBefore(regions, values, i)
 		}
 		values[i] = values[i] || withheld
 		previousWithheld = withheld
@@ -92,6 +98,11 @@ func extendSecretRuns(regions []Region, values []bool) {
 			tokens = 0
 		}
 	}
+}
+
+// hasSpace reports whether text holds any whitespace.
+func hasSpace(text string) bool {
+	return strings.ContainsFunc(text, unicode.IsSpace)
 }
 
 // denseSpaceShare is the share of spaces a dense line may hold: at most one
@@ -137,13 +148,14 @@ func isRunToken(text string) bool {
 }
 
 // isSeedToken reports whether text, trimmed, looks like a base64 or token line
-// on its own: minSeedTokenLen characters of letters, digits, and `+/=_.-`, apart
-// from a stray space, with a capital letter, a lowercase letter, and a digit.
-// Random base64 of that length holds all three with near certainty. A path, a
-// hash, an environment variable name, and a sentence each lack one of them or a
-// character of the set.
+// on its own: minSeedTokenLen characters of letters, digits, and `+/=_.-`, with a
+// capital letter, a lowercase letter, and a digit. Random base64 of that length
+// holds all three with near certainty. A path, a hash, an environment variable
+// name, and a sentence each lack one of them or a character of the set. A seed
+// takes no space at all: with nothing before it to vouch for it, a shell command
+// of one word and an argument would pass.
 func isSeedToken(text string) bool {
-	if !isDense(text, minSeedTokenLen) {
+	if len(text) < minSeedTokenLen {
 		return false
 	}
 	var upper, lower, digit bool
@@ -155,10 +167,28 @@ func isSeedToken(text string) bool {
 			lower = true
 		case c >= '0' && c <= '9':
 			digit = true
-		case c == '+' || c == '/' || c == '=' || c == '_' || c == '.' || c == '-' || c == ' ':
+		case c == '+' || c == '/' || c == '=' || c == '_' || c == '.' || c == '-':
 		default:
 			return false
 		}
 	}
 	return upper && lower && digit
+}
+
+// withholdTokensBefore withholds the run tokens that sit right before the seed at
+// regions[seed], nearest first, and stops at the first region that is not a
+// run token or is withheld already. A symbol-only or blank region stops it too.
+// Each region is passed over once however many seeds follow it, because a
+// withheld region ends the walk, so the scan stays linear.
+func withholdTokensBefore(regions []Region, values []bool, seed int) {
+	for j := seed - 1; j >= 0 && !values[j]; j-- {
+		text := strings.TrimSpace(regions[j].Text)
+		if text == "" {
+			continue
+		}
+		if !isRunToken(text) {
+			return
+		}
+		values[j] = true
+	}
 }
