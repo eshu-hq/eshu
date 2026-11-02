@@ -60,8 +60,8 @@ case: the `bytes.Contains` prefilter skips each line without a decode. The
 worst case is a buffer of short lines that carry `inflated_bytes` but fail
 `Unmarshal`: about 1.5-1.7 ms, 0.93 MB, and 19943 allocations per call. That
 cost is bounded by the 64 KiB scan limit and the 4 KiB line cap, runs once per
-non-complete call, and is negligible next to the process launch (milliseconds
-to seconds) that the same call already paid. A complete or unchanged call
+non-complete call, next to a process or container launch that the same call
+already paid (launch time was not measured here). A complete or unchanged call
 costs a state compare. No queue, lease, claim, or graph path is touched.
 
 No-Observability-Change: no new metric or span. The existing
