@@ -340,6 +340,28 @@ No-Regression Evidence: `go test -race ./internal/collector/document/ocr/...
 -count=1` passes, including the pre-existing extraction, skip, GIF, redaction,
 and local-engine PII suites.
 
+Performance Evidence (#9799): `BenchmarkBuildSectionsNoLabels`,
+`BenchmarkBuildSectionsLabelHeavy`, `BenchmarkBuildSectionsKeyBody`, and
+`BenchmarkBuildSectionsTokenLinesNoLabel` on 500 regions, before (origin/main)
+and after test binaries run in turn at `-benchtime=2000x`, seven runs each,
+medians, on a shared host at load average 22 to 24. Ordinary text went from 5.55
+ms/op to 5.52 ms/op and the label-heavy case from 3.68 to 3.79, with the same
+allocations (12,907 and 12,665 per op). A key body and 500 seed lines went from
+9.77 and 9.83 ms/op to 3.54 and 3.55, because a withheld section hashes the
+short placeholder and not the line. The run scan reads each region a fixed
+number of times. `TestExtendSecretRunsIsLinear` pins 200,000 token lines,
+200,000 seed lines, and one 1 MiB token. The per-measure method, the docs-corpus
+false-positive table, and the real-tesseract numbers are in
+`docs/internal/evidence/9799-ocr-multiline-secret-runs.md`.
+
+No-Regression Evidence (#9799): `go test -race ./internal/collector/document/ocr/...
+-count=1` passes, and `bash scripts/prove-ocr-sandbox.sh --platform linux/arm64`
+passes with the new `key-body.png` fixture.
+
+No-Observability-Change (#9799): the run scan adds no metric, span, or log. A
+region it withholds is a redacted section, so `eshu_dp_ocr_redacted_regions_total`
+and the `ocr.redacted_region_count` span attribute count it with no change.
+
 Marker-list Performance Evidence (#9793): the same two benchmarks on 500 regions,
 before (origin/main) and after test binaries run in turn at `-benchtime=2000x`,
 seven runs each, medians, on a shared 16-core host at load average 9.6.
