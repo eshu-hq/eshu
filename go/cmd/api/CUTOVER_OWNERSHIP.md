@@ -68,7 +68,7 @@ the `querycontract.CoreReadContractsVersion` port set.
 | --- | --- | --- |
 | Admin | Postgres recovery/reindex/dead-letter/queue stores | HTTP shape moves; recovery queue writes via admission contract |
 | AdminRetirement | retirement marker/fencer/purger stores | trigger via admission contract |
-| AdminTerminalFailure | terminal-failure ack store + replay ledger | ack via admission contract |
+| AdminTerminalFailure | terminal-failure ack store + replay ledger | ack + ledger via admission contracts |
 | AdminIdentityMutations | identity stores (roles, IdP mappings) | via admission contract |
 | AdminProviderConfigMutations | provider-config stores | via admission contract |
 | SignInPolicyMutations | sign-in-policy store | via admission contract |

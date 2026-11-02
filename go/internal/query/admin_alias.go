@@ -177,6 +177,12 @@ type AdminTerminalFailureHandler = acknowledgement.Handler
 // spelling query.TerminalFailureAdmission.
 type TerminalFailureAdmission = acknowledgement.TerminalFailureAdmission
 
+// ReplayLedgerAdmission is the versioned #8872 admission-contract port
+// for the shared replay idempotency ledger. Its home is
+// admin/acknowledgement/; this alias keeps the cmd/api constructors
+// spelling query.ReplayLedgerAdmission.
+type ReplayLedgerAdmission = acknowledgement.ReplayLedgerAdmission
+
 // AdminInvitationListItem is the metadata-only invitation view returned to a
 // tenant admin. Its home is admin/identity/. See #6060.
 type AdminInvitationListItem = identity.InvitationListItem

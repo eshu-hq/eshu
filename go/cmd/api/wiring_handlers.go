@@ -14,7 +14,6 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/cli/support"
 	"github.com/eshu-hq/eshu/go/internal/query"
-	"github.com/eshu-hq/eshu/go/internal/query/admin/acknowledgement"
 	"github.com/eshu-hq/eshu/go/internal/query/cicd"
 	"github.com/eshu-hq/eshu/go/internal/query/incident/store"
 	"github.com/eshu-hq/eshu/go/internal/query/kubernetes"
@@ -109,12 +108,12 @@ func newSupplyChainHandler(
 // The single bounded mutation travels through the versioned #8872
 // terminal-failure admission contract, not a *sql.DB writer handle: the
 // caller binds the core-owned admission implementation and the handler
-// carries the port. The shared replay idempotency ledger is bound the
-// same way but is not versioned here; see
-// acknowledgement.TerminalFailureAdmission.
+// carries the port. The shared replay idempotency ledger travels through
+// the versioned #8872 replay-ledger admission contract the same way; see
+// acknowledgement.ReplayLedgerAdmission.
 func newTerminalFailureHandler(
 	terminalFailureAdmission query.TerminalFailureAdmission,
-	ledger acknowledgement.Ledger,
+	ledger query.ReplayLedgerAdmission,
 	audit query.GovernanceAuditAppender,
 	instruments *telemetry.Instruments,
 ) *query.AdminTerminalFailureHandler {

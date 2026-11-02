@@ -4,6 +4,7 @@
 package acknowledgement
 
 import (
+	"github.com/eshu-hq/eshu/go/internal/query/admin"
 	pgstorage "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -20,10 +21,26 @@ const TerminalFailureAdmissionContractVersion = "v0"
 // TerminalFailureAdmission is the versioned admission-contract port the
 // API handler depends on instead of a direct table handle. It aliases the
 // narrow family store so existing fakes and the core-owned Postgres
-// implementation keep satisfying it unchanged. The replay idempotency
-// ledger the acknowledgement shares with the replay, reopen, and
-// recover-generations routes is not versioned here; it stays a documented
-// gap until its own contract lands.
+// implementation keep satisfying it unchanged.
 type TerminalFailureAdmission = Acknowledger
 
 var _ TerminalFailureAdmission = (*pgstorage.TerminalFailureAckStore)(nil)
+
+// ReplayLedgerAdmissionContractVersion versions the #8872
+// admission-contract shape for the shared replay idempotency ledger
+// (admin_replay_requests) the acknowledgement, replay, reopen, and
+// recover-generations routes share. Canonical mutations persist through
+// explicit core-owned admission contracts: eshu-api keeps the HTTP shape
+// and calls this versioned port, which the core-owned Postgres store
+// satisfies. A breaking change to the ledger shape fails the frozen
+// method-set test until that list is deliberately updated; bump this
+// version alongside so dest consumers can pin the shape.
+const ReplayLedgerAdmissionContractVersion = "v0"
+
+// ReplayLedgerAdmission is the versioned admission-contract port the API
+// handler depends on instead of a direct ledger handle. It aliases the
+// narrow ledger interface so existing fakes and the core-owned Postgres
+// implementation keep satisfying it unchanged.
+type ReplayLedgerAdmission = Ledger
+
+var _ ReplayLedgerAdmission = admin.Store(nil)
