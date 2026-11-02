@@ -36,7 +36,7 @@ and 73-file figures in this file are replaced below.
    that move to `eshu-workflow`. Coordinator *subpackage* consumers in
    collector trees repoint per §4, not by directory delete.
 3. `go/internal/workflow/` root (72 root `.go` + 8 `parity/`, incl. the
-   protocol compat test): repoint the 179 importers
+   protocol compat test): repoint the 176 importers
    first (§3), land the satellite client + shared contracts module, then
    delete file-by-file with the importer census as the checklist.
    `parity/` harnesses stay until the removal lands (they prove the
@@ -173,7 +173,7 @@ fresh digest bind (the deployed `03d9f976` is 22 commits behind satellite
 - SLSA attestation: present on candidate `db5a3a53`, absent on live
   `03d9f976` (the image predates the attest steps).
 
-## 6. Per-file importer census (179 non-test files)
+## 6. Per-file importer census (176 non-test files)
 
 Regenerate: `git grep -l 'go/internal/workflow"' -- '*.go' | rg -v
 '_test.go$'`. Every file below must repoint (§2) before its assembly
@@ -202,6 +202,11 @@ Amendment 2026-11-02 (#8853 POC-retirement): four entries whose files are
 deleted by the Azure in-tree producer retirement are dropped — one collector
 runtime file and three `collector-azure-cloud` command files — so there is
 nothing left to repoint. Counts 183→179 (collector 53→52, cmd 32→29).
+
+Amendment 2026-11-02 (#8856 gcp-cloud removal): three entries whose files
+are deleted by the GCP in-tree producer removal are dropped — three
+`collector-gcp-cloud` command files — so there is nothing left to repoint.
+Counts 179→176 (cmd 29→26).
 
 ### 6a. `go/internal/coordinator` (66)
 
@@ -368,9 +373,6 @@ nothing left to repoint. Counts 183→179 (collector 53→52, cmd 32→29).
 - `go/cmd/collector-component-extension/config.go`
 - `go/cmd/collector-component-extension/service.go`
 - `go/cmd/collector-component-extension/source_state.go`
-- `go/cmd/collector-gcp-cloud/claimed_config.go`
-- `go/cmd/collector-gcp-cloud/service.go`
-- `go/cmd/collector-gcp-cloud/status_committer.go`
 - `go/cmd/collector-grafana/config.go`
 - `go/cmd/collector-grafana/service.go`
 - `go/cmd/collector-oci-registry/config.go`
