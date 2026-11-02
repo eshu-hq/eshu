@@ -70,7 +70,7 @@ the `querycontract.CoreReadContractsVersion` port set.
 | AdminRetirement | retirement marker/fencer/purger stores | trigger via admission contract (RetirementAdmission v0) |
 | AdminTerminalFailure | terminal-failure ack store + replay ledger | ack + ledger via admission contracts |
 | AdminIdentityMutations | identity stores (roles, IdP mappings) | via admission contract (AdminIdentityAdmission v0) |
-| AdminProviderConfigMutations | provider-config stores | via admission contract |
+| AdminProviderConfigMutations | provider-config stores | via admission contracts (ProviderConfigMutationAdmission v0 + ProviderConfigReadAdmission v0) |
 | SignInPolicyMutations | sign-in-policy store | via admission contract |
 | LocalIdentity | identity/session/token stores | session issuance via admission contract |
 | BrowserSessions | browser-session store | session lifecycle via admission contract |
