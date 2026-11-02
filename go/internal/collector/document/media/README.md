@@ -218,9 +218,10 @@ rule is deliberate:
 
 | Rule | Words | Boundary | Why |
 | --- | --- | --- | --- |
-| Substring | `password`, `passphrase`, `passcode`, `passwd`, `pwd`, `pincode`, `credential`, `api key`, `apikey`, `private key`, `privatekey`, and the `*_marker` keywords | none | No ordinary word contains them; "passwords" and "credentials" are the same vocabulary. This is the original behavior. |
-| Start-bounded | `pass word`, `pass phrase`, `pass code`, `a p i key`, `accesskey` | no letter before | "compass word" and "bypass wording" stay clear. |
-| Whole word | `secret`, `secrets`, `token`, `tokens`, `pin`, `p i n`, `p w d`, `access key`, `access keys` | no letter on either side | "tokenize", "tokenizer", "pinned", "spinning", "mapping", "shipping", "betoken", "spin", "secretary", "secretive", and "access keyboard" stay clear. |
+| Substring | `password`, `passphrase`, `passcode`, `passwd`, `pwd`, `pincode`, `credential`, `api key`, `apikey`, `private key`, `privatekey`, `accesskey`, and the `*_marker` keywords | none | No ordinary word contains them; "passwords" and "credentials" are the same vocabulary. This is the original behavior. |
+| Start-bounded | `pass word`, `pass phrase`, `pass code`, `a p i key` | no letter before | "compass word" and "bypass wording" stay clear. |
+| Whole word | `secret`, `secrets`, `token`, `tokens`, `pin`, `p i n`, `p w d` | no letter on either side | "tokenize", "tokenizer", "pinned", "spinning", "mapping", "shipping", "betoken", "spin", "secretary", and "secretive" stay clear. |
+| End-bounded | `access key`, `access keys` | no letter after | "access keyboard" stays clear. |
 
 `secret` fails closed on purpose. "A secret garden" and "the secret of good
 bread" withhold the next two segments, which shows in section metadata, while a

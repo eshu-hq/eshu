@@ -29,16 +29,16 @@ type phraseRule struct {
 // The boundary choice for each rule is deliberate:
 //
 //   - Substring (no flags): password, passphrase, passcode, passwd, pwd,
-//     pincode, credential, api key, apikey, private key, privatekey, and the
-//     *_marker test keywords. None is a fragment of an ordinary English word, and a hit
-//     inside a longer word ("credentials", "passwords") is the same secret
-//     vocabulary.
+//     pincode, credential, api key, apikey, private key, privatekey, accesskey,
+//     and the *_marker test keywords. None is a fragment of an ordinary
+//     English word, and a hit inside a longer word ("credentials",
+//     "passwords") is the same secret vocabulary.
 //   - Start-bounded: the split spellings "pass word", "pass phrase", and
-//     "pass code", the spelled-out "a p i key", and "accesskey". Unbounded they
+//     "pass code", the spelled-out and "a p i key". Unbounded they
 //     would fire inside "compass word" or "bypass wording". The joined
 //     spellings of pass word, pass phrase, and pass code need no bound.
-//   - Whole word, access key: "access key" and "access keys" are bounded on both
-//     sides so "access keyboard" stays clear.
+//   - End-bounded: "access key" and "access keys" need no letter after, so
+//     "access keyboard" stays clear.
 //   - Whole word: secret, secrets, token, tokens, pin, and the spelled-out
 //     p i n and p w d. A substring "token" would redact "tokenize" and
 //     "tokenizer", and "pin" would redact "spinning", "pinned", "mapping", and
@@ -59,15 +59,15 @@ var spokenKeywordRules = []phraseRule{
 	{phrase: "apikey"},
 	{phrase: "private key"},
 	{phrase: "privatekey"},
+	{phrase: "accesskey"},
 	{phrase: "secret marker"},
 	{phrase: "token marker"},
 	{phrase: "pass word", before: true},
 	{phrase: "pass phrase", before: true},
 	{phrase: "pass code", before: true},
 	{phrase: "a p i key", before: true},
-	{phrase: "accesskey", before: true},
-	{phrase: "access key", before: true, after: true},
-	{phrase: "access keys", before: true, after: true},
+	{phrase: "access key", after: true},
+	{phrase: "access keys", after: true},
 	{phrase: "secret", before: true, after: true},
 	{phrase: "secrets", before: true, after: true},
 	{phrase: "token", before: true, after: true},

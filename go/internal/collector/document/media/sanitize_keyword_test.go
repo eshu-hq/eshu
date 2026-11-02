@@ -141,6 +141,8 @@ func TestContainsSensitiveKeywordSpokenForms(t *testing.T) {
 		{"AWS access key id", "the AWS access key id is", true},
 		{"privatekey joined", "the privatekey is", true},
 		{"PrivateKey joined", "the PrivateKey is", true},
+		{"MyAccessKey embedded", "the MyAccessKey is", true},
+		{"embedded accesskey", "the myaccesskey is", true},
 		{"access keyboard stays clear", "the access keyboard layout", false},
 		{"accessible keyboard stays clear", "an accessible keyboard", false},
 		{"access to the key stays clear", "access to the key", false},
