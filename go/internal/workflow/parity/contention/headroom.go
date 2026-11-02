@@ -224,6 +224,29 @@ func parseLabels(s string, labels map[string]string) (int, error) {
 	return 0, fmt.Errorf("unterminated labels")
 }
 
+// missingCeilings names every enforced ceiling the sample did not measure:
+// connections, lock waiters, and the deadlock counter always, and
+// replication lag when a lag ceiling is set.
+func missingCeilings(s HeadroomSample, limits Headroom) error {
+	var missing []string
+	if s.Connections == notAvailable {
+		missing = append(missing, "connections")
+	}
+	if s.LockWaiters == notAvailable {
+		missing = append(missing, "lock_waiters")
+	}
+	if s.DeadlocksTotal == notAvailable {
+		missing = append(missing, "deadlocks_total")
+	}
+	if limits.MaxLagSeconds > 0 && s.ReplicationLagSec == notAvailable {
+		missing = append(missing, "replication_lag_seconds")
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+	return fmt.Errorf("headroom sample lacks %s", strings.Join(missing, ", "))
+}
+
 // headroomCheck compares one sample against the ceilings and the run's
 // deadlock and lock-wait baselines; it returns the first breach.
 func headroomCheck(s HeadroomSample, limits Headroom, lockWaitBound time.Duration, deadlockBase float64) *Violation {

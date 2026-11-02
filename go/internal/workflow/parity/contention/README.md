@@ -189,7 +189,12 @@ with `sampler_unavailable`, and more than `MaxSampleErrors` (5) failed reads
 in total make the verdict `INCOMPLETE`. A run with no sampler reading is
 also `INCOMPLETE`, and so is a live run with no headroom reading or no core
 third zero. The report names the reason in `incomplete_reason`. The live
-target refuses `SAMPLER_DISABLED`.
+target refuses `SAMPLER_DISABLED`. On the live target, a headroom reading
+that lacks an enforced series counts as a failed read: connections, lock
+waiters, and the deadlock counter always, and replication lag when its
+ceiling is set. An exporter URL aimed at the wrong port-forward still
+returns a valid Prometheus page, so three such reads abort the run. A live
+run where an enforced ceiling was never measured is `INCOMPLETE`.
 
 These §7 triggers are enforced in code and need nothing from the operator:
 
@@ -199,7 +204,17 @@ These §7 triggers are enforced in code and need nothing from the operator:
 - wall-clock cap, residue
 
 SIGINT or SIGTERM to the entry test aborts as `external_abort`, and the
-reversal still runs.
+reversal still runs. `signal.NotifyContext` keeps catching signals until
+the test returns, so a second Ctrl-C during cleanup is held, not acted on.
+SIGKILL skips cleanup entirely. In that case delete the seed's rows by
+hand, child tables first, with the statements under "Manual cleanup" below.
+A headroom breach during the reversal is recorded as an abort, but it does
+not pause the batched deletes. Spec §8 puts removing the synthetic rows
+ahead of everything else.
+
+A run stopped before its baseline census deletes nothing, and neither does
+a run whose baseline already held harness rows. Neither can tell its own
+rows from earlier ones; `cleanup_skipped` says which case applied.
 
 Two §7 triggers stay operator-watched, because the harness cannot observe
 them: the grant expiring, and the revert PR merging. The same holds for
@@ -263,7 +278,11 @@ throwaway server (`wf9727-pg-it`). It refuses a server that holds an `eshu`
 or `workflow_claims` database, or that is the satellite DSN's server (same
 `system_identifier`, or the same host and port when that cannot be read).
 Every DSN must also be loopback on its first host and on every pgx fallback
-host.
+host. A host name is resolved, and every address it resolves to must be
+loopback; a name that does not resolve is refused. The in-tree DSN must name
+exactly one server (a TLS fallback to the same host is still one server).
+The disposable-database helper dials it again, so a second host could be a
+server the safety check never saw.
 
 ```sh
 docker network create wf9727-net
@@ -297,6 +316,12 @@ the core port-forward (`127.0.0.1:15432` below is core's server); the entry
 test refuses it there. Run seeds 1 and 2 at W=3 (1x) and W=6 (2x),
 then more seeds until two consecutive seeds are clean.
 
+0. **Check pacing is off on the live claim plane.** Read
+   `kubectl -n eshu get deploy eshu-workflow-claim-plane -o
+   jsonpath='{.spec.template.spec.containers[0].args}'`. DP-A recorded
+   `--listen=:8080 --admin-listen=:8081` only. If any `--pacing-*` flag
+   is set above 0, stop and take it back to the arbiter (see "Known
+   limitations"). NOT_CHECKED by the harness itself.
 1. **Post the §2 fields on #8875 first.** Use the values and sources from
    DP-A §2: digest `sha256:e1b564af…e47a4`, the new IaC enable/revert PR
    numbers, the authority links, `worker_counts` 3 (1x) and 6 (2x),
@@ -382,6 +407,36 @@ then more seeds until two consecutive seeds are clean.
    On any abort, follow spec §8: the harness has already stopped, drained,
    prefix-deleted, and re-checked residue. Next, merge the revert PR, and
    the owner syncs.
+
+## Known limitations
+
+- **Pacing latch rows.** With claim-plane pacing on (`--pacing-*` flags
+  above 0), the harness's claims would upsert `workflow_claim_pacing` latch
+  rows keyed `<kind>/<instance>` (`store/pacing_quota_pin.go:58` at v0.1.1),
+  including the shared global row. Those
+  keys carry no harness prefix, so the census counts them as "other" rows.
+  The sampler would then see a non-synthetic change and abort, and cleanup
+  cannot delete them. The census filter on that table (`Prefix%` on
+  `domain`) never matches a harness row. Runbook step 0 keeps the run off
+  a pacing-enabled claim plane. The harness does not check the flags
+  itself: NOT_CHECKED.
+
+## Manual cleanup
+
+After a SIGKILL, delete one seed's rows (`<seed>` as recorded) child-first
+on the leg database. These are the same filters `DeletePrefixed` uses:
+
+```sql
+DELETE FROM workflow_claims WHERE work_item_id LIKE 'synth-8875-rehearsal-wi-<seed>-%';
+DELETE FROM component_quota_windows WHERE scope_id LIKE 'synth-8875-rehearsal-scope-%';
+DELETE FROM workflow_run_progress WHERE run_id LIKE 'synth-8875-rehearsal-run-<seed>-%';
+DELETE FROM workflow_run_completeness WHERE run_id LIKE 'synth-8875-rehearsal-run-<seed>-%';
+DELETE FROM workflow_work_items WHERE work_item_id LIKE 'synth-8875-rehearsal-wi-<seed>-%';
+DELETE FROM workflow_runs WHERE run_id LIKE 'synth-8875-rehearsal-run-<seed>-%';
+```
+
+On the live database, batch each statement (`ctid IN (SELECT ctid ...
+LIMIT 1000)`) as `DeletePrefixed` does. Then rerun the residue counts.
 
 ## Related docs
 

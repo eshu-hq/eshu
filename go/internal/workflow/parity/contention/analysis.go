@@ -294,7 +294,7 @@ func verdict(report *Report, r *runner) string {
 // live run lacks the headroom record or the core third zero.
 func (r *runner) incomplete(report *Report) string {
 	r.samples.mu.Lock()
-	count, errTotal, headSeen := r.samples.count, r.samples.errTotal, r.samples.headSeen
+	count, errTotal, headSeen, peak := r.samples.count, r.samples.errTotal, r.samples.headSeen, r.samples.maxHead
 	r.samples.mu.Unlock()
 	switch {
 	case count == 0:
@@ -303,6 +303,8 @@ func (r *runner) incomplete(report *Report) string {
 		return fmt.Sprintf("%d failed sampler or headroom reads, %d tolerated", errTotal, r.opt.MaxSampleErrors)
 	case r.spec.Target == TargetLive && !headSeen:
 		return "no pg_headroom reading on the live target"
+	case r.spec.Target == TargetLive && missingCeilings(peak, r.spec.Headroom) != nil:
+		return "an enforced pg_headroom ceiling was never measured: " + missingCeilings(peak, r.spec.Headroom).Error()
 	case r.spec.Target == TargetLive && !report.Residue.ThirdZero.Checked:
 		return "core third zero not checked on the live target"
 	}

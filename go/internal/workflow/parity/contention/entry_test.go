@@ -318,10 +318,4 @@ func requireLoopbackURL(t *testing.T, raw string) {
 	}
 }
 
-func isLoopback(host string) bool {
-	if host == "localhost" {
-		return true
-	}
-	ip := net.ParseIP(host)
-	return ip != nil && ip.IsLoopback()
-}
+func isLoopback(host string) bool { return resolvesToLoopback(host) == nil }

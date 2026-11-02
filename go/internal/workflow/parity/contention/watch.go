@@ -89,6 +89,12 @@ func (w *watcher) check() *Violation {
 	ctx, cancel := context.WithTimeout(context.Background(), sampleTimeout)
 	defer cancel()
 	h, err := r.leg.Headroom.Sample(ctx)
+	if err == nil && r.spec.Target == TargetLive {
+		// On the live target a reading without an enforced series (the
+		// wrong port-forward still answers a valid Prometheus page) is a
+		// failed read, not a pass.
+		err = missingCeilings(h, r.spec.Headroom)
+	}
 	if v := w.fails.observe(&r.samples, err, "headroom watcher"); v != nil || err != nil {
 		return v
 	}

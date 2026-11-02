@@ -42,6 +42,10 @@ type runner struct {
 	// baselineDirty is set when the baseline already held harness rows:
 	// the run did not create them, so the reversal must not delete them.
 	baselineDirty bool
+	// baselineTaken is set once the baseline census exists. A run stopped
+	// before it cannot tell its own rows from earlier ones and deletes
+	// nothing.
+	baselineTaken bool
 	quotaHeldMax  int
 	zombiesMu     sync.Mutex
 	zombies       []*zombie
@@ -129,6 +133,7 @@ func (r *runner) execute(report *Report) error {
 		return fmt.Errorf("baseline census: %w", err)
 	}
 	report.Baseline = baseline
+	r.baselineTaken = true
 	if baseline.prefixedTotal() != 0 {
 		r.baselineDirty = true
 		r.abort(violation(TriggerResidue, "baseline already holds %d synthetic rows", baseline.prefixedTotal()))
@@ -338,9 +343,12 @@ func (r *runner) reverse(ctx context.Context, report *Report) error {
 		}
 		time.Sleep(time.Second)
 	}
-	if r.baselineDirty {
+	switch {
+	case !r.baselineTaken:
+		report.CleanupSkipped = "the run stopped before its baseline census, so it cannot tell its own rows; nothing was deleted"
+	case r.baselineDirty:
 		report.CleanupSkipped = "the baseline already held harness rows this run did not create; nothing was deleted"
-	} else {
+	default:
 		deleted, err := r.leg.Observer.DeletePrefixed(ctx, r.spec.Seed, r.opt.DeleteBatch)
 		report.Deleted = deleted
 		if err != nil {

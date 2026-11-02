@@ -30,9 +30,67 @@ func loopbackOnly(dsn string) error {
 		hosts = append(hosts, fb.Host)
 	}
 	for _, host := range hosts {
-		if !isLoopback(host) {
+		if err := resolvesToLoopback(host); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// resolvesToLoopback accepts a loopback IP, or a host name whose every
+// resolved address is loopback. A name that does not resolve is refused.
+func resolvesToLoopback(host string) error {
+	if ip := net.ParseIP(host); ip != nil {
+		if !ip.IsLoopback() {
 			return fmt.Errorf("host %q is not loopback", host)
 		}
+		return nil
+	}
+	addrs, err := net.LookupHost(host)
+	if err != nil {
+		return fmt.Errorf("host %q does not resolve: %w", host, err)
+	}
+	for _, a := range addrs {
+		if ip := net.ParseIP(a); ip == nil || !ip.IsLoopback() {
+			return fmt.Errorf("host %q resolves to %s, which is not loopback", host, a)
+		}
+	}
+	return nil
+}
+
+// dsnEndpoints lists every distinct host:port a DSN can dial: its first
+// host and each pgx fallback (a TLS fallback to the same host collapses).
+func dsnEndpoints(dsn string) ([]string, error) {
+	cfg, err := pgx.ParseConfig(dsn)
+	if err != nil {
+		return nil, fmt.Errorf("parse DSN: %w", err)
+	}
+	seen := map[string]bool{}
+	var out []string
+	add := func(host string, port uint16) {
+		ep := net.JoinHostPort(host, strconv.Itoa(int(port)))
+		if !seen[ep] {
+			seen[ep] = true
+			out = append(out, ep)
+		}
+	}
+	add(cfg.Host, cfg.Port)
+	for _, fb := range cfg.Fallbacks {
+		add(fb.Host, fb.Port)
+	}
+	return out, nil
+}
+
+// singleServer refuses an in-tree DSN that names more than one server: the
+// disposable-database helper dials it again, and a second host could be a
+// server the safety check never saw.
+func singleServer(dsn string) error {
+	eps, err := dsnEndpoints(dsn)
+	if err != nil {
+		return err
+	}
+	if len(eps) != 1 {
+		return fmt.Errorf("the in-tree DSN names %d servers %v; name exactly one", len(eps), eps)
 	}
 	return nil
 }
@@ -74,13 +132,17 @@ func inTreeServerSafe(ctx context.Context, admin *sql.DB, adminDSN, satelliteDSN
 		}
 		return nil
 	}
-	mineEnd, err1 := dsnEndpoint(adminDSN)
-	theirEnd, err2 := dsnEndpoint(satelliteDSN)
+	mineEnd, err1 := dsnEndpoints(adminDSN)
+	theirEnds, err2 := dsnEndpoints(satelliteDSN)
 	if err := errors.Join(err1, err2); err != nil {
 		return errors.Join(fmt.Errorf("compare servers: %w", err), errMine, errTheirs)
 	}
-	if mineEnd == theirEnd {
-		return fmt.Errorf("in-tree server and satellite DSN share the endpoint %s", mineEnd)
+	for _, mine := range mineEnd {
+		for _, theirs := range theirEnds {
+			if mine == theirs {
+				return fmt.Errorf("in-tree server and satellite DSN share the endpoint %s", mine)
+			}
+		}
 	}
 	return nil
 }
@@ -93,19 +155,13 @@ func systemIdentifier(ctx context.Context, db *sql.DB) (string, error) {
 	return id, nil
 }
 
-// dsnEndpoint is a DSN's first host and port.
-func dsnEndpoint(dsn string) (string, error) {
-	cfg, err := pgx.ParseConfig(dsn)
-	if err != nil {
-		return "", fmt.Errorf("parse DSN: %w", err)
-	}
-	return net.JoinHostPort(cfg.Host, strconv.Itoa(int(cfg.Port))), nil
-}
-
 // requireInTreeServerSafe fails the in-tree entry test before any database
 // is created on an unsafe server.
 func requireInTreeServerSafe(t *testing.T, admin string) {
 	t.Helper()
+	if err := singleServer(admin); err != nil {
+		t.Fatalf("%s refused: %v", envInTreeDSN, err)
+	}
 	db, err := sql.Open("pgx", admin)
 	if err != nil {
 		t.Fatalf("open in-tree admin DSN: %v", err)

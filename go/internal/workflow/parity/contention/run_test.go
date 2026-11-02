@@ -60,7 +60,7 @@ func assertCleanedUp(t *testing.T, r *Report, leg *fakeLeg) {
 	if census.prefixedTotal() != 0 || r.Residue.FirstZero != 0 {
 		t.Fatalf("synthetic rows left after reversal: fake=%d report=%d", census.prefixedTotal(), r.Residue.FirstZero)
 	}
-	if r.Phases.End.IsZero() || r.Deleted == nil {
+	if r.Phases.End.IsZero() || (r.Deleted == nil && r.CleanupSkipped == "") {
 		t.Fatalf("reversal did not run: %+v", r.Phases)
 	}
 }

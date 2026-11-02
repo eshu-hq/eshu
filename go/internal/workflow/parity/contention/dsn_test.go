@@ -50,3 +50,35 @@ func TestClaimPlaneHTTPClientRefusesRedirects(t *testing.T) {
 		t.Fatalf("redirect followed: hits=%d status=%d", hits, resp.StatusCode)
 	}
 }
+
+// TestInTreeDSNMustNameOneServer: the disposable-database helper dials the
+// DSN again, so a multi-host DSN could reach a second server the safety
+// check never saw. A TLS fallback to the same host is still one server.
+func TestInTreeDSNMustNameOneServer(t *testing.T) {
+	cases := map[string]bool{
+		"postgres://u:p@127.0.0.1:5432/postgres?sslmode=disable":   true,
+		"postgres://u:p@127.0.0.1:5432/postgres?sslmode=prefer":    true,
+		"postgres://u@127.0.0.1:15432,127.0.0.1:15433/postgres":    false,
+		"host=127.0.0.1,127.0.0.1 port=5432,15432 dbname=postgres": false,
+	}
+	for dsn, ok := range cases {
+		err := singleServer(dsn)
+		if ok && err != nil {
+			t.Fatalf("%s: refused a one-server DSN: %v", dsn, err)
+		}
+		if !ok && err == nil {
+			t.Fatalf("%s: accepted a DSN that names more than one server", dsn)
+		}
+	}
+}
+
+// TestLocalhostMustResolveToLoopback: a host name is resolved, and every
+// address must be loopback; a name that does not resolve is refused.
+func TestLocalhostMustResolveToLoopback(t *testing.T) {
+	if err := loopbackOnly("postgres://u@localhost:5432/x"); err != nil {
+		t.Fatalf("localhost refused: %v", err)
+	}
+	if err := loopbackOnly("postgres://u@no-such-host.invalid:5432/x"); err == nil {
+		t.Fatalf("an unresolvable host name was accepted")
+	}
+}

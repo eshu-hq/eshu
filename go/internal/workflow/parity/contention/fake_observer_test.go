@@ -122,6 +122,12 @@ func (l *fakeLeg) QuotaBuckets(context.Context) ([]QuotaBucket, error) {
 }
 
 func (l *fakeLeg) AnalyzedAt(context.Context) (time.Time, error) {
+	if l.f.loseInStats {
+		l.mu.Lock()
+		l.f.loseInStats = false
+		l.dropOneItemLocked()
+		l.mu.Unlock()
+	}
 	if l.coldStats {
 		return time.Time{}, nil
 	}

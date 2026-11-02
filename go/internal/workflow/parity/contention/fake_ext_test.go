@@ -60,3 +60,13 @@ func (l *fakeLeg) startServerReaper(interval, requeue time.Duration) (stop func(
 	}()
 	return func() { close(done) }
 }
+
+// dropOneItemLocked deletes one item row; the caller holds l.mu.
+func (l *fakeLeg) dropOneItemLocked() {
+	for _, id := range l.order {
+		if _, ok := l.items[id]; ok {
+			delete(l.items, id)
+			return
+		}
+	}
+}

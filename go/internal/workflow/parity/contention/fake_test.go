@@ -27,6 +27,8 @@ type faults struct {
 	staleBeatOK    bool // only stale heartbeats succeed (no state change the database detectors see)
 	growAt         int  // the n-th grant makes the server insert 50 unplanned synthetic items
 	reapRealAt     int  // the n-th reap call also returns a non-synthetic claim
+	loseInSeedAt   int  // after the n-th enqueue call one item row vanishes (fault during the seed)
+	loseInStats    bool // one item row vanishes on the first AnalyzedAt call (fault during the stats wait)
 }
 
 type fakeItem struct {
@@ -69,6 +71,7 @@ type fakeLeg struct {
 	snapshotFailures int
 	reaps            int
 	seeded           bool
+	enqueues         int
 }
 
 func newFakeLeg(f faults, pin bool, budget int) *fakeLeg {
@@ -89,6 +92,10 @@ func (l *fakeLeg) EnqueueWorkItems(_ context.Context, items []workflow.WorkItem)
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.seeded = true
+	l.enqueues++
+	if l.f.loseInSeedAt > 0 && l.enqueues == l.f.loseInSeedAt+1 {
+		l.dropOneItemLocked()
+	}
 	for _, it := range items {
 		if _, ok := l.items[it.WorkItemID]; !ok {
 			l.items[it.WorkItemID] = &fakeItem{item: it}
