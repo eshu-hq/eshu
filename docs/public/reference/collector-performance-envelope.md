@@ -61,7 +61,7 @@ by the [Cypher performance](cypher-performance.md) and reducer contracts.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `git` | 896 repos / ~3.5M facts (Tier 4) | claim-latency gate | sync+discover+parse per repo | 60625 \| 3 | ~20208 | reducer + Cypher contract | full corpus measured (gold point; see Gold Points) |
 | `aws` | 1 account / bounded resource set | claim-latency gate | account snapshot per scope | 16708 \| 2 | ~8354 | reducer + Cypher contract | per-account snapshot, bounded |
-| `azure` | 1 subscription / bounded resource set | claim-latency gate | subscription snapshot per scope | 13125 \| 2 | ~6563 | reducer + Cypher contract | per-subscription snapshot, bounded |
+| `azure` | 1 subscription / bounded resource set | claim-latency gate | subscription snapshot per scope | 13125 \| 2 | ~6563 | reducer + Cypher contract | per-subscription snapshot, bounded; producer POC-retired to the `eshu-collector-azure-cloud` satellite (live-unproven) -- Emit figures are the shared-service Tier-0 cost, not satellite proof |
 | `gcp` | 1 project / bounded resource set | claim-latency gate | project snapshot per scope | 14208 \| 2 | ~7104 | reducer + Cypher contract | per-project snapshot, bounded |
 | `terraform_state` | 1 state file / bounded resources | claim-latency gate | parse state per scope | 10416 \| 2 | ~5208 | reducer + Cypher contract | per-state-file, bounded |
 | `webhook` | refresh-trigger only (no corpus) | claim-latency gate | trigger evaluation only | N/A | N/A | N/A | trigger-latency, no fact corpus |
@@ -194,7 +194,7 @@ full-corpus wall-clock does not):
   (`docs/public/reference/local-performance-envelope.md:19`) measures only
   single-file reindex-to-visible-graph-update, not per-repo extraction or
   full doc-tree collection, so no gold point can be derived from it
-- per-account/subscription/project wall-clock for `aws`, `azure`, `gcp`
+- per-account/subscription/project wall-clock for `aws`, `gcp` (azure's full-corpus proof moved to the satellite with the #8853 retirement; tracked by #9825)
 - per-registry wall-clock for `oci_registry`, `package_registry`
 - per-stream/feed wall-clock for `vulnerability_intelligence`, `security_alert`,
   `ci_cd_run`, `pagerduty`, `jira`, `sbom_attestation`, `scanner_worker`

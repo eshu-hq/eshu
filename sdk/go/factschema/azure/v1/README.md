@@ -38,8 +38,8 @@ required-field validation — that lives in the parent `factschema` package
 (`decode.go`, `decode_azure.go`). It does not own graph projection; reducer
 handlers under `go/internal/reducer` consume the decoded structs but live
 outside this module. It does not own the collector emitters that build these
-payloads (`go/internal/collector/cloud/azure`), which also live outside this
-module.
+payloads (the `eshu-collector-azure-cloud` satellite), which also live outside
+this module.
 
 ## Exported surface
 
@@ -92,7 +92,7 @@ map[string]any`, with JSON type fidelity preserved by a custom
 `awsv1.Relationship`.
 
 **Unlike the aws family, the pass-through here is FLAT, not nested.** The
-Azure collector emitter (`go/internal/collector/cloud/azure`) writes its
+Azure collector emitter (the `eshu-collector-azure-cloud` satellite) writes its
 remaining fields directly at the top level of the payload
 (`payload["kind"] = ...`, `payload["sku_class"] = ...`,
 `payload["extension"] = {...}`), never nested under a single `"attributes"`

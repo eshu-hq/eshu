@@ -367,14 +367,14 @@ collector client or workflow failure kernel.
 
 Generated and vendor-owned cloud/platform clients are also intentional
 exceptions to the first-party HTTP SDK adoption target. The follow-up scan `rg
---files go/internal/collector/awscloud go/internal/collector/cloud/azure
+--files go/internal/collector/awscloud
 go/internal/collector/gcpcloud go/internal/collector/kuberneteslive | rg
 '(^|/)(client|liveclient)\.go$|clientgo/client\.go$|awssdk/client\.go$'`
 separates AWS SDK adapters, GCP's documented unimplemented live seam, and
-Kubernetes `client-go` from duplicated first-party REST boilerplate. Azure is
-included in the scan target and intentionally returns no live client file
-because its runtime is fixture-only with a gated `LiveProviderFactory`. These
-packages keep official SDK/client-go, fixture, or gated live-client boundaries
+Kubernetes `client-go` from duplicated first-party REST boilerplate. Azure left
+the scan target with the #8853 POC-retirement removal: its fixture-only runtime
+and gated `LiveProviderFactory` now live in the `eshu-collector-azure-cloud`
+satellite. These packages keep official SDK/client-go, fixture, or gated live-client boundaries
 while Eshu package runtimes normalize source evidence and bounded telemetry
 after the provider boundary. AWS `isThrottleError` and `mapFailurePolicy`
 helpers classify official SDK errors for telemetry/status and do not implement

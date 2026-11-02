@@ -22,9 +22,8 @@ kinds:
     - azure_tag_observation
 producers:
     - id: collector-azure-cloud
-      repository: eshu-hq/eshu
-      path: go/internal/collector/cloud/azure
-      planned_repository: eshu-hq/eshu-collector-azure-cloud
+      repository: eshu-hq/eshu-collector-azure-cloud
+      path: .
       authority_mode: core_issued_grant
       kinds:
         - azure_cloud_relationship

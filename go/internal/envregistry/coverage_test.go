@@ -37,7 +37,6 @@ var coreScanFiles = []string{
 	"cmd/collector-vulnerability-intelligence/config.go",
 	"cmd/collector-package-registry/config.go",
 	"cmd/collector-oci-registry/config.go",
-	"cmd/collector-azure-cloud/config.go",
 	"internal/collector/claim/store/select.go",
 	"cmd/collector-kubernetes-live/config.go",
 	"cmd/collector-component-extension/config.go",

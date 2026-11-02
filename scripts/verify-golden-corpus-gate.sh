@@ -125,7 +125,6 @@ source "${repo_root}/scripts/lib/golden-corpus-fixtures.sh"
 # hand-maintained number drifted to half the real value before it was noticed.
 collector_specs=(
 	"collector-kubernetes-live:kuberneteslive"
-	"collector-azure-cloud:azurecloud"
 	"collector-gcp-cloud:gcpcloud"
 	"collector-oci-registry:ociregistry"
 	"collector-cicd-run:cicdrun"
@@ -146,6 +145,7 @@ cassette_replay_alias_specs=(
 	"aws-cassette-replay:collector-pagerduty:awscloud"
 	"terraform-state-cassette-replay:collector-pagerduty:terraformstate"
 	"vault-cassette-replay:collector-pagerduty:vaultlive"
+	"azure-cassette-replay:collector-pagerduty:azurecloud"
 )
 cassette_recording="supply-chain-demo.json"
 

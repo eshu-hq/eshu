@@ -3,8 +3,11 @@
 This page defines the provider-specific contract for the Azure cloud collector.
 It is a child of the
 [Multi-Cloud Runtime Collector Contract](multi-cloud-collector-contract.md).
-Claimed-live transport and default-off Helm exposure are implemented; this
-contract does not by itself promote Azure beyond its gated readiness lane.
+The in-tree producer was POC-retired (issue #8853): claimed-live transport and
+default-off Helm exposure were implemented in-tree, then deleted with the
+producer trees; the satellite (`eshu-hq/eshu-collector-azure-cloud`) holds them
+live-unproven. This contract does not by itself promote Azure beyond its gated
+readiness lane.
 
 The collector kind is `azure`. It observes Azure control-plane metadata through
 Azure Resource Graph and bounded Azure Resource Manager fallback reads, then
@@ -14,56 +17,28 @@ truth.
 
 ## Status
 
-The first fixture-testable slice landed in `go/internal/collector/cloud/azure`.
-It registers the Azure fact constants and schema versions in
-`go/internal/facts/cloud/azure.go`, normalizes ARM resource identity, redacts the
-provider extension payload, and emits `azure_cloud_resource` and
-`azure_collection_warning` source facts from fixture Resource Graph pages.
+**POC-retired (issue #8853).** The in-tree Azure producer
+(`go/internal/collector/cloud/azure` and `go/cmd/collector-azure-cloud`,
+including the `-mode claimed-live` runtime and default-off Helm exposure) was
+deleted as a retired proof-of-concept, not as a completed cutover. No core
+producer is deployed, no tenant or workload identity is bound, and deployed
+stores hold zero non-fixture Azure facts. The ported fixture engine and live
+transport now live in the `eshu-collector-azure-cloud` satellite, which is
+live-unproven; it is not the production producer. Azure stays `gated`.
 
-The runtime scaffolding slice (issue #1998) has now landed in
-`go/internal/collector/cloud/azure/runtime` and
-`go/cmd/collector-azure-cloud`. It adds:
+What core retains: the eight Azure fact kinds and schema versions in
+`go/internal/facts/cloud/azure.go`, the `azure` scope `CollectorKind`
+(`scope.CollectorAzure`), shared multi-cloud reducer admission and API/MCP
+readback for the `azure_cloud_resource` identity, and every reducer slice below.
+The fixture-testable slices (fixture Resource Graph pages, claimed-live
+handoff shape, ARM fallback seam, default-off Helm shape) were proven in-tree
+before retirement and are preserved in the satellite; they are not live proof.
 
-- the `azure` scope `CollectorKind` (`scope.CollectorAzure`),
-- a non-claimed `collector.Source` (`runtime.Source`) that yields one
-  collected generation per declarative tenant/subscription/management-group
-  scope target by reading Resource Graph pages through the existing
-  `PageProvider` seam with `$skipToken` resume,
-- the `collector-azure-cloud` binary wiring that source into the shared
-  `collector.Service` for atomic fact + generation commit, with credentials
-  referenced by name only.
-
-The **fixture mode** default still performs **no live Azure calls**. The live
-Resource Graph client is a documented seam (`runtime.LiveProviderFactory`)
-that is gated by construction: its zero value returns `ErrLiveProviderGated`, and
-live Resource Graph reads require explicit injection of a read-only client. The
-owned default live query avoids the full ARM `properties` bag, SDK rows are
-capped before conversion, and throttling, permission-hidden scopes, and expired
-auth or continuation tokens surface as warning evidence. Tests and the binary's
-fixture mode use a fixture or file-backed `PageProvider`.
-
-Claimed-live transport is now wired and **off by default**: the
-`collector-azure-cloud` binary `-mode claimed-live` path (issue #3024) selects an
-enabled, claim-enabled `azure` instance with `live_collection_enabled=true`,
-resolves the ambient read-only Azure credential, injects the SDK Resource Graph
-client into `LiveProviderFactory`, and runs through `collector.ClaimedService`.
-The claimed source serves the `resource_graph` lane only. Default-off Helm
-exposure (deployment, metrics service, ServiceMonitor, render-time validation)
-mirrors GCP. **Live smoke proof against a real tenant remains gated**; promotion
-to `implemented` requires an operator-run live proof.
-
-The allowlisted ARM fallback seam is also implemented behind
-`runtime.LiveProviderFactory`. It remains non-default and requires explicit
-in-process injection of a separate read-only `LiveARMFallbackClient`, exact
-resource-type `LiveARMFallbackRule` entries, fixed API versions, and bounded
-extension fields. The SDK wrapper exposes only Azure Resource Manager
-`GetByID`, and the fallback never registers providers or mutates resources. A
-fallback payload is attached under the Resource Graph row extension as
-`armFallback`, carries its own schema version, is byte-bounded before
-attachment, and then passes through the existing `azure_cloud_resource`
-redaction policy before persistence. Unsupported families, throttles, timeouts,
-permission-hidden resources, and oversized fallback payloads emit
-`azure_collection_warning` evidence rather than silent empty success.
+Credential discipline is unchanged: credentials are referenced by name only,
+live reads require an explicit read-only client, throttling and
+permission-hidden scopes surface as warning evidence, and metric labels and
+status keys must never carry ARM IDs, subscription IDs, resource names, tags,
+identity GUIDs, DNS names, image refs, KQL text, URLs, or credential names.
 
 Shared multi-cloud reducer admission and API/MCP readback for the
 `azure_cloud_resource` identity are now implemented and fixture-proven. The
@@ -134,11 +109,12 @@ skipped. The Cypher writer uses MATCH-MATCH-MERGE over existing
 for graph readback. It does not call Azure, mint target nodes from relationship
 facts, or activate API/MCP readback lanes.
 
-Claimed-live command wiring and default-off Helm exposure now exist for the
-Resource Graph lane (issue #3024). Sanitized live proof against a real tenant
-and its security review remain gated by issue #3066; ARM-fallback live
-activation and API/MCP readback promotion remain gated until their own proof
-lands. The
+Claimed-live command wiring and default-off Helm exposure existed for the
+Resource Graph lane (issue #3024) and were retired with the in-tree producer
+(issue #8853). Sanitized live proof against a real tenant and its security
+review remain gated (tracked by #9825/#9826, superseding issue #3066);
+ARM-fallback live activation and API/MCP readback promotion remain gated until
+their own proof lands. The
 `azure_cloud_relationship` envelope builder
 (`NewRelationshipEnvelope`) is implemented and unit-proven as provenance-only
 (both endpoint ARM identities, relationship type, and a bounded support state;
@@ -198,12 +174,12 @@ the owning ARM resource identity does not invent repository anchors. `go test
 TestFactStoreListActiveContainerImageIdentityFactsUsesActiveIdentityGenerations
 -count=1` proves the active cross-scope image-identity fact loader includes
 Azure image-reference facts while preserving active-generation and tombstone
-predicates. `go test ./internal/collector/cloud/azure -run
-'TestCollect(EmitsDNSAndImageReferencesWhenKeyed|SkipsDNSAndImageReferencesWithoutKey|SourceLaneEmissionHandlesEmptyUnsupportedMalformedAndDuplicateRows|SourceLaneEmissionPreservesPartialScopeWarning)'
--count=1` proves Resource Graph scan-loop emission for keyed DNS and Container
+predicates. Resource Graph scan-loop emission for keyed DNS and Container
 Apps image source rows, no-key fail-closed behavior, unsupported and empty
 source-data skips, duplicate image-reference convergence, partial-scope warning
-preservation, and DNS/container redaction boundaries without live Azure access.
+preservation, and DNS/container redaction boundaries were proven by the retired
+in-tree fixture suite (`./internal/collector/cloud/azure`, removed by #8853);
+they are not re-proven here — satellite conformance is a separate gate.
 `go test ./internal/reducer -run
 'Azure(Resource|Relationship)Materialization|ExtractAzure' -count=1`, `go test
 ./internal/projector -run Azure -count=1`, `go test ./internal/storage/cypher
@@ -215,9 +191,10 @@ readback properties, and reducer wiring without live Azure activation or
 API/MCP readback changes.
 
 No-Observability-Change: the live Azure runtime adapter stays gated. The
-runtime scaffolding slice adds a non-claimed source and binary that emit a
-bounded per-target span (`collector.azure.scope_scan`) and reuse the
-package-local bounded-label Azure instruments only. It adds no live Azure call,
+retired runtime scaffolding slice added a non-claimed source and binary that
+emitted a bounded per-target span (`collector.azure.scope_scan`) and reused the
+package-local bounded-label Azure instruments only; those signals left with the
+#8853 extraction and the satellite emits its own copies. It adds no live Azure call,
 no chart values, no shared-registry telemetry series, and no query claims. Azure
 image identity admission reuses the existing projector reducer-intent handoff,
 `container_image_identity` reducer execution, durable
@@ -415,26 +392,68 @@ The first code PRs must prove these cases before any live smoke:
 
 1. Add fact constants, schema helpers, and fixture payload tests. **(done)**
 2. Add a Resource Graph client adapter with mocked `Resources` and
-   `resourcechanges` responses. **(live Resource Graph seam done; claimed-live
-   command activation done, default-off; real-tenant proof remains gated by
-   issue #3066.)**
+   `resourcechanges` responses. **(done in-tree, retired by #8853; the seam now
+   lives in the satellite, live-unproven.)**
 3. Add an allowlisted ARM fallback adapter with read-only mocked `GET`
-   responses. **(done behind explicit injection; ARM-fallback live activation
-   remains gated — claimed-live serves the `resource_graph` lane only.)**
-4. Add the collector runtime and source fact emission. **(done: `runtime.Source`
-   + `collector-azure-cloud` over a fixture/gated `PageProvider`, plus the
-   claim-driven `-mode claimed-live` runtime through `collector.ClaimedService`
-   with fixture-proven claim handoff; real-tenant proof remains gated by issue
-   #3066.)**
+   responses. **(done in-tree behind explicit injection, retired by #8853 —
+   claimed-live served the `resource_graph` lane only.)**
+4. Add the collector runtime and source fact emission. **(done in-tree:
+   `runtime.Source` + `collector-azure-cloud` over a fixture/gated
+   `PageProvider`, plus the claim-driven `-mode claimed-live` runtime through
+   `collector.ClaimedService` with fixture-proven claim handoff — retired by
+   #8853, not a cutover.)**
 5. Add reducer admission for resource identity, tag evidence, change evidence,
    relationships, and warnings.
 6. Add API/MCP readback truth tests for Azure evidence states.
 7. Add Helm and live-smoke support only after the runtime and reducer contract
-   pass fixture gates. **(default-off Helm exposure done — deployment, metrics
-   service, ServiceMonitor, render-time validation, issue #3024; sanitized
-   real-tenant proof remains gated by issue #3066.)**
+   pass fixture gates. **(default-off Helm exposure done in-tree — deployment,
+   metrics service, ServiceMonitor, render-time validation, issue #3024 —
+   retired by #8853.)**
 
 Remaining promotion evidence is the partition-filtered handler proof plus the
-sanitized real-tenant proof and security review tracked by issue #3066.
-ARM-fallback live activation, later source-family scan loops, and their own
-fixture/live proof remain separate implementation work.
+satellite sanitized real-tenant proof and security review tracked by #9825/#9826
+(superseding issue #3066). ARM-fallback live activation, later source-family
+scan loops, and their own fixture/live proof remain separate implementation
+work.
+
+No-Regression Evidence (#8853 POC retirement): this change deletes the in-tree
+Azure producer trees (`go/cmd/collector-azure-cloud`,
+`go/internal/collector/cloud/azure`) and repoints the fact-family producer
+record at `eshu-hq/eshu-collector-azure-cloud`. No fact-kind string, payload
+shape, schema version, reducer admission domain, projector intent, or read
+surface changes: the eight kinds, reducer admission/projection, and API/MCP
+readback are byte-identical before and after.
+Measurement: baseline `origin/main` vs removal commit on Linux ARM (ledger:8853-retire-no-regression).
+`go build ./...` is clean except three link-time disk-quota failures
+(`cmd/webhook-intake`, `cmd/webhook-listener`, `cmd/workflow-coordinator`)
+that fail identically on the clean main checkout (pre-existing host
+environment, outside this change's surface). `go vet` passes on every touched
+package. Focused suites pass: `go test ./internal/facts/...`,
+`./internal/envregistry/...`, `./internal/telemetry/...`,
+`./internal/secretcrypto/...`, `./internal/capabilitycatalog/...`,
+`./cmd/capability-inventory/...`, `./cmd/fact-kind-registry/...`,
+`./internal/reducer/` (+ `cloudinventory`, `containerimage`, `schemadecode`,
+`multicloudruntimedrift`), `./internal/projector/cloud/...`,
+`./internal/projector/runtime/...`, `./internal/query/`, and the
+storage-postgres cloud admission selections. Replay coverage
+(`verify-replay-coverage-gate.sh --blocking`) passes 459/459 with no generated
+drift. Contract gates green: `verify-fact-kind-registry.sh`,
+`verify-env-registry-doc.sh`, `verify-contracttest.sh`,
+`verify-payload-usage-manifest.sh`, `verify-telemetry-coverage.sh`,
+`capability-inventory -mode verify`, `-mode docs`, and
+`verify-docs-cli-env-refs.sh`; `git diff --check` clean. Input shape: n/a
+(deletion; no runtime input). Terminal queue/row counts: none touched — no
+queue, lease, Cypher, or SQL path changes. The change is safe because the
+deletion is compile-enforced total: the only external references were the
+envregistry coverage scan entry (removed) and doc comments (reworded); a missed
+caller would fail the build.
+
+No-Observability-Change (#8853 POC retirement): the in-tree
+`eshu_dp_azure_*` instruments (including `eshu_dp_azure_claims_total`) left
+with the extraction and the satellite emits its own bounded copies. No core
+span, counter, log key, or status field is added, removed, or renamed outside
+the deleted trees. In-tree claim cycle duration and fact volume stay covered by
+`eshu_dp_workflow_claim_run_duration_seconds` and
+`eshu_dp_workflow_claim_facts_emitted_total`; the telemetry-coverage row for
+the retired collector carries the marker with the satellite named as the
+signal owner.

@@ -296,7 +296,6 @@ LINE go/internal/replay/faultreplay/AGENTS.md go/internal/reducer/service.go:27
 LINE go/internal/replay/faultreplay/README.md go/internal/reducer/service.go:27
 LINE go/internal/replay/faultreplay/README.md go/internal/reducer/service.go:27
 LINE go/internal/replay/faultreplay/doc.go go/internal/reducer/service.go:27
-LINE go/internal/secretcrypto/README.md go/internal/envregistry/entries_collectors.go:119
 LINE go/internal/secretcrypto/README.md go/internal/runtime/api_key.go:66
 LINE go/internal/secretcrypto/env.go go/internal/runtime/api_key.go:66
 LINE go/internal/storage/postgres/AGENTS.md go/internal/parser/hcl/terraform_resource_attributes.go:132

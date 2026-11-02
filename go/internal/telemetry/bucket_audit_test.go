@@ -76,7 +76,6 @@ func bucketAuditTable() []bucketAuditEntry {
 
 		// ---- cloud collector freshness lag (registered outside instruments.go) ----
 		{MetricName: "eshu_dp_gcp_cloud_freshness_lag_seconds", Buckets: freshnessLagBuckets},
-		{MetricName: "eshu_dp_azure_freshness_lag_seconds", Buckets: freshnessLagBuckets},
 
 		// ---- scanner worker histograms ----
 		{MetricName: "eshu_dp_scanner_worker_queue_wait_seconds", Buckets: scannerWorkerWaitBuckets},

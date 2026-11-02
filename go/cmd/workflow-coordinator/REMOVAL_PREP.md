@@ -36,7 +36,7 @@ and 73-file figures in this file are replaced below.
    that move to `eshu-workflow`. Coordinator *subpackage* consumers in
    collector trees repoint per §4, not by directory delete.
 3. `go/internal/workflow/` root (72 root `.go` + 8 `parity/`, incl. the
-   protocol compat test): repoint the 183 importers
+   protocol compat test): repoint the 179 importers
    first (§3), land the satellite client + shared contracts module, then
    delete file-by-file with the importer census as the checklist.
    `parity/` harnesses stay until the removal lands (they prove the
@@ -168,7 +168,7 @@ fresh digest bind (the deployed `03d9f976` is 22 commits behind satellite
 - SLSA attestation: present on candidate `db5a3a53`, absent on live
   `03d9f976` (the image predates the attest steps).
 
-## 6. Per-file importer census (183 non-test files)
+## 6. Per-file importer census (179 non-test files)
 
 Regenerate: `git grep -l 'go/internal/workflow"' -- '*.go' | rg -v
 '_test.go$'`. Every file below must repoint (§2) before its assembly
@@ -192,6 +192,11 @@ cmd 1) and 1 in `475c199b56` (`#9432`, `slot_transport.go`, collector). Per dire
 61→66, collector 52→53, storage 17→30, cmd 31→32, workflow-self 2→2. The
 importer count grows while new scanner and advisory work lands in-tree, so
 re-run this census at the rebase before every assembly step.
+
+Amendment 2026-11-02 (#8853 POC-retirement): four entries whose files are
+deleted by the Azure in-tree producer retirement are dropped — one collector
+runtime file and three `collector-azure-cloud` command files — so there is
+nothing left to repoint. Counts 183→179 (collector 53→52, cmd 32→29).
 
 ### 6a. `go/internal/coordinator` (66)
 
@@ -262,7 +267,7 @@ re-run this census at the rebase before every assembly step.
 - `go/internal/coordinator/vulnerability_intelligence_service.go`
 - `go/internal/coordinator/workflow_tenant_grants.go`
 
-### 6b. `go/internal/collector` (53)
+### 6b. `go/internal/collector` (52)
 
 - `go/internal/collector/awscloud/awsruntime/record_source.go`
 - `go/internal/collector/awscloud/awsruntime/source.go`
@@ -285,7 +290,6 @@ re-run this census at the rebase before every assembly step.
 - `go/internal/collector/claimed_service_run_metrics.go`
 - `go/internal/collector/claimed_service_state.go`
 - `go/internal/collector/claimed_service_validation.go`
-- `go/internal/collector/cloud/azure/runtime/claimed_source.go`
 - `go/internal/collector/conformance/parity/fixture.go`
 - `go/internal/collector/conformance/parity/harness.go`
 - `go/internal/collector/conformance/parity/stubs.go`
@@ -318,7 +322,7 @@ re-run this census at the rebase before every assembly step.
 - `go/internal/collector/vulnerabilityintelligence/vulnruntime/slot_transport.go` (new)
 - `go/internal/collector/vulnerabilityintelligence/vulnruntime/source.go`
 
-### 6c. `go/internal/storage/postgres` (30) + workflow self (2) + `go/cmd` (32)
+### 6c. `go/internal/storage/postgres` (30) + workflow self (2) + `go/cmd` (29)
 
 - `go/internal/storage/postgres/claim_replay_ack.go`
 - `go/internal/storage/postgres/control_scanner_discovery.go` (new)
@@ -353,9 +357,6 @@ re-run this census at the rebase before every assembly step.
 - `go/internal/workflow/parity/backend.go` (harness — stays until removal lands)
 - `go/internal/workflow/parity/fixtures.go` (harness — stays until removal lands)
 - `go/cmd/api/metrics_source.go`
-- `go/cmd/collector-azure-cloud/claimed_config.go`
-- `go/cmd/collector-azure-cloud/service.go`
-- `go/cmd/collector-azure-cloud/status_committer.go`
 - `go/cmd/collector-cicd-run/config.go`
 - `go/cmd/collector-cicd-run/provider_source.go`
 - `go/cmd/collector-cicd-run/service.go`
@@ -403,7 +404,7 @@ stays HELD until every row below is green.
 | In-cluster throughput | HELD | Procedure in §4; scoped grant recorded, same open preconditions as contention; needs a fresh digest bind (deploy lane) |
 | Satellite standing-authoritative | HELD | Dark on `03d9f976` as last read (§5); candidate `db5a3a53` waits on the deployment-repo re-pin PR `#491`; in-tree still owns claims |
 | `#9659` merged/closed | GREEN | State MERGED (stale-activation fix) |
-| Importer repointing (183 files) | HELD | Zero of 183 repointed; assembly order in §1 unchanged |
+| Importer repointing (179 files) | HELD | Zero of 179 repointed; assembly order in §1 unchanged |
 
 `#9376` stays OPEN. `#9659` MERGED, `#9686` MERGED. SLSA attestation
 is present on the candidate digest and absent on the live one (§5). The
