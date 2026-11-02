@@ -13,16 +13,25 @@ package postgres
 // Per table the per-generation counts therefore sum to the rows the content
 // prunes delete, and BatchRowLimit compares against that sum (#6809).
 //
-// The sixteen cascade-child arms (#7396 plus #7751) count the cascade
-// children of scope_generations the final DELETE removes implicitly:
-// without them BatchRowLimit and the retention events under-count the
-// prune. Each arm joins its table through scope_generations on both
+// The seventeen cascade-child arms (sixteen from #7396 plus #7751, and the
+// #9376 fence arm below) count the cascade children of scope_generations
+// the final DELETE removes implicitly: without them BatchRowLimit and the
+// retention events under-count the prune. Each #7396 and #7751 arm joins its table through scope_generations on both
 // (scope_id, generation_id), the fact_records shape: a generation-only
 // probe would skip-scan the two-column index once per candidate over every
 // scope, with cost growing with the table instead of the batch. The #7751
 // arm counts producer_activation_obligations through its generation-leading
 // PRIMARY KEY (generation_id, scope_id), measured with EXPLAIN ANALYZE
 // before landing like the #7700 arm.
+//
+// The #9376 arm counts generation_commit_fences, the claim-plane commit
+// fence rows. Its foreign key and cascade are on generation_id alone, so the
+// arm probes the generation-leading PRIMARY KEY (generation_id, work_item_id)
+// directly, with no scope join: it counts exactly the rows the cascade
+// deletes. EXPLAIN ANALYZE on PostgreSQL 18 (1,000,000 generations, 200,000
+// fence rows, a 100-candidate batch, generic plan and seq scans disabled
+// alike): an Index Only Scan on generation_commit_fences_pkey, 100 index
+// searches, 320 shared buffers, 0.44 ms.
 //
 // The #7700 arm counts admission_decision_evidence, a cascade
 // grandchild: evidence rows hang off admission_decisions by decision_id, so
@@ -250,6 +259,12 @@ LEFT JOIN scope_generations AS generation
 LEFT JOIN producer_activation_obligations AS row
   ON row.scope_id = generation.scope_id
  AND row.generation_id = candidate.generation_id
+GROUP BY candidate.generation_id
+UNION ALL
+SELECT candidate.generation_id, 'generation_commit_fences' AS table_name, COUNT(row.generation_id) AS row_count
+FROM generation_retention_row_counts AS candidate
+LEFT JOIN generation_commit_fences AS row
+  ON row.generation_id = candidate.generation_id
 GROUP BY candidate.generation_id
 UNION ALL
 SELECT candidate.generation_id, 'admission_decisions' AS table_name, COUNT(row.generation_id) AS row_count
