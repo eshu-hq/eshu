@@ -60,7 +60,7 @@ are identical, so neither a regression nor a speedup is claimed.
 Provenance: `578d2d38e6` is on `origin/main` (the merged PR-A head). The
 after run was taken on a pre-rebase commit that is no longer reachable
 from this branch; its `ingestion.go` matches, byte for byte, the one
-`a30eb34eae` gives this branch (an empty `git diff` of that file against
+`f9180be7b4` gives this branch (an empty `git diff` of that file against
 this head, run in the lane clone that still holds the old object). The
 benchmark drives the in-tree path (`ClaimPlane` nil), so later fence-only
 edits (`ingestion_claim_fence.go`, the retention count arm) are off its
