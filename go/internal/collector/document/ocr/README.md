@@ -232,6 +232,11 @@ value window and once for the region's own text), and keeps its buffers on the
 stack, so it allocates less than the lowercase copy it replaces. The added
 0.5 to 0.6 ms per 500 regions is about 0.3 percent of one tesseract run.
 
+No-Observability-Change (#9793): the label matcher adds no metric, span, or log.
+A region it flags is a redacted section, so `eshu_dp_ocr_redacted_regions_total`,
+the `ocr.redacted_region_count` span attribute, and the `redacted_region_count`
+log field count it with no change.
+
 Marker-list False-positive Evidence (#9793): the rule is a superset of the old
 one on every corpus below, and costs more only where the text holds a new word.
 The unit corpus `ordinaryLines` (43 lines, each holding a marker word as a
