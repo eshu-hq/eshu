@@ -24,6 +24,7 @@ func TestQuotaCriterionAcrossHourBoundary(t *testing.T) {
 		{"held within one hour", []QuotaBucket{{ScopeID: at, WindowStart: h18, Grants: 5}, {ScopeID: below, WindowStart: h18, Grants: 4}}, 2, StatusPass},
 		{"drained across the hour", []QuotaBucket{{ScopeID: at, WindowStart: h18, Grants: 5}, {ScopeID: at, WindowStart: h19, Grants: 2}, {ScopeID: below, WindowStart: h18, Grants: 4}}, 0, StatusPass},
 		{"bucket over budget", []QuotaBucket{{ScopeID: at, WindowStart: h18, Grants: 6}}, 1, StatusFail},
+		{"one at budget, one over", []QuotaBucket{{ScopeID: at, WindowStart: h18, Grants: 5}, {ScopeID: at, WindowStart: h19, Grants: 6}}, 0, StatusFail},
 		{"budget never reached", []QuotaBucket{{ScopeID: at, WindowStart: h18, Grants: 3}, {ScopeID: below, WindowStart: h18, Grants: 4}}, 0, StatusFail},
 		{"no buckets", nil, 0, StatusFail},
 	}
