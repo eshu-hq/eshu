@@ -405,50 +405,14 @@ result and error path, not a new one.
 
 ## Satellite stderr relay (#9823)
 
-A satellite may fail a claim as `input_limit_exceeded` and print the byte
-figures behind it on its stderr record. The wire `Status` cannot carry them
-(`DisallowUnknownFields`), so the runner turns them into typed values and the
-host logs them on the existing `component extension result` line.
-
-Decision (the allowlist and its bounds):
-
-- Allowlist: exactly three integer keys, `inflated_bytes`, `budget_bytes`, and
-  `compressed_bytes`, read from one JSON stderr line that carries all three as
-  non-negative integers. Every other key, every non-JSON line, and any record
-  with a missing, null, negative, fractional, overflowing, or string figure is
-  dropped whole. The host never holds or logs a satellite string, so a path, an
-  image name, or a token cannot reach a log through this relay.
-- Gate: only a call whose result state is not `complete` or `unchanged` is
-  parsed (`CallResult.InputLimit`), and `ResultRecord.InputLimit` is set only
-  for a validated SDK result, never for a host verdict.
-- Size bound: at most the first 64 KiB of the stderr buffer is scanned, a line
-  over 4 KiB is skipped, and the stderr buffer keeps its existing
-  `stderr_limit_bytes` cap.
-- Rate bound: no new log line. The figures ride on the one result line each
-  claim already writes, so a failed claim adds three numeric fields, not log
-  volume. A paged claim keeps the figures of its last call that carried them.
-- Not covered: a satellite that exits non-zero still logs only the existing
-  `stderr_bytes` and `stderr_truncated` counts, and the legacy single-call
-  `RunCollector` path relays nothing. Both production runners use the paged
-  path.
-
-No-Regression Evidence: before this change the host parsed no stderr. `go test
-./internal/collector/extensionhost -run '^$' -bench AttachStderrFigures
--benchtime=200000x -count=3` (go1.26.10, linux/arm64, no backend) measured a
-complete call at 14.2-14.4 ns/op, 0 allocs (a state compare, no parse); a
-terminal call with the typical one-line record at 1.4-1.9 us/op, 9 allocs; and
-the worst case, a full 64 KiB buffer of non-matching lines, at 78-84 us/op, 0
-allocs. The parse runs once per non-complete call, next to a launch that takes
-milliseconds. No queue, lease, claim, or graph path is touched.
-
-No-Observability-Change: no new metric or span; the existing
-`eshu_dp_component_extension_results_total{failure_class}` still counts failed
-claims, and the result log line gains three keys (`telemetry.LogKeys()`),
-proven by `TestFailedClaimRelaysAllowlistedFiguresFromSatelliteStderr`.
-
-Where an operator reads them: the `component extension result` log line's
-`extension_status.inflated_bytes`, `extension_status.budget_bytes`, and
-`extension_status.compressed_bytes` keys, next to `failure_class`.
+A satellite that fails a claim as `input_limit_exceeded` prints three byte
+figures on its stderr record. The host relays exactly `inflated_bytes`,
+`budget_bytes`, and `compressed_bytes`, as integers, onto the one
+`component extension result` log line, and only when the claim's final
+assembled result is neither `complete` nor `unchanged`. It never relays a
+satellite string, a raw line, or any other key. The allowlist, bounds,
+benchmark evidence, and operator read path live in
+[STDERR_RELAY.md](STDERR_RELAY.md).
 
 ## Claim outcomes and host-owned source state (#9420)
 

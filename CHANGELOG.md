@@ -49,7 +49,8 @@ recent shipped work grouped by feature area.
   figures a scanner satellite prints could not be read without attaching to the
   satellite. The `component extension result` line now carries
   `extension_status.inflated_bytes`, `extension_status.budget_bytes`, and
-  `extension_status.compressed_bytes` on a non-complete result. Only those three
+  `extension_status.compressed_bytes` when the claim's final result is not
+  complete or unchanged. Only those three
   integer keys are relayed; no path, image name, or other stderr text reaches
   the log.
 

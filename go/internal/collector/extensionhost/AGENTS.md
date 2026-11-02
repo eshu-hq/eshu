@@ -48,7 +48,9 @@ extensions. Follow the root `AGENTS.md`, `docs/internal/agent-guide.md`, and
   class or terminality.
 - The stderr relay (#9823) is an allowlist of three integer keys
   (`inflated_bytes`, `budget_bytes`, `compressed_bytes`) parsed in
-  `satellite_stderr.go`. Never relay a satellite string, a raw line, or a new
+  `satellite_stderr.go`; the full contract and evidence are in
+  `STDERR_RELAY.md`. Never relay a satellite string, a raw line, or a new
   key without a named, bounded, secret-free reason and a hostile-stderr test.
-  Figures reach `ResultRecord` only for a validated SDK result, never a host
+  Figures reach `ResultRecord` only for a validated SDK result whose FINAL
+  assembled state is not complete or unchanged, never a host
   verdict, and ride on the existing result log line; do not add a log line.
