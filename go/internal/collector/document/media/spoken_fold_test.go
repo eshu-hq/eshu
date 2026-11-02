@@ -28,7 +28,7 @@ func TestFoldASCIIAgreesWithFoldUnicode(t *testing.T) {
 
 // TestJoinedHasKeywordCutsNeverFakeABoundary slides a long first or second
 // segment so the byte limit lands on every position of a word, and requires
-// that a cut word is dropped whole instead of becoming a whole-word keyword.
+// that a cut word never becomes a whole-word keyword.
 func TestJoinedHasKeywordCutsNeverFakeABoundary(t *testing.T) {
 	t.Parallel()
 
@@ -86,7 +86,10 @@ func TestJoinedHasKeywordMatchesFullJoin(t *testing.T) {
 		prevText, curText := build(), build()
 		if rng.Intn(2) == 0 {
 			half := halves[rng.Intn(len(halves))]
-			prevText, curText = prevText+" "+half[0], half[1]+" "+curText
+			// A long unbroken word may touch the join on either side.
+			glueBefore := strings.Repeat("x", rng.Intn(40))
+			glueAfter := []string{"", ":" + strings.Repeat("v", rng.Intn(40)), strings.Repeat("v", rng.Intn(40))}[rng.Intn(3)]
+			prevText, curText = prevText+" "+glueBefore+half[0], half[1]+glueAfter+" "+curText
 		}
 		prev, cur := foldSpoken(prevText), foldSpoken(curText)
 		if foldedHasKeyword(prev) || foldedHasKeyword(cur) {
@@ -102,5 +105,32 @@ func TestJoinedHasKeywordMatchesFullJoin(t *testing.T) {
 	}
 	if straddling < 100 {
 		t.Fatalf("only %d straddling pairs generated, the property test proves too little", straddling)
+	}
+}
+
+// TestJoinedHasKeywordKeepsLongWordsNextToTheJoin pins the review finding that
+// a long unbroken word beside the join must not hide a keyword half: the cut
+// keeps it behind an edge letter instead of dropping it.
+func TestJoinedHasKeywordKeepsLongWordsNextToTheJoin(t *testing.T) {
+	t.Parallel()
+
+	long := strings.Repeat("x", 40)
+	tests := []struct {
+		name      string
+		prev, cur string
+		want      bool
+	}{
+		{"long word then api, then key", long + "api", "key is", true},
+		{"api, then key and a long value", "the api", "key:" + strings.Repeat("v", 40), true},
+		{"api, then key glued to a long value", "the api", "key" + strings.Repeat("v", 40), true},
+		{"long word before private", long + "private", "key is", true},
+		{"cut before a start-bounded half stays clear", long + "pass", "word is", false},
+		{"cut after a whole-word half stays clear", "the p i", "n" + long, false},
+	}
+	for _, tt := range tests {
+		got := joinedHasKeyword(foldSpoken(tt.prev), foldSpoken(tt.cur))
+		if got != tt.want {
+			t.Fatalf("%s: joinedHasKeyword(%q, %q) = %v, want %v", tt.name, tt.prev, tt.cur, got, tt.want)
+		}
 	}
 }

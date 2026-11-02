@@ -162,7 +162,9 @@ introduces it, so `Extract` does not judge segments only one at a time (#9786).
   or digit and the current one, in each walk's own order, and counts only when
   neither holds a keyword alone, so one keyword never opens two windows. Only
   the last 24 bytes of the first segment and the first 24 of the second are
-  joined, each cut at a word start or end, so the work is constant per pair.
+  joined, so the work is constant per pair; a cut inside a word leaves a
+  placeholder letter, so a long word beside the join is kept and a cut cannot
+  fake a word boundary.
   Splitting a keyword into three or more segments is not caught.
 - The window is 2 so it covers an immediate value, plus a value the engine
   broke in two or a filler spoken before it. It stays small because every

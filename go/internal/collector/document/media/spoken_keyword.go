@@ -121,54 +121,50 @@ func foldedHasKeyword(folded string) bool {
 // the second. 24 leaves room for both.
 const joinEdgeBytes = 24
 
+// edgeLetter stands in for the letter a byte cut removed. No rule phrase holds
+// an "x", so it never takes part in a match; it only makes a before or after
+// boundary check see a letter where the cut split a word, instead of the text
+// edge that would pass the check.
+const edgeLetter = "x"
+
 // joinedHasKeyword reports whether a keyword straddles two consecutive
 // segments, such as "The API" then "key is". Both arguments are folded. A
 // caller passes only a pair where neither segment holds a keyword alone, so a
 // hit is a keyword that needed both halves. The join is one space, which is
 // what the fold makes of any separator, so "pass" then "word" reads as "pass
 // word". Only the last joinEdgeBytes of the first segment and the first
-// joinEdgeBytes of the second are joined, each cut at a word start or end so
-// the cut cannot fake a word boundary, which keeps the work constant per pair.
+// joinEdgeBytes of the second are joined, which keeps the work constant per
+// pair. A cut inside a word leaves an edgeLetter in its place, so a long word
+// next to the join is kept and a cut cannot fake a word boundary.
 func joinedHasKeyword(prevFolded, curFolded string) bool {
-	tail := wordTail(prevFolded, joinEdgeBytes)
-	head := wordHead(curFolded, joinEdgeBytes)
-	if tail == "" || head == "" {
+	if prevFolded == "" || curFolded == "" {
 		return false
 	}
-	return foldedHasKeyword(tail + " " + head)
+	return foldedHasKeyword(edgeTail(prevFolded, joinEdgeBytes) + " " + edgeHead(curFolded, joinEdgeBytes))
 }
 
-// wordTail returns the end of folded, at most n bytes, starting at a word
-// start. A word cut by the byte limit is dropped whole.
-func wordTail(folded string, n int) string {
+// edgeTail returns the end of folded, at most n bytes, with an edgeLetter in
+// front when the cut fell inside a word.
+func edgeTail(folded string, n int) string {
 	if len(folded) <= n {
 		return folded
 	}
-	tail := folded[len(folded)-n:]
 	if folded[len(folded)-n-1] == ' ' {
-		return tail
+		return folded[len(folded)-n:]
 	}
-	cut := strings.IndexByte(tail, ' ')
-	if cut < 0 {
-		return ""
-	}
-	return tail[cut+1:]
+	return edgeLetter + folded[len(folded)-n:]
 }
 
-// wordHead returns the start of folded, at most n bytes, ending at a word end.
-// A word cut by the byte limit is dropped whole.
-func wordHead(folded string, n int) string {
+// edgeHead returns the start of folded, at most n bytes, with an edgeLetter
+// after it when the cut fell inside a word.
+func edgeHead(folded string, n int) string {
 	if len(folded) <= n {
 		return folded
 	}
 	if folded[n] == ' ' {
 		return folded[:n]
 	}
-	cut := strings.LastIndexByte(folded[:n], ' ')
-	if cut < 0 {
-		return ""
-	}
-	return folded[:cut]
+	return folded[:n] + edgeLetter
 }
 
 // foldSpoken returns text in the form the spoken keyword rules match on. It
