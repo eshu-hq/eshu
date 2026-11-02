@@ -22,6 +22,7 @@ See `doc.go` for the godoc contract. The exported surface is `Manifest`,
 
 The package uses the Go formatter, `text/template`, and `gopkg.in/yaml.v3`.
 Generated files depend on `internal/app`, `internal/runtime`,
+`internal/collector/claim/store` (claim store selection, #8875),
 `internal/storage/postgres`, `internal/telemetry`, `internal/workflow`, and the
 provider package named by each manifest entry.
 

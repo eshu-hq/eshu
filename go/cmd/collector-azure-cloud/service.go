@@ -21,6 +21,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
+	"github.com/eshu-hq/eshu/go/internal/collector/claim/store"
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/azure"
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/azure/runtime"
 	"github.com/eshu-hq/eshu/go/internal/redact"
@@ -92,8 +93,18 @@ func buildClaimedService(
 	ingestion := postgres.NewIngestionStore(database)
 	ingestion.Logger = logger
 	committer := newAzureStatusCommitter(ingestion, metrics)
+	claimStore, err := store.New(ctx, store.Options{
+		Service:     "collector-azure-cloud",
+		Getenv:      getenv,
+		Postgres:    postgres.NewWorkflowControlStore(database),
+		Logger:      logger,
+		Instruments: instruments,
+	})
+	if err != nil {
+		return collector.ClaimedService{}, err
+	}
 	return collector.ClaimedService{
-		ControlStore: postgres.NewWorkflowControlStore(database),
+		ControlStore: claimStore.Store,
 		Source: &runtime.Source{
 			Config:          config.Source,
 			ProviderFactory: factory,

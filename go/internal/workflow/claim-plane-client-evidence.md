@@ -3,8 +3,10 @@
 Stage-1b (#8875) adds `claim_plane_client.go`, a `ControlStore`
 implementation that speaks workflow.v1 HTTP to eshu-workflow. The file is
 hot by location (`go/internal/workflow/*.go`) but touches no existing hot
-path: it is purely additive, nothing in-tree constructs it, and every
-existing test passes unchanged.
+path: it is purely additive and every existing test passes unchanged. The
+parity harness constructs it, and since #8875 P1 the collectors construct it
+through `go/internal/collector/claim/store` when
+`ESHU_WORKFLOW_CLAIM_PLANE_URL` is set.
 
 Performance Evidence: `BenchmarkClaimPlaneClientClaimNext`
 (`claim_plane_client_test.go`) drives one grant round trip per iteration
@@ -27,6 +29,9 @@ pacing surfaces as `ClaimPacingDeferral` with the backoff, the type the runner b
 operation carries an OpenTelemetry span plus Prometheus counters
 (`workflow_claim_grants_total`, `workflow_claim_mutations_total`,
 `workflow_commit_pins_total`, `workflow_claim_reaps_total`) and
-structured slog lines, served on the admin `/metrics` listener. No new
-dashboard or alert is needed for the seam: it emits no signals of its own
-and inherits the claim-plane counters above.
+structured slog lines, served on the admin `/metrics` listener. Client
+side, the `Observe` hook (`claim_plane_observe.go`) reports one closed
+`outcome` and the round-trip duration per request; `claim/store` binds it to
+`eshu_dp_workflow_claim_plane_requests_total` and
+`eshu_dp_workflow_claim_plane_request_duration_seconds` (#8875 P1). The
+`workflow` package itself still imports no telemetry.

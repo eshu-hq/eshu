@@ -54,3 +54,9 @@ Runtime or Compose changes also require:
 scripts/test-verify-performance-evidence.sh
 scripts/verify-performance-evidence.sh
 ```
+
+## Claim Store
+
+- Keep the `CoreOnlyReason` on the `store.New` call while its slot-scope resolver reads `workflow_runs.requested_scope_set`, which only core Postgres holds.
+  Removing it would let a claim-plane claim read run rows from the wrong
+  database (#8875).

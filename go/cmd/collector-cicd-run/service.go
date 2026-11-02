@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
@@ -18,6 +19,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/cicdrun/ghactionsruntime"
 	"github.com/eshu-hq/eshu/go/internal/collector/cicdrun/gitlabciruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/claim/store"
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -112,8 +114,18 @@ func buildClaimedService(
 	committer := postgres.NewIngestionStore(database)
 	committer.Logger = logger
 	committer.Instruments = instruments
+	claimStore, err := store.New(context.Background(), store.Options{
+		Service:     "collector-cicd-run",
+		Getenv:      getenv,
+		Postgres:    postgres.NewWorkflowControlStore(database),
+		Logger:      logger,
+		Instruments: instruments,
+	})
+	if err != nil {
+		return collector.ClaimedService{}, err
+	}
 	return collector.ClaimedService{
-		ControlStore:        postgres.NewWorkflowControlStore(database),
+		ControlStore:        claimStore.Store,
 		Source:              source,
 		Committer:           committer,
 		CollectorKind:       scope.CollectorCICDRun,

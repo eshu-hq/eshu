@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
+	"github.com/eshu-hq/eshu/go/internal/collector/claim/store"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
 	// Blank import: the serverless extractor group self-registers its asset
 	// types from init functions. Without this import the binary silently
@@ -98,8 +99,18 @@ func buildClaimedService(
 	ingestion := postgres.NewIngestionStore(database)
 	ingestion.Logger = logger
 	committer := newGCPStatusCommitter(ingestion, gcpMetrics)
+	claimStore, err := store.New(ctx, store.Options{
+		Service:     "collector-gcp-cloud",
+		Getenv:      getenv,
+		Postgres:    postgres.NewWorkflowControlStore(database),
+		Logger:      logger,
+		Instruments: instruments,
+	})
+	if err != nil {
+		return collector.ClaimedService{}, err
+	}
 	return collector.ClaimedService{
-		ControlStore: postgres.NewWorkflowControlStore(database),
+		ControlStore: claimStore.Store,
 		Source: &gcpruntime.Source{
 			Config:       config.Source,
 			Provider:     liveClient,

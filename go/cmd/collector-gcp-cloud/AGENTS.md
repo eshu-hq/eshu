@@ -42,3 +42,10 @@ cd go && golangci-lint run ./cmd/collector-gcp-cloud/... ./internal/collector/gc
 scripts/verify-package-docs.sh
 scripts/verify-performance-evidence.sh
 ```
+
+## Claim Store
+
+- Build `collector.ClaimedService.ControlStore` with `store.New`, never
+  with `postgres.NewWorkflowControlStore` directly. `store.New` owns the
+  `ESHU_WORKFLOW_CLAIM_PLANE_URL` selection, its validation, and its telemetry
+  (#8875).

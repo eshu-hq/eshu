@@ -32,3 +32,10 @@
 - Do not add non-claim polling mode here.
 - Do not write facts directly from this command.
 - Do not add graph writes or ownership inference in command wiring.
+
+## Claim Store
+
+- Build `collector.ClaimedService.ControlStore` with `store.New`, never
+  with `postgres.NewWorkflowControlStore` directly. `store.New` owns the
+  `ESHU_WORKFLOW_CLAIM_PLANE_URL` selection, its validation, and its telemetry
+  (#8875).

@@ -3063,6 +3063,18 @@ type Instruments struct {
 	// noop, error), once per transaction. Registered by
 	// registerCompletionWakeInstruments.
 	ReducerCompletionWake metric.Int64Counter
+	// WorkflowClaimPlaneRequests counts #8875 collector requests to the
+	// workflow claim plane by operation and outcome. Registered by
+	// registerClaimPlaneInstruments.
+	WorkflowClaimPlaneRequests metric.Int64Counter
+	// WorkflowClaimPlaneRequestDuration records the round trip of one #8875
+	// claim-plane request by operation and outcome. Registered by
+	// registerClaimPlaneInstruments.
+	WorkflowClaimPlaneRequestDuration metric.Float64Histogram
+	// WorkflowControlStoreSelections counts the claim store each collector
+	// selected at startup by backend_kind (#8875). Registered by
+	// registerClaimPlaneInstruments.
+	WorkflowControlStoreSelections metric.Int64Counter
 	// SecurityAlertTruncatedReads counts #8805 provider security-alert reads
 	// that hit max_pages, by provider and endpoint operation
 	// (list_repo_alerts, list_org_alerts).
@@ -6205,6 +6217,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerCompletionWakeInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerClaimPlaneInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerActivationDerivedScopeInstruments(meter, inst); err != nil {
