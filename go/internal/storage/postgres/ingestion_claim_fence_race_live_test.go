@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #9376 disposable PostgreSQL 18 concurrency proof of the claim-plane commit fence: eight writers race successive tokens of one work item on one generation on their own connections, once with no projector and once with a concurrent projector claim and Ack, while a deferred-maintenance holder takes the exclusive advisory lock; no deadlock inside 30 s, refused writers leave no facts, and the stored fence token equals the highest committed fact token; wall time is logged, not gated
+//eshu:readiness:env ESHU_POSTGRES_DSN
+
 import (
 	"context"
 	"errors"

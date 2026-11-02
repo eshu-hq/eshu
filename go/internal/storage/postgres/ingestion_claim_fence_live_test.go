@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #9376 disposable PostgreSQL 18 proof of the claim-plane commit fence with a fake pinner: a reaped writer at a lower token is refused after the reclaimed writer commits (no stale facts, terminal fence_token), a commit inside the pin-deadline margin rolls back, a stale re-pin cancels the commit, an equal-token replay is idempotent, an equal token under another claim is refused, and two terraform-state shaped work items fence one generation independently; bootstraps a throwaway schema; wall time is logged, not gated
+//eshu:readiness:env ESHU_POSTGRES_DSN
+
 // Live proofs of the #9376 claim-plane commit fence against a disposable
 // Postgres with the full bootstrap schema (set ESHU_POSTGRES_DSN). Each test
 // builds its own throwaway schema. The claim plane is a fake pinner; the

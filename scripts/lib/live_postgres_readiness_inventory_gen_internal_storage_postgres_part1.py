@@ -351,6 +351,15 @@ TABLE = {
             "TestReconcileReopenLosesLockRaceToNewerActivationLive",
             "TestReconcileReprojectionSupersededBeforeClaimIsNoopLive",
         ),
+        "go/internal/storage/postgres/ingestion_claim_fence_live_test.go": (
+            "TestClaimPlaneFenceRefusesReclaimedStaleWriterLive",
+            "TestClaimPlaneFenceDeadlineRollsBackLive",
+            "TestClaimPlaneFenceStaleRepinCancelsCommitLive",
+            "TestClaimPlaneFenceReplayAndCrossItemLive",
+        ),
+        "go/internal/storage/postgres/ingestion_claim_fence_race_live_test.go": (
+            "TestClaimPlaneFenceConcurrentWritersAckAndMaintenanceLive",
+        ),
         "go/internal/storage/postgres/ingestion_fanin_unchanged_partition_live_test.go": (
             "TestWholePassFanInSkipsUnchangedMemoHitPartitionsLive",
             "TestWholePassFanInRepublishesUnchangedPartitionMissingPhaseRowLive",
