@@ -149,11 +149,17 @@ record IDs) keep the narrow `identityMarkers` list only, so a file called
 
 The STT twin in `document/media` (#9786, #9788) keeps its own list. The two are
 tested copies, not one shared rule, and they differ on purpose or by history.
-STT matches `pincode` and `pwd` as substrings, spaced letters (`p i n`,
-`a p i key`), NFKD and homoglyph forms, and keywords across segments. OCR
-matches `access key`, `secret` and `token` as compound endings, a joined
-`privatekey`, and the digit and symbol fold. Sync them as a separate change, not
-by editing one to match the other.
+STT folds its text first: NFKD, then combining marks and format characters
+(soft hyphen, zero-width, BOM) dropped, a bounded Cyrillic and Greek homoglyph
+map, and any run of space, `-`, `_`, `.`, or `,` read as one space. It matches
+`pincode`, `pwd`, `api key`, and `private key` as substrings, `pass word`,
+`pass phrase`, `pass code`, and `a p i key` at the start of a word, and
+`secret`, `token`, `pin`, `p i n`, and `p w d` as whole words, so spaced letters
+and keywords across segments are in. OCR does not fold Unicode beyond fullwidth
+ASCII, treats `.` and `,` as a break in a phrase, and matches `access key`,
+`secret` and `token` as compound endings, a joined `privatekey`, and the digit
+and symbol fold. Neither matches `passkey` or letter-by-letter `p a s s w o r d`.
+Sync them as a separate change, not by editing one to match the other.
 
 Why folding and not edit distance. Edit distance one cannot be applied to the
 short words: `taken` is one edit from `token`, and `pan`, `pen`, `pit`, `pie`,
