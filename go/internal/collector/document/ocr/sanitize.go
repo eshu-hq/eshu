@@ -94,6 +94,7 @@ func isLetterOrDigit(r rune) bool {
 // layout order is more accurate than a sort by position.
 func labelValueRegions(regions []Region) []bool {
 	values := make([]bool, len(regions))
+	markers := make([]bool, len(regions))
 	labels := []Bounds{}
 	remaining := 0
 	for i, region := range regions {
@@ -105,6 +106,7 @@ func labelValueRegions(regions []Region) []bool {
 			}
 		}
 		if containsMarkerWord(text) {
+			markers[i] = true
 			remaining += labelValueWindow
 			labels = append(labels, region.Bounds)
 		}
@@ -114,6 +116,7 @@ func labelValueRegions(regions []Region) []bool {
 			return rightOfOnSameRow(region.Bounds, label)
 		})
 	}
+	extendSecretRuns(regions, values, markers)
 	return values
 }
 
