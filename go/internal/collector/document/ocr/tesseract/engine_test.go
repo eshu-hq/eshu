@@ -264,9 +264,8 @@ func TestRecognizeDetectsBinarySwapAfterConstruction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read binary: %v", err)
 	}
-	if err := os.WriteFile(copyPath, body, 0o700); err != nil {
-		t.Fatalf("write binary copy: %v", err)
-	}
+	// New execs this copy next; see writeExecutable for the ETXTBSY race.
+	writeExecutable(t, copyPath, body)
 	cfg := fx.config()
 	cfg.BinaryPath = copyPath
 	engine, err := New(cfg)
