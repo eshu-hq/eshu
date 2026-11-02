@@ -239,7 +239,7 @@ log field count it with no change.
 
 Marker-list False-positive Evidence (#9793): the rule is a superset of the old
 one on every corpus below, and costs more only where the text holds a new word.
-The unit corpus `ordinaryLines` (43 lines, each holding a marker word as a
+The unit corpus `ordinaryLines` (44 lines, each holding a marker word as a
 substring or one edit away) flags none. The sandbox fixtures hold 15 distinct
 texts: the old rule flagged 2 (both true labels), and the new rule flagged 4
 before two fixtures were reworded, adding the value `Hunter2CanarySecret` and
@@ -247,9 +247,9 @@ the line `Credentials for the staging cluster live`. Both fixtures now avoid a
 marker word and the count is back to 2 of 15. On a prose corpus of about 261,800
 non-blank lines of this repo's markdown under `docs/public` and
 `docs/internal`, which is security-dense and so an upper bound, the old rule
-flagged 470 lines (0.18 percent) and the new rule 6,674 (2.55 percent), with no
+flagged 470 lines (0.18 percent) and the new rule about 6,700 (2.55 percent), with no
 line the old rule flagged missed. By family, on lines the old rule did not flag:
-`token` 2,203, `pin` 1,425, `secret` 1,383, `credential` 1,302, `api key` 57,
+`token` 2,203, `pin` 1,425, `secret` 1,383, `credential` about 1,300, `api key` 57,
 `pwd` 43, `private key` 36, `access key` 32, `apikey` 7. Each costs a bounded
 window of 2 regions, as `password` always did.
 
