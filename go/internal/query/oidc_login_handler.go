@@ -35,6 +35,30 @@ const (
 // an empty redirect URL with no error of its own.
 var errOIDCLoginRedirectEmpty = errors.New("oidc login service returned an empty redirect URL")
 
+// OIDCLoginAdmissionContractVersion versions the #8872
+// admission-contract shape for OIDC login (GET
+// /api/v0/auth/oidc/login, GET /api/v0/auth/oidc/callback). Canonical
+// logins persist through explicit core-owned admission contracts:
+// eshu-api keeps the HTTP shape and calls this versioned port, which the
+// core-owned Service implementation satisfies. A renamed, added, removed,
+// or re-signed method fails the frozen method-set test until that list is
+// deliberately updated in the same diff; bump this version alongside so
+// dest consumers can pin the shape they code against.
+//
+// The optional OIDCProviderLister is not part of v0: a dest client that
+// implements only the 2 admission methods silently drops runtime provider
+// discovery (RegisteredProviders returns nil). Dest must also implement
+// the lister or accept DB-row-only discovery. Browser-session issuance on
+// callback belongs to the BrowserSessions family's own seam, not this
+// contract.
+const OIDCLoginAdmissionContractVersion = "v0"
+
+// OIDCLoginAdmission is the versioned admission-contract port the API
+// handler depends on instead of a concrete login service. It aliases the
+// narrow login service so existing fakes and the core-owned Service
+// implementation keep satisfying it unchanged.
+type OIDCLoginAdmission = OIDCLoginService
+
 // OIDCLoginService resolves generic OIDC Authorization Code login requests
 // into Eshu browser-session authorization contexts.
 type OIDCLoginService interface {
