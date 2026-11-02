@@ -31,7 +31,7 @@ writer could commit facts after it lost the claim.
 | Activation happens later, in projector Ack (`activateProjectorGenerationQuery`), per `(scope_id, generation_id)`, once (`activated_at = COALESCE(activated_at, $1)`). | `projector_queue_sql.go:62-76`. |
 | `scope_generations` has no fencing column today; `fact_records` does. | migrations; `ingestion_queries.go:31`. |
 | No production binary reads from the claim plane yet (P1, `ESHU_WORKFLOW_CLAIM_PLANE_URL`, is not on main). | `rg CLAIM_PLANE_URL go/` = 0 hits. |
-| `ClaimMutation` has no `ScopeID`/`SourceRunID`/`GenerationID`; the pin needs `source_run_id`. Only terraform-state sets `ResolvedSourceRunID`. | `go/internal/workflow/store.go:28-70`. |
+| `ClaimMutation` has no `ScopeID`/`SourceRunID`/`GenerationID`; the pin needs `source_run_id`. Only terraform-state sets `ResolvedSourceRunID`. | [`go/internal/workflow/store.go` L28-L70](https://github.com/eshu-hq/eshu/blob/93d191b7f8d99bb6b259845da7154179988b10b5/go/internal/workflow/store.go#L28-L70) at `93d191b7f8`; P2 adds the three fields. |
 
 ## 3. Sequence (ruled plane path)
 
