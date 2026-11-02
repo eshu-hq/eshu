@@ -147,10 +147,29 @@ a suffix on every marker. Source names themselves (document IDs, source URIs,
 record IDs) keep the narrow `identityMarkers` list only, so a file called
 `token-rotation.png` keeps its name.
 
-The STT twin in `document/media` (#9786) still uses the six-marker
-source-name list as its keyword rule. A wider rule for it is tracked by #9788
-and is not merged, so this README does not describe it. Compare the two lists
-when that rule lands, and sync them as a separate change.
+The STT twin in `document/media` (#9786, #9788) has its own rule, kept as a
+second tested copy and not a shared package. The folds differ by input: OCR
+reads digits and symbols in place of letters and camel case, and speech engines
+write neither, so STT folds NFKD, combining marks, format characters, a
+bounded Cyrillic and Greek homoglyph table, and separators (space, `-`, `_`,
+`.`, `,`) to one space instead. The boundaries differ on purpose too. STT
+matches `pwd` as a substring and `pins` not at all; OCR matches `pwd` and `pins`
+as whole words. Both keep the same six-entry source-name list, which a change
+must edit in both packages together. The decision and its reasons are in
+`docs/internal/evidence/9793-fold-vs-edit-distance-arbiter-ruling.md`. A probe
+of `containsMarkerWord` and `containsSensitiveKeyword` on both merged trees
+gave these results (true means the text is a label):
+
+| Text | OCR | STT | Why they differ |
+|---|---|---|---|
+| `Password:`, `Secret:`, `Token:`, `PIN:`, `PWD:`, `API Key: value`, `Access Key:`, `Credentials`, `accesskey`, `Private_Key`, `Pincode` | true | true | Shared vocabulary. |
+| `Passw0rd:`, `P@ssword`, `Pa55word`, `Pass cod3`, `S3cret` | true | false | OCR folds digits and symbols read for letters. Speech never writes them. |
+| `PINs`, `pins`, `Pln`, `clientSecret` | true | false | OCR matches the plural and a compound ending, and reads `l` as `i`. STT matches `pin` and `secret` as whole words only. |
+| `P.I.N.`, `p i n`, `p w d`, `a p i key`, `A.P.I. key`, `aPI Key` | false | true | STT folds separators, so spelled-out letters join. OCR breaks a word at `.`. |
+| `раssword` (Cyrillic), `pássword` | false | true | STT folds homoglyphs and accents. OCR folds only fullwidth ASCII, and a Latin-trained tesseract emits Latin. |
+| `Ｐａｓｓｗｏｒｄ` (fullwidth) | true | true | Both fold width. |
+| `500 PLN` | false | false | A capital L is not a misread `i` for OCR. |
+| `compass word`, `access keyboard`, `secretary`, `tokenize`, `spin`, `pinned`, `secretkey`, `tokenid`, `Pasword`, `PW:`, `Pass:` | false | false | Ordinary words and unmatched shapes in both. |
 
 Why folding and not edit distance. Edit distance one cannot be applied to the
 short words: `taken` is one edit from `token`, and `pan`, `pen`, `pit`, `pie`,
