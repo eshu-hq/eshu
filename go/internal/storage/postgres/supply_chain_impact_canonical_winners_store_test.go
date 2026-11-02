@@ -79,7 +79,7 @@ func TestRebuildSupplyChainImpactWinnersSQLIsAtomicReconcile(t *testing.T) {
 		"suppression_state, suppression_expires_at",
 		"ON CONFLICT (canonical_key) DO UPDATE SET",
 		"suppression_expires_at = EXCLUDED.suppression_expires_at",
-		"deleted AS (\n    DELETE FROM supply_chain_impact_canonical_winners w\n    WHERE NOT EXISTS (SELECT 1 FROM winners_now n WHERE n.canonical_key = w.canonical_key)\n)",
+		"deleted AS (\n    DELETE FROM supply_chain_impact_canonical_winners w\n    WHERE NOT EXISTS (SELECT 1 FROM winners_now n WHERE n.canonical_key = w.canonical_key)\n    RETURNING 1\n)",
 		// Unconditional watermark upsert is the final statement so it stamps even
 		// a zero-winner resweep.
 		"INSERT INTO supply_chain_impact_winners_materialization (singleton, materialized_at)",

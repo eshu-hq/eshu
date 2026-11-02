@@ -320,6 +320,7 @@ func TestSpanNames(t *testing.T) {
 		"ocr.recognize",
 		"stored_advisory_names.read",
 		"owned_package_targets.resolve",
+		"supply_chain_impact.winners_resweep",
 	}
 
 	got := SpanNames()

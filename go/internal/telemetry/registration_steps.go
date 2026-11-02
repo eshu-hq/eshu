@@ -416,3 +416,9 @@ func registerOwnedPackageTargets() {
 func registerOCR() {
 	spanNames = append(spanNames, contract.SpanOCRExtract, contract.SpanOCRRecognize)
 }
+
+// registerSupplyChainImpactWinners appends the #9774 winners resweep span,
+// unconditionally at the end and independent of every earlier step.
+func registerSupplyChainImpactWinners() {
+	spanNames = append(spanNames, SpanSupplyChainImpactWinnersResweep)
+}

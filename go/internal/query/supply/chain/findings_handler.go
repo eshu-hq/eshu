@@ -309,12 +309,13 @@ type supplyChainImpactWinnersFreshnessReader interface {
 
 // supplyChainImpactWinnersFreshnessWindow bounds how long after the last winners
 // resweep the read model is still considered fresh. The reducer maintainer
-// resweeps on a short cadence (~30s) and stamps every row with one
-// materialized_at, so a healthy watermark is always within roughly one cadence of
-// now. The window allows several cadences of headroom for a slow resweep or a
-// transient lease handoff; a watermark older than this means the maintainer is
-// not keeping the read model current, so the read is reported stale
-// (reducer_backlog) instead of served as fresh truth.
+// waits ~30s between resweeps and each one stamps the singleton watermark, whether
+// or not it changed a row; the winner rows' own materialized_at only tracks their
+// last content change. A healthy watermark's age is therefore the wait plus the
+// resweep time, and the window leaves headroom for a slow resweep or a transient
+// lease handoff. A watermark older than this means the maintainer is not keeping
+// the read model current, so the read is reported stale (reducer_backlog) instead
+// of served as fresh truth.
 const supplyChainImpactWinnersFreshnessWindow = 2 * time.Minute
 
 // applyWinnersFreshness downgrades the truth envelope when the impact-findings

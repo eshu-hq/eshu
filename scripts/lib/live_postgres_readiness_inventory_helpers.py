@@ -12,7 +12,7 @@ HELPER_PROOFS = {
         "consumer_file": "go/internal/query/supply/chain/impact/suppression_paths_performance_live_test.go",
         "consumer_test": "TestSupplyChainSuppressionPathsPerformanceLive",
         "helper_sha256": "be5a316245add75a72f0c9364f582a34c49bdae144ee959c96f2f3c6e6ec4fb4",
-        "consumer_sha256": "d421b129a61b2b0e9597a34378cef39960eef1cd84ad7f3d0be1c2e153640bff",
+        "consumer_sha256": "0829951ad48a0d661c4e40992ac2795eabbab0074e49b7de2f49c9b5a052313a",
     },
     "go/internal/query/supply/chain/runtime_context_scope_live_test.go": {
         "helper_sha256": "8f0dc787498cc756ecf04afcba8f8128f5e70d55ebc32da764fb34adcc74545a",
@@ -50,18 +50,18 @@ HELPER_PROOFS = {
         "consumer_file": "go/internal/query/supply/chain/suppression_authority_live_test.go",
         "consumer_test": "TestSupplyChainSuppressionAuthorityDirectAndMaterializedParityLive",
         "helper_sha256": "574e514e6724665ec9bfbe89cfb30414e28ba48e686bcedd0173ff13ef772821",
-        "consumer_sha256": "b8c4c5740f28e7220d3ccbffabadb8c270379d1a935ffa8f31831ac2065850ae",
+        "consumer_sha256": "1bc0eb7a2b41092e889fa286f642a6f45eab9fa5b712fd58944d445795b9be50",
     },
     "go/internal/query/supply/chain/suppression_authority_assertions_live_test.go": {
         "consumer_file": "go/internal/query/supply/chain/suppression_authority_live_test.go",
         "consumer_test": "TestSupplyChainSuppressionAuthorityDirectAndMaterializedParityLive",
         "helper_sha256": "a67ca8ce4d45cf56bb3400ec4336b80048e96dd7e8ba0c2e379deb79e884a19c",
-        "consumer_sha256": "b8c4c5740f28e7220d3ccbffabadb8c270379d1a935ffa8f31831ac2065850ae",
+        "consumer_sha256": "1bc0eb7a2b41092e889fa286f642a6f45eab9fa5b712fd58944d445795b9be50",
     },
     "go/internal/query/supply/chain/suppression_authority_scoped_live_test.go": {
         "consumer_file": "go/internal/query/supply/chain/suppression_authority_live_test.go",
         "consumer_test": "TestSupplyChainSuppressionAuthorityDirectAndMaterializedParityLive",
         "helper_sha256": "ce9e7f8c2fcdb8a22de51f0e0061e14224c7cc0e0cf961658d0c4bfd4e493a93",
-        "consumer_sha256": "b8c4c5740f28e7220d3ccbffabadb8c270379d1a935ffa8f31831ac2065850ae",
+        "consumer_sha256": "1bc0eb7a2b41092e889fa286f642a6f45eab9fa5b712fd58944d445795b9be50",
     },
 }

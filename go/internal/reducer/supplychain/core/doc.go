@@ -46,7 +46,9 @@
 // (BuildVulnerabilitySuppressions, EvaluateSupplyChainSuppression,
 // SupplyChainSuppressionDecision), the handler and writers
 // (SupplyChainImpactHandler, PostgresSupplyChainImpactWriter,
-// SupplyChainImpactWinnersMaintainer; the writer replaces a (scope,
+// SupplyChainImpactWinnersMaintainer, whose resweep writes only the winner rows
+// that changed, skips when another resweep is in flight, and reports inserted,
+// updated, deleted and unchanged counts (#9774); the writer replaces a (scope,
 // generation)'s finding set in one locked transaction and tombstones the
 // findings a pass no longer derives, #6831), and the Go reachability classifier
 // (ClassifyGoVulnerabilityReachability). Test seams for the reducer root's

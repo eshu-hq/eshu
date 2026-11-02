@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math"
 	"runtime/debug"
+	"sync/atomic"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -1083,6 +1084,21 @@ type Instruments struct {
 	// holder read, reopen, or own-item state update, each of which fails the
 	// pass so the queue retries it.
 	SupplyChainImpactFanOut metric.Int64Counter
+	// SupplyChainImpactWinnersResweepDuration records the wall time of one
+	// committed supply-chain impact winners resweep statement (#9774). It is
+	// registered by registerSupplyChainImpactWinnersInstruments.
+	SupplyChainImpactWinnersResweepDuration metric.Float64Histogram
+	// SupplyChainImpactWinnersRows counts winner rows a committed resweep
+	// handled, labeled action (inserted, updated, deleted, unchanged).
+	SupplyChainImpactWinnersRows metric.Int64Counter
+	// SupplyChainImpactWinnersResweepSkipped counts resweeps that found another
+	// in flight, so wrote and stamped nothing.
+	SupplyChainImpactWinnersResweepSkipped metric.Int64Counter
+	// SupplyChainImpactWinnersWatermarkAge reports the seconds since the last
+	// read watermark this process saw, computed at scrape time from
+	// supplyChainImpactWinnersWatermarkUnixNano so it climbs through a stall.
+	SupplyChainImpactWinnersWatermarkAge      metric.Float64ObservableGauge
+	supplyChainImpactWinnersWatermarkUnixNano *atomic.Int64
 	// SupplyChainRemediationDecisions counts reducer-owned advisory-only
 	// safe-upgrade decisions per supply-chain impact finding (issue #595).
 	// Labels: domain (supply_chain_impact), outcome (confidence label
@@ -6264,6 +6280,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerActivationObligationInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerSupplyChainImpactWinnersInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerProducerActivationInstruments(meter, inst); err != nil {

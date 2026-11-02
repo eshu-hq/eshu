@@ -18,7 +18,7 @@ import (
 // scopes for the identity tuple (search caught up for that exact
 // provider/source-class/model/index-version combination), mirroring the
 // supply_chain_impact_winners_materialization write in
-// supply_chain_impact_canonical_winners_store.go. The row is keyed by the
+// supply_chain_impact_canonical_winners_rebuild.go. The row is keyed by the
 // full identity tuple (not a singleton) so a ready publish for one identity
 // can never satisfy freshness for a different identity — required during a
 // provider, model, or vector-index-version rollout, or when two

@@ -12,16 +12,17 @@ import (
 )
 
 type fakeWinnersRebuilder struct {
-	mu    sync.Mutex
-	calls int
-	err   error
+	mu     sync.Mutex
+	calls  int
+	err    error
+	result SupplyChainImpactWinnersResweep
 }
 
-func (f *fakeWinnersRebuilder) RebuildAllWinners(_ context.Context, _ any) error {
+func (f *fakeWinnersRebuilder) ResweepWinners(_ context.Context, _ any) (SupplyChainImpactWinnersResweep, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls++
-	return f.err
+	return f.result, f.err
 }
 
 func (f *fakeWinnersRebuilder) count() int {

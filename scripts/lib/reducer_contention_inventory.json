@@ -412,6 +412,23 @@
       "TestSupplyChainImpactWriterRetractsSupersededFindingsLive"
     ]
   },
+  "go/internal/storage/postgres/supply_chain_impact_winners_concurrency_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestSupplyChainImpactWinnersResweepConvergesUnderContentionLive",
+      "TestSupplyChainImpactWinnersResweepKilledHolderFreesTheResweepLive",
+      "TestSupplyChainImpactWinnersResweepOverlapNeverStampsAMissingWinnerLive",
+      "TestSupplyChainImpactWinnersResweepReportsACommitFailureLive",
+      "TestSupplyChainImpactWinnersResweepWatermarkReadsTheCommittedStampLive"
+    ]
+  },
+  "go/internal/storage/postgres/supply_chain_impact_winners_write_on_change_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestSupplyChainImpactWinnersResweepSeesEveryColumnChangeLive",
+      "TestSupplyChainImpactWinnersResweepWritesOnlyChangedRowsLive"
+    ]
+  },
   "go/internal/storage/postgres/vulnerability_suppression_advisory_e2e_live_test.go": {
     "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
     "tests": [

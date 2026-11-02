@@ -8,6 +8,13 @@ import (
 	"fmt"
 	"log/slog"
 	"time"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
+
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // Maintainer for the #3389 supply-chain impact canonical winners read model. See
@@ -15,20 +22,26 @@ import (
 //
 // Correctness-first design choice: the maintainer reconciles the winners table
 // with the current active impact-fact set by running the atomic, idempotent full
-// resweep (RebuildAllWinners: upsert-all + delete-stale in one statement) on
-// startup and on a fixed cadence. This deliberately avoids per-canonical_key
+// resweep (ResweepWinners: recompute every winner, write only the rows that are
+// new or changed, delete stale rows, stamp the watermark, all in one statement)
+// on startup and on a fixed cadence. This deliberately avoids per-canonical_key
 // dirty tracking because the atomic reconcile cannot miss a change class —
 // generation-activation flips, tombstones, and new sources are all captured by
 // recomputing from the current active set, removing the "missed dirty signal"
 // correctness risk the incremental design carried. Incremental per-key recompute
-// remains a future performance optimization; the read reports freshness from the
-// winners' materialized_at so a cadence lag is never served as fresh truth.
+// remains a future performance optimization. The read reports freshness from the
+// singleton watermark, which every resweep stamps whether or not a winner row
+// changed, so a cadence lag is never served as fresh truth. A winner row's own
+// materialized_at means "last content change" and no reader depends on it (#9774).
 //
 // Conflict domain: the whole winners table during a resweep. A single-owner
-// partition lease (partitionCount = 1) keeps exactly one reducer instance
-// resweeping at a time, so concurrent resweeps never contend on the table. The
-// idempotent rebuild is the backstop if the lease is lost mid-run: the next
-// owner's resweep reconciles to the same state.
+// partition lease (partitionCount = 1) normally keeps one reducer instance
+// resweeping at a time. The lease is not renewed during a resweep, so its TTL can
+// lapse under a long statement and let a second instance claim it. The resweep's
+// own single-flight lock covers that case: the second instance skips instead of
+// comparing against a table the first has not committed, which could otherwise
+// stamp a fresh watermark over a missing winner. The rebuild stays idempotent, so
+// the next tick reconciles to the same state after any failed or skipped resweep.
 
 const (
 	// SupplyChainImpactWinnersDomain names the maintainer's single-owner lease
@@ -43,10 +56,32 @@ const (
 )
 
 // SupplyChainImpactWinnersRebuilder reconciles the winners table to the current
-// active impact-fact set. Implemented by
-// postgres.SupplyChainImpactWinnersStore.RebuildAllWinners.
+// active impact-fact set and reports what the resweep wrote. Implemented by
+// postgres.SupplyChainImpactWinnersStore.ResweepWinners.
 type SupplyChainImpactWinnersRebuilder interface {
-	RebuildAllWinners(ctx context.Context, materializedAt any) error
+	ResweepWinners(ctx context.Context, materializedAt any) (SupplyChainImpactWinnersResweep, error)
+}
+
+// SupplyChainImpactWinnersWatermarkReader reads the committed read watermark. ok
+// is false until the first resweep commits.
+type SupplyChainImpactWinnersWatermarkReader interface {
+	Watermark(ctx context.Context) (at time.Time, ok bool, err error)
+}
+
+// SupplyChainImpactWinnersResweep is what one resweep did. Inserted, Updated and
+// Deleted are the rows it wrote a version for; Unchanged is the count of current
+// winners it compared and skipped.
+type SupplyChainImpactWinnersResweep struct {
+	Inserted  int64
+	Updated   int64
+	Deleted   int64
+	Unchanged int64
+	// PreviousWatermark is the watermark the resweep replaced. It is the zero
+	// time when the table had never been swept.
+	PreviousWatermark time.Time
+	// Skipped is true when another resweep was in flight, so this one wrote
+	// nothing, stamped nothing and left the watermark to that resweep.
+	Skipped bool
 }
 
 // SupplyChainImpactWinnersLeaseManager is the single-owner lease seam, satisfied
@@ -60,6 +95,10 @@ type SupplyChainImpactWinnersLeaseManager interface {
 type SupplyChainImpactWinnersMaintainer struct {
 	Rebuilder    SupplyChainImpactWinnersRebuilder
 	LeaseManager SupplyChainImpactWinnersLeaseManager
+	// WatermarkReader is optional. When set, every tick feeds the committed
+	// watermark to the age gauge, whatever the tick then does, so the gauge keeps
+	// climbing on an instance that holds no lease or has a failing resweep.
+	WatermarkReader SupplyChainImpactWinnersWatermarkReader
 	// Now defaults to time.Now (UTC stamped at use). Injected in tests.
 	Now func() time.Time
 	// Interval is the resweep cadence; defaults to 30s.
@@ -69,6 +108,10 @@ type SupplyChainImpactWinnersMaintainer struct {
 	// LeaseTTL bounds a lost-owner takeover; defaults to 60s.
 	LeaseTTL time.Duration
 	Logger   *slog.Logger
+	// Instruments and Tracer are optional. Nil records nothing and starts no
+	// span, byte-identical to the behavior before #9774.
+	Instruments *telemetry.Instruments
+	Tracer      trace.Tracer
 }
 
 func (m SupplyChainImpactWinnersMaintainer) now() time.Time {
@@ -111,12 +154,14 @@ func (m SupplyChainImpactWinnersMaintainer) validate() error {
 
 // RunOnce claims the single-owner lease and, if acquired, runs one atomic
 // resweep. It returns rebuilt=true only when this instance held the lease and
-// the resweep committed. The lease is always released before returning so a
-// crashed/slow instance does not block takeover beyond the TTL.
+// the resweep committed; a resweep skipped because another is in flight returns
+// rebuilt=false and no error. The lease is always released before returning so
+// a crashed/slow instance does not block takeover beyond the TTL.
 func (m SupplyChainImpactWinnersMaintainer) RunOnce(ctx context.Context) (rebuilt bool, err error) {
 	if err := m.validate(); err != nil {
 		return false, err
 	}
+	m.sampleWatermark(ctx)
 	claimed, err := m.LeaseManager.ClaimPartitionLease(
 		ctx, SupplyChainImpactWinnersDomain, 0, 1, m.leaseOwner(), m.leaseTTL(),
 	)
@@ -134,9 +179,24 @@ func (m SupplyChainImpactWinnersMaintainer) RunOnce(ctx context.Context) (rebuil
 		}
 	}()
 
-	if rbErr := m.Rebuilder.RebuildAllWinners(ctx, m.now()); rbErr != nil {
+	stamp := m.now()
+	ctx, span := m.startResweepSpan(ctx)
+	started := time.Now()
+	result, rbErr := m.Rebuilder.ResweepWinners(ctx, stamp)
+	elapsed := time.Since(started)
+	if rbErr != nil {
+		span.RecordError(rbErr)
+		span.SetStatus(codes.Error, "winners resweep failed")
+		span.End()
 		return false, fmt.Errorf("resweep winners: %w", rbErr)
 	}
+	if result.Skipped {
+		m.emitResweepSkipped(ctx, span)
+		span.End()
+		return false, nil
+	}
+	m.emitResweep(ctx, span, stamp, result, elapsed)
+	span.End()
 	return true, nil
 }
 
@@ -153,7 +213,7 @@ func (m SupplyChainImpactWinnersMaintainer) Run(ctx context.Context) error {
 		if ctx.Err() != nil {
 			return nil
 		}
-		rebuilt, err := m.RunOnce(ctx)
+		_, err := m.RunOnce(ctx)
 		switch {
 		case err != nil:
 			if m.Logger != nil {
@@ -165,9 +225,6 @@ func (m SupplyChainImpactWinnersMaintainer) Run(ctx context.Context) error {
 			}
 		default:
 			backoff = m.interval()
-			if rebuilt && m.Logger != nil {
-				m.Logger.Debug("supply chain impact winners resweep committed")
-			}
 		}
 		if err := m.wait(ctx, backoff); err != nil {
 			return nil
@@ -185,4 +242,103 @@ func (m SupplyChainImpactWinnersMaintainer) wait(ctx context.Context, d time.Dur
 	case <-timer.C:
 		return nil
 	}
+}
+
+// The winners maintainer's operator signals (#9774): one span, one duration
+// sample, four row-action counts and one info log line per committed resweep, a
+// skip count and log line for a resweep that found another in flight, and a
+// watermark age the gauge computes at scrape time. None of them carries a
+// canonical key, scope, repository or CVE.
+
+// sampleWatermark feeds the committed watermark to the age gauge. It runs before
+// the lease claim on every tick, so a statement that never returns still leaves
+// the gauge a watermark to age. A failed read keeps the last value, which keeps
+// aging: this read is what proves the watermark moved, not what proves it stuck.
+func (m SupplyChainImpactWinnersMaintainer) sampleWatermark(ctx context.Context) {
+	if m.WatermarkReader == nil || m.Instruments == nil {
+		return
+	}
+	at, ok, err := m.WatermarkReader.Watermark(ctx)
+	if err != nil {
+		if m.Logger != nil {
+			m.Logger.WarnContext(ctx, "supply chain impact winners watermark read failed", "error", err)
+		}
+		return
+	}
+	if ok {
+		m.Instruments.RecordSupplyChainImpactWinnersWatermark(at)
+	}
+}
+
+// emitResweepSkipped records a resweep that found another in flight. Skips mean
+// a resweep outlasted the lease TTL, so a steady rate is a headroom signal.
+func (m SupplyChainImpactWinnersMaintainer) emitResweepSkipped(ctx context.Context, span trace.Span) {
+	span.SetAttributes(attribute.Bool("skipped", true))
+	if in := m.Instruments; in != nil && in.SupplyChainImpactWinnersResweepSkipped != nil {
+		in.SupplyChainImpactWinnersResweepSkipped.Add(ctx, 1)
+	}
+	if m.Logger != nil {
+		m.Logger.InfoContext(ctx, "supply chain impact winners resweep skipped: another resweep is in flight")
+	}
+}
+
+// startResweepSpan opens the resweep span. A nil tracer returns a no-op span
+// so ending it never ends the caller's span.
+func (m SupplyChainImpactWinnersMaintainer) startResweepSpan(ctx context.Context) (context.Context, trace.Span) {
+	if m.Tracer == nil {
+		return ctx, trace.SpanFromContext(context.Background())
+	}
+	return m.Tracer.Start(ctx, telemetry.SpanSupplyChainImpactWinnersResweep)
+}
+
+// emitResweep records every signal of one committed resweep. stamp is the
+// watermark the resweep wrote.
+func (m SupplyChainImpactWinnersMaintainer) emitResweep(
+	ctx context.Context,
+	span trace.Span,
+	stamp time.Time,
+	r SupplyChainImpactWinnersResweep,
+	elapsed time.Duration,
+) {
+	span.SetAttributes(
+		attribute.Int64("inserted", r.Inserted),
+		attribute.Int64("updated", r.Updated),
+		attribute.Int64("deleted", r.Deleted),
+		attribute.Int64("unchanged", r.Unchanged),
+	)
+	// watermarkAge is -1 when the table had never been swept: there was no
+	// watermark to age.
+	watermarkAge := -1.0
+	if !r.PreviousWatermark.IsZero() {
+		watermarkAge = stamp.Sub(r.PreviousWatermark).Seconds()
+	}
+	if in := m.Instruments; in != nil {
+		if in.SupplyChainImpactWinnersResweepDuration != nil {
+			in.SupplyChainImpactWinnersResweepDuration.Record(ctx, elapsed.Seconds())
+		}
+		if in.SupplyChainImpactWinnersRows != nil {
+			for action, n := range map[string]int64{
+				telemetry.SupplyChainImpactWinnersActionInserted:  r.Inserted,
+				telemetry.SupplyChainImpactWinnersActionUpdated:   r.Updated,
+				telemetry.SupplyChainImpactWinnersActionDeleted:   r.Deleted,
+				telemetry.SupplyChainImpactWinnersActionUnchanged: r.Unchanged,
+			} {
+				if n > 0 {
+					in.SupplyChainImpactWinnersRows.Add(ctx, n, metric.WithAttributes(telemetry.AttrAction(action)))
+				}
+			}
+		}
+		in.RecordSupplyChainImpactWinnersWatermark(stamp)
+	}
+	if m.Logger == nil {
+		return
+	}
+	m.Logger.InfoContext(ctx, "supply chain impact winners resweep committed",
+		slog.Int64("inserted", r.Inserted),
+		slog.Int64("updated", r.Updated),
+		slog.Int64("deleted", r.Deleted),
+		slog.Int64("unchanged", r.Unchanged),
+		slog.Float64("duration_seconds", elapsed.Seconds()),
+		slog.Float64("previous_watermark_age_seconds", watermarkAge),
+	)
 }

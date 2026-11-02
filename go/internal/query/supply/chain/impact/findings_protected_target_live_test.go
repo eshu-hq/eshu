@@ -199,7 +199,7 @@ VALUES ('orphan-finding-fact', 'image://derived/orphan-finding', 'orphan-finding
 	if ids := readIDs(ListFindingsQuery, digestAB, nil); strings.Join(ids, ",") != "finding-a,finding-b" {
 		t.Errorf("direct authorized winners=%v, want valid target A runner-up and target B", ids)
 	}
-	if err := storagepostgres.NewSupplyChainImpactWinnersStore(database).RebuildAllWinners(ctx, time.Now().UTC()); err != nil {
+	if err := storagepostgres.NewSupplyChainImpactWinnersStore(storagepostgres.SQLDB{DB: database}).RebuildAllWinners(ctx, time.Now().UTC()); err != nil {
 		t.Fatalf("rebuild materialized winners: %v", err)
 	}
 	if ids := readIDs(ListFindingsFromWinnersQuery, digestAB, nil); strings.Join(ids, ",") != "finding-a,finding-b" {
@@ -383,7 +383,7 @@ VALUES ('read-finding-a','derived','active','image://derived/target-a'),
 	if ids := readIDs(ListFindingsQuery, digestAB, nil); len(ids) != 0 {
 		t.Errorf("classified derived findings without publication leaked through direct list: %v", ids)
 	}
-	if err := storagepostgres.NewSupplyChainImpactWinnersStore(database).RebuildAllWinners(ctx, time.Now().UTC()); err != nil {
+	if err := storagepostgres.NewSupplyChainImpactWinnersStore(storagepostgres.SQLDB{DB: database}).RebuildAllWinners(ctx, time.Now().UTC()); err != nil {
 		t.Fatalf("rebuild static-only winners: %v", err)
 	}
 	if ids := readIDs(ListFindingsFromWinnersQuery, digestAB, nil); len(ids) != 0 {
