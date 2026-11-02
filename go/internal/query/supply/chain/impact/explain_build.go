@@ -111,13 +111,20 @@ func buildSupplyChainVersionExplanation(
 		FixedVersion:    row.Finding.FixedVersion,
 		VersionEvidence: "missing",
 	}
-	if matching := matchingLineFixedVersion(row.EvidenceFacts, version.ObservedVersion); matching != "" {
+	matching := matchingLineFixedVersion(row.EvidenceFacts, version.ObservedVersion)
+	if matching != "" {
 		// A multi-line advisory unions one fix per release line; the
 		// headline names the fix of the line containing the observation
 		// (#9430), even when the persisted finding still carries the old
 		// fixed_versions[0] scalar.
 		version.FixedVersion = matching
-	} else if version.FixedVersion == "" {
+	} else if version.FixedVersion == "" && row.Finding.Status == "not_affected_known_fixed" {
+		// A known-fixed multi-line finding keeps a blank scalar fix and an
+		// observation outside every range; name the fix of the line it has
+		// moved past, not the lowest fix across lines (#9854).
+		version.FixedVersion = passedLineFixedVersion(row.EvidenceFacts, version.ObservedVersion)
+	}
+	if matching == "" && version.FixedVersion == "" {
 		for _, fact := range row.EvidenceFacts {
 			if fixed := lowestFixedVersion(querycontract.StringSliceVal(fact.Payload, "fixed_versions")); fixed != "" {
 				version.FixedVersion = fixed

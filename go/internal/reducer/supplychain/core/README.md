@@ -27,9 +27,10 @@ pass, no CVE id, includes matches that would not have produced a finding).
 
 For package advisories, an attached SBOM image path preserves package and
 image evidence while the ecosystem matcher decides version truth. In-range
-versions are `affected_exact`; known fixed versions remain
-`not_affected_known_fixed`; missing, malformed, conflicting, or outside-range
-versions remain `possibly_affected`. Each consuming repository classifies its
+versions are `affected_exact`; known fixed versions, and for npm a version past
+a release line's Fixed event (#9854, [rule](../../../../../docs/internal/evidence/9854-per-line-known-fixed.md)),
+remain `not_affected_known_fixed`; missing, malformed, conflicting, or other
+outside-range versions remain `possibly_affected`. Each consuming repository classifies its
 own manifest finding: one (CVE, package) pair yields one finding per repository
 with consumption evidence, and the lockfile/installed-version preference only
 picks the representative row within a repository, so a preferred lockfile row
