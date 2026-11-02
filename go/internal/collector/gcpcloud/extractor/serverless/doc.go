@@ -6,9 +6,9 @@
 // Tasks, Composer, Eventarc, Cloud Run, and Workflows.
 //
 // Each asset type registers its extractor from an init function against the
-// extractor leaf registry; the collector binary imports this package for its
-// side effects (see TestServerlessExtractorsRegistered in
-// cmd/collector-gcp-cloud). Extractors receive the raw CAI resource.data
+// extractor leaf registry; each collector binary (in-tree or the extracted
+// eshu-collector-gcp-cloud satellite) imports this package for its side
+// effects. Extractors receive the raw CAI resource.data
 // transiently and return only bounded, redaction-safe attributes, correlation
 // anchors, and typed relationships. They never persist the data blob and never
 // return secrets, data-plane content, raw policy JSON, IPs, or response bodies.
