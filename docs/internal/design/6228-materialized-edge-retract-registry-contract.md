@@ -41,7 +41,7 @@ multi-type table solely through explicit switch arms in
 | `incident_routing_evidence` | node-scoped (A), multi-type table | 3 routing types, derived from the slot-to-type map cross-checked against the slot vocabulary |
 | `observability_coverage` | named alternation (C), multi-type table | 5 `AWS_COVERS_*` types, both retract variants |
 | `security_group_sg_rule` | named alternation (C), multi-type table | `{ALLOWS_INGRESS, ALLOWS_EGRESS}` |
-| `semantic_entity_containment` | excluded, stays waived — SUPERSEDED: the #6228 live leaf landed (measured population 4, fixture reconciled in the same change); the ledger is now the source of truth | none |
+| `semantic_entity_containment` | excluded verdict SUPERSEDED: the #6228 live leaf landed (measured population 4, fixture reconciled in the same change); the ledger is now the source of truth | none |
 | `cloud_resource` | uncovered by design, stays waived — SUPERSEDED: route 2 plus the #6228 live leaf landed (see note under "Why cloud_resource stays uncovered"); the ledger is now the source of truth | none |
 
 A correction the ruling forced: only `cloud_resource` has an open vocabulary.

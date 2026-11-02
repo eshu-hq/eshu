@@ -7,11 +7,13 @@
 # See ../../ifa_family_registry.sh for the schema and every array declaration
 # this file assigns into. Read rows/13_iam_instance_profile_role.sh's header
 # first -- it explains what a DIRECT-materialization family is and which
-# blocker kinds are unavailable to one. This row carries NO fault cells yet:
+# blocker kinds are unavailable to one. This row carries its fault cells:
 # the determinism gate drives it through the shared N={1,2,4} cell below,
-# and the fault-injection area stays untouched (cell_kind=custom is rejected
-# by the generic dispatchers, and no custom cell file exists, so the fault
-# gate never dispatches this family).
+# and the fault trio runs from
+# scripts/lib/ifa_fault_injection_semantic_entity_containment_cells.sh
+# via custom dispatch (cell_kind=custom is rejected by the generic
+# dispatchers, so the fault gate dispatches this family only through
+# its own cells file).
 #
 # Shared cell, not dedicated, by the verdict: ruling (a) is one registry row
 # with SHARED_CELL=1 and CELL_KIND=custom, drive/assert in
@@ -66,9 +68,10 @@ IFA_FAMILY_EXPECTED_VAR[semantic_entity_containment]="semantic_entity_containmen
 # carried beside the query that never reaches the graph. The type is read
 # off the template, never derived from the port or family name.
 IFA_FAMILY_ANCHOR[semantic_entity_containment]="MERGE (f)-[rel:CONTAINS]->(n)"
-# custom, prospectively: no fault cell file exists for this family yet, and the
+# custom, landed: the fault trio runs from
+# scripts/lib/ifa_fault_injection_semantic_entity_containment_cells.sh, and the
 # generic public dispatchers reject `cell_kind=custom`, so the fault gate
-# cannot dispatch it by accident. Flip only with a proven fault cell, never to
+# dispatches this family only through its own cells file. Never flip to
 # generic without the lifecycle the generic header demands.
 IFA_FAMILY_CELL_KIND[semantic_entity_containment]="custom"
 
@@ -76,9 +79,9 @@ IFA_FAMILY_CELL_KIND[semantic_entity_containment]="custom"
 # empty rather than omitted -- see rows/12 for why an absent key is worse.
 IFA_FAMILY_RETRY_BASELINE_VAR[semantic_entity_containment]=""
 
-# 0: drive_all_cassettes does not produce this family, and no fault cell
-# drives it either; each determinism cell drives it through
-# DRIVE_FN/CASSETTE_VAR instead.
+# 0: drive_all_cassettes does not produce this family; each determinism
+# cell drives it through DRIVE_FN/CASSETTE_VAR instead, and the fault trio
+# drives it through its own cells file.
 IFA_FAMILY_FAULT_SHARED_DRIVE[semantic_entity_containment]="0"
 
 IFA_FAMILY_HANDLER_GO_FILE[semantic_entity_containment]="go/internal/reducer/code/semantic/materialization.go"

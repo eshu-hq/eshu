@@ -11,8 +11,8 @@
 # `FactLoader factload.FactLoader` as a struct field at :65, Handle rejects a
 # nil one at :83, and passes it to factload.LoadFactsForKinds at :92. An
 # ACCESS EXCLUSIVE lock on fact_records would therefore block a read this
-# handler really performs -- the blocker_kind a future fault cell would take.
-# No such cell exists yet.
+# handler really performs -- the blocker_kind its fault cell takes
+# (scripts/lib/ifa_fault_injection_semantic_entity_containment_cells.sh).
 #
 # A DIRECT-materialization family, so there is no shared_projection_intents row
 # for shared_intent_lock to take.
@@ -42,8 +42,8 @@ IFA_FAMILY_PIN_ANCHOR="MERGE (f)-[rel:CONTAINS]->(n)"
 # driven in the determinism gate's shared N={1,2,4} cell (#8359 verdict (a):
 # shared cell, no dedicated cell).
 IFA_FAMILY_PIN_SHARED_CELL=1
-# cell_kind: custom, prospectively -- no fault cell file exists for this
-# family yet, and the generic public dispatchers reject custom rows, so the
-# fault gate cannot dispatch it. A future fault cell flips nothing here; the
-# row already declares the custom dispatch shape.
+# cell_kind: custom, landed -- the fault trio runs from
+# scripts/lib/ifa_fault_injection_semantic_entity_containment_cells.sh, and
+# the generic public dispatchers reject custom rows, so the fault gate
+# dispatches this family only through its own cells file.
 IFA_FAMILY_PIN_CELL_KIND="custom"
