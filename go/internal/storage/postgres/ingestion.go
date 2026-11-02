@@ -107,28 +107,6 @@ func NewIngestionStoreWithMaintenanceConfig(database db.ExecQueryer, batchSize, 
 	return store
 }
 
-// drainFacts reads and discards all remaining facts from the channel.
-// This prevents the producer goroutine from leaking when the consumer
-// must abort early (skip, validation error, rollback).
-func drainFacts(factStream <-chan facts.Envelope) {
-	if factStream == nil {
-		return
-	}
-	for range factStream {
-	}
-}
-
-func drainFactsAndCheckStream(
-	factStream <-chan facts.Envelope,
-	factStreamErr func() error,
-) error {
-	drainFacts(factStream)
-	if factStreamErr == nil {
-		return nil
-	}
-	return factStreamErr()
-}
-
 // CommitScopeGeneration persists one scope generation worth of facts and
 // enqueues one projector work item for the same durable boundary. Facts
 // arrive through a channel and are committed in batched multi-row INSERTs
@@ -454,44 +432,4 @@ func (s IngestionStore) commitScopeGeneration(
 	}
 
 	return nil
-}
-
-// logCommitStage emits one low-cardinality timing record for the durable
-// ingestion transaction. These records intentionally sit at transaction
-// boundaries so dogfood runs can distinguish slow Postgres inserts from queue
-// enqueue, relationship evidence, or commit latency.
-func (s IngestionStore) logCommitStage(
-	ctx context.Context,
-	scopeValue scope.IngestionScope,
-	generation scope.ScopeGeneration,
-	stage string,
-	start time.Time,
-	attrs ...any,
-) {
-	if s.Logger == nil {
-		return
-	}
-
-	scopeAttrs := telemetry.ScopeAttrs(scopeValue.ScopeID, generation.GenerationID, scopeValue.SourceSystem)
-	logAttrs := make([]any, 0, len(scopeAttrs)+len(attrs)+3)
-	for _, attr := range scopeAttrs {
-		logAttrs = append(logAttrs, attr)
-	}
-	logAttrs = append(
-		logAttrs,
-		slog.String("stage", stage),
-		slog.Float64("duration_seconds", time.Since(start).Seconds()),
-		telemetry.PhaseAttr(telemetry.PhaseEmission),
-	)
-	logAttrs = append(logAttrs, attrs...)
-
-	s.Logger.InfoContext(ctx, "ingestion commit stage completed", logAttrs...)
-}
-
-func (s IngestionStore) now() time.Time {
-	if s.Now != nil {
-		return s.Now().UTC()
-	}
-
-	return time.Now().UTC()
 }

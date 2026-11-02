@@ -85,3 +85,25 @@ func writeGenerationState(ctx context.Context, tx db.Executor, stateWriter colle
 	}
 	return nil
 }
+
+// drainFacts reads and discards all remaining facts from the channel.
+// This prevents the producer goroutine from leaking when the consumer
+// must abort early (skip, validation error, rollback).
+func drainFacts(factStream <-chan facts.Envelope) {
+	if factStream == nil {
+		return
+	}
+	for range factStream {
+	}
+}
+
+func drainFactsAndCheckStream(
+	factStream <-chan facts.Envelope,
+	factStreamErr func() error,
+) error {
+	drainFacts(factStream)
+	if factStreamErr == nil {
+		return nil
+	}
+	return factStreamErr()
+}
