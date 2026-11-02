@@ -60,6 +60,10 @@ type Metrics interface {
 	// admission (#9299): admitted targets, per-reason skip evidence, and
 	// the page remainder that earned no work item this tick.
 	RecordScannerDerivedPage(context.Context, ScannerDerivedPageObservation)
+	// RecordOwnedTargetRotation records the owned-package rotation period one
+	// derivation read reported against its freshness bound (#9775), so an
+	// operator reads a lagging rotation from a gauge instead of a trace.
+	RecordOwnedTargetRotation(context.Context, OwnedTargetRotationObservation)
 }
 
 // ReconcileObservation captures one reconcile-loop outcome.
@@ -123,6 +127,9 @@ type otelMetrics struct {
 	scannerDerivedAdmittedTotal metric.Int64Counter
 	scannerDerivedSkippedTotal  metric.Int64Counter
 	scannerDerivedBacklog       atomic.Int64
+
+	// ownedRotation serves the #9775 owned-target rotation freshness gauges.
+	ownedRotation *ownedTargetRotationGauges
 
 	// workItemRetention holds the workflow_work_items retention instruments
 	// (#8829), registered in retention_metrics.go.
@@ -294,7 +301,13 @@ func NewMetrics(meter metric.Meter) (Metrics, error) {
 		return nil, err
 	}
 
+	ownedRotation, err := newOwnedTargetRotationGauges(meter)
+	if err != nil {
+		return nil, err
+	}
+
 	recorder := &otelMetrics{
+		ownedRotation:                 ownedRotation,
 		reconcileTotal:                reconcileTotal,
 		reconcileDuration:             reconcileDuration,
 		reapTotal:                     reapInstruments.total,

@@ -397,7 +397,7 @@ ranges, aliases, Pub git/path/private-hosted rows, Pub dependency overrides,
 branch-only Swift pins, revision-only Swift pins, and local/path Swift pins
 remain partial evidence and are skipped for exact OSV collection. The default derived target
 limit is 100, at most 5000; each rotating window plans one hash slot of the
-owned targets ([Derived Target Rotation](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/run-an-extracted-collector.md#derived-target-rotation)).
+owned targets ([Derived Target Rotation](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/run-an-extracted-collector.md#derived-target-rotation)). One full rotation takes the slot count times the reconcile interval. `derive_from_owned_packages.max_staleness` (a positive Go duration, default `24h`) states how long that may be: the coordinator reports the period as `eshu_dp_owned_target_rotation_period_seconds` against the bound and logs `owned_target_rotation_exceeds_max_staleness` when the period is longer. It is a reporting threshold and changes no planning. An enabled `derive_from_installed_evidence` refuses it; a disabled section accepts it unused, and under `planning_mode: single_pass` (no rotation) it is accepted and reports nothing.
 The single OSV target query payload remains capped separately at 100 queries.
 
 `derive_from_owned_packages.ecosystems` takes `cargo`, `composer`, `go`, `hex`,

@@ -38,7 +38,9 @@ func (s Service) schedulePackageRegistryWork(
 		if err != nil {
 			return fmt.Errorf("load package registry derived targets for %q: %w", instance.InstanceID, err)
 		}
-		s.logOwnedPackageWindow(instance, readOwned, ownedPage)
+		// The freshness bound is an OSV contract (#9775); package-registry
+		// reads log the window without a rotation period.
+		s.logOwnedPackageWindow(instance, readOwned, ownedPage, schedule.OwnedTargetFreshness{})
 		run, items, err := s.PackageRegistryPlanner.PlanPackageRegistryWork(ctx, packages.PlanRequest{
 			Instance:            instance,
 			ObservedAt:          observedAt,

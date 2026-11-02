@@ -275,7 +275,8 @@ func (s Service) scheduleVulnerabilityActivationDerivedScopes(
 	if err != nil {
 		return fmt.Errorf("load vulnerability intelligence derived targets for %q: %w", instance.InstanceID, err)
 	}
-	s.logOwnedPackageWindow(instance, derivation.DeriveFromOwnedPackages.Enabled, ownedPage)
+	freshness := s.reportOwnedTargetFreshness(ctx, instance, derivation.DeriveFromOwnedPackages, ownedPage, interval)
+	s.logOwnedPackageWindow(instance, derivation.DeriveFromOwnedPackages.Enabled, ownedPage, freshness)
 	osTargets, sbomTargets, err := s.vulnerabilityInstalledEvidenceTargets(ctx, derivation.DeriveFromInstalledEvidence, observedAt, interval)
 	if err != nil {
 		return fmt.Errorf("load vulnerability intelligence installed evidence targets for %q: %w", instance.InstanceID, err)
