@@ -49,9 +49,12 @@ None. Extraction outcomes remain covered by the collector-local
   the parent pipeline. The external tests pin relationship types and full
   resource names as literals so they assert values, not constants.
 - If you add an asset type here, register it from init, add unit and fixture
-  coverage, and update the extractor catalog in
-  `../../AGENTS-extractors-2.md`. Then run
-  `scripts/verify-package-docs.sh`.
+  coverage, update the extractor catalog in
+  `../../AGENTS-extractors-2.md`, and cover the new type in
+  `TestServerlessExtractorsRegistered`
+  (`go/internal/collector/gcpcloud/serverless_registration_test.go`),
+  which pins the wiring the deleted in-tree command test used to pin.
+  Then run `scripts/verify-package-docs.sh`.
 
 ## Evidence
 
@@ -74,6 +77,11 @@ passing proves neither happened. The only new behavior is the binary
 wiring, proven by `TestServerlessExtractorsRegistered`, which failed
 with all 11 asset types unregistered before the side-effect import and
 passes after.
+
+Amendment 2026-11-02 (#8856): the in-tree command and its
+`extractor_wiring_test.go` are deleted with the binary; the guard now lives
+in `go/internal/collector/gcpcloud/serverless_registration_test.go`. The
+baseline command above is the wave-1 record.
 
 No-Observability-Change: no new metric instrument, label, span, log
 field, status field, or runtime knob. Extraction outcomes remain covered

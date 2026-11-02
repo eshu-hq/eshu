@@ -119,7 +119,7 @@ admit them.
 
 Command Runtime Evidence: `go test ./internal/collector/gcpcloud/... -count=1` proves fixture mode remains available and tests build the `gcpruntime.LiveClient` runner without live Google Cloud credentials. Claimed-live collection runs from the satellite, whose own gates prove claim binding, generation echo, and source-URI stamping.
 
-Chart Deployment Evidence: `go test ./internal/runtime -run 'TestHelmGCPCloudCollectorDeployment' -count=1` proves the chart carries no in-tree GCP deployment. Production collection runs from the satellite image pinned by the operator activation.
+Chart Deployment Evidence: `go test ./internal/runtime -run 'TestHelmGCPCloudCollectorDeployment' -count=1` proves the chart renders no GCP Deployment by default, and when enabled the Deployment runs the satellite-provided image at the same binary path with claimed-live args.
 
 No-Regression Evidence: `go test ./internal/reducer ./internal/query
 ./internal/mcp -run CloudInventory -count=1` and `go test
