@@ -81,6 +81,20 @@ runs of 3,000 iterations each on arm64, went from a median of 8.27 ms/op to
 to 25,917). There is no backend, queue, or row count: this is in-memory work
 with no production caller, and it holds no lock and starts no worker.
 
+No-Regression Evidence: the spoken keyword fold (#9788) costs more per
+segment than the substring list it replaced. Baseline is `main` at `b31570ae74`
+(`containsLegacyKeyword`, one `strings.ToLower` and six `strings.Contains`
+calls); after is the committed fold and 18 phrase rules. A throwaway benchmark
+over 1,000 synthetic 85-character benign segments (the `whispercpp` segment
+cap), 5 runs of 300 iterations on arm64, measured at the #9788 head: the
+keyword pass went from 0.52-0.77 ms to 3.67-4.21 ms per 1,000 segments (about
+4 microseconds per segment), at the same 1,005 allocations and 96.7 KB.
+`valueSegments` took 3.77-5.45 ms per 1,000 segments. The check runs once in
+`valueSegments` and once in `persistedContent`, so a full 1,000-segment
+transcript pays about 8 ms more, in memory. There is no backend, queue, or row
+count: no production caller exists, and the work holds no lock and starts no
+worker.
+
 Collector Observability Evidence: this package emits no facts outside the
 returned envelopes and has no runtime side effects. Future runtime wiring must
 add collector signals for attempted media preflight and transcription,
@@ -98,8 +112,8 @@ query, graph write, HTTP handler, MCP tool, runtime flag, hosted collector path,
 metric, span, log, or status row. Existing collector, fact-store, HTTP, and MCP
 readback surfaces already carry the emitted documentation facts.
 
-No-Observability-Change: the value-segment rule (#9786) adds none of these and
-no error text. A value section carries the existing `redacted` and
+No-Observability-Change: the value-segment rule (#9786) and the spoken keyword
+forms (#9788) add none of these and no error text. A value section carries the existing `redacted` and
 `redaction_class` metadata, which is what a future caller counts.
 
 ## Value segments
