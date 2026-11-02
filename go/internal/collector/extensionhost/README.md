@@ -432,6 +432,20 @@ Decision (the allowlist and its bounds):
   `RunCollector` path relays nothing. Both production runners use the paged
   path.
 
+No-Regression Evidence: before this change the host parsed no stderr. `go test
+./internal/collector/extensionhost -run '^$' -bench AttachStderrFigures
+-benchtime=200000x -count=3` (go1.26.10, linux/arm64, no backend) measured a
+complete call at 14.2-14.4 ns/op, 0 allocs (a state compare, no parse); a
+terminal call with the typical one-line record at 1.4-1.9 us/op, 9 allocs; and
+the worst case, a full 64 KiB buffer of non-matching lines, at 78-84 us/op, 0
+allocs. The parse runs once per non-complete call, next to a launch that takes
+milliseconds. No queue, lease, claim, or graph path is touched.
+
+No-Observability-Change: no new metric or span; the existing
+`eshu_dp_component_extension_results_total{failure_class}` still counts failed
+claims, and the result log line gains three keys (`telemetry.LogKeys()`),
+proven by `TestFailedClaimRelaysAllowlistedFiguresFromSatelliteStderr`.
+
 Where an operator reads them: the `component extension result` log line's
 `extension_status.inflated_bytes`, `extension_status.budget_bytes`, and
 `extension_status.compressed_bytes` keys, next to `failure_class`.
