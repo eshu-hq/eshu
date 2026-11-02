@@ -56,8 +56,10 @@ type SignInPolicyReadStore = auth.SignInPolicyReadStore
 // /api/v0/auth/admin/sign-in-policy). Canonical mutations persist through
 // explicit core-owned admission contracts: eshu-api keeps the HTTP shape
 // and calls this versioned port, which the core-owned Postgres
-// implementation satisfies. A breaking change to the admission shape must
-// bump this version in the same diff.
+// implementation satisfies. A breaking change to the admission shape fails
+// the frozen method-set test until that list is deliberately updated in the
+// same diff; bump this version alongside so dest consumers can pin the
+// shape they code against.
 const SignInPolicyAdmissionContractVersion = "v0"
 
 // SignInPolicyAdmission is the versioned admission-contract port the API

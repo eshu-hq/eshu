@@ -28,6 +28,23 @@ func TestWireSignInPolicyHandlersNilDatabaseYieldsNilStore(t *testing.T) {
 	}
 }
 
+// TestNewSignInPolicyMutationHandlerUnwrapsTypedNilAdapter proves the
+// constructor hardens the seam itself: a typed-nil adapter is unwrapped to
+// an untyped nil store, so even a caller that bypasses the wiring guard
+// cannot smuggle a non-nil interface with a nil value past the 503 check.
+func TestNewSignInPolicyMutationHandlerUnwrapsTypedNilAdapter(t *testing.T) {
+	t.Parallel()
+
+	var typedNil *postgresSignInPolicyAdapter
+	handler := newSignInPolicyMutationHandler(query.SignInPolicyAdmission(typedNil), nil, nil)
+	if handler == nil {
+		t.Fatal("newSignInPolicyMutationHandler() = nil, want a handler with a nil store")
+	}
+	if handler.Store != nil {
+		t.Fatalf("handler.Store = %T(%v), want nil after unwrapping the typed-nil adapter", handler.Store, handler.Store)
+	}
+}
+
 // fakeSignInPolicyAdmission is a no-store admission port: the handler test
 // below proves the handler is built with the injected versioned admission
 // contract without opening a direct table handle.

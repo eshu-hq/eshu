@@ -86,12 +86,18 @@ func newSignInPolicyReadHandler(database *sql.DB, instruments *telemetry.Instrum
 // The single bounded mutation travels through the versioned #8872
 // sign-in policy admission contract, not a *sql.DB writer handle: the
 // caller binds the core-owned admission implementation and the handler
-// carries the port.
+// carries the port. Callers pass untyped nil for absent; a typed-nil
+// adapter is unwrapped to nil here, since only this constructor knows the
+// concrete implementation type and a typed nil would otherwise hide from
+// the handler's nil-store check.
 func newSignInPolicyMutationHandler(
 	signInPolicyAdmission query.SignInPolicyAdmission,
 	instruments *telemetry.Instruments,
 	governanceAudit query.GovernanceAuditSummaryReader,
 ) *query.SignInPolicyMutationHandler {
+	if adapter, ok := signInPolicyAdmission.(*postgresSignInPolicyAdapter); ok && adapter == nil {
+		signInPolicyAdmission = nil
+	}
 	return &query.SignInPolicyMutationHandler{
 		Store:       signInPolicyAdmission,
 		Audit:       adminRecoveryAuditAppender(governanceAudit),

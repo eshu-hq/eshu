@@ -36,8 +36,8 @@ func signInPolicyAdmissionMethodSet(t *testing.T) []string {
 // TestSignInPolicyAdmissionContractIsVersioned pins the #8872
 // admission-contract version for the admin sign-in policy mutation. The
 // version value plus the frozen method set below are the enforcement: a
-// breaking change to the admission shape fails this test until the version
-// bumps in the same diff.
+// breaking change to the admission shape fails this test until the frozen
+// list is deliberately updated and the version bumps in the same diff.
 func TestSignInPolicyAdmissionContractIsVersioned(t *testing.T) {
 	t.Parallel()
 
