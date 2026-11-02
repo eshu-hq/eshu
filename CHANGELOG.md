@@ -31,8 +31,12 @@ recent shipped work grouped by feature area.
   only looked forward. A keyword segment now also withholds the two segments with
   a letter or digit just before it, in both the time-order and the slice-order
   walk, at whole-segment granularity, in time linear in the number of segments.
-  The cost is ordinary speech: on the repository's own docs, 5.44% of sentences
-  lost their text with the forward window alone and 8.06% do with the look-back
+  An arbiter ruling fixed the look-back at two segments, because the pinned
+  `base.en` returned a value two lettered segments before its keyword
+  (`docs/internal/evidence/9792-backward-window-arbiter-ruling.md`); a value
+  three or more segments before its keyword keeps its text. The cost is
+  ordinary speech: on the repository's own docs, 5.44% of sentences lost their
+  text with the forward window alone and 8.06% do with the look-back
   (approximate; the media README gives the method). The first half of a keyword
   split across two segments is withheld too. Nothing calls the transcript path in
   production yet. The real-binary proof gained a fixture that speaks the value
