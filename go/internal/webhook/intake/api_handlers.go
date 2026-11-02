@@ -7,29 +7,43 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/webhook"
 )
 
 func (s *Server) handleRepository(w http.ResponseWriter, r *http.Request) {
+	obs := s.observe(r, valueUnknown)
+	defer obs.finish()
 	var request RepositoryIntakeRequest
-	if !s.decodeRequest(w, r, &request) {
+	if !s.decodeRequest(w, r, obs, &request) {
 		return
 	}
 	trigger, err := request.toTrigger()
 	if err != nil {
-		s.writeTriggerError(w, r, "repository", err)
+		s.writeTriggerError(w, r, obs, "repository", err)
 		return
 	}
+	obs.provider = string(trigger.Provider)
+	d := triggerDecision{
+		provider:  obs.provider,
+		eventKind: string(trigger.EventKind),
+		decision:  string(trigger.Decision),
+		reason:    boundedDecisionReason(trigger.Reason),
+	}
 	if s.stores.Repository == nil {
+		obs.storeUnavailable(d)
 		s.writeStoreError(w, r, "repository")
 		return
 	}
+	storeStarted := time.Now()
 	stored, err := s.stores.Repository.StoreTrigger(r.Context(), trigger, s.now())
 	if err != nil {
+		obs.storeFailed(d, storeStarted)
 		s.writeStoreFailure(w, r, "repository", string(trigger.Provider), err)
 		return
 	}
+	obs.stored(d, storeStarted, string(stored.Status))
 	s.logOutcome(r, "intake trigger stored",
 		slog.String("route", "repository"),
 		slog.String("provider", string(trigger.Provider)),
@@ -47,24 +61,37 @@ func (s *Server) handleRepository(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleIncident(w http.ResponseWriter, r *http.Request) {
+	obs := s.observe(r, valueUnknown)
+	defer obs.finish()
 	var request IncidentIntakeRequest
-	if !s.decodeRequest(w, r, &request) {
+	if !s.decodeRequest(w, r, obs, &request) {
 		return
 	}
 	trigger, err := request.toTrigger()
 	if err != nil {
-		s.writeTriggerError(w, r, "incident", err)
+		s.writeTriggerError(w, r, obs, "incident", err)
 		return
 	}
+	obs.provider = string(trigger.Provider)
+	d := triggerDecision{
+		provider:  obs.provider,
+		eventKind: boundedIncidentEventKind(trigger.EventKind),
+		decision:  string(webhook.DecisionAccepted),
+		reason:    reasonNone,
+	}
 	if s.stores.Incident == nil {
+		obs.storeUnavailable(d)
 		s.writeStoreError(w, r, "incident")
 		return
 	}
+	storeStarted := time.Now()
 	stored, err := s.stores.Incident.StoreIncidentFreshnessTrigger(r.Context(), trigger, s.now())
 	if err != nil {
+		obs.storeFailed(d, storeStarted)
 		s.writeStoreFailure(w, r, "incident", string(trigger.Provider), err)
 		return
 	}
+	obs.stored(d, storeStarted, string(stored.Status))
 	s.logOutcome(r, "intake trigger stored",
 		slog.String("route", "incident"),
 		slog.String("provider", string(trigger.Provider)),
@@ -80,24 +107,36 @@ func (s *Server) handleIncident(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleAWS(w http.ResponseWriter, r *http.Request) {
+	obs := s.observe(r, providerAWSFreshness)
+	defer obs.finish()
 	var request AWSIntakeRequest
-	if !s.decodeRequest(w, r, &request) {
+	if !s.decodeRequest(w, r, obs, &request) {
 		return
 	}
 	trigger, err := request.toTrigger()
 	if err != nil {
-		s.writeTriggerError(w, r, "aws", err)
+		s.writeTriggerError(w, r, obs, "aws", err)
 		return
 	}
+	d := triggerDecision{
+		provider:  providerAWSFreshness,
+		eventKind: string(trigger.Kind),
+		decision:  string(webhook.DecisionAccepted),
+		reason:    reasonNone,
+	}
 	if s.stores.AWS == nil {
+		obs.storeUnavailable(d)
 		s.writeStoreError(w, r, "aws")
 		return
 	}
+	storeStarted := time.Now()
 	stored, err := s.stores.AWS.StoreTrigger(r.Context(), trigger, s.now())
 	if err != nil {
+		obs.storeFailed(d, storeStarted)
 		s.writeStoreFailure(w, r, "aws", "aws", err)
 		return
 	}
+	obs.stored(d, storeStarted, string(stored.Status))
 	s.logOutcome(r, "intake trigger stored",
 		slog.String("route", "aws"),
 		slog.String("status", string(stored.Status)),
@@ -113,24 +152,36 @@ func (s *Server) handleAWS(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGCP(w http.ResponseWriter, r *http.Request) {
+	obs := s.observe(r, providerGCPFreshness)
+	defer obs.finish()
 	var request GCPIntakeRequest
-	if !s.decodeRequest(w, r, &request) {
+	if !s.decodeRequest(w, r, obs, &request) {
 		return
 	}
 	trigger, err := request.toTrigger()
 	if err != nil {
-		s.writeTriggerError(w, r, "gcp", err)
+		s.writeTriggerError(w, r, obs, "gcp", err)
 		return
 	}
+	d := triggerDecision{
+		provider:  providerGCPFreshness,
+		eventKind: string(trigger.Kind),
+		decision:  string(webhook.DecisionAccepted),
+		reason:    reasonNone,
+	}
 	if s.stores.GCP == nil {
+		obs.storeUnavailable(d)
 		s.writeStoreError(w, r, "gcp")
 		return
 	}
+	storeStarted := time.Now()
 	stored, err := s.stores.GCP.StoreTrigger(r.Context(), trigger, s.now())
 	if err != nil {
+		obs.storeFailed(d, storeStarted)
 		s.writeStoreFailure(w, r, "gcp", "gcp", err)
 		return
 	}
+	obs.stored(d, storeStarted, string(stored.Status))
 	s.logOutcome(r, "intake trigger stored",
 		slog.String("route", "gcp"),
 		slog.String("status", string(stored.Status)),
@@ -146,22 +197,33 @@ func (s *Server) handleGCP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleActions(w http.ResponseWriter, r *http.Request) {
+	obs := s.observe(r, string(webhook.ProviderGitHub))
+	defer obs.finish()
 	var request ActionsIntakeRequest
-	if !s.decodeRequest(w, r, &request) {
+	if !s.decodeRequest(w, r, obs, &request) {
 		return
 	}
 	trigger, err := request.toTrigger()
 	if err != nil {
-		s.writeTriggerError(w, r, "actions", err)
+		s.writeTriggerError(w, r, obs, "actions", err)
 		return
 	}
+	d := triggerDecision{
+		provider:  string(webhook.ProviderGitHub),
+		eventKind: trigger.EventKind,
+		decision:  string(webhook.DecisionAccepted),
+		reason:    reasonNone,
+	}
 	if s.stores.Actions == nil {
+		obs.storeUnavailable(d)
 		s.writeStoreError(w, r, "actions")
 		return
 	}
+	storeStarted := time.Now()
 	stored, err := s.stores.Actions.Store(r.Context(), trigger, s.now())
 	if err != nil {
 		if errors.Is(err, webhook.ErrActionsDeliveryConflict) {
+			obs.storeRejected(d.provider, storeStarted)
 			s.logOutcome(r, "intake delivery conflict", slog.String("route", "actions"))
 			writeIntakeJSON(w, http.StatusConflict, map[string]any{
 				"api_version": APIVersionV1,
@@ -170,9 +232,11 @@ func (s *Server) handleActions(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+		obs.storeFailed(d, storeStarted)
 		s.writeStoreFailure(w, r, "actions", "github", err)
 		return
 	}
+	obs.stored(d, storeStarted, string(stored.Status))
 	s.logOutcome(r, "intake trigger stored",
 		slog.String("route", "actions"),
 		slog.String("status", string(stored.Status)),
