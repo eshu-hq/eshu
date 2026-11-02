@@ -106,6 +106,12 @@ func (s FactStore) Instruments() *telemetry.Instruments {
 	return s.instruments
 }
 
+// Logger returns the logger this store writes one line per delta-base union
+// decision with, or nil when the wiring left it unset and the log is skipped.
+func (s FactStore) Logger() *slog.Logger {
+	return s.logger
+}
+
 // CountFacts returns the number of facts for a scope generation without loading them.
 //
 // For a delta generation with a projected base it returns the union upper
