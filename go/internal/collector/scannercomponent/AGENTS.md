@@ -11,7 +11,8 @@ Read these before editing this package:
 - This package owns vocabulary and admission; it never executes analyzers.
   Do not add workflow writes, store handles, claim loops, runners, paging,
   or seeding here — execution sources were removed from eshu in #9741 and
-  the port into `eshu-hq/eshu-scanner-worker` is in progress (#8878 box 10).
+  the images are built and attested by `eshu-hq/eshu-scanner-worker`
+  (#8878 box 10).
 - Never change a frozen vocabulary string. `vocabulary_test.go` asserts every
   value verbatim; a rename breaks the planner, the satellite, telemetry
   dimensions, and status classes. Route a vocabulary change through the

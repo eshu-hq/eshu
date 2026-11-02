@@ -10,10 +10,10 @@
 // ManifestFor, AnalyzerFor, VerifySeededArtifact, RequiredGrants, the
 // component IDs, the manifest Version, and the artifact digest pins. The execution half (claim
 // input, analyzers, runners, paging, seeding) is not in this tree: its
-// sources were removed from eshu in #9741, the pinned images were built from
-// eshu commit a371d1e21f, and the destination port into
-// eshu-hq/eshu-scanner-worker is in progress (#8878 box 10). This package
-// never executes an analyzer.
+// sources were removed from eshu in #9741, and the pinned images are built
+// and attested by eshu-hq/eshu-scanner-worker (release run 41401606694, main
+// b18339cc43). #8878 box 10 stays open until that re-pin is deployed and
+// accepted. This package never executes an analyzer.
 //
 // Import discipline: the coordinator planner and the component admission
 // callers both import this leaf; they never import each other. No new SDK
