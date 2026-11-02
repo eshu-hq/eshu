@@ -100,6 +100,12 @@ func (s FactStore) WithInstruments(instruments *telemetry.Instruments) *FactStor
 	return &s
 }
 
+// Instruments returns the telemetry instruments this store records on, or nil
+// when the wiring left them unset and every recorded signal is skipped.
+func (s FactStore) Instruments() *telemetry.Instruments {
+	return s.instruments
+}
+
 // CountFacts returns the number of facts for a scope generation without loading them.
 //
 // For a delta generation with a projected base it returns the union upper
