@@ -102,30 +102,43 @@ func isPhraseGap(r rune) bool {
 	return r == '-' || r == '_' || unicode.IsSpace(r)
 }
 
-// markerScan holds the state of one containsMarkerWord pass. The three buffers
-// start on the stack and grow only for a word longer than 64 bytes.
-type markerScan struct {
-	piece []byte // folded word being read
-	run   []byte // folded letters and digits since the last separator
-	prev  []byte // folded last word
-	// havePrev reports that prev holds a word. linked reports that nothing but
-	// space, hyphen, or underscore sits between prev and the word being read.
-	havePrev, linked, gapOK bool
+// appendFolded appends the folded form of r to b. A rune outside ASCII becomes
+// one 0xFF byte: no marker holds one, so it can neither match nor join two
+// words, and the buffers stay plain bytes.
+func appendFolded(b []byte, r rune) []byte {
+	if f := foldRune(r); f < utf8.RuneSelf {
+		return append(b, byte(f))
+	}
+	return append(b, 0xFF)
 }
 
 // containsMarkerWord reports whether text holds a label from labelFamilies. It
-// reads text once, allocates nothing for ordinary text, and stops at the first
-// match.
+// reads text once, stops at the first match, and keeps its three working
+// buffers on the stack for any word shorter than 64 bytes, so ordinary text
+// costs no allocation.
 func containsMarkerWord(text string) bool {
 	var pieceBuf, runBuf, prevBuf [64]byte
-	scan := markerScan{piece: pieceBuf[:0], run: runBuf[:0], prev: prevBuf[:0], gapOK: true}
-	var prevRune rune // the last word rune read, or 0 after a separator
+	piece, run, prev := pieceBuf[:0], runBuf[:0], prevBuf[:0] // the word, the run of letters and digits, and the word before
+	var prevRune rune                                         // the last word rune read, or 0 after a separator
+	// havePrev reports that prev holds a word. gapOK reports that only space,
+	// hyphen, or underscore has come since it, and linked freezes that answer
+	// for the word being read.
+	havePrev, gapOK, linked := false, true, false
+	endPiece := func() bool {
+		if len(piece) == 0 {
+			return false
+		}
+		matched := pieceIsMarker(piece) || (linked && phraseEndsHere(prev, piece))
+		prev = append(prev[:0], piece...)
+		piece = piece[:0]
+		havePrev, gapOK = true, true
+		return matched
+	}
 	for i := 0; i < len(text); {
 		r, size := utf8.DecodeRuneInString(text[i:])
 		if symbols := inWordSymbols(text[i:], prevRune); symbols > 0 {
 			for _, symbol := range text[i : i+symbols] {
-				scan.piece = utf8.AppendRune(scan.piece, foldRune(symbol))
-				scan.run = utf8.AppendRune(scan.run, foldRune(symbol))
+				piece, run = appendFolded(piece, symbol), appendFolded(run, symbol)
 				prevRune = foldRune(symbol)
 			}
 			i += symbols
@@ -133,28 +146,26 @@ func containsMarkerWord(text string) bool {
 		}
 		i += size
 		if !isWordRune(r) {
-			if scan.endPiece() || scan.endRun() {
+			if endPiece() || runIsMarker(run) {
 				return true
 			}
-			if !isPhraseGap(r) {
-				scan.gapOK = false
-			}
+			run = run[:0]
+			gapOK = gapOK && isPhraseGap(r)
 			prevRune = 0
 			continue
 		}
 		next, nextSize := utf8.DecodeRuneInString(text[i:])
 		after, _ := utf8.DecodeRuneInString(text[i+nextSize:])
-		if startsCamelWord(prevRune, r, next, after) && scan.endPiece() {
+		if startsCamelWord(prevRune, r, next, after) && endPiece() {
 			return true
 		}
-		if len(scan.piece) == 0 {
-			scan.linked = scan.havePrev && scan.gapOK
+		if len(piece) == 0 {
+			linked = havePrev && gapOK
 		}
-		scan.piece = utf8.AppendRune(scan.piece, foldRune(r))
-		scan.run = utf8.AppendRune(scan.run, foldRune(r))
+		piece, run = appendFolded(piece, r), appendFolded(run, r)
 		prevRune = r
 	}
-	return scan.endPiece() || scan.endRun()
+	return endPiece() || runIsMarker(run)
 }
 
 // inWordSymbols returns how many bytes of text start a run of `@` or `$` that
@@ -185,42 +196,32 @@ func startsCamelWord(prev rune, r rune, next rune, after rune) bool {
 	return unicode.IsLower(prev) || (unicode.IsUpper(prev) && unicode.IsLower(next) && unicode.IsLower(after))
 }
 
-// endPiece checks the word just read against the word-level families and the
-// phrase before it, then keeps it as the previous word.
-func (s *markerScan) endPiece() bool {
-	if len(s.piece) == 0 {
-		return false
-	}
-	matched := s.pieceIsMarker() || (s.linked && s.phraseEndsHere())
-	s.prev = append(s.prev[:0], s.piece...)
-	s.piece = s.piece[:0]
-	s.havePrev = true
-	s.gapOK = true
-	return matched
-}
-
-func (s *markerScan) pieceIsMarker() bool {
+// pieceIsMarker checks one word against the families that need a word
+// boundary.
+func pieceIsMarker(piece []byte) bool {
 	for _, word := range labelFamilies.endsWith {
-		if endsWithWord(s.piece, word) {
+		if endsWithWord(piece, word) {
 			return true
 		}
 	}
 	for _, word := range labelFamilies.exact {
-		if isWord(s.piece, word) {
+		if isWord(piece, word) {
 			return true
 		}
 	}
 	return false
 }
 
-func (s *markerScan) phraseEndsHere() bool {
+// phraseEndsHere reports whether prev and piece, adjacent and linked by space,
+// hyphen, underscore, or a case change, are one of labelFamilies.phrases.
+func phraseEndsHere(prev []byte, piece []byte) bool {
 	for _, phrase := range labelFamilies.phrases {
-		firstMatches := bytes.Equal(s.prev, phrase.first) || (phrase.firstEndsWith && bytes.HasSuffix(s.prev, phrase.first))
+		firstMatches := bytes.Equal(prev, phrase.first) || (phrase.firstEndsWith && bytes.HasSuffix(prev, phrase.first))
 		if !firstMatches {
 			continue
 		}
 		for _, second := range phrase.second {
-			if bytes.Equal(s.piece, second) {
+			if bytes.Equal(piece, second) {
 				return true
 			}
 		}
@@ -228,11 +229,9 @@ func (s *markerScan) phraseEndsHere() bool {
 	return false
 }
 
-// endRun checks the letters and digits since the last separator for the
+// runIsMarker checks the letters and digits between two separators for the
 // families that match anywhere inside a word.
-func (s *markerScan) endRun() bool {
-	run := s.run
-	s.run = s.run[:0]
+func runIsMarker(run []byte) bool {
 	for _, word := range labelFamilies.contains {
 		if bytes.Contains(run, word) {
 			return true

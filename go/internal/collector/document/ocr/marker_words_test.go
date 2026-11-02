@@ -27,7 +27,7 @@ var markerLabelForms = map[string][]string{
 		"API KEYS", "x-api-key", "MYAPI_KEY", "ap1 key",
 	},
 	"access key":  {"Access Key:", "access-key", "Access Key ID", "AWS_ACCESS_KEY_ID", "accessKey"},
-	"private key": {"Private Key:", "private-key", "PRIVATE_KEY", "privateKey", "PrivateKey"},
+	"private key": {"Private Key:", "privatekey", "Privatekey", "private-key", "PRIVATE_KEY", "privateKey", "PrivateKey"},
 	"credential":  {"Credential:", "Credentials", "credentials.json", "Cr3dentials", "Credentia1s"},
 	"passphrase":  {"Passphrase:", "Pass phrase", "pass-phrase", "PassPhrase"},
 	"passcode":    {"Passcode:", "Pass code", "PassCode", "PASS_CODE"},
