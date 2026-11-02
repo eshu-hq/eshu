@@ -116,8 +116,8 @@ So the replacement for the same-transaction coupling is the protocol route,
 the satellite handler, and (with #9376 P2) the core consumption side: the
 ingestion commit pins a plane-held claim, writes the (generation, work item)
 fence row, and checks the pin deadline before COMMIT, with a
-failing-then-green stale-writer regression. It is inert until a collector is
-wired to the claim plane (P1). The earlier statement that it was "PROVEN
+failing-then-green stale-writer regression. It is inert until
+`ESHU_WORKFLOW_CLAIM_PLANE_URL` is set for a collector. The earlier statement that it was "PROVEN
 in-tree" described the harness only and stays withdrawn.
 
 Static lock audit (carried from the 2026-10-30 code read; spot-checked

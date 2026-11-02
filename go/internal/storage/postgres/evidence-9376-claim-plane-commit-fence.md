@@ -53,10 +53,18 @@ the unchanged statements. Measured: `BenchmarkIngestionStoreCatalogLoadsPerCommi
 (200 commits per op, fake DB), 6 runs each, interleaved before/after on
 the same shared host (load average about 18 on 16 cores): before
 (`578d2d38e6`, the PR-A tip PR-B stacks on) median 80.6 ms/op
-(67.6-182.3, one outlier run), after (`aaf37e8d2d`) median 70.2 ms/op
+(67.6-182.3, one outlier run), after median 70.2 ms/op
 (69.4-86.9), 110.04-110.05 MB/op and about 647,400 allocs/op on both.
 The time gap is inside the host's run-to-run noise and allocation bytes
 are identical, so neither a regression nor a speedup is claimed.
+Provenance: `578d2d38e6` is on `origin/main` (the merged PR-A head). The
+after run was taken on a pre-rebase commit that is no longer reachable
+from this branch; its `ingestion.go` matches, byte for byte, the one
+`a30eb34eae` gives this branch (an empty `git diff` of that file against
+this head, run in the lane clone that still holds the old object). The
+benchmark drives the in-tree path (`ClaimPlane` nil), so later fence-only
+edits (`ingestion_claim_fence.go`, the retention count arm) are off its
+path.
 
 Correctness and concurrency, all against the disposable Postgres, run
 on a freshly created, empty database (nothing in `public`), `-race`:

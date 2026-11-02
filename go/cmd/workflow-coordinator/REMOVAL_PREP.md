@@ -78,8 +78,8 @@ and in the satellite (`eshu-workflow` `server/server.go:74`). The core
 consumption side and the commit-time fence land with #9376 P2
 (`IngestionStore.ClaimPlane`, `storage/postgres/claim/fence`, migration
 270, `PLANE_DECLARATION_9376.md` §4) with the failing-then-green
-stale-writer regression; they stay inert until a collector is wired to the
-claim plane (P1), and the removal must not drop the coupling before both
+stale-writer regression; they stay inert until
+`ESHU_WORKFLOW_CLAIM_PLANE_URL` is set for a collector, and the removal must not drop the coupling before both
 are on main. Static
 lock audit (code-read, carried from 2026-10-30, spot-checked 2026-11-01 at
 `workflow_control_sql.go:118,181,229,278,333`):
