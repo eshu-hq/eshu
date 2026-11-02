@@ -13,6 +13,10 @@
 // unreachable claim plane fails the collector's claim calls, which is the
 // same fail-closed path a core Postgres outage takes.
 //
+// Selection.Pinner carries the claim-plane client for the caller to set as
+// the committer's postgres.ClaimPlaneFence pinner; collector.ClaimedService
+// refuses a claim-plane store without that fence.
+//
 // The package owns selection only. The ingestion commit fence (#8875 P2) and
 // the claim protocol itself live in storage/postgres and workflow.
 package store

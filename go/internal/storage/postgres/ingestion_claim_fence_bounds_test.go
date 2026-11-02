@@ -14,7 +14,11 @@ import (
 	"testing"
 	"time"
 
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/claim/fence"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // TestPlaneCommitRefusesMarginAtOrAboveTwoThirdsOfLease enforces the D6 MUST
@@ -204,4 +208,51 @@ func TestClaimFenceMismatchLogsAtError(t *testing.T) {
 			t.Fatalf("%s logged at %s, want %s", reason, record.Level, want)
 		}
 	}
+}
+
+// TestIngestionStoreReportsClaimPlaneFenced is the store half of the #9376 D8
+// construction check: only a ClaimPlane with a Pinner counts as fenced, so a
+// claim-plane control store paired with a fence that has no pinner is refused
+// by collector.ClaimedService before any claim.
+func TestIngestionStoreReportsClaimPlaneFenced(t *testing.T) {
+	t.Parallel()
+	store := NewIngestionStore(&fakeTransactionalDB{tx: &fakeTx{}})
+	if store.ClaimPlaneFenced() {
+		t.Fatal("ClaimPlaneFenced() = true with no ClaimPlane")
+	}
+	store.ClaimPlane = &ClaimPlaneFence{}
+	if store.ClaimPlaneFenced() {
+		t.Fatal("ClaimPlaneFenced() = true with a ClaimPlane that has no Pinner")
+	}
+	store.ClaimPlane.Pinner = &claimFenceFakePinner{}
+	if !store.ClaimPlaneFenced() {
+		t.Fatal("ClaimPlaneFenced() = false with a pinned ClaimPlane")
+	}
+}
+
+// TestClaimFenceRecordsOnItsOwnInstruments: collectors that leave the store's
+// Instruments unset still get the fence counters through
+// ClaimPlaneFence.Instruments.
+func TestClaimFenceRecordsOnItsOwnInstruments(t *testing.T) {
+	t.Parallel()
+	reader := sdkmetric.NewManualReader()
+	inst, err := telemetry.NewInstruments(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("claim-fence-own"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v", err)
+	}
+	store := NewIngestionStore(&fakeTransactionalDB{tx: &fakeTx{}})
+	session := &claimFenceSession{store: store, config: &ClaimPlaneFence{Instruments: inst}}
+	session.recordRejection(context.Background(), &fence.Rejection{Reason: fence.ReasonFenceToken}, "gen-o")
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	for _, scopeMetrics := range rm.ScopeMetrics {
+		for _, m := range scopeMetrics.Metrics {
+			if m.Name == "eshu_dp_ingestion_claim_fence_rejections_total" {
+				return
+			}
+		}
+	}
+	t.Fatal("eshu_dp_ingestion_claim_fence_rejections_total not recorded on ClaimPlaneFence.Instruments")
 }

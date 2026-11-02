@@ -83,6 +83,11 @@ type Selection struct {
 	Backend Backend
 	// Endpoint is the claim-plane scheme and host; empty for Postgres.
 	Endpoint string
+	// Pinner is the selected claim-plane client, nil for Postgres. A claim
+	// the plane holds has no core claim row, so the caller must set it as
+	// the Pinner of the committer's postgres.ClaimPlaneFence (#9376);
+	// collector.ClaimedService refuses to run a plane store without it.
+	Pinner *workflow.ClaimPlaneClient
 }
 
 // New selects the collector claim store from EnvClaimPlaneURL. It returns
@@ -117,7 +122,7 @@ func New(ctx context.Context, opts Options) (Selection, error) {
 	}
 	client := workflow.NewClaimPlaneClient(endpoint.String(), httpClient)
 	client.Observe = requestObserver(opts.Instruments)
-	selection := Selection{Store: client, Backend: BackendClaimPlane, Endpoint: endpoint.String()}
+	selection := Selection{Store: client, Backend: BackendClaimPlane, Endpoint: endpoint.String(), Pinner: client}
 	recordSelection(ctx, opts, selection)
 	return selection, nil
 }

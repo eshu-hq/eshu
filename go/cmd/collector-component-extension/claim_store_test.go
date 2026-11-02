@@ -40,6 +40,9 @@ func TestBuildClaimedServiceRefusesClaimPlane(t *testing.T) {
 	if _, ok := service.ControlStore.(*postgres.WorkflowControlStore); !ok {
 		t.Fatalf("unset ControlStore = %T, want *postgres.WorkflowControlStore", service.ControlStore)
 	}
+	if fenced, ok := service.Committer.(interface{ ClaimPlaneFenced() bool }); ok && fenced.ClaimPlaneFenced() {
+		t.Fatalf("core Committer = %T fences on the claim plane, want the in-tree fence (#9376)", service.Committer)
+	}
 
 	withURL := map[string]string{store.EnvClaimPlaneURL: "http://eshu-workflow-claim-plane:8080"}
 	for key, value := range base {

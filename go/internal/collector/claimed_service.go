@@ -189,6 +189,9 @@ func (s ClaimedService) validate() error {
 	if _, ok := s.Committer.(ClaimedCommitter); !ok {
 		return errors.New("claim-aware collector committer must implement ClaimedCommitter")
 	}
+	if err := validateClaimPlaneFence(s.ControlStore, s.Committer); err != nil {
+		return err
+	}
 	if s.ClaimDispatcher == nil {
 		if strings.TrimSpace(string(s.CollectorKind)) == "" {
 			return errors.New("collector kind is required")

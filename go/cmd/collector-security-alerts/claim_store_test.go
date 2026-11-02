@@ -34,6 +34,9 @@ func TestBuildClaimedServiceSelectsClaimStoreFromEnv(t *testing.T) {
 	if _, ok := service.ControlStore.(*postgres.WorkflowControlStore); !ok {
 		t.Fatalf("unset ControlStore = %T, want *postgres.WorkflowControlStore", service.ControlStore)
 	}
+	if fenced, ok := service.Committer.(interface{ ClaimPlaneFenced() bool }); ok && fenced.ClaimPlaneFenced() {
+		t.Fatalf("core Committer = %T fences on the claim plane, want the in-tree fence (#9376)", service.Committer)
+	}
 
 	service, err = buildClaimedService(nil, withURL("http://eshu-workflow-claim-plane:8080"), nil, nil, nil)
 	if err != nil {
@@ -41,6 +44,9 @@ func TestBuildClaimedServiceSelectsClaimStoreFromEnv(t *testing.T) {
 	}
 	if _, ok := service.ControlStore.(*workflow.ClaimPlaneClient); !ok {
 		t.Fatalf("claim-plane ControlStore = %T, want *workflow.ClaimPlaneClient", service.ControlStore)
+	}
+	if fenced, ok := service.Committer.(interface{ ClaimPlaneFenced() bool }); !ok || !fenced.ClaimPlaneFenced() {
+		t.Fatalf("claim-plane Committer = %T, want one that fences commits on the claim plane (#9376)", service.Committer)
 	}
 
 	_, err = buildClaimedService(nil, withURL("ftp://claim-plane"), nil, nil, nil)

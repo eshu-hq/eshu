@@ -209,7 +209,10 @@ evidence (No-Regression and No-Observability-Change) for this section lives in
 - `ClaimedService` — wraps `Service` with a `ClaimControlStore` for workflow
   collection; `MaxAttempts` bounds per-work-item retries and escalates recurring
   retryable failures to `attempt_budget_exhausted` (issue #612; `0` is legacy).
-  Hosted work items copy tenant identity into commit mutations. Retryable
+  Hosted work items copy tenant identity into commit mutations. Start-up
+  refuses a claim-plane control store whose committer does not report
+  `ClaimPlaneFenced()`, and the reverse (#9376; `CommitterFencesClaimPlane`
+  lets wrapping committers forward it). Retryable
   source errors exposing `RetryAfterDelay()` set retry `visible_at` to the
   larger of poll interval and provider guidance without changing fact output.
   A configured `ClaimDispatcher` can choose the next claim target across

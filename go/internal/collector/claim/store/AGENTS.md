@@ -20,6 +20,12 @@ Read first: `README.md`, `select.go`, `url.go`, and
 - Keep labels closed: `backend_kind`, `operation`, `outcome` only. No scope,
   item, claim, or instance id becomes a label.
 
+- When `Backend` is `BackendClaimPlane`, `Selection.Pinner` is the selected
+  client and the caller must set it as the committer's
+  `postgres.ClaimPlaneFence.Pinner` (#9376). Every claim-aware collector
+  command does; `collector.ClaimedService` refuses the mismatched pair at
+  start. Keep `Pinner` nil for Postgres.
+
 ## Out of scope
 
 The ingestion commit fence (`ValidateAndPinClaimForCommit`, #8875 P2) lives in

@@ -174,13 +174,21 @@ finalized-replay semantics, and the margin bounds it.
 - Telemetry: D9 named `fence_mode` as `in_tree|plane`. The in-tree path
   emits no fence span at all, so the only value emitted is `fence_mode=plane`
   on `ingestion.commit.claim_fence`.
-- Wiring (P1): `ClaimPlane` is set per `IngestionStore`. A store with
-  `ClaimPlane` set pins every claimed commit, so an in-tree collector that
-  shares a store with a flipped collector would have its claims refused as
-  `not_found` by the plane. Each collector must get its own store, matching
-  its own `ControlStore`. The fail-closed constructor check that pairs the
-  claim-plane `ControlStore` with a `ClaimPlane` fence lands with P1
-  (PR #9856).
+- Wiring (P1, merged as #9856; the pairing lands here): `ClaimPlane` is
+  set per `IngestionStore`. A store with `ClaimPlane` set pins every
+  claimed commit, so an in-tree collector that shared a store with a
+  flipped collector would have its claims refused as `not_found` by the
+  plane; each collector gets its own store, matching its own
+  `ControlStore`. `store.New` returns the selected claim-plane client as
+  `Selection.Pinner` (nil for Postgres), and every claim-aware collector
+  that calls it sets `ClaimPlane` from it (the generated entrypoint
+  template and each hand-written `buildClaimedService`). The pairing is
+  enforced at start: `collector.ClaimedService` refuses a claim-plane
+  control store whose committer does not report `ClaimPlaneFenced()` (a
+  `ClaimPlane` with a `Pinner`), and a fenced committer paired with the
+  core Postgres control store. At commit, a `ClaimPlane` with no `Pinner`
+  still fails closed (D8). Core-only collectors (component extension,
+  vulnerability intelligence) cannot select the plane at all.
 
 ## 6.2 Runbook: confirm the 5 s margin on the test cluster (read-only, before Phase C)
 

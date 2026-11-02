@@ -63,10 +63,21 @@ type ClaimPlaneFence struct {
 	Ticks func(interval time.Duration) (<-chan time.Time, func())
 	// PinBackoff overrides the pre-transaction pin retry backoff (tests).
 	PinBackoff time.Duration
+	// Instruments, when set, records the fence counters and the slack
+	// histogram; nil uses the store's Instruments.
+	Instruments *telemetry.Instruments
 	// PinAttemptTimeout overrides the per-call pin bound when positive
 	// (tests). Zero uses DefaultClaimFencePinAttemptTimeout capped at a third
 	// of the claim lease.
 	PinAttemptTimeout time.Duration
+}
+
+// ClaimPlaneFenced reports whether claimed commits through this store take
+// the claim-plane fence: ClaimPlane is set and has a Pinner.
+// collector.ClaimedService uses it to refuse a claim-plane control store
+// paired with an in-tree committer, and the reverse (#9376 D8).
+func (s IngestionStore) ClaimPlaneFenced() bool {
+	return s.ClaimPlane != nil && s.ClaimPlane.Pinner != nil
 }
 
 // claimFenceSession is one plane-path commit's fence state, from the pin
@@ -177,6 +188,14 @@ func (c *ClaimPlaneFence) pinAttemptTimeout(lease time.Duration) time.Duration {
 	return min(DefaultClaimFencePinAttemptTimeout, lease/3)
 }
 
+// instruments is the fence's own Instruments, or the store's when unset.
+func (f *claimFenceSession) instruments() *telemetry.Instruments {
+	if f.config.Instruments != nil {
+		return f.config.Instruments
+	}
+	return f.store.Instruments
+}
+
 func (f *claimFenceSession) code() fence.CodeFunc {
 	if f.config.Code != nil {
 		return f.config.Code
@@ -217,7 +236,7 @@ func (f *claimFenceSession) checkDeadline(ctx context.Context, generationID stri
 	}
 	slack, err := fence.CheckDeadline(f.keeper.LatestDeadline(), f.store.now(), f.config.margin())
 	f.slack = slack
-	if instruments := f.store.Instruments; instruments != nil && instruments.IngestionCommitPinSlack != nil {
+	if instruments := f.instruments(); instruments != nil && instruments.IngestionCommitPinSlack != nil {
 		instruments.IngestionCommitPinSlack.Record(ctx, slack.Seconds())
 	}
 	if err != nil {
@@ -289,7 +308,7 @@ func (f *claimFenceSession) recordRejection(ctx context.Context, err error, gene
 		return
 	}
 	f.recorded = true
-	if instruments := f.store.Instruments; instruments != nil && instruments.IngestionClaimFenceRejections != nil {
+	if instruments := f.instruments(); instruments != nil && instruments.IngestionClaimFenceRejections != nil {
 		instruments.IngestionClaimFenceRejections.Add(ctx, 1, metric.WithAttributes(
 			attribute.String(telemetry.MetricDimensionReason, string(rejection.Reason))))
 	}
@@ -317,7 +336,7 @@ func (f *claimFenceSession) recordRejection(ctx context.Context, err error, gene
 }
 
 func (f *claimFenceSession) recordRepin(ctx context.Context, outcome string) {
-	if instruments := f.store.Instruments; instruments != nil && instruments.IngestionCommitRepins != nil {
+	if instruments := f.instruments(); instruments != nil && instruments.IngestionCommitRepins != nil {
 		instruments.IngestionCommitRepins.Add(ctx, 1, metric.WithAttributes(
 			attribute.String(telemetry.MetricDimensionOutcome, outcome)))
 	}
