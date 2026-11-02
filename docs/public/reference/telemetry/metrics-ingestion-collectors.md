@@ -201,6 +201,7 @@ artifact paths, and credentials stay out of labels.
 | `eshu_dp_vulnerability_intelligence_facts_emitted_total` | `source`, `fact_kind` | Source fact volume emitted per bounded target. |
 | `eshu_dp_vulnerability_intelligence_rate_limited_total` | `source` | HTTP 429 pressure across OSV, NVD, EPSS, KEV, or mirrors. |
 | `eshu_dp_vulnerability_intelligence_fetch_duration_seconds` | `source`, `result` | Bounded source fetch duration. |
+| `eshu_dp_vulnerability_intelligence_affected_entries_skipped_total`, `eshu_dp_vulnerability_intelligence_records_skipped_total` | `source`, `ecosystem` (the target's canonical Eshu ecosystem, or `other`), `reason` | OSV affected entries, and whole records, the converter left out (#9806). Entry `reason`: `no_package`, `blank_ecosystem`, `unsupported_ecosystem`, `blank_name`, `invalid_purl`, `normalize_failed`; record `reason`: `no_usable_affected`. Not an error and not a fetch gap: the snapshot stays complete. The raw entry ecosystem is on the `vulnerability_intelligence.osv_affected_skipped` span event, never a label. |
 | `eshu_dp_vulnerability_source_state_stale_writes_skipped_total` | `status`, `result` | Source-state writes the extension host skipped because a newer attempt already owns the row (#9420). Expected under replica overlap; not an error. |
 | `eshu_dp_vulnerability_source_state_write_failures_total` | `status`, `result` | Source-state writes from the extension host that failed in Postgres (#9420). A failed attempt row also fails the claim retryable with `source_state_record`. |
 
