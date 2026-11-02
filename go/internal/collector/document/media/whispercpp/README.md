@@ -164,15 +164,22 @@ address-space cap. Non-Unix platforms are rejected because they lack
 process-group kill.
 
 Segments that are only an annotation (`[BLANK_AUDIO]`, `(silence)`,
-`*music*`, `♪`) are dropped and counted. A run with no remaining segments
-returns `ClassNoSpeech`, wrapping `media.ErrNoSpeech`. Confidence is the
+`*music*`, `♪`) are dropped and counted, unless the annotation holds a
+sensitive keyword (`media.ContainsSensitiveKeyword`). A model can put speech in
+brackets, so "(The password is)" is kept and reaches `media.Extract`, which
+withholds it and opens the value window (#9788). `base.en` was not seen to do
+this on synthetic speech; the guard closes a fail-open path. The engine never
+redacts. A run with no remaining segments returns
+`ClassNoSpeech`, wrapping `media.ErrNoSpeech`; a lone "(password)" is kept, so
+that run returns one segment instead. Confidence is the
 mean token probability over non-special tokens. Segment IDs are opaque
 ordinals. Speaker labels and mention hints are never emitted.
 
 ## Dependencies
 
-- `internal/collector/document/media` for the `Engine` contract and
-  `ErrNoSpeech`.
+- `internal/collector/document/media` for the `Engine` contract,
+  `ErrNoSpeech`, and `ContainsSensitiveKeyword`, which decides whether a
+  bracketed annotation is kept.
 - `internal/telemetry` for instruments, span name, and log helpers.
 - `golang.org/x/sys/unix` for `prlimit` on Linux. No new module dependency.
 - At runtime: the pinned `whisper-cli` and model files. They are not shipped

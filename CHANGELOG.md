@@ -67,6 +67,27 @@ recent shipped work grouped by feature area.
   (`scripts/verify-media-transcript-sandbox.sh`) gained a fixture whose canary
   sits in its own segment.
 
+### Media transcripts: spoken forms of the secret keywords
+
+- **A transcript segment now opens a value window for the spoken forms of a
+  secret keyword**
+  ([#9788](https://github.com/eshu-hq/eshu/issues/9788)). "Pass word",
+  "pass-word", "API key", "private key", `passphrase`, `passcode`, `passwd`,
+  `pwd`, `credential`, `secret`, `token`, `PIN`, "access key", and "P.I.N."
+  are matched now, and so is a multi-word keyword the engine splits at a space
+  across two segments ("The API", then "key is"), after the
+  text is folded for case, accents, fullwidth forms, soft hyphens, zero-width
+  characters, and a bounded set of Cyrillic and Greek look-alikes. `secret`,
+  `token`, and `PIN` match as whole words, so "tokenize" and "spinning" stay
+  clear, and "a secret garden" is withheld on purpose. Source names and mention
+  hints keep the original list. On this repository's docs the keyword hit rate
+  went from 0.14% to 2.02% of sentences, and each hit
+  costs the next two segments of speech. The whisper.cpp engine also stops
+  dropping a bracketed segment such as "(The password is)" when it holds a
+  keyword; `media.Extract` redacts it. The media transcript sandbox proof now
+  covers spoken "API key" and "PIN" fixtures against the real binary. Nothing
+  calls the transcript path in production yet.
+
 ### Extension-host extraction: remote claim client seam, eshu-workflow v0.1.0 pin
 
 - **Additive `remote/claim` package pinned to `eshu-workflow` v0.1.0**

@@ -105,3 +105,12 @@ func formatMillis(value int64) string {
 	millis := value % 1000
 	return fmt.Sprintf("%02d:%02d:%02d.%03d", hours, minutes, seconds, millis)
 }
+
+// ContainsSensitiveKeyword reports whether text holds a spoken secret keyword
+// (#9788), the same check Extract uses to open a value window. An engine may
+// call it to decide that a segment it would otherwise drop, such as a bracketed
+// annotation, must reach Extract. It must not redact on that result: redaction
+// belongs to Extract.
+func ContainsSensitiveKeyword(text string) bool {
+	return containsSensitiveKeyword(text)
+}

@@ -71,12 +71,15 @@ container="$("${runtime}" create "${image}")"
 "${runtime}" cp "${container}:/opt/whisper/models/ggml-base.en.bin" "${work}/extract/model.bin"
 "${runtime}" cp "${container}:/opt/whisper/fixtures/speech.wav" "${work}/extract/speech.wav"
 "${runtime}" cp "${container}:/opt/whisper/fixtures/speech-split.wav" "${work}/extract/speech-split.wav"
+"${runtime}" cp "${container}:/opt/whisper/fixtures/speech-apikey.wav" "${work}/extract/speech-apikey.wav"
+"${runtime}" cp "${container}:/opt/whisper/fixtures/speech-apikey-split.wav" "${work}/extract/speech-apikey-split.wav"
+"${runtime}" cp "${container}:/opt/whisper/fixtures/speech-pin.wav" "${work}/extract/speech-pin.wav"
 binary_sha256="$(sha256sum "${work}/extract/whisper-cli" | cut -d' ' -f1)"
 got_model="$(sha256sum "${work}/extract/model.bin" | cut -d' ' -f1)"
 [[ "${got_model}" == "${model_sha256}" ]] || die "model digest ${got_model} != pinned ${model_sha256}"
 printf 'EVIDENCE whisper-cli sha256=%s\n' "${binary_sha256}"
 printf 'EVIDENCE model ggml-base.en.bin sha256=%s\n' "${got_model}"
-for fixture in speech.wav speech-split.wav; do
+for fixture in speech.wav speech-split.wav speech-apikey.wav speech-apikey-split.wav speech-pin.wav; do
 	printf 'EVIDENCE fixture %s sha256=%s bytes=%s\n' "${fixture}" \
 		"$(sha256sum "${work}/extract/${fixture}" | cut -d' ' -f1)" "$(wc -c <"${work}/extract/${fixture}")"
 done
@@ -93,6 +96,9 @@ set +e
 	-e ESHU_WHISPERCPP_VERSION=v1.9.5 \
 	-e ESHU_WHISPERCPP_SPEECH_FIXTURE=/opt/whisper/fixtures/speech.wav \
 	-e ESHU_WHISPERCPP_SPLIT_SPEECH_FIXTURE=/opt/whisper/fixtures/speech-split.wav \
+	-e ESHU_WHISPERCPP_APIKEY_FIXTURE=/opt/whisper/fixtures/speech-apikey.wav \
+	-e ESHU_WHISPERCPP_APIKEY_SPLIT_FIXTURE=/opt/whisper/fixtures/speech-apikey-split.wav \
+	-e ESHU_WHISPERCPP_PIN_FIXTURE=/opt/whisper/fixtures/speech-pin.wav \
 	"${image}" -test.v -test.count=1 -test.run '^TestSandbox' >"${log}" 2>&1
 status=$?
 set -e
@@ -104,7 +110,7 @@ if rg -qi 'swordfish' "${log}"; then
 	die "password canary appeared in proof output or engine logs"
 fi
 for test_name in TestSandboxProfileIsEnforced TestSandboxRealSpeechRedactedAndDeterministic \
-	TestSandboxCanaryInOwnSegmentIsRedacted TestSandboxSilenceIsNoSpeech TestSandboxBoundsFailClosed; do
+	TestSandboxCanaryInOwnSegmentIsRedacted TestSandboxSpokenKeywordCanariesAreRedacted TestSandboxSilenceIsNoSpeech TestSandboxBoundsFailClosed; do
 	rg -q -- "--- PASS: ${test_name} " "${log}" || die "${test_name} did not pass"
 done
 printf 'verify-media-transcript-sandbox: PASS (log %s)\n' "${log}"

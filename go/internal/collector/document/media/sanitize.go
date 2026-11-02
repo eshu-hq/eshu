@@ -19,10 +19,11 @@ import (
 // small because every segment in the window loses its text.
 const valueWindowSegments = 2
 
-// sensitiveKeywords are the words that mark a transcript segment as sensitive.
-// Unlike the patterns below, a keyword names a value rather than being one, so
-// only a keyword opens a value window.
-var sensitiveKeywords = []string{
+// legacyKeywords are the substring keywords the rule started with (#9786).
+// They stay the whole rule for source identities and mention hints, which are
+// labels such as "token-service", not speech. A transcript segment also gets the
+// spoken forms in spoken_keyword.go.
+var legacyKeywords = []string{
 	"credential_marker", "secret_marker", "token_marker", "password", "api_key", "private_key",
 }
 
@@ -34,18 +35,24 @@ var (
 	windowsPathPattern = regexp.MustCompile(`(?i)\b[a-z]:\\[^\s]+`)
 )
 
+// containsSensitiveMarker is the label rule for source identities and mention
+// hints: a legacy keyword or a value pattern. It does not fold spoken forms, so
+// a name such as "token-service" or "pin-assignments.wav" stays readable.
 func containsSensitiveMarker(text string) bool {
-	return containsSensitiveKeyword(text) ||
-		emailPattern.MatchString(text) ||
+	return containsLegacyKeyword(text) || containsSensitiveValuePattern(text)
+}
+
+func containsSensitiveValuePattern(text string) bool {
+	return emailPattern.MatchString(text) ||
 		schemePattern.MatchString(text) ||
 		ticketPattern.MatchString(text) ||
 		unixPathPattern.MatchString(text) ||
 		windowsPathPattern.MatchString(text)
 }
 
-func containsSensitiveKeyword(text string) bool {
+func containsLegacyKeyword(text string) bool {
 	lower := strings.ToLower(text)
-	for _, keyword := range sensitiveKeywords {
+	for _, keyword := range legacyKeywords {
 		if strings.Contains(lower, keyword) {
 			return true
 		}
@@ -53,8 +60,16 @@ func containsSensitiveKeyword(text string) bool {
 	return false
 }
 
+// containsSensitiveKeyword reports whether a transcript segment holds a word
+// that names a secret, in any spoken form (#9788). Only a keyword opens a value
+// window; a value pattern does not.
+func containsSensitiveKeyword(text string) bool {
+	return containsSpokenKeyword(text)
+}
+
 // valueSegments reports, by index into segments, which segments fall in the
-// value window of a keyword segment. Each keyword segment adds a full window,
+// value window of a keyword segment (isValue) and which hold a keyword of their
+// own (ownKeyword), folding each segment once. Each keyword segment adds a full window,
 // so stacked markers each cover their own value. Callers keep their slice order.
 //
 // The walk runs twice, in time order and in slice order, and every keyword
@@ -72,12 +87,14 @@ func containsSensitiveKeyword(text string) bool {
 // as follows." as "The password in a column", so no reading of the tail tells a
 // value still to come from one already spoken. Losing a segment of speech is
 // visible in section metadata; a persisted secret is not recoverable.
-func valueSegments(segments []Segment) []bool {
+func valueSegments(segments []Segment) (isValue []bool, ownKeyword []bool) {
 	sliceOrder := make([]int, len(segments))
-	hasKeyword := make([]bool, len(segments))
+	folded := make([]string, len(segments))
+	ownKeyword = make([]bool, len(segments))
 	for i, segment := range segments {
 		sliceOrder[i] = i
-		hasKeyword[i] = containsSensitiveKeyword(segment.Text)
+		folded[i] = foldSpoken(segment.Text)
+		ownKeyword[i] = foldedHasKeyword(folded[i])
 	}
 	timeOrder := slices.Clone(sliceOrder)
 	slices.SortStableFunc(timeOrder, func(a, b int) int {
@@ -86,10 +103,10 @@ func valueSegments(segments []Segment) []bool {
 			cmp.Compare(segments[a].EndMillis, segments[b].EndMillis),
 		)
 	})
-	isValue := make([]bool, len(segments))
-	markValueWindows(segments, timeOrder, hasKeyword, isValue)
-	markValueWindows(segments, sliceOrder, hasKeyword, isValue)
-	return isValue
+	isValue = make([]bool, len(segments))
+	markValueWindows(segments, timeOrder, folded, ownKeyword, isValue)
+	markValueWindows(segments, sliceOrder, folded, ownKeyword, isValue)
+	return isValue, ownKeyword
 }
 
 // markValueWindows walks segments in the given order and sets isValue for each
@@ -98,17 +115,29 @@ func valueSegments(segments []Segment) []bool {
 // zero-width segments hold nothing a value could be, so a value behind them
 // stays covered. A segment with invalid timing never reaches a section and uses
 // up nothing, though its keyword still opens a window: its text was spoken.
-func markValueWindows(segments []Segment, order []int, hasKeyword []bool, isValue []bool) {
+//
+// A keyword that the engine split across two segments ("The API", then "key
+// is") opens a window at the second one, and that segment is withheld too. The
+// pair is the previous segment with a letter or digit in this walk's order and
+// the current one, and it counts only when neither holds a keyword alone, so
+// one keyword never opens two windows.
+func markValueWindows(segments []Segment, order []int, folded []string, ownKeyword []bool, isValue []bool) {
 	remaining := 0
+	prev := -1
 	for _, i := range order {
-		if remaining > 0 && hasValidTiming(segments[i]) {
+		opens := ownKeyword[i]
+		straddles := !opens && prev >= 0 && !ownKeyword[prev] && joinedHasKeyword(folded[prev], folded[i])
+		if (remaining > 0 || straddles) && hasValidTiming(segments[i]) {
 			isValue[i] = true
-			if hasLexicalContent(segments[i].Text) {
-				remaining--
-			}
 		}
-		if hasKeyword[i] {
+		if remaining > 0 && hasValidTiming(segments[i]) && hasLexicalContent(segments[i].Text) {
+			remaining--
+		}
+		if opens || straddles {
 			remaining += valueWindowSegments
+		}
+		if hasLexicalContent(segments[i].Text) {
+			prev = i
 		}
 	}
 }

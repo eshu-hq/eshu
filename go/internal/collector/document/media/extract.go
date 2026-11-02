@@ -172,13 +172,13 @@ func buildSections(
 	sourceHash string,
 ) []transcriptSection {
 	sections := make([]transcriptSection, 0, len(transcript.Segments))
-	isValue := valueSegments(transcript.Segments)
+	isValue, ownKeyword := valueSegments(transcript.Segments)
 	for i, segment := range transcript.Segments {
 		text := strings.TrimSpace(segment.Text)
 		if text == "" || !hasValidTiming(segment) {
 			continue
 		}
-		content, warnings, redacted := persistedContent(text, req.Options.MaxSectionChars, isValue[i])
+		content, warnings, redacted := persistedContent(text, req.Options.MaxSectionChars, isValue[i], ownKeyword[i])
 		excerptHash := hashText(content)
 		textHash := hashText(text)
 		if redacted {
@@ -333,10 +333,12 @@ func skippedStatus(preflight media.Result) string {
 // persistedContent returns the text to persist for one segment, its warning
 // classes, and whether the text was withheld. isValue marks a segment that
 // valueSegments placed in a keyword's window, which is withheld even though the
-// segment has no marker of its own.
-func persistedContent(text string, maxChars int, isValue bool) (string, []string, bool) {
+// segment has no marker of its own. hasKeyword is the keyword result that
+// valueSegments already computed for the segment, so the text is not folded
+// twice.
+func persistedContent(text string, maxChars int, isValue, hasKeyword bool) (string, []string, bool) {
 	warnings := []string{}
-	if isValue || containsSensitiveMarker(text) {
+	if isValue || hasKeyword || containsSensitiveValuePattern(text) {
 		return "[redacted]", []string{string(media.WarningSensitiveValueRedacted)}, true
 	}
 	if maxChars <= 0 {
