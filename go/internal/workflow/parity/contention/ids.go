@@ -15,8 +15,22 @@ import (
 // pattern Prefix+"%" matches the literal prefix only.
 const Prefix = "synth-8875-rehearsal-"
 
-// likePattern is the LIKE pattern every prefixed query binds.
-const likePattern = Prefix + "%"
+// The harness id families. Census, residue, and every detector filter on
+// the family that matches the column, not on the bare Prefix: the deployed
+// synthetic instances use scope ids such as synth-8875-rehearsal-tfstate,
+// which carry the bare prefix but are not harness rows.
+const (
+	runFamily      = Prefix + "run-%"
+	itemFamily     = Prefix + "wi-%"
+	scopeFamily    = Prefix + "scope-%"
+	instanceFamily = Prefix + "instance-%"
+	claimFamily    = Prefix + "claim-%"
+)
+
+// seedRunPattern and seedItemPattern match only one seed's rows: cleanup
+// deletes those and never another run's.
+func seedRunPattern(seed int64) string  { return fmt.Sprintf("%srun-%d-%%", Prefix, seed) }
+func seedItemPattern(seed int64) string { return fmt.Sprintf("%swi-%d-%%", Prefix, seed) }
 
 // InstanceID is the synthetic collector instance every harness item and
 // selector names. Claim selection filters on (kind, instance), so no real

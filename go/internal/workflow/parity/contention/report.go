@@ -21,6 +21,9 @@ const (
 	StatusFail          = "FAIL"
 	StatusNotApplicable = "NOT_APPLICABLE"
 	StatusNotAvailable  = "NOT_AVAILABLE"
+	// StatusVacuous marks a check that passed without being able to fail,
+	// for example the §4 dry claim on an instance that holds no rows.
+	StatusVacuous = "VACUOUS"
 )
 
 // Verdicts for a whole seed and leg.
@@ -117,12 +120,15 @@ type Report struct {
 	Baseline           Census                    `json:"baseline_census"`
 	Final              Census                    `json:"final_census"`
 	Deleted            map[string]int            `json:"deleted_rows"`
-	Residue            Residue                   `json:"residue"`
-	NotApplicable      map[string]string         `json:"not_applicable"`
-	SpecReadings       []SpecReading             `json:"spec_readings"`
-	Criteria           map[string]Criterion      `json:"criteria"`
-	Abort              *Violation                `json:"abort,omitempty"`
-	Verdict            string                    `json:"verdict"`
+	// CleanupSkipped says why the reversal deleted nothing, when it did not.
+	CleanupSkipped string               `json:"cleanup_skipped,omitempty"`
+	Residue        Residue              `json:"residue"`
+	NotApplicable  map[string]string    `json:"not_applicable"`
+	SpecReadings   []SpecReading        `json:"spec_readings"`
+	IsolationProbe Criterion            `json:"isolation_probe"`
+	Criteria       map[string]Criterion `json:"criteria"`
+	Abort          *Violation           `json:"abort,omitempty"`
+	Verdict        string               `json:"verdict"`
 	// Incomplete names why a failure-free run is INCOMPLETE, when it is.
 	Incomplete string `json:"incomplete_reason,omitempty"`
 }

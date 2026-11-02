@@ -200,7 +200,7 @@ func (l *fakeLeg) ClaimNextEligible(_ context.Context, sel workflow.ClaimSelecto
 	}
 	if l.f.growAt > 0 && l.grants == l.f.growAt {
 		for n := range 50 {
-			id := fmt.Sprintf("%sphantom-%d", Prefix, n)
+			id := fmt.Sprintf("%swi-7-phantom-%d", Prefix, n)
 			l.items[id] = &fakeItem{item: workflow.WorkItem{WorkItemID: id, Status: workflow.WorkItemStatusCompleted}}
 		}
 	}

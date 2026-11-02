@@ -37,16 +37,19 @@ type runner struct {
 	abortMu   sync.Mutex
 	violation *Violation
 
-	created      atomic.Int64
-	maxItems     int
-	quotaHeldMax int
-	zombiesMu    sync.Mutex
-	zombies      []*zombie
-	advisory     advisoryTally
-	reapPassMax  atomic.Int64
-	samples      sampleLog
-	anomalies    anomalyTally
-	pins         pinTally
+	created  atomic.Int64
+	maxItems int
+	// baselineDirty is set when the baseline already held harness rows:
+	// the run did not create them, so the reversal must not delete them.
+	baselineDirty bool
+	quotaHeldMax  int
+	zombiesMu     sync.Mutex
+	zombies       []*zombie
+	advisory      advisoryTally
+	reapPassMax   atomic.Int64
+	samples       sampleLog
+	anomalies     anomalyTally
+	pins          pinTally
 }
 
 // Run executes the §5 mix for one seed on one leg and always returns a
@@ -119,12 +122,14 @@ func (r *runner) execute(report *Report) error {
 	if err := r.isolationProbe(ctx); err != nil {
 		return err
 	}
+	report.IsolationProbe = r.probeRecord()
 	baseline, err := r.leg.Observer.Census(ctx)
 	if err != nil {
 		return fmt.Errorf("baseline census: %w", err)
 	}
 	report.Baseline = baseline
 	if baseline.prefixedTotal() != 0 {
+		r.baselineDirty = true
 		r.abort(violation(TriggerResidue, "baseline already holds %d synthetic rows", baseline.prefixedTotal()))
 		return nil
 	}
@@ -229,6 +234,19 @@ func (r *runner) isolationProbe(ctx context.Context) error {
 	return nil
 }
 
+// probeRecord states what the §4 dry claim proves on this target. The
+// harness instance is not an enumerated instance and holds no rows, so the
+// idle answer is vacuous: it cannot show that the selector excludes real
+// work (reading isolation_probe).
+func (r *runner) probeRecord() Criterion {
+	if r.spec.Target == TargetLive {
+		return Criterion{Status: StatusVacuous, Detail: "dry claim idle on " + InstanceID +
+			", which is not an enumerated live instance (synth-8875-tfstate, synth-8875-pkgreg) and has no rows; " +
+			"#510 claims_enabled does not apply to it. It shows no row names this instance, not that real work is excluded."}
+	}
+	return Criterion{Status: StatusVacuous, Detail: "dry claim idle on " + InstanceID + "; a local target holds no real work to exclude"}
+}
+
 // drain waits out the window, then waits until every non-quota synthetic
 // item is terminal, no claim is live, and every armed stale writer fired.
 func (r *runner) drain(report *Report) {
@@ -319,10 +337,14 @@ func (r *runner) reverse(ctx context.Context, report *Report) error {
 		}
 		time.Sleep(time.Second)
 	}
-	deleted, err := r.leg.Observer.DeletePrefixed(ctx, r.opt.DeleteBatch)
-	report.Deleted = deleted
-	if err != nil {
-		return fmt.Errorf("prefix cleanup: %w", err)
+	if r.baselineDirty {
+		report.CleanupSkipped = "the baseline already held harness rows this run did not create; nothing was deleted"
+	} else {
+		deleted, err := r.leg.Observer.DeletePrefixed(ctx, r.spec.Seed, r.opt.DeleteBatch)
+		report.Deleted = deleted
+		if err != nil {
+			return fmt.Errorf("prefix cleanup: %w", err)
+		}
 	}
 	final, err := r.leg.Observer.Census(ctx)
 	if err != nil {

@@ -78,8 +78,12 @@ func (l *fakeLeg) Census(context.Context) (Census, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	c := Census{Prefixed: map[string]int{}, Other: map[string]int{}}
-	for _, it := range l.items {
-		c.Prefixed["workflow_work_items|"+string(it.item.Status)]++
+	for id, it := range l.items {
+		if strings.HasPrefix(id, strings.TrimSuffix(itemFamily, "%")) {
+			c.Prefixed["workflow_work_items|"+string(it.item.Status)]++
+		} else {
+			c.Other["workflow_work_items|"+string(it.item.Status)]++
+		}
 	}
 	for _, cl := range l.claims {
 		c.Prefixed["workflow_claims|"+cl.status]++
@@ -136,10 +140,23 @@ func (l *fakeLeg) NonTerminalItems(_ context.Context, limit int) ([]string, erro
 	return out, nil
 }
 
-func (l *fakeLeg) DeletePrefixed(context.Context, int) (map[string]int, error) {
+func (l *fakeLeg) DeletePrefixed(_ context.Context, seed int64, _ int) (map[string]int, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	deleted := map[string]int{"workflow_claims": len(l.claims), "workflow_work_items": len(l.items)}
-	l.claims, l.items, l.quotaW = map[string]*fakeClaim{}, map[string]*fakeItem{}, map[string]int{}
+	mine := strings.TrimSuffix(seedItemPattern(seed), "%")
+	deleted := map[string]int{}
+	for id, c := range l.claims {
+		if strings.HasPrefix(c.item, mine) {
+			delete(l.claims, id)
+			deleted["workflow_claims"]++
+		}
+	}
+	for id := range l.items {
+		if strings.HasPrefix(id, mine) {
+			delete(l.items, id)
+			deleted["workflow_work_items"]++
+		}
+	}
+	l.quotaW = map[string]int{}
 	return deleted, nil
 }

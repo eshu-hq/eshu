@@ -66,6 +66,22 @@ func SpecReadings() []SpecReading {
 			Reading: "Production tables carry planner statistics, a freshly seeded one does not. After seeding the harness waits read-only (bounded, default 5m) for autovacuum to analyze workflow_work_items; stats_ready=false records a window run on cold statistics.",
 		},
 		{
+			ID: "isolation_probe", Spec: "§4, lines 125-126 and 135-136",
+			Quote: "collector instance: synth-8875-rehearsal-instance-1 on an enumerated synthetic instance with an existing claim-capable kind ... " +
+				"The lane proves this first with a dry claim that must return idle while real work exists.",
+			Reading: "The harness claims only on synth-8875-rehearsal-instance-1, which is not one of the enumerated live instances " +
+				"(synth-8875-tfstate, synth-8875-pkgreg), so #510's claims_enabled does not apply to it and no row names it. " +
+				"The dry claim on it returns idle by construction: on live it shows only that no row names this instance, " +
+				"not that the selector excludes real work. The report marks the probe VACUOUS on both targets; the arbiter rules on the instance at the live-run review.",
+		},
+		{
+			ID: "zero_loss", Spec: "§6 zero loss, line 193",
+			Quote: "created count = terminal count + live count at every sample",
+			Reading: "Each sample counts synthetic item rows, which are terminal plus non-terminal by construction, and requires rows >= created. " +
+				"Rows may briefly exceed created because an admitted advisory round commits before its count is added. " +
+				"After the run, every client-acked terminal item must be terminal in the database.",
+		},
+		{
 			ID: "lock_waiters", Spec: "§2 pg_headroom, line 89",
 			Quote:   "satellite database CPU, connection count, and replication-lag limits",
 			Reading: "The live ceiling on lock waiters counts core's database only (ESHU_CONTENTION_PG_LOCK_DATABASE=eshu). A local in-tree advisory round queues up to 24 sessions on pg_advisory_xact_lock by design, so the local ceiling sits above the advisory goroutines plus W.",

@@ -76,6 +76,7 @@ func TestContentionInTree(t *testing.T) {
 		t.Skip(envInTreeDSN + " is not set; skipping the in-tree contention leg")
 	}
 	requireLoopbackDSN(t, envInTreeDSN, admin)
+	requireInTreeServerSafe(t, admin)
 	ctx, db := postgresproof.OpenDisposableBootstrapDatabase(t, admin, os.Getenv(envInTreeOptIn), 5*time.Minute,
 		func(ctx context.Context, database *sql.DB) error {
 			if err := postgres.ApplyBootstrap(ctx, postgres.SQLDB{DB: database}); err != nil {
@@ -288,8 +289,8 @@ func coreResidueCounter(t *testing.T, dsn string) func(context.Context) (int, er
 		var n int
 		err = tx.QueryRowContext(ctx, `SELECT
     (SELECT count(*) FROM workflow_runs WHERE run_id LIKE $1)
-  + (SELECT count(*) FROM workflow_work_items WHERE work_item_id LIKE $1)
-  + (SELECT count(*) FROM workflow_claims WHERE work_item_id LIKE $1)`, likePattern).Scan(&n)
+  + (SELECT count(*) FROM workflow_work_items WHERE work_item_id LIKE $2)
+  + (SELECT count(*) FROM workflow_claims WHERE work_item_id LIKE $2)`, runFamily, itemFamily).Scan(&n)
 		return n, err
 	}
 }
@@ -305,12 +306,8 @@ func dsnHost(t *testing.T, dsn string) string {
 
 func requireLoopbackDSN(t *testing.T, env, dsn string) {
 	t.Helper()
-	cfg, err := pgx.ParseConfig(dsn)
-	if err != nil {
-		t.Fatalf("%s: %v", env, err)
-	}
-	if !isLoopback(cfg.Host) {
-		t.Fatalf("%s host %q is not loopback; the harness only reaches local containers or port-forwards", env, cfg.Host)
+	if err := loopbackOnly(dsn); err != nil {
+		t.Fatalf("%s: %v; the harness only reaches local containers or port-forwards", env, err)
 	}
 }
 

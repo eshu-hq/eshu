@@ -190,12 +190,18 @@ func TestRunWaitsForPostSeedAnalyze(t *testing.T) {
 
 func TestRunRefusesNonEmptyBaseline(t *testing.T) {
 	leg := newFakeLeg(faults{}, false, 4)
-	leg.items[Prefix+"wi-leftover"] = &fakeItem{}
+	// A row in this seed's own id family that this run did not create.
+	leftover := Prefix + "wi-7-leftover"
+	leg.items[leftover] = &fakeItem{item: workflowItemID(leftover)}
 	report, err := Run(context.Background(), fastSpec(), Leg{Name: "in-tree", Backend: leg, Observer: leg}, fastOptions())
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	if report.Abort == nil || report.Abort.Trigger != TriggerResidue {
 		t.Fatalf("abort = %+v, want %s", report.Abort, TriggerResidue)
+	}
+	// The reversal must not delete rows it did not create.
+	if _, ok := leg.items[leftover]; !ok || len(report.Deleted) != 0 || report.CleanupSkipped == "" {
+		t.Fatalf("baseline abort deleted rows: leftover kept=%v deleted=%v skipped=%q", ok, report.Deleted, report.CleanupSkipped)
 	}
 }

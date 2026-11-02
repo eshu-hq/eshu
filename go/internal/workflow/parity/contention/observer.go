@@ -108,5 +108,5 @@ type Observer interface {
 	NonTerminalItems(ctx context.Context, limit int) ([]string, error)
 	// DeletePrefixed deletes synthetic rows child-first in bounded batches
 	// and returns rows deleted per table. Never TRUNCATE.
-	DeletePrefixed(ctx context.Context, batch int) (map[string]int, error)
+	DeletePrefixed(ctx context.Context, seed int64, batch int) (map[string]int, error)
 }

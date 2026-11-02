@@ -7,6 +7,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -206,4 +207,17 @@ func TestParentCancelAbortsWithCleanup(t *testing.T) {
 		t.Fatalf("abort = %+v, want %s", report.Abort, TriggerExternal)
 	}
 	assertCleanedUp(t, report, leg)
+}
+
+// TestIsolationProbeIsReportedVacuous: the §4 dry claim on the harness
+// instance cannot fail, and the report says so on both targets.
+func TestIsolationProbeIsReportedVacuous(t *testing.T) {
+	live := runLive(t, &fakeHeadroom{}, func(context.Context) (int, error) { return 0, nil }, fastOptions())
+	if live.IsolationProbe.Status != StatusVacuous || !strings.Contains(live.IsolationProbe.Detail, "synth-8875-tfstate") {
+		t.Fatalf("live isolation probe = %+v, want VACUOUS naming the enumerated instances", live.IsolationProbe)
+	}
+	local, _ := runFake(t, faults{}, false, true, fastOptions())
+	if local.IsolationProbe.Status != StatusVacuous {
+		t.Fatalf("local isolation probe = %+v, want VACUOUS", local.IsolationProbe)
+	}
 }

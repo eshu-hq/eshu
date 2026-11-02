@@ -68,6 +68,14 @@ See `AGENTS.md`. The ones that bite:
   until its hour bucket rolls. The report counts these as
   `quota_held_items`, and the drain criterion skips only those.
 
+- Cleanup deletes only this seed's own rows (`run-<seed>-`, `wi-<seed>-`,
+  and their claims) plus the harness scope family (`scope-`). Census and
+  residue count the harness id families only. The deployed synthetic
+  instances' rows (scope `synth-8875-rehearsal-tfstate`, which carries the
+  bare prefix) are therefore "other" rows that must stay unchanged. A
+  baseline that already holds harness rows aborts, and the reversal then
+  deletes nothing (`cleanup_skipped` says so).
+
 ## How the spec maps to code
 
 | Spec | Code |
@@ -129,6 +137,8 @@ numbers refer to `REMOVAL_CONTENTION_SPEC.md` on this branch.
 | `starvation` | §6, line 186 | Longest ClaimNext call under the bound, and every backlog scope granted inside the window. Enqueue-to-claim wait is not judged. |
 | `drain` | §6, line 195 | After the window, workers claim and complete the rest until only quota-held items are non-terminal, no claim is live, and every stale writer fired. |
 | `planner_statistics` | §2 `backlog_items`, line 84 | Wait read-only (default 5m) for autovacuum to analyze `workflow_work_items` after seeding; `stats_ready=false` records a cold-statistics window. |
+| `isolation_probe` | §4, lines 125-126 and 135-136 | The harness instance `synth-8875-rehearsal-instance-1` is not an enumerated live instance (`synth-8875-tfstate`, `synth-8875-pkgreg`), so `claims_enabled` from #510 does not apply to it and no row names it. The dry claim returns idle by construction. The report records `isolation_probe` as `VACUOUS` on both targets, and the arbiter rules on the instance. |
+| `zero_loss` | §6, line 193 | Each sample requires synthetic item rows >= created (terminal plus non-terminal by construction). An advisory insert can briefly put rows above created. After the run, every client-acked terminal must be terminal in the database. |
 | `lock_waiters` | §2 `pg_headroom`, line 89 | Live counts lock waiters on core's database only. Locally the ceiling sits above the 25 advisory goroutines plus W. |
 
 Supporting measurements:
@@ -229,8 +239,17 @@ loopback.
 
 ## Local run
 
+The in-tree leg creates and drops whole databases, so it gets its own
+throwaway server (`wf9727-pg-it`). It refuses a server that holds an `eshu`
+or `workflow_claims` database, or that is the satellite DSN's server (same
+`system_identifier`, or the same host and port when that cannot be read).
+Every DSN must also be loopback on its first host and on every pgx fallback
+host.
+
 ```sh
 docker network create wf9727-net
+docker run -d --name wf9727-pg-it -p 127.0.0.1::5432 \
+  -e POSTGRES_USER=wf9727 -e POSTGRES_PASSWORD=wf9727 postgres:18
 docker run -d --name wf9727-pg --network wf9727-net -p 127.0.0.1::5432 \
   -e POSTGRES_USER=wf9727 -e POSTGRES_PASSWORD=wf9727 postgres:18
 docker exec wf9727-pg psql -U wf9727 -d postgres -c 'CREATE DATABASE wf9727_satellite'
@@ -238,18 +257,25 @@ docker run -d --name wf9727-cp --platform linux/amd64 --network wf9727-net \
   -p 127.0.0.1::8080 ghcr.io/eshu-hq/eshu-workflow@sha256:e1b564afa5f72167e3911aea7c881973c74bab123183c03d9d6af5a2d80e47a4 \
   --listen=:8080 --admin-listen=:8081 --reap-interval=2s --quotas=package_registry=5 \
   --database-url='postgres://wf9727:wf9727@wf9727-pg:5432/wf9727_satellite?sslmode=disable'
-# export the §2 fields and leg wiring above, then, from go/:
+# PARITY_INTREE_DSN names wf9727-pg-it's mapped port; the satellite DSN names
+# wf9727-pg's. Export the §2 fields and leg wiring above, then, from go/:
 go test ./internal/workflow/parity/contention/ -count=1 -v -timeout 150m \
   -run 'TestContention(InTree|Satellite)$'
-docker rm -f wf9727-cp wf9727-pg && docker network rm wf9727-net
+docker rm -f wf9727-cp wf9727-pg wf9727-pg-it && docker network rm wf9727-net
 ```
+
+The real-Postgres observer tests (`sqlobserver_pg_test.go`) use the same
+gate as the parity suite (`PARITY_INTREE_DSN` + `PARITY_INTREE_DISPOSABLE=1`)
+and skip without it. No CI job sets that gate, so they run locally only.
 
 ## Live leg runbook (orchestrator only)
 
 The live leg writes to the satellite's `workflow_claims` database on the core
 Postgres server. It runs only under the standing grant (#8875 comment
 6558745112), inside a DP-A window with a fresh enable/revert pair. The
-in-tree leg always runs locally. Run seeds 1 and 2 at W=3 (1x) and W=6 (2x),
+in-tree leg always runs on a dedicated local throwaway server, never through
+the core port-forward (`127.0.0.1:15432` below is core's server); the entry
+test refuses it there. Run seeds 1 and 2 at W=3 (1x) and W=6 (2x),
 then more seeds until two consecutive seeds are clean.
 
 1. **Post the §2 fields on #8875 first.** Use the values and sources from
