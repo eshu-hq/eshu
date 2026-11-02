@@ -85,3 +85,21 @@ func TestNewTerminalFailureHandlerTakesAdmissionContract(t *testing.T) {
 		t.Fatalf("handler.Acknowledger = %T(%v), want the exact injected admission contract %T(%v)", handler.Acknowledger, handler.Acknowledger, admission, admission)
 	}
 }
+
+// TestNewTerminalFailureHandlerTakesLedgerContract proves the #8872
+// replay-ledger seam: the handler is built with the versioned ledger
+// admission contract, not a direct ledger handle. The handler must carry
+// the exact injected port (identity, not merely non-nil) so eshu-api can
+// later bind a core-issued ledger endpoint.
+func TestNewTerminalFailureHandlerTakesLedgerContract(t *testing.T) {
+	t.Parallel()
+
+	ledger := &fakeTerminalFailureLedger{}
+	handler := newTerminalFailureHandler(&fakeTerminalFailureAdmission{}, ledger, nil, nil)
+	if handler == nil {
+		t.Fatal("newTerminalFailureHandler() = nil, want a handler bound to the ledger contract")
+	}
+	if handler.Ledger != query.ReplayLedgerAdmission(ledger) {
+		t.Fatalf("handler.Ledger = %T(%v), want the exact injected ledger contract %T(%v)", handler.Ledger, handler.Ledger, ledger, ledger)
+	}
+}

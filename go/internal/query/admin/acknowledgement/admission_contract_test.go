@@ -11,9 +11,10 @@ import (
 
 // frozenTerminalFailureAdmission pins the exact method set behind the
 // versioned #8872 admission contract. A renamed, added, removed, or
-// re-signed method fails here and must bump
-// TerminalFailureAdmissionContractVersion in the same diff, so the eshu-api
-// extraction boundary cannot drift silently.
+// re-signed method fails here until that list is deliberately updated;
+// bump TerminalFailureAdmissionContractVersion alongside so dest consumers
+// can pin the shape, keeping the eshu-api extraction boundary from
+// drifting silently.
 var frozenTerminalFailureAdmission = []string{
 	"Acknowledge func(context.Context, postgres.TerminalFailureAckRequest) (postgres.TerminalFailureAckResult, error)",
 	"ListTerminalFailureAcks func(context.Context, postgres.TerminalFailureAckListFilter) ([]postgres.TerminalFailureAckRecord, error)",

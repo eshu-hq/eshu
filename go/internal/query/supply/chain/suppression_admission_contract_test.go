@@ -16,8 +16,10 @@ import (
 
 // frozenSuppressionAdmission pins the exact method set behind the versioned
 // #8872 admission contract. A renamed, added, removed, or re-signed method
-// fails here and must bump SuppressionAdmissionContractVersion in the same
-// diff, so the eshu-api extraction boundary cannot drift silently.
+// fails here until that list is deliberately updated; bump
+// SuppressionAdmissionContractVersion alongside so dest consumers can pin
+// the shape, keeping the eshu-api extraction boundary from drifting
+// silently.
 var frozenSuppressionAdmission = []string{
 	"UpsertVulnerabilitySuppression func(context.Context, v1.Suppression) (impact.VulnerabilitySuppressionMutationResult, error)",
 }

@@ -11,9 +11,10 @@ import (
 
 // frozenSignInPolicyAdmission pins the exact method set behind the
 // versioned #8872 admission contract. A renamed, added, removed, or
-// re-signed method fails here and must bump
-// SignInPolicyAdmissionContractVersion in the same diff, so the eshu-api
-// extraction boundary cannot drift silently.
+// re-signed method fails here until that list is deliberately updated;
+// bump SignInPolicyAdmissionContractVersion alongside so dest consumers
+// can pin the shape, keeping the eshu-api extraction boundary from
+// drifting silently.
 var frozenSignInPolicyAdmission = []string{
 	"UpsertSignInPolicy func(context.Context, string, query.SignInPolicyUpdateRequest, string, time.Time) (auth.SignInPolicy, error)",
 }
