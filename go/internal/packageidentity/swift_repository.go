@@ -8,39 +8,42 @@ import (
 	"strings"
 )
 
-// SwiftOSVSourceLocation returns the name the vulnerability planner queries for
-// a stored swift source_location: the repository URL with userinfo, query and
-// fragment removed, the git@host:path form with query and fragment removed, or
-// "" when the location is neither an http(s), ssh or git URL nor a git@host:path
-// form. The planner and the owned-package resolver both call it, so what names
-// a query and what a changed feed name is compared against cannot drift.
+// SwiftOSVSourceLocation returns the name the vulnerability planner sends OSV
+// for a stored swift source_location, or "" when the location names no
+// repository OSV could index. OSV's SwiftURL names are host/path
+// ("github.com/apple/swift-nio") with no scheme, credentials, port, query,
+// fragment, trailing slash or ".git", and OSV matches them byte for byte. So
+// the host folds to ASCII lower case, as DNS does, and the path keeps its case.
+// A location with neither a "://" scheme nor the git@host:path form names no
+// query. The name always has a repository key (a dotless host such as localhost has
+// none and is not queried). For every name the planner queries from a normal
+// location, SwiftRepositoryKey of the name equals the key of the stored
+// location. Two odd inputs break that: a path that ends in ".git.git" (the name
+// keeps one ".git", which the key then strips again) and a percent-encoded "?"
+// or "#" in the path (url.Parse decodes it, so the key cuts the name there).
+// The resolver compares the key on both sides, so neither input can make it
+// disagree with itself; it only over-matches in the first case.
+//
+// The planner and the owned-package resolver both call it, and both derive
+// from [swiftRepositoryParts], so what names a query and what a changed feed
+// name is compared against cannot drift. A "www." prefix is not removed:
+// SwiftRepositoryKey does not remove it, so the two stay equal.
 func SwiftOSVSourceLocation(raw string) string {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
+	// The planner queries only a location that carries a clone URL or the
+	// git@host:path form. A scheme-less "host/path" is a feed spelling, not
+	// something a manifest records, so it stays skipped as before.
+	if trimmed := strings.TrimSpace(raw); !strings.HasPrefix(trimmed, "git@") && !strings.Contains(trimmed, "://") {
 		return ""
 	}
-	if strings.HasPrefix(trimmed, "git@") {
-		cleaned := trimmed
-		if index := strings.IndexAny(cleaned, "?#"); index >= 0 {
-			cleaned = cleaned[:index]
-		}
-		host, repoPath, ok := strings.Cut(strings.TrimPrefix(cleaned, "git@"), ":")
-		if ok && strings.TrimSpace(host) != "" && strings.TrimSpace(repoPath) != "" {
-			return cleaned
-		}
+	host, repoPath, ok := swiftRepositoryParts(raw)
+	if !ok {
 		return ""
 	}
-	parsed, err := url.Parse(trimmed)
-	if err != nil || parsed.Host == "" || strings.Trim(parsed.Path, "/") == "" {
+	name := LowerASCII(host) + "/" + repoPath
+	if SwiftRepositoryKey(name) == "" {
 		return ""
 	}
-	if !swiftRepositoryScheme(parsed.Scheme) {
-		return ""
-	}
-	parsed.User = nil
-	parsed.RawQuery = ""
-	parsed.Fragment = ""
-	return parsed.String()
+	return name
 }
 
 // SwiftRepositoryKey returns the one spelling of a swift repository that feed
@@ -55,37 +58,51 @@ func SwiftOSVSourceLocation(raw string) string {
 // the planner does not query. A spelling with no scheme counts as host/path
 // only when its first segment looks like a host name.
 func SwiftRepositoryKey(raw string) string {
+	host, repoPath, ok := swiftRepositoryParts(raw)
+	if !ok {
+		return ""
+	}
+	return LowerASCII(host + "/" + repoPath)
+}
+
+// swiftRepositoryParts splits a swift repository spelling into its host and
+// repository path, the one parse behind [SwiftRepositoryKey] and
+// [SwiftOSVSourceLocation]. The host is as written (the caller folds it) and
+// the path keeps its case, with query, fragment, userinfo, port, surrounding
+// slashes and a ".git" suffix in any case removed. It reports false when the
+// spelling names no host/path repository.
+func swiftRepositoryParts(raw string) (host, repoPath string, ok bool) {
 	trimmed := strings.TrimSpace(raw)
 	if index := strings.IndexAny(trimmed, "?#"); index >= 0 {
 		trimmed = trimmed[:index]
 	}
-	var host, repoPath string
 	switch {
 	case strings.HasPrefix(trimmed, "git@"):
-		var ok bool
 		if host, repoPath, ok = strings.Cut(strings.TrimPrefix(trimmed, "git@"), ":"); !ok {
-			return ""
+			return "", "", false
 		}
 	case strings.Contains(trimmed, "://"):
 		parsed, err := url.Parse(trimmed)
 		if err != nil || !swiftRepositoryScheme(parsed.Scheme) {
-			return ""
+			return "", "", false
 		}
 		host, repoPath = parsed.Hostname(), parsed.Path
 	default:
-		var ok bool
-		host, repoPath, ok = strings.Cut(trimmed, "/")
-		if !ok || !strings.Contains(host, ".") || strings.ContainsAny(host, ":@ \t") {
-			return ""
+		if host, repoPath, ok = strings.Cut(trimmed, "/"); !ok || !strings.Contains(host, ".") || strings.ContainsAny(host, ":@ \t") {
+			return "", "", false
 		}
 	}
-	// Fold before trimming: a stored ".GIT" must lose its suffix like ".git" does,
-	// or the key stops matching a lookup that was folded first.
-	repoPath = strings.Trim(strings.TrimSuffix(strings.Trim(LowerASCII(repoPath), "/"), ".git"), "/")
-	if host == "" || repoPath == "" {
-		return ""
+	// ".git" is matched in any case, as the key always did: a stored ".GIT"
+	// must lose its suffix like ".git" does.
+	repoPath = strings.Trim(repoPath, "/")
+	if strings.HasSuffix(LowerASCII(repoPath), ".git") {
+		repoPath = repoPath[:len(repoPath)-len(".git")]
 	}
-	return LowerASCII(host + "/" + repoPath)
+	repoPath = strings.Trim(repoPath, "/")
+	if strings.TrimSpace(host) == "" || repoPath == "" || strings.ContainsAny(host, " \t") {
+		return "", "", false
+	}
+	return host, repoPath, true
 }
 
 // swiftRepositoryScheme reports whether a URL scheme, which url.Parse has
