@@ -349,7 +349,7 @@ PostgreSQL 18.
 
 `scale_live_test.go` enforces rule PD of
 `docs/internal/timing-proof-rules.md`, mirroring the PD1-PD5 shape of
-`docs/internal/evidence/7127-ledger-retention-timing.sh`: the round waits for
+`go/internal/storage/postgres/freshness/links/testdata/7127-ledger-retention-timing.sh`: the round waits for
 load1 below half the CPU count, samples load1 every second through the round,
 and runs a base-binary canary each round. The round counts only when every
 sample is below the threshold and the canary ran within its bound

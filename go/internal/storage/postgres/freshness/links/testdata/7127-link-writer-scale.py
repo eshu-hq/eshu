@@ -7,7 +7,7 @@ Builds the 1.0x fixture in a disposable PostgreSQL 18 container, then runs
 TestLinkScaleEvidence (go/internal/storage/postgres/freshness/links) against
 it while sampling the anonymous RSS of every Postgres backend in the
 container every 0.1 s. It writes the combined result to
-docs/internal/evidence/7127-link-writer-scale-results.json.
+7127-link-writer-scale-results.json beside this driver.
 
 Schema: migrations 001, 002, 003 (table and columns only) and 136 from the
 repository, applied as shipped; after the load only the two fact_records
@@ -17,7 +17,7 @@ are built. The other 61 fact_records indexes are left out to keep the load
 tractable; gate G3's plan-shape test runs on the full bootstrap instead.
 
 Usage (from the repository root):
-    docs/internal/evidence/7127-link-writer-scale.py --container NAME --port PORT [--start-container]
+    go/internal/storage/postgres/freshness/links/testdata/7127-link-writer-scale.py --container NAME --port PORT [--start-container]
         [--skip-load] [--rounds N] [--g7-only | --g8-only] [--valid-rounds 10 --deadline 8h]
 
 The test binary is built once at start (go test -c), so later edits to the
@@ -26,7 +26,7 @@ loaded host: a round counts only when the host's 1-minute load at its start
 is below the CPU count, and the run ends at --valid-rounds valid rounds or
 after --deadline. That mode is meant to run unattended, e.g. overnight:
 
-    docs/internal/evidence/7127-link-writer-scale.py --container eshu-7127-g7 --port 25472 \
+    go/internal/storage/postgres/freshness/links/testdata/7127-link-writer-scale.py --container eshu-7127-g7 --port 25472 \
         --start-container --g7-only --valid-rounds 10 --deadline 8h
 
 --g8-only runs gate G8 alone under the same load rule: rounds of 1, 2 and 4
@@ -53,12 +53,31 @@ import tempfile
 import threading
 import time
 
-ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+HERE = os.path.dirname(os.path.abspath(__file__))
+
+
+def _repo_root():
+    """Return the repository root, following the script through moves."""
+    try:
+        out = subprocess.run(["git", "-C", HERE, "rev-parse", "--show-toplevel"],
+                             capture_output=True, text=True, check=True)
+        root = out.stdout.strip()
+        if root:
+            return root
+    except (subprocess.CalledProcessError, OSError):
+        pass
+    root = HERE
+    for _ in range(7):
+        root = os.path.dirname(root)
+    return root
+
+
+ROOT = _repo_root()
 MIGRATIONS = os.path.join(ROOT, "go/internal/storage/postgres/migrations")
-FIXTURE = os.path.join(ROOT, "docs/internal/evidence/7127-link-writer-fixture.sql")
-RESULTS = os.path.join(ROOT, "docs/internal/evidence/7127-link-writer-scale-results.json")
-G7_RESULTS = os.path.join(ROOT, "docs/internal/evidence/7127-link-writer-g7-results.json")
-G8_RESULTS = os.path.join(ROOT, "docs/internal/evidence/7127-link-writer-g8-results.json")
+FIXTURE = os.path.join(HERE, "7127-link-writer-fixture.sql")
+RESULTS = os.path.join(HERE, "7127-link-writer-scale-results.json")
+G7_RESULTS = os.path.join(HERE, "7127-link-writer-g7-results.json")
+G8_RESULTS = os.path.join(HERE, "7127-link-writer-g8-results.json")
 CONTAINER_ARGS = ["-e", "POSTGRES_PASSWORD=pw", "-e", "POSTGRES_DB=eshu", "--memory", "12g", "--shm-size", "2g",
                   "postgres:18-alpine", "-c", "shared_buffers=1GB", "-c", "work_mem=64MB",
                   "-c", "maintenance_work_mem=1GB", "-c", "effective_cache_size=6GB", "-c", "random_page_cost=1.1",
@@ -241,7 +260,7 @@ def main():
         result["g8_summary"] = g8_summary(result["events"])
     out = G8_RESULTS if args.g8_only else G7_RESULTS if args.g7_only else RESULTS
     if args.proof:
-        out = os.path.join(ROOT, "docs/internal/evidence/7127-link-writer-proof-%s-%s.json" % (args.proof, args.statement))
+        out = os.path.join(HERE, "7127-link-writer-proof-%s-%s.json" % (args.proof, args.statement))
     json.dump(result, open(out, "w"), indent=1, sort_keys=True)
     open(out, "a").write("\n")
     os.remove(binary)

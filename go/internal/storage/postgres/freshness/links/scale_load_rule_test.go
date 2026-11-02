@@ -22,7 +22,7 @@ import (
 
 // The G7/G8 scale rounds enforce rule PD of docs/internal/timing-proof-rules.md
 // (from the #7127 PR-3d timing proof), mirroring the PD1-PD5 shape of
-// docs/internal/evidence/7127-ledger-retention-timing.sh:
+// go/internal/storage/postgres/freshness/links/testdata/7127-ledger-retention-timing.sh:
 //
 //	PD1  declareScaleHost appends `uptime` and `docker ps` to the gate file at
 //	     the start and end of the run. The host must be quiet.

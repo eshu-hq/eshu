@@ -23,7 +23,7 @@ import (
 // arb-7127-3d-b). The test uses only API that also exists before the fixes it
 // measures, so the same file builds the base binary. run lines carry the
 // WAL and checkpointer deltas around the prune (arb-7127-3d-e PE2). Driven by
-// docs/internal/evidence/7127-ledger-retention-timing.sh.
+// go/internal/storage/postgres/freshness/links/testdata/7127-ledger-retention-timing.sh.
 const (
 	timingDSNEnv      = "ESHU_RETENTION_TIMING_DSN"      // admin DSN
 	timingModeEnv     = "ESHU_RETENTION_TIMING_MODE"     // build | run | drain | lockprobe | explain

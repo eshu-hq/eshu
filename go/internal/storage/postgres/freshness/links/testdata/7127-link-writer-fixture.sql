@@ -2,7 +2,7 @@
 -- Copyright (c) 2025-2026 eshu-hq
 --
 -- #7127 PR-3a scale fixture for the changed-since link writer (gates G5-G8).
--- Generator of record: docs/internal/evidence/7127-link-writer-scale.py, which
+-- Generator of record: go/internal/storage/postgres/freshness/links/testdata/7127-link-writer-scale.py, which
 -- applies the schema, runs this file, builds the indexes and drives
 -- go/internal/storage/postgres/freshness/links/scale_live_test.go.
 --

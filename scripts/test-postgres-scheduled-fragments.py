@@ -1,6 +1,7 @@
 """Fail-closed tests for the scheduled PostgreSQL inventory fragments."""
 
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -45,6 +46,34 @@ class InventoryFragmentTest(unittest.TestCase):
             rows = [row for row in inventory.values() if row["group"] == group]
             self.assertEqual((len(rows), sum(len(row["tests"]) for row in rows)),
                              (files, tests))
+
+    def test_scale_drivers_live_beside_testdata_fixture(self) -> None:
+        """#9391: the scale drivers moved with the fixture they drive."""
+        testdata = ROOT / "go/internal/storage/postgres/freshness/links/testdata"
+        scale = testdata / "7127-link-writer-scale.py"
+        timing = testdata / "7127-ledger-retention-timing.sh"
+        self.assertTrue(scale.is_file())
+        self.assertTrue(timing.is_file())
+        old = {f"docs/internal/evidence/{path.name}" for path in (scale, timing)}
+        for stale in old:
+            self.assertFalse((ROOT / stale).exists())
+        new = {str(path.relative_to(ROOT)) for path in (timing, scale)}
+        self.assertTrue(new.issubset(runner.PR_PATHS))
+        self.assertTrue(old.isdisjoint(runner.PR_PATHS))
+        spec = importlib.util.spec_from_file_location("link_writer_scale", scale)
+        assert spec and spec.loader
+        driver = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(driver)
+        self.assertEqual(Path(driver.FIXTURE).resolve(),
+                         (testdata / "7127-link-writer-fixture.sql").resolve())
+        found = subprocess.run(
+            ["git", "grep", "-l", *[arg for pointer in sorted(old)
+                                    for arg in ("-e", pointer)],
+             "--", ".", ":!docs/internal/evidence",
+             ":!scripts/test-postgres-scheduled-fragments.py"],
+            cwd=ROOT, capture_output=True, text=True, check=False)
+        self.assertIn(found.returncode, (0, 1))
+        self.assertEqual(found.stdout.strip().splitlines(), [])
 
     def test_containerimage_has_real_bootstrap_and_exact_source_closure(self) -> None:
         """Keep the complete identity-writer family and its bootstrap route."""
