@@ -10,8 +10,8 @@ import (
 
 // TestExtractRedactsValueSegmentsBeforeKeyword pins the #9792 rule: a segment
 // spoken just before a keyword segment is withheld, because a speech engine
-// puts a value ahead of its label ("swordfish", then "is the password") as
-// often as behind it. wantRedacted lists one entry per emitted section, in
+// can put a value ahead of its label ("swordfish", then "is the password") as
+// well as behind it. wantRedacted lists one entry per emitted section, in
 // emission order. The canaries swordfish and hunter2 must never reach a fact.
 func TestExtractRedactsValueSegmentsBeforeKeyword(t *testing.T) {
 	t.Parallel()
@@ -149,9 +149,10 @@ func TestExtractRedactsValueSegmentsBeforeKeyword(t *testing.T) {
 // Each block is five lettered segments, the blank run, and a keyword. The
 // keyword withholds the blank run and the two lettered segments before it, the
 // previous keyword's forward window withholds the first two lettered segments,
-// and the third keeps its text. The window drops a segment once two more
-// lettered segments arrive, so each segment is marked at most twice per walk
-// and the walk stays linear in the number of segments.
+// and the third keeps its text. The window drops a lettered segment once two
+// more lettered segments arrive and a blank before the oldest one after a third,
+// so each segment is marked at most three times (N+1) per walk and the walk
+// stays linear in the number of segments.
 func TestValueSegmentsLongBlankRunsStayBounded(t *testing.T) {
 	t.Parallel()
 

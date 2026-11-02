@@ -25,8 +25,9 @@
 - Warning classes must stay low-cardinality and design-owned.
 - Judge redaction across segments, not one segment alone: the segments after a
   keyword and the ones just before it are its value, in time order and in slice
-  order (README "Value segments"). A value is spoken before its label as often
-  as after it, so do not shrink the look-back to match the forward window. Over-redaction on out-of-order input is accepted policy. Redaction
+  order (README "Value segments"). The rule cannot tell from the words whether a value comes before or after
+  its keyword, so keep the look-back at least as wide as the forward window
+  (ruling 9792). Over-redaction on out-of-order input is accepted policy. Redaction
   stays in `Extract`, never in an engine package.
 
 ## Common changes and how to scope them

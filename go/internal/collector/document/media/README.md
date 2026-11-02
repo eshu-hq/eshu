@@ -166,7 +166,7 @@ introduces it, so `Extract` does not judge segments only one at a time (#9786).
   mention facts.
 - The window also reaches back (#9792, ruled in
   `docs/internal/evidence/9792-backward-window-arbiter-ruling.md`). A speech
-  engine puts a value ahead of its label as often as behind it ("swordfish.",
+  engine can put a value ahead of its label as well as behind it ("swordfish.",
   then "is the password"), and the pinned `base.en` produced a value two
   lettered segments before its keyword ("swordfish" | "right it out" | "that is
   the password") and a value broken in two before it ("sword" | "fish" | "that is
@@ -183,9 +183,10 @@ introduces it, so `Extract` does not judge segments only one at a time (#9786).
   position, so "abc123 is the password" in one segment was already withheld and
   still is. The look-back is not a fixed ring of two slots, because blanks stay
   in it until two lettered segments have come after them. The walk is still
-  linear: only a lettered segment marks the window, and a segment leaves it once
-  two lettered segments have been added after it, so each segment is marked at
-  most twice per walk. The window holds at most the 1,000 segments the engine
+  linear: only a lettered segment marks the window. A lettered segment leaves it
+  once two lettered segments have been added after it, and a blank segment before
+  the oldest lettered one leaves after a third, so each segment is marked at
+  most three times (N+1) per walk. The window holds at most the 1,000 segments the engine
   returns.
 - Emails, URLs, tickets, and local paths with no keyword in their text redact
   their own segment and open no window. They are values, not words that
