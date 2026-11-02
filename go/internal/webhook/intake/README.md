@@ -36,6 +36,20 @@ flowchart LR
 - Bearer secrets never appear in logs; only route, provider family, status,
   and machine-readable reason are logged.
 
+## Telemetry
+
+`ServerConfig.Instruments` (nil disables metrics) makes every intake route
+emit, in `metrics.go`: `eshu_dp_webhook_requests_total` and
+`eshu_dp_webhook_request_duration_seconds` (`provider`, `outcome`, `reason`),
+plus `eshu_dp_webhook_store_operations_total`,
+`eshu_dp_webhook_store_duration_seconds` (`provider`, `outcome`, `status`) and
+`eshu_dp_webhook_trigger_decisions_total` (`provider`, `event_kind`,
+`decision`, `reason`, `status`) around the store call. Outcome is `stored`,
+`rejected`, or `failed`. A failed write is `status="failed"`, the value the
+EshuTriggerHandoffFailed alert selects. `/healthz` is not counted. Labels are
+fixed sets: a free-text wire `reason` or incident `event_kind` outside the
+known values becomes `other`, and no delivery id or repository name is a label.
+
 ## Operational Notes
 
 The listener presents `Authorization: Bearer <token>` per request. Core

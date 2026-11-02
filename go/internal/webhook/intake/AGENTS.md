@@ -23,6 +23,11 @@ Read these files first:
   provider family, status, and machine-readable reason only.
 - Keep `api_version` negotiation fail-closed: absent or `v1` passes, anything
   else is `unsupported_api_version` before storage.
+- Keep every request-path metric label a fixed set (`metrics.go`): never a
+  delivery id, repository name, or unbounded wire string. A new label value
+  needs a bounded mapper and a test in `metrics_test.go`.
+- Keep a failed durable write labelled `status="failed"` on the decision
+  series: the freshness alert selects on it.
 - Keep unknown JSON fields ignored (forward compatibility for newer
   listeners).
 

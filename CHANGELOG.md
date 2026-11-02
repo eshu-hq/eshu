@@ -9,6 +9,18 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### Webhook intake host: request-path telemetry
+
+- **The intake host now emits the webhook request-path series**
+  ([#9811](https://github.com/eshu-hq/eshu/issues/9811)). Only the in-tree
+  listener incremented `eshu_dp_webhook_requests_total`,
+  `eshu_dp_webhook_trigger_decisions_total`, and the request and store
+  duration histograms, so after the authority switch the
+  `EshuTriggerHandoffFailed` alert and the freshness dashboard had no data.
+  All five intake routes now record them with the listener's label names. A
+  failed durable write sets `status="failed"` on the decision and store
+  series, so the alert fires without a query change. Labels stay bounded.
+
 ### Extension host: eshu-sdk collector v0.2.0-rc.3 pin
 
 - **Core pins `eshu-sdk/collector` v0.2.0-rc.3**
