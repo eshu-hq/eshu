@@ -60,7 +60,9 @@ package.
 ## Telemetry
 
 None. This package computes values consumed by the callers' reconcile passes;
-it emits no metrics, spans, or logs of its own.
+it emits no metrics, spans, or logs of its own. `OwnedTargetRotationFreshness`
+(#9775) derives the owned-package rotation period (slot count times interval)
+and compares it with the freshness bound; the coordinator publishes the result.
 
 No-Observability-Change: this move adds or renames no metric, span, log
 field, status field, queue, worker, lease, or runtime setting. Each caller's
@@ -77,6 +79,9 @@ existing reconcile telemetry is unchanged.
   before 1970 clamps to bucket 0 so the SQL `MOD` stays non-negative.
 - `DerivedTargetSlotLimitForMode` returns 0 for `single_pass`, which the
   owned-package reader treats as one slot (the first page of the whole set).
+- `OwnedTargetRotationFreshness` saturates the period at the largest
+  `time.Duration` instead of wrapping, so a huge slot count still reports a
+  breach. An unknown slot count (zero or less) is not a breach.
 - `DerivedTargetPlanKey` returns a fixed `<prefix>-single-pass` key for
   single-pass mode and an interval-truncated timestamp key for rotating mode;
   callers must not mix the two modes for the same plan without also changing

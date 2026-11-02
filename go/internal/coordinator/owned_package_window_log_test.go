@@ -9,7 +9,9 @@ import (
 	"log/slog"
 	"slices"
 	"testing"
+	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/coordinator/schedule"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -34,7 +36,7 @@ func TestLogOwnedPackageWindowWritesTheSlotStats(t *testing.T) {
 			TotalTargets: 30264, SlotCount: 32, Slot: 22, SlotSize: 3, RowsRead: 3,
 		},
 	}
-	service.logOwnedPackageWindow(instance, true, page)
+	service.logOwnedPackageWindow(instance, true, page, schedule.OwnedTargetRotationFreshness(page.Window.SlotCount, 30*time.Minute, 0))
 
 	var line struct {
 		Msg                 string   `json:"msg"`
@@ -47,6 +49,8 @@ func TestLogOwnedPackageWindowWritesTheSlotStats(t *testing.T) {
 		Selected            int      `json:"selected"`
 		SelectedEcosystems  []string `json:"selected_ecosystems"`
 		SelectedByEcosystem []int    `json:"selected_by_ecosystem"`
+		RotationPeriod      float64  `json:"rotation_period_seconds"`
+		MaxStaleness        float64  `json:"max_staleness_seconds"`
 	}
 	if err := json.Unmarshal(buffer.Bytes(), &line); err != nil {
 		t.Fatalf("log line %q: %v", buffer.String(), err)
@@ -55,12 +59,13 @@ func TestLogOwnedPackageWindowWritesTheSlotStats(t *testing.T) {
 		line.TotalTargets != 30264 || line.SlotCount != 32 || line.Slot != 22 ||
 		line.SlotSize != 3 || line.RowsRead != 3 || line.Truncated || line.Selected != 3 ||
 		!slices.Equal(line.SelectedEcosystems, []string{"npm", "rubygems"}) ||
-		!slices.Equal(line.SelectedByEcosystem, []int{2, 1}) {
+		!slices.Equal(line.SelectedByEcosystem, []int{2, 1}) ||
+		line.RotationPeriod != (16*time.Hour).Seconds() || line.MaxStaleness != (24*time.Hour).Seconds() {
 		t.Fatalf("log line = %+v (%s)", line, buffer.String())
 	}
 
 	buffer.Reset()
-	service.logOwnedPackageWindow(instance, false, workflow.OwnedPackageDependencyTargetPage{})
+	service.logOwnedPackageWindow(instance, false, workflow.OwnedPackageDependencyTargetPage{}, schedule.OwnedTargetFreshness{})
 	if buffer.Len() != 0 {
 		t.Fatalf("disabled derivation logged %q, want nothing", buffer.String())
 	}

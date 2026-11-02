@@ -186,6 +186,7 @@ type fakeMetrics struct {
 	gcpFreshnessReapObserved      []FreshnessReapObservation
 	incidentFreshnessReapObserved []FreshnessReapObservation
 	scannerDerivedPagesObserved   []ScannerDerivedPageObservation
+	ownedTargetRotationObserved   []OwnedTargetRotationObservation
 }
 
 func (f *fakeMetrics) RecordReconcile(_ context.Context, observation ReconcileObservation) {
@@ -218,4 +219,8 @@ func (f *fakeMetrics) RecordIncidentFreshnessReap(_ context.Context, observation
 
 func (f *fakeMetrics) RecordScannerDerivedPage(_ context.Context, observation ScannerDerivedPageObservation) {
 	f.scannerDerivedPagesObserved = append(f.scannerDerivedPagesObserved, observation)
+}
+
+func (f *fakeMetrics) RecordOwnedTargetRotation(_ context.Context, observation OwnedTargetRotationObservation) {
+	f.ownedTargetRotationObserved = append(f.ownedTargetRotationObserved, observation)
 }
