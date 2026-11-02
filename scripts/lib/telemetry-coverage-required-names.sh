@@ -25,6 +25,10 @@
 # A metric cell may contain stray pipes; reading only the last cell keeps
 # those fragments out of the required set. A marker-first row with no
 # category cell contributes nothing.
+#
+# Known limit: a marker-first row with two or more cells after the metric cell
+# has only its last cell checked; one such doc row exists and its names are
+# required by other rows.
 telemetry_required_rows() {
   awk '
     {

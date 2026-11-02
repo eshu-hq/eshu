@@ -479,8 +479,9 @@ expect_fail "fails when a glob-form row matches no files" "${case_glob_missing}"
 # shellcheck source=scripts/lib/test-verify-telemetry-coverage-rename-cases.sh
 . "${repo_root}/scripts/lib/test-verify-telemetry-coverage-rename-cases.sh"
 
-# Marker-scope cases (#9790): a No-Observability-Change: marker hides a row's
-# metric names from the registered check only when it starts the metric cell.
+# Marker-scope cases (#9790): a No-Observability-Change: marker exempts names
+# from the registered check only inside a metric cell that it starts; the rest
+# of that row and every other row stay checked.
 # shellcheck source=scripts/lib/test-verify-telemetry-coverage-marker-scope-cases.sh
 . "${repo_root}/scripts/lib/test-verify-telemetry-coverage-marker-scope-cases.sh"
 

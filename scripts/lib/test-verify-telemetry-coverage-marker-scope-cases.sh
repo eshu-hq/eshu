@@ -5,9 +5,10 @@
 # caller's init_repo(), expect_pass(), expect_fail(). Extracted to keep
 # scripts/test-verify-telemetry-coverage.sh under the repo's 500-line cap.
 #
-# The "must be registered" check skips a row only when the No-Observability-
-# Change: marker starts the row's metric column. A marker anywhere else must
-# not hide the row's eshu_dp_* names from the check.
+# The "must be registered" check skips only the metric cell of a row whose
+# metric column starts with the No-Observability-Change: marker. A marker
+# anywhere else hides nothing, and the rest of a marker-first row (its
+# category cell, any glued row) is still checked.
 
 # Case M1: the marker follows a real metric name inside the metric cell and
 # the row also names a bogus eshu_dp_ metric. Must fail: the cell does not
