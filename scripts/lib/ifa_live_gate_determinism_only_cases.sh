@@ -46,12 +46,13 @@ ifa_live_gate_determinism_only_seams=(
 	# on BOTH gates by 'go/internal/ifa/*.go', 'go/internal/reducer/**' and
 	# 'scripts/lib/ifa_*_live*.sh' (each with its own seam above).
 	# workload_cloud_relationship and kubernetes_correlation
-	# (#6228) keep their three each here: neither has fault cells by design
-	# (cell_kind=custom,
-	# generic dispatchers reject them), so the Odus, cassettes, and
-	# expected-edge sets must select ifa-determinism and must NEVER select
-	# ifa-fault-injection. They move to the common table with the siblings
-	# when fault cells land.
+	# (#6228) kept their three each here until the fault trios landed: the
+	# cassettes and expected-edge sets moved to ifa_live_gate_common_seams
+	# beside the siblings (they are the fault cells' own inputs, so they
+	# must retrigger the fault gate too). The Odus stay here: the fault
+	# cells drive the committed cassette JSON, never the Odù source, so an
+	# Odù-only edit still selects determinism alone -- the same position
+	# the iam_can_assume Odù holds.
 	# iam_can_assume keeps its Odu seam here with the #6228 fault half: the
 	# Odu file selects determinism only (matched by neither fault trigger
 	# nor broad fault glob), while its cassette and expected-edge set moved
@@ -91,8 +92,6 @@ ifa_live_gate_determinism_only_seams=(
 	'go/internal/ifa/familyodu/iam_can_assume_family_odu.go|go/internal/ifa/familyodu/iam_can_assume_family_odu.go'
 	'go/internal/ifa/familyodu/iam_can_perform_family_odu.go|go/internal/ifa/familyodu/iam_can_perform_family_odu.go'
 	'go/internal/ifa/familyodu/workload_cloud_relationship_family_odu.go|go/internal/ifa/familyodu/workload_cloud_relationship_family_odu.go'
-	'testdata/cassettes/workloadcloudrelationship/**|testdata/cassettes/workloadcloudrelationship/ifa-workload-cloud-relationship-family.json'
-	'go/internal/ifa/testdata/workloadcloudrelationship/**|go/internal/ifa/testdata/workloadcloudrelationship/ifa-workload-cloud-relationship-family-expected-edges.json'
 	'go/internal/ifa/familyodu/iam_escalation_family_odu.go|go/internal/ifa/familyodu/iam_escalation_family_odu.go'
 	'go/internal/ifa/familyodu/authenticates_vault_role_family_odu.go|go/internal/ifa/familyodu/authenticates_vault_role_family_odu.go'
 	'go/internal/ifa/familyodu/uses_vault_policy_family_odu.go|go/internal/ifa/familyodu/uses_vault_policy_family_odu.go'
@@ -111,6 +110,4 @@ ifa_live_gate_determinism_only_seams=(
 	'go/internal/ifa/familyodu/ec2_uses_profile_family_odu.go|go/internal/ifa/familyodu/ec2_uses_profile_family_odu.go'
 	'go/internal/ifa/familyodu/s3_logs_to_family_odu.go|go/internal/ifa/familyodu/s3_logs_to_family_odu.go'
 	'go/internal/ifa/familyodu/kubernetes_correlation_family_odu.go|go/internal/ifa/familyodu/kubernetes_correlation_family_odu.go'
-	'testdata/cassettes/kubernetescorrelation/**|testdata/cassettes/kubernetescorrelation/ifa-kubernetes-correlation-family.json'
-	'go/internal/ifa/testdata/kubernetescorrelation/**|go/internal/ifa/testdata/kubernetescorrelation/ifa-kubernetes-correlation-family-expected-edges.json'
 )

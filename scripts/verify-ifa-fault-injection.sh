@@ -24,8 +24,7 @@
 #
 # The shard mirror derives the current cell count from its hand-authored
 # roster and cross-checks this script's dispatch block. Cell libraries are
-# split by family under scripts/lib/ifa_fault_injection_*_cells.sh; the
-# symbol-runtime library owns cells 73-79 for issues #5995/#6000/#5997.
+# split by family under scripts/lib/ifa_fault_injection_*_cells.sh.
 # The delta cell's full-node collateral comparator is split into
 # scripts/lib/ifa_fault_injection_collateral_nodes.sh:
 #
@@ -58,7 +57,6 @@
 # it away (Serialization-Is-Not-A-Fix). A fault that never fires is an inert
 # script, not a pass, so every cell checks that its own fault actually fired:
 #   - a claimed-row proof for cells 2/3/6/7/8/9/17/20/23/26/29/32/35/38/41/44/47/50/53/56/59/62/65/68/71
-#   - an exact runner-waiter proof for cells 77/78/79
 #   - a once-fired marker for cells 4/12/13/14/15/18/21/24/27/30/33/36/39/42/45/48/51/54/57/60/63/66/69/72/74/75/76
 #   - a sentinel-fired proof for cell 5
 #
@@ -129,10 +127,8 @@ export NEO4J_BOLT_PORT="${NEO4J_BOLT_PORT:-7801}"
 export NEO4J_HTTP_PORT="${NEO4J_HTTP_PORT:-7688}"
 : "${ESHU_POSTGRES_PASSWORD:=change-me}"
 : "${ESHU_NEO4J_PASSWORD:=change-me}"
-# Headroom over this gate's two slowest natural recovery mechanics: the fixed
-# 1-minute reducer lease (cells 2/3/6/7/8/9/17/20/23/26/29/32/35/38/41/44/47/50/53/56/59/62/65/68/71) and the default 30s (+jitter)
-# reducer retry delay (cells 4/12/13/14/15/18/21/24/27/30/33/36/39/42/45/48/51/54/57/60/63/66/69/72/74/75/76's queue-retry lane) -- see go/cmd/reducer/
-# main_helpers.go and go/internal/runtime/retry_policy.go.
+# Headroom over this gate's two slowest natural recovery mechanics: the fixed 1-minute reducer lease and the
+# default 30s (+jitter) queue-retry lane below (cells 4/12/13/14/15/18/21/24/27/30/33/36/39/42/45/48/51/54/57/60/63/66/69/72/74/75/76's queue-retry lane -- see go/cmd/reducer/main_helpers.go and go/internal/runtime/retry_policy.go).
 : "${GATE_DRAIN_TIMEOUT:=4m}"
 # 120s general CI margin; lock-vs-projector ordering fixed the CI codeowners failure, not this budget.
 : "${CLAIMED_ROW_WAIT_TIMEOUT:=120}"
@@ -459,6 +455,12 @@ ifa_fault_shard_run cell_failgraphwrite_invokes_cloud_action
 ifa_fault_shard_run cell_killworker_handles_route
 ifa_fault_shard_run cell_killworker_runs_in
 ifa_fault_shard_run cell_killworker_invokes_cloud_action
+ifa_fault_shard_run cell_baseline_kubernetes_correlation
+ifa_fault_shard_run cell_killworker_kubernetes_correlation
+ifa_fault_shard_run cell_failgraphwrite_kubernetes_correlation
+ifa_fault_shard_run cell_baseline_workload_cloud_relationship
+ifa_fault_shard_run cell_killworker_workload_cloud_relationship
+ifa_fault_shard_run cell_failgraphwrite_workload_cloud_relationship
 
 log "PASS: fault-injection matrix green (project ${FAULT_COMPOSE_PROJECT}, postgres:${ESHU_POSTGRES_PORT}, neo4j-bolt:${NEO4J_BOLT_PORT})"
 for cell in "${!digests[@]}"; do

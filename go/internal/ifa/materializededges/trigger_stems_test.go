@@ -198,6 +198,16 @@ var materializedEdgeFamilyTriggerStems = map[string]string{
 	// (scripts/lib/ifa_fault_injection_s3_external_principal_grant_cells.sh),
 	// both named in both gate blocks.
 	"s3_external_principal_grant": "s3_external_principal_grant",
+	// kubernetes_correlation joins them with the #6228
+	// fault trio: same stem shape, read off the fault cells file
+	// (scripts/lib/ifa_fault_injection_kubernetes_correlation_cells.sh),
+	// the fault cases file, and the Odù the triggers name.
+	"kubernetes_correlation": "kubernetes_correlation",
+	// workload_cloud_relationship joins them with the #6228
+	// fault trio: same stem shape, read off the fault cells file
+	// (scripts/lib/ifa_fault_injection_workload_cloud_relationship_cells.sh),
+	// the fault cases file, and the Odù the triggers name.
+	"workload_cloud_relationship": "workload_cloud_relationship",
 }
 
 // TestEveryCoveredFamilyTriggersBothLiveGates closes the third side of the

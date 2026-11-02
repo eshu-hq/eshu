@@ -120,3 +120,23 @@ ifa_live_gate_common_seams+=(
 	'go/internal/ifa/testdata/s3grant/**|go/internal/ifa/testdata/s3grant/ifa-s3-external-principal-grant-family-expected-edges.json'
 	'scripts/lib/ifa_fault_injection_s3_external_principal_grant_cells.sh|scripts/lib/ifa_fault_injection_s3_external_principal_grant_cells.sh'
 )
+# kubernetes_correlation (#6228 fault trio): writer, cassette, expected-edge
+# set, and cells are new common seams beside the siblings; the Odù stays in
+# the determinism-only table (the fault cells drive the committed cassette
+# JSON, never the Odù source).
+ifa_live_gate_common_seams+=(
+	'go/internal/storage/cypher/edge/writer/kubernetes_correlation.go|go/internal/storage/cypher/edge/writer/kubernetes_correlation.go'
+	'testdata/cassettes/kubernetescorrelation/**|testdata/cassettes/kubernetescorrelation/ifa-kubernetes-correlation-family.json'
+	'go/internal/ifa/testdata/kubernetescorrelation/**|go/internal/ifa/testdata/kubernetescorrelation/ifa-kubernetes-correlation-family-expected-edges.json'
+	'scripts/lib/ifa_fault_injection_kubernetes_correlation_cells.sh|scripts/lib/ifa_fault_injection_kubernetes_correlation_cells.sh'
+)
+# workload_cloud_relationship (#6228 fault trio): writer, cassette,
+# expected-edge set, and cells are new common seams beside the siblings; the
+# Odù stays in the determinism-only table (the fault cells drive the
+# committed cassette JSON, never the Odù source).
+ifa_live_gate_common_seams+=(
+	'go/internal/storage/cypher/cloud/aws/relationship/workload_cloud_writer.go|go/internal/storage/cypher/cloud/aws/relationship/workload_cloud_writer.go'
+	'testdata/cassettes/workloadcloudrelationship/**|testdata/cassettes/workloadcloudrelationship/ifa-workload-cloud-relationship-family.json'
+	'go/internal/ifa/testdata/workloadcloudrelationship/**|go/internal/ifa/testdata/workloadcloudrelationship/ifa-workload-cloud-relationship-family-expected-edges.json'
+	'scripts/lib/ifa_fault_injection_workload_cloud_relationship_cells.sh|scripts/lib/ifa_fault_injection_workload_cloud_relationship_cells.sh'
+)

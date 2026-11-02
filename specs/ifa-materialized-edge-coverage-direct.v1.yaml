@@ -48,7 +48,7 @@
 # mistake commit 42e188ba1 made for documentation_edges and had to withdraw; it
 # is not repeated here.
 #
-# TWENTY-FOUR OF THEM NOW HAVE ALL FOUR. kubernetes_namespace_environment,
+# TWENTY-SIX OF THEM NOW HAVE ALL FOUR. kubernetes_namespace_environment,
 # iam_instance_profile_role, iam_can_assume, iam_can_perform,
 # ec2_uses_profile, s3_logs_to, iam_escalation, authenticates_vault_role,
 # uses_vault_policy, grants_secret_read, built_from,
@@ -57,7 +57,8 @@
 # code_taint_evidence, observability_coverage, and incident_routing_evidence
 # code_taint_evidence, observability_coverage, publishes, cloud_resource,
 # semantic_entity_containment, security_group_sg_rule,
-# security_group_rule_endpoint, and s3_external_principal_grant
+# security_group_rule_endpoint, s3_external_principal_grant,
+# workload_cloud_relationship, and kubernetes_correlation
 # each carry a cataloged Odù, a registered
 # edge-type set, a vacuity guard dispatched from MaterializedEdgeOduResolver,
 # a hand-derived expected-edge-set fixture their guard reproduces exactly,
@@ -76,8 +77,9 @@
 # cloud_resource, the semantic_entity_containment live drive for
 # semantic_entity_containment, the security_group_sg_rule live leaf for
 # security_group_sg_rule, the security_group_rule_endpoint live leaf
-# for security_group_rule_endpoint, and the s3_external_principal_grant
-# live leaf for s3_external_principal_grant -- live
+# for security_group_rule_endpoint, the s3_external_principal_grant
+# live leaf for s3_external_principal_grant, and the #6228 fault trios
+# for kubernetes_correlation and workload_cloud_relationship -- live
 # ifa-determinism AND
 # ifa-fault-injection
 # matrices driving the family
@@ -560,6 +562,32 @@ coverage:
     scenario_type: fault
     ref: "odu:ifa-s3-external-principal-grant-family"
     proof_gate: ifa-fault-injection
+  # kubernetes_correlation: fault-free baseline plus kill-worker and
+  # fail-graph-write recovery, all asserting the two-edge RUNS_IMAGE exact
+  # set with identical graph digests (#6228 fault trio).
+  - surface: "materialized_edges:kubernetes_correlation"
+    scenario: odu
+    scenario_type: baseline
+    ref: "odu:ifa-kubernetes-correlation-family"
+    proof_gate: ifa-determinism
+  - surface: "materialized_edges:kubernetes_correlation"
+    scenario: odu
+    scenario_type: fault
+    ref: "odu:ifa-kubernetes-correlation-family"
+    proof_gate: ifa-fault-injection
+  # workload_cloud_relationship: fault-free baseline plus kill-worker and
+  # fail-graph-write recovery, all asserting the two-edge USES exact set
+  # with identical graph digests (#6228 fault trio).
+  - surface: "materialized_edges:workload_cloud_relationship"
+    scenario: odu
+    scenario_type: baseline
+    ref: "odu:ifa-workload-cloud-relationship-family"
+    proof_gate: ifa-determinism
+  - surface: "materialized_edges:workload_cloud_relationship"
+    scenario: odu
+    scenario_type: fault
+    ref: "odu:ifa-workload-cloud-relationship-family"
+    proof_gate: ifa-fault-injection
 
 waivers:
   - surface: "materialized_edges:assumes_iam_role"
@@ -572,16 +600,7 @@ waivers:
     issue: "#6228"
     waived: "2026-08-23"
     reason: "WriteAssumesIAMRoleEdges -> cypher/secrets_iam_graph_writer.go merges SECRETS_IAM_ASSUMES_IAM_ROLE; DEFERRED 2026-09-27, will not be wired: the sole production writer path is DomainSecretsIAMGraphProjection, which stays unregistered unless ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED is set (ADR #1314 keeps repo/chart/operator defaults OFF). If wired later: collector-only cassette plus the full trust-chain -> graph-projection chain in one reducer with the flag on for that cell only; never reducer facts in a cassette, which bypass the analyzer that decides exact vs partial chains"
-  - surface: "materialized_edges:kubernetes_correlation"
-    proof_gate: ifa-determinism
-    issue: "#6228"
-    waived: "2026-08-23"
-    reason: "WriteKubernetesCorrelationEdges -> cypher/edge/writer/kubernetes_correlation.go merges RUNS_IMAGE; direct materialization; offline Odu + expected-edge-set fixture + registered edge types landed in the kubernetes-correlation live-cell change, and the live determinism matrix drives the family since that change (registry row 20, shared N={1,2,4} cell + post-delta exact-set assert). Stays waived: the fault-injection matrix does not drive it yet (no fault cells; see the row's cell_kind=custom note)"
-  - surface: "materialized_edges:kubernetes_correlation"
-    proof_gate: ifa-fault-injection
-    issue: "#6228"
-    waived: "2026-08-23"
-    reason: "WriteKubernetesCorrelationEdges -> cypher/edge/writer/kubernetes_correlation.go merges RUNS_IMAGE; direct materialization; offline Odu + expected-edge-set fixture + registered edge types landed in the kubernetes-correlation live-cell change (family stays waived: the fault-injection matrix does not drive it yet; determinism drives it since the kubernetes-correlation live-cell change)"
+
   - surface: "materialized_edges:runtime_declaration"
     proof_gate: ifa-determinism
     issue: "#6228"
@@ -602,13 +621,3 @@ waivers:
     issue: "#6228"
     waived: "2026-08-23"
     reason: "WriteUsesServiceAccountEdges -> cypher/secrets_iam_graph_writer.go merges SECRETS_IAM_USES_SERVICE_ACCOUNT; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
-  - surface: "materialized_edges:workload_cloud_relationship"
-    proof_gate: ifa-determinism
-    issue: "#6228"
-    waived: "2026-08-23"
-    reason: "WriteWorkloadCloudRelationshipEdges -> cypher/workload_cloud_relationship_writer.go merges USES; direct materialization; offline Odu + expected-edge-set fixture + registered edge types landed in #6523, and the live determinism matrix drives the family since the workload-cloud-relationship live-cell change (registry row 16, shared N={1,2,4} cell + post-delta exact-set assert). Stays waived: the fault-injection matrix does not drive it yet (no fault cells; see the row's cell_kind=custom note)"
-  - surface: "materialized_edges:workload_cloud_relationship"
-    proof_gate: ifa-fault-injection
-    issue: "#6228"
-    waived: "2026-08-23"
-    reason: "WriteWorkloadCloudRelationshipEdges -> cypher/workload_cloud_relationship_writer.go merges USES; direct materialization; offline Odu + expected-edge-set fixture + registered edge types landed in #6523 (family stays waived: the fault-injection matrix does not drive it yet; determinism drives it since the workload-cloud-relationship live-cell change)"

@@ -74,9 +74,10 @@ var guardedDirectMaterializedEdgeFamilies = []guardedDirectFamily{
 		LiveProven: true,
 	},
 	{
-		Family:    workloadCloudRelationshipFamily,
-		OduName:   ifa.WorkloadCloudRelationshipFamilyOduName,
-		EdgeTypes: []string{"USES"},
+		Family:     workloadCloudRelationshipFamily,
+		OduName:    ifa.WorkloadCloudRelationshipFamilyOduName,
+		EdgeTypes:  []string{"USES"},
+		LiveProven: true,
 	},
 	{
 		Family:     iamCanAssumeFamily,
@@ -109,9 +110,10 @@ var guardedDirectMaterializedEdgeFamilies = []guardedDirectFamily{
 		LiveProven: true,
 	},
 	{
-		Family:    kubernetesCorrelationFamily,
-		OduName:   ifa.KubernetesCorrelationFamilyOduName,
-		EdgeTypes: []string{"RUNS_IMAGE"},
+		Family:     kubernetesCorrelationFamily,
+		OduName:    ifa.KubernetesCorrelationFamilyOduName,
+		EdgeTypes:  []string{"RUNS_IMAGE"},
+		LiveProven: true,
 	},
 	{
 		Family:     codeTaintEvidenceFamily,

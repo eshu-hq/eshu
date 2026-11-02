@@ -115,9 +115,7 @@ run_ifa_fault_injection_shard_cases() {
 		cell_failgraphwrite_handles_route
 		cell_failgraphwrite_runs_in
 		cell_failgraphwrite_invokes_cloud_action
-		cell_killworker_handles_route
-		cell_killworker_runs_in
-		cell_killworker_invokes_cloud_action
+		cell_killworker_handles_route cell_killworker_runs_in cell_killworker_invokes_cloud_action cell_baseline_kubernetes_correlation cell_killworker_kubernetes_correlation cell_failgraphwrite_kubernetes_correlation cell_baseline_workload_cloud_relationship cell_killworker_workload_cloud_relationship cell_failgraphwrite_workload_cloud_relationship
 	)
 
 	local actual_full
@@ -226,8 +224,8 @@ $(comm -13 <(printf '%s\n' "${dispatched_cells}") <(printf '%s\n' "${listed_cell
 		cell_baseline_workload_dependency cell_killworker_workload_dependency cell_failgraphwrite_workload_dependency \
 		cell_baseline_symbol_runtime cell_failgraphwrite_handles_route \
 		cell_failgraphwrite_runs_in cell_failgraphwrite_invokes_cloud_action \
-		cell_killworker_handles_route cell_killworker_runs_in \
-		cell_killworker_invokes_cloud_action; do
+		cell_killworker_handles_route cell_killworker_runs_in cell_killworker_invokes_cloud_action cell_baseline_kubernetes_correlation cell_killworker_kubernetes_correlation cell_failgraphwrite_kubernetes_correlation \
+		cell_baseline_workload_cloud_relationship cell_killworker_workload_cloud_relationship cell_failgraphwrite_workload_cloud_relationship; do
 		rg --quiet -- "^ifa_fault_shard_run ${cell}\$" "${script}" \
 			|| test_ifa_fault_shard_cases_fail "verifier does not invoke ${cell} via ifa_fault_shard_run on its own line -- missing entirely, or dispatched WITHOUT the wrapper (which would silently run every shard, ignoring --shard)"
 	done

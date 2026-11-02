@@ -314,6 +314,8 @@ workflows:
   - go/internal/storage/cypher/cloud/resource/edge_writer.go
   - go/internal/storage/cypher/cloud/gcp/relationship/gcp_cloud_resource_edge_writer.go
   - go/internal/storage/cypher/cloud/azure/relationship/azure_cloud_resource_edge_writer.go
+  - go/internal/storage/cypher/edge/writer/kubernetes_correlation.go
+  - go/internal/storage/cypher/cloud/aws/relationship/workload_cloud_writer.go
   - testdata/cassettes/kubernetesnamespaceenvironment/**
   - testdata/cassettes/iaminstanceprofilerole/**
   - testdata/cassettes/iamcanassume/**
@@ -399,6 +401,10 @@ workflows:
   - scripts/lib/test-ifa-fault-injection-code-taint-evidence-cases.sh
   - scripts/lib/test-ifa-fault-injection-observability-coverage-cases.sh
   - scripts/lib/test-ifa-fault-injection-incident-routing-evidence-cases.sh
+  - scripts/lib/ifa_fault_injection_kubernetes_correlation_cells.sh
+  - scripts/lib/test-ifa-fault-injection-kubernetes-correlation-cases.sh
+  - scripts/lib/ifa_fault_injection_workload_cloud_relationship_cells.sh
+  - scripts/lib/test-ifa-fault-injection-workload-cloud-relationship-cases.sh
   - scripts/lib/ifa_fault_injection_cloud_resource_cells.sh
   - testdata/cassettes/symbolruntime/**
   - go/internal/ifa/testdata/handlesroute/**

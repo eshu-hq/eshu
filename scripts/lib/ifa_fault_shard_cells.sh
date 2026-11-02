@@ -243,6 +243,16 @@ IFA_FAULT_ALL_CELLS=(
 	cell_killworker_handles_route
 	cell_killworker_runs_in
 	cell_killworker_invokes_cloud_action
+	# kubernetes_correlation (#6228 fault trio): family-scoped baseline plus
+	# its two recovery cells (atomic group below).
+	cell_baseline_kubernetes_correlation
+	cell_killworker_kubernetes_correlation
+	cell_failgraphwrite_kubernetes_correlation
+	# workload_cloud_relationship (#6228 fault trio): family-scoped baseline
+	# plus its two recovery cells (atomic group below).
+	cell_baseline_workload_cloud_relationship
+	cell_killworker_workload_cloud_relationship
+	cell_failgraphwrite_workload_cloud_relationship
 )
 
 # Co-location constraints -- see "INPUT DATA VS. PARTITION ALGORITHM" above.
@@ -305,6 +315,8 @@ IFA_FAULT_ATOMIC_GROUPS=(
 	# an unset baseline (the same standing hazard every other group here
 	# exists to prevent).
 	"cell_baseline_symbol_runtime cell_failgraphwrite_handles_route cell_failgraphwrite_runs_in cell_failgraphwrite_invokes_cloud_action cell_killworker_handles_route cell_killworker_runs_in cell_killworker_invokes_cloud_action"
+	"cell_baseline_kubernetes_correlation cell_killworker_kubernetes_correlation cell_failgraphwrite_kubernetes_correlation"
+	"cell_baseline_workload_cloud_relationship cell_killworker_workload_cloud_relationship cell_failgraphwrite_workload_cloud_relationship"
 )
 
 # Measured cost of each cell, in whole seconds of CI wall time: the median
@@ -426,4 +438,15 @@ declare -gA IFA_FAULT_CELL_WEIGHT_SECONDS=(
 	[cell_killworker_handles_route]=73
 	[cell_killworker_runs_in]=72
 	[cell_killworker_invokes_cloud_action]=46
+	# kubernetes_correlation + workload_cloud_relationship (#6228 fault
+	# trios): measured local shard runs 2026-11-02 (own stack
+	# eshu-ifa-fault-k8sworkload, PG 15643): k8s trio on shard 3/8 walls
+	# 18/76/79, workload trio on shard 4/8 walls 77/88/86. Recovery
+	# digests byte-identical to family baselines in both runs.
+	[cell_baseline_kubernetes_correlation]=18
+	[cell_killworker_kubernetes_correlation]=76
+	[cell_failgraphwrite_kubernetes_correlation]=79
+	[cell_baseline_workload_cloud_relationship]=77
+	[cell_killworker_workload_cloud_relationship]=88
+	[cell_failgraphwrite_workload_cloud_relationship]=86
 )
