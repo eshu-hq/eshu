@@ -115,17 +115,60 @@ func foldedHasKeyword(folded string) bool {
 	return false
 }
 
+// joinEdgeBytes is how many bytes of each segment joinedHasKeyword looks at.
+// The longest rule phrase is 13 bytes, so a keyword that straddles the join
+// starts in the last 12 bytes of the first segment and ends in the first 12 of
+// the second. 24 leaves room for both.
+const joinEdgeBytes = 24
+
 // joinedHasKeyword reports whether a keyword straddles two consecutive
 // segments, such as "The API" then "key is". Both arguments are folded. A
 // caller passes only a pair where neither segment holds a keyword alone, so a
 // hit is a keyword that needed both halves. The join is one space, which is
-// what the fold makes of any separator, so "pass" then "word" reads as
-// "pass word". The work is linear in the two lengths.
+// what the fold makes of any separator, so "pass" then "word" reads as "pass
+// word". Only the last joinEdgeBytes of the first segment and the first
+// joinEdgeBytes of the second are joined, each cut at a word start or end so
+// the cut cannot fake a word boundary, which keeps the work constant per pair.
 func joinedHasKeyword(prevFolded, curFolded string) bool {
-	if prevFolded == "" || curFolded == "" {
+	tail := wordTail(prevFolded, joinEdgeBytes)
+	head := wordHead(curFolded, joinEdgeBytes)
+	if tail == "" || head == "" {
 		return false
 	}
-	return foldedHasKeyword(prevFolded + " " + curFolded)
+	return foldedHasKeyword(tail + " " + head)
+}
+
+// wordTail returns the end of folded, at most n bytes, starting at a word
+// start. A word cut by the byte limit is dropped whole.
+func wordTail(folded string, n int) string {
+	if len(folded) <= n {
+		return folded
+	}
+	tail := folded[len(folded)-n:]
+	if folded[len(folded)-n-1] == ' ' {
+		return tail
+	}
+	cut := strings.IndexByte(tail, ' ')
+	if cut < 0 {
+		return ""
+	}
+	return tail[cut+1:]
+}
+
+// wordHead returns the start of folded, at most n bytes, ending at a word end.
+// A word cut by the byte limit is dropped whole.
+func wordHead(folded string, n int) string {
+	if len(folded) <= n {
+		return folded
+	}
+	if folded[n] == ' ' {
+		return folded[:n]
+	}
+	cut := strings.LastIndexByte(folded[:n], ' ')
+	if cut < 0 {
+		return ""
+	}
+	return folded[:cut]
 }
 
 // foldSpoken returns text in the form the spoken keyword rules match on. It
@@ -143,6 +186,49 @@ func joinedHasKeyword(prevFolded, curFolded string) bool {
 //     like "pass word", "P.I.N." and "P, I, N" fold to "p i n", and "A.P.I.
 //     key" folds to "a p i key".
 func foldSpoken(text string) string {
+	if isASCII(text) {
+		return foldASCII(text)
+	}
+	return foldUnicode(text)
+}
+
+// isASCII reports whether every byte of text is below 0x80.
+func isASCII(text string) bool {
+	for i := 0; i < len(text); i++ {
+		if text[i] >= utf8.RuneSelf {
+			return false
+		}
+	}
+	return true
+}
+
+// foldASCII is foldUnicode for text that is all ASCII, without the
+// normalization and table lookups. ASCII holds no combining mark, format
+// character, or homoglyph, so only case and separators remain; a test pins
+// that it agrees with foldUnicode on every ASCII byte.
+func foldASCII(text string) string {
+	out := make([]byte, 0, len(text))
+	pendingSpace := false
+	for i := 0; i < len(text); i++ {
+		b := text[i]
+		switch {
+		case b == ' ' || (b >= '\t' && b <= '\r') || b == '_' || b == '.' || b == ',' || b == '-':
+			pendingSpace = len(out) > 0
+			continue
+		case b >= 'A' && b <= 'Z':
+			b += 'a' - 'A'
+		}
+		if pendingSpace {
+			out = append(out, ' ')
+			pendingSpace = false
+		}
+		out = append(out, b)
+	}
+	return string(out)
+}
+
+// foldUnicode is the general fold: see foldSpoken.
+func foldUnicode(text string) string {
 	var out strings.Builder
 	out.Grow(len(text))
 	pendingSpace := false

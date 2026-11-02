@@ -106,3 +106,22 @@ type stubEngine struct{ result docmedia.EngineResult }
 func (s stubEngine) Transcribe(context.Context, docmedia.Media) (docmedia.EngineResult, error) {
 	return s.result, nil
 }
+
+// TestParseOutputLoneKeywordAnnotationIsOneSegment pins the changed no-speech
+// edge: a run whose only content is "(password)" used to be dropped to
+// ClassNoSpeech and now yields one segment for media.Extract to withhold.
+func TestParseOutputLoneKeywordAnnotationIsOneSegment(t *testing.T) {
+	t.Parallel()
+
+	var stats runStats
+	out, err := parseOutput(annotationOutput(" (password)"), Limits{MaxSegmentChars: 100, MaxSegments: 10}, &stats)
+	if err != nil {
+		t.Fatalf("parseOutput() error = %v, want one kept segment", err)
+	}
+	if len(out.segments) != 1 || stats.segmentsDropped != 0 {
+		t.Fatalf("segments = %d dropped = %d, want 1 and 0", len(out.segments), stats.segmentsDropped)
+	}
+	if _, err := parseOutput(annotationOutput(" [BLANK_AUDIO]"), Limits{MaxSegmentChars: 100, MaxSegments: 10}, &runStats{}); ClassOf(err) != ClassNoSpeech {
+		t.Fatalf("a lone [BLANK_AUDIO] ClassOf = %q, want no_speech", ClassOf(err))
+	}
+}

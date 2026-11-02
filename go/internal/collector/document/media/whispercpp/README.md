@@ -165,10 +165,11 @@ process-group kill.
 
 Segments that are only an annotation (`[BLANK_AUDIO]`, `(silence)`,
 `*music*`, `♪`) are dropped and counted, unless the annotation holds a
-sensitive keyword (`media.ContainsSensitiveKeyword`). whisper.cpp can wrap
-quiet speech in brackets, so "(The password is)" is kept and reaches
-`media.Extract`, which withholds it and opens the value window (#9788). The
-engine never redacts. A run with no remaining segments returns
+sensitive keyword (`media.ContainsSensitiveKeyword`). A model can put speech in
+brackets, so "(The password is)" is kept and reaches `media.Extract`, which
+withholds it and opens the value window (#9788). `base.en` was not seen to do
+this on synthetic speech; the guard closes a fail-open path. The engine never
+redacts. A run with no remaining segments returns
 `ClassNoSpeech`, wrapping `media.ErrNoSpeech`; a lone "(password)" is kept, so
 that run returns one segment instead. Confidence is the
 mean token probability over non-special tokens. Segment IDs are opaque

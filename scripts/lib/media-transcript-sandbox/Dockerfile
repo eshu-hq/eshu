@@ -13,7 +13,9 @@
 #              carry a password canary that redaction must remove. speech.wav
 #              says marker and value together. speech-split.wav puts an SSML
 #              silence between them so the value lands in its own segment
-#              (#9786).
+#              (#9786). speech-apikey.wav, speech-apikey-split.wav, and
+#              speech-pin.wav carry the spoken "API key" and "PIN" keyword
+#              forms (#9788), the second with the value in its own segment.
 #   proof    - alpine runtime with the binary, model, fixture, and the static
 #              Go test binary compiled with -tags whispercpp_sandbox.
 #
@@ -51,6 +53,12 @@ RUN mkdir -p /out && espeak-ng -v en-us -s 140 -w /out/speech.wav \
 	"Please restart the payments worker before noon. The password is swordfish."
 RUN espeak-ng -v en-us -s 140 -m -w /out/speech-split.wav \
 	'The password is as follows. <break time="3s"/> Swordfish.'
+RUN espeak-ng -v en-us -s 140 -w /out/speech-apikey.wav \
+	"The API key is swordfish."
+RUN espeak-ng -v en-us -s 140 -m -w /out/speech-apikey-split.wav \
+	'The API key is. <break time="3s"/> Swordfish.'
+RUN espeak-ng -v en-us -s 140 -w /out/speech-pin.wav \
+	"The PIN is swordfish."
 
 FROM ${ESHU_ALPINE_IMAGE} AS proof
 RUN apk add --no-cache libstdc++=14.2.0-r4 libgcc=14.2.0-r4 \
@@ -59,6 +67,9 @@ COPY --from=whisper /out/whisper-cli /opt/whisper/bin/whisper-cli
 COPY --from=model --chmod=0444 /out/ggml-base.en.bin /opt/whisper/models/ggml-base.en.bin
 COPY --from=fixture --chmod=0444 /out/speech.wav /opt/whisper/fixtures/speech.wav
 COPY --from=fixture --chmod=0444 /out/speech-split.wav /opt/whisper/fixtures/speech-split.wav
+COPY --from=fixture --chmod=0444 /out/speech-apikey.wav /opt/whisper/fixtures/speech-apikey.wav
+COPY --from=fixture --chmod=0444 /out/speech-apikey-split.wav /opt/whisper/fixtures/speech-apikey-split.wav
+COPY --from=fixture --chmod=0444 /out/speech-pin.wav /opt/whisper/fixtures/speech-pin.wav
 COPY --chmod=0555 whispercpp.test /opt/whisper/proof/whispercpp.test
 USER 65532:65532
 ENTRYPOINT ["/opt/whisper/proof/whispercpp.test"]

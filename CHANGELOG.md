@@ -58,16 +58,19 @@ recent shipped work grouped by feature area.
   secret keyword**
   ([#9788](https://github.com/eshu-hq/eshu/issues/9788)). "Pass word",
   "pass-word", "API key", "private key", `passphrase`, `passcode`, `passwd`,
-  `pwd`, `credential`, `token`, `PIN`, and "P.I.N." are matched now, after the
+  `pwd`, `credential`, `secret`, `token`, `PIN`, and "P.I.N." are matched now,
+  and so is a keyword the engine splits across two segments, after the
   text is folded for case, accents, fullwidth forms, soft hyphens, zero-width
-  characters, and a bounded set of Cyrillic and Greek look-alikes. `token`
-  and `PIN` match as whole words, so "tokenize" and "spinning" stay clear.
-  Source names and mention hints keep the original list. On this repository's
-  docs the keyword hit rate went from 0.14% to 1.69% of sentences, and each hit
+  characters, and a bounded set of Cyrillic and Greek look-alikes. `secret`,
+  `token`, and `PIN` match as whole words, so "tokenize" and "spinning" stay
+  clear, and "a secret garden" is withheld on purpose. Source names and mention
+  hints keep the original list. On this repository's docs the keyword hit rate
+  went from 0.14% to 2.01% of sentences, and each hit
   costs the next two segments of speech. The whisper.cpp engine also stops
   dropping a bracketed segment such as "(The password is)" when it holds a
-  keyword; `media.Extract` redacts it. Nothing calls the transcript path in
-  production yet.
+  keyword; `media.Extract` redacts it. The media transcript sandbox proof now
+  covers spoken "API key" and "PIN" fixtures against the real binary. Nothing
+  calls the transcript path in production yet.
 
 ### Extension-host extraction: remote claim client seam, eshu-workflow v0.1.0 pin
 

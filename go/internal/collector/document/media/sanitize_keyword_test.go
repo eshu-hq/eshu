@@ -281,6 +281,13 @@ func TestValueWindowOpensOnKeywordSplitAcrossSegments(t *testing.T) {
 			timedSegment("key is", 2000), timedSegment("The API", 1000), timedSegment("swordfish.", 3000),
 		}, []bool{true, false, true}},
 		{
+			"pair only in slice order",
+			[]Segment{
+				timedSegment("The API", 3000), timedSegment("key is", 1000), timedSegment("swordfish.", 2000),
+			},
+			[]bool{false, true, true},
+		},
+		{
 			"keyword alone does not also straddle", sequentialSegments("The api key", "key is", "swordfish.", "hunter2.", "Restart the worker."),
 			[]bool{false, true, true, false, false},
 		},

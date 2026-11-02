@@ -45,12 +45,13 @@ type parsedOutput struct {
 }
 
 // keepsAnnotation reports whether a bracketed annotation must reach
-// media.Extract anyway. whisper.cpp wraps quiet or unclear speech in brackets,
-// so "(The password is)" is a spoken keyword, and dropping it here would leave
-// the value after it with no window to cover it (#9788). The engine only stops
+// media.Extract anyway. A model can put speech inside brackets, and a dropped
+// "(The password is)" would leave the value after it with no window to cover it
+// (#9788). base.en on synthetic speech was not seen to do this; the guard
+// closes a fail-open path at the cost of one call. The engine only stops
 // dropping the segment. Redaction stays in media.Extract, which withholds the
-// text and opens the value window. The known non-speech tags hold no keyword,
-// so they are still dropped.
+// text and opens the value window. Annotations without a keyword, such as
+// "[BLANK_AUDIO]", are still dropped.
 func keepsAnnotation(text string) bool {
 	return docmedia.ContainsSensitiveKeyword(text)
 }

@@ -81,19 +81,26 @@ runs of 3,000 iterations each on arm64, went from a median of 8.27 ms/op to
 to 25,917). There is no backend, queue, or row count: this is in-memory work
 with no production caller, and it holds no lock and starts no worker.
 
-No-Regression Evidence: the spoken keyword fold (#9788) costs more per
-segment than the substring list it replaced. Baseline is `main` at `b31570ae74`
-(`containsLegacyKeyword`, one `strings.ToLower` and six `strings.Contains`
-calls); after is the committed fold and 18 phrase rules. A throwaway benchmark
-over 1,000 synthetic 85-character benign segments (the `whispercpp` segment
-cap), 5 runs of 300 iterations on arm64, measured at the #9788 head: the
-keyword pass went from 0.52-0.77 ms to 3.67-4.21 ms per 1,000 segments (about
-4 microseconds per segment), at the same 1,005 allocations and 96.7 KB.
-`valueSegments` took 3.77-5.45 ms per 1,000 segments. The check runs once in
-`valueSegments` and once in `persistedContent`, so a full 1,000-segment
-transcript pays about 8 ms more, in memory. There is no backend, queue, or row
-count: no production caller exists, and the work holds no lock and starts no
-worker.
+No-Regression Evidence: the spoken keyword fold (#9788) adds work per
+segment. Baseline is `main` at `b31570ae74`; after is the #9788 branch with the
+ASCII fold fast path, the split-segment join, and the keyword result computed
+once per segment and shared with `persistedContent`. A throwaway benchmark
+calls `buildSections` on 1,000 synthetic benign segments (arm64, 100 iterations
+by 5 runs on main, 40 by 4 on the branch). The `whispercpp` cap is 4,096
+characters per segment (`defaultMaxSegmentChars`) and 1,000 segments, so both a
+typical 85-character segment and the capped case were run:
+
+| Segment size | main | branch | Allocations |
+| --- | --- | --- | --- |
+| 85 characters | 12.6-16.7 ms | 13.2-13.4 ms | 26,917 to 28,914 |
+| 4,096 characters | 492-504 ms | 509-588 ms | 26,948 to 28,945 |
+
+The 85-character difference is inside main's run-to-run spread. The capped case
+costs about 15-20 ms more per 1,000 segments, about 4%. An earlier revision
+that joined whole segments and folded each segment twice measured 717-921 ms
+on the capped case, which is why the fast path, the 24-byte join edge, and the
+shared result exist. There is no backend, queue, or row count: no production
+caller exists, and the work holds no lock and starts no worker.
 
 Collector Observability Evidence: this package emits no facts outside the
 returned envelopes and has no runtime side effects. Future runtime wiring must
@@ -149,6 +156,14 @@ introduces it, so `Extract` does not judge segments only one at a time (#9786).
   but a keyword in it still opens one: its text was spoken.
 - Each keyword segment adds a full window, so stacked markers each cover their
   own value.
+- A keyword the engine splits across two consecutive segments ("The API", then
+  "key is"; "The pass", then "word is") opens a window at the second one, and
+  that segment is withheld too. The pair is the previous segment with a letter
+  or digit and the current one, in each walk's own order, and counts only when
+  neither holds a keyword alone, so one keyword never opens two windows. Only
+  the last 24 bytes of the first segment and the first 24 of the second are
+  joined, each cut at a word start or end, so the work is constant per pair.
+  Splitting a keyword into three or more segments is not caught.
 - The window is 2 so it covers an immediate value, plus a value the engine
   broke in two or a filler spoken before it. It stays small because every
   segment in the window loses its text.
@@ -176,44 +191,67 @@ forms a speech engine or an evasion produces fold to the same word:
   ideographic spaces), and combining accents fold away ("pássword").
 - Format characters are dropped: soft hyphen, zero-width space and joiners,
   word joiner, byte order mark, and bidirectional marks.
-- A bounded set of Cyrillic, Greek, and Latin look-alikes of the keyword
-  letters folds to Latin (`homoglyphs` in `spoken_keyword.go`). It is not the
-  full Unicode confusables table.
-- A run of white space, dash, `_`, or `.` becomes one space, so "pass word",
-  "pass-word", "pass_word", "pass.word", "API key", and "P.I.N." fold like their
-  joined forms.
+- A bounded set of Cyrillic, Greek, and Latin look-alikes of the letters the
+  keywords use (a c d e h i k l m n o p r s t v w y) folds to Latin
+  (`homoglyphs` in `spoken_keyword.go`). A capital folds through its lower-case
+  form, except Greek capital nu (N) and upsilon (Y). It is not the full Unicode
+  confusables table.
+- A run of white space, dash, `_`, `.`, or `,` becomes one space, so "pass
+  word", "pass-word", "pass_word", "pass.word", "API key", "P.I.N.", and "P, I,
+  N" fold like their joined or spaced forms.
 
 The folded text is matched against `spokenKeywordRules`. The boundary of each
 rule is deliberate:
 
 | Rule | Words | Boundary | Why |
 | --- | --- | --- | --- |
-| Substring | `password`, `passphrase`, `passcode`, `passwd`, `pwd`, `credential`, `api key`, `apikey`, `private key`, and the `*_marker` keywords | none | No ordinary word contains them; "passwords" and "credentials" are the same vocabulary. This is the original behavior. |
-| Start-bounded | `pass word`, `pass phrase`, `pass code` | no letter before | "compass word" and "bypass wording" stay clear. |
-| Whole word | `token`, `tokens`, `pin`, `p i n` | no letter on either side | "tokenize", "tokenizer", "pinned", "spinning", "mapping", "shipping", "betoken", and "spin" stay clear. |
+| Substring | `password`, `passphrase`, `passcode`, `passwd`, `pwd`, `pincode`, `credential`, `api key`, `apikey`, `private key`, and the `*_marker` keywords | none | No ordinary word contains them; "passwords" and "credentials" are the same vocabulary. This is the original behavior. |
+| Start-bounded | `pass word`, `pass phrase`, `pass code`, `a p i key` | no letter before | "compass word" and "bypass wording" stay clear. |
+| Whole word | `secret`, `secrets`, `token`, `tokens`, `pin`, `p i n`, `p w d` | no letter on either side | "tokenize", "tokenizer", "pinned", "spinning", "mapping", "shipping", "betoken", "spin", "secretary", and "secretive" stay clear. |
+
+`secret` fails closed on purpose. "A secret garden" and "the secret of good
+bread" withhold the next two segments, which shows in section metadata, while a
+client secret that stays in clear text cannot be taken back. The OCR transcript
+lane (#9793) matches `secret` too, so the two word lists agree.
 
 Source names, document IDs, and mention hints keep the original substring list,
 because they are labels such as `token-service` and `pin-assignments.wav`, not
 speech. Only a transcript segment gets the folded rules.
 
 Measured cost, on 206,780 sentences of four or more words from this
-repository's `docs/public` and `docs/internal` Markdown (a security-heavy
-corpus, so an upper bound for ordinary meeting speech): the original list hit
-290 sentences (0.14%); the folded rules hit 3,492 (1.69%). The added hits came
-from `token` 1,216, `credential` 1,015, `pin` 581, `tokens` 307, `api key` 30,
-`pwd` 30, `private key` 17, `apikey` 5, and `passwd` 1. Each hit also withholds
-the next two segments with a letter or digit. The sandbox fixture sentences
-("Please restart the payments worker before noon.", "The password is
+repository's `docs/public` and `docs/internal` Markdown, split with the regular
+expression `[.!?]\s+` after dropping code fences, table rows, headings, and
+HTML lines: the original list hit 290 sentences (0.14%); the folded rules hit
+4,158 (2.01%). The added hits came from `token` 1,201, `credential` 1,015,
+`pin` 581, `secret` 419, `tokens` 296, `secrets` 273, `pwd` 30, `api key` 30,
+`private key` 17, `apikey` 5, and `passwd` 1 (each sentence counted once, under
+the first rule in list order that hit it). A second reading with a different
+sentence splitter, taken in review of the commit before `secret` was added,
+gave 244,300 sentences, 0.17% before and 1.76% after, so the figures move with
+the splitter. This corpus is the project's own security-heavy documentation,
+so it is a rough guide, not a bound for any other speech. Each hit also
+withholds the next two segments with a letter or digit. The sandbox fixture
+sentences ("Please restart the payments worker before noon.", "The password is
 swordfish.", "The password is as follows.", "Swordfish.") match as before.
 
+Against the real engine (`base.en`, v1.9.5, 16 kHz stdin path),
+`scripts/verify-media-transcript-sandbox.sh` heard the spoken forms as "The API
+key in swordfish.", "The API key is..." then "Swordfish", and "The P.I.N. in
+swordfish." Every segment was withheld and no segment text reached a fact. It
+also showed what the rules do not catch: "The pass <2 s silence> word is" came
+back as "The past." then "Where did sword fish?", with no keyword at all.
+
 The whisper.cpp engine drops a segment that is only a bracketed, parenthesized,
-starred, or music-note annotation, such as "[BLANK_AUDIO]". Whisper also wraps
-quiet speech that way, so "(The password is)" used to vanish before `Extract`
-could open a window for it. The engine now keeps an annotation that holds a
-keyword, using the exported `ContainsSensitiveKeyword`, and still redacts
-nothing; `Extract` withholds the text and opens the window. Other annotations
-are still dropped, and a dropped annotation that held a value is lost, not
-persisted.
+starred, or music-note annotation, such as "[BLANK_AUDIO]". A model can also put
+speech inside brackets, so a "(The password is)" segment would vanish before
+`Extract` could open a window for it. That was not observed from `base.en` on
+synthetic speech: espeak speech at six volume levels, with and without the
+espeak whisper voice, came back as plain text, or as `[BLANK_AUDIO]` when
+silent. The guard stays because the drop is a fail-open path and costs one
+function call. The engine keeps an annotation that holds a keyword, using the
+exported `ContainsSensitiveKeyword`, and still redacts nothing; `Extract`
+withholds the text and opens the window. Other annotations are still dropped,
+and a dropped annotation that held a value is lost, not persisted.
 
 Known limits:
 
@@ -223,9 +261,16 @@ Known limits:
 - Two self-redacting segments in a row, such as an email and a ticket, use up
   the window, so a value behind them keeps its text.
 - Only the forms above are matched. Leetspeak ("p4ssword"), a homoglyph outside
-  the bounded set, a misheard keyword, and unlisted secret words ("secret",
-  "passkey", "login") open no window and are not redacted.
+  the bounded set, a misheard keyword, and unlisted secret words ("passkey",
+  "login") open no window and are not redacted.
 - `tokenized`, `tokenizer`, and `pins` keep their text by design.
+- Characters not folded: invisible fillers such as U+3164, U+2800, and U+115F,
+  the combining enclosing circle U+20DD, the middle dot, the minus sign U+2212,
+  and `/` and `:` as separators. A CJK character next to `token` or `pin`
+  counts as a letter, so the whole-word rule does not fire there.
+- Spelling a keyword letter by letter ("p a s s w o r d") is not matched,
+  except `p i n`, `p w d`, and `a p i key`.
+- A keyword split across three or more segments is not caught.
 
 ## Gotchas / invariants
 
