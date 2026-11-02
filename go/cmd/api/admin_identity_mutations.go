@@ -17,18 +17,21 @@ import (
 )
 
 // newAdminIdentityMutationHandler wires the tenant-scoped admin identity
-// mutation endpoints over Postgres. The handler is nil-safe: a nil database
-// yields a handler whose store is nil, so each route returns 503 rather than
-// panicking. The audit appender is shared with the read/recovery paths.
+// mutation endpoints over the versioned #8872 admission contract, not a
+// *sql.DB writer handle: the caller binds the core-owned Postgres adapter
+// and the handler carries the port. The handler is nil-safe: a nil store
+// (including a typed-nil port implementation of any dynamic type,
+// unwrapped here) yields a handler whose store is nil, so each route
+// returns 503 rather than panicking. The audit appender is shared with
+// the read/recovery paths.
 func newAdminIdentityMutationHandler(
-	database *sql.DB,
-	instruments *telemetry.Instruments,
+	store query.AdminIdentityAdmission,
 	governanceAudit query.GovernanceAuditSummaryReader,
 ) *query.AdminIdentityMutationHandler {
 	handler := &query.AdminIdentityMutationHandler{
 		Audit: adminRecoveryAuditAppender(governanceAudit),
 	}
-	if store := newPostgresAdminIdentityMutationAdapter(database, instruments); store != nil {
+	if store = unwrapNilAdmissionPort(store); store != nil {
 		handler.Store = store
 	}
 	return handler
@@ -41,6 +44,8 @@ func newAdminIdentityMutationHandler(
 type postgresAdminIdentityMutationAdapter struct {
 	store *pgstatus.IdentitySubjectStore
 }
+
+var _ query.AdminIdentityAdmission = (*postgresAdminIdentityMutationAdapter)(nil)
 
 func newPostgresAdminIdentityMutationAdapter(
 	rawDB *sql.DB,

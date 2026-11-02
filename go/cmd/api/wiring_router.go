@@ -135,7 +135,7 @@ func newRouterWithSemanticEmbeddingWithReadStore(
 		BrowserSessions:        newBrowserSessionHandler(writer, instruments, cookieSecureMode),
 		SessionList:            newBrowserSessionListHandler(writer, instruments),
 		AdminIdentityReads:     newAdminIdentityReadHandlerWithAuditReadStore(writer, reader, instruments, auditRead, logger),
-		AdminIdentityMutations: newAdminIdentityMutationHandler(writer, instruments, governanceAudit),
+		AdminIdentityMutations: newAdminIdentityMutationHandler(newPostgresAdminIdentityMutationAdapter(writer, instruments), governanceAudit),
 		Profile:                newProfileHandler(writer, instruments, governanceAudit),
 		Repositories: &query.RepositoryHandler{
 			Neo4j:                      neo4jReader,

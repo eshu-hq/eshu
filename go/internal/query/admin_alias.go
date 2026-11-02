@@ -238,6 +238,12 @@ type AdminGovernanceAuditReader = identity.GovernanceAuditReader
 // query.AdminIdentityMutationStore unchanged. See #6060.
 type AdminIdentityMutationStore = identity.MutationStore
 
+// AdminIdentityAdmission is the versioned #8872 admission-contract port
+// for tenant-scoped admin identity mutations. Its home is
+// admin/identity/; this alias keeps the cmd/api constructors spelling
+// query.AdminIdentityAdmission.
+type AdminIdentityAdmission = identity.AdminIdentityAdmission
+
 // AdminInvitationRevokeRequest revokes one invitation in the caller's
 // tenant/workspace. Its home is admin/identity/. See #6060.
 type AdminInvitationRevokeRequest = identity.InvitationRevokeRequest
