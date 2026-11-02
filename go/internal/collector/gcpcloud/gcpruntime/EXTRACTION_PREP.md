@@ -1,8 +1,9 @@
 # GCP Cloud Collector — Extraction Prep Census (`#8856`)
 
-Status: **PREP ONLY**. No code moves, no repo creation, no deploy, no in-tree
-removal. This manifest records the current in-tree truth so the cutover gate
-(`#4047`) can compare in-tree and external outputs on identical inputs.
+Status: **SUPERSEDED by the #8856 in-tree removal**. No further moves planned.
+This manifest recorded the pre-removal in-tree truth so the cutover gate
+(`#4047`) could compare in-tree and external outputs on identical inputs;
+it now stands as the removal record.
 
 Scope: `go/cmd/collector-gcp-cloud/` and
 `go/internal/collector/gcpcloud/` (including `gcpruntime/`, `catalog/`,
