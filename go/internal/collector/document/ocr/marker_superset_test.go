@@ -40,7 +40,7 @@ func TestContainsMarkerWordKeepsTheLabelsTheOldListCaught(t *testing.T) {
 
 	for _, text := range []string{
 		"API_KEY2: sk_live_abc123", "STRIPE_API_KEY1=sk_live_abc123", "PRIVATE_KEY1:", "API_KEYID", "private_keyfile",
-		"API_kEY", "API_keyS", "Private_KeyFile", "x_api_key_x", "éprivate_keyfile", "日本API_KEYID",
+		"API_kEY", "API_keyS", "Private_KeyFile", "x_api_key_x", "éprivate_keyfile", "日本API_KEYID", "private_\u212Aeyfile",
 	} {
 		if !containsMarkerWord(text) {
 			t.Errorf("containsMarkerWord(%q) = false, want true", text)
