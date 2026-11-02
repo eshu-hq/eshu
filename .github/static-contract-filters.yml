@@ -60,6 +60,7 @@ telemetry:
   - 'go/internal/**'
   - 'go/cmd/**'
   - 'docs/public/observability/telemetry-coverage.md'
+  - 'docs/public/observability/telemetry-coverage-*.md'
   - 'scripts/*verify-telemetry-coverage*.sh'
   - 'scripts/lib/telemetry-coverage-*.sh'
   - 'scripts/lib/test-verify-telemetry-coverage-*'

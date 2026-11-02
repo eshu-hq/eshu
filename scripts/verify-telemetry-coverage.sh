@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
 # verify-telemetry-coverage.sh — fail if docs/public/observability/telemetry-coverage.md
-# drifts from go/internal/telemetry/instruments.go, or if a new pipeline stage
-# is added under go/internal/ or go/cmd/collector-* without a corresponding
-# row in the X1 doc.
+# or one of its telemetry-coverage-<area>.md parts (#9789) drifts from
+# go/internal/telemetry/instruments.go, or if a new pipeline stage is added
+# under go/internal/ or go/cmd/collector-* without a row in the X1 doc set.
 #
 # This is the X2 static-analysis gate. It is the load-bearing piece of the
 # "every pipeline stage must register telemetry" policy in
@@ -96,6 +96,9 @@ if [ ! -f "$repo_root/$instruments_path" ]; then
   printf 'verify-telemetry-coverage: %s is missing\n' "$instruments_path" >&2
   exit 1
 fi
+# shellcheck source=scripts/lib/telemetry-coverage-doc-files.sh
+source "${script_dir}/lib/telemetry-coverage-doc-files.sh"
+collect_telemetry_coverage_doc_files
 
 doc_required_tmp="$(mktemp)"
 doc_documented_tmp="$(mktemp)"
@@ -123,7 +126,7 @@ trap 'rm -f "$doc_required_tmp" "$doc_documented_tmp" "$doc_files_tmp" "$instrum
 # below), so broadening this selector cannot let them slip through as data.
 all_rows_tmp="$(mktemp)"
 trap 'rm -f "$doc_required_tmp" "$doc_documented_tmp" "$doc_files_tmp" "$instruments_metrics_tmp" "$new_stages_tmp" "$tmp_diff" "$all_rows_tmp"' EXIT
-rg -N --no-line-number '^\|' "$repo_root/$doc_path" >"$all_rows_tmp" 2>/dev/null || true
+rg -N --no-filename '^\|' "${DOC_FILES[@]}" >"$all_rows_tmp" 2>/dev/null || true
 
 # doc_documented_tmp: every eshu_dp_* name mentioned anywhere in a table
 # row. Used for the instruments.go -> doc check (a registered metric must
@@ -232,7 +235,7 @@ fi
 # metric column counts as covered if it names a registered eshu_dp_* metric,
 # carries the No-Observability-Change: marker, or (the real X1 doc's own
 # narrower convention for structured-log-key rows that are pure correlation
-# identifiers, e.g. telemetry-coverage.md:755,760) starts with the literal
+# identifiers, e.g. the structured-log-key rows) starts with the literal
 # "(no metric" prefix. Before this helper existed, (3)'s has_signal test and
 # (3b)'s guard were two independently written regexes; (3b) had drifted to a
 # bare `[ -z "$metric_cell" ]` blank-only test, so a metric cell of `TODO` or
@@ -298,6 +301,7 @@ fi
 
 drift=0
 report=""
+check_telemetry_coverage_parts_linked
 
 # (1) Doc mentions a metric that is not registered in instruments.go.
 # This is the spec's "missing metric registration" failure.
@@ -482,7 +486,7 @@ if [ "$drift" -ne 0 ]; then
     printf '\nDrift between %s and %s (base: %s):\n' "$doc_path" "$instruments_path" "$base"
     printf '%s' "$report"
     printf '\nFix one of:\n'
-    printf '  - Add a row to %s that names the new stage and the registered metric(s)\n' "$doc_path"
+    printf '  - Add a row to the part linked from %s that names the new stage and metric(s)\n' "$doc_path"
     printf '  - Add the missing metric to %s, OR remove it if it is dead code\n' "$instruments_path"
     printf '  - Replace the metric column with a No-Observability-Change: marker that names\n'
     printf '    the existing signal that already covers the stage\n'
