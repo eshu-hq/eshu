@@ -154,14 +154,17 @@ unchanged.
 - No-Regression Evidence: baseline `go test
   ./internal/collector/gcpcloud/... -count=1` at `origin/main` = all pass
   (gcpcloud 0.024s, catalog 0.003s, serverless 0.006-0.007s, freshness
-  0.003s, gcpruntime 0.011s); after the change the same command = all pass
-  with per-package times identical within noise
-  (0.024s/0.003s/0.006s/0.003s/0.011s). The assignment copies one string
+  0.003s, gcpruntime 0.011s); after the change the same command = all pass.
+  Re-measured at head `01fe4c61d5` (includes the new `TestGCP8856Mirror*`
+  tests): gcpcloud 0.098s, catalog 0.005s, serverless 0.007s, freshness
+  0.003s, gcpruntime 0.036s — same suite, larger because the mirror tests
+  drain two extra live scans. The assignment copies one string
   header per mirror envelope with no allocation and no hot-path cost delta.
   Behavior delta is the intended one only: the 3 mirror kinds stamp
   `collector_kind "gcp"` (parity pack Attrs-only diff), proven by the
-  RED-then-GREEN `TestGCP8856ParityLiveAgreesWithFixturePack` and the new
-  `TestGCP8856Join*` tests.
+  RED-then-GREEN `TestGCP8856ParityLiveAgreesWithFixturePack`, the new
+  `TestGCP8856Join*` tests, and the new `TestGCP8856MirrorEnvelopesJoin` /
+  `TestGCP8856MirrorPayloadsStableAcrossScans` tests.
 - No-Observability-Change: the re-stamp registers no metric, span, log, or
   status; `CollectorKind` is not a metric label (labels stay bounded enums in
   `metrics.go`), and emission counts per fact kind are unchanged.
