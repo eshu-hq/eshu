@@ -42,7 +42,7 @@ multi-type table solely through explicit switch arms in
 | `observability_coverage` | named alternation (C), multi-type table | 5 `AWS_COVERS_*` types, both retract variants |
 | `security_group_sg_rule` | named alternation (C), multi-type table | `{ALLOWS_INGRESS, ALLOWS_EGRESS}` |
 | `semantic_entity_containment` | excluded, stays waived | none |
-| `cloud_resource` | uncovered by design, stays waived | none |
+| `cloud_resource` | uncovered by design, stays waived — SUPERSEDED: route 2 plus the #6228 live leaf landed (see note under "Why cloud_resource stays uncovered"); the ledger is now the source of truth | none |
 
 A correction the ruling forced: only `cloud_resource` has an open vocabulary.
 `observability_coverage` (5 closed `AWS_COVERS_*` types, screened per row
@@ -107,6 +107,13 @@ rows. Registering the family under either kind today would bless the
 over-deletion.
 
 ## Why cloud_resource stays uncovered
+
+> Supersession note (#6228 live leaf): route 2 landed — the predicate-scoped
+> scan, Odù, expected-edge fixture, predicate registration, and matrix wiring
+> — and both live matrices drove the family green, so the waiver rows retired
+> and the ledger (`specs/ifa-materialized-edge-coverage-direct.v1.yaml`) is
+> now the source of truth for this family. The verdict text below is retained
+> as the historical record of why route 2 was required.
 
 `WriteCloudResourceEdges` merges a per-row `AWS_<relationship_type>` drawn
 from an open per-provider vocabulary: no closed set exists to name in an
