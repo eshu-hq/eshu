@@ -159,7 +159,9 @@ chaining? `eshu_dp_projector_delta_union_total{outcome="union_base_found"}`
 rises while
 `eshu_dp_projector_delta_baseline_fence_total{outcome="refused_base_missing"}`
 and `eshu_dp_collector_reconciliation_full_snapshots_total{reason="repository_reindex_requested"}`
-stay flat.
+stay flat. The `union_base_found` counter is not currently emitted on this
+path (see Gap in After-measurement; wiring tracked in #9890), so until then
+chaining is corroborated from DB counts, not from that counter.
 
 ## After-measurement (hosted QA, 2026-11-02, pinned image)
 
