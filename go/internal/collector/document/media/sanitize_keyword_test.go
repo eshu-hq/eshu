@@ -125,6 +125,26 @@ func TestContainsSensitiveKeywordSpokenForms(t *testing.T) {
 		{"cyrillic ha as h", "the pass p\u04bbrase is", true},
 		{"small nu stays v", "the pri\u03bdate key is", true},
 
+		// R1: capital look-alikes of h. Cyrillic en and Greek eta look like H.
+		{"cyrillic small en as h", "the passp\u043drase is", true},
+		{"cyrillic capital en as h", "the PASSP\u041dRASE is", true},
+		{"greek capital eta as h", "the PASSP\u0397RASE is", true},
+		{"greek small eta still n", "the pi\u03b7 is", true},
+
+		// R2: access key and privatekey.
+		{"access key", "The access key is", true},
+		{"access_key underscore", "the access_key is", true},
+		{"access-key", "the access-key is", true},
+		{"AccessKey", "the AccessKey is", true},
+		{"accesskey", "the accesskey is", true},
+		{"access keys", "the access keys are", true},
+		{"AWS access key id", "the AWS access key id is", true},
+		{"privatekey joined", "the privatekey is", true},
+		{"PrivateKey joined", "the PrivateKey is", true},
+		{"access keyboard stays clear", "the access keyboard layout", false},
+		{"accessible keyboard stays clear", "an accessible keyboard", false},
+		{"access to the key stays clear", "access to the key", false},
+
 		// Ordinary words stay clear.
 		{"empty", "", false},
 		{"ordinary speech", "Restart the payments worker.", false},
@@ -305,5 +325,22 @@ func TestValueWindowOpensOnKeywordSplitAcrossSegments(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestFoldSpokenCapitalLookalikes pins the letter each capital look-alike
+// folds to. Greek capital eta and Cyrillic en look like H, but the lower-case
+// eta looks like n, so the capitals cannot ride the lower-case table.
+func TestFoldSpokenCapitalLookalikes(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]string{
+		"\u041d": "h", "\u043d": "h", "\u0397": "h", "\u03b7": "n", "\u039d": "n", "\u03bd": "v",
+		"\u03a5": "y", "\u039c": "m", "\u041c": "m", "\u0410": "a", "\u0391": "a", "\u0420": "p", "\u03a1": "p",
+	}
+	for in, want := range tests {
+		if got := foldSpoken(in); got != want {
+			t.Fatalf("foldSpoken(%U) = %q, want %q", []rune(in)[0], got, want)
+		}
 	}
 }

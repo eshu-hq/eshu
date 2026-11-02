@@ -29,13 +29,16 @@ type phraseRule struct {
 // The boundary choice for each rule is deliberate:
 //
 //   - Substring (no flags): password, passphrase, passcode, passwd, pwd,
-//     pincode, credential, api key, private key, and the *_marker test
-//     keywords. None is a fragment of an ordinary English word, and a hit
+//     pincode, credential, api key, apikey, private key, privatekey, and the
+//     *_marker test keywords. None is a fragment of an ordinary English word, and a hit
 //     inside a longer word ("credentials", "passwords") is the same secret
 //     vocabulary.
 //   - Start-bounded: the split spellings "pass word", "pass phrase", and
-//     "pass code". Unbounded they would fire inside "compass word" or "bypass
-//     wording". The joined spellings need no bound.
+//     "pass code", the spelled-out "a p i key", and "accesskey". Unbounded they
+//     would fire inside "compass word" or "bypass wording". The joined
+//     spellings of pass word, pass phrase, and pass code need no bound.
+//   - Whole word, access key: "access key" and "access keys" are bounded on both
+//     sides so "access keyboard" stays clear.
 //   - Whole word: secret, secrets, token, tokens, pin, and the spelled-out
 //     p i n and p w d. A substring "token" would redact "tokenize" and
 //     "tokenizer", and "pin" would redact "spinning", "pinned", "mapping", and
@@ -55,12 +58,16 @@ var spokenKeywordRules = []phraseRule{
 	{phrase: "api key"},
 	{phrase: "apikey"},
 	{phrase: "private key"},
+	{phrase: "privatekey"},
 	{phrase: "secret marker"},
 	{phrase: "token marker"},
 	{phrase: "pass word", before: true},
 	{phrase: "pass phrase", before: true},
 	{phrase: "pass code", before: true},
 	{phrase: "a p i key", before: true},
+	{phrase: "accesskey", before: true},
+	{phrase: "access key", before: true, after: true},
+	{phrase: "access keys", before: true, after: true},
 	{phrase: "secret", before: true, after: true},
 	{phrase: "secrets", before: true, after: true},
 	{phrase: "token", before: true, after: true},
@@ -76,13 +83,13 @@ var spokenKeywordRules = []phraseRule{
 // look-alike for a letter no keyword uses is not worth a rule, and a letter
 // outside this set is a documented limit. foldSpoken lower-cases a rune before
 // it looks here, so a capital look-alike folds through its lower-case form,
-// except the two in capitalHomoglyphs.
+// except the ones in capitalHomoglyphs.
 var homoglyphs = map[rune]rune{
 	// Cyrillic.
 	'\u0430': 'a', '\u0435': 'e', '\u043e': 'o', '\u0440': 'p', '\u0441': 'c',
 	'\u0443': 'y', '\u0456': 'i', '\u0455': 's', '\u04bb': 'h', '\u0501': 'd',
 	'\u051d': 'w', '\u043a': 'k', '\u0475': 'v', '\u0442': 't', '\u043c': 'm',
-	'\u043f': 'n', '\u04cf': 'l',
+	'\u043f': 'n', '\u04cf': 'l', '\u043d': 'h',
 	// Greek.
 	'\u03bf': 'o', '\u03c1': 'p', '\u03bd': 'v', '\u03b1': 'a', '\u03b5': 'e',
 	'\u03b9': 'i', '\u03ba': 'k', '\u03c4': 't', '\u03b7': 'n',
@@ -91,10 +98,12 @@ var homoglyphs = map[rune]rune{
 }
 
 // capitalHomoglyphs holds the capitals whose lower-case form looks like a
-// different letter: Greek capital nu looks like N, but small nu looks like v;
-// Greek capital upsilon looks like Y.
+// different letter than the capital does: Greek capital nu looks like N but
+// small nu looks like v; capital upsilon looks like Y; capital eta looks like H
+// but small eta looks like n; capital mu looks like M. Cyrillic capital en
+// folds through its small form, which looks like H too.
 var capitalHomoglyphs = map[rune]rune{
-	'\u039d': 'n', '\u03a5': 'y',
+	'\u039d': 'n', '\u03a5': 'y', '\u0397': 'h', '\u039c': 'm',
 }
 
 // containsSpokenKeyword reports whether the folded form of text holds a spoken

@@ -95,8 +95,10 @@ typical 85-character segment and the capped case were run:
 | 85 characters | 12.6-16.7 ms | 13.2-13.4 ms | 26,917 to 28,914 |
 | 4,096 characters | 492-504 ms | 509-588 ms | 26,948 to 28,945 |
 
-The 85-character difference is inside main's run-to-run spread. The capped case
-costs about 15-20 ms more per 1,000 segments, about 4%. An earlier revision
+The 85-character difference did not resolve. My runs overlapped main's spread,
+but a re-measurement in review gave main 12.2-13.9 ms and the branch 14.1-14.3
+ms, about 15% more. Read it as up to 15% at a typical segment size. The capped
+case costs about 15-20 ms more per 1,000 segments, 3-4%. An earlier revision
 that joined whole segments and folded each segment twice measured 717-921 ms
 on the capped case, which is why the fast path, the 24-byte join edge, and the
 shared result exist. There is no backend, queue, or row count: no production
@@ -156,15 +158,19 @@ introduces it, so `Extract` does not judge segments only one at a time (#9786).
   but a keyword in it still opens one: its text was spoken.
 - Each keyword segment adds a full window, so stacked markers each cover their
   own value.
-- A keyword the engine splits across two consecutive segments ("The API", then
-  "key is"; "The pass", then "word is") opens a window at the second one, and
-  that segment is withheld too. The pair is the previous segment with a letter
+- A multi-word keyword that the engine splits at a space across two
+  consecutive segments ("The API", then "key is"; "The pass", then "word is";
+  "The access", then "key is") opens a window at the second one, and that
+  segment is withheld too. The pair is the previous segment with a letter
   or digit and the current one, in each walk's own order, and counts only when
   neither holds a keyword alone, so one keyword never opens two windows. Only
   the last 24 bytes of the first segment and the first 24 of the second are
   joined, so the work is constant per pair; a cut inside a word leaves a
   placeholder letter, so a long word beside the join is kept and a cut cannot
-  fake a word boundary.
+  fake a word boundary. The join is a space, so only a rule with a space in it
+  can match across the join. A split inside a word ("to", then "ken"; "cred",
+  then "ential"; "pass", then "wd") opens no window, and joining without a
+  space is not done because it would match ordinary English ("up" then "in").
   Splitting a keyword into three or more segments is not caught.
 - The window is 2 so it covers an immediate value, plus a value the engine
   broke in two or a filler spoken before it. It stays small because every
@@ -196,8 +202,13 @@ forms a speech engine or an evasion produces fold to the same word:
 - A bounded set of Cyrillic, Greek, and Latin look-alikes of the letters the
   keywords use (a c d e h i k l m n o p r s t v w y) folds to Latin
   (`homoglyphs` in `spoken_keyword.go`). A capital folds through its lower-case
-  form, except Greek capital nu (N) and upsilon (Y). It is not the full Unicode
-  confusables table.
+  form, except the ones in `capitalHomoglyphs`, whose lower-case form looks like
+  a different letter: Greek capital nu (N), upsilon (Y), eta (H), and mu (M).
+  Cyrillic capital en folds through its small form, which also looks like H. It
+  is not the full Unicode confusables table. A sweep of every code point
+  against the first #9788 revision found that each rune that folded to a keyword
+  letter there still does, except Greek capital nu, which now folds to n, not
+  v.
 - A run of white space, dash, `_`, `.`, or `,` becomes one space, so "pass
   word", "pass-word", "pass_word", "pass.word", "API key", "P.I.N.", and "P, I,
   N" fold like their joined or spaced forms.
@@ -207,14 +218,30 @@ rule is deliberate:
 
 | Rule | Words | Boundary | Why |
 | --- | --- | --- | --- |
-| Substring | `password`, `passphrase`, `passcode`, `passwd`, `pwd`, `pincode`, `credential`, `api key`, `apikey`, `private key`, and the `*_marker` keywords | none | No ordinary word contains them; "passwords" and "credentials" are the same vocabulary. This is the original behavior. |
-| Start-bounded | `pass word`, `pass phrase`, `pass code`, `a p i key` | no letter before | "compass word" and "bypass wording" stay clear. |
-| Whole word | `secret`, `secrets`, `token`, `tokens`, `pin`, `p i n`, `p w d` | no letter on either side | "tokenize", "tokenizer", "pinned", "spinning", "mapping", "shipping", "betoken", "spin", "secretary", and "secretive" stay clear. |
+| Substring | `password`, `passphrase`, `passcode`, `passwd`, `pwd`, `pincode`, `credential`, `api key`, `apikey`, `private key`, `privatekey`, and the `*_marker` keywords | none | No ordinary word contains them; "passwords" and "credentials" are the same vocabulary. This is the original behavior. |
+| Start-bounded | `pass word`, `pass phrase`, `pass code`, `a p i key`, `accesskey` | no letter before | "compass word" and "bypass wording" stay clear. |
+| Whole word | `secret`, `secrets`, `token`, `tokens`, `pin`, `p i n`, `p w d`, `access key`, `access keys` | no letter on either side | "tokenize", "tokenizer", "pinned", "spinning", "mapping", "shipping", "betoken", "spin", "secretary", "secretive", and "access keyboard" stay clear. |
 
 `secret` fails closed on purpose. "A secret garden" and "the secret of good
 bread" withhold the next two segments, which shows in section metadata, while a
-client secret that stays in clear text cannot be taken back. The OCR transcript
-lane (#9793) matches `secret` too, so the two word lists agree.
+client secret that stays in clear text cannot be taken back.
+
+The OCR lane (#9793) keeps its own list for text read from a picture. The two
+lists cover the same secret words, with differences that follow from the input:
+
+- Digit-for-letter reads (`passw0rd`, `p4ssword`, `s3cret`) are OCR only. A
+  speech engine writes letters.
+- Spelled-out letters (`P I N`, `A.P.I. key`, `P-W-D`) and the homoglyph fold
+  are speech only.
+- Joined compounds (`clientsecret`, `accesstoken`, `authtoken`, `apitoken`) are
+  OCR only. A speech engine writes them as separate words, which the whole-word
+  rules already match.
+- `pins` is matched by OCR and kept clear here by design.
+- `pwd` is a substring here and a whole word in OCR.
+- `accesskey` is matched here after lower-casing, so "AccessKey" and "accesskey"
+  both hit. OCR matches "AccessKey" by splitting it at the case change, but it
+  reads an all-lower "accesskey" as one word and does not match it. Both lists
+  leave out `passkey` and `login`.
 
 Source names, document IDs, and mention hints keep the original substring list,
 because they are labels such as `token-service` and `pin-assignments.wav`, not
@@ -230,7 +257,10 @@ HTML lines: the original list hit 290 sentences (0.14%); the folded rules hit
 the first rule in list order that hit it). A second reading with a different
 sentence splitter, taken in review of the commit before `secret` was added,
 gave 244,300 sentences, 0.17% before and 1.76% after, so the figures move with
-the splitter. This corpus is the project's own security-heavy documentation,
+the splitter. Rerunning the count in review reproduced it only approximately
+(200,003 sentences, 0.11% before and 1.99% after, `pwd` 3 hits, not 30),
+because the documentation changes between runs; treat every figure here as
+approximate. This corpus is the project's own security-heavy documentation,
 so it is a rough guide, not a bound for any other speech. Each hit also
 withholds the next two segments with a letter or digit. The sandbox fixture
 sentences ("Please restart the payments worker before noon.", "The password is
@@ -272,7 +302,14 @@ Known limits:
   counts as a letter, so the whole-word rule does not fire there.
 - Spelling a keyword letter by letter ("p a s s w o r d") is not matched,
   except `p i n`, `p w d`, and `a p i key`.
-- A keyword split across three or more segments is not caught.
+- A keyword split across three or more segments is not caught, and a split
+  inside a word ("to", then "ken") opens no window.
+- A half that follows a segment with a keyword of its own is not joined, so a
+  split keyword there opens no second window. "The password is the API", then
+  "key is swordfish." is covered only by the first window.
+- A bracketed half such as "(The API)" is dropped by the engine as an annotation
+  unless it holds a keyword alone, so "(The API)", then "key is swordfish." opens
+  no window.
 
 ## Gotchas / invariants
 

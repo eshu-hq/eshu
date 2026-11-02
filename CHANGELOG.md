@@ -58,8 +58,9 @@ recent shipped work grouped by feature area.
   secret keyword**
   ([#9788](https://github.com/eshu-hq/eshu/issues/9788)). "Pass word",
   "pass-word", "API key", "private key", `passphrase`, `passcode`, `passwd`,
-  `pwd`, `credential`, `secret`, `token`, `PIN`, and "P.I.N." are matched now,
-  and so is a keyword the engine splits across two segments, after the
+  `pwd`, `credential`, `secret`, `token`, `PIN`, "access key", and "P.I.N."
+  are matched now, and so is a multi-word keyword the engine splits at a space
+  across two segments ("The API", then "key is"), after the
   text is folded for case, accents, fullwidth forms, soft hyphens, zero-width
   characters, and a bounded set of Cyrillic and Greek look-alikes. `secret`,
   `token`, and `PIN` match as whole words, so "tokenize" and "spinning" stay
