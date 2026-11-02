@@ -5,8 +5,8 @@
 // runs against.
 //
 // New reads ESHU_WORKFLOW_CLAIM_PLANE_URL once at startup. Unset or blank
-// returns the caller's Postgres store unchanged, so a deployment that never
-// sets the variable behaves exactly as before. A valid http or https URL
+// returns the caller's Postgres store unchanged, so the claim path is
+// unchanged; selection adds one startup log line and one counter tick. A valid http or https URL
 // returns a workflow.ClaimPlaneClient with a bounded HTTP timeout, bound to
 // the claim-plane request metrics. An invalid URL is a startup error naming
 // the variable. There is no fallback from the claim plane to Postgres: an

@@ -26,6 +26,7 @@ recent shipped work grouped by feature area.
   (`ESHU_PINNED_REFS_JSON`, `ESHU_PINNED_REF_PER_REPO_CAP`,
   `ESHU_PINNED_REF_FLEET_CAP`) are now in the environment variable registry,
   so docs that name them are no longer docs-cli-env-refs debt.
+
 ### Workflow claim plane: first production consumer
 
 - **Claim-aware collectors can claim from the `eshu-workflow` claim plane
