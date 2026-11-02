@@ -114,18 +114,22 @@ Halving the interval doubled the keys and reported a 28 year old slot. With a
 time key, a lower leaves nothing looking old. A raise has two shapes, because
 the new window start is the clock truncated to the wider interval and can fall
 before old-width windows that already opened. Every slot planned since that
-start looks newer than it. For a small factor the old window that opened exactly
-at the new start recorded slots, so the first new window reads
+start looks newer than it. For a small factor, if the old window that opened exactly
+at the new start ran, it recorded slots, so the first new window reads
 `same_bucket_reuse`, plans them again and writes nothing, and rotation resumes
-the next window. When the new interval is longer than one rotation at the old
-interval (P times the old interval; 32 hours at L = 1,500, P = 64), every row
-looks newer: the first new window moves 0 rows, its ticks count `lost_race`, the
+the next window (if that window was skipped, the first new window reads `oldest`
+and advances normally). When the new interval is longer than one rotation at the old
+interval (P times the old interval; 32 hours at L = 1,500, P = 64) and the
+change lands more than one old rotation past the new window's start (a 24 hour
+raise at 00:10 behaves like the small-factor case), every row looks newer: the first new window moves 0 rows, its ticks count `lost_race`, the
 gauge reads 0, and the next window plans the same slots again and resumes
 (review 3 reproduced a 24 hour raise after 40 warm 30 minute windows: 0 of 32
 moved, age 0, then 32 of 32 and a 20 hour age). No target is missed; the cost is
 one unrecorded window and one repeated group. An operator tells it from a real
 second coordinator by its length (one window, right after the change, gauge 0
-then recovering) where a real loser repeats. No migration is needed when an
+then recovering) where a real second coordinator keeps recurring with a normal
+gauge; its `lost_race` is sporadic, because a loser that ticks after the winner
+committed reads `same_bucket_reuse` and counts none. No migration is needed when an
 operator changes the interval.
 
 Truncation: the final `ORDER BY` is `(virtual_slot, target_rank)`, so a read cut
@@ -191,6 +195,11 @@ so this change uses the next free number. If 270 lands first, rebase and
 re-derive the embedded count, the digest in `embed_invariant_test.go` and the
 manifest row in `migration_checksum_manifest_test.go`. Never edit an applied
 migration file.
+
+The header comment of migration 271 says a new key is below an old one by at
+most one window after a raise. Read as one window at the new width that is true,
+and it is the bound behind the raise-past-rotation case above. It stays as
+written so the shipped checksum does not change.
 
 ## Not checked
 

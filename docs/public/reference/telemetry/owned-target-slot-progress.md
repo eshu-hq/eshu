@@ -89,13 +89,18 @@ interval, which can fall before windows that already opened at the old width.
 A slot planned in such a window looks newer than the new window, so the new
 window cannot advance it. Two cases follow:
 
-- A raise by a small factor (30 minutes to 1 hour, say). The old window that
-  opened exactly at the new window start has recorded slots, so the first new
-  window reads `same_bucket_reuse`, plans those slots again and writes
-  nothing. The next window picks the oldest slots and the rotation resumes.
+- A raise by a small factor (30 minutes to 1 hour, say). If the old window
+  that opened exactly at the new window start ran, it recorded slots, so the
+  first new window reads `same_bucket_reuse`, plans those slots again and
+  writes nothing. The next window picks the oldest slots and the rotation
+  resumes. If that old window was skipped, the first new window reads `oldest`
+  and advances normally.
 - A raise to an interval longer than one full rotation at the old interval
   (P times the old interval; at a target limit of 1,500 with P = 64 that is 32
-  hours, so a raise to 2 days). Every row looks newer than the new window. The
+  hours, so a raise to 2 days), applied when the clock is more than one old
+  rotation past the new window's start (a 24 hour raise applied ten minutes
+  into the day behaves like the small-factor case). Every row looks newer than
+  the new window. The
   first new window's compare-and-set moves nothing, its ticks count
   `lost_race`, and the age gauge reads 0. The next window plans the same slots
   again, still at their old starts, and moves them; the rotation then runs
@@ -107,5 +112,9 @@ not recorded and one group planned twice.
 
 To tell this from a second coordinator doing the work: it lasts one window,
 starts right after the interval change, shows the gauge at 0 and then
-recovering, and `advanced` returns on the next window. A real loser counts
-`lost_race` on every window.
+recovering, and `advanced` returns on the next window. A real second
+coordinator does not stop after one window and has no interval change behind
+it: its gauge stays at its normal value, its repeat ticks count
+`same_bucket_reuse`, and `lost_race` recurs in later windows, but only
+sporadically, whenever its read overlaps the winner's. A loser that ticks after
+the winner has committed reads `same_bucket_reuse` and counts no `lost_race`.
