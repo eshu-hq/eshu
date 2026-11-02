@@ -11,6 +11,23 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query"
 )
 
+// TestWireSignInPolicyHandlersNilDatabaseYieldsNilStore proves the
+// production wiring path: a nil database yields a nil admission port, so
+// the mutation handler carries a true nil store and answers 503, never a
+// typed-nil interface that would hide from the nil-store check.
+func TestWireSignInPolicyHandlersNilDatabaseYieldsNilStore(t *testing.T) {
+	t.Parallel()
+
+	router := &query.APIRouter{LocalIdentity: &query.LocalIdentityHandler{}}
+	wireSignInPolicyHandlers(nil, nil, nil, router)
+	if router.SignInPolicyMutations == nil {
+		t.Fatal("wireSignInPolicyHandlers() left SignInPolicyMutations nil, want a handler with a nil store")
+	}
+	if router.SignInPolicyMutations.Store != nil {
+		t.Fatalf("wired handler Store = %T(%v), want nil for the 503 path", router.SignInPolicyMutations.Store, router.SignInPolicyMutations.Store)
+	}
+}
+
 // fakeSignInPolicyAdmission is a no-store admission port: the handler test
 // below proves the handler is built with the injected versioned admission
 // contract without opening a direct table handle.
@@ -45,9 +62,10 @@ func TestNewSignInPolicyMutationHandlerTakesAdmissionContract(t *testing.T) {
 }
 
 // TestNewSignInPolicyMutationHandlerNilAdmissionStaysNil proves the
-// nil-database convention: a nil admission port must stay a nil store so
-// the handler answers 503, never a typed-nil interface that would hide
-// from the nil-store check and panic on first use.
+// nil-database convention: a nil admission port must stay a nil store,
+// never a typed-nil interface that would hide from the nil-store check.
+// The 503 response itself is proven end to end by
+// TestAdminSignInPolicyUpdateNilStoreReturns503 in package query.
 func TestNewSignInPolicyMutationHandlerNilAdmissionStaysNil(t *testing.T) {
 	t.Parallel()
 
