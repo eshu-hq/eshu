@@ -56,13 +56,20 @@ type markerPhrase struct {
 	second        [][]byte
 }
 
-// plainRune maps a fullwidth ASCII letter or digit (U+FF01 to U+FF5E, as in
-// `Ｐａｓｓｗｏｒｄ`) to its ASCII form and lowercases the result.
-func plainRune(r rune) rune {
+// widthFold maps a fullwidth ASCII character (U+FF01 to U+FF5E, as in
+// `Ｐａｓｓｗｏｒｄ`, `ＡＰＩ＿ＫＥＹ`, and `Ｐ＠ss`) to its ASCII form. The scan applies it to
+// every rune before it classifies the rune, so a fullwidth letter, digit,
+// separator, or symbol behaves as its ASCII twin everywhere.
+func widthFold(r rune) rune {
 	if r >= 0xFF01 && r <= 0xFF5E {
-		r -= 0xFEE0
+		return r - 0xFEE0
 	}
-	return unicode.ToLower(r)
+	return r
+}
+
+// plainRune width-folds and lowercases r.
+func plainRune(r rune) rune {
+	return unicode.ToLower(widthFold(r))
 }
 
 // foldRune maps r onto the letter a marker word would spell: it applies
@@ -70,8 +77,9 @@ func plainRune(r rune) rune {
 // letter onto that letter: 0 for o, 3 for e, 4 and @ for a, 5 and $ for s. The
 // letters i and l and the digit 1 are one class, because a capital I, a
 // lowercase l, and a 1 look alike in most fonts. The one word that class
-// cannot bear is a short one: `PLN` is not a misread `PIN`, so a whole word
-// that holds a letter l never matches `pin` (see wordIsMarker). The map is
+// cannot bear is a short one: `PLN` is a currency, not a misread `PIN`, so a
+// whole word that holds a capital L never matches `pin` (see wordIsMarker). The
+// map is
 // exact, so it costs one rune lookup and finds no word that is not a marker
 // once folded.
 func foldRune(r rune) rune {
@@ -135,8 +143,10 @@ func containsMarkerWord(text string) bool {
 	piece, run, prev := pieceBuf[:0], runBuf[:0], prevBuf[:0] // the word, the run of letters and digits, and the word before
 	var prevRune rune                                         // the last word rune read, or 0 after a separator
 	// pieceTail and runTail are the lengths of piece and run without the
-	// digits at their end, so `token2` is the word `token`. pieceL and runL
-	// report a letter l, which the fold would otherwise read as i.
+	// digits at their end, so `token2` is the word `token`. A word that ends
+	// in a digit is also checked whole, because the fold reads that digit as a
+	// letter in `cod3`. pieceL and runL report a capital L, which the fold would
+	// otherwise read as i.
 	var pieceTail, runTail int
 	var pieceL, runL bool
 	// havePrev reports that prev holds a word. gapOK reports that only space,
@@ -148,7 +158,7 @@ func containsMarkerWord(text string) bool {
 		if !unicode.IsDigit(r) {
 			pieceTail, runTail = len(piece), len(run)
 		}
-		if plainRune(r) == 'l' {
+		if r == 'L' {
 			pieceL, runL = true, true
 		}
 	}
@@ -158,6 +168,9 @@ func containsMarkerWord(text string) bool {
 		}
 		word := piece[:pieceTail]
 		matched := wordIsMarker(word, pieceL) || (linked && phraseEndsHere(prev, word))
+		if !matched && pieceTail != len(piece) {
+			matched = wordIsMarker(piece, pieceL) || (linked && phraseEndsHere(prev, piece))
+		}
 		prev = append(prev[:0], piece...)
 		piece, pieceTail, pieceL = piece[:0], 0, false
 		havePrev, gapOK = true, true
@@ -170,6 +183,7 @@ func containsMarkerWord(text string) bool {
 	}
 	for i := 0; i < len(text); {
 		r, size := utf8.DecodeRuneInString(text[i:])
+		r = widthFold(r)
 		if symbols := inWordSymbols(text[i:], prevRune); symbols > 0 {
 			for _, symbol := range text[i : i+symbols] {
 				add(symbol)
@@ -188,8 +202,9 @@ func containsMarkerWord(text string) bool {
 			continue
 		}
 		next, nextSize := utf8.DecodeRuneInString(text[i:])
+		next = widthFold(next)
 		after, _ := utf8.DecodeRuneInString(text[i+nextSize:])
-		if startsCamelWord(prevRune, r, next, after) && endPiece() {
+		if startsCamelWord(prevRune, r, next, widthFold(after)) && endPiece() {
 			return true
 		}
 		if len(piece) == 0 {
@@ -257,17 +272,21 @@ func lowerASCII(b byte) byte {
 // word came before the run first, so a long run of symbols is measured once,
 // when it follows a word, and not again from every position inside it.
 func inWordSymbols(text string, prevRune rune) int {
-	if prevRune == 0 || (text[0] != '@' && text[0] != '$') {
+	if prevRune == 0 {
 		return 0
 	}
 	n := 0
-	for n < len(text) && (text[n] == '@' || text[n] == '$') {
-		n++
+	for n < len(text) {
+		r, size := utf8.DecodeRuneInString(text[n:])
+		if r = widthFold(r); r != '@' && r != '$' {
+			break
+		}
+		n += size
 	}
-	if n == len(text) {
+	if n == 0 || n == len(text) {
 		return 0
 	}
-	if next, _ := utf8.DecodeRuneInString(text[n:]); !isWordRune(next) {
+	if next, _ := utf8.DecodeRuneInString(text[n:]); !isWordRune(widthFold(next)) {
 		return 0
 	}
 	return n
@@ -284,11 +303,11 @@ func startsCamelWord(prev rune, r rune, next rune, after rune) bool {
 	return unicode.IsLower(prev) || (unicode.IsUpper(prev) && unicode.IsLower(next) && unicode.IsLower(after))
 }
 
-// wordIsMarker checks one word, without its trailing digits, against the
-// families that need a word boundary. hasL reports a letter l in the word: the
-// fold reads l as i, so `PLN` would otherwise be `pin`, and a whole-word marker
-// with an i never matches a word that holds an l. `PlN` as a misread of `PIN`
-// is the price.
+// wordIsMarker checks one word against the families that need a word boundary.
+// hasL reports a capital L in the word: the fold reads l as i, so `PLN` would
+// otherwise be `pin`, and a whole-word marker with an i never matches a word
+// that holds a capital L. A lowercase l (`pln`, `PlN`) still counts as a misread
+// i, because lowercase `pln` is no currency code.
 func wordIsMarker(word []byte, hasL bool) bool {
 	for _, marker := range labelFamilies.endsWith {
 		if endsWithWord(word, marker) {
@@ -333,7 +352,7 @@ func runIsMarker(run []byte, word []byte, hasL bool) bool {
 			return true
 		}
 	}
-	return wordIsMarker(word, hasL)
+	return wordIsMarker(word, hasL) || (len(word) != len(run) && wordIsMarker(run, hasL))
 }
 
 // isWord reports whether piece is word or its plural.

@@ -121,15 +121,36 @@ separator, not a letter. Each family picks the boundary its word can bear:
 
 | Family | Words | Matches |
 |---|---|---|
-| Inside any run of letters and digits | `password`, `passwd`, `passphrase`, `passcode`, `credential`, `apikey`, `privatekey` | `MyPassword`, `passwords`, `Credentials` |
+| Inside any run of letters and digits | `password`, `passwd`, `passphrase`, `passcode`, `pincode`, `credential`, `apikey`, `privatekey` | `MyPassword`, `passwords`, `Credentials` |
 | Whole word, plural, or end of a compound | `secret`, `token` | `Secrets`, `client_secret`, `accessToken`; not `secretary`, `tokenize` |
-| Whole word or plural | `pin`, `pwd` | `PIN:`, `PINs`; not `spin`, `pinned`, `Pinterest` |
+| Whole word or plural | `pin`, `pwd` | `PIN:`, `PINs`, `pin_code`; not `spin`, `pinned`, `Pinterest`, `500 PLN` |
 | Two adjacent words | `api`, `private`, `access` then `key(s)`; `pass` then `word`, `phrase`, or `code` | `API Key`, `MYAPI_KEY`, `private-key`, `Pass phrase`; not `public key`, `API gateway`, `Call the API, key facts` |
 
 Only space, hyphen, underscore, and a case change may sit between the two words
-of a phrase. A comma or any other mark ends it. Source names (document IDs,
-source URIs, record IDs) keep the narrow `identityMarkers` list, so a file
-called `token-rotation.png` keeps its name.
+of a phrase. A comma or any other mark ends it. Digits after a marker word do
+not hide it (`Token2:`, `PIN2`, `api key1`, `API_KEY2`), and a case change
+inside a word does not split it away from its marker (`ToKen:`, `SeCret:`,
+`PiN:`). Fullwidth letters (`Ｐａｓｓｗｏｒｄ`) are read as ASCII. A whole word
+that holds a letter l never matches `pin`, because the fold reads l as i and
+`500 PLN` is a currency; `PlN` as a misread `PIN` is the price.
+
+The rule is a superset of the list it replaced. Every source-name marker
+(`identityMarkers`: `password`, `api_key`, `private_key`, and the three synthetic
+canary words) is also checked first as a raw substring in any case, so
+`API_KEY2`, `PRIVATE_KEY1`, `API_KEYID`, `private_keyfile`, and `API_kEY` stay
+redacted even where the word split would have broken the phrase.
+`TestContainsMarkerWordIsASupersetOfTheSourceNameList` pins it with a prefix and
+a suffix on every marker. Source names themselves (document IDs, source URIs,
+record IDs) keep the narrow `identityMarkers` list only, so a file called
+`token-rotation.png` keeps its name.
+
+The STT twin in `document/media` (#9786, #9788) keeps its own list. The two are
+tested copies, not one shared rule, and they differ on purpose or by history.
+STT matches `pincode` and `pwd` as substrings, spaced letters (`p i n`,
+`a p i key`), NFKD and homoglyph forms, and keywords across segments. OCR
+matches `access key`, `secret` and `token` as compound endings, a joined
+`privatekey`, and the digit and symbol fold. Sync them as a separate change, not
+by editing one to match the other.
 
 Why folding and not edit distance. Edit distance one cannot be applied to the
 short words: `taken` is one edit from `token`, and `pan`, `pen`, `pit`, `pie`,
@@ -138,9 +159,9 @@ every misread of them, and a longer word such as `password` gains little over
 the fold, because the single-character misreads seen in practice are digits and
 symbols for letters. Folding is exact, deterministic, one table lookup per
 rune, and can only add a match when a word is a marker once folded. On the repo
-docs corpus below it adds 5 lines in about 261,800. Letter-for-letter misreads, such
-as `rn` for `m` or `vv` for `w`, are not caught. The common ones are the digit
-and symbol swaps above.
+docs corpus below it adds 5 lines in about 261,800. Letter-for-letter misreads,
+such as `rn` for `m` or `vv` for `w`, are not caught. The common ones are the
+digit and symbol swaps above.
 
 A region is a value when either holds:
 
@@ -178,10 +199,14 @@ Limits:
   misread (`Passvvord`), opens none. In a probe of degraded renders, `Password`
   came back verbatim or was lost whole, as in `Confirm passwort`. The list has
   no `passwort`, `passkey`, or `ssh key`.
-- A label glued to digits, such as `token2`, is not a whole word, and a fused
-  lowercase compound such as `clientsecret` matches only through its suffix.
-  `pin` and `token` in plain prose are markers like `password` in prose, so
-  "Pin the base image" hides the two lines after it (#9793).
+- Misses found by probing, none matched: `Pasword` (a dropped letter), `PW:`,
+  `Pass:`, `A.P.I. key` (punctuation inside a word), Cyrillic `раssword` and
+  other homoglyphs outside fullwidth ASCII, `PlN` (see the l rule above), and
+  `ApI Key` with a case change inside `api` and a space before `key`. Only
+  digit, symbol, case, and fullwidth variants are handled.
+- A fused lowercase compound such as `clientsecret` matches only through its
+  ending. `pin` and `token` in plain prose are markers like `password` in
+  prose, so "Pin the base image" hides the two lines after it (#9793).
 - A value more than 2 regions after its marker region, on another row, is not
   caught.
 - A value above its label, or left of its label on the same row, is not withheld.
@@ -223,14 +248,19 @@ and local-engine PII suites.
 
 Marker-list Performance Evidence (#9793): the same two benchmarks on 500 regions,
 before (origin/main) and after test binaries run in turn at `-benchtime=2000x`,
-seven runs each, medians, on a shared 16-core host at load average 44, so the
-spread is wide (the best runs are 3.15 and 3.75 ms/op for ordinary text).
-Ordinary text went from 3.59 ms/op to 4.12 ms/op (13,907 to 12,907 allocs/op),
-and the label-heavy case from 2.22 ms/op to 2.86 ms/op (13,414 to 12,665
-allocs/op). The scan is one pass per region, twice per region (once for the
-value window and once for the region's own text), and keeps its buffers on the
-stack, so it allocates less than the lowercase copy it replaces. The added
-0.5 to 0.6 ms per 500 regions is about 0.3 percent of one tesseract run.
+seven runs each, medians, on a shared 16-core host at load average 27, so the
+spread is wide. Ordinary text went from 3.37 ms/op to 4.36 ms/op (13,906 to
+12,906 allocs/op), and the label-heavy case from 2.17 ms/op to 2.73 ms/op
+(13,415 to 12,663 allocs/op). The scan makes a fixed number of passes per region
+(one for the source-name substrings, one for the words), twice per region (once
+for the value window and once for the region's own text), and keeps its buffers
+on the stack, so it allocates less than the lowercase copy it replaces. The
+added 0.5 to 1.0 ms per 500 regions is about 0.5 percent of one tesseract run.
+`TestContainsMarkerWordIsLinear` pins the time on 1 MiB of symbols, camel case,
+digits, and glued words. A run of `@` or `$` outside a word was once measured
+again from every position; review measured 1.67 s for one 64 KiB region
+through `Extract` against 5.4 ms on the old rule, and 17.6 s for 256 KiB. The run is now
+measured once.
 
 No-Observability-Change (#9793): the label matcher adds no metric, span, or log.
 A region it flags is a redacted section, so `eshu_dp_ocr_redacted_regions_total`,

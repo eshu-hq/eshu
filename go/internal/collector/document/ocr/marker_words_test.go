@@ -16,7 +16,11 @@ var markerLabelForms = map[string][]string{
 	"passwd and pwd": {"Passwd:", "PASSWD", "PWD:", "pwd", "Pwd=", "PWDs", "pwd2", "PWD1:"},
 	"digit tail":     {"Token2:", "secret2", "PIN2", "api key1", "API_KEY2", "access key3", "Secret1:", "TOKEN9="},
 	"case misread":   {"ToKen:", "SeCret:", "tOken", "ToKeN2", "PiN:", "PaSsWoRd"},
-	"fullwidth":      {"Ｐａｓｓｗｏｒｄ", "Ｔｏｋｅｎ:", "ＡＰＩ Ｋｅｙ"},
+	"fullwidth": {
+		"Ｐａｓｓｗｏｒｄ", "Ｔｏｋｅｎ:", "ＡＰＩ Ｋｅｙ", "ＡＰＩ＿ＫＥＹ", "ＡＰＩ－ＫＥＹ", "Ｐ＠ｓｓｗｏｒｄ", "ｐａ＄＄ｗ０ｒｄ",
+	},
+	"digit read as a letter after the word": {"Pass cod3", "pass phras3", "PASS_C0D3", "Pass w0rd"},
+	"lowercase l is a misread i":            {"Pln:", "pln", "Pln", "PlN"},
 	"secret": {
 		"Secret:", "SECRET", "secrets", "Client Secret:", "client-secret", "client_secret",
 		"clientSecret", "ClientSecret", "Top secret", "S3cret:", "5ecret",
