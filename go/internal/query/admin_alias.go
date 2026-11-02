@@ -165,6 +165,12 @@ type AdminIdentityMutationHandler = identity.MutationHandler
 // query.AdminRetirementHandler unchanged. See #8602.
 type AdminRetirementHandler = retirement.Handler
 
+// RetirementAdmission is the versioned #8872 admission-contract port for
+// the operator repository retirement trigger. Its home is
+// admin/retirement/; this alias keeps the cmd/api constructors spelling
+// query.RetirementAdmission.
+type RetirementAdmission = retirement.RetirementAdmission
+
 // AdminTerminalFailureHandler serves the operator acknowledgement of a
 // collector terminal failure (#8830). Its home is admin/acknowledgement/; this
 // alias keeps the APIRouter wiring and the cmd/api constructors spelling

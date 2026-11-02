@@ -67,7 +67,7 @@ the `querycontract.CoreReadContractsVersion` port set.
 | Mutation family | Core-owned persistence | eshu-api disposition |
 | --- | --- | --- |
 | Admin | Postgres recovery/reindex/dead-letter/queue stores | HTTP shape moves; recovery queue writes via admission contract |
-| AdminRetirement | retirement marker/fencer/purger stores | trigger via admission contract |
+| AdminRetirement | retirement marker/fencer/purger stores | trigger via admission contract (RetirementAdmission v0) |
 | AdminTerminalFailure | terminal-failure ack store + replay ledger | ack + ledger via admission contracts |
 | AdminIdentityMutations | identity stores (roles, IdP mappings) | via admission contract |
 | AdminProviderConfigMutations | provider-config stores | via admission contract |
