@@ -31,14 +31,11 @@ import (
 // nil keyring (DEK unconfigured) is not fatal here: VerifyBootstrapCredential
 // fails closed and SetupNeeded still answers correctly from the row's
 // existence alone.
-func newSetupHandler(
+func newPostgresSetupAdapter(
 	rawDB *sql.DB,
 	keyring *secretcrypto.Keyring,
 	instruments *telemetry.Instruments,
-	governanceAudit query.GovernanceAuditSummaryReader,
-	cookieSecureMode query.CookieSecureMode,
-	bootstrapMode string,
-) *query.SetupHandler {
+) *postgresSetupAdapter {
 	var identityDB db.ExecQueryer
 	if rawDB != nil {
 		identityDB = pgstorage.SQLDB{DB: rawDB}
@@ -51,12 +48,30 @@ func newSetupHandler(
 			}
 		}
 	}
+	return &postgresSetupAdapter{
+		store:       pgstorage.NewIdentitySubjectStore(identityDB),
+		keyring:     keyring,
+		instruments: instruments,
+	}
+}
+
+// newSetupHandler wires the first-run setup wizard (epic #4962, issue #4965)
+// through the versioned #8872 setup admission contract, not a *sql.DB writer
+// handle: the caller binds the core-owned admission implementation and the
+// handler carries the port. Callers pass untyped nil for absent; a typed-nil
+// port implementation of any dynamic type is unwrapped to nil here, since a
+// typed nil would otherwise hide from the handler's ready check.
+func newSetupHandler(
+	setupAdmission query.SetupAdmission,
+	rawDB *sql.DB,
+	instruments *telemetry.Instruments,
+	governanceAudit query.GovernanceAuditSummaryReader,
+	cookieSecureMode query.CookieSecureMode,
+	bootstrapMode string,
+) *query.SetupHandler {
+	setupAdmission = unwrapNilAdmissionPort(setupAdmission)
 	return &query.SetupHandler{
-		Store: &postgresSetupAdapter{
-			store:       pgstorage.NewIdentitySubjectStore(identityDB),
-			keyring:     keyring,
-			instruments: instruments,
-		},
+		Store:         setupAdmission,
 		Sessions:      newBrowserSessionStore(rawDB, instruments),
 		Audit:         adminRecoveryAuditAppender(governanceAudit),
 		Instruments:   instruments,
@@ -70,6 +85,8 @@ type postgresSetupAdapter struct {
 	keyring     *secretcrypto.Keyring
 	instruments *telemetry.Instruments
 }
+
+var _ query.SetupAdmission = (*postgresSetupAdapter)(nil)
 
 func (a *postgresSetupAdapter) SetupNeeded(ctx context.Context) (bool, error) {
 	_, found, err := a.store.SelectBootstrapCredential(ctx, pgstorage.BootstrapAdminTenantID, pgstorage.BootstrapAdminWorkspaceID)
