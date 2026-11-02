@@ -109,15 +109,16 @@ What is on main and what is not. Read this section before any claim that
 | Same-transaction `HeartbeatClaim` + persist coupling (the live fence) | PRESENT-on-main | [`ingestion.go:214-215`](https://github.com/eshu-hq/eshu/blob/15caae83c5cd1595480c20173bab20f1f65614f7/go/internal/storage/postgres/ingestion.go#L214); same shape at `generation_freshness_reproject.go:163` and `control_scanner_heartbeat.go:62` |
 | Client method `ClaimPlaneClient.PinClaimForCommit` calling `/workflow.v1/ValidateAndPinClaimForCommit` | PROVEN-in-harness | [`claim_plane_client.go:395-425`](https://github.com/eshu-hq/eshu/blob/15caae83c5cd1595480c20173bab20f1f65614f7/go/internal/workflow/claim_plane_client.go#L395); only tests and `workflow/parity` call it, no production caller |
 | Server-side pin handler (`POST /workflow.v1/ValidateAndPinClaimForCommit`) | PROVEN-in-harness, other repo | `eshu-workflow` `server/server.go:74` at `33f48f4a`; not in this repo |
-| Core consumption of the pin: tagging the generation with claim, fencing token, and commit id | ABSENT-on-main | no non-test hit for a pin caller or a generation commit-id tag in `go/internal/storage` or `go/internal/projector` |
-| Core rule "never activate a generation below the highest activated fencing token" | ABSENT-on-main (generation-activation path only) | no fencing-token comparison in the generation activation path: `go/internal/storage/postgres/ingestion.go` and `ingestion_queries.go` (generation upsert `activated_at`, line 154) hold none; the only fencing hit there is the read-side column select at [`ingestion_queries.go:31`](https://github.com/eshu-hq/eshu/blob/15caae83c5cd1595480c20173bab20f1f65614f7/go/internal/storage/postgres/ingestion_queries.go#L31). Fencing-token ordering does exist elsewhere in core and is not this rule: the `supply_chain_impact` write-admission watermark (`migrations/154_supply_chain_impact_write_admission.sql`), the AWS scan-status `(generation_id, fencing_token)` pin ([`scan_status.go:26`](https://github.com/eshu-hq/eshu/blob/15caae83c5cd1595480c20173bab20f1f65614f7/go/internal/storage/postgres/cloud/aws/scan_status.go#L26)), crossplane `claim_fencing_token` state, and the fact-upsert highest-token dedupe ([`facts.go:330-333`](https://github.com/eshu-hq/eshu/blob/15caae83c5cd1595480c20173bab20f1f65614f7/go/internal/storage/postgres/facts.go#L330)) |
+| Core consumption of the pin: pin before BEGIN, re-pin for the life of the transaction, and a per (generation, work item) fence row tagged with claim, fencing token, and commit id | PRESENT (#9376 P2, `drive/8875-p2-pin-fence`) | `go/internal/storage/postgres/ingestion_claim_fence.go` and `claim/fence/` behind `IngestionStore.ClaimPlane` (nil keeps the in-tree path); table `generation_commit_fences` (migration 270); not yet wired into a collector binary (P1) |
+| Commit-time fence, replacing "never activate a generation below the highest activated fencing token" | PRESENT (#9376 P2, arbiter ruling 2026-11-02) | The per-scope activation rule was wrong: fencing tokens are per work item, and terraform-state can commit one resolved generation from two work items. The rule is now: a plane-claimed commit of generation G under claim (item I, token T) is durable only if the plane pinned (I, T) before BEGIN, the stored fence for (G, I) is below T or equal to T under the same claim id, and the latest pin deadline exceeds the commit time by the 5 s margin when COMMIT is sent. Fences of different work items on one generation are incomparable. Activation stays once per generation; nothing runs at projector Ack. Proof: `TestClaimPlaneFenceRefusesReclaimedStaleWriterLive`, `TestParityStaleWriterCommitFence` |
 
-So the replacement for the same-transaction coupling exists as a protocol
-route and a satellite handler, and the in-tree client can call it, but core
-does not call it and does not enforce the activation rule. Until a core change
-lands the consumption side and its failing-then-green regression, the
-pin/fencing replacement is **not on main**. The earlier statement that it was
-"PROVEN in-tree" described the harness only and is withdrawn.
+So the replacement for the same-transaction coupling is the protocol route,
+the satellite handler, and (with #9376 P2) the core consumption side: the
+ingestion commit pins a plane-held claim, writes the (generation, work item)
+fence row, and checks the pin deadline before COMMIT, with a
+failing-then-green stale-writer regression. It is inert until a collector is
+wired to the claim plane (P1). The earlier statement that it was "PROVEN
+in-tree" described the harness only and stays withdrawn.
 
 Static lock audit (carried from the 2026-10-30 code read; spot-checked
 2026-11-01 by `FOR UPDATE` / advisory-lock location, not re-derived):

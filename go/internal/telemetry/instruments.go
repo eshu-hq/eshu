@@ -8979,3 +8979,10 @@ func registerClaimCommitObserverInstruments(meter metric.Meter, inst *Instrument
 	}
 	return nil
 }
+
+// ingestionCommitPinSlackBuckets bound the #9376 pin slack histogram
+// (registered in instruments_ingestion_claim_fence.go). It lives here so the
+// telemetry coverage gate checks it against the documented bucket set. The
+// default lease is 60 s with a re-pin every 20 s and a 5 s refusal margin, so
+// healthy slack sits between 40 s and 60 s; samples under 5 s are refusals.
+var ingestionCommitPinSlackBuckets = []float64{0, 1, 2.5, 5, 10, 20, 30, 40, 50, 60, 120}

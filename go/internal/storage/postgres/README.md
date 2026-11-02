@@ -667,7 +667,7 @@ Primary groups:
   `scope.TriggerKind`
 - `internal/status` — status store interface contracts
 - `internal/telemetry` — `telemetry.Instruments` for `InstrumentedDB`
-- `internal/workflow` — `workflow.ClaimSelector`, `workflow.ClaimMutation`
+- `internal/workflow` — `workflow.ClaimSelector`, `workflow.ClaimMutation`; with `IngestionStore.ClaimPlane` set, claimed commits whose claim the extracted claim plane holds are fenced across services (pin before BEGIN, `generation_commit_fences` row, Go-clock deadline before COMMIT; migration 270, #9376) instead of `HeartbeatClaim` on the fact transaction, see `claim/fence/README.md` and `ingestion_claim_fence.go`
 - `database/sql` — standard library
 
 ## Telemetry

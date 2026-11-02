@@ -11,12 +11,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry/contract"
 )
 
-// ingestionCommitPinSlackBuckets bound the pin slack histogram. The default
-// lease is 60 s with a re-pin every 20 s and a 5 s refusal margin, so healthy
-// slack sits between 40 s and 60 s; samples under 5 s are refusals and the
-// low buckets show commits creeping toward the margin.
-var ingestionCommitPinSlackBuckets = []float64{0, 1, 2.5, 5, 10, 20, 30, 40, 50, 60, 120}
-
 // registerIngestionClaimFenceInstruments registers the #9376 claim-plane
 // commit fence instruments on inst: the rejection counter (label reason),
 // the re-pin counter (label outcome), and the unlabeled slack histogram.

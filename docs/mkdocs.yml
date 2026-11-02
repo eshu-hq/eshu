@@ -367,6 +367,7 @@ nav:
       - Claim-Pacing Signals: reference/telemetry/claim-pacing.md
       - Claim Quota Signals: reference/telemetry/claim-quotas.md
       - Workflow Claim Store Signals: reference/telemetry/workflow-claim-store.md
+      - Claim-Plane Commit Fence Signals: reference/telemetry/claim-plane-commit-fence.md
       - Supply-Chain Active Evidence Signals: reference/telemetry/supply-chain-active-evidence.md
       - Package Manifest Dependency Read Signals: reference/telemetry/package-manifest-dependency-read.md
       - Owned Target Slot Progress Signals: reference/telemetry/owned-target-slot-progress.md

@@ -1,7 +1,8 @@
 # Claim-plane commit fence (P2 of the #8875 flip ruling)
 
-Status: DRAFT design note, blocked on one design fork (section 6). No code
-lands until the fork is decided. Refs #9376, #8875.
+Status: DECIDED. The fork in section 6 was settled by the arbiter ruling of
+2026-11-02 (option (a), storage S2, two PRs); the implementation follows
+section 6.1. Refs #9376, #8875.
 
 ## 1. Problem
 
@@ -101,52 +102,56 @@ migration is forward-only and inert when unused (owner no-downgrade policy).
 Consumer notification: the commit already enqueues projector work in the
 same transaction (`ProjectorQueue.Enqueue`); the fence adds no new consumer.
 
-## 6. OPEN FORK: what "never activate a generation below the highest activated fencing token" means here
+## 6. The fork and its ruling
 
-The phrase (EXTRACTION_PREP §6, PLANE_DECLARATION §4 row 7, satellite
-`004_commit_pin.sql` header) reads as a per-scope high-water. The code says
-tokens are per work item, and each generation of a scope is a different work
-item whose tokens restart at 1. A per-scope high-water would refuse every new
-generation whose item token is lower than an older generation's (for example
-an old generation activated at token 3 after two reclaims, then a new
-generation at token 1). So the literal rule is wrong as a per-scope rule.
+The phrase "never activate a generation below the highest activated
+fencing token" (EXTRACTION_PREP §6, the former PLANE_DECLARATION §4 row 7,
+satellite `004_commit_pin.sql`) reads as a per-scope high-water. Tokens are
+per work item and restart at 1 for every generation, so a per-scope rule
+would refuse legitimate generations. Terraform-state can also commit one
+resolved generation from two work items (the item id embeds the run id), so
+even a per-generation token is not comparable across items. Activation
+happens once per generation (`activated_at` COALESCE), so an activation-time
+rule reduces to a commit-time fence.
 
-Per generation, activation happens once (`activated_at` COALESCE), so an
-"activated high-water" per generation reduces to the commit-time fence.
+The candidates were (a) a commit-time fence with a bounded residual window,
+(b) reopening an activated generation on a higher-token commit, and (c) a
+claim-plane read at projector Ack. The arbiter adopted (a) with storage S2
+and rejected (b) (it breaks activation-once assumptions and orphans the
+per-batch side tables) and (c) (a cross-service read on the Ack hot path that
+is still racy). The residual window (a stale commit landing inside the
+margin after its deadline) produces the same shape as today's accepted
+finalized-replay semantics, and the margin bounds it.
 
-The residual hazard a commit-time fence alone does not close: writer `N`
-commits `G` inside the skew/commit-latency window after `D` while `N+1`
-already holds the claim but has not committed. The projector can activate
-`G` from `N`'s facts, and `N+1`'s commit then hits the finalized skip, so
-the stale facts become the truth. Candidate rules:
+### 6.1 Ruled design
 
-- (a) Deadline fence plus per-generation monotonic fence row only; accept the
-  residual window, bounded by a margin larger than clock skew plus the commit
-  time (both measured).
-- (b) (a) plus: a higher-token commit of an already-activated generation is
-  allowed for plane-claimed generations (re-opens `G`, purges facts with
-  `fencing_token < T`, re-enqueues projection). Changes finalized-skip
-  semantics on the plane path only.
-- (c) (a) plus: projector Ack refuses to activate `G` until the plane
-  confirms the committing claim completed at that token (cross-service read
-  in the activation path).
+- Restated rule: a plane-claimed commit of G under claim (item I, token T)
+  is durable only if the plane pinned (I, T) before BEGIN, the stored fence
+  for (G, I) is below T or equal to T under the same claim id, and the
+  latest pin deadline exceeds the commit time by the margin when COMMIT is
+  sent. Nothing runs at Ack.
+- Storage: `generation_commit_fences (generation_id FK, work_item_id,
+  scope_id, claim_id, fencing_token, commit_id, committed_at, PK
+  (generation_id, work_item_id))`, migration 270, written only on the plane
+  path. Retention deletes only superseded generations, so the FK cascade is
+  safe.
+- Order on the plane path: pin (deadline now + lease, three identical
+  retries, never a fallback to `HeartbeatClaim(tx)`), re-pin keeper every
+  lease/3 (a stale re-pin cancels the commit context), BEGIN, skip the
+  in-tx heartbeat, shared advisory lock, scope upsert, generation upsert,
+  fence upsert, facts, state, enqueue, then the Go-clock deadline check
+  (5 s margin; never SQL `now()`), COMMIT.
+- The planned item identity (`ScopeID`, `SourceRunID`, `GenerationID`) rides
+  on `workflow.ClaimMutation`; the fence row uses the committed generation.
+- The unchanged-generation re-projection takes the pin and deadline fence
+  without a fence row. Derived scanner claims fail closed on the plane path.
+- Margin rule: `margin >= 2 * (skew_bound + commit_p99)` and
+  `margin < lease - lease/3`; skew and commit p99 are measured on the
+  test cluster before the real-scope flip.
 
-Storage of the fence, independent of (a)-(c):
+## 7. Proof
 
-- (S1) new nullable columns on `scope_generations` (`claim_id`,
-  `claim_fencing_token`, `commit_id`): metadata-only `ADD COLUMN`, but it
-  changes a hot, large table and the shared generation upsert.
-- (S2) new side table `generation_commit_fences (generation_id PK, scope_id,
-  claim_id, fencing_token, commit_id, committed_at)` written only on the
-  plane path: in-tree statements are untouched by construction.
-
-## 7. Proof plan (after the fork is decided)
-
-- Theory: `EXPLAIN (ANALYZE, BUFFERS)` of the fence upsert and of the Ack
-  statement on a disposable database seeded at representative
-  `scope_generations` size; cost per commit must stay one PK probe.
-- Red-first: stale writer reaped and reclaimed at a higher token cannot
-  commit; replay at equal token is idempotent; ambiguous timeout replay;
-  concurrent writers race (`-race`, real Postgres); in-tree path unchanged.
-- Telemetry: span around pin + fence, counter for stale-writer rejections by
-  bounded reason, structured log with scope, generation, claim, and tokens.
+Recorded in `go/internal/storage/postgres/evidence-9376-claim-plane-commit-fence.md`:
+the EXPLAIN and pgbench theory proof, the red/green stale-writer
+regression, the race and lock-order tests, the parity scenario against the
+real satellite, the migration rehearsal, and the telemetry.

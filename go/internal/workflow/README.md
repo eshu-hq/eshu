@@ -120,7 +120,7 @@ Types in this package flow through four phases of the workflow control plane:
   `storage/postgres`
 - `ClaimSelector`, `ClaimMutation`, `ClaimedWorkItem` — claim operation
   arguments and return shapes; hosted `ClaimMutation` values carry the optional
-  tenant boundary as an all-or-none group for commit-time grant checks
+  tenant boundary as an all-or-none group for commit-time grant checks; `ScopeID`, `SourceRunID`, and `GenerationID` carry the item's planned identity that the claim-plane commit pin matches on (#9376), and `ClaimPlaneErrorCode` exposes a claim-plane error's protocol code
 - `ClaimMutation.Resolved*` — optional completion-time phase identity fields
   used when planned work cannot know the final reducer checkpoint tuple until
   source open. Terraform-state claims use these fields to replace candidate

@@ -68,14 +68,19 @@ The same-transaction `HeartbeatClaim`+persist coupling
 holds the claim row lock in-transaction so a stale worker cannot write after
 reclaim. **That coupling is the live fence on `origin/main` `15caae83c5`.**
 The planned cross-service replacement is `ValidateAndPinClaimForCommit`
-(server-side pin to a commit deadline; core would tag the generation and
-refuse to activate below the highest activated fencing token). On main it
+(server-side pin to a commit deadline; core tags the (generation, work
+item) commit with claim, fencing token, and commit id, and refuses a lower or
+foreign token; the per-scope "highest activated fencing token" wording was
+retired by the #9376 P2 arbiter ruling because tokens are per work item). On main it
 exists only as the client method
 ([`claim_plane_client.go:395-425`](https://github.com/eshu-hq/eshu/blob/15caae83c5cd1595480c20173bab20f1f65614f7/go/internal/workflow/claim_plane_client.go#L395), no production caller)
 and in the satellite (`eshu-workflow` `server/server.go:74`). The core
-consumption side and the activation rule are **ABSENT-on-main**
-(`PLANE_DECLARATION_9376.md` §4). The removal must land that change, with
-a failing-then-green regression, before the coupling can be dropped. Static
+consumption side and the commit-time fence land with #9376 P2
+(`IngestionStore.ClaimPlane`, `storage/postgres/claim/fence`, migration
+270, `PLANE_DECLARATION_9376.md` §4) with the failing-then-green
+stale-writer regression; they stay inert until a collector is wired to the
+claim plane (P1), and the removal must not drop the coupling before both
+are on main. Static
 lock audit (code-read, carried from 2026-10-30, spot-checked 2026-11-01 at
 `workflow_control_sql.go:118,181,229,278,333`):
 
