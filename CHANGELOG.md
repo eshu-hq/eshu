@@ -108,6 +108,24 @@ recent shipped work grouped by feature area.
   covered. Nothing calls the OCR path in production yet. The sandbox proof's
   canary and one fixture line were reworded because they became labels.
 
+### OCR: withhold a secret that runs past the label window
+
+- **`ocr.Extract` withholds the whole body of a PEM key and a token wrapped
+  across lines**
+  ([#9799](https://github.com/eshu-hq/eshu/issues/9799)). The label window
+  covered the two regions after a label, so a private key body of 12 to 50 lines
+  kept all but its first two lines in clear text, and so did the third line of a
+  wrapped token. A region now joins a withheld run when it is a long
+  unspaced token line (16 characters, with a digit or one of `+/=`), the
+  short last line of a body follows two such lines, and a 40 character base64
+  line with a capital, a lowercase letter, and a digit starts a run with no
+  label. A stray space inside a line, as tesseract puts in two of nine lines of
+  the sandbox key fixture, does not split it from the key. Prose ends a run at
+  its first line. On this repo's docs the rule withholds 180 more regions in
+  about 263,000 lines. Nothing calls the OCR path in production yet. Lines under
+  16 characters, a key whose lines hold several misread spaces, and a table column
+  are still not covered; the README Limits list them.
+
 ### Extension host: eshu-sdk collector v0.2.0-rc.3 pin
 
 - **Core pins `eshu-sdk/collector` v0.2.0-rc.3**

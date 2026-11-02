@@ -205,6 +205,43 @@ A region is a value when either holds:
 `Extract` never sorts. `EngineResult.Regions` must be in reading order, because
 layout order is more accurate than a position sort on a multi-column page.
 
+A secret that runs past the window (#9799). A PEM key body is 12 to 50 lines and
+a token can wrap across lines. Tesseract returns one region per line, so the
+window of 2 left the rest in clear. `extendSecretRuns` in `secret_runs.go` runs
+after the window and row passes, in one pass over engine order, and only turns a
+region from kept to withheld. A region joins a run when it is not withheld yet
+and one of these holds:
+
+- Chain: the region before it was withheld and it is a run token: at least 16
+  characters apart from whitespace, with a digit or one of `+/=`. A token with
+  no space always chains. A token with a stray space chains only when the region
+  before it was a run token too, because a bullet of inline code under a label is
+  not a line of a key. A stray space is one per 16 characters (`denseSpaceShare`).
+- Tail: the two regions before it were withheld run tokens, and it has no more
+  than a stray space. A body ends on a short line (`Qk9x==`). It holds for one
+  region, so one withheld value does not hide the single word under it.
+- Symbol: it has no letter or digit and the region before it was a withheld run
+  token. Box edges reach OCR as `|`.
+- Seed: it is 40 or more characters of letters, digits, and `+/=_.-` with no
+  space, with a capital, a lowercase letter, and a digit. A key body cropped
+  from its armor line has no label, and tesseract dropped the `BEGIN` line of the
+  sandbox fixture, so a seed starts a run alone. The run tokens right before the
+  seed join it.
+
+Prose has a space every five or six characters, so the first line of ordinary
+text ends a run. The scan reads each region a fixed number of times and the
+walk back before a seed stops at any region that is withheld or is not a run
+token, so it is linear. `TestExtendSecretRunsIsLinear` pins 200,000 token lines
+and 200,000 seed lines.
+
+What tesseract returned for the `key-body.png` fixture (arm64, 5.5.0): the
+`BEGIN` armor line is absent, the nine body lines come back as nine regions,
+two of them with one space inside (`zwZWd fRLg...`), and `O`, `0`, `l`, `1`, and
+`@` are misread in several. The `END` armor line reads `---- END PRIVATE KEY-----`
+and is a label like any other. `TestExtractWithholdsASecretThatSpansManyLines`
+has that text as a row, and `liveKeyBody` compares what tesseract read, not what
+was drawn, so a misread cannot hide a leak.
+
 The tradeoff is deliberate. Up to 2 ordinary lines after any marker region are
 hidden, including after a line that already holds its value, such as
 `password: hunter2`, and after prose that mentions a password. That costs a
@@ -241,8 +278,26 @@ Limits:
 - A fused lowercase compound such as `clientsecret` matches only through its
   ending. `pin` and `token` in plain prose are markers like `password` in
   prose, so "Pin the base image" hides the two lines after it (#9793).
-- A value more than 2 regions after its marker region, on another row, is not
-  caught.
+- A value more than 2 regions after its marker region, on another row, is caught
+  only when it is a run of token lines (above). A value of ordinary words is not.
+- A run token needs 16 characters and a digit or one of `+/=`. A wrapped line of
+  fewer characters, or of letters only, ends the run, and the rest of the body
+  stays in clear until a seed starts a new run. A line the OCR breaks into
+  words by a space every few characters ends it too.
+- A seed has no space at all, so a lone first line of a key with a stray space is
+  withheld only when a later seed walks back to it. A key or token cropped from
+  its label with lines under 40 characters opens no run. The STT twin has no
+  lines and is unchanged.
+- The short last line of a body is withheld only after two run tokens, so a
+  column value of one long line followed by a short last line leaves that line in
+  clear. It also hides one single-word line after a run, such as `platform`.
+- A symbol-only region at the start of a run, before its first token, is not
+  withheld. A PEM header past the 2 window regions (`Proc-Type` and `DEK-Info`
+  fill them) ends the run before the body, and the body is withheld again from its
+  first seed.
+- After a withheld token, a line of 16 or more characters with a digit and no
+  space, such as a file path with a line number, joins the run. On the docs
+  corpus that is 180 regions in 263,378 lines.
 - A value above its label, or left of its label on the same row, is not withheld.
 - A region opens one window however many marker words it holds, so
   `password: api_key:` followed by three values leaves the third in clear.
@@ -262,8 +317,13 @@ Proof: `TestContainsMarkerWordMatchesEveryLabelForm`,
 `TestExtractRedactsValueInTheColumnBesideALabel`,
 `TestExtractFollowsEngineRegionOrder`,
 `TestExtractRowClauseHandlesInvalidAndTiedGeometry`,
-`TestExtractLabelValueRedactionStaysTruthful`, and the `form-stacked.png` and
-`form-columns.png` fixtures in `TestSandboxRealTesseract`.
+`TestExtractLabelValueRedactionStaysTruthful`,
+`TestExtractWithholdsASecretThatSpansManyLines`,
+`TestExtractContinuesASecretRunPastTheWindow`,
+`TestExtractContinuesAColumnValueThatWrapsBelowItsRow`,
+`TestSecretTokenShapes`, `TestExtendSecretRunsIsLinear`, and the
+`form-stacked.png`, `form-columns.png`, and `key-body.png` fixtures in
+`TestSandboxRealTesseract`.
 
 Performance Evidence: `BenchmarkBuildSectionsNoLabels` and
 `BenchmarkBuildSectionsLabelHeavy` on 500 regions, the tesseract default cap,
