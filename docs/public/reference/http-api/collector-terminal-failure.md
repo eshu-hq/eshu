@@ -107,7 +107,7 @@ Known limit, reading `unknown` rather than leaking text:
 | `cpu_limit_exceeded` | `scanner_worker` | The analyzer ran out of its CPU budget. |
 | `memory_limit_exceeded` | `scanner_worker` | The analyzer ran out of its memory budget. |
 | `timeout` | `scanner_worker` | The analyzer timed out. |
-| `input_limit_exceeded` | `scanner_worker` | The input payload was larger than the limit. |
+| `input_limit_exceeded` | `scanner_worker` | The input payload was larger than the limit. The collector host log line `component extension result` carries the byte figures as `extension_status.inflated_bytes`, `extension_status.budget_bytes`, and `extension_status.compressed_bytes`. |
 | `file_limit_exceeded` | `scanner_worker` | The target held more files than the limit. |
 | `fact_limit_exceeded` | `scanner_worker` | The analyzer produced more facts than the limit. |
 | `target_unavailable` | `scanner_worker` | The bounded target was missing or unreadable. |

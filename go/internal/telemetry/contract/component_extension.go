@@ -82,6 +82,18 @@ const (
 	// LogKeyExtensionStatusRetryAfterRequestedSeconds is the largest
 	// retry_after_seconds the extension requested, before the cap.
 	LogKeyExtensionStatusRetryAfterRequestedSeconds = "extension_status.retry_after_requested_seconds"
+	// LogKeyExtensionStatusInflatedBytes is the decompressed bytes a satellite
+	// counted when an input_limit_exceeded budget broke. It appears only on a
+	// non-complete result, relayed from the satellite's stderr record through
+	// a numbers-only allowlist (#9823).
+	LogKeyExtensionStatusInflatedBytes = "extension_status.inflated_bytes"
+	// LogKeyExtensionStatusBudgetBytes is the decompressed-byte budget the
+	// satellite applied (same relay and conditions as inflated_bytes).
+	LogKeyExtensionStatusBudgetBytes = "extension_status.budget_bytes"
+	// LogKeyExtensionStatusCompressedBytes is the sum of the layer file sizes
+	// the satellite had read when the budget broke (same relay and conditions
+	// as inflated_bytes).
+	LogKeyExtensionStatusCompressedBytes = "extension_status.compressed_bytes"
 )
 
 // Closed values of the origin log field.

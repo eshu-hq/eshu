@@ -108,6 +108,10 @@ type ResultRecord struct {
 	// RetryAfterRequestedSeconds is the largest retry_after_seconds the
 	// extension requested, before the cap.
 	RetryAfterRequestedSeconds int
+	// InputLimit is the allowlisted byte figures an SDK result's satellite
+	// printed on stderr for an input_limit_exceeded claim; nil otherwise and
+	// always nil for a host verdict (#9823). Numbers only.
+	InputLimit *InputLimitFigures
 }
 
 // Config configures a Source for one component instance.

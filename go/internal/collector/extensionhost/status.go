@@ -56,6 +56,7 @@ func (s *Source) recordResult(
 	result sdkcollector.Result,
 	origin ResultOrigin,
 	err error,
+	inputLimit *InputLimitFigures,
 ) {
 	if s.resultRecorder == nil {
 		return
@@ -79,6 +80,9 @@ func (s *Source) recordResult(
 		return
 	}
 	record.State = result.State
+	// Only a validated SDK result may carry satellite figures; a host verdict
+	// returned above never reads them.
+	record.InputLimit = inputLimit
 	record.FailureClass = failureClassFromStatus(result, "")
 	if failed {
 		record.FailureClass = failure.class

@@ -403,6 +403,39 @@ failure classes, bounded SDK statuses, and existing collector fact evidence.
 A satellite missing an expected variable fails through its own existing
 result and error path, not a new one.
 
+## Satellite stderr relay (#9823)
+
+A satellite may fail a claim as `input_limit_exceeded` and print the byte
+figures behind it on its stderr record. The wire `Status` cannot carry them
+(`DisallowUnknownFields`), so the runner turns them into typed values and the
+host logs them on the existing `component extension result` line.
+
+Decision (the allowlist and its bounds):
+
+- Allowlist: exactly three integer keys, `inflated_bytes`, `budget_bytes`, and
+  `compressed_bytes`, read from one JSON stderr line that carries all three as
+  non-negative integers. Every other key, every non-JSON line, and any record
+  with a missing, null, negative, fractional, overflowing, or string figure is
+  dropped whole. The host never holds or logs a satellite string, so a path, an
+  image name, or a token cannot reach a log through this relay.
+- Gate: only a call whose result state is not `complete` or `unchanged` is
+  parsed (`CallResult.InputLimit`), and `ResultRecord.InputLimit` is set only
+  for a validated SDK result, never for a host verdict.
+- Size bound: at most the first 64 KiB of the stderr buffer is scanned, a line
+  over 4 KiB is skipped, and the stderr buffer keeps its existing
+  `stderr_limit_bytes` cap.
+- Rate bound: no new log line. The figures ride on the one result line each
+  claim already writes, so a failed claim adds three numeric fields, not log
+  volume. A paged claim keeps the figures of its last call that carried them.
+- Not covered: a satellite that exits non-zero still logs only the existing
+  `stderr_bytes` and `stderr_truncated` counts, and the legacy single-call
+  `RunCollector` path relays nothing. Both production runners use the paged
+  path.
+
+Where an operator reads them: the `component extension result` log line's
+`extension_status.inflated_bytes`, `extension_status.budget_bytes`, and
+`extension_status.compressed_bytes` keys, next to `failure_class`.
+
 ## Claim outcomes and host-owned source state (#9420)
 
 `Config.ClaimOutcomeRecorder` is an optional seam for durable state the host

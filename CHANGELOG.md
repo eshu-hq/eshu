@@ -41,6 +41,17 @@ recent shipped work grouped by feature area.
   split across two segments is withheld too. Nothing calls the transcript path in
   production yet. The real-binary proof gained a fixture that speaks the value
   before the keyword.
+### Collector extension host: satellite stderr figures
+
+- **A failed `input_limit_exceeded` claim now shows its byte figures in the host
+  log** ([#9823](https://github.com/eshu-hq/eshu/issues/9823)). The host
+  buffered satellite stderr and never logged it, so the decompressed-byte
+  figures a scanner satellite prints could not be read without attaching to the
+  satellite. The `component extension result` line now carries
+  `extension_status.inflated_bytes`, `extension_status.budget_bytes`, and
+  `extension_status.compressed_bytes` on a non-complete result. Only those three
+  integer keys are relayed; no path, image name, or other stderr text reaches
+  the log.
 
 ### Webhook intake host: request-path telemetry
 

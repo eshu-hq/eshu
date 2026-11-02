@@ -402,6 +402,9 @@ func registerComponentExtensionStatus() {
 		contract.LogKeyExtensionStatusPartial,
 		contract.LogKeyExtensionStatusRetryAfterSeconds,
 		contract.LogKeyExtensionStatusRetryAfterRequestedSeconds,
+		contract.LogKeyExtensionStatusInflatedBytes,
+		contract.LogKeyExtensionStatusBudgetBytes,
+		contract.LogKeyExtensionStatusCompressedBytes,
 	)
 }
 

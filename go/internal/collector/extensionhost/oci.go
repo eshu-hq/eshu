@@ -137,7 +137,7 @@ func (r OCIRunner) RunPagedCollector(ctx context.Context, request Request) (Call
 	if stdout.Truncated() {
 		return CallResult{}, stdoutLimitExceededFailure(stdout.Limit(), stdout.Total())
 	}
-	return decodePagedSDKResult(stdout.Bytes())
+	return decodeCallWithStderr(stdout.Bytes(), stderr.Bytes())
 }
 
 func (r OCIRunner) runtime() string {
