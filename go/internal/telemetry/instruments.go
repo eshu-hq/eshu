@@ -1881,16 +1881,25 @@ type Instruments struct {
 	// counter is the only durability signal for it (issue #5594). Labels:
 	// pack (frozen string "terraform_config_state_drift").
 	DriftUnresolvedOwnerWriteFailed metric.Int64Counter
-	// WebhookRequests counts public webhook requests by provider, bounded
-	// outcome, and reason. Provider is one of github, gitlab, bitbucket, or
-	// unknown; reason values are closed enums from the webhook listener.
+	// WebhookRequests counts webhook requests by provider, bounded outcome,
+	// and reason. Two runtimes emit it: the in-tree webhook listener and the
+	// webhook intake host (#9811). Provider is a closed set that includes
+	// github, gitlab, bitbucket, pagerduty, jira_cloud, aws_freshness,
+	// gcp_freshness, or unknown; reason values are closed enums, including
+	// the intake-only unsupported_api_version, unsupported_provider, and
+	// invalid_trigger.
 	WebhookRequests metric.Int64Counter
-	// WebhookTriggerDecisions counts normalized provider events that reached
-	// durable trigger storage, labeled by provider, event kind, decision,
-	// reason, and resulting queue status.
+	// WebhookTriggerDecisions counts normalized provider events handed to
+	// trigger storage, labeled by provider, event kind, decision, reason, and
+	// the stored lifecycle status. The intake host also counts a failed write
+	// or a route with no store here, with status failed, on purpose: the
+	// EshuTriggerHandoffFailed alert selects it. A delivery that coalesces
+	// into an already-failed row reads failed too.
 	WebhookTriggerDecisions metric.Int64Counter
 	// WebhookStoreOperations counts durable trigger upserts attempted by the
-	// webhook listener, labeled by provider, outcome, and stored status.
+	// webhook listener or the intake host, labeled by provider, outcome, and
+	// stored status. A failed write has outcome failed and status failed on
+	// the intake host.
 	WebhookStoreOperations metric.Int64Counter
 	// WebhookTriggerClaimReaps counts stale webhook trigger claims the git
 	// collector recovered per tick, labeled by outcome: requeued (below
@@ -5419,7 +5428,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.WebhookRequests, err = meter.Int64Counter(
 		"eshu_dp_webhook_requests_total",
-		metric.WithDescription("Total webhook listener requests by provider, outcome, and reason"),
+		metric.WithDescription("Total webhook requests by provider, outcome, and reason"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register WebhookRequests counter: %w", err)
@@ -5642,7 +5651,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	webhookBuckets := []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10}
 	inst.WebhookRequestDuration, err = meter.Float64Histogram(
 		"eshu_dp_webhook_request_duration_seconds",
-		metric.WithDescription("Webhook listener request duration by provider, outcome, and reason"),
+		metric.WithDescription("Webhook request duration by provider, outcome, and reason"),
 		metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries(webhookBuckets...),
 	)

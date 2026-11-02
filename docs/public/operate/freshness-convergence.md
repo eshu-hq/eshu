@@ -63,7 +63,7 @@ one runtime or view all.
 | --- | --- | --- |
 | Webhook Trigger Decisions | `eshu_dp_webhook_trigger_decisions_total` by `decision`, `status` | whether external change events become freshness work. |
 | Webhook Trigger Store Operations | `eshu_dp_webhook_store_operations_total` by `outcome`, `status` | failed stores mean an accepted trigger never became durable work. |
-| Webhook Listener Requests | `eshu_dp_webhook_requests_total` by `outcome`, `reason` | rejected or errored requests at the edge never reach trigger evaluation. |
+| Webhook Listener Requests | `eshu_dp_webhook_requests_total` by `outcome`, `reason` | rejected or errored requests at the listener or the intake host never reach trigger evaluation. |
 
 ## Alert Pack
 

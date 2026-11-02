@@ -66,8 +66,19 @@ See `doc.go` for the full godoc contract.
   mux (the intake subtree's own `/healthz` is shadowed there by
   longest-prefix match, as in the listener).
 - Metrics: shared `telemetry.Instruments` on the `webhook-intake` service
-  name plus `/metrics` via the Prometheus handler; no intake-specific
-  metric names were introduced, so no dashboard renames were needed.
+  name plus `/metrics` via the Prometheus handler. The intake routes emit
+  the registered `eshu_dp_webhook_requests_total`,
+  `eshu_dp_webhook_request_duration_seconds`,
+  `eshu_dp_webhook_trigger_decisions_total`,
+  `eshu_dp_webhook_store_operations_total`, and
+  `eshu_dp_webhook_store_duration_seconds` series with the listener's label
+  names (#9811), so the EshuTriggerHandoffFailed alert
+  (`trigger_decisions_total{status="failed"}`) and the freshness dashboard
+  work without a query change. `status` is the stored lifecycle state; a failed
+  durable write is counted as `status="failed"`, and so is a delivery that
+  coalesces into an already-failed row. Separate them with
+  `store_operations_total{outcome="failed"}` or `requests_total{reason="store_failed"}`.
+  No new metric names were introduced; the intake package bounds every label.
 - Traces: OTEL providers with the `webhook-intake` service name; Postgres
   store spans flow through the instrumented stores.
 - Logs: structured intake outcomes through the intake server logger

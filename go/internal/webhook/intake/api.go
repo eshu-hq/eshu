@@ -18,6 +18,7 @@ import (
 
 	gcpfreshness "github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/freshness"
 	awsfreshness "github.com/eshu-hq/eshu/go/internal/coordinator/aws/freshness"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/webhook"
 )
 
@@ -89,6 +90,8 @@ type ServerConfig struct {
 	Clock func() time.Time
 	// Logger receives structured intake outcomes. Nil disables logging.
 	Logger *slog.Logger
+	// Instruments receives the request-path series. Nil disables metrics.
+	Instruments *telemetry.Instruments
 }
 
 // Server is core's authenticated, versioned webhook intake API.
@@ -142,10 +145,11 @@ func (s *Server) now() time.Time {
 
 // authorize rejects requests without the configured bearer token using a
 // constant-time comparison. The token value never appears in logs.
-func (s *Server) authorize(w http.ResponseWriter, r *http.Request) bool {
+func (s *Server) authorize(w http.ResponseWriter, r *http.Request, obs *requestObs) bool {
 	const prefix = "Bearer "
 	presented := r.Header.Get("Authorization")
 	if !strings.HasPrefix(presented, prefix) {
+		obs.reject(reasonAuthFailed)
 		s.logOutcome(r, "intake request rejected", slog.String("reason", "missing_bearer"))
 		w.Header().Set("WWW-Authenticate", "Bearer")
 		http.Error(w, "authorization required", http.StatusUnauthorized)
@@ -154,6 +158,7 @@ func (s *Server) authorize(w http.ResponseWriter, r *http.Request) bool {
 	got := strings.TrimSpace(strings.TrimPrefix(presented, prefix))
 	want := strings.TrimSpace(s.config.Token)
 	if want == "" || subtle.ConstantTimeCompare([]byte(got), []byte(want)) != 1 {
+		obs.reject(reasonAuthFailed)
 		s.logOutcome(r, "intake request rejected", slog.String("reason", "invalid_bearer"))
 		w.Header().Set("WWW-Authenticate", "Bearer")
 		http.Error(w, "authorization failed", http.StatusUnauthorized)
@@ -164,8 +169,9 @@ func (s *Server) authorize(w http.ResponseWriter, r *http.Request) bool {
 
 // readBody enforces the intake body bound: 413 only on cap exceed, other
 // read failures 400, mirroring the provider-facing listener contract.
-func (s *Server) readBody(w http.ResponseWriter, r *http.Request) ([]byte, bool) {
+func (s *Server) readBody(w http.ResponseWriter, r *http.Request, obs *requestObs) ([]byte, bool) {
 	if r.Method != http.MethodPost {
+		obs.reject(reasonBadMethod)
 		w.Header().Set("Allow", "POST")
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return nil, false
@@ -176,13 +182,16 @@ func (s *Server) readBody(w http.ResponseWriter, r *http.Request) ([]byte, bool)
 	if err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
+			obs.reject(reasonBodyTooLarge)
 			http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
 			return nil, false
 		}
+		obs.reject(reasonInvalidBody)
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return nil, false
 	}
 	if len(payload) == 0 {
+		obs.reject(reasonEmptyBody)
 		http.Error(w, "empty request body", http.StatusBadRequest)
 		return nil, false
 	}
@@ -192,203 +201,24 @@ func (s *Server) readBody(w http.ResponseWriter, r *http.Request) ([]byte, bool)
 // decodeRequest runs the shared intake prologue — bearer auth, body
 // bound, and JSON decode — so each route handler starts from a decoded
 // wire request.
-func (s *Server) decodeRequest(w http.ResponseWriter, r *http.Request, request any) bool {
-	if !s.authorize(w, r) {
+func (s *Server) decodeRequest(w http.ResponseWriter, r *http.Request, obs *requestObs, request any) bool {
+	if !s.authorize(w, r, obs) {
 		return false
 	}
-	payload, ok := s.readBody(w, r)
+	payload, ok := s.readBody(w, r, obs)
 	if !ok {
 		return false
 	}
-	return s.decode(w, r, payload, request)
-}
-
-func (s *Server) handleRepository(w http.ResponseWriter, r *http.Request) {
-	var request RepositoryIntakeRequest
-	if !s.decodeRequest(w, r, &request) {
-		return
-	}
-	trigger, err := request.toTrigger()
-	if err != nil {
-		s.writeTriggerError(w, r, "repository", err)
-		return
-	}
-	if s.stores.Repository == nil {
-		s.writeStoreError(w, r, "repository")
-		return
-	}
-	stored, err := s.stores.Repository.StoreTrigger(r.Context(), trigger, s.now())
-	if err != nil {
-		s.writeStoreFailure(w, r, "repository", string(trigger.Provider), err)
-		return
-	}
-	s.logOutcome(r, "intake trigger stored",
-		slog.String("route", "repository"),
-		slog.String("provider", string(trigger.Provider)),
-		slog.String("status", string(stored.Status)),
-	)
-	writeIntakeJSON(w, http.StatusAccepted, map[string]any{
-		"api_version":     APIVersionV1,
-		"trigger_id":      stored.TriggerID,
-		"status":          stored.Status,
-		"decision":        stored.Decision,
-		"reason":          stored.Reason,
-		"duplicate":       stored.DuplicateCount > 0,
-		"duplicate_count": stored.DuplicateCount,
-	})
-}
-
-func (s *Server) handleIncident(w http.ResponseWriter, r *http.Request) {
-	var request IncidentIntakeRequest
-	if !s.decodeRequest(w, r, &request) {
-		return
-	}
-	trigger, err := request.toTrigger()
-	if err != nil {
-		s.writeTriggerError(w, r, "incident", err)
-		return
-	}
-	if s.stores.Incident == nil {
-		s.writeStoreError(w, r, "incident")
-		return
-	}
-	stored, err := s.stores.Incident.StoreIncidentFreshnessTrigger(r.Context(), trigger, s.now())
-	if err != nil {
-		s.writeStoreFailure(w, r, "incident", string(trigger.Provider), err)
-		return
-	}
-	s.logOutcome(r, "intake trigger stored",
-		slog.String("route", "incident"),
-		slog.String("provider", string(trigger.Provider)),
-		slog.String("status", string(stored.Status)),
-	)
-	writeIntakeJSON(w, http.StatusAccepted, map[string]any{
-		"api_version":     APIVersionV1,
-		"trigger_id":      stored.TriggerID,
-		"status":          stored.Status,
-		"duplicate":       stored.DuplicateCount > 0,
-		"duplicate_count": stored.DuplicateCount,
-	})
-}
-
-func (s *Server) handleAWS(w http.ResponseWriter, r *http.Request) {
-	var request AWSIntakeRequest
-	if !s.decodeRequest(w, r, &request) {
-		return
-	}
-	trigger, err := request.toTrigger()
-	if err != nil {
-		s.writeTriggerError(w, r, "aws", err)
-		return
-	}
-	if s.stores.AWS == nil {
-		s.writeStoreError(w, r, "aws")
-		return
-	}
-	stored, err := s.stores.AWS.StoreTrigger(r.Context(), trigger, s.now())
-	if err != nil {
-		s.writeStoreFailure(w, r, "aws", "aws", err)
-		return
-	}
-	s.logOutcome(r, "intake trigger stored",
-		slog.String("route", "aws"),
-		slog.String("status", string(stored.Status)),
-	)
-	writeIntakeJSON(w, http.StatusAccepted, map[string]any{
-		"api_version":     APIVersionV1,
-		"trigger_id":      stored.TriggerID,
-		"status":          stored.Status,
-		"kind":            stored.Kind,
-		"duplicate":       stored.DuplicateCount > 0,
-		"duplicate_count": stored.DuplicateCount,
-	})
-}
-
-func (s *Server) handleGCP(w http.ResponseWriter, r *http.Request) {
-	var request GCPIntakeRequest
-	if !s.decodeRequest(w, r, &request) {
-		return
-	}
-	trigger, err := request.toTrigger()
-	if err != nil {
-		s.writeTriggerError(w, r, "gcp", err)
-		return
-	}
-	if s.stores.GCP == nil {
-		s.writeStoreError(w, r, "gcp")
-		return
-	}
-	stored, err := s.stores.GCP.StoreTrigger(r.Context(), trigger, s.now())
-	if err != nil {
-		s.writeStoreFailure(w, r, "gcp", "gcp", err)
-		return
-	}
-	s.logOutcome(r, "intake trigger stored",
-		slog.String("route", "gcp"),
-		slog.String("status", string(stored.Status)),
-	)
-	writeIntakeJSON(w, http.StatusAccepted, map[string]any{
-		"api_version":     APIVersionV1,
-		"trigger_id":      stored.TriggerID,
-		"status":          stored.Status,
-		"kind":            stored.Kind,
-		"duplicate":       stored.DuplicateCount > 0,
-		"duplicate_count": stored.DuplicateCount,
-	})
-}
-
-func (s *Server) handleActions(w http.ResponseWriter, r *http.Request) {
-	var request ActionsIntakeRequest
-	if !s.decodeRequest(w, r, &request) {
-		return
-	}
-	trigger, err := request.toTrigger()
-	if err != nil {
-		s.writeTriggerError(w, r, "actions", err)
-		return
-	}
-	if s.stores.Actions == nil {
-		s.writeStoreError(w, r, "actions")
-		return
-	}
-	stored, err := s.stores.Actions.Store(r.Context(), trigger, s.now())
-	if err != nil {
-		if errors.Is(err, webhook.ErrActionsDeliveryConflict) {
-			s.logOutcome(r, "intake delivery conflict", slog.String("route", "actions"))
-			writeIntakeJSON(w, http.StatusConflict, map[string]any{
-				"api_version": APIVersionV1,
-				"code":        codeDeliveryConflict,
-				"error":       "conflicting actions delivery",
-			})
-			return
-		}
-		s.writeStoreFailure(w, r, "actions", "github", err)
-		return
-	}
-	s.logOutcome(r, "intake trigger stored",
-		slog.String("route", "actions"),
-		slog.String("status", string(stored.Status)),
-	)
-	writeIntakeJSON(w, http.StatusAccepted, map[string]any{
-		"api_version": APIVersionV1,
-		"status":      stored.Status,
-		"decision":    webhook.DecisionAccepted,
-	})
-}
-
-func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
-	writeIntakeJSON(w, http.StatusOK, map[string]any{
-		"api_version": APIVersionV1,
-		"status":      "ok",
-	})
+	return s.decode(w, r, obs, payload, request)
 }
 
 // decode unmarshals one intake body. Unknown fields are ignored so a newer
 // client still submits to this server (forward compatibility); a body that
 // is not JSON at all is a 400.
-func (s *Server) decode(w http.ResponseWriter, r *http.Request, payload []byte, request any) bool {
+func (s *Server) decode(w http.ResponseWriter, r *http.Request, obs *requestObs, payload []byte, request any) bool {
 	decoder := json.NewDecoder(bytes.NewReader(payload))
 	if err := decoder.Decode(request); err != nil {
+		obs.reject(reasonMalformedEvent)
 		s.logOutcome(r, "intake request rejected", slog.String("reason", "invalid_json"))
 		http.Error(w, "invalid JSON body", http.StatusBadRequest)
 		return false
@@ -399,7 +229,7 @@ func (s *Server) decode(w http.ResponseWriter, r *http.Request, payload []byte, 
 // writeTriggerError maps a wire validation failure to its status: version
 // and provider-family mismatches carry their own codes so the listener can
 // distinguish a contract problem from a bad trigger.
-func (s *Server) writeTriggerError(w http.ResponseWriter, r *http.Request, route string, err error) {
+func (s *Server) writeTriggerError(w http.ResponseWriter, r *http.Request, obs *requestObs, route string, err error) {
 	code := codeInvalidTrigger
 	status := http.StatusBadRequest
 	switch {
@@ -408,6 +238,7 @@ func (s *Server) writeTriggerError(w http.ResponseWriter, r *http.Request, route
 	case errors.Is(err, errUnsupportedProvider):
 		code = codeUnsupportedProvider
 	}
+	obs.reject(code)
 	s.logOutcome(r, "intake request rejected",
 		slog.String("route", route),
 		slog.String("code", code),
