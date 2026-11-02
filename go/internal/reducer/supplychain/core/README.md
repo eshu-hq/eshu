@@ -453,8 +453,7 @@ and only discards its suppression candidates. The OS-package read is narrowed to
 the intent's affected-package lookup keys and drained in one snapshot
 (`ListOSPackageAdvisoryFactEnvelopes(ecosystems, packageIDs, limit)`); the
 digest and repository-id filters read in chunks of 256. Operators see a stuck scope through
-`eshu_dp_supply_chain_impact_evidence_truncated_total{domain,reason}` and one
-WARN log line naming the scope and generation.
+`eshu_dp_supply_chain_impact_evidence_truncated_total{domain,reason}`, one WARN log line naming the scope and generation, and the process-local `eshu_dp_supply_chain_impact_partial_scopes{cause}` and `..._evidence_budget_ratio` gauges (#9778, fed by `recordEvidenceHeadroom` after an admitted write).
 
 Each active-evidence call resolves matching fact IDs once from the
 index-anchored statements in `storage/postgres/facts/impact`, orders core

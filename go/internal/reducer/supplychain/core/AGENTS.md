@@ -43,3 +43,7 @@ changing anything here.
   pointing at real files with a net-zero row count; the dirgate row for
   `internal/reducer` ratchets DOWN on family moves and never absorbs new
   files to hold this package's count.
+- `recordEvidenceHeadroom` feeds the #9778 headroom gauges through
+  `Instruments.SupplyChainImpactHeadroom` after an admitted write only. Keep it
+  after the write and on `truncation.causes()`, the same set that decides
+  `PartialEvidence`, so the gauge never disagrees with retraction. The ratio reads `budgetEnvelopes` (`budget.used`), never `expansionEnvelopes`: the protected-scan path adds uncharged derived facts to that one.
