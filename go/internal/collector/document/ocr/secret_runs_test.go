@@ -39,17 +39,27 @@ func TestExtractContinuesASecretRunPastTheWindow(t *testing.T) {
 		},
 		{
 			name:    "the short last line of a body is withheld, and the line after it is not",
-			regions: stackedRegions("Password:", "x1", "y2", runLine, "Qk9x==", "Rollback"),
-			want:    []string{redacted, redacted, redacted, redacted, redacted, "Rollback"},
+			regions: stackedRegions("Password:", runLine, runLineB, "Qk9x==", "Rollback"),
+			want:    []string{redacted, redacted, redacted, redacted, "Rollback"},
 		},
 		{
 			name:    "a tail slot holds one region only",
-			regions: stackedRegions("Password:", "x1", "y2", runLine, "Qk9x==", "Rollback", "Notes"),
-			want:    []string{redacted, redacted, redacted, redacted, redacted, "Rollback", "Notes"},
+			regions: stackedRegions("Password:", runLine, runLineB, "Qk9x==", "Rollback", "Notes"),
+			want:    []string{redacted, redacted, redacted, redacted, "Rollback", "Notes"},
+		},
+		{
+			name:    "one withheld value does not hide the single word under it",
+			regions: stackedRegions("Password:", "x1", "y2", runLine, "platform", "Rollback steps"),
+			want:    []string{redacted, redacted, redacted, redacted, "platform", "Rollback steps"},
 		},
 		{
 			name:    "a noise region inside the run does not end it",
 			regions: stackedRegions("Password:", "x1", "y2", runLine, "|", runLineB, "Rollback steps"),
+			want:    []string{redacted, redacted, redacted, redacted, redacted, redacted, "Rollback steps"},
+		},
+		{
+			name:    "a noise region between tokens inside the window does not end the run",
+			regions: stackedRegions("Password:", runLine, "|", runLineB, "_", "Ab3dEf6hIj9lMn2pQ", "Rollback steps"),
 			want:    []string{redacted, redacted, redacted, redacted, redacted, redacted, "Rollback steps"},
 		},
 		{
@@ -86,6 +96,16 @@ func TestExtractContinuesASecretRunPastTheWindow(t *testing.T) {
 			name:    "a seed line starts a run with no label",
 			regions: stackedRegions("Release checklist", seedLine, runLine, "Qk9x==", "Rollback steps"),
 			want:    []string{"Release checklist", redacted, redacted, redacted, "Rollback steps"},
+		},
+		{
+			name:    "a seed line alone takes the short line under it",
+			regions: stackedRegions("Release checklist", seedLine, "Qk9x==", "Rollback steps"),
+			want:    []string{"Release checklist", redacted, redacted, "Rollback steps"},
+		},
+		{
+			name:    "a symbol region after a kept line is kept",
+			regions: stackedRegions("Release checklist", "|", runLine),
+			want:    []string{"Release checklist", "|", runLine},
 		},
 	}
 	for _, tt := range tests {

@@ -20,6 +20,10 @@ const (
 	// no label before it. It is long on purpose: a seed has nothing else to
 	// vouch for it.
 	minSeedTokenLen = 40
+
+	// minTokensBeforeTail is how many run tokens in a row must come before the
+	// short last line of a body for it to be withheld with them.
+	minTokensBeforeTail = 2
 )
 
 // extendSecretRuns marks the regions of a secret that runs past the label
@@ -34,11 +38,17 @@ const (
 //     text is a run token: no whitespace, at least minRunTokenLen characters,
 //     and a digit or one of `+/=`. Prose has spaces, so it ends a run at the
 //     first line of ordinary text.
-//   - the region before it was a withheld run token, and its own text has no
-//     whitespace at all. A body ends on a short line (`Qk9x==`), and this keeps
-//     the tail of the key out of the facts. It holds for one region only.
+//   - the two regions before it were withheld run tokens, and its own text has
+//     no whitespace at all. A body ends on a short line (`Qk9x==`), and this
+//     keeps the tail of the key out of the facts. It holds for one region only,
+//     and it needs two tokens before it, so one withheld value such as a
+//     password does not hide the single word under it.
+//   - it holds no letter or digit and the region before it was withheld. Box
+//     edges reach OCR as "|", and the label window treats them the same way. Such a
+//     region neither ends the run nor adds to it.
 //   - its own text is a seed token (see isSeedToken), whatever came before. A
-//     key body cropped from its armor line has no label to open a window.
+//     key body cropped from its armor line has no label to open a window. A
+//     seed counts as two tokens, because it is long enough to stand alone.
 //
 // A label region needs no mark of its own: the two regions after it are in the
 // window already, so the first region of a run is always a value. The scan reads
@@ -47,10 +57,17 @@ const (
 // values only, from false to true, so it never lets a region out that the
 // window withheld.
 func extendSecretRuns(regions []Region, values []bool) {
-	previousWithheld, previousToken := false, false
+	previousWithheld := false
+	tokens := 0 // withheld run tokens in a row, up to the region before this one
 	for i, region := range regions {
 		text := strings.TrimSpace(region.Text)
 		if text == "" {
+			continue
+		}
+		if !strings.ContainsFunc(text, isLetterOrDigit) {
+			// Box edges reach OCR as "|" or "_". Like the window, the run
+			// withholds such a region and neither ends nor extends it.
+			values[i] = values[i] || previousWithheld
 			continue
 		}
 		withheld := values[i]
@@ -59,13 +76,21 @@ func extendSecretRuns(regions []Region, values []bool) {
 		case withheld:
 		case previousWithheld && token:
 			withheld = true
-		case previousToken && !hasSpace(text):
-			withheld = true
+		case tokens >= minTokensBeforeTail && !hasSpace(text):
+			withheld, token = true, false
 		case isSeedToken(text):
 			withheld = true
 		}
 		values[i] = values[i] || withheld
-		previousWithheld, previousToken = withheld, withheld && token
+		previousWithheld = withheld
+		switch {
+		case withheld && isSeedToken(text):
+			tokens = minTokensBeforeTail
+		case withheld && token:
+			tokens++
+		default:
+			tokens = 0
+		}
 	}
 }
 
