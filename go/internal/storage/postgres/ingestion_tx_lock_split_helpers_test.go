@@ -12,7 +12,8 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -378,32 +379,36 @@ func openIngestionTxLockSplitProofSchema(t *testing.T, dsn string) (*sql.DB, str
 }
 
 // openIngestionTxLockSplitProofSchemaConn opens a pgx handle capped at one
-// connection and pins its session-local search_path to schemaName. The
-// single-connection cap is what keeps SET search_path durable for the
-// handle: search_path is connection-local, so a multi-connection pool would
-// hand out fresh connections that no longer see the schema's tables — the
-// exact defect this helper exists to close (a *sql.DB pool that ran SET
+// connection whose every connection starts with search_path pinned to
+// schemaName (a startup runtime parameter, so a replacement connection keeps
+// it). search_path is connection-local: a *sql.DB pool that ran SET
 // search_path on only one pooled connection produced deterministic
-// "relation does not exist" errors once any concurrent caller, including
+// "relation does not exist" errors once any caller, including
 // CommitScopeGeneration's own sequential post-commit backfill transaction,
-// drew a different connection from the same pool). Each handle still
+// drew a different connection, and a connection discarded after a cancelled
+// statement came back without the schema and read public instead. Each handle still
 // represents one live connection, so distinct handles (see
 // openIngestionTxLockSplitProofClaimerDB) run genuinely concurrently against
 // the same schema.
 func openIngestionTxLockSplitProofSchemaConn(t *testing.T, ctx context.Context, dsn, schemaName string) *sql.DB {
 	t.Helper()
-	db, err := sql.Open("pgx", dsn)
+	// search_path is a startup parameter of every connection this handle
+	// opens, not a one-time SET. database/sql discards a connection whose
+	// context was cancelled mid-statement (a stale re-pin in the #9376 fence
+	// proofs does exactly that); a SET on the first connection would not
+	// reach the replacement, which would then resolve unqualified tables
+	// against public and could pass a proof against the wrong schema.
+	config, err := pgx.ParseConfig(dsn)
 	if err != nil {
-		t.Fatalf("open postgres: %v", err)
+		t.Fatalf("parse postgres dsn: %v", err)
 	}
+	config.RuntimeParams["search_path"] = schemaName + ", public"
+	db := stdlib.OpenDB(*config)
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
 	t.Cleanup(func() { _ = db.Close() })
 	if err := db.PingContext(ctx); err != nil {
 		t.Fatalf("ping postgres: %v", err)
-	}
-	if _, err := db.ExecContext(ctx, "SET search_path TO "+schemaName+", public"); err != nil {
-		t.Fatalf("set search_path: %v", err)
 	}
 	return db
 }

@@ -101,8 +101,19 @@ func (l *claimFenceLive) commit(store IngestionStore, mutation workflow.ClaimMut
 		testfixtures.FactChannel(envelopes))
 }
 
+// count runs one verification query on the test's own schema. It first
+// refuses a connection whose current schema is not the proof schema, so a
+// verification can never silently resolve against public (which on a shared
+// database may hold its own empty core tables and count 0).
 func (l *claimFenceLive) count(query string, args ...any) int {
 	l.t.Helper()
+	var current string
+	if err := l.database.QueryRowContext(context.Background(), `SELECT current_schema()`).Scan(&current); err != nil {
+		l.t.Fatalf("read current_schema(): %v", err)
+	}
+	if current != l.schema {
+		l.t.Fatalf("verification connection resolves schema %q, want proof schema %q", current, l.schema)
+	}
 	var n int
 	if err := l.database.QueryRowContext(context.Background(), query, args...).Scan(&n); err != nil {
 		l.t.Fatalf("count %q: %v", query, err)
