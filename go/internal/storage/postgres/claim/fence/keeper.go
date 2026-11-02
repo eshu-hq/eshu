@@ -5,7 +5,6 @@ package fence
 
 import (
 	"context"
-	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -34,17 +33,22 @@ type KeeperConfig struct {
 	Ticks <-chan time.Time
 	// OnRepin, when set, receives one outcome per re-pin attempt.
 	OnRepin func(outcome string)
+	// AttemptTimeout bounds each re-pin call; zero or less leaves it bounded
+	// only by the keeper's own context, which Stop cancels.
+	AttemptTimeout time.Duration
 }
 
 // Keeper re-pins one claim for the life of one commit transaction. It is
 // safe for concurrent use: the commit goroutine reads LatestDeadline and
 // Stale while the loop goroutine writes them.
 type Keeper struct {
-	latest   atomic.Int64
-	stale    atomic.Pointer[Rejection]
-	stop     chan struct{}
-	done     chan struct{}
-	stopOnce sync.Once
+	latest atomic.Int64
+	stale  atomic.Pointer[Rejection]
+	// halt cancels the loop's own context. Stop calls it before waiting, so
+	// a re-pin blocked on a stalled plane returns at once instead of holding
+	// the already-decided commit until the call gives up.
+	halt context.CancelFunc
+	done chan struct{}
 }
 
 // StartKeeper starts the re-pin loop. When the plane refuses a re-pin as
@@ -52,10 +56,14 @@ type Keeper struct {
 // context with it as the cause, so every in-flight statement fails and the
 // transaction rolls back. A transport failure is reported and ignored: the
 // pre-COMMIT deadline check decides. The deadline only ever grows.
+//
+// The loop runs on its own context derived from ctx, so Stop can end an
+// in-flight re-pin without cancelling ctx itself.
 func StartKeeper(ctx context.Context, cancel context.CancelCauseFunc, config KeeperConfig) *Keeper {
-	keeper := &Keeper{stop: make(chan struct{}), done: make(chan struct{})}
+	loopCtx, halt := context.WithCancel(ctx)
+	keeper := &Keeper{halt: halt, done: make(chan struct{})}
 	keeper.latest.Store(config.FirstDeadline.UnixNano())
-	go keeper.run(ctx, cancel, config)
+	go keeper.run(loopCtx, cancel, config)
 	return keeper
 }
 
@@ -64,15 +72,18 @@ func (k *Keeper) run(ctx context.Context, cancel context.CancelCauseFunc, config
 	request := config.Request
 	for {
 		select {
-		case <-k.stop:
-			return
 		case <-ctx.Done():
 			return
 		case <-config.Ticks:
 		}
 		deadline := config.Now().Add(request.Lease)
-		_, err := config.Pinner.PinClaimForCommit(ctx, request.ClaimID, request.FencingToken,
-			request.ScopeID, request.SourceRunID, request.GenerationID, deadline)
+		_, err := pinOnce(ctx, config.AttemptTimeout, config.Pinner, request, deadline)
+		if ctx.Err() != nil {
+			// Stopped (or the commit ended) while the call was in flight:
+			// the commit's outcome is already decided, so the answer is
+			// neither recorded nor reported.
+			return
+		}
 		if err == nil {
 			k.extend(deadline)
 			report(config.OnRepin, RepinOK)
@@ -118,9 +129,10 @@ func (k *Keeper) Stale() error {
 	return nil
 }
 
-// Stop ends the loop and waits for it. It is idempotent and must be called
-// before the commit returns, at COMMIT or ROLLBACK.
+// Stop cancels the loop, including any re-pin in flight, and waits for it to
+// exit. It is idempotent and must be called before the commit returns, at
+// COMMIT or ROLLBACK. It never cancels the commit context.
 func (k *Keeper) Stop() {
-	k.stopOnce.Do(func() { close(k.stop) })
+	k.halt()
 	<-k.done
 }

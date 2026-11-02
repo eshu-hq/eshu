@@ -419,6 +419,10 @@ func (s IngestionStore) commitScopeGeneration(
 		return fmt.Errorf("commit ingestion transaction: %w", err)
 	}
 	transactionClosed = true
+	if claimFence != nil {
+		// The generation is durable: stop re-pinning before post-commit work.
+		ctx = claimFence.afterCommit()
+	}
 	s.logCommitStage(ctx, scopeValue, generation, "commit_transaction", stageStart)
 	// The scope has a durable generation, so a destructive-successor hold on it
 	// ends here and not at the guard, which runs before the commit can fail.

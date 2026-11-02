@@ -301,3 +301,66 @@ func TestClaimPlaneFenceReplayAndCrossItemLive(t *testing.T) {
 		t.Fatalf("T6 fence rows = %d, want 2 (one per work item)", n)
 	}
 }
+
+// hangAfterFirstPinner answers the pre-transaction pin and then blocks every
+// re-pin until its context ends, like an HTTP client against a stalled plane.
+type hangAfterFirstPinner struct {
+	calls   atomic.Int64
+	entered chan struct{}
+}
+
+func (p *hangAfterFirstPinner) PinClaimForCommit(ctx context.Context, claimID string, _ int64, _, _, _ string, _ time.Time) (string, error) {
+	if p.calls.Add(1) == 1 {
+		return "commit-" + claimID, nil
+	}
+	p.entered <- struct{}{}
+	<-ctx.Done()
+	return "", ctx.Err()
+}
+
+// TestClaimPlaneFenceHungRepinDoesNotHoldADurableCommitLive is the #9376
+// review P2-1 probe: a re-pin blocked on a stalled plane mid-stream must not
+// keep an already-durable commit from returning. The per-attempt bound is
+// lifted so only the keeper stop can release the blocked call.
+func TestClaimPlaneFenceHungRepinDoesNotHoldADurableCommitLive(t *testing.T) {
+	live := newClaimFenceLive(t)
+	pinner := &hangAfterFirstPinner{entered: make(chan struct{}, 1)}
+	ticks := make(chan time.Time)
+	store := live.store(live.database, pinner, ticks)
+	store.ClaimPlane.PinAttemptTimeout = time.Hour
+	stream := make(chan facts.Envelope)
+	go func() {
+		defer close(stream)
+		stream <- facts.Envelope{
+			FactID: "fact-p21-a", ScopeID: "scope-p21", GenerationID: "gen-p21",
+			FactKind: "pagerduty_service", StableFactKey: "a", FencingToken: 1, ObservedAt: live.clock.now(),
+		}
+		ticks <- time.Time{}
+		<-pinner.entered
+		stream <- facts.Envelope{
+			FactID: "fact-p21-b", ScopeID: "scope-p21", GenerationID: "gen-p21",
+			FactKind: "pagerduty_service", StableFactKey: "b", FencingToken: 1, ObservedAt: live.clock.now(),
+		}
+	}()
+	mutation := claimFenceTestMutation("scope-p21", "gen-p21", "claim-p21", 1)
+	mutation.ObservedAt = live.clock.now()
+	done := make(chan error, 1)
+	go func() {
+		done <- store.CommitClaimedScopeGeneration(context.Background(), mutation, claimFenceTestScope("scope-p21"),
+			claimFenceTestGeneration("scope-p21", "gen-p21", live.clock.now()), stream)
+	}()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("commit error = %v, want nil (the pin deadline still had slack)", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("commit did not return within 10s while a re-pin hung on a stalled plane")
+	}
+	if n := live.count(`SELECT count(*) FROM generation_commit_fences WHERE generation_id = 'gen-p21' AND fencing_token = 1`); n != 1 {
+		t.Fatalf("fence rows = %d, want 1 durable row", n)
+	}
+	if n := live.count(`SELECT count(*) FROM fact_records WHERE generation_id = 'gen-p21'`); n != 2 {
+		t.Fatalf("fact rows = %d, want 2", n)
+	}
+}

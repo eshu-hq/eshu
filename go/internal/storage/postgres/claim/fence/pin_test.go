@@ -114,7 +114,7 @@ func TestPinStaleAndNotFoundAreTerminalWithoutRetry(t *testing.T) {
 	for _, code := range []string{"stale_fence", "lease_expired", "claim_conflict", "not_found"} {
 		t.Run(code, func(t *testing.T) {
 			pinner := &fakePinner{results: []error{codedError{code}}}
-			_, err := Pin(context.Background(), pinner, testCode, testRequest(), time.Unix(100, 0), 3, 0)
+			_, err := Pin(context.Background(), pinner, testCode, testRequest(), time.Unix(100, 0), Retry{Attempts: 3})
 			var rejection *Rejection
 			if !errors.As(err, &rejection) {
 				t.Fatalf("Pin() error = %v, want *Rejection", err)
@@ -136,7 +136,7 @@ func TestPinStaleAndNotFoundAreTerminalWithoutRetry(t *testing.T) {
 func TestPinRetriesTransportWithIdenticalArgumentsThenUnavailable(t *testing.T) {
 	pinner := &fakePinner{results: []error{errors.New("dial tcp: i/o timeout")}}
 	deadline := time.Unix(200, 0)
-	_, err := Pin(context.Background(), pinner, testCode, testRequest(), deadline, 3, 0)
+	_, err := Pin(context.Background(), pinner, testCode, testRequest(), deadline, Retry{Attempts: 3})
 	var rejection *Rejection
 	if !errors.As(err, &rejection) || rejection.Reason != ReasonPinUnavailable {
 		t.Fatalf("Pin() error = %v, want pin_unavailable rejection", err)
@@ -160,7 +160,7 @@ func TestPinRetriesTransportWithIdenticalArgumentsThenUnavailable(t *testing.T) 
 
 func TestPinSucceedsAfterTransientFailure(t *testing.T) {
 	pinner := &fakePinner{results: []error{errors.New("reset"), nil}}
-	commitID, err := Pin(context.Background(), pinner, testCode, testRequest(), time.Unix(300, 0), 3, 0)
+	commitID, err := Pin(context.Background(), pinner, testCode, testRequest(), time.Unix(300, 0), Retry{Attempts: 3})
 	if err != nil || commitID != "commit-claim-1" {
 		t.Fatalf("Pin() = (%q, %v), want commit-claim-1", commitID, err)
 	}

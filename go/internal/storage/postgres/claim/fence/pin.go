@@ -73,6 +73,19 @@ func RequestFor(mutation workflow.ClaimMutation) (Request, error) {
 	return request, nil
 }
 
+// Retry bounds the pre-transaction pin (#9376 D7).
+type Retry struct {
+	// Attempts is the total number of identical pin calls; below 1 means 1.
+	Attempts int
+	// Backoff is the wait before the second attempt; each later wait grows
+	// linearly (Backoff times the attempt number).
+	Backoff time.Duration
+	// AttemptTimeout bounds each PinClaimForCommit call, so a hung plane
+	// counts as a failed attempt instead of stalling the commit. Zero or less
+	// leaves the call bounded only by ctx.
+	AttemptTimeout time.Duration
+}
+
 // Pin pins the claim once, retrying a transport failure up to attempts times
 // with identical arguments (the plane keeps the first commit id and only
 // extends the deadline, so a retry is idempotent). A stale or unknown claim is
@@ -84,16 +97,15 @@ func Pin(
 	code CodeFunc,
 	request Request,
 	deadline time.Time,
-	attempts int,
-	backoff time.Duration,
+	retry Retry,
 ) (string, error) {
+	attempts, backoff := retry.Attempts, retry.Backoff
 	if attempts < 1 {
 		attempts = 1
 	}
 	var last error
 	for attempt := 1; attempt <= attempts; attempt++ {
-		commitID, err := pinner.PinClaimForCommit(ctx, request.ClaimID, request.FencingToken,
-			request.ScopeID, request.SourceRunID, request.GenerationID, deadline)
+		commitID, err := pinOnce(ctx, retry.AttemptTimeout, pinner, request, deadline)
 		if err == nil {
 			return commitID, nil
 		}
@@ -114,6 +126,19 @@ func Pin(
 		}
 	}
 	return "", &Rejection{Reason: ReasonPinUnavailable, RequestedToken: request.FencingToken, Err: last}
+}
+
+// pinOnce makes one pin call, bounded by timeout when it is positive. The
+// bound relies on the Pinner honoring its context, as the claim-plane HTTP
+// client does.
+func pinOnce(ctx context.Context, timeout time.Duration, pinner Pinner, request Request, deadline time.Time) (string, error) {
+	if timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
+	return pinner.PinClaimForCommit(ctx, request.ClaimID, request.FencingToken,
+		request.ScopeID, request.SourceRunID, request.GenerationID, deadline)
 }
 
 // refusalReason maps a protocol code to a terminal refusal. Codes the plane

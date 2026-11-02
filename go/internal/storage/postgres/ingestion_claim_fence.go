@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -26,6 +27,12 @@ import (
 // the clock skew between collector and claim plane plus the commit p99, and
 // stay below two thirds of the claim lease so a healthy re-pin leaves slack.
 const DefaultClaimFenceMargin = 5 * time.Second
+
+// DefaultClaimFencePinAttemptTimeout bounds one pin or re-pin call (#9376
+// D7), capped at a third of the claim lease so a hung call never outlasts a
+// re-pin interval. It matches the 10 s http.Client timeout the claim-plane
+// client wiring sets; whichever fires first, a hung plane is a failed attempt.
+const DefaultClaimFencePinAttemptTimeout = 10 * time.Second
 
 // Pin retry bounds for the pre-transaction pin (#9376 D7).
 const (
@@ -56,6 +63,10 @@ type ClaimPlaneFence struct {
 	Ticks func(interval time.Duration) (<-chan time.Time, func())
 	// PinBackoff overrides the pre-transaction pin retry backoff (tests).
 	PinBackoff time.Duration
+	// PinAttemptTimeout overrides the per-call pin bound when positive
+	// (tests). Zero uses DefaultClaimFencePinAttemptTimeout capped at a third
+	// of the claim lease.
+	PinAttemptTimeout time.Duration
 }
 
 // claimFenceSession is one plane-path commit's fence state, from the pin
@@ -69,6 +80,8 @@ type claimFenceSession struct {
 	keeper    *fence.Keeper
 	stopTicks func()
 	cancel    context.CancelCauseFunc
+	parent    context.Context
+	stopped   bool
 	span      trace.Span
 	recorded  bool
 	slack     time.Duration
@@ -98,6 +111,15 @@ func (s IngestionStore) beginClaimFence(
 	if err != nil {
 		return ctx, nil, err
 	}
+	margin := config.margin()
+	if limit := request.Lease - request.Lease/3; margin >= limit {
+		// D6: a healthy re-pin every lease/3 must leave the deadline above
+		// the margin. A lease this short (or a margin this wide) would turn
+		// every commit into a retryable deadline refusal, forever.
+		return ctx, nil, fmt.Errorf(
+			"claim-plane commit fence: margin %s must be below two thirds of the %s claim lease (%s)",
+			margin, request.Lease, limit)
+	}
 	session := &claimFenceSession{store: s, config: config, request: request, scopeID: scopeValue.ScopeID}
 	if config.Tracer != nil {
 		ctx, session.span = config.Tracer.Start(ctx, telemetry.SpanIngestionCommitClaimFence, trace.WithAttributes(
@@ -113,7 +135,9 @@ func (s IngestionStore) beginClaimFence(
 		backoff = claimFencePinBackoff
 	}
 	firstDeadline := s.now().Add(request.Lease)
-	commitID, err := fence.Pin(ctx, config.Pinner, session.code(), request, firstDeadline, claimFencePinAttempts, backoff)
+	attemptTimeout := config.pinAttemptTimeout(request.Lease)
+	commitID, err := fence.Pin(ctx, config.Pinner, session.code(), request, firstDeadline,
+		fence.Retry{Attempts: claimFencePinAttempts, Backoff: backoff, AttemptTimeout: attemptTimeout})
 	if err != nil {
 		session.recordRejection(ctx, err, generationID)
 		session.endSpan(err)
@@ -123,16 +147,34 @@ func (s IngestionStore) beginClaimFence(
 	if session.span != nil {
 		session.span.SetAttributes(attribute.String("commit_id", commitID))
 	}
+	session.parent = ctx
 	commitCtx, cancel := context.WithCancelCause(ctx)
 	session.cancel = cancel
 	ticks, stop := session.ticks()
 	session.stopTicks = stop
 	session.keeper = fence.StartKeeper(commitCtx, cancel, fence.KeeperConfig{
 		Pinner: config.Pinner, Code: session.code(), Request: request,
-		FirstDeadline: firstDeadline, Now: s.now, Ticks: ticks,
+		FirstDeadline: firstDeadline, Now: s.now, Ticks: ticks, AttemptTimeout: attemptTimeout,
 		OnRepin: func(outcome string) { session.recordRepin(ctx, outcome) },
 	})
 	return commitCtx, session, nil
+}
+
+// margin is the configured deadline margin, DefaultClaimFenceMargin unless
+// overridden.
+func (c *ClaimPlaneFence) margin() time.Duration {
+	if c.Margin > 0 {
+		return c.Margin
+	}
+	return DefaultClaimFenceMargin
+}
+
+// pinAttemptTimeout is the bound on one pin call for a claim lease.
+func (c *ClaimPlaneFence) pinAttemptTimeout(lease time.Duration) time.Duration {
+	if c.PinAttemptTimeout > 0 {
+		return c.PinAttemptTimeout
+	}
+	return min(DefaultClaimFencePinAttemptTimeout, lease/3)
 }
 
 func (f *claimFenceSession) code() fence.CodeFunc {
@@ -173,11 +215,7 @@ func (f *claimFenceSession) checkDeadline(ctx context.Context, generationID stri
 		f.recordRejection(ctx, stale, generationID)
 		return stale
 	}
-	margin := f.config.Margin
-	if margin <= 0 {
-		margin = DefaultClaimFenceMargin
-	}
-	slack, err := fence.CheckDeadline(f.keeper.LatestDeadline(), f.store.now(), margin)
+	slack, err := fence.CheckDeadline(f.keeper.LatestDeadline(), f.store.now(), f.config.margin())
 	f.slack = slack
 	if instruments := f.store.Instruments; instruments != nil && instruments.IngestionCommitPinSlack != nil {
 		instruments.IngestionCommitPinSlack.Record(ctx, slack.Seconds())
@@ -188,13 +226,32 @@ func (f *claimFenceSession) checkDeadline(ctx context.Context, generationID stri
 	return err
 }
 
+// stopKeeper ends the re-pin loop, cancelling any re-pin in flight, and its
+// ticker. It is idempotent; it runs on the commit goroutine only.
+func (f *claimFenceSession) stopKeeper() {
+	if f.stopped {
+		return
+	}
+	f.stopped = true
+	f.keeper.Stop()
+	f.stopTicks()
+}
+
+// afterCommit stops the keeper as soon as COMMIT returns and gives back the
+// context the commit started from. Post-commit work (the catalog merge and
+// the relationship backfill) runs on it, so a re-pin refusal that lands after
+// the generation is durable cannot cancel that work.
+func (f *claimFenceSession) afterCommit() context.Context {
+	f.stopKeeper()
+	return f.parent
+}
+
 // finish stops the keeper and returns the commit's final error. A stale
 // re-pin cancels the commit context, so the statement that failed reports a
 // context error; finish replaces it with the keeper's terminal refusal so the
 // collector fails the claim terminally instead of retrying.
 func (f *claimFenceSession) finish(ctx context.Context, generationID string, err error) error {
-	f.keeper.Stop()
-	f.stopTicks()
+	f.stopKeeper()
 	if stale := f.keeper.Stale(); stale != nil && err != nil {
 		var rejection *fence.Rejection
 		if !errors.As(err, &rejection) {
@@ -237,7 +294,14 @@ func (f *claimFenceSession) recordRejection(ctx context.Context, err error, gene
 			attribute.String(telemetry.MetricDimensionReason, string(rejection.Reason))))
 	}
 	if f.store.Logger != nil {
-		f.store.Logger.WarnContext(ctx, "claim-plane commit fence refused the commit",
+		// fence_claim_mismatch (equal token under another claim) is impossible
+		// while the plane enforces UNIQUE (work_item_id, fencing_token): it is
+		// an integrity alarm, not a routine refusal.
+		level := slog.LevelWarn
+		if rejection.Reason == fence.ReasonFenceClaimMismatch {
+			level = slog.LevelError
+		}
+		f.store.Logger.Log(ctx, level, "claim-plane commit fence refused the commit",
 			slog.String(telemetry.LogKeyScopeID, f.scopeID),
 			slog.String(telemetry.LogKeyGenerationID, generationID),
 			slog.String("work_item_id", f.request.WorkItemID),
