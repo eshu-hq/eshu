@@ -76,7 +76,7 @@ the `querycontract.CoreReadContractsVersion` port set.
 | BrowserSessions | browser-session store | session lifecycle via admission contract |
 | Setup | bootstrap stores | first-run flow via admission contract (SetupAdmission v0) |
 | OIDCLogin | login-state/session stores | login flow via admission contract (OIDCLoginAdmission v0) |
-| SAML | login-state/session stores | login flow via admission contract |
+| SAML | login-state/session stores | login flow via admission contract (SAMLLoginAdmission v0) |
 | GitHubLogin | login-state/session stores | login flow via admission contract (GitHubLoginAdmission v0) |
 | SupplyChain (suppressions row only) | VulnerabilitySuppressionMutationStore | single bounded policy mutation via admission contract |
 
