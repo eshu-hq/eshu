@@ -164,11 +164,15 @@ kubectl -n FILL:<target namespace> rollout status deploy \
   -l app.kubernetes.io/component=resolution-engine --timeout=600s
 kubectl -n FILL:<target namespace> logs deploy \
   -l app.kubernetes.io/component=resolution-engine --tail=200 \
-| grep -c 'secrets/IAM graph projection ENABLED'; echo "warn-grep-exit=$?"
+  > /tmp/secretsiam-rollback-logs.txt; echo "kubectl-exit=$?"
+grep -c 'secrets/IAM graph projection ENABLED' /tmp/secretsiam-rollback-logs.txt; echo "warn-grep-exit=$?"
 ```
 
-Expected: `0` with `warn-grep-exit=1` (line absent — no further live
-`SecretsIAM*` writes or retracts occur).
+Expected: `kubectl-exit=0` (the observation command itself succeeded), then
+`0` with `warn-grep-exit=1` (line absent — no further live `SecretsIAM*`
+writes or retracts occur). The split exists so a kubectl failure cannot mimic
+success: if `kubectl-exit` is nonzero, stop — a `0`/`1` grep signature on an
+empty capture proves nothing. Failure signature: `kubectl-exit≠0`.
 
 What rollback leaves behind: already-written `SecretsIAM*` nodes/edges
 **remain** — disabling stops new writes, it does not retract. If the §2

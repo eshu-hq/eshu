@@ -124,7 +124,7 @@ that line as the operator's flag-on confirmation.
 ## 4. Flag-on activation proof — TO CAPTURE AT ENACTMENT
 
 Attach the real output; a skipped live test is not evidence. Commands are in
-the companion commands document (§3 there).
+the companion commands document (§2 there).
 
 | Evidence | Captured? | Reference / paste |
 | --- | --- | --- |
