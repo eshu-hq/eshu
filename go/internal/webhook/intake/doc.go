@@ -13,4 +13,10 @@
 // oldest v1 client; any other value fails closed with
 // unsupported_api_version. Unknown JSON fields are ignored so a newer
 // client still submits to this server.
+//
+// Telemetry: ServerConfig.Instruments makes each route emit the
+// eshu_dp_webhook_* request-path series and, on the AWS and GCP routes, the
+// freshness action counters (#9811, #9814). ServerConfig.Tracer makes each route
+// emit a webhook.handle span with a webhook.store child around the durable
+// write, under bounded attributes only (#9815). Both are nil-safe.
 package intake

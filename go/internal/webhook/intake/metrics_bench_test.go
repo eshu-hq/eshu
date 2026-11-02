@@ -12,12 +12,17 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // BenchmarkIntakeRepositoryRequest measures the per-request cost of the
 // request-path series (#9811): one request counter increment, one request
 // duration observation, and the store operation, duration, and decision
 // recorded on the stored path. Compare "uninstrumented" with "instrumented".
+// The "traced-*" cases add the #9815 webhook.handle and webhook.store spans
+// over an SDK tracer provider with no exporter, never or always sampled; the
+// production sampling decision belongs to the OTEL environment.
 func BenchmarkIntakeRepositoryRequest(b *testing.B) {
 	body := marshalBench(b, intakeRoutes()[0].payload)
 	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(sdkmetric.NewManualReader()))
@@ -25,12 +30,20 @@ func BenchmarkIntakeRepositoryRequest(b *testing.B) {
 	if err != nil {
 		b.Fatalf("NewInstruments() error = %v", err)
 	}
+	neverSampled := sdktrace.NewTracerProvider(sdktrace.WithSampler(sdktrace.NeverSample())).Tracer("intake-bench")
+	alwaysSampled := sdktrace.NewTracerProvider(sdktrace.WithSampler(sdktrace.AlwaysSample())).Tracer("intake-bench")
 	for _, tc := range []struct {
-		name string
-		inst *telemetry.Instruments
-	}{{"uninstrumented", nil}, {"instrumented", inst}} {
+		name   string
+		inst   *telemetry.Instruments
+		tracer trace.Tracer
+	}{
+		{"uninstrumented", nil, nil},
+		{"instrumented", inst, nil},
+		{"traced-never-sampled", inst, neverSampled},
+		{"traced-always-sampled", inst, alwaysSampled},
+	} {
 		b.Run(tc.name, func(b *testing.B) {
-			mux := NewServer(ServerConfig{Token: "core-intake-token", Instruments: tc.inst}, testStores().stores()).Mux()
+			mux := NewServer(ServerConfig{Token: "core-intake-token", Instruments: tc.inst, Tracer: tc.tracer}, testStores().stores()).Mux()
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {

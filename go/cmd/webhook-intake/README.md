@@ -83,8 +83,11 @@ See `doc.go` for the full godoc contract.
   `intake_stored`, `intake_coalesced`, and `intake_failed` (#9814); `auth_path`
   is always `n/a`. No new metric names were introduced; the intake package
   bounds every label.
-- Traces: OTEL providers with the `webhook-intake` service name; Postgres
-  store spans flow through the instrumented stores.
+- Traces: OTEL providers with the `webhook-intake` service name. The intake
+  routes emit `webhook.handle` with a `webhook.store` child around the durable
+  write (#9815); the instrumented stores' Postgres spans nest under
+  `webhook.store`. Attributes are the closed set `provider`, `event_kind`,
+  `decision`, `outcome`, `reason`, `status`.
 - Logs: structured intake outcomes through the intake server logger
   (route, provider family, status, machine-readable reason only — Bearer
   and trigger identities never appear).

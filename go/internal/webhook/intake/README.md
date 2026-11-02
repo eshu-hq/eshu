@@ -109,6 +109,43 @@ one counter add with 2-3 attributes on the AWS and GCP routes only, no lock,
 goroutine, or change to the store call. The `go/internal/telemetry/instruments.go`
 and `contract.go` edits are godoc and one string constant.
 
+No-Regression Evidence (#9815): `BenchmarkIntakeRepositoryRequest` gained the
+`traced-never-sampled` and `traced-always-sampled` cases (SDK tracer provider,
+no exporter), same command and host as above, base = the #9814 commit.
+Base: uninstrumented 9.0-10.8 us/op, 68 allocs/op, 11,701 B/op; instrumented
+11.5-13.0 us/op, 83 allocs/op, 13,586 B/op. With the span change and a nil
+`Tracer`: uninstrumented 8.7-9.3 us/op, 68 allocs/op, 11,799 B/op; instrumented
+11.3-12.5 us/op, 83 allocs/op, 13,677-13,684 B/op (a few bytes of run-to-run variation). A nil tracer therefore adds zero
+allocations; the only change is about 98 B per request for the larger request
+state (exact). With a tracer: never sampled 12.4-13.0 us/op, 97 allocs/op,
+15,079 B/op (+14 allocs, +1,396 B over instrumented); always sampled 14.3-15.6
+us/op, 101 allocs/op, 16,938 B/op (+18 allocs, +3,255 B over instrumented), on a
+shared host whose run-to-run swing is of the same order as the time difference. Production sampling is the OTEL environment's decision, and the
+request is dominated by the Postgres round trip, which costs milliseconds. Safe
+because spans add no lock or goroutine and no change to the store call except
+that it now runs under the store span's context. Terminal counts: every
+iteration returns 202.
+
+Observability Evidence (#9815): `TestIntakeStoredRequestEmitsNestedSpans` posts a
+stored delivery to each of the five routes and asserts one `webhook.handle` with
+one `webhook.store` child, that the store call received the store span's context
+(so the stores' `postgres.exec` spans nest), and that the attribute keys equal
+the allow-list exactly. `TestIntakeStoreFailureMarksSpans` pins status Error with
+a fixed description and no recorded error; `TestIntakeRejectedRequestEmitsHandleSpanOnly`,
+`TestIntakeUnconfiguredStoreEmitsHandleSpanOnly`,
+`TestIntakeActionsConflictMarksStoreSpanRejected` and
+`TestIntakeWithoutTracerEmitsNoSpans` pin the other paths.
+`TestIntakeLogsCarryTheHandleSpan` runs a stored and a store-failed request on each of the five routes
+through the production telemetry logger and finds the handle span's `trace_id`
+and `span_id` on the intake log line (a nil-tracer request logs no trace field),
+`TestIntakeRejectionsEndTheHandleSpanOnce` covers every pre-store rejection,
+`TestIntakeStorePanicStillEndsBothSpans` pins that a panicking store leaves no
+open span (the request counter then reads `outcome="failed"`, `reason="store_failed"`),
+and `TestIntakeStoreContextKeepsRequestCancellation` pins that the
+store context still carries the request's cancellation. `TestIntakeHostEmitsRequestAndStoreSpans`
+(`go/cmd/webhook-intake`) builds through `buildIntakeServer` with a recording
+tracer. A live trace backend was not queried.
+
 Observability Evidence (#9814): `TestIntakeFreshnessActionsFollowTheStoreOutcome`
 forces stored, coalesced, store-failure and no-store outcomes on both routes and
 reads exact label sets; `TestIntakeFreshnessRejectionsEmitNoActions` pins that

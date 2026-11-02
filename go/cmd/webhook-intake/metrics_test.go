@@ -71,7 +71,7 @@ func TestIntakeHostEmitsFreshnessAlertSeries(t *testing.T) {
 			server, err := buildIntakeServer(webhookIntakeConfig{
 				IntakeToken:         "serve-token",
 				MaxRequestBodyBytes: defaultMaxWebhookIntakeBodyBytes,
-			}, stores, nil, instruments)
+			}, stores, nil, instruments, nil)
 			if err != nil {
 				t.Fatalf("buildIntakeServer() error = %v", err)
 			}

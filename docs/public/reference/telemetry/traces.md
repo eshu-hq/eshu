@@ -51,7 +51,7 @@ queries filtering by scope `eshu-api` should update the filter to
 | Projector | `projector.run`, `reducer_intent.enqueue`, `canonical.projection`, and `canonical.write`. |
 | Reducer | `reducer.run`, domain-specific reducer spans, `reducer.eshu_search_index_write` for persisted search-index maintenance, shared acceptance spans, and nested `canonical.write`. |
 | Read path | Query-specific spans with child `postgres.query`, `neo4j.query`, or `neo4j.query.single`; semantic search also has persisted-index and vector-ready child spans. |
-| Webhook | `webhook.handle`, `webhook.store`, and child `postgres.exec` spans. |
+| Webhook | `webhook.handle`, `webhook.store`, and child `postgres.exec` spans. The listener and, since #9815, the intake host emit them (`webhook.store` on all five intake routes); provider signature checks and payload normalization run in the satellite, which emits logs only. Both spans carry only `provider`, `event_kind`, `decision`, `outcome`, `reason`, and `status`; a failed write sets status Error with a fixed description and no raw error. |
 | AWS collector | `aws.collector.claim.process`, `aws.credentials.assume_role`, `aws.service.scan`, and `aws.service.pagination.page`. |
 | Terraform-state collector | `tfstate.collector.claim.process`, `tfstate.discovery.resolve`, `tfstate.source.open`, `tfstate.parser.stream`, and `tfstate.fact.emit_batch`. |
 | Vulnerability intelligence collector | `vulnerability_intelligence.observe` and `vulnerability_intelligence.fetch`. |
@@ -315,7 +315,7 @@ or URLs.
 | Read path is slow | API/MCP request latency or query handler span | `postgres.query`, `neo4j.query`, `neo4j.query.single`, caller shaping code |
 | Code or content search is slow | API/MCP request latency and the query handler span | `query.hybrid_rerank` duration, `search.rerank.rows`, and `search.rerank.applied`; on a `rank_cursor` walk, `search.rank_cursor.outcome` |
 | Semantic search is slow | API/MCP request latency and `query.semantic_search` | `query.semantic_search.persisted_index` stage events; `query.semantic_search.vector_ready` outcome for vector-backed modes; separate PostgreSQL plan inspection for BM25 |
-| Webhook intake is rejected or slow | `eshu_dp_webhook_requests_total` and webhook duration metrics | `webhook.handle`, provider verification, normalization, `webhook.store` |
+| Webhook intake is rejected or slow | `eshu_dp_webhook_requests_total` and webhook duration metrics | `webhook.handle`, provider verification, normalization, `webhook.store`. On the intake host only `webhook.handle` and `webhook.store` exist (read `outcome` and `reason`); provider verification and normalization are in the satellite logs |
 
 ## Non-Claims
 

@@ -74,12 +74,16 @@ type requestObs struct {
 	provider    string
 	outcome     string
 	reason      string
+
+	// spans holds the webhook.handle and webhook.store spans and the labels
+	// the handle span ends with (#9815); see spans.go.
+	spans requestSpans
 }
 
 // observe begins observation of one intake request. provider is the best
 // bounded provider known before the body is decoded.
 func (s *Server) observe(r *http.Request, provider string) *requestObs {
-	return &requestObs{
+	obs := &requestObs{
 		instruments: s.config.Instruments,
 		ctx:         r.Context(),
 		started:     time.Now(),
@@ -87,6 +91,8 @@ func (s *Server) observe(r *http.Request, provider string) *requestObs {
 		outcome:     outcomeRejected,
 		reason:      reasonMalformedEvent,
 	}
+	obs.startHandleSpan(s.config.Tracer)
+	return obs
 }
 
 // reject marks the request as rejected before reaching storage.
@@ -99,6 +105,8 @@ func (o *requestObs) reject(reason string) {
 // it so every return path, including panics unwinding through net/http, is
 // counted exactly once.
 func (o *requestObs) finish() {
+	o.abandonStoreSpan()
+	defer o.endHandleSpan()
 	if o.instruments == nil {
 		return
 	}
@@ -117,6 +125,7 @@ func (o *requestObs) stored(d triggerDecision, startedAt time.Time, status strin
 	o.outcome = outcomeStored
 	o.reason = reasonNone
 	status = boundedStatus(status)
+	o.noteDecision(d, status)
 	o.recordStore(d, startedAt, outcomeStored, status)
 	o.recordDecision(d, status)
 }
@@ -126,6 +135,7 @@ func (o *requestObs) stored(d triggerDecision, startedAt time.Time, status strin
 func (o *requestObs) storeFailed(d triggerDecision, startedAt time.Time) {
 	o.outcome = outcomeFailed
 	o.reason = reasonStoreFailed
+	o.noteDecision(d, statusFailed)
 	o.recordStore(d, startedAt, outcomeFailed, statusFailed)
 	o.recordDecision(d, statusFailed)
 	o.freshnessEvent(d, freshnessActionFailed)
@@ -137,6 +147,7 @@ func (o *requestObs) storeFailed(d triggerDecision, startedAt time.Time) {
 func (o *requestObs) storeUnavailable(d triggerDecision) {
 	o.outcome = outcomeFailed
 	o.reason = reasonStoreFailed
+	o.noteDecision(d, statusFailed)
 	o.recordDecision(d, statusFailed)
 	o.freshnessEvent(d, freshnessActionFailed)
 }
@@ -185,6 +196,7 @@ func (o *requestObs) storeRejected(provider string, startedAt time.Time) {
 }
 
 func (o *requestObs) recordStore(d triggerDecision, startedAt time.Time, outcome, status string) {
+	o.endStoreSpan(outcome, status)
 	if o.instruments == nil {
 		return
 	}
