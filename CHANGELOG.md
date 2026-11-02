@@ -124,7 +124,9 @@ recent shipped work grouped by feature area.
   its first line. On this repo's docs the rule withholds 180 more regions in
   about 263,000 lines. Nothing calls the OCR path in production yet. Lines under
   16 characters, a key whose lines hold several misread spaces, and a table column
-  are still not covered; the README Limits list them.
+  are still not covered; `SECRET_RUNS.md` in the OCR package lists them. The
+  arbiter ruling that accepts the rule and its thresholds is
+  `docs/internal/evidence/9799-multiline-arbiter-ruling.md`.
 
 ### Extension host: eshu-sdk collector v0.2.0-rc.3 pin
 

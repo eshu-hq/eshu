@@ -54,6 +54,18 @@ func multilineLayouts() []multilineLayout {
 	encrypted := randomLines(6, base64Alphabet, 18, 64, 20)
 	column := randomLines(7, urlAlphabet, 5, 36, 14)
 	armorless := randomLines(8, base64Alphabet, 12, 64, 60)
+	// A bare AWS key pair with no marker word anywhere: the 40 character secret
+	// is a seed and the walk back takes the 20 character key id before it. The
+	// prefix is joined at run time so no scanner reads the fixture as a key.
+	awsKeyID := "AK" + "IA" + "Z4QW8MNB2LK9XCV7"
+	awsSecret := "Q7mXk2LpR9tVb4NcZ8sYh1WdF5gJa3EuT6oIe0Ky"
+	// A JWT over three lines with no label: line one is a seed, line two is a
+	// run token, and the short last line falls in the tail slot.
+	jwtLines := []string{
+		"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyIn0",
+		randomLines(10, urlAlphabet, 1, 48, 0)[0],
+		"_adQssw5c",
+	}
 	// The body of the sandbox fixture key-body.png as tesseract 5.5.0 read it:
 	// the BEGIN armor line is gone, a stray space sits inside two lines, and
 	// several characters are misread.
@@ -122,6 +134,18 @@ func multilineLayouts() []multilineLayout {
 			regions: slices.Concat([]string{"Token:"}, column, []string{"Rollback steps", "Ask the platform team"}),
 			secrets: column,
 			keep:    []string{"Ask the platform team"},
+		},
+		{
+			name:    "bare AWS access key pair with no marker word",
+			regions: []string{"Deploy user keys", awsKeyID, awsSecret, "Region us-east-1", "Rollback steps"},
+			secrets: []string{awsKeyID, awsSecret},
+			keep:    []string{"Deploy user keys", "Region us-east-1"},
+		},
+		{
+			name:    "JWT over three lines with no label",
+			regions: slices.Concat([]string{"Release checklist"}, jwtLines, []string{"Ask the platform team"}),
+			secrets: jwtLines,
+			keep:    []string{"Release checklist", "Ask the platform team"},
 		},
 	}
 }

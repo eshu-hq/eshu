@@ -1,8 +1,9 @@
 # Evidence: #9799, OCR redaction of a secret that spans more lines than the window
 
-STATUS: measured; the arbiter ruling this issue asks for is not recorded yet.
-The executor that wrote this cannot dispatch the arbiter. The choices that need
-a ruling are listed under "Open for the arbiter".
+STATUS: ruled. The arbiter accepted the rule and its four thresholds with no
+change, and recorded the remaining leak classes as documented limits. The ruling
+is in [9799-multiline-arbiter-ruling.md](9799-multiline-arbiter-ruling.md). The
+section "Open for the arbiter" below is kept as the question the ruling answers.
 
 ## Decision and budget
 
@@ -61,11 +62,19 @@ Regions withheld by label windows, markers, and patterns:
 | Stray space allowed everywhere, symbols after any withheld region | 20,380 | 577 |
 | Final: stray space only inside a token run, symbols only inside a run | 19,983 | 180 |
 
-The 180 are lines of 16 or more characters with a digit and no space (file paths
-with line numbers, `ENV=value` bullets) directly after a withheld region. One
-line in the corpus is a seed (an `ESHU_..._PROJECT=...` variable). The earlier
-variants show why the final rule keeps both limits: allowing a space in a seed
-made 60 shell-command lines seeds.
+The 180 added lines split three ways (arbiter re-measurement): 39 lines with no
+space (paths with line numbers, file names in backticks), 102 lines with a stray
+space that chain or fall in the tail slot (`ENV=value \` continuation lines,
+`-> path` rename tables, `ok  pkg 28.907s` results), and 39 symbol-only lines, of
+which 36 are code fences. One line in the corpus is a seed
+(`ESHU_DR_COMPOSE_PROJECT=eshu-pr6634-final-rebuild`).
+
+Rejected variants, measured on the same corpus:
+
+| Variant | Withheld | Added over final | Why rejected |
+|---|---|---|---|
+| Seed that tolerates one stray space (dense by 16, 40 non-space characters, same classes and charset) | 20,097 | 114 | 60 corpus lines become seeds: `go test ... -run TestX -count=1` commands, `export ESHU_...=...` lines, `POST /api/v0/...` routes, `CREATE INDEX ...` statements. |
+| Seed that accepts lowercase only (to catch a cropped hex token) | not totalled | | It hits 30 bare 40+ hex lines and chains into the 676 corpus lines that carry a 64-hex digest. |
 
 ## Cost in time
 

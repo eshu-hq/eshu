@@ -208,6 +208,7 @@ func TestSecretTokenShapes(t *testing.T) {
 		{name: "one stray space in a seed", text: seedLine[:20] + " " + seedLine[20:], run: true},
 		{name: "three spaces in a seed", text: seedLine[:10] + " " + seedLine[10:20] + " " + seedLine[20:30] + " " + seedLine[30:]},
 		{name: "40 characters of all three classes", text: seedLine, run: true, seed: true},
+		{name: "a 40 character assignment is a seed, the accepted cost (#9799)", text: "ESHU_DR_COMPOSE_PROJECT=eshu-pr6634-final-rebuild", run: true, seed: true},
 		{name: "39 characters", text: seedLine[:39], run: true},
 		{name: "a dot inside, as in a JWT", text: seedLine[:16] + "." + seedLine[17:], run: true, seed: true},
 		{name: "a hyphen inside, as in base64url", text: seedLine[:16] + "-" + seedLine[17:], run: true, seed: true},

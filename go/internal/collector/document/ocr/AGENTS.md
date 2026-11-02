@@ -52,7 +52,8 @@
 - A secret that runs past the label window, such as a PEM key body or a wrapped
   token, is withheld by `extendSecretRuns` in `secret_runs.go`. Change its
   thresholds only with a row in `TestSecretTokenShapes`, a corpus false-positive
-  count, and a real tesseract read of the fixture; the README lists the limits.
+  count, and a real tesseract read of the fixture; `SECRET_RUNS.md` lists the
+  limits.
 
 ## Anti-patterns
 
