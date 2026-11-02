@@ -21,8 +21,8 @@ import (
 const minKeyBodyRegions = 6
 
 // liveKeyBody proves the multi-line rule end to end (#9799). It reads
-// key-body.png, a PEM private key whose body is nine lines, finds the body
-// regions between the armor lines in the real tesseract output, and checks that
+// key-body.png, a PEM private key whose body is nine lines, takes the body
+// regions before the END armor line from the real tesseract output, and checks that
 // none of their text reaches the persisted facts. It compares what tesseract
 // read, not the text the fixture was drawn from, so an OCR misread cannot hide a
 // leak. It logs only indexes and counts, never region text.
@@ -39,18 +39,20 @@ func liveKeyBody(t *testing.T, engine *Engine, fixtures string) {
 	if err != nil {
 		t.Fatalf("%s Recognize: %v", name, err)
 	}
-	begin, end := -1, -1
+	// The body is every region between the first line and the END armor line.
+	// Tesseract drops the BEGIN armor line from this image, so the proof does not
+	// rely on it: the body must be withheld on its own shape.
+	const begin = 0
+	end := -1
 	for index, region := range recognized.Regions {
-		switch {
-		case begin < 0 && strings.Contains(region.Text, "BEGIN"):
-			begin = index
-		case begin >= 0 && end < 0 && strings.Contains(region.Text, "END"):
+		if index > begin && strings.Contains(region.Text, "END") {
 			end = index
+			break
 		}
 	}
-	if begin < 0 || end-begin-1 < minKeyBodyRegions {
-		t.Fatalf("%s: armor at regions %d and %d, want at least %d body regions between; the fixture no longer reproduces the layout",
-			name, begin, end, minKeyBodyRegions)
+	if end-begin-1 < minKeyBodyRegions {
+		t.Fatalf("%s: END armor at region %d, want at least %d body regions before it; the fixture no longer reproduces the layout",
+			name, end, minKeyBodyRegions)
 	}
 	result := liveExtract(t, engine, name, body, &evidence)
 	persisted, _ := json.Marshal(result.Envelopes)

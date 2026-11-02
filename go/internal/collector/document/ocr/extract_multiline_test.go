@@ -54,6 +54,20 @@ func multilineLayouts() []multilineLayout {
 	encrypted := randomLines(6, base64Alphabet, 18, 64, 20)
 	column := randomLines(7, urlAlphabet, 5, 36, 14)
 	armorless := randomLines(8, base64Alphabet, 12, 64, 60)
+	// The body of the sandbox fixture key-body.png as tesseract 5.5.0 read it:
+	// the BEGIN armor line is gone, a stray space sits inside two lines, and
+	// several characters are misread.
+	sandbox := []string{
+		"zwZWd fRLgXL+Z1bvxbT7WrKL80zFiA2auK7Z7GtQbU4WWEOCV81K2LSnAwqRzZHb",
+		"4gzQt8HQTOPMPS1WWOSao/dgPuXJkBGrbwzrzx1vLXEvz4dncnNobfx14K41gIlp",
+		"9Q9310Ukw4YwrZsAt1YVh1d0szA0ZAnV4ah17kZCNnJEH1Imv1YMyzWh6qQQ5x1Wu",
+		"gaj7wX98VJe6B0q/IqAjBoBhVRGYEGrd1U4H1dY0+VijuJZWtKOQRTLEWVtdUrGr",
+		"3YnW0S/BdwMe4KUV4vgoFyCmUQBK11P/2JFtUoqpEwidTCkz1dW@GbehUM3ADZQX",
+		"mHgX3TAEy5JVdr3Q9LvUd+aM3ZwWR8 fWgVleedlyJegpq/YMDE3HOYG1XigB1Zuou",
+		"sxSnhZ5HDtdSKwCtowfTICDWbcrgJA303Kv/2whps0ifIEcipNinfb44ChIxPCk/",
+		"42peNkyalj6+rKCGKQOY2CCPpbaNB3kXRkW1NnX1xMJimgUjPEIg8yQl9bn5ggX6",
+		"KTYqQdtJId3SArzKB2L26NKA=",
+	}
 	return []multilineLayout{
 		{
 			name:    "RSA private key, armor and 26 body lines",
@@ -90,6 +104,12 @@ func multilineLayouts() []multilineLayout {
 			regions: slices.Concat([]string{"Authorization token"}, jwt, []string{"Release checklist", "Rollback steps", "Ask the platform team"}),
 			secrets: jwt,
 			keep:    []string{"Ask the platform team"},
+		},
+		{
+			name:    "key body as tesseract read it, with no BEGIN line and a stray space in two lines",
+			regions: slices.Concat([]string{"Deploy the Checkout Service to staging"}, sandbox, []string{"---- END PRIVATE KEY-----", "Review the owner list", "Rotate the staging keys every week", "Ask the platform team for access"}),
+			secrets: sandbox,
+			keep:    []string{"Deploy the Checkout Service to staging", "Ask the platform team for access"},
 		},
 		{
 			name:    "key body without its armor line",

@@ -6,7 +6,6 @@ package ocr
 import (
 	"strings"
 	"unicode"
-	"unicode/utf8"
 )
 
 const (
@@ -35,11 +34,12 @@ const (
 // A region joins the run when it was not withheld already and any of these holds:
 //
 //   - the region before it (the nearest one with text) was withheld, and its own
-//     text is a run token: no whitespace, at least minRunTokenLen characters,
-//     and a digit or one of `+/=`. Prose has spaces, so it ends a run at the
-//     first line of ordinary text.
+//     text is a run token: at least minRunTokenLen characters, a digit or one of
+//     `+/=`, and at most a stray space (see denseSpaceShare). Prose has a space
+//     every five or six characters, so it ends a run at the first line of
+//     ordinary text.
 //   - the two regions before it were withheld run tokens, and its own text has
-//     no whitespace at all. A body ends on a short line (`Qk9x==`), and this
+//     no more than a stray space. A body ends on a short line (`Qk9x==`), and this
 //     keeps the tail of the key out of the facts. It holds for one region only,
 //     and it needs two tokens before it, so one withheld value such as a
 //     password does not hide the single word under it.
@@ -76,7 +76,7 @@ func extendSecretRuns(regions []Region, values []bool) {
 		case withheld:
 		case previousWithheld && token:
 			withheld = true
-		case tokens >= minTokensBeforeTail && !hasSpace(text):
+		case tokens >= minTokensBeforeTail && isDense(text, 1):
 			withheld, token = true, false
 		case isSeedToken(text):
 			withheld = true
@@ -94,17 +94,41 @@ func extendSecretRuns(regions []Region, values []bool) {
 	}
 }
 
-// hasSpace reports whether text holds any whitespace.
-func hasSpace(text string) bool {
-	return strings.ContainsFunc(text, unicode.IsSpace)
+// denseSpaceShare is the share of spaces a dense line may hold: at most one
+// space for every denseSpaceShare other characters. Tesseract puts a space inside
+// a line of base64 now and then (the sandbox fixture reads `zwZWd fRLgXL+Z1bv...`
+// with one), and a misread space must not split the line from its key. A line of
+// prose holds a space for every five or six characters, far over this share.
+const denseSpaceShare = 16
+
+// denseLen returns the number of characters in text that are not whitespace, and
+// whether text holds few enough spaces to count as one line of a token: at most
+// one for every denseSpaceShare other characters.
+func denseLen(text string) (int, bool) {
+	spaces, others := 0, 0
+	for _, r := range text {
+		if unicode.IsSpace(r) {
+			spaces++
+		} else {
+			others++
+		}
+	}
+	return others, spaces*denseSpaceShare <= others
 }
 
-// isRunToken reports whether text, trimmed, is one unbroken token long enough to
-// be a line of a wrapped secret: no whitespace, minRunTokenLen characters, and a
-// digit or one of `+/=`. The charset is open on purpose, because OCR reads `l` as
-// `|` and a line with one misread character is still a line of the key.
+// isDense reports whether text, trimmed, is a dense line of at least minLen
+// characters besides whitespace.
+func isDense(text string, minLen int) bool {
+	others, ok := denseLen(text)
+	return ok && others >= minLen
+}
+
+// isRunToken reports whether text, trimmed, is one dense line long enough to be a
+// line of a wrapped secret: minRunTokenLen characters apart from a stray space,
+// and a digit or one of `+/=`. The charset is open on purpose, because OCR reads
+// `l` as `|` and a line with one misread character is still a line of the key.
 func isRunToken(text string) bool {
-	if utf8.RuneCountInString(text) < minRunTokenLen || hasSpace(text) {
+	if !isDense(text, minRunTokenLen) {
 		return false
 	}
 	return strings.ContainsFunc(text, func(r rune) bool {
@@ -113,12 +137,13 @@ func isRunToken(text string) bool {
 }
 
 // isSeedToken reports whether text, trimmed, looks like a base64 or token line
-// on its own: minSeedTokenLen characters of letters, digits, and `+/=_.-`, with a
-// capital letter, a lowercase letter, and a digit. Random base64 of that length
-// holds all three with near certainty. A path, a hash, an environment variable
-// name, and a sentence each lack one of them or a character of the set.
+// on its own: minSeedTokenLen characters of letters, digits, and `+/=_.-`, apart
+// from a stray space, with a capital letter, a lowercase letter, and a digit.
+// Random base64 of that length holds all three with near certainty. A path, a
+// hash, an environment variable name, and a sentence each lack one of them or a
+// character of the set.
 func isSeedToken(text string) bool {
-	if len(text) < minSeedTokenLen {
+	if !isDense(text, minSeedTokenLen) {
 		return false
 	}
 	var upper, lower, digit bool
@@ -130,7 +155,7 @@ func isSeedToken(text string) bool {
 			lower = true
 		case c >= '0' && c <= '9':
 			digit = true
-		case c == '+' || c == '/' || c == '=' || c == '_' || c == '.' || c == '-':
+		case c == '+' || c == '/' || c == '=' || c == '_' || c == '.' || c == '-' || c == ' ':
 		default:
 			return false
 		}
