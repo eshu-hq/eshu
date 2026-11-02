@@ -193,6 +193,19 @@ code_taint_evidence_edge_operation_match="MERGE (f)-[rel:HAS_TAINT_EVIDENCE]->(e
 # spelling matches no single executed statement, and pinning one filled type
 # would leave the other two slots unfaulted.
 incident_routing_evidence_edge_operation_match="MERGE (incident)-[rel:HAS_"
+# The CONTAINS MERGE anchor cell_failgraphwrite_semantic_entity_containment
+# (#6228 semantic_entity_containment live drive) targets: every per-label
+# template in go/internal/storage/cypher/semantic/entity shares the bare
+# `MERGE (f)-[rel:CONTAINS]->(n)` line (the SETs follow it), and on NornicDB
+# the reducer's canonical-node-rows rewrite preserves that line for
+# semantic-owned labels while canonical-owned labels MATCH without merging,
+# so the anchor carries the FULL form that matches executed statement text.
+# A parameterized form would match the dedicated [rel:CONTAINS] retract
+# DELETEs instead, and a PREFIX form stopping before `->(n)` would also
+# match the node MERGE above it. The canonical writer's own templates share
+# the text but execute projector-side in the untagged binary; the armed
+# tagged binary runs only the reducer, so the fault fires on its own upsert.
+semantic_entity_containment_edge_operation_match="MERGE (f)-[rel:CONTAINS]->(n)"
 
 # The DOCUMENTS edge MERGE anchor cell_failgraphwrite_documentation targets:
 # go/internal/storage/cypher/canonical/node/documentation_edges.go's

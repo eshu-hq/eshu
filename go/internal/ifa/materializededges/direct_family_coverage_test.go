@@ -138,9 +138,10 @@ var guardedDirectMaterializedEdgeFamilies = []guardedDirectFamily{
 		LiveProven: true,
 	},
 	{
-		Family:    semanticEntityContainmentFamily,
-		OduName:   ifa.SemanticEntityContainmentFamilyOduName,
-		EdgeTypes: []string{"CONTAINS"},
+		Family:     semanticEntityContainmentFamily,
+		OduName:    ifa.SemanticEntityContainmentFamilyOduName,
+		EdgeTypes:  []string{"CONTAINS"},
+		LiveProven: true,
 	},
 	{
 		Family:    runtimeDeclarationFamily,

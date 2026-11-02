@@ -47,13 +47,10 @@
 # letters, and a forced lease expiry converges the same way from the
 # handler-side trigger.
 #
-# fail-terminal (a thirty-fourth possible cell) is deliberately NOT included: it
-# has no live seam either -- go/internal/storage/cypher/fault/executor/fault.go's
-# applyFault leaves it explicitly inert at the graph-executor seam ("a
-# different decorator owns them"), and that different decorator is the SAME
-# hermetic-only FaultingWorkSource cells 2/3/6/7/8/9/17/20/23/26/29/32 already can't use live.
-# Building a live fail-terminal seam is out of scope; this is reported as an
-# explicit, honest gap, not silently dropped.
+# fail-terminal is deliberately NOT included: it has no live seam --
+# go/internal/storage/cypher/fault/executor/fault.go's applyFault leaves it
+# explicitly inert, and its owning decorator is the same hermetic-only
+# FaultingWorkSource the kill cells above cannot use live. Out of scope; an explicit, honest gap.
 #
 # Flake policy: NO retry-to-green, ever. A digest mismatch or a non-zero
 # dead_letter count after a cell's drain is a real concurrency/recovery
@@ -464,6 +461,10 @@ ifa_fault_shard_run cell_failgraphwrite_publishes
 ifa_fault_shard_run cell_baseline_grants_secret_read
 ifa_fault_shard_run cell_kill_grants_secret_read
 ifa_fault_shard_run cell_failgraphwrite_grants_secret_read
+# semantic_entity_containment (#6228 live drive): twentieth direct family, same trio shape.
+ifa_fault_shard_run cell_baseline_semantic_entity_containment
+ifa_fault_shard_run cell_killworker_semantic_entity_containment
+ifa_fault_shard_run cell_failgraphwrite_semantic_entity_containment
 # inheritance_edges (#5996) and shell_exec (#6001): generic dispatch, baseline
 # first in each trio (sole writer of that family's digest and retry baseline;
 # the atomic-group ordering check enforces it). Both are FAULT_SHARED_DRIVE=0,

@@ -130,6 +130,8 @@ source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_grants_secret_
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_uses_vault_policy_trust_chain.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_grants_secret_read_trust_chain.sh
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_grants_secret_read_trust_chain.sh"
+# shellcheck source=scripts/lib/ifa_fault_injection_semantic_entity_containment_cells.sh
+source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_semantic_entity_containment_cells.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_iam_can_perform_cells.sh
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_iam_can_perform_cells.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_ec2_uses_profile_cells.sh

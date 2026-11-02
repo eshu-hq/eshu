@@ -117,7 +117,7 @@ run_ifa_fault_injection_cell_pins_cases() {
 		fail "cell_deltaretract must NOT compare to the baseline digest: generation 2 intentionally changes the graph, so its proof is the expected-v2 edge set, not digest equality"
 	fi
 
-	require "fail-terminal explicitly excluded with rationale" "fail-terminal (a thirty-fourth possible cell) is deliberately NOT included"
+	require "fail-terminal explicitly excluded with rationale" "fail-terminal is deliberately NOT included"
 
 	# Candidate-adjacent kill/reclaim cells (generic, SQL, code-call,
 	# documentation, and rationale):

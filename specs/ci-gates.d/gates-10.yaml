@@ -407,6 +407,7 @@ gates:
       - "testdata/cassettes/incidentrouting/**"
       - "testdata/cassettes/publishes/**"
       - "testdata/cassettes/shellexec/**"
+      - "testdata/cassettes/semanticentitycontainment/**"
       - "testdata/cassettes/submodulepin/**"
       - "testdata/cassettes/workloaddependency/**"
       - "go/internal/ifa/testdata/sqlrelationships/**"
