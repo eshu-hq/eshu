@@ -74,14 +74,14 @@ planned repo `eshu-hq/eshu-collector-gcp-cloud`, in-tree path
 `go/internal/collector/gcpcloud` (correct — unlike the OCI lane, no stale
 path here).
 
-**Open authority item (not fixed by this PREP):** the 3 mirror kinds are
-emitted by this collector's `Generation`, but their producer record names
-`secrets-iam-posture` (`go/internal/facts/identity/iam.go`, producer `secrets-iam-posture`), not
-`collector-gcp-cloud`. The mirror envelopes also stamp
-`collector_kind = "secrets_iam_posture"` (`posture/types.go:10`), not
-`"gcp"` — pinned by `source_parity_8856_test.go`. The cutover grant must
-reconcile both (re-stamp vs dual-family manifest) before production
-cutover; see [SHIM_MAP](SHIM_MAP.md) and
+**Authority decision recorded (arbiter verdict on #8856: re-stamp wins):**
+the 3 mirror kinds are emitted by this collector's `Generation` with
+`collector_kind = "gcp"` (`restampMirrorEnvelope` in
+`gcp_secrets_iam.go`; `SourceSystem` stays `"secrets_iam_posture"`,
+payloads and stable keys byte-identical — pinned by
+`source_parity_8856_test.go`). The issued grant (not in-tree family
+metadata, which the registry generator keeps consistent until in-tree
+removal) binds all 10 kinds to the gcp-cloud producer; see [SHIM_MAP](SHIM_MAP.md) and
 [PRODUCER_GRANT_DRAFT](PRODUCER_GRANT_DRAFT.md).
 
 ## 3. Consumers (must agree at cutover)

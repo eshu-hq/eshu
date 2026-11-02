@@ -14,10 +14,9 @@ divergence, missing telemetry, or expired/revoked grant blocking emission.
 
 Halt the claim dispatcher targets for `collector_kind = gcp` so no new
 `Claim` reaches the external producer. In-flight work items keep their
-leases; do not delete them. (Mirror `gcp_iam_*` facts emitted under
-`secrets_iam_posture` stamping halt with the same dispatcher stop once the
-grant-decision lands; until then both kind sets are listed in the stop
-filter.)
+leases; do not delete them. (Mirror `gcp_iam_*` facts emit under
+`collector_kind = gcp` since the #8856 re-stamp verdict, so the single gcp
+stop filter covers them; `SourceSystem` stays `secrets_iam_posture`.)
 
 ### 2. Drain or expire in-flight leases
 
@@ -43,7 +42,13 @@ eshu component revoke-grant dev.eshu.collector.gcp-cloud \
   --version 0.1.0 \
   --kind gcp_cloud_resource \
   --scope gcp
-# Plus one revocation per mirror kind from the grant draft.
+for kind in iam_principal iam_permission_policy iam_trust_policy; do
+  eshu component revoke-grant dev.eshu.collector.gcp-cloud \
+    --component-home ~/.eshu/components \
+    --version 0.1.0 \
+    --kind "gcp_${kind}" \
+    --scope gcp
+done
 ```
 
 Revocation fails the next external emission closed, so a stray retry cannot

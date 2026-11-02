@@ -104,11 +104,11 @@ generation, `payload` ← `factschema.EncodeGCP*` / `EncodeGCP IAM*` output
 (`factschema@v0.1.0-rc.1/decode_gcp.go`, `decode_secretsiam_source.go`),
 `redactions` ← annotation allowlist redactions.
 
-**Manifest-shape question for `#8851`/`#6709` (no SDK code change):** mirror
-envelopes stamp `collector_kind = "secrets_iam_posture"`, and their
-producer record names `secrets-iam-posture`. The extracted component
-manifest must either declare both families or reconcile the kind to the
-`gcp-cloud` producer before cutover. Pinned, not fixed, by
+**Manifest-shape decision recorded (arbiter verdict on #8856: re-stamp
+wins; no SDK code change):** mirror envelopes stamp `collector_kind =
+"gcp"` (in-tree `restampMirrorEnvelope`; `SourceSystem` stays
+`secrets_iam_posture`). The extracted component manifest declares
+`collectorKinds: ["gcp"]` with all ten families. Recorded by
 `source_parity_8856_test.go`.
 
 ## 4. Scope config (operator shape, unchanged by extraction)
