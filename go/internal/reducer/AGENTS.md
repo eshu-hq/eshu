@@ -743,8 +743,8 @@ in `azure_relationship_materialization_test.go`'s skip-matrix fixtures
 `target_normalized_resource_id` and omitted `source_arm_resource_id`/
 `target_arm_resource_id` entirely, which the pre-typing `payloadString` lookup
 silently tolerated (returns `""` for an absent key) but the collector emitter
-(`azure.NewRelationshipEnvelope`, `go/internal/collector/cloud/azure/
-relationship.go:69-75`) always validates both non-empty before emission — the
+(`azure.NewRelationshipEnvelope`, `relationship.go` in the satellite since #8853)
+always validates both non-empty before emission — the
 fixtures were never realistic collector output. The four fixtures were
 corrected to also set the two ARM id fields the real collector always emits,
 preserving each subtest's intended skip-tally assertion

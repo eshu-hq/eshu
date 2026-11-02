@@ -1445,12 +1445,12 @@
       "category": "collector",
       "name": "azure",
       "readiness": "gated",
-      "owner": "internal/collector/cloud/azure",
+      "owner": "eshu-hq/eshu-collector-azure-cloud",
       "docs": [
         "reference/collector-reducer-readiness.md",
         "reference/azure-cloud-collector-contract.md"
       ],
-      "notes": "Fixture-driven with claimed-live wiring; sanitized real-tenant live proof remains gated (issue #3066).",
+      "notes": "POC-retired to the eshu-collector-azure-cloud satellite (eshu-hq/eshu-collector-azure-cloud, issue #8853): the in-tree command, source package, and chart surface are gone; the satellite is live-unproven and gated. Fact kinds, reducer admission/projection, and read surfaces stay core-owned and covered.",
       "collector_contract": {
         "fact_kinds": [
           "azure_cloud_relationship",
@@ -1472,11 +1472,11 @@
           "get_cloud_inventory"
         ],
         "proof_gates": [
-          "cd go \u0026\u0026 go test ./cmd/collector-azure-cloud ./internal/collector/cloud/azure ./internal/reducer ./internal/query -count=1"
+          "cd go \u0026\u0026 go test ./internal/reducer ./internal/query -count=1"
         ],
         "fixture_refs": [
           "docs/public/reference/azure-cloud-collector-contract.md",
-          "go/internal/collector/cloud/azure/testdata"
+          "testdata/cassettes/azurecloud"
         ],
         "truth_profile": "provider_gated"
       }
@@ -2366,11 +2366,6 @@
     {
       "category": "command",
       "name": "ci-gates",
-      "readiness": "implemented"
-    },
-    {
-      "category": "command",
-      "name": "collector-azure-cloud",
       "readiness": "implemented"
     },
     {

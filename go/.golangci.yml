@@ -833,9 +833,6 @@ linters:
       - path: 'internal/collector/repo/git/docs/'
         linters:
           - wrapcheck
-      - path: 'internal/collector/cloud/azure/'
-        linters:
-          - wrapcheck
       - path: 'internal/collector/cicdrun/'
         linters:
           - wrapcheck

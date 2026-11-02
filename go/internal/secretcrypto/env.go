@@ -18,8 +18,8 @@ const (
 	// environment variable name, not a credential.
 	keyEnvVar = "ESHU_AUTH_SECRET_ENC_KEY"
 	// keyFileEnvVar points at a file holding the base64-encoded primary DEK.
-	// When set, it takes precedence over keyEnvVar (mirrors
-	// ESHU_AZURE_REDACTION_KEY_FILE's file-over-inline precedence).
+	// When set, it takes precedence over keyEnvVar (the same file-over-inline
+	// precedence collector redaction keys use).
 	// #nosec G101 -- environment variable name, not a credential.
 	keyFileEnvVar = "ESHU_AUTH_SECRET_ENC_KEY_FILE"
 	// keyIDEnvVar optionally labels the primary DEK's KeyID. When unset, the

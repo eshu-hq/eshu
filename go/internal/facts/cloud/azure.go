@@ -118,6 +118,6 @@ var AzureFamilyDeclaration = contract.Declare(contract.Family{
 		{Kind: "azure_tag_observation", PayloadSchema: "sdk/go/factschema/schema/azure_tag_observation.v1.schema.json", Disposition: "read_only", NoReducerReason: "Consumed by read surfaces only; no reducer domain decodes it.", NoReducerEvidence: "read consumption in go/internal/storage/postgres"},
 	},
 	Producers: []contract.Producer{
-		{ID: "collector-azure-cloud", Repository: "eshu-hq/eshu", Path: "go/internal/collector/cloud/azure", PlannedRepository: "eshu-hq/eshu-collector-azure-cloud", AuthorityMode: "core_issued_grant", Kinds: []string{"azure_cloud_relationship", "azure_cloud_resource", "azure_collection_warning", "azure_dns_record", "azure_identity_observation", "azure_image_reference", "azure_resource_change", "azure_tag_observation"}},
+		{ID: "collector-azure-cloud", Repository: "eshu-hq/eshu-collector-azure-cloud", Path: ".", PlannedRepository: "", AuthorityMode: "core_issued_grant", Kinds: []string{"azure_cloud_relationship", "azure_cloud_resource", "azure_collection_warning", "azure_dns_record", "azure_identity_observation", "azure_image_reference", "azure_resource_change", "azure_tag_observation"}},
 	},
 })

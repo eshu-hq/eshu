@@ -11,7 +11,7 @@
 
 | Producer | Repository | Path | Planned repository | Authority | Emitted kinds |
 | --- | --- | --- | --- | --- | --- |
-| `collector-azure-cloud` | `eshu-hq/eshu` | `go/internal/collector/cloud/azure` | `eshu-hq/eshu-collector-azure-cloud` | `core_issued_grant` | `azure_cloud_relationship, azure_cloud_resource, azure_collection_warning, azure_dns_record, azure_identity_observation, azure_image_reference, azure_resource_change, azure_tag_observation` |
+| `collector-azure-cloud` | `eshu-hq/eshu-collector-azure-cloud` | `.` | `` | `core_issued_grant` | `azure_cloud_relationship, azure_cloud_resource, azure_collection_warning, azure_dns_record, azure_identity_observation, azure_image_reference, azure_resource_change, azure_tag_observation` |
 
 ## Kinds
 

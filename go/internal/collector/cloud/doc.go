@@ -9,4 +9,8 @@
 // behavior stay in the owning provider packages. Provider resource packages
 // move with their collector, and production cutover to separate collector
 // repositories follows the ecosystem inventory, not this nesting.
+//
+// The azure leaf was removed by the #8853 POC-retirement removal; its fact
+// engine and runtime wiring now live in the eshu-collector-azure-cloud
+// satellite. The namespace currently holds no leaf packages.
 package cloud
