@@ -295,14 +295,14 @@ surfaces:
   - category: collector
     name: gcp
     readiness: gated
-    owner: internal/collector/gcpcloud
+    owner: eshu-hq/eshu-collector-gcp-cloud
     docs: [reference/collector-reducer-readiness.md, reference/gcp-cloud-collector-contract.md]
-    notes: Fixture-driven with claimed-live wiring; security smoke complete, while deployed-shape promotion proof remains gated.
+    notes: "Extracted to the eshu-collector-gcp-cloud satellite (eshu-hq/eshu-collector-gcp-cloud, issue #8856): the in-tree command is gone; the satellite is live with parity proven over two plan windows. Fact kinds, reducer admission/projection, and read surfaces stay core-owned and covered."
     collector_contract:
       fact_kinds: [gcp_cloud_relationship, gcp_cloud_resource, gcp_collection_warning, gcp_dns_record, gcp_iam_permission_policy, gcp_iam_policy_observation, gcp_iam_principal, gcp_iam_trust_policy, gcp_image_reference, gcp_tag_observation]
       projection_surfaces: [cloud_asset_resolution, secrets_iam_trust_chain, supply_chain_impact]
       read_surfaces: [GET /api/v0/cloud/inventory, GET /api/v0/cloud/resources, get_cloud_inventory]
-      proof_gates: [cd go && go test ./cmd/collector-gcp-cloud ./internal/collector/gcpcloud ./internal/reducer/... ./internal/query -count=1]
+      proof_gates: [cd go && go test ./internal/collector/gcpcloud ./internal/reducer/... ./internal/query -count=1]
       fixture_refs: [go/internal/collector/gcpcloud/testdata, docs/public/reference/gcp-cloud-collector-contract.md]
       truth_profile: provider_gated
   - category: collector

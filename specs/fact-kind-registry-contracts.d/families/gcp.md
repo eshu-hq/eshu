@@ -11,7 +11,7 @@
 
 | Producer | Repository | Path | Planned repository | Authority | Emitted kinds |
 | --- | --- | --- | --- | --- | --- |
-| `collector-gcp-cloud` | `eshu-hq/eshu` | `go/internal/collector/gcpcloud` | `eshu-hq/eshu-collector-gcp-cloud` | `core_issued_grant` | `gcp_cloud_relationship, gcp_cloud_resource, gcp_collection_warning, gcp_dns_record, gcp_iam_policy_observation, gcp_image_reference, gcp_tag_observation` |
+| `collector-gcp-cloud` | `eshu-hq/eshu-collector-gcp-cloud` | `.` | `` | `core_issued_grant` | `gcp_cloud_relationship, gcp_cloud_resource, gcp_collection_warning, gcp_dns_record, gcp_iam_policy_observation, gcp_image_reference, gcp_tag_observation` |
 
 ## Kinds
 

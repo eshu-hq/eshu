@@ -25,13 +25,12 @@ This slice is fixture-driven and makes no live Google Cloud calls.
 
 The second slice adds fixture-driven runtime scaffolding: a `collector.Source`
 implementation (`go/internal/collector/gcpcloud/gcpruntime`) that drains Cloud
-Asset Inventory pages through a `PageProvider` seam, fences generations, emits
-the scoped telemetry, and a `cmd/collector-gcp-cloud` binary that wires the
-source and a status-recording committer from a declarative offline config. The
-command also has explicit claimed-live mode: it selects one enabled
+Asset Inventory pages through a `PageProvider` seam, fences generations, and
+emits the scoped telemetry. Production claimed-live wiring now lives in the
+extracted satellite (`eshu-hq/eshu-collector-gcp-cloud`, issue #8856): it selects one enabled
 claim-capable GCP collector instance, requires `live_collection_enabled=true`,
-uses workflow claims for generation/fencing identity, and runs through
-`collector.ClaimedService`. The live Cloud Asset Inventory transport is the
+uses workflow claims for generation/fencing identity, and binds the claim
+generation and fencing token before the drain. The live Cloud Asset Inventory transport is the
 explicit-injection `gcpruntime.LiveClient` REST `PageProvider` for
 `assets.list`; it requires read-only caller-supplied credentials, bounded page
 size, response bytes, timeouts, retries, backoff, OAuth scope, and asset-family
@@ -118,9 +117,9 @@ their stated reducer/read-model contracts. Raw
 provenance-only or audit evidence until separate reducer/read-model contracts
 admit them.
 
-Command Runtime Evidence: `go test ./cmd/collector-gcp-cloud ./internal/collector/gcpcloud/... -count=1` proves fixture mode remains available, claimed-live mode is explicit, live collection is gated, workflow claims supply generation/fencing identity, and tests build the `gcpruntime.LiveClient` runner without live Google Cloud credentials.
+Command Runtime Evidence: `go test ./internal/collector/gcpcloud/... -count=1` proves fixture mode remains available and tests build the `gcpruntime.LiveClient` runner without live Google Cloud credentials. Claimed-live collection runs from the satellite, whose own gates prove claim binding, generation echo, and source-URI stamping.
 
-Chart Deployment Evidence: `go test ./internal/runtime -run 'TestHelmGCPCloudCollectorDeployment|TestGCPCloudCollectorBinaryIsBuiltInstalledAndDocumented' -count=1` proves GCP Helm exposure is default-off, starts `-mode claimed-live`, mounts redaction material from a read-only Secret file, renders metrics Service, ServiceMonitor, NetworkPolicy, and PodDisruptionBudget coverage, and builds the release/local binary entry.
+Chart Deployment Evidence: `go test ./internal/runtime -run 'TestHelmGCPCloudCollectorDeployment' -count=1` proves the chart carries no in-tree GCP deployment. Production collection runs from the satellite image pinned by the operator activation.
 
 No-Regression Evidence: `go test ./internal/reducer ./internal/query
 ./internal/mcp -run CloudInventory -count=1` and `go test
@@ -1787,16 +1786,14 @@ Implemented slices:
 
 1. Fact constants, schema helpers, fixture payload tests, CAI parsing, and
    redacted source fact emission.
-2. Fixture-backed `gcpruntime.Source` and `cmd/collector-gcp-cloud` runtime
-   scaffolding through the `PageProvider` seam.
+2. Fixture-backed `gcpruntime.Source` runtime scaffolding through the `PageProvider` seam (command wiring moved to the satellite).
 3. Shared cloud inventory admission/API/MCP readback for
    `gcp_cloud_resource`.
 4. Tag evidence admission, image identity admission, relationship resolution,
    and GCP IAM trust facts.
 5. Explicit-injection `gcpruntime.LiveClient` REST transport for bounded
    `assets.list` page reads.
-6. Claimed-live command wiring, scheduler planning, default-off Helm exposure
-   with ServiceMonitor coverage, and opt-in direct/effective tag API evidence.
+6. Scheduler planning, default-off Helm exposure with ServiceMonitor coverage, and opt-in tag API evidence (command wiring moved to the satellite).
 
 Remaining gated slices:
 
@@ -1816,7 +1813,8 @@ default-off Helm exposure described below.
 ## Runtime Scaffolding Evidence
 
 This evidence covers the second slice plus the default-off `LiveClient` transport
-adapter: the `gcpruntime` source and the `collector-gcp-cloud` binary. These are
+adapter: the `gcpruntime` source (the in-tree `collector-gcp-cloud` binary was
+deleted when production collection moved to the satellite). These are
 hot-path collector files, so they carry tracked performance and observability
 evidence here.
 
@@ -1824,8 +1822,7 @@ Collector Performance Evidence: see the No-Regression Evidence block below.
 
 Collector Observability Evidence: see the Observability Evidence block below.
 
-Collector Deployment Evidence: the chart renders no GCP Deployment by default.
-When `gcpCloudCollector.enabled=true`, it starts `/usr/local/bin/eshu-collector-gcp-cloud -mode claimed-live`, requires active workflow claims plus a matching live-enabled `gcp` instance, mounts the redaction key from a read-only Secret file, uses pod identity for GCP credentials, and renders metrics Service, ServiceMonitor, NetworkPolicy, and PodDisruptionBudget coverage.
+Collector Deployment Evidence: the chart renders no GCP Deployment by default, and no in-tree GCP binary remains to start. Production collection runs from the satellite image pinned by the operator activation, which requires active workflow claims plus a matching live-enabled `gcp` instance.
 
 No-Observability-Change: this slice uses the existing scoped GCP collector
 instruments registered in the first slice
@@ -1849,7 +1846,7 @@ No-Regression Evidence:
   the empty/no-runtime baseline, the fixture-backed source shape, and the inert
   live seam.
 - After: `go test ./internal/collector/gcpcloud/gcpruntime/...
-  ./cmd/collector-gcp-cloud/... ./internal/collector/gcpcloud/...
+  ./internal/collector/gcpcloud/...
   ./internal/facts/... -count=1` passes. `go test
   ./internal/collector/gcpcloud/gcpruntime -run
   'TestLiveClient|TestSourceProviderWarning' -count=1` proves the live adapter.

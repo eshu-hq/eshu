@@ -88,20 +88,13 @@ satellite resolves credentials and redaction through its activation config
 
 ## GCP Cloud Collector
 
-| Variable | Default | Read by | Purpose |
-| --- | --- | --- | --- |
-| `ESHU_GCP_COLLECTOR_INSTANCE_ID` | required when more than one enabled GCP instance exists | collector-gcp-cloud | Selects the claim-capable `gcp` instance from `ESHU_COLLECTOR_INSTANCES_JSON`. |
-| `ESHU_GCP_COLLECTOR_OWNER_ID` | host/process-derived | collector-gcp-cloud | Owner label written into workflow claim rows. |
-| `ESHU_GCP_COLLECTOR_POLL_INTERVAL` | `1s` | collector-gcp-cloud | Delay between empty claim polls. |
-| `ESHU_GCP_COLLECTOR_CLAIM_LEASE_TTL` | workflow default | collector-gcp-cloud | Lease TTL used when claiming and refreshing work. |
-| `ESHU_GCP_COLLECTOR_HEARTBEAT_INTERVAL` | workflow default | collector-gcp-cloud | Heartbeat interval for active workflow claims. Must be less than the claim lease TTL. |
-| `ESHU_GCP_COLLECTOR_QUOTA_PROJECT_ID` | unset | collector-gcp-cloud | Optional billing/quota project id sent as `x-goog-user-project` on Cloud Asset Inventory requests. Leave unset for service-account/Workload Identity Federation ADC. Set it when the resolved ADC is a user credential (e.g. local `gcloud auth application-default login`), which otherwise gets a 403 quota-project error. Name/id only, never credential material. |
-
-The GCP collector also requires `-mode claimed-live` and
-`-redaction-key-file` at process startup. Helm supplies the redaction key path
-from `gcpCloudCollector.redaction.*` as a read-only Secret volume mount. The
-collector instance configuration must set `live_collection_enabled=true`, and
-enabled scopes must reference credentials by name with `credential_ref`.
+GCP cloud now collects from its extracted satellite
+(`eshu-hq/eshu-collector-gcp-cloud`, issue #8856); the target shape below is unchanged, but the
+`ESHU_GCP_*` process variables are satellite-side operator inputs, not
+in-tree registry entries, so `eshu config validate` does not cover them. The
+satellite resolves credentials and redaction through its activation config.
+Parity with the in-tree collector was proven over two plan windows before the
+in-tree command was removed.
 
 ## Azure Cloud Collector
 

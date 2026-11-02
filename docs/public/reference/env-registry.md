@@ -14,7 +14,7 @@ Subsystem anchors such as `#api` and `#auth` moved to the family pages when this
 | [Runtime and storage](env-registry/runtime-and-storage.md) | Shared runtime settings, Postgres, the graph backend, and backend conformance test knobs. | 60 |
 | [Reducer and projection](env-registry/reducer-and-projection.md) | The reducer, projector, workflow coordinator, push hooks, and semantic providers. | 98 |
 | [Ingester and collector framework](env-registry/collectors-platform.md) | The ingester's git collector, the component package manager, and the component-extension collector. | 42 |
-| [Infrastructure and registry collectors](env-registry/collectors-infrastructure.md) | Cloud, Kubernetes, OCI registry, and package registry collectors. AWS cloud and Terraform state now collect from their extracted satellites (eshu-hq/eshu-collector-aws-cloud, eshu-hq/eshu-collector-terraform-state). Vault now collects from its extracted satellite (eshu-hq/eshu-collector-vault-live). Azure now collects from its extracted satellite (eshu-hq/eshu-collector-azure-cloud). | 21 |
+| [Infrastructure and registry collectors](env-registry/collectors-infrastructure.md) | Cloud, Kubernetes, OCI registry, and package registry collectors. AWS cloud and Terraform state now collect from their extracted satellites (eshu-hq/eshu-collector-aws-cloud, eshu-hq/eshu-collector-terraform-state). Vault now collects from its extracted satellite (eshu-hq/eshu-collector-vault-live). Azure now collects from its extracted satellite (eshu-hq/eshu-collector-azure-cloud). GCP Cloud now collects from its extracted satellite (eshu-hq/eshu-collector-gcp-cloud). | 15 |
 | [Observability, delivery, and security collectors](env-registry/collectors-signals.md) | Grafana, Prometheus/Mimir, PagerDuty, CI/CD run, security alert, SBOM, and vulnerability collectors. Jira now collects from its extracted satellite (eshu-hq/eshu-collector-jira). Tempo now collects from its extracted satellite (eshu-hq/eshu-collector-tempo). Loki now collects from its extracted satellite (eshu-hq/eshu-collector-loki). | 35 |
 
 ## Subsystems
@@ -27,7 +27,6 @@ Subsystem anchors such as `#api` and `#auth` moved to the family pages when this
 | [`collector`](env-registry/collectors-platform.md#collector) | 26 | Ingester and collector framework |
 | [`collector-cicd-run`](env-registry/collectors-signals.md#collector-cicd-run) | 5 | Observability, delivery, and security collectors |
 | [`collector-component-extension`](env-registry/collectors-platform.md#collector-component-extension) | 9 | Ingester and collector framework |
-| [`collector-gcp-cloud`](env-registry/collectors-infrastructure.md#collector-gcp-cloud) | 6 | Infrastructure and registry collectors |
 | [`collector-grafana`](env-registry/collectors-signals.md#collector-grafana) | 5 | Observability, delivery, and security collectors |
 | [`collector-kubernetes-live`](env-registry/collectors-infrastructure.md#collector-kubernetes-live) | 3 | Infrastructure and registry collectors |
 | [`collector-oci-registry`](env-registry/collectors-infrastructure.md#collector-oci-registry) | 7 | Infrastructure and registry collectors |

@@ -82,8 +82,8 @@
 ## Verification
 
 ```bash
-cd go && go test ./internal/collector/gcpcloud/... ./cmd/collector-gcp-cloud/... -count=1
-cd go && golangci-lint run ./internal/collector/gcpcloud/... ./cmd/collector-gcp-cloud/...
+cd go && go test ./internal/collector/gcpcloud/... -count=1
+cd go && golangci-lint run ./internal/collector/gcpcloud/...
 scripts/verify-package-docs.sh
 scripts/verify-performance-evidence.sh
 ```

@@ -97,7 +97,7 @@ func TestLiveSmokeCloudAssetInventory(t *testing.T) {
 	// Exercise the read-only redaction-key-file loader path: generate fresh
 	// random key material, write it to a 0600 temp file, and load it back
 	// through the same os.ReadFile + redact.NewKey path the collector command
-	// uses (see loadRedactionKey in cmd/collector-gcp-cloud/main.go). This
+	// uses (see loadRedactionKey in the collector command, now eshu-hq/eshu-collector-gcp-cloud). This
 	// keeps any redaction markers produced by this run non-reproducible
 	// outside the run and proves the file-mount gate item, not just the
 	// in-memory key constructor.
