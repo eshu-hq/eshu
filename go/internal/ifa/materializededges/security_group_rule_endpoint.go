@@ -113,10 +113,13 @@ func resolveSecurityGroupRuleEndpointMaterializedEdges(odu ifa.Odu, expectedEdge
 //
 // rule_uid and target_uid are the template's two MATCH anchors, so they are
 // the edge's source and target identity. target_label fills the MATCH
-// node-label position — heterogeneous but closed-vocabulary — so it rides
-// along as an asserted mutable property: the edge key cannot see it, and a
-// regression resolving the right uid under the wrong label would otherwise
-// pass on identity alone while the writer's MATCH no-ops live.
+// node-label position — heterogeneous but closed-vocabulary — and stays a
+// row-level routing field only: the production TO edges never carried it
+// as a graph property (the writer SETs scope/generation/evidence only),
+// so the shared expected-edges fixture cannot assert it and this conversion
+// does not carry it either. A regression resolving the right uid under the
+// wrong label still fails: the writer's MATCH (target:LABEL) no-ops the
+// write, and the live exact-set assert reports the edge missing.
 //
 // scope_id, generation_id and evidence_source are stamped by the WRITER from
 // its own per-run intent arguments rather than carried on the extractor's
@@ -130,9 +133,6 @@ func securityGroupRuleEndpointRowsToExpectedEdges(rows []map[string]any) []Expec
 			RelationshipType: securityGroupRuleEndpointRelationshipType,
 			SourceEntityID:   anyToStringValue(row["rule_uid"]),
 			TargetEntityID:   anyToStringValue(row["target_uid"]),
-			Properties: map[string]string{
-				"target_label": anyToStringValue(row["target_label"]),
-			},
 		}
 		edges = append(edges, edge)
 	}

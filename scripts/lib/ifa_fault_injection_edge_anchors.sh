@@ -163,6 +163,31 @@ observability_coverage_edge_operation_match="MERGE (obs)-[rel:AWS_COVERS_"
 # identity map, so the anchor carries the PREFIX form. A full `]->(target)`
 # spelling would match no executed statement and the fault would never fire.
 publishes_edge_operation_match="MERGE (repo)-[rel:PUBLISHES"
+# The ALLOWS_* MERGE anchor cell_failgraphwrite_security_group_sg_rule
+# (#6228 secgroup-pair live leaf, FIRST-LANDED) targets:
+# go/internal/storage/cypher/cloud/aws/security/group/security_reachability_edge_writer.go:87
+# emits MERGE (sg)-[rel:%s]->(rule) filled per row from the closed
+# two-member direction vocabulary, so the anchor carries the PREFIX form
+# (the observability_coverage rationale transfers). A literal %s matches no
+# executed statement and the fault would never fire.
+security_group_sg_rule_edge_operation_match="MERGE (sg)-[rel:ALLOWS_"
+# The TO MERGE anchor cell_failgraphwrite_security_group_rule_endpoint
+# (#6228 secgroup-pair live leaf, SECOND) targets:
+# go/internal/storage/cypher/cloud/aws/security/group/security_reachability_edge_writer.go:101
+# emits MERGE (rule)-[rel:TO]->(target) with a static relationship token
+# (the template's %s fills the target-node label), so the anchor carries
+# the literal. A `%s` form would match no executed statement and the fault
+# would never fire.
+security_group_rule_endpoint_edge_operation_match="MERGE (rule)-[rel:TO]->(target)"
+# The GRANTS_ACCESS_TO MERGE anchor
+# cell_failgraphwrite_s3_external_principal_grant (#6228 s3-grant live
+# leaf) targets:
+# go/internal/storage/cypher/cloud/aws/s3/external_principal_grant_writer.go:34
+# emits MERGE (source)-[rel:%s]->(principal) filled from the closed
+# single-member vocabulary, so the anchor carries the INTERPOLATED type
+# (the s3_logs_to rationale transfers). A literal %s matches no executed
+# statement and the fault would never fire.
+s3_external_principal_grant_edge_operation_match="MERGE (source)-[rel:GRANTS_ACCESS_TO]->(principal)"
 # The TAINT_FLOWS_TO MERGE anchor cell_failgraphwrite_code_interproc_evidence
 # (#6228 code_interproc_evidence live leaf) targets:
 # go/internal/storage/cypher/edge/writer/code_interproc_evidence.go:29 emits

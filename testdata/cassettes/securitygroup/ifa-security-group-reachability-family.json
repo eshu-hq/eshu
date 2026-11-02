@@ -1,0 +1,237 @@
+{
+  "collector": "aws",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "aws:eshu-fixture-security-group-reachability-account",
+      "source_system": "aws",
+      "scope_kind": "region",
+      "collector_kind": "aws",
+      "partition_key": "aws:eshu-fixture-security-group-reachability-account",
+      "metadata": {
+        "account_id": "123456789012",
+        "region": "us-east-1",
+        "service_kind": "ec2"
+      },
+      "generation_id": "gen-ifa-security-group-reachability-family-1",
+      "observed_at": "2026-11-02T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_resource:sg-0abc123def456789a",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "region": "us-east-1",
+            "resource_id": "sg-0abc123def456789a",
+            "resource_type": "aws_ec2_security_group"
+          }
+        },
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_resource:sg-0def123456789abcd",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "region": "us-east-1",
+            "resource_id": "sg-0def123456789abcd",
+            "resource_type": "aws_ec2_security_group"
+          }
+        },
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_resource:sg-0ref123456789abcd",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "region": "us-east-1",
+            "resource_id": "sg-0ref123456789abcd",
+            "resource_type": "aws_ec2_security_group"
+          }
+        },
+        {
+          "fact_kind": "aws_security_group_rule",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_security_group_rule:sg-0abc123def456789a:ingress:tcp:22:22:cidr_ipv4:192.0.2.0/24",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "direction": "ingress",
+            "from_port": 22,
+            "group_id": "sg-0abc123def456789a",
+            "ip_protocol": "tcp",
+            "region": "us-east-1",
+            "source_kind": "cidr_ipv4",
+            "source_value": "192.0.2.0/24",
+            "to_port": 22
+          }
+        },
+        {
+          "fact_kind": "aws_security_group_rule",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_security_group_rule:sg-0abc123def456789a:egress:tcp:443:443:cidr_ipv4:192.0.2.0/24",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "direction": "egress",
+            "from_port": 443,
+            "group_id": "sg-0abc123def456789a",
+            "ip_protocol": "tcp",
+            "region": "us-east-1",
+            "source_kind": "cidr_ipv4",
+            "source_value": "192.0.2.0/24",
+            "to_port": 443
+          }
+        },
+        {
+          "fact_kind": "aws_security_group_rule",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_security_group_rule:sg-0def123456789abcd:ingress:tcp:80:80:prefix_list:pl-0abc123def456789a",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "direction": "ingress",
+            "from_port": 80,
+            "group_id": "sg-0def123456789abcd",
+            "ip_protocol": "tcp",
+            "region": "us-east-1",
+            "source_kind": "prefix_list",
+            "source_value": "pl-0abc123def456789a",
+            "to_port": 80
+          }
+        },
+        {
+          "fact_kind": "aws_security_group_rule",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_security_group_rule:sg-0def123456789abcd:ingress:tcp:5432:5432:referenced_security_group:sg-0ref123456789abcd",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "direction": "ingress",
+            "from_port": 5432,
+            "group_id": "sg-0def123456789abcd",
+            "ip_protocol": "tcp",
+            "region": "us-east-1",
+            "source_kind": "referenced_security_group",
+            "source_value": "sg-0ref123456789abcd",
+            "to_port": 5432
+          }
+        },
+        {
+          "fact_kind": "aws_security_group_rule",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_security_group_rule:sg-0def123456789abcd:ingress:udp:53:53:cidr_ipv6:2001:db8::/32",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "direction": "ingress",
+            "from_port": 53,
+            "group_id": "sg-0def123456789abcd",
+            "ip_protocol": "udp",
+            "region": "us-east-1",
+            "source_kind": "cidr_ipv6",
+            "source_value": "2001:db8::/32",
+            "to_port": 53
+          }
+        },
+        {
+          "fact_kind": "aws_security_group_rule",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_security_group_rule:sg-9zzz9999999999999:ingress:tcp:22:22:cidr_ipv4:192.0.2.0/24",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "direction": "ingress",
+            "from_port": 22,
+            "group_id": "sg-9zzz9999999999999",
+            "ip_protocol": "tcp",
+            "region": "us-east-1",
+            "source_kind": "cidr_ipv4",
+            "source_value": "192.0.2.0/24",
+            "to_port": 22
+          }
+        },
+        {
+          "fact_kind": "aws_security_group_rule",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_security_group_rule:sg-0abc123def456789a:ingress:tcp:3306:3306:referenced_security_group:sg-9zzz9999999999999",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "direction": "ingress",
+            "from_port": 3306,
+            "group_id": "sg-0abc123def456789a",
+            "ip_protocol": "tcp",
+            "region": "us-east-1",
+            "source_kind": "referenced_security_group",
+            "source_value": "sg-9zzz9999999999999",
+            "to_port": 3306
+          }
+        },
+        {
+          "fact_kind": "aws_security_group_rule",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_security_group_rule:sg-0abc123def456789a:ingress:tcp:25:25:unknown:",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "direction": "ingress",
+            "from_port": 25,
+            "group_id": "sg-0abc123def456789a",
+            "ip_protocol": "tcp",
+            "region": "us-east-1",
+            "source_kind": "unknown",
+            "source_value": "",
+            "to_port": 25
+          }
+        },
+        {
+          "fact_kind": "aws_security_group_rule",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_security_group_rule:sg-0abc123def456789a:ingress:tcp:3389:3389:cidr_ipv4:192.0.2.0/24",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "is_tombstone": true,
+          "payload": {
+            "account_id": "123456789012",
+            "direction": "ingress",
+            "from_port": 3389,
+            "group_id": "sg-0abc123def456789a",
+            "ip_protocol": "tcp",
+            "region": "us-east-1",
+            "source_kind": "cidr_ipv4",
+            "source_value": "192.0.2.0/24",
+            "to_port": 3389
+          }
+        }
+      ]
+    }
+  ]
+}

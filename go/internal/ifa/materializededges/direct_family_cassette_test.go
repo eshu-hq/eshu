@@ -229,6 +229,18 @@ func directFamilyCassetteCases() []directFamilyCassetteCase {
 			cassettePath: ifa.PublishesFamilyCassetteFullPath,
 			load:         ifa.LoadPublishesFamilyOdu,
 		},
+		{
+			name:         ifa.SecurityGroupReachabilityFamilyOduName,
+			compiled:     ifa.SecurityGroupReachabilityFamilyOdu,
+			cassettePath: ifa.SecurityGroupReachabilityFamilyCassetteFullPath,
+			load:         ifa.LoadSecurityGroupReachabilityFamilyOdu,
+		},
+		{
+			name:         ifa.S3ExternalPrincipalGrantFamilyOduName,
+			compiled:     ifa.S3ExternalPrincipalGrantFamilyOdu,
+			cassettePath: ifa.S3ExternalPrincipalGrantFamilyCassetteFullPath,
+			load:         ifa.LoadS3ExternalPrincipalGrantFamilyOdu,
+		},
 	}
 }
 

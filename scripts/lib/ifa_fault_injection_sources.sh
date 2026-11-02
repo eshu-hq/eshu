@@ -103,6 +103,10 @@ source "${ifa_fault_sources_root}/scripts/lib/ifa_direct_family_live_observabili
 source "${ifa_fault_sources_root}/scripts/lib/ifa_direct_family_live_incident_routing_evidence.sh"
 # shellcheck source=scripts/lib/ifa_direct_family_live_publishes.sh
 source "${ifa_fault_sources_root}/scripts/lib/ifa_direct_family_live_publishes.sh"
+# shellcheck source=scripts/lib/ifa_direct_family_live_security_group_reachability.sh
+source "${ifa_fault_sources_root}/scripts/lib/ifa_direct_family_live_security_group_reachability.sh"
+# shellcheck source=scripts/lib/ifa_direct_family_live_s3_external_principal_grant.sh
+source "${ifa_fault_sources_root}/scripts/lib/ifa_direct_family_live_s3_external_principal_grant.sh"
 # shellcheck source=scripts/lib/ifa_direct_family_live_code_interproc_evidence.sh
 source "${ifa_fault_sources_root}/scripts/lib/ifa_direct_family_live_code_interproc_evidence.sh"
 # shellcheck source=scripts/lib/ifa_direct_family_live_code_taint_evidence.sh
@@ -152,6 +156,12 @@ source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_observability_
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_incident_routing_evidence_cells.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_publishes_cells.sh
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_publishes_cells.sh"
+# shellcheck source=scripts/lib/ifa_fault_injection_security_group_sg_rule_cells.sh
+source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_security_group_sg_rule_cells.sh"
+# shellcheck source=scripts/lib/ifa_fault_injection_security_group_rule_endpoint_cells.sh
+source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_security_group_rule_endpoint_cells.sh"
+# shellcheck source=scripts/lib/ifa_fault_injection_s3_external_principal_grant_cells.sh
+source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_s3_external_principal_grant_cells.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_code_interproc_evidence_cells.sh
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_code_interproc_evidence_cells.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_code_taint_evidence_cells.sh

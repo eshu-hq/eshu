@@ -31,4 +31,9 @@ require_direct_family_lib "incident-routing-evidence assert-edges domain" "-doma
 require_direct_family_lib "incident-routing-evidence drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
 require_direct_family_lib "publishes assert-edges domain" "-domain publishes"
 require_direct_family_lib "publishes drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
+require_direct_family_lib "security-group-sg-rule assert-edges domain" "-domain security_group_sg_rule"
+require_direct_family_lib "security-group-rule-endpoint assert-edges domain" "-domain security_group_rule_endpoint"
+require_direct_family_lib "security-group-reachability drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
+require_direct_family_lib "s3-external-principal-grant assert-edges domain" "-domain s3_external_principal_grant"
+require_direct_family_lib "s3-external-principal-grant drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
 }

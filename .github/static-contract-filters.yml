@@ -184,6 +184,8 @@ ifa:
   - 'testdata/cassettes/obscoverage/**'
   - 'testdata/cassettes/incidentrouting/**'
   - 'testdata/cassettes/publishes/**'
+  - 'testdata/cassettes/securitygroup/**'
+  - 'testdata/cassettes/s3grant/**'
   - 'testdata/cassettes/shellexec/**'
   - 'testdata/cassettes/submodulepin/**'
   - 'testdata/cassettes/workloaddependency/**'

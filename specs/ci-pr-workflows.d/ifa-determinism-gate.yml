@@ -299,6 +299,8 @@ workflows:
   - go/internal/storage/cypher/cloud/aws/iam/can_perform_edge_writer.go
   - go/internal/storage/cypher/cloud/aws/ec2/uses_profile_edge_writer.go
   - go/internal/storage/cypher/cloud/aws/s3/logs_to_edge_writer.go
+  - go/internal/storage/cypher/cloud/aws/security/group/security_reachability_edge_writer.go
+  - go/internal/storage/cypher/cloud/aws/s3/external_principal_grant_writer.go
   - go/internal/storage/cypher/cloud/aws/iam/escalation_edge_writer.go
   - go/internal/storage/cypher/cloud/aws/iam/secrets_graph_writer.go
   - go/internal/storage/cypher/edge/writer/provenance.go
@@ -437,6 +439,20 @@ workflows:
   - scripts/lib/ifa_fault_injection_publishes_cells.sh
   - scripts/lib/test-ifa-fault-injection-publishes-cases.sh
   - testdata/cassettes/publishes/**
+  - go/internal/ifa/familyodu/security_group_reachability_family_odu.go
+  - go/internal/ifa/familyodu/s3_external_principal_grant_family_odu.go
+  - go/internal/ifa/testdata/securitygroup/**
+  - go/internal/ifa/testdata/s3grant/**
+  - scripts/lib/ifa_direct_family_live_security_group_reachability.sh
+  - scripts/lib/ifa_direct_family_live_s3_external_principal_grant.sh
+  - scripts/lib/ifa_fault_injection_security_group_sg_rule_cells.sh
+  - scripts/lib/ifa_fault_injection_security_group_rule_endpoint_cells.sh
+  - scripts/lib/ifa_fault_injection_s3_external_principal_grant_cells.sh
+  - scripts/lib/test-ifa-fault-injection-security-group-sg-rule-cases.sh
+  - scripts/lib/test-ifa-fault-injection-security-group-rule-endpoint-cases.sh
+  - scripts/lib/test-ifa-fault-injection-s3-external-principal-grant-cases.sh
+  - testdata/cassettes/securitygroup/**
+  - testdata/cassettes/s3grant/**
   - specs/ci-pr-workflows.d/ifa-determinism-gate.yml
   - go/internal/ifa/familyodu/grants_secret_read_family_odu.go
   - go/internal/ifa/testdata/grantssecretread/**
