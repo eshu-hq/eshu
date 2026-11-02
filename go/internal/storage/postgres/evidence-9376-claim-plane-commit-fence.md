@@ -12,8 +12,11 @@ unchanged. Ruling and design: `docs/internal/design/9376-claim-plane-commit-fenc
   that orders projector Ack). Different work items on one generation
   are different rows and never refuse each other.
 - Claim lease 60 s (`workflow/defaults.go`), re-pin every lease/3 = 20 s,
-  refusal margin 5 s (`DefaultClaimFenceMargin`), pin retries 3 with
-  200 ms linear backoff.
+  refusal margin 5 s (`DefaultClaimFenceMargin`, refused at begin unless
+  below lease - lease/3), pin attempts 3 with 200 ms linear backoff, each
+  pin and re-pin call bounded by `DefaultClaimFencePinAttemptTimeout`
+  (10 s, capped at lease/3). The keeper stops when COMMIT returns and
+  cancels a re-pin in flight when it stops.
 - No new lock-order edge: the fence row is touched after the scope row
   lock; its FK takes `FOR KEY SHARE` on the generation row this same
   transaction just upserted; retention deletes only `superseded` rows
@@ -83,7 +86,9 @@ Observability Evidence: the signals below, asserted where noted.
   (`fence_token` = 1 in T1, `deadline` = 1 in T2).
 - `eshu_dp_ingestion_commit_repins_total{outcome}` (`ok`, `stale`, `error`).
 - `eshu_dp_ingestion_commit_pin_slack_seconds` (unlabeled, 0-120 s).
-- Span `ingestion.commit.claim_fence` and one WARN log per refusal with
+- Span `ingestion.commit.claim_fence` (only `fence_mode=plane` is emitted;
+  the in-tree path emits no fence span) and one log per refusal (WARN;
+  ERROR for `fence_claim_mismatch`, an integrity alarm) with
   scope, generation, work item, claim, reason, requested and stored
   tokens, and pin slack. Operator page:
   `docs/public/reference/telemetry/claim-plane-commit-fence.md`.

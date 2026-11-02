@@ -22,8 +22,10 @@ the in-tree fence and emit none of these signals.
 
     Retryable reasons leave the claim to retry:
     - `deadline`: the pin deadline was inside the margin at `COMMIT`.
-    - `pin_unavailable`: the pin did not answer after three identical
-      retries. No core transaction opened.
+    - `pin_unavailable`: the pin did not answer in three identical
+      attempts, each bounded to 10 s (or a third of the lease, if shorter),
+      so a stalled plane fails the commit instead of hanging it. No core
+      transaction opened.
 - `eshu_dp_ingestion_commit_repins_total{outcome}`: re-pins during a
   commit. `ok` extended the pin; `stale` cancelled the commit; `error`
   left the decision to the deadline check.
@@ -35,10 +37,11 @@ the in-tree fence and emit none of these signals.
 No label carries a scope, generation, claim, or work item id. The
 `ingestion.commit.claim_fence` span carries those as attributes
 (`fence_mode`, `claim_id`, `fencing_token`, `work_item_id`,
-`generation_id`, `commit_id`, `outcome`), and every refusal writes one
-`claim-plane commit fence refused the commit` WARN log with the scope,
-generation, work item, claim, reason, requested and stored tokens, and the
-pin slack.
+`generation_id`, `commit_id`, `outcome`; `fence_mode` is always `plane`),
+and every refusal writes one `claim-plane commit fence refused the commit`
+log with the scope, generation, work item, claim, reason, requested and
+stored tokens, and the pin slack. The log is WARN, except
+`fence_claim_mismatch`, which logs at ERROR.
 
 At 3 AM: a rising `fence_token` or `stale_fence` count means writers are
 losing their claims before they commit. Check lease and reap settings on
