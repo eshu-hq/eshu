@@ -64,9 +64,9 @@ See `AGENTS.md`. The ones that bite:
 - Production callers leave `RotationSalt` empty. A fixed salt pins every
   worker to one scope and fails the starvation criterion. The harness sends
   no salt.
-- A paced or throttled quota item above budget stays pending by design. The
-  report counts these as `quota_held_items`, and the drain criterion skips
-  only those.
+- A paced or throttled quota item above budget stays pending by design
+  until its hour bucket rolls. The report counts these as
+  `quota_held_items`, and the drain criterion skips only those.
 
 ## How the spec maps to code
 
@@ -120,8 +120,10 @@ the evidence.
   the item re-granted at a higher token. The write must return the fence
   rejection. A success aborts, and a generic error fails the criterion.
 - **Quota.** Budget is per (kind, scope, hour) on both legs
-  (`component_quota_windows`). If the run crosses an hour boundary, a new
-  bucket opens. The check is per bucket row.
+  (`component_quota_windows`). `no_overshoot` passes when no bucket row is
+  above budget and at least one reached it (the reservation path ran under
+  overload). If the run crosses an hour boundary, a new bucket opens, and
+  the held items may drain legitimately. `quota_held_items` is informational.
 - **Lock waiters.** A local in-tree advisory round puts up to 24 sessions
   on `pg_advisory_xact_lock` by design. Set the local
   `PG_MAX_LOCK_WAITERS` above the advisory goroutines plus W (40). On the

@@ -231,19 +231,27 @@ func (r *runner) quotaCriterion(report *Report) {
 		report.Criteria["no_overshoot"] = Criterion{Status: StatusNotApplicable, Detail: report.NotApplicable["step5_quota"]}
 		return
 	}
+	// Held items are informational: a run that crosses an hour opens a new
+	// bucket and may drain them legitimately. The criterion is no bucket
+	// above budget, with at least one bucket driven to budget so the
+	// reservation path ran under overload.
 	var over []string
+	atBudget := 0
 	for _, b := range report.Quota {
 		if b.Grants > r.spec.QuotaBudget {
 			over = append(over, fmt.Sprintf("%s@%s=%d", b.ScopeID, b.WindowStart.Format(time.RFC3339), b.Grants))
 		}
+		if b.Grants == r.spec.QuotaBudget {
+			atBudget++
+		}
 	}
 	status := StatusPass
-	if len(over) > 0 || len(report.Quota) == 0 || report.QuotaHeld == 0 {
+	if len(over) > 0 || atBudget == 0 {
 		status = StatusFail
 	}
 	report.Criteria["no_overshoot"] = Criterion{Status: status, Detail: fmt.Sprintf(
-		"budget %d per (kind, scope, hour); %d buckets, over budget %v; %d at-budget items held",
-		r.spec.QuotaBudget, len(report.Quota), over, report.QuotaHeld)}
+		"budget %d per (kind, scope, hour); %d buckets, %d at budget, over budget %v; %d items held at the end",
+		r.spec.QuotaBudget, len(report.Quota), atBudget, over, report.QuotaHeld)}
 }
 
 func peakLockWait(report *Report) string {
