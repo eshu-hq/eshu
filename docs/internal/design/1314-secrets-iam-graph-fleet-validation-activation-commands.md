@@ -81,9 +81,13 @@ ESHU_NEO4J_URI='FILL:<target Neo4j Bolt endpoint>' \
 ESHU_NEO4J_USERNAME='FILL:<target Neo4j user>' \
 ESHU_NEO4J_PASSWORD='FILL:<from the target secret store, never pasted>' \
 ESHU_NEO4J_DATABASE='FILL:<target database; omit for server default>' \
-go test ./internal/storage/cypher \
+go test ./internal/storage/cypher/cloud/aws/iam \
   -run '^TestSecretsIAMGraphWriterLiveConformance$' -count=1 -v
 ```
+
+The package must be the one that contains the test (`iam` package,
+`secrets_graph_live_test.go`). A `-run` pattern matching nothing exits 0 with
+`[no tests to run]` — that output is not evidence either.
 
 Re-run the §7 redaction-allowlist gate on the exact deployed commit:
 
@@ -132,8 +136,21 @@ WHERE size(suspicious) > 0
 RETURN count(n) AS suspicious_values;
 ```
 
-Expect `suspicious_values = 0`. Run the same shape over `SECRETS_IAM_*`
-relationships before declaring the spot check complete.
+Expect `suspicious_values = 0`. Then run the same shape over `SECRETS_IAM_*`
+relationships (report `suspicious_values=0`; never print values):
+
+```cypher
+MATCH ()-[r]->()
+WHERE r.scope_id = 'FILL:<enactment scope_id>'
+  AND r.evidence_source = 'reducer/secrets-iam-graph'
+  AND type(r) STARTS WITH 'SECRETS_IAM_'
+WITH r, [k IN keys(r) WHERE
+  toString(r[k]) STARTS WITH 'arn:aws'
+  OR toString(r[k]) CONTAINS '/secret/'
+  OR toString(r[k]) STARTS WITH 'vault:'] AS suspicious
+WHERE size(suspicious) > 0
+RETURN count(r) AS suspicious_values;
+```
 
 ## 3. Rollback
 

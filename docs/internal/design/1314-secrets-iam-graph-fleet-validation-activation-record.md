@@ -31,17 +31,17 @@ Already satisfied and current on this base (`3e07d26b1f`):
 - [x] §11 fixture truth proven
       (`secrets_iam_graph_projection_fixture_truth_test.go`).
 - [x] §12 writer benchmark recorded (`BenchmarkSecretsIAMGraphWriter`,
-      `go/internal/storage/cypher/cloud/aws/iam/secrets_graph_writer_bench_test.go:153`).
+      `go/internal/storage/cypher/cloud/aws/iam/secrets_graph_writer_bench_test.go` (`BenchmarkSecretsIAMGraphWriter`).
 - [x] NornicDB + Neo4j live writer conformance + shared backend conformance
       (runbook §1).
 - [x] §7 redaction allowlist enforced
       (`TestExtractRowsCarryNoForbiddenProperties`,
-      `go/internal/reducer/secretsiam/secrets_iam_graph_projection_extract_test.go:272`).
+      `go/internal/reducer/secretsiam/secrets_iam_graph_projection_extract_test.go` (`TestExtractRowsCarryNoForbiddenProperties`).
       Re-run on this base at package time: the runbook §5b gate passes,
       exit 0 across 95 `ok` packages (see the commands document, evidence E3).
 - [x] The projection stays behind the default-off flag
       `ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED` (read in
-      `go/cmd/reducer/secrets_iam_graph_wiring.go:26`; empty is OFF,
+      `go/cmd/reducer/secrets_iam_graph_wiring.go` (`secretsIAMGraphProjectionEnabled`); empty is OFF,
       malformed is a hard error at reducer start). A nil writer leaves
       `DomainSecretsIAMGraphProjection` unregistered.
 
@@ -88,7 +88,7 @@ Attestations (all `FILL` until signed):
 | --- | --- |
 | Deployment (exactly one) | FILL: exact deployment identifier + target overlay values path (functional description: the fleet validation deployment on the EKS cluster) |
 | Backend | Neo4j (recommended; see §1 — owner confirms at signing) |
-| Reducer scope(s) projected | FILL: the deployment's generation scope at enactment. Production evidence source is fixed: `reducer/secrets-iam-graph` (`go/internal/reducer/secretsiam/secrets_iam_graph_projection_extract.go:17`). The writer scopes every retract by its own `scope_id` + `evidence_source`. |
+| Reducer scope(s) projected | FILL: the deployment's generation scope at enactment. Production evidence source is fixed: `reducer/secrets-iam-graph` (`SecretsIAMGraphEvidenceSource` in `go/internal/reducer/secretsiam/secrets_iam_graph_projection_extract.go`). The writer scopes every retract by its own `scope_id` + `evidence_source`. |
 | Rollback owner | FILL: name / on-call handle holding rollback (§6 of the runbook) |
 | Observation window after flip | FILL: window (recommendation: one full projected generation plus readback and spot check, then the §4 evidence review before declaring complete) |
 
@@ -114,11 +114,11 @@ resolutionEngine:
 
 The override shape is proven to render onto the reducer Deployment by
 `helm template` (evidence E1 in the commands document); the base and the
-in-repo EKS overlay both render with the flag absent (evidence E2). Apply via
+deploy-checkout EKS overlay (`gitops/argocd/overlays/aws/values.yaml` over base) both render with the flag absent (evidence E2). Apply via
 the normal upgrade path for the target (ArgoCD sync — exact app command in the
 commands document); confirm the reducer pod restarted and emitted the flag-on
 `Warn` line (`secrets/IAM graph projection ENABLED: live exact-only graph
-writes are active`, `go/cmd/reducer/secrets_iam_graph_wiring.go:78`). Treat
+writes are active`, emitted by `secretsIAMGraphProjectionWriter` in `go/cmd/reducer/secrets_iam_graph_wiring.go`). Treat
 that line as the operator's flag-on confirmation.
 
 ## 4. Flag-on activation proof — TO CAPTURE AT ENACTMENT
@@ -128,7 +128,7 @@ the companion commands document (§3 there).
 
 | Evidence | Captured? | Reference / paste |
 | --- | --- | --- |
-| Live writer conformance `PASS` against the target Neo4j backend | FILL | `cd go && ESHU_SECRETS_IAM_GRAPH_LIVE=1 ESHU_GRAPH_BACKEND=neo4j go test ./internal/storage/cypher -run '^TestSecretsIAMGraphWriterLiveConformance$' -count=1 -v` against the target backend (Bolt endpoint, credentials, and database are `FILL`). Must show `PASS`, not a skip. |
+| Live writer conformance `PASS` against the target Neo4j backend | FILL | `cd go && ESHU_SECRETS_IAM_GRAPH_LIVE=1 ESHU_GRAPH_BACKEND=neo4j go test ./internal/storage/cypher/cloud/aws/iam -run '^TestSecretsIAMGraphWriterLiveConformance$' -count=1 -v` against the target backend (Bolt endpoint, credentials, and database are `FILL`). Must show `PASS`, not a skip — and `[no tests to run]` output is not evidence either, since a `-run` pattern matching nothing exits 0. |
 | §7 redaction-allowlist end-to-end no-regression `ok` | FILL | `cd go && go test ./internal/reducer/... ./internal/storage/cypher ./cmd/reducer -run 'SecretsIAMGraph\|SecretsIAM\|TestExtractRowsCarryNoForbiddenProperties' -count=1` on the exact deployed commit. |
 | Reducer flag-on `Warn` log line | FILL | Target reducer log showing `secrets/IAM graph projection ENABLED: live exact-only graph writes are active` with `domain=secrets_iam_graph_projection`. |
 | Live readback: `SecretsIAM*` rows under the reducer `scope_id` + `evidence_source=reducer/secrets-iam-graph`, allowlisted properties only | FILL | Counts per node family (4) and relationship (5), before retract, scoped to the enactment `scope_id`. |
