@@ -50,57 +50,58 @@ func logRecord(t *testing.T, buf *bytes.Buffer, message string) map[string]any {
 	return nil
 }
 
-// TestIntakeLogsCarryTheHandleSpan pins the 3 AM join: an intake log line
-// written while a request is traced carries that request's webhook.handle
-// trace_id and span_id, for both the stored and the store-failed outcome. A
-// request with no tracer logs exactly as before, with no trace fields.
+// TestIntakeLogsCarryTheHandleSpan pins the 3 AM join on all five routes: an
+// intake log line written while a request is traced carries that request's
+// webhook.handle trace_id and span_id, for both the stored and the store-failed
+// outcome. A request with no tracer logs exactly as before, with no trace fields.
 func TestIntakeLogsCarryTheHandleSpan(t *testing.T) {
 	t.Parallel()
 
-	route := intakeRoutes()[0]
-	for _, tc := range []struct {
-		name    string
-		message string
-		fail    bool
-	}{
-		{"stored", "intake trigger stored", false},
-		{"store_failed", "intake store failed", true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, route := range intakeRoutes() {
+		for _, tc := range []struct {
+			name    string
+			message string
+			fail    bool
+		}{
+			{"stored", "intake trigger stored", false},
+			{"store_failed", "intake store failed", true},
+		} {
+			t.Run(route.name+"/"+tc.name, func(t *testing.T) {
+				t.Parallel()
+				h := newSpanHarness()
+				buf, logger := tracedLogger(t)
+				stores := testStores()
+				if tc.fail {
+					route.failStore(stores)
+				}
+				mux := NewServer(ServerConfig{Token: "core-intake-token", Tracer: h.tracer, Logger: logger}, stores.stores()).Mux()
+
+				postIntake(t, mux, route.path, route.payload)
+
+				handle := onlySpan(t, h, spanHandle)
+				record := logRecord(t, buf, tc.message)
+				if got := record["trace_id"]; got != handle.SpanContext().TraceID().String() {
+					t.Fatalf("log trace_id = %v, want the handle span's %s", got, handle.SpanContext().TraceID())
+				}
+				if got := record["span_id"]; got != handle.SpanContext().SpanID().String() {
+					t.Fatalf("log span_id = %v, want the handle span's %s", got, handle.SpanContext().SpanID())
+				}
+			})
+		}
+
+		t.Run(route.name+"/nil_tracer", func(t *testing.T) {
 			t.Parallel()
-			h := newSpanHarness()
 			buf, logger := tracedLogger(t)
-			stores := testStores()
-			if tc.fail {
-				route.failStore(stores)
-			}
-			mux := NewServer(ServerConfig{Token: "core-intake-token", Tracer: h.tracer, Logger: logger}, stores.stores()).Mux()
+			mux := NewServer(ServerConfig{Token: "core-intake-token", Logger: logger}, testStores().stores()).Mux()
 
 			postIntake(t, mux, route.path, route.payload)
 
-			handle := onlySpan(t, h, spanHandle)
-			record := logRecord(t, buf, tc.message)
-			if got := record["trace_id"]; got != handle.SpanContext().TraceID().String() {
-				t.Fatalf("log trace_id = %v, want the handle span's %s", got, handle.SpanContext().TraceID())
-			}
-			if got := record["span_id"]; got != handle.SpanContext().SpanID().String() {
-				t.Fatalf("log span_id = %v, want the handle span's %s", got, handle.SpanContext().SpanID())
+			record := logRecord(t, buf, "intake trigger stored")
+			if _, ok := record["trace_id"]; ok {
+				t.Fatalf("an untraced request logged trace_id %v, want none", record["trace_id"])
 			}
 		})
 	}
-
-	t.Run("nil_tracer", func(t *testing.T) {
-		t.Parallel()
-		buf, logger := tracedLogger(t)
-		mux := NewServer(ServerConfig{Token: "core-intake-token", Logger: logger}, testStores().stores()).Mux()
-
-		postIntake(t, mux, route.path, route.payload)
-
-		record := logRecord(t, buf, "intake trigger stored")
-		if _, ok := record["trace_id"]; ok {
-			t.Fatalf("an untraced request logged trace_id %v, want none", record["trace_id"])
-		}
-	})
 }
 
 // TestIntakeRejectionsEndTheHandleSpanOnce pins every pre-store rejection path

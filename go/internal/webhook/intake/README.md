@@ -115,7 +115,7 @@ no exporter), same command and host as above, base = the #9814 commit.
 Base: uninstrumented 9.0-10.8 us/op, 68 allocs/op, 11,701 B/op; instrumented
 11.5-13.0 us/op, 83 allocs/op, 13,586 B/op. With the span change and a nil
 `Tracer`: uninstrumented 8.7-9.3 us/op, 68 allocs/op, 11,799 B/op; instrumented
-11.3-12.5 us/op, 83 allocs/op, 13,683 B/op. A nil tracer therefore adds zero
+11.3-12.5 us/op, 83 allocs/op, 13,677-13,684 B/op (a few bytes of run-to-run variation). A nil tracer therefore adds zero
 allocations; the only change is about 98 B per request for the larger request
 state (exact). With a tracer: never sampled 12.4-13.0 us/op, 97 allocs/op,
 15,079 B/op (+14 allocs, +1,396 B over instrumented); always sampled 14.3-15.6
@@ -135,12 +135,13 @@ a fixed description and no recorded error; `TestIntakeRejectedRequestEmitsHandle
 `TestIntakeUnconfiguredStoreEmitsHandleSpanOnly`,
 `TestIntakeActionsConflictMarksStoreSpanRejected` and
 `TestIntakeWithoutTracerEmitsNoSpans` pin the other paths.
-`TestIntakeLogsCarryTheHandleSpan` runs a stored and a store-failed request
+`TestIntakeLogsCarryTheHandleSpan` runs a stored and a store-failed request on each of the five routes
 through the production telemetry logger and finds the handle span's `trace_id`
 and `span_id` on the intake log line (a nil-tracer request logs no trace field),
 `TestIntakeRejectionsEndTheHandleSpanOnce` covers every pre-store rejection,
 `TestIntakeStorePanicStillEndsBothSpans` pins that a panicking store leaves no
-open span, and `TestIntakeStoreContextKeepsRequestCancellation` pins that the
+open span (the request counter then reads `outcome="failed"`, `reason="store_failed"`),
+and `TestIntakeStoreContextKeepsRequestCancellation` pins that the
 store context still carries the request's cancellation. `TestIntakeHostEmitsRequestAndStoreSpans`
 (`go/cmd/webhook-intake`) builds through `buildIntakeServer` with a recording
 tracer. A live trace backend was not queried.
