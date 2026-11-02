@@ -28,8 +28,14 @@ fact never yields `affected_exact`. Per fact:
 | one range contains it, another is fixed at or below it | `possibly_affected` | `os_release_ambiguous` |
 | none contains it, a fix is at or below it | `not_affected_known_fixed` | `dpkg_known_fixed` / `apk_known_fixed` |
 
-Both `possibly_affected` reasons carry the missing evidence "advisory release
-line for installed package unknown" and image_os_package reachability.
+The exact-version list follows the same rule: an OSV entry whose `versions`
+list names the installed version reads `os_release_unverified`, or
+`os_release_ambiguous` when a range is fixed at or below the version, because
+the list too spans every release line. A vendor fact's list match stays
+`affected_exact`, and scanning continues past an OSV match so a vendor fact for
+the same CVE can still settle it (review F2). Both `possibly_affected` reasons
+carry the missing evidence "advisory release line for installed package
+unknown" and image_os_package reachability.
 `not_affected_known_fixed` above every listed fix is an extrapolation until
 ranges carry a release tag (PR-2b): a host on an unlisted line may still be
 vulnerable. A vendor-sourced fact (`source: debian`, as in the golden cassette)
@@ -87,12 +93,17 @@ removed, each in both entry orders, against three rows. At `ebaf4dfa0d` the
 mixed copy gives 0 findings and the versioned record gives `affected_exact` at
 trusty's own fix; after this change all four inputs give the same answer.
 
-Mutants: `osAffectedFactCarriesReleaseEvidence` returning true turns 22
-subtests red (the 20 above plus the two hand-made OSV range rows in
-`os_package_test.go`); returning false turns
-`TestCov6EvaluateOSPackageVersionMatch` and
-`TestAuthorizedScanImpactDisjointAffectedBranches` red, so vendor-fact
-exactness is pinned too.
+Mutants: `osAffectedFactCarriesReleaseEvidence` returning true turns 24
+subtests red (the 20 above, the two hand-made OSV range rows in
+`os_package_test.go`, and the two OSV version-list rows in
+`TestOSVOSAdvisoryVersionListNeverExact`); returning false turns 13 tests red,
+among them `TestCov6EvaluateOSPackageVersionMatch`, the vendor dpkg and apk
+evidence tests, and `TestGoldenCassetteDebianOSPackageChainSynthesizesFinding`,
+so vendor-fact exactness is pinned too. Swapping the ambiguous and unverified
+cases fails `TestOSPackageVerdictPrefersAmbiguousOverUnverified`; making the
+version-list match exact again fails `TestOSVOSAdvisoryVersionListNeverExact`;
+dropping the per-target join count fails
+`TestSupplyChainImpactAuthorizedPathCountsOSAdvisoryJoins`.
 
 ## Scale
 
@@ -116,36 +127,42 @@ No-Regression Evidence: `BenchmarkOSAdvisoryJoin` builds one fleet-wide pass
 from the five live OS records plus 10, 50, and 100 installed curl rows per
 vendor (debian, ubuntu, alpine). `BenchmarkOSAdvisoryJoinTargets` builds 10, 50,
 and 100 authorized targets, each with one curl row and one completed analysis,
-sharing the five records under one `public_registration` dependency. Before is
-`ebaf4dfa0d` with the bench and fixture test files copied onto a detached
-worktree; after is this change. 8 interleaved rounds, first mover alternated,
-`-benchtime=1000x` (fleet) and `200x` (targets), Apple M5 Max, Go 1.26.10,
-darwin/arm64. Load average 31 to 41 (1 min): a shared, loaded host, so ns/op is
-indicative only, while allocs and bytes are exact. Raw output:
-`benchstat-d.txt` in the run's scratch directory.
+sharing the five records under one `public_registration` dependency, through
+`BuildAuthorizedScanImpactFindings`; its `targets-10x-counted` row is the
+handler's shape, the same pass plus the per-target join count. Before is
+`5b27374927` with the bench and fixture test files copied onto a detached
+worktree (the counted row and `BenchmarkPURLPackageKey` need this change's
+symbols, so they run after only); after is this change. 8 interleaved rounds,
+first mover alternated, `-benchtime=1000x` (fleet) and `200x` (targets), Apple
+M5 Max, Go 1.26.10, darwin/arm64. Load average 25 to 81 (1 min): a shared,
+heavily loaded host, so ns/op is indicative only, while allocs, bytes, and
+findings are exact.
 
 | Fleet-wide | Before | After | Change | Allocs before | Allocs after | B/op before | B/op after |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1x | 117.2 µs | 231.0 µs | +97% | 823 | 1,722 | 80.36 KiB | 167.06 KiB |
-| 5x | 230.6 µs | 335.7 µs | +46% | 1,429 | 2,329 | 174.8 KiB | 261.6 KiB |
-| 10x | 364.0 µs | 473.2 µs | +30% | 2,183 | 3,083 | 302.1 KiB | 389.1 KiB |
-| miss-10x (wget rows) | 352.6 µs | 359.0 µs | ~ (p=0.878) | 2,153 | 2,165 | 293.7 KiB | 294.6 KiB |
-| registry-10x (npm) | 331.5 µs | 323.4 µs | ~ (p=0.959) | 2,018 | 2,018 | 281.4 KiB | 281.3 KiB |
+| 1x | 105.8 µs | 201.0 µs | +90% | 823 | 1,722 | 80.38 KiB | 167.09 KiB |
+| 5x | 212.0 µs | 300.6 µs | +42% | 1,429 | 2,329 | 174.7 KiB | 261.6 KiB |
+| 10x | 316.9 µs | 437.8 µs | +38% | 2,183 | 3,083 | 302.1 KiB | 389.1 KiB |
+| miss-10x (wget rows) | 300.2 µs | 323.1 µs | ~ (p=0.328) | 2,153 | 2,165 | 293.7 KiB | 294.6 KiB |
+| registry-10x (npm) | 272.9 µs | 303.3 µs | ~ (p=0.574) | 2,018 | 2,018 | 281.4 KiB | 281.4 KiB |
 
 | Per-target | Before | After | ns/target after | Allocs before | Allocs after | Findings before | Findings after |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| targets-1x (10) | 1.654 ms | 1.990 ms (+20%) | 199.0 µs | 11,750 | 13,900 | 3 | 17 |
-| targets-5x (50) | 8.063 ms | 9.617 ms (+19%) | 192.3 µs | 56,980 | 67,650 | 17 | 85 |
-| targets-10x (100) | 15.52 ms | 19.23 ms (+24%) | 192.3 µs | 113,500 | 134,100 | 33 | 167 |
+| targets-1x (10) | 1.383 ms | 1.824 ms (+32%) | 182.4 µs | 11,750 | 13,900 | 3 | 17 |
+| targets-5x (50) | 6.975 ms | 8.310 ms (+19%) | 166.2 µs | 56,980 | 67,650 | 17 | 85 |
+| targets-10x (100) | 14.23 ms | 16.15 ms (+14%) | 161.5 µs | 113,500 | 134,100 | 33 | 167 |
+| targets-10x-counted (100) | n/a | 17.45 ms | 174.5 µs | n/a | 135,300 | n/a | 167 |
 
-On the per-target path 10x costs 19.23 ms against 10 x 1.990 = 19.90 ms for
+On the per-target path 10x costs 16.15 ms against 10 x 1.824 = 18.24 ms for
 1x, so it is not superlinear: ns/target stays flat and allocs per target hold
 at about 1,340 to 1,390. The added cost is the findings the base never produced
-(the base joins only the versioned Ubuntu record). On the fleet-wide pass the
-added cost is about 900 allocs and 87 KiB per pass, the same at every scale; a
-pass whose rows do not match (`miss-10x`) pays only the join count's key slices
-(+12 allocs). `BenchmarkPURLPackageKey`: `purlPackageKey` 21.5 to 30.2 ns/op and
-`packageIDFromPURL` 23.8 to 28.0 ns/op on the same purls, both 0 allocs.
+(the base joins only the versioned Ubuntu record). Counting joins per target
+adds about 12 allocs per target (134,100 to 135,300 at 100 targets). On the
+fleet-wide pass the added cost is about 900 allocs and 87 KiB per pass, the same
+at every scale; a pass whose rows do not match (`miss-10x`) pays only the join
+count's key slices (+12 allocs). `BenchmarkPURLPackageKey`: `purlPackageKey`
+21.5 to 30.2 ns/op and `packageIDFromPURL` 23.8 to 28.0 ns/op on the same purls,
+both 0 allocs.
 
 Postgres: `TestOSPackageNarrowedQueryUsesTheIndexAtScaleLive` on a private
 PostgreSQL 18.6 cluster seeds 50,000 `vulnerability.os_package` rows and reads
@@ -155,13 +172,20 @@ rows=2, Index Searches 2, shared hit 12 in total, execution 0.155 ms, no
 sequential scan. The pre-#9848 qualified key returns 0 rows on the same seed.
 
 Observability Evidence: `eshu_dp_supply_chain_impact_os_advisory_joins_total`
-counts each OS advisory fact per pass by `source` (`debian`, `ubuntu`,
-`alpine`, `other`) and `outcome` (`joined`, `not_joined`); `joined` means at
-least one installed row met it. The success line carries
-`os_advisories_considered` and `os_advisories_joined`. Considered above zero
-with joined at zero is the shape this defect had. Tests pin the closed label set
-(`TestEmitOSAdvisoryJoinsCarriesOnlySourceAndOutcome`) and the sub-signals
-(`TestRecordBuildStatsWritesOSAdvisorySubSignals`). Operator reference:
+counts each OS advisory fact per index the pass evaluates by `source`
+(`debian`, `ubuntu`, `alpine`, `other`) and `outcome` (`joined`,
+`not_joined`): the fleet-wide index once and, on a protection-engaged pass,
+each authorized scan target's index once, because the scanner worker's derived
+rows exist only there (review F1). `joined` means at least one installed row
+met it in that index. The success line carries `os_advisories_considered` and
+`os_advisories_joined`. Considered above zero with joined at zero is the shape
+this defect had. Tests pin the closed label set
+(`TestEmitOSAdvisoryJoinsCarriesOnlySourceAndOutcome`), the sub-signals
+(`TestRecordBuildStatsWritesOSAdvisorySubSignals`), and the per-target count
+through the handler (`TestSupplyChainImpactAuthorizedPathCountsOSAdvisoryJoins`:
+two derived targets, one Debian row and one Ubuntu row, read considered 2,
+joined 1, and the counter points `debian/joined` 1 and `debian/not_joined` 1).
+Operator reference:
 [Supply-Chain Active Evidence Signals](../../public/reference/telemetry/supply-chain-active-evidence.md#os-advisory-joins).
 
 ## Not covered
@@ -180,4 +204,9 @@ with joined at zero is the shape this defect had. Tests pin the closed label set
   image therefore emits no rows, unless a target sets `distro: debian`; that
   override would join Debian advisories to Ubuntu versions, and the reducer
   cannot tell. Not exercised end to end here.
+- On a `not_affected_known_fixed` row from a multi-release OSV fact,
+  `Remediation.FirstPatchedVersion` can name another release's fix (Debian
+  trixie `8.10.1-2` shows bookworm's `7.88.1-10+deb12u3`). The status is
+  right, and `possibly_affected` rows carry no upgrade target; release-tagged
+  ranges select the host's own fix in PR-2b.
 - The rpm family (#9844).

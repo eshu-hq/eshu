@@ -231,6 +231,15 @@ func countOSAdvisoryJoins(index supplyChainImpactIndex) map[osAdvisoryJoinKey]in
 	return out
 }
 
+// addOSAdvisoryJoins adds every cell of src into dst. The authorized pass
+// uses it to fold each scan target's index counts into the pass total, so the
+// signal counts one point per OS advisory fact per index the pass evaluated.
+func addOSAdvisoryJoins(dst, src map[osAdvisoryJoinKey]int) {
+	for key, count := range src {
+		dst[key] += count
+	}
+}
+
 func isOSAffectedPackage(ecosystem string, purl string) bool {
 	if packageidentity.LowerASCII(strings.TrimSpace(ecosystem)) == string(packageidentity.EcosystemOS) {
 		return true

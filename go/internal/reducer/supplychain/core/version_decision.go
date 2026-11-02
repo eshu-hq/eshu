@@ -26,11 +26,11 @@ const (
 	// possibly_affected, never an exact claim (#9848).
 	supplyChainVersionReasonOSReleaseAmbiguous = "os_release_ambiguous"
 	// supplyChainVersionReasonOSReleaseUnverified marks an OS advisory fact
-	// with no release evidence whose ranges all call the observed version
-	// affected. The host's release line is not verified to be one the
-	// advisory lists (a release the record omits falls below every listed
-	// fix), so the answer is possibly_affected, never an exact claim (#9848,
-	// ruling D).
+	// with no release evidence whose ranges or exact-version list call the
+	// observed version affected, with no range fixed at or below it. The
+	// host's release line is not verified to be one the advisory lists (a
+	// release the record omits falls below every listed fix), so the answer
+	// is possibly_affected, never an exact claim (#9848, ruling D).
 	supplyChainVersionReasonOSReleaseUnverified = "os_release_unverified"
 	// supplyChainMissingOSReleaseLine is the missing evidence behind
 	// supplyChainVersionReasonOSReleaseAmbiguous and
@@ -74,6 +74,7 @@ func evaluateOSPackageVersionMatch(
 			return knownFixedDecision(rangeKnownFixedReason)
 		}
 	}
+	listedWithoutRelease := false
 	for _, pkg := range pkgs {
 		for _, candidate := range pkg.AffectedVersions {
 			candidate = strings.TrimSpace(candidate)
@@ -81,12 +82,26 @@ func evaluateOSPackageVersionMatch(
 				continue
 			}
 			cmp, ok := compare(observed, candidate)
-			if ok && cmp == 0 {
-				return affectedVersionDecision(affectedReason)
-			} else if !ok {
+			if !ok {
 				return malformedVersionDecision()
 			}
+			if cmp != 0 {
+				continue
+			}
+			if osAffectedFactCarriesReleaseEvidence(pkg) {
+				return affectedVersionDecision(affectedReason)
+			}
+			// An OSV list names versions from every release line, so a match
+			// is no more release evidence than a range (#9848, ruling D).
+			// Keep scanning: a vendor fact may still settle it exactly.
+			listedWithoutRelease = true
 		}
+	}
+	if listedWithoutRelease {
+		if verdict.fixed {
+			return possiblyAffectedDecision(supplyChainVersionReasonOSReleaseAmbiguous, []string{supplyChainMissingOSReleaseLine})
+		}
+		return possiblyAffectedDecision(supplyChainVersionReasonOSReleaseUnverified, []string{supplyChainMissingOSReleaseLine})
 	}
 	if verdict.fixed {
 		// Several fixed versions leave fixedVersion blank, so the ranges
@@ -147,7 +162,8 @@ func osPackageRangesVerdict(
 }
 
 // osAffectedFactCarriesReleaseEvidence reports whether an affected OS fact's
-// ranges are known to describe the host's release line. A vendor-sourced fact
+// ranges and exact-version list are known to describe the host's release
+// line. A vendor-sourced fact
 // (source debian, ubuntu, alpine) is published per release; an OSV OS fact is
 // the untagged union of every release's ranges (#9847 merges them), so it
 // carries none (#9848, ruling D). PR-2b replaces this with "the selected

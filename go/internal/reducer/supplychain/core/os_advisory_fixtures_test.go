@@ -5,6 +5,7 @@ package core
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -100,6 +101,55 @@ func (r installedOSRow) envelope() facts.Envelope {
 		"installed_version_raw":  r.version,
 		"purl":                   purl,
 	})
+}
+
+// authorizedOSVAdvisories converts committed OSV records for the authorized
+// per-target path. It keeps only the impact kinds the authorized loader
+// selects (reference facts never enter that boundary) and returns the one
+// public_registration dependency that authorizes them all.
+func authorizedOSVAdvisories(tb testing.TB, names ...string) ([]facts.Envelope, []AdvisoryAuthorityDependency) {
+	tb.Helper()
+	var advisories []facts.Envelope
+	for _, name := range names {
+		for _, envelope := range convertedOSVFixture(tb, name, false) {
+			if authorizedImpactAdvisoryKind(envelope.FactKind) {
+				advisories = append(advisories, envelope)
+			}
+		}
+	}
+	authority := []AdvisoryAuthorityDependency{{
+		Kind: "public_registration", ID: "registration-osv", RevisionID: "revision-osv",
+		AdvisoryScopeID: advisories[0].ScopeID, AdvisoryGenerationID: advisories[0].GenerationID,
+		ConfigFingerprint: "config-osv", ProviderID: "osv", TrustedSourceClass: "osv",
+		ContentProfile: "supply_chain_impact_v1",
+	}}
+	return advisories, authority
+}
+
+// authorizedOSVTarget builds derived scan target i: one installed row and one
+// completed analysis on image://derived/<i+1 as 64 hex digits>, sharing the
+// given advisories and authority.
+func authorizedOSVTarget(
+	i int,
+	advisories []facts.Envelope,
+	authority []AdvisoryAuthorityDependency,
+	row installedOSRow,
+) AuthorizedScanImpactEvidence {
+	target := fmt.Sprintf("image://derived/%064x", i+1)
+	generation := fmt.Sprintf("scan-generation-%d", i)
+	digest := fmt.Sprintf("sha256:%064x", i+1)
+	osPackage := row.envelope()
+	osPackage.FactID = fmt.Sprintf("os-%s-%d", row.name, i)
+	osPackage.ScopeID = target
+	osPackage.GenerationID = generation
+	osPackage.SourceRef.SourceRecordID = target
+	analysis := scannerWorkerAnalysisFact(target, generation, digest, "registry.example/app@"+digest)
+	analysis.SourceRef.SourceRecordID = target
+	return AuthorizedScanImpactEvidence{
+		ScanTargetID: target, ScanGenerationID: generation,
+		OSPackages: []facts.Envelope{osPackage}, Analyses: []facts.Envelope{analysis},
+		Advisories: advisories, AuthorityDependencies: authority, Complete: true,
+	}
 }
 
 func debianCurl(release, version string) installedOSRow {

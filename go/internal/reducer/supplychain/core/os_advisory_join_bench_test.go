@@ -95,22 +95,7 @@ func BenchmarkOSAdvisoryJoin(b *testing.B) {
 // cached by advisoryIndexKey.
 func osAdvisoryBenchTargets(b *testing.B, count int) []AuthorizedScanImpactEvidence {
 	b.Helper()
-	var advisories []facts.Envelope
-	for _, name := range osAdvisoryBenchRecords {
-		for _, envelope := range convertedOSVFixture(b, name, false) {
-			// The authorized loader selects impact kinds only; reference
-			// facts never enter this boundary.
-			if authorizedImpactAdvisoryKind(envelope.FactKind) {
-				advisories = append(advisories, envelope)
-			}
-		}
-	}
-	authority := []AdvisoryAuthorityDependency{{
-		Kind: "public_registration", ID: "registration-osv", RevisionID: "revision-osv",
-		AdvisoryScopeID: advisories[0].ScopeID, AdvisoryGenerationID: advisories[0].GenerationID,
-		ConfigFingerprint: "config-osv", ProviderID: "osv", TrustedSourceClass: "osv",
-		ContentProfile: "supply_chain_impact_v1",
-	}}
+	advisories, authority := authorizedOSVAdvisories(b, osAdvisoryBenchRecords...)
 	rows := []installedOSRow{
 		debianCurl("12", "7.88.1-10+deb12u2"), debianCurl("12", "7.88.1-10+deb12u3"), debianCurl("12", "8.3.0-1"),
 		ubuntuCurl("22.04", "7.68.0-1ubuntu2.7"), ubuntuCurl("22.04", "7.81.0-1ubuntu1"), ubuntuCurl("22.04", "7.81.0-1ubuntu1.1"),
@@ -118,21 +103,7 @@ func osAdvisoryBenchTargets(b *testing.B, count int) []AuthorizedScanImpactEvide
 	}
 	targets := make([]AuthorizedScanImpactEvidence, 0, count)
 	for i := 0; i < count; i++ {
-		target := fmt.Sprintf("image://derived/%064x", i+1)
-		generation := fmt.Sprintf("scan-generation-%d", i)
-		digest := fmt.Sprintf("sha256:%064x", i+1)
-		osPackage := rows[i%len(rows)].envelope()
-		osPackage.FactID = fmt.Sprintf("os-curl-%d", i)
-		osPackage.ScopeID = target
-		osPackage.GenerationID = generation
-		osPackage.SourceRef.SourceRecordID = target
-		analysis := scannerWorkerAnalysisFact(target, generation, digest, "registry.example/app@"+digest)
-		analysis.SourceRef.SourceRecordID = target
-		targets = append(targets, AuthorizedScanImpactEvidence{
-			ScanTargetID: target, ScanGenerationID: generation,
-			OSPackages: []facts.Envelope{osPackage}, Analyses: []facts.Envelope{analysis},
-			Advisories: advisories, AuthorityDependencies: authority, Complete: true,
-		})
+		targets = append(targets, authorizedOSVTarget(i, advisories, authority, rows[i%len(rows)]))
 	}
 	return targets
 }
@@ -163,6 +134,22 @@ func BenchmarkOSAdvisoryJoinTargets(b *testing.B) {
 			b.ReportMetric(float64(len(findings)), "findings")
 		})
 	}
+	// targets-10x-counted is the handler's shape: the same pass plus the
+	// per-target OS advisory join count (#9848 review F1).
+	b.Run("targets-10x-counted", func(b *testing.B) {
+		targets := osAdvisoryBenchTargets(b, 100)
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			joins := make(map[osAdvisoryJoinKey]int)
+			if _, _, err := buildAuthorizedScanImpactFindingsWithQuarantine(nil, targets, joins); err != nil {
+				b.Fatalf("authorized pass: %v", err)
+			}
+		}
+		b.StopTimer()
+		elapsed := float64(b.Elapsed().Nanoseconds()) / float64(b.N)
+		b.ReportMetric(elapsed/100, "ns/target")
+	})
 }
 
 // BenchmarkPURLPackageKey pins the advisory-side key derivation at zero

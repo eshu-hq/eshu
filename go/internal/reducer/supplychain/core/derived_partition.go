@@ -61,13 +61,18 @@ func BuildAuthorizedScanImpactFindings(
 	legacyFindings []SupplyChainImpactFinding,
 	targets []AuthorizedScanImpactEvidence,
 ) ([]SupplyChainImpactFinding, error) {
-	findings, _, err := buildAuthorizedScanImpactFindingsWithQuarantine(legacyFindings, targets)
+	findings, _, err := buildAuthorizedScanImpactFindingsWithQuarantine(legacyFindings, targets, nil)
 	return findings, err
 }
 
+// buildAuthorizedScanImpactFindingsWithQuarantine is the per-target pass. When
+// joins is non-nil it adds each target index's OS advisory join counts to it
+// (#9848): the scanner worker's derived os_package rows exist only here, so
+// the pass signal would read "loaded, none joined" without them.
 func buildAuthorizedScanImpactFindingsWithQuarantine(
 	legacyFindings []SupplyChainImpactFinding,
 	targets []AuthorizedScanImpactEvidence,
+	joins map[osAdvisoryJoinKey]int,
 ) ([]SupplyChainImpactFinding, []factdecode.QuarantinedFact, error) {
 	for _, finding := range legacyFindings {
 		if finding.ScanTargetID != "" || finding.ScanGenerationID != "" || len(finding.AuthorityDependencies) != 0 {
@@ -154,6 +159,9 @@ func buildAuthorizedScanImpactFindingsWithQuarantine(
 			if isQuarantine {
 				return nil, append(quarantined, q), fmt.Errorf("authorized scan fact %q has invalid %s", q.FactID, q.Field)
 			}
+		}
+		if joins != nil {
+			addOSAdvisoryJoins(joins, countOSAdvisoryJoins(index))
 		}
 		targetFindings := coalesceAndSortSupplyChainImpactFindings(appendSupplyChainImpactIndexFindings(nil, index))
 		markAuthorizedFixedVersionConflicts(targetFindings, advisories)

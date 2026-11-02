@@ -86,7 +86,7 @@ installed row's key. One counter separates loaded from joined:
 
 | Metric | Type | Key labels | Use |
 | --- | --- | --- | --- |
-| `eshu_dp_supply_chain_impact_os_advisory_joins_total` | counter | `source` (`debian`, `ubuntu`, `alpine`, `other`), `outcome` (`joined`, `not_joined`) | One increment per OS advisory package entry per pass. `joined` means at least one installed row of that vendor and package met it. A vendor whose `not_joined` rate climbs while `joined` stays at zero, on a fleet that runs that vendor's images, means the advisory key and the installed key have drifted apart again. |
+| `eshu_dp_supply_chain_impact_os_advisory_joins_total` | counter | `source` (`debian`, `ubuntu`, `alpine`, `other`), `outcome` (`joined`, `not_joined`) | One increment per OS advisory package entry per index the pass evaluates: the fleet-wide index once, and on a protection-engaged pass each authorized scan target's index once, because the scanner worker's derived `os_package` rows exist only there. An advisory present in several indexes is counted in each. `joined` means at least one installed row of that vendor and package met it in that index. A vendor whose `not_joined` rate climbs while `joined` stays at zero, on a fleet that runs that vendor's images, means the advisory key and the installed key have drifted apart again. |
 
 Registry advisories (npm, PyPI, Go, and so on) are not counted. An advisory
 that meets no row is normal for a package the fleet does not install, so read

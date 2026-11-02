@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"strings"
 	"time"
 
@@ -211,8 +212,13 @@ func buildAuthorizedSupplyChainImpactFindings(
 	if err != nil || loaded.asAuthorized == nil {
 		return staticFindings, quarantined, stats, err
 	}
+	joins := maps.Clone(stats.osAdvisoryJoins)
+	if joins == nil {
+		joins = make(map[osAdvisoryJoinKey]int)
+	}
 	findings, targetQuarantined, err := buildAuthorizedScanImpactFindingsWithQuarantine(
-		staticFindings, loaded.asAuthorized.Targets,
+		staticFindings, loaded.asAuthorized.Targets, joins,
 	)
+	stats.osAdvisoryJoins = joins
 	return findings, append(quarantined, targetQuarantined...), stats, err
 }
