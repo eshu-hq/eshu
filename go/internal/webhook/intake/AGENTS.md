@@ -28,6 +28,12 @@ Read these files first:
   needs a bounded mapper and a test in `metrics_test.go`.
 - Keep a failed durable write labelled `status="failed"` on the decision
   series: the freshness alert selects on it.
+- Keep spans bounded (`spans.go`): `webhook.handle` and `webhook.store` carry only
+  the closed attribute set `provider`, `event_kind`, `decision`, `outcome`, `reason`,
+  `status`; never a trigger id, delivery id, repository, account, or scope id, and
+  never `RecordError` the raw store error. The store call must receive the context
+  `beginStore` returns so the stores' spans nest under `webhook.store`
+  (`spans_test.go` pins it).
 - Keep the AWS and GCP freshness counters to `intake_stored`,
   `intake_coalesced`, and `intake_failed` with GCP `auth_path` set to
   `telemetry.AuthPathNotApplicable`. Do not emit `intake_rejected` or

@@ -94,7 +94,7 @@ func (fakeIntakeActionsStore) Store(_ context.Context, trigger webhook.ActionsTr
 func testIntakeServer(t *testing.T, cfg webhookIntakeConfig) http.Handler {
 	t.Helper()
 
-	server, err := buildIntakeServer(cfg, testIntakeStores(), nil, nil)
+	server, err := buildIntakeServer(cfg, testIntakeStores(), nil, nil, nil)
 	if err != nil {
 		t.Fatalf("buildIntakeServer() error = %v, want nil", err)
 	}
@@ -193,7 +193,7 @@ func TestIntakeHostRejectsUnsupportedAPIVersion(t *testing.T) {
 func TestBuildIntakeServerRequiresToken(t *testing.T) {
 	t.Parallel()
 
-	if _, err := buildIntakeServer(webhookIntakeConfig{MaxRequestBodyBytes: defaultMaxWebhookIntakeBodyBytes}, testIntakeStores(), nil, nil); err == nil {
+	if _, err := buildIntakeServer(webhookIntakeConfig{MaxRequestBodyBytes: defaultMaxWebhookIntakeBodyBytes}, testIntakeStores(), nil, nil, nil); err == nil {
 		t.Fatal("buildIntakeServer() error = nil, want fail-closed token error")
 	}
 }
@@ -272,7 +272,7 @@ func TestIntakeHostUnwiredFamilyReturns503(t *testing.T) {
 	server, err := buildIntakeServer(webhookIntakeConfig{
 		IntakeToken:         "serve-token",
 		MaxRequestBodyBytes: defaultMaxWebhookIntakeBodyBytes,
-	}, stores, nil, nil)
+	}, stores, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("buildIntakeServer() error = %v, want nil", err)
 	}

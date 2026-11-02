@@ -11,6 +11,16 @@ recent shipped work grouped by feature area.
 
 ### Webhook intake host: request-path telemetry
 
+- **The intake host emits `webhook.handle` and `webhook.store` spans**
+  ([#9815](https://github.com/eshu-hq/eshu/issues/9815)). The trace docs pointed
+  intake operators at those spans, but only the in-tree listener emitted them,
+  and the host's Postgres spans had no request parent. Each intake route now
+  records `webhook.handle` with a `webhook.store` child around the durable write,
+  and the store call runs under the store span so the Postgres spans nest. The
+  attributes are the listener's closed set (`provider`, `event_kind`, `decision`,
+  `outcome`, `reason`, `status`); a failed write sets status Error with a fixed
+  description and records no raw error. A nil tracer emits nothing.
+
 - **The intake host keeps the AWS and GCP freshness actions observable**
   ([#9814](https://github.com/eshu-hq/eshu/issues/9814)). Only the in-tree
   listener emitted `intake_stored`, `intake_coalesced`, and `intake_failed` on

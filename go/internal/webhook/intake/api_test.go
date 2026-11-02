@@ -295,12 +295,15 @@ func (s *testStoreSet) stores() Stores {
 }
 
 type fakeRepositoryStore struct {
+	// ctx is the context of the last store call, for span-linkage tests.
+	ctx      context.Context
 	calls    int
 	err      error
 	received []webhook.Trigger
 }
 
-func (f *fakeRepositoryStore) StoreTrigger(_ context.Context, trigger webhook.Trigger, _ time.Time) (webhook.StoredTrigger, error) {
+func (f *fakeRepositoryStore) StoreTrigger(ctx context.Context, trigger webhook.Trigger, _ time.Time) (webhook.StoredTrigger, error) {
+	f.ctx = ctx
 	f.calls++
 	f.received = append(f.received, trigger)
 	if f.err != nil {
@@ -324,11 +327,14 @@ func statusForDecision(decision webhook.Decision) webhook.TriggerStatus {
 }
 
 type fakeIncidentStore struct {
+	// ctx is the context of the last store call, for span-linkage tests.
+	ctx   context.Context
 	calls int
 	err   error
 }
 
-func (f *fakeIncidentStore) StoreIncidentFreshnessTrigger(_ context.Context, trigger webhook.IncidentFreshnessTrigger, receivedAt time.Time) (webhook.StoredIncidentFreshnessTrigger, error) {
+func (f *fakeIncidentStore) StoreIncidentFreshnessTrigger(ctx context.Context, trigger webhook.IncidentFreshnessTrigger, receivedAt time.Time) (webhook.StoredIncidentFreshnessTrigger, error) {
+	f.ctx = ctx
 	f.calls++
 	if f.err != nil {
 		return webhook.StoredIncidentFreshnessTrigger{}, f.err
@@ -341,13 +347,16 @@ func (f *fakeIncidentStore) StoreIncidentFreshnessTrigger(_ context.Context, tri
 }
 
 type fakeAWSStore struct {
+	// ctx is the context of the last store call, for span-linkage tests.
+	ctx   context.Context
 	calls int
 	err   error
 	// duplicateCount is reported as the stored row's coalesced-delivery count.
 	duplicateCount int
 }
 
-func (f *fakeAWSStore) StoreTrigger(_ context.Context, trigger awsfreshness.Trigger, receivedAt time.Time) (awsfreshness.StoredTrigger, error) {
+func (f *fakeAWSStore) StoreTrigger(ctx context.Context, trigger awsfreshness.Trigger, receivedAt time.Time) (awsfreshness.StoredTrigger, error) {
+	f.ctx = ctx
 	f.calls++
 	if f.err != nil {
 		return awsfreshness.StoredTrigger{}, f.err
@@ -364,13 +373,16 @@ func (f *fakeAWSStore) StoreTrigger(_ context.Context, trigger awsfreshness.Trig
 }
 
 type fakeGCPStore struct {
+	// ctx is the context of the last store call, for span-linkage tests.
+	ctx   context.Context
 	calls int
 	err   error
 	// duplicateCount is reported as the stored row's coalesced-delivery count.
 	duplicateCount int
 }
 
-func (f *fakeGCPStore) StoreTrigger(_ context.Context, trigger gcpfreshness.Trigger, receivedAt time.Time) (gcpfreshness.StoredTrigger, error) {
+func (f *fakeGCPStore) StoreTrigger(ctx context.Context, trigger gcpfreshness.Trigger, receivedAt time.Time) (gcpfreshness.StoredTrigger, error) {
+	f.ctx = ctx
 	f.calls++
 	if f.err != nil {
 		return gcpfreshness.StoredTrigger{}, f.err
@@ -387,11 +399,14 @@ func (f *fakeGCPStore) StoreTrigger(_ context.Context, trigger gcpfreshness.Trig
 }
 
 type fakeActionsStore struct {
+	// ctx is the context of the last store call, for span-linkage tests.
+	ctx   context.Context
 	calls int
 	err   error
 }
 
-func (f *fakeActionsStore) Store(_ context.Context, trigger webhook.ActionsTrigger, _ time.Time) (webhook.StoredActionsTrigger, error) {
+func (f *fakeActionsStore) Store(ctx context.Context, trigger webhook.ActionsTrigger, _ time.Time) (webhook.StoredActionsTrigger, error) {
+	f.ctx = ctx
 	f.calls++
 	if f.err != nil {
 		return webhook.StoredActionsTrigger{}, f.err

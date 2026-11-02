@@ -91,7 +91,7 @@ func run(parent context.Context) error {
 	if err != nil {
 		return err
 	}
-	intakeServer, err := buildIntakeServer(cfg, stores, logger, instruments)
+	intakeServer, err := buildIntakeServer(cfg, stores, logger, instruments, tracer)
 	if err != nil {
 		return err
 	}
@@ -158,13 +158,15 @@ func openTriggerStores(parent context.Context, db *sql.DB, tracer trace.Tracer, 
 // intake.NewServerChecked: an intake API without authentication must never
 // serve. The shared instruments make the intake routes emit the
 // eshu_dp_webhook_* request-path series the freshness alert and dashboard
-// query (#9811); nil disables metrics.
-func buildIntakeServer(cfg webhookIntakeConfig, stores intake.Stores, logger *slog.Logger, instruments *telemetry.Instruments) (*intake.Server, error) {
+// query (#9811); nil disables metrics. The tracer makes them emit the
+// webhook.handle and webhook.store spans (#9815); nil disables spans.
+func buildIntakeServer(cfg webhookIntakeConfig, stores intake.Stores, logger *slog.Logger, instruments *telemetry.Instruments, tracer trace.Tracer) (*intake.Server, error) {
 	return intake.NewServerChecked(intake.ServerConfig{
 		Token:        strings.TrimSpace(cfg.IntakeToken),
 		MaxBodyBytes: cfg.MaxRequestBodyBytes,
 		Logger:       logger,
 		Instruments:  instruments,
+		Tracer:       tracer,
 	}, stores)
 }
 

@@ -20,6 +20,7 @@ import (
 	awsfreshness "github.com/eshu-hq/eshu/go/internal/coordinator/aws/freshness"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/webhook"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // Sentinel errors classify intake rejections for status mapping. The API
@@ -92,6 +93,10 @@ type ServerConfig struct {
 	Logger *slog.Logger
 	// Instruments receives the request-path series. Nil disables metrics.
 	Instruments *telemetry.Instruments
+	// Tracer receives the webhook.handle and webhook.store spans (#9815). Nil
+	// disables spans. The store call runs under the store span's context so
+	// the stores' own spans nest beneath it.
+	Tracer trace.Tracer
 }
 
 // Server is core's authenticated, versioned webhook intake API.

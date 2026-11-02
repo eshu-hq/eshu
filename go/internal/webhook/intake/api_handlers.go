@@ -7,7 +7,6 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/webhook"
 )
@@ -36,8 +35,8 @@ func (s *Server) handleRepository(w http.ResponseWriter, r *http.Request) {
 		s.writeStoreError(w, r, "repository")
 		return
 	}
-	storeStarted := time.Now()
-	stored, err := s.stores.Repository.StoreTrigger(r.Context(), trigger, s.now())
+	storeCtx, storeStarted := obs.beginStore(d)
+	stored, err := s.stores.Repository.StoreTrigger(storeCtx, trigger, s.now())
 	if err != nil {
 		obs.storeFailed(d, storeStarted)
 		s.writeStoreFailure(w, r, "repository", string(trigger.Provider), err)
@@ -84,8 +83,8 @@ func (s *Server) handleIncident(w http.ResponseWriter, r *http.Request) {
 		s.writeStoreError(w, r, "incident")
 		return
 	}
-	storeStarted := time.Now()
-	stored, err := s.stores.Incident.StoreIncidentFreshnessTrigger(r.Context(), trigger, s.now())
+	storeCtx, storeStarted := obs.beginStore(d)
+	stored, err := s.stores.Incident.StoreIncidentFreshnessTrigger(storeCtx, trigger, s.now())
 	if err != nil {
 		obs.storeFailed(d, storeStarted)
 		s.writeStoreFailure(w, r, "incident", string(trigger.Provider), err)
@@ -129,8 +128,8 @@ func (s *Server) handleAWS(w http.ResponseWriter, r *http.Request) {
 		s.writeStoreError(w, r, "aws")
 		return
 	}
-	storeStarted := time.Now()
-	stored, err := s.stores.AWS.StoreTrigger(r.Context(), trigger, s.now())
+	storeCtx, storeStarted := obs.beginStore(d)
+	stored, err := s.stores.AWS.StoreTrigger(storeCtx, trigger, s.now())
 	if err != nil {
 		obs.storeFailed(d, storeStarted)
 		s.writeStoreFailure(w, r, "aws", "aws", err)
@@ -175,8 +174,8 @@ func (s *Server) handleGCP(w http.ResponseWriter, r *http.Request) {
 		s.writeStoreError(w, r, "gcp")
 		return
 	}
-	storeStarted := time.Now()
-	stored, err := s.stores.GCP.StoreTrigger(r.Context(), trigger, s.now())
+	storeCtx, storeStarted := obs.beginStore(d)
+	stored, err := s.stores.GCP.StoreTrigger(storeCtx, trigger, s.now())
 	if err != nil {
 		obs.storeFailed(d, storeStarted)
 		s.writeStoreFailure(w, r, "gcp", "gcp", err)
@@ -221,8 +220,8 @@ func (s *Server) handleActions(w http.ResponseWriter, r *http.Request) {
 		s.writeStoreError(w, r, "actions")
 		return
 	}
-	storeStarted := time.Now()
-	stored, err := s.stores.Actions.Store(r.Context(), trigger, s.now())
+	storeCtx, storeStarted := obs.beginStore(d)
+	stored, err := s.stores.Actions.Store(storeCtx, trigger, s.now())
 	if err != nil {
 		if errors.Is(err, webhook.ErrActionsDeliveryConflict) {
 			obs.storeRejected(d.provider, storeStarted)
