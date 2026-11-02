@@ -187,6 +187,7 @@ ifa:
   - 'testdata/cassettes/shellexec/**'
   - 'testdata/cassettes/submodulepin/**'
   - 'testdata/cassettes/workloaddependency/**'
+  - 'testdata/cassettes/semanticentitycontainment/**'
 ifaload: [
   '.github/workflows/static-contract-gates.yml', 'specs/ci-gates.v1.yaml', 'specs/ci-gates.d/**', '.github/static-contract-filters.yml',
   'go/internal/ifa/amplify.go', 'go/internal/ifa/slots.go', 'go/internal/ifa/saturation/**', 'go/internal/ifa/throughput/**',
