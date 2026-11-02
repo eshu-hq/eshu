@@ -226,9 +226,9 @@ when the dependency carries an exact version. Go rows must keep a usable
 module-version string such as `v0.17.0`. Pub rows are planned from hosted
 `pubspec.lock` evidence and keep canonical ecosystem `pub`. Swift rows are
 planned from remote source-control `Package.resolved` pins and keep canonical
-ecosystem `swift`; the coordinator carries the dependency `source_location` as
-the OSV package name, and the runtime maps those queries to OSV's `SwiftURL`
-ecosystem. Manifest ranges, aliases, workspace references, file/git references,
+ecosystem `swift`; the coordinator sends OSV the `host/path` form of the
+`source_location` (`packageidentity.SwiftOSVSourceLocation`, #9804) as `SwiftURL`.
+Manifest ranges, aliases, workspace references, file/git references,
 Pub dependency overrides, branch-only Swift pins, revision-only Swift pins,
 local/path Swift pins, malformed versions, and `latest` remain partial evidence
 and are not promoted into OSV package-version collection targets. Exact

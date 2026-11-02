@@ -32,22 +32,22 @@ func (r resolverFixtureRow) sql(id int) string {
 		id, r.scope, r.generation, id, id, r.tombstone, strings.ReplaceAll(payload, "'", "''"))
 }
 
-// resolverSwiftFeedNames pairs the name the production planner emits for a
-// fixture swift location with the name the OSV SwiftURL export spells for that
+// resolverSwiftFeedNames pairs the host/path name the production planner emits
+// for a fixture swift location (case-preserved path, no scheme or ".git") with the name the OSV SwiftURL export spells for that
 // package. Every value but the two github.com/upper rows is a literal from that
 // export, whose 33 names are 30 host/path with no scheme and no ".git" and 3
 // bare package names. The two upper rows pin a stored upper-case ".GIT".
 var resolverSwiftFeedNames = map[string]string{
-	"https://github.com/apple/swift-nio.git":    "github.com/apple/swift-nio",
-	"https://github.com/pytorch/executorch":     "github.com/pytorch/executorch",
-	"git@github.com:vapor/vapor.git":            "github.com/vapor/vapor",
-	"ssh://github.com/grpc/grpc-swift.git":      "github.com/grpc/grpc-swift",
-	"https://github.com/marmelroy/zip/":         "github.com/marmelroy/Zip",
-	"git://github.com/migueldeicaza/SwiftTerm":  "github.com/migueldeicaza/SwiftTerm",
-	"https://github.com/apple/swift-crypto.git": "swift-crypto",
-	"https://github.com/emqx/CocoaMQTT":         "CocoaMQTT",
-	"https://github.com/upper/Case.GIT":         "github.com/upper/Case",
-	"https://github.com/upper/Mixed.Git":        "github.com/upper/Mixed",
+	"github.com/apple/swift-nio":         "github.com/apple/swift-nio",
+	"github.com/pytorch/executorch":      "github.com/pytorch/executorch",
+	"github.com/vapor/vapor":             "github.com/vapor/vapor",
+	"github.com/grpc/grpc-swift":         "github.com/grpc/grpc-swift",
+	"github.com/marmelroy/zip":           "github.com/marmelroy/Zip",
+	"github.com/migueldeicaza/SwiftTerm": "github.com/migueldeicaza/SwiftTerm",
+	"github.com/apple/swift-crypto":      "swift-crypto",
+	"github.com/emqx/CocoaMQTT":          "CocoaMQTT",
+	"github.com/upper/Case":              "github.com/upper/Case",
+	"github.com/upper/Mixed":             "github.com/upper/Mixed",
 }
 
 func resolverFixtureRows(t *testing.T) []resolverFixtureRow {
@@ -89,6 +89,11 @@ func resolverFixtureRows(t *testing.T) []resolverFixtureRow {
 		a("swift", "github.com/apple/swift-nio", "2.0.0", ""),
 		a("swift", "local.example/tools/local-only", "1.0.0", `"source_location":"file:///tmp/local-only"`),
 		a("swift", "local.example/tools/no-location", "1.0.0", ""),
+		// The planner queries neither location: a dotless host has no repository
+		// key, and a scheme-less "host/path" is a feed spelling. A resolver that
+		// matched the raw location would resolve both.
+		a("swift", "localhost/a/b", "1.0.0", `"source_location":"https://localhost/a/b"`),
+		a("swift", "github.com/x/y", "1.0.0", `"source_location":"github.com/x/y"`),
 		a("npm", "lib_${var}", "1.0.0", ""),  // unexpanded variable: the derivation skips it
 		a("npm", "range-only", "^1.0.0", ""), // non-exact version: the derivation skips it
 		a("npm", "latest-only", "latest", ""),

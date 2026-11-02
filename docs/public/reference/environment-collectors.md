@@ -392,7 +392,8 @@ Collector configuration may define explicit `targets` or enable
 `derive_from_owned_packages` so the coordinator derives bounded OSV npm, Pub,
 and Swift package-version targets from active owned dependency facts with exact
 versions. Swift targets keep Eshu's canonical `swift` ecosystem internally and
-are sent to OSV as `SwiftURL`; Pub targets keep canonical `pub`. Manifest
+are sent to OSV as `SwiftURL` under its `host/path` name (`github.com/apple/swift-nio`,
+not the clone URL); Pub targets keep canonical `pub`. Manifest
 ranges, aliases, Pub git/path/private-hosted rows, Pub dependency overrides,
 branch-only Swift pins, revision-only Swift pins, and local/path Swift pins
 remain partial evidence and are skipped for exact OSV collection. The default derived target

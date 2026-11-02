@@ -55,11 +55,16 @@ truth; reducers admit user-facing truth.
   callers outside this package that were converted and the known folds not
   yet converted (#9622).
 - `NormalizePyPIName` and `PyPINameSeparatorRun` are the one PEP 503 fold.
-  `SwiftOSVSourceLocation` is the name the vulnerability planner queries for a
-  stored swift location, and `SwiftRepositoryKey` is the host/path spelling that
-  feed names and stored locations compare on (#9777). The OSV SwiftURL feed
-  writes `github.com/apple/swift-nio`, a manifest writes a clone URL, and bare
-  feed names have no key. The key drops `.git` in any case.
+  `SwiftOSVSourceLocation` is the name the vulnerability planner sends OSV for
+  a stored swift location: `host/path` with no scheme, credentials, port,
+  query, fragment, trailing slash or `.git`, the host folded and the path case
+  kept, because OSV matches SwiftURL names byte for byte (#9804). A scheme-less
+  location or a dotless host such as `localhost` names no query.
+  `SwiftRepositoryKey` is the ASCII-folded form of the same host/path that feed
+  names and stored locations compare on (#9777). Both call one parser, so the
+  planner and the resolver cannot name a repository two ways. The OSV SwiftURL
+  feed writes `github.com/apple/swift-nio`, a manifest writes a clone URL, and
+  bare feed names have no key. The key drops `.git` in any case.
 - `NormalizeRegistry` canonicalizes registry host/path values without hiding
   the source registry.
 - `DefaultRegistry` returns the canonical registry host for an ecosystem so

@@ -132,11 +132,11 @@ func TestResolveOwnedPackageNamesDifferentialLive(t *testing.T) {
 		identityKey("maven", "com.x:plain", "1.0"), identityKey("maven", "com.x:lib_2.13", "2.0"),
 		identityKey("go", "github.com/Foo/Bar", "v1.2.3"), identityKey("go", "github.com/foo/bar", "v1.2.3"),
 		identityKey("nuget", "Newtonsoft.Json", "13.0.1"),
-		identityKey("swift", "https://github.com/apple/swift-nio.git", "2.0.0"),
-		identityKey("swift", "https://github.com/pytorch/executorch", "0.1.0"),
-		identityKey("swift", "git@github.com:vapor/vapor.git", "4.0.0"),
-		identityKey("swift", "ssh://github.com/grpc/grpc-swift.git", "1.0.0"),
-		identityKey("swift", "https://github.com/upper/Case.GIT", "1.0.0"),
+		identityKey("swift", "github.com/apple/swift-nio", "2.0.0"),
+		identityKey("swift", "github.com/pytorch/executorch", "0.1.0"),
+		identityKey("swift", "github.com/vapor/vapor", "4.0.0"),
+		identityKey("swift", "github.com/grpc/grpc-swift", "1.0.0"),
+		identityKey("swift", "github.com/upper/Case", "1.0.0"),
 		identityKey("pypi", "a.b_c-d.e_f-g", "1.0.0"), identityKey("pypi", "foo__bar", "1.0.1"),
 	} {
 		if !slices.ContainsFunc(planned, func(q plannedSlotQuery) bool { return identityKey(q.Ecosystem, q.PackageName, q.Version) == must }) {
@@ -357,6 +357,12 @@ func TestResolveOwnedPackageNamesFollowsThePlannerRulesLive(t *testing.T) {
 	mixed, err := store.ResolveOwnedPackageNames(ctx, []OwnedPackageNameLookup{{Ecosystem: "npm", Name: "mixed-versions"}})
 	if err != nil || !slices.Equal(resolvedEntities(mixed), []string{"mixed-versions@1.0.0"}) {
 		t.Errorf("mixed-versions = %v err=%v, want only the exact version", resolvedEntities(mixed), err)
+	}
+	for _, name := range []string{"localhost/a/b", "github.com/x/y"} { // rows the planner never queries
+		resolution, err := store.ResolveOwnedPackageNames(ctx, []OwnedPackageNameLookup{{Ecosystem: "swift", Name: name}})
+		if err != nil || len(resolution.Targets) != 0 {
+			t.Errorf("resolve swift %q = %+v err=%v, want no targets", name, resolution.Targets, err)
+		}
 	}
 	for _, ecosystem := range []string{"crates.io", "Packagist", "SwiftURL", "mystery", "sbt"} {
 		if _, err := store.ResolveOwnedPackageNames(ctx, []OwnedPackageNameLookup{{Ecosystem: ecosystem, Name: "serde"}}); err == nil {

@@ -37,6 +37,12 @@
   converted packages and the folds left alone that the census of the swept
   packages and the reviews found. Packages outside the sweep were not
   audited; see #9622.
+- A swift repository has one parser, `swiftRepositoryParts`, behind both
+  `SwiftRepositoryKey` and `SwiftOSVSourceLocation`. Change a swift spelling
+  rule there, never in one caller. The OSV query name keeps path case (OSV
+  matches `SwiftURL` names byte for byte: `github.com/marmelroy/zip` finds
+  nothing where `github.com/marmelroy/Zip` finds one advisory), and the key
+  folds it (#9804).
 - Unknown ecosystem aliases must fail closed instead of guessing.
 - `sbt` is not an ecosystem alias. A `%%` row's name is the unsuffixed
   `organization:name`, which is not a published artifact, so sbt rows resolve
