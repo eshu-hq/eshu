@@ -159,9 +159,17 @@ func markValueWindows(segments []Segment, order []int, folded []string, ownKeywo
 
 // backWindow holds the segments a keyword reaches back to: the last
 // valueWindowBackSegments segments with a letter or digit, plus the blank and
-// punctuation-only segments among them, in walk order. A segment with invalid
-// timing never reaches a section, so it is never added. The window keeps no
-// more than it needs, so the walk stays linear in the number of segments.
+// punctuation-only segments among them and the ones after the oldest of those,
+// in walk order. A segment with invalid timing never reaches a section, so it is
+// never added.
+//
+// It is not a fixed ring of valueWindowBackSegments slots: a blank segment stays
+// until valueWindowBackSegments more lettered segments have arrived after it, so
+// a long blank run is held whole. The work is still linear. Only a lettered
+// segment (a keyword or a straddle) calls mark, and a segment leaves the window
+// once two lettered segments have been added after it, so each segment is marked
+// at most valueWindowBackSegments times per walk. The slice holds at most the
+// segments the engine returned (1,000, whispercpp.defaultMaxSegments).
 type backWindow struct {
 	indexes []int
 	lexical []bool

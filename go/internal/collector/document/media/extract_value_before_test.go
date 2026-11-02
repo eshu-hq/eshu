@@ -43,6 +43,11 @@ func TestExtractRedactsValueSegmentsBeforeKeyword(t *testing.T) {
 			wantRedacted: []bool{true, true, true},
 		},
 		{
+			name:         "value broken in two before the keyword",
+			segments:     sequentialSegments("sword", "fish", "that is the password"),
+			wantRedacted: []bool{true, true, true},
+		},
+		{
 			name:         "value three segments back keeps its text",
 			segments:     sequentialSegments("hunter2.", "so", "that is", "the password"),
 			wantRedacted: []bool{false, true, true, true},
@@ -134,5 +139,51 @@ func TestExtractRedactsValueSegmentsBeforeKeyword(t *testing.T) {
 				assertAbsentFromEnvelopes(t, result, "hunter2")
 			}
 		})
+	}
+}
+
+// TestValueSegmentsLongBlankRunsStayBounded runs valueSegments on 918 segments,
+// close to the 1,000 the engine returns at most, with a 300-segment blank run
+// before every keyword segment. That is the input that keeps the look-back
+// window longest, because blanks stay in it until two lettered segments pass.
+// Each block is five lettered segments, the blank run, and a keyword. The
+// keyword withholds the blank run and the two lettered segments before it, the
+// previous keyword's forward window withholds the first two lettered segments,
+// and the third keeps its text. The window drops a segment once two more
+// lettered segments arrive, so each segment is marked at most twice per walk
+// and the walk stays linear in the number of segments.
+func TestValueSegmentsLongBlankRunsStayBounded(t *testing.T) {
+	t.Parallel()
+
+	const blocks, blanks = 3, 300
+	var texts []string
+	for range blocks {
+		texts = append(texts, "benign one", "benign two", "benign three", "benign four", "benign five")
+		for range blanks {
+			texts = append(texts, "...")
+		}
+		texts = append(texts, "the password")
+	}
+	if len(texts) > 1000 {
+		t.Fatalf("%d segments exceed the engine cap of 1000", len(texts))
+	}
+	isValue, own := valueSegments(sequentialSegments(texts...))
+	blockLen := 5 + blanks + 1
+	for b := range blocks {
+		base := b * blockLen
+		for pos := range blockLen {
+			i := base + pos
+			withheld := isValue[i] || own[i]
+			want := true
+			switch {
+			case pos < 2:
+				want = b > 0
+			case pos == 2:
+				want = false
+			}
+			if withheld != want {
+				t.Fatalf("block %d position %d withheld = %t, want %t", b, pos, withheld, want)
+			}
+		}
 	}
 }

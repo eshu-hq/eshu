@@ -112,22 +112,25 @@ is a few milliseconds per transcript, and about 30 ms at the capped size, in
 memory. There is no backend, queue, or row count: no production
 caller exists, and the work holds no lock and starts no worker.
 
-No-Regression Evidence: the look-back (#9792) adds a small queue to the value
-walk. Baseline is `origin/main` at `0e4aafe77e`; after is the #9792 branch. A
+No-Regression Evidence: the look-back (#9792) adds a queue to the value walk.
+Baseline is `origin/main` at `0e4aafe77e`; after is the #9792 branch. A
 throwaway benchmark called `buildSections` on 1,000 synthetic segments (arm64,
-3 alternating base and branch rounds of 30 iterations each, built from `git
-archive` copies of both trees, on a shared host with a load average of 20-28).
-Benign 85-character segments ran 15.9-17.9 ms on main and 15.8-17.4 ms on the
-branch, and benign 4,096-character segments 552-578 ms and 542-576 ms, so the
-time is inside the noise. Allocations rose from 27,918 to 29,254 per call at 85
-characters (+1,336, about 4.8%) and from 28,080 to 29,418 at 4,096 characters
-(+1,338, about 4.8%): the queue is a slice of the indexes of the last two
-segments with a letter or digit plus the blank segments among them. A transcript where every fifth segment holds a
-keyword ran 9.7-11.1 ms on main and 4.3-5.1 ms on the branch, and one where every
-segment holds one ran 2.9-3.0 ms and 2.2-2.7 ms: those are faster because
-withheld segments skip the mention and length work. There is no backend, queue,
-or row count: the work is in memory with no production caller, holds no lock, and
-starts no worker.
+5 alternating base and branch rounds of 30 iterations each, built from `git
+archive` copies of both trees; the host was shared and its load average ran from
+35 to 54, so read the medians). Benign 85-character segments: median 17.11 ms on
+main (16.62-17.61) and 17.29 ms on the branch (16.10-18.64). Benign
+4,096-character segments: 568.89 ms (544.40-616.05) and 556.36 ms
+(543.88-577.12). The time difference is inside the noise. Allocations per call
+went from 27,918 to 29,254 at 85 characters (+1,336, about 4.8%) and from 28,079
+to 29,415 at 4,096 characters (+1,336, about 4.8%): the queue is a slice of the
+indexes of the last two segments with a letter or digit plus the blank segments
+among them. A transcript where every fifth segment holds a keyword: median 9.71
+ms on main and 5.39 ms on the branch; one where every segment holds a keyword:
+3.99 ms and 2.76 ms. Those are faster because a withheld segment skips the
+mention and length work. There is no backend, queue, or row count: the work is
+in memory with no production caller, holds no lock, and starts no worker. A test
+(`TestValueSegmentsLongBlankRunsStayBounded`) pins the result on 918 segments
+with a 300-segment blank run before each keyword.
 
 Collector Observability Evidence: this package emits no facts outside the
 returned envelopes and has no runtime side effects. Future runtime wiring must
@@ -147,8 +150,9 @@ metric, span, log, or status row. Existing collector, fact-store, HTTP, and MCP
 readback surfaces already carry the emitted documentation facts.
 
 No-Observability-Change: the value-segment rule (#9786), the spoken keyword
-forms (#9788), and the look-back (#9792) add none of these and no error text. A value section carries the existing `redacted` and
-`redaction_class` metadata, which is what a future caller counts.
+forms (#9788), and the look-back (#9792) add none of these and no error text. A
+value section carries the existing `redacted` and `redaction_class` metadata,
+which is what a future caller counts.
 
 ## Value segments
 
@@ -160,21 +164,29 @@ introduces it, so `Extract` does not judge segments only one at a time (#9786).
   Those segments persist as `[redacted]`, with the same `redacted`,
   `redaction_class`, and warning metadata as a marker segment, and emit no
   mention facts.
-- The window also reaches back (#9792). A speech engine puts a value ahead of its
-  label as often as behind it ("swordfish.", then "is the password"), so a
-  keyword segment also withholds the `valueWindowBackSegments` (2) segments
-  with a letter or digit just before it, with the blank and punctuation-only
-  segments among them. The reasons for two match the forward window: one
-  covers the immediate value, and the second covers a value the engine broke
-  in two or a filler between the value and its label. The look-back keeps the
-  last two such segments of each walk in a small queue, so the work stays
-  linear in the number of segments. A segment with invalid timing never joins
-  the queue. A keyword the engine split across two segments (below) reaches
-  back from its second half, and the first half counts as one of the two
-  segments, so it is withheld as well. Granularity
-  is the whole segment, as for the forward window: nothing inside a segment is
-  kept or dropped by position, so "abc123 is the password" in one segment was
-  already withheld and still is.
+- The window also reaches back (#9792, ruled in
+  `docs/internal/evidence/9792-backward-window-arbiter-ruling.md`). A speech
+  engine puts a value ahead of its label as often as behind it ("swordfish.",
+  then "is the password"), and the pinned `base.en` produced a value two
+  lettered segments before its keyword ("swordfish" | "right it out" | "that is
+  the password") and a value broken in two before it ("sword" | "fish" | "that is
+  the password"). So a keyword or split-keyword segment also withholds the
+  `valueWindowBackSegments` (2) segments with a letter or digit just before it,
+  and the blank and punctuation-only segments among them, in both walks. The
+  reasons for two match the forward window: one covers the immediate value, and
+  the second covers a value the engine broke in two or a filler between the
+  value and its label. Blank segments do not use the window up. A segment with
+  invalid timing never joins it. A keyword the engine split across two segments
+  (below) reaches back from its second half, and the first half counts as one of
+  the two segments, so it is withheld as well. Granularity is the whole segment,
+  as for the forward window: nothing inside a segment is kept or dropped by
+  position, so "abc123 is the password" in one segment was already withheld and
+  still is. The look-back is not a fixed ring of two slots, because blanks stay
+  in it until two lettered segments have come after them. The walk is still
+  linear: only a lettered segment marks the window, and a segment leaves it once
+  two lettered segments have been added after it, so each segment is marked at
+  most twice per walk. The window holds at most the 1,000 segments the engine
+  returns.
 - Emails, URLs, tickets, and local paths with no keyword in their text redact
   their own segment and open no window. They are values, not words that
   introduce one. A segment that has both a keyword and one of these patterns,
@@ -222,13 +234,15 @@ introduces it, so `Extract` does not judge segments only one at a time (#9786).
   22.05 kHz file heard "as follows" as "El Falon", "Alpha alone", and "El
   Paolo". A heuristic that reads the words after a keyword fails open.
 - The cost is lost speech. One keyword segment can redact two segments before
-  it and two following segments. On valid, time-sorted input, n consecutive keyword segments can
-  redact n+1 segments after the last one, and the two before the first one. With invalid or out-of-order timing
-  the two passes can withhold different segments: each pass withholds at most
-  2n segments that have a letter or digit for n keyword segments (every keyword
-  adds two slots and each such segment uses one), so the union of the passes
-  can reach 4n. So "The password was rotated." costs ordinary speech. That loss
-  shows in section metadata; a persisted secret cannot be taken back.
+  it and two following segments. On valid, time-sorted input, n consecutive
+  keyword segments can redact n+1 segments after the last one, and the two before
+  the first one. With invalid or out-of-order timing the two passes can withhold
+  different segments: each pass withholds at most 2n segments with a letter or
+  digit after the keywords (every keyword adds two slots and each such segment
+  uses one) and at most 2n before them, so a pass withholds up to 4n and the
+  union of the passes can reach 8n. So "The password was rotated." costs ordinary
+  speech. That loss shows in section metadata; a persisted secret cannot be
+  taken back.
 
 ### Keyword forms
 
@@ -301,7 +315,9 @@ sentences, so the count differs from the figure above and every number here is
 approximate). The keyword rule hit 4,051 sentences (2.01%). With the forward
 window only, 10,950 sentences (5.44%) lost their text. With a look-back of one
 segment, 13,686 (6.80%); with two, 16,225 (8.06%), which is 5,275 more than
-forward-only, or 2.6 points of all sentences. Real transcripts differ: this
+forward-only, or 2.6 points of all sentences; the arbiter's independent run of
+the same method reproduced those three figures and measured 18,616 (9.25%) for
+three. Real transcripts differ: this
 corpus is security-heavy prose in which keyword sentences cluster, and a
 transcript segment is not a sentence. Time per full corpus pass was 0.64-0.65 s
 for every look-back size (a noisy shared host), so the look-back adds no
@@ -332,8 +348,13 @@ and a dropped annotation that held a value is lost, not persisted.
 
 Known limits:
 
-- A value spoken past the window, more than two segments with a letter or digit
-  before or after the keyword segment, keeps its text.
+- A value spoken past the window keeps its text: more than two segments with a
+  letter or digit after the keyword segment, or more than two before it. The
+  pinned `base.en` split "The value is X 7 Q 9. Please write it down. Keep it
+  safe. That is my API key." at its sentence boundaries with no pause, which put
+  the value three lettered segments before the keyword. Every finite window has a
+  phrasing one segment further out, and a third segment costs about as much as the
+  second (ruling above), so the window stays at two.
 - Two self-redacting segments in a row, such as an email and a ticket, use up
   the window, so a value behind them keeps its text.
 - Only the forms above are matched. Leetspeak ("p4ssword"), a homoglyph outside
