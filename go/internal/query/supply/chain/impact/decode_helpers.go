@@ -371,6 +371,59 @@ func explainRangeContains(events []explainAffectedRangeEvent, observed string) (
 	return vulnerable, true
 }
 
+// passedLineFixedVersion returns the nearest Fixed event at or below the
+// observed version among the release lines in the evidence facts: the fix of
+// the line a known-fixed observation has moved past (#9854). It makes the same
+// nearest-Fixed choice as the reducer's per-line known-fixed rule but is
+// display-only: it ignores the entry kind and listed event order, and the
+// reducer has already decided the verdict. A line is an entry with an
+// introduced event and no limit gate. Fixes no semver parser reads are
+// skipped, so the result is empty rather than guessed.
+func passedLineFixedVersion(facts []EvidenceFact, observed string) string {
+	observed = strings.TrimSpace(observed)
+	if observed == "" {
+		return ""
+	}
+	nearest := ""
+	for _, fact := range facts {
+		for _, events := range decodeExplainAffectedRanges(fact.Payload) {
+			if !explainClosedLine(events) {
+				continue
+			}
+			for _, event := range events {
+				fixed := strings.TrimSpace(event.fixed)
+				if fixed == "" {
+					continue
+				}
+				if cmp, ok := compareExplainSemverVersions(observed, fixed); !ok || cmp < 0 {
+					continue
+				}
+				if nearest == "" {
+					nearest = fixed
+				} else if cmp, ok := compareExplainSemverVersions(fixed, nearest); ok && cmp > 0 {
+					nearest = fixed
+				}
+			}
+		}
+	}
+	return nearest
+}
+
+// explainClosedLine reports whether one affected_ranges entry is a release
+// line the per-line fix may read: it names an introduced event and no limit.
+func explainClosedLine(events []explainAffectedRangeEvent) bool {
+	introduced := false
+	for _, event := range events {
+		if strings.TrimSpace(event.limit) != "" {
+			return false
+		}
+		if strings.TrimSpace(event.introduced) != "" {
+			introduced = true
+		}
+	}
+	return introduced
+}
+
 // compareExplainSemverVersions orders two version strings in semver-family
 // version order (npm, composer, go, cargo, and the other ecosystems whose
 // fixes compare as dotted numerics with prerelease suffixes). It reports

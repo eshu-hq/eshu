@@ -160,10 +160,33 @@ func normalizedSupplyChainVersionEcosystem(ecosystem string) string {
 	return string(packageidentity.NormalizeEcosystem(packageidentity.Ecosystem(ecosystem)))
 }
 
+// evaluateNPMSemverMatch matches an npm observed version against an
+// advisory's affected packages. Beyond the scalar fixed version it derives a
+// per-release-line known-fixed verdict from the typed range events (#9854).
 func evaluateNPMSemverMatch(
 	observed string,
 	fixedVersion string,
 	pkgs []supplychainmodel.AffectedPackage,
+) supplyChainVersionMatchDecision {
+	return evaluateSemverFamilyMatch(observed, fixedVersion, pkgs, true)
+}
+
+// evaluateScalarSemverMatch is the npm semver match without the per-line
+// known-fixed branch. Cargo, Hex, Swift, and Pub share the npm code shape but
+// have not proven the multi-line defect, so they keep the scalar-only answer.
+func evaluateScalarSemverMatch(
+	observed string,
+	fixedVersion string,
+	pkgs []supplychainmodel.AffectedPackage,
+) supplyChainVersionMatchDecision {
+	return evaluateSemverFamilyMatch(observed, fixedVersion, pkgs, false)
+}
+
+func evaluateSemverFamilyMatch(
+	observed string,
+	fixedVersion string,
+	pkgs []supplychainmodel.AffectedPackage,
+	perLineKnownFixed bool,
 ) supplyChainVersionMatchDecision {
 	if !validSupplyChainSemver(observed) {
 		return malformedInstalledVersionDecision()
@@ -179,6 +202,15 @@ func evaluateNPMSemverMatch(
 			return malformedVersionDecision()
 		}
 		if fixed {
+			return knownFixedDecision(supplyChainVersionReasonNPMSemverKnownFixed)
+		}
+	}
+	if perLineKnownFixed {
+		line := npmLineFixFor(observed, pkgs)
+		if line.malformed {
+			return malformedVersionDecision()
+		}
+		if line.knownFixed() {
 			return knownFixedDecision(supplyChainVersionReasonNPMSemverKnownFixed)
 		}
 	}
@@ -305,7 +337,7 @@ func evaluateCargoSemverMatch(
 	fixedVersion string,
 	pkgs []supplychainmodel.AffectedPackage,
 ) supplyChainVersionMatchDecision {
-	decision := evaluateNPMSemverMatch(observed, fixedVersion, pkgs)
+	decision := evaluateScalarSemverMatch(observed, fixedVersion, pkgs)
 	switch decision.Reason {
 	case supplyChainVersionReasonNPMSemverAffectedRange:
 		decision.Reason = supplyChainVersionReasonCargoSemverAffectedRange
@@ -345,7 +377,7 @@ func evaluateHexSemverMatch(
 	fixedVersion string,
 	pkgs []supplychainmodel.AffectedPackage,
 ) supplyChainVersionMatchDecision {
-	decision := evaluateNPMSemverMatch(observed, fixedVersion, pkgs)
+	decision := evaluateScalarSemverMatch(observed, fixedVersion, pkgs)
 	switch decision.Reason {
 	case supplyChainVersionReasonNPMSemverAffectedRange:
 		decision.Reason = supplyChainVersionReasonHexSemverAffectedRange
@@ -360,7 +392,7 @@ func evaluateSwiftSemverMatch(
 	fixedVersion string,
 	pkgs []supplychainmodel.AffectedPackage,
 ) supplyChainVersionMatchDecision {
-	decision := evaluateNPMSemverMatch(observed, fixedVersion, pkgs)
+	decision := evaluateScalarSemverMatch(observed, fixedVersion, pkgs)
 	switch decision.Reason {
 	case supplyChainVersionReasonNPMSemverAffectedRange:
 		decision.Reason = supplyChainVersionReasonSwiftSemverAffectedRange
@@ -375,7 +407,7 @@ func evaluatePubSemverMatch(
 	fixedVersion string,
 	pkgs []supplychainmodel.AffectedPackage,
 ) supplyChainVersionMatchDecision {
-	decision := evaluateNPMSemverMatch(observed, fixedVersion, pkgs)
+	decision := evaluateScalarSemverMatch(observed, fixedVersion, pkgs)
 	switch decision.Reason {
 	case supplyChainVersionReasonNPMSemverAffectedRange:
 		decision.Reason = supplyChainVersionReasonPubSemverAffectedRange

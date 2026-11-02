@@ -161,6 +161,53 @@ func TestBuildSupplyChainVersionExplanationNamesMatchingLineFix(t *testing.T) {
 	}
 }
 
+// TestBuildSupplyChainVersionExplanationNamesPassedLineFix proves #9854: a
+// known-fixed multi-line finding has a blank scalar fix and an observed
+// version outside every range, so the headline names the fix of the release
+// line the observation has moved past (the nearest Fixed event at or below
+// it), never the lowest fix across lines.
+func TestBuildSupplyChainVersionExplanationNamesPassedLineFix(t *testing.T) {
+	t.Parallel()
+
+	line := func(introduced, fixed string) map[string]any {
+		return map[string]any{"type": "SEMVER", "events": []any{
+			map[string]any{"introduced": introduced},
+			map[string]any{"fixed": fixed},
+		}}
+	}
+	for _, tc := range []struct {
+		name, observed, status, want string
+	}{
+		{"between lines names line 1", "3.99.0", "not_affected_known_fixed", "3.14.2"},
+		{"exactly the line 2 fix", "4.1.1", "not_affected_known_fixed", "4.1.1"},
+		{"above every line names the highest passed fix", "5.0.0", "not_affected_known_fixed", "4.1.1"},
+		{"line 1 patched names line 1", "3.15.0", "not_affected_known_fixed", "3.14.2"},
+		{"non known-fixed row keeps the lowest-fix fallback", "3.99.0", "possibly_affected", "3.14.2"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			row := explainBuildTestRow()
+			row.Finding.PackageName = "js-yaml"
+			row.Finding.ObservedVersion = tc.observed
+			row.Finding.Status = tc.status
+			row.Finding.FixedVersion = ""
+			row.EvidenceFacts = []EvidenceFact{{
+				FactID:   "js-yaml-fact",
+				FactKind: "vulnerability.affected_package",
+				Payload: map[string]any{
+					"fixed_versions":  []any{"3.14.2", "4.1.1"},
+					"affected_ranges": []any{line("0", "3.14.2"), line("4.0.0", "4.1.1")},
+				},
+			}}
+			advisory := buildSupplyChainAdvisoryExplanation(row)
+			component := buildSupplyChainComponentExplanation(row)
+			if got := buildSupplyChainVersionExplanation(row, advisory, component); got.FixedVersion != tc.want {
+				t.Errorf("FixedVersion = %q, want %q", got.FixedVersion, tc.want)
+			}
+		})
+	}
+}
+
 // TestBuildSupplyChainVersionExplanationOrdersFixesByEcosystem proves #9430:
 // a lexicographically sorted fixed_versions list (["10.0.1","9.5.0"]) must
 // resolve to the ecosystem-lowest fix (9.5.0), not versions[0] (10.0.1).

@@ -443,6 +443,13 @@ only their package qualifier changed).
   moved with the handlers to the hub package
   (`internal/query/supply/chain`).
 
+The explanation headline (`buildSupplyChainVersionExplanation`) names the fix
+of the release line containing the observed version (#9430). For a
+`not_affected_known_fixed` finding with a blank scalar fix, the observation sits
+outside every range, so the headline names the nearest Fixed event at or below
+it (`passedLineFixedVersion`, #9854), the same nearest-Fixed choice the reducer
+makes.
+
 ## Related docs
 
 - [HTTP API Reference](../../../../../docs/public/reference/http-api.md)

@@ -41,3 +41,7 @@ Already held: OSV re-fetch; matcher source chain; overlay probe (both directions
 - Whether any QA deployment pins an in-`[0,7.23.2)` version (would give a live `affected` row; not needed, decision 1).
 - Deployed QA reducer binary identity vs the source read here — inferred consistent because the live post-cycle row matches the probe's output shape exactly; marked as inference.
 - CI status of [PR #9733](https://github.com/eshu-hq/eshu/pull/9733) (pending at lane handoff), rollback-window state after 17:10 UTC 2026-10-31, and whether the Class S follow-up issue is already filed.
+
+## Update: per-line known-fixed shipped (#9854)
+
+Decision 3 named a per-line known-fixed refinement as an optional enhancement. [#9854](https://github.com/eshu-hq/eshu/issues/9854) built it: an npm version outside every range and at or above a release line's Fixed event now reads `not_affected_known_fixed`, so a post-fix pin like 7.29.7 no longer reads `possibly_affected` once its advisory carries a Fixed event that the version has reached. The rule, proof, and benchmark are in [9854-per-line-known-fixed.md](9854-per-line-known-fixed.md). The rest of this ruling is unchanged.

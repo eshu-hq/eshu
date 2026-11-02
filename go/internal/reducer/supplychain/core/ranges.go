@@ -57,6 +57,158 @@ func semverRangeContainsDecision(
 	return versionRangeContainsDecision(affectedRange, observed, compareOSVSemver)
 }
 
+// npmLineFix reports the per-release-line verdict for an observed version that
+// no affected range contains (#9854).
+//
+// An OSV advisory lists one SEMVER range per release line, each an
+// introduced..fixed pair. The matcher cannot name "the" fixed version for a
+// multi-line advisory (#9430 blanks the scalar), so it derives the verdict from
+// the typed range events instead: outside every range, a version at or above a
+// line's Fixed event is patched under OSV semantics.
+//
+// Only a closed line counts: a range needs an introduced event, and its
+// terminator is a Fixed or a last_affected event. A range with a limit event
+// and a Fixed with no introduced are not lines. Among the terminators at or
+// below the observed version, the nearest one decides: a Fixed names the line
+// fix, and a last_affected line (no known fix) keeps the version
+// possibly_affected.
+//
+// The verdict also fails closed when the containment check could not have
+// seen the observed version in a range. The containment check skips every
+// non-SEMVER range (ECOSYSTEM, GIT, an unknown kind), so a skipped range in any
+// package entry of the advisory may contain the version, and the scan refuses a
+// verdict. It walks events in listed order while OSV evaluates them sorted, so
+// a SEMVER range whose events are listed out of version order may also hide the
+// version; the scan refuses that too.
+type npmLineFix struct {
+	// fixed is the nearest Fixed event at or below the observed version, the
+	// fix of the release line the observation has moved past. Blank when none.
+	fixed string
+	// malformed is true when an event version could not be compared.
+	malformed bool
+	// lastAffectedNearer is true when a last_affected boundary below the
+	// observed version is nearer than every Fixed event.
+	lastAffectedNearer bool
+	// unverifiedRange is true when a range the containment check skipped, or
+	// read in an order OSV does not use, may contain the observed version.
+	unverifiedRange bool
+}
+
+// knownFixed reports whether the observed version is patched by a line fix.
+func (l npmLineFix) knownFixed() bool {
+	return l.fixed != "" && !l.malformed && !l.lastAffectedNearer && !l.unverifiedRange
+}
+
+// npmLineFixFor scans the typed SEMVER ranges once, in O(events), and finds the
+// nearest Fixed and last_affected boundaries at or below observed.
+func npmLineFixFor(observed string, pkgs []supplychainmodel.AffectedPackage) npmLineFix {
+	var out npmLineFix
+	var nearestLastAffected string
+	for _, pkg := range pkgs {
+		for _, affectedRange := range pkg.AffectedRanges {
+			if !strings.EqualFold(affectedRange.Kind, "SEMVER") {
+				out.unverifiedRange = true
+				continue
+			}
+			ascending, comparable := eventsAscending(affectedRange.Events)
+			if !comparable {
+				out.malformed = true
+				return out
+			}
+			if !ascending {
+				out.unverifiedRange = true
+				continue
+			}
+			if !closedLineRange(affectedRange) {
+				continue
+			}
+			for _, event := range affectedRange.Events {
+				switch {
+				case event.Fixed != "":
+					cmp, ok := compareOSVSemver(observed, event.Fixed)
+					if !ok {
+						out.malformed = true
+						return out
+					}
+					if cmp >= 0 && (out.fixed == "" || fixedBoundaryNearer(event.Fixed, out.fixed)) {
+						out.fixed = event.Fixed
+					}
+				case event.LastAffected != "":
+					cmp, ok := compareOSVSemver(observed, event.LastAffected)
+					if !ok {
+						out.malformed = true
+						return out
+					}
+					if cmp > 0 && (nearestLastAffected == "" || fixedBoundaryNearer(event.LastAffected, nearestLastAffected)) {
+						nearestLastAffected = event.LastAffected
+					}
+				}
+			}
+		}
+	}
+	if nearestLastAffected != "" {
+		if out.fixed == "" {
+			out.lastAffectedNearer = true
+		} else if cmp, ok := compareOSVSemver(nearestLastAffected, out.fixed); ok && cmp > 0 {
+			out.lastAffectedNearer = true
+		}
+	}
+	return out
+}
+
+// eventsAscending reports whether the version-bearing events (introduced,
+// fixed, last_affected) are listed in non-decreasing version order. The second
+// value is false when two events cannot be compared. Limit events carry no
+// range version and are not ordered.
+func eventsAscending(events []supplychainmodel.AffectedRangeEvent) (bool, bool) {
+	previous := ""
+	for _, event := range events {
+		current := event.Introduced
+		if current == "" {
+			current = event.Fixed
+		}
+		if current == "" {
+			current = event.LastAffected
+		}
+		if current == "" {
+			continue
+		}
+		if previous != "" {
+			cmp, ok := compareOSVSemver(current, previous)
+			if !ok {
+				return false, false
+			}
+			if cmp < 0 {
+				return false, true
+			}
+		}
+		previous = current
+	}
+	return true, true
+}
+
+// closedLineRange reports whether the range describes a release line the
+// per-line branch may read: it names an introduced event and no limit event.
+func closedLineRange(affectedRange supplychainmodel.AffectedRange) bool {
+	introduced := false
+	for _, event := range affectedRange.Events {
+		if strings.TrimSpace(event.Limit) != "" {
+			return false
+		}
+		if event.Introduced != "" {
+			introduced = true
+		}
+	}
+	return introduced
+}
+
+// fixedBoundaryNearer reports whether candidate is a higher version than
+// current, so it sits nearer to a version that is at or above both.
+func fixedBoundaryNearer(candidate string, current string) bool {
+	cmp, ok := compareOSVSemver(candidate, current)
+	return ok && cmp > 0
+}
+
 func rubyGemsRangeContainsDecision(
 	affectedRange supplychainmodel.AffectedRange,
 	observed string,
