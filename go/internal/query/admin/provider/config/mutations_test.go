@@ -32,7 +32,10 @@ func hasAuditReason(audit *testutil.FakeGovernanceAuditAppender, reason string) 
 
 // fakeAdminProviderConfigMutationStore records the request it was asked to
 // perform and returns a canned result, modeling the Postgres tenant filter so
-// handler-level behavior can be proven without a database.
+// handler-level behavior can be proven without a database. It is an adapter
+// over testutil.FakeAdminProviderConfigMutationStore, the single shared copy
+// landed for #7715; the keyed-literal field names stay so the call sites are
+// unchanged, and every call delegates and takes back what was recorded.
 type fakeAdminProviderConfigMutationStore struct {
 	gotCreate                                                 CreateRequest
 	gotUpdate                                                 UpdateRequest
@@ -44,60 +47,55 @@ type fakeAdminProviderConfigMutationStore struct {
 	forceErr error
 }
 
-func (f *fakeAdminProviderConfigMutationStore) CreateProviderConfig(_ context.Context, req CreateRequest) (WriteResult, error) {
-	f.gotCreate = req
-	if f.forceErr != nil {
-		return WriteResult{}, f.forceErr
-	}
-	return f.result, nil
+func (f *fakeAdminProviderConfigMutationStore) CreateProviderConfig(ctx context.Context, req CreateRequest) (WriteResult, error) {
+	d := testutil.FakeAdminProviderConfigMutationStore{Result: f.result, ForceErr: f.forceErr}
+	res, err := d.CreateProviderConfig(ctx, req)
+	f.gotCreate = d.GotCreate
+	return res, err
 }
 
-func (f *fakeAdminProviderConfigMutationStore) UpdateProviderConfig(_ context.Context, req UpdateRequest) (WriteResult, error) {
-	f.gotUpdate = req
-	if f.forceErr != nil {
-		return WriteResult{}, f.forceErr
-	}
-	return f.result, nil
+func (f *fakeAdminProviderConfigMutationStore) UpdateProviderConfig(ctx context.Context, req UpdateRequest) (WriteResult, error) {
+	d := testutil.FakeAdminProviderConfigMutationStore{Result: f.result, ForceErr: f.forceErr}
+	res, err := d.UpdateProviderConfig(ctx, req)
+	f.gotUpdate = d.GotUpdate
+	return res, err
 }
 
-func (f *fakeAdminProviderConfigMutationStore) RevertProviderConfig(_ context.Context, req RevertRequest) (WriteResult, error) {
-	f.gotRevert = req
-	if f.forceErr != nil {
-		return WriteResult{}, f.forceErr
-	}
-	return f.result, nil
+func (f *fakeAdminProviderConfigMutationStore) RevertProviderConfig(ctx context.Context, req RevertRequest) (WriteResult, error) {
+	d := testutil.FakeAdminProviderConfigMutationStore{Result: f.result, ForceErr: f.forceErr}
+	res, err := d.RevertProviderConfig(ctx, req)
+	f.gotRevert = d.GotRevert
+	return res, err
 }
 
-func (f *fakeAdminProviderConfigMutationStore) EnableProviderConfig(_ context.Context, providerConfigID, tenantID, expectedActiveRevisionID string) (WriteResult, error) {
-	f.gotEnableID, f.gotEnableTenant, f.gotEnableExpectedRevisionID = providerConfigID, tenantID, expectedActiveRevisionID
-	if f.forceErr != nil {
-		return WriteResult{}, f.forceErr
-	}
-	return f.result, nil
+func (f *fakeAdminProviderConfigMutationStore) EnableProviderConfig(ctx context.Context, providerConfigID, tenantID, expectedActiveRevisionID string) (WriteResult, error) {
+	d := testutil.FakeAdminProviderConfigMutationStore{Result: f.result, ForceErr: f.forceErr}
+	res, err := d.EnableProviderConfig(ctx, providerConfigID, tenantID, expectedActiveRevisionID)
+	f.gotEnableID, f.gotEnableTenant, f.gotEnableExpectedRevisionID = d.GotEnableID, d.GotEnableTenant, d.GotEnableExpectedRevisionID
+	return res, err
 }
 
-func (f *fakeAdminProviderConfigMutationStore) DisableProviderConfig(_ context.Context, providerConfigID, tenantID string) (WriteResult, error) {
-	f.gotDisableID, f.gotDisableTenant = providerConfigID, tenantID
-	if f.forceErr != nil {
-		return WriteResult{}, f.forceErr
-	}
-	return f.result, nil
+func (f *fakeAdminProviderConfigMutationStore) DisableProviderConfig(ctx context.Context, providerConfigID, tenantID string) (WriteResult, error) {
+	d := testutil.FakeAdminProviderConfigMutationStore{Result: f.result, ForceErr: f.forceErr}
+	res, err := d.DisableProviderConfig(ctx, providerConfigID, tenantID)
+	f.gotDisableID, f.gotDisableTenant = d.GotDisableID, d.GotDisableTenant
+	return res, err
 }
 
 // fakeProviderConfigConnectionTester returns a canned result and records the
-// arguments it was called with.
+// arguments it was called with. It is an adapter over
+// testutil.FakeProviderConfigConnectionTester (#7715).
 type fakeProviderConfigConnectionTester struct {
 	gotProviderConfigID, gotTenantID string
 	result                           ConnectionTestResult
 	forceErr                         error
 }
 
-func (f *fakeProviderConfigConnectionTester) TestProviderConnection(_ context.Context, providerConfigID, tenantID string) (ConnectionTestResult, error) {
-	f.gotProviderConfigID, f.gotTenantID = providerConfigID, tenantID
-	if f.forceErr != nil {
-		return ConnectionTestResult{}, f.forceErr
-	}
-	return f.result, nil
+func (f *fakeProviderConfigConnectionTester) TestProviderConnection(ctx context.Context, providerConfigID, tenantID string) (ConnectionTestResult, error) {
+	d := testutil.FakeProviderConfigConnectionTester{Result: f.result, ForceErr: f.forceErr}
+	res, err := d.TestProviderConnection(ctx, providerConfigID, tenantID)
+	f.gotProviderConfigID, f.gotTenantID = d.GotProviderConfigID, d.GotTenantID
+	return res, err
 }
 
 const providerConfigAdminTenant = "tenant_a"

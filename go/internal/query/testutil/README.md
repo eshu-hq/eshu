@@ -83,6 +83,14 @@ See `doc.go` for the godoc contract.
   `Context`, `OK`, and `Err`, and records the presented credential behind
   `Called` and `Token`. `ResolveAnswering` is the same recording with the answer
   supplied per call; root's adapter is its only caller.
+- `FakeAdminProviderConfigReadStore`, `FakeAdminProviderConfigMutationStore`,
+  and `FakeProviderConfigConnectionTester` — the admin provider-config
+  doubles (#7715), the single shared copy of what package query's
+  `auth_scoped_routes_admin_provider_configs_test.go` and the
+  `admin/provider/config` family tests duplicated. They name only the
+  neutral leaf `querycontract/provider/config`, so both consumers import
+  them without an import cycle; each consumer keeps an unexported adapter
+  with the original keyed-literal field names that delegates here.
 - `CodeGrantGrantedRepo`/`CodeGrantOtherRepo`, `SearchString`, and
   `BoundCanonicalLanguage` — the #5167/#6642 grant-test repo ids, the
   Cypher/SQL-text substring check, and a Cypher builder's canonical bound
