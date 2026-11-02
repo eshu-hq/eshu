@@ -45,6 +45,7 @@ recent shipped work grouped by feature area.
   `collector.ClaimedService` refuses to start with a claim-plane control
   store and an unfenced committer, or with a fenced committer and the core
   control store.
+
 ### Workflow extraction: executable claim-plane contention harness
 
 - **The #9727 contention workload now exists as code**
