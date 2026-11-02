@@ -30,19 +30,19 @@ const (
 	CollectorSDKProtocolV1Alpha3 = "collector-sdk/v1alpha3"
 )
 
-// Scanner-Publish-SHA anchors the pins below to the merge-head publish
-// that produced them (docker-publish run 41237451240, merge a371d1e21f;
-// each digest's build attestation verified via the attestations API
-// before pinning). The verify-scanner-digest-pins gate
+// Scanner-Publish-SHA anchors the pins below to the satellite publish that
+// produced them (eshu-hq/eshu-scanner-worker release run 41401606694, main
+// b18339cc43; each digest's build attestation verified against that
+// repository before pinning). The verify-scanner-digest-pins gate
 // (scripts/verify-scanner-digest-pins.sh, blocking tier pre-pr row
 // scanner-digest-pins) resolves each pin against the immutable
-// sha-<publish-sha> tag, re-verifies the attestation, and fails when
-// scanner sources advance past this anchor. A republish therefore lands
-// in two changes: the publish itself, then a reviewed follow-up PR
-// bumping this SHA and the pins together (the pattern #9494 uses) —
-// the publish workflow never auto-updates this file.
-// Scanner-Publish-SHA: a371d1e21f6ba013925ea5d263d8de6c6b54d428
-// Scanner-Publish-Repo: eshu-hq/eshu
+// sha-<publish-sha> tag, re-verifies the attestation against the
+// Scanner-Publish-Repo repository, and fails when the anchor is not a commit
+// there. A republish therefore lands in two changes: the publish itself, then
+// a reviewed follow-up PR bumping this SHA and the pins together (the pattern
+// #9494 uses) — the publish workflow never auto-updates this file.
+// Scanner-Publish-SHA: b18339cc438e39d6f387f724f94f6896070fadbd
+// Scanner-Publish-Repo: eshu-hq/eshu-scanner-worker
 //
 // Pin semantics (#8878): these pins are platform-side admission truth, not
 // seed-time comparisons. Seed checks only that --image-ref has the
@@ -58,9 +58,9 @@ const (
 // values; live-chart sync rides the re-pin PR process with admission as the
 // fail-closed backstop).
 var artifactDigests = map[string]string{
-	IDImage:     "450f81b8195120a59decc55fe85ab648d974371269ed1f1602e3b8dff736b6ce",
-	IDSBOM:      "76d36e278eac680e3508fd17e26bc4ad2324a1a64438bec083c5b534e1fe834f",
-	IDOSRuntime: "04eea122b2843569e07c695b2d6a5795c5fe1f2a6f92d43d77b3bc469949a697",
+	IDImage:     "45e1b68b21caf5edf45135eda43192ea70a6e9aab67a344a391954f78abb6dbe",
+	IDSBOM:      "8b3f10c0b6b196d7bdde439b0f274c05081cf31147635f23f50ba4f80d9ab541",
+	IDOSRuntime: "88392f81687cd1dc26a64495aed85520a12d14c632447b379b63c844ce089676",
 }
 
 // AnalyzerFor resolves a component ID back to its analyzer. Unknown IDs fail

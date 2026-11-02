@@ -282,3 +282,44 @@ No-Observability-Change (re-pin a371d1e21f): no metric, span,
 log, or status field added, renamed, or removed by the new pin values;
 seed and admission failures keep the existing defect-only startup-error
 path with no new telemetry.
+
+## Re-pin to the satellite publish (eshu-scanner-worker main b18339cc43, release run 41401606694)
+
+Box 10 of #8878 (build, release and deploy independently). The anchor and
+the repo line move to the satellite, and the three pins move to the digests
+that release published:
+
+- `Scanner-Publish-SHA: b18339cc438e39d6f387f724f94f6896070fadbd`,
+  `Scanner-Publish-Repo: eshu-hq/eshu-scanner-worker`.
+- image `45e1b68b...b6dbe`, sbom `8b3f10c0...ab541`,
+  osruntime `88392f81...89676` (full hex in `manifest.go`).
+- `crane digest ghcr.io/eshu-hq/scanner-<name>:sha-b18339cc438e39d6f387f724f94f6896070fadbd`
+  equals each pin (3/3). `gh attestation verify
+  oci://ghcr.io/eshu-hq/scanner-<name>@sha256:<pin> --repo
+  eshu-hq/eshu-scanner-worker` exits 0 for all three; the certificate
+  names `eshu-hq/eshu-scanner-worker` at `b18339cc438e`, ref `refs/heads/main`,
+  trigger `push`, release run 41401606694 (the certificates cite attempt 2 for
+  image and sbom and attempt 5 for osruntime, after reruns of that run).
+- `scripts/verify-scanner-digest-pins.sh` against GHCR: PASS, exit 0.
+
+Admission reads only image and platform
+(`VerifySeededArtifact`). The satellite `ManifestFor` carries the same
+version, `CompatibleCore`, protocol, fact families and telemetry prefix as
+this package's `ManifestFor`; it differs only in the unpinned image, which
+`seed` stamps. The core pins reach a cluster only through a new eshu image
+build; the deployment chart `seed.image` entries and that image bump land in
+one sync (see the arbiter ruling in
+`docs/internal/evidence/8878-close-out-arbiter-ruling.md`, decision 3).
+
+No-Regression Evidence (satellite re-pin): RED-first.
+`TestManifestArtifactPinsPublishTimeDigestContract`,
+`TestArtifactDigestPinsArePinnedVerbatim` and
+`TestScannerActivationSeedImagesMatchPinnedManifests` failed with the new
+expectations against the old pins, then passed with the new pins.
+Constants-only change, manifest construction off any query, ingest, or
+graph-write path.
+
+No-Observability-Change (satellite re-pin): no metric, span, log, or status
+field added, renamed, or removed by the new pin values; seed and admission
+failures keep the existing defect-only startup-error path with no new
+telemetry.

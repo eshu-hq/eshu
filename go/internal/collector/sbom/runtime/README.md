@@ -17,8 +17,8 @@ typed `sbom.*` or `attestation.*` fact envelopes.
 - Reducers attach SBOM/attestation facts to image truth and decide verification
   status.
 - Bounded SBOM **generation** does not live here. The `sbom_generation`
-  scanner component (sources removed from eshu in #9741; destination port into
-  `eshu-hq/eshu-scanner-worker` in progress, #8878 box 10) is the lane for
+  scanner component (sources removed from eshu in #9741; the images are built
+  and attested by `eshu-hq/eshu-scanner-worker`, #8878 box 10) is the lane for
   building new CycloneDX-compatible source facts from a repository, image, or
   artifact target when the component source can provide a subject digest. This
   runtime stays focused on fetching and parsing already-published documents.

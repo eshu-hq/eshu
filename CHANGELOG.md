@@ -9,6 +9,18 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### Scanner component pins now name the eshu-scanner-worker publish
+
+- **The three scanner admission pins and the publish anchor moved from the
+  removed in-tree build to the `eshu-hq/eshu-scanner-worker` release**
+  ([#8878](https://github.com/eshu-hq/eshu/issues/8878), box 10).
+  `Scanner-Publish-Repo` is now `eshu-hq/eshu-scanner-worker` at anchor
+  `b18339cc43`, and `artifactDigests` names the digests that release
+  published; each one verifies with `gh attestation verify --repo
+  eshu-hq/eshu-scanner-worker`. A deployment applies the new pins only with a
+  new eshu image build and matching chart `seed.image` entries in one sync;
+  admission still refuses any other seeded digest.
+
 ### Telemetry coverage doc: split into parts under the line cap
 
 - **The telemetry coverage contract is now an index plus six part pages, each
