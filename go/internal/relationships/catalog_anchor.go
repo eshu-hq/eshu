@@ -19,6 +19,50 @@ import (
 // facts, so the captured provider suffix must be added as a separate anchor.
 var terraformModuleAliasPattern = regexp.MustCompile(`^terraform-modules?-(.+)$`)
 
+// catalogFleetWideAnchorToken is the namespace token of every canonical repo_id
+// ("repository:r_<8-hex>"). Every Git content and file payload stores its own
+// repo_id, so a LIKE term built from this token matches the whole corpus.
+const catalogFleetWideAnchorToken = "repository"
+
+// unconditionalPayloadMarkers are the lowercase payload substrings that select a
+// fact whatever the catalog's aliases are. They are written for
+// lower(payload::text) on a jsonb column, which prints one space after every
+// colon. See UnconditionalPayloadMarkers.
+var unconditionalPayloadMarkers = []string{
+	"kind: application", // Also matches "kind: applicationset".
+	`"artifact_type": "argocd"`,
+	`"argocd_applications": [{`,
+	`"argocd_applicationsets": [{`,
+	`"flux_git_repositories": [{`,
+}
+
+// UnconditionalPayloadMarkers returns the payload substrings that force facts into
+// the scoped fact load regardless of the catalog's aliases, for the two routes
+// whose target token need not appear in the fact.
+//
+// ArgoCD: the ApplicationSet discovery path renders candidate repoURLs by
+// substituting template parameters harvested from a different config repository's
+// content and from normalized path basenames. Content facts qualify by raw kind or
+// artifact_type, and lower() makes that a superset of the case-sensitive
+// isArgoCDArtifact check. File facts qualify when an ArgoCD bucket holds a row.
+//
+// Flux: a GitRepository resolves spec.url by equality with RemoteURL after
+// NormalizeRemoteURL, which decodes percent-encoding. "my%2Dapp" resolves to a
+// remote ending in "my-app" while the row holds neither that token nor any alias,
+// so no anchor derived from the catalog can reach it. Flux evidence comes only from
+// this bucket, which makes selecting on the bucket a superset of every spelling.
+//
+// Each bucket marker follows what the bucket holds, never its key name. Every
+// parsed file carries the ArgoCD keys, usually null, so a marker on a key name
+// selects every file fact in the fleet. "[{" is the text jsonb prints for an array
+// whose first element is an object, the only shape the parser writes. Inside a
+// string value the key's quotes are escaped, so the spelling cannot match there.
+//
+// It returns a copy, so callers may append to it.
+func UnconditionalPayloadMarkers() []string {
+	return append([]string(nil), unconditionalPayloadMarkers...)
+}
+
 // CatalogRepoIDValues returns each catalog entry's full lowercase repo_id value,
 // de-duplicated and stable-sorted. These feed the $2 LIKE-ANY arm of the
 // deferred-backfill self-exclusion query (issue #3659).
@@ -39,9 +83,9 @@ var terraformModuleAliasPattern = regexp.MustCompile(`^terraform-modules?-(.+)$`
 // fleet, and stripping a token rather than the full value could corrupt
 // overlapping tokens.
 //
-// The deferred pass's non-repo_id anchors (name/slug tokens + ArgoCD markers)
-// come from CatalogPayloadAnchors applied to a catalog whose Aliases have the
-// repo_id first entry stripped — see backfillNonRepoIDAnchorTerms.
+// The deferred pass's non-repo_id anchors (name and slug tokens plus the
+// unconditional markers) come from CatalogNonRepoIDPayloadAnchors — see
+// backfillNonRepoIDAnchorTerms.
 //
 // Returns nil when the catalog is empty or no entry has a usable repo_id alias.
 func CatalogRepoIDValues(catalog []CatalogEntry) []string {
@@ -110,11 +154,20 @@ func CatalogReferenceTokenStream(value string) string {
 // fact payloads store candidate strings verbatim under payload jsonb) a substring
 // of lower(payload::text). For each alias this function emits:
 //
-//   - the longest catalogMatchTokens token (the most selective single substring
-//     that is guaranteed present whenever the alias matched), and
+//   - the token catalogAliasAnchorToken picks (a single substring guaranteed
+//     present whenever the alias matched, chosen to select few other facts), and
 //   - for an alias shaped like "terraform-modules-<provider>" or
 //     "terraform-module-<provider>", the captured "<provider>" segment, which is
 //     the only payload-visible token for private Terraform registry matches.
+//
+// Each entry with a RemoteURL also gets the URL's last token. Flux evidence
+// resolves spec.url by equality with RemoteURL, not through aliases, and nearly
+// every spelling that normalizes to that URL contains its final path segment.
+// The exception is percent-encoding inside that segment ("my%2Dapp" for "my-app"),
+// which NormalizeRemoteURL decodes. Those rows are safe because
+// UnconditionalPayloadMarkers selects every row holding a GitRepository, so this
+// anchor is not what keeps them. When the repository's name matches its remote this
+// is the anchor the name already gave.
 //
 // Anchors are lowercased, trimmed, de-duplicated, and stable-sorted for
 // deterministic SQL parameters. Short tokens are retained on purpose: dropping
@@ -146,18 +199,15 @@ func CatalogPayloadAnchors(catalog []CatalogEntry) []string {
 			if len(tokens) == 0 {
 				continue
 			}
-			longest := tokens[0]
-			for _, token := range tokens {
-				if len(token) > len(longest) {
-					longest = token
-				}
-			}
-			add(longest)
+			add(catalogAliasAnchorToken(alias, tokens))
 
 			normalized := strings.ToLower(strings.TrimSpace(alias))
 			if match := terraformModuleAliasPattern.FindStringSubmatch(normalized); match != nil {
 				add(match[1])
 			}
+		}
+		if tokens := catalogMatchTokens(entry.RemoteURL); len(tokens) > 0 {
+			add(tokens[len(tokens)-1])
 		}
 	}
 
@@ -166,4 +216,59 @@ func CatalogPayloadAnchors(catalog []CatalogEntry) []string {
 	}
 	sort.Strings(anchors)
 	return anchors
+}
+
+// CatalogNonRepoIDPayloadAnchors derives the payload anchors of the deferred
+// backfill's non-repo_id LIKE parameter: CatalogPayloadAnchors over each entry's
+// aliases with the repo_id (Aliases[0]) removed. Every Git content and file payload
+// stores its own repo_id, so repo_id-derived tokens would make every fact
+// self-match; the deferred query tests repo_ids in a separate parameter after
+// stripping the fact's own value (issue #3659). RemoteURL is left out too: only Flux
+// resolves through it, and UnconditionalPayloadMarkers selects those rows.
+func CatalogNonRepoIDPayloadAnchors(catalog []CatalogEntry) []string {
+	stripped := make([]CatalogEntry, 0, len(catalog))
+	for _, entry := range catalog {
+		if len(entry.Aliases) <= 1 {
+			// Only the repo_id alias; no non-repo_id aliases for this entry.
+			continue
+		}
+		stripped = append(stripped, CatalogEntry{
+			RepoID:  entry.RepoID,
+			Aliases: entry.Aliases[1:],
+		})
+	}
+	return CatalogPayloadAnchors(stripped)
+}
+
+// catalogAliasAnchorToken picks the one token of an alias that anchors it. A
+// match needs every token of the alias, so any of them is a safe anchor and the
+// choice only decides how many facts the predicate selects.
+//
+// An alias with a slash is a path, and a path is written owner first ("org/repo",
+// "github.com/org/repo"), so its last token names the repository. That token wins
+// whatever its length. The owner is the wrong anchor even when it is the longest:
+// a fleet shares one owner, and every file row stores a clone path that holds it,
+// so an owner term selects most of the corpus.
+//
+// Any other alias has no such structure, so its longest token wins as the likely
+// rarest, and a tie goes to the later token ("repository:r_x").
+//
+// catalogFleetWideAnchorToken is passed over under both rules, unless the alias
+// has no other token: such an alias can only be anchored by that token, and
+// over-selecting is safe where under-selecting is not.
+func catalogAliasAnchorToken(alias string, tokens []string) string {
+	takeLast := strings.Contains(alias, "/")
+	anchor := ""
+	for _, token := range tokens {
+		if token == catalogFleetWideAnchorToken {
+			continue
+		}
+		if takeLast || len(token) >= len(anchor) {
+			anchor = token
+		}
+	}
+	if anchor == "" {
+		return catalogFleetWideAnchorToken
+	}
+	return anchor
 }

@@ -200,3 +200,55 @@ func TestDeferredBackfillRecoversFluxCrossRepoEvidenceOnRemoteURLChange(t *testi
 		)
 	}
 }
+
+// TestDeferredBackfillResolvesFluxManifestWithoutAnAnchor covers manifests whose
+// spec.url no catalog token can reach: a remote that shares no token with the
+// repository's name, and a percent-encoded spelling that NormalizeRemoteURL decodes
+// to the remote while the row holds neither. Flux resolves spec.url by equality, so
+// the deferred load has to select these rows by what the bucket holds. Each file
+// fact also has the empty ArgoCD keys every parsed file carries, and those keys
+// select nothing.
+func TestDeferredBackfillResolvesFluxManifestWithoutAnAnchor(t *testing.T) {
+	cases := []struct {
+		name, remoteURL, manifestURL string
+	}{
+		{"renamed remote", "https://github.com/acme/renamed-deploy.git", "https://github.com/acme/renamed-deploy.git"},
+		{"percent-encoded dash", "https://github.com/acme/my-app.git", "https://github.com/acme/my%2Dapp.git"},
+		{"percent-encoded accent", "https://github.com/acme/café.git", "https://github.com/acme/caf%C3%A9.git"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			runFluxManifestWithoutAnAnchor(t, tc.remoteURL, tc.manifestURL)
+		})
+	}
+}
+
+func runFluxManifestWithoutAnAnchor(t *testing.T, remoteURL, manifestURL string) {
+	t.Helper()
+	dsn := testfixtures.DSNForDeferredPartitionMemoProof(t)
+	ctx := context.Background()
+	db := openDeferredPartitionMemoProofDB(t, dsn)
+	provisionDeferredPartitionMemoSchema(t, db)
+
+	base := time.Date(2026, time.July, 20, 0, 0, 0, 0, time.UTC)
+
+	seedFluxOrderingScopeGenRepo(t, ctx, db,
+		"git:scope-config", "gen-config", "repo-config", "gitops-config",
+		"https://github.com/acme/gitops-config.git", base)
+	seedFluxGitRepositoryFileFact(t, ctx, db,
+		"flux-gitrepo-config", "git:scope-config", "gen-config", "repo-config",
+		"clusters/prod/git-repository.yaml", "app-source", manifestURL, base)
+	seedFluxOrderingScopeGenRepo(t, ctx, db,
+		"git:scope-deploy", "gen-deploy", "repo-deploy", "local-checkout-name",
+		remoteURL, base)
+
+	store := NewIngestionStore(SQLDB{DB: db})
+	store.Now = func() time.Time { return base }
+	if err := store.BackfillAllRelationshipEvidence(ctx, nil, nil); err != nil {
+		t.Fatalf("BackfillAllRelationshipEvidence() error = %v", err)
+	}
+	edges := evidenceEdgeSet(t, ctx, db)
+	if !edges["repo-config->repo-deploy"] {
+		t.Fatalf("missing DEPLOYS_FROM edge repo-config->repo-deploy; the deferred load dropped the manifest. got edges: %v", edges)
+	}
+}

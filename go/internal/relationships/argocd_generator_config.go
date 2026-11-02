@@ -15,29 +15,29 @@ import (
 // git file generator targets. discoverArgoCDDocumentEvidence reads the matching
 // generator-path files from that repository (via the content index, keyed by the
 // config repo's RepoID) to synthesize template deploy sources, so a per-commit
-// backfill that loads only the ApplicationSet's own facts would miss the external
-// config files and under-select the synthesized deploy edges. Resolving these
-// refs lets the backfill load the external config files in a second phase.
+// backfill that loads only the ApplicationSet's own facts would miss the config
+// files and under-select the synthesized deploy edges. Resolving these refs lets
+// the backfill load the config files in a second phase.
 type ArgoCDGeneratorConfigRef struct {
 	// ConfigRepoID is the repository whose generator-path files the ApplicationSet
-	// reads. It is always a different repository from the control-plane repo that
-	// holds the ApplicationSet (discoverArgoCDDocumentEvidence skips
-	// configRepo == controlRepo).
+	// reads. It may be the control-plane repo that holds the ApplicationSet: a
+	// generator can read config from its own repository (#7778).
 	ConfigRepoID string
 }
 
-// ResolveArgoCDGeneratorConfigRepos returns the external config repositories that
-// the ArgoCD ApplicationSets in envelopes target with a git file generator,
-// resolved against the same catalog and the same generator-repoURL matching rules
+// ResolveArgoCDGeneratorConfigRepos returns the config repositories that the
+// ArgoCD ApplicationSets in envelopes target with a git file generator, resolved
+// against the same catalog and the same generator-repoURL matching rules
 // discoverArgoCDDocumentEvidence uses. It covers both the content-derived
 // ApplicationSets (parsed from the YAML body) and the structured ApplicationSets
 // (parsed_file_data.argocd_applicationsets[].generator_source_repos).
 //
-// The control-plane repo that holds the ApplicationSet is excluded, matching the
-// configRepo == controlRepo skip in discoverArgoCDDocumentEvidence; its own files
-// are already loaded with the ApplicationSet. Template-string generator repoURLs
-// are skipped because they cannot resolve to a concrete repository. Results are
-// de-duplicated and stable-sorted by ConfigRepoID.
+// A generator that reads the control repository is returned like any other. An
+// anchor-scoped load selects the ApplicationSet through an ArgoCD marker but not
+// the config files beside it, because they need not mention any anchor, so
+// nothing else brings them in. Template-string generator repoURLs are skipped
+// because they cannot resolve to a concrete repository. Results are de-duplicated
+// and stable-sorted by ConfigRepoID.
 //
 // This is the resolution half of the two-phase per-commit backfill fact load
 // (issue #3570): phase one loads the ApplicationSet facts via the ArgoCD marker
@@ -56,15 +56,12 @@ func ResolveArgoCDGeneratorConfigRepos(
 	seen := make(map[string]struct{})
 	refs := make([]ArgoCDGeneratorConfigRef, 0)
 
-	add := func(controlRepoID, generatorRepoURL string) {
+	add := func(generatorRepoURL string) {
 		generatorRepoURL = strings.TrimSpace(generatorRepoURL)
 		if generatorRepoURL == "" || isArgoTemplateString(generatorRepoURL) {
 			return
 		}
 		for _, configRepo := range matchingCatalogEntries(generatorRepoURL, matcher) {
-			if configRepo.RepoID == controlRepoID {
-				continue
-			}
 			if _, ok := seen[configRepo.RepoID]; ok {
 				continue
 			}
@@ -75,7 +72,6 @@ func ResolveArgoCDGeneratorConfigRepos(
 
 	for i := range envelopes {
 		envelope := envelopes[i]
-		controlRepoID := sourceRepositoryIDFromEnvelope(envelope)
 
 		// envelope.Payload["parsed_file_data"] is read raw here deliberately
 		// (not through factschema.DecodeCodegraphFile): this is a
@@ -86,7 +82,7 @@ func ResolveArgoCDGeneratorConfigRepos(
 		// #5445 slice 1) -- see structuredApplicationSetGeneratorRepos below.
 		if parsedFileData, ok := envelope.Payload["parsed_file_data"].(map[string]any); ok {
 			for _, generatorRepoURL := range structuredApplicationSetGeneratorRepos(parsedFileData) {
-				add(controlRepoID, generatorRepoURL)
+				add(generatorRepoURL)
 			}
 		}
 
@@ -96,7 +92,7 @@ func ResolveArgoCDGeneratorConfigRepos(
 		}
 		for _, document := range parseYAMLDocuments(content) {
 			for _, target := range argocdApplicationSetDiscoveryTargets(document) {
-				add(controlRepoID, target.repoURL)
+				add(target.repoURL)
 			}
 		}
 	}

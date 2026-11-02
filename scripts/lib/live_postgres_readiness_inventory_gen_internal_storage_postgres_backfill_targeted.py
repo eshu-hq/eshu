@@ -9,6 +9,8 @@ TABLE = {
     "./internal/storage/postgres/backfill/targeted": {
         "go/internal/storage/postgres/backfill/targeted/closure_theory_live_test.go": (
             "TestTheoryExactPartitionEvidenceClosure",
+            "TestAnchorScopedLoadKeepsOwedEvidenceOnPostgres",
+            "TestDeferredLoadKeepsEvidenceOnPostgres",
         ),
         "go/internal/storage/postgres/backfill/targeted/differential_live_test.go": (
             "TestTargetedMaintenanceMatchesWholePass",

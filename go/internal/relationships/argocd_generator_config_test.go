@@ -86,16 +86,20 @@ func TestResolveArgoCDGeneratorConfigReposFromStructured(t *testing.T) {
 	}
 }
 
-func TestResolveArgoCDGeneratorConfigReposExcludesControlRepo(t *testing.T) {
+func TestResolveArgoCDGeneratorConfigReposIncludesControlRepo(t *testing.T) {
 	t.Parallel()
 
-	// A generator repoURL that resolves to the control repo itself must not be
-	// returned: discoverArgoCDDocumentEvidence skips configRepo == controlRepo, so
-	// the config file is the control repo's own file, already loaded.
-	envelopes := []facts.Envelope{
+	// A generator repoURL that resolves to the control repo itself must be
+	// returned. Discovery renders those files since #7778, and an anchor-scoped
+	// load selects the ApplicationSet by its marker without its config files.
+	// Each route has its own case: a row with both would hide a skip on either.
+	tests := []struct {
+		name    string
+		payload map[string]any
+	}{
 		{
-			ScopeID: "repo:control-plane",
-			Payload: map[string]any{
+			name: "content row",
+			payload: map[string]any{
 				"repo_id":       "repo:control-plane",
 				"artifact_type": "argocd",
 				"relative_path": "appset.yaml",
@@ -112,14 +116,36 @@ func TestResolveArgoCDGeneratorConfigReposExcludesControlRepo(t *testing.T) {
 					"        repoURL: '{{.path.basenameNormalized}}'\n",
 			},
 		},
+		{
+			name: "file row with no content",
+			payload: map[string]any{
+				"repo_id":       "repo:control-plane",
+				"relative_path": "appset.yaml",
+				"parsed_file_data": map[string]any{
+					"argocd_applicationsets": []any{map[string]any{
+						"name":                   "platform",
+						"generator_source_repos": "control-plane",
+						"generator_source_paths": "apps/*/config.yaml",
+						"template_source_repos":  "{{.service}}",
+					}},
+				},
+			},
+		},
 	}
-	catalog := []CatalogEntry{
-		{RepoID: "repo:control-plane", Aliases: []string{"control-plane"}},
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	refs := ResolveArgoCDGeneratorConfigRepos(envelopes, catalog)
-	if len(refs) != 0 {
-		t.Fatalf("expected no config repos (control repo excluded), got %v", sortedConfigRepoIDs(refs))
+			envelopes := []facts.Envelope{{ScopeID: "repo:control-plane", Payload: tt.payload}}
+			catalog := []CatalogEntry{
+				{RepoID: "repo:control-plane", Aliases: []string{"control-plane"}},
+			}
+
+			got := sortedConfigRepoIDs(ResolveArgoCDGeneratorConfigRepos(envelopes, catalog))
+			if want := []string{"repo:control-plane"}; !reflect.DeepEqual(got, want) {
+				t.Fatalf("config repo IDs = %v, want %v", got, want)
+			}
+		})
 	}
 }
 

@@ -52,8 +52,9 @@ import (
 // generation_id), so the reads never contend.
 //
 // Phase two (ArgoCD config-repo reload) runs once after the per-scope facts are
-// merged: an ApplicationSet's external git-generator config repo may live in any
-// scope, so it is resolved against the full merged fact set and the full catalog.
+// merged: an ApplicationSet's git-generator config repo, external or the control
+// repo itself (#7778), may live in any scope, so it is resolved against the full
+// merged fact set and the full catalog.
 //
 // The whole set of loaded facts is fed to relationships.DiscoverEvidence by the
 // caller, which applies the in-memory catalogMatcher (self-match drop on
@@ -404,13 +405,14 @@ func (s Store) loadDeferredScopedFactsForPartitions(
 	return merged, workers, nil
 }
 
-// AppendArgoCDGeneratorConfigFacts runs the deferred backfill's phase-two ArgoCD
-// config-repo reload over the merged per-scope facts. An ArgoCD ApplicationSet's
-// git generator references its deploy repo only through template parameters that
-// are not in the ApplicationSet fact's own payload, so the external config repo's
-// files are reloaded by repo_id and merged (de-duplicated by FactID) into the
-// loaded facts. The config catalog is the full catalog so a config repo not in
-// the anchor set is still resolvable.
+// AppendArgoCDGeneratorConfigFacts runs the deferred backfill's phase-two
+// ArgoCD config-repo reload over the merged per-scope facts. An ArgoCD
+// ApplicationSet's git generator references its deploy repo only through
+// template parameters that are not in the ApplicationSet fact's own payload,
+// so the config repo's files, external or the control repo's own, are reloaded
+// by repo_id and merged (de-duplicated by FactID) into the loaded facts. The
+// config catalog is the full catalog so a config repo not in the anchor set is
+// still resolvable.
 func (s Store) AppendArgoCDGeneratorConfigFacts(
 	ctx context.Context,
 	queryer db.Queryer,

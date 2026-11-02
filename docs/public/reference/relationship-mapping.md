@@ -209,7 +209,10 @@ control repository (`ARGOCD_APPLICATIONSET_TEMPLATE_SOURCE`, 0.95), with
 the control repository as the config repository and carry no
 `self_reference` flag: the template source is a third repository the control
 repository deploys, not the generator's own config repository. A template
-source that resolves to the control repository itself stays skipped.
+source that resolves to the control repository itself stays skipped. Scoped
+relationship loads reload the control repository's config files the way they
+reload any other config repository's, so these edges do not depend on a
+fleet-wide load.
 
 ## Terraform State MATCHES_STATE Edge Existence
 

@@ -14,6 +14,29 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
+// jsonbTextSim renders compact JSON the way Postgres prints jsonb: one space after
+// every colon and comma outside a string. The SQL predicate tests that text, so a
+// marker spelled for it has to be tested against it; the live proofs in the
+// postgres packages pin the spelling on a real server.
+func jsonbTextSim(compact []byte) string {
+	var text strings.Builder
+	inString, escaped := false, false
+	for _, char := range string(compact) {
+		text.WriteRune(char)
+		switch {
+		case escaped:
+			escaped = false
+		case inString && char == '\\':
+			escaped = true
+		case char == '"':
+			inString = !inString
+		case !inString && (char == ':' || char == ','):
+			text.WriteByte(' ')
+		}
+	}
+	return text.String()
+}
+
 // payloadMatchesAnchorsSim mirrors the SQL predicate
 // lower(payload::text) LIKE ANY('%anchor%') the scoped fact load uses, by
 // marshaling the envelope payload to JSON (the same shape Postgres stores in the
@@ -26,7 +49,7 @@ func payloadMatchesAnchorsSim(t *testing.T, envelope facts.Envelope, anchors []s
 	if err != nil {
 		t.Fatalf("marshal payload: %v", err)
 	}
-	text := strings.ToLower(string(raw))
+	text := strings.ToLower(jsonbTextSim(raw))
 	for _, anchor := range anchors {
 		anchor = strings.ToLower(strings.TrimSpace(anchor))
 		if anchor == "" {
@@ -37,19 +60,6 @@ func payloadMatchesAnchorsSim(t *testing.T, envelope facts.Envelope, anchors []s
 		}
 	}
 	return false
-}
-
-// argoCDOverSelectMarkersSim mirrors argoCDOverSelectAnchors in the postgres
-// package: the lowercase payload markers that force ArgoCD-shaped facts into the
-// scoped load unconditionally. Kept in sync by the superset test, which asserts
-// the ArgoCD fact is selected via one of these markers rather than an alias.
-var argoCDOverSelectMarkersSim = []string{
-	"kind: application",
-	"kind: applicationset",
-	"argocd_applications",
-	"argocd_applicationsets",
-	`"artifact_type":"argocd"`,
-	`"artifact_type": "argocd"`,
 }
 
 // supersetFixture is one extractor's matching content/file/gcp fact plus the
@@ -244,7 +254,7 @@ func TestCatalogPayloadAnchorsSelectsEveryExtractorFamily(t *testing.T) {
 			t.Parallel()
 
 			anchors := CatalogPayloadAnchors([]CatalogEntry{fixture.catalog})
-			combined := append(append([]string(nil), anchors...), argoCDOverSelectMarkersSim...)
+			combined := append(append([]string(nil), anchors...), UnconditionalPayloadMarkers()...)
 
 			if !payloadMatchesAnchorsSim(t, fixture.envelope, combined) {
 				t.Fatalf("fixture %q not selected by anchors %v", fixture.name, combined)
@@ -252,7 +262,7 @@ func TestCatalogPayloadAnchorsSelectsEveryExtractorFamily(t *testing.T) {
 
 			// Confirm the selection mechanism matches the documented contract.
 			aliasSelected := payloadMatchesAnchorsSim(t, fixture.envelope, anchors)
-			markerSelected := payloadMatchesAnchorsSim(t, fixture.envelope, argoCDOverSelectMarkersSim)
+			markerSelected := payloadMatchesAnchorsSim(t, fixture.envelope, UnconditionalPayloadMarkers())
 			switch {
 			case fixture.argoCDOnly:
 				if !markerSelected {
@@ -410,7 +420,7 @@ func backfillRelationshipAnchorTermsSim(catalog []CatalogEntry) []string {
 	if len(anchors) == 0 {
 		return nil
 	}
-	return append(append([]string(nil), anchors...), argoCDOverSelectMarkersSim...)
+	return append(append([]string(nil), anchors...), UnconditionalPayloadMarkers()...)
 }
 
 // canonicalEvidence returns a stable, comparable projection of evidence facts
