@@ -8,6 +8,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -53,6 +54,28 @@ func adminSignInPolicyRequest(body string) *http.Request {
 	return req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
 		Mode: AuthModeBrowserSession, AllScopes: true, TenantID: "tenant_a",
 	}))
+}
+
+func TestAdminSignInPolicyUpdateNilStoreReturns503(t *testing.T) {
+	t.Parallel()
+
+	audit := &fakeSignInPolicyAudit{}
+	handler := &SignInPolicyMutationHandler{Audit: audit}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, adminSignInPolicyRequest(`{}`))
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want %d: %s", rec.Code, http.StatusServiceUnavailable, rec.Body.String())
+	}
+	if got := rec.Body.String(); !strings.Contains(got, "sign-in policy store is unavailable") {
+		t.Fatalf("body = %q, want it to name the unavailable sign-in policy store", got)
+	}
+	if len(audit.events) != 1 || audit.events[0].Decision != governanceaudit.DecisionDenied {
+		t.Fatalf("audit events = %#v, want exactly one denied event", audit.events)
+	}
 }
 
 func TestAdminSignInPolicyUpdateRequiresAllScopeAdmin(t *testing.T) {
