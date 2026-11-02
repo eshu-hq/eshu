@@ -199,10 +199,12 @@ surfaces:
     docs: [reference/collector-reducer-readiness.md]
     notes: >-
       The in-tree producer (go/cmd/scanner-worker,
-      go/internal/collector/scannerworker) was removed after the satellite
-      cutover (#8878); collection runs from eshu-hq/eshu-scanner-worker
-      while the coordinator still plans scanner_worker claims and the
-      reducer/query surfaces still serve the fact kinds.
+      go/internal/collector/scannerworker) was removed from eshu in #9741
+      (#8878); the pinned scanner images were built from eshu commit
+      a371d1e21f and the port of their sources into
+      eshu-hq/eshu-scanner-worker is in progress (#8878 box 10), while the
+      coordinator still plans scanner_worker claims and the reducer/query
+      surfaces still serve the fact kinds.
     collector_contract:
       fact_kinds: [scanner_worker.analysis, scanner_worker.warning]
       projection_surfaces: [sbom_attestation_attachment, supply_chain_impact]

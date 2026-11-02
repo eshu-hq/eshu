@@ -45,7 +45,7 @@ if [[ "$(yq -r '.env.CI_BUILDKIT_IMAGE // ""' .github/workflows/docker-publish.y
   failures=$((failures + 1))
 fi
 # Three Buildx setups: the main image, tag-promotion, and reproducibility jobs
-# (the scanner-images publish job moved to the satellite with #8878). Every
+# (the scanner-images publish job was removed with #9741; the port is #8878 box 10). Every
 # one must pin the canonical mirror image; the count pins against a silent
 # fourth.
 builders="$(yq -o=json '.jobs' .github/workflows/docker-publish.yml | jq '[.[] | .steps[]? | select(.uses == "docker/setup-buildx-action@v3")]')"

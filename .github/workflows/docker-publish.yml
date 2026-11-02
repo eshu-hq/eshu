@@ -309,8 +309,9 @@ jobs:
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'verify-reproducibility')) && ((github.event_name != 'workflow_dispatch' || inputs.mode == 'release') && needs.changes.outputs.image == 'true') }}
     env:
       LANE_APPLIES: ${{ needs.changes.outputs.image }}
-    # The scanner destination builds moved to the eshu-scanner-worker
-    # satellite with #8878: this job builds only the runtime image twice
+    # The scanner destination builds were removed from eshu with #9741; the
+    # port into eshu-scanner-worker is in progress (#8878 box 10). This job
+    # builds only the runtime image twice
     # (first build + second no-cache build + compare). 60 leaves margin over
     # the measured need.
     timeout-minutes: 60

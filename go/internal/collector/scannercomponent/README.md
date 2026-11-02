@@ -6,8 +6,10 @@
 the component-admission contract after the #8878 in-tree scanner removal.
 The coordinator planner and the component admission callers both import this
 package; they never import each other. Execution (claim input, analyzers,
-runners, paging, seeding) lives in the `eshu-hq/eshu-scanner-worker`
-satellite; this package never executes an analyzer.
+runners, paging, seeding) is not in this tree. Execution sources were removed
+from eshu in #9741; the pinned images were built from eshu commit
+`a371d1e21f`; the destination port into `eshu-hq/eshu-scanner-worker` is in
+progress (#8878 box 10). This package never executes an analyzer.
 
 ## Ownership boundary
 
@@ -17,7 +19,7 @@ seeded-artifact admission check (`VerifySeededArtifact`). It never touches
 Postgres, the graph, the reducer, or the API/MCP surfaces, and it invents no
 protocol: manifests speak the v1alpha3 shape the host already decodes.
 
-It does not own claim planning (coordinator), claim execution (satellite),
+It does not own claim planning (coordinator), claim execution (the seeded scanner components),
 finding admission (reducer), or grant minting (the `eshu component grant`
 activation flow defines lifetimes).
 
@@ -56,7 +58,7 @@ status writers keep the exact values pinned here.
   degraded-path warnings, or the host rejects real output at admission.
 - The digest pins, the `Scanner-Publish-SHA` anchor, and the chart
   `seed.image` entries move together in a reviewed follow-up PR after any
-  satellite republish; the publish workflow never auto-updates this package.
+  republish of the scanner images; the publish workflow never auto-updates this package.
 - No SDK vocabulary is published from here. An SDK addition is a separate
   versioned contract change.
 
