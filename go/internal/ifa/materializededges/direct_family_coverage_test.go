@@ -151,6 +151,7 @@ var guardedDirectMaterializedEdgeFamilies = []guardedDirectFamily{
 		Family:          cloudResourceFamily,
 		OduName:         ifa.CloudResourceFamilyOduName,
 		PredicateScoped: true,
+		LiveProven:      true,
 	},
 	{
 		Family:    securityGroupSGRuleFamily,

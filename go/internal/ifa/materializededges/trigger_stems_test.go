@@ -165,6 +165,11 @@ var materializedEdgeFamilyTriggerStems = map[string]string{
 	// live leaf: same stem shape, read off the fault cells file
 	// (scripts/lib/ifa_fault_injection_publishes_cells.sh),
 	"publishes": "publishes",
+	// cloud_resource joins them with the #6228 cloud_resource live
+	// leaf: same stem shape, read off the fault cells file
+	// (scripts/lib/ifa_fault_injection_cloud_resource_cells.sh), the
+	// determinism drive/assert file, and the Odù the triggers name.
+	"cloud_resource": "cloud_resource",
 }
 
 // TestEveryCoveredFamilyTriggersBothLiveGates closes the third side of the

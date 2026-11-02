@@ -38,7 +38,7 @@
 # fails in blocking mode. Waivers are per (surface, proof_gate), never per
 # family: waiving the fault gate does not grant credit to the baseline gate.
 #
-# ALL BUT THREE FAMILIES BELOW ARE WAIVED, AND THAT IS THE HONEST STATE. A
+# ALL BUT TWENTY FAMILIES BELOW ARE WAIVED, AND THAT IS THE HONEST STATE. A
 # coverage row here has to satisfy all four of the sibling manifest's
 # conditions: a cataloged Odù, a vacuity guard registered in
 # MaterializedEdgeOduResolver, a hand-derived expected-edge-set fixture naming
@@ -48,14 +48,14 @@
 # mistake commit 42e188ba1 made for documentation_edges and had to withdraw; it
 # is not repeated here.
 #
-# EIGHTEEN OF THEM NOW HAVE ALL FOUR. kubernetes_namespace_environment,
+# TWENTY OF THEM NOW HAVE ALL FOUR. kubernetes_namespace_environment,
 # iam_instance_profile_role, iam_can_assume, iam_can_perform,
 # ec2_uses_profile, s3_logs_to, iam_escalation, authenticates_vault_role,
 # uses_vault_policy, grants_secret_read, built_from,
 # cloud_resource_container_image,
 # crossplane_satisfied_by, derived_from, code_interproc_evidence,
 # code_taint_evidence, observability_coverage, and incident_routing_evidence
-# code_taint_evidence, observability_coverage, and publishes
+# code_taint_evidence, observability_coverage, publishes, and cloud_resource
 # each carry a cataloged Odù, a registered
 # edge-type set, a vacuity guard dispatched from MaterializedEdgeOduResolver,
 # a hand-derived expected-edge-set fixture their guard reproduces exactly,
@@ -70,7 +70,8 @@
 # incident_routing_evidence, the grants_secret_read remainder full build
 # (with the #8539 per-statement hold kill cell) for grants_secret_read,
 # and the publishes live leaf for
-# publishes -- live
+# publishes, and the cloud_resource live leaf for
+# cloud_resource -- live
 # ifa-determinism AND
 # ifa-fault-injection
 # matrices driving the family
@@ -117,11 +118,17 @@
 # arbiter verdict (a) further settled its cell design — shared N={1,2,4}
 # cell, fixture-repo-scoped exact set, registry row 22 — so it stays waived
 # pending the first live drive, not pending a decision).
-# cloud_resource stays UNCOVERED by design as the sole genuinely open family:
+# cloud_resource was UNCOVERED by design as the sole genuinely open family:
 # the #8358 route-2 predicate-scoped assert-edges scan, Odu, expected-edge-set
-# fixture, predicate registration, and live-matrix wiring have landed, but no
-# live matrix has driven it yet, so its waiver rows stand until that proof
-# lands; registering an observed-type list is rejected. CORRECTION to the old
+# fixture, predicate registration, and live-matrix wiring had landed, but no
+# live matrix had driven it yet. The #6228 cloud_resource live leaf drove it:
+# N={1,2,4} determinism cells with identical digests plus the
+# baseline/kill-worker/fail-graph-write trio with recovery byte-identical to
+# baseline, all on pinned Neo4j asserting the four-edge exact set -- so its
+# coverage rows stand and the waivers retire. The determinism cells drove
+# the cloud cassette only (sibling families are their own lanes' proof).
+# Registering an observed-type
+# list stays rejected: the vocabulary remains open by design. CORRECTION to the old
 # prose this replaces: only cloud_resource has
 # an open vocabulary. observability_coverage (5 closed AWS_COVERS_* types) and
 # security_group_sg_rule (ALLOWS_INGRESS|ALLOWS_EGRESS) are closed and screened
@@ -456,6 +463,26 @@ coverage:
     scenario_type: fault
     ref: "odu:ifa-publishes-family"
     proof_gate: ifa-fault-injection
+  # cloud_resource: fault-free baseline plus kill-worker and
+  # fail-graph-write recovery, all asserting the four-edge predicate exact
+  # set with identical graph digests (#6228 cloud_resource live leaf, pinned
+  # Neo4j). Two AWS verbs off one Lambda (the duplicate
+  # lambda_function_uses_execution_role fact dedups; the never-scanned subnet
+  # target and the self-loop produce nothing), one supported GCP relationship
+  # (the partial and the unsupported-target relationships produce nothing),
+  # and one Azure managed_by (depends_on is screened out by Azure's closed
+  # vocabulary). Types are the writers' prefix consts + verb, each edge
+  # carrying its writer's evidence_source stamp.
+  - surface: "materialized_edges:cloud_resource"
+    scenario: odu
+    scenario_type: baseline
+    ref: "odu:ifa-cloud-resource-family"
+    proof_gate: ifa-determinism
+  - surface: "materialized_edges:cloud_resource"
+    scenario: odu
+    scenario_type: fault
+    ref: "odu:ifa-cloud-resource-family"
+    proof_gate: ifa-fault-injection
 
 waivers:
   - surface: "materialized_edges:assumes_iam_role"
@@ -468,16 +495,6 @@ waivers:
     issue: "#6228"
     waived: "2026-08-23"
     reason: "WriteAssumesIAMRoleEdges -> cypher/secrets_iam_graph_writer.go merges SECRETS_IAM_ASSUMES_IAM_ROLE; DEFERRED 2026-09-27, will not be wired: the sole production writer path is DomainSecretsIAMGraphProjection, which stays unregistered unless ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED is set (ADR #1314 keeps repo/chart/operator defaults OFF). If wired later: collector-only cassette plus the full trust-chain -> graph-projection chain in one reducer with the flag on for that cell only; never reducer facts in a cassette, which bypass the analyzer that decides exact vs partial chains"
-  - surface: "materialized_edges:cloud_resource"
-    proof_gate: ifa-determinism
-    issue: "#6228"
-    waived: "2026-08-23"
-    reason: "WriteCloudResourceEdges -> cypher/cloud/{resource/edge_writer,azure/relationship/azure_cloud_resource_edge_writer,gcp/relationship/gcp_cloud_resource_edge_writer}.go merges a per-row <PREFIX>_<relationship_type> from an OPEN per-provider vocabulary; split verdict D: UNCOVERED by design as the sole genuinely open family (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Route 2 (#8358) landed the predicate-scoped scan, Odu, expected-edge-set fixture, predicate registration, and matrix wiring; registering an observed-type list is rejected. Stays waived: no live matrix has driven it yet"
-  - surface: "materialized_edges:cloud_resource"
-    proof_gate: ifa-fault-injection
-    issue: "#6228"
-    waived: "2026-08-23"
-    reason: "WriteCloudResourceEdges -> cypher/cloud/{resource/edge_writer,azure/relationship/azure_cloud_resource_edge_writer,gcp/relationship/gcp_cloud_resource_edge_writer}.go merges a per-row <PREFIX>_<relationship_type> from an OPEN per-provider vocabulary; split verdict D: UNCOVERED by design as the sole genuinely open family (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Route 2 (#8358) landed the predicate-scoped scan, Odu, expected-edge-set fixture, predicate registration, and matrix wiring; registering an observed-type list is rejected. Stays waived: no live matrix has driven it yet"
   - surface: "materialized_edges:kubernetes_correlation"
     proof_gate: ifa-determinism
     issue: "#6228"
