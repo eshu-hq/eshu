@@ -206,13 +206,13 @@ func (loaded supplyChainImpactLoadedEvidence) evidenceEnvelopeCount() int {
 
 func buildAuthorizedSupplyChainImpactFindings(
 	loaded supplyChainImpactLoadedEvidence,
-) ([]SupplyChainImpactFinding, []factdecode.QuarantinedFact, int, error) {
-	staticFindings, quarantined, negatedProductsExcluded, err := buildSupplyChainImpactFindingsAndExclusions(loaded.envelopes)
+) ([]SupplyChainImpactFinding, []factdecode.QuarantinedFact, supplyChainImpactBuildStats, error) {
+	staticFindings, quarantined, stats, err := buildSupplyChainImpactFindingsAndExclusions(loaded.envelopes)
 	if err != nil || loaded.asAuthorized == nil {
-		return staticFindings, quarantined, negatedProductsExcluded, err
+		return staticFindings, quarantined, stats, err
 	}
 	findings, targetQuarantined, err := buildAuthorizedScanImpactFindingsWithQuarantine(
 		staticFindings, loaded.asAuthorized.Targets,
 	)
-	return findings, append(quarantined, targetQuarantined...), negatedProductsExcluded, err
+	return findings, append(quarantined, targetQuarantined...), stats, err
 }

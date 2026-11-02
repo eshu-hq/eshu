@@ -6,10 +6,15 @@ package core
 import (
 	"context"
 	"sort"
+	"strings"
+
+	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
+	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // osPackageAdvisoryFactLoader loads active installed OS package advisory
@@ -148,4 +153,135 @@ func sortedKeys(set map[string]struct{}) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// OS advisory join outcome label values for
+// eshu_dp_supply_chain_impact_os_advisory_joins_total. They are the closed set
+// of the outcome label.
+const (
+	osAdvisoryJoinOutcomeJoined    = "joined"
+	osAdvisoryJoinOutcomeNotJoined = "not_joined"
+)
+
+// osAdvisoryJoinKey is one (vendor, outcome) cell. vendor is the closed set
+// debian, ubuntu, alpine, other.
+type osAdvisoryJoinKey struct {
+	vendor  string
+	outcome string
+}
+
+// supplyChainImpactBuildStats carries the counts the findings builder
+// reports beside its findings.
+type supplyChainImpactBuildStats struct {
+	// negatedProductsExcluded counts NVD CPE matches left out as negated.
+	negatedProductsExcluded int
+	// osAdvisoryJoins counts the OS advisory facts the pass loaded, by
+	// vendor and by whether any installed os_package row joined them. A
+	// vendor with loaded advisories and zero joins is the #9848 failure
+	// shape: facts present, findings silently absent.
+	osAdvisoryJoins map[osAdvisoryJoinKey]int
+}
+
+// osAdvisoriesConsidered returns how many OS advisory facts the pass loaded.
+func (s supplyChainImpactBuildStats) osAdvisoriesConsidered() int {
+	total := 0
+	for _, count := range s.osAdvisoryJoins {
+		total += count
+	}
+	return total
+}
+
+// osAdvisoriesJoined returns how many loaded OS advisory facts joined an
+// installed row.
+func (s supplyChainImpactBuildStats) osAdvisoriesJoined() int {
+	total := 0
+	for key, count := range s.osAdvisoryJoins {
+		if key.outcome == osAdvisoryJoinOutcomeJoined {
+			total += count
+		}
+	}
+	return total
+}
+
+// countOSAdvisoryJoins counts every OS affected fact in the index (ecosystem
+// os, or a deb/apk/rpm purl) that has an advisory source, by vendor and by
+// whether firstOSPackageImpactPath finds an installed row for it. It runs the
+// same join the classifier runs, so a join defect shows as not_joined.
+func countOSAdvisoryJoins(index supplyChainImpactIndex) map[osAdvisoryJoinKey]int {
+	var out map[osAdvisoryJoinKey]int
+	for _, pkgs := range index.affectedPackages {
+		for _, pkg := range pkgs {
+			if !isOSAffectedPackage(pkg.Ecosystem, pkg.PURL) {
+				continue
+			}
+			vendor := classifyAffectedPackageAdvisorySource(pkg)
+			if vendor == "" {
+				continue
+			}
+			outcome := osAdvisoryJoinOutcomeNotJoined
+			if _, ok := firstOSPackageImpactPath(pkg, index); ok {
+				outcome = osAdvisoryJoinOutcomeJoined
+			}
+			if out == nil {
+				out = make(map[osAdvisoryJoinKey]int, 2)
+			}
+			out[osAdvisoryJoinKey{vendor: osAdvisoryJoinVendorLabel(vendor), outcome: outcome}]++
+		}
+	}
+	return out
+}
+
+func isOSAffectedPackage(ecosystem string, purl string) bool {
+	if packageidentity.LowerASCII(strings.TrimSpace(ecosystem)) == string(packageidentity.EcosystemOS) {
+		return true
+	}
+	return osPackageFamilyFromPURL(purl) != ""
+}
+
+// osAdvisoryJoinVendorLabel bounds the vendor label to a closed set.
+func osAdvisoryJoinVendorLabel(vendor string) string {
+	switch vendor {
+	case "debian", "ubuntu", "alpine":
+		return vendor
+	default:
+		return "other"
+	}
+}
+
+// emitOSAdvisoryJoins records one counter point per non-zero (vendor,
+// outcome) cell.
+func (h SupplyChainImpactHandler) emitOSAdvisoryJoins(ctx context.Context, joins map[osAdvisoryJoinKey]int) {
+	if h.Instruments == nil || h.Instruments.SupplyChainImpactOSAdvisoryJoins == nil {
+		return
+	}
+	for key, count := range joins {
+		if count == 0 {
+			continue
+		}
+		h.Instruments.SupplyChainImpactOSAdvisoryJoins.Add(ctx, int64(count), metric.WithAttributes(
+			telemetry.AttrSource(key.vendor),
+			telemetry.AttrOutcome(key.outcome),
+		))
+	}
+}
+
+// osAdvisoriesConsideredSubSignal and osAdvisoriesJoinedSubSignal are the
+// Result.SubSignals keys for the OS advisory join counts; both are 0 on a
+// pass with no OS advisory so a clean pass is visible (#9848).
+const (
+	osAdvisoriesConsideredSubSignal = "os_advisories_considered"
+	osAdvisoriesJoinedSubSignal     = "os_advisories_joined"
+)
+
+// recordBuildStats emits the OS advisory join counter and writes the build
+// counts into the pass's result sub-signals.
+func (h SupplyChainImpactHandler) recordBuildStats(
+	ctx context.Context,
+	stats supplyChainImpactBuildStats,
+	subSignals map[string]float64,
+) {
+	h.emitOSAdvisoryJoins(ctx, stats.osAdvisoryJoins)
+	subSignals[negatedProductsExcludedSubSignal] = float64(stats.negatedProductsExcluded)
+	subSignals[osAdvisoriesConsideredSubSignal] = float64(stats.osAdvisoriesConsidered())
+	subSignals[osAdvisoriesJoinedSubSignal] = float64(stats.osAdvisoriesJoined())
 }

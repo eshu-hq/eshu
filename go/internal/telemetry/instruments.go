@@ -1014,6 +1014,12 @@ type Instruments struct {
 	ValueFlowRefreshGateEvaluations metric.Int64Counter
 	SBOMAttestationAttachments      metric.Int64Counter
 	SupplyChainImpactFindings       metric.Int64Counter
+	// SupplyChainImpactOSAdvisoryJoins counts the OS advisory facts a
+	// supply-chain impact pass loaded, labeled source (debian, ubuntu,
+	// alpine, other) and outcome (joined, not_joined): whether any installed
+	// os_package row of that vendor joined the fact (#9848). Loaded with zero
+	// joined is a join defect or a fleet without that vendor's packages.
+	SupplyChainImpactOSAdvisoryJoins metric.Int64Counter
 	// SupplyChainImpactFindingsRetracted counts prior supply-chain impact
 	// finding rows a reducer pass tombstoned because its complete finding set
 	// for the (scope, generation) no longer derives them (#6831) -- for
@@ -4664,6 +4670,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SupplyChainImpactFindings counter: %w", err)
+	}
+
+	inst.SupplyChainImpactOSAdvisoryJoins, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_os_advisory_joins_total",
+		metric.WithDescription("OS advisory facts a supply-chain impact pass loaded, by source (debian, ubuntu, alpine, other) and outcome (joined, not_joined): whether any installed os_package row of that vendor joined the fact. A source with not_joined and no joined over time means advisories load but no host matches them."),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SupplyChainImpactOSAdvisoryJoins counter: %w", err)
 	}
 
 	inst.SupplyChainImpactFindingsRetracted, err = meter.Int64Counter(

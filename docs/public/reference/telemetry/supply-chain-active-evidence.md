@@ -73,3 +73,26 @@ names the scope and is the exact source.
 The success line also carries `sub_signal_evidence_partial` (1 when the pass
 did not retract) and `sub_signal_evidence_budget_ratio`, so a log search can
 count partial passes directly.
+
+## OS advisory joins
+
+An OS distribution advisory (Debian, Ubuntu, Alpine) becomes a finding only
+when its package key meets an installed `os_package` row from an image scan.
+A loaded advisory that meets no row produces nothing, so a broken join looks
+the same as a fleet with nothing affected. Before #9848 that is what happened:
+every OSV advisory with a versionless, qualified purl (all Debian and Alpine
+records, and many Ubuntu ones) missed, because that purl never equalled the
+installed row's key. One counter separates loaded from joined:
+
+| Metric | Type | Key labels | Use |
+| --- | --- | --- | --- |
+| `eshu_dp_supply_chain_impact_os_advisory_joins_total` | counter | `source` (`debian`, `ubuntu`, `alpine`, `other`), `outcome` (`joined`, `not_joined`) | One increment per OS advisory package entry per pass. `joined` means at least one installed row of that vendor and package met it. A vendor whose `not_joined` rate climbs while `joined` stays at zero, on a fleet that runs that vendor's images, means the advisory key and the installed key have drifted apart again. |
+
+Registry advisories (npm, PyPI, Go, and so on) are not counted. An advisory
+that meets no row is normal for a package the fleet does not install, so read
+the ratio per vendor, not the raw `not_joined` count.
+
+The success line carries the same totals for one pass as the
+`os_advisories_considered` and `os_advisories_joined` sub-signals, written even
+when zero. `os_advisories_considered` above zero with `os_advisories_joined` at
+zero is the "loaded, none joined" shape.

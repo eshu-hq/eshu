@@ -287,7 +287,7 @@ func classifySupplyChainImpactPackage(
 		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing, reachabilityMissing, reconciliationMissing)
 		return finding
 	}
-	if hasOSPackage && versionDecision.Status == SupplyChainImpactAffectedExact {
+	if hasOSPackage && osPackageSettlesFinding(versionDecision, hasComponentPath) {
 		applySupplyChainVersionDecision(&finding, versionDecision)
 		finding.RuntimeReachability = "image_os_package"
 		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, reconciliationMissing)

@@ -5,6 +5,7 @@ package postgres_test
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -228,8 +229,29 @@ FROM generate_series(1, 300000) AS n`, cappedScanScope, cappedScanGeneration, re
 	if _, err := conn.ExecContext(ctx, `PREPARE os_narrowed AS `+postgres.ListOSPackageAdvisoryTargetsForPackagesQueryForTest()); err != nil {
 		t.Fatalf("prepare narrowed query: %v", err)
 	}
+	// The real advisory key set (#9848): affectedOSPackageLookupKeys sends
+	// os://<vendor>/<name> and the advisory purl's pkg:<type>/<vendor>/<name>
+	// for every OS advisory. The os:// form never meets split_part(purl, '@', 1)
+	// but rides in the same array. pkg-0007 and pkg-5000 each name exactly one
+	// seeded row: lpad truncates n >= 10000 to its first four digits, so a name
+	// below pkg-5000 such as pkg-1100 also names rows 11000-11009.
+	const realKeys = `'{os://debian/pkg-0007,os://debian/pkg-5000,pkg:deb/debian/pkg-0007,pkg:deb/debian/pkg-5000}'`
+	for _, tc := range []struct {
+		keys string
+		want int
+	}{
+		{realKeys, 2},
+		// The key the advisory side sent before #9848: the versionless OSV purl
+		// with its qualifiers, which no installed row's prefix equals.
+		{`'{os://debian/pkg-0007,pkg:deb/debian/pkg-0007?arch=source&distro=bookworm}'`, 0},
+	} {
+		got := countNarrowedRows(ctx, t, conn, tc.keys)
+		if got != tc.want {
+			t.Fatalf("narrowed query with keys %s returned %d rows, want %d", tc.keys, got, tc.want)
+		}
+	}
 	rows, err := conn.QueryContext(ctx,
-		`EXPLAIN (ANALYZE, BUFFERS, COSTS OFF) EXECUTE os_narrowed('{pkg:deb/debian/pkg-0007,pkg:deb/debian/pkg-1100}', '', 500, '{debian}')`)
+		`EXPLAIN (ANALYZE, BUFFERS, COSTS OFF) EXECUTE os_narrowed(`+realKeys+`, '', 500, '{debian}')`)
 	if err != nil {
 		t.Fatalf("explain: %v", err)
 	}
@@ -243,12 +265,32 @@ FROM generate_series(1, 300000) AS n`, cappedScanScope, cappedScanGeneration, re
 		plan = append(plan, line)
 	}
 	text := strings.Join(plan, "\n")
+	t.Logf("narrowed query plan at 50,000 rows with the real key set:\n%s", text)
 	if !strings.Contains(text, "fact_records_os_package_purl_prefix_idx") {
 		t.Fatalf("the narrowed query does not use the expression index at 50,000 rows:\n%s", text)
 	}
 	if strings.Contains(text, "Seq Scan on fact_records") {
 		t.Fatalf("the narrowed query scans fact_records sequentially:\n%s", text)
 	}
+}
+
+// countNarrowedRows executes the prepared os_narrowed statement for one key
+// array literal and counts the rows it returns.
+func countNarrowedRows(ctx context.Context, t *testing.T, conn *sql.Conn, keys string) int {
+	t.Helper()
+	rows, err := conn.QueryContext(ctx, `EXECUTE os_narrowed(`+keys+`, '', 500, '{debian}')`)
+	if err != nil {
+		t.Fatalf("execute narrowed query %s: %v", keys, err)
+	}
+	defer func() { _ = rows.Close() }()
+	count := 0
+	for rows.Next() {
+		count++
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("read narrowed rows %s: %v", keys, err)
+	}
+	return count
 }
 
 // flipAfterFirstPageDB wraps a database so that after the first page statement
