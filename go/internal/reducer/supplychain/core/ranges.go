@@ -105,6 +105,11 @@ func npmLineFixFor(observed string, pkgs []supplychainmodel.AffectedPackage) npm
 	var out npmLineFix
 	var nearestLastAffected string
 	for _, pkg := range pkgs {
+		if emptyAffectedPackage(pkg) {
+			// A second source's entry with no range, version, or raw range says
+			// nothing the matcher can read, so it may hide the observed version.
+			out.unverifiedRange = true
+		}
 		for _, affectedRange := range pkg.AffectedRanges {
 			if !strings.EqualFold(affectedRange.Kind, "SEMVER") {
 				out.unverifiedRange = true
@@ -156,12 +161,28 @@ func npmLineFixFor(observed string, pkgs []supplychainmodel.AffectedPackage) npm
 	return out
 }
 
+// emptyAffectedPackage reports whether the entry holds no typed range, no
+// non-blank exact version, and no raw range expression.
+func emptyAffectedPackage(pkg supplychainmodel.AffectedPackage) bool {
+	if len(pkg.AffectedRanges) > 0 || strings.TrimSpace(pkg.AffectedRangeRaw) != "" {
+		return false
+	}
+	for _, version := range pkg.AffectedVersions {
+		if strings.TrimSpace(version) != "" {
+			return false
+		}
+	}
+	return true
+}
+
 // eventsAscending reports whether the version-bearing events (introduced,
-// fixed, last_affected) are listed in non-decreasing version order. The second
+// fixed, last_affected) are listed in non-decreasing version order with no
+// introduced event tied to a terminator at the same version. The second
 // value is false when two events cannot be compared. Limit events carry no
 // range version and are not ordered.
 func eventsAscending(events []supplychainmodel.AffectedRangeEvent) (bool, bool) {
 	previous := ""
+	previousOpens := false
 	for _, event := range events {
 		current := event.Introduced
 		if current == "" {
@@ -173,16 +194,20 @@ func eventsAscending(events []supplychainmodel.AffectedRangeEvent) (bool, bool) 
 		if current == "" {
 			continue
 		}
+		opens := event.Introduced != ""
 		if previous != "" {
 			cmp, ok := compareOSVSemver(current, previous)
 			if !ok {
 				return false, false
 			}
-			if cmp < 0 {
+			// Equal versions are adjacent once the list is non-decreasing, so one
+			// introduced beside one terminator at the same version is caught here.
+			// OSV leaves that tie order undefined; the walks can disagree on it.
+			if cmp < 0 || (cmp == 0 && opens != previousOpens) {
 				return false, true
 			}
 		}
-		previous = current
+		previous, previousOpens = current, opens
 	}
 	return true, true
 }

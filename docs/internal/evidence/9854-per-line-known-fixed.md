@@ -26,7 +26,14 @@ SEMVER ranges, O(events):
 - The verdict also fails closed when any SEMVER range lists its events out of
   version order. Containment walks events in listed order, OSV sorts them
   first; a range such as `[introduced 2.0.0, fixed 2.5.0, introduced 0, fixed
-  1.5.0]` hides 2.2.0 from the listed-order walk.
+  1.5.0]` hides 2.2.0 from the listed-order walk. The same applies when one
+  range holds an introduced event and a fixed or last_affected event at the
+  same version: OSV leaves the tie order undefined, so the two walks can
+  disagree.
+- It fails closed when a package entry for the same PackageID holds no typed
+  range, no non-blank exact version, and no raw range (the blank Gemnasium
+  `affected_range` shape). The matcher cannot read what that source claims, so
+  another entry's Fixed event must not decide.
 - The nearest Fixed event at or below the observed version decides. A version
   below every introduced event has no such Fixed, so it stays
   `possibly_affected` (the 1.3% case in the QA sample).
@@ -68,17 +75,21 @@ NOT_CHECKED.
   `possibly_affected` for the multi-line shape.
 - `TestNPMPerLineKnownFixedFailsClosedOnUnevaluatedRanges` (review findings):
   an ECOSYSTEM range mixed into one entry, an ECOSYSTEM-only entry from a
-  second source, a GIT range, an unknown-kind range, and unsorted events, each
-  beside a SEMVER line whose Fixed is below the observed version. All six
-  read known-fixed before the guards and `possibly_affected` now.
+  second source, a GIT range, an unknown-kind range, unsorted events, an empty
+  same-package entry (nil, empty, and blank-only versions), and an introduced
+  and a fixed event at the same version in either order, each beside a SEMVER
+  line whose Fixed is below the observed version. All 11 read known-fixed
+  before the guards and `possibly_affected` now.
+  `TestNPMPerLineKnownFixedTieOrderStillReadsContainment` pins that
+  `[i 0, f 1.5.0, i 1.5.0, f 2.0.0]` at 1.5.0 still reads `affected_exact`.
 - `TestNPMPerLineKnownFixedParity`: 700 seeded random advisories times 90
   versions (63,000 rows). The generator draws one to three ranges of one or
   two introduced..terminator pairs, shuffles event order, labels ranges
   ECOSYSTEM or GIT, uses prerelease versions, and splits the ranges across one
   or two package entries. The oracle follows the OSV algorithm (events sorted,
   union over every range kind) on integer versions and shares no comparator
-  with the matcher. 5,659 rows flip `possibly_affected` to known-fixed, 0 rows
-  move any other way, no flip happens where OSV says affected or on an
+  with the matcher. 5,659 rows flip `possibly_affected` to known-fixed, 0 other
+  status moves, no flip happens where OSV says affected or on an
   advisory with a non-SEMVER or unsorted range, and on the 301 advisories the
   matcher may read, the flip set equals the oracle's nearest-Fixed policy. The
   other 399 advisories exercise the guards. Command: `go test ./internal/reducer/supplychain/core -run
@@ -91,7 +102,11 @@ NOT_CHECKED.
   `Parity` and `Decision`; dropping `closedLineRange` by `Decision` (2 rows);
   picking the farthest Fixed by `Parity` only; dropping the non-SEMVER guard
   by `FailsClosedOnUnevaluatedRanges` (4 rows) and `Parity`; dropping the
-  order guard by `FailsClosedOnUnevaluatedRanges` (1 row) and `Parity`.
+  order guard by `FailsClosedOnUnevaluatedRanges` (1 row) and `Parity`; dropping the
+  empty-entry guard by `FailsClosedOnUnevaluatedRanges` (3 rows); dropping the
+  same-version tie guard by `FailsClosedOnUnevaluatedRanges` (2 rows). The
+  parity generator draws strictly increasing versions and no empty entries, so
+  it does not exercise those last two guards.
 - Explanation: `TestBuildSupplyChainVersionExplanationNamesPassedLineFix`
   failed (4.1.1 and 5.0.0 named 3.14.2) before the headline change.
 - Golden surface: the only `possibly_affected` rows in
@@ -139,8 +154,14 @@ producer. The collector keeps source order. For `[introduced 2.0.0, fixed
 ends not affected because the trailing `fixed 1.5.0` resets it; OSV says
 affected. Before #9854 that error landed on `possibly_affected`; this change
 guards the per-line verdict against it but does not touch the shared walk.
-Fixing the walk (sort before evaluating) changes every ecosystem and is left
-to its own issue.
+Fixing the walk (sort before evaluating) changes every ecosystem and is
+tracked as #9865.
+
+A related shape is latent: `comparatorBranchContains` returns "valid, not
+contained" on the first unmatched field and never validates the rest, so a raw
+hyphen range such as `2.0.0 - 2.3.0` reads as `=2.0.0`. It predates this change
+and is unreachable today (the Gemnasium parser rejects the bare `-` token and
+the OSV envelope emits no raw range). It is tracked with #9865.
 
 ## Other ecosystems (follow-up, not changed here)
 
