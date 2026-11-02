@@ -124,7 +124,7 @@ decryption failure: it also returns `ErrDecrypt`.
 | Var | Notes |
 |---|---|
 | `ESHU_AUTH_SECRET_ENC_KEY` | Base64 of the 32 raw DEK bytes. |
-| `ESHU_AUTH_SECRET_ENC_KEY_FILE` | Path to a file holding the same base64 text. Takes precedence over the inline variable when both are set, mirroring `ESHU_AZURE_REDACTION_KEY_FILE`'s file-over-inline precedence (`go/internal/envregistry/entries_collectors.go:119`). |
+| `ESHU_AUTH_SECRET_ENC_KEY_FILE` | Path to a file holding the same base64 text. Takes precedence over the inline variable when both are set (the same file-over-inline precedence collector redaction keys use). |
 | `ESHU_AUTH_SECRET_ENC_KEY_ID` | Optional label for the primary key's `KeyID`. Defaults to the first 8 hex characters of SHA-256(key): a fingerprint for operator visibility and rotation bookkeeping, not a secret. |
 
 ## Rotation
