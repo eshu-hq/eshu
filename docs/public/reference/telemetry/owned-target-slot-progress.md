@@ -17,7 +17,7 @@ says so.
 
 | Metric | Labels | Meaning |
 | --- | --- | --- |
-| `eshu_dp_owned_target_oldest_slot_age_seconds` | `collector_instance_id` | Age of the least recently planned virtual slot at the latest read: the time from the start of the window that planned it to the start of the window being read. Reported only once all 1,024 slots have a progress row and the read is not in clock fallback; before that the first rotation is still warming up and the gauge is absent. At the 1x defaults (P = 1,024, one slot per window, 30 minute interval) that is about 21.3 days after enablement. |
+| `eshu_dp_owned_target_oldest_slot_age_seconds` | `collector_instance_id` | Age of the least recently planned virtual slot at the latest read: the time from the start of the window that planned it to the start of the window being read. Reported only once all 1,024 slots have a progress row and the read is not in clock fallback; before that the first rotation is still warming up and the gauge is absent. A removed instance's series stays at its last value until the coordinator restarts, like the rotation gauges. At the 1x defaults (P = 1,024, one slot per window, 30 minute interval) that is about 21.3 days after enablement. |
 | `eshu_dp_owned_target_slot_selection_total` | `collector_instance_id`, `outcome` | Selection outcomes per planning pass. |
 
 `outcome` is a closed set. A pass counts its selection mode (`oldest`,
@@ -34,8 +34,8 @@ says so.
   `same_bucket_reuse` and never counts here: the reconcile ticker runs many
   times per bucket, so counting repeats would read as a race on a healthy
   instance.
-- `empty_slot`: a fresh pick held no targets and progress advanced anyway, so
-  an empty slot cannot pin the head. A repeat of an empty pick is
+- `empty_slot`: a fresh pick held no admittable targets (an empty pick, or every
+  item denied by tenant grant) and progress advanced anyway, so an empty slot cannot pin the head. A repeat of an empty pick is
   `same_bucket_reuse`.
 - `truncated`: the read did not cover every picked slot in full: the limit cut
   the window, or it returned more rows than the target limit, so the derivation

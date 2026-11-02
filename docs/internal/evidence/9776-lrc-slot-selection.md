@@ -199,7 +199,7 @@ migration file.
 The header comment of migration 271 says a new key is below an old one by at
 most one window after a raise. Read as one window at the new width that is true,
 and it is the bound behind the raise-past-rotation case above. It stays as
-written so the shipped checksum does not change.
+written so the pinned checksum does not change.
 
 ## Not checked
 
