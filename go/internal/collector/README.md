@@ -285,9 +285,9 @@ evidence (No-Regression and No-Observability-Change) for this section lives in
 - `scannercomponent` subpackage — frozen scanner vocabulary (analyzer, target,
   and failure kinds) plus component-admission truth: per-analyzer manifests,
   required grants, and seeded-artifact verification. Analyzer execution sources
-  were removed from eshu in #9741; the images are built and
-  attested by `eshu-hq/eshu-scanner-worker` (#8878 box 10 stays open until the
-  re-pin is deployed).
+  were removed from eshu in #9741; the images are built and attested by
+  `eshu-hq/eshu-scanner-worker` (#8878 box 10 stays open until the re-pin is
+  deployed).
 
 ## Dependencies
 
