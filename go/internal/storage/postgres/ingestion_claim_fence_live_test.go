@@ -4,7 +4,7 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #9376 disposable PostgreSQL 18 proof of the claim-plane commit fence with a fake pinner: a reaped writer at a lower token is refused after the reclaimed writer commits (no stale facts, terminal fence_token), a commit inside the pin-deadline margin rolls back, a stale re-pin cancels the commit, an equal-token replay is idempotent, an equal token under another claim is refused, and two terraform-state shaped work items fence one generation independently; bootstraps a throwaway schema; wall time is logged, not gated
+//eshu:readiness:reason #9376 disposable PostgreSQL 18 proof of the claim-plane commit fence with a fake pinner: a reaped writer at a lower token is refused after the reclaimed writer commits (no stale facts, terminal fence_token), a commit inside the pin-deadline margin rolls back, a stale re-pin cancels the commit, a re-pin hung on a stalled plane does not hold a durable commit, an equal-token replay is idempotent, an equal token under another claim is refused, and two terraform-state shaped work items fence one generation independently while pinning their planned candidate identity; bootstraps a throwaway schema; wall time is logged, not gated
 //eshu:readiness:env ESHU_POSTGRES_DSN
 
 // Live proofs of the #9376 claim-plane commit fence against a disposable
@@ -290,15 +290,31 @@ func TestClaimPlaneFenceReplayAndCrossItemLive(t *testing.T) {
 		t.Fatal("T5 mismatched claim's fact landed")
 	}
 
+	// T6 pins on the item's PLANNED identity (the candidate id) and fences
+	// the RESOLVED snapshot generation: the two must not be confused.
+	tfPinner := &claimFenceFakePinner{}
+	tfStore := live.store(live.database, tfPinner, nil)
 	for run := 1; run <= 2; run++ {
 		item := claimFenceTestMutation("scope-t6", "tfstate-candidate:s3:abc", fmt.Sprintf("claim-run%d", run), 1)
 		item.WorkItemID = fmt.Sprintf("terraform_state:i1:run-%d:tfstate-candidate:s3:abc", run)
-		if err := live.commit(store, item, "scope-t6", "gen-t6-snapshot", fmt.Sprintf("fact-t6-%d", run)); err != nil {
+		if err := live.commit(tfStore, item, "scope-t6", "gen-t6-snapshot", fmt.Sprintf("fact-t6-%d", run)); err != nil {
 			t.Fatalf("T6 run %d error = %v, want accept", run, err)
 		}
 	}
 	if n := live.count(`SELECT count(*) FROM generation_commit_fences WHERE generation_id = 'gen-t6-snapshot'`); n != 2 {
 		t.Fatalf("T6 fence rows = %d, want 2 (one per work item)", n)
+	}
+	if n := live.count(`SELECT count(*) FROM generation_commit_fences WHERE generation_id = 'tfstate-candidate:s3:abc'`); n != 0 {
+		t.Fatalf("T6 fence rows on the planned candidate id = %d, want 0", n)
+	}
+	calls := tfPinner.snapshot()
+	if len(calls) != 2 {
+		t.Fatalf("T6 pin calls = %d, want 2", len(calls))
+	}
+	for _, call := range calls {
+		if call.generationID != "tfstate-candidate:s3:abc" || call.sourceRunID != "tfstate-candidate:s3:abc" {
+			t.Fatalf("T6 pin call = %+v, want the planned candidate identity, not the resolved generation", call)
+		}
 	}
 }
 

@@ -152,12 +152,12 @@ tests:
   - file: go/internal/storage/postgres/ingestion_claim_fence_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#9376 disposable PostgreSQL 18 proof of the claim-plane commit fence with a fake pinner: a reaped writer at a lower token is refused after the reclaimed writer commits (no stale facts, terminal fence_token), a commit inside the pin-deadline margin rolls back, a stale re-pin cancels the commit, an equal-token replay is idempotent, an equal token under another claim is refused, and two terraform-state shaped work items fence one generation independently; bootstraps a throwaway schema; wall time is logged, not gated"
+    reason: "#9376 disposable PostgreSQL 18 proof of the claim-plane commit fence with a fake pinner: a reaped writer at a lower token is refused after the reclaimed writer commits (no stale facts, terminal fence_token), a commit inside the pin-deadline margin rolls back, a stale re-pin cancels the commit, a re-pin hung on a stalled plane does not hold a durable commit, an equal-token replay is idempotent, an equal token under another claim is refused, and two terraform-state shaped work items fence one generation independently while pinning their planned candidate identity; bootstraps a throwaway schema; wall time is logged, not gated"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/ingestion_claim_fence_race_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#9376 disposable PostgreSQL 18 concurrency proof of the claim-plane commit fence: eight writers race successive tokens of one work item on one generation on their own connections, once with no projector and once with a concurrent projector claim and Ack, while a deferred-maintenance holder takes the exclusive advisory lock; no deadlock inside 30 s, refused writers leave no facts, and the stored fence token equals the highest committed fact token; wall time is logged, not gated"
+    reason: "#9376 disposable PostgreSQL 18 concurrency proof of the claim-plane commit fence: eight writers race successive tokens of one work item on one generation on their own connections, once with no projector and once with a concurrent projector claim and Ack, while a deferred-maintenance holder takes the exclusive advisory lock; a late higher-token writer after the projector activates the generation meets the finalized skip; every contender runs at least once; no deadlock inside 30 s, refused writers leave no facts, and the stored fence token equals the highest committed fact token; wall time is logged, not gated"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/ingestion_fanin_unchanged_partition_live_test.go
     tag: ~

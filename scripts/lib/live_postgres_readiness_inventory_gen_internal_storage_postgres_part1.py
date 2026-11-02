@@ -356,6 +356,7 @@ TABLE = {
             "TestClaimPlaneFenceDeadlineRollsBackLive",
             "TestClaimPlaneFenceStaleRepinCancelsCommitLive",
             "TestClaimPlaneFenceReplayAndCrossItemLive",
+            "TestClaimPlaneFenceHungRepinDoesNotHoldADurableCommitLive",
         ),
         "go/internal/storage/postgres/ingestion_claim_fence_race_live_test.go": (
             "TestClaimPlaneFenceConcurrentWritersAckAndMaintenanceLive",

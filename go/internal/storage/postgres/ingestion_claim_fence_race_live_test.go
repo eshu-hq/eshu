@@ -4,7 +4,7 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #9376 disposable PostgreSQL 18 concurrency proof of the claim-plane commit fence: eight writers race successive tokens of one work item on one generation on their own connections, once with no projector and once with a concurrent projector claim and Ack, while a deferred-maintenance holder takes the exclusive advisory lock; no deadlock inside 30 s, refused writers leave no facts, and the stored fence token equals the highest committed fact token; wall time is logged, not gated
+//eshu:readiness:reason #9376 disposable PostgreSQL 18 concurrency proof of the claim-plane commit fence: eight writers race successive tokens of one work item on one generation on their own connections, once with no projector and once with a concurrent projector claim and Ack, while a deferred-maintenance holder takes the exclusive advisory lock; a late higher-token writer after the projector activates the generation meets the finalized skip; every contender runs at least once; no deadlock inside 30 s, refused writers leave no facts, and the stored fence token equals the highest committed fact token; wall time is logged, not gated
 //eshu:readiness:env ESHU_POSTGRES_DSN
 
 import (
@@ -94,10 +94,44 @@ func TestClaimPlaneFenceConcurrentWritersAckAndMaintenanceLive(t *testing.T) {
 		return true
 	})
 	stats2 := raceClaimFenceWriters(t, live, writerStores, scopeID, "gen-race-ack")
+	// A late writer at a higher token after the projector acked the
+	// generation must meet the finalized skip: nil error, no fact of its own,
+	// and the fence row left at the highest committed token. This makes the
+	// skip branch a guaranteed outcome instead of a scheduling accident.
+	waitUntil(t, 10*time.Second, "projector activation of gen-race-ack", func() bool {
+		return live.count(`SELECT count(*) FROM scope_generations WHERE generation_id = 'gen-race-ack' AND status <> 'pending'`) == 1
+	})
+	late := int64(writers + 1)
+	if err := live.commit(writerStores[0], claimFenceTestMutation(scopeID, "gen-race-ack", "claim-gen-race-ack-late", late),
+		scopeID, "gen-race-ack", "fact-gen-race-ack-late"); err != nil {
+		t.Fatalf("late writer error = %v, want the finalized skip (nil)", err)
+	}
+	if n := live.count(`SELECT count(*) FROM fact_records WHERE fact_id = 'fact-gen-race-ack-late'`); n != 0 {
+		t.Fatal("late writer's fact landed on an activated generation")
+	}
+	if n := live.count(`SELECT count(*) FROM generation_commit_fences WHERE generation_id = 'gen-race-ack' AND fencing_token = $1`, late); n != 0 {
+		t.Fatal("late writer moved the fence of an activated generation")
+	}
+	stats2.skipped++
 	close(stopAck)
 	<-ackDone
+	if acks.Load() == 0 || holds.Load() == 0 || stats2.skipped == 0 {
+		t.Fatalf("acks=%d maintenance_holds=%d skipped=%d, want every contender exercised", acks.Load(), holds.Load(), stats2.skipped)
+	}
 	t.Logf("race1 committed=%d refused=%d; race2 committed=%d refused=%d skipped=%d; acks=%d maintenance_holds=%d rejections=%v",
 		stats.committed, stats.refused, stats2.committed, stats2.refused, stats2.skipped, acks.Load(), holds.Load(), live.rejections())
+}
+
+// waitUntil polls cond until it holds or limit passes.
+func waitUntil(t *testing.T, limit time.Duration, what string, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(limit)
+	for !cond() {
+		if time.Now().After(deadline) {
+			t.Fatalf("%s did not happen within %s", what, limit)
+		}
+		time.Sleep(time.Millisecond)
+	}
 }
 
 // runUntil runs step in a goroutine until stop closes or step returns false.

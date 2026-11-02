@@ -5,7 +5,9 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -13,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/claim/fence"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
@@ -129,5 +132,73 @@ func TestInTreeClaimedCommitWritesNoFenceRow(t *testing.T) {
 		if strings.Contains(exec.query, "generation_commit_fences") {
 			t.Fatalf("in-tree commit wrote the claim-plane fence table: %q", exec.query)
 		}
+	}
+}
+
+// ctxAwareBeginDB hands out transactions whose first query runs onQuery with
+// the statement's context, so a test can act mid-transaction the way a real
+// driver observes cancellation.
+type ctxAwareBeginDB struct {
+	*fakeTransactionalDB
+	onQuery func(context.Context) error
+}
+
+func (d ctxAwareBeginDB) Begin(ctx context.Context) (db.Transaction, error) {
+	tx, err := d.fakeTransactionalDB.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &ctxAwareTx{Transaction: tx, onQuery: d.onQuery}, nil
+}
+
+type ctxAwareTx struct {
+	db.Transaction
+	once    sync.Once
+	onQuery func(context.Context) error
+}
+
+func (t *ctxAwareTx) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	var hookErr error
+	t.once.Do(func() { hookErr = t.onQuery(ctx) })
+	if hookErr != nil {
+		return nil, hookErr
+	}
+	return t.Transaction.QueryContext(ctx, query, args...)
+}
+
+// TestPlaneReprojectStaleRepinMidTransactionRollsBack is the T10 shape of T3:
+// the first re-pin comes back stale while the re-projection transaction is
+// open, the statement in flight sees its context cancelled, the transaction
+// rolls back, and the error is the terminal stale refusal.
+func TestPlaneReprojectStaleRepinMidTransactionRollsBack(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, time.November, 2, 12, 0, 0, 0, time.UTC)
+	ticks := make(chan time.Time)
+	inner := &fakeTransactionalDB{tx: reprojectMatchedTx()}
+	database := ctxAwareBeginDB{fakeTransactionalDB: inner, onQuery: func(ctx context.Context) error {
+		ticks <- time.Time{}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(5 * time.Second):
+			return errors.New("commit context was not cancelled by the stale re-pin")
+		}
+	}}
+	pinner := &claimFenceFakePinner{results: []error{nil, claimFenceCodedError{"stale_fence"}}}
+	store := NewIngestionStore(database)
+	store.Now = func() time.Time { return now }
+	store.ClaimPlane = &ClaimPlaneFence{
+		Pinner: pinner, Code: claimFenceTestCode, PinBackoff: time.Microsecond,
+		Ticks: func(time.Duration) (<-chan time.Time, func()) { return ticks, func() {} },
+	}
+	_, err := store.reprojectActiveGeneration(context.Background(), claimFenceTestMutation("scope-r", "gen-r", "claim-r", 2), true,
+		claimFenceTestScope("scope-r"), claimFenceTestGeneration("scope-r", "gen-r", now),
+		backfill.UnchangedGenerationCandidate{GenerationID: "gen-r"})
+	requireRejection(t, err, fence.ReasonStaleFence, true)
+	if inner.tx.committed || !inner.tx.rolledBack {
+		t.Fatalf("committed = %v rolledBack = %v, want a rollback", inner.tx.committed, inner.tx.rolledBack)
+	}
+	if got := len(pinner.snapshot()); got != 2 {
+		t.Fatalf("pin calls = %d, want 2 (the pin and the stale re-pin)", got)
 	}
 }
