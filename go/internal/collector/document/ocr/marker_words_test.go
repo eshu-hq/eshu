@@ -18,11 +18,14 @@ var markerLabelForms = map[string][]string{
 	"capitals around an in-word symbol": {
 		"PRIV@TE KEY:", "PRIV@TE_KEY", "P@SS WORD", "P@SS CODE", "PA$S WORD", "ACCE$S KEY", "PASS PHRA$E",
 	},
-	"a word after an in-word symbol is also checked on its own": {"Card@PIN", "DB$PWD", "x@Pin", "x$Pass word", "DB$PASS WORD", "ab@Token", "AB$SECRET"},
-	"fold of 4 and match anywhere in a run":                     {"P4ssword", "mypassphrase", "dbcredentials", "myaccesskey"},
-	"plural second word":                                        {"pass words", "pass phrases", "pass codes"},
-	"camel split":                                               {"tokenValue", "SecretKey", "PINValue", "pinValue", "secretValue2"},
-	"case misread":                                              {"ToKen:", "SeCret:", "tOken", "ToKeN2", "PiN:", "PaSsWoRd"},
+	"a word after an in-word symbol is also checked on its own": {
+		"Card@PIN", "DB$PWD", "x@Pin", "x$Pass word", "DB$PASS WORD", "ab@Token", "AB$SECRET",
+		"Card@PIN2", "DB$PWD1", "a$b@PIN", "a$b x$Pass word", "x$PLN@PIN", "Pass x$word",
+	},
+	"fold of 4 and match anywhere in a run": {"P4ssword", "mypassphrase", "dbcredentials", "myaccesskey"},
+	"plural second word":                    {"pass words", "pass phrases", "pass codes"},
+	"camel split":                           {"tokenValue", "SecretKey", "PINValue", "pinValue", "secretValue2"},
+	"case misread":                          {"ToKen:", "SeCret:", "tOken", "ToKeN2", "PiN:", "PaSsWoRd"},
 	"fullwidth": {
 		"Ｐａｓｓｗｏｒｄ", "Ｔｏｋｅｎ:", "ＡＰＩ Ｋｅｙ", "ＡＰＩ＿ＫＥＹ", "ＡＰＩ－ＫＥＹ", "Ｐ＠ｓｓｗｏｒｄ", "ｐａ＄＄ｗ０ｒｄ",
 	},
@@ -62,7 +65,7 @@ var ordinaryLines = []string{
 	"private", "access", "key", "api", "bypass code", "compass code", "Pass the code review",
 	"Call the API, key facts follow", "Access: key facts", "broken link", "taken offline", "v5.0.1",
 	"Level 5 of 10", "pass through", "500 PLN", "PLN", "Price 20 PLN", "spin2", "tokenize2", "secretary2",
-	"keyboard1", "Pinterest2", "pinned1", "the shop is open", "Hello world", "Cost is $5 per seat",
+	"keyboard1", "Pinterest2", "pinned1", "US$PLN", "Card@PLN", "x$Pass, word", "x$pi n", "the shop is open", "Hello world", "Cost is $5 per seat",
 }
 
 func TestContainsMarkerWordMatchesEveryLabelForm(t *testing.T) {
