@@ -18,11 +18,15 @@ that transaction. Without a replacement, a writer that lost its claim
 
 1. `Pin` before `BEGIN`: the plane pins `(claim, token)` on the item's
    planned identity until `now + lease`. Stale or unknown claims are
-   terminal; transport failures retry three times with identical arguments,
-   then fail retryable as `pin_unavailable`. There is no fallback to the
-   in-tree heartbeat.
-2. `Keeper` re-pins every `lease/3` while the transaction runs. A stale
-   re-pin cancels the commit context; a failed re-pin is left to step 4.
+   terminal; transport failures, including an attempt that hits its
+   `Retry.AttemptTimeout`, retry three times in total with identical
+   arguments, then fail retryable as `pin_unavailable`. There is no
+   fallback to the in-tree heartbeat.
+2. `Keeper` re-pins every `lease/3` while the transaction runs, each call
+   bounded the same way. A stale re-pin cancels the commit context; a
+   failed re-pin is left to step 4. `Keeper.Stop` cancels a re-pin in
+   flight before it waits, so a stalled plane cannot hold a decided commit
+   open; the store stops the keeper as soon as `COMMIT` returns.
 3. `Write` upserts one `generation_commit_fences` row per
    `(generation_id, work_item_id)`: accepted when the stored token is lower,
    or equal under the same claim (the ambiguous-timeout replay); refused

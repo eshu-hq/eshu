@@ -30,8 +30,10 @@ recent shipped work grouped by feature area.
   runs. It records a `(generation_id, work_item_id)` row in the new
   `generation_commit_fences` table (migration 270), and refuses to commit
   once the pin deadline is within 5 s of the store clock. A writer that was
-  reaped and reclaimed at a higher token can no longer commit, and a failed
-  pin never falls back to the core heartbeat. Claim mutations carry the
+  reaped and reclaimed at a higher token cannot commit outside the bounded
+  margin window, and a failed pin never falls back to the core heartbeat.
+  Each pin attempt is bounded, so a stalled plane fails the commit as a
+  retryable `pin_unavailable` instead of hanging it. Claim mutations carry the
   item's planned scope, source run, and generation for the pin. The fence
   reports `eshu_dp_ingestion_claim_fence_rejections_total{reason}`,
   `eshu_dp_ingestion_commit_repins_total{outcome}`,

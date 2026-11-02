@@ -182,7 +182,7 @@ import (
 // held by another lane's unmerged migration, so this lane took the next number.
 // #9376 adds 270_generation_commit_fences.sql (DDL only: the claim-plane
 // commit fence table), which sorts and applies before 271.
-const goldenBootstrapDefinitionsDigest = "51d5ae7663fe4eb51451de4934df20dc518f3e3f1aa321c08fe240a8834f53ea"
+const goldenBootstrapDefinitionsDigest = "252c6d4bf00db727eb85424f4ea8015a2d38ff3598df520a2a17c1bf1023846c"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
