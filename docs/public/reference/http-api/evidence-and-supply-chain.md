@@ -1252,17 +1252,17 @@ matched` from `Eshu did not have the evidence to match yet`:
   MUST NOT interpret it as clean or affected, and neither is `target_skipped`
   for planner-skipped derived packages.
 - `target_scope` echoes the bounded anchors the caller used. `impact_status`
-  alone is not a fact-anchor: the readiness store skips its Postgres scan
-  and returns an empty snapshot for impact_status-only requests, because
-  impact_status is a reducer-finding attribute that does not exist on
-  source facts. The findings page is still returned.
+  alone is not a fact-anchor (it is a reducer-finding attribute, not a source
+  fact one): the readiness store skips its Postgres scan, returns an empty
+  snapshot, and still returns the findings page.
 - `evidence_sources[]` reports per-family source-fact counts and
   `latest_observed_at` for `vulnerability.advisory`,
   `vulnerability.exploitability`, `package.consumption`, `package.registry`,
-  `sbom.component`, `sbom.attestation`, and `container_image.identity`. Each
-  family carries its own `freshness` of `fresh`, `stale`, or `unknown` relative
-  to a fourteen-day window. Families with zero in-scope facts are omitted so
-  the payload reflects only evidence Eshu actually has for the caller.
+  `sbom.component`, `sbom.attestation`, `container_image.identity`,
+  `vulnerability.os_package`, and `scanner_worker.analysis`. Each family has
+  its own `freshness` of `fresh`, `stale`, or `unknown` relative to a
+  fourteen-day window. Families with zero in-scope facts are omitted. For the two
+  scan-tier families, `latest_observed_at` is the scan claim observation time.
   `package.registry` is only counted when the request anchors on a specific
   `package_id`; repository-only requests cannot satisfy `owned_packages`
   through global registry metadata.
