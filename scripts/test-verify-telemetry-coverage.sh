@@ -248,6 +248,8 @@ cp "${repo_root}/scripts/lib/telemetry-coverage-bucket-check.sh" \
   "${case_gitdir}/scripts/lib/telemetry-coverage-bucket-check.sh"
 cp "${repo_root}/scripts/lib/telemetry-coverage-row-check.sh" \
   "${case_gitdir}/scripts/lib/telemetry-coverage-row-check.sh"
+cp "${repo_root}/scripts/lib/telemetry-coverage-required-names.sh" \
+  "${case_gitdir}/scripts/lib/telemetry-coverage-required-names.sh"
 # The verifier sources its base-fetch helper the same way (#8078).
 cp "${repo_root}/scripts/lib/gate-diff-base.sh" \
   "${case_gitdir}/scripts/lib/gate-diff-base.sh"
