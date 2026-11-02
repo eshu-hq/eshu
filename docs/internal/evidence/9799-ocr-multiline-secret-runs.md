@@ -102,9 +102,30 @@ each rule removed or loosened; the seed's length, class, and charset checks;
 blank and symbol handling; the or-merge into `values`; the call itself and its
 position before the row clause. Two survived the first set and got rows
 (`16` against `15` for the space share, and counting spaces as characters), and
-the order mutant got a column row. One survivor is equivalent: dropping the
-`!values[j]` stop in the walk back changes nothing, because a walk back never
-reaches a withheld region another way.
+the order mutant got a column row. The review pass added mutants and one more row.
+A walk back that stops at a blank region survived until a row put a blank region
+between a run token and a seed; that row now kills it. Tesseract's TSV reader
+never emits a blank region, so the guard has no production path.
+
+Equivalent survivors, each harmless: dropping the `!values[j]` stop in the walk
+back (a walk back never reaches a withheld region another way); overwriting
+`values[i]` instead of or-merging it (`withheld` starts as `values[i]` and only
+rises); a tail that keeps the token count; testing `' '` instead of any
+whitespace in `hasSpace`; and dropping the trim. The last two are equivalent
+under tesseract, which trims words and joins them with one space (`tsv.go`).
+
+## Corpus method
+
+The false-positive count above is reproducible without the harness being
+committed. Take `git ls-files 'docs/public/*.md' 'docs/internal/*.md'` at the
+tree under test. For each file build one page whose regions are its non-blank
+lines in order, one region per line. Run each page through `Extract` with a
+stub engine, and count the sections persisted as the `[redacted]` placeholder.
+Run it on origin/main and on the branch, and report the difference. Added
+withheld lines are the ones the branch withholds and origin/main does not. The
+run reads the marker, window, pattern, and run rules together, as production
+does. A change to a threshold in `secret_runs.go` needs this count rerun and a
+row in `TestSecretTokenShapes`.
 
 ## Real tesseract
 

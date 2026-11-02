@@ -150,10 +150,15 @@ func isRunToken(text string) bool {
 // isSeedToken reports whether text, trimmed, looks like a base64 or token line
 // on its own: minSeedTokenLen characters of letters, digits, and `+/=_.-`, with a
 // capital letter, a lowercase letter, and a digit. Random base64 of that length
-// holds all three with near certainty. A path, a hash, an environment variable
-// name, and a sentence each lack one of them or a character of the set. A seed
-// takes no space at all: with nothing before it to vouch for it, a shell command
-// of one word and an argument would pass.
+// holds all three with near certainty. A lowercase path, a hex hash, an upper
+// case variable name, and a sentence each lack one of them or a character of the
+// set. A mixed case path, URL, or identifier with a digit has all three and is a
+// seed, such as `src/main/java/com/example/Service2Impl.java` or a long test
+// name: it is withheld with the run token before it and the short line after it.
+// That over-redaction fails closed and is the accepted cost class of the rule
+// (#9799 ruling, condition 5.2c). A seed takes no space at all: with nothing
+// before it to vouch for it, a shell command of one word and an argument would
+// pass.
 func isSeedToken(text string) bool {
 	if len(text) < minSeedTokenLen {
 		return false
@@ -177,7 +182,9 @@ func isSeedToken(text string) bool {
 
 // withholdTokensBefore withholds the run tokens that sit right before the seed at
 // regions[seed], nearest first, and stops at the first region that is not a
-// run token or is withheld already. A symbol-only or blank region stops it too.
+// run token or is withheld already. A symbol-only region stops it. A blank region
+// is passed over: tesseract's TSV reader never emits one, so this is a guard and
+// not a production path.
 // Each region is passed over once however many seeds follow it, because a
 // withheld region ends the walk, so the scan stays linear.
 func withholdTokensBefore(regions []Region, values []bool, seed int) {

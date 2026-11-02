@@ -58,7 +58,7 @@ func liveKeyBody(t *testing.T, engine *Engine, fixtures string) {
 	persisted, _ := json.Marshal(result.Envelopes)
 	leaked := 0
 	for _, region := range recognized.Regions[begin+1 : end] {
-		if text := strings.TrimSpace(region.Text); text != "" && bytes.Contains(persisted, []byte(text)) {
+		if text := strings.TrimSpace(region.Text); text != "" && textInPersisted(persisted, text) {
 			leaked++
 		}
 	}
@@ -79,4 +79,16 @@ func liveKeyBody(t *testing.T, engine *Engine, fixtures string) {
 	if !keptFound {
 		t.Fatalf("%s: an ordinary line past the key was not kept", name)
 	}
+}
+
+// textInPersisted reports whether text appears in the JSON-encoded persisted
+// envelopes. The envelopes were encoded by encoding/json, which escapes <, >, &,
+// ", and \, so the raw text of a line that holds one of them would never match
+// the bytes. The text is encoded the same way before the search.
+func textInPersisted(persisted []byte, text string) bool {
+	encoded, err := json.Marshal(text)
+	if err != nil {
+		return true
+	}
+	return bytes.Contains(persisted, encoded[1:len(encoded)-1])
 }

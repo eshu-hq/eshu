@@ -113,6 +113,15 @@ func TestExtractContinuesASecretRunPastTheWindow(t *testing.T) {
 			want:    []string{"Release checklist", seedLine[:20] + " " + seedLine[20:], runLine, "Rollback steps"},
 		},
 		{
+			name: "a body cropped from its label with a misread outside the seed set in every line stays, a documented limit (#9799)",
+			regions: stackedRegions("Release checklist", seedLine[:20]+"@"+seedLine[20:], seedLine[:25]+"@"+seedLine[25:],
+				seedLine[:30]+"@"+seedLine[30:], "Rollback steps"),
+			want: []string{
+				"Release checklist", seedLine[:20] + "@" + seedLine[20:], seedLine[:25] + "@" + seedLine[25:],
+				seedLine[:30] + "@" + seedLine[30:], "Rollback steps",
+			},
+		},
+		{
 			name:    "run tokens before a seed join its run, whatever their spaces",
 			regions: stackedRegions("Release checklist", runLine, runLineB[:8]+" "+runLineB[8:], seedLine, "Qk9x==", "Rollback steps"),
 			want:    []string{"Release checklist", redacted, redacted, redacted, redacted, "Rollback steps"},
@@ -121,6 +130,11 @@ func TestExtractContinuesASecretRunPastTheWindow(t *testing.T) {
 			name:    "the walk back over run tokens stops at a prose line",
 			regions: stackedRegions("Release checklist", runLine, "Review the owner list", runLineB, seedLine, "Rollback steps"),
 			want:    []string{"Release checklist", runLine, "Review the owner list", redacted, redacted, "Rollback steps"},
+		},
+		{
+			name:    "the walk back passes over a blank region to the run token before it",
+			regions: stackedRegions("Release checklist", runLine, "", seedLine, "Ask the platform team"),
+			want:    []string{"Release checklist", redacted, redacted, "Ask the platform team"},
 		},
 		{
 			name:    "the walk back stops at a symbol region",
@@ -220,6 +234,9 @@ func TestSecretTokenShapes(t *testing.T) {
 		{name: "40 characters without a capital", text: strings.ToLower(seedLine), run: true},
 		{name: "40 characters without a lowercase letter", text: strings.ToUpper(seedLine), run: true},
 		{name: "40 characters with a character outside the set", text: seedLine[:39] + "!", run: true},
+		{name: "a mixed case java path is a seed, the accepted cost class (#9799)", text: "src/main/java/com/example/Service2Impl.java", run: true, seed: true},
+		{name: "a mixed case URL path is a seed, the accepted cost class (#9799)", text: "github.com/Eshu-hq/eshu/blob/main/go/internal/collector/x2.go", run: true, seed: true},
+		{name: "a mixed case test name is a seed, the accepted cost class (#9799)", text: "TestSandboxRealTesseract_arm64_LinuxBuild", run: true, seed: true},
 		{name: "a long path has no capital", text: "docs/internal/design/9799-ocr-multiline.md", run: true},
 		{name: "a hex digest has no capital", text: strings.Repeat("0f9bba8d", 8), run: true},
 		{name: "an upper case variable has no lowercase letter", text: "ESHU_DR_COMPOSE_PROJECT_9799_REBUILD_PROOF", run: true},

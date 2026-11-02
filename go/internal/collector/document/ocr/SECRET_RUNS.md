@@ -68,8 +68,12 @@ was drawn, so a misread cannot hide a leak.
   run. On the docs corpus the rule adds 180 withheld lines in 263,378: 39 with no
   space, 102 with a stray space that chain or fall in the tail slot, and 39 with
   only symbols (36 are code fences).
-- A body cropped from its label whose every line holds a stray space leaks
-  whole, because a seed has no space and no label opens a run. With a label the
+- A body cropped from its label whose every line holds a stray space, or a
+  character outside `A-Za-z0-9+/=_.-` such as a misread `@` or a non-ASCII
+  letter, leaks whole when no line is a seed, because a seed has no space and
+  only that charset, and no label opens a run. A probe of 11 lines of 64
+  column base64 under `Deploy notes` leaked all 11 with one such character per
+  line. `TestExtractContinuesASecretRunPastTheWindow` pins the `@` case. With a label the
   rule tolerates up to 4 stray spaces in a 64-character line (one per 16
   characters). At 5 in every line, 3 of 5 lines leak. If one line is clean, its
   seed walks back and the rest is withheld.
