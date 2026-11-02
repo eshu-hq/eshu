@@ -40,20 +40,20 @@ const (
 //   - its own text is a seed token (see isSeedToken), whatever came before. A
 //     key body cropped from its armor line has no label to open a window.
 //
-// Markers marks the regions whose own text holds a label word. They are
-// withheld by persistedContent already, and they start a run. The scan reads
+// A label region needs no mark of its own: the two regions after it are in the
+// window already, so the first region of a run is always a value. The scan reads
 // engine order, makes one pass, and looks at each region's text a fixed number
 // of times, so it is linear in the text, like the label scan. It changes
 // values only, from false to true, so it never lets a region out that the
 // window withheld.
-func extendSecretRuns(regions []Region, values []bool, markers []bool) {
+func extendSecretRuns(regions []Region, values []bool) {
 	previousWithheld, previousToken := false, false
 	for i, region := range regions {
 		text := strings.TrimSpace(region.Text)
 		if text == "" {
 			continue
 		}
-		withheld := values[i] || markers[i]
+		withheld := values[i]
 		token := isRunToken(text)
 		switch {
 		case withheld:
