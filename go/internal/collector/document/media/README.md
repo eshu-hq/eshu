@@ -235,7 +235,7 @@ rule is deliberate:
 bread" withhold the next two segments, which shows in section metadata, while a
 client secret that stays in clear text cannot be taken back.
 
-The OCR twin in `document/ocr` has its own, wider rule (#9793). Its README
+The OCR twin in `document/ocr` has its own rule (#9793). Its README
 holds the table of differences between the two.
 
 Source names, document IDs, and mention hints keep the original substring list,

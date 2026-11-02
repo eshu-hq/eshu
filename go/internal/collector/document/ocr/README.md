@@ -102,7 +102,7 @@ Any region with a label from `labelFamilies` in `label_markers.go` opens a value
 window, not only one shaped like a label. The words around a marker are the
 least reliable part of OCR text, and each shape rule tried here left a hole:
 `(Password)`, `Password required`, `Password: I`. The STT twin in
-`document/media` uses the same rule (#9786) with its own, shorter list. An
+`document/media` uses the same rule (#9786) with its own list. An
 email, URL, path, or ticket redacts its own region. If its text has no marker
 word, it opens no window: it is a value, not a word that introduces one. A
 pattern region that also holds a marker word, such as
@@ -225,6 +225,9 @@ Limits:
 - Fused or odd shapes that are not matched: `secretkey`, `tokenid`, `aPI Key`
   (a case change inside `api`, a space before `key`), and `$ecret` (a symbol at
   the start of a word is a separator, not an `s`).
+- A digit does not start a new word in a camel case name, so `Token2Value`,
+  `Secret2Value`, `API2Key`, and `PaSS CoDe` are not matched. The STT rule
+  matches all of them except `API2Key`.
 - A fused lowercase compound such as `clientsecret` matches only through its
   ending. `pin` and `token` in plain prose are markers like `password` in
   prose, so "Pin the base image" hides the two lines after it (#9793).
@@ -298,7 +301,7 @@ the line `Credentials for the staging cluster live`. Both fixtures now avoid a
 marker word and the count is back to 2 of 15. On a prose corpus of about 262,000
 non-blank lines of this repo's markdown under `docs/public` and
 `docs/internal`, which is security-dense and so an upper bound, the old rule
-flagged 470 lines (0.18 percent) and the new rule about 6,700 (2.56 percent), with no
+flagged 470 lines (0.18 percent) and the new rule about 6,700 (2.55 to 2.57 percent, depending on the corpus snapshot), with no
 line the old rule flagged missed. By family, on lines the old rule did not flag:
 `token` 2,203, `pin` 1,425, `secret` 1,383, `credential` about 1,300, `api key` 57,
 `pwd` 43, `private key` 36, `access key` 32, `apikey` 7. Each costs a bounded

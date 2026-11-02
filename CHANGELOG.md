@@ -30,6 +30,7 @@ recent shipped work grouped by feature area.
   never reached `eshu_dp_webhook_trigger_decisions_total{status="failed"}` and
   the handoff-failure alert stayed blind. The listener now passes its
   instruments into the served server.
+
 ### OCR: redact more credential labels, and the values beside them
 
 - **`ocr.Extract` now recognizes `Secret`, `API Key`, `Token`, `Credential`,
@@ -44,7 +45,7 @@ recent shipped work grouped by feature area.
   digit or symbol read for a letter (`Passw0rd`, `P@ssword`) and fullwidth
   letters match too. The new rule redacts everything the old list did. A whole
   word such as `pin` or `token` in ordinary prose now hides the two lines after
-  it, as `password` always did; on this repo's own docs that is 2.56 percent of
+  it, as `password` always did; on this repo's own docs that is 2.55 to 2.57 percent of
   lines against 0.18 percent before. Source names and URIs keep the narrow list.
   Letter-for-letter misreads, table cells beyond the window, and multi-line
   secrets such as PEM

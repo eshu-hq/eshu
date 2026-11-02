@@ -15,8 +15,13 @@ var markerLabelForms = map[string][]string{
 	},
 	"passwd and pwd": {"Passwd:", "PASSWD", "PWD:", "pwd", "Pwd=", "PWDs", "pwd2", "PWD1:"},
 	"digit tail":     {"Token2:", "secret2", "PIN2", "api key1", "API_KEY2", "access key3", "Secret1:", "TOKEN9="},
-	"camel split":    {"tokenValue", "SecretKey", "PINValue", "pinValue", "secretValue2"},
-	"case misread":   {"ToKen:", "SeCret:", "tOken", "ToKeN2", "PiN:", "PaSsWoRd"},
+	"capitals around an in-word symbol": {
+		"PRIV@TE KEY:", "PRIV@TE_KEY", "P@SS WORD", "P@SS CODE", "PA$S WORD", "ACCE$S KEY", "PASS PHRA$E",
+	},
+	"fold of 4 and match anywhere in a run": {"P4ssword", "mypassphrase", "dbcredentials", "myaccesskey"},
+	"plural second word":                    {"pass words", "pass phrases", "pass codes"},
+	"camel split":                           {"tokenValue", "SecretKey", "PINValue", "pinValue", "secretValue2"},
+	"case misread":                          {"ToKen:", "SeCret:", "tOken", "ToKeN2", "PiN:", "PaSsWoRd"},
 	"fullwidth": {
 		"Ｐａｓｓｗｏｒｄ", "Ｔｏｋｅｎ:", "ＡＰＩ Ｋｅｙ", "ＡＰＩ＿ＫＥＹ", "ＡＰＩ－ＫＥＹ", "Ｐ＠ｓｓｗｏｒｄ", "ｐａ＄＄ｗ０ｒｄ",
 	},

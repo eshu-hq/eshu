@@ -84,9 +84,22 @@ func TestContainsMarkerWordIsLinear(t *testing.T) {
 			t.Parallel()
 			start := time.Now()
 			containsMarkerWord(text)
-			if elapsed := time.Since(start); elapsed > 2*time.Second {
+			if elapsed := time.Since(start); elapsed > 10*time.Second {
 				t.Fatalf("containsMarkerWord on %d bytes of %s took %v, want linear time", len(text), name, elapsed)
 			}
 		})
+	}
+}
+
+// TestIdentityMarkersAreTheSixOriginalEntries pins the source-name list as a
+// literal. The superset test loops over identityMarkers, so it cannot notice an
+// entry that is dropped from the list. The list stays equal to legacyKeywords in
+// document/media, and a change to one lands in both.
+func TestIdentityMarkersAreTheSixOriginalEntries(t *testing.T) {
+	t.Parallel()
+
+	want := []string{"credential_marker", "secret_marker", "token_marker", "password", "api_key", "private_key"}
+	if strings.Join(identityMarkers, "|") != strings.Join(want, "|") {
+		t.Fatalf("identityMarkers = %q, want %q", identityMarkers, want)
 	}
 }

@@ -123,9 +123,9 @@ carry-over the FAQ warns about for reused API objects.
 
 Measured: 5 runs per fixture per architecture gave identical results. The
 recognized text is identical across PNG, JPEG, GIF, and WebP on arm64 and on
-amd64 under qemu (`text_sha256` `08bf5e2a…`). The full result, including
+amd64 under qemu (`text_sha256` `d3fe08a1…`). The full result, including
 confidence and bounds, differs between the two architectures (PNG
-`46796c01…` on arm64, `2647bb05…` on amd64). Treat confidence and bounds as
+`dc44b202…` on arm64, `442a431b…` on amd64). Treat confidence and bounds as
 architecture-specific. Byte identity on native amd64 hardware (the EKS
 target) is NOT_CHECKED; qemu may not use the same SIMD path.
 

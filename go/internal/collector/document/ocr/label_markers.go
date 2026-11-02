@@ -79,9 +79,8 @@ func plainRune(r rune) rune {
 // lowercase l, and a 1 look alike in most fonts. The one word that class
 // cannot bear is a short one: `PLN` is a currency, not a misread `PIN`, so a
 // whole word that holds a capital L never matches `pin` (see wordIsMarker). The
-// map is
-// exact, so it costs one rune lookup and finds no word that is not a marker
-// once folded.
+// map is exact, so it costs one rune lookup and finds no word that is not a
+// marker once folded.
 func foldRune(r rune) rune {
 	switch r = plainRune(r); r {
 	case '0':
@@ -188,7 +187,7 @@ func containsMarkerWord(text string) bool {
 		if symbols := inWordSymbols(text[i:], prevRune); symbols > 0 {
 			for _, symbol := range text[i : i+symbols] {
 				add(symbol)
-				prevRune = foldRune(symbol)
+				prevRune = widthFold(symbol)
 			}
 			i += symbols
 			continue
