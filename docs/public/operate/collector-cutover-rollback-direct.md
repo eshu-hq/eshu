@@ -73,10 +73,12 @@ authority line prints `in_tree_direct_running=yes`, `no`, or `unknown`.
 Every step uses this one read, so `run` and `verify` agree. A standalone
 `verify` before the restore, with the Deployment at zero, is not dual authority.
 
-The restore wait in step 4, and the restore gate that steps 5 and 6 re-run, do
-use `kubectl rollout status`, which passes with no replicas. The scripted restore always scales to a positive
-`--in-tree-replicas`, so the gate can pass vacuously only after a manual scale-down.
-Issue #9056 tracks the fix.
+The restore wait in step 4 uses `kubectl rollout status` after the scripted
+restore scales to a positive `--in-tree-replicas`, so a vacuous pass there
+needs a manual scale-down first. The restore gate that steps 5 and 6 re-run
+additionally requires the replica read above to report at least one desired
+or observed replica: at zero replicas, or when the count is unreadable, the
+gate refuses instead of reporting "rolled out".
 
 ### The step 5 signal
 

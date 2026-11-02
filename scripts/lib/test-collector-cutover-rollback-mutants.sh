@@ -116,6 +116,8 @@
 #   M99 main   the mode does not require --restore-applied-by-gitops
 #   M100 main  --removal-commit is not required in the mode
 #   M101 main  --gitops-repo is not required in the mode
+#   M102 gates  the zero-replica branch of the restore gate never refuses
+#   M103 gates  the unreadable-count branch of the restore gate never refuses
 
 # The single-quoted anchors are literal source text to find, not expansions.
 # shellcheck disable=SC2016
@@ -277,6 +279,8 @@ define_mutants() {
 	add M99 main "$(pairs "${T}${T}[[ \"\$restore_by_gitops\" == \"true\" ]] ||${NL}${T}${T}${T}die \"\$EX_USAGE\" \"--activations-mode needs --restore-applied-by-gitops: the restore is a git revert of the removal commit plus a sync, never helm\"${NL}" "${T}${T}:${NL}")"
 	add M100 main "$(pairs "${T}[[ -n \"\$removal_commit\" ]] ||${NL}${T}${T}die \"\$EX_USAGE\" \"--activations-mode needs --removal-commit SHA: the GitOps commit that deleted the activation entry\"${NL}" "")"
 	add M101 main "$(pairs "${T}[[ -n \"\$gitops_repo\" ]] ||${NL}${T}${T}die \"\$EX_USAGE\" \"--activations-mode needs --gitops-repo DIR: a local checkout holding the removal commit\"${NL}" "")"
+	add M102 gates "$(pairs "${T}if [[ \"\$DIRECT_LIVE\" == \"no\" ]]; then" "${T}if false; then")"
+	add M103 gates "$(pairs "${T}if [[ \"\$DIRECT_LIVE\" == \"unknown\" ]]; then" "${T}if false; then")"
 	add M64 main "$(pairs '"${TMPDIR:-/tmp}/eshu-rollback.XXXXXX"' '"/tmp/eshu-rollback.XXXXXX"')"
 }
 

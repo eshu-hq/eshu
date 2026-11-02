@@ -199,6 +199,30 @@ expect_out "the refusal names the in-tree Deployment" "deployment/jira-collector
 new_clear_state in-tree-not-rolled-6
 touch "${FAKE_STATE}/intree_rollout_fail"
 expect_refused "verification refuses when the in-tree Deployment is not rolled out" 4 6 -- "psql truth"
+
+# --- step 4 gate: rollout success at zero replicas is not restored ------------------
+# `rollout status` reports success for a Deployment at zero replicas, so the
+# gate also reads the replica counts (the read shared with the direct-producer
+# authority check). Zero replicas refuses even when the rollout finished.
+
+new_clear_state in-tree-zero-5
+printf '0\n' >"${FAKE_STATE}/intree_replicas"
+expect_refused "replay refuses when the restored Deployment runs zero replicas" 4 5 "${since_args[@]}" -- "psql replay"
+expect_out "the refusal names the zero replica count" "reports 0 desired and 0 observed replica(s)"
+new_clear_state in-tree-zero-6
+printf '0\n' >"${FAKE_STATE}/intree_replicas"
+expect_refused "verification refuses when the restored Deployment runs zero replicas" 4 6 -- "psql truth"
+expect_out "the step 6 refusal names the zero replica count" "reports 0 desired and 0 observed replica(s)"
+
+# An unreadable or malformed count fails closed: the gate refuses instead of
+# reading the Deployment as stopped or as rolled out.
+
+for unreadable in intree_get_missing intree_get_garbage; do
+	new_clear_state "in-tree-unreadable-5-${unreadable}"
+	touch "${FAKE_STATE}/${unreadable}"
+	expect_refused "replay refuses when the replica count is unreadable (${unreadable})" 4 5 "${since_args[@]}" -- "psql replay"
+	expect_out "the refusal says the count could not be read (${unreadable})" "replica counts could not be read"
+done
 new_clear_state claims-held-6
 printf 'jira|ext-1|claimed|active\n' >"${FAKE_STATE}/claims"
 expect_refused "verification refuses while the external instance holds a claim" 4 6 -- "psql truth"
