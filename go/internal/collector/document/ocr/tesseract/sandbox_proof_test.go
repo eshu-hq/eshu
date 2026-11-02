@@ -178,18 +178,11 @@ func liveForm(t *testing.T, engine *Engine, fixtures string, form liveFormFixtur
 	}
 }
 
-// assertLiveExtract pins the extraction result per format. PNG, JPEG, and
-// GIF must yield one section per fixture line with both canary lines
-// redacted. WebP must be skipped: preflight/picture still classifies it as
-// an unsupported codec, so ocr.Extract never calls the engine for it.
+// assertLiveExtract pins the extraction result per format. All four fixtures
+// (#9780: WebP included) must yield one section per fixture line with both
+// canary lines redacted.
 func assertLiveExtract(t *testing.T, name string, evidence liveEvidence) {
 	t.Helper()
-	if strings.HasSuffix(name, ".webp") {
-		if evidence.ExtractStatus != "skipped" || evidence.Sections != 0 {
-			t.Fatalf("%s: extract status %q with %d sections, want skipped with 0", name, evidence.ExtractStatus, evidence.Sections)
-		}
-		return
-	}
 	if evidence.ExtractStatus != "completed" {
 		t.Fatalf("%s: extract status %q, want completed", name, evidence.ExtractStatus)
 	}

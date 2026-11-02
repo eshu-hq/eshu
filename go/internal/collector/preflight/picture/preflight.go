@@ -6,6 +6,8 @@ package picture
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
+	"errors"
 	"fmt"
 	"image"
 	"io"
@@ -154,7 +156,19 @@ func (r *recorder) classifyImage(ctx context.Context, body []byte, options Optio
 	}
 	r.scanMetadataMarkers(body)
 	if r.result.Format == FormatWEBP {
-		r.warn(WarningUnsupportedCodec)
+		width, height, err := webpDimensions(body)
+		if err != nil {
+			r.warn(WarningMalformedMedia)
+			return
+		}
+		pixels, ok := pixelCount(width, height, options.MaxPixels)
+		if !ok {
+			r.warn(WarningResourceLimitExceeded)
+			return
+		}
+		r.result.Width = width
+		r.result.Height = height
+		r.result.PixelCount = pixels
 		return
 	}
 	config, decodedFormat, err := image.DecodeConfig(bytes.NewReader(body))
@@ -258,6 +272,51 @@ func pixelCount(width int, height int, limit int64) (int64, bool) {
 		return 0, false
 	}
 	return w * h, true
+}
+
+// webpDimensions reads the canvas size from the first chunk of a WebP
+// container: VP8X (extended), VP8L (lossless), or VP8 (lossy key frame).
+// It mirrors sniffImage in document/ocr/tesseract/input.go: a bounded header
+// parse with no decoder dependency, so the preflight stays standard-library
+// only (#9780).
+func webpDimensions(body []byte) (int, int, error) {
+	if len(body) < 12 || !bytes.Equal(body[0:4], []byte("RIFF")) || !bytes.Equal(body[8:12], []byte("WEBP")) {
+		return 0, 0, errors.New("not a riff webp container")
+	}
+	if len(body) < 20 {
+		return 0, 0, errors.New("truncated webp header")
+	}
+	fourcc := string(body[12:16])
+	size := binary.LittleEndian.Uint32(body[16:20])
+	payload := body[20:]
+	if uint64(size) > uint64(len(payload)) {
+		return 0, 0, errors.New("truncated webp chunk")
+	}
+	payload = payload[:size]
+	switch fourcc {
+	case "VP8X":
+		if len(payload) < 10 {
+			return 0, 0, errors.New("short vp8x chunk")
+		}
+		width := 1 + int(uint32(payload[4])|uint32(payload[5])<<8|uint32(payload[6])<<16)
+		height := 1 + int(uint32(payload[7])|uint32(payload[8])<<8|uint32(payload[9])<<16)
+		return width, height, nil
+	case "VP8L":
+		if len(payload) < 5 || payload[0] != 0x2f {
+			return 0, 0, errors.New("bad vp8l signature")
+		}
+		bits := binary.LittleEndian.Uint32(payload[1:5])
+		return 1 + int(bits&0x3fff), 1 + int((bits>>14)&0x3fff), nil
+	case "VP8 ":
+		if len(payload) < 10 || payload[0]&1 != 0 || !bytes.Equal(payload[3:6], []byte{0x9d, 0x01, 0x2a}) {
+			return 0, 0, errors.New("bad vp8 key frame header")
+		}
+		width := int(binary.LittleEndian.Uint16(payload[6:8]) & 0x3fff)
+		height := int(binary.LittleEndian.Uint16(payload[8:10]) & 0x3fff)
+		return width, height, nil
+	default:
+		return 0, 0, errors.New("unknown webp chunk")
+	}
 }
 
 func hasAny(text string, needles ...string) bool {
