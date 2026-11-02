@@ -285,8 +285,8 @@ line the old rule flagged missed. By family, on lines the old rule did not flag:
 `pwd` 43, `private key` 36, `access key` 32, `apikey` 7. Each costs a bounded
 window of 2 regions, as `password` always did.
 
-Marker-list Mutation Evidence (#9793): 45 planted mutants each turn at least one
-test red. They are each family word removed (14), the `secret` and `token`
+Marker-list Mutation Evidence (#9793): 46 planted mutants each turn at least one
+test red. They are each family word removed (15), the `secret` and `token`
 boundary and the `pin` and `pwd` boundary loosened to a substring, plural
 removed from both whole-word rules, folding removed whole and each of 0, 5 and
 `$`, `@`, 3, and `1`/`l` removed, camel splitting and its plural guard removed,

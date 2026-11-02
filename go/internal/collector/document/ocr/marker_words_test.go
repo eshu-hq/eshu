@@ -15,6 +15,7 @@ var markerLabelForms = map[string][]string{
 	},
 	"passwd and pwd": {"Passwd:", "PASSWD", "PWD:", "pwd", "Pwd=", "PWDs", "pwd2", "PWD1:"},
 	"digit tail":     {"Token2:", "secret2", "PIN2", "api key1", "API_KEY2", "access key3", "Secret1:", "TOKEN9="},
+	"camel split":    {"tokenValue", "SecretKey", "PINValue", "pinValue", "secretValue2"},
 	"case misread":   {"ToKen:", "SeCret:", "tOken", "ToKeN2", "PiN:", "PaSsWoRd"},
 	"fullwidth": {
 		"Ｐａｓｓｗｏｒｄ", "Ｔｏｋｅｎ:", "ＡＰＩ Ｋｅｙ", "ＡＰＩ＿ＫＥＹ", "ＡＰＩ－ＫＥＹ", "Ｐ＠ｓｓｗｏｒｄ", "ｐａ＄＄ｗ０ｒｄ",
@@ -31,10 +32,10 @@ var markerLabelForms = map[string][]string{
 	},
 	"api key": {
 		"API Key:", "API-Key", "API_KEY", "api key", "APIKey", "apiKey", "apikey:", "Api  Key",
-		"API KEYS", "x-api-key", "MYAPI_KEY", "ap1 key", "MYAPI KEY", "myapi-key",
+		"API KEYS", "API KEYs", "x-api-key", "MYAPI_KEY", "ap1 key", "MYAPI KEY", "myapi-key",
 	},
-	"access key":  {"Access Key:", "accesskey", "ACCESSKEY:", "AccessKey1", "MYACCESS KEY", "AccessKEYs", "access-key", "Access Key ID", "AWS_ACCESS_KEY_ID", "accessKey"},
-	"private key": {"Private Key:", "PrivateKEYs", "myprivate key", "privatekey", "Privatekey", "private-key", "PRIVATE_KEY", "privateKey", "PrivateKey"},
+	"access key":  {"Access Key:", "accesskey", "ACCESSKEY:", "AccessKey1", "MYACCESS KEY", "access KEYs", "access-key", "Access Key ID", "AWS_ACCESS_KEY_ID", "accessKey"},
+	"private key": {"Private Key:", "private KEYs", "myprivate key", "privatekey", "Privatekey", "private-key", "PRIVATE_KEY", "privateKey", "PrivateKey"},
 	"credential":  {"Credential:", "Credentials", "credentials.json", "Cr3dentials", "Credentia1s"},
 	"passphrase":  {"Passphrase:", "Pass phrase", "pass-phrase", "PassPhrase"},
 	"passcode":    {"Passcode:", "Pass code", "PassCode", "PASS_CODE"},
