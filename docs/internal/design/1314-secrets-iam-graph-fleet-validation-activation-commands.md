@@ -173,7 +173,7 @@ on this host — live-cluster commands above are shape-validated only.
   (lines 94-95 of the flagged render; flagged-render-exit=0,
   flagged-grep-exit=0).
 - E2 (defaults OFF, exits captured directly): the same render without the
-  override contains zero occurrences (base-grep-exit=1); the in-repo EKS
+  override contains zero occurrences (base-grep-exit=1); the deploy-checkout EKS
   overlay (`gitops/argocd/overlays/aws/values.yaml` over base) also renders
   zero occurrences (aws-render-exit=0, aws-grep-exit=1); a repo-wide search
   for the flag across the deploy chart and gitops tree finds nothing
