@@ -37,8 +37,10 @@ the in-tree fence and emit none of these signals.
 No label carries a scope, generation, claim, or work item id. The
 `ingestion.commit.claim_fence` span carries those as attributes
 (`fence_mode`, `claim_id`, `fencing_token`, `work_item_id`,
-`generation_id`, `commit_id`, `outcome`; `fence_mode` is always `plane`),
-and every refusal writes one `claim-plane commit fence refused the commit`
+`generation_id`, `commit_id`, `outcome`; `fence_mode` is always `plane`).
+The span runs from the pin to `COMMIT` (or the refusal), so its duration is
+the fenced transaction and excludes the post-commit catalog merge and
+relationship backfill. Every refusal writes one `claim-plane commit fence refused the commit`
 log with the scope, generation, work item, claim, reason, requested and
 stored tokens, and the pin slack. The log is WARN, except
 `fence_claim_mismatch`, which logs at ERROR.

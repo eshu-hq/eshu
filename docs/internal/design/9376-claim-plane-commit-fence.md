@@ -173,7 +173,8 @@ finalized-replay semantics, and the margin bounds it.
   snapshot get one fence row per work item, and neither refuses the other.
 - Telemetry: D9 named `fence_mode` as `in_tree|plane`. The in-tree path
   emits no fence span at all, so the only value emitted is `fence_mode=plane`
-  on `ingestion.commit.claim_fence`.
+  on `ingestion.commit.claim_fence`. The span ends when `COMMIT` returns
+  (outcome `committed`) or at the refusal, never after post-commit work.
 - Wiring (P1, merged as #9856; the pairing lands here): `ClaimPlane` is
   set per `IngestionStore`. A store with `ClaimPlane` set pins every
   claimed commit, so an in-tree collector that shared a store with a

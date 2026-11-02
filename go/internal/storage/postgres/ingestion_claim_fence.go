@@ -132,6 +132,9 @@ func (s IngestionStore) beginClaimFence(
 			margin, request.Lease, limit)
 	}
 	session := &claimFenceSession{store: s, config: config, request: request, scopeID: scopeValue.ScopeID}
+	// Post-commit work runs on the context the commit arrived with, not on
+	// the fence span's context: the span ends at COMMIT (afterCommit).
+	session.parent = ctx
 	if config.Tracer != nil {
 		ctx, session.span = config.Tracer.Start(ctx, telemetry.SpanIngestionCommitClaimFence, trace.WithAttributes(
 			attribute.String("fence_mode", "plane"),
@@ -158,7 +161,6 @@ func (s IngestionStore) beginClaimFence(
 	if session.span != nil {
 		session.span.SetAttributes(attribute.String("commit_id", commitID))
 	}
-	session.parent = ctx
 	commitCtx, cancel := context.WithCancelCause(ctx)
 	session.cancel = cancel
 	ticks, stop := session.ticks()
@@ -256,12 +258,15 @@ func (f *claimFenceSession) stopKeeper() {
 	f.stopTicks()
 }
 
-// afterCommit stops the keeper as soon as COMMIT returns and gives back the
-// context the commit started from. Post-commit work (the catalog merge and
-// the relationship backfill) runs on it, so a re-pin refusal that lands after
-// the generation is durable cannot cancel that work.
+// afterCommit stops the keeper as soon as COMMIT returns, ends the
+// ingestion.commit.claim_fence span with outcome committed, and gives back
+// the context the commit arrived with. Post-commit work (the catalog merge
+// and the relationship backfill) runs on it, so a re-pin refusal that lands
+// after the generation is durable cannot cancel that work, and the span's
+// duration is the fenced transaction alone.
 func (f *claimFenceSession) afterCommit() context.Context {
 	f.stopKeeper()
+	f.endSpan(nil)
 	return f.parent
 }
 
@@ -283,10 +288,12 @@ func (f *claimFenceSession) finish(ctx context.Context, generationID string, err
 	return err
 }
 
+// endSpan ends the fence span once; later calls are no-ops.
 func (f *claimFenceSession) endSpan(err error) {
 	if f.span == nil {
 		return
 	}
+	defer func() { f.span = nil }()
 	outcome := "committed"
 	var rejection *fence.Rejection
 	switch {
