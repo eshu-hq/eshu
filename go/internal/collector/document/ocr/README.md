@@ -121,7 +121,7 @@ separator, not a letter. Each family picks the boundary its word can bear:
 
 | Family | Words | Matches |
 |---|---|---|
-| Inside any run of letters and digits | `password`, `passwd`, `passphrase`, `passcode`, `pincode`, `credential`, `apikey`, `privatekey` | `MyPassword`, `passwords`, `Credentials` |
+| Inside any run of letters and digits | `password`, `passwd`, `passphrase`, `passcode`, `pincode`, `credential`, `apikey`, `accesskey`, `privatekey` | `MyPassword`, `passwords`, `Credentials` |
 | Whole word, plural, or end of a compound | `secret`, `token` | `Secrets`, `client_secret`, `accessToken`; not `secretary`, `tokenize` |
 | Whole word or plural | `pin`, `pwd` | `PIN:`, `PINs`, `pin_code`; not `spin`, `pinned`, `Pinterest`, `500 PLN` |
 | Two adjacent words | `api`, `private`, `access` then `key(s)`; `pass` then `word`, `phrase`, or `code` | `API Key`, `MYAPI_KEY`, `private-key`, `Pass phrase`; not `public key`, `API gateway`, `Call the API, key facts` |
@@ -147,19 +147,10 @@ a suffix on every marker. Source names themselves (document IDs, source URIs,
 record IDs) keep the narrow `identityMarkers` list only, so a file called
 `token-rotation.png` keeps its name.
 
-The STT twin in `document/media` (#9786, #9788) keeps its own list. The two are
-tested copies, not one shared rule, and they differ on purpose or by history.
-STT folds its text first: NFKD, then combining marks and format characters
-(soft hyphen, zero-width, BOM) dropped, a bounded Cyrillic and Greek homoglyph
-map, and any run of space, `-`, `_`, `.`, or `,` read as one space. It matches
-`pincode`, `pwd`, `api key`, and `private key` as substrings, `pass word`,
-`pass phrase`, `pass code`, and `a p i key` at the start of a word, and
-`secret`, `token`, `pin`, `p i n`, and `p w d` as whole words, so spaced letters
-and keywords across segments are in. OCR does not fold Unicode beyond fullwidth
-ASCII, treats `.` and `,` as a break in a phrase, and matches `access key`,
-`secret` and `token` as compound endings, a joined `privatekey`, and the digit
-and symbol fold. Neither matches `passkey` or letter-by-letter `p a s s w o r d`.
-Sync them as a separate change, not by editing one to match the other.
+The STT twin in `document/media` (#9786) still uses the six-marker
+source-name list as its keyword rule. A wider rule for it is tracked by #9788
+and is not merged, so this README does not describe it. Compare the two lists
+when that rule lands, and sync them as a separate change.
 
 Why folding and not edit distance. Edit distance one cannot be applied to the
 short words: `taken` is one edit from `token`, and `pan`, `pen`, `pit`, `pie`,
@@ -168,7 +159,7 @@ every misread of them, and a longer word such as `password` gains little over
 the fold, because the single-character misreads seen in practice are digits and
 symbols for letters. Folding is exact, deterministic, one table lookup per
 rune, and can only add a match when a word is a marker once folded. On the repo
-docs corpus below it adds 5 lines in about 261,800. Letter-for-letter misreads,
+docs corpus below it adds 5 lines in about 262,000. Letter-for-letter misreads,
 such as `rn` for `m` or `vv` for `w`, are not caught. The common ones are the
 digit and symbol swaps above.
 
@@ -210,9 +201,11 @@ Limits:
   no `passwort`, `passkey`, or `ssh key`.
 - Misses found by probing, none matched: `Pasword` (a dropped letter), `PW:`,
   `Pass:`, `A.P.I. key` (punctuation inside a word), Cyrillic `раssword` and
-  other homoglyphs outside fullwidth ASCII, and `ApI Key` (a case change inside
-  `api`, a space before `key`). Only digit, symbol, case, and fullwidth variants
-  are handled.
+  other homoglyphs outside fullwidth ASCII. Only digit, symbol, case, and
+  fullwidth variants are handled.
+- Fused or odd shapes that are not matched: `secretkey`, `tokenid`, `aPI Key`
+  (a case change inside `api`, a space before `key`), and `$ecret` (a symbol at
+  the start of a word is a separator, not an `s`).
 - A fused lowercase compound such as `clientsecret` matches only through its
   ending. `pin` and `token` in plain prose are markers like `password` in
   prose, so "Pin the base image" hides the two lines after it (#9793).
@@ -283,10 +276,10 @@ substring or one edit away) flags none. The sandbox fixtures hold 15 distinct
 texts: the old rule flagged 2 (both true labels), and the new rule flagged 4
 before two fixtures were reworded, adding the value `Hunter2CanarySecret` and
 the line `Credentials for the staging cluster live`. Both fixtures now avoid a
-marker word and the count is back to 2 of 15. On a prose corpus of about 261,800
+marker word and the count is back to 2 of 15. On a prose corpus of about 262,000
 non-blank lines of this repo's markdown under `docs/public` and
 `docs/internal`, which is security-dense and so an upper bound, the old rule
-flagged 470 lines (0.18 percent) and the new rule about 6,700 (2.55 percent), with no
+flagged 470 lines (0.18 percent) and the new rule about 6,700 (2.56 percent), with no
 line the old rule flagged missed. By family, on lines the old rule did not flag:
 `token` 2,203, `pin` 1,425, `secret` 1,383, `credential` about 1,300, `api key` 57,
 `pwd` 43, `private key` 36, `access key` 32, `apikey` 7. Each costs a bounded

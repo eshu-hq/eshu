@@ -44,7 +44,7 @@ recent shipped work grouped by feature area.
   digit or symbol read for a letter (`Passw0rd`, `P@ssword`) and fullwidth
   letters match too. The new rule redacts everything the old list did. A whole
   word such as `pin` or `token` in ordinary prose now hides the two lines after
-  it, as `password` always did; on this repo's own docs that is 2.55 percent of
+  it, as `password` always did; on this repo's own docs that is 2.56 percent of
   lines against 0.18 percent before. Source names and URIs keep the narrow list.
   Letter-for-letter misreads, table cells beyond the window, and multi-line
   secrets such as PEM

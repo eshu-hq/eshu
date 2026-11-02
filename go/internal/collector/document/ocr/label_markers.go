@@ -37,7 +37,7 @@ var labelFamilies = struct {
 	exact    [][]byte
 	phrases  []markerPhrase
 }{
-	contains: foldedList("password", "passwd", "passphrase", "passcode", "pincode", "credential", "apikey", "privatekey"),
+	contains: foldedList("password", "passwd", "passphrase", "passcode", "pincode", "credential", "apikey", "accesskey", "privatekey"),
 	endsWith: foldedList("secret", "token"),
 	exact:    foldedList("pin", "pwd"),
 	phrases: []markerPhrase{
@@ -134,7 +134,8 @@ func appendFolded(b []byte, r rune) []byte {
 // so a label the word split misses (`API_KEY2`, `private_keyfile`, `API_kEY`)
 // is still caught. The scan makes a fixed number of passes over text, stops at
 // the first match, and keeps its working buffers on the stack for any word
-// shorter than 64 bytes, so ordinary text costs no allocation.
+// shorter than 64 bytes, so ordinary ASCII text costs no allocation. Text with a
+// non-ASCII byte costs one, for the lowercase copy the source-name check makes.
 func containsMarkerWord(text string) bool {
 	if containsSourceMarker(text) {
 		return true
