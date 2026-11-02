@@ -206,3 +206,18 @@ Verified by `go test ./internal/envregistry -race -count=1`.
 
 No-Observability-Change: #8888 adds no metrics, spans, log fields, status
 payload fields, or telemetry labels; it is documentation tooling.
+
+No-Regression Evidence: #9789 adds three declarations to the registry
+(`ESHU_PINNED_REFS_JSON`, `ESHU_PINNED_REF_PER_REPO_CAP`,
+`ESHU_PINNED_REF_FLEET_CAP`) so the telemetry-coverage split can cite them. The
+entries are data read by the registry validator, the reference generator and the
+docs gate; the git collector still reads the variables from its own selection
+code, unchanged. No service request, graph-write, reducer, queue, goroutine,
+worker, lease, or Cypher path reads these entries, and terminal graph and queue
+counts are unchanged. Verified by `go test ./internal/envregistry -count=1`
+(the core-call-site coverage test failed red for exactly these three names
+before the entries) and `scripts/verify-env-registry-doc.sh`.
+
+No-Observability-Change: #9789 adds no metric, span, log field, status payload
+field, or telemetry label to any running service; the entries describe
+variables that already exist.

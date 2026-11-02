@@ -44,14 +44,17 @@ prose that explains how the coverage gate reads that doc; the stage tables stay 
 
 ## Regeneration Note
 
-- Each row is one stage. The table is the source of truth for X2.
+- Each row is one stage. The tables in the index and its
+  `telemetry-coverage-<area>.md` parts are the source of truth for X2.
 - To add a new stage:
   1. Register the metric in `go/internal/telemetry/instruments.go` (or
      confirm an existing instrument already diagnoses the path).
-  2. Add a row to the appropriate section of this doc, including the
-     `file:line` citation to the Go file that records the metric.
-  3. Run `wc -l docs/public/observability/telemetry-coverage.md` to confirm
-     the doc stays under the 500-line file rule.
+  2. Add a row to the matching section of the part that owns the stage,
+     including the `file:line` citation to the Go file that records the
+     metric. The index lists each part and the stages it holds.
+  3. Run `bash scripts/verify-markdown-line-cap.sh --all` to confirm every
+     page stays under the 500-line file rule. When a part nears the cap,
+     split it into a new part and link it from the index.
   4. Run the docs build:
      `uv run --with mkdocs --with mkdocs-material --with pymdown-extensions \
      mkdocs build --strict --clean --config-file docs/mkdocs.yml`.

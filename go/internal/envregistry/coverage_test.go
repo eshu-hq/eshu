@@ -45,6 +45,7 @@ var coreScanFiles = []string{
 	"cmd/api/diagnostic/collector.go",
 	"cmd/api/oidc_login.go",
 	"cmd/ingester/files_group_probe.go",
+	"internal/collector/repo/git/selection_pinned_refs.go",
 }
 
 var esuVarPattern = regexp.MustCompile(`ESHU_[A-Z0-9_]+`)

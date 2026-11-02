@@ -387,6 +387,12 @@ nav:
       - Security Alert Reconciliation Impact Wait: reference/telemetry/security-alert-reconciliation-impact-wait.md
     - Observability:
       - Telemetry Coverage Contract: observability/telemetry-coverage.md
+      - "Telemetry Coverage: Reducer Runtime And Code Graph": observability/telemetry-coverage-reducer-core.md
+      - "Telemetry Coverage: Reducer Domains And Typed Decode": observability/telemetry-coverage-reducer-domains.md
+      - "Telemetry Coverage: Projector And Parser": observability/telemetry-coverage-projector-parser.md
+      - "Telemetry Coverage: Collector Dispatch Seams": observability/telemetry-coverage-collectors.md
+      - "Telemetry Coverage: Queues, API, Graph Writes, And Routes": observability/telemetry-coverage-runtime-surfaces.md
+      - "Telemetry Coverage: Spans, Log Keys, And Buckets": observability/telemetry-coverage-signals.md
       - Telemetry Coverage Notes: observability/telemetry-coverage-notes.md
       - Operator Overview Dashboard: observability/dashboards/eshu-operator-overview.json
     - Services:

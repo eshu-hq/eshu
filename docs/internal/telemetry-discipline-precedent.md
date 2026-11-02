@@ -91,8 +91,9 @@ Use this runbook when adding a new `eshu_dp_*` metric or a new pipeline stage.
 3. **Emit the metric from the dispatcher.** The first arg of the constructor
    is the metric name; the call site is the dispatcher. Pick the chokepoint
    (the function or goroutine that owns the seam), not the leaves.
-4. **Add a row to `docs/public/observability/telemetry-coverage.md`.** Use the
-   existing table shape. The `file:line` column must point at the dispatcher,
+4. **Add a row to the owning part of the coverage doc.** The index
+   `docs/public/observability/telemetry-coverage.md` links each
+   `telemetry-coverage-<area>.md` part. Use the existing table shape. The `file:line` column must point at the dispatcher,
    not the contract. The `required metric name(s)` column must list the new
    metric name.
 5. **If an existing signal already diagnoses the path, use the marker.** The

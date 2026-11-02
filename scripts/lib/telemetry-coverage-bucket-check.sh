@@ -39,13 +39,18 @@ check_histogram_bucket_agreement() {
   doc_buckets_tmp="$(mktemp)"
   code_buckets_tmp="$(mktemp)"
 
-  # 4a: Parse documented bucket sets from the histogram-buckets section.
-  section_line=$(rg -n '<!-- eshu:metric:section=histogram-buckets -->' "$repo_root/$doc_path" | head -1 | cut -d: -f1 || true)
-  if [ -n "$section_line" ]; then
-    next_section_line=$(rg -n '<!-- eshu:metric:section=' "$repo_root/$doc_path" | \
+  # 4a: Parse documented bucket sets from the histogram-buckets section of
+  # whichever doc file holds it: the index or a part (#9789). DOC_FILES is
+  # set by collect_telemetry_coverage_doc_files in telemetry-coverage-doc-files.sh.
+  local bucket_doc
+  : >"$doc_buckets_tmp"
+  for bucket_doc in "${DOC_FILES[@]}"; do
+    section_line=$(rg -n '<!-- eshu:metric:section=histogram-buckets -->' "$bucket_doc" | head -1 | cut -d: -f1 || true)
+    [ -n "$section_line" ] || continue
+    next_section_line=$(rg -n '<!-- eshu:metric:section=' "$bucket_doc" | \
       awk -F: -v s="$section_line" '$1 > s {print $1; exit}' || true)
-    [ -z "$next_section_line" ] && next_section_line=$(( $(wc -l < "$repo_root/$doc_path") + 1 ))
-    sed -n "$((section_line + 1)),$((next_section_line - 1))p" "$repo_root/$doc_path" | \
+    [ -z "$next_section_line" ] && next_section_line=$(( $(wc -l < "$bucket_doc") + 1 ))
+    sed -n "$((section_line + 1)),$((next_section_line - 1))p" "$bucket_doc" | \
       while IFS= read -r line; do
         printf '%s' "$line" | rg -q '^\|[-:|[:space:]]+\|' && continue
         if printf '%s' "$line" | rg -q '^\|.*\|.*[0-9].*\|'; then
@@ -55,8 +60,9 @@ check_histogram_bucket_agreement() {
             canonicalize_buckets "$boundaries"
           fi
         fi
-      done | sort -u >"$doc_buckets_tmp" 2>/dev/null || true
-  fi
+      done >>"$doc_buckets_tmp" 2>/dev/null || true
+  done
+  sort -u -o "$doc_buckets_tmp" "$doc_buckets_tmp"
 
   # 4b: Parse bucket boundary definitions from instruments.go.
   # rg --replace is line-oriented even with -U (multiline), so a bucket list

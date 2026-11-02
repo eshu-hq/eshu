@@ -2,6 +2,7 @@
 paths:
   - "go/internal/telemetry/**/*.go"
   - "docs/public/observability/telemetry-coverage.md"
+  - "docs/public/observability/telemetry-coverage-*.md"
   - "scripts/verify-telemetry-coverage.sh"
 ---
 

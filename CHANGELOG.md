@@ -9,6 +9,24 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### Telemetry coverage doc: split into parts under the line cap
+
+- **The telemetry coverage contract is now an index plus six part pages, each
+  under the 500-line Markdown cap**
+  ([#9789](https://github.com/eshu-hq/eshu/issues/9789)).
+  `docs/public/observability/telemetry-coverage.md` keeps its path and now
+  links `telemetry-coverage-<area>.md` parts for reducer, projector and parser,
+  collector, runtime-surface, and span/log/bucket rows. Rows kept their order
+  and text apart from the line-number change below, and the line-cap pin is gone, so a
+  new row no longer needs a re-pin or a merged row. The coverage gate reads the
+  index and every part (not the notes page) and fails on a part the index does
+  not link. The 105 raw `go/internal/*.go:NNN` line numbers in the rows now
+  name only the file, which retires the same 105 LINE rows from the doc
+  citations baseline. The git collector's pinned-ref variables
+  (`ESHU_PINNED_REFS_JSON`, `ESHU_PINNED_REF_PER_REPO_CAP`,
+  `ESHU_PINNED_REF_FLEET_CAP`) are now in the environment variable registry,
+  so docs that name them are no longer docs-cli-env-refs debt.
+
 ### Scanner-worker docs: layer cap and scan-tier clock
 
 - **The docs state the satellite's decompressed-layer cap and the scan-tier

@@ -250,6 +250,8 @@ cp "${repo_root}/scripts/lib/telemetry-coverage-row-check.sh" \
   "${case_gitdir}/scripts/lib/telemetry-coverage-row-check.sh"
 cp "${repo_root}/scripts/lib/telemetry-coverage-required-names.sh" \
   "${case_gitdir}/scripts/lib/telemetry-coverage-required-names.sh"
+cp "${repo_root}/scripts/lib/telemetry-coverage-doc-files.sh" \
+  "${case_gitdir}/scripts/lib/telemetry-coverage-doc-files.sh"
 # The verifier sources its base-fetch helper the same way (#8078).
 cp "${repo_root}/scripts/lib/gate-diff-base.sh" \
   "${case_gitdir}/scripts/lib/gate-diff-base.sh"
@@ -484,6 +486,10 @@ expect_fail "fails when a glob-form row matches no files" "${case_glob_missing}"
 # of that row and every other row stay checked.
 # shellcheck source=scripts/lib/test-verify-telemetry-coverage-marker-scope-cases.sh
 . "${repo_root}/scripts/lib/test-verify-telemetry-coverage-marker-scope-cases.sh"
+
+# Split-doc cases (#9789): the verifier reads the index and every part.
+# shellcheck source=scripts/lib/test-verify-telemetry-coverage-parts-cases.sh
+. "${repo_root}/scripts/lib/test-verify-telemetry-coverage-parts-cases.sh"
 
 if [ "${FAIL}" -ne 0 ]; then
   printf 'verify-telemetry-coverage tests FAILED: %d/%d failed\n' "${FAIL}" "${TOTAL}" >&2
