@@ -123,9 +123,9 @@ carry-over the FAQ warns about for reused API objects.
 
 Measured: 5 runs per fixture per architecture gave identical results. The
 recognized text is identical across PNG, JPEG, GIF, and WebP on arm64 and on
-amd64 under qemu (`text_sha256` `08bf5e2a…`). The full result, including
+amd64 under qemu (`text_sha256` `d3fe08a1…`). The full result, including
 confidence and bounds, differs between the two architectures (PNG
-`46796c01…` on arm64, `2647bb05…` on amd64). Treat confidence and bounds as
+`dc44b202…` on arm64, `442a431b…` on amd64). Treat confidence and bounds as
 architecture-specific. Byte identity on native amd64 hardware (the EKS
 target) is NOT_CHECKED; qemu may not use the same SIMD path.
 
@@ -172,7 +172,7 @@ docker run --network none --read-only --cap-drop ALL
 ```
 
 The fixtures render three DejaVu Sans lines: `Deploy the Checkout Service to
-staging`, `password: Hunter2CanarySecret`, and `Contact
+staging`, `password: Hunter2CanaryValue`, and `Contact
 alice.canary@example.com today`. Two PNG form layouts cover a value split from
 its label (#9782): `form-stacked.png` puts `Password:` above the value, and
 `form-columns.png` has five-row columns that tesseract reads as separate
@@ -241,6 +241,8 @@ covered end to end, and there is no QA-tier caller.
   shared runtime image.
 - Native amd64 byte identity, and RLIMIT_AS enforcement on amd64, are
   NOT_CHECKED.
-- Redaction is only as good as recognition: a misread marker word (for
-  example `passw0rd`) would not match `ocr.Extract`'s marker list. The
-  fixtures read cleanly. Noisy-scan accuracy is NOT_CHECKED.
+- Redaction is only as good as recognition: `ocr.Extract` folds a digit or
+  symbol read for a letter (`passw0rd`, `p@ssword`) before it matches its label
+  list (#9793), but a letter-for-letter misread (`passvvord`) or a label lost
+  whole is not caught. The fixtures read cleanly. Noisy-scan accuracy is
+  NOT_CHECKED.

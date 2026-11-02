@@ -40,7 +40,7 @@ const fakeTSVHeader = "level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\t
 // canaryPassword and canaryEmail are synthetic PII canaries the fake emits.
 // They must never reach persisted section content, errors, or logs.
 const (
-	canaryPassword = "Hunter2CanarySecret"
+	canaryPassword = "Hunter2CanaryValue"
 	canaryEmail    = "alice.canary@example.com"
 )
 

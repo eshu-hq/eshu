@@ -18,7 +18,7 @@ RUN mkdir /fixtures && cd /fixtures \
     && magick -size 900x200 xc:white -font /usr/share/fonts/dejavu/DejaVuSans.ttf \
         -pointsize 28 -fill black \
         -annotate +20+50 "Deploy the Checkout Service to staging" \
-        -annotate +20+100 "password: Hunter2CanarySecret" \
+        -annotate +20+100 "password: Hunter2CanaryValue" \
         -annotate +20+150 "Contact alice.canary@example.com today" \
         base.png \
     && magick base.png -strip fixture.png \
@@ -38,20 +38,20 @@ RUN cd /fixtures \
         -pointsize 28 -fill black \
         -annotate +20+50 "Deploy the Checkout Service to staging" \
         -annotate +20+100 "Password:" \
-        -annotate +20+150 "Hunter2CanarySecret" \
+        -annotate +20+150 "Hunter2CanaryValue" \
         -annotate +20+200 "Rotate the staging keys every week" \
         -annotate +20+250 "Ask the platform team for access" \
         -strip form-stacked.png \
     && magick -size 1200x240 xc:white -font /usr/share/fonts/dejavu/DejaVuSans.ttf \
         -pointsize 22 -fill black \
-        -annotate +20+40 "Credentials for the staging cluster live" \
+        -annotate +20+40 "Accounts for the staging cluster live" \
         -annotate +20+75 "in the shared vault and rotate weekly" \
         -annotate +20+110 "Password:" \
         -annotate +20+145 "Owner:" \
         -annotate +20+180 "Region:" \
         -annotate +640+40 "The checkout team owns these and they" \
         -annotate +640+75 "expire at the end of each quarter so" \
-        -annotate +640+110 "Hunter2CanarySecret" \
+        -annotate +640+110 "Hunter2CanaryValue" \
         -annotate +640+145 "platform" \
         -annotate +640+180 "useast" \
         -strip form-columns.png

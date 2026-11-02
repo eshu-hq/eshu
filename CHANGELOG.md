@@ -42,6 +42,28 @@ recent shipped work grouped by feature area.
   the handoff-failure alert stayed blind. The listener now passes its
   instruments into the served server.
 
+### OCR: redact more credential labels, and the values beside them
+
+- **`ocr.Extract` now recognizes `Secret`, `API Key`, `Token`, `Credential`,
+  `Passphrase`, `Passcode`, `PIN`, `PWD`, `Passwd`, `Access Key`, and
+  `Private Key` labels**
+  ([#9793](https://github.com/eshu-hq/eshu/issues/9793)). Before, only
+  `password`, `api_key`, `private_key`, and three synthetic canary words opened
+  the label and value window, so a secret under `Secret:` or `API Key:` stayed
+  in clear text, and `API Key: value` on one line was not redacted at all.
+  Labels match as words, in any case, with space, hyphen, underscore, and a case
+  change treated alike, so `spin`, `tokenize`, and `secretary` are untouched. A
+  digit or symbol read for a letter (`Passw0rd`, `P@ssword`) and fullwidth
+  letters match too. The new rule redacts everything the old list did. A whole
+  word such as `pin` or `token` in ordinary prose now hides the two lines after
+  it, as `password` always did; on this repo's own docs that is 2.55 to 2.57
+  percent of lines against 0.18 percent before. Source names and URIs keep the narrow list.
+  Letter-for-letter misreads, table cells beyond the window, and multi-line
+  secrets such as PEM
+  ([#9799](https://github.com/eshu-hq/eshu/issues/9799)) are still not
+  covered. Nothing calls the OCR path in production yet. The sandbox proof's
+  canary and one fixture line were reworded because they became labels.
+
 ### Extension host: eshu-sdk collector v0.2.0-rc.3 pin
 
 - **Core pins `eshu-sdk/collector` v0.2.0-rc.3**

@@ -55,7 +55,7 @@ var liveFormFixtures = []liveFormFixture{
 	},
 	{
 		name:          "form-columns.png",
-		firstLine:     "Credentials for the staging cluster live",
+		firstLine:     "Accounts for the staging cluster live",
 		valueDistance: 5,
 		sections:      10,
 		redacted:      4,

@@ -17,7 +17,7 @@ func TestExtractRedactsValueInTheColumnBesideALabel(t *testing.T) {
 
 	label := Region{Text: "Password:", Bounds: Bounds{X: 0.02, Y: 0.26, Width: 0.11, Height: 0.05}}
 	leftColumn := []Region{
-		{Text: "Credentials for the staging cluster", Bounds: Bounds{X: 0.02, Y: 0.08, Width: 0.45, Height: 0.05}},
+		{Text: "Accounts for the staging cluster", Bounds: Bounds{X: 0.02, Y: 0.08, Width: 0.45, Height: 0.05}},
 		{Text: "live in the shared vault", Bounds: Bounds{X: 0.02, Y: 0.17, Width: 0.45, Height: 0.05}},
 	}
 	rightColumn := []Region{
@@ -39,14 +39,14 @@ func TestExtractRedactsValueInTheColumnBesideALabel(t *testing.T) {
 				rightColumn[0], rightColumn[1], value, rightColumn[2],
 			},
 			want: []string{
-				"Credentials for the staging cluster", "live in the shared vault", "[redacted]",
+				"Accounts for the staging cluster", "live in the shared vault", "[redacted]",
 				"[redacted]", "[redacted]", "[redacted]", "Rotate them after an incident",
 			},
 		},
 		{
 			name:    "value column read before the label column",
 			regions: []Region{value, leftColumn[0], leftColumn[1], label},
-			want:    []string{"[redacted]", "Credentials for the staging cluster", "live in the shared vault", "[redacted]"},
+			want:    []string{"[redacted]", "Accounts for the staging cluster", "live in the shared vault", "[redacted]"},
 		},
 		{
 			name: "taller value on the label row",
@@ -74,7 +74,7 @@ func TestExtractRedactsValueInTheColumnBesideALabel(t *testing.T) {
 				leftColumn[0], leftColumn[1],
 				{Text: "Password:", Bounds: Bounds{X: 0.70, Y: 0.26, Width: 0.11, Height: 0.05}},
 			},
-			want: []string{"Field one", "Credentials for the staging cluster", "live in the shared vault", "[redacted]"},
+			want: []string{"Field one", "Accounts for the staging cluster", "live in the shared vault", "[redacted]"},
 		},
 		{
 			name: "region that only grazes the label row stays",

@@ -98,14 +98,92 @@ gap before any content is persisted (#9782). It withholds those values with the
 same `[redacted]` content, metadata, and warning as a marker hit. The rule lives
 in `labelValueRegions` in `sanitize.go`.
 
-Any region with a marker word from `sensitiveMarkers` opens a value window, not
-only one shaped like a label. The words around a marker are the least reliable
-part of OCR text, and each shape rule tried here left a hole: `(Password)`,
-`Password required`, `Password: I`. The STT twin in `document/media` uses the
-same rule (#9786). An email, URL, path, or ticket redacts its own region. If its
-text has no marker word, it opens no window: it is a value, not a word that
-introduces one. A pattern region that also holds a marker word, such as
-`password alice@example.com`, opens a window like any other marker region.
+Any region with a label from `labelFamilies` in `label_markers.go` opens a value
+window, not only one shaped like a label. The words around a marker are the
+least reliable part of OCR text, and each shape rule tried here left a hole:
+`(Password)`, `Password required`, `Password: I`. The STT twin in
+`document/media` uses the same rule (#9786) with its own list. An
+email, URL, path, or ticket redacts its own region. If its text has no marker
+word, it opens no window: it is a value, not a word that introduces one. A
+pattern region that also holds a marker word, such as
+`password alice@example.com`, opens a window like any other marker region. A
+region with a label also holds its own value when they share a line, so
+`API Key: value` is one redacted region (#9793).
+
+What counts as a label (#9793). The text is split into words at any character
+that is not a letter or digit, and again at a lower to upper case change, so
+`API Key`, `API-Key`, `API_KEY`, and `apiKey` are one label. Matching ignores
+case. A digit or symbol that OCR reads for a letter folds to that letter before
+matching: `0` to o, `3` to e, `4` and `@` to a, `5` and `$` to s, and `1`, `l`,
+and `i` are one letter, so `Passw0rd`, `P@ssword`, `Pa55word`, `S3cret`, and
+`Credentia1s` match. A symbol at the edge of a word (`$PIN`, `@token`) is a
+separator, not a letter. A symbol inside a word does not start a case split, so
+`PRIV@TE KEY` and `ACCE$S KEY` match; the letters after it are also read as a
+word of their own, so `DB$PWD` and `Card@PIN` match too. Each family picks the
+boundary its word can bear:
+
+| Family | Words | Matches |
+|---|---|---|
+| Inside any run of letters and digits | `password`, `passwd`, `passphrase`, `passcode`, `pincode`, `credential`, `apikey`, `accesskey`, `privatekey` | `MyPassword`, `passwords`, `Credentials` |
+| Whole word, plural, or end of a compound | `secret`, `token` | `Secrets`, `client_secret`, `accessToken`; not `secretary`, `tokenize` |
+| Whole word or plural | `pin`, `pwd` | `PIN:`, `PINs`, `pin_code`; not `spin`, `pinned`, `Pinterest`, `500 PLN` |
+| Two adjacent words | `api`, `private`, `access` then `key(s)`; `pass` then `word`, `phrase`, or `code` | `API Key`, `MYAPI_KEY`, `private-key`, `Pass phrase`; not `public key`, `API gateway`, `Call the API, key facts` |
+
+Only space, hyphen, underscore, and a case change may sit between the two words
+of a phrase. A comma or any other mark ends it. Digits after a marker word do
+not hide it (`Token2:`, `PIN2`, `api key1`, `API_KEY2`), and a case change
+inside a word does not split it away from its marker (`ToKen:`, `SeCret:`,
+`PiN:`). Fullwidth ASCII (letters, digits, `＿`, `－`, `＠`, `＄`) is read as its
+ASCII twin, so `ＡＰＩ＿ＫＥＹ` and `Ｐ＠ｓｓｗｏｒｄ` match. A digit at the end of a
+word is checked both ways, without it (`token2`) and as the letter the fold
+reads (`Pass cod3`). A whole word that holds a capital L never matches `pin`,
+because the fold reads l as i and `PLN` is a currency; lowercase `pln` and `PlN`
+still match as a misread `PIN`.
+
+The rule is a superset of the list it replaced. Every source-name marker
+(`identityMarkers`: `password`, `api_key`, `private_key`, and the three synthetic
+canary words) is also checked first as a raw substring in any case, so
+`API_KEY2`, `PRIVATE_KEY1`, `API_KEYID`, `private_keyfile`, and `API_kEY` stay
+redacted even where the word split would have broken the phrase.
+`TestContainsMarkerWordIsASupersetOfTheSourceNameList` pins it with a prefix and
+a suffix on every marker. Source names themselves (document IDs, source URIs,
+record IDs) keep the narrow `identityMarkers` list only, so a file called
+`token-rotation.png` keeps its name.
+
+The STT twin in `document/media` (#9786, #9788) has its own rule, kept as a
+second tested copy and not a shared package. The folds differ by input: OCR
+reads digits and symbols in place of letters and camel case, and speech engines
+write neither, so STT folds NFKD, combining marks, format characters, a
+bounded Cyrillic and Greek homoglyph table, and separators (space, `-`, `_`,
+`.`, `,`) to one space instead. The boundaries differ on purpose too. STT
+matches `pwd` as a substring and `pins` not at all; OCR matches `pwd` and `pins`
+as whole words. Both keep the same six-entry source-name list, which a change
+must edit in both packages together. The decision and its reasons are in
+`docs/internal/evidence/9793-fold-vs-edit-distance-arbiter-ruling.md`. A probe
+of `containsMarkerWord` and `containsSensitiveKeyword` on both merged trees
+gave these results (true means the text is a label):
+
+| Text | OCR | STT | Why they differ |
+|---|---|---|---|
+| `Password:`, `Secret:`, `Token:`, `PIN:`, `PWD:`, `API Key: value`, `Access Key:`, `Credentials`, `accesskey`, `Private_Key`, `Pincode` | true | true | Shared vocabulary. |
+| `Passw0rd:`, `P@ssword`, `Pa55word`, `Pass cod3`, `S3cret` | true | false | OCR folds digits and symbols read for letters. Speech never writes them. |
+| `PINs`, `pins`, `Pln`, `clientSecret` | true | false | OCR matches the plural and a compound ending, and reads `l` as `i`. STT matches `pin` and `secret` as whole words only. |
+| `P.I.N.`, `p i n`, `p w d`, `a p i key`, `A.P.I. key`, `aPI Key` | false | true | STT folds separators, so spelled-out letters join. OCR breaks a word at `.`. |
+| `раssword` (Cyrillic), `pássword` | false | true | STT folds homoglyphs and accents. OCR folds only fullwidth ASCII, and a Latin-trained tesseract emits Latin. |
+| `Ｐａｓｓｗｏｒｄ` (fullwidth) | true | true | Both fold width. |
+| `500 PLN` | false | false | A capital L is not a misread `i` for OCR. |
+| `compass word`, `access keyboard`, `secretary`, `tokenize`, `spin`, `pinned`, `secretkey`, `tokenid`, `Pasword`, `PW:`, `Pass:` | false | false | Ordinary words and unmatched shapes in both. |
+
+Why folding and not edit distance. Edit distance one cannot be applied to the
+short words: `taken` is one edit from `token`, and `pan`, `pen`, `pit`, `pie`,
+and `spin` are one edit from `pin`. A bound that excludes them also excludes
+every misread of them, and a longer word such as `password` gains little over
+the fold, because the single-character misreads seen in practice are digits and
+symbols for letters. Folding is exact, deterministic, one table lookup per
+rune, and can only add a match when a word is a marker once folded. On the repo
+docs corpus below it adds 5 lines in about 262,000. Letter-for-letter misreads,
+such as `rn` for `m` or `vv` for `w`, are not caught. The common ones are the
+digit and symbol swaps above.
 
 A region is a value when either holds:
 
@@ -139,11 +217,30 @@ so the number of regions withheld can exceed k+1.
 Limits:
 
 - Marker words decide everything, so a label the word list misses opens no
-  window: `Secret:`, `API Key:`, and a misread `Passw0rd:` are not markers. In a
-  probe of degraded renders, `Password` came back verbatim or was lost whole, as
-  in `Confirm passwort`.
-- `Token:` and `Credentials:` are not markers either. #9793 tracks the marker
-  list.
+  window. A label the folding does not reach, such as a letter-for-letter
+  misread (`Passvvord`), opens none. In a probe of degraded renders, `Password`
+  came back verbatim or was lost whole, as in `Confirm passwort`. The list has
+  no `passwort`, `passkey`, or `ssh key`.
+- Misses found by probing, none matched: `Pasword` (a dropped letter), `PW:`,
+  `Pass:`, `A.P.I. key` (punctuation inside a word), Cyrillic `раssword` and
+  other homoglyphs outside fullwidth ASCII. Only digit, symbol, case, and
+  fullwidth variants are handled.
+- Fused or odd shapes that are not matched: `secretkey`, `tokenid`, `aPI Key`
+  (a case change inside `api`, a space before `key`), and `$ecret` (a symbol at
+  the start of a word is a separator, not an `s`).
+- A digit does not start a new word in a camel case name, so `Token2Value`,
+  `Secret2Value`, and `API2Key` are not matched. The STT rule matches the
+  first two. `PaSS CoDe` is not matched either, for another reason: a case
+  change inside each word splits it, so neither half is the whole word `pass`
+  or `code`. The STT rule matches it.
+- A marker followed directly by an in-word symbol is not matched: `PIN$Value`,
+  `PWD$S`, `Token@host`, `API Key$Value`, and `x$Pass cod3`. The word after an
+  in-word symbol is also read on its own, so a few ordinary strings open a
+  window: `alice@pin.example.com`, `bob@pwd.example.org`, and `foo$pin`. The
+  email is redacted anyway, and the window costs the two regions after it.
+- A fused lowercase compound such as `clientsecret` matches only through its
+  ending. `pin` and `token` in plain prose are markers like `password` in
+  prose, so "Pin the base image" hides the two lines after it (#9793).
 - A value more than 2 regions after its marker region, on another row, is not
   caught.
 - A value above its label, or left of its label on the same row, is not withheld.
@@ -153,7 +250,15 @@ Limits:
   opens a window over the next rows only, and each cell further down stays in
   clear. That needs a column rule, not this one.
 
-Proof: `TestExtractRedactsValuesThatFollowALabelInReadingOrder`,
+Proof: `TestContainsMarkerWordMatchesEveryLabelForm`,
+`TestContainsMarkerWordLeavesOrdinaryTextAlone`,
+`TestContainsMarkerWordBoundaries`,
+`TestExtractRedactsTheValueAfterEveryLabelFamilyStacked`,
+`TestExtractRedactsTheValueAfterEveryLabelFamilyInAColumn`,
+`TestExtractRedactsALabelWithItsValueOnOneLine`,
+`TestExtractKeepsOrdinaryTextThatHoldsNoLabel`,
+`TestSourceIdentityKeepsTheNarrowMarkerList`,
+`TestExtractRedactsValuesThatFollowALabelInReadingOrder`,
 `TestExtractRedactsValueInTheColumnBesideALabel`,
 `TestExtractFollowsEngineRegionOrder`,
 `TestExtractRowClauseHandlesInvalidAndTiedGeometry`,
@@ -174,6 +279,64 @@ tesseract run.
 No-Regression Evidence: `go test -race ./internal/collector/document/ocr/...
 -count=1` passes, including the pre-existing extraction, skip, GIF, redaction,
 and local-engine PII suites.
+
+Marker-list Performance Evidence (#9793): the same two benchmarks on 500 regions,
+before (origin/main) and after test binaries run in turn at `-benchtime=2000x`,
+seven runs each, medians, on a shared 16-core host at load average 9.6.
+Ordinary text went from 3.16 ms/op to 4.26 ms/op (13,906 to 12,906 allocs/op),
+and the label-heavy case from 2.14 ms/op to 2.58 ms/op (13,415 to 12,663
+allocs/op). The scan makes a fixed number of passes per region (one for the
+source-name substrings, one for the words), twice per region (once for the value
+window and once for the region's own text), and keeps its buffers on the stack,
+so it allocates less than the lowercase copy it replaces. The added 0.4 to 1.1
+ms per 500 regions is about 0.5 percent of one tesseract run.
+`TestContainsMarkerWordIsLinear` pins the time on 1 MiB of symbols, camel case,
+digits, and glued words. A run of `@` or `$` outside a word was once measured
+again from every position; review measured 1.67 s for one 64 KiB region
+through `Extract` against 5.4 ms on the old rule, and 17.6 s for 256 KiB. The
+run is now measured once.
+
+No-Observability-Change (#9793): the label matcher adds no metric, span, or log.
+A region it flags is a redacted section, so `eshu_dp_ocr_redacted_regions_total`,
+the `ocr.redacted_region_count` span attribute, and the `redacted_region_count`
+log field count it with no change.
+
+Marker-list False-positive Evidence (#9793): the rule is a superset of the old
+one on every corpus below, and costs more only where the text holds a new word.
+The unit corpus `ordinaryLines` (53 lines, each holding a marker word as a
+substring or one edit away) flags none. The sandbox fixtures hold 15 distinct
+texts: the old rule flagged 2 (both true labels), and the new rule flagged 4
+before two fixtures were reworded, adding the value `Hunter2CanarySecret` and
+the line `Credentials for the staging cluster live`. Both fixtures now avoid a
+marker word and the count is back to 2 of 15. On a prose corpus of about 262,000
+non-blank lines of this repo's markdown under `docs/public` and
+`docs/internal`, which is security-dense and so an upper bound, the old rule
+flagged 470 lines (0.18 percent) and the new rule about 6,700 (2.55 to 2.57
+percent, depending on the corpus snapshot), with no line the old rule flagged
+missed. By family, on lines the old rule did not flag:
+`token` 2,203, `pin` 1,425, `secret` 1,383, `credential` about 1,300, `api key` 57,
+`pwd` 43, `private key` 36, `access key` 32, `apikey` 7. Each costs a bounded
+window of 2 regions, as `password` always did.
+
+Marker-list Mutation Evidence (#9793): 66 planted mutants each turn at least one
+test red, run on a `git archive` copy. They are each family word removed (15),
+the `secret` and `token` boundary and the `pin` and `pwd` boundary loosened to a
+substring, plural removed from both whole-word rules, folding removed whole and
+each of 0, 5 and `$`, `@`, 3, 4, and `1`/`l` removed, camel splitting and its
+plural guard removed, the phrase gap loosened and its check removed, the
+first-word suffix removed, in-word symbols disabled, the symbol-run early exit
+removed (the linearity test fails after minutes), the source-name substring
+check and its non-ASCII path removed, trailing digits left on a word, the
+run-level word check removed, the whole-word check of a digit-ended word
+removed, the capital L rule removed and widened to any l, fullwidth folding
+removed at the decode site and in a symbol run, `pincode` removed, the word
+after an in-word symbol dropped and its use in a phrase dropped, each part of
+that word's state broken (trailing digits, the capital L flag, the reset at a
+later symbol and at a word end, the word before it and its link guard), a symbol
+that keeps the folded rune, match-anywhere turned into a prefix match, each plural
+second word removed, the six-entry source-name list shortened in either
+package, region text matched with the source-name list, the window opened by
+the source-name list, and the source-name list widened to the label matcher.
 
 No-Observability-Change: the rule adds no metric, span, or log. A withheld value
 is a redacted section, so `eshu_dp_ocr_redacted_regions_total`, the

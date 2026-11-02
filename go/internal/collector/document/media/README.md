@@ -235,7 +235,8 @@ rule is deliberate:
 bread" withhold the next two segments, which shows in section metadata, while a
 client secret that stays in clear text cannot be taken back.
 
-OCR in this tree keeps the six original markers. #9793 tracks a wider OCR list.
+The OCR twin in `document/ocr` has its own rule (#9793). Its README
+holds the table of differences between the two.
 
 Source names, document IDs, and mention hints keep the original substring list,
 because they are labels such as `token-service` and `pin-assignments.wav`, not

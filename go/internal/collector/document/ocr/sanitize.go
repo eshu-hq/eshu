@@ -26,10 +26,12 @@ const (
 	minLabelRowOverlap = 0.5
 )
 
-// sensitiveMarkers are the words that make a region sensitive on their own.
-// Unlike the patterns below, a marker word names a value rather than being one,
-// so only a marker word opens a value window.
-var sensitiveMarkers = []string{
+// identityMarkers are the words that make a source name sensitive. They are the
+// narrow list on purpose: a file called token-rotation.png is a name, not text
+// read from a picture, and the wider label list in label_markers.go would hide
+// the identity of ordinary documents. Text read from a picture uses
+// containsMarkerWord instead.
+var identityMarkers = []string{
 	"credential_marker", "secret_marker", "token_marker", "password", "api_key", "private_key",
 }
 
@@ -41,24 +43,30 @@ var (
 	windowsPathPattern = regexp.MustCompile(`(?i)\b[a-z]:\\[^\s]+`)
 )
 
+// containsSensitiveMarker reports whether a source name or path is sensitive.
 func containsSensitiveMarker(text string) bool {
-	if containsMarkerWord(strings.ToLower(text)) {
-		return true
+	lower := strings.ToLower(text)
+	for _, marker := range identityMarkers {
+		if strings.Contains(lower, marker) {
+			return true
+		}
 	}
+	return matchesSensitivePattern(text)
+}
+
+// containsSensitiveText reports whether one region of text read from a picture
+// is sensitive on its own: a label from containsMarkerWord, or a value shaped
+// like personal or private data.
+func containsSensitiveText(text string) bool {
+	return containsMarkerWord(text) || matchesSensitivePattern(text)
+}
+
+func matchesSensitivePattern(text string) bool {
 	return emailPattern.MatchString(text) ||
 		schemePattern.MatchString(text) ||
 		ticketPattern.MatchString(text) ||
 		unixPathPattern.MatchString(text) ||
 		windowsPathPattern.MatchString(text)
-}
-
-func containsMarkerWord(lower string) bool {
-	for _, marker := range sensitiveMarkers {
-		if strings.Contains(lower, marker) {
-			return true
-		}
-	}
-	return false
 }
 
 func isLetterOrDigit(r rune) bool {
@@ -96,7 +104,7 @@ func labelValueRegions(regions []Region) []bool {
 				remaining--
 			}
 		}
-		if containsMarkerWord(strings.ToLower(text)) {
+		if containsMarkerWord(text) {
 			remaining += labelValueWindow
 			labels = append(labels, region.Bounds)
 		}

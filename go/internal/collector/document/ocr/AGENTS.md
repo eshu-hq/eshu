@@ -27,6 +27,10 @@
 
 - Add an OCR engine behavior by extending the injected `Engine` contract and
   testing it with synthetic fixtures.
+- Add a credential label by adding its word to `labelFamilies` in
+  `label_markers.go`, in the family whose boundary the word can bear, with a
+  row in `markerLabelForms` and an ordinary-text row in `ordinaryLines`. Source
+  names use the narrower `identityMarkers` in `sanitize.go` on purpose.
 - Add redaction classes by updating extractor tests, the README, and the
   redaction helper. Keep raw matching values out of persisted content.
 - Add runtime telemetry only in the caller that enables extraction. This package
