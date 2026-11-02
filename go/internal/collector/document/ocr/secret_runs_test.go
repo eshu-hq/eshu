@@ -88,6 +88,16 @@ func TestExtractContinuesASecretRunPastTheWindow(t *testing.T) {
 			want:    []string{redacted, redacted, redacted, redacted, redacted, "Rollback steps"},
 		},
 		{
+			name:    "a line with a stray space continues a run after a single token",
+			regions: stackedRegions("Password:", "x1", "y2", runLine, "Qr5tUv8x Yz1bCd4e", "Rollback steps"),
+			want:    []string{redacted, redacted, redacted, redacted, redacted, "Rollback steps"},
+		},
+		{
+			name:    "a symbol region after the window is kept",
+			regions: stackedRegions("Password:", "x1", "y2", "|", "Rollback steps"),
+			want:    []string{redacted, redacted, redacted, "|", "Rollback steps"},
+		},
+		{
 			name:    "a line with a stray space does not continue past a label or a value that is no token",
 			regions: stackedRegions("Password:", "x1", "y2", "- `ESHU_CHECK=false`", "Rollback steps"),
 			want:    []string{redacted, redacted, redacted, "- `ESHU_CHECK=false`", "Rollback steps"},
@@ -227,7 +237,8 @@ func TestSecretTokenShapes(t *testing.T) {
 }
 
 // TestExtendSecretRunsIsLinear pins the time of the run scan on a page of
-// 200,000 token lines after one label, and on one 1 MiB token. Each region is
+// 200,000 token lines after one label, on 200,000 seed lines in a row, and on
+// one 1 MiB token. Each region is
 // read a fixed number of times, so both finish in milliseconds. The bound is far
 // above that and far below quadratic.
 func TestExtendSecretRunsIsLinear(t *testing.T) {
@@ -246,6 +257,19 @@ func TestExtendSecretRunsIsLinear(t *testing.T) {
 	}
 	if !values[count] {
 		t.Fatalf("last token line was kept, want the run to reach it")
+	}
+
+	seeds := make([]Region, count)
+	for i := range seeds {
+		seeds[i] = Region{Text: seedLine}
+	}
+	start = time.Now()
+	values = labelValueRegions(seeds)
+	if elapsed := time.Since(start); elapsed > 10*time.Second {
+		t.Fatalf("labelValueRegions on %d seed lines took %v, want linear time", count, elapsed)
+	}
+	if !values[0] || !values[count-1] {
+		t.Fatalf("seed lines were kept, want every one withheld")
 	}
 
 	big := strings.Repeat("Ab3d", 1<<18)

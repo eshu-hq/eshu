@@ -72,7 +72,7 @@ func extendSecretRuns(regions []Region, values []bool) {
 		if !strings.ContainsFunc(text, isLetterOrDigit) {
 			// Box edges reach OCR as "|" or "_". Inside a run of tokens such a
 			// region is withheld and neither ends nor extends the run.
-			values[i] = values[i] || (previousWithheld && tokens > 0)
+			values[i] = values[i] || (tokens > 0)
 			continue
 		}
 		withheld := values[i]
