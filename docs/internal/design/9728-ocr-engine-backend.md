@@ -241,6 +241,8 @@ covered end to end, and there is no QA-tier caller.
   shared runtime image.
 - Native amd64 byte identity, and RLIMIT_AS enforcement on amd64, are
   NOT_CHECKED.
-- Redaction is only as good as recognition: a misread marker word (for
-  example `passw0rd`) would not match `ocr.Extract`'s marker list. The
-  fixtures read cleanly. Noisy-scan accuracy is NOT_CHECKED.
+- Redaction is only as good as recognition: `ocr.Extract` folds a digit or
+  symbol read for a letter (`passw0rd`, `p@ssword`) before it matches its label
+  list (#9793), but a letter-for-letter misread (`passvvord`) or a label lost
+  whole is not caught. The fixtures read cleanly. Noisy-scan accuracy is
+  NOT_CHECKED.
