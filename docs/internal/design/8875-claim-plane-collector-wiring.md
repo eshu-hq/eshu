@@ -130,3 +130,39 @@ the ruling's section 6 demand bar (Phase C). The client is safe for concurrent
 use: `http.Client` is concurrency-safe, the client holds no mutable state, and
 the observer hook only records metrics. No lock, transaction, or lease
 semantics change on the in-tree side.
+
+## Evidence
+
+No-Regression Evidence: with `ESHU_WORKFLOW_CLAIM_PLANE_URL` unset, every
+collector's claim path is unchanged. `store.New` returns the injected
+`*postgres.WorkflowControlStore` pointer itself (`TestNewUnsetKeepsInjectedPostgresStore`
+asserts pointer identity), and it runs once at startup, never per claim. No
+SQL, lock order, lease, or queue behavior changes. Client-side cost of the new
+`Observe` chokepoint, measured on the shared dev host (Go 1.26.10
+linux/arm64, `httptest` loopback stub, `-benchtime 10000x -count 5
+-benchmem`):
+
+| Benchmark | Base `93d191b7f8` | This branch |
+| --- | --- | --- |
+| `BenchmarkClaimPlaneClientClaimNext` (no observer) | 55.5-75.0 us/op, median 66.7; 239 allocs/op | 64.3-83.8 us/op, median 75.2; 239 allocs/op |
+| `BenchmarkClaimPlaneHeartbeat/unobserved` | n/a | 31.1-38.1 us/op, median 33.0; 100 allocs/op, ~9.7 KB/op |
+| `BenchmarkClaimPlaneHeartbeat/observed` (real OTEL instruments) | n/a | 31.8-36.5 us/op, median 33.9; 105 allocs/op, ~10.0 KB/op |
+
+The no-observer path keeps the same allocation count; its ns/op ranges overlap
+on this noisy shared host. Binding the metrics adds 5 allocations (about
+200 B) per request and no measurable latency next to one loopback HTTP round
+trip. Input shape: one request per iteration, server work near zero. Terminal
+queue/row counts: none; the benchmarks touch no store. Real server-side latency
+is the ruling's Phase C bar (`p99` from the claim plane's own histogram,
+P3), not this stub.
+
+Observability Evidence: `TestNewEmitsSelectionLogAndMetricsAndInstrumentsRequests`
+asserts the `collector.workflow_control_store.selected` log fields, the
+`eshu_dp_workflow_control_store_selections_total{backend_kind=claim_plane}`
+increment, and the
+`eshu_dp_workflow_claim_plane_requests_total{operation=HeartbeatClaim,outcome=ok}`
+increment. `TestClaimPlaneClientObserveReportsOutcomePerProtocolResult`, the
+timeout case, and the transport case cover every `outcome` path except
+`request_error`, which needs an unmarshalable body or a malformed base URL
+that `store.New` already rejects. `TestClaimPlaneInstrumentsRegisterAndEmit`
+pins registration and the histogram bounds.

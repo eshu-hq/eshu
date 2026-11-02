@@ -101,6 +101,7 @@ func TestNewInvalidURLFailsNamingVariableWithoutLeakingCredentials(t *testing.T)
 		"query":             "http://claim-plane:8080?token=abc",
 		"fragment":          "http://claim-plane:8080#frag",
 		"path":              "http://claim-plane:8080/workflow.v1",
+		"path with token":   "http://claim-plane:8080/tok-9f8e7d",
 		"unparseable":       "http://claim plane:8080",
 		"control character": "http://claim-plane:8080/\x7f",
 	}
@@ -118,7 +119,7 @@ func TestNewInvalidURLFailsNamingVariableWithoutLeakingCredentials(t *testing.T)
 			if !strings.Contains(err.Error(), store.EnvClaimPlaneURL) {
 				t.Fatalf("error %q does not name %s", err, store.EnvClaimPlaneURL)
 			}
-			for _, secret := range []string{"s3cret-pass", "svc-user", "token=abc"} {
+			for _, secret := range []string{"s3cret-pass", "svc-user", "token=abc", "tok-9f8e7d"} {
 				if strings.Contains(err.Error(), secret) {
 					t.Fatalf("error %q leaks %q", err, secret)
 				}

@@ -31,7 +31,7 @@ func parseClaimPlaneURL(raw string) (*url.URL, error) {
 	case parsed.Fragment != "" || strings.Contains(raw, "#"):
 		return nil, fmt.Errorf("%s must not carry a fragment", EnvClaimPlaneURL)
 	case parsed.Path != "" && parsed.Path != "/":
-		return nil, fmt.Errorf("%s must be a base URL with no path (got path %q)", EnvClaimPlaneURL, parsed.EscapedPath())
+		return nil, fmt.Errorf("%s must be a base URL with no path", EnvClaimPlaneURL)
 	}
 	return &url.URL{Scheme: parsed.Scheme, Host: parsed.Host}, nil
 }
