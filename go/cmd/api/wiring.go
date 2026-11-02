@@ -397,13 +397,7 @@ func wireAPI(
 	router.AdminProviderConfigReads = newAdminProviderConfigReadHandler(rawDB, oidcLoginHandler, samlHandler, logger)
 	router.AdminProviderConfigMutations = newAdminProviderConfigMutationHandler(rawDB, governanceAudit, providerSecretKeyring, providerConfigTester, oidcLoginHandler, samlHandler, logger)
 
-	// Tenant sign-in policy (epic #4962, issue #4968): built before
-	// router.LocalIdentity below so its SignInPolicyReadStore can be wired
-	// into the local-login require_sso gate in the same call.
-	router.SignInPolicyReads = newSignInPolicyReadHandler(rawDB, instruments)
-	router.SignInPolicyMutations = newSignInPolicyMutationHandler(rawDB, instruments, governanceAudit)
-	router.LocalIdentity.SignInPolicy = router.SignInPolicyReads.Store
-	router.LocalIdentity.Instruments = instruments
+	wireSignInPolicyHandlers(rawDB, instruments, governanceAudit, router)
 
 	apiMux := http.NewServeMux()
 	router.Mount(apiMux)

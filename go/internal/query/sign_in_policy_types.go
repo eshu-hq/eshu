@@ -51,6 +51,21 @@ type SignInPolicyUpdateRequest struct {
 // lives in auth (#6642).
 type SignInPolicyReadStore = auth.SignInPolicyReadStore
 
+// SignInPolicyAdmissionContractVersion versions the #8872
+// admission-contract shape for the admin sign-in policy mutation (PATCH
+// /api/v0/auth/admin/sign-in-policy). Canonical mutations persist through
+// explicit core-owned admission contracts: eshu-api keeps the HTTP shape
+// and calls this versioned port, which the core-owned Postgres
+// implementation satisfies. A breaking change to the admission shape must
+// bump this version in the same diff.
+const SignInPolicyAdmissionContractVersion = "v0"
+
+// SignInPolicyAdmission is the versioned admission-contract port the API
+// handler depends on instead of a direct table handle. It aliases the
+// narrow mutation store so existing fakes and the core-owned Postgres
+// implementation keep satisfying it unchanged.
+type SignInPolicyAdmission = SignInPolicyMutationStore
+
 // SignInPolicyMutationStore is the write surface for tenant sign-in policy.
 // Implementations must apply the require_sso guardrail AND the merged
 // idle/absolute timeout-ordering check atomically with the write, INSIDE the

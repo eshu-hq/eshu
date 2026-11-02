@@ -28,6 +28,8 @@ type postgresSignInPolicyAdapter struct {
 	store *pgstatus.IdentitySubjectStore
 }
 
+var _ query.SignInPolicyAdmission = (*postgresSignInPolicyAdapter)(nil)
+
 func newPostgresSignInPolicyAdapter(rawDB *sql.DB, instruments *telemetry.Instruments) *postgresSignInPolicyAdapter {
 	if rawDB == nil {
 		return nil
@@ -44,6 +46,29 @@ func newPostgresSignInPolicyAdapter(rawDB *sql.DB, instruments *telemetry.Instru
 	return &postgresSignInPolicyAdapter{store: pgstatus.NewIdentitySubjectStore(signInPolicyDB)}
 }
 
+// wireSignInPolicyHandlers binds the tenant sign-in policy read and
+// mutation routes (epic #4962, issue #4968), built before
+// router.LocalIdentity so its SignInPolicyReadStore can be wired into the
+// local-login require_sso gate in the same call.
+func wireSignInPolicyHandlers(
+	rawDB *sql.DB,
+	instruments *telemetry.Instruments,
+	governanceAudit query.GovernanceAuditSummaryReader,
+	router *query.APIRouter,
+) {
+	router.SignInPolicyReads = newSignInPolicyReadHandler(rawDB, instruments)
+	// A nil database yields a nil port (503 downstream) rather than a
+	// typed-nil interface that would hide from the handler's nil-store
+	// check, matching the read handler's nil-database convention.
+	var signInPolicyAdmission query.SignInPolicyAdmission
+	if adapter := newPostgresSignInPolicyAdapter(rawDB, instruments); adapter != nil {
+		signInPolicyAdmission = adapter
+	}
+	router.SignInPolicyMutations = newSignInPolicyMutationHandler(signInPolicyAdmission, instruments, governanceAudit)
+	router.LocalIdentity.SignInPolicy = router.SignInPolicyReads.Store
+	router.LocalIdentity.Instruments = instruments
+}
+
 // newSignInPolicyReadHandler wires the sign-in policy read routes (public +
 // admin). Nil-safe: a nil database yields a handler whose store is nil, so
 // each route returns 503 rather than panicking, matching
@@ -57,19 +82,21 @@ func newSignInPolicyReadHandler(database *sql.DB, instruments *telemetry.Instrum
 }
 
 // newSignInPolicyMutationHandler wires the admin sign-in policy write route.
+//
+// The single bounded mutation travels through the versioned #8872
+// sign-in policy admission contract, not a *sql.DB writer handle: the
+// caller binds the core-owned admission implementation and the handler
+// carries the port.
 func newSignInPolicyMutationHandler(
-	database *sql.DB,
+	signInPolicyAdmission query.SignInPolicyAdmission,
 	instruments *telemetry.Instruments,
 	governanceAudit query.GovernanceAuditSummaryReader,
 ) *query.SignInPolicyMutationHandler {
-	handler := &query.SignInPolicyMutationHandler{
+	return &query.SignInPolicyMutationHandler{
+		Store:       signInPolicyAdmission,
 		Audit:       adminRecoveryAuditAppender(governanceAudit),
 		Instruments: instruments,
 	}
-	if store := newPostgresSignInPolicyAdapter(database, instruments); store != nil {
-		handler.Store = store
-	}
-	return handler
 }
 
 func (a *postgresSignInPolicyAdapter) GetSignInPolicy(ctx context.Context, tenantID string) (query.SignInPolicy, error) {
