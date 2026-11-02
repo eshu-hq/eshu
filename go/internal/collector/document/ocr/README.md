@@ -119,7 +119,8 @@ and `i` are one letter, so `Passw0rd`, `P@ssword`, `Pa55word`, `S3cret`, and
 `Credentia1s` match. A symbol at the edge of a word (`$PIN`, `@token`) is a
 separator, not a letter. A symbol inside a word does not start a case split, so
 `PRIV@TE KEY` and `ACCE$S KEY` match; the letters after it are also read as a
-word of their own, so `DB$PWD` and `Card@PIN` match too. Each family picks the boundary its word can bear:
+word of their own, so `DB$PWD` and `Card@PIN` match too. Each family picks the
+boundary its word can bear:
 
 | Family | Words | Matches |
 |---|---|---|
@@ -228,8 +229,15 @@ Limits:
   (a case change inside `api`, a space before `key`), and `$ecret` (a symbol at
   the start of a word is a separator, not an `s`).
 - A digit does not start a new word in a camel case name, so `Token2Value`,
-  `Secret2Value`, `API2Key`, and `PaSS CoDe` are not matched. The STT rule
-  matches all of them except `API2Key`.
+  `Secret2Value`, and `API2Key` are not matched. The STT rule matches the
+  first two. `PaSS CoDe` is not matched either, for another reason: a case
+  change inside each word splits it, so neither half is the whole word `pass`
+  or `code`. The STT rule matches it.
+- A marker followed directly by an in-word symbol is not matched: `PIN$Value`,
+  `PWD$S`, `Token@host`, `API Key$Value`, and `x$Pass cod3`. The word after an
+  in-word symbol is also read on its own, so a few ordinary strings open a
+  window: `alice@pin.example.com`, `bob@pwd.example.org`, and `foo$pin`. The
+  email is redacted anyway, and the window costs the two regions after it.
 - A fused lowercase compound such as `clientsecret` matches only through its
   ending. `pin` and `token` in plain prose are markers like `password` in
   prose, so "Pin the base image" hides the two lines after it (#9793).
@@ -285,8 +293,8 @@ ms per 500 regions is about 0.5 percent of one tesseract run.
 `TestContainsMarkerWordIsLinear` pins the time on 1 MiB of symbols, camel case,
 digits, and glued words. A run of `@` or `$` outside a word was once measured
 again from every position; review measured 1.67 s for one 64 KiB region
-through `Extract` against 5.4 ms on the old rule, and 17.6 s for 256 KiB. The run is now
-measured once.
+through `Extract` against 5.4 ms on the old rule, and 17.6 s for 256 KiB. The
+run is now measured once.
 
 No-Observability-Change (#9793): the label matcher adds no metric, span, or log.
 A region it flags is a redacted section, so `eshu_dp_ocr_redacted_regions_total`,
@@ -303,13 +311,14 @@ the line `Credentials for the staging cluster live`. Both fixtures now avoid a
 marker word and the count is back to 2 of 15. On a prose corpus of about 262,000
 non-blank lines of this repo's markdown under `docs/public` and
 `docs/internal`, which is security-dense and so an upper bound, the old rule
-flagged 470 lines (0.18 percent) and the new rule about 6,700 (2.55 to 2.57 percent, depending on the corpus snapshot), with no
-line the old rule flagged missed. By family, on lines the old rule did not flag:
+flagged 470 lines (0.18 percent) and the new rule about 6,700 (2.55 to 2.57
+percent, depending on the corpus snapshot), with no line the old rule flagged
+missed. By family, on lines the old rule did not flag:
 `token` 2,203, `pin` 1,425, `secret` 1,383, `credential` about 1,300, `api key` 57,
 `pwd` 43, `private key` 36, `access key` 32, `apikey` 7. Each costs a bounded
 window of 2 regions, as `password` always did.
 
-Marker-list Mutation Evidence (#9793): 58 planted mutants each turn at least one
+Marker-list Mutation Evidence (#9793): 66 planted mutants each turn at least one
 test red, run on a `git archive` copy. They are each family word removed (15),
 the `secret` and `token` boundary and the `pin` and `pwd` boundary loosened to a
 substring, plural removed from both whole-word rules, folding removed whole and
@@ -321,8 +330,10 @@ check and its non-ASCII path removed, trailing digits left on a word, the
 run-level word check removed, the whole-word check of a digit-ended word
 removed, the capital L rule removed and widened to any l, fullwidth folding
 removed at the decode site and in a symbol run, `pincode` removed, the word
-after an in-word symbol dropped and its use in a phrase dropped, a symbol that
-keeps the folded rune, match-anywhere turned into a prefix match, each plural
+after an in-word symbol dropped and its use in a phrase dropped, each part of
+that word's state broken (trailing digits, the capital L flag, the reset at a
+later symbol and at a word end, the word before it and its link guard), a symbol
+that keeps the folded rune, match-anywhere turned into a prefix match, each plural
 second word removed, the six-entry source-name list shortened in either
 package, region text matched with the source-name list, the window opened by
 the source-name list, and the source-name list widened to the label matcher.
