@@ -62,7 +62,7 @@ func extendSecretRuns(regions []Region, values []bool) {
 		case previousToken && !hasSpace(text):
 			withheld = true
 		case isSeedToken(text):
-			withheld, token = true, true
+			withheld = true
 		}
 		values[i] = values[i] || withheld
 		previousWithheld, previousToken = withheld, withheld && token
