@@ -123,6 +123,8 @@ type Report struct {
 	Criteria           map[string]Criterion      `json:"criteria"`
 	Abort              *Violation                `json:"abort,omitempty"`
 	Verdict            string                    `json:"verdict"`
+	// Incomplete names why a failure-free run is INCOMPLETE, when it is.
+	Incomplete string `json:"incomplete_reason,omitempty"`
 }
 
 // ReclaimReport is the §6 reclaim measurement over the abandoned claims:

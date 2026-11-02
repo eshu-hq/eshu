@@ -11,9 +11,11 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -213,7 +215,11 @@ func clockSkew(t *testing.T, spec Spec) time.Duration {
 
 func runAndRecord(t *testing.T, spec Spec, leg Leg, opt Options) {
 	t.Helper()
-	report, err := Run(context.Background(), spec, leg, opt)
+	// SIGINT or SIGTERM aborts the run; Run still drains, prefix-deletes,
+	// and checks residue before the test returns.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	report, err := Run(ctx, spec, leg, opt)
 	if report != nil {
 		t.Log("\n" + report.Summary())
 		writeReport(t, spec, leg, report)

@@ -147,14 +147,44 @@ Supporting measurements:
 `Run` wraps the leg backend in a guard (`guard.go`). It refuses, before the
 backend sees it, any write that names a non-synthetic id or a collector
 instance other than `InstanceID`, or that calls a global route. A refusal
-aborts with `non_synthetic_id_touched`. Every §7 trigger is enforced in code:
-dual claim, fencing regression, lost item, non-synthetic id, exactly-once,
-stale write accepted, queue-depth cap, deadlock, lock wait, pg_headroom
-(exporter ceilings), wall-clock cap, and residue. None depends on the abort
-file. The abort file and SIGINT exist only for signals the harness cannot
-read itself: container CPU and memory, mode drift, and restarts. The
-queue-depth cap (`queue_depth_cap` in the report) is the backlog, plus the
-quota workload, plus one advisory round per interval.
+aborts with `non_synthetic_id_touched`.
+
+Two loops watch the run, each with its own lifetime:
+
+- **The watcher** (`watch.go`) runs from before the isolation probe until
+  the reversal has finished. Its first reading is synchronous, so a server
+  already over a ceiling stops the run before any write. Each
+  `SampleInterval` it reads the abort file, the pg_headroom ceilings and
+  the deadlock counter, and the SQLSTATE 40P01 count.
+- **The database sampler** (`loops.go`) runs from the baseline census
+  (before the seed) through the drain. It checks dual live claims, zero
+  loss, the queue-depth cap, fencing, double terminals, and non-synthetic
+  changes.
+
+Both fail closed: `MaxSampleFailures` (3) consecutive failed reads abort
+with `sampler_unavailable`, and more than `MaxSampleErrors` (5) failed reads
+in total make the verdict `INCOMPLETE`. A run with no sampler reading is
+also `INCOMPLETE`, and so is a live run with no headroom reading or no core
+third zero. The report names the reason in `incomplete_reason`. The live
+target refuses `SAMPLER_DISABLED`.
+
+These §7 triggers are enforced in code and need nothing from the operator:
+
+- dual claim, fencing regression, lost item, non-synthetic id
+- exactly-once, stale write accepted, queue-depth cap
+- deadlock, lock wait, pg_headroom (exporter ceilings)
+- wall-clock cap, residue
+
+SIGINT or SIGTERM to the entry test aborts as `external_abort`, and the
+reversal still runs.
+
+Two §7 triggers stay operator-watched, because the harness cannot observe
+them: the grant expiring, and the revert PR merging. The same holds for
+signals the exporter does not carry: container CPU and memory, satellite
+mode drift, and restarts. The operator's watch loop writes the abort file
+for any of them (runbook step 4). The queue-depth cap (`queue_depth_cap`
+in the report) is the backlog, plus the quota workload, plus one advisory
+round per interval.
 
 ## Abort triggers and their two detectors
 
@@ -246,8 +276,9 @@ then more seeds until two consecutive seeds are clean.
 
 4. **Abort watch** for what the exporter cannot see: CPU, memory, satellite
    mode drift, and restarts. Six consecutive samples over a ceiling is the
-   sustained 60 s. Any hit writes the abort file, and the harness aborts and
-   cleans up within one sample.
+   sustained 60 s. Any hit writes the abort file. The watcher reads it every
+   `SampleInterval` (1 s) from before the first write until cleanup ends,
+   so the harness aborts and reverses within one sample.
 
    ```sh
    ABORT=/home/ubuntu/.cache/wf9727-abort; rm -f "$ABORT"; over=0

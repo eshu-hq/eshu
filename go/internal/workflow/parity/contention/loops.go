@@ -6,8 +6,6 @@ package contention
 import (
 	"context"
 	"fmt"
-	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -16,23 +14,25 @@ import (
 
 // SampleRecord is one sampler tick kept in the report.
 type SampleRecord struct {
-	At           time.Time       `json:"at"`
-	Items        map[string]int  `json:"items_by_status"`
-	ActiveClaims int             `json:"active_claims"`
-	Created      int64           `json:"created"`
-	Headroom     *HeadroomSample `json:"headroom,omitempty"`
-	QueryMS      float64         `json:"query_ms"`
+	At           time.Time      `json:"at"`
+	Items        map[string]int `json:"items_by_status"`
+	ActiveClaims int            `json:"active_claims"`
+	Created      int64          `json:"created"`
+	QueryMS      float64        `json:"query_ms"`
 }
 
-// sampleLog keeps the first MaxSamples records plus aggregate counters.
+// sampleLog keeps the first MaxSamples records plus aggregate counters for
+// the database sampler and the headroom watcher.
 type sampleLog struct {
-	mu       sync.Mutex
-	records  []SampleRecord
-	count    int
-	errors   []string
-	queryMS  []time.Duration
-	maxHead  HeadroomSample
-	headSeen bool
+	mu        sync.Mutex
+	records   []SampleRecord
+	count     int
+	errors    []string
+	errTotal  int
+	queryMS   []time.Duration
+	maxHead   HeadroomSample
+	headSeen  bool
+	headCount int
 }
 
 func (l *sampleLog) add(rec SampleRecord, limit int, query time.Duration) {
@@ -43,35 +43,63 @@ func (l *sampleLog) add(rec SampleRecord, limit int, query time.Duration) {
 	if len(l.records) < limit {
 		l.records = append(l.records, rec)
 	}
-	if h := rec.Headroom; h != nil {
-		if !l.headSeen {
-			l.maxHead, l.headSeen = *h, true
-			return
-		}
-		l.maxHead.Connections = max(l.maxHead.Connections, h.Connections)
-		l.maxHead.LockWaiters = max(l.maxHead.LockWaiters, h.LockWaiters)
-		l.maxHead.MaxLockWaitMS = max(l.maxHead.MaxLockWaitMS, h.MaxLockWaitMS)
-		l.maxHead.DeadlocksTotal = max(l.maxHead.DeadlocksTotal, h.DeadlocksTotal)
-		l.maxHead.ReplicationLagSec = max(l.maxHead.ReplicationLagSec, h.ReplicationLagSec)
+}
+
+func (l *sampleLog) addHead(h HeadroomSample) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.headCount++
+	if !l.headSeen {
+		l.maxHead, l.headSeen = h, true
+		return
 	}
+	l.maxHead.Connections = max(l.maxHead.Connections, h.Connections)
+	l.maxHead.LockWaiters = max(l.maxHead.LockWaiters, h.LockWaiters)
+	l.maxHead.MaxLockWaitMS = max(l.maxHead.MaxLockWaitMS, h.MaxLockWaitMS)
+	l.maxHead.DeadlocksTotal = max(l.maxHead.DeadlocksTotal, h.DeadlocksTotal)
+	l.maxHead.ReplicationLagSec = max(l.maxHead.ReplicationLagSec, h.ReplicationLagSec)
 }
 
 func (l *sampleLog) fail(err error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	l.errTotal++
 	if len(l.errors) < 50 {
 		l.errors = append(l.errors, err.Error())
 	}
 }
 
-// sample is the §6 per-second invariant sampler. Each tick checks the
-// cheap invariants (dual live claim, zero loss, headroom, abort file); every
-// CensusEvery ticks it diffs non-synthetic rows against the baseline (a
-// non-synthetic id touched), and every FencingEvery ticks it runs the full
-// fencing check. It reads through the observer's own connection pool.
-func (r *runner) sample(baseline Census, deadlockBase float64, stop <-chan struct{}) {
+// failures counts consecutive failed reads for one loop and reports when
+// the run must stop: a loop that cannot read never continues blind.
+type failures struct {
+	n     int
+	limit int
+}
+
+func (f *failures) observe(l *sampleLog, err error, loop string) *Violation {
+	if err == nil {
+		f.n = 0
+		return nil
+	}
+	l.fail(err)
+	f.n++
+	if f.n >= f.limit {
+		return violation(TriggerSamplerUnavailable, "%s: %d consecutive failed reads, last: %v", loop, f.n, err)
+	}
+	return nil
+}
+
+// sample is the §6 per-second database sampler. It starts after the
+// baseline census (before the seed) and runs through the drain. Each tick
+// checks dual live claims, zero loss, and the queue-depth cap; every
+// CensusEvery ticks it diffs non-synthetic rows against the baseline, and
+// every FencingEvery ticks it runs the fencing and double-terminal checks.
+// It reads through the observer's own connection pool. Headroom and the
+// abort file belong to the watcher, which runs for the whole run.
+func (r *runner) sample(baseline Census, stop <-chan struct{}) {
 	ticker := time.NewTicker(r.opt.SampleInterval)
 	defer ticker.Stop()
+	fails := failures{limit: r.opt.MaxSampleFailures}
 	for tick := 1; ; tick++ {
 		select {
 		case <-stop:
@@ -80,78 +108,68 @@ func (r *runner) sample(baseline Census, deadlockBase float64, stop <-chan struc
 			return
 		case <-ticker.C:
 		}
-		if v := r.sampleOnce(tick, baseline, deadlockBase); v != nil {
+		v, err := r.sampleOnce(tick, baseline)
+		if v == nil {
+			v = fails.observe(&r.samples, err, "database sampler")
+		}
+		if v != nil {
+			v.Source = SourceSampler
 			r.abort(v)
 			return
 		}
 	}
 }
 
-func (r *runner) sampleOnce(tick int, baseline Census, deadlockBase float64) *Violation {
-	if r.opt.AbortFile != "" {
-		if body, err := os.ReadFile(r.opt.AbortFile); err == nil {
-			return violation(TriggerExternal, "abort file %s: %s", r.opt.AbortFile, strings.TrimSpace(string(body)))
-		}
-	}
+// sampleOnce runs one tick. It returns a violation, or the first read error
+// (the caller counts consecutive failures).
+func (r *runner) sampleOnce(tick int, baseline Census) (*Violation, error) {
 	ctx, cancel := context.WithTimeout(r.workCtx, sampleTimeout)
 	defer cancel()
 	t0 := time.Now()
 	created := r.created.Load()
 	snap, err := r.leg.Observer.Snapshot(ctx)
 	if err != nil {
-		r.samples.fail(err)
-		return nil
+		return nil, fmt.Errorf("snapshot: %w", err)
 	}
 	rec := SampleRecord{At: t0.UTC(), Items: snap.ItemsByStatus, ActiveClaims: snap.ActiveClaims, Created: created}
 	if len(snap.DualLive) > 0 {
-		return violation(TriggerDualClaim, "sampled %d items with two live claims: %v", len(snap.DualLive), snap.DualLive)
+		return violation(TriggerDualClaim, "sampled %d items with two live claims: %v", len(snap.DualLive), snap.DualLive), nil
 	}
 	if int64(snap.ItemTotal) < created {
-		return violation(TriggerLostItem, "sampled %d synthetic items, %d created", snap.ItemTotal, created)
+		return violation(TriggerLostItem, "sampled %d synthetic items, %d created", snap.ItemTotal, created), nil
 	}
 	if snap.ItemTotal > r.maxItems {
-		return violation(TriggerQueueDepth, "sampled %d synthetic items, cap %d", snap.ItemTotal, r.maxItems)
+		return violation(TriggerQueueDepth, "sampled %d synthetic items, cap %d", snap.ItemTotal, r.maxItems), nil
 	}
 	if tick%r.opt.FencingEvery == 0 {
 		bad, err := r.leg.Observer.FencingViolations(ctx)
 		if err != nil {
-			r.samples.fail(err)
-		} else if len(bad) > 0 {
-			return violation(TriggerFencingRegression, "fencing check: %v", bad)
+			return nil, fmt.Errorf("fencing check: %w", err)
+		}
+		if len(bad) > 0 {
+			return violation(TriggerFencingRegression, "fencing check: %v", bad), nil
 		}
 		twice, err := r.leg.Observer.DoubleTerminal(ctx)
 		if err != nil {
-			r.samples.fail(err)
-		} else if len(twice) > 0 {
-			return violation(TriggerExactlyOnce, "items with two terminal claims: %v", twice)
+			return nil, fmt.Errorf("double terminal check: %w", err)
+		}
+		if len(twice) > 0 {
+			return violation(TriggerExactlyOnce, "items with two terminal claims: %v", twice), nil
 		}
 	}
 	if tick%r.opt.CensusEvery == 0 {
 		census, err := r.leg.Observer.Census(ctx)
 		if err != nil {
-			r.samples.fail(err)
-		} else if delta := census.otherDelta(baseline); len(delta) > 0 {
-			return violation(TriggerNonSynthetic, "non-synthetic rows changed: %v", describeDelta(delta, census, baseline))
+			return nil, fmt.Errorf("census: %w", err)
 		}
-	}
-	if r.leg.Headroom != nil {
-		h, err := r.leg.Headroom.Sample(ctx)
-		if err != nil {
-			r.samples.fail(err)
-		} else {
-			rec.Headroom = &h
-			if v := headroomCheck(h, r.spec.Headroom, r.spec.LockWaitBound, deadlockBase); v != nil {
-				return v
-			}
+		if delta := census.otherDelta(baseline); len(delta) > 0 {
+			return violation(TriggerNonSynthetic, "non-synthetic rows changed: %v", describeDelta(delta, census, baseline)), nil
 		}
-	}
-	if r.rec.deadlockCount() > 0 {
-		return violation(TriggerDeadlock, "a call failed with SQLSTATE 40P01")
 	}
 	query := time.Since(t0)
 	rec.QueryMS = ms(query)
 	r.samples.add(rec, r.opt.MaxSamples, query)
-	return nil
+	return nil, nil
 }
 
 func describeDelta(keys []string, now, base Census) []string {

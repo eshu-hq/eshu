@@ -68,16 +68,16 @@ func (r *runner) analyze(ctx context.Context, report *Report) {
 func (r *runner) analyzeItems(ctx context.Context, report *Report) {
 	snap, err := r.leg.Observer.Snapshot(ctx)
 	if err == nil && int64(snap.ItemTotal) < report.Created {
-		r.abort(violation(TriggerLostItem, "after the run %d synthetic items exist, %d created", snap.ItemTotal, report.Created))
+		r.abortPostRun(violation(TriggerLostItem, "after the run %d synthetic items exist, %d created", snap.ItemTotal, report.Created))
 	}
 	if err == nil && snap.ItemTotal > r.maxItems {
-		r.abort(violation(TriggerQueueDepth, "after the run %d synthetic items exist, cap %d", snap.ItemTotal, r.maxItems))
+		r.abortPostRun(violation(TriggerQueueDepth, "after the run %d synthetic items exist, cap %d", snap.ItemTotal, r.maxItems))
 	}
 	if bad, err := r.leg.Observer.FencingViolations(ctx); err == nil && len(bad) > 0 {
-		r.abort(violation(TriggerFencingRegression, "final fencing check: %v", bad))
+		r.abortPostRun(violation(TriggerFencingRegression, "final fencing check: %v", bad))
 	}
 	if twice, err := r.leg.Observer.DoubleTerminal(ctx); err == nil && len(twice) > 0 {
-		r.abort(violation(TriggerExactlyOnce, "final check: items with two terminal claims: %v", twice))
+		r.abortPostRun(violation(TriggerExactlyOnce, "final check: items with two terminal claims: %v", twice))
 	}
 	left, err := r.leg.Observer.NonTerminalItems(ctx, 1000)
 	if err != nil {
@@ -91,7 +91,7 @@ func (r *runner) analyzeItems(ctx context.Context, report *Report) {
 		}
 		id, _, _ := strings.Cut(entry, ":")
 		if r.tracker.isTerminal(id) {
-			r.abort(violation(TriggerLostItem, "item %s acked terminal but is %s in the database", id, entry))
+			r.abortPostRun(violation(TriggerLostItem, "item %s acked terminal but is %s in the database", id, entry))
 		}
 		if len(report.NonTerminal) < 50 {
 			report.NonTerminal = append(report.NonTerminal, entry)
@@ -282,8 +282,35 @@ func verdict(report *Report, r *runner) string {
 			return VerdictFailed
 		}
 	}
-	if !report.Residue.ThirdZero.Checked && r.spec.Target == TargetLive {
+	if reason := r.incomplete(report); reason != "" {
+		report.Incomplete = reason
 		return VerdictIncomplete
 	}
 	return VerdictClean
+}
+
+// incomplete names why a run without failures still cannot be CLEAN: the
+// sampler never produced a reading, more reads failed than tolerated, or a
+// live run lacks the headroom record or the core third zero.
+func (r *runner) incomplete(report *Report) string {
+	r.samples.mu.Lock()
+	count, errTotal, headSeen := r.samples.count, r.samples.errTotal, r.samples.headSeen
+	r.samples.mu.Unlock()
+	switch {
+	case count == 0:
+		return "the database sampler produced no reading"
+	case errTotal > r.opt.MaxSampleErrors:
+		return fmt.Sprintf("%d failed sampler or headroom reads, %d tolerated", errTotal, r.opt.MaxSampleErrors)
+	case r.spec.Target == TargetLive && !headSeen:
+		return "no pg_headroom reading on the live target"
+	case r.spec.Target == TargetLive && !report.Residue.ThirdZero.Checked:
+		return "core third zero not checked on the live target"
+	}
+	return ""
+}
+
+// abortPostRun records a violation found by the end-of-run analysis.
+func (r *runner) abortPostRun(v *Violation) {
+	v.Source = SourcePostRun
+	r.abort(v)
 }

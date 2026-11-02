@@ -94,22 +94,23 @@ func TestRunCleanFakeLegsPassEveryCriterion(t *testing.T) {
 // reversal.
 func TestRunAbortsOnSeededViolations(t *testing.T) {
 	cases := []struct {
-		name string
-		f    faults
-		want []Trigger
+		name    string
+		f       faults
+		want    []Trigger
+		sampler bool // only the database sampler can see it: it must fire mid-run
 	}{
-		{"double claim", faults{doubleClaimAt: 40}, []Trigger{TriggerDualClaim}},
-		{"token regression", faults{regressTokenAt: 1}, []Trigger{TriggerFencingRegression}},
-		{"lost item", faults{loseItemAt: 30}, []Trigger{TriggerLostItem}},
-		{"non-synthetic grant", faults{grantRealAt: 25}, []Trigger{TriggerNonSynthetic}},
-		{"non-synthetic row touched", faults{touchRealAt: 25}, []Trigger{TriggerNonSynthetic}},
-		{"stale write accepted", faults{acceptStale: true}, []Trigger{TriggerStaleWriteAccept, TriggerExactlyOnce}},
-		{"double terminal row", faults{terminalTwice: 20}, []Trigger{TriggerExactlyOnce}},
+		{"double claim", faults{doubleClaimAt: 40}, []Trigger{TriggerDualClaim}, false},
+		{"token regression", faults{regressTokenAt: 1}, []Trigger{TriggerFencingRegression}, false},
+		{"lost item", faults{loseItemAt: 30}, []Trigger{TriggerLostItem}, true},
+		{"non-synthetic grant", faults{grantRealAt: 25}, []Trigger{TriggerNonSynthetic}, false},
+		{"non-synthetic row touched", faults{touchRealAt: 25}, []Trigger{TriggerNonSynthetic}, true},
+		{"stale write accepted", faults{acceptStale: true}, []Trigger{TriggerStaleWriteAccept, TriggerExactlyOnce}, false},
+		{"double terminal row", faults{terminalTwice: 20}, []Trigger{TriggerExactlyOnce}, true},
 		// Database-only and client-only variants: each is visible to exactly
 		// one detector, so each detector has its own RED case.
-		{"server-side dual claim", faults{dbDualAt: 20}, []Trigger{TriggerDualClaim}},
-		{"stale heartbeat accepted", faults{staleBeatOK: true}, []Trigger{TriggerStaleWriteAccept}},
-		{"queue grows past plan", faults{growAt: 20}, []Trigger{TriggerQueueDepth}},
+		{"server-side dual claim", faults{dbDualAt: 20}, []Trigger{TriggerDualClaim}, true},
+		{"stale heartbeat accepted", faults{staleBeatOK: true}, []Trigger{TriggerStaleWriteAccept}, false},
+		{"queue grows past plan", faults{growAt: 20}, []Trigger{TriggerQueueDepth}, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -124,6 +125,10 @@ func TestRunAbortsOnSeededViolations(t *testing.T) {
 			t.Logf("abort %s: %s", report.Abort.Trigger, report.Abort.Detail)
 			if !ok {
 				t.Fatalf("abort trigger %s (%s), want one of %v", report.Abort.Trigger, report.Abort.Detail, tc.want)
+			}
+			if tc.sampler && (report.Abort.Source != SourceSampler || !report.Abort.At.Before(report.Phases.WorkEnd)) {
+				t.Fatalf("abort from %q at %s (work end %s); want the sampler, mid-run",
+					report.Abort.Source, report.Abort.At, report.Phases.WorkEnd)
 			}
 			assertCleanedUp(t, report, leg)
 		})

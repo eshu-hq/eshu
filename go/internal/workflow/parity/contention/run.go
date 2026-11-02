@@ -58,6 +58,9 @@ func Run(ctx context.Context, spec Spec, leg Leg, opt Options) (*Report, error) 
 	if leg.Backend == nil || leg.Observer == nil {
 		return nil, errors.New("contention leg needs a backend and an observer")
 	}
+	if spec.Target == TargetLive && opt.SamplerDisabled {
+		return nil, errors.New("the sampler cannot be disabled on the live target: overhead measurement is local only")
+	}
 	opt = opt.withDefaults(spec)
 	r := &runner{
 		spec: spec, leg: leg, opt: opt, ids: ids{seed: spec.Seed},
@@ -77,12 +80,18 @@ func Run(ctx context.Context, spec Spec, leg Leg, opt Options) (*Report, error) 
 	defer r.cancel()
 	go func() {
 		<-capCtx.Done()
-		if errors.Is(capCtx.Err(), context.DeadlineExceeded) {
+		switch {
+		case errors.Is(capCtx.Err(), context.DeadlineExceeded):
 			r.abort(violation(TriggerWallClock, "wall_clock_cap %s expired", spec.WallClockCap))
+		case ctx.Err() != nil:
+			// The caller cancelled (SIGINT or SIGTERM in the entry tests):
+			// stop and reverse like any other abort.
+			r.abort(violation(TriggerExternal, "run interrupted: %v", ctx.Err()))
 		}
 	}()
 
 	report.Phases.Start = time.Now().UTC()
+	watch := r.startWatcher(report)
 	runErr := r.execute(report)
 	report.Phases.WorkEnd = time.Now().UTC()
 	r.cancel()
@@ -91,6 +100,7 @@ func Run(ctx context.Context, spec Spec, leg Leg, opt Options) (*Report, error) 
 	defer cleanupCancel()
 	r.analyze(cleanupCtx, report)
 	cleanupErr := r.reverse(cleanupCtx, report)
+	watch.stopWatcher()
 	report.Phases.End = time.Now().UTC()
 	r.finish(report)
 	if runErr != nil {
@@ -103,6 +113,9 @@ func Run(ctx context.Context, spec Spec, leg Leg, opt Options) (*Report, error) 
 // run could not proceed (setup); a violation means it aborted.
 func (r *runner) execute(report *Report) error {
 	ctx := r.workCtx
+	if r.aborted() {
+		return nil
+	}
 	if err := r.isolationProbe(ctx); err != nil {
 		return err
 	}
@@ -115,14 +128,18 @@ func (r *runner) execute(report *Report) error {
 		r.abort(violation(TriggerResidue, "baseline already holds %d synthetic rows", baseline.prefixedTotal()))
 		return nil
 	}
-	deadlockBase := float64(notAvailable)
-	if r.leg.Headroom != nil {
-		if s, err := r.leg.Headroom.Sample(ctx); err == nil {
-			deadlockBase = s.DeadlocksTotal
-			report.Headroom.Baseline = &s
-		} else {
-			report.Headroom.Errors = append(report.Headroom.Errors, err.Error())
-		}
+	// The database sampler starts before the seed and runs through the
+	// drain, so loss, dual claims, the queue cap, and non-synthetic changes
+	// are watched while the backlog is written and during the stats wait.
+	var bg sync.WaitGroup
+	stopBG := make(chan struct{})
+	defer func() {
+		close(stopBG)
+		bg.Wait()
+	}()
+	if !r.opt.SamplerDisabled {
+		bg.Add(1)
+		go func() { defer bg.Done(); r.sample(baseline, stopBG) }()
 	}
 	seedStart := time.Now()
 	if err := r.seed(ctx); err != nil {
@@ -134,12 +151,8 @@ func (r *runner) execute(report *Report) error {
 	report.Phases.SeedSeconds = time.Since(seedStart).Seconds()
 	r.opt.Logf("%s: seeded %d items in %.1fs", r.leg.Name, r.created.Load(), report.Phases.SeedSeconds)
 	r.waitForStats(report, seedStart)
-
-	var bg sync.WaitGroup
-	stopBG := make(chan struct{})
-	if !r.opt.SamplerDisabled {
-		bg.Add(1)
-		go func() { defer bg.Done(); r.sample(baseline, deadlockBase, stopBG) }()
+	if r.aborted() {
+		return nil
 	}
 	if r.leg.HarnessReaper {
 		bg.Add(1)
@@ -158,8 +171,6 @@ func (r *runner) execute(report *Report) error {
 	}
 	r.drain(report)
 	workers.Wait()
-	close(stopBG)
-	bg.Wait()
 	return nil
 }
 
@@ -323,8 +334,10 @@ func (r *runner) reverse(ctx context.Context, report *Report) error {
 	report.Residue.ThirdZero = r.coreResidue(ctx)
 	if report.Residue.FirstZero != 0 || len(report.Residue.SecondZeroDelta) != 0 ||
 		(report.Residue.ThirdZero.Checked && report.Residue.ThirdZero.Rows != 0) {
-		r.abort(violation(TriggerResidue, "residue after cleanup: synthetic=%d non-synthetic deltas=%v core=%+v",
-			report.Residue.FirstZero, report.Residue.SecondZeroDelta, report.Residue.ThirdZero))
+		v := violation(TriggerResidue, "residue after cleanup: synthetic=%d non-synthetic deltas=%v core=%+v",
+			report.Residue.FirstZero, report.Residue.SecondZeroDelta, report.Residue.ThirdZero)
+		v.Source = SourceResidue
+		r.abort(v)
 	}
 	return nil
 }

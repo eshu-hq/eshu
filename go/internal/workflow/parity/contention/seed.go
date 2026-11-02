@@ -74,6 +74,9 @@ func (r *runner) seed(ctx context.Context) error {
 		return nil
 	}
 	for n := range r.spec.BacklogItems {
+		if err := r.workCtx.Err(); err != nil {
+			return fmt.Errorf("seed stopped after %d items: %w", r.created.Load(), err)
+		}
 		k := n % r.spec.BacklogScopes
 		batch = append(batch, newItem(r.ids.workItem(n), r.ids.run(k), r.ids.scope(k), r.opt.CollectorKind, now))
 		if len(batch) == cap(batch) {

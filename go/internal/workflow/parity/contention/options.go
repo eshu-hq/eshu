@@ -96,6 +96,12 @@ type Options struct {
 	// seconds per call; production tables carry statistics, so the window
 	// starts from that state. The wait and its outcome are reported.
 	StatsWait time.Duration
+	// MaxSampleFailures is how many consecutive failed sampler or headroom
+	// reads abort the run (default 3).
+	MaxSampleFailures int
+	// MaxSampleErrors is how many failed reads in total a run tolerates
+	// before its verdict drops to INCOMPLETE (default 5).
+	MaxSampleErrors int
 	// AbortFile, when set, is polled each sample; its existence aborts the
 	// run (the live CPU/memory watch writes it).
 	AbortFile          string
@@ -130,6 +136,10 @@ func (o Options) withDefaults(spec Spec) Options {
 	setInt(&o.EnqueueBatch, 250)
 	setInt(&o.DeleteBatch, 1000)
 	setDuration(&o.StatsWait, 5*time.Minute)
+	setInt(&o.MaxSampleFailures, 3)
+	if o.MaxSampleErrors <= 0 {
+		o.MaxSampleErrors = 5
+	}
 	setInt(&o.AdvisoryGoroutines, 25)
 	setInt(&o.AdvisoryItems, 4)
 	setDuration(&o.AdvisoryInterval, spec.Window/6)

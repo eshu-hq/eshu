@@ -32,6 +32,9 @@ const (
 	// TriggerQueueDepth fires when synthetic rows exceed the planned
 	// maximum: the run never grows the queue past what it seeded.
 	TriggerQueueDepth Trigger = "queue_depth_cap"
+	// TriggerSamplerUnavailable fires after MaxSampleFailures consecutive
+	// failed sampler or headroom reads: the run never continues blind.
+	TriggerSamplerUnavailable Trigger = "sampler_unavailable"
 )
 
 // Violation is one detected abort condition.
@@ -39,7 +42,19 @@ type Violation struct {
 	Trigger Trigger   `json:"trigger"`
 	Detail  string    `json:"detail"`
 	At      time.Time `json:"at"`
+	// Source names the detector that fired: SourceSampler, SourceWatcher,
+	// SourcePostRun, SourceResidue, or empty for an inline check (tracker,
+	// guard, worker).
+	Source string `json:"source,omitempty"`
 }
+
+// Violation sources.
+const (
+	SourceSampler = "sampler"
+	SourceWatcher = "watcher"
+	SourcePostRun = "post_run"
+	SourceResidue = "residue"
+)
 
 func violation(trigger Trigger, format string, args ...any) *Violation {
 	return &Violation{Trigger: trigger, Detail: fmt.Sprintf(format, args...), At: time.Now().UTC()}
