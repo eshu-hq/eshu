@@ -248,6 +248,8 @@ cp "${repo_root}/scripts/lib/telemetry-coverage-bucket-check.sh" \
   "${case_gitdir}/scripts/lib/telemetry-coverage-bucket-check.sh"
 cp "${repo_root}/scripts/lib/telemetry-coverage-row-check.sh" \
   "${case_gitdir}/scripts/lib/telemetry-coverage-row-check.sh"
+cp "${repo_root}/scripts/lib/telemetry-coverage-required-names.sh" \
+  "${case_gitdir}/scripts/lib/telemetry-coverage-required-names.sh"
 # The verifier sources its base-fetch helper the same way (#8078).
 cp "${repo_root}/scripts/lib/gate-diff-base.sh" \
   "${case_gitdir}/scripts/lib/gate-diff-base.sh"
@@ -477,8 +479,9 @@ expect_fail "fails when a glob-form row matches no files" "${case_glob_missing}"
 # shellcheck source=scripts/lib/test-verify-telemetry-coverage-rename-cases.sh
 . "${repo_root}/scripts/lib/test-verify-telemetry-coverage-rename-cases.sh"
 
-# Marker-scope cases (#9790): a No-Observability-Change: marker hides a row's
-# metric names from the registered check only when it starts the metric cell.
+# Marker-scope cases (#9790): a No-Observability-Change: marker exempts names
+# from the registered check only inside a metric cell that it starts; the rest
+# of that row and every other row stay checked.
 # shellcheck source=scripts/lib/test-verify-telemetry-coverage-marker-scope-cases.sh
 . "${repo_root}/scripts/lib/test-verify-telemetry-coverage-marker-scope-cases.sh"
 
