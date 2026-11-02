@@ -124,36 +124,47 @@ func TestFailedClaimRelaysAllowlistedFiguresFromSatelliteStderr(t *testing.T) {
 	assertNoRelaySentinels(t, raw)
 }
 
-// TestCompleteClaimDoesNotRelaySatelliteStderr proves the relay is gated on a
-// non-complete result: the same stderr on a complete claim logs no figures.
-func TestCompleteClaimDoesNotRelaySatelliteStderr(t *testing.T) {
-	if os.Getenv("ESHU_EXTENSIONHOST_PROCESS_HELPER") == "relay-complete" {
+// TestCompleteAndUnchangedClaimsDoNotRelaySatelliteStderr proves the relay is
+// gated on a non-complete, non-unchanged result: the same stderr on a complete
+// or an unchanged claim logs no figures, through a real ProcessRunner child.
+func TestCompleteAndUnchangedClaimsDoNotRelaySatelliteStderr(t *testing.T) {
+	switch os.Getenv("ESHU_EXTENSIONHOST_PROCESS_HELPER") {
+	case "relay-complete":
 		relayHelper(t, sdkcollector.ResultComplete)
+	case "relay-unchanged":
+		relayHelper(t, sdkcollector.ResultUnchanged)
 	}
 
-	line, raw := relayLog(t, "relay-complete")
-	for _, key := range []string{
-		contract.LogKeyExtensionStatusInflatedBytes,
-		contract.LogKeyExtensionStatusBudgetBytes,
-		contract.LogKeyExtensionStatusCompressedBytes,
-	} {
-		if _, present := line[key]; present {
-			t.Fatalf("complete claim logged %s, want no relay: %s", key, raw)
-		}
+	for _, helper := range []string{"relay-complete", "relay-unchanged"} {
+		t.Run(helper, func(t *testing.T) {
+			line, raw := relayLog(t, helper)
+			for _, key := range []string{
+				contract.LogKeyExtensionStatusInflatedBytes,
+				contract.LogKeyExtensionStatusBudgetBytes,
+				contract.LogKeyExtensionStatusCompressedBytes,
+			} {
+				if _, present := line[key]; present {
+					t.Fatalf("%s claim logged %s, want no relay: %s", helper, key, raw)
+				}
+			}
+			assertNoRelaySentinels(t, raw)
+		})
 	}
-	assertNoRelaySentinels(t, raw)
 }
 
 // TestOCIRunnerReturnsFiguresOnlyForNonCompleteCalls proves the OCI runner
-// parses stderr into typed figures for a terminal call, drops it for a
-// complete call, and never exposes raw stderr on the call result.
+// parses stderr into typed figures for a terminal, retryable, or partial call,
+// drops it for a complete or unchanged call, and never exposes raw stderr on
+// the call result.
 func TestOCIRunnerReturnsFiguresOnlyForNonCompleteCalls(t *testing.T) {
 	t.Parallel()
 
 	for state, wantFigures := range map[sdkcollector.ResultState]bool{
 		sdkcollector.ResultTerminal:  true,
 		sdkcollector.ResultRetryable: true,
+		sdkcollector.ResultPartial:   true,
 		sdkcollector.ResultComplete:  false,
+		sdkcollector.ResultUnchanged: false,
 	} {
 		runner := OCIRunner{
 			ImageRef: ociTestDigest,

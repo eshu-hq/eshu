@@ -5,6 +5,9 @@ package extensionhost
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"strings"
 	"testing"
 
 	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
@@ -92,6 +95,147 @@ func TestHostVerdictAfterPagesNeverCarriesFigures(t *testing.T) {
 	record := recorder.results[0]
 	if record.Origin != ResultOriginHost {
 		t.Fatalf("origin = %q, want host (the bounded-status check must reject the class)", record.Origin)
+	}
+	if record.InputLimit != nil {
+		t.Fatalf("host verdict carried figures %+v, want none", *record.InputLimit)
+	}
+}
+
+// wirePage is one satellite page as the runner sees it: the stdout document
+// and the stderr buffer of that call.
+type wirePage struct {
+	call   CallResult
+	stderr string
+}
+
+// decodingRunner is a PagedRunner that serialises each scripted page to wire
+// stdout and sends it through decodeCallWithStderr, the exact parse gate both
+// production runners use. Unlike scriptRunner it never hand-sets
+// CallResult.InputLimit, so the per-call state gate is exercised for real.
+type decodingRunner struct {
+	pages []wirePage
+	calls int
+}
+
+func (r *decodingRunner) RunCollector(ctx context.Context, request Request) (sdkcollector.Result, error) {
+	call, err := r.RunPagedCollector(ctx, request)
+	return call.Result, err
+}
+
+func (r *decodingRunner) RunPagedCollector(context.Context, Request) (CallResult, error) {
+	if r.calls >= len(r.pages) {
+		return CallResult{}, errors.New("decoding runner pages exhausted")
+	}
+	page := r.pages[r.calls]
+	r.calls++
+	stdout, err := json.Marshal(pagedWireResult{Result: page.call.Result, Page: page.call.Page})
+	if err != nil {
+		return CallResult{}, err
+	}
+	return decodeCallWithStderr(stdout, []byte(page.stderr))
+}
+
+// TestRelayParseGateAcrossPagesUsesRealDecode proves the relay through the
+// real per-call parse gate. A partial page parses its figures; an unchanged
+// final page never parses, so the final record carries none even though the
+// partial page held a figure-bearing stderr line. (A partial page WITH facts
+// followed by unchanged is a host invalid_result, since unchanged carries no
+// facts, so it never reaches a record with figures.) A continuation page may only
+// be complete or partial (checkPageEnvelope), so an unchanged continuation is
+// rejected as an invalid result and never reaches a figure-bearing record
+// (eshu-hq/eshu#9823).
+func TestRelayParseGateAcrossPagesUsesRealDecode(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		firstState sdkcollector.ResultState
+		finalState sdkcollector.ResultState
+		firstMore  bool
+		wantOrigin ResultOrigin
+		wantState  sdkcollector.ResultState
+		wantFigure bool
+	}{
+		{
+			name: "partial page then partial page", firstState: sdkcollector.ResultPartial, firstMore: true,
+			finalState: sdkcollector.ResultPartial, wantOrigin: ResultOriginSDK,
+			wantState: sdkcollector.ResultPartial, wantFigure: true,
+		},
+		{
+			name: "partial page then unchanged final page", firstState: sdkcollector.ResultPartial, firstMore: true,
+			finalState: sdkcollector.ResultUnchanged, wantOrigin: ResultOriginSDK,
+			wantState: sdkcollector.ResultUnchanged,
+		},
+		{
+			name: "single partial page", firstState: sdkcollector.ResultPartial,
+			finalState: sdkcollector.ResultPartial, wantOrigin: ResultOriginSDK,
+			wantState: sdkcollector.ResultPartial, wantFigure: true,
+		},
+	}
+	stderr := figuresLine + "\n"
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			item := testWorkItem()
+			// Zero facts keep an unchanged final page a valid assembled
+			// result: unchanged with facts is a host invalid_result.
+			page0 := pagedCall(item, nil, &ResultPage{TotalFacts: 0})
+			page0.Result.State = tt.firstState
+			page0.Result.Statuses = []sdkcollector.Status{{Class: sdkcollector.StatusWarning, Partial: true, WarningCount: 1}}
+			pages := []wirePage{{call: page0, stderr: stderr}}
+			if tt.firstMore {
+				page0.Page = &ResultPage{Cursor: "cursor-1", More: true}
+				page1 := pagedCall(item, nil, &ResultPage{PageIndex: 1})
+				page1.Result.State = tt.finalState
+				page1.Result.Statuses = []sdkcollector.Status{{Class: sdkcollector.StatusComplete}}
+				if tt.finalState == sdkcollector.ResultPartial {
+					page1.Result.Statuses = []sdkcollector.Status{{Class: sdkcollector.StatusWarning, Partial: true, WarningCount: 1}}
+				}
+				pages = []wirePage{{call: page0, stderr: stderr}, {call: page1, stderr: strings.TrimSpace(stderr)}}
+			}
+
+			recorder := &recordingResultRecorder{}
+			source := mustNewPagedSource(t, &decodingRunner{pages: pages}, 0)
+			source.statusRecorder = recorder
+			source.resultRecorder = recorder
+			_, _, _ = source.NextClaimed(context.Background(), item)
+			if len(recorder.results) != 1 {
+				t.Fatalf("results = %d, want 1", len(recorder.results))
+			}
+			record := recorder.results[0]
+			if record.Origin != tt.wantOrigin || record.State != tt.wantState {
+				t.Fatalf("origin/state = %q/%q class=%q, want %q/%q (the case must reach a validated SDK result)",
+					record.Origin, record.State, record.FailureClass, tt.wantOrigin, tt.wantState)
+			}
+			if got := record.InputLimit != nil; got != tt.wantFigure {
+				t.Fatalf("InputLimit present = %t, want %t (%+v)", got, tt.wantFigure, record.InputLimit)
+			}
+		})
+	}
+}
+
+// TestUnchangedContinuationPageIsRejectedBeforeAnyRelay pins the paged
+// protocol: a page that asks for continuation while unchanged is an invalid
+// result (a host verdict), so figures printed on it can never reach a record.
+func TestUnchangedContinuationPageIsRejectedBeforeAnyRelay(t *testing.T) {
+	t.Parallel()
+
+	item := testWorkItem()
+	page0 := pagedCall(item, nil, &ResultPage{Cursor: "cursor-1", More: true, TotalFacts: 0})
+	page0.Result.State = sdkcollector.ResultUnchanged
+	page0.Result.Statuses = []sdkcollector.Status{{Class: sdkcollector.StatusComplete}}
+
+	recorder := &recordingResultRecorder{}
+	source := mustNewPagedSource(t, &decodingRunner{pages: []wirePage{{call: page0, stderr: figuresLine + "\n"}}}, 0)
+	source.statusRecorder = recorder
+	source.resultRecorder = recorder
+	_, _, _ = source.NextClaimed(context.Background(), item)
+	if len(recorder.results) != 1 {
+		t.Fatalf("results = %d, want 1", len(recorder.results))
+	}
+	record := recorder.results[0]
+	if record.Origin != ResultOriginHost || record.FailureClass != FailureClassInvalidResult {
+		t.Fatalf("origin/class = %q/%q, want host/%q", record.Origin, record.FailureClass, FailureClassInvalidResult)
 	}
 	if record.InputLimit != nil {
 		t.Fatalf("host verdict carried figures %+v, want none", *record.InputLimit)
