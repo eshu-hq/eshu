@@ -102,14 +102,9 @@ func isPhraseGap(r rune) bool {
 	return r == '-' || r == '_' || unicode.IsSpace(r)
 }
 
-// appendFolded appends the folded form of r to b. A rune outside ASCII becomes
-// one 0xFF byte: no marker holds one, so it can neither match nor join two
-// words, and the buffers stay plain bytes.
+// appendFolded appends the folded form of r to b.
 func appendFolded(b []byte, r rune) []byte {
-	if f := foldRune(r); f < utf8.RuneSelf {
-		return append(b, byte(f))
-	}
-	return append(b, 0xFF)
+	return utf8.AppendRune(b, foldRune(r))
 }
 
 // containsMarkerWord reports whether text holds a label from labelFamilies. It

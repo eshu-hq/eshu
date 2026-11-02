@@ -223,13 +223,14 @@ and local-engine PII suites.
 
 Marker-list Performance Evidence (#9793): the same two benchmarks on 500 regions,
 before (origin/main) and after test binaries run in turn at `-benchtime=2000x`,
-six runs each, medians, on a shared 16-core host at load 15. Ordinary text went
-from 3.22 ms/op to 3.99 ms/op (13,906 to 12,906 allocs/op), and the label-heavy
-case from 2.20 ms/op to 2.45 ms/op (13,415 to 12,663 allocs/op). The scan is
-one pass per region, twice per region (once for the value window and once for
-the region's own text), and keeps its buffers on the stack, so it allocates
-less than the lowercase copy it replaces. The added 0.77 ms per 500 regions is
-about 0.4 percent of one tesseract run.
+seven runs each, medians, on a shared 16-core host at load average 44, so the
+spread is wide (the best runs are 3.15 and 3.75 ms/op for ordinary text).
+Ordinary text went from 3.59 ms/op to 4.12 ms/op (13,907 to 12,907 allocs/op),
+and the label-heavy case from 2.22 ms/op to 2.86 ms/op (13,414 to 12,665
+allocs/op). The scan is one pass per region, twice per region (once for the
+value window and once for the region's own text), and keeps its buffers on the
+stack, so it allocates less than the lowercase copy it replaces. The added
+0.5 to 0.6 ms per 500 regions is about 0.3 percent of one tesseract run.
 
 Marker-list False-positive Evidence (#9793): the rule is a superset of the old
 one on every corpus below, and costs more only where the text holds a new word.
