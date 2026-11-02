@@ -356,7 +356,7 @@ func buildIngesterProjectorService(
 	svc := projector.Service{
 		PollInterval: time.Second,
 		WorkSource:   projectorQueue,
-		FactStore:    postgres.NewFactStore(database),
+		FactStore:    postgres.NewFactStore(database).WithInstruments(instruments),
 		Runner:       runner,
 		WorkSink:     projectorQueue,
 		Heartbeater:  projectorQueue,
