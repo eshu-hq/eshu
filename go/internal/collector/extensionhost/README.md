@@ -403,6 +403,17 @@ failure classes, bounded SDK statuses, and existing collector fact evidence.
 A satellite missing an expected variable fails through its own existing
 result and error path, not a new one.
 
+## Satellite stderr relay (#9823)
+
+A satellite that fails a claim as `input_limit_exceeded` prints three byte
+figures on its stderr record. The host relays exactly `inflated_bytes`,
+`budget_bytes`, and `compressed_bytes`, as integers, onto the one
+`component extension result` log line, and only when the claim's final
+assembled result is neither `complete` nor `unchanged`. It never relays a
+satellite string, a raw line, or any other key. The allowlist, bounds,
+benchmark evidence, and operator read path live in
+[STDERR_RELAY.md](STDERR_RELAY.md).
+
 ## Claim outcomes and host-owned source state (#9420)
 
 `Config.ClaimOutcomeRecorder` is an optional seam for durable state the host

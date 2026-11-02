@@ -414,6 +414,9 @@ func TestLogKeys(t *testing.T) {
 		"extension_status.partial",
 		"extension_status.retry_after_seconds",
 		"extension_status.retry_after_requested_seconds",
+		"extension_status.inflated_bytes",
+		"extension_status.budget_bytes",
+		"extension_status.compressed_bytes",
 	}
 
 	got := LogKeys()

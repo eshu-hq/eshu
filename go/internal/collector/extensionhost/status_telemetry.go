@@ -82,7 +82,8 @@ func (t *StatusTelemetry) log(ctx context.Context, record ResultRecord) {
 	if !t.logger.Enabled(ctx, level) {
 		return
 	}
-	t.logger.LogAttrs(ctx, level, "component extension result",
+	attrs := make([]slog.Attr, 0, 14)
+	attrs = append(attrs,
 		slog.String(telemetry.LogKeyCollectorKind, record.CollectorKind),
 		slog.String(telemetry.LogKeyFailureClass, record.FailureClass),
 		slog.String(contract.LogKeyExtensionStatusOrigin, string(record.Origin)),
@@ -95,6 +96,16 @@ func (t *StatusTelemetry) log(ctx context.Context, record ResultRecord) {
 		slog.Float64(contract.LogKeyExtensionStatusRetryAfterSeconds, record.RetryAfter.Seconds()),
 		slog.Int(contract.LogKeyExtensionStatusRetryAfterRequestedSeconds, record.RetryAfterRequestedSeconds),
 	)
+	// The satellite's allowlisted stderr figures ride on this one line, so a
+	// failed claim adds no extra log volume (#9823).
+	if figures := record.InputLimit; figures != nil {
+		attrs = append(attrs,
+			slog.Int64(contract.LogKeyExtensionStatusInflatedBytes, figures.InflatedBytes),
+			slog.Int64(contract.LogKeyExtensionStatusBudgetBytes, figures.BudgetBytes),
+			slog.Int64(contract.LogKeyExtensionStatusCompressedBytes, figures.CompressedBytes),
+		)
+	}
+	t.logger.LogAttrs(ctx, level, "component extension result", attrs...)
 }
 
 var (

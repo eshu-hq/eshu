@@ -66,6 +66,11 @@ type PageContinuation struct {
 type CallResult struct {
 	Result sdkcollector.Result
 	Page   *ResultPage
+	// InputLimit holds the typed figures the runner parsed from the
+	// satellite's stderr record. It is set only when the call's result state
+	// is not complete or unchanged and the record carried all three
+	// allowlisted figures; raw stderr never leaves the runner (#9823).
+	InputLimit *InputLimitFigures
 }
 
 // PagedRunner is an optional Runner extension for satellites that speak the
@@ -131,7 +136,7 @@ func rejectPageEnvelope(result sdkcollector.Result) error {
 // identity mismatch, and sequence, version, total, or bound violations are
 // invalid results. All are terminal except the launch failure, matching the
 // legacy single-call mapping.
-func (s *Source) collectPages(ctx context.Context, runner PagedRunner, request Request) (sdkcollector.Result, error) {
+func (s *Source) collectPages(ctx context.Context, runner PagedRunner, request Request, relay *claimRelay) (sdkcollector.Result, error) {
 	maxPages := s.maxResultPages()
 	var facts []sdkcollector.Fact
 	var statuses []sdkcollector.Status
@@ -202,6 +207,9 @@ func (s *Source) collectPages(ctx context.Context, runner PagedRunner, request R
 				terminal: true,
 				cause:    errors.New("extension result total_facts changed mid-stream"),
 			}
+		}
+		if call.InputLimit != nil {
+			relay.inputLimit = call.InputLimit
 		}
 		facts = append(facts, call.Result.Facts...)
 		statuses = append(statuses, call.Result.Statuses...)

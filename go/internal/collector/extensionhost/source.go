@@ -110,9 +110,10 @@ func (s *Source) NextClaimed(
 	item workflow.WorkItem,
 ) (collector.CollectedGeneration, bool, error) {
 	attemptedAt := s.clock().UTC()
-	collected, ok, result, origin, err := s.nextClaimed(ctx, item)
+	var relay claimRelay
+	collected, ok, result, origin, err := s.nextClaimed(ctx, item, &relay)
 	collected, ok, origin, err = s.recordClaimOutcome(ctx, item, attemptedAt, collected, ok, result, origin, err)
-	s.recordResult(ctx, item, result, origin, err)
+	s.recordResult(ctx, item, result, origin, err, relay.inputLimit)
 	return collected, ok, err
 }
 
@@ -121,6 +122,7 @@ func (s *Source) NextClaimed(
 func (s *Source) nextClaimed(
 	ctx context.Context,
 	item workflow.WorkItem,
+	relay *claimRelay,
 ) (collector.CollectedGeneration, bool, sdkcollector.Result, ResultOrigin, error) {
 	if err := s.validateWorkItem(item); err != nil {
 		return collector.CollectedGeneration{}, false, sdkcollector.Result{}, ResultOriginHost, extensionFailure{
@@ -168,7 +170,7 @@ func (s *Source) nextClaimed(
 	runCtx, cancel := context.WithDeadline(ctx, request.Claim.Deadline)
 	defer cancel()
 
-	result, err := s.runClaim(runCtx, request)
+	result, err := s.runClaim(runCtx, request, relay)
 	if err != nil {
 		if failure, ok := err.(extensionFailure); ok {
 			return collector.CollectedGeneration{}, false, sdkcollector.Result{}, ResultOriginHost, failure
@@ -198,9 +200,9 @@ func (s *Source) nextClaimed(
 // runners keep the legacy single-call path, which fails closed on a page
 // envelope because it has no way to fetch the later pages. The check sits here
 // as well as in decodeSDKResult because a Runner need not use that decoder.
-func (s *Source) runClaim(ctx context.Context, request Request) (sdkcollector.Result, error) {
+func (s *Source) runClaim(ctx context.Context, request Request, relay *claimRelay) (sdkcollector.Result, error) {
 	if paged, ok := s.runner.(PagedRunner); ok {
-		return s.collectPages(ctx, paged, request)
+		return s.collectPages(ctx, paged, request, relay)
 	}
 	result, err := s.runner.RunCollector(ctx, request)
 	if err != nil {

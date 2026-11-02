@@ -56,6 +56,7 @@ func (s *Source) recordResult(
 	result sdkcollector.Result,
 	origin ResultOrigin,
 	err error,
+	inputLimit *InputLimitFigures,
 ) {
 	if s.resultRecorder == nil {
 		return
@@ -79,6 +80,13 @@ func (s *Source) recordResult(
 		return
 	}
 	record.State = result.State
+	// Only a validated SDK result may carry satellite figures; a host verdict
+	// returned above never reads them. The gate is the FINAL assembled state:
+	// a partial page that printed figures, followed by a complete page, must
+	// not log them on the complete claim (eshu-hq/eshu#9823).
+	if result.State != sdkcollector.ResultComplete && result.State != sdkcollector.ResultUnchanged {
+		record.InputLimit = inputLimit
+	}
 	record.FailureClass = failureClassFromStatus(result, "")
 	if failed {
 		record.FailureClass = failure.class

@@ -118,7 +118,7 @@ func (r ProcessRunner) RunPagedCollector(ctx context.Context, request Request) (
 		return CallResult{}, stdoutLimitExceededFailure(stdout.Limit(), stdout.Total())
 	}
 
-	return decodePagedSDKResult(stdout.Bytes())
+	return decodeCallWithStderr(stdout.Bytes(), stderr.Bytes())
 }
 
 // scrubbedEnviron returns environ without the named entries. Names match
