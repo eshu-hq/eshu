@@ -170,3 +170,11 @@ classes, and service metrics endpoint.
 - `docs/public/reference/component-package-manager.md`
 - `docs/public/deployment/service-runtimes-collectors.md`
 - `docs/public/run-locally/docker-compose.md`
+
+## Workflow Claim Store
+
+This collector stays on the core Postgres workflow claim store. It passes a
+`CoreOnlyReason` to `store.New` because its slot-scope resolver reads `workflow_runs.requested_scope_set`, which only core Postgres holds. Setting
+`ESHU_WORKFLOW_CLAIM_PLANE_URL` for this collector stops startup with an error
+that names the variable and that reason (#8875). Lifting the refusal needs a
+claim-plane route for those reads first.

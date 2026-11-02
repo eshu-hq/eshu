@@ -37,3 +37,10 @@
 - Writing facts directly from `main.go` or `service.go`.
 - Adding registry host, repository, tag, or digest values as metric labels.
 - Treating a missing Referrers API as evidence that no artifacts exist.
+
+## Claim Store
+
+- Build `collector.ClaimedService.ControlStore` with `store.New`, never
+  with `postgres.NewWorkflowControlStore` directly. `store.New` owns the
+  `ESHU_WORKFLOW_CLAIM_PLANE_URL` selection, its validation, and its telemetry
+  (#8875).

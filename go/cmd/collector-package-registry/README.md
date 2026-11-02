@@ -112,3 +112,17 @@ environment variable names, and credential values out of the operator payload.
 - [Package registry ADR](../../../docs/public/reference/component-package-manager.md)
 - [Telemetry reference](../../../docs/public/reference/telemetry/index.md)
 - [Service runtimes](../../../docs/public/deployment/service-runtimes.md)
+
+## Workflow Claim Store
+
+`buildClaimedService` gets its claim store from `store.New`
+(`go/internal/collector/claim/store`). With `ESHU_WORKFLOW_CLAIM_PLANE_URL`
+unset or blank, the collector claims from the core Postgres workflow store
+exactly as before. With a valid `http` or `https` base URL, it claims through
+the `eshu-workflow` claim plane over `workflow.v1` and never falls back to
+Postgres. An invalid URL stops startup with an error that names the variable.
+Until the claim-plane commit fence lands (#8875 P2), an ingestion commit on a
+claim-plane claim fails closed. The startup log
+`collector.workflow_control_store.selected` and
+`eshu_dp_workflow_control_store_selections_total` show which store the pod
+selected.

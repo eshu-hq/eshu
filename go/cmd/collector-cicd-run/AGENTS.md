@@ -17,3 +17,10 @@ or `github_app_*_env` credential references, builds `ghactionsruntime.ClaimedSou
 - Configuration must keep credential references (`token_env`, `host_token_file`,
   or `github_app_*_env`) separate from resolved runtime tokens and private keys.
 - Add focused config tests for new environment variables or target shapes.
+
+## Claim Store
+
+- Build `collector.ClaimedService.ControlStore` with `store.New`, never
+  with `postgres.NewWorkflowControlStore` directly. `store.New` owns the
+  `ESHU_WORKFLOW_CLAIM_PLANE_URL` selection, its validation, and its telemetry
+  (#8875).

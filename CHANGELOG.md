@@ -26,6 +26,25 @@ recent shipped work grouped by feature area.
   (`ESHU_PINNED_REFS_JSON`, `ESHU_PINNED_REF_PER_REPO_CAP`,
   `ESHU_PINNED_REF_FLEET_CAP`) are now in the environment variable registry,
   so docs that name them are no longer docs-cli-env-refs debt.
+### Workflow claim plane: first production consumer
+
+- **Claim-aware collectors can claim from the `eshu-workflow` claim plane
+  behind one variable**
+  ([#8875](https://github.com/eshu-hq/eshu/issues/8875)). The new
+  `ESHU_WORKFLOW_CLAIM_PLANE_URL` points a hosted collector at the claim plane.
+  Unset or blank keeps the core Postgres workflow store, so existing deployments
+  do not change. When set, the collector claims through the claim plane with a
+  10 s request timeout and never falls back to Postgres; an invalid URL or one
+  that carries credentials stops startup with an error that names the variable.
+  `collector-vulnerability-intelligence` and `collector-component-extension`
+  refuse the variable because they read workflow run rows only core Postgres
+  holds. The selection is logged as `collector.workflow_control_store.selected`
+  and counted in `eshu_dp_workflow_control_store_selections_total`; claim-plane
+  requests are counted and timed by operation and outcome in
+  `eshu_dp_workflow_claim_plane_requests_total` and
+  `eshu_dp_workflow_claim_plane_request_duration_seconds`. The ingestion commit
+  fence for claim-plane claims is separate work; until it lands, a commit on a
+  claim-plane claim fails closed.
 
 ### Scanner-worker docs: layer cap and scan-tier clock
 

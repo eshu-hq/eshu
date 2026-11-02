@@ -18,3 +18,10 @@ JSON, resolves credential environment references, builds
   resolved runtime tokens.
 - Add focused config tests for new environment variables, credential shapes, or
   target limits.
+
+## Claim Store
+
+- Build `collector.ClaimedService.ControlStore` with `store.New`, never
+  with `postgres.NewWorkflowControlStore` directly. `store.New` owns the
+  `ESHU_WORKFLOW_CLAIM_PLANE_URL` selection, its validation, and its telemetry
+  (#8875).

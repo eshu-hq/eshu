@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
+	"github.com/eshu-hq/eshu/go/internal/collector/claim/store"
 	"github.com/eshu-hq/eshu/go/internal/collector/extensionhost"
 	"github.com/eshu-hq/eshu/go/internal/collector/vulnerabilityintelligence/vulnruntime"
 	"github.com/eshu-hq/eshu/go/internal/component"
@@ -110,6 +112,20 @@ func buildClaimedService(
 	// persisted at plan time through the same control store that serves
 	// claims below.
 	controlStore := postgres.NewWorkflowControlStore(database)
+	// The claim store stays on core Postgres: the slot-scope resolver reads
+	// workflow_runs rows only core holds, so a claim-plane URL is a startup
+	// error for this collector (#8875).
+	claimStore, err := store.New(context.Background(), store.Options{
+		Service:        "collector-component-extension",
+		Getenv:         getenv,
+		Postgres:       controlStore,
+		CoreOnlyReason: "reads workflow_runs.requested_scope_set from core Postgres for slot scopes",
+		Logger:         logger,
+		Instruments:    instruments,
+	})
+	if err != nil {
+		return collector.ClaimedService{}, err
+	}
 	source, err := extensionhost.NewSource(extensionhost.Config{
 		Manifest:            config.Manifest,
 		CollectorInstanceID: config.Instance.InstanceID,
@@ -150,7 +166,7 @@ func buildClaimedService(
 	committer.Logger = logger
 	committer.Instruments = instruments
 	return collector.ClaimedService{
-		ControlStore:        controlStore,
+		ControlStore:        claimStore.Store,
 		Source:              source,
 		Committer:           committer,
 		CollectorKind:       config.CollectorKind,

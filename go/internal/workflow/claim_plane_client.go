@@ -31,11 +31,19 @@ import (
 // pacing consult CheckClaimPacing, and the six control routes
 // (CreateRun, EnqueueWorkItems, ReconcileCollectorInstances,
 // UpsertCompletenessStates, ReconcileWorkflowRuns, ReapExpiredClaims in
-// claim_plane_control_client.go) travel over HTTP. Nothing in-tree
-// constructs this client yet.
+// claim_plane_control_client.go) travel over HTTP. Collectors construct it
+// through go/internal/collector/claim/store when
+// ESHU_WORKFLOW_CLAIM_PLANE_URL is set; the parity harness constructs it
+// directly.
 type ClaimPlaneClient struct {
 	baseURL    string
 	httpClient *http.Client
+
+	// Observe, when set, receives one call per request with the protocol
+	// operation, its classified outcome, and the round-trip duration. The
+	// package stays free of telemetry imports; the wiring layer binds this
+	// hook to metrics. Set it before the client is shared across goroutines.
+	Observe ClaimPlaneObserver
 }
 
 // NewClaimPlaneClient dials the claim-plane server at baseURL (scheme and
@@ -136,49 +144,65 @@ func wireClaimToClaim(wire claimPlaneWireClaim) Claim {
 
 // post encodes body as JSON, posts it to the operation path with the
 // protocol version header, and decodes a 200 into out. A protocol error
-// status decodes the envelope and maps it to a caller error.
+// status decodes the envelope and maps it to a caller error. Every call
+// reports exactly one outcome to Observe when it is set.
 func (c *ClaimPlaneClient) post(
 	ctx context.Context,
 	operation, path string,
 	body, out any,
 ) error {
+	started := time.Now()
+	outcome, err := c.roundTrip(ctx, operation, path, body, out)
+	if c.Observe != nil {
+		c.Observe(ctx, operation, outcome, time.Since(started))
+	}
+	return err
+}
+
+// roundTrip performs one protocol request and classifies its outcome.
+func (c *ClaimPlaneClient) roundTrip(
+	ctx context.Context,
+	operation, path string,
+	body, out any,
+) (ClaimPlaneOutcome, error) {
 	var reader io.Reader
 	if body != nil {
 		raw, err := json.Marshal(body)
 		if err != nil {
-			return fmt.Errorf("claim-plane %s: marshal: %w", operation, err)
+			return ClaimPlaneOutcomeRequestError, fmt.Errorf("claim-plane %s: marshal: %w", operation, err)
 		}
 		reader = bytes.NewReader(raw)
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+path, reader)
 	if err != nil {
-		return fmt.Errorf("claim-plane %s: request: %w", operation, err)
+		return ClaimPlaneOutcomeRequestError, fmt.Errorf("claim-plane %s: request: %w", operation, err)
 	}
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Workflow-Protocol-Version", "1")
 	response, err := c.httpClient.Do(request)
 	if err != nil {
-		return fmt.Errorf("claim-plane %s: do: %w", operation, err)
+		return transportOutcome(err), fmt.Errorf("claim-plane %s: do: %w", operation, err)
 	}
 	defer func() { _ = response.Body.Close() }()
 	raw, err := io.ReadAll(io.LimitReader(response.Body, 1<<20))
 	if err != nil {
-		return fmt.Errorf("claim-plane %s: read: %w", operation, err)
+		return transportOutcome(err), fmt.Errorf("claim-plane %s: read: %w", operation, err)
 	}
 	if response.StatusCode != http.StatusOK {
 		var envelope claimPlaneEnvelope
 		if err := json.Unmarshal(raw, &envelope); err != nil {
-			return fmt.Errorf("claim-plane %s: status %d (undecodable body)", operation, response.StatusCode)
+			return ClaimPlaneOutcomeServerError,
+				fmt.Errorf("claim-plane %s: status %d (undecodable body)", operation, response.StatusCode)
 		}
-		return claimPlaneMapError(operation, envelope)
+		return envelopeOutcome(envelope.Code), claimPlaneMapError(operation, envelope)
 	}
 	if out == nil {
-		return nil
+		return ClaimPlaneOutcomeOK, nil
 	}
 	if err := json.Unmarshal(raw, out); err != nil {
-		return fmt.Errorf("claim-plane %s: decode: %w", operation, err)
+		return ClaimPlaneOutcomeDecodeError, fmt.Errorf("claim-plane %s: decode: %w", operation, err)
 	}
-	return nil
+	return ClaimPlaneOutcomeOK, nil
 }
 
 // claimPlaneError is the typed protocol-envelope error from the post path.

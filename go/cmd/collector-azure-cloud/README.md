@@ -163,3 +163,17 @@ instruments. No span attribute, metric label, or log key carries an ARM ID,
 subscription/tenant ID, resource group/resource name, location, tag, KQL text,
 URL, or credential name. No shared-registry telemetry series is added in this
 slice.
+
+## Workflow Claim Store
+
+`buildClaimedService` gets its claim store from `store.New`
+(`go/internal/collector/claim/store`). With `ESHU_WORKFLOW_CLAIM_PLANE_URL`
+unset or blank, the collector claims from the core Postgres workflow store
+exactly as before. With a valid `http` or `https` base URL, it claims through
+the `eshu-workflow` claim plane over `workflow.v1` and never falls back to
+Postgres. An invalid URL stops startup with an error that names the variable.
+Until the claim-plane commit fence lands (#8875 P2), an ingestion commit on a
+claim-plane claim fails closed. The startup log
+`collector.workflow_control_store.selected` and
+`eshu_dp_workflow_control_store_selections_total` show which store the pod
+selected.
