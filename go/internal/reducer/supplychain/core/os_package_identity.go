@@ -6,6 +6,8 @@ package core
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
@@ -148,4 +150,44 @@ func osPackageVendorMatchesFamily(vendorSource string, packageManager string, di
 	default:
 		return false
 	}
+}
+
+// supplyChainImpactScopeGenerationPair is one distinct (ScopeID, GenerationID)
+// pair collected from loaded os_package envelopes so
+// loadSupplyChainImpactScannerAnalysisScopeFacts can load each scan target's
+// sibling scanner_worker.analysis fact exactly once.
+type supplyChainImpactScopeGenerationPair struct {
+	scopeID      string
+	generationID string
+}
+
+// supplyChainImpactOSPackageScopeGenerationPairs returns the distinct,
+// non-empty (ScopeID, GenerationID) pairs carried by every loaded
+// vulnerability.os_package envelope, in stable first-seen order. It does not
+// cap the result: a scope with many scan targets used to lose every pair past
+// 256 and report truncation, so it never retracted (#7154). The number of
+// envelopes those pairs can pull in is bounded by the per-intent evidence
+// budget instead (supplyChainImpactEvidenceBudget).
+func supplyChainImpactOSPackageScopeGenerationPairs(
+	envelopes []facts.Envelope,
+) []supplyChainImpactScopeGenerationPair {
+	seen := make(map[string]struct{})
+	var pairs []supplyChainImpactScopeGenerationPair
+	for _, envelope := range envelopes {
+		if envelope.FactKind != chain.VulnerabilityOSPackageFactKind {
+			continue
+		}
+		scopeID := strings.TrimSpace(envelope.ScopeID)
+		if scopeID == "" {
+			continue
+		}
+		generationID := strings.TrimSpace(envelope.GenerationID)
+		key := supplychainmodel.ScopeGenerationKey(scopeID, generationID)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		pairs = append(pairs, supplyChainImpactScopeGenerationPair{scopeID: scopeID, generationID: generationID})
+	}
+	return pairs
 }

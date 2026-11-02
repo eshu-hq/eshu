@@ -345,35 +345,6 @@ func pythonSCIPSymbolMatchesPackage(symbol string, identity string) bool {
 	return false
 }
 
-func extractPythonReachabilityEvidence(envelopes []facts.Envelope) map[string]pythonReachabilityRepositoryEvidence {
-	out := make(map[string]pythonReachabilityRepositoryEvidence)
-	for _, envelope := range envelopes {
-		if envelope.FactKind != factload.FactKindFile || envelope.IsTombstone {
-			continue
-		}
-		repositoryID := payloadcore.PayloadStr(envelope.Payload, "repo_id")
-		if repositoryID == "" {
-			continue
-		}
-		fileData := payloadcore.PayloadMap(envelope.Payload, "parsed_file_data")
-		if fileData == nil {
-			continue
-		}
-		evidence := out[repositoryID]
-		evidence.ensureMaps()
-		aliases := collectPythonImportEvidence(&evidence, envelope.FactID, fileData)
-		collectPythonCallEvidence(&evidence, envelope.FactID, fileData, aliases)
-		collectPythonDecoratorEvidence(&evidence, envelope.FactID, fileData, aliases)
-		for _, edge := range payloadcore.MapSlice(fileData["function_calls_scip"]) {
-			if symbol := strings.TrimSpace(payloadcore.PayloadStr(edge, "callee_symbol")); symbol != "" {
-				evidence.scipSymbols[symbol] = append(evidence.scipSymbols[symbol], envelope.FactID)
-			}
-		}
-		out[repositoryID] = evidence
-	}
-	return out
-}
-
 func (e *pythonReachabilityRepositoryEvidence) ensureMaps() {
 	if e.importedModules == nil {
 		e.importedModules = map[string][]string{}

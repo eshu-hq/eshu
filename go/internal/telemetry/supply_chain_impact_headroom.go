@@ -217,7 +217,7 @@ func registerSupplyChainImpactHeadroom(meter metric.Meter, inst *Instruments) er
 	inst.SupplyChainImpactPartialScopes, err = meter.Int64ObservableGauge(
 		"eshu_dp_supply_chain_impact_partial_scopes",
 		metric.WithDescription("Scopes whose last recorded supply-chain impact pass on this process ended partial (it upserted but retracted nothing), by cause "+
-			"(active_expansion_rounds, evidence_budget, other) (#9778). A scope that stays partial keeps its stale findings. "+
+			"(active_expansion_rounds, evidence_budget (envelope count or retained payload bytes), other) (#9778). A scope that stays partial keeps its stale findings. "+
 			"A per-replica view, not a global count: a scope another replica later completed can linger here, a restart empties it, "+
 			"a scope partial for two causes counts under both, and passes of one scope that record out of order show the older one until the next pass. "+
 			"No series until this process has recorded a pass, so only a reducer that has handled a scope reports 0. "+

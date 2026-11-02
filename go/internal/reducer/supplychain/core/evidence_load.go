@@ -44,6 +44,9 @@ type supplyChainImpactLoadedEvidence struct {
 	// evidence_budget_ratio sub-signal read it, because the protected-scan path
 	// raises expansionEnvelopes with derived facts the budget never charged.
 	budgetEnvelopes int
+	// budgetPayloadBytes is the raw JSON bytes the pass kept decoded, charged
+	// against the retained-payload-bytes budget (#9781).
+	budgetPayloadBytes int64
 	// activeEvidence is the pass's per-statement active-evidence accounting
 	// (#8880), merged into the success log's sub-signals and sub-durations.
 	activeEvidence                  supplyChainImpactActiveEvidenceTally
@@ -152,6 +155,7 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 	}
 
 	budget := newSupplyChainImpactEvidenceBudget(h.EvidenceBudget)
+	budget.bytesLimit = h.evidencePayloadBytesLimit()
 	var truncation supplyChainImpactTruncation
 
 	activeEvidenceStartCount := len(envelopes)
@@ -162,6 +166,12 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 		return supplyChainImpactLoadedEvidence{}, timing, fmt.Errorf("load active supply chain impact facts: %w", err)
 	}
 	activeEvidenceFacts := len(envelopes) - activeEvidenceStartCount
+	// A fold's files left the pass as one digest envelope; count the files.
+	for _, envelope := range envelopes[activeEvidenceStartCount:] {
+		if fold := fileReachabilityFoldFromDigest(envelope); fold != nil {
+			activeEvidenceFacts += fold.Files() - 1
+		}
+	}
 
 	var expansion supplyChainImpactExpansionCounts
 	if !h.authorizedStaticOnly {
@@ -233,6 +243,7 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 		suppressionEvidenceTruncated:    truncation.any(),
 		expansionEnvelopes:              budget.used,
 		budgetEnvelopes:                 budget.used,
+		budgetPayloadBytes:              budget.bytesUsed,
 		activeEvidence:                  budget.activeEvidence,
 		osPackageAdvisoryFacts:          osPackageAdvisoryFacts,
 		osPackageAdvisoryTargetsSkipped: osPackageAdvisorySkipped,

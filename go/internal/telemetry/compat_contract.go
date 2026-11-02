@@ -181,6 +181,7 @@ const (
 	MetricSupplyChainImpactActiveEvidenceBranchSeconds = contract.MetricSupplyChainImpactActiveEvidenceBranchSeconds
 	MetricSupplyChainImpactActiveEvidenceBranchRows    = contract.MetricSupplyChainImpactActiveEvidenceBranchRows
 	MetricSupplyChainImpactActiveEvidenceGuardRows     = contract.MetricSupplyChainImpactActiveEvidenceGuardRows
+	MetricSupplyChainImpactActiveEvidencePayloadBytes  = contract.MetricSupplyChainImpactActiveEvidencePayloadBytes
 	MetricWorkflowClaimQuotaExceeded                   = contract.MetricWorkflowClaimQuotaExceeded
 	MetricWorkflowClaimQuotaUnreadableFallback         = contract.MetricWorkflowClaimQuotaUnreadableFallback
 	QuotaKindGenerationsPerHour                        = contract.QuotaKindGenerationsPerHour

@@ -4,9 +4,11 @@
 package postgres
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -32,11 +34,15 @@ type supplyChainImpactRoutingDB struct {
 	// scopes maps a repository list value to its (scope_id, generation_id).
 	scopes map[string][2]string
 	// facts maps a fact ID to its kind for payload pages; missing drops IDs.
-	facts    map[string]string
-	missing  map[string]bool
-	identity []string
-	calls    []supplyChainImpactRoutedCall
-	commits  int
+	facts   map[string]string
+	missing map[string]bool
+	// payloads overrides the raw payload bytes for a fact ID (default {"id":..}).
+	payloads map[string][]byte
+	// misorderOrdered makes the ordered payload page return its rows reversed.
+	misorderOrdered bool
+	identity        []string
+	calls           []supplyChainImpactRoutedCall
+	commits         int
 }
 
 func (r *supplyChainImpactRoutingDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
@@ -80,7 +86,22 @@ func (tx *supplyChainImpactRoutingTx) QueryContext(_ context.Context, query stri
 			if r.missing[id] {
 				continue
 			}
-			rows = append(rows, supplyChainImpactRoutedFactRow(id, r.facts[id]))
+			rows = append(rows, r.factRow(id))
+		}
+		return &queueFakeRows{rows: rows}, nil
+	case factimpact.PayloadPageOrderedSQL:
+		r.calls = append(r.calls, supplyChainImpactRoutedCall{Label: "payload_page_ordered", Args: args})
+		ids := slices.Clone(args[0].([]string))
+		slices.SortFunc(ids, func(a, b string) int { return bytes.Compare([]byte(a), []byte(b)) })
+		if r.misorderOrdered {
+			slices.Reverse(ids)
+		}
+		var rows [][]any
+		for _, id := range ids {
+			if r.missing[id] {
+				continue
+			}
+			rows = append(rows, r.factRow(id))
 		}
 		return &queueFakeRows{rows: rows}, nil
 	case listCurrentContainerImageIdentitySupportFactsQuery:
@@ -109,6 +130,15 @@ func (tx *supplyChainImpactRoutingTx) QueryContext(_ context.Context, query stri
 		return &queueFakeRows{rows: rows}, nil
 	}
 	return nil, fmt.Errorf("routing fake: unrouted statement:\n%s", query)
+}
+
+// factRow renders one payload-page row for a configured fact ID.
+func (r *supplyChainImpactRoutingDB) factRow(id string) []any {
+	row := supplyChainImpactRoutedFactRow(id, r.facts[id])
+	if payload, ok := r.payloads[id]; ok {
+		row[15] = payload
+	}
+	return row
 }
 
 // supplyChainImpactRoutedFactRow renders the sixteen loader columns.

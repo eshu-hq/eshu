@@ -123,7 +123,7 @@ func (l AuthorizedSupplyChainImpactEvidenceLoader) ListAuthorizedSupplyChainImpa
 		loaded.StaticEnvelopes = cloneAuthorizedImpactEnvelopes(staticLoad.Envelopes)
 		loaded.SuppressionEnvelopes = cloneAuthorizedImpactEnvelopes(staticLoad.SuppressionEnvelopes)
 		for _, envelope := range staticLoad.Envelopes {
-			loaded.StaticNonAdvisoryEvidenceFactIDs = append(loaded.StaticNonAdvisoryEvidenceFactIDs, envelope.FactID)
+			loaded.StaticNonAdvisoryEvidenceFactIDs = supplychaincore.AppendEvidenceFactIDs(loaded.StaticNonAdvisoryEvidenceFactIDs, envelope)
 		}
 		loaded.Complete = true
 		return nil
@@ -180,7 +180,7 @@ func (l AuthorizedSupplyChainImpactEvidenceLoader) ListAuthorizedSupplyChainImpa
 				loaded.CoverageReason = "policy_unavailable"
 				return nil
 			}
-			loaded.StaticNonAdvisoryEvidenceFactIDs = append(loaded.StaticNonAdvisoryEvidenceFactIDs, envelope.FactID)
+			loaded.StaticNonAdvisoryEvidenceFactIDs = supplychaincore.AppendEvidenceFactIDs(loaded.StaticNonAdvisoryEvidenceFactIDs, envelope)
 		}
 		if !staticLoad.Complete {
 			loaded.CoverageReason = boundedAuthorizedImpactLoaderReason(staticLoad.CoverageReason)

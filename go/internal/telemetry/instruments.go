@@ -1034,7 +1034,8 @@ type Instruments struct {
 	// (#7154). A pass stopped by both reasons increments twice.
 	// Labels: domain (supply_chain_impact) and reason, a closed set of
 	// active_expansion_rounds (the 8-round expansion cap) and evidence_budget
-	// (the per-intent envelope budget). A suppression-tail truncation is not
+	// (the per-intent envelope count budget or the retained payload byte budget;
+	// the WARN line carries both charges and both limits, #9781). A suppression-tail truncation is not
 	// counted: it does not stop retraction. A scope that keeps incrementing
 	// this on every pass keeps its stale findings; the WARN log line carries
 	// the scope and generation.
@@ -1071,6 +1072,13 @@ type Instruments struct {
 	// SupplyChainImpactActiveEvidenceBranchRows counts rows each
 	// active-evidence statement returned (#8880). Label: branch.
 	SupplyChainImpactActiveEvidenceBranchRows metric.Int64Counter
+	// SupplyChainImpactActiveEvidencePayloadBytes records the raw payload bytes
+	// one active-evidence statement read (#9781). Label: branch, one of
+	// payload_page, identity, or file_fold. A file_fold tail that climbs
+	// while payload_page holds means the fold is absorbing a larger JS/TS
+	// corpus; a payload_page tail that climbs means retained payloads grow
+	// toward the evidence payload-byte budget.
+	SupplyChainImpactActiveEvidencePayloadBytes metric.Int64Histogram
 	// SupplyChainImpactActiveEvidenceGuardRows counts rows the foreign-key
 	// guard statement returned (#8880). The guard admits only rows carrying
 	// an identity key no branch probes for their kind, so any increment means
@@ -4731,6 +4739,16 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SupplyChainImpactActiveEvidenceBranchRows counter: %w", err)
+	}
+
+	inst.SupplyChainImpactActiveEvidencePayloadBytes, err = meter.Int64Histogram(
+		"eshu_dp_supply_chain_impact_active_evidence_payload_bytes",
+		metric.WithDescription("Raw payload bytes one supply-chain impact active-evidence statement read, by closed branch label: payload_page and identity are retained decoded, file_fold is folded and dropped (#9781)"),
+		metric.WithUnit("By"),
+		metric.WithExplicitBucketBoundaries(1e4, 1e5, 1e6, 4e6, 16e6, 64e6, 256e6, 1e9),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SupplyChainImpactActiveEvidencePayloadBytes histogram: %w", err)
 	}
 
 	inst.SupplyChainImpactActiveEvidenceGuardRows, err = meter.Int64Counter(

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -95,15 +96,18 @@ func (s FactStore) ListActiveSupplyChainImpactFactsWithStats(
 		if err != nil {
 			return err
 		}
-		core, err := s.loadSupplyChainImpactPayloadPages(ctx, queryer, resolved.core, &stats)
+		core, err := s.loadSupplyChainImpactPayloadPages(ctx, queryer, resolved.core, &stats, filter.PayloadBytesLimit)
 		if err != nil {
+			return err
+		}
+		if err := s.foldSupplyChainImpactFilePages(ctx, queryer, resolved.files, filter.FileFold, &stats); err != nil {
 			return err
 		}
 		identity, err := s.loadSupplyChainImpactIdentityStream(ctx, queryer, filter, &stats)
 		if err != nil {
 			return err
 		}
-		suppressions, err := s.loadSupplyChainImpactPayloadPages(ctx, queryer, resolved.suppressions, &stats)
+		suppressions, err := s.loadSupplyChainImpactPayloadPages(ctx, queryer, resolved.suppressions, &stats, filter.PayloadBytesLimit)
 		if err != nil {
 			return err
 		}
@@ -119,8 +123,13 @@ func (s FactStore) ListActiveSupplyChainImpactFactsWithStats(
 }
 
 // supplyChainImpactResolvedIDs is the ordered ID set one call loads.
+//
+// files holds the parser file fact IDs a caller with a FileFold folds instead
+// of loading; it stays empty when the filter carries no fold, and those IDs are
+// then part of core.
 type supplyChainImpactResolvedIDs struct {
 	core         []string
+	files        []string
 	suppressions []string
 }
 
@@ -189,6 +198,8 @@ func (s FactStore) resolveSupplyChainImpactFactIDs(
 			seen[row.id] = struct{}{}
 			if isSuppression {
 				resolved.suppressions = append(resolved.suppressions, row.id)
+			} else if filter.FileFold != nil && row.kind == factload.FactKindFile {
+				resolved.files = append(resolved.files, row.id)
 			} else {
 				resolved.core = append(resolved.core, row.id)
 			}
@@ -196,12 +207,13 @@ func (s FactStore) resolveSupplyChainImpactFactIDs(
 	}
 	byteOrder := func(left, right string) int { return bytes.Compare([]byte(left), []byte(right)) }
 	slices.SortFunc(resolved.core, byteOrder)
+	slices.SortFunc(resolved.files, byteOrder)
 	slices.SortFunc(resolved.suppressions, byteOrder)
 	if len(resolved.suppressions) > maxSupplyChainImpactActiveEvidenceRowsPerCall {
 		resolved.suppressions = resolved.suppressions[:maxSupplyChainImpactActiveEvidenceRowsPerCall]
 		stats.SuppressionTruncated = true
 	}
-	stats.ResolvedFactIDs = len(resolved.core) + len(resolved.suppressions)
+	stats.ResolvedFactIDs = len(resolved.core) + len(resolved.files) + len(resolved.suppressions)
 	return resolved, nil
 }
 

@@ -292,3 +292,11 @@ const PayloadPageSQL = `SELECT
     fact.payload
 FROM fact_records AS fact
 WHERE fact.fact_id = ANY($1::text[])`
+
+// PayloadPageOrderedSQL is PayloadPageSQL with the rows returned in the byte
+// order the loader sorted the IDs in (the same convert_to ordering the
+// suppression branch uses). The file-evidence fold reads rows one at a time in
+// that order, so the result of the fold does not depend on page layout (#9781).
+// It sorts at most one page of primary-key matches.
+const PayloadPageOrderedSQL = PayloadPageSQL + `
+ORDER BY convert_to(fact.fact_id, 'UTF8')`

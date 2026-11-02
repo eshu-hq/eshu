@@ -414,6 +414,7 @@ the directory name.
 | `evaluation.go`, `decode.go`, `reasons.go`, `scope.go` | Suppression story: Decision + Evaluate, decode, reasons, scope match |
 | `retraction.go` | Advisory retraction (#9695): per-observation code, per-CVE-group rule, reason text |
 | `go_reachability*.go` | Go module/call reachability classification |
+| `file_reachability_fold.go` | Folds the JS/TS parser `file` facts the active-evidence branches resolve, and the Python evidence they carry, into reachability evidence at the loader so their payloads are not retained; the standalone Python stage is unchanged (#9781, #9860) |
 | `cross_scope_test_doubles_test.go` | Family-local test doubles (each side keeps its own copy) |
 
 ## Seams other families use
@@ -445,8 +446,7 @@ and measurements:
 `docs/internal/evidence/7154-capped-scope-convergence.md`.
 
 Truncation is recorded by cause (`evidence_truncation.go`): `active_expansion_rounds`
-(the 8-round expansion cap) and `evidence_budget` (the per-intent expansion
-envelope budget, default 100,000) set `PartialEvidence`; `suppression_tail`
+(the 8-round expansion cap) and `evidence_budget` (the per-intent expansion envelope budget, default 100,000, or the retained raw payload budget, default 256 MiB; folded `file` facts charge neither, #9781) set `PartialEvidence`; `suppression_tail`
 (only the `vulnerability.suppression` tail of a read was bounded) does not,
 because a suppression is not part of a finding's identity and core evidence is
 always loaded in full before the tail is counted, so that pass still retracts
