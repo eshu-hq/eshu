@@ -32,15 +32,17 @@
 - Add OCR extraction outside this package. Extractors may call `Preflight`, but
   extraction and fact emission belong in their owning documentation collector
   slice.
-- Add WebP decoding only after dependency review. This package intentionally
-  reports WebP as `unsupported_codec` while it uses only the standard library.
+- Add WebP support through the bounded RIFF header parser in `preflight.go`
+  (mirrors `document/ocr/tesseract/input.go`); no decoder dependency. The
+  `unsupported_codec` constant stays for wire compatibility.
 - Add runtime telemetry only from a caller. This package should stay
   side-effect free.
 
 ## Failure modes
 
 - Unknown extensions return `unsupported_format`.
-- WebP returns `unsupported_codec`.
+- WebP returns its canvas size from the bounded RIFF header parser; a
+  non-WebP RIFF container or truncated chunk returns `malformed_media`.
 - Corrupt PNG, JPEG, or GIF inputs return `malformed_media`.
 - Oversized sources or pixel limits return `resource_limit_exceeded`.
 - Animated GIFs return `partial_extraction` to preserve first-frame-only

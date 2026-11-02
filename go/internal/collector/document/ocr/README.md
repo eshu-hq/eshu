@@ -381,7 +381,9 @@ readback surfaces already carry the emitted documentation facts.
 
 ## Gotchas / invariants
 
-- WebP remains unsupported unless a decoder dependency review lands first.
+- WebP passes preflight through the bounded RIFF header parser in
+  `preflight/picture` (no decoder dependency, #9780), so `ocr.Extract` reaches
+  the engine for WebP like any other admitted format.
 - Multi-frame GIF input is OCRed as frame zero only and keeps the
   `partial_extraction` warning.
 - Source identity fields are redacted when they contain scheme-bearing URIs,

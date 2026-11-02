@@ -16,8 +16,8 @@
 - Emit source facts only: `documentation_document` and `documentation_section`.
   Do not emit entity mentions, claim candidates, graph edges, service truth,
   deployment truth, incident truth, or ownership truth from OCR text.
-- Run `picture` preflight before calling an OCR engine. WebP stays unsupported
-  until a decoder dependency review lands.
+- Run `picture` preflight before calling an OCR engine. WebP is admitted by
+  the bounded RIFF header parser in `picture` (no decoder dependency, #9780).
 - Do not persist raw pixels, image bytes, EXIF values, local paths, private
   URLs, credentials, usernames, camera serials, OCR intermediates, or sensitive
   OCR text.

@@ -33,8 +33,9 @@ See `doc.go` for the godoc-rendered package contract.
 - `Warning` records a stable low-cardinality class and count.
 - `Preflight` classifies one image using an `io.ReaderAt`, source name, byte
   size, context, and options.
-- Format constants cover PNG, JPEG, GIF, and WebP. WebP currently reports
-  `unsupported_codec` because this package avoids adding a decoder dependency.
+- Format constants cover PNG, JPEG, GIF, and WebP. WebP dimensions come from a
+  bounded RIFF header parser (VP8, VP8L, VP8X), the same shape the tesseract
+  engine input uses, so no decoder dependency is needed (#9780).
 - Warning constants cover unsupported format, unsupported codec, malformed
   media, resource limits, timeout, external references, sensitive value
   redaction, metadata redaction, and partial extraction.
@@ -81,8 +82,9 @@ tool, runtime stage, OCR engine, or hosted collector path.
 
 - Preflight never stores raw image bytes, OCR text, EXIF values, source names,
   local paths, private URLs, or metadata values in `Result`.
-- WebP is recognized by extension but classified as `unsupported_codec` until a
-  reviewed decoder dependency exists.
+- WebP is recognized by extension and its canvas size is read from the RIFF
+  header by the bounded parser; a non-WebP or truncated container is
+  `malformed_media`. Pixel budgets apply like any other format.
 - Animated GIFs fail closed with `partial_extraction`; the first reviewed OCR
   slice may inspect only one frame unless a later design raises that boundary.
 - Sensitive-looking or metadata-looking markers are counted only as warning
