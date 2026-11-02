@@ -277,6 +277,7 @@ gates:
       - "go/internal/storage/cypher/cloud/resource/edge_writer.go"
       - "go/internal/storage/cypher/cloud/gcp/relationship/gcp_cloud_resource_edge_writer.go"
       - "go/internal/storage/cypher/cloud/azure/relationship/azure_cloud_resource_edge_writer.go"
+      - "testdata/cassettes/semanticentitycontainment/**"
       - "testdata/cassettes/symbolruntime/**"
       - "go/internal/ifa/testdata/handlesroute/**"
       - "go/internal/ifa/testdata/runsin/**"

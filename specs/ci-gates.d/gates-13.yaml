@@ -295,6 +295,7 @@ gates:
       - "scripts/lib/ifa_direct_family_live.sh"
       - "scripts/lib/ifa_vault_family_live.sh"
       - "scripts/lib/ifa_direct_family_live_cloud_resource.sh"
+      - "testdata/cassettes/semanticentitycontainment/**"
       - "testdata/cassettes/symbolruntime/**"
       - "go/internal/ifa/testdata/handlesroute/**"
       - "go/internal/ifa/testdata/runsin/**"
