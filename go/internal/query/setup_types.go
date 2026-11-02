@@ -19,10 +19,11 @@ import (
 // shape for the first-run setup wizard (epic #4962, issue #4965).
 // Canonical mutations persist through explicit core-owned admission
 // contracts: eshu-api keeps the HTTP shape and calls this versioned port,
-// which the core-owned Postgres implementation satisfies. A breaking change
-// to the admission shape fails the frozen method-set test until that list
-// is deliberately updated in the same diff; bump this version alongside so
-// dest consumers can pin the shape they code against.
+// which the core-owned Postgres implementation satisfies. A renamed,
+// added, removed, or re-signed method fails the frozen method-set test
+// until that list is deliberately updated in the same diff; bump this
+// version alongside so dest consumers can pin the shape they code against.
+// Field-level input-shape changes remain a documented convention.
 const SetupAdmissionContractVersion = "v0"
 
 // SetupAdmission is the versioned admission-contract port the API handler

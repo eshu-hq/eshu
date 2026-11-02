@@ -23,7 +23,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// newSetupHandler wires the first-run setup wizard (epic #4962, issue #4965).
+// newPostgresSetupAdapter builds the core-owned Postgres setup admission
+// implementation (epic #4962, issue #4965).
 // keyring is the same DEK-backed secretcrypto.Keyring used for provider-config
 // secrets (providerSecretKeyring in wireAPI) — it is the identical
 // ESHU_AUTH_SECRET_ENC_KEY(_FILE) material seed_initial_admin.go seals the
