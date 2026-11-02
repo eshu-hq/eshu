@@ -479,12 +479,12 @@ labels.
 
 ## Webhook Listener
 
-The listener and the intake host (`webhook-intake`, #9811) emit the first five series. The intake host labels a failed durable write `status="failed"` and bounds `reason` and `event_kind` to fixed sets (anything else is `other`).
+The listener and the intake host (`webhook-intake`, #9811) emit the first five series. `status` is the stored lifecycle state, so a delivery that coalesces into an already-failed row also reads `failed`. A real write failure shows as `eshu_dp_webhook_store_operations_total{outcome="failed"}` or `eshu_dp_webhook_requests_total{reason="store_failed"}`. The intake host bounds `reason` and `event_kind` to fixed sets (anything else is `other`).
 
 | Metric | Key labels | Use |
 | --- | --- | --- |
 | `eshu_dp_webhook_requests_total` | `provider`, `outcome`, `reason` | Public webhook requests (listener) and intake-route requests (intake host), including rejected requests. |
-| `eshu_dp_webhook_trigger_decisions_total` | `provider`, `event_kind`, `decision`, `reason`, `status` | Normalized provider events that reached durable trigger storage; `status="failed"` marks a failed write. |
+| `eshu_dp_webhook_trigger_decisions_total` | `provider`, `event_kind`, `decision`, `reason`, `status` | Normalized provider events handed to trigger storage, by stored lifecycle `status` (`queued`, `ignored`, `claimed`, `handed_off`, `failed`). The intake host also counts a failed write or a missing store as `status="failed"`. |
 | `eshu_dp_webhook_store_operations_total` | `provider`, `outcome`, `status` | Trigger-store upsert attempts. |
 | `eshu_dp_webhook_request_duration_seconds` | `provider`, `outcome`, `reason` | End-to-end provider route duration. |
 | `eshu_dp_webhook_store_duration_seconds` | `provider`, `outcome`, `status` | Durable trigger-store duration. |

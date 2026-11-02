@@ -74,7 +74,10 @@ See `doc.go` for the full godoc contract.
   `eshu_dp_webhook_store_duration_seconds` series with the listener's label
   names (#9811), so the EshuTriggerHandoffFailed alert
   (`trigger_decisions_total{status="failed"}`) and the freshness dashboard
-  work without a query change. A failed durable write sets `status="failed"`.
+  work without a query change. `status` is the stored lifecycle state; a failed
+  durable write is counted as `status="failed"`, and so is a delivery that
+  coalesces into an already-failed row. Separate them with
+  `store_operations_total{outcome="failed"}` or `requests_total{reason="store_failed"}`.
   No new metric names were introduced; the intake package bounds every label.
 - Traces: OTEL providers with the `webhook-intake` service name; Postgres
   store spans flow through the instrumented stores.

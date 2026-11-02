@@ -45,8 +45,12 @@ plus `eshu_dp_webhook_store_operations_total`,
 `eshu_dp_webhook_store_duration_seconds` (`provider`, `outcome`, `status`) and
 `eshu_dp_webhook_trigger_decisions_total` (`provider`, `event_kind`,
 `decision`, `reason`, `status`) around the store call. Outcome is `stored`,
-`rejected`, or `failed`. A failed write is `status="failed"`, the value the
-EshuTriggerHandoffFailed alert selects. `/healthz` is not counted. Labels are
+`rejected`, or `failed`. `status` is the stored lifecycle state. A failed write
+(or a route with no store) is counted as `status="failed"`, the value the
+EshuTriggerHandoffFailed alert selects; a delivery that coalesces into an
+already-failed row also reads `failed`, so tell the two apart with
+`store_operations_total{outcome="failed"}` or `requests_total{reason="store_failed"}`.
+`/healthz` is not counted. Labels are
 fixed sets: a free-text wire `reason` or incident `event_kind` outside the
 known values becomes `other`, and no delivery id or repository name is a label.
 

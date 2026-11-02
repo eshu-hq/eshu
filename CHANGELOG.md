@@ -18,8 +18,11 @@ recent shipped work grouped by feature area.
   duration histograms, so after the authority switch the
   `EshuTriggerHandoffFailed` alert and the freshness dashboard had no data.
   All five intake routes now record them with the listener's label names. A
-  failed durable write sets `status="failed"` on the decision and store
-  series, so the alert fires without a query change. Labels stay bounded.
+  failed durable write (or a route with no store) is counted as
+  `status="failed"` on the decision series, so the alert fires without a query
+  change. `status` is the stored lifecycle state, so a delivery that coalesces
+  into an already-failed row reads `failed` too; `store_operations_total` with
+  `outcome="failed"` separates a real write failure. Labels stay bounded.
 
 ### Extension host: eshu-sdk collector v0.2.0-rc.3 pin
 

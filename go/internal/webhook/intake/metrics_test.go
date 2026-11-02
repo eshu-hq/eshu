@@ -114,12 +114,15 @@ func (s statusRepositoryStore) StoreTrigger(_ context.Context, trigger webhook.T
 }
 
 // TestIntakeDecisionStatusMatchesStoredStatus pins that the status label is
-// the stored lifecycle state, not the request outcome.
+// the stored lifecycle state, not the request outcome. A 202 that coalesces
+// into an already-failed row reads failed too, and only the store-operation
+// outcome and the request reason tell it apart from a real write failure.
 func TestIntakeDecisionStatusMatchesStoredStatus(t *testing.T) {
 	t.Parallel()
 
 	for _, status := range []webhook.TriggerStatus{
-		webhook.TriggerStatusQueued, webhook.TriggerStatusIgnored, webhook.TriggerStatusHandedOff,
+		webhook.TriggerStatusQueued, webhook.TriggerStatusIgnored, webhook.TriggerStatusClaimed,
+		webhook.TriggerStatusHandedOff, webhook.TriggerStatusFailed,
 	} {
 		t.Run(string(status), func(t *testing.T) {
 			t.Parallel()
@@ -135,6 +138,17 @@ func TestIntakeDecisionStatusMatchesStoredStatus(t *testing.T) {
 			if got := harness.counter(t, metricDecisions,
 				decisionAttrs("github", "push", "accepted", "none", string(status))); got != 1 {
 				t.Fatalf("decisions with status %q = %d, want 1", status, got)
+			}
+			// The request itself succeeded: a stored-into-failed row is told
+			// apart from a write failure by outcome and reason, not status.
+			if got := harness.counter(t, metricRequests, requestAttrs("github", "stored", "none")); got != 1 {
+				t.Fatalf("stored requests = %d, want 1", got)
+			}
+			if got := harness.counter(t, metricStoreOps, storeAttrs("github", "stored", string(status))); got != 1 {
+				t.Fatalf("stored store operations with status %q = %d, want 1", status, got)
+			}
+			if got := harness.counter(t, metricStoreOps, storeAttrs("github", "failed", "failed")); got != 0 {
+				t.Fatalf("failed store operations = %d, want 0", got)
 			}
 		})
 	}

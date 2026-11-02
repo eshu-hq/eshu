@@ -49,6 +49,9 @@ func TestIntakeHostEmitsFreshnessAlertSeries(t *testing.T) {
 		{"store_healthy", func() intake.RepositoryStore { return fakeIntakeRepositoryStore{} }, http.StatusAccepted, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			if previous, ok := os.LookupEnv("OTEL_EXPORTER_OTLP_ENDPOINT"); ok {
+				t.Cleanup(func() { _ = os.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", previous) })
+			}
 			_ = os.Unsetenv("OTEL_EXPORTER_OTLP_ENDPOINT")
 			bootstrap, err := telemetry.NewBootstrap("webhook-intake")
 			if err != nil {
