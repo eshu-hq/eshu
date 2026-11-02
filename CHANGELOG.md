@@ -66,7 +66,7 @@ recent shipped work grouped by feature area.
   `token`, and `PIN` match as whole words, so "tokenize" and "spinning" stay
   clear, and "a secret garden" is withheld on purpose. Source names and mention
   hints keep the original list. On this repository's docs the keyword hit rate
-  went from 0.14% to 2.01% of sentences, and each hit
+  went from 0.14% to 2.02% of sentences, and each hit
   costs the next two segments of speech. The whisper.cpp engine also stops
   dropping a bracketed segment such as "(The password is)" when it holds a
   keyword; `media.Extract` redacts it. The media transcript sandbox proof now

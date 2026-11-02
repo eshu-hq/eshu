@@ -82,26 +82,33 @@ to 25,917). There is no backend, queue, or row count: this is in-memory work
 with no production caller, and it holds no lock and starts no worker.
 
 No-Regression Evidence: the spoken keyword fold (#9788) adds work per
-segment. Baseline is `main` at `b31570ae74`; after is the #9788 branch with the
+segment. Baseline is `main` at `82c9ef362e`; after is the #9788 branch with the
 ASCII fold fast path, the split-segment join, and the keyword result computed
-once per segment and shared with `persistedContent`. A throwaway benchmark
-calls `buildSections` on 1,000 synthetic benign segments (arm64, 100 iterations
-by 5 runs on main, 40 by 4 on the branch). The `whispercpp` cap is 4,096
-characters per segment (`defaultMaxSegmentChars`) and 1,000 segments, so both a
-typical 85-character segment and the capped case were run:
+once per segment and shared with `persistedContent`. The `whispercpp` cap is
+4,096 characters per segment (`defaultMaxSegmentChars`) and 1,000 segments, so
+a typical 85-character segment and the capped case were both run. A throwaway
+benchmark called `buildSections` on 1,000 synthetic benign segments (arm64,
+two passes of 6 alternating base and branch rounds, 30 iterations each, built
+from `git archive` copies of both trees). The host was shared: its load average
+ran from 12 to 36 during the runs, and a few runs on either side came in
+2-3 times slower, so the table gives the normal band and the median, and the
+outliers are listed after it.
 
 | Segment size | main | branch | Allocations |
 | --- | --- | --- | --- |
-| 85 characters | 12.6-16.7 ms | 13.2-13.4 ms | 26,917 to 28,914 |
-| 4,096 characters | 492-504 ms | 509-588 ms | 26,948 to 28,945 |
+| 85 characters | 11.9-13.5 ms, median 12.0 | 13.8-14.4 ms, median 14.0 | 26,915 to 28,914 |
+| 4,096 characters | 491-562 ms, median 495 | 516-567 ms, median 531 | 26,950 to 28,951 |
 
-The 85-character difference did not resolve. My runs overlapped main's spread,
-but a re-measurement in review gave main 12.2-13.9 ms and the branch 14.1-14.3
-ms, about 15% more. Read it as up to 15% at a typical segment size. The capped
-case costs about 15-20 ms more per 1,000 segments, 3-4%. An earlier revision
-that joined whole segments and folded each segment twice measured 717-921 ms
-on the capped case, which is why the fast path, the 24-byte join edge, and the
-shared result exist. There is no backend, queue, or row count: no production
+That is about 2 ms more per 1,000 segments at 85 characters (about 16%) and
+about 35 ms more at the cap (about 7%). A review that alternated the two trees
+6 rounds of 30 iterations measured +2.7 ms (+22%) and +28 ms (+5.8%), with
+non-overlapping bands, so the cost at a typical size is 15-22% and at the cap
+5-7%. Outliers: base 22.7 and 17.1 ms (85 characters), 616 and 610 ms (4,096);
+branch 27.6, 42.0 and 44.2 ms (85), 663, 718 and 1,370 ms (4,096). An earlier
+revision that joined whole segments and folded each segment twice measured
+717-921 ms on the capped case, which is why the fast path, the 24-byte join
+edge, and the shared result exist. The absolute cost is a few milliseconds per
+transcript in memory. There is no backend, queue, or row count: no production
 caller exists, and the work holds no lock and starts no worker.
 
 Collector Observability Evidence: this package emits no facts outside the
@@ -248,24 +255,26 @@ Source names, document IDs, and mention hints keep the original substring list,
 because they are labels such as `token-service` and `pin-assignments.wav`, not
 speech. Only a transcript segment gets the folded rules.
 
-Measured cost, on 206,780 sentences of four or more words from this
+Measured cost, on 206,995 sentences of four or more words from this
 repository's `docs/public` and `docs/internal` Markdown, split with the regular
 expression `[.!?]\s+` after dropping code fences, table rows, headings, and
 HTML lines: the original list hit 290 sentences (0.14%); the folded rules hit
-4,158 (2.01%). The added hits came from `token` 1,201, `credential` 1,015,
-`pin` 581, `secret` 419, `tokens` 296, `secrets` 273, `pwd` 30, `api key` 30,
-`private key` 17, `apikey` 5, and `passwd` 1 (each sentence counted once, under
-the first rule in list order that hit it). A second reading with a different
-sentence splitter, taken in review of the commit before `secret` was added,
-gave 244,300 sentences, 0.17% before and 1.76% after, so the figures move with
-the splitter. Rerunning the count in review reproduced it only approximately
-(200,003 sentences, 0.11% before and 1.99% after, `pwd` 3 hits, not 30),
-because the documentation changes between runs; treat every figure here as
-approximate. This corpus is the project's own security-heavy documentation,
-so it is a rough guide, not a bound for any other speech. Each hit also
-withholds the next two segments with a letter or digit. The sandbox fixture
-sentences ("Please restart the payments worker before noon.", "The password is
-swordfish.", "The password is as follows.", "Swordfish.") match as before.
+4,181 (2.02%). The added hits came from `token` 1,214, `credential` 1,015,
+`pin` 582, `secret` 417, `tokens` 293, `secrets` 273, `pwd` 30, `api key` 30,
+`private key` 17, `access key` 7, `access keys` 5, `apikey` 5, `passwd` 1,
+`privatekey` 1, and `accesskey` 1 (each sentence counted once, under the first
+rule in list order that hit it). The counts come from a throwaway test, not a
+committed script, so the method is not pinned. A review that counted the same
+files its own way got 200,218 sentences, 0.11% before and 2.00% after, and `pwd`
+3 hits instead of 30; the gap in sentence count is about 3%, and the difference in
+the `pwd` count is not explained by the corpus changing between runs. An
+earlier review with a different sentence splitter found 244,300 sentences, 0.17%
+before and 1.76% after. Treat every figure here as approximate. This corpus is
+the project's own security-heavy documentation, so it is a rough guide, not a
+bound for any other speech. Each hit also withholds the next two segments with
+a letter or digit. The sandbox fixture sentences ("Please restart the payments
+worker before noon.", "The password is swordfish.", "The password is as
+follows.", "Swordfish.") match as before.
 
 Against the real engine (`base.en`, v1.9.5, 16 kHz stdin path),
 `scripts/verify-media-transcript-sandbox.sh` heard the spoken forms as "The API

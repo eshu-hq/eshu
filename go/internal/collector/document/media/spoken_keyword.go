@@ -34,9 +34,9 @@ type phraseRule struct {
 //     English word, and a hit inside a longer word ("credentials",
 //     "passwords") is the same secret vocabulary.
 //   - Start-bounded: the split spellings "pass word", "pass phrase", and
-//     "pass code", the spelled-out and "a p i key". Unbounded they
-//     would fire inside "compass word" or "bypass wording". The joined
-//     spellings of pass word, pass phrase, and pass code need no bound.
+//     "pass code", and the spelled-out "a p i key". Unbounded they would fire
+//     inside "compass word" or "bypass wording". The joined spellings
+//     (password, passphrase, passcode) need no bound.
 //   - End-bounded: "access key" and "access keys" need no letter after, so
 //     "access keyboard" stays clear.
 //   - Whole word: secret, secrets, token, tokens, pin, and the spelled-out
