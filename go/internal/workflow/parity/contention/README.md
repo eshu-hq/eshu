@@ -252,6 +252,12 @@ then more seeds until two consecutive seeds are clean.
      -run 'TestContentionSatellite$'
    ```
 
+   Expect claim-plane `ERROR` log lines `protocol handler error ... context
+   canceled` on `CompleteClaim` and `FailClaimTerminal`: they come from the
+   step-8 injected 1 ms timeouts, one per replayed call (compare the count
+   with the report's `*_replay_first` codes). They are not an abort signal.
+   Any other new WARN or ERROR line is.
+
    The live leg never calls the reap route. The deployed claim-plane reaper
    (`--reap-interval` default 20 s) and the satellite coordinator's reap loop
    do step 4. A run without `_CORE_DSN` reports the third zero as
