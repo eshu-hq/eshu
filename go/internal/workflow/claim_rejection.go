@@ -25,3 +25,18 @@ import "errors"
 // different op, owner, or fencing epoch (for example after a reclaim) stays
 // rejected.
 var ErrClaimRejected = errors.New("workflow claim rejected")
+
+// ClaimPlaneErrorCode returns the workflow.v1 envelope code (for example
+// "stale_fence", "not_found", or "internal") carried by an error from a
+// ClaimPlaneClient call, through any %w wrapping. It returns "" when the
+// error did not come from a decoded protocol envelope, which is how callers
+// tell a transport or decode failure (retryable, the server may never have
+// seen the request) from a protocol refusal. The #9376 commit fence uses it
+// to classify a PinClaimForCommit failure without matching message text.
+func ClaimPlaneErrorCode(err error) string {
+	var planeErr *claimPlaneError
+	if errors.As(err, &planeErr) {
+		return planeErr.code
+	}
+	return ""
+}

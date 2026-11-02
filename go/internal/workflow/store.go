@@ -35,6 +35,15 @@ type ClaimMutation struct {
 	DerivedScannerImage bool
 	ObservedAt          time.Time
 	LeaseDuration       time.Duration
+	// ScopeID, SourceRunID, and GenerationID carry the claimed work item's
+	// PLANNED identity, copied from the item at claim time. The claim-plane
+	// commit pin (ValidateAndPinClaimForCommit, #9376) matches the item row on
+	// exactly these values, so they stay the planned ones even when a
+	// collector later resolves a different generation (see Resolved* below).
+	// They are optional on the in-tree path and required on the plane path.
+	ScopeID      string
+	SourceRunID  string
+	GenerationID string
 	// Tenant boundary fields are optional for legacy shared-mode work, but
 	// hosted claim-aware collectors set all four so the fact commit boundary
 	// can re-check and lock the active grant before persisting source facts.
