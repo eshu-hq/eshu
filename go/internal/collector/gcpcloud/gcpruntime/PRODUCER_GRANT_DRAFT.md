@@ -10,7 +10,7 @@ this grant authorizes emission only.
 
 - Producer: `dev.eshu.collector.gcp-cloud`
 - Version: `0.1.0` (collector artifact version at cutover)
-- Scope: `gcp` (plus `secrets_iam` for the 3 mirror kinds — see open item)
+- Scope: `gcp` (all 10 kinds, including the 3 mirror kinds — see Decided section below)
 - Kinds (schemas per `cloud/gcp.go:73-81` and the secrets/IAM registry):
   `gcp_cloud_resource` (`1.1.0`), `gcp_cloud_relationship`,
   `gcp_tag_observation`, `gcp_iam_policy_observation`, `gcp_dns_record`,
