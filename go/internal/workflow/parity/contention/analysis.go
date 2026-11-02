@@ -21,6 +21,7 @@ func (r *runner) analyze(ctx context.Context, report *Report) {
 	report.Terminal = r.tracker.terminalCount()
 	latency, codes, total := r.rec.summaries()
 	report.ClientLatency, report.Codes, report.OpsTotal = latency, codes, total
+	report.SlowestCalls = r.rec.slowCalls()
 	if !report.Phases.WindowStart.IsZero() {
 		if secs := report.Phases.WorkEnd.Sub(report.Phases.WindowStart).Seconds(); secs > 0 {
 			report.OpsPerSecond = float64(total) / secs

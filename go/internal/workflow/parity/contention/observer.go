@@ -100,6 +100,10 @@ type Observer interface {
 	Census(ctx context.Context) (Census, error)
 	ClaimRows(ctx context.Context, claimIDs []string) (map[string]ClaimRow, error)
 	QuotaBuckets(ctx context.Context) ([]QuotaBucket, error)
+	// AnalyzedAt reports when workflow_work_items last had planner
+	// statistics refreshed (manual or auto ANALYZE); zero when never. It
+	// only reads pg_stat_user_tables.
+	AnalyzedAt(ctx context.Context) (time.Time, error)
 	// NonTerminalItems lists up to limit synthetic items not yet terminal.
 	NonTerminalItems(ctx context.Context, limit int) ([]string, error)
 	// DeletePrefixed deletes synthetic rows child-first in bounded batches

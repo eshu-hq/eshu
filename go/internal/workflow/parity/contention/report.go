@@ -46,7 +46,12 @@ type Phases struct {
 	WorkEnd     time.Time `json:"work_end"`
 	End         time.Time `json:"end"`
 	SeedSeconds float64   `json:"seed_seconds"`
-	Drained     bool      `json:"drained"`
+	// StatsWaitSeconds is the wait for the post-seed ANALYZE; StatsReady
+	// is false when the bound expired first (the window then ran on cold
+	// planner statistics, and claim latency reflects that).
+	StatsWaitSeconds float64 `json:"stats_wait_seconds"`
+	StatsReady       bool    `json:"stats_ready"`
+	Drained          bool    `json:"drained"`
 }
 
 // CoreResidue is the third zero: core rows carrying the prefix.
@@ -93,6 +98,7 @@ type Report struct {
 	OpsTotal           int                       `json:"ops_total"`
 	OpsPerSecond       float64                   `json:"ops_per_second"`
 	ClientLatency      map[string]LatencySummary `json:"client_latency"`
+	SlowestCalls       []SlowCall                `json:"slowest_calls"`
 	ServerLatency      string                    `json:"server_latency"`
 	Codes              map[string]map[string]int `json:"codes"`
 	Anomalies          map[string]int            `json:"anomalies"`

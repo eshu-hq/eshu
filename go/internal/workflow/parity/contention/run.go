@@ -127,6 +127,7 @@ func (r *runner) execute(report *Report) error {
 	}
 	report.Phases.SeedSeconds = time.Since(seedStart).Seconds()
 	r.opt.Logf("%s: seeded %d items in %.1fs", r.leg.Name, r.created.Load(), report.Phases.SeedSeconds)
+	r.waitForStats(report, seedStart)
 
 	var bg sync.WaitGroup
 	stopBG := make(chan struct{})
@@ -154,6 +155,26 @@ func (r *runner) execute(report *Report) error {
 	close(stopBG)
 	bg.Wait()
 	return nil
+}
+
+// waitForStats waits, read-only, until workflow_work_items was analyzed
+// after the seed began, or until StatsWait runs out.
+func (r *runner) waitForStats(report *Report, seedStart time.Time) {
+	start := time.Now()
+	deadline := start.Add(r.opt.StatsWait)
+	for {
+		at, err := r.leg.Observer.AnalyzedAt(r.workCtx)
+		if err == nil && at.After(seedStart) {
+			report.Phases.StatsReady = true
+			break
+		}
+		if r.workCtx.Err() != nil || time.Now().After(deadline) {
+			r.opt.Logf("%s: no ANALYZE of workflow_work_items within %s; the window runs on cold statistics", r.leg.Name, r.opt.StatsWait)
+			break
+		}
+		r.sleep(time.Second)
+	}
+	report.Phases.StatsWaitSeconds = time.Since(start).Seconds()
 }
 
 // isolationProbe is the §4 dry claim: before any write, a claim on each

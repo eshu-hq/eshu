@@ -217,6 +217,17 @@ FROM component_quota_windows WHERE scope_id LIKE $1 ORDER BY scope_id, window_st
 	return out, closeRows(rows)
 }
 
+// AnalyzedAt implements Observer.
+func (o *SQLObserver) AnalyzedAt(ctx context.Context) (time.Time, error) {
+	var at sql.NullTime
+	err := o.db.QueryRowContext(ctx, `SELECT GREATEST(last_analyze, last_autoanalyze)
+FROM pg_stat_user_tables WHERE schemaname = 'public' AND relname = 'workflow_work_items'`).Scan(&at)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("read work item analyze time: %w", err)
+	}
+	return at.Time, nil
+}
+
 // NonTerminalItems implements Observer.
 func (o *SQLObserver) NonTerminalItems(ctx context.Context, limit int) ([]string, error) {
 	rows, err := o.db.QueryContext(ctx, `SELECT work_item_id || ':' || status FROM workflow_work_items

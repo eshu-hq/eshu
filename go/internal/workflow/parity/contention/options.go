@@ -90,6 +90,12 @@ type Options struct {
 	DrainTimeout    time.Duration // default wall-clock cap minus window
 	EnqueueBatch    int           // default 250 (claim plane body limit 1 MiB)
 	DeleteBatch     int           // default 1000
+	// StatsWait bounds the passive wait after seeding for autovacuum to
+	// analyze workflow_work_items (default 5m). A freshly bulk-loaded table
+	// has no planner statistics, and the claim statement then runs for
+	// seconds per call; production tables carry statistics, so the window
+	// starts from that state. The wait and its outcome are reported.
+	StatsWait time.Duration
 	// AbortFile, when set, is polled each sample; its existence aborts the
 	// run (the live CPU/memory watch writes it).
 	AbortFile          string
@@ -123,6 +129,7 @@ func (o Options) withDefaults(spec Spec) Options {
 	setDuration(&o.DrainTimeout, spec.WallClockCap-spec.Window)
 	setInt(&o.EnqueueBatch, 250)
 	setInt(&o.DeleteBatch, 1000)
+	setDuration(&o.StatsWait, 5*time.Minute)
 	setInt(&o.AdvisoryGoroutines, 25)
 	setInt(&o.AdvisoryItems, 4)
 	setDuration(&o.AdvisoryInterval, spec.Window/6)

@@ -32,7 +32,21 @@ type recorder struct {
 	latencies map[string][]time.Duration
 	codes     map[string]map[string]int
 	deadlocks int
+	slowest   []SlowCall
 }
+
+// SlowCall is one of the slowest calls of the run, kept with its start time
+// so an operator can line it up with database logs and the sampler series.
+type SlowCall struct {
+	Op         string    `json:"op"`
+	Start      time.Time `json:"start"`
+	DurationMS float64   `json:"duration_ms"`
+	Code       string    `json:"code"`
+	Error      string    `json:"error,omitempty"`
+}
+
+// maxSlowCalls bounds the slow-call list in the report.
+const maxSlowCalls = 10
 
 func newRecorder() *recorder {
 	return &recorder{latencies: map[string][]time.Duration{}, codes: map[string]map[string]int{}}
@@ -53,7 +67,30 @@ func (r *recorder) observe(op string, d time.Duration, err error) parity.Code {
 	if isDeadlock(err) {
 		r.deadlocks++
 	}
+	r.keepSlow(op, d, code, err)
 	return code
+}
+
+// keepSlow keeps the maxSlowCalls slowest calls; the caller holds r.mu.
+func (r *recorder) keepSlow(op string, d time.Duration, code parity.Code, err error) {
+	if len(r.slowest) == maxSlowCalls && ms(d) <= r.slowest[len(r.slowest)-1].DurationMS {
+		return
+	}
+	call := SlowCall{Op: op, Start: time.Now().Add(-d).UTC(), DurationMS: ms(d), Code: string(code)}
+	if err != nil {
+		call.Error = err.Error()
+	}
+	r.slowest = append(r.slowest, call)
+	sort.Slice(r.slowest, func(i, j int) bool { return r.slowest[i].DurationMS > r.slowest[j].DurationMS })
+	if len(r.slowest) > maxSlowCalls {
+		r.slowest = r.slowest[:maxSlowCalls]
+	}
+}
+
+func (r *recorder) slowCalls() []SlowCall {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]SlowCall(nil), r.slowest...)
 }
 
 func (r *recorder) deadlockCount() int {

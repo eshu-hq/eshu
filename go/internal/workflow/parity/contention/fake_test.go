@@ -61,6 +61,8 @@ type fakeLeg struct {
 	quotaW  map[string]int
 	others  map[string]int // non-synthetic rows by census key
 	regrant map[string]bool
+	// coldStats makes AnalyzedAt report a table never analyzed.
+	coldStats bool
 }
 
 func newFakeLeg(f faults, pin bool, budget int) *fakeLeg {
@@ -417,6 +419,13 @@ func (l *fakeLeg) QuotaBuckets(context.Context) ([]QuotaBucket, error) {
 		out = append(out, QuotaBucket{Component: l.quota, ScopeID: scopeID, WindowStart: start, Grants: n})
 	}
 	return out, nil
+}
+
+func (l *fakeLeg) AnalyzedAt(context.Context) (time.Time, error) {
+	if l.coldStats {
+		return time.Time{}, nil
+	}
+	return time.Now(), nil
 }
 
 func (l *fakeLeg) NonTerminalItems(_ context.Context, limit int) ([]string, error) {

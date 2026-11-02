@@ -160,6 +160,28 @@ func TestRunAbortsOnWallClockCap(t *testing.T) {
 	assertCleanedUp(t, report, leg)
 }
 
+func TestRunWaitsForPostSeedAnalyze(t *testing.T) {
+	report, _ := runFake(t, faults{}, false, true, fastOptions())
+	if !report.Phases.StatsReady {
+		t.Fatalf("stats_ready false although the fake reports a fresh ANALYZE")
+	}
+	leg := newFakeLeg(faults{}, false, 4)
+	leg.coldStats = true
+	opt := fastOptions()
+	opt.StatsWait = 300 * time.Millisecond
+	cold, err := Run(context.Background(), fastSpec(), Leg{
+		Name: "in-tree", Backend: leg, Observer: leg,
+		Quota: true, HarnessReaper: true, Advisory: true,
+	}, opt)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if cold.Phases.StatsReady || cold.Phases.StatsWaitSeconds < 0.3 {
+		t.Fatalf("cold stats: ready=%v waited %.2fs, want not ready after the 0.3s bound",
+			cold.Phases.StatsReady, cold.Phases.StatsWaitSeconds)
+	}
+}
+
 func TestRunRefusesNonEmptyBaseline(t *testing.T) {
 	leg := newFakeLeg(faults{}, false, 4)
 	leg.items[Prefix+"wi-leftover"] = &fakeItem{}

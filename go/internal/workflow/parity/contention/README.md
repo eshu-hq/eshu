@@ -90,6 +90,15 @@ See `AGENTS.md`. The ones that bite:
 Each reading below is the harness's interpretation. The arbiter reads it with
 the evidence.
 
+- **Planner statistics.** After seeding, the harness waits (read only,
+  bounded by `Options.StatsWait`, default 5m) until autovacuum has analyzed
+  `workflow_work_items`. Without statistics the in-tree claim statement
+  picks `workflow_work_items_family_queue_depth_idx` with a row estimate of
+  1. It then scans 49,750 rows in each of 200 loops: 18.7 s per claim at
+  100,000 items, against 7.8-12 ms after `ANALYZE` (local shim, Postgres
+  18.6). Production tables carry statistics, so the window starts from that
+  state. The report records `stats_wait_seconds` and `stats_ready`. A run
+  whose bound expired measured cold statistics, and says so.
 - **Workers.** W = `WORKER_COUNTS` x `WORKER_MULTIPLE` (1 or 2). Each worker
   is one claim loop with its own owner id, one claim at a time: the
   production shape (one claim loop per collector Deployment).
