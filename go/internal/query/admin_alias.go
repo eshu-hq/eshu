@@ -171,6 +171,12 @@ type AdminRetirementHandler = retirement.Handler
 // query.AdminTerminalFailureHandler.
 type AdminTerminalFailureHandler = acknowledgement.Handler
 
+// TerminalFailureAdmission is the versioned #8872 admission-contract port
+// for the terminal-failure acknowledgement mutation. Its home is
+// admin/acknowledgement/; this alias keeps the cmd/api constructors
+// spelling query.TerminalFailureAdmission.
+type TerminalFailureAdmission = acknowledgement.TerminalFailureAdmission
+
 // AdminInvitationListItem is the metadata-only invitation view returned to a
 // tenant admin. Its home is admin/identity/. See #6060.
 type AdminInvitationListItem = identity.InvitationListItem
