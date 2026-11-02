@@ -43,6 +43,16 @@ const (
 
 	providerAWSFreshness = "aws_freshness"
 	providerGCPFreshness = "gcp_freshness"
+
+	// Freshness action values on eshu_dp_{aws,gcp}_freshness_events_total
+	// (#9814). They match the in-tree listener's values so the freshness
+	// runbook queries match without a change. The host emits no
+	// intake_rejected or intake_ignored: those are provider-edge outcomes the
+	// satellite owns, and a host-side rejection is already on
+	// eshu_dp_webhook_requests_total.
+	freshnessActionStored    = "intake_stored"
+	freshnessActionCoalesced = "intake_coalesced"
+	freshnessActionFailed    = "intake_failed"
 )
 
 // triggerDecision carries the bounded labels of one trigger-decision series.
@@ -118,6 +128,7 @@ func (o *requestObs) storeFailed(d triggerDecision, startedAt time.Time) {
 	o.reason = reasonStoreFailed
 	o.recordStore(d, startedAt, outcomeFailed, statusFailed)
 	o.recordDecision(d, statusFailed)
+	o.freshnessEvent(d, freshnessActionFailed)
 }
 
 // storeUnavailable records a route whose store is not configured: the trigger
@@ -127,6 +138,42 @@ func (o *requestObs) storeUnavailable(d triggerDecision) {
 	o.outcome = outcomeFailed
 	o.reason = reasonStoreFailed
 	o.recordDecision(d, statusFailed)
+	o.freshnessEvent(d, freshnessActionFailed)
+}
+
+// freshnessStored records the stored or coalesced freshness action for a
+// durable write that succeeded. duplicateCount is the stored row's coalesced
+// delivery count: above zero the delivery joined an existing row.
+func (o *requestObs) freshnessStored(d triggerDecision, duplicateCount int) {
+	if duplicateCount > 0 {
+		o.freshnessEvent(d, freshnessActionCoalesced)
+		return
+	}
+	o.freshnessEvent(d, freshnessActionStored)
+}
+
+// freshnessEvent increments the per-provider freshness counter. Only the AWS
+// and GCP freshness routes have one; every other provider is a no-op. kind is
+// bounded because the handler emits only after the trigger validated. The GCP
+// counter carries auth_path "n/a" so it shares one label set with the
+// coordinator and the listener (the host is not the authenticating hop).
+func (o *requestObs) freshnessEvent(d triggerDecision, action string) {
+	if o.instruments == nil {
+		return
+	}
+	switch d.provider {
+	case providerAWSFreshness:
+		o.instruments.AWSFreshnessEvents.Add(o.ctx, 1, metric.WithAttributes(
+			telemetry.AttrKind(d.eventKind),
+			telemetry.AttrAction(action),
+		))
+	case providerGCPFreshness:
+		o.instruments.GCPFreshnessEvents.Add(o.ctx, 1, metric.WithAttributes(
+			telemetry.AttrKind(d.eventKind),
+			telemetry.AttrAction(action),
+			telemetry.AttrAuthPath(telemetry.AuthPathNotApplicable),
+		))
+	}
 }
 
 // storeRejected records a store call the store itself refused as a conflict.

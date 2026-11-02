@@ -28,6 +28,10 @@ Read these files first:
   needs a bounded mapper and a test in `metrics_test.go`.
 - Keep a failed durable write labelled `status="failed"` on the decision
   series: the freshness alert selects on it.
+- Keep the AWS and GCP freshness counters to `intake_stored`,
+  `intake_coalesced`, and `intake_failed` with GCP `auth_path` set to
+  `telemetry.AuthPathNotApplicable`. Do not emit `intake_rejected` or
+  `intake_ignored` here (`freshness_events_test.go` pins it).
 - Keep unknown JSON fields ignored (forward compatibility for newer
   listeners).
 

@@ -44,7 +44,7 @@ const (
 	// must set auth_path so all series share one bounded label set — a mixed
 	// label set (some series with the attribute, some without) breaks
 	// Prometheus `sum by (..., auth_path)` aggregation (see issue #4659 review).
-	gcpFreshnessAuthPathNotApplicable = "n/a"
+	gcpFreshnessAuthPathNotApplicable = telemetry.AuthPathNotApplicable
 )
 
 // GCPFreshnessTriggerStore is the durable trigger queue surface used by the

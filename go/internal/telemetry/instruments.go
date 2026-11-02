@@ -1579,8 +1579,13 @@ type Instruments struct {
 	GCPMaterializationGraphWrites metric.Int64Counter
 	// GCPFreshnessEvents counts GCP Cloud Asset Inventory feed freshness
 	// events by bounded kind and action, mirroring AWSFreshnessEvents. Labels
-	// are bounded enums: kind (asset_change / asset_deleted / unknown) and
-	// action (a closed intake or handoff action). Raw asset names, parent
+	// are bounded enums: kind (asset_change / asset_deleted / unknown),
+	// action (a closed intake or handoff action), and auth_path (see
+	// AuthPathNotApplicable). Emitters: the webhook intake host (intake_stored,
+	// intake_coalesced, intake_failed with auth_path "n/a", #9814), the
+	// coordinator handoff loop (handoff and claim actions with "n/a"), and the
+	// in-tree listener until it is removed (the full intake action set with the
+	// real auth_path). Raw asset names, parent
 	// scope ids, and push payload bodies must never appear in these metric
 	// labels; the push payload body is dropped entirely and never reaches
 	// logs, traces, or metrics.
@@ -8394,10 +8399,19 @@ func AttrAction(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionAction, v)
 }
 
+// AuthPathNotApplicable is the auth_path value for a producer of
+// eshu_dp_gcp_freshness_events_total that is not the hop that authenticated
+// the provider's push: the coordinator's handoff loop (no request to
+// authenticate) and the webhook intake host, whose caller is the satellite
+// presenting the intake bearer, not the provider (#9814). Only the in-tree
+// webhook listener observes the provider auth and stamps "shared_token",
+// "oidc", or "none".
+const AuthPathNotApplicable = "n/a"
+
 // AttrAuthPath returns an auth_path attribute for eshu_dp_gcp_freshness_events_total
-// producers. v must be one of "shared_token", "oidc", "none", or "n/a" —
-// every producer of that counter must set this attribute so all series share
-// one label set.
+// producers. v must be one of "shared_token", "oidc", "none", or
+// AuthPathNotApplicable — every producer of that counter must set this
+// attribute so all series share one label set.
 func AttrAuthPath(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionAuthPath, v)
 }
