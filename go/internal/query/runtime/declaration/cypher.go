@@ -138,13 +138,13 @@ func decidedBelowConditions(n int) []string {
 // cannot place, for a bound of n components.
 //
 // The absent-version test is `coalesce(part, -1) = -1`, not a bare
-// `part IS NULL`. Version parts are non-negative or absent by construction of
-// the single git-core producer's digits-only parser (classify.go parseVersion:
-// ASCII-digit scan, Atoi-or-reject, so no negative part is emitted), which is
-// what makes the two forms canonically equivalent; the payload schema itself
-// types parts integer-or-null with no minimum, so a second producer or a
-// hand-built fact carrying -1 would be double-counted — see eshu-hq/eshu#9147
-// for the schema-minimum-or-quarantine follow-up. The observed divergence is
+// `part IS NULL`. Version parts are non-negative or absent by reducer
+// enforcement (schemadecode.DecodeRuntimeDeclarationVersion quarantines any
+// negative part as input_invalid, so it never projects — eshu-hq/eshu#9147),
+// which is what makes the two forms canonically equivalent; the git-core
+// producer's digits-only parser (classify.go parseVersion) additionally emits
+// no negative part, while the payload schema itself types parts
+// integer-or-null with no minimum. The observed divergence is
 // specific to the bare form (golden-corpus differential 2026-10-26, run
 // 40254280683 failed differential job: identical bounded reads, digest
 // 64a3e2d212f5, on both backends in both pairings, yet the bare-form excluded
