@@ -235,23 +235,7 @@ rule is deliberate:
 bread" withhold the next two segments, which shows in section metadata, while a
 client secret that stays in clear text cannot be taken back.
 
-OCR in this tree still matches the six original markers. #9793 tracks a wider
-OCR list that is not merged here. The differences planned against that list,
-which follow from the input:
-
-- Digit-for-letter reads (`passw0rd`, `p4ssword`, `s3cret`) are OCR only. A
-  speech engine writes letters.
-- Spelled-out letters (`P I N`, `A.P.I. key`, `P-W-D`) and the homoglyph fold
-  are speech only.
-- Joined compounds (`clientsecret`, `accesstoken`, `authtoken`, `apitoken`) are
-  OCR only. A speech engine writes them as separate words, which the whole-word
-  rules already match.
-- `pins` is matched by the planned OCR list and kept clear here by design.
-- `pwd` is a substring here and a whole word in the planned OCR list.
-- `accesskey` is matched here after lower-casing, so "AccessKey" and "accesskey"
-  both hit. The planned OCR list matches "AccessKey" by splitting it at the
-  case change, but it reads an all-lower "accesskey" as one word and does not
-  match it. Neither list matches `passkey` or `login`.
+OCR in this tree keeps the six original markers. #9793 tracks a wider OCR list.
 
 Source names, document IDs, and mention hints keep the original substring list,
 because they are labels such as `token-service` and `pin-assignments.wav`, not
