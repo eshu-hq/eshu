@@ -65,7 +65,7 @@ var ordinaryLines = []string{
 	"private", "access", "key", "api", "bypass code", "compass code", "Pass the code review",
 	"Call the API, key facts follow", "Access: key facts", "broken link", "taken offline", "v5.0.1",
 	"Level 5 of 10", "pass through", "500 PLN", "PLN", "Price 20 PLN", "spin2", "tokenize2", "secretary2",
-	"keyboard1", "Pinterest2", "pinned1", "US$PLN", "Card@PLN", "x$Pass, word", "x$pi n", "the shop is open", "Hello world", "Cost is $5 per seat",
+	"keyboard1", "Pinterest2", "pinned1", "US$PLN", "Card@PLN", "x$Pass, word", "x$pi n", "x$Pass foo word", "the shop is open", "Hello world", "Cost is $5 per seat",
 }
 
 func TestContainsMarkerWordMatchesEveryLabelForm(t *testing.T) {
