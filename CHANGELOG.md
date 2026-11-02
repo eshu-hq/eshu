@@ -23,6 +23,13 @@ recent shipped work grouped by feature area.
   change. `status` is the stored lifecycle state, so a delivery that coalesces
   into an already-failed row reads `failed` too; `store_operations_total` with
   `outcome="failed"` separates a real write failure. Labels stay bounded.
+- **The listener's served intake mount emits them too**
+  ([#9822](https://github.com/eshu-hq/eshu/issues/9822)). With
+  `ESHU_WEBHOOK_INTAKE_TOKEN` set and no `ESHU_WEBHOOK_INTAKE_URL`, the listener
+  built its intake server without instruments, so a failed write on that mount
+  never reached `eshu_dp_webhook_trigger_decisions_total{status="failed"}` and
+  the handoff-failure alert stayed blind. The listener now passes its
+  instruments into the served server.
 
 ### Extension host: eshu-sdk collector v0.2.0-rc.3 pin
 

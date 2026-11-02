@@ -120,9 +120,20 @@ structured logs (`intake trigger stored`, `intake request rejected`,
 route/provider/status/reason fields — Bearer [REDACTED] never appear — on the same
 port covered by the existing `/healthz` and `/readyz` probes
 (`TestServedIntakeSharesAdminProbes`). Provider-side OTEL
-(`eshu_dp_webhook_*`, `webhook.handle`/`webhook.store`) is unchanged; the
-served path adds no metric, verified by
-`scripts/verify-telemetry-coverage.sh` reporting no new stages.
+(`eshu_dp_webhook_*`, `webhook.handle`/`webhook.store`) is unchanged.
+
+Since #9822 the served mount also emits the five intake request-path series
+that the standalone intake host emits (#9811):
+`eshu_dp_webhook_requests_total`, `eshu_dp_webhook_trigger_decisions_total`,
+`eshu_dp_webhook_store_operations_total`,
+`eshu_dp_webhook_request_duration_seconds`, and
+`eshu_dp_webhook_store_duration_seconds`. `buildServedIntake` passes the
+listener's instruments into `intake.ServerConfig`, so a failed durable write
+on the served mount is counted as `status="failed"` on the decision series the
+`EshuTriggerHandoffFailed` alert selects. `TestServedIntakeEmitsFreshnessAlertSeries`
+forces a store failure on the served mount and asserts that series in a real
+Prometheus scrape. The mount adds no new metric name, only a second emitter of
+the existing ones; `healthz` and `readyz` are not counted.
 
 GitHub Actions deliveries require `X-GitHub-Delivery` and a valid GitHub
 HMAC. The listener stores only event, action, repository, run, and optional job
