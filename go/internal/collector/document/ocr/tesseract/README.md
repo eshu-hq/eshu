@@ -148,8 +148,32 @@ first reading (#9794).
 No-Observability-Change: no metric, span, log key, or status field is added
 or changed; the seam is not an operator signal.
 
+No-Regression Evidence (#9800): the start-error classification adds one
+`ctx.Err()` and one `runCtx.Err()` read on the `cmd.Start` failure path
+only; a successful start takes the same path as before. Baseline on the
+unchanged base: three new `run` tests that cancel the caller context, pass a
+caller deadline, or pass the run deadline before `Start` returned
+`exec_failed`, and the package's pre-existing tests passed 200 of 200 runs
+(non-race, 8 parallel, fake tesseract on linux/arm64 with go1.26.10). After:
+the same tests return `canceled` and `timeout`, the package passed 200 of
+200 non-race runs and 200 of 200 `-race` runs, and a missing binary still
+returns `exec_failed`. There is no queue, lease, batch, or graph write on
+this path.
+
+Observability Evidence (#9800): `eshu_dp_ocr_recognitions_total` and
+`eshu_dp_ocr_recognition_duration_seconds` keep their label set. A caller
+that gives up between the pre-exec context check and `cmd.Start` is now
+counted as `canceled` (and a passed run deadline as `timeout`) instead of
+`exec_failed`, so an `exec_failed` alert no longer fires on a caller
+cancellation. `TestRunClassifiesStartErrorFromEndedCallerContextAsCanceled`
+and its two siblings assert the outcome labels.
+
 ## Gotchas / invariants
 
+- A start failure is classified like a running one: a caller context that
+  ended is `canceled` and a passed run deadline is `timeout`, even when
+  `cmd.Start` returns before the process exists. Only a start failure with
+  both contexts live (missing or non-executable binary) is `exec_failed`.
 - Never put subprocess stdout or stderr into an error, log, or span.
 - Keep regions line-grouped; word regions split a secret from its label and
   defeat redaction.

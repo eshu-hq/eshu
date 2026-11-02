@@ -102,7 +102,7 @@ func (e *Engine) run(ctx context.Context, body []byte) (runResult, error) {
 
 	e.execCount.Add(1)
 	if err := cmd.Start(); err != nil {
-		return runResult{}, failure(OutcomeExecFailed, "start", err)
+		return runResult{}, classifyStartError(ctx, runCtx, err)
 	}
 	result := runResult{started: true}
 	if err := limitAddressSpace(cmd.Process.Pid, e.cfg.MaxAddressSpaceBytes); err != nil {
@@ -161,4 +161,19 @@ func (e *Engine) run(ctx context.Context, body []byte) (runResult, error) {
 	}
 	result.stdout = stdout.buf.Bytes()
 	return result, nil
+}
+
+// classifyStartError classifies a cmd.Start failure the way the running case
+// is classified. exec.Cmd.Start returns the context error when the context
+// ends before the process starts, so a caller that gave up is canceled and an
+// expired run deadline is a timeout; only a start failure with both contexts
+// still live (missing or non-executable binary, fork failure) is exec_failed.
+func classifyStartError(ctx, runCtx context.Context, err error) error {
+	switch {
+	case ctx.Err() != nil:
+		return failure(OutcomeCanceled, "caller context ended before start", ctx.Err())
+	case errors.Is(runCtx.Err(), context.DeadlineExceeded):
+		return failure(OutcomeTimeout, "run deadline passed before start", runCtx.Err())
+	}
+	return failure(OutcomeExecFailed, "start", err)
 }
