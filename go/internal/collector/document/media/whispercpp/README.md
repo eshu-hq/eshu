@@ -247,6 +247,7 @@ is as follows." then, after a 3 s SSML break, "Swordfish." Recorded result,
 | Speech, 3 runs | identical results, 2 segments each, 1.94-2.01 s |
 | Redaction via `media.Extract` | 2 sections, 1 redacted, canary absent from facts and logs |
 | Canary in its own segment (#9786) | value in segment 1 after marker in segment 0; 2 sections, 2 redacted, canary absent from facts and logs |
+| Value before its keyword (#9792) | `speech-before.wav` says "Swordfish." then, after a 3 s SSML break, "The password is."; value in segment 0, keyword in segment 1; 2 sections, 2 redacted, canary absent from facts |
 | 6 s digital silence | `no_speech` |
 | 50 ms wall-clock cap | `timeout` after 0.087 s |
 | 64-byte stdout cap | `resource_limit_exceeded` |
