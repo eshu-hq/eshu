@@ -41,6 +41,13 @@ PARITY_SATELLITE_DSN='postgres://USER:PASS@127.0.0.1:PORT/parity_satellite?sslmo
   go test ./internal/workflow/parity/ -count=1
 ```
 
+Start the satellite with a long reaper interval (for `claim-plane`,
+`--reap-interval=1h`). The scenarios reap explicitly at synthetic fixture
+times; a background reaper tick, on the wall clock, that lands mid-scenario
+reaps a live claim and fails the satellite leg (seen once on
+`TestParityStaleWriterCommitFence` with the 20 s default: writer 2's
+`CompleteClaim` came back `epoch superseded (claim expired)`).
+
 With the legs configured, e.g. a local flip container on :18181 and one
 database for the satellite leg (the harness creates and drops the in-tree
 leg's database itself). Without the environment the suite skips. Never point

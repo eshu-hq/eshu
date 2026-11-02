@@ -72,7 +72,7 @@ the keeper fix: the commit never returned while a re-pin hung),
 with a concurrent projector Ack mixed commits, refusals, and finalized
 skips plus one guaranteed late-writer skip; stored fence token always
 equal to the highest committed fact token; maintenance exclusive holder
-took the lock 7-8 times per run; no deadlock inside 30 s), the three
+took the lock 6-10 times per run; no deadlock inside 30 s), the three
 `ingestion_tx_lock_split_integration_test.go` proofs (10 of 10 passed in one run, counting the lock-order proof below).
 
 An earlier T3 pass was a false green: a stale re-pin cancels the commit
@@ -88,7 +88,11 @@ Lock order: `TestIngestionCommitAndMaintenanceLockOrderingNeverDeadlocks`
 with odd
 slots on the plane path (60 fence rows asserted). Parity:
 `TestParityStaleWriterCommitFence` on both legs against `claim-plane`
-built from `eshu-workflow` `v0.1.1` (`8311ed6`). Migration 270:
+built from `eshu-workflow` `v0.1.1` (`8311ed6`), 3 of 3 with the
+satellite's background reaper set to `--reap-interval=1h` (with the 20 s
+default one run failed when a wall-clock reaper tick landed between writer
+2's pin and its complete; see the parity README). All of the above were
+rerun after the rebase onto `origin/main` with P1 merged. Migration 270:
 bootstrap at the pre-270 tree, apply 270, re-apply; schema dumps identical
 apart from pg_dump's per-run `\restrict` nonce. The later edit to 270
 adds header comments only (the lock note); the statement is unchanged,
