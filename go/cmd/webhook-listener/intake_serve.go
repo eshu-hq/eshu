@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/webhook/intake"
 )
 
@@ -29,8 +30,11 @@ func serveIntakeConfigured(cfg webhookListenerConfig) bool {
 // buildServedIntake returns the intake API server backed by the direct-mode
 // Postgres stores, or nil when this binary does not serve it. An empty
 // token fails closed inside intake.NewServerChecked: an intake API without
-// authentication must never serve.
-func buildServedIntake(cfg webhookListenerConfig, stores intake.Stores, logger *slog.Logger) (*intake.Server, error) {
+// authentication must never serve. The instruments feed the request-path
+// series (#9811) so a failed write on this mount reaches
+// eshu_dp_webhook_trigger_decisions_total{status="failed"}; nil disables
+// them (#9822).
+func buildServedIntake(cfg webhookListenerConfig, stores intake.Stores, logger *slog.Logger, instruments *telemetry.Instruments) (*intake.Server, error) {
 	if !serveIntakeConfigured(cfg) {
 		return nil, nil
 	}
@@ -38,6 +42,7 @@ func buildServedIntake(cfg webhookListenerConfig, stores intake.Stores, logger *
 		Token:        strings.TrimSpace(cfg.IntakeToken),
 		MaxBodyBytes: cfg.MaxRequestBodyBytes,
 		Logger:       logger,
+		Instruments:  instruments,
 	}, stores)
 }
 

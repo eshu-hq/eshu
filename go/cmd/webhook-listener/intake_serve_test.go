@@ -50,7 +50,7 @@ func serveTestConfig() webhookListenerConfig {
 // mounts it on a fresh mux, failing the test when the mount is refused.
 func mountServedMux(t *testing.T, cfg webhookListenerConfig, stores intake.Stores) *http.ServeMux {
 	t.Helper()
-	server, err := buildServedIntake(cfg, stores, nil)
+	server, err := buildServedIntake(cfg, stores, nil, nil)
 	if err != nil {
 		t.Fatalf("buildServedIntake() error = %v, want nil", err)
 	}
@@ -102,7 +102,7 @@ func TestServeIntakeDisabledWithoutToken(t *testing.T) {
 	stores, _, _, _, _, _ := serveTestStores()
 	cfg := serveTestConfig()
 	cfg.IntakeToken = ""
-	server, err := buildServedIntake(cfg, stores, nil)
+	server, err := buildServedIntake(cfg, stores, nil, nil)
 	if err != nil {
 		t.Fatalf("buildServedIntake() error = %v, want nil", err)
 	}
@@ -123,7 +123,7 @@ func TestServeIntakeDisabledInIntakeMode(t *testing.T) {
 	stores, _, _, _, _, _ := serveTestStores()
 	cfg := serveTestConfig()
 	cfg.IntakeURL = "https://core.example.test"
-	server, err := buildServedIntake(cfg, stores, nil)
+	server, err := buildServedIntake(cfg, stores, nil, nil)
 	if err != nil {
 		t.Fatalf("buildServedIntake() error = %v, want nil", err)
 	}

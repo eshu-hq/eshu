@@ -161,7 +161,7 @@ func run(parent context.Context) error {
 	if gcpFreshnessStore != nil {
 		servedStores.GCP = gcpFreshnessStore
 	}
-	servedIntake, err := buildServedIntake(cfg, servedStores, logger)
+	servedIntake, err := buildServedIntake(cfg, servedStores, logger, instruments)
 	if err != nil {
 		return err
 	}

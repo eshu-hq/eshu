@@ -74,7 +74,9 @@ Read these files first:
 - Add served-intake mount behavior in `intake_serve.go` (serve gating in
   `serveIntakeConfigured`, store-backed `buildServedIntake`, subtree
   `mountServedIntake`) and cover it in `intake_serve_test.go` through the
-  production constructors. Intake (submitter) mode never serves; trigger
+  production constructors. `buildServedIntake` must keep passing the
+  listener's instruments so the request-path series fire on this mount
+  (`intake_serve_metrics_test.go`, #9822). Intake (submitter) mode never serves; trigger
   families without a store stay unassigned so the intake API answers 503.
 - Add or change OTEL behavior in `handler.go` and cover it in
   `handler_observability_test.go`.
