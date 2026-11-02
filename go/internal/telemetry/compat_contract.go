@@ -343,3 +343,6 @@ const (
 	SpanConfigArtifactsDerive = contract.SpanConfigArtifactsDerive
 	MetricDimensionTrigger    = contract.MetricDimensionTrigger
 )
+
+// Claim-plane commit fence span (from contract/ingestion_claim_fence.go).
+const SpanIngestionCommitClaimFence = contract.SpanIngestionCommitClaimFence

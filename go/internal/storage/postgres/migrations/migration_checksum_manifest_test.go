@@ -318,6 +318,7 @@ var migrationShippedChecksums = map[string]string{
 	"265_scanner_admission_authority_deny_no_row.sql":                        "24bb8591eda6c0176f39828758f371a50883accb43da54ef2ab9196102f5bdfb",
 	"268_scanner_impact_publication.sql":                                     "cad0b5467813021771bb5240992367575da30d505b03e659631a876b1afbcb66",
 	"269_scanner_impact_publish.sql":                                         "fdb2b822b4fdb88fac6f7b59477fe6cd72097f3a4de0622456d8ee11f66f0a0c",
+	"270_generation_commit_fences.sql":                                       "6f942ef1773080919eb05987858eb474d8964421a544ea0ecce1b59622e72fa8",
 	"271_owned_target_slot_progress.sql":                                     "370d0cd6ddb45855e2d62a1414f31fd0d94e6ac8fa0d5b7875791cb4b238b906",
 	"243_vulnerability_source_state_packages.sql":                            "548ad5e4d9442064ba81026b49b7443590ae8244282aa138190d9c7182417438",
 	"244_ecs_runtime_task_scope_index.sql":                                   "04879797b6faf565ad46a774716ee9000c79358d082df1aa05b6ee8a760dace3",

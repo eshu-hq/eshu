@@ -1299,6 +1299,17 @@ type Instruments struct {
 	// triggers backfill and repair since PR3b-2.
 	ConfigArtifactDerives        metric.Int64Counter
 	ConfigArtifactDeriveDuration metric.Float64Histogram
+	// IngestionClaimFenceRejections counts claim-plane commits the #9376
+	// commit fence refused, by the closed reason set (stale_fence,
+	// not_found, pin_unavailable, deadline, fence_token,
+	// fence_claim_mismatch). IngestionCommitRepins counts re-pins during a
+	// plane-path commit by outcome (ok, stale, error), and
+	// IngestionCommitPinSlack records the latest pin deadline minus the Go
+	// clock at the pre-COMMIT check. No id is a label. Registered in
+	// instruments_ingestion_claim_fence.go.
+	IngestionClaimFenceRejections metric.Int64Counter
+	IngestionCommitRepins         metric.Int64Counter
+	IngestionCommitPinSlack       metric.Float64Histogram
 	// ConfigArtifactReconcile counts per-repository config-artifact walker
 	// outcomes (#8155) by outcome (match, repaired, superseded, error,
 	// skipped), and ConfigArtifactStaleRepos gauges the repositories
@@ -6318,6 +6329,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerConfigArtifactDeriveInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerIngestionClaimFenceInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerConfigArtifactWalkerInstruments(meter, inst); err != nil {
