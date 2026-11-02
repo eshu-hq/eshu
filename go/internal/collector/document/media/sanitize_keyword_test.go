@@ -274,23 +274,23 @@ func TestValueWindowOpensOnKeywordSplitAcrossSegments(t *testing.T) {
 	}{
 		{
 			"api then key", sequentialSegments("The API", "key is", "swordfish.", "hunter2.", "Restart the worker."),
-			[]bool{false, true, true, true, false},
+			[]bool{true, true, true, true, false},
 		},
 		{
 			"pass then word", sequentialSegments("The pass", "word is", "swordfish.", "hunter2.", "Restart the worker."),
-			[]bool{false, true, true, true, false},
+			[]bool{true, true, true, true, false},
 		},
 		{
 			"private then key", sequentialSegments("my private", "key is", "swordfish.", "hunter2.", "Restart the worker."),
-			[]bool{false, true, true, true, false},
+			[]bool{true, true, true, true, false},
 		},
 		{
 			"letters spelled across", sequentialSegments("The P I", "N is", "swordfish.", "hunter2.", "Restart the worker."),
-			[]bool{false, true, true, true, false},
+			[]bool{true, true, true, true, false},
 		},
 		{
 			"blank segment between halves", sequentialSegments("The API", "  ", "key is", "swordfish.", "hunter2.", "ok."),
-			[]bool{false, false, true, true, true, false},
+			[]bool{true, true, true, true, true, false},
 		},
 		{
 			"unrelated pair stays clear", sequentialSegments("Follow the compass", "word is out", "Restart the worker."),
@@ -302,13 +302,13 @@ func TestValueWindowOpensOnKeywordSplitAcrossSegments(t *testing.T) {
 		},
 		{"out of order, slice order pair", []Segment{
 			timedSegment("key is", 2000), timedSegment("The API", 1000), timedSegment("swordfish.", 3000),
-		}, []bool{true, false, true}},
+		}, []bool{true, true, true}},
 		{
 			"pair only in slice order",
 			[]Segment{
 				timedSegment("The API", 3000), timedSegment("key is", 1000), timedSegment("swordfish.", 2000),
 			},
-			[]bool{false, true, true},
+			[]bool{true, true, true},
 		},
 		{
 			"keyword alone does not also straddle", sequentialSegments("The api key", "key is", "swordfish.", "hunter2.", "Restart the worker."),

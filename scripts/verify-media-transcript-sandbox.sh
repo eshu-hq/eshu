@@ -74,12 +74,14 @@ container="$("${runtime}" create "${image}")"
 "${runtime}" cp "${container}:/opt/whisper/fixtures/speech-apikey.wav" "${work}/extract/speech-apikey.wav"
 "${runtime}" cp "${container}:/opt/whisper/fixtures/speech-apikey-split.wav" "${work}/extract/speech-apikey-split.wav"
 "${runtime}" cp "${container}:/opt/whisper/fixtures/speech-pin.wav" "${work}/extract/speech-pin.wav"
+"${runtime}" cp "${container}:/opt/whisper/fixtures/speech-before.wav" "${work}/extract/speech-before.wav"
+"${runtime}" cp "${container}:/opt/whisper/fixtures/speech-before-split.wav" "${work}/extract/speech-before-split.wav"
 binary_sha256="$(sha256sum "${work}/extract/whisper-cli" | cut -d' ' -f1)"
 got_model="$(sha256sum "${work}/extract/model.bin" | cut -d' ' -f1)"
 [[ "${got_model}" == "${model_sha256}" ]] || die "model digest ${got_model} != pinned ${model_sha256}"
 printf 'EVIDENCE whisper-cli sha256=%s\n' "${binary_sha256}"
 printf 'EVIDENCE model ggml-base.en.bin sha256=%s\n' "${got_model}"
-for fixture in speech.wav speech-split.wav speech-apikey.wav speech-apikey-split.wav speech-pin.wav; do
+for fixture in speech.wav speech-split.wav speech-apikey.wav speech-apikey-split.wav speech-pin.wav speech-before.wav speech-before-split.wav; do
 	printf 'EVIDENCE fixture %s sha256=%s bytes=%s\n' "${fixture}" \
 		"$(sha256sum "${work}/extract/${fixture}" | cut -d' ' -f1)" "$(wc -c <"${work}/extract/${fixture}")"
 done
@@ -99,6 +101,8 @@ set +e
 	-e ESHU_WHISPERCPP_APIKEY_FIXTURE=/opt/whisper/fixtures/speech-apikey.wav \
 	-e ESHU_WHISPERCPP_APIKEY_SPLIT_FIXTURE=/opt/whisper/fixtures/speech-apikey-split.wav \
 	-e ESHU_WHISPERCPP_PIN_FIXTURE=/opt/whisper/fixtures/speech-pin.wav \
+	-e ESHU_WHISPERCPP_VALUE_BEFORE_FIXTURE=/opt/whisper/fixtures/speech-before.wav \
+	-e ESHU_WHISPERCPP_VALUE_BEFORE_SPLIT_FIXTURE=/opt/whisper/fixtures/speech-before-split.wav \
 	"${image}" -test.v -test.count=1 -test.run '^TestSandbox' >"${log}" 2>&1
 status=$?
 set -e
@@ -110,7 +114,7 @@ if rg -qi 'swordfish' "${log}"; then
 	die "password canary appeared in proof output or engine logs"
 fi
 for test_name in TestSandboxProfileIsEnforced TestSandboxRealSpeechRedactedAndDeterministic \
-	TestSandboxCanaryInOwnSegmentIsRedacted TestSandboxSpokenKeywordCanariesAreRedacted TestSandboxSilenceIsNoSpeech TestSandboxBoundsFailClosed; do
+	TestSandboxCanaryInOwnSegmentIsRedacted TestSandboxValueJustBeforeKeywordIsRedacted TestSandboxValueBeforeKeywordIsRedacted TestSandboxSpokenKeywordCanariesAreRedacted TestSandboxSilenceIsNoSpeech TestSandboxBoundsFailClosed; do
 	rg -q -- "--- PASS: ${test_name} " "${log}" || die "${test_name} did not pass"
 done
 printf 'verify-media-transcript-sandbox: PASS (log %s)\n' "${log}"

@@ -245,8 +245,10 @@ is as follows." then, after a 3 s SSML break, "Swordfish." Recorded result,
 | --- | --- |
 | Profile | uid 65532, root filesystem write denied, network unreachable |
 | Speech, 3 runs | identical results, 2 segments each, 1.94-2.01 s |
-| Redaction via `media.Extract` | 2 sections, 1 redacted, canary absent from facts and logs |
+| Redaction via `media.Extract` | 2 sections, 2 redacted (the benign first segment sits just before the keyword segment, #9792), canary absent from facts and logs |
 | Canary in its own segment (#9786) | value in segment 1 after marker in segment 0; 2 sections, 2 redacted, canary absent from facts and logs |
+| Value just before its keyword (#9792) | `speech-before.wav` says "Swordfish." then, after a 3 s SSML break, "The password is."; value in segment 0, keyword in segment 1; 2 sections, 2 redacted, canary absent from facts |
+| Value two segments before its keyword (#9792) | `speech-before-split.wav` says "Swordfish.", a 2 s break, "Write it down.", a 2 s break, "That is the password."; 3 segments, canary in segment 0, keyword in segment 2, 1 lettered segment between them; 3 sections, 3 redacted, canary absent from facts |
 | 6 s digital silence | `no_speech` |
 | 50 ms wall-clock cap | `timeout` after 0.087 s |
 | 64-byte stdout cap | `resource_limit_exceeded` |

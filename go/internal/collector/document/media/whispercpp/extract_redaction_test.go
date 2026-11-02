@@ -39,8 +39,10 @@ func TestExtractRedactsEngineTranscriptCanariesBeforeFacts(t *testing.T) {
 	if len(result.Sections) != 2 {
 		t.Fatalf("sections = %d, want 2", len(result.Sections))
 	}
-	if got := result.Sections[0].Content; got != "Restart the payments worker." {
-		t.Fatalf("benign section content = %q", got)
+	// The segment just before a keyword segment is withheld too (#9792): a value
+	// can be spoken ahead of its label, so benign speech there costs its text.
+	if got := result.Sections[0]; got.Content != "[redacted]" || got.SourceMetadata["redacted"] != "true" {
+		t.Fatalf("segment before the keyword segment not withheld: %+v", got)
 	}
 	redacted := result.Sections[1]
 	if redacted.Content != "[redacted]" || redacted.SourceMetadata["redacted"] != "true" {

@@ -22,6 +22,26 @@ recent shipped work grouped by feature area.
   `scanner_worker.analysis` is the scan claim observation time, and the
   evidence-and-supply-chain page lists both families.
 
+### Media transcripts: a value spoken before its keyword
+
+- **A transcript keyword now withholds the two segments before it as well as the
+  two after it**
+  ([#9792](https://github.com/eshu-hq/eshu/issues/9792)). "Swordfish.", then "is
+  the password" left the first segment in clear text, because the value window
+  only looked forward. A keyword segment now also withholds the two segments with
+  a letter or digit just before it, in both the time-order and the slice-order
+  walk, at whole-segment granularity, in time linear in the number of segments.
+  An arbiter ruling fixed the look-back at two segments, because the pinned
+  `base.en` returned a value two lettered segments before its keyword
+  (`docs/internal/evidence/9792-backward-window-arbiter-ruling.md`); a value
+  three or more segments before its keyword keeps its text. The cost is
+  ordinary speech: on the repository's own docs, 5.44% of sentences lost their
+  text with the forward window alone and 8.06% do with the look-back
+  (approximate; the media README gives the method). The first half of a keyword
+  split across two segments is withheld too. Nothing calls the transcript path in
+  production yet. The real-binary proof gained a fixture that speaks the value
+  before the keyword.
+
 ### Webhook intake host: request-path telemetry
 
 - **The intake host emits `webhook.handle` and `webhook.store` spans**

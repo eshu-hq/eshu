@@ -19,6 +19,14 @@ import (
 // small because every segment in the window loses its text.
 const valueWindowSegments = 2
 
+// valueWindowBackSegments is how many spoken segments before a keyword segment
+// are treated as the keyword's value (#9792). A speech engine puts a value ahead
+// of its label as well as behind it ("swordfish.", then "is the password"). The
+// reason for two matches the forward window: one covers the immediate value, and
+// the second covers a value the engine broke in two or a filler spoken between
+// the value and its label.
+const valueWindowBackSegments = 2
+
 // legacyKeywords are the substring keywords the rule started with (#9786).
 // They stay the whole rule for source identities and mention hints, which are
 // labels such as "token-service", not speech. A transcript segment also gets the
@@ -124,11 +132,18 @@ func valueSegments(segments []Segment) (isValue []bool, ownKeyword []bool) {
 func markValueWindows(segments []Segment, order []int, folded []string, ownKeyword []bool, isValue []bool) {
 	remaining := 0
 	prev := -1
+	var before backWindow
 	for _, i := range order {
 		opens := ownKeyword[i]
 		straddles := !opens && prev >= 0 && !ownKeyword[prev] && joinedHasKeyword(folded[prev], folded[i])
 		if (remaining > 0 || straddles) && hasValidTiming(segments[i]) {
 			isValue[i] = true
+		}
+		if opens || straddles {
+			before.mark(isValue)
+		}
+		if hasValidTiming(segments[i]) {
+			before.add(i, hasLexicalContent(segments[i].Text))
 		}
 		if remaining > 0 && hasValidTiming(segments[i]) && hasLexicalContent(segments[i].Text) {
 			remaining--
@@ -139,6 +154,50 @@ func markValueWindows(segments []Segment, order []int, folded []string, ownKeywo
 		if hasLexicalContent(segments[i].Text) {
 			prev = i
 		}
+	}
+}
+
+// backWindow holds the segments a keyword reaches back to: the last
+// valueWindowBackSegments segments with a letter or digit, plus the blank and
+// punctuation-only segments among them and the ones just before the oldest of those,
+// in walk order. A segment with invalid timing never reaches a section, so it is
+// never added.
+//
+// It is not a fixed ring of valueWindowBackSegments slots: a blank segment stays
+// until valueWindowBackSegments+1 more lettered segments have arrived after it,
+// so a long blank run is held whole. The work is still linear. Only a lettered
+// segment (a keyword or a straddle) calls mark. A lettered segment leaves the
+// window once two lettered segments have been added after it, and a blank
+// segment before the oldest lettered one leaves after a third, so each segment
+// is marked at most valueWindowBackSegments+1 (3) times per walk. The slice holds at most the
+// segments the engine returned (1,000, whispercpp.defaultMaxSegments).
+type backWindow struct {
+	indexes []int
+	lexical []bool
+	words   int
+}
+
+// add records segment i as the newest, and drops the oldest segments once more
+// than valueWindowBackSegments of them hold a letter or digit.
+func (w *backWindow) add(i int, lexical bool) {
+	w.indexes = append(w.indexes, i)
+	w.lexical = append(w.lexical, lexical)
+	if lexical {
+		w.words++
+	}
+	for w.words > valueWindowBackSegments {
+		if w.lexical[0] {
+			w.words--
+		}
+		w.indexes = w.indexes[1:]
+		w.lexical = w.lexical[1:]
+	}
+}
+
+// mark sets isValue for every segment in the window.
+func (w *backWindow) mark(isValue []bool) {
+	for _, i := range w.indexes {
+		isValue[i] = true
 	}
 }
 
