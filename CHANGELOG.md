@@ -9,6 +9,19 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### Scanner-worker docs: layer cap and scan-tier clock
+
+- **The docs state the satellite's decompressed-layer cap and the scan-tier
+  `latest_observed_at` meaning**
+  ([#9821](https://github.com/eshu-hq/eshu/issues/9821),
+  [#9827](https://github.com/eshu-hq/eshu/issues/9827)). The security
+  intelligence limits table now says the satellite bounds decompressed gzip
+  layer bytes at 8 times `max_input_bytes` per image target, fails the claim as
+  `input_limit_exceeded`, and has no separate knob. The readiness docs say
+  scan-tier `latest_observed_at` for `vulnerability.os_package` and
+  `scanner_worker.analysis` is the scan claim observation time, and the
+  evidence-and-supply-chain page lists both families.
+
 ### Webhook intake host: request-path telemetry
 
 - **The intake host emits `webhook.handle` and `webhook.store` spans**
