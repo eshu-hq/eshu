@@ -71,6 +71,10 @@ func (w *recordingWriter) RetractRuntimeDeclarationsByPath(_ context.Context, pa
 func intPtr(v int) *int { return &v }
 
 func versionEnvelope(repoID, relativePath string, line, order int, runtime, raw string, major *int) facts.Envelope {
+	return versionEnvelopeParts(repoID, relativePath, line, order, runtime, raw, major, nil, nil)
+}
+
+func versionEnvelopeParts(repoID, relativePath string, line, order int, runtime, raw string, major, minor, patch *int) facts.Envelope {
 	payload, err := factschema.EncodeRuntimeDeclarationVersion(runtimedeclarationv1.Version{
 		RepoID:       repoID,
 		RelativePath: relativePath,
@@ -82,6 +86,8 @@ func versionEnvelope(repoID, relativePath string, line, order int, runtime, raw 
 		RawSpec:      raw,
 		SpecKind:     runtimedeclarationv1.SpecKindExact,
 		VersionMajor: major,
+		VersionMinor: minor,
+		VersionPatch: patch,
 	})
 	if err != nil {
 		panic(err)
