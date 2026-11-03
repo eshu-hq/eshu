@@ -1,2 +1,4 @@
 requests==2.32.3
 flask>=3.0
+direct-url @ https://example.com/direct-url-1.0.0.tar.gz
+git+https://github.com/acme/demo.git@v1.0.0#egg=demo

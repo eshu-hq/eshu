@@ -91,8 +91,47 @@ constraint never declares a dependency:
   `requirements*.txt` path has the same limit.
 - Limit: a non-registry constraint row still reaches the readiness
   unsupported-source gap check, which does not read the flag.
-- `requirements*.txt` rows are unchanged. They still keep the source text of a
-  direct reference, userinfo included.
+
+## Requirements rows and userinfo
+
+A `requirements*.txt` URL or VCS row never carries URL userinfo in a fact
+(#9074). Registry pins never hold userinfo (a specifier cannot), but a line
+that is not the plain pin it parses as is demoted before it can smuggle URL
+text into a row:
+
+- `value`, `source_url`, and `raw` keep the host, path, package name, VCS ref
+  (`@v1`, `@feature/foo`), and fragment, with the `user[:password]@`
+  component cut from the authority. The row carries
+  `source_cache_withheld: true` when userinfo was cut, so the content shaper
+  drops the entity's `source_cache` (the file's raw line range).
+- A URL or VCS line that cannot be cleaned reliably keeps its `config_kind`
+  and `source_kind` but loses its value, URL, and raw line: a password with a
+  raw `/`, a `?`/`#` before the first `/` with an `@` after it, or a
+  scheme-less `user@host:path` line. A plain URL with any `@` left after the
+  cut is refused the same way (a plain URL has no ref syntax); a VCS line
+  keeps a post-slash `@` only at the ref position (`@v1`, `@feature/foo`) —
+  any other surviving `@` is userinfo residue from a raw-`/` password (the
+  authority cut found no `@` while `user@host` sits in the path) and refuses
+  the line too. Two malformed-input corners stay accepted (see
+  `vcsScrubResidue`): an all-digit pre-slash segment with a lone non-ref
+  `@`, and a colon-less user — both invalid URL syntax no parser treats as
+  credentialed. (A password line with no `@` at all has no userinfo
+  delimiter, so it is not a corner.)
+- A registry pin whose value holds `@` or `://` (an scp-style
+  `user:secret@host:path` line), whose extra holds `@` or `://`, or whose
+  marker holds a character outside the `safeMarker` allowlist, is demoted to
+  `malformed_dependency` with no name, value, marker, extras, or raw line —
+  the same shape as a constraints row. A demoted direct reference drops its
+  left-hand name and extras as well.
+- Editable scheme-less sources bypass scrubbing: `-e user:secret@host:path`
+  is a path row (invalid pip syntax; pre-existing path behavior), and a broad
+  refusal would break legitimate directories containing `@`, so the name,
+  value, and raw keep the text as written. Withholding does not apply.
+- A URL or VCS row stores the trimmed parsed line as `raw`, never the
+  scanner's raw line: a trailing inline comment can carry URL text the row
+  scrubbed. `investigate_hardcoded_secrets` still reports the line: it reads
+  the file body through `content_file_secret_lines`/`content_files`, not the
+  scrubbed row, and the body keeps the whole file until #8812 binds a policy.
 
 ## Safety rules
 

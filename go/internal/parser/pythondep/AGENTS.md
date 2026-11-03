@@ -63,6 +63,33 @@ follow when editing this package.
   `go/internal/parser/registry_definitions.go` must agree. The registry rule
   needs `.txt`, so a `constraints-*.yaml` policy file keeps its YAML parser.
 
+## Requirements file rules
+
+- A requirements URL or VCS row MUST NOT carry URL userinfo in `value`,
+  `source_url`, `raw`, or `source_cache` (#9074). Cut the `user[:password]@`
+  component from the authority with `scrubRequirementURL`, keeping the host,
+  path, name, VCS ref (`@v1`, `@feature/foo`), and fragment; set
+  `source_cache_withheld` when userinfo was cut. Store the trimmed parsed
+  line as `raw`, never the scanner's raw line.
+- Refuse instead of cleaning when the line cannot be scrubbed reliably: a
+  password with a raw `/`, a `?`/`#` before the first `/` with an `@` after
+  it, or a scheme-less `user@host:path` line. A plain URL row is refused when
+  any `@` remains after the cut (a plain URL has no ref syntax); a VCS row
+  keeps a post-slash `@` as ref syntax. A refused row keeps its kind and
+  source kind but loses name, value, URL, and raw, and withholds its
+  source_cache.
+- Demote a registry row whose value holds `@` or `://` or whose marker fails
+  `safeMarker` to `malformed_dependency` with no name, value, marker, or raw
+  line, mirroring the constraints rule (a specifier and a real marker never
+  hold those characters).
+- The file body keeps the whole file until #8812 covers this parser, so
+  `investigate_hardcoded_secrets` (which reads the body, not the row) still
+  reports the line. `TestPipRequirementsUserinfoStaysOutOfEntityFacts` in
+  `go/internal/collector/repo/git` drives that production path.
+- Do not extend URL cleaning to constraints rows: a constraints password can
+  hold `/` or `@`, which no cleaner handles safely, so those rows drop the
+  whole text instead.
+
 ## uv.lock rules
 
 - `uv_lock*.go` is a fail-closed reader. A row resolves only when the entry
