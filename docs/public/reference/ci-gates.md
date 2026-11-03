@@ -171,7 +171,7 @@ results are derived from the inputs rather than written by hand. See
 - `docker-image-reproducibility` (blocking): Builds the Docker image twice and checks the two outputs are identical, proving the build is reproducible.
 - `scanner-digest-pins` (blocking): Fails when a scanner image digest drifted from its pin, its satellite attestation fails, or the anchor names an unknown satellite publish.
 - `runtime-image-tools` (blocking): Fails when the built runtime image is missing any tool in the verifier's REQUIRED_TOOLS list.
-- `apk-floors` (blocking): Fails when an apk add version floor in the Dockerfile's final stage is below the version the Alpine repository serves.
+- `apk-floors` (blocking): Fails when a Dockerfile final-stage apk floor is below the lowest version served across built arches; splits print SPLIT but stay green.
 - `pg-statement-report` (blocking): Checks the pg-statement-report script keeps its read-only, no-DDL-without-install, privacy-filter, and not-preloaded contract against a stub psql.
 - `collector-cutover-rollback` (blocking): Checks the collector cutover rollback script keeps its step order, refusal gates, and idempotence against stubbed eshu, kubectl, helm, and psql.
 - `product-claim-ledger` (blocking): Runs the capability-inventory tool to verify the product-claims ledger still matches the capability catalog and code.
