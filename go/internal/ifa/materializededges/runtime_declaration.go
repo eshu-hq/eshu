@@ -97,7 +97,7 @@ func resolveRuntimeDeclarationMaterializedEdges(odu ifa.Odu, expectedEdgesPath s
 // RuntimeDeclaration label only. Sharing it keeps the two renders from
 // drifting into a false mismatch on every edge.
 //
-// It fails closed: a missing or blank repo_id, relative_path or runtime, or
+// It fails closed: a missing or empty repo_id, relative_path or runtime, or
 // a missing or nil line_number or order_index, renders "" so the caller
 // reports an unmaterialized endpoint instead of a partial join no writer
 // could ever have MERGEd. The numerics render with %v, which spells an int
