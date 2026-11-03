@@ -298,6 +298,24 @@ code_interproc_evidence_expected_edges="${repo_root}/go/internal/ifa/testdata/co
 # materialization off it).
 code_taint_evidence_cassette="${repo_root}/testdata/cassettes/codetaint/ifa-code-taint-evidence-family.json"
 code_taint_evidence_expected_edges="${repo_root}/go/internal/ifa/testdata/codetaint/ifa-code-taint-evidence-family-expected-edges.json"
+# runtime_declaration (#6228 runtime_declaration live leaf): a
+# projection of the compiled RuntimeDeclarationFamilyOdu by construction
+# (TestDirectFamilyCassettesMatchTheirCompiledOdu holds it to that) -- one
+# repository fact, seven typed runtime_declaration.version facts (four
+# edge-producing: two tokens on one .tool-versions line, the .python-version
+# pin and the lts/iron alias; three deliberate non-producers: the tombstoned
+# .ruby-version fact, the blank-runtime .go-version fact and the same-key
+# .python-version replay) and the collector's shared_followup projector
+# trigger. The version facts are load-bearing, not padding: the handler loads
+# its own scope generation's version facts and MERGEs one RuntimeDeclaration
+# node per distinct five-part key, so without them the writer completes
+# having written nothing. The marker is load-bearing too, the other way: no
+# scope-generation fanout builder names this family, so without it the
+# projector enqueues no runtime_declaration_projection intent and the drive
+# materializes zero edges. The single git scope owns its generation and
+# carries repo_id in scope metadata.
+runtime_declaration_cassette="${repo_root}/testdata/cassettes/runtimedeclaration/ifa-runtime-declaration-family.json"
+runtime_declaration_expected_edges="${repo_root}/go/internal/ifa/testdata/runtimedeclaration/ifa-runtime-declaration-family-expected-edges.json"
 # incident_routing_evidence (#6228 incident_routing_evidence live leaf): a
 # projection of the compiled IncidentRoutingEvidenceFamilyOdu by construction
 # (TestDirectFamilyCassettesMatchTheirCompiledOdu holds it to that) -- one
@@ -434,6 +452,8 @@ ifa_family_fixtures_require() {
 	[[ -f "${code_interproc_evidence_expected_edges}" ]] || { echo "${gate}: code-interproc-evidence expected-edge set not found: ${code_interproc_evidence_expected_edges}" >&2; exit 1; }
 	[[ -f "${code_taint_evidence_cassette}" ]] || { echo "${gate}: code-taint-evidence cassette not found: ${code_taint_evidence_cassette}" >&2; exit 1; }
 	[[ -f "${code_taint_evidence_expected_edges}" ]] || { echo "${gate}: code-taint-evidence expected-edge set not found: ${code_taint_evidence_expected_edges}" >&2; exit 1; }
+	[[ -f "${runtime_declaration_cassette}" ]] || { echo "${gate}: runtime-declaration cassette not found: ${runtime_declaration_cassette}" >&2; exit 1; }
+	[[ -f "${runtime_declaration_expected_edges}" ]] || { echo "${gate}: runtime-declaration expected-edge set not found: ${runtime_declaration_expected_edges}" >&2; exit 1; }
 	[[ -f "${incident_routing_evidence_cassette}" ]] || { echo "${gate}: incident-routing-evidence cassette not found: ${incident_routing_evidence_cassette}" >&2; exit 1; }
 	[[ -f "${incident_routing_evidence_expected_edges}" ]] || { echo "${gate}: incident-routing-evidence expected-edge set not found: ${incident_routing_evidence_expected_edges}" >&2; exit 1; }
 	[[ -f "${publishes_cassette}" ]] || { echo "${gate}: publishes cassette not found: ${publishes_cassette}" >&2; exit 1; }
