@@ -218,6 +218,16 @@ code_interproc_evidence_edge_operation_match="MERGE (s)-[rel:TAINT_FLOWS_TO"
 # above it -- either way the fault would fire outside the upsert the cell
 # asserts.
 code_taint_evidence_edge_operation_match="MERGE (f)-[rel:HAS_TAINT_EVIDENCE]->(ev)"
+# The DECLARES_RUNTIME MERGE anchor cell_failgraphwrite_runtime_declaration
+# (#6228 runtime_declaration live leaf) targets:
+# go/internal/storage/cypher/edge/writer/runtime_declaration.go:55 emits
+# MERGE (repo)-[rel:DECLARES_RUNTIME]->(d) with no vocabulary
+# substitution and no property map on the MERGE itself (the SETs follow
+# it), so the anchor carries the FULL form that matches executed statement
+# text. A PREFIX form stopping before `->(d)` would also match the node
+# MERGE in the same template and name the wrong half of the statement the
+# cell asserts.
+runtime_declaration_edge_operation_match="MERGE (repo)-[rel:DECLARES_RUNTIME]->(d)"
 # The HAS_*_ROUTING MERGE anchor cell_failgraphwrite_incident_routing_evidence
 # (#6228 incident_routing_evidence live leaf) targets:
 # go/internal/storage/cypher/edge/writer/incident_routing_evidence.go:73 emits
