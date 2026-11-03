@@ -113,6 +113,8 @@ workflows:
   - go/internal/collector/README.md
   - go/internal/collector/sbom/SHIM_MAP.md
   - go/internal/content/artifacts/README.md
+  - go/internal/deploy/testdata/8871-eshu-deploy-census.md
+  - go/internal/deploy/testdata/8871-eshu-deploy-contract.md
   - go/internal/facts/FACT_KIND_REGISTRIES.md
   - go/internal/ifa/README.md
   - go/internal/ifa/materializededges/README.md

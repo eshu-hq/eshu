@@ -5,9 +5,9 @@ deploy contract (issue #8871).
 
 ## Mandatory
 
-- The census record (`docs/internal/evidence/8871-eshu-deploy-census.md`)
+- The census record (`go/internal/deploy/testdata/8871-eshu-deploy-census.md`)
   is an inventory, not a migration, and the contract record
-  (`docs/internal/evidence/8871-eshu-deploy-contract.md`) is the pinned
+  (`go/internal/deploy/testdata/8871-eshu-deploy-contract.md`) is the pinned
   extraction surface plus version matrix: never add code, chart,
   workflow, or removal changes in this package. The cutover PR is
   separate work owned by the #8871 drive.
