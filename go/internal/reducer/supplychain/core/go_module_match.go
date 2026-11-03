@@ -64,8 +64,14 @@ func goModuleRangeContainsDecision(
 	} else if !ok {
 		return false, true
 	}
+	// The event walk is the shared OSV sorted walk (#9865); the introduced
+	// floor keeps its Go meaning below.
+	sorted, ok := sortedRangeEventsForWalk(affectedRange.Events, compareOSVSemver)
+	if !ok {
+		return false, false
+	}
 	vulnerable := false
-	for _, event := range affectedRange.Events {
+	for _, event := range sorted {
 		switch {
 		case event.Introduced != "":
 			if goModuleVersionFloor(event.Introduced) {
@@ -117,18 +123,26 @@ func goModuleComparatorRangeContains(raw string, observed string) (bool, bool) {
 	return false, !malformed
 }
 
+// goModuleComparatorBranchContains reads every field before answering, like
+// comparatorBranchContains: a later field may be invalid, and stopping at
+// the first non-match would report such a branch as valid-but-not-contained
+// (#9865, reviewer finding N3).
 func goModuleComparatorBranchContains(branch string, observed string) (bool, bool) {
 	fields := strings.Fields(branch)
 	if len(fields) == 0 {
 		return false, false
 	}
+	matched := true
 	for _, field := range fields {
 		ok, valid := goModuleComparatorConstraintContains(field, observed)
-		if !valid || !ok {
-			return false, valid
+		if !valid {
+			return false, false
+		}
+		if !ok {
+			matched = false
 		}
 	}
-	return true, true
+	return matched, true
 }
 
 func goModuleComparatorConstraintContains(token string, observed string) (bool, bool) {

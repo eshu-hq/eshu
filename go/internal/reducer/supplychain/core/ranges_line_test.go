@@ -182,9 +182,10 @@ func TestNPMOutsideEveryRangeIsKnownFixedWhenFixedScalarBlank(t *testing.T) {
 
 // TestNPMPerLineKnownFixedFailsClosedOnUnevaluatedRanges pins the review
 // findings on #9854. A range the containment check never evaluates (ECOSYSTEM,
-// GIT, unknown kind) may contain the observed version, and so may a range whose
-// events are listed out of version order, so either one keeps the row
-// possibly_affected even when another line's Fixed is at or below it.
+// GIT, unknown kind) may contain the observed version, so it keeps the row
+// possibly_affected even when another line's Fixed is at or below it. SEMVER
+// ranges listed out of version order used to sit in this table too; #9865
+// evaluates them sorted, so they now read through containment instead.
 func TestNPMPerLineKnownFixedFailsClosedOnUnevaluatedRanges(t *testing.T) {
 	t.Parallel()
 	const possibly = "possibly_affected"
@@ -204,7 +205,6 @@ func TestNPMPerLineKnownFixedFailsClosedOnUnevaluatedRanges(t *testing.T) {
 			affectedPackageWithRanges(ecosystemLine("2.0.0", "2.3.0"))...)},
 		{"git range beside a semver line", "2.0.0", affectedPackageWithRanges(semverLine("0", "1.5.0"), supplychainmodel.AffectedRange{Kind: "GIT", Events: []supplychainmodel.AffectedRangeEvent{{Introduced: "0"}, {Fixed: "abc123def"}}})},
 		{"unknown range kind beside a semver line", "2.0.0", affectedPackageWithRanges(semverLine("0", "1.5.0"), supplychainmodel.AffectedRange{Kind: "", Events: []supplychainmodel.AffectedRangeEvent{{Introduced: "1.9.0"}, {Fixed: "2.3.0"}}})},
-		{"events listed out of version order", "2.2.0", affectedPackageWithRanges(supplychainmodel.AffectedRange{Kind: "SEMVER", Events: []supplychainmodel.AffectedRangeEvent{{Introduced: "2.0.0"}, {Fixed: "2.5.0"}, {Introduced: "0"}, {Fixed: "1.5.0"}}})},
 		{"empty same-package entry with nil versions", "2.1.0", append(
 			affectedPackageWithRanges(semverLine("0", "1.5.0")),
 			supplychainmodel.AffectedPackage{PackageID: "pkg:npm/example", Ecosystem: "npm", Name: "example"})},
@@ -216,7 +216,6 @@ func TestNPMPerLineKnownFixedFailsClosedOnUnevaluatedRanges(t *testing.T) {
 			supplychainmodel.AffectedPackage{PackageID: "pkg:npm/example", Ecosystem: "npm", Name: "example", AffectedVersions: []string{"", "  "}})},
 		{"introduced before a fixed at the same version", "1.5.0", affectedPackageWithRanges(supplychainmodel.AffectedRange{Kind: "SEMVER", Events: []supplychainmodel.AffectedRangeEvent{{Introduced: "0"}, {Introduced: "1.5.0"}, {Fixed: "1.5.0"}, {Fixed: "2.0.0"}}})},
 		{"fixed before an introduced at the same version", "2.5.0", affectedPackageWithRanges(supplychainmodel.AffectedRange{Kind: "SEMVER", Events: []supplychainmodel.AffectedRangeEvent{{Introduced: "0"}, {Fixed: "1.5.0"}, {Introduced: "1.5.0"}, {Fixed: "2.0.0"}}})},
-		{"unsorted range hides behind a sorted line", "2.2.0", affectedPackageWithRanges(semverLine("0", "1.0.0"), supplychainmodel.AffectedRange{Kind: "SEMVER", Events: []supplychainmodel.AffectedRangeEvent{{Introduced: "2.0.0"}, {Fixed: "2.5.0"}, {Introduced: "0"}, {Fixed: "1.5.0"}}})},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

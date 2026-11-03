@@ -35,18 +35,27 @@ func comparatorRangeBranches(raw string) []string {
 	return strings.Split(raw, "|")
 }
 
+// comparatorBranchContains reads every field before answering: a later field
+// may be invalid (a bare "-" hyphen token is not a comparator), and stopping
+// at the first non-match would report such a branch as valid-but-not-contained
+// (#9865, reviewer finding N3). A branch matches only when every field is
+// valid and every constraint holds.
 func comparatorBranchContains(branch string, observed string, compare versionCompareFunc) (bool, bool) {
 	fields := strings.Fields(branch)
 	if len(fields) == 0 {
 		return false, false
 	}
+	matched := true
 	for _, field := range fields {
 		ok, valid := comparatorConstraintContains(field, observed, compare)
-		if !valid || !ok {
-			return false, valid
+		if !valid {
+			return false, false
+		}
+		if !ok {
+			matched = false
 		}
 	}
-	return true, true
+	return matched, true
 }
 
 func comparatorConstraintContains(token string, observed string, compare versionCompareFunc) (bool, bool) {

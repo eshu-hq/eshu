@@ -148,30 +148,9 @@ func nugetSemverRangeContainsDecision(
 	} else if !ok {
 		return false, true
 	}
-	vulnerable := false
-	for _, event := range affectedRange.Events {
-		switch {
-		case event.Introduced != "":
-			if ok, valid := nugetVersionAtLeast(observed, event.Introduced); !valid {
-				return false, false
-			} else if ok {
-				vulnerable = true
-			}
-		case event.Fixed != "":
-			if ok, valid := nugetVersionAtLeast(observed, event.Fixed); !valid {
-				return false, false
-			} else if ok {
-				vulnerable = false
-			}
-		case event.LastAffected != "":
-			if ok, valid := nugetVersionGreaterThan(observed, event.LastAffected); !valid {
-				return false, false
-			} else if ok {
-				vulnerable = false
-			}
-		}
-	}
-	return vulnerable, true
+	// The event walk is the shared OSV sorted walk (#9865); only the version
+	// comparison is NuGet-specific.
+	return sortedEventsContainDecision(affectedRange.Events, observed, compareNuGetVersion)
 }
 
 func nugetAffectedRangeRawContains(raw string, observed string) (bool, bool) {
@@ -290,11 +269,6 @@ func nugetVersionBeforeLimitsDecision(observed string, events []supplychainmodel
 		}
 	}
 	return !hasLimit, true
-}
-
-func nugetVersionAtLeast(left string, right string) (bool, bool) {
-	cmp, ok := compareNuGetVersion(left, right)
-	return cmp >= 0, ok
 }
 
 func nugetVersionGreaterThan(left string, right string) (bool, bool) {

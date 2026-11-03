@@ -100,30 +100,9 @@ func pypiRangeContainsDecision(
 	} else if !ok {
 		return false, true
 	}
-	vulnerable := false
-	for _, event := range affectedRange.Events {
-		switch {
-		case event.Introduced != "":
-			if ok, valid := pypiAtLeast(observed, event.Introduced); !valid {
-				return false, false
-			} else if ok {
-				vulnerable = true
-			}
-		case event.Fixed != "":
-			if ok, valid := pypiAtLeast(observed, event.Fixed); !valid {
-				return false, false
-			} else if ok {
-				vulnerable = false
-			}
-		case event.LastAffected != "":
-			if ok, valid := pypiGreaterThan(observed, event.LastAffected); !valid {
-				return false, false
-			} else if ok {
-				vulnerable = false
-			}
-		}
-	}
-	return vulnerable, true
+	// The event walk is the shared OSV sorted walk (#9865); only the version
+	// comparison is PEP 440-specific.
+	return sortedEventsContainDecision(affectedRange.Events, observed, comparePyPIVersion)
 }
 
 func pypiBeforeLimitsDecision(observed string, events []supplychainmodel.AffectedRangeEvent) (bool, bool) {

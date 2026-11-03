@@ -251,30 +251,7 @@ func versionRangeContainsDecision(
 	} else if !ok {
 		return false, true
 	}
-	vulnerable := false
-	for _, event := range affectedRange.Events {
-		switch {
-		case event.Introduced != "":
-			if ok, valid := versionAtLeast(observed, event.Introduced, compare); !valid {
-				return false, false
-			} else if ok {
-				vulnerable = true
-			}
-		case event.Fixed != "":
-			if ok, valid := versionAtLeast(observed, event.Fixed, compare); !valid {
-				return false, false
-			} else if ok {
-				vulnerable = false
-			}
-		case event.LastAffected != "":
-			if ok, valid := versionGreaterThan(observed, event.LastAffected, compare); !valid {
-				return false, false
-			} else if ok {
-				vulnerable = false
-			}
-		}
-	}
-	return vulnerable, true
+	return sortedEventsContainDecision(affectedRange.Events, observed, compare)
 }
 
 func versionBeforeLimitsDecision(
