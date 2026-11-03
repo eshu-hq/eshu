@@ -180,9 +180,10 @@ var guardedDirectMaterializedEdgeFamilies = []guardedDirectFamily{
 		EdgeTypes: []string{"SECRETS_IAM_USES_SERVICE_ACCOUNT"},
 	},
 	{
-		Family:    assumesIAMRoleFamily,
-		OduName:   ifa.AssumesIAMRoleFamilyOduName,
-		EdgeTypes: []string{"SECRETS_IAM_ASSUMES_IAM_ROLE"},
+		Family:     assumesIAMRoleFamily,
+		OduName:    ifa.AssumesIAMRoleFamilyOduName,
+		EdgeTypes:  []string{"SECRETS_IAM_ASSUMES_IAM_ROLE"},
+		LiveProven: true,
 	},
 	{
 		Family:     authenticatesVaultRoleFamily,

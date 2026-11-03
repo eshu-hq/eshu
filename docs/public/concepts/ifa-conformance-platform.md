@@ -82,10 +82,10 @@ oversubscribed backend used to dead-letter perfectly recoverable work.
 
 **Fault injection** proves the platform's three recovery mechanisms —
 lease-expiry reclaim, retry with backoff, and idempotent replay — actually
-converge together, not just in isolation. 121 cells; the other 120
+converge together, not just in isolation. 124 cells; the other 123
 are sharded across 8 CI jobs
-(the fault-free baseline repeated in every shard, so CI executes 128
-cell runs for the 121-cell matrix), each run against a live reducer
+(the fault-free baseline repeated in every shard, so CI executes 131
+cell runs for the 124-cell matrix), each run against a live reducer
 with zero durable dead letters. Most inject
 a fault — killing a worker mid-claim, forcing a lease expiry, failing one graph
 write then succeeding, restarting the backend mid-drain, redelivering a
