@@ -72,7 +72,7 @@ trap 'report_stalled_package; rm -rf "${tmp_root}"' EXIT
 # Runner shutdown and job timeouts deliver SIGTERM to this script itself,
 # where the EXIT trap above never fires. Report first, then re-raise with
 # a cleared trap so the 143 exit is preserved without a second report.
-trap 'report_stalled_package 143; trap - TERM; kill -TERM $$' TERM
+trap 'report_stalled_package 143; rm -rf "${tmp_root}"; trap - TERM; kill -TERM $$' TERM
 
 profile="${profile_in:-${profile_out}}"
 if [[ "${run_tests}" != "0" ]]; then
