@@ -163,11 +163,13 @@ const (
 	osAdvisoryJoinOutcomeNotJoined = "not_joined"
 )
 
-// osAdvisoryJoinKey is one (vendor, outcome) cell. vendor is the closed set
-// debian, ubuntu, alpine, other.
+// osAdvisoryJoinKey is one (vendor, outcome, release) cell. vendor is the
+// closed set debian, ubuntu, alpine, other. release is the
+// osAdvisoryRelease* result for a joined fact and empty for a not-joined one.
 type osAdvisoryJoinKey struct {
 	vendor  string
 	outcome string
+	release string
 }
 
 // supplyChainImpactBuildStats carries the counts the findings builder
@@ -206,7 +208,9 @@ func (s supplyChainImpactBuildStats) osAdvisoriesJoined() int {
 // countOSAdvisoryJoins counts every OS affected fact in the index (ecosystem
 // os, or a deb/apk/rpm purl) that has an advisory source, by vendor and by
 // whether firstOSPackageImpactPath finds an installed row for it. It runs the
-// same join the classifier runs, so a join defect shows as not_joined.
+// same join the classifier runs, so a join defect shows as not_joined. A
+// joined fact also carries what its ranges say about that row's release line
+// (#9806 PR-2b).
 func countOSAdvisoryJoins(index supplyChainImpactIndex) map[osAdvisoryJoinKey]int {
 	var out map[osAdvisoryJoinKey]int
 	for _, pkgs := range index.affectedPackages {
@@ -218,14 +222,15 @@ func countOSAdvisoryJoins(index supplyChainImpactIndex) map[osAdvisoryJoinKey]in
 			if vendor == "" {
 				continue
 			}
-			outcome := osAdvisoryJoinOutcomeNotJoined
-			if _, ok := firstOSPackageImpactPath(pkg, index); ok {
-				outcome = osAdvisoryJoinOutcomeJoined
+			key := osAdvisoryJoinKey{vendor: osAdvisoryJoinVendorLabel(vendor), outcome: osAdvisoryJoinOutcomeNotJoined}
+			if row, ok := firstOSPackageImpactPath(pkg, index); ok {
+				key.outcome = osAdvisoryJoinOutcomeJoined
+				key.release = osAdvisoryReleaseResult(pkg, row)
 			}
 			if out == nil {
 				out = make(map[osAdvisoryJoinKey]int, 2)
 			}
-			out[osAdvisoryJoinKey{vendor: osAdvisoryJoinVendorLabel(vendor), outcome: outcome}]++
+			out[key]++
 		}
 	}
 	return out
@@ -290,7 +295,11 @@ func (h SupplyChainImpactHandler) recordBuildStats(
 	subSignals map[string]float64,
 ) {
 	h.emitOSAdvisoryJoins(ctx, stats.osAdvisoryJoins)
+	h.emitOSAdvisoryReleaseSelections(ctx, stats.osAdvisoryJoins)
 	subSignals[negatedProductsExcludedSubSignal] = float64(stats.negatedProductsExcluded)
 	subSignals[osAdvisoriesConsideredSubSignal] = float64(stats.osAdvisoriesConsidered())
 	subSignals[osAdvisoriesJoinedSubSignal] = float64(stats.osAdvisoriesJoined())
+	subSignals[osAdvisoriesReleaseMatchedSubSignal] = float64(stats.osAdvisoriesWithRelease(osAdvisoryReleaseMatched))
+	subSignals[osAdvisoriesReleaseUnlistedSubSignal] = float64(stats.osAdvisoriesWithRelease(osAdvisoryReleaseUnlisted))
+	subSignals[osAdvisoriesReleaseUntaggedSubSignal] = float64(stats.osAdvisoriesWithRelease(osAdvisoryReleaseUntagged))
 }

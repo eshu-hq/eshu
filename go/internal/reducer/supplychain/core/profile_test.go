@@ -54,6 +54,7 @@ func BenchmarkEvaluateOSPackageVersionMatchAndClassify(b *testing.B) {
 		fixedVersion string
 		packages     []supplychainmodel.AffectedPackage
 		compare      versionCompareFunc
+		family       osVersionFamily
 	}{
 		{
 			name:         "dpkg exact affected",
@@ -85,6 +86,7 @@ func BenchmarkEvaluateOSPackageVersionMatchAndClassify(b *testing.B) {
 					supplyChainVersionReasonDPKGAffectedRange,
 					supplyChainVersionReasonDPKGKnownFixed,
 					test.compare,
+					test.family,
 				)
 				got = classifySupplyChainImpactDetectionProfile(SupplyChainImpactFinding{
 					Status:          decision.Status,
@@ -240,6 +242,7 @@ func TestSupplyChainImpactExactOSPackageReasonsQualifyForPreciseProfile(t *testi
 		rangeAffectedReason   string
 		rangeKnownFixedReason string
 		compare               versionCompareFunc
+		family                osVersionFamily
 		wantStatus            SupplyChainImpactStatus
 		wantReason            string
 	}{
@@ -278,6 +281,7 @@ func TestSupplyChainImpactExactOSPackageReasonsQualifyForPreciseProfile(t *testi
 			rangeAffectedReason:   supplyChainVersionReasonAPKAffectedRange,
 			rangeKnownFixedReason: supplyChainVersionReasonAPKKnownFixed,
 			compare:               compareAPKVersion,
+			family:                osFamilyAPK,
 			wantStatus:            SupplyChainImpactAffectedExact,
 			wantReason:            supplyChainVersionReasonAPKExactAffected,
 		},
@@ -290,6 +294,7 @@ func TestSupplyChainImpactExactOSPackageReasonsQualifyForPreciseProfile(t *testi
 			rangeAffectedReason:   supplyChainVersionReasonAPKAffectedRange,
 			rangeKnownFixedReason: supplyChainVersionReasonAPKKnownFixed,
 			compare:               compareAPKVersion,
+			family:                osFamilyAPK,
 			wantStatus:            SupplyChainImpactNotAffectedKnownFixed,
 			wantReason:            supplyChainVersionReasonAPKExactKnownFixed,
 		},
@@ -308,6 +313,7 @@ func TestSupplyChainImpactExactOSPackageReasonsQualifyForPreciseProfile(t *testi
 				test.rangeAffectedReason,
 				test.rangeKnownFixedReason,
 				test.compare,
+				test.family,
 			)
 			if decision.Status != test.wantStatus {
 				t.Fatalf("Status = %q, want %q", decision.Status, test.wantStatus)

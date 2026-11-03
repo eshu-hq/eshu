@@ -113,7 +113,7 @@ func TestOSPackageVerdictPrefersAmbiguousOverUnverified(t *testing.T) {
 			"7.88.1-10+deb12u2", "", pkgs,
 			supplyChainVersionReasonDPKGExactAffected, supplyChainVersionReasonDPKGExactKnownFixed,
 			supplyChainVersionReasonDPKGAffectedRange, supplyChainVersionReasonDPKGKnownFixed,
-			compareDPKGVersion,
+			compareDPKGVersion, osFamilyDPKG,
 		)
 		if decision.Status != SupplyChainImpactPossiblyAffected || decision.Reason != supplyChainVersionReasonOSReleaseAmbiguous {
 			t.Fatalf("first fact %s: decision = %s/%s, want possibly_affected/%s",

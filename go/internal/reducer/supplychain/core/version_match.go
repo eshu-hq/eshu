@@ -122,6 +122,7 @@ func evaluateSupplyChainVersionMatch(
 			supplyChainVersionReasonDPKGAffectedRange,
 			supplyChainVersionReasonDPKGKnownFixed,
 			compareDPKGVersion,
+			osFamilyDPKG,
 		)
 	case "alpine", "apk":
 		return evaluateOSPackageVersionMatch(
@@ -133,6 +134,7 @@ func evaluateSupplyChainVersionMatch(
 			supplyChainVersionReasonAPKAffectedRange,
 			supplyChainVersionReasonAPKKnownFixed,
 			compareAPKVersion,
+			osFamilyAPK,
 		)
 	case string(packageidentity.EcosystemRubyGems):
 		return evaluateRubyGemsVersionMatch(observed, fixedVersion, pkgs)

@@ -332,7 +332,7 @@ func TestCov6EvaluateOSPackageVersionMatch(t *testing.T) {
 		"!!! has space", "", nil,
 		"apk_exact_affected_version", "apk_exact_known_fixed",
 		"apk_affected_range", "apk_known_fixed",
-		compareAPKVersion,
+		compareAPKVersion, osFamilyAPK,
 	)
 	if decision.Reason != supplyChainVersionReasonMalformedInstalled {
 		t.Fatalf("apk invalid observed reason = %q, want malformed-installed", decision.Reason)
@@ -347,7 +347,7 @@ func TestCov6EvaluateOSPackageVersionMatch(t *testing.T) {
 		"1.5", "", []supplychainmodel.AffectedPackage{ranged},
 		"apk_exact_affected_version", "apk_exact_known_fixed",
 		"apk_affected_range", "apk_known_fixed",
-		compareAPKVersion,
+		compareAPKVersion, osFamilyAPK,
 	)
 	if decision.Reason != supplyChainVersionReasonAPKAffectedRange {
 		t.Fatalf("apk range hit reason = %q, want apk_affected_range", decision.Reason)
@@ -356,7 +356,7 @@ func TestCov6EvaluateOSPackageVersionMatch(t *testing.T) {
 		"1.0", "1.0", nil,
 		"apk_exact_affected_version", "apk_exact_known_fixed",
 		"apk_affected_range", "apk_known_fixed",
-		compareAPKVersion,
+		compareAPKVersion, osFamilyAPK,
 	)
 	if decision.Reason != supplyChainVersionReasonAPKExactKnownFixed {
 		t.Fatalf("apk pinned fixed reason = %q, want apk_exact_known_fixed", decision.Reason)
@@ -365,7 +365,7 @@ func TestCov6EvaluateOSPackageVersionMatch(t *testing.T) {
 		"2.0", "1.0", nil,
 		"apk_exact_affected_version", "apk_exact_known_fixed",
 		"apk_affected_range", "apk_known_fixed",
-		compareAPKVersion,
+		compareAPKVersion, osFamilyAPK,
 	)
 	if decision.Reason != supplyChainVersionReasonAPKKnownFixed {
 		t.Fatalf("apk newer reason = %q, want apk_known_fixed", decision.Reason)

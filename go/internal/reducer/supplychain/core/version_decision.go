@@ -36,6 +36,28 @@ const (
 	// supplyChainVersionReasonOSReleaseAmbiguous and
 	// supplyChainVersionReasonOSReleaseUnverified.
 	supplyChainMissingOSReleaseLine = "advisory release line for installed package unknown"
+
+	// supplyChainVersionReasonOSReleaseUnlisted marks a release-tagged OSV OS
+	// fact whose ranges all name their release lines and none names the
+	// installed row's line, while a listed range contains the observed version
+	// (or the apk guard refuses to extrapolate). The listed lines' agreement
+	// says nothing about the host's line, so the answer is possibly_affected,
+	// never an exact claim (#9806 PR-2b).
+	supplyChainVersionReasonOSReleaseUnlisted = "os_release_unlisted"
+	// supplyChainMissingOSReleaseUnlisted is the missing evidence behind
+	// supplyChainVersionReasonOSReleaseUnlisted.
+	supplyChainMissingOSReleaseUnlisted = "the advisory lists no range for the installed package's release line"
+	// supplyChainVersionReasonDPKGKnownFixedUnlistedRelease marks a Debian or
+	// Ubuntu host on a release the advisory does not list, with no listed
+	// range containing its version and every listed fix at or below it. dpkg
+	// versions order across release lines, so the host is past every listed
+	// fix. The remediation's first patched version is a listed line's fix, not
+	// the host's.
+	supplyChainVersionReasonDPKGKnownFixedUnlistedRelease = "dpkg_known_fixed_unlisted_release"
+	// supplyChainVersionReasonAPKKnownFixedUnlistedRelease is the apk twin,
+	// granted only when the host's upstream version alone settles every listed
+	// fix; apk's -rN counter is per branch and orders nothing across lines.
+	supplyChainVersionReasonAPKKnownFixedUnlistedRelease = "apk_known_fixed_unlisted_release"
 )
 
 func evaluateOSPackageVersionMatch(
@@ -47,11 +69,12 @@ func evaluateOSPackageVersionMatch(
 	rangeAffectedReason string,
 	rangeKnownFixedReason string,
 	compare versionCompareFunc,
+	family osVersionFamily,
 ) supplyChainVersionMatchDecision {
 	if _, ok := compare(observed, observed); !ok {
 		return malformedInstalledVersionDecision()
 	}
-	verdict := osPackageRangesVerdict(observed, pkgs, compare)
+	verdict := osPackageRangesVerdict(observed, pkgs, compare, family)
 	switch {
 	case verdict.exact:
 		return affectedVersionDecision(rangeAffectedReason)
@@ -59,10 +82,18 @@ func evaluateOSPackageVersionMatch(
 		return possiblyAffectedDecision(supplyChainVersionReasonOSReleaseAmbiguous, []string{supplyChainMissingOSReleaseLine})
 	case verdict.unverified:
 		return possiblyAffectedDecision(supplyChainVersionReasonOSReleaseUnverified, []string{supplyChainMissingOSReleaseLine})
+	case verdict.unlisted:
+		return possiblyAffectedDecision(supplyChainVersionReasonOSReleaseUnlisted, []string{supplyChainMissingOSReleaseUnlisted})
 	case verdict.malformed:
 		return malformedVersionDecision()
 	}
-	if fixedVersion != "" {
+	if verdict.unlistedFixed && !verdict.fixed {
+		// The single-fix shortcut below would read a listed line's fix as the
+		// host's own, and for apk would order by a per-branch revision, so an
+		// unlisted release is settled here under its named reason.
+		return knownFixedDecision(family.unlistedKnownFixedReason())
+	}
+	if fixedVersion != "" && !osVersionListNamesObserved(observed, pkgs, compare) {
 		cmp, valid := compare(observed, fixedVersion)
 		if !valid {
 			return malformedVersionDecision()
@@ -75,6 +106,7 @@ func evaluateOSPackageVersionMatch(
 		}
 	}
 	listedWithoutRelease := false
+	listedUnlisted := false
 	for _, pkg := range pkgs {
 		for _, candidate := range pkg.AffectedVersions {
 			candidate = strings.TrimSpace(candidate)
@@ -94,10 +126,16 @@ func evaluateOSPackageVersionMatch(
 			// An OSV list names versions from every release line, so a match
 			// is no more release evidence than a range (#9848, ruling D).
 			// Keep scanning: a vendor fact may still settle it exactly.
+			if pkg.ReleaseUnlisted {
+				listedUnlisted = true
+			}
 			listedWithoutRelease = true
 		}
 	}
 	if listedWithoutRelease {
+		if listedUnlisted {
+			return possiblyAffectedDecision(supplyChainVersionReasonOSReleaseUnlisted, []string{supplyChainMissingOSReleaseUnlisted})
+		}
 		if verdict.fixed {
 			return possiblyAffectedDecision(supplyChainVersionReasonOSReleaseAmbiguous, []string{supplyChainMissingOSReleaseLine})
 		}
@@ -132,15 +170,38 @@ type osRangesVerdict struct {
 	// malformed: some fact has an unreadable range and no range containing
 	// the version.
 	malformed bool
+	// unlisted: some release-tagged fact names no range for the host's line
+	// and a listed range contains the version, or the fixes do not provably
+	// sit at or below it (#9806 PR-2b).
+	unlisted bool
+	// unlistedFixed: some release-tagged fact names no range for the host's
+	// line, no listed range contains the version, and every listed fix is at
+	// or below it in a scheme that orders across lines.
+	unlistedFixed bool
 }
 
 func osPackageRangesVerdict(
 	observed string,
 	pkgs []supplychainmodel.AffectedPackage,
 	compare versionCompareFunc,
+	family osVersionFamily,
 ) osRangesVerdict {
 	var out osRangesVerdict
 	for _, pkg := range pkgs {
+		if pkg.ReleaseUnlisted {
+			switch osUnlistedFactOutcome(observed, pkg, family, compare) {
+			case osUnlistedPossible:
+				out.unlisted = true
+			case osUnlistedFixed:
+				out.unlistedFixed = true
+			case osUnlistedMalformed:
+				out.malformed = true
+			case osUnlistedSilent:
+				// Nothing to add: the fact neither contains nor settles the
+				// version, so it does not move the verdict.
+			}
+			continue
+		}
 		contains, fixedBelow, malformed := osPackageRangeSignals(observed, pkg, compare)
 		switch {
 		case contains && !fixedBelow && osAffectedFactCarriesReleaseEvidence(pkg):
@@ -166,10 +227,10 @@ func osPackageRangesVerdict(
 // line. A vendor-sourced fact
 // (source debian, ubuntu, alpine) is published per release; an OSV OS fact is
 // the untagged union of every release's ranges (#9847 merges them), so it
-// carries none (#9848, ruling D). PR-2b replaces this with "the selected
-// tagged range matched the host's line".
+// carries none (#9848, ruling D). A tagged OSV fact narrowed to the host's
+// line (ReleaseLine set, #9806 PR-2b) does carry it.
 func osAffectedFactCarriesReleaseEvidence(pkg supplychainmodel.AffectedPackage) bool {
-	return classifyAdvisorySource(pkg.Source, pkg.AdvisoryID) != "osv"
+	return pkg.ReleaseLine != "" || classifyAdvisorySource(pkg.Source, pkg.AdvisoryID) != "osv"
 }
 
 // osPackageRangeSignals reads one fact's ECOSYSTEM ranges: whether any range
@@ -264,7 +325,8 @@ func malformedInstalledVersionDecision() supplyChainVersionMatchDecision {
 func osPackageSettlesFinding(decision supplyChainVersionMatchDecision, hasComponentPath bool) bool {
 	return decision.Status == SupplyChainImpactAffectedExact ||
 		(!hasComponentPath && (decision.Reason == supplyChainVersionReasonOSReleaseAmbiguous ||
-			decision.Reason == supplyChainVersionReasonOSReleaseUnverified))
+			decision.Reason == supplyChainVersionReasonOSReleaseUnverified ||
+			decision.Reason == supplyChainVersionReasonOSReleaseUnlisted))
 }
 
 func possiblyAffectedDecision(reason string, missing []string) supplyChainVersionMatchDecision {
