@@ -307,6 +307,13 @@ plan) to 358.9 ms at 1x, from over 600 s (capped, a lower bound) to 6.15 s at
 at 10x; shared buffers fell from 28,365,188 or 284,409 to 16,435 at 1x. No run
 met the load1 < 9 rule, so the buffer and index-search counts carry the claim.
 
+The writer pays one more statement per pass that changed a finding: the set-based
+dirty-log INSERT. The committed cost budget
+`testdata/cassettes/replayoffline/supply-chain-impact.cost-budget.json` moves
+from 4 to 5 write observations (`TestCostBudget_SupplyChainImpact` measured 5),
+and the N+1 negative control now records 10 against it. The statement count does
+not grow with the finding count; an unchanged rerun issues none.
+
 ## Built-binary proof
 
 Run on 2026-11-02, 07:37 to 07:47 EST, against the built `reducer` binary
