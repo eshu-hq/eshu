@@ -159,7 +159,7 @@ func LoadAnchorScopedRelationshipFacts(
 // LoadAnchorScopedRelationshipFactsBudget is LoadAnchorScopedRelationshipFacts
 // with an inbound byte budget: it fails with ErrRelationshipFactLoadBudgetExceeded
 // as soon as the cumulative raw payload bytes of the phase-one anchor-scoped load
-// reach budget.MaxBytes, instead of accumulating an unbounded slice. It reports
+// exceed budget.MaxBytes, instead of accumulating an unbounded slice. It reports
 // the rows and bytes it read so the caller can record the inbound metric even on
 // a budget failure. The phase-two ArgoCD config-repo reload stays outside the
 // budget: it is bounded to the resolved config repository ids, never the fleet.
@@ -220,7 +220,7 @@ func loadOnboardedRepoScopedRelationshipFacts(
 // loadOnboardedRepoScopedRelationshipFactsBudget is
 // loadOnboardedRepoScopedRelationshipFacts with an inbound byte budget and a
 // row/byte report. It counts raw payload bytes as it scans and returns
-// ErrRelationshipFactLoadBudgetExceeded as soon as they reach budget.MaxBytes,
+// ErrRelationshipFactLoadBudgetExceeded as soon as they exceed budget.MaxBytes,
 // so a caller that sets a budget never holds an unbounded slice.
 func loadOnboardedRepoScopedRelationshipFactsBudget(
 	ctx context.Context,
