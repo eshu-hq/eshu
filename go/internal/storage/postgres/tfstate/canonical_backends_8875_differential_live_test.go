@@ -3,6 +3,10 @@
 
 package tfstate
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #8875 row-differential proof for the canonical terraform-backends reader on disposable PostgreSQL: the derived COUNT probe built from the shipped constant stays exact across the MATERIALIZED repo_local_paths change and the predicate-matched partial index, the adapter returns both owners of a shared locator hash, and the plan seeks the new index
+//eshu:readiness:env ESHU_POSTGRES_DSN
+
 import (
 	"context"
 	"database/sql"

@@ -329,6 +329,11 @@ tests:
     class: postgres_ci
     reason: "#7427 PR3 disposable PostgreSQL 18 proof of migration 191's budget exhaustion through the tracked migrator (200 ms lock_timeout, 1.5 s retry budget): a terms-parent holder (NOWAIT refusal naming the relation) and a scope_generations holder (lock timeout) each make the run fail with 55P03 naming the migration and the budget, log the lock_wait warning, keep all 65 keys, leave no relation lock on the connection and record nothing in the ledger, and a later run after the holder ends drops the key; enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN. local run passed both cases in 3.8s of test time on PostgreSQL 18.6 on 2026-10-16"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/tfstate/canonical_backends_8875_differential_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8875 row-differential proof for the canonical terraform-backends reader on disposable PostgreSQL: the derived COUNT probe built from the shipped constant stays exact across the MATERIALIZED repo_local_paths change and the predicate-matched partial index, the adapter returns both owners of a shared locator hash, and the plan seeks the new index"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/trigger_bootstrap_parity_live_test.go
     tag: ~
     class: postgres_ci
