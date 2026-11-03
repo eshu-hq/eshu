@@ -94,6 +94,16 @@ require_anchors_lib() {
 	[[ "$(_ifa_count_code_matches "${needle}" "${anchors_lib}")" -ge 1 ]] \
 		|| fail "missing ${label} (edge anchors lib): ${needle}, or it survives only inside a comment"
 }
+# require_cleanup_lib pins a needle that lives in the EXIT-trap cleanup lib the
+# gate sources, not in the gate script: cleanup() moved out of
+# verify-ifa-fault-injection.sh when that script hit its 500-line cap.
+# Kept separate from require_code so moving anything ELSE out of the gate
+# script still fails -- the same narrow-exception shape as require_anchors_lib.
+require_cleanup_lib() {
+	local label="$1" needle="$2"
+	[[ "$(_ifa_count_code_matches "${needle}" "${cleanup_lib}")" -ge 1 ]] \
+		|| fail "missing ${label} (cleanup lib): ${needle}, or it survives only inside a comment"
+}
 # require_framing pins a needle that binds non-executable TEXT in a named file:
 # rationale, overview and inventory prose, and also DATA the script emits -- the
 # JSON kind strings written through a heredoc are pinned here for that reason,

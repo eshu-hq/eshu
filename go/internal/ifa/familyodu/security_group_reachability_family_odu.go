@@ -168,7 +168,7 @@ var securityGroupReachabilityFamilyRules = []securityGroupReachabilityFamilyRule
 		FromPort:    int32Ptr(22),
 		ToPort:      int32Ptr(22),
 		SourceKind:  "cidr_ipv4",
-		SourceValue: "10.0.0.0/8",
+		SourceValue: "192.0.2.0/24",
 	},
 	{
 		// EDGE: egress https to an IPv4 CIDR. SG edge ALLOWS_EGRESS,
@@ -180,7 +180,7 @@ var securityGroupReachabilityFamilyRules = []securityGroupReachabilityFamilyRule
 		FromPort:    int32Ptr(443),
 		ToPort:      int32Ptr(443),
 		SourceKind:  "cidr_ipv4",
-		SourceValue: "10.0.0.0/8",
+		SourceValue: "192.0.2.0/24",
 	},
 	{
 		// EDGE: ingress http from a prefix list. SG edge ALLOWS_INGRESS,
@@ -227,7 +227,7 @@ var securityGroupReachabilityFamilyRules = []securityGroupReachabilityFamilyRule
 		FromPort:    int32Ptr(22),
 		ToPort:      int32Ptr(22),
 		SourceKind:  "cidr_ipv4",
-		SourceValue: "10.0.0.0/8",
+		SourceValue: "192.0.2.0/24",
 	},
 	{
 		// NO EDGE: references a group the scope never scanned — the
@@ -260,7 +260,7 @@ var securityGroupReachabilityFamilyRules = []securityGroupReachabilityFamilyRule
 		FromPort:    int32Ptr(3389),
 		ToPort:      int32Ptr(3389),
 		SourceKind:  "cidr_ipv4",
-		SourceValue: "10.0.0.0/8",
+		SourceValue: "192.0.2.0/24",
 		Tombstone:   true,
 	},
 }

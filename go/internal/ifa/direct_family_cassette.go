@@ -50,9 +50,11 @@ const (
 	// cloudResourceContainerImageFamilyCassettePath,
 	// crossplaneSatisfiedByFamilyCassettePath,
 	// derivedFromFamilyCassettePath,
-	// incidentRoutingEvidenceFamilyCassettePath, and
-	// publishesFamilyCassettePath are repo-root-relative so the
-	// constants stay machine-independent; callers join a repo root onto
+	// incidentRoutingEvidenceFamilyCassettePath,
+	// publishesFamilyCassettePath,
+	// securityGroupReachabilityFamilyCassettePath, and
+	// s3ExternalPrincipalGrantFamilyCassettePath are repo-root-relative so
+	// the constants stay machine-independent; callers join a repo root onto
 	// them through the exported helpers below.
 	kubernetesNamespaceEnvironmentFamilyCassettePath = "testdata/cassettes/kubernetesnamespaceenvironment/ifa-kubernetes-namespace-environment-family.json"
 	iamInstanceProfileRoleFamilyCassettePath         = "testdata/cassettes/iaminstanceprofilerole/ifa-iam-instance-profile-role-family.json"
@@ -77,6 +79,8 @@ const (
 	derivedFromFamilyCassettePath                    = "testdata/cassettes/derivedfrom/ifa-derived-from-family.json"
 	incidentRoutingEvidenceFamilyCassettePath        = "testdata/cassettes/incidentrouting/ifa-incident-routing-evidence-family.json"
 	publishesFamilyCassettePath                      = "testdata/cassettes/publishes/ifa-publishes-family.json"
+	securityGroupReachabilityFamilyCassettePath      = "testdata/cassettes/securitygroup/ifa-security-group-reachability-family.json"
+	s3ExternalPrincipalGrantFamilyCassettePath       = "testdata/cassettes/s3grant/ifa-s3-external-principal-grant-family.json"
 )
 
 // KubernetesNamespaceEnvironmentFamilyCassetteFullPath joins repoRoot onto the
@@ -482,6 +486,44 @@ func PublishesFamilyCassetteFullPath(repoRoot string) string {
 // load plus its cross-scope active-repository fallback.
 func LoadPublishesFamilyOdu(cassettePath string) (familyodu.Odu, error) {
 	return loadDirectFamilyOdu(cassettePath, PublishesFamilyOduName)
+}
+
+// SecurityGroupReachabilityFamilyCassetteFullPath joins repoRoot onto the
+// committed security-group reachability family cassette path.
+//
+// ONE cassette serves TWO families (security_group_sg_rule and
+// security_group_rule_endpoint, #6228 secgroup pair): both roster entries
+// name SecurityGroupReachabilityFamilyOduName, and the shared determinism
+// cell drives this one cassette while asserting each family's exact set.
+func SecurityGroupReachabilityFamilyCassetteFullPath(repoRoot string) string {
+	return filepath.Join(repoRoot, securityGroupReachabilityFamilyCassettePath)
+}
+
+// LoadSecurityGroupReachabilityFamilyOdu reads the committed cassette and
+// projects it onto the fact envelopes the reducer's extractor consumes,
+// the security-group reachability counterpart to LoadPublishesFamilyOdu:
+// the family's single AWS scope holds the scanned security-group node
+// facts and the security-group rule facts (plus the deliberate
+// non-producers), mirroring the handler's own-scope fact load.
+func LoadSecurityGroupReachabilityFamilyOdu(cassettePath string) (familyodu.Odu, error) {
+	return loadDirectFamilyOdu(cassettePath, SecurityGroupReachabilityFamilyOduName)
+}
+
+// S3ExternalPrincipalGrantFamilyCassetteFullPath joins repoRoot onto the
+// committed s3_external_principal_grant family cassette path.
+func S3ExternalPrincipalGrantFamilyCassetteFullPath(repoRoot string) string {
+	return filepath.Join(repoRoot, s3ExternalPrincipalGrantFamilyCassettePath)
+}
+
+// LoadS3ExternalPrincipalGrantFamilyOdu reads the committed cassette and
+// projects it onto the fact envelopes the reducer's extractor consumes,
+// the s3_external_principal_grant counterpart to
+// LoadSecurityGroupReachabilityFamilyOdu: the family's single AWS scope
+// holds the scanned bucket node facts and the grant facts (plus the
+// ghost-source, unsupported-principal, and missing-identity negative
+// controls), mirroring the handler's own-scope fact load.
+func LoadS3ExternalPrincipalGrantFamilyOdu(cassettePath string) (familyodu.Odu, error) {
+	return loadDirectFamilyOdu(cassettePath, S3ExternalPrincipalGrantFamilyOduName)
 }
 
 // parseDirectFamilyCassette is the shared strict decode behind the loaders.

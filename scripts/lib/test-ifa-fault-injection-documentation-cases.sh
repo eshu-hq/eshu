@@ -166,10 +166,10 @@ run_ifa_documentation_live_static_cases() {
 	# The guard and the call it guards, named separately. The bare function name
 	# matched both, so either could go: losing the call skips barrier cleanup,
 	# losing the `declare -F` guard skips it just as silently (#6161).
-	require_code "global cleanup guards on the ACK barrier cleanup helper" 'if declare -F ifa_documentation_cleanup_ack_barrier >/dev/null; then'
-	require_code "global cleanup invokes documentation ACK barrier cleanup" 'ifa_documentation_cleanup_ack_barrier "${ifa_documentation_ack_barrier_cell:-killworkerdocumentation}"'
-	require_code "global cleanup guards on the ACK producer join helper" 'if declare -F ifa_documentation_stop_ack_producers >/dev/null; then'
-	require_code "global cleanup joins ACK producers before DB cleanup" 'ifa_documentation_stop_ack_producers || barrier_cleanup_rc=$?'
+	require_cleanup_lib "global cleanup guards on the ACK barrier cleanup helper" 'if declare -F ifa_documentation_cleanup_ack_barrier >/dev/null; then'
+	require_cleanup_lib "global cleanup invokes documentation ACK barrier cleanup" 'ifa_documentation_cleanup_ack_barrier "${ifa_documentation_ack_barrier_cell:-killworkerdocumentation}"'
+	require_cleanup_lib "global cleanup guards on the ACK producer join helper" 'if declare -F ifa_documentation_stop_ack_producers >/dev/null; then'
+	require_cleanup_lib "global cleanup joins ACK producers before DB cleanup" 'ifa_documentation_stop_ack_producers || barrier_cleanup_rc=$?'
 	require_driver "per-cell teardown guards on the ACK barrier cleanup helper" 'if declare -F ifa_documentation_cleanup_ack_barrier >/dev/null; then'
 	require_driver "per-cell teardown invokes documentation ACK barrier cleanup" 'ifa_documentation_cleanup_ack_barrier "${ifa_documentation_ack_barrier_cell:-${cell}}"'
 	require_driver "per-cell teardown joins ACK producers before DB cleanup" "ifa_documentation_stop_ack_producers"

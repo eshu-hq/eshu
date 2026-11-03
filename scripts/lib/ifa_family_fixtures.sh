@@ -321,6 +321,30 @@ incident_routing_evidence_expected_edges="${repo_root}/go/internal/ifa/testdata/
 # generation, like every sibling above.
 publishes_cassette="${repo_root}/testdata/cassettes/publishes/ifa-publishes-family.json"
 publishes_expected_edges="${repo_root}/go/internal/ifa/testdata/publishes/ifa-publishes-family-expected-edges.json"
+# security-group pair (#6228 secgroup-pair live leaf): ONE shared cassette
+# projecting the compiled SecurityGroupReachabilityFamilyOdu
+# (TestDirectFamilyCassettesMatchTheirCompiledOdu holds it to that) -- three
+# scanned group facts plus nine rule facts (five edge producers covering
+# both SG -> rule directions, all three TO endpoint labels, and both CIDR
+# families, plus the unresolved-anchor, unresolved-endpoint,
+# unknown-source, and tombstone non-producers). TWO exact-set asserts read
+# it: security_group_sg_rule (five ALLOWS_* edges) and
+# security_group_rule_endpoint (five TO edges). The single
+# security-group-reachability scope owns its own ACTIVE generation, like
+# every sibling above.
+security_group_reachability_cassette="${repo_root}/testdata/cassettes/securitygroup/ifa-security-group-reachability-family.json"
+security_group_sg_rule_expected_edges="${repo_root}/go/internal/ifa/testdata/securitygroup/ifa-security-group-sg-rule-family-expected-edges.json"
+security_group_rule_endpoint_expected_edges="${repo_root}/go/internal/ifa/testdata/securitygroup/ifa-security-group-rule-endpoint-family-expected-edges.json"
+# s3_external_principal_grant (#6228 s3-grant live leaf): a projection of
+# the compiled S3ExternalPrincipalGrantFamilyOdu by construction
+# (TestDirectFamilyCassettesMatchTheirCompiledOdu holds it to that) -- four
+# scanned bucket node facts plus seven grant facts (cross-account, public,
+# service-principal, and ARN-tail producers, plus the ghost-source,
+# unsupported-principal, and missing-identity non-producers). The idle
+# bucket proves a scanned node alone never gains an edge. The single
+# s3-grant scope owns its own ACTIVE generation, like every sibling above.
+s3_external_principal_grant_cassette="${repo_root}/testdata/cassettes/s3grant/ifa-s3-external-principal-grant-family.json"
+s3_external_principal_grant_expected_edges="${repo_root}/go/internal/ifa/testdata/s3grant/ifa-s3-external-principal-grant-family-expected-edges.json"
 
 # ifa_family_fixtures_require fails fast, before any Compose stack is started,
 # when a committed fixture is missing. Each message names the specific fixture
@@ -408,6 +432,11 @@ ifa_family_fixtures_require() {
 	[[ -f "${incident_routing_evidence_expected_edges}" ]] || { echo "${gate}: incident-routing-evidence expected-edge set not found: ${incident_routing_evidence_expected_edges}" >&2; exit 1; }
 	[[ -f "${publishes_cassette}" ]] || { echo "${gate}: publishes cassette not found: ${publishes_cassette}" >&2; exit 1; }
 	[[ -f "${publishes_expected_edges}" ]] || { echo "${gate}: publishes expected-edge set not found: ${publishes_expected_edges}" >&2; exit 1; }
+	[[ -f "${security_group_reachability_cassette}" ]] || { echo "${gate}: security-group-reachability cassette not found: ${security_group_reachability_cassette}" >&2; exit 1; }
+	[[ -f "${security_group_sg_rule_expected_edges}" ]] || { echo "${gate}: security-group-sg-rule expected-edge set not found: ${security_group_sg_rule_expected_edges}" >&2; exit 1; }
+	[[ -f "${security_group_rule_endpoint_expected_edges}" ]] || { echo "${gate}: security-group-rule-endpoint expected-edge set not found: ${security_group_rule_endpoint_expected_edges}" >&2; exit 1; }
+	[[ -f "${s3_external_principal_grant_cassette}" ]] || { echo "${gate}: s3-external-principal-grant cassette not found: ${s3_external_principal_grant_cassette}" >&2; exit 1; }
+	[[ -f "${s3_external_principal_grant_expected_edges}" ]] || { echo "${gate}: s3-external-principal-grant expected-edge set not found: ${s3_external_principal_grant_expected_edges}" >&2; exit 1; }
 	# The family scope MUST be stamped source_system='oci_registry': replay
 	# stamps fact.source_system from the scope, and the
 	# container-image-identity loader the handler reads only accepts OCI

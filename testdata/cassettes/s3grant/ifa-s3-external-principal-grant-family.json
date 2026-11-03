@@ -1,0 +1,244 @@
+{
+  "collector": "aws",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "aws:eshu-fixture-s3-external-principal-grant-account",
+      "source_system": "aws",
+      "scope_kind": "region",
+      "collector_kind": "aws",
+      "partition_key": "aws:eshu-fixture-s3-external-principal-grant-account",
+      "metadata": {
+        "account_id": "123456789012",
+        "region": "us-east-1",
+        "service_kind": "s3"
+      },
+      "generation_id": "gen-ifa-s3-external-principal-grant-family-1",
+      "observed_at": "2026-11-02T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_resource:orders-artifacts",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:s3:::orders-artifacts",
+            "name": "orders-artifacts",
+            "region": "us-east-1",
+            "resource_id": "arn:aws:s3:::orders-artifacts",
+            "resource_type": "aws_s3_bucket"
+          }
+        },
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_resource:logs-archive",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:s3:::logs-archive",
+            "name": "logs-archive",
+            "region": "us-east-1",
+            "resource_id": "arn:aws:s3:::logs-archive",
+            "resource_type": "aws_s3_bucket"
+          }
+        },
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_resource:shared-reads",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:s3:::shared-reads",
+            "name": "shared-reads",
+            "region": "us-east-1",
+            "resource_id": "arn:aws:s3:::shared-reads",
+            "resource_type": "aws_s3_bucket"
+          }
+        },
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_resource:idle-bucket",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:s3:::idle-bucket",
+            "name": "idle-bucket",
+            "region": "us-east-1",
+            "resource_id": "arn:aws:s3:::idle-bucket",
+            "resource_type": "aws_s3_bucket"
+          }
+        },
+        {
+          "fact_kind": "s3_external_principal_grant",
+          "stable_fact_key": "aws:123456789012:us-east-1:s3_external_principal_grant:orders-artifacts:aws_account:222222222222",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "bucket_arn": "arn:aws:s3:::orders-artifacts",
+            "bucket_name": "orders-artifacts",
+            "grant_outcome": "cross_account",
+            "is_cross_account": true,
+            "is_public": false,
+            "is_service_principal": false,
+            "is_unsupported": false,
+            "principal_account_id": "222222222222",
+            "principal_kind": "aws_account",
+            "principal_partition": "aws",
+            "principal_value": "222222222222",
+            "region": "us-east-1"
+          }
+        },
+        {
+          "fact_kind": "s3_external_principal_grant",
+          "stable_fact_key": "aws:123456789012:us-east-1:s3_external_principal_grant:logs-archive:public:*",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "bucket_arn": "arn:aws:s3:::logs-archive",
+            "bucket_name": "logs-archive",
+            "grant_outcome": "public",
+            "is_cross_account": false,
+            "is_public": true,
+            "is_service_principal": false,
+            "is_unsupported": false,
+            "principal_kind": "public",
+            "principal_partition": "aws",
+            "principal_value": "*",
+            "region": "us-east-1"
+          }
+        },
+        {
+          "fact_kind": "s3_external_principal_grant",
+          "stable_fact_key": "aws:123456789012:us-east-1:s3_external_principal_grant:shared-reads:aws_service:logging-s3.amazonaws.com",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "bucket_arn": "arn:aws:s3:::shared-reads",
+            "bucket_name": "shared-reads",
+            "grant_outcome": "service_delivery",
+            "is_cross_account": false,
+            "is_public": false,
+            "is_service_principal": true,
+            "is_unsupported": false,
+            "principal_kind": "aws_service",
+            "principal_partition": "aws",
+            "principal_service": "logging-s3.amazonaws.com",
+            "principal_value": "logging-s3.amazonaws.com",
+            "region": "us-east-1"
+          }
+        },
+        {
+          "fact_kind": "s3_external_principal_grant",
+          "stable_fact_key": "aws:123456789012:us-east-1:s3_external_principal_grant:arn:aws:s3:::shared-reads:aws_account:333333333333",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "bucket_arn": "arn:aws:s3:::shared-reads",
+            "bucket_name": "",
+            "grant_outcome": "cross_account",
+            "is_cross_account": true,
+            "is_public": false,
+            "is_service_principal": false,
+            "is_unsupported": false,
+            "principal_account_id": "333333333333",
+            "principal_kind": "aws_account",
+            "principal_partition": "aws",
+            "principal_value": "333333333333",
+            "region": "us-east-1"
+          }
+        },
+        {
+          "fact_kind": "s3_external_principal_grant",
+          "stable_fact_key": "aws:123456789012:us-east-1:s3_external_principal_grant:ghost-bucket:aws_account:444444444444",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "bucket_arn": "arn:aws:s3:::ghost-bucket",
+            "bucket_name": "ghost-bucket",
+            "grant_outcome": "cross_account",
+            "is_cross_account": true,
+            "is_public": false,
+            "is_service_principal": false,
+            "is_unsupported": false,
+            "principal_kind": "aws_account",
+            "principal_partition": "aws",
+            "principal_value": "444444444444",
+            "region": "us-east-1"
+          }
+        },
+        {
+          "fact_kind": "s3_external_principal_grant",
+          "stable_fact_key": "aws:123456789012:us-east-1:s3_external_principal_grant:orders-artifacts:unsupported:federated-oidc-provider",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "bucket_arn": "arn:aws:s3:::orders-artifacts",
+            "bucket_name": "orders-artifacts",
+            "grant_outcome": "unsupported_principal",
+            "is_cross_account": false,
+            "is_public": false,
+            "is_service_principal": false,
+            "is_unsupported": true,
+            "principal_kind": "unsupported",
+            "principal_partition": "aws",
+            "principal_value": "federated-oidc-provider",
+            "region": "us-east-1"
+          }
+        },
+        {
+          "fact_kind": "s3_external_principal_grant",
+          "stable_fact_key": "aws:123456789012:us-east-1:s3_external_principal_grant:logs-archive::",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "bucket_arn": "arn:aws:s3:::logs-archive",
+            "bucket_name": "logs-archive",
+            "grant_outcome": "missing_identity",
+            "is_cross_account": false,
+            "is_public": false,
+            "is_service_principal": false,
+            "is_unsupported": false,
+            "principal_kind": "",
+            "principal_partition": "aws",
+            "principal_value": "",
+            "region": "us-east-1"
+          }
+        }
+      ]
+    }
+  ]
+}

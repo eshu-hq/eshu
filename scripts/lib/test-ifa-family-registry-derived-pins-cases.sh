@@ -105,6 +105,9 @@ IFA_FAMILY_PINS_NAMES=(
 	incident_routing_evidence
 	publishes
 	grants_secret_read
+	security_group_sg_rule
+	security_group_rule_endpoint
+	s3_external_principal_grant
 )
 
 ifa_family_registry_pins_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/ifa_family_registry_pins"

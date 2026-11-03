@@ -184,6 +184,25 @@ IFA_FAULT_ALL_CELLS=(
 	cell_baseline_publishes
 	cell_killworker_publishes
 	cell_failgraphwrite_publishes
+	# security_group_sg_rule + security_group_rule_endpoint (#6228
+	# secgroup-pair live leaf): the pair's two trios -- the sg_rule
+	# handler-stage kill trio plus the rule_endpoint per-statement-hold
+	# trio (first-landed owns the handler wait, second takes the seam).
+	# Each baseline writes its own digests[baseline_<family>], so each trio
+	# must stay co-located -- see IFA_FAULT_ATOMIC_GROUPS below.
+	cell_baseline_security_group_sg_rule
+	cell_killworker_security_group_sg_rule
+	cell_failgraphwrite_security_group_sg_rule
+	cell_baseline_security_group_rule_endpoint
+	cell_killworker_security_group_rule_endpoint
+	cell_failgraphwrite_security_group_rule_endpoint
+	# s3_external_principal_grant (#6228 s3-grant live leaf): standard
+	# handler-stage kill trio. Its baseline writes
+	# digests[baseline_s3_external_principal_grant], so the trio must stay
+	# co-located -- see IFA_FAULT_ATOMIC_GROUPS below.
+	cell_baseline_s3_external_principal_grant
+	cell_killworker_s3_external_principal_grant
+	cell_failgraphwrite_s3_external_principal_grant
 	# grants_secret_read (#6228 remainder + #8539 seam): nineteenth
 	# direct-materialization family in this gate, full trio -- baseline
 	# plus the family's own MERGE-anchored graph-write recovery cell plus
@@ -270,6 +289,9 @@ IFA_FAULT_ATOMIC_GROUPS=(
 	"cell_baseline_observability_coverage cell_killworker_observability_coverage cell_failgraphwrite_observability_coverage"
 	"cell_baseline_incident_routing_evidence cell_killworker_incident_routing_evidence cell_failgraphwrite_incident_routing_evidence"
 	"cell_baseline_publishes cell_killworker_publishes cell_failgraphwrite_publishes"
+	"cell_baseline_security_group_sg_rule cell_killworker_security_group_sg_rule cell_failgraphwrite_security_group_sg_rule"
+	"cell_baseline_security_group_rule_endpoint cell_killworker_security_group_rule_endpoint cell_failgraphwrite_security_group_rule_endpoint"
+	"cell_baseline_s3_external_principal_grant cell_killworker_s3_external_principal_grant cell_failgraphwrite_s3_external_principal_grant"
 	"cell_baseline_grants_secret_read cell_kill_grants_secret_read cell_failgraphwrite_grants_secret_read"
 	"cell_baseline_semantic_entity_containment cell_killworker_semantic_entity_containment cell_failgraphwrite_semantic_entity_containment"
 	"cell_baseline_inheritance cell_killworker_inheritance cell_failgraphwrite_inheritance"

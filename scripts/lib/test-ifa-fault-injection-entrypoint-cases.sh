@@ -14,6 +14,7 @@ run_ifa_fault_entrypoint_static_cases() {
 	# Strict mode, self-cleanup, and the masking-safe bash>=4.4 guard.
 	require_line "strict mode" "set -euo pipefail"
 	require_code "exit trap" "trap cleanup EXIT"
+	require_code "sources cleanup lib" "scripts/lib/ifa_fault_injection_cleanup.sh"
 	require_code "bash>=4.4 guard (masking-safe)" "requires bash >= 4.4"
 	require_code "sources determinism lib" "scripts/lib/ifa_determinism_common.sh"
 	require_code "sources fault-injection lib" "scripts/lib/ifa_fault_injection_common.sh"
@@ -52,13 +53,13 @@ run_ifa_fault_entrypoint_static_cases() {
 	# reading the prose against the current roster. Pin the non-enumerating
 	# framing instead, which cannot go stale by construction.
 	require "gate overview does not claim an exhaustive per-family cassette list" "deliberately not enumerated by name here"
-	require_code "failure log dump" "host binary logs (failure)"
+	require_cleanup_lib "failure log dump" "host binary logs (failure)"
 	# The container-log tail alone cannot name a dead-lettered row: its
 	# failure_message lives only in Postgres, and one real CI failure spent
 	# all 60 tail lines on INFO chatter. Pin the durable dump and its
 	# failure_message column so neither can be dropped silently.
-	require_code "durable work-item failure dump" "durable work-item failures (Postgres)"
-	require_code "durable dump selects failure_message" "failure_class, failure_message FROM fact_work_items"
+	require_cleanup_lib "durable work-item failure dump" "durable work-item failures (Postgres)"
+	require_cleanup_lib "durable dump selects failure_message" "failure_class, failure_message FROM fact_work_items"
 	# Pinned against the PARSER in the shard lib, not the gate's usage text.
 	# Both previously matched only the `printf` usage block, so the flags could
 	# have been dropped from the case statement with the mirror green -- and
@@ -141,6 +142,7 @@ run_ifa_fault_cell_catalog_cases() {
 			kill_uses_vault_policy) label="kill-statement-hold-uses-vault-policy" ;;
 			kill_grants_secret_read) label="kill-statement-hold-grants-secret-read" ;;
 			killworker_derived_from) label="kill-statement-hold-derived-from" ;;
+			killworker_security_group_rule_endpoint) label="kill-statement-hold-security-group-rule-endpoint" ;;
 			killworker_handles_route|killworker_runs_in|killworker_invokes_cloud_action)
 				rest="${cell#killworker_}"; label="kill-worker-after-runner-lease-wait-${rest//_/-}" ;;
 			killworker_*) rest="${cell#killworker_}"; label="kill-worker-after-claim-${rest//_/-}" ;;

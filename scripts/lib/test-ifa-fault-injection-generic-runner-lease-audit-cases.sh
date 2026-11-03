@@ -94,7 +94,7 @@ test_ifa_runner_lease_hold_durable_reclaim_is_expiry_fenced() (
 	[[ "${cell_source}" == *'ifa_fault_release_runner_lease_hold "${cell}" "${family}" "${holder_before}"'*'ifa_fault_capture_runner_partition_leases "${cell}" "${family}" "${reducer_before}"'* ]] \
 		|| fail "symbol-runtime runner cell does not release the holder before capturing the killed waiter's committed durable lease"
 	[[ "${cell_source}" != *'holder_after'* ]] || fail "replacement runner is hidden behind a second advisory holder instead of exercising the durable lease fence"
-	[[ "$(<"${repo_root}/scripts/verify-ifa-fault-injection.sh")" == *'ifa_fault_cleanup_runner_lease_audit'* ]] \
+	[[ "$(<"${repo_root}/scripts/lib/ifa_fault_injection_cleanup.sh")" == *'ifa_fault_cleanup_runner_lease_audit'* ]] \
 		|| fail "top-level EXIT cleanup does not remove a caller-owned runner lease audit"
 )
 

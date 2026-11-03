@@ -125,9 +125,9 @@ test_ifa_fault_failure_artifact_contract() {
 	[[ "${verify_line}" -lt "${upload_line}" && "${upload_line}" -lt "${teardown_line}" ]] \
 		|| fail "diagnostic verify/upload/teardown ordering is unsafe"
 
-	rg --fixed-strings --quiet -- 'ifa_fault_capture_failure_preserving_status "${status}"' "${script}" \
+	rg --fixed-strings --quiet -- 'ifa_fault_capture_failure_preserving_status "${status}"' "${cleanup_lib}" \
 		|| fail "cleanup does not use the executable exit-status-preservation seam"
-	rg --fixed-strings --quiet -- '"${use_compose:-0}" "${ESHU_POSTGRES_DSN:-}" "${bin_dir:-}"' "${script}" \
+	rg --fixed-strings --quiet -- '"${use_compose:-0}" "${ESHU_POSTGRES_DSN:-}" "${bin_dir:-}"' "${cleanup_lib}" \
 		|| fail "cleanup does not pass the built graph-dump binary to failure diagnostics"
 	rg --fixed-strings --quiet -- 'bash scripts/ci/compose.sh -p "${compose_project}" -f "${compose_file}" -- logs --no-color' "${diagnostics_lib}" \
 		|| fail "failure diagnostics do not retain complete Compose service logs"

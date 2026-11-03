@@ -197,21 +197,30 @@ than there are entries here.
 88. baseline-semantic-entity-containment (#6228 semantic_entity_containment live drive) -- family-scoped fault-free baseline; twentieth direct-materialization family in this gate.
 89. kill-worker-after-claim-semantic-entity-containment (#6228 semantic_entity_containment live drive) -- lease reclaim proof.
 90. fail-graph-write-once-then-succeed-semantic-entity-containment (#6228 semantic_entity_containment live drive) -- CONTAINS retry proof.
-91. baseline-inheritance (#5996) -- family-scoped fault-free baseline.
-92. kill-worker-after-claim-inheritance (#5996) -- lease reclaim proof.
-93. fail-graph-write-once-then-succeed-inheritance (#5996) -- retry proof.
-94. baseline-shell-exec (#6001) -- family-scoped fault-free baseline.
-95. kill-worker-after-claim-shell-exec (#6001) -- lease reclaim proof.
-96. fail-graph-write-once-then-succeed-shell-exec (#6001) -- retry proof.
-97. baseline-workload-dependency (#6003) -- family-scoped fault-free baseline.
-98. kill-worker-after-claim-workload-dependency (#6003) -- lease reclaim proof.
-99. fail-graph-write-once-then-succeed-workload-dependency (#6003) -- retry proof.
-100. baseline-symbol-runtime (#5995/#6000/#5997) -- ONE baseline shared by
+91. baseline-security-group-sg-rule (#6228 secgroup-pair live leaf) -- family-scoped fault-free baseline; twenty-first direct-materialization family in this gate. First-landed of the pair: owns the handler-stage wait on security_group_reachability_materialization (table_lock:fact_records with the triple readiness banked before the lock).
+92. kill-worker-after-claim-security-group-sg-rule (#6228 secgroup-pair live leaf) -- lease reclaim proof.
+93. fail-graph-write-once-then-succeed-security-group-sg-rule (#6228 secgroup-pair live leaf) -- ALLOWS_* retry proof.
+94. baseline-security-group-rule-endpoint (#6228 secgroup-pair live leaf) -- family-scoped fault-free baseline; twenty-second direct-materialization family in this gate. Second of the pair: the sg_rule row owns the handler wait by first-landed tie-break, so this trio takes the per-statement seam (entry 92) instead of borrowing the shared handler wait.
+95. kill-statement-hold-security-group-rule-endpoint (#6228 secgroup-pair live leaf) -- per-statement hold kill/reclaim proof: the hold decorator parks the worker inside the family's own TO MERGE (post-retract, post-node-write, post-SG-edge-write), the cell rendezvouses on the claimed work item plus the hold marker, kill -9 lands while held, the replacement reducer restarts unfaulted, and the full five-edge set converges with zero dead letters against the entry 91 baseline digest.
+96. fail-graph-write-once-then-succeed-security-group-rule-endpoint (#6228 secgroup-pair live leaf) -- TO retry proof.
+97. baseline-s3-external-principal-grant (#6228 s3-grant live leaf) -- family-scoped fault-free baseline; twenty-third direct-materialization family in this gate.
+98. kill-worker-after-claim-s3-external-principal-grant (#6228 s3-grant live leaf) -- lease reclaim proof.
+99. fail-graph-write-once-then-succeed-s3-external-principal-grant (#6228 s3-grant live leaf) -- GRANTS_ACCESS_TO retry proof.
+100. baseline-inheritance (#5996) -- family-scoped fault-free baseline.
+101. kill-worker-after-claim-inheritance (#5996) -- lease reclaim proof.
+102. fail-graph-write-once-then-succeed-inheritance (#5996) -- retry proof.
+103. baseline-shell-exec (#6001) -- family-scoped fault-free baseline.
+104. kill-worker-after-claim-shell-exec (#6001) -- lease reclaim proof.
+105. fail-graph-write-once-then-succeed-shell-exec (#6001) -- retry proof.
+106. baseline-workload-dependency (#6003) -- family-scoped fault-free baseline.
+107. kill-worker-after-claim-workload-dependency (#6003) -- lease reclaim proof.
+108. fail-graph-write-once-then-succeed-workload-dependency (#6003) -- retry proof.
+109. baseline-symbol-runtime (#5995/#6000/#5997) -- ONE baseline shared by
    handles_route/runs_in/invokes_cloud_action; no kill-worker cell (ifa_fault_injection_symbol_runtime_cells.sh's header explains why).
-101. fail-graph-write-once-then-succeed-handles-route (#5995) -- HANDLES_ROUTE retry proof.
-102. fail-graph-write-once-then-succeed-runs-in (#6000) -- RUNS_IN retry proof.
-103. fail-graph-write-once-then-succeed-invokes-cloud-action (#5997) -- INVOKES_CLOUD_ACTION retry proof.
+110. fail-graph-write-once-then-succeed-handles-route (#5995) -- HANDLES_ROUTE retry proof.
+111. fail-graph-write-once-then-succeed-runs-in (#6000) -- RUNS_IN retry proof.
+112. fail-graph-write-once-then-succeed-invokes-cloud-action (#5997) -- INVOKES_CLOUD_ACTION retry proof.
 
-104. kill-worker-after-runner-lease-wait-handles-route (#6208) -- exact-key reclaim proof.
-105. kill-worker-after-runner-lease-wait-runs-in (#6208) -- exact-key reclaim proof.
-106. kill-worker-after-runner-lease-wait-invokes-cloud-action (#6208) -- exact-key reclaim proof.
+113. kill-worker-after-runner-lease-wait-handles-route (#6208) -- exact-key reclaim proof.
+114. kill-worker-after-runner-lease-wait-runs-in (#6208) -- exact-key reclaim proof.
+115. kill-worker-after-runner-lease-wait-invokes-cloud-action (#6208) -- exact-key reclaim proof.

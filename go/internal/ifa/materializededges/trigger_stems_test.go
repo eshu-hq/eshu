@@ -176,6 +176,28 @@ var materializedEdgeFamilyTriggerStems = map[string]string{
 	// (scripts/lib/ifa_fault_injection_semantic_entity_containment_cells.sh),
 	// the fault cases file, and the Odù the triggers name.
 	"semantic_entity_containment": "semantic_entity_containment",
+	// security_group_sg_rule joins them with the #6228
+	// security_group_sg_rule live leaf: the family-name stem, read off
+	// the per-family fault cells file
+	// (scripts/lib/ifa_fault_injection_security_group_sg_rule_cells.sh)
+	// named in both gate blocks, alongside the shared reachability Odù
+	// and the shared securitygroup cassette.
+	"security_group_sg_rule": "security_group_sg_rule",
+	// security_group_rule_endpoint joins them with the #6228
+	// security_group_rule_endpoint live leaf: the family-name stem, read
+	// off the per-family fault cells file
+	// (scripts/lib/ifa_fault_injection_security_group_rule_endpoint_cells.sh)
+	// named in both gate blocks, alongside the shared reachability Odù
+	// and the shared securitygroup cassette.
+	"security_group_rule_endpoint": "security_group_rule_endpoint",
+	// s3_external_principal_grant joins them with the #6228
+	// s3_external_principal_grant live leaf: the family-name stem, read
+	// off the family Odù
+	// (go/internal/ifa/familyodu/s3_external_principal_grant_family_odu.go)
+	// and the per-family fault cells file
+	// (scripts/lib/ifa_fault_injection_s3_external_principal_grant_cells.sh),
+	// both named in both gate blocks.
+	"s3_external_principal_grant": "s3_external_principal_grant",
 }
 
 // TestEveryCoveredFamilyTriggersBothLiveGates closes the third side of the

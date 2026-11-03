@@ -97,3 +97,26 @@ ifa_live_gate_common_seams+=(
 	'go/internal/ifa/testdata/publishes/**|go/internal/ifa/testdata/publishes/ifa-publishes-family-expected-edges.json'
 	'scripts/lib/ifa_fault_injection_publishes_cells.sh|scripts/lib/ifa_fault_injection_publishes_cells.sh'
 )
+# security_group_sg_rule + security_group_rule_endpoint (#6228 secgroup-pair
+# live leaf): writer, ONE shared cassette, TWO expected-edge sets, and TWO
+# cell files are new common seams beside the siblings; the Odù stays in the
+# determinism-only table (the fault cells drive the committed cassette JSON,
+# never the Odù source).
+ifa_live_gate_common_seams+=(
+	'go/internal/storage/cypher/cloud/aws/security/group/security_reachability_edge_writer.go|go/internal/storage/cypher/cloud/aws/security/group/security_reachability_edge_writer.go'
+	'testdata/cassettes/securitygroup/**|testdata/cassettes/securitygroup/ifa-security-group-reachability-family.json'
+	'go/internal/ifa/testdata/securitygroup/**|go/internal/ifa/testdata/securitygroup/ifa-security-group-sg-rule-family-expected-edges.json'
+	'go/internal/ifa/testdata/securitygroup/**|go/internal/ifa/testdata/securitygroup/ifa-security-group-rule-endpoint-family-expected-edges.json'
+	'scripts/lib/ifa_fault_injection_security_group_sg_rule_cells.sh|scripts/lib/ifa_fault_injection_security_group_sg_rule_cells.sh'
+	'scripts/lib/ifa_fault_injection_security_group_rule_endpoint_cells.sh|scripts/lib/ifa_fault_injection_security_group_rule_endpoint_cells.sh'
+)
+# s3_external_principal_grant (#6228 s3-grant live leaf): writer, cassette,
+# expected-edge set, and cells are new common seams beside the siblings;
+# the Odù stays in the determinism-only table (the fault cells drive the
+# committed cassette JSON, never the Odù source).
+ifa_live_gate_common_seams+=(
+	'go/internal/storage/cypher/cloud/aws/s3/external_principal_grant_writer.go|go/internal/storage/cypher/cloud/aws/s3/external_principal_grant_writer.go'
+	'testdata/cassettes/s3grant/**|testdata/cassettes/s3grant/ifa-s3-external-principal-grant-family.json'
+	'go/internal/ifa/testdata/s3grant/**|go/internal/ifa/testdata/s3grant/ifa-s3-external-principal-grant-family-expected-edges.json'
+	'scripts/lib/ifa_fault_injection_s3_external_principal_grant_cells.sh|scripts/lib/ifa_fault_injection_s3_external_principal_grant_cells.sh'
+)

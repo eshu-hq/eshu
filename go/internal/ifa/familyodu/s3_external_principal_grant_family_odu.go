@@ -162,8 +162,8 @@ var s3ExternalPrincipalGrantFamilyGrants = []s3ExternalPrincipalGrantFamilyGrant
 		// EDGE: cross-account grant on a name-keyed bucket.
 		BucketName:         s3ExternalPrincipalGrantFamilyOrdersBucket,
 		PrincipalKind:      "aws_account",
-		PrincipalValue:     "222233334444",
-		PrincipalAccountID: strPtr("222233334444"),
+		PrincipalValue:     "222222222222",
+		PrincipalAccountID: strPtr("222222222222"),
 		GrantOutcome:       "cross_account",
 		IsCrossAccount:     true,
 	},
@@ -180,8 +180,8 @@ var s3ExternalPrincipalGrantFamilyGrants = []s3ExternalPrincipalGrantFamilyGrant
 		// EDGE: service-principal grant.
 		BucketName:         s3ExternalPrincipalGrantFamilySharedBucket,
 		PrincipalKind:      "aws_service",
-		PrincipalValue:     "logging.s3.amazonaws.com",
-		PrincipalService:   strPtr("logging.s3.amazonaws.com"),
+		PrincipalValue:     "logging-s3.amazonaws.com",
+		PrincipalService:   strPtr("logging-s3.amazonaws.com"),
 		GrantOutcome:       "service_delivery",
 		IsServicePrincipal: true,
 	},
@@ -190,8 +190,8 @@ var s3ExternalPrincipalGrantFamilyGrants = []s3ExternalPrincipalGrantFamilyGrant
 		// ARN tail and joins shared-reads.
 		BucketName:         "",
 		PrincipalKind:      "aws_account",
-		PrincipalValue:     "333344445555",
-		PrincipalAccountID: strPtr("333344445555"),
+		PrincipalValue:     "333333333333",
+		PrincipalAccountID: strPtr("333333333333"),
 		GrantOutcome:       "cross_account",
 		IsCrossAccount:     true,
 	},
@@ -200,7 +200,7 @@ var s3ExternalPrincipalGrantFamilyGrants = []s3ExternalPrincipalGrantFamilyGrant
 		// conservative skip.
 		BucketName:     s3ExternalPrincipalGrantFamilyGhostBucket,
 		PrincipalKind:  "aws_account",
-		PrincipalValue: "444455556666",
+		PrincipalValue: "444444444444",
 		GrantOutcome:   "cross_account",
 		IsCrossAccount: true,
 	},
