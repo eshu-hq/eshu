@@ -528,8 +528,12 @@ coverage:
   # hold and fail-graph-write recovery, all asserting the five-edge TO
   # exact set with identical graph digests (#6228
   # security_group_rule_endpoint live leaf). Each rule-target pair
-  # resolves by cloud_resource_uid only; the writer MATCHes the target
-  # label, so the uid-only assert loses no coverage.
+  # resolves to its kind's uid — the CidrBlock uid (address family plus
+  # canonical CIDR), the account-scoped PrefixList uid, or the referenced
+  # group's CloudResource uid; the writer MATCHes the target label, and
+  # the hermetic guard binds each row's label to its per-rule expectation
+  # alongside the uid comparison, with the writer's MATCH no-op as the
+  # live backstop.
   - surface: "materialized_edges:security_group_rule_endpoint"
     scenario: odu
     scenario_type: baseline
