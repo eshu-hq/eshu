@@ -168,3 +168,7 @@ source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_code_interproc
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_code_taint_evidence_cells.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_cloud_resource_cells.sh
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_cloud_resource_cells.sh"
+# shellcheck source=scripts/lib/ifa_fault_injection_kubernetes_correlation_cells.sh
+source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_kubernetes_correlation_cells.sh"
+# shellcheck source=scripts/lib/ifa_fault_injection_workload_cloud_relationship_cells.sh
+source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_workload_cloud_relationship_cells.sh"

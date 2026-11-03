@@ -395,7 +395,9 @@ run_ifa_fault_injection_repo_dependency_cases() {
 	# semantic_entity_containment live drive adds the
 	# semantic_entity_containment trio, the #6228 secgroup
 	# live leaf adds the security_group_sg_rule and
-	# security_group_rule_endpoint trios, and the #6228 s3grant live
-	# leaf adds the s3_external_principal_grant trio.
-	[[ "$("${script}" --list-cells | wc -l | tr -d '[:space:]')" == 115 ]] || return 1
+	# security_group_rule_endpoint trios, the #6228 s3grant live
+	# leaf adds the s3_external_principal_grant trio, and the #6228
+	# fault trios add the kubernetes_correlation trio and the
+	# workload_cloud_relationship trio.
+	[[ "$("${script}" --list-cells | wc -l | tr -d '[:space:]')" == 121 ]] || return 1
 }

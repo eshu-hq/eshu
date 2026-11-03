@@ -111,3 +111,34 @@ No-Observability-Change: no new spans, metrics, logs, or status surface.
 The slice wires an existing writer, existing fact kinds, and existing gate
 machinery. The determinism gate's existing PASS/FAIL lines cover the new
 asserts.
+
+## Fault trio (#6228, 2026-11-02)
+
+Catalog entries 116-118; cells in
+`scripts/lib/ifa_fault_injection_kubernetes_correlation_cells.sh`;
+hermetic lock/readiness cases in
+`scripts/lib/test-ifa-fault-injection-kubernetes-correlation-cases.sh`.
+The kill cell banks claim readiness first: this domain's claim is gated on
+the canonical_nodes_committed/kubernetes_workload_uid phase published by the
+kubernetes_workload_materialization reducer during Handle (which reads
+fact_records), so a prereq-scoped kubernetes_workload_materialization
+reducer runs until the exact acceptance unit is banked, and only then does
+the ACCESS EXCLUSIVE fact_records lock go on.
+
+Live proof (own stack eshu-ifa-fault-k8sworkload, PG 15643, shard 7/8,
+2026-11-03, `verify-ifa-fault-injection.sh` exit 0, PASS line in
+/tmp/live-6228-shard7.log):
+
+- baseline_kubernetes_correlation: digest
+  1addc438ae9ec9d0da8b13d840b59fca52ee19426832f7734053bdf1cc52a2e6 (18s)
+- killworker_kubernetes_correlation: 1 blocked claimed/running row observed,
+  digest 1addc438ae9ec9d0da8b13d840b59fca52ee19426832f7734053bdf1cc52a2e6
+  (98s) -- byte-identical to baseline
+- failgraphwrite_kubernetes_correlation: once-fired marker names the
+  targeted RUNS_IMAGE MERGE, digest
+  1addc438ae9ec9d0da8b13d840b59fca52ee19426832f7734053bdf1cc52a2e6 (85s)
+  -- byte-identical to baseline
+
+Defect class gated: recovery replay diverging from the baseline digest.
+Registry row 20 flips LiveProven in the same change; both ledger rows
+(ifa-determinism, ifa-fault-injection) convert waiver to coverage.

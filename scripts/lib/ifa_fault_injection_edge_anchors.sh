@@ -246,3 +246,21 @@ documentation_edge_operation_match="MERGE (section)-[rel:DOCUMENTS]->(target)"
 # clause text -- a fixed, grep-stable substring, same rationale as
 # cloud_resource_operation_match above. Byte-exact copy of that file's line 9.
 deployable_unit_edge_operation_match="MERGE (source_repo)-[rel:CORRELATES_DEPLOYABLE_UNIT]->(deployment_repo)"
+# The RUNS_IMAGE MERGE anchor cell_failgraphwrite_kubernetes_correlation
+# (#6228 fault trio) targets:
+# go/internal/storage/cypher/edge/writer/kubernetes_correlation.go:56 emits
+# MERGE (w)-[rel:RUNS_IMAGE]->(img), a static token kept out of the MERGE
+# property map, so the anchor carries the literal. A `%s` form would match no
+# executed statement and the fault would never fire. It is NOT
+# KUBERNETES_CORRELATION, which is statement metadata beside the query that
+# never reaches the graph.
+kubernetes_correlation_edge_operation_match="MERGE (w)-[rel:RUNS_IMAGE]->(img)"
+# The USES MERGE anchor cell_failgraphwrite_workload_cloud_relationship
+# (#6228 fault trio) targets:
+# go/internal/storage/cypher/cloud/aws/relationship/workload_cloud_writer.go:25
+# emits MERGE (instance)-[rel:%s]->(resource), filled from the closed
+# single-member workloadCloudRelationshipVocabulary, so the anchor carries the
+# INTERPOLATED type. A literal %s would match no executed statement and the
+# fault would never fire. It is NOT WORKLOAD_USES_CLOUD_RESOURCE, which is
+# statement metadata beside the query that never reaches the graph.
+workload_cloud_relationship_edge_operation_match="MERGE (instance)-[rel:USES]->(resource)"

@@ -186,6 +186,8 @@ ifa:
   - 'testdata/cassettes/publishes/**'
   - 'testdata/cassettes/securitygroup/**'
   - 'testdata/cassettes/s3grant/**'
+  - 'testdata/cassettes/kubernetescorrelation/**'
+  - 'testdata/cassettes/workloadcloudrelationship/**'
   - 'testdata/cassettes/shellexec/**'
   - 'testdata/cassettes/submodulepin/**'
   - 'testdata/cassettes/workloaddependency/**'

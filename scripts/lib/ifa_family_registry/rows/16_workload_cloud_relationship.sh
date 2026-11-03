@@ -5,12 +5,13 @@
 # the schema and every array declaration this file assigns into. Read
 # rows/13_iam_instance_profile_role.sh's header first -- it explains what
 # a DIRECT-materialization family is and which blocker kinds are unavailable to
-# one. This row carries NO fault cells yet: the determinism gate drives it
-# through the shared N={1,2,4} cell below, and the fault-injection area stays
-# untouched (cell_kind=custom is rejected by the generic dispatchers, and no
-# custom cell file exists, so the fault gate never dispatches this family).
+# one. This row carries fault cells since the #6228 fault trio (custom
+# dispatch): the determinism gate drives it through the shared N={1,2,4} cell
+# below, and the fault gate dispatches its baseline/kill-worker/
+# fail-graph-write trio from
+# scripts/lib/ifa_fault_injection_workload_cloud_relationship_cells.sh.
 
-# Hand-derived, and non-vacuous once the determinism gate drives it:
+# Hand-derived, and non-vacuous now a fault cell exists:
 # WorkloadCloudRelationshipMaterializationHandler embeds `FactLoader
 # FactLoader`
 # (go/internal/reducer/workload_cloud_relationship_materialization.go:58)
@@ -53,10 +54,10 @@ IFA_FAMILY_EXPECTED_VAR[workload_cloud_relationship]="workload_cloud_relationshi
 # workloadCloudRelationshipEdgeLabel const (:13), statement metadata carried
 # beside the query that never reaches the graph.
 IFA_FAMILY_ANCHOR[workload_cloud_relationship]="MERGE (instance)-[rel:USES]->(resource)"
-# custom, prospectively: no fault cell file exists for this family yet, and the
-# generic public dispatchers reject `cell_kind=custom`, so the fault gate
-# cannot dispatch it by accident. Flip only with a proven fault cell, never to
-# generic without the lifecycle the generic header demands.
+# custom, same dispatch shape as rows/12-14: hand-written cells, dispatched by
+# name. The generic table_lock path has never run live and its mandatory
+# precondition assumes a `domain` column fact_records does not have
+# (scripts/lib/ifa_fault_generic_table_lock.sh's header).
 IFA_FAMILY_CELL_KIND[workload_cloud_relationship]="custom"
 
 # Not a shared_intent_lock family, so no retry baseline is required. Declared

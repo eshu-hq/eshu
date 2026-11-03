@@ -120,3 +120,36 @@ testdata/cassettes/workloadcloudrelationship/ fixture is an Ifa
 family-matrix input, not a live-collector cassette the B-7 gate replays;
 binding proof is the cassette<->Odu lockstep test, the vacuity guard, and
 the CI determinism-matrix + corpus-gate jobs (green at head).
+
+## Fault trio (#6228, 2026-11-02)
+
+Catalog entries 119-121; cells in
+`scripts/lib/ifa_fault_injection_workload_cloud_relationship_cells.sh`;
+hermetic lock/readiness cases in
+`scripts/lib/test-ifa-fault-injection-workload-cloud-relationship-cases.sh`.
+The kill cell banks claim readiness first: this domain's claim is gated on
+the canonical_nodes_committed/cloud_resource_uid phase published by the
+aws_resource_materialization reducer during Handle (which reads
+fact_records), so a prereq-scoped aws_resource_materialization reducer runs
+until the exact acceptance unit is banked, and only then does the ACCESS
+EXCLUSIVE fact_records lock go on. Same keyspace the iam_can_assume trio
+banks.
+
+Live proof (own stack eshu-ifa-fault-k8sworkload, PG 15643, shard 4/8,
+2026-11-03, `verify-ifa-fault-injection.sh` exit 0, PASS line in
+/tmp/live-6228-shard4.log):
+
+- baseline_workload_cloud_relationship: digest
+  715f98fa55c45e953ba2d0748310560c93f8036999e97b69c0caeae74253c896 (83s)
+- killworker_workload_cloud_relationship: 1 blocked claimed/running row
+  observed, digest
+  715f98fa55c45e953ba2d0748310560c93f8036999e97b69c0caeae74253c896 (127s)
+  -- byte-identical to baseline
+- failgraphwrite_workload_cloud_relationship: once-fired marker names the
+  targeted USES MERGE, digest
+  715f98fa55c45e953ba2d0748310560c93f8036999e97b69c0caeae74253c896 (135s)
+  -- byte-identical to baseline
+
+Defect class gated: recovery replay diverging from the baseline digest.
+Registry row 16 flips LiveProven in the same change; both ledger rows
+(ifa-determinism, ifa-fault-injection) convert waiver to coverage.
