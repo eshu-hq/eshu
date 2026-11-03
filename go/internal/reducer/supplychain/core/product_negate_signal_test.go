@@ -97,15 +97,15 @@ func TestBuildAuthorizedImpactFindingsKeepsNegatedExclusionCount(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, _, excluded, err := buildAuthorizedSupplyChainImpactFindings(supplyChainImpactLoadedEvidence{
+			_, _, stats, err := buildAuthorizedSupplyChainImpactFindings(supplyChainImpactLoadedEvidence{
 				envelopes:    envelopes,
 				asAuthorized: tc.authorized,
 			})
 			if err != nil {
 				t.Fatalf("buildAuthorizedSupplyChainImpactFindings() error = %v", err)
 			}
-			if excluded != 1 {
-				t.Fatalf("negated products excluded = %d, want 1", excluded)
+			if stats.negatedProductsExcluded != 1 {
+				t.Fatalf("negated products excluded = %d, want 1", stats.negatedProductsExcluded)
 			}
 		})
 	}

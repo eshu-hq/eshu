@@ -320,7 +320,7 @@ func osPackageMatchesAffectedPackage(
 	if pkg.PackageID != "" && pkg.PackageID == installed.PackageID {
 		return true
 	}
-	return pkg.PURL != "" && packageIDFromPURL(pkg.PURL) == installed.PackageID
+	return pkg.PURL != "" && purlPackageKey(pkg.PURL) == installed.PackageID
 }
 
 func supportedOSPackageImpactManager(manager string) bool {

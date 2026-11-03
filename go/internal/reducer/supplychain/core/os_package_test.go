@@ -184,6 +184,11 @@ func TestBuildSupplyChainImpactFindingsUsesVendorAPKOSPackageEvidence(t *testing
 	}
 }
 
+// TestBuildSupplyChainImpactFindingsUsesCollectorShapedOSVDebianAndAPKRanges
+// pins source=osv range facts. An OSV OS fact carries no release evidence, so
+// a version inside its range is possibly_affected with os_release_unverified,
+// never affected_exact (#9848, ruling D); a version at or above the fix stays
+// known fixed.
 func TestBuildSupplyChainImpactFindingsUsesCollectorShapedOSVDebianAndAPKRanges(t *testing.T) {
 	t.Parallel()
 
@@ -216,8 +221,8 @@ func TestBuildSupplyChainImpactFindingsUsesCollectorShapedOSVDebianAndAPKRanges(
 			arch:             "amd64",
 			installedVersion: "3.0.11-1~deb12u2",
 			fixedVersion:     "3.0.11-1~deb12u3",
-			wantStatus:       SupplyChainImpactAffectedExact,
-			wantReason:       "dpkg_affected_range",
+			wantStatus:       SupplyChainImpactPossiblyAffected,
+			wantReason:       supplyChainVersionReasonOSReleaseUnverified,
 			wantProfile:      DetectionProfileComprehensive,
 			wantSource:       "debian",
 		},
@@ -250,8 +255,8 @@ func TestBuildSupplyChainImpactFindingsUsesCollectorShapedOSVDebianAndAPKRanges(
 			arch:             "x86_64",
 			installedVersion: "3.1.4-r5",
 			fixedVersion:     "3.1.4-r6",
-			wantStatus:       SupplyChainImpactAffectedExact,
-			wantReason:       "apk_affected_range",
+			wantStatus:       SupplyChainImpactPossiblyAffected,
+			wantReason:       supplyChainVersionReasonOSReleaseUnverified,
 			wantProfile:      DetectionProfileComprehensive,
 			wantSource:       "alpine",
 		},

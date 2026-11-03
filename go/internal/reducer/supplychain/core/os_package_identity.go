@@ -16,13 +16,34 @@ func affectedOSPackageLookupKeys(pkg supplychainmodel.AffectedPackage) []string 
 	if key := strings.TrimSpace(pkg.PackageID); key != "" {
 		keys = append(keys, key)
 	}
-	if key := packageIDFromPURL(pkg.PURL); key != "" {
+	if key := purlPackageKey(pkg.PURL); key != "" {
 		keys = append(keys, key)
 	}
 	if key := osPackageIdentityFromAffectedPackage(pkg); key != "" {
 		keys = append(keys, key)
 	}
 	return payloadcore.UniqueSortedStrings(keys)
+}
+
+// purlPackageKey returns pkg:<type>/<namespace>/<name> for an advisory purl,
+// with qualifiers, subpath, and any version removed. It is the advisory-side
+// form of the installed key: an installed os_package row is keyed by
+// packageIDFromPURL of its versioned purl (pkg:deb/debian/curl@7.88.1-10?...
+// gives pkg:deb/debian/curl), the same string migration 153's
+// split_part(purl, '@', 1) index serves. OSV publishes OS advisory purls with
+// qualifiers and no version (pkg:deb/debian/curl?arch=source&distro=bookworm),
+// which packageIDFromPURL returns unchanged, so they never met the installed
+// key (#9848). Only the advisory side uses this: changing packageIDFromPURL
+// would move the installed key away from its SQL mirror.
+func purlPackageKey(purl string) string {
+	purl = strings.TrimSpace(purl)
+	if cut := strings.IndexAny(purl, "?#"); cut >= 0 {
+		purl = purl[:cut]
+	}
+	if at := strings.LastIndexByte(purl, '@'); at > strings.LastIndexByte(purl, '/') {
+		purl = purl[:at]
+	}
+	return purl
 }
 
 func classifyAffectedPackageAdvisorySource(pkg supplychainmodel.AffectedPackage) string {

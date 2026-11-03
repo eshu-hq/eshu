@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"strings"
 	"time"
 
@@ -206,13 +207,18 @@ func (loaded supplyChainImpactLoadedEvidence) evidenceEnvelopeCount() int {
 
 func buildAuthorizedSupplyChainImpactFindings(
 	loaded supplyChainImpactLoadedEvidence,
-) ([]SupplyChainImpactFinding, []factdecode.QuarantinedFact, int, error) {
-	staticFindings, quarantined, negatedProductsExcluded, err := buildSupplyChainImpactFindingsAndExclusions(loaded.envelopes)
+) ([]SupplyChainImpactFinding, []factdecode.QuarantinedFact, supplyChainImpactBuildStats, error) {
+	staticFindings, quarantined, stats, err := buildSupplyChainImpactFindingsAndExclusions(loaded.envelopes)
 	if err != nil || loaded.asAuthorized == nil {
-		return staticFindings, quarantined, negatedProductsExcluded, err
+		return staticFindings, quarantined, stats, err
+	}
+	joins := maps.Clone(stats.osAdvisoryJoins)
+	if joins == nil {
+		joins = make(map[osAdvisoryJoinKey]int)
 	}
 	findings, targetQuarantined, err := buildAuthorizedScanImpactFindingsWithQuarantine(
-		staticFindings, loaded.asAuthorized.Targets,
+		staticFindings, loaded.asAuthorized.Targets, joins,
 	)
-	return findings, append(quarantined, targetQuarantined...), negatedProductsExcluded, err
+	stats.osAdvisoryJoins = joins
+	return findings, append(quarantined, targetQuarantined...), stats, err
 }

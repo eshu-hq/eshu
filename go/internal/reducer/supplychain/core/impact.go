@@ -164,7 +164,7 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 	envelopes := loaded.envelopes
 
 	phaseStarted := time.Now()
-	findings, quarantinedVulnerabilityFacts, negatedProductsExcluded, err := buildAuthorizedSupplyChainImpactFindings(loaded)
+	findings, quarantinedVulnerabilityFacts, buildStats, err := buildAuthorizedSupplyChainImpactFindings(loaded)
 	if err != nil {
 		// A non-decode error (transient fact-load or other fatal condition
 		// factdecode.PartitionDecodeFailures did NOT quarantine) fails the whole intent so
@@ -278,7 +278,7 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 	}
 	subSignals["findings_retracted"] = float64(writeResult.FactsRetracted)
 	fanOut.mergeSubSignals(subSignals)
-	subSignals[negatedProductsExcludedSubSignal] = float64(negatedProductsExcluded)
+	h.recordBuildStats(ctx, buildStats, subSignals)
 	subDurations := supplyChainImpactSubDurations(timing)
 	loaded.activeEvidence.mergeInto(subSignals, subDurations)
 	return reducercontract.Result{
@@ -380,16 +380,16 @@ func buildSupplyChainImpactFindingsWithQuarantine(envelopes []facts.Envelope) ([
 }
 
 // buildSupplyChainImpactFindingsAndExclusions is the quarantine-aware builder plus
-// the count of NVD CPE matches the index excluded as negated.
-func buildSupplyChainImpactFindingsAndExclusions(envelopes []facts.Envelope) ([]SupplyChainImpactFinding, []factdecode.QuarantinedFact, int, error) {
+// the pass counts in supplyChainImpactBuildStats (negated CPE matches, OS joins).
+func buildSupplyChainImpactFindingsAndExclusions(envelopes []facts.Envelope) ([]SupplyChainImpactFinding, []factdecode.QuarantinedFact, supplyChainImpactBuildStats, error) {
 	index, quarantined, err := buildSupplyChainImpactIndexWithQuarantine(envelopes)
 	if err != nil {
-		return nil, nil, 0, err
+		return nil, nil, supplyChainImpactBuildStats{}, err
 	}
 	findings := appendSupplyChainImpactIndexFindings(nil, index)
 	findings, securityAlertQuarantined, err := appendSecurityAlertImpactFindings(findings, envelopes, index)
 	if err != nil {
-		return nil, nil, 0, err
+		return nil, nil, supplyChainImpactBuildStats{}, err
 	}
 	// Merge the security-alert decode quarantines with the vulnerability
 	// quarantines so SupplyChainImpactHandler.Handle records every malformed
@@ -398,7 +398,7 @@ func buildSupplyChainImpactFindingsAndExclusions(envelopes []facts.Envelope) ([]
 	// aborts the whole supply_chain_impact generation.
 	quarantined = append(quarantined, securityAlertQuarantined...)
 	findings = coalesceAndSortSupplyChainImpactFindings(findings)
-	return findings, quarantined, index.negatedProductsExcluded, nil
+	return findings, quarantined, supplyChainImpactBuildStats{negatedProductsExcluded: index.negatedProductsExcluded, osAdvisoryJoins: countOSAdvisoryJoins(index)}, nil
 }
 
 func appendSupplyChainImpactFinding(
