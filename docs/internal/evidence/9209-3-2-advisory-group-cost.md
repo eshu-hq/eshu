@@ -2,8 +2,8 @@
 
 Theory proof, measured with a throwaway shim outside the repo. Refs #9209.
 
-**Result: computing advisory groups inside each `supply_chain_impact` run is
-cheap. Cost alone does not force a reducer-owned table. Whether the group id
+**Result: for the query-driven Phases 1 to 3, computing advisory groups inside
+each `supply_chain_impact` run is cheap. Cost alone does not force a reducer-owned table. Whether the group id
 stays stable across runs is a separate, unmeasured question, and it can force
 the table anyway.**
 
@@ -11,14 +11,15 @@ the table anyway.**
 
 - Decision: is in-memory group computation inside each run affordable, or must
   groups be precomputed into a reducer-owned table?
-- Started 2026-11-03T16:54:02-05:00. Deadline 17:54:02-05:00 (60 minutes).
+- Started 2026-11-03T21:54:02Z (16:54:02 EST). Deadline 22:54:02Z (60 minutes).
   Run 1 was discarded for a harness bug (the CVE-only record loop never ran)
   and rerun once. That did not restart the clock.
 - Threshold, set before reading the numbers:
   - group computation under 5% of the per-record decode floor on the same N;
-  - under 1% of any committed whole-pass figure (the one committed figure is
-    3.02 s in `7154-capped-scope-convergence.md`, a single pass over a package
-    with 5,000 installs);
+  - under 1% of any committed whole-pass figure (the only committed whole-pass
+    figure is 3.02 s in `7154-capped-scope-convergence.md`, a synthetic single
+    pass for one package matching 5,000 installs, not an advisory-expansion
+    pass);
   - extra heap under 5% of the 256 MiB retained-payload budget (12.8 MiB).
 - The decode floor is `json.Unmarshal` of a 1.5 KB payload into
   `map[string]any`, once per record. The real run also does SQL, clone, and
@@ -59,6 +60,13 @@ Assumptions the 3.2 implementation must pin, because the plan does not:
   edges. Other records can still alias it.
 - A withdrawn record is skipped for its own edges. Its id is still a node if
   another record aliases it.
+- A deny-listed record, and an alias target on the deny list, is dropped
+  entirely.
+- `upstream` pass-down raises the EPSS and KEV of the distro record's whole
+  group. If that record shares a group with other members, the enrichment
+  reaches them too.
+- One `Compute` per pass. Up to 8 expansion rounds at 2.68 ms (10x) is still
+  about 0.7% of the 3.02 s pass.
 - "Lowest" id is Go byte order, so `CVE-2021-9999` sorts after
   `CVE-2021-10000`. SQL `min()` under a non-C collation can disagree. The
   parity test must pin `COLLATE "C"` or share one Go computation.
@@ -120,8 +128,11 @@ superset.
 | 5x | 80.99 ms | 1.53% | 2.6% |
 | 10x | 167.2 ms | 1.60% | 2.6% |
 
-Against the committed 3.02 s pass, 2.68 ms at 10x is 0.089%. 10x heap is
-1.99 MiB, or 0.78% of the 256 MiB budget.
+Against the committed 3.02 s pass, 2.68 ms at 10x is 0.089%. The 256 MiB
+budget counts raw JSON bytes (`evidence_truncation.go`), while B/op is bytes
+allocated, so the heap percentages below compare unlike units. The error is
+conservative: decoded heap for that budget is far larger than 256 MiB, so the
+true ratios are smaller. 10x allocates 1.99 MiB, or 0.78% of 256 MiB.
 
 ## One runaway cluster (quarantine path)
 
@@ -131,7 +142,7 @@ Against the committed 3.02 s pass, 2.68 ms at 10x is 0.089%. 10x heap is
 | 10,000 records | 1.29 ms | 1.45 MiB | 89 |
 | 100,000 records | 11.69 ms | 12.5 MiB | 649 |
 
-Cost is linear at about 110 to 130 ns per member. The 100,000-member case is
+Cost is linear at about 100 to 130 ns per member. The 100,000-member case is
 0.39% of the committed pass and 4.9% of the payload budget in heap.
 
 ## Verdict
@@ -142,8 +153,9 @@ affordable for the query-driven Phases 1 to 3.
 Conditions that flip it:
 
 - Mirror scale (Phase 5). One pass over the stress row costs 2.5 s and 578 MiB.
-  Eight concurrent workers would hold about 4.5 GiB against the 24 GiB
-  `GOMEMLIMIT`. The shard-scoped runs in plan section 4.4 (about 1,000 records
+  Eight concurrent workers would allocate about 4.5 GiB (allocation, not live
+  heap), against the 24 GiB `GOMEMLIMIT` named in the comment in
+  `evidence_truncation.go`. The shard-scoped runs in plan section 4.4 (about 1,000 records
   per shard) are the 1x row. If those change, redo this proof.
 - Group identity across runs. See the next section.
 
