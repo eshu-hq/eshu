@@ -1,10 +1,9 @@
 # Negative version-part quarantine (#9147)
 
-No-Regression Evidence: `DecodeRuntimeDeclarationVersion` adds one
-allocation-free scan over the three version parts (nil/sign check each) per
-decoded fact; valid facts take the identical projection path as before, so
-there is no new I/O, allocation, lock, or branch in the hot loop beyond three
-integer comparisons. Measured after (`go test -count=1` on this branch):
+No-Regression Evidence: `DecodeRuntimeDeclarationVersion` adds three
+integer comparisons (nil/sign check per version part) per decoded fact; valid
+facts take the identical projection path as before, so there is no new I/O,
+lock, or ordering change in the decode path. Measured after (`go test -count=1` on this branch):
 `reducer/runtime/declaration` 0.005s, `reducer/schemadecode` 0.016s,
 `query/runtime/declaration` 0.008s, all green (no pre-change suite-time
 baseline was taken; the structural bound above is the regression argument).

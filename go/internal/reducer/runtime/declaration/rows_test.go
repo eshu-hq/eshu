@@ -25,9 +25,14 @@ func TestExtractRowsQuarantinesNegativeVersionPart(t *testing.T) {
 		minor *int
 		patch *int
 	}{
-		{name: "major", field: "version_major", major: intPtr(-1), minor: intPtr(2), patch: intPtr(3)},
-		{name: "minor", field: "version_minor", major: intPtr(20), minor: intPtr(-1), patch: intPtr(3)},
-		{name: "patch", field: "version_patch", major: intPtr(20), minor: intPtr(2), patch: intPtr(-1)},
+		{name: "major-sentinel", field: "version_major", major: intPtr(-1), minor: intPtr(2), patch: intPtr(3)},
+		{name: "minor-sentinel", field: "version_minor", major: intPtr(20), minor: intPtr(-1), patch: intPtr(3)},
+		{name: "patch-sentinel", field: "version_patch", major: intPtr(20), minor: intPtr(2), patch: intPtr(-1)},
+		// Non-sentinel negatives exercise the same contract: any present
+		// negative part quarantines, not just the -1 sentinel (#9147).
+		{name: "major-other", field: "version_major", major: intPtr(-2), minor: intPtr(2), patch: intPtr(3)},
+		{name: "minor-other", field: "version_minor", major: intPtr(20), minor: intPtr(-100), patch: intPtr(3)},
+		{name: "patch-other", field: "version_patch", major: intPtr(20), minor: intPtr(2), patch: intPtr(-7)},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
