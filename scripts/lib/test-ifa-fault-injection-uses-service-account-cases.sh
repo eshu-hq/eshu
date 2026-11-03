@@ -2,12 +2,12 @@
 # shellcheck disable=SC1090,SC2034,SC2154,SC2329
 # Dynamic sources and indirect stub calls are the subject of these cases.
 # Focused behavioral regressions for the uses_service_account
-# fault-injection cells (#6228 uses_service_account leaf + #8539 seam:
-# baseline, failgraphwrite, and the per-statement hold kill cell). Trio
-# position TBD-USES: this module is wired into
+# fault-injection cells (#6228 uses_service_account live leaf + #8539 seam:
+# baseline, failgraphwrite, and the per-statement hold kill cell, catalog
+# entries 128-130). This module is wired into
 # scripts/test-verify-ifa-fault-injection.sh so `make pre-pr` proves the
 # helpers hermetically; the gate's source inventory and shard dispatch
-# stay unwired until promotion. Split into its own module for the same
+# are wired at promotion. Split into its own module for the same
 # reason test-ifa-fault-injection-documentation-cases.sh was: the top-level
 # static verifier and the review-case module both sit near the repository's
 # 500-line cap. Sourced by scripts/test-verify-ifa-fault-injection.sh, and

@@ -146,8 +146,10 @@ ifa_assumes_iam_role_assert() {
 
 # ifa_uses_service_account_assert pins the exact set named by its third
 # argument: the two-edge file in per-cell (fault) consumers, the combined
-# live file in the shared N-cell loop once the live leaf lands (trio
-# position TBD-USES). Called twice per cell for the reason recorded on the
+# twelve-edge live file in the shared N-cell loop (the ten sibling-scope
+# edges spill because every exact identity chain with a workload id
+# materializes its own USES_SERVICE_ACCOUNT edge). Called twice per cell
+# for the reason recorded on the
 # namespace assert in ifa_direct_family_live.sh: post-delta is the only
 # place an identical-across-N generation-2 mutation shows up.
 #

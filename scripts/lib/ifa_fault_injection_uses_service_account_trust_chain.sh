@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2034,SC2154
 # Trust-chain stage commit wait for the uses_service_account fault cells
-# (#6228 uses_service_account leaf + #8539 seam). Split out of
+# (#6228 uses_service_account live leaf + #8539 seam). Split out of
 # scripts/lib/ifa_fault_injection_uses_service_account_cells.sh under the
-# repo's 500-line cap; sourced (at promotion -- trio position TBD-USES) by
+# repo's 500-line cap; sourced by
 # scripts/lib/ifa_fault_injection_sources.sh right after that file, and
 # driven under stubs by
 # scripts/lib/test-ifa-fault-injection-uses-service-account-cases.sh.

@@ -269,6 +269,13 @@ IFA_FAULT_ALL_CELLS=(
 	cell_baseline_runtime_declaration
 	cell_killworker_runtime_declaration
 	cell_failgraphwrite_runtime_declaration
+	# uses_service_account (#6228 uses_service_account live leaf):
+	# twenty-eighth direct-materialization family, same trio shape (atomic
+	# group below) except the kill cell holds the USES_SERVICE_ACCOUNT
+	# MERGE at the per-statement hold seam (#8539).
+	cell_baseline_uses_service_account
+	cell_kill_uses_service_account
+	cell_failgraphwrite_uses_service_account
 )
 
 # Co-location constraints -- see "INPUT DATA VS. PARTITION ALGORITHM" above.
@@ -316,6 +323,7 @@ IFA_FAULT_ATOMIC_GROUPS=(
 	"cell_baseline_incident_routing_evidence cell_killworker_incident_routing_evidence cell_failgraphwrite_incident_routing_evidence"
 	"cell_baseline_publishes cell_killworker_publishes cell_failgraphwrite_publishes"
 	"cell_baseline_runtime_declaration cell_killworker_runtime_declaration cell_failgraphwrite_runtime_declaration"
+	"cell_baseline_uses_service_account cell_kill_uses_service_account cell_failgraphwrite_uses_service_account"
 	"cell_baseline_security_group_sg_rule cell_killworker_security_group_sg_rule cell_failgraphwrite_security_group_sg_rule"
 	"cell_baseline_security_group_rule_endpoint cell_killworker_security_group_rule_endpoint cell_failgraphwrite_security_group_rule_endpoint"
 	"cell_baseline_s3_external_principal_grant cell_killworker_s3_external_principal_grant cell_failgraphwrite_s3_external_principal_grant"

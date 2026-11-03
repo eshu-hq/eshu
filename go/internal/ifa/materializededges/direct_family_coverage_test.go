@@ -176,9 +176,10 @@ var guardedDirectMaterializedEdgeFamilies = []guardedDirectFamily{
 		LiveProven: true,
 	},
 	{
-		Family:    usesServiceAccountFamily,
-		OduName:   ifa.UsesServiceAccountFamilyOduName,
-		EdgeTypes: []string{"SECRETS_IAM_USES_SERVICE_ACCOUNT"},
+		Family:     usesServiceAccountFamily,
+		OduName:    ifa.UsesServiceAccountFamilyOduName,
+		EdgeTypes:  []string{"SECRETS_IAM_USES_SERVICE_ACCOUNT"},
+		LiveProven: true,
 	},
 	{
 		Family:     assumesIAMRoleFamily,

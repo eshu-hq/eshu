@@ -12,17 +12,19 @@
 # the projection stage starts, or the projection claims an empty generation,
 # succeeds vacuously, and never re-runs.
 #
-# TRIO POSITION TBD-USES (orchestrator numbering hold, 2026-11-03): this file
-# is built but NOT wired -- no source line in
-# scripts/lib/ifa_fault_injection_sources.sh, no shard dispatch in
-# scripts/lib/ifa_fault_shard_cells.sh, no row in
-# scripts/lib/ifa_family_registry/rows/, no pins entry, no census update.
-# The runtime leaf merges first and takes its catalog positions; this
-# trio's shard slot, registry ordinal, and census counts settle at promotion
-# after that merge. Until then the three cells below are proven only by the
-# stub cases in
-# scripts/lib/test-ifa-fault-injection-uses-service-account-cases.sh, never
-# by a live matrix.
+# TRIO POSITION 128-130 (fault-cell catalog entries; dispatched after the
+# runtime_declaration trio, by gate order): this file is wired -- source
+# lines in scripts/lib/ifa_fault_injection_sources.sh, shard dispatch in
+# scripts/verify-ifa-fault-injection.sh, shard-array entries plus an atomic
+# group in scripts/lib/ifa_fault_shard_cells.sh, row
+# scripts/lib/ifa_family_registry/rows/33_uses_service_account.sh, pins
+# entry scripts/lib/ifa_family_registry_pins/uses_service_account.sh, and
+# census counts at 130. The runtime leaf merged first and took 125-127;
+# this trio's shard slot, registry ordinal, and census counts settled at
+# promotion after that merge. The three cells below are proven by the stub
+# cases in
+# scripts/lib/test-ifa-fault-injection-uses-service-account-cases.sh and by
+# the live matrix.
 #
 # The cells rely on the driver's strict mode and globals
 # (bin_dir, tagged_bin_dir, log_dir, work_dir, use_compose, compose_file,
