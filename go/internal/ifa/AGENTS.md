@@ -117,7 +117,9 @@
   `ifa-fault-injection` blocks of `specs/ci-gates.v1.yaml`, and a non-blank
   entry in `materializedEdgeFamilyTriggerStems`
   (`materializededges/trigger_stems_test.go`) holding a
-  substring that at least one of those triggers contains.
+  substring that at least one of those triggers contains outside any longer
+  stem (see triggerMatchesFamilyStem); a stem occurring only inside a longer
+  sibling stem fails TestEveryCoveredFamilyTriggersBothLiveGates.
   `TestEveryCoveredFamilyTriggersBothLiveGates` enforces both, over the MERGED
   ledger and BOTH family enumerations. A SHARED family needs its stem the day it
   is enumerated, not the day it is covered — declare the stem the family's
