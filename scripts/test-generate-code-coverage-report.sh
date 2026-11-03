@@ -70,6 +70,42 @@ else
 	sed -n '1,80p' "${tmp_root}/generator.err" >&2 || true
 fi
 
+# A SIGTERM mid-run must name the last completed package instead of exiting
+# silently with 143 (#9767). A stub `go` plus the ESHU_CODE_COVERAGE_REPO_ROOT
+# override keeps this hermetic: no real test run happens.
+stalled_root="${tmp_root}/stalled-repo"
+mkdir -p "${stalled_root}/go" "${tmp_root}/stalled-bin"
+cat >"${tmp_root}/stalled-bin/go" <<'STUB'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "list" ]]; then
+	printf 'example.com/go/internal/parser/shared\n'
+	printf 'example.com/go/internal/parser/shared/toml/nesting\n'
+	printf 'example.com/go/internal/parser/sql\n'
+	exit 0
+fi
+printf 'ok  \texample.com/go/internal/parser/shared\t0.149s\tcoverage: 75.5%% of statements\n'
+kill -TERM $$
+STUB
+chmod +x "${tmp_root}/stalled-bin/go"
+stalled_log="${tmp_root}/stalled-generator.log"
+stalled_status=0
+PATH="${tmp_root}/stalled-bin:${PATH}" \
+	ESHU_CODE_COVERAGE_REPO_ROOT="${stalled_root}" \
+	ESHU_CODE_COVERAGE_PROFILE_OUT="${tmp_root}/stalled.out" \
+	ESHU_CODE_COVERAGE_REPORT_OUT="${tmp_root}/stalled.md" \
+	ESHU_CODE_COVERAGE_SHIELD_OUT="${tmp_root}/stalled.json" \
+	"${generator}" >"${stalled_log}" 2>&1 || stalled_status=$?
+if [[ "${stalled_status}" -eq 143 ]]; then
+	record_pass "generator preserves the SIGTERM exit code"
+else
+	record_fail "generator exit code ${stalled_status}, want 143 after SIGTERM"
+fi
+if rg --fixed-strings --quiet -- "last completed package: example.com/go/internal/parser/shared" "${stalled_log}"; then
+	record_pass "generator names the last completed package after SIGTERM"
+else
+	record_fail "generator must name the last completed package after SIGTERM"
+fi
+
 canonical_profile_a="${tmp_root}/canonical-a.out"
 canonical_profile_b="${tmp_root}/canonical-b.out"
 cat >"${canonical_profile_a}" <<'PROFILE'

@@ -19,11 +19,43 @@ shield_out="${ESHU_CODE_COVERAGE_SHIELD_OUT:-${repo_root}/docs/public/reference/
 run_tests="${ESHU_CODE_COVERAGE_RUN_TESTS:-1}"
 
 tmp_root="$(mktemp -d)"
-trap 'rm -rf "${tmp_root}"' EXIT
+
+test_log="${tmp_root}/go-test.log"
+
+# #9767: when the test run dies -- runner SIGTERM (exit 143), OOM, or a
+# hung package -- say where it stopped instead of exiting silently. The
+# last package with a result line completed; the packages after it in
+# `go list` order were the ones still running when the run died.
+report_stalled_package() {
+	local status=$?
+	if [[ "${status}" -eq 0 ]]; then
+		return 0
+	fi
+	if [[ ! -s "${test_log}" ]]; then
+		printf 'generate-code-coverage-report: test run failed (exit %d) before any package completed\n' "${status}" >&2
+		return 0
+	fi
+	local last_pkg suspects
+	last_pkg="$(awk '{ for (i = 1; i <= NF; i++) { if ($i ~ /\//) { last = $i } } } END { print last }' "${test_log}")" || last_pkg=""
+	if [[ -z "${last_pkg}" ]]; then
+		printf 'generate-code-coverage-report: test run failed (exit %d); no package result in the log\n' "${status}" >&2
+		return 0
+	fi
+	printf 'generate-code-coverage-report: test run failed (exit %d); last completed package: %s\n' "${status}" "${last_pkg}" >&2
+	suspects="$( (cd "${repo_root}/go" && go list ./...) 2>/dev/null | awk -v last="${last_pkg}" 'seen && n < 5 { print; n++ } $0 == last { seen = 1 }')" || suspects=""
+	if [[ -n "${suspects}" ]]; then
+		printf 'generate-code-coverage-report: still running when the run died (next in go list order): %s\n' "${suspects}" >&2
+		printf 'generate-code-coverage-report: rerun one suspect alone, e.g. cd go && go test -count=1 %s\n' "$(printf '%s\n' "${suspects}" | head -n 1)" >&2
+	fi
+	return 0
+}
+trap 'report_stalled_package; rm -rf "${tmp_root}"' EXIT
 
 profile="${profile_in:-${profile_out}}"
 if [[ "${run_tests}" != "0" ]]; then
-	(cd "${repo_root}/go" && go test ./... -covermode=count -coverprofile="${profile}")
+	# Tee keeps the per-package stream for report_stalled_package while
+	# pipefail still propagates the go test exit code.
+	(cd "${repo_root}/go" && go test ./... -covermode=count -coverprofile="${profile}" 2>&1 | tee "${test_log}")
 elif [[ -z "${profile_in}" ]]; then
 	printf 'generate-code-coverage-report: ESHU_CODE_COVERAGE_PROFILE_IN is required when ESHU_CODE_COVERAGE_RUN_TESTS=0\n' >&2
 	exit 2
