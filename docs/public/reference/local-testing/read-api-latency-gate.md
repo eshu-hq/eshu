@@ -1,10 +1,10 @@
 # Read API Latency Gate
 
 Issue #6797. Backend-backed p95 latency benchmark for every no-arg GET read
-route, gated in CI so a regression like #6793 (infra resource aggregate
-full-graph scan) or #6794 (status/readiness routes paying an expensive
-per-scope `activeFactWorkItemsCTE` query) cannot merge without this gate
-going red.
+route. When the CI cell is on, it catches a regression like #6793 (infra
+resource aggregate full-graph scan) or #6794 (status/readiness routes paying an
+expensive per-scope `activeFactWorkItemsCTE` query) before it merges by going
+red. The CI cell is off today (see the status note below).
 
 **Status: the NornicDB CI cell is disabled** (owner order, 2026-11-03). Neo4j is
 the supported backend, so the `latency-gate (nornicdb)` job no longer runs in CI

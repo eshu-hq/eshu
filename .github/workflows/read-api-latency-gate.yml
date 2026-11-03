@@ -236,7 +236,9 @@ jobs:
     # Neo4j is the supported backend (#7331). Revisit NornicDB once Neo4j works as
     # expected. To re-enable, restore the original condition:
     #   github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'latency-gate')
-    # and flip the registry row (read-api-latency-gate) back to ci-heavy and blocking.
+    # and restore the registry row (read-api-latency-gate): tier ci-heavy, blocking
+    # true, the check_names entry "latency-gate (nornicdb)", an empty ci_only_reason,
+    # then regenerate docs/public/reference/ci-gates.md.
     if: ${{ false }}
     name: latency-gate (nornicdb)
     runs-on: ubuntu-24.04
