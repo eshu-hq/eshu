@@ -210,7 +210,8 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 	envelopes = appendUniqueSupplyChainImpactFacts(envelopes, pythonReachability.envelopes...)
 	// Folded files count like retained envelopes did before the fold, so the
 	// evidence_envelopes accounting does not drop by the file count (#9860,
-	// same precedent as #9781).
+	// same precedent as #9781). Tombstones are excluded from the folded
+	// count: only files the fold admits into the index count.
 	pythonReachabilityFacts := pythonReachability.foldedFiles
 
 	jvmReachabilityStartCount := len(envelopes)
