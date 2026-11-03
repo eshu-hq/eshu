@@ -223,7 +223,8 @@ guard covers its scope (item 1.4).
   section 4.4).
 - [x] The arbiter ruling is recorded in `docs/internal/evidence/`.
 - [x] The four owner questions are listed with defaults.
-- [ ] The epic's Phase 4 and 5 rows name the issues this unlocks.
+- [x] The epic's Phase 4 and 5 rows name the issues this unlocks (#9958, #9880,
+  #9959, #9960, #9881, #9882, #9961).
 
 No-Regression Evidence: this record changes no runtime behavior, wire
 contract, or gate.
