@@ -373,6 +373,16 @@ touch "${FAKE_STATE}/intree_rollout_fail"
 expect_refused "step 5 in direct mode still refuses before the Deployment is rolled out" 4 5 \
 	--since '2026-10-23 12:00:00+00' -- "psql direct-commit"
 
+# The direct Deployment at zero with no claim held must refuse at the restore
+# gate, not pass it and time out in step 5.
+new_clear_state direct-step5-zero
+direct_args
+printf '1|2026-10-23T12:05:00.000000Z\n' >"${FAKE_STATE}/direct_commits"
+printf '0\n' >"${FAKE_STATE}/intree_replicas"
+expect_refused "step 5 in direct mode refuses when the direct Deployment sits at zero" 4 5 \
+	--since '2026-10-23 12:00:00+00' -- "psql direct-commit"
+expect_out "the direct zero-replica refusal names the count" "reports 0 desired and 0 observed replica(s)"
+
 # --- input rules ----------------------------------------------------------------------------
 
 new_state direct-deployment-required

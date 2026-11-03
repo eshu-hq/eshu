@@ -278,17 +278,39 @@ confirm_step1_gitops() {
 	return 0
 }
 
-# in_tree_rolled_out is true when the restored Deployment finished rolling out.
+# IN_TREE_NOTE explains why the restored Deployment does not count as rolled out.
+IN_TREE_NOTE=""
+# in_tree_rolled_out is true when the restored Deployment finished rolling out
+# with at least one replica. `kubectl rollout status` reports success for a
+# Deployment at zero replicas, so the replica read shared with the
+# direct-producer authority check (read_direct_running) guards the gate in
+# both modes. An unreadable count fails closed.
 in_tree_rolled_out() {
+	IN_TREE_NOTE=""
+	read_direct_running
+	if [[ "$DIRECT_LIVE" == "unknown" ]]; then
+		IN_TREE_NOTE="deployment/${in_tree_deployment} replica counts could not be read: ${DIRECT_NOTE}"
+		return 1
+	fi
+	if [[ "$DIRECT_LIVE" == "no" ]]; then
+		local desired="${XOUT%%|*}" observed="${XOUT##*|}"
+		IN_TREE_NOTE="deployment/${in_tree_deployment} reports ${desired} desired and ${observed:-0} observed replica(s): no replica is running"
+		return 1
+	fi
 	build_in_tree_status
 	quiet_cmd
-	[[ "$XRC" -eq 0 ]]
+	if [[ "$XRC" -ne 0 ]]; then
+		IN_TREE_NOTE="deployment/${in_tree_deployment} rollout did not complete: ${XOUT}"
+		return 1
+	fi
+	return 0
 }
 
 # read_direct_running sets DIRECT_LIVE to yes, no, or unknown for the direct
 # collector Deployment. It is running when spec.replicas or status.replicas is
 # above zero, so a pod still stopping after a scale-down counts. An unreadable,
-# missing, or malformed answer is unknown, and callers treat unknown as running:
+# missing, or malformed answer is unknown, and authority callers treat unknown
+# as running (the restore gate below instead refuses on unknown):
 # a mistyped Deployment name must never read as "no producer is live".
 DIRECT_LIVE="unknown"
 DIRECT_NOTE=""
@@ -379,6 +401,6 @@ gate_step3() { # for-step
 
 gate_step4() { # for-step
 	printf 'GATE before step %s: the in-tree producer must be restored\n' "$1"
-	in_tree_rolled_out || refuse "$1" "deployment/${in_tree_deployment} is not rolled out; restore the in-tree producer (step 4) first."
+	in_tree_rolled_out || refuse "$1" "deployment/${in_tree_deployment} is not rolled out${IN_TREE_NOTE:+ (${IN_TREE_NOTE})}; restore the in-tree producer (step 4) first."
 	printf '  deployment/%s rolled out\n' "$in_tree_deployment"
 }
