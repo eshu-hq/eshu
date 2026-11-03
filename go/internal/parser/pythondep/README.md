@@ -122,6 +122,10 @@ text into a row:
   `malformed_dependency` with no name, value, marker, extras, or raw line —
   the same shape as a constraints row. A demoted direct reference drops its
   left-hand name and extras as well.
+- Editable scheme-less sources bypass scrubbing: `-e user:secret@host:path`
+  is a path row (invalid pip syntax; pre-existing path behavior), and a broad
+  refusal would break legitimate directories containing `@`, so the name,
+  value, and raw keep the text as written. Withholding does not apply.
 - A URL or VCS row stores the trimmed parsed line as `raw`, never the
   scanner's raw line: a trailing inline comment can carry URL text the row
   scrubbed. `investigate_hardcoded_secrets` still reports the line: it reads
