@@ -27,9 +27,10 @@ form later reducer work can read without guessing:
   (`source`, `edge_kind` of `aliases|related|upstream`, `status` of
   `active|withdrawn`). It counts edge elements, not facts, and is emitted in
   `vulnruntime` beside the fact counter. A raw NVD `vulnStatus` is never a
-  label: only a payload `status` of `withdrawn` is withdrawn. At most 5 sources
-  x 3 kinds x 2 statuses series; a record's edges are tens, so cost per target
-  is at most six `Add` calls.
+  label: only a payload `status` of `withdrawn` is withdrawn. `vulnruntime` has
+  four sources (`rg -n 'Source = ' go/internal/collector/vulnerabilityintelligence/vulnruntime/source.go`)
+  and only OSV writes these keys, so at most 4 x 3 x 2 series and in practice
+  six; a record's edges are tens, so cost per target is at most six `Add` calls.
 
 Golden digest (SHA-256): `3df283f40ecbe08dcd559bd3e3500c865411d247d8e644383c52fda8b3266010`.
 
@@ -49,6 +50,8 @@ mirror test failed when `upstream` was seeded into `correlation_anchors`.
 | `bash scripts/verify-package-docs.sh` | 0 |
 | `mkdocs build --strict --config-file docs/mkdocs.yml` | 0 |
 | `gofmt -l` on touched trees; `git diff --check` | clean; 0 |
+| `cd go && go test ./internal/collector/vulnerabilityintelligence/ -run '^$' -bench OSVRecordEnvelopesUpstream -benchtime 20000x -count=3` | 0 |
+| `cd go && go test ./internal/collector/vulnerabilityintelligence/vulnruntime/ -run '^$' -bench RecordIdentityEdges -benchtime 2000x -count=1` | 0 |
 
 Golden corpus: no cassette or B-7 snapshot change. The cassette
 `testdata/cassettes/vulnerabilityintelligence/supply-chain-demo.json` is
@@ -58,6 +61,43 @@ finds nothing, and the only snapshot hit is the unrelated
 `upstream_dependencies`). No reducer reads `upstream` (`rg '"upstream"' go` outside the
 collector finds only an unrelated graph-capture allowlist), and the cassette
 facts are unchanged, so projected graph truth is unchanged and the B-7 gate was not rerun.
+
+## Performance and observability
+
+Performance Evidence: no graph, Postgres, queue, or lease path is touched; the
+two touched paths are in-process. Host: linux/amd64, 12 threads, go1.26.10,
+`-benchtime 20000x -count=3` (envelope) and `2000x` (counter). The baseline for
+the envelope is the record with no `upstream` (`upstream_0`, the shape before
+#9954). Record shape: one alias, one related id, plus the listed upstream ids.
+
+| Record conversion (`BenchmarkOSVRecordEnvelopesUpstream`) | ns/op | allocs/op |
+| --- | --- | --- |
+| baseline, 0 upstream ids | about 6,900 to 7,050 | 68 |
+| 3 upstream ids | about 6,960 to 7,090 | 70 |
+| 15 upstream ids (5x) | about 7,950 to 8,070 | 73 |
+| 30 upstream ids (10x) | about 8,925 to 9,170 | 73 |
+
+| Counter, 1000 facts per target (`BenchmarkRecordIdentityEdges`) | ns/op | allocs/op |
+| --- | --- | --- |
+| 3 ids per kind (1x) | 120,048 | 12 |
+| 15 ids per kind (5x) | 123,108 | 12 |
+| 30 ids per kind (10x) | 118,049 | 12 |
+
+No-Regression Evidence: a record with no `upstream` pays one `cleanStrings` of
+a nil slice, which allocates nothing (`upstream_0` is 68 allocs and writes no
+`upstream` key). Cost grows with the record's own upstream list, by about
+2,000 ns for 30 ids, against a fetch that is an HTTP round trip. The counter
+costs about 120 ns per fact (about 120 microseconds per 1000-fact target), flat
+in edge count, with 12 allocs per target for six `Add` calls. Edges per OSV
+record are tens, so 1x, 5x, and 10x all sit inside the bounded range above.
+
+Observability Evidence: an operator sees how many identity edges each source
+wrote, split by `edge_kind` and `status`, on
+`eshu_dp_vulnerability_intelligence_identity_edges_emitted_total`. A rising
+`upstream` series with a flat `aliases` series is a distro feed arriving; a
+`withdrawn` series is retractions arriving. The counter has no per-id label, so
+no advisory or CVE id reaches a dashboard. The coverage row is in
+`docs/public/observability/telemetry-coverage-collectors.md`.
 
 ## Rollout
 
