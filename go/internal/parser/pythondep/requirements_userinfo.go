@@ -65,8 +65,19 @@ func populateDirectReferenceRow(
 		builder.Malformed = true
 		return
 	}
-	builder.Name = name
-	builder.Extras = extras
+	if builder.Malformed {
+		// A demoted row (unsafe marker, unplaceable target) drops its
+		// left-hand fields with everything else; only a row that kept
+		// its kind restores the reliably parsed left-hand name and
+		// extras. The direct-reference cut is at the first "@", so
+		// left-hand extras can never carry URL text — but a demoted row
+		// keeps nothing parsable at all (#9074).
+		builder.Name = ""
+		builder.Extras = nil
+	} else {
+		builder.Name = name
+		builder.Extras = extras
+	}
 	if (builder.SourceKind == "url" || builder.SourceKind == "vcs") && builder.Value != "" {
 		// The row keeps the trimmed parsed line as raw, with the source
 		// URL scrubbed: the scanner's raw line can carry a trailing
@@ -116,6 +127,14 @@ func looksLikePathRequirement(content string, editable bool) bool {
 
 func populateVCSRow(builder *rowBuilder, content string, editable bool) {
 	cleaned, redacted, ok := scrubRequirementURL(content)
+	if ok && vcsScrubResidue(cleaned) {
+		// A "@" survives outside the ref position: a password with a raw
+		// "/" split the authority at the first "/", so the authority cut
+		// found no "@" while "user@host" residue sits in the path. The
+		// residue cannot be told from a host, so the line is refused
+		// instead of cleaned (#9074).
+		cleaned, redacted, ok = "", false, false
+	}
 	if !ok {
 		// The line cannot be cleaned reliably (a password may hold "/"
 		// or "@", or the host parse is ambiguous), so the row keeps its
@@ -199,20 +218,106 @@ func populateURLRow(builder *rowBuilder, content string, editable bool) {
 }
 
 // demoteRequirementsRow turns a row with an unsafe marker into a malformed
-// row with no name, value, URL, marker, or raw line. Dropping only the marker
-// would leave two lines that differ only in their markers with one content
-// identity, and the content writer would keep one of them; see
-// applyConstraintPolicy for the same rule on constraints files.
+// row with no name, value, URL, marker, extras, or raw line. Dropping only
+// the marker would leave two lines that differ only in their markers with
+// one content identity, and the content writer would keep one of them; see
+// applyConstraintPolicy for the same rule on constraints files. Extras go
+// too: a PEP 508 extra can never legitimately hold "@" or "://", so extras
+// on a demoted row are untrusted text (#9074).
 func demoteRequirementsRow(builder *rowBuilder) {
 	builder.Name = ""
 	builder.Value = ""
 	builder.SourceURL = ""
 	builder.SourceRef = ""
 	builder.Marker = ""
+	builder.Extras = nil
 	builder.Raw = ""
 	builder.SourceCacheWithheld = true
 	builder.ConfigKind = configKindMalformed
 	builder.Malformed = true
+}
+
+// vcsScrubResidue reports whether a scrubbed VCS line still holds an "@"
+// that is not a lone ref separator. The authority cut already removed every
+// "@" from the authority, and the fragment is stripped above, so at most one
+// "@" may remain, and only as the ref separator ("@v1", "@feature/foo").
+// Anything else is userinfo residue: a password with a raw "/" split the
+// authority at the first "/", so the cut found no "@" while "user@host"
+// sits in the path. Either residue refuses the line.
+//
+// Two vanishing corners stay accepted and are documented, not fixed: a
+// password whose pre-slash segment is all digits ("user:22/xx@host", no ref)
+// parses as a numeric port under every URL standard, and a colon-less user
+// ("user/xx@host") parses as a bare hostname — no parser treats either line
+// as credentialed, so the residue is cosmetic. Both need a raw "/" password,
+// which is invalid URL syntax to begin with.
+func vcsScrubResidue(cleaned string) bool {
+	noFrag := stripFragment(cleaned)
+	at := strings.LastIndexByte(noFrag, '@')
+	if at < 0 {
+		return false
+	}
+	if strings.Contains(noFrag[:at], "@") {
+		return true
+	}
+	return vcsAuthorityHasPasswordShape(noFrag)
+}
+
+// vcsAuthorityHasPasswordShape reports whether the authority of a scrubbed
+// VCS line (recomputed the way scrubRequirementURL computes it) holds a
+// "user:password" shape: a colon whose port side is not all digits. A
+// numeric port is the only legitimate colon in an authority; anything else
+// with an "@" later in the line is a raw-"/" password that split the
+// authority. Bracketed IPv6 literals are skipped so their colons never
+// count.
+func vcsAuthorityHasPasswordShape(cleaned string) bool {
+	work := cleaned
+	if isVCSRequirement(cleaned) {
+		if index := strings.Index(work, "+"); index >= 0 {
+			work = work[index+1:]
+		}
+	}
+	if urlSchemeLen(work) == 0 {
+		return false
+	}
+	// Skip past "://" the way scrubRequirementURL does: the first "/"
+	// belongs to the scheme, not the authority.
+	rest := work
+	if index := strings.Index(rest, "://"); index >= 0 {
+		rest = rest[index+3:]
+	}
+	authority := rest
+	if index := strings.IndexByte(rest, '/'); index >= 0 {
+		authority = rest[:index]
+	}
+	host := authority
+	if strings.HasPrefix(host, "[") {
+		index := strings.Index(host, "]")
+		if index < 0 {
+			return true
+		}
+		host = host[index+1:]
+		if host == "" {
+			return false
+		}
+		if !strings.HasPrefix(host, ":") {
+			return true
+		}
+		host = host[1:]
+	}
+	_, port, hasColon := strings.Cut(host, ":")
+	if !hasColon {
+		return false
+	}
+	if port == "" {
+		return true
+	}
+	for i := 0; i < len(port); i++ {
+		if port[i] < '0' || port[i] > '9' {
+			return true
+		}
+	}
+	return false
 }
 
 // scrubRequirementURL removes a `user[:password]@` component from the
@@ -227,9 +332,12 @@ func demoteRequirementsRow(builder *rowBuilder) {
 // the first "/" with an "@" after it (a standards parser and this reader
 // would disagree about the host), and a scheme-less line holding "@"
 // (scp-style "user@host:path", where userinfo cannot be told from a host).
-// A password with a raw "/" cannot be told from a path either; such a
-// password is invalid URL syntax (it must be percent-encoded, which scrubs
-// cleanly), so the residual risk is malformed input only.
+// A password with a raw "/" cannot be told from a path either — the
+// authority cut finds no "@" while userinfo residue sits past the first
+// "/" — so callers refuse a VCS line whose scrubbed text still holds "@"
+// outside the ref position (see vcsScrubResidue). Such a password is invalid
+// URL syntax (it must be percent-encoded, which scrubs cleanly), so the
+// residual risk is malformed input only.
 func scrubRequirementURL(content string) (clean string, redacted, ok bool) {
 	work := content
 	prefixLen := 0

@@ -207,18 +207,20 @@ func parseRequirementLine(content string, raw string, section string, dev bool, 
 }
 
 // applyRequirementsPolicy keeps credential-shaped text out of registry rows.
-// A version specifier never holds "@" or "://", and a PEP 508 marker never
-// holds them either (see safeMarker): either one proves the line is not the
-// plain pin it parses as — an scp-style "user:secret@host:path" line or a
-// marker smuggling URL text. The row is demoted to malformed with its text
-// fields dropped and its source_cache withheld, mirroring the constraints
-// policy, so no requirements row can carry URL userinfo in a fact (#9074).
+// A version specifier never holds "@" or "://", a PEP 508 extra never holds
+// them either, and a PEP 508 marker never holds them (see safeMarker): any
+// one proves the line is not the plain pin it parses as — an scp-style
+// "user:secret@host:path" line, an extra smuggling URL text, or a marker
+// smuggling URL text. The row is demoted to malformed with its text fields
+// dropped and its source_cache withheld, mirroring the constraints policy,
+// so no requirements row can carry URL userinfo in a fact (#9074).
 func (b *rowBuilder) applyRequirementsPolicy() {
 	if b.ConfigKind == configKindDependency &&
-		(strings.Contains(b.Value, "@") || strings.Contains(b.Value, "://")) {
+		(strings.Contains(b.Value, "@") || strings.Contains(b.Value, "://") || extrasHoldURLText(b.Extras)) {
 		b.Name = ""
 		b.Value = ""
 		b.Marker = ""
+		b.Extras = nil
 		b.Raw = ""
 		b.SourceCacheWithheld = true
 		b.ConfigKind = configKindMalformed
@@ -229,11 +231,24 @@ func (b *rowBuilder) applyRequirementsPolicy() {
 		b.Name = ""
 		b.Value = ""
 		b.Marker = ""
+		b.Extras = nil
 		b.Raw = ""
 		b.SourceCacheWithheld = true
 		b.ConfigKind = configKindMalformed
 		b.Malformed = true
 	}
+}
+
+// extrasHoldURLText reports whether any PEP 508 extra holds "@" or "://".
+// Extras are identifiers; either marker proves the line is not the plain pin
+// it parses as.
+func extrasHoldURLText(extras []string) bool {
+	for _, extra := range extras {
+		if strings.Contains(extra, "@") || strings.Contains(extra, "://") {
+			return true
+		}
+	}
+	return false
 }
 
 // splitNameSpecifier parses "name[extra1,extra2] specifier". It returns the

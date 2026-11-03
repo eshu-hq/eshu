@@ -109,11 +109,16 @@ text into a row:
   raw `/`, a `?`/`#` before the first `/` with an `@` after it, or a
   scheme-less `user@host:path` line. A plain URL with any `@` left after the
   cut is refused the same way (a plain URL has no ref syntax); a VCS line
-  keeps a post-slash `@` because that is ref syntax.
+  keeps a post-slash `@` only at the ref position (`@v1`, `@feature/foo`) —
+  any other surviving `@` is userinfo residue from a raw-`/` password (the
+  authority cut found no `@` while `user@host` sits in the path) and refuses
+  the line too.
 - A registry pin whose value holds `@` or `://` (an scp-style
-  `user:secret@host:path` line), or whose marker holds a character outside the
-  `safeMarker` allowlist, is demoted to `malformed_dependency` with no name,
-  value, marker, or raw line — the same shape as a constraints row.
+  `user:secret@host:path` line), whose extra holds `@` or `://`, or whose
+  marker holds a character outside the `safeMarker` allowlist, is demoted to
+  `malformed_dependency` with no name, value, marker, extras, or raw line —
+  the same shape as a constraints row. A demoted direct reference drops its
+  left-hand name and extras as well.
 - A URL or VCS row stores the trimmed parsed line as `raw`, never the
   scanner's raw line: a trailing inline comment can carry URL text the row
   scrubbed. `investigate_hardcoded_secrets` still reports the line: it reads

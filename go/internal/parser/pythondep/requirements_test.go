@@ -313,6 +313,89 @@ func requirementsUserinfoSecret() string {
 	return "tok" + "en-" + "value-9f3a"
 }
 
+// TestParseRequirementsRefusesAmbiguousVCSUserinfo proves a VCS line whose
+// password holds a raw "/" is refused instead of cleaned (#9074 P2-1): the
+// authority cut at the first "/" leaves "user:pa" with no "@", so the
+// "SECRET@host" residue in the path cannot be told from a host and the row
+// keeps its kind but loses its text, both bare and direct-reference shaped.
+func TestParseRequirementsRefusesAmbiguousVCSUserinfo(t *testing.T) {
+	t.Parallel()
+
+	secret := requirementsUserinfoSecret()
+	path := writeTempFile(t, "requirements.txt", strings.Join([]string{
+		"git+https://ci-user:" + "pa/" + secret + "@files.example.com/repo@v1#egg=ambig-bare",
+		"ambig-ref @ git+https://ci-user:" + "pa/" + secret + "@files.example.com/repo@feature/foo",
+	}, "\n"))
+	payload, err := ParseRequirements(path)
+	if err != nil {
+		t.Fatalf("ParseRequirements error = %v", err)
+	}
+	if text := fmt.Sprintf("%#v", payload); strings.Contains(text, secret) || strings.Contains(text, "ci-user") {
+		t.Fatalf("payload carries credential text: %s", text)
+	}
+	rows := variableRows(t, payload)
+	if len(rows) != 2 {
+		t.Fatalf("len(rows) = %d, want 2: %#v", len(rows), rows)
+	}
+	for _, row := range rows {
+		if got := row["config_kind"]; got != "vcs_dependency" {
+			t.Errorf("config_kind = %#v, want vcs_dependency", got)
+		}
+		for _, field := range []string{"value", "source_url", "raw"} {
+			if got, _ := row[field].(string); got != "" {
+				t.Errorf("%s = %q, want it dropped", field, got)
+			}
+		}
+		if row["source_cache_withheld"] != true {
+			t.Errorf("source_cache_withheld = %#v, want true", row["source_cache_withheld"])
+		}
+	}
+	if name, _ := rows[1]["name"].(string); name != "ambig-ref" {
+		t.Errorf("direct-ref name = %q, want the left-hand name restored", name)
+	}
+}
+
+// TestParseRequirementsDropsExtrasOnDemotedRows proves a demoted row keeps no
+// extras: a PEP 508 extra can never legitimately hold "@" or "://", so a pin
+// whose extra does is not the plain pin it parses as and demotes, and a
+// marker-demoted direct reference drops its left-hand extras with everything
+// else (#9074 P3-1).
+func TestParseRequirementsDropsExtrasOnDemotedRows(t *testing.T) {
+	t.Parallel()
+
+	path := writeTempFile(t, "requirements.txt", strings.Join([]string{
+		"smuggled[user@hostx]>=1",
+		"marked[extra1] @ https://files.example.com/marked-1.0.tar.gz ; os_name == 'a@b'",
+		"plain[extra2]==3.0",
+	}, "\n"))
+	payload, err := ParseRequirements(path)
+	if err != nil {
+		t.Fatalf("ParseRequirements error = %v", err)
+	}
+	rows := variableRows(t, payload)
+	if len(rows) != 3 {
+		t.Fatalf("len(rows) = %d, want 3: %#v", len(rows), rows)
+	}
+	for _, row := range []*map[string]any{&rows[0], &rows[1]} {
+		if got := (*row)["config_kind"]; got != "malformed_dependency" {
+			t.Errorf("config_kind = %#v, want malformed_dependency", got)
+		}
+		if extras, _ := (*row)["extras"].([]string); len(extras) != 0 {
+			t.Errorf("extras = %#v, want them dropped", (*row)["extras"])
+		}
+		if _, present := (*row)["extras"]; present {
+			t.Errorf("extras key present = %#v, want it absent", (*row)["extras"])
+		}
+	}
+	plain := rows[2]
+	if got := plain["config_kind"]; got != "dependency" {
+		t.Errorf("plain config_kind = %#v, want dependency", got)
+	}
+	if extras, _ := plain["extras"].([]string); len(extras) != 1 || extras[0] != "extra2" {
+		t.Errorf("plain extras = %#v, want [extra2] kept", plain["extras"])
+	}
+}
+
 // TestParseRequirementsStripsUserinfoKeepsHostNameAndRefs proves a
 // requirements URL or VCS row never persists userinfo: value, source_url,
 // and raw keep the host, path, VCS ref, and package name with the
