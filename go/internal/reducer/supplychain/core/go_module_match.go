@@ -64,34 +64,7 @@ func goModuleRangeContainsDecision(
 	} else if !ok {
 		return false, true
 	}
-	vulnerable := false
-	for _, event := range affectedRange.Events {
-		switch {
-		case event.Introduced != "":
-			if goModuleVersionFloor(event.Introduced) {
-				vulnerable = true
-				continue
-			}
-			if ok, valid := semverAtLeast(observed, event.Introduced); !valid {
-				return false, false
-			} else if ok {
-				vulnerable = true
-			}
-		case event.Fixed != "":
-			if ok, valid := semverAtLeast(observed, event.Fixed); !valid {
-				return false, false
-			} else if ok {
-				vulnerable = false
-			}
-		case event.LastAffected != "":
-			if ok, valid := versionGreaterThan(observed, event.LastAffected, compareOSVSemver); !valid {
-				return false, false
-			} else if ok {
-				vulnerable = false
-			}
-		}
-	}
-	return vulnerable, true
+	return rangeEventsVulnerable(affectedRange.Events, observed, compareOSVSemver, goModuleVersionFloor)
 }
 
 func goModuleComparatorRangeContains(raw string, observed string) (bool, bool) {
@@ -122,13 +95,22 @@ func goModuleComparatorBranchContains(branch string, observed string) (bool, boo
 	if len(fields) == 0 {
 		return false, false
 	}
+	// Read every field before answering: a field that does not match must not
+	// hide a later malformed one, or the branch reads as "valid, not contained"
+	// where it is malformed. This mirrors comparatorBranchContains.
+	contained, wellFormed := true, true
 	for _, field := range fields {
 		ok, valid := goModuleComparatorConstraintContains(field, observed)
-		if !valid || !ok {
-			return false, valid
+		if !valid {
+			wellFormed = false
+			continue
 		}
+		contained = contained && ok
 	}
-	return true, true
+	if !wellFormed {
+		return false, false
+	}
+	return contained, true
 }
 
 func goModuleComparatorConstraintContains(token string, observed string) (bool, bool) {

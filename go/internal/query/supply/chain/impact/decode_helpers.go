@@ -312,8 +312,9 @@ func decodeExplainAffectedRanges(payload map[string]any) [][]explainAffectedRang
 // last_affected) but deliberately diverges from the matcher in two ways:
 // it ignores the entry kind (collectors emit ECOSYSTEM ranges the
 // per-ecosystem matchers skip) and it uses one generic semver-family
-// compare instead of the per-ecosystem compares. The headline is
-// display-only; matcher input still comes from the reducer scalar.
+// compare instead of the per-ecosystem compares. The events are read in
+// version order, as the reducer does (#9865). The headline is display-only;
+// matcher input still comes from the reducer scalar.
 func explainRangeContains(events []explainAffectedRangeEvent, observed string) (bool, bool) {
 	admitted := false
 	hasLimit := false
@@ -339,36 +340,7 @@ func explainRangeContains(events []explainAffectedRangeEvent, observed string) (
 	if hasLimit && !admitted {
 		return false, true
 	}
-	vulnerable := false
-	for _, event := range events {
-		switch {
-		case strings.TrimSpace(event.introduced) != "":
-			cmp, ok := compareExplainSemverVersions(observed, event.introduced)
-			if !ok {
-				return false, false
-			}
-			if cmp >= 0 {
-				vulnerable = true
-			}
-		case strings.TrimSpace(event.fixed) != "":
-			cmp, ok := compareExplainSemverVersions(observed, event.fixed)
-			if !ok {
-				return false, false
-			}
-			if cmp >= 0 {
-				vulnerable = false
-			}
-		case strings.TrimSpace(event.lastAffected) != "":
-			cmp, ok := compareExplainSemverVersions(observed, event.lastAffected)
-			if !ok {
-				return false, false
-			}
-			if cmp > 0 {
-				vulnerable = false
-			}
-		}
-	}
-	return vulnerable, true
+	return explainEventsVulnerable(events, observed)
 }
 
 // passedLineFixedVersion returns the nearest Fixed event at or below the
