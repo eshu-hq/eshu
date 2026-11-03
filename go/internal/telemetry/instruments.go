@@ -1034,7 +1034,7 @@ type Instruments struct {
 	SupplyChainImpactOSAdvisoryReleaseSelections metric.Int64Counter
 	// SupplyChainImpactOSReleaseNotInAdvisory counts the OS findings whose
 	// advisory carries release tags but none for the installed release,
-	// labeled source (debian, ubuntu, alpine, other) (#9806). Absence
+	// labeled source (debian, ubuntu, alpine, alma, rocky, other) (#9806). Absence
 	// of the installed release is not proven not-affected, so these stay
 	// possibly_affected; a climbing rate on a steady corpus means advisories
 	// stop listing the releases the fleet runs.
@@ -4750,7 +4750,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	}
 	inst.SupplyChainImpactOSReleaseNotInAdvisory, err = meter.Int64Counter(
 		"eshu_dp_supply_chain_impact_os_release_not_in_advisory_total",
-		metric.WithDescription("OS findings whose advisory carries release tags but none for the installed release, by source (debian, ubuntu, alpine, other)"),
+		metric.WithDescription("OS findings whose advisory carries release tags but none for the installed release, by source (debian, ubuntu, alpine, alma, rocky, other)"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SupplyChainImpactOSReleaseNotInAdvisory counter: %w", err)
