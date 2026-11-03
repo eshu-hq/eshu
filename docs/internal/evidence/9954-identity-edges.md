@@ -67,8 +67,9 @@ facts are unchanged, so projected graph truth is unchanged and the B-7 gate was 
 Performance Evidence: no graph, Postgres, queue, or lease path is touched; the
 two touched paths are in-process. Host: linux/amd64, 12 threads, go1.26.10,
 `-benchtime 20000x -count=3` (envelope) and `2000x` (counter). The baseline for
-the envelope is the record with no `upstream` (`upstream_0`, the shape before
-#9954). Record shape: one alias, one related id, plus the listed upstream ids.
+the envelope is the record with no `upstream` (`upstream_0`). The same record
+measured against the base `envelope.go` and `types.go` gives the same 68 allocs
+and about the same time, so the no-regression claim holds. Record shape: one alias, one related id, plus the listed upstream ids.
 
 | Record conversion (`BenchmarkOSVRecordEnvelopesUpstream`) | ns/op | allocs/op |
 | --- | --- | --- |
@@ -88,7 +89,9 @@ a nil slice, which allocates nothing (`upstream_0` is 68 allocs and writes no
 `upstream` key). Cost grows with the record's own upstream list, by about
 2,000 ns for 30 ids, against a fetch that is an HTTP round trip. The counter
 costs about 120 ns per fact (about 120 microseconds per 1000-fact target), flat
-in edge count, with 12 allocs per target for six `Add` calls. Edges per OSV
+in edge count, with 12 allocs per target for the three `Add` calls the benchmark makes (its
+payloads carry no `status`, so every series is `active`; up to six series are
+possible). Edges per OSV
 record are tens, so 1x, 5x, and 10x all sit inside the bounded range above.
 
 Observability Evidence: an operator sees how many identity edges each source
