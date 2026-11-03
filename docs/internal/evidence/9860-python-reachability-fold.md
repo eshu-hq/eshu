@@ -34,7 +34,7 @@ Folded bytes are observed, not charged: like the #9781 active fold, folding
 bounds memory by dropping the payloads, so only retained bytes trip the byte
 budget, and the stage retains nothing.
 
-## Benchmark Evidence
+## Benchmark Evidence:
 
 Retained-vs-folded theory bench, decode-from-raw Python parser payloads
 (imports, calls, decorator buckets, SCIP edges), live heap after GC,
@@ -52,7 +52,7 @@ with distinct repository/package pairs, not bytes. Decode churn is comparable
 raw), the retained column scales to about 3.4 GB per pass, matching the
 issue's estimate.
 
-## No-Regression Evidence
+## No-Regression Evidence:
 
 Parity is pinned by loader-level tests with `DeepEqual` indexes:
 `TestLoadPythonReachabilityEvidenceFactsFoldsPagedFiles`,
@@ -66,7 +66,7 @@ pinned by `TestFoldPythonReachabilityFilesPagesAndFolds` (two page reads for
 `TestFoldPythonReachabilityFilesRejectsBlankKey`. Core and postgres suites
 pass, including with `-race`; golden-corpus mirror passes.
 
-## Observability Evidence
+## Observability Evidence:
 
 New success-log sub-signals per pass: `python_reachability_files_folded` and
 `python_reachability_payload_bytes_folded`; `python_reachability_facts` now
