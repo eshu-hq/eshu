@@ -507,9 +507,3 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `collector:tempo` | fault | exempt | — | Satellite-owned collection boundary: collection runs from eshu-hq/eshu-collector-tempo while the coordinator still plans tempo claims and the reducer/query surfaces still serve the fact kinds. No in-tree Tempo client remains to drive an injected-timeout fault against, so the fault axis has nothing in-tree to bound. |
 | `collector:vulnerability_intelligence` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/vulnerabilityintelligence/supply-chain-demo.json` |
 | `collector:vulnerability_intelligence` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
-
-## Stale manifest entries
-
-These manifest entries map no supported surface (a surface was renamed or removed):
-
-- `collector:webhook`
