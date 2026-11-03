@@ -144,9 +144,20 @@ func (s IngestionStore) reprojectActiveGeneration(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
 	candidate backfill.UnchangedGenerationCandidate,
-) (string, error) {
+) (reason string, retErr error) {
 	if s.beginner == nil {
 		return "", errors.New("transaction beginner is required")
+	}
+	// A plane-held claim takes the #9376 pin and deadline fence instead of
+	// the in-tree heartbeat. The re-projection writes no generation or
+	// facts, so it records no fence row.
+	var claimFence *claimFenceSession
+	if requireClaimFence && s.ClaimPlane != nil {
+		var err error
+		if ctx, claimFence, err = s.beginClaimFence(ctx, mutation, scopeValue, candidate.GenerationID); err != nil {
+			return "", err
+		}
+		defer func() { retErr = claimFence.finish(ctx, candidate.GenerationID, retErr) }()
 	}
 	tx, err := s.beginner.Begin(ctx)
 	if err != nil {
@@ -158,7 +169,7 @@ func (s IngestionStore) reprojectActiveGeneration(
 			_ = tx.Rollback()
 		}
 	}()
-	if requireClaimFence {
+	if requireClaimFence && claimFence == nil {
 		mutation.ObservedAt = s.now()
 		if err := NewWorkflowControlStore(tx).HeartbeatClaim(ctx, mutation); err != nil {
 			return "", fmt.Errorf("verify active workflow claim before re-projection: %w", err)
@@ -183,6 +194,11 @@ func (s IngestionStore) reprojectActiveGeneration(
 	}
 	if !matched {
 		return telemetry.RefreshSkipReasonReconcileSuperseded, nil
+	}
+	if claimFence != nil {
+		if err := claimFence.checkDeadline(ctx, candidate.GenerationID); err != nil {
+			return "", err
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		return "", fmt.Errorf("commit re-projection: %w", err)

@@ -84,6 +84,10 @@ func buildClaimedService(
 	if err != nil {
 		return collector.ClaimedService{}, err
 	}
+	if claimStore.Pinner != nil {
+		// A plane-held claim has no core claim row: fence commits on the plane (#9376).
+		committer.ClaimPlane = &postgres.ClaimPlaneFence{Pinner: claimStore.Pinner, Tracer: tracer, Instruments: instruments}
+	}
 	return collector.ClaimedService{
 		ControlStore:        claimStore.Store,
 		Source:              source,

@@ -20,6 +20,31 @@ recent shipped work grouped by feature area.
   eshu-hq/eshu-scanner-worker`. A deployment applies the new pins only with a
   new eshu image build and matching chart `seed.image` entries in one sync;
   admission still refuses any other seeded digest.
+### Workflow extraction: cross-service commit fence for claim-plane claims
+
+- **Ingestion commits can now be fenced against a claim held by the
+  extracted claim plane, not only a core claim row**
+  ([#9376](https://github.com/eshu-hq/eshu/issues/9376)). With
+  `IngestionStore.ClaimPlane` set, a claimed commit pins the claim on the
+  plane before the transaction opens and re-pins it every lease/3 while it
+  runs. It records a `(generation_id, work_item_id)` row in the new
+  `generation_commit_fences` table (migration 270), and refuses to commit
+  once the pin deadline is within 5 s of the store clock. A writer that was
+  reaped and reclaimed at a higher token cannot commit outside the bounded
+  margin window, and a failed pin never falls back to the core heartbeat.
+  Each pin attempt is bounded, so a stalled plane fails the commit as a
+  retryable `pin_unavailable` instead of hanging it. Claim mutations carry the
+  item's planned scope, source run, and generation for the pin. The fence
+  reports `eshu_dp_ingestion_claim_fence_rejections_total{reason}`,
+  `eshu_dp_ingestion_commit_repins_total{outcome}`,
+  `eshu_dp_ingestion_commit_pin_slack_seconds`, and the
+  `ingestion.commit.claim_fence` span. Derived scanner claims fail closed
+  on this path. With `ClaimPlane` unset, nothing changes. Every claim-aware
+  collector that selects the plane through `ESHU_WORKFLOW_CLAIM_PLANE_URL`
+  sets the fence from the new `store.Selection.Pinner`, and
+  `collector.ClaimedService` refuses to start with a claim-plane control
+  store and an unfenced committer, or with a fenced committer and the core
+  control store.
 
 ### Telemetry coverage doc: split into parts under the line cap
 

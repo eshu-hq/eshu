@@ -631,7 +631,7 @@ shared-intent backlog/status queries and reducer code-call cycle logs.
   pattern.
 - **Do not skip `WorkflowControlStore` lease fencing**. Always check the
   returned error from claim mutations; silently ignoring `ErrWorkflowClaimRejected`
-  causes split-brain workflow state.
+  causes split-brain workflow state. On the claim-plane path (`IngestionStore.ClaimPlane`, #9376) the fence is `claim/fence`: never fall back from a failed pin to `HeartbeatClaim(tx)`, keep the fence row write after the generation upsert and under the scope row lock, and never use SQL `now()` for the deadline check.
 - **Do not raise `contentWriterBatchConcurrencyAutoCap` or
   `contentWriterBatchConcurrencyCap` without re-running the pool-budget
   math** (`content_writer_batch.go`). Peak Postgres connection demand is

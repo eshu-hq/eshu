@@ -44,6 +44,12 @@ type IngestionStore struct {
 	Now         func() time.Time
 	Logger      *slog.Logger
 	Instruments *telemetry.Instruments
+	// ClaimPlane, when set, fences claimed commits whose claim the extracted
+	// claim plane holds (#9376): pin before BEGIN, a fence row in the fact
+	// transaction, and a deadline check before COMMIT, instead of the
+	// in-tree HeartbeatClaim on the fact transaction. Nil keeps the in-tree
+	// path unchanged.
+	ClaimPlane *ClaimPlaneFence
 	// SkipRelationshipBackfill disables the per-commit new-repository
 	// relationship backfill. The ingester and bootstrap-index runtimes set this
 	// true because they run the corpus-wide deferred relationship backfill as a
@@ -149,7 +155,7 @@ func (s IngestionStore) commitScopeGeneration(
 	stateWriter collector.GenerationStateWriter,
 	beforeClaim func(context.Context, db.ExecQueryer) error,
 	onAcceptedBatch func(context.Context, db.ExecQueryer, []facts.Envelope) error,
-) error {
+) (retErr error) {
 	if err := backfill.ValidateGenerationInput(scopeValue, generation); err != nil {
 		return errors.Join(err, drainFactsAndCheckStream(factStream, factStreamErr))
 	}
@@ -162,6 +168,14 @@ func (s IngestionStore) commitScopeGeneration(
 			fmt.Errorf("transaction beginner is required"),
 			drainFactsAndCheckStream(factStream, factStreamErr),
 		)
+	}
+
+	var claimFence *claimFenceSession
+	if requireClaimFence && s.ClaimPlane != nil {
+		if ctx, claimFence, err = s.beginClaimFence(ctx, mutation, scopeValue, generation.GenerationID); err != nil {
+			return errors.Join(err, drainFactsAndCheckStream(factStream, factStreamErr))
+		}
+		defer func() { retErr = claimFence.finish(ctx, generation.GenerationID, retErr) }()
 	}
 
 	stageStart := time.Now()
@@ -187,7 +201,7 @@ func (s IngestionStore) commitScopeGeneration(
 		}
 	}
 
-	if requireClaimFence {
+	if requireClaimFence && claimFence == nil {
 		mutation.ObservedAt = s.now()
 		controlStore := NewWorkflowControlStore(tx)
 		if err := controlStore.HeartbeatClaim(ctx, mutation); err != nil {
@@ -245,6 +259,11 @@ func (s IngestionStore) commitScopeGeneration(
 		return fmt.Errorf("upsert scope generation: %w", err)
 	}
 	s.logCommitStage(ctx, scopeValue, generation, "upsert_scope_generation", stageStart)
+	if claimFence != nil {
+		if err := claimFence.writeFence(ctx, tx, generation.GenerationID); err != nil {
+			return err
+		}
+	}
 	stageStart = time.Now()
 	catalogState, err := s.repositoryCatalog(ctx, tx)
 	if err != nil {
@@ -390,11 +409,20 @@ func (s IngestionStore) commitScopeGeneration(
 	}
 	s.logCommitStage(ctx, scopeValue, generation, "enqueue_projector_work", stageStart)
 
+	if claimFence != nil {
+		if err := claimFence.checkDeadline(ctx, generation.GenerationID); err != nil {
+			return err
+		}
+	}
 	stageStart = time.Now()
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit ingestion transaction: %w", err)
 	}
 	transactionClosed = true
+	if claimFence != nil {
+		// The generation is durable: stop re-pinning before post-commit work.
+		ctx = claimFence.afterCommit()
+	}
 	s.logCommitStage(ctx, scopeValue, generation, "commit_transaction", stageStart)
 	// The scope has a durable generation, so a destructive-successor hold on it
 	// ends here and not at the guard, which runs before the commit can fail.

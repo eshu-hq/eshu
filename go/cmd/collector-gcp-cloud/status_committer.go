@@ -34,6 +34,12 @@ func newGCPStatusCommitter(inner collector.Committer, metrics *gcpcloud.Metrics)
 	return gcpStatusCommitter{inner: inner, metrics: metrics}
 }
 
+// ClaimPlaneFenced reports whether the inner committer fences claimed
+// commits on the claim plane, so collector.ClaimedService can check the pair.
+func (c gcpStatusCommitter) ClaimPlaneFenced() bool {
+	return collector.CommitterFencesClaimPlane(c.inner)
+}
+
 // CommitScopeGeneration commits the generation through the inner committer and
 // records the bounded claim outcome.
 func (c gcpStatusCommitter) CommitScopeGeneration(

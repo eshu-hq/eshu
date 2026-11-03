@@ -51,6 +51,7 @@ the right name when adding a new stage.
 | canonical.projection | go/internal/telemetry/contract.go | `eshu_dp_canonical_projection_duration_seconds` | span canonical |
 | canonical.retract | go/internal/telemetry/contract.go | `eshu_dp_canonical_projection_duration_seconds` | span canonical |
 | ingestion.evidence_discovery | go/internal/telemetry/contract.go | `eshu_dp_evidence_facts_discovered_total` | span ingestion |
+| ingestion.commit.claim_fence | go/internal/telemetry/contract/ingestion_claim_fence.go (`SpanIngestionCommitClaimFence`) | `eshu_dp_ingestion_claim_fence_rejections_total`, `eshu_dp_ingestion_commit_pin_slack_seconds` | span ingestion |
 | iac_reachability.materialize | go/internal/telemetry/contract.go | `eshu_dp_iac_reachability_materialization_duration_seconds` | span IaC |
 | reducer.sql_relationship_materialization | go/internal/telemetry/contract.go | `eshu_dp_postgres_query_duration_seconds` | span reducer |
 | reducer.inheritance_materialization | go/internal/telemetry/contract.go | `eshu_dp_postgres_query_duration_seconds` | span reducer |
@@ -162,3 +163,4 @@ Each documented bucket set maps a short name to the exact boundary values in `go
 | code-fingerprint-seconds | 0, 0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 5 |
 | lock-only-gate-lock-wait-seconds | 0, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 5, 10 |
 | webhook-claim-wait-seconds | 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300, 600 |
+| ingestion-commit-pin-slack-seconds | 0, 1, 2.5, 5, 10, 20, 30, 40, 50, 60, 120 |

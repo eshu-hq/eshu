@@ -1299,6 +1299,17 @@ type Instruments struct {
 	// triggers backfill and repair since PR3b-2.
 	ConfigArtifactDerives        metric.Int64Counter
 	ConfigArtifactDeriveDuration metric.Float64Histogram
+	// IngestionClaimFenceRejections counts claim-plane commits the #9376
+	// commit fence refused, by the closed reason set (stale_fence,
+	// not_found, pin_unavailable, deadline, fence_token,
+	// fence_claim_mismatch). IngestionCommitRepins counts re-pins during a
+	// plane-path commit by outcome (ok, stale, error), and
+	// IngestionCommitPinSlack records the latest pin deadline minus the Go
+	// clock at the pre-COMMIT check. No id is a label. Registered in
+	// instruments_ingestion_claim_fence.go.
+	IngestionClaimFenceRejections metric.Int64Counter
+	IngestionCommitRepins         metric.Int64Counter
+	IngestionCommitPinSlack       metric.Float64Histogram
 	// ConfigArtifactReconcile counts per-repository config-artifact walker
 	// outcomes (#8155) by outcome (match, repaired, superseded, error,
 	// skipped), and ConfigArtifactStaleRepos gauges the repositories
@@ -6320,6 +6331,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	if err := registerConfigArtifactDeriveInstruments(meter, inst); err != nil {
 		return nil, err
 	}
+	if err := registerIngestionClaimFenceInstruments(meter, inst); err != nil {
+		return nil, err
+	}
 	if err := registerConfigArtifactWalkerInstruments(meter, inst); err != nil {
 		return nil, err
 	}
@@ -8965,3 +8979,10 @@ func registerClaimCommitObserverInstruments(meter metric.Meter, inst *Instrument
 	}
 	return nil
 }
+
+// ingestionCommitPinSlackBuckets bound the #9376 pin slack histogram
+// (registered in instruments_ingestion_claim_fence.go). It lives here so the
+// telemetry coverage gate checks it against the documented bucket set. The
+// default lease is 60 s with a re-pin every 20 s and a 5 s refusal margin, so
+// healthy slack sits between 40 s and 60 s; samples under 5 s are refusals.
+var ingestionCommitPinSlackBuckets = []float64{0, 1, 2.5, 5, 10, 20, 30, 40, 50, 60, 120}

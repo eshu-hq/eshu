@@ -98,7 +98,6 @@ func buildClaimedService(
 	}
 	ingestion := postgres.NewIngestionStore(database)
 	ingestion.Logger = logger
-	committer := newGCPStatusCommitter(ingestion, gcpMetrics)
 	claimStore, err := store.New(ctx, store.Options{
 		Service:     "collector-gcp-cloud",
 		Getenv:      getenv,
@@ -109,6 +108,11 @@ func buildClaimedService(
 	if err != nil {
 		return collector.ClaimedService{}, err
 	}
+	if claimStore.Pinner != nil {
+		// A plane-held claim has no core claim row: fence commits on the plane (#9376).
+		ingestion.ClaimPlane = &postgres.ClaimPlaneFence{Pinner: claimStore.Pinner, Tracer: tracer, Instruments: instruments}
+	}
+	committer := newGCPStatusCommitter(ingestion, gcpMetrics)
 	return collector.ClaimedService{
 		ControlStore: claimStore.Store,
 		Source: &gcpruntime.Source{

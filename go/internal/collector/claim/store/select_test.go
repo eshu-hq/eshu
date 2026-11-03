@@ -67,6 +67,9 @@ func TestNewUnsetKeepsInjectedPostgresStore(t *testing.T) {
 		if selection.Backend != store.BackendPostgres || selection.Endpoint != "" {
 			t.Fatalf("New(%q) = (%s, %q), want (postgres, \"\")", value, selection.Backend, selection.Endpoint)
 		}
+		if selection.Pinner != nil {
+			t.Fatalf("New(%q) pinner = %p, want nil for the core Postgres store", value, selection.Pinner)
+		}
 	}
 }
 
@@ -88,6 +91,9 @@ func TestNewValidURLSelectsClaimPlaneClient(t *testing.T) {
 	}
 	if selection.Endpoint != "http://eshu-workflow-claim-plane:8080" {
 		t.Fatalf("endpoint = %q, want scheme and host only", selection.Endpoint)
+	}
+	if selection.Pinner == nil || selection.Store != selection.Pinner {
+		t.Fatalf("pinner = %p, want the selected claim-plane client so the committer can fence on it (#9376)", selection.Pinner)
 	}
 }
 

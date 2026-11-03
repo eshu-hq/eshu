@@ -25,7 +25,7 @@ package does not import `storage/postgres`.
 
 ## Exported surface
 
-See `doc.go`. The surface is `New`, `Options`, `Selection`, `Backend` with
+See `doc.go`. The surface is `New`, `Options`, `Selection` (with `Pinner`), `Backend` with
 `BackendPostgres` and `BackendClaimPlane`, `EnvClaimPlaneURL`,
 `RequestTimeout`, and `ErrClaimPlaneUnsupported`.
 
@@ -36,7 +36,12 @@ See `doc.go`. The surface is `New`, `Options`, `Selection`, `Backend` with
   one counter tick.
 - Valid URL: `http` or `https`, a host, and an empty or `/` path. `New` returns
   a `workflow.ClaimPlaneClient` with a `RequestTimeout` (10 s) HTTP client.
-  There is no client retry and no fallback to Postgres.
+  There is no client retry and no fallback to Postgres. `Selection.Pinner`
+  is the same client (nil for Postgres): the caller sets it as the Pinner of
+  the committer's `postgres.ClaimPlaneFence`, because a claim the plane holds
+  has no core claim row to heartbeat on the fact transaction (#9376).
+  `collector.ClaimedService` refuses to start a plane store without that
+  fence, and a fenced committer with the Postgres store.
 - Invalid URL: user info, query, fragment, path, another scheme, a host that
   is not printable ASCII (whitespace included), or a port outside 1-65535
   stops startup. The error names the variable and never echoes the raw value.

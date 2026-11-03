@@ -180,13 +180,15 @@ import (
 // #9776 adds 271_owned_target_slot_progress.sql (DDL only: the persisted
 // least-recently-planned slot progress table and its oldest-slot index). 270 is
 // held by another lane's unmerged migration, so this lane took the next number.
-const goldenBootstrapDefinitionsDigest = "2491581951a837ca66d0d3bb65799537a522eed713da30579885f71e95608884"
+// #9376 adds 270_generation_commit_fences.sql (DDL only: the claim-plane
+// commit fence table), which sorts and applies before 271.
+const goldenBootstrapDefinitionsDigest = "252c6d4bf00db727eb85424f4ea8015a2d38ff3598df520a2a17c1bf1023846c"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 295
+const goldenBootstrapDefinitionsCount = 296
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

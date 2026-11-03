@@ -220,12 +220,24 @@ func TestIngestionCommitAndMaintenanceLockOrderingNeverDeadlocks(t *testing.T) {
 					onboardedRepoAlias := fmt.Sprintf("%s-onboard-r%d", repoKey, round)
 					store := NewIngestionStore(commitAdapters[i])
 					store.Now = func() time.Time { return gen.IngestedAt }
-					if err := store.CommitScopeGeneration(
-						ctx, scopeValue, gen,
-						testfixtures.FactChannel([]facts.Envelope{repoFactEnvelope(
-							fmt.Sprintf("fact-deadlock-r%d-%d", round, i), scopeValue.ScopeID, gen.GenerationID, onboardedRepoAlias, gen.ObservedAt,
-						)}),
-					); err != nil {
+					factStream := testfixtures.FactChannel([]facts.Envelope{repoFactEnvelope(
+						fmt.Sprintf("fact-deadlock-r%d-%d", round, i), scopeValue.ScopeID, gen.GenerationID, onboardedRepoAlias, gen.ObservedAt,
+					)})
+					var err error
+					if i%2 == 1 {
+						// Odd slots commit through the #9376 claim-plane
+						// path: pin before BEGIN, fence row under the scope
+						// lock, deadline check before COMMIT. It must add no
+						// lock-order edge against maintenance or the in-tree
+						// commits on the even slots.
+						store.ClaimPlane = &ClaimPlaneFence{Pinner: &claimFenceFakePinner{}, Code: claimFenceTestCode}
+						mutation := claimFenceTestMutation(scopeValue.ScopeID, gen.GenerationID, fmt.Sprintf("claim-r%d-%d", round, i), 1)
+						mutation.ObservedAt = gen.IngestedAt
+						err = store.CommitClaimedScopeGeneration(ctx, mutation, scopeValue, gen, factStream)
+					} else {
+						err = store.CommitScopeGeneration(ctx, scopeValue, gen, factStream)
+					}
+					if err != nil {
 						t.Errorf("round %d repo %d: CommitScopeGeneration() error = %v, want nil", round, i, err)
 						atomic.AddInt32(&failures, 1)
 					}
@@ -291,6 +303,15 @@ func TestIngestionCommitAndMaintenanceLockOrderingNeverDeadlocks(t *testing.T) {
 	// loop had already registered as known) shows exactly `rounds` begins
 	// instead of `2*rounds`, and this fails loudly instead of the test
 	// silently passing on a single-transaction shape.
+	// The odd slots really took the claim-plane path: one fence row per
+	// odd slot per round, so the plane-path lock order was exercised.
+	var fenceRows int
+	if err := database.QueryRowContext(ctx, `SELECT count(*) FROM generation_commit_fences`).Scan(&fenceRows); err != nil {
+		t.Fatalf("count claim-plane fence rows: %v", err)
+	}
+	if want := rounds * (repoCount / 2); fenceRows != want {
+		t.Fatalf("claim-plane fence rows = %d, want %d (odd slots x rounds)", fenceRows, want)
+	}
 	const wantBeginsPerRepo = int64(rounds) * 2
 	for i := range commitBeginCounts {
 		if got := atomic.LoadInt64(&commitBeginCounts[i]); got != wantBeginsPerRepo {

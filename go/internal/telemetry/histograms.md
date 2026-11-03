@@ -106,3 +106,4 @@ collector; paired with `WorkflowClaimRunDuration` an operator sees whether a slo
 collector is IO-bound or emission-heavy, and it joins the #3678
 `eshu_dp_content_entity_emitted_total` (`source_file_kind`) counter for a
 per-collector and per-file-kind volume breakdown.
+| `IngestionCommitPinSlack` | `eshu_dp_ingestion_commit_pin_slack_seconds` (no labels; #9376 claim-plane commit fence) | 0–120 s |

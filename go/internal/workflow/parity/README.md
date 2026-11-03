@@ -41,6 +41,13 @@ PARITY_SATELLITE_DSN='postgres://USER:PASS@127.0.0.1:PORT/parity_satellite?sslmo
   go test ./internal/workflow/parity/ -count=1
 ```
 
+Start the satellite with a long reaper interval (for `claim-plane`,
+`--reap-interval=1h`). The scenarios reap explicitly at synthetic fixture
+times; a background reaper tick, on the wall clock, that lands mid-scenario
+reaps a live claim and fails the satellite leg (seen once on
+`TestParityStaleWriterCommitFence` with the 20 s default: writer 2's
+`CompleteClaim` came back `epoch superseded (claim expired)`).
+
 With the legs configured, e.g. a local flip container on :18181 and one
 database for the satellite leg (the harness creates and drops the in-tree
 leg's database itself). Without the environment the suite skips. Never point
@@ -63,6 +70,12 @@ Throughput numbers log per leg for the dark-deployment no-regression baseline.
   `Outcome.Equal` since the replay-ack alignment).
 - Commit pin: in-tree has none (`TestParityPinGap`); pin survival is
   proven on the satellite leg only.
+- Stale-writer commit fence (#9376): not a divergence. Both legs refuse
+  a reaped writer's core commit after the item is reclaimed at the next
+  token (`TestParityStaleWriterCommitFence`): the in-tree leg through the
+  core claim heartbeat on the fact transaction, the satellite leg through
+  the claim-plane pin before any core transaction
+  (`IngestionStore.ClaimPlane`, `storage/postgres/claim/fence`).
 - Guarded admission: the in-tree store refuses a second admission on an
   already-covered target tuple (`TestDuplicateAdmissionGap`); the satellite
   has no guarded route (`ErrGuardedAdmissionNotSupported`) and admits

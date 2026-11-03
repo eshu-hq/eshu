@@ -74,6 +74,7 @@ var RetireTableDispositions = map[string]RetireTableEntry{
 	"content_file_secret_lines":               {Table: "content_file_secret_lines", KeyColumns: []string{"scope_id"}, RemoveSteps: []string{"2d"}, Disposition: "2d", Reason: "cascades with its content_files parent (migrations/138)"},
 	"activation_obligations":                  {Table: "activation_obligations", KeyColumns: []string{"scope_id"}, RemoveSteps: []string{"2d"}, Disposition: "2d", Reason: "generation FK cascade (migrations/160)"},
 	"producer_activation_obligations":         {Table: "producer_activation_obligations", KeyColumns: []string{"scope_id"}, RemoveSteps: []string{"2d"}, Disposition: "2d", Reason: "generation FK cascade (migrations/163)"},
+	"generation_commit_fences":                {Table: "generation_commit_fences", KeyColumns: []string{"scope_id"}, RemoveSteps: []string{"2d"}, Disposition: "2d", Reason: "generation FK cascade (migrations/270)"},
 	// Key sidecars: no fact_records FK since migrations 188 to 190, but
 	// keyed by scope and generation, so the 2d factkeys.DeleteGenerations
 	// step covers them (#7420) with a 2e leftover sweep by scope.

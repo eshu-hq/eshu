@@ -109,6 +109,14 @@ writer can commit. The parallel lane `lane-p2-pin-fence` wires
 `ValidateAndPinClaimForCommit` into that path. P1 does not touch it. Setting
 the variable on a real instance needs both P1 and P2 (ruling Phase C).
 
+Status after P2 (#9376): `store.New` returns the client as
+`Selection.Pinner`, every claim-aware collector sets it as its committer's
+`postgres.ClaimPlaneFence`, and `collector.ClaimedService` refuses a
+claim-plane store with an unfenced committer at start. With both landed,
+a plane-held commit is fenced by the pin, the fence row, and the deadline
+check instead of failing the core heartbeat. See
+[Claim-plane commit fence](9376-claim-plane-commit-fence.md).
+
 ## Telemetry
 
 - Startup log `event_name=collector.workflow_control_store.selected` with

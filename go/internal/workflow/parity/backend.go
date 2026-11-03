@@ -195,6 +195,14 @@ const inTreeOptInEnv = "PARITY_INTREE_DISPOSABLE"
 // another scenario's rows and no schema state outlives the run.
 func openInTreeBackend(t *testing.T, adminDSN string) Backend {
 	t.Helper()
+	backend, _ := openInTreeBackendWithDB(t, adminDSN)
+	return backend
+}
+
+// openInTreeBackendWithDB is openInTreeBackend plus the disposable database
+// handle, for scenarios that also drive the core ingestion commit on it.
+func openInTreeBackendWithDB(t *testing.T, adminDSN string) (Backend, *sql.DB) {
+	t.Helper()
 	if strings.TrimSpace(adminDSN) == "" {
 		t.Skip(inTreeDSNEnv + " is not set; skipping in-tree parity leg")
 	}
@@ -219,7 +227,7 @@ func openInTreeBackend(t *testing.T, adminDSN string) Backend {
 	if err := store.EnsureSchema(ctx); err != nil {
 		t.Fatalf("ensure workflow schema: %v", err)
 	}
-	return &inTreeBackend{store: store}
+	return &inTreeBackend{store: store}, db
 }
 
 // satelliteBackend drives the satellite claim plane over HTTP through the
