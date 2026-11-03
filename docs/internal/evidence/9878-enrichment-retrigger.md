@@ -109,14 +109,18 @@ scope, so the wave is k CVEs wide, not catalog-wide.
 | Scale | Resweep shape | Source |
 | --- | --- | --- |
 | 1x (100,000 findings, 83,333 winners, 1,000 dirty identifiers) | keyed tick 199.8 ms before / 247.5 ms after (one sample each, host load 37–58); full resweep over the same state 4.459 s / 4.456 s | this note's runs |
-| 5x / 10x (645 / 3,225 / 6,450 winner keys in the rejected-option shim; keyed cost follows changed keys, not table size) | resweep p95 at most 224 ms at 10x in the decision proof | decision record, #9805 scale note |
+| 1x / 5x / 10x (645 / 3,225 / 6,450 winner keys in the rejected-option shim; keyed cost follows changed keys, not table size) | resweep p95 at most 224 ms at 10x in the decision proof | decision record, #9805 scale note |
 
-No-Regression Evidence: same-state 1x scale proof before (`582f8ad32d`) and
-after (this branch), largest corpus run locally: full resweep 4.459 s →
-4.456 s (identical), keyed tick 199.8 ms → 247.5 ms (single samples on a
-shared host at load 37–58; the diff touches no resweep or read SQL, so the
-delta is host noise, and list/aggregate p95 is unchanged by construction —
-no query text changed). Microbenchmarks (`benchtime=2s, count=3`, arm64):
+Single-sample smoke (not a p95 no-regression proof): same-state 1x scale
+proof before (`582f8ad32d`) and after (this branch), largest corpus run
+locally: full resweep 4.459 s → 4.456 s (one sample each), keyed tick
+199.8 ms → 247.5 ms (one sample each on a shared host at load 37–58; n=1
+can neither support nor refute a regression claim). Diff inspection shows
+the change shares no code with the resweep or read SQL, so those paths are
+definitionally unchanged; the only changed hot path (`Handle`) adds an
+O(scopeFacts) string-header slice plus a ≤5-family map, dwarfed by the
+per-envelope decode and per-finding JSON+SHA256 digest already in the same
+pass. Microbenchmarks (`benchtime=2s, count=3`, arm64):
 allocations identical before/after (`BenchmarkKEVEPSSRescoreBuild9878`
 3,437 / 19,270 / 36,886 allocs/op at 1x/5x/10x both trees;
 `BenchmarkWritePayloadWithDigest` 196,041 both trees); ns/op ranges overlap
@@ -135,6 +139,11 @@ list/aggregate budget); 5x/10x local corpus loads.
   for the CVE is not a holder (documented in `HOLDER_FANOUT.md`).
 - Final #9878 acceptance still needs the fixture re-run after #9693 (1.2
   severity) lands and the seeded-CVE QA check; both are outside this diff.
+- p95 no-regression proof still open: resweep p95 and list/aggregate p95
+  before/after on the built binary (this note's 1x figures are single
+  samples only; see above).
+- `fanOutCause` has no early exit once two families are seen; negligible at
+  real generation sizes (hundreds–thousands of kinds), so left as is.
 
 ## Commands
 

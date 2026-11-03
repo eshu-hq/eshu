@@ -124,8 +124,10 @@
 // RecordSupplyChainImpactWinnersCapture), ...BackstopRepairs, and the observable
 // gauges ...DirtyLogDepth and ...DirtyLogOldestAge.
 // The supply-chain reducer registers SupplyChainImpactFanOut
-// (eshu_dp_supply_chain_impact_fanout_total), labeled by reducer domain and
-// outcome, so an operator can see whether a source retraction reached the scopes
+// (eshu_dp_supply_chain_impact_fanout_total), labeled by reducer domain,
+// outcome, and cause (epss, kev, advisory, suppression, package_evidence,
+// mixed, other — the committing generation's evidence family, #9878),
+// so an operator can see whether a source retraction reached the scopes
 // that hold stale copies (reopened, replay_flagged, pending_noop, enqueued,
 // deferred) and whether a pass fanned out only because a retry showed an earlier
 // attempt may have died first (crash_recovery) or failed to read its holders

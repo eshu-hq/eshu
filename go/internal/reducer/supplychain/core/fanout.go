@@ -74,9 +74,11 @@ const (
 	fanOutOutcomeStateError    = "state_error"
 )
 
-// The closed fan-out cause set (#9878): what family of evidence the
-// committing pass's own generation carried, which is what made its copies
-// change and its holders owe a re-derivation. Enrichment generations are
+// The closed fan-out cause set (#9878): the evidence family of the
+// committing pass's own generation, classified from its scope-fact kinds.
+// The label names the generation, not the per-CVE cause — a digest flipped
+// by cross-scope evidence during an EPSS-generation pass still reads epss.
+// Enrichment generations are
 // single-source by construction (one collector target per scope
 // generation), so epss and kev name an enrichment re-trigger exactly. A
 // generation mixing families reads mixed rather than guessing which family
