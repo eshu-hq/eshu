@@ -4,7 +4,9 @@
 package materializededges
 
 import (
-	"os"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -50,16 +52,33 @@ func TestCheckEndpointTargetLabelsBindsLabelPerRule(t *testing.T) {
 // label with a known rule_uid is unreachable through the production
 // extractor (the uid folds the same source tokens the label derives from),
 // so no Odu-level input distinguishes "call present" from "call deleted" —
-// deleting the call-site line below must fail this test instead.
+// deleting the call-site below must fail this test instead.
+//
+// The pin parses the guard into an AST and requires a genuine call
+// expression: a raw substring check would also match the call commented
+// out, letting a dead guard pass.
 func TestEndpointGuardInvokesTargetLabelCheck(t *testing.T) {
 	t.Parallel()
 
-	src, err := os.ReadFile(filepath.Join(repoRootDir(t), "go", "internal", "ifa", "materializededges", "security_group_rule_endpoint.go"))
+	path := filepath.Join(repoRootDir(t), "go", "internal", "ifa", "materializededges", "security_group_rule_endpoint.go")
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, path, nil, 0)
 	if err != nil {
-		t.Fatalf("read guard source: %v", err)
+		t.Fatalf("parse guard source: %v", err)
 	}
-	const call = "checkSecurityGroupRuleEndpointTargetLabels(odu.Name, result.RuleEndpointEdges)"
-	if !strings.Contains(string(src), call) {
-		t.Fatalf("guard no longer invokes %s; the label regression cases above pass while swapped-label rows flow unchecked", call)
+	invoked := false
+	ast.Inspect(file, func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		if name, ok := call.Fun.(*ast.Ident); ok && name.Name == "checkSecurityGroupRuleEndpointTargetLabels" {
+			invoked = true
+			return false
+		}
+		return true
+	})
+	if !invoked {
+		t.Fatalf("guard no longer invokes checkSecurityGroupRuleEndpointTargetLabels; the label regression cases above pass while swapped-label rows flow unchecked")
 	}
 }
