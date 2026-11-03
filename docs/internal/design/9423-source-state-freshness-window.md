@@ -117,9 +117,42 @@ difference is one instant wide, and it is settled at the next read.
 
 ## Performance Evidence
 
-The QA environment read replica was unreachable during this change (expired
-SSO session), so its plan and cost are NOT_CHECKED. Every number below is from
-a local fixture, not the QA environment: a private PostgreSQL 18.6 cluster. The seed was one bootstrapped schema, 181 configured NVD/EPSS/KEV
+The status statement below was also measured on the QA read replica
+(`eshu-postgresql-read-0`, namespace `eshu`, 2026-11-02): 1,301
+`vulnerability_source_states` rows, 38 `collector_instances` rows (26 live).
+The measured statement is byte-identical to the shipped
+`VulnerabilitySourceStatusQuery` (verified by diffing the EXPLAIN input
+against the const). Five consecutive `EXPLAIN (ANALYZE, BUFFERS)` runs:
+
+| Run | Planning | Execution |
+| --- | --- | --- |
+| 1 | 1.229 ms | 1.763 ms |
+| 2 | 1.119 ms | 1.688 ms |
+| 3 | 1.045 ms | 1.647 ms |
+| 4 | 1.098 ms | 1.645 ms |
+| 5 | 1.077 ms | 1.735 ms |
+
+Median execution is 1.69 ms. The plan is `Limit -> Sort (top-N heapsort,
+301 kB) -> Hash Join (Seq Scan on 1,301 state rows, 160 buffers; Hash over a
+Seq Scan on instances filtered to the 26 live rows)`, 182 shared buffers hit
+and no reads after the first run, 200 rows returned. That is the same plan
+shape #9447 measured on QA for this statement (Limit, top-N heapsort over
+Hash Join; 0.925/0.911/0.892 ms at 576 rows and 30 instances): the higher
+now-time follows the row growth (576 -> 1,301), not a plan change.
+
+Before/after for this change needs no separate QA pair: this drive's own
+diff is docs-only (one file, no Go, SQL, or query change), so it cannot
+change the statement or its plan. The rest is verifiable in-tree:
+`VulnerabilitySourceStatusQuery` is the shipped const the lane diffed the
+EXPLAIN input against, the aging runs in Go after the scan
+(`ReadVulnerabilitySourceStates` in
+`go/internal/storage/postgres/vulnerability/source_state.go`), and the
+cutoff is the shared `vulnsource.DefaultFreshnessWindow`
+(`14 * 24 * time.Hour` in `go/internal/vulnsource/scope.go`), unchanged.
+Identical statements with identical bind values share one plan, so the
+numbers above are both the before and the after for this change.
+
+Every number below is from a local fixture, not the QA environment: a private PostgreSQL 18.6 cluster. The seed was one bootstrapped schema, 181 configured NVD/EPSS/KEV
 targets and states, and one derived npm instance with 50,300 scopes and package
 keys. That is far above the 576 rows the QA replica held when #9420 measured
 it. Each run was `EXPLAIN (ANALYZE, BUFFERS)`, 7 interleaved runs with the
