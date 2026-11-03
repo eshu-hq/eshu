@@ -42,7 +42,7 @@ the fix), `TestOSVOSAdvisoryJoinAlmaRockyNegatives` (Alma advisory against a
 Rocky row, a redhat row, and a dpkg row, plus the Rocky/Alma mirror), the
 narrow-read key pin `TestOSVOSAdvisoryLookupKeysMeetTheInstalledKey`, the
 `alma`/`rocky` join cells in
-`TestOSAdvisoryJoinStatsSeparateLoadedFromJoined`, the flipped collector flip
+`TestOSAdvisoryJoinStatsSeparateLoadedFromJoined`, the flipped collector test
 `TestClaimedSourceAdmitsAlmaAndRockyEntries`, and the alias and consumption
 census pins (`TestNormalizeEcosystemAdmitsAlmaAndRockyAliases`,
 consumption-key and derived-scope-key rows).
