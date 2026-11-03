@@ -253,7 +253,7 @@ score), `selected_fixed_version_source`, `selected_range_source`,
 `alternate_severities[]` (`score_source` when derived), `fixed_version_branches[]`,
 and `advisory_sources[]` (with `source`, `advisory_id`, `source_updated_at`,
 `withdrawn_at`, `status`, and `replaced_by`), plus `advisory_retraction` when every
-source rejected or withdrew the CVE. Raw advisory bodies are not returned.
+source rejected or withdrew the CVE. Raw advisory bodies are not returned. The OSV collector also writes a directed `upstream` list on the `vulnerability.cve` payload (the CVEs a distro record repackages); it is raw collector evidence, never an alias or correlation anchor, and no reducer or API field reads it yet (#9954).
 
 Source-only advisory evidence is exposed separately through
 `GET /api/v0/supply-chain/advisories/evidence` and the MCP
