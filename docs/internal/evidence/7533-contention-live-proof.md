@@ -95,7 +95,7 @@ Go package terminal elapsed values were `github.com/eshu-hq/eshu/go/internal/sto
 | `go/internal/storage/postgres/vulnerability_suppression_advisory_e2e_live_test.go` | 2 | 10.15s |
 
 The two #9774 rows were added later: seven tests, run on private native PostgreSQL 18.6 with `-race -count=1 -json` on a shared host, not on the CI image above.
-The five #9805 keyed-resweep rows were added later: thirteen tests, run on private native PostgreSQL 18.6 with `-race -count=1 -json -p 1` on a shared host, not on the CI image above.
+The seven #9805 keyed-resweep rows were added later: eighteen tests, run on private native PostgreSQL 18.6 with `-race -count=1 -json -p 1` on a shared host, not on the CI image above.
 The file values sum the Go terminal `Elapsed` values for tests declared in that file.
 Tests can run in parallel, so these sums are not additive wall time.
 The committed inventory records each exact Test name and package; the runner checks it against source and selector text.
