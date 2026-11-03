@@ -200,27 +200,61 @@ func TestUnsortedRangeEventsQARowMoves(t *testing.T) {
 	t.Logf("QA: %d rows move to affected_exact (6 possibly_affected, dpkg not_affected_known_fixed)", moves)
 }
 
+// sortedTwoPairRange is the same two intervals as unsortedTwoPairRange
+// listed in version order: the common feed shape, which takes the
+// zero-allocation fast path.
+func sortedTwoPairRange(kind string) supplychainmodel.AffectedRange {
+	return supplychainmodel.AffectedRange{
+		Kind: kind,
+		Events: []supplychainmodel.AffectedRangeEvent{
+			{Introduced: "0"},
+			{Fixed: "1.5.0"},
+			{Introduced: "2.0.0"},
+			{Fixed: "2.5.0"},
+		},
+	}
+}
+
 // BenchmarkSortedRangeContainsScale measures the #9865 sort cost at the
-// matcher level: 1x is 4 unsorted two-pair ranges per advisory, 5x and 10x
-// scale the ranges. The observed version sits above every range so no range
-// short-circuits and each one pays the sort. Sorting is O(n log n) per range
-// with small n, so allocations must grow linearly in the range count.
+// matcher level: 1x is 4 two-pair ranges per advisory, 5x and 10x scale the
+// ranges. The observed version sits above every range so no range
+// short-circuits and each one pays the ordering check. The unsorted listing
+// pays the full sort; the sorted listing takes the zero-allocation fast
+// path. Sorting is O(n log n) per range with small n, so unsorted
+// allocations must grow linearly in the range count.
 func BenchmarkSortedRangeContainsScale(b *testing.B) {
-	for _, scale := range []int{1, 5, 10} {
+	build := func(kind string, scale int) []supplychainmodel.AffectedPackage {
 		ranges := make([]supplychainmodel.AffectedRange, 0, 4*scale)
 		for line := 0; line < 4*scale; line++ {
-			ranges = append(ranges, unsortedTwoPairRange("SEMVER"))
-		}
-		pkgs := affectedPackageWithRanges(ranges...)
-		b.Run(strconv.Itoa(scale)+"x", func(b *testing.B) {
-			b.ReportAllocs()
-			for i := 0; i < b.N; i++ {
-				decision := evaluateSupplyChainVersionMatch("npm", "3.0.0", "", "", pkgs)
-				if decision.Status != SupplyChainImpactPossiblyAffected {
-					b.Fatalf("status = %q, want possibly_affected above every range", decision.Status)
-				}
+			if kind == "sorted" {
+				ranges = append(ranges, sortedTwoPairRange("SEMVER"))
+			} else {
+				ranges = append(ranges, unsortedTwoPairRange("SEMVER"))
 			}
-		})
+		}
+		return affectedPackageWithRanges(ranges...)
+	}
+	for _, scale := range []int{1, 5, 10} {
+		for _, kind := range []string{"unsorted", "sorted"} {
+			pkgs := build(kind, scale)
+			// Above every range the sorted listing resolves through the
+			// #9854 per-line branch to known-fixed, while the unsorted
+			// listing stays fail-closed at possibly_affected; either way
+			// every range pays the ordering check.
+			want := SupplyChainImpactPossiblyAffected
+			if kind == "sorted" {
+				want = SupplyChainImpactNotAffectedKnownFixed
+			}
+			b.Run(kind+"/"+strconv.Itoa(scale)+"x", func(b *testing.B) {
+				b.ReportAllocs()
+				for i := 0; i < b.N; i++ {
+					decision := evaluateSupplyChainVersionMatch("npm", "3.0.0", "", "", pkgs)
+					if decision.Status != want {
+						b.Fatalf("status = %q, want %q above every range", decision.Status, want)
+					}
+				}
+			})
+		}
 	}
 }
 
