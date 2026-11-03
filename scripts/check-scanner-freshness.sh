@@ -27,16 +27,17 @@
 #   scripts/check-scanner-freshness.sh [--manifest PATH]
 #
 # Environment:
-#   SCANNER_FRESHNESS_REPO      Satellite repository holding the images
-#                               (default eshu-hq/eshu-scanner-worker).
 #   SCANNER_FRESHNESS_WORKFLOW  Release workflow file or ID
 #                               (default release.yml).
 #   GH_BIN                      gh binary (default gh).
+#
+# The compared repository always comes from the manifest anchor lines, never
+# from the environment: an override that silently redirected the comparison
+# at a different repo would report FRESH against the wrong publish stream.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 manifest="${repo_root}/go/internal/collector/scannercomponent/manifest.go"
-publish_repo="${SCANNER_FRESHNESS_REPO:-eshu-hq/eshu-scanner-worker}"
 workflow="${SCANNER_FRESHNESS_WORKFLOW:-release.yml}"
 gh_bin="${GH_BIN:-gh}"
 
@@ -73,8 +74,8 @@ repo_count="$(grep -c '^// Scanner-Publish-Repo: ' "${manifest}" || true)"
 manifest_repo="$(sed -n 's|^// Scanner-Publish-Repo: \([A-Za-z0-9_.-]*/[A-Za-z0-9_.-]*\)$|\1|p' "${manifest}")"
 [[ -n "${manifest_repo}" ]] || die "malformed publish-repo line in ${manifest}; want '// Scanner-Publish-Repo: <owner/name>'"
 
-release_json="$("${gh_bin}" api "repos/${publish_repo}/actions/workflows/${workflow}/runs?status=success&per_page=1" 2>/dev/null)" \
-	|| die "cannot list successful ${workflow} runs in ${publish_repo}; network or auth failure"
+release_json="$("${gh_bin}" api "repos/${manifest_repo}/actions/workflows/${workflow}/runs?status=success&per_page=1" 2>/dev/null)" \
+	|| die "cannot list successful ${workflow} runs in ${manifest_repo}; network or auth failure"
 
 read -r release_head release_id release_event release_date <<<"$(
 	python3 -c 'import json,sys

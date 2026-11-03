@@ -43,6 +43,12 @@ cat >"${stubbin}/gh" <<'STUB'
 #!/usr/bin/env bash
 set -euo pipefail
 if [[ "${1:-}" == api && "${2:-}" == repos/*/actions/workflows/*/runs* ]]; then
+	# Tripwire: the checker must scope the query to successful runs. A
+	# query change that drops status=success fails closed here, not green.
+	if [[ "${2:-}" != *status=success* ]]; then
+		echo "stub gh: expected status=success in ${2:-}" >&2
+		exit 2
+	fi
 	if [[ "${GH_STUB_API_FAIL:-}" == 1 ]]; then
 		echo "stub gh: dial tcp: connection refused" >&2
 		exit 1
@@ -161,9 +167,9 @@ for mode in missing-sha malformed-sha missing-repo; do
 	fx="${tmp_root}/${mode}"
 	manifest="$(make_fixture "${fx}" "${mode}")"
 	GH_STUB_RELEASE_HEAD="${ANCHOR}" run_checker "${manifest}"
-	expect_rc 2 "a ${mode} manifest exits 2 (rc=${rc})"
+	expect_rc 2 "a ${mode} manifest exits 2"
+	expect_output "FAIL-CLOSED" "a ${mode} manifest says FAIL-CLOSED"
 done
-expect_output "FAIL-CLOSED" "a bad manifest says FAIL-CLOSED"
 
 printf '%s passed, %s failed\n' "${PASS}" "${FAIL}"
 [[ "${FAIL}" -eq 0 ]]
