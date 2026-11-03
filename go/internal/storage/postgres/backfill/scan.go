@@ -6,6 +6,7 @@ package backfill
 import (
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
 
@@ -96,4 +97,80 @@ func ScanFactEnvelopeWithPayloadSize(rows db.Rows) (facts.Envelope, int, error) 
 			SourceRecordID: sourceRecordID,
 		},
 	}, len(rawPayload), nil
+}
+
+// ScanTypedFileEnvelope scans one fact_records row like ScanFactEnvelope but
+// decodes the payload through the typed file-payload decode
+// (core.DecodeTypedFileEnvelope), carrying only the keys the reachability
+// readers consume. It errors only on a scan failure or malformed JSON, never
+// on a shape mismatch.
+func ScanTypedFileEnvelope(rows db.Rows) (facts.Envelope, error) {
+	envelope, _, err := ScanTypedFileEnvelopeWithPayloadSize(rows)
+	return envelope, err
+}
+
+// ScanTypedFileEnvelopeWithPayloadSize scans one fact_records row like
+// ScanFactEnvelopeWithPayloadSize but decodes the payload through the typed
+// file-payload decode (core.DecodeTypedFileEnvelope) and also returns the
+// raw payload byte length, so byte accounting stays on raw bytes read.
+func ScanTypedFileEnvelopeWithPayloadSize(rows db.Rows) (facts.Envelope, int, error) {
+	var factID string
+	var scopeID string
+	var generationID string
+	var factKind string
+	var stableFactKey string
+	var schemaVersion string
+	var collectorKind string
+	var fencingToken int64
+	var sourceConfidence string
+	var sourceSystem string
+	var sourceFactKey string
+	var sourceURI string
+	var sourceRecordID string
+	var observedAt time.Time
+	var isTombstone bool
+	var rawPayload []byte
+
+	if err := rows.Scan(
+		&factID,
+		&scopeID,
+		&generationID,
+		&factKind,
+		&stableFactKey,
+		&schemaVersion,
+		&collectorKind,
+		&fencingToken,
+		&sourceConfidence,
+		&sourceSystem,
+		&sourceFactKey,
+		&sourceURI,
+		&sourceRecordID,
+		&observedAt,
+		&isTombstone,
+		&rawPayload,
+	); err != nil {
+		return facts.Envelope{}, 0, err
+	}
+
+	envelope, err := core.DecodeTypedFileEnvelope(rawPayload, factID, scopeID, isTombstone)
+	if err != nil {
+		return facts.Envelope{}, 0, err
+	}
+	envelope.FactKind = factKind
+	envelope.GenerationID = generationID
+	envelope.StableFactKey = stableFactKey
+	envelope.SchemaVersion = schemaVersion
+	envelope.CollectorKind = collectorKind
+	envelope.FencingToken = fencingToken
+	envelope.SourceConfidence = sourceConfidence
+	envelope.ObservedAt = observedAt.UTC()
+	envelope.SourceRef = facts.Ref{
+		SourceSystem:   sourceSystem,
+		ScopeID:        scopeID,
+		GenerationID:   generationID,
+		FactKey:        sourceFactKey,
+		SourceURI:      sourceURI,
+		SourceRecordID: sourceRecordID,
+	}
+	return envelope, len(rawPayload), nil
 }

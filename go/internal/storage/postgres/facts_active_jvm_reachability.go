@@ -200,7 +200,9 @@ func (s FactStore) listActiveJVMReachabilityFactsPage(
 
 	loaded := make([]facts.Envelope, 0, listFactsByKindPageSize)
 	for rows.Next() {
-		envelope, scanErr := backfill.ScanFactEnvelope(rows)
+		// The payload decodes through the typed file-payload decode (#9861),
+		// carrying only the keys buildJVMReachabilityIndex consumes.
+		envelope, scanErr := backfill.ScanTypedFileEnvelope(rows)
 		if scanErr != nil {
 			return nil, fmt.Errorf("list active JVM reachability facts: %w", scanErr)
 		}

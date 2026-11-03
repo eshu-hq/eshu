@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Theory shim for #9861: typed decode of ONLY the file-payload fields the
-// JS/TS, Python, and JVM reachability readers consume, against the current
-// map[string]any decode. Production code is untouched; everything here lives
-// in this _test.go file.
+// Theory proof for #9861: the promoted typed decode of ONLY the file-payload
+// fields the JS/TS, Python, and JVM reachability readers consume (see
+// file_payload_typed.go), against the current map[string]any decode. The
+// corpus, envelope decoders, and parity assertions below run against the
+// production definitions; the structs and decode helpers they replaced now
+// live in the non-test file.
 package core
 
 import (
@@ -18,164 +20,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
 )
-
-// typedFileStringSlice mirrors payloadcore.SemanticPayloadStringSlice: only
-// real strings survive, everything else is skipped rather than failing the
-// whole decode. A plain []string field would reject a mixed array that the
-// map path tolerates today, so the shared key definition must pin this.
-type typedFileStringSlice []string
-
-func (s *typedFileStringSlice) UnmarshalJSON(raw []byte) error {
-	var items []any
-	if err := json.Unmarshal(raw, &items); err != nil {
-		return err
-	}
-	out := make([]string, 0, len(items))
-	for _, item := range items {
-		if text, ok := item.(string); ok && text != "" {
-			out = append(out, text)
-		}
-	}
-	*s = out
-	return nil
-}
-
-// typedFileImport holds the only import-row keys any of the three readers
-// consume: source/name/alias/import_type/lang (JS/TS+Python) plus
-// full_import_name (JVM).
-type typedFileImport struct {
-	Source         string `json:"source"`
-	Name           string `json:"name"`
-	Alias          string `json:"alias"`
-	ImportType     string `json:"import_type"`
-	Lang           string `json:"lang"`
-	FullImportName string `json:"full_import_name"`
-}
-
-// typedFileCall holds the only call-row keys consumed: full_name/name/lang
-// (JS/TS+Python) plus inferred_obj_type (JVM).
-type typedFileCall struct {
-	FullName        string `json:"full_name"`
-	Name            string `json:"name"`
-	Lang            string `json:"lang"`
-	InferredObjType string `json:"inferred_obj_type"`
-}
-
-// typedFileSCIPCall holds the only SCIP-row keys consumed: package,
-// package_name, import_source, callee_package, callee_symbol (JS/TS) plus
-// callee_name (JVM).
-type typedFileSCIPCall struct {
-	Package       string `json:"package"`
-	PackageName   string `json:"package_name"`
-	ImportSource  string `json:"import_source"`
-	CalleePackage string `json:"callee_package"`
-	CalleeSymbol  string `json:"callee_symbol"`
-	CalleeName    string `json:"callee_name"`
-}
-
-// typedFileEntity holds the only entity keys consumed: decorators
-// (Python functions/classes buckets).
-type typedFileEntity struct {
-	Decorators typedFileStringSlice `json:"decorators"`
-}
-
-// typedParsedFileData holds the only parsed_file_data keys consumed:
-// language/lang plus the five buckets above. Every other parser key
-// (source snippets, variables, symbols, tokens, loc, ...) is skipped by the
-// decoder and never allocated as map/object graphs.
-type typedParsedFileData struct {
-	Language  string              `json:"language"`
-	Lang      string              `json:"lang"`
-	Imports   []typedFileImport   `json:"imports"`
-	Calls     []typedFileCall     `json:"function_calls"`
-	SCIPCalls []typedFileSCIPCall `json:"function_calls_scip"`
-	Functions []typedFileEntity   `json:"functions"`
-	Classes   []typedFileEntity   `json:"classes"`
-}
-
-// typedFilePayload holds the only envelope-payload keys consumed: repo_id,
-// repository_id (JS/TS fallback), relative_path (JVM), parsed_file_data.
-type typedFilePayload struct {
-	RepoID       string               `json:"repo_id"`
-	RepositoryID string               `json:"repository_id"`
-	RelativePath string               `json:"relative_path"`
-	Parsed       *typedParsedFileData `json:"parsed_file_data"`
-}
-
-func decodeTypedFilePayload(raw []byte) (typedFilePayload, error) {
-	var out typedFilePayload
-	if err := json.Unmarshal(raw, &out); err != nil {
-		return typedFilePayload{}, err
-	}
-	return out, nil
-}
-
-// projectTypedFileEnvelope rebuilds the envelope the existing per-file bodies
-// read, carrying ONLY the used keys. Parity between the index built from
-// these envelopes and the index built from full map-decoded envelopes proves
-// a typed decode of the used fields is sufficient.
-func projectTypedFileEnvelope(typed typedFilePayload, factID, scopeID string, tombstone bool) facts.Envelope {
-	payloadMap := map[string]any{
-		"repo_id":       typed.RepoID,
-		"repository_id": typed.RepositoryID,
-		"relative_path": typed.RelativePath,
-	}
-	if typed.Parsed != nil {
-		fileData := map[string]any{
-			"language": typed.Parsed.Language,
-			"lang":     typed.Parsed.Lang,
-		}
-		imports := make([]any, 0, len(typed.Parsed.Imports))
-		for _, entry := range typed.Parsed.Imports {
-			imports = append(imports, map[string]any{
-				"source": entry.Source, "name": entry.Name, "alias": entry.Alias,
-				"import_type": entry.ImportType, "lang": entry.Lang,
-				"full_import_name": entry.FullImportName,
-			})
-		}
-		fileData["imports"] = imports
-		calls := make([]any, 0, len(typed.Parsed.Calls))
-		for _, entry := range typed.Parsed.Calls {
-			calls = append(calls, map[string]any{
-				"full_name": entry.FullName, "name": entry.Name, "lang": entry.Lang,
-				"inferred_obj_type": entry.InferredObjType,
-			})
-		}
-		fileData["function_calls"] = calls
-		scip := make([]any, 0, len(typed.Parsed.SCIPCalls))
-		for _, entry := range typed.Parsed.SCIPCalls {
-			scip = append(scip, map[string]any{
-				"package": entry.Package, "package_name": entry.PackageName,
-				"import_source": entry.ImportSource, "callee_package": entry.CalleePackage,
-				"callee_symbol": entry.CalleeSymbol, "callee_name": entry.CalleeName,
-			})
-		}
-		fileData["function_calls_scip"] = scip
-		functions := make([]any, 0, len(typed.Parsed.Functions))
-		for _, entity := range typed.Parsed.Functions {
-			decorators := make([]any, 0, len(entity.Decorators))
-			for _, decorator := range entity.Decorators {
-				decorators = append(decorators, decorator)
-			}
-			functions = append(functions, map[string]any{"decorators": decorators})
-		}
-		fileData["functions"] = functions
-		classes := make([]any, 0, len(typed.Parsed.Classes))
-		for _, entity := range typed.Parsed.Classes {
-			decorators := make([]any, 0, len(entity.Decorators))
-			for _, decorator := range entity.Decorators {
-				decorators = append(decorators, decorator)
-			}
-			classes = append(classes, map[string]any{"decorators": decorators})
-		}
-		fileData["classes"] = classes
-		payloadMap["parsed_file_data"] = fileData
-	}
-	return facts.Envelope{
-		FactID: factID, FactKind: factload.FactKindFile, ScopeID: scopeID,
-		Payload: payloadMap, IsTombstone: tombstone,
-	}
-}
 
 // typedFileTheoryMeta carries the envelope fields that live outside the
 // payload column.
