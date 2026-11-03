@@ -206,7 +206,9 @@ func (s *WorkflowControlStore) EnqueueWorkItems(ctx context.Context, items []wor
 	}
 	// After every batch committed: a bulk admission onto a never-analyzed
 	// table leaves the fair-claim candidate on a 19 s plan until autovacuum
-	// runs. Non-fatal by design; the helper counts and logs its outcome.
+	// runs, and the same holds for a bulk onto a table whose statistics
+	// describe a trivially small base (#9926). Non-fatal by design; the
+	// helper counts and logs its outcome.
 	s.maybeAnalyzeWorkflowWorkItems(ctx, telemetry.WorkflowStatsAnalyzeSiteEnqueue, inserted)
 
 	return nil
