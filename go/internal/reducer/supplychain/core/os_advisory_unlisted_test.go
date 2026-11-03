@@ -187,6 +187,89 @@ func TestUnlistedReleaseVerdict(t *testing.T) {
 	}
 }
 
+// TestUnlistedReleaseVendorVersionListWins pins that a vendor fact whose exact
+// version list names the host beats an unlisted OSV fact's known-fixed
+// settlement. A vendor fact carries release evidence, so the vendor fact alone
+// reads affected_exact, and an OSV fact that names no range for the host's line
+// must not turn that into known fixed (#9806 PR-2b review 3, G1). Both fact
+// orders and both fix shapes are covered: several listed fixes reach the
+// unlisted settlement, a single listed fix also reaches the single-fix shortcut.
+func TestUnlistedReleaseVendorVersionListWins(t *testing.T) {
+	t.Parallel()
+
+	alpine := supplychainmodel.OSPackage{Distro: "alpine", DistroVersion: "3.23.0"}
+	bullseye := supplychainmodel.OSPackage{Distro: "debian", DistroVersion: "11"}
+	vendor := func(source, advisory, purl, name string, version string) supplychainmodel.AffectedPackage {
+		return supplychainmodel.AffectedPackage{
+			CVEID: "CVE-2099-9999", Source: source, AdvisoryID: advisory,
+			PackageID: "os://" + source + "/" + name, Ecosystem: "os", Name: name,
+			PURL:             purl,
+			AffectedVersions: []string{version},
+		}
+	}
+
+	for _, tc := range []struct {
+		name     string
+		osv      supplychainmodel.AffectedPackage
+		vendor   supplychainmodel.AffectedPackage
+		row      supplychainmodel.OSPackage
+		observed string
+	}{
+		{
+			name:     "dpkg several fixes",
+			osv:      osvDebianCurlFact(),
+			vendor:   vendor("debian", "DSA-9999-1", "pkg:deb/debian/curl", "curl", "9.0.0-1"),
+			row:      bullseye,
+			observed: "9.0.0-1",
+		},
+		{
+			name:     "dpkg single fix",
+			osv:      osvDebianCurlFactWith(taggedRange("8.3.0-1", "debian:13")),
+			vendor:   vendor("debian", "DSA-9999-1", "pkg:deb/debian/curl", "curl", "9.0.0-1"),
+			row:      bullseye,
+			observed: "9.0.0-1",
+		},
+		{
+			name: "apk several fixes",
+			osv: osvAlpineCurlFact(
+				taggedRange("8.14.1-r3", "alpine:3.21"),
+				taggedRange("8.14.1-r4", "alpine:3.22"),
+			),
+			vendor:   vendor("alpine", "ALPINE-SECDB-9999", "pkg:apk/alpine/curl", "curl", "8.15.0-r0"),
+			row:      alpine,
+			observed: "8.15.0-r0",
+		},
+		{
+			name:     "apk single fix",
+			osv:      osvAlpineCurlFact(taggedRange("8.14.1-r3", "alpine:3.21")),
+			vendor:   vendor("alpine", "ALPINE-SECDB-9999", "pkg:apk/alpine/curl", "curl", "8.15.0-r0"),
+			row:      alpine,
+			observed: "8.15.0-r0",
+		},
+	} {
+		for _, order := range []string{"osv first", "vendor first"} {
+			t.Run(tc.name+" "+order, func(t *testing.T) {
+				t.Parallel()
+				facts := []supplychainmodel.AffectedPackage{tc.osv, tc.vendor}
+				if order == "vendor first" {
+					facts = []supplychainmodel.AffectedPackage{tc.vendor, tc.osv}
+				}
+				pkgs := selectOSAdvisoryRelease(facts, tc.row)
+				fixed := singleFixedVersion(tc.osv.FixedVersions)
+				decision := evaluateSupplyChainVersionMatch("os", tc.observed, "", fixed, pkgs)
+				if decision.Status != SupplyChainImpactAffectedExact {
+					t.Fatalf("decision = %s/%s, want %s: the vendor list names the host",
+						decision.Status, decision.Reason, SupplyChainImpactAffectedExact)
+				}
+				alone := evaluateSupplyChainVersionMatch("os", tc.observed, "", "", []supplychainmodel.AffectedPackage{tc.vendor})
+				if alone.Status != SupplyChainImpactAffectedExact {
+					t.Fatalf("vendor fact alone = %s/%s, fixture is not a vendor win", alone.Status, alone.Reason)
+				}
+			})
+		}
+	}
+}
+
 // TestUnlistedReleaseSettlesFinding pins that an unlisted release, like an
 // unverified one, settles an installed-package finding when no SBOM path
 // competes: the package is installed, only the advisory's line is unknown.

@@ -45,6 +45,14 @@ The activation PR (after the SDK declares the field) turns the tag on.
   listed version, introduced, fixed and last_affected, up to about 40 sampled per
   record, both entry orders = 81,354 host rows) produced identical output, so the
   exception was not observed on that corpus.
+- **Unlisted settlement reads lists first.** The same rule holds when a tagged
+  fact names no range for the host's line. An exact-version list that names the
+  host is read before the unlisted known-fixed settlement. When some fact is
+  unlisted, a list on a fact that carries release evidence (a vendor advisory)
+  counts too, because that fact settles the host exactly. Both apply only when
+  a tagged fact is present, so no live verdict moves. The same hole in the
+  untagged single-fix shortcut, where a vendor list is skipped, is live and is
+  tracked in #9929; this change does not touch it.
 - **Any untagged range** keeps the whole fact on the untagged rules.
 
 ## Proof
@@ -56,6 +64,8 @@ The activation PR (after the SDK declares the field) turns the tag on.
 | Dormancy pin | Converter output carries `releases`; the real decode seam leaves `Releases == nil`; the bookworm `7.88.1-10+deb12u2` row reads `possibly_affected` / `os_release_unverified`. The activation PR deletes this test. |
 | Shared vector table (`testdata/os_release_line_vectors.json`) | Both key functions read it. Seeded drift in the reducer (Alpine keeps three fields) and in the converter (Pro not dropped) each failed one test (exit 1); restored, GREEN. |
 | Success-log sub-signals | RED when the sub-signal lines were removed (exit 1); GREEN restored. |
+| Unlisted settlement reads the list first (automated review P2) | RED: the new dpkg row read `not_affected_known_fixed` / `dpkg_known_fixed_unlisted_release` (exit 1); GREEN after the guard (exit 0). Removing the guard turns the new dpkg and apk rows RED. |
+| Vendor list wins over an unlisted OSV fact (independent review) | RED: 8 of 8 cases (dpkg and apk, several fixes and one fix, both fact orders) read known fixed while the vendor fact alone reads `affected_exact` (exit 1); GREEN after the scoped change (exit 0). |
 | `factschema-diff`, `payload-usage-manifest`, `extensionconformance`, accuracy golden gate | all exit 0. No schema edit, no new read. |
 
 ## One-time re-collection
