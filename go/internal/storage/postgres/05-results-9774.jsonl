@@ -1,0 +1,68 @@
+{
+  "postgres": "18.6",
+  "winners": 29870,
+  "changed_per_tick": 30,
+  "ticks": 6,
+  "phases": {
+    "main_nothing_changed": {
+      "row_versions": 179220,
+      "wal_bytes": 323609200,
+      "wal_mb": 308.618,
+      "winners": 29870,
+      "exactness_rows_differ": 0,
+      "tick_ms": [
+        882.2,
+        757.6,
+        855.0,
+        795.3,
+        847.6,
+        922.8
+      ]
+    },
+    "main_30_changed": {
+      "row_versions": 179220,
+      "wal_bytes": 323849472,
+      "wal_mb": 308.847,
+      "winners": 29870,
+      "exactness_rows_differ": 0,
+      "tick_ms": [
+        1152.2,
+        809.1,
+        734.3,
+        809.4,
+        1237.3,
+        1158.9
+      ]
+    },
+    "shipped_nothing_changed": {
+      "row_versions": 0,
+      "wal_bytes": 1224,
+      "wal_mb": 0.001,
+      "winners": 29870,
+      "exactness_rows_differ": 0,
+      "tick_ms": [
+        249.2,
+        390.7,
+        454.5,
+        226.0,
+        333.5,
+        431.2
+      ]
+    },
+    "shipped_30_changed": {
+      "row_versions": 180,
+      "wal_bytes": 576376,
+      "wal_mb": 0.55,
+      "winners": 29870,
+      "exactness_rows_differ": 0,
+      "tick_ms": [
+        351.6,
+        309.3,
+        229.5,
+        327.8,
+        347.2,
+        278.8
+      ]
+    }
+  }
+}
