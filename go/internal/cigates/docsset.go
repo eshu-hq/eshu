@@ -102,6 +102,7 @@ var lockstepDocsPaths = []string{
 	"go/internal/reducer/testdata/5998-rationale-relative-path.md",
 	"go/internal/runtime/README.md",
 	"go/internal/runtime/testdata/8894-component-extension-activations.md",
+	"go/internal/workflow/parity/contention/README.md",
 	"testdata/golden/documentation-positive.md",
 }
 
