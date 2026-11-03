@@ -5,6 +5,7 @@ package materializededges
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/cigates"
@@ -22,6 +23,9 @@ func TestTriggerStemAnchoringRejectsSiblingTriggers(t *testing.T) {
 
 	stemSet := make(map[string]struct{}, len(materializedEdgeFamilyTriggerStems))
 	for _, s := range materializedEdgeFamilyTriggerStems {
+		if strings.TrimSpace(s) == "" {
+			continue
+		}
 		stemSet[s] = struct{}{}
 	}
 
@@ -107,6 +111,9 @@ func TestCloudResourceKeepsGenuineWiring(t *testing.T) {
 	}
 	stemSet := make(map[string]struct{}, len(materializedEdgeFamilyTriggerStems))
 	for _, s := range materializedEdgeFamilyTriggerStems {
+		if strings.TrimSpace(s) == "" {
+			continue
+		}
 		stemSet[s] = struct{}{}
 	}
 	for _, gateID := range []string{materializedEdgeProofGateBaseline, materializedEdgeProofGateFault} {
