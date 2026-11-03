@@ -220,6 +220,57 @@ var materializedEdgeFamilyTriggerStems = map[string]string{
 	"runtime_declaration": "runtime_declaration",
 }
 
+// triggerMatchesFamilyStem reports whether trigger is one of the family's own
+// trigger paths for stem. It exists because a bare substring match lets a
+// sibling family's trigger satisfy the stem: every
+// cloud_resource_container_image trigger path contains cloud_resource, so a
+// cloud_resource row wired only to its sibling still passed the both-gates
+// guard. Each trigger is attributed to the longest stem it names: an
+// occurrence of stem counts only when no longer stem covers that same
+// occurrence. The family's own paths (its Odu, cells, live-drive, and writer
+// paths) name no longer stem, so they keep matching; a sibling's paths name
+// the sibling's longer stem, so they stop counting here and count only for
+// the sibling.
+func triggerMatchesFamilyStem(trigger, stem string, allStems map[string]struct{}) bool {
+	if strings.TrimSpace(stem) == "" {
+		return false
+	}
+	for start := 0; start+len(stem) <= len(trigger); {
+		rel := strings.Index(trigger[start:], stem)
+		if rel < 0 {
+			return false
+		}
+		idx := start + rel
+		end := idx + len(stem)
+		covered := false
+		for other := range allStems {
+			if len(other) <= len(stem) || other == stem {
+				continue
+			}
+			for j := 0; j+len(other) <= len(trigger); {
+				relOther := strings.Index(trigger[j:], other)
+				if relOther < 0 {
+					break
+				}
+				k := j + relOther
+				if k <= idx && end <= k+len(other) {
+					covered = true
+					break
+				}
+				j = k + 1
+			}
+			if covered {
+				break
+			}
+		}
+		if !covered {
+			return true
+		}
+		start = idx + 1
+	}
+	return false
+}
+
 // TestEveryCoveredFamilyTriggersBothLiveGates closes the third side of the
 // triangle. Two checks already exist: the registry-derived loop in
 // scripts/test-verify-ifa-determinism.sh proves registry ⊆ workflow, and the
@@ -249,9 +300,11 @@ var materializedEdgeFamilyTriggerStems = map[string]string{
 // prospective: the next family to claim a row has to wire its triggers in the
 // same change.
 //
-// What it does NOT cover: whether the triggers a covered family declares are
-// the RIGHT ones. Nothing checks that, and nothing plausibly can -- a gate
-// cannot know which files feed a family's proof. That remains a review
+// What it covers only against sibling confusion, not full rightness: the
+// anchored match (triggerMatchesFamilyStem) attributes each trigger to the
+// longest stem it names, so a sibling family's paths no longer satisfy a
+// family's stem. It still cannot know whether the family's OWN triggers are
+// the complete set that feeds its proof. That remains a review
 // responsibility.
 func TestEveryCoveredFamilyTriggersBothLiveGates(t *testing.T) {
 	t.Parallel()
@@ -333,6 +386,14 @@ func TestEveryCoveredFamilyTriggersBothLiveGates(t *testing.T) {
 		}
 	}
 
+	stemSet := make(map[string]struct{}, len(materializedEdgeFamilyTriggerStems))
+	for _, s := range materializedEdgeFamilyTriggerStems {
+		if strings.TrimSpace(s) == "" {
+			continue
+		}
+		stemSet[s] = struct{}{}
+	}
+
 	for _, family := range families {
 		if _, ok := covered[family]; !ok {
 			continue
@@ -347,7 +408,7 @@ func TestEveryCoveredFamilyTriggersBothLiveGates(t *testing.T) {
 		for gateID, triggers := range triggersByGate {
 			matched := 0
 			for _, trigger := range triggers {
-				if strings.Contains(trigger, stem) {
+				if triggerMatchesFamilyStem(trigger, stem, stemSet) {
 					matched++
 				}
 			}
