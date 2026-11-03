@@ -1026,6 +1026,12 @@ type Instruments struct {
 	// os_package row of that vendor joined the fact (#9848). Loaded with zero
 	// joined is a join defect or a fleet without that vendor's packages.
 	SupplyChainImpactOSAdvisoryJoins metric.Int64Counter
+	// SupplyChainImpactOSAdvisoryReleaseSelections counts the joined OS
+	// advisory facts of a supply-chain impact pass by source and result
+	// (release_matched, release_unlisted, release_untagged,
+	// host_release_unknown, vendor_source): what the fact's release-tagged
+	// ranges say about the installed row's release line (#9806 PR-2b).
+	SupplyChainImpactOSAdvisoryReleaseSelections metric.Int64Counter
 	// SupplyChainImpactFindingsRetracted counts prior supply-chain impact
 	// finding rows a reducer pass tombstoned because its complete finding set
 	// for the (scope, generation) no longer derives them (#6831) -- for
@@ -4713,6 +4719,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SupplyChainImpactOSAdvisoryJoins counter: %w", err)
+	}
+
+	inst.SupplyChainImpactOSAdvisoryReleaseSelections, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_os_advisory_release_selections_total",
+		metric.WithDescription("Joined OS advisory facts a supply-chain impact pass evaluated, by source (debian, ubuntu, alpine, other) and result (release_matched, release_unlisted, release_untagged, host_release_unknown, vendor_source): whether the fact's release-tagged ranges named the installed row's release line. release_matched decides on the host's own range and fix; release_untagged keeps the untagged union rules."),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SupplyChainImpactOSAdvisoryReleaseSelections counter: %w", err)
 	}
 
 	inst.SupplyChainImpactFindingsRetracted, err = meter.Int64Counter(

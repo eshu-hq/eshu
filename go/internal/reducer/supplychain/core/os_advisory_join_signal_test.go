@@ -29,9 +29,9 @@ func TestOSAdvisoryJoinStatsSeparateLoadedFromJoined(t *testing.T) {
 		envelopes []facts.Envelope
 		want      map[osAdvisoryJoinKey]int
 	}{
-		{"debian advisory with a debian row", append(append([]facts.Envelope{}, debian...), debianCurl("12", "7.88.1-10+deb12u2").envelope()), map[osAdvisoryJoinKey]int{{"debian", osAdvisoryJoinOutcomeJoined}: 1}},
-		{"debian advisory with only an ubuntu row", append(append([]facts.Envelope{}, debian...), ubuntuCurl("22.04", "7.88.1-10+deb12u2").envelope()), map[osAdvisoryJoinKey]int{{"debian", osAdvisoryJoinOutcomeNotJoined}: 1}},
-		{"debian advisory with no row", debian, map[osAdvisoryJoinKey]int{{"debian", osAdvisoryJoinOutcomeNotJoined}: 1}},
+		{"debian advisory with a debian row", append(append([]facts.Envelope{}, debian...), debianCurl("12", "7.88.1-10+deb12u2").envelope()), map[osAdvisoryJoinKey]int{{"debian", osAdvisoryJoinOutcomeJoined, osAdvisoryReleaseUntagged}: 1}},
+		{"debian advisory with only an ubuntu row", append(append([]facts.Envelope{}, debian...), ubuntuCurl("22.04", "7.88.1-10+deb12u2").envelope()), map[osAdvisoryJoinKey]int{{"debian", osAdvisoryJoinOutcomeNotJoined, ""}: 1}},
+		{"debian advisory with no row", debian, map[osAdvisoryJoinKey]int{{"debian", osAdvisoryJoinOutcomeNotJoined, ""}: 1}},
 		{"npm advisory", convertedOSVFixture(t, "ghsa-35jh-r3h4-6jhm.json", false), nil},
 	}
 	for _, tc := range tests {
@@ -62,9 +62,9 @@ func TestEmitOSAdvisoryJoinsCarriesOnlySourceAndOutcome(t *testing.T) {
 	}
 	handler := SupplyChainImpactHandler{Instruments: inst}
 	handler.emitOSAdvisoryJoins(context.Background(), map[osAdvisoryJoinKey]int{
-		{"debian", osAdvisoryJoinOutcomeNotJoined}: 3,
-		{"alpine", osAdvisoryJoinOutcomeJoined}:    2,
-		{"ubuntu", osAdvisoryJoinOutcomeJoined}:    0,
+		{"debian", osAdvisoryJoinOutcomeNotJoined, ""}:                    3,
+		{"alpine", osAdvisoryJoinOutcomeJoined, osAdvisoryReleaseMatched}: 2,
+		{"ubuntu", osAdvisoryJoinOutcomeJoined, osAdvisoryReleaseMatched}: 0,
 	})
 
 	var rm metricdata.ResourceMetrics
@@ -110,10 +110,10 @@ func TestRecordBuildStatsWritesOSAdvisorySubSignals(t *testing.T) {
 		wantJoined     float64
 	}{
 		{"no os advisory", supplyChainImpactBuildStats{}, 0, 0},
-		{"loaded none joined", supplyChainImpactBuildStats{osAdvisoryJoins: map[osAdvisoryJoinKey]int{{"debian", osAdvisoryJoinOutcomeNotJoined}: 4}}, 4, 0},
+		{"loaded none joined", supplyChainImpactBuildStats{osAdvisoryJoins: map[osAdvisoryJoinKey]int{{"debian", osAdvisoryJoinOutcomeNotJoined, ""}: 4}}, 4, 0},
 		{"mixed", supplyChainImpactBuildStats{negatedProductsExcluded: 2, osAdvisoryJoins: map[osAdvisoryJoinKey]int{
-			{"debian", osAdvisoryJoinOutcomeNotJoined}: 1,
-			{"alpine", osAdvisoryJoinOutcomeJoined}:    3,
+			{"debian", osAdvisoryJoinOutcomeNotJoined, ""}:                    1,
+			{"alpine", osAdvisoryJoinOutcomeJoined, osAdvisoryReleaseMatched}: 3,
 		}}, 4, 3},
 	} {
 		subSignals := map[string]float64{}

@@ -47,6 +47,14 @@ type AffectedPackage struct {
 	AffectedRanges   []AffectedRange
 	AffectedRangeRaw string
 	FixedVersions    []string
+	// ReleaseLine is the host release line ("debian:12") the OS join narrowed
+	// AffectedRanges and FixedVersions to, because every range of the fact
+	// named its release lines and one named the host's (#9806 PR-2b). Empty
+	// when the fact was not narrowed.
+	ReleaseLine string
+	// ReleaseUnlisted marks a fact whose ranges all name their release lines
+	// and none names the host's line. The fact keeps every range.
+	ReleaseUnlisted bool
 }
 
 // AffectedRange is one typed version-range event group inside an
@@ -54,6 +62,10 @@ type AffectedPackage struct {
 type AffectedRange struct {
 	Kind   string
 	Events []AffectedRangeEvent
+	// Releases lists the vendor-qualified release lines ("debian:12",
+	// "alpine:3.18", "ubuntu:22.04") whose source entries published this
+	// range. Nil when the source did not tag the range (#9806 PR-2b).
+	Releases []string
 }
 
 // AffectedRangeEvent is one introduced/fixed/last-affected/limit boundary

@@ -85,7 +85,6 @@ func classifySupplyChainImpactPackage(
 	pkgs []supplychainmodel.AffectedPackage,
 	index supplyChainImpactIndex,
 ) SupplyChainImpactFinding {
-	finding := baseSupplyChainImpactFinding(cves, pkgs, index)
 	pkg := representativeAffectedPackage(pkgs)
 	component, attachment, image, hasComponentPath, imagePathMissing := firstSBOMImpactPath(pkg, index)
 	consumption := firstConsumption(pkg.PackageID, index.consumption)
@@ -97,6 +96,14 @@ func classifySupplyChainImpactPackage(
 		subjectOSRows = matchingOSPackageImpactPaths(pkg, index)
 		osPackage = subjectOSRows[0]
 	}
+	if hasOSPackage {
+		// Narrow release-tagged OSV OS facts to the installed row's release
+		// line before the finding reads ranges and fixes, so the matcher and
+		// remediation see the host's own range and fix (#9806 PR-2b).
+		pkgs = selectOSAdvisoryRelease(pkgs, osPackage)
+		pkg = representativeAffectedPackage(pkgs)
+	}
+	finding := baseSupplyChainImpactFinding(cves, pkgs, index)
 	// repoFromConsumption is the single provenance signal both image-evidence
 	// branches below gate on: the SBOM branch must not overwrite a
 	// consumption-derived anchor with the image's OCI registry path (#5780),
