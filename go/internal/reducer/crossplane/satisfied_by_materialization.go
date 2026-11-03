@@ -351,6 +351,7 @@ func (h CrossplaneSatisfiedByMaterializationHandler) recordRedriveLedgerForConfi
 	if err != nil {
 		slog.ErrorContext(
 			ctx, "crossplane satisfied-by edge existence confirmation failed",
+			telemetry.EventAttr("crossplane.satisfied_by.edge_confirmation_failed"),
 			log.ScopeID(targetScopeID),
 			slog.String("error", err.Error()),
 		)
@@ -398,6 +399,7 @@ func (h CrossplaneSatisfiedByMaterializationHandler) recordRedriveLedger(
 		if err := h.RedriveTargetLedger.RecordRedriven(ctx, targetScopeID, group, kind); err != nil {
 			slog.ErrorContext(
 				ctx, "crossplane redrive target ledger record failed",
+				telemetry.EventAttr("crossplane.redrive.ledger_record_failed"),
 				log.ScopeID(targetScopeID),
 				slog.String("xrd_group", group),
 				slog.String("xrd_claim_kind", kind),

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/crossplane"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 const (
@@ -78,6 +79,7 @@ func runCrossplaneRedriveCatchUpTick(
 		if logger != nil {
 			logger.ErrorContext(
 				ctx, "crossplane redrive catch-up sweep failed",
+				telemetry.EventAttr("crossplane.redrive.catchup_failed"),
 				"error", err,
 				"reclaimed_completed", len(results),
 			)
@@ -87,6 +89,7 @@ func runCrossplaneRedriveCatchUpTick(
 	if logger != nil && len(results) > 0 {
 		logger.InfoContext(
 			ctx, "crossplane redrive catch-up sweep completed",
+			telemetry.EventAttr("crossplane.redrive.catchup_completed"),
 			"claims_reclaimed", len(results),
 		)
 	}
