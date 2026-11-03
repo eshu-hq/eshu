@@ -9,8 +9,9 @@ The `branch` label is a closed set: one name per statement in the
 supply-chain impact branch catalog (for example `vulnerability_cve_id`,
 `package_id`, `file_repo_id`, `vulnerability_suppression`,
 `foreign_key_guard`), plus `scope_resolution` (repository IDs to active
-scopes), `payload_page` (one primary-key page), and `identity` (one
-canonical image-identity page). Statements that a pass's filter does not need
+scopes), `payload_page` (one primary-key page), `identity` (one
+canonical image-identity page), and `file_fold` (one byte-ordered page of
+parser file facts folded into the reachability index and dropped, #9781). Statements that a pass's filter does not need
 are not issued and record nothing.
 
 - `eshu_dp_supply_chain_impact_active_evidence_branch_seconds` — histogram
@@ -18,6 +19,14 @@ are not issued and record nothing.
   climbs while its row count holds names the index that stopped serving it.
 - `eshu_dp_supply_chain_impact_active_evidence_branch_rows_total` — counter
   of rows one statement returned, labeled `branch`.
+- `eshu_dp_supply_chain_impact_active_evidence_payload_bytes` — histogram
+  (unit `By`) of the raw payload bytes one statement read, labeled `branch`
+  (`payload_page`, `identity`, or `file_fold`). `payload_page` and `identity`
+  bytes are kept decoded for the pass; `file_fold` bytes are decoded one row at
+  a time and dropped. A `file_fold` tail that climbs while `payload_page` holds
+  is a larger JS/TS corpus the fold is absorbing at no heap cost. A
+  `payload_page` tail that climbs is retained memory growing toward the payload
+  budget below.
 - `eshu_dp_supply_chain_impact_active_evidence_foreign_key_guard_rows_total`
   — counter of rows the foreign-key guard returned. The guard holds only rows
   whose payload carries an identity key their kind's statements do not probe,
@@ -32,14 +41,36 @@ carries the same accounting summed over the pass:
 `sub_duration_active_evidence_branch_<branch>_seconds`, and the
 `active_evidence_loads`, `active_evidence_resolved_fact_ids`,
 `active_evidence_payload_pages`, `active_evidence_guard_rows`, and
-`active_evidence_truncated_loads` sub-signals. Read them next to
+`active_evidence_truncated_loads` sub-signals, plus the pass totals
+`active_evidence_files_folded`, `active_evidence_payload_bytes_folded`, and
+`active_evidence_payload_bytes_retained` (#9781). Read them next to
 `sub_duration_load_active_evidence_seconds`.
 
 ## Evidence headroom
 
-A pass may charge 100,000 expansion envelopes to its evidence budget. Above
-that it goes partial: it upserts but retracts nothing, so a scope that crosses
-the limit on every pass keeps its stale findings (#7154). Two gauges show the
+A pass may charge 100,000 expansion envelopes and 256 MiB of retained raw
+payload to its evidence budget. Above either it goes partial: it upserts but
+retracts nothing, so a scope that crosses a limit on every pass keeps its stale
+findings (#7154). Both limits report under the `evidence_budget` cause. The
+WARN line `supply chain impact evidence truncated; findings not retracted` carries
+`budget_envelopes` with `budget_envelopes_limit` and `budget_payload_bytes` with
+`budget_payload_bytes_limit`; the charge that is over its limit is the reason.
+The byte limit is charged page by page during the load, so the first round of a
+pass, which carries the heaviest statements, stops at the page that crosses it.
+The finding's missing-evidence note, `active supply-chain evidence expansion
+limit reached`, covers either limit.
+
+JS/TS parser `file` facts that the active-evidence file branches resolve, and the
+Python evidence those rows carry (decorators), are folded into the reachability
+index as they are scanned and are not retained, so they charge neither limit
+(#9781). Before that change a pass kept each file's decoded payload, about 140 KB
+of heap per file, and the envelope count alone could not bound it. A pass that
+went partial only because of file count now completes. The standalone Python
+reachability stage is unchanged: it still loads all-language `file` facts whole,
+and they charge neither limit. It is the next memory risk (#9860).
+The payload limit charges the raw bytes of every payload a load returns, including rows the pass later drops as duplicates of ones it already holds, so it can read higher than what the pass finally keeps. That errs toward an earlier, visible partial pass, never a silent drop. The
+decoded form of a JSON payload is roughly 3 to 5 times its raw size, so 256 MiB
+raw bounds a pass to roughly 0.8 to 1.3 GiB of heap. Two gauges show the
 climb before the limit and the scopes already past it (#9778):
 
 | Metric | Type | Key labels | Use |
@@ -71,8 +102,16 @@ The WARN line `supply chain impact evidence truncated; findings not retracted`
 names the scope and is the exact source.
 
 The success line also carries `sub_signal_evidence_partial` (1 when the pass
-did not retract) and `sub_signal_evidence_budget_ratio`, so a log search can
-count partial passes directly.
+did not retract), `sub_signal_evidence_budget_ratio`, and
+`sub_signal_evidence_payload_bytes_ratio` (retained raw payload bytes over the
+payload limit), so a log search can count partial passes directly.
+
+`sub_signal_evidence_envelopes` and the `evidence_envelopes` field of the WARN
+line count each parser file the fold absorbed as one envelope, so they keep the
+meaning they had before the fold: how many evidence envelopes the pass loaded.
+The charge against the envelope budget does not include folded files (see
+`sub_signal_active_evidence_files_folded`), so on a file-heavy pass the count
+can exceed the budget without the pass being partial.
 
 ## OS advisory joins
 

@@ -16,7 +16,7 @@ This package generates the replacement from one table:
 | `Branches()` | One id-resolution statement per (kind group, key) or per bounded kind, with its anchor index, bind order, and the inputs that gate it. |
 | `NewIndexes()` | The 13 anchors migrations 217 to 229 create, one `CREATE INDEX CONCURRENTLY` per file. |
 | `GuardPredicate()` | The foreign-key guard: growth and file rows that carry a key their branch does not probe. |
-| `ScopeResolutionSQL`, `PayloadPageSQL` | The repository-to-scope resolution and the primary-key payload page. |
+| `ScopeResolutionSQL`, `PayloadPageSQL`, `PayloadPageOrderedSQL` | The repository-to-scope resolution, the primary-key payload page, and the same page in byte order, which the loader streams into the file-evidence fold one row at a time (#9781). |
 
 ## How one load runs
 
@@ -59,6 +59,9 @@ snapshot. Every other arm is the old text.
 Branch names are the closed `branch` label of
 `eshu_dp_supply_chain_impact_active_evidence_branch_seconds` and
 `eshu_dp_supply_chain_impact_active_evidence_branch_rows_total`, with
-`scope_resolution`, `payload_page`, and `identity`. Guard rows also count on
+`scope_resolution`, `payload_page`, `identity`, and `file_fold`.
+`eshu_dp_supply_chain_impact_active_evidence_payload_bytes` records the raw
+payload bytes a payload-reading statement read, under the same label.
+Guard rows also count on
 `eshu_dp_supply_chain_impact_active_evidence_foreign_key_guard_rows_total`
 and log a WARN line naming the drifted kinds.

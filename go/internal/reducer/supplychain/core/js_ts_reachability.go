@@ -45,30 +45,61 @@ type jsTSPackageAPIUsage struct {
 func buildJSTSPackageReachabilityIndex(envelopes []facts.Envelope) jsTSPackageReachabilityIndex {
 	index := jsTSPackageReachabilityIndex{repositories: map[string]*jsTSRepositoryReachability{}}
 	for _, envelope := range envelopes {
-		if envelope.IsTombstone || envelope.FactKind != factload.FactKindFile {
+		if fold := fileReachabilityFoldFromDigest(envelope); fold != nil {
+			index.merge(fold.jsTS)
 			continue
 		}
-		repositoryID := payloadcore.FirstNonBlank(
-			payloadcore.PayloadStr(envelope.Payload, "repo_id"),
-			payloadcore.PayloadStr(envelope.Payload, "repository_id"),
-			envelope.ScopeID,
-		)
-		if repositoryID == "" {
-			continue
-		}
-		fileData, ok := envelope.Payload["parsed_file_data"].(map[string]any)
-		if !ok {
-			continue
-		}
-		if !isJSTSParsedFile(fileData) {
-			continue
-		}
-		repo := index.repository(repositoryID)
-		repo.hasParserOrSCIP = true
-		repo.recordImports(fileData, envelope.FactID)
-		repo.recordSCIPEdges(fileData, envelope.FactID)
+		index.addFile(envelope)
 	}
 	return index
+}
+
+// addFile folds one parser file envelope into the index. It is the one body
+// both buildJSTSPackageReachabilityIndex and FileReachabilityFold.Add run, so
+// a folded file and a retained envelope read the same keys the same way.
+func (i jsTSPackageReachabilityIndex) addFile(envelope facts.Envelope) {
+	if envelope.IsTombstone || envelope.FactKind != factload.FactKindFile {
+		return
+	}
+	repositoryID := payloadcore.FirstNonBlank(
+		payloadcore.PayloadStr(envelope.Payload, "repo_id"),
+		payloadcore.PayloadStr(envelope.Payload, "repository_id"),
+		envelope.ScopeID,
+	)
+	if repositoryID == "" {
+		return
+	}
+	fileData, ok := envelope.Payload["parsed_file_data"].(map[string]any)
+	if !ok {
+		return
+	}
+	if !isJSTSParsedFile(fileData) {
+		return
+	}
+	repo := i.repository(repositoryID)
+	repo.hasParserOrSCIP = true
+	repo.recordImports(fileData, envelope.FactID)
+	repo.recordSCIPEdges(fileData, envelope.FactID)
+}
+
+// merge folds a later-ordered index into i as if its files had been added after
+// i's own. recordUsage keeps the first usage of the best evidence priority, so
+// an existing usage wins every tie and the later one replaces it only on a
+// strictly better priority; ambiguous bases are a set union.
+func (i jsTSPackageReachabilityIndex) merge(later jsTSPackageReachabilityIndex) {
+	for repositoryID, source := range later.repositories {
+		repo := i.repository(repositoryID)
+		repo.hasParserOrSCIP = repo.hasParserOrSCIP || source.hasParserOrSCIP
+		for base := range source.ambiguousBases {
+			repo.ambiguousBases[base] = struct{}{}
+		}
+		for key, usage := range source.packages {
+			current, ok := repo.packages[key]
+			if !ok || jsTSPackageAPIEvidencePriority(usage.evidence) < jsTSPackageAPIEvidencePriority(current.evidence) {
+				repo.packages[key] = usage
+			}
+		}
+	}
 }
 
 func (i jsTSPackageReachabilityIndex) repository(repositoryID string) *jsTSRepositoryReachability {

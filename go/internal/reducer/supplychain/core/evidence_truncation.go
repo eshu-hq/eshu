@@ -81,12 +81,31 @@ func (t supplyChainImpactTruncation) causes() []string {
 // const, so tests can lower it without seeding a hundred thousand rows.
 var maxSupplyChainImpactEvidenceEnvelopesPerIntent = 100_000
 
+// maxSupplyChainImpactEvidencePayloadBytesPerIntent bounds the raw JSON bytes
+// of the envelopes one pass keeps decoded (#9781). The envelope count above
+// cannot bound memory on its own: a parser file envelope is about 70 times a
+// scanner or OS-package envelope. Decoded `map[string]any` costs about three to
+// five times the raw JSON (QA file facts: about 3x; the synthetic shim: 4.65x),
+// so this default holds a pass to roughly 0.8 to 1.3 GiB of decoded heap, and
+// eight concurrent passes to about a third to a half of the 24 GiB GOMEMLIMIT.
+// Files folded into a FileReachabilityFold are not retained and are not
+// charged, so a pass over the whole JS/TS fleet stays far under it; a pass
+// that crosses it is marked partial under the existing evidence_budget cause.
+// A var, not a const, so tests can lower it.
+var maxSupplyChainImpactEvidencePayloadBytesPerIntent int64 = 256 << 20
+
 // supplyChainImpactEvidenceBudget tracks the expansion envelopes one pass has
-// loaded against maxSupplyChainImpactEvidenceEnvelopesPerIntent. A nil budget
-// is unlimited so stage-level tests can call a stage on its own.
+// loaded against maxSupplyChainImpactEvidenceEnvelopesPerIntent, and the raw
+// payload bytes it keeps against maxSupplyChainImpactEvidencePayloadBytesPerIntent.
+// A nil budget is unlimited so stage-level tests can call a stage on its own.
 type supplyChainImpactEvidenceBudget struct {
 	limit int
 	used  int
+	// bytesLimit and bytesUsed are the retained-payload-bytes budget. A zero
+	// bytesLimit is unlimited, which keeps stage-level tests that build a
+	// budget directly on the count budget alone.
+	bytesLimit int64
+	bytesUsed  int64
 	// activeEvidence sums the per-statement accounting of every
 	// active-evidence load the pass makes (#8880), so the pass's success log
 	// can name the statement that dominated it.
@@ -98,6 +117,7 @@ type supplyChainImpactEvidenceBudget struct {
 func (b *supplyChainImpactEvidenceBudget) recordActiveEvidence(stats SupplyChainImpactActiveEvidenceLoadStats) {
 	if b != nil {
 		b.activeEvidence.add(stats)
+		b.bytesUsed += stats.RetainedPayloadBytes
 	}
 }
 
@@ -118,7 +138,25 @@ func (b *supplyChainImpactEvidenceBudget) charge(n int) bool {
 		return true
 	}
 	b.used += n
-	return b.used <= b.limit
+	return b.used <= b.limit && !b.bytesExhausted()
+}
+
+// bytesExhausted reports whether the pass keeps more raw payload bytes than its
+// byte budget allows. recordActiveEvidence adds the bytes each load retained,
+// so every stage that already stops on charge stops on bytes too.
+func (b *supplyChainImpactEvidenceBudget) bytesExhausted() bool {
+	return b != nil && b.bytesLimit > 0 && b.bytesUsed > b.bytesLimit
+}
+
+// payloadBytesRemaining is the raw payload bytes the pass may still keep, for
+// the loader's per-page stop. Zero means unlimited (nil budget or no byte
+// limit); an already spent budget returns 1 so the loader stops after the first
+// page instead of reading it as unlimited.
+func (b *supplyChainImpactEvidenceBudget) payloadBytesRemaining() int64 {
+	if b == nil || b.bytesLimit <= 0 {
+		return 0
+	}
+	return max(b.bytesLimit-b.bytesUsed, 1)
 }
 
 // remaining is how many more expansion envelopes the pass may load before the
@@ -132,7 +170,7 @@ func (b *supplyChainImpactEvidenceBudget) remaining() int {
 
 // exhausted reports whether the pass has spent its budget.
 func (b *supplyChainImpactEvidenceBudget) exhausted() bool {
-	return b != nil && b.used > b.limit
+	return b != nil && (b.used > b.limit || b.bytesExhausted())
 }
 
 // recordEvidenceHeadroom feeds the #9778 headroom gauges after the writer
@@ -168,6 +206,15 @@ func (h SupplyChainImpactHandler) evidenceBudgetLimit() int {
 	return newSupplyChainImpactEvidenceBudget(h.EvidenceBudget).limit
 }
 
+// evidencePayloadBytesLimit is the retained payload bytes budget a pass runs
+// under: the handler override, or the package default.
+func (h SupplyChainImpactHandler) evidencePayloadBytesLimit() int64 {
+	if h.EvidencePayloadBytesLimit > 0 {
+		return h.EvidencePayloadBytesLimit
+	}
+	return maxSupplyChainImpactEvidencePayloadBytesPerIntent
+}
+
 // addHeadroomSubSignals puts the #9778 success-line fields on subSignals: 1
 // when the pass did not retract, and the envelopes the pass charged to its
 // budget over that budget (budgetEnvelopes, never expansionEnvelopes: the
@@ -179,4 +226,5 @@ func (h SupplyChainImpactHandler) addHeadroomSubSignals(
 ) {
 	subSignals["evidence_partial"] = boolSignal(loaded.truncation.partial())
 	subSignals["evidence_budget_ratio"] = float64(loaded.budgetEnvelopes) / float64(h.evidenceBudgetLimit())
+	subSignals["evidence_payload_bytes_ratio"] = float64(loaded.budgetPayloadBytes) / float64(h.evidencePayloadBytesLimit())
 }

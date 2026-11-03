@@ -23,6 +23,13 @@ func appendUniqueSupplyChainImpactFacts(envelopes []facts.Envelope, active ...fa
 	}
 	seen := make(map[string]struct{}, len(envelopes)+len(active))
 	for _, envelope := range envelopes {
+		// A fold's files left the pass as decoded envelopes but are still
+		// present: a later stage must not append one of them again (#9781).
+		if fold := fileReachabilityFoldFromDigest(envelope); fold != nil {
+			for factID := range fold.seen {
+				seen[factID] = struct{}{}
+			}
+		}
 		if envelope.FactID == "" {
 			continue
 		}
@@ -315,4 +322,47 @@ func npmAffectedPackages(envelopes []facts.Envelope) (map[string]struct{}, map[s
 		}
 	}
 	return byPackageID, groups
+}
+
+// supplyChainImpactFactKinds is the set of fact kinds loaded from the intent's
+// OWN scope/generation via factload.LoadFactsForKinds. It intentionally OMITS
+// chain.VulnerabilityOSPackageFactKind and facts.ScannerWorkerAnalysisFactKind
+// even though both feed supply-chain-impact classification: neither lives in
+// the intent's vulnerability-intelligence scope, so listing them here would
+// query the wrong scope and return nothing. They are loaded cross-scope by two
+// dedicated stages in loadSupplyChainImpactEvidence instead —
+// loadSupplyChainImpactOSPackageAdvisoryFacts pulls vulnerability.os_package by
+// ecosystem through the advisory-target reader (#5705/#5463), and
+// loadSupplyChainImpactScannerAnalysisScopeFacts then loads each os_package's
+// sibling scanner_worker.analysis from that package's OWN scan scope to stamp
+// SubjectDigest (#5463). Adding either kind here is the tempting-but-wrong fix
+// flagged in review: it cannot reach a cross-scope fact. The end-to-end path is
+// proven by TestSupplyChainImpactHandlerLoadsScannerAnalysisFromOSPackageScanScope
+// and the golden-corpus list_supply_chain_impact_findings floor (CVE-2026-00010).
+func supplyChainImpactFactKinds() []string {
+	return []string{
+		chain.VulnerabilityCVEFactKind,
+		chain.VulnerabilityAffectedPackageFactKind,
+		chain.VulnerabilityAffectedProductFactKind,
+		chain.VulnerabilityEPSSScoreFactKind,
+		chain.VulnerabilityKnownExploitedFactKind,
+		chain.VulnerabilitySuppressionFactKind,
+		chain.VulnerabilityGoModuleEvidenceFactKind,
+		chain.VulnerabilityGoCallReachabilityFactKind,
+		facts.SecurityAlertRepositoryAlertFactKind,
+		chain.PackageRegistryPackageFactKind,
+		chain.SBOMComponentFactKind,
+		chain.OCIImageManifestFactKind,
+		chain.OCIImageIndexFactKind,
+		chain.OCIImageTagObservationFactKind,
+		chain.OCIImageReferrerFactKind,
+		reducercontract.SBOMAttestationAttachmentFactKind,
+		reducercontract.ContainerImageIdentityFactKind,
+		correlation.PackageConsumptionFactKind,
+		cicdrun.CICDRunCorrelationFactKind,
+		reducercontract.PlatformMaterializationFactKind,
+		reducercontract.WorkloadIdentityFactKind,
+		reducercontract.ServiceCatalogCorrelationFactKind,
+		factload.FactKindFile,
+	}
 }

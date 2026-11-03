@@ -344,6 +344,9 @@ TABLE = {
         "go/internal/storage/postgres/successor_guard_recheck_plan_live_test.go": (
             "TestGuardRecheckReadPlansLive",
         ),
+        "go/internal/storage/postgres/supply_chain_impact_authorized_loader_engaged_live_test.go": (
+            "TestAuthorizedLoaderEngagedFoldPublishesFoldedEvidenceLive",
+        ),
         "go/internal/storage/postgres/supply_chain_impact_disengaged_build_live_test.go": (
             "TestAuthorizedImpactLoaderDisengagedBuildsAdvisoryFindingLive",
         ),

@@ -23,27 +23,44 @@ import (
 
 const supplyChainImpactContainerImageIdentityFactKind = "reducer_container_image_identity"
 
+// supplyChainImpactPayloadBudgetSpent reports whether the raw payload bytes the
+// call has kept so far exceed limit (zero is unlimited). It is checked before
+// each payload page and identity page, so the page that crosses the limit is
+// kept and no later page is fetched (#9781).
+func supplyChainImpactPayloadBudgetSpent(stats *supplychaincore.SupplyChainImpactActiveEvidenceLoadStats, limit int64) bool {
+	return limit > 0 && stats.RetainedPayloadBytes > limit
+}
+
 // loadSupplyChainImpactPayloadPages fetches resolved facts by primary key in
 // supplyChainImpactPayloadPageSize pages and returns them in the given order.
 // Every requested ID must come back exactly once: the snapshot that resolved
-// the IDs is the one that reads them.
+// the IDs is the one that reads them. When retainedLimit is positive it stops
+// before the first page after the call has kept more than that many raw payload
+// bytes, and returns the facts it has.
 func (s FactStore) loadSupplyChainImpactPayloadPages(
 	ctx context.Context,
 	queryer db.Queryer,
 	ids []string,
 	stats *supplychaincore.SupplyChainImpactActiveEvidenceLoadStats,
+	retainedLimit int64,
 ) ([]facts.Envelope, error) {
 	out := make([]facts.Envelope, 0, len(ids))
 	for start := 0; start < len(ids); start += supplyChainImpactPayloadPageSize {
+		if supplyChainImpactPayloadBudgetSpent(stats, retainedLimit) {
+			// The previous page crossed the byte budget: keep it, read no more.
+			return out, nil
+		}
 		page := ids[start:min(start+supplyChainImpactPayloadPageSize, len(ids))]
 		started := time.Now()
-		byID, err := supplyChainImpactPayloadPage(ctx, queryer, page)
+		byID, pageBytes, err := supplyChainImpactPayloadPage(ctx, queryer, page)
 		if err != nil {
 			return nil, err
 		}
+		stats.RetainedPayloadBytes += pageBytes
 		stats.PayloadPages++
 		stats.Branches = append(stats.Branches, supplychaincore.SupplyChainImpactActiveEvidenceBranchStat{
 			Branch: supplychaincore.SupplyChainImpactActiveEvidencePayloadPage, Rows: len(byID), Duration: time.Since(started),
+			PayloadBytes: pageBytes,
 		})
 		for _, id := range page {
 			envelope, ok := byID[id]
@@ -56,30 +73,102 @@ func (s FactStore) loadSupplyChainImpactPayloadPages(
 	return out, nil
 }
 
-func supplyChainImpactPayloadPage(ctx context.Context, queryer db.Queryer, ids []string) (map[string]facts.Envelope, error) {
+// supplyChainImpactPayloadPage returns the page's envelopes by fact ID and the
+// raw payload bytes they were decoded from.
+func supplyChainImpactPayloadPage(ctx context.Context, queryer db.Queryer, ids []string) (map[string]facts.Envelope, int64, error) {
 	rows, err := queryer.QueryContext(ctx, factimpact.PayloadPageSQL, ids)
 	if err != nil {
-		return nil, fmt.Errorf("list active supply chain impact facts: payload page: %w", err)
+		return nil, 0, fmt.Errorf("list active supply chain impact facts: payload page: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 	byID := make(map[string]facts.Envelope, len(ids))
+	var pageBytes int64
 	for rows.Next() {
-		envelope, err := scanSupplyChainImpactFact(rows)
+		envelope, size, err := scanSizedSupplyChainImpactFact(rows)
 		if err != nil {
-			return nil, fmt.Errorf("list active supply chain impact facts: payload page: %w", err)
+			return nil, 0, fmt.Errorf("list active supply chain impact facts: payload page: %w", err)
 		}
 		if _, duplicate := byID[envelope.FactID]; duplicate {
-			return nil, fmt.Errorf("list active supply chain impact facts: payload page returned %q twice", envelope.FactID)
+			return nil, 0, fmt.Errorf("list active supply chain impact facts: payload page returned %q twice", envelope.FactID)
 		}
 		byID[envelope.FactID] = envelope
+		pageBytes += int64(size)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("list active supply chain impact facts: payload page: %w", err)
+		return nil, 0, fmt.Errorf("list active supply chain impact facts: payload page: %w", err)
 	}
 	if len(byID) != len(ids) {
-		return nil, fmt.Errorf("list active supply chain impact facts: payload page returned %d of %d facts", len(byID), len(ids))
+		return nil, 0, fmt.Errorf("list active supply chain impact facts: payload page returned %d of %d facts", len(byID), len(ids))
 	}
-	return byID, nil
+	return byID, pageBytes, nil
+}
+
+// foldSupplyChainImpactFilePages fetches resolved file facts in byte-ordered
+// primary-key pages and folds each row into fold as it is scanned, so no page
+// of decoded file payloads is ever held (#9781). The ids must already be in
+// byte order: the fold's tie-breaks depend on file order, and the ordered
+// statement returns rows in the order the loader sorted them. A page that
+// comes back out of order, short, or with a different fact fails the call, so
+// a snapshot or collation drift cannot silently change reachability evidence.
+func (s FactStore) foldSupplyChainImpactFilePages(
+	ctx context.Context,
+	queryer db.Queryer,
+	ids []string,
+	fold *supplychaincore.FileReachabilityFold,
+	stats *supplychaincore.SupplyChainImpactActiveEvidenceLoadStats,
+) error {
+	for start := 0; start < len(ids); start += supplyChainImpactPayloadPageSize {
+		page := ids[start:min(start+supplyChainImpactPayloadPageSize, len(ids))]
+		started := time.Now()
+		pageBytes, err := foldSupplyChainImpactFilePage(ctx, queryer, page, fold, stats)
+		if err != nil {
+			return err
+		}
+		stats.PayloadPages++
+		stats.Branches = append(stats.Branches, supplychaincore.SupplyChainImpactActiveEvidenceBranchStat{
+			Branch: supplychaincore.SupplyChainImpactActiveEvidenceFileFold, Rows: len(page), Duration: time.Since(started),
+			PayloadBytes: pageBytes,
+		})
+	}
+	return nil
+}
+
+func foldSupplyChainImpactFilePage(
+	ctx context.Context,
+	queryer db.Queryer,
+	page []string,
+	fold *supplychaincore.FileReachabilityFold,
+	stats *supplychaincore.SupplyChainImpactActiveEvidenceLoadStats,
+) (int64, error) {
+	rows, err := queryer.QueryContext(ctx, factimpact.PayloadPageOrderedSQL, page)
+	if err != nil {
+		return 0, fmt.Errorf("list active supply chain impact facts: file fold page: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	scanned := 0
+	var pageBytes int64
+	for rows.Next() {
+		envelope, size, err := scanSizedSupplyChainImpactFact(rows)
+		if err != nil {
+			return 0, fmt.Errorf("list active supply chain impact facts: file fold page: %w", err)
+		}
+		if scanned >= len(page) || envelope.FactID != page[scanned] {
+			return 0, fmt.Errorf("list active supply chain impact facts: file fold page returned %q out of order at row %d", envelope.FactID, scanned)
+		}
+		scanned++
+		pageBytes += int64(size)
+		stats.FoldedPayloadBytes += int64(size)
+		if fold.Add(envelope) {
+			stats.FoldedFiles++
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return 0, fmt.Errorf("list active supply chain impact facts: file fold page: %w", err)
+	}
+	if scanned != len(page) {
+		return 0, fmt.Errorf("list active supply chain impact facts: file fold page returned %d of %d facts", scanned, len(page))
+	}
+	return pageBytes, nil
 }
 
 // loadSupplyChainImpactIdentityStream pages the canonical container-image
@@ -96,6 +185,9 @@ func (s FactStore) loadSupplyChainImpactIdentityStream(
 	var cursor *containerImageIdentitySupportCursor
 	cursorFactID := ""
 	for {
+		if supplyChainImpactPayloadBudgetSpent(stats, filter.PayloadBytesLimit) {
+			return out, nil
+		}
 		started := time.Now()
 		rows, err := queryer.QueryContext(ctx, listCurrentContainerImageIdentitySupportFactsQuery,
 			filter.SubjectDigests, filter.ImageRefs, filter.RepositoryIDs, filter.RepositoryIDs, filter.RepositoryIDs,
@@ -105,12 +197,14 @@ func (s FactStore) loadSupplyChainImpactIdentityStream(
 			return nil, fmt.Errorf("list active supply chain impact facts: identity page: %w", err)
 		}
 		count := 0
+		var pageBytes int64
 		for rows.Next() {
-			envelope, scanErr := scanSupplyChainImpactFact(rows)
+			envelope, size, scanErr := scanSizedSupplyChainImpactFact(rows)
 			if scanErr != nil {
 				_ = rows.Close()
 				return nil, fmt.Errorf("list active supply chain impact facts: identity page: %w", scanErr)
 			}
+			pageBytes += int64(size)
 			next, acceptErr := acceptSupplyChainImpactIdentityFact(envelope, cursor, cursorFactID)
 			if acceptErr != nil {
 				_ = rows.Close()
@@ -127,7 +221,9 @@ func (s FactStore) loadSupplyChainImpactIdentityStream(
 		_ = rows.Close()
 		stats.Branches = append(stats.Branches, supplychaincore.SupplyChainImpactActiveEvidenceBranchStat{
 			Branch: supplychaincore.SupplyChainImpactActiveEvidenceIdentity, Rows: count, Duration: time.Since(started),
+			PayloadBytes: pageBytes,
 		})
+		stats.RetainedPayloadBytes += pageBytes
 		if count > listFactsByKindPageSize {
 			return nil, fmt.Errorf("list active supply chain impact facts: identity page returned %d rows, limit %d", count, listFactsByKindPageSize)
 		}
@@ -161,6 +257,13 @@ func acceptSupplyChainImpactIdentityFact(
 // scanSupplyChainImpactFact decodes the sixteen columns both the payload page
 // and the identity function return.
 func scanSupplyChainImpactFact(rows db.Rows) (facts.Envelope, error) {
+	envelope, _, err := scanSizedSupplyChainImpactFact(rows)
+	return envelope, err
+}
+
+// scanSizedSupplyChainImpactFact is scanSupplyChainImpactFact plus the raw
+// payload size in bytes, which the evidence budget charges (#9781).
+func scanSizedSupplyChainImpactFact(rows db.Rows) (facts.Envelope, int, error) {
 	var envelope facts.Envelope
 	var sourceSystem, sourceFactKey, sourceURI, sourceRecordID string
 	var rawPayload []byte
@@ -171,11 +274,11 @@ func scanSupplyChainImpactFact(rows db.Rows) (facts.Envelope, error) {
 		&sourceSystem, &sourceFactKey, &sourceURI, &sourceRecordID,
 		&envelope.ObservedAt, &envelope.IsTombstone, &rawPayload,
 	); err != nil {
-		return facts.Envelope{}, err
+		return facts.Envelope{}, 0, err
 	}
 	decoded, err := payloadstore.UnmarshalPayload(rawPayload)
 	if err != nil {
-		return facts.Envelope{}, err
+		return facts.Envelope{}, 0, err
 	}
 	envelope.Payload = decoded
 	envelope.SourceRef = facts.Ref{
@@ -183,7 +286,7 @@ func scanSupplyChainImpactFact(rows db.Rows) (facts.Envelope, error) {
 		ScopeID:      envelope.ScopeID, GenerationID: envelope.GenerationID,
 		FactKey: sourceFactKey, SourceURI: sourceURI, SourceRecordID: sourceRecordID,
 	}
-	return envelope, nil
+	return envelope, len(rawPayload), nil
 }
 
 // recordSupplyChainImpactLoad emits the per-statement instruments and, when
@@ -201,6 +304,9 @@ func (s FactStore) recordSupplyChainImpactLoad(
 			}
 			if s.instruments.SupplyChainImpactActiveEvidenceBranchRows != nil {
 				s.instruments.SupplyChainImpactActiveEvidenceBranchRows.Add(ctx, int64(branch.Rows), attrs)
+			}
+			if branch.PayloadBytes > 0 && s.instruments.SupplyChainImpactActiveEvidencePayloadBytes != nil {
+				s.instruments.SupplyChainImpactActiveEvidencePayloadBytes.Record(ctx, branch.PayloadBytes, attrs)
 			}
 		}
 		if stats.GuardRows > 0 && s.instruments.SupplyChainImpactActiveEvidenceGuardRows != nil {

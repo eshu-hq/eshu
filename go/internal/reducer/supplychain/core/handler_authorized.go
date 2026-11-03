@@ -200,9 +200,24 @@ func (h SupplyChainImpactHandler) loadAuthorizedSupplyChainImpactEvidence(
 
 func (loaded supplyChainImpactLoadedEvidence) evidenceEnvelopeCount() int {
 	if loaded.asAuthorized == nil {
-		return len(loaded.envelopes)
+		return loaded.loadedEnvelopeCount()
 	}
-	return len(loaded.envelopes) + loaded.expansionEnvelopes
+	return loaded.loadedEnvelopeCount() + loaded.expansionEnvelopes
+}
+
+// loadedEnvelopeCount is the number of evidence envelopes the pass loaded,
+// counting each parser file a fold absorbed as one envelope. The fold hands
+// the builders one digest envelope in place of those files, so len(envelopes)
+// alone would make the evidence_envelopes sub-signal and the truncation WARN
+// field drop by the file count the day the fold shipped (#9855).
+func (loaded supplyChainImpactLoadedEvidence) loadedEnvelopeCount() int {
+	count := len(loaded.envelopes)
+	for _, envelope := range loaded.envelopes {
+		if fold := fileReachabilityFoldFromDigest(envelope); fold != nil {
+			count += fold.Files() - 1
+		}
+	}
+	return count
 }
 
 func buildAuthorizedSupplyChainImpactFindings(

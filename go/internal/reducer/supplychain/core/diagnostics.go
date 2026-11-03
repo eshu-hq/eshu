@@ -48,6 +48,9 @@ const (
 	// SupplyChainImpactActiveEvidenceIdentity labels one canonical identity
 	// stream page.
 	SupplyChainImpactActiveEvidenceIdentity = "identity"
+	// SupplyChainImpactActiveEvidenceFileFold labels one parser file payload
+	// page folded into a FileReachabilityFold instead of returned (#9781).
+	SupplyChainImpactActiveEvidenceFileFold = "file_fold"
 )
 
 // SupplyChainImpactActiveEvidenceBranchStat is one statement of one
@@ -56,6 +59,9 @@ type SupplyChainImpactActiveEvidenceBranchStat struct {
 	Branch   string
 	Rows     int
 	Duration time.Duration
+	// PayloadBytes is the raw payload bytes the statement read (payload_page,
+	// identity, file_fold); zero for statements that return only IDs (#9781).
+	PayloadBytes int64
 }
 
 // SupplyChainImpactActiveEvidenceLoadStats accounts for one
@@ -70,6 +76,15 @@ type SupplyChainImpactActiveEvidenceLoadStats struct {
 	// GuardKinds lists, sorted and distinct, the kinds of the guard rows.
 	GuardKinds           []string
 	SuppressionTruncated bool
+	// FoldedFiles is how many parser file envelopes the load folded into the
+	// filter's FileFold instead of returning (#9781).
+	FoldedFiles int
+	// FoldedPayloadBytes is the raw JSON bytes of those files. They are decoded
+	// one row at a time and dropped, so they are never charged to the budget.
+	FoldedPayloadBytes int64
+	// RetainedPayloadBytes is the raw JSON bytes of the envelopes the load
+	// returned. The pass keeps them decoded, so the byte budget charges them.
+	RetainedPayloadBytes int64
 }
 
 // activeSupplyChainImpactFactStatsLoader is the optional loader surface that
@@ -88,8 +103,14 @@ type supplyChainImpactActiveEvidenceTally struct {
 	payloadPages    int
 	guardRows       int
 	truncatedLoads  int
-	branchRows      map[string]int
-	branchDurations map[string]time.Duration
+	// filesFolded, payloadBytesFolded and payloadBytesRetained sum the #9781
+	// payload accounting: files reduced by a fold, and the raw JSON bytes the
+	// pass dropped versus kept.
+	filesFolded          int
+	payloadBytesFolded   int64
+	payloadBytesRetained int64
+	branchRows           map[string]int
+	branchDurations      map[string]time.Duration
 }
 
 // add folds one load's statement accounting into the tally.
@@ -102,6 +123,9 @@ func (t *supplyChainImpactActiveEvidenceTally) add(stats SupplyChainImpactActive
 	t.resolvedFactIDs += stats.ResolvedFactIDs
 	t.payloadPages += stats.PayloadPages
 	t.guardRows += stats.GuardRows
+	t.filesFolded += stats.FoldedFiles
+	t.payloadBytesFolded += stats.FoldedPayloadBytes
+	t.payloadBytesRetained += stats.RetainedPayloadBytes
 	if stats.SuppressionTruncated {
 		t.truncatedLoads++
 	}
@@ -124,6 +148,9 @@ func (t supplyChainImpactActiveEvidenceTally) mergeInto(signals, durations map[s
 	signals["active_evidence_payload_pages"] = float64(t.payloadPages)
 	signals["active_evidence_guard_rows"] = float64(t.guardRows)
 	signals["active_evidence_truncated_loads"] = float64(t.truncatedLoads)
+	signals["active_evidence_files_folded"] = float64(t.filesFolded)
+	signals["active_evidence_payload_bytes_folded"] = float64(t.payloadBytesFolded)
+	signals["active_evidence_payload_bytes_retained"] = float64(t.payloadBytesRetained)
 	for branch, rows := range t.branchRows {
 		signals["active_evidence_branch_"+branch+"_rows"] = float64(rows)
 		durations["active_evidence_branch_"+branch] = t.branchDurations[branch].Seconds()

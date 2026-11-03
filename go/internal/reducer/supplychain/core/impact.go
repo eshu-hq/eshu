@@ -15,12 +15,10 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
-	"github.com/eshu-hq/eshu/go/internal/reducer/cicdrun"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
-	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/workload/handle"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -65,6 +63,21 @@ type SupplyChainImpactFactFilter struct {
 	RepositoryIDs     []string
 	FileRepositoryIDs []string
 	ImageRefs         []string
+	// FileFold, when set, asks the loader to fold the parser file envelopes it
+	// resolves into the fold instead of returning them, so their decoded
+	// payloads are not retained for the pass (#9781). A loader that ignores it
+	// returns the envelopes and the pass reads them as before. The fold is
+	// pass-local state, set per load by the handler and never part of the
+	// filter's identity.
+	FileFold *FileReachabilityFold
+	// PayloadBytesLimit, when positive, is how many raw payload bytes this call
+	// may keep decoded before the loader stops fetching more payload pages. The
+	// handler sets it to what is left of the pass's byte budget, so the first
+	// round, which carries the heaviest branches, is bounded page by page rather
+	// than after the load returns (#9781). The page that crosses the limit is
+	// kept and the loader returns what it has; the pass is then partial under
+	// the evidence_budget cause. Zero means unlimited.
+	PayloadBytesLimit int64
 }
 
 type activeSupplyChainImpactFactLoader interface {
@@ -112,6 +125,10 @@ type SupplyChainImpactHandler struct {
 	// (maxSupplyChainImpactEvidenceEnvelopesPerIntent) when positive.
 	// Optional: zero keeps the default.
 	EvidenceBudget int
+	// EvidencePayloadBytesLimit overrides the per-intent retained payload
+	// bytes budget (maxSupplyChainImpactEvidencePayloadBytesPerIntent) when
+	// positive. Optional: zero keeps the default.
+	EvidencePayloadBytesLimit int64
 	// FencingTokenIssuer supplies the per-pass fencing token (#7142). Required:
 	// Handle fails closed without it, because a pass with no ordering value
 	// cannot be fenced against a fresher pass.
@@ -444,49 +461,6 @@ func supplyChainImpactFindingHasUnsupportedMatcher(finding SupplyChainImpactFind
 		return false
 	}
 	return normalizedSupplyChainVersionEcosystem(finding.Ecosystem) != "os"
-}
-
-// supplyChainImpactFactKinds is the set of fact kinds loaded from the intent's
-// OWN scope/generation via factload.LoadFactsForKinds. It intentionally OMITS
-// chain.VulnerabilityOSPackageFactKind and facts.ScannerWorkerAnalysisFactKind
-// even though both feed supply-chain-impact classification: neither lives in
-// the intent's vulnerability-intelligence scope, so listing them here would
-// query the wrong scope and return nothing. They are loaded cross-scope by two
-// dedicated stages in loadSupplyChainImpactEvidence instead —
-// loadSupplyChainImpactOSPackageAdvisoryFacts pulls vulnerability.os_package by
-// ecosystem through the advisory-target reader (#5705/#5463), and
-// loadSupplyChainImpactScannerAnalysisScopeFacts then loads each os_package's
-// sibling scanner_worker.analysis from that package's OWN scan scope to stamp
-// SubjectDigest (#5463). Adding either kind here is the tempting-but-wrong fix
-// flagged in review: it cannot reach a cross-scope fact. The end-to-end path is
-// proven by TestSupplyChainImpactHandlerLoadsScannerAnalysisFromOSPackageScanScope
-// and the golden-corpus list_supply_chain_impact_findings floor (CVE-2026-00010).
-func supplyChainImpactFactKinds() []string {
-	return []string{
-		chain.VulnerabilityCVEFactKind,
-		chain.VulnerabilityAffectedPackageFactKind,
-		chain.VulnerabilityAffectedProductFactKind,
-		chain.VulnerabilityEPSSScoreFactKind,
-		chain.VulnerabilityKnownExploitedFactKind,
-		chain.VulnerabilitySuppressionFactKind,
-		chain.VulnerabilityGoModuleEvidenceFactKind,
-		chain.VulnerabilityGoCallReachabilityFactKind,
-		facts.SecurityAlertRepositoryAlertFactKind,
-		chain.PackageRegistryPackageFactKind,
-		chain.SBOMComponentFactKind,
-		chain.OCIImageManifestFactKind,
-		chain.OCIImageIndexFactKind,
-		chain.OCIImageTagObservationFactKind,
-		chain.OCIImageReferrerFactKind,
-		reducercontract.SBOMAttestationAttachmentFactKind,
-		reducercontract.ContainerImageIdentityFactKind,
-		correlation.PackageConsumptionFactKind,
-		cicdrun.CICDRunCorrelationFactKind,
-		reducercontract.PlatformMaterializationFactKind,
-		reducercontract.WorkloadIdentityFactKind,
-		reducercontract.ServiceCatalogCorrelationFactKind,
-		factload.FactKindFile,
-	}
 }
 
 func supplyChainImpactStatuses() []SupplyChainImpactStatus {

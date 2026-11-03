@@ -184,7 +184,13 @@ comparable, it was fast because it was wrong.
   documented permanent constraint, far above what the ecosystem-wide read hit.
 - Budget arithmetic: heap grew 101 MB over 55,002 envelopes in the first
   version, about 1.9 KB retained per envelope, so the 100,000-envelope default
-  holds about 190 MB per in-flight pass at the ceiling. The chart's
+  holds about 190 MB per in-flight pass at the ceiling. That figure holds for
+  the scanner and OS-package envelopes this note measured. A decoded parser
+  `file` envelope is about 140 KB, roughly 70 times larger, so it did not hold
+  for the JS/TS file evidence an npm batch pass reads. Those files are now
+  folded into the reachability index instead of retained, and a retained-payload
+  byte budget backs the count (see
+  `docs/internal/evidence/9781-supply-chain-impact-file-fold.md`). The chart's
   resolution-engine limit is 32 GiB, so 25% of it (8 GiB) covers more than 40
   concurrent passes at the ceiling. The narrowed pass above held 31 MB.
 - The budget is a documented constant, not configuration:

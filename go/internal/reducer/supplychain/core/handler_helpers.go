@@ -13,10 +13,8 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
-	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -29,11 +27,15 @@ func (h SupplyChainImpactHandler) evaluationNow() time.Time {
 
 // loadActiveSupplyChainImpactFacts's bool return reports whether the
 // underlying loader truncated the vulnerability.suppression tail of its own
-// pagination for THIS round (#5466 round-7 review P1-B). It never reports
-// truncated core evidence: the production reader loads every matching
+// pagination for THIS round (#5466 round-7 review P1-B). Callers treat it as
+// the suppression-tail signal and nothing more (#7154). The row cap never
+// truncates core evidence: the production reader loads every matching
 // non-suppression row before it counts the tail (see
-// maxSupplyChainImpactActiveEvidenceRowsPerCall), so callers treat it as the
-// suppression-tail signal and nothing more (#7154).
+// maxSupplyChainImpactActiveEvidenceRowsPerCall). Core evidence can still stop
+// early on the retained-payload byte budget (#9781): the loader stops paging
+// when budget.payloadBytesRemaining() is spent, and the budget then reports the
+// pass partial through the evidence_budget cause rather than through this
+// return.
 func (h SupplyChainImpactHandler) loadActiveSupplyChainImpactFacts(
 	ctx context.Context,
 	filter SupplyChainImpactFactFilter,
@@ -43,6 +45,7 @@ func (h SupplyChainImpactHandler) loadActiveSupplyChainImpactFacts(
 		return nil, false, nil
 	}
 	if statsLoader, ok := h.FactLoader.(activeSupplyChainImpactFactStatsLoader); ok {
+		filter.PayloadBytesLimit = budget.payloadBytesRemaining()
 		envelopes, stats, err := statsLoader.ListActiveSupplyChainImpactFactsWithStats(ctx, filter)
 		if err != nil {
 			return nil, false, factload.ClassifyFactLoadError(err)
@@ -85,11 +88,22 @@ func (h SupplyChainImpactHandler) loadActiveSupplyChainImpactFactsUntilStable(
 	requested := SupplyChainImpactFactFilter{}
 	next := initialFilter
 	var truncation supplyChainImpactTruncation
+	// Parser file envelopes are folded, not kept (#9781): the one digest
+	// envelope goes where the files would have gone, after the pass's earlier
+	// files and before any file a later stage loads.
+	fold := NewFileReachabilityFold(envelopes)
+	withDigest := func(out []facts.Envelope) []facts.Envelope {
+		if digest, ok := fold.DigestEnvelope(); ok {
+			return append(out, digest)
+		}
+		return out
+	}
 	for loads := 0; !next.empty(); loads++ {
 		if loads >= maxSupplyChainImpactActiveEvidenceLoads {
 			truncation.rounds = true
-			return envelopes, truncation, nil
+			return withDigest(envelopes), truncation, nil
 		}
+		next.FileFold = fold
 		active, roundSuppressionTail, err := h.loadActiveSupplyChainImpactFacts(ctx, next, budget)
 		if err != nil {
 			return nil, supplyChainImpactTruncation{}, err
@@ -103,51 +117,11 @@ func (h SupplyChainImpactHandler) loadActiveSupplyChainImpactFactsUntilStable(
 		if !budget.charge(len(envelopes) - before) {
 			// Keep what this round loaded, load nothing more.
 			truncation.budget = true
-			return envelopes, truncation, nil
+			return withDigest(envelopes), truncation, nil
 		}
 		next = supplyChainImpactFollowUpFilter(requested, supplyChainImpactFilter(envelopes))
 	}
-	return envelopes, truncation, nil
-}
-
-// supplyChainImpactScopeGenerationPair is one distinct (ScopeID, GenerationID)
-// pair collected from loaded os_package envelopes so
-// loadSupplyChainImpactScannerAnalysisScopeFacts can load each scan target's
-// sibling scanner_worker.analysis fact exactly once.
-type supplyChainImpactScopeGenerationPair struct {
-	scopeID      string
-	generationID string
-}
-
-// supplyChainImpactOSPackageScopeGenerationPairs returns the distinct,
-// non-empty (ScopeID, GenerationID) pairs carried by every loaded
-// vulnerability.os_package envelope, in stable first-seen order. It does not
-// cap the result: a scope with many scan targets used to lose every pair past
-// 256 and report truncation, so it never retracted (#7154). The number of
-// envelopes those pairs can pull in is bounded by the per-intent evidence
-// budget instead (supplyChainImpactEvidenceBudget).
-func supplyChainImpactOSPackageScopeGenerationPairs(
-	envelopes []facts.Envelope,
-) []supplyChainImpactScopeGenerationPair {
-	seen := make(map[string]struct{})
-	var pairs []supplyChainImpactScopeGenerationPair
-	for _, envelope := range envelopes {
-		if envelope.FactKind != chain.VulnerabilityOSPackageFactKind {
-			continue
-		}
-		scopeID := strings.TrimSpace(envelope.ScopeID)
-		if scopeID == "" {
-			continue
-		}
-		generationID := strings.TrimSpace(envelope.GenerationID)
-		key := supplychainmodel.ScopeGenerationKey(scopeID, generationID)
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		seen[key] = struct{}{}
-		pairs = append(pairs, supplyChainImpactScopeGenerationPair{scopeID: scopeID, generationID: generationID})
-	}
-	return pairs
+	return withDigest(envelopes), truncation, nil
 }
 
 // loadSupplyChainImpactScannerAnalysisScopeFacts loads the sibling
@@ -449,8 +423,14 @@ func (h SupplyChainImpactHandler) emitEvidenceTruncation(
 				slog.String("generation_id", intent.GenerationID),
 				slog.String("intent_id", intent.IntentID),
 				slog.String("cause", cause),
-				slog.Int("evidence_envelopes", len(loaded.envelopes)),
+				slog.Int("evidence_envelopes", loaded.loadedEnvelopeCount()),
 				slog.Int("expansion_envelopes", loaded.expansionEnvelopes),
+				// An evidence_budget cause is spent by envelopes or by bytes: compare
+				// each charge with its limit to tell which (#9781).
+				slog.Int("budget_envelopes", loaded.budgetEnvelopes),
+				slog.Int("budget_envelopes_limit", h.evidenceBudgetLimit()),
+				slog.Int64("budget_payload_bytes", loaded.budgetPayloadBytes),
+				slog.Int64("budget_payload_bytes_limit", h.evidencePayloadBytesLimit()),
 				slog.Int("findings", findings),
 			)
 		}

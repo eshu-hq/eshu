@@ -88,6 +88,9 @@ const (
 	// MetricSupplyChainImpactActiveEvidenceBranchRows is the per-statement
 	// row counter name.
 	MetricSupplyChainImpactActiveEvidenceBranchRows = "eshu_dp_supply_chain_impact_active_evidence_branch_rows_total"
+	// MetricSupplyChainImpactActiveEvidencePayloadBytes is the per-statement
+	// raw payload byte histogram name (#9781).
+	MetricSupplyChainImpactActiveEvidencePayloadBytes = "eshu_dp_supply_chain_impact_active_evidence_payload_bytes"
 	// MetricSupplyChainImpactActiveEvidenceGuardRows is the foreign-key guard
 	// row counter name.
 	MetricSupplyChainImpactActiveEvidenceGuardRows = "eshu_dp_supply_chain_impact_active_evidence_foreign_key_guard_rows_total"
