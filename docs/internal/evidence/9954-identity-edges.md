@@ -55,8 +55,9 @@ Golden corpus: no cassette or B-7 snapshot change. The cassette
 replayed verbatim and does not pass through `OSVRecordEnvelopes`; it has no
 `upstream` key (`rg -n upstream testdata/cassettes/vulnerabilityintelligence/`
 finds nothing, and the only snapshot hit is the unrelated
-`upstream_dependencies`). The edge keys were already read by no reducer, so
-projected graph truth is unchanged and the B-7 gate was not rerun.
+`upstream_dependencies`). No reducer reads `upstream` (`rg '"upstream"' go` outside the
+collector finds only an unrelated graph-capture allowlist), and the cassette
+facts are unchanged, so projected graph truth is unchanged and the B-7 gate was not rerun.
 
 ## Rollout
 
