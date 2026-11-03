@@ -10,9 +10,17 @@ Families: `security_group_sg_rule`, `security_group_rule_endpoint`
 
 - `PASS: graph-determinism matrix green across N=1 2 4`
   (project `eshu-ifa-det-secgroup`, postgres:15636, neo4j-bolt:7793).
-- Digests byte-identical across workers:
+- First drive (pre-scrub tree) digests byte-identical across workers:
   `N=1 digest=30b3e721d00fdba26610f71c666ab8f62ac06ccece28ab0b666051845701bf9a wall=280s`,
   `N=2 ... wall=188s`, `N=4 ... wall=214s`.
+- Re-drive on the reviewed head `d2f1f7df31` (post-scrub values +
+  review-P2 guard/note fixes; `ESHU_DEPLOY_CHECKOUT=/tmp/eshu-deploy`):
+  exit 0, digests byte-identical across workers:
+  `N=1 digest=ae4fa954be6d874aac45e788e559b23e02b3a9c524d81f838f71afac611126b2 wall=188s`,
+  `N=2 ... wall=217s`, `N=4 ... wall=281s`.
+  The digest moved from the pre-scrub value exactly as expected: the
+  scrub changed identifier literals and every value-derived uid the
+  digests cover. This re-drive is the attested live proof.
 - All three families exact-set green at N=1, N=2, N=4 AND in each
   post-delta chain (sg 5/5 ALLOWS_*, endpoint 5/5 TO, s3grant 4/4
   GRANTS_ACCESS_TO); 215 `matched exactly` lines gate-wide.
@@ -54,11 +62,12 @@ trigger stems, then final review and commit(s).
 
 ## Post-run value scrub
 
-After the live runs the cassettes' synthetic identifiers were scrubbed to
-the cassette-author allowlist (`10.0.0.0/8` → `192.0.2.0/24`; external
-accounts to repdigit documentation values; S3 service principal to its
-hyphenated form). Digests above are the pre-scrub runs'; static mirrors
-re-pass on the scrubbed values and the PR wave re-proves live.
+After the first live runs the cassettes' synthetic identifiers were
+scrubbed to the cassette-author allowlist (`10.0.0.0/8` → `192.0.2.0/24`;
+external accounts to repdigit documentation values; S3 service principal
+to its hyphenated form). The pre-scrub digests above are superseded by
+the re-drive on `d2f1f7df31` recorded in the Matrix result; static
+mirrors re-pass on the scrubbed values and the PR wave re-proves live.
 
 ## Push-gate no-regression record
 
