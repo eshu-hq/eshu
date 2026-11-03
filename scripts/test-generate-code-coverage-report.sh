@@ -84,6 +84,8 @@ if [[ "${1:-}" == "list" ]]; then
 	exit 0
 fi
 printf 'ok  \texample.com/go/internal/parser/shared\t0.149s\tcoverage: 75.5%% of statements\n'
+printf -- '--- FAIL: TestParse/Child (0.01s)\n'
+printf '\texample.com/go/pkg/hang/hang.go:42 +0x1\n'
 kill -TERM $$
 STUB
 chmod +x "${tmp_root}/stalled-bin/go"

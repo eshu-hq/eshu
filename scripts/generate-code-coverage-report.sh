@@ -36,7 +36,10 @@ report_stalled_package() {
 		return 0
 	fi
 	local last_pkg suspects
-	last_pkg="$(awk '{ for (i = 1; i <= NF; i++) { if ($i ~ /\//) { last = $i } } } END { print last }' "${test_log}")" || last_pkg=""
+	# Only package-result lines count: a trailing subtest `--- FAIL:`
+	# line or a panic stack frame also contains slashes but is not a
+	# completed package.
+	last_pkg="$(awk '/^(ok|FAIL|\?)[ \t]+/ { last = $2 } END { print last }' "${test_log}")" || last_pkg=""
 	if [[ -z "${last_pkg}" ]]; then
 		printf 'generate-code-coverage-report: test run failed (exit %d); no package result in the log\n' "${status}" >&2
 		return 0
