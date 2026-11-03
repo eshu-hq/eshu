@@ -26,7 +26,13 @@ func evaluateRPMVersionMatch(
 		// possibly_affected and a fix at or below it as known fixed (#9844,
 		// ruling D inherited from #9848). The exact branches stay armed for
 		// a release-evidenced vendor fact under the existing rpm reasons, so
-		// no profile, remediation, or telemetry label changes.
+		// no profile, remediation, or telemetry label changes. The family is
+		// the guarded one: RPM dist releases order nothing across lines (an
+		// el8 host is not past an el9 fix), so an unlisted host must never
+		// take the cross-line known-fixed path, and the upstream guard never
+		// settles an RPM EVR. Untagged OSV facts never reach that path, and
+		// the collector tags no rpm ranges yet, so this only repairs the
+		// #9927 rebase signature without changing reachable behavior.
 		return evaluateOSPackageVersionMatch(
 			observed,
 			fixedVersion,
@@ -36,6 +42,7 @@ func evaluateRPMVersionMatch(
 			supplyChainVersionReasonRPMExactAffected,
 			supplyChainVersionReasonRPMKnownFixed,
 			compareRPMEVR,
+			osFamilyAPK,
 		)
 	}
 	for _, pkg := range pkgs {

@@ -343,3 +343,47 @@ func TestOSVVersionListBeatsSingleFixShortcut(t *testing.T) {
 		t.Fatalf("version outside the list: decision = %s/%s, want known fixed", decision.Status, decision.Reason)
 	}
 }
+
+// TestRPMUnlistedReleaseStaysPossible pins the #9844/#9927 rebase contract:
+// an rpm fact marked ReleaseUnlisted (no range names the host's line) never
+// settles affected_exact and never reads known-fixed across el lines. RPM
+// dist releases order nothing across lines, so the rpm matcher takes the
+// guarded family and keeps the host possibly_affected under
+// os_release_unlisted, even when every listed fix sits at or below the
+// observed version.
+func TestRPMUnlistedReleaseStaysPossible(t *testing.T) {
+	t.Parallel()
+
+	fact := supplychainmodel.AffectedPackage{
+		CVEID: "ALSA-2021:4511", Source: "osv", AdvisoryID: "ALSA-2021:4511",
+		PackageID: "os://alma/curl", Ecosystem: "os", Name: "curl",
+		PURL: "pkg:rpm/alma/curl",
+		AffectedRanges: []supplychainmodel.AffectedRange{
+			taggedRange("7.61.1-18.el8_4.2", "alma:8"),
+			taggedRange("7.61.1-22.el9_0.1", "alma:9"),
+		},
+		ReleaseUnlisted: true,
+	}
+	pkgs := []supplychainmodel.AffectedPackage{fact}
+
+	for _, observed := range []string{
+		// Inside a listed line's range: the listed lines' agreement says
+		// nothing about the host's unlisted line.
+		"7.61.1-10.el8_4",
+		// Above every listed fix: an el8 host is not past an el9 fix, so
+		// the cross-line known-fixed settlement must not fire.
+		"7.61.1-25.el8_4",
+	} {
+		decision := evaluateRPMVersionMatch(observed, "", pkgs)
+		if decision.Status == SupplyChainImpactAffectedExact {
+			t.Fatalf("%s: unlisted host read affected_exact (%s)", observed, decision.Reason)
+		}
+		if decision.Status != SupplyChainImpactPossiblyAffected || decision.Reason != supplyChainVersionReasonOSReleaseUnlisted {
+			t.Fatalf("%s: decision = %s/%s, want possibly_affected/%s",
+				observed, decision.Status, decision.Reason, supplyChainVersionReasonOSReleaseUnlisted)
+		}
+		if len(decision.MissingEvidence) != 1 || decision.MissingEvidence[0] != unlistedMissingEvidence {
+			t.Fatalf("%s: missing evidence = %v, want [%q]", observed, decision.MissingEvidence, unlistedMissingEvidence)
+		}
+	}
+}
