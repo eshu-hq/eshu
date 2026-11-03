@@ -83,9 +83,18 @@ for step in 1 2 3; do
 		fail "a direct plan lists the Deployment read ${plan_reads} time(s) under step ${step}, want 0"
 	fi
 done
-if [[ "${plan_out}" != *"get deployment/jira-collector"* ]]; then pass "the default plan lists no read of the in-tree Deployment"; else
-	fail "the default plan lists a read of the in-tree Deployment"
-fi
+for step in 5 6; do
+	plan_reads="$(plan_step_reads "${step}" "${plan_out}")"
+	if [[ "${plan_reads}" == 1 ]]; then pass "a default plan lists the Deployment read once under step ${step}"; else
+		fail "a default plan lists the Deployment read ${plan_reads} time(s) under step ${step}, want 1"
+	fi
+done
+for step in 1 2 3 4; do
+	plan_reads="$(plan_step_reads "${step}" "${plan_out}")"
+	if [[ "${plan_reads}" == 0 ]]; then pass "a default plan lists no Deployment read under step ${step}"; else
+		fail "a default plan lists the Deployment read ${plan_reads} time(s) under step ${step}, want 0"
+	fi
+done
 run_script plan "${ARGS[@]}" --in-tree-instance tree-1
 expect_rc "--in-tree-direct and --in-tree-instance are mutually exclusive" 2
 expect_out "the exclusion names both options" "--in-tree-direct excludes --in-tree-instance"

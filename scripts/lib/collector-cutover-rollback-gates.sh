@@ -281,10 +281,12 @@ confirm_step1_gitops() {
 # IN_TREE_NOTE explains why the restored Deployment does not count as rolled out.
 IN_TREE_NOTE=""
 # in_tree_rolled_out is true when the restored Deployment finished rolling out
-# with at least one replica. `kubectl rollout status` reports success for a
-# Deployment at zero replicas, so the replica read shared with the
+# with at least one desired replica. `kubectl rollout status` reports success
+# for a Deployment at zero replicas, so the replica read shared with the
 # direct-producer authority check (read_direct_running) guards the gate in
-# both modes. An unreadable count fails closed.
+# both modes. An unreadable count fails closed. The load-bearing value is the
+# desired count: a scale-down in flight (desired zero, pods still terminating)
+# must not read as restored even though the authority OR still counts it live.
 in_tree_rolled_out() {
 	IN_TREE_NOTE=""
 	read_direct_running
@@ -295,6 +297,11 @@ in_tree_rolled_out() {
 	if [[ "$DIRECT_LIVE" == "no" ]]; then
 		local desired="${XOUT%%|*}" observed="${XOUT##*|}"
 		IN_TREE_NOTE="deployment/${in_tree_deployment} reports ${desired} desired and ${observed:-0} observed replica(s): no replica is running"
+		return 1
+	fi
+	local desired_replicas="${XOUT%%|*}" observed_replicas="${XOUT##*|}"
+	if [[ ! "$desired_replicas" =~ ^[0-9]+$ ]] || ((10#$desired_replicas == 0)); then
+		IN_TREE_NOTE="deployment/${in_tree_deployment} reports desired=${desired_replicas} (observed ${observed_replicas:-0}): the restore is not in effect"
 		return 1
 	fi
 	build_in_tree_status

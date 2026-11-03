@@ -20,6 +20,17 @@ plan_direct_replicas() {
 	printf '  (direct mode: the Deployment replica counts stand in for the in-tree claim; an unreadable answer counts as running)\n'
 }
 
+# plan_restore_gate_replicas prints the Deployment replica-count read the
+# restore gate (gate_step4) makes before steps 5 and 6. In direct mode the
+# authority read above already shows the same command, so this prints only in
+# default mode, where the gate is the sole reader.
+plan_restore_gate_replicas() {
+	[[ "$in_tree_direct" == "true" ]] && return 0
+	build_in_tree_replicas
+	show_cmd
+	printf '  (restore gate: the Deployment must show at least one desired replica; an unreadable answer refuses)\n'
+}
+
 # print_plan_step_1_gitops prints the activations-mode replacement for step 1.
 # The operator-executed GitOps acts (merge, sync, render check) print with the
 # operator$ prefix: run never executes them, so the `$ `-prefixed parity check
@@ -165,6 +176,7 @@ print_plan() {
 		printf '  change mints none, so the step times out (exit 5) until the source changes.\n'
 		printf '  Record: the generation count and the latest activation time.\n\n'
 	else
+		plan_restore_gate_replicas
 		plan_psql_line replay "work items for the in-tree instance(s) updated since the restore start"
 		printf '  The restart in step 4 triggers the first planning pass; later passes follow the\n'
 		printf '  coordinator reconcile interval. Gate: no pending, claimed, or retryable item remains,\n'
@@ -175,6 +187,7 @@ print_plan() {
 	printf 'STEP 6 verify exact truth against the baseline captured just before step 1\n'
 	plan_psql_line dual "dual-authority check: external claims, in-tree claims, overlapping claim intervals"
 	plan_direct_replicas
+	plan_restore_gate_replicas
 	plan_psql_line truth "per fact kind: count, stable-key set digest, payload set digest over active generations"
 	printf '  Gate: no dual authority, and every fact kind equals the baseline file.\n'
 	printf '  On a mismatch, "verify --report-drift" names the keys that moved.\n'
