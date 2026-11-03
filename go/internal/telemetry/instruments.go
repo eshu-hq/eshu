@@ -299,10 +299,16 @@ type Instruments struct {
 	// protection is degraded to the floor budget: healthy collectors keep
 	// moving, but a runaway is no longer precisely bounded.
 	WorkflowClaimQuotaUnreadableFallback metric.Int64Counter
-	SearchIndexMutations                 metric.Int64Counter
-	SearchIndexErrors                    metric.Int64Counter
-	CanonicalWrites                      metric.Int64Counter
-	SharedProjectionCycles               metric.Int64Counter
+	// WorkflowWorkItemsStatsAnalyze counts #9871 post-admission ANALYZE
+	// (SKIP_LOCKED) runs on workflow_work_items by admission site (enqueue,
+	// guarded, scanner) and outcome (analyzed, skipped, failed), once per
+	// admission that reached the statistics gate with rows admitted.
+	// Registered by registerWorkflowClaimStatsInstruments.
+	WorkflowWorkItemsStatsAnalyze metric.Int64Counter
+	SearchIndexMutations          metric.Int64Counter
+	SearchIndexErrors             metric.Int64Counter
+	CanonicalWrites               metric.Int64Counter
+	SharedProjectionCycles        metric.Int64Counter
 	// SharedProjectionIntentsCompleted counts shared-projection intents marked
 	// completed per domain. Labeled by domain only (bounded: the
 	// domain set is the fixed sharedProjectionDomains list). Never keyed by
@@ -6257,6 +6263,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerOwnGateWakeInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerWorkflowClaimStatsInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerCompletionWakeInstruments(meter, inst); err != nil {

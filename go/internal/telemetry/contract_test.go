@@ -322,6 +322,7 @@ func TestSpanNames(t *testing.T) {
 		"owned_package_targets.resolve",
 		"supply_chain_impact.winners_resweep",
 		"ingestion.commit.claim_fence",
+		"workflow.work_items.stats_analyze",
 	}
 
 	got := SpanNames()
@@ -418,6 +419,9 @@ func TestLogKeys(t *testing.T) {
 		"extension_status.inflated_bytes",
 		"extension_status.budget_bytes",
 		"extension_status.compressed_bytes",
+		"workflow.stats.admission",
+		"workflow.stats.outcome",
+		"workflow.stats.rows_admitted",
 	}
 
 	got := LogKeys()

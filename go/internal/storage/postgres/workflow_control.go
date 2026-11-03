@@ -186,19 +186,28 @@ func (s *WorkflowControlStore) EnqueueWorkItems(ctx context.Context, items []wor
 		}
 	}
 
+	inserted := 0
 	for i := 0; i < len(items); i += workflowEnqueueBatchSize {
 		end := i + workflowEnqueueBatchSize
 		if end > len(items) {
 			end = len(items)
 		}
-		// The accepted-row count is deliberately dropped here: EnqueueWorkItems
-		// is the unguarded insert path and reports nothing about admission.
-		// The guarded scheduler (CreateRunWithWorkItemsIfNoOpenTargets) is the
-		// one that must report what actually landed.
-		if _, err := s.enqueueWorkItemBatch(ctx, items[i:end]); err != nil {
+		// The accepted-row count is deliberately dropped from the signature:
+		// EnqueueWorkItems is the unguarded insert path and reports nothing
+		// about admission. The guarded scheduler
+		// (CreateRunWithWorkItemsIfNoOpenTargets) is the one that must report
+		// what actually landed. The count is still summed here so the
+		// post-admission statistics gate (#9871) only fires when rows landed.
+		accepted, err := s.enqueueWorkItemBatch(ctx, items[i:end])
+		if err != nil {
 			return err
 		}
+		inserted += accepted
 	}
+	// After every batch committed: a bulk admission onto a never-analyzed
+	// table leaves the fair-claim candidate on a 19 s plan until autovacuum
+	// runs. Non-fatal by design; the helper counts and logs its outcome.
+	s.maybeAnalyzeWorkflowWorkItems(ctx, telemetry.WorkflowStatsAnalyzeSiteEnqueue, inserted)
 
 	return nil
 }

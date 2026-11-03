@@ -314,6 +314,9 @@ func TestWorkflowControlStoreGuardedRunComputesEligibleTargetsInOneQuery(t *test
 			queryResponses: []queueFakeRows{
 				{rows: [][]any{{false}}},
 				{rows: [][]any{{0}, {1}}},
+				// The post-commit statistics gate (#9871) reads pg_stat; the
+				// table already carries statistics here, so no ANALYZE runs.
+				{rows: [][]any{{true, false}}},
 			},
 			// Exec order: planning lock, run insert, work-item batch insert.
 			// The batch accepts both rows, so the guard reports 2 (#4586: the
@@ -364,8 +367,15 @@ func TestWorkflowControlStoreGuardedRunComputesEligibleTargetsInOneQuery(t *test
 	if got, want := eligibilityQueries, 1; got != want {
 		t.Fatalf("eligibility query count = %d, want %d; queries = %#v", got, want, db.queries)
 	}
-	if got, want := len(db.queries), 2; got != want {
-		t.Fatalf("query count = %d, want terminal-run + set eligibility only", got)
+	if got, want := len(db.queries), 3; got != want {
+		t.Fatalf("query count = %d, want terminal-run + set eligibility + post-commit statistics gate", got)
+	}
+	// The statistics gate (#9871) runs after the commit, never inside the
+	// advisory-locked transaction: it is a catalog read, not a third
+	// eligibility read, and an ANALYZE failure there must not abort the
+	// admission.
+	if gate := db.queries[2].query; !strings.Contains(gate, "pg_stat_all_tables") {
+		t.Fatalf("third query = %q, want the post-commit statistics gate on pg_stat_all_tables", gate)
 	}
 }
 
@@ -377,6 +387,9 @@ func TestWorkflowControlStoreGuardedRunLocksCollectorInstanceOnceForTargetBatch(
 			queryResponses: []queueFakeRows{
 				{rows: [][]any{{false}}},
 				{rows: [][]any{{0}, {1}}},
+				// The post-commit statistics gate (#9871) sees a warm table
+				// and stays silent, so the lock count below is unaffected.
+				{rows: [][]any{{true, false}}},
 			},
 		},
 	}

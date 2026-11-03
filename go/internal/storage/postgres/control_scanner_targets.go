@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -330,5 +331,7 @@ func (s *WorkflowControlStore) createScannerRunWithTargetsOnce(
 	}
 	committed = true
 	admission.AdmissionSkipped = orNilAdmissionSkips(skipped)
+	// After the commit, never inside the locked transaction (#9871).
+	s.maybeAnalyzeWorkflowWorkItems(ctx, telemetry.WorkflowStatsAnalyzeSiteScanner, admission.InsertedWorkItems)
 	return admission, nil
 }
