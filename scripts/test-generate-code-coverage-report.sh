@@ -70,6 +70,157 @@ else
 	sed -n '1,80p' "${tmp_root}/generator.err" >&2 || true
 fi
 
+# A SIGTERM mid-run must name the last completed package instead of exiting
+# silently with 143 (#9767). A stub `go` plus the ESHU_CODE_COVERAGE_REPO_ROOT
+# override keeps this hermetic: no real test run happens.
+stalled_root="${tmp_root}/stalled-repo"
+mkdir -p "${stalled_root}/go" "${tmp_root}/stalled-bin"
+cat >"${tmp_root}/stalled-bin/go" <<'STUB'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "list" ]]; then
+	printf 'example.com/go/internal/parser/shared\n'
+	printf 'example.com/go/internal/parser/shared/toml/nesting\n'
+	printf 'example.com/go/internal/parser/sql\n'
+	exit 0
+fi
+printf 'ok  \texample.com/go/internal/parser/shared\t0.149s\tcoverage: 75.5%% of statements\n'
+printf -- '--- FAIL: TestParse/Child (0.01s)\n'
+printf '\texample.com/go/pkg/hang/hang.go:42 +0x1\n'
+kill -TERM $$
+STUB
+chmod +x "${tmp_root}/stalled-bin/go"
+stalled_log="${tmp_root}/stalled-generator.log"
+stalled_status=0
+PATH="${tmp_root}/stalled-bin:${PATH}" \
+	ESHU_CODE_COVERAGE_REPO_ROOT="${stalled_root}" \
+	ESHU_CODE_COVERAGE_PROFILE_OUT="${tmp_root}/stalled.out" \
+	ESHU_CODE_COVERAGE_REPORT_OUT="${tmp_root}/stalled.md" \
+	ESHU_CODE_COVERAGE_SHIELD_OUT="${tmp_root}/stalled.json" \
+	"${generator}" >"${stalled_log}" 2>&1 || stalled_status=$?
+if [[ "${stalled_status}" -eq 143 ]]; then
+	record_pass "generator preserves the SIGTERM exit code"
+else
+	record_fail "generator exit code ${stalled_status}, want 143 after SIGTERM"
+fi
+if rg --fixed-strings --quiet -- "last completed package: example.com/go/internal/parser/shared" "${stalled_log}"; then
+	record_pass "generator names the last completed package after SIGTERM"
+else
+	record_fail "generator must name the last completed package after SIGTERM"
+fi
+if rg --fixed-strings --quiet -- "suspect: example.com/go/internal/parser/sql" "${stalled_log}"; then
+	record_pass "generator prefixes every suspect line after SIGTERM"
+else
+	record_fail "generator must prefix every suspect line after SIGTERM"
+fi
+
+# A failure before the test run starts must keep its own message: with
+# RUN_TESTS=0 and no profile, the config error stands alone.
+norun_log="${tmp_root}/norun-generator.log"
+norun_status=0
+ESHU_CODE_COVERAGE_REPO_ROOT="${stalled_root}" \
+	ESHU_CODE_COVERAGE_RUN_TESTS=0 \
+	ESHU_CODE_COVERAGE_PROFILE_OUT="${tmp_root}/norun.out" \
+	ESHU_CODE_COVERAGE_REPORT_OUT="${tmp_root}/norun.md" \
+	ESHU_CODE_COVERAGE_SHIELD_OUT="${tmp_root}/norun.json" \
+	"${generator}" >"${norun_log}" 2>&1 || norun_status=$?
+if [[ "${norun_status}" -eq 2 ]]; then
+	record_pass "generator keeps the config error exit code"
+else
+	record_fail "generator exit code ${norun_status}, want 2 for missing profile"
+fi
+if rg --fixed-strings --quiet -- "ESHU_CODE_COVERAGE_PROFILE_IN is required" "${norun_log}"; then
+	record_pass "generator prints its config error without a test run"
+else
+	record_fail "generator must print its config error without a test run"
+fi
+if rg --fixed-strings --quiet -- "test run failed" "${norun_log}"; then
+	record_fail "generator must not blame a test run that never started"
+else
+	record_pass "generator adds no stalled-package addendum before tests start"
+fi
+
+# A failure after the tests pass must also keep its own message: a stub
+# `go` that succeeds leaves no profile, so rendering fails with no
+# stalled-package addendum.
+ok_root="${tmp_root}/ok-repo"
+mkdir -p "${ok_root}/go" "${tmp_root}/ok-bin"
+cat >"${tmp_root}/ok-bin/go" <<'STUB'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "list" ]]; then
+	printf 'example.com/go/internal/parser/shared\n'
+	exit 0
+fi
+printf 'ok  \texample.com/go/internal/parser/shared\t0.149s\tcoverage: 75.5%% of statements\n'
+exit 0
+STUB
+chmod +x "${tmp_root}/ok-bin/go"
+ok_log="${tmp_root}/ok-generator.log"
+ok_status=0
+PATH="${tmp_root}/ok-bin:${PATH}" \
+	ESHU_CODE_COVERAGE_REPO_ROOT="${ok_root}" \
+	ESHU_CODE_COVERAGE_PROFILE_OUT="${tmp_root}/ok-missing.out" \
+	ESHU_CODE_COVERAGE_REPORT_OUT="${tmp_root}/ok.md" \
+	ESHU_CODE_COVERAGE_SHIELD_OUT="${tmp_root}/ok.json" \
+	"${generator}" >"${ok_log}" 2>&1 || ok_status=$?
+if [[ "${ok_status}" -ne 0 ]]; then
+	record_pass "generator fails when rendering without a profile"
+else
+	record_fail "generator must fail when rendering without a profile"
+fi
+if rg --fixed-strings --quiet -- "last completed package" "${ok_log}"; then
+	record_fail "generator must not name a stalled package after tests passed"
+else
+	record_pass "generator adds no stalled-package addendum after tests pass"
+fi
+
+# TERM to the generator itself must still name the package (#9767 P1):
+# runner shutdown kills the parent script, where no EXIT trap fires.
+# A slow stub `go` plus TERM to the generator PID reproduces it.
+slow_root="${tmp_root}/slow-repo"
+mkdir -p "${slow_root}/go" "${tmp_root}/slow-bin"
+cat >"${tmp_root}/slow-bin/go" <<'STUB'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "list" ]]; then
+	printf 'example.com/go/internal/parser/shared\n'
+	printf 'example.com/go/internal/parser/shared/toml/nesting\n'
+	exit 0
+fi
+printf 'ok  \texample.com/go/internal/parser/shared\t0.149s\tcoverage: 75.5%% of statements\n'
+sleep 10
+STUB
+chmod +x "${tmp_root}/slow-bin/go"
+slow_log="${tmp_root}/slow-generator.log"
+slow_status=0
+PATH="${tmp_root}/slow-bin:${PATH}" \
+	ESHU_CODE_COVERAGE_REPO_ROOT="${slow_root}" \
+	ESHU_CODE_COVERAGE_PROFILE_OUT="${tmp_root}/slow.out" \
+	ESHU_CODE_COVERAGE_REPORT_OUT="${tmp_root}/slow.md" \
+	ESHU_CODE_COVERAGE_SHIELD_OUT="${tmp_root}/slow.json" \
+	"${generator}" >"${slow_log}" 2>&1 &
+slow_pid=$!
+for i in $(seq 1 100); do
+	if rg --fixed-strings --quiet -- "example.com/go/internal/parser/shared" "${slow_log}" 2>/dev/null; then
+		break
+	fi
+	if ! kill -0 "${slow_pid}" 2>/dev/null; then
+		break
+	fi
+	sleep 0.1
+done
+kill -TERM "${slow_pid}" 2>/dev/null || true
+wait "${slow_pid}" || slow_status=$?
+pkill -f "${tmp_root}/slow-bin/go" 2>/dev/null || true
+if [[ "${slow_status}" -eq 143 ]]; then
+	record_pass "generator preserves 143 when TERM kills it mid-run"
+else
+	record_fail "generator exit code ${slow_status}, want 143 when TERM kills it mid-run"
+fi
+if rg --fixed-strings --quiet -- "last completed package: example.com/go/internal/parser/shared" "${slow_log}"; then
+	record_pass "generator names the last package when TERM kills it mid-run"
+else
+	record_fail "generator must name the last package when TERM kills it mid-run"
+fi
+
 canonical_profile_a="${tmp_root}/canonical-a.out"
 canonical_profile_b="${tmp_root}/canonical-b.out"
 cat >"${canonical_profile_a}" <<'PROFILE'

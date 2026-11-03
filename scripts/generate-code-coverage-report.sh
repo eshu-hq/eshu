@@ -19,11 +19,70 @@ shield_out="${ESHU_CODE_COVERAGE_SHIELD_OUT:-${repo_root}/docs/public/reference/
 run_tests="${ESHU_CODE_COVERAGE_RUN_TESTS:-1}"
 
 tmp_root="$(mktemp -d)"
-trap 'rm -rf "${tmp_root}"' EXIT
+
+test_log="${tmp_root}/go-test.log"
+test_started="${tmp_root}/test-started"
+test_ok="${tmp_root}/test-ok"
+
+# #9767: when the test run dies -- runner SIGTERM (exit 143), OOM, or a
+# hung package -- say where it stopped instead of exiting silently. The
+# last package with a result line completed; the packages after it in
+# `go list` order were the ones still running when the run died.
+report_stalled_package() {
+	# The status rides along because a TERM trap must name it: bash does
+	# not run the EXIT trap when an untrapped fatal signal kills the
+	# script itself, so the TERM trap below passes 143 explicitly.
+	local status=${1:-$?}
+	# Only test-stage failures get this report. A failure before the
+	# test run started (bad config) or after it passed (render error)
+	# keeps its own message without a stalled-package addendum.
+	local report=1
+	if [[ ! -e "${test_started}" || -e "${test_ok}" ]]; then
+		report=0
+	fi
+	if [[ "${report}" -eq 0 || "${status}" -eq 0 ]]; then
+		return 0
+	fi
+	if [[ ! -s "${test_log}" ]]; then
+		printf 'generate-code-coverage-report: test run failed (exit %d) before any package completed\n' "${status}" >&2
+		return 0
+	fi
+	local last_pkg suspects suspect
+	# Only package-result lines count: a trailing subtest `--- FAIL:`
+	# line or a panic stack frame also contains slashes but is not a
+	# completed package.
+	last_pkg="$(awk '/^(ok|FAIL|\?)[ \t]+/ { last = $2 } END { print last }' "${test_log}")" || last_pkg=""
+	if [[ -z "${last_pkg}" ]]; then
+		printf 'generate-code-coverage-report: test run failed (exit %d); no package result in the log\n' "${status}" >&2
+		return 0
+	fi
+	printf 'generate-code-coverage-report: test run failed (exit %d); last completed package: %s\n' "${status}" "${last_pkg}" >&2
+	suspects="$( (cd "${repo_root}/go" && go list ./...) 2>/dev/null | awk -v last="${last_pkg}" 'seen && n < 5 { print; n++ } $0 == last { seen = 1 }')" || suspects=""
+	if [[ -n "${suspects}" ]]; then
+		printf 'generate-code-coverage-report: still running when the run died (next in go list order):\n' >&2
+		while IFS= read -r suspect; do
+			[[ -n "${suspect}" ]] || continue
+			printf 'generate-code-coverage-report: suspect: %s\n' "${suspect}" >&2
+		done <<<"${suspects}"
+		printf 'generate-code-coverage-report: rerun one suspect alone, e.g. cd go && go test -count=1 %s\n' "$(printf '%s\n' "${suspects}" | head -n 1)" >&2
+	fi
+	return 0
+}
+trap 'report_stalled_package; rm -rf "${tmp_root}"' EXIT
+# Runner shutdown and job timeouts deliver SIGTERM to this script itself,
+# where the EXIT trap above never fires. Report first, then re-raise with
+# a cleared trap so the 143 exit is preserved without a second report.
+trap 'report_stalled_package 143; rm -rf "${tmp_root}"; trap - TERM; kill -TERM $$' TERM
 
 profile="${profile_in:-${profile_out}}"
 if [[ "${run_tests}" != "0" ]]; then
-	(cd "${repo_root}/go" && go test ./... -covermode=count -coverprofile="${profile}")
+	# Tee keeps the per-package stream for report_stalled_package while
+	# pipefail still propagates the go test exit code. The markers tell
+	# the EXIT reporter whether the test stage ran and passed, so only
+	# test-stage failures get the stalled-package report.
+	: >"${test_started}"
+	(cd "${repo_root}/go" && go test ./... -covermode=count -coverprofile="${profile}" 2>&1 | tee "${test_log}")
+	: >"${test_ok}"
 elif [[ -z "${profile_in}" ]]; then
 	printf 'generate-code-coverage-report: ESHU_CODE_COVERAGE_PROFILE_IN is required when ESHU_CODE_COVERAGE_RUN_TESTS=0\n' >&2
 	exit 2
