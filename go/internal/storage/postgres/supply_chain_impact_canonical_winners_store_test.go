@@ -216,7 +216,9 @@ func TestSupplyChainImpactTxCountsCaptureRowsOnlyAfterCommit(t *testing.T) {
 			if _, err := capturer.CaptureWinnersDirtyFacts(context.Background(), ids); err != nil {
 				t.Fatalf("CaptureWinnersDirtyFacts() error = %v", err)
 			}
-			capturer.RecordWinnersCapture(context.Background(), telemetry.SupplyChainImpactWinnersSourceFactRetract, 5)
+			// Two calls for one source in one transaction accumulate: 3 + 2 = 5.
+			capturer.RecordWinnersCapture(context.Background(), telemetry.SupplyChainImpactWinnersSourceFactRetract, 3)
+			capturer.RecordWinnersCapture(context.Background(), telemetry.SupplyChainImpactWinnersSourceFactRetract, 2)
 
 			if got := captureRowsBySource(t, reader); len(got) != 0 {
 				t.Fatalf("capture rows before the transaction ended = %v, want none", got)
