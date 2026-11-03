@@ -161,6 +161,7 @@ func readOSPackageAdvisoryCandidatePage(
 			&target.VendorAdvisorySource,
 			&target.RepositoryClass,
 			&target.PURL,
+			&target.SourcePackage,
 			&target.FactID,
 			&target.ScopeID,
 			&target.GenerationID,
@@ -220,6 +221,9 @@ func osPackageAdvisoryFactEnvelopeFromTarget(target workflow.OSPackageAdvisoryTa
 	}
 	if purl := strings.TrimSpace(target.PURL); purl != "" {
 		payload["purl"] = purl
+	}
+	if source := strings.TrimSpace(target.SourcePackage); source != "" {
+		payload["source_package"] = source
 	}
 	if repositoryClass := strings.TrimSpace(target.RepositoryClass); repositoryClass != "" {
 		payload["repository_class"] = repositoryClass

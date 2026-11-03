@@ -112,28 +112,7 @@ func classifySupplyChainImpactPackage(
 	// the os_package branch) so the SBOM branch, which runs first, can see it.
 	repoFromConsumption := consumption.FactID != "" && strings.TrimSpace(consumption.RepositoryID) != ""
 	var reconciliationMissing []string
-	if consumption.FactID != "" {
-		finding.RepositoryID = consumption.RepositoryID
-		finding.RequestedRange = payloadcore.FirstNonBlank(
-			strings.TrimSpace(consumption.RequestedRange),
-			strings.TrimSpace(consumption.DependencyRange),
-		)
-		finding.DependencyScope = strings.TrimSpace(consumption.DependencyScope)
-		finding.DependencyPath = append([]string(nil), consumption.DependencyPath...)
-		finding.DependencyDepth = consumption.DependencyDepth
-		if consumption.DirectDependency != nil {
-			value := *consumption.DirectDependency
-			finding.DirectDependency = &value
-		}
-		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, consumption.FactID)
-		finding.EvidencePath = append(finding.EvidencePath, payloadcore.FirstNonBlank(consumption.EvidenceKind, correlation.PackageConsumptionFactKind))
-		finding.ObservedVersion = strings.TrimSpace(consumption.ObservedVersion)
-		if finding.ObservedVersion == "" {
-			if manifestVersion, ok := exactConsumptionDependencyVersion(finding.Ecosystem, consumption); ok {
-				finding.ObservedVersion = manifestVersion
-			}
-		}
-	}
+	applySupplyChainConsumptionEvidence(&finding, consumption)
 	if hasComponentPath {
 		finding.PURL = payloadcore.FirstNonBlank(component.PURL, finding.PURL)
 		finding.ObservedVersion = payloadcore.FirstNonBlank(component.Version, finding.ObservedVersion)
@@ -165,6 +144,7 @@ func classifySupplyChainImpactPackage(
 		}
 		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, osPackage.FactID)
 		finding.EvidencePath = append(finding.EvidencePath, chain.VulnerabilityOSPackageFactKind)
+		bakeSupplyChainOSPackageDerivation(&finding, osPackage, pkg)
 		// An os_package fact's ScopeID is an opaque scan-target locator, never a
 		// sha256 digest — it MUST NOT stand in for SubjectDigest. The real digest
 		// only exists on the sibling scanner_worker.analysis fact the same
@@ -320,6 +300,62 @@ func classifySupplyChainImpactPackage(
 	reachabilityMissing := applyPackageSupplyChainReachability(&finding, consumption, pkgs, index)
 	finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing, reachabilityMissing, reconciliationMissing)
 	return finding
+}
+
+// applySupplyChainConsumptionEvidence stamps the manifest/lockfile anchor a
+// consumption record carries onto the finding: the repository, requested
+// range, dependency scope and path, and observed version (falling back to
+// the manifest-declared version when the observation is blank). It is a pure
+// move out of classifySupplyChainImpactPackage (funlen cap): the reads and
+// their order are unchanged.
+func applySupplyChainConsumptionEvidence(
+	finding *SupplyChainImpactFinding,
+	consumption supplychainmodel.PackageConsumption,
+) {
+	if consumption.FactID == "" {
+		return
+	}
+	finding.RepositoryID = consumption.RepositoryID
+	finding.RequestedRange = payloadcore.FirstNonBlank(
+		strings.TrimSpace(consumption.RequestedRange),
+		strings.TrimSpace(consumption.DependencyRange),
+	)
+	finding.DependencyScope = strings.TrimSpace(consumption.DependencyScope)
+	finding.DependencyPath = append([]string(nil), consumption.DependencyPath...)
+	finding.DependencyDepth = consumption.DependencyDepth
+	if consumption.DirectDependency != nil {
+		value := *consumption.DirectDependency
+		finding.DirectDependency = &value
+	}
+	finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, consumption.FactID)
+	finding.EvidencePath = append(finding.EvidencePath, payloadcore.FirstNonBlank(consumption.EvidenceKind, correlation.PackageConsumptionFactKind))
+	finding.ObservedVersion = strings.TrimSpace(consumption.ObservedVersion)
+	if finding.ObservedVersion == "" {
+		if manifestVersion, ok := exactConsumptionDependencyVersion(finding.Ecosystem, consumption); ok {
+			finding.ObservedVersion = manifestVersion
+		}
+	}
+}
+
+// bakeSupplyChainOSPackageDerivation records which installed-row key the
+// advisory met: the binary name or the row's source package name (#9859).
+// The outcome replays the same gates firstOSPackageImpactPath ran, against
+// this finding's advisory package, so the derivation describes this
+// finding's join.
+func bakeSupplyChainOSPackageDerivation(
+	finding *SupplyChainImpactFinding,
+	osPackage supplychainmodel.OSPackage,
+	pkg supplychainmodel.AffectedPackage,
+) {
+	matched, derivation := osPackageMatchOutcome(osPackage, pkg, classifyAffectedPackageAdvisorySource(pkg))
+	if !matched {
+		return
+	}
+	finding.OSPackageMatchDerivation = derivation
+	finding.InstalledPackageName = osPackage.Name
+	if derivation == osPackageMatchDerivationSource {
+		finding.SourcePackage = osPackage.SourcePackage
+	}
 }
 
 func applyPackageSupplyChainReachability(

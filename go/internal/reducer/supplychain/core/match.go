@@ -255,9 +255,18 @@ func matchingOSPackageImpactPaths(
 		return nil
 	}
 	var matches []supplychainmodel.OSPackage
+	seen := make(map[string]struct{})
 	for _, key := range affectedOSPackageLookupKeys(pkg) {
 		for _, installed := range index.osPackages[key] {
+			// A name==source row is indexed under one key only, but two
+			// distinct lookup keys can still name the same row (for example
+			// os://debian/openssl and pkg:deb/debian/openssl): one
+			// advisory yields one finding per installed row (#9859).
+			if _, dup := seen[installed.FactID]; dup {
+				continue
+			}
 			if osPackageMatchesAffectedPackage(installed, pkg, vendorSource) {
+				seen[installed.FactID] = struct{}{}
 				matches = append(matches, installed)
 			}
 		}
@@ -299,40 +308,74 @@ func conflictingOSPackageVersions(ecosystem, sbomVersion string, rows []supplych
 	return false
 }
 
-func osPackageMatchesAffectedPackage(
+// osPackageMatchDerivationBinary and osPackageMatchDerivationSource are the
+// closed derivation set the finding writer persists on
+// os_package_match_derivation (schema
+// reducer_supply_chain_impact_finding.v1: producers must not invent a third
+// value). "binary_package" means the advisory met the installed binary row
+// on its own name; "source_package" means it met the row through the row's
+// source package name (#9859).
+const (
+	osPackageMatchDerivationBinary = "binary_package"
+	osPackageMatchDerivationSource = "source_package"
+)
+
+// osPackageMatchOutcome runs the installed-row gates and reports which key
+// the advisory met. The binary arms are the pre-#9859 join: exact PackageID
+// equality, the advisory purl's version-stripped prefix, and the canonical
+// rpm vendor key (#9844). The source arm is last: the installed row's source
+// key against the advisory purl's prefix. The vendor-source, repository
+// class, and ecosystem gates above apply to every arm, so a debian advisory
+// can never join an ubuntu row that happens to share a source name.
+func osPackageMatchOutcome(
 	installed supplychainmodel.OSPackage,
 	pkg supplychainmodel.AffectedPackage,
 	vendorSource string,
-) bool {
+) (bool, string) {
 	if !supportedOSPackageImpactManager(installed.PackageManager) ||
 		installed.DistroVersion == "" || installed.Arch == "" {
-		return false
+		return false, ""
 	}
 	if installed.RepositoryClass != "vendor" || installed.VendorAdvisorySource == "" {
-		return false
+		return false, ""
 	}
 	if installed.VendorAdvisorySource != vendorSource {
-		return false
+		return false, ""
 	}
 	if !osPackageEcosystemMatchesVendor(pkg.Ecosystem, installed.PackageManager, installed.VendorAdvisorySource, installed.Distro) {
-		return false
+		return false, ""
 	}
 	if pkg.PackageID != "" && pkg.PackageID == installed.PackageID {
-		return true
+		return true, osPackageMatchDerivationBinary
 	}
 	if pkg.PURL == "" {
-		return false
+		return false, ""
 	}
 	if purlPackageKey(pkg.PURL) == installed.PackageID {
-		return true
+		return true, osPackageMatchDerivationBinary
 	}
 	// The re-verification meets on the same canonical vendor key the lookup
 	// does: a raw upstream namespace (almalinux, rocky-linux) never equals
 	// the installed row's canonical vendor key (#9844).
 	if key := canonicalAdvisoryOSPackageKey(pkg); key != "" {
-		return key == installed.PackageID
+		if key == installed.PackageID {
+			return true, osPackageMatchDerivationBinary
+		}
+		return false, ""
 	}
-	return false
+	if src := InstalledOSPackageSourceKey(installed.PURL, installed.SourcePackage); src != "" && src == purlPackageKey(pkg.PURL) {
+		return true, osPackageMatchDerivationSource
+	}
+	return false, ""
+}
+
+func osPackageMatchesAffectedPackage(
+	installed supplychainmodel.OSPackage,
+	pkg supplychainmodel.AffectedPackage,
+	vendorSource string,
+) bool {
+	matched, _ := osPackageMatchOutcome(installed, pkg, vendorSource)
+	return matched
 }
 
 func supportedOSPackageImpactManager(manager string) bool {

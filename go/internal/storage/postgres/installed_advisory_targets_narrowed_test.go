@@ -113,6 +113,134 @@ func TestOSPackagePURLPrefixExpressionMatchesMigration(t *testing.T) {
 	}
 }
 
+// osPackageAdvisoryTargetColumns is the projection order both OS package
+// target queries return and both row scans read (the narrowed scan appends
+// the active flag after them). A column added to the struct must extend both
+// SELECTs and both scans in step, or the row silently shifts.
+func osPackageAdvisoryTargetColumns(prefix string) []string {
+	columns := []string{
+		"ecosystem",
+		"distro",
+		"distro_version",
+		"package_name",
+		"installed_version",
+		"package_manager",
+		"arch",
+		"vendor_advisory_source",
+		"repository_class",
+		"purl",
+		"source_package",
+		"fact_id",
+		"scope_id",
+		"generation_id",
+	}
+	out := make([]string, 0, len(columns))
+	for i, column := range columns {
+		line := prefix + column
+		if i < len(columns)-1 {
+			line += ","
+		}
+		out = append(out, line)
+	}
+	return out
+}
+
+// outerSelectLines returns the trimmed lines of the last SELECT block before
+// marker (the outer projection of a two-level query).
+func outerSelectLines(t *testing.T, name, query, marker string) []string {
+	t.Helper()
+	from := strings.Index(query, marker)
+	if from < 0 {
+		t.Fatalf("%s query lost %q", name, marker)
+	}
+	head := query[:from]
+	selectAt := strings.LastIndex(head, "SELECT")
+	if selectAt < 0 {
+		t.Fatalf("%s query lost its outer SELECT", name)
+	}
+	var lines []string
+	for _, line := range strings.Split(head[selectAt+len("SELECT"):], "\n") {
+		if trimmed := strings.TrimSpace(line); trimmed != "" {
+			lines = append(lines, trimmed)
+		}
+	}
+	return lines
+}
+
+// TestOSPackageAdvisoryTargetColumnsStayInLockstep pins the projection order
+// of the rotation and narrowed reads against the struct scan order: a column
+// reordered in one query but not the scans would shift every field after it.
+func TestOSPackageAdvisoryTargetColumnsStayInLockstep(t *testing.T) {
+	t.Parallel()
+
+	rotation := outerSelectLines(t, "rotation", listOSPackageAdvisoryTargetsQuery(), "FROM rotated_targets")
+	for i, want := range osPackageAdvisoryTargetColumns("") {
+		if i >= len(rotation) || rotation[i] != want {
+			got := "<missing>"
+			if i < len(rotation) {
+				got = rotation[i]
+			}
+			t.Fatalf("rotation projection line %d = %q, want %q", i, got, want)
+		}
+	}
+	narrowed := outerSelectLines(t, "narrowed", listOSPackageAdvisoryTargetsForPackagesQuery(), "FROM candidates")
+	narrowedCoalesce := []string{
+		`LOWER((COALESCE(NULLIF(c.payload->>'vendor_advisory_source', ''), c.payload->>'distro')) COLLATE "C") COLLATE "default" AS ecosystem,`,
+		`COALESCE(c.payload->>'distro', '') AS distro,`,
+		`COALESCE(c.payload->>'distro_version', '') AS distro_version,`,
+		`COALESCE(c.payload->>'name', '') AS package_name,`,
+		`COALESCE(c.payload->>'installed_version_raw', '') AS installed_version,`,
+		`COALESCE(c.payload->>'package_manager', '') AS package_manager,`,
+		`COALESCE(c.payload->>'arch', '') AS arch,`,
+		`COALESCE(c.payload->>'vendor_advisory_source', '') AS vendor_advisory_source,`,
+		`COALESCE(c.payload->>'repository_class', '') AS repository_class,`,
+		`COALESCE(c.payload->>'purl', '') AS purl,`,
+		`COALESCE(c.payload->>'source_package', '') AS source_package,`,
+		`c.fact_id,`,
+		`c.scope_id,`,
+		`c.generation_id,`,
+	}
+	for i, want := range narrowedCoalesce {
+		if i >= len(narrowed) || narrowed[i] != want {
+			got := "<missing>"
+			if i < len(narrowed) {
+				got = narrowed[i]
+			}
+			t.Fatalf("narrowed projection line %d = %q, want %q", i, got, want)
+		}
+	}
+}
+
+// TestOSPackageSourcePURLPrefixExpressionMatchesMigration pins the source
+// expression to the expression index of migration 273: an index on any other
+// spelling would not serve the narrowed read's OR branch, which would
+// silently fall back to scanning every installed package for source-joined
+// advisories (#9859).
+func TestOSPackageSourcePURLPrefixExpressionMatchesMigration(t *testing.T) {
+	t.Parallel()
+
+	raw, err := os.ReadFile("migrations/273_fact_records_os_package_source_purl_prefix_idx.sql")
+	if err != nil {
+		t.Fatalf("read migration: %v", err)
+	}
+	if !strings.Contains(string(raw), osPackageSourcePURLPrefixExpression("payload")) {
+		t.Fatalf("migration 273 does not contain the query's source index expression:\n%s\nmigration:\n%s",
+			osPackageSourcePURLPrefixExpression("payload"), raw)
+	}
+	if !strings.Contains(listOSPackageAdvisoryTargetsForPackagesQuery(), osPackageSourcePURLPrefixExpression("fact.payload")) {
+		t.Fatal("the narrowed query does not use the source index expression")
+	}
+	for _, want := range []string{
+		"CREATE INDEX CONCURRENTLY IF NOT EXISTS fact_records_os_package_source_purl_prefix_idx",
+		"WHERE fact_kind = 'vulnerability.os_package'",
+		"AND is_tombstone = FALSE",
+	} {
+		if !strings.Contains(string(raw), want) {
+			t.Fatalf("migration 273 missing %q", want)
+		}
+	}
+}
+
 // TestOSPackageNarrowedQueryShape pins the properties the plan depends on and
 // the predicates the rotation reader shares.
 func TestOSPackageNarrowedQueryShape(t *testing.T) {
@@ -157,7 +285,7 @@ func osPackageCandidateRow(factID string, active, complete bool) []any {
 		version = ""
 	}
 	return []any{
-		"debian", "debian", "12", "pkg", version, "dpkg", "amd64", "debian", "vendor", "pkg:deb/debian/pkg",
+		"debian", "debian", "12", "pkg", version, "dpkg", "amd64", "debian", "vendor", "pkg:deb/debian/pkg", "",
 		factID, "scan-scope", "scan-gen", active,
 	}
 }

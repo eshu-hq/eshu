@@ -108,17 +108,21 @@ func TestRecordBuildStatsWritesOSAdvisorySubSignals(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
-		name           string
-		stats          supplyChainImpactBuildStats
-		wantConsidered float64
-		wantJoined     float64
+		name                string
+		stats               supplyChainImpactBuildStats
+		wantConsidered      float64
+		wantJoined          float64
+		wantJoinedViaSource float64
 	}{
-		{"no os advisory", supplyChainImpactBuildStats{}, 0, 0},
-		{"loaded none joined", supplyChainImpactBuildStats{osAdvisoryJoins: map[osAdvisoryJoinKey]int{{"debian", osAdvisoryJoinOutcomeNotJoined, ""}: 4}}, 4, 0},
+		{"no os advisory", supplyChainImpactBuildStats{}, 0, 0, 0},
+		{"loaded none joined", supplyChainImpactBuildStats{osAdvisoryJoins: map[osAdvisoryJoinKey]int{{"debian", osAdvisoryJoinOutcomeNotJoined, ""}: 4}}, 4, 0, 0},
 		{"mixed", supplyChainImpactBuildStats{negatedProductsExcluded: 2, osAdvisoryJoins: map[osAdvisoryJoinKey]int{
 			{"debian", osAdvisoryJoinOutcomeNotJoined, ""}:                    1,
 			{"alpine", osAdvisoryJoinOutcomeJoined, osAdvisoryReleaseMatched}: 3,
-		}}, 4, 3},
+		}}, 4, 3, 0},
+		{"source joined", supplyChainImpactBuildStats{osAdvisoryJoins: map[osAdvisoryJoinKey]int{
+			{"debian", osAdvisoryJoinOutcomeJoined, osAdvisoryReleaseMatched}: 1,
+		}, osAdvisoriesJoinedViaSource: 1}, 1, 1, 1},
 	} {
 		subSignals := map[string]float64{}
 		SupplyChainImpactHandler{}.recordBuildStats(context.Background(), tc.stats, subSignals)
@@ -127,6 +131,9 @@ func TestRecordBuildStatsWritesOSAdvisorySubSignals(t *testing.T) {
 		}
 		if got, ok := subSignals[osAdvisoriesJoinedSubSignal]; !ok || got != tc.wantJoined {
 			t.Errorf("%s: %s = %v (present %v), want %v", tc.name, osAdvisoriesJoinedSubSignal, got, ok, tc.wantJoined)
+		}
+		if got, ok := subSignals[osAdvisoriesJoinedViaSourceSubSignal]; !ok || got != tc.wantJoinedViaSource {
+			t.Errorf("%s: %s = %v (present %v), want %v", tc.name, osAdvisoriesJoinedViaSourceSubSignal, got, ok, tc.wantJoinedViaSource)
 		}
 		if got := subSignals[negatedProductsExcludedSubSignal]; got != float64(tc.stats.negatedProductsExcluded) {
 			t.Errorf("%s: %s = %v, want %d", tc.name, negatedProductsExcludedSubSignal, got, tc.stats.negatedProductsExcluded)

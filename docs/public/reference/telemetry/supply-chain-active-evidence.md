@@ -138,7 +138,10 @@ the ratio per vendor, not the raw `not_joined` count.
 The success line carries the same totals for one pass as the
 `os_advisories_considered` and `os_advisories_joined` sub-signals, written even
 when zero. `os_advisories_considered` above zero with `os_advisories_joined` at
-zero is the "loaded, none joined" shape.
+zero is the "loaded, none joined" shape. `os_advisories_joined_via_source`
+counts the joined findings that came through an installed row's source package
+name rather than the binary name (#9859); it stays zero on a fleet whose
+advisories all name installed binaries.
 
 | Metric | Type | Key labels | Use |
 | --- | --- | --- | --- |

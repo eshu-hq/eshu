@@ -78,6 +78,26 @@ type SupplyChainImpactFinding struct {
 	Suppression              map[string]any `json:"suppression,omitempty"`
 	SuppressionState         *string        `json:"suppression_state,omitempty"`
 	Remediation              map[string]any `json:"remediation,omitempty"`
+	// OSPackageMatchDerivation records which installed-row key an OS
+	// advisory finding joined through (eshu-hq/eshu#9859): "binary_package"
+	// for the installed binary name, "source_package" for the installed
+	// row's source package name. Producers must not invent a third value.
+	// *string with omitempty, additive-optional: a payload written before
+	// this field existed carries no key and decodes with a nil field.
+	OSPackageMatchDerivation *string `json:"os_package_match_derivation,omitempty"`
+	// InstalledPackageName is the installed binary package name the finding
+	// joined on (for example "libssl3"). It equals PackageName on a
+	// binary-joined row and differs from SourcePackage on a source-joined
+	// row, so a reader can tell the two apart without re-deriving the join.
+	// *string with omitempty, additive-optional like
+	// OSPackageMatchDerivation.
+	InstalledPackageName *string `json:"installed_package_name,omitempty"`
+	// SourcePackage is the source package name the finding joined through
+	// (for example "openssl"), set only on a source-joined row. It mirrors
+	// the installed row's source name, never a versioned or rewritten form:
+	// there is deliberately no source_version evidence field. *string with
+	// omitempty, additive-optional like OSPackageMatchDerivation.
+	SourcePackage *string `json:"source_package,omitempty"`
 }
 
 // AWSCloudRuntimeDriftFinding is the schema-version-1 payload for

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
@@ -106,6 +107,11 @@ FROM generate_series(0, 599) AS n`, cappedScanScope, replaceSetLiveNow); err != 
 // purl form: TrimSpace then cut at the first '@'. For each distinct Go key the
 // rows the SQL read returns must be exactly the rows Go would key that way,
 // including non-ASCII whitespace padding and forms with no version at all.
+//
+// The #9859 source rows prove the SQL source expression equals the production
+// Go helper for every source form: the oracle IS
+// supplychaincore.InstalledOSPackageSourceKey, not a re-derivation, so the
+// two engines can only agree by sharing the implementation's exact semantics.
 func TestListOSPackageAdvisoryFactEnvelopesPURLFormsMatchTheGoMatcherLive(t *testing.T) {
 	ctx, db := openReplaceSetLiveDB(t)
 	seedCappedScanScope(t, ctx, db, 0)
@@ -128,6 +134,27 @@ func TestListOSPackageAdvisoryFactEnvelopesPURLFormsMatchTheGoMatcherLive(t *tes
 		"empty":          "",
 		"apk":            "pkg:apk/alpine/openssl@3.1",
 		"zero-width-nbs": "pkg:deb/debian/openssl\u200b@1",
+		// #9859 source rows: binary names that differ from their source.
+		"source-basic":     "pkg:deb/debian/libssl3@3.0.11",
+		"source-qualified": "pkg:deb/debian/libssl3@3.0.11?arch=amd64&distro=debian-12",
+		"source-uppercase": "pkg:deb/debian/libssl3@3.0.11",
+		"source-space":     "pkg:deb/debian/libssl3@3.0.11",
+		"source-double-at": "pkg:deb/debian/libssl3@1@2",
+		"source-rejected":  "pkg:deb/debian/libssl3@3.0.11",
+		"source-slash":     "pkg:deb/debian/libssl3@3.0.11",
+		"source-empty":     "pkg:deb/debian/libssl3@3.0.11",
+		"source-lookalike": "pkg:deb/debian/libssl3@3.0.11",
+	}
+	sources := map[string]string{
+		"source-basic":     "openssl",
+		"source-qualified": "openssl",
+		"source-uppercase": "OpenSSL",
+		"source-space":     " open ssl ",
+		"source-double-at": "openssl",
+		"source-rejected":  "open?ssl",
+		"source-slash":     "open/ssl",
+		"source-empty":     "",
+		"source-lookalike": "\u043epenssl",
 	}
 	names := make([]string, 0, len(purls))
 	for name := range purls {
@@ -139,11 +166,15 @@ func TestListOSPackageAdvisoryFactEnvelopesPURLFormsMatchTheGoMatcherLive(t *tes
 		return prefix
 	}
 	for _, name := range names {
-		payload, err := json.Marshal(map[string]any{
+		row := map[string]any{
 			"distro": "debian", "distro_version": "12", "package_manager": "dpkg", "name": name, "arch": "amd64",
 			"repository_class": "vendor", "vendor_advisory_source": "debian", "installed_version_raw": "1.0-1",
 			"purl": purls[name],
-		})
+		}
+		if source, ok := sources[name]; ok && source != "" {
+			row["source_package"] = source
+		}
+		payload, err := json.Marshal(row)
 		if err != nil {
 			t.Fatalf("marshal %s: %v", name, err)
 		}
@@ -167,10 +198,19 @@ VALUES ('os-package:forms:no-purl', $1, $2, 'vulnerability.os_package', 'x', 'sy
 
 	store := postgres.NewFactStore(postgres.SQLDB{DB: db})
 	keys := map[string][]string{}
-	for _, name := range names {
-		if key := goKey(purls[name]); key != "" {
-			keys[key] = append(keys[key], "os-package:forms:"+name)
+	addRow := func(name, key string) {
+		if key == "" {
+			return
 		}
+		keys[key] = append(keys[key], "os-package:forms:"+name)
+		slices.Sort(keys[key])
+		keys[key] = slices.Compact(keys[key])
+	}
+	for _, name := range names {
+		addRow(name, goKey(purls[name]))
+		// The source-key oracle is the production helper itself: any drift
+		// between the SQL CASE and InstalledOSPackageSourceKey fails here.
+		addRow(name, supplychaincore.InstalledOSPackageSourceKey(purls[name], sources[name]))
 	}
 	if len(keys) < 5 {
 		t.Fatalf("fixture yields only %d distinct Go keys; it no longer exercises the forms", len(keys))
@@ -198,9 +238,22 @@ VALUES ('os-package:forms:no-purl', $1, $2, 'vulnerability.os_package', 'x', 'sy
 // is driven by fact_records_os_package_purl_prefix_idx at 50,000 rows rather
 // than scanning every installed package, and reads few buffers for a small key
 // set (about 60,000 per page for the ecosystem-only read it replaces).
+//
+// The #9859 source rows prove the source arm fires independently: a key that
+// meets no binary prefix still returns the row whose source_package derives
+// to it, and the generic plan serves the OR with one BitmapOr over both
+// expression indexes instead of scanning.
 func TestOSPackageNarrowedQueryUsesTheIndexAtScaleLive(t *testing.T) {
 	ctx, db := openCappedScopeLiveDB(t)
 	seedCappedScanScope(t, ctx, db, 50_000)
+	// Rows 7 and 5000 carry a source name, as dpkg rows built from another
+	// source package do; every other seeded row keeps no source_package key.
+	if _, err := db.ExecContext(ctx, `
+UPDATE fact_records SET payload = payload || jsonb_build_object('source_package',
+  CASE fact_id WHEN 'os-package:7154:000007' THEN 'src-0007' ELSE 'src-5000' END)
+WHERE fact_id IN ('os-package:7154:000007', 'os-package:7154:005000')`); err != nil {
+		t.Fatalf("seed source-package rows: %v", err)
+	}
 	// Production fact_records is dominated by other fact kinds. Without them the
 	// generic plan sees a table of nothing but os_package rows and a primary-key
 	// scan with a filter looks as cheap as the index, so seed the realistic mix.
@@ -236,11 +289,15 @@ FROM generate_series(1, 300000) AS n`, cappedScanScope, cappedScanGeneration, re
 	// seeded row: lpad truncates n >= 10000 to its first four digits, so a name
 	// below pkg-5000 such as pkg-1100 also names rows 11000-11009.
 	const realKeys = `'{os://debian/pkg-0007,os://debian/pkg-5000,pkg:deb/debian/pkg-0007,pkg:deb/debian/pkg-5000}'`
+	// The source-only key set (#9859): neither key meets a binary prefix, so
+	// both rows return through the source arm alone.
+	const sourceKeys = `'{os://debian/pkg-0007,pkg:deb/debian/src-0007}'`
 	for _, tc := range []struct {
 		keys string
 		want int
 	}{
 		{realKeys, 2},
+		{sourceKeys, 1},
 		// The key the advisory side sent before #9848: the versionless OSV purl
 		// with its qualifiers, which no installed row's prefix equals.
 		{`'{os://debian/pkg-0007,pkg:deb/debian/pkg-0007?arch=source&distro=bookworm}'`, 0},
@@ -266,8 +323,14 @@ FROM generate_series(1, 300000) AS n`, cappedScanScope, cappedScanGeneration, re
 	}
 	text := strings.Join(plan, "\n")
 	t.Logf("narrowed query plan at 50,000 rows with the real key set:\n%s", text)
-	if !strings.Contains(text, "fact_records_os_package_purl_prefix_idx") {
-		t.Fatalf("the narrowed query does not use the expression index at 50,000 rows:\n%s", text)
+	for _, want := range []string{
+		"fact_records_os_package_purl_prefix_idx",
+		"fact_records_os_package_source_purl_prefix_idx",
+		"BitmapOr",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("the narrowed query plan at 50,000 rows lacks %q:\n%s", want, text)
+		}
 	}
 	if strings.Contains(text, "Seq Scan on fact_records") {
 		t.Fatalf("the narrowed query scans fact_records sequentially:\n%s", text)

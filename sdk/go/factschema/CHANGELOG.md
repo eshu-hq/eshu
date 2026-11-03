@@ -66,6 +66,18 @@ version — pinning this module pins the fixture pack too.
   groups from the operators. A flag of the wrong JSON type now fails the decode
   and quarantines the fact as `input_invalid`. Mirrors
   `github.com/eshu-hq/eshu-sdk/factschema` `v0.1.0-rc.12`.
+- `vulnerability.os_package` gains an optional `source_package` field, and
+  `reducer_supply_chain_impact_finding` gains three optional evidence fields,
+  `os_package_match_derivation`, `installed_package_name`, and
+  `source_package` (eshu-hq/eshu#9859, additive minor). The source name is the
+  installed database's Source field verbatim (`openssl` for the dpkg row
+  `libssl3`); only dpkg-family rows carry one today, and a fact written before
+  this field existed decodes as before with a nil field. Name stays the
+  installed binary key and is never rewritten. There is deliberately no
+  `source_version` field: impact is decided by vendor-advisory-source matching
+  only, never by version comparison. A value of the wrong JSON type now fails
+  the decode and quarantines the fact as `input_invalid`. Mirrors
+  `github.com/eshu-hq/eshu-sdk/factschema` `v0.1.0-rc.13`.
 
 ## [0.3.0] - 2026-10-28
 

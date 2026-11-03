@@ -190,6 +190,17 @@ func supplyChainImpactTypedPayload(
 	if imageRef := finding.CIDeclaredImageRef; imageRef != "" {
 		payload.CIDeclaredImageRef = &imageRef
 	}
+	// OS derivation evidence (#9859): set only on OS-package-joined
+	// findings, so older readers see the same shape as before.
+	if derivation := finding.OSPackageMatchDerivation; derivation != "" {
+		payload.OSPackageMatchDerivation = &derivation
+	}
+	if installed := finding.InstalledPackageName; installed != "" {
+		payload.InstalledPackageName = &installed
+	}
+	if source := finding.SourcePackage; source != "" {
+		payload.SourcePackage = &source
+	}
 	if reachability := supplyChainReachabilityPayload(finding.Reachability); reachability != nil {
 		payload.Reachability = reachability
 	}

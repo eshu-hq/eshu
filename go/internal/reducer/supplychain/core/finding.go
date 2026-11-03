@@ -21,12 +21,26 @@ import (
 // selected value and what alternates other sources reported. Reducers select
 // one value per field using documented ecosystem-aware source priority.
 type SupplyChainImpactFinding struct {
-	CVEID           string
-	AdvisoryID      string
-	PackageID       string
-	Ecosystem       string
-	PackageName     string
-	PURL            string
+	CVEID       string
+	AdvisoryID  string
+	PackageID   string
+	Ecosystem   string
+	PackageName string
+	PURL        string
+	// OSPackageMatchDerivation records which installed-row key an OS
+	// advisory finding joined through: osPackageMatchDerivationBinary for
+	// the installed binary name, osPackageMatchDerivationSource for the
+	// installed row's source package name (#9859). Empty on non-OS
+	// findings and when no OS row joined.
+	OSPackageMatchDerivation string
+	// InstalledPackageName is the installed binary package name the finding
+	// joined on. It equals PackageName on a binary-joined row and differs
+	// from SourcePackage on a source-joined row.
+	InstalledPackageName string
+	// SourcePackage is the source package name the finding joined through,
+	// set only on a source-joined row. It mirrors the installed row's
+	// source name, never a versioned or rewritten form.
+	SourcePackage   string
 	ProductCriteria string
 	MatchCriteriaID string
 	ObservedVersion string

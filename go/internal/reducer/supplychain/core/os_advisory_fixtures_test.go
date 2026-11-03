@@ -79,8 +79,13 @@ func convertedOSVRecord(t testing.TB, record vulnerabilityintelligence.OSVVulner
 
 // installedOSRow is one vendor os_package row in the producer's documented
 // shape: pkg:<type>/<vendor>/<name>@<version>?arch=<arch>&distro=<vendor>-<release>.
+//
+// source is the installed database's Source field (the source package the
+// binary was built from, for example "openssl" for "libssl3"); empty means
+// the row carries no source_package key, as rows written before #9859 do.
 type installedOSRow struct {
 	vendor, release, manager, name, arch, version string
+	source                                        string
 }
 
 func (r installedOSRow) envelope() facts.Envelope {
@@ -93,7 +98,7 @@ func (r installedOSRow) envelope() facts.Envelope {
 	}
 	purl := "pkg:" + purlType + "/" + r.vendor + "/" + r.name + "@" + r.version +
 		"?arch=" + r.arch + "&distro=" + r.vendor + "-" + r.release
-	return osPackageFact("os-"+r.vendor+"-"+r.name, "image://registry.example/app@sha256:9848", map[string]any{
+	payload := map[string]any{
 		"distro":                 r.vendor,
 		"distro_version":         r.release,
 		"package_manager":        r.manager,
@@ -103,7 +108,11 @@ func (r installedOSRow) envelope() facts.Envelope {
 		"vendor_advisory_source": r.vendor,
 		"installed_version_raw":  r.version,
 		"purl":                   purl,
-	})
+	}
+	if r.source != "" {
+		payload["source_package"] = r.source
+	}
+	return osPackageFact("os-"+r.vendor+"-"+r.name, "image://registry.example/app@sha256:9848", payload)
 }
 
 // authorizedOSVAdvisories converts committed OSV records for the authorized

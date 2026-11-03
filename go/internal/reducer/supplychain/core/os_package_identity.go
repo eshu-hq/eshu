@@ -5,6 +5,7 @@ package core
 
 import (
 	"strings"
+	"unicode"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
@@ -123,6 +124,45 @@ func canonicalAdvisoryOSPackageKey(pkg supplychainmodel.AffectedPackage) string 
 		return ""
 	}
 	return "pkg:rpm/" + vendor + "/" + name
+}
+
+// InstalledOSPackageSourceKey returns the advisory-side key form of an
+// installed row's source package name (#9859): the installed purl's
+// version-stripped prefix with its last segment (the binary name) replaced
+// by the source name. An installed libssl3 row with source "openssl" keys
+// as pkg:deb/debian/openssl, the same string purlPackageKey derives from
+// the advisory purl pkg:deb/debian/openssl?arch=source, so the two meet in
+// the index without any per-row fallback scan.
+//
+// The comparison is verbatim on both sides: no case folding, because the
+// SQL mirror (osPackageSourcePURLPrefixExpression) must derive the identical
+// string and LOWER() is Unicode-lower while Go would fold ASCII-only. The
+// rejection set is exactly what the SQL CASE mirrors: empty, any '/', '@',
+// '?', '#', or any unicode space, and a prefix with no '/' to replace into.
+// A rejected source keys as "" and the row is indexed on its binary key
+// alone, exactly as rows written before source_package existed.
+//
+// Exported because it is a join contract: the reducer index and matcher read
+// it, and the Postgres live differential harness
+// (TestListOSPackageAdvisoryFactEnvelopesPURLFormsMatchTheGoMatcherLive)
+// oracles it directly so the SQL mirror can never drift from this function
+// without failing loudly.
+func InstalledOSPackageSourceKey(purl, source string) string {
+	source = strings.TrimSpace(source)
+	if source == "" || strings.ContainsAny(source, "/@?#") {
+		return ""
+	}
+	for _, r := range source {
+		if unicode.IsSpace(r) {
+			return ""
+		}
+	}
+	prefix := packageIDFromPURL(purl)
+	slash := strings.LastIndexByte(prefix, '/')
+	if slash < 0 {
+		return ""
+	}
+	return prefix[:slash+1] + source
 }
 
 func osPackageFamilyFromPURL(purl string) string {

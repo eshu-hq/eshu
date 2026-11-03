@@ -96,7 +96,7 @@ deployed acceptance is NOT_CHECKED.
 | Original published module | New module identity | Available first candidate | Other published candidate | Preferred candidate | Latest candidate pinned by merged core |
 | --- | --- | --- | --- | --- | --- |
 | `github.com/eshu-hq/eshu/sdk/go/collector@v0.2.0` | `github.com/eshu-hq/eshu-sdk/collector` | `collector/v0.1.0-rc.1` | `collector/v0.2.0-rc.1` | `collector/v0.1.0-rc.2` (published; proxy verified) | `collector/v0.2.0-rc.3` (published; proxy verified; adds `collector-sdk/v1alpha3` pagination; pinned by core #9385) |
-| `github.com/eshu-hq/eshu/sdk/go/factschema@v0.2.0` | `github.com/eshu-hq/eshu-sdk/factschema` | `factschema/v0.1.0-rc.1` | `factschema/v0.1.0-rc.2` | `factschema/v0.1.0-rc.2` (published; proxy verified) | `factschema/v0.1.0-rc.12` (published; proxy verified; adds `vulnerability.cve` `status` and `replaced_by` and the `vulnerability.affected_product` NVD operator and negate fields; pinned by core #9757) |
+| `github.com/eshu-hq/eshu/sdk/go/factschema@v0.2.0` | `github.com/eshu-hq/eshu-sdk/factschema` | `factschema/v0.1.0-rc.1` | `factschema/v0.1.0-rc.2` | `factschema/v0.1.0-rc.2` (published; proxy verified) | `factschema/v0.1.0-rc.13` (published; proxy verified; adds `vulnerability.os_package` `source_package` and the `reducer_supply_chain_impact_finding` `os_package_match_derivation`, `installed_package_name`, and `source_package` evidence fields; pinned by core #9859) |
 
 `factschema/v0.1.0-rc.6` is published at SDK merge commit
 `41b2906ec5cd3a2738f3dcdc3cf6033ba14b159c`. A fresh external
@@ -131,6 +131,18 @@ same commit; module zip checksum:
 #9435. Moving the core pin from RC7 changes one `go.mod` line, and `go.sum`
 also moves because the RC10 requirement graph differs from the RC7 graph.
 Reducer, query, and deployed acceptance remain separate proof.
+
+`factschema/v0.1.0-rc.13` is published at SDK merge commit
+`9e57ec4a90c0a76d86b0cb84fc94ea455178a935` through eshu-sdk PR #74. It adds
+the additive optional `source_package` field on `vulnerability.os_package`
+plus three additive optional evidence fields on
+`reducer_supply_chain_impact_finding` (`os_package_match_derivation`,
+`installed_package_name`, `source_package`; eshu-hq/eshu#9859). The exact
+version resolved through the public Go proxy, and the proxy origin names the
+same commit; module zip checksum:
+`h1:3jq0u0B5tGa/R76PkyEQ9kTxkFlWtk0vAGoO2zsbUJs=`; `go.mod` checksum:
+`h1:GysO1GSvcUYSSl7ydDx34MYRSw4yI2DgADT0twajVXY=`. It is pinned by core
+#9859. Reducer, query, and deployed acceptance remain separate proof.
 
 The new module version histories are independent of the original paths'
 `v0.2.0` lines. The migration starts on the initial `v0.1.0` prerelease line,
@@ -169,8 +181,8 @@ round-trip (#8941), reducer/graph behavior, or API/MCP results.
 
 | State | Required evidence | Current recorded status for the new paths |
 | --- | --- | --- |
-| Candidate available | Reviewed and merged source SHA, green CI, separate tag approval, immutable directory-prefixed tags, and fresh proxy resolution | First RC1s and both preferred `v0.1.0-rc.2` modules tagged and proxy verified; historical collector `v0.2.0-rc.1` tagged, with fresh proxy proof pending; `collector/v0.1.0-rc.3`, `factschema/v0.1.0-rc.3`, `factschema/v0.1.0-rc.4`, and `factschema/v0.1.0-rc.5` tagged and proxy verified; `factschema/v0.1.0-rc.6`, `factschema/v0.1.0-rc.7`, and `factschema/v0.1.0-rc.10` tagged and proxy verified; `collector/v0.1.0-rc.5` tagged and proxy verified (vault auth-role metadata allow-list, eshu-hq/eshu#8869); `collector/v0.2.0-rc.3` and `factschema/v0.1.0-rc.12` tagged and proxy verified; core consumer qualification and deployed acceptance pending |
-| Qualified consumer/core pair | Exact new module pins, contract and runtime proof against a named core version, including grant-aware conformance for reserved fact kinds | No pair fully qualified yet. Core pins `collector/v0.2.0-rc.3` + `factschema/v0.1.0-rc.12` (#9385); qualification proof pending CI green and the pair gates |
+| Candidate available | Reviewed and merged source SHA, green CI, separate tag approval, immutable directory-prefixed tags, and fresh proxy resolution | First RC1s and both preferred `v0.1.0-rc.2` modules tagged and proxy verified; historical collector `v0.2.0-rc.1` tagged, with fresh proxy proof pending; `collector/v0.1.0-rc.3`, `factschema/v0.1.0-rc.3`, `factschema/v0.1.0-rc.4`, and `factschema/v0.1.0-rc.5` tagged and proxy verified; `factschema/v0.1.0-rc.6`, `factschema/v0.1.0-rc.7`, and `factschema/v0.1.0-rc.10` tagged and proxy verified; `collector/v0.1.0-rc.5` tagged and proxy verified (vault auth-role metadata allow-list, eshu-hq/eshu#8869); `collector/v0.2.0-rc.3` and `factschema/v0.1.0-rc.13` tagged and proxy verified; core consumer qualification and deployed acceptance pending |
+| Qualified consumer/core pair | Exact new module pins, contract and runtime proof against a named core version, including grant-aware conformance for reserved fact kinds | No pair fully qualified yet. Core pins `collector/v0.2.0-rc.3` + `factschema/v0.1.0-rc.13` (#9859); qualification proof pending CI green and the pair gates |
 | Deployed accepted pair | Matching deployment, reducer, graph, API/MCP, retry, operator, and rollback proof | No deployment accepted |
 
 The expanded first candidate preparation includes current collector tooling,

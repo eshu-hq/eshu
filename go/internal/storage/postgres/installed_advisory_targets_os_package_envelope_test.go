@@ -49,3 +49,32 @@ func TestOSPackageAdvisoryFactEnvelopeFromTargetReturnsValidTarget(t *testing.T)
 		t.Error("valid target envelope should have non-empty FactKind")
 	}
 }
+
+// TestOSPackageAdvisoryFactEnvelopeFromTargetCarriesSourcePackage pins the
+// #9859 bridge: a target row carrying a source name reconstructs an envelope
+// whose payload carries the same source_package key, so the reducer's
+// source-key join sees the value the SQL narrowed read indexed on.
+func TestOSPackageAdvisoryFactEnvelopeFromTargetCarriesSourcePackage(t *testing.T) {
+	target := workflow.OSPackageAdvisoryTarget{
+		Distro:           "debian",
+		DistroVersion:    "12",
+		PackageManager:   "dpkg",
+		PackageName:      "libssl3",
+		Arch:             "amd64",
+		InstalledVersion: "3.0.9-1~deb12u1",
+		SourcePackage:    "openssl",
+		FactID:           "fact-1",
+		ScopeID:          "scope-1",
+		GenerationID:     "gen-1",
+	}
+	envelope, ok := osPackageAdvisoryFactEnvelopeFromTarget(target)
+	if !ok {
+		t.Fatal("target with a source package should return ok=true")
+	}
+	if got, _ := envelope.Payload["source_package"].(string); got != "openssl" {
+		t.Fatalf("envelope payload source_package = %q, want %q", got, "openssl")
+	}
+	if got, _ := envelope.Payload["name"].(string); got != "libssl3" {
+		t.Fatalf("envelope payload name = %q, want the binary key %q", got, "libssl3")
+	}
+}
