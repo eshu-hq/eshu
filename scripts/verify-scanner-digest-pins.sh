@@ -26,9 +26,10 @@
 # in #9741, and the images are published by eshu-hq/eshu-scanner-worker
 # (#8878 box 10). The anchor names that repository's publish commit; both
 # anchor lines move together with the pins in a reviewed re-pin PR. In-tree
-# scanner sources are gone, so this gate does not diff scanner inputs for
-# post-anchor staleness: source staleness is the satellite repo's own gate
-# responsibility, and the anchor advances only through reviewed re-pin PRs.
+# scanner sources are gone, so this gate does not check post-anchor
+# freshness: no freshness signal exists yet, and the re-pin is a manual
+# reviewed PR per the satellite release workflow and its SECURITY.md
+# (tracked in #9943). The anchor advances only through reviewed re-pin PRs.
 #
 # Usage:
 #   scripts/verify-scanner-digest-pins.sh [--manifest PATH]
