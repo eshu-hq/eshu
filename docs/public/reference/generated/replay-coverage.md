@@ -4,7 +4,7 @@
 
 Every non-exempt required surface maps to a committed scenario and the named proof gate that must pass. Exempt rows carry the audited reason that a proof class does not apply. The inventory check itself is credential-free and Docker-free; backend-required scenarios run in their named proof gates. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 459/459 surfaces satisfied (100.00%)** — mode: blocking.
+**Overall: 457/457 surfaces satisfied (100.00%)** — mode: blocking.
 
 ## Coverage by axis
 
@@ -20,18 +20,18 @@ Every non-exempt required surface maps to a committed scenario and the named pro
 | Reducer drain (crash) | 1 | 1 | 100.00% | 0 | 0 |
 | Retractable edge types (delta) | 65 | 65 | 100.00% | 0 | 0 |
 | Retractable node types (delta) | 103 | 103 | 100.00% | 0 | 1 |
-| Collectors | 24 | 24 | 100.00% | 0 | 7 |
-| **Total** | **459** | **459** | **100.00%** | **0** | **10** |
+| Collectors | 22 | 22 | 100.00% | 0 | 5 |
+| **Total** | **457** | **457** | **100.00%** | **0** | **8** |
 
 ## Coverage by scenario type
 
 | Scenario type | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| baseline | 242 | 242 | 100.00% | 0 | 4 |
+| baseline | 241 | 241 | 100.00% | 0 | 3 |
 | cost | 31 | 31 | 100.00% | 0 | 1 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
 | delta_tombstone | 169 | 169 | 100.00% | 0 | 1 |
-| fault | 12 | 12 | 100.00% | 0 | 4 |
+| fault | 11 | 11 | 100.00% | 0 | 3 |
 | ordering | 3 | 3 | 100.00% | 0 | 0 |
 
 ## Language parser coverage
@@ -46,7 +46,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 
 None. Every non-exempt required surface has a replay scenario; exemptions carry audited reasons.
 
-## Covered surfaces (459)
+## Covered surfaces (457)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact / exemption reason |
 | --- | --- | --- | --- | --- |
@@ -507,5 +507,9 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `collector:tempo` | fault | exempt | — | Satellite-owned collection boundary: collection runs from eshu-hq/eshu-collector-tempo while the coordinator still plans tempo claims and the reducer/query surfaces still serve the fact kinds. No in-tree Tempo client remains to drive an injected-timeout fault against, so the fault axis has nothing in-tree to bound. |
 | `collector:vulnerability_intelligence` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/vulnerabilityintelligence/supply-chain-demo.json` |
 | `collector:vulnerability_intelligence` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
-| `collector:webhook` | baseline | exempt | — | Inbound webhook sink, not a pollable source. The webhook collector verifies and normalizes inbound deliveries into refresh triggers; it never polls an upstream, so there is no generation to record into a cassette. |
-| `collector:webhook` | fault | exempt | — | Inbound webhook sink, not a pollable source. The webhook collector verifies and normalizes inbound deliveries into refresh triggers; it never polls an upstream, so there is no generation to record into a cassette. |
+
+## Stale manifest entries
+
+These manifest entries map no supported surface (a surface was renamed or removed):
+
+- `collector:webhook`
