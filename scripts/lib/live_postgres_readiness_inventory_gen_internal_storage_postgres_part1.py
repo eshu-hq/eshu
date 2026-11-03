@@ -157,6 +157,13 @@ TABLE = {
         "go/internal/storage/postgres/content_writer_upsert_outcome_write_bench_live_test.go": (
             "TestContentFileUpsertOutcomeWriteCostLive",
         ),
+        "go/internal/storage/postgres/control_claim_stats_concurrency_live_test.go": (
+            "TestWorkflowStatsAnalyzeDuringClaims",
+        ),
+        "go/internal/storage/postgres/control_claim_stats_live_test.go": (
+            "TestWorkflowClaimColdTableTheory",
+            "TestWorkflowClaimFirstClaimAfterBulkAdmission",
+        ),
         "go/internal/storage/postgres/control_scanner_admission_atomicity_live_test.go": (
             "TestScannerAdmissionRejectsConflictingDuplicateSourceLive",
         ),
