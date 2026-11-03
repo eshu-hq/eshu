@@ -473,7 +473,7 @@ ifa_fault_shard_run cell_failgraphwrite_kubernetes_correlation
 ifa_fault_shard_run cell_baseline_workload_cloud_relationship
 ifa_fault_shard_run cell_killworker_workload_cloud_relationship
 ifa_fault_shard_run cell_failgraphwrite_workload_cloud_relationship
-# runtime_declaration (#6228 runtime_declaration live leaf): twenty-sixth
+# runtime_declaration (#6228 runtime_declaration live leaf): twenty-seventh
 # direct family (dispatched here, after the workload_cloud_relationship
 # trio, by gate order), baseline first, same trio shape as above.
 ifa_fault_shard_run cell_baseline_runtime_declaration

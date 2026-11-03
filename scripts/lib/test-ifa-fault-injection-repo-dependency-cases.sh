@@ -402,5 +402,5 @@ run_ifa_fault_injection_repo_dependency_cases() {
 	# live leaf adds the assumes_iam_role trio (baseline + failgraphwrite
 	# + the #8539 seam's per-statement hold kill cell), and the #6228
 	# runtime_declaration live leaf adds the runtime_declaration trio.
-	[[ "$("${script}" --list-cells | wc -l | tr -d '[:space:]')" == 124 ]] || return 1
+	[[ "$("${script}" --list-cells | wc -l | tr -d '[:space:]')" == 127 ]] || return 1
 }

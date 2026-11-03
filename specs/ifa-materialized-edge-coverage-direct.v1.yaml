@@ -38,7 +38,7 @@
 # fails in blocking mode. Waivers are per (surface, proof_gate), never per
 # family: waiving the fault gate does not grant credit to the baseline gate.
 #
-# ALL BUT TWENTY-SEVEN FAMILIES BELOW ARE WAIVED, AND THAT IS THE HONEST STATE. A
+# ALL BUT TWENTY-EIGHT FAMILIES BELOW ARE WAIVED, AND THAT IS THE HONEST STATE. A
 # coverage row here has to satisfy all four of the sibling manifest's
 # conditions: a cataloged Odù, a vacuity guard registered in
 # MaterializedEdgeOduResolver, a hand-derived expected-edge-set fixture naming
@@ -48,7 +48,7 @@
 # mistake commit 42e188ba1 made for documentation_edges and had to withdraw; it
 # is not repeated here.
 #
-# TWENTY-SEVEN OF THEM NOW HAVE ALL FOUR. kubernetes_namespace_environment,
+# TWENTY-EIGHT OF THEM NOW HAVE ALL FOUR. kubernetes_namespace_environment,
 # iam_instance_profile_role, iam_can_assume, iam_can_perform,
 # ec2_uses_profile, s3_logs_to, iam_escalation, authenticates_vault_role,
 # uses_vault_policy, grants_secret_read, built_from,

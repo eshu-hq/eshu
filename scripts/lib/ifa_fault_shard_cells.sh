@@ -264,7 +264,7 @@ IFA_FAULT_ALL_CELLS=(
 	cell_killworker_workload_cloud_relationship
 	cell_failgraphwrite_workload_cloud_relationship
 	# runtime_declaration (#6228 runtime_declaration live leaf):
-	# twenty-sixth direct-materialization family, same trio shape (atomic
+	# twenty-seventh direct-materialization family, same trio shape (atomic
 	# group below).
 	cell_baseline_runtime_declaration
 	cell_killworker_runtime_declaration
