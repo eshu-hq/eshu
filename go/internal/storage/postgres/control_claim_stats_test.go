@@ -32,6 +32,7 @@ type statsGateRecorder struct {
 	gateErr      error
 	execErr      error
 	execAffected int64
+	noGateRows   bool
 }
 
 func (r *statsGateRecorder) ExecContext(_ context.Context, query string, _ ...any) (sql.Result, error) {
@@ -50,6 +51,9 @@ func (r *statsGateRecorder) QueryContext(_ context.Context, query string, _ ...a
 	r.statements = append(r.statements, query)
 	if r.gateErr != nil {
 		return nil, r.gateErr
+	}
+	if r.noGateRows {
+		return &queueFakeRows{}, nil
 	}
 	return &queueFakeRows{rows: [][]any{r.gateRow}}, nil
 }
@@ -158,6 +162,24 @@ func TestWorkflowStatsGateFailsWithoutMaintain(t *testing.T) {
 
 	if got := store.analyzeWorkflowWorkItemsOnce(context.Background(), telemetry.WorkflowStatsAnalyzeSiteEnqueue, 7); got != telemetry.WorkflowStatsAnalyzeOutcomeFailed {
 		t.Fatalf("analyzeWorkflowWorkItemsOnce() = %q, want %q", got, telemetry.WorkflowStatsAnalyzeOutcomeFailed)
+	}
+}
+
+// TestWorkflowStatsGateCountsMissingStatsRow pins the schema-missing rule:
+// a database whose catalog has no row for the table counts the outcome as
+// failed and runs no ANALYZE, because there are no statistics to refresh.
+// The admission stands: the gate never aborts a committed write.
+func TestWorkflowStatsGateCountsMissingStatsRow(t *testing.T) {
+	t.Parallel()
+
+	recorder := &statsGateRecorder{noGateRows: true}
+	store := NewWorkflowControlStore(recorder)
+
+	if got := store.analyzeWorkflowWorkItemsOnce(context.Background(), telemetry.WorkflowStatsAnalyzeSiteEnqueue, 100); got != telemetry.WorkflowStatsAnalyzeOutcomeFailed {
+		t.Fatalf("analyzeWorkflowWorkItemsOnce() = %q, want %q", got, telemetry.WorkflowStatsAnalyzeOutcomeFailed)
+	}
+	if recorder.issued("ANALYZE") {
+		t.Fatal("missing statistics row ran ANALYZE; without a catalog row there is nothing to refresh")
 	}
 }
 
