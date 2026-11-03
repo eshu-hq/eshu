@@ -322,7 +322,7 @@ func (h SupplyChainImpactHandler) foldPythonReachabilityRepoFiles(
 	fold *FileReachabilityFold,
 ) (int, int64, error) {
 	if pager, ok := h.FactLoader.(pythonReachabilityFileFolder); ok {
-		return pager.FoldPythonReachabilityFiles(
+		files, payloadBytes, err := pager.FoldPythonReachabilityFiles(
 			ctx,
 			repoScope.scopeID,
 			repoScope.generationID,
@@ -330,6 +330,10 @@ func (h SupplyChainImpactHandler) foldPythonReachabilityRepoFiles(
 			repositoryIDs,
 			fold,
 		)
+		if err != nil {
+			return 0, 0, factload.ClassifyFactLoadError(err)
+		}
+		return files, payloadBytes, nil
 	}
 	fileFacts, err := factload.LoadFactsForKindAndPayloadValue(
 		ctx,

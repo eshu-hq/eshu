@@ -6,6 +6,8 @@ package core
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"reflect"
 	"testing"
 	"time"
@@ -23,6 +25,7 @@ type pythonFoldPagerLoader struct {
 	valueCalls   []pythonPayloadFactCall
 	foldCalls    []pythonFoldCall
 	foldPageSize int
+	foldErr      error
 }
 
 type pythonFoldCall struct {
@@ -63,6 +66,9 @@ func (l *pythonFoldPagerLoader) FoldPythonReachabilityFiles(
 		scopeID: scopeID, generationID: generationID, payloadKey: payloadKey,
 		payloadValues: append([]string(nil), payloadValues...),
 	})
+	if l.foldErr != nil {
+		return 0, 0, l.foldErr
+	}
 	page := l.foldPageSize
 	if page <= 0 {
 		page = 2
@@ -262,5 +268,29 @@ func TestLoadPythonReachabilityEvidenceFactsFallsBackWithoutPager(t *testing.T) 
 	gotIndex := extractPythonReachabilityEvidence(append(append([]facts.Envelope{}, pass...), got.envelopes...))
 	if !reflect.DeepEqual(gotIndex, wantIndex) {
 		t.Fatalf("fallback Python index differs:\n got %#v\nwant %#v", gotIndex, wantIndex)
+	}
+}
+
+// TestLoadPythonReachabilityEvidenceFactsMarksPagerFailuresRetryable pins the
+// #9860 pager seam to the durable-queue contract: a transient pager failure
+// surfaces Retryable so the scope generation retries instead of
+// dead-lettering, matching the classification the fallback loader applies.
+func TestLoadPythonReachabilityEvidenceFactsMarksPagerFailuresRetryable(t *testing.T) {
+	t.Parallel()
+
+	pass, loader := pythonFoldPassEnvelopes(t)
+	loader.foldErr = io.ErrUnexpectedEOF
+	handler := SupplyChainImpactHandler{FactLoader: loader}
+
+	_, err := handler.loadPythonReachabilityEvidenceFacts(context.Background(), pass)
+	if err == nil {
+		t.Fatal("loadPythonReachabilityEvidenceFacts() error = nil, want transient pager failure")
+	}
+	var retryable interface{ Retryable() bool }
+	if !errors.As(err, &retryable) || !retryable.Retryable() {
+		t.Fatalf("pager error %v does not surface Retryable, want the durable queue to retry", err)
+	}
+	if !errors.Is(err, io.ErrUnexpectedEOF) {
+		t.Fatalf("pager error %v lost its cause, want errors.Is(err, io.ErrUnexpectedEOF)", err)
 	}
 }
