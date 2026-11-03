@@ -1,0 +1,21 @@
+docs/internal/design/9872-new-advisory-sources-and-mirror-decision.md
+  s_9c818346074e86::t_a0e4cc6c199913 226-227
+docs/internal/evidence/9872-new-source-adr-arbiter-ruling.md
+  s_9c818346074e86::t_14675c59a95c80 57-66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "415cdbe1014e6bfd096cc5dd5d69afc3436364ab",
+  "prompts": {},
+  "sessions": {
+    "s_9c818346074e86": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9c11fe27-4c11-4e6c-baf7-8b1b133adba8",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
