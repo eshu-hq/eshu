@@ -17,7 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// Post-admission planner statistics for workflow_work_items (#9871).
+// Post-admission planner statistics for workflow_work_items (#9871, #9926).
 //
 // A freshly bulk-loaded table carries no planner statistics until autovacuum
 // analyzes it (about 37 s after the load: the floor is the global
@@ -27,16 +27,37 @@ import (
 // 18.6, against 4 ms after ANALYZE. Every admission path therefore runs
 // ANALYZE (SKIP_LOCKED) once, after its commit, when the table has never
 // been analyzed. That covers the cold table (fresh install, recreated, or
-// restored table on its first large admission), which is exactly what the
-// gate checks. Bulk growth onto an already-analyzed but stale table is
-// out of scope here and tracked in #9926.
+// restored table on its first large admission).
+//
+// An analyzed table can still misplan when its statistics describe a
+// trivially small base while large growth landed since (#9926, measured on
+// PostgreSQL 18.6): analyzed-empty then +100k plans all five candidate scans
+// on the family index, and an analyzed base of 1 row degrades to
+// claimable-index sorts, while bases of 10 rows and up hold the fair-claim
+// plan through +185% inserts and 60% update churn. The gate therefore also
+// fires when the analyzed base is trivially small and the growth since the
+// last ANALYZE (flushed counter plus the rows this admission landed, which
+// covers the stats collector lag) exceeds that base. Firing refreshes the
+// statistics, which resets the growth counter and reprices the base, so the
+// gate is self-limiting: it fires once per staleness accumulation, never on
+// every admission.
 
 // workflowWorkItemsStatsGateQuery reports whether workflow_work_items has
-// ever been analyzed, manually or by autovacuum.
+// ever been analyzed, manually or by autovacuum, plus the analyzed base
+// size and the modifications since that ANALYZE for the staleness rule.
 const workflowWorkItemsStatsGateQuery = `
-SELECT last_analyze IS NOT NULL, last_autoanalyze IS NOT NULL
+SELECT last_analyze IS NOT NULL, last_autoanalyze IS NOT NULL,
+    n_mod_since_analyze, reltuples
 FROM pg_stat_all_tables
-WHERE relname = 'workflow_work_items'`
+JOIN pg_class ON pg_class.oid = pg_stat_all_tables.relid
+WHERE pg_stat_all_tables.relname = 'workflow_work_items'`
+
+// workflowStatsStaleAnalyzedBaseCeil bounds the analyzed base the staleness
+// rule treats as trivial: bases of 1 row misplan after bulk growth while
+// bases of 10 rows hold, so strictly below 10 with growth past the base
+// refreshes statistics. Growth must exceed the base (not merely exist) so
+// dribbles onto a genuinely small table do not ANALYZE on every admission.
+const workflowStatsStaleAnalyzedBaseCeil = 10
 
 // workflowWorkItemsStatsAnalyzeStatement refreshes the table statistics
 // without waiting on a concurrent analyzer or claimer lock: a second
@@ -73,8 +94,9 @@ func (s *WorkflowControlStore) maybeAnalyzeWorkflowWorkItems(ctx context.Context
 	}
 }
 
-// analyzeWorkflowWorkItemsOnce checks the never-analyzed gate and runs the
-// ANALYZE. It returns one of the closed outcome values the counter records.
+// analyzeWorkflowWorkItemsOnce checks the never-analyzed gate and the
+// analyzed-but-statless gate (#9926) and runs the ANALYZE. It returns one of
+// the closed outcome values the counter records.
 func (s *WorkflowControlStore) analyzeWorkflowWorkItemsOnce(ctx context.Context, site string, rowsAdmitted int) string {
 	ctx, span := otel.Tracer(telemetry.DefaultSignalName).Start(
 		ctx,
@@ -105,9 +127,11 @@ func (s *WorkflowControlStore) analyzeWorkflowWorkItemsOnce(ctx context.Context,
 		return finish(telemetry.WorkflowStatsAnalyzeOutcomeFailed, err, slog.WarnContext)
 	}
 	var manual, auto, seen bool
+	var modsSinceAnalyze int64
+	var analyzedBase float64
 	if rows.Next() {
 		seen = true
-		if err := rows.Scan(&manual, &auto); err != nil {
+		if err := rows.Scan(&manual, &auto, &modsSinceAnalyze, &analyzedBase); err != nil {
 			_ = rows.Close()
 			return finish(telemetry.WorkflowStatsAnalyzeOutcomeFailed, err, slog.WarnContext)
 		}
@@ -124,7 +148,14 @@ func (s *WorkflowControlStore) analyzeWorkflowWorkItemsOnce(ctx context.Context,
 		return finish(telemetry.WorkflowStatsAnalyzeOutcomeFailed, errNoWorkflowWorkItemsStatsRow, slog.WarnContext)
 	}
 	if manual || auto {
-		return finish(telemetry.WorkflowStatsAnalyzeOutcomeSkipped, nil, slog.DebugContext)
+		if analyzedBase < workflowStatsStaleAnalyzedBaseCeil &&
+			float64(modsSinceAnalyze)+float64(rowsAdmitted) > analyzedBase {
+			// Analyzed-but-statless (#9926): the statistics describe a
+			// trivial base while bulk growth landed since. Fall through to
+			// the ANALYZE below, which resets both readings.
+		} else {
+			return finish(telemetry.WorkflowStatsAnalyzeOutcomeSkipped, nil, slog.DebugContext)
+		}
 	}
 	if _, err := s.database.ExecContext(timeoutCtx, workflowWorkItemsStatsAnalyzeStatement); err != nil {
 		return finish(telemetry.WorkflowStatsAnalyzeOutcomeFailed, err, slog.WarnContext)

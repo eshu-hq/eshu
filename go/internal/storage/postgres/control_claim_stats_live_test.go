@@ -266,3 +266,104 @@ func TestWorkflowClaimFirstClaimAfterBulkAdmission(t *testing.T) {
 		}
 	}
 }
+
+// TestWorkflowClaimFirstClaimAfterBulkAdmissionOntoStatlessTable is the
+// #9926 regression: a bulk that lands on a table whose last ANALYZE covered
+// a trivially small base (here empty, as autovacuum leaves a fresh table)
+// must still refresh statistics through the production admission path, so
+// the first claim plans on workflow_work_items_fair_claim_idx with no manual
+// ANALYZE. It fails while the gate only checks never-analyzed: the admission
+// skips, and the candidate plans all five scans on the family index.
+//
+// The bulk arrives out-of-band (restore, backfill, or another writer) in the
+// narrow stats-proof shape, then a production admission lands on top: the
+// gate contract is per admission, so any admission onto a statless table
+// must refresh. A fully production-seeded bulk does not reproduce the cold
+// shape (wide rows tip the zero-statistics cost tie toward the fair index),
+// which is why the bulk here is raw SQL while the trigger admission is the
+// production path.
+func TestWorkflowClaimFirstClaimAfterBulkAdmissionOntoStatlessTable(t *testing.T) {
+	database, store := openWorkflowControlIntegrationStore(t)
+	ctx, cancel := statsProofContext(t)
+	defer cancel()
+	base := time.Now().UTC().Add(-time.Hour).Truncate(time.Second)
+	now := base.Add(time.Hour)
+
+	// Simulate autovacuum's quick first pass over the fresh table: analyzed
+	// but describing an empty base. The never-analyzed gate passes here.
+	// Autovacuum stays off for the rest of the test so the only analyzer
+	// that can refresh the statistics is the admission gate under test;
+	// otherwise an already-awake daemon could autoanalyze the bulk load and
+	// the plan would prove nothing about the gate.
+	if _, err := database.ExecContext(ctx, `ANALYZE workflow_work_items`); err != nil {
+		t.Fatalf("ANALYZE empty workflow_work_items: %v", err)
+	}
+	if _, err := database.ExecContext(ctx, `ALTER TABLE workflow_work_items SET (autovacuum_enabled = false)`); err != nil {
+		t.Fatalf("disable autovacuum on workflow_work_items: %v", err)
+	}
+	if analyzed, _ := workflowWorkItemsAnalyzeState(t, database, ctx); !analyzed {
+		t.Fatal("empty table reads never-analyzed after explicit ANALYZE; the stale shape needs an analyzed base")
+	}
+
+	// Out-of-band bulk in the narrow stats-proof shape, on the same
+	// kind/instance the production admission and the plan check use.
+	if _, err := database.ExecContext(ctx, `INSERT INTO workflow_runs (run_id, trigger_kind, status, created_at, updated_at) VALUES ($1, $2, $3, $4, $4)`,
+		"stats-proof-stale-bulk-run", string(workflow.TriggerKindSchedule), string(workflow.RunStatusCollectionPending), base); err != nil {
+		t.Fatalf("insert stale bulk run: %v", err)
+	}
+	res, err := database.ExecContext(ctx, fmt.Sprintf(`INSERT INTO workflow_work_items (
+			work_item_id, run_id, collector_kind, collector_instance_id,
+			source_system, scope_id, acceptance_unit_id, source_run_id,
+			generation_id, fairness_key, status, created_at, updated_at
+		) SELECT
+			'stale-bulk-item-' || g,
+			$1, $2, $3, $2,
+			'stale-bulk-scope-' || ((g - 1) / %d),
+			'stale-bulk-scope-' || ((g - 1) / %d),
+			'stale-bulk-run', 'stale-bulk-gen-1',
+			'stale-bulk-key-' || lpad((((g - 1) %% 200) + 1)::text, 3, '0'),
+			'pending', $4, $4
+		FROM generate_series(1, %d) g`, statsProofPerKey, statsProofPerKey, statsProofKeys*statsProofPerKey),
+		"stats-proof-stale-bulk-run", statsProofKind, "claim-depth-instance", base)
+	if err != nil {
+		t.Fatalf("stale bulk load: %v", err)
+	}
+	if n, err := res.RowsAffected(); err != nil || n != statsProofKeys*statsProofPerKey {
+		t.Fatalf("stale bulk loaded rows = %d, %v; want %d", n, err, statsProofKeys*statsProofPerKey)
+	}
+
+	// Production admission on top: ten keys of backlog through
+	// EnqueueWorkItems. The gate must fire on the statless table.
+	keys := make([]claimDepthKeyBacklog, 0, 10)
+	for k := 0; k < 10; k++ {
+		keys = append(keys, claimDepthKeyBacklog{
+			FairnessKey: fmt.Sprintf(statsProofKeyFmt, k),
+			Count:       statsProofPerKey,
+		})
+	}
+	seeded := seedClaimDepthBacklog(t, store, ctx, "stats-proof-stale-run", base, keys)
+	if len(seeded) != 10*statsProofPerKey {
+		t.Fatalf("admitted %d items, want %d", len(seeded), 10*statsProofPerKey)
+	}
+
+	plan := explainClaimCandidate(t, database, ctx, "COSTS OFF", string(scope.CollectorGit), "claim-depth-instance", now)
+	t.Logf("first-claim candidate plan after admission onto statless table, no manual ANALYZE:\n%s", plan)
+	if !strings.Contains(plan, "Index Scan using workflow_work_items_fair_claim_idx") {
+		t.Fatalf("first claim after admission onto statless table misses the fair-claim index (no manual ANALYZE ran):\n%s", plan)
+	}
+	if strings.Contains(plan, "family_queue_depth_idx") {
+		t.Fatalf("first claim after admission onto statless table still probes the family index:\n%s", plan)
+	}
+	if strings.Contains(plan, "Seq Scan on workflow_work_items") {
+		t.Fatalf("first claim after admission onto statless table sequentially scans the backlog:\n%s", plan)
+	}
+
+	latencies := timedStatsProofClaims(t, store, ctx, string(scope.CollectorGit), "claim-depth-instance", now, 20)
+	p50, max := summarizeLatencies(latencies)
+	t.Logf("post-admission claims onto refreshed statistics n=20: p50=%.1fms max=%.1fms", p50, max)
+	for i, ms := range latencies {
+		if ms > statsProofClaimMs {
+			t.Fatalf("post-admission claim #%d took %.1fms, above the %dms pathology bound", i, ms, statsProofClaimMs)
+		}
+	}
+}

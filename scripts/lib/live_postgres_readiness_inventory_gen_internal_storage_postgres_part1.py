@@ -163,6 +163,7 @@ TABLE = {
         "go/internal/storage/postgres/control_claim_stats_live_test.go": (
             "TestWorkflowClaimColdTableTheory",
             "TestWorkflowClaimFirstClaimAfterBulkAdmission",
+            "TestWorkflowClaimFirstClaimAfterBulkAdmissionOntoStatlessTable",
         ),
         "go/internal/storage/postgres/control_scanner_admission_atomicity_live_test.go": (
             "TestScannerAdmissionRejectsConflictingDuplicateSourceLive",

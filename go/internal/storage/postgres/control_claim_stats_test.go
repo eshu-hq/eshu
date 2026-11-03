@@ -81,7 +81,7 @@ func (r *statsGateRecorder) statementCount() int {
 func TestWorkflowStatsGateAnalyzesNeverAnalyzedTable(t *testing.T) {
 	t.Parallel()
 
-	recorder := &statsGateRecorder{gateRow: []any{false, false}}
+	recorder := &statsGateRecorder{gateRow: []any{false, false, int64(0), float64(0)}}
 	store := NewWorkflowControlStore(recorder)
 
 	if got := store.analyzeWorkflowWorkItemsOnce(context.Background(), telemetry.WorkflowStatsAnalyzeSiteEnqueue, 100); got != telemetry.WorkflowStatsAnalyzeOutcomeAnalyzed {
@@ -98,7 +98,11 @@ func TestWorkflowStatsGateAnalyzesNeverAnalyzedTable(t *testing.T) {
 func TestWorkflowStatsGateSkipsAnalyzedTable(t *testing.T) {
 	t.Parallel()
 
-	for _, row := range [][]any{{true, false}, {false, true}, {true, true}} {
+	for _, row := range [][]any{
+		{true, false, int64(0), float64(100000)},
+		{false, true, int64(0), float64(100000)},
+		{true, true, int64(0), float64(100000)},
+	} {
 		recorder := &statsGateRecorder{gateRow: row}
 		store := NewWorkflowControlStore(recorder)
 
@@ -117,7 +121,7 @@ func TestWorkflowStatsGateSkipsAnalyzedTable(t *testing.T) {
 func TestWorkflowStatsGateSkipsEmptyAdmission(t *testing.T) {
 	t.Parallel()
 
-	recorder := &statsGateRecorder{gateRow: []any{false, false}}
+	recorder := &statsGateRecorder{gateRow: []any{false, false, int64(0), float64(0)}}
 	store := NewWorkflowControlStore(recorder)
 
 	store.maybeAnalyzeWorkflowWorkItems(context.Background(), telemetry.WorkflowStatsAnalyzeSiteEnqueue, 0)
@@ -155,7 +159,7 @@ func TestWorkflowStatsGateFailsWithoutMaintain(t *testing.T) {
 	t.Parallel()
 
 	recorder := &statsGateRecorder{
-		gateRow: []any{false, false},
+		gateRow: []any{false, false, int64(0), float64(0)},
 		execErr: errors.New(`permission denied for table workflow_work_items`),
 	}
 	store := NewWorkflowControlStore(recorder)
@@ -183,6 +187,45 @@ func TestWorkflowStatsGateCountsMissingStatsRow(t *testing.T) {
 	}
 }
 
+// TestWorkflowStatsGateAnalyzesStatlessTable pins the #9926 staleness rule:
+// a table whose last ANALYZE covered a trivially small base (reltuples under
+// the measured flip boundary) while large growth landed since must run
+// ANALYZE, even though the never-analyzed gate passes. Measured on PG 18:
+// analyzed-empty then +100k plans all five scans on the family index;
+// analyzed base 1 degrades to claimable-index sorts; base 10 and up holds
+// the fair-claim plan through +185% growth and 60% churn.
+func TestWorkflowStatsGateAnalyzesStatlessTable(t *testing.T) {
+	t.Parallel()
+
+	recorder := &statsGateRecorder{gateRow: []any{true, false, int64(100000), float64(0)}}
+	store := NewWorkflowControlStore(recorder)
+
+	if got := store.analyzeWorkflowWorkItemsOnce(context.Background(), telemetry.WorkflowStatsAnalyzeSiteEnqueue, 100000); got != telemetry.WorkflowStatsAnalyzeOutcomeAnalyzed {
+		t.Fatalf("analyzeWorkflowWorkItemsOnce() = %q, want %q", got, telemetry.WorkflowStatsAnalyzeOutcomeAnalyzed)
+	}
+	if !recorder.issued("ANALYZE (SKIP_LOCKED) workflow_work_items") {
+		t.Fatal("statless analyzed table ran no ANALYZE; growth past a trivial base must refresh statistics")
+	}
+}
+
+// TestWorkflowStatsGateSkipsHealthyGrowth pins the other half of #9926: an
+// analyzed table whose base is non-trivial keeps skipping the ANALYZE no
+// matter how much growth landed since, because measured plans hold the
+// fair-claim index through +185% inserts and 60% update churn.
+func TestWorkflowStatsGateSkipsHealthyGrowth(t *testing.T) {
+	t.Parallel()
+
+	recorder := &statsGateRecorder{gateRow: []any{true, false, int64(185000), float64(100000)}}
+	store := NewWorkflowControlStore(recorder)
+
+	if got := store.analyzeWorkflowWorkItemsOnce(context.Background(), telemetry.WorkflowStatsAnalyzeSiteEnqueue, 85000); got != telemetry.WorkflowStatsAnalyzeOutcomeSkipped {
+		t.Fatalf("analyzeWorkflowWorkItemsOnce() = %q, want %q", got, telemetry.WorkflowStatsAnalyzeOutcomeSkipped)
+	}
+	if recorder.issued("ANALYZE") {
+		t.Fatal("healthy-growth analyzed table ran ANALYZE; the gate must stay silent while plans hold")
+	}
+}
+
 // TestEnqueueWorkItemsRunsStatsGateAfterBatches pins the unguarded wire: a
 // bulk admission through EnqueueWorkItems ends with the statistics gate, and
 // the gate fires because rows landed on a never-analyzed table.
@@ -190,7 +233,7 @@ func TestEnqueueWorkItemsRunsStatsGateAfterBatches(t *testing.T) {
 	t.Parallel()
 
 	recorder := &statsGateRecorder{
-		gateRow:      []any{false, false},
+		gateRow:      []any{false, false, int64(0), float64(0)},
 		execAffected: 2,
 	}
 	store := NewWorkflowControlStore(recorder)
