@@ -6,6 +6,8 @@ package workflow
 import (
 	"slices"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 )
 
 // ownedPackageManagerAliasTargets maps a raw dependency-fact package_manager
@@ -43,7 +45,7 @@ type OwnedPackageManagerAlias struct {
 // returned lowercased and trimmed. It never invents an ecosystem, so a value
 // outside the configured set still fails the caller's membership check.
 func CanonicalOwnedPackageEcosystem(raw string) string {
-	value := strings.ToLower(strings.TrimSpace(raw))
+	value := packageidentity.LowerASCII(strings.TrimSpace(raw))
 	if canonical, ok := ownedPackageManagerAliasTargets[value]; ok {
 		return canonical
 	}

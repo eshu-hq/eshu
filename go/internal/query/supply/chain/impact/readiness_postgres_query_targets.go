@@ -94,7 +94,7 @@ configured_vulnerability_source_targets AS (
     SELECT instance.instance_id AS collector_instance_id,
         NULLIF(TRIM(target->>'scope_id'), '') AS scope_id,
         selector.source,
-        NULLIF(LOWER(TRIM(target->>'ecosystem')), '') AS ecosystem,
+        NULLIF(LOWER(TRIM(target->>'ecosystem') COLLATE "C") COLLATE "default", '') AS ecosystem,
         selector.source = 'nvd' AND selector.cve_selected AS coverage_eligible,
         descriptor.expected_descriptor
     FROM collector_instances AS instance
@@ -170,7 +170,7 @@ configured_vulnerability_source_targets AS (
           OR (selector.source = 'first_epss' AND selector.cve_selected)
           OR selector.source = 'cisa_kev'))
         OR (selector.source IN ('osv', 'glad')
-            AND NULLIF(LOWER(TRIM(target->>'ecosystem')), '') IN
+            AND NULLIF(LOWER(TRIM(target->>'ecosystem') COLLATE "C") COLLATE "default", '') IN
                 (SELECT ecosystem FROM target_vulnerability_source_ecosystems))
       )
 ),

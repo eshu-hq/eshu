@@ -35,7 +35,7 @@ const (
 // rule. The literals come from a static, test-pinned table and are never
 // caller input.
 func ownedPackageEcosystemExpression(expandAliases bool) string {
-	raw := "LOWER(fact.payload->'entity_metadata'->>'package_manager')"
+	raw := "LOWER((fact.payload->'entity_metadata'->>'package_manager') COLLATE \"C\") COLLATE \"default\""
 	if !expandAliases {
 		return raw
 	}
@@ -389,7 +389,7 @@ func (s FactStore) readOwnedPackageWindow(
 			rowSlots = append(rowSlots, workflow.VirtualSlotOfKeyHash(uint32(max(keyHashLow24.Int64, 0))))
 		}
 		target := workflow.OwnedPackageDependencyTarget{
-			Ecosystem:         strings.ToLower(strings.TrimSpace(ecosystem.String)),
+			Ecosystem:         packageidentity.LowerASCII(strings.TrimSpace(ecosystem.String)),
 			PackageName:       strings.TrimSpace(name.String),
 			Version:           strings.TrimSpace(version.String),
 			Lockfile:          lockfile.Bool,

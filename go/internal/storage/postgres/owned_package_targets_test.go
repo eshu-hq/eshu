@@ -159,7 +159,7 @@ func TestOwnedPackageEcosystemAliasExpansionSharesOneTable(t *testing.T) {
 	}
 	expanded := listOwnedPackageDependencyTargetsQuery(true, true)
 	for _, want := range []string{
-		"CASE LOWER(fact.payload->'entity_metadata'->>'package_manager')",
+		"CASE LOWER((fact.payload->'entity_metadata'->>'package_manager') COLLATE \"C\") COLLATE \"default\"",
 		"WHEN 'gradle' THEN 'maven'",
 		"WHEN 'gomod' THEN 'go'",
 		"END AS ecosystem",

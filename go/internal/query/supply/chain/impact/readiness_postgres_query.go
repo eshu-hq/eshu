@@ -194,17 +194,17 @@ target_consumption_package_ids AS (
     WHERE NULLIF(TRIM(package_id), '') IS NOT NULL
 ),
 target_vulnerability_source_ecosystems AS (
-    SELECT DISTINCT NULLIF(LOWER(TRIM(payload->'entity_metadata'->>'package_manager')), '') AS ecosystem
+    SELECT DISTINCT NULLIF(LOWER(TRIM(payload->'entity_metadata'->>'package_manager') COLLATE "C") COLLATE "default", '') AS ecosystem
     FROM package_manifest_active
     WHERE $11 <> ''
       AND payload->>'repo_id' = $11
     UNION
-    SELECT DISTINCT NULLIF(LOWER(TRIM(consumption.payload->>'ecosystem')), '') AS ecosystem
+    SELECT DISTINCT NULLIF(LOWER(TRIM(consumption.payload->>'ecosystem') COLLATE "C") COLLATE "default", '') AS ecosystem
     FROM package_consumption_correlation_active AS consumption
     WHERE ($11 <> '' AND consumption.payload->>'repository_id' = $11)
        OR ($10 <> '' AND consumption.payload->>'package_id' = $10)
     UNION
-    SELECT DISTINCT NULLIF(LOWER(TRIM(registry.payload->>'package_manager')), '') AS ecosystem
+    SELECT DISTINCT NULLIF(LOWER(TRIM(registry.payload->>'package_manager') COLLATE "C") COLLATE "default", '') AS ecosystem
     FROM package_registry_active AS registry
     WHERE $10 <> ''
       AND registry.payload->>'package_id' = $10
@@ -218,7 +218,7 @@ target_vulnerability_source_ecosystems AS (
             WHEN POSITION('://' IN $10) > 0 THEN SPLIT_PART($10, '://', 1)
             ELSE ''
         END
-    )), '') AS ecosystem
+    ) COLLATE "C") COLLATE "default", '') AS ecosystem
     WHERE $10 <> ''
 ),
 ` + readinessConfiguredSourceTargetsCTE + `
@@ -403,7 +403,7 @@ vulnerability_source_snapshot AS (
           AND target.source = snapshot.payload->>'source'
     )
        OR (snapshot.payload->>'source' = 'glad'
-           AND NULLIF(LOWER(TRIM(snapshot.payload->>'ecosystem')), '') IN
+           AND NULLIF(LOWER(TRIM(snapshot.payload->>'ecosystem') COLLATE "C") COLLATE "default", '') IN
                (SELECT ecosystem FROM target_vulnerability_source_ecosystems))
 ),
 `

@@ -181,7 +181,7 @@ filtered AS NOT MATERIALIZED (
       AND ($5 = '' OR w.subject_digest = $5)
       AND ($6 = '' OR w.impact_status = $6)
       AND ($7 = '' OR w.advisory_id = $7)
-      AND ($8 = '' OR LOWER(w.ecosystem) = LOWER($8))
+      AND ($8 = '' OR LOWER((w.ecosystem) COLLATE "C") COLLATE "default" = LOWER(($8) COLLATE "C") COLLATE "default")
 ` + supplyChainImpactRuntimeFilterPredicate(
 	"w.repository_id",
 	"$9",

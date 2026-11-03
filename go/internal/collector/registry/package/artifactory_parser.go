@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 )
 
 var defaultArtifactoryPackageMetadataParserRegistry = DefaultMetadataParserRegistry()
@@ -71,7 +73,7 @@ func validateArtifactoryPackageType(ecosystem Ecosystem, packageType string) err
 }
 
 func normalizeArtifactoryPackageType(packageType string) Ecosystem {
-	switch strings.ToLower(strings.TrimSpace(packageType)) {
+	switch packageidentity.LowerASCII(strings.TrimSpace(packageType)) {
 	case "":
 		return ""
 	case "npm":

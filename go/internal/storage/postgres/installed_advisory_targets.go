@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -16,7 +17,7 @@ func listOSPackageAdvisoryTargetsQuery() string {
 	return `
 WITH active_os_packages AS (
   SELECT
-    LOWER(COALESCE(NULLIF(fact.payload->>'vendor_advisory_source', ''), fact.payload->>'distro')) AS ecosystem,
+    LOWER((COALESCE(NULLIF(fact.payload->>'vendor_advisory_source', ''), fact.payload->>'distro')) COLLATE "C") COLLATE "default" AS ecosystem,
     COALESCE(fact.payload->>'distro', '') AS distro,
     COALESCE(fact.payload->>'distro_version', '') AS distro_version,
     COALESCE(fact.payload->>'name', '') AS package_name,
@@ -41,7 +42,7 @@ WITH active_os_packages AS (
   WHERE fact.fact_kind = 'vulnerability.os_package'
     AND fact.is_tombstone = FALSE
     AND generation.status = 'active'
-    AND LOWER(COALESCE(NULLIF(fact.payload->>'vendor_advisory_source', ''), fact.payload->>'distro')) = ANY($1::text[])
+    AND LOWER((COALESCE(NULLIF(fact.payload->>'vendor_advisory_source', ''), fact.payload->>'distro')) COLLATE "C") COLLATE "default" = ANY($1::text[])
 ),
 rotated_targets AS (
   SELECT *,
@@ -72,10 +73,10 @@ func listSBOMComponentAdvisoryTargetsQuery() string {
 	return `
 WITH active_components AS (
   SELECT
-    CASE LOWER(SPLIT_PART(SUBSTRING(COALESCE(component.payload->>'purl', '') FROM 5), '/', 1))
+    CASE LOWER((SPLIT_PART(SUBSTRING(COALESCE(component.payload->>'purl', '') FROM 5), '/', 1)) COLLATE "C") COLLATE "default"
       WHEN 'golang' THEN 'go'
       WHEN 'gem' THEN 'rubygems'
-      ELSE LOWER(SPLIT_PART(SUBSTRING(COALESCE(component.payload->>'purl', '') FROM 5), '/', 1))
+      ELSE LOWER((SPLIT_PART(SUBSTRING(COALESCE(component.payload->>'purl', '') FROM 5), '/', 1)) COLLATE "C") COLLATE "default"
     END AS ecosystem,
     COALESCE(component.payload->>'purl', '') AS purl,
     COALESCE(component.payload->>'name', '') AS package_name,
@@ -238,7 +239,7 @@ WITH candidates AS MATERIALIZED (
   LIMIT $3
 )
 SELECT
-  LOWER(COALESCE(NULLIF(c.payload->>'vendor_advisory_source', ''), c.payload->>'distro')) AS ecosystem,
+  LOWER((COALESCE(NULLIF(c.payload->>'vendor_advisory_source', ''), c.payload->>'distro')) COLLATE "C") COLLATE "default" AS ecosystem,
   COALESCE(c.payload->>'distro', '') AS distro,
   COALESCE(c.payload->>'distro_version', '') AS distro_version,
   COALESCE(c.payload->>'name', '') AS package_name,
@@ -253,7 +254,7 @@ SELECT
   c.generation_id,
   (scope.scope_id IS NOT NULL
     AND COALESCE(generation.status, '') = 'active'
-    AND LOWER(COALESCE(NULLIF(c.payload->>'vendor_advisory_source', ''), c.payload->>'distro')) = ANY($4::text[])) AS active
+    AND LOWER((COALESCE(NULLIF(c.payload->>'vendor_advisory_source', ''), c.payload->>'distro')) COLLATE "C") COLLATE "default" = ANY($4::text[])) AS active
 FROM candidates AS c
 LEFT JOIN ingestion_scopes AS scope
   ON scope.scope_id = c.scope_id
@@ -268,15 +269,15 @@ ORDER BY c.fact_id ASC
 // normalizeOSPackageAdvisoryTarget applies the trimming and case folding the
 // rotation reader applies to every scanned target.
 func normalizeOSPackageAdvisoryTarget(target *workflow.OSPackageAdvisoryTarget) {
-	target.Ecosystem = strings.ToLower(strings.TrimSpace(target.Ecosystem))
-	target.Distro = strings.ToLower(strings.TrimSpace(target.Distro))
+	target.Ecosystem = packageidentity.LowerASCII(strings.TrimSpace(target.Ecosystem))
+	target.Distro = packageidentity.LowerASCII(strings.TrimSpace(target.Distro))
 	target.DistroVersion = strings.TrimSpace(target.DistroVersion)
 	target.PackageName = strings.TrimSpace(target.PackageName)
 	target.InstalledVersion = strings.TrimSpace(target.InstalledVersion)
-	target.PackageManager = strings.ToLower(strings.TrimSpace(target.PackageManager))
+	target.PackageManager = packageidentity.LowerASCII(strings.TrimSpace(target.PackageManager))
 	target.Arch = strings.TrimSpace(target.Arch)
-	target.VendorAdvisorySource = strings.ToLower(strings.TrimSpace(target.VendorAdvisorySource))
-	target.RepositoryClass = strings.ToLower(strings.TrimSpace(target.RepositoryClass))
+	target.VendorAdvisorySource = packageidentity.LowerASCII(strings.TrimSpace(target.VendorAdvisorySource))
+	target.RepositoryClass = packageidentity.LowerASCII(strings.TrimSpace(target.RepositoryClass))
 	target.ScopeID = strings.TrimSpace(target.ScopeID)
 	target.GenerationID = strings.TrimSpace(target.GenerationID)
 }
@@ -393,13 +394,13 @@ func installedAdvisoryPURLIdentity(raw string) installedAdvisoryPURLParts {
 }
 
 func installedAdvisoryPURLTypeEcosystem(raw string) string {
-	switch strings.ToLower(strings.TrimSpace(raw)) {
+	switch packageidentity.LowerASCII(strings.TrimSpace(raw)) {
 	case "golang":
 		return "go"
 	case "gem":
 		return "rubygems"
 	default:
-		return strings.ToLower(strings.TrimSpace(raw))
+		return packageidentity.LowerASCII(strings.TrimSpace(raw))
 	}
 }
 

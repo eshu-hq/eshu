@@ -37,7 +37,7 @@ source_candidates AS (
     AND ($5 = '' OR fact.payload->>'subject_digest' = $5)
     AND ($6 = '' OR fact.payload->>'impact_status' = $6)
     AND ($7 = '' OR fact.payload->>'advisory_id' = $7)
-    AND ($8 = '' OR LOWER(fact.payload->>'ecosystem') = LOWER($8))
+    AND ($8 = '' OR LOWER((fact.payload->>'ecosystem') COLLATE "C") COLLATE "default" = LOWER(($8) COLLATE "C") COLLATE "default")
 ` + supplyChainImpactRuntimeFilterPredicate(
 	"fact.payload->>'repository_id'",
 	"$9",

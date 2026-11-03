@@ -27,16 +27,25 @@
   compares package identity outside this package follows the same rule in Go:
   package IDs and PURLs compare with `LowerASCII(a) == LowerASCII(b)`. SQL
   that joins a package name or ecosystem to a key Go wrote folds with
-  `LOWER(TRIM(x) COLLATE "C") COLLATE "default"`. The only site converted
-  and pinned today is the readiness derived source-state lookup
-  (`TestReadinessDerivedSourceStateFoldsASCIIOnly`). Other SQL ecosystem and
-  package-manager `LOWER`s still follow the database collation: the
-  readiness targets and source CTEs, `installed_advisory_targets.go`, and
-  `owned_package_targets.go` (follow-up #9622). The evidence note
+  `LOWER(TRIM(x) COLLATE "C") COLLATE "default"`. Every SQL ecosystem and
+  package-manager fold in the readiness queries
+  (`readiness_postgres_query*.go`, findings, aggregates), the advisory
+  catalog, and the storage readers (`installed_advisory_targets.go`,
+  `owned_package_targets.go`, `stored_advisory_names.go`, `status_registry.go`)
+  is converted and pinned (#9622:
+  `TestReadinessEcosystemFoldsASCIIOnly`,
+  `TestStoragePackageIdentityFoldsASCIIOnly`,
+  `TestListCatalogQueryEcosystemFoldsASCIIOnly`). The Go fallbacks that feed
+  those readers (`reconciliation_triage.go`, `owned_package_manager_aliases.go`,
+  the vulnerability-intelligence config, the Artifactory parser, the parity
+  classifier) fold with `LowerASCII` too. The evidence note
   `docs/internal/evidence/9584-consumption-key-ascii-fold.md` lists the
   converted packages and the folds left alone that the census of the swept
-  packages and the reviews found. Packages outside the sweep were not
-  audited; see #9622.
+  packages and the reviews found. The locale folds that remain are not
+  identity and stay locale-folded: language labels, JVM code identifiers,
+  status/severity/source labels, permission and provenance flags, repository
+  names, prefix-search LIKE patterns, and the shared schedule string-set over
+  closed operator vocabularies (ASCII-identical, fail-closed on lookalikes).
 - A swift repository has one parser, `swiftRepositoryParts`, behind both
   `SwiftRepositoryKey` and `SwiftOSVSourceLocation`. Change a swift spelling
   rule there, never in one caller. The OSV query name keeps path case (OSV

@@ -98,14 +98,14 @@ unsupported_target_rows AS (
     SELECT
         'ecosystem' AS target_kind,
         'unsupported_ecosystem' AS reason,
-        NULLIF(LOWER(TRIM(payload->'entity_metadata'->>'package_manager')), '') AS ecosystem,
+        NULLIF(LOWER(TRIM(payload->'entity_metadata'->>'package_manager') COLLATE "C") COLLATE "default", '') AS ecosystem,
         NULL::text AS lockfile_flavor,
         NULL::text AS feature_token
     FROM package_manifest_active
     WHERE $11 <> ''
       AND payload->>'repo_id' = $11
-      AND NULLIF(LOWER(TRIM(payload->'entity_metadata'->>'package_manager')), '') IS NOT NULL
-      AND LOWER(TRIM(payload->'entity_metadata'->>'package_manager')) NOT IN
+      AND NULLIF(LOWER(TRIM(payload->'entity_metadata'->>'package_manager') COLLATE "C") COLLATE "default", '') IS NOT NULL
+      AND LOWER(TRIM(payload->'entity_metadata'->>'package_manager') COLLATE "C") COLLATE "default" NOT IN
           ('npm', 'nuget', 'maven', 'cargo', 'pypi', 'swift', 'composer', 'go', 'rubygems', 'hex')
     UNION ALL
     -- Package-manager files Eshu parsed but where the lockfile recorded an
@@ -137,7 +137,7 @@ unsupported_target_rows AS (
             WHEN 'editable_dependency' THEN 'editable_dependency_unsupported'
             ELSE 'unsupported_dependency_unsupported'
         END AS reason,
-        NULLIF(LOWER(TRIM(payload->'entity_metadata'->>'package_manager')), '') AS ecosystem,
+        NULLIF(LOWER(TRIM(payload->'entity_metadata'->>'package_manager') COLLATE "C") COLLATE "default", '') AS ecosystem,
         NULLIF(TRIM(payload->'entity_metadata'->>'package_manager_flavor'), '') AS lockfile_flavor,
         NULLIF(TRIM(payload->'entity_metadata'->>'config_kind'), '') AS feature_token
     FROM package_dependency_gap_active
@@ -170,7 +170,7 @@ unsupported_target_rows AS (
     SELECT
         'package_registry_metadata' AS target_kind,
         NULLIF(TRIM(warn.payload->>'warning_code'), '') AS reason,
-        NULLIF(LOWER(TRIM(warn.payload->>'ecosystem')), '') AS ecosystem,
+        NULLIF(LOWER(TRIM(warn.payload->>'ecosystem') COLLATE "C") COLLATE "default", '') AS ecosystem,
         NULL::text AS lockfile_flavor,
         NULL::text AS feature_token
     FROM package_registry_warning_active AS warn
