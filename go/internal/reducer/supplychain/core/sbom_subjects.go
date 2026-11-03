@@ -28,7 +28,7 @@ func appendSupplyChainImpactPackageFindings(
 	pkg := representativeAffectedPackage(pkgs)
 	paths := supplyChainSBOMPaths(pkg, index)
 	if len(paths) == 0 {
-		return appendSupplyChainImpactManifestFindings(findings, cves, pkgs, index)
+		return appendSupplyChainImpactFleetOSFindings(findings, cves, pkgs, index)
 	}
 	if len(paths) == 1 && firstConsumption(pkg.PackageID, index.consumption).FactID == "" && !hasMatchingOSPackage(pkg, index) {
 		return appendSupplyChainImpactFinding(findings, classifySupplyChainImpactPackage(cves, pkgs, index))
@@ -106,6 +106,75 @@ func appendSupplyChainImpactManifestFindings(
 		findings = appendSupplyChainImpactFinding(findings, classifySupplyChainImpactPackage(cves, pkgs, scoped))
 	}
 	return findings
+}
+
+// appendSupplyChainImpactFleetOSFindings classifies each digest's installed
+// rows independently (issue #9858). Without SBOM subjects the fleet-wide pass
+// kept the first matching installed row, so a fixed image's row silenced a
+// vulnerable image (and vice versa) by input order. Each digest classifies
+// over its own scoped index — the osByDigest scoping the SBOM path above —
+// through the same manifest fanout, so per-repository composition is
+// unchanged: a scope holding a single digest classifies exactly as before.
+// Rows no sibling analysis resolves to a digest stay in the base index, which
+// keeps their pre-fix composition (full consumption over the digest-less
+// rows) so no matching row is dropped.
+func appendSupplyChainImpactFleetOSFindings(
+	findings []SupplyChainImpactFinding,
+	cves supplyChainCVEGroup,
+	pkgs []supplychainmodel.AffectedPackage,
+	index supplyChainImpactIndex,
+) []SupplyChainImpactFinding {
+	pkg := representativeAffectedPackage(pkgs)
+	osByDigest, baseOS := groupOSPackagesByDigest(pkg, index)
+	if len(osByDigest) == 0 {
+		return appendSupplyChainImpactManifestFindings(findings, cves, pkgs, index)
+	}
+	digests := make([]string, 0, len(osByDigest))
+	for digest := range osByDigest {
+		digests = append(digests, digest)
+	}
+	sort.Strings(digests)
+	for _, digest := range digests {
+		scoped := index
+		scoped.osPackages = osByDigest[digest]
+		findings = appendSupplyChainImpactManifestFindings(findings, cves, pkgs, scoped)
+	}
+	base := index
+	base.osPackages = baseOS
+	if hasMatchingOSPackage(pkg, base) {
+		findings = appendSupplyChainImpactManifestFindings(findings, cves, pkgs, base)
+	}
+	return findings
+}
+
+// groupOSPackagesByDigest partitions the advisory's matching installed rows
+// by the image digest their sibling scanner analysis resolves, mirroring the
+// osByDigest partition in appendSupplyChainImpactPackageFindings. Rows with
+// no digest-bearing sibling stay in base for the manifest classification.
+func groupOSPackagesByDigest(
+	pkg supplychainmodel.AffectedPackage,
+	index supplyChainImpactIndex,
+) (map[string]map[string][]supplychainmodel.OSPackage, map[string][]supplychainmodel.OSPackage) {
+	byDigest := map[string]map[string][]supplychainmodel.OSPackage{}
+	base := map[string][]supplychainmodel.OSPackage{}
+	vendorSource := classifyAffectedPackageAdvisorySource(pkg)
+	for _, key := range affectedOSPackageLookupKeys(pkg) {
+		for _, installed := range index.osPackages[key] {
+			if !osPackageMatchesAffectedPackage(installed, pkg, vendorSource) {
+				continue
+			}
+			analysis := index.scannerAnalyses[supplychainmodel.ScopeGenerationKey(installed.ScopeID, installed.GenerationID)]
+			if analysis.ImageDigest != "" {
+				if byDigest[analysis.ImageDigest] == nil {
+					byDigest[analysis.ImageDigest] = map[string][]supplychainmodel.OSPackage{}
+				}
+				byDigest[analysis.ImageDigest][key] = append(byDigest[analysis.ImageDigest][key], installed)
+			} else {
+				base[key] = append(base[key], installed)
+			}
+		}
+	}
+	return byDigest, base
 }
 
 // consumptionRepositoriesForPackage returns the sorted distinct non-blank
