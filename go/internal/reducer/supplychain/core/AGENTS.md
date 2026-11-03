@@ -47,11 +47,14 @@ changing anything here.
   `Instruments.SupplyChainImpactHeadroom` after an admitted write only. Keep it
   after the write and on `truncation.causes()`, the same set that decides
   `PartialEvidence`, so the gauge never disagrees with retraction. The ratio reads `budgetEnvelopes` (`budget.used`), never `expansionEnvelopes`: the protected-scan path adds uncharged derived facts to that one.
-- `FileReachabilityFold` (#9781) replaces parser `file` envelopes with one
-  in-memory digest envelope. It runs the same per-file bodies as the JS/TS and
+- `FileReachabilityFold` (#9781, #9860) replaces parser `file` envelopes with
+  in-memory digest envelopes. It runs the same per-file bodies as the JS/TS and
   Python builders (`addFile`, `addPythonReachabilityFile`), so a new key a
   builder reads is read by the fold with no second edit. Fold in the order the
   pass would append (first usage of the best priority wins; Python lists keep
-  fact order) and keep the digest after earlier files and before the Python
-  load. A fold has one owner goroutine and no locks. The digest never reaches a
-  writer; `TestFileReachabilityFoldMatchesEnvelopeBuilders` is the parity gate.
+  fact order). The active-evidence digest goes after earlier files and before
+  the Python load; the Python-stage digest (#9860, distinct fact ID, same kind)
+  goes where the loaded files would have gone, at the end. A fold has one owner
+  goroutine and no locks. Digests never reach a writer;
+  `TestFileReachabilityFoldMatchesEnvelopeBuilders` is the active parity gate
+  and `TestLoadPythonReachabilityEvidenceFactsFoldsPagedFiles` the Python one.
