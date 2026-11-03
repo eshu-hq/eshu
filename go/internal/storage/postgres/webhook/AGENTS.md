@@ -27,7 +27,7 @@
   lockstep; the schema test asserts exact DDL substrings.
 - Every DDL change also needs a new bootstrap migration that adds the same
   column or index. Only the serving satellite hosts run `EnsureSchema`
-  (`webhook-listener`, plus `webhook-intake` for the five trigger stores);
+  (`webhook-intake` for the five trigger stores; `webhook-listener` removed in #8876);
   the ingester and `collector-git` rely on the migrations (#7777).
   `TestWebhookTriggerStoreRunsOnBootstrapSchemaLive` fails when the columns
   or indexes the two build differ (name, type, nullability, default, or

@@ -104,10 +104,19 @@ surfaces:
       truth_profile: provider_gated
   - category: collector
     name: webhook
-    readiness: implemented
-    owner: cmd/webhook-listener
+    readiness: partial
+    owner: eshu-hq/eshu-webhook
     proof: reference/collector-reducer-readiness.md#promotion-proof
     docs: [reference/collector-reducer-readiness.md]
+    notes: >-
+      Extracted to the eshu-webhook satellite (eshu-hq/eshu-webhook) in #8876:
+      the in-tree command, provider-route handlers, and image build are gone,
+      so the implemented lane (built in-tree, charted, replay-proven) is
+      unmet. The core intake host (go/cmd/webhook-intake) stays in-tree and
+      serving; the provider edge is live on QA through the satellite with
+      8-case parity green and the switch-there-and-back rehearsal on record.
+      Trigger tables, reducer projection, and read surfaces stay core-owned
+      and covered.
   - category: collector
     name: package_registry
     readiness: implemented

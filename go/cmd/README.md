@@ -6,7 +6,9 @@ root, not a Go package — each child has its own rich `README.md` and
 
 The public CLI command is `eshu`. The service binaries use ESHU-prefixed names
 when installed for local runtime work, such as `eshu-api`, `eshu-mcp-server`,
-`eshu-ingester`, `eshu-reducer`, and `eshu-webhook-listener`. Use
+`eshu-ingester`, and `eshu-reducer`. Provider webhook intake is served by the
+extracted `eshu-webhook` satellite through the core `eshu-webhook-intake` host;
+the in-tree `eshu-webhook-listener` was removed after the `#8876` cutover. Use
 `scripts/install-local-binaries.sh` from the repository root when you need that
 exact binary set on `PATH`.
 
@@ -31,7 +33,7 @@ exact binary set on `PATH`.
 | `eshu-collector-pagerduty` | `collector-pagerduty/` | Long-running PagerDuty incident-context collector |
 | `eshu-collector-grafana` | `collector-grafana/` | Long-running live Grafana metadata collector |
 | `eshu-collector-prometheus-mimir` | `collector-prometheus-mimir/` | Long-running live Prometheus and Mimir metadata collector |
-| `eshu-webhook-listener` | `webhook-listener/` | Long-running GitHub/GitLab webhook intake |
+| `eshu-webhook-intake` | `webhook-intake/` | Long-running core intake host for the extracted webhook satellite |
 | `eshu-admin-status` | `admin-status/` | Admin/status read helper |
 | `eshu-workflow-coordinator` | `workflow-coordinator/` | Long-running workflow coordinator |
 | `capability-inventory` | `capability-inventory/` | Generate/verify the capability catalog artifact (dev/CI tool) |
@@ -57,7 +59,7 @@ flowchart LR
   pagerduty[collector-pagerduty] --> postgres
   grafana[collector-grafana] --> postgres
   metrics[collector-prometheus-mimir] --> postgres
-  webhook[webhook-listener] --> postgres
+  intake[webhook-intake host] --> postgres
   api[api] --> graph
   api --> postgres
   mcp[eshu-mcp-server satellite] --> api

@@ -321,15 +321,20 @@ the registry pins both sides still honor.
 Webhook No-Regression Evidence:
 
 ```bash
-go test ./internal/webhook ./cmd/webhook-listener ./internal/coordinator/planner/jira ./internal/coordinator \
-  -run 'TestNormalizeJiraIncidentFreshness|TestNewStoredJiraIncidentFreshness|TestWebhookHandler(DoesNotRegisterUnsignedJiraRouteWhenSecretDisabled|RejectsBadJiraSignature|RejectsUnsupportedJiraEvent|RecordsJiraUnsupportedEventTelemetry)|TestServiceRunActiveModeCoalescesRepeatedJiraWebhookClaims|TestWorkPlannerScheduledPollingCoversAllTargetsAfterMissedWebhook' \
+go test ./internal/webhook/... ./internal/coordinator/planner/jira ./internal/coordinator \
+  -run 'TestNormalizeJiraIncidentFreshness|TestNewStoredJiraIncidentFreshness|TestVerifyJiraSignature|TestServiceRunActiveModeCoalescesRepeatedJiraWebhookClaims|TestWorkPlannerScheduledPollingCoversAllTargetsAfterMissedWebhook|TestIntakeRequiresBearerAuth|TestIntakeCanceledRequestContextReachesStore' \
   -count=1
 ```
 
-This covers signed intake, disabled unsigned Jira routes, invalid signatures,
-unsupported Jira event rejection, duplicate delivery coalescing, delayed and
-deleted issue events, self-URL fingerprinting, targeted handoff, and scheduled
-polling recovery after missed webhook delivery.
+This covers signed intake, Jira delivery/scope keys, signature verification,
+intake auth, canceled-request store safety, duplicate delivery coalescing,
+delayed and deleted issue events, self-URL fingerprinting, targeted handoff,
+and scheduled polling recovery after missed webhook delivery. The in-tree
+listener handler tests (`TestWebhookHandler*`, unsigned-route and
+invalid-signature rejection at the provider edge) were retired with
+`go/cmd/webhook-listener` in #8876; that coverage now lives in the extracted
+satellite (`eshu-hq/eshu-webhook`) with the wire-version test pinning the
+contract.
 
 Observability Evidence: the Jira fetch span records bounded counts for
 `jira.search_pages`, `jira.changelog_pages`, `jira.remote_link_pages`,

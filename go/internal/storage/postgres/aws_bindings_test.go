@@ -9,7 +9,7 @@ package postgres
 // validates service_kind through awsruntime.SupportsServiceKind. The
 // registry is empty until at least one runtimebind package init runs.
 //
-// Production runtimes (workflow-coordinator, webhook-listener,
+// Production runtimes (workflow-coordinator, webhook-intake,
 // collector-aws-cloud) get the same registration by blank-importing
 // bindings from their main packages.
 import (

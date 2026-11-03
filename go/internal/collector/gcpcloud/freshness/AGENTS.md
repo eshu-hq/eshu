@@ -17,8 +17,8 @@
 - Keep trigger targets bounded to one parent scope kind, one parent scope id,
   one asset type, and one location.
 - Do not add GCP SDK or Pub/Sub client calls here. Push delivery, ack
-  handling, and credentialed GCP reads live in runtime adapters
-  (`go/cmd/webhook-listener`) and future collector runtime code.
+  handling, and credentialed GCP reads live in the extracted satellite
+  (`eshu-hq/eshu-webhook`) and future collector runtime code.
 - Do not put resource names, IDs, labels, IAM members, or raw CAI resource
   data / push payload bodies in metric labels.
 - The CAI `ancestors` chain lists the most specific parent first; preserve

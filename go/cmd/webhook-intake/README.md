@@ -97,18 +97,22 @@ See `doc.go` for the full godoc contract.
 - Dedicated host, not the public/read API: it mounts only the intake routes
   plus the admin surface, never provider webhook routes.
 - All five stores are always wired. A family without a store would answer
-  503 (keep for redelivery), so unlike the listener there is no
-  token-gated store presence here.
+  503; there is no token-gated store presence here.
 - `EnsureSchema` failure aborts startup: serving without durable storage
-  would turn submissions into 500s the provider must redeliver.
+  would turn submissions into 500s.
 - No dual writers: on the extracted topology this host is the only intake
   writer path; the satellite performs zero SQL.
-- Non-2xx responses are the redelivery mechanism — never hand-replay a
-  delivery; delivery-ID keying makes redelivery idempotent.
+- Non-2xx responses signal failure but do not redeliver by themselves —
+  GitHub does not automatically redeliver failed deliveries (an operator can
+  redeliver from the provider within 3 days on GitHub.com, 7 on GHES), and
+  polling remains the authoritative backfill path for missed, dropped, or
+  rejected deliveries. Never hand-replay a delivery by inserting rows;
+  delivery-ID keying makes a provider redelivery idempotent.
 
 ## Related docs
 
 - Intake package contract: `go/internal/webhook/intake/AGENTS.md`
-- Listener command (provider-facing, pre-removal):
-  `go/cmd/webhook-listener/AGENTS.md`
+- Provider edge and recovery: `docs/public/operate/webhook-satellite-roll-forward.md`
+  (the in-tree listener was removed in #8876; the edge is served by
+  `eshu-hq/eshu-webhook`)
 - Runtime map: `docs/public/deployment/service-runtimes-core.md`

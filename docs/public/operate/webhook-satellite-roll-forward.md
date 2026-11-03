@@ -17,26 +17,25 @@ downgrades for this boundary; the owner policy is roll-forward plus rebuild
 
 ## Where this applies today
 
-The provider endpoint has not moved. At the time of writing, on the
-owner-designated QA environment (the issue `#8876` and the deployment
-repository hold the current identifiers):
+The provider endpoint has moved. On the owner-designated QA environment (the
+issue `#8876` and the deployment repository hold the current identifiers):
 
-- The in-tree listener (`go/cmd/webhook-listener/`, `eshu-webhook-listener`)
-  is still the provider-facing authority. The provider hostname is an
-  HTTPRoute on the public gateway that routes to the listener Service.
-- The satellite runs as a ClusterIP Deployment with no ingress or gateway
-  route. It verifies provider signatures, normalizes, and submits to the core
-  intake host (`go/cmd/webhook-intake`) through the intake host's ClusterIP
-  Service.
+- The extracted satellite (`eshu-hq/eshu-webhook`) is the provider-facing
+  authority. The provider hostname is an HTTPRoute on the public gateway
+  that routes to the satellite Service (authority switch A, deployment PR
+  `495`, plus the switch-there-and-back rehearsal recorded on `#8876`).
+- The satellite verifies provider signatures, normalizes, and submits to the
+  core intake host (`go/cmd/webhook-intake`) through the intake host's
+  ClusterIP Service. Both run as ClusterIP Deployments with no ingress.
 - The core intake host serves `POST /api/v1/webhook/intake/{repository,
   incident,aws,gcp,actions}` with Bearer auth. It owns `EnsureSchema` for the
   five trigger tables and serves no provider routes.
 
-Until an authority switch moves the provider endpoint to the satellite, the
-pre-cutover recovery is the stateless stop and restore of the satellite while
-the listener keeps authority. This page then does not apply. The authority
-switch and the removal of the in-tree listener have not happened; this page is
-the post-switch procedure.
+The in-tree listener (`go/cmd/webhook-listener/`) was removed in `#8876`
+after the cutover. The pre-cutover recovery — stateless stop and restore of
+the satellite while the listener kept authority (`#8876` delete-path
+rehearsal, 10 minutes 54 seconds) — no longer applies; the only supported
+recovery is to rebuild forward below.
 
 The shared intake wire contract in `go/internal/webhook/intake/` stays in
 tree. The intake host reuses it unchanged, so removing the listener must not
@@ -82,10 +81,9 @@ Do not insert rows or POST to the intake API by hand.
   in the past 3 days" manually from the provider (GitHub.com; GitHub
   Enterprise Server keeps 7). Other providers differ, so check each one.
 - Redelivery is safe because the keys above are idempotent.
-- The `go/cmd/webhook-listener/` README states polling remains the
-  authoritative backfill path for missed, dropped, or rejected deliveries.
-  That README is deleted with the listener, so re-home this statement into the
-  runtime docs in the same change that removes it. NOT_MEASURED: the
+- Polling remains the authoritative backfill path for missed, dropped, or
+  rejected deliveries (re-homed here from the removed
+  `go/cmd/webhook-listener/` README in `#8876`). NOT_MEASURED: the
   worst-case freshness gap this leaves for each provider family.
 
 ## Procedure
@@ -137,21 +135,37 @@ caused by the pinned image itself.
 
 ## Recovery time
 
-NOT_MEASURED. No rebuild of the post-cutover topology has been timed.
-
-The only timed sample is from the pre-cutover delete-path rehearsal (`#8876`):
-the restore took 10 minutes 54 seconds, from the deployment merge to the
-Deployment synced at 1/1, before any parity run. It is one sample of a
-different path (satellite scaled to zero while the listener kept authority).
-Time a real post-cutover rebuild and record it before you rely on any bound.
+TIMED on the post-cutover topology (`#8876` switch-there-and-back rehearsal):
+revert (satellite to listener) RTO TBD and restore (listener to satellite)
+RTO TBD, each measured from the deployment merge to the ArgoCD application
+Synced and Healthy with the edge verified on the serving backend. The
+pre-cutover delete-path rehearsal is a separate sample (restore 10 minutes
+54 seconds, satellite scaled to zero while the listener kept authority).
 
 ## When roll-forward fails
 
 Do not improvise a downgrade. A red step 4 voids acceptance of the rebuilt
 revision. File the outcome against `#9665`, the revival follow-up that owns
-restoring the in-tree listener and switching the provider endpoint back. That
-procedure is not written yet; until `#9665` is worked, a failed roll-forward
-is an open incident, not a completed recovery.
+restoring the in-tree listener and switching the provider endpoint back.
+Until `#9665` is worked, a failed roll-forward is an open incident, not a
+completed recovery.
+
+### Revival procedure (pre-removal revision and switch-back)
+
+1. Pre-removal revision: TBD (the removal PR base SHA, recorded here before
+   that PR merges). Rebuild the in-tree image from that revision:
+   `go build -trimpath -o /go-bin/eshu-webhook-listener ./cmd/webhook-listener`
+   at the recorded SHA, tag it as the revival image, and deploy it through
+   the deployment repository as `eshu-webhook-listener`, ClusterIP only.
+2. Switch the provider endpoint back: remove the satellite `backendRefs`
+   block from the provider HTTPRoute in the QA overlay `app-values.yaml`
+   of the deployment repository (the exact inverse of authority switch A),
+   merge, and wait for the ArgoCD application Synced and Healthy with the
+   route serving from the listener.
+3. Re-prove with the 8-case parity run (same bar as the acceptance runs:
+   16/16 with cleanup residue 0/0 on current digests, plus both `/healthz`
+   200 at start and end). A red voids the revival; roll forward again
+   instead of improvising further.
 
 ## Evidence to record
 

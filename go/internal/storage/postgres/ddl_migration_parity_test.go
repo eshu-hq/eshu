@@ -19,7 +19,7 @@ import (
 // The schema Job (bootstrap-data-plane, or bootstrap-index locally) runs
 // ApplyBootstrap, which applies only the numbered migrations. Some stores
 // also carry their own DDL in Go and apply it from an EnsureSchema call that
-// only their owning binaries run (webhook-listener, workflow-coordinator). A
+// only their owning binaries run (webhook-intake, workflow-coordinator). A
 // column, index, or table that exists only in that Go DDL is missing on every
 // database the schema Job built until an owner starts, and every other binary
 // that reads or writes it fails (#7777, #7792). This guard fails the build when Go DDL

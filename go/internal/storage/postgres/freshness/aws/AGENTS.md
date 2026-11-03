@@ -28,7 +28,7 @@
   would collide with the sibling `freshness/gcp/` and `freshness/incident/`
   clauses, so the naming plan (#6693 decision N4) adds the parent word.
   Callers import the `storage/postgres/freshness/aws` path without an alias.
-- Never import the parent `postgres` package from here: `cmd/webhook-listener`
+- Never import the parent `postgres` package from here: `cmd/webhook-intake`
   and `cmd/workflow-coordinator` import this package directly, and importing
   back would be a cycle through their own imports of `postgres`.
 - Tests here use `internal/storage/postgres/fake` (`fake.ExecQueryer`,
