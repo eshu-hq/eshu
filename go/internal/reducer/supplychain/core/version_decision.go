@@ -87,10 +87,13 @@ func evaluateOSPackageVersionMatch(
 	case verdict.malformed:
 		return malformedVersionDecision()
 	}
-	if verdict.unlistedFixed && !verdict.fixed {
+	if verdict.unlistedFixed && !verdict.fixed && !osVersionListNamesObserved(observed, pkgs, compare) {
 		// The single-fix shortcut below would read a listed line's fix as the
 		// host's own, and for apk would order by a per-branch revision, so an
-		// unlisted release is settled here under its named reason.
+		// unlisted release is settled here under its named reason. An exact
+		// version list that names the host is read first, as it is before the
+		// shortcut: the list is no release evidence, so the loop below keeps
+		// the host possibly affected under the unlisted reason (ruling 6).
 		return knownFixedDecision(family.unlistedKnownFixedReason())
 	}
 	if fixedVersion != "" && !osVersionListNamesObserved(observed, pkgs, compare) {

@@ -98,6 +98,20 @@ func TestUnlistedReleaseVerdict(t *testing.T) {
 			wantStatus: SupplyChainImpactNotAffectedKnownFixed, wantReason: supplyChainVersionReasonDPKGKnownFixedUnlistedRelease,
 		},
 		{
+			// Ruling decision 6: an exact-version list that names the host
+			// version is read before any known-fixed settlement, listed or
+			// not. The list is no release evidence, so the host stays
+			// possibly affected under the unlisted reason (#9806 PR-2b review).
+			name: "dpkg a version list naming the host beats the unlisted known-fixed settlement",
+			fact: func() supplychainmodel.AffectedPackage {
+				fact := osvDebianCurlFact()
+				fact.AffectedVersions = []string{"9.0.0-1"}
+				return fact
+			}(),
+			row: bullseye, observed: "9.0.0-1",
+			wantStatus: SupplyChainImpactPossiblyAffected, wantReason: supplyChainVersionReasonOSReleaseUnlisted,
+		},
+		{
 			name: "dpkg a listed fix above the host is not extrapolated",
 			fact: osvDebianCurlFactWith(
 				taggedRange("7.88.1-10+deb12u3", "debian:12"),
@@ -115,6 +129,16 @@ func TestUnlistedReleaseVerdict(t *testing.T) {
 			name: "apk host on a newer upstream is known fixed",
 			fact: osvAlpineCurlFact(curlRanges()...), row: alpine("3.23.0"), observed: "8.15.0-r0",
 			wantStatus: SupplyChainImpactNotAffectedKnownFixed, wantReason: supplyChainVersionReasonAPKKnownFixedUnlistedRelease,
+		},
+		{
+			name: "apk a version list naming the host beats the unlisted known-fixed settlement",
+			fact: func() supplychainmodel.AffectedPackage {
+				fact := osvAlpineCurlFact(curlRanges()...)
+				fact.AffectedVersions = []string{"8.15.0-r0"}
+				return fact
+			}(),
+			row: alpine("3.23.0"), observed: "8.15.0-r0",
+			wantStatus: SupplyChainImpactPossiblyAffected, wantReason: supplyChainVersionReasonOSReleaseUnlisted,
 		},
 		{
 			name: "apk host inside a listed range is possibly affected",
