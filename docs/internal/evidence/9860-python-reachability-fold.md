@@ -26,7 +26,8 @@ The stage now pages the `repo_id` payload-value read through a new
 Python digest, dropping the envelopes. The digest shares the digest fact kind
 so index builders, envelope counting, and evidence-ID expansion treat it like
 the active-evidence digest, with a distinct fact ID so the unique-append keeps
-both. Folded files count like retained envelopes did, so pass accounting does
+both. Folded files count like retained envelopes did, excluding tombstones
+(only files the fold admits into the index count), so pass accounting does
 not drop. Loaders without paging fall back to a whole load folded in memory
 (test fakes; both production loops pass a `*FactStore` and page).
 
