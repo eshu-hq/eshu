@@ -12,7 +12,7 @@ completion. It is the `freshness/gcp/` leaf of the storage/postgres split
 
 This package owns the DDL, upsert, claim, reap, and completion SQL for
 `gcp_freshness_triggers`, and the `GCPFreshnessStore` type that runs them.
-`cmd/webhook-listener` builds the store to normalize and coalesce inbound GCP
+`cmd/webhook-intake` builds the store to normalize and coalesce inbound GCP
 events; `cmd/workflow-coordinator` builds it to claim queued triggers, hand
 them off to a planned workflow, or fail them. `internal/collector/gcpcloud/freshness`
 owns the `Trigger`/`StoredTrigger`/`TriggerStatus` domain types this package
@@ -42,7 +42,7 @@ See `doc.go` for the godoc contract.
 
 ## Telemetry
 
-None of its own. `cmd/webhook-listener` and `cmd/workflow-coordinator` wrap
+None of its own. `cmd/webhook-intake` and `cmd/workflow-coordinator` wrap
 the injected `db.ExecQueryer` in their own `InstrumentedDB`
 (`StoreName: "gcp_freshness_triggers"`) before constructing this store, so
 call-level tracing and metrics are the caller's responsibility, not this
@@ -73,7 +73,7 @@ text is unchanged so no plan or lifecycle proof is re-owed.
   `claimed` row's ownership fields; it only bumps `duplicate_count` and lets
   a genuinely new (non-claimed) trigger's fields replace the stored ones.
 - Do not import the parent `postgres` package: that is an import cycle.
-  `cmd/webhook-listener` and `cmd/workflow-coordinator` import this package
+  `cmd/webhook-intake` and `cmd/workflow-coordinator` import this package
   directly instead.
 
 ## Related docs

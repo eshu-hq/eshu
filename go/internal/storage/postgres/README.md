@@ -67,8 +67,8 @@ High-signal invariants for this package:
 
 - Bootstrap DDL is idempotent and ordered through `BootstrapDefinitions`.
 - The schema Job applies only the numbered `migrations/*.sql`. Go DDL that a
-  store's `EnsureSchema` applies at runtime (webhook-listener,
-  webhook-intake, workflow-coordinator) must never be the only place
+  store's `EnsureSchema` applies at runtime (webhook-intake,
+  workflow-coordinator) must never be the only place
   schema exists.
   `TestDDLMigrationParity` (`ddl_migration_parity_test.go`, #7792) scans
   non-test Go string literals under `internal/storage/postgres` and `cmd`

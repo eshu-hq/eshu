@@ -36,7 +36,7 @@ const (
 
 	// gcpFreshnessAuthPathNotApplicable is the neutral auth_path value the
 	// coordinator's handoff loop stamps on eshu_dp_gcp_freshness_events_total.
-	// The webhook listener's intake path (go/cmd/webhook-listener) stamps this
+	// The intake host's path (go/cmd/webhook-intake) stamps this
 	// same counter with the auth mechanism that authenticated the inbound push
 	// ("shared_token"/"oidc"/"none"); the coordinator's own handoff loop is a
 	// downstream trigger-claim/fan-out step with no request to authenticate,

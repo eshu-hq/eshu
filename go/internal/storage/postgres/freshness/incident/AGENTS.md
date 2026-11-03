@@ -27,7 +27,7 @@
   parent word to keep the three `freshness/` children distinct. Callers
   import the `storage/postgres/freshness/incident` path without an alias.
 - Never import the parent `postgres` package from here:
-  `cmd/webhook-listener` and `cmd/workflow-coordinator` import this package
+  `cmd/webhook-intake` and `cmd/workflow-coordinator` import this package
   directly, and importing back would be a cycle through their own imports of
   `postgres`.
 - Tests here use `internal/storage/postgres/fake` (`fake.ExecQueryer`,

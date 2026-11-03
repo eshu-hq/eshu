@@ -41,21 +41,23 @@ Read these files first:
   `telemetry.AuthPathNotApplicable`. Do not emit `intake_rejected` or
   `intake_ignored` here (`freshness_events_test.go` pins it).
 - Keep unknown JSON fields ignored (forward compatibility for newer
-  listeners).
+  satellite senders).
 
 ## Common Changes
 
 - Add a trigger field in `wire.go` with an explicit JSON tag, a length check
   in the route's converter, and coverage in `api_test.go`.
 - Add a route in `api.go` with its store interface in the `Stores` bundle
-  and a parity case in the listener's `intake_parity_cases_test.go`.
-- Change a receipt shape only with the listener submitter
-  (`go/cmd/webhook-listener/intake_submit.go`) updated in lockstep.
+  and a parity case in `api_test.go` (the listener's `intake_parity_cases_test.go`
+  was removed with it in #8876).
+- Change a receipt shape only with the satellite submitter
+  (`eshu-hq/eshu-webhook`, which carries a wire-version test) updated in
+  lockstep.
 
 ## Do Not
 
 - Do not accept provider-signed payloads on these routes. Provider trust
-  ends at the listener.
+  ends at the satellite.
 - Do not widen the body cap without a measured intake-latency note.
 - Do not return store internals in error bodies; providers only need the
   machine-readable code.

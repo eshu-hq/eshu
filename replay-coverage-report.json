@@ -2,11 +2,11 @@
   "schema_version": "replay-coverage-report.v4",
   "blocking": true,
   "totals": {
-    "total": 459,
+    "total": 457,
     "covered": 449,
     "uncovered": 0,
     "unresolved": 0,
-    "exempt": 10,
+    "exempt": 8,
     "percent_satisfied": 100
   },
   "registry_summaries": [
@@ -102,22 +102,22 @@
     },
     {
       "registry": "surface_inventory",
-      "total": 24,
+      "total": 22,
       "covered": 17,
       "uncovered": 0,
       "unresolved": 0,
-      "exempt": 7,
+      "exempt": 5,
       "percent_satisfied": 100
     }
   ],
   "scenario_type_summaries": [
     {
       "scenario_type": "baseline",
-      "total": 242,
+      "total": 241,
       "covered": 238,
       "uncovered": 0,
       "unresolved": 0,
-      "exempt": 4,
+      "exempt": 3,
       "percent_satisfied": 100
     },
     {
@@ -149,11 +149,11 @@
     },
     {
       "scenario_type": "fault",
-      "total": 12,
+      "total": 11,
       "covered": 8,
       "uncovered": 0,
       "unresolved": 0,
-      "exempt": 4,
+      "exempt": 3,
       "percent_satisfied": 100
     },
     {
@@ -4712,20 +4712,6 @@
       "ref": "go/internal/replay/inputtape/fault_collectors_test.go",
       "proof_gate": "go-test-race",
       "detail": "artifact present: go/internal/replay/inputtape/fault_collectors_test.go"
-    },
-    {
-      "registry": "surface_inventory",
-      "key": "collector:webhook",
-      "scenario_type": "baseline",
-      "status": "exempt",
-      "detail": "Inbound webhook sink, not a pollable source. The webhook collector verifies and normalizes inbound deliveries into refresh triggers; it never polls an upstream, so there is no generation to record into a cassette."
-    },
-    {
-      "registry": "surface_inventory",
-      "key": "collector:webhook",
-      "scenario_type": "fault",
-      "status": "exempt",
-      "detail": "Inbound webhook sink, not a pollable source. The webhook collector verifies and normalizes inbound deliveries into refresh triggers; it never polls an upstream, so there is no generation to record into a cassette."
     }
   ],
   "gaps": null,

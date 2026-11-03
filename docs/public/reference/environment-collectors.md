@@ -450,30 +450,37 @@ at the satellite image explicitly (there is no per-collector image field).
 Set exactly one of `ESHU_CONFLUENCE_SPACE_ID`, `ESHU_CONFLUENCE_SPACE_IDS`, or
 `ESHU_CONFLUENCE_ROOT_PAGE_ID`.
 
-## Webhook Listener
+## Webhook Satellite
+
+Provider webhook intake now serves from its extracted satellite
+(`eshu-hq/eshu-webhook`), admitted through the core `eshu-webhook-intake`
+host (#8876); the target shape below is unchanged, but the `ESHU_WEBHOOK_*`
+process variables are satellite-side operator inputs, not in-tree registry
+entries, so `eshu config validate` does not cover them. The satellite
+resolves credentials and redaction through its activation config.
 
 | Variable | Default | Read by | Purpose |
 | --- | --- | --- | --- |
-| `ESHU_WEBHOOK_GITHUB_SECRET` | unset | webhook-listener | Enables and verifies the GitHub webhook route using `X-Hub-Signature-256`. |
-| `ESHU_WEBHOOK_GITLAB_TOKEN` | unset | webhook-listener | Enables and verifies the GitLab webhook route using `X-Gitlab-Token`. |
-| `ESHU_WEBHOOK_BITBUCKET_SECRET` | unset | webhook-listener | Enables and verifies the Bitbucket webhook route using `X-Hub-Signature`. |
-| `ESHU_WEBHOOK_PAGERDUTY_SECRET` | unset | webhook-listener | Enables and verifies the PagerDuty incident freshness route using `X-PagerDuty-Signature`. |
-| `ESHU_WEBHOOK_JIRA_SECRET` | unset | webhook-listener | Enables and verifies the Jira incident freshness route using `X-Hub-Signature`. |
-| `ESHU_WEBHOOK_GITHUB_PATH` | `/webhooks/github` | webhook-listener | HTTP path for GitHub webhook intake. |
-| `ESHU_WEBHOOK_GITLAB_PATH` | `/webhooks/gitlab` | webhook-listener | HTTP path for GitLab webhook intake. |
-| `ESHU_WEBHOOK_BITBUCKET_PATH` | `/webhooks/bitbucket` | webhook-listener | HTTP path for Bitbucket webhook intake. |
-| `ESHU_WEBHOOK_PAGERDUTY_PATH` | `/webhooks/pagerduty` | webhook-listener | HTTP path for PagerDuty incident freshness intake. |
-| `ESHU_WEBHOOK_JIRA_PATH` | `/webhooks/jira` | webhook-listener | HTTP path for Jira incident freshness intake. |
-| `ESHU_WEBHOOK_PAGERDUTY_SCOPE_ID` | unset | webhook-listener | Required with `ESHU_WEBHOOK_PAGERDUTY_SECRET`; names the configured PagerDuty collector target allowed for webhook wake-ups. |
-| `ESHU_WEBHOOK_JIRA_SCOPE_ID` | unset | webhook-listener | Required with `ESHU_WEBHOOK_JIRA_SECRET`; names the configured Jira collector target allowed for webhook wake-ups. |
-| `ESHU_WEBHOOK_MAX_BODY_BYTES` | `1 MiB` | webhook-listener | Maximum accepted webhook request body size. |
-| `ESHU_WEBHOOK_DEFAULT_BRANCH` | unset | webhook-listener | Fallback default branch when provider payloads omit repository default branch. |
-| `ESHU_AWS_FRESHNESS_TOKEN` | unset | webhook-listener | Enables AWS freshness intake and validates bearer or `X-Eshu-AWS-Freshness-Token` headers. |
-| `ESHU_AWS_FRESHNESS_PATH` | `/webhooks/aws/eventbridge` | webhook-listener | HTTP path for AWS freshness intake. |
-| `ESHU_GCP_FRESHNESS_TOKEN` | unset | webhook-listener | Enables GCP Cloud Asset Inventory (CAI) feed freshness intake and validates bearer or `X-Eshu-GCP-Freshness-Token` headers. One of two independent accepted auth paths (see `ESHU_GCP_FRESHNESS_OIDC_*` below); either is sufficient. |
-| `ESHU_GCP_FRESHNESS_PATH` | `/webhook/gcp-freshness` | webhook-listener | HTTP path for GCP freshness intake. |
-| `ESHU_GCP_FRESHNESS_OIDC_AUDIENCE` | unset | webhook-listener | Enables Pub/Sub push OIDC verification as a second accepted auth path for GCP freshness intake; must equal the `aud` claim Google's Pub/Sub push mints (the push subscription's `--push-auth-token-audience`). Must be set together with `ESHU_GCP_FRESHNESS_OIDC_ALLOWED_SA`. |
-| `ESHU_GCP_FRESHNESS_OIDC_ALLOWED_SA` | unset | webhook-listener | The push service-account email the verified OIDC token's `email` claim must match (with `email_verified=true`) for the request to authenticate. Must be set together with `ESHU_GCP_FRESHNESS_OIDC_AUDIENCE`. |
+| `ESHU_WEBHOOK_GITHUB_SECRET` | unset | eshu-webhook | Enables and verifies the GitHub webhook route using `X-Hub-Signature-256`. |
+| `ESHU_WEBHOOK_GITLAB_TOKEN` | unset | eshu-webhook | Enables and verifies the GitLab webhook route using `X-Gitlab-Token`. |
+| `ESHU_WEBHOOK_BITBUCKET_SECRET` | unset | eshu-webhook | Enables and verifies the Bitbucket webhook route using `X-Hub-Signature`. |
+| `ESHU_WEBHOOK_PAGERDUTY_SECRET` | unset | eshu-webhook | Enables and verifies the PagerDuty incident freshness route using `X-PagerDuty-Signature`. |
+| `ESHU_WEBHOOK_JIRA_SECRET` | unset | eshu-webhook | Enables and verifies the Jira incident freshness route using `X-Hub-Signature`. |
+| `ESHU_WEBHOOK_GITHUB_PATH` | `/webhooks/github` | eshu-webhook | HTTP path for GitHub webhook intake. |
+| `ESHU_WEBHOOK_GITLAB_PATH` | `/webhooks/gitlab` | eshu-webhook | HTTP path for GitLab webhook intake. |
+| `ESHU_WEBHOOK_BITBUCKET_PATH` | `/webhooks/bitbucket` | eshu-webhook | HTTP path for Bitbucket webhook intake. |
+| `ESHU_WEBHOOK_PAGERDUTY_PATH` | `/webhooks/pagerduty` | eshu-webhook | HTTP path for PagerDuty incident freshness intake. |
+| `ESHU_WEBHOOK_JIRA_PATH` | `/webhooks/jira` | eshu-webhook | HTTP path for Jira incident freshness intake. |
+| `ESHU_WEBHOOK_PAGERDUTY_SCOPE_ID` | unset | eshu-webhook | Required with `ESHU_WEBHOOK_PAGERDUTY_SECRET`; names the configured PagerDuty collector target allowed for webhook wake-ups. |
+| `ESHU_WEBHOOK_JIRA_SCOPE_ID` | unset | eshu-webhook | Required with `ESHU_WEBHOOK_JIRA_SECRET`; names the configured Jira collector target allowed for webhook wake-ups. |
+| `ESHU_WEBHOOK_MAX_BODY_BYTES` | `1 MiB` | eshu-webhook | Maximum accepted webhook request body size. |
+| `ESHU_WEBHOOK_DEFAULT_BRANCH` | unset | eshu-webhook | Fallback default branch when provider payloads omit repository default branch. |
+| `ESHU_AWS_FRESHNESS_TOKEN` | unset | eshu-webhook | Enables AWS freshness intake and validates bearer or `X-Eshu-AWS-Freshness-Token` headers. |
+| `ESHU_AWS_FRESHNESS_PATH` | `/webhooks/aws/eventbridge` | eshu-webhook | HTTP path for AWS freshness intake. |
+| `ESHU_GCP_FRESHNESS_TOKEN` | unset | eshu-webhook | Enables GCP Cloud Asset Inventory (CAI) feed freshness intake and validates bearer or `X-Eshu-GCP-Freshness-Token` headers. One of two independent accepted auth paths (see `ESHU_GCP_FRESHNESS_OIDC_*` below); either is sufficient. |
+| `ESHU_GCP_FRESHNESS_PATH` | `/webhook/gcp-freshness` | eshu-webhook | HTTP path for GCP freshness intake. |
+| `ESHU_GCP_FRESHNESS_OIDC_AUDIENCE` | unset | eshu-webhook | Enables Pub/Sub push OIDC verification as a second accepted auth path for GCP freshness intake; must equal the `aud` claim Google's Pub/Sub push mints (the push subscription's `--push-auth-token-audience`). Must be set together with `ESHU_GCP_FRESHNESS_OIDC_ALLOWED_SA`. |
+| `ESHU_GCP_FRESHNESS_OIDC_ALLOWED_SA` | unset | eshu-webhook | The push service-account email the verified OIDC token's `email` claim must match (with `email_verified=true`) for the request to authenticate. Must be set together with `ESHU_GCP_FRESHNESS_OIDC_AUDIENCE`. |
 
 PagerDuty and Jira webhook variables only enqueue bounded incident freshness
 triggers. They do not store provider payloads or emit facts directly; the

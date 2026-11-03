@@ -330,6 +330,7 @@ movedfilerefs:
   - 'scripts/verify-moved-file-refs.sh'
   - 'scripts/test-verify-moved-file-refs.sh'
   - 'scripts/moved-file-refs-allowlist.txt'
+  - 'scripts/moved-file-refs-allowlist.d/**'
   - 'scripts/lib/gate-diff-base.sh'
 taggedbuilds:
   - '.github/workflows/static-contract-gates.yml'

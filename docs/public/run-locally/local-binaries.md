@@ -62,7 +62,7 @@ The script installs:
 - collector and control-plane binaries: `eshu-workflow-coordinator`,
   `eshu-collector-git`, `eshu-collector-package-registry`,
   `eshu-collector-sbom-attestation`, `eshu-collector-pagerduty`,
-  `eshu-webhook-listener`
+  `eshu-webhook-intake` (provider edge ships with the satellite `eshu-hq/eshu-webhook`)
 - operator helpers: `eshu-bootstrap-data-plane`, `eshu-admin-status`
 
 Set `ESHU_VERSION=<version>` before running the script when you want the

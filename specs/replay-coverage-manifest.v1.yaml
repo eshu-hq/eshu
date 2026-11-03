@@ -878,11 +878,6 @@ exemptions:
       bootstrap-index corpus (sync -> discover -> parse -> emit), so a
       supply-chain-demo cassette would re-record a path the gate already
       replays from real fixtures. The fixture corpus is its replay scenario.
-  - surface: collector:webhook
-    reason: >-
-      Inbound webhook sink, not a pollable source. The webhook collector
-      verifies and normalizes inbound deliveries into refresh triggers; it never
-      polls an upstream, so there is no generation to record into a cassette.
   - surface: collector:scanner_worker
     reason: >-
       Internal hosted worker with no external upstream. scanner-worker consumes

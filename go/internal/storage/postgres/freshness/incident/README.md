@@ -12,7 +12,7 @@ split (#6693).
 
 This package owns the DDL, upsert, claim, and completion SQL for
 `incident_freshness_triggers`, and the `IncidentFreshnessStore` type that
-runs them. `cmd/webhook-listener` builds the store to normalize and coalesce
+runs them. `cmd/webhook-intake` builds the store to normalize and coalesce
 inbound PagerDuty/Jira events; `cmd/workflow-coordinator` builds it to claim
 queued triggers, hand them off to a planned workflow, or fail them.
 `internal/webhook` owns the `IncidentFreshnessTrigger`/`TriggerStatus`
@@ -43,7 +43,7 @@ See `doc.go` for the godoc contract.
 
 ## Telemetry
 
-None of its own. `cmd/webhook-listener` and `cmd/workflow-coordinator` wrap
+None of its own. `cmd/webhook-intake` and `cmd/workflow-coordinator` wrap
 the injected `db.ExecQueryer` in their own `InstrumentedDB`
 (`StoreName: "incident_freshness_triggers"`) before constructing this store,
 so call-level tracing and metrics are the caller's responsibility, not this
@@ -103,7 +103,7 @@ claimed-only partial one.
   `duplicate_count` and lets a genuinely new (non-claimed) trigger's fields
   replace the stored ones.
 - Do not import the parent `postgres` package: that is an import cycle.
-  `cmd/webhook-listener` and `cmd/workflow-coordinator` import this package
+  `cmd/webhook-intake` and `cmd/workflow-coordinator` import this package
   directly instead.
 
 ## Related docs

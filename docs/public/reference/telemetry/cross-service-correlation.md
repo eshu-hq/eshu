@@ -20,7 +20,7 @@ Go entrypoints call `telemetry.NewBootstrap(...)` with these current
 | Reducer | `reducer` |
 | Bootstrap Index | `bootstrap-index` |
 | Bootstrap Data Plane | `eshu-bootstrap-data-plane` |
-| Webhook Listener | `webhook-listener` |
+| Webhook Intake Host | `webhook-intake` |
 | Git Collector | `collector-git` |
 | AWS Cloud Collector | `collector-aws-cloud` |
 | Confluence Collector | `collector-confluence` |
