@@ -759,7 +759,7 @@ These join `eshu_dp_bootstrap_pipeline_phase_seconds` and `eshu_dp_content_entit
 by `collector_kind`, locating the family and phase that set wall time. For NVD,
 `eshu_dp_vulnerability_intelligence_fetch_duration_seconds` adds numeric
 `page_count` (0-100) for validated modified-window pages, including pages
-later discarded on failure or mirror restart; cache-only runs report zero. OSV affected entries and whole records the converter skips are counted by `eshu_dp_vulnerability_intelligence_affected_entries_skipped_total` and `eshu_dp_vulnerability_intelligence_records_skipped_total` (`source`, `ecosystem`, `reason`; see [Ingestion And Collector Metrics](metrics-ingestion-collectors.md)).
+later discarded on failure or mirror restart; cache-only runs report zero. OSV affected entries and whole records the converter skips are counted by `eshu_dp_vulnerability_intelligence_affected_entries_skipped_total` and `eshu_dp_vulnerability_intelligence_records_skipped_total` (`source`, `ecosystem`, `reason`; see [Ingestion And Collector Metrics](metrics-ingestion-collectors.md)). Usable OSV OS entries the converter keeps without a release tag because their line did not parse are counted separately by `eshu_dp_vulnerability_intelligence_release_tags_unparseable_total` (`source`, `ecosystem`).
 
 Observability Evidence: formerly the time spent per collector needed strace and
 DB forensics. With these metrics an operator reads the per-collector long pole

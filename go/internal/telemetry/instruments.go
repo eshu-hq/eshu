@@ -1032,6 +1032,13 @@ type Instruments struct {
 	// host_release_unknown, vendor_source): what the fact's release-tagged
 	// ranges say about the installed row's release line (#9806 PR-2b).
 	SupplyChainImpactOSAdvisoryReleaseSelections metric.Int64Counter
+	// SupplyChainImpactOSReleaseNotInAdvisory counts the OS findings whose
+	// advisory carries release tags but none for the installed release,
+	// labeled source (debian, ubuntu, alpine, other) (#9806). Absence
+	// of the installed release is not proven not-affected, so these stay
+	// possibly_affected; a climbing rate on a steady corpus means advisories
+	// stop listing the releases the fleet runs.
+	SupplyChainImpactOSReleaseNotInAdvisory metric.Int64Counter
 	// SupplyChainImpactFindingsRetracted counts prior supply-chain impact
 	// finding rows a reducer pass tombstoned because its complete finding set
 	// for the (scope, generation) no longer derives them (#6831) -- for
@@ -2003,6 +2010,12 @@ type Instruments struct {
 	// because no affected entry was usable, by source, target ecosystem, and
 	// reason.
 	VulnerabilityIntelligenceRecordsSkipped metric.Int64Counter
+	// VulnerabilityIntelligenceReleaseTagsUnparseable counts usable OSV OS
+	// entries kept without a release tag because their release line did not
+	// parse, by source and target ecosystem (#9806). Untagged ranges are
+	// kept, never dropped, so this counter is the operator's proof the
+	// kept-but-untagged path fires.
+	VulnerabilityIntelligenceReleaseTagsUnparseable metric.Int64Counter
 
 	// DriftSchemaUnknownComposite counts Terraform-state composite attributes
 	// the streaming nested walker dropped because the loaded
@@ -4016,6 +4029,13 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	if err != nil {
 		return nil, fmt.Errorf("register VulnerabilityIntelligenceRecordsSkipped counter: %w", err)
 	}
+	inst.VulnerabilityIntelligenceReleaseTagsUnparseable, err = meter.Int64Counter(
+		"eshu_dp_vulnerability_intelligence_release_tags_unparseable_total",
+		metric.WithDescription("Total usable OSV OS entries kept without a release tag because their release line did not parse, by source and target ecosystem"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register VulnerabilityIntelligenceReleaseTagsUnparseable counter: %w", err)
+	}
 
 	inst.SecurityAlertProviderRequests, err = meter.Int64Counter(
 		"eshu_dp_security_alert_provider_requests_total",
@@ -4727,6 +4747,13 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SupplyChainImpactOSAdvisoryReleaseSelections counter: %w", err)
+	}
+	inst.SupplyChainImpactOSReleaseNotInAdvisory, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_os_release_not_in_advisory_total",
+		metric.WithDescription("OS findings whose advisory carries release tags but none for the installed release, by source (debian, ubuntu, alpine, other)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SupplyChainImpactOSReleaseNotInAdvisory counter: %w", err)
 	}
 
 	inst.SupplyChainImpactFindingsRetracted, err = meter.Int64Counter(

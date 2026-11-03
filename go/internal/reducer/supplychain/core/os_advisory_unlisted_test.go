@@ -9,9 +9,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
-// unlistedMissingEvidence is the missing evidence the #9806 PR-2b ruling sets
-// for a tagged OSV fact whose ranges name no line for the installed row.
-const unlistedMissingEvidence = "the advisory lists no range for the installed package's release line"
+// unlistedMissingEvidence is the missing evidence the binding #9806 ruling
+// (Q1.3) sets for a tagged OSV fact whose ranges name no line for the
+// installed row.
+const unlistedMissingEvidence = "advisory does not list the installed release"
 
 func osvAlpineCurlFact(ranges ...supplychainmodel.AffectedRange) supplychainmodel.AffectedPackage {
 	return supplychainmodel.AffectedPackage{
@@ -52,14 +53,12 @@ func classifyTaggedOSFact(
 	return pkgs[0], decision
 }
 
-// TestUnlistedReleaseVerdict pins the #9806 PR-2b ruling (decisions 1 and 2):
-// a tagged OSV fact that names no range for the installed row's release line
-// never yields affected_exact and never carries release evidence. A listed
-// range that contains the host version reads possibly_affected with the single
-// closed reason os_release_unlisted. When no range contains it and every
-// listed fix is at or below it, dpkg reads known-fixed under a named reason,
-// and apk does so only when the host's upstream version alone settles it,
-// because an apk -rN counter is per branch and orders nothing across lines.
+// TestUnlistedReleaseVerdict pins the binding #9806 ruling (decisions Q1.1 to
+// Q1.3): a tagged OSV fact that names no range for the installed row's
+// release line never yields affected_exact, never carries release evidence,
+// and never reads known-fixed, even when the host sits above every listed
+// fix. Every such row reads possibly_affected with the single closed reason
+// os_release_not_in_advisory.
 func TestUnlistedReleaseVerdict(t *testing.T) {
 	t.Parallel()
 
@@ -85,31 +84,31 @@ func TestUnlistedReleaseVerdict(t *testing.T) {
 		{
 			name: "dpkg listed range contains the unlisted host version",
 			fact: osvDebianCurlFact(), row: bullseye, observed: "7.74.0-1.3+deb11u7",
-			wantStatus: SupplyChainImpactPossiblyAffected, wantReason: supplyChainVersionReasonOSReleaseUnlisted,
+			wantStatus: SupplyChainImpactPossiblyAffected, wantReason: supplyChainVersionReasonOSReleaseNotInAdvisory,
 		},
 		{
-			name: "dpkg host above every listed fix is known fixed",
+			name: "dpkg host above every listed fix is not known fixed",
 			fact: osvDebianCurlFact(), row: bullseye, observed: "9.0.0-1",
-			wantStatus: SupplyChainImpactNotAffectedKnownFixed, wantReason: supplyChainVersionReasonDPKGKnownFixedUnlistedRelease,
+			wantStatus: SupplyChainImpactPossiblyAffected, wantReason: supplyChainVersionReasonOSReleaseNotInAdvisory,
 		},
 		{
-			name: "dpkg host at a listed fix is known fixed",
+			name: "dpkg host at a listed fix is not known fixed",
 			fact: osvDebianCurlFact(), row: bullseye, observed: "8.3.0-1",
-			wantStatus: SupplyChainImpactNotAffectedKnownFixed, wantReason: supplyChainVersionReasonDPKGKnownFixedUnlistedRelease,
+			wantStatus: SupplyChainImpactPossiblyAffected, wantReason: supplyChainVersionReasonOSReleaseNotInAdvisory,
 		},
 		{
 			// Ruling decision 6: an exact-version list that names the host
 			// version is read before any known-fixed settlement, listed or
 			// not. The list is no release evidence, so the host stays
-			// possibly affected under the unlisted reason (#9806 PR-2b review).
-			name: "dpkg a version list naming the host beats the unlisted known-fixed settlement",
+			// possibly affected under the not-in-advisory reason.
+			name: "dpkg a version list naming the host stays not in advisory",
 			fact: func() supplychainmodel.AffectedPackage {
 				fact := osvDebianCurlFact()
 				fact.AffectedVersions = []string{"9.0.0-1"}
 				return fact
 			}(),
 			row: bullseye, observed: "9.0.0-1",
-			wantStatus: SupplyChainImpactPossiblyAffected, wantReason: supplyChainVersionReasonOSReleaseUnlisted,
+			wantStatus: SupplyChainImpactPossiblyAffected, wantReason: supplyChainVersionReasonOSReleaseNotInAdvisory,
 		},
 		{
 			name: "dpkg a listed fix above the host is not extrapolated",
@@ -118,50 +117,50 @@ func TestUnlistedReleaseVerdict(t *testing.T) {
 				taggedIntroducedRange("8.5.0-1", "9.0.0-1", "debian:13"),
 			),
 			row: bullseye, observed: "8.0.0-1",
-			wantStatus: SupplyChainImpactPossiblyAffected, wantReason: supplyChainVersionReasonOSReleaseUnlisted,
+			wantStatus: SupplyChainImpactPossiblyAffected, wantReason: supplyChainVersionReasonOSReleaseNotInAdvisory,
 		},
 		{
-			name: "extrapolate apk by revision: same upstream, higher revision",
+			name: "apk same upstream, higher revision is not known fixed",
 			fact: osvAlpineCurlFact(curlRanges()...), row: alpine("3.23.0"), observed: "8.14.1-r5",
-			wantStatus: SupplyChainImpactPossiblyAffected, wantReason: supplyChainVersionReasonOSReleaseUnlisted,
+			wantStatus: SupplyChainImpactPossiblyAffected, wantReason: supplyChainVersionReasonOSReleaseNotInAdvisory,
 		},
 		{
-			name: "apk host on a newer upstream is known fixed",
+			name: "apk host on a newer upstream is not known fixed",
 			fact: osvAlpineCurlFact(curlRanges()...), row: alpine("3.23.0"), observed: "8.15.0-r0",
-			wantStatus: SupplyChainImpactNotAffectedKnownFixed, wantReason: supplyChainVersionReasonAPKKnownFixedUnlistedRelease,
+			wantStatus: SupplyChainImpactPossiblyAffected, wantReason: supplyChainVersionReasonOSReleaseNotInAdvisory,
 		},
 		{
-			name: "apk a version list naming the host beats the unlisted known-fixed settlement",
+			name: "apk a version list naming the host stays not in advisory",
 			fact: func() supplychainmodel.AffectedPackage {
 				fact := osvAlpineCurlFact(curlRanges()...)
 				fact.AffectedVersions = []string{"8.15.0-r0"}
 				return fact
 			}(),
 			row: alpine("3.23.0"), observed: "8.15.0-r0",
-			wantStatus: SupplyChainImpactPossiblyAffected, wantReason: supplyChainVersionReasonOSReleaseUnlisted,
+			wantStatus: SupplyChainImpactPossiblyAffected, wantReason: supplyChainVersionReasonOSReleaseNotInAdvisory,
 		},
 		{
 			name: "apk host inside a listed range is possibly affected",
 			fact: osvAlpineCurlFact(curlRanges()...), row: alpine("3.20.1"), observed: "8.9.1-r1",
-			wantStatus: SupplyChainImpactPossiblyAffected, wantReason: supplyChainVersionReasonOSReleaseUnlisted,
+			wantStatus: SupplyChainImpactPossiblyAffected, wantReason: supplyChainVersionReasonOSReleaseNotInAdvisory,
 		},
 		{
-			name: "apk fix at revision zero settles a same-upstream host",
+			name: "apk revision-zero fix on another line settles nothing",
 			fact: osvAlpineCurlFact(
 				taggedRange("8.14.1-r0", "alpine:3.21"),
 				taggedRange("8.14.1-r0", "alpine:3.22"),
 			),
 			row: alpine("3.23.0"), observed: "8.14.1-r2",
-			wantStatus: SupplyChainImpactNotAffectedKnownFixed, wantReason: supplyChainVersionReasonAPKKnownFixedUnlistedRelease,
+			wantStatus: SupplyChainImpactPossiblyAffected, wantReason: supplyChainVersionReasonOSReleaseNotInAdvisory,
 		},
 		{
-			name: "apk one backport fix among revision-zero fixes blocks the extrapolation",
+			name: "apk backport fix among revision-zero fixes settles nothing",
 			fact: osvAlpineCurlFact(
 				taggedRange("8.14.1-r0", "alpine:3.21"),
 				taggedRange("8.14.1-r4", "alpine:3.22"),
 			),
 			row: alpine("3.23.0"), observed: "8.14.1-r5",
-			wantStatus: SupplyChainImpactPossiblyAffected, wantReason: supplyChainVersionReasonOSReleaseUnlisted,
+			wantStatus: SupplyChainImpactPossiblyAffected, wantReason: supplyChainVersionReasonOSReleaseNotInAdvisory,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -188,12 +187,13 @@ func TestUnlistedReleaseVerdict(t *testing.T) {
 }
 
 // TestUnlistedReleaseVendorVersionListWins pins that a vendor fact whose exact
-// version list names the host beats an unlisted OSV fact's known-fixed
-// settlement. A vendor fact carries release evidence, so the vendor fact alone
-// reads affected_exact, and an OSV fact that names no range for the host's line
-// must not turn that into known fixed (#9806 PR-2b review 3, G1). Both fact
-// orders and both fix shapes are covered: several listed fixes reach the
-// unlisted settlement, a single listed fix also reaches the single-fix shortcut.
+// version list names the host beats an unlisted OSV fact's settlement. A
+// vendor fact carries release evidence, so the vendor fact alone reads
+// affected_exact, and an OSV fact that names no range for the host's line
+// must not turn that into known fixed or mask it with its weak signal
+// (#9806 PR-2b review 3, G1; ruling Q1.5). Both fact orders and both fix
+// shapes are covered: several listed fixes reach the unlisted read, a single
+// listed fix also reaches the single-fix shortcut.
 func TestUnlistedReleaseVendorVersionListWins(t *testing.T) {
 	t.Parallel()
 
@@ -303,18 +303,19 @@ func TestUntaggedVendorVersionListKeepsSingleFixShortcut(t *testing.T) {
 	}
 }
 
-// TestUnlistedReleaseSettlesFinding pins that an unlisted release, like an
-// unverified one, settles an installed-package finding when no SBOM path
-// competes: the package is installed, only the advisory's line is unknown.
+// TestUnlistedReleaseSettlesFinding pins that a release line the advisory
+// does not list, like an unverified one, settles an installed-package finding
+// when no SBOM path competes: the package is installed, only the advisory's
+// line is absent (ruling Q1.7).
 func TestUnlistedReleaseSettlesFinding(t *testing.T) {
 	t.Parallel()
 
-	decision := possiblyAffectedDecision(supplyChainVersionReasonOSReleaseUnlisted, []string{unlistedMissingEvidence})
+	decision := possiblyAffectedDecision(supplyChainVersionReasonOSReleaseNotInAdvisory, []string{unlistedMissingEvidence})
 	if !osPackageSettlesFinding(decision, false) {
-		t.Fatalf("os_release_unlisted must settle an installed row without an SBOM path")
+		t.Fatalf("os_release_not_in_advisory must settle an installed row without an SBOM path")
 	}
 	if osPackageSettlesFinding(decision, true) {
-		t.Fatalf("os_release_unlisted must not settle over an SBOM component path")
+		t.Fatalf("os_release_not_in_advisory must not settle over an SBOM component path")
 	}
 }
 

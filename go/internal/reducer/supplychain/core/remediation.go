@@ -212,16 +212,21 @@ func BuildSupplyChainImpactRemediation(finding SupplyChainImpactFinding) SupplyC
 		remediation.MissingEvidence = append(remediation.MissingEvidence, SupplyChainRemediationMissingFixedVersion)
 		return finalizeRemediation(remediation)
 	}
-	if finding.Status == SupplyChainImpactNotAffectedKnownFixed {
-		remediation.Reason = SupplyChainRemediationReasonAlreadyFixed
-		remediation.Confidence = SupplyChainRemediationConfidenceExact
-		return finalizeRemediation(remediation)
-	}
+	// Release filtering and multi-branch ambiguity blanking run before the
+	// already-fixed shortcut (#9806, ruling Q2.10): the fact-to-finding
+	// boundary already narrowed the branches to the host's release line, and
+	// several host-line branches naming different fixes must blank the answer
+	// instead of presenting one branch's fix as already fixed.
 	if ops.osPackage && branchCount > 1 {
 		remediation.Reason = SupplyChainRemediationReasonPackageManagerUnsupported
 		remediation.Confidence = SupplyChainRemediationConfidenceUnknown
 		remediation.FirstPatchedVersion = ""
 		remediation.MissingEvidence = append(remediation.MissingEvidence, SupplyChainRemediationMissingFixedBranchAmbiguous)
+		return finalizeRemediation(remediation)
+	}
+	if finding.Status == SupplyChainImpactNotAffectedKnownFixed {
+		remediation.Reason = SupplyChainRemediationReasonAlreadyFixed
+		remediation.Confidence = SupplyChainRemediationConfidenceExact
 		return finalizeRemediation(remediation)
 	}
 
