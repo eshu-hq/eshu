@@ -309,7 +309,7 @@ func (executor schemaConnectionExecutor) applyTrackedDefinitions(
 		key := schemaMigrationKey{path: def.Path, variant: variant}
 		if recorded, exists := ledger.applied[key]; exists {
 			if recorded != checksum {
-				if !migrations.IsSupersededChecksum(def.Path, recorded, checksum) {
+				if !migrations.IsSupersededChecksum(def.Path, variant, recorded, checksum) {
 					return fmt.Errorf("schema migration %q (%s) checksum changed: recorded %s, current %s",
 						def.Path, variant, recorded, checksum)
 				}

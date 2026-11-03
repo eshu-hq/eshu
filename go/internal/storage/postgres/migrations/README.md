@@ -42,8 +42,13 @@ the directory is the single source of truth root already documented it as.
   `093` (original) then every later `.sql` file in path order, so the current
   full domain list lives in whichever upgrade file was added last (`120`
   today) -- see `checksum_alias.go` for the narrow,
-  path-scoped exception that let already-applied databases from the `#6785`/
-  `#6923` window keep working, and
+  (path, variant)-scoped exceptions that let already-applied databases from
+  the `#6785`/`#6923` window keep working (093, full variant) and that let
+  pre-`#8028` deferred installs keep working (004, deferred variant: `#8028`
+  edited the deferred Go constant in place, not the shipped `.sql` file, so
+  the per-file manifest below stayed green -- the deferred-definition pin in
+  root's `bootstrap_deferred_checksum_test.go` is the CI catch for that
+  class), and
   `../cross_scope_completion_schema_test.go`'s
   `TestCrossScopeCompletionSchemaCoversCatalogDomainsExactly` for the test
   that must track whichever file is current.

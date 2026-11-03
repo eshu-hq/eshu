@@ -125,6 +125,10 @@ tests:
     tag: integration
     class: scheduled
     reason: needs a second empty database (ESHU_POSTGRES_7002_FRESH_TEST_DSN) for the fresh-install comparison, which the live-backend CI job does not provision
+  - file: go/internal/storage/postgres/schema_migration_9279_live_test.go
+    tag: integration
+    class: scheduled
+    reason: "#9279 disposable PostgreSQL proof that a pre-#8028 deferred-004 ledger row upgrades through the (004, deferred) alias and 171-173 converge the covering index; local run passed 3/3 in about 1.6s wall on postgres 18.6"
   - file: go/internal/storage/postgres/schema_migration_recovery_live_test.go
     tag: integration
     class: scheduled
