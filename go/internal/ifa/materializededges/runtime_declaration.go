@@ -40,9 +40,10 @@ func runtimeDeclarationExpectedEdgesPath(repoRoot string) string {
 // the same-key replay must add nothing, and the alias must still project.
 //
 // The target identity is the node's five-part MERGE key joined by
-// runtimeDeclarationEntityID, because RuntimeDeclaration carries no uid or id.
-// The live assert-edges endpoint rule for this label is part of the live
-// enrollment (#6228), not of this offline guard.
+// RuntimeDeclarationEntityID, because RuntimeDeclaration carries no uid or id.
+// The live assert-edges endpoint rule for this label renders through the same
+// shared derivation (#6228 live leaf), so the guard and the gate cannot drift
+// apart.
 //
 // A quarantined fact is fatal, as in every sibling guard: a fixture that no
 // longer decodes against the runtime_declaration.version contract cannot prove
@@ -70,7 +71,7 @@ func resolveRuntimeDeclarationMaterializedEdges(odu ifa.Odu, expectedEdgesPath s
 		actual = append(actual, ExpectedEdge{
 			RelationshipType: runtimeDeclarationRelationshipType,
 			SourceEntityID:   anyToStringValue(row["repo_id"]),
-			TargetEntityID:   runtimeDeclarationEntityID(row),
+			TargetEntityID:   RuntimeDeclarationEntityID(row),
 			Properties: map[string]string{
 				"raw_spec":  anyToStringValue(row["raw_spec"]),
 				"spec_kind": anyToStringValue(row["spec_kind"]),
@@ -86,8 +87,34 @@ func resolveRuntimeDeclarationMaterializedEdges(odu ifa.Odu, expectedEdgesPath s
 	)
 }
 
-// runtimeDeclarationEntityID renders a declaration row's five-part MERGE key
+// RuntimeDeclarationEntityID renders a declaration row's five-part MERGE key
 // (repo_id, relative_path, line_number, runtime, order_index) as one string.
-func runtimeDeclarationEntityID(row map[string]any) string {
-	return fmt.Sprintf("%s|%s|%v|%s|%v", row["repo_id"], row["relative_path"], row["line_number"], row["runtime"], row["order_index"])
+//
+// It is the ONE shared derivation for that identity, called from both sides
+// of the proof: the offline vacuity guard above renders the expected-set
+// target through it, and the live assert-edges endpoint rule
+// (go/cmd/ifa endpointID) renders the graph endpoint through it for the
+// RuntimeDeclaration label only. Sharing it keeps the two renders from
+// drifting into a false mismatch on every edge.
+//
+// It fails closed: a missing or empty repo_id, relative_path or runtime, or
+// a missing or nil line_number or order_index, renders "" so the caller
+// reports an unmaterialized endpoint instead of a partial join no writer
+// could ever have MERGEd. The numerics render with %v, which spells an int
+// from an extracted row (the SDK struct's Go type) and an int64 from live
+// graph properties identically; TestRuntimeDeclarationEntityIDNumericRenderingParity
+// pins that parity from real extracted-row types.
+func RuntimeDeclarationEntityID(row map[string]any) string {
+	repo, _ := row["repo_id"].(string)
+	path, _ := row["relative_path"].(string)
+	runtime, _ := row["runtime"].(string)
+	if repo == "" || path == "" || runtime == "" {
+		return ""
+	}
+	line, lineOK := row["line_number"]
+	order, orderOK := row["order_index"]
+	if !lineOK || !orderOK || line == nil || order == nil {
+		return ""
+	}
+	return fmt.Sprintf("%s|%s|%v|%s|%v", repo, path, line, runtime, order)
 }

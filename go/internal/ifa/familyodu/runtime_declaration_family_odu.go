@@ -28,6 +28,21 @@ const (
 	// DECLARES_RUNTIME edge source.
 	runtimeDeclarationFamilyRepositoryID = "repository:eshu-fixture-runtime-pins"
 
+	// runtimeDeclarationFamilySourceRunID is the collector run the
+	// repository fact attributes itself to. Canonical projection requires
+	// it on every repository fact (identity without it drops the phase
+	// row, and the quiescence gate then holds every shared lane shut):
+	// it mirrors the run-ifa-<family>-family-1 shape the git collector
+	// emits, not a stable content hash.
+	runtimeDeclarationFamilySourceRunID = "run-ifa-runtime-declaration-family-1"
+
+	// runtimeDeclarationFamilyLocalPath is the fixture-unique checkout
+	// path the projector falls back to for the Repository.path node
+	// identity: every fixture repository must derive a distinct path or
+	// the backend UNIQUE(path) constraint keeps exactly one of the
+	// colliding nodes (#6228).
+	runtimeDeclarationFamilyLocalPath = "/repo-runtime-pins"
+
 	runtimeDeclarationFamilySchemaVersion = "1.0.0"
 	runtimeDeclarationFamilyCollectorKind = "git"
 )
@@ -60,6 +75,16 @@ func runtimeDeclarationFamilyMajor(v int) *int { return &v }
 //     dropped), and a replay of the .python-version fact under the same
 //     five-part key (it collapses onto the existing node instead of adding
 //     one).
+//
+// The projector trigger is a ninth fact outside this table (appended by
+// RuntimeDeclarationFamilyOdu below): the collector's per-repository
+// shared_followup marker, which the projector's generic per-fact intent path
+// converts into the runtime_declaration_projection reducer intent. No
+// scope-generation fanout builder names this family, so without the marker a
+// live drive of this fixture enqueues no intent and materializes zero edges.
+// The marker is transport for the drive, not truth for the guard:
+// declaration.ExtractRows skips every fact that is not a
+// runtime_declaration.version, so the expected-edge set is unaffected.
 var runtimeDeclarationFamilyFacts = []runtimeDeclarationFamilyFact{
 	{Path: ".tool-versions", Line: 1, Order: 0, SourceKind: "tool_versions", Runtime: "node", RawSpec: "20.11.1", SpecKind: runtimedeclarationv1.SpecKindExact, Major: runtimeDeclarationFamilyMajor(20)},
 	{Path: ".tool-versions", Line: 1, Order: 1, SourceKind: "tool_versions", Runtime: "node", RawSpec: "18.19.0", SpecKind: runtimedeclarationv1.SpecKindExact, Major: runtimeDeclarationFamilyMajor(18)},
@@ -71,13 +96,14 @@ var runtimeDeclarationFamilyFacts = []runtimeDeclarationFamilyFact{
 }
 
 // RuntimeDeclarationFamilyOdu builds the cataloged Odù for the
-// runtime_declaration direct-materialization family: one repository fact and
+// runtime_declaration direct-materialization family: one repository fact,
 // seven runtime_declaration.version facts encoded through
-// factschema.EncodeRuntimeDeclarationVersion (never hand-built maps). It
-// panics on an encode failure: that means the payload contract moved under a
-// committed fixture, and every coverage claim built on it is already void.
+// factschema.EncodeRuntimeDeclarationVersion (never hand-built maps), and the
+// collector's shared_followup projector-trigger marker. It panics on an
+// encode failure: that means the payload contract moved under a committed
+// fixture, and every coverage claim built on it is already void.
 func RuntimeDeclarationFamilyOdu() CatalogOdu {
-	out := make([]facts.Envelope, 0, len(runtimeDeclarationFamilyFacts)+1)
+	out := make([]facts.Envelope, 0, len(runtimeDeclarationFamilyFacts)+2)
 	out = append(out, facts.Envelope{
 		ScopeID:          runtimeDeclarationFamilyScopeID,
 		GenerationID:     runtimeDeclarationFamilyGenerationID,
@@ -87,10 +113,12 @@ func RuntimeDeclarationFamilyOdu() CatalogOdu {
 		CollectorKind:    runtimeDeclarationFamilyCollectorKind,
 		SourceConfidence: facts.SourceConfidenceObserved,
 		Payload: map[string]any{
-			"graph_id":   runtimeDeclarationFamilyRepositoryID,
-			"graph_kind": "repository",
-			"repo_id":    runtimeDeclarationFamilyRepositoryID,
-			"name":       "runtime-pins",
+			"graph_id":      runtimeDeclarationFamilyRepositoryID,
+			"graph_kind":    "repository",
+			"repo_id":       runtimeDeclarationFamilyRepositoryID,
+			"name":          "runtime-pins",
+			"local_path":    runtimeDeclarationFamilyLocalPath,
+			"source_run_id": runtimeDeclarationFamilySourceRunID,
 		},
 	})
 	for i, fact := range runtimeDeclarationFamilyFacts {
@@ -124,9 +152,36 @@ func RuntimeDeclarationFamilyOdu() CatalogOdu {
 			Payload:          payload,
 		})
 	}
+	// The collector emits this shared_followup marker unconditionally with
+	// every repository snapshot, full or delta (see
+	// collector/repo/git runtimeDeclarationProjectionFactEnvelope): it is what
+	// a recorded generation of this scope really contains, and the projector's
+	// generic per-fact path turns its reducer_domain payload into the
+	// runtime_declaration_projection intent. Hand-built with literals, never
+	// derived from the collector's builder: internal/ifa must not import
+	// collector internals, and the lockstep test holds these bytes to the
+	// committed cassette. The guard skips it (not a version fact).
+	// Production envelopes carry no schema_version, but the replay cassette
+	// format requires one on every fact, so the Odù pins 1.0.0 like every
+	// sibling family cassette; a versionless marker fails cassette load.
+	out = append(out, facts.Envelope{
+		ScopeID:          runtimeDeclarationFamilyScopeID,
+		GenerationID:     runtimeDeclarationFamilyGenerationID,
+		FactKind:         "shared_followup",
+		StableFactKey:    "shared_followup:" + runtimeDeclarationFamilyRepositoryID + ":runtime_declaration_projection",
+		SchemaVersion:    runtimeDeclarationFamilySchemaVersion,
+		CollectorKind:    runtimeDeclarationFamilyCollectorKind,
+		SourceConfidence: facts.SourceConfidenceObserved,
+		Payload: map[string]any{
+			"reducer_domain": "runtime_declaration_projection",
+			"entity_key":     "runtime_declaration:" + runtimeDeclarationFamilyRepositoryID,
+			"reason":         "repository snapshot emitted runtime declaration follow-up",
+			"repo_id":        runtimeDeclarationFamilyRepositoryID,
+		},
+	})
 	return CatalogOdu{
 		Odu: Odu{Name: RuntimeDeclarationFamilyOduName, Facts: out},
-		Detail: "eight facts for the direct-materialization runtime_declaration family: one repository and seven runtime_declaration.version facts — " +
+		Detail: "nine facts for the direct-materialization runtime_declaration family: one repository, seven runtime_declaration.version facts and the collector's shared_followup projector trigger — " +
 			"two tokens on one .tool-versions line, a .python-version pin and an lts/iron alias project four DECLARES_RUNTIME edges, " +
 			"while a tombstoned fact, a blank-runtime fact and a same-key replay project nothing extra",
 	}

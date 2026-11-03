@@ -13,8 +13,8 @@ func TestRuntimeDeclarationFamilyOduStableKeysAreUnique(t *testing.T) {
 	t.Parallel()
 
 	odu := RuntimeDeclarationFamilyOdu().Odu
-	if got, want := len(odu.Facts), 8; got != want {
-		t.Fatalf("runtime_declaration Odù carries %d facts, want %d (1 repository + 7 declarations)", got, want)
+	if got, want := len(odu.Facts), 9; got != want {
+		t.Fatalf("runtime_declaration Odù carries %d facts, want %d (1 repository + 7 declarations + 1 shared_followup projector trigger)", got, want)
 	}
 	seen := make(map[string]struct{}, len(odu.Facts))
 	for _, env := range odu.Facts {

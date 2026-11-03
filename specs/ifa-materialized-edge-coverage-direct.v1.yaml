@@ -38,7 +38,7 @@
 # fails in blocking mode. Waivers are per (surface, proof_gate), never per
 # family: waiving the fault gate does not grant credit to the baseline gate.
 #
-# ALL BUT TWENTY-SEVEN FAMILIES BELOW ARE WAIVED, AND THAT IS THE HONEST STATE. A
+# ALL BUT TWENTY-EIGHT FAMILIES BELOW ARE WAIVED, AND THAT IS THE HONEST STATE. A
 # coverage row here has to satisfy all four of the sibling manifest's
 # conditions: a cataloged Odù, a vacuity guard registered in
 # MaterializedEdgeOduResolver, a hand-derived expected-edge-set fixture naming
@@ -48,14 +48,14 @@
 # mistake commit 42e188ba1 made for documentation_edges and had to withdraw; it
 # is not repeated here.
 #
-# TWENTY-SEVEN OF THEM NOW HAVE ALL FOUR. kubernetes_namespace_environment,
+# TWENTY-EIGHT OF THEM NOW HAVE ALL FOUR. kubernetes_namespace_environment,
 # iam_instance_profile_role, iam_can_assume, iam_can_perform,
 # ec2_uses_profile, s3_logs_to, iam_escalation, authenticates_vault_role,
 # uses_vault_policy, grants_secret_read, built_from,
 # cloud_resource_container_image,
 # crossplane_satisfied_by, derived_from, code_interproc_evidence,
-# code_taint_evidence, observability_coverage, and incident_routing_evidence
-# code_taint_evidence, observability_coverage, publishes, cloud_resource,
+# code_taint_evidence, observability_coverage, incident_routing_evidence,
+# publishes, runtime_declaration, cloud_resource,
 # semantic_entity_containment, security_group_sg_rule,
 # security_group_rule_endpoint, s3_external_principal_grant,
 # workload_cloud_relationship, kubernetes_correlation,
@@ -74,7 +74,8 @@
 # incident_routing_evidence, the grants_secret_read remainder full build
 # (with the #8539 per-statement hold kill cell) for grants_secret_read,
 # and the publishes live leaf for
-# publishes, and the cloud_resource live leaf for
+# publishes, the runtime_declaration live leaf for
+# runtime_declaration, and the cloud_resource live leaf for
 # cloud_resource, the semantic_entity_containment live drive for
 # semantic_entity_containment, the security_group_sg_rule live leaf for
 # security_group_sg_rule, the security_group_rule_endpoint live leaf
@@ -610,17 +611,27 @@ coverage:
     ref: "odu:ifa-assumes-iam-role-family"
     proof_gate: ifa-fault-injection
 
-waivers:
+
+  # runtime_declaration: fault-free baseline plus fault-injection
+  # recovery, all asserting the four-edge DECLARES_RUNTIME exact set with
+  # identical graph digests (#6228 runtime_declaration live leaf). The two
+  # tokens on the .tool-versions line, the .python-version pin and the
+  # web/.nvmrc lts/iron alias each resolve their RuntimeDeclaration node
+  # against the five-part MERGE key the shared derivation renders; the
+  # tombstoned .ruby-version fact, the blank-runtime .go-version fact and the
+  # same-key .python-version replay resolve to nothing.
   - surface: "materialized_edges:runtime_declaration"
+    scenario: odu
+    scenario_type: baseline
+    ref: "odu:ifa-runtime-declaration-family"
     proof_gate: ifa-determinism
-    issue: "#6228"
-    waived: "2026-10-25"
-    reason: "WriteRuntimeDeclarations -> cypher/edge/writer/runtime_declaration.go merges DECLARES_RUNTIME onto a RuntimeDeclaration node it owns; direct materialization. The offline half landed with #8816 (cataloged Odu odu:ifa-runtime-declaration-family, vacuity guard resolveRuntimeDeclarationMaterializedEdges, hand-derived expected-edge fixture, registry entry). Stays waived: the live ifa-determinism matrix (verify-ifa-determinism.sh, ifa-determinism-gate.yml) does not drive the family yet; live enrollment follows the fee10c8346 code_taint_evidence live-leaf pattern (cassette, registry row, drive/assert callbacks) and needs an assert-edges endpoint rule for the keyless RuntimeDeclaration label"
   - surface: "materialized_edges:runtime_declaration"
+    scenario: odu
+    scenario_type: fault
+    ref: "odu:ifa-runtime-declaration-family"
     proof_gate: ifa-fault-injection
-    issue: "#6228"
-    waived: "2026-10-25"
-    reason: "WriteRuntimeDeclarations -> cypher/edge/writer/runtime_declaration.go merges DECLARES_RUNTIME onto a RuntimeDeclaration node it owns; direct materialization. The offline half landed with #8816 (cataloged Odu odu:ifa-runtime-declaration-family, vacuity guard resolveRuntimeDeclarationMaterializedEdges, hand-derived expected-edge fixture, registry entry). Stays waived: the live ifa-fault-injection matrix (verify-ifa-fault-injection.sh) has no fault cells for the family yet; live enrollment follows the fee10c8346 code_taint_evidence live-leaf pattern (cassette, fault trio cells, shard and anchor rows)"
+
+waivers:
   - surface: "materialized_edges:uses_service_account"
     proof_gate: ifa-determinism
     issue: "#6228"

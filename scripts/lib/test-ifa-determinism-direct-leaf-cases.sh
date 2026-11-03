@@ -5,7 +5,7 @@
 # scripts/lib/test-ifa-determinism-family-cases.sh to keep that file below
 # the repository's 500-line cap (mirroring that file's own extraction of
 # test-ifa-determinism-maintenance-family-cases.sh). Covers the #6228 slice
-# C/D/crossplane/derived_from/code-interproc/code-taint/observability-coverage/incident-routing/publishes live leaves -- built_from, cloud_resource_container_image, crossplane_satisfied_by, derived_from, code_interproc_evidence, code_taint_evidence, observability_coverage, incident_routing_evidence and publishes -- whose
+# C/D/crossplane/derived_from/code-interproc/code-taint/observability-coverage/incident-routing/publishes/runtime-declaration live leaves -- built_from, cloud_resource_container_image, crossplane_satisfied_by, derived_from, code_interproc_evidence, code_taint_evidence, observability_coverage, incident_routing_evidence, publishes and runtime_declaration -- whose
 # drive/assert callbacks live in their own split live libs under the tooling
 # line cap. run_ifa_determinism_direct_leaf_cases is called from inside
 # run_ifa_determinism_family_cases's body, in the same position this code
@@ -31,6 +31,8 @@ require_direct_family_lib "incident-routing-evidence assert-edges domain" "-doma
 require_direct_family_lib "incident-routing-evidence drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
 require_direct_family_lib "publishes assert-edges domain" "-domain publishes"
 require_direct_family_lib "publishes drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
+require_direct_family_lib "runtime-declaration assert-edges domain" "-domain runtime_declaration"
+require_direct_family_lib "runtime-declaration drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
 require_direct_family_lib "security-group-sg-rule assert-edges domain" "-domain security_group_sg_rule"
 require_direct_family_lib "security-group-rule-endpoint assert-edges domain" "-domain security_group_rule_endpoint"
 require_direct_family_lib "security-group-reachability drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'

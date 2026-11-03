@@ -233,3 +233,6 @@ than there are entries here.
 122. baseline-workload-cloud-relationship (#6228 fault trio) -- family-scoped fault-free baseline; twenty-sixth direct-materialization family in this gate.
 123. kill-worker-after-claim-workload-cloud-relationship (#6228 fault trio) -- lease reclaim proof (prereq-scoped aws_resource_materialization reducer banks canonical_nodes_committed/cloud_resource_uid before the fact_records lock; same keyspace the iam trio banks).
 124. fail-graph-write-once-then-succeed-workload-cloud-relationship (#6228 fault trio) -- USES retry proof.
+125. baseline-runtime-declaration (#6228 runtime_declaration live leaf) -- family-scoped fault-free baseline; twenty-seventh direct-materialization family in this gate (dispatched here, after the workload_cloud_relationship trio, by gate order).
+126. kill-worker-after-claim-runtime-declaration (#6228 runtime_declaration live leaf) -- lease reclaim proof.
+127. fail-graph-write-once-then-succeed-runtime-declaration (#6228 runtime_declaration live leaf) -- DECLARES_RUNTIME retry proof.

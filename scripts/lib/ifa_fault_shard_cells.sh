@@ -263,6 +263,12 @@ IFA_FAULT_ALL_CELLS=(
 	cell_baseline_workload_cloud_relationship
 	cell_killworker_workload_cloud_relationship
 	cell_failgraphwrite_workload_cloud_relationship
+	# runtime_declaration (#6228 runtime_declaration live leaf):
+	# twenty-seventh direct-materialization family, same trio shape (atomic
+	# group below).
+	cell_baseline_runtime_declaration
+	cell_killworker_runtime_declaration
+	cell_failgraphwrite_runtime_declaration
 )
 
 # Co-location constraints -- see "INPUT DATA VS. PARTITION ALGORITHM" above.
@@ -309,6 +315,7 @@ IFA_FAULT_ATOMIC_GROUPS=(
 	"cell_baseline_observability_coverage cell_killworker_observability_coverage cell_failgraphwrite_observability_coverage"
 	"cell_baseline_incident_routing_evidence cell_killworker_incident_routing_evidence cell_failgraphwrite_incident_routing_evidence"
 	"cell_baseline_publishes cell_killworker_publishes cell_failgraphwrite_publishes"
+	"cell_baseline_runtime_declaration cell_killworker_runtime_declaration cell_failgraphwrite_runtime_declaration"
 	"cell_baseline_security_group_sg_rule cell_killworker_security_group_sg_rule cell_failgraphwrite_security_group_sg_rule"
 	"cell_baseline_security_group_rule_endpoint cell_killworker_security_group_rule_endpoint cell_failgraphwrite_security_group_rule_endpoint"
 	"cell_baseline_s3_external_principal_grant cell_killworker_s3_external_principal_grant cell_failgraphwrite_s3_external_principal_grant"

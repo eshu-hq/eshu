@@ -425,17 +425,17 @@ func TestEvidenceSourceConstraintTracksTheWriterConstant(t *testing.T) {
 }
 
 // TestEndpointDefectMessageNamesTheRefFallback pins the diagnostic, not the
-// behavior. endpointID has four fallbacks, and the failure message it feeds
+// behavior. endpointID has five fallbacks, and the failure message it feeds
 // once named only the first two, so an operator debugging a DECLARES_CODEOWNER
 // regression was told to go look for a uid or an id on a node keyed by
 // neither. codeowners_ownership_edges is the first family that can reach this
 // branch on a real target, so its operator is the one who reads it.
 //
-// The Environment "name" fallback is named here too. It is not this family's
-// fallback, but the message is one shared string, and an operator reading it
-// must be able to see every identity the check actually tried — otherwise the
-// next family to hit this branch inherits the same misleading diagnosis this
-// test was written to end.
+// The Environment "name" and RuntimeDeclaration five-part fallbacks are named
+// here too. Neither is this family's fallback, but the message is one shared
+// string, and an operator reading it must be able to see every identity the
+// check actually tried — otherwise the next family to hit this branch
+// inherits the same misleading diagnosis this test was written to end.
 func TestEndpointDefectMessageNamesTheRefFallback(t *testing.T) {
 	t.Parallel()
 
@@ -457,7 +457,7 @@ func TestEndpointDefectMessageNamesTheRefFallback(t *testing.T) {
 	if err == nil {
 		t.Fatal("assertMaterializedEdges(endpoint with no identity property at all) = nil, want an endpoint-defect failure")
 	}
-	const want = "carries none of uid, id, a CodeownerTeam endpoint's ref, or an Environment endpoint's name"
+	const want = "carries none of uid, id, a CodeownerTeam endpoint's ref, an Environment endpoint's name, or a RuntimeDeclaration endpoint's five-part key"
 	if !strings.Contains(err.Error(), want) {
 		t.Fatalf("error = %q, want it to contain %q so the message names every identity endpointID actually tries", err, want)
 	}

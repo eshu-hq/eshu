@@ -104,6 +104,7 @@ IFA_FAMILY_PINS_NAMES=(
 	observability_coverage
 	incident_routing_evidence
 	publishes
+	runtime_declaration
 	grants_secret_read
 	security_group_sg_rule
 	security_group_rule_endpoint

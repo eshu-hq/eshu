@@ -146,9 +146,10 @@ var guardedDirectMaterializedEdgeFamilies = []guardedDirectFamily{
 		LiveProven: true,
 	},
 	{
-		Family:    runtimeDeclarationFamily,
-		OduName:   ifa.RuntimeDeclarationFamilyOduName,
-		EdgeTypes: []string{"DECLARES_RUNTIME"},
+		Family:     runtimeDeclarationFamily,
+		OduName:    ifa.RuntimeDeclarationFamilyOduName,
+		EdgeTypes:  []string{"DECLARES_RUNTIME"},
+		LiveProven: true,
 	},
 	{
 		Family:          cloudResourceFamily,

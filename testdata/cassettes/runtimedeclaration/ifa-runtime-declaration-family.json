@@ -1,0 +1,200 @@
+{
+  "collector": "git",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "git:repository:eshu-fixture-runtime-pins",
+      "source_system": "git",
+      "scope_kind": "repo",
+      "collector_kind": "git",
+      "partition_key": "git:repository:eshu-fixture-runtime-pins",
+      "metadata": {
+        "fixture": "ifa-runtime-declaration-family",
+        "repo_id": "repository:eshu-fixture-runtime-pins"
+      },
+      "generation_id": "gen-ifa-runtime-declaration-family-1",
+      "observed_at": "2026-10-25T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "repository",
+          "stable_fact_key": "repository:repository:eshu-fixture-runtime-pins",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "graph_id": "repository:eshu-fixture-runtime-pins",
+            "graph_kind": "repository",
+            "repo_id": "repository:eshu-fixture-runtime-pins",
+            "name": "runtime-pins",
+            "local_path": "/repo-runtime-pins",
+            "source_run_id": "run-ifa-runtime-declaration-family-1"
+          }
+        },
+        {
+          "fact_kind": "runtime_declaration.version",
+          "stable_fact_key": "runtime_declaration:repository:eshu-fixture-runtime-pins:.tool-versions:1:0:0",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "repo_id": "repository:eshu-fixture-runtime-pins",
+            "relative_path": ".tool-versions",
+            "scope_dir": ".",
+            "line_number": 1,
+            "order_index": 0,
+            "source_kind": "tool_versions",
+            "runtime": "node",
+            "raw_spec": "20.11.1",
+            "spec_kind": "exact",
+            "version_major": 20
+          }
+        },
+        {
+          "fact_kind": "runtime_declaration.version",
+          "stable_fact_key": "runtime_declaration:repository:eshu-fixture-runtime-pins:.tool-versions:1:1:1",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "repo_id": "repository:eshu-fixture-runtime-pins",
+            "relative_path": ".tool-versions",
+            "scope_dir": ".",
+            "line_number": 1,
+            "order_index": 1,
+            "source_kind": "tool_versions",
+            "runtime": "node",
+            "raw_spec": "18.19.0",
+            "spec_kind": "exact",
+            "version_major": 18
+          }
+        },
+        {
+          "fact_kind": "runtime_declaration.version",
+          "stable_fact_key": "runtime_declaration:repository:eshu-fixture-runtime-pins:.python-version:1:0:2",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "repo_id": "repository:eshu-fixture-runtime-pins",
+            "relative_path": ".python-version",
+            "scope_dir": ".",
+            "line_number": 1,
+            "order_index": 0,
+            "source_kind": "python_version",
+            "runtime": "python",
+            "raw_spec": "3.12.1",
+            "spec_kind": "exact",
+            "version_major": 3
+          }
+        },
+        {
+          "fact_kind": "runtime_declaration.version",
+          "stable_fact_key": "runtime_declaration:repository:eshu-fixture-runtime-pins:web/.nvmrc:1:0:3",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "repo_id": "repository:eshu-fixture-runtime-pins",
+            "relative_path": "web/.nvmrc",
+            "scope_dir": ".",
+            "line_number": 1,
+            "order_index": 0,
+            "source_kind": "nvmrc",
+            "runtime": "node",
+            "raw_spec": "lts/iron",
+            "spec_kind": "alias"
+          }
+        },
+        {
+          "fact_kind": "runtime_declaration.version",
+          "stable_fact_key": "runtime_declaration:repository:eshu-fixture-runtime-pins:.ruby-version:1:0:4",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "is_tombstone": true,
+          "payload": {
+            "repo_id": "repository:eshu-fixture-runtime-pins",
+            "relative_path": ".ruby-version",
+            "scope_dir": ".",
+            "line_number": 1,
+            "order_index": 0,
+            "source_kind": "ruby_version",
+            "runtime": "ruby",
+            "raw_spec": "3.3.0",
+            "spec_kind": "exact",
+            "version_major": 3
+          }
+        },
+        {
+          "fact_kind": "runtime_declaration.version",
+          "stable_fact_key": "runtime_declaration:repository:eshu-fixture-runtime-pins:.go-version:1:0:5",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "repo_id": "repository:eshu-fixture-runtime-pins",
+            "relative_path": ".go-version",
+            "scope_dir": ".",
+            "line_number": 1,
+            "order_index": 0,
+            "source_kind": "go_version",
+            "runtime": "   ",
+            "raw_spec": "1.22.5",
+            "spec_kind": "exact",
+            "version_major": 1
+          }
+        },
+        {
+          "fact_kind": "runtime_declaration.version",
+          "stable_fact_key": "runtime_declaration:repository:eshu-fixture-runtime-pins:.python-version:1:0:6",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "repo_id": "repository:eshu-fixture-runtime-pins",
+            "relative_path": ".python-version",
+            "scope_dir": ".",
+            "line_number": 1,
+            "order_index": 0,
+            "source_kind": "python_version",
+            "runtime": "python",
+            "raw_spec": "3.12.1",
+            "spec_kind": "exact",
+            "version_major": 3
+          }
+        },
+        {
+          "fact_kind": "shared_followup",
+          "stable_fact_key": "shared_followup:repository:eshu-fixture-runtime-pins:runtime_declaration_projection",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "reducer_domain": "runtime_declaration_projection",
+            "entity_key": "runtime_declaration:repository:eshu-fixture-runtime-pins",
+            "reason": "repository snapshot emitted runtime declaration follow-up",
+            "repo_id": "repository:eshu-fixture-runtime-pins"
+          }
+        }
+      ]
+    }
+  ]
+}

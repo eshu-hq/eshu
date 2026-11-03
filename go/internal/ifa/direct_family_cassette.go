@@ -53,6 +53,7 @@ const (
 	// derivedFromFamilyCassettePath,
 	// incidentRoutingEvidenceFamilyCassettePath,
 	// publishesFamilyCassettePath,
+	// runtimeDeclarationFamilyCassettePath,
 	// securityGroupReachabilityFamilyCassettePath, and
 	// s3ExternalPrincipalGrantFamilyCassettePath are repo-root-relative so
 	// the constants stay machine-independent; callers join a repo root onto
@@ -81,6 +82,7 @@ const (
 	derivedFromFamilyCassettePath                    = "testdata/cassettes/derivedfrom/ifa-derived-from-family.json"
 	incidentRoutingEvidenceFamilyCassettePath        = "testdata/cassettes/incidentrouting/ifa-incident-routing-evidence-family.json"
 	publishesFamilyCassettePath                      = "testdata/cassettes/publishes/ifa-publishes-family.json"
+	runtimeDeclarationFamilyCassettePath             = "testdata/cassettes/runtimedeclaration/ifa-runtime-declaration-family.json"
 	securityGroupReachabilityFamilyCassettePath      = "testdata/cassettes/securitygroup/ifa-security-group-reachability-family.json"
 	s3ExternalPrincipalGrantFamilyCassettePath       = "testdata/cassettes/s3grant/ifa-s3-external-principal-grant-family.json"
 )
@@ -501,6 +503,22 @@ func PublishesFamilyCassetteFullPath(repoRoot string) string {
 // load plus its cross-scope active-repository fallback.
 func LoadPublishesFamilyOdu(cassettePath string) (familyodu.Odu, error) {
 	return loadDirectFamilyOdu(cassettePath, PublishesFamilyOduName)
+}
+
+// RuntimeDeclarationFamilyCassetteFullPath joins repoRoot onto the committed
+// runtime_declaration family cassette path.
+func RuntimeDeclarationFamilyCassetteFullPath(repoRoot string) string {
+	return filepath.Join(repoRoot, runtimeDeclarationFamilyCassettePath)
+}
+
+// LoadRuntimeDeclarationFamilyOdu is the runtime_declaration counterpart to
+// LoadPublishesFamilyOdu: the family's single git scope holds the owning
+// repository fact, the seven runtime_declaration.version facts (four
+// edge-producing, three deliberate non-producers) and the collector's
+// shared_followup projector trigger, mirroring the handler's own-scope fact
+// load plus the generic per-fact intent the marker carries.
+func LoadRuntimeDeclarationFamilyOdu(cassettePath string) (familyodu.Odu, error) {
+	return loadDirectFamilyOdu(cassettePath, RuntimeDeclarationFamilyOduName)
 }
 
 // SecurityGroupReachabilityFamilyCassetteFullPath joins repoRoot onto the

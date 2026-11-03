@@ -66,6 +66,8 @@ func TestRuntimeDeclarationUpsertCypherMergesOnTheFivePartKey(t *testing.T) {
 		"d.range_upper_major = row.range_upper_major",
 		"d.evidence_source = row.evidence_source",
 		"rel.evidence_source = row.evidence_source",
+		"rel.raw_spec = row.raw_spec",
+		"rel.spec_kind = row.spec_kind",
 	} {
 		if !strings.Contains(RuntimeDeclarationUpsertCypher, fragment) {
 			t.Errorf("upsert Cypher missing %q", fragment)

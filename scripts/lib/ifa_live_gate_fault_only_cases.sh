@@ -87,7 +87,8 @@ ifa_live_gate_fault_only_seams=(
 	# The cell roster half of the shard partitioner above, split out at the
 	# 500-line cap (#6228 derived_from + code_interproc_evidence +
 	# code_taint_evidence + observability_coverage +
-	# incident_routing_evidence + publishes live leaves). Pinned through the
+	# incident_routing_evidence + publishes + runtime_declaration live
+	# leaves). Pinned through the
 	# real matcher so the split-out data cannot go dark the way #6200's
 	# files did.
 	'scripts/lib/ifa_fault_*.sh|scripts/lib/ifa_fault_shard_cells.sh'

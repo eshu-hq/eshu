@@ -113,7 +113,6 @@ source "${repo_root}/scripts/lib/ifa_fault_injection_hold.sh"
 source "${repo_root}/scripts/lib/ifa_fault_lease_expiry_barrier.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_sources.sh
 source "${repo_root}/scripts/lib/ifa_fault_injection_sources.sh"
-
 # ----------------------------------------------------------------------------
 # Configuration. One Compose project + one port triple reused across every
 # cell (torn down with `down -v` between cells) -- distinct from every
@@ -469,6 +468,12 @@ ifa_fault_shard_run cell_failgraphwrite_kubernetes_correlation
 ifa_fault_shard_run cell_baseline_workload_cloud_relationship
 ifa_fault_shard_run cell_killworker_workload_cloud_relationship
 ifa_fault_shard_run cell_failgraphwrite_workload_cloud_relationship
+# runtime_declaration (#6228 runtime_declaration live leaf): twenty-seventh
+# direct family (dispatched here, after the workload_cloud_relationship
+# trio, by gate order), baseline first, same trio shape as above.
+ifa_fault_shard_run cell_baseline_runtime_declaration
+ifa_fault_shard_run cell_killworker_runtime_declaration
+ifa_fault_shard_run cell_failgraphwrite_runtime_declaration
 
 log "PASS: fault-injection matrix green (project ${FAULT_COMPOSE_PROJECT}, postgres:${ESHU_POSTGRES_PORT}, neo4j-bolt:${NEO4J_BOLT_PORT})"
 for cell in "${!digests[@]}"; do

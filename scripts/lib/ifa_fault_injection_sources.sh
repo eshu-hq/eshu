@@ -111,6 +111,8 @@ source "${ifa_fault_sources_root}/scripts/lib/ifa_direct_family_live_s3_external
 source "${ifa_fault_sources_root}/scripts/lib/ifa_direct_family_live_code_interproc_evidence.sh"
 # shellcheck source=scripts/lib/ifa_direct_family_live_code_taint_evidence.sh
 source "${ifa_fault_sources_root}/scripts/lib/ifa_direct_family_live_code_taint_evidence.sh"
+# shellcheck source=scripts/lib/ifa_direct_family_live_runtime_declaration.sh
+source "${ifa_fault_sources_root}/scripts/lib/ifa_direct_family_live_runtime_declaration.sh"
 # Vault families (#6228 slice A): split drive/assert lib under the tooling line cap.
 # shellcheck source=scripts/lib/ifa_vault_family_live.sh
 source "${ifa_fault_sources_root}/scripts/lib/ifa_vault_family_live.sh"
@@ -172,6 +174,8 @@ source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_s3_external_pr
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_code_interproc_evidence_cells.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_code_taint_evidence_cells.sh
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_code_taint_evidence_cells.sh"
+# shellcheck source=scripts/lib/ifa_fault_injection_runtime_declaration_cells.sh
+source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_runtime_declaration_cells.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_cloud_resource_cells.sh
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_cloud_resource_cells.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_kubernetes_correlation_cells.sh
