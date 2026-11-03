@@ -100,7 +100,7 @@ that workflow. Automation workflows are explicitly outside the gate registry.
 | `payload-usage-manifest.yml` | Blocking payload consumer manifest | Preserve ownership contract; consider deriving consumer metadata from code. |
 | `product-claim-ledger.yml` | Blocking claim evidence, plus weekly audit | Useful truth boundary; replace brittle text assertions with executable contract evidence where possible. |
 | `race-graph-writes.yml` | Blocking tagged graph race tests | Investigate actual overlap with whole-module race before deletion; tags may provide unique coverage. |
-| `read-api-latency-gate.yml` | Blocking latency/work budgets plus two comparator mirrors | Preserve performance correctness; benchmark noise and mirrored maintenance are consolidation targets. |
+| `read-api-latency-gate.yml` | Latency/work budgets (NornicDB cell disabled 2026-11-03) plus two comparator mirrors | Preserve performance correctness; benchmark noise and mirrored maintenance are consolidation targets. |
 | `reducer-contention-gate.yml` | Blocking contention and supply-chain queries | Distinct concurrency proof; retain. |
 | `refresh-cassettes.yml` | Opt-in label/manual credentialed cassette authoring | Necessary authoring automation, not routine PR gating. |
 | `replay-coverage-gate.yml` | Three blocking replay/auth coverage gates | Distinct replay/security proof; retain. |

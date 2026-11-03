@@ -6,6 +6,12 @@ full-graph scan) or #6794 (status/readiness routes paying an expensive
 per-scope `activeFactWorkItemsCTE` query) cannot merge without this gate
 going red.
 
+**Status: the NornicDB CI cell is disabled** (owner order, 2026-11-03). Neo4j is
+the supported backend, so the `latency-gate (nornicdb)` job no longer runs in CI
+and its registry row is `manual` and non-blocking. The script still runs by hand
+(`bash scripts/verify-read-api-latency-gate.sh`). NornicDB gets revisited once
+Neo4j works as expected; the workflow comment lists how to re-enable the job.
+
 It exists because that class of regression is invisible to hermetic tests:
 the cost only appears at repo/scope scale against a real Postgres+NornicDB
 backend, which unit tests and the credential-free `make pre-push`/`make pre-pr`
