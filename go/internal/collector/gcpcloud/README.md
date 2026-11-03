@@ -20,10 +20,11 @@ Kubernetes ServiceAccount names stay out of fact payloads.
 
 This package does not call Google Cloud APIs, schedule collector runs, write
 graph rows, persist raw provider payloads, or admit reducer truth. The
-fixture-backed and claimed-live `cmd/collector-gcp-cloud` runtime wiring, shared
+fixture-backed `gcpruntime.Source` scaffolding, shared
 cloud inventory admission/readback, tag evidence admission, image identity
 admission, relationship resolution, and IAM trust facts live in sibling packages
-and reducers. Claim-enabled scheduler activation, opt-in direct/effective tag
+and reducers; production claimed-live wiring moved to the extracted satellite
+(`eshu-hq/eshu-collector-gcp-cloud`, issue #8856). Claim-enabled scheduler activation, opt-in direct/effective tag
 API evidence, and chart values are implemented. Issues #1997/#2644 record the
 completed security-only sanitized smoke, while deployed-shape promotion proof
 remains gated. See

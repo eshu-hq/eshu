@@ -495,3 +495,5 @@ docs/internal/evidence/7957-snapshot-export-qualification.md:go/cmd/mcp-server/p
 docs/internal/evidence/8833-cleanup-proofs.md:go/cmd/mcp-server/semantic_search_vector_wiring.go
 go/internal/query/AGENTS-evidence-history-3.md:go/cmd/mcp-server/wiring.go
 go/internal/reducer/code/call/go_package_test.go:go/cmd/mcp-server/wiring.go
+# #8856: dated security-review record names the reviewed in-tree path; no in-tree successor, repointing would falsify.
+docs/internal/design/multicloud-live-collector-security-review.md:go/cmd/collector-gcp-cloud/main.go

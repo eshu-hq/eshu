@@ -21,9 +21,8 @@ kinds:
     - gcp_tag_observation
 producers:
     - id: collector-gcp-cloud
-      repository: eshu-hq/eshu
-      path: go/internal/collector/gcpcloud
-      planned_repository: eshu-hq/eshu-collector-gcp-cloud
+      repository: eshu-hq/eshu-collector-gcp-cloud
+      path: .
       authority_mode: core_issued_grant
       kinds:
         - gcp_cloud_relationship

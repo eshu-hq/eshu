@@ -117,6 +117,6 @@ var GCPFamilyDeclaration = contract.Declare(contract.Family{
 		{Kind: "gcp_tag_observation", PayloadSchema: "sdk/go/factschema/schema/gcp_tag_observation.v1.schema.json", Disposition: "read_only", NoReducerReason: "Consumed by read surfaces only; no reducer domain decodes it.", NoReducerEvidence: "read consumption in go/internal/storage/postgres"},
 	},
 	Producers: []contract.Producer{
-		{ID: "collector-gcp-cloud", Repository: "eshu-hq/eshu", Path: "go/internal/collector/gcpcloud", PlannedRepository: "eshu-hq/eshu-collector-gcp-cloud", AuthorityMode: "core_issued_grant", Kinds: []string{"gcp_cloud_relationship", "gcp_cloud_resource", "gcp_collection_warning", "gcp_dns_record", "gcp_iam_policy_observation", "gcp_image_reference", "gcp_tag_observation"}},
+		{ID: "collector-gcp-cloud", Repository: "eshu-hq/eshu-collector-gcp-cloud", Path: ".", PlannedRepository: "", AuthorityMode: "core_issued_grant", Kinds: []string{"gcp_cloud_relationship", "gcp_cloud_resource", "gcp_collection_warning", "gcp_dns_record", "gcp_iam_policy_observation", "gcp_image_reference", "gcp_tag_observation"}},
 	},
 })

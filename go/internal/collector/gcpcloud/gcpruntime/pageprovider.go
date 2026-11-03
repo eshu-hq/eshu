@@ -47,7 +47,7 @@ type PageProvider interface {
 
 // FixturePageProvider serves Cloud Asset Inventory pages from in-memory or
 // file-backed fixtures keyed by scope id. It is the default PageProvider for
-// fixture tests and the collector-gcp-cloud binary's offline smoke path; it
+// fixture tests and the extracted satellite's offline smoke path; it
 // performs no network or Google Cloud calls.
 //
 // Pages for a scope are served in order. The first FetchPage for a scope returns
