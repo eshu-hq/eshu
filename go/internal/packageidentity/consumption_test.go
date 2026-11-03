@@ -36,6 +36,14 @@ func TestConsumptionKeysUseManifestCorrelationNormalization(t *testing.T) {
 			},
 		},
 		{
+			name:      "rpm distro alias resolves to os keys",
+			ecosystem: "alma",
+			names:     []string{"curl"},
+			want: []ConsumptionKey{
+				{Ecosystem: EcosystemOS, PackageName: "curl"},
+			},
+		},
+		{
 			name:      "unknown ecosystem fails closed",
 			ecosystem: "made-up",
 			names:     []string{"package"},

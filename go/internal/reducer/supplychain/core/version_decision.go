@@ -153,6 +153,21 @@ func evaluateOSPackageVersionMatch(
 	return possiblyAffectedDecision(supplyChainVersionReasonNoAffectedMatch, nil)
 }
 
+// hasOSPackageECOSYSTEMRanges reports whether any affected fact carries a
+// typed ECOSYSTEM range, the OSV OS advisory shape the release-aware verdict
+// reads. Facts with only exact-version lists or scalar fixes keep their
+// family matcher.
+func hasOSPackageECOSYSTEMRanges(pkgs []supplychainmodel.AffectedPackage) bool {
+	for _, pkg := range pkgs {
+		for _, affectedRange := range pkg.AffectedRanges {
+			if strings.EqualFold(affectedRange.Kind, "ECOSYSTEM") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // osRangesVerdict is what an OS advisory's ECOSYSTEM ranges say about one
 // observed version, combined over every affected fact for the CVE.
 type osRangesVerdict struct {

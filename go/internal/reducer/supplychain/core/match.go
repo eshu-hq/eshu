@@ -320,7 +320,19 @@ func osPackageMatchesAffectedPackage(
 	if pkg.PackageID != "" && pkg.PackageID == installed.PackageID {
 		return true
 	}
-	return pkg.PURL != "" && purlPackageKey(pkg.PURL) == installed.PackageID
+	if pkg.PURL == "" {
+		return false
+	}
+	if purlPackageKey(pkg.PURL) == installed.PackageID {
+		return true
+	}
+	// The re-verification meets on the same canonical vendor key the lookup
+	// does: a raw upstream namespace (almalinux, rocky-linux) never equals
+	// the installed row's canonical vendor key (#9844).
+	if key := canonicalAdvisoryOSPackageKey(pkg); key != "" {
+		return key == installed.PackageID
+	}
+	return false
 }
 
 func supportedOSPackageImpactManager(manager string) bool {

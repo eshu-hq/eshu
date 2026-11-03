@@ -19,6 +19,25 @@ func evaluateRPMVersionMatch(
 	if !validRPMEVR(observed) {
 		return malformedInstalledVersionDecision()
 	}
+	if hasOSPackageECOSYSTEMRanges(pkgs) {
+		// An OSV rpm fact carries ECOSYSTEM ranges over every release line
+		// with no release tag, so it can never settle affected_exact: the
+		// release-aware verdict reads a contained version as
+		// possibly_affected and a fix at or below it as known fixed (#9844,
+		// ruling D inherited from #9848). The exact branches stay armed for
+		// a release-evidenced vendor fact under the existing rpm reasons, so
+		// no profile, remediation, or telemetry label changes.
+		return evaluateOSPackageVersionMatch(
+			observed,
+			fixedVersion,
+			pkgs,
+			supplyChainVersionReasonRPMExactAffected,
+			supplyChainVersionReasonRPMKnownFixed,
+			supplyChainVersionReasonRPMExactAffected,
+			supplyChainVersionReasonRPMKnownFixed,
+			compareRPMEVR,
+		)
+	}
 	for _, pkg := range pkgs {
 		for _, affected := range pkg.AffectedVersions {
 			cmp, ok := compareRPMEVR(observed, affected)

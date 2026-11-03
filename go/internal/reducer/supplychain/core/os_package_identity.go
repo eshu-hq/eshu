@@ -24,6 +24,9 @@ func affectedOSPackageLookupKeys(pkg supplychainmodel.AffectedPackage) []string 
 	if key := osPackageIdentityFromAffectedPackage(pkg); key != "" {
 		keys = append(keys, key)
 	}
+	if key := canonicalAdvisoryOSPackageKey(pkg); key != "" {
+		keys = append(keys, key)
+	}
 	return payloadcore.UniqueSortedStrings(keys)
 }
 
@@ -85,8 +88,41 @@ func osPackageVendorFromPURL(purl string) string {
 		if namespace == "alpine" {
 			return namespace
 		}
+	case "rpm":
+		// Upstream distro namespaces vary (almalinux vs alma, rocky-linux
+		// vs rocky); the vendor is the canonical name the installed rows
+		// and the narrow read key on (#9844).
+		switch namespace {
+		case "alma", "almalinux":
+			return "alma"
+		case "rocky", "rockylinux", "rocky-linux":
+			return "rocky"
+		}
 	}
 	return ""
+}
+
+// canonicalAdvisoryOSPackageKey derives the advisory-side
+// pkg:rpm/<vendor>/<name> key from the canonical vendor
+// (osPackageVendorFromPURL) and the lowercased package name. OSV publishes
+// rpm purls under the upstream distro namespace (almalinux, rocky-linux)
+// while installed rows key on the canonical vendor (alma, rocky), so the
+// raw purl key never meets the installed key. Both affectedOSPackageLookupKeys
+// and the osPackageMatchesAffectedPackage re-verification use this one
+// helper so the narrow read and the join agree. Advisory-side only: the
+// installed key, the purl splitter, the scanner contract, and the OSV purls
+// stay untouched.
+func canonicalAdvisoryOSPackageKey(pkg supplychainmodel.AffectedPackage) string {
+	purlType, _ := osPackagePURLTypeAndNamespace(pkg.PURL)
+	if purlType != "rpm" {
+		return ""
+	}
+	vendor := osPackageVendorFromPURL(pkg.PURL)
+	name := packageidentity.LowerASCII(strings.TrimSpace(pkg.Name))
+	if vendor == "" || name == "" {
+		return ""
+	}
+	return "pkg:rpm/" + vendor + "/" + name
 }
 
 func osPackageFamilyFromPURL(purl string) string {
