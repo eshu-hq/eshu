@@ -1,4 +1,4 @@
-# #8948: redrive event_name attrs — no-regression and observability evidence
+#8948: redrive event_name attrs — no-regression and observability evidence
 
 Issue #8948 follow-up: the five existing redrive-path slog calls had no
 `event_name` key, so the failure/progress signals were not queryable by the
@@ -24,7 +24,7 @@ harness (`crossplaneRedriveProofDB`).
 
 | Run | Result |
 | --- | --- |
-| `go test -tags integration -race ./internal/storage/postgres/crossplane/ -count=1` (9-subtest parent incl. 2 new proofs) | ok, 84.984 s, zero failures, zero data races |
+| `go test -race ./internal/storage/postgres/crossplane/ -count=1` with `ESHU_POSTGRES_TEST_DSN` + `ESHU_POSTGRES_DISPOSABLE=1` (9-subtest parent incl. 2 new proofs; no build tag, gating is via the env pair) | ok, 84.984 s, zero failures, zero data races |
 | `go test -count=1 ./internal/reducer/crossplane/` | ok |
 | `go vet` on `crossplane`, `reducer/crossplane`, `cmd/projector` | clean |
 | `gofmt -l` on all touched files | clean |
