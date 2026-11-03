@@ -54,9 +54,10 @@ func TestCheckEndpointTargetLabelsBindsLabelPerRule(t *testing.T) {
 // so no Odu-level input distinguishes "call present" from "call deleted" —
 // deleting the call-site below must fail this test instead.
 //
-// The pin parses the guard into an AST and requires a genuine call
-// expression: a raw substring check would also match the call commented
-// out, letting a dead guard pass.
+// The pin parses the guard into an AST and requires the check as a branch
+// condition: a raw substring check would also match the call commented out,
+// and a bare call expression would match a discarded result, so neither
+// pins enforcement. Only `if problem := check…; problem != ""` satisfies it.
 func TestEndpointGuardInvokesTargetLabelCheck(t *testing.T) {
 	t.Parallel()
 
@@ -66,19 +67,39 @@ func TestEndpointGuardInvokesTargetLabelCheck(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse guard source: %v", err)
 	}
-	invoked := false
-	ast.Inspect(file, func(node ast.Node) bool {
-		call, ok := node.(*ast.CallExpr)
+	enforced := false
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
 		if !ok {
+			continue
+		}
+		ast.Inspect(fn.Body, func(node ast.Node) bool {
+			branch, ok := node.(*ast.IfStmt)
+			if !ok {
+				return true
+			}
+			// The call may sit in the init (`if problem := check…; …`) or
+			// the condition; either way the branch enforces its result.
+			for _, root := range []ast.Node{branch.Init, branch.Cond} {
+				if root == nil {
+					continue
+				}
+				ast.Inspect(root, func(inner ast.Node) bool {
+					call, ok := inner.(*ast.CallExpr)
+					if !ok {
+						return true
+					}
+					if name, ok := call.Fun.(*ast.Ident); ok && name.Name == "checkSecurityGroupRuleEndpointTargetLabels" {
+						enforced = true
+						return false
+					}
+					return true
+				})
+			}
 			return true
-		}
-		if name, ok := call.Fun.(*ast.Ident); ok && name.Name == "checkSecurityGroupRuleEndpointTargetLabels" {
-			invoked = true
-			return false
-		}
-		return true
-	})
-	if !invoked {
-		t.Fatalf("guard no longer invokes checkSecurityGroupRuleEndpointTargetLabels; the label regression cases above pass while swapped-label rows flow unchecked")
+		})
+	}
+	if !enforced {
+		t.Fatalf("guard no longer enforces checkSecurityGroupRuleEndpointTargetLabels as a branch condition; the label regression cases above pass while swapped-label rows flow unchecked")
 	}
 }
