@@ -142,11 +142,11 @@ func TestOSPackageNarrowedQueryShape(t *testing.T) {
 	}
 	// The ecosystem predicate is the rotation reader's, so a paged drain and the
 	// planner see the same rows.
-	ecosystem := "LOWER(COALESCE(NULLIF(c.payload->>'vendor_advisory_source', ''), c.payload->>'distro')) = ANY($4::text[])"
+	ecosystem := "LOWER((COALESCE(NULLIF(c.payload->>'vendor_advisory_source', ''), c.payload->>'distro')) COLLATE \"C\") COLLATE \"default\" = ANY($4::text[])"
 	if !strings.Contains(narrowed, ecosystem) {
 		t.Fatalf("narrowed query lost the ecosystem predicate %q", ecosystem)
 	}
-	if !strings.Contains(rotation, "LOWER(COALESCE(NULLIF(fact.payload->>'vendor_advisory_source', ''), fact.payload->>'distro')) = ANY($1::text[])") {
+	if !strings.Contains(rotation, "LOWER((COALESCE(NULLIF(fact.payload->>'vendor_advisory_source', ''), fact.payload->>'distro')) COLLATE \"C\") COLLATE \"default\" = ANY($1::text[])") {
 		t.Fatal("rotation query changed its ecosystem predicate; update the narrowed query in step")
 	}
 }

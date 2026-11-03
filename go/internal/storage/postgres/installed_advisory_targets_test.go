@@ -14,7 +14,7 @@ func TestListOSPackageAdvisoryTargetsQueryUsesActiveBoundedInstalledEvidence(t *
 		"fact.fact_kind = 'vulnerability.os_package'",
 		"scope.active_generation_id = fact.generation_id",
 		"generation.status = 'active'",
-		"LOWER(COALESCE(NULLIF(fact.payload->>'vendor_advisory_source', ''), fact.payload->>'distro')) = ANY($1::text[])",
+		"LOWER((COALESCE(NULLIF(fact.payload->>'vendor_advisory_source', ''), fact.payload->>'distro')) COLLATE \"C\") COLLATE \"default\" = ANY($1::text[])",
 		// distro_version, arch, and generation_id are additive projections
 		// (issue #5463/#5705): the reducer's cross-scope supply-chain-impact
 		// evidence loader (os_package_advisory_load.go)

@@ -16,12 +16,13 @@ import (
 )
 
 // ownedPackageClockStatementSHA256 pins the flag-off statement for the
-// vulnerability planner's mode (version-specific, alias expansion) as it shipped
-// before #9776. The progress-ordered selection is a second rendering: the clock
-// statement every instance without the flag runs must stay byte-identical, so
-// rollback by flag restores exactly the measured plan. The hash was taken from
-// the statement text dumped before any #9776 edit, not computed from this code.
-const ownedPackageClockStatementSHA256 = "4eacd39240274ede43345c3def2c3d7368ad53483341b91931e31366ad4ed5b9"
+// vulnerability planner's mode (version-specific, alias expansion). The
+// progress-ordered selection is a second rendering: the clock statement every
+// instance without the flag runs must stay byte-identical, so rollback by flag
+// restores exactly the measured plan. #9622 re-baselined the ecosystem fold to
+// the ASCII-only form; the hash below was taken from the statement text dumped
+// after that edit, not computed from this code.
+const ownedPackageClockStatementSHA256 = "03fa01616bf8f5f7c3eb551a76494292372734903a88d8384f80df82b4f6e3bb"
 
 func TestOwnedPackageClockStatementIsByteIdenticalToTheShippedOne(t *testing.T) {
 	t.Parallel()

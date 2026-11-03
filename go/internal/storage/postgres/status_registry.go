@@ -113,7 +113,7 @@ WITH work_counts AS (
 ),
 warning_counts AS (
     SELECT
-        NULLIF(LOWER(BTRIM(fact.payload->>'ecosystem')), '') AS ecosystem,
+        NULLIF(LOWER((BTRIM(fact.payload->>'ecosystem')) COLLATE "C") COLLATE "default", '') AS ecosystem,
         COUNT(*) AS skipped
     FROM fact_records AS fact
     JOIN ingestion_scopes AS scope

@@ -25,7 +25,7 @@ source_candidates AS (
          COALESCE(fact.payload->>'priority_bucket', '') AS priority_bucket,
          ` + severityBucketFactSQL + ` AS severity_bucket,
          COALESCE(fact.payload->>'repository_id', '') AS repository_id,
-         COALESCE(LOWER(fact.payload->>'ecosystem'), '') AS ecosystem
+         COALESCE(LOWER((fact.payload->>'ecosystem') COLLATE "C") COLLATE "default", '') AS ecosystem
   FROM fact_records AS fact
   JOIN ingestion_scopes AS scope
     ON scope.scope_id = fact.scope_id
@@ -45,7 +45,7 @@ source_candidates AS (
     AND ($4 = '' OR fact.payload->>'subject_digest' = $4)
     AND ($5 = '' OR fact.payload->>'impact_status' = $5)
     AND ($6 = '' OR fact.payload->>'advisory_id' = $6)
-    AND ($7 = '' OR LOWER(fact.payload->>'ecosystem') = LOWER($7))
+    AND ($7 = '' OR LOWER((fact.payload->>'ecosystem') COLLATE "C") COLLATE "default" = LOWER(($7) COLLATE "C") COLLATE "default")
 ` + supplyChainImpactRuntimeFilterPredicate(
 	"fact.payload->>'repository_id'",
 	"$8",

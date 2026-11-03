@@ -55,7 +55,7 @@ WITH candidates AS MATERIALIZED (
     fact.scope_id,
     fact.generation_id,
     fact.fact_kind,
-    LOWER(BTRIM(COALESCE(fact.payload->>'ecosystem', ''))) AS ecosystem,
+    LOWER((BTRIM(COALESCE(fact.payload->>'ecosystem', ''))) COLLATE "C") COLLATE "default" AS ecosystem,
     BTRIM(COALESCE(fact.payload->>'package_name', '')) AS package_name,
     BTRIM(COALESCE(fact.payload->>'package_id', '')) AS package_id
   FROM fact_records AS fact

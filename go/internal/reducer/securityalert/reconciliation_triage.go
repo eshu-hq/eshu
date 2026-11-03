@@ -62,7 +62,7 @@ func normalizedSecurityAlertEcosystem(ecosystem string) string {
 	if normalized != "" {
 		return normalized
 	}
-	return strings.ToLower(strings.TrimSpace(ecosystem))
+	return packageidentity.LowerASCII(strings.TrimSpace(ecosystem))
 }
 
 func securityAlertEcosystemHasMatcher(ecosystem string) bool {

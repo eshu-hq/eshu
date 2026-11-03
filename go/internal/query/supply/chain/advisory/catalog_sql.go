@@ -60,7 +60,7 @@ WITH vuln_facts AS (
             THEN (fact.payload->>'cvss_score')::numeric
             ELSE 0
         END AS cvss_score,
-        NULLIF(LOWER(TRIM(fact.payload->>'ecosystem')), '') AS ecosystem,
+        NULLIF(LOWER(TRIM(fact.payload->>'ecosystem') COLLATE "C") COLLATE "default", '') AS ecosystem,
         NULLIF(TRIM(fact.payload->>'package_id'), '') AS package_id,
         NULLIF(TRIM(fact.payload->>'purl'), '') AS purl
     FROM fact_records AS fact
@@ -91,7 +91,7 @@ WITH vuln_facts AS (
             THEN (fact.payload->>'cvss_score')::numeric
             ELSE 0
         END AS cvss_score,
-        NULLIF(LOWER(TRIM(fact.payload->>'ecosystem')), '') AS ecosystem,
+        NULLIF(LOWER(TRIM(fact.payload->>'ecosystem') COLLATE "C") COLLATE "default", '') AS ecosystem,
         NULLIF(TRIM(fact.payload->>'package_id'), '') AS package_id,
         NULLIF(TRIM(fact.payload->>'purl'), '') AS purl
     FROM fact_records AS fact
@@ -122,7 +122,7 @@ WITH vuln_facts AS (
             THEN (fact.payload->>'cvss_score')::numeric
             ELSE 0
         END AS cvss_score,
-        NULLIF(LOWER(TRIM(fact.payload->>'ecosystem')), '') AS ecosystem,
+        NULLIF(LOWER(TRIM(fact.payload->>'ecosystem') COLLATE "C") COLLATE "default", '') AS ecosystem,
         NULLIF(TRIM(fact.payload->>'package_id'), '') AS package_id,
         NULLIF(TRIM(fact.payload->>'purl'), '') AS purl
     FROM fact_records AS fact
@@ -191,7 +191,7 @@ WHERE ($1 = '' OR LOWER(COALESCE(severity_label, '')) = LOWER($1))
   AND (
         $2 = ''
         OR EXISTS (
-            SELECT 1 FROM unnest(ecosystems) AS e WHERE e = LOWER($2)
+            SELECT 1 FROM unnest(ecosystems) AS e WHERE e = LOWER(($2) COLLATE "C") COLLATE "default"
         )
       )
   AND (
