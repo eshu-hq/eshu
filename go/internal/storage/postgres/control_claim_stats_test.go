@@ -226,6 +226,35 @@ func TestWorkflowStatsGateSkipsHealthyGrowth(t *testing.T) {
 	}
 }
 
+// TestWorkflowStatsGateSkipsDribbleOntoTrivialBase pins the self-limiting
+// half of the staleness rule: growth that does not exceed a trivially small
+// analyzed base runs no ANALYZE, so dribbles onto a genuinely small table do
+// not pay an ANALYZE on every admission. Growth accumulates in
+// n_mod_since_analyze until it passes the base, when the stale rule fires.
+func TestWorkflowStatsGateSkipsDribbleOntoTrivialBase(t *testing.T) {
+	t.Parallel()
+
+	for _, row := range []struct {
+		name     string
+		gateRow  []any
+		admitted int
+	}{
+		{"dribble under base", []any{true, false, int64(4), float64(5)}, 1},
+		{"growth at equality", []any{true, false, int64(4), float64(5)}, 1},
+		{"base at ceiling", []any{true, false, int64(100000), float64(10)}, 100000},
+	} {
+		recorder := &statsGateRecorder{gateRow: row.gateRow}
+		store := NewWorkflowControlStore(recorder)
+
+		if got := store.analyzeWorkflowWorkItemsOnce(context.Background(), telemetry.WorkflowStatsAnalyzeSiteEnqueue, row.admitted); got != telemetry.WorkflowStatsAnalyzeOutcomeSkipped {
+			t.Fatalf("%s: analyzeWorkflowWorkItemsOnce() = %q, want %q", row.name, got, telemetry.WorkflowStatsAnalyzeOutcomeSkipped)
+		}
+		if recorder.issued("ANALYZE") {
+			t.Fatalf("%s: ran ANALYZE; the gate must stay silent below the stale boundary", row.name)
+		}
+	}
+}
+
 // TestEnqueueWorkItemsRunsStatsGateAfterBatches pins the unguarded wire: a
 // bulk admission through EnqueueWorkItems ends with the statistics gate, and
 // the gate fires because rows landed on a never-analyzed table.
