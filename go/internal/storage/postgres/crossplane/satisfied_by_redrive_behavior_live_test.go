@@ -6,7 +6,10 @@ package crossplanestore_test
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"slices"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -89,6 +92,8 @@ func TestCrossplaneSatisfiedByRedriveClosesXRDLagWindowLive(t *testing.T) {
 	t.Run("retry_clears_debt", testCrossplaneRedriveRetryClearsReplayDebtLive)
 	t.Run("concurrent_insert", testCrossplaneRedriveConcurrentInsertWinnerKeepsReplayDebtLive)
 	t.Run("claimed_row_cost", testCrossplaneReplayClaimedRowCostLive)
+	t.Run("terminal_target_claimed", testCrossplaneRedriveTerminalTargetStaysClaimedForCatchUpLive)
+	t.Run("stale_sweep_single_scheduling", testCrossplaneRedriveStaleSweepReplayKeepsSingleSchedulingLive)
 }
 
 func testCrossplaneSatisfiedByRedriveClosesXRDLagWindowLive(t *testing.T) {
@@ -627,4 +632,210 @@ func testCrossplaneReplayClaimedRowCostLive(t *testing.T) {
 	slices.Sort(baseline)
 	slices.Sort(fixed)
 	t.Logf("claimed-row replay, %d paired samples, one PostgreSQL 16 connection: legacy p50=%s fixed p50=%s; legacy p95=%s fixed p95=%s", pairs, baseline[pairs/2], fixed[pairs/2], baseline[pairs*95/100], fixed[pairs*95/100])
+}
+
+// TestCrossplaneRedriveTerminalTargetStaysClaimedForCatchUpLive pins the
+// unscheduled-target branch live: a target whose stable work item is already
+// terminal (dead-lettered through the production Fail path) makes the sweep
+// return the 'not schedulable' error and leaves the state row 'claimed' --
+// never silently completed or lost. The catch-up path then reclaims the row
+// and reports the same per-claim error, proving the target stays
+// reclaimable pending operator repair instead of vanishing.
+func testCrossplaneRedriveTerminalTargetStaysClaimedForCatchUpLive(t *testing.T) {
+	database, _ := crossplaneRedriveProofDB(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	const (
+		claimScopeID      = "scope-claim-terminal-redrive"
+		claimGenerationID = "gen-claim-terminal-redrive"
+		xrdScopeID        = "scope-xrd-terminal-redrive"
+		xrdGenerationID   = "gen-xrd-terminal-redrive"
+		group             = "database.example.com"
+		claimKind         = "PostgreSQL"
+	)
+	seedCrossplaneRedriveClaimScope(ctx, t, database, claimScopeID, claimGenerationID, group, claimKind, 1, now)
+	queue := postgres.NewReducerQueue(postgres.SQLDB{DB: database}, "terminal-redrive-worker", time.Minute)
+	queue.ClaimDomain = reducer.DomainCrossplaneSatisfiedByMaterialization
+	if scheduled, err := queue.ReplayCrossplaneSatisfiedByMaterialization(ctx, claimScopeID, claimGenerationID); err != nil || !scheduled {
+		t.Fatalf("enqueue Claim materialization: scheduled=%t error=%v", scheduled, err)
+	}
+	claimed, ok, err := queue.Claim(ctx)
+	if err != nil || !ok {
+		t.Fatalf("claim materialization: claimed=%t error=%v", ok, err)
+	}
+	// Drive the row terminal through the production failure entry point
+	// (a non-retryable cause dead-letters), not a hand-written status flip.
+	if err := queue.Fail(ctx, claimed, errors.New("terminal proof failure")); err != nil {
+		t.Fatalf("fail claim item with terminal cause: %v", err)
+	}
+	var status string
+	if err := database.QueryRowContext(ctx, `SELECT status FROM fact_work_items WHERE work_item_id = $1`, claimed.IntentID).Scan(&status); err != nil {
+		t.Fatalf("read terminal work item: %v", err)
+	}
+	if status != "dead_letter" {
+		t.Fatalf("work item status = %q, want dead_letter before the sweep", status)
+	}
+
+	seedCrossplaneRedriveXRD(ctx, t, database, xrdScopeID, xrdGenerationID, group, claimKind, now.Add(time.Minute))
+	shortLease := 300 * time.Millisecond
+	sweeper := crossplanestore.CrossplaneSatisfiedByRedriveSweeper{
+		DB:            postgres.SQLQueryer{DB: database},
+		State:         crossplanestore.NewCrossplaneRedriveStateStore(postgres.SQLDB{DB: database}),
+		Replayer:      queue,
+		Owner:         "projector",
+		LeaseDuration: shortLease,
+	}
+	_, err = sweeper.Sweep(ctx, xrdScopeID, xrdGenerationID)
+	if err == nil || !strings.Contains(err.Error(), "not schedulable") {
+		t.Fatalf("sweep against terminal target = %v, want the 'not schedulable' error", err)
+	}
+	assertCrossplaneRedriveStateStatus(ctx, t, database, xrdScopeID, xrdGenerationID, "claimed")
+	assertCrossplaneRedriveLedgerEntry(ctx, t, database, claimScopeID, group, claimKind, false)
+
+	// Past the short lease the catch-up path reclaims the same row and
+	// reports the same per-claim error: still 'claimed', never 'completed',
+	// still no ledger entry -- reclaimable pending operator repair.
+	time.Sleep(shortLease + 200*time.Millisecond)
+	catchUpSweeper := crossplanestore.CrossplaneSatisfiedByRedriveSweeper{
+		DB:            postgres.SQLQueryer{DB: database},
+		State:         crossplanestore.NewCrossplaneRedriveStateStore(postgres.SQLDB{DB: database}),
+		Replayer:      queue,
+		Owner:         "projector",
+		LeaseDuration: time.Minute,
+	}
+	if _, err := catchUpSweeper.SweepBatch(ctx, 10); err == nil || !strings.Contains(err.Error(), "not schedulable") {
+		t.Fatalf("catch-up sweep against terminal target = %v, want the 'not schedulable' error", err)
+	}
+	assertCrossplaneRedriveStateStatus(ctx, t, database, xrdScopeID, xrdGenerationID, "claimed")
+	assertCrossplaneRedriveLedgerEntry(ctx, t, database, claimScopeID, group, claimKind, false)
+}
+
+// crossplaneRedriveGateReplayer wraps a real replayer and blocks every call
+// after blockAfter until release is closed, stalling one sweep mid-fan-out
+// while holding no database connection (the page rows are drained before
+// each replay call). It makes the stale-sweep interleaving deterministic:
+// sweep A replays its first target, stalls on the second, and resumes only
+// after sweeper B has reclaimed and completed the same generation.
+type crossplaneRedriveGateReplayer struct {
+	real       crossplanestore.CrossplaneRedriveIntentReplayer
+	blockAfter int
+	calls      atomic.Int64
+	release    chan struct{}
+}
+
+func (g *crossplaneRedriveGateReplayer) ReplayCrossplaneSatisfiedByMaterialization(
+	ctx context.Context, targetScopeID, targetGenerationID string,
+) (bool, error) {
+	if g.calls.Add(1) > int64(g.blockAfter) {
+		select {
+		case <-g.release:
+		case <-ctx.Done():
+			return false, ctx.Err()
+		}
+	}
+	return g.real.ReplayCrossplaneSatisfiedByMaterialization(ctx, targetScopeID, targetGenerationID)
+}
+
+// TestCrossplaneRedriveStaleSweepReplayKeepsSingleSchedulingLive is the
+// issue #8948 lease-fencing proof (arbiter verdict C: no production change).
+// Sweep A stalls mid-fan-out; sweeper B reclaims the expired lease under the
+// same static owner string, replays both targets, and completes. Stale A then
+// resumes: its replay calls must not create a second work item per target,
+// and its trailing completion must report the reclaimed outcome instead of
+// overwriting B's completion. This is the first live assertion of
+// OutcomeReclaimedMidSweep.
+func testCrossplaneRedriveStaleSweepReplayKeepsSingleSchedulingLive(t *testing.T) {
+	database, _ := crossplaneRedriveProofDB(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	const (
+		xrdScopeID      = "scope-xrd-stale-sweep"
+		xrdGenerationID = "gen-xrd-stale-sweep"
+		group           = "database.example.com"
+		claimKind       = "PostgreSQL"
+	)
+	targets := []string{"scope-claim-stale-a", "scope-claim-stale-b"}
+	seedCrossplaneRedriveXRD(ctx, t, database, xrdScopeID, xrdGenerationID, group, claimKind, now)
+	for i, targetScopeID := range targets {
+		seedCrossplaneRedriveClaimScope(ctx, t, database, targetScopeID, targetScopeID+"-gen-001", group, claimKind, 1, now.Add(time.Duration(i)*time.Second))
+	}
+
+	realQueue := postgres.NewReducerQueue(postgres.SQLDB{DB: database}, "stale-sweep-worker", time.Minute)
+	gate := &crossplaneRedriveGateReplayer{real: realQueue, blockAfter: 1, release: make(chan struct{})}
+	shortLease := 300 * time.Millisecond
+	staleSweeper := crossplanestore.CrossplaneSatisfiedByRedriveSweeper{
+		DB:            postgres.SQLQueryer{DB: database},
+		State:         crossplanestore.NewCrossplaneRedriveStateStore(postgres.SQLDB{DB: database}),
+		Replayer:      gate,
+		Owner:         "projector",
+		LeaseDuration: shortLease,
+	}
+	type sweepOutcome struct {
+		result crossplanestore.CrossplaneRedriveSweepResult
+		err    error
+	}
+	staleCh := make(chan sweepOutcome, 1)
+	go func() {
+		result, err := staleSweeper.Sweep(ctx, xrdScopeID, xrdGenerationID)
+		staleCh <- sweepOutcome{result: result, err: err}
+	}()
+
+	// Wait until sweep A has replayed its first target and stalled on the
+	// second before letting its lease expire.
+	deadline := time.Now().Add(10 * time.Second)
+	for gate.calls.Load() < 2 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if calls := gate.calls.Load(); calls < 2 {
+		t.Fatalf("stale sweep never reached its second replay call (calls=%d)", calls)
+	}
+	time.Sleep(shortLease + 200*time.Millisecond)
+
+	freshSweeper := crossplanestore.CrossplaneSatisfiedByRedriveSweeper{
+		DB:            postgres.SQLQueryer{DB: database},
+		State:         crossplanestore.NewCrossplaneRedriveStateStore(postgres.SQLDB{DB: database}),
+		Replayer:      realQueue,
+		Owner:         "projector",
+		LeaseDuration: time.Minute,
+	}
+	results, err := freshSweeper.SweepBatch(ctx, 10)
+	if err != nil {
+		t.Fatalf("reclaiming SweepBatch: %v", err)
+	}
+	if len(results) != 1 || results[0].Outcome != crossplanestore.CrossplaneRedriveOutcomeCompletedForTest || results[0].TargetsEnqueued != 2 {
+		t.Fatalf("reclaiming sweep = %+v, %v, want one completed sweep with 2 targets", results, err)
+	}
+
+	close(gate.release)
+	var stale sweepOutcome
+	select {
+	case stale = <-staleCh:
+	case <-time.After(30 * time.Second):
+		t.Fatalf("stale sweep did not return after release")
+	}
+	if stale.err != nil {
+		t.Fatalf("stale sweep error = %v, want a clean reclaimed outcome", stale.err)
+	}
+	if stale.result.Outcome != crossplanestore.CrossplaneRedriveOutcomeReclaimedMidSweepForTest {
+		t.Fatalf("stale sweep outcome = %q, want %q", stale.result.Outcome, crossplanestore.CrossplaneRedriveOutcomeReclaimedMidSweepForTest)
+	}
+
+	// Exactly one stable work item per target: the stale replay must not
+	// duplicate anything the reclaiming sweep scheduled.
+	var count int
+	if err := database.QueryRowContext(ctx, `
+		SELECT count(*) FROM fact_work_items
+		WHERE stage = 'reducer' AND domain = 'crossplane_satisfied_by_materialization'
+		  AND scope_id IN ('scope-claim-stale-a', 'scope-claim-stale-b')
+	`).Scan(&count); err != nil {
+		t.Fatalf("count stable work items: %v", err)
+	}
+	if count != 2 {
+		t.Fatalf("stable work items = %d, want exactly one per target after the stale interleaving", count)
+	}
+	assertCrossplaneRedriveStateStatus(ctx, t, database, xrdScopeID, xrdGenerationID, "completed")
+	for _, targetScopeID := range targets {
+		assertCrossplaneRedriveTargetPending(ctx, t, database, targetScopeID, targetScopeID+"-gen-001", true)
+		assertCrossplaneRedriveLedgerEntry(ctx, t, database, targetScopeID, group, claimKind, false)
+	}
 }
