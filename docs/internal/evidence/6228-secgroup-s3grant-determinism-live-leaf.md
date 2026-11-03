@@ -32,10 +32,13 @@ the SG assert's 5 edges were present. Forensics on the kept stack:
   node label onto the rel either).
 - Fix (this branch): drop `target_label` from the 5 TO fixture entries
   and from the offline row→expected conversion (extract rows keep the
-  field — the writer needs it for MATCH grouping). No coverage lost:
-  the writer's `MATCH (target:LABEL)` enforces label agreement at write
-  time, so a wrong-label regression no-ops the write and fails as
-  missing. Re-proved live: endpoint assert 5/5 on the same graph;
+  field — the writer needs it for MATCH grouping). Label agreement is
+  now bound hermetically: the guard checks each row's `target_label`
+  against its per-rule expectation
+  (`checkSecurityGroupRuleEndpointTargetLabels`), so a wrong-label
+  regression fails offline; the writer's `MATCH (target:LABEL)` remains
+  the live backstop (a wrong-label write no-ops and fails as missing).
+  Re-proved live: endpoint assert 5/5 on the same graph;
   `go test ./internal/ifa/...` green.
 - Pre-existing inconsistency (fixture predates this lane; offline guard
   tests extract rows, never graph properties, so only a live run could

@@ -40,6 +40,23 @@ func securityGroupRuleEndpointExpectedEdgesPath(repoRoot string) string {
 	return filepath.Join(repoRoot, securityGroupRuleEndpointExpectedEdgesRelPath)
 }
 
+// securityGroupRuleEndpointTargetLabelByRule binds each of the five live
+// rules to its expected endpoint label, keyed by the rule_uid the extractor
+// recomputes. The shared expected-edges fixture cannot assert the label —
+// the writer MERGEs on its two endpoint nodes alone and target_label only
+// fills the MATCH node-label position — so the guard checks it here, beside
+// the uid comparison: a regression resolving the right uid under the wrong
+// label fails hermetically instead of passing through to the live tier.
+// Measured off the extractor over the shared Odù; an unknown rule_uid fails
+// closed so a new resolving rule must land here deliberately.
+var securityGroupRuleEndpointTargetLabelByRule = map[string]string{
+	"0a3afef6f922fb2707a353db2d131190432d0120fe17988f3b5d0a69768c8161": "CidrBlock",
+	"2bd0a21bf7c2da764fafd5cd8bfc5069ec72e952de9be18479904ac2c1c24f07": "CidrBlock",
+	"72b8b0b553d9576dabcbf58294b3fb6051296bb284086a795c9208c113af2251": "CloudResource",
+	"91f3f557f98ef57990c79f8d6a3514051aa1b125c217ac5dc43c0c8e715e3973": "CidrBlock",
+	"957b5c8d30dff26cc1d05efe35545a3d5b1c776eee2e577dda138d6a2b6a9ecd": "PrefixList",
+}
+
 // resolveSecurityGroupRuleEndpointMaterializedEdges is
 // security_group_rule_endpoint's named vacuity guard (#6228).
 //
@@ -96,6 +113,9 @@ func resolveSecurityGroupRuleEndpointMaterializedEdges(odu ifa.Odu, expectedEdge
 			return false, fmt.Sprintf("odù %q: extractor row %d carries a blank target_label; the writer screens the label against a closed vocabulary before interpolating it into the MATCH, so a blank label would be rejected at write time rather than materialized", odu.Name, index)
 		}
 	}
+	if problem := checkSecurityGroupRuleEndpointTargetLabels(odu.Name, result.RuleEndpointEdges); problem != "" {
+		return false, problem
+	}
 
 	actual := securityGroupRuleEndpointRowsToExpectedEdges(result.RuleEndpointEdges)
 	if mismatch := compareDirectFamilyExpectedEdges(odu.Name, securityGroupRuleEndpointFamily, expected, actual); mismatch != "" {
@@ -105,6 +125,26 @@ func resolveSecurityGroupRuleEndpointMaterializedEdges(odu ifa.Odu, expectedEdge
 		"odù %q: ExtractSecurityGroupReachability reproduces the expected %d-edge rule -> endpoint set exactly across all %d registry type(s) and %d fact envelope(s); the ghost anchor, ghost endpoint, unknown-source, and tombstoned rules produced no spurious rows",
 		odu.Name, len(expected), len(registry), len(odu.Facts),
 	)
+}
+
+// checkSecurityGroupRuleEndpointTargetLabels binds each extractor row's
+// target_label to its per-rule expectation from
+// securityGroupRuleEndpointTargetLabelByRule. The shared fixture compares
+// edge identity only, so without this a regression resolving the right uid
+// under the wrong label would pass hermetically. An unlisted rule_uid fails
+// closed: a newly resolving rule must land in the map deliberately.
+func checkSecurityGroupRuleEndpointTargetLabels(oduName string, rows []map[string]any) string {
+	for index, row := range rows {
+		ruleUID := anyToStringValue(row["rule_uid"])
+		want, known := securityGroupRuleEndpointTargetLabelByRule[ruleUID]
+		if !known {
+			return fmt.Sprintf("odù %q: extractor row %d names an unlisted rule_uid; the per-rule label map must gain the new rule with its expected endpoint label, or a new rule is resolving that the fixture never meant to cover", oduName, index)
+		}
+		if got := anyToStringValue(row["target_label"]); got != want {
+			return fmt.Sprintf("odù %q: extractor row %d resolves its endpoint under label %q, want %q; the writer's MATCH (target:LABEL) would no-op a wrong-label write, so the edge identity alone cannot see this regression", oduName, index, got, want)
+		}
+	}
+	return ""
 }
 
 // securityGroupRuleEndpointRowsToExpectedEdges converts the extractor's
