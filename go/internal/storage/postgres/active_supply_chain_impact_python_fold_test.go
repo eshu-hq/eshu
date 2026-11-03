@@ -125,6 +125,41 @@ func TestFoldPythonReachabilityFilesPagesAndFolds(t *testing.T) {
 	}
 }
 
+// TestFoldPythonReachabilityFilesReadsSnapshotVariant pins the
+// impactStaticSnapshot query swap: the engaged snapshot clone reads the same
+// rows through the protected statements and folds the same files and bytes.
+func TestFoldPythonReachabilityFilesReadsSnapshotVariant(t *testing.T) {
+	t.Parallel()
+
+	routed, rawByID, repoByID := pythonFoldRoutingDB(t, 120)
+	snapshot := NewFactStore(routed)
+	snapshot.impactStaticSnapshot = true
+	fold := supplychaincore.NewFileReachabilityFold(nil)
+	files, payloadBytes, err := snapshot.FoldPythonReachabilityFiles(
+		context.Background(), "scope-py", "gen-py", "repo_id", []string{"repo-a", "repo-b"}, fold,
+	)
+	if err != nil {
+		t.Fatalf("FoldPythonReachabilityFiles() error = %v, want nil", err)
+	}
+	var wantFiles int
+	var wantBytes int64
+	for id := range repoByID {
+		wantFiles++
+		wantBytes += int64(len(rawByID[id]))
+	}
+	if files != wantFiles {
+		t.Fatalf("folded files = %d, want %d (snapshot variant)", files, wantFiles)
+	}
+	if payloadBytes != wantBytes {
+		t.Fatalf("folded bytes = %d, want %d (snapshot variant)", payloadBytes, wantBytes)
+	}
+	for _, call := range routed.calls {
+		if call.Label != "python_fold" {
+			t.Fatalf("routed call = %q, want only python_fold pages", call.Label)
+		}
+	}
+}
+
 // TestFoldPythonReachabilityFilesRejectsBlankKey pins the short-circuit: a
 // blank key or an empty allowlist reads nothing.
 func TestFoldPythonReachabilityFilesRejectsBlankKey(t *testing.T) {

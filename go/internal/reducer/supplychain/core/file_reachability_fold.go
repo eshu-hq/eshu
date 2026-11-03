@@ -262,6 +262,10 @@ type pythonReachabilityFileFolder interface {
 // the pass: a digest envelope for the folded files (or nothing when the stage
 // folded nothing), plus the folded file and raw payload byte counts for the
 // operator signals. The stage never retains file envelopes (#9860).
+//
+// foldedBytes is raw payload bytes as read: exact raw JSON on the pager path,
+// re-encoded JSON length on the whole-load fallback path. Both bound the same
+// operator signal; only the pager path runs in production.
 type pythonReachabilityLoad struct {
 	envelopes   []facts.Envelope
 	foldedFiles int
