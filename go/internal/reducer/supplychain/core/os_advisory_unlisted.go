@@ -44,10 +44,10 @@ func osUnlistedFactOutcome(
 // PR-2b, ruling decision 6). Unreadable entries are left to the later scan.
 //
 // When some fact names no range for the host's line (ReleaseUnlisted), a list
-// on a fact that does carry release evidence counts too. That fact settles the
-// host exactly in the scan below, so a known-fixed answer built from the
-// unlisted fact's ranges must not preempt it. ReleaseUnlisted is set only on a
-// tagged fact, so with untagged facts this keeps the earlier rule unchanged.
+// on a fact that does carry release evidence counts too: that fact settles the
+// host exactly in the scan below, and the weak not-in-advisory read must not
+// mask it. ReleaseUnlisted is set only on a tagged fact, so with untagged
+// facts this keeps the earlier rule unchanged.
 func osVersionListNamesObserved(observed string, pkgs []supplychainmodel.AffectedPackage, compare versionCompareFunc) bool {
 	anyUnlisted := false
 	for _, pkg := range pkgs {
