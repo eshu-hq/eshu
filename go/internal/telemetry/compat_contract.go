@@ -273,6 +273,7 @@ const (
 	SpanVulnerabilityIntelligenceFetch   = contract.SpanVulnerabilityIntelligenceFetch
 	SpanVulnerabilityIntelligencePlan    = contract.SpanVulnerabilityIntelligencePlan
 	MetricDimensionPageCount             = contract.MetricDimensionPageCount
+	MetricDimensionEdgeKind              = contract.MetricDimensionEdgeKind
 )
 
 // Incident-context query span (from contract/z_incident_context.go).

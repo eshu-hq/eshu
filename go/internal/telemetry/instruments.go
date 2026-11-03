@@ -2027,6 +2027,12 @@ type Instruments struct {
 	// kept, never dropped, so this counter is the operator's proof the
 	// kept-but-untagged path fires.
 	VulnerabilityIntelligenceReleaseTagsUnparseable metric.Int64Counter
+	// VulnerabilityIntelligenceIdentityEdgesEmitted counts the identity-edge
+	// elements (aliases, related, upstream ids) written on vulnerability.cve
+	// facts, by source, closed edge kind, and closed status (active or
+	// withdrawn) (#9954). It counts edge elements, not facts, so a distro record
+	// naming ten CVEs adds ten to the upstream series.
+	VulnerabilityIntelligenceIdentityEdgesEmitted metric.Int64Counter
 
 	// DriftSchemaUnknownComposite counts Terraform-state composite attributes
 	// the streaming nested walker dropped because the loaded
@@ -4046,6 +4052,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register VulnerabilityIntelligenceReleaseTagsUnparseable counter: %w", err)
+	}
+
+	inst.VulnerabilityIntelligenceIdentityEdgesEmitted, err = meter.Int64Counter(
+		"eshu_dp_vulnerability_intelligence_identity_edges_emitted_total",
+		metric.WithDescription("Total vulnerability identity-edge elements (aliases, related, upstream) written on CVE facts by source, edge kind, and status (active or withdrawn)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register VulnerabilityIntelligenceIdentityEdgesEmitted counter: %w", err)
 	}
 
 	inst.SecurityAlertProviderRequests, err = meter.Int64Counter(
