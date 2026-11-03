@@ -501,6 +501,8 @@ gates:
       - "scripts/ci/go-install-retry.sh"
       - "scripts/verify-scanner-digest-pins.sh"
       - "scripts/test-verify-scanner-digest-pins.sh"
+      - "scripts/check-scanner-freshness.sh"
+      - "scripts/test-check-scanner-freshness.sh"
       - "specs/ci-images.v1.json"
       - "go/go.mod"
       - "go/go.sum"
@@ -508,7 +510,7 @@ gates:
       - "go/internal/collector/scannercomponent/manifest_test.go"
       - "go/internal/collector/scannercomponent/**"
     local:
-      command: "bash scripts/test-verify-scanner-digest-pins.sh"
+      command: "bash scripts/test-verify-scanner-digest-pins.sh && bash scripts/test-check-scanner-freshness.sh"
       pre_push: floor
     ci:
       workflow: docker-publish.yml
