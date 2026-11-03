@@ -4723,7 +4723,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.SupplyChainImpactOSAdvisoryReleaseSelections, err = meter.Int64Counter(
 		"eshu_dp_supply_chain_impact_os_advisory_release_selections_total",
-		metric.WithDescription("Joined OS advisory facts a supply-chain impact pass evaluated, by source (debian, ubuntu, alpine, other) and result (release_matched, release_unlisted, release_untagged, host_release_unknown, vendor_source): whether the fact's release-tagged ranges named the installed row's release line. release_matched decides on the host's own range and fix; release_untagged keeps the untagged union rules."),
+		metric.WithDescription("Joined OS advisory facts a supply-chain impact pass evaluated, by source (debian, ubuntu, alpine, alma, rocky, other) and result (release_matched, release_unlisted, release_untagged, host_release_unknown, vendor_source): whether the fact's release-tagged ranges named the installed row's release line. release_matched decides on the host's own range and fix; release_untagged keeps the untagged union rules."),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SupplyChainImpactOSAdvisoryReleaseSelections counter: %w", err)
