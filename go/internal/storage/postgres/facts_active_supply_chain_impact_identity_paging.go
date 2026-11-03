@@ -152,7 +152,7 @@ func foldSupplyChainImpactFilePage(
 	scanned := 0
 	var pageBytes int64
 	for rows.Next() {
-		envelope, size, err := scanSizedSupplyChainImpactFact(rows)
+		envelope, size, err := scanTypedSizedSupplyChainImpactFact(rows)
 		if err != nil {
 			return 0, fmt.Errorf("list active supply chain impact facts: file fold page: %w", err)
 		}
@@ -453,8 +453,10 @@ func (s FactStore) foldPythonReachabilityFilePage(
 	var page pythonReachabilityFilePage
 	for rows.Next() {
 		// The row shape has one home in backfill: same SELECT list, plus the
-		// raw payload byte size for the operator signals.
-		envelope, size, scanErr := backfill.ScanFactEnvelopeWithPayloadSize(rows)
+		// raw payload byte size for the operator signals. The payload decodes
+		// through the typed file-payload decode (#9861), carrying only the
+		// keys the reachability readers consume; the size stays raw bytes.
+		envelope, size, scanErr := backfill.ScanTypedFileEnvelopeWithPayloadSize(rows)
 		if scanErr != nil {
 			return pythonReachabilityFilePage{}, fmt.Errorf("fold python reachability files: %w", scanErr)
 		}
