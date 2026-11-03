@@ -113,11 +113,6 @@ source "${repo_root}/scripts/lib/ifa_fault_injection_hold.sh"
 source "${repo_root}/scripts/lib/ifa_fault_lease_expiry_barrier.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_sources.sh
 source "${repo_root}/scripts/lib/ifa_fault_injection_sources.sh"
-# EXIT-trap cleanup. Separate file because the gate sits at the 500-line cap;
-# the function resolves the gate's globals at trap time.
-# shellcheck source=scripts/lib/ifa_fault_injection_cleanup.sh
-source "${repo_root}/scripts/lib/ifa_fault_injection_cleanup.sh"
-
 # ----------------------------------------------------------------------------
 # Configuration. One Compose project + one port triple reused across every
 # cell (torn down with `down -v` between cells) -- distinct from every
