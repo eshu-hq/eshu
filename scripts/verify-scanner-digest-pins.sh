@@ -27,9 +27,10 @@
 # (#8878 box 10). The anchor names that repository's publish commit; both
 # anchor lines move together with the pins in a reviewed re-pin PR. In-tree
 # scanner sources are gone, so this gate does not check post-anchor
-# freshness: no freshness signal exists yet, and the re-pin is a manual
-# reviewed PR per the satellite release workflow and its SECURITY.md
-# (tracked in #9943). The anchor advances only through reviewed re-pin PRs.
+# freshness: that signal lives in scripts/check-scanner-freshness.sh and the
+# weekly scanner-freshness schedule, and the re-pin stays a manual reviewed
+# PR per the satellite release workflow and its SECURITY.md (see #9943).
+# The anchor advances only through reviewed re-pin PRs.
 #
 # Usage:
 #   scripts/verify-scanner-digest-pins.sh [--manifest PATH]

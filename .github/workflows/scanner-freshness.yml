@@ -1,0 +1,35 @@
+name: Scanner Freshness Signal
+
+# Weekly, non-blocking (#9943). Compares the scanner manifest anchor to the
+# latest successful satellite `release` run, so an anchor that has gone stale
+# is reported within a week instead of at the next activation. The blocking
+# exactness check lives in docker-publish.yml (verify-scanner-digest-pins).
+# This workflow has no pull_request trigger, so it never holds
+# an unrelated change: STALE fails this scheduled run as the flag, FRESH
+# passes, and anything unreadable fails closed for triage.
+on:
+  schedule:
+    # Mondays 07:00 UTC, after the satellite Monday 06:00 scheduled lanes.
+    - cron: "0 7 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  check-scanner-freshness:
+    name: Scanner freshness (weekly)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Self-test the scanner freshness signal
+        run: bash scripts/test-check-scanner-freshness.sh
+
+      - name: Check scanner anchor freshness
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/check-scanner-freshness.sh

@@ -23,6 +23,7 @@ on:
       'scripts/verify-runtime-image-tools.sh', 'scripts/test-verify-runtime-image-tools.sh',
       'scripts/lib/rootfs-resolve.sh',
       'scripts/verify-scanner-digest-pins.sh', 'scripts/test-verify-scanner-digest-pins.sh',
+      'scripts/check-scanner-freshness.sh', 'scripts/test-check-scanner-freshness.sh',
       'scripts/ci/go-install-retry.sh',
     ]
   workflow_dispatch:
@@ -129,6 +130,9 @@ jobs:
       - name: Self-test the scanner digest pin verifier
         if: ${{ env.LANE_APPLIES == 'true' }}
         run: bash scripts/test-verify-scanner-digest-pins.sh
+      - name: Self-test the scanner freshness signal
+        if: ${{ env.LANE_APPLIES == 'true' }}
+        run: bash scripts/test-check-scanner-freshness.sh
       - name: Verify scanner digest pins against GHCR
         if: ${{ env.LANE_APPLIES == 'true' }}
         env:

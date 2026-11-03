@@ -83,6 +83,24 @@ gates:
       - network
     ci_only_reason: "daily scheduled run against the live Alpine repository; the blocking apk-floors row runs the same script"
 
+  - id: scanner-freshness-signal
+    name: Scanner freshness signal (weekly)
+    category: exactness
+    layer: secondary
+    purpose: "Compares the scanner manifest anchor to the latest successful satellite release weekly, so a stale anchor surfaces without a manifest change."
+    tier: ci-heavy
+    blocking: false
+    triggers:
+      - ".github/workflows/scanner-freshness.yml"
+      - "scripts/check-scanner-freshness.sh"
+      - "scripts/test-check-scanner-freshness.sh"
+    ci:
+      workflow: scanner-freshness.yml
+      job: "Scanner freshness (weekly)"
+    requirements:
+      - network
+    ci_only_reason: "weekly scheduled run against the live satellite release API; the hermetic mirror runs in the pre-push floor and the lane self-test step"
+
   - id: docker-publish
     name: Docker image publication
     category: release
