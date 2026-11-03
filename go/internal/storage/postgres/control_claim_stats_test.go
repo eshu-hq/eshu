@@ -21,7 +21,7 @@ import (
 // need no database: they script the pg_stat gate read and the ANALYZE exec
 // and assert the helper's outcome, its statement order, and its non-fatal
 // behavior. The live proof that the gate flips the real plan lives in
-// workflow_control_claim_stats_live_test.go.
+// control_claim_stats_live_test.go.
 
 // statsGateRecorder scripts one gate query result plus exec behavior and
 // records every statement the helper issues.

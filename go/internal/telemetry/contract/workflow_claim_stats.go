@@ -44,7 +44,9 @@ const (
 // dimension.
 const (
 	// WorkflowStatsAnalyzeOutcomeAnalyzed means the gate found no statistics
-	// and the ANALYZE executed.
+	// and the ANALYZE statement succeeded: it executed, or a concurrent
+	// ANALYZE already held the lock under SKIP_LOCKED (the lock holder
+	// refreshes the statistics either way).
 	WorkflowStatsAnalyzeOutcomeAnalyzed = "analyzed"
 	// WorkflowStatsAnalyzeOutcomeSkipped means the table already carried
 	// statistics, so no ANALYZE ran.

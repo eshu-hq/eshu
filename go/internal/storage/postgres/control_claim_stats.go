@@ -26,10 +26,10 @@ import (
 // a rows=1 estimate — 11.5 s at 100,011 items over 200 keys on PostgreSQL
 // 18.6, against 4 ms after ANALYZE. Every admission path therefore runs
 // ANALYZE (SKIP_LOCKED) once, after its commit, when the table has never
-// been analyzed. TRUNCATE does not clear pg_statistic, so a table with stale
-// small statistics still plans on the fair-claim index; only a table that
-// was never analyzed is cold (fresh install, recreated, or restored table on
-// its first large admission), which is exactly what the gate checks.
+// been analyzed. That covers the cold table (fresh install, recreated, or
+// restored table on its first large admission), which is exactly what the
+// gate checks. Bulk growth onto an already-analyzed but stale table is
+// out of scope here and tracked in #9926.
 
 // workflowWorkItemsStatsGateQuery reports whether workflow_work_items has
 // ever been analyzed, manually or by autovacuum.
