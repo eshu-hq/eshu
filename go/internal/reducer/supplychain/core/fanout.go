@@ -11,6 +11,7 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
 )
@@ -72,6 +73,59 @@ const (
 	fanOutOutcomeReopenError   = "reopen_error"
 	fanOutOutcomeStateError    = "state_error"
 )
+
+// The closed fan-out cause set (#9878): what family of evidence the
+// committing pass's own generation carried, which is what made its copies
+// change and its holders owe a re-derivation. Enrichment generations are
+// single-source by construction (one collector target per scope
+// generation), so epss and kev name an enrichment re-trigger exactly. A
+// generation mixing families reads mixed rather than guessing which family
+// flipped a given CVE; the per-CVE truth stays in the findings themselves.
+const (
+	fanOutCauseEPSS            = "epss"
+	fanOutCauseKEV             = "kev"
+	fanOutCauseAdvisory        = "advisory"
+	fanOutCauseSuppression     = "suppression"
+	fanOutCausePackageEvidence = "package_evidence"
+	fanOutCauseMixed           = "mixed"
+	fanOutCauseOther           = "other"
+)
+
+// fanOutCause classifies the committing generation's scope-fact kinds into
+// the closed cause set. Scope facts only ever carry
+// supplyChainImpactFactKinds members (the scope load asks for exactly those
+// kinds), so a kind outside the named families is package, image, alert, or
+// deployment evidence.
+func fanOutCause(kinds []string) string {
+	seen := map[string]struct{}{}
+	for _, kind := range kinds {
+		switch kind {
+		case chain.VulnerabilityEPSSScoreFactKind:
+			seen[fanOutCauseEPSS] = struct{}{}
+		case chain.VulnerabilityKnownExploitedFactKind:
+			seen[fanOutCauseKEV] = struct{}{}
+		case chain.VulnerabilityCVEFactKind,
+			chain.VulnerabilityAffectedPackageFactKind,
+			chain.VulnerabilityAffectedProductFactKind:
+			seen[fanOutCauseAdvisory] = struct{}{}
+		case chain.VulnerabilitySuppressionFactKind:
+			seen[fanOutCauseSuppression] = struct{}{}
+		case "":
+			continue
+		default:
+			seen[fanOutCausePackageEvidence] = struct{}{}
+		}
+	}
+	switch len(seen) {
+	case 0:
+		return fanOutCauseOther
+	case 1:
+		for cause := range seen {
+			return cause
+		}
+	}
+	return fanOutCauseMixed
+}
 
 // ErrFanOutReadTimeout marks a holder read that exceeded its bounded statement
 // timeout. The pass fails with it so the queue retries; the counter reports it
@@ -166,6 +220,9 @@ type SupplyChainImpactFanOut interface {
 
 // fanOutResult is what one pass's fan-out did, for sub-signals and the log.
 type fanOutResult struct {
+	// cause is the committing generation's evidence family (fanOutCause),
+	// carried on every counter outcome this pass emits.
+	cause         string
 	holders       int
 	reopened      int
 	replayFlagged int
@@ -188,9 +245,10 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 	ctx context.Context,
 	intent reducercontract.Intent,
 	write SupplyChainImpactWriteResult,
+	cause string,
 ) (fanOutResult, error) {
 	if h.FanOut == nil {
-		return fanOutResult{}, nil
+		return fanOutResult{cause: cause}, nil
 	}
 	stamped := fanOutOriginStamped(intent)
 	owed := fanOutOwed(intent)
@@ -220,10 +278,10 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 			// another path is judged fresh, and drop a marker with nothing behind it.
 			state.ClearOwed = owed
 			if err := h.FanOut.UpdateFanOutState(ctx, intent, state); err != nil {
-				return fanOutResult{}, fanOutError{fmt.Errorf("clear supply chain impact fan-out state: %w", err)}
+				return fanOutResult{cause: cause}, fanOutError{fmt.Errorf("clear supply chain impact fan-out state: %w", err)}
 			}
 		}
-		return fanOutResult{}, nil
+		return fanOutResult{cause: cause}, nil
 	}
 
 	ctx, span := h.startFanOutSpan(ctx, intent)
@@ -242,9 +300,9 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 	if len(cveIDs) > 0 {
 		inFlight, err := h.FanOut.FindInFlightScopes(ctx, intent.ScopeID)
 		if err != nil {
-			h.countFanOut(ctx, readFailureOutcome(err), 1)
+			h.countFanOut(ctx, cause, readFailureOutcome(err), 1)
 			span.RecordError(err)
-			return fanOutResult{}, fanOutError{fmt.Errorf("find in-flight supply chain impact scopes: %w", err)}
+			return fanOutResult{cause: cause}, fanOutError{fmt.Errorf("find in-flight supply chain impact scopes: %w", err)}
 		}
 		for _, id := range inFlight {
 			holders[id] = struct{}{}
@@ -253,9 +311,9 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 	for _, chunk := range chunkStrings(cveIDs, fanOutCVEChunk) {
 		found, err := h.FanOut.FindHolderScopes(ctx, intent.ScopeID, chunk)
 		if err != nil {
-			h.countFanOut(ctx, readFailureOutcome(err), 1)
+			h.countFanOut(ctx, cause, readFailureOutcome(err), 1)
 			span.RecordError(err)
-			return fanOutResult{}, fanOutError{fmt.Errorf("find supply chain impact holders: %w", err)}
+			return fanOutResult{cause: cause}, fanOutError{fmt.Errorf("find supply chain impact holders: %w", err)}
 		}
 		for _, id := range found {
 			holders[id] = struct{}{}
@@ -269,7 +327,7 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 	sort.Strings(ordered)
 
 	batch, rest := nextFanOutChunk(ordered, fanOutHolderCap)
-	result := fanOutResult{holders: len(ordered), deferred: len(rest), crashRecovery: recoveryOnly}
+	result := fanOutResult{cause: cause, holders: len(ordered), deferred: len(rest), crashRecovery: recoveryOnly}
 	if len(remaining) == 0 {
 		result.newlyDeferred = len(rest)
 	}
@@ -281,7 +339,7 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 	for _, holder := range batch {
 		outcome, err := h.FanOut.ReopenHolder(ctx, holder, origin)
 		if err != nil {
-			h.countFanOut(ctx, fanOutOutcomeReopenError, 1)
+			h.countFanOut(ctx, cause, fanOutOutcomeReopenError, 1)
 			span.RecordError(err)
 			return result, fanOutError{fmt.Errorf("reopen supply chain impact holder %q: %w", holder, err)}
 		}
@@ -300,13 +358,14 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 	state.ClearOwed = (owed || markerSet) && len(rest) == 0
 	if state.ReplaceRemaining || state.ConsumeOrigin || state.ClearOwed {
 		if err := h.FanOut.UpdateFanOutState(ctx, intent, state); err != nil {
-			h.countFanOut(ctx, fanOutOutcomeStateError, 1)
+			h.countFanOut(ctx, cause, fanOutOutcomeStateError, 1)
 			span.RecordError(err)
 			return result, fanOutError{fmt.Errorf("record supply chain impact fan-out state: %w", err)}
 		}
 	}
 	h.emitFanOut(ctx, intent, result)
 	span.SetAttributes(
+		attribute.String("cause", result.cause),
 		attribute.Int("holders", result.holders),
 		attribute.Int("reopened", result.reopened),
 		attribute.Int("replay_flagged", result.replayFlagged),

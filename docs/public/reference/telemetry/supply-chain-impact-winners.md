@@ -71,6 +71,22 @@ revoked it fails the tick with `permission denied`. Without the writer grant the
 impact write fails with `permission denied` and the reducer retries it; nothing
 is skipped silently.
 
+## Enrichment freshness
+
+A KEV listing or EPSS rescore does not edit winner rows directly. The
+enrichment scope's next impact pass re-derives its own copies from the new
+vintage, the changed CVE re-triggers every other scope holding a copy (the
+holder fan-out, counted by `eshu_dp_supply_chain_impact_fanout_total` with
+`cause="epss"` or `cause="kev"`), and the next resweep tick reflects the
+converged copies. Until that drain finishes, the winner can still be an
+older copy whose stale vintage outscores the fresh one. The freshness bound
+is queue latency plus one holder pass per holder scope plus one resweep
+tick; `eshu_dp_supply_chain_impact_winners_dirty_log_oldest_age_seconds`
+and the watermark age show how much of that bound is currently used. An
+unchanged KEV or EPSS collection creates no generation at all (the
+collector content-digest skip), so a flat `cause="epss"`/`"kev"` rate means
+no enrichment changed, not that re-triggers stopped.
+
 ## Signals
 
 | Signal | Type | Labels | What it tells you |

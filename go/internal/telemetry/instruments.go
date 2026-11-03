@@ -1113,9 +1113,13 @@ type Instruments struct {
 	SupplyChainSuppressionDecisions metric.Int64Counter
 	// SupplyChainImpactFanOut counts the outcomes of the one-hop holder
 	// fan-out a supply-chain impact pass runs after its writer commit (#9695).
-	// Labels: domain (supply_chain_impact) and outcome (reopened,
+	// Labels: domain (supply_chain_impact), outcome (reopened,
 	// replay_flagged, pending_noop, enqueued, crash_recovery, deferred,
-	// read_error, read_timeout, reopen_error, state_error). reopened, replay_flagged, pending_noop and
+	// read_error, read_timeout, reopen_error, state_error), and cause (#9878:
+	// epss, kev, advisory, suppression, package_evidence, mixed, other — the
+	// evidence family of the committing pass's own generation; enrichment
+	// generations are single-source, so epss and kev name an enrichment
+	// re-trigger exactly). reopened, replay_flagged, pending_noop and
 	// enqueued count holder scopes; crash_recovery counts a pass that fanned out
 	// only because its attempt count showed an earlier attempt may have died
 	// before the fan-out; deferred counts holders carried to a later claim;
@@ -4837,7 +4841,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.SupplyChainImpactFanOut, err = meter.Int64Counter(
 		"eshu_dp_supply_chain_impact_fanout_total",
-		metric.WithDescription("Total one-hop holder fan-out outcomes after a supply-chain impact write, by reducer domain and outcome"),
+		metric.WithDescription("Total one-hop holder fan-out outcomes after a supply-chain impact write, by reducer domain, outcome, and cause (the committing generation's evidence family: epss, kev, advisory, suppression, package_evidence, mixed, other)"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SupplyChainImpactFanOut counter: %w", err)

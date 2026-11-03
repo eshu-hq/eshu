@@ -22,9 +22,14 @@ import (
 // (loadSupplyChainImpactEvidence) while Handle stays focused on
 // classification, suppression, and the write/emit tail.
 type supplyChainImpactLoadedEvidence struct {
-	envelopes               []facts.Envelope
-	asAuthorized            *AuthorizedSupplyChainImpactLoad
-	scopeFacts              int
+	envelopes    []facts.Envelope
+	asAuthorized *AuthorizedSupplyChainImpactLoad
+	scopeFacts   int
+	// scopeFactKinds are the fact kinds of the intent's own generation (the
+	// first load, before any cross-scope expansion). The holder fan-out
+	// classifies its cause from them (#9878): they name what this pass's
+	// generation carried, never what the expansion resolved elsewhere.
+	scopeFactKinds          []string
 	repositoryFacts         int
 	manifestDependencyFacts int
 	activeEvidenceFacts     int
@@ -123,6 +128,10 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 		return supplyChainImpactLoadedEvidence{}, timing, fmt.Errorf("load supply chain impact facts: %w", err)
 	}
 	scopeFacts := len(envelopes)
+	scopeFactKinds := make([]string, 0, len(envelopes))
+	for _, envelope := range envelopes {
+		scopeFactKinds = append(scopeFactKinds, envelope.FactKind)
+	}
 	if h.authorizedStaticOnly {
 		envelopes = appendUniqueSupplyChainImpactFacts(envelopes, h.authorizedStaticAdvisories...)
 	}
@@ -245,6 +254,7 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 	return supplyChainImpactLoadedEvidence{
 		envelopes:                       envelopes,
 		scopeFacts:                      scopeFacts,
+		scopeFactKinds:                  scopeFactKinds,
 		repositoryFacts:                 repositoryFacts,
 		manifestDependencyFacts:         manifestDependencyFacts,
 		activeEvidenceFacts:             activeEvidenceFacts,

@@ -66,3 +66,32 @@ more than 256 holders drains across claims.
   alert scopes derive their own copies); the source scope's pass derives the
   finding from the same evidence, so the missing copy does not hide the
   finding.
+
+## Enrichment refresh (#9878)
+
+KEV and EPSS changes reach existing findings through this same edge, with no
+enrichment-specific code path. An unchanged KEV catalog or EPSS answer is
+skipped upstream by the collector content-digest hint (#9694), so it creates
+no generation and no re-trigger wave. A changed one commits a generation in
+its enrichment scope; that scope's pass re-derives its copies from the new
+vintage (EPSS selection is newest `score_date` first, never magnitude), the
+digest flip names the CVE in `ChangedCVEIDs`, and the fan-out reopens every
+other scope holding an active copy. Each holder re-derives only its own
+copy; the CVE-to-scope mapping is used solely to enqueue re-runs, never to
+write another scope's rows. Until the holders drain, the winners table can
+serve an older copy whose stale vintage outscores the fresh one: that window
+is the freshness contract, bounded by queue latency plus one holder pass per
+holder scope plus one 30-second winners resweep tick. The fan-out counter
+carries the committing generation's evidence family as `cause` (`epss`,
+`kev`, `advisory`, `suppression`, `package_evidence`, `mixed`, `other`), so
+an enrichment wave is separable from an advisory or suppression one;
+`eshu_dp_supply_chain_impact_winners_dirty_log_oldest_age_seconds` and the
+watermark age bound how far the read model lags the converged copies.
+
+Two enrichment residuals follow from the rules above. A delisting (KEV
+removal, EPSS drop) converges through the retraction side of the changed set,
+so a partial-evidence pass, which retracts nothing and proves no removal,
+does not propagate it until a later complete pass. And a newer EPSS
+`score_date` with unchanged probability still flips the digest (the selected
+date is in provenance), so holders re-derive once and land on identical
+scores: correct, at the cost of one holder pass each.

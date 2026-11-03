@@ -30,13 +30,17 @@ func (h SupplyChainImpactHandler) startFanOutSpan(ctx context.Context, intent re
 	))
 }
 
-func (h SupplyChainImpactHandler) countFanOut(ctx context.Context, outcome string, n int) {
+func (h SupplyChainImpactHandler) countFanOut(ctx context.Context, cause string, outcome string, n int) {
 	if n <= 0 || h.Instruments == nil || h.Instruments.SupplyChainImpactFanOut == nil {
 		return
+	}
+	if cause == "" {
+		cause = fanOutCauseOther
 	}
 	h.Instruments.SupplyChainImpactFanOut.Add(ctx, int64(n), metric.WithAttributes(
 		telemetry.AttrDomain(string(reducercontract.DomainSupplyChainImpact)),
 		attribute.String("outcome", outcome),
+		attribute.String("cause", cause),
 	))
 }
 
@@ -44,19 +48,20 @@ func (h SupplyChainImpactHandler) countFanOut(ctx context.Context, outcome strin
 // per-holder detail is a debug line (logFanOutHolder) so a 256-holder claim
 // does not write 256 info lines.
 func (h SupplyChainImpactHandler) emitFanOut(ctx context.Context, intent reducercontract.Intent, r fanOutResult) {
-	h.countFanOut(ctx, string(FanOutReopened), r.reopened)
-	h.countFanOut(ctx, string(FanOutReplayFlagged), r.replayFlagged)
-	h.countFanOut(ctx, string(FanOutPendingNoop), r.pendingNoop)
-	h.countFanOut(ctx, string(FanOutEnqueued), r.enqueued)
-	h.countFanOut(ctx, fanOutOutcomeDeferred, r.newlyDeferred)
+	h.countFanOut(ctx, r.cause, string(FanOutReopened), r.reopened)
+	h.countFanOut(ctx, r.cause, string(FanOutReplayFlagged), r.replayFlagged)
+	h.countFanOut(ctx, r.cause, string(FanOutPendingNoop), r.pendingNoop)
+	h.countFanOut(ctx, r.cause, string(FanOutEnqueued), r.enqueued)
+	h.countFanOut(ctx, r.cause, fanOutOutcomeDeferred, r.newlyDeferred)
 	if r.crashRecovery {
-		h.countFanOut(ctx, fanOutOutcomeCrashRecovery, 1)
+		h.countFanOut(ctx, r.cause, fanOutOutcomeCrashRecovery, 1)
 	}
 	if h.Logger == nil {
 		return
 	}
 	h.Logger.InfoContext(ctx, "supply chain impact holder fan-out",
 		slog.String("domain", string(reducercontract.DomainSupplyChainImpact)),
+		slog.String("cause", r.cause),
 		slog.String("scope_id", intent.ScopeID),
 		slog.String("generation_id", intent.GenerationID),
 		slog.String("intent_id", intent.IntentID),
