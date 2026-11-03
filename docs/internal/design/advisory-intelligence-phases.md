@@ -163,9 +163,9 @@ once the ADR lands.
 
 | Item | Source | Class | Proof | QA check |
 | --- | --- | --- | --- | --- |
-| 4.1 | CVE List v5, per CVE for owned CVEs | A, C, D | Fixtures for CNA and ADP metrics, SSVC, REJECTED, and `replacedBy`. | Severity from the CNA on CVEs that NVD defers. |
+| 4.1 | CVE List v5, per CVE for owned CVEs | A, C, D (no B until `affected_product` carries a source) | Fixtures for CNA and ADP metrics, SSVC, REJECTED, and `replacedBy`. | Severity from the CNA on CVEs that NVD defers. |
 | 4.2 | GHSA database | A, C | REST `updated` cursor fixture. Reviewed and malware records. Owner decides on unreviewed records. | GHSA source state fresh. |
-| 4.3 | ENISA EUVD | C, D | Alias merge fixture, `epss` percent conversion, EU KEV as its own exploited source. | EU KEV flags appear. |
+| 4.3 | ENISA EUVD | C, D | Alias merge fixture, EU KEV as its own exploited source (`known_exploited` with `source`). No `epss_score` from EUVD. | EU KEV flags appear. |
 | 4.4 | Exploit-DB | C | New kind `vulnerability.exploit_reference` (EDB id, CVE codes, verified). License sign-off first. | Exploit references on matching findings. |
 | 4.5 | Priority for SSVC, exploit references, and each KEV source | C | Priority fixtures. Exploited tiers come first, then EPSS probability. Never multiply EPSS by CVSS. | Priority order on QA findings matches the tiers. |
 

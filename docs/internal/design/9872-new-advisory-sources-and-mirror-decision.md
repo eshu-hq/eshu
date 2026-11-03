@@ -1,4 +1,4 @@
-# Admit three advisory sources, one conditionally, and gate mirror mode behind a measurement (#9872)
+# Admit CVE List, GHSA, and EUVD, hold Exploit-DB for sign-off, and gate mirror mode behind a measurement (#9872)
 
 Status: Accepted with changes (arbiter ruling 2026-11-03,
 [the ruling](../evidence/9872-new-source-adr-arbiter-ruling.md)). This record
@@ -70,14 +70,29 @@ the Phase 4 issue measures it before it ships. Every source also emits
 | --- | --- | --- | --- | --- | --- |
 | CVE List v5, per owned CVE (4.1) | A, C, D | `vulnerability.cve` (new `source` value `cve_list`), `affected_package` for CNA `packageURL` blocks, `reference`. No `affected_product` until that kind carries a source | 10 to 15 min on the `deltaLog.json` cursor for owned CVEs; git is the fallback | One request per changed owned CVE, at most 1 per second, with a request budget per claim. Upstream limit NOT_CHECKED | CVE List terms permit redistribution with the MITRE notice |
 | GHSA database (4.2) | A, C | `vulnerability.cve` (`source` value `ghsa`), `affected_package`, `reference`. Malware advisories carry GHSA ids; OpenSSF `MAL` ids come through OSV | 15 to 30 min on the REST `updated` cursor | Token required. At most 2,500 requests per hour, half of the 5,000 token limit. Unauthenticated use (60 per hour) is not supported | CC-BY 4.0; attribution carried on the snapshot |
-| ENISA EUVD (4.3) | C, D | `vulnerability.cve` (`source` value `euvd`: severity, aliases, and the EU KEV flag). No `epss_score`: its `epss` is FIRST's number as a percent with no `model_version`, so it adds a duplicate and no source | 1 to 2 h on `fromUpdatedDate`, overlapping one day | At most 1 request per second. Upstream limit NOT_CHECKED | NOT_CHECKED; confirm the EUVD terms before 4.3 ships |
+| ENISA EUVD (4.3) | C, D | `vulnerability.cve` (`source` value `euvd`: severity and aliases) and `vulnerability.known_exploited` (`source` value `euvd`, the EU KEV list as its own exploited source; see section 2). No `epss_score`: its `epss` is FIRST's number as a percent with no `model_version`, so it adds a duplicate and no source | 1 to 2 h on `fromUpdatedDate`, overlapping one day | At most 1 request per second. Upstream limit NOT_CHECKED | NOT_CHECKED; confirm the EUVD terms before 4.3 ships |
 | Exploit-DB (4.4) | C | New kind `vulnerability.exploit_reference`: EDB id, CVE codes, verified flag, and nothing else | Daily | One conditional GET of the repository CSV per day (about 10 MB). Never the website | GPL v2 repository; website terms forbid copying. Blocked until sign-off (question 3) |
 
 Each new source also needs: an envelope with a source-namespaced key, a source
 enum entry and validation, registry and schema overrides, and an operator
-signal for freshness. The reducer needs its source class added to
-`supportedTrustedAdvisorySourceClass`; that list is the only edit point found.
-Whether a separate rank table exists is NOT_CHECKED, and item 4.1 settles it.
+signal for freshness. Reducer, storage, and workflow edit points found so far,
+which item 4.1 re-checks and completes for the first new source:
+
+- `supportedTrustedAdvisorySourceClass` and `advisorySourcePriority` in the
+  reducer (`derived_partition.go`, `provenance_selection.go`): `ghsa` is
+  allowed, while `cve_list`, `euvd`, and `exploit_db` are not, and an unknown
+  source ranks last (999).
+- `authorizedImpactExpectedKinds` in
+  `go/internal/storage/postgres/supply_chain_impact_authorized_advisory.go`
+  knows only `nvd`, `osv`, `cisa_kev`, and `first_epss`.
+- `decodeVulnerabilityAdvisorySourceClass` hardcodes `known_exploited` to
+  `cisa_kev`; the `source` field on `known_exploited` changes this seam too.
+- Readiness: `fetchConfirmedSources` in `impact/readiness_source_age.go` and the
+  scope grammar in `go/internal/vulnsource/scope.go`. A source stored under a
+  token outside that grammar is invisible to readiness.
+- The target-source switch in `go/internal/workflow/vulnerability_intelligence_config.go`.
+
+Whether the readiness source map tolerates an unknown source is NOT_CHECKED.
 
 Evidence class sets the ceiling for what a record may do:
 
@@ -97,7 +112,9 @@ Evidence class sets the ceiling for what a record may do:
   `cve` record, is rejected because item 4.5 ranks "each KEV source" and needs
   one kind to read. This is a minor contract bump on `known_exploited`.
 - CVE List SSVC data needs a new optional field on `vulnerability.cve`. That is
-  a second minor bump on the same kind as item 3.1 (#9954), so it follows 3.1.
+  a second additive change to the same kind as item 3.1 (#9954), so it follows
+  3.1 to keep the SDK release candidates in order. REJECTED and `replaced_by`
+  need no new field: item 1.5 shipped them.
 - Exploit-DB needs the new kind `vulnerability.exploit_reference`.
 - Add an optional `license` and `attribution` field pair to
   `vulnerability.source_snapshot` before any new source ships (item 4.0). Also
@@ -111,7 +128,7 @@ provisional and adds these rules:
 1. **Baseline artifact.** A mirror baseline (CVE List midnight zip with its
    sha256 and cutoff, OSV bulk per ecosystem) cannot be a #603 artifact: those
    are one inline JSON read whole and capped at 16 MiB at cleanup, and the
-   baseline is 643 MB. The baseline is a new artifact version or store that
+   CVE List baseline is 643 MB (the OSV `all.zip` is 2.8 GB). The baseline is a new artifact version or store that
    reuses the four snapshot fields (version, digest, updated-at, freshness).
    Its digest is `cache_snapshot_digest`.
 2. **Retention.** #603 retention is a duration cutoff. "Keep the latest and the
@@ -146,8 +163,8 @@ recommendation, and the Phase 4 issues build against it.
 
 | # | Question | Default until answered |
 | --- | --- | --- |
-| 1 | Are unreviewed GHSA records in scope? | No. Reviewed and malware records only. Unreviewed records are published automatically from NVD with no validity check, carry no package ranges, and are absent from OSV. If admitted later they are class B or C, never A |
-| 2 | May Eshu show EPSS, and under what attribution text? | Keep the existing per-CVE API client and build no daily-CSV client. FIRST's FAQ says attribution is requested, and its data page says the API is for lookup, not bulk access (fetched 2026-11-03). Show "EPSS scores: FIRST.org Exploit Prediction Scoring System" pending the owner. FIRST's copyright and terms pages are NOT_CHECKED |
+| 1 | Are unreviewed GHSA records in scope? | No. Reviewed and malware records only. Unreviewed records are published automatically from NVD with no validity check and are absent from OSV. Whether they carry package ranges is NOT_CHECKED. If admitted later they are class B or C, never A |
+| 2 | May Eshu show EPSS, and under what attribution text? | Keep the existing per-CVE API client and build no daily-CSV client. FIRST's FAQ says attribution is requested, and its data page says the API is for lookup, not bulk access (fetched 2026-11-03). The attribution wording is the owner's call; the exact text on FIRST's pages and its copyright and terms pages are NOT_CHECKED |
 | 3 | Exploit-DB license sign-off (GPL v2 repository) | Item 4.4 (#9881) does not start and carries a blocked-on-question-3 note. When it does, facts carry metadata only, never exploit code or description text |
 | 4 | Opt in to NC-ND OSV ecosystems? | Split. (a) Mirror opt-in: No. (b) Eshu already ingests and derives findings from Wolfi and Chainguard records today (`provenance_selection.go`, `security-intelligence-source-coverage.md`), and osv.dev lists them as CC-BY-NC-ND 4.0. That existing query-driven use is a disclosed exposure the owner and legal sign-off must cover. No coverage is removed on a theory. Whether a Phase 5 catalog surface triggers the share-alike terms of Ubuntu and Alpine (CC-BY-SA 4.0) is NOT_CHECKED |
 
@@ -178,13 +195,16 @@ land only in `eshu-collector-vulnerability-intelligence`.
 | Item | Work | Starts when |
 | --- | --- | --- |
 | 4.0 | Optional `license`, `attribution`, `cache_expires_at`, and `cache_mode` on `vulnerability.source_snapshot` (minor bump) | Now. It touches a different kind than 3.1, so a registry conflict is mechanical |
-| 4.1 | CVE List v5 per owned CVE (#9880). Reads REJECTED and `replaced_by` from item 3.1 | 3.1 (#9954) and 4.0 |
+| 4.1 | CVE List v5 per owned CVE (#9880). It reads REJECTED and `replaced_by` through the contract fields item 1.5 already shipped | 4.0, and 3.1 (#9954) so the SSVC field lands as a later bump on `vulnerability.cve` instead of colliding with 3.1 |
 | 4.2 | GHSA database (token, reviewed and malware) | 3.1 and 4.0 |
 | 4.3 | ENISA EUVD, with `source` on `known_exploited` | 3.1, 4.0, and the EUVD terms check |
 | 4.4 | Exploit-DB references (#9881) | Question 3 answered |
 | 4.5 | Priority tiers (#9882) | The 4.1 to 4.4 kinds exist |
 | 5.1 | Shard-scoped generation measurement | 4.1, so it runs the real `cve_list` path |
 | 5.2 to 5.4 | Baseline, bulk OSV with license filter, catalog surfaces | 5.1 passes; 5.4 needs the owner's scope decision |
+
+Item 4.2 states how a direct GHSA source and OSV records that carry GHSA ids dedupe,
+since the reducer maps both to `ghsa`.
 
 Item 4.1 also names its per-CVE endpoint and auth before it ships, and derives
 the owned-CVE set the way item 2.1 does (CVEs on active findings, at most 100

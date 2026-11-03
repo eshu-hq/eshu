@@ -65,3 +65,13 @@ Upstream CVE List, EUVD, and raw GitHub rate limits; FIRST copyright and terms
 pages; whether a rank table exists beyond `supportedTrustedAdvisorySourceClass`;
 the readiness source map's tolerance of unknown sources; the docs build of the
 draft.
+
+## Coordinator corrections after the independent review
+
+The independent review (before the PR) found that ruling item 6 rested on a
+wrong premise: REJECTED and `replaced_by` are item 1.5 fields and already
+shipped, so item 4.1 does not need item 3.1 for them. The ADR keeps 4.1 behind
+3.1 for a different reason, serializing the SSVC field after 3.1 on
+`vulnerability.cve`. The review also found more reducer, storage, readiness, and
+workflow edit points than ruling item 7 named; the ADR lists them and leaves the
+full check to item 4.1.
