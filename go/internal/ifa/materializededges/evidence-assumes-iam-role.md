@@ -38,3 +38,30 @@ proves.
 
 No-Observability-Change: no spans, metrics, logs, ports, or status fields
 added. Family failures report through the existing guard and gate signals.
+
+## Live evidence (2026-11-03, rebased head e25dd55c83 on origin/main 50a0ddd333)
+
+- Determinism: `scripts/verify-ifa-determinism.sh` exit 0. Cross-N
+  canonical digest
+  `213ddc5f089b5f47b83ae6e0bb32bea8db913321a3a60042a45601d1202ffbc4`
+  byte-identical for N=1 (wall 258s), N=2 (188s), N=4 (250s). The
+  shared N-cell asserts the ten-edge live combined set for
+  assumes_iam_role exactly, pre- and post-delta, beside every sibling
+  shared-cell family.
+- Fault trio: `scripts/verify-ifa-fault-injection.sh --shard 3/8` exit 0
+  (shard PASS, project eshu-ifa-fault-injection-3864862). Trio digest
+  `09db83fa64d348150cc859e4e570c63465115c4c2c2517565e000eaee7656461`
+  byte-identical across baseline, kill, and failgraphwrite:
+  - baseline_assumes_iam_role: wall 77s, 2-edge exact set, 0
+    dead_letter rows, fault-free secrets_iam_graph_projection
+    retry-attempt baseline 0.
+  - killassumesiamrole (per-statement hold, kill -9 mid-hold): wall 87s,
+    2-edge exact set, 0 dead_letter rows. Hold non-vacuous:
+    the statement-held marker was present before the kill, and the
+    replacement reducer re-attempted the projection domain
+    (attempts 1 > baseline 0).
+  - failgraphwriteassumesiamrole: wall 78s, 2-edge exact set, 0
+    dead_letter rows.
+- Backend: gate-owned disposable Compose stacks per cell (Postgres +
+  NornicDB), `ESHU_DEPLOY_CHECKOUT=/tmp/eshu-deploy`, held the serial
+  live-drive token for the whole run.
