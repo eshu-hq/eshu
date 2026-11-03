@@ -118,9 +118,8 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 	// addressable and lets its vacuity guard resolve; it does not assert that
 	// any live matrix drives it. workload_cloud_relationship,
 	// kubernetes_correlation, code_taint_evidence, semantic_entity_containment,
-	// security_group_rule_endpoint, s3_external_principal_grant,
-	// uses_service_account, and assumes_iam_role still carry their waiver
-	// rows in
+	// security_group_rule_endpoint, s3_external_principal_grant, and
+	// uses_service_account still carry their waiver rows in
 	// specs/ifa-materialized-edge-coverage-direct.v1.yaml for that reason.
 	//
 	// kubernetes_namespace_environment's write template MERGEs the Environment
