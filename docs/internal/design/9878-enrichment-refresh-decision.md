@@ -26,8 +26,8 @@ Measured facts and their sources:
   under one `canonical_key`; same-scope rerun keeps the `fact_id`. Winner
   order is `priority_score DESC, has_payload_finding_id DESC, fact_id ASC`
   with no recency tiebreak.
-- Build-level EPSS selection is date-first (`preferEPSSObservation`,
-  `go/internal/reducer/supplychain/core/index_build.go:261`): a fresh lowered
+- Build-level EPSS selection is date-first (symbol `preferEPSSObservation`
+  in `go/internal/reducer/supplychain/core/index_build.go`): a fresh lowered
   score reaching the finding is correct; a stale lowered score being masked at
   build is also correct. The defect is only at winner level, across per-scope
   copies scored from different enrichment vintages. The 100-point clamp
