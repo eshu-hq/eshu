@@ -84,6 +84,9 @@ func (r *crossplaneRedriveFakeEdgeExistenceReader) Run(
 func TestCrossplaneSatisfiedByRedriveClosesXRDLagWindowLive(t *testing.T) {
 	t.Run("xrd_lag_window", testCrossplaneSatisfiedByRedriveClosesXRDLagWindowLive)
 	t.Run("running_claim_ack", testCrossplaneRedriveDuringRunningClaimReturnsAckToPendingLive)
+	t.Run("claimed_ack", testCrossplaneRedriveDuringClaimedClaimReturnsAckToPendingLive)
+	t.Run("duplicate_schedule", testCrossplaneRedriveDuplicateScheduleKeepsSingleItemLive)
+	t.Run("retry_clears_debt", testCrossplaneRedriveRetryClearsReplayDebtLive)
 	t.Run("concurrent_insert", testCrossplaneRedriveConcurrentInsertWinnerKeepsReplayDebtLive)
 	t.Run("claimed_row_cost", testCrossplaneReplayClaimedRowCostLive)
 }
@@ -290,6 +293,196 @@ func testCrossplaneRedriveDuringRunningClaimReturnsAckToPendingLive(t *testing.T
 	}
 	if extra, ok, err := queue.Claim(ctx); err != nil || ok {
 		t.Fatalf("claim after replay ACK = (%q, %t, %v), want no work", extra.IntentID, ok, err)
+	}
+}
+
+// TestCrossplaneRedriveDuringClaimedClaimReturnsAckToPendingLive pins the
+// second ACK ordering: the sweep schedules redrive while the Claim pass is
+// still claimed (never marked running), and its ACK must still preserve one
+// replay pass that resolves both edges. The trigger path is uniform across
+// claimed and running rows; this test locks the claimed half that the
+// running-claim test does not cover.
+func testCrossplaneRedriveDuringClaimedClaimReturnsAckToPendingLive(t *testing.T) {
+	db, _ := crossplaneRedriveProofDB(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	const (
+		claimScopeID      = "scope-claim-claimed-redrive"
+		claimGenerationID = "gen-claim-claimed-redrive"
+		xrdScopeID        = "scope-xrd-claimed-redrive"
+		xrdGenerationID   = "gen-xrd-claimed-redrive"
+		group             = "database.example.com"
+		claimKind         = "PostgreSQL"
+	)
+	seedCrossplaneRedriveClaimScope(ctx, t, db, claimScopeID, claimGenerationID, group, claimKind, 2, now)
+	queue := postgres.NewReducerQueue(postgres.SQLDB{DB: db}, "claimed-redrive-worker", time.Minute)
+	queue.ClaimDomain = reducer.DomainCrossplaneSatisfiedByMaterialization
+	if scheduled, err := queue.ReplayCrossplaneSatisfiedByMaterialization(ctx, claimScopeID, claimGenerationID); err != nil || !scheduled {
+		t.Fatalf("enqueue initial Claim materialization: scheduled=%t error=%v", scheduled, err)
+	}
+	claimed, ok, err := queue.Claim(ctx)
+	if err != nil || !ok {
+		t.Fatalf("claim initial materialization: claimed=%t error=%v", ok, err)
+	}
+	spy := &crossplaneRedriveSpyEdgeWriter{}
+	handler := crossplane.CrossplaneSatisfiedByMaterializationHandler{
+		FactLoader: postgres.NewFactStore(postgres.SQLDB{DB: db}),
+		EdgeWriter: spy,
+	}
+	if _, err := handler.Handle(ctx, claimed); err != nil {
+		t.Fatalf("materialize before XRD activation: %v", err)
+	}
+	if len(spy.written) != 0 {
+		t.Fatalf("Claim materialization before XRD wrote %d edges, want zero", len(spy.written))
+	}
+	// Unlike the running-claim test, the item stays claimed here: the sweep
+	// must schedule redrive against the claimed row without stealing its
+	// lease, and the ACK must return it to pending.
+	seedCrossplaneRedriveXRD(ctx, t, db, xrdScopeID, xrdGenerationID, group, claimKind, now.Add(time.Minute))
+	sweeper := crossplanestore.CrossplaneSatisfiedByRedriveSweeper{
+		DB:       postgres.SQLQueryer{DB: db},
+		State:    crossplanestore.NewCrossplaneRedriveStateStore(postgres.SQLDB{DB: db}),
+		Replayer: queue,
+		Owner:    "claimed-redrive-worker",
+	}
+	result, err := sweeper.Sweep(ctx, xrdScopeID, xrdGenerationID)
+	if err != nil {
+		t.Fatalf("sweep after XRD activation: %v", err)
+	}
+	if result.Outcome != crossplanestore.CrossplaneRedriveOutcomeCompletedForTest || result.TargetsEnqueued != 1 {
+		t.Fatalf("sweep result = %+v, want one completed target", result)
+	}
+	if err := queue.Ack(ctx, claimed, reducercontract.Result{}); err != nil {
+		t.Fatalf("ACK zero-edge Claim pass: %v", err)
+	}
+	assertCrossplaneRedriveWorkItemPending(ctx, t, db, claimScopeID, claimGenerationID)
+	replayed, ok, err := queue.Claim(ctx)
+	if err != nil || !ok || replayed.IntentID != claimed.IntentID {
+		t.Fatalf("claim replayed materialization: intent=%q claimed=%t error=%v", replayed.IntentID, ok, err)
+	}
+	if _, err := handler.Handle(ctx, replayed); err != nil {
+		t.Fatalf("materialize Claim with XRD visible: %v", err)
+	}
+	if len(spy.written) != 2 {
+		t.Fatalf("replayed materialization wrote %d edges, want two", len(spy.written))
+	}
+	if err := queue.Ack(ctx, replayed, reducercontract.Result{}); err != nil {
+		t.Fatalf("ACK replayed Claim pass: %v", err)
+	}
+	if extra, ok, err := queue.Claim(ctx); err != nil || ok {
+		t.Fatalf("claim after replay ACK = (%q, %t, %v), want no work", extra.IntentID, ok, err)
+	}
+}
+
+// TestCrossplaneRedriveDuplicateScheduleKeepsSingleItemLive pins duplicate
+// scheduling: scheduling the same scope-generation twice must not create a
+// second stable work item, and the single item must still drain normally.
+func testCrossplaneRedriveDuplicateScheduleKeepsSingleItemLive(t *testing.T) {
+	db, _ := crossplaneRedriveProofDB(t)
+	ctx := context.Background()
+	const (
+		scopeID      = "scope-claim-duplicate-schedule"
+		generationID = "gen-claim-duplicate-schedule"
+	)
+	seedCrossplaneRedriveClaimScope(ctx, t, db, scopeID, generationID, "database.example.com", "PostgreSQL", 1, time.Now().UTC())
+	queue := postgres.NewReducerQueue(postgres.SQLDB{DB: db}, "duplicate-schedule-worker", time.Minute)
+	queue.ClaimDomain = reducer.DomainCrossplaneSatisfiedByMaterialization
+	for i := 0; i < 2; i++ {
+		if scheduled, err := queue.ReplayCrossplaneSatisfiedByMaterialization(ctx, scopeID, generationID); err != nil || !scheduled {
+			t.Fatalf("schedule attempt %d: scheduled=%t error=%v", i, scheduled, err)
+		}
+	}
+	var count int
+	if err := db.QueryRowContext(ctx, `
+		SELECT count(*) FROM fact_work_items
+		WHERE scope_id = $1 AND generation_id = $2
+		  AND stage = 'reducer' AND domain = 'crossplane_satisfied_by_materialization'
+	`, scopeID, generationID).Scan(&count); err != nil {
+		t.Fatalf("count scheduled work items: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("scheduled work items = %d, want exactly one after duplicate scheduling", count)
+	}
+	claimed, ok, err := queue.Claim(ctx)
+	if err != nil || !ok {
+		t.Fatalf("claim single scheduled item: claimed=%t error=%v", ok, err)
+	}
+	// No replay debt was ever recorded, so the ACK completes the item
+	// instead of returning it to pending.
+	if err := queue.Ack(ctx, claimed, reducercontract.Result{}); err != nil {
+		t.Fatalf("ACK single scheduled item: %v", err)
+	}
+	if extra, ok, err := queue.Claim(ctx); err != nil || ok {
+		t.Fatalf("claim after ACK = (%q, %t, %v), want no work", extra.IntentID, ok, err)
+	}
+}
+
+// crossplaneRedriveRetryableError is a retryable failure cause for driving
+// the production retry entry point (queue.Fail) in the retry-clears-debt
+// test below.
+type crossplaneRedriveRetryableError struct{}
+
+func (crossplaneRedriveRetryableError) Error() string   { return "redrive proof retryable failure" }
+func (crossplaneRedriveRetryableError) Retryable() bool { return true }
+
+// TestCrossplaneRedriveRetryClearsReplayDebtLive pins the production retry
+// path end to end: failing a claimed item that carries replay debt must move
+// it to retrying, clear the debt, and release the lease (failIntent via the
+// shipped retryReducerWorkQuery), and a later replay must still schedule.
+func testCrossplaneRedriveRetryClearsReplayDebtLive(t *testing.T) {
+	db, _ := crossplaneRedriveProofDB(t)
+	ctx := context.Background()
+	const (
+		scopeID      = "scope-claim-retry-clears-debt"
+		generationID = "gen-claim-retry-clears-debt"
+		owner        = "retry-debt-worker"
+	)
+	seedCrossplaneRedriveClaimScope(ctx, t, db, scopeID, generationID, "database.example.com", "PostgreSQL", 1, time.Now().UTC())
+	queue := postgres.NewReducerQueue(postgres.SQLDB{DB: db}, owner, time.Minute)
+	queue.ClaimDomain = reducer.DomainCrossplaneSatisfiedByMaterialization
+	if scheduled, err := queue.ReplayCrossplaneSatisfiedByMaterialization(ctx, scopeID, generationID); err != nil || !scheduled {
+		t.Fatalf("enqueue Claim materialization: scheduled=%t error=%v", scheduled, err)
+	}
+	claimed, ok, err := queue.Claim(ctx)
+	if err != nil || !ok {
+		t.Fatalf("claim materialization: claimed=%t error=%v", ok, err)
+	}
+	if scheduled, err := queue.ReplayCrossplaneSatisfiedByMaterialization(ctx, scopeID, generationID); err != nil || !scheduled {
+		t.Fatalf("record replay debt on claimed item: scheduled=%t error=%v", scheduled, err)
+	}
+	var status string
+	var leaseOwner sql.NullString
+	var debt bool
+	readRow := func() {
+		t.Helper()
+		if err := db.QueryRowContext(ctx, `
+			SELECT status, lease_owner, cross_scope_replay_required
+			FROM fact_work_items WHERE work_item_id = $1
+		`, claimed.IntentID).Scan(&status, &leaseOwner, &debt); err != nil {
+			t.Fatalf("read work item: %v", err)
+		}
+	}
+	readRow()
+	if status != "claimed" || !leaseOwner.Valid || leaseOwner.String != owner || !debt {
+		t.Fatalf("row before retry = (%q, %q, %t), want claimed/owner/debt", status, leaseOwner.String, debt)
+	}
+	// Drive the shipped retry entry point, not a hand-written status flip:
+	// failIntent classifies the cause as retryable and runs
+	// retryReducerWorkQuery, which sets status retrying, clears replay debt,
+	// and releases the lease.
+	if err := queue.Fail(ctx, claimed, crossplaneRedriveRetryableError{}); err != nil {
+		t.Fatalf("fail claimed item with retryable cause: %v", err)
+	}
+	readRow()
+	if status != "retrying" || leaseOwner.Valid || debt {
+		t.Fatalf("row after retry = (%q, %q, %t), want retrying/released-lease/no-debt", status, leaseOwner.String, debt)
+	}
+	if scheduled, err := queue.ReplayCrossplaneSatisfiedByMaterialization(ctx, scopeID, generationID); err != nil || !scheduled {
+		t.Fatalf("replay retrying item: scheduled=%t error=%v", scheduled, err)
+	}
+	readRow()
+	if status != "retrying" || leaseOwner.Valid {
+		t.Fatalf("row after replay = (%q, %q, %t), want retrying/lease still released", status, leaseOwner.String, debt)
 	}
 }
 
