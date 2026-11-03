@@ -210,14 +210,20 @@ Observability Evidence: the pass records
 `eshu_dp_deferred_backfill_targeted_duration_seconds{outcome}`,
 `eshu_dp_deferred_backfill_targeted_outcomes_total{outcome}` (one per owed
 partition, never per pass; a refused pass does not count its held owed
-partitions as `retry`) and
-`eshu_dp_deferred_backfill_targeted_reopened_total{domain}`. The pass outcome
+partitions as `retry`),
+`eshu_dp_deferred_backfill_targeted_reopened_total{domain}`, and, since #9781,
+`eshu_dp_deferred_backfill_targeted_inbound_rows_total` and
+`eshu_dp_deferred_backfill_targeted_inbound_bytes_total` (the anchor-scoped
+inbound facts the closure loaded, in rows and raw payload bytes; the inbound
+byte budget is charged against the bytes). The pass outcome
 (`completed`, `suppressed`, a refusal reason, or `error`) is the duration
 histogram's `outcome` label, so its count is the pass count. It opens a
 `relationship.backfill_deferred_targeted` span only when it is given a tracer
 (without one it never writes onto the caller's span). Typed refusals are
 designed holds and leave the span status unset; only an untyped failure records
 the error and sets an error status. It logs one
+`deferred_backfill_targeted_started` line (owed partitions, owed repositories,
+anchor terms, and the inbound budget) at pass start and one
 `deferred_backfill_targeted_completed` line per pass, and logs one
 `deferred_backfill_targeted_refused` line per applicable owed partition on a
 refusal. The shared loader, memo gate, batch and fan-in code run with

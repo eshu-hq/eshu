@@ -76,20 +76,21 @@ func (s Store) resolveTargetedMaintenanceClosure(
 	params backfill.DeferredScopedFactQueryParams,
 	hasAnchors bool,
 	active map[backfill.ScopeGenerationPartition]struct{},
-) (targetedMaintenanceClosure, error) {
+) (targetedMaintenanceClosure, backfill.RelationshipFactLoadStats, error) {
 	closure := targetedMaintenanceClosure{owed: make(map[backfill.ScopeGenerationPartition]struct{}, len(active))}
 	for partition := range active {
 		closure.owed[partition] = struct{}{}
 	}
+	var inboundStats backfill.RelationshipFactLoadStats
 
 	for round := 0; ; round++ {
 		if round >= targetedMaintenanceMaxClosureRounds {
-			return closure, fmt.Errorf("%w: %d rounds, owed=%d",
+			return closure, inboundStats, fmt.Errorf("%w: %d rounds, owed=%d",
 				ErrTargetedMaintenanceClosureTooDeep, targetedMaintenanceMaxClosureRounds, len(closure.owed))
 		}
 		owedRepos, err := loadActiveRepositoryGenerationsForPartitions(ctx, s.Backfill.DB, sortedPartitions(closure.owed))
 		if err != nil {
-			return closure, fmt.Errorf("load owed repository generations: %w", err)
+			return closure, inboundStats, fmt.Errorf("load owed repository generations: %w", err)
 		}
 		load := make(map[backfill.ScopeGenerationPartition]struct{}, len(closure.owed))
 		sourceRepoIDs := make(map[string]struct{}, len(owedRepos))
@@ -107,12 +108,12 @@ func (s Store) resolveTargetedMaintenanceClosure(
 			ownFacts, _, err := s.Backfill.LoadDeferredScopedFactsAcrossPartitions(
 				ctx, s.Backfill.DB, params, sortedPartitions(closure.owed), nil)
 			if err != nil {
-				return closure, fmt.Errorf("load owed partition facts for closure: %w", err)
+				return closure, inboundStats, fmt.Errorf("load owed partition facts for closure: %w", err)
 			}
 			if len(ownFacts) > 0 {
 				ownFacts, err = s.Backfill.AppendArgoCDGeneratorConfigFacts(ctx, s.Backfill.DB, catalog, ownFacts)
 				if err != nil {
-					return closure, err
+					return closure, inboundStats, err
 				}
 			}
 			for _, evidence := range relationships.DiscoverEvidence(ownFacts, catalog) {
@@ -124,10 +125,13 @@ func (s Store) resolveTargetedMaintenanceClosure(
 
 		// Evidence that touches an owed repository from any other partition.
 		if hasAnchors && len(owedRepos) > 0 {
-			if err := s.addInboundTargetedMaintenanceSources(
+			stats, err := s.addInboundTargetedMaintenanceSources(
 				ctx, catalog, owedRepos, load, sourceRepoIDs,
-			); err != nil {
-				return closure, err
+			)
+			inboundStats.Rows += stats.Rows
+			inboundStats.Bytes += stats.Bytes
+			if err != nil {
+				return closure, inboundStats, err
 			}
 		}
 
@@ -138,7 +142,7 @@ func (s Store) resolveTargetedMaintenanceClosure(
 		sort.Strings(ids)
 		affected, err := loadActiveRepositoryGenerationsForRepos(ctx, s.Backfill.DB, ids)
 		if err != nil {
-			return closure, fmt.Errorf("load affected repository generations: %w", err)
+			return closure, inboundStats, fmt.Errorf("load affected repository generations: %w", err)
 		}
 
 		promotedThisRound := 0
@@ -149,7 +153,7 @@ func (s Store) resolveTargetedMaintenanceClosure(
 			}
 			committed, err := s.PhaseCommitted(ctx, s.Backfill.DB, partition)
 			if err != nil {
-				return closure, err
+				return closure, inboundStats, err
 			}
 			if committed {
 				continue
@@ -168,7 +172,7 @@ func (s Store) resolveTargetedMaintenanceClosure(
 			promoted[partition] = struct{}{}
 		}
 		closure.promoted = sortedPartitions(promoted)
-		return closure, nil
+		return closure, inboundStats, nil
 	}
 }
 
@@ -176,6 +180,11 @@ func (s Store) resolveTargetedMaintenanceClosure(
 // repository, groups them by partition, and records every group whose own
 // evidence touches an owed repository in load, and the sources of that
 // evidence in sourceRepoIDs.
+//
+// The load runs through backfill.LoadAnchorScopedRelationshipFactsBudget so a
+// regressed anchor filter fails the pass (ErrRelationshipFactLoadBudgetExceeded)
+// instead of accumulating the whole corpus. The returned stats report the rows
+// and bytes the inbound load read, for the pass's inbound metric.
 //
 // Each group's evidence is discovered from the group plus the ArgoCD config
 // files its own ApplicationSets reference, because the ApplicationSet
@@ -194,15 +203,15 @@ func (s Store) addInboundTargetedMaintenanceSources(
 	owedRepos map[string]backfill.RepositoryGenerationIdentity,
 	load map[backfill.ScopeGenerationPartition]struct{},
 	sourceRepoIDs map[string]struct{},
-) error {
+) (backfill.RelationshipFactLoadStats, error) {
 	owedRepoIDs := make(map[string]struct{}, len(owedRepos))
 	for repoID := range owedRepos {
 		owedRepoIDs[repoID] = struct{}{}
 	}
-	inbound, err := backfill.LoadAnchorScopedRelationshipFacts(
-		ctx, s.Backfill.DB, backfill.RepositoryScopedCatalog(catalog, owedRepoIDs), catalog)
+	inbound, stats, err := backfill.LoadAnchorScopedRelationshipFactsBudget(
+		ctx, s.Backfill.DB, backfill.RepositoryScopedCatalog(catalog, owedRepoIDs), catalog, s.InboundBudget)
 	if err != nil {
-		return fmt.Errorf("load inbound facts for owed repositories: %w", err)
+		return stats, fmt.Errorf("load inbound facts for owed repositories: %w", err)
 	}
 
 	groups := make(map[backfill.ScopeGenerationPartition][]facts.Envelope)
@@ -220,7 +229,7 @@ func (s Store) addInboundTargetedMaintenanceSources(
 			}
 			configFacts, err = backfill.LoadArgoCDGeneratorConfigFacts(ctx, s.Backfill.DB, configRepoIDs)
 			if err != nil {
-				return fmt.Errorf("load argocd config facts for closure group %q: %w", partition.ScopeID, err)
+				return stats, fmt.Errorf("load argocd config facts for closure group %q: %w", partition.ScopeID, err)
 			}
 		}
 		groupEvidence := relationships.DedupeEvidenceFacts(
@@ -242,7 +251,7 @@ func (s Store) addInboundTargetedMaintenanceSources(
 			load[partition] = struct{}{}
 		}
 	}
-	return nil
+	return stats, nil
 }
 
 // sortedPartitionsOf returns the keys of groups in (scope_id, generation_id)

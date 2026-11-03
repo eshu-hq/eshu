@@ -5,10 +5,14 @@ package backfill
 
 import (
 	"context"
+	"errors"
+	"reflect"
+	"sort"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
@@ -122,6 +126,134 @@ func TestBuildPayloadAnchorLikeTermsEscapesWildcards(t *testing.T) {
 	for i := range want {
 		if got[i] != want[i] {
 			t.Fatalf("term[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
+// TestLoadOnboardedRepoScopedRelationshipFactsBudgetFailsLoudly is the #9781
+// regression for the load bound: a budgeted anchor-scoped load must return
+// ErrRelationshipFactLoadBudgetExceeded as soon as the cumulative raw payload
+// bytes cross the budget, discarding the accumulated slice, instead of holding
+// an unbounded one. It also pins that the stats report the rows and bytes read
+// up to and including the crossing row, so the caller's inbound metric is
+// recorded even on a budget failure.
+func TestLoadOnboardedRepoScopedRelationshipFactsBudgetFailsLoudly(t *testing.T) {
+	t.Parallel()
+
+	payload := `{"content_path":"main.tf","content_body":"module \"x\" { source = \"./payments-service\" }"}`
+	queryer := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{rows: [][]any{
+				contentFactRow("fact-1", "scope-1", "gen-1", "content", payload),
+				contentFactRow("fact-2", "scope-1", "gen-1", "content", payload),
+				contentFactRow("fact-3", "scope-1", "gen-1", "content", payload),
+			}},
+		},
+	}
+
+	loaded, stats, err := loadOnboardedRepoScopedRelationshipFactsBudget(
+		context.Background(), queryer, []string{"payments-service"}, RelationshipFactLoadBudget{MaxBytes: 1})
+	if !errors.Is(err, ErrRelationshipFactLoadBudgetExceeded) {
+		t.Fatalf("err = %v, want ErrRelationshipFactLoadBudgetExceeded", err)
+	}
+	if loaded != nil {
+		t.Fatalf("loaded = %d facts, want nil on budget failure", len(loaded))
+	}
+	if stats.Rows != 1 || stats.Bytes <= 0 {
+		t.Fatalf("stats = %+v, want rows=1 and bytes>0 (the row that crossed the budget)", stats)
+	}
+}
+
+// TestLoadOnboardedRepoScopedRelationshipFactsBudgetUnboundedReportsStats pins
+// the unbounded form: a zero budget loads every row and reports the exact row
+// count and a positive byte sum, matching the non-budgeted loader's fact set.
+func TestLoadOnboardedRepoScopedRelationshipFactsBudgetUnboundedReportsStats(t *testing.T) {
+	t.Parallel()
+
+	payload := `{"content_path":"main.tf","content_body":"module \"x\" { source = \"./payments-service\" }"}`
+	queryer := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{rows: [][]any{
+				contentFactRow("fact-1", "scope-1", "gen-1", "content", payload),
+				contentFactRow("fact-2", "scope-1", "gen-1", "content", payload),
+			}},
+		},
+	}
+
+	loaded, stats, err := loadOnboardedRepoScopedRelationshipFactsBudget(
+		context.Background(), queryer, []string{"payments-service"}, RelationshipFactLoadBudget{})
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if len(loaded) != 2 {
+		t.Fatalf("loaded = %d facts, want 2", len(loaded))
+	}
+	if stats.Rows != 2 {
+		t.Fatalf("stats.Rows = %d, want 2", stats.Rows)
+	}
+	if stats.Bytes != int64(len(payload))*2 {
+		t.Fatalf("stats.Bytes = %d, want %d (raw payload bytes, not decoded)", stats.Bytes, len(payload)*2)
+	}
+}
+
+// TestLoadAnchorScopedRelationshipFactsBudgetThreadsBudget pins the exported
+// budgeted loader end to end: a one-byte budget fails the phase-one load before
+// the phase-two config reload, and the unbudgeted wrapper returns the same fact
+// set as the budgeted loader with an unlimited budget.
+func TestLoadAnchorScopedRelationshipFactsBudgetThreadsBudget(t *testing.T) {
+	t.Parallel()
+
+	catalog := []relationships.CatalogEntry{
+		{RepoID: "repository:r_9a7e0001", Aliases: []string{"repository:r_9a7e0001", "payments-api"}},
+	}
+	payload := `{"content_path":"main.tf","content_body":"app_repo = \"payments-api\""}`
+	queryer := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{rows: [][]any{contentFactRow("fact-1", "scope-1", "gen-1", "content", payload)}},
+		},
+	}
+
+	_, _, err := LoadAnchorScopedRelationshipFactsBudget(
+		context.Background(), queryer, catalog, catalog, RelationshipFactLoadBudget{MaxBytes: 1})
+	if !errors.Is(err, ErrRelationshipFactLoadBudgetExceeded) {
+		t.Fatalf("err = %v, want ErrRelationshipFactLoadBudgetExceeded", err)
+	}
+}
+
+// TestBackfillNonRepoIDAnchorTermsMatchCatalogAnchors pins that the deferred
+// backfill's non-repo_id terms are exactly the relationships-level non-repo_id
+// anchors plus the unconditional markers, with the repo_id alias (Aliases[0])
+// and RemoteURL left out. The deferred and per-commit loaders must inherit the
+// same narrowed anchor set, so the two paths cannot drift apart (#9781).
+func TestBackfillNonRepoIDAnchorTermsMatchCatalogAnchors(t *testing.T) {
+	t.Parallel()
+
+	catalog := []relationships.CatalogEntry{
+		{
+			RepoID:    "repository:r_9a7e0001",
+			Aliases:   []string{"repository:r_9a7e0001", "payments-api", "acme/payments-api"},
+			RemoteURL: "https://github.com/acme/payments-api",
+		},
+		// An entry with only a repo_id alias contributes no non-repo_id anchor.
+		{RepoID: "repository:r_2e4a0001", Aliases: []string{"repository:r_2e4a0001"}},
+	}
+
+	got := backfillNonRepoIDAnchorTerms(catalog)
+	want := append(
+		append([]string(nil), relationships.CatalogNonRepoIDPayloadAnchors(catalog)...),
+		relationships.UnconditionalPayloadMarkers()...,
+	)
+	sort.Strings(got)
+	sort.Strings(want)
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("backfillNonRepoIDAnchorTerms = %v, want %v", got, want)
+	}
+	// The fleet-wide repository namespace must never appear: every content and
+	// file payload stores its own repo_id, so a bare "repository" token would
+	// match the whole corpus (Defect A).
+	for _, term := range got {
+		if term == "repository" {
+			t.Fatalf("anchor set contains the fleet-wide %q token: %v", term, got)
 		}
 	}
 }

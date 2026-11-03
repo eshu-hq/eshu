@@ -90,6 +90,12 @@ type TargetedMaintenanceResult struct {
 	EvidenceFacts int
 	// Published counts phase rows the fan-in published.
 	Published int
+	// InboundRows and InboundBytes count the anchor-scoped inbound facts the
+	// closure loaded across all rounds (#9781), in rows and raw payload bytes.
+	// They are recorded by the inbound metric so an operator reads the load the
+	// inbound byte budget bounds, even when the pass fails on that budget.
+	InboundRows  int64
+	InboundBytes int64
 	// Reopened counts reopened work items per reducer domain.
 	Reopened map[string]int
 	// SkipSetUnavailable is true when the memo gate failed and every
@@ -197,6 +203,10 @@ func (s Store) RunDeferredRelationshipMaintenanceForPartitions(
 	}
 	params, hasAnchors := backfill.BuildDeferredScopedFactQueryParams(catalog)
 	catalogFingerprint := backfill.DeferredCatalogFingerprint(params)
+	log.Printf(
+		"deferred_backfill_targeted_started owed_partitions=%d owed_repositories=%d anchor_terms=%d inbound_budget_bytes=%d",
+		len(requested), len(owedRepos), len(params.NonRepoIDLike)+len(params.RepoIDValues), s.InboundBudget.MaxBytes,
+	)
 	switch refusal := s.targetedCatalogRefusal(ctx, catalogFingerprint, owedScopeIDs(requested)); {
 	case refusal == nil:
 	case errors.Is(refusal, ErrTargetedMaintenanceCatalogChanged), errors.Is(refusal, ErrTargetedMaintenanceNoMemoBaseline):
@@ -220,7 +230,9 @@ func (s Store) RunDeferredRelationshipMaintenanceForPartitions(
 		return result, refusal
 	}
 
-	closure, err := s.resolveTargetedMaintenanceClosure(ctx, catalog, params, hasAnchors, active)
+	closure, inboundStats, err := s.resolveTargetedMaintenanceClosure(ctx, catalog, params, hasAnchors, active)
+	result.InboundRows = inboundStats.Rows
+	result.InboundBytes = inboundStats.Bytes
 	if err != nil {
 		return result, err
 	}
@@ -381,6 +393,8 @@ func recordTargetedMaintenance(
 			instruments.DeferredBackfillTargetedReopened.Add(ctx, int64(count),
 				metric.WithAttributes(telemetry.AttrDomain(domain)))
 		}
+		instruments.DeferredBackfillTargetedInboundRows.Add(ctx, result.InboundRows)
+		instruments.DeferredBackfillTargetedInboundBytes.Add(ctx, result.InboundBytes)
 	}
 	span.SetAttributes(
 		attribute.String("outcome", passOutcome),
@@ -394,13 +408,15 @@ func recordTargetedMaintenance(
 		attribute.Int("affected_partition_count", len(result.Affected)),
 		attribute.Int("evidence_fact_count", result.EvidenceFacts),
 		attribute.Int("published_count", result.Published),
+		attribute.Int64("inbound_rows", result.InboundRows),
+		attribute.Int64("inbound_bytes", result.InboundBytes),
 	)
 	log.Printf(
-		"deferred_backfill_targeted_completed outcome=%s owed=%d published_owed=%d not_active=%d inapplicable=%d retry=%d promoted=%d loaded_partitions=%d affected_partitions=%d snapshot_conflicts=%d evidence_facts=%d published=%d skip_set_unavailable=%t duration_s=%.2f",
+		"deferred_backfill_targeted_completed outcome=%s owed=%d published_owed=%d not_active=%d inapplicable=%d retry=%d promoted=%d loaded_partitions=%d affected_partitions=%d snapshot_conflicts=%d evidence_facts=%d published=%d inbound_rows=%d inbound_bytes=%d skip_set_unavailable=%t duration_s=%.2f",
 		passOutcome, len(requested), counts[TargetedMaintenancePublished], counts[TargetedMaintenanceNotActive],
 		counts[TargetedMaintenanceInapplicable], counts[TargetedMaintenanceRetry], len(result.Promoted),
 		len(result.Loaded), len(result.Affected), len(result.SnapshotConflicts), result.EvidenceFacts,
-		result.Published, result.SkipSetUnavailable, duration,
+		result.Published, result.InboundRows, result.InboundBytes, result.SkipSetUnavailable, duration,
 	)
 }
 

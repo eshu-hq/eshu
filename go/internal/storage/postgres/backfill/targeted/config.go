@@ -19,6 +19,16 @@ func (s Store) validatePassConfig() error {
 	return s.validateReopenCollaborators()
 }
 
+// DefaultInboundBudgetBytes is the inbound byte budget the partition-scoped
+// pass applies to its anchor-scoped inbound fact load when the store does not
+// override it (#9781). A normal owed repository's inbound load is a few
+// thousand rows after the anchor and marker fixes (about 830 rows measured),
+// well under this figure, while a regressed filter that selects the whole
+// corpus (about 15 GB) crosses it immediately and fails the pass loudly
+// instead of OOM-killing the reducer. Zero (the zero Store) keeps the load
+// unbounded for tests and the per-commit path, which never sets a budget.
+const DefaultInboundBudgetBytes = 256 << 20
+
 // validateReopenConfig checks the standalone reopen entrypoint. It needs no
 // DB or phase callback: it uses only the supplied transaction beginner and
 // reopen collaborators.
