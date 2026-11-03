@@ -387,6 +387,7 @@ TABLE = {
         ),
         "go/internal/storage/postgres/workflow_control_claim_pacing_failure_live_test.go": (
             "TestWorkflowClaimPacingFailsOpenOnLatchQueryFailure",
+            "TestWorkflowClaimPacingFailsOpenOnLatchAdvanceFailure",
             "TestWorkflowClaimPacingStuckHoldsMidBandAndReleasesBelowWatermark",
             "TestWorkflowClaimPacingStuckEmitsOperatorSignals",
         ),
