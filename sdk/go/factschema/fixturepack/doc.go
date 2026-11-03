@@ -39,4 +39,10 @@
 // OSVSeverityGolden supplies synthetic OSV records and the cvss_vector and
 // severity_label a conforming OSV collector writes on vulnerability.cve for
 // each, so core and the extracted collector prove the same severity rules.
+//
+// OSVIdentityEdgesGolden supplies synthetic OSV records and the aliases,
+// related, upstream and status a conforming OSV collector writes on
+// vulnerability.cve for each. Each edge list is trimmed, de-duplicated and
+// sorted; upstream is a directed edge, never an alias, and is absent when it
+// has no ids. A DSA bundle of CVEs is upstream, not aliases.
 package fixturepack
