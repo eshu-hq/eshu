@@ -203,6 +203,14 @@ is the highest value sampled, minus the baseline before the passes started.
 | 8 x 2,000 (1x) | 1.74 GB | 53 MB |
 | 8 x 20,000 (10x) | 20.8 GB | 195 MB |
 
+The 8 x 20,000 row is not part of the default benchmark run. Its before arm holds
+eight decoded 20,000-file passes at once, about 20.8 GB, which is more than a
+16 GB CI runner has: the benchmark job was killed with exit 143 while it started.
+`BenchmarkSupplyChainImpactFileEvidenceConcurrent` now skips both 20,000-row arms
+unless `ESHU_BENCH_HEAVY=1` is set; run it with that variable on a host with 32 GB
+or more free (`go test -run '^$' -bench SupplyChainImpactFileEvidenceConcurrent
+-benchtime=1x ./internal/storage/postgres/`). CI runs the 8 x 2,000 row.
+
 The after figure is eight index digests, eight fact-ID sets (about 250 B per
 file), one row being decoded per worker, and the fake's page buffers. It grows
 with file count only through the fact-ID set, which is why 10x files cost

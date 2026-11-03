@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"runtime"
 	"strconv"
 	"sync"
@@ -63,6 +64,14 @@ func foldBenchPayload() []byte {
 	}
 	return raw
 }
+
+// foldBenchHeavyRows is the per-worker row count from which the concurrent
+// benchmark needs the ESHU_BENCH_HEAVY opt-in: eight passes of this size do not
+// fit a 16 GB runner without the fold.
+const (
+	foldBenchHeavyRows = 20000
+	foldBenchHeavyEnv  = "ESHU_BENCH_HEAVY"
+)
 
 func foldBenchDB(rows int, raw []byte) *supplyChainImpactRoutingDB {
 	routed := &supplyChainImpactRoutingDB{
@@ -170,12 +179,21 @@ func BenchmarkSupplyChainImpactFileEvidenceClone(b *testing.B) {
 // after a GC sampled while they ran (peak_live_heap_bytes), the number that
 // decides whether eight workers fit a container (#9781). Each worker has its
 // own routing fake because the fake records calls without a lock.
+//
+// The 20,000-row case is off by default. Its "before" arm holds eight decoded
+// 20,000-file passes at once, about 20.8 GB of live heap, which is more than a
+// 16 GB CI runner has and got the benchmark job killed (exit 143). Set
+// ESHU_BENCH_HEAVY=1 on a host with at least 32 GB free to reproduce it.
 func BenchmarkSupplyChainImpactFileEvidenceConcurrent(b *testing.B) {
 	raw := foldBenchPayload()
 	const workers = 8
 	for _, rows := range []int{2000, 20000} {
 		for _, mode := range []string{"before", "after"} {
 			b.Run(fmt.Sprintf("workers=%d/rows=%d/%s", workers, rows, mode), func(b *testing.B) {
+				if rows >= foldBenchHeavyRows && os.Getenv(foldBenchHeavyEnv) == "" {
+					b.Skipf("%d rows x %d workers holds about 20.8 GB live (before arm); set %s=1 on a host with 32 GB or more to run it",
+						rows, workers, foldBenchHeavyEnv)
+				}
 				for i := 0; i < b.N; i++ {
 					stores := make([]*FactStore, workers)
 					for w := range stores {
