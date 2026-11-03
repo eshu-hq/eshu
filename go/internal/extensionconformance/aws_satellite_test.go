@@ -208,11 +208,11 @@ func satelliteResult(t *testing.T) sdkcollector.Result {
 }
 
 // TestSatelliteConformReportsMissingSSMPackSchemas proves the exact
-// remaining fixture-conformance blocker for the satellite manifest: every
-// granted tuple authorizes (no core-owned, tuple, or phase finding), and
-// the run fails only because the pinned SDK fixture pack ships no payload
-// schemas for the aws_ssm_host pair. When the pack gains those schemas
-// this test must be rewritten to expect StatusPassed.
+// remaining fixture-conformance blocker for the satellite manifest:
+// manifest-level grant admission succeeds (no core-owned, tuple, or
+// phase finding), and the run fails only because the pinned SDK fixture
+// pack ships no payload schemas for the aws_ssm_host pair. When the pack
+// gains those schemas this test must be rewritten to expect StatusPassed.
 func TestSatelliteConformReportsMissingSSMPackSchemas(t *testing.T) {
 	t.Parallel()
 
@@ -239,8 +239,9 @@ func TestSatelliteConformReportsMissingSSMPackSchemas(t *testing.T) {
 	}
 	assertFinding(t, report, FindingPayloadSchemaInvalid, true, true)
 	for _, finding := range report.Findings {
-		if finding.Code == FindingManifestInvalid || finding.Code == FindingFixtureContractFailed {
-			t.Fatalf("finding %q (%s) indicates a grant failure, want only the pack-schema gap", finding.Code, finding.Message)
+		if finding.Code == FindingManifestInvalid || finding.Code == FindingFixtureContractFailed ||
+			finding.Code == FindingMissingReducerConsumer {
+			t.Fatalf("finding %q (%s) indicates a grant or phase failure, want only the pack-schema gap", finding.Code, finding.Message)
 		}
 	}
 	matched := false
