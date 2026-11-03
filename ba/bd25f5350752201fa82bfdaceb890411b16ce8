@@ -1,0 +1,19 @@
+docs/internal/evidence/9209-3-2-advisory-group-cost.md
+  s_9c818346074e86::t_6221448353b50a 1-193
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "babd25f5350752201fa82bfdaceb890411b16ce8",
+  "prompts": {},
+  "sessions": {
+    "s_9c818346074e86": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9c11fe27-4c11-4e6c-baf7-8b1b133adba8",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
