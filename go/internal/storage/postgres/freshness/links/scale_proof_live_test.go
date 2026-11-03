@@ -121,7 +121,7 @@ func ledgerDigests(t *testing.T, ctx context.Context, tx *sql.Tx, scopeID string
 }
 
 // TestLinkScaleProof runs one scale proof of arbiter ruling arb-7127-g8. It
-// is driven by docs/internal/evidence/7127-link-writer-scale.py --proof.
+// is driven by go/internal/storage/postgres/freshness/links/testdata/7127-link-writer-scale.py --proof.
 func TestLinkScaleProof(t *testing.T) {
 	dsn := strings.TrimSpace(os.Getenv(scaleDSNEnv))
 	proof := os.Getenv(scaleProofEnv)

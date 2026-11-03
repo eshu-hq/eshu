@@ -24,7 +24,7 @@ import (
 // scaleDSNEnv names a database loaded by
 // go/internal/storage/postgres/freshness/links/testdata/7127-link-writer-fixture.sql.
 // The scale test is the
-// measurement half of docs/internal/evidence/7127-link-writer-scale.py, which
+// measurement half of go/internal/storage/postgres/freshness/links/testdata/7127-link-writer-scale.py, which
 // samples backend RssAnon around the windows this test prints.
 const scaleDSNEnv = "ESHU_CHANGED_SINCE_LINK_SCALE_DSN"
 
