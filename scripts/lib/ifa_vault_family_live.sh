@@ -115,6 +115,13 @@ ifa_assumes_iam_role_drive() {
 		"${label}" "${bin_dir}" "${cassette}" "${workers}" "${log_dir}"
 }
 
+# ifa_uses_service_account_drive replays the uses-service-account cassette.
+ifa_uses_service_account_drive() {
+	local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"
+	_ifa_direct_family_drive uses-service-account \
+		"${label}" "${bin_dir}" "${cassette}" "${workers}" "${log_dir}"
+}
+
 # ifa_assumes_iam_role_assert pins the exact set named by its third
 # argument: the two-edge file in per-cell (fault) consumers, the ten-edge
 # combined live file in the shared N-cell loop (see
@@ -134,5 +141,27 @@ ifa_assumes_iam_role_assert() {
 	printf '\n=== %s: assert assumes_iam_role materialized edges (exact set) ===\n' "${label}"
 	"${bin_dir}/eshu-ifa" assert-edges \
 		-domain assumes_iam_role \
+		-expected "${expected_edges}"
+}
+
+# ifa_uses_service_account_assert pins the exact set named by its third
+# argument: the two-edge file in per-cell (fault) consumers, the combined
+# live file in the shared N-cell loop once the live leaf lands (trio
+# position TBD-USES). Called twice per cell for the reason recorded on the
+# namespace assert in ifa_direct_family_live.sh: post-delta is the only
+# place an identical-across-N generation-2 mutation shows up.
+#
+# The scope-local two edges are the exact-digest resolutions: the orders
+# workload attached to its service account (IRSA web-identity lane), and
+# the billing workload attached to its service account (EKS Pod Identity
+# lane) -- checked in both the pre-delta and post-delta phase of each cell,
+# so a generation-2 SQL delta that touched an unrelated family's
+# secrets/IAM-adjacent rows would still have to preserve this family's set
+# to stay green.
+ifa_uses_service_account_assert() {
+	local label="$1" bin_dir="$2" expected_edges="$3"
+	printf '\n=== %s: assert uses_service_account materialized edges (exact set) ===\n' "${label}"
+	"${bin_dir}/eshu-ifa" assert-edges \
+		-domain uses_service_account \
 		-expected "${expected_edges}"
 }

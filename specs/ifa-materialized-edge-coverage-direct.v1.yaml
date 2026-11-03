@@ -636,9 +636,9 @@ waivers:
     proof_gate: ifa-determinism
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteUsesServiceAccountEdges -> cypher/secrets_iam_graph_writer.go merges SECRETS_IAM_USES_SERVICE_ACCOUNT; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+    reason: "WriteUsesServiceAccountEdges -> cypher/cloud/aws/iam/secrets_graph_writer.go merges SECRETS_IAM_USES_SERVICE_ACCOUNT; direct materialization. The offline half landed with #6228 (cataloged Odu odu:ifa-uses-service-account-family, vacuity guard resolveUsesServiceAccountMaterializedEdges, hand-derived expected-edge-set fixture, registered edge types, collector-only cassette). Stays waived: the live ifa-determinism matrix (verify-ifa-determinism.sh, ifa-determinism-gate.yml) does not drive the family yet; live enrollment follows the assumes_iam_role live-leaf pattern (shared-cell live file, registry row, drive/assert callbacks)"
   - surface: "materialized_edges:uses_service_account"
     proof_gate: ifa-fault-injection
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteUsesServiceAccountEdges -> cypher/secrets_iam_graph_writer.go merges SECRETS_IAM_USES_SERVICE_ACCOUNT; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+    reason: "WriteUsesServiceAccountEdges -> cypher/cloud/aws/iam/secrets_graph_writer.go merges SECRETS_IAM_USES_SERVICE_ACCOUNT; direct materialization. The offline half landed with #6228 (cataloged Odu odu:ifa-uses-service-account-family, vacuity guard resolveUsesServiceAccountMaterializedEdges, hand-derived expected-edge-set fixture, registered edge types, collector-only cassette, unwired fault trio cells with the per-statement hold kill). Stays waived: the live ifa-fault-injection matrix (verify-ifa-fault-injection.sh) has no dispatched fault cells for the family yet (trio position TBD-USES); live enrollment follows the assumes_iam_role live-leaf pattern (shard dispatch, anchor row, registry row, pins, census)"
