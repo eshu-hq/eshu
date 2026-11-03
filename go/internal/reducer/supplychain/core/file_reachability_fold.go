@@ -74,7 +74,7 @@ func NewFileReachabilityFold(existing []facts.Envelope) *FileReachabilityFold {
 // pass already holds is not folded again. A file with an empty fact ID is
 // always folded, matching appendUniqueSupplyChainImpactFacts.
 func (f *FileReachabilityFold) Add(envelope facts.Envelope) bool {
-	if envelope.FactKind != factload.FactKindFile {
+	if f == nil || envelope.FactKind != factload.FactKindFile {
 		return false
 	}
 	if envelope.FactID != "" {

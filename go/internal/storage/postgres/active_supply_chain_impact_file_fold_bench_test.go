@@ -180,17 +180,19 @@ func BenchmarkSupplyChainImpactFileEvidenceClone(b *testing.B) {
 // decides whether eight workers fit a container (#9781). Each worker has its
 // own routing fake because the fake records calls without a lock.
 //
-// The 20,000-row case is off by default. Its "before" arm holds eight decoded
+// The 20,000-row "before" arm is off by default. It holds eight decoded
 // 20,000-file passes at once, about 20.8 GB of live heap, which is more than a
-// 16 GB CI runner has and got the benchmark job killed (exit 143). Set
-// ESHU_BENCH_HEAVY=1 on a host with at least 32 GB free to reproduce it.
+// 16 GB CI runner has and got the benchmark job killed (exit 143). The "after"
+// arm of the same row stays on, so CI keeps the scaled concurrent proof that
+// the fold holds at eight workers. Set ESHU_BENCH_HEAVY=1 on a host with at
+// least 32 GB free to run the "before" arm.
 func BenchmarkSupplyChainImpactFileEvidenceConcurrent(b *testing.B) {
 	raw := foldBenchPayload()
 	const workers = 8
 	for _, rows := range []int{2000, 20000} {
 		for _, mode := range []string{"before", "after"} {
 			b.Run(fmt.Sprintf("workers=%d/rows=%d/%s", workers, rows, mode), func(b *testing.B) {
-				if rows >= foldBenchHeavyRows && os.Getenv(foldBenchHeavyEnv) == "" {
+				if mode == "before" && rows >= foldBenchHeavyRows && os.Getenv(foldBenchHeavyEnv) == "" {
 					b.Skipf("%d rows x %d workers holds about 20.8 GB live (before arm); set %s=1 on a host with 32 GB or more to run it",
 						rows, workers, foldBenchHeavyEnv)
 				}

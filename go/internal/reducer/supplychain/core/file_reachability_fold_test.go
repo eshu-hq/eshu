@@ -197,3 +197,16 @@ func TestAppendEvidenceFactIDsExpandsADigestInByteOrder(t *testing.T) {
 		t.Fatalf("AppendEvidenceFactIDs(plain) = %v, want [scope-fact]", plain)
 	}
 }
+
+// TestNilFileReachabilityFoldAddFoldsNothing keeps Add as tolerant of a nil
+// receiver as Files and DigestEnvelope: a caller that treats a missing fold as
+// empty must not panic on the write side.
+func TestNilFileReachabilityFoldAddFoldsNothing(t *testing.T) {
+	var fold *FileReachabilityFold
+	if fold.Add(facts.Envelope{FactID: "f", FactKind: factload.FactKindFile}) {
+		t.Fatal("nil fold Add reported a fold, want false")
+	}
+	if got := fold.Files(); got != 0 {
+		t.Fatalf("nil fold Files() = %d, want 0", got)
+	}
+}
