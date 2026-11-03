@@ -92,16 +92,19 @@ the lease still released (no held lease after error), idempotent repeated cycles
 exit. `go test ./internal/reducer ./cmd/reducer -count=1` passes; the winners the
 resweep writes are byte-identical to the legacy read (proven above).
 
-Observability Evidence: the maintainer emits structured logs on resweep commit
-(debug) and failure (error, with the wrapped cause carrying the
-lease-claim/rebuild/release failure class), so an operator can see whether
-resweeps are progressing or failing. Resweep recency is independently queryable as
+Observability Evidence: before #9774 the maintainer emitted a debug log on
+resweep commit and an error log on failure (the wrapped cause carries the
+lease-claim/rebuild/release failure class). #9774 upgraded the commit log to
+INFO with the inserted/updated/deleted/unchanged counts and duration, and added
+the rest of the resweep signal set — the duration histogram, the rows-by-action
+counter, the skipped counter, the watermark-age gauge, and the
+`supply_chain_impact.winners_resweep` span — recorded in the "Write only changed
+rows (#9774)" section below. Resweep recency is independently queryable as
 `materialized_at` on the singleton `supply_chain_impact_winners_materialization`
 watermark, which the read surfaces as `truth.freshness` in Phase 2. (Before #9774
 the winners table's own `MAX(materialized_at)` also tracked recency; it now means
 the last content change, see below.) No graph write or queue consumer is
-added. Richer per-resweep duration/row-count metrics are a follow-up; the logs +
-materialized_at timestamp give progress/failure visibility now.
+added.
 
 ## Write only changed rows (#9774)
 
