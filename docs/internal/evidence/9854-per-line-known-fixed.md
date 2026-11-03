@@ -24,12 +24,14 @@ SEMVER ranges, O(events):
   ranges, so one of them may contain the observed version. GIT is decided
   explicitly: fail closed.
 - The verdict also fails closed when any SEMVER range lists its events out of
-  version order. Containment walks events in listed order, OSV sorts them
-  first; a range such as `[introduced 2.0.0, fixed 2.5.0, introduced 0, fixed
-  1.5.0]` hides 2.2.0 from the listed-order walk. The same applies when one
-  range holds an introduced event and a fixed or last_affected event at the
-  same version: OSV leaves the tie order undefined, so the two walks can
-  disagree.
+  version order. When #9854 landed, containment walked events in listed order
+  and a range such as `[introduced 2.0.0, fixed 2.5.0, introduced 0, fixed
+  1.5.0]` hid 2.2.0 from it. Since #9865 containment sorts, and that shape is
+  `affected_exact`; the order guard is kept as a conservative fail-closed rule
+  and only withholds a known-fixed flip until its own parity run. The same
+  applies when one range holds an introduced event and a fixed or
+  last_affected event at the same version: OSV leaves the tie order undefined,
+  so that half of the guard is still required.
 - It fails closed when a package entry for the same PackageID holds no typed
   range, no non-blank exact version, and no raw range (the blank Gemnasium
   `affected_range` shape). The matcher cannot read what that source claims, so
@@ -144,24 +146,21 @@ now does one containment-sized walk plus one order comparison per event, and
 runs only for rows outside every range. No query, write, lock, or queue path
 changes.
 
-## Follow-up: containment walks listed order, OSV sorts
+## Follow-up: containment walks listed order, OSV sorts (fixed in #9865)
 
 `versionRangeContainsDecision` (`ranges.go`, shared by every ecosystem)
-evaluates a range's events in listed order. The OSV algorithm evaluates them
+evaluated a range's events in listed order. The OSV algorithm evaluates them
 sorted by version, and the schema says sorting is not required of the
-producer. The collector keeps source order. For `[introduced 2.0.0, fixed
-2.5.0, introduced 0, fixed 1.5.0]` and observed 2.2.0, the listed-order walk
-ends not affected because the trailing `fixed 1.5.0` resets it; OSV says
-affected. Before #9854 that error landed on `possibly_affected`; this change
-guards the per-line verdict against it but does not touch the shared walk.
-Fixing the walk (sort before evaluating) changes every ecosystem and is
-tracked as #9865.
+producer. For `[introduced 2.0.0, fixed 2.5.0, introduced 0, fixed 1.5.0]` and
+observed 2.2.0, the listed-order walk ended not affected because the trailing
+`fixed 1.5.0` reset it; OSV says affected. This change guarded the per-line
+verdict against it. #9865 fixed the walk for every ecosystem; see
+[9865-sorted-events-walk.md](9865-sorted-events-walk.md). The guard stays as a
+fail-closed rule.
 
-A related shape is latent: `comparatorBranchContains` returns "valid, not
-contained" on the first unmatched field and never validates the rest, so a raw
-hyphen range such as `2.0.0 - 2.3.0` reads as `=2.0.0`. It predates this change
-and is unreachable today (the Gemnasium parser rejects the bare `-` token and
-the OSV envelope emits no raw range). It is tracked with #9865.
+The latent npm hyphen range (`2.0.0 - 2.3.0` read as `=2.0.0` because
+`comparatorBranchContains` stopped at the first unmatched field) was fixed in
+#9865 as well.
 
 ## Other ecosystems (follow-up, not changed here)
 

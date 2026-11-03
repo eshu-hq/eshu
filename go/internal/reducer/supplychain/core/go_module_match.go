@@ -64,34 +64,7 @@ func goModuleRangeContainsDecision(
 	} else if !ok {
 		return false, true
 	}
-	vulnerable := false
-	for _, event := range affectedRange.Events {
-		switch {
-		case event.Introduced != "":
-			if goModuleVersionFloor(event.Introduced) {
-				vulnerable = true
-				continue
-			}
-			if ok, valid := semverAtLeast(observed, event.Introduced); !valid {
-				return false, false
-			} else if ok {
-				vulnerable = true
-			}
-		case event.Fixed != "":
-			if ok, valid := semverAtLeast(observed, event.Fixed); !valid {
-				return false, false
-			} else if ok {
-				vulnerable = false
-			}
-		case event.LastAffected != "":
-			if ok, valid := versionGreaterThan(observed, event.LastAffected, compareOSVSemver); !valid {
-				return false, false
-			} else if ok {
-				vulnerable = false
-			}
-		}
-	}
-	return vulnerable, true
+	return rangeEventsVulnerable(affectedRange.Events, observed, compareOSVSemver, goModuleVersionFloor)
 }
 
 func goModuleComparatorRangeContains(raw string, observed string) (bool, bool) {

@@ -146,10 +146,12 @@ func buildSupplyChainVersionExplanation(
 }
 
 // matchingLineFixedVersion returns the fix published on the release line
-// containing the observed version: the first affected_ranges entry whose
-// events contain the observation and which names a fixed boundary. Empty
-// when the observation is blank, when no entry contains it, or when the
-// containing entry names no fix.
+// containing the observed version: in the first affected_ranges entry whose
+// events contain the observation, the lowest Fixed boundary above it, which
+// is the Fixed that ends the containing pair even when the entry holds
+// several pairs or lists them out of order (#9865). Empty when the
+// observation is blank, when no entry contains it, or when the containing
+// entry names no fix above the observation.
 func matchingLineFixedVersion(facts []EvidenceFact, observed string) string {
 	observed = strings.TrimSpace(observed)
 	if observed == "" {
@@ -161,10 +163,8 @@ func matchingLineFixedVersion(facts []EvidenceFact, observed string) string {
 			if !valid || !contained {
 				continue
 			}
-			for _, event := range events {
-				if fixed := strings.TrimSpace(event.fixed); fixed != "" {
-					return fixed
-				}
+			if fixed := lowestFixedAbove(events, observed); fixed != "" {
+				return fixed
 			}
 		}
 	}

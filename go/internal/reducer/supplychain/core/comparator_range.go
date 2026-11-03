@@ -35,18 +35,74 @@ func comparatorRangeBranches(raw string) []string {
 	return strings.Split(raw, "|")
 }
 
+// comparatorBranchContains reads one AND-branch of a comparator range. Every
+// field is read before the branch answers: a field that does not match must not
+// hide a later field that is malformed, or the branch would read as a valid
+// "not contained" (#9865). The npm hyphen form "A - B" reads as ">=A <=B".
 func comparatorBranchContains(branch string, observed string, compare versionCompareFunc) (bool, bool) {
 	fields := strings.Fields(branch)
 	if len(fields) == 0 {
 		return false, false
 	}
-	for _, field := range fields {
-		ok, valid := comparatorConstraintContains(field, observed, compare)
-		if !valid || !ok {
-			return false, valid
+	contained, valid := true, true
+	for i := 0; i < len(fields); i++ {
+		if i+1 < len(fields) && fields[i+1] == "-" {
+			ok, wellFormed, consumed := hyphenRangeContains(fields[i:], observed, compare)
+			if !wellFormed {
+				return false, false
+			}
+			contained = contained && ok
+			i += consumed - 1
+			continue
+		}
+		ok, wellFormed := comparatorConstraintContains(fields[i], observed, compare)
+		if !wellFormed {
+			valid = false
+			continue
+		}
+		contained = contained && ok
+	}
+	if !valid {
+		return false, false
+	}
+	return contained, true
+}
+
+// hyphenRangeContains reads the npm hyphen range "A - B" at the head of fields
+// as ">=A <=B" and reports how many fields it used. It is well formed only for
+// two full versions: npm widens a partial bound ("1.2 - 2.3" is
+// ">=1.2.0 <2.4.0"), which the matcher cannot expand, so a partial bound, a
+// missing bound, or a bound that carries an operator fails closed.
+func hyphenRangeContains(fields []string, observed string, compare versionCompareFunc) (bool, bool, int) {
+	if len(fields) < 3 || fields[1] != "-" || !fullVersionBound(fields[0]) || !fullVersionBound(fields[2]) {
+		return false, false, 0
+	}
+	lower, validLower := compare(observed, fields[0])
+	upper, validUpper := compare(observed, fields[2])
+	if !validLower || !validUpper {
+		return false, false, 0
+	}
+	return lower >= 0 && upper <= 0, true, 3
+}
+
+// fullVersionBound reports whether token is a bare version with a major, minor,
+// and patch part, with no operator and no wildcard.
+func fullVersionBound(token string) bool {
+	core := token
+	if i := strings.IndexAny(core, "-+"); i >= 0 {
+		core = core[:i]
+	}
+	core = strings.TrimPrefix(core, "v")
+	parts := strings.Split(core, ".")
+	if len(parts) != 3 {
+		return false
+	}
+	for _, part := range parts {
+		if part == "" || strings.Trim(part, "0123456789") != "" {
+			return false
 		}
 	}
-	return true, true
+	return true
 }
 
 func comparatorConstraintContains(token string, observed string, compare versionCompareFunc) (bool, bool) {

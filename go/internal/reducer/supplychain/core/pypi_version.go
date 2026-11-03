@@ -100,30 +100,7 @@ func pypiRangeContainsDecision(
 	} else if !ok {
 		return false, true
 	}
-	vulnerable := false
-	for _, event := range affectedRange.Events {
-		switch {
-		case event.Introduced != "":
-			if ok, valid := pypiAtLeast(observed, event.Introduced); !valid {
-				return false, false
-			} else if ok {
-				vulnerable = true
-			}
-		case event.Fixed != "":
-			if ok, valid := pypiAtLeast(observed, event.Fixed); !valid {
-				return false, false
-			} else if ok {
-				vulnerable = false
-			}
-		case event.LastAffected != "":
-			if ok, valid := pypiGreaterThan(observed, event.LastAffected); !valid {
-				return false, false
-			} else if ok {
-				vulnerable = false
-			}
-		}
-	}
-	return vulnerable, true
+	return rangeEventsVulnerable(affectedRange.Events, observed, comparePyPIVersion, nil)
 }
 
 func pypiBeforeLimitsDecision(observed string, events []supplychainmodel.AffectedRangeEvent) (bool, bool) {

@@ -77,9 +77,10 @@ func semverRangeContainsDecision(
 // seen the observed version in a range. The containment check skips every
 // non-SEMVER range (ECOSYSTEM, GIT, an unknown kind), so a skipped range in any
 // package entry of the advisory may contain the version, and the scan refuses a
-// verdict. It walks events in listed order while OSV evaluates them sorted, so
-// a SEMVER range whose events are listed out of version order may also hide the
-// version; the scan refuses that too.
+// verdict. A SEMVER range whose events are listed out of version order is
+// refused as well. Containment sorts events since #9865, so that refusal is no
+// longer needed for correctness; it stays as a conservative guard until a
+// parity run of its own justifies reading those ranges.
 type npmLineFix struct {
 	// fixed is the nearest Fixed event at or below the observed version, the
 	// fix of the release line the observation has moved past. Blank when none.
@@ -89,8 +90,9 @@ type npmLineFix struct {
 	// lastAffectedNearer is true when a last_affected boundary below the
 	// observed version is nearer than every Fixed event.
 	lastAffectedNearer bool
-	// unverifiedRange is true when a range the containment check skipped, or
-	// read in an order OSV does not use, may contain the observed version.
+	// unverifiedRange is true when a range the containment check skipped, or a
+	// range whose events are listed out of order or tied, may contain the
+	// observed version.
 	unverifiedRange bool
 }
 
@@ -179,7 +181,9 @@ func emptyAffectedPackage(pkg supplychainmodel.AffectedPackage) bool {
 // fixed, last_affected) are listed in non-decreasing version order with no
 // introduced event tied to a terminator at the same version. The second
 // value is false when two events cannot be compared. Limit events carry no
-// range version and are not ordered.
+// range version and are not ordered. Containment no longer depends on the
+// listed order (#9865); the tie rule still matters, because OSV leaves the
+// order of a tie undefined.
 func eventsAscending(events []supplychainmodel.AffectedRangeEvent) (bool, bool) {
 	previous := ""
 	previousOpens := false
@@ -251,30 +255,7 @@ func versionRangeContainsDecision(
 	} else if !ok {
 		return false, true
 	}
-	vulnerable := false
-	for _, event := range affectedRange.Events {
-		switch {
-		case event.Introduced != "":
-			if ok, valid := versionAtLeast(observed, event.Introduced, compare); !valid {
-				return false, false
-			} else if ok {
-				vulnerable = true
-			}
-		case event.Fixed != "":
-			if ok, valid := versionAtLeast(observed, event.Fixed, compare); !valid {
-				return false, false
-			} else if ok {
-				vulnerable = false
-			}
-		case event.LastAffected != "":
-			if ok, valid := versionGreaterThan(observed, event.LastAffected, compare); !valid {
-				return false, false
-			} else if ok {
-				vulnerable = false
-			}
-		}
-	}
-	return vulnerable, true
+	return rangeEventsVulnerable(affectedRange.Events, observed, compare, nil)
 }
 
 func versionBeforeLimitsDecision(
