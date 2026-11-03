@@ -26,6 +26,12 @@ type PRWorkflowDefinition struct {
 	Jobs           []string            `yaml:"jobs"`
 	JobNames       map[string]string   `yaml:"job_names"`
 	JobNeeds       map[string][]string `yaml:"-"`
+	// Callable reports that the workflow is workflow_call-only: its direct
+	// pull_request trigger was removed and the central PR scheduler invokes it.
+	// A branch filter never applies to a workflow_call, so the planner treats a
+	// callable workflow's base as the default branch rather than dropping it
+	// for a stacked PR (#9766).
+	Callable bool `yaml:"-"`
 }
 
 // PlanPRWorkflows selects local job IDs from trusted workflow definitions.
@@ -55,7 +61,12 @@ func PlanPRWorkflows(defs []PRWorkflowDefinition, paths []string, truncated bool
 			return nil, fmt.Errorf("invalid or duplicate PR workflow %q", def.File)
 		}
 		seen[def.File] = true
-		if !def.Synchronize || mode == "reuse" || !workflowBranchMatch(def, baseRef) || !workflowPathsMatch(def, paths, truncated) {
+		// A branch filter does not apply to a workflow_call-only leaf: the
+		// central scheduler invokes it for any base, so a stacked PR plans it
+		// exactly as a main-based PR would. Direct pull_request workflows keep
+		// their branch filter, which GitHub honors natively (#9766).
+		branchMatch := def.Callable || workflowBranchMatch(def, baseRef)
+		if !def.Synchronize || mode == "reuse" || !branchMatch || !workflowPathsMatch(def, paths, truncated) {
 			continue
 		}
 		if mode == "full" {
