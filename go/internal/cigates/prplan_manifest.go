@@ -88,6 +88,11 @@ func ParsePRPlanFragment(raw []byte) ([]PRWorkflowDefinition, error) {
 			}
 		}
 	}
+	// Every fragment describes a workflow_call-only leaf: the direct
+	// pull_request trigger was removed and the central scheduler invokes it.
+	for i := range fragment.Workflows {
+		fragment.Workflows[i].Callable = true
+	}
 	return fragment.Workflows, nil
 }
 
