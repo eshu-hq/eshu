@@ -183,8 +183,8 @@ Record the actual Compose image digest, host load, API/MCP/Postgres/Neo4j
 CPU and memory, seed verification counts, and both report hashes alongside
 the command and exit status. The concurrent report shows offered load and
 client overlap; it does not measure backend resource use by itself. Keep the
-existing NornicDB CI lane under its current blocking policy while the
-supported-backend pilot is added.
+NornicDB script runnable by hand (its CI cell is off, see the status note) while
+the supported-backend pilot is added.
 
 The dedicated manual Neo4j job allows 45 minutes for cold Compose startup,
 database migration and seeding, host builds, the serial sweep, and the later
