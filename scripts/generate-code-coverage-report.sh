@@ -29,7 +29,10 @@ test_ok="${tmp_root}/test-ok"
 # last package with a result line completed; the packages after it in
 # `go list` order were the ones still running when the run died.
 report_stalled_package() {
-	local status=$?
+	# The status rides along because a TERM trap must name it: bash does
+	# not run the EXIT trap when an untrapped fatal signal kills the
+	# script itself, so the TERM trap below passes 143 explicitly.
+	local status=${1:-$?}
 	# Only test-stage failures get this report. A failure before the
 	# test run started (bad config) or after it passed (render error)
 	# keeps its own message without a stalled-package addendum.
@@ -66,6 +69,10 @@ report_stalled_package() {
 	return 0
 }
 trap 'report_stalled_package; rm -rf "${tmp_root}"' EXIT
+# Runner shutdown and job timeouts deliver SIGTERM to this script itself,
+# where the EXIT trap above never fires. Report first, then re-raise with
+# a cleared trap so the 143 exit is preserved without a second report.
+trap 'report_stalled_package 143; trap - TERM; kill -TERM $$' TERM
 
 profile="${profile_in:-${profile_out}}"
 if [[ "${run_tests}" != "0" ]]; then

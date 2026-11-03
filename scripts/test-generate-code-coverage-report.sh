@@ -173,6 +173,54 @@ else
 	record_pass "generator adds no stalled-package addendum after tests pass"
 fi
 
+# TERM to the generator itself must still name the package (#9767 P1):
+# runner shutdown kills the parent script, where no EXIT trap fires.
+# A slow stub `go` plus TERM to the generator PID reproduces it.
+slow_root="${tmp_root}/slow-repo"
+mkdir -p "${slow_root}/go" "${tmp_root}/slow-bin"
+cat >"${tmp_root}/slow-bin/go" <<'STUB'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "list" ]]; then
+	printf 'example.com/go/internal/parser/shared\n'
+	printf 'example.com/go/internal/parser/shared/toml/nesting\n'
+	exit 0
+fi
+printf 'ok  \texample.com/go/internal/parser/shared\t0.149s\tcoverage: 75.5%% of statements\n'
+sleep 10
+STUB
+chmod +x "${tmp_root}/slow-bin/go"
+slow_log="${tmp_root}/slow-generator.log"
+slow_status=0
+PATH="${tmp_root}/slow-bin:${PATH}" \
+	ESHU_CODE_COVERAGE_REPO_ROOT="${slow_root}" \
+	ESHU_CODE_COVERAGE_PROFILE_OUT="${tmp_root}/slow.out" \
+	ESHU_CODE_COVERAGE_REPORT_OUT="${tmp_root}/slow.md" \
+	ESHU_CODE_COVERAGE_SHIELD_OUT="${tmp_root}/slow.json" \
+	"${generator}" >"${slow_log}" 2>&1 &
+slow_pid=$!
+for i in $(seq 1 100); do
+	if rg --fixed-strings --quiet -- "example.com/go/internal/parser/shared" "${slow_log}" 2>/dev/null; then
+		break
+	fi
+	if ! kill -0 "${slow_pid}" 2>/dev/null; then
+		break
+	fi
+	sleep 0.1
+done
+kill -TERM "${slow_pid}" 2>/dev/null || true
+wait "${slow_pid}" || slow_status=$?
+pkill -f "${tmp_root}/slow-bin/go" 2>/dev/null || true
+if [[ "${slow_status}" -eq 143 ]]; then
+	record_pass "generator preserves 143 when TERM kills it mid-run"
+else
+	record_fail "generator exit code ${slow_status}, want 143 when TERM kills it mid-run"
+fi
+if rg --fixed-strings --quiet -- "last completed package: example.com/go/internal/parser/shared" "${slow_log}"; then
+	record_pass "generator names the last package when TERM kills it mid-run"
+else
+	record_fail "generator must name the last package when TERM kills it mid-run"
+fi
+
 canonical_profile_a="${tmp_root}/canonical-a.out"
 canonical_profile_b="${tmp_root}/canonical-b.out"
 cat >"${canonical_profile_a}" <<'PROFILE'
