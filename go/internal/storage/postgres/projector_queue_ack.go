@@ -349,6 +349,7 @@ func (q ProjectorQueue) runCrossplaneRedriveHook(ctx context.Context, work proje
 	if _, err := q.CrossplaneRedrive.Sweep(ctx, work.Scope.ScopeID, work.Generation.GenerationID); err != nil {
 		slog.ErrorContext(
 			ctx, "crossplane cross-scope satisfied-by redrive sweep failed",
+			telemetry.EventAttr("crossplane.redrive.sweep_failed"),
 			"scope_id", work.Scope.ScopeID,
 			"generation_id", work.Generation.GenerationID,
 			"error", err,

@@ -12,3 +12,9 @@ const ListCrossplaneRedriveTargetScopesQueryForTest = listCrossplaneRedriveTarge
 // outcome to the external behavior and catch-up tests, which assert the
 // sweep result vocabulary without importing private identifiers.
 const CrossplaneRedriveOutcomeCompletedForTest = crossplaneRedriveOutcomeCompleted
+
+// CrossplaneRedriveOutcomeReclaimedMidSweepForTest exposes the sweep's
+// reclaimed-mid-sweep outcome to the external behavior test, which asserts
+// that a stale invocation whose lease was reclaimed reports this outcome
+// instead of overwriting the reclaiming invocation's completion.
+const CrossplaneRedriveOutcomeReclaimedMidSweepForTest = crossplaneRedriveOutcomeReclaimedMidSweep
