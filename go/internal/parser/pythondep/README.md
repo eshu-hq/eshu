@@ -112,7 +112,10 @@ text into a row:
   keeps a post-slash `@` only at the ref position (`@v1`, `@feature/foo`) —
   any other surviving `@` is userinfo residue from a raw-`/` password (the
   authority cut found no `@` while `user@host` sits in the path) and refuses
-  the line too.
+  the line too. Three malformed-input corners stay accepted (see
+  `vcsScrubResidue`): an all-digit pre-slash segment with a lone non-ref
+  `@`, a colon-less user, and a password line with no `@` at all — all
+  invalid URL syntax no parser treats as credentialed.
 - A registry pin whose value holds `@` or `://` (an scp-style
   `user:secret@host:path` line), whose extra holds `@` or `://`, or whose
   marker holds a character outside the `safeMarker` allowlist, is demoted to
