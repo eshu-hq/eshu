@@ -2,10 +2,13 @@
 
 Issue #8915 reported that an unchanged re-upsert of findings-heavy
 `content_files` rows sometimes took 4 to 13 times longer. The measurement on the
-issue disproved the migration-138 trigger as the cause. The cause is write
-amplification: the writer's `ON CONFLICT DO UPDATE` rewrote every row even when
-nothing but `indexed_at` differed, and the cost of that rewrite is mostly WAL
-waits. This note records the fix and what it was proved against.
+issue disproved the migration-138 trigger as the cause. The proven mechanism on
+the old writer was write amplification: the writer's `ON CONFLICT DO UPDATE`
+rewrote every row even when nothing but `indexed_at` differed, and the cost of
+that rewrite tracked WAL waits. The specific original rounds at 4 to 13 times
+were never reproduced, so this note does not claim write amplification explains
+those exact rounds — it explains the measured variance and the fix's effect
+below. This note records the fix and what it was proved against.
 
 ## Scope
 
