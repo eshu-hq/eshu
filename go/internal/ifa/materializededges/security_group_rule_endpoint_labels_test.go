@@ -54,12 +54,14 @@ func TestCheckEndpointTargetLabelsBindsLabelPerRule(t *testing.T) {
 // so no Odu-level input distinguishes "call present" from "call deleted" —
 // deleting the call-site below must fail this test instead.
 //
-// The pin parses the guard into an AST and requires the check inside a
-// branch's init or condition: a raw substring check would also match the
-// call commented out, and a bare call expression would match a discarded
-// result, so neither pins enforcement. A disconnected condition (call kept
-// but result untested) would still satisfy the pin; catching that stays
-// with code review.
+// The pin parses the guard function itself into an AST and requires the
+// check inside one of its branches' init or condition: a raw substring
+// check would also match the call commented out, a bare call expression
+// would match a discarded result, and a file-wide walk would match a decoy
+// branch in another function, so none of those pins enforcement. Only the
+// guard enforcing the check's result satisfies it. A disconnected condition
+// (call kept but result untested) would still satisfy the pin; catching
+// that stays with code review.
 func TestEndpointGuardInvokesTargetLabelCheck(t *testing.T) {
 	t.Parallel()
 
@@ -72,7 +74,7 @@ func TestEndpointGuardInvokesTargetLabelCheck(t *testing.T) {
 	enforced := false
 	for _, decl := range file.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
-		if !ok {
+		if !ok || fn.Name.Name != "resolveSecurityGroupRuleEndpointMaterializedEdges" {
 			continue
 		}
 		ast.Inspect(fn.Body, func(node ast.Node) bool {
