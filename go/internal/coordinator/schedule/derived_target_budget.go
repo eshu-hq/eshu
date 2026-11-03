@@ -27,6 +27,12 @@ const (
 	DerivedTargetSkipReasonMissingVersion        = "derived_target_missing_version"
 	DerivedTargetSkipReasonNonExactVersion       = "derived_target_non_exact_version"
 	DerivedTargetSkipReasonConflictingVersion    = "derived_target_conflicting_version"
+	// DerivedTargetSkipReasonNonCVEIdentifier marks a finding identifier that
+	// is not a CVE id (a GHSA-only winner, a blank-normalized id, or another
+	// scheme) dropped by the findings-derived EPSS derivation, which only
+	// sends CVE-shaped ids to FIRST (eshu-hq/eshu#9876). Dropped ids are
+	// counted, never sent.
+	DerivedTargetSkipReasonNonCVEIdentifier = "derived_target_non_cve_identifier"
 	// DerivedTargetSkipReasonAdmissionUnauthorized marks a planned binding
 	// the admission transaction refused to prove: the pinned source or
 	// current authority no longer permits it. The binding skips in

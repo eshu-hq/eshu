@@ -10,14 +10,19 @@ import (
 
 // Target classes rank how specific a scheduled target is. A collector that
 // names its subject outranks one derived from owned packages, which outranks
-// one derived from installed or SBOM evidence, which outranks a broad sweep.
+// one derived from installed, SBOM, or finding evidence, which outranks a
+// broad sweep.
 const (
 	TargetClassConfiguredDirect = "configured_direct"
 	TargetClassOwnedPackage     = "owned_package"
 	TargetClassInstalledOS      = "installed_os_package"
 	TargetClassSBOMComponent    = "sbom_component"
 	TargetClassDerivedImage     = "derived_image"
-	TargetClassBroad            = "broad"
+	// TargetClassFindingCVE marks a target derived from the CVEs on active
+	// findings (vulnerability-intelligence EPSS derivation, eshu-hq/eshu#9876).
+	// It is evidence-derived like installed evidence, so it shares that rank.
+	TargetClassFindingCVE = "finding_cve"
+	TargetClassBroad      = "broad"
 )
 
 // TargetClassRank orders target classes from most to least specific. An
@@ -28,7 +33,7 @@ func TargetClassRank(targetClass string) int {
 		return 0
 	case TargetClassOwnedPackage:
 		return 1
-	case TargetClassInstalledOS, TargetClassSBOMComponent, TargetClassDerivedImage:
+	case TargetClassInstalledOS, TargetClassSBOMComponent, TargetClassDerivedImage, TargetClassFindingCVE:
 		return 2
 	case TargetClassBroad:
 		return 3

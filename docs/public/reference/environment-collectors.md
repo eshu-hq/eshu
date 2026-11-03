@@ -409,6 +409,24 @@ the derived-target skip evidence. Package-registry derivation expands aliases
 but never selects sbt rows: it leaves the reader's sbt flag off, so its
 selection is the alias expansion with no sbt rows.
 
+`derive_from_findings` with `sources: ["first_epss"]` derives FIRST EPSS
+targets from the CVE ids on active findings (phase 2 item 2.1,
+eshu-hq/eshu#9876): the coordinator case-normalizes, dedupes, and sorts the
+finding ids, keeps CVE-shaped ids, and packs at most 100 ids and 2000 joined
+characters per derived `vuln-intel://first_epss/_findings/<chunk>` scope, one
+FIRST request per target. Non-CVE ids (GHSA-only winners wait for advisory
+groups) are excluded and counted, never sent; over-budget ids are counted as
+skip evidence, never truncated. An unchanged set plans byte-identical targets;
+an appended CVE touches only its own scope. The ids ride the run's
+`requested_scope_set` transport like OSV queries. Per-plan counts land on the
+`vulnerability_intelligence` plan span, on
+`eshu_dp_workflow_coordinator_epss_derived_admitted_total` and
+`..._skipped_total` (labels carry counts only, never CVE ids), and on one INFO
+log line with the same counts. A component activation refuses an enabled
+`derive_from_findings` section. EPSS attribution text stays a pending owner/legal accept: this
+change ships no attribution wording, and enabling derived EPSS in a
+deployment waits for that accept to be recorded.
+
 Inside `ESHU_COLLECTOR_INSTANCES_JSON`, vulnerability targets may set
 `fallback_urls` for source mirrors. The instance configuration may also set
 `source_cache.directory`, `source_cache.mode` (`refresh` or `offline`),

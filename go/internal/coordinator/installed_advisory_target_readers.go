@@ -26,3 +26,10 @@ type SBOMComponentAdvisoryTargetReader interface {
 		workflow.SBOMComponentAdvisoryTargetFilter,
 	) ([]workflow.SBOMComponentAdvisoryTarget, error)
 }
+
+// FindingCVEIDReader loads the distinct CVE ids on active findings (the
+// canonical winners) that can bound the findings-derived FIRST EPSS
+// derivation (eshu-hq/eshu#9876).
+type FindingCVEIDReader interface {
+	ListActiveFindingCVEIDs(context.Context) ([]string, error)
+}

@@ -376,6 +376,51 @@ type PostgresSupplyChainImpactFencingTokenIssuer struct {
 	DB db.Queryer
 }
 
+// listActiveFindingCVEIDsQuery returns the distinct non-blank CVE ids on
+// active canonical winners. Active means suppression_state 'active'; anything
+// else is an operator-suppressed finding and carries no EPSS enrichment.
+// The query returns every distinct id including GHSA and other schemes: the
+// coordinator normalizes CVE shape and counts exclusions, so the exclusion
+// evidence stays observable instead of vanishing in the store.
+const listActiveFindingCVEIDsQuery = `
+SELECT DISTINCT cve_id
+    FROM supply_chain_impact_canonical_winners
+    WHERE suppression_state = 'active'
+      AND cve_id <> ''
+    ORDER BY cve_id
+`
+
+// ListActiveFindingCVEIDs returns the distinct non-blank CVE ids on active
+// canonical winners, in sorted order (eshu-hq/eshu#9876). It feeds the
+// findings-derived EPSS derivation, which keeps CVE-shaped ids and counts
+// the rest as exclusions.
+func (s FactStore) ListActiveFindingCVEIDs(ctx context.Context) ([]string, error) {
+	if s.database == nil {
+		return nil, fmt.Errorf("fact store database is required")
+	}
+	rows, err := s.database.QueryContext(ctx, listActiveFindingCVEIDsQuery)
+	if err != nil {
+		return nil, fmt.Errorf("list active finding CVE ids: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	ids := make([]string, 0, 512)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("list active finding CVE ids scan: %w", err)
+		}
+		if id == "" {
+			continue
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list active finding CVE ids: %w", err)
+	}
+	return ids, nil
+}
+
 // NextSupplyChainImpactFencingToken returns the next value in issuance order.
 // SupplyChainImpactHandler.Handle must call it at evidence-read time, before
 // the evidence load, not at write-commit time (see
