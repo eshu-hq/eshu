@@ -48,6 +48,20 @@ See `doc.go` for the full godoc contract.
 This package emits no metrics, spans, or logs of its own. The manifest
 carries the `eshu_collector_aws_cloud_` metrics prefix the satellite uses.
 
+## Performance Evidence
+
+- No-Regression Evidence: this package builds manifest metadata only; it
+  touches no hot path. Baseline is the base commit with no satellite
+  package; after the change `go test
+  ./internal/collector/awscloud/satellite/
+  ./internal/extensionconformance/ -count=1` stays green with no new
+  queues, no graph writes, and no Cypher. Input shape is one fifteen-kind
+  manifest construction plus its grant set; both constructors allocate
+  small slices and return structs, so the change is safe by construction.
+- No-Observability-Change: the package emits no metrics, spans, or logs.
+  The manifest carries only the `eshu_collector_aws_cloud_` metrics prefix
+  string the satellite uses; no operator signal changes.
+
 ## Gotchas / invariants
 
 - The manifest declares every kind the satellite can emit, including the
