@@ -1,0 +1,25 @@
+docs/internal/evidence/9954-identity-edges.md
+  s_9c818346074e86::t_a8217aebe44180 1-80
+docs/public/reference/security-intelligence-source-coverage.md
+  s_9c818346074e86::t_55498e04bb4b69 256
+go/internal/collector/vulnerabilityintelligence/AGENTS.md
+  s_9c818346074e86::t_83d53672747429 39-44
+go/internal/collector/vulnerabilityintelligence/README.md
+  s_9c818346074e86::t_a423317ebabe32 453-457
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8009981466af53dcffe0bb7b0d9caf23eeea2be0",
+  "prompts": {},
+  "sessions": {
+    "s_9c818346074e86": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9c11fe27-4c11-4e6c-baf7-8b1b133adba8",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
