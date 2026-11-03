@@ -455,3 +455,35 @@ func TestNormalizePackageIdentityRejectsUnimplementedEcosystemAliases(t *testing
 		})
 	}
 }
+
+// TestNormalizeEcosystemAdmitsAlmaAndRockyAliases pins the #9844 rpm-family
+// aliases: the six Alma/Rocky spellings OSV and the derivation use normalize
+// to os, and only those — the rest of the rpm family the reducer names stays
+// unsupported here.
+func TestNormalizeEcosystemAdmitsAlmaAndRockyAliases(t *testing.T) {
+	t.Parallel()
+
+	for _, alias := range []Ecosystem{
+		"alma", "almalinux", "rocky", "rockylinux", "rocky-linux", "rocky linux",
+		"AlmaLinux", "Rocky Linux",
+	} {
+		alias := alias
+		t.Run(string(alias), func(t *testing.T) {
+			t.Parallel()
+
+			if got := NormalizeEcosystem(alias); got != EcosystemOS {
+				t.Fatalf("NormalizeEcosystem(%q) = %q, want os", alias, got)
+			}
+		})
+	}
+	for _, ecosystem := range []Ecosystem{"centos", "fedora", "amazonlinux", "redhat"} {
+		ecosystem := ecosystem
+		t.Run(string(ecosystem), func(t *testing.T) {
+			t.Parallel()
+
+			if got := NormalizeEcosystem(ecosystem); got != "" {
+				t.Fatalf("NormalizeEcosystem(%q) = %q, want unsupported", ecosystem, got)
+			}
+		})
+	}
+}

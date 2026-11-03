@@ -154,6 +154,20 @@ func TestOSVOSAdvisoryLookupKeysMeetTheInstalledKey(t *testing.T) {
 		"alpine-cve-2023-27537.json": {"os://alpine/curl", "pkg:apk/alpine/curl"},
 		"ubuntu-cve-2022-27775.json": {"os://ubuntu/curl", "pkg:deb/ubuntu/curl"},
 		"ubuntu-cve-2016-5419.json":  {"os://ubuntu/curl", "pkg:deb/ubuntu/curl"},
+		// The rpm advisories carry both the raw upstream namespace purl and
+		// the canonical pkg:rpm/<vendor>/<name> key; the canonical key is
+		// the one the installed row's split_part(purl, '@', 1) yields
+		// (#9844). The os:// form keeps the advisory package id, which
+		// uses the raw namespace.
+		"alsa-2021-4511.json": {
+			"os://almalinux/curl", "os://almalinux/libcurl", "os://almalinux/libcurl-devel", "os://almalinux/libcurl-minimal",
+			"pkg:rpm/alma/curl", "pkg:rpm/alma/libcurl", "pkg:rpm/alma/libcurl-devel", "pkg:rpm/alma/libcurl-minimal",
+			"pkg:rpm/almalinux/curl", "pkg:rpm/almalinux/libcurl", "pkg:rpm/almalinux/libcurl-devel", "pkg:rpm/almalinux/libcurl-minimal",
+		},
+		"rlsa-2021-1610.json": {
+			"os://rocky-linux/curl",
+			"pkg:rpm/rocky-linux/curl", "pkg:rpm/rocky/curl",
+		},
 	} {
 		sources, keys := supplyChainImpactOSPackageAdvisoryTargets(convertedOSVFixture(t, fixture, false))
 		if len(sources) != 1 {
@@ -186,5 +200,94 @@ func TestPURLPackageKeyShapes(t *testing.T) {
 		if got := purlPackageKey(purl); got != want {
 			t.Errorf("purlPackageKey(%q) = %q, want %q", purl, got, want)
 		}
+	}
+}
+
+// TestOSVOSAdvisoryJoinsAlmaRockyRows pins #9844 on live records. Each
+// advisory purl names the upstream distro namespace (almalinux, rocky-linux)
+// while the installed row keys on the canonical vendor (alma, rocky), so the
+// join meets on pkg:rpm/<vendor>/curl, never on the raw purl. A vulnerable
+// row reads possibly_affected with os_release_unverified, a row at the fix
+// reads not_affected_known_fixed, and no OSV rpm fact is ever
+// affected_exact (ruling D, inherited from #9848/#9900).
+func TestOSVOSAdvisoryJoinsAlmaRockyRows(t *testing.T) {
+	t.Parallel()
+
+	const unverified = "os_release_unverified"
+	tests := []struct {
+		name       string
+		fixture    string
+		installed  installedOSRow
+		wantStatus SupplyChainImpactStatus
+		wantReason string
+	}{
+		// ALSA-2021:4511 fixes curl at 7.61.1-22.el8.
+		{"alma below the fix", "alsa-2021-4511.json", almaCurl("8", "7.61.1-18.el8"), SupplyChainImpactPossiblyAffected, unverified},
+		{"alma at the fix", "alsa-2021-4511.json", almaCurl("8", "7.61.1-22.el8"), SupplyChainImpactNotAffectedKnownFixed, supplyChainVersionReasonRPMKnownFixed},
+		{"alma above the fix", "alsa-2021-4511.json", almaCurl("8", "7.61.1-23.el8"), SupplyChainImpactNotAffectedKnownFixed, supplyChainVersionReasonRPMKnownFixed},
+		// RLSA-2021:1610 fixes curl at 0:7.61.1-18.el8.
+		{"rocky below the fix", "rlsa-2021-1610.json", rockyCurl("8", "0:7.61.1-16.el8"), SupplyChainImpactPossiblyAffected, unverified},
+		{"rocky at the fix", "rlsa-2021-1610.json", rockyCurl("8", "0:7.61.1-18.el8"), SupplyChainImpactNotAffectedKnownFixed, supplyChainVersionReasonRPMKnownFixed},
+	}
+	for _, tc := range tests {
+		for _, reverse := range []bool{false, true} {
+			name := tc.name
+			if reverse {
+				name += " (entries reversed)"
+			}
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+
+				envelopes := append(convertedOSVFixture(t, tc.fixture, reverse), tc.installed.envelope())
+				findings := BuildSupplyChainImpactFindings(envelopes)
+				if len(findings) != 1 {
+					t.Fatalf("findings = %d, want 1 OS package finding: %#v", len(findings), findings)
+				}
+				got := findings[0]
+				assertSupplyChainImpactStatus(t, got, tc.wantStatus)
+				if got.MatchReason != tc.wantReason {
+					t.Fatalf("MatchReason = %q, want %q", got.MatchReason, tc.wantReason)
+				}
+				if got.ObservedVersion != tc.installed.version {
+					t.Fatalf("ObservedVersion = %q, want %q", got.ObservedVersion, tc.installed.version)
+				}
+				if tc.wantReason != unverified {
+					return
+				}
+				if got.RuntimeReachability != "image_os_package" {
+					t.Fatalf("RuntimeReachability = %q, want image_os_package for an installed row", got.RuntimeReachability)
+				}
+				if !slices.Contains(got.MissingEvidence, supplyChainMissingOSReleaseLine) {
+					t.Fatalf("MissingEvidence = %v, want %q", got.MissingEvidence, supplyChainMissingOSReleaseLine)
+				}
+			})
+		}
+	}
+}
+
+// TestOSVOSAdvisoryJoinAlmaRockyNegatives pins the rows the rpm
+// advisory-side key must not join: the other rpm distro, a redhat row, and a
+// dpkg row for the same package name.
+func TestOSVOSAdvisoryJoinAlmaRockyNegatives(t *testing.T) {
+	t.Parallel()
+
+	redhatRow := installedOSRow{vendor: "redhat", release: "9.2", manager: "rpm", name: "curl", arch: "x86_64", version: "1:3.0.7-18.el9_2"}
+	tests := []struct {
+		name      string
+		envelopes []facts.Envelope
+	}{
+		{"alma advisory against a rocky row", append(convertedOSVFixture(t, "alsa-2021-4511.json", false), rockyCurl("8", "7.61.1-18.el8").envelope())},
+		{"rocky advisory against an alma row", append(convertedOSVFixture(t, "rlsa-2021-1610.json", false), almaCurl("8", "0:7.61.1-16.el8").envelope())},
+		{"alma advisory against a redhat row", append(convertedOSVFixture(t, "alsa-2021-4511.json", false), redhatRow.envelope())},
+		{"alma advisory against a dpkg row", append(convertedOSVFixture(t, "alsa-2021-4511.json", false), debianCurl("12", "7.61.1-18.el8").envelope())},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if findings := BuildSupplyChainImpactFindings(tc.envelopes); len(findings) != 0 {
+				t.Fatalf("findings = %#v, want none: no installed row of this vendor and package", findings)
+			}
+		})
 	}
 }

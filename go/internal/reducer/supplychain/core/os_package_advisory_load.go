@@ -164,7 +164,7 @@ const (
 )
 
 // osAdvisoryJoinKey is one (vendor, outcome, release) cell. vendor is the
-// closed set debian, ubuntu, alpine, other. release is the
+// closed set debian, ubuntu, alpine, alma, rocky, other. release is the
 // osAdvisoryRelease* result for a joined fact and empty for a not-joined one.
 type osAdvisoryJoinKey struct {
 	vendor  string
@@ -255,7 +255,7 @@ func isOSAffectedPackage(ecosystem string, purl string) bool {
 // osAdvisoryJoinVendorLabel bounds the vendor label to a closed set.
 func osAdvisoryJoinVendorLabel(vendor string) string {
 	switch vendor {
-	case "debian", "ubuntu", "alpine":
+	case "debian", "ubuntu", "alpine", "alma", "rocky":
 		return vendor
 	default:
 		return "other"

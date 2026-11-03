@@ -30,6 +30,10 @@ func TestOSAdvisoryJoinStatsSeparateLoadedFromJoined(t *testing.T) {
 		want      map[osAdvisoryJoinKey]int
 	}{
 		{"debian advisory with a debian row", append(append([]facts.Envelope{}, debian...), debianCurl("12", "7.88.1-10+deb12u2").envelope()), map[osAdvisoryJoinKey]int{{"debian", osAdvisoryJoinOutcomeJoined, osAdvisoryReleaseUntagged}: 1}},
+		{"alma advisory with an alma row", append(append([]facts.Envelope{}, convertedOSVFixture(t, "alsa-2021-4511.json", false)...), almaCurl("8", "7.61.1-18.el8").envelope()), map[osAdvisoryJoinKey]int{{"alma", osAdvisoryJoinOutcomeJoined, osAdvisoryReleaseUntagged}: 1, {"alma", osAdvisoryJoinOutcomeNotJoined, ""}: 3}},
+		{"alma advisory with only a rocky row", append(append([]facts.Envelope{}, convertedOSVFixture(t, "alsa-2021-4511.json", false)...), rockyCurl("8", "7.61.1-18.el8").envelope()), map[osAdvisoryJoinKey]int{{"alma", osAdvisoryJoinOutcomeNotJoined, ""}: 4}},
+		{"rocky advisory with a rocky row", append(append([]facts.Envelope{}, convertedOSVFixture(t, "rlsa-2021-1610.json", false)...), rockyCurl("8", "0:7.61.1-16.el8").envelope()), map[osAdvisoryJoinKey]int{{"rocky", osAdvisoryJoinOutcomeJoined, osAdvisoryReleaseUntagged}: 1}},
+		{"rocky advisory with no row", convertedOSVFixture(t, "rlsa-2021-1610.json", false), map[osAdvisoryJoinKey]int{{"rocky", osAdvisoryJoinOutcomeNotJoined, ""}: 1}},
 		{"debian advisory with only an ubuntu row", append(append([]facts.Envelope{}, debian...), ubuntuCurl("22.04", "7.88.1-10+deb12u2").envelope()), map[osAdvisoryJoinKey]int{{"debian", osAdvisoryJoinOutcomeNotJoined, ""}: 1}},
 		{"debian advisory with no row", debian, map[osAdvisoryJoinKey]int{{"debian", osAdvisoryJoinOutcomeNotJoined, ""}: 1}},
 		{"npm advisory", convertedOSVFixture(t, "ghsa-35jh-r3h4-6jhm.json", false), nil},
@@ -50,7 +54,7 @@ func TestOSAdvisoryJoinStatsSeparateLoadedFromJoined(t *testing.T) {
 }
 
 // TestEmitOSAdvisoryJoinsCarriesOnlySourceAndOutcome pins the counter's
-// closed label set: source (debian, ubuntu, alpine, other) and outcome
+// closed label set: source (debian, ubuntu, alpine, alma, rocky, other) and outcome
 // (joined, not_joined), one point per non-zero cell.
 func TestEmitOSAdvisoryJoinsCarriesOnlySourceAndOutcome(t *testing.T) {
 	t.Parallel()

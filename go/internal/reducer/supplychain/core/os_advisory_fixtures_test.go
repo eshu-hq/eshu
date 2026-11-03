@@ -85,8 +85,11 @@ type installedOSRow struct {
 
 func (r installedOSRow) envelope() facts.Envelope {
 	purlType := "deb"
-	if r.manager == "apk" {
+	switch r.manager {
+	case "apk":
 		purlType = "apk"
+	case "rpm":
+		purlType = "rpm"
 	}
 	purl := "pkg:" + purlType + "/" + r.vendor + "/" + r.name + "@" + r.version +
 		"?arch=" + r.arch + "&distro=" + r.vendor + "-" + r.release
@@ -162,4 +165,12 @@ func ubuntuCurl(release, version string) installedOSRow {
 
 func alpineCurl(release, version string) installedOSRow {
 	return installedOSRow{vendor: "alpine", release: release, manager: "apk", name: "curl", arch: "x86_64", version: version}
+}
+
+func almaCurl(release, version string) installedOSRow {
+	return installedOSRow{vendor: "alma", release: release, manager: "rpm", name: "curl", arch: "x86_64", version: version}
+}
+
+func rockyCurl(release, version string) installedOSRow {
+	return installedOSRow{vendor: "rocky", release: release, manager: "rpm", name: "curl", arch: "x86_64", version: version}
 }

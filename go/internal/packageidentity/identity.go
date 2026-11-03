@@ -156,7 +156,8 @@ func NormalizeEcosystem(value Ecosystem) Ecosystem {
 		return EcosystemHex
 	case "pub", "pub.dev", "dart", "dart-pub":
 		return EcosystemPub
-	case "os", "apk", "alpine", "deb", "debian", "rpm", "rhel", "ubuntu":
+	case "os", "apk", "alpine", "deb", "debian", "rpm", "rhel", "ubuntu",
+		"alma", "almalinux", "rocky", "rockylinux", "rocky-linux", "rocky linux":
 		return EcosystemOS
 	case "generic":
 		return EcosystemGeneric
