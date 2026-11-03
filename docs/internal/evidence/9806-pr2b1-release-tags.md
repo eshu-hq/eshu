@@ -51,8 +51,8 @@ The activation PR (after the SDK declares the field) turns the tag on.
   unlisted, a list on a fact that carries release evidence (a vendor advisory)
   counts too, because that fact settles the host exactly. Both apply only when
   a tagged fact is present, so no live verdict moves. The same hole in the
-  untagged single-fix shortcut, where a vendor list is skipped, is live and is
-  tracked in #9929; this change does not touch it.
+  untagged single-fix shortcut, where a vendor list is skipped, was tracked in
+  #9929 and is closed there; this change does not touch it.
 - **Any untagged range** keeps the whole fact on the untagged rules.
 
 ## Proof
@@ -66,7 +66,7 @@ The activation PR (after the SDK declares the field) turns the tag on.
 | Success-log sub-signals | RED when the sub-signal lines were removed (exit 1); GREEN restored. |
 | Unlisted settlement reads the list first (automated review P2) | RED: the new dpkg row read `not_affected_known_fixed` / `dpkg_known_fixed_unlisted_release` (exit 1); GREEN after the guard (exit 0). Removing the guard turns the new dpkg and apk rows RED. |
 | Vendor list wins over an unlisted OSV fact (independent review) | RED: 8 of 8 cases (dpkg and apk, several fixes and one fix, both fact orders) read known fixed while the vendor fact alone reads `affected_exact` (exit 1); GREEN after the scoped change (exit 0). |
-| Untagged twin stays as it is (independent review H1) | `TestUntaggedVendorVersionListKeepsSingleFixShortcut` pins today's untagged answer (`not_affected_known_fixed` / `dpkg_known_fixed`, both fact orders) and passes (exit 0). Widening the guard to every join turns it RED with `affected_exact` (exit 1); restored, GREEN. #9929 flips the row. |
+| Untagged twin stays as it is (independent review H1) | `TestUntaggedVendorVersionListKeepsSingleFixShortcut` pins today's untagged answer (`not_affected_known_fixed` / `dpkg_known_fixed`, both fact orders) and passes (exit 0). Widening the guard to every join turns it RED with `affected_exact` (exit 1); restored, GREEN. #9929 deleted that test and flipped its answer on purpose, as `TestUntaggedVendorVersionListBeatsOSVSingleFix`. |
 | `factschema-diff`, `payload-usage-manifest`, `extensionconformance`, accuracy golden gate | all exit 0. No schema edit, no new read. |
 
 ## One-time re-collection

@@ -270,39 +270,6 @@ func TestUnlistedReleaseVendorVersionListWins(t *testing.T) {
 	}
 }
 
-// TestUntaggedVendorVersionListKeepsSingleFixShortcut pins today's behavior for
-// facts that carry no release tag, so the vendor-list rule above cannot widen to
-// them by accident: an untagged OSV fact with one fix at or below the host plus
-// a vendor fact whose exact list names the host reads known fixed, although the
-// vendor fact alone reads affected_exact. That is a wrong answer tracked in
-// eshu-hq/eshu#9929, which flips this row together with its census. Until then
-// this row keeps the live verdict from moving in #9806 PR-2b-1.
-func TestUntaggedVendorVersionListKeepsSingleFixShortcut(t *testing.T) {
-	t.Parallel()
-
-	osv := supplychainmodel.AffectedPackage{
-		CVEID: "DEBIAN-CVE-2099-0200", Source: "osv", AdvisoryID: "DEBIAN-CVE-2099-0200",
-		PackageID: "os://debian/curl", Ecosystem: "os", Name: "curl",
-		PURL: "pkg:deb/debian/curl", FixedVersions: []string{"1.0-2"},
-	}
-	vendor := supplychainmodel.AffectedPackage{
-		CVEID: "DEBIAN-CVE-2099-0200", Source: "debian", AdvisoryID: "DSA-9999-1",
-		PackageID: "os://debian/curl", Ecosystem: "os", Name: "curl",
-		PURL: "pkg:deb/debian/curl", AffectedVersions: []string{"1.0-3"},
-	}
-	alone := evaluateSupplyChainVersionMatch("os", "1.0-3", "", "", []supplychainmodel.AffectedPackage{vendor})
-	if alone.Status != SupplyChainImpactAffectedExact {
-		t.Fatalf("vendor fact alone = %s/%s, want %s", alone.Status, alone.Reason, SupplyChainImpactAffectedExact)
-	}
-	for _, facts := range [][]supplychainmodel.AffectedPackage{{osv, vendor}, {vendor, osv}} {
-		got := evaluateSupplyChainVersionMatch("os", "1.0-3", "", "1.0-2", facts)
-		if got.Status != SupplyChainImpactNotAffectedKnownFixed || got.Reason != "dpkg_known_fixed" {
-			t.Fatalf("untagged osv+vendor = %s/%s, want %s/dpkg_known_fixed (current behavior, #9929)",
-				got.Status, got.Reason, SupplyChainImpactNotAffectedKnownFixed)
-		}
-	}
-}
-
 // TestUnlistedReleaseSettlesFinding pins that a release line the advisory
 // does not list, like an unverified one, settles an installed-package finding
 // when no SBOM path competes: the package is installed, only the advisory's

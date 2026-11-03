@@ -66,9 +66,18 @@ func evaluateOSPackageVersionMatch(
 		return malformedInstalledVersionDecision()
 	}
 	verdict := osPackageRangesVerdict(observed, pkgs, compare)
-	switch {
-	case verdict.exact:
+	if verdict.exact {
 		return affectedVersionDecision(rangeAffectedReason)
+	}
+	// A vendor fact's exact list that names the host settles it as affected.
+	// The match is on the version string and is trusted as published for the
+	// host's release; the join does not check the line (#9945). It outranks
+	// every verdict below, which are built from untagged OSV ranges that merge
+	// every release (#9929).
+	if osReleaseEvidenceListNamesObserved(observed, pkgs, compare) {
+		return affectedVersionDecision(affectedReason)
+	}
+	switch {
 	case verdict.ambiguous:
 		return possiblyAffectedDecision(supplyChainVersionReasonOSReleaseAmbiguous, []string{supplyChainMissingOSReleaseLine})
 	case verdict.unverified:
@@ -81,7 +90,7 @@ func evaluateOSPackageVersionMatch(
 	// FixedVersions, so the single-fix shortcut below can only honor the
 	// host's own fix or an untagged fact's fix, never another release
 	// line's (ruling Q2.10).
-	if fixedVersion != "" && !osVersionListNamesObserved(observed, pkgs, compare) {
+	if fixedVersion != "" && !osVersionListBlocksKnownFixed(observed, pkgs, compare) {
 		cmp, valid := compare(observed, fixedVersion)
 		if !valid {
 			return malformedVersionDecision()
@@ -228,9 +237,10 @@ func osPackageRangesVerdict(
 }
 
 // osAffectedFactCarriesReleaseEvidence reports whether an affected OS fact's
-// ranges and exact-version list are known to describe the host's release
+// ranges and exact-version list are assumed to describe the host's release
 // line. A vendor-sourced fact
-// (source debian, ubuntu, alpine) is published per release; an OSV OS fact is
+// (source debian, ubuntu, alpine) is taken as published per release (assumed:
+// the join does not check the line, #9945); an OSV OS fact is
 // the untagged union of every release's ranges (#9847 merges them), so it
 // carries none (#9848, ruling D). A tagged OSV fact narrowed to the host's
 // line (ReleaseLine set, #9806 PR-2b) does carry it.
