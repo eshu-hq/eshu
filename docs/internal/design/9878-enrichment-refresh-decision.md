@@ -32,7 +32,7 @@ Measured facts and their sources:
   build is also correct. The defect is only at winner level, across per-scope
   copies scored from different enrichment vintages. The 100-point clamp
   hiding a 0.71 to 0.12 drop is scoring design, not a masking bug.
-- Read-time theory proof (shim at `/tmp/eshu-9878-proof`, 168 plans, private
+- Read-time theory proof (throwaway shim, 168 plans, private
   PostgreSQL 18, 1x/5x/10x corpora of 645/3225/6450 winner keys): the ADOPT
   bar was list+aggregate p95 within 20% of winners-table reads with resweep
   p95 under 30s. Prong 1 FAILED structurally at every scale (list about
@@ -137,17 +137,18 @@ read-time rejected, groups-vs-`cve_id` keying is moot and enrichment stays
 - Fixture: commit `6ae57213a4`, 330 lines, core package only; green on lead
   re-run (`go test ./internal/reducer/supplychain/core/ -run
   'TestKEVEPSSRescore' -count=1`, exit 0).
-- Proof: `/tmp/eshu-9878-proof` (`bench_pass3.log`, `summarize.py`,
-  `check_correctness.py` exit 0 all scales); extractor `/tmp/shimbuild`
-  (byte-exact shipped query text, parity diffs clean). Repo untouched.
+- Proof: throwaway shim scripts from the proof session (ephemeral paths,
+  retained in session notes; `bench_pass3.log`, `summarize.py`,
+  `check_correctness.py` exit 0 all scales); extractor used byte-exact
+  shipped query text with clean parity diffs. Repo untouched.
 - Verified prong-1 magnitudes from `bench_pass3.log` medians: list about
   6.8x (1x), 52x (5x), 13x (10x, noisy host); aggregate count 24x/53x/8x.
   Every statistic at every scale misses the 1.2x bar by 5x or more. The
   brief's 6.3x/17x/22-63x ratios did not reproduce under one statistic and
   are not quoted as verified. Shim absolutes are shim-local; winners-side
   aggregates were shim-composed; filters neutral.
-- Arbiter: `arbiter-eshu` (`muse-wonder-full-1.0`), 2026-11-03, full text at
-  `/tmp/arbiter-9878-decision.md`. Skills: `eshu-performance-rigor`,
+- Arbiter: `arbiter-eshu` (`muse-wonder-full-1.0`), 2026-11-03; ruling
+  quoted in the issue thread with its decision fully recorded here. Skills: `eshu-performance-rigor`,
   `eshu-postgres-rigor`, `eshu-contract-rigor`, `eshu-diagnostic-rigor`.
 - NOT_CHECKED carried forward: KEV rerun cadence in QA and whether
   `FreshnessHint` already skips there; QA scopes-per-CVE distribution;
