@@ -236,6 +236,12 @@ func directFamilyCassetteCases() []directFamilyCassetteCase {
 			load:         ifa.LoadPublishesFamilyOdu,
 		},
 		{
+			name:         ifa.RuntimeDeclarationFamilyOduName,
+			compiled:     ifa.RuntimeDeclarationFamilyOdu,
+			cassettePath: ifa.RuntimeDeclarationFamilyCassetteFullPath,
+			load:         ifa.LoadRuntimeDeclarationFamilyOdu,
+		},
+		{
 			name:         ifa.SecurityGroupReachabilityFamilyOduName,
 			compiled:     ifa.SecurityGroupReachabilityFamilyOdu,
 			cassettePath: ifa.SecurityGroupReachabilityFamilyCassetteFullPath,

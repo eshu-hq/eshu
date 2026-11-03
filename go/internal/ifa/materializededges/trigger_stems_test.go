@@ -213,6 +213,11 @@ var materializedEdgeFamilyTriggerStems = map[string]string{
 	// (scripts/lib/ifa_fault_injection_assumes_iam_role_cells.sh),
 	// the fault cases file, and the Odù the triggers name.
 	"assumes_iam_role": "assumes_iam_role",
+	// runtime_declaration joins them with the #6228 runtime_declaration
+	// live leaf: same stem shape, read off the fault cells file
+	// (scripts/lib/ifa_fault_injection_runtime_declaration_cells.sh),
+	// the fault cases file, and the Odù the triggers name.
+	"runtime_declaration": "runtime_declaration",
 }
 
 // TestEveryCoveredFamilyTriggersBothLiveGates closes the third side of the
