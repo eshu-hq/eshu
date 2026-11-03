@@ -1,0 +1,23 @@
+go/internal/collector/vulnerabilityintelligence/envelope.go
+  s_9c818346074e86::t_652b1860ea2a2d 145-151
+go/internal/collector/vulnerabilityintelligence/identity_edges_test.go
+  s_9c818346074e86::t_565f0f64184f24 1-89
+go/internal/collector/vulnerabilityintelligence/types.go
+  s_9c818346074e86::t_9a18f12883cca3 95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "250d43a6a5ef26da11031f191e6b24d0798e096e",
+  "prompts": {},
+  "sessions": {
+    "s_9c818346074e86": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9c11fe27-4c11-4e6c-baf7-8b1b133adba8",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
