@@ -367,9 +367,7 @@ variables or Kubernetes Secrets referenced by `extraEnv`.
 
 ## Vulnerability Intelligence Collector
 
-The vulnerability intelligence collector is claim-only. It selects an enabled
-`vulnerability_intelligence` instance from `ESHU_COLLECTOR_INSTANCES_JSON`; for an activation, where `target_limit` and `planning_mode` are host-only, see [Derived OSV Scopes](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/run-an-extracted-collector.md#derived-osv-scopes).
-Supported source targets are CISA KEV, FIRST EPSS, OSV, and NVD.
+The vulnerability intelligence collector is claim-only. It selects an enabled `vulnerability_intelligence` instance from `ESHU_COLLECTOR_INSTANCES_JSON`; for an activation, where `target_limit` and `planning_mode` are host-only, see [Derived OSV Scopes](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/run-an-extracted-collector.md#derived-osv-scopes). Supported source targets are CISA KEV, FIRST EPSS, OSV, and NVD.
 Collector configuration may define explicit `targets` or enable
 `derive_from_owned_packages` so the coordinator derives bounded OSV npm, Pub,
 and Swift package-version targets from active owned dependency facts with exact
@@ -380,14 +378,9 @@ ranges, aliases, Pub git/path/private-hosted rows, Pub dependency overrides,
 branch-only Swift pins, revision-only Swift pins, and local/path Swift pins
 remain partial evidence and are skipped for exact OSV collection. The default derived target
 limit is 100, at most 5000; each rotating window plans one hash slot of the
-owned targets ([Derived Target Rotation](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/run-an-extracted-collector.md#derived-target-rotation)). One full rotation takes the slot count times the reconcile interval. `derive_from_owned_packages.max_staleness` (a positive Go duration, default `24h`) states how long that may be: the coordinator reports the period as `eshu_dp_owned_target_rotation_period_seconds` against the bound and logs `owned_target_rotation_exceeds_max_staleness` when the period is longer. It is a reporting threshold and changes no planning. An enabled `derive_from_installed_evidence` refuses it; a disabled section accepts it unused, and under `planning_mode: single_pass` (no rotation) it is accepted and reports nothing. `derive_from_owned_packages.slot_progress` (boolean, default `false`; in-tree OSV derivation only, so a component activation, `derive_from_installed_evidence` and `single_pass` refuse it) swaps the wall-clock slot for the 1,024/P least recently planned virtual slots, read from `owned_target_slot_progress` and advanced inside the admission transaction. A bucket the coordinator never ran is then planned on the next read, not one rotation later. It holds while P is at most 1,024, that is while the target total T is at most 512 times the target limit L; above that the read keeps the clock slot and warns `owned_target_progress_clock_fallback`. The age it reports counts planned buckets, not collected ones. Turning it off restores the clock slot and leaves the table unread ([signals](telemetry/owned-target-slot-progress.md)).
-The single OSV target query payload remains capped separately at 100 queries.
+owned targets ([Derived Target Rotation](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/run-an-extracted-collector.md#derived-target-rotation)). One full rotation takes the slot count times the reconcile interval. `derive_from_owned_packages.max_staleness` (a positive Go duration, default `24h`) states how long that may be: the coordinator reports the period as `eshu_dp_owned_target_rotation_period_seconds` against the bound and logs `owned_target_rotation_exceeds_max_staleness` when the period is longer. It is a reporting threshold and changes no planning. An enabled `derive_from_installed_evidence` refuses it; a disabled section accepts it unused, and under `planning_mode: single_pass` (no rotation) it is accepted and reports nothing. `derive_from_owned_packages.slot_progress` (boolean, default `false`; in-tree OSV derivation only, so a component activation, `derive_from_installed_evidence` and `single_pass` refuse it) swaps the wall-clock slot for the 1,024/P least recently planned virtual slots, read from `owned_target_slot_progress` and advanced inside the admission transaction. A bucket the coordinator never ran is then planned on the next read, not one rotation later. It holds while P is at most 1,024, that is while the target total T is at most 512 times the target limit L; above that the read keeps the clock slot and warns `owned_target_progress_clock_fallback`. The age it reports counts planned buckets, not collected ones. Turning it off restores the clock slot and leaves the table unread ([signals](telemetry/owned-target-slot-progress.md)). The single OSV target query payload remains capped separately at 100 queries.
 
-`derive_from_owned_packages.ecosystems` takes `cargo`, `composer`, `go`, `hex`,
-`maven`, `npm`, `nuget`, `pub`, `pypi`, `rubygems`, or `swift`; the
-installed-evidence list adds `alma`, `alpine`, `debian`, `rocky`, `ubuntu`. Any
-other name, a distro under the owned list included, fails startup: `unsupported
-ecosystem "debian" (supported: ...)`. Some dependency facts carry a different
+`derive_from_owned_packages.ecosystems` takes `cargo`, `composer`, `go`, `hex`, `maven`, `npm`, `nuget`, `pub`, `pypi`, `rubygems`, or `swift`; the installed-evidence list adds `alma`, `alpine`, `debian`, `rocky`, `ubuntu`. Any other name, a distro under the owned list included, fails startup: `unsupported ecosystem "debian" (supported: ...)`. Some dependency facts carry a different
 `package_manager` spelling for the same OSV ecosystem, so the coordinator reads
 those facts and reports them under the configured name. Configuring `maven` also
 derives targets from Gradle dependencies, because Gradle declares Maven
@@ -409,30 +402,21 @@ the derived-target skip evidence. Package-registry derivation expands aliases
 but never selects sbt rows: it leaves the reader's sbt flag off, so its
 selection is the alias expansion with no sbt rows.
 
-`derive_from_findings` with `sources: ["first_epss"]` derives FIRST EPSS
-targets from the CVE ids on active findings (phase 2 item 2.1,
-eshu-hq/eshu#9876): the coordinator case-normalizes, dedupes, and sorts the
-finding ids, keeps CVE-shaped ids, and packs at most 100 ids and 2000 joined
-characters per derived `vuln-intel://first_epss/_findings/<chunk>` scope, one
-FIRST request per target. Non-CVE ids (GHSA-only winners wait for advisory
-groups) are excluded and counted, never sent; over-budget ids are counted as
-skip evidence, never truncated. An unchanged set plans byte-identical targets;
-an appended CVE touches only its own scope. The ids ride the run's
-`requested_scope_set` transport like OSV queries. Per-plan counts land on the
-`vulnerability_intelligence` plan span, on
-`eshu_dp_workflow_coordinator_epss_derived_admitted_total` and
-`..._skipped_total` (labels carry counts only, never CVE ids), and on one INFO
-log line with the same counts. A component activation refuses an enabled
-`derive_from_findings` section. EPSS attribution text stays a pending owner/legal accept: this
-change ships no attribution wording, and enabling derived EPSS in a
-deployment waits for that accept to be recorded.
+`derive_from_findings` with `sources: ["first_epss"]` derives FIRST EPSS targets from the CVE ids
+on active findings (phase 2 item 2.1, eshu-hq/eshu#9876): the coordinator case-normalizes, dedupes,
+and sorts the finding ids, keeps CVE-shaped ids, and packs at most 100 ids and 2000 joined characters
+per derived `vuln-intel://first_epss/_findings/<chunk>` scope, one FIRST request per target.
+`target_limit` (default 100, at most 5000) bounds derived targets, never CVE ids: chunking runs first
+and only whole trailing chunks past the limit drop, counted as `derived_target_budget_exhausted` skip
+evidence. Non-CVE ids (GHSA-only winners wait for advisory groups) are excluded and counted, never sent.
+An unchanged set plans byte-identical targets; an appended CVE touches only its own scope, while a
+configured target reusing a derived ordinal scope id keeps its scope and drops that chunk with no skip
+row (the distinct/planned count gap still shows it). A component activation refuses an enabled
+`derive_from_findings` section. EPSS attribution text
+stays a pending owner/legal accept: enabling derived EPSS waits for that accept. Counts ride the plan
+span, EPSS counters, and one INFO line; no CVE id reaches a label or log.
 
-Inside `ESHU_COLLECTOR_INSTANCES_JSON`, vulnerability targets may set
-`fallback_urls` for source mirrors. The instance configuration may also set
-`source_cache.directory`, `source_cache.mode` (`refresh` or `offline`),
-`source_cache.freshness_ttl`, `source_cache.retention`, and
-`source_cache.use_cached_on_fetch_error`. Offline mode never calls live
-upstreams and fails closed when the cached artifact is missing or stale.
+Inside `ESHU_COLLECTOR_INSTANCES_JSON`, vulnerability targets may set `fallback_urls` for source mirrors. The instance configuration may also set `source_cache.directory`, `source_cache.mode` (`refresh` or `offline`), `source_cache.freshness_ttl`, `source_cache.retention`, and `source_cache.use_cached_on_fetch_error`. Offline mode never calls live upstreams and fails closed when the cached artifact is missing or stale.
 
 | Variable | Default | Read by | Purpose |
 | --- | --- | --- | --- |
