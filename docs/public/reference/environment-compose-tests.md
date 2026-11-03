@@ -32,7 +32,8 @@ These variables are read by `scripts/sync_local_compose_mcp.sh`.
 | `ESHU_MCP_METRICS_PORT` | `19468` | Host metrics port for MCP server. |
 | `ESHU_WORKFLOW_COORDINATOR_HTTP_PORT` | `18082` | Host HTTP port for workflow coordinator. |
 | `ESHU_WORKFLOW_COORDINATOR_METRICS_PORT` | `19469` | Host metrics port for workflow coordinator. |
-| `ESHU_WEBHOOK_LISTENER_HTTP_PORT` | `18083` | Host HTTP/metrics port for optional webhook listener profile. |
+| `ESHU_WEBHOOK_SATELLITE_HTTP_PORT` | `18083` | Host HTTP port for optional webhook profile (provider edge on the satellite). |
+| `ESHU_WEBHOOK_INTAKE_TOKEN` | _(required, no default)_ | Bearer token the satellite presents to the core intake host; shared by both compose services. |
 | `NEO4J_HTTP_PORT` | `7474` | Host Neo4j/NornicDB HTTP port in examples. |
 | `NEO4J_BOLT_PORT` | `7687` | Host Neo4j/NornicDB Bolt port in examples. |
 | `ESHU_POSTGRES_PORT` | `15432` | Host Postgres port. |

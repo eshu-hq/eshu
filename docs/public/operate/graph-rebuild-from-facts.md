@@ -86,7 +86,7 @@ scale the writers to zero, delete and recreate the NornicDB PVC, scale back up.
 
 ```bash
 docker compose stop eshu mcp-server ingester resolution-engine projector \
-  workflow-coordinator component-extension-collector webhook-listener
+  workflow-coordinator component-extension-collector
 ```
 
 Leave `postgres` running. It holds the facts you are about to rebuild from.
