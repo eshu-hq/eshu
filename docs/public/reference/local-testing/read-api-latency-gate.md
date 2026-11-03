@@ -1,10 +1,16 @@
 # Read API Latency Gate
 
 Issue #6797. Backend-backed p95 latency benchmark for every no-arg GET read
-route, gated in CI so a regression like #6793 (infra resource aggregate
-full-graph scan) or #6794 (status/readiness routes paying an expensive
-per-scope `activeFactWorkItemsCTE` query) cannot merge without this gate
-going red.
+route. When the CI cell is on, it catches a regression like #6793 (infra
+resource aggregate full-graph scan) or #6794 (status/readiness routes paying an
+expensive per-scope `activeFactWorkItemsCTE` query) before it merges by going
+red. The CI cell is off today (see the status note below).
+
+**Status: the NornicDB CI cell is disabled** (owner order, 2026-11-03). Neo4j is
+the supported backend, so the `latency-gate (nornicdb)` job no longer runs in CI
+and its registry row is `manual` and non-blocking. The script still runs by hand
+(`bash scripts/verify-read-api-latency-gate.sh`). NornicDB gets revisited once
+Neo4j works as expected; the workflow comment lists how to re-enable the job.
 
 It exists because that class of regression is invisible to hermetic tests:
 the cost only appears at repo/scope scale against a real Postgres+NornicDB
@@ -177,8 +183,8 @@ Record the actual Compose image digest, host load, API/MCP/Postgres/Neo4j
 CPU and memory, seed verification counts, and both report hashes alongside
 the command and exit status. The concurrent report shows offered load and
 client overlap; it does not measure backend resource use by itself. Keep the
-existing NornicDB CI lane under its current blocking policy while the
-supported-backend pilot is added.
+NornicDB script runnable by hand (its CI cell is off, see the status note) while
+the supported-backend pilot is added.
 
 The dedicated manual Neo4j job allows 45 minutes for cold Compose startup,
 database migration and seeding, host builds, the serial sweep, and the later

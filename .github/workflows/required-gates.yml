@@ -70,8 +70,16 @@ jobs:
   aggregate:
     # pull_request aggregates a PR head. The aggregate publishes
     # required-gates-complete on that exact SHA, which is what the ruleset's
-    # required status reads.
-    if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request' }}
+    # required status read.
+    #
+    # Disabled by owner order (2026-11-03): the ruleset no longer requires
+    # required-gates-complete, so this job does not publish it. The required
+    # checks are go-core-complete and go-race-complete. To re-enable, restore
+    # the original condition and add the check back to the ruleset:
+    #   if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request' }}
+    # workflow_run runs the default branch's copy of this file, so this change
+    # takes effect after it merges; a PR's own run still uses the old copy.
+    if: ${{ false }}
     runs-on: ubuntu-24.04
     # Selection (10m) + longest payload (60m), with setup/publication margin.
     timeout-minutes: 85

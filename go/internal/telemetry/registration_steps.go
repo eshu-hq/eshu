@@ -420,10 +420,12 @@ func registerOCR() {
 	spanNames = append(spanNames, contract.SpanOCRExtract, contract.SpanOCRRecognize)
 }
 
-// registerSupplyChainImpactWinners appends the #9774 winners resweep span,
-// unconditionally at the end and independent of every earlier step.
+// registerSupplyChainImpactWinners appends the #9774 winners resweep span and the
+// #9805 path metric dimension, unconditionally at the end and independent of
+// every earlier step.
 func registerSupplyChainImpactWinners() {
 	spanNames = append(spanNames, SpanSupplyChainImpactWinnersResweep)
+	metricDimensionKeys = append(metricDimensionKeys, MetricDimensionPath)
 }
 
 // registerWorkflowClaimStats appends the #9871 post-admission stats-analyze

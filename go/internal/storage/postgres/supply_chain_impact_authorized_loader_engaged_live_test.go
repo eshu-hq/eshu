@@ -80,6 +80,11 @@ func TestAuthorizedLoaderEngagedFoldPublishesFoldedEvidenceLive(t *testing.T) {
 		`GRANT SELECT, INSERT, UPDATE ON supply_chain_impact_write_admission TO "` + roleName + `"`,
 		`GRANT SELECT, INSERT, UPDATE ON fact_records TO "` + roleName + `"`,
 		`GRANT SELECT ON scope_generations TO "` + roleName + `"`,
+		// The impact writer names the winners it changed in the same transaction
+		// (#9805), so the worker login needs the dirty log: a DBA pregrant outside
+		// the migration set, as the protected-publish proof grants it.
+		`GRANT INSERT ON supply_chain_impact_winners_dirty_log TO "` + roleName + `"`,
+		`GRANT USAGE ON SEQUENCE supply_chain_impact_winners_dirty_log_seq_seq TO "` + roleName + `"`,
 	} {
 		mustExecProofRow(t, ctx, admin, s)
 	}

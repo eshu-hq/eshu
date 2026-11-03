@@ -39,6 +39,12 @@ changing anything here.
   `*_test_fixtures_test.go` / `defaults_cross_scope_readiness_wiring_test.go`
   files). Shared test decode for batched versioned writes lives in
   `factwrite/testutil` — extend that leaf instead of copying decoders.
+- The winners keyed resweep (#9805) is sound only while no payload field the
+  winners select reads is outside the finding content digest, because the
+  writer skips the dirty-log capture of a rewrite with an unchanged digest.
+  Adding a payload field to the digest exclusions in `contentDigestOf`, or a
+  new field to the winners select that the digest leaves out, breaks it; the
+  digest-coverage test and the postgres select guard fail on both.
 - `telemetry-coverage.md` rows that name files in this package must keep
   pointing at real files with a net-zero row count; the dirgate row for
   `internal/reducer` ratchets DOWN on family moves and never absorbs new

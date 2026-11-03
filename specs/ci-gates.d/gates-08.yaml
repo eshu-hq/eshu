@@ -173,8 +173,8 @@ gates:
     category: exactness
     layer: performance
     purpose: "Runs the read API against Docker/NornicDB and fails if route latency or Postgres work exceeds committed budgets."
-    tier: ci-heavy
-    blocking: true
+    tier: manual
+    blocking: false
     triggers:
       - "scripts/lib/cgo-cflags.sh"
       # cmd/api compiles 363 of the repo's 558 internal packages (go list
@@ -221,13 +221,11 @@ gates:
     ci:
       workflow: read-api-latency-gate.yml
       job: "latency-gate (nornicdb)"
-      check_names:
-        - "latency-gate (nornicdb)"
     requirements:
       - go
       - docker
       - nornicdb
-    ci_only_reason: ""
+    ci_only_reason: "Disabled by owner order (2026-11-03): the NornicDB latency gate does not run in CI while Neo4j is the supported backend. Revisit NornicDB once Neo4j works as expected; run it by hand with the local command."
   - id: query-methodology-scale-neo4j
     name: Query Methodology Neo4j Scale Calibration
     category: exactness

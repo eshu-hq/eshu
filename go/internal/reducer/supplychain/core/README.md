@@ -410,7 +410,7 @@ the directory name.
 | `finding.go` | `SupplyChainImpactFinding` (carries the `Suppression` field: impact + suppression are one unit) |
 | `writer.go` | `PostgresSupplyChainImpactWriter`, batched versioned inserts |
 | `writer_retract.go` | Replace-set transaction (#6831): per-(scope, generation) advisory lock, upsert, tombstone of superseded findings |
-| `winners_maintainer.go` | `SupplyChainImpactWinnersMaintainer` read-model resweep (writes changed rows only, skips while another is in flight, #9774) and its span, metrics, and log |
+| `winners_maintainer.go` | `SupplyChainImpactWinnersMaintainer` read-model resweep (writes changed rows only, skips while another is in flight, #9774) and its span, metrics, and log; `winners_keyed_maintainer.go` and `winners_keyed.go` add the keyed resweep and audit (#9805): the leased keyed tick, the audit loop, the dirty-log gauges and the capture contracts. The writer names a changed finding's key in its own transaction (and counts fact_upsert and fact_retract as it appends them); migration 272 triggers name the keys of pointer flips and scanner publishes, and the maintainer counts those sources when it consumes them. A rewrite with an unchanged content digest names nothing |
 | `evaluation.go`, `decode.go`, `reasons.go`, `scope.go` | Suppression story: Decision + Evaluate, decode, reasons, scope match |
 | `retraction.go` | Advisory retraction (#9695): per-observation code, per-CVE-group rule, reason text |
 | `go_reachability*.go` | Go module/call reachability classification |

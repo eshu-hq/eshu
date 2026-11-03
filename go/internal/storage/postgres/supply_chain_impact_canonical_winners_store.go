@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core/cvss"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // Recompute write side of the #3389 canonical dedup materialization. See
@@ -33,7 +34,15 @@ import (
 // canonical key and overlays the authoritative operator suppression state.
 // Source evidence remains the filtering, ordering, and payload authority;
 // operator-only keys cannot fabricate findings.
-var supplyChainImpactWinnerSelectSQL = `
+//
+// It is the active_facts prefix followed by the body. The keyed resweep (#9805)
+// reuses the body unchanged over a keyed active_facts, so the two paths cannot
+// drift: supplyChainImpactWinnerSelectSQL is exactly prefix + body.
+var supplyChainImpactWinnerSelectSQL = supplyChainImpactWinnerActiveFactsSQL + supplyChainImpactWinnerBodySQL
+
+// supplyChainImpactWinnerActiveFactsSQL opens the full select with the active
+// impact facts of every active scope generation.
+const supplyChainImpactWinnerActiveFactsSQL = `
 WITH active_facts AS NOT MATERIALIZED (
     SELECT fact.*
     FROM fact_records AS fact
@@ -46,7 +55,11 @@ WITH active_facts AS NOT MATERIALIZED (
     WHERE fact.fact_kind = 'reducer_supply_chain_impact_finding'
       AND fact.is_tombstone = FALSE
       AND generation.status = 'active'
-),
+)`
+
+// supplyChainImpactWinnerBodySQL is the select after the active_facts CTE. It
+// starts with the comma that joins it to a preceding WITH clause.
+var supplyChainImpactWinnerBodySQL = `,
 source_candidates AS (
     SELECT
         fact.fact_id,
@@ -187,6 +200,9 @@ LEFT JOIN operator_overrides AS override
 // instrumented connection. Mirrors AWSCloudRuntimeDriftAdmissionBeginner; it lives beside the winners store to keep this directory at its dirgate-pinned file count.
 type SupplyChainImpactBeginner struct {
 	Beginner db.Beginner
+	// Instruments counts the winners dirty-log rows the writer transaction
+	// appends (#9805). Nil is safe and records nothing.
+	Instruments *telemetry.Instruments
 }
 
 // BeginSupplyChainImpactTx opens a transaction wrapped in the reducer's
@@ -198,11 +214,12 @@ func (b SupplyChainImpactBeginner) BeginSupplyChainImpactTx(
 	if err != nil {
 		return nil, err
 	}
-	return &supplyChainImpactTx{tx: tx}, nil
+	return &supplyChainImpactTx{tx: tx, instruments: b.Instruments}, nil
 }
 
 type supplyChainImpactTx struct {
-	tx db.Transaction
+	tx          db.Transaction
+	instruments *telemetry.Instruments
 
 	// authorizedPublicationHash pins the exact set Authorize accepted, so
 	// Publish rejects a different set in the same transaction.

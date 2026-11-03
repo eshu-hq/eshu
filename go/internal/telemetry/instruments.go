@@ -1138,6 +1138,17 @@ type Instruments struct {
 	// supplyChainImpactWinnersWatermarkUnixNano so it climbs through a stall.
 	SupplyChainImpactWinnersWatermarkAge      metric.Float64ObservableGauge
 	supplyChainImpactWinnersWatermarkUnixNano *atomic.Int64
+	// The keyed-resweep signals of #9805, registered by
+	// registerSupplyChainImpactWinnersKeyedInstruments: keys recomputed per
+	// keyed tick, dirty-log identifiers consumed, consumed rows by capture
+	// source, audit repairs, and the dirty log's depth and oldest-row age.
+	SupplyChainImpactWinnersKeysPerSweep        metric.Int64Histogram
+	SupplyChainImpactWinnersIdentifiersConsumed metric.Int64Counter
+	SupplyChainImpactWinnersCaptureRows         metric.Int64Counter
+	SupplyChainImpactWinnersBackstopRepairs     metric.Int64Counter
+	SupplyChainImpactWinnersDirtyLogDepth       metric.Float64ObservableGauge
+	SupplyChainImpactWinnersDirtyLogOldestAge   metric.Float64ObservableGauge
+	supplyChainImpactWinnersDirtyLog            *supplyChainImpactWinnersDirtyLog
 	// SupplyChainRemediationDecisions counts reducer-owned advisory-only
 	// safe-upgrade decisions per supply-chain impact finding (issue #595).
 	// Labels: domain (supply_chain_impact), outcome (confidence label
@@ -6442,6 +6453,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerSupplyChainImpactWinnersInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerSupplyChainImpactWinnersKeyedInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerProducerActivationInstruments(meter, inst); err != nil {

@@ -422,6 +422,59 @@
       "TestSupplyChainImpactWinnersResweepWatermarkReadsTheCommittedStampLive"
     ]
   },
+  "go/internal/storage/postgres/supply_chain_impact_winners_isolated_schema_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestSupplyChainImpactWinnersResweepCaptureIgnoresCallerTempTablesLive",
+      "TestSupplyChainImpactWinnersResweepCaptureTriggersBindTheirOwnSchemaLive"
+    ]
+  },
+  "go/internal/storage/postgres/supply_chain_impact_winners_keyed_audit_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestSupplyChainImpactWinnersResweepAuditDoesNotCountPendingKeysLive",
+      "TestSupplyChainImpactWinnersResweepAuditFindsAMissedDeleteLive",
+      "TestSupplyChainImpactWinnersResweepAuditRepairsAMissedCaptureLive"
+    ]
+  },
+  "go/internal/storage/postgres/supply_chain_impact_winners_keyed_contract_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestSupplyChainImpactWinnersResweepDigestExcludedFieldsChangeNothingLive",
+      "TestSupplyChainImpactWinnersResweepKeyedProbePlanLive",
+      "TestSupplyChainImpactWinnersResweepRetentionDeleteChangesNoWinnerLive"
+    ]
+  },
+  "go/internal/storage/postgres/supply_chain_impact_winners_keyed_parity_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestSupplyChainImpactWinnersResweepKeyedMatchesRecomputeAcrossChangeClassesLive",
+      "TestSupplyChainImpactWinnersResweepRandomInterleavingMatchesRecomputeLive"
+    ]
+  },
+  "go/internal/storage/postgres/supply_chain_impact_winners_keyed_protocol_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestSupplyChainImpactWinnersResweepDirtyLogStatsLive",
+      "TestSupplyChainImpactWinnersResweepKeyedCapFallsBackToFullLive",
+      "TestSupplyChainImpactWinnersResweepKeyedConsumeKeepsLateArrivalsLive",
+      "TestSupplyChainImpactWinnersResweepKeyedRollbackReturnsTheKeysLive"
+    ]
+  },
+  "go/internal/storage/postgres/supply_chain_impact_winners_keyed_scale_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestSupplyChainImpactWinnersResweepScaleProofLive"
+    ]
+  },
+  "go/internal/storage/postgres/supply_chain_impact_winners_keyed_trigger_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestSupplyChainImpactWinnersResweepRetirementFenceThenPurgeLive",
+      "TestSupplyChainImpactWinnersResweepScopeTriggersRunWithoutLogPrivilegesLive",
+      "TestSupplyChainImpactWinnersResweepTriggerCaptureViolationsAreCaughtLive"
+    ]
+  },
   "go/internal/storage/postgres/supply_chain_impact_winners_write_on_change_live_test.go": {
     "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
     "tests": [

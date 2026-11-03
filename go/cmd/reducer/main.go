@@ -420,7 +420,7 @@ func buildReducerService(
 		CloudInventoryHandlers:      buildReducerCloudInventoryHandlers(database, logger),
 		KubernetesHandlers:          buildReducerKubernetesHandlers(database, graphWriters),
 		CrossplaneHandlers:          buildReducerCrossplaneHandlers(database, graphWriters, graphReader),
-		SupplyChainSecurityHandlers: buildReducerSupplyChainSecurityHandlers(database, *factStore, secretsIAMGraphWriter, presence),
+		SupplyChainSecurityHandlers: buildReducerSupplyChainSecurityHandlers(database, *factStore, secretsIAMGraphWriter, presence, instruments),
 		IncidentRoutingHandlers:     buildReducerIncidentRoutingHandlers(database, *factStore, graphWriters),
 		CodeEvidenceHandlers:        buildReducerCodeEvidenceHandlers(database, *factStore, graphWriters, graphReader, logger),
 	})
@@ -486,11 +486,17 @@ func buildReducerService(
 		SupplyChainImpactWinnersMaintainer: &supplychaincore.SupplyChainImpactWinnersMaintainer{
 			Rebuilder:       postgres.NewSupplyChainImpactWinnersStore(database),
 			WatermarkReader: postgres.NewSupplyChainImpactWinnersStore(database),
-			LeaseManager:    intentStore,
-			LeaseOwner:      defaultSupplyChainImpactWinnersLeaseOwner(),
-			Logger:          logger,
-			Instruments:     instruments,
-			Tracer:          tracer,
+			// #9805: one full resweep at startup, then keyed ticks from the dirty
+			// log, with a full-recompute audit as the backstop.
+			KeyedRebuilder: postgres.NewSupplyChainImpactWinnersStore(database),
+			Auditor:        postgres.NewSupplyChainImpactWinnersStore(database),
+			AuditInterval:  loadSupplyChainImpactWinnersAuditInterval(getenv),
+			DirtyLogReader: postgres.NewSupplyChainImpactWinnersStore(database),
+			LeaseManager:   intentStore,
+			LeaseOwner:     defaultSupplyChainImpactWinnersLeaseOwner(),
+			Logger:         logger,
+			Instruments:    instruments,
+			Tracer:         tracer,
 		},
 		CollectorEvidenceSummaryMaintainer: &evidence.Maintainer{
 			Rebuilder:    postgres.NewCollectorEvidenceSummaryStore(database),

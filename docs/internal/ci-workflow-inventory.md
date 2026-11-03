@@ -100,11 +100,11 @@ that workflow. Automation workflows are explicitly outside the gate registry.
 | `payload-usage-manifest.yml` | Blocking payload consumer manifest | Preserve ownership contract; consider deriving consumer metadata from code. |
 | `product-claim-ledger.yml` | Blocking claim evidence, plus weekly audit | Useful truth boundary; replace brittle text assertions with executable contract evidence where possible. |
 | `race-graph-writes.yml` | Blocking tagged graph race tests | Investigate actual overlap with whole-module race before deletion; tags may provide unique coverage. |
-| `read-api-latency-gate.yml` | Blocking latency/work budgets plus two comparator mirrors | Preserve performance correctness; benchmark noise and mirrored maintenance are consolidation targets. |
+| `read-api-latency-gate.yml` | Latency/work budgets (NornicDB cell disabled 2026-11-03) plus two comparator mirrors | Preserve performance correctness; benchmark noise and mirrored maintenance are consolidation targets. |
 | `reducer-contention-gate.yml` | Blocking contention and supply-chain queries | Distinct concurrency proof; retain. |
 | `refresh-cassettes.yml` | Opt-in label/manual credentialed cassette authoring | Necessary authoring automation, not routine PR gating. |
 | `replay-coverage-gate.yml` | Three blocking replay/auth coverage gates | Distinct replay/security proof; retain. |
-| `required-gates.yml` | Trusted registry aggregator and live ruleset audit | Required authority; preserve trust boundary and exact-head status. |
+| `required-gates.yml` | Trusted registry aggregator (aggregate job disabled 2026-11-03) and live ruleset audit | The aggregate no longer publishes `required-gates-complete`; the ruleset requires only `go-core-complete` and `go-race-complete`. Preserve the trust boundary if it returns. |
 | `scorecard-example-conformance.yml` | Blocking separate example module | Main Go module does not cover this; retain. |
 | `sdk-go.yml` | Blocking two separate SDK modules | Not duplicate main-module builds; retain. |
 | `security-scan.yml` | Blocking gosec/govulncheck; advisory Trivy/Nancy | Preserve blocking vulnerability checks; schedule costly advisory scans where signal supports it. |

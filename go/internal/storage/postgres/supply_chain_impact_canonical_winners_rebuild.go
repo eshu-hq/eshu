@@ -144,6 +144,12 @@ SELECT materialized_at FROM supply_chain_impact_winners_materialization WHERE si
 // read model from the active impact facts.
 type SupplyChainImpactWinnersStore struct {
 	DB db.Queryer
+	// MaxIdentifiers and MaxKeyFraction cap a keyed resweep (#9805): a tick whose
+	// consumed dirty-log rows expand to more identifiers than MaxIdentifiers, or
+	// to more than MaxKeyFraction of the stored winners, runs the full rebuild in
+	// the same transaction. Zero means the defaults, 50,000 and 0.5.
+	MaxIdentifiers int
+	MaxKeyFraction float64
 }
 
 // NewSupplyChainImpactWinnersStore wraps a DB handle for winner maintenance.

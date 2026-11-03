@@ -23,14 +23,21 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
-// TestSupplyChainImpactProtectedStaticPublishLive drives the production
-// writer path end to end as a contracted runtime-writer: a complete
-// protected static write must commit its finding fact and its authority
-// revision row. Before the publisher exists this fails with "protected scan
-// impact publication transaction is required" (the golden-corpus drain
-// dead-letter behind the same error); after, the write commits and the
-// revision pins the fence, payload hash, role revision, and identity.
-func TestSupplyChainImpactProtectedStaticPublishLive(t *testing.T) {
+// protectedPublishProof is one disposable database with the protected
+// publication policy seeded and a least-privilege worker login connected.
+type protectedPublishProof struct {
+	ctx              context.Context
+	admin            *sql.DB
+	worker           *sql.DB
+	policyRevision   int
+	databaseIdentity string
+}
+
+// openProtectedPublishProof builds the protected-publish proof database: the
+// runtime-writer role contract, the inventory grants and a worker connection
+// that can reach publish_impact_publication_v1 only through the contract.
+func openProtectedPublishProof(t *testing.T) *protectedPublishProof {
+	t.Helper()
 	adminDSN := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
 	optIn := os.Getenv("ESHU_POSTGRES_DISPOSABLE")
 	if adminDSN == "" {
@@ -116,6 +123,12 @@ func TestSupplyChainImpactProtectedStaticPublishLive(t *testing.T) {
 		// It is an ordinary base table, not a protected object; the inventory
 		// above is unchanged.
 		`GRANT SELECT ON scope_generations TO "` + roleName + `"`,
+		// The writer appends the identifiers of the findings it wrote to the
+		// supply-chain impact winners dirty log in the same transaction (#9805).
+		// Like fact_records, the log is an ordinary base table whose privileges
+		// are a DBA pregrant: INSERT and the id sequence, nothing else.
+		`GRANT INSERT ON supply_chain_impact_winners_dirty_log TO "` + roleName + `"`,
+		`GRANT USAGE ON SEQUENCE supply_chain_impact_winners_dirty_log_seq_seq TO "` + roleName + `"`,
 	} {
 		if _, err := admin.ExecContext(ctx, statement); err != nil {
 			t.Fatalf("grant proof privilege: %v", err)
@@ -131,6 +144,24 @@ func TestSupplyChainImpactProtectedStaticPublishLive(t *testing.T) {
 	}
 	worker.SetMaxOpenConns(1)
 	t.Cleanup(func() { _ = worker.Close() })
+
+	return &protectedPublishProof{
+		ctx: ctx, admin: admin, worker: worker,
+		policyRevision: policyRevision, databaseIdentity: databaseIdentity,
+	}
+}
+
+// TestSupplyChainImpactProtectedStaticPublishLive drives the production
+// writer path end to end as a contracted runtime-writer: a complete
+// protected static write must commit its finding fact and its authority
+// revision row. Before the publisher exists this fails with "protected scan
+// impact publication transaction is required" (the golden-corpus drain
+// dead-letter behind the same error); after, the write commits and the
+// revision pins the fence, payload hash, role revision, and identity.
+func TestSupplyChainImpactProtectedStaticPublishLive(t *testing.T) {
+	proof := openProtectedPublishProof(t)
+	ctx, admin, worker := proof.ctx, proof.admin, proof.worker
+	policyRevision, databaseIdentity := proof.policyRevision, proof.databaseIdentity
 
 	const scopeID = "publish-proof-scope"
 	const generationID = "publish-proof-gen"
@@ -275,4 +306,81 @@ func proofWorkerDSN(adminDSN, dbName, role, password string) (string, error) {
 	parsed.User = url.UserPassword(role, password)
 	parsed.Path = "/" + dbName
 	return parsed.String(), nil
+}
+
+// TestSupplyChainImpactProtectedPublishCapturesWinnersDirtyKeysLive is the
+// seeded-violation pair for the scanner triggers of migration 272a on the real
+// publish path (#9805, ruling B). The protected publication function inserts
+// classification and association rows as its owner, from the runtime-writer's
+// transaction. With the insert triggers enabled, one publish appends scanner
+// rows naming the published finding; with them disabled, the same publish
+// appends none, which is the capture hole the audit exists to repair.
+func TestSupplyChainImpactProtectedPublishCapturesWinnersDirtyKeysLive(t *testing.T) {
+	if strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN")) == "" {
+		t.Skip("set ESHU_POSTGRES_DSN and ESHU_POSTGRES_DISPOSABLE=1 to run the scanner capture proof")
+	}
+	proof := openProtectedPublishProof(t)
+	ctx, admin := proof.ctx, proof.admin
+
+	writer := supplychaincore.PostgresSupplyChainImpactWriter{
+		DB: SupplyChainImpactBeginner{Beginner: SQLDB{DB: proof.worker}},
+	}
+	now := time.Now().UTC().Truncate(time.Second)
+	seedScope := func(scope, generation string) {
+		mustExecProofRow(t, ctx, admin, `INSERT INTO ingestion_scopes
+			(scope_id, scope_kind, source_system, source_key, collector_kind,
+			 partition_key, observed_at, ingested_at, status, payload)
+			VALUES ($1,'container_image','synthetic',$1,'synthetic',$1,$2,$2,'active','{}'::jsonb)`, scope, now)
+		mustExecProofRow(t, ctx, admin, `INSERT INTO scope_generations
+			(generation_id, scope_id, trigger_kind, observed_at, ingested_at,
+			 status, activated_at, payload)
+			VALUES ($1,$2,'synthetic',$3,$3,'active',$3,'{}'::jsonb)`, generation, scope, now)
+		mustExecProofRow(t, ctx, admin, `UPDATE ingestion_scopes SET active_generation_id=$1 WHERE scope_id=$2`, generation, scope)
+	}
+	publish := func(scope, generation, cve string) {
+		t.Helper()
+		const evidence = "scanner-capture-evidence"
+		_, err := writer.WriteSupplyChainImpactFindings(ctx, supplychaincore.SupplyChainImpactWrite{
+			FencingToken: 7, IntentID: "intent-" + scope, ScopeID: scope, GenerationID: generation,
+			SourceSystem: "vulnerability_intelligence",
+			Findings: []supplychaincore.SupplyChainImpactFinding{{
+				CVEID: cve, PackageID: "pkg:npm/scanner-capture", Status: supplychaincore.SupplyChainImpactAffectedExact,
+				RepositoryID: "repo://scanner-capture/api", EvidenceFactIDs: []string{evidence},
+			}},
+			StaticNonAdvisoryEvidenceFactIDs: []string{evidence},
+			ProtectedCompleteSet:             true,
+		})
+		if err != nil {
+			t.Fatalf("publish %s: %v", scope, err)
+		}
+	}
+	scannerLogRows := func() int {
+		t.Helper()
+		var n int
+		if err := admin.QueryRowContext(ctx, `
+SELECT count(*) FROM supply_chain_impact_winners_dirty_log
+WHERE source = 'scanner' AND package_id = 'pkg:npm/scanner-capture'
+  AND repository_id = 'repo://scanner-capture/api'`).Scan(&n); err != nil {
+			t.Fatalf("count scanner dirty rows: %v", err)
+		}
+		return n
+	}
+
+	// Violation: the insert triggers are disabled, so the publish captures nothing.
+	mustExecProofRow(t, ctx, admin, `ALTER TABLE scanner_image_result_fact_classifications DISABLE TRIGGER scanner_classifications_winners_dirty_insert`)
+	mustExecProofRow(t, ctx, admin, `ALTER TABLE scanner_image_result_fact_associations DISABLE TRIGGER scanner_associations_winners_dirty_insert`)
+	seedScope("scanner-capture-red", "scanner-capture-red/g1")
+	publish("scanner-capture-red", "scanner-capture-red/g1", "CVE-2026-9805-1")
+	if got := scannerLogRows(); got != 0 {
+		t.Fatalf("with the scanner triggers disabled the publish appended %d scanner dirty rows, want 0", got)
+	}
+
+	// Shipped triggers: the same publish names its finding.
+	mustExecProofRow(t, ctx, admin, `ALTER TABLE scanner_image_result_fact_classifications ENABLE TRIGGER scanner_classifications_winners_dirty_insert`)
+	mustExecProofRow(t, ctx, admin, `ALTER TABLE scanner_image_result_fact_associations ENABLE TRIGGER scanner_associations_winners_dirty_insert`)
+	seedScope("scanner-capture-green", "scanner-capture-green/g1")
+	publish("scanner-capture-green", "scanner-capture-green/g1", "CVE-2026-9805-2")
+	if got := scannerLogRows(); got < 1 {
+		t.Fatalf("with the scanner triggers enabled the publish appended %d scanner dirty rows, want at least 1", got)
+	}
 }

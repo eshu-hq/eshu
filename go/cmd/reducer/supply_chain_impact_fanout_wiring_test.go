@@ -26,7 +26,7 @@ func TestSupplyChainImpactFanOutIsWiredBesideTheWriterWithTheQueueLeaseOwner(t *
 	t.Parallel()
 
 	database := beginnerDB{}
-	handlers := buildReducerSupplyChainSecurityHandlers(database, postgres.FactStore{}, nil, endpointPresenceWirings{})
+	handlers := buildReducerSupplyChainSecurityHandlers(database, postgres.FactStore{}, nil, endpointPresenceWirings{}, nil)
 	if handlers.SupplyChainImpactWriter == nil {
 		t.Fatal("SupplyChainImpactWriter is nil with a beginner database")
 	}
@@ -42,7 +42,7 @@ func TestSupplyChainImpactFanOutIsWiredBesideTheWriterWithTheQueueLeaseOwner(t *
 	}
 	// Without a beginner the writer is nil and so is the fan-out: the domain is
 	// not registered at all.
-	bare := buildReducerSupplyChainSecurityHandlers(nil, postgres.FactStore{}, nil, endpointPresenceWirings{})
+	bare := buildReducerSupplyChainSecurityHandlers(nil, postgres.FactStore{}, nil, endpointPresenceWirings{}, nil)
 	if bare.SupplyChainImpactWriter != nil || bare.SupplyChainImpactFanOut != nil {
 		t.Fatal("a database without a beginner must leave both the writer and the fan-out nil")
 	}

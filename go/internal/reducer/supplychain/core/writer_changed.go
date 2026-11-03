@@ -66,6 +66,8 @@ type changedRow struct {
 	stableKey string
 	digest    string
 	cveID     string
+	// ident names the row's canonical key for the winners dirty log (#9805).
+	ident WinnersDirtyIdentifier
 }
 
 // priorGenerationSupplyChainImpactSQL selects the scope's previous generation:
