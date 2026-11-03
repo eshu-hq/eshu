@@ -1,0 +1,23 @@
+docs/internal/design/9872-new-advisory-sources-and-mirror-decision.md
+  s_9c818346074e86::t_1dd8f19040b9bf 1,73,78-95,115-117,131,166-167,198,206-208
+docs/internal/design/advisory-intelligence-phases.md
+  s_9c818346074e86::t_2263c6d17e18d7 166,168
+docs/internal/evidence/9872-new-source-adr-arbiter-ruling.md
+  s_9c818346074e86::t_af4ba7bef8dceb 68-77
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6a2045322e5c5217c6c16499614254ea2d07a7f8",
+  "prompts": {},
+  "sessions": {
+    "s_9c818346074e86": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9c11fe27-4c11-4e6c-baf7-8b1b133adba8",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

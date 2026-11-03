@@ -1,0 +1,19 @@
+docs/internal/design/9872-new-advisory-sources-and-mirror-decision.md
+  s_9c818346074e86::t_54735036394ddf 1-184
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c5340f2b034485902e2431a2076349905066c34a",
+  "prompts": {},
+  "sessions": {
+    "s_9c818346074e86": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9c11fe27-4c11-4e6c-baf7-8b1b133adba8",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
