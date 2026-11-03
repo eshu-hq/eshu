@@ -1,6 +1,9 @@
 # Deployed-binary contention workload spec (`#8875`, `#9727`)
 
-Status: **WRITTEN SPEC ONLY — NOT EXECUTED**. Nothing here has run. The scoped
+Status: **HARNESS BUILT — NOT EXECUTED ON THE DEPLOYED TARGET**. The workload
+is implemented in `go/internal/workflow/parity/contention` (`#9727`; its
+README holds the spec readings and the live runbook) and has run only against
+local disposable containers. The scoped
 synthetic-write grant is recorded (`#8875` comment `6558745112`, arbiter
 ruling 2026-11-01). Execution stays HELD on its open preconditions: the
 enablement IaC PR and its pre-authored revert PR are not yet linked on

@@ -176,6 +176,21 @@ func (b *inTreeBackend) ListCollectorInstances(ctx context.Context) ([]workflow.
 	return instances, wrapLegErr(b.Name(), "ListCollectorInstances", err)
 }
 
+// NewInTreeBackend wraps an already-opened in-tree WorkflowControlStore as a
+// Backend. Harnesses that need a store configured beyond the defaults (the
+// #9727 contention run sets QuotaLookup and the lease defaults) build the
+// store themselves and pass it here; openInTreeBackend stays the suite's
+// disposable-database path.
+func NewInTreeBackend(store *postgres.WorkflowControlStore) Backend {
+	return &inTreeBackend{store: store}
+}
+
+// NewSatelliteBackend wraps a claim-plane client as a Backend, the same leg
+// OpenSatellite builds, for harnesses that own their HTTP client settings.
+func NewSatelliteBackend(client *workflow.ClaimPlaneClient) Backend {
+	return &satelliteBackend{client: client}
+}
+
 // inTreeDSNEnv names the administrative DSN of the disposable Postgres
 // server the in-tree leg runs on. The DSN must name the "postgres"
 // maintenance database: the harness creates and force-drops its own

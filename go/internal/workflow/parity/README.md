@@ -30,6 +30,9 @@ read-plane-observable state.
   `PARITY_SATELLITE_DSN` for truncation reset.
 - No satellite module import: the HTTP leg speaks the protocol through
   the in-tree client only. No shared tables, ever.
+- `NewInTreeBackend` and `NewSatelliteBackend` wrap a caller-built store or
+  client as a `Backend`. The contention harness (`contention/`, #9727) uses
+  them to set the quota lookup, lease defaults, and HTTP client itself.
 
 ## Operating the suite
 
