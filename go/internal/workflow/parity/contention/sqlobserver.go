@@ -154,6 +154,7 @@ GROUP BY work_item_id HAVING count(*) > 1 ORDER BY work_item_id LIMIT 20`, itemF
 func (o *SQLObserver) Census(ctx context.Context) (Census, error) {
 	c := Census{Prefixed: map[string]int{}, Other: map[string]int{}}
 	for _, table := range o.tables {
+		// #nosec G201 -- identifiers come only from the compile-time censusTables constants; the family value is bound as $1.
 		query := fmt.Sprintf(`SELECT %s, %s LIKE $1, count(*) FROM %s GROUP BY 1, 2`,
 			table.status, table.prefixed, table.name)
 		rows, err := o.db.QueryContext(ctx, query, table.family)
@@ -265,6 +266,7 @@ func (o *SQLObserver) DeletePrefixed(ctx context.Context, seed int64, batch int)
 		if pattern == "" {
 			continue
 		}
+		// #nosec G201 -- identifiers come only from the compile-time censusTables constants; pattern and batch are bound as $1/$2.
 		query := fmt.Sprintf(`DELETE FROM %[1]s WHERE ctid IN (
     SELECT ctid FROM %[1]s WHERE %[2]s LIKE $1 LIMIT $2)`, table.name, table.prefixed)
 		for {

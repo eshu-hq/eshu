@@ -31,6 +31,7 @@ type zombie struct {
 // leave it empty, so the server draws per call). Before windowEnd it runs the chaos mix;
 // after it, only claim and complete until the drain is confirmed.
 func (r *runner) worker(w int) {
+	// #nosec G115, G404 -- deterministic chaos RNG: Seed is refused unless a positive integer (spec.go positiveInt), unset means 0, and w is a non-negative worker index; the PCG stream is simulation randomness, never security material.
 	rng := rand.New(rand.NewPCG(uint64(r.spec.Seed), uint64(w)+1))
 	owner := r.ids.owner(w)
 	quotaOn := r.leg.Quota && r.spec.QuotaBudget > 0
