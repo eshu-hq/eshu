@@ -322,11 +322,14 @@ var migrationShippedChecksums = map[string]string{
 	"271_owned_target_slot_progress.sql":                                     "370d0cd6ddb45855e2d62a1414f31fd0d94e6ac8fa0d5b7875791cb4b238b906",
 	"272a_scanner_winners_dirty_capture.sql":                                 "f100c94e12c34adb8cf8e1749128df3fa5586758e93b14d7f8d6e1eddac54f18",
 	"272_supply_chain_impact_winners_dirty_log.sql":                          "08869acd33a715f8d6c33dad16c2b1a18a7cbe1b9ac6532e85ff64b4e581617a",
-	"243_vulnerability_source_state_packages.sql":                            "548ad5e4d9442064ba81026b49b7443590ae8244282aa138190d9c7182417438",
-	"244_ecs_runtime_task_scope_index.sql":                                   "04879797b6faf565ad46a774716ee9000c79358d082df1aa05b6ee8a760dace3",
-	"245_shared_projection_intent_reopened_at.sql":                           "c00bc4a7c9953d3b84dbd03f241ec2c5adc1f9f5e97860cdf52586aa7d62e1da",
-	"246_shared_projection_intents_domain_pending_age_idx.sql":               "936dfe6ad154a3f23bd3612ea6be75540f89ab4da20c2943630e4f1c62265a8d",
-	"247_fact_records_manifest_dependency_folded_entity_index.sql":           "35e560b560c16844220e34c4b5e0e16ed92d04dce0965ca6ffccb5719cccd5df",
+	// #8875 lane 1: partial index serving the canonical terraform-backends
+	// reader's backend_generations CTE (migration 273).
+	"273_fact_records_terraform_backends_active_idx.sql":           "8ed310977b91f07644fbb3da43ecc268c902a6915a5314220ce034e284469442",
+	"243_vulnerability_source_state_packages.sql":                  "548ad5e4d9442064ba81026b49b7443590ae8244282aa138190d9c7182417438",
+	"244_ecs_runtime_task_scope_index.sql":                         "04879797b6faf565ad46a774716ee9000c79358d082df1aa05b6ee8a760dace3",
+	"245_shared_projection_intent_reopened_at.sql":                 "c00bc4a7c9953d3b84dbd03f241ec2c5adc1f9f5e97860cdf52586aa7d62e1da",
+	"246_shared_projection_intents_domain_pending_age_idx.sql":     "936dfe6ad154a3f23bd3612ea6be75540f89ab4da20c2943630e4f1c62265a8d",
+	"247_fact_records_manifest_dependency_folded_entity_index.sql": "35e560b560c16844220e34c4b5e0e16ed92d04dce0965ca6ffccb5719cccd5df",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

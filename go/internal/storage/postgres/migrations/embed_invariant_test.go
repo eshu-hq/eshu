@@ -186,13 +186,13 @@ import (
 // held by another lane's unmerged migration, so this lane took the next number.
 // #9376 adds 270_generation_commit_fences.sql (DDL only: the claim-plane
 // commit fence table), which sorts and applies before 271.
-const goldenBootstrapDefinitionsDigest = "73f12f40021350d5446ab3a4c2744dcc067f2793076261bc897a859948a17396"
+const goldenBootstrapDefinitionsDigest = "54a8e031ab3d346f8b11ca6df2ef9d8b4c91c48b8b67b0952fd7ea2868ca55fa"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 298
+const goldenBootstrapDefinitionsCount = 299
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

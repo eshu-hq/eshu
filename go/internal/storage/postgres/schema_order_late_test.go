@@ -442,4 +442,7 @@ var orderedBootstrapDefinitionNamesLate = []string{
 	// Migration 272 (#9805) adds the winners dirty log and its capture triggers.
 	"supply_chain_impact_winners_dirty_log",
 	"scanner_winners_dirty_capture",
+	// Migration 273 (#8875 lane 1) adds the partial index serving the
+	// canonical terraform-backends reader's backend_generations CTE.
+	"fact_records_terraform_backends_active_idx",
 }
