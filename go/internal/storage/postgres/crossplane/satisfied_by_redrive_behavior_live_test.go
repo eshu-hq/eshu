@@ -417,10 +417,18 @@ func testCrossplaneRedriveDuplicateScheduleKeepsSingleItemLive(t *testing.T) {
 	}
 }
 
-// TestCrossplaneRedriveRetryClearsReplayDebtLive pins the retry path of the
-// 093 trigger: a claimed item carrying replay debt that moves to retrying
-// must have its debt cleared without disturbing its lease, and a later
-// replay must still schedule.
+// crossplaneRedriveRetryableError is a retryable failure cause for driving
+// the production retry entry point (queue.Fail) in the retry-clears-debt
+// test below.
+type crossplaneRedriveRetryableError struct{}
+
+func (crossplaneRedriveRetryableError) Error() string   { return "redrive proof retryable failure" }
+func (crossplaneRedriveRetryableError) Retryable() bool { return true }
+
+// TestCrossplaneRedriveRetryClearsReplayDebtLive pins the production retry
+// path end to end: failing a claimed item that carries replay debt must move
+// it to retrying, clear the debt, and release the lease (failIntent via the
+// shipped retryReducerWorkQuery), and a later replay must still schedule.
 func testCrossplaneRedriveRetryClearsReplayDebtLive(t *testing.T) {
 	db, _ := crossplaneRedriveProofDB(t)
 	ctx := context.Background()
@@ -442,7 +450,8 @@ func testCrossplaneRedriveRetryClearsReplayDebtLive(t *testing.T) {
 	if scheduled, err := queue.ReplayCrossplaneSatisfiedByMaterialization(ctx, scopeID, generationID); err != nil || !scheduled {
 		t.Fatalf("record replay debt on claimed item: scheduled=%t error=%v", scheduled, err)
 	}
-	var status, leaseOwner string
+	var status string
+	var leaseOwner sql.NullString
 	var debt bool
 	readRow := func() {
 		t.Helper()
@@ -454,22 +463,26 @@ func testCrossplaneRedriveRetryClearsReplayDebtLive(t *testing.T) {
 		}
 	}
 	readRow()
-	if status != "claimed" || leaseOwner != owner || !debt {
-		t.Fatalf("row before retry = (%q, %q, %t), want claimed/owner/debt", status, leaseOwner, debt)
+	if status != "claimed" || !leaseOwner.Valid || leaseOwner.String != owner || !debt {
+		t.Fatalf("row before retry = (%q, %q, %t), want claimed/owner/debt", status, leaseOwner.String, debt)
 	}
-	if _, err := db.ExecContext(ctx, `UPDATE fact_work_items SET status = 'retrying' WHERE work_item_id = $1`, claimed.IntentID); err != nil {
-		t.Fatalf("move item to retrying: %v", err)
+	// Drive the shipped retry entry point, not a hand-written status flip:
+	// failIntent classifies the cause as retryable and runs
+	// retryReducerWorkQuery, which sets status retrying, clears replay debt,
+	// and releases the lease.
+	if err := queue.Fail(ctx, claimed, crossplaneRedriveRetryableError{}); err != nil {
+		t.Fatalf("fail claimed item with retryable cause: %v", err)
 	}
 	readRow()
-	if status != "retrying" || leaseOwner != owner || debt {
-		t.Fatalf("row after retry = (%q, %q, %t), want retrying/owner/no-debt", status, leaseOwner, debt)
+	if status != "retrying" || leaseOwner.Valid || debt {
+		t.Fatalf("row after retry = (%q, %q, %t), want retrying/released-lease/no-debt", status, leaseOwner.String, debt)
 	}
 	if scheduled, err := queue.ReplayCrossplaneSatisfiedByMaterialization(ctx, scopeID, generationID); err != nil || !scheduled {
 		t.Fatalf("replay retrying item: scheduled=%t error=%v", scheduled, err)
 	}
 	readRow()
-	if status != "retrying" || leaseOwner != owner {
-		t.Fatalf("row after replay = (%q, %q, %t), want retrying/owner kept", status, leaseOwner, debt)
+	if status != "retrying" || leaseOwner.Valid {
+		t.Fatalf("row after replay = (%q, %q, %t), want retrying/lease still released", status, leaseOwner.String, debt)
 	}
 }
 
