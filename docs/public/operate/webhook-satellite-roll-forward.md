@@ -135,12 +135,15 @@ caused by the pinned image itself.
 
 ## Recovery time
 
-TIMED on the post-cutover topology (`#8876` switch-there-and-back rehearsal):
-revert (satellite to listener) RTO TBD and restore (listener to satellite)
-RTO TBD, each measured from the deployment merge to the ArgoCD application
-Synced and Healthy with the edge verified on the serving backend. The
-pre-cutover delete-path rehearsal is a separate sample (restore 10 minutes
-54 seconds, satellite scaled to zero while the listener kept authority).
+TIMED on the post-cutover topology (`#8876` switch-there-and-back rehearsal,
+2026-11-03): revert (satellite to listener) RTO 86 seconds — deployment PR
+`520` merged 18:16:06Z, ArgoCD application Synced and Healthy 18:17:32Z,
+first live provider delivery on the listener 18:18:04Z. Restore (listener
+to satellite) RTO 56 seconds — deployment PR `521` merged 18:21:24Z,
+Synced and Healthy 18:22:20Z, satellite backend live on the provider
+route. The pre-cutover delete-path rehearsal is a separate sample (restore
+10 minutes 54 seconds, satellite scaled to zero while the listener kept
+authority).
 
 ## When roll-forward fails
 
@@ -152,8 +155,9 @@ completed recovery.
 
 ### Revival procedure (pre-removal revision and switch-back)
 
-1. Pre-removal revision: TBD (the removal PR base SHA, recorded here before
-   that PR merges). Rebuild the in-tree image from that revision:
+1. Pre-removal revision: `d23d109691` (the removal PR base SHA, verified as
+   `origin/main` at the removal commit; re-confirm on the PR if the base
+   moved). Rebuild the in-tree image from that revision:
    `go build -trimpath -o /go-bin/eshu-webhook-listener ./cmd/webhook-listener`
    at the recorded SHA, tag it as the revival image, and deploy it through
    the deployment repository as `eshu-webhook-listener`, ClusterIP only.
