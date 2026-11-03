@@ -352,33 +352,33 @@ equivalent `cell_failgraphwrite_*` cell proving recovery through that path;
 their graph-write cells prove family-scoped Cypher-layer recovery, nothing
 architecturally unique.
 
-## Vault quartet — shared projection handler, one kill claim
+## Vault quintet — shared projection handler, one kill claim
 
 `authenticates_vault_role` and `uses_vault_policy` (#6228 slice A), plus
-`grants_secret_read` (#6228 remainder) and `assumes_iam_role` (#6228 leaf),
-share one graph writer (`SecretsIAMGraphProjectionHandler`) behind the
-live-cell flag, each with one cassette/Odù and expected-edge-set fixture
-(2, 3, 3, and 2 edges) driven through
-`scripts/lib/ifa_vault_family_live.sh`. Both live gates drive each
-family's own cassette and exact-assert its edge set; the fault gate
-additionally recovers each family through its own MERGE-anchored
-graph-write-failure cell, marker-asserted and drained with zero dead letters
-before the exact-set edges are re-asserted against the baseline digest.
-Mid-handler kill/reclaim for `uses_vault_policy`, `grants_secret_read`,
-and `assumes_iam_role` is claimed through the per-statement hold seam
-(#8539): a handler-stage kill-worker cell for any of them would reuse
-`authenticates_vault_role`'s own wait_key (owned first-landed;
-`TestIfaFamilyRegistryHandlerWaitKeysAreExclusive`) and prove nothing new, so
-each hold parks the worker inside the family's own MERGE and the kill cell
-rendezvouses on the claimed work item plus the hold marker before kill -9;
-see rows 22/23/31 and their cells files (`cell_kill_uses_vault_policy`,
-`cell_kill_grants_secret_read`, `cell_kill_assumes_iam_role`). The grants
-fixture's two read-rule lanes prove the policy-to-path fan-out; its
-list-only and missing-KV lanes prove restraint by absence. The assumes
+`grants_secret_read` (#6228 remainder), `assumes_iam_role` and
+`uses_service_account` (#6228 leaves), share one graph writer
+(`SecretsIAMGraphProjectionHandler`) behind the live-cell flag, each with
+one cassette/Odù and expected-edge-set fixture (2, 3, 3, 2, and 2 edges).
+Both live gates drive each family's own cassette and exact-assert its edge
+set; the fault gate additionally recovers each family through its own
+MERGE-anchored graph-write-failure cell, marker-asserted and drained with
+zero dead letters before the exact-set edges are re-asserted.
+Mid-handler kill/reclaim for every non-`authenticates` vault family is
+claimed through the per-statement hold seam (#8539): a handler-stage
+kill-worker cell for any of them would reuse `authenticates_vault_role`'s own
+wait_key (owned first-landed; `TestIfaFamilyRegistryHandlerWaitKeysAreExclusive`)
+and prove nothing new, so each hold parks the worker inside the family's own
+MERGE and the kill cell rendezvouses on the claimed work item plus the hold
+marker before kill -9; see rows 22/23/31/33 and their cells files
+(`cell_kill_uses_vault_policy`, `cell_kill_grants_secret_read`,
+`cell_kill_assumes_iam_role`, `cell_kill_uses_service_account`). The grants
+fixture's two read-rule lanes prove the policy-to-path fan-out; its list-only and missing-KV lanes prove restraint by absence. The assumes
 fixture's IRSA and Pod Identity exact lanes prove both assumption
 mechanisms; its fingerprint-only, partial-chain, Deny, and wildcard-trust
 lanes prove restraint by absence, and its second bound Vault role proves
-duplicate delivery converges on one edge.
+duplicate delivery converges on one edge. The uses fixture's orders/billing
+exact lanes prove both attachment mechanisms; its fingerprint-only,
+workload-less, and tombstoned lanes prove restraint by absence.
 
 ## No-Regression Evidence (#6228): built_from edge-source descriptor uid
 

@@ -480,6 +480,11 @@ workflows:
   - scripts/lib/ifa_fault_injection_assumes_iam_role_cells.sh
   - scripts/lib/test-ifa-fault-injection-assumes-iam-role-cases.sh
   - testdata/cassettes/assumesiamrole/**
+  - go/internal/ifa/familyodu/uses_service_account_family_odu.go
+  - go/internal/ifa/testdata/usesserviceaccount/**
+  - scripts/lib/ifa_fault_injection_uses_service_account_cells.sh
+  - scripts/lib/test-ifa-fault-injection-uses-service-account-cases.sh
+  - testdata/cassettes/usesserviceaccount/**
   jobs:
   - dead-letter-matrix
   - determinism-matrix

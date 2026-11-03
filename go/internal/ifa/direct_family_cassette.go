@@ -43,6 +43,7 @@ const (
 	// usesVaultPolicyFamilyCassettePath,
 	// grantsSecretReadFamilyCassettePath,
 	// assumesIAMRoleFamilyCassettePath,
+	// usesServiceAccountFamilyCassettePath,
 	// semanticEntityContainmentFamilyCassettePath,
 	// cloudResourceFamilyCassettePath, codeTaintEvidenceFamilyCassettePath,
 	// observabilityCoverageFamilyCassettePath,
@@ -70,6 +71,7 @@ const (
 	assumesIAMRoleFamilyCassettePath                 = "testdata/cassettes/assumesiamrole/ifa-assumes-iam-role-family.json"
 	usesVaultPolicyFamilyCassettePath                = "testdata/cassettes/usesvaultpolicy/ifa-uses-vault-policy-family.json"
 	grantsSecretReadFamilyCassettePath               = "testdata/cassettes/grantssecretread/ifa-grants-secret-read-family.json"
+	usesServiceAccountFamilyCassettePath             = "testdata/cassettes/usesserviceaccount/ifa-uses-service-account-family.json"
 	builtFromFamilyCassettePath                      = "testdata/cassettes/builtfrom/ifa-built-from-family.json"
 	cloudResourceContainerImageFamilyCassettePath    = "testdata/cassettes/cloudresourcecontainerimage/ifa-cloud-resource-container-image-family.json"
 	kubernetesCorrelationFamilyCassettePath          = "testdata/cassettes/kubernetescorrelation/ifa-kubernetes-correlation-family.json"
@@ -291,6 +293,25 @@ func GrantsSecretReadFamilyCassetteFullPath(repoRoot string) string {
 // grants_secret_read counterpart to LoadUsesVaultPolicyFamilyOdu.
 func LoadGrantsSecretReadFamilyOdu(cassettePath string) (familyodu.Odu, error) {
 	return loadDirectFamilyOdu(cassettePath, GrantsSecretReadFamilyOduName)
+}
+
+// UsesServiceAccountFamilyCassetteFullPath joins repoRoot onto the committed
+// uses_service_account family cassette path.
+func UsesServiceAccountFamilyCassetteFullPath(repoRoot string) string {
+	return filepath.Join(repoRoot, usesServiceAccountFamilyCassettePath)
+}
+
+// LoadUsesServiceAccountFamilyOdu reads the committed cassette and projects
+// it onto the fact envelopes the reducer's extractor consumes, the
+// uses_service_account counterpart to LoadGrantsSecretReadFamilyOdu.
+//
+// The projection carries the cassette's collector facts unchanged: unlike
+// every lockstep family, this cassette never equals the compiled Odù (which
+// carries reducer read-model facts), so no lockstep case names this loader.
+// The cassette test in materializededges proves the production trust-chain
+// build resolves the loader's output to the expected edge set instead.
+func LoadUsesServiceAccountFamilyOdu(cassettePath string) (familyodu.Odu, error) {
+	return loadDirectFamilyOdu(cassettePath, UsesServiceAccountFamilyOduName)
 }
 
 // BuiltFromFamilyCassetteFullPath joins repoRoot onto the committed
