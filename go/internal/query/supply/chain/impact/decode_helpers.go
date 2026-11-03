@@ -307,9 +307,9 @@ func decodeExplainAffectedRanges(payload map[string]any) [][]explainAffectedRang
 // must pass any limit gates, reach an introduced boundary at or below
 // itself, and neither reach a fixed boundary nor pass a last_affected
 // boundary. The second value is false when any compared boundary is not a
-// parseable semver-family version. The walk shares the reducer's
-// versionRangeContainsDecision event order (limit/introduced/fixed/
-// last_affected) but deliberately diverges from the matcher in two ways:
+// parseable semver-family version. The walk reads events in listed order,
+// unlike the reducer's versionRangeContainsDecision, which evaluates them
+// sorted since #9865, and deliberately diverges from the matcher in two ways:
 // it ignores the entry kind (collectors emit ECOSYSTEM ranges the
 // per-ecosystem matchers skip) and it uses one generic semver-family
 // compare instead of the per-ecosystem compares. The headline is

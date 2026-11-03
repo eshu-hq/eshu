@@ -77,9 +77,10 @@ func semverRangeContainsDecision(
 // seen the observed version in a range. The containment check skips every
 // non-SEMVER range (ECOSYSTEM, GIT, an unknown kind), so a skipped range in any
 // package entry of the advisory may contain the version, and the scan refuses a
-// verdict. It walks events in listed order while OSV evaluates them sorted, so
-// a SEMVER range whose events are listed out of version order may also hide the
-// version; the scan refuses that too.
+// verdict. The containment check evaluates events sorted, as OSV does
+// (#9865), so out-of-order events no longer hide the version there; this
+// line scan still reads listed order and refuses a SEMVER range whose
+// events are not ascending, via unverifiedRange below.
 type npmLineFix struct {
 	// fixed is the nearest Fixed event at or below the observed version, the
 	// fix of the release line the observation has moved past. Blank when none.

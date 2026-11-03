@@ -44,7 +44,7 @@ bare `-` token and no envelope emits a raw range).
   672 rows, 0 wrong moves. Seeded randomized differential against the
   independent integer-comparator oracle over shuffled multi-range advisories
   (prereleases, `last_affected` terminators): 25,740 rows, 362 shuffled
-  advisories, 0 wrong moves.
+  ranges, 0 wrong moves.
 - Read-only QA corpus (6 families x 4 observed versions + 1 dpkg row): 7 rows
   move to `affected_exact` (6 from `possibly_affected`, dpkg from
   `not_affected_known_fixed`); no other row moves.

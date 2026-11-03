@@ -179,7 +179,7 @@ func TestSortedContainmentParityAgainstOracle(t *testing.T) {
 		}
 	}
 	if rows == 0 || affected == 0 || affected == rows || shuffled == 0 {
-		t.Fatalf("degenerate corpus: %d rows, %d affected, %d shuffled advisories", rows, affected, shuffled)
+		t.Fatalf("degenerate corpus: %d rows, %d affected, %d shuffled ranges", rows, affected, shuffled)
 	}
-	t.Logf("parity: %d rows, %d affected, %d shuffled advisories, 0 wrong moves", rows, affected, shuffled)
+	t.Logf("parity: %d rows, %d affected, %d shuffled ranges, 0 wrong moves", rows, affected, shuffled)
 }
