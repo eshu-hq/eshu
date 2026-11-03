@@ -10,7 +10,7 @@ baseline was taken; the structural bound above is the regression argument).
 Backend/version: local Go reducer unit path, no graph backend involved
 (decode-only, pre-projection). Input shape: single-fact envelopes built by
 `versionEnvelopeParts`. Terminal counts: 1 projected + 1 quarantined
-(`input_invalid`, field named) per subtest, 3/3 subtests green.
+(`input_invalid`, field named) per subtest, 6/6 subtests green.
 
 Observability Evidence: a quarantined negative part surfaces through the
 existing instruments — `eshu_dp_reducer_input_invalid_facts_total` counter,
