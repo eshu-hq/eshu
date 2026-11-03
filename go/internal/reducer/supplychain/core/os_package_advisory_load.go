@@ -182,6 +182,58 @@ type supplyChainImpactBuildStats struct {
 	// vendor with loaded advisories and zero joins is the #9848 failure
 	// shape: facts present, findings silently absent.
 	osAdvisoryJoins map[osAdvisoryJoinKey]int
+	// osReleaseNotInAdvisory counts the final findings whose advisory
+	// carries release tags but none for the installed release, by vendor.
+	osReleaseNotInAdvisory map[string]int
+}
+
+// countOSReleaseNotInAdvisory counts the final findings whose advisory
+// carries release tags but none for the installed release, by vendor. Only
+// the reducer's own OS selection emits the reason, so the count is the
+// operator-visible unmatched-release verdict set (#9806).
+func countOSReleaseNotInAdvisory(findings []SupplyChainImpactFinding) map[string]int {
+	var out map[string]int
+	for _, finding := range findings {
+		if finding.MatchReason != supplyChainVersionReasonOSReleaseNotInAdvisory {
+			continue
+		}
+		vendor := "other"
+		if rest, ok := strings.CutPrefix(finding.PackageID, "os://"); ok {
+			if name, _, _ := strings.Cut(rest, "/"); name != "" {
+				vendor = name
+			}
+		}
+		if out == nil {
+			out = make(map[string]int)
+		}
+		out[osAdvisoryJoinVendorLabel(vendor)]++
+	}
+	return out
+}
+
+// osReleaseNotInAdvisoryTotal sums the per-vendor unmatched-release verdicts.
+func (s supplyChainImpactBuildStats) osReleaseNotInAdvisoryTotal() int {
+	total := 0
+	for _, count := range s.osReleaseNotInAdvisory {
+		total += count
+	}
+	return total
+}
+
+// emitOSReleaseNotInAdvisory records one counter point per non-zero vendor
+// cell.
+func (h SupplyChainImpactHandler) emitOSReleaseNotInAdvisory(ctx context.Context, counts map[string]int) {
+	if h.Instruments == nil || h.Instruments.SupplyChainImpactOSReleaseNotInAdvisory == nil {
+		return
+	}
+	for vendor, count := range counts {
+		if count == 0 {
+			continue
+		}
+		h.Instruments.SupplyChainImpactOSReleaseNotInAdvisory.Add(ctx, int64(count), metric.WithAttributes(
+			telemetry.AttrSource(vendor),
+		))
+	}
 }
 
 // osAdvisoriesConsidered returns how many OS advisory facts the pass loaded.
@@ -282,9 +334,13 @@ func (h SupplyChainImpactHandler) emitOSAdvisoryJoins(ctx context.Context, joins
 // osAdvisoriesConsideredSubSignal and osAdvisoriesJoinedSubSignal are the
 // Result.SubSignals keys for the OS advisory join counts; both are 0 on a
 // pass with no OS advisory so a clean pass is visible (#9848).
+//
+// osReleaseNotInAdvisorySubSignal carries the unmatched-release verdict
+// count; 0 on a pass with no such verdict so a clean pass is visible (#9806).
 const (
 	osAdvisoriesConsideredSubSignal = "os_advisories_considered"
 	osAdvisoriesJoinedSubSignal     = "os_advisories_joined"
+	osReleaseNotInAdvisorySubSignal = "os_release_not_in_advisory"
 )
 
 // recordBuildStats emits the OS advisory join counter and writes the build
@@ -296,10 +352,12 @@ func (h SupplyChainImpactHandler) recordBuildStats(
 ) {
 	h.emitOSAdvisoryJoins(ctx, stats.osAdvisoryJoins)
 	h.emitOSAdvisoryReleaseSelections(ctx, stats.osAdvisoryJoins)
+	h.emitOSReleaseNotInAdvisory(ctx, stats.osReleaseNotInAdvisory)
 	subSignals[negatedProductsExcludedSubSignal] = float64(stats.negatedProductsExcluded)
 	subSignals[osAdvisoriesConsideredSubSignal] = float64(stats.osAdvisoriesConsidered())
 	subSignals[osAdvisoriesJoinedSubSignal] = float64(stats.osAdvisoriesJoined())
 	subSignals[osAdvisoriesReleaseMatchedSubSignal] = float64(stats.osAdvisoriesWithRelease(osAdvisoryReleaseMatched))
 	subSignals[osAdvisoriesReleaseUnlistedSubSignal] = float64(stats.osAdvisoriesWithRelease(osAdvisoryReleaseUnlisted))
 	subSignals[osAdvisoriesReleaseUntaggedSubSignal] = float64(stats.osAdvisoriesWithRelease(osAdvisoryReleaseUntagged))
+	subSignals[osReleaseNotInAdvisorySubSignal] = float64(stats.osReleaseNotInAdvisoryTotal())
 }

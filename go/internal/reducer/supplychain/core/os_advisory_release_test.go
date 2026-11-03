@@ -90,6 +90,10 @@ func TestSelectOSAdvisoryRelease(t *testing.T) {
 		t.Parallel()
 		got := selectOSAdvisoryRelease([]supplychainmodel.AffectedPackage{osvDebianCurlFact()}, bullseye)
 		want := osvDebianCurlFact()
+		// The fact keeps every range for the weak read, but its fixed
+		// versions are blanked: every one names another line's fix (#9806,
+		// ruling Q2.9-Q2.11).
+		want.FixedVersions = nil
 		want.ReleaseUnlisted = true
 		if !reflect.DeepEqual(got[0], want) {
 			t.Fatalf("selected = %+v, want the whole fact marked unlisted %+v", got[0], want)

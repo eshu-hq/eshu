@@ -451,3 +451,91 @@ func TestDecodeSupplyChainImpactFindingRowPreservesProvenance(t *testing.T) {
 		t.Fatalf("AdvisorySources missing withdrawn glad row: %#v", provenance.AdvisorySources)
 	}
 }
+
+// TestDecodeSupplyChainImpactFindingRowPreservesReleaseVerdicts pins the
+// #9806 promotion bar at the query surface: the reducer's release verdicts
+// reach impact explain and MCP exactly as written, with no query-output
+// patching. The positive (host-tag match reads exact), negative (an
+// unmatched release stays out of known-fixed even above every listed fix),
+// and ambiguous (multi-branch disagreement) rows each keep their status,
+// reason, missing evidence, and remediation, and an adjacent dpkg exact row
+// is unchanged.
+func TestDecodeSupplyChainImpactFindingRowPreservesReleaseVerdicts(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name             string
+		status           string
+		reason           string
+		missing          string
+		remediationPatch string
+		wantFix          string
+	}{
+		{
+			name:   "positive host-tag match reads exact",
+			status: "affected_exact", reason: "dpkg_affected_range",
+			missing:          "",
+			remediationPatch: `"first_patched_version": "8.3.0-1", "reason": "direct_upgrade_allowed", "confidence": "exact"`,
+			wantFix:          "8.3.0-1",
+		},
+		{
+			name:   "negative unmatched release stays possibly affected",
+			status: "possibly_affected", reason: "os_release_not_in_advisory",
+			missing:          "advisory does not list the installed release",
+			remediationPatch: `"first_patched_version": "", "reason": "package_manager_unsupported", "confidence": "unknown"`,
+			wantFix:          "",
+		},
+		{
+			name:   "ambiguous multi-branch disagreement stays possibly affected",
+			status: "possibly_affected", reason: "os_release_ambiguous",
+			missing:          "advisory release line for installed package unknown",
+			remediationPatch: `"first_patched_version": "", "reason": "package_manager_unsupported", "confidence": "unknown"`,
+			wantFix:          "",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			missing := ""
+			if tc.missing != "" {
+				missing = `"missing_evidence": ["` + tc.missing + `"],`
+			}
+			payload := []byte(`{
+				"cve_id": "CVE-2023-38039",
+				"advisory_id": "DEBIAN-CVE-2023-38039",
+				"package_id": "os://debian/curl",
+				"impact_status": "` + tc.status + `",
+				"match_reason": "` + tc.reason + `",
+				` + missing + `
+				"remediation": {
+					"ecosystem": "debian",
+					"current_version": "8.10.1-2",
+					"match_reason": "` + tc.reason + `",
+					` + tc.remediationPatch + `
+				}
+			}`)
+			row, err := impact.DecodeFindingRow("finding-1", "inferred", payload)
+			if err != nil {
+				t.Fatalf("impact.DecodeFindingRow() error = %v", err)
+			}
+			if row.MatchReason != tc.reason {
+				t.Fatalf("MatchReason = %q, want the reducer's %q", row.MatchReason, tc.reason)
+			}
+			if row.Status != tc.status {
+				t.Fatalf("Status = %q, want %q", row.Status, tc.status)
+			}
+			if row.Remediation == nil {
+				t.Fatal("Remediation = nil, want the reducer's remediation row")
+			}
+			if row.Remediation.FirstPatchedVersion != tc.wantFix {
+				t.Fatalf("FirstPatchedVersion = %q, want %q", row.Remediation.FirstPatchedVersion, tc.wantFix)
+			}
+			if row.Remediation.MatchReason != tc.reason {
+				t.Fatalf("remediation MatchReason = %q, want the reducer's %q", row.Remediation.MatchReason, tc.reason)
+			}
+			if row.DetectionProfile != impact.ProfileComprehensive {
+				t.Fatalf("DetectionProfile = %q, want comprehensive for release verdicts", row.DetectionProfile)
+			}
+		})
+	}
+}
