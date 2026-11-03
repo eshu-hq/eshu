@@ -138,6 +138,10 @@ func ValidateCallablePRWorkflow(def PRWorkflowDefinition, raw []byte) (PRWorkflo
 	}
 	def.Jobs = actualJobs
 	def.JobNeeds = needs
+	// The trigger set is proven here, so the callable flag is set at the same
+	// point that proves it: any caller of this validator gets a definition whose
+	// branch filter is inert, with no second place to keep in sync (#9766).
+	def.Callable = true
 	if def.JobNames == nil {
 		def.JobNames = make(map[string]string)
 	}

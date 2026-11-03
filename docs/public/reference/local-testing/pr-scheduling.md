@@ -12,7 +12,11 @@ the trusted publisher to compare with the required verdict.
 
 The remaining synchronize workflows are called from `Build Test`. Their
 original base-branch and changed-path filters are in the inventory. A callable
-job runs only when the plan selects its local job ID. The sole auxiliary
+job runs only when the plan selects its local job ID. A `workflow_call`-only
+leaf is planned as if its base were the default branch, because the central
+scheduler invokes it for any base and a branch filter does not apply to a
+`workflow_call`; only a direct `pull_request` workflow keeps its own base-branch
+filter (#9766). The sole auxiliary
 exception is `live-postgres-readiness.yml`'s `readiness-plan`: on a PR it
 also runs when the trusted plan selects its dependent
 `live-postgres-readiness-shards` job. This bridges a full plan made from
