@@ -31,7 +31,11 @@ const (
 // writer: the owning repository is the generation being projected, so there is
 // no cross-acceptance-unit MATCH dependency and no readiness gate. The
 // DECLARES_RUNTIME edge has no identity properties because each
-// RuntimeDeclaration node has exactly one owning repository.
+// RuntimeDeclaration node has exactly one owning repository. The edge stamps
+// the asserted raw_spec/spec_kind alongside the node (mirroring the
+// code_taint writer's rel stamps): the assert-edges scan reads asserted
+// properties off the edge, so node-only stamps would report the family as
+// silently not materializing.
 const RuntimeDeclarationUpsertCypher = `UNWIND $rows AS row
 MERGE (repo:Repository {id: row.repo_id})
 MERGE (d:RuntimeDeclaration {repo_id: row.repo_id, relative_path: row.relative_path, line_number: row.line_number, runtime: row.runtime, order_index: row.order_index})
@@ -54,7 +58,9 @@ SET d.scope_dir = row.scope_dir,
     d.evidence_source = row.evidence_source
 MERGE (repo)-[rel:DECLARES_RUNTIME]->(d)
 SET rel.generation_id = row.generation_id,
-    rel.evidence_source = row.evidence_source`
+    rel.evidence_source = row.evidence_source,
+    rel.raw_spec = row.raw_spec,
+    rel.spec_kind = row.spec_kind`
 
 // RetractRuntimeDeclarationsCypher removes every RuntimeDeclaration node this
 // evidence source owns for a set of repositories (whole-repository retract,

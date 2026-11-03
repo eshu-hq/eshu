@@ -28,7 +28,9 @@
             "graph_id": "repository:eshu-fixture-runtime-pins",
             "graph_kind": "repository",
             "repo_id": "repository:eshu-fixture-runtime-pins",
-            "name": "runtime-pins"
+            "name": "runtime-pins",
+            "local_path": "/repo-runtime-pins",
+            "source_run_id": "run-ifa-runtime-declaration-family-1"
           }
         },
         {
@@ -180,7 +182,7 @@
         {
           "fact_kind": "shared_followup",
           "stable_fact_key": "shared_followup:repository:eshu-fixture-runtime-pins:runtime_declaration_projection",
-          "schema_version": "",
+          "schema_version": "1.0.0",
           "collector_kind": "git",
           "fencing_token": 1,
           "source_confidence": "observed",

@@ -28,6 +28,21 @@ const (
 	// DECLARES_RUNTIME edge source.
 	runtimeDeclarationFamilyRepositoryID = "repository:eshu-fixture-runtime-pins"
 
+	// runtimeDeclarationFamilySourceRunID is the collector run the
+	// repository fact attributes itself to. Canonical projection requires
+	// it on every repository fact (identity without it drops the phase
+	// row, and the quiescence gate then holds every shared lane shut):
+	// it mirrors the run-ifa-<family>-family-1 shape the git collector
+	// emits, not a stable content hash.
+	runtimeDeclarationFamilySourceRunID = "run-ifa-runtime-declaration-family-1"
+
+	// runtimeDeclarationFamilyLocalPath is the fixture-unique checkout
+	// path the projector falls back to for the Repository.path node
+	// identity: every fixture repository must derive a distinct path or
+	// the backend UNIQUE(path) constraint keeps exactly one of the
+	// colliding nodes (#6228).
+	runtimeDeclarationFamilyLocalPath = "/repo-runtime-pins"
+
 	runtimeDeclarationFamilySchemaVersion = "1.0.0"
 	runtimeDeclarationFamilyCollectorKind = "git"
 )
@@ -98,10 +113,12 @@ func RuntimeDeclarationFamilyOdu() CatalogOdu {
 		CollectorKind:    runtimeDeclarationFamilyCollectorKind,
 		SourceConfidence: facts.SourceConfidenceObserved,
 		Payload: map[string]any{
-			"graph_id":   runtimeDeclarationFamilyRepositoryID,
-			"graph_kind": "repository",
-			"repo_id":    runtimeDeclarationFamilyRepositoryID,
-			"name":       "runtime-pins",
+			"graph_id":      runtimeDeclarationFamilyRepositoryID,
+			"graph_kind":    "repository",
+			"repo_id":       runtimeDeclarationFamilyRepositoryID,
+			"name":          "runtime-pins",
+			"local_path":    runtimeDeclarationFamilyLocalPath,
+			"source_run_id": runtimeDeclarationFamilySourceRunID,
 		},
 	})
 	for i, fact := range runtimeDeclarationFamilyFacts {
@@ -143,14 +160,16 @@ func RuntimeDeclarationFamilyOdu() CatalogOdu {
 	// runtime_declaration_projection intent. Hand-built with literals, never
 	// derived from the collector's builder: internal/ifa must not import
 	// collector internals, and the lockstep test holds these bytes to the
-	// committed cassette. The guard skips it (not a version fact), and the
-	// drive's schema admission passes the versionless unknown kind, exactly
-	// as in production.
+	// committed cassette. The guard skips it (not a version fact).
+	// Production envelopes carry no schema_version, but the replay cassette
+	// format requires one on every fact, so the Odù pins 1.0.0 like every
+	// sibling family cassette; a versionless marker fails cassette load.
 	out = append(out, facts.Envelope{
 		ScopeID:          runtimeDeclarationFamilyScopeID,
 		GenerationID:     runtimeDeclarationFamilyGenerationID,
 		FactKind:         "shared_followup",
 		StableFactKey:    "shared_followup:" + runtimeDeclarationFamilyRepositoryID + ":runtime_declaration_projection",
+		SchemaVersion:    runtimeDeclarationFamilySchemaVersion,
 		CollectorKind:    runtimeDeclarationFamilyCollectorKind,
 		SourceConfidence: facts.SourceConfidenceObserved,
 		Payload: map[string]any{
