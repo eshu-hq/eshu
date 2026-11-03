@@ -452,3 +452,11 @@ LIMIT 1000)`) as `DeletePrefixed` does. Then rerun the residue counts.
 - `go/cmd/workflow-coordinator/REMOVAL_CONTENTION_SPEC.md` (the contract)
 - `go/internal/workflow/parity/README.md` (the parity harness and its legs)
 - [Local Testing](../../../../../docs/public/reference/local-testing.md)
+
+## No-regression and observability note
+
+- No-Regression Evidence: test-only package (`doc.go`: no production binary
+  imports `contention/`); focused suite 12/12 green, `go vet` and
+  `gosec-changed` clean; no production hot path changed.
+- No-Observability-Change: no production spans, metrics, or logs added or
+  altered; harness sampling and reporting run only under explicit invocation.
