@@ -105,9 +105,11 @@ func (tx *supplyChainImpactRoutingTx) QueryContext(_ context.Context, query stri
 			rows = append(rows, r.factRow(id))
 		}
 		return &queueFakeRows{rows: rows}, nil
-	case listFactsByKindAndPayloadValueQuery, protectedStaticFactsByPayloadQuery,
-		listFactsByKindAndPayloadValueCursorQuery, protectedStaticFactsByPayloadCursorQuery:
+	case listFactsByKindAndPayloadValueQuery, listFactsByKindAndPayloadValueCursorQuery:
 		r.calls = append(r.calls, supplyChainImpactRoutedCall{Label: "python_fold", Args: args})
+		return &queueFakeRows{rows: r.pythonFoldPayloadRows(args)}, nil
+	case protectedStaticFactsByPayloadQuery, protectedStaticFactsByPayloadCursorQuery:
+		r.calls = append(r.calls, supplyChainImpactRoutedCall{Label: "python_fold_snapshot", Args: args})
 		return &queueFakeRows{rows: r.pythonFoldPayloadRows(args)}, nil
 	case listCurrentContainerImageIdentitySupportFactsQuery:
 		r.calls = append(r.calls, supplyChainImpactRoutedCall{Label: "identity", Args: args})

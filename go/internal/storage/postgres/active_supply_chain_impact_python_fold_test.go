@@ -154,8 +154,8 @@ func TestFoldPythonReachabilityFilesReadsSnapshotVariant(t *testing.T) {
 		t.Fatalf("folded bytes = %d, want %d (snapshot variant)", payloadBytes, wantBytes)
 	}
 	for _, call := range routed.calls {
-		if call.Label != "python_fold" {
-			t.Fatalf("routed call = %q, want only python_fold pages", call.Label)
+		if call.Label != "python_fold_snapshot" {
+			t.Fatalf("routed call = %q, want only python_fold_snapshot pages", call.Label)
 		}
 	}
 }
