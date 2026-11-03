@@ -286,6 +286,8 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 	subSignals["evidence_truncated_rounds"] = boolSignal(loaded.truncation.rounds)
 	subSignals["evidence_truncated_budget"] = boolSignal(loaded.truncation.budget)
 	subSignals["suppression_evidence_truncated"] = boolSignal(loaded.truncation.suppressionTail)
+	subSignals["python_reachability_files_folded"] = float64(loaded.pythonReachabilityFacts)
+	subSignals["python_reachability_payload_bytes_folded"] = float64(loaded.pythonReachabilityPayloadBytes)
 	subSignals["evidence_envelopes"] = float64(loaded.evidenceEnvelopeCount())
 	subSignals["evidence_expansion_envelopes"] = float64(loaded.expansionEnvelopes)
 	h.addHeadroomSubSignals(subSignals, loaded)

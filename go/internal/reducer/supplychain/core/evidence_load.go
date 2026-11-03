@@ -55,10 +55,16 @@ type supplyChainImpactLoadedEvidence struct {
 	scannerAnalysisScopeFacts       int
 	resolvedDigestEvidenceFacts     int
 	pythonReachabilityFacts         int
-	jvmReachabilityFactCount        int
-	postSecurityAlertScopeFacts     int
-	securityAlertScopingApplied     bool
-	securityAlertScopedOutFacts     int
+	// pythonReachabilityPayloadBytes is the raw JSON bytes the Python stage
+	// read and folded, dropped instead of retained (#9860). Folded bytes are
+	// observed, not charged: like the #9781 active-evidence fold, folding
+	// bounds memory by dropping the payloads, so only retained bytes trip
+	// the byte budget.
+	pythonReachabilityPayloadBytes int64
+	jvmReachabilityFactCount       int
+	postSecurityAlertScopeFacts    int
+	securityAlertScopingApplied    bool
+	securityAlertScopedOutFacts    int
 	// floorArmed reports whether the #5709 floor could have deferred this
 	// pass: a producer-reachable initial filter on a wired seam. It is the
 	// probe's H1b discriminator (unreachable initial filter means the
@@ -195,15 +201,18 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 		return supplyChainImpactLoadedEvidence{}, timing, deferral
 	}
 
-	pythonReachabilityStartCount := len(envelopes)
 	phaseStarted = time.Now()
-	pythonReachabilityEvidence, err := h.loadPythonReachabilityEvidenceFacts(ctx, envelopes)
+	pythonReachability, err := h.loadPythonReachabilityEvidenceFacts(ctx, envelopes)
 	timing.loadPythonReachabilityDuration = time.Since(phaseStarted)
 	if err != nil {
 		return supplyChainImpactLoadedEvidence{}, timing, fmt.Errorf("load Python reachability evidence facts: %w", err)
 	}
-	envelopes = appendUniqueSupplyChainImpactFacts(envelopes, pythonReachabilityEvidence...)
-	pythonReachabilityFacts := len(envelopes) - pythonReachabilityStartCount
+	envelopes = appendUniqueSupplyChainImpactFacts(envelopes, pythonReachability.envelopes...)
+	// Folded files count like retained envelopes did before the fold, so the
+	// evidence_envelopes accounting does not drop by the file count (#9860,
+	// same precedent as #9781). Tombstones are excluded from the folded
+	// count: only files the fold admits into the index count.
+	pythonReachabilityFacts := pythonReachability.foldedFiles
 
 	jvmReachabilityStartCount := len(envelopes)
 	phaseStarted = time.Now()
@@ -250,6 +259,7 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 		scannerAnalysisScopeFacts:       scannerAnalysisScopeFacts,
 		resolvedDigestEvidenceFacts:     resolvedDigestEvidenceFacts,
 		pythonReachabilityFacts:         pythonReachabilityFacts,
+		pythonReachabilityPayloadBytes:  pythonReachability.foldedBytes,
 		jvmReachabilityFactCount:        jvmReachabilityFactCount,
 		postSecurityAlertScopeFacts:     postSecurityAlertScopeFacts,
 		securityAlertScopingApplied:     securityAlertScopingApplied,

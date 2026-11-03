@@ -7,15 +7,19 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	factimpact "github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/impact"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/filters"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -327,4 +331,144 @@ func (s FactStore) recordSupplyChainImpactLoad(
 		slog.Int("file_repository_ids", len(filter.FileRepositoryIDs)),
 		slog.String("guard_index", factimpact.IndexSupplyChainImpactKeyGuard),
 	)
+}
+
+// FoldPythonReachabilityFiles pages one scope generation's file facts filtered
+// by a top-level payload key/value allowlist and folds each row into fold,
+// dropping the decoded envelope. It returns the folded file count and the raw
+// payload bytes read. Live memory stays bounded by the index plus one page
+// instead of every decoded payload (#9860). It mirrors the page loop of
+// ListFactsByKindAndPayloadValue, including the snapshot variants, so the
+// engaged and disengaged loops read the same rows.
+func (s FactStore) FoldPythonReachabilityFiles(
+	ctx context.Context,
+	scopeID string,
+	generationID string,
+	payloadKey string,
+	payloadValues []string,
+	fold *supplychaincore.FileReachabilityFold,
+) (int, int64, error) {
+	if s.database == nil {
+		return 0, 0, fmt.Errorf("fact store database is required")
+	}
+	payloadKey = strings.TrimSpace(payloadKey)
+	payloadValues = filters.CleanFactKinds(payloadValues)
+	if payloadKey == "" || len(payloadValues) == 0 || fold == nil {
+		return 0, 0, nil
+	}
+
+	var files int
+	var payloadBytes int64
+	var cursorObservedAt *time.Time
+	var cursorFactID string
+	// One read-only repeatable-read snapshot covers every page, so the pages
+	// see one state even as concurrent writers advance the generation.
+	err := withReadOnlyRepeatableRead(ctx, s.database, func(queryer db.Queryer) error {
+		for {
+			page, err := s.foldPythonReachabilityFilePage(
+				ctx,
+				queryer,
+				scopeID,
+				generationID,
+				payloadKey,
+				payloadValues,
+				cursorObservedAt,
+				cursorFactID,
+				fold,
+			)
+			if err != nil {
+				return err
+			}
+			files += page.files
+			payloadBytes += page.payloadBytes
+			if page.rows < listFactsByKindPageSize {
+				return nil
+			}
+			cursorObservedAt = page.lastObservedAt
+			cursorFactID = page.lastFactID
+		}
+	})
+	if err != nil {
+		return 0, 0, err
+	}
+	return files, payloadBytes, nil
+}
+
+type pythonReachabilityFilePage struct {
+	rows           int
+	files          int
+	payloadBytes   int64
+	lastObservedAt *time.Time
+	lastFactID     string
+}
+
+// foldPythonReachabilityFilePage reads one stable-order page of file facts
+// and folds each row, so no page of decoded file payloads is ever held.
+func (s FactStore) foldPythonReachabilityFilePage(
+	ctx context.Context,
+	queryer db.Queryer,
+	scopeID string,
+	generationID string,
+	payloadKey string,
+	payloadValues []string,
+	cursorObservedAt *time.Time,
+	cursorFactID string,
+	fold *supplychaincore.FileReachabilityFold,
+) (pythonReachabilityFilePage, error) {
+	query := listFactsByKindAndPayloadValueQuery
+	if s.impactStaticSnapshot {
+		query = protectedStaticFactsByPayloadQuery
+	}
+	args := []any{
+		scopeID,
+		generationID,
+		factload.FactKindFile,
+		payloadKey,
+		payloadValues,
+		listFactsByKindPageSize,
+	}
+	if cursorObservedAt != nil {
+		query = listFactsByKindAndPayloadValueCursorQuery
+		if s.impactStaticSnapshot {
+			query = protectedStaticFactsByPayloadCursorQuery
+		}
+		args = []any{
+			scopeID,
+			generationID,
+			factload.FactKindFile,
+			payloadKey,
+			payloadValues,
+			cursorObservedAt.UTC(),
+			cursorFactID,
+			listFactsByKindPageSize,
+		}
+	}
+
+	rows, err := queryer.QueryContext(ctx, query, args...)
+	if err != nil {
+		return pythonReachabilityFilePage{}, fmt.Errorf("fold python reachability files: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var page pythonReachabilityFilePage
+	for rows.Next() {
+		// The row shape has one home in backfill: same SELECT list, plus the
+		// raw payload byte size for the operator signals.
+		envelope, size, scanErr := backfill.ScanFactEnvelopeWithPayloadSize(rows)
+		if scanErr != nil {
+			return pythonReachabilityFilePage{}, fmt.Errorf("fold python reachability files: %w", scanErr)
+		}
+		observedAt := envelope.ObservedAt.UTC()
+		page.lastObservedAt = &observedAt
+		page.lastFactID = envelope.FactID
+		page.rows++
+		page.payloadBytes += int64(size)
+		if fold.Add(envelope) {
+			page.files++
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return pythonReachabilityFilePage{}, fmt.Errorf("fold python reachability files: %w", err)
+	}
+	return page, nil
 }

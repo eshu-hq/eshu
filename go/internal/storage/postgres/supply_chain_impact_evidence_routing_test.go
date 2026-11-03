@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"slices"
 	"testing"
@@ -104,6 +105,12 @@ func (tx *supplyChainImpactRoutingTx) QueryContext(_ context.Context, query stri
 			rows = append(rows, r.factRow(id))
 		}
 		return &queueFakeRows{rows: rows}, nil
+	case listFactsByKindAndPayloadValueQuery, listFactsByKindAndPayloadValueCursorQuery:
+		r.calls = append(r.calls, supplyChainImpactRoutedCall{Label: "python_fold", Args: args})
+		return &queueFakeRows{rows: r.pythonFoldPayloadRows(args)}, nil
+	case protectedStaticFactsByPayloadQuery, protectedStaticFactsByPayloadCursorQuery:
+		r.calls = append(r.calls, supplyChainImpactRoutedCall{Label: "python_fold_snapshot", Args: args})
+		return &queueFakeRows{rows: r.pythonFoldPayloadRows(args)}, nil
 	case listCurrentContainerImageIdentitySupportFactsQuery:
 		r.calls = append(r.calls, supplyChainImpactRoutedCall{Label: "identity", Args: args})
 		cursor, limit := args[5].(string), args[6].(int)
@@ -130,6 +137,61 @@ func (tx *supplyChainImpactRoutingTx) QueryContext(_ context.Context, query stri
 		return &queueFakeRows{rows: rows}, nil
 	}
 	return nil, fmt.Errorf("routing fake: unrouted statement:\n%s", query)
+}
+
+// pythonFoldPayloadRows answers a payload-value page: facts of the requested
+// kind whose payload key is allowlisted, in stable fact_id order past the
+// cursor, capped at the page limit. Every fake row shares one observed_at, so
+// the cursor reduces to the fact_id bound. It renders the caller's scope and
+// generation onto each row.
+func (r *supplyChainImpactRoutingDB) pythonFoldPayloadRows(args []any) [][]any {
+	scopeID := args[0].(string)
+	generationID := args[1].(string)
+	kind := args[2].(string)
+	key := args[3].(string)
+	values := args[4].([]string)
+	var cursorFactID string
+	var limit int
+	if len(args) == 6 {
+		limit = args[5].(int)
+	} else {
+		cursorFactID = args[6].(string)
+		limit = args[7].(int)
+	}
+	allow := map[string]bool{}
+	for _, value := range values {
+		allow[value] = true
+	}
+	var ids []string
+	for id, factKind := range r.facts {
+		if factKind != kind {
+			continue
+		}
+		var decoded map[string]any
+		if err := json.Unmarshal(r.payloads[id], &decoded); err != nil {
+			continue
+		}
+		value, _ := decoded[key].(string)
+		if !allow[value] {
+			continue
+		}
+		if cursorFactID != "" && id <= cursorFactID {
+			continue
+		}
+		ids = append(ids, id)
+	}
+	slices.Sort(ids)
+	var rows [][]any
+	for _, id := range ids {
+		if len(rows) >= limit {
+			break
+		}
+		row := r.factRow(id)
+		row[1] = scopeID
+		row[2] = generationID
+		rows = append(rows, row)
+	}
+	return rows
 }
 
 // factRow renders one payload-page row for a configured fact ID.

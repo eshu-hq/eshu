@@ -4,6 +4,8 @@
 package core
 
 import (
+	"context"
+	"encoding/json"
 	"slices"
 	"strings"
 
@@ -19,6 +21,14 @@ import (
 const FileReachabilityDigestFactKind = "reducer_file_reachability_digest"
 
 const fileReachabilityDigestPayloadKey = "fold"
+
+// pythonReachabilityDigestFactID identifies the digest envelope the Python
+// reachability stage appends for the files it folded (#9860). It shares the
+// digest fact kind so every digest reader (index builders, evidence
+// expansion, envelope counting) treats it like the active-evidence digest,
+// but its fact ID is distinct so the unique-append keeps both digests when a
+// pass folded JS/TS files in the active stage and Python files afterwards.
+const pythonReachabilityDigestFactID = "reducer_python_reachability_digest"
 
 // FileReachabilityFold reduces parser `file` envelopes to the JS/TS package
 // reachability index and the Python reachability evidence they would have
@@ -110,6 +120,23 @@ func (f *FileReachabilityFold) DigestEnvelope() (facts.Envelope, bool) {
 	}
 	return facts.Envelope{
 		FactID:   FileReachabilityDigestFactKind,
+		FactKind: FileReachabilityDigestFactKind,
+		Payload:  map[string]any{fileReachabilityDigestPayloadKey: f},
+	}, true
+}
+
+// PythonReachabilityDigestEnvelope returns the envelope the Python
+// reachability stage appends for the files its fold absorbed, or false when
+// the fold absorbed nothing. It goes where the loaded file envelopes would
+// have gone: after the pass's earlier files, at the end of the evidence set.
+// The envelope shares the digest kind with the active-evidence digest but
+// carries a distinct fact ID, so both survive the unique-append.
+func (f *FileReachabilityFold) PythonReachabilityDigestEnvelope() (facts.Envelope, bool) {
+	if f == nil || f.files == 0 {
+		return facts.Envelope{}, false
+	}
+	return facts.Envelope{
+		FactID:   pythonReachabilityDigestFactID,
 		FactKind: FileReachabilityDigestFactKind,
 		Payload:  map[string]any{fileReachabilityDigestPayloadKey: f},
 	}, true
@@ -212,4 +239,125 @@ func mergePythonReachabilityEvidence(
 		evidence.pluginLoading = evidence.pluginLoading || source.pluginLoading
 		out[repositoryID] = evidence
 	}
+}
+
+// pythonReachabilityFileFolder pages parser file facts for the Python
+// reachability stage and folds each page, so the stage's live memory is
+// bounded by the index plus one page instead of every decoded payload (#9860).
+// Loaders without paging keep the existing whole-load contract; the stage
+// folds that load in memory. Production stores implement this on both the
+// disengaged and the engaged snapshot loaders.
+type pythonReachabilityFileFolder interface {
+	FoldPythonReachabilityFiles(
+		ctx context.Context,
+		scopeID string,
+		generationID string,
+		payloadKey string,
+		payloadValues []string,
+		fold *FileReachabilityFold,
+	) (files int, payloadBytes int64, err error)
+}
+
+// pythonReachabilityLoad is what the Python reachability stage contributes to
+// the pass: a digest envelope for the folded files (or nothing when the stage
+// folded nothing), plus the folded file and raw payload byte counts for the
+// operator signals. The stage never retains file envelopes (#9860).
+//
+// foldedBytes is raw payload bytes as read: exact raw JSON on the pager path,
+// re-encoded JSON length on the whole-load fallback path. Both bound the same
+// operator signal; only the pager path runs in production.
+type pythonReachabilityLoad struct {
+	envelopes   []facts.Envelope
+	foldedFiles int
+	foldedBytes int64
+}
+
+func (h SupplyChainImpactHandler) loadPythonReachabilityEvidenceFacts(
+	ctx context.Context,
+	envelopes []facts.Envelope,
+) (pythonReachabilityLoad, error) {
+	if !supplyChainImpactHasPyPIEvidence(envelopes) {
+		return pythonReachabilityLoad{}, nil
+	}
+	repositoryIDs := supplyChainImpactFilter(envelopes).RepositoryIDs
+	if len(repositoryIDs) == 0 {
+		return pythonReachabilityLoad{}, nil
+	}
+	repositoriesByScope := pythonReachabilityRepositoryIDsByScope(envelopes, repositoryIDs)
+	if len(repositoriesByScope) == 0 {
+		return pythonReachabilityLoad{}, nil
+	}
+
+	// The fold starts from the pass's envelopes, so a file the pass already
+	// holds or folded is not folded again; the digest goes where the loaded
+	// files would have gone, at the end of the evidence set (#9860).
+	fold := NewFileReachabilityFold(envelopes)
+	var out pythonReachabilityLoad
+	for _, repoScope := range sortedPythonReachabilityRepositoryScopes(repositoriesByScope) {
+		files, payloadBytes, err := h.foldPythonReachabilityRepoFiles(
+			ctx,
+			repoScope,
+			repositoriesByScope[repoScope],
+			fold,
+		)
+		if err != nil {
+			return pythonReachabilityLoad{}, err
+		}
+		out.foldedFiles += files
+		out.foldedBytes += payloadBytes
+	}
+	if digest, ok := fold.PythonReachabilityDigestEnvelope(); ok {
+		out.envelopes = append(out.envelopes, digest)
+	}
+	return out, nil
+}
+
+// foldPythonReachabilityRepoFiles folds one repository scope's file facts.
+// The paging loader folds page by page without ever holding the full set;
+// other loaders fall back to a whole load folded in memory.
+func (h SupplyChainImpactHandler) foldPythonReachabilityRepoFiles(
+	ctx context.Context,
+	repoScope pythonReachabilityRepositoryScope,
+	repositoryIDs []string,
+	fold *FileReachabilityFold,
+) (int, int64, error) {
+	if pager, ok := h.FactLoader.(pythonReachabilityFileFolder); ok {
+		files, payloadBytes, err := pager.FoldPythonReachabilityFiles(
+			ctx,
+			repoScope.scopeID,
+			repoScope.generationID,
+			"repo_id",
+			repositoryIDs,
+			fold,
+		)
+		if err != nil {
+			return 0, 0, factload.ClassifyFactLoadError(err)
+		}
+		return files, payloadBytes, nil
+	}
+	fileFacts, err := factload.LoadFactsForKindAndPayloadValue(
+		ctx,
+		h.FactLoader,
+		repoScope.scopeID,
+		repoScope.generationID,
+		factload.FactKindFile,
+		"repo_id",
+		repositoryIDs,
+	)
+	if err != nil {
+		return 0, 0, err
+	}
+	var files int
+	var payloadBytes int64
+	for _, envelope := range fileFacts {
+		raw, marshalErr := json.Marshal(envelope.Payload)
+		if marshalErr != nil {
+			return 0, 0, marshalErr
+		}
+		payloadBytes += int64(len(raw))
+		if fold.Add(envelope) {
+			files++
+		}
+	}
+	return files, payloadBytes, nil
 }
