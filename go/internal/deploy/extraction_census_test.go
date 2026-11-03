@@ -17,7 +17,7 @@ import (
 // record is frozen extraction evidence: the tree assertions that pinned it
 // to the in-tree deploy surface were removed with that surface (#8871
 // in-tree removal), and what remains pins the record's prose.
-const censusRecordRel = "docs/internal/evidence/8871-eshu-deploy-census.md"
+const censusRecordRel = "go/internal/deploy/testdata/8871-eshu-deploy-census.md"
 
 // censusSourceFamilies are the deployment-asset directories the census record
 // must account for. They are asserted as named in the record so the

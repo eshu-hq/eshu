@@ -12,9 +12,9 @@ eshu-deploy checkout.
 ## Ownership boundary
 
 Owns the census record
-(`docs/internal/evidence/8871-eshu-deploy-census.md`), the deploy
+(`go/internal/deploy/testdata/8871-eshu-deploy-census.md`), the deploy
 contract record
-(`docs/internal/evidence/8871-eshu-deploy-contract.md`), and their
+(`go/internal/deploy/testdata/8871-eshu-deploy-contract.md`), and their
 contract tests only. Does not own the chart, the compose files, the
 release pipelines, or the schema-bootstrap implementation — those live
 with their respective owners (`eshu-hq/eshu-deploy`,

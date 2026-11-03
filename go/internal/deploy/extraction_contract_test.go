@@ -19,7 +19,7 @@ import (
 // cutover-time tree pins were removed with the in-tree deploy surface,
 // and what remains pins the record's prose plus the living core-owned
 // boundary against the pinned eshu-deploy checkout.
-const contractRecordRel = "docs/internal/evidence/8871-eshu-deploy-contract.md"
+const contractRecordRel = "go/internal/deploy/testdata/8871-eshu-deploy-contract.md"
 
 // contractSourceFamilies are the deployment-asset families the contract
 // record must name as its extraction surface. They mirror the census
