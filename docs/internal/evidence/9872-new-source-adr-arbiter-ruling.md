@@ -56,7 +56,7 @@ File 4.0, 4.2, 4.3, and 5.1 after the revised ADR merges, each with its gate in
 the body, an existing label, and `Refs #9209`. Items 5.2 to 5.4 are not filed.
 
 Filed after the ADR merged (#9956): #9958 (4.0), #9959 (4.2), #9960 (4.3), and
-#9961 (5.1). Each is gated and waits, per the ruling:
+#9961 (5.1). Each is gated, per the ruling:
 
 - #9958 (4.0) is Phase 4 implementation, outside the session that wrote this
   record. It needs the eshu-sdk release candidate that the owner dispatches.
@@ -64,6 +64,7 @@ Filed after the ADR merged (#9956): #9958 (4.0), #9959 (4.2), #9960 (4.3), and
   waits on the EUVD terms check and the `known_exploited.source` change.
 - #9961 (5.1) waits on #9880 (4.1) so the measurement runs the real `cve_list`
   reducer path.
+
 DEFER text: "5.2 to 5.4 implement the shard-scoped generation theory (plan
 section 4.4), which item 5.1 has not measured; Prove-The-Theory-First forbids
 opening work on an unproven theory. 5.4 also waits on the owner's catalog scope
