@@ -57,7 +57,7 @@ while IFS= read -r path; do
     # (#8878), must run the scannerpins lane (self-test plus the live
     # anchored-tag and attestation checks). This arm stays above go/*,
     # which matches the same paths first and sets only the image lane.
-    scripts/verify-scanner-digest-pins.sh|scripts/test-verify-scanner-digest-pins.sh|go/internal/collector/scannercomponent/*)
+    scripts/verify-scanner-digest-pins.sh|scripts/test-verify-scanner-digest-pins.sh|scripts/check-scanner-freshness.sh|scripts/test-check-scanner-freshness.sh|go/internal/collector/scannercomponent/*)
       scannerpins=true
       ;;
     # Shared installer used by the scannerpins live job (pinned crane

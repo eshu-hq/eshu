@@ -53,6 +53,10 @@ if [[ "${1:-}" == api && "${2:-}" == repos/*/actions/workflows/*/runs* ]]; then
 		echo "stub gh: dial tcp: connection refused" >&2
 		exit 1
 	fi
+STUB
+# Split into two heredocs: one body would exceed the 512-byte
+# heredoc budget and deadlock macOS Homebrew bash (#5074).
+cat >>"${stubbin}/gh" <<'STUB'
 	if [[ "${GH_STUB_BAD_JSON:-}" == 1 ]]; then
 		echo "stub gh: {not json"
 		exit 0
@@ -62,7 +66,7 @@ if [[ "${1:-}" == api && "${2:-}" == repos/*/actions/workflows/*/runs* ]]; then
 		exit 0
 	fi
 	head="${GH_STUB_RELEASE_HEAD:?need GH_STUB_RELEASE_HEAD}"
-	printf '{"total_count":1,"workflow_runs":[{"head_sha":"%s","id":41401606694,"event":"push","created_at":"2026-11-02T06:42:23Z","conclusion":"success"}]}\n' "${head}"
+	printf '{"total_count":1,"workflow_runs":[{"head_sha":"%s","id":41401606694}]}\n' "${head}"
 	exit 0
 fi
 echo "stub gh: unexpected args: $*" >&2
