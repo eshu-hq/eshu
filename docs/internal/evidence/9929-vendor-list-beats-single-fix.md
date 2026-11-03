@@ -11,8 +11,7 @@ its list is matched by exact version string only (see Known limitation). When
 the list names the host version, the host reads `affected_exact` under the existing
 `dpkg_exact_affected_version` / `apk_exact_affected_version` reasons. That
 answer is now read before every verdict built from untagged OSV ranges
-(ambiguous, unverified, unlisted, malformed), before the unlisted settlement,
-and before the single-fix shortcut. Before this change the shortcut guard
+(ambiguous, unverified, malformed), and before the single-fix shortcut. Before this change the shortcut guard
 skipped every fact that carries release evidence, so an OSV single fix at or
 below the host answered `not_affected_known_fixed` over a vendor list that
 named the host.
@@ -29,7 +28,7 @@ It is not dropped either:
 - A readable entry that names the host wins wherever it sits, so the verdict
   does not depend on entry order.
 - With no readable match, an unreadable entry on a fact that carries release
-  evidence keeps the single-fix shortcut and the unlisted settlement from
+  evidence keeps the single-fix shortcut from
   claiming known fixed. The scan then reports `possibly_affected` /
   `malformed_advisory_range`, the closed reason it already gave an unreadable
   list entry (fail closed).
@@ -97,7 +96,7 @@ vendor-sourced `affected_package` fact ships.
 
 | Check | Result |
 |---|---|
-| Regression rows written first | RED: 4 tests failed on base (`TestUntaggedVendorVersionListBeatsOSVSingleFix`, `TestVendorVersionListBeatsOSVRanges`, `TestVendorVersionListEdgeCases`, `TestVendorVersionListUnreadableEntries`), exit 1. GREEN after the change, exit 0. |
+| Regression rows written first | RED: 5 tests fail on main's code with the new test files copied in (`TestUntaggedVendorVersionListBeatsOSVSingleFix`, `TestVendorVersionListBeatsOSVRanges`, `TestVendorVersionListEdgeCases`, `TestVendorVersionListUnreadableEntries`, `TestVendorVersionListBeatsOSVRangesRPM`), exit 1, measured on d0159f17df. GREEN after the change, exit 0. |
 | Mutant: early vendor-list return disabled | RED in `TestVendorVersionListBeatsOSVRanges`, `TestVendorVersionListUnreadableEntries`. |
 | Mutant: unreadable entry on a release-evidence fact ignored | RED in `TestVendorVersionListUnreadableEntries` (only-unreadable and unreadable-before-non-match rows). |
 | Mutant: unreadable entry counts as a match | RED in `TestVendorVersionListUnreadableEntries`. |
@@ -116,12 +115,11 @@ backend call, queue stage, lock, or graph write is added.
 
 No-Regression Evidence: `BenchmarkOSVendorListPrecedence` (3 joined facts, 32
 vendor list entries that do not name the host, the worst case for the new pass)
-on darwin/arm64, Go 1.26.10, three 1 s samples, 0 B/op and 0 allocs/op both
-ways: with the new pass 6575 / 6541 / 6386 ns/op; with the pass disabled (the
-guard still scans the lists) 3333 / 3449 / 3349 ns/op. The added cost is about
-0.1 µs per list entry, bounded by the list length, with no allocation. The
-host was not quiet-checked for this run; the rows are sequential, not
-interleaved, so read them as an order of magnitude, not a speedup claim.
+on darwin/arm64, Go 1.26.10, measured on d0159f17df at load1 4.95, three
+samples each, alternating which variant runs first, 0 B/op and 0 allocs/op both
+ways: with the new pass 6364 / 6265 / 6289 ns/op; with the pass disabled (the
+guard still scans the lists) 3424 / 3321 / 3303 ns/op. The added cost is about
+0.1 µs per list entry, bounded by the list length, with no allocation.
 
 Observability Evidence: No-Observability-Change: the finding's reason stays one
 of the existing closed reasons (`dpkg_exact_affected_version`,
