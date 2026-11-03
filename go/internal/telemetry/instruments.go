@@ -2699,6 +2699,16 @@ type Instruments struct {
 	DeferredBackfillTargetedDuration metric.Float64Histogram
 	DeferredBackfillTargetedOutcomes metric.Int64Counter
 	DeferredBackfillTargetedReopened metric.Int64Counter
+	// DeferredBackfillTargetedInboundRows and DeferredBackfillTargetedInboundBytes
+	// count the anchor-scoped inbound facts the partition-scoped pass's closure
+	// loaded across all rounds (#9781), in rows and raw payload bytes. They are
+	// recorded once per pass, by the pass itself, so an operator reads the load
+	// the inbound byte budget bounds without per-partition cardinality. The
+	// whole pass's eshu_dp_deferred_backfill_partition_load_* series stay its
+	// own (the partition-scoped pass runs with instruments off on the shared
+	// loader).
+	DeferredBackfillTargetedInboundRows  metric.Int64Counter
+	DeferredBackfillTargetedInboundBytes metric.Int64Counter
 
 	// DeferredBackfillBlockDuration times each block of the whole deferred
 	// maintenance pass (#8082), labeled by the closed MetricDimensionBlock set.

@@ -384,6 +384,7 @@ func (s IngestionStore) targetedStore() targeted.Store {
 		},
 		CorrelationDomains: CrossScopeCorrelationReopenDomains(),
 		Queries:            targeted.ProductionQueries,
+		InboundBudget:      backfill.RelationshipFactLoadBudget{MaxBytes: targeted.DefaultInboundBudgetBytes},
 	}
 }
 

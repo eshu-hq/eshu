@@ -28,4 +28,10 @@ type Store struct {
 	ReopenSucceeded    func(context.Context, db.Transaction, string) (bool, error)
 	CorrelationDomains []string
 	Queries            Queries
+	// InboundBudget bounds the anchor-scoped inbound fact load the closure
+	// runs (backfill.LoadAnchorScopedRelationshipFactsBudget). A zero value is
+	// unbounded. Set it to fail the pass loudly when the inbound load regresses
+	// to the whole corpus instead of OOM-killing the reducer (#9781). It is a
+	// per-pass bound, not shared state, so it never serializes workers.
+	InboundBudget backfill.RelationshipFactLoadBudget
 }

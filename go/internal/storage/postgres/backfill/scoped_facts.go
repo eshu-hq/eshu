@@ -5,6 +5,7 @@ package backfill
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -14,6 +15,37 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
+)
+
+// RelationshipFactLoadBudget bounds one anchor-scoped relationship fact load by
+// the raw payload bytes it may decode. A zero value is unbounded. The budget is
+// a per-call safety net, not shared state: concurrent passes each carry their
+// own budget, so the bound never serializes workers (#9781). It exists so the
+// load cannot silently grow with the corpus when the anchor filter regresses;
+// exceeding it fails the pass loudly rather than OOM-killing the reducer.
+type RelationshipFactLoadBudget struct {
+	// MaxBytes is the maximum sum of raw payload column bytes the load may
+	// scan before it returns ErrRelationshipFactLoadBudgetExceeded. Zero
+	// means unbounded.
+	MaxBytes int64
+}
+
+// RelationshipFactLoadStats reports what one anchor-scoped relationship fact
+// load read: the number of fact rows and the sum of their raw payload bytes.
+// Bytes counts the payload column as the driver delivered it, before JSON
+// decoding (ScanFactEnvelopeWithPayloadSize), so it is the inbound figure the
+// #9781 heap reading tracks without re-encoding decoded payloads.
+type RelationshipFactLoadStats struct {
+	Rows  int64
+	Bytes int64
+}
+
+// ErrRelationshipFactLoadBudgetExceeded is returned by a budgeted anchor-scoped
+// fact load when the cumulative raw payload bytes reach the budget. It is a
+// fail-loud bound: callers must propagate it and fail the pass, never silently
+// truncate the loaded set.
+var ErrRelationshipFactLoadBudgetExceeded = errors.New(
+	"anchor-scoped relationship fact load exceeded its inbound byte budget",
 )
 
 // ListOnboardedRepoScopedRelationshipFactRecordsQuery is the content-scoped
@@ -118,17 +150,37 @@ func LoadAnchorScopedRelationshipFacts(
 	anchorCatalog []relationships.CatalogEntry,
 	configResolveCatalog []relationships.CatalogEntry,
 ) ([]facts.Envelope, error) {
+	envelopes, _, err := LoadAnchorScopedRelationshipFactsBudget(
+		ctx, queryer, anchorCatalog, configResolveCatalog, RelationshipFactLoadBudget{},
+	)
+	return envelopes, err
+}
+
+// LoadAnchorScopedRelationshipFactsBudget is LoadAnchorScopedRelationshipFacts
+// with an inbound byte budget: it fails with ErrRelationshipFactLoadBudgetExceeded
+// as soon as the cumulative raw payload bytes of the phase-one anchor-scoped load
+// exceed budget.MaxBytes, instead of accumulating an unbounded slice. It reports
+// the rows and bytes it read so the caller can record the inbound metric even on
+// a budget failure. The phase-two ArgoCD config-repo reload stays outside the
+// budget: it is bounded to the resolved config repository ids, never the fleet.
+func LoadAnchorScopedRelationshipFactsBudget(
+	ctx context.Context,
+	queryer db.Queryer,
+	anchorCatalog []relationships.CatalogEntry,
+	configResolveCatalog []relationships.CatalogEntry,
+	budget RelationshipFactLoadBudget,
+) ([]facts.Envelope, RelationshipFactLoadStats, error) {
 	anchors := backfillRelationshipAnchorTerms(anchorCatalog)
 	if len(anchors) == 0 {
-		return nil, nil
+		return nil, RelationshipFactLoadStats{}, nil
 	}
 
-	activeFacts, err := loadOnboardedRepoScopedRelationshipFacts(ctx, queryer, anchors)
+	activeFacts, stats, err := loadOnboardedRepoScopedRelationshipFactsBudget(ctx, queryer, anchors, budget)
 	if err != nil {
-		return nil, err
+		return nil, stats, err
 	}
 	if len(activeFacts) == 0 {
-		return nil, nil
+		return nil, stats, nil
 	}
 
 	configRefs := relationships.ResolveArgoCDGeneratorConfigRepos(activeFacts, configResolveCatalog)
@@ -139,12 +191,12 @@ func LoadAnchorScopedRelationshipFacts(
 		}
 		configFacts, err := LoadArgoCDGeneratorConfigFacts(ctx, queryer, configRepoIDs)
 		if err != nil {
-			return nil, fmt.Errorf("load argocd generator config facts for relationship backfill: %w", err)
+			return nil, stats, fmt.Errorf("load argocd generator config facts for relationship backfill: %w", err)
 		}
 		activeFacts = MergeRelationshipFacts(activeFacts, configFacts)
 	}
 
-	return activeFacts, nil
+	return activeFacts, stats, nil
 }
 
 // loadOnboardedRepoScopedRelationshipFacts loads the latest-generation content,
@@ -152,19 +204,37 @@ func LoadAnchorScopedRelationshipFacts(
 // supplied anchor, escaping each anchor as a wrapped LIKE term. It returns nil
 // without querying when anchors is empty: no fact can match an empty predicate,
 // so the per-commit backfill short-circuits instead of issuing a query that
-// would return nothing.
+// would return nothing. It is the unbounded form of
+// loadOnboardedRepoScopedRelationshipFactsBudget.
 func loadOnboardedRepoScopedRelationshipFacts(
 	ctx context.Context,
 	queryer db.Queryer,
 	anchors []string,
 ) ([]facts.Envelope, error) {
+	loaded, _, err := loadOnboardedRepoScopedRelationshipFactsBudget(
+		ctx, queryer, anchors, RelationshipFactLoadBudget{},
+	)
+	return loaded, err
+}
+
+// loadOnboardedRepoScopedRelationshipFactsBudget is
+// loadOnboardedRepoScopedRelationshipFacts with an inbound byte budget and a
+// row/byte report. It counts raw payload bytes as it scans and returns
+// ErrRelationshipFactLoadBudgetExceeded as soon as they exceed budget.MaxBytes,
+// so a caller that sets a budget never holds an unbounded slice.
+func loadOnboardedRepoScopedRelationshipFactsBudget(
+	ctx context.Context,
+	queryer db.Queryer,
+	anchors []string,
+	budget RelationshipFactLoadBudget,
+) ([]facts.Envelope, RelationshipFactLoadStats, error) {
 	if queryer == nil || len(anchors) == 0 {
-		return nil, nil
+		return nil, RelationshipFactLoadStats{}, nil
 	}
 
 	likeTerms := buildPayloadAnchorLikeTerms(anchors)
 	if len(likeTerms) == 0 {
-		return nil, nil
+		return nil, RelationshipFactLoadStats{}, nil
 	}
 
 	rows, err := queryer.QueryContext(
@@ -173,23 +243,29 @@ func loadOnboardedRepoScopedRelationshipFacts(
 		array.StringArray(likeTerms),
 	)
 	if err != nil {
-		return nil, err
+		return nil, RelationshipFactLoadStats{}, err
 	}
 	defer func() { _ = rows.Close() }()
 
 	var loaded []facts.Envelope
+	var stats RelationshipFactLoadStats
 	for rows.Next() {
-		envelope, scanErr := ScanFactEnvelope(rows)
+		envelope, size, scanErr := ScanFactEnvelopeWithPayloadSize(rows)
 		if scanErr != nil {
-			return nil, scanErr
+			return nil, stats, scanErr
+		}
+		stats.Rows++
+		stats.Bytes += int64(size)
+		if budget.MaxBytes > 0 && stats.Bytes > budget.MaxBytes {
+			return nil, stats, ErrRelationshipFactLoadBudgetExceeded
 		}
 		loaded = append(loaded, envelope)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, stats, err
 	}
 
-	return loaded, nil
+	return loaded, stats, nil
 }
 
 // buildPayloadAnchorLikeTerms lowercases each anchor, escapes the LIKE

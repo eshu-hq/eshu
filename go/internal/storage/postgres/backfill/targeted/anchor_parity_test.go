@@ -177,7 +177,7 @@ func TestInboundClosureKeepsOwedSources(t *testing.T) {
 	store := Store{Backfill: backfill.Store{DB: &parityQueryer{t: t, corpus: parityCorpus()}}}
 	load := make(map[backfill.ScopeGenerationPartition]struct{})
 	sourceRepoIDs := make(map[string]struct{})
-	if err := store.addInboundTargetedMaintenanceSources(
+	if _, err := store.addInboundTargetedMaintenanceSources(
 		context.Background(), catalog, owedRepos, load, sourceRepoIDs,
 	); err != nil {
 		t.Fatalf("addInboundTargetedMaintenanceSources: %v", err)

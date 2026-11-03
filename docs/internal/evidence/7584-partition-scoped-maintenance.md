@@ -210,20 +210,60 @@ Observability Evidence: the pass records
 `eshu_dp_deferred_backfill_targeted_duration_seconds{outcome}`,
 `eshu_dp_deferred_backfill_targeted_outcomes_total{outcome}` (one per owed
 partition, never per pass; a refused pass does not count its held owed
-partitions as `retry`) and
-`eshu_dp_deferred_backfill_targeted_reopened_total{domain}`. The pass outcome
+partitions as `retry`),
+`eshu_dp_deferred_backfill_targeted_reopened_total{domain}`, and, since #9781,
+`eshu_dp_deferred_backfill_targeted_inbound_rows_total` and
+`eshu_dp_deferred_backfill_targeted_inbound_bytes_total` (the anchor-scoped
+inbound facts the closure loaded, in rows and raw payload bytes; the inbound
+byte budget is charged against the bytes). The pass outcome
 (`completed`, `suppressed`, a refusal reason, or `error`) is the duration
 histogram's `outcome` label, so its count is the pass count. It opens a
 `relationship.backfill_deferred_targeted` span only when it is given a tracer
 (without one it never writes onto the caller's span). Typed refusals are
 designed holds and leave the span status unset; only an untyped failure records
 the error and sets an error status. It logs one
+`deferred_backfill_targeted_started` line (owed partitions, owed repositories,
+anchor terms, and the inbound budget) at pass start and one
 `deferred_backfill_targeted_completed` line per pass, and logs one
 `deferred_backfill_targeted_refused` line per applicable owed partition on a
 refusal. The shared loader, memo gate, batch and fan-in code run with
 instruments off, so the whole pass's `eshu_dp_deferred_backfill_*` and reopen
 series count only the whole pass; the fixture `telemetry_counts_targeted_only`
 asserts both halves.
+
+### #9781: the inbound byte budget and the two inbound counters
+
+No-Regression Evidence: the budget is a per-call value with no shared state, so
+the worker concurrency is unchanged. `RelationshipFactLoadBudget{MaxBytes}` is a
+plain struct carried on the stack for one load (`MaxBytes` 0 means unbounded),
+and `targetedStore()` is built per call; there is no mutex, atomic, or
+package-level counter in the path. Baseline: the same four packages at base
+`3ba097ddc7`, which had no bound on the anchor-scoped load. After: this head, on
+PostgreSQL 18.6 with the full 296-migration bootstrap and the parity fixture
+corpus (6 owed repositories, 23 evidence rows, ~300-byte payloads). Terminal row
+counts come from `TestAnchorScopedLoadParityPerRepository`, which prints every
+owed repository with its full, narrowed, and lost counts and reports
+`total owed repositories=6 full_evidence_rows=23 narrowed_evidence_rows=23
+lost=0`. Timings at this head: `go test -count=1` is `ok` for
+`internal/storage/postgres/backfill` 0.769s, `.../backfill/targeted` 1.605s,
+`internal/relationships` 1.794s, and `internal/telemetry` 4.893s. The change is
+safe because only the targeted path sees the bound: a refusal returns the
+sentinel `ErrRelationshipFactLoadBudgetExceeded` with the crossing row already
+counted, and the per-commit path keeps the unbounded
+`LoadAnchorScopedRelationshipFacts`, which delegates with a zero budget and is
+pinned by `TestPerCommitScopedLoadKeepsNewRepositoryEvidence`.
+
+Observability Evidence: one `deferred_backfill_targeted_started` INFO line per
+pass (`owed_partitions`, `owed_repositories`, `anchor_terms`,
+`inbound_budget_bytes`), plus
+`eshu_dp_deferred_backfill_targeted_inbound_rows_total` and
+`eshu_dp_deferred_backfill_targeted_inbound_bytes_total`, added once per pass and
+also on the budget-refusal path, so a load that stops narrowing is visible as a
+rows count near the whole-corpus size and a bytes count at the budget. `TestRecordTargetedMaintenanceInboundMetrics`
+reads both series back from an OTel manual reader (42 rows, 12345 bytes). A
+refusal maps to `outcome=error`, which is the duration histogram's `outcome`
+label and the `outcome=` field of the `deferred_backfill_targeted_completed`
+line, so a refused pass is never read as a completed one.
 
 ### #7638 item 9: owed-scope baseline arm
 

@@ -21,6 +21,10 @@ import (
 //   - eshu_dp_deferred_backfill_targeted_reopened_total{domain}: work items the
 //     pass reopened, by reducer domain (deployment_mapping,
 //     code_import_repo_edge, and each cross-scope correlation domain).
+//   - eshu_dp_deferred_backfill_targeted_inbound_rows_total and
+//     eshu_dp_deferred_backfill_targeted_inbound_bytes_total: the anchor-scoped
+//     inbound facts the pass's closure loaded, in rows and raw payload bytes
+//     (#9781). The inbound byte budget bounds this load.
 func registerDeferredBackfillTargeted(meter metric.Meter, inst *Instruments) error {
 	var err error
 	if inst.DeferredBackfillTargetedDuration, err = meter.Float64Histogram(
@@ -42,6 +46,19 @@ func registerDeferredBackfillTargeted(meter metric.Meter, inst *Instruments) err
 		metric.WithDescription("Succeeded reducer work items the partition-scoped deferred maintenance pass reopened (#7584), by domain"),
 	); err != nil {
 		return fmt.Errorf("register DeferredBackfillTargetedReopened counter: %w", err)
+	}
+	if inst.DeferredBackfillTargetedInboundRows, err = meter.Int64Counter(
+		"eshu_dp_deferred_backfill_targeted_inbound_rows_total",
+		metric.WithDescription("Anchor-scoped inbound fact rows the partition-scoped deferred maintenance pass's closure loaded across all rounds (#9781); the inbound byte budget bounds this load"),
+	); err != nil {
+		return fmt.Errorf("register DeferredBackfillTargetedInboundRows counter: %w", err)
+	}
+	if inst.DeferredBackfillTargetedInboundBytes, err = meter.Int64Counter(
+		"eshu_dp_deferred_backfill_targeted_inbound_bytes_total",
+		metric.WithDescription("Raw payload bytes of the anchor-scoped inbound facts the partition-scoped deferred maintenance pass's closure loaded across all rounds (#9781)"),
+		metric.WithUnit("By"),
+	); err != nil {
+		return fmt.Errorf("register DeferredBackfillTargetedInboundBytes counter: %w", err)
 	}
 	return nil
 }
