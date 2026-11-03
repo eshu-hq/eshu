@@ -77,7 +77,7 @@ func TestWorkflowClaimPacingFailsOpenOnLatchQueryFailure(t *testing.T) {
 	}
 }
 
-// TestWorkflowClaimPacingFailsOpenOnLatchAdvanceFailure proves the second
+// TestWorkflowClaimPacingFailsOpenOnLatchAdvanceFailure proves the write
 // fail-open leg of the #8473 depth-loss story: the latch read succeeds but
 // the latch advance cannot persist (the table is swapped for a read-only view
 // shim with the same shape, so reads see disengaged while writes fail), so
@@ -116,8 +116,8 @@ SELECT ''::text, ''::text, false, NULL::timestamptz, now() WHERE false`); err !=
 	if err == nil {
 		t.Fatal("CheckClaimPacing() with an unpersistable latch error = nil, want the latch outage surfaced")
 	}
-	if !strings.Contains(err.Error(), "workflow_claim_pacing") {
-		t.Fatalf("CheckClaimPacing() error = %v, want it to name the broken latch signal", err)
+	if !strings.Contains(err.Error(), "workflow_claim_pacing") || !strings.Contains(err.Error(), "advance") {
+		t.Fatalf("CheckClaimPacing() error = %v, want it to name the broken latch signal on the advance path", err)
 	}
 	if decision.Paced {
 		t.Fatalf("CheckClaimPacing() = %+v, want unpaced (fail open on a failed latch advance)", decision)
