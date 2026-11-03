@@ -192,31 +192,33 @@ is wiring, not the union logic: the projector `Service` in
 guard over `go/internal/storage/postgres/facts.go` `WithInstruments`). The
 `cmd/projector` wiring already passes instruments
 (`go/cmd/projector/runtime_wiring.go:108`), so only the ingester-hosted loop
-was silent. This commit adds `.WithInstruments(instruments)` to that
-`FactStore`, plus a `FactStore.Instruments()` accessor so the wiring is
-asserted from outside the package; the counters appear from the image carrying
-this commit onward, and the DB columns above are the authoritative
-union-resolution proof for the window that predates it.
+was silent. This commit chains `.WithInstruments(instruments).WithLogger(logger)`
+onto that `FactStore` — the same pair the projector binary passes — plus a
+`FactStore.Instruments()` accessor so the wiring is asserted from outside the
+package; the counters and the one INFO line per union decision appear from the
+image carrying this commit onward, and the DB columns above are the
+authoritative union-resolution proof for the window that predates it.
 
 ### Local proof for the wiring change
 
 Regression pair in `go/cmd/ingester/delta_baseline_wiring_test.go`
 (`TestBuildIngesterProjectorServicePassesInstrumentsToFactStore`), which reads
-the instruments back off the projector `Service` through the new exported
-`FactStore.Instruments()` accessor:
+the instruments and the logger back off the projector `Service` through the new
+exported `FactStore.Instruments()` and `FactStore.Logger()` accessors:
 
 ```
-without the accessor, without .WithInstruments  → FAIL (no accessor, %T = *postgres.FactStore)
-accessor, no .WithInstruments                   → FAIL (instruments = <nil>)
-accessor + .WithInstruments(instruments)        → ok
+without the accessors, without the chain  → FAIL (no accessors, %T = *postgres.FactStore)
+accessors, no .WithInstruments            → FAIL (instruments = <nil>)
+accessors, no .WithLogger                 → FAIL (logger = <nil>)
+accessors + both links                    → ok
 ```
 
 ```
 go build ./cmd/ingester/ ./internal/storage/postgres/          → 0
 go vet   ./cmd/ingester/ ./internal/storage/postgres/          → 0
-go test -count=1 ./cmd/ingester/                               → ok (1.249s)
+go test -count=1 ./cmd/ingester/                               → ok (1.237s)
 ESHU_DEPLOY_CHECKOUT=<deploy @6b6164d> go test -count=1 \
-  ./cmd/ingester/ ./internal/storage/postgres/                 → ok (1.249s / 40.167s)
+  ./cmd/ingester/ ./internal/storage/postgres/                 → ok (1.237s / 44.473s)
 ```
 
 `./internal/storage/postgres` needs `ESHU_DEPLOY_CHECKOUT` pointed at an
@@ -241,20 +243,56 @@ commits and a two-file delta. The first read of
 `49.83982555` over 40 writes plus `0.991314882` over 1 (mean 1.25 s), and the
 writer's own `eshu_dp_canonical_write_duration_seconds{write_phase="atomic_group"}`
 read `49.70453744` over 41 (mean 1.21 s), so both reads sit near 1 s per write
-and the added work is one field write per constructed store, at wiring time. Terminal counts: 20 active delta
+and the added work is two pointer fields per constructed store, at wiring time.
+Terminal counts: 20 active delta
 generations, 1045 rows carrying `delta_union_base_commit_sha`, and 188 frozen
 boundary dead-letters with `max(updated_at)` `2026-10-23 14:28:11`. Why the
-change is safe: `WithInstruments` copies the instruments pointer into a
+change is safe: `WithInstruments` and `WithLogger` each copy one pointer into a
 zero-value field on a struct-local value before the first projection, the
-identical pattern `go/cmd/projector/runtime_wiring.go:108` already uses, and it
-adds no query, lock, lease, or queue step.
+identical pattern `go/cmd/projector/runtime_wiring.go:108` already uses, and they
+add no query, lock, lease, or queue step.
 
-Observability Evidence: with instruments wired, the ingester exposition carries
+Observability Evidence: with instruments and the logger wired, the ingester
+exposition carries
 the union pair `eshu_dp_projector_delta_union_total` and
 `eshu_dp_projector_delta_union_facts` next to the already-present
 `eshu_dp_projector_delta_baseline_fence_total` (observed value 14), so an
 operator at 3 AM can separate a union-resolution refusal from a fence refusal
-without reading the database. The two counters are already registered and
-documented in `docs/public/observability/telemetry-coverage-reducer-core.md`, so
+without reading the database, and the process log carries the one INFO line per
+union decision that `cmd/projector` already emits. The two counters are already
+registered and documented in
+`docs/public/observability/telemetry-coverage-reducer-core.md`, so
 no new row is owed; `scripts/verify-telemetry-coverage.sh` exits 0 and its suite
 `scripts/test-verify-telemetry-coverage.sh` passes 69/69.
+
+### Follow-up record (logger parity, PR #9883 follow-up)
+
+No-Regression Evidence: baseline `a82188b6df` (the merged #8785 leaf, the first
+image with the instruments link), deployed image
+`sha-56f6d19678bbe2922db766cf08cdf89a11dfd752`. The added work is the second
+link in the same chain, `.WithLogger(logger)`, plus two read-side accessors: no
+query, lock, lease, or queue step, and no new benchmark was run. After
+measurement in one process window of that pre-change process:
+`eshu_dp_projector_stage_duration_seconds{stage="canonical_write"}` `49.83982555`
+over 40 writes plus `0.991314882` over 1, and
+`eshu_dp_canonical_write_duration_seconds{write_phase="atomic_group"}`
+`49.70453744` over 41, so about 1.2 s per canonical write on both series; the
+post-change image is not yet deployed, so its numbers stay NOT_CHECKED. Backend
+and input shape are unchanged from the reads above: the pinned PostgreSQL 18.6
+Bookworm and Neo4j 2026.08.1 service images, the same synthetic scope with two
+full base commits and a two-file delta. Terminal counts: 20 active delta
+generations, 1045 rows carrying `delta_union_base_commit_sha`, 188 frozen
+boundary dead-letters with `max(updated_at)` `2026-10-23 14:28:11`. Why the
+change is safe: `WithLogger` copies one pointer into a zero-value field on a
+struct-local value before the first projection, the same shape
+`go/cmd/projector/runtime_wiring.go:108` already uses, and the nil logger keeps
+the existing skip behavior for any caller that does not pass one.
+
+Observability Evidence: with both links wired the ingester process shows the
+same three signals as `cmd/projector` — `eshu_dp_projector_delta_union_total`,
+`eshu_dp_projector_delta_union_facts`, and the one INFO line per union decision —
+next to `eshu_dp_projector_delta_baseline_fence_total` (observed value 14 in the
+pre-change window), and `scripts/verify-telemetry-coverage.sh` still exits 0 with
+its suite at 69/69. Local proof at this head: `go test -count=1 ./cmd/ingester/`
+ok 1.237s and, with `ESHU_DEPLOY_CHECKOUT` pinned at 6b6164d,
+`./internal/storage/postgres` ok 44.473s.

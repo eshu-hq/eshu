@@ -4,6 +4,8 @@
 package main
 
 import (
+	"io"
+	"log/slog"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -43,8 +45,9 @@ func TestBuildIngesterProjectorServiceWiresWriteMarker(t *testing.T) {
 }
 
 // TestBuildIngesterProjectorServicePassesInstrumentsToFactStore is the #8785
-// regression for the missing delta-union counters: the in-process projector
-// must hand its telemetry instruments to the Postgres fact store, or
+// regression for the missing delta-union counters and the union-decision log
+// line: the in-process projector must hand its telemetry instruments and its
+// logger to the Postgres fact store, the way cmd/projector does, or
 // recordDeltaUnion skips them and the operator exposition stays silent.
 func TestBuildIngesterProjectorServicePassesInstrumentsToFactStore(t *testing.T) {
 	t.Parallel()
@@ -53,8 +56,9 @@ func TestBuildIngesterProjectorServicePassesInstrumentsToFactStore(t *testing.T)
 	if err != nil {
 		t.Fatalf("NewInstruments: %v", err)
 	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	service, err := buildIngesterProjectorService(queryErrorDB{}, &noopCanonicalWriter{},
-		func(string) string { return "" }, nil, instruments, nil)
+		func(string) string { return "" }, nil, instruments, logger)
 	if err != nil {
 		t.Fatalf("buildIngesterProjectorService() = %v", err)
 	}
@@ -63,11 +67,15 @@ func TestBuildIngesterProjectorServicePassesInstrumentsToFactStore(t *testing.T)
 	}
 	carrier, ok := service.FactStore.(interface {
 		Instruments() *telemetry.Instruments
+		Logger() *slog.Logger
 	})
 	if !ok {
-		t.Fatalf("FactStore type = %T, want the instruments accessor", service.FactStore)
+		t.Fatalf("FactStore type = %T, want the instruments and logger accessors", service.FactStore)
 	}
 	if got := carrier.Instruments(); got != instruments {
 		t.Fatalf("FactStore instruments = %v, want the wiring instruments", got)
+	}
+	if got := carrier.Logger(); got != logger {
+		t.Fatalf("FactStore logger = %v, want the wiring logger", got)
 	}
 }
