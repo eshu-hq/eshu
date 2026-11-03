@@ -1,0 +1,11 @@
+# #8876: dated 6693 freshness incident evidence leaves and design target tree
+# describe the tree as it stood then (the listener handled provider delivery
+# in-tree); repointing would falsify the record. The living pointers (runbook,
+# readiness doc) repoint at the extracted satellite and the intake host instead.
+docs/internal/evidence/6693-freshness-aws-leaf.md:go/cmd/webhook-listener/handler.go
+docs/internal/evidence/6693-freshness-aws-leaf.md:go/cmd/webhook-listener/main.go
+docs/internal/evidence/6693-freshness-gcp-leaf.md:go/cmd/webhook-listener/handler.go
+docs/internal/evidence/6693-freshness-gcp-leaf.md:go/cmd/webhook-listener/main.go
+docs/internal/evidence/6693-freshness-incident-leaf.md:go/cmd/webhook-listener/handler.go
+docs/internal/evidence/6693-freshness-incident-leaf.md:go/cmd/webhook-listener/main.go
+docs/internal/design/6693-postgres-target-tree.md:go/cmd/webhook-listener/main.go

@@ -342,7 +342,9 @@ A genuinely historical reference — a recorded command transcript, or a dated
 evidence note describing the tree as it stood at the time, where repointing
 would falsify the record rather than refresh it — goes in
 `scripts/moved-file-refs-allowlist.txt` as a `<referencing-file>:<vacated-path>`
-line with a comment saying why. An entry exempts one referencing file naming one
+line with a comment saying why. That file is frozen at the tooling line cap:
+new entries go in `scripts/moved-file-refs-allowlist.d/`, one fragment per
+removed component area. An entry exempts one referencing file naming one
 vacated path; it does not exempt that path everywhere.
 
 ## Runtime Tree Hygiene

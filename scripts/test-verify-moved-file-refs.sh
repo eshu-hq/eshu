@@ -247,6 +247,33 @@ check "allowlist does not leak to another referencing file" 1 "$rc"
 check_output "still reports the unallowlisted file" "docs/other.md" "$out"
 rm -rf "$repo"
 
+# 7b. A fragment in allowlist.d/ exempts a historical reference, and the
+#     exemption is load-bearing: the same tree without the fragment fails.
+repo="$(new_repo)"
+root="$(git -C "$repo" rev-parse HEAD)"
+mkdir -p "$repo/go/internal/reducer/widgetfam" "$repo/scripts/moved-file-refs-allowlist.d"
+git -C "$repo" mv go/internal/reducer/widget.go go/internal/reducer/widgetfam/widget.go
+printf '# frozen main file: new entries live in fragments\n' \
+  >"$repo/scripts/moved-file-refs-allowlist.d/go-internal-reducer.txt"
+printf 'docs/design.md:go/internal/reducer/widget.go\n' \
+  >>"$repo/scripts/moved-file-refs-allowlist.d/go-internal-reducer.txt"
+git -C "$repo" add -A
+git -C "$repo" commit -qm "move widget family with fragment exemption"
+set +e
+out="$(run_gate "$repo")"
+rc=$?
+set -e
+check "allowlist.d fragment exempts a historical reference" 0 "$rc"
+git -C "$repo" rm -q scripts/moved-file-refs-allowlist.d/go-internal-reducer.txt
+git -C "$repo" commit -qm "drop the fragment"
+set +e
+out="$(cd "$repo" && ./scripts/verify-moved-file-refs.sh --base "$root" 2>&1)"
+rc=$?
+set -e
+check "the same tree without the fragment fails" 1 "$rc"
+check_output "names the vacated path once the fragment is gone" "go/internal/reducer/widget.go" "$out"
+rm -rf "$repo"
+
 # 8. Usage contract.
 set +e
 "$gate" --help >/dev/null 2>&1

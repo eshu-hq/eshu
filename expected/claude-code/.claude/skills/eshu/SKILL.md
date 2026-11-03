@@ -172,7 +172,6 @@ The active collector set on this deployment is enumerated below. Disabling a col
 - security_alert (enabled)
 - tempo (enabled)
 - vulnerability_intelligence (enabled)
-- webhook (enabled)
 
 ## Reducer Invariant
 

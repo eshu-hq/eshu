@@ -40,6 +40,9 @@
 # Intentional exceptions go in scripts/moved-file-refs-allowlist.txt -- a
 # historical command transcript or a dated evidence note may legitimately record
 # a path as it stood at the time, where repointing would falsify the record.
+# That file is frozen at the tooling line cap: new entries go in
+# scripts/moved-file-refs-allowlist.d/, one fragment per removed component
+# area (see that directory's README.txt). The gate honors both.
 #
 # Exit 0 when clean, 1 listing each dangling reference, 2 on a usage or
 # operational error (so a scan that could not run is never a silent pass).
@@ -51,6 +54,11 @@ set -euo pipefail
 script_dir="$(cd "$(dirname "$0")" && pwd)"
 repo_root="${ESHU_MOVED_FILE_REFS_REPO_ROOT:-$(cd "${script_dir}/.." && pwd)}"
 allowlist_path="${ESHU_MOVED_FILE_REFS_ALLOWLIST:-${repo_root}/scripts/moved-file-refs-allowlist.txt}"
+# Sibling fragments, one per removed component area; the main file above is
+# frozen at the tooling line cap. An explicit ESHU_MOVED_FILE_REFS_ALLOWLIST
+# override names a single file (the self-test mirror uses this) and skips the
+# directory; otherwise the gate honors the main file plus every fragment.
+allowlist_dir="${repo_root}/scripts/moved-file-refs-allowlist.d"
 
 usage() {
   printf 'usage: %s [--base <ref>] [--help]\n' "${0##*/}"
@@ -139,17 +147,35 @@ exclusions=(
   ':(exclude)scripts/verify-moved-file-refs.sh'
   ':(exclude)scripts/test-verify-moved-file-refs.sh'
   ':(exclude)scripts/moved-file-refs-allowlist.txt'
+  ':(exclude)scripts/moved-file-refs-allowlist.d'
 )
 
 # allowed reports whether "<referencing-file>:<vacated-path>" is exempted.
+# It checks the main allowlist file plus every allowlist.d fragment, so one
+# fragment per removed component area stays a complete exemption record. An
+# explicit ESHU_MOVED_FILE_REFS_ALLOWLIST override names the single file to
+# check instead (the self-test mirror uses this): fragments stay out, so a
+# caller pointing at a custom file gets exactly that file's exemptions.
 allowed() {
-  [ -f "${allowlist_path}" ] || return 1
-  awk -v want="$1" '
-    /^[[:space:]]*#/ { next }
-    { gsub(/^[[:space:]]+|[[:space:]]+$/, "") }
-    NF && $0 == want { found = 1; exit }
-    END { exit(found ? 0 : 1) }
-  ' "${allowlist_path}"
+  local want_key="$1"
+  if [ -n "${ESHU_MOVED_FILE_REFS_ALLOWLIST:-}" ]; then
+    set -- "${allowlist_path}"
+  else
+    set -- "${allowlist_path}" "${allowlist_dir}"/*.txt
+  fi
+  local candidate
+  for candidate in "$@"; do
+    [ -f "${candidate}" ] || continue
+    if awk -v want="${want_key}" '
+      /^[[:space:]]*#/ { next }
+      { gsub(/^[[:space:]]+|[[:space:]]+$/, "") }
+      NF && $0 == want { found = 1; exit }
+      END { exit(found ? 0 : 1) }
+    ' "${candidate}"; then
+      return 0
+    fi
+  done
+  return 1
 }
 
 violations=0

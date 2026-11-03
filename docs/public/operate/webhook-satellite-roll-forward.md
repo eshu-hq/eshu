@@ -115,10 +115,12 @@ Do not insert rows or POST to the intake API by hand.
    auth, checked against the intake API itself (no token 401, bad token 401,
    valid token not 401; at the provider edge a wrong listener-to-core token
    surfaces as 500 so the provider redelivers, which the hermetic test
-   `TestIntakeParityIntakeAuthFailureSurfaces500` proves), c8 Actions exact
+   `TestIntakeParityIntakeAuthFailureSurfaces500` proved), c8 Actions exact
    replay 202 twice and a conflicting identity 409 with one row. The pass bar
-   was 16/16 with cleanup residue 0/0. The hermetic equivalent that lives in
-   the repo is `go/cmd/webhook-listener/intake_parity_cases_test.go`.
+   was 16/16 with cleanup residue 0/0. The hermetic equivalents that live in
+   the repo are `go/internal/webhook/intake/api_test.go` (auth, duplicates,
+   cancel-safety) and the normalizer tests under `go/internal/webhook/`; the
+   listener's `intake_parity_cases_test.go` was removed with it in #8876.
    NOT_MEASURED: a run after the provider endpoint moves, because the live
    script also compared against an in-tree listener baseline that no longer
    exists then. Confirm the script's post-removal pass bar with the owner
