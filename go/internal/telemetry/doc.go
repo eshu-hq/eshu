@@ -121,7 +121,9 @@
 // audit) to the duration histogram and registers
 // SupplyChainImpactWinnersKeysPerSweep, ...IdentifiersConsumed,
 // ...CaptureRows (labeled source, counted by the writer through
-// RecordSupplyChainImpactWinnersCapture), ...BackstopRepairs, and the observable
+// RecordSupplyChainImpactWinnersCapture once its transaction commits),
+// ...BackstopRepairs, ...AuditSkipped (#9957, audits that could not take the
+// resweep lock), and the observable
 // gauges ...DirtyLogDepth and ...DirtyLogOldestAge.
 // The supply-chain reducer registers SupplyChainImpactFanOut
 // (eshu_dp_supply_chain_impact_fanout_total), labeled by reducer domain,

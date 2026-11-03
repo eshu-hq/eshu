@@ -138,6 +138,9 @@ func (m SupplyChainImpactWinnersMaintainer) runAuditOnce(ctx context.Context) (e
 	}
 	if audit.Skipped {
 		span.SetAttributes(attribute.Bool("skipped", true))
+		if in := m.Instruments; in != nil && in.SupplyChainImpactWinnersAuditSkipped != nil {
+			in.SupplyChainImpactWinnersAuditSkipped.Add(ctx, 1)
+		}
 		return nil
 	}
 	span.SetAttributes(attribute.Int64("repairs", audit.Repairs))
@@ -184,7 +187,7 @@ func (m SupplyChainImpactWinnersMaintainer) sampleDirtyLog(ctx context.Context) 
 // identifiers consumed, which the full path has none of, and the capture
 // counter for the sources a database trigger owns, which the maintainer can only
 // count when it consumes them. fact_upsert and fact_retract are counted by their
-// writers at capture time. A tick that fell back to the full rebuild past the
+// writers once the writer's transaction commits. A tick that fell back to the full rebuild past the
 // cap still consumed its rows, so the trigger sources count on either path.
 func (m SupplyChainImpactWinnersMaintainer) recordKeyedSignals(ctx context.Context, r SupplyChainImpactWinnersResweep) {
 	in := m.Instruments

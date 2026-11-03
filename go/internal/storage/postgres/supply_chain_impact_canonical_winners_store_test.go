@@ -5,8 +5,18 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
+	"errors"
+	"reflect"
 	"strings"
 	"testing"
+
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // TestSupplyChainImpactWinnerSelectMirrorsReadDedup pins the read/write parity
@@ -97,5 +107,126 @@ func TestRebuildAllWinnersRequiresDB(t *testing.T) {
 	store := SupplyChainImpactWinnersStore{}
 	if err := store.RebuildAllWinners(context.Background(), nil); err == nil {
 		t.Fatal("RebuildAllWinners() error = nil, want missing-db error")
+	}
+}
+
+// captureProbeTx is a transaction whose statements each report two affected
+// rows and whose Commit result the test chooses.
+type captureProbeTx struct {
+	commitErr error
+	commits   int
+	rollbacks int
+}
+
+func (*captureProbeTx) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+	return fakeResultWithRowsAffected{rowsAffected: 2}, nil
+}
+
+func (*captureProbeTx) QueryContext(context.Context, string, ...any) (db.Rows, error) {
+	return nil, errors.New("captureProbeTx runs no reads")
+}
+
+func (t *captureProbeTx) Commit() error   { t.commits++; return t.commitErr }
+func (t *captureProbeTx) Rollback() error { t.rollbacks++; return nil }
+
+type captureProbeBeginner struct{ tx *captureProbeTx }
+
+func (b captureProbeBeginner) Begin(context.Context) (db.Transaction, error) { return b.tx, nil }
+
+// captureRowsBySource reads the winners capture counter by its source label.
+func captureRowsBySource(t *testing.T, reader *sdkmetric.ManualReader) map[string]int64 {
+	t.Helper()
+	var collected metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &collected); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	got := map[string]int64{}
+	for _, scope := range collected.ScopeMetrics {
+		for _, m := range scope.Metrics {
+			sum, ok := m.Data.(metricdata.Sum[int64])
+			if !ok || m.Name != "eshu_dp_supply_chain_impact_winners_capture_rows_total" {
+				continue
+			}
+			for _, dp := range sum.DataPoints {
+				source, _ := dp.Attributes.Value("source")
+				got[source.AsString()] += dp.Value
+			}
+		}
+	}
+	return got
+}
+
+// TestSupplyChainImpactTxCountsCaptureRowsOnlyAfterCommit pins #9957: the
+// writer reports its fact_upsert and fact_retract capture rows while its
+// statements run, but the counter moves only when the transaction commits. A
+// rolled-back attempt, and a commit that fails, add nothing, so the counter
+// stays equal to the dirty-log rows that exist.
+func TestSupplyChainImpactTxCountsCaptureRowsOnlyAfterCommit(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		end  func(supplychaincore.SupplyChainImpactTx) error
+		want map[string]int64
+	}{
+		{
+			name: "committed attempt counts both sources",
+			end:  func(tx supplychaincore.SupplyChainImpactTx) error { return tx.Commit() },
+			want: map[string]int64{"fact_upsert": 2, "fact_retract": 5},
+		},
+		{
+			name: "rolled-back attempt counts nothing",
+			end:  func(tx supplychaincore.SupplyChainImpactTx) error { return tx.Rollback() },
+			want: map[string]int64{},
+		},
+		{
+			name: "failed commit counts nothing",
+			end: func(tx supplychaincore.SupplyChainImpactTx) error {
+				if err := tx.Commit(); err == nil {
+					return errors.New("Commit() error = nil, want the commit failure")
+				}
+				return nil
+			},
+			want: map[string]int64{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			reader := sdkmetric.NewManualReader()
+			inst, err := telemetry.NewInstruments(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("test"))
+			if err != nil {
+				t.Fatalf("NewInstruments() error = %v", err)
+			}
+			probe := &captureProbeTx{}
+			if tt.name == "failed commit counts nothing" {
+				probe.commitErr = errors.New("commit failed")
+			}
+			tx, err := SupplyChainImpactBeginner{Beginner: captureProbeBeginner{tx: probe}, Instruments: inst}.
+				BeginSupplyChainImpactTx(context.Background())
+			if err != nil {
+				t.Fatalf("BeginSupplyChainImpactTx() error = %v", err)
+			}
+			capturer, ok := tx.(supplychaincore.SupplyChainImpactWinnersCapturer)
+			if !ok {
+				t.Fatal("transaction does not implement SupplyChainImpactWinnersCapturer")
+			}
+			ids := []supplychaincore.WinnersDirtyIdentifier{{PackageID: "p1"}, {PackageID: "p2"}}
+			if _, err := capturer.CaptureWinnersDirtyFacts(context.Background(), ids); err != nil {
+				t.Fatalf("CaptureWinnersDirtyFacts() error = %v", err)
+			}
+			capturer.RecordWinnersCapture(context.Background(), telemetry.SupplyChainImpactWinnersSourceFactRetract, 5)
+
+			if got := captureRowsBySource(t, reader); len(got) != 0 {
+				t.Fatalf("capture rows before the transaction ended = %v, want none", got)
+			}
+			if err := tt.end(tx); err != nil {
+				t.Fatal(err)
+			}
+			if got := captureRowsBySource(t, reader); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("capture rows by source = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

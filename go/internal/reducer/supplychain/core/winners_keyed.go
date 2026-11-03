@@ -37,10 +37,11 @@ type WinnersDirtyIdentifier struct {
 type SupplyChainImpactWinnersCapturer interface {
 	// CaptureWinnersDirtyFacts appends one fact-kind dirty-log row per
 	// identifier and returns the rows appended. The implementation also counts
-	// them under source fact_upsert at capture time.
+	// them under source fact_upsert, once the transaction commits.
 	CaptureWinnersDirtyFacts(ctx context.Context, identifiers []WinnersDirtyIdentifier) (int64, error)
 	// RecordWinnersCapture counts rows another statement of this writer
-	// appended (the retract statement's own log insert) under source.
+	// appended (the retract statement's own log insert) under source, once the
+	// transaction commits. A rollback discards the count.
 	RecordWinnersCapture(ctx context.Context, source string, rows int64)
 }
 

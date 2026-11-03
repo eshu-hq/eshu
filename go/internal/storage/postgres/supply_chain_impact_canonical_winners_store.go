@@ -225,6 +225,12 @@ type supplyChainImpactTx struct {
 	// Publish rejects a different set in the same transaction.
 	authorizedPublicationHash [32]byte
 	authorizedPublication     bool
+
+	// pendingCapture holds the winners dirty-log rows this transaction appended,
+	// by capture source, until Commit counts them or Rollback drops them
+	// (#9957). captureCtx carries the trace of the last recorded statement.
+	pendingCapture map[string]int64
+	captureCtx     context.Context
 }
 
 var (
@@ -350,9 +356,6 @@ func (t supplyChainImpactTx) QueryContext(
 	}
 	return rows, nil
 }
-
-func (t supplyChainImpactTx) Commit() error   { return t.tx.Commit() }
-func (t supplyChainImpactTx) Rollback() error { return t.tx.Rollback() }
 
 // supplyChainImpactFencingTokenSequence is the Postgres sequence backing
 // PostgresSupplyChainImpactFencingTokenIssuer (migration

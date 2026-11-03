@@ -1153,6 +1153,9 @@ type Instruments struct {
 	SupplyChainImpactWinnersDirtyLogDepth       metric.Float64ObservableGauge
 	SupplyChainImpactWinnersDirtyLogOldestAge   metric.Float64ObservableGauge
 	supplyChainImpactWinnersDirtyLog            *supplyChainImpactWinnersDirtyLog
+	// SupplyChainImpactWinnersAuditSkipped counts audits that could not take
+	// the resweep lock, so ran no verification and queued nothing (#9957).
+	SupplyChainImpactWinnersAuditSkipped metric.Int64Counter
 	// SupplyChainRemediationDecisions counts reducer-owned advisory-only
 	// safe-upgrade decisions per supply-chain impact finding (issue #595).
 	// Labels: domain (supply_chain_impact), outcome (confidence label

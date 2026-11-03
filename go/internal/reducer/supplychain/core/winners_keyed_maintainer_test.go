@@ -6,6 +6,7 @@ package core
 import (
 	"bytes"
 	"context"
+	"errors"
 	"log/slog"
 	"reflect"
 	"strings"
@@ -44,13 +45,14 @@ type fakeWinnersAuditor struct {
 	mu     sync.Mutex
 	calls  int
 	result SupplyChainImpactWinnersAudit
+	err    error
 }
 
 func (f *fakeWinnersAuditor) AuditWinners(context.Context) (SupplyChainImpactWinnersAudit, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls++
-	return f.result, nil
+	return f.result, f.err
 }
 
 func (f *fakeWinnersAuditor) count() int {
@@ -155,6 +157,7 @@ type keyedMetrics struct {
 	identifiers    int64
 	captureBySrc   map[string]int64
 	repairs        int64
+	auditSkipped   int64
 	depth          []float64
 	oldestAge      []float64
 }
@@ -192,6 +195,8 @@ func collectKeyedMetrics(t *testing.T, reader *sdkmetric.ManualReader) keyedMetr
 						out.identifiers += dp.Value
 					case "eshu_dp_supply_chain_impact_winners_backstop_repairs_total":
 						out.repairs += dp.Value
+					case "eshu_dp_supply_chain_impact_winners_audit_skipped_total":
+						out.auditSkipped += dp.Value
 					case "eshu_dp_supply_chain_impact_winners_capture_rows_total":
 						src, _ := dp.Attributes.Value(attribute.Key(telemetry.MetricDimensionSource))
 						out.captureBySrc[src.AsString()] += dp.Value
@@ -327,5 +332,82 @@ func TestWinnersMaintainerAuditStaysQuietWhenNothingIsStale(t *testing.T) {
 	}
 	if strings.Contains(logs.String(), "stale keys") {
 		t.Errorf("clean audit logged a stale-key warning:\n%s", logs.String())
+	}
+}
+
+// TestWinnersMaintainerCountsASkippedAudit pins the audit-skipped counter
+// (#9957). A skipped audit is the backstop silently missing a run, so it adds
+// one to the counter and nothing else: no duration sample, no repairs, no
+// capture rows. An audit that ran, and one that failed, add nothing to it.
+func TestWinnersMaintainerCountsASkippedAudit(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		auditor      *fakeWinnersAuditor
+		wantErr      bool
+		wantSkipped  int64
+		wantAuditRun uint64
+	}{
+		{name: "skipped audit", auditor: &fakeWinnersAuditor{result: SupplyChainImpactWinnersAudit{Skipped: true}}, wantSkipped: 1},
+		{name: "audit that ran", auditor: &fakeWinnersAuditor{result: SupplyChainImpactWinnersAudit{Repairs: 2}}, wantAuditRun: 1},
+		{name: "clean audit", auditor: &fakeWinnersAuditor{}, wantAuditRun: 1},
+		{name: "failed audit", auditor: &fakeWinnersAuditor{err: errors.New("boom")}, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			inst, reader := winnersSignalsHarness(t)
+			rebuilder := &fakeKeyedRebuilder{}
+			m := SupplyChainImpactWinnersMaintainer{
+				Rebuilder: rebuilder, KeyedRebuilder: rebuilder, LeaseManager: &fakeWinnersLeaseManager{claim: true},
+				Auditor: tt.auditor, Instruments: inst,
+			}
+			err := m.runAuditOnce(context.Background())
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("runAuditOnce() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			got := collectKeyedMetrics(t, reader)
+			if got.auditSkipped != tt.wantSkipped {
+				t.Errorf("audit skipped = %d, want %d", got.auditSkipped, tt.wantSkipped)
+			}
+			if got.durationByPath[telemetry.SupplyChainImpactWinnersPathAudit] != tt.wantAuditRun {
+				t.Errorf("audit duration samples = %d, want %d: a skipped or failed audit records none",
+					got.durationByPath[telemetry.SupplyChainImpactWinnersPathAudit], tt.wantAuditRun)
+			}
+			if tt.wantSkipped > 0 && (got.repairs != 0 || len(got.captureBySrc) != 0) {
+				t.Errorf("skipped audit recorded repairs=%d capture=%v, want none", got.repairs, got.captureBySrc)
+			}
+		})
+	}
+}
+
+// TestWinnersMaintainerSkippedAuditDoesNotCountAsResweepSkip pins that the
+// audit has its own counter: the resweep-skipped counter keeps its meaning (a
+// resweep outlasted the lease TTL) and does not move when the audit skips.
+func TestWinnersMaintainerSkippedAuditDoesNotCountAsResweepSkip(t *testing.T) {
+	t.Parallel()
+
+	inst, reader := winnersSignalsHarness(t)
+	rebuilder := &fakeKeyedRebuilder{}
+	m := SupplyChainImpactWinnersMaintainer{
+		Rebuilder: rebuilder, KeyedRebuilder: rebuilder, LeaseManager: &fakeWinnersLeaseManager{claim: true},
+		Auditor:     &fakeWinnersAuditor{result: SupplyChainImpactWinnersAudit{Skipped: true}},
+		Instruments: inst,
+	}
+	if err := m.runAuditOnce(context.Background()); err != nil {
+		t.Fatalf("runAuditOnce() error = %v", err)
+	}
+	var collected metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &collected); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	for _, scope := range collected.ScopeMetrics {
+		for _, mt := range scope.Metrics {
+			if mt.Name == "eshu_dp_supply_chain_impact_winners_resweep_skipped_total" {
+				t.Errorf("resweep_skipped_total recorded for a skipped audit: %+v", mt.Data)
+			}
+		}
 	}
 }

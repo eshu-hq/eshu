@@ -81,13 +81,16 @@ type supplyChainImpactWinnersDirtyLog struct {
 //     identifier rows a keyed tick consumed.
 //   - eshu_dp_supply_chain_impact_winners_capture_rows_total{source}: dirty-log
 //     rows appended to the log, by capture source. The impact writer counts
-//     fact_upsert and fact_retract when it appends them; the maintainer counts
+//     fact_upsert and fact_retract once their transaction commits; the maintainer counts
 //     activation, operator and scanner (database triggers cannot emit a metric)
 //     when it consumes them. A source that goes flat while the others move is a
 //     capture path that stopped.
 //   - eshu_dp_supply_chain_impact_winners_backstop_repairs_total: stale keys the
 //     full-recompute audit queued. Non-zero means a change class left no
 //     capture row; steady state is zero.
+//   - eshu_dp_supply_chain_impact_winners_audit_skipped_total: audits that
+//     could not take the resweep lock, so verified nothing (#9957). A streak
+//     means the backstop is not running.
 //   - eshu_dp_supply_chain_impact_winners_dirty_log_depth and
 //     ..._dirty_log_oldest_age_seconds: the dirty log's backlog and how long its
 //     oldest row has waited, sampled every tick.
@@ -110,7 +113,7 @@ func registerSupplyChainImpactWinnersKeyedInstruments(meter metric.Meter, inst *
 	}
 	if inst.SupplyChainImpactWinnersCaptureRows, err = meter.Int64Counter(
 		"eshu_dp_supply_chain_impact_winners_capture_rows_total",
-		metric.WithDescription("Supply-chain impact winners dirty-log rows appended, by source (fact_upsert, fact_retract, activation, operator, scanner, audit). The impact writer counts fact_upsert and fact_retract at capture; the maintainer counts the trigger sources activation, operator and scanner when it consumes them. A source that goes flat while the others move is a capture path that stopped."),
+		metric.WithDescription("Supply-chain impact winners dirty-log rows appended, by source (fact_upsert, fact_retract, activation, operator, scanner, audit). The impact writer counts fact_upsert and fact_retract after its transaction commits, so a rollback adds nothing; the maintainer counts the trigger sources activation, operator and scanner when it consumes them. A source that goes flat while the others move is a capture path that stopped."),
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactWinnersCaptureRows counter: %w", err)
 	}
@@ -119,6 +122,12 @@ func registerSupplyChainImpactWinnersKeyedInstruments(meter metric.Meter, inst *
 		metric.WithDescription("Stale supply-chain impact winner keys the full-recompute audit found and queued for the next keyed tick. Steady state is zero; a non-zero rate means a change class left no dirty-log row."),
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactWinnersBackstopRepairs counter: %w", err)
+	}
+	if inst.SupplyChainImpactWinnersAuditSkipped, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_winners_audit_skipped_total",
+		metric.WithDescription("Supply-chain impact winners audits that found stale-key candidates but could not take the resweep lock, so verified nothing and queued nothing. The audit is the backstop for a change that left no dirty-log row; a streak of skips means the backstop is not running."),
+	); err != nil {
+		return fmt.Errorf("register SupplyChainImpactWinnersAuditSkipped counter: %w", err)
 	}
 	inst.supplyChainImpactWinnersDirtyLog = new(supplyChainImpactWinnersDirtyLog)
 	dirty := inst.supplyChainImpactWinnersDirtyLog
