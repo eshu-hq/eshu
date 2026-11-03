@@ -30,7 +30,7 @@ const (
 // after the identity MERGE so duplicate delivery converges on one node.
 const (
 	// #nosec G101 -- Cypher template; const name contains "Secret"/"Account" but the value is a parameterized graph-write query, not a credential literal
-	secretsIAMServiceAccountNodeUpsertCypher = `UNWIND $rows AS row
+	SecretsIAMServiceAccountNodeUpsertCypher = `UNWIND $rows AS row
 MERGE (n:SecretsIAMServiceAccount {uid: row.uid})
 SET n.scope_id = row.scope_id,
     n.generation_id = row.generation_id,
@@ -82,7 +82,7 @@ SET rel.scope_id = row.scope_id,
     rel.evidence_fact_ids = row.evidence_fact_ids`
 
 	// #nosec G101 -- Cypher template; const name contains "Secret"/"IAMRole" but the value is a parameterized graph-write query, not a credential literal
-	secretsIAMAssumesIAMRoleEdgeUpsertCypher = `UNWIND $rows AS row
+	SecretsIAMAssumesIAMRoleEdgeUpsertCypher = `UNWIND $rows AS row
 MATCH (s:SecretsIAMServiceAccount {uid: row.service_account_uid})
 MATCH (c:CloudResource {uid: row.cloud_resource_uid})
 MERGE (s)-[rel:SECRETS_IAM_ASSUMES_IAM_ROLE]->(c)
@@ -135,7 +135,7 @@ SET rel.capabilities = row.capabilities,
 // KubernetesWorkload endpoints, so a node-scoped predicate is correct here.
 const (
 	// #nosec G101 -- Cypher retract template; const name contains "Secret"/"Account" but the value is a scoped DETACH DELETE query with bound parameters, not a credential literal
-	secretsIAMServiceAccountNodeRetractCypher = `MATCH (n:SecretsIAMServiceAccount)
+	SecretsIAMServiceAccountNodeRetractCypher = `MATCH (n:SecretsIAMServiceAccount)
 WHERE n.scope_id = $scope_id AND n.evidence_source = $evidence_source
 DETACH DELETE n`
 
@@ -211,7 +211,7 @@ func NewSecretsIAMGraphWriter(executor sourcecypher.Executor, batchSize int) *Se
 
 // WriteServiceAccountNodes upserts SecretsIAMServiceAccount nodes.
 func (w *SecretsIAMGraphWriter) WriteServiceAccountNodes(ctx context.Context, rows []map[string]any) error {
-	return w.writeBatched(ctx, secretsIAMServiceAccountNodeUpsertCypher, secretsIAMNodeServiceAccount, rows)
+	return w.writeBatched(ctx, SecretsIAMServiceAccountNodeUpsertCypher, secretsIAMNodeServiceAccount, rows)
 }
 
 // WriteVaultAuthRoleNodes upserts SecretsIAMVaultAuthRole nodes.
@@ -241,7 +241,7 @@ func (w *SecretsIAMGraphWriter) WriteUsesServiceAccountEdges(ctx context.Context
 // ServiceAccount, so the node DETACH DELETE retract removes it (no separate edge
 // retract needed, unlike the workload edge).
 func (w *SecretsIAMGraphWriter) WriteAssumesIAMRoleEdges(ctx context.Context, rows []map[string]any) error {
-	return w.writeBatched(ctx, secretsIAMAssumesIAMRoleEdgeUpsertCypher, "SECRETS_IAM_ASSUMES_IAM_ROLE", rows)
+	return w.writeBatched(ctx, SecretsIAMAssumesIAMRoleEdgeUpsertCypher, "SECRETS_IAM_ASSUMES_IAM_ROLE", rows)
 }
 
 // WriteAuthenticatesVaultRoleEdges upserts ServiceAccount->VaultAuthRole edges.
@@ -282,7 +282,7 @@ func (w *SecretsIAMGraphWriter) RetractScope(
 		label  string
 		cypher string
 	}{
-		{secretsIAMNodeServiceAccount, secretsIAMServiceAccountNodeRetractCypher},
+		{secretsIAMNodeServiceAccount, SecretsIAMServiceAccountNodeRetractCypher},
 		{secretsIAMNodeVaultAuthRole, SecretsIAMVaultAuthRoleNodeRetractCypher},
 		{secretsIAMNodeVaultPolicy, SecretsIAMVaultPolicyNodeRetractCypher},
 		{secretsIAMNodeSecretMetadataPath, secretsIAMSecretMetadataPathNodeRetractCypher},

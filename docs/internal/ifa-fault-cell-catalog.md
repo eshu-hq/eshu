@@ -206,27 +206,30 @@ than there are entries here.
 97. baseline-s3-external-principal-grant (#6228 s3-grant live leaf) -- family-scoped fault-free baseline; twenty-third direct-materialization family in this gate.
 98. kill-worker-after-claim-s3-external-principal-grant (#6228 s3-grant live leaf) -- lease reclaim proof.
 99. fail-graph-write-once-then-succeed-s3-external-principal-grant (#6228 s3-grant live leaf) -- GRANTS_ACCESS_TO retry proof.
-100. baseline-inheritance (#5996) -- family-scoped fault-free baseline.
-101. kill-worker-after-claim-inheritance (#5996) -- lease reclaim proof.
-102. fail-graph-write-once-then-succeed-inheritance (#5996) -- retry proof.
-103. baseline-shell-exec (#6001) -- family-scoped fault-free baseline.
-104. kill-worker-after-claim-shell-exec (#6001) -- lease reclaim proof.
-105. fail-graph-write-once-then-succeed-shell-exec (#6001) -- retry proof.
-106. baseline-workload-dependency (#6003) -- family-scoped fault-free baseline.
-107. kill-worker-after-claim-workload-dependency (#6003) -- lease reclaim proof.
-108. fail-graph-write-once-then-succeed-workload-dependency (#6003) -- retry proof.
-109. baseline-symbol-runtime (#5995/#6000/#5997) -- ONE baseline shared by
+100. baseline-assumes-iam-role (#6228 assumes_iam_role leaf + #8539 seam) -- family-scoped fault-free baseline; twenty-fourth direct-materialization family in this gate. No handler-stage kill cell: the shared secrets_iam_graph_projection handler wait stays owned first-landed by authenticates_vault_role (entry 53, arbiter verdict Option B on #6228); per-statement kill/reclaim for assumes_iam_role is claimed by entry 101 through the hold seam (statement_hold, wait_stage=statement), not by a borrowed handler wait.
+101. kill-statement-hold-assumes-iam-role (#8539 seam) -- per-statement hold kill/reclaim proof: the hold decorator parks the worker inside the family's own ASSUMES_IAM_ROLE MERGE (post-retract, post-prior-edge-write), the cell rendezvouses on the claimed work item plus the hold marker, kill -9 lands while held, the replacement reducer restarts unfaulted, and the full two-edge set converges with zero dead letters against the entry 100 baseline digest.
+102. fail-graph-write-once-then-succeed-assumes-iam-role (#6228 assumes_iam_role leaf) -- SECRETS_IAM_ASSUMES_IAM_ROLE retry proof.
+103. baseline-inheritance (#5996) -- family-scoped fault-free baseline.
+104. kill-worker-after-claim-inheritance (#5996) -- lease reclaim proof.
+105. fail-graph-write-once-then-succeed-inheritance (#5996) -- retry proof.
+106. baseline-shell-exec (#6001) -- family-scoped fault-free baseline.
+107. kill-worker-after-claim-shell-exec (#6001) -- lease reclaim proof.
+108. fail-graph-write-once-then-succeed-shell-exec (#6001) -- retry proof.
+109. baseline-workload-dependency (#6003) -- family-scoped fault-free baseline.
+110. kill-worker-after-claim-workload-dependency (#6003) -- lease reclaim proof.
+111. fail-graph-write-once-then-succeed-workload-dependency (#6003) -- retry proof.
+112. baseline-symbol-runtime (#5995/#6000/#5997) -- ONE baseline shared by
    handles_route/runs_in/invokes_cloud_action; no kill-worker cell (ifa_fault_injection_symbol_runtime_cells.sh's header explains why).
-110. fail-graph-write-once-then-succeed-handles-route (#5995) -- HANDLES_ROUTE retry proof.
-111. fail-graph-write-once-then-succeed-runs-in (#6000) -- RUNS_IN retry proof.
-112. fail-graph-write-once-then-succeed-invokes-cloud-action (#5997) -- INVOKES_CLOUD_ACTION retry proof.
+113. fail-graph-write-once-then-succeed-handles-route (#5995) -- HANDLES_ROUTE retry proof.
+114. fail-graph-write-once-then-succeed-runs-in (#6000) -- RUNS_IN retry proof.
+115. fail-graph-write-once-then-succeed-invokes-cloud-action (#5997) -- INVOKES_CLOUD_ACTION retry proof.
 
-113. kill-worker-after-runner-lease-wait-handles-route (#6208) -- exact-key reclaim proof.
-114. kill-worker-after-runner-lease-wait-runs-in (#6208) -- exact-key reclaim proof.
-115. kill-worker-after-runner-lease-wait-invokes-cloud-action (#6208) -- exact-key reclaim proof.
-116. baseline-kubernetes-correlation (#6228 fault trio) -- family-scoped fault-free baseline; twenty-fourth direct-materialization family in this gate.
-117. kill-worker-after-claim-kubernetes-correlation (#6228 fault trio) -- lease reclaim proof (prereq-scoped kubernetes_workload_materialization reducer banks canonical_nodes_committed/kubernetes_workload_uid before the fact_records lock; gated-claim shape shared with the iam trio).
-118. fail-graph-write-once-then-succeed-kubernetes-correlation (#6228 fault trio) -- RUNS_IMAGE retry proof.
-119. baseline-workload-cloud-relationship (#6228 fault trio) -- family-scoped fault-free baseline; twenty-fifth direct-materialization family in this gate.
-120. kill-worker-after-claim-workload-cloud-relationship (#6228 fault trio) -- lease reclaim proof (prereq-scoped aws_resource_materialization reducer banks canonical_nodes_committed/cloud_resource_uid before the fact_records lock; same keyspace the iam trio banks).
-121. fail-graph-write-once-then-succeed-workload-cloud-relationship (#6228 fault trio) -- USES retry proof.
+116. kill-worker-after-runner-lease-wait-handles-route (#6208) -- exact-key reclaim proof.
+117. kill-worker-after-runner-lease-wait-runs-in (#6208) -- exact-key reclaim proof.
+118. kill-worker-after-runner-lease-wait-invokes-cloud-action (#6208) -- exact-key reclaim proof.
+119. baseline-kubernetes-correlation (#6228 fault trio) -- family-scoped fault-free baseline; twenty-fifth direct-materialization family in this gate.
+120. kill-worker-after-claim-kubernetes-correlation (#6228 fault trio) -- lease reclaim proof (prereq-scoped kubernetes_workload_materialization reducer banks canonical_nodes_committed/kubernetes_workload_uid before the fact_records lock; gated-claim shape shared with the iam trio).
+121. fail-graph-write-once-then-succeed-kubernetes-correlation (#6228 fault trio) -- RUNS_IMAGE retry proof.
+122. baseline-workload-cloud-relationship (#6228 fault trio) -- family-scoped fault-free baseline; twenty-sixth direct-materialization family in this gate.
+123. kill-worker-after-claim-workload-cloud-relationship (#6228 fault trio) -- lease reclaim proof (prereq-scoped aws_resource_materialization reducer banks canonical_nodes_committed/cloud_resource_uid before the fact_records lock; same keyspace the iam trio banks).
+124. fail-graph-write-once-then-succeed-workload-cloud-relationship (#6228 fault trio) -- USES retry proof.

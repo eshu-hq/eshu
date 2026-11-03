@@ -38,7 +38,7 @@
 # fails in blocking mode. Waivers are per (surface, proof_gate), never per
 # family: waiving the fault gate does not grant credit to the baseline gate.
 #
-# ALL BUT TWENTY-SIX FAMILIES BELOW ARE WAIVED, AND THAT IS THE HONEST STATE. A
+# ALL BUT TWENTY-SEVEN FAMILIES BELOW ARE WAIVED, AND THAT IS THE HONEST STATE. A
 # coverage row here has to satisfy all four of the sibling manifest's
 # conditions: a cataloged Odù, a vacuity guard registered in
 # MaterializedEdgeOduResolver, a hand-derived expected-edge-set fixture naming
@@ -48,7 +48,7 @@
 # mistake commit 42e188ba1 made for documentation_edges and had to withdraw; it
 # is not repeated here.
 #
-# TWENTY-SIX OF THEM NOW HAVE ALL FOUR. kubernetes_namespace_environment,
+# TWENTY-SEVEN OF THEM NOW HAVE ALL FOUR. kubernetes_namespace_environment,
 # iam_instance_profile_role, iam_can_assume, iam_can_perform,
 # ec2_uses_profile, s3_logs_to, iam_escalation, authenticates_vault_role,
 # uses_vault_policy, grants_secret_read, built_from,
@@ -58,7 +58,8 @@
 # code_taint_evidence, observability_coverage, publishes, cloud_resource,
 # semantic_entity_containment, security_group_sg_rule,
 # security_group_rule_endpoint, s3_external_principal_grant,
-# workload_cloud_relationship, and kubernetes_correlation
+# workload_cloud_relationship, kubernetes_correlation,
+# and assumes_iam_role
 # each carry a cataloged Odù, a registered
 # edge-type set, a vacuity guard dispatched from MaterializedEdgeOduResolver,
 # a hand-derived expected-edge-set fixture their guard reproduces exactly,
@@ -78,8 +79,9 @@
 # semantic_entity_containment, the security_group_sg_rule live leaf for
 # security_group_sg_rule, the security_group_rule_endpoint live leaf
 # for security_group_rule_endpoint, the s3_external_principal_grant
-# live leaf for s3_external_principal_grant, and the #6228 fault trios
-# for kubernetes_correlation and workload_cloud_relationship -- live
+# live leaf for s3_external_principal_grant, the #6228 fault trios
+# for kubernetes_correlation and workload_cloud_relationship, and the
+# assumes_iam_role live leaf for assumes_iam_role -- live
 # ifa-determinism AND
 # ifa-fault-injection
 # matrices driving the family
@@ -588,19 +590,27 @@ coverage:
     scenario_type: fault
     ref: "odu:ifa-workload-cloud-relationship-family"
     proof_gate: ifa-fault-injection
+  # assumes_iam_role: fault-free baseline plus per-statement hold kill
+  # and fail-graph-write recovery, all asserting the two-edge
+  # SECRETS_IAM_ASSUMES_IAM_ROLE exact set with identical graph digests
+  # (#6228 assumes_iam_role live leaf). The shared N-cell asserts the
+  # exact set pre- and post-delta beside every sibling shared-cell
+  # family; the hold parks the worker inside the family's own
+  # ASSUMES_IAM_ROLE MERGE (post-retract, post-prior-edge-write), and
+  # the sole production writer path stays the flag-gated
+  # DomainSecretsIAMGraphProjection (ADR #1314 keeps defaults OFF).
+  - surface: "materialized_edges:assumes_iam_role"
+    scenario: odu
+    scenario_type: baseline
+    ref: "odu:ifa-assumes-iam-role-family"
+    proof_gate: ifa-determinism
+  - surface: "materialized_edges:assumes_iam_role"
+    scenario: odu
+    scenario_type: fault
+    ref: "odu:ifa-assumes-iam-role-family"
+    proof_gate: ifa-fault-injection
 
 waivers:
-  - surface: "materialized_edges:assumes_iam_role"
-    proof_gate: ifa-determinism
-    issue: "#6228"
-    waived: "2026-08-23"
-    reason: "WriteAssumesIAMRoleEdges -> cypher/secrets_iam_graph_writer.go merges SECRETS_IAM_ASSUMES_IAM_ROLE; DEFERRED 2026-09-27, will not be wired: the sole production writer path is DomainSecretsIAMGraphProjection, which stays unregistered unless ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED is set (ADR #1314 keeps repo/chart/operator defaults OFF). If wired later: collector-only cassette plus the full trust-chain -> graph-projection chain in one reducer with the flag on for that cell only; never reducer facts in a cassette, which bypass the analyzer that decides exact vs partial chains"
-  - surface: "materialized_edges:assumes_iam_role"
-    proof_gate: ifa-fault-injection
-    issue: "#6228"
-    waived: "2026-08-23"
-    reason: "WriteAssumesIAMRoleEdges -> cypher/secrets_iam_graph_writer.go merges SECRETS_IAM_ASSUMES_IAM_ROLE; DEFERRED 2026-09-27, will not be wired: the sole production writer path is DomainSecretsIAMGraphProjection, which stays unregistered unless ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED is set (ADR #1314 keeps repo/chart/operator defaults OFF). If wired later: collector-only cassette plus the full trust-chain -> graph-projection chain in one reducer with the flag on for that cell only; never reducer facts in a cassette, which bypass the analyzer that decides exact vs partial chains"
-
   - surface: "materialized_edges:runtime_declaration"
     proof_gate: ifa-determinism
     issue: "#6228"

@@ -11,11 +11,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/secretsiam"
 )
 
-// Shared offline-chain runner for the three secrets/IAM vault
-// direct-materialization families (#6228 slice A): authenticates_vault_role,
-// uses_vault_policy, and grants_secret_read.
+// Shared offline-chain runner for the four secrets/IAM
+// direct-materialization families (slice A plus the #6228 assumes_iam_role
+// live leaf): authenticates_vault_role, uses_vault_policy,
+// grants_secret_read, and assumes_iam_role.
 //
-// All three families share one production chain (collector facts ->
+// All four families share one production chain (collector facts ->
 // trust-chain read models -> graph-projection rows through
 // secretsiam.ProjectSecretsIAMGraphRows), so their guards share one runner
 // and differ only in which edge rows they compare. The runner enforces the

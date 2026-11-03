@@ -1,0 +1,22 @@
+{
+  "odu": "odu:ifa-assumes-iam-role-family",
+  "note": "Hand-derived from SecretsIAMAssumesIAMRoleEdgeUpsertCypher (go/internal/storage/cypher/cloud/aws/iam/secrets_graph_writer.go), NOT from the port or family name. The template is `MATCH (s:SecretsIAMServiceAccount {uid: row.service_account_uid}) MATCH (c:CloudResource {uid: row.cloud_resource_uid}) MERGE (s)-[rel:SECRETS_IAM_ASSUMES_IAM_ROLE]->(c)`, and the token is static in the template (no %s: no value is ever encoded into a relationship type). The relationship MERGEs on its two endpoint nodes alone, so there is no identity block. The template SETs rel.assume_mode as a bounded, offline-stable classification of the IAM-role evidence kind (web_identity for IRSA, pod_identity for EKS Pod Identity), so the offline edge carries it as properties. The CloudResource targets are the redaction-safe uids the trust chain resolves from each lane's aws_iam_principal scan boundary (account_id plus region) and role ARN -- the same uid the AWS resource projection commits for the lane's aws_resource fact. Exactly two edges: lane A resolves an IRSA web-identity exact chain (service account sa-assumes-app-a assuming role assumes-app-a), lane B an EKS Pod Identity exact chain (sa-assumes-app-b assuming role assumes-app-b). Lane A binds two Vault roles, so its chain resolves twice and both rows converge on the one edge -- the duplicate-delivery proof. The other four lanes contribute nothing on purpose -- lane C's IRSA annotation carries no web-identity subject for any trust to match (fingerprint-only), lane D's subject matches nothing its role's trust allows (partial chain), lane E's Deny trust statement grants nothing, and lane F's wildcard web-identity subject never matches exactly.",
+  "edges": [
+    {
+      "relationship_type": "SECRETS_IAM_ASSUMES_IAM_ROLE",
+      "source_entity_id": "sha256:sa-assumes-app-a",
+      "target_entity_id": "2fcd5d661b490f1960e76b4ebfa77783c81d2fa5494d7af247b6f98a8b56276b",
+      "properties": {
+        "assume_mode": "web_identity"
+      }
+    },
+    {
+      "relationship_type": "SECRETS_IAM_ASSUMES_IAM_ROLE",
+      "source_entity_id": "sha256:sa-assumes-app-b",
+      "target_entity_id": "2076a606cce97ffc40f318b6a13c277207f938bb5bc5604f8e9f5f04777a95c2",
+      "properties": {
+        "assume_mode": "pod_identity"
+      }
+    }
+  ]
+}

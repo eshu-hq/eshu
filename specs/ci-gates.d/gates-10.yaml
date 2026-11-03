@@ -388,6 +388,7 @@ gates:
       - "testdata/cassettes/iamcanassume/**"
       - "testdata/cassettes/iamcanperform/**"
       - "testdata/cassettes/iamescalation/**"
+      - "testdata/cassettes/assumesiamrole/**"
       - "testdata/cassettes/authenticatesvaultrole/**"
       - "testdata/cassettes/usesvaultpolicy/**"
       - "testdata/cassettes/grantssecretread/**"

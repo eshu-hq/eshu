@@ -352,6 +352,24 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 		RetractCypher:  iam.RetractSecretsIAMUsesServiceAccountEdgeCypher,
 		IdentityCypher: iam.CanonicalSecretsIAMUsesServiceAccountEdgeUpsertCypher,
 	},
+	// assumes_iam_role is an evidenceNodeDetach family (#6228). Its edges
+	// hang off SecretsIAMServiceAccount nodes only the secrets graph writer
+	// MERGEs (pinned by the sole-creator census in
+	// go/internal/storage/cypher), so the retract reaps the ServiceAccount
+	// nodes with DETACH DELETE and the edges cascade. IdentityCypher holds
+	// the ServiceAccount NODE upsert, the one template that MERGEs the
+	// evidence label, so the drift guard can derive it; the edge type
+	// itself is derived from the held edge upsert the RetractKind arm
+	// reads, never from the literal declared here. The edge template
+	// MERGEs on its two endpoint nodes alone (both are MATCHed, never
+	// merged), so the identity scan yields nothing.
+	"assumes_iam_role": {
+		// #nosec G101 -- registry entry: the key is a graph relationship type and the description names a Cypher-template identifier, not a credential
+		EdgeTypes:      map[string]string{"SECRETS_IAM_ASSUMES_IAM_ROLE": "service-account to IAM-role CloudResource assumption (SecretsIAMAssumesIAMRoleEdgeUpsertCypher in cloud/aws/iam/secrets_graph_writer.go)"},
+		RetractKind:    retractKindEvidenceNodeDetach,
+		RetractCypher:  iam.SecretsIAMServiceAccountNodeRetractCypher,
+		IdentityCypher: iam.SecretsIAMServiceAccountNodeUpsertCypher,
+	},
 	// authenticates_vault_role is an evidenceNodeDetach family (#6228 slice
 	// A). Its edges hang off SecretsIAMVaultAuthRole nodes only the secrets
 	// graph writer MERGEs (pinned by the sole-creator census in

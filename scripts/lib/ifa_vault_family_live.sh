@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
-# Live-gate drive/assert callbacks for the three vault DIRECT-materialization
-# families (#6228 slice A plus the grants_secret_read remainder):
-# authenticates_vault_role, uses_vault_policy, and grants_secret_read.
+# Live-gate drive/assert callbacks for the four vault DIRECT-materialization
+# families (#6228 slice A plus the grants_secret_read remainder plus the
+# assumes_iam_role leaf): authenticates_vault_role, uses_vault_policy,
+# grants_secret_read, and assumes_iam_role.
 # Split out of scripts/lib/ifa_direct_family_live.sh so
 # that file stays under the tooling line cap; same four-line drive/assert
 # shape, one pair per family.
@@ -104,5 +105,34 @@ ifa_grants_secret_read_assert() {
 	printf '\n=== %s: assert grants_secret_read materialized edges (three-edge exact set) ===\n' "${label}"
 	"${bin_dir}/eshu-ifa" assert-edges \
 		-domain grants_secret_read \
+		-expected "${expected_edges}"
+}
+
+# ifa_assumes_iam_role_drive replays the assumes-iam-role cassette.
+ifa_assumes_iam_role_drive() {
+	local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"
+	_ifa_direct_family_drive assumes-iam-role \
+		"${label}" "${bin_dir}" "${cassette}" "${workers}" "${log_dir}"
+}
+
+# ifa_assumes_iam_role_assert pins the exact set named by its third
+# argument: the two-edge file in per-cell (fault) consumers, the ten-edge
+# combined live file in the shared N-cell loop (see
+# IFA_FAMILY_SHARED_EXPECTED_VAR in rows/31). Called twice per cell for the
+# reason recorded on the namespace assert in ifa_direct_family_live.sh:
+# post-delta is the only place an identical-across-N generation-2 mutation
+# shows up.
+#
+# The scope-local two edges are the exact-digest resolutions: the IRSA
+# web-identity service account assuming its IAM role, and the EKS Pod
+# Identity service account assuming its IAM role -- checked in both the
+# pre-delta and post-delta phase of each N cell, so a generation-2 SQL delta
+# that touched an unrelated family's IAM-adjacent rows would still have to
+# preserve this family's set to stay green.
+ifa_assumes_iam_role_assert() {
+	local label="$1" bin_dir="$2" expected_edges="$3"
+	printf '\n=== %s: assert assumes_iam_role materialized edges (exact set) ===\n' "${label}"
+	"${bin_dir}/eshu-ifa" assert-edges \
+		-domain assumes_iam_role \
 		-expected "${expected_edges}"
 }

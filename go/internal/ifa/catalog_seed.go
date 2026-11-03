@@ -69,6 +69,7 @@ var catalogSeed = []familyodu.CatalogOdu{
 	familyodu.SecurityGroupReachabilityFamilyOdu(),
 	familyodu.S3ExternalPrincipalGrantFamilyOdu(),
 	familyodu.UsesServiceAccountFamilyOdu(),
+	familyodu.AssumesIAMRoleFamilyOdu(),
 	familyodu.AuthenticatesVaultRoleFamilyOdu(),
 	familyodu.UsesVaultPolicyFamilyOdu(),
 	familyodu.GrantsSecretReadFamilyOdu(),
