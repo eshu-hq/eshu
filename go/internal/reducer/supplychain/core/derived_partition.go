@@ -164,7 +164,11 @@ func buildAuthorizedScanImpactFindingsWithQuarantine(
 			addOSAdvisoryJoins(joins, countOSAdvisoryJoins(index))
 		}
 		targetFindings := coalesceAndSortSupplyChainImpactFindings(appendSupplyChainImpactIndexFindings(nil, index))
-		markAuthorizedFixedVersionConflicts(targetFindings, advisories)
+		var targetOSRows []supplychainmodel.OSPackage
+		for _, rows := range index.osPackages {
+			targetOSRows = append(targetOSRows, rows...)
+		}
+		markAuthorizedFixedVersionConflicts(targetFindings, advisories, targetOSRows)
 		for _, finding := range targetFindings {
 			if !findingHasAnyScanFact(finding, target.OSPackages) {
 				continue

@@ -345,13 +345,13 @@ func TestOSVVersionListBeatsSingleFixShortcut(t *testing.T) {
 	}
 }
 
-// TestRPMUnlistedReleaseStaysPossible pins the #9844/#9927 rebase contract:
-// an rpm fact marked ReleaseUnlisted (no range names the host's line) never
-// settles affected_exact and never reads known-fixed across el lines. RPM
-// dist releases order nothing across lines, so the rpm matcher takes the
-// guarded family and keeps the host possibly_affected under
-// os_release_unlisted, even when every listed fix sits at or below the
-// observed version.
+// TestRPMUnlistedReleaseStaysPossible pins the #9844/#9927 rebase contract
+// under the binding #9806 ruling: an rpm fact marked ReleaseUnlisted (no
+// range names the host's line) never settles affected_exact and never reads
+// known-fixed across el lines. RPM dist releases order nothing across lines,
+// so the rpm matcher keeps the host possibly_affected under
+// os_release_not_in_advisory, even when every listed fix sits at or below
+// the observed version.
 func TestRPMUnlistedReleaseStaysPossible(t *testing.T) {
 	t.Parallel()
 
@@ -379,9 +379,9 @@ func TestRPMUnlistedReleaseStaysPossible(t *testing.T) {
 		if decision.Status == SupplyChainImpactAffectedExact {
 			t.Fatalf("%s: unlisted host read affected_exact (%s)", observed, decision.Reason)
 		}
-		if decision.Status != SupplyChainImpactPossiblyAffected || decision.Reason != supplyChainVersionReasonOSReleaseUnlisted {
+		if decision.Status != SupplyChainImpactPossiblyAffected || decision.Reason != supplyChainVersionReasonOSReleaseNotInAdvisory {
 			t.Fatalf("%s: decision = %s/%s, want possibly_affected/%s",
-				observed, decision.Status, decision.Reason, supplyChainVersionReasonOSReleaseUnlisted)
+				observed, decision.Status, decision.Reason, supplyChainVersionReasonOSReleaseNotInAdvisory)
 		}
 		if len(decision.MissingEvidence) != 1 || decision.MissingEvidence[0] != unlistedMissingEvidence {
 			t.Fatalf("%s: missing evidence = %v, want [%q]", observed, decision.MissingEvidence, unlistedMissingEvidence)

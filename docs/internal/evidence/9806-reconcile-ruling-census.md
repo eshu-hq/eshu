@@ -44,3 +44,42 @@ matched, exact, ambiguous, and range-derived known-fixed reads.
   this census (the observed matrix uses at-fix and above-all versions only).
 - ESM pocket behavior is pinned by the converter vector table and the reducer
   pocket test; no committed fixture carries a pocket tag yet.
+
+## Bench marking (P2, issuecomment-6606547536)
+
+`BenchmarkOSAdvisoryJoin` (fleet-wide join path) and
+`BenchmarkOSAdvisoryJoinTargets` (authorized per-target path, which runs the
+`markAuthorizedFixedVersionConflicts` host-line filter and the conflict-local
+releases copy) at small benchtime (`-benchtime=10x -count=1`, `goos: linux`,
+`goarch: arm64`), head `346b4ba081` (rebased onto `origin/main`
+`7a7d7cedb9`), 2026-11-03T18:45Z:
+
+| Benchmark | ns/op | ns/unit | B/op | allocs/op |
+| --- | --- | --- | --- | --- |
+| `BenchmarkOSAdvisoryJoin/1x` | 243,990 | 48,798/advisory | 211,436 | 1,874 |
+| `BenchmarkOSAdvisoryJoin/5x` | 412,509 | 82,502/advisory | 423,134 | 2,892 |
+| `BenchmarkOSAdvisoryJoin/10x` | 917,124 | 183,425/advisory | 708,116 | 4,155 |
+| `BenchmarkOSAdvisoryJoin/miss-10x` | 353,801 | 70,760/advisory | 303,376 | 2,186 |
+| `BenchmarkOSAdvisoryJoin/registry-10x` | 342,494 | 342,494/advisory | 289,592 | 2,038 |
+| `BenchmarkOSAdvisoryJoinTargets/targets-1x` | 1,994,161 | 199,416/target | 1,322,567 | 14,738 |
+| `BenchmarkOSAdvisoryJoinTargets/targets-5x` | 9,993,394 | 199,868/target | 6,413,672 | 71,827 |
+| `BenchmarkOSAdvisoryJoinTargets/targets-10x` | 17,234,443 | 172,344/target | 12,719,626 | 142,472 |
+| `BenchmarkOSAdvisoryJoinTargets/targets-10x-counted` | 19,956,752 | 199,568/target | 12,821,220 | 143,644 |
+
+ns/target stays flat as targets scale 10 -> 50 -> 100 (199,416 ->
+199,868 -> 172,344): the per-target path, host-line filter included, scales
+linearly at small benchtime. No before/after claim: 10 iterations is a smoke
+number, not a full benchmark, and the base tree cannot run the same pair
+(the conflict path and the filter do not exist there).
+
+Benchmark Evidence: `BenchmarkOSAdvisoryJoin` and
+`BenchmarkOSAdvisoryJoinTargets` at `-benchtime=10x -count=1` on head
+`346b4ba081` (table above); ns/target flat across 10/50/100 targets, allocs
+scale with rows, so the per-target host-line filter and the conflict-local
+releases copy cost nothing measurable beyond the existing per-row work.
+
+No-Observability-Change: the filter and the releases copy emit no new
+counter, span, or log; unmatched hosts keep counting under the existing
+`eshu_dp_supply_chain_impact_os_release_not_in_advisory_total` and the
+`os_release_not_in_advisory` sub-signal, and the filter leaves findings
+untouched rather than writing new evidence.

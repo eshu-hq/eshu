@@ -42,7 +42,6 @@ func evaluateRPMVersionMatch(
 			supplyChainVersionReasonRPMExactAffected,
 			supplyChainVersionReasonRPMKnownFixed,
 			compareRPMEVR,
-			osFamilyAPK,
 		)
 	}
 	for _, pkg := range pkgs {
