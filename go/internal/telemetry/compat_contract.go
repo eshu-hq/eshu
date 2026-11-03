@@ -189,6 +189,17 @@ const (
 	LogKeyQuotaKind                                    = contract.LogKeyQuotaKind
 	LogKeyQuotaLimit                                   = contract.LogKeyQuotaLimit
 	LogKeyQuotaScope                                   = contract.LogKeyQuotaScope
+	MetricWorkflowWorkItemsStatsAnalyze                = contract.MetricWorkflowWorkItemsStatsAnalyze
+	SpanWorkflowWorkItemsStatsAnalyze                  = contract.SpanWorkflowWorkItemsStatsAnalyze
+	WorkflowStatsAnalyzeSiteEnqueue                    = contract.WorkflowStatsAnalyzeSiteEnqueue
+	WorkflowStatsAnalyzeSiteGuarded                    = contract.WorkflowStatsAnalyzeSiteGuarded
+	WorkflowStatsAnalyzeSiteScanner                    = contract.WorkflowStatsAnalyzeSiteScanner
+	WorkflowStatsAnalyzeOutcomeAnalyzed                = contract.WorkflowStatsAnalyzeOutcomeAnalyzed
+	WorkflowStatsAnalyzeOutcomeSkipped                 = contract.WorkflowStatsAnalyzeOutcomeSkipped
+	WorkflowStatsAnalyzeOutcomeFailed                  = contract.WorkflowStatsAnalyzeOutcomeFailed
+	LogKeyWorkflowStatsAdmission                       = contract.LogKeyWorkflowStatsAdmission
+	LogKeyWorkflowStatsOutcome                         = contract.LogKeyWorkflowStatsOutcome
+	LogKeyWorkflowStatsRows                            = contract.LogKeyWorkflowStatsRows
 )
 
 // Hosted-provider security-alert spans (from contract/security_alert.go).

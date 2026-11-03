@@ -425,3 +425,16 @@ func registerOCR() {
 func registerSupplyChainImpactWinners() {
 	spanNames = append(spanNames, SpanSupplyChainImpactWinnersResweep)
 }
+
+// registerWorkflowClaimStats appends the #9871 post-admission stats-analyze
+// span and log keys, unconditionally at the end and independent of every
+// earlier step. The site and outcome dimensions are already registered.
+func registerWorkflowClaimStats() {
+	spanNames = append(spanNames, contract.SpanWorkflowWorkItemsStatsAnalyze)
+	logKeys = append(
+		logKeys,
+		contract.LogKeyWorkflowStatsAdmission,
+		contract.LogKeyWorkflowStatsOutcome,
+		contract.LogKeyWorkflowStatsRows,
+	)
+}

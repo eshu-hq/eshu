@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -206,6 +207,9 @@ func (s *WorkflowControlStore) createRunWithWorkItemsIfNoOpenTargetsOnce(
 		return workflow.RunAdmission{}, workflow.SlotAdvanceResult{}, fmt.Errorf("create guarded workflow run: commit transaction: %w", err)
 	}
 	rollback = func() error { return nil }
+	// After the commit, never inside the advisory-locked transaction: an
+	// ANALYZE failure must not abort the admission it follows (#9871).
+	s.maybeAnalyzeWorkflowWorkItems(ctx, telemetry.WorkflowStatsAnalyzeSiteGuarded, admission.InsertedWorkItems)
 	return admission, result, nil
 }
 

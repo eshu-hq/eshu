@@ -52,6 +52,7 @@ the right name when adding a new stage.
 | canonical.retract | go/internal/telemetry/contract.go | `eshu_dp_canonical_projection_duration_seconds` | span canonical |
 | ingestion.evidence_discovery | go/internal/telemetry/contract.go | `eshu_dp_evidence_facts_discovered_total` | span ingestion |
 | ingestion.commit.claim_fence | go/internal/telemetry/contract/ingestion_claim_fence.go (`SpanIngestionCommitClaimFence`) | `eshu_dp_ingestion_claim_fence_rejections_total`, `eshu_dp_ingestion_commit_pin_slack_seconds` | span ingestion |
+| workflow.work_items.stats_analyze | go/internal/telemetry/contract/workflow_claim_stats.go (`SpanWorkflowWorkItemsStatsAnalyze`) | `eshu_dp_workflow_work_items_stats_analyze_total` | span workflow |
 | iac_reachability.materialize | go/internal/telemetry/contract.go | `eshu_dp_iac_reachability_materialization_duration_seconds` | span IaC |
 | reducer.sql_relationship_materialization | go/internal/telemetry/contract.go | `eshu_dp_postgres_query_duration_seconds` | span reducer |
 | reducer.inheritance_materialization | go/internal/telemetry/contract.go | `eshu_dp_postgres_query_duration_seconds` | span reducer |
