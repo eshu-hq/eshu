@@ -1,6 +1,6 @@
 {
   "odu": "odu:ifa-assumes-iam-role-family",
-  "note": "The shared-cell live variant of the assumes_iam_role expected set. The per-Odu file (ifa-assumes-iam-role-family-expected-edges.json) names the two edges the assumes fixture scope produces; a shared determinism cell graph ALSO holds the authenticates, uses, and grants fixture scopes, whose exact chains resolve the same IAM-role endpoint and therefore materialize eight more SECRETS_IAM_ASSUMES_IAM_ROLE edges (sa-auth-app-a/b through roles auth-app-a/b, sa-uses-app-a/b through roles uses-app-a/b, and sa-grants-app-7/8/a/b through roles grants-app-7/8/a/b). The projection handler writes every edge set its read models resolve in one run, so the type's exact live set is ten edges, not two. Fresh-stack fault cells drive one vault cassette and keep asserting the two-edge file; only the shared-cell determinism assert uses this file. The assume_mode property follows the IAM-role evidence kind per scope (web_identity for IRSA lanes, pod_identity for EKS Pod Identity lanes); the CloudResource targets are the redaction-safe uids each scope's trust chain resolves from its aws_iam_principal scan boundary and role ARN.",
+  "note": "The shared-cell live variant of the assumes_iam_role expected set. The per-Odu file (ifa-assumes-iam-role-family-expected-edges.json) names the two edges the assumes fixture scope produces; a shared determinism cell graph ALSO holds the authenticates, uses, and grants fixture scopes, whose exact chains resolve the same IAM-role endpoint and therefore materialize eight more SECRETS_IAM_ASSUMES_IAM_ROLE edges (sa-auth-app-a/b through roles auth-app-a/b, sa-uses-app-a/b through roles uses-app-a/b, and sa-grants-app-7/8/a/b through roles grants-app-7/8/a/b), AND the uses-service-account fixture scope, whose two exact chains resolve the same endpoint and therefore materialize two more edges (the orders service account through its IRSA role, assume_mode web_identity, and the billing service account through its EKS Pod Identity role, assume_mode pod_identity; both confidence exact, observed live in the uses leaf drive). The projection handler writes every edge set its read models resolve in one run, so the type's exact live set is twelve edges, not two. Fresh-stack fault cells drive one vault cassette and keep asserting the two-edge file; only the shared-cell determinism assert uses this file. The assume_mode property follows the IAM-role evidence kind per scope (web_identity for IRSA lanes, pod_identity for EKS Pod Identity lanes); the CloudResource targets are the redaction-safe uids each scope's trust chain resolves from its aws_iam_principal scan boundary and role ARN.",
   "edges": [
     {
       "relationship_type": "SECRETS_IAM_ASSUMES_IAM_ROLE",
@@ -78,6 +78,22 @@
       "relationship_type": "SECRETS_IAM_ASSUMES_IAM_ROLE",
       "source_entity_id": "sha256:sa-grants-app-b",
       "target_entity_id": "3744b0b31d98b38e1da06d4f5062fcfa900b9c7484b8aea0a197691477f82230",
+      "properties": {
+        "assume_mode": "pod_identity"
+      }
+    },
+    {
+      "relationship_type": "SECRETS_IAM_ASSUMES_IAM_ROLE",
+      "source_entity_id": "sha256:orders-service-account",
+      "target_entity_id": "9e8e0c49b9e0cd16f068a1b1f175547150dd848043336b7ae0297754f28befff",
+      "properties": {
+        "assume_mode": "web_identity"
+      }
+    },
+    {
+      "relationship_type": "SECRETS_IAM_ASSUMES_IAM_ROLE",
+      "source_entity_id": "sha256:billing-service-account",
+      "target_entity_id": "fcc70e7fc7ef164515bd5b7479ee057ea07d73f7922b49cb0dc18b5ea45c42ab",
       "properties": {
         "assume_mode": "pod_identity"
       }
