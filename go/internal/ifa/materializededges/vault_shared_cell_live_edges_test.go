@@ -96,6 +96,14 @@ func TestVaultSharedCellLiveEdgeSets(t *testing.T) {
 		{authRel, "sha256:sa-assumes-app-a", "sha256:assumes-vault-role-2"},
 		{authRel, "sha256:sa-assumes-app-b", "sha256:assumes-vault-role-3"},
 	}
+	// The uses-service-account scope's two exact chains (orders workload
+	// through its IRSA service account, billing workload through its EKS
+	// Pod Identity service account) take the same Vault hop; observed live
+	// in the uses leaf drive, not inferred from this file.
+	usesSvcAuth := []sharedCellEdge{
+		{authRel, "sha256:orders-service-account", "sha256:uses-vault-role-orders"},
+		{authRel, "sha256:billing-service-account", "sha256:uses-vault-role-billing"},
+	}
 	wantAuthLive := edgeSet(authLocal)
 	for _, e := range usesAuth {
 		wantAuthLive[e] = true
@@ -106,8 +114,11 @@ func TestVaultSharedCellLiveEdgeSets(t *testing.T) {
 	for _, e := range assumesAuth {
 		wantAuthLive[e] = true
 	}
+	for _, e := range usesSvcAuth {
+		wantAuthLive[e] = true
+	}
 	if got := edgeSet(authLive); !equalEdgeSets(got, wantAuthLive) {
-		t.Fatalf("authenticates live set = %d edges, want scope-local 2 + uses 2 + grants 4 + assumes 3 = 11", len(authLive))
+		t.Fatalf("authenticates live set = %d edges, want scope-local 2 + uses 2 + grants 4 + assumes 3 + uses_service_account 2 = 13", len(authLive))
 	}
 
 	const usesRel = "SECRETS_IAM_USES_VAULT_POLICY"

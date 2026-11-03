@@ -142,6 +142,7 @@ run_ifa_fault_cell_catalog_cases() {
 			kill_uses_vault_policy) label="kill-statement-hold-uses-vault-policy" ;;
 			kill_grants_secret_read) label="kill-statement-hold-grants-secret-read" ;;
 			kill_assumes_iam_role) label="kill-statement-hold-assumes-iam-role" ;;
+			kill_uses_service_account) label="kill-statement-hold-uses-service-account" ;;
 			killworker_derived_from) label="kill-statement-hold-derived-from" ;;
 			killworker_security_group_rule_endpoint) label="kill-statement-hold-security-group-rule-endpoint" ;;
 			killworker_handles_route|killworker_runs_in|killworker_invokes_cloud_action)

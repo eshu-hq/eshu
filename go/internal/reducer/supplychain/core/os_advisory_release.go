@@ -112,6 +112,14 @@ func selectOSAdvisoryFactRelease(
 		}
 	}
 	if len(ranges) == 0 {
+		// The fact names no range for the host's line. It keeps every range
+		// (the weak not-in-advisory read needs them), but its fixed versions
+		// are blanked at this boundary: every one names another line's fix,
+		// and no consumer-visible field may present another release's fix
+		// as an unlabelled candidate (#9806, ruling Q2.9-Q2.11). Without the
+		// blank, the single-fix shortcut and the remediation branches would
+		// read a listed line's fix as the host's own.
+		pkg.FixedVersions = nil
 		pkg.ReleaseUnlisted = true
 		return pkg
 	}

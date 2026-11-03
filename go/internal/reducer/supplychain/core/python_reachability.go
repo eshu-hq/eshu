@@ -4,7 +4,6 @@
 package core
 
 import (
-	"context"
 	"sort"
 	"strings"
 	"unicode"
@@ -38,41 +37,6 @@ type pythonReachabilityRepositoryEvidence struct {
 type pythonReachabilityRepositoryScope struct {
 	scopeID      string
 	generationID string
-}
-
-func (h SupplyChainImpactHandler) loadPythonReachabilityEvidenceFacts(
-	ctx context.Context,
-	envelopes []facts.Envelope,
-) ([]facts.Envelope, error) {
-	if !supplyChainImpactHasPyPIEvidence(envelopes) {
-		return nil, nil
-	}
-	repositoryIDs := supplyChainImpactFilter(envelopes).RepositoryIDs
-	if len(repositoryIDs) == 0 {
-		return nil, nil
-	}
-	repositoriesByScope := pythonReachabilityRepositoryIDsByScope(envelopes, repositoryIDs)
-	if len(repositoriesByScope) == 0 {
-		return nil, nil
-	}
-
-	var loaded []facts.Envelope
-	for _, repoScope := range sortedPythonReachabilityRepositoryScopes(repositoriesByScope) {
-		fileFacts, err := factload.LoadFactsForKindAndPayloadValue(
-			ctx,
-			h.FactLoader,
-			repoScope.scopeID,
-			repoScope.generationID,
-			factload.FactKindFile,
-			"repo_id",
-			repositoriesByScope[repoScope],
-		)
-		if err != nil {
-			return nil, err
-		}
-		loaded = appendUniqueSupplyChainImpactFacts(loaded, fileFacts...)
-	}
-	return loaded, nil
 }
 
 func pythonReachabilityRepositoryIDsByScope(

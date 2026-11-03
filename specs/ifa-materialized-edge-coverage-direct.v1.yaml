@@ -38,7 +38,7 @@
 # fails in blocking mode. Waivers are per (surface, proof_gate), never per
 # family: waiving the fault gate does not grant credit to the baseline gate.
 #
-# ALL BUT TWENTY-EIGHT FAMILIES BELOW ARE WAIVED, AND THAT IS THE HONEST STATE. A
+# ALL BUT TWENTY-NINE FAMILIES BELOW ARE WAIVED, AND THAT IS THE HONEST STATE. A
 # coverage row here has to satisfy all four of the sibling manifest's
 # conditions: a cataloged Odù, a vacuity guard registered in
 # MaterializedEdgeOduResolver, a hand-derived expected-edge-set fixture naming
@@ -48,7 +48,7 @@
 # mistake commit 42e188ba1 made for documentation_edges and had to withdraw; it
 # is not repeated here.
 #
-# TWENTY-EIGHT OF THEM NOW HAVE ALL FOUR. kubernetes_namespace_environment,
+# TWENTY-NINE OF THEM NOW HAVE ALL FOUR. kubernetes_namespace_environment,
 # iam_instance_profile_role, iam_can_assume, iam_can_perform,
 # ec2_uses_profile, s3_logs_to, iam_escalation, authenticates_vault_role,
 # uses_vault_policy, grants_secret_read, built_from,
@@ -59,7 +59,8 @@
 # semantic_entity_containment, security_group_sg_rule,
 # security_group_rule_endpoint, s3_external_principal_grant,
 # workload_cloud_relationship, kubernetes_correlation,
-# and assumes_iam_role
+# assumes_iam_role,
+# and uses_service_account
 # each carry a cataloged Odù, a registered
 # edge-type set, a vacuity guard dispatched from MaterializedEdgeOduResolver,
 # a hand-derived expected-edge-set fixture their guard reproduces exactly,
@@ -81,8 +82,9 @@
 # security_group_sg_rule, the security_group_rule_endpoint live leaf
 # for security_group_rule_endpoint, the s3_external_principal_grant
 # live leaf for s3_external_principal_grant, the #6228 fault trios
-# for kubernetes_correlation and workload_cloud_relationship, and the
-# assumes_iam_role live leaf for assumes_iam_role -- live
+# for kubernetes_correlation and workload_cloud_relationship, the
+# assumes_iam_role live leaf for assumes_iam_role, and the
+# uses_service_account live leaf for uses_service_account -- live
 # ifa-determinism AND
 # ifa-fault-injection
 # matrices driving the family
@@ -631,14 +633,23 @@ coverage:
     ref: "odu:ifa-runtime-declaration-family"
     proof_gate: ifa-fault-injection
 
-waivers:
+  # uses_service_account: fault-free baseline plus fault-injection
+  # recovery, asserting the two-edge USES_SERVICE_ACCOUNT exact set with
+  # identical graph digests (#6228 uses_service_account live leaf). The two
+  # exact lanes (orders IRSA web-identity, billing Pod Identity) each yield
+  # one workload -> service-account edge; the shared N-cell asserts the
+  # twelve-edge combined live file (ten sibling-scope edges from exact
+  # chains carrying workload ids). The fingerprint-only, workload-less,
+  # and tombstoned chains resolve to nothing.
   - surface: "materialized_edges:uses_service_account"
+    scenario: odu
+    scenario_type: baseline
+    ref: "odu:ifa-uses-service-account-family"
     proof_gate: ifa-determinism
-    issue: "#6228"
-    waived: "2026-08-23"
-    reason: "WriteUsesServiceAccountEdges -> cypher/secrets_iam_graph_writer.go merges SECRETS_IAM_USES_SERVICE_ACCOUNT; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
   - surface: "materialized_edges:uses_service_account"
+    scenario: odu
+    scenario_type: fault
+    ref: "odu:ifa-uses-service-account-family"
     proof_gate: ifa-fault-injection
-    issue: "#6228"
-    waived: "2026-08-23"
-    reason: "WriteUsesServiceAccountEdges -> cypher/secrets_iam_graph_writer.go merges SECRETS_IAM_USES_SERVICE_ACCOUNT; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+
+waivers:

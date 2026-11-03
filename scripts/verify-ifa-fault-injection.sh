@@ -474,6 +474,14 @@ ifa_fault_shard_run cell_failgraphwrite_workload_cloud_relationship
 ifa_fault_shard_run cell_baseline_runtime_declaration
 ifa_fault_shard_run cell_killworker_runtime_declaration
 ifa_fault_shard_run cell_failgraphwrite_runtime_declaration
+# uses_service_account (#6228 uses_service_account live leaf): twenty-eighth
+# direct family (dispatched here, after the runtime_declaration trio, by
+# gate order), baseline first, same trio shape as above except the kill cell
+# holds the USES_SERVICE_ACCOUNT MERGE at the per-statement hold seam (#8539)
+# instead of a handler-stage killworker cell.
+ifa_fault_shard_run cell_baseline_uses_service_account
+ifa_fault_shard_run cell_kill_uses_service_account
+ifa_fault_shard_run cell_failgraphwrite_uses_service_account
 
 log "PASS: fault-injection matrix green (project ${FAULT_COMPOSE_PROJECT}, postgres:${ESHU_POSTGRES_PORT}, neo4j-bolt:${NEO4J_BOLT_PORT})"
 for cell in "${!digests[@]}"; do

@@ -21,6 +21,8 @@ workflows:
   - scripts/lib/rootfs-resolve.sh
   - scripts/verify-scanner-digest-pins.sh
   - scripts/test-verify-scanner-digest-pins.sh
+  - scripts/check-scanner-freshness.sh
+  - scripts/test-check-scanner-freshness.sh
   - scripts/ci/go-install-retry.sh
   - go/go.mod
   - go/go.sum

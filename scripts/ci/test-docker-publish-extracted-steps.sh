@@ -132,7 +132,7 @@ done
 # #9491: the scanner digest pin verifier, its suite, and the relocated pin
 # leaf (#8878) select the scannerpins lane, while unrelated paths leave it
 # off.
-for pins_path in scripts/verify-scanner-digest-pins.sh scripts/test-verify-scanner-digest-pins.sh go/internal/collector/scannercomponent/manifest.go; do
+for pins_path in scripts/verify-scanner-digest-pins.sh scripts/test-verify-scanner-digest-pins.sh scripts/check-scanner-freshness.sh scripts/test-check-scanner-freshness.sh go/internal/collector/scannercomponent/manifest.go; do
   pins_base="$(git -C "${repo}" rev-parse HEAD)"
   mkdir -p "${repo}/$(dirname "${pins_path}")"
   printf '# pins\n' > "${repo}/${pins_path}"

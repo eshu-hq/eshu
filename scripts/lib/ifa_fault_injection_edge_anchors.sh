@@ -124,6 +124,18 @@ grants_secret_read_edge_operation_match="MERGE (p)-[rel:SECRETS_IAM_GRANTS_SECRE
 # the static token into the template (no %s), so the anchor carries the
 # literal. None of the port-suffix labels appears in code.
 assumes_iam_role_edge_operation_match="MERGE (s)-[rel:SECRETS_IAM_ASSUMES_IAM_ROLE]->(c)"
+# The SECRETS_IAM_USES_SERVICE_ACCOUNT MERGE anchor
+# cell_failgraphwrite_uses_service_account and cell_kill_uses_service_account
+# (#6228 uses_service_account leaf + #8539 seam) target -- both cells match
+# on this same substring, the once-fault failing it and the hold engaging on
+# it:
+# go/internal/storage/cypher/cloud/aws/iam/secrets_graph_writer.go:74 bakes
+# the static token into the template (no %s), so the anchor carries the
+# literal. None of the port-suffix labels appears in code. NOT the bare
+# USES_SERVICE_ACCOUNT fragment -- the full MERGE literal pins the exact
+# statement (KubernetesWorkload endpoint to ServiceAccount endpoint), so the
+# fault cannot fire on a different write that merely names the same type.
+uses_service_account_edge_operation_match="MERGE (w)-[rel:SECRETS_IAM_USES_SERVICE_ACCOUNT]->(s)"
 # The BUILT_FROM MERGE anchor cell_failgraphwrite_built_from (#6228 slice C
 # live leaf) targets: go/internal/storage/cypher/edge/writer/provenance.go:172
 # emits MERGE (img)-[rel:BUILT_FROM { with the scope_id/evidence_source
