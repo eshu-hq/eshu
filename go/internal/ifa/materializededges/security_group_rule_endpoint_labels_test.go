@@ -54,10 +54,12 @@ func TestCheckEndpointTargetLabelsBindsLabelPerRule(t *testing.T) {
 // so no Odu-level input distinguishes "call present" from "call deleted" —
 // deleting the call-site below must fail this test instead.
 //
-// The pin parses the guard into an AST and requires the check as a branch
-// condition: a raw substring check would also match the call commented out,
-// and a bare call expression would match a discarded result, so neither
-// pins enforcement. Only `if problem := check…; problem != ""` satisfies it.
+// The pin parses the guard into an AST and requires the check inside a
+// branch's init or condition: a raw substring check would also match the
+// call commented out, and a bare call expression would match a discarded
+// result, so neither pins enforcement. A disconnected condition (call kept
+// but result untested) would still satisfy the pin; catching that stays
+// with code review.
 func TestEndpointGuardInvokesTargetLabelCheck(t *testing.T) {
 	t.Parallel()
 
