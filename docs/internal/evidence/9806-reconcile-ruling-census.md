@@ -51,30 +51,31 @@ matched, exact, ambiguous, and range-derived known-fixed reads.
 `BenchmarkOSAdvisoryJoinTargets` (authorized per-target path, which runs the
 `markAuthorizedFixedVersionConflicts` host-line filter and the conflict-local
 releases copy) at small benchtime (`-benchtime=10x -count=1`, `goos: linux`,
-`goarch: arm64`), head `346b4ba081` (rebased onto `origin/main`
-`7a7d7cedb9`), 2026-11-03T18:45Z:
+`goarch: arm64`), head `9398a6d13e` (on `origin/main` `d23d109691`),
+2026-11-03T19:10Z. This tree contains the filter and the releases copy, so
+the numbers below measure the shipped path:
 
 | Benchmark | ns/op | ns/unit | B/op | allocs/op |
 | --- | --- | --- | --- | --- |
-| `BenchmarkOSAdvisoryJoin/1x` | 243,990 | 48,798/advisory | 211,436 | 1,874 |
-| `BenchmarkOSAdvisoryJoin/5x` | 412,509 | 82,502/advisory | 423,134 | 2,892 |
-| `BenchmarkOSAdvisoryJoin/10x` | 917,124 | 183,425/advisory | 708,116 | 4,155 |
-| `BenchmarkOSAdvisoryJoin/miss-10x` | 353,801 | 70,760/advisory | 303,376 | 2,186 |
-| `BenchmarkOSAdvisoryJoin/registry-10x` | 342,494 | 342,494/advisory | 289,592 | 2,038 |
-| `BenchmarkOSAdvisoryJoinTargets/targets-1x` | 1,994,161 | 199,416/target | 1,322,567 | 14,738 |
-| `BenchmarkOSAdvisoryJoinTargets/targets-5x` | 9,993,394 | 199,868/target | 6,413,672 | 71,827 |
-| `BenchmarkOSAdvisoryJoinTargets/targets-10x` | 17,234,443 | 172,344/target | 12,719,626 | 142,472 |
-| `BenchmarkOSAdvisoryJoinTargets/targets-10x-counted` | 19,956,752 | 199,568/target | 12,821,220 | 143,644 |
+| `BenchmarkOSAdvisoryJoin/1x` | 233,540 | 46,708/advisory | 211,980 | 1,875 |
+| `BenchmarkOSAdvisoryJoin/5x` | 415,769 | 83,154/advisory | 423,203 | 2,893 |
+| `BenchmarkOSAdvisoryJoin/10x` | 652,611 | 130,522/advisory | 708,366 | 4,157 |
+| `BenchmarkOSAdvisoryJoin/miss-10x` | 327,174 | 65,435/advisory | 303,100 | 2,185 |
+| `BenchmarkOSAdvisoryJoin/registry-10x` | 289,314 | 289,314/advisory | 289,338 | 2,038 |
+| `BenchmarkOSAdvisoryJoinTargets/targets-1x` | 1,803,127 | 180,313/target | 1,322,706 | 14,739 |
+| `BenchmarkOSAdvisoryJoinTargets/targets-5x` | 8,633,526 | 172,671/target | 6,415,740 | 71,838 |
+| `BenchmarkOSAdvisoryJoinTargets/targets-10x` | 17,064,293 | 170,643/target | 12,712,256 | 142,449 |
+| `BenchmarkOSAdvisoryJoinTargets/targets-10x-counted` | 17,552,872 | 175,529/target | 12,819,873 | 143,641 |
 
-ns/target stays flat as targets scale 10 -> 50 -> 100 (199,416 ->
-199,868 -> 172,344): the per-target path, host-line filter included, scales
+ns/target stays flat as targets scale 10 -> 50 -> 100 (180,313 ->
+172,671 -> 170,643): the per-target path, host-line filter included, scales
 linearly at small benchtime. No before/after claim: 10 iterations is a smoke
 number, not a full benchmark, and the base tree cannot run the same pair
 (the conflict path and the filter do not exist there).
 
 Benchmark Evidence: `BenchmarkOSAdvisoryJoin` and
 `BenchmarkOSAdvisoryJoinTargets` at `-benchtime=10x -count=1` on head
-`346b4ba081` (table above); ns/target flat across 10/50/100 targets, allocs
+`9398a6d13e` (table above); ns/target flat across 10/50/100 targets, allocs
 scale with rows, so the per-target host-line filter and the conflict-local
 releases copy cost nothing measurable beyond the existing per-row work.
 
