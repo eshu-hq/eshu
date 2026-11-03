@@ -83,8 +83,10 @@ any concrete sink implementation — callers provide the sink as an `Appender`.
 
 ## Telemetry
 
-Three counters, registered by the caller in `go/internal/telemetry` and
-passed in via `Metrics`:
+Three counters, formerly registered by the deleted in-tree mcp-server wiring
+in `go/internal/telemetry` and passed in via `Metrics` (retired in #9679; the
+satellite `eshu-mcp` owns its own registry now). `Metrics` still accepts an
+optional counter set from any caller:
 
 - `eshu_dp_governance_audit_allowed_emitted_total` — events accepted into the
   buffer.

@@ -634,8 +634,8 @@ Postgres read path unchanged. Verified by
 
 ### Allowed-read governance-audit async appender (F-9, #5170)
 
-The mcp-server MCP transport middleware (`GET /sse`, `POST /mcp/message`)
-recorded an ALLOWED `read_authorization` governance-audit event for every
+The former in-tree mcp-server MCP transport middleware (`GET /sse`, `POST /mcp/message`,
+retired in #9679; satellite-owned now) recorded an ALLOWED `read_authorization` governance-audit event for every
 scoped-token or OIDC-bearer credential that resolves successfully,
 immediately before dispatch — the allowed counterpart of the DENIED events
 the same middleware already recorded synchronously. A naive synchronous
@@ -656,10 +656,10 @@ Three counters, all label-free, exposed the appender's drop-observability:
   but a flush to the durable store failed. Non-zero pointed at the durable
   store itself (bad connection, schema mismatch), not the appender.
 
-Only the mcp-server MCP transport middleware wired a non-nil allowed-read
-sink; the `/api/v0/*` HTTP API surface and `cmd/api` do not, since
-`tools/call` already dispatches internally through the same credential chain
-and wiring both would double-emit one logical MCP read.
+Only the former in-tree mcp-server MCP transport middleware wired a non-nil
+allowed-read sink (retired in #9679); the `/api/v0/*` HTTP API surface and
+`cmd/api` do not, since `tools/call` already dispatches internally through the
+same credential chain and wiring both would double-emit one logical MCP read.
 
 Enabling this path added one `governance_audit_events` row per allowed MCP
 transport request, so it assumed the deployment has the hosted retention job
