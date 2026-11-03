@@ -4,6 +4,8 @@
 package materializededges
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -40,5 +42,24 @@ func TestCheckEndpointTargetLabelsBindsLabelPerRule(t *testing.T) {
 	}}
 	if got := checkSecurityGroupRuleEndpointTargetLabels("probe", unknown); !strings.Contains(got, "unlisted rule_uid") {
 		t.Fatalf("unknown rule = %q, want a fail-closed unlisted-rule failure", got)
+	}
+}
+
+// TestEndpointGuardInvokesTargetLabelCheck pins the wiring the cases above
+// cannot reach: the helper is only real if the guard calls it. A swapped
+// label with a known rule_uid is unreachable through the production
+// extractor (the uid folds the same source tokens the label derives from),
+// so no Odu-level input distinguishes "call present" from "call deleted" —
+// deleting the call-site line below must fail this test instead.
+func TestEndpointGuardInvokesTargetLabelCheck(t *testing.T) {
+	t.Parallel()
+
+	src, err := os.ReadFile(filepath.Join(repoRootDir(t), "go", "internal", "ifa", "materializededges", "security_group_rule_endpoint.go"))
+	if err != nil {
+		t.Fatalf("read guard source: %v", err)
+	}
+	const call = "checkSecurityGroupRuleEndpointTargetLabels(odu.Name, result.RuleEndpointEdges)"
+	if !strings.Contains(string(src), call) {
+		t.Fatalf("guard no longer invokes %s; the label regression cases above pass while swapped-label rows flow unchecked", call)
 	}
 }
