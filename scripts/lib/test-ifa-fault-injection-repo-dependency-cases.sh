@@ -398,6 +398,8 @@ run_ifa_fault_injection_repo_dependency_cases() {
 	# security_group_rule_endpoint trios, the #6228 s3grant live
 	# leaf adds the s3_external_principal_grant trio, and the #6228
 	# fault trios add the kubernetes_correlation trio and the
-	# workload_cloud_relationship trio.
-	[[ "$("${script}" --list-cells | wc -l | tr -d '[:space:]')" == 121 ]] || return 1
+	# workload_cloud_relationship trio, and the #6228 assumes_iam_role
+	# live leaf adds the assumes_iam_role trio (baseline + failgraphwrite
+	# + the #8539 seam's per-statement hold kill cell).
+	[[ "$("${script}" --list-cells | wc -l | tr -d '[:space:]')" == 124 ]] || return 1
 }
