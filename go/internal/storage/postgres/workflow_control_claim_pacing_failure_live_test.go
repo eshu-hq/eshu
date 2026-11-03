@@ -77,6 +77,56 @@ func TestWorkflowClaimPacingFailsOpenOnLatchQueryFailure(t *testing.T) {
 	}
 }
 
+// TestWorkflowClaimPacingFailsOpenOnLatchAdvanceFailure proves the write
+// fail-open leg of the #8473 depth-loss story: the latch read succeeds but
+// the latch advance cannot persist (the table is swapped for a read-only view
+// shim with the same shape, so reads see disengaged while writes fail), so
+// the consult reports the outage and an unpaced verdict instead of pacing on
+// a latch it cannot hold. TestWorkflowClaimPacingFailsOpenOnLatchQueryFailure
+// covers the read leg with no latch rows at all; this covers the write leg
+// with an unpersistable latch.
+func TestWorkflowClaimPacingFailsOpenOnLatchAdvanceFailure(t *testing.T) {
+	database, store, ctx, _ := openClaimDepthHarness(t, 1)
+	base := time.Now().UTC().Add(-time.Hour).Truncate(time.Second)
+	seedClaimDepthBacklog(t, store, ctx, "pacing-latch-advance-failopen", base,
+		[]claimDepthKeyBacklog{{FairnessKey: "pacing:hot", Count: 60}})
+	cfg := testClaimPacingConfig()
+	selector := pacingFailureSelector()
+
+	if _, err := database.ExecContext(ctx, `ALTER TABLE workflow_claim_pacing RENAME TO workflow_claim_pacing_broken`); err != nil {
+		t.Fatalf("rename latch table: %v", err)
+	}
+	t.Cleanup(func() {
+		if _, err := database.ExecContext(context.Background(), `ALTER TABLE workflow_claim_pacing_broken RENAME TO workflow_claim_pacing`); err != nil {
+			t.Errorf("restore latch table: %v", err)
+		}
+	})
+	if _, err := database.ExecContext(ctx, `
+CREATE VIEW workflow_claim_pacing(signal, domain, engaged, engaged_at, updated_at) AS
+SELECT ''::text, ''::text, false, NULL::timestamptz, now() WHERE false`); err != nil {
+		t.Fatalf("install latch view shim: %v", err)
+	}
+	t.Cleanup(func() {
+		if _, err := database.ExecContext(context.Background(), `DROP VIEW IF EXISTS workflow_claim_pacing`); err != nil {
+			t.Errorf("drop latch view shim: %v", err)
+		}
+	})
+
+	decision, err := store.CheckClaimPacing(ctx, selector, cfg, time.Now().UTC())
+	if err == nil {
+		t.Fatal("CheckClaimPacing() with an unpersistable latch error = nil, want the latch outage surfaced")
+	}
+	if !strings.Contains(err.Error(), "workflow_claim_pacing") || !strings.Contains(err.Error(), "advance") {
+		t.Fatalf("CheckClaimPacing() error = %v, want it to name the broken latch signal on the advance path", err)
+	}
+	if decision.Paced {
+		t.Fatalf("CheckClaimPacing() = %+v, want unpaced (fail open on a failed latch advance)", decision)
+	}
+	if decision.Stuck {
+		t.Fatalf("CheckClaimPacing() = %+v, want no stuck signal on a failed consult", decision)
+	}
+}
+
 // TestWorkflowClaimPacingStuckHoldsMidBandAndReleasesBelowWatermark proves the
 // design's timer-expiry shape on live storage: an overdue engagement re-reads
 // depth instead of releasing on the timer. With 30 pending sitting between
