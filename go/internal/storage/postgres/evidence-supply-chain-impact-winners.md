@@ -143,6 +143,41 @@ under the 5% bar. Six further bucketed samples over 15 minutes gave 1.62% and a
 worst per-tick rate near 0.3%. A CVE wave cannot cost more than main: at 10x, 100%
 churn cost 4,010 MB and 16.7 s against main's 4,494 MB and 17.5 s.
 
+That table is the #9830 run: six interleaved rounds per phase with an alternating
+first mover and an explicit `VACUUM` every second round. Its retained output is not
+in the tree, so the criterion-4 re-run on the final shipped SQL is committed here
+instead. `05-winners-write-on-change.py` runs four phases strictly sequentially
+(`main_nothing_changed`, `main_30_changed`, `shipped_nothing_changed`,
+`shipped_30_changed`), six ticks each, one `VACUUM` per phase in `reset_phase`,
+autovacuum off, 29,870 winners, 30 changed rows per tick, and
+`05-results-9774.jsonl` is its output. `05-winner-select.sql` and
+`05-winners-rebuild-shipped.sql` are the statements it feeds in, rendered from the
+shipped constants, so the run is reproducible from this directory. Counters per
+6 ticks from that output:
+
+| Phase | Variant | Row versions | WAL, MB | Winners vs fresh recompute |
+|---|---|---:|---:|---|
+| nothing changed | A | 179,220 | 308.62 | 0 rows differ |
+| nothing changed | C | 0 | 0.001 | 0 rows differ |
+| 30 changed rows per tick | A | 179,220 | 308.85 | 0 rows differ |
+| 30 changed rows per tick | C | 180 | 0.55 | 0 rows differ |
+
+The two runs agree on direction and on the two claims that matter: an unchanged
+tick writes no row version, and the WAL a tick costs falls from about 51 MB to
+under 0.01 MB. Where they differ is the churn phase, because the harnesses change
+different numbers of rows per tick and the interleaved run also moved winners;
+each table is read against its own harness.
+
+The two QA readings #9774 still owed came from `05-qa-changed-rows.sql`, read-only
+(`SELECT` only). Two hashed dumps 5m15s apart on the read replica over 40,215
+winner rows gave 25 inserted, 2 deleted, 47 changed, 74 touched: 0.18% of rows,
+under the 5% bar. `pg_stat_database.stats_reset` for the application database is
+NULL, so the cumulative `pg_stat_user_tables` counters cover the whole window since
+the postmaster start of 2026-10-16. On the primary, `n_tup_upd` rose by 19 over
+300 s across three resweep ticks (the watermark table's counter moved 43,944 to
+43,947), where the every-tick form writes 3 x 40,326 = 120,978: a 99.98% drop,
+against the 90% bar.
+
 ### What this does not fix: the read half (design question)
 
 QA's real tick is far slower than the scratch run, so the scratch wall times say
