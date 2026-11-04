@@ -6,6 +6,7 @@ package reducer
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -191,6 +192,9 @@ func TestPregateActivationLookupErrorCarriesCause(t *testing.T) {
 	}
 	if !errors.Is(err, lookupErr) {
 		t.Fatalf("error = %v, want it to wrap the activation lookup failure", err)
+	}
+	if msg := err.Error(); !strings.Contains(msg, "activation lookup failed") || strings.Contains(msg, "corpus fence") {
+		t.Fatalf("error = %q, want it to name the activation lookup, not the corpus fence lookup", msg)
 	}
 	if stub.calls != 0 {
 		t.Fatalf("bulk loads = %d, want 0: an outage defers before the load", stub.calls)

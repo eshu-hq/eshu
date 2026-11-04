@@ -79,6 +79,7 @@ func (l CorrelatedWorkloadProjectionInputLoader) deferUnlessReadyForBulkLoad(
 		if err != nil {
 			return workloadMaterializationResolutionNotReadyError{
 				scopeID: intent.ScopeID, generationID: intent.GenerationID, cause: err,
+				causeLookup: "own-generation activation lookup",
 			}
 		}
 		if !active {
@@ -146,6 +147,10 @@ type workloadMaterializationResolutionNotReadyError struct {
 	// incomplete corpus fence (#6730: a swallowed lookup error reads
 	// exactly like healthy backpressure at 3 AM).
 	cause error
+	// causeLookup names the lookup that failed when cause is set, so the
+	// message does not blame the corpus fence for an activation read; empty
+	// means the corpus fence lookup.
+	causeLookup string
 	// holdingScopeIDs names the scopes holding the corpus fence, best
 	// effort; empty when the holder lookup is unwired or failed.
 	holdingScopeIDs []string
@@ -161,7 +166,11 @@ func (e workloadMaterializationResolutionNotReadyError) Error() string {
 		e.generationID,
 	)
 	if e.cause != nil {
-		msg += fmt.Sprintf("; corpus fence lookup failed: %v", e.cause)
+		lookup := e.causeLookup
+		if lookup == "" {
+			lookup = "corpus fence lookup"
+		}
+		msg += fmt.Sprintf("; %s failed: %v", lookup, e.cause)
 	}
 	if len(e.holdingScopeIDs) > 0 {
 		msg += fmt.Sprintf("; holding scopes: %s", strings.Join(e.holdingScopeIDs, ","))
