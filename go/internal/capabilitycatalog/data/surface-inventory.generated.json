@@ -2381,6 +2381,11 @@
     },
     {
       "category": "command",
+      "name": "collector-document-import",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
       "name": "collector-git",
       "readiness": "implemented"
     },
