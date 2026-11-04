@@ -11,11 +11,11 @@ import (
 
 // TestOSVReleaseTagsStayDormantUntilTheSDKCarriesThem pins the #9806 PR-2b-1
 // no-behavior-change contract (ruling decision 7). The converter now writes a
-// "releases" key on each OS range, but factschema v0.1.0-rc.12 has no field
-// for it, so the real contracts seam (DecodeAffectedPackage) drops the key and
-// the reducer never sees a tag. Every joined OSV OS fact therefore keeps its
-// PR-2a verdict. The bookworm row below is the one PR-2b's activation changes:
-// once the SDK carries Releases and the decode copies it, it reads
+// "releases" key on each OS range. factschema v0.1.0-rc.13 now declares
+// AffectedRange.Releases, but supplyChainAffectedRangesFromTyped does not copy
+// it into the reducer's range, so the reducer never sees a tag. Every joined
+// OSV OS fact therefore keeps its PR-2a verdict. The bookworm row below is the
+// one PR-2b's activation changes: once the decode copies Releases, it reads
 // affected_exact on its own line.
 //
 // The activation PR deletes this test; its inverse (the tag reaches the
@@ -42,7 +42,7 @@ func TestOSVReleaseTagsStayDormantUntilTheSDKCarriesThem(t *testing.T) {
 		}
 		for _, affectedRange := range pkg.AffectedRanges {
 			if affectedRange.Releases != nil {
-				t.Fatalf("decoded range carries Releases %v; the tag is dormant until the SDK pin that declares it", affectedRange.Releases)
+				t.Fatalf("decoded range carries Releases %v; the tag is dormant until the typed decode copies it", affectedRange.Releases)
 			}
 		}
 	}

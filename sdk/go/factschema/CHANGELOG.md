@@ -66,6 +66,26 @@ version — pinning this module pins the fixture pack too.
   groups from the operators. A flag of the wrong JSON type now fails the decode
   and quarantines the fact as `input_invalid`. Mirrors
   `github.com/eshu-hq/eshu-sdk/factschema` `v0.1.0-rc.12`.
+- `vulnerability.affected_package` gains an optional `releases` field on each
+  `AffectedRange` (issue #9806, additive minor, no decode shim). It names the
+  operating-system release lines a range applies to as sorted, distinct,
+  lowercase `<vendor>:<line>` strings (`debian:12`, `alpine:3.18`,
+  `ubuntu:22.04`). An omitted or empty value means "release unknown", never
+  "every release", and a fact is tagged on every ECOSYSTEM range or on none. A
+  value of the wrong JSON type now fails the decode and quarantines the fact as
+  `input_invalid`. Mirrors `github.com/eshu-hq/eshu-sdk/factschema`
+  `v0.1.0-rc.13`.
+- `vulnerability.os_package` gains an optional `source_package` field (issue
+  #9859, additive minor, no decode shim): the source package the installed
+  binary was built from, verbatim from the installed database. `name` stays
+  the installed binary key. There is deliberately no `source_version` field.
+  Mirrors `github.com/eshu-hq/eshu-sdk/factschema` `v0.1.0-rc.13`.
+- `reducer_supply_chain_impact_finding` gains three optional evidence fields
+  (issue #9859, additive minor, no decode shim): `os_package_match_derivation`
+  (`binary_package` or `source_package`), `installed_package_name`, and
+  `source_package`. They record which installed-row key an OS advisory
+  finding joined through. A finding written before them decodes with nil
+  fields. Mirrors `github.com/eshu-hq/eshu-sdk/factschema` `v0.1.0-rc.13`.
 
 ## [0.3.0] - 2026-10-28
 
