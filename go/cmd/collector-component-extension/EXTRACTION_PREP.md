@@ -102,14 +102,14 @@ queue, lease, reducer, API, MCP, or workflow handles.
 - Claim/lease/heartbeat/commit through `collector.ClaimedService`; the
   extension never touches claim mutation.
 - Public target contract pins: `eshu-sdk/collector v0.2.0-rc.3`,
-  `eshu-sdk/factschema v0.1.0-rc.14` (`go/go.mod:159-160`, re-verified
-  2026-11-04); toolchain directive `go 1.26.10`, installed `go1.26.6`
+  `eshu-sdk/factschema v0.1.0-rc.15` (`go/go.mod:159-160`, moved to rc.15
+  by #9958 on 2026-11-04); toolchain directive `go 1.26.10`, installed `go1.26.6`
   (mismatch recorded, no behavior impact on this doc).
 - Claim-plane pin: `eshu-workflow v0.1.0` (`go/go.mod:161`); protocol
   major `1` only (pairs recorded below).
 - Supported oldest/newest pairs for this boundary (box-9 record,
   re-verified 2026-11-04):
-  - SDK: `collector v0.2.0-rc.3` + `factschema v0.1.0-rc.14` (live pins
+  - SDK: `collector v0.2.0-rc.3` + `factschema v0.1.0-rc.15` (live pins
     above). The supported-combination policy lives in
     `docs/public/extend/sdk-compatibility.md` (initial `v0.1.0` pair,
     `v0.2.0` pair, historical `collector v0.1.0-rc.3` +

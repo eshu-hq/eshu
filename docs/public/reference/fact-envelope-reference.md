@@ -192,11 +192,11 @@ comparison state, update timestamps, and redaction flags; names, integration
 keys, routing keys, private URLs, and token-like URL parameters are omitted,
 sanitized, or fingerprinted.
 
-`vulnerability.source_snapshot` may include cache lifecycle metadata such as
-cache artifact version, snapshot digest, cache update time, expiration,
-freshness, and mode. These fields describe source observation state only; they
-do not prove vulnerability impact without reducer-owned package, image, or
-deployment evidence.
+`vulnerability.source_snapshot` may include cache lifecycle metadata (artifact
+version, snapshot digest, update time, `cache_expires_at`, freshness,
+`cache_mode`) and the source's `license` and `attribution`, which disclose the
+terms it was collected under and decide no access. None of these prove impact
+without reducer-owned package, image, or deployment evidence.
 
 `vulnerability.os_package` carries one installed OS package observation from
 an Alpine apk, Debian dpkg, or RPM-family queryformat snapshot. The payload

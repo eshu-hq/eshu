@@ -20,7 +20,7 @@ type nvdGoldenFact struct {
 }
 
 func TestNVDPagingGoldenFullContentDigest(t *testing.T) {
-	const expected = "bd1d347f1e89d27ad66c9014162d337bc9b7fa890a0abc5222314cf961e324fa"
+	const expected = "2c7c83dcfd8905ae7eddb753268fcbb0485e2cbda37839659e9ceacb3233c76a"
 	got := fmt.Sprintf("%x", sha256.Sum256(NVDPagingGolden()))
 	if got != expected {
 		t.Fatalf("NVD paging golden digest = %s, want %s; review every input and payload field before updating the pin", got, expected)
