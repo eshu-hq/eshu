@@ -271,8 +271,12 @@ queue path exists for Google Workspace documentation.
 Collector Deployment Evidence: no deployment artifact exists for Google
 Workspace documentation.
 
-No-Observability-Change: this removal adds no metric, span, log, status row,
-database query, graph write, queue consumer, or hosted runtime path.
+No-Observability-Change: the in-tree collector's metrics endpoint goes away
+with the deleted binary; collection telemetry now lives on the satellite's
+claim path (metrics Service and ServiceMonitor in the satellite-era chart),
+and this removal adds no new metric, span, log, status row, or dashboard.
+Live truth was proven equal to baseline on
+[#8859](https://github.com/eshu-hq/eshu/issues/8859).
 
 Live-Collector Chart Evidence: the in-tree `kubernetesLiveCollector` Helm surface
 is gone with the #8859 removal — no in-tree collector Deployment, binary, or
@@ -284,16 +288,12 @@ Cypher, reducer, queue, worker-count, batch, or graph write path. (Vault-live
 chart evidence left with the #8869 extraction; collection runs from
 `eshu-hq/eshu-collector-vault-live`.)
 
-No-Observability-Change: this removal adds no metric, span, log, status row,
-or dashboard; the deleted binary's metrics endpoint goes away with it while
-the satellite keeps serving the same read-only list calls behind its existing
-telemetry, proven by the A/B battery (12 kinds, 8479 facts, 0 dead letters).
-
-No-Regression Evidence: `go test ./internal/runtime -run
-'TestHelm(LiveCollectorDeployments|ClaimDrivenCollectorDeployments)' -count=1`
-proves the live collector is off by default, renders its full workload and
-RBAC surfaces with the correct binary command and env contract when enabled,
-and that the existing claim-driven collector render contract still holds.
+No-Regression Evidence: `capability-inventory -mode verify` and `-mode docs`
+pass with no findings on the repointed surface inventory, and
+`go test ./internal/envregistry/...` passes with the k8s-live entries removed.
+The `kubernetes_live` workload runs only from the extracted satellite seed
+image; live truth was proven equal to baseline on
+[#8859](https://github.com/eshu-hq/eshu/issues/8859).
 
 No-Observability-Change: the live-collector chart additions add no metric, span,
 structured log, status row, database query, graph write, or queue consumer.

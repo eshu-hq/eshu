@@ -129,9 +129,8 @@ No in-tree record pilot remains: the former `collector-kubernetes-live` pilot
 was retired with the #8859 in-tree collector removal and the former
 `collector-aws-cloud` pilot with #8852. Record with another binary that
 implements record mode; the extracted k8s-live satellite replays cassettes
-(proposed in `eshu-collector-kubernetes-live` PR #25, tracked by
-`eshu-collector-kubernetes-live#24` with the release cut from main after merge
-still NOT_CHECKED) but does not capture them — recording stays out of the
+(ported in `eshu-collector-kubernetes-live` v0.1.3) but does not capture
+them — recording stays out of the
 stdio claim plane (without a cluster there is nothing to capture, and one
 stdio result carries no artifact egress; see the satellite `README.md`
 cassette-replay section plus `collector/testdata/replay-*.json` and

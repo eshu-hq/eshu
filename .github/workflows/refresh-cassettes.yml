@@ -160,11 +160,9 @@ jobs:
       # only canonical redacted cassette bytes to testdata/cassettes/.
       # No record-capable pilot remains in-tree: the aws-cloud lane was
       # retired with #8852 and the kubernetes-live lane with #8859 (cassette
-      # replay ports to the eshu-collector-kubernetes-live satellite via PR
-      # #25, tracked by eshu-collector-kubernetes-live#24 with the release
-      # cut from main after merge still NOT_CHECKED; record capture stays out
-      # of the stdio claim plane). Add a new entry here when a new
-      # credentialed record-capable collector is onboarded.
+      # replay ported in the eshu-collector-kubernetes-live satellite v0.1.3;
+      # record capture stays out of the stdio claim plane). Add a new entry
+      # here when a new credentialed record-capable collector is onboarded.
       # GITHUB_TOKEN is the standard Actions token — used only for git push
       # and gh pr create, not as a provider credential.
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
