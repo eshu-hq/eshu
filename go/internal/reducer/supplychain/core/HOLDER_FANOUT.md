@@ -106,12 +106,17 @@ generation (payload `trigger: manifest_dependency`, entity key
 it to `handleManifestTrigger` before the fencing token and the evidence load
 (`manifest_trigger.go`). The marker pass writes no findings. It:
 
-1. Gates on activation with the shared generation freshness check, read through
-   `ManifestDependencyGenerationReader` on the fan-out port: active fans out, a
-   pending generation defers with the counting failure class
-   `supply_chain_impact_manifest_trigger_deferred` (the attempt budget bounds
-   it; a dead-lettered marker only falls back to the pre-#9874 behavior), and a
-   superseded one succeeds without work.
+1. Relies on the reducer runtime's generation guard first: under the default
+   runtime `Runtime.GenerationCheck` defers a pending generation before Handle
+   with the shared, non-counting `generation_activation_not_ready` class
+   (retried until the generation activates or turns terminal, then skipped as
+   superseded) and skips a superseded one, so the marker branch only sees
+   active generations (`TestRuntimeDefersAManifestMarkerBeforeTheHandler`).
+   The branch re-checks with the shared generation freshness check, read
+   through `ManifestDependencyGenerationReader` on the fan-out port: active fans
+   out; superseded, reachable only when a newer generation activates in the
+   gap, succeeds without work; pending is a defensive arm for a runtime without
+   the guard and returns the same `generation_activation_not_ready` error.
 2. Re-derives the changed packages from the generation's own dependency rows
    (`manifest_change.go`): with no activated prior, every pin; otherwise the
    symmetric difference of dependency signatures against the prior view, a delta
@@ -131,6 +136,11 @@ A marker item reopened by another pass's fan-out is not a one-hop no-op: its
 re-derivation is the holder fan-out, so it re-reads the generation and reopens
 the holders again. That terminates, because a holder pass that changes nothing
 fans out nothing.
+
+Not reopened: security alert scopes. They build findings from manifest
+consumptions too (`appendSecurityAlertImpactFindings`), but the holder read
+covers only `vulnerability.affected_package` facts, so an alert finding whose
+matched pin changed waits for that alert scope's next generation.
 
 Known limit: when the prior generation is a delta whose base cannot be read
 (missing, pruned, or a legacy delta), the prior view is the delta's own rows,

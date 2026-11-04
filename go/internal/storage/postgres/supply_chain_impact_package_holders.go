@@ -17,19 +17,21 @@ import (
 // identities, outside the asking scope, whose folded ecosystem spelling is one
 // of $1 (every alias of the requested ecosystems, see ecosystemSpellings): the
 // #9874 package-keyed holder read. No index anchors affected_package by
-// (ecosystem, name), so the read walks each scope's active generation through
-// fact_records_scope_generation_idx (the nested loop over ingestion_scopes
-// seeks only active generations, so superseded rows cost nothing) and filters
-// the ecosystem as a residual. The handler matches names with the findings
-// pass's own consumption-key join, so this read stays a coarse prefilter and
-// never under-matches a name spelling. There is no DISTINCT and no ORDER BY on
-// purpose: the text sort was most of the statement at 10x (about 195 ms
-// against 39 ms without it); the store dedupes.
+// (ecosystem, name), so the ecosystem is a residual filter. With few scopes
+// the planner probes each scope's active generation through
+// fact_records_vulnerability_affected_package_active_scan_idx; with many
+// scopes it bitmap-scans that whole partial index, superseded rows included,
+// and joins to the active generation afterwards, so cost grows with every
+// retained affected-package row of the requested ecosystems. The handler
+// matches names with the findings pass's own consumption-key join, so this
+// read stays a coarse prefilter and never under-matches a name spelling.
+// There is no DISTINCT and no ORDER BY on purpose: the text sort was most of
+// the statement at 10x; the store dedupes.
 //
 // Performance Evidence: docs/internal/evidence/9874-lockfile-retrigger.md
-// (PG 18.6, synthetic 600 advisory scopes; median 41.5 ms at 50,000 active
-// affected-package rows, linear at about 0.8 us per row, under the 10 s
-// holder-read statement timeout).
+// (PG 18.6, synthetic 50,000 active plus 50,000 superseded affected-package
+// rows: median 46.6 ms over 1,101 scopes, median 65.3 ms over 20,601 scopes;
+// under the 10 s holder-read statement timeout).
 const findPackageHolderCandidatesQuery = `
 SELECT fact.scope_id,
        COALESCE(fact.payload->>'ecosystem', ''),
