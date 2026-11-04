@@ -45,18 +45,6 @@ func main() {
 }
 
 func run(parent context.Context, logger *slog.Logger) error {
-	bootstrap, err := telemetry.NewBootstrap(runtimeName)
-	if err != nil {
-		return fmt.Errorf("telemetry bootstrap: %w", err)
-	}
-	providers, err := telemetry.NewProviders(parent, bootstrap)
-	if err != nil {
-		return fmt.Errorf("telemetry providers: %w", err)
-	}
-	defer func() {
-		_ = providers.Shutdown(context.Background())
-	}()
-
 	cfg, err := loadImportConfig(os.Getenv)
 	if err != nil {
 		return err
@@ -68,6 +56,18 @@ func run(parent context.Context, logger *slog.Logger) error {
 		)
 		return nil
 	}
+
+	bootstrap, err := telemetry.NewBootstrap(runtimeName)
+	if err != nil {
+		return fmt.Errorf("telemetry bootstrap: %w", err)
+	}
+	providers, err := telemetry.NewProviders(parent, bootstrap)
+	if err != nil {
+		return fmt.Errorf("telemetry providers: %w", err)
+	}
+	defer func() {
+		_ = providers.Shutdown(context.Background())
+	}()
 
 	pprofSrv, err := runtimecfg.NewPprofServer(os.Getenv)
 	if err != nil {

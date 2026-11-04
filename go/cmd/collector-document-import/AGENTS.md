@@ -23,8 +23,11 @@
 - No polling loop, no status server, no claim mechanics: one-shot drain,
   then exit. If `collector.Service` semantics become necessary, prove it from
   `go/internal/collector/service.go` first.
-- Keep the artifact cap positive and the reads bounded: `io.LimitReader` at
-  `maxBytes+1`, `Lstat` before open, no symlink following.
+- Keep the artifact cap positive and residency to one file: `io.LimitReader`
+  at `maxBytes+1`, `Lstat` before open, `os.SameFile` after open, no bodies
+  retained between scan and drain, no symlink following.
+- File names are persisted verbatim: keep them inert; redaction covers
+  contents only.
 
 ## Verification
 

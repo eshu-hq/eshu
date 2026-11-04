@@ -28,25 +28,44 @@ const fixturePNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk
 // stubEngine is a scripted ocr.Engine. Tests inject it so no test depends on
 // a tesseract installation; the pinned backend is wired only in main.
 type stubEngine struct {
-	mu       sync.Mutex
-	calls    int
-	result   ocr.EngineResult
-	err      error
-	received []ocr.Image
+	mu           sync.Mutex
+	extractCalls int
+	recognCalls  int
+	result       ocr.EngineResult
+	err          error
+	received     []ocr.Image
 }
 
 func (s *stubEngine) Recognize(_ context.Context, image ocr.Image) (ocr.EngineResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.calls++
+	s.recognCalls++
 	s.received = append(s.received, image)
 	return s.result, s.err
+}
+
+// Extract mirrors the pinned backend's wrapper contract: it installs the
+// engine on the request and runs the shared extraction path (preflight plus
+// redaction), so the canary tests observe production behavior with a
+// controlled engine result.
+func (s *stubEngine) Extract(ctx context.Context, req ocr.Request) (ocr.Result, error) {
+	s.mu.Lock()
+	s.extractCalls++
+	s.mu.Unlock()
+	req.Engine = s
+	return ocr.Extract(ctx, req)
+}
+
+func (s *stubEngine) extractCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.extractCalls
 }
 
 func (s *stubEngine) callCount() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.calls
+	return s.recognCalls
 }
 
 // fakeCommitter captures committed generations without a database.
@@ -97,7 +116,7 @@ func decodePNG(t *testing.T) []byte {
 	return body
 }
 
-func testSourceOptions(engine ocr.Engine) sourceOptions {
+func testSourceOptions(engine extractor) sourceOptions {
 	return sourceOptions{
 		engine:        engine,
 		sourceSystem:  "document_import_test",
@@ -106,7 +125,7 @@ func testSourceOptions(engine ocr.Engine) sourceOptions {
 	}
 }
 
-func drain(t *testing.T, dir string, engine ocr.Engine, committer *fakeCommitter) (int, int) {
+func drain(t *testing.T, dir string, engine extractor, committer *fakeCommitter) (int, int) {
 	t.Helper()
 	src, err := newDirSource(dir, testSourceOptions(engine), slog.Default())
 	if err != nil {
@@ -222,7 +241,9 @@ func TestSourceWithholdsSpokenAPIKeyCanary(t *testing.T) {
 		},
 	}
 	committer := &fakeCommitter{}
-	drain(t, dir, engine, committer)
+	if generations, envelopes := drain(t, dir, engine, committer); generations != 1 || envelopes == 0 {
+		t.Fatalf("spoken canary run: got (%d, %d), want (1, >0)", generations, envelopes)
+	}
 	if joined := fmt.Sprintf("%v", committer.envelopes); strings.Contains(joined, canary) {
 		t.Fatalf("committed envelopes contain the API key canary")
 	}
@@ -368,3 +389,81 @@ func TestSourceSameContentSameGeneration(t *testing.T) {
 // commit boundary: drainOnce accepts it as a collector.Source, and this
 // compile-time assertion pins the relationship.
 var _ collector.Source = (*dirSource)(nil)
+
+// TestSourceRoutesThroughExtractionWrapper proves the drain uses the
+// telemetry-recording extraction entry point, not a bare engine call: every
+// drained artifact passes through Extract exactly once, while the engine
+// itself runs only when preflight accepts the bytes.
+func TestSourceRoutesThroughExtractionWrapper(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	writeArtifact(t, dir, "ok.png", decodePNG(t))
+	writeArtifact(t, dir, "skip.txt", []byte("not an image"))
+	engine := &stubEngine{}
+	committer := &fakeCommitter{}
+	if generations, _ := drain(t, dir, engine, committer); generations != 2 {
+		t.Fatalf("wrapper route: generations = %d, want 2 (image plus skipped record)", generations)
+	}
+	if got := engine.extractCount(); got != 2 {
+		t.Fatalf("wrapper route: Extract calls = %d, want 2", got)
+	}
+	if got := engine.callCount(); got != 1 {
+		t.Fatalf("wrapper route: engine Recognize calls = %d, want 1 (preflight skips the text file)", got)
+	}
+}
+
+// TestSourceRespectsArtifactCap proves the per-run bound holds with
+// streaming residency: the first artifact drains, the rest count over cap,
+// and the engine never sees them.
+func TestSourceRespectsArtifactCap(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	first := decodePNG(t)
+	second := append(append([]byte(nil), first...), 0x00)
+	writeArtifact(t, dir, "a.png", first)
+	writeArtifact(t, dir, "b.png", second)
+	opts := testSourceOptions(&stubEngine{})
+	opts.maxArtifacts = 1
+	engine := opts.engine.(*stubEngine)
+	src, err := newDirSource(dir, opts, slog.Default())
+	if err != nil {
+		t.Fatalf("newDirSource: %v", err)
+	}
+	committer := &fakeCommitter{}
+	generations, _, err := drainOnce(context.Background(), src, committer, slog.Default())
+	if err != nil {
+		t.Fatalf("drainOnce: %v", err)
+	}
+	if generations != 1 {
+		t.Fatalf("capped drain: generations = %d, want 1", generations)
+	}
+	if got := engine.extractCount(); got != 1 {
+		t.Fatalf("capped drain: Extract calls = %d, want 1", got)
+	}
+}
+
+// TestSourceRejectsChangedBytes proves a file rewritten between scan and
+// drain fails the run instead of committing under a stale content identity.
+func TestSourceRejectsChangedBytes(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	writeArtifact(t, dir, "a.png", decodePNG(t))
+	engine := &stubEngine{}
+	src, err := newDirSource(dir, testSourceOptions(engine), slog.Default())
+	if err != nil {
+		t.Fatalf("newDirSource: %v", err)
+	}
+	replacement := decodePNG(t)
+	replacement[20] ^= 0xff
+	writeArtifact(t, dir, "a.png", replacement)
+	committer := &fakeCommitter{}
+	if _, _, err := drainOnce(context.Background(), src, committer, slog.Default()); err == nil {
+		t.Fatalf("changed bytes: got nil error, want a stale-identity failure")
+	}
+	if committer.generations() != 0 {
+		t.Fatalf("changed bytes: %d generations committed, want 0", committer.generations())
+	}
+}

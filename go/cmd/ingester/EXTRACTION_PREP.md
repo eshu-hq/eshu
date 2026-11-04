@@ -115,9 +115,10 @@ version table is duplicated here — the registry is the source of truth.
 
 Dormancy proof: `rg` for `collector/document|collector/preflight` across
 `go/cmd/ingester/*.go` and `go/internal/app/*.go` (excluding tests) returns
-no matches. The single non-test call edge outside the six-package subtree is
+no matches. The single caller binary outside the six-package subtree is
 `go/cmd/collector-document-import` (wired, disabled by default, zero QA-tier
-execution; verified by `git grep` at the wiring SHA). The other five
+execution; verified by `git grep` at the wiring SHA; it imports the `ocr` and
+`tesseract` backends). The other five
 capabilities have no caller. Hosted activation for media/ocr stays **DISABLED**
 until sandbox and runtime proof pass. Retained parser core (not assigned here):
 `preflight/archive`, `preflight/diagram`, `preflight/ooxml` (Git document

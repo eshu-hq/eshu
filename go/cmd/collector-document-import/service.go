@@ -8,8 +8,6 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/collector/document/ocr"
 	"github.com/eshu-hq/eshu/go/internal/collector/document/ocr/tesseract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -24,7 +22,10 @@ type drainFunc func(context.Context) (generations int, envelopes int, err error)
 // and returns the one-shot drain. Verification runs the binary's --version
 // check and every digest pin first; any mismatch is a startup error, never a
 // fallback to another engine. The committer is the normal ingestion store, so
-// committed envelopes flow through the standard durable path unchanged.
+// committed envelopes flow through the standard durable path unchanged. The
+// drain goes through the backend's Extract wrapper, which is the sole
+// emitter of the eshu_dp_ocr_* extraction signals on this path
+// (No-Observability-Change: existing signals, no new metric).
 func buildDrain(
 	database db.ExecQueryer,
 	cfg Config,
@@ -35,7 +36,7 @@ func buildDrain(
 	if !cfg.Enabled {
 		return nil, fmt.Errorf("document import collector is disabled")
 	}
-	engine, err := buildEngine(cfg.Tesseract, logger)
+	engine, err := buildEngine(cfg.Tesseract, tracer, instruments, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -58,9 +59,19 @@ func buildDrain(
 }
 
 // buildEngine verifies the pinned tesseract installation and returns the
-// backend. Any mismatch is a startup error, never a fallback to another
-// engine: there is no default engine and no fixture fallback on this path.
-func buildEngine(cfg tesseract.Config, logger *slog.Logger) (ocr.Engine, error) {
+// backend. Provider signals are attached before verification so the Extract
+// wrapper emits extraction telemetry on this path. Any mismatch is a startup
+// error, never a fallback to another engine: there is no default engine and
+// no fixture fallback on this path.
+func buildEngine(
+	cfg tesseract.Config,
+	tracer trace.Tracer,
+	instruments *telemetry.Instruments,
+	logger *slog.Logger,
+) (*tesseract.Engine, error) {
+	cfg.Tracer = tracer
+	cfg.Instruments = instruments
+	cfg.Logger = logger
 	engine, err := tesseract.New(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("verify pinned tesseract backend: %w", err)
@@ -72,5 +83,3 @@ func buildEngine(cfg tesseract.Config, logger *slog.Logger) (ocr.Engine, error) 
 	}
 	return engine, nil
 }
-
-var _ collector.Source = (*dirSource)(nil)

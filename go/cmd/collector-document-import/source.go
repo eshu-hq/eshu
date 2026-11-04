@@ -21,17 +21,18 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
-// artifact is one regular file read from the artifact directory with its
-// content identity. Identity derives from bytes, never from file names, so a
-// rename or a duplicate copy drains as the same generation.
+// artifact is one regular file accepted at scan time. Identity derives from
+// content bytes, never from file names, so a rename or a duplicate copy
+// drains as the same generation. Bodies are never retained: Next re-reads
+// each file at drain time, so peak residency is one artifact.
 type artifact struct {
 	name string
-	body []byte
 	hash [32]byte
+	size int64
 }
 
-// scanReport is the outcome of listing the artifact directory: the readable
-// regular files plus the count of entries skipped per hostile class.
+// scanReport is the outcome of listing the artifact directory: the accepted
+// descriptors plus the count of entries skipped per hostile class.
 type scanReport struct {
 	artifacts        []artifact
 	skippedIrregular int
@@ -40,10 +41,18 @@ type scanReport struct {
 	skippedOverCap   int
 }
 
+// extractor is the extraction entry point: it runs the request and records
+// extraction telemetry. The pinned tesseract backend implements it with its
+// Extract wrapper; tests inject a stub over the same seam.
+type extractor interface {
+	Extract(context.Context, ocr.Request) (ocr.Result, error)
+}
+
 // sourceOptions carries the per-run extraction inputs. Tests inject a stub
-// engine; production passes the pinned tesseract backend built in service.go.
+// extractor; production passes the pinned tesseract backend built in
+// service.go.
 type sourceOptions struct {
-	engine        ocr.Engine
+	engine        extractor
 	sourceSystem  string
 	scopePrefix   string
 	maxInputBytes int64
@@ -54,6 +63,7 @@ type sourceOptions struct {
 // to collector.Source: one collected generation per distinct file, drained in
 // sorted name order. It implements collector.Source.
 type dirSource struct {
+	dir       string
 	options   sourceOptions
 	artifacts []artifact
 	index     int
@@ -67,7 +77,7 @@ var _ collector.Source = (*dirSource)(nil)
 // be listed. An empty directory drains to zero generations without an error.
 func newDirSource(dir string, options sourceOptions, logger *slog.Logger) (*dirSource, error) {
 	if options.engine == nil {
-		return nil, fmt.Errorf("document import source requires an OCR engine")
+		return nil, fmt.Errorf("document import source requires an OCR extractor")
 	}
 	report, err := scanArtifactDir(dir, options.maxInputBytes, options.maxArtifacts)
 	if err != nil {
@@ -84,12 +94,13 @@ func newDirSource(dir string, options sourceOptions, logger *slog.Logger) (*dirS
 		"skipped_duplicate", report.skippedDuplicate,
 		"skipped_over_cap", report.skippedOverCap,
 	)
-	return &dirSource{options: options, artifacts: report.artifacts, logger: logger}, nil
+	return &dirSource{dir: dir, options: options, artifacts: report.artifacts, logger: logger}, nil
 }
 
-// scanArtifactDir lists regular files in sorted order with bounded reads.
-// Symlinks, directories, devices, oversize files, duplicate content, and
-// entries past the artifact cap are skipped and counted, never committed.
+// scanArtifactDir lists regular files in sorted order, hashing each accepted
+// body to derive its identity. Symlinks, directories, devices, oversize
+// files, duplicate content, and entries past the artifact cap are skipped
+// and counted, never committed and never retained in memory.
 func scanArtifactDir(dir string, maxBytes int64, maxArtifacts int) (scanReport, error) {
 	var report scanReport
 	entries, err := os.ReadDir(dir)
@@ -111,24 +122,23 @@ func scanArtifactDir(dir string, maxBytes int64, maxArtifacts int) (scanReport, 
 			report.skippedIrregular++
 			continue
 		}
-		path := filepath.Join(dir, name)
-		if rel, err := filepath.Rel(dir, path); err != nil || rel != name {
+		if err := checkInsideDir(dir, name); err != nil {
 			report.skippedIrregular++
 			continue
 		}
-		if !isRegularLink(path) {
-			report.skippedIrregular++
+		if maxArtifacts > 0 && len(report.artifacts) >= maxArtifacts {
+			report.skippedOverCap++
 			continue
 		}
-		body, regular, err := readRegularFile(path, maxBytes)
+		body, err := readVerifiedRegular(filepath.Join(dir, name), maxBytes)
 		if err != nil {
 			return scanReport{}, err
 		}
-		if !regular {
+		if body == nil {
 			report.skippedIrregular++
 			continue
 		}
-		if body == nil {
+		if len(body) > int(maxBytes) {
 			report.skippedOversize++
 			continue
 		}
@@ -138,60 +148,77 @@ func scanArtifactDir(dir string, maxBytes int64, maxArtifacts int) (scanReport, 
 			continue
 		}
 		seen[hash] = true
-		if maxArtifacts > 0 && len(report.artifacts) >= maxArtifacts {
-			report.skippedOverCap++
-			continue
-		}
-		report.artifacts = append(report.artifacts, artifact{name: name, body: body, hash: hash})
+		report.artifacts = append(report.artifacts, artifact{name: name, hash: hash, size: int64(len(body))})
 	}
 	return report, nil
 }
 
-// isRegularLink reports whether path is a regular file without following a
-// symlink: links, directories, and devices all report false. Lstat runs
-// before open so a pre-existing symlink never reaches the reader.
-func isRegularLink(path string) bool {
-	info, err := os.Lstat(path)
-	if err != nil {
-		return false
+// checkInsideDir rejects names that escape the artifact directory.
+func checkInsideDir(dir, name string) error {
+	rel, err := filepath.Rel(dir, filepath.Join(dir, name))
+	if err != nil || rel != name {
+		return fmt.Errorf("artifact name %q escapes its directory", name)
 	}
-	return info.Mode().IsRegular()
+	return nil
 }
 
-// readRegularFile opens path (already gated by isRegularLink) and reads at
-// most maxBytes+1 to detect oversize inputs. It re-checks regular-file status
-// after open and reports false for anything else; a nil body with regular
-// true means the content exceeds the cap.
-func readRegularFile(path string, maxBytes int64) (body []byte, regular bool, err error) {
+// openVerifiedRegular opens a path that Lstat proves regular, then verifies
+// the open file is the same file the Lstat observed. A symlink swapped in
+// between the two checks (or any non-regular open) fails instead of reading
+// through the link.
+func openVerifiedRegular(path string) (*os.File, error) {
+	linkInfo, err := os.Lstat(path)
+	if err != nil {
+		return nil, fmt.Errorf("stat artifact: %w", err)
+	}
+	if !linkInfo.Mode().IsRegular() {
+		return nil, nil
+	}
 	file, err := os.Open(path)
 	if err != nil {
-		return nil, false, fmt.Errorf("open artifact: %w", err)
+		return nil, fmt.Errorf("open artifact: %w", err)
+	}
+	openInfo, err := file.Stat()
+	if err != nil {
+		_ = file.Close()
+		return nil, fmt.Errorf("stat open artifact: %w", err)
+	}
+	if !openInfo.Mode().IsRegular() || !os.SameFile(linkInfo, openInfo) {
+		_ = file.Close()
+		return nil, nil
+	}
+	return file, nil
+}
+
+// readVerifiedRegular reads at most maxBytes+1 to detect oversize inputs. It
+// returns a nil body when the path is not a stable regular file (skipped,
+// never fatal); exceeding the cap surfaces as an over-long body the caller
+// counts as oversize.
+func readVerifiedRegular(path string, maxBytes int64) (body []byte, err error) {
+	file, err := openVerifiedRegular(path)
+	if err != nil {
+		return nil, err
+	}
+	if file == nil {
+		return nil, nil
 	}
 	defer func() {
 		_ = file.Close()
 	}()
-	info, err := file.Stat()
-	if err != nil {
-		return nil, false, fmt.Errorf("stat artifact: %w", err)
-	}
-	if !info.Mode().IsRegular() {
-		return nil, false, nil
-	}
 	limited := io.LimitReader(file, maxBytes+1)
 	body, err = io.ReadAll(limited)
 	if err != nil {
-		return nil, false, fmt.Errorf("read artifact: %w", err)
+		return nil, fmt.Errorf("read artifact: %w", err)
 	}
-	if int64(len(body)) > maxBytes {
-		return nil, true, nil
-	}
-	return body, true, nil
+	return body, nil
 }
 
-// Next extracts the next artifact and adapts its envelopes to one collected
+// Next re-reads the next artifact, verifies its bytes still match the scanned
+// identity, extracts it, and adapts the envelopes to one collected
 // generation. It returns ok=false when the directory is drained. A cancelled
 // context fails before extraction and before any commit, so no partial
-// generation is persisted.
+// generation is persisted. A file whose bytes changed since the scan fails
+// the run instead of committing under a stale identity.
 func (s *dirSource) Next(ctx context.Context) (collector.CollectedGeneration, bool, error) {
 	if err := ctx.Err(); err != nil {
 		return collector.CollectedGeneration{}, false, err
@@ -204,7 +231,17 @@ func (s *dirSource) Next(ctx context.Context) (collector.CollectedGeneration, bo
 	if err := ctx.Err(); err != nil {
 		return collector.CollectedGeneration{}, false, err
 	}
-	result, err := ocr.Extract(ctx, s.request(item))
+	body, err := readVerifiedRegular(filepath.Join(s.dir, item.name), s.options.maxInputBytes)
+	if err != nil {
+		return collector.CollectedGeneration{}, false, fmt.Errorf("re-read %q: %w", item.name, err)
+	}
+	if body == nil {
+		return collector.CollectedGeneration{}, false, fmt.Errorf("artifact %q changed shape during the drain", item.name)
+	}
+	if hash := sha256.Sum256(body); hash != item.hash {
+		return collector.CollectedGeneration{}, false, fmt.Errorf("artifact %q bytes changed during the drain", item.name)
+	}
+	result, err := s.options.engine.Extract(ctx, s.request(item, body))
 	if err != nil {
 		return collector.CollectedGeneration{}, false, fmt.Errorf("extract %q: %w", item.name, err)
 	}
@@ -237,7 +274,7 @@ func (s *dirSource) Next(ctx context.Context) (collector.CollectedGeneration, bo
 // request builds the OCR request for one artifact. Identity fields derive
 // from the content hash so re-runs over identical bytes name the same
 // generation; human labels carry the operator-supplied file name.
-func (s *dirSource) request(item artifact) ocr.Request {
+func (s *dirSource) request(item artifact, body []byte) ocr.Request {
 	hashHex := hex.EncodeToString(item.hash[:])
 	return ocr.Request{
 		ScopeID:        s.options.scopePrefix + "-" + hashHex[:16],
@@ -252,8 +289,8 @@ func (s *dirSource) request(item artifact) ocr.Request {
 		ExternalID:     hashHex,
 		RevisionID:     "dococr-" + hashHex,
 		Title:          item.name,
-		Body:           item.body,
-		Engine:         s.options.engine,
+		Body:           body,
+		Options:        ocr.Options{},
 	}
 }
 

@@ -69,8 +69,11 @@ Digests accept an optional `sha256:` prefix. Caps come from the pinned
 
 ## Telemetry
 
-- Metrics: `eshu_dp_ocr_*` — emitted by the extraction path, unchanged.
-- Spans: the standard collector observe spans around each commit.
+- Metrics: `eshu_dp_ocr_extractions_total` and redacted-region counts — emitted
+  on this path through the backend's `Extract` wrapper, which is the sole
+  emitter (the raw engine call carries no instruments). No-Observability-Change:
+  existing signals, no new metric.
+- Spans: `SpanOCRExtract` per artifact plus the standard commit-level spans.
 - Logs: JSON lines; scan counts at startup, one line per committed generation,
   drain totals at exit. No OCR text ever reaches logs or spans: the engine
   contract keeps raw text out of errors, and redaction runs before envelopes.
@@ -87,6 +90,12 @@ Digests accept an optional `sha256:` prefix. Caps come from the pinned
   generations stay committed, unstarted ones never begin.
 - Non-image files commit the honest skipped observation the `ocr` package
   already emits; the engine is never invoked for them.
+- Artifact file names persist verbatim in the document `Title` and in scope
+  metadata (`artifact_name`); only the source URI passes through the
+  redacting `safeSourceURI`. Use inert file names: redaction applies to file
+  contents, not to names.
+- A file rewritten between scan and drain fails the run instead of committing
+  under a stale content identity.
 - Gate status: this wiring records checklist item (ii) only. It flips neither
   gate and changes no stage; hosted activation stays disabled.
 

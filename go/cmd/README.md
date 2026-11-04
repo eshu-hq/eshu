@@ -32,6 +32,7 @@ exact binary set on `PATH`.
 | `eshu-collector-cicd-run` | `collector-cicd-run/` | Long-running hosted GitHub Actions CI/CD run collector |
 | `eshu-collector-pagerduty` | `collector-pagerduty/` | Long-running PagerDuty incident-context collector |
 | `eshu-collector-grafana` | `collector-grafana/` | Long-running live Grafana metadata collector |
+| `eshu-collector-document-import` | `collector-document-import/` | One-shot disabled-by-default reviewed-image OCR drain (no deployment) |
 | `eshu-collector-prometheus-mimir` | `collector-prometheus-mimir/` | Long-running live Prometheus and Mimir metadata collector |
 | `eshu-webhook-intake` | `webhook-intake/` | Long-running core intake host for the extracted webhook satellite |
 | `eshu-admin-status` | `admin-status/` | Admin/status read helper |
