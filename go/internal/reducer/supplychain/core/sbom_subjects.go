@@ -5,9 +5,11 @@ package core
 
 import (
 	"encoding/json"
+	"slices"
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
@@ -277,10 +279,22 @@ func coalesceAndSortSupplyChainImpactFindings(findings []SupplyChainImpactFindin
 		}
 		previous := &out[len(out)-1]
 		conflict := previous.MatchReason != finding.MatchReason || previous.Confidence != finding.Confidence
+		// Two findings share a writer identity without sharing an SBOM when the
+		// identity cannot tell digest-less release lines apart (a purl with no
+		// distro qualifier, #9984). Their disagreement is not a conflict between
+		// SBOM components, so it must not wear that label.
+		fromSBOM := findingHasSBOMComponentPath(*previous) || findingHasSBOMComponentPath(finding)
 		previous.EvidenceFactIDs = payloadcore.UniqueSortedStrings(append(previous.EvidenceFactIDs, finding.EvidenceFactIDs...))
 		previous.EvidencePath = payloadcore.UniqueSortedStrings(append(previous.EvidencePath, finding.EvidencePath...))
 		previous.MissingEvidence = payloadcore.UniqueSortedStrings(append(previous.MissingEvidence, finding.MissingEvidence...))
-		if conflict {
+		if conflict && !fromSBOM {
+			// The sort keeps the lesser reason in previous, so the reason does not
+			// depend on arrival order. Differing confidence settles on the weaker.
+			if previous.Confidence != finding.Confidence {
+				previous.Confidence = "partial"
+			}
+			*previous = appendSupplyChainImpactFinding(nil, *previous)[0]
+		} else if conflict {
 			previous.Status = SupplyChainImpactPossiblyAffected
 			previous.Confidence = "partial"
 			previous.MatchReason = supplyChainVersionReasonSBOMVersionConflict
@@ -293,6 +307,13 @@ func coalesceAndSortSupplyChainImpactFindings(findings []SupplyChainImpactFindin
 		return supplyChainImpactStableKey(out[i]) < supplyChainImpactStableKey(out[j])
 	})
 	return out
+}
+
+// findingHasSBOMComponentPath reports whether classification read an SBOM
+// component for the finding, which is the only evidence the SBOM-conflict label
+// speaks about.
+func findingHasSBOMComponentPath(finding SupplyChainImpactFinding) bool {
+	return slices.Contains(finding.EvidencePath, chain.SBOMComponentFactKind)
 }
 
 func supplyChainImpactStableKey(finding SupplyChainImpactFinding) string {
