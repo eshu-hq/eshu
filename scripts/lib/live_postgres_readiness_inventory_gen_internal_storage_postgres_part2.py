@@ -362,6 +362,10 @@ TABLE = {
             "TestSupplyChainImpactBranchPlansStayOnAnchorsLive",
             "TestSupplyChainImpactNewIndexInsertCostLive",
         ),
+        "go/internal/storage/postgres/supply_chain_impact_fleet_gate_9875_live_test.go": (
+            "TestFleetAcceptanceGateKEVReachesServiceRollup9875Live",
+            "TestFleetAcceptanceGateFailsWhenEvidenceIsWithheld9875Live",
+        ),
         "go/internal/storage/postgres/supply_chain_impact_protected_static_publish_live_test.go": (
             "TestSupplyChainImpactProtectedStaticPublishLive",
             "TestSupplyChainImpactProtectedPublishCapturesWinnersDirtyKeysLive",
