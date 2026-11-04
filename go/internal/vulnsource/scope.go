@@ -26,6 +26,10 @@ const (
 	SourceFirstEPSS = "first_epss"
 	// SourceGLAD names GitLab Advisory Database targets (vuln-intel://glad/...).
 	SourceGLAD = "glad"
+	// SourceGHSA names GitHub Advisory Database targets
+	// (vuln-intel://ghsa/reviewed and vuln-intel://ghsa/malware). Unreviewed
+	// GitHub advisories are out of scope and have no scope id.
+	SourceGHSA = "ghsa"
 )
 
 // DefaultFreshnessWindow is how long a successful source observation stays
@@ -40,7 +44,10 @@ const scopeIDPrefix = "vuln-intel://"
 // vuln-intel://osv/<ecosystem>/... and vuln-intel://first_epss/_findings/<chunk>
 // for derived targets, and configured targets use vuln-intel://nvd/...,
 // vuln-intel://cisa/kev, vuln-intel://first/epss, and
-// vuln-intel://glad/<ecosystem>. Matching is exact and case-sensitive, the
+// vuln-intel://glad/<ecosystem>, plus vuln-intel://ghsa/<reviewed|malware>
+// where the advisory type must be exactly one of those two segments with
+// nothing after it (a '?' suffix is allowed, as for the other sources).
+// Matching is exact and case-sensitive, the
 // same way readiness compares scope ids. ok is false for any scope id outside
 // that grammar, so a caller never invents a source token.
 func SourceForScopeID(scopeID string) (string, bool) {
@@ -52,6 +59,10 @@ func SourceForScopeID(scopeID string) (string, bool) {
 	switch authority {
 	case SourceOSV, SourceNVD, SourceGLAD:
 		return authority, true
+	case SourceGHSA:
+		if segment, tail := splitScopeSegment(path); (segment == "reviewed" || segment == "malware") && tail == "" && !strings.Contains(path, "/") {
+			return SourceGHSA, true
+		}
 	case "cisa":
 		if segment, _ := splitScopeSegment(path); segment == "kev" {
 			return SourceCISAKEV, true

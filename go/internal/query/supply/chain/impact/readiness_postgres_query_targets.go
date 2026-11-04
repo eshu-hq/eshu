@@ -39,6 +39,12 @@ const (
 // routes; only an exact NVD CVE selector may certify empty advisory coverage.
 // CVE ids compare case-insensitively (upper case on both sides), matching the
 // collector's strings.EqualFold selection and the producer's descriptor.
+//
+// A ghsa target (#9959) is a well-formed source the workflow validator admits,
+// so the malformed check accepts it. It is never a readiness candidate: it
+// carries no CVE selector and no ecosystem, and its records carry no CVE key,
+// so neither the CVE arm nor the osv/glad ecosystem arm selects it. Its state
+// rows stay out of fetchConfirmedSources for the same reason.
 const readinessConfiguredSourceTargetsCTE = `invalid_vulnerability_source_targets AS (
     SELECT EXISTS (
         SELECT 1 FROM collector_instances AS instance
@@ -55,7 +61,7 @@ const readinessConfiguredSourceTargetsCTE = `invalid_vulnerability_source_target
                      OR JSONB_TYPEOF(target->'scope_id') IS DISTINCT FROM 'string'
                      OR NULLIF(TRIM(target->>'scope_id'), '') IS NULL
                      OR JSONB_TYPEOF(target->'source') IS DISTINCT FROM 'string'
-                     OR TRIM(target->>'source') NOT IN ('nvd', 'first_epss', 'cisa_kev', 'osv')
+                     OR TRIM(target->>'source') NOT IN ('nvd', 'first_epss', 'cisa_kev', 'osv', 'ghsa')
                      OR COALESCE(JSONB_TYPEOF(target->'cve_ids'), 'null') NOT IN ('array', 'null')
                      OR COALESCE(JSONB_TYPEOF(target->'fallback_urls'), 'null') NOT IN ('array', 'null')
                      OR (TRIM(target->>'source') IN ('nvd', 'first_epss')

@@ -25,8 +25,8 @@ func TestReadinessSourceTokensAgreeWithSharedSourceParser(t *testing.T) {
 		t.Fatal("accepted source list not found in ListReadinessQuery")
 	}
 	tokens := regexp.MustCompile(`'([a-z_]+)'`).FindAllStringSubmatch(accepted[1], -1)
-	if len(tokens) < 4 {
-		t.Fatalf("found %d accepted source tokens, want at least 4 (nvd, first_epss, cisa_kev, osv)", len(tokens))
+	if len(tokens) < 5 {
+		t.Fatalf("found %d accepted source tokens, want at least 5 (nvd, first_epss, cisa_kev, osv, ghsa)", len(tokens))
 	}
 	scopeFor := map[string]string{
 		"nvd":        "vuln-intel://nvd/cve",
@@ -34,6 +34,7 @@ func TestReadinessSourceTokensAgreeWithSharedSourceParser(t *testing.T) {
 		"cisa_kev":   "vuln-intel://cisa/kev",
 		"osv":        "vuln-intel://osv/npm",
 		"glad":       "vuln-intel://glad/npm",
+		"ghsa":       "vuln-intel://ghsa/reviewed",
 	}
 	for _, token := range tokens {
 		scopeID, known := scopeFor[token[1]]

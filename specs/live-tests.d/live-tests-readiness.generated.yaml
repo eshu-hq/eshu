@@ -189,6 +189,11 @@ tests:
     class: postgres_ci
     reason: "#9322 disposable PostgreSQL proof that Swift and OS-distribution derived OSV scopes reach readiness through recorded package keys"
     runner: live-postgres-readiness
+  - file: go/internal/query/readiness_ghsa_target_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9959 disposable PostgreSQL API proof that a configured ghsa target is a well-formed source and never changes an unrelated CVE read"
+    runner: live-postgres-readiness
   - file: go/internal/query/readiness_known_cve_coverage_live_test.go
     tag: ~
     class: postgres_ci

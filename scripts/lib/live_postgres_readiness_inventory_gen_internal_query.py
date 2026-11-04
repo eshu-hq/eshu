@@ -98,6 +98,9 @@ TABLE = {
             "TestSupplyChainImpactReadinessDerivedSwiftScopeMatchesLive",
             "TestSupplyChainImpactReadinessDerivedDistroScopeMatchesLive",
         ),
+        "go/internal/query/readiness_ghsa_target_live_test.go": (
+            "TestSupplyChainImpactReadinessGHSATargetKeepsUnrelatedCVEReadLive",
+        ),
         "go/internal/query/readiness_known_cve_coverage_live_test.go": (
             "TestSupplyChainImpactReadinessKnownCVECoverageLive",
             "TestSupplyChainImpactReadinessStaticWindowStaysHealthOnlyLive",
