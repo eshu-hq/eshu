@@ -1,0 +1,25 @@
+.github/workflows/live-postgres-readiness.yml
+  s_7547c0f0af67d4::t_f541cb7494b5cd 339-340
+scripts/lib/live_postgres_readiness_env.sh
+  s_7547c0f0af67d4::t_b297c1e2faed1a 14,57
+scripts/lib/live_postgres_readiness_inventory_gen_internal_storage_postgres_part2.py
+  s_7547c0f0af67d4::t_a0063455c8487f 365-368
+specs/live-tests.d/live-tests-readiness-part4.generated.yaml
+  s_7547c0f0af67d4::t_19c238e00fb3bd 322-326
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ea13c468e99ec8c2d43c82af06f6e5040e183693",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
