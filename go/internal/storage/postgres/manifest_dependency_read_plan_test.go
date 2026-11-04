@@ -67,15 +67,16 @@ func TestListActivePackageManifestDependencyFactsPassesCacheDescribeEveryPage(t 
 		{
 			name:       "plain query, two pages",
 			ecosystems: []string{"npm"},
-			// Two active pages, one delta-base page, one delta-target lookup.
-			responses: []queueFakeRows{{rows: fullPage}, {rows: [][]any{manifestDependencyFakeRow(listFactsByKindPageSize)}}, {}, {}},
-			wantCalls: 4,
+			// Two active pages, then the delta-target lookup finds no
+			// delta-active scope, so no base scan runs.
+			responses: []queueFakeRows{{rows: fullPage}, {rows: [][]any{manifestDependencyFakeRow(listFactsByKindPageSize)}}, {}},
+			wantCalls: 3,
 			wantPMs:   []string{"npm"},
 		},
 		{
 			name:       "maven family query",
 			ecosystems: []string{"maven"},
-			// One active page and one delta-base page; no rows, so no lookup.
+			// One active page and the delta-target lookup.
 			responses: []queueFakeRows{{}, {}},
 			wantCalls: 2,
 			wantPMs:   []string{"gradle", "maven", "sbt"},
@@ -96,7 +97,7 @@ func TestListActivePackageManifestDependencyFactsPassesCacheDescribeEveryPage(t 
 			if got, want := len(db.queries), tt.wantCalls; got != want {
 				t.Fatalf("query calls = %d, want %d", got, want)
 			}
-			if tt.wantCalls == 4 && len(loaded) != listFactsByKindPageSize+1 {
+			if tt.wantCalls == 3 && len(loaded) != listFactsByKindPageSize+1 {
 				t.Fatalf("loaded = %d rows, want %d", len(loaded), listFactsByKindPageSize+1)
 			}
 			for i, call := range db.queries {
@@ -122,12 +123,9 @@ func TestListActivePackageManifestDependencyFactsPassesCacheDescribeEveryPage(t 
 					t.Fatalf("page %d $5 = %v, want %v", i+1, got, want)
 				}
 			}
-			if tt.wantCalls == 4 {
-				if !strings.Contains(db.queries[2].query, "JOIN scope_generations AS active_delta") {
-					t.Fatalf("call 3 is not the delta-base page: %s", db.queries[2].query)
-				}
-				if db.queries[3].query != manifestDeltaTargetsQuery {
-					t.Fatalf("call 4 is not the delta-target lookup: %s", db.queries[3].query)
+			if tt.wantCalls == 3 {
+				if db.queries[2].query != manifestDeltaTargetsQuery {
+					t.Fatalf("call 3 is not the delta-target lookup: %s", db.queries[2].query)
 				}
 				if db.queries[0].args[2] != nil {
 					t.Fatalf("page 1 cursor = %v, want nil", db.queries[0].args[2])

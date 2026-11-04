@@ -146,11 +146,20 @@ func (s FactStore) ListActivePackageManifestDependencyFacts(
 			return err
 		}
 		activeRows = len(active)
-		base, err := reader.listPackageManifestDependencyFactPages(ctx, baseQuery, packageManagers, packageNames)
+		read := manifestDependencyReadLabel(rawQuery)
+		targets, err := reader.readManifestDeltaTargets(ctx)
 		if err != nil {
+			reader.recordManifestDeltaUnion(ctx, &manifestDeltaUnionTally{read: read, outcomes: map[string]int{}}, manifestDeltaUnionResolveFailed)
 			return err
 		}
-		loaded, err = reader.overlayDeltaManifestBase(ctx, manifestDependencyReadLabel(rawQuery), active, base)
+		var base []facts.Envelope
+		if baseScopes := manifestDeltaBaseScopes(targets); len(baseScopes) > 0 {
+			base, err = reader.listPackageManifestDependencyFactPages(ctx, baseQuery, packageManagers, packageNames, baseScopes)
+			if err != nil {
+				return err
+			}
+		}
+		loaded, err = reader.overlayDeltaManifestBase(ctx, read, targets, active, base)
 		return err
 	})
 	if err != nil {
@@ -161,12 +170,13 @@ func (s FactStore) ListActivePackageManifestDependencyFacts(
 }
 
 // listPackageManifestDependencyFactPages runs one manifest dependency query
-// text through every keyset page.
+// text through every keyset page. extra binds as $6 onward on every page.
 func (s FactStore) listPackageManifestDependencyFactPages(
 	ctx context.Context,
 	query string,
 	packageManagers []string,
 	packageNames []string,
+	extra ...any,
 ) ([]facts.Envelope, error) {
 	var loaded []facts.Envelope
 	var cursorObservedAt *time.Time
@@ -179,6 +189,7 @@ func (s FactStore) listPackageManifestDependencyFactPages(
 			packageNames,
 			cursorObservedAt,
 			cursorFactID,
+			extra...,
 		)
 		if err != nil {
 			return nil, err
@@ -202,22 +213,22 @@ func (s FactStore) listActivePackageManifestDependencyFactsPage(
 	packageNames []string,
 	cursorObservedAt *time.Time,
 	cursorFactID string,
+	extra ...any,
 ) ([]facts.Envelope, error) {
 	var cursor any
 	if cursorObservedAt != nil {
 		cursor = cursorObservedAt.UTC()
 	}
 
-	rows, err := s.database.QueryContext(
-		ctx,
-		query,
+	args := append([]any{
 		manifestDependencyQueryExecMode,
 		packageManagers,
 		packageNames,
 		cursor,
 		cursorFactID,
 		listFactsByKindPageSize,
-	)
+	}, extra...)
+	rows, err := s.database.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list active package manifest dependency facts: %w", err)
 	}

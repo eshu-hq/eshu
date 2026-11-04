@@ -60,13 +60,16 @@ const (
 // and its folded twin, migration 247). Its generation predicate is a strict
 // superset of deltaUnionBaseQuery: every activated full generation of a
 // delta-active scope at the delta's union-base commit (COALESCE union base,
-// baseline). resolveDeltaBaseAtCommit then picks the one base the projector
-// overlays, so the base rule keeps one definition.
+// baseline). It is limited to the delta-active scopes in $6, so a read never
+// scans base rows of a scope it will not overlay. resolveDeltaBaseAtCommit
+// then picks the one base the projector overlays, so the base rule keeps one
+// definition. #9611 rewrites the active text; deriving the base from it keeps
+// both in step.
 const (
 	manifestActiveScopeJoin  = "AND scope.active_generation_id = fact.generation_id"
 	manifestDeltaBaseJoin    = "AND scope.active_generation_id <> fact.generation_id\nJOIN scope_generations AS active_delta\n  ON active_delta.scope_id = scope.scope_id\n AND active_delta.generation_id = scope.active_generation_id"
 	manifestActiveGeneration = "AND generation.status = 'active'"
-	manifestDeltaBaseFull    = "AND generation.is_delta = false\n  AND generation.activated_at IS NOT NULL\n  AND generation.source_commit_sha = COALESCE(NULLIF(TRIM(active_delta.delta_union_base_commit_sha), ''), NULLIF(TRIM(active_delta.delta_baseline_commit_sha), ''))\n  AND active_delta.is_delta = true\n  AND active_delta.status = 'active'"
+	manifestDeltaBaseFull    = "AND generation.is_delta = false\n  AND generation.activated_at IS NOT NULL\n  AND generation.source_commit_sha = COALESCE(NULLIF(TRIM(active_delta.delta_union_base_commit_sha), ''), NULLIF(TRIM(active_delta.delta_baseline_commit_sha), ''))\n  AND active_delta.is_delta = true\n  AND active_delta.status = 'active'\n  AND fact.scope_id = ANY($6::text[])"
 )
 
 // deltaBasePackageManifestDependencyQuery derives the base-candidate query
@@ -83,11 +86,13 @@ func deltaBasePackageManifestDependencyQuery(active string) (string, error) {
 	return strings.ReplaceAll(base, manifestActiveGeneration, manifestDeltaBaseFull), nil
 }
 
-// manifestDeltaTargetsQuery returns the scopes among $1 whose active
-// generation is a delta, with the raw baseline and union-base commits that
+// manifestDeltaTargetsQuery returns every scope whose active generation is a
+// delta, with the raw baseline and union-base commits that
 // deltaUnionCommitsFor resolves. It is the batched form of
-// deltaUnionTargetQuery for one read's scope set, served by the
-// ingestion_scopes and scope_generations primary keys.
+// deltaUnionTargetQuery and runs once per read, before any base scan: a scope
+// whose delta touched no manifest has base pins but no active row, so the
+// read cannot learn its delta-active scopes from the active rows alone. With
+// no delta-active scope the read skips the base scan entirely.
 const manifestDeltaTargetsQuery = `
 SELECT scope.scope_id,
        active.generation_id,
@@ -97,8 +102,7 @@ FROM ingestion_scopes AS scope
 JOIN scope_generations AS active
   ON active.scope_id = scope.scope_id
  AND active.generation_id = scope.active_generation_id
-WHERE scope.scope_id = ANY($1::text[])
-  AND active.is_delta = true
+WHERE active.is_delta = true
   AND active.status = 'active'
 ORDER BY scope.scope_id
 `
@@ -153,24 +157,31 @@ func (snapshotReadQueryer) ExecContext(context.Context, string, ...any) (sql.Res
 	return nil, fmt.Errorf("manifest dependency read snapshot is read-only")
 }
 
-// overlayDeltaManifestBase adds, for every delta-active scope among the
-// active and base-candidate rows, the base pins that facts.OverlayDeltaBase
+// overlayDeltaManifestBase adds, for every delta-active target among the
+// active and base-candidate rows' scopes, the base pins that facts.OverlayDeltaBase
 // keeps: the base is the one resolveDeltaBaseAtCommit returns, the same
 // rule, prune probe, and refusal the projector uses (#7797, #8780). A scope
 // whose base is refused or untrustworthy keeps its delta rows only and is
 // counted. The result keeps the (observed_at, fact_id) order.
-func (s FactStore) overlayDeltaManifestBase(ctx context.Context, read string, active, base []facts.Envelope) ([]facts.Envelope, error) {
-	scopeIDs := manifestScopeIDs(active, base)
-	if len(scopeIDs) == 0 {
+func (s FactStore) overlayDeltaManifestBase(
+	ctx context.Context,
+	read string,
+	targets []manifestDeltaTarget,
+	active, base []facts.Envelope,
+) ([]facts.Envelope, error) {
+	reached := make(map[string]struct{})
+	for _, scopeID := range manifestScopeIDs(active, base) {
+		reached[scopeID] = struct{}{}
+	}
+	targets = slices.DeleteFunc(slices.Clone(targets), func(target manifestDeltaTarget) bool {
+		_, ok := reached[target.scopeID]
+		return !ok
+	})
+	if len(targets) == 0 {
 		return active, nil
 	}
 	tally := manifestDeltaUnionTally{read: read, outcomes: map[string]int{}}
 	defer s.recordManifestDeltaUnionSpan(ctx, &tally)
-	targets, err := s.readManifestDeltaTargets(ctx, scopeIDs)
-	if err != nil {
-		s.recordManifestDeltaUnion(ctx, &tally, manifestDeltaUnionResolveFailed)
-		return nil, err
-	}
 	baseByScope := make(map[string][]facts.Envelope)
 	for _, env := range base {
 		baseByScope[env.ScopeID] = append(baseByScope[env.ScopeID], env)
@@ -243,6 +254,18 @@ func (s FactStore) overlayDeltaManifestBase(ctx context.Context, read string, ac
 	return merged, nil
 }
 
+// manifestDeltaBaseScopes returns the scope ids of the targets the base scan
+// can overlay: those with a recorded baseline. A legacy delta has no base.
+func manifestDeltaBaseScopes(targets []manifestDeltaTarget) []string {
+	var scopeIDs []string
+	for _, target := range targets {
+		if target.commits.Baseline != "" {
+			scopeIDs = append(scopeIDs, target.scopeID)
+		}
+	}
+	return scopeIDs
+}
+
 // manifestScopeIDs returns the sorted distinct scope ids of the rows.
 func manifestScopeIDs(groups ...[]facts.Envelope) []string {
 	var ids []string
@@ -255,9 +278,9 @@ func manifestScopeIDs(groups ...[]facts.Envelope) []string {
 	return slices.Compact(ids)
 }
 
-// readManifestDeltaTargets returns the delta-active scopes among scopeIDs.
-func (s FactStore) readManifestDeltaTargets(ctx context.Context, scopeIDs []string) ([]manifestDeltaTarget, error) {
-	rows, err := s.database.QueryContext(ctx, manifestDeltaTargetsQuery, manifestDependencyQueryExecMode, scopeIDs)
+// readManifestDeltaTargets returns every delta-active scope.
+func (s FactStore) readManifestDeltaTargets(ctx context.Context) ([]manifestDeltaTarget, error) {
+	rows, err := s.database.QueryContext(ctx, manifestDeltaTargetsQuery)
 	if err != nil {
 		return nil, fmt.Errorf("read manifest dependency delta targets: %w", err)
 	}

@@ -141,9 +141,10 @@ operational lessons that future storage changes still need to respect.
   rows. Both branches over-select; `packageidentity.ManifestConsumptionKeys` is
   the accuracy gate.
   A delta-active scope reads its delta overlaid on the #7797 base (#9991,
-  `active_package_manifest_dependency_delta.go`): a second paged query derived
-  from the active text (`deltaBasePackageManifestDependencyQuery`) returns the
-  activated fulls at the union-base commit, `resolveDeltaBaseAtCommit` picks
+  `active_package_manifest_dependency_delta.go`): a global delta-target lookup
+  runs first, and only when some scope is delta-active does a second paged
+  query derived from the active text (`deltaBasePackageManifestDependencyQuery`,
+  limited to those scopes) return the activated fulls at the union-base commit, `resolveDeltaBaseAtCommit` picks
   the base, and `facts.OverlayDeltaBase` applies the delta's keys, tombstones,
   and touched paths. Never copy the base rule or overlay into SQL. A refused,
   legacy, or mismatched base keeps the delta-only rows and counts

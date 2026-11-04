@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -71,10 +72,10 @@ func TestListActivePackageManifestDependencyFactsDeltaResolveFailureFails(t *tes
 		t.Fatalf("NewInstruments: %v", err)
 	}
 	db := &fakeExecQueryer{queryResponses: []queueFakeRows{
-		{rows: [][]any{manifestDependencyFakeRow(0)}}, // active page
-		{}, // delta-base page
+		{rows: [][]any{manifestDependencyFakeRow(0)}},                    // active page
 		{rows: [][]any{{"repository:repo-1", "generation-1", "c0", ""}}}, // delta-target lookup
-		{err: context.DeadlineExceeded},                                  // base resolution
+		{},                              // delta-base page
+		{err: context.DeadlineExceeded}, // base resolution
 	}}
 	_, err = NewFactStore(db).WithInstruments(instruments).ListActivePackageManifestDependencyFacts(
 		context.Background(), []string{"npm"}, []string{"left-pad"},
@@ -109,8 +110,8 @@ func TestListActivePackageManifestDependencyFactsDeltaResolveFailureFails(t *tes
 }
 
 // TestListActivePackageManifestDependencyFactsDeltaAuxReadsUseCustomPlans
-// walks the union path to its end and pins the #9586 rule on the two batched
-// auxiliary reads: both bind large arrays, and the overlay inputs read
+// walks the union path to its end and pins the #9586 rule on the base pages
+// and the overlay inputs read: both bind large arrays, and the inputs read
 // filters each delta's rows by stable_fact_key = ANY($3), which a generic
 // plan compares linearly per row (1,077.8 ms against 14.9 ms custom on the
 // #9991 corpus).
@@ -129,10 +130,10 @@ func TestListActivePackageManifestDependencyFactsDeltaAuxReadsUseCustomPlans(t *
 	}
 	db := &fakeExecQueryer{queryResponses: []queueFakeRows{
 		{rows: [][]any{active}}, // active page
-		{rows: [][]any{base}},   // delta-base page
 		{rows: [][]any{{"repository:repo-1", "delta-1", "c0", ""}}}, // delta-target lookup
-		{rows: [][]any{{"base-1", "active"}}},                       // base lookup; active base, no prune probe
-		{rows: [][]any{repository}},                                 // overlay inputs
+		{rows: [][]any{base}},                 // delta-base page
+		{rows: [][]any{{"base-1", "active"}}}, // base lookup; active base, no prune probe
+		{rows: [][]any{repository}},           // overlay inputs
 	}}
 	loaded, err := NewFactStore(db).ListActivePackageManifestDependencyFacts(
 		context.Background(), []string{"npm"}, []string{"left-pad"},
@@ -146,13 +147,52 @@ func TestListActivePackageManifestDependencyFactsDeltaAuxReadsUseCustomPlans(t *
 	if len(db.queries) != 5 {
 		t.Fatalf("query calls = %d, want 5", len(db.queries))
 	}
-	for i, want := range map[int]string{2: manifestDeltaTargetsQuery, 4: manifestDeltaOverlayInputsQuery} {
+	if db.queries[1].query != manifestDeltaTargetsQuery {
+		t.Fatalf("call 2 = %s, want the delta-target lookup", db.queries[1].query)
+	}
+	if got := db.queries[2].args; len(got) != 6 || !reflect.DeepEqual(got[5], []string{"repository:repo-1"}) {
+		t.Fatalf("delta-base page args = %#v, want $6 = the delta-active scope ids", got)
+	}
+	if db.queries[4].query != manifestDeltaOverlayInputsQuery {
+		t.Fatalf("call 5 = %s, want the overlay inputs read", db.queries[4].query)
+	}
+	for _, i := range []int{2, 4} {
 		call := db.queries[i]
-		if call.query != want {
-			t.Fatalf("call %d = %s, want %s", i+1, call.query, want)
-		}
 		if !call.hasExecMode || call.execMode != pgx.QueryExecModeCacheDescribe {
 			t.Fatalf("call %d exec mode = %v (set %v), want QueryExecModeCacheDescribe", i+1, call.execMode, call.hasExecMode)
+		}
+	}
+}
+
+// TestListActivePackageManifestDependencyFactsNoDeltaSkipsBaseRead pins the
+// no-delta cost: when no scope anywhere has an active delta generation, the
+// read sends its active pages plus one delta-target lookup and never the
+// base-candidate scan, whose page costs as much as an active page.
+func TestListActivePackageManifestDependencyFactsNoDeltaSkipsBaseRead(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{queryResponses: []queueFakeRows{
+		{rows: [][]any{manifestDependencyFakeRow(0)}}, // active page
+		{}, // delta-target lookup: no delta-active scope
+	}}
+	loaded, err := NewFactStore(db).ListActivePackageManifestDependencyFacts(
+		context.Background(), []string{"npm"}, []string{"left-pad"},
+	)
+	if err != nil {
+		t.Fatalf("ListActivePackageManifestDependencyFacts() error = %v", err)
+	}
+	if len(loaded) != 1 {
+		t.Fatalf("loaded = %d rows, want 1", len(loaded))
+	}
+	if got, want := len(db.queries), 2; got != want {
+		t.Fatalf("statements = %d, want %d (active page, delta-target lookup)", got, want)
+	}
+	if db.queries[1].query != manifestDeltaTargetsQuery {
+		t.Fatalf("statement 2 = %s, want the delta-target lookup", db.queries[1].query)
+	}
+	for i, call := range db.queries {
+		if strings.Contains(call.query, "JOIN scope_generations AS active_delta") {
+			t.Fatalf("statement %d is the delta-base scan; want none without a delta-active scope", i+1)
 		}
 	}
 }

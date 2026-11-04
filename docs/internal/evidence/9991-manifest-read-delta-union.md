@@ -13,21 +13,26 @@ loaded `[delta-alpha]`.
 `go/internal/storage/postgres/active_package_manifest_dependency_delta.go`:
 
 1. The active query pages unchanged.
-2. A base-candidate query, derived from the active text by
+2. One global lookup (`manifestDeltaTargetsQuery`) names every delta-active
+   scope. It must be global: a delta that touched no manifest leaves its
+   scope with base pins and no active row. With no delta-active scope that
+   has a baseline, the read stops here: active pages plus this one statement.
+3. Otherwise a base-candidate query, derived from the active text by
    `deltaBasePackageManifestDependencyQuery` (two fragment swaps, fail-closed
    shape check), pages through the same partial indexes, keyset cursor, and
-   limit. It selects activated full generations at the delta's union-base
-   commit, `COALESCE(delta_union_base_commit_sha, delta_baseline_commit_sha)`,
-   a strict superset of `deltaUnionBaseQuery`.
-3. One batched lookup (`manifestDeltaTargetsQuery`) names the delta-active
-   scopes among the rows. For each one, `resolveDeltaBaseAtCommit` picks the
-   base the projector overlays, including the retention prune probe and the
-   refusal.
-4. One batched read (`manifestDeltaOverlayInputsQuery`) loads each delta's
+   limit, restricted to those scopes (`fact.scope_id = ANY($6)`). It selects
+   activated full generations at the delta's union-base commit,
+   `COALESCE(delta_union_base_commit_sha, delta_baseline_commit_sha)`, a
+   strict superset of `deltaUnionBaseQuery`. #9611 rewrites the active text,
+   and the base text follows because it is derived.
+4. For each delta-active scope the rows reached, `resolveDeltaBaseAtCommit`
+   picks the base the projector overlays, including the retention prune
+   probe and the refusal.
+5. One batched read (`manifestDeltaOverlayInputsQuery`) loads each delta's
    repository fact and its stable-key collisions, tombstones included. Then
    `facts.OverlayDeltaBase` keeps the base rows the delta did not override,
    tombstone, or touch.
-5. All statements share one read-only repeatable-read snapshot. Inside the
+6. All statements share one read-only repeatable-read snapshot. Inside the
    impact snapshot the transaction nests as a no-op.
 
 A refused base, a legacy delta with no baseline, or a delta with no
@@ -71,9 +76,11 @@ The comparable figures:
 
 - The same 20,000 pins read through a delta-active corpus cost 4.52 s,
   against 4.12 s read from active fulls (+9.8 %).
-- With no delta-active scope, the fixed overhead is one extra base page, the
-  target lookup, and BEGIN/COMMIT: +0.21 s (+5 %) here, and +14 ms (mostly
-  planning) for an empty read.
+- This table predates the no-delta gate. Without the gate, a corpus with no
+  delta-active scope paid one extra base page, the target lookup, and
+  BEGIN/COMMIT: +0.21 s (+5 %) here, and +14 ms (mostly planning) for an
+  empty read. With the gate, that case adds only the target lookup; see
+  "Statement counts and the no-delta gate" below.
 
 `EXPLAIN (ANALYZE, BUFFERS)`, page 1, delta-active shape:
 
@@ -92,9 +99,10 @@ The overlay inputs read filters each delta's rows by
 `stable_fact_key = ANY($3)`, a residual Filter: this is the #9586 trap. Under
 `PREPARE` with `plan_cache_mode` forced each way (psql, same corpus, same
 arrays), the custom plan took 14.9 ms and the generic plan took 1,077.8 ms,
-with the same plan and the same 201 index searches. Both batched auxiliary
-reads therefore run with `manifestDependencyQueryExecMode`
-(`QueryExecModeCacheDescribe`), the same mode as the manifest pages.
+with the same plan and the same 201 index searches. The overlay inputs read
+therefore runs with `manifestDependencyQueryExecMode`
+(`QueryExecModeCacheDescribe`), the same mode as the manifest pages. The
+target lookup binds no array.
 `TestListActivePackageManifestDependencyFactsDeltaAuxReadsUseCustomPlans`
 pins the mode; removing it fails the test.
 
@@ -104,6 +112,38 @@ existing paging (#8961). The next measured bottleneck is that per-page prefix
 scan, which predates this change. Base resolution runs once per delta-active
 scope that has base or delta pins, two statements for a superseded base; 201
 scopes added about 50 ms in total.
+
+## Statement counts and the no-delta gate
+
+A perf run against an earlier head (565k dependency rows, 400 scopes, 40
+delta-active) found the base scan ran on every read: about +19 % over a
+16-page read and roughly double a short read, even when no matched scope was
+delta-active. Gating on the matched scopes alone would drop base-only scopes
+(`DeltaDeletesManifestPath`, `DeltaMavenFamily`), so the gate is the global
+target lookup above. Red first:
+`TestListActivePackageManifestDependencyFactsNoDeltaSkipsBaseRead` asserts
+two statements (active page, target lookup) and no base scan for a no-delta
+corpus; it failed on the ungated head.
+
+Same corpus as above, reseeded, statements counted by a wrapping queryer,
+medians of seven runs on a loaded host (load average 12 to 20 on 12 cores):
+
+| state | read | old statements | old median | new statements | new median |
+| --- | --- | --- | --- | --- | --- |
+| 201 delta-active scopes | npm | 23 | 2.428 s | 54 | 5.004 s |
+| 201 delta-active scopes | maven, no rows | 1 | 20.4 ms | 3 | 104.3 ms |
+| no delta-active scope | npm | 41 | 5.651 s | 42 | 6.213 s |
+| no delta-active scope | maven, no rows | 1 | 17.6 ms | 2 | 19.8 ms |
+
+In the no-delta state the only added statement is the target lookup (0.46 ms
+in `EXPLAIN ANALYZE`). The npm wall-time gap there is host noise, not that
+statement. With 201 delta-active scopes the lookup takes 1.89 ms (93
+buffers). The base page restricted to them still scans the package-manager
+prefix (157,799 index buffers, 265.6 ms against 278.0 ms unrestricted),
+because `fact.scope_id = ANY($6)` is a residual filter. The restriction
+shrinks only the join work, 10,066 rows into the joins instead of 31,205.
+So while any scope is delta-active, each base page costs about one active
+page. The #9611 per-name rewrite of the shared template is what shrinks both.
 
 ## Observability Evidence:
 
