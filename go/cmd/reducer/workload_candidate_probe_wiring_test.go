@@ -56,7 +56,9 @@ func (f *workloadProbeWiringDB) QueryContext(
 // executes a workload_materialization intent, makes the probe statement fail,
 // and asserts the counter and the structured log both come out.
 func TestBuildReducerServiceWiresWorkloadCandidateProbeSignals(t *testing.T) {
-	t.Parallel()
+	// Not parallel: the probe error log limiter is process-wide, so a repeated
+	// run (-count=2) would see its log suppressed without the reset below.
+	reducer.ResetWorkloadCandidateProbeErrorLogForTesting()
 
 	database := &workloadProbeWiringDB{}
 	reader := sdkmetric.NewManualReader()

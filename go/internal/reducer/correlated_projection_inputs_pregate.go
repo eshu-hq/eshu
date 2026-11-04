@@ -189,6 +189,16 @@ func (workloadMaterializationResolutionNotReadyError) FailureClass() string {
 // log; the loader value is rebuilt per handler call, so the state lives here.
 var defaultProbeErrorLog = newProbeErrorLogLimiter(10*time.Minute, time.Now)
 
+// ResetWorkloadCandidateProbeErrorLogForTesting clears the process-wide probe
+// error log limiter so a test that drives the production wiring can observe
+// the first log line again. Production code never calls it: the limiter's
+// per-cause-class interval is the behavior it exists to keep.
+func ResetWorkloadCandidateProbeErrorLogForTesting() {
+	defaultProbeErrorLog.mu.Lock()
+	defer defaultProbeErrorLog.mu.Unlock()
+	defaultProbeErrorLog.classes = map[string]*probeErrorLogState{}
+}
+
 // probeErrorLogLimiter admits one error log per cause class per interval and
 // counts what it suppressed in between, so a probe that fails on every intent
 // cannot flood the reducer log. The class set is closed (see
