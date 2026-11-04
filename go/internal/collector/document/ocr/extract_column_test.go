@@ -169,6 +169,45 @@ func TestExtractTableColumnTies(t *testing.T) {
 	}
 }
 
+// TestExtractTableColumnHalfBoundaryExact pins the >= half rule with
+// exactly-representable geometry: every coordinate is a power of two, so the
+// overlap (0.125) and the half-shorter-width bound (0.125) compare exactly
+// and the test distinguishes >= from >. A probe one full step right overlaps
+// by 0 and stays.
+func TestExtractTableColumnHalfBoundaryExact(t *testing.T) {
+	t.Parallel()
+
+	header := Bounds{X: 0.25, Y: 0.10, Width: 0.25, Height: 0.05}
+	sibling := Region{Text: "Owner", Bounds: Bounds{X: 0.75, Y: 0.10, Width: 0.25, Height: 0.05}}
+	tests := []struct {
+		name         string
+		probe        Bounds
+		wantRedacted bool
+	}{
+		{name: "overlap exactly half the shorter width joins", probe: Bounds{X: 0.375, Y: 0.30, Width: 0.25, Height: 0.05}, wantRedacted: true},
+		{name: "zero overlap stays", probe: Bounds{X: 0.50, Y: 0.30, Width: 0.25, Height: 0.05}},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			regions := []Region{
+				{Text: "Service", Bounds: Bounds{X: 0.00, Y: 0.10, Width: 0.25, Height: 0.05}},
+				{Text: "Password", Bounds: header},
+				sibling,
+				{Text: "Next step"},
+				{Text: "Second step"},
+				{Text: "Probe text", Bounds: tt.probe},
+			}
+			got := extractRegions(t, Options{}, regions).Sections[5].Content
+			if want := tt.wantRedacted; want != (got == "[redacted]") {
+				t.Fatalf("probe content = %q, want redacted %v", got, want)
+			}
+		})
+	}
+}
+
 // TestExtractTableColumnNeedsALeftNeighbor pins the header gate: a marker
 // that opens its row is the form shape, with its value to the right, so it
 // keeps the two-region window below it and opens no column, even with a cell
