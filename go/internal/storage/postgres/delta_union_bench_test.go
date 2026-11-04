@@ -40,7 +40,7 @@ func BenchmarkFactStoreLoadProjectionFactsUnion(b *testing.B) {
 		db := &fakeExecQueryer{queryResponses: []queueFakeRows{
 			{rows: deltaRows},
 			{rows: [][]any{deltaUnionBenchTargetRow()}},
-			{rows: [][]any{{"gen-base-1", "active"}}},
+			{rows: [][]any{{"scope-1", "gen-base-1", "active"}}},
 			{rows: baseRows},
 		}}
 		if _, err := NewFactStore(db).LoadProjectionFacts(context.Background(), work); err != nil {

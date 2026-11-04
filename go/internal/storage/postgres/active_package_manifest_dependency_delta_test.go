@@ -131,9 +131,9 @@ func TestListActivePackageManifestDependencyFactsDeltaAuxReadsUseCustomPlans(t *
 	db := &fakeExecQueryer{queryResponses: []queueFakeRows{
 		{rows: [][]any{active}}, // active page
 		{rows: [][]any{{"repository:repo-1", "delta-1", "c0", ""}}}, // delta-target lookup
-		{rows: [][]any{base}},                 // delta-base page
-		{rows: [][]any{{"base-1", "active"}}}, // base lookup; active base, no prune probe
-		{rows: [][]any{repository}},           // overlay inputs
+		{rows: [][]any{base}}, // delta-base page
+		{rows: [][]any{{"repository:repo-1", "base-1", "active"}}}, // base lookup; active base, no prune probe
+		{rows: [][]any{repository}},                                // overlay inputs
 	}}
 	loaded, err := NewFactStore(db).ListActivePackageManifestDependencyFacts(
 		context.Background(), []string{"npm"}, []string{"left-pad"},
@@ -210,7 +210,7 @@ func TestListActivePackageManifestDependencyFactsDeltaFailuresCountOncePerRead(t
 	baseRow := manifestDependencyFakeRow(1)
 	baseRow[0], baseRow[2] = "base-dep", "base-1"
 	basePage := queueFakeRows{rows: [][]any{baseRow}}
-	activeBase := queueFakeRows{rows: [][]any{{"base-1", "active"}}} // active base: no prune probe
+	activeBase := queueFakeRows{rows: [][]any{{"repository:repo-1", "base-1", "active"}}} // active base: no prune probe
 	for name, responses := range map[string][]queueFakeRows{
 		"target lookup":   {active, failed},
 		"base page":       {active, target, failed},

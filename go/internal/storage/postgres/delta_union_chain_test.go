@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -25,7 +26,7 @@ func TestFactStoreListFactsChainedDeltaResolvesBaseAtUnionBase(t *testing.T) {
 		queryResponses: []queueFakeRows{
 			{rows: deltaUnionDeltaRows()},
 			{rows: [][]any{{true, "commit-active-delta", "commit-full"}}},
-			{rows: [][]any{{"gen-base-1", "superseded"}}},
+			{rows: [][]any{{"scope-1", "gen-base-1", "superseded"}}},
 			{rows: nil},
 			{rows: deltaUnionBaseRows()},
 		},
@@ -39,7 +40,7 @@ func TestFactStoreListFactsChainedDeltaResolvesBaseAtUnionBase(t *testing.T) {
 	if !strings.Contains(db.queries[1].query, "delta_union_base_commit_sha") {
 		t.Fatalf("target read = %q, want it to read delta_union_base_commit_sha", db.queries[1].query)
 	}
-	if got := db.queries[2].args; len(got) != 2 || got[1] != "commit-full" {
+	if got := db.queries[2].args; len(got) != 2 || !reflect.DeepEqual(got[1], []string{"commit-full"}) {
 		t.Fatalf("base lookup args = %#v, want the union-base commit commit-full", got)
 	}
 	for _, want := range []string{
@@ -64,7 +65,7 @@ func TestFactStoreListFactsLegacyDeltaResolvesBaseAtBaseline(t *testing.T) {
 		queryResponses: []queueFakeRows{
 			{rows: deltaUnionDeltaRows()},
 			{rows: [][]any{{true, "commit-base", ""}}},
-			{rows: [][]any{{"gen-base-1", "active"}}},
+			{rows: [][]any{{"scope-1", "gen-base-1", "active"}}},
 			{rows: deltaUnionBaseRows()},
 		},
 	}
@@ -74,7 +75,7 @@ func TestFactStoreListFactsLegacyDeltaResolvesBaseAtBaseline(t *testing.T) {
 	if _, err := store.ListFacts(context.Background(), "scope-1", "gen-delta-1"); err != nil {
 		t.Fatalf("ListFacts() error = %v, want nil", err)
 	}
-	if got := db.queries[2].args; len(got) != 2 || got[1] != "commit-base" {
+	if got := db.queries[2].args; len(got) != 2 || !reflect.DeepEqual(got[1], []string{"commit-base"}) {
 		t.Fatalf("base lookup args = %#v, want the baseline commit-base", got)
 	}
 	if !strings.Contains(logs.String(), `"chained":false`) {

@@ -26,7 +26,7 @@ func TestFactStoreLoadProjectionFactsNamesUnionBase(t *testing.T) {
 		queryResponses: []queueFakeRows{
 			{rows: deltaUnionDeltaRows()},
 			{rows: [][]any{{true, "commit-base", ""}}},
-			{rows: [][]any{{"gen-base-1", "active"}}},
+			{rows: [][]any{{"scope-1", "gen-base-1", "active"}}},
 			{rows: deltaUnionBaseRows()},
 		},
 	}
@@ -61,7 +61,7 @@ func TestFactStoreLoadProjectionFactsMarksChainedDelta(t *testing.T) {
 		queryResponses: []queueFakeRows{
 			{rows: deltaUnionDeltaRows()},
 			{rows: [][]any{{true, "commit-active-delta", "commit-base"}}},
-			{rows: [][]any{{"gen-base-1", "active"}}},
+			{rows: [][]any{{"scope-1", "gen-base-1", "active"}}},
 			{rows: deltaUnionBaseRows()},
 		},
 	}
@@ -98,7 +98,7 @@ func TestFactStoreLoadProjectionFactsReportsScopeMismatch(t *testing.T) {
 		queryResponses: []queueFakeRows{
 			{rows: deltaUnionNonDeltaScopeRows()},
 			{rows: [][]any{{true, "commit-base", ""}}},
-			{rows: [][]any{{"gen-base-1", "active"}}},
+			{rows: [][]any{{"scope-1", "gen-base-1", "active"}}},
 			{rows: deltaUnionBaseRows()},
 		},
 	}

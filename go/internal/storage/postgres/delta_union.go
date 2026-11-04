@@ -36,46 +36,6 @@ WHERE scope_id = $1
   AND generation_id = $2
 `
 
-// deltaUnionBaseQuery resolves the newest projected full generation at one
-// commit: non-delta, activated (activated_at set, the established projected
-// predicate), of a terminal-or-active status. Active and completed generations
-// sort before superseded ones: retention only ever prunes superseded
-// generations, so an active or completed base is intact by construction,
-// while a superseded base needs the retention-event probe below. Same-commit
-// generations observe the same tree, so intactness outranks recency. The
-// lookup is served by the pre-existing status-led bitmap on
-// scope_generations_scope_idx (sub-millisecond, ~0.33 ms warm); it carries
-// no dedicated index dependency.
-const deltaUnionBaseQuery = `
-SELECT generation_id, status
-FROM scope_generations
-WHERE scope_id = $1
-  AND is_delta = false
-  AND activated_at IS NOT NULL
-  AND status IN ('active', 'completed', 'superseded')
-  AND source_commit_sha = $2
-ORDER BY (status IN ('active', 'completed')) DESC, ingested_at DESC, generation_id DESC
-LIMIT 1
-`
-
-// deltaUnionBasePrunedQuery probes whether retention ever pruned the base
-// generation, by the same hashed identity the retention events carry. It is
-// served by generation_retention_events_generation_idx. A probe failure is
-// a refusal (#8181): the probe cannot confirm the superseded base survived
-// retention intact, and overlaying the surviving rows would project a
-// complete-looking tree from a possibly half-pruned base. The read fails
-// closed with the existing refused outcome, which routes through the reindex
-// watermark path so the next selection forces the full re-parse that
-// restores the base. The empty-base check in listFactsUnion still catches a
-// fully pruned base when the probe is down.
-const deltaUnionBasePrunedQuery = `
-SELECT 1
-FROM generation_retention_events
-WHERE scope_id_hash = $1
-  AND generation_id_hash = $2
-LIMIT 1
-`
-
 // deltaUnionCommits names the two commits a delta records (#8780): Baseline,
 // its #7319 fence commit (the active commit when it was diffed), and
 // UnionBase, the commit its base full generation resolves at.
@@ -143,45 +103,6 @@ func (s FactStore) resolveDeltaUnionBase(
 	return baseID, commits, true, nil
 }
 
-// resolveDeltaBaseAtCommit returns the newest projected full generation at
-// commits.UnionBase, the base a delta overlays at projection (#8780: the
-// union-base commit, COALESCEd to the baseline for a legacy delta). The #8750
-// destructive-successor guard sizes a delta against the same base through
-// this helper, so the guard and the projector cannot disagree on it. A
-// missing, pruned, or unconfirmed base fails closed with
-// projector.DeltaBaseMissingError naming generationID and both commits.
-func (s FactStore) resolveDeltaBaseAtCommit(ctx context.Context, scopeID, generationID string, commits deltaUnionCommits) (string, error) {
-	baseID, baseStatus, err := s.readDeltaUnionBase(ctx, scopeID, commits.UnionBase)
-	if err != nil {
-		return "", err
-	}
-	baseID = strings.TrimSpace(baseID)
-	if baseID == "" {
-		return "", deltaBaseMissing(scopeID, generationID, commits)
-	}
-	if baseStatus == "superseded" {
-		pruned, err := s.deltaUnionBasePruned(ctx, scopeID, baseID)
-		if err != nil {
-			// The probe cannot confirm the base is intact: fail closed
-			// with the same refusal as a recorded prune event. The error
-			// stays out of the outcome labels (no new cardinality); the
-			// refusal routes through the reindex watermark path so the
-			// next selection forces the full re-parse.
-			if s.logger != nil {
-				s.logger.DebugContext(ctx, "delta union retention probe failed; refusing closed",
-					log.ScopeID(scopeID),
-					slog.String("generation_id", generationID),
-					slog.Any("probe_error", err))
-			}
-			return "", deltaBaseMissing(scopeID, generationID, commits)
-		}
-		if pruned {
-			return "", deltaBaseMissing(scopeID, generationID, commits)
-		}
-	}
-	return baseID, nil
-}
-
 // readDeltaUnionTarget reads one generation's delta identity. Each read
 // closes its cursor before the caller issues the next statement: the
 // destructive-successor guard runs these reads on its commit transaction
@@ -206,58 +127,6 @@ func (s FactStore) readDeltaUnionTarget(ctx context.Context, scopeID, generation
 		return false, deltaUnionCommits{}, fmt.Errorf("resolve delta union target: %w", err)
 	}
 	return isDelta, deltaUnionCommitsFor(baseline, unionBase), nil
-}
-
-// readDeltaUnionBase reads the newest projected full generation at baseline
-// and its status, closing its cursor before the retention probe runs (see
-// readDeltaUnionTarget).
-func (s FactStore) readDeltaUnionBase(ctx context.Context, scopeID, baseline string) (baseID, baseStatus string, err error) {
-	rows, err := s.database.QueryContext(ctx, deltaUnionBaseQuery, scopeID, baseline)
-	if err != nil {
-		return "", "", fmt.Errorf("resolve delta union base: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-	if rows.Next() {
-		if scanErr := rows.Scan(&baseID, &baseStatus); scanErr != nil {
-			return "", "", fmt.Errorf("resolve delta union base scan: %w", scanErr)
-		}
-	}
-	if err := rows.Err(); err != nil {
-		return "", "", fmt.Errorf("resolve delta union base: %w", err)
-	}
-	return baseID, baseStatus, nil
-}
-
-// deltaBaseMissing builds the fail-closed refusal for a delta with no usable
-// base: never projected, fully pruned, or retention-pruned while superseded.
-func deltaBaseMissing(scopeID, generationID string, commits deltaUnionCommits) *projector.DeltaBaseMissingError {
-	return &projector.DeltaBaseMissingError{
-		ScopeID:            scopeID,
-		GenerationID:       generationID,
-		BaselineCommitSHA:  commits.Baseline,
-		UnionBaseCommitSHA: commits.UnionBase,
-	}
-}
-
-// deltaUnionBasePruned reports whether retention recorded any prune event
-// for the base generation. Only superseded bases are probed: active and
-// completed generations are never prune-eligible, so probing them would only
-// add a query. An event means the base lost facts to retention (wholly or
-// partially) and the union would project short of the full tree. A probe
-// failure is reported as an error so the caller can fail closed: an
-// unconfirmed base is indistinguishable from a half-pruned one.
-func (s FactStore) deltaUnionBasePruned(ctx context.Context, scopeID, baseID string) (bool, error) {
-	rows, err := s.database.QueryContext(ctx, deltaUnionBasePrunedQuery,
-		retentionHashID("scope", scopeID), retentionHashID("generation", baseID))
-	if err != nil {
-		return false, err
-	}
-	defer func() { _ = rows.Close() }()
-	pruned := rows.Next()
-	if err := rows.Err(); err != nil {
-		return false, err
-	}
-	return pruned, nil
 }
 
 // listFactsUnion loads one delta generation overlaid on its base full

@@ -113,7 +113,7 @@ func (g *guardRoutingDB) txGuardAnswer(query string, args []any) (db.Rows, error
 	case deltaUnionTargetQuery:
 		return g.rowsFor(withUnionBaseColumn(mergeGuardTable(g.targets, state.targets)), args[1], false), nil
 	case deltaUnionBaseQuery:
-		return g.rowsFor(mergeGuardTable(g.bases, state.bases), args[1], true), nil
+		return g.baseRowsFor(mergeGuardTable(g.bases, state.bases), args), nil
 	default: // deltaUnionBasePrunedQuery: no retention event, the base is intact
 		return &queueFakeRows{}, nil
 	}

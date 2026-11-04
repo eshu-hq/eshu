@@ -279,7 +279,7 @@ func TestGuardPriorFeedsTheDeltaArmsWithoutChangingTheAnchor(t *testing.T) {
 		var baselines []string
 		for _, call := range database.queries {
 			if call.query == deltaUnionBaseQuery {
-				baselines = append(baselines, fmt.Sprint(call.args[1]))
+				baselines = append(baselines, call.args[1].([]string)[0])
 			}
 		}
 		if len(baselines) != 1 || baselines[0] != "commit-base" {
