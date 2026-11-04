@@ -129,6 +129,19 @@ across trees under host noise. The reducer binary builds on both trees
 keyed tick and list/aggregate (CI's read-api latency gate owns the
 list/aggregate budget); 5x/10x local corpus loads.
 
+Benchmark Evidence: `BenchmarkKEVEPSSRescoreBuild9878` and
+`BenchmarkWritePayloadWithDigest` (`benchtime=2s, count=3`, arm64, baseline
+`582f8ad32d` vs this branch): allocs/op identical at 1x/5x/10x; ns/op ranges
+overlap under host noise. No allocation regression; no timed improvement
+claimed.
+
+No-Regression Evidence: single-sample smoke only (figures above): full
+resweep 4.459 s → 4.456 s, keyed tick 199.8 ms → 247.5 ms, one sample each,
+shared host at load 37–58, 1x corpus (100,000 findings, 83,333 winners,
+1,000 dirty identifiers), PostgreSQL 18, baseline `582f8ad32d` vs this
+branch. Safe by zero shared code with the resweep/read SQL plus bounded
+per-pass overhead (see above). p95 series NOT_CHECKED (open residual).
+
 ## Residuals kept, by design
 
 - A delisting converges through the retraction side of the changed set; a
