@@ -98,7 +98,7 @@ preserve the dual-kind emission, not normalize it.
 
 ## 4. `ClusterTarget` JSON (operator shape, unchanged by extraction)
 
-`loadRuntimeConfig` (`go/cmd/collector-kubernetes-live/config.go:25-52`) keys:
+`loadRuntimeConfig` keys (in-tree `go/cmd/collector-kubernetes-live` deleted with #8859; shape unchanged, served by the satellite):
 `cluster_id`, `display_name`, `provider`, `gcp_workload_pool`, `environment`,
 `source_uri`, `fencing_token`, `auth_mode`, `kubeconfig_path`, `kube_context`,
 `qps`, `burst`, plus `ESHU_KUBERNETES_LIVE_COLLECTOR_INSTANCE_ID` and
