@@ -47,6 +47,34 @@ func checkGoModuleDerivation(kind scope.CollectorKind, config activation.Config)
 	return derivation, nil
 }
 
+// validateActivationDerivationSchedule refuses a Go reachability cadence the
+// reconcile ticker cannot honor. A bucket narrower than the tick, or not a
+// multiple of it, would make consecutive ticks skip rotation slots and starve
+// repositories. Config.Validate calls it for every desired instance, so a bad
+// value fails startup, and a disabled section is held to the same rule as an
+// in-tree block. A configuration that is not such an activation returns nil.
+func validateActivationDerivationSchedule(kind scope.CollectorKind, configuration string, reconcileInterval time.Duration) error {
+	config, ok, err := activation.ParseConfig(configuration)
+	if err != nil || !ok || kind != scope.CollectorScannerWorker || !activationCarriesComponentConfig(kind, config.ComponentID) {
+		return nil
+	}
+	derivation, err := reachability.DerivationFromConfig(config.ComponentConfig)
+	if err != nil {
+		return err
+	}
+	return validateGoModuleInterval(derivation, reconcileInterval)
+}
+
+// validateGoModuleInterval applies the shared scan_interval rules, and their
+// error text, to a derive section's cadence.
+func validateGoModuleInterval(derivation reachability.Derivation, reconcileInterval time.Duration) error {
+	document := fmt.Sprintf(`{%q:%q}`, schedule.ScanIntervalConfigKey, derivation.Interval())
+	if err := validateScanInterval(document, reconcileInterval); err != nil {
+		return fmt.Errorf("derive_from_go_modules: %w", err)
+	}
+	return nil
+}
+
 // activationPlansOnlyDerivedScopes reports whether the coordinator's derived
 // scopes are an activation's only work, so its host scope gets no work item.
 func activationPlansOnlyDerivedScopes(kind scope.CollectorKind, config activation.Config) bool {
@@ -64,7 +92,6 @@ func (s Service) scheduleGoModuleDerivedScopes(
 	observedAt time.Time,
 	instance workflow.CollectorInstance,
 	config activation.Config,
-	interval time.Duration,
 ) error {
 	derivation, err := checkGoModuleDerivation(instance.CollectorKind, config)
 	if err != nil {
@@ -87,6 +114,12 @@ func (s Service) scheduleGoModuleDerivedScopes(
 	if s.GoModuleRepositoryReader == nil {
 		return fmt.Errorf("go module repository reader is required for go reachability activation %q", instance.InstanceID)
 	}
+	// The section's interval, not the instance's: an activation has no top-level
+	// scan_interval, so the instance's is the global reconcile interval.
+	if err := validateGoModuleInterval(derivation, s.Config.ReconcileInterval); err != nil {
+		return fmt.Errorf("plan go reachability derived scopes for %q: %w", instance.InstanceID, err)
+	}
+	interval := derivation.Interval()
 	// A bootstrap key is fixed, which would pin the fleet to its first page. Each
 	// bucket still plans at most one page, so a bootstrap instance rotates too.
 	bucketInstance := instance

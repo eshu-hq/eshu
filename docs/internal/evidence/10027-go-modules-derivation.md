@@ -66,6 +66,16 @@ activation without the section, which still reads nothing. Rotation visits all c
 the live test proves each is visited once. Fleet cost is bounded by that rotation,
 not by fleet size per pass.
 
+## Cadence regression caught before review
+
+An activation has no top-level `scan_interval`, so `Service.scanInterval` returns
+the global reconcile interval for it, 30 s by default. The first build bucketed on
+that. It would have planned a new page every tick, so a fleet under 256 repositories
+would re-run `govulncheck` about every 30 s after each run finished. The derive
+section now owns the cadence, with a 24 h default.
+`TestGoModulesDerivationDefaultsToADailyCadence` failed on the first build with
+`pass 1 left the 24h bucket`, and passes now.
+
 ## Concurrency
 
 The derivation adds no lock, claim, or lease path. Admission is the existing

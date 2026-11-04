@@ -16,7 +16,8 @@ and telemetry. `go/internal/storage/postgres/gomodules` owns the read.
 
 ## Exported surface
 
-- `Derivation`, `GoModulesSection`, `DerivationFromConfig` decode the config block.
+- `Derivation`, `GoModulesSection`, `DerivationFromConfig`, `DefaultScanInterval`
+  decode the config block and its cadence.
 - `PlanRequest`, `Plan`, `RunID` plan one page and name its run.
 - `SkipInvalidRepositoryID`, `SkipDuplicateRepository`, `SkipUnsupportedRemote`,
   `SkipMissingCommit` are the closed skip reasons.
@@ -50,6 +51,10 @@ results, and none holds a repository id or URL:
   The clone URL lives only in `requested_scope_set`.
 - One unplannable repository skips with a reason. It never fails the page, or one
   bad row would stall that page's whole slot of the rotation.
+
+- The cadence belongs to the derive section. An activation has no top-level
+  `scan_interval`, so the instance's interval is the reconcile tick, and bucketing
+  on it would rescan repositories almost continuously.
 
 ## Related docs
 

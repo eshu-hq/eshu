@@ -91,7 +91,8 @@ func (s Service) scheduleComponentExtensionWork(
 			}
 		}
 		// A kind-scoped hook plans the scopes the coordinator derives for
-		// this activation (today vulnerability_intelligence OSV scopes) as a
+		// this activation (vulnerability_intelligence OSV scopes, Go
+		// reachability repository scopes) as a
 		// second run, after the egress decision above and through the same
 		// durable admission. The open-target guard admits per scope, so an
 		// open host-scope item does not block them (#9311).
@@ -168,7 +169,7 @@ func (s Service) scheduleActivationDerivedScopes(
 	case scope.CollectorVulnerabilityIntelligence:
 		return s.scheduleVulnerabilityActivationDerivedScopes(ctx, observedAt, instance, config, interval)
 	case scope.CollectorScannerWorker:
-		return s.scheduleGoModuleDerivedScopes(ctx, observedAt, instance, config, interval)
+		return s.scheduleGoModuleDerivedScopes(ctx, observedAt, instance, config)
 	default:
 		return nil
 	}

@@ -204,6 +204,25 @@ func TestPlanRefusesAnInvalidRequest(t *testing.T) {
 	}
 }
 
+func TestDerivationInterval(t *testing.T) {
+	t.Parallel()
+
+	unset, err := DerivationFromConfig(json.RawMessage(`{"derive_from_go_modules":{"enabled":true}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := unset.Interval(); got != 24*time.Hour {
+		t.Fatalf("default interval = %s, want 24h", got)
+	}
+	set, err := DerivationFromConfig(json.RawMessage(`{"derive_from_go_modules":{"enabled":true,"scan_interval":"6h"}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := set.Interval(); got != 6*time.Hour {
+		t.Fatalf("interval = %s, want 6h", got)
+	}
+}
+
 func TestDerivationFromConfig(t *testing.T) {
 	t.Parallel()
 
@@ -218,6 +237,10 @@ func TestDerivationFromConfig(t *testing.T) {
 		{name: "disabled", raw: `{"derive_from_go_modules":{"enabled":false}}`},
 		{name: "enabled", raw: `{"derive_from_go_modules":{"enabled":true}}`, enabled: true},
 		{name: "unknown keys ignored", raw: `{"surprise":1,"derive_from_go_modules":{"enabled":true,"extra":2}}`, enabled: true},
+		{name: "enabled with interval", raw: `{"derive_from_go_modules":{"enabled":true,"scan_interval":"6h"}}`, enabled: true},
+		{name: "bad interval", raw: `{"derive_from_go_modules":{"enabled":true,"scan_interval":"soon"}}`, wantErr: true},
+		{name: "zero interval", raw: `{"derive_from_go_modules":{"enabled":true,"scan_interval":"0s"}}`, wantErr: true},
+		{name: "negative interval", raw: `{"derive_from_go_modules":{"enabled":true,"scan_interval":"-1h"}}`, wantErr: true},
 		{name: "bare boolean", raw: `{"derive_from_go_modules":true}`, wantErr: true},
 		{name: "not an object", raw: `[]`, wantErr: true},
 	} {

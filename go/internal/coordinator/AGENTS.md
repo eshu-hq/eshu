@@ -245,7 +245,9 @@ because schedulers stop at the first error. One predicate enforces it:
   planner. Skipping is silent by design: it is a partition, and the generic
   scheduler logs and audits its own egress decisions.
 - A Go reachability activation (`derive_from_go_modules`) plans through
-  `activation_go_modules.go` and the `reachability` child. Its page is fixed for
+  `activation_go_modules.go` and the `reachability` child. It buckets on the
+  section's `scan_interval` (default 24h), never on `s.scanInterval`: an activation
+  has no top-level field, so that is the 30s reconcile tick. Its page is fixed for
   its plan bucket: once the run exists the reader reports it and the pass stops,
   so `requested_scope_set` is never rewritten under an open claim. Do not re-read
   the page inside a bucket. Its host scope gets no work item, since it names no
