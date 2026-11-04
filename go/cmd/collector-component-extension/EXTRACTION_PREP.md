@@ -101,19 +101,42 @@ queue, lease, reducer, API, MCP, or workflow handles.
   digest-pinned artifact.
 - Claim/lease/heartbeat/commit through `collector.ClaimedService`; the
   extension never touches claim mutation.
-- Public target contract pins: `eshu-sdk/collector v0.1.0-rc.5`,
-  `eshu-sdk/factschema v0.1.0-rc.14` (`go/go.mod`); toolchain directive
-  `go 1.26.10`, installed `go1.26.6` (mismatch recorded, no behavior impact
-  on this doc).
+- Public target contract pins: `eshu-sdk/collector v0.2.0-rc.3`,
+  `eshu-sdk/factschema v0.1.0-rc.14` (`go/go.mod:159-160`, re-verified
+  2026-11-04); toolchain directive `go 1.26.10`, installed `go1.26.6`
+  (mismatch recorded, no behavior impact on this doc).
+- Claim-plane pin: `eshu-workflow v0.1.0` (`go/go.mod:161`); protocol
+  major `1` only (pairs recorded below).
+- Supported oldest/newest pairs for this boundary (box-9 record,
+  re-verified 2026-11-04):
+  - SDK: `collector v0.2.0-rc.3` + `factschema v0.1.0-rc.14` (live pins
+    above). The supported-combination policy lives in
+    `docs/public/extend/sdk-compatibility.md` (initial `v0.1.0` pair,
+    `v0.2.0` pair, historical `collector v0.1.0-rc.3` +
+    `factschema v0.1.0-rc.5` proxy-verified pair).
+  - Claim plane: `workflow.v1` oldest = newest = `v1` (single-major
+    protocol), PROVEN-in-harness by the §1 pin test plus
+    `TestClaimPlaneClient*` 8/8 PASS
+    (`go/cmd/workflow-coordinator/PLANE_DECLARATION_9376.md` §3,
+    accepted as contract 2026-11-02).
+  - Host × core matrix: newest-host × oldest-core and reverse, run in
+    `eshu-hq/eshu-extension-host` once scaffolded (prereq §10.3). The
+    destination is still a stub, so the matrix run is pending — box 9
+    stays Partial until it lands.
 
 ## 6. Artifacts
 
 - Today: single in-tree binary `collector-component-extension`
   (`main.go:24` version flag). No published artifact. No cutover has
   occurred.
-- Destination `eshu-hq/eshu-extension-host` is a README-only stub (HEAD
-  `1c4298a`, observed 2026-10-28); the `#8877` body cites `50e55647…`,
-  which does not match live HEAD — owner must reconcile before cutover.
+- Destination `eshu-hq/eshu-extension-host` is a pre-release stub
+  (root `{README.md, Makefile, CONTRIBUTING.md, .github/}` only, HEAD
+  `6a5d1848`, observed 2026-11-04 via API; holds no cutover authority).
+  The `#8877` body cites `50e55647…`, which is eshu-main merge commit
+  `50e556470f` (the inventory commit at issue-writing time, per the
+  2026-10-28 issue comment) — never a destination SHA, so no destination
+  reconcile is owed for it. Scaffolding the host implementation is cutover
+  work staged behind `#9376` → `#9381`.
 - No artifact is built or published by this PREP.
 
 ## 7. Hostile-input proof sites (in-tree side, all passing at HEAD)
@@ -135,6 +158,19 @@ queue, lease, reducer, API, MCP, or workflow handles.
 `contract_blocked` (amended 2026-10-28; see §11).
 Production acceptance, deployment, and rollback: `NOT_CHECKED`.
 
+Rollback-rehearsal draft for this boundary (DRAFT — not executed;
+rehearsal stays post-authority per the `#9383` disposition, which rules
+delete-path-suffices conditional on zero satellite-owned durable state
+and voids if `#9381` wiring adds any satellite store):
+1. Record pre-state: deployed digests, ArgoCD sync revision, active /
+   superseded / failed generation counts, pending-claims proof.
+2. Fence claims and revoke replaced authority; prove no dual authority.
+3. Delete the satellite path back to the first claim; measure RTO.
+4. Restore prior compatible artifacts/configuration; verify truth,
+   availability, and durable-state compatibility.
+5. Replay safely: exactly-once resume, revoked-grant replay, zero-state
+   audit. The rehearsal must pass on the exact deployed digest.
+
 ## 9. `#8877` acceptance sweep at `origin/main` (`dc65b4d597`)
 
 | Acceptance item | State |
@@ -147,9 +183,9 @@ Production acceptance, deployment, and rollback: `NOT_CHECKED`.
 | Extracted-path reducer/graph/API/MCP truth | **Open** (`NOT_CHECKED`) |
 | Concurrent retry/duplicates/ordering/cancellation/revocation/staleness/partial failures | **Open** — single-claim proofs exist; contention/ordering/duplication on the extracted path need live proof |
 | Bounded resources, no regression, health/readiness/telemetry | **Open** on the extracted path; in-tree suite green (see evidence) |
-| Credentials, provenance, vuln response, oldest/newest pairs | **Partial** — handling recorded here; version pairs need `#6710` + `#8851` |
+| Credentials, provenance, vuln response, oldest/newest pairs | **Partial** — handling recorded here; pairs recorded in §5 (SDK pins + plane v1/v1 + matrix policy, re-verified 2026-11-04); host-core matrix run pending in the extension-host repo |
 | Independent build/release/deploy on public contracts | **Open** — destination is a stub; no Deployment/Service in `iac-eks-eshu` for this host (verified: zero matches for `extension-host` under `argocd/eshu` and `chart/`) |
-| Rollback rehearsal | **Open** — no draft recorded for this boundary |
+| Rollback rehearsal | **Open** — draft checklist recorded in §8 (not executed; rehearsal stays post-authority per the `#9383` disposition) |
 | Review, local proof, stable CI, removal after acceptance | **Open** — local proof in this lane's commit; removal explicitly **not** in PREP |
 
 ## 10. Prerequisites for cutover
