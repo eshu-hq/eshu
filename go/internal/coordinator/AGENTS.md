@@ -244,6 +244,14 @@ because schedulers stop at the first error. One predicate enforces it:
 - Blank, unrelated, and in-tree target configuration stay with the in-tree
   planner. Skipping is silent by design: it is a partition, and the generic
   scheduler logs and audits its own egress decisions.
+- A Go reachability activation (`derive_from_go_modules`) plans through
+  `activation_go_modules.go` and the `reachability` child. Its page is fixed for
+  its plan bucket: once the run exists the reader reports it and the pass stops,
+  so `requested_scope_set` is never rewritten under an open claim. Do not re-read
+  the page inside a bucket. Its host scope gets no work item, since it names no
+  repository. Two coordinators racing inside one bucket can still upsert a
+  different page if a repository joins or leaves within those milliseconds; the
+  affected claim fails terminal and its repository returns on the next visit.
 - A kind that needs host-derived scopes for its activations gets them from a
   kind-scoped hook, not from a selector: `scheduleActivationDerivedScopes`
   (`component_extension_service.go`) runs inside `scheduleComponentExtensionWork`,

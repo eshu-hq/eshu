@@ -7,11 +7,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/scannercomponent"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/component/activation"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/egress"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/component/extension"
@@ -79,7 +81,11 @@ func (s Service) scheduleComponentExtensionWork(
 		if err != nil {
 			return fmt.Errorf("plan component extension work for %q: %w", instance.InstanceID, err)
 		}
-		if len(items) > 0 {
+		// A Go reachability activation's host scope names no repository, so a
+		// claim for it would have nothing to scan. Its derived scopes are its
+		// only work; a bad derive block fails in the hook below.
+		derivedOnly := configErr == nil && configOK && activationPlansOnlyDerivedScopes(instance.CollectorKind, config)
+		if len(items) > 0 && !derivedOnly {
 			if _, err := s.createWorkflowWorkIfNoOpenTargets(ctx, instance, run, items); err != nil {
 				return fmt.Errorf("create component extension scheduled work for %q: %w", instance.InstanceID, err)
 			}
@@ -134,11 +140,15 @@ type activationDerivedScopeCounter interface {
 
 // activationCarriesComponentConfig reports whether the registry readback keeps
 // an activation's config block as activation.Config.ComponentConfig. Only a
-// core collector kind whose coordinator plans host-derived scopes needs it,
-// today vulnerability_intelligence; every other kind's stored configuration
-// stays exactly what it was, so their consumers see no change.
-func activationCarriesComponentConfig(kind scope.CollectorKind) bool {
-	return kind == scope.CollectorVulnerabilityIntelligence
+// component whose coordinator plans host-derived scopes needs it: today every
+// vulnerability_intelligence activation and the Go reachability scanner. Every
+// other activation's stored configuration stays exactly what it was, including
+// the other scanner_worker components, so their consumers see no change.
+func activationCarriesComponentConfig(kind scope.CollectorKind, componentID string) bool {
+	if kind == scope.CollectorVulnerabilityIntelligence {
+		return true
+	}
+	return kind == scope.CollectorScannerWorker && strings.TrimSpace(componentID) == scannercomponent.IDGoReachability
 }
 
 // scheduleActivationDerivedScopes is the kind-scoped hook that
@@ -154,26 +164,31 @@ func (s Service) scheduleActivationDerivedScopes(
 	config activation.Config,
 	interval time.Duration,
 ) error {
-	if instance.CollectorKind != scope.CollectorVulnerabilityIntelligence {
+	switch instance.CollectorKind {
+	case scope.CollectorVulnerabilityIntelligence:
+		return s.scheduleVulnerabilityActivationDerivedScopes(ctx, observedAt, instance, config, interval)
+	case scope.CollectorScannerWorker:
+		return s.scheduleGoModuleDerivedScopes(ctx, observedAt, instance, config, interval)
+	default:
 		return nil
 	}
-	return s.scheduleVulnerabilityActivationDerivedScopes(ctx, observedAt, instance, config, interval)
 }
 
 // activationHostMismatchError reports an activation that enables derived
-// scopes while its host.sourceSystem or host.scope.kind is not
-// vulnerability_intelligence. The worker stamps every generation with
+// scopes while its host.sourceSystem or host.scope.kind is not the collector
+// kind it derives for. The worker stamps every generation with
 // host.scope.kind, so derived generations under any other kind or source
-// would be mislabeled against the in-tree vulnerability_intelligence history.
-// Both values are collector labels, not secrets, and the message names them.
+// would be mislabeled against that kind's history. All three values are
+// collector labels, not secrets, and the message names them.
 type activationHostMismatchError struct {
 	SourceSystem string
 	ScopeKind    string
+	Want         scope.CollectorKind
 }
 
 func (e activationHostMismatchError) Error() string {
 	return fmt.Sprintf("host.sourceSystem %q and host.scope.kind %q must both be %q",
-		e.SourceSystem, e.ScopeKind, scope.CollectorVulnerabilityIntelligence)
+		e.SourceSystem, e.ScopeKind, e.Want)
 }
 
 // checkActivationDocumentDerivation applies [checkActivationDerivation] to a
@@ -185,12 +200,15 @@ func (e activationHostMismatchError) Error() string {
 // malformed one, returns nil here: in-tree validators own the first, and the
 // generic planner reports the second at reconcile (#8919).
 func checkActivationDocumentDerivation(kind scope.CollectorKind, configuration string) error {
-	if !activationCarriesComponentConfig(kind) {
-		return nil
-	}
 	config, ok, err := activation.ParseConfig(configuration)
 	if err != nil || !ok {
 		return nil
+	}
+	if !activationCarriesComponentConfig(kind, config.ComponentID) {
+		return nil
+	}
+	if _, err = checkGoModuleDerivation(kind, config); err != nil {
+		return err
 	}
 	_, err = checkActivationDerivation(kind, config)
 	return err
@@ -210,22 +228,30 @@ func checkActivationDocumentDerivation(kind scope.CollectorKind, configuration s
 // [activationHostMismatchError] when an enabled derivation's host is not
 // vulnerability_intelligence. It reads nothing and logs nothing.
 func checkActivationDerivation(kind scope.CollectorKind, config activation.Config) (vulnerability.ActivationDerivation, error) {
-	if !activationCarriesComponentConfig(kind) {
+	if kind != scope.CollectorVulnerabilityIntelligence {
 		return vulnerability.ActivationDerivation{}, nil
 	}
 	derivation, err := vulnerability.ActivationDerivationFromConfig(config.ComponentConfig)
 	if err != nil || !derivation.Enabled() {
 		return vulnerability.ActivationDerivation{}, err
 	}
-	var host activationHostMismatchError
-	if config.Host != nil {
-		host = activationHostMismatchError{SourceSystem: config.Host.SourceSystem, ScopeKind: config.Host.Scope.Kind}
-	}
-	want := string(scope.CollectorVulnerabilityIntelligence)
-	if host.SourceSystem != want || host.ScopeKind != want {
-		return vulnerability.ActivationDerivation{}, host
+	if err := checkActivationHost(config, scope.CollectorVulnerabilityIntelligence); err != nil {
+		return vulnerability.ActivationDerivation{}, err
 	}
 	return derivation, nil
+}
+
+// checkActivationHost refuses an enabled derivation whose host does not label
+// its generations with the collector kind it derives for.
+func checkActivationHost(config activation.Config, want scope.CollectorKind) error {
+	host := activationHostMismatchError{Want: want}
+	if config.Host != nil {
+		host.SourceSystem, host.ScopeKind = config.Host.SourceSystem, config.Host.Scope.Kind
+	}
+	if host.SourceSystem != string(want) || host.ScopeKind != string(want) {
+		return host
+	}
+	return nil
 }
 
 func (s Service) scheduleVulnerabilityActivationDerivedScopes(

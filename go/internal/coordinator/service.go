@@ -110,21 +110,25 @@ type Service struct {
 	PublicAdvisoryPolicyStore        PublicAdvisoryPolicyStore
 	// ControlRolePolicyRevision and ControlDatabaseIdentity pin protected
 	// coordinator operations to the startup-attested control connection.
-	ControlRolePolicyRevision         int64
-	ControlDatabaseIdentity           string
-	SecurityAlertPlanner              SecurityAlertPlanner
-	CICDRunPlanner                    CICDRunPlanner
-	CICDRunActionsTriggers            CICDRunActionsTriggerStore
-	CICDRunInstruments                *telemetry.Instruments
-	PagerDutyPlanner                  PagerDutyPlanner
-	JiraPlanner                       JiraPlanner
-	PrometheusMimirPlanner            PrometheusMimirPlanner
-	TempoPlanner                      TempoPlanner
-	GCPPlanner                        GCPPlanner
-	GrafanaPlanner                    GrafanaPlanner
-	LokiPlanner                       LokiPlanner
-	ComponentExtensionPlanner         ComponentExtensionPlanner
-	OwnedPackageTargetReader          OwnedPackageTargetReader
+	ControlRolePolicyRevision int64
+	ControlDatabaseIdentity   string
+	SecurityAlertPlanner      SecurityAlertPlanner
+	CICDRunPlanner            CICDRunPlanner
+	CICDRunActionsTriggers    CICDRunActionsTriggerStore
+	CICDRunInstruments        *telemetry.Instruments
+	PagerDutyPlanner          PagerDutyPlanner
+	JiraPlanner               JiraPlanner
+	PrometheusMimirPlanner    PrometheusMimirPlanner
+	TempoPlanner              TempoPlanner
+	GCPPlanner                GCPPlanner
+	GrafanaPlanner            GrafanaPlanner
+	LokiPlanner               LokiPlanner
+	ComponentExtensionPlanner ComponentExtensionPlanner
+	OwnedPackageTargetReader  OwnedPackageTargetReader
+	// GoModuleRepositoryReader reads one rotation page of repositories for a
+	// Go reachability activation. It is required only when an activation
+	// enables derive_from_go_modules.
+	GoModuleRepositoryReader          GoModuleRepositoryReader
 	TenantGrantReader                 TenantGrantReader
 	OSPackageAdvisoryTargetReader     OSPackageAdvisoryTargetReader
 	SBOMComponentAdvisoryTargetReader SBOMComponentAdvisoryTargetReader

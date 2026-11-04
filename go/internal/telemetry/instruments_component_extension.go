@@ -60,12 +60,14 @@ func registerComponentExtensionInstruments(meter metric.Meter, inst *Instruments
 
 // registerActivationDerivedScopeInstruments registers the #9311 counter of
 // derived scopes the workflow coordinator plans for a component activation
-// (today a vulnerability-intelligence activation's OSV scopes). It increments
+// (a vulnerability-intelligence activation's OSV scopes, and a Go reachability
+// activation's repository scopes with ecosystem "go", #10027). It increments
 // once per reconcile pass per ecosystem by the number of scopes planned before
 // open-target admission, so a repeat pass inside one plan bucket counts the
 // same scopes again; the enqueue log carries what was admitted. Labels are
 // collector_kind, collector_instance_id (one per configured activation), and
-// ecosystem (the closed OSV ecosystem set the derive contract admits).
+// ecosystem (the closed OSV ecosystem set the derive contract admits, plus "go").
+// Never a repository id or URL.
 func registerActivationDerivedScopeInstruments(meter metric.Meter, inst *Instruments) error {
 	var err error
 	if inst.ActivationDerivedScopesPlanned, err = meter.Int64Counter(
