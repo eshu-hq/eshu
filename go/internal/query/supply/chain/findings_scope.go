@@ -76,8 +76,11 @@ func (h *Handler) writeEmptyImpactExplanation(w http.ResponseWriter, r *http.Req
 }
 
 // writeEmptyImpactCount returns the zero-count aggregate shape for an
-// empty-grant scoped token without reading the aggregate store.
-func (h *Handler) writeEmptyImpactCount(w http.ResponseWriter, r *http.Request) {
+// empty-grant scoped token without reading the aggregate store. profile is the
+// detection profile the request actually selected (precise unless the caller
+// asked for comprehensive); echoing a fixed value would misreport a default
+// request.
+func (h *Handler) writeEmptyImpactCount(w http.ResponseWriter, r *http.Request, profile string) {
 	querycontract.WriteSuccess(w, r, http.StatusOK, map[string]any{
 		"total_findings":     0,
 		"affected_findings":  0,
@@ -87,7 +90,7 @@ func (h *Handler) writeEmptyImpactCount(w http.ResponseWriter, r *http.Request) 
 		"not_affected":       0,
 		"by_priority_bucket": map[string]int{},
 		"by_severity":        map[string]int{},
-		"detection_profile":  impact.ProfileComprehensive,
+		"detection_profile":  profile,
 		"scope":              map[string]string{},
 	}, querycontract.BuildTruthEnvelope(
 		h.profile(),
@@ -98,13 +101,15 @@ func (h *Handler) writeEmptyImpactCount(w http.ResponseWriter, r *http.Request) 
 }
 
 // writeEmptyImpactInventory returns the empty inventory page for an empty-grant
-// scoped token without reading the aggregate store.
+// scoped token without reading the aggregate store. profile is the detection
+// profile the request actually selected.
 func (h *Handler) writeEmptyImpactInventory(
 	w http.ResponseWriter,
 	r *http.Request,
 	dimension impact.InventoryDimension,
 	limit int,
 	offset int,
+	profile string,
 ) {
 	querycontract.WriteSuccess(w, r, http.StatusOK, map[string]any{
 		"buckets":           []impact.InventoryRow{},
@@ -112,7 +117,7 @@ func (h *Handler) writeEmptyImpactInventory(
 		"limit":             limit,
 		"offset":            offset,
 		"group_by":          string(dimension),
-		"detection_profile": impact.ProfileComprehensive,
+		"detection_profile": profile,
 		"truncated":         false,
 		"next_offset":       nil,
 		"scope":             map[string]string{},
@@ -121,5 +126,37 @@ func (h *Handler) writeEmptyImpactInventory(
 		ImpactAggregateCapability,
 		querycontract.TruthBasisSemanticFacts,
 		"scoped token grants authorize no repositories; inventory buckets are empty",
+	))
+}
+
+// writeEmptyImpactGroupedInventory returns the empty grouped-inventory page for
+// an empty-grant scoped token without reading the grouped store: zero buckets,
+// no unattributed row, and a zero distinct_findings, so the response cannot
+// reveal which services, workloads, or environments exist outside the grant.
+func (h *Handler) writeEmptyImpactGroupedInventory(
+	w http.ResponseWriter,
+	r *http.Request,
+	dimension impact.GroupedInventoryDimension,
+	limit int,
+	offset int,
+	profile string,
+) {
+	querycontract.WriteSuccess(w, r, http.StatusOK, map[string]any{
+		"buckets":           []impact.GroupedInventoryRow{},
+		"count":             0,
+		"limit":             limit,
+		"offset":            offset,
+		"group_by":          string(dimension),
+		"detection_profile": profile,
+		"truncated":         false,
+		"next_offset":       nil,
+		"distinct_findings": 0,
+		"freshness":         impact.GroupedInventoryFreshness{State: impact.FreshnessLabelUnknown},
+		"scope":             map[string]string{},
+	}, querycontract.BuildTruthEnvelope(
+		h.profile(),
+		ImpactAggregateCapability,
+		querycontract.TruthBasisSemanticFacts,
+		"scoped token grants authorize no repositories; grouped inventory buckets are empty",
 	))
 }

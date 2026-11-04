@@ -381,6 +381,17 @@ func TestSiblingRoutesLogFailedStageOnHandlerOwned500(t *testing.T) {
 			},
 		},
 		{
+			name:      "impact aggregate grouped inventory",
+			target:    "/api/v0/supply-chain/impact/inventory?group_by=service_id&limit=10",
+			spanName:  telemetry.SpanQuerySupplyChainImpactAggregate,
+			operation: supplyChainImpactAggregateOperation,
+			stage:     impactGroupedInventoryStage,
+			message:   impactGroupedInventoryReadFailedMessage,
+			build: func() *Handler {
+				return &Handler{ImpactGroupedInventory: &fakeGroupedInventoryStore{err: boom}}
+			},
+		},
+		{
 			name:      "container image aggregate count",
 			target:    "/api/v0/supply-chain/container-images/identities/count",
 			spanName:  telemetry.SpanQueryContainerImageIdentityAggregate,

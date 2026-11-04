@@ -51,6 +51,12 @@ type Handler struct {
 	AdvisoryCatalog          advisory.CatalogStore
 	ImpactFindings           impact.FindingStore
 	ImpactAggregates         impact.AggregateStore
+	// ImpactGroupedInventory serves the service_id, workload_id, and
+	// environment inventory dimensions (#9873). It is a separate port from
+	// ImpactAggregates: a nil store answers the 503 backend_unavailable
+	// envelope for those dimensions only, never a fallback to the aggregate
+	// store.
+	ImpactGroupedInventory   impact.GroupedInventoryStore
 	ImpactExplanations       impact.ExplanationStore
 	ContainerImageIdentities ContainerImageIdentityStore
 	ContainerImageAggregates ContainerImageIdentityAggregateStore

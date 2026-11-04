@@ -111,6 +111,11 @@ func TestSiblingRoutesServerFailures(t *testing.T) {
 			func(err error) *Handler {
 				return &Handler{ImpactAggregates: errImpactAggregateStore{inventoryErr: err}}
 			}),
+		stagedSupplyRoute(t, "impact aggregate grouped inventory", "", "/api/v0/supply-chain/impact/inventory?group_by=workload_id&limit=10", "",
+			impactGroupedInventoryReadFailedMessage, supplyChainImpactAggregateOperation, impactGroupedInventoryStage, telemetry.SpanQuerySupplyChainImpactAggregate,
+			func(err error) *Handler {
+				return &Handler{ImpactGroupedInventory: &fakeGroupedInventoryStore{err: err}}
+			}),
 		stagedSupplyRoute(t, "container image aggregate count", "", "/api/v0/supply-chain/container-images/identities/count", "",
 			"container image identity count read failed", supplyChainContainerImageAggregateOperation, "container_image_aggregate_count", telemetry.SpanQueryContainerImageIdentityAggregate,
 			func(err error) *Handler {

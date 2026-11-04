@@ -124,6 +124,15 @@ func TestSiblingStoreReadsAnswerRetryable503(t *testing.T) {
 			},
 		},
 		{
+			name:       "impact aggregate grouped inventory",
+			target:     "/api/v0/supply-chain/impact/inventory?group_by=environment&limit=10",
+			stage:      impactGroupedInventoryStage,
+			capability: ImpactAggregateCapability,
+			build: func(err error) *Handler {
+				return &Handler{ImpactGroupedInventory: &fakeGroupedInventoryStore{err: err}}
+			},
+		},
+		{
 			name:       "container image aggregate count",
 			target:     "/api/v0/supply-chain/container-images/identities/count",
 			stage:      "container_image_aggregate_count",
