@@ -234,6 +234,50 @@ each of them, so the recommendation is yes.
 psql -d perf9986 -f explain10.sql   # shipped statement, custom then generic
 ```
 
+## Repository identity cost (#9986, part B)
+
+QA read-only plans showed the repository fact's stored payload size driving the
+repository-side buffers: a 4,756,465 byte payload read 1,246 buffers for one
+row, against 9 when the payload was not touched. The cause is that
+`repo.payload->>'graph_id'` and `->>'name'` each decompress the TOASTed
+payload (the multi-megabyte part is `imports_map`, see
+`RepositoryFactEnvelope`). This was measured on a repository fact with a
+15 MB stored payload (QA's was 4.76 MB, so scale by about 0.3) and the same
+23,329 files as QA pair A: one scope with no signal in any file (QA all-null
+shape), one with the signal on the last file. Warm second runs, custom plan.
+
+| variant | no signal, ms | signal last, ms | repository node, ms | total buffers (no signal) | same result as shipped |
+| --- | --- | --- | --- | --- | --- |
+| shipped statement | 165.302 | 154.403 | 8.415 | 7,268 hit | (reference) |
+| one `jsonb_to_record(repo.payload)` read | 229.441 | 255.423 | 0.051 plus 3.146 for the function scan | 5,291 hit | yes |
+| identity from `stable_fact_key`, no name test | 177.526 | 232.200 | 0.026 | 3,314 hit | no |
+
+Reading it:
+
+- The repository side is 8.4 ms of 165 ms warm. The join filter that
+  mentions `repo.payload->>'graph_id'` is not evaluated per file: the file side
+  rejects the row first, so the TOASTed payload is read for the filter
+  (twice) and once for the match, not once per file.
+- Reading the identity in one `jsonb_to_record` call has the same result and
+  fewer buffers, but the whole statement got slower in both scenarios (the
+  planner changed the file-side shape), so it is not a pure win and is not
+  adopted.
+- `repository:` plus `graph_id` is the stable key of the only production
+  repository emitter (`RepositoryFactEnvelope`), so the key could replace the
+  `graph_id` read. The `name` exists only in the payload, so dropping its test
+  to avoid the payload changes results (a nameless repository would probe
+  true), and relying on the key format changes results for any fact written
+  otherwise. Wall time did not improve either (the buffers fell by about
+  3,950, the runs did not get faster). Not adopted.
+- The cost that remains is the first read of a cold repository payload, which
+  is a one-time page fetch per cache-cold repository fact (606 reads on QA for
+  its 4.76 MB payload). It was not reproduced here: the synthetic cluster was
+  warm, so the cold figure is the QA measurement, not this one.
+
+Decision: leave the repository-side read as is. Record: 8.4 ms warm at 15 MB
+stored payload, about 4,000 buffers, 5% of the statement on a 23,329-file scope.
+A cache-cold repository payload read is NOT_CHECKED here.
+
 ## Observability Evidence
 
 Observability Evidence: `eshu_dp_reducer_workload_candidate_probe_total`, the
