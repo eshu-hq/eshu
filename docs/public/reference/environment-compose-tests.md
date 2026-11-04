@@ -134,3 +134,22 @@ normal runtime operations.
 | Harbor OCI | `ESHU_HARBOR_OCI_LIVE`, `ESHU_HARBOR_OCI_URL`, `ESHU_HARBOR_OCI_REPOSITORY`, `ESHU_HARBOR_OCI_REFERENCE`, `ESHU_HARBOR_OCI_USERNAME`, `ESHU_HARBOR_OCI_PASSWORD`, `ESHU_HARBOR_OCI_BEARER_TOKEN` |
 | Google Artifact Registry OCI | `ESHU_GAR_OCI_LIVE`, `ESHU_GAR_OCI_REGISTRY_HOST`, `ESHU_GAR_OCI_REPOSITORY`, `ESHU_GAR_OCI_REFERENCE`, `ESHU_GAR_OCI_USERNAME`, `ESHU_GAR_OCI_PASSWORD`, `ESHU_GAR_OCI_BEARER_TOKEN` |
 | Azure Container Registry OCI | `ESHU_ACR_OCI_LIVE`, `ESHU_ACR_OCI_REGISTRY_HOST`, `ESHU_ACR_OCI_REPOSITORY`, `ESHU_ACR_OCI_REFERENCE`, `ESHU_ACR_OCI_USERNAME`, `ESHU_ACR_OCI_PASSWORD`, `ESHU_ACR_OCI_BEARER_TOKEN` |
+
+## Webhook Retarget Evidence (#9950)
+
+No-Regression Evidence: the compose contract tests assert the retargeted
+satellite plus intake topology against a pinned deploy checkout. Baseline: old
+pin `6b6164d4` (pre-#39 tree) rendered by the pre-retarget tests. After: pin
+`696793e` (deploy #39 merge) with `webhook-satellite` and `webhook-intake`
+assertions — `go test ./internal/runtime/ ./internal/envregistry/ -count=1`
+passes (runtime package 6.0s), plus a stale-pin RED proving the pin is
+enforced. Backend: local Linux, no graph backend involved (compose-file
+contract only). Deploy CI on the merge commit is green (`compose`,
+`lint-and-verify`, `go`), and the live webhook leg proved 202 plus trigger
+id, `handed_off`, ingester claim, and git generations 1 to 2. Full
+`verify_webhook_refresh_compose.sh` green is not claimed (#9964 deferred).
+Safe because the eshu diff touches only scripts, test assertions, docs, and
+the pin — no production Go, schema, queue, or hot-path change.
+
+No-Observability-Change: this change adds no metrics, spans, log fields, or
+status surfaces; the compose services keep their existing health probes.
