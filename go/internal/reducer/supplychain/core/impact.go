@@ -478,11 +478,16 @@ func supplyChainImpactFindingHasOwnedAnchor(finding SupplyChainImpactFinding) bo
 	return slices.Contains(finding.EvidencePath, chain.VulnerabilityOSPackageFactKind)
 }
 
+// supplyChainImpactFindingHasUnsupportedMatcher reports a finding with no version
+// matcher for its ecosystem and nothing else to stand on. A joined installed row
+// is evidence about that package and release, so a finding that has one stays
+// visible as possibly_affected with the matcher reported missing (#9990).
 func supplyChainImpactFindingHasUnsupportedMatcher(finding SupplyChainImpactFinding) bool {
 	if strings.TrimSpace(finding.MatchReason) != supplyChainVersionReasonUnsupportedEcosystem {
 		return false
 	}
-	return normalizedSupplyChainVersionEcosystem(finding.Ecosystem) != "os"
+	return normalizedSupplyChainVersionEcosystem(finding.Ecosystem) != "os" &&
+		!slices.Contains(finding.EvidencePath, chain.VulnerabilityOSPackageFactKind)
 }
 
 func supplyChainImpactStatuses() []SupplyChainImpactStatus {
