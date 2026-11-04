@@ -65,7 +65,8 @@ func (*phaseFakeRows) Close() error { return nil }
 
 // phaseFakeTx scripts the keyed tick's statements by their SQL text. delay
 // slows one statement and failOn fails one, so a test can prove the time of a
-// failed phase is still recorded.
+// failed phase is still recorded. rollbacks counts Rollback calls, so a test
+// can prove the tick never leaks the transaction that holds the resweep lock.
 type phaseFakeTx struct {
 	claimed    bool
 	consumed   int64
@@ -74,6 +75,7 @@ type phaseFakeTx struct {
 	delay      map[string]time.Duration
 	failOn     string
 	commitErr  error
+	rollbacks  int
 }
 
 func (tx *phaseFakeTx) step(query string) error {
@@ -117,17 +119,30 @@ func (tx *phaseFakeTx) QueryContext(_ context.Context, query string, _ ...any) (
 	return nil, fmt.Errorf("unscripted query %q", query)
 }
 
-func (tx *phaseFakeTx) Commit() error   { return tx.commitErr }
-func (tx *phaseFakeTx) Rollback() error { return nil }
+func (tx *phaseFakeTx) Commit() error { return tx.commitErr }
 
-// phaseFakeDB hands the one scripted transaction to ResweepWinnersKeyed.
-type phaseFakeDB struct{ tx *phaseFakeTx }
+func (tx *phaseFakeTx) Rollback() error {
+	tx.rollbacks++
+	return nil
+}
+
+// phaseFakeDB hands the one scripted transaction to ResweepWinnersKeyed, or
+// fails Begin with beginErr.
+type phaseFakeDB struct {
+	tx       *phaseFakeTx
+	beginErr error
+}
 
 func (phaseFakeDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return nil, errors.New("keyed tick must read through its transaction")
 }
 
-func (d phaseFakeDB) Begin(context.Context) (db.Transaction, error) { return d.tx, nil }
+func (d phaseFakeDB) Begin(context.Context) (db.Transaction, error) {
+	if d.beginErr != nil {
+		return nil, d.beginErr
+	}
+	return d.tx, nil
+}
 
 // tickPhaseSamples returns the tick-phase histogram's sample count and summed
 // seconds by phase label.
@@ -217,6 +232,11 @@ func TestResweepWinnersKeyedRecordsOneSamplePerPhase(t *testing.T) {
 			if !reflect.DeepEqual(counts, want) {
 				t.Errorf("tick phase samples = %v, want %v", counts, want)
 			}
+			// A tick that began a transaction rolls it back exactly once: after
+			// a commit it is a no-op, and on a held lock it releases the claim.
+			if tx.rollbacks != 1 {
+				t.Errorf("Rollback calls = %d, want 1", tx.rollbacks)
+			}
 		})
 	}
 }
@@ -268,7 +288,38 @@ func TestResweepWinnersKeyedRecordsTheTimeOfAFailedPhase(t *testing.T) {
 			if tt.failOn != "" && seconds[tt.phase] < spent.Seconds() {
 				t.Errorf("failed phase %s recorded %.4f s, want at least %.4f s", tt.phase, seconds[tt.phase], spent.Seconds())
 			}
+			// A failure in any phase must still release the transaction, or it
+			// would hold the resweep try-lock and a pooled connection.
+			if tx.rollbacks != 1 {
+				t.Errorf("Rollback calls = %d, want 1", tx.rollbacks)
+			}
 		})
+	}
+}
+
+// TestResweepWinnersKeyedBeginFailureRollsBackNothing pins that a tick whose
+// Begin fails owns no transaction: it records the claim time, returns the
+// begin error, and never calls Rollback.
+func TestResweepWinnersKeyedBeginFailureRollsBackNothing(t *testing.T) {
+	t.Parallel()
+
+	tx := &phaseFakeTx{claimed: true}
+	beginErr := errors.New("begin refused")
+	reader := sdkmetric.NewManualReader()
+	inst, err := telemetry.NewInstruments(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v", err)
+	}
+	store := NewSupplyChainImpactWinnersStore(phaseFakeDB{tx: tx, beginErr: beginErr}).WithInstruments(inst)
+	if _, err := store.ResweepWinnersKeyed(context.Background(), time.Now()); !errors.Is(err, beginErr) {
+		t.Fatalf("ResweepWinnersKeyed() error = %v, want %v", err, beginErr)
+	}
+	if tx.rollbacks != 0 {
+		t.Errorf("Rollback calls = %d, want 0 when Begin failed", tx.rollbacks)
+	}
+	counts, _ := tickPhaseSamples(t, reader)
+	if want := map[string]uint64{"claim": 1}; !reflect.DeepEqual(counts, want) {
+		t.Errorf("tick phase samples = %v, want %v", counts, want)
 	}
 }
 
