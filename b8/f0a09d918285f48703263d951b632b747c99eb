@@ -1,0 +1,27 @@
+go/internal/reducer/supply_chain_impact_manifest_runtime_test.go
+  s_7547c0f0af67d4::t_b71632673a8f54 1-103
+docs/public/observability/telemetry-coverage-reducer-domains.md
+  s_7547c0f0af67d4::t_38ad1265afe947 94
+docs/public/reference/telemetry/supply-chain-impact-winners.md
+  s_7547c0f0af67d4::t_3deb67c4fafd8f 92-97
+go/internal/reducer/supplychain/core/manifest_trigger.go
+  s_7547c0f0af67d4::t_17c1b5cc2ef431 46-50,141-148,150-151
+go/internal/reducer/supplychain/core/manifest_trigger_test.go
+  s_7547c0f0af67d4::t_b23da22082a2fe 369-374,396-400,420-423,426
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b8f0a09d918285f48703263d951b632b747c99eb",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
