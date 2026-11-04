@@ -10,11 +10,13 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	factimpact "github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/impact"
 )
 
@@ -38,6 +40,10 @@ func TestSupplyChainImpactBranchPlansStayOnAnchorsLive(t *testing.T) {
 	filter := supplyChainImpactMatrixAllFilter()
 	for n := 1; n <= 8; n++ {
 		filter.FileRepositoryIDs = append(filter.FileRepositoryIDs, supplyChainImpactScaledRepositoryID(n*7))
+	}
+	// A full chunk, so the upstream branch's plan is proven at the size it runs at.
+	for n := 1; len(filter.UpstreamCVEIDs) < factimpact.MaxCVEIDsPerStatement; n++ {
+		filter.UpstreamCVEIDs = append(filter.UpstreamCVEIDs, fmt.Sprintf("CVE-1999-%05d", n))
 	}
 	_, statements := supplyChainImpactProductionRows(t, ctx, recorder, filter)
 
@@ -201,5 +207,64 @@ func supplyChainImpactExecAnalyze(t *testing.T, ctx context.Context, database *s
 	}
 	if _, err := database.ExecContext(ctx, "ANALYZE fact_records"); err != nil {
 		t.Fatalf("analyze fact_records: %v", err)
+	}
+}
+
+// TestSupplyChainImpactUpstreamListReadsOnlySignalsLive is the #9914 fallback on
+// real rows. An upstream id loads the CVE's KEV and EPSS facts and every suppression
+// scoped to it however the scope spells the id, never its cve, affected_package or
+// affected_product facts, and a list that spans chunks loses nothing.
+func TestSupplyChainImpactUpstreamListReadsOnlySignalsLive(t *testing.T) {
+	ctx, database := openSupplyChainImpactEvidenceProofDB(t)
+	seedSupplyChainImpactMatrix(t, ctx, database)
+
+	ids := []string{scimCVE}
+	for n := 1; len(ids) <= 2*factimpact.MaxCVEIDsPerStatement+1; n++ {
+		ids = append(ids, fmt.Sprintf("CVE-1999-%05d", n))
+	}
+	slices.Sort(ids)
+	store := NewFactStore(SQLDB{DB: database})
+	load := func(list []string) (map[string]int, []string) {
+		loaded, _, err := store.ListActiveSupplyChainImpactFacts(ctx, supplychaincore.SupplyChainImpactFactFilter{UpstreamCVEIDs: list})
+		if err != nil {
+			t.Fatalf("ListActiveSupplyChainImpactFacts(): %v", err)
+		}
+		kinds := map[string]int{}
+		var factIDs []string
+		for _, envelope := range loaded {
+			kinds[envelope.FactKind]++
+			factIDs = append(factIDs, envelope.FactID)
+		}
+		slices.Sort(factIDs)
+		return kinds, factIDs
+	}
+	kinds, one := load([]string{scimCVE})
+	for kind, count := range kinds {
+		switch kind {
+		case factimpact.KindEPSSScore, factimpact.KindKnownExploited:
+			if count != 1 {
+				t.Errorf("%s rows = %d, want the CVE's one row", kind, count)
+			}
+		case factimpact.KindSuppression:
+		case "reducer_container_image_identity":
+			// The fixture's identity stream stub ignores its inputs. Production's is
+			// keyed on digests and repositories, and this list reaches neither.
+		default:
+			t.Errorf("loaded %d %s rows: an upstream id must not load this kind", count, kind)
+		}
+	}
+	if kinds[factimpact.KindEPSSScore] != 1 || kinds[factimpact.KindKnownExploited] != 1 {
+		t.Errorf("kinds = %v, want the EPSS and KEV rows", kinds)
+	}
+	// The 80 bulk rows plus the lower-cased scope. The arm reads the scope, and a
+	// top-level cve_id on a suppression is not a scope.
+	if got, want := kinds[factimpact.KindSuppression], 80+1; got != want {
+		t.Errorf("suppressions = %d, want %d", got, want)
+	}
+	if !slices.Contains(one, "m:supp:cve-lower") || slices.Contains(one, "m:supp:top-cve") {
+		t.Errorf("suppression rows: want m:supp:cve-lower in and m:supp:top-cve out, got %d rows", len(one))
+	}
+	if _, spanning := load(ids); !slices.Equal(spanning, one) {
+		t.Errorf("a list spanning chunks loaded %d rows, want the same %d", len(spanning), len(one))
 	}
 }

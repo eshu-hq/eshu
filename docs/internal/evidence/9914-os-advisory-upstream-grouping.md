@@ -180,6 +180,10 @@ with bytes equal to within 0.2%, and
 
 ## Observability
 
+`eshu_dp_supply_chain_impact_active_evidence_branch_seconds` and
+`..._branch_rows_total` carry `branch="vulnerability_upstream_cve_id"`, one sample
+per statement.
+
 Observability Evidence: `eshu_dp_supply_chain_impact_os_advisory_upstream_groups_total{source,result}`
 counts the examined `vulnerability.cve` records by the closed source set
 (debian, ubuntu, alpine, alma, rocky, other) and result (grouped, ungrouped), 12
@@ -190,6 +194,66 @@ any fleet whose stored records predate the field. The planted RED is
 `TestOSAdvisoryUpstreamGroupCounterPlantedRed`. The OS join counter still counts
 each loaded advisory fact once however many CVEs it was filed under
 (`TestOSAdvisoryJoinCensusCountsEachFactOnce`).
+
+## What the load asks for
+
+A distro record is stored under its own id. Nothing filed under the CVE it names
+reaches the pass unless the filter asks, so before this change an operator's
+suppression scoped to that CVE silently did nothing, and the finding read no KEV
+and no EPSS. `TestHandlerLoadsTheSignalsOfTheCVEAFindingCarries` pins this; one
+batch tests cannot see it. At 242415ed46 the only filter on its input asked for
+`DEBIAN-CVE-2023-38039`, and the finding read `KnownExploited` false, no EPSS and
+suppression state `active`.
+
+The first design put the CVE ids on `CVEIDs`. The read-only shim on the QA primary
+failed it:
+
+| Measurement | Result |
+|---|---|
+| Custom plan on the cve key, plan-only sweep | `cve_lookup_v2` at 150 to 360 ids, `advisory_lookup_v2` at 400 and 500 |
+| The same list past the flip, 600 to 1,922 ids | canceled at the shim session's 30 s statement timeout, every run (6 of 6) |
+| Executions a connection plans that way | the first 5; the generic plan from the 6th stays on `cve_lookup_v2` |
+| 1,922 ids, one generic statement | 203 ms median |
+| 1,922 ids, 9 custom statements of at most 240 ids | 421 ms median, every statement on `cve_lookup_v2` (27 of 27) |
+| 961 real CVE ids, added rows | 4,543 envelopes (9.1% of 50,000), 10.33 MiB (8.1% of 128 MiB) |
+
+QA holds no `affected_product`, EPSS or suppression rows, so those terms were not
+measured, and `affected_product` is the one that could spend the budget. So:
+
+- `UpstreamCVEIDs` is its own field. It reads `vulnerability.known_exploited`,
+  `vulnerability.epss_score` and the suppression scope `cve_id`, and never
+  `vulnerability.cve`, `affected_package` or `affected_product`.
+- **OS findings take severity only from the record that decided them until the
+  widening is measured.** A scored record the pass loaded for another reason, such
+  as a language finding keyed to the same CVE, still supplies the score.
+- A loaded KEV, EPSS or suppression fact whose CVE a record's `upstream` list
+  names stays off `CVEIDs`. The filter feeds those ids back each round, so without
+  this the next round's full cve probe would load the excluded kinds anyway. A
+  signal for any other CVE keeps the full arm, because an EPSS or KEV intent
+  re-reads the findings for its CVE through it.
+- The KEV and EPSS probe runs in statements of at most 120 ids, and its rows union
+  exactly because a row answers to one list entry. The suppression statement reads
+  the whole list in one statement because it carries the LIMIT; the shim measured
+  that statement's plan at 0.157 ms with no suppression rows on QA.
+
+Limits, measured or not:
+
+- The 5-kind `vulnerability_cve_id` statement is the one the shim measured. The
+  2-kind upstream statement has not been planned on QA. On the local fixture
+  `TestSupplyChainImpactBranchPlansStayOnAnchorsLive` proves it on
+  `cve_lookup_v2` at 120 ids under both plan modes, but a fixture of 4,000 rows per
+  kind cannot reproduce the flip itself. The bound is the shared #9994 bound.
+- This change adds no id to `vulnerability_cve_id`, which #9994 chunks at the
+  same bound.
+- An intent triggered by a KEV, EPSS or suppression fact with no distro record in
+  its pass cannot reach a record keyed by its own id, since no index reads
+  `upstream`. That limit predates this change.
+
+No-Regression Evidence: the upstream statement issues nothing for a pass with no
+`upstream` key (`TestUpstreamListIsCleaned`, and the supplied-list gate in
+`supplyChainImpactBranchRuns`), and the withheld ids only shrink what
+`vulnerability_cve_id` reads. `TestSupplyChainImpactActiveEvidenceMatchesRetiredStatementLive`
+and `TestSupplyChainImpactActiveEvidenceBufferBudgetLive` pass with the new branch.
 
 ## Scope question and limits
 

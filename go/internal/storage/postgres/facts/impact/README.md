@@ -38,15 +38,19 @@ This package generates the replacement from one table:
 - Growth (vulnerability catalog, registry, SBOM, OCI, CI/CD, consumption,
   provider alerts): one key probe per contract-carried key. A key the
   contract never carries is a guard cell.
-  Every key probe on `cve_lookup_v2`, today `vulnerability_cve_id`, binds at most
-  `MaxCVEIDsPerStatement` (120) ids per statement (#9994). On QA a custom plan on
-  that key walks the whole advisory index at 172 to 199 ids and from 389, and a
-  list's last statement can be any length
-  up to the bound, so the bound sits below 172. See
-  `docs/internal/evidence/9994-cve-key-probe-chunking.md`.
+  Every key probe on `cve_lookup_v2`, today `vulnerability_cve_id` and
+  `vulnerability_upstream_cve_id`, binds at most `MaxCVEIDsPerStatement` (120)
+  ids per statement (#9994). The upstream probe (#9914) is a second probe on
+  the cve key for the CVEs distro records name, limited to KEV and EPSS. On
+  QA a custom plan on that key walks the whole advisory index at 172 to 199
+  ids and from 389, and a list's last statement can be any length up to the
+  bound, so the bound sits below 172. See
+  `docs/internal/evidence/9994-cve-key-probe-chunking.md` and
+  `docs/internal/evidence/9914-os-advisory-upstream-grouping.md`.
 - Bounded (suppression, platform materialization, workload identity,
   service catalog): one statement per kind evaluates every applicable arm
-  over a kind-partial anchor.
+  over a kind-partial anchor. The suppression statement also reads the upstream
+  list against `scope.cve_id`, whole and unchunked, because it carries the LIMIT.
 - File: the JS/TS `repo_id` probe and the resolved-scope probe; every other
   file cell is a guard cell (`codegraph/v1.File` carries none of them).
 

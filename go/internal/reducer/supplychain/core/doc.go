@@ -64,7 +64,9 @@
 // the CVE ids its typed upstream list names, so one installed package reads one
 // finding per CVE (groupOSAdvisoriesByUpstream, #9914). The join is on the
 // advisory id, and an OS finding is named by the record that decided it, so its
-// identity does not depend on what the pass loaded. Test seams for the reducer root's
+// identity does not depend on what the pass loaded. The load filter asks for the
+// KEV, EPSS and suppression facts of the CVEs an upstream list names on its own
+// field, UpstreamCVEIDs, and never for their NVD record or product rows. Test seams for the reducer root's
 // own wiring test live in the parent's compat stanza, following the
 // containerimage precedent; family-local test doubles live in
 // cross_scope_test_doubles_test.go.

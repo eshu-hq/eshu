@@ -12,7 +12,11 @@ supply-chain impact branch catalog (for example `vulnerability_cve_id`,
 scopes), `payload_page` (one primary-key page), `identity` (one
 canonical image-identity page), and `file_fold` (one byte-ordered page of
 parser file facts folded into the reachability index and dropped, #9781). Statements that a pass's filter does not need
-are not issued and record nothing.
+are not issued and record nothing. `vulnerability_upstream_cve_id` runs once per
+120 ids of its list and records each statement, so its histogram count is
+statements, not passes. If one of them climbs from milliseconds into seconds, the
+cve key probe's custom plan may have moved off its index: compare with
+`vulnerability_cve_id`, which runs under the same bound.
 
 - `eshu_dp_supply_chain_impact_active_evidence_branch_seconds` — histogram
   of one statement's wall time, labeled `branch`. A branch whose latency

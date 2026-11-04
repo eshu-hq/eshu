@@ -104,6 +104,12 @@ changing anything here.
   one `cve_id`. Changing the key rule moves `finding_id`, the winners key and
   `cve_id` filters for every grouped OS finding, so treat it as an identity
   migration.
+- `UpstreamCVEIDs` on the load filter asks for the CVEs an `upstream` list names
+  and reads KEV, EPSS and suppression scopes only. It reads the raw payload, because
+  the filter runs before the typed decode, and it forms no group. Do not move an
+  upstream id onto `CVEIDs`, directly or through `appendSignalCVEIDs`: that loads
+  the CVE's NVD record and product rows, the widening the #9914 shim failed. Widen
+  only with a budget measurement on a store that holds NVD data.
 - An OS-class finding is named by `decidingAdvisoryID`, not `IdentitySource`, so
   its identity does not depend on what the pass loaded. Do not let a scored source
   rename one, and do not move this rule to other ecosystems: #9693 pins theirs.

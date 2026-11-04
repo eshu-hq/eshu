@@ -36,7 +36,7 @@ var (
 func supplyChainImpactMatrixAllFilter() supplychaincore.SupplyChainImpactFactFilter {
 	return supplychaincore.SupplyChainImpactFactFilter{
 		PackageIDs: []string{scimPackage}, PURLs: []string{scimPURL},
-		CVEIDs: []string{scimCVE}, AdvisoryIDs: []string{scimAdvisory},
+		CVEIDs: []string{scimCVE}, UpstreamCVEIDs: []string{scimCVE}, AdvisoryIDs: []string{scimAdvisory},
 		SubjectDigests: []string{scimDigest}, ProductCriteria: []string{scimCriteria},
 		DocumentIDs: []string{scimDocument}, RepositoryIDs: scimRepositories,
 		FileRepositoryIDs: scimRepositories, ImageRefs: []string{scimImage},

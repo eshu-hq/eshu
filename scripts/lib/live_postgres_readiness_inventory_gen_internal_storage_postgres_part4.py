@@ -191,6 +191,7 @@ TABLE = {
         "go/internal/storage/postgres/supply_chain_impact_evidence_plan_live_test.go": (
             "TestSupplyChainImpactBranchPlansStayOnAnchorsLive",
             "TestSupplyChainImpactNewIndexInsertCostLive",
+            "TestSupplyChainImpactUpstreamListReadsOnlySignalsLive",
         ),
         "go/internal/storage/postgres/supply_chain_impact_fleet_gate_9875_live_test.go": (
             "TestFleetAcceptanceGateKEVReachesServiceRollup9875Live",
