@@ -138,3 +138,26 @@ func BenchmarkBuildSupplyChainImpactIndexUpstreamGrouping(b *testing.B) {
 		})
 	}
 }
+
+// BenchmarkBuildSupplyChainImpactFindingsTwoLiveRecords measures the whole
+// classification when every CVE has two live records for the installed package,
+// the only shape where osHoldingFacts does more than return. One finding per CVE.
+func BenchmarkBuildSupplyChainImpactFindingsTwoLiveRecords(b *testing.B) {
+	for _, cves := range []int{100, 1000} {
+		var envelopes []facts.Envelope
+		for at := range cves {
+			cve := fmt.Sprintf("CVE-2026-%05d", at)
+			envelopes = append(envelopes, convertedOSVRecord(b, debianRecord(fmt.Sprintf("DLA-%d-1", at), "11", "bullseye", "7.74.0-1.3+deb11u10", cve), false)...)
+			envelopes = append(envelopes, convertedOSVRecord(b, debianRecord(fmt.Sprintf("DSA-%d-1", at), "11", "bullseye", "7.74.0-1.3+deb11u12", cve), false)...)
+		}
+		envelopes = append(envelopes, debianCurl("11", "7.74.0-1.3+deb11u11").envelope())
+		b.Run(fmt.Sprintf("cves=%d", cves), func(b *testing.B) {
+			b.ReportAllocs()
+			var findings int
+			for i := 0; i < b.N; i++ {
+				findings = len(BuildSupplyChainImpactFindings(envelopes))
+			}
+			b.ReportMetric(float64(findings), "findings")
+		})
+	}
+}

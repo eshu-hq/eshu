@@ -5,6 +5,7 @@ package core
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -443,5 +444,43 @@ func TestOSHoldingFactsDoesNotAllocateForOneFact(t *testing.T) {
 	pkgs := []supplychainmodel.AffectedPackage{{FactID: "a", Source: "debian"}}
 	if allocs := testing.AllocsPerRun(100, func() { osHoldingFacts("5.0-1", "debian", pkgs) }); allocs != 0 {
 		t.Errorf("allocs = %v, want 0", allocs)
+	}
+}
+
+// TestFleetDigestsEachNameTheirOwnHolder: the fleet-wide pass classifies each image
+// digest on its own (#9858), so the holder is judged against that image's installed
+// version. An image on u11 sits inside the DSA's range and past the DLA's fix, and an
+// image on u13 is past both, so no record holds it and the first sorted one names it.
+func TestFleetDigestsEachNameTheirOwnHolder(t *testing.T) {
+	t.Parallel()
+
+	const cve = "CVE-2023-38039"
+	vulnerable := "sha256:" + strings.Repeat("a", 64)
+	patched := "sha256:" + strings.Repeat("b", 64)
+	advisories := append(
+		convertedOSVRecord(t, debianRecord("DLA-1000-1", "11", "bullseye", deb11u("10"), cve), false),
+		convertedOSVRecord(t, debianRecord("DSA-2000-1", "11", "bullseye", deb11u("12"), cve), false)...,
+	)
+	rows := append(
+		fleetOSRow(debianCurl("11", deb11u("11")), "image://fleet/u11", "gen-u11", vulnerable),
+		fleetOSRow(debianCurl("11", deb11u("13")), "image://fleet/u13", "gen-u13", patched)...,
+	)
+
+	byDigest := make(map[string]SupplyChainImpactFinding)
+	for _, finding := range BuildSupplyChainImpactFindings(append(advisories, rows...)) {
+		byDigest[finding.SubjectDigest] = finding
+	}
+	if len(byDigest) != 2 {
+		t.Fatalf("findings by digest = %d, want 2: %#v", len(byDigest), byDigest)
+	}
+	got := byDigest[vulnerable]
+	assertSupplyChainImpactStatus(t, got, SupplyChainImpactAffectedExact)
+	if got.AdvisoryID != "DSA-2000-1" || got.FixedVersion != deb11u("12") {
+		t.Errorf("u11 image advisory/fix = %q/%q, want DSA-2000-1 and u12", got.AdvisoryID, got.FixedVersion)
+	}
+	got = byDigest[patched]
+	assertSupplyChainImpactStatus(t, got, SupplyChainImpactNotAffectedKnownFixed)
+	if got.AdvisoryID != "DLA-1000-1" {
+		t.Errorf("u13 image advisory = %q, want DLA-1000-1: no record holds it", got.AdvisoryID)
 	}
 }
