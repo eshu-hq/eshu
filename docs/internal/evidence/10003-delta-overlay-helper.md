@@ -154,14 +154,23 @@ pages still dominate the read (#9611 owns that rewrite).
 
 ## Behavior notes
 
-- A failing base lookup now fails the read before any scope is decided. The
-  #9991 loop counted the decisions it had already made for earlier scopes.
-  Now the read counts only `union_resolve_failed`, once. The read returns the
-  same error either way.
-- In a transaction (the reader snapshot, the successor guard's commit
-  transaction), a failed probe statement aborts the transaction. The refusal
-  is recorded, and the next statement fails. This predates #10003 and is
-  unchanged.
+These are the only places the manifest reader's counters can differ from
+#9991. Each is on a path where the read fails either way.
+
+- A failing base lookup now fails before any scope is decided. The read
+  counts `union_no_baseline` for each reached legacy delta (counted before
+  the batch), then `union_resolve_failed` once. The `union_base_missing` and
+  `union_base_unmatched` decisions that the #9991 loop had already made for
+  scopes ahead of the failing one are no longer counted. The read returns the
+  same error.
+- A failing probe statement now refuses every superseded-base scope in the
+  batch at once. Under #9991 it refused one scope, and the next statement
+  failed on the aborted read-only transaction. The read fails either way. The
+  projector and the successor guard bind one pair, so for them the behavior
+  is identical (`TestFactStoreListFactsProbeErrorOnSupersededBaseRefuses` and
+  the in-transaction probe count of 1 are unchanged).
+- On the successor guard's commit transaction, a failed probe statement
+  aborts the transaction, as it did before #10003.
 
 ## Known limits
 
