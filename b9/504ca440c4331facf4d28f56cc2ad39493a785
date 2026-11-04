@@ -1,0 +1,29 @@
+docs/public/reference/logging.md
+  s_7547c0f0af67d4::t_dcd8225a8bcc5b 82,85-91
+go/cmd/api/wiring_handlers.go
+  s_7547c0f0af67d4::t_1bbc629ec631c4 89
+go/internal/query/supply/chain/findings_grouped_inventory_handler.go
+  s_7547c0f0af67d4::t_60e559560fad4e 144-146
+go/internal/query/supply/chain/findings_grouped_inventory_test.go
+  s_7547c0f0af67d4::t_0a2bd5405cb389 293-323
+go/internal/query/supply/chain/impact/grouped_inventory_postgres.go
+  s_7547c0f0af67d4::t_bc45ad81ce1d99 11,16,26-33,70-72,77-82,138,187-191,197-199,203,205-208,211,213,219,221-236,263-266
+go/internal/query/supply/chain/impact/grouped_inventory_postgres_test.go
+  s_7547c0f0af67d4::t_eff47f743d0524 7,12,108,122,447-504
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b9504ca440c4331facf4d28f56cc2ad39493a785",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,33 @@
+docs/internal/evidence/9873-grouped-inventory.md
+  s_7547c0f0af67d4::t_00eec0cdec1868 105-116
+docs/public/reference/env-registry/api-and-auth.md
+  s_7547c0f0af67d4::t_cdcc10b7e09ebf 45
+docs/public/reference/http-api/vulnerability-impact-inventory.md
+  s_7547c0f0af67d4::t_e89f21ecd6d60f 74,76-87,94-99,123-128
+go/internal/envregistry/entries.go
+  s_7547c0f0af67d4::t_683e7cbc9a3695 114
+go/internal/mcp/tools_supply_chain_aggregates.go
+  s_7547c0f0af67d4::t_e3955e40c61bf6 110,116
+go/internal/query/openapi/paths/supply/chain/impact_aggregate.go
+  s_7547c0f0af67d4::t_1004f98430be93 119-120,131
+go/internal/query/supply/chain/impact/grouped_inventory.go
+  s_7547c0f0af67d4::t_fd538ab6299d81 99-101,176-180
+go/internal/query/supply/chain/impact/grouped_inventory_postgres.go
+  s_7547c0f0af67d4::t_7fbbb06a6518d4 60-64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "deab4a8dcdf8d8dd00a462bb2747713ab57f0f5a",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
