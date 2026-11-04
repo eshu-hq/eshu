@@ -280,22 +280,33 @@ func TestParseDerivedOSVScopeReadsEcosystemAndNames(t *testing.T) {
 }
 
 // TestParseDerivedOSVScopeFailsClosedOverTheQueryCap pins the one-chunk bound
-// on both the version and the batch shape.
+// on both the version and the batch shape. The counts are literals on
+// purpose: the coordinator mints at most 100 queries per target, so a cap that
+// drifts from 100 in either direction must fail here instead of following the
+// constant.
 func TestParseDerivedOSVScopeFailsClosedOverTheQueryCap(t *testing.T) {
 	t.Parallel()
 
-	versions := url.Values{}
-	batch := url.Values{}
-	for index := range maxDerivedOSVTargetQueries + 1 {
-		versions.Add("version", fmt.Sprintf("1.0.%d", index))
-		batch.Add("query", fmt.Sprintf("pkg-%03d@1.0.%d", index, index))
+	scopeIDs := func(count int) []string {
+		versions := url.Values{}
+		batch := url.Values{}
+		for index := range count {
+			versions.Add("version", fmt.Sprintf("1.0.%d", index))
+			batch.Add("query", fmt.Sprintf("pkg-%03d@1.0.%d", index, index))
+		}
+		return []string{
+			"vuln-intel://osv/npm/lodash?" + versions.Encode(),
+			"vuln-intel://osv/npm/_batch?" + batch.Encode(),
+		}
 	}
-	for _, scopeID := range []string{
-		"vuln-intel://osv/npm/lodash?" + versions.Encode(),
-		"vuln-intel://osv/npm/_batch?" + batch.Encode(),
-	} {
+	for _, scopeID := range scopeIDs(100) {
+		if _, _, ok := parseDerivedOSVScope(scopeID); !ok {
+			t.Errorf("parseDerivedOSVScope(%s...) rejected exactly 100 queries, want accept", scopeID[:min(len(scopeID), 40)])
+		}
+	}
+	for _, scopeID := range scopeIDs(101) {
 		if _, _, ok := parseDerivedOSVScope(scopeID); ok {
-			t.Errorf("parseDerivedOSVScope(%s...) accepted over the cap, want reject", scopeID[:min(len(scopeID), 40)])
+			t.Errorf("parseDerivedOSVScope(%s...) accepted 101 queries, want reject", scopeID[:min(len(scopeID), 40)])
 		}
 	}
 }
