@@ -159,8 +159,9 @@ VALUES
 		want       bool
 	}{
 		{"dockerfile stages join identity", "scope-signals", "gen-a", true},
-		// The probe is a structural superset check (key existence), not a signal
-		// check: an empty bucket still counts and the post-load gates decide.
+		// The probe tests values the way extraction reads them: an empty
+		// bucket is not a signal. It stays a superset of extraction (language
+		// and path gates are not repeated), so the post-load gates decide.
 		{"empty signal bucket holds nothing", "scope-empty-stages", "gen-b", false},
 		{"every signal key null or empty holds nothing", "scope-qa-null", "gen-l", false},
 		{"repository alone holds none", "scope-repo-only", "gen-c", false},

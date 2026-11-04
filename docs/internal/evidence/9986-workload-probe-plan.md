@@ -19,8 +19,8 @@ ScopeMayHoldWorkloadCandidates: probe workload candidate precondition:
 ERROR: syntax error at or near "k8s_resources" (SQLSTATE 42601)
 ```
 
-All 8 subtests failed. After the matrix grew to 27 cases the unfixed text
-failed all 27 (26 subtests plus the parent) with the same SQLSTATE.
+All 8 subtests failed on the first matrix. On the final matrix (27 subtests
+plus the parent) the unfixed text fails 28 of 28 with the same SQLSTATE.
 
 ## Fix proof
 
@@ -29,16 +29,16 @@ The keys now travel as one bound `text[]` parameter (`$3::text[]`, encoded by
 
 | check | result |
 | --- | --- |
-| live test, fixed text, 27 cases (13 per-signal-key positives derived from `factload.WorkloadCandidateSignalKeys`, other generation, unknown generation, empty `graph_id`, tombstone, repo-only, foreign `repo_id`, nameless repository, signal-free payload, bare Jenkinsfile path) | 27 pass, exit 0 |
-| mutant: quoting back to `'{'k'}'` | killed (29 failures) |
+| live matrix, quoting fix (27 subtests plus the parent; 13 per-signal-key positives derived from `factload.WorkloadCandidateSignalKeys`, other generation, unknown generation, empty `graph_id`, tombstone, repo-only, foreign `repo_id`, nameless repository, signal-free payload, bare Jenkinsfile path; the value-aware rows came later) | 28 pass, exit 0 |
+| mutant: quoting back to `'{'k'}'` | killed (29 failures, measured on the matrix before the value-aware rows) |
 | mutant: bind only the first key | killed (18 failures) |
 | mutant: drop the key argument | killed (28 failures) |
 
 The live matrix corrected one row the SQL had never been able to check:
-`{"dockerfile_stages":[]}` was expected to probe false, but the shipped
-predicate is key existence and its contract calls it a structural superset,
-so an empty bucket counts. The row now expects true. The predicate is
-unchanged.
+`{"dockerfile_stages":[]}` was expected to probe false, but the key-existence
+statement answered true, so the quoting fix alone made that row expect true.
+The value-aware predicate in the next section reverses it: an empty bucket now
+probes false, and so does the QA all-null shape.
 
 ```bash
 cd go && ESHU_POSTGRES_TEST_DSN='postgres://postgres@127.0.0.1:55986/eshu9986?sslmode=disable' \
@@ -105,7 +105,10 @@ Reading the plans:
   load. The DB-side read of the same 300,000-file scope that follows
   (`SELECT fact_id, fact_kind, payload … fact_kind = ANY(…)`) took 89.195 ms
   warm. A candidate-free monorepo therefore pays the probe on top of a load it
-  could not shed, about 3 times the DB-side read. The probe saves Go-side
+  could not shed: about 3 times the DB-side read for the key-existence
+  statement (270 ms against 89 ms), and about 15 times for the value-aware
+  statement on the QA all-null shape (1,300 ms against 89 ms, see the plan
+  table below). The probe saves Go-side
   decode and allocation only when the answer is `true` and the own
   relationship generation is not ready; with the fused production loader a
   closed corpus fence does not shed the load (F2). This is a design property of #9697, not a defect of the fix; the

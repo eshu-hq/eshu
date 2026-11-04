@@ -22,7 +22,10 @@ import (
 // When extraction learns a new parsed_file_data signal, add its key here and
 // to exactly one value class below; the differential live test in
 // go/internal/storage/postgres fails when the probe answers false for a
-// generation extraction turns into a candidate.
+// generation extraction turns into a candidate, but only for keys listed
+// here: its corpus is generated from this list, so a signal nobody adds to it
+// is never generated and the differential cannot catch it. Review extraction
+// changes against this list.
 var WorkloadCandidateSignalKeys = []string{
 	"k8s_resources",
 	"argocd_applications",

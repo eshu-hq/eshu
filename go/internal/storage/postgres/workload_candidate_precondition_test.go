@@ -160,7 +160,7 @@ func TestScopeMayHoldWorkloadCandidatesTrue(t *testing.T) {
 }
 
 // TestScopeMayHoldWorkloadCandidatesFalse serves a false probe row and
-// expects false: the caller takes the vacuous success path.
+// expects false: the caller takes the normal load, then the post-load gates.
 func TestScopeMayHoldWorkloadCandidatesFalse(t *testing.T) {
 	t.Parallel()
 
