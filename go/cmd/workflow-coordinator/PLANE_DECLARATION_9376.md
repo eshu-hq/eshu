@@ -10,6 +10,12 @@ evidence. Every scored item below names its proof or its gap. Gaps stay
 gaps: acceptance is contingent on the spec match, and this draft does not
 tick boxes it cannot prove.
 
+Refresh 2026-11-04: this lane re-read only the digest record (§2) against
+the 2026-11-04 live cluster state handed off to it. The doc was assembled
+at `15caae83c5` (2026-11-01); this worktree sits at `8bcf063b64`
+(2026-11-04). Sections without a 2026-11-04 date still cite the
+2026-11-01 record.
+
 Evidence vocabulary (the arbiter ruling on `#8877`, comment `6475436907`,
 requires "absent on main" wherever a capability is not on main). Each claim
 carries one of three tags and a `file:line` on the `origin/main` named above
@@ -50,42 +56,58 @@ read plane `GetRunStatus`, `ListRuns`, `GetRunCompleteness`,
 `drive/8875-five-route-pin` work merged as `eshu-workflow#17`
 (`5be1aaa`); this lane did not re-run it.
 
-## 2. Tag + deployed digest + dark/authoritative
+## 2. Tag + deployed digest + dark/authoritative (digest record refreshed 2026-11-04; 2026-11-01 history kept inline)
 
 - Tag: `eshu-workflow` `v0.1.0` EXISTS at
-  `09e23b93ad53c3c0acffd1c518f0439e7e0407fa` (re-verified 2026-11-01, read-only
+  `09e23b93ad53c3c0acffd1c518f0439e7e0407fa` (verified 2026-11-01, read-only
   `git ls-remote --tags`). It is no longer the `main` head. No `v0.1.0` tag
   exists on `eshu-hq/eshu` (only `v0.0.x` + `sdk/go/*` tags) — the
   declaration tag is satellite-scoped by design.
-- Satellite `main` is `33f48f4a6b0fa6be8038b5282da502585ef72874`
-  (2026-11-01, `ci(image-publish): publish on version tags and every main
-  merge (#18)`), 22 commits ahead of `b6497fce`, the commit behind the live
-  digest.
-- **Candidate digest** (published, NOT deployed):
+- Tag `v0.1.1` EXISTS at `8311ed699c25201aba8d79c7a0990eaf00b42119` per
+  read-only `git ls-remote --tags` (2026-11-04); it is a lightweight tag
+  pointing straight at the 2026-11-01 commit whose `server/server.go`
+  still serves only `workflow.v1` routes (read-only raw fetch 2026-11-04),
+  so the §3 oldest/newest=v1 claim still holds.
+- Satellite `main` is `af3311e0553908597271707781a29823678b2070`
+  (2026-11-01, read-only `gh api` 2026-11-04), 5 commits ahead of the
+  former candidate `33f48f4a`.
+- **Candidate digest** (published 2026-10-31, NEVER deployed):
   `@sha256:db5a3a53a2bc8c5d9279403d95179950b13069a7c82b9568ff6a3f0e36e86dbc`
   ← `image-publish` run `41242973643` at `33f48f4a` (success, 1m27s). The
   run log shows the build step emitting `provenance,mode=max` with the run
-  as builder id, then a build-provenance attestation signed and uploaded.
-  The earlier "SLSA attestation absent" gap is closed for this digest only.
-- **Live (dark) digest**: `eshu-workflow-claim-plane` +
-  `eshu-workflow-coordinator-satellite` both
-  `@sha256:03d9f97632e196de0f543fa7c0bcfb827db5a3ae8cb1d8e9320511f9b4bada83`
-  ← publish run `40779192627` at `b6497fce` (merge of `eshu-workflow#7`).
-  That image has no SLSA attestation. Per the coordinator handoff of
-  2026-11-01 the live dark pods are still on `03d9f976`; this lane did not
-  re-read the cluster. They move to `33f48f4a` only when the private
-  deployment-repo re-pin PR `#491` ("re-pin dark workflow claim-plane and
-  satellite to 33f48f4a") merges; it is OPEN as of 2026-11-01 (`gh pr view`).
-- Live in-tree coordinator image: `eshu:sha-bdf2823363b8…` per the same
-  handoff (earlier drafts recorded `sha-5eb6dd84…`; superseded, not
-  re-read by this lane).
-- Dark/authoritative: satellite args carry `--deployment-mode=dark`, no
-  `--claims-enabled`, 0 restarts; the in-tree coordinator owns authority.
-  Last read-only cluster check 2026-10-31. Post-revert dark state holds.
-- Gap: the tagged commit `09e23b93`, the candidate `33f48f4a`, and the live
-  `b6497fce` are three different commits. The next flip needs the `#491`
-  merge, then a parity re-bind to `db5a3a53` (procedure in `REMOVAL_PREP.md`
-  §4).
+  as builder id, then a build-provenance attestation signed and uploaded
+  (read 2026-11-01). SUPERSEDED 2026-11-04: never deployed; live is now
+  `e1b564af` (below).
+- **Live digest** (2026-11-04 live re-read handed to this lane):
+  `eshu-workflow-claim-plane` + `eshu-workflow-coordinator-satellite` both
+  `ghcr.io/eshu-hq/eshu-workflow@sha256:e1b564af` (digest prefix as handed
+  off; full 64-hex NOT_CHECKED by this lane), still dark. The 2026-11-01
+  record (`03d9f97632e196de0f543fa7c0bcfb827db5a3ae8cb1d8e9320511f9b4bada83`
+  ← run `40779192627` at `b6497fce`, no SLSA attestation) is superseded.
+- Provenance of live `e1b564af`: NOT_CHECKED (2026-11-04). Tried read-only:
+  `gh api orgs/eshu-hq/packages?package_type=container` → HTTP 403 (needs
+  `read:packages` scope); `gh api
+  repos/eshu-hq/eshu-workflow/actions/workflows/399466503/runs?per_page=10`
+  → newest image-publish run `41342413826` at `af3311e0` (2026-11-01), no
+  run maps to `e1b564af`, and satellite `main` is still `af3311e0`; `gh api
+  repos/eshu-hq/eshu-workflow/attestations/sha256:e1b564af` → 404 (prefix,
+  not a full digest). Publishing commit/run and SLSA state unknown.
+- Live in-tree coordinator image (2026-11-04 handoff):
+  `eshu:sha-e3d81617@sha256:3a07c59b` (references as handed off; earlier
+  `sha-bdf2823363b8…` / `sha-5eb6dd84…` figures superseded, not re-read by
+  this lane).
+- Dark/authoritative (2026-11-04): satellite args carry
+  `--deployment-mode=dark`, no `--claims-enabled`, both deployments 1/1
+  ready; the in-tree coordinator owns authority. Whether the
+  deployment-repo re-pin PR `#491` merged (the 2026-11-01 flip
+  precondition) NOT_CHECKED by this lane.
+- Gap (2026-11-04): the tags (`09e23b93`, `8311ed69`), satellite `main`
+  (`af3311e0`), and the live digest (`e1b564af`, source commit unknown)
+  are not tied together; the parity re-bind procedure in `REMOVAL_PREP.md`
+  §4 still cites the superseded `db5a3a53` record.
+- Note (2026-11-04): the §5 parity bullet, §7, and the scorecard below
+  still cite the 2026-11-01 record (`03d9f976`/`db5a3a53`); not re-read by
+  this lane — refresh pending.
 
 ## 3. Oldest/newest core pairs + compat
 

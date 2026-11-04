@@ -137,41 +137,45 @@ fresh digest bind (the deployed `03d9f976` is 22 commits behind satellite
 4. Set the no-regression bar from history, drain to zero, verify residue
    0/0/0, return to dark.
 
-## 5. Provenance (cluster re-verified read-only 2026-10-30, 2026-10-31; registry and PR state re-read 2026-11-01)
+## 5. Provenance (digest record refreshed 2026-11-04; 2026-10-30/31 and 2026-11-01 history kept inline)
 
-- Deployed (read-only kubectl against the designated cluster named on
-  `#8875`): `eshu-workflow-claim-plane` and
-  `eshu-workflow-coordinator-satellite` both
-  `@sha256:03d9f97632e196de0f543fa7c0bcfb827db5a3ae8cb1d8e9320511f9b4bada83`;
-  satellite args carry `--deployment-mode=dark`, no `--claims-enabled`;
-  in-tree `eshu-workflow-coordinator` owns authority
-  (`eshu:sha-5eb6dd84…`). Dark post-revert state holds.
-- Re-verified 2026-10-31 (removal lane, read-only `kubectl get
-  deployments` against the designated cluster named on `#8875`):
-  both satellite deployments still on `03d9f976`, still
-  `--deployment-mode=dark` with no `--claims-enabled`.
-  No new deploy since the abort-to-dark revert; in-tree still authoritative.
-- Build chain: digest `03d9f976` ← publish run `40779192627` (success) at
-  `b6497fce` (merge of `eshu-workflow#7`, startup-retry fix).
-- Drift: satellite `main` is now `33f48f4a6b0fa6be8038b5282da502585ef72874`
-  (2026-11-01), 22 commits ahead of `b6497fce`. The tag `v0.1.0` stays at
-  `09e23b93` (2026-10-29) and is no longer the head. Next flip needs the
-  parity re-bind to the candidate digest below.
-- **Candidate digest** (published, NOT deployed):
+- Deployed (2026-11-04 live re-read handed to this lane):
+  `eshu-workflow-claim-plane` and `eshu-workflow-coordinator-satellite`
+  both `ghcr.io/eshu-hq/eshu-workflow@sha256:e1b564af` (digest prefix as
+  handed off; full 64-hex NOT_CHECKED by this lane); satellite args carry
+  `--deployment-mode=dark`, no `--claims-enabled`, both deployments 1/1
+  ready; in-tree `eshu-workflow-coordinator` owns authority
+  (`eshu:sha-e3d81617@sha256:3a07c59b`, references as handed off).
+- Supersedes (history): read-only kubectl 2026-10-30 and 2026-10-31 plus
+  the 2026-11-01 handoff had both satellites on
+  `@sha256:03d9f97632e196de0f543fa7c0bcfb827db5a3ae8cb1d8e9320511f9b4bada83`
+  ← publish run `40779192627` (success) at `b6497fce` (merge of
+  `eshu-workflow#7`, startup-retry fix), dark, in-tree authoritative
+  (`eshu:sha-5eb6dd84…`, then `eshu:sha-bdf2823363b8…`).
+- Satellite `main` is now `af3311e0553908597271707781a29823678b2070`
+  (2026-11-01, read-only `gh api` 2026-11-04), 5 commits ahead of the
+  former candidate `33f48f4a6b0fa6be8038b5282da502585ef72874`. Tag
+  `v0.1.0` stays at `09e23b93` (2026-10-29); tag `v0.1.1` at `8311ed69`
+  (2026-11-01, lightweight); neither is the head.
+- **Former candidate digest** (published 2026-10-31, NEVER deployed):
   `sha256:db5a3a53a2bc8c5d9279403d95179950b13069a7c82b9568ff6a3f0e36e86dbc`
-  ← `image-publish` run `41242973643` at `33f48f4a` (success, 2026-10-31).
-  SLSA: the run log shows `provenance,mode=max` with the run as builder id
-  and a signed build-provenance attestation uploaded to the registry (read
-  with `gh run view 41242973643 --log`, 2026-11-01).
-- Live dark pods: per the coordinator handoff of 2026-11-01 they are still on
-  `03d9f976`; this lane did not re-read the cluster. They move to
-  `33f48f4a` when the private deployment-repo re-pin PR `#491` ("re-pin dark workflow
-  claim-plane and satellite to 33f48f4a") merges. That PR is OPEN as of
-  2026-11-01 (`gh pr view`). Until then candidate and live differ.
-- Live in-tree coordinator image: `eshu:sha-bdf2823363b8…` per the same
-  handoff; the `sha-5eb6dd84…` figure above is superseded (not re-read here).
-- SLSA attestation: present on candidate `db5a3a53`, absent on live
-  `03d9f976` (the image predates the attest steps).
+  ← `image-publish` run `41242973643` at `33f48f4a` (success). SLSA: the
+  run log showed `provenance,mode=max` with the run as builder id and a
+  signed build-provenance attestation uploaded (read 2026-11-01).
+  SUPERSEDED 2026-11-04: live is `e1b564af`, not this digest.
+- Provenance of live `e1b564af`: NOT_CHECKED (2026-11-04). Tried read-only:
+  `gh api orgs/eshu-hq/packages?package_type=container` → HTTP 403 (needs
+  `read:packages` scope); `gh api
+  repos/eshu-hq/eshu-workflow/actions/workflows/399466503/runs?per_page=10`
+  → newest image-publish run `41342413826` at `af3311e0` (2026-11-01), no
+  run maps to `e1b564af`; `gh api
+  repos/eshu-hq/eshu-workflow/attestations/sha256:e1b564af` → 404 (prefix,
+  not a full digest). Publishing commit/run and SLSA state unknown; the
+  2026-11-01 flip precondition (deployment-repo re-pin PR `#491`) merge
+  state NOT_CHECKED by this lane.
+- Note (2026-11-04): §4 digest references and the §7 checklist rows still
+  cite the 2026-11-01 record (`03d9f976`/`db5a3a53`/`33f48f4a`); not
+  re-read by this lane — refresh pending.
 
 ## 6. Per-file importer census (176 non-test files)
 
