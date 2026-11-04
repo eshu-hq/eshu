@@ -33,7 +33,9 @@ const (
 	// matching pins the delta did not override, delete, or tombstone.
 	manifestDeltaUnionBaseFound = "union_base_found"
 	// manifestDeltaUnionBaseUnmatched: the base resolved but holds no row
-	// matching the read's names, so there is nothing to add.
+	// matching the read's names, so there is nothing to add. A base that
+	// retention drained without an event (which the projector refuses by
+	// its empty read) also lands here; both keep the delta-only rows.
 	manifestDeltaUnionBaseUnmatched = "union_base_unmatched"
 	// manifestDeltaUnionBaseMissing: the #7797 rule refused the base (never
 	// projected, retention-pruned, or the prune probe failed).

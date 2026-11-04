@@ -21,7 +21,7 @@ sample; a failed read surfaces as the reducer intent's failure.
   labeled `read` and `outcome` (#9991). `union_base_found` added the base
   pins the delta did not override, delete, or tombstone.
   `union_base_unmatched` resolved a base that holds no pin for the read's
-  names. `union_base_missing` (the #7797 rule refused the base: never
+  names, or one that retention drained without recording an event. `union_base_missing` (the #7797 rule refused the base: never
   projected, retention-pruned, or the prune probe failed),
   `union_scope_mismatch` (no `delta_generation` repository fact), and
   `union_no_baseline` (a legacy delta) return that scope's delta rows only.
