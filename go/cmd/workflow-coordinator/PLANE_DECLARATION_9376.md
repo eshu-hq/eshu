@@ -209,8 +209,9 @@ downgrade-migration rehearsals anywhere; rehearse only non-downgrade paths
 (delete-path for stateless satellites); per-boundary disposition is
 delete-path-suffices OR roll-forward-plus-rebuild with documented re-sync
 RTO. Abort-to-dark rehearsal with ~40s re-sync RTO recorded on `#8875`
-(comment `6505750834`, not re-measured here). SLSA attestation: present on
-the candidate digest `db5a3a53` (§2), absent on the live digest `03d9f976`.
+(comment `6505750834`, not re-measured here). SLSA attestation: per the
+§2 live record (2026-11-04); the 11-01 candidate/live split named retired
+digests — full-digest provenance NOT_CHECKED by this lane.
 Live re-verification of `#9383` text was BLOCKED by gh quota on 2026-10-31
 and not retried; the disposition above is cited-from-record, not re-read.
 
@@ -221,7 +222,7 @@ and not retried; the disposition above is cited-from-record, not re-read.
 | Protocol major 1, 15 called routes | PROVEN-in-harness | pin test, 8/8 green at `15caae83c5`; client not wired into a production binary |
 | 20-route table (15 + 5) | DECLARED, pin split | 5 uncalled routes pin in `eshu-workflow` (`#17` merged), different repo/lane, not re-run here |
 | Tag `v0.1.0` | EXISTS (satellite) | `09e23b93`, ls-remote 2026-11-01; not the `main` head |
-| Deployed digest + dark/authoritative | VERIFIED 2026-10-31, with drift | live `03d9f976` dark, in-tree authoritative; candidate `db5a3a53` (= `33f48f4a`, SLSA) published, not deployed, waits on the deployment-repo re-pin PR `#491` (OPEN) |
+| Deployed digest + dark/authoritative | NOT_CHECKED 2026-11-04 — see §2 live record | §2 re-read: live `e1b564af` dark, in-tree authoritative; `03d9f976`/`db5a3a53` figures retired; #491 merge state NOT_CHECKED |
 | Oldest/newest pairs + compat | PROVEN-in-harness (v1/v1) | pin + mismatch tests |
 | Schema fence + positive token | PRESENT-on-main | `014_workflow_control_plane.sql:182`, `workflow_control_helpers.go:344` |
 | Same-transaction heartbeat fence | PRESENT-on-main | `ingestion.go:214-215`; still the live fence |

@@ -122,12 +122,12 @@ This section is the throughput procedure. Contention is §3 and
 
 In-cluster satellite throughput runs under the scoped grant recorded on
 `#8875` (comment `6558745112`), once its preconditions clear, and needs a
-fresh digest bind (the deployed `03d9f976` is 22 commits behind satellite
-`main` `33f48f4a`; parity must re-bind before any flip). Draft procedure:
+fresh digest bind (see the §5 live record, re-read 2026-11-04; the 11-01
+behind-counts below are superseded). Draft procedure:
 
-1. The fresh digest exists: `sha256:db5a3a53…6dbc`, published from
-   `eshu-hq/eshu-workflow` `main` `33f48f4a` (provenance §5). Rebuild only
-   if `main` has moved; record run + digest.
+1. The fresh digest is the §5 live record (`e1b564af…` prefix as re-read
+   2026-11-04; full 64-hex and publishing commit/run NOT_CHECKED).
+   Rebuild only if satellite `main` has moved past it; record run + digest.
 2. Dark-deploy to the designated cluster (target named on `#8875`);
    re-run the full differential parity suite bound to the new digest
    (same seeded fixtures, deterministic IDs).
