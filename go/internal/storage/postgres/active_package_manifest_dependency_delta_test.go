@@ -268,3 +268,42 @@ func manifestDeltaUnionCount(t *testing.T, reader *sdkmetric.ManualReader, outco
 	}
 	return total
 }
+
+// TestListActivePackageManifestDependencyFactsNoBaselineSkipsBaseRead pins
+// the baseline filter on the base scan: a delta-active scope with no recorded
+// baseline commit is a legacy delta with no base to overlay, so the read
+// sends no base-candidate page for it, returns the active rows unchanged, and
+// counts union_no_baseline once.
+func TestListActivePackageManifestDependencyFactsNoBaselineSkipsBaseRead(t *testing.T) {
+	t.Parallel()
+
+	reader := sdkmetric.NewManualReader()
+	instruments, err := telemetry.NewInstruments(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("test"))
+	if err != nil {
+		t.Fatalf("NewInstruments: %v", err)
+	}
+	db := &fakeExecQueryer{queryResponses: []queueFakeRows{
+		{rows: [][]any{manifestDependencyFakeRow(0), manifestDependencyFakeRow(1)}}, // active page
+		{rows: [][]any{{"repository:repo-1", "generation-1", "", ""}}},              // delta-target lookup: no baseline
+	}}
+	loaded, err := NewFactStore(db).WithInstruments(instruments).ListActivePackageManifestDependencyFacts(
+		context.Background(), []string{"npm"}, []string{"left-pad"},
+	)
+	if err != nil {
+		t.Fatalf("ListActivePackageManifestDependencyFacts() error = %v", err)
+	}
+	if len(loaded) != 2 || loaded[0].FactID != "fact-dep-0000" || loaded[1].FactID != "fact-dep-0001" {
+		t.Fatalf("loaded = %+v, want the two active rows unchanged", loaded)
+	}
+	if got, want := len(db.queries), 2; got != want {
+		t.Fatalf("statements = %d, want %d (active page, delta-target lookup)", got, want)
+	}
+	for i, call := range db.queries {
+		if strings.Contains(call.query, "JOIN scope_generations AS active_delta") {
+			t.Fatalf("statement %d is the delta-base scan; want none for a delta with no baseline", i+1)
+		}
+	}
+	if got := manifestDeltaUnionCount(t, reader, manifestDeltaUnionNoBaseline); got != 1 {
+		t.Fatalf("union_no_baseline = %d, want 1", got)
+	}
+}
