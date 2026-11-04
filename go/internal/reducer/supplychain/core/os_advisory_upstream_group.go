@@ -149,6 +149,7 @@ func groupOSAdvisoriesByUpstream(index *supplyChainImpactIndex) {
 		}
 		for _, key := range keys {
 			copied := cve
+			copied.UpstreamCopy = key != cve.CVEID
 			copied.CVEID = key
 			regrouped = append(regrouped, copied)
 		}
@@ -168,6 +169,7 @@ func groupOSAdvisoriesByUpstream(index *supplyChainImpactIndex) {
 				}
 				copied := pkg
 				copied.CVEID = key
+				copied.UpstreamCopy = true
 				additions[key] = append(additions[key], copied)
 				index.osUpstream.rekeyed = true
 			}

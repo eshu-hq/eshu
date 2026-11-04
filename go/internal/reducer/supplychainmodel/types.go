@@ -34,6 +34,12 @@ type ImpactCVE struct {
 	// order. It is a directed identity edge the OS advisory grouping pass
 	// reads; it never selects CVEID and is never an alias (#9914).
 	Upstream []string
+	// UpstreamCopy marks an observation the grouping pass filed under a CVE id
+	// only because the record's upstream list names it. The record's own cve_id
+	// is not such a copy. The product path reads native observations only, so a
+	// distro record cannot name, score, or lift the retraction of an NVD product
+	// finding (#9914).
+	UpstreamCopy bool
 }
 
 // AffectedPackage is the reducer's internal projection of one
@@ -64,6 +70,10 @@ type AffectedPackage struct {
 	// ReleaseUnlisted marks a fact whose ranges all name their release lines
 	// and none names the host's line. The fact keeps every range.
 	ReleaseUnlisted bool
+	// UpstreamCopy marks a fact the grouping pass filed under a CVE id only
+	// because the record's upstream list names it. A group whose packages are all
+	// copies still emits its product findings (#9914).
+	UpstreamCopy bool
 }
 
 // AffectedRange is one typed version-range event group inside an
