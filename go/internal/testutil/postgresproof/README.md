@@ -44,8 +44,9 @@ The godoc contract is in [doc.go](doc.go).
 a copied connection configuration whose database name is the generated proof
 database and whose search path is `public`. Creating from `template0` excludes
 extensions and relations installed in `template1`. Cleanup is registered
-immediately after successful creation, closes the target pool before dropping
-the database, and reports cleanup errors. Every connection it opens to that database runs the infra read
+immediately after successful creation, closes the target pool, terminates the
+database's other backends, and force-drops with a bounded SQLSTATE 55006 retry
+(#9985), and reports cleanup errors. Every connection it opens to that database runs the infra read
 model's derive-aware writer `SET`
 
 No-Regression Evidence: moving proof creation from `template1` to `template0`

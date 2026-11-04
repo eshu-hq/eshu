@@ -4,10 +4,14 @@
 package postgresproof
 
 import (
+	"context"
+	"database/sql"
+	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 func TestValidateAdminDSNRejectsUnsafeOrUnapprovedTargets(t *testing.T) {
@@ -128,5 +132,93 @@ func TestMissingAdminDSNSkipMessageIsGeneric(t *testing.T) {
 	}
 	if !strings.Contains(message, "disposable PostgreSQL proof DSN") {
 		t.Fatalf("skip message = %q, want generic disposable proof guidance", message)
+	}
+}
+
+// scriptedDropAdmin scripts DROP DATABASE outcomes for the teardown retry
+// proof: it records every DROP and pg_terminate_backend call without touching
+// a server, so the 55006 retry matrix runs deterministically.
+type scriptedDropAdmin struct {
+	dropCalls      int
+	terminateCalls int
+	dropResults    []error
+	terminateErr   error
+}
+
+type stubSQLResult struct{}
+
+func (stubSQLResult) LastInsertId() (int64, error) { return 0, nil }
+func (stubSQLResult) RowsAffected() (int64, error) { return 0, nil }
+
+func (f *scriptedDropAdmin) ExecContext(_ context.Context, query string, _ ...any) (sql.Result, error) {
+	if strings.HasPrefix(query, "DROP DATABASE") {
+		f.dropCalls++
+		if len(f.dropResults) > 0 {
+			err := f.dropResults[0]
+			f.dropResults = f.dropResults[1:]
+			return stubSQLResult{}, err
+		}
+		return stubSQLResult{}, nil
+	}
+	if strings.Contains(query, "pg_terminate_backend") {
+		f.terminateCalls++
+		return stubSQLResult{}, f.terminateErr
+	}
+	return stubSQLResult{}, fmt.Errorf("unexpected admin query: %q", query)
+}
+
+func objectInUseError() error {
+	return &pgconn.PgError{Code: "55006", Message: `database "eshu_content_index_proof_deadbeef" is being accessed by other users`}
+}
+
+// TestTerminateAndDropRetriesObjectInUseThenSucceeds pins the #9985 remedy:
+// a DROP that reports SQLSTATE 55006 (FORCE's signal-then-recount losing to
+// slow-to-die backends) is retried after terminating the stragglers, instead
+// of failing the test in teardown.
+func TestTerminateAndDropRetriesObjectInUseThenSucceeds(t *testing.T) {
+	t.Parallel()
+
+	admin := &scriptedDropAdmin{dropResults: []error{objectInUseError(), objectInUseError(), nil}}
+	if err := terminateAndDropDisposableDatabase(context.Background(), admin, "eshu_content_index_proof_deadbeef"); err != nil {
+		t.Fatalf("terminateAndDropDisposableDatabase() = %v, want success after 55006 retries", err)
+	}
+	if admin.dropCalls != 3 {
+		t.Fatalf("DROP calls = %d, want 3 (initial plus two 55006 retries)", admin.dropCalls)
+	}
+	if admin.terminateCalls != 3 {
+		t.Fatalf("terminate calls = %d, want 3 (one before every DROP attempt)", admin.terminateCalls)
+	}
+}
+
+// TestTerminateAndDropAbortsOnNonObjectInUse pins that only the teardown race
+// (55006) retries: any other DROP failure returns immediately.
+func TestTerminateAndDropAbortsOnNonObjectInUse(t *testing.T) {
+	t.Parallel()
+
+	admin := &scriptedDropAdmin{dropResults: []error{&pgconn.PgError{Code: "42501", Message: "permission denied"}}}
+	if err := terminateAndDropDisposableDatabase(context.Background(), admin, "eshu_content_index_proof_deadbeef"); err == nil {
+		t.Fatal("terminateAndDropDisposableDatabase() = nil, want the permission error")
+	}
+	if admin.dropCalls != 1 {
+		t.Fatalf("DROP calls = %d, want 1 (no retry on non-55006)", admin.dropCalls)
+	}
+}
+
+// TestTerminateAndDropGivesUpAfterBoundedAttempts pins the retry bound: a
+// database that never drains fails loudly instead of stalling cleanup.
+func TestTerminateAndDropGivesUpAfterBoundedAttempts(t *testing.T) {
+	t.Parallel()
+
+	results := make([]error, disposableDropMaxAttempts+2)
+	for i := range results {
+		results[i] = objectInUseError()
+	}
+	admin := &scriptedDropAdmin{dropResults: results}
+	err := terminateAndDropDisposableDatabase(context.Background(), admin, "eshu_content_index_proof_deadbeef")
+	if err == nil || !strings.Contains(err.Error(), "55006") {
+		t.Fatalf("terminateAndDropDisposableDatabase() = %v, want the persistent 55006", err)
+	}
+	if admin.dropCalls != disposableDropMaxAttempts {
+		t.Fatalf("DROP calls = %d, want %d (bounded, not endless)", admin.dropCalls, disposableDropMaxAttempts)
 	}
 }

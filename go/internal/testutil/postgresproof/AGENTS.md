@@ -45,8 +45,9 @@
 - Reusing `ConnConfig.ConnString()` after changing `Database` reconnects with
   the original connection string. Register the copied config with `stdlib`.
 - Closing a target connection does not remove the database. Cleanup must close
-  it and then issue `DROP DATABASE ... WITH (FORCE)` through the administrative
-  connection.
+  it, terminate the database's other backends, and then force-drop with a
+  bounded SQLSTATE 55006 retry through the administrative connection (#9985):
+  `WITH (FORCE)` alone recounts before slow backends exit on a loaded runner.
 
 ## Anti-patterns
 
