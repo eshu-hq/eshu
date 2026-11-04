@@ -303,7 +303,7 @@ func TestListActivePackageManifestDependencyFactsNoBaselineSkipsBaseRead(t *test
 			t.Fatalf("statement %d is the delta-base scan; want none for a delta with no baseline", i+1)
 		}
 	}
-	if got := manifestDeltaUnionCount(t, reader, manifestDeltaUnionNoBaseline); got != 1 {
+	if got := manifestDeltaUnionCount(t, reader, deltaOverlayNoBaseline); got != 1 {
 		t.Fatalf("union_no_baseline = %d, want 1", got)
 	}
 }
