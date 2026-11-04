@@ -17,6 +17,7 @@ Shared runtime settings, Postgres, the graph backend, and backend conformance te
 | `ESHU_PRIVATE_IDENTIFIERS_REQUIRED` | string | — | Set to 1 to make the cassette private-data gate fail when ESHU_PRIVATE_IDENTIFIERS_FILE is unset, instead of running the identifier check with the canary only (#6965). CI sets this for the cassette-author gate on same-repo PRs (#6979). |
 | `ESHU_RECORD_PSEUDONYM_KEY` | string | — | Recording key for collector -mode=record pseudonymization (#6965 Phase 3): at least 32 bytes, generated with `openssl rand -hex 32`, one key per cassette corpus so cross-cassette joins survive, kept with the corpus's other secrets and never committed; only its 8-hex fingerprint is written to the cassette and logged. |
 | `ESHU_REPOS_DIR` | string | — | Repository checkout directory override shared by collectors, CLI supervision, and gate scripts; each reader falls back to its own default when unset. |
+| `ESHU_WEBHOOK_SATELLITE_HTTP_PORT` | string | `18083` | Host port publishing the extracted webhook satellite edge in local compose (#9950). The satellite verifies provider signatures and submits normalized triggers to the intake host; it replaces the removed in-tree listener binary. |
 
 ## graph
 
