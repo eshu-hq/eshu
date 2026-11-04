@@ -126,3 +126,35 @@ guards and adds dr-5, a moved caller, as an expected failure for #10049.
 | Terraform config/backend loaders | #10006 | The observable is config-state drift, which needs a `terraform_state` cassette scope anchored to this repository's backend. |
 | JVM reachability | #10003 | No JVM package in the fixture. |
 | owned-package targets | #10007 | Collector target planning, not graph truth; lane 2's zone. |
+
+## No-Regression Evidence:
+
+The only new Cypher is the gate's own read,
+`deltaReaderRepoEdgesCypher` (`go/cmd/golden-corpus-gate/delta_readers.go`).
+It anchors on `Repository {id}` through `REPO_CONTAINS`/`CONTAINS`, the same
+path the existing delta-union file read uses, and runs once per stage on the
+fixture's 7-file repository. No production query, writer, or worker changed.
+
+Measured on Neo4j (compose `docker-compose.neo4j.yml` from the pinned
+eshu-deploy checkout), commit `92fdc37434`, on a shared host that was also
+running other worktrees' static gates:
+
+| Run | Per-phase seconds (bootstrap / collect / first_drain / maintenance_drains / graph_query) | Result |
+| --- | --- | --- |
+| 2 | 30 / 4 / 190 / 216 / 5 | 5 required failures (fixture shape, fixed in `1e0ae1a82e`) |
+| 3 | 14 / 3 / 197 / 208 / 3 | 3 required failures (markers, fixed in `92fdc37434`) |
+| 4 | 16 / 3 / 191 / 212 / 8 | `757 pass, 0 required-fail, 3 advisory-warn`, `PASS: B-7 golden corpus gate green (elapsed 452s, budget ceiling 1800s)` |
+
+The three advisory warnings are the bootstrap, first_drain, and
+maintenance_drains phase bands. The first drain carries none of this leg's
+work: the fixture is collected after it. Yet it measured 190 to 197 seconds in
+every run, against a 75-second baseline, so this host's load explains the
+bands. The leg's sync and drain run inside a `graph_query` exclusion bracket.
+A same-host run of main for comparison was not taken (NOT_CHECKED).
+
+## No-Observability-Change:
+
+No runtime metric, span, or log key changed. The gate reports each assertion
+as a `delta-readers` finding: one `active_generation` check, one `edge_<id>`
+check per edge, and an advisory line per unexpressed reader. Expected failures
+print the defect and reason, so a CI log names the open issue directly.
