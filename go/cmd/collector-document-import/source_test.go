@@ -122,6 +122,7 @@ func testSourceOptions(engine extractor) sourceOptions {
 		sourceSystem:  "document_import_test",
 		scopePrefix:   "document-import-ocr-test",
 		maxInputBytes: 1 << 20,
+		maxArtifacts:  1024,
 	}
 }
 
