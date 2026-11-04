@@ -12,6 +12,7 @@ import (
 	"time"
 
 	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
+	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -21,8 +22,20 @@ type recordingOutcomeRecorder struct {
 	calls      []string
 	outcomes   []ClaimOutcome
 	committed  []ClaimOutcome
+	refused    []ClaimOutcome
+	refusals   []collector.CommitRefusal
 	outcomeErr error
 	commitErr  error
+	refusedErr error
+}
+
+func (r *recordingOutcomeRecorder) RecordClaimRefused(_ context.Context, outcome ClaimOutcome, refusal collector.CommitRefusal) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.calls = append(r.calls, "refused")
+	r.refused = append(r.refused, outcome)
+	r.refusals = append(r.refusals, refusal)
+	return r.refusedErr
 }
 
 func (r *recordingOutcomeRecorder) RecordClaimOutcome(_ context.Context, outcome ClaimOutcome) error {

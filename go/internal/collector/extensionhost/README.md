@@ -437,6 +437,11 @@ only for the `vulnerability_intelligence` kind
   `RecordClaimCommitted` after `ClaimedService` commits the generation, or
   resolves an unchanged one. The stash is cleared on every `NextClaimed` exit
   for the item and capped at 256 entries (oldest attempt evicted).
+- A refused commit (#10037) takes the stash the same way, through
+  `Source.ObserveClaimedGenerationRefused`
+  (`collector.ClaimedGenerationRefusalObserver`), and reaches
+  `RecordClaimRefused` instead of `RecordClaimCommitted`. Its error is non-fatal
+  too.
 - An attempt-row error on a completed outcome fails the claim retryable with
   `source_state_record`; an error on a failed outcome is joined to the claim
   error and never changes its class or terminality; a post-commit error is
