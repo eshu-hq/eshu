@@ -52,6 +52,15 @@ Read `doc.go` and `README.md` first.
   `ErrGroupedInventoryReadModelUnavailable` instead of falling back to
   another read shape. Do not add its dimensions to `InventoryDimension`: the
   five single-valued dimensions keep their one-column `GROUP BY`.
+- `PostgresGroupedInventoryStore` (`grouped_inventory_postgres.go`,
+  `grouped_inventory_sql.go`) reads only the winners table. It MUST NOT
+  join the operator-override facts per finding (the measured #9873 CTE cost)
+  or fall back to the CTE when the gate is off. Its workload map MUST keep the
+  `entity_keys` leg, because the `workload_id` filter matches through it. The
+  map grant uses `COALESCE(..., FALSE)`, so an empty grant array bound as NULL
+  still marks a hidden repository's bucket partial. The live parity proof
+  (`grouped_inventory_postgres_live_test.go`) pins every bucket to the count
+  route for filter=X.
 - Files must stay under 500 lines. `readiness.go`
   (489), `findings.go` (458), and
   `readiness_postgres_query.go` (438) are the ones
@@ -142,7 +151,10 @@ to this list.
   `GroupedInventoryFreshness`, `ErrGroupedInventoryReadModelUnavailable`,
   `UnattributedMissingEvidence` and the `GroupedMissingEvidence*` reasons) —
   the parent `chain` grouped-inventory handler, the OpenAPI lockstep test, and
-  the future Postgres implementation owned by the aggregate SQL lane.
+  `PostgresGroupedInventoryStore`.
+- `PostgresGroupedInventoryStore` and
+  `NewPostgresGroupedInventoryStoreWithReadStore` — `cmd/api` wiring
+  (`newSupplyChainHandler`, gated by `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ`).
 - Vocabulary consts (profile precise/comprehensive, readiness states,
   evidence families, missing-evidence reasons, unsupported-target
   kinds, freshness labels, `ServiceCatalogAnchorMissingReason`,

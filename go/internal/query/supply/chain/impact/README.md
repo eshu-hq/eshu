@@ -52,6 +52,8 @@ implementations with their constructors
 (`NewPostgresFindingStore` with its
 `WithReadModel` and `WithReadStore` variants, `NewPostgresAggregateStore`
 with its `WithReadStore` variant,
+`NewPostgresGroupedInventoryStoreWithReadStore` (winners-sourced, gated by
+`ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ`),
 `NewPostgresReadinessStore`,
 `NewPostgresReadinessStoreWithReadStore` (guarded read-only snapshots),
 `NewPostgresVulnerabilitySuppressionMutationStore`) and queryer ports
