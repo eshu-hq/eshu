@@ -102,6 +102,18 @@ exactly (below). The winners list SQL has the same property, but the list
 store routes scoped calls to the CTE. This store must not fall back, so the
 divergence stays, as the ruling directs.
 
+Two more cases have the same root, one chosen copy per canonical key:
+
+- **Stale winners.** While buckets read `read_model_unavailable`, the grouped
+  counts reflect the last resweep and the count route reads live facts.
+- **Fields outside the key.** Copies that share a canonical key can differ on
+  `image_ref`, `detection_profile`, or `priority_bucket`. A filter on such a
+  field tests only the chosen winner here. The count route tests every copy
+  before choosing.
+
+The public inventory page and the OpenAPI and MCP descriptions name all
+three cases.
+
 ## Correctness evidence
 
 The live proof is

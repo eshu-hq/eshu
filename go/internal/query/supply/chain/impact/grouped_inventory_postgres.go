@@ -57,7 +57,11 @@ const groupedInventoryProbeErrorMaxBytes = 256
 // route and not here (measured at 0.2 to 0.5 percent of the unattributed bucket
 // on the shim seed). The winners list read has the same property in its SQL;
 // in production the list store routes scoped calls to the CTE, which this
-// store must not do.
+// store must not do. Two more cases make DistinctFindings differ from the
+// count route: stale winners (the count route reads live facts), and copies
+// of one canonical key that differ on a field outside the key, such as
+// image_ref, detection_profile, or priority_bucket, where a filter on that
+// field tests only the chosen winner here but every copy in the count route.
 type PostgresGroupedInventoryStore struct {
 	DB     FindingQueryer
 	reader db.Queryer

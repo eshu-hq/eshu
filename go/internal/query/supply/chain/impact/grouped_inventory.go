@@ -96,7 +96,9 @@ const (
 	// resolves to its value under the caller's grants.
 	GroupCompletenessComplete GroupCompleteness = "complete"
 	// GroupCompletenessPartial means the bucket may be missing findings: the
-	// page was truncated, or a scoped grant hides part of the bucket.
+	// page was truncated, or a scoped grant does not admit some finding mapped
+	// to the bucket (decided independent of the request filters, so it is no
+	// oracle on hidden findings; counts never include those findings).
 	GroupCompletenessPartial GroupCompleteness = "partial"
 	// GroupCompletenessUnattributed marks the bucket of findings with no
 	// resolved group. It is never complete.
@@ -171,8 +173,11 @@ type GroupedInventoryFreshness struct {
 // GroupedInventoryPage is one page of grouped buckets, ordered by
 // MaxPriorityScore descending, then Count descending, then Value ascending.
 // DistinctFindings counts each finding once across the whole filtered set,
-// independent of limit and offset, so it equals the total_findings of the
-// count route for the same filters on every page. Because a finding counts in
+// independent of limit and offset, so it normally equals the total_findings
+// of the count route for the same filters on every page. The winners-sourced
+// store can differ under a scope-id grant, while the winners are stale, and
+// when copies of one finding differ on a field outside its identity (see
+// PostgresGroupedInventoryStore). Because a finding counts in
 // every group it resolves to, bucket counts summed over every page are at
 // least DistinctFindings; a single page may sum to less.
 type GroupedInventoryPage struct {
