@@ -235,6 +235,23 @@
       ],
       "notice_policy": "Preserve upstream layers and all included license and copyright notices.",
       "licenses": "Bundled Ubuntu package licenses; retain package notices and source access."
+    },
+    {
+      "id": "eshu-webhook",
+      "source": "github.com/eshu-hq/eshu-webhook",
+      "destination": "ghcr.io/eshu-hq/eshu-webhook:v0.1.0",
+      "digest": "sha256:7d03c22715183021cf0d0a4b50a1021f006f960d6860d8dcdf9b28c1b04d8786",
+      "runtime_sources": [
+        "ghcr.io/eshu-hq/eshu-webhook:v0.1.0@sha256:7d03c22715183021cf0d0a4b50a1021f006f960d6860d8dcdf9b28c1b04d8786"
+      ],
+      "platforms": [
+        "linux/amd64"
+      ],
+      "source_records": [
+        "https://github.com/eshu-hq/eshu-webhook"
+      ],
+      "notice_policy": "First-party eshu-hq image approved as a self-mapped runtime pin; no upstream layers to preserve.",
+      "licenses": "See eshu-hq/eshu-webhook for the image license."
     }
   ],
   "runtime_allowlist": [

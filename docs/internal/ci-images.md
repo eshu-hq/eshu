@@ -52,6 +52,11 @@ changes the explicit stack root; it does not change the helper's trusted ledger.
 The Compose helper accepts NornicDB only at the exact repository, tag, and digest
 listed in `runtime_allowlist`; an overridden NornicDB image fails preflight.
 
+First-party eshu-hq images that CI stacks pull by digest (for example the
+webhook satellite) ride as self-mapped ledger entries: the entry's pin equals
+its own image reference, so the overlay approves it without rewriting anything.
+They carry no upstream mirror source; the digest pin is the whole trust claim.
+
 The PostgreSQL readiness fixture uses `ESHU_LIVE_POSTGRES_IMAGE`. The query-plan
 profile uses `ESHU_QUERYPLAN_PROFILE_IMAGE`. These separate consumers must match
 their ledger entries. Buildx uses the `CI_BUILDKIT_IMAGE` mirror explicitly so
