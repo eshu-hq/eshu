@@ -84,79 +84,110 @@ func (s supplyChainImpactBuildStats) osAdvisoriesWithGrouping(result string) int
 // on whether a record's affected_package facts arrive before or after its cve
 // fact. It reads only the typed Upstream field, never the raw payload, and it
 // does not change what the producer stores: the producer's cve_id is
-// untouched, and a record with no usable CVE key keeps the group it had. Two
-// cve facts that share one cve_id are one record: if either names an upstream
-// CVE, the affected_package facts of that cve_id move to the CVE keys.
-// A record with N CVE keys is a member of N groups (a bulletin covering N
-// CVEs reads one finding per CVE). Keys are not closed transitively, so a
-// cycle of records naming each other terminates after one step.
+// untouched, and a record with no usable CVE key keeps the group it had.
+//
+// The join is on AdvisoryID, not cve_id: a record whose alias gives it the same
+// cve_id as an unrelated record must not carry that record's packages to the
+// CVEs its own upstream list names. Two cve facts that share an AdvisoryID are
+// one record, so if either names an upstream CVE both follow it. A record with
+// no AdvisoryID cannot be joined to its packages, so it fails closed: counted
+// ungrouped, nothing copied. The typed decode requires the field, so production
+// never reaches that branch.
+//
+// A record with N CVE keys is a member of N groups (a bulletin covering N CVEs
+// reads one finding per CVE). Keys are not closed transitively, so a cycle of
+// records naming each other terminates after one step.
 //
 // A record that is not an OS vendor record and has no upstream list costs
-// one prefix comparison and no allocation.
+// the prefix comparisons in osAdvisoryUpstreamSource and no allocation.
 func groupOSAdvisoriesByUpstream(index *supplyChainImpactIndex) {
-	var keysByJoin map[string][]string
+	var keysByAdvisory map[string][]string
 	for _, cve := range index.cves {
 		source := osAdvisoryUpstreamSource(cve)
 		if source == "" {
 			continue
 		}
-		if !hasUpstreamCVEKey(cve) {
+		if cve.AdvisoryID == "" || !hasUpstreamCVEKey(cve) {
 			index.osUpstream.count(source, osUpstreamUngrouped)
 			continue
 		}
 		index.osUpstream.count(source, osUpstreamGrouped)
-		if keysByJoin == nil {
-			keysByJoin = make(map[string][]string, 4)
+		if keysByAdvisory == nil {
+			keysByAdvisory = make(map[string][]string, 4)
 		}
 		for _, key := range upstreamGroupKeys(cve) {
-			if !slices.Contains(keysByJoin[cve.CVEID], key) {
-				keysByJoin[cve.CVEID] = append(keysByJoin[cve.CVEID], key)
+			if !slices.Contains(keysByAdvisory[cve.AdvisoryID], key) {
+				keysByAdvisory[cve.AdvisoryID] = append(keysByAdvisory[cve.AdvisoryID], key)
 			}
 		}
 	}
-	if keysByJoin == nil {
+	if keysByAdvisory == nil {
 		return
 	}
-	joinKeys := make([]string, 0, len(keysByJoin))
-	for joinKey := range keysByJoin {
-		joinKeys = append(joinKeys, joinKey)
+	// A sibling cve fact of a grouped record keeps its own CVE key even when it
+	// carries no upstream list. It cannot join the map in the loop above without
+	// depending on envelope order.
+	for _, cve := range index.cves {
+		keys, grouped := keysByAdvisory[cve.AdvisoryID]
+		if _, isCVE := upstreamCVEKey(cve.CVEID); grouped && isCVE && !slices.Contains(keys, cve.CVEID) {
+			keysByAdvisory[cve.AdvisoryID] = append(keys, cve.CVEID)
+		}
 	}
 
 	// Snapshot first: a CVE key can itself be another record's join key, and a
 	// copy must come from the facts that arrived, not from an earlier copy.
+	type recordBucket struct{ advisoryID, joinKey string }
+	visited := make(map[recordBucket]struct{}, len(keysByAdvisory))
+	buckets := make([]recordBucket, 0, len(keysByAdvisory))
 	additions := map[string][]supplychainmodel.AffectedPackage{}
-	for _, joinKey := range joinKeys {
-		for _, key := range keysByJoin[joinKey] {
-			if key == joinKey {
-				continue
-			}
-			for _, pkg := range index.affectedPackages[joinKey] {
-				pkg.CVEID = key
-				additions[key] = append(additions[key], pkg)
-				index.osUpstream.rekeyed = true
-			}
-		}
-	}
-	for _, joinKey := range joinKeys {
-		if !slices.Contains(keysByJoin[joinKey], joinKey) {
-			delete(index.affectedPackages, joinKey)
-		}
-	}
-	for key, added := range additions {
-		index.affectedPackages[key] = append(index.affectedPackages[key], added...)
-	}
-
-	regrouped := make([]supplychainmodel.ImpactCVE, 0, len(index.cves)+len(additions))
+	regrouped := make([]supplychainmodel.ImpactCVE, 0, len(index.cves)+len(keysByAdvisory))
 	for _, cve := range index.cves {
-		if _, joined := keysByJoin[cve.CVEID]; !joined || !hasUpstreamCVEKey(cve) {
+		keys, grouped := keysByAdvisory[cve.AdvisoryID]
+		if !grouped {
 			regrouped = append(regrouped, cve)
 			continue
 		}
-		for _, key := range upstreamGroupKeys(cve) {
+		for _, key := range keys {
 			copied := cve
 			copied.CVEID = key
 			regrouped = append(regrouped, copied)
 		}
+		bucket := recordBucket{advisoryID: cve.AdvisoryID, joinKey: cve.CVEID}
+		if _, seen := visited[bucket]; seen {
+			continue
+		}
+		visited[bucket] = struct{}{}
+		buckets = append(buckets, bucket)
+		for _, pkg := range index.affectedPackages[bucket.joinKey] {
+			if pkg.AdvisoryID != bucket.advisoryID {
+				continue
+			}
+			for _, key := range keys {
+				if key == bucket.joinKey {
+					continue
+				}
+				copied := pkg
+				copied.CVEID = key
+				additions[key] = append(additions[key], copied)
+				index.osUpstream.rekeyed = true
+			}
+		}
+	}
+	for _, bucket := range buckets {
+		if slices.Contains(keysByAdvisory[bucket.advisoryID], bucket.joinKey) {
+			continue
+		}
+		remaining := slices.DeleteFunc(index.affectedPackages[bucket.joinKey], func(pkg supplychainmodel.AffectedPackage) bool {
+			return pkg.AdvisoryID == bucket.advisoryID
+		})
+		if len(remaining) == 0 {
+			delete(index.affectedPackages, bucket.joinKey)
+			continue
+		}
+		index.affectedPackages[bucket.joinKey] = remaining
+	}
+	for key, added := range additions {
+		index.affectedPackages[key] = append(index.affectedPackages[key], added...)
 	}
 	index.cves = regrouped
 }
