@@ -45,9 +45,11 @@ Method: PostgreSQL 18.6 in a scratch container, database `lane3_9874`, schema
 from `ApplyBootstrapWithoutContentSearchIndexes`. Synthetic data: 600 advisory
 scopes, each with an active and a superseded generation; affected-package rows
 across 8 ecosystems (npm is 25%); noise of 300,000 git content entities and
-100,000 finding rows. The census baseline (QA holds about 1,115 affected-package
-rows in the #9431 report, under 5k with other sources) sets 1x at 5,000 active
-rows. All volumes are synthetic. Host load average 6 to 22 during the runs.
+100,000 finding rows. Every affected-package census in the evidence directory
+is under 5,000 rows (239 in the hosted census cited by
+`9209-3-2-advisory-group-cost.md` from #8880; 1,115 retired-instance OSV facts
+under the #9431 lane predicate in `9431-qa-retire-report.md`), so 1x is 5,000
+active rows. All volumes are synthetic. Host load average 6 to 22 during the runs.
 
 | Shape | 1x (5k active) | 5x (25k) | 10x (50k) |
 | --- | --- | --- | --- |
@@ -103,9 +105,12 @@ arbiter.
 
 ## Intent volume at 1x, 5x, 10x
 
-Extra marker intents per day equal the git generations per day that hold at
-least one dependency row (a delta that touched a manifest, or any full
-generation of a repository with dependencies). That QA figure is unknown; lane 1
+Extra marker intents per day equal the git generations per day whose own facts
+hold at least one dependency row (a delta that touched a manifest, or any full
+generation of a repository with dependencies). A delta's #7797 union base rows
+never count: the projector hands intent builders only the generation's own
+facts (`generationOwnedFacts`), which
+`TestBuildProjectionSkipsSupplyChainImpactForDeltaThatTouchedNoManifest` pins. That QA figure is unknown; lane 1
 was asked for a seven-day readback. The fan-out bound is per generation, not
 per pin: a 500-pin push is one intent
 (`TestBuildProjectionQueuesOneSupplyChainImpactForGitManifestChange`) and one

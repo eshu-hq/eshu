@@ -16,6 +16,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
+// The production fan-out port (cmd/reducer supplyChainImpactFanOutFor returns
+// this store unwrapped) must satisfy the reader the marker branch asserts;
+// without it every marker intent fails terminally on its first claim.
+var _ supplychaincore.ManifestDependencyGenerationReader = SupplyChainImpactFanOutStore{}
+
 // manifestGenerationColumns is the sixteen-column fact projection
 // scanSupplyChainImpactFact decodes.
 const manifestGenerationColumns = `

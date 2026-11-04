@@ -99,3 +99,49 @@ func TestBuildProjectionSkipsSupplyChainImpactForGitGenerationWithoutDependency(
 		t.Fatalf("buildProjection() queued %#v for a git generation with no dependency row", impacts)
 	}
 }
+
+// TestBuildProjectionSkipsSupplyChainImpactForDeltaThatTouchedNoManifest pins
+// the delta-union boundary for the #9874 marker: a delta generation that
+// changed only code projects over its base full generation's facts, and those
+// base rows include every dependency row of the repository. They must not
+// trigger the marker, because the delta changed no manifest. A sibling delta
+// whose own facts hold one dependency row enqueues one intent anchored on it.
+func TestBuildProjectionSkipsSupplyChainImpactForDeltaThatTouchedNoManifest(t *testing.T) {
+	t.Parallel()
+
+	scopeValue := scope.IngestionScope{ScopeID: "git-repo-checkout", SourceSystem: "git"}
+	generation := scope.ScopeGeneration{
+		ScopeID: scopeValue.ScopeID, GenerationID: "generation-delta-4",
+		DeltaUnionBaseGenerationID: "generation-full-1",
+	}
+	base := gitManifestProjectionFacts(scopeValue.ScopeID, "generation-full-1", 20)
+	deltaRepository := facts.Envelope{
+		FactID: "repo-delta-4", ScopeID: scopeValue.ScopeID, GenerationID: generation.GenerationID,
+		FactKind: "repository", SourceRef: facts.Ref{SourceSystem: "git"},
+		Payload: map[string]any{
+			"repo_id": "repository:r_checkout", "graph_id": "repository:r_checkout", "graph_kind": "repository",
+			"name": "checkout", "delta_generation": true,
+			"delta_relative_paths": []any{"main.go"}, "delta_deleted_relative_paths": []any{},
+		},
+	}
+	codeOnly := append(append([]facts.Envelope{}, base...), deltaRepository)
+	projection, err := buildProjection(scopeValue, generation, codeOnly)
+	if err != nil {
+		t.Fatalf("buildProjection(code-only delta) error = %v, want nil", err)
+	}
+	if impacts := supplyChainImpactIntents(projection.reducerIntents); len(impacts) != 0 {
+		t.Fatalf("code-only delta queued %#v from its union base rows", impacts)
+	}
+
+	changed := gitManifestProjectionFacts(scopeValue.ScopeID, generation.GenerationID, 1)[2]
+	changed.FactID = "dep-delta-changed"
+	withManifest := append(append([]facts.Envelope{}, codeOnly...), changed)
+	projection, err = buildProjection(scopeValue, generation, withManifest)
+	if err != nil {
+		t.Fatalf("buildProjection(manifest delta) error = %v, want nil", err)
+	}
+	impacts := supplyChainImpactIntents(projection.reducerIntents)
+	if len(impacts) != 1 || impacts[0].FactID != "dep-delta-changed" {
+		t.Fatalf("manifest delta intents = %#v, want one anchored on dep-delta-changed", impacts)
+	}
+}
