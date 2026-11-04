@@ -122,7 +122,8 @@ func appendSupplyChainImpactManifestFindings(
 // Rows no sibling analysis resolves to a digest classify once per (release
 // line, installed version) through the same fanout (#9984), since the first of
 // them used to decide one finding for every host. With no matching row at all
-// the whole index classifies once, which is every non-OS advisory.
+// the whole index classifies once. That covers every non-OS advisory and an OS
+// advisory that joins no installed row.
 func appendSupplyChainImpactFleetOSFindings(
 	findings []SupplyChainImpactFinding,
 	cves supplyChainCVEGroup,
