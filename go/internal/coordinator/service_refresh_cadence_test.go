@@ -4,7 +4,9 @@
 package coordinator
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
@@ -186,9 +188,15 @@ func TestServiceRefreshCadenceAllSkippedPersistsNoRun(t *testing.T) {
 	halfHour := observedT0.Add(30 * time.Minute)
 	tickStore := &fakeStore{}
 	tick := refreshCadenceService(configuration, tickStore, progress)
+	var tickLogs bytes.Buffer
+	tick.Logger = slog.New(slog.NewTextHandler(&tickLogs, nil))
 	if err := tick.scheduleVulnerabilityIntelligenceWork(ctx, halfHour,
 		[]workflow.CollectorInstance{refreshCadenceInstance(configuration, halfHour)}); err != nil {
 		t.Fatalf("all-skipped scheduleVulnerabilityIntelligenceWork() error = %v, want nil", err)
+	}
+	if logged := tickLogs.String(); !strings.Contains(logged, "skipped all vulnerability targets by refresh cadence") ||
+		!strings.Contains(logged, "cadence_skipped_targets=2") {
+		t.Fatalf("all-skipped tick logs = %q, want the cadence-skip line with cadence_skipped_targets=2", logged)
 	}
 	if len(tickStore.createdRuns) != 0 {
 		t.Fatalf("all-skipped created runs = %d, want 0 (no run persists skip-only ticks)", len(tickStore.createdRuns))
