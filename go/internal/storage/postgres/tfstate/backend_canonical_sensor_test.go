@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
@@ -149,6 +150,126 @@ func TestTerraformBackendCanonicalReadEmitsErrorSampleOnScanFailure(t *testing.T
 	}
 	if got := sensorAttr(points[0], "outcome"); got != "error" {
 		t.Fatalf("outcome = %q, want error", got)
+	}
+}
+
+func TestTerraformBackendCanonicalReadEmitsErrorSampleOnDecodeFailure(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	reader := sdkmetric.NewManualReader()
+	observed := time.Date(2026, time.May, 11, 14, 0, 0, 0, time.UTC)
+	query := PostgresTerraformBackendQuery{
+		DB: &fakeExecQueryer{queryResponses: []queueFakeRows{{rows: [][]any{{
+			"repo-infra",
+			"repository:repo-infra",
+			"gen-abc",
+			observed,
+			"",
+			[]byte("[invalid"),
+		}}}}},
+		Instruments: sensorInstruments(t, reader),
+	}
+
+	if _, err := query.ListTerraformBackendsByLocator(ctx, "s3", "any-hash"); err == nil {
+		t.Fatal("ListTerraformBackendsByLocator() error = nil, want decode failure")
+	}
+
+	points := sensorPoints(t, ctx, reader)
+	if len(points) != 1 {
+		t.Fatalf("datapoints = %d, want exactly one sample per call", len(points))
+	}
+	if got := sensorAttr(points[0], "outcome"); got != "error" {
+		t.Fatalf("outcome = %q, want error", got)
+	}
+}
+
+func TestTerraformBackendCanonicalReadEmitsErrorSampleOnIterationFailure(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	reader := sdkmetric.NewManualReader()
+	observed := time.Date(2026, time.May, 11, 14, 0, 0, 0, time.UTC)
+	query := PostgresTerraformBackendQuery{
+		DB: &fakeExecQueryer{queryResponses: []queueFakeRows{{
+			rows: [][]any{{
+				"repo-infra",
+				"repository:repo-infra",
+				"gen-abc",
+				observed,
+				"",
+				fixtureBackendFact("s3", "b", "k", "us-east-1"),
+			}},
+			iterErr: errors.New("iteration lost"),
+		}}},
+		Instruments: sensorInstruments(t, reader),
+	}
+
+	if _, err := query.ListTerraformBackendsByLocator(ctx, "s3", "any-hash"); err == nil {
+		t.Fatal("ListTerraformBackendsByLocator() error = nil, want iteration failure")
+	}
+
+	points := sensorPoints(t, ctx, reader)
+	if len(points) != 1 {
+		t.Fatalf("datapoints = %d, want exactly one sample per call", len(points))
+	}
+	if got := sensorAttr(points[0], "outcome"); got != "error" {
+		t.Fatalf("outcome = %q, want error", got)
+	}
+}
+
+func TestTerraformBackendFilteredReadEmitsErrorSample(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	reader := sdkmetric.NewManualReader()
+	store := TerraformStateBackendFactReader{
+		DB:          &fakeExecQueryer{queryResponses: []queueFakeRows{{err: errors.New("boom")}}},
+		Instruments: sensorInstruments(t, reader),
+	}
+
+	_, err := store.TerraformStateCandidates(ctx, terraformstate.DiscoveryQuery{
+		BackendFilters: []terraformstate.DiscoveryBackendFilter{{BackendKind: terraformstate.BackendS3}},
+	})
+	if err == nil {
+		t.Fatal("TerraformStateCandidates() error = nil, want query failure")
+	}
+
+	points := sensorPoints(t, ctx, reader)
+	if len(points) != 1 {
+		t.Fatalf("datapoints = %d, want exactly one sample per call", len(points))
+	}
+	if got := sensorAttr(points[0], "read"); got != "filtered" {
+		t.Fatalf("read = %q, want filtered", got)
+	}
+	if got := sensorAttr(points[0], "outcome"); got != "error" {
+		t.Fatalf("outcome = %q, want error", got)
+	}
+}
+
+// TestTerraformBackendReadsEmitNoSampleWithoutSQL pins the documented
+// no-sample-by-design paths: blank inputs and empty discovery queries never
+// reach SQL, so they must not emit.
+func TestTerraformBackendReadsEmitNoSampleWithoutSQL(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	reader := sdkmetric.NewManualReader()
+	inst := sensorInstruments(t, reader)
+	query := PostgresTerraformBackendQuery{
+		DB:          &fakeExecQueryer{},
+		Instruments: inst,
+	}
+	store := TerraformStateBackendFactReader{
+		DB:          &fakeExecQueryer{},
+		Instruments: inst,
+	}
+
+	if _, err := query.ListTerraformBackendsByLocator(ctx, "  ", "any-hash"); err == nil {
+		t.Fatal("ListTerraformBackendsByLocator() error = nil, want blank rejection")
+	}
+	if _, err := store.TerraformStateCandidates(ctx, terraformstate.DiscoveryQuery{}); err != nil {
+		t.Fatalf("TerraformStateCandidates() error = %v, want nil", err)
+	}
+
+	if points := sensorPoints(t, ctx, reader); len(points) != 0 {
+		t.Fatalf("datapoints = %d, want none without SQL", len(points))
 	}
 }
 
