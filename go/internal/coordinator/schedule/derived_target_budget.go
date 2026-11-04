@@ -44,6 +44,14 @@ const (
 	DerivedTargetSkipReasonConflictingDuplicate = "derived_target_conflicting_duplicate"
 )
 
+// RefreshCadenceSkipReasonNotDue marks a configured target skipped because
+// its refresh_interval had not elapsed since it was last planned
+// (eshu-hq/eshu#9879). Unlike the derived-target reasons above it labels a
+// configured target, not a derivation candidate: the row carries the
+// target's source and no package identities (counts only, never scope ids),
+// so the readiness package join ignores it while the counts stay visible.
+const RefreshCadenceSkipReasonNotDue = "refresh_cadence_not_due"
+
 // DerivedTargetSkipEvidence is the operator-facing record of one reason a
 // derived-target selection dropped candidates, carried on the plan so the
 // skip is visible without re-running the derivation.

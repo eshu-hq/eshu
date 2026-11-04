@@ -134,12 +134,17 @@ type Service struct {
 	// NVDWindowCursorReader loads the stored NVD rolling cursor for the
 	// rolling NVD window derivation (eshu-hq/eshu#9971).
 	NVDWindowCursorReader NVDWindowCursorReader
-	AWSScheduledPlanner   AWSScheduledPlanner
-	AWSFreshnessTriggers  AWSFreshnessTriggerStore
-	AWSFreshnessPlanner   AWSFreshnessPlanner
-	AWSFreshnessEvents    awsFreshnessEventCounter
-	GCPFreshnessTriggers  GCPFreshnessTriggerStore
-	GCPFreshnessEvents    gcpFreshnessEventCounter
+	// TargetRefreshProgressStore persists the per-target plan times one
+	// vulnerability-intelligence instance paces its configured targets
+	// from (eshu-hq/eshu#9879). It is required only when a target sets
+	// refresh_interval; instances without the field never touch it.
+	TargetRefreshProgressStore TargetRefreshProgressStore
+	AWSScheduledPlanner        AWSScheduledPlanner
+	AWSFreshnessTriggers       AWSFreshnessTriggerStore
+	AWSFreshnessPlanner        AWSFreshnessPlanner
+	AWSFreshnessEvents         awsFreshnessEventCounter
+	GCPFreshnessTriggers       GCPFreshnessTriggerStore
+	GCPFreshnessEvents         gcpFreshnessEventCounter
 	// GCPFreshnessFanOut is optional. When set, it records the number of
 	// scopes one GCP freshness trigger fanned out to (#4338).
 	GCPFreshnessFanOut gcpFreshnessFanOutRecorder
