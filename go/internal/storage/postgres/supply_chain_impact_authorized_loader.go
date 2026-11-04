@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgconn"
@@ -17,6 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // authorizedImpactProtectionEngagedQuery probes the singleton policy row.
@@ -74,20 +76,43 @@ func isAuthorityLayoutAbsent(err error) bool {
 // AuthorizedSupplyChainImpactEvidenceLoader reads static and target-local
 // evidence in one authority-filtered read-only repeatable-read snapshot.
 type AuthorizedSupplyChainImpactEvidenceLoader struct {
-	database db.ExecQueryer
+	database    db.ExecQueryer
+	instruments *telemetry.Instruments
+	logger      *slog.Logger
 }
 
 // NewAuthorizedSupplyChainImpactEvidenceLoader constructs the protected
 // impact loader. A database without a repeatable-read snapshot capability
-// cannot produce a complete result and is rejected at wiring time.
+// cannot produce a complete result and is rejected at wiring time. Its
+// FactStore records no metrics and logs nothing; production wiring uses
+// NewAuthorizedSupplyChainImpactEvidenceLoaderWithTelemetry.
 func NewAuthorizedSupplyChainImpactEvidenceLoader(database db.ExecQueryer) supplychaincore.AuthorizedSupplyChainImpactEvidenceLoader {
+	return NewAuthorizedSupplyChainImpactEvidenceLoaderWithTelemetry(database, nil, nil)
+}
+
+// NewAuthorizedSupplyChainImpactEvidenceLoaderWithTelemetry constructs the
+// protected impact loader whose FactStore, on both the disengaged and the
+// snapshot path, carries instruments and logger. Without them the manifest
+// dependency read's #9586 histograms, its #9991 delta-union counter, and its
+// WARN lines stay silent on the impact read (#9991).
+func NewAuthorizedSupplyChainImpactEvidenceLoaderWithTelemetry(
+	database db.ExecQueryer,
+	instruments *telemetry.Instruments,
+	logger *slog.Logger,
+) supplychaincore.AuthorizedSupplyChainImpactEvidenceLoader {
 	if database == nil {
 		return nil
 	}
 	if _, ok := database.(db.ReadOnlyRepeatableReadBeginner); !ok {
 		return nil
 	}
-	return AuthorizedSupplyChainImpactEvidenceLoader{database: database}
+	return AuthorizedSupplyChainImpactEvidenceLoader{database: database, instruments: instruments, logger: logger}
+}
+
+// factStore returns the loader's FactStore over its database, carrying the
+// loader's instruments and logger. The snapshot clone copies both.
+func (l AuthorizedSupplyChainImpactEvidenceLoader) factStore() *FactStore {
+	return NewFactStore(l.database).WithInstruments(l.instruments).WithLogger(l.logger)
 }
 
 // ListAuthorizedSupplyChainImpactEvidence expands static input and target
@@ -116,7 +141,7 @@ func (l AuthorizedSupplyChainImpactEvidenceLoader) ListAuthorizedSupplyChainImpa
 		// through it starves every finding on a scope with no
 		// installed authority to filter by. The writer never sees a
 		// protected set it cannot authorize.
-		staticLoad, err := static(ctx, NewFactStore(l.database), nil)
+		staticLoad, err := static(ctx, l.factStore(), nil)
 		if err != nil {
 			return fmt.Errorf("expand authorized static impact evidence: %w", err)
 		}
@@ -143,7 +168,7 @@ func (l AuthorizedSupplyChainImpactEvidenceLoader) ListAuthorizedSupplyChainImpa
 		}
 		return loaded, nil
 	}
-	err = NewFactStore(l.database).WithSupplyChainImpactSnapshot(ctx, func(factLoader factload.FactLoader) error {
+	err = l.factStore().WithSupplyChainImpactSnapshot(ctx, func(factLoader factload.FactLoader) error {
 		snapshotStore, ok := factLoader.(*FactStore)
 		if !ok || snapshotStore.database == nil {
 			return fmt.Errorf("authorized impact snapshot fact store is unavailable")

@@ -4,12 +4,20 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #9991 disposable PostgreSQL proof of the delta-active manifest dependency read overlay rules: delta wins per stable key, deleted manifest paths and tombstones remove base pins, chained deltas overlay only the newest delta on the newest activated full, a pruned, missing, legacy, or mismatched base keeps the delta-only rows and is counted, and a full-active scope is unchanged; reads ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN with its disposable opt-in
+//eshu:readiness:reason #9991 disposable PostgreSQL proof of the delta-active manifest dependency read overlay rules, through the store and the supply-chain impact loader: delta wins per stable key, deleted manifest paths and tombstones remove base pins, chained deltas overlay only the newest delta on the newest activated full, a pruned, missing, legacy, or mismatched base keeps the delta-only rows and is counted, and a full-active scope is unchanged; reads ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN with its disposable opt-in
 //eshu:readiness:env ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN
 
 import (
+	"context"
+	"fmt"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 )
 
 // TestListActivePackageManifestDependencyFactsDeltaOverridesBasePinLive
@@ -202,4 +210,39 @@ func TestListActivePackageManifestDependencyFactsFullActiveScopeUnchangedLive(t 
 	got, _ := f.load([]string{"npm"}, []string{"alpha", "bravo"})
 	assertDeltaManifestIDs(t, got, []string{"full2-alpha"})
 	assertDeltaManifestOutcomes(t, f.unionOutcomes(), map[string]int64{})
+}
+
+// TestAuthorizedImpactLoaderCountsManifestDeltaUnionLive runs the manifest
+// read through the supply-chain impact loader, the path #9991 was filed for,
+// and proves the delta-union counter records there (#9991 F2): the loader's
+// FactStore carries the wired instruments instead of a bare store.
+func TestAuthorizedImpactLoaderCountsManifestDeltaUnionLive(t *testing.T) {
+	f := openDeltaManifestFixture(t)
+	seedDeltaManifestBase(f, "scope-a", "full-a")
+	f.generation("scope-a", deltaManifestGeneration{id: "delta-a", isDelta: true, commit: "c1", baseline: "c0", unionBase: "c0"})
+	f.deltaRepository("scope-a", "delta-a", []string{"web/package.json"}, nil)
+	f.pin("scope-a", "delta-a", deltaManifestPin{factID: "delta-alpha", key: "content_entity:scope-a:alpha", name: "alpha", path: "web/package.json"})
+	f.activate("scope-a", "delta-a")
+
+	loader := NewAuthorizedSupplyChainImpactEvidenceLoaderWithTelemetry(SQLDB{DB: f.database}, f.store.Instruments(), f.store.Logger())
+	var got []string
+	if _, err := loader.ListAuthorizedSupplyChainImpactEvidence(f.ctx,
+		reducercontract.Intent{ScopeID: "scope-a", GenerationID: "delta-a", Domain: reducercontract.DomainSupplyChainImpact},
+		func(ctx context.Context, factLoader factload.FactLoader, _ []facts.Envelope) (supplychaincore.AuthorizedStaticSupplyChainImpactLoad, error) {
+			store, ok := factLoader.(*FactStore)
+			if !ok {
+				return supplychaincore.AuthorizedStaticSupplyChainImpactLoad{}, fmt.Errorf("fact loader is %T, want *FactStore", factLoader)
+			}
+			loaded, err := store.ListActivePackageManifestDependencyFacts(ctx, []string{"npm"}, []string{"alpha", "bravo"})
+			for _, envelope := range loaded {
+				got = append(got, envelope.FactID)
+			}
+			return supplychaincore.AuthorizedStaticSupplyChainImpactLoad{Complete: true}, err
+		},
+	); err != nil {
+		t.Fatalf("ListAuthorizedSupplyChainImpactEvidence(): %v", err)
+	}
+	slices.Sort(got)
+	assertDeltaManifestIDs(t, got, []string{"delta-alpha", "full-bravo"})
+	assertDeltaManifestOutcomes(t, f.unionOutcomes(), map[string]int64{"union_base_found": 1})
 }

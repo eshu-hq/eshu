@@ -37,7 +37,7 @@ tests:
   - file: go/internal/storage/postgres/active_package_manifest_dependency_delta_cases_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#9991 disposable PostgreSQL proof of the delta-active manifest dependency read overlay rules: delta wins per stable key, deleted manifest paths and tombstones remove base pins, chained deltas overlay only the newest delta on the newest activated full, a pruned, missing, legacy, or mismatched base keeps the delta-only rows and is counted, and a full-active scope is unchanged; reads ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN with its disposable opt-in"
+    reason: "#9991 disposable PostgreSQL proof of the delta-active manifest dependency read overlay rules, through the store and the supply-chain impact loader: delta wins per stable key, deleted manifest paths and tombstones remove base pins, chained deltas overlay only the newest delta on the newest activated full, a pruned, missing, legacy, or mismatched base keeps the delta-only rows and is counted, and a full-active scope is unchanged; reads ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN with its disposable opt-in"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/active_package_manifest_dependency_delta_live_test.go
     tag: ~
