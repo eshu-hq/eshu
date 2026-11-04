@@ -418,9 +418,10 @@ func buildSupplyChainImpactFindingsAndExclusions(envelopes []facts.Envelope) ([]
 	quarantined = append(quarantined, securityAlertQuarantined...)
 	findings = coalesceAndSortSupplyChainImpactFindings(findings)
 	return findings, quarantined, supplyChainImpactBuildStats{
-		negatedProductsExcluded: index.negatedProductsExcluded,
-		osAdvisoryJoins:         countOSAdvisoryJoins(index),
-		osReleaseNotInAdvisory:  countOSReleaseNotInAdvisory(findings),
+		negatedProductsExcluded:     index.negatedProductsExcluded,
+		osAdvisoryJoins:             countOSAdvisoryJoins(index),
+		osAdvisoriesJoinedViaSource: countOSAdvisoriesJoinedViaSource(findings),
+		osReleaseNotInAdvisory:      countOSReleaseNotInAdvisory(findings),
 	}, nil
 }
 

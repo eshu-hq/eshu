@@ -182,9 +182,27 @@ type supplyChainImpactBuildStats struct {
 	// vendor with loaded advisories and zero joins is the #9848 failure
 	// shape: facts present, findings silently absent.
 	osAdvisoryJoins map[osAdvisoryJoinKey]int
+	// osAdvisoriesJoinedViaSource counts the final findings that joined
+	// through the installed row's source package name rather than the
+	// binary name (#9859). It is a finding-level count beside the
+	// advisory-level osAdvisoryJoins cells: one advisory can join several
+	// rows, and only the source-joined ones count here.
+	osAdvisoriesJoinedViaSource int
 	// osReleaseNotInAdvisory counts the final findings whose advisory
 	// carries release tags but none for the installed release, by vendor.
 	osReleaseNotInAdvisory map[string]int
+}
+
+// countOSAdvisoriesJoinedViaSource counts the final findings that joined
+// through an installed row's source package name (#9859).
+func countOSAdvisoriesJoinedViaSource(findings []SupplyChainImpactFinding) int {
+	total := 0
+	for _, finding := range findings {
+		if finding.OSPackageMatchDerivation == osPackageMatchDerivationSource {
+			total++
+		}
+	}
+	return total
 }
 
 // countOSReleaseNotInAdvisory counts the final findings whose advisory
@@ -338,9 +356,10 @@ func (h SupplyChainImpactHandler) emitOSAdvisoryJoins(ctx context.Context, joins
 // osReleaseNotInAdvisorySubSignal carries the unmatched-release verdict
 // count; 0 on a pass with no such verdict so a clean pass is visible (#9806).
 const (
-	osAdvisoriesConsideredSubSignal = "os_advisories_considered"
-	osAdvisoriesJoinedSubSignal     = "os_advisories_joined"
-	osReleaseNotInAdvisorySubSignal = "os_release_not_in_advisory"
+	osAdvisoriesConsideredSubSignal      = "os_advisories_considered"
+	osAdvisoriesJoinedSubSignal          = "os_advisories_joined"
+	osAdvisoriesJoinedViaSourceSubSignal = "os_advisories_joined_via_source"
+	osReleaseNotInAdvisorySubSignal      = "os_release_not_in_advisory"
 )
 
 // recordBuildStats emits the OS advisory join counter and writes the build
@@ -356,6 +375,7 @@ func (h SupplyChainImpactHandler) recordBuildStats(
 	subSignals[negatedProductsExcludedSubSignal] = float64(stats.negatedProductsExcluded)
 	subSignals[osAdvisoriesConsideredSubSignal] = float64(stats.osAdvisoriesConsidered())
 	subSignals[osAdvisoriesJoinedSubSignal] = float64(stats.osAdvisoriesJoined())
+	subSignals[osAdvisoriesJoinedViaSourceSubSignal] = float64(stats.osAdvisoriesJoinedViaSource)
 	subSignals[osAdvisoriesReleaseMatchedSubSignal] = float64(stats.osAdvisoriesWithRelease(osAdvisoryReleaseMatched))
 	subSignals[osAdvisoriesReleaseUnlistedSubSignal] = float64(stats.osAdvisoriesWithRelease(osAdvisoryReleaseUnlisted))
 	subSignals[osAdvisoriesReleaseUntaggedSubSignal] = float64(stats.osAdvisoriesWithRelease(osAdvisoryReleaseUntagged))

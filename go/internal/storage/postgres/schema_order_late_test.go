@@ -445,4 +445,7 @@ var orderedBootstrapDefinitionNamesLate = []string{
 	// Migration 273 (#8875 lane 1) adds the partial index serving the
 	// canonical terraform-backends reader's backend_generations CTE.
 	"fact_records_terraform_backends_active_idx",
+	// Migration 274 (#9859) adds the source-prefix expression index serving
+	// the narrowed read's UNION source arm.
+	"fact_records_os_package_source_purl_prefix_idx",
 }

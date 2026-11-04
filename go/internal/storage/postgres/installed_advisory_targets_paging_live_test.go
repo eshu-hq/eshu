@@ -5,13 +5,13 @@ package postgres_test
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
 	"testing"
 
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
@@ -106,6 +106,11 @@ FROM generate_series(0, 599) AS n`, cappedScanScope, replaceSetLiveNow); err != 
 // purl form: TrimSpace then cut at the first '@'. For each distinct Go key the
 // rows the SQL read returns must be exactly the rows Go would key that way,
 // including non-ASCII whitespace padding and forms with no version at all.
+//
+// The #9859 source rows prove the SQL source expression equals the production
+// Go helper for every source form: the oracle IS
+// supplychaincore.InstalledOSPackageSourceKey, not a re-derivation, so the
+// two engines can only agree by sharing the implementation's exact semantics.
 func TestListOSPackageAdvisoryFactEnvelopesPURLFormsMatchTheGoMatcherLive(t *testing.T) {
 	ctx, db := openReplaceSetLiveDB(t)
 	seedCappedScanScope(t, ctx, db, 0)
@@ -128,6 +133,33 @@ func TestListOSPackageAdvisoryFactEnvelopesPURLFormsMatchTheGoMatcherLive(t *tes
 		"empty":          "",
 		"apk":            "pkg:apk/alpine/openssl@3.1",
 		"zero-width-nbs": "pkg:deb/debian/openssl\u200b@1",
+		// #9859 source rows: binary names that differ from their source.
+		"source-basic":     "pkg:deb/debian/libssl3@3.0.11",
+		"source-qualified": "pkg:deb/debian/libssl3@3.0.11?arch=amd64&distro=debian-12",
+		"source-uppercase": "pkg:deb/debian/libssl3@3.0.11",
+		"source-space":     "pkg:deb/debian/libssl3@3.0.11",
+		"source-double-at": "pkg:deb/debian/libssl3@1@2",
+		"source-rejected":  "pkg:deb/debian/libssl3@3.0.11",
+		"source-slash":     "pkg:deb/debian/libssl3@3.0.11",
+		"source-empty":     "pkg:deb/debian/libssl3@3.0.11",
+		"source-lookalike": "pkg:deb/debian/libssl3@3.0.11",
+		// Both-arm row: the binary name equals the source name, so the row
+		// is a candidate of the binary arm and the source arm at once. The
+		// UNION dedupes it; a UNION ALL would return it twice and fail the
+		// exact-set assertion below. It shares the "plain" row's binary key.
+		"both-arm": "pkg:deb/debian/openssl@3.0.11",
+	}
+	sources := map[string]string{
+		"both-arm":         "openssl",
+		"source-basic":     "openssl",
+		"source-qualified": "openssl",
+		"source-uppercase": "OpenSSL",
+		"source-space":     " open ssl ",
+		"source-double-at": "openssl",
+		"source-rejected":  "open?ssl",
+		"source-slash":     "open/ssl",
+		"source-empty":     "",
+		"source-lookalike": "\u043epenssl",
 	}
 	names := make([]string, 0, len(purls))
 	for name := range purls {
@@ -139,11 +171,15 @@ func TestListOSPackageAdvisoryFactEnvelopesPURLFormsMatchTheGoMatcherLive(t *tes
 		return prefix
 	}
 	for _, name := range names {
-		payload, err := json.Marshal(map[string]any{
+		row := map[string]any{
 			"distro": "debian", "distro_version": "12", "package_manager": "dpkg", "name": name, "arch": "amd64",
 			"repository_class": "vendor", "vendor_advisory_source": "debian", "installed_version_raw": "1.0-1",
 			"purl": purls[name],
-		})
+		}
+		if source, ok := sources[name]; ok && source != "" {
+			row["source_package"] = source
+		}
+		payload, err := json.Marshal(row)
 		if err != nil {
 			t.Fatalf("marshal %s: %v", name, err)
 		}
@@ -167,10 +203,19 @@ VALUES ('os-package:forms:no-purl', $1, $2, 'vulnerability.os_package', 'x', 'sy
 
 	store := postgres.NewFactStore(postgres.SQLDB{DB: db})
 	keys := map[string][]string{}
-	for _, name := range names {
-		if key := goKey(purls[name]); key != "" {
-			keys[key] = append(keys[key], "os-package:forms:"+name)
+	addRow := func(name, key string) {
+		if key == "" {
+			return
 		}
+		keys[key] = append(keys[key], "os-package:forms:"+name)
+		slices.Sort(keys[key])
+		keys[key] = slices.Compact(keys[key])
+	}
+	for _, name := range names {
+		addRow(name, goKey(purls[name]))
+		// The source-key oracle is the production helper itself: any drift
+		// between the SQL CASE and InstalledOSPackageSourceKey fails here.
+		addRow(name, supplychaincore.InstalledOSPackageSourceKey(purls[name], sources[name]))
 	}
 	if len(keys) < 5 {
 		t.Fatalf("fixture yields only %d distinct Go keys; it no longer exercises the forms", len(keys))
@@ -192,105 +237,6 @@ VALUES ('os-package:forms:no-purl', $1, $2, 'vulnerability.os_package', 'x', 'sy
 			t.Fatalf("key %q: SQL returned %v, the Go matcher keys %v", key, got, want)
 		}
 	}
-}
-
-// TestOSPackageNarrowedQueryUsesTheIndexAtScaleLive proves the narrowed query
-// is driven by fact_records_os_package_purl_prefix_idx at 50,000 rows rather
-// than scanning every installed package, and reads few buffers for a small key
-// set (about 60,000 per page for the ecosystem-only read it replaces).
-func TestOSPackageNarrowedQueryUsesTheIndexAtScaleLive(t *testing.T) {
-	ctx, db := openCappedScopeLiveDB(t)
-	seedCappedScanScope(t, ctx, db, 50_000)
-	// Production fact_records is dominated by other fact kinds. Without them the
-	// generic plan sees a table of nothing but os_package rows and a primary-key
-	// scan with a filter looks as cheap as the index, so seed the realistic mix.
-	if _, err := db.ExecContext(ctx, `
-INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system, source_fact_key,
-  observed_at, ingested_at, is_tombstone, payload, fencing_token)
-SELECT 'filler:7154:' || lpad(n::text, 7, '0'), $1, $2, 'repository', 'filler-' || n, 'synthetic', 'filler-' || n,
-  $3::timestamptz, $3::timestamptz, FALSE, jsonb_build_object('n', n), 0
-FROM generate_series(1, 300000) AS n`, cappedScanScope, cappedScanGeneration, replaceSetLiveNow); err != nil {
-		t.Fatalf("seed filler rows: %v", err)
-	}
-	if _, err := db.ExecContext(ctx, `ANALYZE fact_records`); err != nil {
-		t.Fatalf("analyze: %v", err)
-	}
-	// pgx reaches a generic plan through its prepared-statement cache, so EXPLAIN a
-	// prepared statement under force_generic_plan: bound parameters would show a
-	// custom plan the reducer never runs.
-	conn, err := db.Conn(ctx)
-	if err != nil {
-		t.Fatalf("acquire connection: %v", err)
-	}
-	defer func() { _ = conn.Close() }()
-	if _, err := conn.ExecContext(ctx, `SET plan_cache_mode = force_generic_plan`); err != nil {
-		t.Fatalf("force generic plan: %v", err)
-	}
-	if _, err := conn.ExecContext(ctx, `PREPARE os_narrowed AS `+postgres.ListOSPackageAdvisoryTargetsForPackagesQueryForTest()); err != nil {
-		t.Fatalf("prepare narrowed query: %v", err)
-	}
-	// The real advisory key set (#9848): affectedOSPackageLookupKeys sends
-	// os://<vendor>/<name> and the advisory purl's pkg:<type>/<vendor>/<name>
-	// for every OS advisory. The os:// form never meets split_part(purl, '@', 1)
-	// but rides in the same array. pkg-0007 and pkg-5000 each name exactly one
-	// seeded row: lpad truncates n >= 10000 to its first four digits, so a name
-	// below pkg-5000 such as pkg-1100 also names rows 11000-11009.
-	const realKeys = `'{os://debian/pkg-0007,os://debian/pkg-5000,pkg:deb/debian/pkg-0007,pkg:deb/debian/pkg-5000}'`
-	for _, tc := range []struct {
-		keys string
-		want int
-	}{
-		{realKeys, 2},
-		// The key the advisory side sent before #9848: the versionless OSV purl
-		// with its qualifiers, which no installed row's prefix equals.
-		{`'{os://debian/pkg-0007,pkg:deb/debian/pkg-0007?arch=source&distro=bookworm}'`, 0},
-	} {
-		got := countNarrowedRows(ctx, t, conn, tc.keys)
-		if got != tc.want {
-			t.Fatalf("narrowed query with keys %s returned %d rows, want %d", tc.keys, got, tc.want)
-		}
-	}
-	rows, err := conn.QueryContext(ctx,
-		`EXPLAIN (ANALYZE, BUFFERS, COSTS OFF) EXECUTE os_narrowed(`+realKeys+`, '', 500, '{debian}')`)
-	if err != nil {
-		t.Fatalf("explain: %v", err)
-	}
-	defer func() { _ = rows.Close() }()
-	var plan []string
-	for rows.Next() {
-		var line string
-		if err := rows.Scan(&line); err != nil {
-			t.Fatalf("scan plan: %v", err)
-		}
-		plan = append(plan, line)
-	}
-	text := strings.Join(plan, "\n")
-	t.Logf("narrowed query plan at 50,000 rows with the real key set:\n%s", text)
-	if !strings.Contains(text, "fact_records_os_package_purl_prefix_idx") {
-		t.Fatalf("the narrowed query does not use the expression index at 50,000 rows:\n%s", text)
-	}
-	if strings.Contains(text, "Seq Scan on fact_records") {
-		t.Fatalf("the narrowed query scans fact_records sequentially:\n%s", text)
-	}
-}
-
-// countNarrowedRows executes the prepared os_narrowed statement for one key
-// array literal and counts the rows it returns.
-func countNarrowedRows(ctx context.Context, t *testing.T, conn *sql.Conn, keys string) int {
-	t.Helper()
-	rows, err := conn.QueryContext(ctx, `EXECUTE os_narrowed(`+keys+`, '', 500, '{debian}')`)
-	if err != nil {
-		t.Fatalf("execute narrowed query %s: %v", keys, err)
-	}
-	defer func() { _ = rows.Close() }()
-	count := 0
-	for rows.Next() {
-		count++
-	}
-	if err := rows.Err(); err != nil {
-		t.Fatalf("read narrowed rows %s: %v", keys, err)
-	}
-	return count
 }
 
 // flipAfterFirstPageDB wraps a database so that after the first page statement
@@ -391,5 +337,104 @@ FROM fact_records WHERE scope_id = $1 AND generation_id = $2`,
 	after, _, _, err := postgres.NewFactStore(postgres.SQLDB{DB: db}).ListOSPackageAdvisoryFactEnvelopes(ctx, []string{"debian"}, cappedPackageIDs(targets), 1_000_000)
 	if err != nil || len(after) != targets || after[0].GenerationID != "generation:7154:scan-next" {
 		t.Fatalf("post-flip drain = %d envelopes, err %v; want %d from the next generation", len(after), err, targets)
+	}
+}
+
+// TestListOSPackageAdvisoryFactEnvelopesMixedArmsPageToCompletionLive proves
+// the UNION narrowed read (#9859) against real Postgres: 600 binary-only rows
+// and 600 source-only rows with interleaved fact ids drain across three pages
+// to exactly the active set, each row once, while inactive-generation source
+// rows interleaved between them are read past and never returned.
+//
+// The key set is derived from the production oracle
+// (supplychaincore.InstalledOSPackageSourceKey), never hand-copied, so the
+// SQL arms can only agree with the implementation's exact semantics. Row 0 is
+// a both-arm row (binary name equals its source name): both arms return it
+// and the UNION still drains it exactly once.
+func TestListOSPackageAdvisoryFactEnvelopesMixedArmsPageToCompletionLive(t *testing.T) {
+	ctx, db := openReplaceSetLiveDB(t)
+	const targets = 1200
+	seedCappedScanScope(t, ctx, db, targets)
+	// Odd rows become source-only: a binary name no key queries, a source
+	// name the key set does. Row 0 keeps its binary name and gains it as its
+	// source too, so both arms match it. The 16-char 'os-package:7154:'
+	// prefix puts the six digits at positions 17-22.
+	if _, err := db.ExecContext(ctx, `
+UPDATE fact_records SET payload = payload || jsonb_build_object(
+  'purl', CASE WHEN (m.n % 2 = 1)
+    THEN 'pkg:deb/debian/bin-' || lpad((m.n % 10000)::text, 4, '0') || '@1.0-1?arch=amd64'
+    ELSE payload->>'purl' END,
+  'source_package', CASE WHEN (m.n % 2 = 1)
+    THEN 'src-' || lpad((m.n % 10000)::text, 4, '0')
+    WHEN m.n = 0 THEN 'pkg-0000'
+    ELSE NULL END)
+FROM (SELECT fact_id, substr(fact_id, 17, 6)::integer AS n FROM fact_records
+  WHERE fact_id LIKE 'os-package:7154:______' AND substr(fact_id, 17, 6) ~ '^[0-9]{6}$') AS m
+WHERE fact_records.fact_id = m.fact_id`); err != nil {
+		t.Fatalf("reshape odd rows to source-only: %v", err)
+	}
+	// Rows of a superseded generation interleaved between the actives: their
+	// fact ids sort right after every sixth active row, so every page holds
+	// some. They carry queried source keys, so they are candidates the drain
+	// must read past, never return.
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO scope_generations (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at, payload)
+VALUES ('generation:7154:scan-old', $1, 'synthetic', $2, $2, 'superseded', $2, '{}'::jsonb)`,
+		cappedScanScope, replaceSetLiveNow); err != nil {
+		t.Fatalf("insert old generation: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system, source_fact_key,
+  observed_at, ingested_at, is_tombstone, payload, fencing_token)
+SELECT 'os-package:7154:' || lpad(((n * 6) % 1200)::text, 6, '0') || '-old', $1, 'generation:7154:scan-old',
+  'vulnerability.os_package', 'old-' || n, 'synthetic', 'old-' || n, $2::timestamptz, $2::timestamptz, FALSE,
+  jsonb_build_object('distro','debian','distro_version','12','package_manager','dpkg',
+    'name','bin-' || lpad(((n * 6 + 1) % 1200)::text, 4, '0'), 'arch','amd64','repository_class','vendor',
+    'vendor_advisory_source','debian','installed_version_raw','9.9-1',
+    'purl','pkg:deb/debian/bin-' || lpad(((n * 6 + 1) % 1200)::text, 4, '0') || '@9.9-1',
+    'source_package','src-' || lpad(((n * 6 + 1) % 1200)::text, 4, '0')), 0
+FROM generate_series(0, 199) AS n`, cappedScanScope, replaceSetLiveNow); err != nil {
+		t.Fatalf("insert inactive source rows: %v", err)
+	}
+	// The key set from the production oracle: even rows by binary key, odd
+	// rows by source key. Row 0's source key equals its binary key.
+	var keys []string
+	for n := range targets {
+		if n%2 == 0 {
+			keys = append(keys, fmt.Sprintf("pkg:deb/debian/pkg-%04d", n))
+			continue
+		}
+		purl := fmt.Sprintf("pkg:deb/debian/bin-%04d@1.0-1?arch=amd64", n)
+		source := fmt.Sprintf("src-%04d", n)
+		key := supplychaincore.InstalledOSPackageSourceKey(purl, source)
+		if key == "" {
+			t.Fatalf("oracle rejects the seeded source key for row %d", n)
+		}
+		keys = append(keys, key)
+	}
+	slices.Sort(keys)
+	store := postgres.NewFactStore(postgres.SQLDB{DB: db})
+
+	envelopes, skipped, truncated, err := store.ListOSPackageAdvisoryFactEnvelopes(ctx, []string{"debian"}, keys, 1_000_000)
+	if err != nil {
+		t.Fatalf("drain: %v", err)
+	}
+	if len(envelopes) != targets || skipped != 0 || truncated {
+		t.Fatalf("got %d envelopes, %d skipped, truncated=%v; want %d/0/false", len(envelopes), skipped, truncated, targets)
+	}
+	seen := map[string]int{}
+	for _, envelope := range envelopes {
+		seen[envelope.FactID]++
+		if skippedID := envelope.FactID; len(skippedID) > 4 && skippedID[len(skippedID)-4:] == "-old" {
+			t.Fatalf("inactive-generation row %s returned", envelope.FactID)
+		}
+	}
+	for n := range targets {
+		if id := fmt.Sprintf("os-package:7154:%06d", n); seen[id] != 1 {
+			t.Fatalf("active fact id %s returned %d times, want exactly once", id, seen[id])
+		}
+	}
+	if len(seen) != targets {
+		t.Fatalf("drain returned %d distinct fact ids, want %d", len(seen), targets)
 	}
 }

@@ -36,6 +36,11 @@ tests:
     class: dedicated_ci
     reason: "linuxdynasty: reducer-contention verified 4/4 named Go test passes with -json -race (summed test elapsed 21.88s); docs/internal/evidence/7533-contention-live-proof.md"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/installed_advisory_targets_union_scale_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#9859 UNION narrowed-read 50k-row plan proof, both expression indexes with per-cell buffer and removal bounds; ran green on disposable PostgreSQL 18 during the lane (docs/internal/evidence/9859-source-package-join-union-read.md)"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/infra/inventory/backfill_live_test.go
     tag: ~
     class: verified_scheduled

@@ -53,7 +53,6 @@ func markAuthorizedFixedVersionConflicts(
 		if err != nil || pkg.PackageID == "" {
 			continue // The classifier already quarantines malformed advisory facts.
 		}
-		copyConflictAffectedReleases(&pkg, envelope)
 		packages = append(packages, pkg)
 	}
 	hostLineByRow := make(map[string]string, len(osPackages))
@@ -167,63 +166,6 @@ func filterAuthorizedBranchesToHostLine(
 		}
 	}
 	return out
-}
-
-// copyConflictAffectedReleases fills the release tags the typed factschema
-// cannot declare yet from the envelope's additive releases key, positionally
-// per range. The shared typed decode drops the key (the factschema pin that
-// declares it has not shipped), so without this the conflict path would see
-// every branch as untagged and could not filter by host line. Slots the
-// typed decode already filled are never overwritten, so this is a no-op once
-// the pin ships. Conflict-local on purpose: the primary path must keep
-// reporting release_untagged until the pin, and widening the shared decoder
-// would flip live verdicts early.
-func copyConflictAffectedReleases(pkg *supplychainmodel.AffectedPackage, envelope facts.Envelope) {
-	rows := conflictAffectedRangeRows(envelope.Payload)
-	if len(rows) != len(pkg.AffectedRanges) {
-		// The typed decode skips kindless or eventless ranges, so a length
-		// mismatch means positions do not align: copy nothing rather than
-		// attribute one line's tag to another line's range.
-		return
-	}
-	for i := range pkg.AffectedRanges {
-		if len(pkg.AffectedRanges[i].Releases) != 0 {
-			continue
-		}
-		switch releases := rows[i]["releases"].(type) {
-		case []string:
-			pkg.AffectedRanges[i].Releases = append([]string(nil), releases...)
-		case []any:
-			for _, line := range releases {
-				if s, ok := line.(string); ok && strings.TrimSpace(s) != "" {
-					pkg.AffectedRanges[i].Releases = append(pkg.AffectedRanges[i].Releases, s)
-				}
-			}
-		}
-	}
-}
-
-// conflictAffectedRangeRows normalizes the envelope's affected_ranges payload
-// to indexable rows. The converter writes []map[string]any; a JSON
-// round-trip yields []any of map[string]any. Anything else is not a readable
-// range list, so there is nothing to copy from.
-func conflictAffectedRangeRows(payload map[string]any) []map[string]any {
-	switch ranges := payload["affected_ranges"].(type) {
-	case []map[string]any:
-		return ranges
-	case []any:
-		rows := make([]map[string]any, 0, len(ranges))
-		for _, row := range ranges {
-			mapped, ok := row.(map[string]any)
-			if !ok {
-				return nil
-			}
-			rows = append(rows, mapped)
-		}
-		return rows
-	default:
-		return nil
-	}
 }
 
 func sameAuthorizedAdvisoryPackage(left, right supplychainmodel.AffectedPackage, finding SupplyChainImpactFinding) bool {

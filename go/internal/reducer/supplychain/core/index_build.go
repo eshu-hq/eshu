@@ -170,6 +170,14 @@ func addSupplyChainImpactIndexEntry(
 		}
 		if pkg.PackageID != "" && pkg.VendorAdvisorySource != "" && pkg.RepositoryClass == "vendor" {
 			index.osPackages[pkg.PackageID] = append(index.osPackages[pkg.PackageID], pkg)
+			// A row whose binary name differs from its source (libssl3 from
+			// openssl, #9859) is also reachable under the source key, so an
+			// advisory naming the source package finds it. A row whose name
+			// equals its source keys identically and is indexed once: the
+			// match path still dedupes by FactID.
+			if sourceKey := InstalledOSPackageSourceKey(pkg.PURL, pkg.SourcePackage); sourceKey != "" && sourceKey != pkg.PackageID {
+				index.osPackages[sourceKey] = append(index.osPackages[sourceKey], pkg)
+			}
 		}
 	case facts.ScannerWorkerAnalysisFactKind:
 		analysis, err := supplyChainScannerAnalysisFromEnvelope(envelope)

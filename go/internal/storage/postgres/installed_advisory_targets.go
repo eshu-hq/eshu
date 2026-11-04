@@ -27,6 +27,7 @@ WITH active_os_packages AS (
     COALESCE(fact.payload->>'vendor_advisory_source', '') AS vendor_advisory_source,
     COALESCE(fact.payload->>'repository_class', '') AS repository_class,
     COALESCE(fact.payload->>'purl', '') AS purl,
+    COALESCE(fact.payload->>'source_package', '') AS source_package,
     fact.fact_id,
     fact.scope_id,
     fact.generation_id,
@@ -60,6 +61,7 @@ SELECT
   vendor_advisory_source,
   repository_class,
   purl,
+  source_package,
   fact_id,
   scope_id,
   generation_id
@@ -168,6 +170,7 @@ func (s FactStore) ListOSPackageAdvisoryTargets(
 			&target.VendorAdvisorySource,
 			&target.RepositoryClass,
 			&target.PURL,
+			&target.SourcePackage,
 			&target.FactID,
 			&target.ScopeID,
 			&target.GenerationID,
@@ -205,6 +208,30 @@ func osPackagePURLPrefixExpression(payloadColumn string) string {
 	return "split_part(btrim(" + payloadColumn + "->>'purl', " + osPackagePURLTrimSet + "), '@', 1)"
 }
 
+// osPackageSourcePURLPrefixExpression is the SQL form of the installed
+// source key the reducer matches on: InstalledOSPackageSourceKey
+// (go/internal/reducer/supplychain/core/os_package_identity.go), which is
+// the version-stripped purl prefix with its last segment (the binary name)
+// replaced by the row's source_package. An installed libssl3 row built from
+// openssl keys as pkg:deb/debian/openssl, the same string purlPackageKey
+// derives from the advisory purl, so the narrowed read finds it under the
+// advisory's own lookup key without a per-row fallback scan.
+//
+// The CASE mirrors InstalledOSPackageSourceKey's strict rejection set
+// exactly: an empty source, any '/', '@', '?', '#', or unicode space, or a
+// prefix with no '/' to replace into keys as "". Only
+// osPackageSourcePURLPrefixExpression with payload unqualified may feed
+// migration 274's index: an index on any other spelling would not serve the
+// query (TestOSPackageSourcePURLPrefixExpressionMatchesMigration pins it).
+func osPackageSourcePURLPrefixExpression(payloadColumn string) string {
+	prefix := osPackagePURLPrefixExpression(payloadColumn)
+	source := "btrim(" + payloadColumn + "->>'source_package', " + osPackagePURLTrimSet + ")"
+	return "(CASE WHEN " + source + " ~ '^[^/?#@[:space:]]+$'" +
+		" AND " + prefix + " LIKE '%/%'" +
+		" THEN regexp_replace(" + prefix + ", '/[^/]*$', '/' || " + source + ")" +
+		" ELSE '' END)"
+}
+
 // listOSPackageAdvisoryTargetsForPackagesQuery is one keyset page of installed
 // vulnerability.os_package targets whose package id is one of $1 (#7154).
 //
@@ -213,29 +240,55 @@ func osPackagePURLPrefixExpression(payloadColumn string) string {
 // narrowing the read to those keys is complete over a small closed set, where
 // the ecosystem-only read it replaces drained every installed package of the
 // ecosystem across the whole fleet for every intent. The candidates CTE is
-// MATERIALIZED and driven by fact_records_os_package_purl_prefix_idx: without
-// the CTE the planner drove from the scope join, misestimated it, and read every
-// row on every page even with the index present.
+// MATERIALIZED and UNIONs two single-arm keyset sub-pages, one per expression
+// index (binary: fact_records_os_package_purl_prefix_idx, source:
+// fact_records_os_package_source_purl_prefix_idx): a bare OR across the two
+// predicates made the generic plan cost the primary-key range scan as cheaper
+// than either expression index, so the read filtered every installed package
+// per page (350k rows removed at 50k rows). Without the CTE the planner drove
+// from the scope join, misestimated it, and read every row on every page even
+// with the index present.
+//
+// UNION, never UNION ALL: a row whose binary name equals its source name is a
+// candidate of both arms and must drain exactly once. Each arm pages on its
+// own fact_id cursor and limit, and the outer page re-sorts and re-limits the
+// merged arms, so a short outer page still means both arms are exhausted and
+// the cursor still advances past every candidate it returns.
 //
 // Every candidate row advances the cursor and counts toward the page, whether or
 // not its generation is active, so a page of inactive rows cannot end a drain
 // early; the active flag (an active scope generation and an ecosystem in $4,
-// the same predicate the rotation reader applies) is applied by the caller. A
-// page shorter than $3 candidates is the last one. ORDER BY and the `>` cursor
-// use the same fact_id column and collation, so they agree.
+// the same predicate the rotation reader applies) is applied by the caller.
+// ORDER BY and the `>` cursor use the same fact_id column and collation, so
+// they agree.
 //
 // An empty $2 starts from the first target: every fact id sorts after the
 // empty string.
 func listOSPackageAdvisoryTargetsForPackagesQuery() string {
 	return `
 WITH candidates AS MATERIALIZED (
-  SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.payload
-  FROM fact_records AS fact
-  WHERE fact.fact_kind = 'vulnerability.os_package'
-    AND fact.is_tombstone = FALSE
-    AND ` + osPackagePURLPrefixExpression("fact.payload") + ` = ANY($1::text[])
-    AND fact.fact_id > $2
-  ORDER BY fact.fact_id ASC
+  (
+    SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.payload
+    FROM fact_records AS fact
+    WHERE fact.fact_kind = 'vulnerability.os_package'
+      AND fact.is_tombstone = FALSE
+      AND ` + osPackagePURLPrefixExpression("fact.payload") + ` = ANY($1::text[])
+      AND fact.fact_id > $2
+    ORDER BY fact.fact_id ASC
+    LIMIT $3
+  )
+  UNION
+  (
+    SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.payload
+    FROM fact_records AS fact
+    WHERE fact.fact_kind = 'vulnerability.os_package'
+      AND fact.is_tombstone = FALSE
+      AND ` + osPackageSourcePURLPrefixExpression("fact.payload") + ` = ANY($1::text[])
+      AND fact.fact_id > $2
+    ORDER BY fact.fact_id ASC
+    LIMIT $3
+  )
+  ORDER BY fact_id ASC
   LIMIT $3
 )
 SELECT
@@ -249,6 +302,7 @@ SELECT
   COALESCE(c.payload->>'vendor_advisory_source', '') AS vendor_advisory_source,
   COALESCE(c.payload->>'repository_class', '') AS repository_class,
   COALESCE(c.payload->>'purl', '') AS purl,
+  COALESCE(c.payload->>'source_package', '') AS source_package,
   c.fact_id,
   c.scope_id,
   c.generation_id,
@@ -278,6 +332,7 @@ func normalizeOSPackageAdvisoryTarget(target *workflow.OSPackageAdvisoryTarget) 
 	target.Arch = strings.TrimSpace(target.Arch)
 	target.VendorAdvisorySource = packageidentity.LowerASCII(strings.TrimSpace(target.VendorAdvisorySource))
 	target.RepositoryClass = packageidentity.LowerASCII(strings.TrimSpace(target.RepositoryClass))
+	target.SourcePackage = strings.TrimSpace(target.SourcePackage)
 	target.ScopeID = strings.TrimSpace(target.ScopeID)
 	target.GenerationID = strings.TrimSpace(target.GenerationID)
 }

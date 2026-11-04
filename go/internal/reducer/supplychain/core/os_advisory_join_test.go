@@ -12,21 +12,22 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-// TestOSVOSAdvisoryJoinsInstalledRowAndStatesReleaseAmbiguity pins #9848 on
-// live records. Each merged fact ORs the ranges of several releases with no
-// release tag, so the reducer cannot tell whether the host's release is one
-// the advisory lists. An OSV OS fact therefore never yields affected_exact
-// (ruling D): every range containing the version is possibly_affected with
-// os_release_unverified, ranges that disagree are os_release_ambiguous, and a
-// fix at or below the version with no containing range is known fixed. Hosts
-// on a release the record does not list (bullseye, buster, Alpine v3.13,
-// bionic) fall below every listed fix and must read unverified, not exact.
+// TestOSVOSAdvisoryJoinsInstalledRowAndStatesReleaseAmbiguity pins the
+// release-aware verdicts on live records after the #9806 PR-2b-1 activation.
+// Every range now names its release lines, so only the host line's ranges
+// and fixes decide. A host on a listed line reads the precise verdict —
+// affected_exact when its line's range contains the version with no fix at
+// or below it, known-fixed when the version meets its line's own fix — and
+// only a listed line can read exact. A host on a release the record does not
+// list (bullseye, buster, Alpine v3.13, bionic) reads possibly_affected with
+// os_release_not_in_advisory, never exact and never known-fixed. Both entry
+// orders run every row, so the table also pins merge-order invariance.
 func TestOSVOSAdvisoryJoinsInstalledRowAndStatesReleaseAmbiguity(t *testing.T) {
 	t.Parallel()
 
 	const (
-		ambiguous  = supplyChainVersionReasonOSReleaseAmbiguous
-		unverified = "os_release_unverified"
+		ambiguous = supplyChainVersionReasonOSReleaseAmbiguous
+		unlisted  = supplyChainVersionReasonOSReleaseNotInAdvisory
 	)
 	tests := []struct {
 		name       string
@@ -36,32 +37,38 @@ func TestOSVOSAdvisoryJoinsInstalledRowAndStatesReleaseAmbiguity(t *testing.T) {
 		wantReason string
 	}{
 		// DEBIAN-CVE-2023-38039: bookworm fixed 7.88.1-10+deb12u3, trixie
-		// and forky fixed 8.3.0-1.
-		{"debian bookworm below every fix", "debian-cve-2023-38039.json", debianCurl("12", "7.88.1-10+deb12u2"), SupplyChainImpactPossiblyAffected, unverified},
-		{"debian bullseye, a release the record does not list", "debian-cve-2023-38039.json", debianCurl("11", "7.74.0-1.3+deb11u7"), SupplyChainImpactPossiblyAffected, unverified},
-		{"debian buster, a release the record does not list", "debian-cve-2023-38039.json", debianCurl("10", "7.64.0-4+deb10u2"), SupplyChainImpactPossiblyAffected, unverified},
-		{"debian bookworm at its backported fix", "debian-cve-2023-38039.json", debianCurl("12", "7.88.1-10+deb12u3"), SupplyChainImpactPossiblyAffected, ambiguous},
-		{"debian trixie below its fix", "debian-cve-2023-38039.json", debianCurl("13", "8.2.0-1"), SupplyChainImpactPossiblyAffected, ambiguous},
-		{"debian trixie at its fix", "debian-cve-2023-38039.json", debianCurl("13", "8.3.0-1"), SupplyChainImpactNotAffectedKnownFixed, supplyChainVersionReasonDPKGKnownFixed},
+		// and forky fixed 8.3.0-1. The fixture lists Debian 12/13/14.
+		// Listed host below its own fix: the host line decides, exact.
+		{"debian bookworm below every fix", "debian-cve-2023-38039.json", debianCurl("12", "7.88.1-10+deb12u2"), SupplyChainImpactAffectedExact, supplyChainVersionReasonDPKGAffectedRange},
+		// Unlisted host: no host line to decide, never exact/known-fixed.
+		{"debian bullseye, a release the record does not list", "debian-cve-2023-38039.json", debianCurl("11", "7.74.0-1.3+deb11u7"), SupplyChainImpactPossiblyAffected, unlisted},
+		{"debian buster, a release the record does not list", "debian-cve-2023-38039.json", debianCurl("10", "7.64.0-4+deb10u2"), SupplyChainImpactPossiblyAffected, unlisted},
+		// Listed host at its own fix (equal, hence the exact known-fixed
+		// reason, not the above-fix range reason).
+		{"debian bookworm at its backported fix", "debian-cve-2023-38039.json", debianCurl("12", "7.88.1-10+deb12u3"), SupplyChainImpactNotAffectedKnownFixed, supplyChainVersionReasonDPKGExactKnownFixed},
+		{"debian trixie below its fix", "debian-cve-2023-38039.json", debianCurl("13", "8.2.0-1"), SupplyChainImpactAffectedExact, supplyChainVersionReasonDPKGAffectedRange},
+		{"debian trixie at its fix", "debian-cve-2023-38039.json", debianCurl("13", "8.3.0-1"), SupplyChainImpactNotAffectedKnownFixed, supplyChainVersionReasonDPKGExactKnownFixed},
 		// ALPINE-CVE-2023-27537: v3.14-v3.16 fixed 8.0.1-r0, v3.17
 		// 7.88.1-r1, v3.18 onward 8.0.0-r0. Purl pkg:apk/alpine/curl?arch=source.
-		{"alpine below every fix", "alpine-cve-2023-27537.json", alpineCurl("3.18.4", "7.88.1-r0"), SupplyChainImpactPossiblyAffected, unverified},
-		{"alpine v3.13, a release the record does not list", "alpine-cve-2023-27537.json", alpineCurl("3.13.12", "7.79.1-r0"), SupplyChainImpactPossiblyAffected, unverified},
-		{"alpine v3.18 at its fix", "alpine-cve-2023-27537.json", alpineCurl("3.18.4", "8.0.0-r0"), SupplyChainImpactPossiblyAffected, ambiguous},
+		// The fixture lists v3.14-v3.24.
+		{"alpine below every fix", "alpine-cve-2023-27537.json", alpineCurl("3.18.4", "7.88.1-r0"), SupplyChainImpactAffectedExact, supplyChainVersionReasonAPKAffectedRange},
+		{"alpine v3.13, a release the record does not list", "alpine-cve-2023-27537.json", alpineCurl("3.13.12", "7.79.1-r0"), SupplyChainImpactPossiblyAffected, unlisted},
+		{"alpine v3.18 at its fix", "alpine-cve-2023-27537.json", alpineCurl("3.18.4", "8.0.0-r0"), SupplyChainImpactNotAffectedKnownFixed, supplyChainVersionReasonAPKExactKnownFixed},
+		// Listed host above its own fix: known-fixed via the range path.
 		{"alpine above every fix", "alpine-cve-2023-27537.json", alpineCurl("3.18.4", "8.0.1-r0"), SupplyChainImpactNotAffectedKnownFixed, supplyChainVersionReasonAPKKnownFixed},
 		// UBUNTU-CVE-2022-27775: versionless purls; focal fixed
-		// 7.68.0-1ubuntu2.10, jammy 7.81.0-1ubuntu1.1.
-		{"ubuntu versionless purl below every fix", "ubuntu-cve-2022-27775.json", ubuntuCurl("20.04", "7.68.0-1ubuntu2.7"), SupplyChainImpactPossiblyAffected, unverified},
-		{"ubuntu bionic, a release the record does not list", "ubuntu-cve-2022-27775.json", ubuntuCurl("18.04", "7.58.0-2ubuntu3.16"), SupplyChainImpactPossiblyAffected, unverified},
-		{"ubuntu versionless purl jammy below its fix", "ubuntu-cve-2022-27775.json", ubuntuCurl("22.04", "7.81.0-1ubuntu1"), SupplyChainImpactPossiblyAffected, ambiguous},
-		{"ubuntu versionless purl jammy at its fix", "ubuntu-cve-2022-27775.json", ubuntuCurl("22.04", "7.81.0-1ubuntu1.1"), SupplyChainImpactNotAffectedKnownFixed, supplyChainVersionReasonDPKGKnownFixed},
+		// 7.68.0-1ubuntu2.10, jammy 7.81.0-1ubuntu1.1. The fixture lists
+		// focal and jammy only.
+		{"ubuntu versionless purl below every fix", "ubuntu-cve-2022-27775.json", ubuntuCurl("20.04", "7.68.0-1ubuntu2.7"), SupplyChainImpactAffectedExact, supplyChainVersionReasonDPKGAffectedRange},
+		{"ubuntu bionic, a release the record does not list", "ubuntu-cve-2022-27775.json", ubuntuCurl("18.04", "7.58.0-2ubuntu3.16"), SupplyChainImpactPossiblyAffected, unlisted},
+		{"ubuntu versionless purl jammy below its fix", "ubuntu-cve-2022-27775.json", ubuntuCurl("22.04", "7.81.0-1ubuntu1"), SupplyChainImpactAffectedExact, supplyChainVersionReasonDPKGAffectedRange},
+		{"ubuntu versionless purl jammy at its fix", "ubuntu-cve-2022-27775.json", ubuntuCurl("22.04", "7.81.0-1ubuntu1.1"), SupplyChainImpactNotAffectedKnownFixed, supplyChainVersionReasonDPKGExactKnownFixed},
 		// UBUNTU-CVE-2016-5419: versioned purls (pkg:deb/ubuntu/curl@<v>?...);
-		// trusty fixed 7.35.0-1ubuntu2.8, xenial 7.47.0-1ubuntu2.1. This
-		// shape joined before #9848; the trusty-at-fix row was an exact
-		// claim on a fixed host.
-		{"ubuntu versioned purl below every fix", "ubuntu-cve-2016-5419.json", ubuntuCurl("14.04", "7.35.0-1ubuntu2.7"), SupplyChainImpactPossiblyAffected, unverified},
-		{"ubuntu versioned purl trusty at its fix", "ubuntu-cve-2016-5419.json", ubuntuCurl("14.04", "7.35.0-1ubuntu2.8"), SupplyChainImpactPossiblyAffected, ambiguous},
-		{"ubuntu versioned purl above every fix", "ubuntu-cve-2016-5419.json", ubuntuCurl("16.04", "7.47.0-1ubuntu2.1"), SupplyChainImpactNotAffectedKnownFixed, supplyChainVersionReasonDPKGKnownFixed},
+		// trusty fixed 7.35.0-1ubuntu2.8, xenial 7.47.0-1ubuntu2.1. The
+		// fixture lists trusty and xenial.
+		{"ubuntu versioned purl below every fix", "ubuntu-cve-2016-5419.json", ubuntuCurl("14.04", "7.35.0-1ubuntu2.7"), SupplyChainImpactAffectedExact, supplyChainVersionReasonDPKGAffectedRange},
+		{"ubuntu versioned purl trusty at its fix", "ubuntu-cve-2016-5419.json", ubuntuCurl("14.04", "7.35.0-1ubuntu2.8"), SupplyChainImpactNotAffectedKnownFixed, supplyChainVersionReasonDPKGExactKnownFixed},
+		{"ubuntu versioned purl above every fix", "ubuntu-cve-2016-5419.json", ubuntuCurl("16.04", "7.47.0-1ubuntu2.1"), SupplyChainImpactNotAffectedKnownFixed, supplyChainVersionReasonDPKGExactKnownFixed},
 	}
 	for _, tc := range tests {
 		for _, reverse := range []bool{false, true} {
@@ -85,14 +92,20 @@ func TestOSVOSAdvisoryJoinsInstalledRowAndStatesReleaseAmbiguity(t *testing.T) {
 				if got.ObservedVersion != tc.installed.version {
 					t.Fatalf("ObservedVersion = %q, want %q", got.ObservedVersion, tc.installed.version)
 				}
-				if tc.wantReason != ambiguous && tc.wantReason != unverified {
+				if tc.wantReason != ambiguous && tc.wantReason != unlisted {
 					return
 				}
 				if got.RuntimeReachability != "image_os_package" {
 					t.Fatalf("RuntimeReachability = %q, want image_os_package for an installed row", got.RuntimeReachability)
 				}
-				if !slices.Contains(got.MissingEvidence, supplyChainMissingOSReleaseLine) {
-					t.Fatalf("MissingEvidence = %v, want %q", got.MissingEvidence, supplyChainMissingOSReleaseLine)
+				wantMissing := supplyChainMissingOSReleaseLine
+				if tc.wantReason == unlisted {
+					// An unlisted host names the advisory's gap, not an
+					// unknown host line: the record provably omits it.
+					wantMissing = supplyChainMissingOSReleaseNotListed
+				}
+				if !slices.Contains(got.MissingEvidence, wantMissing) {
+					t.Fatalf("MissingEvidence = %v, want %q", got.MissingEvidence, wantMissing)
 				}
 			})
 		}

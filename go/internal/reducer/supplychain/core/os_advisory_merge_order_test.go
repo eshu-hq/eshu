@@ -47,15 +47,27 @@ func TestOSVUbuntuJoinIgnoresWhichEntryPurlTheMergeKeeps(t *testing.T) {
 		{name: "versioned", reverse: false, wantVersioned: true},
 		{name: "versioned, entries reversed", reverse: true, wantVersioned: true},
 	}
+	// Live tags (#9806 PR-2b-1 activation): every range names its release
+	// line and each host below is listed (trusty Ubuntu:14.04:LTS, xenial
+	// Ubuntu:16.04:LTS), so only the host line's ranges and fixes decide and
+	// the precise verdicts are allowed. Exact/known-fixed with a host-tag
+	// match is the ruled outcome, not a bug. Merge-order INVARIANCE is the
+	// invariant: all four shapes share this table, so both entry orders must
+	// agree on the values below, whatever they are.
 	rows := []struct {
 		name       string
 		installed  installedOSRow
 		wantStatus SupplyChainImpactStatus
 		wantReason string
 	}{
-		{"trusty below its fix", ubuntuCurl("14.04", "7.35.0-1ubuntu2.7"), SupplyChainImpactPossiblyAffected, "os_release_unverified"},
-		{"trusty at its fix", ubuntuCurl("14.04", "7.35.0-1ubuntu2.8"), SupplyChainImpactPossiblyAffected, "os_release_ambiguous"},
-		{"xenial at its fix", ubuntuCurl("16.04", "7.47.0-1ubuntu2.1"), SupplyChainImpactNotAffectedKnownFixed, "dpkg_known_fixed"},
+		// Host line listed, its range contains the version, no fix at or
+		// below it: affected_exact via the release-aware exact path.
+		{"trusty below its fix", ubuntuCurl("14.04", "7.35.0-1ubuntu2.7"), SupplyChainImpactAffectedExact, supplyChainVersionReasonDPKGAffectedRange},
+		// Host line listed, observed equals the host line's own fix:
+		// known-fixed via the single-fix shortcut (equal, not above, hence
+		// the exact known-fixed reason).
+		{"trusty at its fix", ubuntuCurl("14.04", "7.35.0-1ubuntu2.8"), SupplyChainImpactNotAffectedKnownFixed, supplyChainVersionReasonDPKGExactKnownFixed},
+		{"xenial at its fix", ubuntuCurl("16.04", "7.47.0-1ubuntu2.1"), SupplyChainImpactNotAffectedKnownFixed, supplyChainVersionReasonDPKGExactKnownFixed},
 	}
 	for _, shape := range shapes {
 		record := versioned

@@ -54,13 +54,21 @@ func TestOSVOSAdvisoryVersionListNeverExact(t *testing.T) {
 			wantReason: supplyChainVersionReasonOSReleaseUnverified,
 		},
 		{
+			// Live tags (#9806 PR-2b-1 activation): the host is bookworm
+			// Debian:12, which the record lists, so release selection keeps
+			// only the bookworm line and drops the exact-version list
+			// (ReleaseLine set). The observed version sits above the host
+			// line's own fix, so the row reads known-fixed via the
+			// single-fix shortcut. Known-fixed with a host-tag match is the
+			// ruled-precise outcome, not a bug; the untagged ambiguous
+			// verdict no longer applies once every range names its line.
 			name: "osv versions list plus two releases' fixes at or below the version",
 			envelopes: append(osvRecord(t, vulnerabilityintelligence.OSVVulnerability{ID: "DEBIAN-CVE-2099-0012", Affected: []vulnerabilityintelligence.OSVAffected{
 				entry("Debian:12", "bookworm", []string{"7.88.1-10+deb12u2"}, events("0", "7.88.1-10+deb12u1")),
 				entry("Debian:11", "bullseye", nil, events("0", "7.74.0-1.3+deb11u7")),
 			}}), debianCurl("12", "7.88.1-10+deb12u2").envelope()),
-			wantStatus: SupplyChainImpactPossiblyAffected,
-			wantReason: supplyChainVersionReasonOSReleaseAmbiguous,
+			wantStatus: SupplyChainImpactNotAffectedKnownFixed,
+			wantReason: supplyChainVersionReasonDPKGKnownFixed,
 		},
 		{
 			name:       "vendor-sourced fact listing the version stays exact",

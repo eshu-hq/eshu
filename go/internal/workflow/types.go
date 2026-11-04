@@ -265,8 +265,16 @@ type OSPackageAdvisoryTarget struct {
 	VendorAdvisorySource string
 	RepositoryClass      string
 	PURL                 string
-	FactID               string
-	ScopeID              string
+	// SourcePackage is the installed database's Source field verbatim (the
+	// source package the binary was built from, for example "openssl" for
+	// "libssl3"). Empty when the fact carries no source_package key.
+	// A cross-scope consumer reconstructs it into the envelope payload so
+	// the reducer's source-key join sees the same value the SQL narrowed
+	// read indexed on; the coordinator's planning consumer keeps its own
+	// source-name query derivation.
+	SourcePackage string
+	FactID        string
+	ScopeID       string
 	// GenerationID is the source fact's generation, additive alongside ScopeID
 	// so a cross-scope consumer (the reducer's supply-chain-impact evidence
 	// pipeline, go/internal/reducer/supplychain/core/os_package_advisory_load.go)

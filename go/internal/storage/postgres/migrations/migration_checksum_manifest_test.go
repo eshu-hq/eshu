@@ -325,6 +325,7 @@ var migrationShippedChecksums = map[string]string{
 	// #8875 lane 1: partial index serving the canonical terraform-backends
 	// reader's backend_generations CTE (migration 273).
 	"273_fact_records_terraform_backends_active_idx.sql":           "8ed310977b91f07644fbb3da43ecc268c902a6915a5314220ce034e284469442",
+	"274_fact_records_os_package_source_purl_prefix_idx.sql":       "df4f6ee65c9d9b511cf787ef6ce181b33641ea8535de5651375a82303cd4b779",
 	"243_vulnerability_source_state_packages.sql":                  "548ad5e4d9442064ba81026b49b7443590ae8244282aa138190d9c7182417438",
 	"244_ecs_runtime_task_scope_index.sql":                         "04879797b6faf565ad46a774716ee9000c79358d082df1aa05b6ee8a760dace3",
 	"245_shared_projection_intent_reopened_at.sql":                 "c00bc4a7c9953d3b84dbd03f241ec2c5adc1f9f5e97860cdf52586aa7d62e1da",

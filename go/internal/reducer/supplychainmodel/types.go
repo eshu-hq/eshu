@@ -175,6 +175,12 @@ type OSPackage struct {
 	InstalledVersion     string
 	RepositoryClass      string
 	VendorAdvisorySource string
+	// SourcePackage is the installed database's Source field verbatim (the
+	// source package the binary was built from, for example "openssl" for
+	// "libssl3"). Empty when the fact carries no source_package key, as all
+	// rows written before eshu-hq/eshu#9859 do. Name stays the installed
+	// binary key and is never rewritten to this value.
+	SourcePackage string
 }
 
 // ScannerAnalysis is the reducer's internal projection of one

@@ -4,28 +4,24 @@
 package core
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
-// TestOSVReleaseTagsStayDormantUntilTheSDKCarriesThem pins the #9806 PR-2b-1
-// no-behavior-change contract (ruling decision 7). The converter now writes a
-// "releases" key on each OS range, but factschema v0.1.0-rc.12 has no field
-// for it, so the real contracts seam (DecodeAffectedPackage) drops the key and
-// the reducer never sees a tag. Every joined OSV OS fact therefore keeps its
-// PR-2a verdict. The bookworm row below is the one PR-2b's activation changes:
-// once the SDK carries Releases and the decode copies it, it reads
-// affected_exact on its own line.
-//
-// The activation PR deletes this test; its inverse (the tag reaches the
-// reducer and the same row reads affected_exact) becomes the end-to-end RED.
-func TestOSVReleaseTagsStayDormantUntilTheSDKCarriesThem(t *testing.T) {
+// TestOSVReleaseTagsReachTheReducerAfterActivation is the prescribed inverse
+// of the deleted dormancy pin TestOSVReleaseTagsStayDormantUntilTheSDKCarriesThem
+// (#9806 PR-2b-1, ruling decision 7). The typed factschema now declares
+// AffectedRange.Releases (rc.13 pin live in go.mod) and the reducer decode
+// carries it, so the bookworm row below reads affected_exact on its own line.
+func TestOSVReleaseTagsReachTheReducerAfterActivation(t *testing.T) {
 	t.Parallel()
 
 	envelopes := convertedOSVFixture(t, "debian-cve-2023-38039.json", false)
 
 	tagged := false
+	decodedHostLine := false
 	for _, envelope := range envelopes {
 		if envelope.FactKind != chain.VulnerabilityAffectedPackageFactKind {
 			continue
@@ -38,24 +34,40 @@ func TestOSVReleaseTagsStayDormantUntilTheSDKCarriesThem(t *testing.T) {
 		}
 		pkg, err := supplyChainAffectedPackageFromEnvelope(envelope)
 		if err != nil {
-			t.Fatalf("decode through the contracts seam: %v (an extra releases key must stay tolerated)", err)
+			t.Fatalf("decode through the contracts seam: %v", err)
 		}
 		for _, affectedRange := range pkg.AffectedRanges {
-			if affectedRange.Releases != nil {
-				t.Fatalf("decoded range carries Releases %v; the tag is dormant until the SDK pin that declares it", affectedRange.Releases)
+			// The tag reaches the reducer: every converted OS range keeps
+			// its releases through the typed decode. Each range carries
+			// its own lines (bookworm debian:12, trixie debian:13, forky
+			// debian:14); the bookworm tag is the host line the finding
+			// below matches.
+			if len(affectedRange.Releases) == 0 {
+				t.Fatalf("decoded range lost its releases tag: %#v", affectedRange)
+			}
+			if slices.Contains(affectedRange.Releases, "debian:12") {
+				decodedHostLine = true
 			}
 		}
 	}
 	if !tagged {
-		t.Fatalf("converter wrote no releases key; the dormancy pin would prove nothing")
+		t.Fatalf("converter wrote no releases key; the activation proves nothing")
+	}
+	if !decodedHostLine {
+		t.Fatalf("no decoded range carries the bookworm host line debian:12")
 	}
 
 	findings := BuildSupplyChainImpactFindings(append(envelopes, debianCurl("12", "7.88.1-10+deb12u2").envelope()))
 	if len(findings) != 1 {
 		t.Fatalf("findings = %d, want 1: %#v", len(findings), findings)
 	}
-	assertSupplyChainImpactStatus(t, findings[0], SupplyChainImpactPossiblyAffected)
-	if findings[0].MatchReason != supplyChainVersionReasonOSReleaseUnverified {
-		t.Fatalf("MatchReason = %q, want %q (the PR-2a verdict)", findings[0].MatchReason, supplyChainVersionReasonOSReleaseUnverified)
+	// Listed host line (ruling: only the host line's ranges and fixes decide,
+	// and only this case can read affected_exact): bookworm Debian:12 is
+	// listed, its range [0, 7.88.1-10+deb12u3) contains the observed version
+	// with no fix at or below it, so the row reads affected_exact via the
+	// release-aware exact path, never os_release_unverified.
+	assertSupplyChainImpactStatus(t, findings[0], SupplyChainImpactAffectedExact)
+	if findings[0].MatchReason != supplyChainVersionReasonDPKGAffectedRange {
+		t.Fatalf("MatchReason = %q, want %q (the host line's own range)", findings[0].MatchReason, supplyChainVersionReasonDPKGAffectedRange)
 	}
 }

@@ -135,6 +135,12 @@
     "impact_status": {
       "type": "string"
     },
+    "installed_package_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "intent_id": {
       "type": "string"
     },
@@ -155,6 +161,12 @@
     },
     "observed_version": {
       "type": "string"
+    },
+    "os_package_match_derivation": {
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "package_id": {
       "type": "string"
@@ -233,6 +245,12 @@
         "type": "string"
       },
       "type": "array"
+    },
+    "source_package": {
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "source_system": {
       "type": "string"

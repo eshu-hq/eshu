@@ -135,7 +135,7 @@ func supplyChainAffectedRangesFromTyped(ranges []vulnerabilityv1.AffectedRange) 
 		if kind == "" || len(events) == 0 {
 			continue
 		}
-		out = append(out, supplychainmodel.AffectedRange{Kind: kind, Events: events})
+		out = append(out, supplychainmodel.AffectedRange{Kind: kind, Events: events, Releases: append([]string(nil), r.Releases...)})
 	}
 	return out
 }
@@ -195,6 +195,10 @@ func supplyChainOSPackageFromEnvelope(envelope facts.Envelope) (supplychainmodel
 		InstalledVersion:     pkg.InstalledVersion,
 		RepositoryClass:      packageidentity.LowerASCII(payloadcore.DerefString(pkg.RepositoryClass)),
 		VendorAdvisorySource: packageidentity.LowerASCII(payloadcore.DerefString(pkg.VendorAdvisorySource)),
+		// Source decodes verbatim: the join compares it byte-for-byte
+		// against the advisory purl's last segment, and any fold must be
+		// identical in the SQL mirror (osPackageSourcePURLPrefixExpression).
+		SourcePackage: strings.TrimSpace(payloadcore.DerefString(pkg.SourcePackage)),
 	}, nil
 }
 
