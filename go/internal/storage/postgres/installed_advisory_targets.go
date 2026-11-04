@@ -221,7 +221,7 @@ func osPackagePURLPrefixExpression(payloadColumn string) string {
 // exactly: an empty source, any '/', '@', '?', '#', or unicode space, or a
 // prefix with no '/' to replace into keys as "". Only
 // osPackageSourcePURLPrefixExpression with payload unqualified may feed
-// migration 273's index: an index on any other spelling would not serve the
+// migration 274's index: an index on any other spelling would not serve the
 // query (TestOSPackageSourcePURLPrefixExpressionMatchesMigration pins it).
 func osPackageSourcePURLPrefixExpression(payloadColumn string) string {
 	prefix := osPackagePURLPrefixExpression(payloadColumn)

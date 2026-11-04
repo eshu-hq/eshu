@@ -212,19 +212,19 @@ func TestOSPackageAdvisoryTargetColumnsStayInLockstep(t *testing.T) {
 }
 
 // TestOSPackageSourcePURLPrefixExpressionMatchesMigration pins the source
-// expression to the expression index of migration 273: an index on any other
-// spelling would not serve the narrowed read's OR branch, which would
+// expression to the expression index of migration 274: an index on any other
+// spelling would not serve the narrowed read's UNION source arm, which would
 // silently fall back to scanning every installed package for source-joined
 // advisories (#9859).
 func TestOSPackageSourcePURLPrefixExpressionMatchesMigration(t *testing.T) {
 	t.Parallel()
 
-	raw, err := os.ReadFile("migrations/273_fact_records_os_package_source_purl_prefix_idx.sql")
+	raw, err := os.ReadFile("migrations/274_fact_records_os_package_source_purl_prefix_idx.sql")
 	if err != nil {
 		t.Fatalf("read migration: %v", err)
 	}
 	if !strings.Contains(string(raw), osPackageSourcePURLPrefixExpression("payload")) {
-		t.Fatalf("migration 273 does not contain the query's source index expression:\n%s\nmigration:\n%s",
+		t.Fatalf("migration 274 does not contain the query's source index expression:\n%s\nmigration:\n%s",
 			osPackageSourcePURLPrefixExpression("payload"), raw)
 	}
 	if !strings.Contains(listOSPackageAdvisoryTargetsForPackagesQuery(), osPackageSourcePURLPrefixExpression("fact.payload")) {
@@ -236,7 +236,7 @@ func TestOSPackageSourcePURLPrefixExpressionMatchesMigration(t *testing.T) {
 		"AND is_tombstone = FALSE",
 	} {
 		if !strings.Contains(string(raw), want) {
-			t.Fatalf("migration 273 missing %q", want)
+			t.Fatalf("migration 274 missing %q", want)
 		}
 	}
 }
