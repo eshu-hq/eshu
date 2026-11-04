@@ -173,6 +173,47 @@ func TestListGoModuleRepositoriesSkipsInactiveScopesLive(t *testing.T) {
 	}
 }
 
+// TestListGoModuleRepositoriesDetectsFromContentNotFactsLive pins the approved
+// detection source and both sides of its divergence from the parser's fact. A
+// repository whose go.mod exists only in content_files, with no module_declaration
+// fact, is planned: the component reads the commit and may scan nothing. A
+// repository with the fact and no stored go.mod is not planned until its content
+// lands.
+func TestListGoModuleRepositoriesDetectsFromContentNotFactsLive(t *testing.T) {
+	database := openStoreProof(t)
+	contentOnly := seedRepository(t, database, 1, "go.mod")
+	factOnly := seedRepository(t, database, 2, "")
+	if _, err := database.ExecContext(t.Context(), `
+INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system, source_fact_key,
+    observed_at, ingested_at, payload)
+VALUES ('fact-module', $1, 'gen-2', 'content_entity', 'k', 'git', 'k', now(), now(),
+    '{"entity_type":"Variable","entity_metadata":{"config_kind":"module_declaration","package_manager":"gomod"}}'::jsonb)`,
+		"git-repository-scope:"+factOnly); err != nil {
+		t.Fatalf("seed module_declaration fact: %v", err)
+	}
+	var contentOnlyFacts int
+	if err := database.QueryRowContext(t.Context(),
+		`SELECT count(*) FROM fact_records WHERE scope_id = $1`, "git-repository-scope:"+contentOnly,
+	).Scan(&contentOnlyFacts); err != nil {
+		t.Fatal(err)
+	}
+	if contentOnlyFacts != 0 {
+		t.Fatalf("content-only repository has %d facts, want 0", contentOnlyFacts)
+	}
+
+	page, err := NewStore(postgres.SQLDB{DB: database}).ListGoModuleRepositories(t.Context(),
+		scannercomponent.GoModuleRepositoryFilter{PageSize: scannercomponent.GoModulePageSize})
+	if err != nil {
+		t.Fatalf("read page: %v", err)
+	}
+	if page.Candidates != 2 {
+		t.Fatalf("candidates = %d, want 2", page.Candidates)
+	}
+	if len(page.Repositories) != 1 || page.Repositories[0].RepositoryID != contentOnly {
+		t.Fatalf("repositories = %+v, want only the content-only repository %q", page.Repositories, contentOnly)
+	}
+}
+
 // TestGoModulePageAdmissionIsIdempotentLive drives the read, the planner, and
 // the real guarded admission: a page lands once, and once the bucket's run exists
 // the read stops, even after a commit moves, so the stored target cannot change

@@ -10,6 +10,7 @@ TABLE = {
         "go/internal/storage/postgres/gomodules/store_live_test.go": (
             "TestListGoModuleRepositoriesRotatesEveryRepositoryLive",
             "TestListGoModuleRepositoriesSkipsInactiveScopesLive",
+            "TestListGoModuleRepositoriesDetectsFromContentNotFactsLive",
             "TestGoModulePageAdmissionIsIdempotentLive",
         ),
     },
