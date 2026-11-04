@@ -78,6 +78,27 @@ Digests accept an optional `sha256:` prefix. Caps come from the pinned
   drain totals at exit. No OCR text ever reaches logs or spans: the engine
   contract keeps raw text out of errors, and redaction runs before envelopes.
 
+## Performance Evidence
+
+No-Regression Evidence: this PR adds a new binary and registry/docs rows; it
+modifies no shared production code path. Baseline is `origin/main`
+`6ed93565a5` (no such binary); after measurement at branch HEAD, the focused
+suites for every touched package stay green with unchanged timings
+(`go test ./cmd/collector-document-import/ -count=1`: ~0.01 s;
+`document/...` and `preflight/...` suites: same pass, no delta;
+`envregistry`: pass). Backend: linux/arm64 local `go` toolchain; no
+Neo4j/Postgres touched by these unit paths. Input shape: operator-supplied
+reviewed images bounded by `maxInputBytes+1` per read with single-file peak
+residency (25 MiB + 1 byte at defaults); terminal counts are the drain's own
+generation/envelope totals, committed through the unchanged ingestion store.
+Gate impact is nil by construction: the binary runs only when explicitly
+enabled (`ESHU_DOC_IMPORT_ENABLED=true`), and disabled start exits 0 with
+zero commits, zero DB connections, and zero envelopes.
+
+No-Observability-Change: existing `eshu_dp_ocr_extractions_total`,
+`SpanOCRExtract`, and commit-level spans only; no new metric, label, or span.
+Row recorded in `docs/public/observability/telemetry-coverage-collectors.md`.
+
 ## Gotchas / invariants
 
 - Disabled means exit 0 with zero commits: the binary is built but never
