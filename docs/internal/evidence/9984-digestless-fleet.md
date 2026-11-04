@@ -3,9 +3,13 @@
 Issue #9984, part of epic #9209. Installed OS rows with no sibling-analysis
 digest used to share one index, and the first matching row decided one finding
 for the group. This note records what moved, what did not, and what the change
-costs. Figures come from commit `3d35d87318` against base `73032877fd`, on macOS
-arm64 with `go1.26.10` and a shared host (load 45 to 47 during the benchmark run,
-so the timing bands are wide). They are not a CI baseline.
+costs. The census, the benchmark runs, and the allocation counts below were
+re-run at `79f4745717` (the last commit that changes Go files; the commits after
+it change documentation only) against base `4a889112b1`, on macOS arm64 with
+`go1.26.10`. The host is shared and was busy: the one-minute load average read 34
+to 63 during the benchmark runs, which widens the timing bands (up to ±147%).
+Allocations and bytes do not move with load, so they carry the weight. The figures
+are not a CI baseline.
 
 ## What the change does
 
@@ -22,12 +26,35 @@ findings to 240: each unattached digest now gets its own finding, where one
 matching row used to decide for the digests that shared a key. The no-SBOM digest
 path (#9918) is byte-identical, with 0 rows moved.
 
+When two shards produce findings with one writer identity but different reasons,
+coalesce used to call it an SBOM component version conflict. That fits two SBOM
+components, and it does not fit two digest-less lines whose purl names no distro
+qualifier, where no SBOM was read. The label now needs an SBOM component on one of
+the merged findings (`findingHasSBOMComponentPath`). Without one, the merge keeps
+the lesser reason, so arrival order cannot change it, and the union of both
+missing-evidence lists and rows. This was found by review at
+`716af633ac` and is pinned by `TestDigestlessFleetPURLWithoutDistroKeepsReasonWithoutSBOM`
+and `TestCoalesceNamesAnSBOMConflictOnlyWhenAnSBOMWasRead`. The smaller fix is in
+coalesce: putting the release line in the writer identity would change the
+identity, and so the finding ID, of every finding on the digest path (#9918).
+
 ## Finding counts
 
 The census takes the seven committed OS advisory records and the five records
 that join no OS row. Each OS record meets every release line of its vendor crossed
-with versions from its own fixes, in three row orders. The harness is scratch and
-is not committed.
+with versions from its own fixes, in three row orders. The harness is a scratch test
+file (`zz_census_9984_test.go`) and a comparison script, kept outside the
+repository. It is not committed: the core package is at its directory file limit
+and the repository has no test-support location for a one-off census. To rerun it,
+copy the test file into a checkout of each side and compare the two outputs:
+
+```text
+cp zz_census_9984_test.go <checkout>/go/internal/reducer/supplychain/core/
+cd <checkout>/go && CENSUS_OUT=<out>.json go test ./internal/reducer/supplychain/core/ -run TestZZCensus -count=1
+python3 compare.py census-base.json census-head.json
+```
+
+The base checkout is `4a889112b1` and the head checkout is `79f4745717`.
 
 | Class | Runs | Findings before | Findings after | Byte-identical runs | Fixtures flipping by order, before | After |
 |---|---|---|---|---|---|---|
@@ -68,7 +95,8 @@ cites one of them. It did before this change too; the group is just smaller now.
 Read-only on the Postgres replica, after confirming the AWS identity, with no
 mutation. The QA environment holds 56 `vulnerability.os_package` rows, 28 of them
 active, all in one scope on one distro version. Every package has one (line,
-version) group, and no scope and generation holds two versions of one package. It
+version) group, and no scope and generation holds two versions of one package.
+That count was not re-run grouped by source key, the shape #10057 describes. It
 holds no `vulnerability.affected_package` fact with an OS purl, and none of its
 271966 findings carries an OS match derivation. So no finding can move there
 today: the count before and after is the same because nothing joins, not because
@@ -76,29 +104,67 @@ the split was exercised. The split has not run in the QA environment.
 
 ## Cost
 
-Benchmark Evidence: interleaved with an alternating first mover, eight rounds per
-binary, 300 iterations for the fleet benchmarks and 50 for the join benchmark.
+Benchmark Evidence: measured at `79f4745717` against base `4a889112b1`, ten
+interleaved rounds per side with an alternating first mover, 300 iterations for the
+fleet benchmarks and 50 for the join benchmark, compared with `benchstat`. The
+one-minute load average read 34 to 51 during the run, so the timing bands run ±8 to
+±147% and a "within noise" row says only that the difference is under the band.
+Allocations do not move with load and are the stronger evidence. The scale names
+1x, 5x, and 10x are 10, 50, and 100 images or rows. The base has no
+`BenchmarkOSFleetDigestlessFanout`, so a copy of it ran in the base checkout.
 
 | Benchmark | Base | Change | Result |
 |---|---|---|---|
-| `BenchmarkOSFleetDigestFanout` 10 images | 493.0 µs | 455.9 µs | within noise, p=0.279 |
-| `BenchmarkOSFleetDigestFanout` 50 images | 3.494 ms | 3.660 ms | within noise, p=0.878 |
-| `BenchmarkOSFleetDigestFanout` 100 images | 6.971 ms | 7.614 ms | within noise, p=0.505 |
-| `BenchmarkOSFleetDigestlessFanout` same group, 100 rows | 178.1 µs | 177.4 µs | within noise, p=0.878; +6 allocations |
-| `BenchmarkOSFleetDigestlessFanout` spread, 100 rows | 169.4 µs | 594.2 µs | one finding becomes nine |
-| `BenchmarkOSAdvisoryJoin` 100 images | 729.3 µs | 1120.3 µs | 5 findings become 15; its rows have no digest |
-| `BenchmarkOSAdvisoryJoin` no-join control | 372.1 µs | 348.3 µs | -6.4%, p=0.038, allocations equal; read as host noise |
-| `BenchmarkOSAdvisoryJoin` registry control | 354.6 µs | 325.9 µs | within noise, p=0.195 |
+| `DigestFanout` 10 images | 421.6 µs ±54% | 434.1 µs ±55% | within noise, p=0.631; allocations 3654 to 3652 (-0.05%) |
+| `DigestFanout` 50 images | 3.621 ms ±92% | 3.376 ms ±72% | within noise, p=0.853; allocations -0.01% |
+| `DigestFanout` 100 images | 6.350 ms ±141% | 6.832 ms ±38% | within noise, p=1.000; allocations equal |
+| `DigestlessFanout` same group, 10 rows | 41.6 µs ±27% | 41.3 µs ±36% | within noise, p=1.000; +6 allocations (+2.1%) |
+| `DigestlessFanout` same group, 100 rows | 166.6 µs ±42% | 167.9 µs ±19% | within noise, p=0.912; +6 allocations (+0.6%) |
+| `DigestlessFanout` spread, 10 rows | 46.5 µs ±21% | 439.5 µs ±33% | the same nine groups; allocations 288 to 3724 |
+| `DigestlessFanout` spread, 100 rows | 162.2 µs ±35% | 568.8 µs ±118% | one finding becomes nine; allocations 1014 to 4451 |
+| `OSAdvisoryJoin` 100 images | 714.2 µs ±22% | 1084.7 µs ±20% | 5 findings become 15; its rows have no digest |
+| `OSAdvisoryJoin` no-join control | 340.9 µs ±34% | 340.1 µs ±15% | within noise, p=0.631; allocations equal |
+| `OSAdvisoryJoin` registry control | 310.0 µs ±18% | 318.0 µs ±8% | within noise, p=0.912; allocations equal |
 
-The added cost follows the findings the path now produces. Classifying runs once
-per group, so it is bounded by the distinct (line, version) pairs in the fleet and
-not by the host count. The first version sorted every group and read +44% on the
-same-group row at 100 rows. Keeping only each lookup key's least row removed that:
-this path has no SBOM component, so the classifier reads one row per shard.
+The added cost follows the findings the path now produces. Digest-less rows
+classify once per group, so that part is bounded by the distinct (line, version)
+pairs in the fleet and not by the host count. Image digests do not fold into
+groups: each digest is its own group, as it has been on the no-SBOM path since
+#9918. The first version sorted every group and read +44% on the same-group row at
+100 rows. Keeping only each lookup key's least row removed that: this path has no
+SBOM component, so the classifier reads one row per shard.
+
+### SBOM base beside unattached digests
+
+The SBOM base now takes the same pass, so its cost grows with the unattached
+digests, which the table above does not cover.
+`BenchmarkOSFleetSBOMBaseUnattachedDigests` runs one verified SBOM subject beside
+1, 10, 100, and 1000 digests that each have a scan row and no SBOM, all on one line
+and one version. Twelve interleaved rounds per side with an alternating first
+mover, 30 iterations each, compared with `benchstat`. Host load was 57 to 63 during
+this run (36 to 60 in an earlier identical run, whose bytes and allocations matched
+to the digit).
+
+| Unattached digests | Findings | Time | Bytes per op | Allocations per op |
+|---|---|---|---|---|
+| 1 | 2 to 2 | 84.7 µs ±39% to 106.4 µs ±21%, p=0.143 | 53.5 KiB to 54.6 KiB (+2.2%) | 456 to 468 (+2.6%) |
+| 10 | 2 to 11 | 128.6 µs ±26% to 859.1 µs ±32% (+568%) | 77.5 KiB to 380.6 KiB (+391%) | 588 to 3516 (+498%) |
+| 100 | 2 to 101 | 416 µs ±70% to 7.81 ms ±69% (+1776%) | 275 KiB to 3.56 MiB (+1223%) | 1.77k to 35.6k (+1910%) |
+| 1000 | 2 to 1001 | 5.61 ms ±42% to 67.4 ms ±23% (+1101%) | 2.78 MiB to 35.6 MiB (+1179%) | 13.5k to 338k (+2403%) |
+
+The cost is linear in unattached digests, about 34 KiB and 325 allocations for each
+added finding. Time per added finding reads 23 µs when the host is quiet (review
+measured +1054% at 1000 digests at load 26 to 31) and about 60 µs in this loaded run;
+the no-SBOM path in the table above costs about 70 µs for each image at 100 images.
+Before this change the SBOM base produced one finding for all of these digests,
+because the first matching row decided for the group. That was the wrong answer for
+every digest but one. Each digest is one image with its own installed rows, so it
+gets its own finding, and the cost follows the findings.
 
 No-Regression Evidence: digest-resolved and non-OS advisories are byte-identical
-in the census above, and the `BenchmarkOSFleetDigestFanout` allocation count moved
-by at most 0.05%.
+in the census above. At the final head, allocations per op of
+`BenchmarkOSFleetDigestFanout` moved by -0.05% at 10 images (3654 to 3652), -0.01%
+at 50 images, and not at all at 100 images (p=0.250), over ten rounds each.
 
 No-Observability-Change: the split emits no new metric, span, log key, or status.
 Its findings reuse the persisted finding and the existing counters. Finding-level
@@ -110,12 +176,21 @@ because a foreign-line host now has a finding of its own.
 - The release label on `eshu_dp_supply_chain_impact_os_advisory_release_selections_total`
   still reads the first row of the fleet index, so a fact joined by rows on two
   lines can report a different label in another row order. The findings do not
-  depend on it.
-- One digest holding two versions of a package still picks by row order. #9858's
-  closing comment named this as a theory. A scratch probe confirms the code path,
-  and the QA environment has no row in that shape.
+  depend on it. Tracked in #10056.
+- One digest holding two versions of a package key still picks by row order, with
+  no change here. #9858's closing comment named this as a theory, and a source-key
+  join makes the shape ordinary. Debian's `bsdutils` (`1:2.38.1-5+deb12u3`) and
+  `libblkid1` (`2.38.1-5+deb12u3`) both come from source `util-linux`, so one source
+  key holds two versions that differ by an epoch (package pages for bookworm, as
+  read in review). A probe with synthetic versions in that shape gives
+  `affected_exact` in one row order and `possibly_affected` in the other. That both
+  packages sit in one scanned image is inferred, not observed. It applies to an
+  unattached digest on the SBOM base too. Tracked in #10057.
 - Rows whose purl names no distro qualifier share a writer identity across lines.
-  Shards with one verdict merge their evidence into one finding, and that finding
-  keeps the first line's fix. `TestDigestlessFleetPURLWithoutDistroCoalescesAcrossLines`
-  pins this. Nothing requires the qualifier, and this note did not measure how
-  often a producer leaves it out.
+  Shards with one verdict merge their evidence into one finding that keeps the first
+  line's fix; `TestDigestlessFleetPURLWithoutDistroCoalescesAcrossLines` pins this.
+  Shards with different reasons under one status merge too. The merged finding keeps
+  the lesser reason and both missing-evidence lists and is not labeled an SBOM
+  conflict (`TestDigestlessFleetPURLWithoutDistroKeepsReasonWithoutSBOM`). Nothing
+  requires the qualifier, and this note did not measure how often a producer leaves
+  it out.
