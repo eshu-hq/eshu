@@ -36,7 +36,10 @@ version — pinning this module pins the fixture pack too.
   `input_invalid`. The struct documentation now states Eshu's trace order: entry
   point first, vulnerable symbol last, the reverse of govulncheck's own order,
   with `position` one `filename:line:column` string. The type documentation
-  also states what a producer writes for each outcome: every finding that names
+  also states what a producer writes for each outcome, and ties
+  `reachability_level` to `scan_level` (`import` and `module` are for package
+  and module scans; a symbol scan's package-only or module-only finding is
+  `not_called`, because the reducer reads `import` as reachable). Every finding that names
   a module sets `deepest_module`, including a `not_called` finding with an empty
   `trace`, because the core reducer joins on it. The fixture pack's valid
   payload carries the new fields.
