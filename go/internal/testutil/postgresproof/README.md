@@ -44,8 +44,9 @@ The godoc contract is in [doc.go](doc.go).
 a copied connection configuration whose database name is the generated proof
 database and whose search path is `public`. Creating from `template0` excludes
 extensions and relations installed in `template1`. Cleanup is registered
-immediately after successful creation, closes the target pool before dropping
-the database, and reports cleanup errors. Every connection it opens to that database runs the infra read
+immediately after successful creation, closes the target pool, terminates the
+database's other backends, and force-drops with a bounded SQLSTATE 55006 retry
+(#9985), and reports cleanup errors. Every connection it opens to that database runs the infra read
 model's derive-aware writer `SET`
 
 No-Regression Evidence: moving proof creation from `template1` to `template0`
@@ -97,3 +98,9 @@ Focused verification:
 cd go
 go test ./internal/testutil/postgresproof -count=1
 ```
+
+## No-Regression Evidence (#9985)
+
+- No-Regression Evidence: projector deadlock load test green 6 consecutive runs (claims 668–2071, 0 deadlocks, 0 errors, 0 overlapping leases), teardown clean every run; contention intact.
+- Performance Evidence: teardown-only path; worst case about 2 s inside the 15 s cleanup budget, after all assertions; claim SQL and worker counts untouched.
+- No-Observability-Change: test-only change, no runtime signal. Baseline: pre-fix teardown flaked with 55006 on loaded runners (local PG 18).

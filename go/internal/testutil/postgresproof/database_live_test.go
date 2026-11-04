@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -179,6 +180,169 @@ func TestOpenDisposableBootstrapDatabaseLiveAppliesBeforeReturn(t *testing.T) {
 	}
 	if _, err := db.ExecContext(ctx, `INSERT INTO public.eshu_proof_bootstrap_probe (id) VALUES (1)`); err != nil {
 		t.Fatalf("write through the bootstrapped handle: %v", err)
+	}
+}
+
+// TestTerminateAndDropDisposableDatabaseLiveTerminatesLingeringBackends is
+// the #9985 teardown-race replay: the projector claim load left backends on
+// the disposable database past the test's own pool close (a 14 s lock-wait
+// claim query was still executing when DROP ran), and DROP DATABASE ...
+// WITH (FORCE) reported SQLSTATE 55006. The new teardown terminates the
+// stragglers first and retries the DROP on 55006, so lingering idle,
+// long-running, and lock-waiting backends no longer fail the test after its
+// product assertions already passed. A control connection to the
+// administrative database must survive. Set
+// ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN (an administrative postgres-database
+// DSN) and ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE=1 to run it.
+func TestTerminateAndDropDisposableDatabaseLiveTerminatesLingeringBackends(t *testing.T) {
+	adminDSN := strings.TrimSpace(os.Getenv("ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN"))
+	if adminDSN == "" || os.Getenv("ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE") != "1" {
+		t.Skip("set ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN and ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE=1 to run the lingering-backend drop proof")
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+	defer cancel()
+
+	admin, err := sql.Open("pgx", adminDSN)
+	if err != nil {
+		t.Fatalf("open administrative database: %v", err)
+	}
+	defer func() { _ = admin.Close() }()
+	if err := admin.PingContext(ctx); err != nil {
+		t.Fatalf("ping administrative database: %v", err)
+	}
+
+	databaseName := disposableDatabaseName(t)
+	if _, err := admin.ExecContext(ctx, "CREATE DATABASE "+quoteIdentifier(databaseName)+" TEMPLATE template0"); err != nil {
+		t.Fatalf("create lingering-backend proof database: %v", err)
+	}
+	// Best-effort survivor cleanup first (LIFO: runs last): the drop under
+	// test must already have removed the database, so anything left is a
+	// failure of the new path, reported without masking its error.
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cleanupCancel()
+		cleanupAdmin, err := sql.Open("pgx", adminDSN)
+		if err != nil {
+			return
+		}
+		defer func() { _ = cleanupAdmin.Close() }()
+		_, _ = cleanupAdmin.ExecContext(cleanupCtx,
+			`SELECT count(*) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid() AND pg_terminate_backend(pid)`,
+			databaseName)
+		if _, err := cleanupAdmin.ExecContext(cleanupCtx,
+			"DROP DATABASE IF EXISTS "+quoteIdentifier(databaseName)+" WITH (FORCE)"); err != nil {
+			t.Errorf("remove lingering-backend proof database: %v", err)
+		}
+	})
+
+	targetDSN, err := WithDatabase(adminDSN, databaseName)
+	if err != nil {
+		t.Fatalf("retarget DSN at the proof database: %v", err)
+	}
+	target, err := sql.Open("pgx", targetDSN)
+	if err != nil {
+		t.Fatalf("open proof database: %v", err)
+	}
+	defer func() { _ = target.Close() }()
+	if _, err := target.ExecContext(ctx, `CREATE TABLE public.eshu_proof_linger (id integer PRIMARY KEY)`); err != nil {
+		t.Fatalf("create linger fixture: %v", err)
+	}
+	if _, err := target.ExecContext(ctx, `INSERT INTO public.eshu_proof_linger (id) VALUES (1)`); err != nil {
+		t.Fatalf("seed linger fixture: %v", err)
+	}
+
+	// Idle backends, pinned so the pool cannot lend them out from under the
+	// drop: the shape a just-closed pool's server side keeps until it notices.
+	for range 2 {
+		conn, err := target.Conn(ctx)
+		if err != nil {
+			t.Fatalf("pin idle backend: %v", err)
+		}
+		defer func() { _ = conn.Close() }()
+	}
+
+	// Long-running queries whose client sockets stay open, the shape of the
+	// CI workers' 14 s lock-wait claims that outlived the test goroutines.
+	var active sync.WaitGroup
+	for range 2 {
+		active.Add(1)
+		go func() {
+			defer active.Done()
+			_ = target.QueryRowContext(ctx, `SELECT pg_sleep(60)`).Err()
+		}()
+	}
+
+	// A lock wait: one transaction holds the row, another blocks on it.
+	holder, err := target.Conn(ctx)
+	if err != nil {
+		t.Fatalf("pin lock holder: %v", err)
+	}
+	defer func() { _ = holder.Close() }()
+	if _, err := holder.ExecContext(ctx, `BEGIN`); err != nil {
+		t.Fatalf("begin lock holder: %v", err)
+	}
+	if _, err := holder.ExecContext(ctx, `UPDATE public.eshu_proof_linger SET id = 1 WHERE id = 1`); err != nil {
+		t.Fatalf("take row lock: %v", err)
+	}
+	waiterDone := make(chan error, 1)
+	go func() {
+		waiter, err := target.Conn(ctx)
+		if err != nil {
+			waiterDone <- err
+			return
+		}
+		defer func() { _ = waiter.Close() }()
+		_, err = waiter.ExecContext(ctx, `UPDATE public.eshu_proof_linger SET id = 1 WHERE id = 1`)
+		waiterDone <- err
+	}()
+	// Wait until the waiter is actually blocked in its lock wait before the
+	// drop runs: a fixed sleep would let the drop race fixture setup.
+	waitDeadline := time.Now().Add(15 * time.Second)
+	for {
+		var lockWaiters int
+		if err := admin.QueryRowContext(ctx,
+			`SELECT count(*) FROM pg_stat_activity WHERE datname = $1 AND wait_event_type = 'Lock'`,
+			databaseName).Scan(&lockWaiters); err != nil {
+			t.Fatalf("poll waiter lock wait: %v", err)
+		}
+		if lockWaiters > 0 {
+			break
+		}
+		if time.Now().After(waitDeadline) {
+			t.Fatal("lock waiter never reached its lock wait")
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	dropCtx, dropCancel := context.WithTimeout(context.Background(), time.Minute)
+	defer dropCancel()
+	if err := terminateAndDropDisposableDatabase(dropCtx, admin, databaseName); err != nil {
+		t.Fatalf("terminateAndDropDisposableDatabase() = %v, want lingering backends terminated and dropped", err)
+	}
+
+	var survivors int
+	if err := admin.QueryRowContext(ctx,
+		`SELECT count(*) FROM pg_database WHERE datname = $1`, databaseName).Scan(&survivors); err != nil {
+		t.Fatalf("list surviving proof databases: %v", err)
+	}
+	if survivors != 0 {
+		t.Fatalf("proof database %q survived the lingering-backend drop", databaseName)
+	}
+	// The administrative session that issued the terminate must still work:
+	// the terminate targets only the proof database's other backends.
+	if err := admin.PingContext(ctx); err != nil {
+		t.Fatalf("administrative session died with the proof backends: %v", err)
+	}
+
+	active.Wait()
+	// Drain the waiter without asserting its fate: after the holder's
+	// backend dies the waiter may error or, in a narrow commit window,
+	// commit just before its own backend dies. Either way the database is
+	// gone, which the survivor check above already pinned.
+	select {
+	case <-waiterDone:
+	case <-time.After(15 * time.Second):
+		t.Fatal("lock waiter did not return after its database was dropped")
 	}
 }
 

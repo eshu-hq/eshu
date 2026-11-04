@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
@@ -260,12 +262,89 @@ func dropDisposableDatabase(t testing.TB, adminDB *sql.DB, databaseName string) 
 	t.Helper()
 	cleanupCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	if _, err := adminDB.ExecContext(
-		cleanupCtx,
-		"DROP DATABASE IF EXISTS "+quoteIdentifier(databaseName)+" WITH (FORCE)",
-	); err != nil {
+	if err := terminateAndDropDisposableDatabase(cleanupCtx, adminDB, databaseName); err != nil {
 		t.Errorf("drop disposable PostgreSQL database: %v", err)
 	}
+}
+
+const (
+	// disposableDropMaxAttempts bounds DROP DATABASE retries on SQLSTATE
+	// 55006 (#9985). A database whose backends never drain fails loudly
+	// after this many attempts instead of stalling test cleanup.
+	disposableDropMaxAttempts = 5
+	// disposableDropRetryDelay spaces 55006 retries so backends that were
+	// slow to die on a loaded runner finish exiting before the next
+	// recount. It runs only in test teardown, after every product
+	// assertion, and never serializes the load under test.
+	disposableDropRetryDelay = 500 * time.Millisecond
+)
+
+// terminateDisposableBackendsQuery asks every other backend on one database
+// to exit. The datname parameter scopes the terminate to the generated proof
+// database; the pid guard keeps the issuing administrative session out.
+// Termination is asynchronous: a backend scheduled out on a loaded runner may
+// still appear in pg_stat_activity when this returns, which is why the drop
+// below retries.
+const terminateDisposableBackendsQuery = `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()`
+
+// disposableDropAdmin is the administrative surface the disposable-database
+// teardown needs: parameterized ExecContext. *sql.DB satisfies it; tests
+// script it.
+type disposableDropAdmin interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+}
+
+// terminateAndDropDisposableDatabase terminates the named database's other
+// backends and force-drops it, retrying a bounded number of times on
+// SQLSTATE 55006 (#9985). DROP DATABASE ... WITH (FORCE) signals other
+// backends and recounts immediately: on a loaded runner a backend deep in a
+// lock wait may not exit before the recount, so the drop fails with "database
+// is being accessed by other users" even though every backend is already
+// dying. An explicit terminate before every attempt plus a bounded wait
+// closes that signal-recount-reap window without touching the load that
+// produced the backends. Any other DROP failure returns immediately.
+func terminateAndDropDisposableDatabase(ctx context.Context, admin disposableDropAdmin, databaseName string) error {
+	var lastErr error
+	var termErr error
+	for attempt := 1; attempt <= disposableDropMaxAttempts; attempt++ {
+		if _, err := admin.ExecContext(ctx, terminateDisposableBackendsQuery, databaseName); err != nil && termErr == nil {
+			termErr = err
+		}
+		if _, dropErr := admin.ExecContext(ctx, "DROP DATABASE IF EXISTS "+quoteIdentifier(databaseName)+" WITH (FORCE)"); dropErr != nil {
+			lastErr = dropErr
+			if disposableDropSQLState(dropErr) != "55006" {
+				return fmt.Errorf("drop disposable PostgreSQL database %q: %w", databaseName, dropErr)
+			}
+		} else {
+			return nil
+		}
+		if attempt < disposableDropMaxAttempts {
+			timer := time.NewTimer(disposableDropRetryDelay)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return lastErr
+			case <-timer.C:
+			}
+		}
+	}
+	if termErr != nil {
+		return fmt.Errorf("drop disposable PostgreSQL database after %d attempts (last terminate: %v): %w",
+			disposableDropMaxAttempts, termErr, lastErr)
+	}
+	return fmt.Errorf("drop disposable PostgreSQL database after %d attempts: %w",
+		disposableDropMaxAttempts, lastErr)
+}
+
+// disposableDropSQLState reports the SQLSTATE of err, or "" when err carries
+// none. DROP DATABASE cannot take a parameter, so the generated name in the
+// force-drop above stays identifier-quoted.
+func disposableDropSQLState(err error) string {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code
+	}
+	return ""
 }
 
 func quoteIdentifier(value string) string {
