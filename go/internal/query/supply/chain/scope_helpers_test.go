@@ -52,18 +52,18 @@ func TestWriteEmptyScopePages(t *testing.T) {
 	t.Run("ImpactCount", func(t *testing.T) {
 		t.Parallel()
 		recorder := httptest.NewRecorder()
-		handler.writeEmptyImpactCount(recorder, httptest.NewRequest(http.MethodGet, "/", nil))
+		handler.writeEmptyImpactCount(recorder, httptest.NewRequest(http.MethodGet, "/", nil), "precise")
 		body := decodeDataBody(t, recorder)
-		if body["total_findings"] != float64(0) || body["detection_profile"] != "comprehensive" {
+		if body["total_findings"] != float64(0) || body["detection_profile"] != "precise" {
 			t.Fatalf("body = %v, want the zero-count shape", body)
 		}
 	})
 	t.Run("ImpactInventory", func(t *testing.T) {
 		t.Parallel()
 		recorder := httptest.NewRecorder()
-		handler.writeEmptyImpactInventory(recorder, httptest.NewRequest(http.MethodGet, "/", nil), "severity", 10, 0)
+		handler.writeEmptyImpactInventory(recorder, httptest.NewRequest(http.MethodGet, "/", nil), "severity", 10, 0, "comprehensive")
 		body := decodeDataBody(t, recorder)
-		if body["count"] != float64(0) || body["group_by"] != "severity" || body["next_offset"] != nil {
+		if body["count"] != float64(0) || body["group_by"] != "severity" || body["next_offset"] != nil || body["detection_profile"] != "comprehensive" {
 			t.Fatalf("body = %v, want the empty inventory shape", body)
 		}
 	})

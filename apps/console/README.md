@@ -265,6 +265,20 @@ shape nor its exact documented empty state. Vulnerability detail coverage
 therefore requires a real advisory collector result; a fabricated advisory ID
 or generic page shell does not satisfy the gate.
 
+The Vulnerabilities "Reachable in services" tab has a "By service" view over
+`GET /api/v0/supply-chain/impact/inventory` (group by service, workload, or
+environment; `profile=precise` by default, `comprehensive` through the "Include
+possibly affected" toggle). It reads only when opened, sorts groups by highest
+priority, and shows the profile the server echoed. A mismatched or missing
+profile echo is an error, never a clean result. An unattributed group is shown
+as "No service attributed" (or the workload or environment equivalent), is never
+a link, and is never marked complete. Because one finding can touch several
+services, group counts can add up to more than the distinct finding count, and
+the view says so. Each group links to the finding list filtered with
+`service_id`, `workload_id`, or `environment` (plus `profile=comprehensive` when
+the toggle is on); a filtered list that has not loaded shows loading, an error,
+or "needs the live API", never an empty result.
+
 ## Browser-Auth E2E Gate
 
 `npm run console:e2e:auth` is the exhaustive identity-policy companion to the

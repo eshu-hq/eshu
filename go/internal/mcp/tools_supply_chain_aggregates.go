@@ -107,14 +107,14 @@ func supplyChainImpactAggregateTools() []ToolDefinition {
 		},
 		{
 			Name:        "get_supply_chain_impact_inventory",
-			Description: "Return a paginated grouped count of reducer-owned vulnerability impact findings along one dimension (impact_status, priority_bucket, severity, repository_id). Replaces the page-and-iterate caller pattern for ecosystem-level inventory questions.",
+			Description: "Return a paginated grouped count of reducer-owned vulnerability impact findings along one dimension (impact_status, priority_bucket, severity, repository_id, ecosystem, service_id, workload_id, environment). Replaces the page-and-iterate caller pattern for ecosystem-level inventory questions. The service_id, workload_id, and environment dimensions resolve at read time, count a multi-service finding in every group, and add per-bucket completeness plus distinct_findings, the distinct finding count over the whole filtered set (normally equal to the count tool total_findings; it can differ under a scope-id grant, while the winners read model is stale, or when copies of one finding differ on image_ref, detection_profile, or priority_bucket), ordered by max_priority_score, count, then value; compose them with a filter such as group_by=environment with service_id.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
 					"group_by": map[string]any{
 						"type":        "string",
-						"description": "Grouping dimension. impact_status (default) groups by reducer status; priority_bucket groups by triage bucket; severity groups by CVSS severity bucket; repository_id groups by repository; ecosystem groups by package ecosystem.",
-						"enum":        []string{"impact_status", "priority_bucket", "severity", "repository_id", "ecosystem"},
+						"description": "Grouping dimension. impact_status (default) groups by reducer status; priority_bucket groups by triage bucket; severity groups by CVSS severity bucket; repository_id groups by repository; ecosystem groups by package ecosystem; service_id, workload_id, and environment group by the runtime service, workload, or deployment environment each finding resolves to. A finding with two services counts in both service buckets, so bucket counts can sum above distinct_findings. Those three dimensions return per-bucket completeness (complete, partial, unattributed, read_model_unavailable) and an unattributed bucket (value empty, unattributed true) for findings with no resolved group; the unattributed bucket is never complete. They answer 503 when the grouped read model is not available (ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ is off by default).",
+						"enum":        []string{"impact_status", "priority_bucket", "severity", "repository_id", "ecosystem", "service_id", "workload_id", "environment"},
 						"default":     "impact_status",
 					},
 					"cve_id": map[string]any{

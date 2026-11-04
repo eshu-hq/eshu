@@ -44,13 +44,16 @@ router and always links into the production binary.
 ## Exported surface
 
 The store ports (`FindingStore`,
-`AggregateStore`, `ExplanationStore`,
+`AggregateStore`, `GroupedInventoryStore` (the service, workload, and
+environment grouped inventory port, #9873), `ExplanationStore`,
 `ReadinessStore`,
 `VulnerabilitySuppressionMutationStore`) and the Postgres
 implementations with their constructors
 (`NewPostgresFindingStore` with its
 `WithReadModel` and `WithReadStore` variants, `NewPostgresAggregateStore`
 with its `WithReadStore` variant,
+`NewPostgresGroupedInventoryStoreWithReadStore` (winners-sourced, gated by
+`ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ`),
 `NewPostgresReadinessStore`,
 `NewPostgresReadinessStoreWithReadStore` (guarded read-only snapshots),
 `NewPostgresVulnerabilitySuppressionMutationStore`) and queryer ports

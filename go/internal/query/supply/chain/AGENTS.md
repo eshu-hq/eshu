@@ -102,6 +102,16 @@ Read `doc.go` and `README.md` first.
   with cause `dead_lettered_domain`); the queue read runs only on that path
   (#8839). A failed probe names a closed `error_class`; a caller cancel is
   INFO and uncounted, every other class WARN and counted.
+- The impact inventory route's `service_id`, `workload_id`, and `environment`
+  dimensions MUST read only `Handler.ImpactGroupedInventory` (#9873): a nil
+  store or `impact.ErrGroupedInventoryReadModelUnavailable` answers the 503
+  `backend_unavailable` envelope, never a fallback to `ImpactAggregates`.
+  `normalizeGroupedInventoryRows` pins the unattributed bucket (value `""`,
+  completeness `unattributed`, never complete), demotes complete buckets to
+  `partial` on a truncated page, and reads an unknown completeness as
+  `partial`; do not trust the store for those. The empty-grant count and
+  inventory writers echo the profile the request used (default `precise`),
+  never a fixed value.
 - Files must stay under 500 lines. Watch
   `kubernetes_runtime_probe.go` and the aggregate
   handlers; split by concern rather than growing them.

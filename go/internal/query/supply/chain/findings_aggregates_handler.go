@@ -78,10 +78,15 @@ func (h *Handler) countImpactFindings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Empty scoped grants return the zero-count shape without reading the
-	// aggregate store or resolving a repository selector.
+	// aggregate store or resolving a repository selector. The profile is
+	// parsed first so the echo names the profile actually used.
 	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	if access.Empty() {
-		h.writeEmptyImpactCount(w, r)
+		emptyProfile, ok := impact.RequestedProfile(w, r)
+		if !ok {
+			return
+		}
+		h.writeEmptyImpactCount(w, r, emptyProfile)
 		return
 	}
 	filter, ok := h.supplyChainImpactAggregateFilterFromRequest(w, r, access)
@@ -144,17 +149,14 @@ func (h *Handler) impactInventory(w http.ResponseWriter, r *http.Request) {
 		)
 		return
 	}
+	// The service, workload, and environment dimensions resolve through their
+	// own read port, so they branch before the AggregateStore nil check.
+	if grouped, ok := impact.ParseGroupedInventoryDimension(querycontract.QueryParam(r, "group_by")); ok {
+		h.impactGroupedInventory(w, r, grouped)
+		return
+	}
 	if h.ImpactAggregates == nil {
-		querycontract.WriteContractError(
-			w,
-			r,
-			http.StatusServiceUnavailable,
-			"supply-chain impact aggregates require the Postgres reducer read model",
-			querycontract.ErrorCodeBackendUnavailable,
-			ImpactAggregateCapability,
-			h.profile(),
-			querycontract.RequiredProfile(ImpactAggregateCapability),
-		)
+		h.writeImpactAggregateBackendUnavailable(w, r)
 		return
 	}
 	if !impact.RejectUnsupportedVulnerabilityScannerFilters(w, r, impact.FindingsScannerFilters()) {
@@ -166,7 +168,7 @@ func (h *Handler) impactInventory(w http.ResponseWriter, r *http.Request) {
 		dimension = impact.InventoryByStatus
 	}
 	if !isSupportedSupplyChainImpactDimension(dimension) {
-		querycontract.WriteError(w, http.StatusBadRequest, "group_by must be one of impact_status, priority_bucket, severity, repository_id, ecosystem")
+		querycontract.WriteError(w, http.StatusBadRequest, "group_by must be one of impact_status, priority_bucket, severity, repository_id, ecosystem, service_id, workload_id, environment")
 		return
 	}
 	limit, ok := parseSupplyChainImpactAggregateLimit(w, r)
@@ -181,7 +183,11 @@ func (h *Handler) impactInventory(w http.ResponseWriter, r *http.Request) {
 	// aggregate store or resolving a repository selector.
 	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	if access.Empty() {
-		h.writeEmptyImpactInventory(w, r, dimension, limit, offset)
+		emptyProfile, ok := impact.RequestedProfile(w, r)
+		if !ok {
+			return
+		}
+		h.writeEmptyImpactInventory(w, r, dimension, limit, offset, emptyProfile)
 		return
 	}
 	filter, ok := h.supplyChainImpactAggregateFilterFromRequest(w, r, access)

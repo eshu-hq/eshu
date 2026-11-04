@@ -7,7 +7,7 @@
 import { useRef, useState } from "react";
 
 import { AdvisoryCatalog } from "./VulnerabilitiesCatalog";
-import { ReachableAdvisories } from "./VulnerabilitiesReachable";
+import { ReachableWorkspace } from "./VulnerabilitiesReachableWorkspace";
 import type { EshuApiClient } from "../api/client";
 import type { ConsoleModel } from "../console/types";
 import type { SectionProvenance } from "../console/types";
@@ -99,7 +99,7 @@ export function VulnerabilitiesPage({
           aria-labelledby="vulnerability-tab-reachable"
           tabIndex={0}
         >
-          <ReachableAdvisories model={model} client={client} />
+          <ReachableWorkspace model={model} client={client} />
         </div>
       ) : (
         <div

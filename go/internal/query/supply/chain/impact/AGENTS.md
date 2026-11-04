@@ -42,6 +42,30 @@ Read `doc.go` and `README.md` first.
   production `QueryContext` argument list against both list-query
   variants. Adding a placeholder without updating the production call
   (or vice versa) fails that test by design.
+- `GroupedInventoryStore` (`grouped_inventory.go`, #9873) is a separate port
+  from `AggregateStore` and MUST stay separate: it serves the service,
+  workload, and environment dimensions, resolved at read time with the same
+  runtime-filter join and grant predicate the matching filters use. Its
+  `GroupCompleteness` set is closed (`complete`, `partial`, `unattributed`,
+  `read_model_unavailable`); the unattributed bucket is `Value ""` with
+  `Unattributed true` and is never complete. An implementation answers
+  `ErrGroupedInventoryReadModelUnavailable` instead of falling back to
+  another read shape. Do not add its dimensions to `InventoryDimension`: the
+  five single-valued dimensions keep their one-column `GROUP BY`.
+- `PostgresGroupedInventoryStore` (`grouped_inventory_postgres.go`,
+  `grouped_inventory_sql.go`) reads only the winners table. It MUST NOT
+  join the operator-override facts per finding (the measured #9873 CTE cost)
+  or fall back to the CTE when the gate is off. Its workload map MUST keep the
+  `entity_keys` leg, because the `workload_id` filter matches through it. The
+  map grant uses `COALESCE(..., FALSE)`, so an empty grant array bound as NULL
+  still marks a hidden repository's bucket partial. A scoped request MUST use
+  the scoped variant (`groupedInventoryScopedQuery`). Its hidden-repositories
+  CTE MUST read the winners with only the static-winner and grant predicates.
+  A request filter there would let a caller flip completeness by varying the
+  filter, an oracle on hidden findings. Counts stay granted and filtered, and
+  a bucket with no granted finding MUST NOT appear. The live parity proof
+  (`grouped_inventory_postgres_live_test.go`) pins every bucket to the count
+  route for filter=X.
 - Files must stay under 500 lines. `readiness.go`
   (489), `findings.go` (458), and
   `readiness_postgres_query.go` (438) are the ones
@@ -125,6 +149,19 @@ to this list.
   `AggregateMaxLimit`, the inventory-dimension and
   canonical-key consts) — the staying root SQL-shape tests and the
   lockstep schema test.
+- Grouped-inventory port (`GroupedInventoryStore`,
+  `GroupedInventoryDimension` with its three consts and
+  `ParseGroupedInventoryDimension`, `GroupCompleteness` with its four consts
+  and `Valid`, `GroupedInventoryRow`, `GroupedInventoryPage`,
+  `GroupedInventoryFreshness`, `ErrGroupedInventoryReadModelUnavailable`,
+  `UnattributedMissingEvidence` and the `GroupedMissingEvidence*` reasons) —
+  the parent `chain` grouped-inventory handler, the OpenAPI lockstep test, and
+  `PostgresGroupedInventoryStore`.
+- `WinnersFreshnessWindow` — the parent `chain` findings handler aliases it,
+  so the findings list and the grouped read share one stale threshold.
+- `PostgresGroupedInventoryStore` and
+  `NewPostgresGroupedInventoryStoreWithReadStore` — `cmd/api` wiring
+  (`newSupplyChainHandler`, gated by `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ`).
 - Vocabulary consts (profile precise/comprehensive, readiness states,
   evidence families, missing-evidence reasons, unsupported-target
   kinds, freshness labels, `ServiceCatalogAnchorMissingReason`,

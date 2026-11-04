@@ -5,7 +5,8 @@
 // reducer-owned vulnerability impact findings (PostgresFindingStore,
 // bounded list/explain reads over active impact-finding facts), the impact
 // aggregates (PostgresAggregateStore, counts and inventory
-// rollups), the evidence-readiness snapshots
+// rollups), the GroupedInventoryStore port for the service, workload, and
+// environment grouped inventory (#9873), the evidence-readiness snapshots
 // (PostgresReadinessStore, per-family counts and freshness),
 // the read-time runtime-context and runtime-environment evidence joins, the
 // scanner-filter and suppression-mutation Postgres adapters, and the

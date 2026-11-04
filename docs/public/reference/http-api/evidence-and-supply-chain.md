@@ -734,8 +734,8 @@ List, count, inventory, explain, and scanner-report reads share the same truth
 envelope and missing-evidence vocabulary. List and inventory routes return
 deterministic ordering, `limit`, `truncated`, and cursor or offset metadata.
 Count routes do not page, but they use the same scope filters as list reads.
-Unsupported scanner filters fail with a bounded `400` response instead of
-falling through to broad graph or Postgres reads.
+Unsupported scanner filters fail with a bounded `400`, not a broad read. Inventory
+also groups by service, workload, or environment: [grouped inventory](vulnerability-impact-inventory.md).
 
 `GET /api/v0/supply-chain/impact/findings`
 

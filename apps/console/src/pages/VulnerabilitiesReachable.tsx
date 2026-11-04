@@ -4,10 +4,10 @@
 // opposed to the broader known-intelligence catalog.
 import { Link } from "react-router";
 
-import { ReachablePageControls } from "./ReachablePageControls";
+import { FilteredListPending, ReachablePageControls } from "./ReachablePageControls";
 import { useReachableFindingPage } from "./useReachableFindingPage";
 import type { EshuApiClient } from "../api/client";
-import { vulnerabilityRowKey } from "../api/eshuConsoleVulnerabilities";
+import { vulnerabilityRowKey, type ImpactListFilter } from "../api/eshuConsoleVulnerabilities";
 import { AsyncStateGuard } from "../components/AsyncStateGuard";
 import { Panel, StatTile, Badge } from "../components/atoms";
 import { Donut } from "../components/charts";
@@ -29,12 +29,18 @@ interface PathHop {
 export function ReachableAdvisories({
   model,
   client,
+  filter = null,
 }: {
   readonly model: ConsoleModel;
   readonly client?: EshuApiClient;
+  readonly filter?: ImpactListFilter | null;
 }): React.JSX.Element {
-  const paging = useReachableFindingPage(model, client);
-  const rows = (paging.page?.rows ?? model.vulnerabilities).slice().sort((a, b) => b.cvss - a.cvss);
+  const paging = useReachableFindingPage(model, client, filter);
+  // A filtered list never falls back to the unfiltered snapshot rows.
+  const sourceRows = filter
+    ? (paging.page?.rows ?? [])
+    : (paging.page?.rows ?? model.vulnerabilities);
+  const rows = sourceRows.slice().sort((a, b) => b.cvss - a.cvss);
   const sevCount: Record<Severity, number> = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
   rows.forEach((v) => {
     const k = v.severity as Severity;
@@ -44,13 +50,19 @@ export function ReachableAdvisories({
   const fixable = rows.filter((v) => v.fixedVersion).length;
   const provenance =
     model.provenance.vulnerabilities ?? (model.source === "demo" ? "demo" : "loading");
+  // A filtered list has no snapshot to fall back on: until its own read has
+  // loaded, show only the controls (loading or error) and never counts, the
+  // register, or the empty-state claim.
+  if (filter !== null && paging.page === null) {
+    return <FilteredListPending paging={paging} clientAvailable={!!client} />;
+  }
   return (
     <div>
       <p className="t-mut" style={{ fontSize: ".82rem", margin: "0 0 var(--gap)" }}>
         Reachable findings — <span className="mono">GET /api/v0/supply-chain/impact/findings</span>.
       </p>
       <AsyncStateGuard provenance={provenance} label="vulnerabilities">
-        {model.vulnerabilityPages ? (
+        {model.vulnerabilityPages || filter ? (
           <ReachablePageControls
             paging={paging}
             clientAvailable={!!client}

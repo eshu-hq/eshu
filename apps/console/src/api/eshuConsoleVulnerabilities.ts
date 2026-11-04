@@ -3,8 +3,23 @@ import { EshuEnvelopeError } from "./envelope";
 import type { EshuTruth } from "./envelope";
 import type { VulnRow } from "./eshuConsoleLive";
 import type { SectionContext } from "./eshuConsoleSections";
+import { verifyEchoedProfile, type DetectionProfile } from "./impactDetectionProfile";
 
 export type VulnerabilityStatus = "affected_exact" | "affected_derived";
+
+// ImpactListStatus adds possibly_affected, which the console only reads on
+// demand (it is not part of the preloaded snapshot).
+export type ImpactListStatus = VulnerabilityStatus | "possibly_affected";
+
+// ImpactListFilter narrows the findings read to one runtime group, the same
+// service_id / workload_id / environment filters the findings route takes.
+export interface ImpactListFilter {
+  readonly key: "service_id" | "workload_id" | "environment";
+  readonly value: string;
+  // profile asks for the comprehensive detection profile on every status read
+  // of this list, so it matches a group counted under that profile.
+  readonly profile?: DetectionProfile;
+}
 
 export interface VulnerabilityPage {
   readonly rows: readonly VulnRow[];
@@ -13,6 +28,8 @@ export interface VulnerabilityPage {
   readonly truncated: boolean;
   readonly nextCursor: string | null;
   readonly truth: EshuTruth | null;
+  // detectionProfile is the profile the server echoed for this page.
+  readonly detectionProfile?: string | null;
 }
 
 export interface VulnerabilitySnapshot {
@@ -25,6 +42,7 @@ interface ImpactFindings {
   readonly results?: readonly Record<string, unknown>[];
   readonly truncated?: boolean;
   readonly next_cursor?: { readonly after_finding_id?: string };
+  readonly detection_profile?: string;
 }
 
 // Impact findings carry a CVSS score but no severity label; derive the standard
@@ -220,17 +238,31 @@ function mergeFindingRows(rows: readonly VulnRow[]): readonly VulnRow[] {
 export async function loadVulnerabilityStatusPage(
   client: EshuApiClient,
   repoNames: ReadonlyMap<string, string>,
-  status: VulnerabilityStatus,
+  status: ImpactListStatus,
   cursor: string | null = null,
   options: EshuApiRequestOptions = {},
+  filter: ImpactListFilter | null = null,
 ): Promise<VulnerabilityPage> {
   const query = new URLSearchParams({ limit: "100", impact_status: status });
+  if (filter) query.set(filter.key, filter.value);
+  // possibly_affected rows exist only under the comprehensive profile; without
+  // it the server answers precise and the list silently looks clean.
+  const requestedProfile: DetectionProfile =
+    status === "possibly_affected" || filter?.profile === "comprehensive"
+      ? "comprehensive"
+      : "precise";
+  if (requestedProfile === "comprehensive") query.set("profile", requestedProfile);
   if (cursor) query.set("after_finding_id", cursor);
   const env = await client.get<ImpactFindings>(
     `/api/v0/supply-chain/impact/findings?${query.toString()}`,
     options,
   );
   if (env.error) throw new EshuEnvelopeError(env.error);
+  const detectionProfile = verifyEchoedProfile(
+    requestedProfile,
+    env.data?.detection_profile,
+    false,
+  );
   const findings = env.data?.findings ?? env.data?.results ?? [];
   const rows = mergeFindingRows(
     findings.map((finding, index) => findingRow(finding, repoNames, index)),
@@ -247,6 +279,7 @@ export async function loadVulnerabilityStatusPage(
     truncated,
     nextCursor: truncated ? nextCursor : null,
     truth: env.truth,
+    detectionProfile,
   };
 }
 
