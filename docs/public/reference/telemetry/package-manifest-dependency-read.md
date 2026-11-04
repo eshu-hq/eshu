@@ -21,13 +21,16 @@ sample; a failed read surfaces as the reducer intent's failure.
   labeled `read` and `outcome` (#9991). `union_base_found` added the base
   pins the delta did not override, delete, or tombstone.
   `union_base_unmatched` resolved a base that holds no pin for the read's
-  names, or one that retention drained without recording an event. `union_base_missing` (the #7797 rule refused the base: never
-  projected, retention-pruned, or the prune probe failed),
-  `union_scope_mismatch` (no `delta_generation` repository fact), and
-  `union_no_baseline` (a legacy delta) return that scope's delta rows only.
-  The first two also log a WARN line with the scope, generation, and both
-  commits. `union_resolve_failed` means a lookup failed and the whole read
-  returned the error.
+  names, or one that retention drained without recording an event.
+  `union_base_missing` (the #7797 rule refused the base: never projected,
+  retention-pruned, or the prune probe failed), `union_scope_mismatch` (no
+  `delta_generation` repository fact), and `union_no_baseline` (a legacy
+  delta) return that scope's delta rows only. `union_base_missing` and
+  `union_scope_mismatch` also log a WARN line with the scope, generation,
+  and both commits, from the reducer's manifest reads and the supply-chain
+  impact read alike. `union_resolve_failed` counts once per read whose
+  target lookup, base page, base resolution, or overlay read failed; the
+  whole read returned the error.
 
 A delta-active repository reads its delta overlaid on its base full
 generation, the same base the projector overlays

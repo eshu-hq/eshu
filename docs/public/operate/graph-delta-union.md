@@ -115,7 +115,7 @@ with no `delta_generation` fact keeps the delta-only rows. The read counts
 each decision on
 `eshu_dp_package_manifest_dependency_read_delta_union_total` and logs a WARN
 line for a refused base or a mismatch. Other `facts_active_*` readers that
-join only the active generation still see delta-only rows (listed in
+join only the active generation still see delta-only rows (#10003; listed in
 `docs/internal/evidence/9991-manifest-read-delta-union.md`).
 
 ## Operator signals

@@ -58,7 +58,8 @@ base over 500 manifests and an active 5,000-row delta over 50 of them. That is
 throwaway, uncommitted test calling the production code over `SQLDB`. "Old"
 pages the shipped active query only, the statements the read sent before
 #9991. "New" is the whole `ListActivePackageManifestDependencyFacts`. Each
-figure is the median of seven runs. A rerun after the exec-mode fix, on
+figure is the median of seven runs. The statement-count section below uses
+the committed harness. A rerun after the exec-mode fix, on
 the same corpus but a loaded host (load average 18.6 on 12 cores), gave old
 2.012 s and new 5.741 s for the npm delta-active shape. The ratio held
 (2.85x against 2.99x) with more noise, so the table keeps the first run.
@@ -90,8 +91,8 @@ The comparable figures:
 | base page (npm) | 278.0 ms | 401,513 | same index, same shape, plus the `active_delta` probe by `scope_generations_active_scope_idx` |
 | active page (maven) | 0.13 ms | 9 | same index, sbt branch |
 | base page (maven) | 0.16 ms | 9 | same index, sbt branch |
-| delta targets, 2,001 scope ids | 1.69 ms | 93 | primary keys |
-| overlay inputs, 201 pairs, 15,000 keys | 4.16 ms | 2,119 | `(scope_id, generation_id)` index prefix |
+| delta targets (global lookup) | 1.89 ms | 93 | `scope_generations_active_pending_activity_idx` |
+| overlay inputs, hand-built over all 201 delta-active pairs and 15,000 keys | 4.16 ms | 2,119 | `(scope_id, generation_id)` index prefix |
 | base lookup, one scope | 0.05 ms | 8 | `scope_generations_scope_idx` (unchanged #7797 query) |
 | prune probe, one scope | 0.008 ms | 0 | `generation_retention_events_generation_idx` |
 
@@ -106,12 +107,14 @@ target lookup binds no array.
 `TestListActivePackageManifestDependencyFactsDeltaAuxReadsUseCustomPlans`
 pins the mode; removing it fails the test.
 
+The overlay inputs row is a worst-case statement built by hand over every
+delta-active scope. The read itself sends that statement only for the scopes
+it reached, which was 4 here (next section).
+
 No statement runs a sequential scan. The base page has the active page's
 shape. Each page costs one index-prefix scan, the same as the active read's
 existing paging (#8961). The next measured bottleneck is that per-page prefix
-scan, which predates this change. Base resolution runs once per delta-active
-scope that has base or delta pins, two statements for a superseded base; 201
-scopes added about 50 ms in total.
+scan, which predates this change.
 
 ## Statement counts and the no-delta gate
 
@@ -125,25 +128,59 @@ target lookup above. Red first:
 two statements (active page, target lookup) and no base scan for a no-delta
 corpus; it failed on the ungated head.
 
-Same corpus as above, reseeded, statements counted by a wrapping queryer,
-medians of seven runs on a loaded host (load average 12 to 20 on 12 cores):
+The committed harness
+`go/internal/storage/postgres/active_package_manifest_dependency_delta_bench_test.go`
+(build tag `perf9991_manifest_delta`, command in its header) seeds the same
+corpus, wraps the database and the read's transaction, and counts every
+statement by kind. It counts BEGIN and COMMIT apart; the statement totals
+below exclude them, and every new read adds exactly one of each. Medians of
+five runs at head `aef18026e7` plus the harness, on a host at load average
+3.6 to 10 on 12 cores:
 
 | state | read | old statements | old median | new statements | new median |
 | --- | --- | --- | --- | --- | --- |
-| 201 delta-active scopes | npm | 23 | 2.428 s | 54 | 5.004 s |
-| 201 delta-active scopes | maven, no rows | 1 | 20.4 ms | 3 | 104.3 ms |
-| no delta-active scope | npm | 41 | 5.651 s | 42 | 6.213 s |
-| no delta-active scope | maven, no rows | 1 | 17.6 ms | 2 | 19.8 ms |
+| delta-active | npm | 23 | 1.582 s | 54 | 3.573 s |
+| delta-active | maven, no rows | 1 | 10.1 ms | 3 | 53.5 ms |
+| no delta-active scope | npm | 41 | 4.346 s | 42 | 4.188 s |
+| no delta-active scope | maven, no rows | 1 | 9.8 ms | 2 | 10.6 ms |
+
+The delta-active npm read reached 4 delta-active scopes: `big` and three
+small ones. Only those 4 have rows matching the 400 names; the other 197
+delta-active scopes match none. Its 54 statements break down as:
+
+- 23 active pages, 1 target lookup, and 21 base pages;
+- per reached scope, 1 base lookup and 1 prune probe (every base is
+  superseded once its delta activates): 4 + 4;
+- 1 overlay inputs read.
+
+So base resolution costs 2 statements per reached scope, and the total grows
+linearly with reached scopes. The Maven reads reach none: their 3 statements
+are the active page, the target lookup, and one empty base page.
 
 In the no-delta state the only added statement is the target lookup (0.46 ms
-in `EXPLAIN ANALYZE`). The npm wall-time gap there is host noise, not that
-statement. With 201 delta-active scopes the lookup takes 1.89 ms (93
-buffers). The base page restricted to them still scans the package-manager
-prefix (157,799 index buffers, 265.6 ms against 278.0 ms unrestricted),
-because `fact.scope_id = ANY($6)` is a residual filter. The restriction
-shrinks only the join work, 10,066 rows into the joins instead of 31,205.
-So while any scope is delta-active, each base page costs about one active
-page. The #9611 per-name rewrite of the shared template is what shrinks both.
+in `EXPLAIN ANALYZE`); the npm medians agree within noise. With 201
+delta-active scopes the lookup takes 1.89 ms (93 buffers). The base page
+restricted to them still scans the package-manager prefix (157,799 index
+buffers, 265.6 ms against 278.0 ms unrestricted), because
+`fact.scope_id = ANY($6)` is a residual filter. The restriction shrinks only
+the join work, 10,066 rows into the joins instead of 31,205. So while any
+scope is delta-active, each base page costs about one active page. The #9611
+per-name rewrite of the shared template is what shrinks both.
+
+An earlier count on a loaded host (load average 12 to 20) gave the same
+statement counts with noisier times: npm delta-active 2.428 s old against
+5.004 s new, no-delta 5.651 s against 6.213 s.
+
+## Known limits
+
+- Base resolution sends one base lookup per reached delta-active scope, plus
+  a prune probe for a superseded base. Round trips grow linearly with the
+  reached scopes; batching both statements is a later optimization.
+- Two activated fulls at one union-base commit both pass the base-candidate
+  prefilter, so the base pages scan twice that scope's rows before Go keeps
+  the resolved base's rows.
+- The base pages scan the package-manager index prefix whenever any scope is
+  delta-active (#9611 owns the rewrite).
 
 ## Observability Evidence:
 
@@ -157,7 +194,24 @@ page. The #9611 per-name rewrite of the shared template is what shrinks both.
   outcome. One event per read stays under the SDK's per-span event cap on a
   broad read.
 - One WARN log for each `union_base_missing` and `union_scope_mismatch`
-  decision, with the scope, generation, both commits, and `chained`.
+  decision, with the scope, generation, both commits, and `chained`. The
+  reducer FactStore now carries the process logger (`newReducerFactStore`,
+  `TestNewReducerFactStoreCarriesInstrumentsAndLogger`); before, the WARN
+  never fired in production. The same logger turns on the existing #7797
+  `projector delta union fact load` INFO line when a reducer `ListFacts`
+  loads a delta generation; its counter already recorded there.
+- The supply-chain impact loader's FactStore now carries the instruments and
+  logger on the disengaged and the snapshot path
+  (`NewAuthorizedSupplyChainImpactEvidenceLoaderWithTelemetry`). The impact
+  read therefore records the delta-union counter and WARN, and the #9586
+  `read_seconds` and `read_pages` histograms it never recorded before. The
+  same instruments also feed the other FactStore metrics on that path, such
+  as the supply-chain impact active-evidence metrics.
+  `TestAuthorizedImpactLoaderCountsManifestDeltaUnionLive` counts a union
+  decision through the loader.
+- `union_resolve_failed` counts once per read whose delta-union step failed:
+  the target lookup, a base page, a base resolution, or the overlay inputs
+  read.
 - The existing read histograms keep their meaning. `read_pages` counts active
   pages only, so the base read's cost shows as wall time while pages hold.
 
@@ -166,6 +220,8 @@ page. The #9611 per-name rewrite of the shared template is what shrinks both.
 - `go test ./internal/storage/postgres -run 'TestListActivePackageManifestDependencyFacts(Delta|Chained|FullActive)' -count=1`
   against the disposable DSN runs nine live cases. All but the full-active
   guard failed before the fix and pass after it.
+  `TestAuthorizedImpactLoaderCountsManifestDeltaUnionLive` runs the read
+  through the impact loader.
 - Mutations: dropping tombstones from the overlay inputs fails the tombstone
   case. Resolving at the baseline alone instead of the union base fails the
   chained case.
@@ -174,7 +230,7 @@ page. The #9611 per-name rewrite of the shared template is what shrinks both.
 
 These join `scope.active_generation_id = fact.generation_id` over git-collected
 facts, so a delta-active repository shows them delta-only rows. They are not
-fixed here.
+fixed here; #10003 tracks them.
 
 - `facts_active_code_call_symbols.go:47` (`file`)
 - `facts_active_jvm_reachability.go:43` (git `file`)
