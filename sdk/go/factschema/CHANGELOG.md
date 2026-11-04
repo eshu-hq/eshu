@@ -79,6 +79,38 @@ version — pinning this module pins the fixture pack too.
   the decode and quarantines the fact as `input_invalid`. Mirrors
   `github.com/eshu-hq/eshu-sdk/factschema` `v0.1.0-rc.13`.
 
+- `vulnerability.affected_package` gains an optional `releases` field on each
+  `AffectedRange` (eshu-hq/eshu#9806, additive minor). It names the
+  operating-system release lines a range applies to as sorted, distinct,
+  lowercase `<vendor>:<line>` strings (`debian:12`, `alpine:3.18`,
+  `ubuntu:22.04`; a leading `Pro` segment yields the distinct `ubuntu:pro:18.04`
+  tag, as the in-tree OSV converter does; the published rc.13 and rc.14
+  godoc says a leading `Pro` is dropped, which is wrong). An omitted or empty value means "release unknown", never
+  "every release", and a fact is tagged on every ECOSYSTEM range or on none. A
+  value of the wrong JSON type now fails the decode and quarantines the fact as
+  `input_invalid`. Mirrors `github.com/eshu-hq/eshu-sdk/factschema`
+  `v0.1.0-rc.13`.
+- `vulnerability.cve` gains three optional raw identity-edge fields,
+  `aliases`, `related`, and `upstream` (eshu-hq/eshu#9954, additive minor, no
+  decode shim). Each is a string array copied from the OSV record field of the
+  same name; the collector trims each value, drops blanks and duplicates, and
+  sorts the list, and writes the edges without interpreting them. An absent
+  key, a null, and an empty list read alike. `aliases` is a symmetric identity
+  edge and the only one a reducer may group advisories through. `related` is
+  display-only and never groups, keys, or enriches. `upstream` is directed:
+  this distro or downstream record names the upstream CVEs it repackages, and a
+  reducer may pass CVE enrichment down to this record, never up. `upstream` is
+  never an alias or a correlation anchor; folding it into the symmetric set
+  over-merged advisory groups in osv.dev (core
+  `docs/internal/design/advisory-intelligence-correlation-plan.md` section
+  4.2). A fact without the keys decodes as before, with nil fields, and an
+  unknown extra key is still ignored. A value of the wrong JSON type (a string,
+  a number, an object, or a non-string element) now fails the decode and
+  quarantines the fact as `input_invalid`, where the extra key used to be
+  ignored; a conforming collector emits a string array or null. An rc.13
+  reader ignores the keys, so a producer may emit them before every reader
+  reads them. Mirrors `github.com/eshu-hq/eshu-sdk/factschema` `v0.1.0-rc.14`.
+
 ## [0.3.0] - 2026-10-28
 
 Additive post-`v0.2.0` changes only — new fact kinds and optional fields,
