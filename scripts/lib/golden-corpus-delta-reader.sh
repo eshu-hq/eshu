@@ -111,9 +111,16 @@ golden_delta_reader_sync() {
 	local want="$1" label="$2" dir before now deadline collector_pid
 	dir="$(golden_delta_reader_dir)"
 	before="$(golden_delta_reader_generation_count "${want}")" || die "delta-reader: count generations failed"
+	# The same unsets golden_corpus_git applies, so a caller's GIT_DIR or
+	# config family cannot redirect or reconfigure the collector's git; the
+	# private GIT_CONFIG_GLOBAL is the only configuration in effect.
 	start_bg "collector-git-delta-reader-${label}" collector_pid \
 		env -u GIT_CONFIG_COUNT -u GIT_CONFIG_PARAMETERS \
-		GIT_CONFIG_GLOBAL="${dir}/gitconfig" GIT_CONFIG_SYSTEM=/dev/null \
+		-u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_COMMON_DIR \
+		-u GIT_OBJECT_DIRECTORY -u GIT_ALTERNATE_OBJECT_DIRECTORIES \
+		-u GIT_DEFAULT_HASH -u GIT_TEMPLATE_DIR -u GIT_ATTR_SOURCE \
+		-u GIT_NAMESPACE -u GIT_CEILING_DIRECTORIES \
+		GIT_CONFIG_GLOBAL="${dir}/gitconfig" GIT_CONFIG_SYSTEM=/dev/null GIT_ATTR_NOSYSTEM=1 \
 		ESHU_REPO_SOURCE_MODE=explicit \
 		ESHU_REPOSITORY_RULES_JSON="[{\"exact\":\"${golden_delta_reader_slug}\"}]" \
 		ESHU_REPOS_DIR="${dir}/repos" ESHU_HOME="${dir}/home" \
@@ -206,6 +213,7 @@ WHERE s.scope_id = '${golden_delta_reader_scope_id}';")" == "true" ]]; do
 		-drain-timeout="${GATE_DRAIN_TIMEOUT}" \
 		|| { tail -30 "${log_dir}/reducer-delta-reader.log" || true; die "delta-reader: delta drain failed"; }
 	kill "${projector_pid}" "${reducer_pid}" >/dev/null 2>&1 || true
+	wait "${projector_pid}" "${reducer_pid}" 2>/dev/null || true
 	golden_delta_reader_require_active true "after the delta drain"
 	phase_graph_query_excluded_ends+=("$(date +%s)")
 }

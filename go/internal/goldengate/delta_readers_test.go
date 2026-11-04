@@ -227,3 +227,15 @@ func TestDeltaReadersGapsAreReportedNotRequired(t *testing.T) {
 		t.Fatalf("gap finding = %+v, want a passing advisory naming the defect", f)
 	}
 }
+
+func TestDeltaReadersFullStageRejectsMissingActiveGeneration(t *testing.T) {
+	// Seeded vacuity: the scope has no active generation, so ActiveIsDelta
+	// is false and would match stage full. The empty id alone must fail it.
+	obs := fullObservation()
+	obs.ActiveGenerationID = ""
+	var r Report
+	EvaluateDeltaReaderAssertions(deltaReaderSpec(), DeltaReaderStageFull, obs, true, &r)
+	if f := findingFor(t, r, "active_generation"); f.OK || !f.Required {
+		t.Fatalf("full stage accepted a scope with no active generation: %+v", f)
+	}
+}

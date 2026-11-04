@@ -473,7 +473,7 @@ gate_status=0
 # each tool/route with example arguments; this phase guards the demo oracle's
 # own pinned arguments so a demo answer cannot silently regress to empty.
 "${bin_dir}/eshu-golden-corpus-gate" \
-	-phase=graph,query,timing,demo-answers,delta-union,delta-readers -delta-reader-ignore-expected-failures="${GATE_DELTA_READER_IGNORE_EXPECTED_FAILURES:-0}" \
+	-phase=graph,query,timing,demo-answers,delta-union,delta-readers -delta-reader-stage=delta -delta-reader-ignore-expected-failures="${GATE_DELTA_READER_IGNORE_EXPECTED_FAILURES:-0}" \
 	-snapshot="${golden_query_runtime_snapshot}" \
 	-demo-manifest=specs/demo-first-answers.v1.yaml \
 	-api-base-url="http://localhost:${GATE_API_PORT}" \

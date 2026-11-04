@@ -61,3 +61,31 @@ delta_reader_base_files="$(rg --files --hidden "${repo_root}/tests/fixtures/gold
 delta_reader_delta_files="$(rg --files --hidden "${repo_root}/tests/fixtures/golden_delta_union/delta" | wc -l)"
 (( delta_reader_delta_files * 2 < delta_reader_base_files )) \
 	|| fail "delta-reader delta/ touches ${delta_reader_delta_files} of ${delta_reader_base_files} base files; it must stay under half"
+
+# The leg must assert stage full on the converged base BEFORE it commits and
+# syncs the delta: a later or missing full-stage check lets an expected_failure
+# marker pass an edge no generation produced. Line numbers are read inside the
+# leg's own function body so a call elsewhere in the lib cannot satisfy it.
+delta_reader_leg_body="$(awk '/^golden_delta_reader_run_delta_leg\(\) \{/{p=1} p{print NR": "$0} p&&/^\}/{exit}' "${delta_reader_lib}")"
+delta_reader_body_line() {
+	rg --fixed-strings -- "$1" < <(printf '%s\n' "${delta_reader_leg_body}") | cut -d: -f1
+}
+delta_reader_full_line="$(delta_reader_body_line $'\tgolden_delta_reader_assert_stage full')"
+delta_reader_commit_line="$(delta_reader_body_line 'golden_delta_reader_commit "${dir}/checkout" "delta"')"
+delta_reader_sync_line="$(delta_reader_body_line 'golden_delta_reader_sync true delta')"
+[[ "${delta_reader_full_line}" =~ ^[0-9]+$ && "${delta_reader_commit_line}" =~ ^[0-9]+$ && "${delta_reader_sync_line}" =~ ^[0-9]+$ ]] \
+	|| fail "golden_delta_reader_run_delta_leg must call each of 'golden_delta_reader_assert_stage full', the delta commit, and 'golden_delta_reader_sync true delta' exactly once"
+(( delta_reader_full_line < delta_reader_commit_line && delta_reader_commit_line < delta_reader_sync_line )) \
+	|| fail "golden_delta_reader_run_delta_leg must assert stage full before it commits and syncs the delta"
+# The stage names are exactly the evaluator's: the lib's only stage call is
+# full, the final invocation names delta, and the Go constants spell both.
+[[ "$(rg --only-matching --replace '$1' '^\s*golden_delta_reader_assert_stage (\S+)$' "${delta_reader_lib}")" == "full" ]] \
+	|| fail "the delta-reader lib's only stage assertion must be 'golden_delta_reader_assert_stage full'"
+rg --quiet --fixed-strings -- '-delta-reader-stage="${stage}"' "${delta_reader_lib}" \
+	|| fail "golden_delta_reader_assert_stage must pass its stage as -delta-reader-stage"
+rg --quiet --fixed-strings -- '-phase=graph,query,timing,demo-answers,delta-union,delta-readers -delta-reader-stage=delta ' "${script}" \
+	|| fail "the final gate invocation must run delta-readers with -delta-reader-stage=delta"
+for delta_reader_const in 'DeltaReaderStageFull DeltaReaderStage = "full"' 'DeltaReaderStageDelta DeltaReaderStage = "delta"'; do
+	rg --quiet --fixed-strings -- "${delta_reader_const}" "${repo_root}/go/internal/goldengate/delta_readers.go" \
+		|| fail "go/internal/goldengate/delta_readers.go must declare ${delta_reader_const}"
+done
