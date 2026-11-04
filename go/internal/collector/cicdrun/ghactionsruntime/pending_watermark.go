@@ -60,7 +60,8 @@ type pendingWatermarkEntry struct {
 // structure itself, which the mutex serializes.
 //
 // Bounding note: a stashed entry is removed by takeFor when
-// ObserveClaimedGenerationCommitted successfully consumes it, and is
+// ObserveClaimedGenerationCommitted or ObserveClaimedGenerationRefused consumes
+// it, and is
 // overwritten (not accumulated) by a later stash for the SAME key (a
 // retried claim re-running NextClaimed for the same work item). If a claim
 // cycle's commit permanently fails (a terminal failure whose work item is
@@ -71,6 +72,10 @@ type pendingWatermarkEntry struct {
 // side. This is an accepted, documented tradeoff: terminal failures are the
 // rare, MaxAttempts-guarded exception path, not the steady state, and each
 // leaked entry costs two small strings plus a TargetConfig value.
+//
+// That tradeoff does not describe collector-cicd-run today: its
+// providerRoutedSource forwards neither observer, so every stashed entry stays
+// for the life of the process (since #5778, tracked by #10063).
 type pendingWatermarks struct {
 	mu   sync.Mutex
 	rows map[pendingWatermarkKey]pendingWatermarkEntry

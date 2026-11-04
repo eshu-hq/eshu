@@ -64,6 +64,11 @@
   than the watermark. Do not weaken any of those three conditions without
   re-deriving the false-positive/false-negative tradeoff in
   `run_watermark_test.go`.
+- A refused commit (#10037) reaches `ObserveClaimedGenerationRefused`, which only
+  drops the staged entry. Never save the watermark there. Until #10063,
+  `collector-cicd-run` reaches neither observer, because `providerRoutedSource`
+  hides them; do not claim watermark behavior for that binary from a test that
+  drives this source directly.
 - `saveWatermark` is called ONLY from `ObserveClaimedGenerationCommitted`
   (`source_commit_observer.go`), which `collector.ClaimedService` invokes
   once a claim cycle's generation has committed durably (#5429). `NextClaimed`

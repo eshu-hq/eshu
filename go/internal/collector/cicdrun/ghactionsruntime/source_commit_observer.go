@@ -6,6 +6,7 @@ package ghactionsruntime
 import (
 	"context"
 
+	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -30,4 +31,19 @@ func (s ClaimedSource) ObserveClaimedGenerationCommitted(ctx context.Context, it
 		return nil
 	}
 	return s.saveWatermark(ctx, item, entry.target, entry.newestRunID)
+}
+
+// ObserveClaimedGenerationRefused implements
+// collector.ClaimedGenerationRefusalObserver. A refused commit stored none of
+// this cycle's runs (#10037), so the watermark stays where it was and the next
+// cycle still detects the gap those runs left. The claim completes, so no
+// retry reuses this generation: the stashed entry is dropped here, or a
+// recurring refusal would leak one entry per generation.
+//
+// This holds for a caller that reaches the hook. collector-cicd-run does not yet:
+// providerRoutedSource forwards neither observer, so that binary writes no
+// watermark at all (#10063).
+func (s ClaimedSource) ObserveClaimedGenerationRefused(_ context.Context, item workflow.WorkItem, _ collector.CommitRefusal) error {
+	s.pending.takeFor(item)
+	return nil
 }

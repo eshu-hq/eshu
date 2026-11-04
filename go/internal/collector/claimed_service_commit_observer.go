@@ -44,7 +44,9 @@ import (
 // Absence is safe: a ClaimedSource that does not implement this interface is
 // unaffected -- ClaimedService type-asserts optionally and calls nothing,
 // mirroring GenerationDeadLetterReplayCompleter's optionality
-// (claimed_service_dead_letter.go).
+// (claimed_service_dead_letter.go). The assertion is on s.Source itself, so a
+// wrapping Source hides the hook unless it forwards it, and then nothing reports
+// the absence. collector-cicd-run's providerRoutedSource does this today (#10063).
 type ClaimedGenerationCommitObserver interface {
 	// ObserveClaimedGenerationCommitted is called once per successfully
 	// committed (or unchanged-resolved) claim cycle, after the durable
