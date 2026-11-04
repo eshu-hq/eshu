@@ -1,0 +1,31 @@
+docs/internal/evidence/9873-grouped-inventory.md
+  s_7547c0f0af67d4::t_5c0b945a03a5ad 30-36,56,114-122,215-234
+go/internal/query/supply/chain/impact/AGENTS.md
+  s_7547c0f0af67d4::t_387aebd9bd910f 61-64
+go/internal/query/supply/chain/impact/grouped_inventory_postgres.go
+  s_7547c0f0af67d4::t_b03fc65934253f 84-89,106-110
+go/internal/query/supply/chain/impact/grouped_inventory_postgres_live_test.go
+  s_7547c0f0af67d4::t_69ad8993b3585b 7,194-252,422-440
+go/internal/query/supply/chain/impact/grouped_inventory_postgres_test.go
+  s_7547c0f0af67d4::t_cd377daaebc034 389-444
+go/internal/query/supply/chain/impact/grouped_inventory_sql.go
+  s_7547c0f0af67d4::t_c9d27d0a595802 6-9,272-275,282,284,287-366
+specs/live-tests.d/live-tests-readiness.generated.yaml
+  s_7547c0f0af67d4::t_50c21192d7d6ec 260
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "15db7e28befb207142ec95ac0f5a623a6df33aae",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
