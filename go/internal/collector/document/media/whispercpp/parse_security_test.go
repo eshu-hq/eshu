@@ -313,6 +313,18 @@ func TestParseOutputAcceptsUnorderedAndExtremeOffsets(t *testing.T) {
 	}
 }
 
+func TestParseOutputRejectsNegativeFrom(t *testing.T) {
+	t.Parallel()
+	raw := `{"transcription": [{"offsets": {"from": -5, "to": 100}, "text": " hello"}]}`
+	_, err := parseOutput([]byte(raw), Limits{MaxSegments: 10, MaxSegmentChars: 4096}, &runStats{})
+	if err == nil {
+		t.Fatalf("parseOutput() with negative from: got nil error, want ClassMalformedOutput")
+	}
+	if got := ClassOf(err); got != ClassMalformedOutput {
+		t.Fatalf("parseOutput() with negative from: class = %q, want %q", got, ClassMalformedOutput)
+	}
+}
+
 func TestParseOutputToleratesDelAndInvalidUTF8(t *testing.T) {
 	t.Parallel()
 	raw := append([]byte(`{"transcription": [{"offsets": {"from": 0, "to": 100}, "text": "A`+"\x7fB"), 0xff, 0xfe)
