@@ -1,0 +1,45 @@
+apps/console/README.md
+  s_7547c0f0af67d4::t_5a2bf199cbd652 268-281
+apps/console/src/api/eshuConsoleImpactInventory.test.ts
+  s_7547c0f0af67d4::t_f968c6b10dbaf4 33,50,56,82,110,120,126-139
+apps/console/src/api/eshuConsoleImpactInventory.ts
+  s_7547c0f0af67d4::t_fe0f9b42d46444 4,12,40-41,177-179,190
+apps/console/src/api/eshuConsoleVulnerabilities.ts
+  s_7547c0f0af67d4::t_2e0cbe90c9b7d0 6,19-21,31-32,45,248-254,261-265,282
+apps/console/src/api/eshuConsoleVulnerabilitiesProfile.test.ts
+  s_7547c0f0af67d4::t_0c094e51826362 1-88
+apps/console/src/api/impactDetectionProfile.ts
+  s_7547c0f0af67d4::t_39a273713e0cf9 1-32
+apps/console/src/impactProfileContract.test.ts
+  s_7547c0f0af67d4::t_bfb4a0bc77581d 1-25
+apps/console/src/pages/ReachablePageControls.tsx
+  s_7547c0f0af67d4::t_6643aecbf755e1 52-56,76-96
+apps/console/src/pages/VulnerabilitiesByGroup.test.tsx
+  s_7547c0f0af67d4::t_5235151526e33b 151-155,160-181
+apps/console/src/pages/VulnerabilitiesByGroup.tsx
+  s_7547c0f0af67d4::t_7293904406c908 17,69-75,100,104,122,225
+apps/console/src/pages/VulnerabilitiesReachable.tsx
+  s_7547c0f0af67d4::t_284a9a3e4158d6 7,53-58
+apps/console/src/pages/VulnerabilitiesReachableFilter.test.tsx
+  s_7547c0f0af67d4::t_9e21ee5724c5aa 46-51,63-129
+apps/console/src/pages/VulnerabilitiesReachableWorkspace.tsx
+  s_7547c0f0af67d4::t_70671784291bfd 22-26
+apps/console/src/pages/useReachableFindingPage.ts
+  s_7547c0f0af67d4::t_98d5e92a3af195 55-56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "58bdd3b28d9982f7d53233b31d0cda48b693aa00",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
