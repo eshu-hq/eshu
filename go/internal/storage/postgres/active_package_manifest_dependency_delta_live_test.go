@@ -8,10 +8,13 @@ package postgres
 //eshu:readiness:env ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"log/slog"
 	"os"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -31,6 +34,7 @@ type deltaManifestFixture struct {
 	ctx      context.Context
 	database *sql.DB
 	reader   *sdkmetric.ManualReader
+	logs     *bytes.Buffer
 	store    *FactStore
 }
 
@@ -67,9 +71,11 @@ func openDeltaManifestFixture(t *testing.T) *deltaManifestFixture {
 	if err != nil {
 		t.Fatalf("NewInstruments: %v", err)
 	}
+	logs := &bytes.Buffer{}
 	return &deltaManifestFixture{
-		t: t, ctx: ctx, database: database, reader: reader,
-		store: NewFactStore(SQLDB{DB: database}).WithInstruments(instruments),
+		t: t, ctx: ctx, database: database, reader: reader, logs: logs,
+		store: NewFactStore(SQLDB{DB: database}).WithInstruments(instruments).
+			WithLogger(slog.New(slog.NewTextHandler(logs, nil))),
 	}
 }
 
@@ -211,6 +217,17 @@ func (f *deltaManifestFixture) unionOutcomes() map[string]int64 {
 		}
 	}
 	return outcomes
+}
+
+// warnings returns the WARN lines the read logged that carry message.
+func (f *deltaManifestFixture) warnings(message string) []string {
+	var lines []string
+	for _, line := range strings.Split(f.logs.String(), "\n") {
+		if strings.Contains(line, "level=WARN") && strings.Contains(line, message) {
+			lines = append(lines, line)
+		}
+	}
+	return lines
 }
 
 func assertDeltaManifestIDs(t *testing.T, got, want []string) {

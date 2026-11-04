@@ -8,6 +8,7 @@ package postgres
 //eshu:readiness:env ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -131,6 +132,10 @@ VALUES ('event-1', $1, $2, 'repository', 'default', 'r1', 'superseded', '{}'::js
 	got, _ := f.load([]string{"npm"}, []string{"alpha", "bravo"})
 	assertDeltaManifestIDs(t, got, []string{"delta-a-alpha", "delta-b-alpha"})
 	assertDeltaManifestOutcomes(t, f.unionOutcomes(), map[string]int64{"union_base_missing": 2})
+	warnings := f.warnings("manifest dependency read delta base missing")
+	if len(warnings) != 2 || !strings.Contains(strings.Join(warnings, "\n"), "delta_union_base_commit_sha=b1") {
+		t.Fatalf("base-missing WARN lines = %q, want one per refused scope with its commits", warnings)
+	}
 }
 
 // TestListActivePackageManifestDependencyFactsDeltaWithoutUnionLive keeps
@@ -157,6 +162,10 @@ func TestListActivePackageManifestDependencyFactsDeltaWithoutUnionLive(t *testin
 	assertDeltaManifestOutcomes(t, f.unionOutcomes(), map[string]int64{
 		"union_no_baseline": 1, "union_scope_mismatch": 1,
 	})
+	warnings := f.warnings("manifest dependency read delta carries no delta_generation repository fact")
+	if len(warnings) != 1 || !strings.Contains(warnings[0], "generation_id=delta-b") {
+		t.Fatalf("scope-mismatch WARN lines = %q, want one for delta-b", warnings)
+	}
 }
 
 // TestListActivePackageManifestDependencyFactsDeltaMavenFamilyLive runs the
