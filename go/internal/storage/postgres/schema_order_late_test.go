@@ -448,4 +448,7 @@ var orderedBootstrapDefinitionNamesLate = []string{
 	// Migration 274 (#9859) adds the source-prefix expression index serving
 	// the narrowed read's UNION source arm.
 	"fact_records_os_package_source_purl_prefix_idx",
+	// Migration 275 (#9971) adds the NVD rolling-window cursor table the
+	// commit transaction advances with a keyed upsert.
+	"vulnerability_nvd_window_cursor",
 }
