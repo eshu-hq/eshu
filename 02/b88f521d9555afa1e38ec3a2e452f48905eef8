@@ -1,0 +1,39 @@
+go/internal/query/supply/chain/impact/grouped_inventory_postgres_test.go
+  s_7547c0f0af67d4::t_62d5b8d12521dc 1-386
+  s_7547c0f0af67d4::t_25f9a76aa630fb 387-388
+go/internal/query/supply/chain/impact/grouped_inventory_sql.go
+  s_7547c0f0af67d4::t_cbaa0037d576ec 1-279
+go/internal/query/supply/chain/impact/grouped_inventory_postgres_live_test.go
+  s_7547c0f0af67d4::t_a4be6cf3259192 1-357
+  s_7547c0f0af67d4::t_261193b0387995 358-362
+go/internal/query/supply/chain/impact/grouped_inventory_postgres.go
+  s_7547c0f0af67d4::t_d51c9251e56ddd 1-255
+docs/public/reference/http-api/vulnerability-impact-inventory.md
+  s_7547c0f0af67d4::t_069d1cdcf61157 70-74,77-79
+docs/public/reference/mcp-tool-contract-matrix.md
+  s_7547c0f0af67d4::t_8d3e1389412d6f 125
+go/internal/mcp/tools_supply_chain_aggregates.go
+  s_7547c0f0af67d4::t_7987ca9f596910 110
+go/internal/query/openapi/paths/supply/chain/impact_aggregate.go
+  s_7547c0f0af67d4::t_b21f9f3afaed2e 101,131
+go/internal/query/supply/chain/findings_grouped_inventory_test.go
+  s_7547c0f0af67d4::t_672da39be18ce3 255-259
+go/internal/query/supply/chain/impact/grouped_inventory.go
+  s_7547c0f0af67d4::t_d47d75e202570f 23-26,31-39,171-177
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "02b88f521d9555afa1e38ec3a2e452f48905eef8",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
