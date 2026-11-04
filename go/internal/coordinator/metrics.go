@@ -60,6 +60,10 @@ type Metrics interface {
 	// admission (#9299): admitted targets, per-reason skip evidence, and
 	// the page remainder that earned no work item this tick.
 	RecordScannerDerivedPage(context.Context, ScannerDerivedPageObservation)
+	// RecordEPSSDerivedPage records one findings-derived EPSS planning pass
+	// (#9876): planned first_epss targets and per-reason skip evidence.
+	// Counts only, never CVE ids.
+	RecordEPSSDerivedPage(context.Context, EPSSDerivedObservation)
 	// RecordOwnedTargetRotation records the owned-package rotation period one
 	// derivation read reported against its freshness bound (#9775), so an
 	// operator reads a lagging rotation from a gauge instead of a trace.
@@ -131,6 +135,9 @@ type otelMetrics struct {
 	scannerDerivedAdmittedTotal metric.Int64Counter
 	scannerDerivedSkippedTotal  metric.Int64Counter
 	scannerDerivedBacklog       atomic.Int64
+
+	epssDerivedAdmittedTotal metric.Int64Counter
+	epssDerivedSkippedTotal  metric.Int64Counter
 
 	// ownedRotation serves the #9775 owned-target rotation freshness gauges.
 	ownedRotation *ownedTargetRotationGauges
@@ -308,6 +315,11 @@ func NewMetrics(meter metric.Meter) (Metrics, error) {
 		return nil, err
 	}
 
+	epssDerived, err := newEPSSDerivedInstruments(meter)
+	if err != nil {
+		return nil, err
+	}
+
 	ownedRotation, err := newOwnedTargetRotationGauges(meter)
 	if err != nil {
 		return nil, err
@@ -338,6 +350,9 @@ func NewMetrics(meter metric.Meter) (Metrics, error) {
 
 		scannerDerivedAdmittedTotal: scannerDerived.admittedTotal,
 		scannerDerivedSkippedTotal:  scannerDerived.skippedTotal,
+
+		epssDerivedAdmittedTotal: epssDerived.admittedTotal,
+		epssDerivedSkippedTotal:  epssDerived.skippedTotal,
 	}
 
 	if err := registerCoordinatorGauges(meter, recorder); err != nil {

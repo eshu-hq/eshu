@@ -6,6 +6,8 @@ package coordinator
 import (
 	"context"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/coordinator/vulnerability"
 )
 
 func (s Service) recordReconcile(ctx context.Context, observation ReconcileObservation) {
@@ -55,6 +57,16 @@ func (s Service) recordScannerDerivedPage(ctx context.Context, observation Scann
 		return
 	}
 	s.Metrics.RecordScannerDerivedPage(ctx, observation)
+}
+
+func (s Service) recordEPSSDerived(ctx context.Context, observation vulnerability.IntelligenceDerivationObservation) {
+	if s.Metrics == nil {
+		return
+	}
+	s.Metrics.RecordEPSSDerivedPage(ctx, EPSSDerivedObservation{
+		PlannedTargets: observation.Targets,
+		Skipped:        observation.Skipped,
+	})
 }
 
 func tickerChan(ticker *time.Ticker) <-chan time.Time {

@@ -55,7 +55,7 @@ func planSlotQueries(t *testing.T, page workflow.OwnedPackageDependencyTargetPag
 			`,"planning_mode":"single_pass","target_limit":5000,"slot_scopes":true}}`,
 		LastObservedAt: observedAt, CreatedAt: observedAt, UpdatedAt: observedAt,
 	}
-	run, _, err := vulnerability.IntelligenceWorkPlanner{}.PlanVulnerabilityIntelligenceWork(context.Background(), vulnerability.IntelligencePlanRequest{
+	run, _, _, err := vulnerability.IntelligenceWorkPlanner{}.PlanVulnerabilityIntelligenceWork(context.Background(), vulnerability.IntelligencePlanRequest{
 		Instance: instance, ObservedAt: observedAt, PlanKey: "continuous-single-pass",
 		OwnedPackageTargets: page.Targets, OwnedPackageWindow: page.Window,
 	})

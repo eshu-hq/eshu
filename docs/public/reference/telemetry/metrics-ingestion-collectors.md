@@ -1,8 +1,7 @@
 # Ingestion And Collector Metrics
 
 This catalog covers metrics emitted before reducer-owned materialization:
-source collection, discovery pruning, fact emission, registry/cloud collectors,
-Confluence, workflow coordination, and webhook intake.
+source collection, discovery pruning, fact emission, registry/cloud collectors, Confluence, workflow coordination, and webhook intake.
 
 Most instruments are registered in `go/internal/telemetry/instruments.go`.
 Terraform-state discovery registers `eshu_dp_tfstate_discovery_candidates_total`
@@ -479,6 +478,7 @@ labels.
 | `eshu_dp_owned_target_max_staleness_seconds` | `collector_instance_id` | Freshness bound the period is compared with: `derive_from_owned_packages.max_staleness`, default 24 h (#9775). |
 | `eshu_dp_owned_target_rotation_exceeds_max_staleness` | `collector_instance_id` | 1 when the rotation period is longer than the bound, else 0. Alert on `== 1`. The bound is a stated target, not a guarantee: a missed window can add one more period unless `slot_progress` is on ([#9776](owned-target-slot-progress.md)). The three series of an instance that is removed from the configuration stay at their last value until the coordinator restarts, so a stuck `1` can outlive its instance. |
 | `eshu_dp_workflow_coordinator_activation_derived_scopes_planned_total` | `collector_kind`, `collector_instance_id`, `ecosystem` | Derived scopes planned for a component activation per reconcile pass, before open-target admission (today a `vulnerability_intelligence` activation's OSV scopes, #9311). A repeat pass inside one plan bucket counts the same scopes again; the planned/enqueued log line shows what was admitted. |
+| `eshu_dp_workflow_coordinator_epss_derived_admitted_total`, `eshu_dp_workflow_coordinator_epss_derived_skipped_total` | none; `reason` (`derived_target_non_cve_identifier`, `derived_target_budget_exhausted`) | Findings-derived FIRST EPSS targets planned and CVE ids skipped without planning, per closed skip reason (#9876). A repeat pass inside one plan interval counts the same targets again. Counts only, never CVE ids. |
 | `eshu_dp_workflow_coordinator_semantic_provider_claim_total` | `outcome`, `provider_kind`, `provider_profile_class`, `source_class` | Semantic-provider worker claim outcomes by egress decision and terminal disposition (`egress_denied`, `egress_policy_missing`, `provider_disabled`, `dispatched`, `provider_unavailable`). Labels are redacted and low-cardinality; no provider host, endpoint, URL, or credential is emitted. |
 
 ## Webhook Listener

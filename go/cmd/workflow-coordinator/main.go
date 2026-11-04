@@ -265,6 +265,7 @@ func run(parent context.Context) error {
 		TenantGrantReader:                 tenantGrantReader{store: tenantGrantStore},
 		OSPackageAdvisoryTargetReader:     factStore,
 		SBOMComponentAdvisoryTargetReader: factStore,
+		FindingCVEIDReader:                factStore,
 		AWSScheduledPlanner:               scheduled.WorkPlanner{},
 		AWSFreshnessTriggers:              awsFreshnessStore,
 		AWSFreshnessPlanner:               freshness.WorkPlanner{},

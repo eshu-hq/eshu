@@ -191,6 +191,7 @@ type fakeMetrics struct {
 	scannerDerivedPagesObserved   []ScannerDerivedPageObservation
 	ownedTargetRotationObserved   []OwnedTargetRotationObservation
 	ownedTargetSlotObserved       []OwnedTargetSlotObservation
+	epssDerivedObserved           []EPSSDerivedObservation
 }
 
 func (f *fakeMetrics) RecordReconcile(_ context.Context, observation ReconcileObservation) {
@@ -223,6 +224,10 @@ func (f *fakeMetrics) RecordIncidentFreshnessReap(_ context.Context, observation
 
 func (f *fakeMetrics) RecordScannerDerivedPage(_ context.Context, observation ScannerDerivedPageObservation) {
 	f.scannerDerivedPagesObserved = append(f.scannerDerivedPagesObserved, observation)
+}
+
+func (f *fakeMetrics) RecordEPSSDerivedPage(_ context.Context, observation EPSSDerivedObservation) {
+	f.epssDerivedObserved = append(f.epssDerivedObserved, observation)
 }
 
 func (f *fakeMetrics) RecordOwnedTargetRotation(_ context.Context, observation OwnedTargetRotationObservation) {

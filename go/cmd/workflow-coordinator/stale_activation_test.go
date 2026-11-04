@@ -44,6 +44,9 @@ func (f *staleSkipFakeMetrics) RecordIncidentFreshnessReap(_ context.Context, _ 
 func (f *staleSkipFakeMetrics) RecordScannerDerivedPage(_ context.Context, _ coordinator.ScannerDerivedPageObservation) {
 }
 
+func (f *staleSkipFakeMetrics) RecordEPSSDerivedPage(_ context.Context, _ coordinator.EPSSDerivedObservation) {
+}
+
 func (f *staleSkipFakeMetrics) RecordOwnedTargetRotation(_ context.Context, _ coordinator.OwnedTargetRotationObservation) {
 }
 

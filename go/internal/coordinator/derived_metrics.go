@@ -90,6 +90,75 @@ func (m *otelMetrics) RecordScannerDerivedPage(ctx context.Context, observation 
 	m.scannerDerivedBacklog.Store(remainder)
 }
 
+// EPSSDerivedObservation captures one findings-derived EPSS planning pass
+// (eshu-hq/eshu#9876): the derived first_epss targets plus the planner skip
+// evidence for the same pass. Counts only, never CVE ids.
+type EPSSDerivedObservation struct {
+	PlannedTargets int
+	Skipped        []schedule.DerivedTargetSkipEvidence
+}
+
+// epssDerivedInstruments holds the findings-derived EPSS discovery counters
+// registered by newEPSSDerivedInstruments (#9876), mirroring the
+// scanner-derived page instrument registration pattern used for the rest of
+// this package's coordinator metrics.
+type epssDerivedInstruments struct {
+	admittedTotal metric.Int64Counter
+	skippedTotal  metric.Int64Counter
+}
+
+// newEPSSDerivedInstruments registers the findings-derived EPSS counters
+// (#9876): planned first_epss targets and CVE ids skipped without planning,
+// by reason. Labels carry counts only, never CVE ids.
+// Full literal names: verify-telemetry-coverage.sh only recognizes a metric
+// when the constructor's first argument is a string literal, so these two
+// do not use the MetricPrefix concatenation the rest of this file uses.
+func newEPSSDerivedInstruments(meter metric.Meter) (epssDerivedInstruments, error) {
+	admittedTotal, err := meter.Int64Counter(
+		"eshu_dp_workflow_coordinator_epss_derived_admitted_total",
+		metric.WithDescription("Total findings-derived EPSS targets planned (#9876)"),
+	)
+	if err != nil {
+		return epssDerivedInstruments{}, fmt.Errorf("register EPSS derived admitted total counter: %w", err)
+	}
+	skippedTotal, err := meter.Int64Counter(
+		"eshu_dp_workflow_coordinator_epss_derived_skipped_total",
+		metric.WithDescription("Total findings-derived EPSS CVE ids skipped without planning, by reason (#9876)"),
+	)
+	if err != nil {
+		return epssDerivedInstruments{}, fmt.Errorf("register EPSS derived skipped total counter: %w", err)
+	}
+	return epssDerivedInstruments{
+		admittedTotal: admittedTotal,
+		skippedTotal:  skippedTotal,
+	}, nil
+}
+
+// RecordEPSSDerivedPage records one findings-derived EPSS planning pass
+// (#9876): planned first_epss targets and per-reason skip evidence.
+func (m *otelMetrics) RecordEPSSDerivedPage(ctx context.Context, observation EPSSDerivedObservation) {
+	if m == nil {
+		return
+	}
+	planned := int64(max(observation.PlannedTargets, 0))
+	m.epssDerivedAdmittedTotal.Add(ctx, planned)
+	for _, evidence := range observation.Skipped {
+		// The combined plan carries owned-package and installed-evidence
+		// skip evidence too; only EPSS rows (TargetClassFindingCVE) belong
+		// to this counter. Reasons are the closed DerivedTargetSkipReason*
+		// set the EPSS derivation records; blank reasons and non-positive
+		// counts never reach the counter, and CVE ids never reach a label.
+		if evidence.TargetClass != schedule.TargetClassFindingCVE {
+			continue
+		}
+		if evidence.Reason == "" || evidence.SkippedCount <= 0 {
+			continue
+		}
+		m.epssDerivedSkippedTotal.Add(ctx, int64(evidence.SkippedCount),
+			metric.WithAttributes(attribute.String(telemetry.MetricDimensionReason, evidence.Reason)))
+	}
+}
+
 // registerCoordinatorGauges registers the observable coordinator gauges and
 // the callback that serves them. It lives beside the derived-page
 // instruments because the #9299 backlog gauge joined this set; splitting it

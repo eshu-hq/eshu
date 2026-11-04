@@ -75,7 +75,7 @@ type PackageRegistryPlanner interface {
 // VulnerabilityIntelligencePlanner plans vulnerability-intelligence workflow
 // rows from collector instance configuration.
 type VulnerabilityIntelligencePlanner interface {
-	PlanVulnerabilityIntelligenceWork(context.Context, vulnerability.IntelligencePlanRequest) (workflow.Run, []workflow.WorkItem, error)
+	PlanVulnerabilityIntelligenceWork(context.Context, vulnerability.IntelligencePlanRequest) (workflow.Run, []workflow.WorkItem, vulnerability.IntelligenceDerivationObservation, error)
 }
 
 // OwnedPackageTargetReader loads active dependency evidence that can bound
@@ -128,12 +128,15 @@ type Service struct {
 	TenantGrantReader                 TenantGrantReader
 	OSPackageAdvisoryTargetReader     OSPackageAdvisoryTargetReader
 	SBOMComponentAdvisoryTargetReader SBOMComponentAdvisoryTargetReader
-	AWSScheduledPlanner               AWSScheduledPlanner
-	AWSFreshnessTriggers              AWSFreshnessTriggerStore
-	AWSFreshnessPlanner               AWSFreshnessPlanner
-	AWSFreshnessEvents                awsFreshnessEventCounter
-	GCPFreshnessTriggers              GCPFreshnessTriggerStore
-	GCPFreshnessEvents                gcpFreshnessEventCounter
+	// FindingCVEIDReader loads the distinct CVE ids on active findings for
+	// the findings-derived FIRST EPSS derivation (eshu-hq/eshu#9876).
+	FindingCVEIDReader   FindingCVEIDReader
+	AWSScheduledPlanner  AWSScheduledPlanner
+	AWSFreshnessTriggers AWSFreshnessTriggerStore
+	AWSFreshnessPlanner  AWSFreshnessPlanner
+	AWSFreshnessEvents   awsFreshnessEventCounter
+	GCPFreshnessTriggers GCPFreshnessTriggerStore
+	GCPFreshnessEvents   gcpFreshnessEventCounter
 	// GCPFreshnessFanOut is optional. When set, it records the number of
 	// scopes one GCP freshness trigger fanned out to (#4338).
 	GCPFreshnessFanOut gcpFreshnessFanOutRecorder
