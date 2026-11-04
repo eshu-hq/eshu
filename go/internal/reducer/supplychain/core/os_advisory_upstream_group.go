@@ -192,6 +192,60 @@ func groupOSAdvisoriesByUpstream(index *supplyChainImpactIndex) {
 	index.cves = regrouped
 }
 
+// liveAdvisoryPackages drops the facts of retracted records from one package's
+// classification when another record still asserts the package (#9914). Grouping
+// puts a withdrawn DLA and a live DEBIAN-CVE record in one group, and the group
+// is not retracted because one record is live, so without this the withdrawn
+// record's range could decide an exact verdict with no retraction shown.
+//
+// A record is retracted when every cve observation of its AdvisoryID retracted:
+// the same rule retractionFromObservations applies to a group, so one source's
+// rejection does not hide what another still asserts. A package with no cve
+// observation counts as live, as it does there. When no package's record is live
+// nothing is dropped, so a wholly retracted group keeps its verdict and its
+// retraction (#9695).
+//
+// The dropped facts decide nothing but stay on the finding: the returned group
+// carries their ids to EvidenceFactIDs, and the record's cve observation stays
+// in the group, so AdvisorySources still shows its status. The input slice is
+// never modified: the index shares it across installed rows. A group with no
+// retracted observation returns without allocating.
+func liveAdvisoryPackages(
+	cves supplyChainCVEGroup,
+	pkgs []supplychainmodel.AffectedPackage,
+) (supplyChainCVEGroup, []supplychainmodel.AffectedPackage) {
+	if !slices.ContainsFunc(cves.observations, impactCVERetracted) {
+		return cves, pkgs
+	}
+	retracted := make(map[string]bool, len(cves.observations))
+	for _, cve := range cves.observations {
+		isRetracted := impactCVERetracted(cve)
+		if prior, seen := retracted[cve.AdvisoryID]; seen {
+			isRetracted = isRetracted && prior
+		}
+		retracted[cve.AdvisoryID] = isRetracted
+	}
+	live := make([]supplychainmodel.AffectedPackage, 0, len(pkgs))
+	var retired []string
+	for _, pkg := range pkgs {
+		if retracted[pkg.AdvisoryID] {
+			retired = append(retired, pkg.FactID)
+			continue
+		}
+		live = append(live, pkg)
+	}
+	if len(live) == 0 || len(retired) == 0 {
+		return cves, pkgs
+	}
+	cves.retiredAffectedFactIDs = retired
+	return cves, live
+}
+
+// impactCVERetracted reports whether one cve observation retracted its advisory.
+func impactCVERetracted(cve supplychainmodel.ImpactCVE) bool {
+	return advisoryRetractionCode(cve.Status, cve.WithdrawnAt) != ""
+}
+
 // upstreamCVEKey returns the canonical CVE id an upstream entry names: the
 // entry trimmed, with a case-insensitive CVE- prefix and something after it.
 // Other entries (DEBIAN-CVE-*, UBUNTU-CVE-*, DSA-*) are not group keys, or a

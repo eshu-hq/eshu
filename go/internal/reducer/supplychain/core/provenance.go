@@ -20,6 +20,10 @@ import (
 type supplyChainCVEGroup struct {
 	cveID        string
 	observations []supplychainmodel.ImpactCVE
+	// retiredAffectedFactIDs are the affected_package facts of retracted records
+	// that liveAdvisoryPackages dropped from the classification of one package
+	// (#9914). They decide nothing but stay on the finding as evidence.
+	retiredAffectedFactIDs []string
 }
 
 // representative returns the highest-priority non-withdrawn observation for
