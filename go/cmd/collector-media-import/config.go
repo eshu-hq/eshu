@@ -162,7 +162,7 @@ func loadHexDigest(getenv func(string) string, key string) (string, error) {
 	if err != nil || len(decoded) != 32 {
 		return "", fmt.Errorf("%s must be a 64-character hex SHA-256", key)
 	}
-	return raw, nil
+	return digest, nil
 }
 
 // loadMaxArtifacts bounds the per-run artifact count. The bound cannot be

@@ -165,7 +165,7 @@ func loadHexDigest(getenv func(string) string, key string) (string, error) {
 	if err != nil || len(decoded) != 32 {
 		return "", fmt.Errorf("%s must be a 64-character hex SHA-256", key)
 	}
-	return raw, nil
+	return digest, nil
 }
 
 // loadLibraryPins parses the semicolon-separated path=digest pin list. At
@@ -195,7 +195,7 @@ func loadLibraryPins(getenv func(string) string) ([]tesseract.PinnedFile, error)
 		if err != nil || len(decoded) != 32 {
 			return nil, fmt.Errorf("%s entry %q must carry a 64-character hex SHA-256", envLibraries, entry)
 		}
-		pins = append(pins, tesseract.PinnedFile{Path: path, SHA256: digest})
+		pins = append(pins, tesseract.PinnedFile{Path: path, SHA256: stripped})
 	}
 	if len(pins) == 0 {
 		return nil, fmt.Errorf("%s must list at least one path=digest pin", envLibraries)

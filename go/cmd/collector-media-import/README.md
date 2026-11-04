@@ -55,7 +55,7 @@ See `doc.go` for the full godoc contract.
 
 | Variable | Required when enabled | Role |
 | --- | --- | --- |
-| `ESHU_MEDIA_IMPORT_ENABLED` | — | `true` opts in; anything else exits 0 with zero commits. |
+| `ESHU_MEDIA_IMPORT_ENABLED` | — | Case-insensitive `true` opts in; anything else exits 0 with zero commits. |
 | `ESHU_MEDIA_IMPORT_TIER` | yes | Must be exactly `qa`: QA-tier-only engine injection (QA tier, #8879). |
 | `ESHU_MEDIA_IMPORT_ARTIFACT_DIR` | yes | Absolute directory of reviewed audio files. |
 | `ESHU_MEDIA_IMPORT_WHISPER_BINARY_PATH` | yes | Absolute whisper-cli path; never resolved via PATH. |
@@ -109,6 +109,20 @@ caller-provided instruments (row recorded in
 `docs/public/observability/telemetry-coverage-collectors.md`); commit
 outcomes by the standard ingestion-store commit path; the caller binary's
 own files emit no metric of their own.
+
+Follow-up (digest-pin normalization, #10039 review thread).
+No-Regression Evidence: `loadHexDigest` now returns the normalized lowercase
+digest instead of the raw `sha256:`-prefixed/uppercase input, and library
+pins
+store the stripped form; a return-value-only change with no control-flow, I/O,
+Cypher, queue, or concurrency delta. Baseline `origin/main` (`0cb384ca`);
+after measurement at this HEAD the focused suites stay green (`go test
+./cmd/collector-media-import/ ./cmd/collector-document-import/ -count=1`).
+Backend: local `go` toolchain; no Neo4j/Postgres touched. Input shape:
+operator-supplied 64-hex-character pin strings; terminal counts unchanged.
+
+No-Observability-Change: no new metric, label, span, or log line; the
+extraction and commit instruments above are untouched.
 
 ## Gotchas / invariants
 

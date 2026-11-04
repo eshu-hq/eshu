@@ -52,7 +52,7 @@ See `doc.go` for the full godoc contract.
 
 | Variable | Required when enabled | Role |
 | --- | --- | --- |
-| `ESHU_DOC_IMPORT_ENABLED` | — | `true` opts in; anything else exits 0 with zero commits. |
+| `ESHU_DOC_IMPORT_ENABLED` | — | Case-insensitive `true` opts in; anything else exits 0 with zero commits. |
 | `ESHU_DOC_IMPORT_TIER` | yes | Must be exactly `qa`: QA-tier-only engine injection (QA tier, #8879). |
 | `ESHU_DOC_IMPORT_ARTIFACT_DIR` | yes | Absolute directory of reviewed image files. |
 | `ESHU_DOC_IMPORT_TESSERACT_BINARY_PATH` | yes | Absolute tesseract path; never resolved via PATH. |
@@ -99,6 +99,20 @@ zero commits, zero DB connections, and zero envelopes.
 No-Observability-Change: existing `eshu_dp_ocr_extractions_total`,
 `SpanOCRExtract`, and commit-level spans only; no new metric, label, or span.
 Row recorded in `docs/public/observability/telemetry-coverage-collectors.md`.
+
+Follow-up (digest-pin normalization, #10039 review thread).
+No-Regression Evidence: `loadHexDigest` now returns the normalized lowercase
+digest instead of the raw `sha256:`-prefixed/uppercase input, and library
+pins
+store the stripped form; a return-value-only change with no control-flow, I/O,
+Cypher, queue, or concurrency delta. Baseline `origin/main` (`0cb384ca`);
+after measurement at this HEAD the focused suites stay green (`go test
+./cmd/collector-media-import/ ./cmd/collector-document-import/ -count=1`).
+Backend: local `go` toolchain; no Neo4j/Postgres touched. Input shape:
+operator-supplied 64-hex-character pin strings; terminal counts unchanged.
+
+No-Observability-Change: no new metric, label, span, or log line; the
+instruments above are untouched.
 
 ## Gotchas / invariants
 
