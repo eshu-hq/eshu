@@ -20,6 +20,9 @@ const (
 	AnalyzerSourceAnalysis AnalyzerKind = "source_analysis"
 	// AnalyzerOSPackageExtraction extracts OS package inventories.
 	AnalyzerOSPackageExtraction AnalyzerKind = "os_package_extraction"
+	// AnalyzerGoReachability runs govulncheck source analysis over one
+	// repository commit and emits Go module and call-reachability evidence.
+	AnalyzerGoReachability AnalyzerKind = "go_reachability"
 	// AnalyzerSecretScan runs source or artifact secret scanning.
 	AnalyzerSecretScan AnalyzerKind = "secret_scan"
 	// AnalyzerLicenseScan runs source or artifact license scanning.
@@ -48,6 +51,7 @@ var analyzerLanes = map[AnalyzerKind]ExecutionLane{
 	AnalyzerSBOMGeneration:        LaneScannerWorker,
 	AnalyzerImageUnpacking:        LaneScannerWorker,
 	AnalyzerSourceAnalysis:        LaneScannerWorker,
+	AnalyzerGoReachability:        LaneScannerWorker,
 	AnalyzerOSPackageExtraction:   LaneScannerWorker,
 	AnalyzerSecretScan:            LaneScannerWorker,
 	AnalyzerLicenseScan:           LaneScannerWorker,

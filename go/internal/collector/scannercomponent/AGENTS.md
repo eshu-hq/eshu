@@ -24,6 +24,9 @@ Read these before editing this package:
   auto-update pins from a publish job.
 - Manifests must declare every kind an analyzer can emit, including
   degraded-path warnings, or the host rejects real output at admission.
+- A Go reachability scope id holds a canonical repository id and nothing else.
+  The commit and clone URL belong in `GoReachabilityTarget`. Errors name the
+  defect, never the value: a malformed remote may hold a credential.
 - No new SDK vocabulary from this package. An SDK addition is a separate
   versioned contract change.
 

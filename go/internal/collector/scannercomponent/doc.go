@@ -15,6 +15,13 @@
 // b18339cc43). #8878 box 10 stays open until that re-pin is deployed and
 // accepted. This package never executes an analyzer.
 //
+// It also owns the Go reachability value contract: the go-reachability://
+// scope id, the target stored in a run's requested_scope_set, and the rotation
+// page types. These are plain values with no store handle, so the coordinator,
+// the Postgres reader, and the extension host agree without importing each other.
+// RequiredGrantsFor names an analyzer's grants before its image exists; ManifestFor
+// and VerifySeededArtifact still refuse a component with no published digest pin.
+//
 // Import discipline: the coordinator planner and the component admission
 // callers both import this leaf; they never import each other. No new SDK
 // vocabulary is published from here — an SDK vocab publication is a separate
