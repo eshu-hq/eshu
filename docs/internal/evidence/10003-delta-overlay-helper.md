@@ -62,7 +62,7 @@ fakes changed shape only:
   `source_commit_sha = $2` became `scope_id = target.scope_id` and
   `source_commit_sha = target.union_base_commit_sha`.
 
-Every other assertion is unchanged. That covers statement counts (4, 5, and 4
+Every other assertion is unchanged, apart from the rename of the no-baseline counter constant in the #9991 no-baseline pin test (`deltaOverlayNoBaseline`). That covers statement counts (4, 5, and 4
 in the projector cases, and 1 retention probe in the successor guard), the
 #8181 probe-outage refusal, its counters and log, the refused, pruned,
 legacy, chained, and mismatch outcomes, and the #9991 manifest cases.
@@ -95,7 +95,7 @@ legacy, chained, and mismatch outcomes, and the #9991 manifest cases.
 ## Performance Evidence:
 
 Disposable PostgreSQL 18.6 container (`eshu-lane3-9874-pg`), own database
-`lane3_pr0_explain`, all 302 migrations applied in order. It holds 420 git
+`lane3_pr0_explain`, all migrations at `a35f7077a6` applied in order. It holds 420 git
 scopes, each with 20 older superseded fulls and a base full at `c1` (8,861
 generations), plus 4,204 retention events (the 10 oldest fulls of every
 scope). 40 scopes are delta-active: 4 have a pruned base and 3 record a union
@@ -131,7 +131,7 @@ The committed #9991 harness
 (`active_package_manifest_dependency_delta_bench_test.go`, tag
 `perf9991_manifest_delta`) seeds its 156,201-row corpus and counts every
 statement of `ListActivePackageManifestDependencyFacts`. It ran twice on
-`origin/main` (`a35f7077a6`, whose storage package equals this branch's base)
+`origin/main` (`a35f7077a6`; the later rebase onto a newer `origin/main` changed 13 storage files, none in the delta or overlay set, so these runs predate HEAD)
 and twice on this branch, on the same host and container. It now reads the
 reached-scope figure from the scopes the batched lookup binds. Statement
 totals exclude BEGIN and COMMIT (one each per read):
@@ -207,3 +207,7 @@ container's `postgres` database.
 - `go test ./internal/storage/postgres -count=1` (unit, no DSN).
 - `go test -tags perf9991_manifest_delta ./internal/storage/postgres -run TestManifestDeltaReadStatementCountsLive -count=1 -v`
   on `origin/main` and on this branch.
+
+## Failed-probe counter note
+
+When the batched prune probe fails, every superseded scope in the batch is refused. If no overlay remains, the read then fails at COMMIT, so `union_base_missing` is counted once per refused scope and `union_resolve_failed` is not counted; the probe's own error is logged at DEBUG only. With one scope this was already true before this change; with N scopes the count is now N.

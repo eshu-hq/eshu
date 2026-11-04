@@ -28,7 +28,7 @@ and `delta_union_base.go`; see
    `COALESCE(delta_union_base_commit_sha, delta_baseline_commit_sha)`, a
    strict superset of `deltaUnionBaseQuery`. #9611 rewrites the active text,
    and the base text follows because it is derived.
-4. For each delta-active scope the rows reached, `resolveDeltaBaseAtCommit`
+4. For each delta-active scope the rows reached, `resolveDeltaBaseAtCommit` (now one batched `resolveDeltaBases` over all reached scopes, #10003)
    picks the base the projector overlays, including the retention prune
    probe and the refusal.
 5. One batched read (`manifestDeltaOverlayInputsQuery`, now `deltaOverlayInputsQuery`) loads each delta's
