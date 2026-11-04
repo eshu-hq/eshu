@@ -171,7 +171,8 @@ the same filter.
 Performance Evidence: the production store call (watermark probe plus the
 grouped statement, through `database/sql` with bound parameters). Setup:
 disposable PostgreSQL 18.6 (`postgres:18` container on the shared host), the
-shim seed (`seed.sql`) at 1x (20,000 findings, 400 repositories, 160,000
+shim seed ([`seed.sql`](9873-grouped-inventory/seed.sql), committed with the
+benchmark harness and [rerun steps](9873-grouped-inventory/README.md)) at 1x (20,000 findings, 400 repositories, 160,000
 background facts) and 5x (100,000 findings, 2,000 repositories, 800,000
 background facts), winners rebuilt with `RebuildAllWinners`, then
 `VACUUM (ANALYZE)`. Each case ran 3 times warm with limit 101. The max stands
@@ -214,8 +215,9 @@ At 5x, precise and unscoped, the p50 is about 45 times faster than the CTE
 source for service (12,016 to 269 ms), 37 times for workload (14,677 to
 394 ms), and 82 times for environment (41,193 to 505 ms).
 
-Plan shape (`EXPLAIN (ANALYZE, BUFFERS)`, 28 plans across 1x and 5x, kept in the
-lane scratchpad, not committed):
+Plan shape (`EXPLAIN (ANALYZE, BUFFERS)`, 28 plans across 1x and 5x; the plans
+are not committed, and a bench run regenerates them as
+[the reproduction README](9873-grouped-inventory/README.md) describes):
 
 - The winners table is read by one sequential scan with a hash anti join on
   `scanner_image_result_fact_associations`.

@@ -1,0 +1,209 @@
+// Benchmark and parity harness for the #9873 grouped inventory evidence.
+// It is not part of the Go module: copy it in with `go test -overlay` as
+// README.md in this directory shows. It reads ZZ_STORE_DSN (a disposable
+// database seeded with seed.sql), ZZ_SCALE, and ZZ_OUT.
+
+package impact
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"os"
+	"regexp"
+	"sort"
+	"strings"
+	"testing"
+	"time"
+
+	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	_ "github.com/jackc/pgx/v5/stdlib"
+)
+
+func zzOpen(t *testing.T) (context.Context, *sql.DB) {
+	dsn := os.Getenv("ZZ_STORE_DSN")
+	if dsn == "" {
+		t.Skip("ZZ_STORE_DSN unset")
+	}
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	return context.Background(), db
+}
+
+func TestZZStoreApplySchema(t *testing.T) {
+	ctx, db := zzOpen(t)
+	if err := storagepostgres.ApplyBootstrap(ctx, storagepostgres.SQLDB{DB: db}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestZZStoreRebuild(t *testing.T) {
+	ctx, db := zzOpen(t)
+	if _, err := db.ExecContext(ctx, `TRUNCATE supply_chain_impact_canonical_winners`); err != nil {
+		t.Fatal(err)
+	}
+	started := time.Now()
+	if err := storagepostgres.NewSupplyChainImpactWinnersStore(storagepostgres.SQLDB{DB: db}).RebuildAllWinners(ctx, time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+	for _, table := range []string{"fact_records", "ingestion_scopes", "scope_generations", "supply_chain_impact_canonical_winners"} {
+		if _, err := db.ExecContext(ctx, "VACUUM (ANALYZE) "+table); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var n int
+	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM supply_chain_impact_canonical_winners`).Scan(&n)
+	t.Logf("ZZ winners=%d rebuild=%s", n, time.Since(started))
+}
+
+type zzScenario struct {
+	name      string
+	dimension GroupedInventoryDimension
+	filter    AggregateFilter
+}
+
+func zzGrants(t *testing.T, ctx context.Context, db *sql.DB) ([]string, []string) {
+	var repos int
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM ingestion_scopes WHERE scope_id LIKE 'git-repository-scope:repository:r-%'`).Scan(&repos); err != nil {
+		t.Fatal(err)
+	}
+	var g18, g19 []string
+	for g := 1; g <= repos; g++ {
+		if g%20 == 3 {
+			g18 = append(g18, fmt.Sprintf("repository:r-%d", g))
+		}
+		if g%20 == 7 {
+			g19 = append(g19, fmt.Sprintf("git-repository-scope:repository:r-%d", g))
+		}
+	}
+	return g18, g19
+}
+
+func TestZZStoreBench(t *testing.T) {
+	ctx, db := zzOpen(t)
+	scale := os.Getenv("ZZ_SCALE")
+	out := os.Getenv("ZZ_OUT")
+	g18, g19 := zzGrants(t, ctx, db)
+	var scenarios []zzScenario
+	for _, dim := range []GroupedInventoryDimension{GroupedInventoryByService, GroupedInventoryByWorkload, GroupedInventoryByEnvironment} {
+		for _, prof := range []string{"precise", "comprehensive"} {
+			base := AggregateFilter{DetectionProfile: FilterProfile(prof)}
+			scenarios = append(scenarios, zzScenario{fmt.Sprintf("%s_%s_u", dim, prof), dim, base})
+			scoped := base
+			scoped.AllowedRepositoryIDs, scoped.AllowedScopeIDs = g18, g19
+			scenarios = append(scenarios, zzScenario{fmt.Sprintf("%s_%s_s", dim, prof), dim, scoped})
+		}
+	}
+	for _, prof := range []string{"precise", "comprehensive"} {
+		composed := AggregateFilter{DetectionProfile: FilterProfile(prof), ServiceID: "service:svc-1"}
+		scenarios = append(scenarios, zzScenario{"environment_by_service_" + prof + "_u", GroupedInventoryByEnvironment, composed})
+	}
+	store := PostgresGroupedInventoryStore{DB: db, ReadFromWinners: true}
+	var lines []string
+	for _, sc := range scenarios {
+		build := groupedInventoryQuery
+		if len(sc.filter.AllowedRepositoryIDs) > 0 || len(sc.filter.AllowedScopeIDs) > 0 {
+			build = groupedInventoryScopedQuery
+		}
+		query, err := build(sc.dimension)
+		if err != nil {
+			t.Fatal(err)
+		}
+		f := sc.filter
+		args := []any{f.CVEID, f.PackageID, f.RepositoryID, f.SubjectDigest, f.Status, f.AdvisoryID, f.Ecosystem,
+			f.ServiceID, f.WorkloadID, f.Environment, f.Severity, f.DetectionProfile, f.PriorityBucket, f.MinPriorityScore,
+			f.SuppressionState, f.IncludeSuppressed, f.ImageRef, array.Of(f.AllowedRepositoryIDs), array.Of(f.AllowedScopeIDs),
+			time.Now().UTC(), 101, 0}
+		rows, err := db.QueryContext(ctx, "EXPLAIN (ANALYZE, BUFFERS) "+query, args...)
+		if err != nil {
+			t.Fatalf("%s explain: %v", sc.name, err)
+		}
+		var plan strings.Builder
+		for rows.Next() {
+			var line string
+			_ = rows.Scan(&line)
+			plan.WriteString(line + "\n")
+		}
+		rows.Close()
+		_ = os.WriteFile(fmt.Sprintf("%s/plan_%sx_%s.txt", out, scale, sc.name), []byte(plan.String()), 0o644)
+		exec := regexp.MustCompile(`Execution Time: ([\d.]+) ms`).FindStringSubmatch(plan.String())
+		spill := strings.Contains(plan.String(), "Disk:") || strings.Contains(plan.String(), "temp written")
+		hit := regexp.MustCompile(`Buffers: shared hit=(\d+)`).FindStringSubmatch(plan.String())
+		var wall []float64
+		var page GroupedInventoryPage
+		for i := 0; i < 3; i++ {
+			started := time.Now()
+			page, err = store.SupplyChainImpactGroupedInventory(ctx, sc.filter, sc.dimension, 101, 0)
+			if err != nil {
+				t.Fatalf("%s run: %v", sc.name, err)
+			}
+			wall = append(wall, float64(time.Since(started).Microseconds())/1000)
+		}
+		sort.Float64s(wall)
+		sum := 0
+		for _, r := range page.Rows {
+			sum += r.Count
+		}
+		row := map[string]any{"scale": scale, "scenario": sc.name, "p50_ms": wall[1], "max_ms": wall[2], "min_ms": wall[0],
+			"explain_ms": exec[1], "spill": spill, "top_shared_hit": hit, "buckets": len(page.Rows), "distinct": page.DistinctFindings, "bucket_sum": sum}
+		b, _ := json.Marshal(row)
+		lines = append(lines, string(b))
+		t.Log(string(b))
+	}
+	_ = os.WriteFile(fmt.Sprintf("%s/bench_%sx.jsonl", out, scale), []byte(strings.Join(lines, "\n")+"\n"), 0o644)
+}
+
+// TestZZStoreParity compares every bucket to the count route at scale for a
+// sample of buckets (unscoped and repository-scoped) and the distinct total.
+func TestZZStoreParity(t *testing.T) {
+	ctx, db := zzOpen(t)
+	g18, g19 := zzGrants(t, ctx, db)
+	store := PostgresGroupedInventoryStore{DB: db, ReadFromWinners: true}
+	counts := PostgresAggregateStore{DB: db}
+	for _, grant := range []struct {
+		name       string
+		repo, scop []string
+	}{{"unscoped", nil, nil}, {"repo_grant", g18, nil}, {"scope_grant", nil, g19}} {
+		for _, dim := range []GroupedInventoryDimension{GroupedInventoryByService, GroupedInventoryByWorkload, GroupedInventoryByEnvironment} {
+			filter := AggregateFilter{DetectionProfile: "precise", AllowedRepositoryIDs: grant.repo, AllowedScopeIDs: grant.scop}
+			page, err := store.SupplyChainImpactGroupedInventory(ctx, filter, dim, 501, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			total, err := counts.CountSupplyChainImpactFindings(ctx, filter)
+			if err != nil {
+				t.Fatal(err)
+			}
+			mismatch, checked := 0, 0
+			for i, row := range page.Rows {
+				if row.Unattributed || i%7 != 0 {
+					continue
+				}
+				f := filter
+				switch dim {
+				case GroupedInventoryByService:
+					f.ServiceID = row.Value
+				case GroupedInventoryByWorkload:
+					f.WorkloadID = row.Value
+				default:
+					f.Environment = row.Value
+				}
+				c, err := counts.CountSupplyChainImpactFindings(ctx, f)
+				if err != nil {
+					t.Fatal(err)
+				}
+				checked++
+				if c.TotalFindings != row.Count {
+					mismatch++
+					t.Logf("ZZ MISMATCH %s %s %s bucket=%d count=%d", grant.name, dim, row.Value, row.Count, c.TotalFindings)
+				}
+			}
+			t.Logf("ZZ PARITY %s %s buckets=%d checked=%d mismatches=%d distinct=%d count_total=%d", grant.name, dim, len(page.Rows), checked, mismatch, page.DistinctFindings, total.TotalFindings)
+		}
+	}
+}
