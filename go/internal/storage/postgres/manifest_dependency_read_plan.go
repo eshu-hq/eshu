@@ -82,3 +82,25 @@ func (s FactStore) recordManifestDependencyRead(ctx context.Context, query strin
 		s.instruments.PackageManifestDependencyReadPages.Record(ctx, int64(rows/listFactsByKindPageSize+1), attrs)
 	}
 }
+
+// manifestDeltaOverlayScopeParam is the placeholder the manifest reader's
+// base-candidate pages bind the delta-active scope ids at: $1 to $5 are the
+// package managers, names, keyset cursor, and page size.
+const manifestDeltaOverlayScopeParam = 6
+
+// manifestDeltaOverlayTelemetry names where the manifest reader records its
+// delta-overlay decisions: eshu_dp_package_manifest_dependency_read_delta_union_total
+// by read and outcome (#9991), the
+// package_manifest_dependency_read.delta_union span event, and WARN lines
+// starting "manifest dependency read".
+func (s FactStore) manifestDeltaOverlayTelemetry(read string) deltaOverlayTelemetry {
+	sink := deltaOverlayTelemetry{
+		read:      read,
+		subject:   "manifest dependency read",
+		spanEvent: "package_manifest_dependency_read.delta_union",
+	}
+	if s.instruments != nil {
+		sink.counter = s.instruments.PackageManifestDependencyReadDeltaUnion
+	}
+	return sink
+}

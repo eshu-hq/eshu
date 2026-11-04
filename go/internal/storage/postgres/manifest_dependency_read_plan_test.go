@@ -101,7 +101,7 @@ func TestListActivePackageManifestDependencyFactsPassesCacheDescribeEveryPage(t 
 				t.Fatalf("loaded = %d rows, want %d", len(loaded), listFactsByKindPageSize+1)
 			}
 			for i, call := range db.queries {
-				if call.query == manifestDeltaTargetsQuery {
+				if call.query == deltaOverlayTargetsQuery {
 					if i != len(db.queries)-1 {
 						t.Fatalf("delta-target lookup ran as call %d of %d, want last", i+1, len(db.queries))
 					}
@@ -124,7 +124,7 @@ func TestListActivePackageManifestDependencyFactsPassesCacheDescribeEveryPage(t 
 				}
 			}
 			if tt.wantCalls == 3 {
-				if db.queries[2].query != manifestDeltaTargetsQuery {
+				if db.queries[2].query != deltaOverlayTargetsQuery {
 					t.Fatalf("call 3 is not the delta-target lookup: %s", db.queries[2].query)
 				}
 				if db.queries[0].args[2] != nil {
