@@ -138,11 +138,14 @@ func authorizedFindingHostLine(finding SupplyChainImpactFinding, hostLineByRow m
 // finding's installed release line. Untagged non-vendor facts always qualify:
 // the primary path passes them through un-narrowed, so they contend exactly as
 // before. A vendor-sourced OS fact (osAdvisoryFactIsVendorSourced, #9945)
-// contends only when its purl distro qualifier names the host's own line, and
-// it is kept as selectOSVendorFactLine returns it, with ReleaseLine set, so the
-// evaluator reads it as release evidence. A vendor fact for another line, one
-// with no readable line, and any vendor fact when the host line is unknown are
-// dropped: a branch that cannot be verified as the host's must never pick the
+// contends only when it is the host vendor's own fact (its source equals the
+// vendor of the host line, as the row path's join requires) and its purl
+// distro qualifier names the host's own line; it is kept as
+// selectOSVendorFactLine returns it, with ReleaseLine set, so the evaluator
+// reads it as release evidence. A fact from another source (ubuntu, nvd, glad)
+// never earns the line, whatever its purl names. A vendor fact for another
+// line, one with no readable line, and any vendor fact when the host line is
+// unknown are dropped: a branch that cannot be verified as the host's must never pick the
 // host's fix. A release-tagged fact qualifies only through a range that names
 // the host line; a tagged fact naming only other lines is dropped.
 //
@@ -155,6 +158,7 @@ func filterAuthorizedBranchesToHostLine(
 	hostLine string,
 ) []supplychainmodel.AffectedPackage {
 	var out []supplychainmodel.AffectedPackage
+	hostVendor, _, _ := strings.Cut(hostLine, ":")
 	for _, branch := range branches {
 		switch {
 		case osAdvisoryFactSelectable(branch):
@@ -170,7 +174,8 @@ func filterAuthorizedBranchesToHostLine(
 				}
 			}
 		case osAdvisoryFactIsVendorSourced(branch):
-			if osVendorFactLineStatus(branch, hostLine) == osVendorLineMatched {
+			if osAdvisoryFactIsHostVendorFact(branch.Source, hostVendor) &&
+				osVendorFactLineStatus(branch, hostLine) == osVendorLineMatched {
 				out = append(out, selectOSVendorFactLine(branch, hostLine))
 			}
 		default:

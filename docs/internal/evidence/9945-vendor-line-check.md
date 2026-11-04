@@ -41,17 +41,21 @@ All readers of a vendor fact follow the rule:
 - The row join (`selectOSAdvisoryRelease`) line-checks each vendor fact against
   the installed row.
 - The authorized-scan conflict pass (`filterAuthorizedBranchesToHostLine`) keeps
-  a vendor branch only when its line is the host's, appended as
-  `selectOSVendorFactLine` returns it. Branches for another release, with no
-  readable line, or on an unknown host line are dropped, so the primary verdict,
-  which already fails closed, stands.
+  a vendor branch only when its source is the host's vendor and its line is the
+  host's, appended as `selectOSVendorFactLine` returns it. A branch from another
+  source (`ubuntu`, `nvd`, `glad`) never earns the line there, even when the
+  authority covers its source and its purl names the host's line. Branches for
+  another release, with no readable line, or on an unknown host line are
+  dropped, so the primary verdict, which already fails closed, stands.
 - An OS-family SBOM component with no joined installed row runs the same
   boundary with the zero row (`index.go`), so every vendor fact there takes the
   unknown arm.
 - A non-OSV OS fact whose source is not the installed row's vendor (blank, `nvd`,
   `glad`, `ghsa`, another distribution) takes the unknown arm too, with no host
   line, so it never earns `ReleaseLine` from a matching purl and offers no fix,
-  even beside a verified fact of the host's own vendor. Before this round that
+  even beside a verified fact of the host's own vendor. This holds on the row
+  path, the source-package join, and the authorized-scan conflict pass. Before
+  this round that
   fact kept its fix whenever the row had a vendor source, and its scalar or
   range fix could read `not_affected_known_fixed`.
 - The legacy rpm list loop (`evaluateRPMVersionMatch`, a fact with no ECOSYSTEM
@@ -62,7 +66,19 @@ All readers of a vendor fact follow the rule:
   read exact until the table gets an rpm row. A later unreadable entry still
   reads `malformed_advisory_range`.
 
-Non-OS facts, OSV, and a fact with no OS shape are not line-checked.
+Non-OS facts, OSV, and a fact with no OS shape are not line-checked. The OS
+shape is read from the ecosystem, a deb, apk or rpm purl in the purl or the
+package id, or an `os://` package id.
+
+Scope of "never yields": the rule covers installed rows and SBOM components
+with an OS purl. Two shapes sit outside it. A debian-sourced scalar fix reads
+`dpkg_known_fixed` on (a) an SBOM component with an empty or non-OS purl and a
+matching package id, and (b) a consumption fact with an OS package id. Shape (a)
+is unreachable: the collector derives the package id from the purl. Shape (b)
+needs a vendor fact and an OS consumption id, and no vendor producer exists.
+Closing (b) in code would break
+`TestSupplyChainImpactVendorAdvisoryOverridesUpstream`, which pins a vendor fix
+on the consumption path, so it is a separate change.
 
 Limits, stated plainly:
 
@@ -228,9 +244,19 @@ load average near 5 to 6, so read the ns column as rough:
 | dpkg exact affected, verified fact (bench fixture now sets `ReleaseLine`) | 305.0 to 307.8 | 0 |
 | dpkg exact known fixed | 290.6 to 307.1 | 0 |
 
-The untagged OSV hot path keeps zero allocations, and
-`BenchmarkBuildSupplyChainImpactIndexWithQuarantine` still reports 100159
-allocs/op. Every fact that is neither tagged nor the host vendor's now has its
+The untagged OSV hot path keeps zero allocations. The index-build benchmark
+does not call selection, so it is not evidence for this path and is not cited.
+A review measured the selection micro-benchmark and the whole fleet builder
+interleaved with base, alternating the first mover, four samples each, load
+average 6 to 11:
+
+| Benchmark | Base | Head |
+|---|---|---|
+| Selection, untagged OSV fact (ns/op, 0 allocs) | 19.4 (18.1 to 22.1) | 38.1 (35.7 to 40.0) |
+| `BenchmarkOSFleetDigestFanout/fleet-10x` (ms/op) | 4.62 (3.86 to 6.41) | 4.21 (3.81 to 4.89) |
+
+The fleet ranges overlap, so no regression is claimed and no speedup either.
+Every fact that is neither tagged nor the host vendor's now has its
 source classified (R2-1), so the real-shape untagged OSV row moves from about 20 ns to about 40 ns per fact: one
 source classification, no allocation. The earlier statement that this second row
 is unreachable in production no longer holds and is withdrawn. The "dpkg exact
