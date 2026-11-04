@@ -103,11 +103,11 @@ read plane `GetRunStatus`, `ListRuns`, `GetRunCompleteness`,
   precondition) NOT_CHECKED by this lane.
 - Gap (2026-11-04): the tags (`09e23b93`, `8311ed69`), satellite `main`
   (`af3311e0`), and the live digest (`e1b564af`, source commit unknown)
-  are not tied together; the parity re-bind procedure in `REMOVAL_PREP.md`
-  §4 still cites the superseded `db5a3a53` record.
-- Note (2026-11-04): the §5 parity bullet, §7, and the scorecard below
-  still cite the 2026-11-01 record (`03d9f976`/`db5a3a53`); not re-read by
-  this lane — refresh pending.
+  are not tied together; the parity re-bind still needs a lane against
+  the live record.
+- Note (2026-11-04): the §5 parity bullet still cites the 2026-11-01
+  record; not re-read by this lane — refresh pending. All other digest
+  rows defer to the §2 live record above.
 
 ## 3. Oldest/newest core pairs + compat
 
@@ -233,4 +233,4 @@ and not retried; the disposition above is cited-from-record, not re-read.
 | Stage-1c, no interim markers | LANDED / CLEAN | `a1c30b40be`; zero hits at the 2026-10-31 check |
 | README gaps | FLAGGED, not filled | listed above |
 | `#9383` disposition | CITED-FROM-RECORD | live re-read blocked by quota |
-| SLSA attestation | PARTIAL | present on candidate `db5a3a53`; absent on live `03d9f976` |
+| SLSA attestation | PARTIAL — see §2 live record | 11-01 candidate/live split retired with its digests; full-digest provenance NOT_CHECKED |

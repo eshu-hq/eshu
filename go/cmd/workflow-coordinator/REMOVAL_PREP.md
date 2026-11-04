@@ -173,9 +173,9 @@ behind-counts below are superseded). Draft procedure:
   not a full digest). Publishing commit/run and SLSA state unknown; the
   2026-11-01 flip precondition (deployment-repo re-pin PR `#491`) merge
   state NOT_CHECKED by this lane.
-- Note (2026-11-04): §4 digest references and the §7 checklist rows still
-  cite the 2026-11-01 record (`03d9f976`/`db5a3a53`/`33f48f4a`); not
-  re-read by this lane — refresh pending.
+- Note (2026-11-04): the §7 checklist rows below still cite the 2026-11-01
+  record (`03d9f976`/`db5a3a53`/`33f48f4a`); not re-read by this lane —
+  refresh pending. §4 now defers to the §5 live record above.
 
 ## 6. Per-file importer census (176 non-test files)
 
@@ -413,11 +413,11 @@ stays HELD until every row below is green.
 | Parity, satellite legs | HELD (skipped, zero writes) | Needs `PARITY_SATELLITE_URL/DSN`; scoped grant recorded (`#8875` comment `6558745112`), execution HELD on IaC + revert PR numbers and the `#9727` authority decision; last bind `03d9f976` stands |
 | Deployed-binary contention | HELD | Scoped grant recorded (`#8875` comment `6558745112`, 2026-11-01); execution HELD on IaC + revert PR numbers and the `#9727` authority decision; workload written in `REMOVAL_CONTENTION_SPEC.md` (§3.1), not executed; static audit (§3) unchanged |
 | In-cluster throughput | HELD | Procedure in §4; scoped grant recorded, same open preconditions as contention; needs a fresh digest bind (deploy lane) |
-| Satellite standing-authoritative | HELD | Dark on `03d9f976` as last read (§5); candidate `db5a3a53` waits on the deployment-repo re-pin PR `#491`; in-tree still owns claims |
+| Satellite standing-authoritative | HELD | Dark on `e1b564af` as last read 2026-11-04 (§5); candidate `db5a3a53` retired (never deployed), re-pin state NOT_CHECKED; in-tree still owns claims |
 | `#9659` merged/closed | GREEN | State MERGED (stale-activation fix) |
 | Importer repointing (179 files) | HELD | Zero of 179 repointed; assembly order in §1 unchanged |
 
-`#9376` stays OPEN. `#9659` MERGED, `#9686` MERGED. SLSA attestation
-is present on the candidate digest and absent on the live one (§5). The
+`#9376` stays OPEN. `#9659` MERGED, `#9686` MERGED. SLSA attestation:
+see the §5 live record (2026-11-04). The
 first deletable assembly (§1 step 1) unlocks only when the satellite is
 standing-authoritative with the contention proof bound to its digest.
