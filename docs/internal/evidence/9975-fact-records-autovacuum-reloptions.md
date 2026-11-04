@@ -80,9 +80,9 @@ made before the run: diagnosis section 11.2 read `n_ins_since_vacuum` at
 that is 6.8 to 11.6 hours, which is about 11:00Z to 16:00Z on the same day. The
 vacuum started earlier, at 09:00:52.7Z (see the first vacuum section). Reaching
 the trigger in 4 h 39 min took an average of at least 117 inserts per second,
-above the 80.6 maximum the window used (arithmetic). The rates varied (0.5 to
-80.6 in the diagnosis windows, 19.7 in the hour after the vacuum), so the window
-was indicative only. The consequence held: with no migration and no one-off, a
+above the 80.6 maximum the window used (arithmetic). A bulk insert of about
+774k rows landed between 06:30Z and 06:35Z (diagnosis sections 12.7 and 12.8);
+after it the counter ran at 55 to 70 per second. The consequence held: with no migration and no one-off, a
 default-settings autovacuum of `fact_records` started on its own when that
 counter crossed its default trigger. That first vacuum measures the theory with
 default settings, not migration 278, and a later roll's ALTER would cancel one
@@ -273,7 +273,9 @@ ALTER did the same to the relaunched worker. A cancelled run reports nothing:
 (`... (to prevent wraparound)`) made the ALTER wait; with `lock_timeout` 5 s it
 failed with SQLSTATE 55P03 and the worker kept running. QA's total transaction
 use is about 37.7M, far from the 200M default `autovacuum_freeze_max_age`, so
-that case is not expected; the QA setting itself was not read.
+that case is not expected. QA's `autovacuum_freeze_max_age` is the 200,000,000
+default, and its `deadlock_timeout` is 1000 ms, below the runner's 5 s
+`lock_timeout`, so the cancel path applies there (diagnosis section 12.1).
 
 Consequences for rollout:
 
@@ -322,7 +324,8 @@ Consequences for rollout:
   | `pg_stat_user_tables` counters | not needed | readable |
 
   Diagnosis 9.1 found that the `eshu` role on QA is not a superuser and not in
-  `pg_read_all_stats`, so the right-hand column is the one to expect there; the
+  `pg_read_all_stats`, so the right-hand column is the one to expect there, and
+  QA's own worker showed exactly that row at T0 (diagnosis section 12.8). The
   role that runs a given roll check was not checked. Read the rows this way:
 
   - Any granted `ShareUpdateExclusiveLock` row on `fact_records` whose pid is
@@ -375,7 +378,7 @@ check.
 
 ## First vacuum on QA (natural, default settings): measured 2026-11-04
 
-Source: diagnosis section 12 (12.1 to 12.10), read by the diagnosis lane on the
+Source: diagnosis section 12 (12.1 to 12.11), read by the diagnosis lane on the
 QA primary; nothing was changed on QA. This vacuum ran under the server's
 default thresholds, before migration 278 had rolled. It prices one pass and
 tests the dead-tuple theory; it is not a measurement of migration 278.
@@ -384,15 +387,15 @@ tests the dead-tuple theory; it is not a measurement of migration 278.
 |---|---|---|
 | T0 (autovacuum worker start) | 09:00:52.7Z, derived from the log's elapsed time; the 5-minute watcher gap was 08:56:18Z to 09:01:19Z | watcher and log |
 | Duration (T0 to `last_autovacuum`) | 6,151.92 s (1 h 42 min 32 s); ended 10:43:24.607Z | log |
-| Counters at first sighting, 09:01:19Z | `n_ins_since_vacuum` 19,600,637 (default trigger 19,591,565); `n_dead_tup` 15,266,142; `autovacuum_count` not in the measurement file | watcher |
+| Counters at first sighting, 09:01:19Z | `n_ins_since_vacuum` 19,600,637 (default trigger 19,591,565); `n_dead_tup` 15,266,142; `autovacuum_count` 39 before the run, 40 after | watcher |
 | Log line (the run exceeded 10 minutes) | 8,548,139 of 21,350,368 pages scanned (40.04%); 1 index scan; 15,858,845 dead item identifiers removed; 1,500,592 tuples removed by the pass; 1,364,710 tuples frozen; WAL 51,722,778,115 bytes (48.2 GiB) with 11,650,515 full-page images; 23,174,029 buffer reads, 11,770,455 dirtied; I/O read 719.4 s, write 60.6 s; CPU user 505.8 s, system 156.3 s. The verbatim line stays in the diagnosis raw files. | log |
 | Dead but not yet removable, removable cutoff | 8,736; cutoff 109,356 XIDs old at the end; `n_dead_tup` 13,333 after | log and stats |
 | Buffers per row, repeat pass (cold) | 1.4 (2.3) right after, 717 buffers and 0 reads; 1.3 an hour later, 680 buffers. Control before the vacuum: 7.7 (13.1) at 05:54Z; earlier 12.2 at 04:21Z and 35.4 with the holder open | probe |
 | 197-row triple | before 5,552 TIDs, 5,452 heap blocks, 18 index buffers; after 474 TIDs, 466 heap blocks, 21 index buffers; repeat pass 294 buffers against 3,108 for the control; an hour later 524 TIDs, 511 heap blocks, 273 buffers | probe |
 | Replica conflict peak and `reader_replay` deadline series | `confl_snapshot` 140 to 140 (peak delta 0); no `deadline` outcome; every API response 200, no 5xx | replica, metrics |
 | WAL: slot `wal_status` and retained WAL | `reserved` at every read; retained WAL at most 3.6 MB during the run and 4.2 MB in the hour after | primary |
-| Primary CPU and CFS throttled ratio | not in the measurement file (only the vacuum's own CPU above) | not read |
-| Stop-condition readings | S1, S2 and S3 never fired; data volume free 959.4 GB to 958.1 GB; the `/readyz` and queue-claiming readings are not in the measurement file | watcher |
+| Primary CPU and CFS throttled ratio (5-minute windows) | during the run 8.44 to 11.68 cores, throttled ratio 0.093 to 0.780 (peak 10:18:50Z); the hour before the run 0.155 to 0.664, so the ranges overlap and the run's peak is higher; the hour after 5.6 to 11.0 cores, 0.006 to 0.531 | metrics |
+| Stop-condition readings | S1, S2 and S3 never fired; data volume free 959.4 GB to 958.1 GB; `/readyz` 200 at 09:01:27Z and 11:45Z; reducer claim rate 9.28 to 11.44 per second with 594 to 854 pending during the run (9.8 to 11.3 and 603 to 869 in the hour after) | watcher, metrics |
 | Keyed tick p95 and peak watermark gauge | during the run 0.945 s over 203 ticks and 34.8 s; the hour after completion (10:43:25Z to 11:43:25Z) 0.79 s over 120 ticks and 24.04 s | metrics |
 
 Proof limits:
@@ -424,30 +427,28 @@ whole run is excluded from the #9805 closing bar.
 - A second vacuum's duration, WAL volume, API `503` rate, and the hot-row
   sawtooth size at its start. The first vacuum's are measured above (n = 1);
   later ones are not.
-- For the first vacuum: hidden-backend xmins, the per-phase tick histogram
-  (#9981), primary CPU and CFS throttling, and the `/readyz` and
-  queue-claiming readings during the run were not read.
+- For the first vacuum: hidden-backend xmins and the per-phase tick histogram
+  (#9981) were not read.
 - Whether any other session holds an older snapshot; the first logged vacuum's
   removable cutoff is the test. `idle_in_transaction_session_timeout` and
   `transaction_timeout` were 0 on the QA primary, so a new holder can recur.
-- Table ownership of `fact_records` under the runtime role on a deployed
-  database. Migration 273 builds an index on it through the same schema Job,
-  which implies the access; that is read from the migration, not from QA.
+- Whether the schema Job connects as the table owner, and whether that role
+  may signal an autovacuum worker. QA's `fact_records` owner is `eshu`, the role
+  the diagnosis session used (diagnosis section 12.1). That the Job runs as
+  `eshu` is read from migration 273, which builds an index on the table through
+  it, not from QA.
 - The deployed PostgreSQL major version. The diagnosis read 18.3; the lock text
   is from the PostgreSQL 18 docs and the lock behavior was measured on 18.6.
-- QA `deadlock_timeout`, `autovacuum_freeze_max_age`,
-  `max_standby_streaming_delay`, and `max_slot_wal_keep_size`. If QA's
-  `deadlock_timeout` were at or above 5 s, the ALTER would hit its
-  `lock_timeout` first and take the retry path instead of cancelling.
 - The stop procedure: RESET below and past the default triggers,
   `autovacuum_enabled = false`, its undo, and its behavior against an
   anti-wraparound run were measured only by the independent review on scratch
   tables (PostgreSQL 18.6, naptime 1 s; the owner role varied by run), not by the author
   and not on `fact_records`.
-- The roll-time check on QA: the reading for a role without `pg_read_all_stats`
-  rests on diagnosis 9.1 and the reviewer's scratch-table measurement. Which
-  role runs a given roll check was not checked, and no read of QA's grants was
-  made.
+- The roll-time check on QA: QA's own worker showed the NULL-typed row at T0
+  (diagnosis section 12.8: pid, NULL `backend_type`, NULL `state`, query
+  `<insufficient privilege>`), so the reading for a role without
+  `pg_read_all_stats` is observed there. Which role runs a given roll check was
+  not checked, and QA's grants were not read.
 - QA's counters after the 11:44Z hour readback, and whether the 52.1 dead rows
   per second rate persists. The 10.9 hour and 69 hour figures rest on one hour.
 - The second vacuum measurement is still owed. The note describes what to read

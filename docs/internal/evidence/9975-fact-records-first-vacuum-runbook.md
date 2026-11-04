@@ -102,9 +102,9 @@ QA" section holds the readings and their limits.
     different from the migration ledger, which will still show 278 applied and
     will not re-apply it. A forward migration is the way back into line.
   - Owner rights are enough for the `SET` and `RESET` above (reviewer-measured
-    as a non-superuser table owner on a scratch table). Whether the runtime role
-    owns `fact_records` on QA, or may signal an autovacuum worker, was not
-    checked.
+    as a non-superuser table owner on a scratch table). QA's `fact_records` owner
+    is `eshu` (diagnosis section 12.1). Whether the role that runs a stop may
+    signal an autovacuum worker was not checked.
 - Recurring cost. Each vacuum pass walks all 144 indexes (84 GB). The first
   pass (1 index scan, 1 h 42 min, 48.2 GiB of WAL) is the only price measured.
   The cycle times below are arithmetic from one hour of post-vacuum rates on QA
@@ -123,5 +123,6 @@ QA" section holds the readings and their limits.
   replica lags, and this change sets no threshold. Before the first vacuum,
   read the slot's `wal_status` and retained WAL (`pg_wal_lsn_diff` between the
   current LSN and the slot's `restart_lsn`) and agree a stop value with the
-  owner, for example stopping if `wal_status` leaves `reserved`. The QA
-  `max_slot_wal_keep_size` was not read.
+  owner, for example stopping if `wal_status` leaves `reserved`. QA's
+  `max_slot_wal_keep_size` is 384 GiB (diagnosis section 12.1), and the slot
+  stayed `reserved` with at most 4.2 MB retained through the first vacuum.
