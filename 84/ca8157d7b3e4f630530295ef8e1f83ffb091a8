@@ -1,0 +1,46 @@
+go/internal/storage/postgres/delta_union_base.go
+  s_7547c0f0af67d4::t_11a9696441f6c5 1-25,32-255
+  s_7547c0f0af67d4::t_11b2aa52bb6dc4 26-31
+go/internal/storage/postgres/delta_union_base_test.go
+  s_7547c0f0af67d4::t_4877564b0b8899 1-161
+go/internal/storage/postgres/delta_union_base_live_test.go
+  s_7547c0f0af67d4::t_c0dffe5dc16ad9 1-228
+  s_7547c0f0af67d4::t_34b481b186a98e 229-230
+docs/internal/evidence/10003-delta-overlay-helper.md
+  s_7547c0f0af67d4::t_d1c9cecfcb1670 1-177
+  s_7547c0f0af67d4::t_2a4fb27bfa7c26 178-200
+go/internal/storage/postgres/delta_union_bench_test.go
+  s_7547c0f0af67d4::t_1c3d32ea5568dd 43
+go/internal/storage/postgres/delta_union_chain_test.go
+  s_7547c0f0af67d4::t_4ee4c400da5938 11,29,43,68,78
+go/internal/storage/postgres/delta_union_load_test.go
+  s_7547c0f0af67d4::t_2f21bca09a7887 29,64,101
+go/internal/storage/postgres/delta_union_test.go
+  s_7547c0f0af67d4::t_9ad755cfb1ea15 106,202,267,271,289,312,344-345,376,545,580
+go/internal/storage/postgres/successor_guard_harness_test.go
+  s_7547c0f0af67d4::t_f0e50f03171662 124,159-175
+go/internal/storage/postgres/successor_guard_prior_test.go
+  s_7547c0f0af67d4::t_b9c8905cfa1caf 282
+go/internal/storage/postgres/successor_guard_recheck_harness_test.go
+  s_7547c0f0af67d4::t_55c6873871fbfd 116
+scripts/lib/live_postgres_readiness_inventory_gen_internal_storage_postgres_part1.py
+  s_7547c0f0af67d4::t_c5ed7f093010ba 214-216
+specs/live-tests.d/live-tests-readiness-part2.generated.yaml
+  s_7547c0f0af67d4::t_b193665057c423 422-426
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "84ca8157d7b3e4f630530295ef8e1f83ffb091a8",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
