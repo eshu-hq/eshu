@@ -382,8 +382,25 @@ workers. Read `pg_stat_progress_vacuum` for the live state; the log line and
   `SHARE UPDATE EXCLUSIVE` on `fact_records`, does not wait for a running
   ordinary autovacuum. After `deadlock_timeout` PostgreSQL cancels it, and a new
   worker restarts from block 0. Check `pg_stat_progress_vacuum` before a roll
-  that carries `fact_records` DDL. Only an anti-wraparound vacuum or a manual
-  `VACUUM` makes the statement wait.
+  that carries `fact_records` DDL. An anti-wraparound vacuum, a manual
+  `VACUUM` or `ANALYZE`, or any session holding a conflicting lock (a
+  concurrent index build is one) makes the statement wait instead. Both
+  `ALTER TABLE ... SET (autovacuum_*)` and `CREATE INDEX CONCURRENTLY` take
+  `SHARE UPDATE EXCLUSIVE`, so before a roll that carries either on
+  `fact_records`, check for a running autovacuum:
+
+  ```sql
+  SELECT l.pid, a.backend_type, a.state
+  FROM pg_locks l JOIN pg_stat_activity a USING (pid)
+  WHERE l.relation = 'fact_records'::regclass
+    AND l.mode = 'ShareUpdateExclusiveLock'
+    AND l.granted;
+  ```
+
+  A row with an autovacuum worker means the roll cancels that vacuum and it
+  restarts from block 0. PostgreSQL's maintenance documentation: "If a process
+  attempts to acquire a lock that conflicts with the `SHARE UPDATE EXCLUSIVE`
+  lock held by autovacuum, lock acquisition will interrupt the autovacuum."
 - On a deployment with a read replica and `hot_standby_feedback` off, vacuum
   cleanup records can conflict with replica queries and cancel them. API and MCP
   reads may then return `503`; see
@@ -391,11 +408,29 @@ workers. Read `pg_stat_progress_vacuum` for the live state; the log line and
   `pg_stat_database_conflicts` on the replica.
 - Cancelling the worker with `pg_cancel_backend` does not stop autovacuum for
   long: the triggers are still exceeded and a new worker starts within one
-  `autovacuum_naptime`. Resetting the two storage parameters with
-  `ALTER TABLE fact_records RESET (...)` should stop it, but then
-  `pg_class.reloptions` no longer matches the migration ledger until a forward
-  migration lands. (The reset reasoning has not been run on a table below the
-  default trigger.)
+  `autovacuum_naptime`. To stop it, first read `n_dead_tup` and
+  `n_ins_since_vacuum` for the table.
+  - Resetting the two storage parameters with `ALTER TABLE fact_records RESET
+    (...)` stops the running vacuum only while both counters are below the
+    server's default triggers (20% of the table for dead rows, and the default
+    insert trigger). Past either default trigger the RESET cancels the worker
+    and a new one starts within a naptime, because the restored defaults are
+    already exceeded. A RESET also leaves `pg_class.reloptions` different from
+    the migration ledger until a forward migration lands.
+  - Past the default triggers, stop it with `ALTER TABLE fact_records SET
+    (autovacuum_enabled = false)`, which works in both cases. Undo it with
+    `RESET (autovacuum_enabled)` before the roll that carries migration 275:
+    275 sets only the two scale factors, so it does not touch
+    `autovacuum_enabled`, and a stop that is never undone leaves autovacuum off
+    on the table. Until it is undone the table gets no ordinary autovacuum and
+    dead rows keep growing, and the undo starts a vacuum within a naptime if a
+    trigger is still exceeded, so schedule it. The setting does not disable
+    anti-wraparound vacuums: PostgreSQL's documentation says the table "will
+    not be autovacuumed, except to prevent transaction ID wraparound". Record
+    the change, since `reloptions` carries it while it is in place.
+  - Both behaviors were measured on PostgreSQL 18.6 scratch tables by a
+    reviewer, not on `fact_records`; the re-enable step and the
+    anti-wraparound behavior were not run.
 - The lower trigger means about four times as many index passes per day on a
   table with a large index set. Watch the second vacuum's cost, not only the
   first.

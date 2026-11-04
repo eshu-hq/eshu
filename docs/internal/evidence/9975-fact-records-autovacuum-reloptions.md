@@ -55,17 +55,35 @@ state, unlike milliseconds):
 
 The 46.0 figure was taken with the holder open, and the cancel plus kill hints
 set by earlier passes had already moved it before any vacuum ran. The
-baseline for the vacuum is therefore the after-cancel pair, and the repeat
-pass (12.2) is the cache-independent comparison. This is one before/after pair
-per arm with no control run, so the cancel cannot be separated from hint
-accumulation across passes. The two 2-row triples and the 197-row triple
-stayed flat after the cancel; the 197-row one is unexplained. No vacuum has
-run, so these figures say nothing yet about what vacuum will do.
+baseline for the vacuum is therefore the after-cancel pair. Buffers per row
+are cache-independent on both passes; the repeat pass (12.2) is the
+hint-settled comparison, because pass 1 sets the kill hints that pass 2 then
+benefits from. This is one before/after pair per arm with no control run, so
+the cancel cannot be separated from hint accumulation across passes. Two of
+the three 2-row triples (2 and 6) and the 197-row triple (7) moved little
+after the cancel (triple 7 went from 5,485 to 4,220 buffers, about 23%);
+triple 8, the third 2-row triple, fell from 199 to 7. The 197-row one is
+unexplained. No vacuum has run, so these figures say nothing yet about what
+vacuum will do.
 
 The default triggers are scaled to 102M rows, so at today's rates (14 to 21
 dead rows per second, 47 to 80 inserts per second) the table would take 3.3 to
 4.8 more days to reach the dead-row trigger. Meanwhile the hot triples show
 28 to 71 index entries per live row, so most heap visits find no visible row.
+
+The insert trigger is much closer, and it matters for rollout. Arithmetic,
+unmeasured: diagnosis section 11.2 read `n_ins_since_vacuum` at 17,632,252 at
+04:21:55Z on 2026-11-04. The default insert trigger is 19,591,565, so 1,959,313
+inserts remain. At 80 and at 47 inserts per second that is 6.8 to 11.6 hours,
+which is about 11:00Z to 16:00Z on the same day. The rates varied between
+diagnosis windows (0.5 to 80.6 inserts per second), so treat the window as
+indicative. The consequence: with no migration and no one-off at all, a
+default-settings autovacuum of `fact_records` may start on its own once that
+counter crosses its default trigger. A first vacuum seen before the migration
+rolls is then a measurement of the theory with default settings, and a later
+roll's ALTER would cancel it if it is still running (the rollout-order
+consequence below applies equally). Read `last_autovacuum`,
+`autovacuum_count`, and `pg_stat_progress_vacuum` before any roll.
 
 Computed triggers after this change (arithmetic from the same reltuples):
 
@@ -78,10 +96,17 @@ The insert formula that scales by the unfrozen fraction (`relallfrozen`) is
 PostgreSQL 18 behavior. On PostgreSQL 13 to 17 the same arithmetic gives
 1000 + 0.05 x 102,328,592 = 5,117,430, still exceeded.
 
-Both are already exceeded, so the first vacuum starts within one
-`autovacuum_naptime` (60 s) of the migration landing. At today's rates, later
-vacuums follow every 1.1 to 1.7 days on dead rows and every 17 to 29 hours on
-inserts, each removing about 2M row versions.
+Both were exceeded at the last read, but a first vacuum starts within one
+`autovacuum_naptime` (60 s) of the migration landing only where the counters
+still exceed the new thresholds at apply time. On QA a default-settings vacuum
+is expected to start on its own about 11:00Z to 16:00Z on 2026-11-04 (the
+arithmetic above, from counters read at 04:21Z; to be observed, not assumed).
+Once that vacuum completes, the counters reset, so a roll that applies 275
+afterwards starts no immediate vacuum. At today's rates the next
+275-triggered vacuum then follows about 17 to 29 hours after a completed vacuum
+on inserts (4,898,641 inserts at 80 and 47 per second; arithmetic) and 1.1 to
+1.7 days on dead rows (14 to 21 per second), each removing about 2M row
+versions.
 
 "Dead rows near 2% of live" is the table-wide average, not what the probe
 pays. The probe reads hot rows, which carry 28 to 71 index entries per live
@@ -117,16 +142,22 @@ inputs support is a range of arithmetic, not a number:
   reads should be faster. It still shows a multi-hour run is possible on this
   CPU-throttled primary.
 
-The run will exceed the 10-minute `log_autovacuum_min_duration` and so will be
-logged. Expect the keyed ticks to run slower while it runs. Exclude the whole
+The run is expected to exceed the 10-minute `log_autovacuum_min_duration` and
+so be logged; the 5.3-minute credit floor above is under it, so this is not
+certain. If it finishes in under 10 minutes there is no log line, and
+`last_autovacuum`, `autovacuum_count`, and the dead and insert counters are the
+test instead. Expect the keyed ticks to run slower while it runs. Exclude the whole
 run from the #9805 closing bar, from the first `pg_stat_progress_vacuum` row
 until `last_autovacuum` updates, whatever its length.
 
 Proof still owed after the migration reaches a database, on the same primary
 and the same 10 triples: the first vacuum's own log line, `pg_stat_user_tables`
 dead and insert counters, the probe again as total buffers per returned row,
-and the keyed tick durations for the hour after the vacuum completes. Read it
-against the after-cancel baseline (35.8 cold, 12.2 repeat), not against 46.0:
+the 197-row triple's index and heap split again (18 index buffers and 5,452
+heap blocks before), CPU, throttling, and replica slot lag during the run
+(not only before and after), and the keyed tick durations for the hour after
+the vacuum completes. Read it against the after-cancel baseline (35.8 cold,
+12.2 repeat), not against 46.0:
 
 - Buffers per row near 1 to 2 on the repeat pass, and the hour inside the bar:
   the vacuum moved it past what the cancel and hints did, and the mechanism is
@@ -168,8 +199,8 @@ signals that already exist:
 - The keyed tick durations and watermark gauge show whether the ticks move.
   The per-phase tick histogram that would split them is in open PR #9981 and
   is not in this change.
-- Replica slot lag and primary CPU throttling, read before and after the first
-  vacuum, since WAL volume and CPU rise during the pass.
+- Replica slot lag and primary CPU throttling, read before, during, and after
+  the first vacuum, since WAL volume and CPU rise during the pass.
 - Read-side effect: `eshu_dp_postgres_reader_stage_duration_seconds` with
   `role="reader"`, `stage="reader_replay"`, `outcome="deadline"`, and
   `pg_stat_database_conflicts` on the replica (see the operator section below).
@@ -186,9 +217,10 @@ behind an ordinary autovacuum. It cancels it.
 Measured by the independent review on PostgreSQL 18.6 with a slow autovacuum
 on a scratch table (not on `fact_records`): the ALTER returned in 1,002.5 ms,
 the `deadlock_timeout` of 1 s; the server log showed `canceling autovacuum
-task`; a new worker restarted the table from block 0 within seconds. An
-identical second ALTER did the same to the relaunched worker. A cancelled run
-reports nothing: `autovacuum_count` stayed 0. Only an anti-wraparound worker
+task`; a new worker restarted the table from block 0 within one naptime (that
+cluster ran `autovacuum_naptime` 1 s; the default is 60 s). An identical second
+ALTER did the same to the relaunched worker. A cancelled run reports nothing:
+`autovacuum_count` stayed 0. In that run only an anti-wraparound worker
 (`... (to prevent wraparound)`) made the ALTER wait; with `lock_timeout` 5 s it
 failed with SQLSTATE 55P03 and the worker kept running. QA's total transaction
 use is about 37.7M, far from the 200M default `autovacuum_freeze_max_age`, so
@@ -197,22 +229,48 @@ that case is not expected; the QA setting itself was not read.
 Consequences for rollout:
 
 - Applying the migration on a database where no vacuum of `fact_records` is
-  running is the clean case. The first vacuum starts a naptime later.
-- An ALTER applied while the first vacuum is running cancels it and restarts
-  it from the beginning, with no warning in the schema Job log; only the
-  Postgres server log says so. Reloptions stay unchanged, so a replay is
-  harmless to the settings and costly to a running vacuum.
-- The one-off ALTER on QA the ruling allows and the later schema Job's
-  receipt-less ALTER are the same statement. If the one-off runs first, the
-  Job re-issues it and will cancel a first vacuum that is still running. So run
-  the one-off only if the roll is expected after the first vacuum finishes, or
-  if the owner accepts a restart.
+  running is the clean case. A vacuum starts a naptime later only if the
+  counters already exceed the new thresholds at apply time; after a completed
+  vacuum they do not.
+- An ALTER applied while a vacuum is running cancels it and restarts it from
+  the beginning, with no warning in the schema Job log; only the Postgres
+  server log says so. Reloptions stay unchanged, so a replay is harmless to
+  the settings and costly to a running vacuum.
+- A one-off ALTER and the later schema Job's receipt-less ALTER are the same
+  statement. If a one-off ran first, the Job would re-issue it and cancel a
+  first vacuum still running. So a one-off is only worth running if the roll
+  is expected after the first vacuum finishes, or if the owner accepts a
+  restart.
 - Any other DDL on `fact_records` that takes the same lock does the same,
-  including a separately rolled index migration (open PR #9979 adds one).
-  Sequence such rolls with `pg_stat_progress_vacuum` in view.
-- If the lock is blocked by an anti-wraparound worker or a manual VACUUM, the
-  runner's per-statement `lock_timeout` (5 s) and its 3-minute retry budget
-  apply; past that the Job fails closed and a re-sync recovers it.
+  including a separately rolled index migration (open PR #9979 adds a
+  `CREATE INDEX CONCURRENTLY`). The PostgreSQL 18 explicit-locking page lists
+  `VACUUM` (without `FULL`), `ANALYZE`, `CREATE INDEX CONCURRENTLY`, and
+  certain `ALTER TABLE` variants as acquiring SHARE UPDATE EXCLUSIVE, and the
+  routine-vacuuming page says "If a process attempts to acquire a lock that
+  conflicts with the `SHARE UPDATE EXCLUSIVE` lock held by autovacuum, lock
+  acquisition will interrupt the autovacuum."
+- Roll-time check. Before a roll whose image carries migration 274 or 275,
+  read:
+
+  ```sql
+  SELECT l.pid, a.backend_type, a.state
+  FROM pg_locks l JOIN pg_stat_activity a USING (pid)
+  WHERE l.relation = 'fact_records'::regclass
+    AND l.mode = 'ShareUpdateExclusiveLock'
+    AND l.granted;
+  ```
+
+  A row whose `backend_type` is an autovacuum worker means the roll cancels
+  that vacuum and it restarts from block 0. Either wait for `last_autovacuum`
+  to update, or roll and record the restart. After a completed vacuum the roll
+  is clean. This query is the arbiter's recipe and is not run by me; it reads
+  the lock table, so it also works where the progress view is hidden from the
+  role.
+- If the lock is blocked by an anti-wraparound worker, a manual VACUUM or
+  ANALYZE, or any session holding a conflicting lock (a concurrent index build
+  is one), the runner's per-statement `lock_timeout` (5 s) and its 3-minute
+  retry budget apply; past that the Job fails closed and a re-sync recovers
+  it. `pg_locks` names the holder.
 
 There is no reverse migration in this change; see the stop procedure below.
 
@@ -234,19 +292,54 @@ WAL here is unmeasured.
   only view of a running pass.
 - Stopping it. `pg_cancel_backend` on the worker alone does not stop it: the
   thresholds are still exceeded, and the review measured a new worker within
-  one naptime. `ALTER TABLE fact_records RESET (autovacuum_vacuum_scale_factor,
-  autovacuum_vacuum_insert_scale_factor)` should stop it, because by the lock
-  rule above it cancels the running vacuum and puts the triggers back at 20%,
-  above today's 14.6M dead rows and 17.4M inserts. That reasoning was not run
-  on a table below the default trigger. It also leaves `pg_class.reloptions`
-  different from the migration ledger, which will still show 275 applied and
-  will not re-apply it. A forward migration is the way back into line. Whether
-  the runtime role owns the table, or may signal an autovacuum worker, was not
-  checked.
-- Recurring cost. Each vacuum pass walks all 144 indexes (84 GB). Moving from
-  about one vacuum every 3.3 to 4.8 days to one every 17 to 29 hours is
-  roughly four times as many 84 GB index passes (about 96 h against about 23 h
-  between runs at the midpoints; arithmetic), on a throttled primary,
+  one naptime. Which of the next two steps works depends on the counters, so
+  read `n_dead_tup` and `n_ins_since_vacuum` for `fact_records` first.
+  - Below both default triggers (about 20.5M dead rows and 19.6M inserts since
+    vacuum, the figures in the table above), `ALTER TABLE fact_records RESET
+    (autovacuum_vacuum_scale_factor, autovacuum_vacuum_insert_scale_factor)`
+    stops it. The ALTER cancels the running vacuum by the lock rule above and
+    the restored 20% triggers are not met. Reviewer-measured on PostgreSQL 18.6
+    (scratch table, 100k dead rows, 150k inserts, naptime 1 s): the vacuum was
+    cancelled and no new one started over 8 s. Not run by me, and not on
+    `fact_records`.
+  - Past the default insert trigger (or the dead-row one), RESET does not stop
+    it. Reviewer-measured on the same setup with 100k dead rows and 500k
+    inserts: the RESET cancelled the vacuum and a new worker was running within
+    2 s and still at 8 s, because the restored defaults are already exceeded.
+    The inserts-since-vacuum projection above says QA may be past this point
+    from about 11:00Z to 16:00Z on 2026-11-04, so assume RESET will not hold.
+    A natural default-settings vacuum has no reloptions to reset at all, so
+    RESET has nothing to undo for it.
+  - Past the default triggers the stop is `ALTER TABLE fact_records SET
+    (autovacuum_enabled = false)`, and it works in both cases.
+    Reviewer-measured, same setup: the vacuum was cancelled and no new one
+    started over 8 s. Caveats: it does not disable anti-wraparound
+    vacuums (the PostgreSQL 18 `CREATE TABLE` storage parameters page, for
+    `autovacuum_enabled`: "If false, this table will not be autovacuumed,
+    except to prevent transaction ID wraparound."; the `autovacuum` and
+    `autovacuum_freeze_max_age` entries on the vacuum configuration page say
+    the same, "even when autovacuum is otherwise disabled"; docs only, not
+    measured). While it is set, the table gets no ordinary autovacuum at all, so
+    dead rows and the insert counter keep growing. It must be undone with
+    `ALTER TABLE fact_records RESET (autovacuum_enabled)` before the roll that
+    carries 275, because 275's `SET` names only the two scale factors and
+    leaves `autovacuum_enabled = false` in place; skip the undo and autovacuum
+    stays off on the table through the roll. The undo restarts the vacuum
+    within one naptime while a trigger is still exceeded, so schedule it
+    rather than treat it as routine. The undo was not run by anyone. Record the
+    stop in the rollout log: while it is in place `pg_class.reloptions` carries
+    `autovacuum_enabled=false`, which the migration ledger does not describe.
+  - A RESET of the two scale factors also leaves `pg_class.reloptions`
+    different from the migration ledger, which will still show 275 applied and
+    will not re-apply it. A forward migration is the way back into line.
+  - Whether the runtime role owns the table, or may signal an autovacuum
+    worker, was not checked.
+- Recurring cost. Each vacuum pass walks all 144 indexes (84 GB). The default
+  cycle is insert-driven: 19,591,565 inserts at 80 and 47 per second is 2.8 to
+  4.8 days between runs (arithmetic; the 3.3 to 4.8 days above is the time left
+  to the dead-row trigger, not the cycle). Moving to one every 17 to 29 hours
+  is roughly four times as many 84 GB index passes (about 92 h against about
+  23 h between runs at the midpoints; arithmetic), on a throttled primary,
   indefinitely. The first-run estimate above does not include this. Read the
   second run's log line to price the steady state.
 - WAL retention. The replica's physical replication slot retains WAL while the
@@ -255,6 +348,34 @@ WAL here is unmeasured.
   current LSN and the slot's `restart_lsn`) and agree a stop value with the
   owner, for example stopping if `wal_status` leaves `reserved`. The QA
   `max_slot_wal_keep_size` was not read.
+
+## First vacuum on QA (natural, default settings): measurement pending
+
+Placeholder. Nothing below has been measured; every cell stays empty until the
+read that fills it has run. The vacuum is expected to start by itself, under
+the server's default thresholds, about 11:00Z to 16:00Z on 2026-11-04 (see the
+insert-trigger paragraph above). Its readbacks are the first-vacuum proof the
+change owes. Fill each field from the matching read window and cite the source
+of the figure.
+
+| Field | Value | Read |
+|---|---|---|
+| T0 (first autovacuum worker holding SHARE UPDATE EXCLUSIVE on `fact_records`) | pending | start watcher |
+| Duration (T0 to `last_autovacuum`) | pending | during and after |
+| Counters at T0 (`n_dead_tup`, `n_ins_since_vacuum`, `autovacuum_count`) | pending | start watcher |
+| Log line (verbatim; only if the run exceeded 10 minutes) | pending | after |
+| Pages removed and remaining, tuples removed and remaining, dead but not yet removable, removable cutoff | pending | after |
+| Buffers per row, cold and repeat, against the control pair | pending | before and after |
+| 197-row triple index and heap split (before: 18 index buffers, 5,452 heap blocks) | pending | after |
+| Replica conflict peak (`pg_stat_database_conflicts`) and `reader_replay` deadline series | pending | during |
+| WAL: slot `wal_status` and retained WAL | pending | during |
+| Keyed tick p95 and peak watermark gauge for the hour after completion | pending | after |
+
+The control pair is one more run of the same 10-triple probe taken before the
+vacuum starts, so that hint accumulation and the vacuum can be told apart. The
+whole run is excluded from the #9805 closing bar. If the run finishes in under
+10 minutes there is no log line, and the holder test is `n_dead_tup` right
+after `last_autovacuum` updates.
 
 ## NOT_CHECKED
 
@@ -274,4 +395,11 @@ WAL here is unmeasured.
   `max_standby_streaming_delay`, and `max_slot_wal_keep_size`. If QA's
   `deadlock_timeout` were at or above 5 s, the ALTER would hit its
   `lock_timeout` first and take the retry path instead of cancelling.
-- A RESET on a real table below the default trigger.
+- The stop procedure: RESET below and past the default triggers, and
+  `autovacuum_enabled = false`, were measured only by the independent review on
+  scratch tables (PostgreSQL 18.6, naptime 1 s), not by the author and not on
+  `fact_records`. `autovacuum_enabled = false` against an anti-wraparound run
+  and the re-enable step were not run; the former is from the PostgreSQL docs.
+- QA's current `n_dead_tup`, `n_ins_since_vacuum`, `last_autovacuum`, and
+  `autovacuum_count`. The 11:10Z to 16:00Z window is arithmetic from a
+  04:21:55Z read.

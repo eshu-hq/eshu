@@ -93,8 +93,9 @@ and `autovacuum_vacuum_insert_scale_factor = 0.05` in one catalog-only ALTER
 (SHARE UPDATE EXCLUSIVE, no rewrite), so autovacuum fires on this table's churn
 rather than on 20% of 102M rows. It carries no cost, toast, or analyze
 parameters. The ALTER cancels a running ordinary autovacuum of `fact_records`
-after `deadlock_timeout` instead of waiting for it (only an anti-wraparound
-vacuum makes it wait), so a replay or any other DDL on that table restarts a
+after `deadlock_timeout` instead of waiting for it (an anti-wraparound vacuum,
+a manual VACUUM or ANALYZE, or a session holding a conflicting lock makes it
+wait), so a replay or any other DDL on that table restarts a
 vacuum that is still running; check `pg_stat_progress_vacuum` before a roll.
 See `docs/internal/evidence/9975-fact-records-autovacuum-reloptions.md` for
 the first-vacuum cost range, the read-replica `503` risk, and the stop
