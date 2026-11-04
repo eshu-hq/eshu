@@ -331,7 +331,11 @@ type advisoryProvenanceSelection struct {
 	// the advisory identity. A derived score or a label sets SeveritySource but
 	// never IdentitySource, so deriving severity cannot move advisory_id,
 	// finding_id, or advisory-scoped suppression matching (#9693).
-	IdentitySource       string
+	IdentitySource string
+	// DecidingAdvisoryID names an OS-class finding: the record that supplied the
+	// fact the version decision read first (#9914). It is empty for every
+	// ecosystem that is not an OS package class, where IdentitySource stands.
+	DecidingAdvisoryID   string
 	SeverityScore        float64
 	SeverityScoreSource  string
 	SeverityVector       string

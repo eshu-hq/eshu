@@ -39,7 +39,7 @@ func debianRecord(id, release, distro, fixed string, upstream ...string) vulnera
 }
 
 // nvdCVEFact is the NVD record for a CVE: the sibling every distro record's
-// upstream list points at. It carries no score, so it never claims identity.
+// upstream list points at. It carries no score and no package fact.
 func nvdCVEFact(cveID string) facts.Envelope {
 	return vulnerabilityCVEFactWithProvenance("nvd-"+cveID, cveID, "nvd", cveID, 0, "", "", "2026-10-01T00:00:00Z")
 }
