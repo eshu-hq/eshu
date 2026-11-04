@@ -79,6 +79,17 @@ version — pinning this module pins the fixture pack too.
   the decode and quarantines the fact as `input_invalid`. Mirrors
   `github.com/eshu-hq/eshu-sdk/factschema` `v0.1.0-rc.13`.
 
+- `vulnerability.affected_package` gains an optional `releases` field on each
+  `AffectedRange` (eshu-hq/eshu#9806, additive minor). It names the
+  operating-system release lines a range applies to as sorted, distinct,
+  lowercase `<vendor>:<line>` strings (`debian:12`, `alpine:3.18`,
+  `ubuntu:22.04`; a leading `Pro` segment yields the distinct `ubuntu:pro:18.04`
+  tag, as the in-tree OSV converter does; the published rc.13 and rc.14
+  godoc says a leading `Pro` is dropped, which is wrong). An omitted or empty value means "release unknown", never
+  "every release", and a fact is tagged on every ECOSYSTEM range or on none. A
+  value of the wrong JSON type now fails the decode and quarantines the fact as
+  `input_invalid`. Mirrors `github.com/eshu-hq/eshu-sdk/factschema`
+  `v0.1.0-rc.13`.
 - `vulnerability.cve` gains three optional raw identity-edge fields,
   `aliases`, `related`, and `upstream` (eshu-hq/eshu#9954, additive minor, no
   decode shim). Each is a string array copied from the OSV record field of the

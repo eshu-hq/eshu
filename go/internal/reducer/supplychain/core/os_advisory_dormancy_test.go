@@ -13,7 +13,7 @@ import (
 // TestOSVReleaseTagsReachTheReducerAfterActivation is the prescribed inverse
 // of the deleted dormancy pin TestOSVReleaseTagsStayDormantUntilTheSDKCarriesThem
 // (#9806 PR-2b-1, ruling decision 7). The typed factschema now declares
-// AffectedRange.Releases (rc.13 pin live in go.mod) and the reducer decode
+// AffectedRange.Releases (since rc.13; go.mod pins rc.14) and the reducer decode
 // carries it, so the bookworm row below reads affected_exact on its own line.
 func TestOSVReleaseTagsReachTheReducerAfterActivation(t *testing.T) {
 	t.Parallel()

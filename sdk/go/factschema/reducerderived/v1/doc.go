@@ -29,4 +29,16 @@
 // *string with omitempty, additive-optional like EnvironmentEvidence: a
 // payload written before #5469 carries neither key and decodes with both
 // fields nil.
+//
+// OSPackageMatchDerivation, InstalledPackageName, and SourcePackage
+// (eshu-hq/eshu#9859) record how an OS advisory finding joined its installed
+// row. The derivation is exactly "binary_package" (the advisory named the
+// installed binary) or "source_package" (the advisory named the source the
+// binary was built from, for example "openssl" joining installed "libssl3");
+// producers must not invent a third value. InstalledPackageName is the
+// binary name the finding joined on, SourcePackage the source name it joined
+// through (set only on a source-joined row). All three are *string with
+// omitempty, additive-optional: a payload written before they existed carries
+// none of the keys and decodes with nil fields. There is deliberately no
+// source_version evidence field.
 package v1
