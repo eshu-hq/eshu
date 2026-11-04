@@ -162,7 +162,7 @@ func TestServiceRefreshCadenceRequiresStoreWhenOptedIn(t *testing.T) {
 // all-skipped behavior for eshu-hq/eshu#9879: when every target is inside
 // its interval the tick persists no run (so no requested_scope_set skip
 // rows exist) and records nothing; the plan-span cadence_skipped_targets
-// count is the signal.
+// count plus one INFO cadence-skip line are the signals.
 func TestServiceRefreshCadenceAllSkippedPersistsNoRun(t *testing.T) {
 	t.Parallel()
 
