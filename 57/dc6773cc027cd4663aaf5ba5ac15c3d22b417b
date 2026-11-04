@@ -1,0 +1,27 @@
+go/internal/packageidentity/ecosystem_aliases_test.go
+  s_7547c0f0af67d4::t_2fa305e80b57ba 1-48
+go/internal/packageidentity/README.md
+  s_7547c0f0af67d4::t_1e45d9455d9957 31-34
+go/internal/packageidentity/ecosystem_aliases.go
+  s_7547c0f0af67d4::t_8b863b752a06a3 1-68
+go/internal/storage/postgres/supply_chain_impact_manifest_trigger_live_test.go
+  s_7547c0f0af67d4::t_cae8efc48c5418 10,158-200
+go/internal/storage/postgres/supply_chain_impact_package_holders.go
+  s_7547c0f0af67d4::t_ee957cf35cc094 11,17-18,46,59,93-112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "57dc6773cc027cd4663aaf5ba5ac15c3d22b417b",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
