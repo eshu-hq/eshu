@@ -193,13 +193,13 @@ import (
 // #9971 adds 275_vulnerability_nvd_window_cursor.sql (DDL only: the
 // per-instance NVD rolling cursor advanced in the generation commit
 // transaction).
-const goldenBootstrapDefinitionsDigest = "RECOMPUTE-AFTER-RENUMBER"
+const goldenBootstrapDefinitionsDigest = "69b494d01cd3d945d4811f1d6b681ad07eef1fc4bf635c609ac916d7b7745ed9"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 300
+const goldenBootstrapDefinitionsCount = 301
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()
