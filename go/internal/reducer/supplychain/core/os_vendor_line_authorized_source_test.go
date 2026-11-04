@@ -152,3 +152,26 @@ func TestOSAdvisoryFactIsVendorSourcedReadsAPackageURLPackageID(t *testing.T) {
 		}
 	}
 }
+
+// TestOSAdvisoryFactIsHostVendorFactComparesTheTrimmedSource pins the source
+// compare that the join and the authorized pass share (#9945): case and
+// surrounding space do not make the host's own vendor a stranger, and OSV or an
+// empty vendor is never the host's.
+func TestOSAdvisoryFactIsHostVendorFactComparesTheTrimmedSource(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		source, vendor string
+		want           bool
+	}{
+		{"debian", "debian", true},
+		{" Debian ", "debian", true},
+		{"ubuntu", "debian", false},
+		{"nvd", "debian", false},
+		{"osv", "osv", false},
+		{"debian", "", false},
+	} {
+		if got := osAdvisoryFactIsHostVendorFact(tc.source, tc.vendor); got != tc.want {
+			t.Errorf("osAdvisoryFactIsHostVendorFact(%q, %q) = %v, want %v", tc.source, tc.vendor, got, tc.want)
+		}
+	}
+}
