@@ -176,7 +176,12 @@ probe plus the keyed tick gauge. It is a single read, not a soak, and it is the
 point on the sawtooth that matters. Once migration 275 has rolled, the second
 vacuum starts at whichever trigger is reached first, so key the read on
 `n_ins_since_vacuum` near 4.9M (the insert trigger, 4,898,641) or `n_dead_tup`
-near 2.05M (2,046,622), whichever comes first. Arithmetic, unmeasured: at the
+near 2.05M (2,046,622), whichever comes first. The 4.9M shifts once the first
+vacuum changes `relallfrozen` and `reltuples` (20% frozen gives about 4.09M, 30%
+about 3.58M; arithmetic), so compute both live from `pg_class`: `SELECT 1000 +
+0.05 * reltuples * (1 - relallfrozen::float8 / NULLIF(relpages, 0)), 50 + 0.02 *
+reltuples FROM pg_class WHERE oid = 'fact_records'::regclass` (not run).
+Arithmetic, unmeasured: at the
 note's own rates the insert trigger comes first, 17 to 29 hours after a
 completed vacuum, and by then dead rows are only about 0.9M to 1.3M (14 to 21
 per second for 17 hours) up to 1.5M to 2.2M (29 hours), assuming the counter
@@ -198,10 +203,10 @@ signals that already exist:
 
 - `pg_stat_progress_vacuum` is the only live view of a running pass (phase,
   heap blocks scanned out of total, index vacuum count), but only for a
-  superuser or a role with `pg_read_all_stats`. For other roles the columns are
-  NULL and a filter on the table returns no rows (reviewer-measured, see the
-  roll-time check), so the `pg_locks` row is the live signal there. The log
-  line and `last_autovacuum` appear only at the end.
+  superuser or a role with `pg_read_all_stats`. For other roles the columns from
+  `relid` on are NULL and a filter on the table returns no rows
+  (reviewer-measured, see the roll-time check), so the `pg_locks` row is the
+  live signal there. The log line and `last_autovacuum` appear only at the end.
 - The autovacuum log line for `fact_records` (pages removed and remaining,
   tuples removed, dead-but-not-yet-removable count, removable cutoff, index
   stats, duration, buffer and WAL usage) appears for any run over 10 minutes.
@@ -242,19 +247,17 @@ that case is not expected; the QA setting itself was not read.
 
 Consequences for rollout:
 
-- Applying the migration on a database where no vacuum of `fact_records` is
-  running is the clean case. A vacuum starts a naptime later only if the
-  counters already exceed the new thresholds at apply time; after a completed
-  vacuum they do not.
+- Applying the migration where no vacuum of `fact_records` is running is the
+  clean case. A vacuum starts a naptime later only if the counters already
+  exceed the new thresholds at apply time; after a completed vacuum they do not.
 - An ALTER applied while a vacuum is running cancels it and restarts it from
-  the beginning, with no warning in the schema Job log; only the Postgres
-  server log says so. Reloptions stay unchanged, so a replay is harmless to
-  the settings and costly to a running vacuum.
+  the beginning, with no warning in the schema Job log (only the Postgres server
+  log says so). Reloptions stay unchanged, so a replay is harmless to the
+  settings and costly to a running vacuum.
 - A one-off ALTER and the later schema Job's receipt-less ALTER are the same
-  statement. If a one-off ran first, the Job would re-issue it and cancel a
-  first vacuum still running. So a one-off is only worth running if the roll
-  is expected after the first vacuum finishes, or if the owner accepts a
-  restart.
+  statement, so a one-off that ran first would be re-issued by the Job and
+  cancel a first vacuum still running. Run a one-off only if the roll is
+  expected after the first vacuum finishes, or if the owner accepts a restart.
 - Any other DDL on `fact_records` that takes the same lock does the same,
   including a separately rolled index migration (open PR #9979 adds a
   `CREATE INDEX CONCURRENTLY`). The PostgreSQL 18 explicit-locking page lists
@@ -282,7 +285,7 @@ Consequences for rollout:
   |---|---|---|
   | The query above | pid, `autovacuum worker`, `active` | pid, `backend_type` NULL, `state` NULL |
   | `pg_stat_progress_vacuum` filtered by the table | pid and phase | no rows |
-  | `pg_stat_progress_vacuum`, all rows | not needed | the pid, every other column NULL |
+  | `pg_stat_progress_vacuum`, all rows | not needed | `pid`, `datid`, `datname`; from `relid` on NULL |
   | `pg_stat_activity.query` for that pid | not needed | `<insufficient privilege>` |
   | `pg_stat_user_tables` counters | not needed | readable |
 
@@ -296,9 +299,15 @@ Consequences for rollout:
     A session of your own role shows its type, so a schema Job's index build is
     recognisable. Superusers see `backend_type = 'autovacuum worker'`.
   - For the roll hold, treat a NULL-typed row as "vacuum running". Do not read
-    a blank type, or an empty `pg_stat_progress_vacuum` result, as "no vacuum".
+    a blank type, or an empty `pg_stat_progress_vacuum` result filtered by the
+    table, as "no vacuum"; an empty unfiltered result does mean none.
+  - A hidden pid listed in the unfiltered `pg_stat_progress_vacuum` is a vacuum.
+    An analyze-only worker shows the same NULL row but is listed in
+    `pg_stat_progress_analyze` instead, and `last_autoanalyze` moves. The #9805
+    exclusion window opens on either row, which errs on the safe side.
   - Confirm with `last_autovacuum` and `autovacuum_count` before and after. A
-    completed vacuum moves both; a cancelled one moves neither.
+    completed vacuum moves both; a cancelled one, or an analyze-only worker,
+    moves neither.
   - The lock row alone cannot name the holder's type for such a role, and
     progress detail needs `pg_read_all_stats`.
 
@@ -307,12 +316,23 @@ Consequences for rollout:
   After a completed vacuum the roll is clean. The query is the arbiter's
   recipe; the reviewer ran it as above. It reads the lock table, so it works
   where the progress view is hidden, but only as the hidden-holder test
-  described here.
+  described here. Three gaps, each a reviewer measurement (PostgreSQL 18.6
+  scratch tables, naptime 1 s):
+  - A roll carrying 274 (the #9979 index build) and 275 does not restart the
+    vacuum within a naptime. A session lock stood in for the build (not a real
+    `CREATE INDEX CONCURRENTLY`): with the trigger exceeded, the server logged
+    `skipping vacuum ... lock not available` each naptime and no worker ran
+    until the holder ended. Dead rows keep growing; 274 on QA was not checked.
+  - The row outlives the vacuum: after `autovacuum_count` moved, the same pid
+    held it through the post-vacuum ANALYZE, and an ALTER then cancelled only
+    the ANALYZE (`vac=1 an=0`). The log still read `canceling autovacuum task`
+    with vacuum context, so trust `autovacuum_count`, not the row or that line.
+  - The read is point-in-time. Rerun it immediately before the ALTER.
 - If the lock is blocked by an anti-wraparound worker, a manual VACUUM or
   ANALYZE, or any session holding a conflicting lock (a concurrent index build
-  is one), the runner's per-statement `lock_timeout` (5 s) and its 3-minute
-  retry budget apply; past that the Job fails closed and a re-sync recovers
-  it. `pg_locks` names the holder.
+  is one), the runner's per-statement `lock_timeout` (5 s) and 3-minute retry
+  budget apply; past that the Job fails closed and a re-sync recovers it.
+  `pg_locks` names the holder.
 
 There is no reverse migration in this change; see the stop procedure below.
 
@@ -335,16 +355,22 @@ WAL here is unmeasured.
   pass. Diagnosis 9.1 found the progress columns NULL for `eshu`, and
   `delay_time` and the other columns need `pg_read_all_stats`, which QA does not
   grant that role. A grant is a change nobody has authorized here. To tell
-  whether a hidden vacuum is still advancing, read, every 10 minutes:
+  whether a hidden vacuum is still running, read, every 10 minutes:
   - The `pg_locks` row keeps the same pid. A new pid or no row means the pass
-    ended or restarted; check `last_autovacuum` and `autovacuum_count`.
+    ended or restarted; check `last_autovacuum` and `autovacuum_count`. A steady
+    pid shows the worker is alive, not that the vacuum is advancing: the
+    reviewer saw the same pid hold the row after `autovacuum_count` moved (0
+    rows in `pg_stat_progress_vacuum`, 1 in `pg_stat_progress_analyze`), and a
+    wedged worker looks the same. Without `pg_read_all_stats`, a pass's own
+    progress is not readable; its end shows in `last_autovacuum`,
+    `autovacuum_count` and, past 10 minutes, the log line.
   - `n_dead_tup`, `pg_statio_user_tables` block counters for `fact_records`
     (`heap_blks_read`, `heap_blks_hit`, and `idx_blks_*`), and the WAL position
     (`pg_current_wal_lsn()`) keep moving.
   - Inference, not measured: those counters include the normal workload, so
     they show the table and cluster are active, not that this pid is. Only the
-    pid holding the lock identifies the vacuum. `n_dead_tup` also rises with
-    ongoing updates until the run reports at its end.
+    pid holding the lock identifies the worker; `n_dead_tup` also rises with
+    ongoing updates.
 - Stopping it. `pg_cancel_backend` on the worker alone does not stop it: the
   thresholds are still exceeded, and the review measured a new worker within
   one naptime. Which of the next two steps works depends on the counters, so
@@ -452,12 +478,10 @@ after `last_autovacuum` updates.
   removable cutoff is the test. `idle_in_transaction_session_timeout` and
   `transaction_timeout` were 0 on the QA primary, so a new holder can recur.
 - Table ownership of `fact_records` under the runtime role on a deployed
-  database. Migration 273 already builds an index on this table through the
-  same schema Job, which implies the Job's role has the access; that is read
-  from the migration's existence, not from QA.
-- The deployed PostgreSQL major version. The diagnosis read PostgreSQL 18.3;
-  the lock text was confirmed on the PostgreSQL 18 maintenance and ALTER TABLE
-  pages and the lock behavior was measured on 18.6.
+  database. Migration 273 builds an index on it through the same schema Job,
+  which implies the access; that is read from the migration, not from QA.
+- The deployed PostgreSQL major version. The diagnosis read 18.3; the lock text
+  is from the PostgreSQL 18 docs and the lock behavior was measured on 18.6.
 - QA `deadlock_timeout`, `autovacuum_freeze_max_age`,
   `max_standby_streaming_delay`, and `max_slot_wal_keep_size`. If QA's
   `deadlock_timeout` were at or above 5 s, the ALTER would hit its
