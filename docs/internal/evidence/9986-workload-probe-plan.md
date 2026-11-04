@@ -157,8 +157,11 @@ The probe also requires `parsed_file_data` to be a JSON object, joins
 `repo_id` to `graph_id` with the same trimming extraction applies, and keeps
 the `?|` key-existence test as a cheap first filter. The language and path
 gates extraction adds to some signals are not repeated, because dropping a
-gate can only turn a false into a true (a cheap storm-window deferral), never
-the reverse. Every key travels in a bound array derived from `factload`
+gate can only turn a false into a true, never the reverse. A true for a
+candidate-free generation can defer it, non-counting, until its own
+relationship generation activates or its producer reaches a terminal state; it
+can never count, because the pre-gate returns nil on a counting verdict and the
+post-load gate decides on real candidates (F1). Every key travels in a bound array derived from `factload`
 (`WorkloadCandidateArrayBucketKeys`, `WorkloadCandidatePresenceKeys`,
 `WorkloadCandidateTokenKeys`; a unit test pins that they partition
 `WorkloadCandidateSignalKeys`).

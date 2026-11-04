@@ -206,7 +206,7 @@ VALUES
 // runs the shipped probe statement and reducer.ExtractWorkloadCandidates on
 // the identical payload JSON, and fails when the probe answers false although
 // extraction yields a candidate. It also reports how often the probe answers
-// true although extraction yields none (a storm-window deferral, never a
+// true although extraction yields none (a non-counting deferral, never a
 // wrong graph) next to the key-existence baseline.
 func TestScopeMayHoldWorkloadCandidatesDifferentialLive(t *testing.T) {
 	ctx, db := openCandidateProbeSchema(t, "eshu_9986_candidate_differential_live", 240*time.Second)

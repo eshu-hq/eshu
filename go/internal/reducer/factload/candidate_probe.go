@@ -81,8 +81,11 @@ var WorkloadCandidateTokenKeys = []string{"artifact_type"}
 // unimplemented probe all load and gate normally, so a candidate-free
 // generation keeps its vacuous success. A false answer for a generation
 // that would yield candidates only misses a saving (the post-load gates
-// still run); a true answer for an empty generation only risks a cheap
-// storm-window deferral that the queue retries to the same success.
+// still run). A true answer for a candidate-free generation can defer it,
+// non-counting, until its own relationship generation activates or its
+// producer reaches a terminal state; it can never count, because the pre-gate
+// returns nil on a counting verdict and the post-load gate decides on real
+// candidates.
 type WorkloadCandidateProbe interface {
 	ScopeMayHoldWorkloadCandidates(ctx context.Context, scopeID, generationID string) (bool, error)
 }

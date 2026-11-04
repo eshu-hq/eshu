@@ -33,8 +33,12 @@ import (
 // when the file holds no such evidence, so key existence alone was true for
 // every file-bearing scope on QA. The language and path gates extraction adds
 // to some signals are deliberately not repeated: dropping a gate only makes
-// the probe answer true more often (a cheap storm-window deferral), never
-// false for a generation that yields a candidate. The differential live test
+// the probe answer true more often, never false for a generation that yields
+// a candidate. A true answer for a candidate-free generation can defer it,
+// non-counting, until its own relationship generation activates or its
+// producer reaches a terminal state; it can never count, because the pre-gate
+// returns nil on a counting verdict and the post-load gate decides on real
+// candidates. The differential live test
 // proves that direction against ExtractWorkloadCandidates on the same
 // payloads. Tombstones are intentionally NOT filtered: the scope-local kind
 // loads hand tombstoned envelopes to extraction, so the probe sees the same

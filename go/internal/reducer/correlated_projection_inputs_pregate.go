@@ -27,8 +27,8 @@ import (
 // (#9697): under a resolution storm almost every intent deferred after
 // loading, so the load was pure allocation churn feeding the engine OOM
 // livelock. A deferral here returns the same non-counting
-// workloadMaterializationResolutionNotReadyError (or the same counting
-// producer error) the post-load gates return, only earlier. The post-load
+// workloadMaterializationResolutionNotReadyError the post-load gates return,
+// only earlier; the pre-gate never returns a counting error. The post-load
 // gates still run after the load, so graph truth is unchanged: a ready intent
 // loads exactly once, and a deferred intent retries on the same fence.
 //
@@ -41,6 +41,13 @@ import (
 // fails open, every probe call is counted and every error class is logged
 // (#9986): a probe that always errors would otherwise disable the shed
 // silently, which is how the #9700 syntax error went unseen.
+//
+// The probe is a superset of ExtractWorkloadCandidates by design, so the
+// pre-gate only ever defers (non-counting) or proceeds; it never counts. A
+// false positive on a candidate-free generation can defer it, non-counting,
+// until its own relationship generation activates or its producer reaches a
+// terminal state; it can never count, because the pre-gate returns nil on a
+// counting verdict and the post-load gate decides on real candidates.
 func (l CorrelatedWorkloadProjectionInputLoader) deferUnlessReadyForBulkLoad(
 	ctx context.Context,
 	intent reducercontract.Intent,
@@ -61,14 +68,21 @@ func (l CorrelatedWorkloadProjectionInputLoader) deferUnlessReadyForBulkLoad(
 		active, err := l.ResolutionActiveLookup(intent.GenerationID)
 		if err != nil {
 			return workloadMaterializationResolutionNotReadyError{
-				scopeID: intent.ScopeID, generationID: intent.GenerationID,
+				scopeID: intent.ScopeID, generationID: intent.GenerationID, cause: err,
 			}
 		}
 		if !active {
 			gate := crossrepo.EvaluateOwnGate(ctx, l.ResolutionActiveLookup, l.ResolutionProducerLookup,
 				intent, true, time.Now().UTC())
 			if gate.Err != nil {
-				return gate.Err
+				// A counting verdict (dead-lettered or long-missing producer)
+				// is decided on assumed candidates here, and the probe is a
+				// superset: a candidate-free generation can reach this line.
+				// Counting it would dead-letter work the normal path succeeds
+				// on vacuously. Proceed to the bulk load; the post-load gate
+				// evaluates the same producer with the real candidate count
+				// and counts only a candidate-bearing scope (#7597 intact).
+				return nil
 			}
 			return workloadMaterializationResolutionNotReadyError{
 				scopeID: intent.ScopeID, generationID: intent.GenerationID, producerDetail: gate.ProducerDetail,
