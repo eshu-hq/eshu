@@ -77,6 +77,7 @@ ADMIN_ENVS = {
     "disposable_storage": (
         "ESHU_TEST_CONTENT_INDEX_POSTGRES",
         "ESHU_TEST_SUPPLY_CHAIN_RUNTIME_INDEX_POSTGRES",
+        "ESHU_TEST_WORKLOAD_PROBE_POSTGRES",
     ),
 }
 
@@ -115,6 +116,8 @@ PR_PATHS = {
     "go/internal/storage/postgres/reducer_queue_domain_fairness_test.go",
     "go/internal/storage/postgres/reducer_queue_supersede_readiness_test.go",
     "go/internal/storage/postgres/testdata/**",
+    "go/internal/storage/postgres/workload_candidate_precondition.go",
+    "go/internal/storage/postgres/workload_candidate_precondition_corpus_test.go",
     "go/internal/testutil/postgresproof/**",
     "scripts/ci/go-mod-download-retry.sh",
     "scripts/lib/live_tests_registry.py",

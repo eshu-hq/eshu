@@ -277,6 +277,7 @@ func (h WorkloadMaterializationHandler) loadProjectionInputs(
 	var inputLoader WorkloadProjectionInputLoader = CorrelatedWorkloadProjectionInputLoader{
 		FactLoader:     h.FactLoader,
 		ResolvedLoader: h.ResolvedLoader,
+		Instruments:    h.Instruments,
 	}
 	if h.InputLoader != nil {
 		inputLoader = h.InputLoader

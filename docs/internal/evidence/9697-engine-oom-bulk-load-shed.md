@@ -91,3 +91,15 @@ bulk-load pre-gate, workload candidate-precondition probe contract).
   `-race` on the touched surfaces; the only red is the pre-existing
   environmental `TestSchemaBootstrapCoordinationDefaultsFitTheJobDeadline`
   (missing `ESHU_DEPLOY_CHECKOUT`, fails identically on untouched base).
+
+## Correction (#9986): the probe never executed
+
+The probe statement above was a SQL syntax error (`'{'k','k2'}'`): PostgreSQL
+rejected every execution with SQLSTATE 42601, and the loader treats a probe
+error as "proceed to the normal load". The deferred-load figures in this note
+come from the hermetic fake-DB harness, which never ran the SQL, and the CI
+live test that was meant to cover it was classed `scheduled` and had not run
+green. The shed measured here therefore did not fire in production. #9986
+binds the keys as one `text[]` parameter, replaces the string-contains unit
+test, runs the live test green, and adds the probe-outcome counter. See
+`docs/internal/evidence/9986-workload-probe-plan.md` for the plan evidence.

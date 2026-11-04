@@ -3178,6 +3178,11 @@ type Instruments struct {
 	// noop, error), once per transaction. Registered by
 	// registerCompletionWakeInstruments.
 	ReducerCompletionWake metric.Int64Counter
+	// ReducerWorkloadCandidateProbe counts #9986 workload bulk-load pre-gate
+	// candidate-precondition probe calls by outcome (may_hold, no_candidates,
+	// error) and error cause_class. Registered by
+	// registerWorkloadCandidateProbeInstruments.
+	ReducerWorkloadCandidateProbe metric.Int64Counter
 	// WorkflowClaimPlaneRequests counts #8875 collector requests to the
 	// workflow claim plane by operation and outcome. Registered by
 	// registerClaimPlaneInstruments.
@@ -6393,6 +6398,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerCompletionWakeInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerWorkloadCandidateProbeInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerClaimPlaneInstruments(meter, inst); err != nil {
