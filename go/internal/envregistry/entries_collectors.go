@@ -89,7 +89,7 @@ var collectorEntries = func() []Entry {
 	// required when enabled; a missing piece fails startup closed.
 	add(
 		Entry{Name: "ESHU_DOC_IMPORT_ENABLED", Type: VarBool, Default: "false", Subsystem: "collector-document-import", Description: "Opts in to the one-shot reviewed-image OCR drain; anything but true exits 0 with zero commits."},
-		Entry{Name: "ESHU_DOC_IMPORT_TIER", Type: VarString, Subsystem: "collector-document-import", Description: "Deployment tier allowed to inject the engine; the only accepted value is qa (ops-qa, #8879). Required when enabled."},
+		Entry{Name: "ESHU_DOC_IMPORT_TIER", Type: VarString, Subsystem: "collector-document-import", Description: "Deployment tier allowed to inject the engine; the only accepted value is qa (QA tier, #8879). Required when enabled."},
 		Entry{Name: "ESHU_DOC_IMPORT_ARTIFACT_DIR", Type: VarString, Subsystem: "collector-document-import", Description: "Absolute directory of reviewed image files to drain. Required when enabled."},
 		Entry{Name: "ESHU_DOC_IMPORT_TESSERACT_BINARY_PATH", Type: VarString, Subsystem: "collector-document-import", Description: "Absolute path of the pinned tesseract executable, never resolved via PATH. Required when enabled."},
 		Entry{Name: "ESHU_DOC_IMPORT_TESSERACT_BINARY_SHA256", Type: VarString, Subsystem: "collector-document-import", Description: "Pinned hex SHA-256 of the tesseract executable. Required when enabled."},
@@ -108,7 +108,7 @@ var collectorEntries = func() []Entry {
 	// missing piece fails startup closed.
 	add(
 		Entry{Name: "ESHU_MEDIA_IMPORT_ENABLED", Type: VarBool, Default: "false", Subsystem: "collector-media-import", Description: "Opts in to the one-shot reviewed-audio transcript drain; anything but true exits 0 with zero commits."},
-		Entry{Name: "ESHU_MEDIA_IMPORT_TIER", Type: VarString, Subsystem: "collector-media-import", Description: "Deployment tier allowed to inject the engine; the only accepted value is qa (ops-qa, #8879). Required when enabled."},
+		Entry{Name: "ESHU_MEDIA_IMPORT_TIER", Type: VarString, Subsystem: "collector-media-import", Description: "Deployment tier allowed to inject the engine; the only accepted value is qa (QA tier, #8879). Required when enabled."},
 		Entry{Name: "ESHU_MEDIA_IMPORT_ARTIFACT_DIR", Type: VarString, Subsystem: "collector-media-import", Description: "Absolute directory of reviewed audio files to drain. Required when enabled."},
 		Entry{Name: "ESHU_MEDIA_IMPORT_WHISPER_BINARY_PATH", Type: VarString, Subsystem: "collector-media-import", Description: "Absolute path of the pinned whisper-cli executable, never resolved via PATH. Required when enabled."},
 		Entry{Name: "ESHU_MEDIA_IMPORT_WHISPER_BINARY_SHA256", Type: VarString, Subsystem: "collector-media-import", Description: "Pinned hex SHA-256 of the whisper-cli executable. Required when enabled."},

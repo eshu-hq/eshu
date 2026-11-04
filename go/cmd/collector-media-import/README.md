@@ -23,7 +23,7 @@ What it explicitly does not do: deploy itself (no chart, no IaC reference, no
 image-pin change), run on a schedule (one-shot, then exit), fall back to
 another engine (a missing pin is a startup error, never a quiet substitution),
 or accept non-QA tiers (only `qa` enables injection; no production caller beyond
-ops-qa is claimed).
+the QA tier is claimed).
 
 ## Exported surface
 
@@ -56,7 +56,7 @@ See `doc.go` for the full godoc contract.
 | Variable | Required when enabled | Role |
 | --- | --- | --- |
 | `ESHU_MEDIA_IMPORT_ENABLED` | — | `true` opts in; anything else exits 0 with zero commits. |
-| `ESHU_MEDIA_IMPORT_TIER` | yes | Must be exactly `qa`: QA-tier-only engine injection (ops-qa, #8879). |
+| `ESHU_MEDIA_IMPORT_TIER` | yes | Must be exactly `qa`: QA-tier-only engine injection (QA tier, #8879). |
 | `ESHU_MEDIA_IMPORT_ARTIFACT_DIR` | yes | Absolute directory of reviewed audio files. |
 | `ESHU_MEDIA_IMPORT_WHISPER_BINARY_PATH` | yes | Absolute whisper-cli path; never resolved via PATH. |
 | `ESHU_MEDIA_IMPORT_WHISPER_BINARY_SHA256` | yes | Pinned hex digest of the whisper-cli executable. |
@@ -101,7 +101,14 @@ ingestion store. Gate impact is nil by construction: the binary runs only when
 explicitly enabled on the QA tier, and disabled start exits 0 with zero
 commits, zero DB connections, and zero envelopes.
 
-Row recorded in `docs/public/observability/telemetry-coverage-collectors.md`.
+Observability Evidence: extraction status, region counts, and redaction
+counts stay covered by `eshu_dp_media_transcript_extractions_total` and
+`eshu_dp_media_transcript_redacted_segments_total` plus the
+`media.transcript_extract` span, all counted by the `Extract` wrapper with
+caller-provided instruments (row recorded in
+`docs/public/observability/telemetry-coverage-collectors.md`); commit
+outcomes by the standard ingestion-store commit path; the caller binary's
+own files emit no metric of their own.
 
 ## Gotchas / invariants
 
@@ -109,7 +116,7 @@ Row recorded in `docs/public/observability/telemetry-coverage-collectors.md`.
   deployed, and startup requires the enable flag plus the QA tier, the dir,
   and every pin.
 - QA-tier-only: `ESHU_MEDIA_IMPORT_TIER` must be exactly `qa`; any other
-  value fails closed. No production caller beyond ops-qa is claimed.
+  value fails closed. No production caller beyond the QA tier is claimed.
 - WAV-only: only WAV reaches the engine. Every other format drains as the
   honest skipped observation the `media` package already emits; the engine is
   never invoked for it.

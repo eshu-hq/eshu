@@ -15,7 +15,7 @@
   every engine pin required when enabled.
 - QA-tier-only injection: the engine is constructed only for tier `qa`. Never
   widen the accepted tier without an arbiter ruling and a gate-2 evidence
-  update; no production caller beyond ops-qa is claimed.
+  update; no production caller beyond the QA tier is claimed.
 - WAV-only stays: only WAV reaches the engine. Never add a format knob or a
   second engine without a design update and security review; other formats
   stay off by default and drain as skipped observations.

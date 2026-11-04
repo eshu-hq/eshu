@@ -66,7 +66,7 @@ func TestLoadMediaImportConfigNilGetenv(t *testing.T) {
 // TestLoadMediaImportConfigRequiresExplicitQATier proves engine injection is
 // QA-tier-only (#8879, #9729 AC2): an enabled collector without
 // ESHU_MEDIA_IMPORT_TIER=qa fails closed naming the variable, and any other
-// tier value is rejected. No production caller beyond ops-qa is claimed.
+// tier value is rejected. No production caller beyond the QA tier is claimed.
 func TestLoadMediaImportConfigRequiresExplicitQATier(t *testing.T) {
 	t.Parallel()
 

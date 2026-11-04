@@ -39,8 +39,8 @@ const (
 // Config is the validated startup configuration. Enabled is false unless the
 // operator explicitly opts in; every other field is required only when
 // Enabled is true. Tier is the only deployment tier this caller may inject
-// the engine on: the QA tier (ops-qa, #8879). No production caller beyond
-// ops-qa is claimed.
+// the engine on: the QA tier (#8879). No production caller beyond
+// the QA tier is claimed.
 type Config struct {
 	Enabled      bool
 	Tier         string
@@ -96,7 +96,7 @@ func loadImportConfig(getenv func(string) string) (Config, error) {
 }
 
 // loadTier enforces QA-tier-only engine injection: the enabled collector runs
-// only when the operator explicitly declares the QA tier (ops-qa, #8879).
+// only when the operator explicitly declares the QA tier (#8879).
 // Any other value fails closed naming the variable.
 func loadTier(getenv func(string) string) (string, error) {
 	const qaTier = "qa"

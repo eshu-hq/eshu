@@ -29,7 +29,7 @@ Grafana, Prometheus/Mimir, PagerDuty, CI/CD run, security alert, SBOM, and vulne
 | `ESHU_DOC_IMPORT_TESSERACT_LIBRARIES` | string | — | Semicolon-separated path=digest pins for the tesseract shared libraries; at least one. Required when enabled. |
 | `ESHU_DOC_IMPORT_TESSERACT_MODEL_SHA256` | string | — | Pinned hex SHA-256 of eng.traineddata. Required when enabled. |
 | `ESHU_DOC_IMPORT_TESSERACT_TESSDATA_DIR` | string | — | Absolute tessdata directory holding eng.traineddata. Required when enabled. |
-| `ESHU_DOC_IMPORT_TIER` | string | — | Deployment tier allowed to inject the engine; the only accepted value is qa (ops-qa, #8879). Required when enabled. |
+| `ESHU_DOC_IMPORT_TIER` | string | — | Deployment tier allowed to inject the engine; the only accepted value is qa (QA tier, #8879). Required when enabled. |
 
 ## collector-grafana
 
@@ -50,7 +50,7 @@ Grafana, Prometheus/Mimir, PagerDuty, CI/CD run, security alert, SBOM, and vulne
 | `ESHU_MEDIA_IMPORT_MAX_ARTIFACTS` | int | `1024` | Per-run artifact bound; must stay positive and cannot be disabled. |
 | `ESHU_MEDIA_IMPORT_SCOPE_PREFIX` | string | `media-import-transcript` | Scope ID prefix for drained generations. |
 | `ESHU_MEDIA_IMPORT_SOURCE_SYSTEM` | string | `media_import` | Source system recorded on drained scopes. |
-| `ESHU_MEDIA_IMPORT_TIER` | string | — | Deployment tier allowed to inject the engine; the only accepted value is qa (ops-qa, #8879). Required when enabled. |
+| `ESHU_MEDIA_IMPORT_TIER` | string | — | Deployment tier allowed to inject the engine; the only accepted value is qa (QA tier, #8879). Required when enabled. |
 | `ESHU_MEDIA_IMPORT_WHISPER_BINARY_PATH` | string | — | Absolute path of the pinned whisper-cli executable, never resolved via PATH. Required when enabled. |
 | `ESHU_MEDIA_IMPORT_WHISPER_BINARY_SHA256` | string | — | Pinned hex SHA-256 of the whisper-cli executable. Required when enabled. |
 | `ESHU_MEDIA_IMPORT_WHISPER_ENGINE_VERSION` | string | — | Reviewed whisper.cpp release the backend records, e.g. v1.9.5. Required when enabled. |

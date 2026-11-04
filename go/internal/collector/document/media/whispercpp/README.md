@@ -19,7 +19,7 @@ callers, add runtime flags, or enable hosted extraction. The only wired
 caller is `go/cmd/collector-media-import`, a disabled-by-default one-shot
 drain with explicit QA-tier-only injection. Use stays QA-tier only (the QA
 environment) until the security review lands; no production caller beyond
-ops-qa is claimed.
+the QA tier is claimed.
 
 ## Exported surface
 

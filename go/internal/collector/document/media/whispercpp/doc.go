@@ -47,6 +47,6 @@
 // The backend decision, sandbox profile, and image packaging status are
 // recorded in README.md. The only wired caller is
 // go/cmd/collector-media-import, a disabled-by-default one-shot drain with
-// explicit QA-tier-only injection; no production caller beyond ops-qa is
+// explicit QA-tier-only injection; no production caller beyond the QA tier is
 // claimed.
 package whispercpp
