@@ -13,6 +13,17 @@ side of the join that arrives last: a CVE can land before the package that
 carries it is known, and a package identity or OCI manifest can land after
 the vulnerability intelligence that already names it.
 
+A git generation that changes a manifest or lockfile holds none of those
+twelve kinds, so before #9874 a new or removed pin changed nothing until an
+advisory scope reran. Now a generation whose only trigger is a git dependency
+row (a `content_entity` Variable with `config_kind` dependency, source `git`,
+not a central version declaration, tombstones included) enqueues one marker
+intent with payload `trigger: manifest_dependency`. The entity key stays
+`supply_chain_impact:<scope>`, so a push that changes 500 pins is one intent.
+The marker is exclusive: a generation that also holds one of the twelve kinds
+keeps the ordinary intent and no marker. The reducer branch for the marker is
+in `go/internal/reducer/supplychain/core/manifest_trigger.go`.
+
 ## Ownership boundary
 
 The package owns only the trigger selection, the reason string, and the
@@ -42,8 +53,12 @@ The builder depends on `internal/projector/intent.FactLookup`,
 root projector package — root already imports this package to dispatch to
 it, so the reverse import would cycle. It reads `internal/facts` for the
 twelve fact-kind constants and `internal/reducer` for the domain constant.
-There is no decode seam: like `cicd/run/correlation` and `package/source`, this
-builder reads only envelope fields and never a payload key.
+There is no decode seam. The twelve-kind trigger reads only envelope fields;
+the manifest marker predicate (`manifest_trigger.go`) reads a few payload keys
+from the already-decoded map, most selective first, and decodes no JSON. Its
+worst case (a generation of non-dependency Variables) is measured by
+`BenchmarkManifestDependencyTriggerNoDependency`; see
+`docs/internal/evidence/9874-lockfile-retrigger.md`.
 
 ## Telemetry
 
@@ -53,7 +68,9 @@ reducer handler retains `eshu_dp_reducer_executions_total`,
 `eshu_dp_reducer_run_duration_seconds`, and
 `eshu_dp_supply_chain_impact_findings_total` for its cross-source join.
 Moving the pure builder adds no queue, storage, graph, span, metric, or log
-boundary.
+boundary. The #9874 marker intent is counted by the same enqueue metric; its
+reducer outcome is counted under `cause=manifest_dependency` on
+`eshu_dp_supply_chain_impact_fanout_total`.
 
 ## Gotchas / invariants
 
