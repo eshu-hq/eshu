@@ -1,0 +1,7 @@
+apiVersion: delta.acme.internal/v1alpha1
+kind: DeltaQueue
+metadata:
+  name: golden-delta-reader-queue
+  namespace: delta-reader
+spec:
+  retentionHours: 48

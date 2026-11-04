@@ -39,6 +39,9 @@ type GraphSnapshot struct {
 	// additive: an empty list preserves historical behaviour (no self-loop
 	// assertions).
 	RequiredSelfLoops []RequiredSelfLoop `json:"required_self_loops,omitempty"`
+	// DeltaReaderAssertions is the delta-active repository's reducer-output
+	// contract (#10022), asserted by the opt-in delta-readers phase.
+	DeltaReaderAssertions *DeltaReaderAssertions `json:"delta_reader_assertions,omitempty"`
 }
 
 // CountRange is an inclusive [Min, Max] tolerance for a node label or edge type.

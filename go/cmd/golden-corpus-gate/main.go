@@ -74,13 +74,17 @@ type options struct {
 	diffExecutionsAdvisoryMax   int
 	coverageManifest            string
 	coverageDirs                string
+	// deltaReaderStage and deltaReaderIgnoreExpectedFailures drive the
+	// opt-in delta-readers phase (#10022).
+	deltaReaderStage                  string
+	deltaReaderIgnoreExpectedFailures bool
 }
 
 func parseFlags(args []string) (options, error) {
 	fs := flag.NewFlagSet("golden-corpus-gate", flag.ContinueOnError)
 	var o options
 	fs.StringVar(&o.snapshotPath, "snapshot", "testdata/golden/e2e-20repo-snapshot.json", "path to the B-12 golden snapshot")
-	fs.StringVar(&o.phase, "phase", "all", "comma-separated phases to run: drains,graph,query,timing,demo-answers,backend-diff,statement-coverage,writer-coverage,all (backend-diff, statement-coverage, and writer-coverage are opt-in and excluded from all: they need capture directories, #6782, #6783, #7212)")
+	fs.StringVar(&o.phase, "phase", "all", "comma-separated phases to run: drains,graph,query,timing,demo-answers,delta-union,delta-readers,backend-diff,statement-coverage,writer-coverage,all (backend-diff, statement-coverage, and writer-coverage are opt-in and excluded from all: they need capture directories, #6782, #6783, #7212; delta-readers is opt-in because it needs the delta fixture repository, #10022)")
 	fs.StringVar(&o.demoManifestPath, "demo-manifest", "specs/demo-first-answers.v1.yaml", "path to the demo-first-answers manifest asserted live by the demo-answers phase (#4776)")
 	fs.StringVar(&o.apiBaseURL, "api-base-url", "http://localhost:8080", "base URL of a running eshu-api for query truth")
 	fs.StringVar(&o.mcpBaseURL, "mcp-base-url", "", "base URL of a running eshu-mcp-server (http transport); when set, the query phase also asserts the snapshot's MCP tool query shapes live (#3866)")
@@ -111,6 +115,8 @@ func parseFlags(args []string) (options, error) {
 	fs.IntVar(&o.diffExecutionsAdvisoryMax, "diff-executions-advisory-max", 0, "quorum mode only (#6941): ceiling on the reproduced advisory divergence total (scheduling-noise execution counts or row totals with agreeing results, plus reproduced transient-read and tie-order exclusions); above it the gate adds a required failing nornicdb_vs_neo4j_executions_ceiling finding instead of leaving the total unbounded. 0 (default) disables the ceiling; the existing nornicdb_vs_neo4j_executions advisory finding is unchanged either way")
 	fs.StringVar(&o.coverageManifest, "coverage-manifest", "go/internal/queryplan/testdata/statement-builders.yaml", "path to the checked-in statement builders manifest joined against capture recordings (#6783)")
 	fs.StringVar(&o.coverageDirs, "coverage-dirs", "", "comma-separated directories of differential capture recordings to cover, one per leg (recordings merge by backend); read by the statement-coverage and writer-coverage phases")
+	fs.StringVar(&o.deltaReaderStage, "delta-reader-stage", "delta", "delta-readers phase stage (#10022): full asserts every graph.delta_reader_assertions edge on the fixture's base full generation; delta asserts them after the delta generation is active")
+	fs.BoolVar(&o.deltaReaderIgnoreExpectedFailures, "delta-reader-ignore-expected-failures", false, "delta-readers phase (#10022): treat every edge as plainly required, ignoring expected_failure markers, to capture the RED of the open delta-reader defects")
 	if err := fs.Parse(args); err != nil {
 		return options{}, err
 	}

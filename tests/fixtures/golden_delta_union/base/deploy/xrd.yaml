@@ -1,0 +1,26 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: CompositeResourceDefinition
+metadata:
+  name: xdeltaqueues.delta.acme.internal
+spec:
+  group: delta.acme.internal
+  names:
+    kind: XDeltaQueue
+    plural: xdeltaqueues
+  claimNames:
+    kind: DeltaQueue
+    plural: deltaqueues
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                retentionHours:
+                  type: integer
+                  default: 24
