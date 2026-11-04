@@ -1,0 +1,33 @@
+go/internal/projector/runtime/repo_dependency_cassette_admission_test.go
+  s_7547c0f0af67d4::t_d7238ddb9c9eb2 54-57
+go/internal/projector/runtime/supply_chain_impact_manifest_projection_test.go
+  s_7547c0f0af67d4::t_14fab5150c7f8d 103-110,119,125-127,137,142-221
+go/internal/projector/runtime/workload_dependency_cassette_admission_test.go
+  s_7547c0f0af67d4::t_cd9fe01562be13 103-106
+go/internal/projector/supply/chain/impact/README.md
+  s_7547c0f0af67d4::t_45f0b807fb04fd 18-27
+go/internal/projector/supply/chain/impact/doc.go
+  s_7547c0f0af67d4::t_28c91f109e7ce9 11-13
+go/internal/projector/supply/chain/impact/manifest_trigger.go
+  s_7547c0f0af67d4::t_4720f09945b45d 31-35,42-49,65-74
+go/internal/projector/supply/chain/impact/manifest_trigger_test.go
+  s_7547c0f0af67d4::t_6a3026a5019fe2 139-173
+go/internal/reducer/supplychain/core/manifest_chain_test.go
+  s_7547c0f0af67d4::t_f4938763ad58ae 253-272
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ebeb94650ea76e0e8180528ef2ca4738d0cc8ec7",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
