@@ -241,11 +241,8 @@ reltuples FROM pg_class WHERE oid = 'fact_records'::regclass` (reviewer-run on a
 scratch table only, not on QA). On the one hour's rates the dead-row trigger is
 first, 10.3 to 10.8 hours after the 10:43Z end (roughly 21:00Z to 21:30Z on
 2026-11-04, if 278 has rolled by then and the rates held), and the insert
-trigger at 55 to 56 hours. An earlier version of this note said the insert
-trigger comes first, 17 to 29 hours after a completed vacuum; that used the
-baseline rates and does not hold at the rates measured since. The order depends
-on the rates: at 14 dead rows and 80 inserts per second the insert trigger would
-come first. So key on whichever counter is nearer its trigger; do not assume
+trigger at 55 to 56 hours. The order depends on the rates: at the baseline 14
+dead rows and 80 inserts per second the insert trigger would come first. So key on whichever counter is nearer its trigger; do not assume
 the order. Before 278 has rolled, the triggers are the server defaults and none
 of these figures apply.
 

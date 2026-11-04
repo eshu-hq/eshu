@@ -112,23 +112,21 @@ QA" section holds the readings and their limits.
   index vacuuming"), and the log then reads `index scans: 0` and `index scan
   bypassed`. At QA's first-vacuum density of 5.32 per page, 278's dead-row
   trigger is about 1.70% of pages, so the second pass probably bypasses
-  (arithmetic, not observed). The first
-  pass (1 index scan, 1 h 42 min, 48.2 GiB of WAL) is the only price measured.
+  (arithmetic, not observed). The first pass (1 index scan, 1 h 42 min,
+  48.2 GiB of WAL) is the only price measured.
   The cycle times below are arithmetic from one hour of post-vacuum rates on QA
   (52.1 dead rows and 19.7 inserts per second), and each ratio assumes those
   rates persist. At the default triggers (about 19.29M dead rows and 15.97M
   inserts after the first vacuum) the dead-row path is first, at about 103
   hours between runs. With 278's triggers (1,928,622 dead rows, 3,992,078
   inserts, from the 10:45Z `pg_class` reading) it is first at about 10.3 hours,
-  and the insert path would take 56. That is about ten times as many passes, because the dead path moves from 0.20
-  to 0.02 of the table, on a throttled primary, indefinitely; if alternate
-  passes bypass, nearer five times as many index scans (arithmetic on that
-  assumption). The earlier estimates here (insert-driven, 2.8 to 4.8 days
-  against 17 to 29 hours, "roughly four times") used the pre-vacuum insert rates
-  of 80 and 47 per second and are replaced. Read the second run's log line (`index scans:`, then
-  `index scan needed` or `bypassed`) to price the steady state. If it reads
-  `index scans: 0`, the probe says nothing yet; the note's decision bullet
-  applies.
+  and the insert path would take 56. That is about ten times as many passes,
+  because the dead path moves from 0.20 to 0.02 of the table, on a throttled
+  primary, indefinitely; if alternate passes bypass, nearer five times as many
+  index scans (arithmetic on that assumption). Read the second run's log line
+  (`index scans:`, then `index scan needed` or `bypassed`) to price the steady
+  state. If it reads `index scans: 0`, the probe says nothing yet; the note's
+  decision bullet applies.
 - WAL retention. The replica's physical replication slot retains WAL while the
   replica lags, and this change sets no threshold. Before the first vacuum,
   read the slot's `wal_status` and retained WAL (`pg_wal_lsn_diff` between the
