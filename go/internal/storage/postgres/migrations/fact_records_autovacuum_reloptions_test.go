@@ -48,7 +48,7 @@ func TestFactRecordsAutovacuumReloptionsMigrationShape(t *testing.T) {
 		t.Fatalf("migration path = %q, want %q", def.Path, factRecordsAutovacuumPath)
 	}
 	if got := path.Base(def.Path); !strings.HasPrefix(got, "278_") {
-		t.Fatalf("migration file %q must take sequence 278 (277 is the highest on main and 276 is held by another lane)", got)
+		t.Fatalf("migration file %q must take sequence 278 (277 is the highest other migration and 276 is the terraform-backends outer-leg index)", got)
 	}
 
 	code := strings.TrimSpace(sqlLineCommentPattern.ReplaceAllString(def.SQL, ""))

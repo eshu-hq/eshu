@@ -298,8 +298,8 @@ Consequences for rollout:
   acquisition will interrupt the autovacuum."
 - Roll-time check. Before a roll whose image carries migration 278 or any other
   `CREATE INDEX CONCURRENTLY` on `fact_records` (274, the #9979 index build, and
-  #10035's migration 276, a partial index on the same table that was still an
-  open PR when this was written), read:
+  migration 276, the terraform-backends outer-leg partial index on the same
+  table), read:
 
   ```sql
   SELECT l.pid, a.backend_type, a.state
