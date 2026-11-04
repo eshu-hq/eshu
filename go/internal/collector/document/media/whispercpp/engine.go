@@ -28,6 +28,12 @@ import (
 // EngineName identifies this backend in transcript section metadata.
 const EngineName = "whisper.cpp"
 
+// DefaultMaxInputBytes is the media-body cap a zero Limits takes and the
+// bound a caller should apply when staging artifact bytes: anything larger
+// fails the run. It stays within the design 1737 section 6 ceiling; raising
+// it needs a design update and security review.
+const DefaultMaxInputBytes = int64(64 << 20)
+
 const (
 	defaultLanguage          = "en"
 	defaultThreads           = 4

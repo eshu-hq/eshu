@@ -3264,6 +3264,16 @@ type Instruments struct {
 	// MediaTranscriptEngineSegments counts engine segments by closed kind:
 	// kept or non_speech_dropped (#9729).
 	MediaTranscriptEngineSegments metric.Int64Counter
+	// MediaTranscriptExtractions counts media transcript extractions by
+	// closed transcript_status (completed, no_text, no_speech, skipped,
+	// failed). It is recorded by the whisper.cpp Extract wrapper with
+	// caller-provided instruments, so extraction telemetry is counted by
+	// the caller (#9729, caller lane #8879).
+	MediaTranscriptExtractions metric.Int64Counter
+	// MediaTranscriptRedactedSegments counts transcript segments whose text
+	// was redacted before documentation facts were built (#9729, caller
+	// lane #8879).
+	MediaTranscriptRedactedSegments metric.Int64Counter
 }
 
 // NewInstruments creates and registers all OTEL metric instruments using the

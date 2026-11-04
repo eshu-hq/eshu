@@ -44,5 +44,19 @@ func registerMediaTranscriptEngineInstruments(meter metric.Meter, inst *Instrume
 	if err != nil {
 		return fmt.Errorf("register MediaTranscriptEngineSegments counter: %w", err)
 	}
+	inst.MediaTranscriptExtractions, err = meter.Int64Counter(
+		"eshu_dp_media_transcript_extractions_total",
+		metric.WithDescription("Media transcript extractions by closed transcript_status (completed, no_text, no_speech, skipped, failed), counted by the caller (#9729)"),
+	)
+	if err != nil {
+		return fmt.Errorf("register MediaTranscriptExtractions counter: %w", err)
+	}
+	inst.MediaTranscriptRedactedSegments, err = meter.Int64Counter(
+		"eshu_dp_media_transcript_redacted_segments_total",
+		metric.WithDescription("Transcript segments whose text was redacted before documentation facts were built (#9729)"),
+	)
+	if err != nil {
+		return fmt.Errorf("register MediaTranscriptRedactedSegments counter: %w", err)
+	}
 	return nil
 }

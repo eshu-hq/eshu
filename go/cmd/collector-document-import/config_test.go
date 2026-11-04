@@ -17,6 +17,7 @@ func testGetenv(pairs map[string]string) func(string) string {
 func enabledPairs(extra map[string]string) map[string]string {
 	pairs := map[string]string{
 		envEnabled:       "true",
+		envTier:          "qa",
 		envArtifactDir:   "/tmp/doc-import-fixtures",
 		envBinaryPath:    "/usr/bin/tesseract",
 		envBinarySHA256:  strings.Repeat("a", 64),
@@ -45,6 +46,35 @@ func TestLoadImportConfigDisabledByDefault(t *testing.T) {
 		if cfg.Enabled {
 			t.Fatalf("enabled=%q: Enabled = true, want false (disabled by default)", raw)
 		}
+	}
+}
+
+// TestLoadImportConfigRequiresExplicitQATier proves engine injection is
+// QA-tier-only (#8879, #9728 AC2): an enabled collector without
+// ESHU_DOC_IMPORT_TIER=qa fails closed naming the variable, and any other
+// tier value is rejected. No production caller beyond ops-qa is claimed.
+func TestLoadImportConfigRequiresExplicitQATier(t *testing.T) {
+	t.Parallel()
+
+	pairs := enabledPairs(nil)
+	delete(pairs, envTier)
+	if _, err := loadImportConfig(testGetenv(pairs)); err == nil {
+		t.Fatalf("enabled without %s: got nil error, want a named failure", envTier)
+	} else if !strings.Contains(err.Error(), envTier) {
+		t.Fatalf("enabled without %s: error %q does not name the variable", envTier, err)
+	}
+	for _, tier := range []string{"prod", "staging", "dev", "QA "} {
+		pairs := enabledPairs(map[string]string{envTier: tier})
+		if _, err := loadImportConfig(testGetenv(pairs)); err == nil {
+			t.Fatalf("tier %q: got nil error, want a failure", tier)
+		}
+	}
+	cfg, err := loadImportConfig(testGetenv(enabledPairs(map[string]string{envTier: "qa"})))
+	if err != nil {
+		t.Fatalf("tier qa: loadImportConfig error = %v", err)
+	}
+	if cfg.Tier != "qa" {
+		t.Fatalf("Tier = %q, want qa", cfg.Tier)
 	}
 }
 

@@ -102,25 +102,27 @@ corpus-wide Git fact families through `NewIngestionStore`; no per-kind
 version table is duplicated here — the registry is the source of truth.
 `documentation_*` kinds are present for the document-import capabilities below.
 
-## 4. Assigned document-import capabilities (one wired, disabled by default)
+## 4. Assigned document-import capabilities (two wired, disabled by default)
 
 | Package | Contract (`doc.go`) | Production caller |
 | --- | --- | --- |
 | `document/export` | offline export parse only; no discovery, archives, providers, or persistence; fail-closed manifest preflight | none |
 | `preflight/manifest` | bounded JSON manifest validation; metadata-only counts and warning classes; emits no facts | none |
-| `document/media` | reviewed local transcripts via injected engine; provenance-only mentions; redaction before persistence | none; hosted enablement caller-owned |
-| `preflight/media` | container-metadata classification; metadata-only; no facts, persistence, or transcription | none |
-| `document/ocr` | reviewed local OCR via injected engine; document+section facts only | one in-tree caller, disabled by default (`go/cmd/collector-document-import`, no deployment, no QA-tier execution); hosted enablement caller-owned |
+| `document/media` | reviewed local transcripts via injected engine; provenance-only mentions; redaction before persistence | one in-tree caller, disabled by default, QA-tier-only (`go/cmd/collector-media-import`, no deployment); hosted enablement caller-owned |
+| `preflight/media` | container-metadata classification; metadata-only; no facts, persistence, or transcription | exercised transitively via `media.Extract`; no head caller |
+| `document/ocr` | reviewed local OCR via injected engine; document+section facts only | one in-tree caller, disabled by default, QA-tier-only (`go/cmd/collector-document-import`, no deployment); hosted enablement caller-owned |
 | `preflight/picture` | image-container classification; metadata-only; no OCR or graph writes | exercised transitively via `ocr.Extract`; no head caller |
 
 Dormancy proof: `rg` for `collector/document|collector/preflight` across
 `go/cmd/ingester/*.go` and `go/internal/app/*.go` (excluding tests) returns
-no matches. The single caller binary outside the six-package subtree is
-`go/cmd/collector-document-import` (wired, disabled by default, zero QA-tier
-execution; verified by `git grep` at the wiring SHA; it imports the `ocr` and
-`tesseract` backends). The other five
+no matches. The two caller binaries outside the six-package subtree are
+`go/cmd/collector-document-import` (wired, disabled by default, QA-tier-only
+injection; it imports the `ocr` and `tesseract` backends) and
+`go/cmd/collector-media-import` (wired, disabled by default, QA-tier-only
+injection; it imports the `media` and `whispercpp` backends). The other four
 capabilities have no caller. Hosted activation for media/ocr stays **DISABLED**
-until sandbox and runtime proof pass. Retained parser core (not assigned here):
+until sandbox and runtime proof pass; QA-tier execution remains the only
+production-adjacent execution claimed. Retained parser core (not assigned here):
 `preflight/archive`, `preflight/diagram`, `preflight/ooxml` (Git document
 parsing uses them) and `preflight/pdf` (dormant format-safety classifier).
 

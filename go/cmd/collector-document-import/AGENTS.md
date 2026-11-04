@@ -10,8 +10,12 @@
 
 ## Invariants
 
-- Disabled by default stays threefold: no chart or IaC reference, exit 0
-  without the enable flag, and every engine pin required when enabled.
+- Disabled by default stays fourfold: no chart or IaC reference, exit 0
+  without the enable flag, an explicit `qa` tier required when enabled, and
+  every engine pin required when enabled.
+- QA-tier-only injection: the engine is constructed only for tier `qa`. Never
+  widen the accepted tier without an arbiter ruling and a gate-2 evidence
+  update; no production caller beyond ops-qa is claimed.
 - Never add a fallback engine: a missing or mismatched pin is a startup
   error, not a quiet substitution. The fixture `LocalEngine` is test-only.
 - One capability per PR on this path: `document/ocr` only until its gate-1
