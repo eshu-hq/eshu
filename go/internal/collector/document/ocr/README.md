@@ -205,6 +205,17 @@ A region is a value when either holds:
 `Extract` never sorts. `EngineResult.Regions` must be in reading order, because
 layout order is more accurate than a position sort on a multi-column page.
 
+- Column: a region below a table header whose x-position maps it to a marker
+  column. A header is a marker region with a same-row neighbor to its left,
+  the shape of a header cell past the first column. A label that opens its
+  row, with its value to the right as forms lay out, keeps the two-region
+  window below it and opens no column. A cell joins when its top edge is at
+  or below the header's bottom edge and its horizontal overlap with the
+  header is at least half the shorter width. The pass runs after
+  `extendSecretRuns` and only turns kept regions to withheld, so a column
+  cell never seeds or extends a run and the SECRET_RUNS.md counts are
+  unchanged.
+
 A secret that runs past the window (#9799). A PEM key body is 12 to 50 lines and
 a token can wrap across lines, and tesseract returns one region per line, so the
 window of 2 left the rest in clear. `extendSecretRuns` in `secret_runs.go` runs
@@ -256,9 +267,13 @@ Limits:
 - A value above its label, or left of its label on the same row, is not withheld.
 - A region opens one window however many marker words it holds, so
   `password: api_key:` followed by three values leaves the third in clear.
-- A table column is not covered. A header row such as `Service Password Owner`
-  opens a window over the next rows only, and each cell further down stays in
-  clear. That needs a column rule, not this one.
+- A marker in the first column opens no column: a header row whose marker
+  cell stands leftmost keeps the window over the next rows only, and each
+  cell further down stays in clear. A header row that tesseract reads as one
+  wide line, such as a single `Service Password Owner` region, likewise
+  opens no column, because there is no cell to map by x-position. Both stay
+  residuals until the OCR path's image classes show which table shape needs
+  them.
 
 Proof: `TestContainsMarkerWordMatchesEveryLabelForm`,
 `TestContainsMarkerWordLeavesOrdinaryTextAlone`,
@@ -276,6 +291,10 @@ Proof: `TestContainsMarkerWordMatchesEveryLabelForm`,
 `TestExtractWithholdsASecretThatSpansManyLines`,
 `TestExtractContinuesASecretRunPastTheWindow`,
 `TestExtractContinuesAColumnValueThatWrapsBelowItsRow`,
+`TestExtractRedactsCellsBelowATableHeader`,
+`TestExtractTableColumnLimits`, `TestExtractTableColumnTies`,
+`TestExtractTableColumnNeedsALeftNeighbor`,
+`TestExtractTableColumnFeedsNoSecretRun`,
 `TestSecretTokenShapes`, `TestExtendSecretRunsIsLinear`, and the
 `form-stacked.png`, `form-columns.png`, and `key-body.png` fixtures in
 `TestSandboxRealTesseract`.
@@ -359,11 +378,36 @@ second word removed, the six-entry source-name list shortened in either
 package, region text matched with the source-name list, the window opened by
 the source-name list, and the source-name list widened to the label matcher.
 
+Column-rule False-positive Evidence: the rule is inert on prose-shaped
+layouts. On the docs corpus (`git ls-files 'docs/public/*.md'
+'docs/internal/*.md'`, 269,540 non-blank lines, each one region in reading
+order in a single column), the new pass withholds 0 lines past the old rule:
+no two regions share a row, so no marker qualifies as a header. The cost is
+confined to multi-region rows, where a marker past the first column withholds
+the cells below it in its band; a two-column prose page whose right column
+holds a marker line pays the rest of that column. The pass is monotonic, so
+the SECRET_RUNS.md corpus count (180 added lines) is unchanged.
+
+Column-rule Performance Evidence: the same two benchmarks on 500 regions,
+before and after, run in turn at `-benchtime=2000x`, six runs each, medians,
+on a shared host at load average 3.5 to 8.8. Ordinary marker-free text went
+from 4.20 ms/op to 4.21 ms/op (12,906 allocs/op both, so no new allocation on
+the prose shape). The label-heavy case, 250 regions followed by 250 labels,
+went from 2.53 ms/op to 2.84 ms/op (12,663 to 12,669 allocs/op, the marker
+and header slices). The added pass reuses the window pass's marker scan and
+does bounds arithmetic only: regions times marker regions, the same order as
+the row clause. Either figure is small next to about 200 ms for one
+tesseract run.
+
 No-Observability-Change: the rule adds no metric, span, or log. A withheld value
 is a redacted section, so `eshu_dp_ocr_redacted_regions_total`, the
 `ocr.redacted_region_count` span attribute, and the `redacted_region_count` log
 field count it with no change. `TestExtractRedactsValueOnLineBelowLabel` asserts
 the count and that no canary reaches logs, spans, or envelopes.
+
+No-Observability-Change (column rule): a cell the column withholds is a
+redacted section, so the existing redaction counters cover it with no new
+signal.
 
 ## Dependencies
 
