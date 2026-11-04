@@ -30,6 +30,7 @@ TABLE = {
             "TestListActivePackageManifestDependencyFactsDeltaMavenFamilyLive",
             "TestListActivePackageManifestDependencyFactsFullActiveScopeUnchangedLive",
             "TestAuthorizedImpactLoaderCountsManifestDeltaUnionLive",
+            "TestAuthorizedImpactLoaderCountsManifestDeltaUnionEngagedLive",
         ),
         "go/internal/storage/postgres/active_package_manifest_dependency_delta_live_test.go": (
             "TestListActivePackageManifestDependencyFactsDeltaActiveScopeLive",
