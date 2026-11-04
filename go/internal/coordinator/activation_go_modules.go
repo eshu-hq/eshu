@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package coordinator //nolint:dirgate // Root owns scheduling and durable admission; reachability owns the planning.
+package coordinator
 
 import (
 	"context"
