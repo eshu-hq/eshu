@@ -244,3 +244,84 @@ func TestPregateFusedLoaderClosedCorpusFenceDoesNotShed(t *testing.T) {
 		t.Fatalf("fence lookup reads = %d, want 0: the fused verdict comes from its own statement", fenceLookupReads)
 	}
 }
+
+// TestPregateNonTerminalProducerStatesShedBeforeBulkLoad pins the storm shed
+// next to the F1 rule (#9697, #9986): while the own generation is inactive and
+// the probe says candidates may exist, every non-terminal producer state must
+// defer before the bulk load with the non-counting deferral. The F1 branch
+// that proceeds on a counting verdict sits on the line before this shed, so a
+// change that proceeds on any producer detail would reload the facts for the
+// 149 of 154 discarded loads seen under the OOM storm.
+func TestPregateNonTerminalProducerStatesShedBeforeBulkLoad(t *testing.T) {
+	t.Parallel()
+
+	intent := dockerfileLoaderIntent()
+	cases := []struct {
+		name  string
+		state crossrepo.ProducerState
+	}{
+		{
+			name: "producer_pending",
+			state: crossrepo.ProducerState{
+				ScopeActiveGenerationID: intent.GenerationID,
+				WorkItemID:              "producer-1",
+				Status:                  "pending",
+			},
+		},
+		{
+			name: "producer_running",
+			state: crossrepo.ProducerState{
+				ScopeActiveGenerationID: intent.GenerationID,
+				WorkItemID:              "producer-1",
+				Status:                  "running",
+			},
+		},
+		{
+			name:  "producer_missing_inside_bound",
+			state: crossrepo.ProducerState{ScopeActiveGenerationID: intent.GenerationID},
+		},
+		{
+			name: "scope_moved_to_another_generation",
+			state: crossrepo.ProducerState{
+				ScopeActiveGenerationID: "gen-2",
+			},
+		},
+		{
+			name: "re_resolution_in_progress",
+			state: crossrepo.ProducerState{
+				ScopeActiveGenerationID:      intent.GenerationID,
+				RelationshipGenerationStatus: "retired",
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			stub := &stubFactLoader{envelopes: dockerfileLoaderEnvelopes(), mayHoldCandidates: true}
+			loader := CorrelatedWorkloadProjectionInputLoader{
+				FactLoader:             probeStubLoader{stubFactLoader: stub},
+				ResolvedLoader:         &stubResolvedRelationshipLoader{},
+				ResolutionActiveLookup: func(string) (bool, error) { return false, nil },
+				ResolutionProducerLookup: func(context.Context, string, string) (crossrepo.ProducerState, error) {
+					return tc.state, nil
+				},
+			}
+
+			_, err := loader.LoadWorkloadProjectionScopeInputs(context.Background(), intent)
+			var deferral workloadMaterializationResolutionNotReadyError
+			if !errors.As(err, &deferral) {
+				t.Fatalf("error = %v, want the non-counting workloadMaterializationResolutionNotReadyError", err)
+			}
+			if got := deferral.FailureClass(); got != WorkloadMaterializationResolutionNotReadyFailureClass {
+				t.Fatalf("failure class = %q, want %q", got, WorkloadMaterializationResolutionNotReadyFailureClass)
+			}
+			if deferral.producerDetail == "" {
+				t.Fatalf("deferral carries no producer detail; the operator cannot tell which state shed the load")
+			}
+			if stub.calls != 0 {
+				t.Fatalf("bulk loads = %d, want 0: the pre-gate must shed before the load", stub.calls)
+			}
+		})
+	}
+}
