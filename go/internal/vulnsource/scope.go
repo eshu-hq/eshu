@@ -21,7 +21,8 @@ const (
 	// target (vuln-intel://cisa/kev).
 	SourceCISAKEV = "cisa_kev"
 	// SourceFirstEPSS names the FIRST EPSS score target
-	// (vuln-intel://first/epss).
+	// (vuln-intel://first/epss, or the coordinator-derived
+	// vuln-intel://first_epss/_findings/<chunk>).
 	SourceFirstEPSS = "first_epss"
 	// SourceGLAD names GitLab Advisory Database targets (vuln-intel://glad/...).
 	SourceGLAD = "glad"
@@ -36,8 +37,9 @@ const scopeIDPrefix = "vuln-intel://"
 
 // SourceForScopeID derives the source token from a vulnerability scope id.
 // The scope-id grammar is core-owned: the workflow coordinator mints
-// vuln-intel://osv/<ecosystem>/... for derived targets, and configured targets
-// use vuln-intel://nvd/..., vuln-intel://cisa/kev, vuln-intel://first/epss, and
+// vuln-intel://osv/<ecosystem>/... and vuln-intel://first_epss/_findings/<chunk>
+// for derived targets, and configured targets use vuln-intel://nvd/...,
+// vuln-intel://cisa/kev, vuln-intel://first/epss, and
 // vuln-intel://glad/<ecosystem>. Matching is exact and case-sensitive, the
 // same way readiness compares scope ids. ok is false for any scope id outside
 // that grammar, so a caller never invents a source token.
@@ -56,6 +58,13 @@ func SourceForScopeID(scopeID string) (string, bool) {
 		}
 	case "first":
 		if segment, _ := splitScopeSegment(path); segment == "epss" {
+			return SourceFirstEPSS, true
+		}
+	case "first_epss":
+		// The coordinator derives EPSS finding scopes under this authority
+		// (vuln-intel://first_epss/_findings/<chunk>), distinct from the
+		// configured vuln-intel://first/epss form (#10009).
+		if segment, _ := splitScopeSegment(path); segment == "_findings" {
 			return SourceFirstEPSS, true
 		}
 	}

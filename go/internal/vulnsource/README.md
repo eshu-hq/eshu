@@ -20,11 +20,18 @@ packages against those keys rather than parsing scope ids.
 `SourceForScopeID` is the one parser from a vulnerability scope id to the
 `source` token stored in `vulnerability_source_states` (#9420). The grammar is
 core-owned: the workflow coordinator mints `vuln-intel://osv/<ecosystem>/...`,
-and configured targets use `vuln-intel://nvd/...`, `vuln-intel://cisa/kev`,
-`vuln-intel://first/epss`, and `vuln-intel://glad/<ecosystem>`. It returns
-`ok=false` for anything else, so a writer never invents a token. Tests in
-`coordinator/vulnerability` and `query/supply/chain/impact` pin it against the
-coordinator's format strings and the readiness reader's scope table.
+`vuln-intel://nvd/_window/<start>-<end>`, and
+`vuln-intel://first_epss/_findings/<chunk>`, and configured targets use
+`vuln-intel://nvd/...`, `vuln-intel://cisa/kev`, `vuln-intel://first/epss`,
+and `vuln-intel://glad/<ecosystem>`. It returns `ok=false` for anything else,
+so a writer never invents a token. Tests in `coordinator/vulnerability` and
+`query/supply/chain/impact` pin it against the coordinator's format strings
+and the readiness reader's scope table. The coordinator test lists one row per
+derived scope shape and fails when a non-test file in `coordinator/vulnerability`
+has a `vuln-intel:` string literal whose authority has no row or cannot be read
+as a literal, so a new authority cannot ship unmapped (#10009). It does not
+catch a new path shape under an authority that already has a row, or a scope
+minted outside that package: add the row by hand when you mint one.
 `DefaultFreshnessWindow` (14 days) is the shared fresh-versus-stale window for
 the in-tree collector and the extension host recorder.
 

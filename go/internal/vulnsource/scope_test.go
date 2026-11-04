@@ -20,11 +20,19 @@ func TestSourceForScopeIDMapsEveryScopeAuthority(t *testing.T) {
 		{scopeID: "vuln-intel://nvd/CVE-2021-23337", want: SourceNVD, wantOK: true},
 		{scopeID: "vuln-intel://cisa/kev", want: SourceCISAKEV, wantOK: true},
 		{scopeID: "vuln-intel://first/epss", want: SourceFirstEPSS, wantOK: true},
+		// The coordinator derives EPSS finding scopes under the first_epss
+		// authority (#10009).
+		{scopeID: "vuln-intel://first_epss/_findings/0", want: SourceFirstEPSS, wantOK: true},
+		{scopeID: "vuln-intel://first_epss/_findings/17", want: SourceFirstEPSS, wantOK: true},
 		{scopeID: "vuln-intel://glad/npm", want: SourceGLAD, wantOK: true},
 		{scopeID: "  vuln-intel://cisa/kev  ", want: SourceCISAKEV, wantOK: true},
 		// Unknown or malformed scopes never invent a source token.
 		{scopeID: "vuln-intel://cisa/other"},
 		{scopeID: "vuln-intel://first/other"},
+		{scopeID: "vuln-intel://first-epss/_findings/0"},
+		{scopeID: "vuln-intel://first_epss"},
+		{scopeID: "vuln-intel://first_epss/other"},
+		{scopeID: "vuln-intel://First_EPSS/_findings/0"},
 		{scopeID: "vuln-intel://cisa"},
 		{scopeID: "vuln-intel://ghsa/npm"},
 		{scopeID: "vuln-intel://"},
