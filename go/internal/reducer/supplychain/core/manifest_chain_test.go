@@ -250,3 +250,23 @@ func TestManifestChainRedeliveryAfterAStampRederives(t *testing.T) {
 		t.Fatalf("reopens = %d, want %d (three holders twice)", len(port.reopened), want)
 	}
 }
+
+// TestManifestChainZeroRowFullFansOutThePriorsPackages is the handler half of
+// ruling test 15: a full generation with no dependency row (every manifest
+// deleted) after a baseline that had rows reopens the holders of the
+// baseline's packages, so their findings retract.
+func TestManifestChainZeroRowFullFansOutThePriorsPackages(t *testing.T) {
+	t.Parallel()
+
+	port, _ := runChain(t, ManifestDependencyGeneration{
+		Activation:  ManifestGenerationActive,
+		HasBaseline: true,
+		Baseline: chainView("gen-w",
+			depRow("w-lodash", "package-lock.json", "lodash", "4.17.21"),
+			depRow("w-left-pad", "package-lock.json", "left-pad", "1.3.0")),
+		Current: chainView("gen-n1", facts.Envelope{FactID: "repo-n1", FactKind: "repository"}),
+	})
+	if want := []string{"vuln-intel://osv/a", "vuln-intel://osv/b", "vuln-intel://osv/c"}; !reflect.DeepEqual(port.reopened, want) {
+		t.Fatalf("reopened = %v, want %v", port.reopened, want)
+	}
+}

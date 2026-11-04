@@ -136,3 +136,38 @@ func TestBuildSupplyChainImpactReducerIntentGitDependencyTombstoneTriggers(t *te
 		t.Fatal("no intent queued for a tombstoned dependency row")
 	}
 }
+
+// TestBuildSupplyChainImpactReducerIntentGitRepositoryFactRaisesMarker is the
+// #9874 F2 ruling: every git generation with a git repository fact raises the
+// marker, even with no dependency row, because a removed manifest or a
+// zero-row re-index changes findings too. It anchors on the repository fact.
+func TestBuildSupplyChainImpactReducerIntentGitRepositoryFactRaisesMarker(t *testing.T) {
+	t.Parallel()
+
+	lookup := projectorintent.NewFactLookup([]facts.Envelope{{
+		FactID: "repo-1", FactKind: "repository", SourceRef: facts.Ref{SourceSystem: "git"},
+		Payload: map[string]any{"repo_id": "repository:r_checkout", "delta_generation": true},
+	}})
+	intent, ok := BuildSupplyChainImpactReducerIntent("git-repo-1", "gen-3", lookup)
+	if !ok {
+		t.Fatal("no marker for a git generation holding only its repository fact")
+	}
+	if intent.FactID != "repo-1" || intent.Payload[supplychaincore.PayloadKeyTrigger] != supplychaincore.TriggerManifestDependency {
+		t.Fatalf("intent = %#v, want a marker anchored on repo-1", intent)
+	}
+}
+
+// TestBuildSupplyChainImpactReducerIntentNonGitRepositoryFactRaisesNothing is
+// ruling test 16: a repository fact from another source is not a git
+// generation.
+func TestBuildSupplyChainImpactReducerIntentNonGitRepositoryFactRaisesNothing(t *testing.T) {
+	t.Parallel()
+
+	lookup := projectorintent.NewFactLookup([]facts.Envelope{{
+		FactID: "repo-1", FactKind: "repository", SourceRef: facts.Ref{SourceSystem: "github_app"},
+		Payload: map[string]any{"repo_id": "repository:r_checkout"},
+	}})
+	if intent, ok := BuildSupplyChainImpactReducerIntent("scope-1", "gen-1", lookup); ok {
+		t.Fatalf("queued %#v for a non-git repository fact", intent)
+	}
+}

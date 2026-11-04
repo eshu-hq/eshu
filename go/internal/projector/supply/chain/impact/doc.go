@@ -8,8 +8,9 @@
 // and suppression facts, a provider security-alert fact, package-registry
 // package identity, an SBOM component, and OCI manifest/index/tag-
 // observation/referrer facts. When none of those is present, a git
-// manifest or lockfile dependency row (a content_entity Variable whose
-// config_kind is dependency) enqueues one marker intent instead, carrying
+// generation (one holding a git repository fact) enqueues one marker intent
+// instead, anchored on its earliest dependency row (a content_entity Variable
+// whose config_kind is dependency) or on its repository fact, carrying
 // payload trigger=manifest_dependency (#9874): the reducer then reopens the
 // scopes holding advisory evidence for the changed packages rather than
 // running a findings pass. Only that marker predicate reads payload keys, and

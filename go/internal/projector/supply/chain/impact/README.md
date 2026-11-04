@@ -15,11 +15,16 @@ the vulnerability intelligence that already names it.
 
 A git generation that changes a manifest or lockfile holds none of those
 twelve kinds, so before #9874 a new or removed pin changed nothing until an
-advisory scope reran. Now a generation whose only trigger is a git dependency
-row (a `content_entity` Variable with `config_kind` dependency, source `git`,
-not a central version declaration, tombstones included) enqueues one marker
-intent with payload `trigger: manifest_dependency`. The entity key stays
-`supply_chain_impact:<scope>`, so a push that changes 500 pins is one intent.
+advisory scope reran. Now every git generation (one holding a git repository
+fact, delta or full) that has none of the twelve kinds enqueues one marker
+intent with payload `trigger: manifest_dependency`, anchored on its earliest
+dependency row (a `content_entity` Variable with `config_kind` dependency,
+source `git`, not a central version declaration, tombstones included) or, when
+it holds none, on its repository fact (#9874 ruling F2: a deleted lockfile or a
+zero-row re-index changes findings with no dependency row to show for it). The
+entity key stays `supply_chain_impact:<scope>`, so a push that changes 500 pins
+is one intent; a generation that changed no dependency costs one marker pass
+that reopens nothing.
 The marker is exclusive: a generation that also holds one of the twelve kinds
 keeps the ordinary intent and no marker. The reducer branch for the marker is
 in `go/internal/reducer/supplychain/core/manifest_trigger.go`.

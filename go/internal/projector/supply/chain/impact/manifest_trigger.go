@@ -28,16 +28,25 @@ const (
 	manifestDependencyReason = "manifest dependency evidence observed"
 )
 
-// buildManifestDependencyIntent returns the marker intent for a generation
-// that holds a git dependency row, anchored on the earliest such row. The
-// entity key is the same supply_chain_impact:<scope> key, so a push that
-// changes 500 pins is still one intent.
+// buildManifestDependencyIntent returns the marker intent for a git
+// generation, anchored on its earliest dependency row, or on its repository
+// fact when it holds none. The entity key is the same
+// supply_chain_impact:<scope> key, so a push that changes 500 pins is still
+// one intent.
 func buildManifestDependencyIntent(
 	scopeID string,
 	generationID string,
 	lookup projectorintent.FactLookup,
 ) (projectorintent.ReducerIntent, bool) {
 	envelope, ok := lookup.FirstOfKindMatching(contentEntityFactKind, manifestDependencyFact)
+	if !ok {
+		// #9874 F2: every git generation raises the marker, not only one
+		// holding a dependency row. A deleted lockfile, a reverted path, or a
+		// zero-row re-index changes findings with no dependency row to show
+		// for it; the reducer diffs the generation's full view against the
+		// chain and reopens nothing when nothing changed.
+		envelope, ok = lookup.FirstAcrossKinds(gitRepositoryFact, repositoryFactKinds...)
+	}
 	if !ok {
 		return projectorintent.ReducerIntent{}, false
 	}
@@ -51,6 +60,16 @@ func buildManifestDependencyIntent(
 		SourceSystem: projectorintent.SourceSystem(envelope),
 		Payload:      map[string]any{payloadKeyTrigger: triggerManifestDependency},
 	}, true
+}
+
+// repositoryFactKinds are the git repository fact kinds, legacy suffix
+// included.
+var repositoryFactKinds = []string{"repository", "repositoryFact"}
+
+// gitRepositoryFact reports whether envelope is a git generation's repository
+// fact.
+func gitRepositoryFact(envelope facts.Envelope) bool {
+	return strings.TrimSpace(envelope.SourceRef.SourceSystem) == "git"
 }
 
 // manifestDependencyFact reports whether envelope is a git manifest or
