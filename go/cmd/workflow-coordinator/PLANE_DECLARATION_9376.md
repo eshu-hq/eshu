@@ -78,20 +78,18 @@ read plane `GetRunStatus`, `ListRuns`, `GetRunCompleteness`,
   as builder id, then a build-provenance attestation signed and uploaded
   (read 2026-11-01). SUPERSEDED 2026-11-04: never deployed; live is now
   `e1b564af` (below).
-- **Live digest** (2026-11-04 live re-read handed to this lane):
+- **Live digest** (re-read 2026-11-04, re-derived in this lane):
   `eshu-workflow-claim-plane` + `eshu-workflow-coordinator-satellite` both
-  `ghcr.io/eshu-hq/eshu-workflow@sha256:e1b564af` (digest prefix as handed
-  off; full 64-hex NOT_CHECKED by this lane), still dark. The 2026-11-01
-  record (`03d9f97632e196de0f543fa7c0bcfb827db5a3ae8cb1d8e9320511f9b4bada83`
+  `ghcr.io/eshu-hq/eshu-workflow@sha256:e1b564afa5f72167e3911aea7c881973c74bab123183c03d9d6af5a2d80e47a4`,
+  1/1 ready, still dark. The 2026-11-01 record
+  (`03d9f97632e196de0f543fa7c0bcfb827db5a3ae8cb1d8e9320511f9b4bada83`
   ← run `40779192627` at `b6497fce`, no SLSA attestation) is superseded.
-- Provenance of live `e1b564af`: NOT_CHECKED (2026-11-04). Tried read-only:
-  `gh api orgs/eshu-hq/packages?package_type=container` → HTTP 403 (needs
-  `read:packages` scope); `gh api
-  repos/eshu-hq/eshu-workflow/actions/workflows/399466503/runs?per_page=10`
-  → newest image-publish run `41342413826` at `af3311e0` (2026-11-01), no
-  run maps to `e1b564af`, and satellite `main` is still `af3311e0`; `gh api
-  repos/eshu-hq/eshu-workflow/attestations/sha256:e1b564af` → 404 (prefix,
-  not a full digest). Publishing commit/run and SLSA state unknown.
+- Provenance of live `e1b564af` (resolved 2026-11-04): built by
+  `eshu-hq/eshu-workflow` `image-publish` @ `refs/tags/v0.1.1`, run
+  `41332377147` (head `8311ed69`); live attestation query on the full
+  digest returns 2 Sigstore/Fulcio bundles (parsed Fulcio cert:
+  workflow identity + run URL). Earlier dead ends (packages API 403,
+  prefix-attestation 404) retired with the prefix-only record.
 - Live in-tree coordinator image (2026-11-04 handoff):
   `eshu:sha-e3d81617@sha256:3a07c59b` (references as handed off; earlier
   `sha-bdf2823363b8…` / `sha-5eb6dd84…` figures superseded, not re-read by
@@ -102,12 +100,12 @@ read plane `GetRunStatus`, `ListRuns`, `GetRunCompleteness`,
   deployment-repo re-pin PR `#491` merged (the 2026-11-01 flip
   precondition) NOT_CHECKED by this lane.
 - Gap (2026-11-04): the tags (`09e23b93`, `8311ed69`), satellite `main`
-  (`af3311e0`), and the live digest (`e1b564af`, source commit unknown)
-  are not tied together; the parity re-bind still needs a lane against
-  the live record.
-- Note (2026-11-04): the §5 parity bullet still cites the 2026-11-01
-  record; not re-read by this lane — refresh pending. All other digest
-  rows defer to the §2 live record above.
+  (`af3311e0`), and the live digest (`e1b564af` = tag `v0.1.1` build, run
+  `41332377147`) are tied together above; the parity re-bind still needs
+  a lane against the live record.
+- Note (2026-11-04): all digest rows defer to the §2 live record above;
+  §5 refreshed in this lane. Post-flip contention results ride the flip
+  report, not this lane.
 
 ## 3. Oldest/newest core pairs + compat
 
@@ -209,8 +207,8 @@ downgrade-migration rehearsals anywhere; rehearse only non-downgrade paths
 delete-path-suffices OR roll-forward-plus-rebuild with documented re-sync
 RTO. Abort-to-dark rehearsal with ~40s re-sync RTO recorded on `#8875`
 (comment `6505750834`, not re-measured here). SLSA attestation: per the
-§2 live record (2026-11-04); the 11-01 candidate/live split named retired
-digests — full-digest provenance NOT_CHECKED by this lane.
+§2 live record (2026-11-04) — live digest built at tag `v0.1.1`
+(run `41332377147`), 2 Sigstore/Fulcio bundles.
 Live re-verification of `#9383` text was BLOCKED by gh quota on 2026-10-31
 and not retried; the disposition above is cited-from-record, not re-read.
 
@@ -232,4 +230,4 @@ and not retried; the disposition above is cited-from-record, not re-read.
 | Stage-1c, no interim markers | LANDED / CLEAN | `a1c30b40be`; zero hits at the 2026-10-31 check |
 | README gaps | FLAGGED, not filled | listed above |
 | `#9383` disposition | CITED-FROM-RECORD | live re-read blocked by quota |
-| SLSA attestation | PARTIAL — see §2 live record | 11-01 candidate/live split retired with its digests; full-digest provenance NOT_CHECKED |
+| SLSA attestation | PARTIAL — see §2 live record | live digest built at tag `v0.1.1` (run `41332377147`), 2 Sigstore/Fulcio bundles; 11-01 split retired |
