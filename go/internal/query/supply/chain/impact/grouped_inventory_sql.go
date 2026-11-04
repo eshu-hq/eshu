@@ -295,45 +295,34 @@ func groupedInventoryMustReplace(text, old, replacement string) string {
 	return strings.Replace(text, old, replacement, 1)
 }
 
-// groupedInventoryScopedFindingsCTE keeps the pre-grant filtered finding set
-// and carries a per-finding granted flag instead of dropping ungranted
-// findings in WHERE. Counts read only granted findings, so they keep parity
-// with the count route; the ungranted ones only mark their buckets partial.
-var groupedInventoryScopedFindingsCTE = groupedInventoryMustReplace(
-	groupedInventoryMustReplace(
-		groupedInventoryFindingsCTE,
-		`         w.priority_score
-  FROM supply_chain_impact_canonical_winners AS w`,
-		`         w.priority_score,
-         COALESCE(`+groupedInventoryGrantSQL("w.repository_id", "w.winner_scope_id")+`, FALSE) AS granted
-  FROM supply_chain_impact_canonical_winners AS w`,
-	),
-	`
-    AND `+groupedInventoryGrantSQL("w.repository_id", "w.winner_scope_id")+`
-)`,
-	`
-)`,
-)
+// groupedInventoryHiddenRepositoriesSQL lists every repository holding at least
+// one static winner the grant does not admit. It reads the winners table with
+// ONLY the static-winner predicate and the grant: no request filter (cve,
+// package, status, severity, profile, priority, suppression, image, runtime).
+// If the request filters fed it, a scoped caller could vary a filter and watch
+// a bucket flip between complete and partial, an oracle on hidden findings.
+// The price is that partial over-reports for narrow filters; it discloses
+// nothing about any individual finding.
+var groupedInventoryHiddenRepositoriesSQL = `grouped_hidden_repositories AS MATERIALIZED (
+  SELECT DISTINCT w.repository_id
+  FROM supply_chain_impact_canonical_winners AS w
+  WHERE NOT COALESCE(` + groupedInventoryGrantSQL("w.repository_id", "w.winner_scope_id") + `, FALSE)
+` + supplyChainImpactStaticWinnerPredicateSQL + `
+),`
 
-// groupedInventoryScopedTailSQL counts only granted findings and marks a
-// bucket partial when the grant hides one of its map rows or any finding on a
-// repository the bucket maps to. A bucket still appears only when it has at
-// least one granted finding, and partial is a boolean that discloses nothing
-// about the hidden findings.
+// groupedInventoryScopedTailSQL marks a bucket partial when the grant hides
+// one of its map rows or any static winner on a repository the bucket maps
+// to, independent of the request filters. Counts, breakdowns, max priority,
+// and distinct_findings still read the granted and filtered finding set, so a
+// bucket appears only when it has at least one granted finding.
 var groupedInventoryScopedTailSQL = groupedInventoryMustReplace(
-	groupedInventoryMustReplace(
-		groupedInventoryMustReplace(
-			groupedInventoryTailSQL,
-			`grouped_hidden AS MATERIALIZED (
+	groupedInventoryTailSQL,
+	`grouped_hidden AS MATERIALIZED (
   SELECT DISTINCT hidden_map.dim_id
   FROM grouped_map AS hidden_map
   WHERE NOT hidden_map.granted
 ),`,
-			`grouped_hidden_repositories AS MATERIALIZED (
-  SELECT DISTINCT hidden_finding.repository_id
-  FROM grouped_findings AS hidden_finding
-  WHERE NOT hidden_finding.granted
-),
+	groupedInventoryHiddenRepositoriesSQL+`
 grouped_hidden AS MATERIALIZED (
   SELECT DISTINCT hidden_map.dim_id
   FROM grouped_map AS hidden_map
@@ -344,23 +333,12 @@ grouped_hidden AS MATERIALIZED (
           WHERE hidden_repository.repository_id = hidden_map.repository_id
         )
 ),`,
-		),
-		`   AND fan_map.granted
-  GROUP BY 1, 2, 3`,
-		`   AND fan_map.granted
-  WHERE finding.granted
-  GROUP BY 1, 2, 3`,
-	),
-	`  FROM grouped_findings
-)`,
-	`  FROM grouped_findings
-  WHERE granted
-)`,
 )
 
 // groupedInventoryScopedQuery builds the scoped-request variant of
 // groupedInventoryQuery. The store uses it only when the filter carries a
-// repository or scope grant; the unscoped text is unchanged.
+// repository or scope grant; it differs only in the partial signal, and the
+// unscoped text is unchanged.
 func groupedInventoryScopedQuery(dimension GroupedInventoryDimension) (string, error) {
-	return groupedInventoryBuildQuery(dimension, groupedInventoryScopedFindingsCTE, groupedInventoryScopedTailSQL)
+	return groupedInventoryBuildQuery(dimension, groupedInventoryFindingsCTE, groupedInventoryScopedTailSQL)
 }

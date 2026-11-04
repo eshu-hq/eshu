@@ -98,11 +98,13 @@ func (s PostgresGroupedInventoryStore) queryer() db.Queryer {
 //
 // Completeness per named bucket: read_model_unavailable when the watermark is
 // stale or its probe failed; otherwise partial when a scoped grant hides one
-// of the bucket's map rows or any finding on a repository the bucket maps to
-// (no reason is disclosed); otherwise complete. A scoped request runs
-// groupedInventoryScopedQuery, which keeps the pre-grant finding set with a
-// per-finding granted flag; counts stay granted-only. Page truncation is
-// applied by the handler.
+// of the bucket's map rows or any static winner on a repository the bucket
+// maps to; otherwise complete. Partial means some finding mapped to the
+// bucket exists that the grant does not admit, independent of the request
+// filters, and it discloses no reason. A scoped request runs
+// groupedInventoryScopedQuery, whose hidden-repositories CTE reads the winners
+// with only the static-winner and grant predicates; counts stay granted and
+// filtered. Page truncation is applied by the handler.
 // An absent watermark (the maintainer never materialized the table) answers
 // ErrGroupedInventoryReadModelUnavailable, since an empty table would read as
 // zero findings.

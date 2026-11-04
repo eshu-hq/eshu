@@ -241,6 +241,22 @@ func TestGroupedInventoryStoreWinnersLive(t *testing.T) {
 		if page.DistinctFindings != total(t, scoped) {
 			t.Fatalf("central catalog DistinctFindings = %d, count route = %d", page.DistinctFindings, total(t, scoped))
 		}
+		// Completeness must not depend on the request filters: a scoped caller
+		// varying cve_id or min_priority_score must not watch service:e flip
+		// between complete and partial (a filter-dependent oracle on the
+		// hidden finding f9, priority 64).
+		for name, vary := range map[string]func(*AggregateFilter){
+			"cve_id of the granted finding":               func(f *AggregateFilter) { f.CVEID = "CVE-2026-f8" },
+			"min_priority_score above the hidden finding": func(f *AggregateFilter) { f.MinPriorityScore = 65 },
+			"severity of the granted finding":             func(f *AggregateFilter) { f.Severity = "medium" },
+		} {
+			variant := scoped
+			vary(&variant)
+			row := groupedLiveRow(t, read(t, store, variant, GroupedInventoryByService, 50), "service:e")
+			if row.Completeness != GroupCompletenessPartial || row.Count != 1 {
+				t.Fatalf("%s: service:e = %q count %d, want partial count 1 regardless of the filter", name, row.Completeness, row.Count)
+			}
+		}
 		onlyHidden := precise
 		onlyHidden.AllowedScopeIDs = []string{"catalog:central"}
 		hiddenPage := read(t, store, onlyHidden, GroupedInventoryByService, 50)

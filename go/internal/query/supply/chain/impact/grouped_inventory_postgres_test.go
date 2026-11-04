@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -389,11 +390,26 @@ func TestGroupedInventorySQLShape(t *testing.T) {
 	}
 }
 
-// TestGroupedInventoryScopedSQLShape pins the scoped variant: it keeps the
-// pre-grant finding set with a per-finding granted flag, counts only granted
-// findings, and marks a bucket partial when a mapped finding or a map row is
-// hidden. The unscoped variant keeps dropping findings by grant in WHERE.
+// TestGroupedInventoryScopedSQLShape pins the scoped variant: counts read the
+// same granted and filtered finding set as the unscoped query, and the
+// hidden-repositories signal reads the static winners with only the grant
+// bound ($18, $19), never a request filter, so completeness cannot act as a
+// filter-dependent oracle on hidden findings.
 func TestGroupedInventoryScopedSQLShape(t *testing.T) {
+	hidden := groupedInventoryHiddenRepositoriesSQL
+	for _, want := range []string{"FROM supply_chain_impact_canonical_winners AS w", "w.winner_scope_id NOT LIKE 'image://derived/%'", "$18", "$19"} {
+		if !strings.Contains(hidden, want) {
+			t.Fatalf("hidden-repositories CTE missing %q", want)
+		}
+	}
+	for n := 1; n <= groupedInventoryArgCount; n++ {
+		if n == 18 || n == 19 {
+			continue
+		}
+		if regexp.MustCompile(fmt.Sprintf(`\$%d\b`, n)).MatchString(hidden) {
+			t.Fatalf("hidden-repositories CTE binds request parameter $%d", n)
+		}
+	}
 	for _, dimension := range []GroupedInventoryDimension{GroupedInventoryByService, GroupedInventoryByWorkload, GroupedInventoryByEnvironment} {
 		scoped, err := groupedInventoryScopedQuery(dimension)
 		if err != nil {
@@ -403,19 +419,12 @@ func TestGroupedInventoryScopedSQLShape(t *testing.T) {
 		if err != nil {
 			t.Fatalf("groupedInventoryQuery(%q) error = %v", dimension, err)
 		}
-		for _, want := range []string{
-			"AS granted",
-			"FROM grouped_findings AS finding\n  LEFT JOIN grouped_map",
-			"WHERE finding.granted",
-			"grouped_hidden_repositories",
-			"WHERE granted",
-		} {
-			if !strings.Contains(scoped, want) {
-				t.Fatalf("%s scoped query missing %q", dimension, want)
-			}
+		if !strings.Contains(scoped, supplyChainImpactReadModeSQL(hidden, false)) ||
+			!strings.Contains(scoped, supplyChainImpactReadModeSQL(groupedInventoryFindingsCTE, false)) {
+			t.Fatalf("%s scoped query lost the hidden-repositories CTE or the shared finding set", dimension)
 		}
-		if strings.Contains(unscoped, "grouped_hidden_repositories") || strings.Contains(unscoped, "finding.granted") {
-			t.Fatalf("%s unscoped query gained the scoped finding-level grant shape", dimension)
+		if strings.Contains(unscoped, "grouped_hidden_repositories") {
+			t.Fatalf("%s unscoped query gained the scoped partial signal", dimension)
 		}
 		assertGroupedPlaceholdersBound(t, scoped, groupedInventoryArgCount)
 	}
