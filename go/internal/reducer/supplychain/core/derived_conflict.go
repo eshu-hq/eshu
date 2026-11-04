@@ -145,9 +145,10 @@ func authorizedFindingHostLine(finding SupplyChainImpactFinding, hostLineByRow m
 // reads it as release evidence. A fact from another source (ubuntu, nvd, glad)
 // never earns the line, whatever its purl names. A vendor fact for another
 // line, one with no readable line, and any vendor fact when the host line is
-// unknown are dropped: a branch that cannot be verified as the host's must never pick the
-// host's fix. A release-tagged fact qualifies only through a range that names
-// the host line; a tagged fact naming only other lines is dropped.
+// unknown are dropped: a branch that cannot be verified as the host's must
+// never pick the host's fix. A release-tagged fact qualifies only through a
+// range that names the host line; a tagged fact naming only other lines is
+// dropped.
 //
 // An empty hostLine disables the tagged-branch filter: without the installed
 // row no tagged branch can be proven foreign, so the existing containment

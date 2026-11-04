@@ -55,9 +55,8 @@ All readers of a vendor fact follow the rule:
   line, so it never earns `ReleaseLine` from a matching purl and offers no fix,
   even beside a verified fact of the host's own vendor. This holds on the row
   path, the source-package join, and the authorized-scan conflict pass. Before
-  this round that
-  fact kept its fix whenever the row had a vendor source, and its scalar or
-  range fix could read `not_affected_known_fixed`.
+  this round that fact kept its fix whenever the row had a vendor source, and
+  its scalar or range fix could read `not_affected_known_fixed`.
 - The legacy rpm list loop (`evaluateRPMVersionMatch`, a fact with no ECOSYSTEM
   range, and the SBOM-only rpm path) reads an exact-version list match as
   `affected_exact` only for a fact that carries `ReleaseLine`. The host-line
@@ -101,11 +100,22 @@ Limits, stated plainly:
   `AdvisoryID`. The verdict and `FixedVersion` do not: the unknown arm clears
   the fix and the mismatch arm clears the fix and the list. Base was worse, so
   this is not a regression.
+- A finding for an installed OS package can be dropped before the line check
+  runs when a fact from another source wins representative selection for the
+  package id (`representativeAffectedPackage`, #9990). This predates #9945,
+  which does not touch `provenance.go`; no producer reaches it today; the
+  selection counter covers facts that reach selection and emits nothing for a
+  package whose representative cannot join. It is fixed in the follow-up lane
+  sequenced after this PR and before any OS-vendor affected_package producer
+  (arbiter: 9990-9945 ruling, decision 2).
 
 Producer note: the carrier is the purl `distro` qualifier in `debian-12`,
 `ubuntu-22.04`, `alpine-3.18` form. OSV's own Debian purls use codenames
 (`distro=bookworm`), which `osHostReleaseLine` cannot read; those read as
-`vendor_line_unknown` and fail closed. No in-tree producer emits a vendor-sourced
+`vendor_line_unknown` and fail closed. So do Ubuntu codename purls
+(`distro=focal` style) and bare Alpine releases with no vendor prefix
+(`distro=3.18` style): the reader needs the `vendor-release` form and finds no
+dash to split on. No in-tree producer emits a vendor-sourced
 OS fact yet, so no live fact changes.
 
 Files outside the #9914/#9945 partition (decision 13) that this change edits,
@@ -259,11 +269,14 @@ load average near 5 to 6, so read the ns column as rough:
 
 The untagged OSV hot path keeps zero allocations. The index-build benchmark
 does not call selection, so it is not evidence for this path and is not cited.
-A review measured the selection micro-benchmark and the whole fleet builder
+Review 3 measured the selection micro-benchmark and the whole fleet builder
 interleaved with base, alternating the first mover, four samples each, load
-average 6 to 11:
+average 6 to 11. The "Head" column is the tree at 9c24082460. Review 4
+re-measured at 8d22c2dbec and found no change (selection 41.1 ns against 43.9 ns
+at the previous head, fleet-10x 4.28 ms against 4.41 ms, host load 13 to 22, so
+no-regression only):
 
-| Benchmark | Base | Head |
+| Benchmark | Base | Head (9c24082460) |
 |---|---|---|
 | Selection, untagged OSV fact (ns/op, 0 allocs) | 19.4 (18.1 to 22.1) | 38.1 (35.7 to 40.0) |
 | `BenchmarkOSFleetDigestFanout/fleet-10x` (ms/op) | 4.62 (3.86 to 6.41) | 4.21 (3.81 to 4.89) |

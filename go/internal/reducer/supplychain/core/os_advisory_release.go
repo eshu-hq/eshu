@@ -275,8 +275,8 @@ func selectOSVendorFactLine(pkg supplychainmodel.AffectedPackage, host string) s
 // other than OSV: the vendor's own advisory, whichever distribution it is for.
 // The join accepts a fact only from the installed row's vendor, and a fact
 // with no installed row has none to compare, so this reads the source and the
-// OS shape of the fact instead (the ecosystem, a deb/apk/rpm purl, or an os://
-// package id, which may itself be a deb/apk/rpm purl).
+// OS shape of the fact instead (the ecosystem, a deb/apk/rpm purl in the purl
+// or the package id, or an os:// package id).
 func osAdvisoryFactIsVendorSourced(pkg supplychainmodel.AffectedPackage) bool {
 	if classifyAdvisorySource(pkg.Source, pkg.AdvisoryID) == "osv" {
 		return false
