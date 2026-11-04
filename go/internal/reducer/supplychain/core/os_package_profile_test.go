@@ -23,7 +23,7 @@ func TestBuildSupplyChainImpactFindingsUsesExactAPKKnownFixedProfile(t *testing.
 			"HIGH",
 			"2026-05-31T12:00:00Z",
 		),
-		vulnerabilityAffectedPackageFactWithSource(
+		withVendorLinePURL(vulnerabilityAffectedPackageFactWithSource(
 			"alpine-affected-apk-known-fixed",
 			"CVE-2026-3046",
 			"alpine",
@@ -33,7 +33,7 @@ func TestBuildSupplyChainImpactFindingsUsesExactAPKKnownFixedProfile(t *testing.
 			"openssl",
 			"3.1.4-r5",
 			"3.1.4-r6",
-		),
+		), "pkg:apk/alpine/openssl?arch=x86_64&distro=alpine-3.19"),
 		osPackageFact(
 			"apk-os-openssl-known-fixed",
 			"image://registry.example/alpine-app@sha256:3046",

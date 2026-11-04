@@ -59,8 +59,11 @@ func BenchmarkEvaluateOSPackageVersionMatchAndClassify(b *testing.B) {
 			name:         "dpkg exact affected",
 			observed:     "3.0.11-1~deb12u2",
 			fixedVersion: "3.0.11-1~deb12u3",
+			// ReleaseLine is the verified release evidence a join grants
+			// (#9945); without it this row measures the unverified read.
 			packages: []supplychainmodel.AffectedPackage{{
 				AffectedVersions: []string{"3.0.11-1~deb12u2"},
+				ReleaseLine:      "debian:12",
 			}},
 			compare: compareDPKGVersion,
 		},
@@ -302,7 +305,7 @@ func TestSupplyChainImpactExactOSPackageReasonsQualifyForPreciseProfile(t *testi
 			decision := evaluateOSPackageVersionMatch(
 				test.observedVersion,
 				test.fixedVersion,
-				[]supplychainmodel.AffectedPackage{{AffectedVersions: test.affectedVersions}},
+				[]supplychainmodel.AffectedPackage{{AffectedVersions: test.affectedVersions, ReleaseLine: "verified:line"}},
 				test.affectedReason,
 				test.knownFixedReason,
 				test.rangeAffectedReason,

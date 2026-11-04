@@ -57,18 +57,23 @@ func TestBuildSupplyChainImpactFindingsUsesVendorRPMOSPackageEvidence(t *testing
 		t.Fatalf("findings = %d, want 1 RPM-backed finding: %#v", len(findings), findings)
 	}
 	got := findings[0]
-	assertSupplyChainImpactStatus(t, got, SupplyChainImpactAffectedExact)
+	// No rpm row in the host-line table: the listed EVR has no release evidence (#9945).
+	assertSupplyChainImpactStatus(t, got, SupplyChainImpactPossiblyAffected)
+	if got.MatchReason != supplyChainVersionReasonOSReleaseUnverified {
+		t.Fatalf("MatchReason = %q, want %q", got.MatchReason, supplyChainVersionReasonOSReleaseUnverified)
+	}
 	if got.ObservedVersion != "1:3.0.7-18.el9_2" {
 		t.Fatalf("ObservedVersion = %q, want RPM EVR from os package fact", got.ObservedVersion)
 	}
 	if got.RuntimeReachability != "image_os_package" {
 		t.Fatalf("RuntimeReachability = %q, want image_os_package", got.RuntimeReachability)
 	}
-	if got.FixedVersionSource != "redhat" {
-		t.Fatalf("FixedVersionSource = %q, want redhat", got.FixedVersionSource)
+	// The join cannot verify this rpm fact's release, so it withholds the fix (#9945).
+	if got.FixedVersion != "" || got.FixedVersionSource != "" {
+		t.Fatalf("FixedVersion = %q (source %q), want the unverified vendor fix withheld", got.FixedVersion, got.FixedVersionSource)
 	}
-	if got.DetectionProfile != DetectionProfilePrecise {
-		t.Fatalf("DetectionProfile = %q, want precise", got.DetectionProfile)
+	if got.DetectionProfile != DetectionProfileComprehensive {
+		t.Fatalf("DetectionProfile = %q, want comprehensive for an unverified read", got.DetectionProfile)
 	}
 	path := strings.Join(got.EvidencePath, " -> ")
 	if !strings.Contains(path, chain.VulnerabilityOSPackageFactKind) {
@@ -90,7 +95,7 @@ func TestBuildSupplyChainImpactFindingsUsesVendorDPKGOSPackageEvidence(t *testin
 			"HIGH",
 			"2026-05-31T12:00:00Z",
 		),
-		vulnerabilityAffectedPackageFactWithSource(
+		withDistroLine(vulnerabilityAffectedPackageFactWithSource(
 			"debian-affected-dpkg",
 			"CVE-2026-2045",
 			"debian",
@@ -100,7 +105,7 @@ func TestBuildSupplyChainImpactFindingsUsesVendorDPKGOSPackageEvidence(t *testin
 			"openssl",
 			"3.0.11-1~deb12u2",
 			"3.0.11-1~deb12u3",
-		),
+		), "debian-12"),
 		osPackageFact("dpkg-os-openssl", "image://registry.example/debian-app@sha256:2045", map[string]any{
 			"distro":                 "debian",
 			"distro_version":         "12",
@@ -141,7 +146,7 @@ func TestBuildSupplyChainImpactFindingsUsesVendorAPKOSPackageEvidence(t *testing
 			"HIGH",
 			"2026-05-31T12:00:00Z",
 		),
-		vulnerabilityAffectedPackageFactWithSource(
+		withDistroLine(vulnerabilityAffectedPackageFactWithSource(
 			"alpine-affected-apk",
 			"CVE-2026-3045",
 			"alpine",
@@ -151,7 +156,7 @@ func TestBuildSupplyChainImpactFindingsUsesVendorAPKOSPackageEvidence(t *testing
 			"openssl",
 			"3.1.4-r5",
 			"3.1.4-r6",
-		),
+		), "alpine-3.19"),
 		osPackageFact("apk-os-openssl", "image://registry.example/alpine-app@sha256:3045", map[string]any{
 			"distro":                 "alpine",
 			"distro_version":         "3.19.1",

@@ -123,8 +123,8 @@ func markAuthorizedFixedVersionConflicts(
 // installed row's fact ID in EvidenceFactIDs (the primary path stamps
 // osPackage.FactID there when it builds the finding), so the conflict path
 // resolves the same host line the primary path narrowed facts against. An
-// unknown line is not evidence of anything: without it no branch can be
-// proven foreign, so callers keep the existing behavior.
+// unknown line is not evidence of anything: without it no tagged branch can be
+// proven foreign, so callers keep the existing behavior for those.
 func authorizedFindingHostLine(finding SupplyChainImpactFinding, hostLineByRow map[string]string) string {
 	for _, factID := range finding.EvidenceFactIDs {
 		if hostLine, ok := hostLineByRow[factID]; ok {
@@ -135,34 +135,52 @@ func authorizedFindingHostLine(finding SupplyChainImpactFinding, hostLineByRow m
 }
 
 // filterAuthorizedBranchesToHostLine keeps the branches that may describe the
-// finding's installed release line. Untagged and vendor-sourced facts always
-// qualify: the primary path passes them through un-narrowed, so they contend
-// exactly as before. A release-tagged fact qualifies only through a range
-// that names the host line; a tagged fact naming only other lines is dropped.
+// finding's installed release line. Untagged non-vendor facts always qualify:
+// the primary path passes them through un-narrowed, so they contend exactly as
+// before. A vendor-sourced OS fact (osAdvisoryFactIsVendorSourced, #9945)
+// contends only when it is the host vendor's own fact (its source equals the
+// vendor of the host line, as the row path's join requires) and its purl
+// distro qualifier names the host's own line; it is kept as
+// selectOSVendorFactLine returns it, with ReleaseLine set, so the evaluator
+// reads it as release evidence. A fact from another source (ubuntu, nvd, glad)
+// never earns the line, whatever its purl names. A vendor fact for another
+// line, one with no readable line, and any vendor fact when the host line is
+// unknown are dropped: a branch that cannot be verified as the host's must
+// never pick the host's fix. A release-tagged fact qualifies only through a
+// range that names the host line; a tagged fact naming only other lines is
+// dropped.
 //
-// An empty hostLine disables the filter: without the installed row no branch
-// can be proven foreign, so the existing containment behavior stands. When
-// the line is known but nothing qualifies, the caller leaves the finding
-// untouched, preserving the primary not-in-advisory precision.
+// An empty hostLine disables the tagged-branch filter: without the installed
+// row no tagged branch can be proven foreign, so the existing containment
+// behavior stands for it. When nothing qualifies, the caller leaves the finding
+// untouched, preserving the primary verdict, which already fails closed.
 func filterAuthorizedBranchesToHostLine(
 	branches []supplychainmodel.AffectedPackage,
 	hostLine string,
 ) []supplychainmodel.AffectedPackage {
-	if hostLine == "" {
-		return branches
-	}
 	var out []supplychainmodel.AffectedPackage
+	hostVendor, _, _ := strings.Cut(hostLine, ":")
 	for _, branch := range branches {
-		if !osAdvisoryFactSelectable(branch) {
-			out = append(out, branch)
-			continue
-		}
-		for _, affectedRange := range branch.AffectedRanges {
-			if strings.EqualFold(affectedRange.Kind, "ECOSYSTEM") &&
-				slices.Contains(affectedRange.Releases, hostLine) {
+		switch {
+		case osAdvisoryFactSelectable(branch):
+			if hostLine == "" {
 				out = append(out, branch)
-				break
+				continue
 			}
+			for _, affectedRange := range branch.AffectedRanges {
+				if strings.EqualFold(affectedRange.Kind, "ECOSYSTEM") &&
+					slices.Contains(affectedRange.Releases, hostLine) {
+					out = append(out, branch)
+					break
+				}
+			}
+		case osAdvisoryFactIsVendorSourced(branch):
+			if osAdvisoryFactIsHostVendorFact(branch.Source, hostVendor) &&
+				osVendorFactLineStatus(branch, hostLine) == osVendorLineMatched {
+				out = append(out, selectOSVendorFactLine(branch, hostLine))
+			}
+		default:
+			out = append(out, branch)
 		}
 	}
 	return out
@@ -267,7 +285,8 @@ func affectedVersionSetsOverlap(first, second []string) bool {
 // disjoint ranges prove one branch applies to this observed installation.
 // hostLine is the finding's installed release line ("ubuntu:22.04"): tagged
 // branches naming only other lines are filtered before containment, so a
-// cross-release fix can never present as the host's own (#9806 P1).
+// cross-release fix can never present as the host's own (#9806 P1), and a
+// vendor branch contends only when its own line is the host's (#9945).
 func selectApplicableAuthorizedBranch(
 	finding *SupplyChainImpactFinding,
 	packages []supplychainmodel.AffectedPackage,

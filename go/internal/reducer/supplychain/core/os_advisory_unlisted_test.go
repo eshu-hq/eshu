@@ -197,8 +197,8 @@ func TestUnlistedReleaseVerdict(t *testing.T) {
 func TestUnlistedReleaseVendorVersionListWins(t *testing.T) {
 	t.Parallel()
 
-	alpine := supplychainmodel.OSPackage{Distro: "alpine", DistroVersion: "3.23.0"}
-	bullseye := supplychainmodel.OSPackage{Distro: "debian", DistroVersion: "11"}
+	alpine := supplychainmodel.OSPackage{Distro: "alpine", DistroVersion: "3.23.0", VendorAdvisorySource: "alpine"}
+	bullseye := supplychainmodel.OSPackage{Distro: "debian", DistroVersion: "11", VendorAdvisorySource: "debian"}
 	vendor := func(source, advisory, purl, name string, version string) supplychainmodel.AffectedPackage {
 		return supplychainmodel.AffectedPackage{
 			CVEID: "CVE-2099-9999", Source: source, AdvisoryID: advisory,
@@ -218,14 +218,14 @@ func TestUnlistedReleaseVendorVersionListWins(t *testing.T) {
 		{
 			name:     "dpkg several fixes",
 			osv:      osvDebianCurlFact(),
-			vendor:   vendor("debian", "DSA-9999-1", "pkg:deb/debian/curl", "curl", "9.0.0-1"),
+			vendor:   vendor("debian", "DSA-9999-1", "pkg:deb/debian/curl?distro=debian-11", "curl", "9.0.0-1"),
 			row:      bullseye,
 			observed: "9.0.0-1",
 		},
 		{
 			name:     "dpkg single fix",
 			osv:      osvDebianCurlFactWith(taggedRange("8.3.0-1", "debian:13")),
-			vendor:   vendor("debian", "DSA-9999-1", "pkg:deb/debian/curl", "curl", "9.0.0-1"),
+			vendor:   vendor("debian", "DSA-9999-1", "pkg:deb/debian/curl?distro=debian-11", "curl", "9.0.0-1"),
 			row:      bullseye,
 			observed: "9.0.0-1",
 		},
@@ -235,14 +235,14 @@ func TestUnlistedReleaseVendorVersionListWins(t *testing.T) {
 				taggedRange("8.14.1-r3", "alpine:3.21"),
 				taggedRange("8.14.1-r4", "alpine:3.22"),
 			),
-			vendor:   vendor("alpine", "ALPINE-SECDB-9999", "pkg:apk/alpine/curl", "curl", "8.15.0-r0"),
+			vendor:   vendor("alpine", "ALPINE-SECDB-9999", "pkg:apk/alpine/curl?distro=alpine-3.23", "curl", "8.15.0-r0"),
 			row:      alpine,
 			observed: "8.15.0-r0",
 		},
 		{
 			name:     "apk single fix",
 			osv:      osvAlpineCurlFact(taggedRange("8.14.1-r3", "alpine:3.21")),
-			vendor:   vendor("alpine", "ALPINE-SECDB-9999", "pkg:apk/alpine/curl", "curl", "8.15.0-r0"),
+			vendor:   vendor("alpine", "ALPINE-SECDB-9999", "pkg:apk/alpine/curl?distro=alpine-3.23", "curl", "8.15.0-r0"),
 			row:      alpine,
 			observed: "8.15.0-r0",
 		},
@@ -261,7 +261,9 @@ func TestUnlistedReleaseVendorVersionListWins(t *testing.T) {
 					t.Fatalf("decision = %s/%s, want %s: the vendor list names the host",
 						decision.Status, decision.Reason, SupplyChainImpactAffectedExact)
 				}
-				alone := evaluateSupplyChainVersionMatch("os", tc.observed, "", "", []supplychainmodel.AffectedPackage{tc.vendor})
+				// The vendor fact reaches the matcher only through the line check.
+				verified := selectOSAdvisoryRelease([]supplychainmodel.AffectedPackage{tc.vendor}, tc.row)
+				alone := evaluateSupplyChainVersionMatch("os", tc.observed, "", "", verified)
 				if alone.Status != SupplyChainImpactAffectedExact {
 					t.Fatalf("vendor fact alone = %s/%s, fixture is not a vendor win", alone.Status, alone.Reason)
 				}

@@ -4,6 +4,7 @@
 package core
 
 import (
+	"net/url"
 	"strings"
 	"unicode"
 
@@ -50,6 +51,56 @@ func purlPackageKey(purl string) string {
 		purl = purl[:at]
 	}
 	return purl
+}
+
+// osAdvisoryPURLReleaseLine returns the "<vendor>:<line>" release key an
+// advisory purl names through its distro qualifier, or "" when the purl names
+// none the reducer can read (#9945). The qualifier value is "<vendor>-<release>"
+// (pkg:deb/debian/curl?distro=debian-12, ubuntu-22.04, alpine-3.18) and is read
+// through osHostReleaseLine, the same closed vector table that keys the installed
+// row, so a fact line and a host line compare as equal strings.
+//
+// It fails closed to "": no purl, no qualifier, an empty value, a value the
+// table cannot map (a codename such as "bookworm", a vendor without a table
+// row), or several distro qualifiers that do not agree. Repeated qualifiers that
+// name the same line count once. Qualifier keys and the vendor spelling are
+// case-insensitive; the version, subpath and qualifiers after the first "#"
+// are ignored as in purlPackageKey.
+func osAdvisoryPURLReleaseLine(purl string) string {
+	purl = strings.TrimSpace(purl)
+	if cut := strings.IndexByte(purl, '#'); cut >= 0 {
+		purl = purl[:cut]
+	}
+	_, query, ok := strings.Cut(purl, "?")
+	if !ok {
+		return ""
+	}
+	line := ""
+	for query != "" {
+		var pair string
+		pair, query, _ = strings.Cut(query, "&")
+		key, value, _ := strings.Cut(pair, "=")
+		if !strings.EqualFold(key, "distro") {
+			continue
+		}
+		if strings.IndexByte(value, '%') >= 0 {
+			decoded, err := url.QueryUnescape(value)
+			if err != nil {
+				return ""
+			}
+			value = decoded
+		}
+		vendor, release, found := strings.Cut(value, "-")
+		if !found {
+			return ""
+		}
+		qualifierLine := osHostReleaseLine(vendor, release)
+		if qualifierLine == "" || (line != "" && line != qualifierLine) {
+			return ""
+		}
+		line = qualifierLine
+	}
+	return line
 }
 
 func classifyAffectedPackageAdvisorySource(pkg supplychainmodel.AffectedPackage) string {

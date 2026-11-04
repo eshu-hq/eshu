@@ -20,6 +20,7 @@ type osListFamilyCase struct {
 	fixBelow      string // an OSV fix strictly below host
 	otherFixBelow string // a second OSV fix, also at or below host
 	otherVersion  string // a version that is not the host
+	hostLine      string // the host's release line, as the join records it on a verified vendor fact
 	unreadable    string // a list entry the family comparator cannot read
 	affected      string // the closed exact-affected reason
 	knownFixed    string // the closed single-fix known-fixed reason
@@ -30,7 +31,7 @@ var osListFamilies = []osListFamilyCase{
 	{
 		name: "dpkg", osvSource: "osv", vendorSource: "debian", purl: "pkg:deb/debian/curl",
 		host: "1:1.0-3", fixBelow: "1:1.0-2", otherFixBelow: "1:0.9-1", otherVersion: "1:1.0-4",
-		unreadable: "not a version",
+		unreadable: "not a version", hostLine: "debian:12",
 		affected:   supplyChainVersionReasonDPKGExactAffected,
 		knownFixed: supplyChainVersionReasonDPKGKnownFixed,
 		rangeFixed: supplyChainVersionReasonDPKGKnownFixed,
@@ -38,7 +39,7 @@ var osListFamilies = []osListFamilyCase{
 	{
 		name: "apk", osvSource: "osv", vendorSource: "alpine", purl: "pkg:apk/alpine/curl",
 		host: "8.15.0-r4", fixBelow: "8.15.0-r3", otherFixBelow: "8.14.1-r0", otherVersion: "8.15.0-r5",
-		unreadable: "bad-version",
+		unreadable: "bad-version", hostLine: "alpine:3.18",
 		affected:   supplyChainVersionReasonAPKExactAffected,
 		knownFixed: supplyChainVersionReasonAPKKnownFixed,
 		rangeFixed: supplyChainVersionReasonAPKKnownFixed,
@@ -55,15 +56,16 @@ func (c osListFamilyCase) osvFact(ranges []supplychainmodel.AffectedRange, fixes
 	}
 }
 
-// vendorFact is a vendor-sourced fact. The join reads any non-OSV source as
-// release evidence but carries no release line for it, so the fixture states
-// none and the rules under test match on the exact version string alone
-// (#9945 tracks checking the line).
+// vendorFact is a vendor-sourced fact in the shape the join hands the matcher
+// once selectOSVendorFactLine verified its purl line against the host's
+// (#9945): ReleaseLine is set, so the fact carries release evidence and the
+// rules under test match on the exact version string alone. The line check
+// itself is tested in os_vendor_line_test.go and os_vendor_line_join_test.go.
 func (c osListFamilyCase) vendorFact(advisory string, versions ...string) supplychainmodel.AffectedPackage {
 	return supplychainmodel.AffectedPackage{
 		CVEID: "CVE-2099-0929", Source: c.vendorSource, AdvisoryID: advisory,
 		PackageID: "os://" + c.vendorSource + "/curl", Ecosystem: "os", Name: "curl",
-		PURL: c.purl, AffectedVersions: versions,
+		PURL: c.purl, AffectedVersions: versions, ReleaseLine: c.hostLine,
 	}
 }
 
@@ -167,9 +169,9 @@ func TestVendorVersionListBeatsOSVRanges(t *testing.T) {
 
 // TestVendorVersionListEdgeCases pins the cases around the rule: a list that
 // does not name the host, an empty list, and two vendor facts that disagree.
-// It does not model a release line: a vendor fact carries none, so the rule
-// matches on the exact version string alone (see the note in
-// osReleaseEvidenceListNamesObserved).
+// Every vendor fact here already carries the host's line, so the rule matches
+// on the exact version string alone; a fact for another line is covered by
+// os_vendor_line_join_test.go.
 func TestVendorVersionListEdgeCases(t *testing.T) {
 	t.Parallel()
 	for _, c := range osListFamilies {

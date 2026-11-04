@@ -337,7 +337,7 @@ func TestCov6EvaluateOSPackageVersionMatch(t *testing.T) {
 	if decision.Reason != supplyChainVersionReasonMalformedInstalled {
 		t.Fatalf("apk invalid observed reason = %q, want malformed-installed", decision.Reason)
 	}
-	ranged := supplychainmodel.AffectedPackage{AffectedRanges: []supplychainmodel.AffectedRange{
+	ranged := supplychainmodel.AffectedPackage{ReleaseLine: "alpine:3.18", AffectedRanges: []supplychainmodel.AffectedRange{
 		{Kind: "ECOSYSTEM", Events: []supplychainmodel.AffectedRangeEvent{
 			{Introduced: "1.0"},
 			{Fixed: "2.0"},

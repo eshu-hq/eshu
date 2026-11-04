@@ -102,6 +102,14 @@ func classifySupplyChainImpactPackage(
 		// remediation see the host's own range and fix (#9806 PR-2b).
 		pkgs = selectOSAdvisoryRelease(pkgs, osPackage)
 		pkg = representativeAffectedPackage(pkgs)
+	} else if hasComponentPath && osPackageFamilyFromPURL(component.PURL) != "" {
+		// An OS-family SBOM component with no joined installed row has no host
+		// release line, so a vendor fact cannot be verified against one. Run the
+		// vendor boundary with the zero row so such a fact takes the unknown
+		// arm: no release evidence and no fix of its own (#9945). Tagged OSV
+		// facts need the line and are left as they were.
+		pkgs = selectOSAdvisoryRelease(pkgs, supplychainmodel.OSPackage{})
+		pkg = representativeAffectedPackage(pkgs)
 	}
 	finding := baseSupplyChainImpactFinding(cves, pkgs, index)
 	// repoFromConsumption is the single provenance signal both image-evidence

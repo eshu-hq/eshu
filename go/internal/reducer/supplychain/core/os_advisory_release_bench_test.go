@@ -12,7 +12,9 @@ import (
 // BenchmarkSelectOSAdvisoryRelease measures the per-finding narrowing step
 // (#9806 PR-2b) on one tagged OSV fact: a listed host line (copy and narrow),
 // an unlisted one (copy and mark), an untagged fact (early return), and a
-// host whose release maps to no line (early return before any fact).
+// host whose release maps to no line (early return before any fact), plus the
+// untagged fact with a vendor-sourced installed row and the three outcomes of
+// the vendor line check (#9945).
 func BenchmarkSelectOSAdvisoryRelease(b *testing.B) {
 	untagged := osvDebianCurlFact()
 	untagged.AffectedRanges = []supplychainmodel.AffectedRange{
@@ -28,6 +30,18 @@ func BenchmarkSelectOSAdvisoryRelease(b *testing.B) {
 		{"unlisted", osvDebianCurlFact(), supplychainmodel.OSPackage{Distro: "debian", DistroVersion: "11"}},
 		{"untagged", untagged, supplychainmodel.OSPackage{Distro: "debian", DistroVersion: "12"}},
 		{"host-unknown", osvDebianCurlFact(), supplychainmodel.OSPackage{Distro: "debian"}},
+		// The vendor line check (#9945) adds one source compare and one source
+		// classification per fact that is neither tagged nor selectable, so an
+		// untagged OSV fact on a real row (which always has a vendor advisory
+		// source) must stay at zero allocations.
+		{"untagged-vendor-row", untagged, bookwormRow},
+		{"vendor-matched", vendorLineFact("debian", "pkg:deb/debian/curl?arch=amd64&distro=debian-12"), bookwormRow},
+		{"vendor-mismatch", vendorLineFact("debian", "pkg:deb/debian/curl?arch=amd64&distro=debian-11"), bookwormRow},
+		{"vendor-unknown", vendorLineFact("debian", "pkg:deb/debian/curl?arch=amd64"), bookwormRow},
+		// The SBOM-only path runs the boundary with the zero row, so a vendor
+		// fact takes the unknown arm and an untagged OSV fact is left alone.
+		{"vendor-zero-row", vendorLineFact("debian", "pkg:deb/debian/curl?arch=amd64&distro=debian-12"), supplychainmodel.OSPackage{}},
+		{"untagged-zero-row", untagged, supplychainmodel.OSPackage{}},
 	} {
 		b.Run(tc.name, func(b *testing.B) {
 			pkgs := []supplychainmodel.AffectedPackage{tc.pkg}

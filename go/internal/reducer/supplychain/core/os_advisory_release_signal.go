@@ -31,8 +31,21 @@ const (
 	// row's distro_version maps to no release line.
 	osAdvisoryReleaseHostUnknown = "host_release_unknown"
 	// osAdvisoryReleaseVendorSource: a vendor-sourced fact (source debian,
-	// ubuntu, alpine) is published per release and needs no selection.
+	// ubuntu, alpine) whose purl distro qualifier names the installed row's
+	// release line, so it decides the host as published (#9945). It also
+	// labels a non-OSV fact that is not the installed row's own vendor
+	// source, which the line check leaves alone.
 	osAdvisoryReleaseVendorSource = "vendor_source"
+	// osAdvisoryReleaseVendorLineMismatch: a vendor-sourced fact whose purl
+	// distro qualifier names another release than the installed row's. The
+	// fact is excluded from the exact and known-fixed verdicts (#9945).
+	osAdvisoryReleaseVendorLineMismatch = "vendor_line_mismatch"
+	// osAdvisoryReleaseVendorLineUnknown: a vendor-sourced fact whose release
+	// line cannot be compared: its purl names no distro line the reducer can
+	// read, or the installed row's own line is unknown. It carries no release
+	// evidence and its fixed versions are withheld, so it never yields
+	// affected_exact or not_affected_known_fixed (#9945).
+	osAdvisoryReleaseVendorLineUnknown = "vendor_line_unknown"
 )
 
 // Success-log sub-signal names for the release split of the joined OS
@@ -44,6 +57,11 @@ const (
 	osAdvisoriesReleaseMatchedSubSignal  = "os_advisories_release_matched"
 	osAdvisoriesReleaseUnlistedSubSignal = "os_advisories_release_unlisted"
 	osAdvisoriesReleaseUntaggedSubSignal = "os_advisories_release_untagged"
+	// The vendor line check (#9945) reports the vendor facts it excluded
+	// (another release) and the ones it could not compare (no readable line),
+	// so an operator without a metrics backend sees them on the success line.
+	osAdvisoriesVendorLineMismatchSubSignal = "os_advisories_vendor_line_mismatch"
+	osAdvisoriesVendorLineUnknownSubSignal  = "os_advisories_vendor_line_unknown"
 )
 
 // osAdvisoriesWithRelease returns how many joined OS advisory facts carry the
@@ -62,6 +80,16 @@ func (s supplyChainImpactBuildStats) osAdvisoriesWithRelease(result string) int 
 // the installed row's release line, using the same rule
 // selectOSAdvisoryRelease applies before classification.
 func osAdvisoryReleaseResult(pkg supplychainmodel.AffectedPackage, installed supplychainmodel.OSPackage) string {
+	if osAdvisoryFactIsHostVendorFact(pkg.Source, installed.VendorAdvisorySource) {
+		switch osVendorFactLineStatus(pkg, osHostReleaseLine(installed.Distro, installed.DistroVersion)) {
+		case osVendorLineMatched:
+			return osAdvisoryReleaseVendorSource
+		case osVendorLineMismatch:
+			return osAdvisoryReleaseVendorLineMismatch
+		default:
+			return osAdvisoryReleaseVendorLineUnknown
+		}
+	}
 	if classifyAdvisorySource(pkg.Source, pkg.AdvisoryID) != "osv" {
 		return osAdvisoryReleaseVendorSource
 	}

@@ -1039,8 +1039,10 @@ type Instruments struct {
 	// SupplyChainImpactOSAdvisoryReleaseSelections counts the joined OS
 	// advisory facts of a supply-chain impact pass by source and result
 	// (release_matched, release_unlisted, release_untagged,
-	// host_release_unknown, vendor_source): what the fact's release-tagged
-	// ranges say about the installed row's release line (#9806 PR-2b).
+	// host_release_unknown, vendor_source, vendor_line_mismatch,
+	// vendor_line_unknown): what the fact's release-tagged ranges say about the
+	// installed row's release line (#9806 PR-2b), and for a vendor-sourced fact
+	// whether its purl distro line is the host's (#9945).
 	SupplyChainImpactOSAdvisoryReleaseSelections metric.Int64Counter
 	// SupplyChainImpactOSReleaseNotInAdvisory counts the OS findings whose
 	// advisory carries release tags but none for the installed release,
@@ -4796,7 +4798,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.SupplyChainImpactOSAdvisoryReleaseSelections, err = meter.Int64Counter(
 		"eshu_dp_supply_chain_impact_os_advisory_release_selections_total",
-		metric.WithDescription("Joined OS advisory facts a supply-chain impact pass evaluated, by source (debian, ubuntu, alpine, alma, rocky, other) and result (release_matched, release_unlisted, release_untagged, host_release_unknown, vendor_source): whether the fact's release-tagged ranges named the installed row's release line. release_matched decides on the host's own range and fix; release_untagged keeps the untagged union rules."),
+		metric.WithDescription("Joined OS advisory facts a supply-chain impact pass evaluated, by source (debian, ubuntu, alpine, alma, rocky, other) and result (release_matched, release_unlisted, release_untagged, host_release_unknown, vendor_source, vendor_line_mismatch, vendor_line_unknown): whether the fact's release-tagged ranges named the installed row's release line. release_matched decides on the host's own range and fix; release_untagged keeps the untagged union rules. For a vendor-sourced fact, vendor_source means its purl distro line is the host's, vendor_line_mismatch means it names another release and is excluded from the verdict, and vendor_line_unknown means no line could be compared, so it carries no release evidence: it never yields affected_exact or not_affected_known_fixed, its fixed versions are withheld, and a list or range that names the host reads possibly_affected. A non-OSV fact from any other source, and an rpm exact-version list (the line table has no rpm row), read the same way."),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SupplyChainImpactOSAdvisoryReleaseSelections counter: %w", err)

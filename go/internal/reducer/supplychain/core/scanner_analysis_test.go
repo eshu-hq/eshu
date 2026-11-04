@@ -48,7 +48,7 @@ func TestBuildSupplyChainImpactFindingsAnchorsOSPackageSubjectDigestOnScannerAna
 			"HIGH",
 			"2026-06-05T12:00:00Z",
 		),
-		vulnerabilityAffectedPackageFactWithSource(
+		withDistroLine(vulnerabilityAffectedPackageFactWithSource(
 			"debian-affected-digest",
 			"CVE-2026-5463",
 			"debian",
@@ -58,7 +58,7 @@ func TestBuildSupplyChainImpactFindingsAnchorsOSPackageSubjectDigestOnScannerAna
 			"openssl",
 			"3.0.11-1~deb12u2",
 			"3.0.11-1~deb12u3",
-		),
+		), "debian-12"),
 		{
 			FactID:       "dpkg-os-openssl-digest",
 			FactKind:     chain.VulnerabilityOSPackageFactKind,
@@ -133,7 +133,7 @@ func TestBuildSupplyChainImpactFindingsLeavesOSPackageSubjectDigestBlankWithoutS
 			"HIGH",
 			"2026-06-05T12:00:00Z",
 		),
-		vulnerabilityAffectedPackageFactWithSource(
+		withDistroLine(vulnerabilityAffectedPackageFactWithSource(
 			"debian-affected-no-analysis",
 			"CVE-2026-5464",
 			"debian",
@@ -143,7 +143,7 @@ func TestBuildSupplyChainImpactFindingsLeavesOSPackageSubjectDigestBlankWithoutS
 			"openssl",
 			"3.0.11-1~deb12u2",
 			"3.0.11-1~deb12u3",
-		),
+		), "debian-12"),
 		osPackageFact("dpkg-os-openssl-no-analysis", scopeID, map[string]any{
 			"distro":                 "debian",
 			"distro_version":         "12",

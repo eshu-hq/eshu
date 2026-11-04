@@ -122,7 +122,7 @@ func TestRangeEventsAreEvaluatedInVersionOrder(t *testing.T) {
 				t.Run(family.ecosystem+"/"+family.kind+"/"+shape.name+"/"+observed, func(t *testing.T) {
 					t.Parallel()
 					pkgs := affectedPackageWithRanges(eventRange(family.kind, shape.events...))
-					got := evaluateSupplyChainVersionMatch(family.ecosystem, observed, "", "", pkgs)
+					got := evaluateSupplyChainVersionMatch(family.ecosystem, observed, "", "", verifiedForOSHost(pkgs))
 					isAffected := string(got.Status) == affected
 					if isAffected != (want == affected) {
 						t.Fatalf("status=%q reason=%q, want %s (events %v)", got.Status, got.Reason, want, shape.events)

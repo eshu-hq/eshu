@@ -379,5 +379,7 @@ func (h SupplyChainImpactHandler) recordBuildStats(
 	subSignals[osAdvisoriesReleaseMatchedSubSignal] = float64(stats.osAdvisoriesWithRelease(osAdvisoryReleaseMatched))
 	subSignals[osAdvisoriesReleaseUnlistedSubSignal] = float64(stats.osAdvisoriesWithRelease(osAdvisoryReleaseUnlisted))
 	subSignals[osAdvisoriesReleaseUntaggedSubSignal] = float64(stats.osAdvisoriesWithRelease(osAdvisoryReleaseUntagged))
+	subSignals[osAdvisoriesVendorLineMismatchSubSignal] = float64(stats.osAdvisoriesWithRelease(osAdvisoryReleaseVendorLineMismatch))
+	subSignals[osAdvisoriesVendorLineUnknownSubSignal] = float64(stats.osAdvisoriesWithRelease(osAdvisoryReleaseVendorLineUnknown))
 	subSignals[osReleaseNotInAdvisorySubSignal] = float64(stats.osReleaseNotInAdvisoryTotal())
 }

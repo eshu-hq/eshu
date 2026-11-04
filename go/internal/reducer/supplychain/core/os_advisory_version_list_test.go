@@ -14,7 +14,8 @@ import (
 // TestOSVOSAdvisoryVersionListNeverExact pins ruling D on the exact-version
 // list: an OSV OS entry that lists the installed version but carries no
 // release evidence reads possibly_affected, as its ranges would (#9848 review
-// F2). A vendor-sourced fact listing the same version stays affected_exact.
+// F2). A vendor-sourced fact for the host's own release listing the same
+// version stays affected_exact (#9945 checks the release line).
 func TestOSVOSAdvisoryVersionListNeverExact(t *testing.T) {
 	t.Parallel()
 
@@ -37,6 +38,8 @@ func TestOSVOSAdvisoryVersionListNeverExact(t *testing.T) {
 		return convertedOSVRecord(t, record, false)
 	}
 	vendorFact := derivedPartitionAdvisory("vendor", "vuln-intel://debian/dsa", "3.0.11-1~deb12u3")
+	// The helper's fact is published for Debian 12; this host is on 11.
+	vendorFact[1] = withDistroLine(vendorFact[1], "debian-11")
 	vendorRow := installedOSRow{vendor: "debian", release: "11", manager: "dpkg", name: "openssl", arch: "amd64", version: "3.0.11-1~deb12u2"}
 
 	tests := []struct {
