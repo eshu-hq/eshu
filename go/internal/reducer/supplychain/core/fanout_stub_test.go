@@ -43,6 +43,19 @@ type stubFanOut struct {
 	owedRecorded  int
 	// reads records the order of the two read calls.
 	reads []string
+	// candidates, candidateErr, and candidateEcosystems serve and record the
+	// #9874 package-keyed holder read.
+	candidates          []PackageHolderCandidate
+	candidateErr        error
+	candidateEcosystems [][]string
+}
+
+func (s *stubFanOut) FindPackageHolderCandidates(_ context.Context, _ string, ecosystems []string) ([]PackageHolderCandidate, error) {
+	s.candidateEcosystems = append(s.candidateEcosystems, append([]string(nil), ecosystems...))
+	if s.candidateErr != nil {
+		return nil, s.candidateErr
+	}
+	return append([]PackageHolderCandidate(nil), s.candidates...), nil
 }
 
 // stubOwed is the recorder the fake writer runs the way the real writer does:

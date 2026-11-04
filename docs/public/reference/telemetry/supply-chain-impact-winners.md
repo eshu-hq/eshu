@@ -87,6 +87,13 @@ unchanged KEV or EPSS collection creates no generation at all (the
 collector content-digest skip), so a flat `cause="epss"`/`"kev"` rate means
 no enrichment changed, not that re-triggers stopped.
 
+A manifest or lockfile change converges the same way (#9874): the git
+generation's marker pass reopens every scope holding advisory evidence for a
+changed package, counted under `cause="manifest_dependency"`. A marker pass
+that runs before its generation activates logs `supply chain impact manifest
+trigger deferred until generation activates` and retries under the counting
+failure class `supply_chain_impact_manifest_trigger_deferred`.
+
 ## Signals
 
 | Signal | Type | Labels | What it tells you |

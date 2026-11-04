@@ -97,7 +97,7 @@ sequenceDiagram
   participant You as API / MCP / console
   Src->>Col: advisory records (on the scan schedule)
   Col->>PG: commit one generation of facts for one scope
-  PG->>Prj: generation holds a trigger fact (advisory, KEV, EPSS, suppression, alert, package registry, SBOM, OCI)
+  PG->>Prj: generation holds a trigger fact (advisory, KEV, EPSS, suppression, alert, package registry, SBOM, OCI) or only a git dependency row (marker intent, #9874)
   Prj->>Red: enqueue one impact intent for that scope
   Red->>PG: load the scope's facts
   Red->>PG: pull matching evidence from other scopes (up to 8 rounds)
@@ -288,7 +288,7 @@ correctly.
 | Event | Today | Planned |
 | --- | --- | --- |
 | New advisory for a package you use | The next OSV derivation pass queries it. Derivation rotates through owned packages 100 queries at a time and defaults to npm only. | All ecosystems and a higher limit (item 0.1-0.2). |
-| You change a lockfile | The git collector records new evidence, but git facts do not trigger the impact reducer. Findings update only when a scope with a trigger fact for that package runs again, usually its OSV scope on the next derivation pass. | Measured convergence time (item 1.2). |
+| You change a lockfile | The git generation enqueues one marker impact intent (#9874). It writes no findings; it reopens the scopes holding advisory evidence for the packages the generation changed, and their next passes add, re-score, or retract the findings. Known gap: a removal whose only record is the base of a prior delta that can no longer be read is missed until the advisory scope reruns. | Measured convergence time in QA (item 1.2). |
 | KEV adds a CVE | Expected from the code, not yet observed: the KEV scope's run writes re-scored copies of matching findings, and the winner keeps the higher score. QA has no overlap to show it. | Fixture-tested refresh model (item 2.3). |
 | EPSS rescores daily | Only with EPSS targets configured, which none are in QA. | Derived EPSS targets (item 2.1). |
 | An advisory is withdrawn | Excluded from field selection but still listed. A fully withdrawn group can still emit a finding. | Retraction with a reason (item 1.5). |

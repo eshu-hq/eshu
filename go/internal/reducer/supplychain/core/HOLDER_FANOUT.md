@@ -95,3 +95,47 @@ does not propagate it until a later complete pass. And a newer EPSS
 `score_date` with unchanged probability still flips the digest (the selected
 date is in provenance), so holders re-derive once and land on identical
 scores: correct, at the cost of one holder pass each.
+
+## Manifest dependency changes (#9874)
+
+A git generation that changes a manifest or lockfile holds none of the twelve
+projector trigger kinds, so before #9874 a new or removed pin waited for an
+advisory scope to rerun. The projector now enqueues one marker intent for such a
+generation (payload `trigger: manifest_dependency`, entity key
+`supply_chain_impact:<scope>`, so a 500-pin push is one intent). `Handle` sends
+it to `handleManifestTrigger` before the fencing token and the evidence load
+(`manifest_trigger.go`). The marker pass writes no findings. It:
+
+1. Gates on activation with the shared generation freshness check, read through
+   `ManifestDependencyGenerationReader` on the fan-out port: active fans out, a
+   pending generation defers with the counting failure class
+   `supply_chain_impact_manifest_trigger_deferred` (the attempt budget bounds
+   it; a dead-lettered marker only falls back to the pre-#9874 behavior), and a
+   superseded one succeeds without work.
+2. Re-derives the changed packages from the generation's own dependency rows
+   (`manifest_change.go`): with no activated prior, every pin; otherwise the
+   symmetric difference of dependency signatures against the prior view, a delta
+   compared on its touched paths only. A prior delta is read as its base
+   overlaid with its own rows (`facts.OverlayDeltaBase`). Tombstoned rows always
+   count.
+3. Reads the active `vulnerability.affected_package` identities in those
+   ecosystems (`FindPackageHolderCandidates`) and keeps the scopes whose
+   identity shares a consumption key with a changed dependency, the findings
+   pass's own join.
+4. Reopens them through `ReopenHolder` with the same cap and continuation list
+   as the CVE fan-out, under `cause="manifest_dependency"`. A reopened holder
+   re-derives its findings from the current manifest rows, which adds,
+   re-scores, or retracts the finding.
+
+A marker item reopened by another pass's fan-out is not a one-hop no-op: its
+re-derivation is the holder fan-out, so it re-reads the generation and reopens
+the holders again. That terminates, because a holder pass that changes nothing
+fans out nothing.
+
+Known limit: when the prior generation is a delta whose base cannot be read
+(missing, pruned, or a legacy delta), the prior view is the delta's own rows,
+so a pin that only the base held looks never-present and its removal is not
+fanned out. Its finding stays until that package's advisory scope reruns. The
+pass reports `manifest_trigger_prior_base_missing=1`, and
+`TestManifestTriggerKnownLimitPriorDeltaWithMissingBase` pins the behavior.
+Evidence: `docs/internal/evidence/9874-lockfile-retrigger.md`.

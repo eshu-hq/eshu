@@ -28,6 +28,14 @@ changing anything here.
   contracts as they were, and record the new rule in this package's
   README and in the public doc that describes the changed status or
   classification.
+- A `supply_chain_impact` intent whose payload carries
+  `trigger: manifest_dependency` (#9874) never runs the findings pass: Handle
+  routes it to `handleManifestTrigger` (`manifest_trigger.go`) before the
+  fencing token, and that branch only reopens holders. Keep `impact.go` to that
+  one call site and the projector spelling equal to `PayloadKeyTrigger` /
+  `TriggerManifestDependency`; any implementer of `SupplyChainImpactFanOut`
+  must also implement `FindPackageHolderCandidates`, and the production port
+  must implement `ManifestDependencyGenerationReader`.
 - New exports are join contracts other families program against. Name them
   for what they return, document who reads them, and keep the bodies
   cut-paste identical to what they replace.

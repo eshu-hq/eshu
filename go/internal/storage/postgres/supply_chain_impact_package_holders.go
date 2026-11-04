@@ -1,0 +1,123 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package postgres
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+)
+
+// findPackageHolderCandidatesQuery returns the active affected-package
+// identities, outside the asking scope, in the requested ecosystems: the
+// #9874 package-keyed holder read. No index anchors affected_package by
+// (ecosystem, name), so the read walks each scope's active generation through
+// fact_records_scope_generation_idx (the nested loop over ingestion_scopes
+// seeks only active generations, so superseded rows cost nothing) and filters
+// the ecosystem as a residual. The handler matches names with the findings
+// pass's own consumption-key join, so this read stays a coarse prefilter and
+// never under-matches a name spelling. There is no DISTINCT and no ORDER BY on
+// purpose: the text sort was most of the statement at 10x (about 195 ms
+// against 39 ms without it); the store dedupes.
+//
+// Performance Evidence: docs/internal/evidence/9874-lockfile-retrigger.md
+// (PG 18.6, synthetic 600 advisory scopes; median 41.5 ms at 50,000 active
+// affected-package rows, linear at about 0.8 us per row, under the 10 s
+// holder-read statement timeout).
+const findPackageHolderCandidatesQuery = `
+SELECT fact.scope_id,
+       COALESCE(fact.payload->>'ecosystem', ''),
+       COALESCE(fact.payload->>'package_name', ''),
+       COALESCE(fact.payload->>'purl', ''),
+       COALESCE(fact.payload->>'package_id', '')
+FROM fact_records AS fact
+JOIN ingestion_scopes AS scope
+  ON scope.scope_id = fact.scope_id
+ AND scope.active_generation_id = fact.generation_id
+WHERE fact.fact_kind = 'vulnerability.affected_package'
+  AND fact.is_tombstone = FALSE
+  AND fact.scope_id <> $2
+  AND LOWER(fact.payload->>'ecosystem') = ANY($1::text[])
+`
+
+// FindPackageHolderCandidates returns the active affected-package identities
+// outside ownScopeID whose ecosystem is one of ecosystems, deduplicated. It
+// runs as one read-only transaction under the holder-read statement timeout
+// and fails with supplychaincore.ErrFanOutReadTimeout when the timeout fires.
+// An empty ecosystem list returns nothing without touching the database.
+func (s SupplyChainImpactFanOutStore) FindPackageHolderCandidates(
+	ctx context.Context,
+	ownScopeID string,
+	ecosystems []string,
+) ([]supplychaincore.PackageHolderCandidate, error) {
+	folded := make([]string, 0, len(ecosystems))
+	for _, ecosystem := range ecosystems {
+		if ecosystem = strings.ToLower(strings.TrimSpace(ecosystem)); ecosystem != "" {
+			folded = append(folded, ecosystem)
+		}
+	}
+	if len(folded) == 0 {
+		return nil, nil
+	}
+	tx, err := s.beginBoundedRead(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	rows, err := tx.QueryContext(ctx, findPackageHolderCandidatesQuery, folded, ownScopeID)
+	if err != nil {
+		return nil, classifyFanOutReadError(err)
+	}
+	defer func() { _ = rows.Close() }()
+	seen := map[supplychaincore.PackageHolderCandidate]struct{}{}
+	var out []supplychaincore.PackageHolderCandidate
+	for rows.Next() {
+		var candidate supplychaincore.PackageHolderCandidate
+		if err := rows.Scan(&candidate.ScopeID, &candidate.Ecosystem, &candidate.PackageName,
+			&candidate.PURL, &candidate.PackageID); err != nil {
+			return nil, fmt.Errorf("scan supply chain impact package holder: %w", err)
+		}
+		if _, dup := seen[candidate]; dup {
+			continue
+		}
+		seen[candidate] = struct{}{}
+		out = append(out, candidate)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, classifyFanOutReadError(err)
+	}
+	return out, nil
+}
+
+// beginBoundedRead opens the read-only transaction every #9874 read runs in,
+// with the holder-read statement timeout scoped to it, the same shape
+// readScopeIDs uses for the CVE-keyed reads.
+func (s SupplyChainImpactFanOutStore) beginBoundedRead(ctx context.Context) (db.Transaction, error) {
+	if s.Beginner == nil {
+		return nil, errors.New("supply chain impact fan-out beginner is required")
+	}
+	timeout := s.ReadTimeout
+	if timeout <= 0 {
+		timeout = supplyChainImpactFanOutReadTimeout
+	}
+	tx, err := s.Beginner.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin supply chain impact fan-out read: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, "SET TRANSACTION READ ONLY"); err != nil {
+		_ = tx.Rollback()
+		return nil, fmt.Errorf("set supply chain impact fan-out read read-only: %w", err)
+	}
+	rows, err := tx.QueryContext(ctx, setSupplyChainImpactFanOutReadTimeoutQuery, fmt.Sprintf("%dms", timeout.Milliseconds()))
+	if err != nil {
+		_ = tx.Rollback()
+		return nil, fmt.Errorf("set supply chain impact fan-out read timeout: %w", err)
+	}
+	_ = rows.Close()
+	return tx, nil
+}

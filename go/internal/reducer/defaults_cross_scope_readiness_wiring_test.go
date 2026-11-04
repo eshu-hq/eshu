@@ -232,6 +232,10 @@ func (p *registrationFanOut) FindInFlightScopes(context.Context, string) ([]stri
 	return nil, nil
 }
 
+func (p *registrationFanOut) FindPackageHolderCandidates(context.Context, string, []string) ([]supplychaincore.PackageHolderCandidate, error) {
+	return nil, nil
+}
+
 func (p *registrationFanOut) OwedRecorder(reducercontract.Intent) supplychaincore.FanOutOwedRecorder {
 	return nil
 }
