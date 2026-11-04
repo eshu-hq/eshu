@@ -1,0 +1,41 @@
+{
+  "schema": "satellite-pins/v1",
+  "satellite": "transcription",
+  "arch": "amd64",
+  "base_image": "alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d",
+  "engine": {
+    "name": "whisper.cpp",
+    "version": "v1.9.5",
+    "source_commit": "d1be6fde11ac6e0407606b4e42fe72d34add8037",
+    "build": "static ggml/whisper libraries, GGML_NATIVE=OFF, GGML_OPENMP=OFF, no ffmpeg, SDL, or curl"
+  },
+  "binary": {
+    "path": "/opt/whisper/bin/whisper-cli",
+    "sha256": null,
+    "status": "not_recorded: the binary digest is toolchain-dependent and no amd64 reference build has been recorded; the Dockerfile gate fails closed for this arch until one is (see docker/satellites/README.md)"
+  },
+  "libraries": [
+    {"path": "/lib/ld-musl-x86_64.so.1", "sha256": "19313c7fcdd4816403c95fa43a9d63639b17f09cbb69fbb8cae414efef4f57cb"},
+    {"path": "/usr/lib/libgcc_s.so.1", "sha256": "2298274ad3316109d6e895083398e220f16fbdd12957c4afcc9af8849e734151"},
+    {"path": "/usr/lib/libstdc++.so.6.0.33", "sha256": "08d5c7eb7c1e210d0fb56a33af0b97ab86339f2d321ceb31fcd53c563f8803c9"}
+  ],
+  "libraries_set_sha256": "9c466243c5b1dae1affd2128924be12d98076b22d22e8dd5c14c2500bd2aea96",
+  "model": {
+    "path": "/opt/whisper/models/ggml-base.en.bin",
+    "sha256": "a03779c86df3323075f5e796cb2ce5029f00ec8869eee3fdfb897afe36c6d002",
+    "bytes": 147964211,
+    "source": "Hugging Face ggerganov/whisper.cpp revision 5359861c739e955e79d9a303bcbc70fb988958b1"
+  },
+  "apk": {
+    "libstdc++": "14.2.0-r4",
+    "libgcc": "14.2.0-r4",
+    "musl": "1.2.5-r12"
+  },
+  "build_apk": {
+    "build-base": "0.5-r3",
+    "cmake": "3.31.1-r0",
+    "git": "2.47.3-r0"
+  },
+  "measured": "2026-11-04, qemu amd64 reference run for the runtime libraries only; the library digests match the ocr.amd64.json entries for the same packages. No amd64 whisper-cli build was run here.",
+  "notes": "Record the amd64 binary reference before building this arch: build the whisper stage, hash /out/whisper-cli, store it here, then run the full build with all three digest args. The whispercpp engine takes no per-file library pins (binary plus model only); the library list and set hash exist for the image gate."
+}
