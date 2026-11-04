@@ -16,12 +16,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// groupedInventoryWinnersFreshnessWindow bounds how old the winners watermark
-// may be before the grouped read marks its named buckets
-// read_model_unavailable. It is a package-local copy of
-// supplyChainImpactWinnersFreshnessWindow in the parent chain findings handler
-// (findings_handler.go), which this package cannot import; keep the two equal.
-const groupedInventoryWinnersFreshnessWindow = 2 * time.Minute
+// WinnersFreshnessWindow bounds how old the winners watermark may be before a
+// winners-sourced read is stale: the grouped read marks its named buckets
+// read_model_unavailable, and the parent chain findings handler reports its
+// list stale (it aliases this value as supplyChainImpactWinnersFreshnessWindow,
+// so the two reads cannot disagree on the same watermark age).
+const WinnersFreshnessWindow = 2 * time.Minute
 
 // groupedInventoryWatermarkProbeFailedEvent is the event_name of the one WARN
 // line a failed winners watermark probe emits. The operator also sees
@@ -216,7 +216,7 @@ func (s PostgresGroupedInventoryStore) winnersFreshness(
 		State:            FreshnessLabelFresh,
 		LatestObservedAt: watermark.MaterializedAt.UTC().Format(time.RFC3339Nano),
 	}
-	if readAt.Sub(watermark.MaterializedAt.UTC()) > groupedInventoryWinnersFreshnessWindow {
+	if readAt.Sub(watermark.MaterializedAt.UTC()) > WinnersFreshnessWindow {
 		freshness.State = FreshnessLabelStale
 		return freshness, false, false, nil
 	}

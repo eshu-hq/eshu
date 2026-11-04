@@ -64,8 +64,9 @@ facts per finding: the winners row already carries the overlaid
   | Unattributed bucket | `unattributed`, always | the dimension's mapping reason |
   | Otherwise | `complete` | none |
 
-  The 2-minute window is a package-local copy of the findings handler's
-  `supplyChainImpactWinnersFreshnessWindow`. An absent watermark answers
+  The 2-minute window is `impact.WinnersFreshnessWindow`, which the findings
+  handler's `supplyChainImpactWinnersFreshnessWindow` aliases, and a test pins
+  the two equal. An absent watermark answers
   `ErrGroupedInventoryReadModelUnavailable` (the handler's 503). A table that
   was never built would otherwise read as zero findings. The coordinator
   approved this choice.

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
@@ -319,5 +320,19 @@ func TestGroupedInventoryTrimsOnlySpacesLikeSQLBTRIM(t *testing.T) {
 	}
 	if body.Buckets[0]["value"] != "\t" || body.Buckets[1]["value"] != "svc" {
 		t.Fatalf("values = %q, %q; want the tab kept and spaces trimmed", body.Buckets[0]["value"], body.Buckets[1]["value"])
+	}
+}
+
+// TestGroupedInventoryFreshnessWindowMatchesFindingsHandler pins one freshness
+// window for the winners read model: the grouped store's stale verdict and the
+// findings list's stale envelope must agree on the same watermark age.
+func TestGroupedInventoryFreshnessWindowMatchesFindingsHandler(t *testing.T) {
+	t.Parallel()
+
+	if supplyChainImpactWinnersFreshnessWindow != impact.WinnersFreshnessWindow {
+		t.Fatalf("findings window = %s, grouped window = %s, want one value", supplyChainImpactWinnersFreshnessWindow, impact.WinnersFreshnessWindow)
+	}
+	if impact.WinnersFreshnessWindow != 2*time.Minute {
+		t.Fatalf("WinnersFreshnessWindow = %s, want 2m", impact.WinnersFreshnessWindow)
 	}
 }

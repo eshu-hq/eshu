@@ -157,6 +157,8 @@ to this list.
   `UnattributedMissingEvidence` and the `GroupedMissingEvidence*` reasons) —
   the parent `chain` grouped-inventory handler, the OpenAPI lockstep test, and
   `PostgresGroupedInventoryStore`.
+- `WinnersFreshnessWindow` — the parent `chain` findings handler aliases it,
+  so the findings list and the grouped read share one stale threshold.
 - `PostgresGroupedInventoryStore` and
   `NewPostgresGroupedInventoryStoreWithReadStore` — `cmd/api` wiring
   (`newSupplyChainHandler`, gated by `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ`).

@@ -316,7 +316,7 @@ type supplyChainImpactWinnersFreshnessReader interface {
 // lease handoff. A watermark older than this means the maintainer is not keeping
 // the read model current, so the read is reported stale (reducer_backlog) instead
 // of served as fresh truth.
-const supplyChainImpactWinnersFreshnessWindow = 2 * time.Minute
+const supplyChainImpactWinnersFreshnessWindow = impact.WinnersFreshnessWindow
 
 // applyWinnersFreshness downgrades the truth envelope when the impact-findings
 // list is served from the maintained winners read model and that model is behind,
