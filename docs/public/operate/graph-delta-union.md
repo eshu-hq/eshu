@@ -119,6 +119,45 @@ line for a refused base or a mismatch. Other `facts_active_*` readers that
 join only the active generation still see delta-only rows (#10003; listed in
 `docs/internal/evidence/9991-manifest-read-delta-union.md`).
 
+## Golden-corpus delta readers (#10022)
+
+The golden `delta-union` phase compares file sets only, so it cannot catch a
+reducer reader that loses unchanged base rows. The opt-in `delta-readers`
+phase checks reducer outputs for one delta-active git repository instead.
+Every other corpus repository is collected in filesystem mode, which never
+produces a delta. Cassette replay can't produce one either, because it never
+sets `ScopeGeneration.IsDelta`. So the orchestrator
+(`scripts/lib/golden-corpus-delta-reader.sh`) does the following:
+
+1. It stages `tests/fixtures/golden_delta_union/base` as the bare git origin
+   `acme/golden-delta-reader`.
+2. It collects that origin with `eshu-collector-git` in explicit mode,
+   through a private `GIT_CONFIG_GLOBAL` whose `insteadOf` maps
+   `https://github.com/` to the origin. The first drain activates the full
+   generation.
+3. After the maintenance drains, it runs `-delta-reader-stage=full`. Every
+   edge in `graph.delta_reader_assertions` must be present, including the
+   ones marked `expected_failure`, so a marker can't pass an edge that no
+   generation produced.
+4. It commits `delta/` on top of the base. Today that is `cmd/main.go` alone.
+   A second sync then produces a real cumulative delta, which is drained once.
+5. The final gate invocation runs the phase at stage `delta`. Plain edges
+   must survive. Edges marked `expected_failure` (with `#N` and a reason) must
+   stay lost. An edge that survives anyway is a required failure that tells
+   the fixing PR to delete its marker.
+
+The leg brackets itself out of the `graph_query` timing phase.
+
+To capture the RED of the open defects, run the gate with
+`GATE_DELTA_READER_IGNORE_EXPECTED_FAILURES=1`. That flag asserts every edge
+as plainly required. To change the fixture, edit `base/` or `delta/` and update
+the snapshot section in the same change. Keep `delta/` under half of `base/`'s
+files, or the growth valve turns the second sync into a full snapshot.
+`scripts/lib/test-golden-corpus-delta-reader.sh` checks that rule and the
+repository id against the synthesized remote. Readers the fixture cannot
+express are listed under `unexpressed_readers`, each with its defect and the
+reason, and every run reports them.
+
 ## Operator signals
 
 - `eshu_dp_projector_delta_union_total` by closed `outcome`

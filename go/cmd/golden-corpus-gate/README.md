@@ -16,6 +16,7 @@ buckets.
 | demo-answers | #4776 | each of the five `specs/demo-first-answers.v1.yaml` questions, executed live with its **specific** pinned arguments (a playbook via its `surface.execute` target), returns a populated answer (required fields present, `minimum_results` met) | — |
 | timing | B-7(d)    | total pipeline wall time ≤ `budget-multiplier` × baseline; with `-phase-timings-file` (B-11 / #3804) each **gated** phase ≤ baseline band/slack in `e2e-baseline.json` | per-phase findings are advisory under `-phase-regression-advisory` (shared CI) |
 | delta-union | #7797 | for every scope with an active generation, the graph's file set matches the ACTIVE set (base-full overlaid with the active delta, read through independent SQL); scopes with no active generation skip with a reason | — |
+| delta-readers | #10022 | opt-in (not in `all`): the delta fixture scope's active generation matches `-delta-reader-stage` (full or delta), and each `graph.delta_reader_assertions` edge is present; at stage delta an `expected_failure` edge must stay absent and a surviving one fails as XPASS | the snapshot's `unexpressed_readers` are reported as passing advisory lines |
 
 **Node/edge count tolerances are required (#3866):** the gate runs the full
 20-repo corpus with `-graph-required-only=false`, so every snapshot
@@ -288,6 +289,11 @@ scans an entire response.
   independent SQL (`FactStore.ReadDeltaUnionActive`), the GRAPH side through
   Bolt, compared by the pure `goldengate` core; a mismatch is a required
   failure (#7797).
+- `delta_readers.go` — the opt-in delta-readers phase: the fixture scope's
+  active generation from Postgres and its repository's entity edges through
+  Bolt, asserted by the pure `goldengate.EvaluateDeltaReaderAssertions`
+  (#10022). The orchestrator drives it from
+  `scripts/lib/golden-corpus-delta-reader.sh`.
 - `report.go` — finding aggregation, severity, and rendering.
 - `backenddiff.go` — the backend-diff phase: compare two backends'
   differential capture directories against the divergence allowlist (#6782),

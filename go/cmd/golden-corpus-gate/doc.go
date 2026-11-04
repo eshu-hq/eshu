@@ -39,6 +39,13 @@
 //     within its testdata/golden/e2e-baseline.json baseline (band OR absolute
 //     slack). The per-phase check is advisory on shared CI runners
 //     (-phase-regression-advisory) and blocking on a controlled host.
+//   - delta-readers: the #10022 fixture repository's reducer outputs survive
+//     a delta-active git scope. At -delta-reader-stage=full every
+//     graph.delta_reader_assertions edge must exist on the base full
+//     generation; at stage delta plain edges must survive and expected_failure
+//     edges must stay lost until their defect is fixed (a surviving one fails
+//     as XPASS). Opt-in and excluded from "all": it needs the git-origin
+//     fixture the orchestrator stages.
 //   - backend-diff: the differential capture recordings from a NornicDB run
 //     and a Neo4j run agree, modulo the committed
 //     specs/backend-divergence-allowlist.v1.yaml (#6782). Opt-in and excluded
