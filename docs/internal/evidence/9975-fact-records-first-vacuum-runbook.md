@@ -7,8 +7,12 @@ which holds the diagnosis, the trigger arithmetic ("Performance Evidence"), the
 lock rule ("Lock and rollout"), and what was not checked. "The main note" below
 means that file.
 
-A checklist for whoever owns the rollout. Everything about size, duration, and
-WAL here is unmeasured.
+A checklist for whoever owns the rollout. The first natural vacuum on QA (server
+defaults, before migration 278) has run once and is measured: 6,151.92 s
+(1 h 42 min 32 s) from 09:00:52.7Z to 10:43:24.607Z on 2026-11-04, 48.2 GiB of
+WAL, no replica conflict, no `503`. That is n = 1, one pass at one moment. A
+later pass or another primary is not measured. The main note's "First vacuum on
+QA" section holds the readings and their limits.
 
 - API and MCP reads can return `503` while the first vacuum runs, and more
   mildly during later ones. QA runs `hot_standby_feedback` off. Vacuum cleanup
@@ -18,10 +22,12 @@ WAL here is unmeasured.
   page describes the failure: a burst of `503` `backend_unavailable` points at
   replica recovery conflicts (see `docs/public/deployment/postgres-read-routing.md`).
   Watch `eshu_dp_postgres_reader_stage_duration_seconds{role="reader",stage="reader_replay",outcome="deadline"}`
-  and `pg_stat_database_conflicts` on the replica.
+  and `pg_stat_database_conflicts` on the replica. During QA's first vacuum the
+  conflict peak delta was 0, no `deadline` outcome appeared, and every API
+  response was 200 (n = 1).
 - Live signal. As a superuser or a role with `pg_read_all_stats`,
   `pg_stat_progress_vacuum` for `fact_records` is the only view of a running
-  pass. Diagnosis 9.1 found the progress columns NULL for `eshu`, and
+  pass. Diagnosis section 12 (9.1 earlier) found the progress columns NULL for `eshu`, and
   `delay_time` and the other columns need `pg_read_all_stats`, which QA does not
   grant that role. A grant is a change nobody has authorized here. To tell
   whether a hidden vacuum is still running, read, every 10 minutes:
@@ -59,8 +65,10 @@ WAL here is unmeasured.
     it. Reviewer-measured on the same setup with 100k dead rows and 500k
     inserts: the RESET cancelled the vacuum and a new worker was running within
     2 s and still at 8 s, because the restored defaults are already exceeded.
-    The inserts-since-vacuum projection in the main note says QA may be past this point
-    from about 11:00Z to 16:00Z on 2026-11-04, so assume RESET will not hold.
+    On QA the first vacuum started at 09:00:52.7Z already past the default insert
+    trigger, so RESET would not have held then. It ended at 10:43:24.607Z and
+    reset the counters, so which case applies depends on the counters you read,
+    not on the date.
     A natural default-settings vacuum has no reloptions to reset at all, so
     RESET has nothing to undo for it.
   - Past the default triggers the stop is `ALTER TABLE fact_records SET
@@ -97,14 +105,20 @@ WAL here is unmeasured.
     as a non-superuser table owner on a scratch table). Whether the runtime role
     owns `fact_records` on QA, or may signal an autovacuum worker, was not
     checked.
-- Recurring cost. Each vacuum pass walks all 144 indexes (84 GB). The default
-  cycle is insert-driven: 19,591,565 inserts at 80 and 47 per second is 2.8 to
-  4.8 days between runs (arithmetic; the 3.3 to 4.8 days in the main note is the time left
-  to the dead-row trigger, not the cycle). Moving to one every 17 to 29 hours
-  is roughly four times as many 84 GB index passes (about 92 h against about
-  23 h between runs at the midpoints; arithmetic), on a throttled primary,
-  indefinitely. The first-run estimate in the main note does not include this. Read the
-  second run's log line to price the steady state.
+- Recurring cost. Each vacuum pass walks all 144 indexes (84 GB). The first
+  pass (1 index scan, 1 h 42 min, 48.2 GiB of WAL) is the only price measured.
+  The cycle times below are arithmetic from one hour of post-vacuum rates on QA
+  (52.1 dead rows and 19.7 inserts per second), and each ratio assumes those
+  rates persist. At the default triggers (about 19.29M dead rows and 15.97M
+  inserts after the first vacuum) the dead-row path is first, at about 103
+  hours between runs. With 278's triggers (2,046,622 dead rows, 4,898,641
+  inserts) it is first at about 10.9 hours, and the insert path would take 69.
+  That is about nine to ten times as many 84 GB index passes, because the dead
+  path moves from 0.20 to 0.02 of the table, on a throttled primary,
+  indefinitely. The earlier estimates here (insert-driven, 2.8 to 4.8 days
+  against 17 to 29 hours, "roughly four times") used the pre-vacuum insert rates
+  of 80 and 47 per second and are replaced. Read the second run's log line to
+  price the steady state.
 - WAL retention. The replica's physical replication slot retains WAL while the
   replica lags, and this change sets no threshold. Before the first vacuum,
   read the slot's `wal_status` and retained WAL (`pg_wal_lsn_diff` between the
