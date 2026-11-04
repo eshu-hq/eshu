@@ -193,13 +193,17 @@ import (
 // #9971 adds 275_vulnerability_nvd_window_cursor.sql (DDL only: the
 // per-instance NVD rolling cursor advanced in the generation commit
 // transaction).
-const goldenBootstrapDefinitionsDigest = "69b494d01cd3d945d4811f1d6b681ad07eef1fc4bf635c609ac916d7b7745ed9"
+// #9879 adds 277_vulnerability_target_refresh_progress.sql (DDL only: the
+// per-target refresh progress table the coordinator paces configured
+// targets from). 276 is held by another lane's unmerged migration, so this
+// lane took the next number.
+const goldenBootstrapDefinitionsDigest = "14b817e3a9e5aae858ca8e6a98bb32d0adfbf2571fe6af7fbe3830d3cb8d42b0"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 301
+const goldenBootstrapDefinitionsCount = 302
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

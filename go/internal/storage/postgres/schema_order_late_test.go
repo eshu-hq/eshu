@@ -451,4 +451,8 @@ var orderedBootstrapDefinitionNamesLate = []string{
 	// Migration 275 (#9971) adds the NVD rolling-window cursor table the
 	// commit transaction advances with a keyed upsert.
 	"vulnerability_nvd_window_cursor",
+	// 276 is held by an unmerged sibling migration.
+	// Migration 277 (#9879) adds the per-target refresh progress table the
+	// coordinator paces configured targets from.
+	"vulnerability_target_refresh_progress",
 }
