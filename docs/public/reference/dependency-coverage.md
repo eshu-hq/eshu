@@ -422,6 +422,18 @@ OSV SEMVER ranges classify affected and known-fixed versions, malformed Go
 advisory ranges fail closed with explicit missing evidence, and govulncheck
 reachability is read back only after module evidence anchors the repository.
 
+Go reachability levels follow what `govulncheck -json` reports. A symbol-level
+scan that finds a vulnerable package imported, or only the module required,
+yields `not_called`; a call path yields `reachable` with the trace entry point
+first and the vulnerable symbol last. Level `import` (read as `reachable`, with
+the symbol trace named as missing) applies only to a package-level scan. A
+failed govulncheck run emits no reachability fact, so its findings read
+`unknown` with `govulncheck call-graph evidence missing`. Advisories for the Go
+standard library (module `stdlib`) produce no finding, because Eshu has no
+module evidence row for the toolchain. Regression tests:
+`go/internal/reducer/supplychain/core/go_reachability_real_shapes_test.go`,
+fed by recorded output in `testdata/govulncheck`.
+
 Performance Evidence: the Go parity path is reducer-local over the same fact
 envelope already loaded for supply-chain impact. It adds one per-envelope Go
 reachability index keyed by `(osv_id, module_path, repository_id)` and does not

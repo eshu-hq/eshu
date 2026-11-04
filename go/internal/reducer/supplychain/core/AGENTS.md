@@ -75,3 +75,12 @@ changing anything here.
   goroutine and no locks. Digests never reach a writer;
   `TestFileReachabilityFoldMatchesEnvelopeBuilders` is the active parity gate
   and `TestLoadPythonReachabilityEvidenceFactsFoldsPagedFiles` the Python one.
+- Go reachability facts are built from recorded `govulncheck -json` output in
+  `testdata/govulncheck` (#10028), not hand-written payloads. The reducer reads
+  level `import` as `reachable`, which is right only for a package-level scan;
+  a symbol-level scan reports "imported, never called" as `not_called`, and the
+  emitter (eshu-scanner-worker) must never write `import` or `module` for a
+  symbol-level scan. `stdlib` advisories have no `go_module_evidence` row, so
+  they produce no impact finding. A failed govulncheck run emits no
+  reachability fact and reads `unknown`; the reducer does not join
+  `scanner_worker.warning`, so the failure class is not on the finding.
