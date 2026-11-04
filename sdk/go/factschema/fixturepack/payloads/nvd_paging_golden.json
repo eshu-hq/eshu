@@ -37,7 +37,9 @@
         "response_digest": "",
         "complete": true,
         "warning_code": "",
-        "warning_message": ""
+        "warning_message": "",
+        "license": "LicenseRef-NVD-API-Terms-of-Use",
+        "attribution": "This product uses the NVD API but is not endorsed or certified by the NVD."
       }
     },
     {

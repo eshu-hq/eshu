@@ -22,6 +22,26 @@ version — pinning this module pins the fixture pack too.
 
 ### Added
 
+- `vulnerability.source_snapshot` gains four optional fields, `license`,
+  `attribution`, `cache_expires_at`, and `cache_mode` (eshu-hq/eshu#9958, Phase 4
+  item 4.0 of eshu-hq/eshu#9209, additive minor, no decode shim; published as
+  eshu-sdk `factschema/v0.1.0-rc.15`). `license` names the terms the source's
+  data was collected under: an SPDX identifier such as `CC0-1.0`, a
+  `LicenseRef-` identifier where the source publishes terms with no SPDX
+  identifier, or `NOASSERTION` where no stated license was found. It describes
+  the source, not each record, and it discloses terms without deciding access.
+  `attribution` is one plain-text credit line. `cache_expires_at` and
+  `cache_mode` were already written by the cache-wrapping layer but absent from
+  the typed struct. A snapshot without the keys decodes as before, with nil
+  fields, and a value of the wrong JSON type now fails the decode as
+  `input_invalid`. The fixture pack gains `payloads/source_terms_golden.json`
+  and `SourceTermsGolden()`, the per-source `license` and `attribution` for
+  `osv`, `nvd`, `cisa_kev`, and `first_epss`; core and the extracted
+  collector each replay it against their own snapshot builder. The NVD paging
+  golden's expected `source_snapshot` payload gains the same two keys, so its
+  digest moves to
+  `2c7c83dcfd8905ae7eddb753268fcbb0485e2cbda37839659e9ceacb3233c76a`.
+
 - New `aws_ssm_host_application` and `aws_ssm_host_platform` v1.0.0 kinds
   (issue #9556, accepted record #9302): one allowlisted `AWS:Application`
   inventory row per EC2 managed node per dated capture, and the platform

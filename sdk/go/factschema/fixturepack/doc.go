@@ -45,4 +45,11 @@
 // vulnerability.cve for each. Each edge list is trimmed, de-duplicated and
 // sorted; upstream is a directed edge, never an alias, and is absent when it
 // has no ids. A DSA bundle of CVEs is upstream, not aliases.
+//
+// SourceTermsGolden supplies the license and attribution each existing
+// vulnerability source's source_snapshot carries (osv, nvd, cisa_kev,
+// first_epss). A license is an SPDX identifier, a LicenseRef- identifier,
+// or NOASSERTION; it describes the source, not each record, and discloses terms
+// without deciding access. Core and the extracted collector replay it against
+// their own per-source constants.
 package fixturepack

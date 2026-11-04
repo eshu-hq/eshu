@@ -96,7 +96,7 @@ deployed acceptance is NOT_CHECKED.
 | Original published module | New module identity | Available first candidate | Other published candidate | Preferred candidate | Latest candidate pinned by merged core |
 | --- | --- | --- | --- | --- | --- |
 | `github.com/eshu-hq/eshu/sdk/go/collector@v0.2.0` | `github.com/eshu-hq/eshu-sdk/collector` | `collector/v0.1.0-rc.1` | `collector/v0.2.0-rc.1` | `collector/v0.1.0-rc.2` (published; proxy verified) | `collector/v0.2.0-rc.3` (published; proxy verified; adds `collector-sdk/v1alpha3` pagination; pinned by core #9385) |
-| `github.com/eshu-hq/eshu/sdk/go/factschema@v0.2.0` | `github.com/eshu-hq/eshu-sdk/factschema` | `factschema/v0.1.0-rc.1` | `factschema/v0.1.0-rc.2` | `factschema/v0.1.0-rc.2` (published; proxy verified) | `factschema/v0.1.0-rc.14` (published; proxy verified; adds `vulnerability.cve` `aliases`, `related`, and `upstream` identity edges; on top of rc.13's `vulnerability.os_package` `source_package` and the `reducer_supply_chain_impact_finding` `os_package_match_derivation`, `installed_package_name`, and `source_package` evidence fields; pinned by core #9859 for rc.13 and #9914 for rc.14) |
+| `github.com/eshu-hq/eshu/sdk/go/factschema@v0.2.0` | `github.com/eshu-hq/eshu-sdk/factschema` | `factschema/v0.1.0-rc.1` | `factschema/v0.1.0-rc.2` | `factschema/v0.1.0-rc.2` (published; proxy verified) | `factschema/v0.1.0-rc.15` (published; proxy verified; adds `vulnerability.source_snapshot` `license`, `attribution`, `cache_expires_at`, and `cache_mode`; on top of rc.14's `vulnerability.cve` `aliases`, `related`, and `upstream` identity edges and rc.13's `vulnerability.os_package` `source_package` and the `reducer_supply_chain_impact_finding` `os_package_match_derivation`, `installed_package_name`, and `source_package` evidence fields; pinned by core #9859 for rc.13, #9914 for rc.14, and #9958 for rc.15) |
 
 `factschema/v0.1.0-rc.6` is published at SDK merge commit
 `41b2906ec5cd3a2738f3dcdc3cf6033ba14b159c`. A fresh external
@@ -153,6 +153,21 @@ checksum: `h1:1PRVEH0rlPbdCX1Bha9P2zd3B+H6c+DAnaLTPvBEY7k=`; `go.mod` checksum:
 `h1:GysO1GSvcUYSSl7ydDx34MYRSw4yI2DgADT0twajVXY=`. It is pinned by core #9914.
 No core code reads the new fields at the pin bump. Reducer, query, and deployed
 acceptance remain separate proof.
+
+`factschema/v0.1.0-rc.15` is published at SDK merge commit
+`10f6c1772aa1f6f15b3ced4d26f2a7a59ebc4818` through eshu-sdk PR #77. It adds the
+additive optional `license`, `attribution`, `cache_expires_at`, and `cache_mode`
+string fields on `vulnerability.source_snapshot` (eshu-hq/eshu#9958) and the
+shared `source_terms_golden.json` fixture. The release workflow
+([run 41852031597](https://github.com/eshu-hq/eshu-sdk/actions/runs/41852031597))
+verified the commit, created the tag, and its proxy proof passed. The exact
+version resolved through the public Go proxy, and the proxy origin names the
+same commit; module zip checksum:
+`h1:lJ99lFqDQtZd5YfCBLRJC2up31A9SDBzVaGr1qvKes4=`; `go.mod` checksum:
+`h1:GysO1GSvcUYSSl7ydDx34MYRSw4yI2DgADT0twajVXY=`. It also re-pins the shared NVD
+paging golden with the NVD terms, so a consumer that replays it moves to rc.15
+together with the terms. It is pinned by core #9958. `license` is a disclosure
+and decides no access.
 
 The new module version histories are independent of the original paths'
 `v0.2.0` lines. The migration starts on the initial `v0.1.0` prerelease line,
