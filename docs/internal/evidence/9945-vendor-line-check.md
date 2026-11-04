@@ -160,10 +160,22 @@ rule), `os_package_advisory_load.go` (the two counter sub-signals),
   `TestSelectOSVendorFactLine`). N6 is held by the predicate unit row only:
   `osPackageRangesVerdict` takes a `ReleaseUnlisted` fact through its own arm
   first, so the clause changes no verdict through the builder today. Survivors
-  that remain, all graded P3: the source not trimmed (decode trims, so it is
-  equivalent) and two of the three OS-shape clauses of the non-host predicate
-  (the `os://` package id and the purl clauses; the ecosystem clause is now held).
-  The old unverified-flag mutant no longer exists with the flag.
+  that remained at review 3 are now held: the source not trimmed (M13,
+  `TestOSAdvisoryFactIsHostVendorFactComparesTheTrimmedSource`) and each of the
+  ecosystem, purl and `os://` clauses of the non-host predicate (N12 to N14,
+  `TestOSAdvisoryFactIsVendorSourcedReadsAPackageURLPackageID`, one row per
+  clause). The old unverified-flag mutant no longer exists with the flag.
+- Authorized-pass host vendor (review 3, R3-1):
+  `TestAuthorizedScanOnlyTheHostVendorEarnsTheReleaseLine` drives
+  `BuildAuthorizedScanImpactFindings` with a Debian 12 host and two authority
+  generations, one for debian and one for each of `ubuntu`, `nvd` and `glad`, in
+  both fact orders. A non-host fact whose range holds the host reads
+  `possibly_affected` / `os_release_unverified` with the host vendor's fix; an
+  own fact holding the host stays `affected_exact`. Red before the fix (six
+  rows read `affected_exact` with the foreign fix), green after. The mutants
+  that remove the host-vendor condition, negate it, turn its `&&` into `||`,
+  force it true, or read the host vendor as empty each fail a named test; the
+  package-id purl clause removed fails the predicate test.
 - Parity differential, unchanged classes: 128 verdict rows produced by the base
   65fa0f2f2a and by this change are byte-identical (same sha256). The rows are
   118 OSV (alpine, debian and ubuntu fixtures, each in both fact orders), 2 OSV
