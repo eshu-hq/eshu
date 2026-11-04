@@ -19,7 +19,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/claim/store"
 	"github.com/eshu-hq/eshu/go/internal/collector/extensionhost"
-	"github.com/eshu-hq/eshu/go/internal/collector/vulnerabilityintelligence/vulnruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/extensionhost/vulnerability"
 	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -133,7 +133,7 @@ func buildClaimedService(
 		ConfigHandle:        config.ConfigHandle,
 		Config:              config.ExtensionConfig,
 		Runner:              runner,
-		ScopeQueryResolver:  vulnruntime.SlotScopeQueryResolver(controlStore),
+		ScopeQueryResolver:  vulnerability.SlotScopeQueryResolver(controlStore),
 		// StatusTelemetry turns the extension's SDK status rows into the
 		// eshu_dp_component_extension_* instruments and one bounded log
 		// line per claim result (#8908); an extracted collector emits no

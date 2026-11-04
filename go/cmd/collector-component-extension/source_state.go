@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/extensionhost"
-	"github.com/eshu-hq/eshu/go/internal/collector/vulnerabilityintelligence/checkpoint"
+	"github.com/eshu-hq/eshu/go/internal/collector/extensionhost/vulnerability"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	vulnerabilitystore "github.com/eshu-hq/eshu/go/internal/storage/postgres/vulnerability"
@@ -35,7 +35,7 @@ func sourceStateRecorder(
 	if kind != scope.CollectorVulnerabilityIntelligence {
 		return nil, nil
 	}
-	recorder, err := checkpoint.NewRecorder(checkpoint.Config{
+	recorder, err := vulnerability.NewRecorder(vulnerability.Config{
 		Store:               vulnerabilitystore.NewVulnerabilitySourceStateStore(database),
 		CollectorInstanceID: instanceID,
 		RetryDelay:          pollInterval,

@@ -57,6 +57,9 @@ fails the claim terminal with class `invalid_claim` before the satellite
 launches; transient store faults stay retryable and never reach this path. The
 returned-claim echo compares `ScopeQueries` strictly: a stripped, injected,
 or reordered list fails with `identity_mismatch`.
+`cmd/collector-component-extension` sets the resolver from
+`extensionhost/vulnerability.SlotScopeQueryResolver`; the generic host stays
+kind-agnostic.
 
 No-Observability-Change: transport adds no metric, label, span, or log key.
 Resolver failures reuse the existing `invalid_claim` class and its
@@ -420,7 +423,7 @@ benchmark evidence, and operator read path live in
 owns on behalf of an extension; the extension never sees it, so no storage
 handle crosses the stdio boundary. `cmd/collector-component-extension` sets it
 only for the `vulnerability_intelligence` kind
-(`collector/vulnerabilityintelligence/checkpoint`, which writes
+(`collector/extensionhost/vulnerability`, which writes
 `vulnerability_source_states`); every other kind leaves it nil.
 
 - `NextClaimed` calls `RecordClaimOutcome` exactly once on every exit path,

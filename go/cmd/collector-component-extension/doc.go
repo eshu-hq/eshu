@@ -13,7 +13,7 @@
 // handles.
 //
 // For the vulnerability_intelligence kind the worker owns the extension's
-// durable source state: sourceStateRecorder wires a checkpoint.Recorder that
-// writes vulnerability_source_states from claim outcomes (#9420), because the
-// extension itself has no storage handle.
+// durable source state: sourceStateRecorder wires a vulnerability.Recorder from
+// extensionhost/vulnerability that writes vulnerability_source_states from claim
+// outcomes (#9420), because the extension itself has no storage handle.
 package main
