@@ -188,6 +188,7 @@ func TestProofDomainWorkloadIdentityFlowsCollectorToReducerIntent(t *testing.T) 
 	}); err != nil {
 		t.Fatalf("Register() error = %v, want nil", err)
 	}
+	registerManifestMarkerStandIn(t, &reducerRegistry, now)
 	reducerRuntime, err := reducer.NewRuntime(reducerRegistry)
 	if err != nil {
 		t.Fatalf("NewRuntime() error = %v, want nil", err)
@@ -210,10 +211,10 @@ func TestProofDomainWorkloadIdentityFlowsCollectorToReducerIntent(t *testing.T) 
 	if got, want := len(contentWriter.calls[0].Records), 1; got != want {
 		t.Fatalf("content record count = %d, want %d", got, want)
 	}
-	if got, want := db.reducerClaims, 1; got != want {
-		t.Fatalf("reducer claims = %d, want %d", got, want)
+	if got, want := db.reducerClaims, 2; got != want {
+		t.Fatalf("reducer claims = %d, want %d (workload identity and the manifest marker)", got, want)
 	}
-	if got, want := db.reducerAcked, 1; got != want {
+	if got, want := db.reducerAcked, 2; got != want {
 		t.Fatalf("reducer acknowledgements = %d, want %d", got, want)
 	}
 
@@ -226,7 +227,7 @@ func TestProofDomainWorkloadIdentityFlowsCollectorToReducerIntent(t *testing.T) 
 	if got, want := report.Health.State, "healthy"; got != want {
 		t.Fatalf("status health = %q, want %q", got, want)
 	}
-	if got, want := report.Queue.Succeeded, 2; got != want {
+	if got, want := report.Queue.Succeeded, 3; got != want {
 		t.Fatalf("status queue succeeded = %d, want %d", got, want)
 	}
 	if got, want := report.Queue.Outstanding, 0; got != want {
@@ -240,6 +241,25 @@ func TestProofDomainWorkloadIdentityFlowsCollectorToReducerIntent(t *testing.T) 
 	}
 	if got, want := len(report.FlowSummaries), 3; got != want {
 		t.Fatalf("status flow summary count = %d, want %d", got, want)
+	}
+}
+
+// registerManifestMarkerStandIn registers a succeeding supply_chain_impact
+// handler: a git generation also enqueues one #9874 manifest marker, and these
+// proofs only need the reducer to drain it. The marker's own behavior is
+// proven by the supply-chain manifest tests.
+func registerManifestMarkerStandIn(t *testing.T, registry *reducer.Registry, now time.Time) {
+	t.Helper()
+	if err := registry.Register(reducer.DomainDefinition{
+		Domain:        reducer.DomainSupplyChainImpact,
+		Summary:       "manifest marker stand-in",
+		Ownership:     reducer.OwnershipShape{CrossSource: true, CrossScope: true, CanonicalWrite: true},
+		TruthContract: testReducerTruthContract("supply_chain_impact"),
+		Handler: reducer.HandlerFunc(func(context.Context, reducercontract.Intent) (reducercontract.Result, error) {
+			return reducercontract.Result{Status: reducer.ResultStatusSucceeded, EvidenceSummary: "marker", CompletedAt: now}, nil
+		}),
+	}); err != nil {
+		t.Fatalf("Register(supply_chain_impact) error = %v, want nil", err)
 	}
 }
 

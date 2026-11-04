@@ -137,30 +137,32 @@ func (database *proofDomainDB) ExecContext(_ context.Context, query string, args
 		}
 		return database.updateWorkItemStatusByID(args[4].(string), args[5].(string), "dead_letter")
 	case strings.Contains(query, "INSERT INTO fact_work_items") && strings.Contains(query, "'reducer'"):
-		workItemID := args[0].(string)
-		if _, exists := database.state.workItems[workItemID]; exists {
-			return proofResult{}, nil
+		// The enqueue is a multi-row INSERT of columnsPerReducerEnqueue
+		// arguments per intent; record every row, not only the first, so a
+		// generation that enqueues several domains (#9874 adds the manifest
+		// marker beside the others) keeps them all.
+		for offset := 0; offset+columnsPerReducerEnqueue <= len(args); offset += columnsPerReducerEnqueue {
+			row := args[offset : offset+columnsPerReducerEnqueue]
+			workItemID := row[0].(string)
+			if _, exists := database.state.workItems[workItemID]; exists {
+				continue
+			}
+			if _, err := payloadstore.UnmarshalPayload(row[7].([]byte)); err != nil {
+				return nil, err
+			}
+			database.state.workItems[workItemID] = proofWorkItem{
+				workItemID:   workItemID,
+				stage:        "reducer",
+				domain:       row[3].(string),
+				status:       "pending",
+				scopeID:      row[1].(string),
+				generationID: row[2].(string),
+				visibleAt:    row[6].(time.Time).UTC(),
+				createdAt:    row[6].(time.Time).UTC(),
+				updatedAt:    row[6].(time.Time).UTC(),
+				payload:      row[7].([]byte),
+			}
 		}
-		payload, err := payloadstore.UnmarshalPayload(args[7].([]byte))
-		if err != nil {
-			return nil, err
-		}
-		workItem := proofWorkItem{
-			workItemID:   workItemID,
-			stage:        "reducer",
-			domain:       args[3].(string),
-			status:       "pending",
-			scopeID:      args[1].(string),
-			generationID: args[2].(string),
-			visibleAt:    args[6].(time.Time).UTC(),
-			createdAt:    args[6].(time.Time).UTC(),
-			updatedAt:    args[6].(time.Time).UTC(),
-			payload:      args[7].([]byte),
-		}
-		if len(payload) > 0 {
-			workItem.payload = args[7].([]byte)
-		}
-		database.state.workItems[workItem.workItemID] = workItem
 		return proofResult{}, nil
 	default:
 		return nil, fmt.Errorf("unexpected exec query: %s", query)
