@@ -2293,6 +2293,7 @@
         "fact_kinds": [
           "vulnerability.affected_package",
           "vulnerability.affected_product",
+          "vulnerability.changed_name",
           "vulnerability.cve",
           "vulnerability.epss_score",
           "vulnerability.go_call_reachability",
