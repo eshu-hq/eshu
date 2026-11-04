@@ -72,10 +72,35 @@ A repository is planned on `has_go_module OR has_go_evidence`, so one that lost 
 `go.mod` is scanned once more and lands a trusted `no_go_modules` generation. Cost:
 one extra shallow clone per lost `go.mod`, then nothing.
 
-Each candidate adds a primary-key probe on `ingestion_scopes` and a prefix probe on
-`fact_records_scope_generation_idx`, at most 256 candidates per page. That cost is
-from the index definitions only. The `EXPLAIN (ANALYZE, BUFFERS)` of the amended
-query is not recorded yet, and the arbiter ruling requires it before merge.
+Performance Evidence: each candidate adds a primary-key probe on `ingestion_scopes`,
+and those with an active generation add a prefix probe on
+`fact_records_scope_generation_idx`. Measured with `EXPLAIN (ANALYZE, BUFFERS)` on
+disposable Postgres 16, `shared_buffers=256MB`, load average 7.18, after a restart.
+
+Input shape: 3,000 repository scopes, 100,000 other scopes, 820,060 content files,
+and about 2M facts (the 1,840,060 above plus 81 go-reachability scopes holding about
+204,000). One page of 256 candidates: 51 live Go repositories, 10 that lost their
+`go.mod`, 10 retracted with evidence left on a superseded generation, 1 with 200,000
+warnings in its active generation, and 184 with no go-reachability scope. The page
+returned the expected counts: `rows=256 has_go_module=51 has_go_evidence=61
+evidence_only=10 planned=61`.
+
+| Query | Run | Execution | Buffers |
+| --- | --- | --- | --- |
+| Before, no evidence branch | warm | 95.4 ms, 96.2 ms | hit 128,393 |
+| After, with `has_go_evidence` | warm | 98.2 ms, 97.3 ms | hit 129,543 |
+| After, with `has_go_evidence` | cold | 153.2 ms | hit 115,103, read 14,446 |
+
+The branch adds about 2 ms and 1,150 buffers to a page. The fact probe ran 72 times,
+once per candidate with an active go-reachability scope. `fact_kind` is in its index
+condition, and all 72 probes together cost 310 buffers, so the 200,000 warnings are
+not scanned.
+
+Do not compare these with the 66 ms and 55 ms above. Those came from an earlier run
+at `shared_buffers=512MB`, whose `content_files` index scan made no heap fetches.
+This run made 603,551, which likely accounts for most of the difference, probably
+because the visibility map was not yet set after seeding. That cause is inferred, not
+tested. Compare before and after within this run only.
 
 ## Cadence regression caught before review
 

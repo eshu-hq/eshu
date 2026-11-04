@@ -42,10 +42,14 @@ None of its own. The coordinator wraps the queryer so the read reports on
   component scans once more and lands a trusted `no_go_modules` generation holding
   only a warning, so the repository drops out on its next visit. The cost is one
   extra shallow clone per lost `go.mod`.
-- The probe is designed as the `ingestion_scopes` primary key plus a prefix of
-  `fact_records_scope_generation_idx (scope_id, generation_id, fact_kind)`.
-  `EXPLAIN (ANALYZE, BUFFERS)` of the amended query has not been run: replace this
-  line with its figures before merge. The ruling requires them.
+- The evidence probe is the `ingestion_scopes` primary key plus a prefix of
+  `fact_records_scope_generation_idx (scope_id, generation_id, fact_kind)`, and it
+  adds about 2 ms to a page. Same run, warm, one 256-candidate page: 95.4 and 96.2 ms
+  before, 97.3 and 98.2 ms after; 128,393 buffers before, 129,543 after. Cold it took
+  153.2 ms. `fact_kind` is in the index condition, so 200,000 warnings in an active
+  generation are not scanned: all 72 fact probes together cost 310 buffers. Compare
+  within this run only: the 68 ms above is a different run, whose `content_files`
+  scan made no heap fetches, where this one made 603,551.
 - A repository with Go evidence and an unusable remote is returned with
   `HasGoEvidence` set, and the planner skips it, so that evidence stays active. See
   eshu-hq/eshu#10055.
