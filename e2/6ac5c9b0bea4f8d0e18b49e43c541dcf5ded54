@@ -1,0 +1,27 @@
+docs/internal/evidence/9875-fleet-acceptance-gate.md
+  s_7547c0f0af67d4::t_0fac3528447332 6-11
+docs/public/reference/local-testing/fleet-acceptance-gate.md
+  s_7547c0f0af67d4::t_dab4e8c93614f3 100-102
+go/internal/storage/postgres/supply_chain_impact_fleet_gate_9875_live_test.go
+  s_7547c0f0af67d4::t_95a34d7aed23aa 25,137,242
+go/internal/storage/postgres/supply_chain_impact_fleet_gate_9875_test.go
+  s_7547c0f0af67d4::t_9158ae28ab5e19 111-118,151-155,182-183
+go/internal/storage/postgres/supply_chain_impact_fleet_gate_violations_9875_test.go
+  s_7547c0f0af67d4::t_84e6c7ea7d8cf4 54,87-102
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e26ac5c9b0bea4f8d0e18b49e43c541dcf5ded54",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
