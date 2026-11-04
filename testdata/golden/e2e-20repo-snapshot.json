@@ -102,8 +102,8 @@
       },
       "Workload": {
         "min": 1,
-        "max": 10,
-        "note": "logical workload groups from code-to-workload binding (RUNS_IN target)"
+        "max": 11,
+        "note": "logical workload groups from code-to-workload binding (RUNS_IN target); 11 since the #10022 delta-reader fixture repository defines workload:repository:r_0c077ab3:golden-delta-reader (observed live)"
       },
       "CloudResource": {
         "min": 118,
@@ -2452,13 +2452,13 @@
       }
     ],
     "delta_reader_assertions": {
-      "description": "#10022 delta-reader contract. tests/fixtures/golden_delta_union/base is staged as the bare git origin acme/golden-delta-reader and collected by eshu-collector-git in explicit mode (scripts/lib/golden-corpus-delta-reader.sh) after the first drain; the maintenance passes publish its backward evidence and activate the full generation. delta/ is then committed on top and a second sync produces a real git delta generation touching app/main.go (a trailing comment, so no function moves) and deploy/claim.yaml (one spec value). Every edge below is a reducer output a full generation of either commit produces. The delta-readers phase asserts all of them at stage full, then at stage delta asserts the plain ones survive and the expected_failure ones stay lost until their defect is fixed (an unexpected pass is a required failure that tells the fixing PR to remove the marker).",
+      "description": "#10022 delta-reader contract. tests/fixtures/golden_delta_union/base is staged as the bare git origin acme/golden-delta-reader and collected by eshu-collector-git in explicit mode (scripts/lib/golden-corpus-delta-reader.sh) after the first drain; the maintenance passes publish its backward evidence and activate the full generation. delta/ is then committed on top and a second sync produces a real git delta generation touching app/main.go (a trailing comment, so no function moves), app/moved.go (lines inserted above its function, so it moves), and deploy/claim.yaml (one spec value). Every edge below is a reducer output a full generation of either commit produces. The delta-readers phase asserts all of them at stage full, then at stage delta asserts the plain ones survive and the expected_failure ones stay lost until their defect is fixed (an unexpected pass is a required failure that tells the fixing PR to remove the marker).",
       "repository_id": "repository:r_0c077ab3",
       "scope_id": "git-repository-scope:repository:r_0c077ab3",
       "edges": [
         {
           "id": "dr-1",
-          "description": "Control: deltaReaderRun calls a helper in the same file the delta re-parses, so both endpoints are in the delta's own rows.",
+          "description": "Control: deltaReaderRun calls a helper in the same file; the delta appends to that file without moving either function.",
           "reader": "code_call_symbols",
           "relationship": "CALLS",
           "from_label": "Function",
@@ -2468,17 +2468,13 @@
         },
         {
           "id": "dr-2",
-          "description": "deltaReaderRun calls deltaReaderLedgerTotal, defined in app/ledger.go, which the delta never touches.",
+          "description": "deltaReaderRun calls deltaReaderLedgerTotal, defined in app/ledger.go, which the delta never touches. Live runs showed the delta schedules no code-call work, so this guards that an unmoved caller keeps its edges.",
           "reader": "code_call_symbols",
           "relationship": "CALLS",
           "from_label": "Function",
           "from_name": "deltaReaderRun",
           "to_label": "Function",
-          "to_name": "deltaReaderLedgerTotal",
-          "expected_failure": {
-            "defect": "#10003",
-            "reason": "facts_active_code_call_symbols.go joins fact.generation_id = active_generation_id, so a delta-active scope reads only the delta's file facts and the callee's definition in the unchanged file is missing"
-          }
+          "to_name": "deltaReaderLedgerTotal"
         },
         {
           "id": "dr-3",
@@ -2488,11 +2484,7 @@
           "from_label": "Function",
           "from_name": "deltaReaderRun",
           "to_label": "Function",
-          "to_name": "deltaReaderReportLine",
-          "expected_failure": {
-            "defect": "#10003",
-            "reason": "same symbol read as dr-2: the unchanged app/report.go definition is not in the delta's rows"
-          }
+          "to_name": "deltaReaderReportLine"
         },
         {
           "id": "dr-4",
@@ -2507,9 +2499,28 @@
             "defect": "#10003",
             "reason": "facts_active_crossplane_xrd.go reads XRD content entities of the active generation only, so with the claim in the delta the delta-active XRD read returns nothing and the scope's SATISFIED_BY edge is retracted"
           }
+        },
+        {
+          "id": "dr-5",
+          "description": "deltaReaderMovedCaller in app/moved.go calls deltaReaderLedgerTotal; the delta inserts lines above the caller, so it moves.",
+          "reader": "code_call_materialization",
+          "relationship": "CALLS",
+          "from_label": "Function",
+          "from_name": "deltaReaderMovedCaller",
+          "to_label": "Function",
+          "to_name": "deltaReaderLedgerTotal",
+          "expected_failure": {
+            "defect": "#10049",
+            "reason": "content-entity ids hash the line number, so the moved caller gets a new Function node, and the git fact builder emits no code_call_materialization follow-up for a delta, so nothing rewrites its CALLS edges until the next full generation"
+          }
         }
       ],
       "unexpressed_readers": [
+        {
+          "reader": "code_call_symbols",
+          "defect": "#10003",
+          "reason": "not reachable through a git delta: the git fact builder returns before it emits the code_call_materialization follow-up for a delta generation, so the code-call reducer and its active-generation symbol read never run while the scope is delta-active (live run 3: the delta generation had no code_call_materialization work item or code_calls intent)"
+        },
         {
           "reader": "package_manifest_dependency",
           "defect": "#9991",

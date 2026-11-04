@@ -143,8 +143,8 @@ sets `ScopeGeneration.IsDelta`. So the orchestrator
    ones marked `expected_failure`, so a marker can't pass an edge that no
    generation produced.
 4. It commits `delta/` on top of the base. Today that is a trailing comment in
-   `app/main.go`, so no function moves, and one spec value in
-   `deploy/claim.yaml`. A second sync then produces a real cumulative delta,
+   `app/main.go`, so no function moves; inserted lines in `app/moved.go`, so
+   its function moves; and one spec value in `deploy/claim.yaml`. A second sync then produces a real cumulative delta,
    which is drained once.
 5. The final gate invocation runs the phase at stage `delta`. Plain edges
    must survive. Edges marked `expected_failure` (with `#N` and a reason) must

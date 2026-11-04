@@ -70,9 +70,10 @@ is deterministic because `CanonicalRepositoryID` hashes the synthesized remote
 - **Fixture.** `base/` holds `app/main.go` (`deltaReaderRun` calls a
   same-file helper and two helpers in `app/ledger.go` and `app/report.go`), a
   Crossplane XRD and a matching claim under `deploy/`, and a `go.mod` with no
-  `go` directive and no requires. The delta appends a comment to
-  `app/main.go`, so no function moves, and changes one spec value in
-  `deploy/claim.yaml`. The caller is not named `main`: that name collides
+  `go` directive and no requires, plus `app/moved.go`, whose caller the
+  delta moves. The delta appends a comment to `app/main.go`, so no function
+  moves there, inserts lines above the `app/moved.go` caller, and changes one
+  spec value in `deploy/claim.yaml`. The caller is not named `main`: that name collides
   with the existing `code/search` and `resolve_entity` shapes that query
   `main`.
 - **Orchestration.** `scripts/lib/golden-corpus-delta-reader.sh` collects the
@@ -94,10 +95,32 @@ is deterministic because `CanonicalRepositoryID` hashes the synthesized remote
   a required XPASS failure. Stage `full` requires every edge, so a marker
   can't pass an edge that was never produced.
 
+## What the live runs found
+
+Each run is the Neo4j golden gate on this branch. The stage `full` check
+passed in every run that reached it.
+
+| Run | Fixture shape | Stage `delta` result |
+| --- | --- | --- |
+| 1 | full collected before the first drain | not reached: the first drain wedged (`catalog_changed`, above) |
+| 2 | caller `main` in `cmd/main.go`, delta adds a comment above it | all three CALLS edges from `main` lost, including the same-file control; SATISFIED_BY survived (XPASS); `main` collided with the `code/search` and `resolve_entity` shapes; Workload 11 > 10 |
+| 3 | caller `deltaReaderRun`, trailing-comment delta, claim re-emitted | all three CALLS edges survived (dr-2 and dr-3 XPASS); SATISFIED_BY lost; Workload 11 > 10 |
+
+Run 3's database explains both code-call results. The delta generation had no
+`code_call_materialization` work item and no `code_calls` intent, while the
+full generation had both. `fact_builder.go` returns before it emits the
+code-call follow-up for a delta, and `CanonicalEntityID` hashes the line
+number. So a delta that moves a function re-keys its node and loses its edges
+with no rewrite (filed as #10049), and a delta that moves nothing leaves the
+full generation's edges in place. The #10003 row 1 symbol read is not reachable
+through a git delta at all. The fixture therefore keeps dr-1 to dr-3 as plain
+guards and adds dr-5, a moved caller, as an expected failure for #10049.
+
 ## Readers not expressed, and why
 
 | Reader | Defect | Reason |
 | --- | --- | --- |
+| code-call symbol read | #10003 | Not reachable through a git delta: no code-call work runs for a delta generation (run 3, above). |
 | manifest dependency read | #9991 | Fixed by #10018 (merged 2026-11-04) and proven by its live Postgres regressions. The handoff's premise ("until #10018 lands") no longer holds. Its graph observables are pinned by existing shapes: package-consumption `DEPENDS_ON` to lib-common is pinned by `get_code_relationship_story` (max 1) and `find_blast_radius` (max 10), and CVE-2026-00000 supply-chain findings by their own shapes. A second consumer would move unrelated assertions. |
 | Crossplane claim-side retract | #10005 | Needs a delta that adds a claim beside an unchanged one; this fixture has one claim, which the delta re-emits. |
 | Terraform config/backend loaders | #10006 | The observable is config-state drift, which needs a `terraform_state` cassette scope anchored to this repository's backend. |

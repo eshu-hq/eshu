@@ -19,7 +19,8 @@
 # (the #7389 remote-run transport). After the base full generation is active,
 # delta/ is committed on top and a second sync takes the real cumulative-delta
 # path, producing a delta generation that touches app/main.go (a trailing
-# comment, so no function moves) and deploy/claim.yaml.
+# comment, so no function moves), app/moved.go (its function moves), and
+# deploy/claim.yaml.
 #
 # Order in the orchestrator:
 #   golden_delta_reader_collect_full     after the first drain, before the
