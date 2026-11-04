@@ -92,6 +92,7 @@ no enrichment changed, not that re-triggers stopped.
 | Signal | Type | Labels | What it tells you |
 | --- | --- | --- | --- |
 | `eshu_dp_supply_chain_impact_winners_resweep_duration_seconds` | histogram | `path` | Wall time of one committed resweep statement. `path` is `full` (startup, or a keyed tick the cap sent to the full rebuild), `keyed` or `audit` (the full-recompute read). The full recompute is O(findings); a keyed tick follows the changed keys. A failed or skipped resweep records no sample. |
+| `eshu_dp_supply_chain_impact_winners_tick_phase_duration_seconds` | histogram | `phase` | Wall time of each phase of one keyed tick (#9975), so a slow `keyed` duration reads as a slow read or a slow write. `phase` is `claim` (transaction begin and the resweep try-lock), `consume` (the dirty-log `DELETE ... RETURNING` and its tally), `build_idents` (the identifier set, its `ANALYZE` and the cap check), `build_active_facts` (the keyed active-facts temp table, which is the probe into `fact_records`, plus the operator facts and its `ANALYZE`), `apply` (the winner select and row writes), `full_rebuild` (the whole-table rebuild a tick ran instead of `build_active_facts` and `apply` because it went over the cap), `stamp` (the watermark stamp of a tick that consumed nothing) and `commit`. A tick records one sample per phase it ran, so a quiet tick records `claim`, `consume`, `stamp` and `commit`, and a tick that lost the lock records only `claim`. A phase whose statement failed still records the time it spent, which `resweep_duration_seconds` does not. Buckets are the resweep buckets (0.05 to 300 s), so a phase under 50 ms reads as the first bucket. |
 | `eshu_dp_supply_chain_impact_winners_keys_per_sweep` | histogram | none | Canonical keys one keyed tick recomputed. A value near the cap is the warning before a tick falls back to the full rebuild. |
 | `eshu_dp_supply_chain_impact_winners_identifiers_consumed_total` | counter | none | Dirty-log rows keyed ticks consumed. |
 | `eshu_dp_supply_chain_impact_winners_capture_rows_total` | counter | `source` | Dirty-log rows appended, by capture source: `fact_upsert`, `fact_retract`, `activation`, `operator`, `scanner` or `audit`. The impact writer counts `fact_upsert` and `fact_retract` from the capturing statements' row counts, but only after its transaction commits: a rolled-back attempt, or a commit that fails, adds nothing, so those two sources match the log rows that exist, apart from a commit whose outcome is unknown (a connection lost after the server applied it), which leaves its rows uncounted. Database triggers write `activation`, `operator` and `scanner` rows and cannot emit a metric, so the maintainer counts those when its keyed tick consumes them. `audit` is counted when the audit queues a repair. A source that goes flat while its writes continue is a capture path that stopped. The scope-delete trigger writes its rows as `activation` (or `operator` for the suppression scope), the same sources as a pointer move, so a stopped delete capture does not show as a flat source: the `fact` rows it writes are the only difference. |
@@ -138,6 +139,18 @@ No label carries a canonical key, scope, repository, or CVE.
   finding, and a `keyed` duration close to the full-resweep time is an incident.
   Look for a plan change on the winners query and for `keys_per_sweep` near the
   cap. Raising the cadence is not the fix.
+- When a keyed tick is slow, split it by phase with
+  `eshu_dp_supply_chain_impact_winners_tick_phase_duration_seconds{phase}`, for
+  example `histogram_quantile(0.95, sum by (le, phase) (rate(eshu_dp_supply_chain_impact_winners_tick_phase_duration_seconds_bucket[15m])))`.
+  Time in `build_idents` or `build_active_facts` is the read side, the probe into
+  `fact_records`, so look at buffer reads and CPU throttling on the database
+  host. Time in `apply` or `commit` is the write side. Time in `consume` points
+  at the dirty-log delete. A `full_rebuild` phase means the tick went over the
+  cap. A rising `claim` means the transaction begin or the try-lock round trip
+  is slow, not the work. The phases of one tick add up to nearly its
+  `resweep_duration_seconds` sample, and the histogram does not tie a sample to
+  one tick, so match a slow tick to its phase by the time of the jump in the
+  bucket counts.
 - Then read the dirty log. `dirty_log_depth` should return to near zero after
   each keyed tick, and `dirty_log_oldest_age_seconds` bounds how far a winner
   can lag its facts. If either keeps climbing, no instance is running keyed

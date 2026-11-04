@@ -124,7 +124,12 @@
 // RecordSupplyChainImpactWinnersCapture once its transaction commits),
 // ...BackstopRepairs, ...AuditSkipped (#9957, audits that could not take the
 // resweep lock), and the observable
-// gauges ...DirtyLogDepth and ...DirtyLogOldestAge.
+// gauges ...DirtyLogDepth and ...DirtyLogOldestAge. SupplyChainImpactWinnersTickPhaseDuration
+// (eshu_dp_supply_chain_impact_winners_tick_phase_duration_seconds, #9975) times
+// each phase of a keyed tick under the closed phase label claim, consume,
+// build_idents, build_active_facts, apply, full_rebuild, stamp, commit, through
+// RecordSupplyChainImpactWinnersTickPhase, so a slow tick reads as a slow read or
+// a slow write; a phase that fails still records the time it spent.
 // The supply-chain reducer registers SupplyChainImpactFanOut
 // (eshu_dp_supply_chain_impact_fanout_total), labeled by reducer domain,
 // outcome, and cause (epss, kev, advisory, suppression, package_evidence,
