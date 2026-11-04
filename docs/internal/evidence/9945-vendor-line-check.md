@@ -17,12 +17,23 @@ before the fact reaches either source-package or binary-package matching:
 |---|---|---|---|
 | Same line | `ReleaseLine` set | Unchanged: list match stays `affected_exact` | `vendor_source` |
 | Another release or vendor | Marked unlisted and unverified; fixed versions and list cleared | Weak `os_release_not_in_advisory` signal at most | `vendor_line_mismatch` |
-| Unreadable, absent, conflicting, or host line unknown | Marked unverified | No release evidence; never `affected_exact` | `vendor_line_unknown` |
+| Unreadable, absent, conflicting, or host line unknown | Marked unverified | No release evidence; never `affected_exact` on the row join or the authorized-scan pass | `vendor_line_unknown` |
 
-The authorized-scan conflict pass (`filterAuthorizedBranchesToHostLine`) drops a
-vendor branch whose line is known and differs, so a foreign fix is not offered
-as the host's. Non-OS facts, OSV, NVD, GLAD, and another vendor's facts are not
-line-checked and are returned unchanged.
+The authorized-scan conflict pass reads vendor facts twice.
+`filterAuthorizedBranchesToHostLine` drops a vendor branch whose line is known
+and differs, so a foreign fix is not offered as the host's. The one branch that
+then applies is line-checked like the join checks it
+(`selectApplicableAuthorizedBranch` calls `selectOSVendorFactLine`), so a branch
+with a foreign, unreadable, or unverifiable line reads `possibly_affected` with
+`os_release_unverified` instead of re-deriving `affected_exact`. Non-OS facts,
+OSV, NVD, GLAD, and another vendor's facts are not line-checked and are returned
+unchanged.
+
+Not covered: an SBOM component with no joined installed row never reaches the
+join, so a vendor fact there is not line-checked. Rows with no image digest
+share one finding that the first row decides, so their order can change a
+verdict; digest-resolved fleets are order independent
+(`TestVendorLineVerdictIsFleetOrderIndependentWithDigests`).
 
 Producer note: the carrier is the purl `distro` qualifier in `debian-12`,
 `ubuntu-22.04`, `alpine-3.18` form. OSV's own Debian purls use codenames
@@ -40,13 +51,23 @@ OS fact yet, so no live fact changes.
   permutation independence, result labels, counter and success-log sub-signals
   through the real join stats, host-line OSV against a vendor list) and
   `os_vendor_line_authorized_test.go`.
-- Mutation check: six mutants of the rule (unknown read as matched, mismatch read
-  as matched, foreign list kept, unverified flag ignored, authorized filter keeps
-  the foreign branch, conflicting qualifiers accepted) each fail at least one
-  test.
-- Parity differential: 128 verdict rows (non-vendor, OSV, NVD, matching-line
-  vendor inputs, both derivations) produced by the unchanged code at base
-  65fa0f2f2a and by this change are byte-identical (same sha256).
+- Authorized pass: `TestAuthorizedScanNeverTrustsAnUnverifiedVendorBranch` goes
+  through `BuildAuthorizedScanImpactFindings` with a codename purl, no purl, a
+  foreign line on an unknown host, and an own-line branch beside a codename
+  branch (each `possibly_affected` / `os_release_unverified`), plus two
+  own-line controls that stay `affected_exact`.
+- Mutation check: eight mutants of the rule (unknown read as matched, mismatch
+  read as matched, foreign list kept, unverified flag ignored, authorized filter
+  keeps the foreign branch, conflicting qualifiers accepted, an unknown host line
+  ending the selection pass, and the other-line helper ignoring the fact source)
+  each fail at least one test.
+- Parity differential: 128 verdict rows produced by the unchanged code at base
+  65fa0f2f2a and by this change are byte-identical (same sha256). The rows are
+  118 OSV (alpine, debian and ubuntu fixtures, each in both fact orders), 2 OSV
+  source-package joins, and 8 matching-line vendor facts (dpkg and apk, binary
+  and source-package join). They hold no NVD row and no authorized-scan row; the
+  non-vendor facts of other sources and the authorized path are covered by the
+  unit tests above, not by this differential.
 
 ## Performance
 
