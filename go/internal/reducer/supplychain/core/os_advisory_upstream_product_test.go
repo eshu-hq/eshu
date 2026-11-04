@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 // nvdProductEnvelopes is an NVD record with a CPE match an SBOM component on an
@@ -148,5 +149,34 @@ func TestProductPathJudgesOnlyNativeObservations(t *testing.T) {
 	got := BuildSupplyChainImpactFindings(append(slices.Clone(rejected), distro...))
 	if len(got) != 1 || got[0].AdvisoryRetraction == nil {
 		t.Errorf("findings = %#v, want the product finding still retracted", got)
+	}
+}
+
+// TestProductPathCountsARecordsOwnCVEFactAsNative: a record's cve fact keyed to the
+// CVE itself is native to that group even when the record also has a fact the pass
+// copies there. Reading it as a copy would drop a product finding the same fact
+// produces on its own.
+func TestProductPathCountsARecordsOwnCVEFactAsNative(t *testing.T) {
+	t.Parallel()
+
+	const cve = "CVE-2026-0101"
+	const id = "DSA-9998-1"
+	var own facts.Envelope
+	for _, envelope := range convertedOSVRecord(t, debianRecord(id, "12", "bookworm", "7.88.1-10+deb12u3"), false) {
+		if envelope.FactKind == chain.VulnerabilityCVEFactKind {
+			own = envelope
+			own.FactID += "-own"
+			own.Payload["cve_id"] = cve
+		}
+	}
+	products := nvdProductEnvelopes(cve, 8.6)[1:]
+	want := BuildSupplyChainImpactFindings(append(slices.Clone(products), own))
+	if len(want) != 1 || want[0].AdvisoryID != id {
+		t.Fatalf("baseline = %#v, want one product finding named %s", want, id)
+	}
+	record := convertedOSVRecord(t, debianRecord(id, "12", "bookworm", "7.88.1-10+deb12u3", cve), false)
+	got := BuildSupplyChainImpactFindings(append(append(slices.Clone(products), own), record...))
+	if len(got) != 1 || got[0].AdvisoryID != id {
+		t.Errorf("findings = %#v, want the one product finding named %s", got, id)
 	}
 }

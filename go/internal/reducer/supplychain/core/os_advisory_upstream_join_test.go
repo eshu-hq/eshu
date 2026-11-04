@@ -8,6 +8,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/vulnerabilityintelligence"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
@@ -153,6 +154,60 @@ func TestUpstreamGroupingTwoCVEFactsOfOneAdvisoryAreOneRecord(t *testing.T) {
 	}
 }
 
+// TestUpstreamGroupingSiblingFactKeepsItsOwnCVE: a second cve fact of a grouped
+// record, keyed to a CVE its upstream list does not name, keeps that CVE's group.
+// The stored record says it covers that CVE; the newer list adding another one is
+// no reason to drop it, and which fact arrives first must not decide.
+func TestUpstreamGroupingSiblingFactKeepsItsOwnCVE(t *testing.T) {
+	t.Parallel()
+
+	const named, sibling = "CVE-2023-38039", "CVE-2023-38040"
+	envelopes := convertedOSVRecord(t, debianRecord("DSA-9998-1", "12", "bookworm", "7.88.1-10+deb12u3", named), false)
+	for _, envelope := range convertedOSVRecord(t, debianRecord("DSA-9998-1", "12", "bookworm", "7.88.1-10+deb12u3"), false) {
+		if envelope.FactKind == chain.VulnerabilityCVEFactKind {
+			envelope.FactID += "-sibling"
+			envelope.Payload["cve_id"] = sibling
+			envelopes = append(envelopes, envelope)
+		}
+	}
+	envelopes = append(envelopes, debianCurl("12", "7.88.1-10+deb12u2").envelope())
+	for order, shuffled := range orderings(envelopes) {
+		got := map[string]string{}
+		for _, finding := range BuildSupplyChainImpactFindings(shuffled) {
+			got[finding.CVEID] = finding.AdvisoryID
+		}
+		if want := map[string]string{named: "DSA-9998-1", sibling: "DSA-9998-1"}; !reflect.DeepEqual(got, want) {
+			t.Errorf("%s: advisory by CVE = %v, want %v", order, got, want)
+		}
+	}
+}
+
+// TestUpstreamGroupingCopiesOnlyArrivedFacts: every copy comes from a fact that
+// arrived, never from an earlier copy. A record with two cve facts is the case
+// where a copy lands in a bucket the pass has yet to read: reading it would file
+// the package twice under the record's other CVE. The classifier folds the
+// duplicate, so this reads the index.
+func TestUpstreamGroupingCopiesOnlyArrivedFacts(t *testing.T) {
+	t.Parallel()
+
+	const id, b, c = "DSA-9998-1", "CVE-2026-0002", "CVE-2026-0003"
+	index := supplyChainImpactIndex{
+		cves: []supplychainmodel.ImpactCVE{
+			{FactID: "cve-1", CVEID: id, AdvisoryID: id, Upstream: []string{b, c}},
+			{FactID: "cve-2", CVEID: b, AdvisoryID: id},
+		},
+		affectedPackages: map[string][]supplychainmodel.AffectedPackage{
+			id: {{FactID: "pkg-1", CVEID: id, AdvisoryID: id, PackageID: "os://debian/curl"}},
+		},
+	}
+	groupOSAdvisoriesByUpstream(&index)
+	for _, key := range []string{b, c} {
+		if got := packageFactIDs(index.affectedPackages[key]); !reflect.DeepEqual(got, []string{"pkg-1"}) {
+			t.Errorf("packages under %s = %v, want pkg-1 once", key, got)
+		}
+	}
+}
+
 // TestUpstreamGroupingBlankAdvisoryIDFailsClosed: a record with no advisory id
 // cannot be joined to its packages, so it stays under its own key and counts as
 // ungrouped. Production envelopes always carry one and the typed decode requires
@@ -184,6 +239,77 @@ func TestUpstreamGroupingBlankAdvisoryIDFailsClosed(t *testing.T) {
 	want := map[osUpstreamGroupKey]int{{source: "debian", result: osUpstreamUngrouped}: 1}
 	if !reflect.DeepEqual(with.osUpstream.cells, want) {
 		t.Errorf("cells = %#v, want %#v", with.osUpstream.cells, want)
+	}
+}
+
+// TestUpstreamGroupingIsNotTransitive: A names B and B names C, each with its own
+// package. A's package reads under its own keys only: reaching C through B would
+// file a package under a CVE its record never named.
+func TestUpstreamGroupingIsNotTransitive(t *testing.T) {
+	t.Parallel()
+
+	chained := func(id, name, alias string, upstream ...string) vulnerabilityintelligence.OSVVulnerability {
+		record := distroRecord(id, "Debian:12", "pkg:deb/debian/"+name+"?arch=source&distro=bookworm", "7.88.1-10+deb12u3", upstream)
+		record.Affected[0].Package.Name = name
+		record.Aliases = []string{alias}
+		return record
+	}
+	host := func(name string) facts.Envelope {
+		row := debianCurl("12", "7.88.1-10+deb12u2")
+		row.name = name
+		return row.envelope()
+	}
+	envelopes := upstreamEnvelopes(t, nil,
+		chained("DSA-1-1", "aaa", "CVE-2026-0001", "CVE-2026-0002"),
+		chained("DSA-2-1", "bbb", "CVE-2026-0002", "CVE-2026-0003"),
+		chained("DSA-3-1", "ccc", "CVE-2026-0003"),
+	)
+	envelopes = append(envelopes, host("aaa"), host("bbb"), host("ccc"))
+
+	want := map[string][]string{
+		"CVE-2026-0001": {"os://debian/aaa"},
+		"CVE-2026-0002": {"os://debian/aaa", "os://debian/bbb"},
+		"CVE-2026-0003": {"os://debian/bbb", "os://debian/ccc"},
+	}
+	for order, shuffled := range orderings(envelopes) {
+		got := map[string][]string{}
+		for _, finding := range BuildSupplyChainImpactFindings(shuffled) {
+			got[finding.CVEID] = append(got[finding.CVEID], finding.PackageID)
+		}
+		for key := range got {
+			slices.Sort(got[key])
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("%s: packages by CVE = %v, want %v", order, got, want)
+		}
+	}
+}
+
+// TestUpstreamGroupingBundleBesideAPerCVERecord is decision 14 (vi) of the #9914
+// ruling: a USN bundle and the UBUNTU-CVE record for one of its CVEs read one
+// finding for that CVE, not two, and the bundle's other CVE still reads its own.
+func TestUpstreamGroupingBundleBesideAPerCVERecord(t *testing.T) {
+	t.Parallel()
+
+	const purl = "pkg:deb/ubuntu/curl?arch=source&distro=jammy"
+	envelopes := upstreamEnvelopes(t, nil,
+		distroRecord("USN-6766-1", "Ubuntu:22.04:LTS", purl, "7.81.0-1ubuntu1.17",
+			[]string{"CVE-2024-2398", "CVE-2024-2004", "UBUNTU-CVE-2024-2398"}),
+		distroRecord("UBUNTU-CVE-2024-2398", "Ubuntu:22.04:LTS", purl, "7.81.0-1ubuntu1.16", []string{"CVE-2024-2398"}),
+	)
+	envelopes = append(envelopes, ubuntuCurl("22.04", "7.81.0-1ubuntu1.1").envelope())
+
+	want := map[string]string{"CVE-2024-2004": "USN-6766-1", "CVE-2024-2398": "UBUNTU-CVE-2024-2398"}
+	for order, shuffled := range orderings(envelopes) {
+		got := map[string]string{}
+		findings := BuildSupplyChainImpactFindings(shuffled)
+		for _, finding := range findings {
+			got[finding.CVEID] = finding.AdvisoryID
+			assertSupplyChainImpactStatus(t, finding, SupplyChainImpactAffectedExact)
+		}
+		if len(findings) != 2 || !reflect.DeepEqual(got, want) {
+			t.Errorf("%s: %d findings, advisory by CVE = %v, want 2 with %v", order, len(findings), got, want)
+		}
 	}
 }
 

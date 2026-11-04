@@ -159,3 +159,57 @@ func TestDerivedConflictGateIgnoresARetractedRecordsFacts(t *testing.T) {
 		t.Errorf("finding = %#v, want it untouched: only a retracted record's facts disagree", findings[0])
 	}
 }
+
+// TestDerivedConflictGateJudgesLivenessPerPackage: liveness is per package, as in
+// the primary path. A package only a retracted record asserts keeps that record's
+// verdict, so its own disagreeing facts still dispute the fix, whatever a live
+// record says about another package in the group.
+func TestDerivedConflictGateJudgesLivenessPerPackage(t *testing.T) {
+	t.Parallel()
+
+	const cve = "CVE-2026-1"
+	const packageID = "npm://registry.npmjs.org/lodash"
+	index := supplyChainImpactIndex{
+		cves: []supplychainmodel.ImpactCVE{
+			{CVEID: cve, AdvisoryID: "GHSA-rejected", Status: "Rejected"},
+			{CVEID: cve, AdvisoryID: "GHSA-live"},
+		},
+		affectedPackages: map[string][]supplychainmodel.AffectedPackage{cve: {
+			{FactID: "r1", CVEID: cve, AdvisoryID: "GHSA-rejected", PackageID: packageID, Ecosystem: "npm", FixedVersions: []string{"1.0.0"}},
+			{FactID: "r2", CVEID: cve, AdvisoryID: "GHSA-rejected", PackageID: packageID, Ecosystem: "npm", FixedVersions: []string{"2.0.0"}},
+			{FactID: "l1", CVEID: cve, AdvisoryID: "GHSA-live", PackageID: "npm://registry.npmjs.org/other", Ecosystem: "npm", FixedVersions: []string{"3.0.0"}},
+		}},
+	}
+	findings := []SupplyChainImpactFinding{{
+		CVEID: cve, AdvisoryID: "GHSA-rejected", PackageID: packageID, Ecosystem: "npm",
+		Status: SupplyChainImpactAffectedExact, FixedVersion: "2.0.0",
+	}}
+	markAuthorizedFixedVersionConflicts(findings, index, nil)
+	if findings[0].MatchReason != supplyChainVersionReasonAdvisoryFixedConflict {
+		t.Errorf("finding = %#v, want the fix disputed: the live record says nothing about this package", findings[0])
+	}
+}
+
+// TestDerivedConflictGateSkipsAProductFinding: a product finding has no package
+// id, and a fact with no package id is not its package, so two of them that
+// disagree do not dispute it. The old decode skipped those facts outright.
+func TestDerivedConflictGateSkipsAProductFinding(t *testing.T) {
+	t.Parallel()
+
+	const cve = "CVE-2026-2"
+	index := supplyChainImpactIndex{
+		cves: []supplychainmodel.ImpactCVE{{CVEID: cve, AdvisoryID: cve}},
+		affectedPackages: map[string][]supplychainmodel.AffectedPackage{cve: {
+			{FactID: "p1", CVEID: cve, AdvisoryID: cve, FixedVersions: []string{"1.0.0"}},
+			{FactID: "p2", CVEID: cve, AdvisoryID: cve, FixedVersions: []string{"2.0.0"}},
+		}},
+	}
+	findings := []SupplyChainImpactFinding{{
+		CVEID: cve, AdvisoryID: cve, ProductCriteria: testImpactProductCriteria,
+		Status: SupplyChainImpactAffectedDerived,
+	}}
+	markAuthorizedFixedVersionConflicts(findings, index, nil)
+	if findings[0].Status != SupplyChainImpactAffectedDerived || findings[0].MatchReason != "" {
+		t.Errorf("finding = %#v, want it untouched", findings[0])
+	}
+}

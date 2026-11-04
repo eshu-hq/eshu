@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/vulnerabilityintelligence"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 // distroRecord builds one single-release OSV distro record in the converter's
@@ -305,15 +306,32 @@ func TestUpstreamGroupingLeavesRecordsWithoutACVEKeyUnchanged(t *testing.T) {
 }
 
 // TestUpstreamGroupingKeysAreCaseAndWhitespaceInsensitive: an upstream entry
-// groups under its canonical CVE id however the feed spelled it.
+// groups under its canonical CVE id however it is spelled. Each spelling is the
+// record's only key: beside the canonical id a respelled entry that was rejected
+// outright would go unnoticed. The list is written to the stored payload, not the
+// OSV record, because the collector trims entries on the way in and would hide the
+// reducer's own rule; a fact from another producer has no such guarantee.
 func TestUpstreamGroupingKeysAreCaseAndWhitespaceInsensitive(t *testing.T) {
 	t.Parallel()
 
-	record := debianRecord("DEBIAN-CVE-2023-38039", "12", "bookworm", "7.88.1-10+deb12u3", " cve-2023-38039 ", "CVE-2023-38039")
-	findings := BuildSupplyChainImpactFindings(append(
-		upstreamEnvelopes(t, []string{"CVE-2023-38039"}, record), debianCurl("12", "7.88.1-10+deb12u2").envelope()))
-	if len(findings) != 1 || findings[0].CVEID != "CVE-2023-38039" {
-		t.Fatalf("findings = %#v, want ONE finding under CVE-2023-38039 (no duplicate for the respelled entry)", findings)
+	const cve = "CVE-2023-38039"
+	for name, upstream := range map[string][]any{
+		"lowercase only":              {"cve-2023-38039"},
+		"mixed case prefix only":      {"Cve-2023-38039"},
+		"surrounding whitespace only": {" CVE-2023-38039\t"},
+		"lowercase and whitespace":    {" cve-2023-38039 "},
+		"respelled beside canonical":  {" cve-2023-38039 ", cve},
+	} {
+		envelopes := convertedOSVRecord(t, debianRecord("DEBIAN-CVE-2023-38039", "12", "bookworm", "7.88.1-10+deb12u3"), false)
+		for _, envelope := range envelopes {
+			if envelope.FactKind == chain.VulnerabilityCVEFactKind {
+				envelope.Payload["upstream"] = upstream
+			}
+		}
+		findings := BuildSupplyChainImpactFindings(append(envelopes, debianCurl("12", "7.88.1-10+deb12u2").envelope()))
+		if len(findings) != 1 || findings[0].CVEID != cve {
+			t.Errorf("%s: findings = %#v, want ONE finding under %s", name, findings, cve)
+		}
 	}
 }
 
