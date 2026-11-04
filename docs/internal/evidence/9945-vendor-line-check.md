@@ -76,9 +76,10 @@ with an OS purl. Two shapes sit outside it. A debian-sourced scalar fix reads
 matching package id, and (b) a consumption fact with an OS package id. Shape (a)
 is unreachable: the collector derives the package id from the purl. Shape (b)
 needs a vendor fact and an OS consumption id, and no vendor producer exists.
-Closing (b) in code would break
-`TestSupplyChainImpactVendorAdvisoryOverridesUpstream`, which pins a vendor fix
-on the consumption path, so it is a separate change.
+Closing (b) in code would change what
+`TestSupplyChainImpactVendorAdvisoryOverridesUpstream` pins today (a vendor rpm
+fix on the consumption path), so it is a separate change that this PR does not
+make.
 
 Limits, stated plainly:
 
