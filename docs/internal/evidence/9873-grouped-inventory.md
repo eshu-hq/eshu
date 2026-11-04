@@ -168,11 +168,15 @@ Results at 5x (milliseconds):
 | environment with service_id, precise | 391 | 394 | 384 | 6 | 39 |
 | environment with service_id, comprehensive | 406 | 451 | 388 | 6 | 93 |
 
-At 1x every case was at most 132 ms max (service 30 to 93 ms, workload 73 to
-123 ms, environment 83 to 132 ms).
+At 1x every case was at most 132 ms max. The range from the lowest p50 to the
+highest max was 30 to 93 ms for service, 73 to 123 ms for workload, 83 to
+132 ms for environment, and 53 to 57 ms for environment composed with
+service_id.
 
 The worst 5x case is 672 ms max, under the 1.5 s threshold for both profiles.
-At 5x it is about 55 to 65 times faster than the CTE source.
+At 5x, precise and unscoped, the p50 is about 45 times faster than the CTE
+source for service (12,016 to 269 ms), 37 times for workload (14,677 to
+394 ms), and 82 times for environment (41,193 to 505 ms).
 
 Plan shape (`EXPLAIN (ANALYZE, BUFFERS)`, 28 plans across 1x and 5x, kept in the
 lane scratchpad, not committed):
