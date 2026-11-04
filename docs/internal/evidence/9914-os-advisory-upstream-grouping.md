@@ -337,10 +337,16 @@ Limits, measured or not:
 
   The flip sits between 380 and 400 ids. At 240 the custom plan has about 17%
   headroom on cost against the walk, so the 240 sample leaves room for about 140 more ids, not
-  a doubling, and fresh statistics could move the flip down. On the local fixture
+  a doubling, and fresh statistics could move the flip down.
   `TestSupplyChainImpactBranchPlansStayOnAnchorsLive` proves the same anchor at 120
-  ids under both plan modes, but a fixture of 4,000 rows per kind cannot reproduce
-  the flip itself.
+  ids under both plan modes on the CI Postgres image (the digest in
+  `live-postgres-readiness.yml`) at stock settings (`random_page_cost` 4), and on a
+  private PostgreSQL 18.6. The fixture holds 8,503 EPSS and KEV rows plus 40,000
+  inline padding rows (14,299 heap pages). Without the padding (4,299 pages) the
+  custom plan walks the two kinds through `fact_records_scope_generation_idx`. The
+  planner ignores statistics from the partial `cve_lookup_v2` index, so ids are priced at the default whatever their values; the key probe wins only
+  when the signal rows are a small share of the heap, and the padding supplies that
+  share. The fixture cannot reproduce the 380 to 400 id flip itself.
 - The arm a CVE takes depends on the loaded set, not on the order facts arrive or
   which fact triggered the pass: a CVE with any loaded CVE-keyed fact takes the full
   arm, and a CVE named only by an upstream list takes the signal arm
