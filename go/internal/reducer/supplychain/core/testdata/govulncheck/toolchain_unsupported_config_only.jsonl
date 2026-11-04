@@ -1,0 +1,1 @@
+{"config":{"protocol_version":"v1.0.0","scanner_name":"govulncheck","scanner_version":"v1.9.0","db":"https://vuln.go.dev","db_last_modified":"2026-11-02T22:01:43Z","go_version":"go1.26.6","scan_level":"symbol","scan_mode":"source"}}

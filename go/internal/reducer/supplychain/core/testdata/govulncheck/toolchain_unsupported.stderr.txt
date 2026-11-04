@@ -1,0 +1,2 @@
+govulncheck: loading packages: err: exit status 1: stderr: go: go.mod requires go >= 1.99 (running go 1.26.6; GOTOOLCHAIN=local)
+
