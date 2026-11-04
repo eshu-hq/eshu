@@ -4,6 +4,7 @@
 package core
 
 import (
+	"slices"
 	"sort"
 	"strings"
 
@@ -123,6 +124,30 @@ func recordUnreadableSupplyChainCVE(index *supplyChainImpactIndex, envelope fact
 	if key != "" {
 		index.unreadableCVEs[key] = struct{}{}
 	}
+}
+
+// recordsListingThePackage keeps the observations of the records that supplied an
+// affected_package fact for this package. An OS-class finding judges retraction
+// over them alone (#9914): a record that lists another package, or a cve-only NVD
+// or GHSA record, supplies severity and sources but never said this package is
+// affected, so it cannot keep a withdrawn assertion alive. The rule is per record:
+// a second cve fact of the same AdvisoryID counts with no package fact of its own,
+// as liveAdvisoryPackages reads it, so the answer does not depend on which of the
+// two the package fact paired with. A group with nothing retracted returns without
+// allocating: the answer is nil either way, and this runs once per finding.
+func recordsListingThePackage(observations []AdvisoryProvenanceObservation) []AdvisoryProvenanceObservation {
+	if !slices.ContainsFunc(observations, AdvisoryProvenanceObservation.retracted) {
+		return observations
+	}
+	listed := make([]AdvisoryProvenanceObservation, 0, len(observations))
+	for _, observation := range observations {
+		if slices.ContainsFunc(observations, func(other AdvisoryProvenanceObservation) bool {
+			return other.AffectedFactID != "" && other.AdvisoryID == observation.AdvisoryID
+		}) {
+			listed = append(listed, observation)
+		}
+	}
+	return listed
 }
 
 // retractionFromObservations returns the retraction for one finding, or nil
