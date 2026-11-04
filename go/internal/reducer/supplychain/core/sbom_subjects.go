@@ -30,6 +30,17 @@ func appendSupplyChainImpactPackageFindings(
 	cves, pkgs = liveAdvisoryPackages(cves, pkgs, index)
 	pkg := representativeAffectedPackage(pkgs)
 	paths := supplyChainSBOMPaths(pkg, index)
+	reselected := false
+	if len(paths) == 0 {
+		// No SBOM path: let a fact that joins the installed row name the finding
+		// when source order picked one with no anchor at all (#9990).
+		if marked, ok := withJoinableOSRepresentative(pkgs, pkg, index); ok {
+			pkgs, reselected = marked, true
+			pkg = representativeAffectedPackage(pkgs)
+			paths = supplyChainSBOMPaths(pkg, index)
+		}
+	}
+	index.recordOSRepresentativeOutcome(pkgs, pkg, reselected, len(paths) > 0)
 	if len(paths) == 0 {
 		return appendSupplyChainImpactFleetOSFindings(findings, cves, pkgs, index)
 	}

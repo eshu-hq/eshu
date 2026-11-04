@@ -74,6 +74,11 @@ type AffectedPackage struct {
 	// because the record's upstream list names it. A group whose packages are all
 	// copies still emits its product findings (#9914).
 	UpstreamCopy bool
+	// JoinRepresentative marks the one fact of a (cve, package_id) group that
+	// names the finding because it can join an installed row and the source-order
+	// winner cannot (#9990). The reducer sets it on its own copy of the group;
+	// no fact payload decodes into it.
+	JoinRepresentative bool
 }
 
 // AffectedRange is one typed version-range event group inside an

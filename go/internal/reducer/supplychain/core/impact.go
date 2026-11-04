@@ -417,6 +417,7 @@ func buildSupplyChainImpactFindingsAndExclusions(envelopes []facts.Envelope) ([]
 	if err != nil {
 		return nil, nil, supplyChainImpactBuildStats{}, err
 	}
+	index.osRepresentativeOutcomes = make(map[osRepresentativeOutcomeKey]int)
 	findings := appendSupplyChainImpactIndexFindings(nil, index)
 	findings, securityAlertQuarantined, err := appendSecurityAlertImpactFindings(findings, envelopes, index)
 	if err != nil {
@@ -432,6 +433,7 @@ func buildSupplyChainImpactFindingsAndExclusions(envelopes []facts.Envelope) ([]
 	return findings, quarantined, supplyChainImpactBuildStats{
 		negatedProductsExcluded:     index.negatedProductsExcluded,
 		osAdvisoryJoins:             countOSAdvisoryJoins(index),
+		osRepresentativeOutcomes:    index.osRepresentativeOutcomes,
 		osAdvisoriesJoinedViaSource: countOSAdvisoriesJoinedViaSource(findings),
 		osReleaseNotInAdvisory:      countOSReleaseNotInAdvisory(findings),
 		osUpstreamGroups:            index.osUpstream.cells,
