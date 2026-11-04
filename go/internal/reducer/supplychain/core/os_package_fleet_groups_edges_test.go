@@ -257,6 +257,43 @@ func TestDigestlessFleetPURLWithoutDistroKeepsReasonWithoutSBOM(t *testing.T) {
 	}
 }
 
+// TestDigestlessFleetTwoLookupKeysInOneGroupAreOrderIndependent puts one
+// group's rows under two lookup keys of the advisory (curl and libcurl, same
+// line and version). Each key keeps its own least row and the classifier walks
+// the keys in sorted order, so the finding cannot depend on which key's row
+// arrived first. A shard that kept only the first key seen would pick by map
+// iteration, which the repeats expose.
+func TestDigestlessFleetTwoLookupKeysInOneGroupAreOrderIndependent(t *testing.T) {
+	t.Parallel()
+	scenario := vendorLineScenarios[0]
+	advisory := []facts.Envelope{
+		vulnerabilityCVEFact("cve-9945", vendorLineCVE, 7.5),
+		scenario.affectedEnvelope("pkg:deb/debian/libcurl?distro=debian-12"),
+	}
+	library := debianCurl("12", "1:1.0-3")
+	library.name = "libcurl"
+	rows := []facts.Envelope{
+		digestlessOSRow(debianCurl("12", "1:1.0-3"), "under-curl"),
+		digestlessOSRow(library, "under-libcurl"),
+	}
+	want, findings := fleetFindingsJSON(t, advisory, rows)
+	if len(findings) != 1 {
+		t.Fatalf("findings = %d, want one for the one (line, version) group: %#v", len(findings), findings)
+	}
+	for attempt := range 200 {
+		order := slices.Clone(rows)
+		if attempt%2 == 1 {
+			slices.Reverse(order)
+		}
+		if got, _ := fleetFindingsJSON(t, advisory, order); got != want {
+			t.Fatalf("build %d changed the findings:\n%s\n%s", attempt, want, got)
+		}
+	}
+	if !strings.Contains(findings[0].PURL, "/curl@") {
+		t.Fatalf("PURL = %q, want the first sorted key, curl before libcurl", findings[0].PURL)
+	}
+}
+
 // TestCoalesceNamesAnSBOMConflictOnlyWhenAnSBOMWasRead pins both arms of the
 // merge on a writer identity shared by findings with different reasons. With an
 // SBOM component read for either finding, the disagreement is an SBOM version
