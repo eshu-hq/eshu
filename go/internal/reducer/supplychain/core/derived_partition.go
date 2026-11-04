@@ -168,7 +168,7 @@ func buildAuthorizedScanImpactFindingsWithQuarantine(
 		for _, rows := range index.osPackages {
 			targetOSRows = append(targetOSRows, rows...)
 		}
-		markAuthorizedFixedVersionConflicts(targetFindings, advisories, targetOSRows)
+		markAuthorizedFixedVersionConflicts(targetFindings, index, targetOSRows)
 		for _, finding := range targetFindings {
 			if !findingHasAnyScanFact(finding, target.OSPackages) {
 				continue
