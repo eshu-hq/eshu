@@ -37,43 +37,56 @@ func TestWorkloadCandidatePreconditionBindsSignalKeysAsOneArray(t *testing.T) {
 	if call.query != workloadCandidatePreconditionQuery() {
 		t.Fatal("the store must send the shipped precondition query verbatim")
 	}
-	if len(call.args) != 3 {
-		t.Fatalf("probe args = %v, want [scope generation keys]", call.args)
+	if len(call.args) != 6 {
+		t.Fatalf("probe args = %v, want [scope generation signal-keys array-keys presence-keys token-keys]", call.args)
 	}
 
-	keys, ok := call.args[2].(driver.Valuer)
-	if !ok {
-		t.Fatalf("keys arg = %T, want a driver.Valuer text array (one bound parameter)", call.args[2])
-	}
-	literal, err := keys.Value()
-	if err != nil {
-		t.Fatalf("keys arg Value(): %v", err)
-	}
-	encoded, ok := literal.(string)
-	if !ok {
-		t.Fatalf("keys arg literal = %T, want a text array literal", literal)
-	}
-	want, err := array.StringArray(factload.WorkloadCandidateSignalKeys).Value()
-	if err != nil {
-		t.Fatalf("expected literal Value(): %v", err)
-	}
-	if encoded != want {
-		t.Fatalf("keys arg = %q, want %q derived from factload.WorkloadCandidateSignalKeys", encoded, want)
+	for i, class := range []struct {
+		name string
+		keys []string
+	}{
+		{"signal keys", factload.WorkloadCandidateSignalKeys},
+		{"array-bucket keys", factload.WorkloadCandidateArrayBucketKeys},
+		{"presence keys", factload.WorkloadCandidatePresenceKeys},
+		{"token keys", factload.WorkloadCandidateTokenKeys},
+	} {
+		arg := call.args[2+i]
+		valuer, ok := arg.(driver.Valuer)
+		if !ok {
+			t.Fatalf("%s arg = %T, want a driver.Valuer text array (one bound parameter)", class.name, arg)
+		}
+		literal, err := valuer.Value()
+		if err != nil {
+			t.Fatalf("%s arg Value(): %v", class.name, err)
+		}
+		encoded, ok := literal.(string)
+		if !ok {
+			t.Fatalf("%s arg literal = %T, want a text array literal", class.name, literal)
+		}
+		want, err := array.StringArray(class.keys).Value()
+		if err != nil {
+			t.Fatalf("expected literal Value(): %v", err)
+		}
+		if encoded != want {
+			t.Fatalf("%s arg = %q, want %q derived from factload", class.name, encoded, want)
+		}
+		for _, key := range class.keys {
+			if !strings.Contains(encoded, `"`+key+`"`) {
+				t.Errorf("%s array misses key %q", class.name, key)
+			}
+		}
 	}
 	for _, key := range factload.WorkloadCandidateSignalKeys {
-		if !strings.Contains(encoded, `"`+key+`"`) {
-			t.Errorf("bound array misses signal key %q", key)
-		}
 		if strings.Contains(call.query, key) {
-			t.Errorf("query interpolates signal key %q: keys must travel only in the bound array", key)
+			t.Errorf("query interpolates signal key %q: keys must travel only in the bound arrays", key)
 		}
 	}
 }
 
 // TestWorkloadCandidatePreconditionQueryShape pins the structural predicates
 // and the parameter contract: every placeholder the SQL uses is supplied, the
-// key-existence test is the bound array, and the performance shape (two
-// equality partitions, key existence on the inner side, EXISTS) is kept.
+// value tests read the bound key arrays, and the performance shape (two
+// equality partitions, one jsonb_to_record read on the file side, EXISTS) is kept.
 func TestWorkloadCandidatePreconditionQueryShape(t *testing.T) {
 	t.Parallel()
 
@@ -86,9 +99,15 @@ func TestWorkloadCandidatePreconditionQueryShape(t *testing.T) {
 		"fact_kind = 'file'",
 		"payload->>'graph_id'",
 		"payload->>'name'",
-		"payload->>'repo_id'",
-		"parsed_file_data'",
+		"jsonb_to_record(f.payload) AS x(repo_id text, relative_path text, parsed_file_data jsonb)",
+		"x.repo_id = repo.payload->>'graph_id'",
+		"x.relative_path ~",
 		"?| $3::text[]",
+		"unnest($4::text[])",
+		"unnest($5::text[])",
+		"unnest($6::text[])",
+		"jsonb_typeof(x.parsed_file_data) = 'object'",
+		"<> '[]'::jsonb",
 	} {
 		if !strings.Contains(query, fragment) {
 			t.Errorf("precondition query misses predicate %q", fragment)
@@ -104,8 +123,8 @@ func TestWorkloadCandidatePreconditionQueryShape(t *testing.T) {
 			maxPlaceholder = n
 		}
 	}
-	if maxPlaceholder != 3 {
-		t.Fatalf("highest placeholder = $%d, want $3 (scope, generation, keys)", maxPlaceholder)
+	if maxPlaceholder != 6 {
+		t.Fatalf("highest placeholder = $%d, want $6 (scope, generation, four key arrays)", maxPlaceholder)
 	}
 }
 
