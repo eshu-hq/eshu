@@ -6,8 +6,8 @@
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router";
 
-import { ReachableAdvisories } from "./VulnerabilitiesReachable";
 import { VulnerabilitiesByGroup } from "./VulnerabilitiesByGroup";
+import { ReachableAdvisories } from "./VulnerabilitiesReachable";
 import type { EshuApiClient } from "../api/client";
 import type { ImpactListFilter } from "../api/eshuConsoleVulnerabilities";
 import type { ConsoleModel } from "../console/types";
