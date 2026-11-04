@@ -254,19 +254,31 @@ func TestResweepWinnersKeyedRecordsTheTimeOfAFailedPhase(t *testing.T) {
 		failOn string
 		phase  string
 		want   []string
+		// idle scripts a tick that consumed nothing, so it stamps the
+		// watermark; overCap scripts one whose identifier set is over the cap,
+		// so it falls back to the full rebuild.
+		idle, overCap bool
 	}{
-		{"claim", tryClaimSupplyChainImpactWinnersResweepSQL, "claim", []string{"claim"}},
-		{"consume", consumeWinnersDirtyLogSQL, "consume", []string{"claim", "consume"}},
-		{"build_idents", buildWinnersKeyedIdentsSQL, "build_idents", []string{"claim", "consume", "build_idents"}},
-		{"build_active_facts", addWinnersKeyedOperatorFactsSQL, "build_active_facts", []string{"claim", "consume", "build_idents", "build_active_facts"}},
-		{"apply", applyWinnersKeyedSQL, "apply", []string{"claim", "consume", "build_idents", "build_active_facts", "apply"}},
-		{"commit", "", "commit", []string{"claim", "consume", "build_idents", "build_active_facts", "apply", "commit"}},
+		{"claim", tryClaimSupplyChainImpactWinnersResweepSQL, "claim", []string{"claim"}, false, false},
+		{"consume", consumeWinnersDirtyLogSQL, "consume", []string{"claim", "consume"}, false, false},
+		{"build_idents", buildWinnersKeyedIdentsSQL, "build_idents", []string{"claim", "consume", "build_idents"}, false, false},
+		{"build_active_facts", addWinnersKeyedOperatorFactsSQL, "build_active_facts", []string{"claim", "consume", "build_idents", "build_active_facts"}, false, false},
+		{"apply", applyWinnersKeyedSQL, "apply", []string{"claim", "consume", "build_idents", "build_active_facts", "apply"}, false, false},
+		{"stamp", stampWinnersWatermarkSQL, "stamp", []string{"claim", "consume", "stamp"}, true, false},
+		{"full_rebuild", rebuildSupplyChainImpactWinnersSQL, "full_rebuild", []string{"claim", "consume", "build_idents", "full_rebuild"}, false, true},
+		{"commit", "", "commit", []string{"claim", "consume", "build_idents", "build_active_facts", "apply", "commit"}, false, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			tx := &phaseFakeTx{claimed: true, consumed: 2, identifier: 2, stored: 100, failOn: tt.failOn}
+			if tt.idle {
+				tx.consumed = 0
+			}
+			if tt.overCap {
+				tx.identifier, tx.stored = defaultWinnersKeyedMaxIdentifiers+1, 1000000
+			}
 			if tt.name == "commit" {
 				tx.commitErr = errors.New("commit failed")
 			}
