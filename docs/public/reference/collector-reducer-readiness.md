@@ -284,6 +284,11 @@ Cypher, reducer, queue, worker-count, batch, or graph write path. (Vault-live
 chart evidence left with the #8869 extraction; collection runs from
 `eshu-hq/eshu-collector-vault-live`.)
 
+No-Observability-Change: this removal adds no metric, span, log, status row,
+or dashboard; the deleted binary's metrics endpoint goes away with it while
+the satellite keeps serving the same read-only list calls behind its existing
+telemetry, proven by the A/B battery (12 kinds, 8479 facts, 0 dead letters).
+
 No-Regression Evidence: `go test ./internal/runtime -run
 'TestHelm(LiveCollectorDeployments|ClaimDrivenCollectorDeployments)' -count=1`
 proves the live collector is off by default, renders its full workload and
