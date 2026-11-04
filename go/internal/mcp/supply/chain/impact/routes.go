@@ -118,7 +118,9 @@ func aggregateCountRequest(args routecontract.Arguments) routecontract.Request {
 // The group_by fallback to impact_status is not what makes an omitted
 // dimension work: the handler independently defaults an empty group_by to
 // impact_status and rejects anything outside impact_status, priority_bucket,
-// severity, repository_id, and ecosystem with a 400. The fallback keeps the
+// severity, repository_id, ecosystem, service_id, workload_id, and environment
+// with a 400. The last three resolve through the handler's grouped-inventory
+// port (#9873); this route forwards them, and profile, verbatim. The fallback keeps the
 // selected wire value stable, so changing it to another dimension would
 // change the grouping every ungrouped caller receives. limit defaults to 100
 // and offset to 0, matching the handler's own defaults; the handler owns the

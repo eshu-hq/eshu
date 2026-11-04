@@ -20,7 +20,7 @@ family).
 | `GET /api/v0/investigations/supply-chain/impact/packet` | `getImpactPacket` (composes via the injected packet responder) |
 | `GET /api/v0/supply-chain/container-images/identities` | `listContainerImageIdentities` |
 | `GET /api/v0/supply-chain/security-alerts/reconciliations` | `listSecurityAlertReconciliations` |
-| impact aggregate routes | `supplyChainImpactAggregateRoutes` (count + inventory) |
+| impact aggregate routes | `supplyChainImpactAggregateRoutes` (count + inventory); `group_by=service_id\|workload_id\|environment` branches to `impactGroupedInventory` (`findings_grouped_inventory_handler.go`, #9873) |
 | security-alert aggregate routes | `securityAlertReconciliationAggregateRoutes` |
 | container-image aggregate routes | `containerImageIdentityAggregateRoutes` |
 | sbom-attachment aggregate routes | `sbomAttestationAttachmentAggregateRoutes` |

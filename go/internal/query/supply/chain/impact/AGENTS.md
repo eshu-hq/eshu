@@ -42,6 +42,16 @@ Read `doc.go` and `README.md` first.
   production `QueryContext` argument list against both list-query
   variants. Adding a placeholder without updating the production call
   (or vice versa) fails that test by design.
+- `GroupedInventoryStore` (`grouped_inventory.go`, #9873) is a separate port
+  from `AggregateStore` and MUST stay separate: it serves the service,
+  workload, and environment dimensions, resolved at read time with the same
+  runtime-filter join and grant predicate the matching filters use. Its
+  `GroupCompleteness` set is closed (`complete`, `partial`, `unattributed`,
+  `read_model_unavailable`); the unattributed bucket is `Value ""` with
+  `Unattributed true` and is never complete. An implementation answers
+  `ErrGroupedInventoryReadModelUnavailable` instead of falling back to
+  another read shape. Do not add its dimensions to `InventoryDimension`: the
+  five single-valued dimensions keep their one-column `GROUP BY`.
 - Files must stay under 500 lines. `readiness.go`
   (489), `findings.go` (458), and
   `readiness_postgres_query.go` (438) are the ones
@@ -125,6 +135,14 @@ to this list.
   `AggregateMaxLimit`, the inventory-dimension and
   canonical-key consts) — the staying root SQL-shape tests and the
   lockstep schema test.
+- Grouped-inventory port (`GroupedInventoryStore`,
+  `GroupedInventoryDimension` with its three consts and
+  `ParseGroupedInventoryDimension`, `GroupCompleteness` with its four consts
+  and `Valid`, `GroupedInventoryRow`, `GroupedInventoryPage`,
+  `GroupedInventoryFreshness`, `ErrGroupedInventoryReadModelUnavailable`,
+  `UnattributedMissingEvidence` and the `GroupedMissingEvidence*` reasons) —
+  the parent `chain` grouped-inventory handler, the OpenAPI lockstep test, and
+  the future Postgres implementation owned by the aggregate SQL lane.
 - Vocabulary consts (profile precise/comprehensive, readiness states,
   evidence families, missing-evidence reasons, unsupported-target
   kinds, freshness labels, `ServiceCatalogAnchorMissingReason`,

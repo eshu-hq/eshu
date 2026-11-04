@@ -126,6 +126,7 @@ nav:
         - Container Image Source Bridge: reference/http-api/container-image-source-bridge.md
         - Vulnerability Impact: reference/http-api/vulnerability-impact.md
         - Vulnerability Impact Readiness: reference/http-api/vulnerability-impact-readiness.md
+        - Vulnerability Impact Grouped Inventory: reference/http-api/vulnerability-impact-inventory.md
         - Secrets/IAM: reference/http-api/secrets-iam.md
         - Context And Stories: reference/http-api/context-and-stories.md
         - Story Routes: reference/http-api/story-routes.md
