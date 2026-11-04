@@ -1,0 +1,21 @@
+go/internal/storage/postgres/active_package_manifest_dependency_delta.go
+  s_7547c0f0af67d4::t_50c0bfcdb9ca86 36-38
+docs/public/reference/telemetry/package-manifest-dependency-read.md
+  s_7547c0f0af67d4::t_73d90d318502ea 24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "145e7fc7304805cddb3519bc80e6abfbb04bf629",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
