@@ -80,7 +80,14 @@ WITH backend_generations AS (
 -- mergeTerraformBackendFactContext's append semantics, corrupting even the
 -- pre-existing s3 candidate path. Both were caught by review before this
 -- landed; see issue #5594.
-repo_local_paths AS (
+--
+-- The CTE is explicitly AS MATERIALIZED. Without the marker the planner
+-- inlines it into the LEFT JOIN and re-evaluates the DISTINCT ON sort once
+-- per outer row: 9,188 executions with 8,657,033 rows removed by the outer
+-- join filter at production scale (99M-row fact_records, EXPLAIN ANALYZE,
+-- issue #8875 lane 1). Materializing evaluates the ~2,179-row semi-join
+-- once; the row set is unchanged, only the rescan disappears.
+repo_local_paths AS MATERIALIZED (
     SELECT DISTINCT ON (repository.scope_id, repository.generation_id, repository.payload->>'repo_id')
         repository.scope_id,
         repository.generation_id,
