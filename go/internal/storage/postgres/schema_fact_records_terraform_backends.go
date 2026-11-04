@@ -24,3 +24,36 @@ CREATE INDEX IF NOT EXISTS fact_records_terraform_backends_active_idx
             ELSE 0
           END > 0;
 `
+
+// terraformBackendsOuterLegFactRecordReadIndexesSQL serves the outer leg of
+// the canonical terraform-backends reader (backend_canonical.go): the join
+// to backend_generations on (scope_id, generation_id, repo_id) filtered by
+// the three-way (backends + variables + locals) array-length CASE sum.
+// The CASE predicate is byte-aligned with that query's load-bearing filter
+// (modulo table alias) so the planner can prove the implication; keep the
+// query, the migration 276 predicate, and this DDL in lockstep. No
+// is_tombstone term: the served query does not filter tombstones, and an
+// extra predicate term would make the index unusable.
+const terraformBackendsOuterLegFactRecordReadIndexesSQL = `
+CREATE INDEX IF NOT EXISTS fact_records_terraform_backends_outer_leg_idx
+    ON fact_records (scope_id, generation_id, (payload->>'repo_id'))
+    WHERE fact_kind = 'file'
+      AND source_system = 'git'
+      AND (
+          CASE
+            WHEN jsonb_typeof(payload->'parsed_file_data'->'terraform_backends') = 'array'
+            THEN jsonb_array_length(payload->'parsed_file_data'->'terraform_backends')
+            ELSE 0
+          END
+        + CASE
+            WHEN jsonb_typeof(payload->'parsed_file_data'->'terraform_variables') = 'array'
+            THEN jsonb_array_length(payload->'parsed_file_data'->'terraform_variables')
+            ELSE 0
+          END
+        + CASE
+            WHEN jsonb_typeof(payload->'parsed_file_data'->'terraform_locals') = 'array'
+            THEN jsonb_array_length(payload->'parsed_file_data'->'terraform_locals')
+            ELSE 0
+          END
+      ) > 0;
+`

@@ -451,7 +451,10 @@ var orderedBootstrapDefinitionNamesLate = []string{
 	// Migration 275 (#9971) adds the NVD rolling-window cursor table the
 	// commit transaction advances with a keyed upsert.
 	"vulnerability_nvd_window_cursor",
-	// 276 is held by an unmerged sibling migration.
+	// Migration 276 (#8875 round 2 S1) adds the partial index serving
+	// the canonical terraform-backends reader's outer leg: the
+	// three-way (backends + variables + locals) array-length CASE sum.
+	"fact_records_terraform_backends_outer_leg_idx",
 	// Migration 277 (#9879) adds the per-target refresh progress table the
 	// coordinator paces configured targets from.
 	"vulnerability_target_refresh_progress",

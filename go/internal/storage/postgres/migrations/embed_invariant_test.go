@@ -193,17 +193,20 @@ import (
 // #9971 adds 275_vulnerability_nvd_window_cursor.sql (DDL only: the
 // per-instance NVD rolling cursor advanced in the generation commit
 // transaction).
+// #8875 round 2 S1 adds
+// 276_fact_records_terraform_backends_outer_leg_idx.sql (the partial
+// index serving the canonical terraform-backends reader's outer leg;
+// one CREATE INDEX CONCURRENTLY).
 // #9879 adds 277_vulnerability_target_refresh_progress.sql (DDL only: the
 // per-target refresh progress table the coordinator paces configured
-// targets from). 276 is held by another lane's unmerged migration, so this
-// lane took the next number.
-const goldenBootstrapDefinitionsDigest = "14b817e3a9e5aae858ca8e6a98bb32d0adfbf2571fe6af7fbe3830d3cb8d42b0"
+// targets from).
+const goldenBootstrapDefinitionsDigest = "526b72bda1aa78cb02b80d447b0fb7a3e5442ea612be964e980cd97c78d4ef63"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 302
+const goldenBootstrapDefinitionsCount = 303
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()
