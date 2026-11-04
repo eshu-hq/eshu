@@ -1,0 +1,47 @@
+docs/public/observability/telemetry-coverage-collectors.md
+  s_9c818346074e86::t_7a052d0b11ca97 198
+docs/public/reference/telemetry/index.md
+  s_9c818346074e86::t_c7b505467d15ce 762
+docs/public/reference/telemetry/metrics-ingestion-collectors.md
+  s_9c818346074e86::t_a16a82d300f999 200
+go/internal/collector/vulnerabilityintelligence/README.md
+  s_9c818346074e86::t_1b22dc5b06f56f 196-202
+go/internal/collector/vulnerabilityintelligence/vulnruntime/README.md
+  s_9c818346074e86::t_08cc53c58b4815 67,82-92
+go/internal/collector/vulnerabilityintelligence/vulnruntime/identity_edges.go
+  s_9c818346074e86::t_6b16da1b9b1b84 1-90
+go/internal/collector/vulnerabilityintelligence/vulnruntime/identity_edges_test.go
+  s_9c818346074e86::t_fa8eea9339c25d 1-140
+go/internal/collector/vulnerabilityintelligence/vulnruntime/source.go
+  s_9c818346074e86::t_4a5b8b6db26c37 293
+go/internal/telemetry/README.md
+  s_9c818346074e86::t_84dad50cb1f389 175
+go/internal/telemetry/compat_contract.go
+  s_9c818346074e86::t_eeda7adebe83b2 276
+go/internal/telemetry/contract/vulnerability_intelligence.go
+  s_9c818346074e86::t_51c8123061bff5 10-13
+go/internal/telemetry/contract_test.go
+  s_9c818346074e86::t_b859fbfc0930ca 114
+go/internal/telemetry/instruments.go
+  s_9c818346074e86::t_e09b75ce235151 2034-2039,4061-4068
+go/internal/telemetry/instruments_test.go
+  s_9c818346074e86::t_aa6957fb8cc398 78
+go/internal/telemetry/registration_steps.go
+  s_9c818346074e86::t_6bab759449d504 204
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d976e03ed32764a2e770634fade79e9985d0b628",
+  "prompts": {},
+  "sessions": {
+    "s_9c818346074e86": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9c11fe27-4c11-4e6c-baf7-8b1b133adba8",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

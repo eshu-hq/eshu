@@ -1,0 +1,19 @@
+go/internal/collector/vulnerabilityintelligence/extraction_prep_mirror_test.go
+  s_9c818346074e86::t_6fabff75ca8879 8,220-276
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5a4fe9084dd4fae2bcb10dddbf8a11fae46db3d8",
+  "prompts": {},
+  "sessions": {
+    "s_9c818346074e86": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9c11fe27-4c11-4e6c-baf7-8b1b133adba8",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

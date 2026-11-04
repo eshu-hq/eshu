@@ -1,0 +1,29 @@
+go/internal/collector/vulnerabilityintelligence/osv_identity_edges_golden_test.go
+  s_9c818346074e86::t_373ec2e35c38a6 1-109
+sdk/go/factschema/fixturepack/README.md
+  s_9c818346074e86::t_79bd1c4f5f4877 36-47,65
+sdk/go/factschema/fixturepack/doc.go
+  s_9c818346074e86::t_961e0d01d69edf 42-47
+sdk/go/factschema/fixturepack/osv_identity_edges_golden.go
+  s_9c818346074e86::t_0981570e4a5dc7 1-19
+sdk/go/factschema/fixturepack/osv_identity_edges_golden_test.go
+  s_9c818346074e86::t_a9849239ce107c 1-325
+sdk/go/factschema/fixturepack/payloads/osv_identity_edges_golden.json
+  s_9c818346074e86::t_fc57ec8579fda0 1-117
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4d6ee2c4f2573e2b28c29dab7396cc71314fb693",
+  "prompts": {},
+  "sessions": {
+    "s_9c818346074e86": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9c11fe27-4c11-4e6c-baf7-8b1b133adba8",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
