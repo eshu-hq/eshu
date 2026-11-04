@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"sort"
 	"testing"
@@ -151,6 +152,49 @@ func TestFindPackageHolderCandidatesLive(t *testing.T) {
 	}
 	if none, err := fanOutLiveStore(db).FindPackageHolderCandidates(ctx, manifestLiveGitScope, nil); err != nil || len(none) != 0 {
 		t.Fatalf("empty ecosystems = %v, %v; want no rows and no error", none, err)
+	}
+}
+
+// TestFindPackageHolderCandidatesMatchesRawEcosystemSpellingsLive is the
+// #9874 F1 regression: sources store raw ecosystem spellings (a GitLab
+// Gemnasium slug writes go, packagist, gem), and the handler asks with the
+// canonical names. Every spelling NormalizeEcosystem accepts must reach the
+// candidate set, or the prefilter under-matches the findings pass's join.
+func TestFindPackageHolderCandidatesMatchesRawEcosystemSpellingsLive(t *testing.T) {
+	ctx, db := fanOutLiveDB(t)
+	cases := []struct{ stored, asked string }{
+		{"go", "gomod"},
+		{"golang", "gomod"},
+		{"gomod", "gomod"},
+		{"packagist", "composer"},
+		{"composer", "composer"},
+		{"gem", "rubygems"},
+		{"rubygems", "rubygems"},
+		{"npm", "npm"},
+		{"pypi", "pypi"},
+		{"maven", "maven"},
+		{"nuget", "nuget"},
+		{" GO ", "gomod"},
+	}
+	for i, tc := range cases {
+		scope := fmt.Sprintf("vuln-intel://gitlab/%02d", i)
+		fanOutSeedScope(t, ctx, db, scope, "g1")
+		manifestLiveSeedFact(t, ctx, db, scope, fanOutGen(scope, "g1"),
+			manifestLiveAffected(fmt.Sprintf("ap-raw-%02d", i), tc.stored, "pkg"))
+	}
+	for i, tc := range cases {
+		got, err := fanOutLiveStore(db).FindPackageHolderCandidates(ctx, manifestLiveGitScope, []string{tc.asked})
+		if err != nil {
+			t.Fatalf("FindPackageHolderCandidates(%q) error = %v", tc.asked, err)
+		}
+		want := fmt.Sprintf("vuln-intel://gitlab/%02d", i)
+		found := false
+		for _, candidate := range got {
+			found = found || candidate.ScopeID == want
+		}
+		if !found {
+			t.Fatalf("asking %q missed the row stored as %q (scope %s); got %+v", tc.asked, tc.stored, want, got)
+		}
 	}
 }
 

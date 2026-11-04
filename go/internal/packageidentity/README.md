@@ -28,6 +28,10 @@ truth; reducers admit user-facing truth.
   `pub.dev` and `dart`, and distro package managers, plus SwiftPM aliases such
   as `swiftpm` and `spm` and Hex aliases such as `hexpm`, onto Eshu's canonical
   ecosystems.
+- `EcosystemAliases` returns every spelling `NormalizeEcosystem` maps to the
+  same canonical ecosystem. Both read one table (`ecosystem_aliases.go`), so a
+  SQL prefilter bound from it admits exactly what the Go normalizer admits
+  (#9874: GitLab Gemnasium facts store raw slugs such as `go` and `gem`).
 - `ManifestConsumptionKeys` turns one manifest dependency row into registry
   join keys. Every package manager but sbt goes through `ConsumptionKeys`
   unchanged; an sbt row joins the Maven artifact it publishes: `%` by its exact

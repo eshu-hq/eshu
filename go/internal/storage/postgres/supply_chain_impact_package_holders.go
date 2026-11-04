@@ -7,14 +7,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // findPackageHolderCandidatesQuery returns the active affected-package
-// identities, outside the asking scope, in the requested ecosystems: the
+// identities, outside the asking scope, whose folded ecosystem spelling is one
+// of $1 (every alias of the requested ecosystems, see ecosystemSpellings): the
 // #9874 package-keyed holder read. No index anchors affected_package by
 // (ecosystem, name), so the read walks each scope's active generation through
 // fact_records_scope_generation_idx (the nested loop over ingestion_scopes
@@ -42,7 +43,7 @@ JOIN ingestion_scopes AS scope
 WHERE fact.fact_kind = 'vulnerability.affected_package'
   AND fact.is_tombstone = FALSE
   AND fact.scope_id <> $2
-  AND LOWER(fact.payload->>'ecosystem') = ANY($1::text[])
+  AND (LOWER(BTRIM(fact.payload->>'ecosystem') COLLATE "C") COLLATE "default") = ANY($1::text[])
 `
 
 // FindPackageHolderCandidates returns the active affected-package identities
@@ -55,12 +56,7 @@ func (s SupplyChainImpactFanOutStore) FindPackageHolderCandidates(
 	ownScopeID string,
 	ecosystems []string,
 ) ([]supplychaincore.PackageHolderCandidate, error) {
-	folded := make([]string, 0, len(ecosystems))
-	for _, ecosystem := range ecosystems {
-		if ecosystem = strings.ToLower(strings.TrimSpace(ecosystem)); ecosystem != "" {
-			folded = append(folded, ecosystem)
-		}
-	}
+	folded := ecosystemSpellings(ecosystems)
 	if len(folded) == 0 {
 		return nil, nil
 	}
@@ -92,6 +88,26 @@ func (s SupplyChainImpactFanOutStore) FindPackageHolderCandidates(
 		return nil, classifyFanOutReadError(err)
 	}
 	return out, nil
+}
+
+// ecosystemSpellings expands each requested ecosystem to every spelling
+// packageidentity.NormalizeEcosystem maps to the same canonical ecosystem.
+// Sources store raw spellings (a GitLab Gemnasium slug writes go, packagist,
+// gem), and the handler's consumption-key join normalizes them, so binding
+// only the canonical name would under-match (#9874 F1). An unknown ecosystem
+// contributes nothing: the join could not match it either.
+func ecosystemSpellings(ecosystems []string) []string {
+	seen := map[string]struct{}{}
+	var out []string
+	for _, ecosystem := range ecosystems {
+		for _, spelling := range packageidentity.EcosystemAliases(packageidentity.Ecosystem(ecosystem)) {
+			if _, dup := seen[spelling]; !dup {
+				seen[spelling] = struct{}{}
+				out = append(out, spelling)
+			}
+		}
+	}
+	return out
 }
 
 // beginBoundedRead opens the read-only transaction every #9874 read runs in,
