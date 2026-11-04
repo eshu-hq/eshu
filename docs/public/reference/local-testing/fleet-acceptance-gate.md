@@ -96,10 +96,11 @@ path today. The test stamps `time.Now()` after each stage returns:
 | `winners_built` | the queue drains | the keyed winners tick commits |
 | `rollup_read` | the tick commits | `group_by=service_id` answers |
 
-The test logs each stage and the total. On PostgreSQL 18.6 locally, the clean
-run took 1.26 s in total (finding written 1.23 s, winners built 19 ms, rollup
-read 11 ms), and 1.62 s under `-race`. The drain dominates, because it handles
-seven work items, including fan-out reruns.
+The test logs each stage and the total. One local clean run under `-race`, on
+PostgreSQL 18.6 at commit `01149ab3ff`, took 1.31 s in total: finding written
+1.27 s, winners built 23 ms, rollup read 20 ms. The drain dominates, because it
+handles seven work items, including fan-out reruns. One run is a sample, not a
+baseline.
 
 ## The RED half
 

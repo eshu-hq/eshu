@@ -25,7 +25,8 @@ const fleetGateBoundEnv = "ESHU_FLEET_GATE_MAX_ELAPSED"
 
 // fleetGateDefaultBound is the default ceiling on source commit to rollup
 // read for one seeded CVE on a disposable PostgreSQL 18 database. Measured
-// locally the three stages take well under one second together (see
+// locally the three stages take about 1.3 seconds together, nearly all of it
+// the queue drain (see
 // docs/public/reference/local-testing/fleet-acceptance-gate.md); the default
 // leaves headroom for a loaded CI runner while still failing a stage that
 // stalls, retries in a loop, or waits on a lease. It is a local pipeline

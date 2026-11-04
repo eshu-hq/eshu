@@ -268,6 +268,11 @@ func TestFleetAcceptanceGateKEVReachesServiceRollup9875Live(t *testing.T) {
 // the named violations. A gate that passed here would pass with the finding
 // withheld.
 func TestFleetAcceptanceGateFailsWhenEvidenceIsWithheld9875Live(t *testing.T) {
+	// Skip at the parent, so an unset DSN reads as a skip and never as a
+	// passing parent over skipped subtests.
+	if os.Getenv("ESHU_FLEET_GATE_PROOF_DSN") == "" {
+		t.Skip("set ESHU_FLEET_GATE_PROOF_DSN to run the live #9875 fleet gate RED half on a disposable database")
+	}
 	for _, tc := range []struct {
 		name   string
 		seed   fleetGateSeed
