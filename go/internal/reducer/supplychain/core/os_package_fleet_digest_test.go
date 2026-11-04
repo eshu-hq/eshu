@@ -30,6 +30,8 @@ func fleetOSRow(row installedOSRow, scope, generation, digest string) []facts.En
 // fix firstOSPackageImpactPath kept the first matching row, so [fixed,
 // vulnerable] produced one known-fixed finding and [vulnerable, fixed] one
 // possibly-affected finding, leaving the other image without a verdict.
+// Since the #9806 PR-2b-1 activation the trusty image reads affected_exact:
+// its host line is listed, so the precise verdict is allowed.
 func TestFleetOSAdvisoryClassifiesOneFindingPerDigest(t *testing.T) {
 	t.Parallel()
 
@@ -81,8 +83,13 @@ func TestFleetOSAdvisoryClassifiesOneFindingPerDigest(t *testing.T) {
 			if !ok {
 				t.Fatalf("no finding for vulnerable image digest %s: %#v", digestVuln, findings)
 			}
-			if gotVuln.Status != SupplyChainImpactPossiblyAffected {
-				t.Fatalf("vulnerable image status = %q, want possibly_affected", gotVuln.Status)
+			// Live tags (#9806 PR-2b-1 activation): the trusty host line
+			// Ubuntu:14.04:LTS is listed, its range contains the observed
+			// version with no fix at or below it, so only the host line
+			// decides and the image reads affected_exact. Exact with a
+			// host-tag match is the ruled-precise outcome, not a bug.
+			if gotVuln.Status != SupplyChainImpactAffectedExact {
+				t.Fatalf("vulnerable image status = %q, want affected_exact", gotVuln.Status)
 			}
 			if gotVuln.ObservedVersion != "7.35.0-1ubuntu2.7" {
 				t.Fatalf("vulnerable image ObservedVersion = %q, want the trusty installed version", gotVuln.ObservedVersion)

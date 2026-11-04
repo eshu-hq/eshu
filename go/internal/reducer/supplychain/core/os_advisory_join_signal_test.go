@@ -29,7 +29,11 @@ func TestOSAdvisoryJoinStatsSeparateLoadedFromJoined(t *testing.T) {
 		envelopes []facts.Envelope
 		want      map[osAdvisoryJoinKey]int
 	}{
-		{"debian advisory with a debian row", append(append([]facts.Envelope{}, debian...), debianCurl("12", "7.88.1-10+deb12u2").envelope()), map[osAdvisoryJoinKey]int{{"debian", osAdvisoryJoinOutcomeJoined, osAdvisoryReleaseUntagged}: 1}},
+		// Live tags (#9806 PR-2b-1 activation): the debian ranges are tagged
+		// and the bookworm host is listed, so the joined cell reads
+		// release_matched. The rpm rows stay untagged: ALSA/RLSA facts
+		// carry no release tags.
+		{"debian advisory with a debian row", append(append([]facts.Envelope{}, debian...), debianCurl("12", "7.88.1-10+deb12u2").envelope()), map[osAdvisoryJoinKey]int{{"debian", osAdvisoryJoinOutcomeJoined, osAdvisoryReleaseMatched}: 1}},
 		{"alma advisory with an alma row", append(append([]facts.Envelope{}, convertedOSVFixture(t, "alsa-2021-4511.json", false)...), almaCurl("8", "7.61.1-18.el8").envelope()), map[osAdvisoryJoinKey]int{{"alma", osAdvisoryJoinOutcomeJoined, osAdvisoryReleaseUntagged}: 1, {"alma", osAdvisoryJoinOutcomeNotJoined, ""}: 3}},
 		{"alma advisory with only a rocky row", append(append([]facts.Envelope{}, convertedOSVFixture(t, "alsa-2021-4511.json", false)...), rockyCurl("8", "7.61.1-18.el8").envelope()), map[osAdvisoryJoinKey]int{{"alma", osAdvisoryJoinOutcomeNotJoined, ""}: 4}},
 		{"rocky advisory with a rocky row", append(append([]facts.Envelope{}, convertedOSVFixture(t, "rlsa-2021-1610.json", false)...), rockyCurl("8", "0:7.61.1-16.el8").envelope()), map[osAdvisoryJoinKey]int{{"rocky", osAdvisoryJoinOutcomeJoined, osAdvisoryReleaseUntagged}: 1}},
