@@ -1,0 +1,40 @@
+{
+  "schema": "satellite-pins/v1",
+  "satellite": "transcription",
+  "arch": "arm64",
+  "base_image": "alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d",
+  "engine": {
+    "name": "whisper.cpp",
+    "version": "v1.9.5",
+    "source_commit": "d1be6fde11ac6e0407606b4e42fe72d34add8037",
+    "build": "static ggml/whisper libraries, GGML_NATIVE=OFF, GGML_OPENMP=OFF, no ffmpeg, SDL, or curl"
+  },
+  "binary": {
+    "path": "/opt/whisper/bin/whisper-cli",
+    "sha256": "dac1dc5c95b1ca44ca30472a820ddb6b11a4345e5d39521e0658bc2c812ade3d"
+  },
+  "libraries": [
+    {"path": "/lib/ld-musl-aarch64.so.1", "sha256": "a965363d0cb99ab9b28f4c51ee6bb64162b4e204f0d20efda72541a2e4147a5e"},
+    {"path": "/usr/lib/libgcc_s.so.1", "sha256": "69c45f16064b7b61b9a3d64c37395d13368a8fe719745d49e9508ec650fea971"},
+    {"path": "/usr/lib/libstdc++.so.6.0.33", "sha256": "1f1a71be4319632f743507ef7c6eaebaccad8d6f277055cf2c6b16b544f9f418"}
+  ],
+  "libraries_set_sha256": "0cbdd437b33d1ccc2df3a16bbd9229e2cf8c41ebb3a9a55a4c4d14bb32854f80",
+  "model": {
+    "path": "/opt/whisper/models/ggml-base.en.bin",
+    "sha256": "a03779c86df3323075f5e796cb2ce5029f00ec8869eee3fdfb897afe36c6d002",
+    "bytes": 147964211,
+    "source": "Hugging Face ggerganov/whisper.cpp revision 5359861c739e955e79d9a303bcbc70fb988958b1"
+  },
+  "apk": {
+    "libstdc++": "14.2.0-r4",
+    "libgcc": "14.2.0-r4",
+    "musl": "1.2.5-r12"
+  },
+  "build_apk": {
+    "build-base": "0.5-r3",
+    "cmake": "3.31.1-r0",
+    "git": "2.47.3-r0"
+  },
+  "measured": "2026-11-04, native arm64 reference build of the whisper stage; the binary digest reproduces the proof's recorded arm64 build (dac1dc5c) byte for byte, and the library digests match the ocr.arm64.json entries for the same packages",
+  "notes": "The binary digest is toolchain-dependent, not a universal pin: a rebuild with a different toolchain fails the Dockerfile gate until the reference is re-recorded. The whispercpp engine takes no per-file library pins (binary plus model only); the library list and set hash exist for the image gate."
+}

@@ -1,0 +1,56 @@
+{
+  "schema": "satellite-pins/v1",
+  "satellite": "ocr",
+  "arch": "amd64",
+  "base_image": "alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d",
+  "engine": {
+    "name": "tesseract",
+    "version": "5.5.0"
+  },
+  "binary": {
+    "path": "/usr/bin/tesseract",
+    "sha256": "38b441bd41257037a03d6a15d9f849d8bd83da4c24dab1df428a7a4ad265332f"
+  },
+  "libraries": [
+    {"path": "/lib/ld-musl-x86_64.so.1", "sha256": "19313c7fcdd4816403c95fa43a9d63639b17f09cbb69fbb8cae414efef4f57cb"},
+    {"path": "/usr/lib/libgcc_s.so.1", "sha256": "2298274ad3316109d6e895083398e220f16fbdd12957c4afcc9af8849e734151"},
+    {"path": "/usr/lib/libgif.so.7.2.0", "sha256": "05077bd352c8afc10e388f3dc063ca9463915fb422e403a15f4bfffa256f672e"},
+    {"path": "/usr/lib/libgomp.so.1.0.0", "sha256": "33954e2132b37621b5267cf32df4a9e869507353c31d871aea2ec71f05fb8889"},
+    {"path": "/usr/lib/libjpeg.so.8.3.2", "sha256": "7ed0b87115fb0aa66eb76cbe6dda176cc7e7df6b669b264a7cc1daa4d4027903"},
+    {"path": "/usr/lib/libleptonica.so.6.0.0", "sha256": "212d52829e9ca37024e3f66241983692b3fa5c1949cc869c8cdfcd2cced3c467"},
+    {"path": "/usr/lib/libpng16.so.16.59.0", "sha256": "339a8cf22d162455b1fd43a160ff5b2c0f9b28843bb318b061a13efa4ca29607"},
+    {"path": "/usr/lib/libsharpyuv.so.0.1.0", "sha256": "0c5660bf7052d6a8f17b23050bf990470c44bbe161dc1be5ca0e29537e83e977"},
+    {"path": "/usr/lib/libstdc++.so.6.0.33", "sha256": "08d5c7eb7c1e210d0fb56a33af0b97ab86339f2d321ceb31fcd53c563f8803c9"},
+    {"path": "/usr/lib/libtesseract.so.5.0.5", "sha256": "728499f0df9986738a3a9d7c3c3d310571659c2918b3fc9fb88ee05b0aea06b3"},
+    {"path": "/usr/lib/libtiff.so.6.3.0", "sha256": "244a3fd9d8a35e42e88da5bebf12f3cd44a10c1225af43861c3deb1b05068db4"},
+    {"path": "/usr/lib/libwebp.so.7.1.9", "sha256": "fb23f6cac892050db9e50831db72da235356b92f87d9c6041ca0578145a7b7dc"},
+    {"path": "/usr/lib/libwebpmux.so.3.1.0", "sha256": "025feff243cfe6659d6c596a097b5cd17e46284a10aba6f105cc6324323df526"},
+    {"path": "/usr/lib/libz.so.1.3.2", "sha256": "b4c94dba7f00904f686c8f4f9d095a9eb278d2a2c1b8c7017960dbc5cf684ac0"},
+    {"path": "/usr/lib/libzstd.so.1.5.6", "sha256": "619b3b7dc3190538fff13efbc7c39820475c7b508c28cab9e1d138d86a4e36b7"}
+  ],
+  "libraries_set_sha256": "161075bc0e24c51acaea7bcbdd834e871411dce9f6d56cda5dc4f2cd39dcdb41",
+  "model": {
+    "path": "/usr/share/tessdata/eng.traineddata",
+    "sha256": "daa0c97d651c19fba3b25e81317cd697e9908c8208090c94c3905381c23fc047"
+  },
+  "apk": {
+    "tesseract-ocr": "5.5.0-r0",
+    "tesseract-ocr-data-eng": "5.5.0-r0",
+    "leptonica": "1.84.1-r0",
+    "libwebp": "1.4.0-r0",
+    "libwebpmux": "1.4.0-r0",
+    "libsharpyuv": "1.4.0-r0",
+    "musl": "1.2.5-r12",
+    "libgcc": "14.2.0-r4",
+    "libgomp": "14.2.0-r4",
+    "libstdc++": "14.2.0-r4",
+    "giflib": "5.2.2-r2",
+    "libjpeg-turbo": "3.0.4-r0",
+    "libpng": "1.6.59-r0",
+    "tiff": "4.7.2-r0",
+    "zlib": "1.3.2-r1",
+    "zstd-libs": "1.5.6-r2"
+  },
+  "measured": "2026-11-04, qemu amd64 reference run against the pinned base plus the exact apk versions above; binary and model match scripts/prove-ocr-sandbox.sh EXPECTED_* for amd64; the full image build for this arch is NOT_BUILT here (no BuildKit/buildx on this host)",
+  "notes": "Same musl/zlib drift as arm64: the set hash differs from the proof-era 7a62cadd. The per-file list is the operator's ESHU_DOC_IMPORT_TESSERACT_LIBRARIES source; the set hash is the Dockerfile gate input."
+}
