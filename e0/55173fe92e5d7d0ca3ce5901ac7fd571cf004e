@@ -1,0 +1,34 @@
+docs/internal/evidence/9991-manifest-read-delta-union.md
+  s_7547c0f0af67d4::t_2ade0951ff81d5 79-83
+  s_7547c0f0af67d4::t_f9f598b2af1a4a 16-20,23-31,35,102-105,116-147
+go/internal/storage/postgres/active_package_manifest_dependency_delta.go
+  s_7547c0f0af67d4::t_604bc3d2120fd5 63-67,72,89-90,92-95,105,160-161,166-180,257-268,281-283
+go/internal/storage/postgres/active_package_manifest_dependency_delta_test.go
+  s_7547c0f0af67d4::t_d1cf46f2dfdf40 9,75,77-78,113-114,134-136,150-159,166-198
+go/internal/storage/postgres/facts_active_package_manifest_dependency.go
+  s_7547c0f0af67d4::t_a9319ee7078055 149-150,152,155-162,173,179,192,216,223,230-231
+go/internal/storage/postgres/facts_active_package_manifest_dependency_test.go
+  s_7547c0f0af67d4::t_e918bb0b59aa6c 40
+go/internal/storage/postgres/gotchas-and-invariants.md
+  s_7547c0f0af67d4::t_f03bb38742521c 144-147
+go/internal/storage/postgres/manifest_dependency_read_metrics_test.go
+  s_7547c0f0af67d4::t_f9077e90b4a448 74,76
+go/internal/storage/postgres/manifest_dependency_read_plan_test.go
+  s_7547c0f0af67d4::t_2ba3b8c9c4c794 70-73,79,100,126-128
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e055173fe92e5d7d0ca3ce5901ac7fd571cf004e",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

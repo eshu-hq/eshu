@@ -1,0 +1,41 @@
+go/internal/telemetry/instruments_package_manifest_dependency_read.go
+  s_7547c0f0af67d4::t_6dfd69c3323394 32-37
+go/internal/telemetry/instruments.go
+  s_7547c0f0af67d4::t_337b5bf1480a63 1101-1107
+go/internal/storage/postgres/facts_active_package_manifest_dependency.go
+  s_7547c0f0af67d4::t_221ecdc67b9a00 118,122-162
+  s_7547c0f0af67d4::t_3a28499e422004 15
+go/internal/storage/postgres/manifest_dependency_read_plan.go
+  s_7547c0f0af67d4::t_267bca9478fe2b 77
+  s_7547c0f0af67d4::t_f1fc8b2938cc25 60-68
+go/internal/storage/postgres/active_package_manifest_dependency_delta.go
+  s_7547c0f0af67d4::t_473f86f75e3fd5 1-336
+go/internal/storage/postgres/active_package_manifest_dependency_delta_test.go
+  s_7547c0f0af67d4::t_636e250b2b9d4b 1-106
+go/internal/storage/postgres/facts_active_package_manifest_dependency_test.go
+  s_7547c0f0af67d4::t_cac8c3a3a18a59 40-41,90
+go/internal/storage/postgres/manifest_dependency_read_label_test.go
+  s_7547c0f0af67d4::t_7faf31c95f5fc3 52
+go/internal/storage/postgres/manifest_dependency_read_metrics_test.go
+  s_7547c0f0af67d4::t_d6a4d34aa4eaea 74-77
+go/internal/storage/postgres/manifest_dependency_read_plan_test.go
+  s_7547c0f0af67d4::t_f343bb19115418 70-73,78-82,99,103-108,125-131
+go/internal/storage/postgres/package_manifest_consumption_keys_sbt_test.go
+  s_7547c0f0af67d4::t_4ae4d52a1debca 89,115,133
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8431931af82fc4655ea765c7ddb63fde89cbdbf3",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

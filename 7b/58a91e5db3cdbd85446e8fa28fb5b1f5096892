@@ -1,0 +1,36 @@
+go/internal/storage/postgres/active_package_manifest_dependency_delta_bench_test.go
+  s_7547c0f0af67d4::t_697f54075f9bba 8-11
+  s_7547c0f0af67d4::t_a1aa13b52504c2 5-7
+  s_7547c0f0af67d4::t_fe76b28ae01ccb 12-14
+  s_a2d32d00e53061::t_c691796daa3d9a 1-4,15-261
+docs/internal/evidence/9991-manifest-read-delta-union.md
+  s_7547c0f0af67d4::t_db14d5dca0ec38 61-62,94-95,110-113,117,131-138,142-158,161-183,197-214,223-224,233
+docs/public/operate/graph-delta-union.md
+  s_7547c0f0af67d4::t_4c74aac3a5e205 118
+docs/public/reference/telemetry/package-manifest-dependency-read.md
+  s_7547c0f0af67d4::t_8341c548c83517 24-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7b58a91e5db3cdbd85446e8fa28fb5b1f5096892",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_a2d32d00e53061": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a392c882c843be2e0",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

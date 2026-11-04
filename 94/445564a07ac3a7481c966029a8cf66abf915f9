@@ -1,0 +1,19 @@
+scripts/lib/live_postgres_readiness_inventory_gen_internal_storage_postgres_part1.py
+  s_bb8edad7318667::t_631ad89aa4ec8a 33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "94445564a07ac3a7481c966029a8cf66abf915f9",
+  "prompts": {},
+  "sessions": {
+    "s_bb8edad7318667": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-adf5bcbc4c838acac",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

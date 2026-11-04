@@ -1,0 +1,21 @@
+go/internal/storage/postgres/active_package_manifest_dependency_delta_cases_live_test.go
+  s_7547c0f0af67d4::t_1a817b165f10ef 1-196
+go/internal/storage/postgres/active_package_manifest_dependency_delta_live_test.go
+  s_7547c0f0af67d4::t_7d84aa901e944d 7,14,18-21,25-57,59-126,130-131,133-134,136,138-169,171-187,190-195,197-211,213-220,222,224-227,229-232,234-267,269-271,273
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "90a8d7fa313ad988a7318ca32327a8607049d431",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,29 @@
+go/cmd/reducer/wiring_handlers.go
+  s_7547c0f0af67d4::t_d241555f136240 244
+go/internal/storage/postgres/active_package_manifest_dependency_delta_cases_live_test.go
+  s_7547c0f0af67d4::t_5151fa989e78c3 7,11-13,16-20,214-248
+go/internal/storage/postgres/supply_chain_impact_authorized_loader.go
+  s_7547c0f0af67d4::t_a62cd32735eebc 10,21,79-81,86-88,90-102,109-115,144,171
+go/internal/storage/postgres/supply_chain_impact_authorized_loader_telemetry_test.go
+  s_7547c0f0af67d4::t_34aee8e8f8594a 1-51
+scripts/lib/live_postgres_readiness_inventory_gen_internal_storage_postgres_part1.py
+  s_7547c0f0af67d4::t_f794660547fdbc 32
+specs/live-tests.d/live-tests-readiness-part2.generated.yaml
+  s_7547c0f0af67d4::t_f660b1b13d8ddb 40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5996d3417a6bc7c7535d038ca84dc3974d0113a1",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

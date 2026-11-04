@@ -1,0 +1,29 @@
+docs/public/observability/telemetry-coverage-reducer-domains.md
+  s_7547c0f0af67d4::t_0f02140b2d4fb6 88
+go/internal/storage/postgres/facts_active_package_manifest_dependency.go
+  s_7547c0f0af67d4::t_c08758838f5ee7 63-70
+go/internal/storage/postgres/gotchas-and-invariants.md
+  s_7547c0f0af67d4::t_82574640c2984f 143-152
+docs/internal/evidence/9991-manifest-read-delta-union.md
+  s_7547c0f0af67d4::t_f94a19c8cc0e0f 1-138
+docs/public/operate/graph-delta-union.md
+  s_7547c0f0af67d4::t_5d0b166d001780 105-120
+docs/public/reference/telemetry/package-manifest-dependency-read.md
+  s_7547c0f0af67d4::t_2b0078392f13e5 17-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "020adc9c3bd5ceac266bd249525604698d7cd551",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
