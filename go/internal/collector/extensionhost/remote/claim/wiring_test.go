@@ -32,6 +32,14 @@ package claim
 //	Concurrency (new lock/wait edge)  TestCutover_EnabledConcurrentUseIsRaceClean:
 //	                                  the gate is immutable after construction and
 //	                                  adds no mutex, goroutine, or channel
+//
+//	Enabled-path delegation (all ten delegates route through the plane):
+//	TestCutover_EnabledClaimRoutesThroughThePlane,
+//	TestCutover_EnabledCommitRoutesThroughThePlane,
+//	TestCutover_EnabledLifecycleRoutesThroughThePlane (heartbeat, release,
+//	fail retryable, fail terminal),
+//	TestCutover_EnabledVerifyWiringRoutesThroughThePlane.
+//	Nil-gate contract: TestCutover_NilGateReportsDisabled.
 
 import (
 	"context"
@@ -388,4 +396,64 @@ func TestCutover_EnabledConcurrentUseIsRaceClean(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+func TestCutover_EnabledLifecycleRoutesThroughThePlane(t *testing.T) {
+	t.Parallel()
+
+	fake := newFakeWorkflow(t)
+	fake.okJSON(workflowv1.OpHeartbeatClaim, okAckBody)
+	fake.okJSON(workflowv1.OpReleaseClaim, okAckBody)
+	fake.okJSON(workflowv1.OpFailClaimRetryable, okAckBody)
+	fake.okJSON(workflowv1.OpFailClaimTerminal, okAckBody)
+	live := &mutableGrants{grants: []component.ProducerGrant{liveGrant()}}
+	cutover := enabledCutover(t, fake.server.URL, live, nil)
+	ctx := context.Background()
+	now := time.Now().UTC()
+
+	tests := []struct {
+		name string
+		call func(context.Context, workflowv1.ClaimMutation) error
+		op   workflowv1.Operation
+	}{
+		{name: "heartbeat", call: cutover.Heartbeat, op: workflowv1.OpHeartbeatClaim},
+		{name: "release", call: cutover.Release, op: workflowv1.OpReleaseClaim},
+		{name: "fail retryable", call: cutover.FailRetryable, op: workflowv1.OpFailClaimRetryable},
+		{name: "fail terminal", call: cutover.FailTerminal, op: workflowv1.OpFailClaimTerminal},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if err := tc.call(ctx, validMutation(now)); err != nil {
+				t.Fatalf("%s() = %v, want the ok acknowledgement through the wired path", tc.name, err)
+			}
+			if got := fake.calls(tc.op); got != 1 {
+				t.Fatalf("%s calls = %d, want 1 on the plane", tc.name, got)
+			}
+		})
+	}
+}
+
+func TestCutover_EnabledVerifyWiringRoutesThroughThePlane(t *testing.T) {
+	t.Parallel()
+
+	live := &mutableGrants{grants: []component.ProducerGrant{liveGrant()}}
+	cutover := enabledCutover(t, "http://localhost:1", live, nil)
+
+	if err := cutover.VerifyWiring(context.Background(), []DeclaredEmission{{Kind: replayCoreKind, SchemaVersion: replayCoreSchema}}); err != nil {
+		t.Fatalf("VerifyWiring() = %v, want allow against the live grant through the wired path", err)
+	}
+}
+
+func TestCutover_NilGateReportsDisabled(t *testing.T) {
+	t.Parallel()
+
+	var cutover *Cutover
+	if cutover.Enabled() {
+		t.Fatal("nil gate Enabled() = true, want disabled")
+	}
+	if _, err := cutover.ReadLiveGrants(context.Background()); !errors.Is(err, ErrCutoverDisabled) {
+		t.Fatalf("nil gate ReadLiveGrants() = %v, want ErrCutoverDisabled", err)
+	}
 }
