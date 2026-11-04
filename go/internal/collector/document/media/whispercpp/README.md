@@ -77,11 +77,57 @@ Checked against `examples/cli/cli.cpp`, `examples/common-whisper.cpp`, and
   backslashes, so the parser blanks raw control bytes before decoding.
 - The audio reader consults `WHISPER_COMMON_MINIAUDIO_SKIP`. The engine runs
   with an empty environment.
+- The vendored decoder is miniaudio 0.11.24 (`examples/miniaudio.h`).
+  The `-f -` path buffers all of stdin and calls
+  `ma_decoder_init_memory` with no skip check, so miniaudio always
+  parses the stdin bytes; ffmpeg is compiled out (`WHISPER_FFMPEG=OFF`).
+- The model loader (`src/whisper.cpp`) checks the ggml magic first and
+  fails the load on a bad magic before any graph allocation. The model
+  file is still never a hostile input while the pin holds: `New`
+  verifies the exact bytes by sha256 and the sandbox mounts them
+  read-only.
 
 NOT_CHECKED: bit-identical output across CPU architectures (proof ran on
 arm64 only); determinism across thread counts other than the fixed 4; Word
-Error Rate (WER) on real recorded speech; a security review of the
-miniaudio and ggml code that parses the canonical WAV and model.
+Error Rate (WER) on real recorded speech. The miniaudio/ggml parsing
+review is done (see "Parsing security review"); model packaging stays
+with the caller lane (see "Packaging").
+
+### Parsing security review
+
+Reviewed 2026-11-04 at HEAD `8bcf063b64` (fetch showed no new
+`origin/main` commits, so the rebase was a no-op). Method: read the
+pinned upstream source at the tag commit (a fresh clone verified to
+equal `d1be6fde...`), traced every byte the child parses, and pinned
+each in-tree claim with a hostile test in `parse_security_test.go`. No
+production code changed: the review found no defect to fix, only
+behavior to pin and two open questions below.
+
+| # | Parse surface | Hostile-input verdict | Pinned by |
+| --- | --- | --- | --- |
+| 1 | `parseWAV`/`parseFormat` (the miniaudio-equivalent header walk) | Oversized, truncated, padded, unknown (`LIST`), out-of-order (`data` before `fmt`), short extensible, and out-of-range rate/channel/width headers all fail `ClassMalformedMedia` before any sample math. Declared sizes never drive allocation: `info.data` aliases the actual body. | `TestParseWAV*` in `parse_security_test.go`, plus `TestParseWAVRejectsHostileHeaders` |
+| 2 | `monoSample`/`sample` conversion | Boundary frames read exactly per width with correct sign extension; NaN maps to 0 and ±Inf clamps to ±full scale. | `TestMonoSampleReadsBoundaryFramesExactly`, float cases in `audio_test.go` |
+| 3 | `normalizeWAV` output (the only bytes the child parses) | Output is canonical 16 kHz mono 16-bit for every accepted layout, re-parses with `parseWAV`, and its size is exactly `44 + 2*frames*16000/rate` from actual data frames. The fake engine asserts `isCanonicalWAV(stdin)` on every run. | `TestNormalizeWAVOutputAlwaysReparses`, `TestNormalizeWAVAllocationMatchesActualData` |
+| 4 | `newResampler` tap table | At most 1024 phases; worst-case tap memory about 1.75 MiB (a rate nearly coprime with 16 kHz at 192 kHz class); deterministic per rate. | `TestNewResamplerTableStaysBounded` |
+| 5 | `parseOutput` engine JSON | Raw control bytes blanked, invalid UTF-8 replaced (never an error, never quoted), negative or inverted offsets rejected, segment and rune caps enforced, unsorted and extreme (`MaxInt64`) offsets stored as-is in int64. Error details are fixed strings. | `TestParseOutput*`, `TestTranscribeClassifiesFailuresWithoutLeakingText` |
+| 6 | Upstream miniaudio 0.11.24 WAV decode in the child | Miniaudio always parses the stdin bytes, which are always this package's canonical WAV (`RIFF`/`fmt `/`data` only), so chunk parsers beyond `fmt`/`data` never run on caller-influenced input. A corrupt canonical header fails `MA_SUCCESS`, exits nonzero, and classifies `engine_failed`. | Upstream read (this section); the hostile-bytes bound in `TestSandboxBoundsFailClosed` |
+| 7 | Upstream ggml model load | Magic is checked first; a bad load fails before graph allocation. The model is not a hostile-input surface while the pin holds (`New` digest plus read-only mount). | `TestNewVerifiesPinnedDigestsAndConfig`; digest recorded in facts |
+| 8 | CVE-2026-32837 (miniaudio `bext` metadata OOB read, 0.11.25 and earlier) and CVE-2026-29022 (dr_wav `smpl` overflow) | Vendored 0.11.24 is in the affected range and carries both chunk readers, but neither can fire: the trigger chunks (`bext`, `smpl`) cannot survive `normalizeWAV`, which emits only `fmt` plus `data`. The residual worst case is a contained child crash (no network, capped memory and PIDs, empty env) classified `engine_failed`, with no transcript and no facts. Moving past the fixed miniaudio needs a whisper.cpp re-pin with its own sandbox proof; flagged as follow-up work under #9729, not done here. | This section; normalization pins in rows 1–3 |
+
+Int-size arithmetic in `parseWAV` and `normalizeWAV` assumes a 64-bit
+`int` (the repo has no 32-bit build target; the proof builds `arm64`).
+
+Open questions (recorded, behavior unchanged — they need a caller-lane
+or design decision, not a guess):
+
+- A header-only (0-frame) input is accepted and execs the engine, which
+  returns `no_speech` (`TestTranscribeRunsEngineOnHeaderOnlyInput`).
+  Alternatives: keep (bounded by the same caps) or reject before exec
+  with a new class.
+- Segment offset magnitude is unchecked beyond order and sign
+  (`TestParseOutputAcceptsUnorderedAndExtremeOffsets`); values stay
+  int64 end to end in-tree. Magnitude policy belongs to the
+  `media.Extract` contract.
 
 ### Formats
 
@@ -265,6 +311,21 @@ proof reads its marker and value positions from the one transcript
 `media.Extract` consumed, requires that the value really is the canary in a
 later segment, then checks the text the engine produced is absent from every
 envelope and that both sections are redacted, so a mishearing cannot pass it.
+
+Re-run 2026-11-04 at HEAD `8bcf063b64` (arm64, branch at the `origin/main`
+tip): 8/8 proof tests PASS with the canary absent from output and logs,
+determinism 3/3 at about 1.80 s per run over 2 segments, and unchanged
+bounds (`timeout` 0.087 s, `stdout cap` `resource_limit_exceeded`,
+`duration cap` rejected before exec, `hostile bytes` `malformed_media`,
+`address-space cap` `engine_failed` 0.121 s) under profile `uid 65532`,
+root filesystem write denied, network unreachable. Model digest
+`a03779c8...` unchanged; built `whisper-cli` sha256 `dac1dc5c...`.
+Note: this host's docker has no BuildKit, so the scripted
+`scripts/verify-media-transcript-sandbox.sh` stops at its `COPY --chmod`
+step (the script header already requires BuildKit). The run used a
+`/tmp` Dockerfile identical except `COPY` plus `RUN chmod` to the same
+modes, with the script's own model-digest gate, per-test PASS
+assertions, and canary scan replicated exactly.
 
 ## Packaging
 
