@@ -6,9 +6,9 @@ package postgres
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 // workloadCandidatePreconditionQuery reports whether one scope generation
@@ -29,15 +29,21 @@ import (
 // scope-local kind loads hand tombstoned envelopes to extraction, so the
 // probe sees the same input.
 //
+// The signal keys travel as ONE bound text[] parameter ($3), derived from
+// factload.WorkloadCandidateSignalKeys, so no key text is interpolated into
+// the SQL (#9986: the original interpolation wrote '{'k','k2'}' and
+// PostgreSQL rejected every execution with SQLSTATE 42601).
+//
 // Performance: two index-friendly equality partitions (scope_id,
 // generation_id, fact_kind) with a key-existence operator on the inner
 // side; the EXISTS stops at the first joined pair.
 func workloadCandidatePreconditionQuery() string {
-	quoted := make([]string, 0, len(factload.WorkloadCandidateSignalKeys))
-	for _, key := range factload.WorkloadCandidateSignalKeys {
-		quoted = append(quoted, "'"+key+"'")
-	}
-	return `SELECT EXISTS (
+	return workloadCandidatePreconditionSQL
+}
+
+// workloadCandidatePreconditionSQL is the probe statement: $1 scope, $2
+// generation, $3 the signal-key text[] (see workloadCandidatePreconditionQuery).
+const workloadCandidatePreconditionSQL = `SELECT EXISTS (
   SELECT 1
   FROM fact_records AS repo
   WHERE repo.scope_id = $1
@@ -52,10 +58,9 @@ func workloadCandidatePreconditionQuery() string {
         AND f.generation_id = $2
         AND f.fact_kind = 'file'
         AND f.payload->>'repo_id' = repo.payload->>'graph_id'
-        AND f.payload->'parsed_file_data' ?| '{` + strings.Join(quoted, ",") + `}'
+        AND f.payload->'parsed_file_data' ?| $3::text[]
     )
 )`
-}
 
 // ScopeMayHoldWorkloadCandidates implements
 // factload.WorkloadCandidateProbe for the workload projection input
@@ -69,7 +74,13 @@ func (s FactStore) ScopeMayHoldWorkloadCandidates(
 		return false, fmt.Errorf("fact store database is required")
 	}
 
-	rows, err := s.database.QueryContext(ctx, workloadCandidatePreconditionQuery(), scopeID, generationID)
+	rows, err := s.database.QueryContext(
+		ctx,
+		workloadCandidatePreconditionQuery(),
+		scopeID,
+		generationID,
+		array.StringArray(factload.WorkloadCandidateSignalKeys),
+	)
 	if err != nil {
 		return false, fmt.Errorf("probe workload candidate precondition: %w", err)
 	}
