@@ -111,6 +111,7 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"source_tool",
 		"field_class",
 		"page_count",
+		"edge_kind",
 		"host",
 		"scope",
 		"block",

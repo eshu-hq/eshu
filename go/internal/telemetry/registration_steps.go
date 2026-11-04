@@ -201,7 +201,7 @@ func registerVaultLive() {
 // and every hosted observability/incident source-collector span pair right
 // before SpanQuerySupplyChainImpactFindings.
 func registerVulnerabilityIntelligence() {
-	metricDimensionKeys = append(metricDimensionKeys, contract.MetricDimensionPageCount)
+	metricDimensionKeys = append(metricDimensionKeys, contract.MetricDimensionPageCount, contract.MetricDimensionEdgeKind)
 	sourceCollectorSpans := []string{
 		contract.SpanVulnerabilityIntelligenceObserve,
 		contract.SpanVulnerabilityIntelligenceFetch,

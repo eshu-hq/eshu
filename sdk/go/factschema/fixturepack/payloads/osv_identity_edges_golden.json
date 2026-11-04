@@ -1,0 +1,117 @@
+{
+  "description": "Synthetic OSV records and the identity-edge fields a conforming OSV collector must write on the vulnerability.cve payload. aliases, related and upstream are each trimmed, de-duplicated and SORTED (ascending, byte order); blank entries are dropped. aliases and related are always written: an empty list is written as JSON null, not omitted and not []. upstream is written ONLY when it has at least one non-blank id after cleaning; otherwise the key is absent. upstream is a DIRECTED edge (a downstream distro record naming the CVEs it repackages): it is never an alias, is never folded into aliases or correlation_anchors, and never selects cve_id. A distro bundle of CVEs (for example a DSA that lists the CVEs it fixes) must therefore be expressed as upstream, not as aliases. status is written as \"withdrawn\" only when the record carries a non-blank withdrawn timestamp; an active record has NO status key. Each case lists its own expected_absent_payload_keys. Required rule shapes are derived from the cases' own records by the fixturepack test.",
+  "cases": [
+    {
+      "name": "aliases_only",
+      "record": {
+        "schema_version": "1.6.0",
+        "id": "GHSA-bbbb-0001-0001",
+        "modified": "2026-10-29T00:00:00Z",
+        "aliases": ["CVE-2026-2001"]
+      },
+      "expected": {
+        "advisory_id": "GHSA-bbbb-0001-0001",
+        "aliases": ["CVE-2026-2001"],
+        "related": null
+      },
+      "expected_absent_payload_keys": ["upstream", "status"]
+    },
+    {
+      "name": "related_only",
+      "record": {
+        "schema_version": "1.6.0",
+        "id": "GHSA-bbbb-0002-0002",
+        "modified": "2026-10-29T00:00:00Z",
+        "related": ["GHSA-bbbb-0009-0009"]
+      },
+      "expected": {
+        "advisory_id": "GHSA-bbbb-0002-0002",
+        "aliases": null,
+        "related": ["GHSA-bbbb-0009-0009"]
+      },
+      "expected_absent_payload_keys": ["upstream", "status"]
+    },
+    {
+      "name": "upstream_only_distro_record",
+      "record": {
+        "schema_version": "1.6.0",
+        "id": "DSA-9001-1",
+        "modified": "2026-10-29T00:00:00Z",
+        "upstream": ["CVE-2026-2003", "CVE-2026-2002"]
+      },
+      "expected": {
+        "advisory_id": "DSA-9001-1",
+        "aliases": null,
+        "related": null,
+        "upstream": ["CVE-2026-2002", "CVE-2026-2003"]
+      },
+      "expected_absent_payload_keys": ["status"]
+    },
+    {
+      "name": "all_three_with_duplicates_blanks_and_unsorted_input",
+      "record": {
+        "schema_version": "1.6.0",
+        "id": "DSA-9002-1",
+        "modified": "2026-10-29T00:00:00Z",
+        "aliases": ["DSA-9002-1-ALT", "  CVE-2026-2010", "CVE-2026-2010 ", ""],
+        "related": ["GHSA-bbbb-0011-0011", "   ", "GHSA-bbbb-0010-0010", "GHSA-bbbb-0011-0011"],
+        "upstream": ["CVE-2026-2022", " CVE-2026-2021", "", "CVE-2026-2022", "CVE-2026-2020 "]
+      },
+      "expected": {
+        "advisory_id": "DSA-9002-1",
+        "aliases": ["CVE-2026-2010", "DSA-9002-1-ALT"],
+        "related": ["GHSA-bbbb-0010-0010", "GHSA-bbbb-0011-0011"],
+        "upstream": ["CVE-2026-2020", "CVE-2026-2021", "CVE-2026-2022"]
+      },
+      "expected_absent_payload_keys": ["status"]
+    },
+    {
+      "name": "withdrawn_record",
+      "record": {
+        "schema_version": "1.6.0",
+        "id": "GHSA-bbbb-0003-0003",
+        "modified": "2026-10-29T00:00:00Z",
+        "withdrawn": "2026-10-01T00:00:00Z",
+        "aliases": ["CVE-2026-2030"]
+      },
+      "expected": {
+        "advisory_id": "GHSA-bbbb-0003-0003",
+        "aliases": ["CVE-2026-2030"],
+        "related": null,
+        "status": "withdrawn"
+      },
+      "expected_absent_payload_keys": ["upstream"]
+    },
+    {
+      "name": "active_record_with_empty_withdrawn_string",
+      "record": {
+        "schema_version": "1.6.0",
+        "id": "GHSA-bbbb-0004-0004",
+        "modified": "2026-10-29T00:00:00Z",
+        "withdrawn": "",
+        "aliases": ["CVE-2026-2040"]
+      },
+      "expected": {
+        "advisory_id": "GHSA-bbbb-0004-0004",
+        "aliases": ["CVE-2026-2040"],
+        "related": null
+      },
+      "expected_absent_payload_keys": ["upstream", "status"]
+    },
+    {
+      "name": "empty_upstream_adds_no_key",
+      "record": {
+        "schema_version": "1.6.0",
+        "id": "GHSA-bbbb-0005-0005",
+        "modified": "2026-10-29T00:00:00Z",
+        "upstream": ["", "   "]
+      },
+      "expected": {
+        "advisory_id": "GHSA-bbbb-0005-0005",
+        "aliases": null,
+        "related": null
+      },
+      "expected_absent_payload_keys": ["upstream", "status"]
+    }
+  ]
+}

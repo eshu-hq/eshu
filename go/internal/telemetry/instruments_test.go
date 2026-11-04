@@ -75,6 +75,7 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.VulnerabilityIntelligenceRateLimited, "VulnerabilityIntelligenceRateLimited counter should be registered")
 	assert.NotNil(t, inst.VulnerabilityIntelligenceAffectedEntriesSkipped, "VulnerabilityIntelligenceAffectedEntriesSkipped counter should be registered")
 	assert.NotNil(t, inst.VulnerabilityIntelligenceRecordsSkipped, "VulnerabilityIntelligenceRecordsSkipped counter should be registered")
+	assert.NotNil(t, inst.VulnerabilityIntelligenceIdentityEdgesEmitted, "VulnerabilityIntelligenceIdentityEdgesEmitted counter should be registered")
 	assert.NotNil(t, inst.VulnerabilitySourceStateStaleWritesSkipped, "VulnerabilitySourceStateStaleWritesSkipped counter should be registered")
 	assert.NotNil(t, inst.VulnerabilitySourceStateWriteFailures, "VulnerabilitySourceStateWriteFailures counter should be registered")
 	assert.NotNil(t, inst.WorkflowClaimCommitObserverFailures, "WorkflowClaimCommitObserverFailures counter should be registered")

@@ -172,6 +172,7 @@ not read the graph on the collection goroutine; `telemetry/snapshot` refreshes t
 | `VulnerabilityIntelligenceRateLimited` | `eshu_dp_vulnerability_intelligence_rate_limited_total` |
 | `VulnerabilityIntelligenceAffectedEntriesSkipped` | `eshu_dp_vulnerability_intelligence_affected_entries_skipped_total` |
 | `VulnerabilityIntelligenceRecordsSkipped` | `eshu_dp_vulnerability_intelligence_records_skipped_total` |
+| `VulnerabilityIntelligenceIdentityEdgesEmitted` | `eshu_dp_vulnerability_intelligence_identity_edges_emitted_total` |
 | `SecurityAlertProviderRequests` | `eshu_dp_security_alert_provider_requests_total` |
 | `SecurityAlertFactsEmitted` | `eshu_dp_security_alert_facts_emitted_total` |
 | `SecurityAlertRateLimited` | `eshu_dp_security_alert_rate_limited_total` |

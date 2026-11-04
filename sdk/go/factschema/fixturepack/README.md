@@ -33,6 +33,18 @@ shapes the target reducer release consumes.
   unrecognized or non-string value leaves it empty.
   The collector writes no `cvss_score`. Both the in-tree collector and the
   extracted collector replay these records against their own envelope code.
+- `payloads/osv_identity_edges_golden.json` — seven synthetic OSV records and the
+  identity-edge fields a conforming OSV collector writes for each (#9954).
+  `aliases`, `related` and `upstream` are trimmed, de-duplicated and sorted
+  ascending; `aliases` and `related` are always written, an empty list as JSON
+  `null`; `upstream` is written only when it has an id and is otherwise absent.
+  `upstream` is a directed edge (a distro record naming the CVEs it
+  repackages): it is never an alias, never joins `aliases` or
+  `correlation_anchors`, and never selects `cve_id`, so a DSA bundle of CVEs is
+  `upstream`, not `aliases`. `status` is `withdrawn` only for a record with a
+  non-blank `withdrawn` timestamp; an active record has no `status` key. Each
+  case carries its own `expected_absent_payload_keys`. The pack test derives
+  every expected field from the case record and pins the file digest.
 
 The NVD golden records the **full provider fact payload maps**, including
 producer metadata outside the narrower typed factschema CVE and source-snapshot
@@ -50,6 +62,7 @@ all := fixturepack.Schemas()  // map[string]json.RawMessage, keyed by fact kind
 kinds := fixturepack.Kinds()  // sorted fact-kind list
 golden := fixturepack.NVDPagingGolden() // copied JSON bytes for the NVD paging fixture
 osv := fixturepack.OSVSeverityGolden()  // copied JSON bytes for the OSV severity fixture
+edges := fixturepack.OSVIdentityEdgesGolden() // copied JSON bytes for the OSV identity-edge fixture
 ```
 
 ## How a collector uses it
