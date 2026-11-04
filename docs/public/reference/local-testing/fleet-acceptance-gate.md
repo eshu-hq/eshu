@@ -33,6 +33,7 @@ A run passes only when all of these hold:
 | --- | --- |
 | The service rollup answers 200 | `rollup_unavailable` |
 | `service:fleet-9875` has a bucket, and the bucket is `complete` | `service_absent`, `service_completeness` |
+| The bucket holds exactly one finding, counted once in the rollup, the impact-status breakdown and the tier breakdown | `service_count` |
 | The bucket counts the finding as `affected_exact` | `service_impact_status` |
 | The bucket's `max_priority_score` equals the winning finding's score | `service_priority` |
 | The winning finding is `known_exploited` and carries the `cisa_kev` reason | `kev_missing` |
