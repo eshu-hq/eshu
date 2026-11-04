@@ -374,6 +374,9 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 		return fmt.Errorf("complete claimed %s work item: %w", s.claimedKindLabel(), err)
 	}
 	runOutcome = settledOutcome
+	if _, refused := disposition.Refusal(); refused {
+		return nil
+	}
 	return s.completeGenerationDeadLetterReplay(ctx, collected)
 }
 

@@ -278,7 +278,8 @@ func (s Service) Run(ctx context.Context) error {
 			observation = s.startCollectorObserve(ctx)
 		}
 		s.annotateCollectorObserve(observation, collected)
-		if commitErr := s.commitWithTelemetry(observation.Context, collected, observation.StartedAt); commitErr != nil {
+		commitCtx, disposition := WithCommitDisposition(observation.Context)
+		if commitErr := s.commitWithTelemetry(commitCtx, collected, observation.StartedAt); commitErr != nil {
 			retryable := IsRetryable(commitErr)
 			storeErr := s.recordGenerationDeadLetterOnly(observation.Context, collected, "commit_failure", commitErr)
 			terminal := errors.Join(commitErr, storeErr)
@@ -302,9 +303,12 @@ func (s Service) Run(ctx context.Context) error {
 			}
 			return terminal
 		}
-		if err := s.completeGenerationDeadLetterReplay(observation.Context, collected); err != nil {
-			s.endCollectorObserve(observation, err)
-			return err
+		// A refused generation was rolled back, so it replays nothing (#10037).
+		if _, refused := disposition.Refusal(); !refused {
+			if err := s.completeGenerationDeadLetterReplay(observation.Context, collected); err != nil {
+				s.endCollectorObserve(observation, err)
+				return err
+			}
 		}
 		s.endCollectorObserve(observation, nil)
 		committedSinceDrain = true

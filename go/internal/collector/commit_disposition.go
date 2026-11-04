@@ -36,11 +36,12 @@ type CommitRefusal struct {
 	Rule string
 }
 
-// CommitDisposition is the per-commit result box a ClaimedService puts on the
-// commit context. The committer marks it through MarkCommitRefused or
+// CommitDisposition is the per-commit result box a ClaimedService or Service puts
+// on the commit context. The committer marks it through MarkCommitRefused or
 // MarkCommitUnchangedSkip, and the caller reads it after the commit returns
 // nil. It travels on the context so the Committer interfaces and their many
-// implementations stay unchanged.
+// implementations stay unchanged. Service reads it only to skip dead-letter
+// replay completion; observers and the run outcome belong to ClaimedService.
 //
 // One box serves one commit on one goroutine, so it holds no lock: the commit
 // runs synchronously and the caller reads the box only after it returns. Its
@@ -61,7 +62,7 @@ func WithCommitDisposition(ctx context.Context) (context.Context, *CommitDisposi
 }
 
 // MarkCommitRefused records a refusal on the box ctx carries. A commit with no
-// box (an unclaimed commit path) records nothing.
+// box records nothing.
 func MarkCommitRefused(ctx context.Context, refusal CommitRefusal) {
 	if box, _ := ctx.Value(commitDispositionKey{}).(*CommitDisposition); box != nil {
 		box.kind = CommitDispositionRefused

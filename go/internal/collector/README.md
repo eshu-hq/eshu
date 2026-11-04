@@ -237,7 +237,9 @@ evidence (No-Regression and No-Observability-Change) for this section lives in
   never both, skips the fact-volume counter on a refusal, reports
   `outcome=refused` on `eshu_dp_workflow_claim_run_duration_seconds`, and still
   completes the claim. A source with only the commit observer hears nothing, so
-  its marker holds. A hook error adds a
+  its marker holds. A refusal also skips dead-letter replay completion, on the
+  unclaimed `Service` too: a rolled-back generation replayed nothing, so its
+  dead letters stay open until a later commit lands. A hook error adds a
   `claimed_generation_refusal_observer_failed` span event and counts on
   `eshu_dp_workflow_claim_commit_observer_failures_total`.
 - `ClaimRetryDelay` and `ClaimAttemptBudgetExhausted` — the retry delay and
