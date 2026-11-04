@@ -63,6 +63,17 @@ A dashboard or alert that matches `failure_class="invalid_config"` exactly
 must match the prefix instead (`invalid_config(\..*)?`), because a refined
 class no longer equals the base class.
 
+A generic extension activation plans exactly one scope: its `host.scope.id`, or
+the synthetic `component:<stable-id>` scope when there is no `host` block. The
+coordinator does not read the rest of that component configuration, so
+configuration that names other scopes (for example several repositories in a
+`targets` list) is never collected for those scopes. To collect several scopes,
+run one activation per scope. A collector that receives a target outside its
+claim scope should refuse the claim as `invalid_config.target_scope_mismatch`
+instead of dropping the target. The exception is a `vulnerability_intelligence`
+activation, where the coordinator also plans derived scopes from its
+configuration; see [Environment Collectors](../reference/environment-collectors.md).
+
 ## Revocation Behavior
 
 Revocation must stop new work without requiring operators to delete package
