@@ -193,7 +193,45 @@ import (
 // already guarded every payload-matching arm, and the reference CTE changes
 // join order without changing its fact_id, scope, generation, or self-exclusion
 // predicates.
-const ListDeferredScopedRelationshipFactRecordsQuery = LatestGenerationCTE + `,
+// DeferredScopedLatestGenerationCTE is the partition-bounded latest-generation
+// lookup for ListDeferredScopedRelationshipFactRecordsQuery (issue #8875
+// round 2). The deferred fact load fans out one query per (scope_id,
+// generation_id) partition and joins latest_generations only to confirm the
+// partition's own generation is still latest, so the shared corpus-wide
+// LatestGenerationCTE recomputed every scope's latest generation on every
+// call: pg_stat_statements on the primary ranked the deferred scan
+// fourth by total time (3,689,085 calls, mean 175.43ms, ~11 rows per call),
+// and the read-only EXPLAIN shape showed the unbounded latest subquery
+// dominating the estimated cost (Merge Join cost 499.51..1729.50 of 1746.66
+// total) while scanning all 2,476 latest rows to keep at most one.
+//
+// The text is byte-identical to LatestGenerationCTE except for the added
+// `WHERE generation.scope_id = $3` partition bound, which is output-preserving
+// because the final join already requires latest.scope_id = fact.scope_id
+// with fact bound to ($3, $4): latest rows for any other scope can never join.
+// Measured on a disposable PostgreSQL 18 seeded to the production scale drivers
+// (2,474 scopes, 15,892 generations, the v2 family partial index, 1029-term $1
+// and 1024-value $2/$7 binds, ~3KB payloads) via EXPLAIN (ANALYZE, BUFFERS):
+// a 135-row partition went from 246 to 12 shared-buffer hits (-95%) and 32.14
+// to 26.97ms median (-16%) with byte-identical matched fact_id sets, while a
+// 2000-row candidate-dominated partition was neutral (730 reads both shapes).
+// TestDeferredScopedLatestLookupDerivesFromSharedCTE pins the lockstep so the
+// bounded text cannot drift from the shared selection.
+const DeferredScopedLatestGenerationCTE = `WITH latest_generations AS (
+    SELECT DISTINCT ON (generation.scope_id)
+        generation.scope_id,
+        COALESCE(
+            scope.active_generation_id,
+            generation.generation_id
+        ) AS generation_id
+    FROM scope_generations AS generation
+    LEFT JOIN ingestion_scopes AS scope
+      ON scope.scope_id = generation.scope_id
+    WHERE generation.scope_id = $3
+    ORDER BY generation.scope_id, generation.ingested_at DESC, generation.generation_id DESC
+)`
+
+const ListDeferredScopedRelationshipFactRecordsQuery = DeferredScopedLatestGenerationCTE + `,
 source_facts AS MATERIALIZED (
     SELECT
         fact.fact_id,
