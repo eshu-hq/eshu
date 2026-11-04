@@ -52,7 +52,8 @@ export function useReachableFindingPage(
 ) {
   // filterKey stands in for the filter object so a new object with the same
   // value does not refetch.
-  const filterKey = filter === null ? "" : `${filter.key}=${filter.value}`;
+  const filterKey =
+    filter === null ? "" : `${filter.key}=${filter.value}&profile=${filter.profile ?? "precise"}`;
   const [state, setState] = useState<PageState>(() => initialState(model, filter, client));
   const requestSequence = useRef(0);
   const controller = useRef<AbortController | null>(null);

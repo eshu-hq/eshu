@@ -43,8 +43,12 @@ describe("reachable finding list service filter", () => {
   });
 
   it("keeps the filter when switching to the possibly affected list", async () => {
-    const get = vi.fn(async () => ({
-      data: { findings: [], truncated: false },
+    const get = vi.fn(async (path: string) => ({
+      data: {
+        findings: [],
+        truncated: false,
+        detection_profile: new URL(path, "http://x").searchParams.get("profile") ?? "precise",
+      },
       error: null,
       truth: null,
     }));
@@ -56,6 +60,73 @@ describe("reachable finding list service filter", () => {
     const params = new URL(path, "http://x").searchParams;
     expect(params.get("impact_status")).toBe("possibly_affected");
     expect(params.get("service_id")).toBe("svc-a");
+    expect(params.get("profile")).toBe("comprehensive");
+  });
+
+  it("carries a comprehensive profile from the URL into every status read", async () => {
+    const get = vi.fn(async () => ({
+      data: { findings: [finding(8)], truncated: false, detection_profile: "comprehensive" },
+      error: null,
+      truth: null,
+    }));
+    renderAt("/vulnerabilities?service_id=svc-a&profile=comprehensive", get);
+    expect(await screen.findByRole("link", { name: "CVE-2026-00008" })).toBeInTheDocument();
+    const [path] = get.mock.calls[0] as unknown as [string];
+    expect(new URL(path, "http://x").searchParams.get("profile")).toBe("comprehensive");
+    expect(screen.getByText(/Detection profile/)).toHaveTextContent("comprehensive");
+  });
+
+  it("shows the error, not an empty list or stat tiles, when the filtered read fails", async () => {
+    const get = vi.fn(async () => {
+      throw new Error("findings unavailable");
+    });
+    renderAt("/vulnerabilities?service_id=svc-a", get);
+    expect(await screen.findByRole("alert")).toHaveTextContent("findings unavailable");
+    expect(screen.queryByText(/No affected service proven/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("Open findings")).not.toBeInTheDocument();
+    expect(screen.queryByText("Findings on page")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Finding register")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Supply-chain impact path")).not.toBeInTheDocument();
+  });
+
+  it("treats a profile mismatch on the filtered read as an error", async () => {
+    const get = vi.fn(async () => ({
+      data: { findings: [], truncated: false, detection_profile: "precise" },
+      error: null,
+      truth: null,
+    }));
+    renderAt("/vulnerabilities?service_id=svc-a&profile=comprehensive", get);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/precise/);
+    expect(screen.queryByText(/No affected service proven/i)).not.toBeInTheDocument();
+  });
+
+  it("shows a loading state, not an empty list, while the filtered read is pending", () => {
+    const get = vi.fn(() => new Promise<never>(() => undefined));
+    renderAt("/vulnerabilities?service_id=svc-a", get);
+    expect(screen.getByText(/Loading findings page/)).toBeInTheDocument();
+    expect(screen.queryByText(/No affected service proven/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("Findings on page")).not.toBeInTheDocument();
+  });
+
+  it("says a filtered list needs the live API when there is no client", () => {
+    render(
+      <MemoryRouter initialEntries={["/vulnerabilities?service_id=svc-a"]}>
+        <VulnerabilitiesPage model={{ ...demoModel, source: "live" as const }} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText(/filtered finding list needs the live API/i)).toBeInTheDocument();
+    expect(screen.queryByText(/No affected service proven/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("Findings on page")).not.toBeInTheDocument();
+  });
+
+  it("shows the empty text only after a filtered page has loaded", async () => {
+    const get = vi.fn(async () => ({
+      data: { findings: [], truncated: false, detection_profile: "precise" },
+      error: null,
+      truth: null,
+    }));
+    renderAt("/vulnerabilities?service_id=svc-a", get);
+    expect(await screen.findByText(/No affected service proven/i)).toBeInTheDocument();
   });
 
   it("does not offer the possibly affected list without a filter", () => {

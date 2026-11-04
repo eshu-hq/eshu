@@ -1,6 +1,7 @@
 import type { EshuApiClient, EshuApiRequestOptions } from "./client";
 import { EshuEnvelopeError } from "./envelope";
 import type { EshuTruth } from "./envelope";
+import { verifyEchoedProfile, type DetectionProfile } from "./impactDetectionProfile";
 
 // Grouped impact inventory: GET /api/v0/supply-chain/impact/inventory. One
 // bounded read that answers "which services (or workloads, or environments)
@@ -8,7 +9,7 @@ import type { EshuTruth } from "./envelope";
 
 export type InventoryDimension = "service_id" | "workload_id" | "environment";
 
-export type InventoryProfile = "precise" | "comprehensive";
+export type InventoryProfile = DetectionProfile;
 
 // InventoryCompleteness is the closed per-bucket completeness set. It is not the
 // six-state finding readiness envelope.
@@ -36,8 +37,8 @@ export interface InventoryPage {
   readonly limit: number;
   readonly offset: number;
   readonly groupBy: string;
-  // detectionProfile is the profile the server echoed, which can differ from
-  // the one requested; the UI shows this value, not the request.
+  // detectionProfile is the profile the server echoed; the loader rejects a
+  // page whose echo differs from the request.
   readonly detectionProfile: string;
   readonly distinctFindings: number;
   readonly truncated: boolean;
@@ -173,6 +174,9 @@ export async function loadImpactInventory(
   );
   if (env.error) throw new EshuEnvelopeError(env.error);
   const data = env.data ?? {};
+  // The inventory always echoes its profile; a missing or different echo is an
+  // error so a precise answer is never shown as the comprehensive one.
+  const detectionProfile = verifyEchoedProfile(query.profile, data.detection_profile, true);
   const buckets = (Array.isArray(data.buckets) ? data.buckets : [])
     .map(parseBucket)
     .filter((item): item is InventoryBucket => item !== null);
@@ -183,7 +187,7 @@ export async function loadImpactInventory(
     limit: asNumber(data.limit, query.limit ?? inventoryDefaultLimit),
     offset: asNumber(data.offset, query.offset ?? 0),
     groupBy: asText(data.group_by) || query.groupBy,
-    detectionProfile: asText(data.detection_profile),
+    detectionProfile: detectionProfile ?? query.profile,
     distinctFindings: asNumber(data.distinct_findings, 0),
     truncated: data.truncated === true,
     nextOffset: typeof nextOffset === "number" && Number.isFinite(nextOffset) ? nextOffset : null,

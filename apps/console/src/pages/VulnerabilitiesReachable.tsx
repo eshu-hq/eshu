@@ -4,7 +4,7 @@
 // opposed to the broader known-intelligence catalog.
 import { Link } from "react-router";
 
-import { ReachablePageControls } from "./ReachablePageControls";
+import { FilteredListPending, ReachablePageControls } from "./ReachablePageControls";
 import { useReachableFindingPage } from "./useReachableFindingPage";
 import type { EshuApiClient } from "../api/client";
 import { vulnerabilityRowKey, type ImpactListFilter } from "../api/eshuConsoleVulnerabilities";
@@ -50,6 +50,12 @@ export function ReachableAdvisories({
   const fixable = rows.filter((v) => v.fixedVersion).length;
   const provenance =
     model.provenance.vulnerabilities ?? (model.source === "demo" ? "demo" : "loading");
+  // A filtered list has no snapshot to fall back on: until its own read has
+  // loaded, show only the controls (loading or error) and never counts, the
+  // register, or the empty-state claim.
+  if (filter !== null && paging.page === null) {
+    return <FilteredListPending paging={paging} clientAvailable={!!client} />;
+  }
   return (
     <div>
       <p className="t-mut" style={{ fontSize: ".82rem", margin: "0 0 var(--gap)" }}>

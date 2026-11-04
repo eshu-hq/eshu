@@ -30,7 +30,7 @@ function clientReturning(data: unknown): { client: EshuApiClient; get: ReturnTyp
 
 describe("loadImpactInventory", () => {
   it("sends group_by, profile, limit and offset to the inventory route", async () => {
-    const { client, get } = clientReturning({ buckets: [] });
+    const { client, get } = clientReturning({ buckets: [], detection_profile: "comprehensive" });
     await loadImpactInventory(client, {
       groupBy: "workload_id",
       profile: "comprehensive",
@@ -47,13 +47,13 @@ describe("loadImpactInventory", () => {
   });
 
   it("omits offset on the first page", async () => {
-    const { client, get } = clientReturning({ buckets: [] });
+    const { client, get } = clientReturning({ buckets: [], detection_profile: "precise" });
     await loadImpactInventory(client, { groupBy: "service_id", profile: "precise" });
     const [path] = get.mock.calls[0] as unknown as [string];
     expect(new URL(path, "http://x").searchParams.has("offset")).toBe(false);
   });
 
-  it("parses buckets and echoes the profile the server answered with", async () => {
+  it("parses buckets and reports the echoed profile", async () => {
     const { client } = clientReturning({
       buckets: [
         {
@@ -79,7 +79,7 @@ describe("loadImpactInventory", () => {
     });
     const page = await loadImpactInventory(client, {
       groupBy: "service_id",
-      profile: "comprehensive",
+      profile: "precise",
     });
     expect(page.detectionProfile).toBe("precise");
     expect(page.truncated).toBe(true);
@@ -107,6 +107,7 @@ describe("loadImpactInventory", () => {
           completeness: "complete",
         },
       ],
+      detection_profile: "precise",
     });
     const page = await loadImpactInventory(client, { groupBy: "service_id", profile: "precise" });
     expect(page.buckets[0].unattributed).toBe(true);
@@ -116,9 +117,24 @@ describe("loadImpactInventory", () => {
   it("treats an unknown completeness as partial, not complete", async () => {
     const { client } = clientReturning({
       buckets: [{ value: "x", count: 1, completeness: "fresh-new-state" }],
+      detection_profile: "precise",
     });
     const page = await loadImpactInventory(client, { groupBy: "service_id", profile: "precise" });
     expect(page.buckets[0].completeness).toBe("partial");
+  });
+
+  it("fails when the server answers on a different profile than requested", async () => {
+    const { client } = clientReturning({ buckets: [], detection_profile: "precise" });
+    await expect(
+      loadImpactInventory(client, { groupBy: "service_id", profile: "comprehensive" }),
+    ).rejects.toThrow(/requested comprehensive.*precise/i);
+  });
+
+  it("fails when the server does not report a detection profile", async () => {
+    const { client } = clientReturning({ buckets: [] });
+    await expect(
+      loadImpactInventory(client, { groupBy: "service_id", profile: "precise" }),
+    ).rejects.toThrow(/did not report/i);
   });
 
   it("throws the envelope error instead of returning an empty page", async () => {

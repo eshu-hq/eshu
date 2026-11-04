@@ -19,7 +19,11 @@ const FILTER_KEYS = ["service_id", "workload_id", "environment"] as const;
 function filterFromParams(params: URLSearchParams): ImpactListFilter | null {
   for (const key of FILTER_KEYS) {
     const value = params.get(key)?.trim();
-    if (value) return { key, value };
+    if (value) {
+      return params.get("profile") === "comprehensive"
+        ? { key, value, profile: "comprehensive" }
+        : { key, value };
+    }
   }
   return null;
 }

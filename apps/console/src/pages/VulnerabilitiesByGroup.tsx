@@ -14,6 +14,7 @@ import {
   type InventoryBucket,
   type InventoryCompleteness,
   type InventoryDimension,
+  type InventoryProfile,
 } from "../api/eshuConsoleImpactInventory";
 import { Badge } from "../components/atoms";
 
@@ -65,8 +66,13 @@ function severityEntries(counts: Readonly<Record<string, number>>): readonly [st
   return Object.entries(counts).sort((a, b) => rank(a[0]) - rank(b[0]) || a[0].localeCompare(b[0]));
 }
 
-function filterHref(dimension: InventoryDimension, value: string): string {
-  return `/vulnerabilities?${dimension}=${encodeURIComponent(value)}`;
+function filterHref(
+  dimension: InventoryDimension,
+  value: string,
+  profile: InventoryProfile,
+): string {
+  const base = `/vulnerabilities?${dimension}=${encodeURIComponent(value)}`;
+  return profile === "comprehensive" ? `${base}&profile=comprehensive` : base;
 }
 
 function CountChips({
@@ -91,9 +97,11 @@ function CountChips({
 function BucketRow({
   bucket,
   dimension,
+  profile,
 }: {
   readonly bucket: InventoryBucket;
   readonly dimension: InventoryDimension;
+  readonly profile: InventoryProfile;
 }): React.JSX.Element {
   const completeness = COMPLETENESS[bucket.completeness];
   return (
@@ -111,7 +119,7 @@ function BucketRow({
             </small>
           </>
         ) : (
-          <Link className="t-name link-btn mono" to={filterHref(dimension, bucket.value)}>
+          <Link className="t-name link-btn mono" to={filterHref(dimension, bucket.value, profile)}>
             {bucket.value}
           </Link>
         )}
@@ -192,9 +200,6 @@ export function VulnerabilitiesByGroup({
           Detection profile: <strong>{echoed || "not reported"}</strong>
         </p>
       ) : null}
-      {page && echoed !== "" && echoed !== profile ? (
-        <p role="status">{`Requested ${profile}, but the server answered ${echoed}.`}</p>
-      ) : null}
       {error ? <p role="alert">{error}</p> : null}
       {loading ? <span role="status">Loading groups…</span> : null}
       {note ? <p role="note">{note}</p> : null}
@@ -217,6 +222,7 @@ export function VulnerabilitiesByGroup({
                   key={`${bucket.unattributed ? "unattributed" : "group"}:${bucket.value}`}
                   bucket={bucket}
                   dimension={groupBy}
+                  profile={profile}
                 />
               ))}
               {page && buckets.length === 0 ? (

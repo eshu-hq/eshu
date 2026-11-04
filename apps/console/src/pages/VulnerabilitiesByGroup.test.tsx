@@ -148,15 +148,37 @@ describe("VulnerabilitiesByGroup", () => {
     expect(get.mock.calls.at(-1)?.[0]).toContain("profile=comprehensive");
   });
 
-  it("shows the profile the server echoed, not the one requested", async () => {
-    const { client } = clientFor(() =>
-      wirePage([wireBucket({})], { detection_profile: "precise" }),
+  it("shows an error, not a clean table, when the server answers on another profile", async () => {
+    const { client } = clientFor((params) =>
+      params.get("profile") === "comprehensive"
+        ? wirePage([wireBucket({ value: "should-not-show" })], { detection_profile: "precise" })
+        : wirePage([wireBucket({ value: "svc" })]),
     );
     renderView(client);
     await screen.findByRole("link", { name: "svc" });
     fireEvent.click(screen.getByRole("checkbox", { name: /include possibly affected/i }));
-    await waitFor(() => expect(screen.getByText(/Requested comprehensive/)).toBeInTheDocument());
-    expect(screen.getByText(/Detection profile/)).toHaveTextContent("precise");
+    expect(await screen.findByRole("alert")).toHaveTextContent(/requested comprehensive/i);
+    expect(screen.queryByText("should-not-show")).not.toBeInTheDocument();
+    expect(screen.queryByText(/No groups returned/i)).not.toBeInTheDocument();
+  });
+
+  it("carries the comprehensive profile into the group link so the list matches the counts", async () => {
+    const { client } = clientFor((params) =>
+      wirePage([wireBucket({ value: "svc" })], { detection_profile: params.get("profile") }),
+    );
+    renderView(client);
+    await screen.findByRole("link", { name: "svc" });
+    fireEvent.click(screen.getByRole("checkbox", { name: /include possibly affected/i }));
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: "svc" }).getAttribute("href")).toBe(
+        "/vulnerabilities?service_id=svc&profile=comprehensive",
+      ),
+    );
+  });
+
+  it("never shows the empty text when there is no client or the read has not loaded", () => {
+    renderView(undefined);
+    expect(screen.queryByText(/No groups returned/i)).not.toBeInTheDocument();
   });
 
   it("explains overlapping group counts when they exceed distinct findings", async () => {
