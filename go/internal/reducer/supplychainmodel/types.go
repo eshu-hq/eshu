@@ -29,6 +29,11 @@ type ImpactCVE struct {
 	// ReplacedBy lists the CVE ids the source names as replacing this advisory,
 	// in source order. Empty unless the source stated a replacement.
 	ReplacedBy []string
+	// Upstream lists the advisory ids the source says this record repackages
+	// (an OSV distro record naming the CVEs it covers), in the producer's
+	// order. It is a directed identity edge the OS advisory grouping pass
+	// reads; it never selects CVEID and is never an alias (#9914).
+	Upstream []string
 }
 
 // AffectedPackage is the reducer's internal projection of one

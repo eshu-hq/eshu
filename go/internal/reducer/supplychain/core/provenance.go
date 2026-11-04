@@ -166,6 +166,7 @@ func buildAdvisoryProvenanceObservations(
 			ReplacedBy:          cleanReplacementIDs(cve.ReplacedBy),
 			CVEFactID:           cve.FactID,
 			AffectedFactID:      matched.FactID,
+			releaseTier:         osReleaseTier(matched),
 		})
 	}
 	for _, pkg := range packages {
@@ -178,6 +179,7 @@ func buildAdvisoryProvenanceObservations(
 			FixedVersions:  append([]string(nil), pkg.FixedVersions...),
 			AffectedRange:  supplyChainAffectedRangeSummary(pkg),
 			AffectedFactID: pkg.FactID,
+			releaseTier:    osReleaseTier(pkg),
 		})
 	}
 	return observations
@@ -248,6 +250,36 @@ type AdvisoryProvenanceObservation struct {
 	// AffectedFactID is the source-fact id of the affected_package envelope
 	// that contributed this observation, when present.
 	AffectedFactID string
+	// releaseTier ranks observations of one source by what their affected
+	// fact says about the installed row's release line: osReleaseTierListed
+	// (the fact names the host's line), osReleaseTierUntagged (it names no
+	// line, or is not release-aware at all), osReleaseTierUnlisted (it names
+	// other lines only). It orders same-source observations once an OS
+	// advisory group holds several records for one CVE (#9914) and is zero
+	// weight for every group that is not an OS release group.
+	releaseTier int8
+}
+
+// Release tiers, in selection order: lower wins within one source.
+const (
+	osReleaseTierListed   int8 = -1
+	osReleaseTierUntagged int8 = 0
+	osReleaseTierUnlisted int8 = 1
+)
+
+// osReleaseTier maps an affected fact that selectOSAdvisoryRelease already
+// narrowed to its tier. The zero value is the untagged tier, so a fact that
+// was never narrowed (a vendor-sourced fact, a language-ecosystem fact, an
+// observation with no affected fact) ranks exactly as before.
+func osReleaseTier(pkg supplychainmodel.AffectedPackage) int8 {
+	switch {
+	case pkg.ReleaseLine != "":
+		return osReleaseTierListed
+	case pkg.ReleaseUnlisted:
+		return osReleaseTierUnlisted
+	default:
+		return osReleaseTierUntagged
+	}
 }
 
 // AlternateSeverity is one source-attributed severity that was not selected

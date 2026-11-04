@@ -99,6 +99,7 @@ func buildSupplyChainImpactIndexWithQuarantine(envelopes []facts.Envelope) (supp
 	}
 	index.pythonReachability = extractPythonReachabilityEvidence(envelopes)
 	addManifestDependencySupplyChainConsumption(&index, envelopes)
+	groupOSAdvisoriesByUpstream(&index)
 	sort.SliceStable(index.cves, func(i, j int) bool {
 		return index.cves[i].CVEID < index.cves[j].CVEID
 	})

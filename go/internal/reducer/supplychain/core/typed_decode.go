@@ -44,6 +44,7 @@ func supplyChainCVEFromEnvelope(envelope facts.Envelope) (supplychainmodel.Impac
 		WithdrawnAt:     payloadcore.DerefString(cve.WithdrawnAt),
 		Status:          payloadcore.DerefString(cve.Status),
 		ReplacedBy:      cve.ReplacedBy,
+		Upstream:        cve.Upstream,
 	}, nil
 }
 

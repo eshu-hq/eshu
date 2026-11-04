@@ -1056,6 +1056,11 @@ type Instruments struct {
 	// installed row's release line (#9806 PR-2b), and for a vendor-sourced fact
 	// whether its purl distro line is the host's (#9945).
 	SupplyChainImpactOSAdvisoryReleaseSelections metric.Int64Counter
+	// SupplyChainImpactOSAdvisoryUpstreamGroups counts the vulnerability.cve
+	// records the OS advisory grouping pass examined, by source (debian,
+	// ubuntu, alpine, alma, rocky, other) and result (grouped, ungrouped):
+	// whether the record's upstream list filed it under a CVE id (#9914).
+	SupplyChainImpactOSAdvisoryUpstreamGroups metric.Int64Counter
 	// SupplyChainImpactOSReleaseNotInAdvisory counts the OS findings whose
 	// advisory carries release tags but none for the installed release,
 	// labeled source (debian, ubuntu, alpine, alma, rocky, other) (#9806). Absence
@@ -4897,6 +4902,13 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SupplyChainImpactOSAdvisoryReleaseSelections counter: %w", err)
+	}
+	inst.SupplyChainImpactOSAdvisoryUpstreamGroups, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_os_advisory_upstream_groups_total",
+		metric.WithDescription("Vulnerability records a supply-chain impact pass examined for OS advisory grouping, by source (debian, ubuntu, alpine, alma, rocky, other) and result (grouped, ungrouped): grouped means the record's upstream list named a CVE and the record is indexed under it; ungrouped means an OS vendor record with no usable CVE in its upstream list keeps its own group. A source that reads only ungrouped means the producer's upstream lists are not reaching the reducer."),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SupplyChainImpactOSAdvisoryUpstreamGroups counter: %w", err)
 	}
 	inst.SupplyChainImpactOSReleaseNotInAdvisory, err = meter.Int64Counter(
 		"eshu_dp_supply_chain_impact_os_release_not_in_advisory_total",

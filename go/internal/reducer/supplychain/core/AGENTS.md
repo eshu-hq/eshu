@@ -94,3 +94,11 @@ changing anything here.
   they produce no impact finding. A failed govulncheck run emits no
   reachability fact and reads `unknown`; the reducer does not join
   `scanner_worker.warning`, so the failure class is not on the finding.
+- The OS advisory grouping pass (#9914, `groupOSAdvisoriesByUpstream`) is the
+  only place a distro record is filed under a CVE id. Keep it in the index
+  build: never in verdict code, never by changing the producer's `cve_id`, and
+  never from the raw payload (it reads the typed `Upstream` field only). It must
+  stay zero-allocation for a record that is not an OS vendor record and carries
+  no `upstream` list (`BenchmarkBuildSupplyChainImpactIndexUpstreamGrouping`).
+  Changing the key rule moves `finding_id`, the winners key and `cve_id`
+  filters for every grouped OS finding, so treat it as an identity migration.

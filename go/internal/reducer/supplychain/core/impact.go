@@ -426,6 +426,7 @@ func buildSupplyChainImpactFindingsAndExclusions(envelopes []facts.Envelope) ([]
 		osAdvisoryJoins:             countOSAdvisoryJoins(index),
 		osAdvisoriesJoinedViaSource: countOSAdvisoriesJoinedViaSource(findings),
 		osReleaseNotInAdvisory:      countOSReleaseNotInAdvisory(findings),
+		osUpstreamGroups:            index.osUpstream.cells,
 	}, nil
 }
 

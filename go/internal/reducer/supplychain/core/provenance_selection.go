@@ -170,6 +170,9 @@ func selectAdvisoryProvenance(
 		if sorted[i].Source != sorted[j].Source {
 			return sorted[i].Source < sorted[j].Source
 		}
+		if sorted[i].releaseTier != sorted[j].releaseTier {
+			return sorted[i].releaseTier < sorted[j].releaseTier
+		}
 		if sorted[i].AdvisoryID != sorted[j].AdvisoryID {
 			return sorted[i].AdvisoryID < sorted[j].AdvisoryID
 		}

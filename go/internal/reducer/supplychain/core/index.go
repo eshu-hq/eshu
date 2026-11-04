@@ -74,6 +74,10 @@ type supplyChainImpactIndex struct {
 	// negatedProductsExcluded counts vulnerable CPE matches left out of
 	// affectedProducts because their NVD configuration or node is negated.
 	negatedProductsExcluded int
+
+	// osUpstream holds what the OS advisory grouping pass counted and did
+	// (#9914); see groupOSAdvisoriesByUpstream.
+	osUpstream osUpstreamGrouping
 }
 
 // buildSupplyChainImpactIndex and buildSupplyChainImpactIndexWithQuarantine

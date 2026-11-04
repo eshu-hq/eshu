@@ -253,17 +253,30 @@ func TestOSVOSAdvisoryJoinsAlmaRockyRows(t *testing.T) {
 
 				envelopes := append(convertedOSVFixture(t, tc.fixture, reverse), tc.installed.envelope())
 				findings := BuildSupplyChainImpactFindings(envelopes)
-				if len(findings) != 1 {
-					t.Fatalf("findings = %d, want 1 OS package finding: %#v", len(findings), findings)
+				// An ALSA or RLSA bulletin names its CVEs in upstream, so the
+				// grouping pass (#9914) splits it into one finding per CVE; the
+				// verdict is the same on every one.
+				upstream := slices.Clone(osvFixtureRecord(t, tc.fixture).Upstream)
+				slices.Sort(upstream)
+				if len(findings) != len(upstream) {
+					t.Fatalf("findings = %d, want one OS package finding per upstream CVE %v: %#v", len(findings), upstream, findings)
+				}
+				var gotCVEs []string
+				for _, finding := range findings {
+					gotCVEs = append(gotCVEs, finding.CVEID)
+					assertSupplyChainImpactStatus(t, finding, tc.wantStatus)
+					if finding.MatchReason != tc.wantReason {
+						t.Fatalf("MatchReason = %q, want %q", finding.MatchReason, tc.wantReason)
+					}
+					if finding.ObservedVersion != tc.installed.version {
+						t.Fatalf("ObservedVersion = %q, want %q", finding.ObservedVersion, tc.installed.version)
+					}
+				}
+				slices.Sort(gotCVEs)
+				if !slices.Equal(gotCVEs, upstream) {
+					t.Fatalf("finding CVEIDs = %v, want %v", gotCVEs, upstream)
 				}
 				got := findings[0]
-				assertSupplyChainImpactStatus(t, got, tc.wantStatus)
-				if got.MatchReason != tc.wantReason {
-					t.Fatalf("MatchReason = %q, want %q", got.MatchReason, tc.wantReason)
-				}
-				if got.ObservedVersion != tc.installed.version {
-					t.Fatalf("ObservedVersion = %q, want %q", got.ObservedVersion, tc.installed.version)
-				}
 				if tc.wantReason != unverified {
 					return
 				}

@@ -7,6 +7,7 @@ import (
 	"context"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -119,13 +120,32 @@ func TestOSAdvisoryPassIndexesSiblingCVEFactWithUpstream(t *testing.T) {
 				if err != nil {
 					t.Fatalf("buildSupplyChainImpactIndexWithQuarantine() error = %v, want nil", err)
 				}
-				if len(index.cves) != 1 {
-					t.Fatalf("index.cves = %d entries, want the sibling cve fact indexed", len(index.cves))
+				// The grouping pass (#9914) files the sibling under every CVE
+				// its upstream list names: one cve observation and the full
+				// set of loaded affected packages per CVE key.
+				var wantKeys []string
+				for _, entry := range tc.upstream {
+					if strings.HasPrefix(entry, "CVE-") {
+						wantKeys = append(wantKeys, entry)
+					}
 				}
-				cveID := index.cves[0].CVEID
-				if len(index.affectedPackages[cveID]) != affectedLoaded {
-					t.Fatalf("index.affectedPackages[%q] = %d, want all %d loaded affected packages under the sibling's cve_id",
-						cveID, len(index.affectedPackages[cveID]), affectedLoaded)
+				slices.Sort(wantKeys)
+				var gotKeys []string
+				for _, cve := range index.cves {
+					gotKeys = append(gotKeys, cve.CVEID)
+				}
+				if !slices.Equal(gotKeys, wantKeys) {
+					t.Fatalf("index.cves keys = %v, want the sibling indexed once per upstream CVE %v", gotKeys, wantKeys)
+				}
+				// The record's own id no longer holds a second, orphaned copy.
+				if got := len(index.affectedPackages[tc.recordID]); got != 0 {
+					t.Fatalf("index.affectedPackages[%q] = %d entries, want none once filed under the CVE keys", tc.recordID, got)
+				}
+				for _, cveID := range wantKeys {
+					if len(index.affectedPackages[cveID]) != affectedLoaded {
+						t.Fatalf("index.affectedPackages[%q] = %d, want all %d loaded affected packages under the CVE key",
+							cveID, len(index.affectedPackages[cveID]), affectedLoaded)
+					}
 				}
 			})
 		}

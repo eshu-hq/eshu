@@ -59,7 +59,11 @@
 // (payload PayloadKeyTrigger=TriggerManifestDependency, #9874) writes no
 // findings: the handler gates it on generation activation, derives the
 // changed packages from the generation's own dependency rows, and reopens the
-// scopes holding advisory evidence for them (manifest_trigger.go). Test seams for the reducer root's
+// scopes holding advisory evidence for them (manifest_trigger.go). The index
+// build files each OSV distro record (Debian, Ubuntu, Alpine and any record
+// with an upstream list) under the CVE ids its typed upstream list names, so
+// one installed package reads one finding per CVE
+// (groupOSAdvisoriesByUpstream, #9914). Test seams for the reducer root's
 // own wiring test live in the parent's compat stanza, following the
 // containerimage precedent; family-local test doubles live in
 // cross_scope_test_doubles_test.go.
