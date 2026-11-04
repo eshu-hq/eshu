@@ -1,0 +1,19 @@
+apps/console/src/pages/VulnerabilitiesReachableWorkspace.tsx
+  s_7547c0f0af67d4::t_11ce74d832f061 10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5a0e8e81e0da9161311328e8465e2ff552ce3e45",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
