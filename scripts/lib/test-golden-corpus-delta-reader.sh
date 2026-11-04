@@ -45,7 +45,7 @@ done
 # phase reads an empty scope and fails as vacuous.
 delta_reader_slug="$(rg --only-matching --replace '$1' '^golden_delta_reader_slug="([^"]+)"' "${delta_reader_lib}")"
 delta_reader_lib_scope="$(rg --only-matching --replace '$1' '^golden_delta_reader_scope_id="([^"]+)"' "${delta_reader_lib}")"
-delta_reader_hash="$(printf '%s' "https://github.com/${delta_reader_slug}" | sha1sum | cut -c1-8)"
+delta_reader_hash="$(printf '%s' "https://github.com/${delta_reader_slug}" | shasum -a 1 | cut -c1-8)"
 delta_reader_repo_id="repository:r_${delta_reader_hash}"
 [[ "${delta_reader_lib_scope}" == "git-repository-scope:${delta_reader_repo_id}" ]] \
 	|| fail "delta-reader lib scope ${delta_reader_lib_scope} does not match the ${delta_reader_slug} remote id ${delta_reader_repo_id}"
