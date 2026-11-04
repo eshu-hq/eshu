@@ -149,13 +149,14 @@ func (s FactStore) ListActivePackageManifestDependencyFacts(
 		read := manifestDependencyReadLabel(rawQuery)
 		targets, err := reader.readManifestDeltaTargets(ctx)
 		if err != nil {
-			reader.recordManifestDeltaUnion(ctx, &manifestDeltaUnionTally{read: read, outcomes: map[string]int{}}, manifestDeltaUnionResolveFailed)
+			reader.recordManifestDeltaUnionFailure(ctx, read)
 			return err
 		}
 		var base []facts.Envelope
 		if baseScopes := manifestDeltaBaseScopes(targets); len(baseScopes) > 0 {
 			base, err = reader.listPackageManifestDependencyFactPages(ctx, baseQuery, packageManagers, packageNames, baseScopes)
 			if err != nil {
+				reader.recordManifestDeltaUnionFailure(ctx, read)
 				return err
 			}
 		}

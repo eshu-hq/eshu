@@ -196,3 +196,59 @@ func TestListActivePackageManifestDependencyFactsNoDeltaSkipsBaseRead(t *testing
 		}
 	}
 }
+
+// TestListActivePackageManifestDependencyFactsDeltaFailuresCountOncePerRead
+// pins union_resolve_failed as one per read whose delta-union step failed,
+// whichever statement failed: the target lookup, a base page, a base
+// resolution, or the overlay inputs read.
+func TestListActivePackageManifestDependencyFactsDeltaFailuresCountOncePerRead(t *testing.T) {
+	t.Parallel()
+
+	target := queueFakeRows{rows: [][]any{{"repository:repo-1", "generation-1", "c0", ""}}}
+	active := queueFakeRows{rows: [][]any{manifestDependencyFakeRow(0)}}
+	failed := queueFakeRows{err: context.DeadlineExceeded}
+	for name, responses := range map[string][]queueFakeRows{
+		"target lookup":   {active, failed},
+		"base page":       {active, target, failed},
+		"base resolution": {active, target, {}, failed},
+	} {
+		reader := sdkmetric.NewManualReader()
+		instruments, err := telemetry.NewInstruments(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("test"))
+		if err != nil {
+			t.Fatalf("NewInstruments: %v", err)
+		}
+		db := &fakeExecQueryer{queryResponses: responses}
+		if _, err := NewFactStore(db).WithInstruments(instruments).ListActivePackageManifestDependencyFacts(
+			context.Background(), []string{"npm"}, []string{"left-pad"},
+		); !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("%s: read error = %v, want the deadline error", name, err)
+		}
+		if got := manifestDeltaUnionCount(t, reader, manifestDeltaUnionResolveFailed); got != 1 {
+			t.Fatalf("%s: union_resolve_failed = %d, want 1", name, got)
+		}
+	}
+}
+
+// manifestDeltaUnionCount returns the delta-union counter's value for one
+// outcome.
+func manifestDeltaUnionCount(t *testing.T, reader *sdkmetric.ManualReader, outcome string) int64 {
+	t.Helper()
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("collect: %v", err)
+	}
+	var total int64
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			if m.Name != "eshu_dp_package_manifest_dependency_read_delta_union_total" {
+				continue
+			}
+			for _, dp := range m.Data.(metricdata.Sum[int64]).DataPoints {
+				if value, _ := dp.Attributes.Value(telemetry.MetricDimensionOutcome); value.AsString() == outcome {
+					total += dp.Value
+				}
+			}
+		}
+	}
+	return total
+}

@@ -31,7 +31,7 @@ func registerPackageManifestDependencyReadInstruments(meter metric.Meter, inst *
 	}
 	if inst.PackageManifestDependencyReadDeltaUnion, err = meter.Int64Counter(
 		"eshu_dp_package_manifest_dependency_read_delta_union_total",
-		metric.WithDescription("Delta-base union decisions of manifest dependency reads, one per delta-active scope a read reached, by read and outcome (#9991)"),
+		metric.WithDescription("Delta-base union decisions of manifest dependency reads, one per delta-active scope a read reached (union_resolve_failed: once per failed read), by read and outcome (#9991)"),
 	); err != nil {
 		return fmt.Errorf("register PackageManifestDependencyReadDeltaUnion counter: %w", err)
 	}

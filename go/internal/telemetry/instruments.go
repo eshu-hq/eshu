@@ -1103,7 +1103,8 @@ type Instruments struct {
 	// read reached (#9991). Labels: read and outcome (union_base_found,
 	// union_base_unmatched, union_base_missing, union_scope_mismatch,
 	// union_no_baseline, union_resolve_failed). Every outcome but
-	// union_base_found returns that scope's delta rows only.
+	// union_base_found returns that scope's delta rows only;
+	// union_resolve_failed counts once per read whose lookups failed.
 	PackageManifestDependencyReadDeltaUnion metric.Int64Counter
 	// SupplyChainImpactActiveEvidenceBranchRows counts rows each
 	// active-evidence statement returned (#8880). Label: branch.

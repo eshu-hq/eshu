@@ -48,8 +48,9 @@ const (
 	// manifestDeltaUnionNoBaseline: a legacy delta with no recorded baseline,
 	// which the projector also loads without a union.
 	manifestDeltaUnionNoBaseline = "union_no_baseline"
-	// manifestDeltaUnionResolveFailed: a base or overlay read failed; the
-	// whole read returns the error.
+	// manifestDeltaUnionResolveFailed: the target lookup, a base page, a base
+	// resolution, or the overlay inputs read failed; the whole read returns
+	// the error. It counts once per failed read, not per scope.
 	manifestDeltaUnionResolveFailed = "union_resolve_failed"
 )
 
@@ -352,6 +353,14 @@ func (s FactStore) recordManifestDeltaUnion(ctx context.Context, tally *manifest
 		s.instruments.PackageManifestDependencyReadDeltaUnion.Add(context.WithoutCancel(ctx), 1,
 			metric.WithAttributes(telemetry.AttrRead(tally.read), telemetry.AttrOutcome(outcome)))
 	}
+}
+
+// recordManifestDeltaUnionFailure counts union_resolve_failed once for a
+// read whose target lookup or base pages failed before any scope decision.
+func (s FactStore) recordManifestDeltaUnionFailure(ctx context.Context, read string) {
+	tally := manifestDeltaUnionTally{read: read, outcomes: map[string]int{}}
+	s.recordManifestDeltaUnion(ctx, &tally, manifestDeltaUnionResolveFailed)
+	s.recordManifestDeltaUnionSpan(ctx, &tally)
 }
 
 // recordManifestDeltaUnionSpan adds one span event per read that reached a
