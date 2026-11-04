@@ -47,7 +47,7 @@ installed-target reader.
 | `Debian:11` | `curl` `7.74.0-1.3+deb11u1` | 8 |
 
 The recorded Alpine answers (trimmed to three ids) live with the satellite's
-tests, in `testdata/osv/alpine-curl-7.87.0-r0-querybatch-*.json`.
+tests, in the OSV test data directory of the satellite repository.
 
 ## Debian, Ubuntu, Rocky, Alma: not changed
 
