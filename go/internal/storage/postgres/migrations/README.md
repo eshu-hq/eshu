@@ -102,7 +102,7 @@ vacuum that is still running. Before a roll, check `pg_locks` for a granted
 `pg_stat_progress_vacuum` filtered by the table returns nothing, so treat the
 NULL-typed row as a running vacuum.
 See `docs/internal/evidence/9975-fact-records-autovacuum-reloptions.md` for
-the first-vacuum cost range, the read-replica `503` risk, and the stop
+the measured first-vacuum cost, the read-replica `503` risk, and the stop
 procedure.
 
 ## Keep table-locking DDL and bulk DML in separate files (#7961)

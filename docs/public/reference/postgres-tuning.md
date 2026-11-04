@@ -471,9 +471,9 @@ from `relid` on are NULL (see the roll-time check below). The log line and
       (autovacuum_enabled)` brought a worker back in about 1 s at a 1 s naptime;
       and an anti-wraparound worker still ran with the setting false.
 
-- The lower trigger means about ten times as many index passes on the dead-row
-  path: 0.20 to 0.02 of the table, which one hour of rates on one primary put at
-  10.3 hours between runs against about 103. Watch the second vacuum's cost too.
+- About ten times as many passes on the dead-row path (0.20 to 0.02 of the table;
+  10.3 hours between runs against about 103, one hour of rates). A pass can skip
+  index cleanup (`index scans: 0`): read the second vacuum's log line first.
 - A physical replication slot retains WAL while its replica lags. Watch the
   slot's `wal_status` and retained WAL during the first vacuum and agree a stop
   value before it starts.

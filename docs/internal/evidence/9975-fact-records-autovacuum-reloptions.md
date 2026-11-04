@@ -14,8 +14,9 @@ costs, how to read the result, and how to run the first vacuum safely.
 - Dead tuple pressure on a high-churn table (the reading, not an established
   fact): `fact_records` holds about 102.3M rows, and every update of an impact
   finding writes a new row version that is never HOT (the payload is indexed).
-- Wrong trigger scale, not a slow vacuum: autovacuum started rarely (the last
-  run was 2026-10-31), because its default thresholds are 20% of the row count.
+- Wrong trigger scale, not a slow vacuum: autovacuum last ran on 2026-10-31,
+  3.9 days before the diagnosis read, because its default thresholds are 20% of
+  the row count.
 - Not a query, index, or lock-ordering defect: the probe's index walk is cheap
   and its predicate is fully index-searchable.
 
@@ -75,14 +76,14 @@ dead rows per second, 47 to 80 inserts per second) the table would take 3.3 to
 
 The insert trigger was much closer, and it mattered for rollout. Arithmetic
 made before the run: diagnosis section 11.2 read `n_ins_since_vacuum` at
-17,632,252 at 04:21:55Z on 2026-11-04. The default insert trigger is
-19,591,565, so 1,959,313 inserts remained. At 80 and at 47 inserts per second
-that is 6.8 to 11.6 hours, which is about 11:00Z to 16:00Z on the same day. The
-vacuum started earlier, at 09:00:52.7Z (see the first vacuum section). Reaching
-the trigger in 4 h 39 min took an average of at least 117 inserts per second,
-above the 80.6 maximum the window used (arithmetic). A bulk insert of about
-774k rows landed between 06:30Z and 06:35Z (diagnosis sections 12.7 and 12.8);
-after it the counter ran at 55 to 70 per second. The consequence held: with no migration and no one-off, a
+17,632,252 at 04:21:55Z on 2026-11-04, 1,959,313 short of the default insert
+trigger (19,591,565). At 80 and at 47 inserts per second that is 6.8 to 11.6
+hours, about 11:00Z to 16:00Z. The vacuum started earlier, at 09:00:52.7Z (see
+the first vacuum section): reaching the trigger in 4 h 39 min took at least 117
+inserts per second on average, above the 80.6 maximum the window used
+(arithmetic). A bulk insert of about 774k rows landed between 06:30Z and 06:35Z
+(diagnosis sections 12.7 and 12.8); after it the counter ran at 55 to 70 per
+second. The consequence held: with no migration and no one-off, a
 default-settings autovacuum of `fact_records` started on its own when that
 counter crossed its default trigger. That first vacuum measures the theory with
 default settings, not migration 278, and a later roll's ALTER would cancel one
@@ -138,42 +139,61 @@ cycle therefore rebuilds about 3 to 8 dead entries per live row on a hot row
 before the next vacuum (10.3 / 3.3 to 10.8 / 1.3), or about 5 to 27 using the
 xmin ages (10.3 / 1.9 to 10.8 / 0.4). This is arithmetic from the one-hour rate, and kill
 hints should lower it by an amount nobody has measured. It means a sawtooth:
-near 1 to 2 buffers per row just after a vacuum (measured: 1.4 right after the
-first vacuum and 1.3 an hour later), climbing back toward a share of today's
+near 1 to 2 buffers per row just after a vacuum that ran an index scan
+(measured: 1.4 right after the first vacuum and 1.3 an hour later), climbing back toward a share of today's
 figure before the next one. The hour readback after the first vacuum reads the
 bottom of that sawtooth, so it does not show that the 60 s bar holds a day
 later (see the extra read below).
 
+PostgreSQL can skip index vacuuming at 278's trigger, which changes the cost
+per pass. The PostgreSQL 18 `VACUUM` page (`INDEX_CLEANUP`) says: "Normally,
+`VACUUM` will skip index vacuuming when there are very few dead tuples in the
+table." The default is `AUTO`. In the PostgreSQL 18 source (`lazy_vacuum`,
+`BYPASS_THRESHOLD_PAGES` 0.02, `vacuumlazy.c`) a pass skips it when fewer than 2%
+of the table's pages hold a dead item identifier and the dead-item store is
+under 32 MiB. The log line then reads `index scans: 0` and `index scan bypassed:
+N pages from table (X% of total) have M dead item identifiers`, `n_dead_tup`
+resets, and the index entries stay until a later pass with an index scan. The
+independent review measured it on a scratch table (PostgreSQL 18.6, 100,000
+pages, 278's two settings): 8,732 dead rows on 1.75% of pages were bypassed,
+a second batch at the same density (3.49% of pages) got an index scan, and the
+same count at one per page (8.73%) got one at once.
+
+On QA, 2% of 21,350,368 pages is 427,007 pages. The first vacuum's log line
+gives 15,858,845 dead item identifiers on 2,982,877 pages, 5.32 per page. At
+that density 1,928,622 dead rows touch about 362,753 pages, 1.70% of the table,
+under the line (break-even 4.52 per page). So the second vacuum probably
+bypasses. That is arithmetic from one vacuum's density, not observed, and the
+density at a smaller count may differ. The 32 MiB condition looks clear (a
+scratch reading scales to about 13 MB; coarse, not at scale). A bypassed pass
+skips the walk of all 144 indexes and costs less. "About ten times as many
+passes" counts triggered runs, not index scans, and index entries pile up
+across bypassed passes until one crosses 2%.
+
 First-vacuum duration: measured at 6,151.92 s (1 h 42 min 32 s). The arithmetic
-made before the run is kept below to show how far it was off; it was never a
-prediction, only a range:
+made before the run was a range, never a prediction; it is kept short to show
+how far it was off:
 
-- Credit-bound, the full cost limit to one worker (200 credits per 2 ms cycle,
-  so 100,000 credits per second; miss 2, hit 1, dirty 20). Reading the 20.7M
-  heap pages plus 84 GB of indexes (about 10.25M pages) as all misses is 10.3
-  minutes. A normal vacuum skips all-visible pages, and 72.0% of heap pages
-  are all-visible, so heap reads drop to about 5.8M pages and the same
-  arithmetic gives 5.3 minutes. Every index is read in full either way.
-- Dirtied pages add 20 credits each (about 3.3 minutes per million pages).
-  How many pages get dirtied is unknown.
-- The cost limit is shared. Autovacuum divides it among the running workers,
-  and diagnosis section 9.1 saw two other vacuums running at both reads. With
-  two or three workers sharing, 5.3 to 10.3 minutes become 10.7 to 31 minutes.
-- Credits are not the only bound. The diagnosis measured 0.571 ms per cold
-  read. At that latency, with no readahead, 16.0M to 31.0M reads take 2.5 to
-  4.9 hours. That is an upper bound from a random-read figure; sequential
-  reads should be faster. It still shows a multi-hour run is possible on this
-  CPU-throttled primary.
+- Credit-bound floor. The full cost limit to one worker is 100,000 credits per
+  second (miss 2, hit 1, dirty 20). Reading the heap plus 84 GB of indexes
+  (about 10.25M pages) as all misses gives 10.3 minutes, or 5.3 minutes when the
+  72.0% all-visible heap pages are skipped. Dirtied pages add 20 credits each
+  (about 3.3 minutes per million). Sharing the limit among two or three workers
+  (diagnosis section 9.1 saw two other vacuums running) gives 10.7 to 31 minutes.
+- Read-latency bound. 0.571 ms per cold read over 16.0M to 31.0M reads is 2.5 to
+  4.9 hours, an upper bound from a random-read figure; sequential reads should be
+  faster.
 
-Result against that arithmetic. The credit-bound floors (5.3 to 31 minutes)
-were far under the measured run, and the read-latency bound (2.5 to 4.9 hours)
-brackets it. The pass read 23,174,029 buffers (I/O read time 719.4 s) and
-dirtied 11,770,455 pages. At 20 credits each that is about 235 million credits,
-or 2,354 s at the full unshared limit of 100,000 credits per second (arithmetic
-from the credit model above), roughly 38% of the run. I/O read, I/O write
-(60.6 s) and CPU (505.8 s user, 156.3 s system) add to 1,442 s of the 6,152 s.
-The rest is not accounted for by these figures; waiting on the shared cost
-limit is the likely cause (inference, not measured).
+Result against that arithmetic. The run (1.71 hours) sits between the two: far
+above the credit-bound floors (5.3 to 31 minutes) and under the read-latency
+range (2.5 to 4.9 hours). The pass read 23,174,029 buffers (I/O read time
+719.4 s) and dirtied 11,770,455 pages. At 20 credits each the dirtied pages come
+to about 235 million credits, or 2,354 s at the full unshared limit (38% of the
+run); the reads add 463 s at 2 credits each, 46% together (arithmetic from the
+credit model, all reads counted as misses). I/O read, I/O write (60.6 s) and CPU
+(505.8 s user, 156.3 s system) add to 1,442 s of the 6,152 s. The rest is not
+accounted for by these figures; waiting on the shared cost limit is the likely
+cause (inference, not measured).
 
 The run exceeded the 10-minute `log_autovacuum_min_duration` and was logged
 (the 5.3-minute credit floor would not have been). The keyed ticks did not slow:
@@ -228,6 +248,18 @@ on the rates: at 14 dead rows and 80 inserts per second the insert trigger would
 come first. So key on whichever counter is nearer its trigger; do not assume
 the order. Before 278 has rolled, the triggers are the server defaults and none
 of these figures apply.
+
+Read the second vacuum's log line before the probe: `index scans:` and then
+`index scan needed` or `index scan bypassed`.
+
+- `index scans: 1`: read the probe against the first vacuum's 1.4 buffers per row.
+- `index scans: 0` with `index scan bypassed`: PostgreSQL skipped index
+  vacuuming, so a high probe says nothing yet about the mechanism while
+  `n_dead_tup` reads near zero. Do not call the setting failed, and do not change
+  it on one bypassed pass. Read the next vacuum, which does an index scan once
+  dead-item pages pass 2% of the table. If passes keep bypassing and the probe
+  stays high, take the log lines to the arbiter; forcing `vacuum_index_cleanup`
+  on is a separate, unmeasured change.
 
 Local proof for the change itself (disposable PostgreSQL 18.6, migration run
 through the shipped runner): `pg_class.reloptions` for `fact_records` is empty
@@ -428,10 +460,6 @@ Proof limits:
   hour, and the dead-row rate is above the baseline range; whether it persists
   is unmeasured.
 
-The control pair was one more run of the same 10-triple probe taken before the
-vacuum started, so that hint accumulation and the vacuum can be told apart. The
-whole run is excluded from the #9805 closing bar.
-
 ## NOT_CHECKED
 
 - A second vacuum's duration, WAL volume, API `503` rate, and the hot-row
@@ -461,6 +489,9 @@ whole run is excluded from the #9805 closing bar.
   not checked, and QA's grants were not read.
 - QA's counters after the 11:44Z hour readback, and whether the 52.1 dead rows
   per second rate persists. The 10.3 to 10.8 hour and 55 to 56 hour figures rest on one hour.
+- Whether QA's second vacuum bypasses index vacuuming: 427,007 pages and 4.52
+  per page are arithmetic from the first vacuum's density, and the 32 MiB
+  condition was not measured at scale.
 - The second vacuum measurement is still owed. The note describes what to read
   shortly before the second vacuum starts (`n_ins_since_vacuum` near 3.99M or
   `n_dead_tup` near 1.93M, with the 10-triple probe and the keyed tick gauge),
