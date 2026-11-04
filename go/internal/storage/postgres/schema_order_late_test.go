@@ -455,6 +455,9 @@ var orderedBootstrapDefinitionNamesLate = []string{
 	// the canonical terraform-backends reader's outer leg: the
 	// three-way (backends + variables + locals) array-length CASE sum.
 	"fact_records_terraform_backends_outer_leg_idx",
+	// Migration 276 (#9975) sets the fact_records autovacuum scale factors
+	// (catalog-only ALTER).
+	"fact_records_autovacuum_reloptions",
 	// Migration 277 (#9879) adds the per-target refresh progress table the
 	// coordinator paces configured targets from.
 	"vulnerability_target_refresh_progress",

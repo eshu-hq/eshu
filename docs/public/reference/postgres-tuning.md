@@ -362,6 +362,17 @@ PostgreSQL's maintenance documentation is the source of truth for server-level
 autovacuum behavior:
 <https://www.postgresql.org/docs/current/routine-vacuuming.html>.
 
+`fact_records` carries its own autovacuum triggers (migration 276):
+`autovacuum_vacuum_scale_factor = 0.02` and
+`autovacuum_vacuum_insert_scale_factor = 0.05`. The server defaults scale to
+20% of the table, which on a table of about 100M rows leaves tens of millions of
+dead row versions before a vacuum starts and makes index probes visit heap pages
+that hold no visible row. Check `pg_class.reloptions` for the table to confirm
+the setting, and `pg_stat_user_tables` (`n_dead_tup`, `last_autovacuum`) to see
+vacuum keeping up. The first vacuum after the setting lands walks the whole
+table and its indexes, so expect it to take tens of minutes and to slow reads
+while it runs.
+
 ## What Not To Do
 
 - Do not reduce workers, force batch size `1`, or serialize queue drains as a
