@@ -240,30 +240,55 @@ func osPackageSourcePURLPrefixExpression(payloadColumn string) string {
 // narrowing the read to those keys is complete over a small closed set, where
 // the ecosystem-only read it replaces drained every installed package of the
 // ecosystem across the whole fleet for every intent. The candidates CTE is
-// MATERIALIZED and driven by fact_records_os_package_purl_prefix_idx: without
-// the CTE the planner drove from the scope join, misestimated it, and read every
-// row on every page even with the index present.
+// MATERIALIZED and UNIONs two single-arm keyset sub-pages, one per expression
+// index (binary: fact_records_os_package_purl_prefix_idx, source:
+// fact_records_os_package_source_purl_prefix_idx): a bare OR across the two
+// predicates made the generic plan cost the primary-key range scan as cheaper
+// than either expression index, so the read filtered every installed package
+// per page (350k rows removed at 50k rows). Without the CTE the planner drove
+// from the scope join, misestimated it, and read every row on every page even
+// with the index present.
+//
+// UNION, never UNION ALL: a row whose binary name equals its source name is a
+// candidate of both arms and must drain exactly once. Each arm pages on its
+// own fact_id cursor and limit, and the outer page re-sorts and re-limits the
+// merged arms, so a short outer page still means both arms are exhausted and
+// the cursor still advances past every candidate it returns.
 //
 // Every candidate row advances the cursor and counts toward the page, whether or
 // not its generation is active, so a page of inactive rows cannot end a drain
 // early; the active flag (an active scope generation and an ecosystem in $4,
-// the same predicate the rotation reader applies) is applied by the caller. A
-// page shorter than $3 candidates is the last one. ORDER BY and the `>` cursor
-// use the same fact_id column and collation, so they agree.
+// the same predicate the rotation reader applies) is applied by the caller.
+// ORDER BY and the `>` cursor use the same fact_id column and collation, so
+// they agree.
 //
 // An empty $2 starts from the first target: every fact id sorts after the
 // empty string.
 func listOSPackageAdvisoryTargetsForPackagesQuery() string {
 	return `
 WITH candidates AS MATERIALIZED (
-  SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.payload
-  FROM fact_records AS fact
-  WHERE fact.fact_kind = 'vulnerability.os_package'
-    AND fact.is_tombstone = FALSE
-    AND (` + osPackagePURLPrefixExpression("fact.payload") + ` = ANY($1::text[])
-      OR ` + osPackageSourcePURLPrefixExpression("fact.payload") + ` = ANY($1::text[]))
-    AND fact.fact_id > $2
-  ORDER BY fact.fact_id ASC
+  (
+    SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.payload
+    FROM fact_records AS fact
+    WHERE fact.fact_kind = 'vulnerability.os_package'
+      AND fact.is_tombstone = FALSE
+      AND ` + osPackagePURLPrefixExpression("fact.payload") + ` = ANY($1::text[])
+      AND fact.fact_id > $2
+    ORDER BY fact.fact_id ASC
+    LIMIT $3
+  )
+  UNION
+  (
+    SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.payload
+    FROM fact_records AS fact
+    WHERE fact.fact_kind = 'vulnerability.os_package'
+      AND fact.is_tombstone = FALSE
+      AND ` + osPackageSourcePURLPrefixExpression("fact.payload") + ` = ANY($1::text[])
+      AND fact.fact_id > $2
+    ORDER BY fact.fact_id ASC
+    LIMIT $3
+  )
+  ORDER BY fact_id ASC
   LIMIT $3
 )
 SELECT

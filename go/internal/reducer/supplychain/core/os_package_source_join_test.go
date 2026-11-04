@@ -4,6 +4,7 @@
 package core
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/vulnerabilityintelligence"
@@ -31,7 +32,7 @@ func opensslSourceAdvisoryRecord(ecosystem, purl string) vulnerabilityintelligen
 	}
 }
 
-func convertSourceAdvisoryRecord(t *testing.T, record vulnerabilityintelligence.OSVVulnerability) []facts.Envelope {
+func convertSourceAdvisoryRecord(t testing.TB, record vulnerabilityintelligence.OSVVulnerability) []facts.Envelope {
 	t.Helper()
 	return convertedOSVRecord(t, record, false)
 }
@@ -244,5 +245,53 @@ func TestOSSourcePackageAdvisorySameNameRowJoinsOnce(t *testing.T) {
 	findings := BuildSupplyChainImpactFindings(envelopes)
 	if len(findings) != 1 {
 		t.Fatalf("findings = %d, want exactly 1: name==source must not double-join: %#v", len(findings), findings)
+	}
+}
+
+// osSourceBenchEnvelopes builds one source-joined pass: the converted openssl
+// source advisory plus count installed libssl3 rows built from the openssl
+// source, each on its own scope so each yields its own finding. Every row
+// carries the extra source key the dual-key index serves (#9859 criterion 5).
+func osSourceBenchEnvelopes(b *testing.B, count int) []facts.Envelope {
+	b.Helper()
+	envelopes := convertSourceAdvisoryRecord(b, opensslSourceAdvisoryRecord(
+		"Debian:12", "pkg:deb/debian/openssl?arch=source&distro=bookworm"))
+	for i := range count {
+		row := libsslRow("debian", "12", "3.0.9-1~deb12u1", "openssl").envelope()
+		row.FactID = fmt.Sprintf("os-debian-libssl3-%d", i)
+		row.ScopeID = fmt.Sprintf("image://registry.example/app-%d@sha256:9859", i)
+		envelopes = append(envelopes, row)
+	}
+	return envelopes
+}
+
+// BenchmarkOSSourcePackageAdvisoryJoinScales measures
+// BuildSupplyChainImpactFindings over source-joined rows at 1x, 5x and 10x
+// installed rows (10, 50, 100 libssl3 rows under one openssl advisory). The
+// dual-key index carries one entry per key per row, so the extra source keys
+// must not push the join superlinear: ns/row stays flat across the rows.
+func BenchmarkOSSourcePackageAdvisoryJoinScales(b *testing.B) {
+	for _, scale := range []struct {
+		name  string
+		count int
+	}{
+		{"1x", 10},
+		{"5x", 50},
+		{"10x", 100},
+	} {
+		b.Run(scale.name, func(b *testing.B) {
+			envelopes := osSourceBenchEnvelopes(b, scale.count)
+			// The fleet-wide pass yields one finding per CVE and package no
+			// matter how many installed rows join, so the finding count is
+			// the join proof and the row count is the scale.
+			if findings := BuildSupplyChainImpactFindings(envelopes); len(findings) != 1 {
+				b.Fatalf("findings = %d, want 1 source-joined finding over %d rows", len(findings), scale.count)
+			}
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_ = BuildSupplyChainImpactFindings(envelopes)
+			}
+		})
 	}
 }

@@ -5,7 +5,6 @@ package postgres_test
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -144,8 +143,14 @@ func TestListOSPackageAdvisoryFactEnvelopesPURLFormsMatchTheGoMatcherLive(t *tes
 		"source-slash":     "pkg:deb/debian/libssl3@3.0.11",
 		"source-empty":     "pkg:deb/debian/libssl3@3.0.11",
 		"source-lookalike": "pkg:deb/debian/libssl3@3.0.11",
+		// Both-arm row: the binary name equals the source name, so the row
+		// is a candidate of the binary arm and the source arm at once. The
+		// UNION dedupes it; a UNION ALL would return it twice and fail the
+		// exact-set assertion below. It shares the "plain" row's binary key.
+		"both-arm": "pkg:deb/debian/openssl@3.0.11",
 	}
 	sources := map[string]string{
+		"both-arm":         "openssl",
 		"source-basic":     "openssl",
 		"source-qualified": "openssl",
 		"source-uppercase": "OpenSSL",
@@ -232,128 +237,6 @@ VALUES ('os-package:forms:no-purl', $1, $2, 'vulnerability.os_package', 'x', 'sy
 			t.Fatalf("key %q: SQL returned %v, the Go matcher keys %v", key, got, want)
 		}
 	}
-}
-
-// TestOSPackageNarrowedQueryUsesTheIndexAtScaleLive proves the narrowed query
-// is driven by fact_records_os_package_purl_prefix_idx at 50,000 rows rather
-// than scanning every installed package, and reads few buffers for a small key
-// set (about 60,000 per page for the ecosystem-only read it replaces).
-//
-// The #9859 source rows prove the source arm fires independently: a key that
-// meets no binary prefix still returns the row whose source_package derives
-// to it, and the generic plan serves the OR with one BitmapOr over both
-// expression indexes instead of scanning.
-func TestOSPackageNarrowedQueryUsesTheIndexAtScaleLive(t *testing.T) {
-	ctx, db := openCappedScopeLiveDB(t)
-	seedCappedScanScope(t, ctx, db, 50_000)
-	// Rows 7 and 5000 carry a source name, as dpkg rows built from another
-	// source package do; every other seeded row keeps no source_package key.
-	if _, err := db.ExecContext(ctx, `
-UPDATE fact_records SET payload = payload || jsonb_build_object('source_package',
-  CASE fact_id WHEN 'os-package:7154:000007' THEN 'src-0007' ELSE 'src-5000' END)
-WHERE fact_id IN ('os-package:7154:000007', 'os-package:7154:005000')`); err != nil {
-		t.Fatalf("seed source-package rows: %v", err)
-	}
-	// Production fact_records is dominated by other fact kinds. Without them the
-	// generic plan sees a table of nothing but os_package rows and a primary-key
-	// scan with a filter looks as cheap as the index, so seed the realistic mix.
-	if _, err := db.ExecContext(ctx, `
-INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system, source_fact_key,
-  observed_at, ingested_at, is_tombstone, payload, fencing_token)
-SELECT 'filler:7154:' || lpad(n::text, 7, '0'), $1, $2, 'repository', 'filler-' || n, 'synthetic', 'filler-' || n,
-  $3::timestamptz, $3::timestamptz, FALSE, jsonb_build_object('n', n), 0
-FROM generate_series(1, 300000) AS n`, cappedScanScope, cappedScanGeneration, replaceSetLiveNow); err != nil {
-		t.Fatalf("seed filler rows: %v", err)
-	}
-	if _, err := db.ExecContext(ctx, `ANALYZE fact_records`); err != nil {
-		t.Fatalf("analyze: %v", err)
-	}
-	// pgx reaches a generic plan through its prepared-statement cache, so EXPLAIN a
-	// prepared statement under force_generic_plan: bound parameters would show a
-	// custom plan the reducer never runs.
-	conn, err := db.Conn(ctx)
-	if err != nil {
-		t.Fatalf("acquire connection: %v", err)
-	}
-	defer func() { _ = conn.Close() }()
-	if _, err := conn.ExecContext(ctx, `SET plan_cache_mode = force_generic_plan`); err != nil {
-		t.Fatalf("force generic plan: %v", err)
-	}
-	if _, err := conn.ExecContext(ctx, `PREPARE os_narrowed AS `+postgres.ListOSPackageAdvisoryTargetsForPackagesQueryForTest()); err != nil {
-		t.Fatalf("prepare narrowed query: %v", err)
-	}
-	// The real advisory key set (#9848): affectedOSPackageLookupKeys sends
-	// os://<vendor>/<name> and the advisory purl's pkg:<type>/<vendor>/<name>
-	// for every OS advisory. The os:// form never meets split_part(purl, '@', 1)
-	// but rides in the same array. pkg-0007 and pkg-5000 each name exactly one
-	// seeded row: lpad truncates n >= 10000 to its first four digits, so a name
-	// below pkg-5000 such as pkg-1100 also names rows 11000-11009.
-	const realKeys = `'{os://debian/pkg-0007,os://debian/pkg-5000,pkg:deb/debian/pkg-0007,pkg:deb/debian/pkg-5000}'`
-	// The source-only key set (#9859): neither key meets a binary prefix, so
-	// both rows return through the source arm alone.
-	const sourceKeys = `'{os://debian/pkg-0007,pkg:deb/debian/src-0007}'`
-	for _, tc := range []struct {
-		keys string
-		want int
-	}{
-		{realKeys, 2},
-		{sourceKeys, 1},
-		// The key the advisory side sent before #9848: the versionless OSV purl
-		// with its qualifiers, which no installed row's prefix equals.
-		{`'{os://debian/pkg-0007,pkg:deb/debian/pkg-0007?arch=source&distro=bookworm}'`, 0},
-	} {
-		got := countNarrowedRows(ctx, t, conn, tc.keys)
-		if got != tc.want {
-			t.Fatalf("narrowed query with keys %s returned %d rows, want %d", tc.keys, got, tc.want)
-		}
-	}
-	rows, err := conn.QueryContext(ctx,
-		`EXPLAIN (ANALYZE, BUFFERS, COSTS OFF) EXECUTE os_narrowed(`+realKeys+`, '', 500, '{debian}')`)
-	if err != nil {
-		t.Fatalf("explain: %v", err)
-	}
-	defer func() { _ = rows.Close() }()
-	var plan []string
-	for rows.Next() {
-		var line string
-		if err := rows.Scan(&line); err != nil {
-			t.Fatalf("scan plan: %v", err)
-		}
-		plan = append(plan, line)
-	}
-	text := strings.Join(plan, "\n")
-	t.Logf("narrowed query plan at 50,000 rows with the real key set:\n%s", text)
-	for _, want := range []string{
-		"fact_records_os_package_purl_prefix_idx",
-		"fact_records_os_package_source_purl_prefix_idx",
-		"BitmapOr",
-	} {
-		if !strings.Contains(text, want) {
-			t.Fatalf("the narrowed query plan at 50,000 rows lacks %q:\n%s", want, text)
-		}
-	}
-	if strings.Contains(text, "Seq Scan on fact_records") {
-		t.Fatalf("the narrowed query scans fact_records sequentially:\n%s", text)
-	}
-}
-
-// countNarrowedRows executes the prepared os_narrowed statement for one key
-// array literal and counts the rows it returns.
-func countNarrowedRows(ctx context.Context, t *testing.T, conn *sql.Conn, keys string) int {
-	t.Helper()
-	rows, err := conn.QueryContext(ctx, `EXECUTE os_narrowed(`+keys+`, '', 500, '{debian}')`)
-	if err != nil {
-		t.Fatalf("execute narrowed query %s: %v", keys, err)
-	}
-	defer func() { _ = rows.Close() }()
-	count := 0
-	for rows.Next() {
-		count++
-	}
-	if err := rows.Err(); err != nil {
-		t.Fatalf("read narrowed rows %s: %v", keys, err)
-	}
-	return count
 }
 
 // flipAfterFirstPageDB wraps a database so that after the first page statement

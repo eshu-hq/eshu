@@ -258,10 +258,34 @@ func TestOSPackageNarrowedQueryShape(t *testing.T) {
 		"LIMIT $3",
 		"= ANY($4::text[])) AS active",
 		"generation.status",
+		// #9859: the candidates CTE is a UNION of two single-arm keyset
+		// sub-pages (binary arm, source arm). A bare OR across the two
+		// expression predicates makes the generic plan cost the
+		// primary-key scan as cheaper than either expression index, so
+		// the read filters every installed package per page.
+		"UNION",
+		osPackagePURLPrefixExpression("fact.payload"),
+		osPackageSourcePURLPrefixExpression("fact.payload"),
 	} {
 		if !strings.Contains(narrowed, want) {
 			t.Fatalf("narrowed query missing %q:\n%s", want, narrowed)
 		}
+	}
+	// UNION, never UNION ALL: a row whose binary name equals its source name
+	// is a candidate of both arms and must drain exactly once.
+	if strings.Contains(narrowed, "UNION ALL") {
+		t.Fatalf("narrowed query uses UNION ALL; a both-arm row would drain twice:\n%s", narrowed)
+	}
+	// Each arm pages on its own cursor: one fact_id bound per arm plus the
+	// shared outer page bound. A single cursor would let one arm's rows
+	// starve the other's.
+	if got := strings.Count(narrowed, "fact.fact_id > $2"); got != 2 {
+		t.Fatalf("narrowed query has %d per-arm cursors, want 2 (one binary arm, one source arm):\n%s", got, narrowed)
+	}
+	// No bare OR joining the arms: any OR in this query is the arm join the
+	// UNION replaced. The CASE rejection set is AND-only by construction.
+	if strings.Contains(narrowed, " OR ") {
+		t.Fatalf("narrowed query joins the arms with OR; each arm must be a single sargable predicate:\n%s", narrowed)
 	}
 	for _, banned := range []string{"ROW_NUMBER", "COUNT(*) OVER", "MOD("} {
 		if strings.Contains(narrowed, banned) {
