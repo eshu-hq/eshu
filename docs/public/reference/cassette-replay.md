@@ -132,9 +132,8 @@ implements record mode; the extracted k8s-live satellite replays cassettes
 (ported in `eshu-collector-kubernetes-live` v0.1.3) but does not capture
 them — recording stays out of the
 stdio claim plane (without a cluster there is nothing to capture, and one
-stdio result carries no artifact egress; see the satellite `README.md`
-cassette-replay section plus `collector/testdata/replay-*.json` and
-`config.example.yaml` for the activation form).
+stdio result carries no artifact egress; see the cassette-replay section of
+the satellite README and its config example for the activation form).
 
 ### Record-Mode Pseudonymization
 
