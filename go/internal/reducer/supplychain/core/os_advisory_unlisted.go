@@ -45,14 +45,12 @@ func osUnlistedFactOutcome(
 // is exact evidence, and it outranks whatever an untagged OSV fact's ranges or
 // fixes say: those are the union of every release's (#9929).
 //
-// The match is on the exact version string only. A vendor fact carries no
-// release or distro field and the join drops the purl qualifiers, so nothing
-// checks that the fact was published for the host's own release line; a fact
-// for another line whose list names the same version string would match too
-// (the same limit a vendor-only fact already had). Scoping vendor facts to the
-// host's line needs a data-model change tracked in the follow-up named in the
-// #9929 evidence note. An unreadable entry never counts as a match;
-// osVersionListBlocksKnownFixed keeps it from being dropped silently.
+// The match is on the exact version string only. A vendor fact reaches this
+// check with release evidence only when selectOSVendorFactLine verified that its
+// purl distro qualifier names the host's own line (#9945); a fact for another
+// line, or with no readable line, is marked unverified and never matches here. An
+// unreadable entry never counts as a match; osVersionListBlocksKnownFixed keeps
+// it from being dropped silently.
 func osReleaseEvidenceListNamesObserved(observed string, pkgs []supplychainmodel.AffectedPackage, compare versionCompareFunc) bool {
 	for _, pkg := range pkgs {
 		if !osAffectedFactCarriesReleaseEvidence(pkg) {

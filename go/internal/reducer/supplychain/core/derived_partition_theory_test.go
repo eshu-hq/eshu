@@ -69,10 +69,10 @@ func derivedPartitionAdvisory(id, scope, fixedVersion string) []facts.Envelope {
 	cve := vulnerabilityCVEFactWithProvenance(
 		"cve-"+id, "CVE-2026-9299", "debian", "DSA-2026-9299", 7.5, "", "HIGH", "2026-10-28T00:00:00Z",
 	)
-	affected := vulnerabilityAffectedPackageFactWithSource(
+	affected := withDistroLine(vulnerabilityAffectedPackageFactWithSource(
 		"affected-"+id, "CVE-2026-9299", "debian", "DSA-2026-9299",
 		"pkg:deb/debian/openssl", "deb", "openssl", "3.0.11-1~deb12u2", fixedVersion,
-	)
+	), "debian-12")
 	for _, envelope := range []*facts.Envelope{&cve, &affected} {
 		envelope.ScopeID = scope
 		envelope.GenerationID = "generation-" + id

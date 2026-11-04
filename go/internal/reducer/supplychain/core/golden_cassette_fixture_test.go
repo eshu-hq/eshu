@@ -186,6 +186,7 @@ func goldenCassetteDebianImageChainEnvelopes() []facts.Envelope {
 				"advisory_id":       "DSA-2026-00010",
 				"source":            "debian",
 				"package_id":        "pkg:deb/debian/openssl",
+				"purl":              "pkg:deb/debian/openssl?arch=amd64&distro=debian-12",
 				"ecosystem":         "deb",
 				"package_name":      "openssl",
 				"affected_versions": []any{"3.0.11-1~deb12u2"},

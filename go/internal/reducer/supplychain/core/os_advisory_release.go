@@ -46,7 +46,8 @@ func osHostReleaseLine(distro, distroVersion string) string {
 }
 
 // selectOSAdvisoryRelease returns pkgs with each release-tagged OSV OS fact
-// narrowed to the installed row's release line (#9806 PR-2b).
+// narrowed to the installed row's release line (#9806 PR-2b) and each
+// vendor-sourced fact checked against that line (#9945).
 //
 // An OSV OS fact merges every release's ranges into one fact (#9847), so its
 // ranges disagree about a version that one release fixed and another did not.
@@ -55,9 +56,15 @@ func osHostReleaseLine(distro, distroVersion string) string {
 // they name, drops the exact-version list (OSV builds it from every release's
 // ranges), and records ReleaseLine, which is release evidence for the matcher.
 // When no range names the host's line the copy keeps every range and is
-// marked ReleaseUnlisted. A fact with any untagged range, a vendor-sourced
-// fact, or a host whose release line is unknown is returned unchanged. The
-// input slice is never modified: the index shares it across installed rows.
+// marked ReleaseUnlisted. A fact with any untagged range, or a host whose
+// release line is unknown, is returned unchanged.
+//
+// A vendor-sourced fact (its source is the installed row's vendor advisory
+// source) is published per release, but carries its line only in its purl
+// distro qualifier. selectOSVendorFactLine compares that line with the host's
+// and reads the same for a binary-name and a source-package join, because both
+// run before this step. The input slice is never modified: the index shares it
+// across installed rows.
 func selectOSAdvisoryRelease(
 	pkgs []supplychainmodel.AffectedPackage,
 	installed supplychainmodel.OSPackage,
@@ -68,7 +75,9 @@ func selectOSAdvisoryRelease(
 		resolved bool
 	)
 	for at, pkg := range pkgs {
-		if !osAdvisoryFactSelectable(pkg) {
+		selectable := osAdvisoryFactSelectable(pkg)
+		vendor := !selectable && osAdvisoryFactIsHostVendorFact(pkg.Source, installed.VendorAdvisorySource)
+		if !selectable && !vendor {
 			continue
 		}
 		// Resolve the host line only when a fact can use it, so the untagged
@@ -77,10 +86,15 @@ func selectOSAdvisoryRelease(
 		if !resolved {
 			host, resolved = osHostReleaseLine(installed.Distro, installed.DistroVersion), true
 		}
-		if host == "" {
-			return pkgs
+		var selected supplychainmodel.AffectedPackage
+		switch {
+		case vendor:
+			selected = selectOSVendorFactLine(pkg, host)
+		case host == "":
+			continue
+		default:
+			selected = selectOSAdvisoryFactRelease(pkg, host)
 		}
-		selected := selectOSAdvisoryFactRelease(pkg, host)
 		if out == nil {
 			out = slices.Clone(pkgs)
 		}

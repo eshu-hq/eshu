@@ -90,7 +90,7 @@ func TestBuildSupplyChainImpactFindingsUsesVendorDPKGOSPackageEvidence(t *testin
 			"HIGH",
 			"2026-05-31T12:00:00Z",
 		),
-		vulnerabilityAffectedPackageFactWithSource(
+		withDistroLine(vulnerabilityAffectedPackageFactWithSource(
 			"debian-affected-dpkg",
 			"CVE-2026-2045",
 			"debian",
@@ -100,7 +100,7 @@ func TestBuildSupplyChainImpactFindingsUsesVendorDPKGOSPackageEvidence(t *testin
 			"openssl",
 			"3.0.11-1~deb12u2",
 			"3.0.11-1~deb12u3",
-		),
+		), "debian-12"),
 		osPackageFact("dpkg-os-openssl", "image://registry.example/debian-app@sha256:2045", map[string]any{
 			"distro":                 "debian",
 			"distro_version":         "12",
@@ -141,7 +141,7 @@ func TestBuildSupplyChainImpactFindingsUsesVendorAPKOSPackageEvidence(t *testing
 			"HIGH",
 			"2026-05-31T12:00:00Z",
 		),
-		vulnerabilityAffectedPackageFactWithSource(
+		withDistroLine(vulnerabilityAffectedPackageFactWithSource(
 			"alpine-affected-apk",
 			"CVE-2026-3045",
 			"alpine",
@@ -151,7 +151,7 @@ func TestBuildSupplyChainImpactFindingsUsesVendorAPKOSPackageEvidence(t *testing
 			"openssl",
 			"3.1.4-r5",
 			"3.1.4-r6",
-		),
+		), "alpine-3.19"),
 		osPackageFact("apk-os-openssl", "image://registry.example/alpine-app@sha256:3045", map[string]any{
 			"distro":                 "alpine",
 			"distro_version":         "3.19.1",

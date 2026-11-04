@@ -23,7 +23,7 @@ func TestBuildSupplyChainImpactFindingsRemediationSupportsVendorDPKGBranch(t *te
 			"HIGH",
 			"2026-06-01T12:00:00Z",
 		),
-		vulnerabilityAffectedPackageFactWithSource(
+		withDistroLine(vulnerabilityAffectedPackageFactWithSource(
 			"debian-remediation-affected",
 			"CVE-2026-119301",
 			"debian",
@@ -33,7 +33,7 @@ func TestBuildSupplyChainImpactFindingsRemediationSupportsVendorDPKGBranch(t *te
 			"openssl",
 			"3.0.11-1~deb12u2",
 			"3.0.11-1~deb12u3",
-		),
+		), "debian-12"),
 		osPackageFact("dpkg-remediation-openssl", "image://registry.example/debian-remediation@sha256:119301", map[string]any{
 			"distro":                 "debian",
 			"distro_version":         "12",
@@ -85,7 +85,7 @@ func TestBuildSupplyChainImpactFindingsRemediationSupportsVendorAPKBranch(t *tes
 			"HIGH",
 			"2026-06-01T12:00:00Z",
 		),
-		vulnerabilityAffectedPackageFactWithSource(
+		withDistroLine(vulnerabilityAffectedPackageFactWithSource(
 			"alpine-remediation-affected",
 			"CVE-2026-119302",
 			"alpine",
@@ -95,7 +95,7 @@ func TestBuildSupplyChainImpactFindingsRemediationSupportsVendorAPKBranch(t *tes
 			"openssl",
 			"3.1.4-r5",
 			"3.1.4-r6",
-		),
+		), "alpine-3.19"),
 		osPackageFact("apk-remediation-openssl", "image://registry.example/alpine-remediation@sha256:119302", map[string]any{
 			"distro":                 "alpine",
 			"distro_version":         "3.19.1",

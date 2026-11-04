@@ -16,6 +16,20 @@ import (
 // vendorLineCVE is the CVE every vendor-line scenario fact names.
 const vendorLineCVE = "CVE-2099-9945"
 
+// withDistroLine sets the purl distro qualifier of a vendor affected_package
+// fixture to line ("debian-12"), the release line the join checks (#9945). The
+// fixture keeps its package_id, so identity and the join keys do not change.
+func withDistroLine(envelope facts.Envelope, line string) facts.Envelope {
+	payload := make(map[string]any, len(envelope.Payload)+1)
+	for key, value := range envelope.Payload {
+		payload[key] = value
+	}
+	packageID, _ := payload["package_id"].(string)
+	payload["purl"] = packageID + "?distro=" + line
+	envelope.Payload = payload
+	return envelope
+}
+
 // vendorLineScenario is one OS family and join derivation for the vendor
 // release-line check (#9945). advisoryPURL has one %s for the distro
 // qualifier value; row builds the installed row for a host release.

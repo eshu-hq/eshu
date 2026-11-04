@@ -70,10 +70,10 @@ func evaluateOSPackageVersionMatch(
 		return affectedVersionDecision(rangeAffectedReason)
 	}
 	// A vendor fact's exact list that names the host settles it as affected.
-	// The match is on the version string and is trusted as published for the
-	// host's release; the join does not check the line (#9945). It outranks
-	// every verdict below, which are built from untagged OSV ranges that merge
-	// every release (#9929).
+	// The fact reaches here with release evidence only after the join checked
+	// its purl line against the host's (selectOSVendorFactLine, #9945). It
+	// outranks every verdict below, which are built from untagged OSV ranges
+	// that merge every release (#9929).
 	if osReleaseEvidenceListNamesObserved(observed, pkgs, compare) {
 		return affectedVersionDecision(affectedReason)
 	}
@@ -237,15 +237,23 @@ func osPackageRangesVerdict(
 }
 
 // osAffectedFactCarriesReleaseEvidence reports whether an affected OS fact's
-// ranges and exact-version list are assumed to describe the host's release
-// line. A vendor-sourced fact
-// (source debian, ubuntu, alpine) is taken as published per release (assumed:
-// the join does not check the line, #9945); an OSV OS fact is
-// the untagged union of every release's ranges (#9847 merges them), so it
-// carries none (#9848, ruling D). A tagged OSV fact narrowed to the host's
-// line (ReleaseLine set, #9806 PR-2b) does carry it.
+// ranges and exact-version list describe the host's release line.
+//
+// A vendor-sourced fact (source debian, ubuntu, alpine) is published per
+// release, but only after selectOSVendorFactLine has compared its purl distro
+// qualifier with the host's line (#9945): a matched fact has ReleaseLine set,
+// and one whose line is another release or unknown is VendorLineUnverified and
+// carries none. A tagged OSV fact narrowed to the host's line (ReleaseLine set,
+// #9806 PR-2b) carries it too. An OSV OS fact otherwise is the untagged union of
+// every release's ranges (#9847 merges them), so it carries none (#9848,
+// ruling D). A fact from any other non-OSV source (NVD, GLAD) is not a host
+// vendor fact, never passes through the line check, and keeps its
+// source-based rule.
 func osAffectedFactCarriesReleaseEvidence(pkg supplychainmodel.AffectedPackage) bool {
-	return pkg.ReleaseLine != "" || classifyAdvisorySource(pkg.Source, pkg.AdvisoryID) != "osv"
+	if pkg.ReleaseLine != "" {
+		return true
+	}
+	return !pkg.VendorLineUnverified && classifyAdvisorySource(pkg.Source, pkg.AdvisoryID) != "osv"
 }
 
 // osPackageRangeSignals reads one fact's ECOSYSTEM ranges: whether any range

@@ -73,7 +73,7 @@ func TestBuildSupplyChainImpactFindingsQuarantinesOSPackageMissingInstalledVersi
 			"HIGH",
 			"2026-05-31T12:00:00Z",
 		),
-		vulnerabilityAffectedPackageFactWithSource(
+		withDistroLine(vulnerabilityAffectedPackageFactWithSource(
 			"debian-affected-quarantine",
 			"CVE-2026-9001",
 			"debian",
@@ -83,7 +83,7 @@ func TestBuildSupplyChainImpactFindingsQuarantinesOSPackageMissingInstalledVersi
 			"openssl",
 			"3.0.11-1~deb12u2",
 			"3.0.11-1~deb12u3",
-		),
+		), "debian-12"),
 		osPackageFact("valid-os-package-quarantine", "image://registry.example/valid-app@sha256:cafef00d", map[string]any{
 			"distro":                 "debian",
 			"distro_version":         "12",

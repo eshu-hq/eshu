@@ -55,6 +55,13 @@ type AffectedPackage struct {
 	// ReleaseUnlisted marks a fact whose ranges all name their release lines
 	// and none names the host's line. The fact keeps every range.
 	ReleaseUnlisted bool
+	// VendorLineUnverified marks a vendor-sourced OS fact (source debian,
+	// ubuntu, alpine, ...) whose release line the join could not verify as the
+	// host's: its purl distro qualifier names another release or none the
+	// reducer can read, or the host's own line is unknown (#9945). Such a fact
+	// carries no release evidence, so it never decides a verdict as exact. A
+	// vendor fact verified for the host's line has ReleaseLine set instead.
+	VendorLineUnverified bool
 }
 
 // AffectedRange is one typed version-range event group inside an

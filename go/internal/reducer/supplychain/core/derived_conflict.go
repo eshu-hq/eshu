@@ -135,10 +135,13 @@ func authorizedFindingHostLine(finding SupplyChainImpactFinding, hostLineByRow m
 }
 
 // filterAuthorizedBranchesToHostLine keeps the branches that may describe the
-// finding's installed release line. Untagged and vendor-sourced facts always
-// qualify: the primary path passes them through un-narrowed, so they contend
-// exactly as before. A release-tagged fact qualifies only through a range
-// that names the host line; a tagged fact naming only other lines is dropped.
+// finding's installed release line. Untagged facts always qualify: the primary
+// path passes them through un-narrowed, so they contend exactly as before. A
+// vendor-sourced fact qualifies unless its purl names another release than the
+// host's (osVendorFactForOtherLine, #9945): its fix is that release's, so it
+// must not be picked as the host's; a vendor fact with no readable line contends
+// as before. A release-tagged fact qualifies only through a range that names the
+// host line; a tagged fact naming only other lines is dropped.
 //
 // An empty hostLine disables the filter: without the installed row no branch
 // can be proven foreign, so the existing containment behavior stands. When
@@ -154,7 +157,9 @@ func filterAuthorizedBranchesToHostLine(
 	var out []supplychainmodel.AffectedPackage
 	for _, branch := range branches {
 		if !osAdvisoryFactSelectable(branch) {
-			out = append(out, branch)
+			if !osVendorFactForOtherLine(branch, hostLine) {
+				out = append(out, branch)
+			}
 			continue
 		}
 		for _, affectedRange := range branch.AffectedRanges {
