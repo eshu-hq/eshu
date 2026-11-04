@@ -1,0 +1,24 @@
+docs/internal/evidence/9991-manifest-read-delta-union.md
+  s_7547c0f0af67d4::t_8359cc97f52440 115-120
+  s_7547c0f0af67d4::t_7c90c7f7d2dcce 56-59,87,91-100
+go/internal/storage/postgres/active_package_manifest_dependency_delta.go
+  s_7547c0f0af67d4::t_c3e3b2ed4f79b5 12,111-116,167-168,171,181,187,192,199,209,221,235,260,298,317-327,330-344,346
+go/internal/storage/postgres/active_package_manifest_dependency_delta_test.go
+  s_7547c0f0af67d4::t_78c4d71e720084 11-13,110-158
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ebcbee2756f0c085ff258c031b2139a9ffa6bfed",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
