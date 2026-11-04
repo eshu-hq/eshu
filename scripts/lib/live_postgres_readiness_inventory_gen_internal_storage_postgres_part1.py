@@ -186,6 +186,12 @@ TABLE = {
         "go/internal/storage/postgres/control_scanner_discovery_scale_live_test.go": (
             "TestScannerDiscoveryScaleShapeLive",
         ),
+        "go/internal/storage/postgres/control_scanner_targets_live_test.go": (
+            "TestScannerImageTargetAdmissionAndCompletionLive",
+            "TestScannerMigration241RefusesNonPublicSchemaLive",
+            "TestScannerProtectedApiIgnoresTempShadowLive",
+            "TestScannerImageTargetConcurrentCrossInstanceAdmissionLive",
+        ),
         "go/internal/storage/postgres/control_scanner_targets_tenant_live_test.go": (
             "TestScannerImageTargetHostedBoundaryAndGrantRevocationLive",
         ),

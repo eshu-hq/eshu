@@ -192,6 +192,56 @@ print(f"shard-complete: {len(enrolled)} enrolled files all present in PACKAGES")
 ' 2>&1)" || fail "${out}"
 [[ "${out}" == *"all present"* ]] || fail "shard-complete acknowledgement missing: ${out}"
 
+# unscanned-red (#10010): a marker in a file the generator will not scan (a
+# plain _test.go with no live_ build tag) is a silently unscheduled proof, so
+# the generator must refuse it by name. The clean tree stays green (checked
+# above), and removing the seed returns the scratch tree to green.
+unscanned_file="${seed_dir}/seeded_unscanned_probe_test.go"
+printf '%s\n' \
+  '// SPDX-License-Identifier: MIT' \
+  'package postgres_test' \
+  '' \
+  '//eshu:readiness live-postgres-readiness' \
+  '//eshu:readiness:reason #10010 seeded unscanned probe: proves a marker in an unscanned file fails the generator.' \
+  '//eshu:readiness:env ESHU_POSTGRES_DSN' \
+  'import "testing"' \
+  '' \
+  'func TestSeededUnscannedProbe(t *testing.T) { t.Skip("seed") }' >"${unscanned_file}"
+out="$(python3 "${generator}" --root "${scratch}" 2>&1)" && fail "unscanned marker passed the generator"
+[[ "${out}" == *"${unscanned_file##*/}"* && "${out}" == *"will not scan"* ]] ||
+  fail "unscanned marker not named: ${out}"
+out="$(scratch_check)" && fail "unscanned marker passed --check"
+[[ "${out}" == *"${unscanned_file##*/}"* ]] || fail "unscanned marker not named by --check: ${out}"
+rm "${unscanned_file}"
+# The other two arms of the check: a marker in a non-test .go file, and a
+# helper marker (//eshu:readiness-helper) in a non-test .go file. Neither is a
+# live test file, so each must also fail by name.
+unscanned_plain="${seed_dir}/seeded_unscanned_plain_probe.go"
+printf '%s\n' \
+  '// SPDX-License-Identifier: MIT' \
+  'package postgres' \
+  '' \
+  '//eshu:readiness live-postgres-readiness' \
+  '//eshu:readiness:reason #10010 seeded plain-file probe: a marker in a non-test Go file must fail the generator.' \
+  '//eshu:readiness:env ESHU_POSTGRES_DSN' >"${unscanned_plain}"
+out="$(python3 "${generator}" --root "${scratch}" 2>&1)" && fail "marker in a non-test .go file passed the generator"
+[[ "${out}" == *"${unscanned_plain##*/}"* && "${out}" == *"will not scan"* ]] ||
+  fail "non-test .go marker not named: ${out}"
+rm "${unscanned_plain}"
+unscanned_helper="${seed_dir}/seeded_unscanned_helper_probe.go"
+printf '%s\n' \
+  '// SPDX-License-Identifier: MIT' \
+  'package postgres' \
+  '' \
+  '//eshu:readiness-helper live-postgres-readiness' \
+  '//eshu:readiness-helper:reason #10010 seeded helper probe: a helper marker in a non-test Go file must fail the generator.' >"${unscanned_helper}"
+out="$(python3 "${generator}" --root "${scratch}" 2>&1)" && fail "helper marker in a non-test .go file passed the generator"
+[[ "${out}" == *"${unscanned_helper##*/}"* && "${out}" == *"will not scan"* ]] ||
+  fail "non-test .go helper marker not named: ${out}"
+rm "${unscanned_helper}"
+[[ "$(scratch_check)" == *"registration current"* ]] ||
+  fail "tree not green after unscanned seed removal"
+
 # unregistered-red: a live test with no marker and no ledger row fails the
 # chained ledger validator as unclassified (never silently unenrolled).
 unreg_file="${seed_dir}/seeded_unregistered_probe_live_test.go"
@@ -239,4 +289,4 @@ out="$(python3 "${generator}" --root "${scratch}" 2>&1)" && fail "quoted reason 
 [[ "${out}" == *"${quote_file##*/}"* ]] || fail "quoted reason not named: ${out}"
 rm "${quote_file}"
 
-printf 'test-generate-live-postgres-readiness: GREEN (exact rows, four capped fragments, idempotent, stable shards, missing/duplicate/orphan/boundary/oversize/stale/unregistered/quote RED)\n'
+printf 'test-generate-live-postgres-readiness: GREEN (exact rows, four capped fragments, idempotent, stable shards, missing/duplicate/orphan/boundary/oversize/stale/unregistered/quote/unscanned RED)\n'
