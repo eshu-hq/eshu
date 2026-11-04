@@ -52,7 +52,7 @@ See `doc.go` for the full godoc contract.
 
 | Variable | Required when enabled | Role |
 | --- | --- | --- |
-| `ESHU_DOC_IMPORT_ENABLED` | — | `true` opts in; anything else exits 0 with zero commits. |
+| `ESHU_DOC_IMPORT_ENABLED` | — | Case-insensitive `true` opts in; anything else exits 0 with zero commits. |
 | `ESHU_DOC_IMPORT_TIER` | yes | Must be exactly `qa`: QA-tier-only engine injection (QA tier, #8879). |
 | `ESHU_DOC_IMPORT_ARTIFACT_DIR` | yes | Absolute directory of reviewed image files. |
 | `ESHU_DOC_IMPORT_TESSERACT_BINARY_PATH` | yes | Absolute tesseract path; never resolved via PATH. |

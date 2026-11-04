@@ -4,8 +4,14 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/document/media/whispercpp"
 )
 
 func testGetenv(pairs map[string]string) func(string) string {
@@ -151,6 +157,50 @@ func TestLoadMediaImportConfigRejectsMalformedDigest(t *testing.T) {
 	pairs := enabledPairs(map[string]string{envBinarySHA256: "not-hex"})
 	if _, err := loadMediaImportConfig(testGetenv(pairs)); err == nil {
 		t.Fatalf("malformed digest: got nil error, want a failure")
+	}
+}
+
+// TestLoadMediaImportConfigNormalizesDigestPinsForEngine proves the
+// documented contract: a sha256:-prefixed or uppercase pin accepted by
+// config validation reaches the engine verifier in normalized
+// 64-lowercase-hex form. whispercpp.New is the verifier here: it requires
+// ^[0-9a-f]{64}$ before it even opens the pinned files, so the config must
+// hand it the normalized digest, not the raw operator string.
+func TestLoadMediaImportConfigNormalizesDigestPinsForEngine(t *testing.T) {
+	t.Parallel()
+
+	binBytes := []byte("fake-whisper-cli-fixture")
+	modelBytes := []byte("fake-ggml-model-fixture")
+	binPath := filepath.Join(t.TempDir(), "whisper-cli")
+	modelPath := filepath.Join(t.TempDir(), "ggml-base.bin")
+	if err := os.WriteFile(binPath, binBytes, 0o600); err != nil {
+		t.Fatalf("write binary fixture: %v", err)
+	}
+	if err := os.WriteFile(modelPath, modelBytes, 0o600); err != nil {
+		t.Fatalf("write model fixture: %v", err)
+	}
+	binSum := sha256.Sum256(binBytes)
+	modelSum := sha256.Sum256(modelBytes)
+	wantBin := hex.EncodeToString(binSum[:])
+	wantModel := hex.EncodeToString(modelSum[:])
+	pairs := enabledPairs(map[string]string{
+		envBinaryPath:   binPath,
+		envBinarySHA256: "sha256:" + strings.ToUpper(wantBin),
+		envModelPath:    modelPath,
+		envModelSHA256:  strings.ToUpper(wantModel),
+	})
+	cfg, err := loadMediaImportConfig(testGetenv(pairs))
+	if err != nil {
+		t.Fatalf("loadMediaImportConfig with prefixed/uppercase pins: %v", err)
+	}
+	if cfg.Whisper.BinarySHA256 != wantBin {
+		t.Fatalf("BinarySHA256 = %q, want normalized %q", cfg.Whisper.BinarySHA256, wantBin)
+	}
+	if cfg.Whisper.ModelSHA256 != wantModel {
+		t.Fatalf("ModelSHA256 = %q, want normalized %q", cfg.Whisper.ModelSHA256, wantModel)
+	}
+	if _, err := whispercpp.New(cfg.Whisper); err != nil {
+		t.Fatalf("whispercpp.New with config-normalized pins: %v", err)
 	}
 }
 

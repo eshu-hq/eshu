@@ -143,6 +143,37 @@ func TestLoadImportConfigEnabledRequiresEnginePins(t *testing.T) {
 	}
 }
 
+// TestLoadImportConfigNormalizesDigestPins proves the documented contract:
+// a sha256:-prefixed or uppercase pin accepted by config validation is
+// handed downstream in normalized 64-lowercase-hex form, the only form the
+// engine verifiers accept. Config-accepted-then-engine-rejected is a broken
+// operator contract, so normalization happens at load, not at the engine.
+func TestLoadImportConfigNormalizesDigestPins(t *testing.T) {
+	t.Parallel()
+
+	wantBin := strings.Repeat("a", 64)
+	wantModel := strings.Repeat("c", 64)
+	wantLib := strings.Repeat("b", 64)
+	pairs := enabledPairs(map[string]string{
+		envBinarySHA256: "sha256:" + strings.ToUpper(wantBin),
+		envLibraries:    "/usr/lib/libtesseract.so=sha256:" + strings.ToUpper(wantLib),
+		envModelSHA256:  strings.ToUpper(wantModel),
+	})
+	cfg, err := loadImportConfig(testGetenv(pairs))
+	if err != nil {
+		t.Fatalf("loadImportConfig with prefixed/uppercase pins: %v", err)
+	}
+	if cfg.Tesseract.BinarySHA256 != wantBin {
+		t.Fatalf("BinarySHA256 = %q, want normalized %q", cfg.Tesseract.BinarySHA256, wantBin)
+	}
+	if cfg.Tesseract.ModelSHA256 != wantModel {
+		t.Fatalf("ModelSHA256 = %q, want normalized %q", cfg.Tesseract.ModelSHA256, wantModel)
+	}
+	if len(cfg.Tesseract.Libraries) != 1 || cfg.Tesseract.Libraries[0].SHA256 != wantLib {
+		t.Fatalf("Libraries pins = %+v, want normalized %q", cfg.Tesseract.Libraries, wantLib)
+	}
+}
+
 // TestLoadImportConfigRejectsMalformedDigest proves a non-hex digest is
 // rejected at startup instead of reaching the engine verifier.
 func TestLoadImportConfigRejectsMalformedDigest(t *testing.T) {
