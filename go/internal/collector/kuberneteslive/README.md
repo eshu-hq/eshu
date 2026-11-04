@@ -138,13 +138,14 @@ repository's "serialization is not a fix" rule.
 
 ## Performance and observability evidence
 
-No-Regression Evidence: this package is a new opt-in collector binary that is not
-wired into any default Compose or Helm profile, and it touches no reducer, graph
-writer, query handler, hot-path Cypher, or schema DDL. There is no existing path
-to regress. The new path is bounded by design: read-only Kubernetes list calls
-with page size 200 and continue tokens, one generation per cluster per poll, cost
-proportional to listed object count. Focused tests pass with `-count=1`:
-`go/internal/collector/kuberneteslive/...`, `go/cmd/collector-kubernetes-live`,
+No-Regression Evidence: this package is the read-only collection library behind
+the extracted satellite; it is not wired into any default Compose or Helm
+profile, and it touches no reducer, graph writer, query handler, hot-path
+Cypher, or schema DDL. There is no existing path to regress. The path is
+bounded by design: read-only Kubernetes list calls with page size 200 and
+continue tokens, one generation per cluster per poll, cost proportional to
+listed object count. Focused tests pass with `-count=1`:
+`go/internal/collector/kuberneteslive/...`,
 `go/internal/collector/secretsiam`, `go/internal/facts`, and
 `go/internal/telemetry`.
 
@@ -164,7 +165,7 @@ size 200 and continue tokens; one generation per cluster per poll; cost
 proportional to listed object count. No reducer, graph write, hot-path Cypher,
 or schema DDL is touched, so there is no existing collector path to regress.
 Focused tests pass with `-count=1` for
-`go/internal/collector/kuberneteslive/...`, `go/cmd/collector-kubernetes-live`,
+`go/internal/collector/kuberneteslive/...`,
 `go/internal/collector/secretsiam`, `go/internal/facts`, and
 `go/internal/telemetry`.
 
@@ -177,8 +178,11 @@ Collector Observability Evidence: `eshu_dp_kubernetes_api_calls_total{operation,
 completion logs. Fake-client tests exercise the resources-listed, facts-emitted,
 warning, and partial paths.
 
-Collector Deployment Evidence: this foundation ships the binary and its build
-registration in `scripts/install-local-binaries.sh`. The Helm chart (in the
+Collector Deployment Evidence: the in-tree collector binary
+(`go/cmd/collector-kubernetes-live`) and its build registration in
+`scripts/install-local-binaries.sh` were deleted with the #8859 extraction;
+collection runs from the `eshu-hq/eshu-collector-kubernetes-live` satellite.
+The Helm chart (in the
 eshu-deploy checkout, `$ESHU_DEPLOY_CHECKOUT`) now wires the
 collector — `helm/eshu/templates/deployment-kubernetes-live-collector.yaml`,
 `service-kubernetes-live-collector-metrics.yaml`,

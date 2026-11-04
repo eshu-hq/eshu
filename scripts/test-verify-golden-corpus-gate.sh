@@ -460,10 +460,10 @@ if rg --quiet --fixed-strings -- 'drain-advisory-domains="code_calls"' "${script
 	fail "code_calls must no longer be quarantined as an advisory drain domain (#3865 fixed)"
 fi
 
-# Wires the three remaining B-10 cassette collectors; aws-cloud, terraform-state,
-# vault-live, azure-cloud, and gcp-cloud ride the pagerduty replay aliases.
-for collector in collector-kubernetes-live \
-	collector-oci-registry collector-package-registry; do
+# Wires the two remaining B-10 cassette collectors; aws-cloud, terraform-state,
+# vault-live, azure-cloud, and gcp-cloud ride the pagerduty replay aliases;
+# kubernetes-live (#8859) has no replay alias until the satellite proves one.
+for collector in collector-oci-registry collector-package-registry; do
 	require "collector ${collector}" "${collector}"
 done
 require "prometheus/mimir cassette collector" \

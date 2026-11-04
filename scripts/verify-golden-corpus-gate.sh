@@ -124,7 +124,6 @@ source "${repo_root}/scripts/lib/golden-corpus-fixtures.sh"
 # a count here: the settle poll waits for the pairs these cassettes launch, and a
 # hand-maintained number drifted to half the real value before it was noticed.
 collector_specs=(
-	"collector-kubernetes-live:kuberneteslive"
 	"collector-oci-registry:ociregistry"
 	"collector-cicd-run:cicdrun"
 	"collector-package-registry:packageregistry"
