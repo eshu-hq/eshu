@@ -183,14 +183,15 @@ var routerFieldsNotWiredByNewRouter = map[string]string{
 	// constructor-level test does not (and should not) flip on, or wired
 	// by wireAPI after this constructor returns. Verified against
 	// go/cmd/api/semantic_search_vector_wiring.go and go/cmd/api/wiring.go.
-	"Code.HybridRanker":          "config-gated: newCodeHybridRanker returns nil unless semantic search embedding is enabled (semantic_search_vector_wiring.go); nil is the documented default, falling back to lexical order",
-	"Content.HybridRanker":       "config-gated: newContentHybridRanker returns nil unless semantic search embedding is enabled (semantic_search_vector_wiring.go); nil is the documented default, falling back to lexical order",
-	"Impact.CodeSurface":         "injection seam: nil is the documented default, falling back to impact.DefaultCodeSurface (see codeSurface in go/internal/query/impact/handler.go); production always uses the package default",
-	"Impact.TraceContext":        "injection seam: nil is the documented default, falling back to impact.DefaultTraceContext (see traceContext in go/internal/query/impact/handler.go); production always uses the package default",
-	"Impact.PathProbe":           "injection seam: nil is the documented default, falling back to impact.DefaultPathProbe (see pathProbe in go/internal/query/impact/handler.go); production always uses the package default",
-	"SemanticSearch.LocalHybrid": "config-gated: newSemanticSearchHybrid returns nil unless semantic search embedding is enabled (semantic_search_vector_wiring.go)",
-	"LocalIdentity.SignInPolicy": "wired later by wireAPI (router.LocalIdentity.SignInPolicy = router.SignInPolicyReads.Store, built after this constructor returns); LocalIdentityHandler documents nil SignInPolicy as fail-open",
-	"TagHistory.Cursors":         "wired later by wireAPI once providerSecretKeyring exists (router.TagHistory.Cursors = providerSecretKeyring, #6564); nil is the documented no-DEK deployment, where grant-filtered paging fails closed and unscoped paging is unaffected",
+	"Code.HybridRanker":                  "config-gated: newCodeHybridRanker returns nil unless semantic search embedding is enabled (semantic_search_vector_wiring.go); nil is the documented default, falling back to lexical order",
+	"Content.HybridRanker":               "config-gated: newContentHybridRanker returns nil unless semantic search embedding is enabled (semantic_search_vector_wiring.go); nil is the documented default, falling back to lexical order",
+	"Impact.CodeSurface":                 "injection seam: nil is the documented default, falling back to impact.DefaultCodeSurface (see codeSurface in go/internal/query/impact/handler.go); production always uses the package default",
+	"Impact.TraceContext":                "injection seam: nil is the documented default, falling back to impact.DefaultTraceContext (see traceContext in go/internal/query/impact/handler.go); production always uses the package default",
+	"Impact.PathProbe":                   "injection seam: nil is the documented default, falling back to impact.DefaultPathProbe (see pathProbe in go/internal/query/impact/handler.go); production always uses the package default",
+	"SupplyChain.ImpactGroupedInventory": "no production store yet (#9873): the Postgres GroupedInventoryStore lands with the aggregate SQL step and wires here then, deleting this entry; until it does, group_by=service_id|workload_id|environment answers the documented 503 backend_unavailable and never falls back to ImpactAggregates",
+	"SemanticSearch.LocalHybrid":         "config-gated: newSemanticSearchHybrid returns nil unless semantic search embedding is enabled (semantic_search_vector_wiring.go)",
+	"LocalIdentity.SignInPolicy":         "wired later by wireAPI (router.LocalIdentity.SignInPolicy = router.SignInPolicyReads.Store, built after this constructor returns); LocalIdentityHandler documents nil SignInPolicy as fail-open",
+	"TagHistory.Cursors":                 "wired later by wireAPI once providerSecretKeyring exists (router.TagHistory.Cursors = providerSecretKeyring, #6564); nil is the documented no-DEK deployment, where grant-filtered paging fails closed and unscoped paging is unaffected",
 }
 
 // assertRouterFieldsWired fails the test for:
