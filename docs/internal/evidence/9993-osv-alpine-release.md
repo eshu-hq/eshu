@@ -14,8 +14,9 @@ bare name returned no advisories and no Alpine package ever got a finding.
   releases of one package at one version are two scopes, and neither supersedes
   the other.
 - The collector half ships in the satellite repo
-  `eshu-collector-vulnerability-intelligence` (the satellite pull request for
-  this change in eshu-collector-vulnerability-intelligence), not in this tree. The satellite rebuilds its queries from the scope id alone,
+  `eshu-collector-vulnerability-intelligence` (pull request
+  eshu-hq/eshu-collector-vulnerability-intelligence#52, merged, and its README
+  wording follow-up #53 in the same repo), not in this tree. The satellite rebuilds its queries from the scope id alone,
   so it reads the `release` parameter (once, `alpine` only, `vMAJOR.MINOR` only;
   anything else is refused) and sends `Alpine:v3.18`. The target's own ecosystem
   stays `alpine`. The in-tree collector (`go/internal/collector/vulnerabilityintelligence`)
