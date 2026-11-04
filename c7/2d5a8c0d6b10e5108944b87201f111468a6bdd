@@ -1,0 +1,44 @@
+go/internal/storage/postgres/delta_overlay_test.go
+  s_7547c0f0af67d4::t_f78693a9699d1c 1-153
+go/internal/storage/postgres/delta_overlay.go
+  s_7547c0f0af67d4::t_db41bc9efe56d6 13-313,315
+  s_7547c0f0af67d4::t_7a3d61b6b08022 314,319,324-337,341-348,350-352,356-361,364,368,372,376,379-382,386
+go/internal/storage/postgres/delta_overlay_query_test.go
+  s_7547c0f0af67d4::t_8c839f20c8b3a9 1-172
+go/internal/storage/postgres/delta_overlay_query.go
+  s_7547c0f0af67d4::t_c47dbce09d8f98 1-152
+docs/internal/evidence/9991-manifest-read-delta-union.md
+  s_7547c0f0af67d4::t_52c25b32bf797f 13-16,19,24,34,179-193
+docs/public/observability/telemetry-coverage-reducer-domains.md
+  s_7547c0f0af67d4::t_1c4a99b6e57c1c 88
+docs/public/operate/graph-delta-union.md
+  s_7547c0f0af67d4::t_31ac801e9e7357 111-112
+go/internal/storage/postgres/active_package_manifest_dependency_delta_bench_test.go
+  s_7547c0f0af67d4::t_13f3c0aac8de74 117-118,120-143,162,165,167-168,187,207,259,273,279
+go/internal/storage/postgres/active_package_manifest_dependency_delta_test.go
+  s_7547c0f0af67d4::t_d8144f4ba79f25 35,40-43,57,101,150,156,190,231,236,238
+go/internal/storage/postgres/facts_active_package_manifest_dependency.go
+  s_7547c0f0af67d4::t_3117c223e32ff3 66,125,136-138,141-143,149,151,155,158,162
+go/internal/storage/postgres/gotchas-and-invariants.md
+  s_7547c0f0af67d4::t_15591c7044cc41 144-149,159-171,416-417
+go/internal/storage/postgres/manifest_dependency_read_plan.go
+  s_7547c0f0af67d4::t_5bfb5b09fa0c4c 85-106
+go/internal/storage/postgres/manifest_dependency_read_plan_test.go
+  s_7547c0f0af67d4::t_77c39460bfd943 104,127
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c72d5a8c0d6b10e5108944b87201f111468a6bdd",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

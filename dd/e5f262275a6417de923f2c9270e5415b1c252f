@@ -1,0 +1,21 @@
+docs/internal/evidence/10003-delta-overlay-helper.md
+  s_7547c0f0af67d4::t_a625ff583ebce9 157-173
+go/internal/storage/postgres/delta_overlay_query_test.go
+  s_7547c0f0af67d4::t_73f631eb83860c 66-69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dde5f262275a6417de923f2c9270e5415b1c252f",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

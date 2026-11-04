@@ -1,0 +1,21 @@
+docs/internal/evidence/10003-delta-overlay-helper.md
+  s_7547c0f0af67d4::t_b821061c5c709e 65,98,134,210-213
+docs/internal/evidence/9991-manifest-read-delta-union.md
+  s_7547c0f0af67d4::t_ede21431ab93e7 31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b93c9567700e742bd28826eb1e94488dbf46d383",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
