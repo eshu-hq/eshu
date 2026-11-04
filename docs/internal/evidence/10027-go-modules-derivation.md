@@ -102,6 +102,13 @@ This run made 603,551, which likely accounts for most of the difference, probabl
 because the visibility map was not yet set after seeding. That cause is inferred, not
 tested. Compare before and after within this run only.
 
+Proof at `f1012402d8` (orchestrator-run, disposable Postgres 16): the live suite exits
+0 with 6 live tests and 1 unit test passing. Four mutations of `has_go_evidence` were
+caught: warnings counted as evidence, either evidence kind dropped, and the
+evidence-only count including live repositories. Before the final rebases, with the
+database up, these were also caught: either branch of the `OR` removed, evidence read
+from any generation, tombstones counted as evidence, and the scope literal drifting.
+
 ## Cadence regression caught before review
 
 An activation has no top-level `scan_interval`, so `Service.scanInterval` returns

@@ -50,6 +50,10 @@ None of its own. The coordinator wraps the queryer so the read reports on
   generation are not scanned: all 72 fact probes together cost 310 buffers. Compare
   within this run only: the 68 ms above is a different run, whose `content_files`
   scan made no heap fetches, where this one made 603,551.
+- Those rules are held by the live suite in `store_live_test.go` (6 live tests) and
+  by mutations of `has_go_evidence`: each branch of the `OR`, each evidence kind,
+  warnings counted as evidence, any-generation reads, and tombstones. Evidence:
+  `docs/internal/evidence/10027-go-modules-derivation.md`.
 - A repository with Go evidence and an unusable remote is returned with
   `HasGoEvidence` set, and the planner skips it, so that evidence stays active. See
   eshu-hq/eshu#10055.
