@@ -1,5 +1,11 @@
 import type { useReachableFindingPage } from "./useReachableFindingPage";
 
+const STATUS_LABEL = {
+  affected_exact: "Exact",
+  affected_derived: "Derived",
+  possibly_affected: "Possibly affected",
+} as const;
+
 type Paging = ReturnType<typeof useReachableFindingPage>;
 
 export function ReachablePageControls({
@@ -28,10 +34,18 @@ export function ReachablePageControls({
         >
           Derived impact
         </button>
+        {paging.filter ? (
+          <button
+            type="button"
+            className={paging.status === "possibly_affected" ? "active" : ""}
+            onClick={() => paging.selectStatus("possibly_affected")}
+          >
+            Possibly affected
+          </button>
+        ) : null}
       </div>
       <p className="t-mut" aria-live="polite">
-        {paging.status === "affected_exact" ? "Exact" : "Derived"} findings, page {paging.index + 1}
-        : {rowsShown} shown
+        {STATUS_LABEL[paging.status]} findings, page {paging.index + 1}: {rowsShown} shown
         {paging.page?.truncated ? "; more pages available" : ""}. Counts and charts below cover this
         page only.
       </p>

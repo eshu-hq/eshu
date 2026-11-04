@@ -6,6 +6,17 @@ import type { SectionContext } from "./eshuConsoleSections";
 
 export type VulnerabilityStatus = "affected_exact" | "affected_derived";
 
+// ImpactListStatus adds possibly_affected, which the console only reads on
+// demand (it is not part of the preloaded snapshot).
+export type ImpactListStatus = VulnerabilityStatus | "possibly_affected";
+
+// ImpactListFilter narrows the findings read to one runtime group, the same
+// service_id / workload_id / environment filters the findings route takes.
+export interface ImpactListFilter {
+  readonly key: "service_id" | "workload_id" | "environment";
+  readonly value: string;
+}
+
 export interface VulnerabilityPage {
   readonly rows: readonly VulnRow[];
   readonly count: number;
@@ -220,11 +231,13 @@ function mergeFindingRows(rows: readonly VulnRow[]): readonly VulnRow[] {
 export async function loadVulnerabilityStatusPage(
   client: EshuApiClient,
   repoNames: ReadonlyMap<string, string>,
-  status: VulnerabilityStatus,
+  status: ImpactListStatus,
   cursor: string | null = null,
   options: EshuApiRequestOptions = {},
+  filter: ImpactListFilter | null = null,
 ): Promise<VulnerabilityPage> {
   const query = new URLSearchParams({ limit: "100", impact_status: status });
+  if (filter) query.set(filter.key, filter.value);
   if (cursor) query.set("after_finding_id", cursor);
   const env = await client.get<ImpactFindings>(
     `/api/v0/supply-chain/impact/findings?${query.toString()}`,
