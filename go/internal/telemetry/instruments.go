@@ -685,56 +685,66 @@ type Instruments struct {
 	VulnerabilityIntelligenceObservations     metric.Int64Counter
 	VulnerabilityIntelligenceFactsEmitted     metric.Int64Counter
 	VulnerabilityIntelligenceRateLimited      metric.Int64Counter
-	SecurityAlertProviderRequests             metric.Int64Counter
-	SecurityAlertFactsEmitted                 metric.Int64Counter
-	SecurityAlertRateLimited                  metric.Int64Counter
-	CICDRunProviderRequests                   metric.Int64Counter
-	CICDRunWebhookHandoffs                    metric.Int64Counter
-	CICDRunWebhookReaps                       metric.Int64Counter
-	CICDRunPollFallback                       metric.Int64Counter
-	CICDRunFactsEmitted                       metric.Int64Counter
-	CICDRunRateLimited                        metric.Int64Counter
-	CICDRunPartialGenerations                 metric.Int64Counter
-	PagerDutyProviderRequests                 metric.Int64Counter
-	PagerDutyFactsEmitted                     metric.Int64Counter
-	PagerDutyRateLimited                      metric.Int64Counter
-	PagerDutyConfigResourcesObserved          metric.Int64Counter
-	PagerDutyConfigDriftCandidates            metric.Int64Counter
-	PagerDutyConfigPartialFailures            metric.Int64Counter
-	PagerDutyConfigRedactions                 metric.Int64Counter
-	JiraProviderRequests                      metric.Int64Counter
-	JiraFactsEmitted                          metric.Int64Counter
-	JiraRateLimited                           metric.Int64Counter
-	GrafanaProviderRequests                   metric.Int64Counter
-	GrafanaFactsEmitted                       metric.Int64Counter
-	GrafanaRateLimited                        metric.Int64Counter
-	GrafanaRetries                            metric.Int64Counter
-	GrafanaRedactions                         metric.Int64Counter
-	PrometheusMimirProviderRequests           metric.Int64Counter
-	PrometheusMimirFactsEmitted               metric.Int64Counter
-	PrometheusMimirRateLimited                metric.Int64Counter
-	PrometheusMimirRetries                    metric.Int64Counter
-	PrometheusMimirRedactions                 metric.Int64Counter
-	PrometheusMimirStale                      metric.Int64Counter
-	LokiProviderRequests                      metric.Int64Counter
-	LokiFactsEmitted                          metric.Int64Counter
-	LokiRateLimited                           metric.Int64Counter
-	LokiRetries                               metric.Int64Counter
-	LokiRedactions                            metric.Int64Counter
-	LokiHighCardinalityRejected               metric.Int64Counter
-	LokiStale                                 metric.Int64Counter
-	TempoProviderRequests                     metric.Int64Counter
-	TempoFactsEmitted                         metric.Int64Counter
-	TempoRateLimited                          metric.Int64Counter
-	TempoRetries                              metric.Int64Counter
-	TempoRedactions                           metric.Int64Counter
-	TempoHighCardinalityRejected              metric.Int64Counter
-	TempoStale                                metric.Int64Counter
-	ScannerWorkerClaims                       metric.Int64Counter
-	ScannerWorkerRetries                      metric.Int64Counter
-	ScannerWorkerDeadLetters                  metric.Int64Counter
-	ScannerWorkerFactsEmitted                 metric.Int64Counter
-	PackageSourceCorrelations                 metric.Int64Counter
+	// NVDCursorLagSeconds gauges the NVD rolling-window lag in seconds per
+	// source (stored head minus cursor, both server-stamped; #9877). Labels
+	// stay source-only.
+	NVDCursorLagSeconds metric.Float64ObservableGauge
+	// NVDCursorLags is the process-local tracker feeding NVDCursorLagSeconds.
+	NVDCursorLags *NVDCursorLagTracker
+	// NVDTimeAnomalies counts NVD unreliable-time observations per source
+	// (#9877): unknown head, skew past the 5-minute budget, or record
+	// timestamps past head plus budget. Labels stay source-only.
+	NVDTimeAnomalies                 metric.Int64Counter
+	SecurityAlertProviderRequests    metric.Int64Counter
+	SecurityAlertFactsEmitted        metric.Int64Counter
+	SecurityAlertRateLimited         metric.Int64Counter
+	CICDRunProviderRequests          metric.Int64Counter
+	CICDRunWebhookHandoffs           metric.Int64Counter
+	CICDRunWebhookReaps              metric.Int64Counter
+	CICDRunPollFallback              metric.Int64Counter
+	CICDRunFactsEmitted              metric.Int64Counter
+	CICDRunRateLimited               metric.Int64Counter
+	CICDRunPartialGenerations        metric.Int64Counter
+	PagerDutyProviderRequests        metric.Int64Counter
+	PagerDutyFactsEmitted            metric.Int64Counter
+	PagerDutyRateLimited             metric.Int64Counter
+	PagerDutyConfigResourcesObserved metric.Int64Counter
+	PagerDutyConfigDriftCandidates   metric.Int64Counter
+	PagerDutyConfigPartialFailures   metric.Int64Counter
+	PagerDutyConfigRedactions        metric.Int64Counter
+	JiraProviderRequests             metric.Int64Counter
+	JiraFactsEmitted                 metric.Int64Counter
+	JiraRateLimited                  metric.Int64Counter
+	GrafanaProviderRequests          metric.Int64Counter
+	GrafanaFactsEmitted              metric.Int64Counter
+	GrafanaRateLimited               metric.Int64Counter
+	GrafanaRetries                   metric.Int64Counter
+	GrafanaRedactions                metric.Int64Counter
+	PrometheusMimirProviderRequests  metric.Int64Counter
+	PrometheusMimirFactsEmitted      metric.Int64Counter
+	PrometheusMimirRateLimited       metric.Int64Counter
+	PrometheusMimirRetries           metric.Int64Counter
+	PrometheusMimirRedactions        metric.Int64Counter
+	PrometheusMimirStale             metric.Int64Counter
+	LokiProviderRequests             metric.Int64Counter
+	LokiFactsEmitted                 metric.Int64Counter
+	LokiRateLimited                  metric.Int64Counter
+	LokiRetries                      metric.Int64Counter
+	LokiRedactions                   metric.Int64Counter
+	LokiHighCardinalityRejected      metric.Int64Counter
+	LokiStale                        metric.Int64Counter
+	TempoProviderRequests            metric.Int64Counter
+	TempoFactsEmitted                metric.Int64Counter
+	TempoRateLimited                 metric.Int64Counter
+	TempoRetries                     metric.Int64Counter
+	TempoRedactions                  metric.Int64Counter
+	TempoHighCardinalityRejected     metric.Int64Counter
+	TempoStale                       metric.Int64Counter
+	ScannerWorkerClaims              metric.Int64Counter
+	ScannerWorkerRetries             metric.Int64Counter
+	ScannerWorkerDeadLetters         metric.Int64Counter
+	ScannerWorkerFactsEmitted        metric.Int64Counter
+	PackageSourceCorrelations        metric.Int64Counter
 	// PackageConsumptionRepoEdges counts repo-to-repo DEPENDS_ON edge intents
 	// derived from package consumption-to-owner correlation joins, labeled by
 	// reducer domain and outcome (projected, skipped reason). It lets an
@@ -6441,6 +6451,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register IngestionSuccessorGuardDecisions counter: %w", err)
 	}
 	if err := registerSuccessorHeldStaleScopes(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerNVDCursorLag(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerSupplyChainImpactHeadroom(meter, inst); err != nil {
