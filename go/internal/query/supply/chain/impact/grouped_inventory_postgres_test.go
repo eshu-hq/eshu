@@ -4,10 +4,12 @@
 package impact
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
@@ -103,7 +105,7 @@ func (q *groupedFakeQueryer) QueryContext(_ context.Context, query string, args 
 var groupedTestNow = time.Date(2026, 11, 4, 12, 0, 0, 0, time.UTC)
 
 func groupedTestStore(q *groupedFakeQueryer) PostgresGroupedInventoryStore {
-	store := NewPostgresGroupedInventoryStoreWithReadStore(q, true)
+	store := NewPostgresGroupedInventoryStoreWithReadStore(q, true, nil)
 	store.Now = func() time.Time { return groupedTestNow }
 	return store
 }
@@ -117,7 +119,7 @@ func groupedRow(bucket string, unattributed bool, count, maxPriority int64, stat
 
 func TestGroupedInventoryStoreGateOffReturnsTypedErrorWithoutQuery(t *testing.T) {
 	q := &groupedFakeQueryer{}
-	store := NewPostgresGroupedInventoryStoreWithReadStore(q, false)
+	store := NewPostgresGroupedInventoryStoreWithReadStore(q, false, nil)
 	_, err := store.SupplyChainImpactGroupedInventory(context.Background(), AggregateFilter{}, GroupedInventoryByService, 10, 0)
 	if !errors.Is(err, ErrGroupedInventoryReadModelUnavailable) {
 		t.Fatalf("err = %v, want ErrGroupedInventoryReadModelUnavailable", err)
@@ -440,5 +442,63 @@ func TestGroupedInventoryStoreSelectsScopedQueryForGrants(t *testing.T) {
 				t.Fatalf("scoped query used = %v, want %v", got, tc.scoped)
 			}
 		})
+	}
+}
+
+// TestGroupedInventoryStoreKeepsSQLTrimmedValues pins that the store does not
+// trim beyond SQL BTRIM: a tab-only value is a named bucket, not a second
+// unattributed bucket.
+func TestGroupedInventoryStoreKeepsSQLTrimmedValues(t *testing.T) {
+	q := &groupedFakeQueryer{watermark: []time.Time{groupedTestNow}}
+	q.page = [][]any{
+		groupedRow("\t", false, 1, 10, `{"affected_exact":1}`, `{"high":1}`, false, 2),
+		groupedRow("", true, 1, 5, `{"affected_exact":1}`, `{"low":1}`, false, 2),
+	}
+	page, err := groupedTestStore(q).SupplyChainImpactGroupedInventory(context.Background(), AggregateFilter{}, GroupedInventoryByService, 10, 0)
+	if err != nil {
+		t.Fatalf("SupplyChainImpactGroupedInventory() error = %v", err)
+	}
+	if page.Rows[0].Value != "\t" || page.Rows[0].Unattributed || page.Rows[0].Completeness != GroupCompletenessComplete {
+		t.Fatalf("tab bucket = %#v, want a named complete bucket", page.Rows[0])
+	}
+}
+
+// TestGroupedInventoryStoreLogsWatermarkProbeFailure pins the operator signal
+// for a failed watermark probe: one WARN line with a bounded event name, while
+// the rows are still served as read_model_unavailable with freshness unknown.
+func TestGroupedInventoryStoreLogsWatermarkProbeFailure(t *testing.T) {
+	var logs bytes.Buffer
+	q := &groupedFakeQueryer{watermarkErr: errors.New("conn reset by peer")}
+	q.page = [][]any{groupedRow("prod", false, 1, 10, `{"affected_exact":1}`, `{"high":1}`, false, 1)}
+	store := groupedTestStore(q)
+	store.Logger = slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	page, err := store.SupplyChainImpactGroupedInventory(context.Background(), AggregateFilter{}, GroupedInventoryByEnvironment, 10, 0)
+	if err != nil {
+		t.Fatalf("SupplyChainImpactGroupedInventory() error = %v", err)
+	}
+	if page.Rows[0].Completeness != GroupCompletenessReadModelUnavailable || page.Freshness.State != FreshnessLabelUnknown {
+		t.Fatalf("page = %#v, want read_model_unavailable rows with unknown freshness", page)
+	}
+	line := logs.String()
+	for _, want := range []string{`"level":"WARN"`, `"event_name":"` + groupedInventoryWatermarkProbeFailedEvent + `"`, "conn reset by peer"} {
+		if !strings.Contains(line, want) {
+			t.Fatalf("log = %s, want %s", line, want)
+		}
+	}
+	if strings.Count(line, "\n") != 1 {
+		t.Fatalf("log lines = %d, want exactly one WARN line", strings.Count(line, "\n"))
+	}
+}
+
+// TestGroupedInventoryStoreProbeFailureWithEmptyPageIsUnavailable pins the
+// fail-closed case: when the probe fails and the grouped read finds no bucket,
+// the store cannot tell a never-built winners table from a fresh empty one, so
+// it answers the typed unavailable error instead of an empty page.
+func TestGroupedInventoryStoreProbeFailureWithEmptyPageIsUnavailable(t *testing.T) {
+	q := &groupedFakeQueryer{watermarkErr: errors.New("boom")}
+	q.page = [][]any{{nil, nil, nil, nil, nil, nil, nil, int64(0)}}
+	_, err := groupedTestStore(q).SupplyChainImpactGroupedInventory(context.Background(), AggregateFilter{}, GroupedInventoryByService, 10, 0)
+	if !errors.Is(err, ErrGroupedInventoryReadModelUnavailable) {
+		t.Fatalf("err = %v, want ErrGroupedInventoryReadModelUnavailable for a probe failure with no bucket", err)
 	}
 }

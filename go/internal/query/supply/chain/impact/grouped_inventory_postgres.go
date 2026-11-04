@@ -8,11 +8,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"strings"
+	"log/slog"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // groupedInventoryWinnersFreshnessWindow bounds how old the winners watermark
@@ -21,6 +22,14 @@ import (
 // supplyChainImpactWinnersFreshnessWindow in the parent chain findings handler
 // (findings_handler.go), which this package cannot import; keep the two equal.
 const groupedInventoryWinnersFreshnessWindow = 2 * time.Minute
+
+// groupedInventoryWatermarkProbeFailedEvent is the event_name of the one WARN
+// line a failed winners watermark probe emits. The operator also sees
+// freshness.state unknown and every named bucket read_model_unavailable.
+const groupedInventoryWatermarkProbeFailedEvent = "supply_chain_impact.grouped_inventory_watermark_probe_failed"
+
+// groupedInventoryProbeErrorMaxBytes bounds the error text on that WARN line.
+const groupedInventoryProbeErrorMaxBytes = 256
 
 // PostgresGroupedInventoryStore is the GroupedInventoryStore over the
 // maintained supply_chain_impact_canonical_winners read model (#9873). The
@@ -58,12 +67,19 @@ type PostgresGroupedInventoryStore struct {
 	// Now supplies the single UTC clock for suppression expiry and the
 	// freshness window in one call. It defaults to time.Now.
 	Now func() time.Time
+	// Logger receives the WARN line of a failed watermark probe. A nil
+	// logger drops it; the response still reads freshness unknown.
+	Logger *slog.Logger
 }
 
 // NewPostgresGroupedInventoryStoreWithReadStore routes the grouped read
 // through the guarded read-only port, gated by the winners read flag.
-func NewPostgresGroupedInventoryStoreWithReadStore(reader db.Queryer, readFromWinners bool) PostgresGroupedInventoryStore {
-	return PostgresGroupedInventoryStore{reader: reader, ReadFromWinners: readFromWinners}
+func NewPostgresGroupedInventoryStoreWithReadStore(
+	reader db.Queryer,
+	readFromWinners bool,
+	logger *slog.Logger,
+) PostgresGroupedInventoryStore {
+	return PostgresGroupedInventoryStore{reader: reader, ReadFromWinners: readFromWinners, Logger: logger}
 }
 
 func (s PostgresGroupedInventoryStore) queryer() db.Queryer {
@@ -119,7 +135,7 @@ func (s PostgresGroupedInventoryStore) SupplyChainImpactGroupedInventory(
 	}
 
 	readAt := SuppressionReadAt(s.Now)
-	freshness, available, err := s.winnersFreshness(ctx, readAt)
+	freshness, available, probeFailed, err := s.winnersFreshness(ctx, readAt)
 	if err != nil {
 		return GroupedInventoryPage{}, err
 	}
@@ -168,34 +184,56 @@ func (s PostgresGroupedInventoryStore) SupplyChainImpactGroupedInventory(
 	if err := rows.Err(); err != nil {
 		return GroupedInventoryPage{}, fmt.Errorf("iterate supply chain impact grouped inventory rows: %w", err)
 	}
+	if probeFailed && len(page.Rows) == 0 {
+		// A failed probe cannot tell a never-built winners table from a fresh
+		// empty one, and an empty 200 would read as "no findings".
+		return GroupedInventoryPage{}, ErrGroupedInventoryReadModelUnavailable
+	}
 	return page, nil
 }
 
 // winnersFreshness probes the winners watermark. It reports available=false
 // for a stale watermark or a probe error (the rows are still served, marked
-// read_model_unavailable) and returns ErrGroupedInventoryReadModelUnavailable
-// when no watermark row exists yet.
+// read_model_unavailable), probeFailed=true for a probe error (logged once at
+// WARN), and returns ErrGroupedInventoryReadModelUnavailable when no
+// watermark row exists yet.
 func (s PostgresGroupedInventoryStore) winnersFreshness(
 	ctx context.Context,
 	readAt time.Time,
-) (GroupedInventoryFreshness, bool, error) {
+) (freshness GroupedInventoryFreshness, available, probeFailed bool, err error) {
 	probe := PostgresFindingStore{DB: s.DB, reader: s.reader, ReadFromWinners: true}
-	watermark, err := probe.SupplyChainImpactWinnersWatermark(ctx)
-	if err != nil {
-		return GroupedInventoryFreshness{State: FreshnessLabelUnknown}, false, nil
+	watermark, probeErr := probe.SupplyChainImpactWinnersWatermark(ctx)
+	if probeErr != nil {
+		s.logWatermarkProbeFailure(ctx, probeErr)
+		return GroupedInventoryFreshness{State: FreshnessLabelUnknown}, false, true, nil
 	}
 	if !watermark.Present {
-		return GroupedInventoryFreshness{}, false, ErrGroupedInventoryReadModelUnavailable
+		return GroupedInventoryFreshness{}, false, false, ErrGroupedInventoryReadModelUnavailable
 	}
-	freshness := GroupedInventoryFreshness{
+	freshness = GroupedInventoryFreshness{
 		State:            FreshnessLabelFresh,
 		LatestObservedAt: watermark.MaterializedAt.UTC().Format(time.RFC3339Nano),
 	}
 	if readAt.Sub(watermark.MaterializedAt.UTC()) > groupedInventoryWinnersFreshnessWindow {
 		freshness.State = FreshnessLabelStale
-		return freshness, false, nil
+		return freshness, false, false, nil
 	}
-	return freshness, true, nil
+	return freshness, true, false, nil
+}
+
+func (s PostgresGroupedInventoryStore) logWatermarkProbeFailure(ctx context.Context, err error) {
+	if s.Logger == nil {
+		return
+	}
+	text := err.Error()
+	if len(text) > groupedInventoryProbeErrorMaxBytes {
+		text = text[:groupedInventoryProbeErrorMaxBytes]
+	}
+	s.Logger.LogAttrs(
+		ctx, slog.LevelWarn, "supply chain impact grouped inventory watermark probe failed",
+		telemetry.EventAttr(groupedInventoryWatermarkProbeFailedEvent),
+		slog.String("error", text),
+	)
 }
 
 // scanGroupedInventoryRow decodes one result row. ok is false for the totals
@@ -222,8 +260,10 @@ func scanGroupedInventoryRow(
 		return GroupedInventoryRow{}, int(distinct), false, nil
 	}
 	row := GroupedInventoryRow{
-		Dimension:        dimension,
-		Value:            strings.TrimSpace(bucket.String),
+		Dimension: dimension,
+		// SQL BTRIM already trimmed spaces; trimming more here would turn a
+		// value SQL keeps (for example a tab) into a second unattributed row.
+		Value:            bucket.String,
 		Unattributed:     unattributed.Bool,
 		Count:            int(count.Int64),
 		MaxPriorityScore: int(maxPriority.Int64),

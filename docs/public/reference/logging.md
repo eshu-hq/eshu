@@ -79,7 +79,15 @@ drift/extraction, and query-stage timing events. Examples include:
 - `supply_chain_query.stage_completed`
 - `supply_chain_query.stage_failed`
 - `supply_chain_query.stage_canceled`
+- `supply_chain_impact.grouped_inventory_watermark_probe_failed`
 - `admin_recovery.finalize_after_client_cancel`
+
+`supply_chain_impact.grouped_inventory_watermark_probe_failed` is a WARN event
+emitted once per grouped inventory read (`group_by=service_id`, `workload_id`,
+or `environment`) whose winners watermark probe failed. It carries the error
+text cut to 256 bytes. The same response reads `freshness.state: unknown` and
+every named bucket `read_model_unavailable`; a read that also finds no bucket
+answers `503` instead of an empty page.
 
 `supply_chain_query.stage_failed` is an ERROR event emitted once when any
 supply-chain query route answers HTTP 500 from its own store-read code. It is

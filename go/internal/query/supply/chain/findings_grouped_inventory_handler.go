@@ -141,7 +141,9 @@ func normalizeGroupedInventoryRows(
 	out := make([]impact.GroupedInventoryRow, 0, len(rows))
 	for _, row := range rows {
 		row.Dimension = dimension
-		row.Value = strings.TrimSpace(row.Value)
+		// Trim spaces only, the characters SQL BTRIM trims in the store, so a
+		// value the SQL keeps as a named bucket never collapses to "".
+		row.Value = strings.Trim(row.Value, " ")
 		if row.Unattributed || row.Value == "" {
 			row.Unattributed = true
 			row.Value = ""

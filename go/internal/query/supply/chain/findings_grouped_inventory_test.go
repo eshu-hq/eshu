@@ -290,3 +290,34 @@ func TestGroupedInventoryPassesStoreVerdictsThroughAndNormalizesUnknown(t *testi
 		}
 	}
 }
+
+// TestGroupedInventoryTrimsOnlySpacesLikeSQLBTRIM pins that the handler trims
+// the same characters the store's SQL BTRIM trims (spaces only). A value made
+// of a tab is a named bucket in SQL; trimming all Unicode whitespace would
+// turn it into a second unattributed bucket.
+func TestGroupedInventoryTrimsOnlySpacesLikeSQLBTRIM(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeGroupedInventoryStore{page: impact.GroupedInventoryPage{
+		Rows: []impact.GroupedInventoryRow{
+			{Dimension: impact.GroupedInventoryByService, Value: "\t", Count: 1, Completeness: impact.GroupCompletenessComplete},
+			{Dimension: impact.GroupedInventoryByService, Value: " svc ", Count: 1, Completeness: impact.GroupCompletenessComplete},
+			{Dimension: impact.GroupedInventoryByService, Value: "", Unattributed: true, Count: 1, Completeness: impact.GroupCompletenessUnattributed},
+		},
+		DistinctFindings: 3,
+	}}
+	_, body := serveGrouped(t, &Handler{ImpactGroupedInventory: store},
+		"/api/v0/supply-chain/impact/inventory?group_by=service_id", nil)
+	unattributed := 0
+	for _, b := range body.Buckets {
+		if b["unattributed"] == true {
+			unattributed++
+		}
+	}
+	if unattributed != 1 {
+		t.Fatalf("unattributed buckets = %d, want 1; buckets = %v", unattributed, body.Buckets)
+	}
+	if body.Buckets[0]["value"] != "\t" || body.Buckets[1]["value"] != "svc" {
+		t.Fatalf("values = %q, %q; want the tab kept and spaces trimmed", body.Buckets[0]["value"], body.Buckets[1]["value"])
+	}
+}
