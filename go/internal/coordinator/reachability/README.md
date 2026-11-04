@@ -20,7 +20,8 @@ and telemetry. `go/internal/storage/postgres/gomodules` owns the read.
   decode the config block and its cadence.
 - `PlanRequest`, `Plan`, `RunID` plan one page and name its run.
 - `SkipInvalidRepositoryID`, `SkipDuplicateRepository`, `SkipUnsupportedRemote`,
-  `SkipMissingCommit` are the closed skip reasons.
+  `SkipUnsupportedRemoteWithEvidence`, `SkipMissingCommit` are the closed skip
+  reasons.
 
 ## Dependencies
 
@@ -56,6 +57,11 @@ results, and none holds a repository id or URL:
 - The cadence belongs to the derive section. An activation has no top-level
   `scan_interval`, so the instance's interval is the reconcile tick, and bucketing
   on it would rescan repositories almost continuously.
+
+- Known limitation (eshu-hq/eshu#10055): a repository with Go evidence and a remote
+  the component cannot fetch is never claimed, so its evidence stays active. It is
+  counted separately on `skipped_unsupported_remote_with_evidence`. The planner names
+  the case and does not resolve it.
 
 ## Related docs
 

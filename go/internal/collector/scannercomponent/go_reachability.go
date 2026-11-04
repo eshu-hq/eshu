@@ -170,6 +170,10 @@ type GoModuleRepository struct {
 	RepositoryID    string
 	RemoteURL       string
 	SourceCommitSHA string
+	// HasGoEvidence reports that the repository's go-reachability scope still
+	// holds Go evidence. A repository that also cannot be scanned keeps that
+	// evidence active, so the planner names the case in its own skip reason.
+	HasGoEvidence bool
 }
 
 // GoModuleRepositoryFilter selects one rotation page of repository candidates.

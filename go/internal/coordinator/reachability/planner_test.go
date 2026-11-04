@@ -174,6 +174,48 @@ func TestPlanSkipsUnplannableRepositoriesWithAReason(t *testing.T) {
 	}
 }
 
+// TestPlanNamesAnUnusableRemoteThatStrandsEvidence covers eshu-hq/eshu#10055: a
+// repository with Go evidence and a remote the component cannot fetch can never
+// land a retracting generation, so its evidence stays active. It gets its own skip
+// reason, separate from an ordinary unusable remote, so an operator can see it.
+func TestPlanNamesAnUnusableRemoteThatStrandsEvidence(t *testing.T) {
+	t.Parallel()
+
+	_, items, skipped, err := Plan(testRequest(
+		scannercomponent.GoModuleRepository{RepositoryID: "repository:r_00000001", RemoteURL: "/srv/repos/a", SourceCommitSHA: commitA, HasGoEvidence: true},
+		scannercomponent.GoModuleRepository{RepositoryID: "repository:r_00000002", RemoteURL: "", SourceCommitSHA: commitA, HasGoEvidence: true},
+		scannercomponent.GoModuleRepository{RepositoryID: "repository:r_00000003", RemoteURL: "/srv/repos/b", SourceCommitSHA: commitA},
+	))
+	if err != nil {
+		t.Fatalf("Plan() error = %v", err)
+	}
+	if len(items) != 0 {
+		t.Fatalf("items = %d, want 0", len(items))
+	}
+	if skipped[SkipUnsupportedRemoteWithEvidence] != 2 {
+		t.Errorf("skipped[%s] = %d, want 2 (%v)", SkipUnsupportedRemoteWithEvidence, skipped[SkipUnsupportedRemoteWithEvidence], skipped)
+	}
+	if skipped[SkipUnsupportedRemote] != 1 {
+		t.Errorf("skipped[%s] = %d, want 1 (%v)", SkipUnsupportedRemote, skipped[SkipUnsupportedRemote], skipped)
+	}
+}
+
+// TestPlanStillPlansEvidenceWithAUsableRemote proves the flag only names the skip:
+// a repository that can be scanned is planned, so its evidence can retract.
+func TestPlanStillPlansEvidenceWithAUsableRemote(t *testing.T) {
+	t.Parallel()
+
+	repository := goRepository("00000001", "eshu-hq", commitA)
+	repository.HasGoEvidence = true
+	_, items, skipped, err := Plan(testRequest(repository))
+	if err != nil {
+		t.Fatalf("Plan() error = %v", err)
+	}
+	if len(items) != 1 || len(skipped) != 0 {
+		t.Fatalf("items = %d skipped = %v, want 1 item and no skips", len(items), skipped)
+	}
+}
+
 func TestPlanWithNoPlannableRepositoryReturnsNoRun(t *testing.T) {
 	t.Parallel()
 

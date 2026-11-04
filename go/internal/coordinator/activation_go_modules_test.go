@@ -212,6 +212,38 @@ func TestGoModulesDerivationPlansALostGoModAndReportsIt(t *testing.T) {
 	}
 }
 
+// TestGoModulesDerivationLogsAnUnusableRemoteThatStrandsEvidence proves an operator
+// can tell the stranded case (eshu-hq/eshu#10055) from an ordinary unusable remote,
+// from the log line alone and with no repository value in it.
+func TestGoModulesDerivationLogsAnUnusableRemoteThatStrandsEvidence(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.November, 4, 12, 0, 0, 0, time.UTC)
+	fleet := goFleet(2)
+	fleet[0].RemoteURL = "/srv/local"
+	fleet[0].HasGoEvidence = true
+	fleet[1].RemoteURL = "/srv/local"
+	store := &fakeStore{}
+	var logs bytes.Buffer
+	service := goModulesService(t, &now, store, &fakeGoModuleRepositoryReader{fleet: fleet}, `{"mode":"broad"}`)
+	service.Logger = slog.New(slog.NewJSONHandler(&logs, nil))
+	instance := goModulesInstance(now, goModulesActivationConfiguration(testGoModulesBlock, "scanner_worker", "scanner_worker"))
+
+	if err := scheduleGoModules(t, service, now, instance); err != nil {
+		t.Fatalf("schedule error = %v", err)
+	}
+	for _, want := range []string{`"skipped_unsupported_remote_with_evidence":1`, `"skipped_unsupported_remote":1`} {
+		if !strings.Contains(logs.String(), want) {
+			t.Fatalf("logs = %s, want %s", logs.String(), want)
+		}
+	}
+	for _, leak := range []string{"/srv/local", "repository:r_"} {
+		if strings.Contains(logs.String(), leak) {
+			t.Fatalf("logs = %s carry %q", logs.String(), leak)
+		}
+	}
+}
+
 // TestGoModulesDerivationPagesAndRotatesTheWholeFleet proves one pass plans at
 // most 256 repositories, and consecutive buckets visit every repository once.
 func TestGoModulesDerivationPagesAndRotatesTheWholeFleet(t *testing.T) {

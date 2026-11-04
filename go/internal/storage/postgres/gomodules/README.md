@@ -46,6 +46,9 @@ None of its own. The coordinator wraps the queryer so the read reports on
   `fact_records_scope_generation_idx (scope_id, generation_id, fact_kind)`.
   `EXPLAIN (ANALYZE, BUFFERS)` of the amended query has not been run: replace this
   line with its figures before merge. The ruling requires them.
+- A repository with Go evidence and an unusable remote is returned with
+  `HasGoEvidence` set, and the planner skips it, so that evidence stays active. See
+  eshu-hq/eshu#10055.
 - A repository scope that retires leaves its go-reachability scope active, because
   candidates are active repository scopes only. Core lifecycle owns that, not this
   query.

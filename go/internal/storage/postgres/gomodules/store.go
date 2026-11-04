@@ -137,6 +137,7 @@ func (s Store) ListGoModuleRepositories(
 			return scannercomponent.GoModuleRepositoryPage{}, fmt.Errorf("read go module repositories: %w", err)
 		}
 		page.Candidates++
+		repository.HasGoEvidence = hasGoEvidence
 		if hasGoModule || hasGoEvidence {
 			page.Repositories = append(page.Repositories, repository)
 		}

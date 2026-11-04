@@ -366,6 +366,11 @@ func TestListGoModuleRepositoriesPlansRepositoryThatLostItsGoModLive(t *testing.
 	if len(page.Repositories) != 3 || page.Candidates != 4 {
 		t.Errorf("page = %+v, want 3 planned of 4 candidates, once each", page)
 	}
+	for _, repository := range page.Repositories {
+		if !repository.HasGoEvidence {
+			t.Errorf("repository %+v: HasGoEvidence = false, want true for every planned row here", repository)
+		}
+	}
 	if page.EvidenceOnly != 2 {
 		t.Errorf("EvidenceOnly = %d, want 2: a repository with a go.mod is not evidence-only", page.EvidenceOnly)
 	}

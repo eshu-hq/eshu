@@ -111,7 +111,7 @@ Observability Evidence: the read and its planning report on these signals.
   `TestGoModulesDerivationTelemetryHoldsNoRepositoryValue`.
 - INFO `workflow coordinator planned derived scopes for component activation` with
   planned and enqueued counts, `candidates`, `total_candidates`, `slot`, `slot_count`,
-  and four `skipped_<reason>` counts.
+  `evidence_only_repositories`, and five `skipped_<reason>` counts.
 - ERROR `workflow coordinator refused derived scopes for component activation` for a
   mislabeled host, with `reason=host_scope_kind_or_source_system_mismatch`.
 - `eshu_dp_postgres_query_duration_seconds{store="go_module_repositories"}` for the read.
@@ -121,7 +121,8 @@ Observability Evidence: the read and its planning report on these signals.
 At 3 AM: a flat counter with `candidates` above zero and `go_module_repositories` at
 zero means this page holds no Go repository, and a later slot may. A non-zero
 `skipped_unsupported_remote` means repositories whose remotes the component cannot
-fetch. `slot_count` times `scan_interval` is the rotation period.
+fetch. A non-zero `skipped_unsupported_remote_with_evidence` means one of those also
+holds Go evidence that cannot retract (#10055). `slot_count` times `scan_interval` is the rotation period.
 
 ## NOT_CHECKED
 

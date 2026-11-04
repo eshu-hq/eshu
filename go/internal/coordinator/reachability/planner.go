@@ -30,6 +30,10 @@ const (
 	// component cannot fetch: a local path, a file URL, or any non-canonical
 	// form.
 	SkipUnsupportedRemote = "unsupported_remote"
+	// SkipUnsupportedRemoteWithEvidence counts the same defect on a repository
+	// whose go-reachability scope still holds Go evidence. No claim can land a
+	// retracting generation, so that evidence stays active (eshu-hq/eshu#10055).
+	SkipUnsupportedRemoteWithEvidence = "unsupported_remote_with_evidence"
 	// SkipMissingCommit counts a generation with no full observed commit.
 	SkipMissingCommit = "missing_commit"
 )
@@ -133,6 +137,9 @@ func targetFor(
 	}
 	seen[scopeID] = struct{}{}
 	if !scannercomponent.ValidCloneURL(repository.RemoteURL) {
+		if repository.HasGoEvidence {
+			return scannercomponent.GoReachabilityTarget{}, SkipUnsupportedRemoteWithEvidence
+		}
 		return scannercomponent.GoReachabilityTarget{}, SkipUnsupportedRemote
 	}
 	target := scannercomponent.GoReachabilityTarget{

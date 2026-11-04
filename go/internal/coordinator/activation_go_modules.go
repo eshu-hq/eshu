@@ -168,6 +168,7 @@ func (s Service) scheduleGoModuleDerivedScopes(
 			"skipped_invalid_repository_id", skipped[reachability.SkipInvalidRepositoryID],
 			"skipped_duplicate_repository", skipped[reachability.SkipDuplicateRepository],
 			"skipped_unsupported_remote", skipped[reachability.SkipUnsupportedRemote],
+			"skipped_unsupported_remote_with_evidence", skipped[reachability.SkipUnsupportedRemoteWithEvidence],
 			"skipped_missing_commit", skipped[reachability.SkipMissingCommit],
 		)
 	}
