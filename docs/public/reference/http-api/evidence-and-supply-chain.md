@@ -1298,7 +1298,7 @@ matched` from `Eshu did not have the evidence to match yet`:
   when only some observed targets are unsupported, and as the dominant signal
   when `readiness_state=unsupported`.
 - `incomplete_reasons[]` lists collector-emitted reasons explaining in-flight
-  collection (`target_incomplete`), plus `osv:skipped:<reason>` for `target_skipped`.
+  collection (`target_incomplete`; a derived release not covered reads `osv:<state>:<distro>:<release>`), plus `osv:skipped:<reason>` for `target_skipped`.
 - `freshness` aggregates per-family freshness and source target state into one
   label. Values are `fresh`, `stale`, `unknown`, `pending`, `rate_limited`,
   `failed`, or `partial`.

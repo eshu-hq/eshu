@@ -167,19 +167,29 @@ every consumption-key candidate) in the same statement as its source-state
 upsert. `readinessDerivedSourceStateCTE` joins the request's keys to that table
 by equality: package, CVE, and image requests use the resolved target keys,
 and a repository-only request takes keys from the active consumption facts.
-Per (instance, source, ecosystem, requested package) the newest state wins,
-the distinct winners are aged by the read cutoff, and one aggregate
+Per (instance, source, ecosystem, requested package, distro and release) the
+newest state wins, so a package with several release scopes (Alpine, #9993) is
+covered only when every release is fresh (#10015). A scope id's release only
+labels and groups rows, and a scope with no release shares one group, so other
+ecosystems keep one newest-wins scope. The instance's latest planner run supplies
+the expected releases: a planned release with no state reads pending, and once the
+plan names releases for a package and distro, a release it dropped and a legacy
+scope with no release stop counting. With no plan entry, every release row stands.
+The distinct winners are aged by the read cutoff, and one aggregate
 `SourceState` row (`Derived`, `derived://<source>/<ecosystem>`) reports the
 worst state and the counts. A requested package with no matching scope makes
 the row pending, so an enabled derived ecosystem with no coverage reads
 `osv:pending`. When every unmatched package carries planner skip evidence
-from the instance's latest `workflow_runs` row, the aggregate reads `skipped`
-instead and reports `skipped_package_count` with the distinct planner
+from the instance's latest `workflow_runs` row and every matched scope is fresh,
+the aggregate reads `skipped` instead and reports `skipped_package_count` with the distinct planner
 `skip_reasons` (#9612); the planner records canonical
 (`packageidentity.ConsumptionKeys`) identities per skipped package, the same
 shape the collector writes, so the join cannot drift. Configured targets keep
 one row per scope. The 200-row bound
-counts configured scopes plus aggregate rows. Known limitations: a state written
+counts configured scopes plus aggregate rows. Known limitations: skip evidence names no release,
+so a package matched on one release reads covered even when the planner skipped
+it on another; Debian and Ubuntu scopes of one `os` package share one newest-wins
+group; a state written
 before the key table existed matches nothing until its scope is collected
 again, with no backfill, and a run written before per-package skip names
 existed joins nothing, so those skipped packages keep reading `pending`. Swift derived keys join the key table like every
@@ -253,7 +263,9 @@ Observability Evidence: `source_states[]` reports collector health and
 `source_snapshots[]` reports committed source health; a derived aggregate row
 names its worst scopes in `scope_ids` and its uncovered packages in
 `unmatched_package_count`, so an operator can find the scope behind
-`osv:failed` or `osv:pending`; when every uncovered package carries planner
+`osv:failed` or `osv:pending`, and
+`incomplete_reasons[]=osv:<state>:<distro>:<release>` names each uncovered release
+(`osv:failed:alpine:v3.17`) beside the plain `osv:<state>` entry; when every uncovered package carries planner
 skip evidence, `readiness_state=target_skipped` and
 `incomplete_reasons[]=osv:skipped:<reason>` identify the terminal verdict
 without package names; when no current NVD
