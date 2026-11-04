@@ -56,7 +56,13 @@ bootstrap.
 
 ## Observability
 
-No-Observability-Change: the change is confined to SQL text, one
-comment, migration-273 DDL, and tests. No span, metric, or log line is
-added, removed, or re-keyed on the reader path; existing query
-telemetry keeps its shape.
+Observability Evidence: the lane-1 change itself added no signal (see the
+No-Observability-Change record at merge). The follow-up sensor PR adds one:
+`eshu_dp_terraform_backend_canonical_read_duration_seconds` (labels
+read=canonical|filtered, outcome=success|error), emitted once per
+`ListTerraformBackendsByLocator` call and once per
+`filteredTerraformStateCandidates` discovery call, with the coverage row in
+`telemetry-coverage-reducer-domains.md` and the operator dashboard panel.
+Lane-1 production proof is an absolute-budget check on that sensor, not a
+before/after: the sensor did not exist before the index, so no
+pre-index histogram comparison is possible.

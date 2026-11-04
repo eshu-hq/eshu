@@ -97,7 +97,7 @@ func buildReducerDriftHandlers(
 	multiCloudRuntimeDriftEvidenceLoader, multiCloudRuntimeDriftWriter, multiCloudRuntimeDriftLogger := multiCloudRuntimeDriftWiring(database, tracer, instruments, logger)
 	return reducer.DriftHandlers{
 		TerraformBackendResolver: tfstatebackend.NewResolver(
-			postgres.PostgresTerraformBackendQuery{DB: database},
+			postgres.PostgresTerraformBackendQuery{DB: database, Instruments: instruments},
 		),
 		DriftEvidenceLoader: postgres.PostgresDriftEvidenceLoader{
 			DB:               database,
@@ -130,7 +130,7 @@ func buildReducerDriftHandlers(
 		AWSCloudRuntimeDriftEvidenceLoader: postgres.PostgresAWSCloudRuntimeDriftEvidenceLoader{
 			DB: database,
 			ConfigResolver: tfstatebackend.NewResolver(
-				postgres.PostgresTerraformBackendQuery{DB: database},
+				postgres.PostgresTerraformBackendQuery{DB: database, Instruments: instruments},
 			),
 			Tracer:      tracer,
 			Logger:      logger,
@@ -277,8 +277,9 @@ func buildReducerIncidentRoutingHandlers(
 	database db.ExecQueryer,
 	factStore postgres.FactStore,
 	graphWriters canonicalGraphWriters,
+	instruments *telemetry.Instruments,
 ) reducer.IncidentRoutingHandlers {
-	incidentRepoCorrelationLoader, incidentRepoCorrelationResolver, incidentRepoCorrelationWriter := incidentRepositoryCorrelationWiring(database)
+	incidentRepoCorrelationLoader, incidentRepoCorrelationResolver, incidentRepoCorrelationWriter := incidentRepositoryCorrelationWiring(database, instruments)
 	return reducer.IncidentRoutingHandlers{
 		IncidentRoutingEvidenceLoader:        factStore,
 		IncidentRoutingEvidenceWriter:        graphWriters.incidentRoutingEvidence,

@@ -71,7 +71,7 @@ func multiCloudRuntimeDriftWiring(
 	loader := postgres.PostgresMultiCloudRuntimeDriftEvidenceLoader{
 		DB: database,
 		ConfigResolver: tfstatebackend.NewResolver(
-			postgres.PostgresTerraformBackendQuery{DB: database},
+			postgres.PostgresTerraformBackendQuery{DB: database, Instruments: instruments},
 		),
 		Tracer:      tracer,
 		Logger:      logger,

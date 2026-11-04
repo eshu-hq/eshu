@@ -253,7 +253,7 @@ func reducerDomainStrings(domains []reducercontract.Domain) []string {
 // confident single-owner resolutions emit a durable edge; weaker signals stay
 // provenance-only and fail-closed. It is extracted from the entrypoint so the
 // reducer command stays within the repo file-size budget.
-func incidentRepositoryCorrelationWiring(database db.ExecQueryer) (
+func incidentRepositoryCorrelationWiring(database db.ExecQueryer, instruments *telemetry.Instruments) (
 	incident.AppliedPagerDutyServiceRoutingLoader,
 	incident.BackendRepositoryResolver,
 	incident.IncidentRepositoryCorrelationWriter,
@@ -261,7 +261,7 @@ func incidentRepositoryCorrelationWiring(database db.ExecQueryer) (
 	loader := incidentstore.PostgresAppliedPagerDutyServiceRoutingLoader{DB: database}
 	resolver := incidentstore.BackendRepositoryResolverAdapter{
 		Resolver: tfstatebackend.NewResolver(
-			postgres.PostgresTerraformBackendQuery{DB: database},
+			postgres.PostgresTerraformBackendQuery{DB: database, Instruments: instruments},
 		),
 	}
 	writer := incident.PostgresIncidentRepositoryCorrelationWriter{DB: database}

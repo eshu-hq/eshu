@@ -14,12 +14,18 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/filters"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // TerraformStateBackendFactReader reads Git-observed Terraform backend facts
 // from active repository generations.
 type TerraformStateBackendFactReader struct {
 	DB db.Queryer
+	// Instruments feeds eshu_dp_terraform_backend_canonical_read_duration_seconds
+	// for the filtered discovery read sharing the migration-273 hot arm (#8875
+	// observational sensor). Nil-safe: a nil Instruments records no sample and
+	// reads behave exactly as before.
+	Instruments *telemetry.Instruments
 }
 
 // TerraformStatePriorSnapshotReader reads durable Terraform-state freshness

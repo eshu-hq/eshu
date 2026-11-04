@@ -252,7 +252,7 @@ func openProjectorCanonicalWriter(
 		return nil, nil, err
 	}
 	writer = writer.WithTracer(tracer).WithTerraformStateOwnershipResolver(
-		projectorTerraformStateOwnershipResolver{resolver: tfstatebackend.NewResolver(postgres.PostgresTerraformBackendQuery{DB: database})},
+		projectorTerraformStateOwnershipResolver{resolver: tfstatebackend.NewResolver(postgres.PostgresTerraformBackendQuery{DB: database, Instruments: instruments})},
 	).WithTerraformStateConfigMatchResolver(
 		projectorTerraformStateConfigMatchResolver{driver: driver, databaseName: cfg.DatabaseName},
 	).WithKustomizeOverlayResolver(

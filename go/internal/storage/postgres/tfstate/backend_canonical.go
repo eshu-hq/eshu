@@ -9,11 +9,44 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel/metric"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
+
+// Closed read labels for eshu_dp_terraform_backend_canonical_read_duration_seconds
+// (#8875 observational sensor). One label per adapter owning the migration-273
+// hot arm: the canonical ownership read and the filtered discovery read.
+const (
+	terraformBackendReadCanonical = "canonical"
+	terraformBackendReadFiltered  = "filtered"
+)
+
+// Bounded outcomes for eshu_dp_terraform_backend_canonical_read_duration_seconds.
+const (
+	terraformBackendReadOutcomeSuccess = "success"
+	terraformBackendReadOutcomeError   = "error"
+)
+
+// recordBackendRead adds one sample to
+// eshu_dp_terraform_backend_canonical_read_duration_seconds. A nil Instruments
+// (or an Instruments without the histogram) records nothing, so unit fakes and
+// callers that do not thread telemetry stay behavior-identical.
+func recordBackendRead(ctx context.Context, inst *telemetry.Instruments, read string, start time.Time, failed bool) {
+	if inst == nil || inst.TerraformBackendCanonicalReadDuration == nil {
+		return
+	}
+	outcome := terraformBackendReadOutcomeSuccess
+	if failed {
+		outcome = terraformBackendReadOutcomeError
+	}
+	inst.TerraformBackendCanonicalReadDuration.Record(ctx, time.Since(start).Seconds(),
+		metric.WithAttributes(telemetry.AttrRead(read), telemetry.AttrOutcome(outcome)))
+}
 
 // listTerraformBackendCanonicalRowsQuery returns one row per terraform_backends
 // fact emitted into a sealed repo_snapshot generation. The adapter decodes the
@@ -162,6 +195,10 @@ ORDER BY backend.repo_id ASC, fact.scope_id ASC, fact.generation_id ASC, fact.ob
 // silently reject every drift candidate (issue #203).
 type PostgresTerraformBackendQuery struct {
 	DB db.Queryer
+	// Instruments feeds eshu_dp_terraform_backend_canonical_read_duration_seconds
+	// (#8875 observational sensor). Nil-safe: a nil Instruments records no
+	// sample and the read behaves exactly as before.
+	Instruments *telemetry.Instruments
 }
 
 // ListTerraformBackendsByLocator returns every sealed config-side
@@ -199,8 +236,15 @@ func (q PostgresTerraformBackendQuery) ListTerraformBackendsByLocator(
 		return nil, fmt.Errorf("locator hash must not be blank")
 	}
 
+	// Blank inputs return above without a sample: they never reach SQL.
+	// The summary labels the postgres.query span when the underlying
+	// queryer is instrumented (#6794 pattern).
+	start := time.Now()
+	ctx = db.WithQuerySummary(ctx, terraformBackendReadCanonical)
+
 	rows, err := q.DB.QueryContext(ctx, listTerraformBackendCanonicalRowsQuery)
 	if err != nil {
+		recordBackendRead(ctx, q.Instruments, terraformBackendReadCanonical, start, true)
 		return nil, fmt.Errorf("list terraform backend canonical rows: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
@@ -220,6 +264,7 @@ func (q PostgresTerraformBackendQuery) ListTerraformBackendsByLocator(
 
 		contextValue, err := decodeTerraformBackendFactContext(rawContext)
 		if err != nil {
+			recordBackendRead(ctx, q.Instruments, terraformBackendReadCanonical, start, true)
 			return nil, err
 		}
 		key := terraformBackendCanonicalContextKey{
@@ -248,6 +293,7 @@ func (q PostgresTerraformBackendQuery) ListTerraformBackendsByLocator(
 		}
 	}
 	if err := rows.Err(); err != nil {
+		recordBackendRead(ctx, q.Instruments, terraformBackendReadCanonical, start, true)
 		return nil, fmt.Errorf("iterate terraform backend canonical rows: %w", err)
 	}
 
@@ -260,6 +306,7 @@ func (q PostgresTerraformBackendQuery) ListTerraformBackendsByLocator(
 		)
 		out = append(out, matches...)
 	}
+	recordBackendRead(ctx, q.Instruments, terraformBackendReadCanonical, start, false)
 	return out, nil
 }
 

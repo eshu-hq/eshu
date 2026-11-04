@@ -88,6 +88,13 @@ PACING_DEPTH_PENDING='eshu_dp_workflow_claim_pacing_depth_pending'
 # workload or endpoint removal, kept off COLLECTOR_RECONCILIATION_DRIFT.
 WORKLOAD_REPOSITORY_EDGE_RETRACTIONS='eshu_dp_workload_repository_edge_retractions_total'
 
+# Terraform backend ownership read sensor (#8875): the canonical backends
+# reader and its filtered sibling sharing the migration-273 hot arm. The
+# histogram count and sum give calls and seconds for week-over-week
+# comparison; outcome=error is the alertable error-rate signal.
+TERRAFORM_BACKEND_CANONICAL_READ_BUCKET='eshu_dp_terraform_backend_canonical_read_duration_seconds_bucket'
+TERRAFORM_BACKEND_CANONICAL_READ_COUNT='eshu_dp_terraform_backend_canonical_read_duration_seconds_count'
+
 # Explicit allowlist of ${NAME} tokens the generator substitutes into the
 # .json.tmpl template files under scripts/lib/. A space-separated string
 # (not a bash array) so it stays safe under bash 3.2 with `set -u` — an
@@ -108,4 +115,5 @@ COLLECTOR_RECONCILIATION_DRIFT COLLECTOR_RECONCILIATION_CONVERGENCE \
 COLLECTOR_BACKPRESSURE COLLECTOR_RETRIES COLLECTOR_DEAD_LETTER \
 WORKLOAD_REPOSITORY_EDGE_RETRACTIONS FAIR_CLAIM_TOTAL FAIRNESS_KEY_DEPTH \
 FAIRNESS_KEY_COUNT PACING_ENGAGED_TOTAL PACING_ACTIVE PACING_STUCK_TOTAL \
-PACING_DELAY PACING_DEPTH_PENDING"
+PACING_DELAY PACING_DEPTH_PENDING TERRAFORM_BACKEND_CANONICAL_READ_BUCKET \
+TERRAFORM_BACKEND_CANONICAL_READ_COUNT"

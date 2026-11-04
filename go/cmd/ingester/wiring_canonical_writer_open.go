@@ -180,7 +180,7 @@ func openIngesterCanonicalWriter(
 	if err != nil {
 		return failAfterDriverOpen(err)
 	}
-	writer = decorateIngesterCanonicalWriter(writer, tracer, driver, cfg.DatabaseName, schemaFence.Check, database)
+	writer = decorateIngesterCanonicalWriter(writer, tracer, driver, cfg.DatabaseName, schemaFence.Check, database, instruments)
 	labelBatchSizes := map[string]int(nil)
 	if graphBackend == runtimecfg.GraphBackendNornicDB {
 		if nornicDBBatchedEntityContainment {
@@ -214,9 +214,10 @@ func decorateIngesterCanonicalWriter(
 	databaseName string,
 	schemaCheck func(context.Context) error,
 	database postgres.SQLDB,
+	instruments *telemetry.Instruments,
 ) *sourcecypher.CanonicalNodeWriter {
 	return writer.WithTracer(tracer).WithTerraformStateOwnershipResolver(
-		ingesterTerraformStateOwnershipResolver{resolver: tfstatebackend.NewResolver(postgres.PostgresTerraformBackendQuery{DB: database})},
+		ingesterTerraformStateOwnershipResolver{resolver: tfstatebackend.NewResolver(postgres.PostgresTerraformBackendQuery{DB: database, Instruments: instruments})},
 	).WithTerraformStateConfigMatchResolver(
 		ingesterTerraformStateConfigMatchResolver{driver: driver, databaseName: databaseName},
 	).WithKustomizeOverlayResolver(

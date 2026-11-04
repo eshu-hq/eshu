@@ -391,4 +391,60 @@
         "overrides": []
       },
       "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
+    },
+    {
+      "id": 32,
+      "type": "row",
+      "title": "Terraform Backend Ownership Reads",
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 103},
+      "panels": []
+    },
+    {
+      "id": 33,
+      "type": "timeseries",
+      "title": "Terraform Backend Ownership Read Duration p50 / p95",
+      "description": "Issue #8875: canonical backends reader (read=canonical) and its filtered sibling sharing the migration-273 hot arm (read=filtered), successful reads only. Sustained p95 growth without saturation is a regression; compare against the 15.3 s pre-index baseline as directional context, not a gate.",
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "gridPos": {"h": 8, "w": 16, "x": 0, "y": 104},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "histogram_quantile(0.50, sum by (read, le) (rate(${TERRAFORM_BACKEND_CANONICAL_READ_BUCKET}{outcome=\"success\"}[5m])))",
+          "legendFormat": "p50 {{read}}",
+          "refId": "A"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "histogram_quantile(0.95, sum by (read, le) (rate(${TERRAFORM_BACKEND_CANONICAL_READ_BUCKET}{outcome=\"success\"}[5m])))",
+          "legendFormat": "p95 {{read}}",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "s", "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 5}},
+        "overrides": []
+      },
+      "options": {"legend": {"displayMode": "list", "placement": "right"}, "tooltip": {"mode": "multi"}}
+    },
+    {
+      "id": 34,
+      "type": "timeseries",
+      "title": "Terraform Backend Ownership Read Rate and Errors",
+      "description": "Issue #8875: calls per second by reader and outcome. A sustained outcome=error rate is an alarm; error samples are excluded from the duration percentiles.",
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 104},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "sum by (read, outcome) (rate(${TERRAFORM_BACKEND_CANONICAL_READ_COUNT}[5m]))",
+          "legendFormat": "{{read}} {{outcome}}/s",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "ops", "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10}},
+        "overrides": []
+      },
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
     }

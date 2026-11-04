@@ -421,7 +421,7 @@ func buildReducerService(
 		KubernetesHandlers:          buildReducerKubernetesHandlers(database, graphWriters),
 		CrossplaneHandlers:          buildReducerCrossplaneHandlers(database, graphWriters, graphReader),
 		SupplyChainSecurityHandlers: buildReducerSupplyChainSecurityHandlers(database, *factStore, secretsIAMGraphWriter, presence, instruments),
-		IncidentRoutingHandlers:     buildReducerIncidentRoutingHandlers(database, *factStore, graphWriters),
+		IncidentRoutingHandlers:     buildReducerIncidentRoutingHandlers(database, *factStore, graphWriters, instruments),
 		CodeEvidenceHandlers:        buildReducerCodeEvidenceHandlers(database, *factStore, graphWriters, graphReader, logger),
 	})
 	if err != nil {

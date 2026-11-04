@@ -239,7 +239,7 @@ func run(parent context.Context) error {
 		Store:  store,
 		TerraformStatePlanner: tfstate.WorkPlanner{
 			GitReadiness: postgres.TerraformStateGitReadinessChecker{DB: postgres.SQLQueryer{DB: db}},
-			BackendFacts: postgres.TerraformStateBackendFactReader{DB: postgres.SQLQueryer{DB: db}},
+			BackendFacts: postgres.TerraformStateBackendFactReader{DB: postgres.SQLQueryer{DB: db}, Instruments: instruments},
 		},
 		OCIRegistryPlanner:                ociregistry.WorkPlanner{},
 		PackageRegistryPlanner:            packages.WorkPlanner{},
