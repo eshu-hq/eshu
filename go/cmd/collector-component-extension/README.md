@@ -203,3 +203,19 @@ spelling fails startup. The grant-observer backing that makes seam grant
 decisions visible to operators lands with the telemetry leaf; until then
 the seam observes nothing new. Claim/commit lifecycle operations through
 the cutover gate are exercised by the parity and concurrency leaves.
+
+No-Regression Evidence (leaf 1): the wiring resolves once at startup
+(flag parse, manifest comparison, one client build when enabled) and adds
+no per-claim work beyond one closure indirection to the identical
+registry read. Baseline and after both run `go test -count=1
+./cmd/collector-component-extension` and `go test -race -count=1` on the
+touched packages green. Input shape is the fixture registry with a dummy
+claim-plane URL; construction makes no network calls, and no queue, lease,
+batching, Cypher, graph-write, or reducer surface is touched, so claim
+throughput and terminal counts are unaffected.
+
+No-Observability-Change (leaf 1): the wiring registers no metric, span,
+log line, or status field. Selection stays on the store-selection counter
+and log, grant and claim outcomes stay on the existing grant and run
+signals, and the stage is named in the telemetry-coverage row with the
+same marker.
