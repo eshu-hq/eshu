@@ -108,9 +108,14 @@ type fleetGateObservation struct {
 
 // fleetGateExpectation is what a passing run must show.
 type fleetGateExpectation struct {
-	ServiceID         string
-	ImpactStatus      string
-	PriorityTier      string
+	ServiceID    string
+	ImpactStatus string
+	PriorityTier string
+	// ServiceCount is the exact number of findings the seeded fixture puts on
+	// the service; the rollup, its impact-status breakdown, and its tier
+	// breakdown must each report exactly this many, so a join fan-out that
+	// double counts a finding cannot pass.
+	ServiceCount      int
 	UnattributedCount int
 	DistinctFindings  int
 	Bound             time.Duration
@@ -143,8 +148,11 @@ func fleetGateViolations(o fleetGateObservation, e fleetGateExpectation) []strin
 		if service.Completeness != "complete" {
 			add("service_completeness", "%s completeness = %q, want complete", e.ServiceID, service.Completeness)
 		}
-		if service.ByImpactStatus[e.ImpactStatus] < 1 {
-			add("service_impact_status", "%s by_impact_status = %v, want %s", e.ServiceID, service.ByImpactStatus, e.ImpactStatus)
+		if service.Count != e.ServiceCount {
+			add("service_count", "%s count = %d, want exactly %d (a join fan-out double counts)", e.ServiceID, service.Count, e.ServiceCount)
+		}
+		if service.ByImpactStatus[e.ImpactStatus] != e.ServiceCount {
+			add("service_impact_status", "%s by_impact_status = %v, want %s = %d", e.ServiceID, service.ByImpactStatus, e.ImpactStatus, e.ServiceCount)
 		}
 		if o.Winner != nil && service.MaxPriorityScore != o.Winner.PriorityScore {
 			add("service_priority", "%s max_priority_score = %d, want the KEV-scored winner's %d",
@@ -171,8 +179,8 @@ func fleetGateViolations(o fleetGateObservation, e fleetGateExpectation) []strin
 	}
 	if o.TierStatus != http.StatusOK {
 		add("priority_tier", "group_by=priority_bucket&service_id=%s answered HTTP %d", e.ServiceID, o.TierStatus)
-	} else if o.ServiceTiers[e.PriorityTier] < 1 {
-		add("priority_tier", "%s priority tiers = %v, want at least one %s", e.ServiceID, o.ServiceTiers, e.PriorityTier)
+	} else if o.ServiceTiers[e.PriorityTier] != e.ServiceCount {
+		add("priority_tier", "%s priority tiers = %v, want %s = %d", e.ServiceID, o.ServiceTiers, e.PriorityTier, e.ServiceCount)
 	}
 
 	switch {

@@ -22,6 +22,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
@@ -133,7 +134,7 @@ func (r *fleetGateRun) seed(s fleetGateSeed) {
 			}),
 		}
 		if repo == fleetGateRepo && s.serviceMapping {
-			repoFacts = append(repoFacts, r.envelope(scope, repoGen, "fact:9875:service", "reducer_service_catalog_correlation", map[string]any{
+			repoFacts = append(repoFacts, r.envelope(scope, repoGen, "fact:9875:service", reducercontract.ServiceCatalogCorrelationFactKind, map[string]any{
 				"repository_id": repo, "service_id": fleetGateService, "workload_id": "workload:fleet-9875", "outcome": "exact",
 			}))
 		}
@@ -238,6 +239,7 @@ func fleetGateLiveExpectation(t *testing.T) fleetGateExpectation {
 		ServiceID:         fleetGateService,
 		ImpactStatus:      "affected_exact",
 		PriorityTier:      "critical",
+		ServiceCount:      1,
 		UnattributedCount: 1,
 		DistinctFindings:  2,
 		Bound:             bound,

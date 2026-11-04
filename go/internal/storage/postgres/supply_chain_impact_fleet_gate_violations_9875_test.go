@@ -51,6 +51,7 @@ func fleetGateCleanExpectation() fleetGateExpectation {
 		ServiceID:         fleetGateService,
 		ImpactStatus:      "affected_exact",
 		PriorityTier:      "critical",
+		ServiceCount:      1,
 		UnattributedCount: 1,
 		DistinctFindings:  2,
 		Bound:             fleetGateDefaultBound,
@@ -83,6 +84,22 @@ func TestFleetGateViolationsSeededPairs9875(t *testing.T) {
 		{"service bucket lacks the affected status", func(o *fleetGateObservation, _ *fleetGateExpectation) {
 			o.Buckets[0].ByImpactStatus = map[string]int{"possibly_affected": 1}
 		}, "service_impact_status"},
+		{"service bucket count inflated by a join fan-out", func(o *fleetGateObservation, _ *fleetGateExpectation) { o.Buckets[0].Count = 5 }, "service_count"},
+		{"service impact status inflated", func(o *fleetGateObservation, _ *fleetGateExpectation) {
+			o.Buckets[0].ByImpactStatus = map[string]int{"affected_exact": 5}
+		}, "service_impact_status"},
+		{"service tier breakdown inflated", func(o *fleetGateObservation, _ *fleetGateExpectation) {
+			o.ServiceTiers = map[string]int{"critical": 5}
+		}, "priority_tier"},
+		{"inflated service bucket across count, status, and tier", func(o *fleetGateObservation, _ *fleetGateExpectation) {
+			o.Buckets[0].Count = 5
+			o.Buckets[0].ByImpactStatus = map[string]int{"affected_exact": 5}
+			o.ServiceTiers = map[string]int{"critical": 5}
+		}, "service_count"},
+		{"extra possibly_affected rows in the service bucket", func(o *fleetGateObservation, _ *fleetGateExpectation) {
+			o.Buckets[0].Count = 4
+			o.Buckets[0].ByImpactStatus = map[string]int{"affected_exact": 1, "possibly_affected": 3}
+		}, "service_count"},
 		{"rollup priority below the KEV winner", func(o *fleetGateObservation, _ *fleetGateExpectation) { o.Buckets[0].MaxPriorityScore = 70 }, "service_priority"},
 		{"winner withheld", func(o *fleetGateObservation, _ *fleetGateExpectation) { o.Winner = nil }, "winner_absent"},
 		{"winner not KEV flagged", func(o *fleetGateObservation, _ *fleetGateExpectation) { o.Winner.KnownExploited = false }, "kev_missing"},

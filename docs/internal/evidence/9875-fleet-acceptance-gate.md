@@ -3,11 +3,12 @@
 This change adds a test-only acceptance gate and registers its environment
 variables. It adds no runtime code path, query, queue, lease or Cypher.
 
-- No-Regression Evidence: the only non-test, non-doc source change is two
-  entries in `go/internal/envregistry/entries.go` that name the gate's DSN and
-  opt-in variables. The registry is read at startup to render docs and validate
-  names; it is not on a request or worker path. Baseline and after are the same
-  for every service binary: no behavior reads these entries at runtime.
+- No-Regression Evidence: the only non-test, non-doc source change is three
+  entries in `go/internal/envregistry/entries.go` that name the gate's DSN,
+  opt-in, and elapsed-bound variables. The registry is read at startup to
+  render docs and validate names; it is not on a request or worker path.
+  Baseline and after are the same for every service binary: no behavior reads
+  these entries at runtime.
   Backend: none touched. Input shape: not applicable. Row and queue counts: not
   applicable.
 - No-Observability-Change: no metric, span, log key, status field or dashboard
