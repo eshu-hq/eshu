@@ -78,20 +78,18 @@ read plane `GetRunStatus`, `ListRuns`, `GetRunCompleteness`,
   as builder id, then a build-provenance attestation signed and uploaded
   (read 2026-11-01). SUPERSEDED 2026-11-04: never deployed; live is now
   `e1b564af` (below).
-- **Live digest** (2026-11-04 live re-read handed to this lane):
+- **Live digest** (re-read 2026-11-04, re-derived in this lane):
   `eshu-workflow-claim-plane` + `eshu-workflow-coordinator-satellite` both
-  `ghcr.io/eshu-hq/eshu-workflow@sha256:e1b564af` (digest prefix as handed
-  off; full 64-hex NOT_CHECKED by this lane), still dark. The 2026-11-01
-  record (`03d9f97632e196de0f543fa7c0bcfb827db5a3ae8cb1d8e9320511f9b4bada83`
+  `ghcr.io/eshu-hq/eshu-workflow@sha256:e1b564afa5f72167e3911aea7c881973c74bab123183c03d9d6af5a2d80e47a4`,
+  1/1 ready, still dark. The 2026-11-01 record
+  (`03d9f97632e196de0f543fa7c0bcfb827db5a3ae8cb1d8e9320511f9b4bada83`
   ← run `40779192627` at `b6497fce`, no SLSA attestation) is superseded.
-- Provenance of live `e1b564af`: NOT_CHECKED (2026-11-04). Tried read-only:
-  `gh api orgs/eshu-hq/packages?package_type=container` → HTTP 403 (needs
-  `read:packages` scope); `gh api
-  repos/eshu-hq/eshu-workflow/actions/workflows/399466503/runs?per_page=10`
-  → newest image-publish run `41342413826` at `af3311e0` (2026-11-01), no
-  run maps to `e1b564af`, and satellite `main` is still `af3311e0`; `gh api
-  repos/eshu-hq/eshu-workflow/attestations/sha256:e1b564af` → 404 (prefix,
-  not a full digest). Publishing commit/run and SLSA state unknown.
+- Provenance of live `e1b564af` (resolved 2026-11-04): built by
+  `eshu-hq/eshu-workflow` `image-publish` @ `refs/tags/v0.1.1`, run
+  `41332377147` (head `8311ed69`); live attestation query on the full
+  digest returns 2 Sigstore/Fulcio bundles (parsed Fulcio cert:
+  workflow identity + run URL). Earlier dead ends (packages API 403,
+  prefix-attestation 404) retired with the prefix-only record.
 - Live in-tree coordinator image (2026-11-04 handoff):
   `eshu:sha-e3d81617@sha256:3a07c59b` (references as handed off; earlier
   `sha-bdf2823363b8…` / `sha-5eb6dd84…` figures superseded, not re-read by
@@ -102,12 +100,12 @@ read plane `GetRunStatus`, `ListRuns`, `GetRunCompleteness`,
   deployment-repo re-pin PR `#491` merged (the 2026-11-01 flip
   precondition) NOT_CHECKED by this lane.
 - Gap (2026-11-04): the tags (`09e23b93`, `8311ed69`), satellite `main`
-  (`af3311e0`), and the live digest (`e1b564af`, source commit unknown)
-  are not tied together; the parity re-bind still needs a lane against
-  the live record.
-- Note (2026-11-04): the §5 parity bullet still cites the 2026-11-01
-  record; not re-read by this lane — refresh pending. All other digest
-  rows defer to the §2 live record above.
+  (`af3311e0`), and the live digest (`e1b564af` = tag `v0.1.1` build, run
+  `41332377147`) are tied together above; the parity re-bind still needs
+  a lane against the live record.
+- Note (2026-11-04): all digest rows defer to the §2 live record above;
+  §5 refreshed in this lane. Post-flip contention results ride the flip
+  report, not this lane.
 
 ## 3. Oldest/newest core pairs + compat
 
@@ -130,7 +128,7 @@ What is on main and what is not. Read this section before any claim that
 | Positive-token check on a claim mutation | PRESENT-on-main | production check `mutation.FencingToken <= 0` in `validateClaimMutation` ([`workflow_control_helpers.go:344`](https://github.com/eshu-hq/eshu/blob/15caae83c5cd1595480c20173bab20f1f65614f7/go/internal/storage/postgres/workflow_control_helpers.go#L344)), called from the ingestion commit path. `Claim.Validate` ([`types.go:413`](https://github.com/eshu-hq/eshu/blob/15caae83c5cd1595480c20173bab20f1f65614f7/go/internal/workflow/types.go#L413)) has the same rule but no non-test caller |
 | Same-transaction `HeartbeatClaim` + persist coupling (the live fence) | PRESENT-on-main | [`ingestion.go:214-215`](https://github.com/eshu-hq/eshu/blob/15caae83c5cd1595480c20173bab20f1f65614f7/go/internal/storage/postgres/ingestion.go#L214); same shape at `generation_freshness_reproject.go:163` and `control_scanner_heartbeat.go:62` |
 | Client method `ClaimPlaneClient.PinClaimForCommit` calling `/workflow.v1/ValidateAndPinClaimForCommit` | PROVEN-in-harness | [`claim_plane_client.go:395-425`](https://github.com/eshu-hq/eshu/blob/15caae83c5cd1595480c20173bab20f1f65614f7/go/internal/workflow/claim_plane_client.go#L395); only tests and `workflow/parity` call it, no production caller |
-| Server-side pin handler (`POST /workflow.v1/ValidateAndPinClaimForCommit`) | PROVEN-in-harness, other repo | `eshu-workflow` `server/server.go:74` at `33f48f4a`; not in this repo |
+| Server-side pin handler (`POST /workflow.v1/ValidateAndPinClaimForCommit`) | PROVEN-in-harness, other repo | `eshu-workflow` `server/server.go:74` at tag `v0.1.1` (`8311ed699c25201aba8d79c7a0990eaf00b42119`; re-read 2026-11-04, line 74 still registers the route) — live image `ghcr.io/eshu-hq/eshu-workflow@sha256:e1b564afa5f72167e3911aea7c881973c74bab123183c03d9d6af5a2d80e47a4` built by `image-publish` run `41332377147` at that tag (SLSA bundle invocation, re-derived 2026-11-04) with 2 Sigstore/Fulcio bundles; not in this repo. Supersedes the `33f48f4a` candidate pin (never deployed). |
 | Core consumption of the pin: pin before BEGIN, re-pin for the life of the transaction, and a per (generation, work item) fence row tagged with claim, fencing token, and commit id | PRESENT at PR-B merge (#9376 P2) | `go/internal/storage/postgres/ingestion_claim_fence.go` and `claim/fence/` behind `IngestionStore.ClaimPlane` (nil keeps the in-tree path); table `generation_commit_fences` (migration 270); set from `store.Selection.Pinner` in every claim-aware collector that can select the plane; `collector.ClaimedService` refuses a mismatched control store and committer at start |
 | Commit-time fence, replacing "never activate a generation below the highest activated fencing token" | PRESENT (#9376 P2, arbiter ruling 2026-11-02) | The per-scope activation rule was wrong: fencing tokens are per work item, and terraform-state can commit one resolved generation from two work items. The rule is now: a plane-claimed commit of generation G under claim (item I, token T) is durable only if the plane pinned (I, T) before BEGIN, the stored fence for (G, I) is below T or equal to T under the same claim id, and the latest pin deadline exceeds the commit time by the 5 s margin when COMMIT is sent. Fences of different work items on one generation are incomparable. Activation stays once per generation; nothing runs at projector Ack. Proof: `TestClaimPlaneFenceRefusesReclaimedStaleWriterLive`, `TestParityStaleWriterCommitFence` |
 
@@ -163,8 +161,7 @@ procedure link is `REMOVAL_PREP.md` §3.
   PROVEN-in-harness.
 - Differential parity: concurrent single-holder + fencing monotonicity on
   both legs (in-tree legs PASS on local isolated PG; satellite legs HELD —
-  need `PARITY_SATELLITE_URL/DSN`; the scoped grant is recorded (`#8875` comment `6558745112`) but execution is HELD on its open preconditions; last bind
-  `03d9f976`; the candidate `db5a3a53` has not been bound).
+  need `PARITY_SATELLITE_URL/DSN`; the scoped grant is recorded (`#8875` comment `6558745112`) but execution is HELD on its open preconditions; live bind target re-read 2026-11-04: `eshu-workflow-claim-plane` + `eshu-workflow-coordinator-satellite` both run `ghcr.io/eshu-hq/eshu-workflow@sha256:e1b564afa5f72167e3911aea7c881973c74bab123183c03d9d6af5a2d80e47a4` 1/1 ready, satellite args `--deployment-mode=dark` with no `--claims-enabled`, tag `v0.1.1` (`8311ed69`) via `image-publish` run `41332377147` with 2 Sigstore/Fulcio bundles; in-tree authority stays gated by the active-mode startup rule in `go/internal/coordinator/config.go`. Supersedes the 2026-11-01 record: last bind `03d9f976`, candidate `db5a3a53` never deployed, neither bound).
 - Reclaim: PROVEN-in-harness. Both legs run the lease-reaper scenario
   (`leaseReaperScenario` in `go/internal/workflow/parity/reaping_test.go`,
   `TestParityConformance`), the satellite reap path is exercised there too
@@ -210,8 +207,8 @@ downgrade-migration rehearsals anywhere; rehearse only non-downgrade paths
 delete-path-suffices OR roll-forward-plus-rebuild with documented re-sync
 RTO. Abort-to-dark rehearsal with ~40s re-sync RTO recorded on `#8875`
 (comment `6505750834`, not re-measured here). SLSA attestation: per the
-§2 live record (2026-11-04); the 11-01 candidate/live split named retired
-digests — full-digest provenance NOT_CHECKED by this lane.
+§2 live record (2026-11-04) — live digest built at tag `v0.1.1`
+(run `41332377147`), 2 Sigstore/Fulcio bundles.
 Live re-verification of `#9383` text was BLOCKED by gh quota on 2026-10-31
 and not retried; the disposition above is cited-from-record, not re-read.
 
@@ -233,4 +230,4 @@ and not retried; the disposition above is cited-from-record, not re-read.
 | Stage-1c, no interim markers | LANDED / CLEAN | `a1c30b40be`; zero hits at the 2026-10-31 check |
 | README gaps | FLAGGED, not filled | listed above |
 | `#9383` disposition | CITED-FROM-RECORD | live re-read blocked by quota |
-| SLSA attestation | PARTIAL — see §2 live record | 11-01 candidate/live split retired with its digests; full-digest provenance NOT_CHECKED |
+| SLSA attestation | PARTIAL — see §2 live record | live digest built at tag `v0.1.1` (run `41332377147`), 2 Sigstore/Fulcio bundles; 11-01 split retired |
