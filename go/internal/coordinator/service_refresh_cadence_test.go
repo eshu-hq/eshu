@@ -4,7 +4,9 @@
 package coordinator
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
@@ -186,9 +188,15 @@ func TestServiceRefreshCadenceAllSkippedPersistsNoRun(t *testing.T) {
 	halfHour := observedT0.Add(30 * time.Minute)
 	tickStore := &fakeStore{}
 	tick := refreshCadenceService(configuration, tickStore, progress)
+	var tickLogs bytes.Buffer
+	tick.Logger = slog.New(slog.NewTextHandler(&tickLogs, nil))
 	if err := tick.scheduleVulnerabilityIntelligenceWork(ctx, halfHour,
 		[]workflow.CollectorInstance{refreshCadenceInstance(configuration, halfHour)}); err != nil {
 		t.Fatalf("all-skipped scheduleVulnerabilityIntelligenceWork() error = %v, want nil", err)
+	}
+	if logged := tickLogs.String(); !strings.Contains(logged, "skipped all vulnerability targets by refresh cadence") ||
+		!strings.Contains(logged, "cadence_skipped_targets=2") {
+		t.Fatalf("all-skipped tick logs = %q, want the cadence-skip line with cadence_skipped_targets=2", logged)
 	}
 	if len(tickStore.createdRuns) != 0 {
 		t.Fatalf("all-skipped created runs = %d, want 0 (no run persists skip-only ticks)", len(tickStore.createdRuns))
@@ -198,6 +206,45 @@ func TestServiceRefreshCadenceAllSkippedPersistsNoRun(t *testing.T) {
 	}
 	if len(progress.records) != recordsAfterSeed {
 		t.Fatalf("all-skipped records = %v, want no new record (nothing covered)", progress.records)
+	}
+
+	// A tick that reaches the all-skipped branch with no cadence-skipped
+	// targets stays silent: the INFO line is the cadence signal, not a
+	// generic empty-tick marker. An NVD hold dropping the sole anchor
+	// reaches the branch with CadenceSkipped==0; dropping the
+	// CadenceSkipped guard must fail this pin (mutant M1).
+	holdConfiguration := `{"targets":[
+{"source":"nvd","scope_id":"vuln-intel://nvd/anchor","modified_start":"2026-01-01T00:00:00Z","modified_end":"2026-04-01T00:00:00Z","results_per_page":50}
+],"derive_nvd_rolling_windows":{"enabled":true}}`
+	holdStore := &fakeStore{}
+	holdTick := refreshCadenceService(holdConfiguration, holdStore, progress)
+	holdTick.NVDWindowCursorReader = &fakeNVDWindowCursorReader{
+		cursor: halfHour.Add(time.Hour).UnixMicro(),
+		set:    true,
+	}
+	var holdLogs bytes.Buffer
+	holdTick.Logger = slog.New(slog.NewTextHandler(&holdLogs, nil))
+	if err := holdTick.scheduleVulnerabilityIntelligenceWork(ctx, halfHour,
+		[]workflow.CollectorInstance{refreshCadenceInstance(holdConfiguration, halfHour)}); err != nil {
+		t.Fatalf("hold scheduleVulnerabilityIntelligenceWork() error = %v, want nil", err)
+	}
+	if len(holdStore.createdRuns) != 0 {
+		t.Fatalf("hold created runs = %d, want 0 (hold drops the anchor, reaching the all-skipped branch)", len(holdStore.createdRuns))
+	}
+	if logged := holdLogs.String(); strings.Contains(logged, "skipped all vulnerability targets by refresh cadence") {
+		t.Fatalf("hold tick logs = %q, want no cadence-skip line when CadenceSkipped==0", logged)
+	}
+
+	// An all-skipped tick with a nil Logger returns nil with no run and no
+	// panic. Removing the nil guard must fail this pin (mutant M2).
+	nilLoggerStore := &fakeStore{}
+	nilLoggerTick := refreshCadenceService(configuration, nilLoggerStore, progress)
+	if err := nilLoggerTick.scheduleVulnerabilityIntelligenceWork(ctx, halfHour,
+		[]workflow.CollectorInstance{refreshCadenceInstance(configuration, halfHour)}); err != nil {
+		t.Fatalf("nil-logger all-skipped scheduleVulnerabilityIntelligenceWork() error = %v, want nil", err)
+	}
+	if len(nilLoggerStore.createdRuns) != 0 {
+		t.Fatalf("nil-logger all-skipped created runs = %d, want 0", len(nilLoggerStore.createdRuns))
 	}
 }
 
