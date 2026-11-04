@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-//go:build integration
-
 package postgres
 
 import (
@@ -18,6 +16,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -272,17 +271,45 @@ func TestScopeMayHoldWorkloadCandidatesDifferentialLive(t *testing.T) {
 	}
 }
 
-// openCandidateProbeSchema creates an isolated schema holding the three
+// candidateProbeDSNEnv and candidateProbeDisposableEnv name the administrative
+// DSN and the explicit opt-in the scheduled disposable_storage group exports
+// for this proof family. The opt-in is required because the proof creates and
+// force-drops a database.
+const (
+	candidateProbeDSNEnv        = "ESHU_TEST_WORKLOAD_PROBE_POSTGRES_DSN"
+	candidateProbeDisposableEnv = "ESHU_TEST_WORKLOAD_PROBE_POSTGRES_DISPOSABLE"
+)
+
+// openCandidateProbeSchema returns a handle on a database holding only the
 // tables the candidate probe reads (ingestion_scopes, scope_generations,
-// fact_records), returns a single-connection handle bound to it, and drops
-// the schema on cleanup. It skips the test when ESHU_POSTGRES_TEST_DSN is
-// unset. The returned context carries the given timeout and is cancelled on
-// cleanup.
+// fact_records). With the administrative DSN pair set (the scheduled
+// disposable_storage group) it creates a disposable database through
+// postgresproof.OpenDisposableDatabase and force-drops it on cleanup. With
+// only ESHU_POSTGRES_TEST_DSN set (the local developer path) it creates an
+// isolated schema on that database and drops the schema on cleanup. It skips
+// when neither is set. The returned context carries the given timeout.
 func openCandidateProbeSchema(t *testing.T, schema string, timeout time.Duration) (context.Context, *sql.DB) {
+	t.Helper()
+	var ctx context.Context
+	var db *sql.DB
+	if strings.TrimSpace(os.Getenv(candidateProbeDSNEnv)) != "" {
+		ctx, db = postgresproof.OpenDisposableDatabase(t,
+			os.Getenv(candidateProbeDSNEnv), os.Getenv(candidateProbeDisposableEnv), timeout)
+	} else {
+		ctx, db = openCandidateProbeIsolatedSchema(t, schema, timeout)
+	}
+	createCandidateProbeTables(t, ctx, db)
+	return ctx, db
+}
+
+// openCandidateProbeIsolatedSchema is the local developer path: an isolated
+// schema on the ESHU_POSTGRES_TEST_DSN database, dropped on cleanup.
+func openCandidateProbeIsolatedSchema(t *testing.T, schema string, timeout time.Duration) (context.Context, *sql.DB) {
 	t.Helper()
 	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_TEST_DSN"))
 	if dsn == "" {
-		t.Skip("set ESHU_POSTGRES_TEST_DSN to run the live candidate-precondition proofs")
+		t.Skip("set " + candidateProbeDSNEnv + " and " + candidateProbeDisposableEnv +
+			"=1, or ESHU_POSTGRES_TEST_DSN, to run the live candidate-precondition proofs")
 	}
 	adminDB, err := sql.Open("pgx", dsn)
 	if err != nil {
@@ -318,6 +345,12 @@ func openCandidateProbeSchema(t *testing.T, schema string, timeout time.Duration
 	db.SetMaxOpenConns(1)
 	t.Cleanup(func() { _ = db.Close() })
 
+	return ctx, db
+}
+
+// createCandidateProbeTables creates the three tables the probe reads.
+func createCandidateProbeTables(t *testing.T, ctx context.Context, db *sql.DB) {
+	t.Helper()
 	if _, err := db.ExecContext(ctx, `
 CREATE TABLE ingestion_scopes (
     scope_id TEXT PRIMARY KEY,
@@ -371,7 +404,6 @@ CREATE TABLE fact_records (
 `); err != nil {
 		t.Fatalf("create candidate-precondition tables: %v", err)
 	}
-	return ctx, db
 }
 
 // probeSignalValueJSON returns a value extraction reads as evidence for one

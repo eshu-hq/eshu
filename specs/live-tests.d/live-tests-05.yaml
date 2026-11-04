@@ -214,9 +214,10 @@ tests:
     class: scheduled
     reason: full-stack cost unmeasured on this tree; promote to blocking after a measured green run
   - file: go/internal/storage/postgres/workload_candidate_precondition_live_test.go
-    tag: integration
-    class: scheduled
-    reason: full-stack cost unmeasured on this tree; promote to blocking after a measured green run
+    tag: ~
+    class: verified_scheduled
+    reason: "linuxdynasty: postgres-scheduled disposable_storage workload candidate probe matrix and differential against ExtractWorkloadCandidates; explicit disposable PostgreSQL admin fixture; measured 0.2 s matrix and 23.3 s differential under -race on PostgreSQL 18.6; docs/internal/evidence/9986-workload-probe-plan.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/facts_cicd_run_history_latest_snapshot_live_test.go
     tag: ~
     class: scheduled

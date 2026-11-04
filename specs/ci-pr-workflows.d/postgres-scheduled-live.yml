@@ -176,6 +176,9 @@ workflows:
   - go/internal/storage/postgres/testdata/**
   - go/internal/storage/postgres/value_flow_refresh_ack_live_test.go
   - go/internal/storage/postgres/value_flow_refresh_fanout_live_test.go
+  - go/internal/storage/postgres/workload_candidate_precondition.go
+  - go/internal/storage/postgres/workload_candidate_precondition_corpus_test.go
+  - go/internal/storage/postgres/workload_candidate_precondition_live_test.go
   - go/internal/testutil/postgresproof/**
   - scripts/ci/go-mod-download-retry.sh
   - scripts/lib/live_tests_registry.py

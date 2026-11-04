@@ -28,5 +28,13 @@
     "tests": [
       "TestSupplyChainRuntimeFallbackIndexRestartSafetyLive"
     ]
+  },
+  "go/internal/storage/postgres/workload_candidate_precondition_live_test.go": {
+    "group": "disposable_storage",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestScopeMayHoldWorkloadCandidatesDifferentialLive",
+      "TestScopeMayHoldWorkloadCandidatesLive"
+    ]
   }
 }

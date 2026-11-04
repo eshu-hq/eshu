@@ -42,7 +42,7 @@ probes false, and so does the QA all-null shape.
 
 ```bash
 cd go && ESHU_POSTGRES_TEST_DSN='postgres://postgres@127.0.0.1:55986/eshu9986?sslmode=disable' \
-  go test -tags integration ./internal/storage/postgres/ -run TestScopeMayHoldWorkloadCandidatesLive -count=1 -v
+  go test ./internal/storage/postgres/ -run TestScopeMayHoldWorkloadCandidatesLive -count=1 -v
 ```
 
 ## Performance Evidence
@@ -285,6 +285,39 @@ Decision: leave the repository-side read as is. Record: 8.4 ms warm at 15 MB
 stored payload, about 4,000 buffers, 5% of the statement on a 23,329-file scope.
 A cache-cold repository payload read is NOT_CHECKED here.
 
+## Scheduled enrollment (F6)
+
+The correction to the #9697 note says that defect shipped because its live
+test was classed `scheduled` and never ran. The matrix
+(`TestScopeMayHoldWorkloadCandidatesLive`) and the differential
+(`TestScopeMayHoldWorkloadCandidatesDifferentialLive`) are now enrolled in the
+`disposable_storage` group of the scheduled PostgreSQL workflow, ledger class
+`verified_scheduled`, runner `postgres-scheduled`:
+
+- The build tag is gone and the env Skip stays, as for every enrolled peer: the
+  group runs `go test` without `-tags integration`.
+- The group exports `ESHU_TEST_WORKLOAD_PROBE_POSTGRES_DSN` and
+  `ESHU_TEST_WORKLOAD_PROBE_POSTGRES_DISPOSABLE=1`. The tests create and
+  force-drop a database through `postgresproof.OpenDisposableDatabase`, so the
+  disposable opt-in is required. `ESHU_POSTGRES_TEST_DSN` still works as the
+  local developer path (an isolated schema instead of a database). Peer
+  `ESHU_TEST_*` proof variables are not in the env registry, and
+  `verify-docs-cli-env-refs.sh` and `verify-env-registry-doc.sh` pass without
+  an entry.
+- The legacy `scheduled` exemption inventory shrinks by this file (375 to 374;
+  the pin is re-derived from the ledger).
+
+Group wall, measured on the private cluster with the action's own command
+(`go test -json -race -p=1 -count=1 -timeout=6m`, PostgreSQL 18.6, 8 tests):
+the package ran in 40.9 s of the 360 s timeout (sum of tests 35.6 s; the
+differential 21.2 s, the matrix 0.2 s), and
+`postgres_scheduled_runner.py --events ... --group disposable_storage`
+accepted the event stream (8 proofs PASS). Dropping a test from the `-run`
+list or the disposable opt-in from the step fails the runner verifier with
+`selector does not equal exact inventory` or `missing admin DSN or disposable
+opt-in` once the action digest is re-pinned, and with a digest mismatch before
+that.
+
 ## Reproducing the figures
 
 The generator and plan scripts sit beside this note, so the figures do not
@@ -306,7 +339,8 @@ psql -X -d perf9986 -f docs/internal/evidence/9986-workload-probe-plan-repositor
 Plan times depend on the host and its load: compare buffer counts across
 machines, and read wall times only against a control run on the same host.
 The differential and matrix live tests need only `ESHU_POSTGRES_TEST_DSN`
-(see the commands above).
+(see the commands above); the scheduled group uses the administrative pair
+described in the next section.
 
 ## Observability Evidence
 
