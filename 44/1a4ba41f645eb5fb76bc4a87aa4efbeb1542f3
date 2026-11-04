@@ -1,0 +1,21 @@
+scripts/lib/live_postgres_readiness_inventory_gen_internal_storage_postgres_part1.py
+  s_7547c0f0af67d4::t_b8d5ddb29fcef0 23-35
+specs/live-tests.d/live-tests-readiness-part2.generated.yaml
+  s_7547c0f0af67d4::t_94685f7fb675b3 37-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "441a4ba41f645eb5fb76bc4a87aa4efbeb1542f3",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
