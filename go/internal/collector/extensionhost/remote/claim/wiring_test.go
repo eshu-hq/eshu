@@ -9,7 +9,9 @@ package claim
 // file-size cap, so its table stays untouched and every wired row lives here:
 //
 //	PREP row                          Wired test
-//	Revoked grant at wiring           TestCutover_EnabledLiveGrantRereadDeniesRevoked
+//	Revoked grant at wiring           TestCutover_EnabledWiringDeniesRevokedGrant
+//	                                  (emission re-read in
+//	                                  TestCutover_EnabledLiveGrantRereadDeniesRevoked)
 //	Revoked/expired at emission       TestCutover_EnabledLiveGrantRereadDeniesRevoked,
 //	                                  TestCutover_WiredDecisionsMatchInTreeAuthority
 //	                                  (revoked, expired, unreadable, neighbor,
@@ -318,6 +320,36 @@ func TestCutover_EnabledLiveGrantRereadDeniesRevoked(t *testing.T) {
 	decisions := observer.snapshot()
 	if len(decisions) != 2 || decisions[0].Allowed || !decisions[1].Allowed {
 		t.Fatalf("decisions = %+v, want deny then allow through the wired path", decisions)
+	}
+}
+
+// TestCutover_EnabledWiringDeniesRevokedGrant replays the section 7
+// "revoked grant at wiring" row through the enabled gate: VerifyWiring
+// denies a revoked grant at the wiring stage before touching the wire,
+// mirroring TestReplay_RevokedGrantAtWiringFailsClosed on the client.
+func TestCutover_EnabledWiringDeniesRevokedGrant(t *testing.T) {
+	t.Parallel()
+
+	revoked := liveGrant()
+	revoked.Revoked = true
+	live := &mutableGrants{grants: []component.ProducerGrant{revoked}}
+	observer := &recordingObserver{}
+	cutover := enabledCutover(t, "http://localhost:1", live, observer)
+
+	err := cutover.VerifyWiring(context.Background(), []DeclaredEmission{{Kind: replayCoreKind, SchemaVersion: replayCoreSchema}})
+	var deny *DenyError
+	if !errors.As(err, &deny) {
+		t.Fatalf("VerifyWiring() = %v (%T), want *DenyError through the wired path", err, err)
+	}
+	if deny.Reason != component.GrantReasonRevoked {
+		t.Fatalf("reason = %q, want revoked", deny.Reason)
+	}
+	decisions := observer.snapshot()
+	if len(decisions) != 1 || decisions[0].Allowed || decisions[0].Reason != component.GrantReasonRevoked {
+		t.Fatalf("decisions = %+v, want one wiring deny with reason revoked", decisions)
+	}
+	if decisions[0].Stage != StageWiring {
+		t.Fatalf("stage = %q, want wiring", decisions[0].Stage)
 	}
 }
 
