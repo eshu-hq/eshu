@@ -164,9 +164,9 @@ fi
 
 # ---------------------------------------------------------------------------
 # Case 8: retired cassette lane — the workflow must not carry a record step
-# for the retired kubernetes_live cassette. The tracked corpus file stays,
-# but the golden-corpus gate no longer replays it until the satellite proves
-# an alias.
+# for the retired kubernetes_live cassette. The tracked corpus file stays and
+# the golden-corpus gate keeps replaying it through the pagerduty alias, like
+# the other extracted satellites.
 # ---------------------------------------------------------------------------
 if rg --fixed-strings --quiet -- 'testdata/cassettes/kuberneteslive/supply-chain-demo.json' "${workflow}" 2>/dev/null; then
   fail "workflow still carries the retired kubernetes_live record lane"

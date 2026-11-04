@@ -145,6 +145,7 @@ cassette_replay_alias_specs=(
 	"vault-cassette-replay:collector-pagerduty:vaultlive"
 	"azure-cassette-replay:collector-pagerduty:azurecloud"
 	"gcp-cassette-replay:collector-pagerduty:gcpcloud"
+	"kubernetes-live-cassette-replay:collector-pagerduty:kuberneteslive"
 )
 cassette_recording="supply-chain-demo.json"
 
