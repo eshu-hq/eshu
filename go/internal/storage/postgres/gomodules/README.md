@@ -3,8 +3,9 @@
 ## Purpose
 
 `gomodules` reads one rotation page of repositories for the Go reachability
-scanner: their canonical id, active-generation commit, stored remote, and whether
-their stored content holds a `go.mod`.
+scanner: their canonical id, active-generation commit, and stored remote. It keeps
+a repository whose stored content holds a `go.mod`, or whose go-reachability scope
+still holds Go evidence.
 
 ## Ownership boundary
 
@@ -33,6 +34,21 @@ None of its own. The coordinator wraps the queryer so the read reports on
   is `ingestion_scopes.source_key`, and the commit is
   `scope_generations.source_commit_sha`.
 - A repeat pass in a bucket is one primary-key probe on `workflow_runs`.
+- A repository is planned on `has_go_module OR has_go_evidence`. Without the second
+  branch, a repository that lost its `go.mod` is never claimed, so its Go evidence
+  never retracts. `has_go_evidence` is true while the repository's
+  `go-reachability://` scope has an active generation holding a non-tombstoned
+  `vulnerability.go_module_evidence` or `vulnerability.go_call_reachability` fact. The
+  component scans once more and lands a trusted `no_go_modules` generation holding
+  only a warning, so the repository drops out on its next visit. The cost is one
+  extra shallow clone per lost `go.mod`.
+- The probe is designed as the `ingestion_scopes` primary key plus a prefix of
+  `fact_records_scope_generation_idx (scope_id, generation_id, fact_kind)`.
+  `EXPLAIN (ANALYZE, BUFFERS)` of the amended query has not been run: replace this
+  line with its figures before merge. The ruling requires them.
+- A repository scope that retires leaves its go-reachability scope active, because
+  candidates are active repository scopes only. Core lifecycle owns that, not this
+  query.
 - Detection reads `content_files`, not the `module_declaration` fact. For one
   256-candidate page over 1.84M facts, the fact probe took 1,511 ms and read 197k
   buffers; this probe took 68 ms and read 7.5k. Do not swap in the fact probe

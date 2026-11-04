@@ -66,6 +66,17 @@ activation without the section, which still reads nothing. Rotation visits all c
 the live test proves each is visited once. Fleet cost is bounded by that rotation,
 not by fleet size per pass.
 
+## Retracting evidence after a lost go.mod
+
+A repository is planned on `has_go_module OR has_go_evidence`, so one that lost its
+`go.mod` is scanned once more and lands a trusted `no_go_modules` generation. Cost:
+one extra shallow clone per lost `go.mod`, then nothing.
+
+Each candidate adds a primary-key probe on `ingestion_scopes` and a prefix probe on
+`fact_records_scope_generation_idx`, at most 256 candidates per page. That cost is
+from the index definitions only. The `EXPLAIN (ANALYZE, BUFFERS)` of the amended
+query is not recorded yet, and the arbiter ruling requires it before merge.
+
 ## Cadence regression caught before review
 
 An activation has no top-level `scan_interval`, so `Service.scanInterval` returns
