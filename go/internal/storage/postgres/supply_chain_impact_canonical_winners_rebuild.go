@@ -12,6 +12,7 @@ import (
 
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // supplyChainImpactWinnerDataColumns lists every content column of
@@ -150,11 +151,21 @@ type SupplyChainImpactWinnersStore struct {
 	// the same transaction. Zero means the defaults, 50,000 and 0.5.
 	MaxIdentifiers int
 	MaxKeyFraction float64
+	// Instruments records the wall time of each phase of a keyed tick (#9975).
+	// Nil records nothing and changes no statement.
+	Instruments *telemetry.Instruments
 }
 
 // NewSupplyChainImpactWinnersStore wraps a DB handle for winner maintenance.
 func NewSupplyChainImpactWinnersStore(database db.Queryer) SupplyChainImpactWinnersStore {
 	return SupplyChainImpactWinnersStore{DB: database}
+}
+
+// WithInstruments returns the store with the keyed tick's phase timers wired to
+// in (#9975). It leaves the receiver unchanged.
+func (s SupplyChainImpactWinnersStore) WithInstruments(in *telemetry.Instruments) SupplyChainImpactWinnersStore {
+	s.Instruments = in
+	return s
 }
 
 // ResweepWinners reconciles the entire winners table to the current active

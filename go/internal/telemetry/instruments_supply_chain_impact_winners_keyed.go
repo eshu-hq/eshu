@@ -52,6 +52,38 @@ const (
 	SupplyChainImpactWinnersSourceAudit = "audit"
 )
 
+// Keyed winners tick phase label values (#9975). They are the closed set of the
+// phase label on eshu_dp_supply_chain_impact_winners_tick_phase_duration_seconds.
+// Each names one contiguous group of statements of ResweepWinnersKeyed, so the
+// phases of a tick that reached them sum to the tick's wall time less the
+// transaction rollback.
+const (
+	// SupplyChainImpactWinnersPhaseClaim is the transaction begin and the
+	// resweep try-lock. It is the only phase of a tick that lost the lock.
+	SupplyChainImpactWinnersPhaseClaim = "claim"
+	// SupplyChainImpactWinnersPhaseConsume is the dirty-log DELETE ... RETURNING
+	// into the consumed temp table and its tally by capture source.
+	SupplyChainImpactWinnersPhaseConsume = "consume"
+	// SupplyChainImpactWinnersPhaseBuildIdents is the identifier set built from
+	// the consumed rows, its ANALYZE, and the cap check on it.
+	SupplyChainImpactWinnersPhaseBuildIdents = "build_idents"
+	// SupplyChainImpactWinnersPhaseBuildActiveFacts is the keyed active_facts
+	// temp table (the probe into fact_records), the operator facts added to it,
+	// and its ANALYZE.
+	SupplyChainImpactWinnersPhaseBuildActiveFacts = "build_active_facts"
+	// SupplyChainImpactWinnersPhaseApply is the winner select and the row
+	// writes of one keyed apply statement.
+	SupplyChainImpactWinnersPhaseApply = "apply"
+	// SupplyChainImpactWinnersPhaseFullRebuild is the whole-table rebuild a tick
+	// ran in place of the keyed build and apply because it went over the cap.
+	SupplyChainImpactWinnersPhaseFullRebuild = "full_rebuild"
+	// SupplyChainImpactWinnersPhaseStamp is the watermark stamp of a tick that
+	// consumed nothing.
+	SupplyChainImpactWinnersPhaseStamp = "stamp"
+	// SupplyChainImpactWinnersPhaseCommit is the transaction commit.
+	SupplyChainImpactWinnersPhaseCommit = "commit"
+)
+
 // supplyChainImpactWinnersKeysBuckets span a quiet tick (a few keys) to the cap
 // (50,000 identifiers) so an operator sees a tick approach the full-rebuild
 // fallback.
@@ -94,6 +126,10 @@ type supplyChainImpactWinnersDirtyLog struct {
 //   - eshu_dp_supply_chain_impact_winners_dirty_log_depth and
 //     ..._dirty_log_oldest_age_seconds: the dirty log's backlog and how long its
 //     oldest row has waited, sampled every tick.
+//   - eshu_dp_supply_chain_impact_winners_tick_phase_duration_seconds{phase}:
+//     wall time of each phase of one keyed tick, so a slow tick reads as a slow
+//     read (build_idents, build_active_facts), a slow write (apply, commit), or
+//     a slow consume. A phase that fails still records the time it spent.
 //
 // No label carries a canonical key, scope, repository or CVE.
 func registerSupplyChainImpactWinnersKeyedInstruments(meter metric.Meter, inst *Instruments) error {
@@ -128,6 +164,14 @@ func registerSupplyChainImpactWinnersKeyedInstruments(meter metric.Meter, inst *
 		metric.WithDescription("Supply-chain impact winners audits that found stale-key candidates but could not take the resweep lock, so verified nothing and queued nothing. The audit is the backstop for a change that left no dirty-log row; a streak of skips means the backstop is not running."),
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactWinnersAuditSkipped counter: %w", err)
+	}
+	if inst.SupplyChainImpactWinnersTickPhaseDuration, err = meter.Float64Histogram(
+		"eshu_dp_supply_chain_impact_winners_tick_phase_duration_seconds",
+		metric.WithDescription("Wall time of one phase of a keyed supply-chain impact winners tick, by phase (claim, consume, build_idents, build_active_facts, apply, full_rebuild, stamp, commit). One sample per phase the tick ran; a phase whose statement failed still records the time it spent, and a tick that lost the resweep lock records only claim. It splits the tick's resweep_duration_seconds into reads (build_idents, build_active_facts) and writes (apply, commit)."),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(supplyChainImpactWinnersResweepBuckets...),
+	); err != nil {
+		return fmt.Errorf("register SupplyChainImpactWinnersTickPhaseDuration histogram: %w", err)
 	}
 	inst.supplyChainImpactWinnersDirtyLog = new(supplyChainImpactWinnersDirtyLog)
 	dirty := inst.supplyChainImpactWinnersDirtyLog
@@ -169,6 +213,17 @@ func (i *Instruments) RecordSupplyChainImpactWinnersDirtyLog(depth int64, oldest
 	d.depth.Store(depth)
 	d.oldestAgeNano.Store(int64(oldest))
 	d.sampled.Store(true)
+}
+
+// RecordSupplyChainImpactWinnersTickPhase records the wall time one phase of a
+// keyed winners tick spent, whether the phase succeeded or failed (#9975). phase
+// must be one of the SupplyChainImpactWinnersPhase* constants. It is safe on a
+// nil receiver and from any goroutine.
+func (i *Instruments) RecordSupplyChainImpactWinnersTickPhase(ctx context.Context, phase string, spent time.Duration) {
+	if i == nil || i.SupplyChainImpactWinnersTickPhaseDuration == nil {
+		return
+	}
+	i.SupplyChainImpactWinnersTickPhaseDuration.Record(ctx, spent.Seconds(), metric.WithAttributes(AttrPhase(phase)))
 }
 
 // RecordSupplyChainImpactWinnersCapture counts rows appended to the winners

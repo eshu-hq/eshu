@@ -1166,6 +1166,10 @@ type Instruments struct {
 	// SupplyChainImpactWinnersAuditSkipped counts audits that could not take
 	// the resweep lock, so ran no verification and queued nothing (#9957).
 	SupplyChainImpactWinnersAuditSkipped metric.Int64Counter
+	// SupplyChainImpactWinnersTickPhaseDuration records the wall time of each
+	// phase of one keyed winners tick, labeled phase (#9975). It is registered by
+	// registerSupplyChainImpactWinnersKeyedInstruments.
+	SupplyChainImpactWinnersTickPhaseDuration metric.Float64Histogram
 	// SupplyChainRemediationDecisions counts reducer-owned advisory-only
 	// safe-upgrade decisions per supply-chain impact finding (issue #595).
 	// Labels: domain (supply_chain_impact), outcome (confidence label

@@ -48,8 +48,9 @@ func registerCollectorDeltaTouchedRatio(meter metric.Meter, inst *Instruments) e
 	return nil
 }
 
-// AttrPhase returns a phase attribute naming the closed fence phase that
-// recorded a delta-baseline decision (preflight or ack).
+// AttrPhase returns a phase attribute naming a closed phase: the fence phase
+// that recorded a delta-baseline decision (preflight or ack), or the keyed
+// winners tick phase (the SupplyChainImpactWinnersPhase* constants, #9975).
 func AttrPhase(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionPhase, v)
 }
