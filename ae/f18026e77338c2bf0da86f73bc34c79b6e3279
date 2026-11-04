@@ -1,0 +1,27 @@
+go/internal/storage/postgres/active_package_manifest_dependency_delta.go
+  s_7547c0f0af67d4::t_951864b07c826c 51-53,358-365
+go/internal/storage/postgres/active_package_manifest_dependency_delta_test.go
+  s_7547c0f0af67d4::t_48bc0f9f852bc9 199-254
+go/internal/storage/postgres/facts_active_package_manifest_dependency.go
+  s_7547c0f0af67d4::t_61d8520af1ff95 152,159
+go/internal/telemetry/instruments.go
+  s_7547c0f0af67d4::t_a5047f67b776ef 1106-1107
+go/internal/telemetry/instruments_package_manifest_dependency_read.go
+  s_7547c0f0af67d4::t_23f4345fc77997 34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "aef18026e77338c2bf0da86f73bc34c79b6e3279",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
