@@ -67,8 +67,10 @@ delta_reader_delta_files="$(rg --files --hidden "${repo_root}/tests/fixtures/gol
 # marker pass an edge no generation produced. Line numbers are read inside the
 # leg's own function body so a call elsewhere in the lib cannot satisfy it.
 delta_reader_leg_body="$(awk '/^golden_delta_reader_run_delta_leg\(\) \{/{p=1} p{print NR": "$0} p&&/^\}/{exit}' "${delta_reader_lib}")"
+# No match prints nothing (not an error), so the caller's check names the
+# missing call instead of set -e exiting on rg's status.
 delta_reader_body_line() {
-	rg --fixed-strings -- "$1" < <(printf '%s\n' "${delta_reader_leg_body}") | cut -d: -f1
+	{ rg --fixed-strings -- "$1" < <(printf '%s\n' "${delta_reader_leg_body}") || true; } | cut -d: -f1
 }
 delta_reader_full_line="$(delta_reader_body_line $'\tgolden_delta_reader_assert_stage full')"
 delta_reader_commit_line="$(delta_reader_body_line 'golden_delta_reader_commit "${dir}/checkout" "delta"')"

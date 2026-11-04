@@ -136,14 +136,16 @@ path the existing delta-union file read uses, and runs once per stage on the
 fixture's 7-file repository. No production query, writer, or worker changed.
 
 Measured on Neo4j (compose `docker-compose.neo4j.yml` from the pinned
-eshu-deploy checkout), commit `92fdc37434`, on a shared host that was also
-running other worktrees' static gates:
+eshu-deploy checkout), on a shared host that was also running other
+worktrees' static gates. Each run executed on a commit from before the branch
+was rebased onto main; the commit column names its rebased equivalent, and the
+coordinator re-runs the gate on the rebased head.
 
-| Run | Per-phase seconds (bootstrap / collect / first_drain / maintenance_drains / graph_query) | Result |
-| --- | --- | --- |
-| 2 | 30 / 4 / 190 / 216 / 5 | 5 required failures (fixture shape, fixed in `1e0ae1a82e`) |
-| 3 | 14 / 3 / 197 / 208 / 3 | 3 required failures (markers, fixed in `92fdc37434`) |
-| 4 | 16 / 3 / 191 / 212 / 8 | `757 pass, 0 required-fail, 3 advisory-warn`, `PASS: B-7 golden corpus gate green (elapsed 452s, budget ceiling 1800s)` |
+| Run | Rebased equivalent of the commit run | Per-phase seconds (bootstrap / collect / first_drain / maintenance_drains / graph_query) | Result |
+| --- | --- | --- | --- |
+| 2 | `dfc430aea8` (full collected after the first drain) | 30 / 4 / 190 / 216 / 5 | 5 required failures (fixture shape, fixed in `14e5bc7310`) |
+| 3 | `14e5bc7310` (fixture rework) | 14 / 3 / 197 / 208 / 3 | 3 required failures (markers, fixed in `ba006a06d4`) |
+| 4 | `ba006a06d4` (markers from the live runs) | 16 / 3 / 191 / 212 / 8 | `757 pass, 0 required-fail, 3 advisory-warn`, `PASS: B-7 golden corpus gate green (elapsed 452s, budget ceiling 1800s)` |
 
 The three advisory warnings are the bootstrap, first_drain, and
 maintenance_drains phase bands. The first drain carries none of this leg's
@@ -151,6 +153,35 @@ work: the fixture is collected after it. Yet it measured 190 to 197 seconds in
 every run, against a 75-second baseline, so this host's load explains the
 bands. The leg's sync and drain run inside a `graph_query` exclusion bracket.
 A same-host run of main for comparison was not taken (NOT_CHECKED).
+
+## RED and GREEN
+
+Both runs executed on the pre-rebase commit whose rebased equivalent is
+`ba006a06d4`, with `ESHU_GRAPH_BACKEND=neo4j bash
+scripts/verify-golden-corpus-gate.sh`. The coordinator re-runs both on the
+rebased head.
+
+The RED run disabled the markers, so every edge was plainly required. It
+failed on exactly the two readers the markers name, and nothing else moved:
+
+```text
+GATE_DELTA_READER_IGNORE_EXPECTED_FAILURES=1
+  [FAIL] edge_dr-4: missing at stage delta: K8sResource:golden-delta-reader-queue -[SATISFIED_BY]-> CrossplaneXRD:xdeltaqueues.delta.acme.internal (reader crossplane_xrd)
+  [FAIL] edge_dr-5: missing at stage delta: Function:deltaReaderMovedCaller -[CALLS]-> Function:deltaReaderLedgerTotal (reader code_call_materialization)
+summary: 755 pass, 2 required-fail, 3 advisory-warn
+exit=1
+```
+
+The GREEN run used the default, which honors the markers:
+
+```text
+  [PASS] edge_dr-4: expected failure #10003 holds: K8sResource:golden-delta-reader-queue -[SATISFIED_BY]-> CrossplaneXRD:xdeltaqueues.delta.acme.internal (reader crossplane_xrd) lost under the delta (...)
+  [PASS] edge_dr-5: expected failure #10049 holds: Function:deltaReaderMovedCaller -[CALLS]-> Function:deltaReaderLedgerTotal (reader code_call_materialization) lost under the delta (...)
+  [PASS] repo_repository:r_0c077ab3: complete: 7 files agree (...)
+summary: 757 pass, 0 required-fail, 3 advisory-warn
+PASS: B-7 golden corpus gate green (elapsed 452s, budget ceiling 1800s)
+exit=0
+```
 
 ## No-Observability-Change:
 
