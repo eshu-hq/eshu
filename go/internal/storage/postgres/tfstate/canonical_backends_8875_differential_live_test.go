@@ -106,11 +106,14 @@ ON CONFLICT (fact_id) DO NOTHING
 }
 
 // tf8875DerivedCountQuery derives a read-only row-count probe from the
-// shipped canonical constant. The probe MUST stay a byte-prefix derivation:
-// the prefix guard below fails if the constant's stable head drifts, so the
-// probe can never silently diverge from production.
+// shipped canonical constant. The probe MUST stay a byte-exact derivation:
+// the guard below fails if the constant drifts, so the probe can never
+// silently diverge from production. The outer filter pins the probe to this
+// test's own scopes: the shipped query reads the whole table, so unrelated
+// pre-existing rows in a shared database must not move the pinned count.
 func tf8875DerivedCountQuery() string {
-	return `SELECT count(*) AS n FROM (` + listTerraformBackendCanonicalRowsQuery + `) AS canonical_rows`
+	return `SELECT count(*) AS n FROM (` + listTerraformBackendCanonicalRowsQuery +
+		`) AS canonical_rows WHERE scope_id LIKE 'repo_snapshot:tf8875-%'`
 }
 
 func TestTF8875CanonicalQueryDerivesFromShippedConstant(t *testing.T) {
@@ -121,7 +124,8 @@ func TestTF8875CanonicalQueryDerivesFromShippedConstant(t *testing.T) {
 		t.Fatalf("canonical query head drifted; re-derive the differential probe, do not hand-copy it")
 	}
 	probe := tf8875DerivedCountQuery()
-	inner := strings.TrimPrefix(strings.TrimSuffix(probe, `) AS canonical_rows`), `SELECT count(*) AS n FROM (`)
+	inner := strings.TrimPrefix(strings.TrimSuffix(probe,
+		`) AS canonical_rows WHERE scope_id LIKE 'repo_snapshot:tf8875-%'`), `SELECT count(*) AS n FROM (`)
 	if inner != listTerraformBackendCanonicalRowsQuery {
 		t.Fatalf("differential probe is not a byte-exact derivation of the shipped constant")
 	}
