@@ -219,6 +219,10 @@ TABLE = {
             "TestRetentionCascadeDeletesRowChangedBeforeItsLockLive",
             "TestRetentionCascadeConcurrentWithSweepAndReplaysNeverDeadlockLive",
         ),
+        "go/internal/storage/postgres/public_advisory_ghsa_reconcile_live_test.go": (
+            "TestPublicAdvisoryReconcileRefusesGHSALive",
+            "TestPublicAdvisoryReconcileThroughStoreRefusesGHSAConfigLive",
+        ),
         "go/internal/storage/postgres/recovery_refinalize_delta_active_fence_live_test.go": (
             "TestRefinalizeDeltaActiveRollsBackReindexWithTheTransaction",
             "TestRefinalizeDeltaActiveReindexLockContention",
