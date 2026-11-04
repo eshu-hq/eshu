@@ -106,25 +106,54 @@ func buildClaimedService(
 	if err != nil {
 		return collector.ClaimedService{}, err
 	}
-	// The scope query resolver delivers the run's requested_scope_set
-	// entry on the satellite claim for pinned slot scopes
-	// (eshu-hq/eshu#9432). It reads the workflow_runs row the coordinator
-	// persisted at plan time through the same control store that serves
-	// claims below.
+	// controlStore is the core workflow control store. It serves the
+	// slot-scope resolver's run-row reads in every mode: the claim plane
+	// has no run-row route, so the enabled path keeps those reads on core
+	// by explicit carve-out below, never by falling through to whichever
+	// store serves claims.
 	controlStore := postgres.NewWorkflowControlStore(database)
-	// The claim store stays on core Postgres: the slot-scope resolver reads
-	// workflow_runs rows only core holds, so a claim-plane URL is a startup
-	// error for this collector (#8875).
+	// The CoreOnlyReason lift is reserved for the designed enabled path:
+	// the flag is on, the holder is pinned to the verified manifest, and
+	// the routes below (core run reads, fenced committer, cutover grant
+	// re-read) are all bound. Any other URL-set state keeps the refusal
+	// (#8875): the resolver reads workflow_runs rows only core holds.
+	coreOnlyReason := "reads workflow_runs.requested_scope_set from core Postgres for slot scopes"
+	if config.Cutover.enabled {
+		coreOnlyReason = ""
+	}
 	claimStore, err := store.New(context.Background(), store.Options{
 		Service:        "collector-component-extension",
 		Getenv:         getenv,
 		Postgres:       controlStore,
-		CoreOnlyReason: "reads workflow_runs.requested_scope_set from core Postgres for slot scopes",
+		CoreOnlyReason: coreOnlyReason,
 		Logger:         logger,
 		Instruments:    instruments,
 	})
 	if err != nil {
 		return collector.ClaimedService{}, err
+	}
+	// The cutover gate is nil unless the enabled plan resolved: the
+	// in-tree grant closure below stays exactly as it is when off.
+	cutover, err := buildRemoteCutover(config.Cutover, grantHome)
+	if err != nil {
+		return collector.ClaimedService{}, err
+	}
+	// liveGrants re-reads the registry on every emission so a grant
+	// revoked during execution fails the next result closed. On the
+	// enabled path the re-read routes through the cutover gate under the
+	// pinned holder identity; the backing authority (the on-disk
+	// registry) is the same either way.
+	liveGrants := func() ([]component.ProducerGrant, error) {
+		return component.NewRegistry(grantHome).ProducerGrants()
+	}
+	if cutover != nil {
+		liveGrants = func() ([]component.ProducerGrant, error) {
+			// The registry read is a local disk read and the Source
+			// call site supplies no context; cancellation of the
+			// surrounding claim still applies at the next claim
+			// operation.
+			return cutover.ReadLiveGrants(context.Background())
+		}
 	}
 	source, err := extensionhost.NewSource(extensionhost.Config{
 		Manifest:            config.Manifest,
@@ -133,7 +162,13 @@ func buildClaimedService(
 		ConfigHandle:        config.ConfigHandle,
 		Config:              config.ExtensionConfig,
 		Runner:              runner,
-		ScopeQueryResolver:  vulnerability.SlotScopeQueryResolver(controlStore),
+		// Stay-core carve-out: slot-scope run rows live only in core
+		// Postgres, so the resolver stays bound to controlStore even
+		// when claims flow through the plane client above. The plane
+		// client cannot serve these reads (it has no run-row route),
+		// which keeps a misbinding a compile error, not a wrong
+		// answer at runtime.
+		ScopeQueryResolver: vulnerability.SlotScopeQueryResolver(controlStore),
 		// StatusTelemetry turns the extension's SDK status rows into the
 		// eshu_dp_component_extension_* instruments and one bounded log
 		// line per claim result (#8908); an extracted collector emits no
@@ -151,9 +186,7 @@ func buildClaimedService(
 		// closed. A read failure is returned, not swallowed: the host
 		// denies core-owned kinds (reason grants_unreadable) rather
 		// than emitting under unknown authorization.
-		LiveGrants: func() ([]component.ProducerGrant, error) {
-			return component.NewRegistry(grantHome).ProducerGrants()
-		},
+		LiveGrants: liveGrants,
 		// ClaimOutcomeRecorder writes vulnerability_source_states from claim
 		// outcomes for the vulnerability_intelligence kind only (#9420); it
 		// is nil for every other kind.
@@ -165,6 +198,17 @@ func buildClaimedService(
 	committer := postgres.NewIngestionStore(database)
 	committer.Logger = logger
 	committer.Instruments = instruments
+	if config.Cutover.enabled {
+		// Plane-fence route: a plane-held claim has no core claim row,
+		// so commits must pin on the plane through the selected
+		// client. An enabled plan without that pinner is a startup
+		// refusal, never an unfenced commit.
+		if claimStore.Backend != store.BackendClaimPlane || claimStore.Pinner == nil {
+			return collector.ClaimedService{}, fmt.Errorf(
+				"cutover enabled but no claim-plane pinner selected: refusing startup rather than committing unfenced")
+		}
+		committer.ClaimPlane = &postgres.ClaimPlaneFence{Pinner: claimStore.Pinner}
+	}
 	return collector.ClaimedService{
 		ControlStore:        claimStore.Store,
 		Source:              source,

@@ -60,6 +60,9 @@ type runtimeConfig struct {
 	// extension-host construction. It is populated from registry state,
 	// never from the component package itself.
 	Grants []component.ProducerGrant
+	// Cutover is the resolved extension-host enabled-flow wiring. The
+	// zero value is the default-off gate: every route stays in-tree.
+	Cutover cutoverPlan
 }
 
 type activationCandidate struct {
@@ -141,9 +144,14 @@ func loadRuntimeConfigObserved(getenv func(string) string, observer component.Gr
 	if err != nil {
 		return runtimeConfig{}, fmt.Errorf("read producer grants: %w", err)
 	}
+	cutover, err := resolveCutoverPlan(getenv, candidate.manifest)
+	if err != nil {
+		return runtimeConfig{}, err
+	}
 	return runtimeConfig{
 		ComponentHome:      home,
 		Grants:             grants,
+		Cutover:            cutover,
 		Instance:           desiredInstance(candidate),
 		Manifest:           candidate.manifest,
 		CollectorKind:      candidate.collectorKind,
