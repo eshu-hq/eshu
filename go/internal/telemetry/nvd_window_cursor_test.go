@@ -68,17 +68,15 @@ func TestNVDCursorLagTrackerHoldsMaxLagPerSource(t *testing.T) {
 func TestNVDCursorLagTrackerKeepsMaxPerKey(t *testing.T) {
 	t.Parallel()
 	tracker := NewNVDCursorLagTracker()
+	// The late record carries a nonzero lag (cursor Jan 5, head Jan 7), so
+	// a blind store that lets the stale record win reads 0 while max-keep
+	// holds 172800: this cell fails on the pre-fix implementation.
 	tracker.RecordCursorPosition("nvd", "scope-a",
-		nvdCursorTestMicros(t, "2026-01-05T00:00:00Z"), nvdCursorTestMicros(t, "2026-01-05T00:00:00Z"))
+		nvdCursorTestMicros(t, "2026-01-05T00:00:00Z"), nvdCursorTestMicros(t, "2026-01-07T00:00:00Z"))
 	tracker.RecordCursorPosition("nvd", "scope-a",
 		nvdCursorTestMicros(t, "2026-01-03T00:00:00Z"), nvdCursorTestMicros(t, "2026-01-03T00:00:00Z"))
-	if got := tracker.LagSecondsBySource()["nvd"]; got != 0 {
-		t.Fatalf("lag after stale record = %v, want 0 (late-then-stale holds)", got)
-	}
-	tracker.RecordCursorPosition("nvd", "scope-b",
-		nvdCursorTestMicros(t, "2026-01-03T00:00:00Z"), nvdCursorTestMicros(t, "2026-01-04T00:00:00Z"))
-	if got := tracker.LagSecondsBySource()["nvd"]; got != 86400 {
-		t.Fatalf("lag = %v, want 86400 with the stale scope-a record ignored", got)
+	if got := tracker.LagSecondsBySource()["nvd"]; got != 172800 {
+		t.Fatalf("lag after stale record = %v, want 172800 (late-then-stale holds)", got)
 	}
 }
 
