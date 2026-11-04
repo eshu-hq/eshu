@@ -259,6 +259,7 @@ func (q PostgresTerraformBackendQuery) ListTerraformBackendsByLocator(
 		var repoLocalPath string
 		var rawContext []byte
 		if err := rows.Scan(&repoID, &scopeID, &generationID, &observedAt, &repoLocalPath, &rawContext); err != nil {
+			recordBackendRead(ctx, q.Instruments, terraformBackendReadCanonical, start, true)
 			return nil, fmt.Errorf("scan terraform backend canonical row: %w", err)
 		}
 

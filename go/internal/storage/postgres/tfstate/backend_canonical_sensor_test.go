@@ -120,6 +120,38 @@ func TestTerraformBackendCanonicalReadEmitsErrorSample(t *testing.T) {
 	}
 }
 
+func TestTerraformBackendCanonicalReadEmitsErrorSampleOnScanFailure(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	reader := sdkmetric.NewManualReader()
+	query := PostgresTerraformBackendQuery{
+		DB: &fakeExecQueryer{queryResponses: []queueFakeRows{{rows: [][]any{{
+			"repo-infra",
+			"repository:repo-infra",
+			"gen-abc",
+			"not-a-time",
+			"",
+			fixtureBackendFact("s3", "b", "k", "us-east-1"),
+		}}}}},
+		Instruments: sensorInstruments(t, reader),
+	}
+
+	if _, err := query.ListTerraformBackendsByLocator(ctx, "s3", "any-hash"); err == nil {
+		t.Fatal("ListTerraformBackendsByLocator() error = nil, want scan failure")
+	}
+
+	points := sensorPoints(t, ctx, reader)
+	if len(points) != 1 {
+		t.Fatalf("datapoints = %d, want exactly one sample per call", len(points))
+	}
+	if got := sensorAttr(points[0], "read"); got != "canonical" {
+		t.Fatalf("read = %q, want canonical", got)
+	}
+	if got := sensorAttr(points[0], "outcome"); got != "error" {
+		t.Fatalf("outcome = %q, want error", got)
+	}
+}
+
 func TestTerraformBackendFilteredReadEmitsFilteredSample(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
