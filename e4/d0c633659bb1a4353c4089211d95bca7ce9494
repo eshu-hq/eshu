@@ -1,0 +1,22 @@
+apps/console/src/pages/VulnerabilitiesReachableWorkspace.test.tsx
+  s_7547c0f0af67d4::t_48130c54766d79 1-83
+  s_7547c0f0af67d4::t_2f865fda09e6fc 84-98
+apps/console/src/pages/VulnerabilitiesReachableWorkspace.tsx
+  s_7547c0f0af67d4::t_f510d8946f097b 40-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e4d0c633659bb1a4353c4089211d95bca7ce9494",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
