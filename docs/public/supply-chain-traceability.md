@@ -14,7 +14,7 @@ The chain Eshu models, end to end:
 
 ```
 CVE
-  -> advisory (CISA KEV, FIRST EPSS, OSV, NVD, GitLab/Gemnasium)
+  -> advisory (CISA KEV, FIRST EPSS, OSV, NVD)
   -> package (npm, PyPI, Go, Maven, NuGet, Composer, RubyGems, Cargo,
               Swift, Pub, Hex, and OS apk/dpkg/rpm)
   -> manifest -> lockfile
@@ -66,7 +66,7 @@ Three behaviors separate Eshu from a scanner that prints whatever a feed says.
 | Surface | What it does | Reference |
 | --- | --- | --- |
 | Advisory sources | Collect CISA KEV, FIRST EPSS, OSV, NVD source facts with provenance and freshness | [Security Intelligence](reference/security-intelligence.md) |
-| GitLab Gemnasium | Normalize GitLab Advisory Database records into canonical ecosystems and the shared impact reducer | [GitLab Gemnasium Integration](reference/gitlab-gemnasium-integration.md) |
+| GitLab Gemnasium | Fixture-only normalizer; not collected, gated off pending an owner and legal record ([#9992](https://github.com/eshu-hq/eshu/issues/9992)) | [GitLab Gemnasium Integration](reference/gitlab-gemnasium-integration.md) |
 | Read contract | Tell a client what is admitted, refused, or partial before it queries findings | [Vulnerability Scanner Read Contract](reference/vulnerability-scanner-read-contract.md) |
 | Impact findings | Reducer-owned findings with impact status, reachability, advisory sources, suppression | [MCP Reference](reference/mcp-reference.md) |
 | Secret scanning | Investigate hardcoded secrets with redacted findings and suppression evidence | [Hardcoded Secrets Investigation](reference/hardcoded-secrets-investigation.md) |

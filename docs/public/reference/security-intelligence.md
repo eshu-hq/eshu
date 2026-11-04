@@ -104,7 +104,7 @@ Security targets are evidence sources, not findings:
 | --- | --- | --- |
 | Repository dependency facts | manifests, lockfiles, normalized package ids, versions, dependency paths | Reducer joins to advisories and repository ownership using normalized identity. |
 | Package registry metadata | package identity, PURL, BOMRef, package manager, version metadata, dependency metadata | Reducer treats registry data as source metadata unless owned evidence proves use. |
-| Advisory sources | CVE, GHSA, OSV, GitLab Advisory Database (Gemnasium), CVSS v2/v3/v4, EPSS, KEV, CWE, affected ranges, fixed versions | Reducer joins advisories to owned packages, images, SBOMs, or workloads. Each source keeps its own fact provenance so reducers can detect cross-source disagreement on range, severity, or fixed version. |
+| Advisory sources | CVE, GHSA, OSV, GitLab Advisory Database (Gemnasium, fixture-only, #9992), CVSS v2/v3/v4, EPSS, KEV, CWE, affected ranges, fixed versions | Reducer joins advisories to owned packages, images, SBOMs, or workloads. Each source keeps its own fact provenance so reducers can detect cross-source disagreement on range, severity, or fixed version. |
 | Provider-hosted alerts | alert state, alert ID/number, affected dependency, dependency scope/relationship, advisory identifiers, vulnerable range, patched version, severity, CVSS, EPSS, CWE, manifest path, timestamps, sanitized source URL | Reducer compares provider alerts to Eshu-owned dependency and impact evidence without treating provider state as canonical impact truth or copying private alert data into docs. |
 | SBOM and attestations | document subject digest, component inventory, statement subject, verification status, and parse status | Reducer admits impact only when the subject digest is tied to an owned image, repository, or workload; parse validity and signature verification remain separate evidence. |
 | Container images | digest, repository, tags, config, observed runtime references | Reducer keeps digest identity separate from weak or stale tag observations. |
@@ -601,7 +601,7 @@ advisory source contracts, provider security-alert collection, and read surfaces
 User-facing references for individual supply-chain surfaces:
 
 - [Supply-Chain Traceability](../supply-chain-traceability.md) — the CVE-to-impact chain entry point.
-- [GitLab Gemnasium Integration](gitlab-gemnasium-integration.md) — GitLab Advisory Database normalization.
+- [GitLab Gemnasium Integration](gitlab-gemnasium-integration.md) — GitLab Advisory Database fixture-only normalizer (not collected, #9992).
 - [Vulnerability Scanner Read Contract](vulnerability-scanner-read-contract.md) — what is admitted, refused, or partial.
 - [Hardcoded Secrets Investigation](hardcoded-secrets-investigation.md) — redacted secret findings.
 - [SARIF Export](sarif-export.md) — SARIF v2.1.0 finding export.
