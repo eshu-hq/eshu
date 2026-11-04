@@ -1,0 +1,29 @@
+docs/internal/design/advisory-intelligence-correlation-flow.md
+  s_7547c0f0af67d4::t_0f267dd608ba9b 291
+docs/internal/evidence/9874-lockfile-retrigger.md
+  s_7547c0f0af67d4::t_7f02eddb0d2985 19,21,29-41,46-50,145-152,154-170,181-186,199-205,214-221,223-227,238-244,257-260
+docs/public/observability/telemetry-coverage-reducer-domains.md
+  s_7547c0f0af67d4::t_b2e53298d47fca 94
+docs/public/reference/telemetry/supply-chain-impact-winners.md
+  s_7547c0f0af67d4::t_44b67de1479e85 97-104
+go/internal/reducer/supplychain/core/AGENTS.md
+  s_7547c0f0af67d4::t_b875490b86052d 38-41
+go/internal/reducer/supplychain/core/HOLDER_FANOUT.md
+  s_7547c0f0af67d4::t_0e4390dc6b90e1 103-107,122-132,141-145,155-156,158-165
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5d396da2acc76fe7b3d87f1eba4c5766ff4b2d3e",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
