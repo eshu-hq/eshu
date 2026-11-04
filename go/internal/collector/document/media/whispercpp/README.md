@@ -108,9 +108,9 @@ behavior to pin and two open questions below.
 | 1 | `parseWAV`/`parseFormat` (the miniaudio-equivalent header walk) | Oversized, truncated, padded, unknown (`LIST`), out-of-order (`data` before `fmt`), short extensible, and out-of-range rate/channel/width headers all fail `ClassMalformedMedia` before any sample math. Declared sizes never drive allocation: `info.data` aliases the actual body. | `TestParseWAV*` in `parse_security_test.go`, plus `TestParseWAVRejectsHostileHeaders` |
 | 2 | `monoSample`/`sample` conversion | Boundary frames read exactly per width with correct sign extension; NaN maps to 0 and ±Inf clamps to ±full scale. | `TestMonoSampleReadsBoundaryFramesExactly`, float cases in `audio_test.go` |
 | 3 | `normalizeWAV` output (the only bytes the child parses) | Output is canonical 16 kHz mono 16-bit for every accepted layout, re-parses with `parseWAV`, and its size is exactly `44 + 2*frames*16000/rate` from actual data frames. The fake engine asserts `isCanonicalWAV(stdin)` on every run. | `TestNormalizeWAVOutputAlwaysReparses`, `TestNormalizeWAVAllocationMatchesActualData` |
-| 4 | `newResampler` tap table | At most 1024 phases; worst-case tap memory about 1.75 MiB (a rate nearly coprime with 16 kHz at 192 kHz class); deterministic per rate. | `TestNewResamplerTableStaysBounded` |
+| 4 | `newResampler` tap table | At most 1024 phases; worst-case tap memory about 1.7 MiB (a rate nearly coprime with 16 kHz at 192 kHz class); deterministic per rate. | `TestNewResamplerTableStaysBounded` |
 | 5 | `parseOutput` engine JSON | Raw control bytes blanked, invalid UTF-8 replaced (never an error, never quoted), negative or inverted offsets rejected, segment and rune caps enforced, unsorted and extreme (`MaxInt64`) offsets stored as-is in int64. Error details are fixed strings. | `TestParseOutput*`, `TestTranscribeClassifiesFailuresWithoutLeakingText` |
-| 6 | Upstream miniaudio 0.11.24 WAV decode in the child | Miniaudio always parses the stdin bytes, which are always this package's canonical WAV (`RIFF`/`fmt `/`data` only), so chunk parsers beyond `fmt`/`data` never run on caller-influenced input. A corrupt canonical header fails `MA_SUCCESS`, exits nonzero, and classifies `engine_failed`. | Upstream read (this section); the hostile-bytes bound in `TestSandboxBoundsFailClosed` |
+| 6 | Upstream miniaudio 0.11.24 WAV decode in the child | Miniaudio always parses the stdin bytes, which are always this package's canonical WAV (`RIFF`/`fmt `/`data` only), so chunk parsers beyond `fmt`/`data` never run on caller-influenced input. A corrupt canonical header fails `MA_SUCCESS`, exits nonzero, and classifies `engine_failed`. | Upstream read (this section); the fake-engine nonzero-exit leg in `engine_test.go`; the hostile-bytes case in `TestSandboxBoundsFailClosed` pins that hostile bytes never reach the child (rejected at `parseWAV` before exec) |
 | 7 | Upstream ggml model load | Magic is checked first; a bad load fails before graph allocation. The model is not a hostile-input surface while the pin holds (`New` digest plus read-only mount). | `TestNewVerifiesPinnedDigestsAndConfig`; digest recorded in facts |
 | 8 | CVE-2026-32837 (miniaudio `bext` metadata OOB read, 0.11.25 and earlier) and CVE-2026-29022 (dr_wav `smpl` overflow) | Vendored 0.11.24 is in the affected range and carries both chunk readers, but neither can fire: the trigger chunks (`bext`, `smpl`) cannot survive `normalizeWAV`, which emits only `fmt` plus `data`. The residual worst case is a contained child crash (no network, capped memory and PIDs, empty env) classified `engine_failed`, with no transcript and no facts. Moving past the fixed miniaudio needs a whisper.cpp re-pin with its own sandbox proof; flagged as follow-up work under #9729, not done here. | This section; normalization pins in rows 1–3 |
 
@@ -325,7 +325,8 @@ Note: this host's docker has no BuildKit, so the scripted
 step (the script header already requires BuildKit). The run used a
 `/tmp` Dockerfile identical except `COPY` plus `RUN chmod` to the same
 modes, with the script's own model-digest gate, per-test PASS
-assertions, and canary scan replicated exactly.
+assertions, and canary scan replicated (run log kept out of tree; rerun
+`scripts/verify-media-transcript-sandbox.sh` under BuildKit to corroborate).
 
 ## Packaging
 
