@@ -336,6 +336,8 @@ jobs:
           ESHU_DEFERRED_PARTITION_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_DRIFTED_BUCKET_SKIP_PROOF_DISPOSABLE: '1'
           ESHU_DRIFTED_BUCKET_SKIP_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_FLEET_GATE_PROOF_DISPOSABLE: '1'
+          ESHU_FLEET_GATE_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_FLUX_EVIDENCE_IDENTITY_PROOF_DISPOSABLE: '1'
           ESHU_FLUX_EVIDENCE_IDENTITY_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE: '1'

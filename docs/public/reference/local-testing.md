@@ -383,8 +383,7 @@ export ESHU_CONTENT_STORE_DSN=postgresql://eshu:change-me@localhost:15432/eshu
 export ESHU_POSTGRES_DSN=postgresql://eshu:change-me@localhost:15432/eshu
 ```
 
-For `docker-compose.neo4j.yml`, use `ESHU_GRAPH_BACKEND=neo4j` and database `neo4j`
-instead; the [B-7 golden corpus gate](local-testing/golden-corpus-gate.md#running-it-on-neo4j) takes the same switch.
+For `docker-compose.neo4j.yml`, use `ESHU_GRAPH_BACKEND=neo4j` and database `neo4j` instead; the [B-7 golden corpus gate](local-testing/golden-corpus-gate.md#running-it-on-neo4j) takes the same switch.
 
 ## What To Run
 
@@ -400,6 +399,7 @@ instead; the [B-7 golden corpus gate](local-testing/golden-corpus-gate.md#runnin
 | Discovery report loop for noisy repositories | [Discovery advisory playbook](local-testing/discovery-advisory.md) |
 | Worker knobs, pprof, and phase CPU profile capture | [Profiling and concurrency](local-testing/profiling-and-concurrency.md) |
 | Postgres pool, queue, hot-table, or search-index write pressure | [Postgres tuning](postgres-tuning.md) |
+| Seeded KEV CVE reaching a deployed service in the impact rollup, with an elapsed bound | [Fleet acceptance gate](local-testing/fleet-acceptance-gate.md) |
 
 ## Quick Verification Matrix
 

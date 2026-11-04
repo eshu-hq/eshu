@@ -11,7 +11,7 @@ Subsystem anchors such as `#api` and `#auth` moved to the family pages when this
 | Page | Covers | Variables |
 | --- | --- | --- |
 | [API, auth, and MCP](env-registry/api-and-auth.md) | Listen addresses, authentication, browser sessions, OIDC and GitHub login, and the MCP server. | 48 |
-| [Runtime and storage](env-registry/runtime-and-storage.md) | Shared runtime settings, Postgres, the graph backend, and backend conformance test knobs. | 61 |
+| [Runtime and storage](env-registry/runtime-and-storage.md) | Shared runtime settings, Postgres, the graph backend, and backend conformance test knobs. | 64 |
 | [Reducer and projection](env-registry/reducer-and-projection.md) | The reducer, projector, workflow coordinator, push hooks, and semantic providers. | 99 |
 | [Ingester and collector framework](env-registry/collectors-platform.md) | The ingester's git collector, the component package manager, and the component-extension collector. | 46 |
 | [Infrastructure and registry collectors](env-registry/collectors-infrastructure.md) | Cloud, Kubernetes, OCI registry, and package registry collectors. AWS cloud and Terraform state now collect from their extracted satellites (eshu-hq/eshu-collector-aws-cloud, eshu-hq/eshu-collector-terraform-state). Vault now collects from its extracted satellite (eshu-hq/eshu-collector-vault-live). Azure now collects from its extracted satellite (eshu-hq/eshu-collector-azure-cloud). GCP Cloud now collects from its extracted satellite (eshu-hq/eshu-collector-gcp-cloud). Kubernetes live now collects from its extracted satellite (eshu-hq/eshu-collector-kubernetes-live). | 12 |
@@ -23,7 +23,7 @@ Subsystem anchors such as `#api` and `#auth` moved to the family pages when this
 | --- | --- | --- |
 | [`api`](env-registry/api-and-auth.md#api) | 35 | API, auth, and MCP |
 | [`auth`](env-registry/api-and-auth.md#auth) | 7 | API, auth, and MCP |
-| [`backend-conformance`](env-registry/runtime-and-storage.md#backend-conformance) | 10 | Runtime and storage |
+| [`backend-conformance`](env-registry/runtime-and-storage.md#backend-conformance) | 13 | Runtime and storage |
 | [`collector`](env-registry/collectors-platform.md#collector) | 27 | Ingester and collector framework |
 | [`collector-cicd-run`](env-registry/collectors-signals.md#collector-cicd-run) | 5 | Observability, delivery, and security collectors |
 | [`collector-component-extension`](env-registry/collectors-platform.md#collector-component-extension) | 12 | Ingester and collector framework |
