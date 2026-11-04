@@ -44,16 +44,28 @@ func evaluateRPMVersionMatch(
 			compareRPMEVR,
 		)
 	}
+	// An exact-version list names the host only for the release the fact was
+	// published for. The host-line table has no rpm row, so no rpm fact earns
+	// a verified ReleaseLine and a list match reads possibly_affected with
+	// os_release_unverified instead of affected_exact (#9945). A later
+	// unreadable entry still fails closed as malformed.
+	listedWithoutRelease := false
 	for _, pkg := range pkgs {
 		for _, affected := range pkg.AffectedVersions {
 			cmp, ok := compareRPMEVR(observed, affected)
 			if ok && cmp == 0 {
-				return affectedVersionDecision(supplyChainVersionReasonRPMExactAffected)
+				if osAffectedFactCarriesReleaseEvidence(pkg) {
+					return affectedVersionDecision(supplyChainVersionReasonRPMExactAffected)
+				}
+				listedWithoutRelease = true
 			}
 			if !ok {
 				return malformedVersionDecision()
 			}
 		}
+	}
+	if listedWithoutRelease {
+		return possiblyAffectedDecision(supplyChainVersionReasonOSReleaseUnverified, []string{supplyChainMissingOSReleaseLine})
 	}
 	if fixedVersion != "" {
 		cmp, ok := compareRPMEVR(observed, fixedVersion)

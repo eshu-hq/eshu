@@ -170,7 +170,12 @@ func TestSBOMPathRetainsVendorOSVersionAuthority(t *testing.T) {
 		t.Fatalf("findings=%#v, want separate SBOM and OS observations", findings)
 	}
 	got := supplyChainImpactFindingForDigest(t, findings, "")
-	assertSupplyChainImpactStatus(t, got, SupplyChainImpactAffectedExact)
+	// No rpm row exists in the host-line table, so the vendor list carries no
+	// release evidence and cannot read affected_exact (#9945).
+	assertSupplyChainImpactStatus(t, got, SupplyChainImpactPossiblyAffected)
+	if got.MatchReason != supplyChainVersionReasonOSReleaseUnverified {
+		t.Fatalf("MatchReason = %q, want %q", got.MatchReason, supplyChainVersionReasonOSReleaseUnverified)
+	}
 	if got.RuntimeReachability != "image_os_package" || got.ObservedVersion != "1:3.0.7-18.el9_2" {
 		t.Fatalf("vendor OS version proof lost: reachability=%q version=%q", got.RuntimeReachability, got.ObservedVersion)
 	}

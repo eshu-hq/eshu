@@ -310,7 +310,10 @@ func TestSBOMSubjectConflictingOSRowsStayPartial(t *testing.T) {
 		input = append(input, scannerWorkerAnalysisFact(row.ScopeID, row.GenerationID, digest, "registry.example/os@"+digest))
 	}
 	got := supplyChainImpactFindingForDigest(t, BuildSupplyChainImpactFindings(input), digest)
-	if got.Status != SupplyChainImpactAffectedExact || !slices.Contains(got.EvidenceFactIDs, matching.FactID) ||
+	// The rpm list carries no release evidence (#9945), so the reinforced
+	// subject reads possibly_affected rather than affected_exact.
+	if got.Status != SupplyChainImpactPossiblyAffected || got.MatchReason != supplyChainVersionReasonOSReleaseUnverified ||
+		!slices.Contains(got.EvidenceFactIDs, matching.FactID) ||
 		!slices.Contains(got.EvidenceFactIDs, equivalent.FactID) {
 		t.Fatalf("equivalent OS rows did not reinforce the subject: %#v", got)
 	}

@@ -57,7 +57,12 @@ func TestBuildSupplyChainImpactFindingsUsesVendorRPMOSPackageEvidence(t *testing
 		t.Fatalf("findings = %d, want 1 RPM-backed finding: %#v", len(findings), findings)
 	}
 	got := findings[0]
-	assertSupplyChainImpactStatus(t, got, SupplyChainImpactAffectedExact)
+	// The host-line table has no rpm row, so the listed EVR has no release
+	// evidence and reads possibly_affected, not affected_exact (#9945).
+	assertSupplyChainImpactStatus(t, got, SupplyChainImpactPossiblyAffected)
+	if got.MatchReason != supplyChainVersionReasonOSReleaseUnverified {
+		t.Fatalf("MatchReason = %q, want %q", got.MatchReason, supplyChainVersionReasonOSReleaseUnverified)
+	}
 	if got.ObservedVersion != "1:3.0.7-18.el9_2" {
 		t.Fatalf("ObservedVersion = %q, want RPM EVR from os package fact", got.ObservedVersion)
 	}
@@ -69,8 +74,8 @@ func TestBuildSupplyChainImpactFindingsUsesVendorRPMOSPackageEvidence(t *testing
 	if got.FixedVersion != "" || got.FixedVersionSource != "" {
 		t.Fatalf("FixedVersion = %q (source %q), want the unverified vendor fix withheld", got.FixedVersion, got.FixedVersionSource)
 	}
-	if got.DetectionProfile != DetectionProfilePrecise {
-		t.Fatalf("DetectionProfile = %q, want precise", got.DetectionProfile)
+	if got.DetectionProfile != DetectionProfileComprehensive {
+		t.Fatalf("DetectionProfile = %q, want comprehensive for an unverified read", got.DetectionProfile)
 	}
 	path := strings.Join(got.EvidencePath, " -> ")
 	if !strings.Contains(path, chain.VulnerabilityOSPackageFactKind) {

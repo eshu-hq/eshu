@@ -253,7 +253,9 @@ func TestCov6APKVersionEdges(t *testing.T) {
 }
 
 func TestCov6RPMVersionMatchEdges(t *testing.T) {
-	hit := supplychainmodel.AffectedPackage{AffectedVersions: []string{"1.0-1"}}
+	// An exact-version list match is affected_exact only for a fact that
+	// carries a verified release line (#9945).
+	hit := supplychainmodel.AffectedPackage{AffectedVersions: []string{"1.0-1"}, ReleaseLine: "alma:8"}
 	decision := evaluateRPMVersionMatch("1.0-1", "", []supplychainmodel.AffectedPackage{hit})
 	if decision.Status != SupplyChainImpactAffectedExact {
 		t.Fatalf("rpm exact hit status = %q, want affected-exact", decision.Status)
