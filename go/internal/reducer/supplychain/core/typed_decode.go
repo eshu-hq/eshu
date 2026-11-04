@@ -135,7 +135,7 @@ func supplyChainAffectedRangesFromTyped(ranges []vulnerabilityv1.AffectedRange) 
 		if kind == "" || len(events) == 0 {
 			continue
 		}
-		out = append(out, supplychainmodel.AffectedRange{Kind: kind, Events: events})
+		out = append(out, supplychainmodel.AffectedRange{Kind: kind, Events: events, Releases: append([]string(nil), r.Releases...)})
 	}
 	return out
 }
