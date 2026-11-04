@@ -238,11 +238,37 @@ measured, and `affected_product` is the one that could spend the budget. So:
 
 Limits, measured or not:
 
-- The 5-kind `vulnerability_cve_id` statement is the one the shim measured. The
-  2-kind upstream statement has not been planned on QA. On the local fixture
-  `TestSupplyChainImpactBranchPlansStayOnAnchorsLive` proves it on
-  `cve_lookup_v2` at 120 ids under both plan modes, but a fixture of 4,000 rows per
-  kind cannot reproduce the flip itself. The bound is the shared #9994 bound.
+- The 2-kind statement flips where the 5-kind one does, so the kind filter did not
+  move the cliff. Plan-only on QA, `PREPARE`/`EXECUTE` under each `plan_cache_mode`,
+  for real CVE ids and for ids that match nothing, 12 of 12 cells as below:
+
+  | Ids | Custom plan | Generic plan |
+  |---|---|---|
+  | 240 | key probe, cost 927,383 | key probe, cost 66,088 |
+  | 400 | whole-index walk, cost 1,120,897 | key probe, cost 66,088 |
+  | 1,000 | whole-index walk, cost 1,120,898 | key probe, cost 66,088 |
+
+  The flip sits between 380 and 400 ids. At 240 the custom plan has about 17%
+  headroom on cost against the walk, so the 240 sample leaves room for about 140 more ids, not
+  a doubling, and fresh statistics could move the flip down. On the local fixture
+  `TestSupplyChainImpactBranchPlansStayOnAnchorsLive` proves the same anchor at 120
+  ids under both plan modes, but a fixture of 4,000 rows per kind cannot reproduce
+  the flip itself.
+- The arm a CVE takes depends on the loaded set, not on the order facts arrive or
+  which fact triggered the pass: a CVE with any loaded CVE-keyed fact takes the full
+  arm, and a CVE named only by an upstream list takes the signal arm
+  (`TestUpstreamArmYieldsToANativeRecordArrivingLater`). Both arms read the same
+  three signal kinds, so a withheld CVE loses no signal it had.
+- One divergence from the base: a KEV, EPSS or suppression fact and a distro record
+  in one intent's own scope, with no native fact for the CVE. The base promoted the
+  CVE and loaded its NVD record; this code keeps it on the signal arm. Production
+  scopes keep these apart (`vuln-intel://osv/...`, `vuln-intel://nvd/...`,
+  `vuln-intel://cisa/kev`, `vuln-intel://first/epss`), so this is not expected to
+  arise.
+- OS severity is scope-stable on this code. No production path puts a distro record
+  and a native record for its CVE in one pass: deb and apk package ids and purls
+  match no NVD or GHSA row, and signal passes cannot reach a distro record. That
+  comes from reading the code and is not checked on QA data.
 - This change adds no id to `vulnerability_cve_id`, which #9994 chunks at the
   same bound.
 - An intent triggered by a KEV, EPSS or suppression fact with no distro record in
@@ -254,6 +280,25 @@ No-Regression Evidence: the upstream statement issues nothing for a pass with no
 `supplyChainImpactBranchRuns`), and the withheld ids only shrink what
 `vulnerability_cve_id` reads. `TestSupplyChainImpactActiveEvidenceMatchesRetiredStatementLive`
 and `TestSupplyChainImpactActiveEvidenceBufferBudgetLive` pass with the new branch.
+
+## Accepted deviations from the ruling
+
+Ready to paste into the PR body. An arbiter ruling reviewed all three and accepted
+them, and nothing was reverted.
+
+- **Decision 1, the OS-class test.** The rule is `vendorForOSPackageClass(ecosystem)`
+  or the ecosystem `os`. The ruling's test example said `dpkg`, which names the
+  fixture's package class and is not an ecosystem key, so a literal `dpkg` ecosystem
+  keeps the scored-source rule. Whether any producer emits one was not checked; if
+  one does, that is a normalizer defect to fix at the producer.
+- **Decision 3, `UpstreamCopy`.** The ruling named `AffectedPackage`. The flag is also
+  on `ImpactCVE`, because `representative()` ranks the distro copy over NVD and the
+  product branch must judge native observations only.
+- **Decision 5, liveness.** A record is retracted when every cve observation of its
+  `AdvisoryID` is retracted, and a package whose record has no loaded cve observation
+  is live. The filter is not limited to OS ecosystems, so a two-record language
+  group with one retracted record can change verdict. No test moved. The golden
+  corpus and cassette run says whether any fixture row moved; cite it in the PR body.
 
 ## Scope question and limits
 

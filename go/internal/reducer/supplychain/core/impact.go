@@ -56,7 +56,9 @@ type SupplyChainImpactFactFilter struct {
 	// lists (#9914). They load only the KEV and EPSS facts and the suppressions for
 	// those CVEs, never their cve, affected_package or affected_product facts, so
 	// an OS finding takes severity only from the record that decided it until the
-	// full widening is measured. A CVE a loaded record is keyed to stays in CVEIDs.
+	// full widening is measured. The arm a CVE takes depends on the loaded set, not
+	// on arrival order or the fact that triggered the pass: a CVE with any loaded
+	// CVE-keyed fact is in CVEIDs, and one named only by an upstream list is here.
 	UpstreamCVEIDs []string
 	// AdvisoryIDs binds both the top-level exact-match predicate and the
 	// normalized suppression-scope predicate. It is populated alongside

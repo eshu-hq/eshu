@@ -140,19 +140,14 @@ func TestHandlerLoadsTheSignalsOfTheCVEAFindingCarries(t *testing.T) {
 	}
 }
 
-// assertUpstreamSignalsReachTheFinding runs the handler over a corpus filed under
-// cve. byPackage is what the stub returns to a filter that names a package.
-func assertUpstreamSignalsReachTheFinding(t *testing.T, cve string, scope, byPackage []facts.Envelope) {
+// runHandlerOverCatalogStub runs one pass over a stub that honours the filter the
+// way the catalog does: CVEIDs reads every kind, and UpstreamCVEIDs reads KEV, EPSS
+// and the suppression scope. byPackage is what it returns to a filter that names a
+// package.
+func runHandlerOverCatalogStub(
+	t *testing.T, scope, corpus, byPackage []facts.Envelope,
+) (*stubSupplyChainImpactFactLoader, *recordingSupplyChainImpactWriter) {
 	t.Helper()
-	corpus := []facts.Envelope{
-		suppressionFactEnvelope("suppression-cve", chain.VulnerabilitySuppressionSourcePolicy,
-			chain.VulnerabilitySuppressionJustificationIgnored, "eshu:policy/operator@example.com",
-			"2026-01-01T00:00:00Z", "2030-01-01T00:00:00Z", map[string]any{"cve_id": cve}),
-		vulnerabilityKEVFact("kev-1", cve),
-		vulnerabilityEPSSFact("epss-1", cve, "0.5", "0.9"),
-		vulnerabilityCVEFact("nvd-1", cve, 9.8),
-		vulnerabilityAffectedProductFact("product-1", cve, testImpactProductCriteria, testImpactMatchCriteriaID, true),
-	}
 	loader := &stubSupplyChainImpactFactLoader{scopeFacts: scope, activeForFilter: func(filter SupplyChainImpactFactFilter) []facts.Envelope {
 		var out []facts.Envelope
 		if len(filter.PackageIDs) > 0 {
@@ -185,6 +180,23 @@ func assertUpstreamSignalsReachTheFinding(t *testing.T, cve string, scope, byPac
 	}); err != nil {
 		t.Fatalf("Handle: %v", err)
 	}
+	return loader, writer
+}
+
+// assertUpstreamSignalsReachTheFinding runs the handler over a corpus filed under
+// cve. byPackage is what the stub returns to a filter that names a package.
+func assertUpstreamSignalsReachTheFinding(t *testing.T, cve string, scope, byPackage []facts.Envelope) {
+	t.Helper()
+	corpus := []facts.Envelope{
+		suppressionFactEnvelope("suppression-cve", chain.VulnerabilitySuppressionSourcePolicy,
+			chain.VulnerabilitySuppressionJustificationIgnored, "eshu:policy/operator@example.com",
+			"2026-01-01T00:00:00Z", "2030-01-01T00:00:00Z", map[string]any{"cve_id": cve}),
+		vulnerabilityKEVFact("kev-1", cve),
+		vulnerabilityEPSSFact("epss-1", cve, "0.5", "0.9"),
+		vulnerabilityCVEFact("nvd-1", cve, 9.8),
+		vulnerabilityAffectedProductFact("product-1", cve, testImpactProductCriteria, testImpactMatchCriteriaID, true),
+	}
+	loader, writer := runHandlerOverCatalogStub(t, scope, corpus, byPackage)
 	asked := false
 	for _, filter := range loader.filters {
 		asked = asked || slices.Contains(filter.UpstreamCVEIDs, cve)
@@ -251,5 +263,75 @@ func TestUpstreamListAloneIsWorkToDo(t *testing.T) {
 	}
 	if !supplyChainImpactFollowUpFilter(current, current).empty() {
 		t.Error("empty() = false with nothing new")
+	}
+}
+
+// TestUpstreamArmYieldsToANativeRecordArrivingLater: the arm a CVE takes depends on
+// the loaded set, not on the round a fact arrived in. The pass first asks for the
+// CVE on the upstream arm. A native record for it then arrives through the package
+// arm, so the CVE moves to the full arm once, and the finding reads both the native
+// score and the KEV the upstream arm already brought.
+func TestUpstreamArmYieldsToANativeRecordArrivingLater(t *testing.T) {
+	t.Parallel()
+
+	const cve = "CVE-2023-38039"
+	record := convertedOSVRecord(t,
+		debianRecord("DEBIAN-CVE-2023-38039", "12", "bookworm", "7.88.1-10+deb12u3", cve), false)
+	scope := append(slices.Clone(record), debianCurl("12", "7.88.1-10+deb12u2").envelope())
+	kev := vulnerabilityKEVFact("kev-1", cve)
+	native := vulnerabilityCVEFact("nvd-1", cve, 9.8)
+
+	loader, writer := runHandlerOverCatalogStub(t, scope, []facts.Envelope{kev, native}, []facts.Envelope{native})
+	if len(loader.filters) < 2 {
+		t.Fatalf("filters = %#v, want at least two rounds", loader.filters)
+	}
+	first, second := loader.filters[0], loader.filters[1]
+	if want := []string{cve}; !reflect.DeepEqual(first.UpstreamCVEIDs, want) || slices.Contains(first.CVEIDs, cve) {
+		t.Errorf("round 0: CVEIDs = %v, UpstreamCVEIDs = %v, want %s on the upstream arm only", first.CVEIDs, first.UpstreamCVEIDs, cve)
+	}
+	if want := []string{cve}; !reflect.DeepEqual(second.CVEIDs, want) || len(second.UpstreamCVEIDs) != 0 {
+		t.Errorf("round 1: CVEIDs = %v, UpstreamCVEIDs = %v, want %s on the full arm only", second.CVEIDs, second.UpstreamCVEIDs, cve)
+	}
+	if len(writer.write.Findings) != 1 {
+		t.Fatalf("findings = %d, want 1: %#v", len(writer.write.Findings), writer.write.Findings)
+	}
+	got := writer.write.Findings[0]
+	if got.CVSSScore != 9.8 || !got.KnownExploited {
+		t.Errorf("cvss = %v, kev = %v, want the native score and the KEV the upstream arm brought", got.CVSSScore, got.KnownExploited)
+	}
+	if got.AdvisoryID != "DEBIAN-CVE-2023-38039" {
+		t.Errorf("AdvisoryID = %q, want the record that decided: a scored source supplies the score without renaming", got.AdvisoryID)
+	}
+
+	// The follow-up subtracts what was requested, so the rounds above cannot show a
+	// CVE asked for on both arms. The loaded set can: with a native fact loaded the
+	// CVE is on the full arm only, whatever order the facts are read in, and with
+	// only signals it stays on the upstream arm.
+	for name, input := range map[string]struct {
+		loaded       []facts.Envelope
+		fullArm      bool
+		upstreamList []string
+	}{
+		"native fact loaded": {loaded: append(slices.Clone(scope), kev, native), fullArm: true},
+		"signal only":        {loaded: append(slices.Clone(scope), kev), upstreamList: []string{cve}},
+	} {
+		reversed := slices.Clone(input.loaded)
+		slices.Reverse(reversed)
+		for _, order := range [][]facts.Envelope{input.loaded, reversed} {
+			filter := supplyChainImpactFilter(order)
+			if slices.Contains(filter.CVEIDs, cve) != input.fullArm || !slices.Equal(filter.UpstreamCVEIDs, input.upstreamList) {
+				t.Errorf("%s: CVEIDs = %v, UpstreamCVEIDs = %v, want full arm %v and upstream list %v",
+					name, filter.CVEIDs, filter.UpstreamCVEIDs, input.fullArm, input.upstreamList)
+			}
+		}
+	}
+
+	// A native fact in the intent's own scope puts the CVE on one arm from round 0.
+	loader, _ = runHandlerOverCatalogStub(t, append(slices.Clone(scope), native), []facts.Envelope{kev}, nil)
+	if len(loader.filters) == 0 {
+		t.Fatal("no active load ran")
+	}
+	if first := loader.filters[0]; !slices.Contains(first.CVEIDs, cve) || slices.Contains(first.UpstreamCVEIDs, cve) {
+		t.Errorf("native fact in scope, round 0: CVEIDs = %v, UpstreamCVEIDs = %v, want %s on the full arm only", first.CVEIDs, first.UpstreamCVEIDs, cve)
 	}
 }
