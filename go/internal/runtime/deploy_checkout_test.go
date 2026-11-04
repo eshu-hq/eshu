@@ -15,7 +15,7 @@ import (
 // repointed contract tests assert against (#8871 in-tree removal). The pin
 // advances only with a reviewed deploy cutover; tests fail on any other
 // commit instead of asserting against drifted assets.
-const expectedDeployCheckoutCommit = "6b6164d4fd95b8959284c5af0ba9a233fe032134"
+const expectedDeployCheckoutCommit = "696793e14c1fcf00a45571cfce889fe82ea15451"
 
 // deployCheckoutRoot resolves the eshu-deploy checkout every repointed
 // contract test reads deploy assets from. It fails closed: an absent
