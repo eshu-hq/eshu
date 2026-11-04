@@ -98,7 +98,7 @@ const ImpactAggregate = `
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
-            "description": "Grouped count buckets ordered by count desc",
+            "description": "Grouped count buckets. The existing dimensions are ordered by count desc; service_id, workload_id, and environment are ordered by max_priority_score desc, then count desc, then value asc.",
             "content": {
               "application/json": {
                 "schema": {
@@ -128,7 +128,7 @@ const ImpactAggregate = `
                     "detection_profile": {"type": "string", "enum": ["precise", "comprehensive"], "description": "Echo of the detection profile applied to the aggregate; precise is returned when no profile parameter was supplied."},
                     "truncated": {"type": "boolean"},
                     "next_offset": {"type": ["integer", "null"], "description": "Next offset to request when truncated is true; null when the page is complete or when the next offset would exceed the documented maximum (10000)."},
-                    "distinct_findings": {"type": "integer", "description": "Grouped dimensions only. Each finding counted once across this page's buckets; the sum of bucket counts is at least this value. On an untruncated first page it equals total_findings of the count route for the same filters."},
+                    "distinct_findings": {"type": "integer", "description": "Grouped dimensions only. Each finding counted once across the whole filtered set, independent of limit and offset (a truncated page does not change it). Equals total_findings of the count route for the same filters. Bucket counts summed over every page are at least this value."},
                     "freshness": {"type": "object", "description": "Grouped dimensions only. Evidence freshness behind the page.", "properties": {"state": {"type": "string", "enum": ["fresh", "stale", "unknown"]}, "latest_observed_at": {"type": "string"}}},
                     "scope": {"type": "object"}
                   }

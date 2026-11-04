@@ -107,7 +107,7 @@ func supplyChainImpactAggregateTools() []ToolDefinition {
 		},
 		{
 			Name:        "get_supply_chain_impact_inventory",
-			Description: "Return a paginated grouped count of reducer-owned vulnerability impact findings along one dimension (impact_status, priority_bucket, severity, repository_id, ecosystem, service_id, workload_id, environment). Replaces the page-and-iterate caller pattern for ecosystem-level inventory questions. The service_id, workload_id, and environment dimensions resolve at read time, count a multi-service finding in every group, and add per-bucket completeness plus a page-level distinct_findings; compose them with a filter such as group_by=environment with service_id.",
+			Description: "Return a paginated grouped count of reducer-owned vulnerability impact findings along one dimension (impact_status, priority_bucket, severity, repository_id, ecosystem, service_id, workload_id, environment). Replaces the page-and-iterate caller pattern for ecosystem-level inventory questions. The service_id, workload_id, and environment dimensions resolve at read time, count a multi-service finding in every group, and add per-bucket completeness plus distinct_findings, the distinct finding count over the whole filtered set (equal to the count tool total_findings), ordered by max_priority_score, count, then value; compose them with a filter such as group_by=environment with service_id.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

@@ -20,16 +20,23 @@ import (
 // An implementation MUST:
 //   - apply filter.AllowedRepositoryIDs and filter.AllowedScopeIDs to the
 //     finding set before grouping, so a service reachable only through an
-//     ungranted repository never appears;
+//     ungranted repository never appears. Both empty means unrestricted, so
+//     the handler never calls the store for a scoped caller with no grants
+//     (it answers the empty page itself); an implementation must not be
+//     reached with an empty grant;
 //   - report a bucket whose findings a scoped grant partly hides as
 //     GroupCompletenessPartial;
 //   - emit at most one unattributed bucket (Value "", Unattributed true) for
 //     findings with no resolved group, never merged into a named bucket;
-//   - return a finding in every group it resolves to, so bucket counts may sum
-//     to more than DistinctFindings;
-//   - order rows by count descending with a stable tiebreak and honour limit
-//     and offset, where the handler asks for one extra row to detect
-//     truncation (mirrors AggregateStore.SupplyChainImpactInventory);
+//   - return a finding in every group it resolves to, so bucket counts summed
+//     over every page may exceed DistinctFindings;
+//   - report DistinctFindings over the whole filtered finding set, never over
+//     the rows of the requested page, so limit and offset (and a truncated
+//     page) never change it;
+//   - order rows by MaxPriorityScore descending, then Count descending, then
+//     Value ascending, and honour limit and offset, where the handler asks for
+//     one extra row to detect truncation (mirrors
+//     AggregateStore.SupplyChainImpactInventory);
 //   - answer ErrGroupedInventoryReadModelUnavailable rather than fall back to
 //     another read shape when its read model is not enabled.
 type GroupedInventoryStore interface {
@@ -161,10 +168,13 @@ type GroupedInventoryFreshness struct {
 	LatestObservedAt string `json:"latest_observed_at,omitempty"`
 }
 
-// GroupedInventoryPage is one page of grouped buckets. DistinctFindings counts
-// each finding once across the buckets of this page, so the sum of bucket
-// counts is at least DistinctFindings. On an untruncated first page it equals
-// the total_findings of the count route for the same filters.
+// GroupedInventoryPage is one page of grouped buckets, ordered by
+// MaxPriorityScore descending, then Count descending, then Value ascending.
+// DistinctFindings counts each finding once across the whole filtered set,
+// independent of limit and offset, so it equals the total_findings of the
+// count route for the same filters on every page. Because a finding counts in
+// every group it resolves to, bucket counts summed over every page are at
+// least DistinctFindings; a single page may sum to less.
 type GroupedInventoryPage struct {
 	Rows             []GroupedInventoryRow
 	DistinctFindings int

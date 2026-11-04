@@ -252,6 +252,11 @@ func TestGroupedInventoryTruncatedPageReadsPartial(t *testing.T) {
 	if body.NextOffset != float64(6) {
 		t.Fatalf("next_offset = %v, want 6", body.NextOffset)
 	}
+	// distinct_findings is whole-set: the store's value passes through and
+	// truncating the page to two buckets (five findings) never lowers it.
+	if body.DistinctFindings == nil || *body.DistinctFindings != 6 {
+		t.Fatalf("distinct_findings = %v, want the store's whole-set 6 on a truncated page", body.DistinctFindings)
+	}
 	for _, b := range body.Buckets {
 		if b["completeness"] != "partial" {
 			t.Errorf("bucket %v completeness = %v, want partial on a truncated page", b["value"], b["completeness"])
