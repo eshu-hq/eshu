@@ -65,7 +65,7 @@ log line record the request, not the applied delay.
 wiring end to end through the real process runner.
 
 For the `vulnerability_intelligence` kind only, the worker also sets a
-`checkpoint.Recorder` as the extension host's `ClaimOutcomeRecorder` (#9420),
+`extensionhost/vulnerability.Recorder` as the host's `ClaimOutcomeRecorder` (#9420),
 built on `vulnerabilitystore.NewVulnerabilitySourceStateStore(database)` like the
 retired in-tree command. It writes `vulnerability_source_states` under this
 worker's instance id: the attempt or failure row from each claim outcome and

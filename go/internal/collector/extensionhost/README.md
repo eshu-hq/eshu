@@ -423,7 +423,7 @@ benchmark evidence, and operator read path live in
 owns on behalf of an extension; the extension never sees it, so no storage
 handle crosses the stdio boundary. `cmd/collector-component-extension` sets it
 only for the `vulnerability_intelligence` kind
-(`collector/vulnerabilityintelligence/checkpoint`, which writes
+(`collector/extensionhost/vulnerability`, which writes
 `vulnerability_source_states`); every other kind leaves it nil.
 
 - `NextClaimed` calls `RecordClaimOutcome` exactly once on every exit path,
