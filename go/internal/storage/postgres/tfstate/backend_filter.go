@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
@@ -30,26 +31,38 @@ func (r TerraformStateBackendFactReader) filteredTerraformStateCandidates(
 		return nil, err
 	}
 
+	// One sample per discovery call covering both statements below, mirroring
+	// the canonical read seam: the filter query owns the migration-273 hot
+	// arm and the terragrunt query serves the same discovery call, so the
+	// method is the dispatch chokepoint the coverage row names.
+	start := time.Now()
+	ctx = db.WithQuerySummary(ctx, terraformBackendReadFiltered)
+
 	var candidates []terraformstate.DiscoveryCandidate
 	rows, err := r.DB.QueryContext(ctx, listTerraformBackendFactsByFilterQuery, filterJSON)
 	if err != nil {
+		recordBackendRead(ctx, r.Instruments, terraformBackendReadFiltered, start, true)
 		return nil, fmt.Errorf("list filtered terraform state backend facts: %w", err)
 	}
 	rowCandidates, err := scanTerraformBackendCandidateRows(rows)
 	if err != nil {
+		recordBackendRead(ctx, r.Instruments, terraformBackendReadFiltered, start, true)
 		return nil, fmt.Errorf("list filtered terraform state backend facts: %w", err)
 	}
 	candidates = appendMatchingTerraformStateCandidates(candidates, seen, rowCandidates, filters)
 
 	rows, err = r.DB.QueryContext(ctx, listTerragruntRemoteStateFactsByFilterQuery, filterJSON)
 	if err != nil {
+		recordBackendRead(ctx, r.Instruments, terraformBackendReadFiltered, start, true)
 		return nil, fmt.Errorf("list filtered terragrunt remote_state facts: %w", err)
 	}
 	rowCandidates, err = scanTerragruntRemoteStateCandidateRows(rows)
 	if err != nil {
+		recordBackendRead(ctx, r.Instruments, terraformBackendReadFiltered, start, true)
 		return nil, fmt.Errorf("list filtered terragrunt remote_state facts: %w", err)
 	}
 	candidates = appendMatchingTerraformStateCandidates(candidates, seen, rowCandidates, filters)
+	recordBackendRead(ctx, r.Instruments, terraformBackendReadFiltered, start, false)
 	return candidates, nil
 }
 

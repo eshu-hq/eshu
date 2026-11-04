@@ -56,7 +56,24 @@ bootstrap.
 
 ## Observability
 
-No-Observability-Change: the change is confined to SQL text, one
-comment, migration-273 DDL, and tests. No span, metric, or log line is
-added, removed, or re-keyed on the reader path; existing query
-telemetry keeps its shape.
+Observability Evidence: the lane-1 change itself added no signal (see the
+No-Observability-Change record at merge). The follow-up sensor PR adds one:
+`eshu_dp_terraform_backend_canonical_read_duration_seconds` (labels
+read=canonical|filtered, outcome=success|error), emitted once per
+`ListTerraformBackendsByLocator` call and once per
+`filteredTerraformStateCandidates` discovery call, with the coverage row in
+`telemetry-coverage-reducer-domains.md` and the operator dashboard panel.
+Lane-1 production proof is an absolute-budget check on that sensor, not a
+before/after: the sensor did not exist before the index, so no
+pre-index histogram comparison is possible.
+
+No-Regression Evidence: the sensor PR changes no SQL text, plan shape, or
+read contract. The diff carries zero hunks inside any query constant; the
+adapters gain only a clock read, a span label, and one SDK
+histogram record per call on a seconds-scale path, with nil-safe branches
+that keep unwired callers behavior-identical. Proof is the green unit
+suites at the sensor head (`go test ./internal/telemetry/`
+`./internal/storage/postgres/tfstate/`, RED-first registration and
+emission tests included) plus `go vet ./...` and `go build ./...` clean.
+No slow-path benchmark was run because there is no slow path to compare:
+the timed statements are byte-identical before and after.

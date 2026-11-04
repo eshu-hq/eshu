@@ -298,7 +298,7 @@ func openBootstrapCanonicalWriter(
 		return nil, nil, nil, err
 	}
 	writer = writer.WithTracer(tracer).WithTerraformStateOwnershipResolver(
-		bootstrapTerraformStateOwnershipResolver{resolver: tfstatebackend.NewResolver(postgres.PostgresTerraformBackendQuery{DB: database})},
+		bootstrapTerraformStateOwnershipResolver{resolver: tfstatebackend.NewResolver(postgres.PostgresTerraformBackendQuery{DB: database, Instruments: instruments})},
 	).WithTerraformStateConfigMatchResolver(
 		bootstrapTerraformStateConfigMatchResolver{driver: driver, databaseName: cfg.DatabaseName},
 	).WithKustomizeOverlayResolver(

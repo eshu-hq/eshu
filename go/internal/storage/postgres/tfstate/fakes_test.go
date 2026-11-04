@@ -85,9 +85,12 @@ func (fakeResult) RowsAffected() (int64, error) { return 1, nil }
 // to fail the query. Mirrors the root fake's row type so fixtures moved
 // unchanged.
 type queueFakeRows struct {
-	rows  [][]any
-	err   error
-	index int
+	rows [][]any
+	err  error
+	// iterErr surfaces from Err after iteration, covering iteration-failure
+	// paths without a query error.
+	iterErr error
+	index   int
 }
 
 func (r *queueFakeRows) Next() bool {
@@ -192,7 +195,7 @@ func (r *queueFakeRows) Scan(dest ...any) error {
 	return nil
 }
 
-func (r *queueFakeRows) Err() error { return nil }
+func (r *queueFakeRows) Err() error { return r.iterErr }
 
 func (r *queueFakeRows) Close() error { return nil }
 

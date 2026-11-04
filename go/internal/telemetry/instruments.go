@@ -2201,7 +2201,14 @@ type Instruments struct {
 	CanonicalWriteDuration    metric.Float64Histogram
 	QueueClaimDuration        metric.Float64Histogram
 	PostgresQueryDuration     metric.Float64Histogram
-	Neo4jQueryDuration        metric.Float64Histogram
+	// TerraformBackendCanonicalReadDuration times the canonical
+	// terraform-backends ownership read and its filtered sibling sharing
+	// the migration-273 hot arm (#8875 observational sensor), labeled by
+	// the closed read (canonical, filtered) and outcome (success, error)
+	// dimensions. One sample per adapter call; the histogram count and sum
+	// give calls and seconds for week-over-week comparison.
+	TerraformBackendCanonicalReadDuration metric.Float64Histogram
+	Neo4jQueryDuration                    metric.Float64Histogram
 
 	// QueueClaimConflictRetries counts claim statements that lost a transient
 	// database lock conflict and were retried by the storage layer, labeled
@@ -6575,6 +6582,20 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register PostgresQueryDuration histogram: %w", err)
+	}
+
+	// Same bounds as postgresBuckets above: the shipped canonical reader
+	// measured 15.3 s warm at production scale (#8875 lane 1), so the
+	// sensor must resolve slowdowns from seconds to tens of seconds in
+	// finite buckets.
+	inst.TerraformBackendCanonicalReadDuration, err = meter.Float64Histogram(
+		"eshu_dp_terraform_backend_canonical_read_duration_seconds",
+		metric.WithDescription("Terraform backend ownership read duration by reader and outcome"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(postgresBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register TerraformBackendCanonicalReadDuration histogram: %w", err)
 	}
 
 	neo4jQueryBuckets := []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10}
