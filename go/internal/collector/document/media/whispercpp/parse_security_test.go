@@ -207,16 +207,28 @@ func TestNormalizeWAVOutputAlwaysReparses(t *testing.T) {
 
 func TestNormalizeWAVAllocationMatchesActualData(t *testing.T) {
 	t.Parallel()
-	for _, rate := range []int{4000, 8000, 11025, 192000} {
-		const frames = 400
-		info := mustParseWAV(t, encodeWAV(t, rate, 1, 16, frames))
+	cases := []struct {
+		rate   int
+		frames int
+	}{
+		{rate: 4000, frames: 400},
+		{rate: 8000, frames: 400},
+		{rate: 11025, frames: 400},
+		{rate: 192000, frames: 400},
+		// Truncation-order witness: floor(7*16000/44100)=2 emits 48 bytes,
+		// while the multiply-first reading gives 49. The want formula below
+		// parentshesizes the single divide to match normalizeWAV.
+		{rate: 44100, frames: 7},
+	}
+	for _, tc := range cases {
+		info := mustParseWAV(t, encodeWAV(t, tc.rate, 1, 16, tc.frames))
 		out, err := normalizeWAV(context.Background(), info)
 		if err != nil {
-			t.Fatalf("normalizeWAV(rate %d) error = %v", rate, err)
+			t.Fatalf("normalizeWAV(rate %d, frames %d) error = %v", tc.rate, tc.frames, err)
 		}
-		want := wavHeaderBytes + 2*frames*targetSampleRate/rate
+		want := wavHeaderBytes + 2*(tc.frames*targetSampleRate/tc.rate)
 		if len(out) != want {
-			t.Fatalf("rate %d: len = %d, want %d (allocation must derive from actual data frames)", rate, len(out), want)
+			t.Fatalf("rate %d frames %d: len = %d, want %d (allocation must derive from actual data frames)", tc.rate, tc.frames, len(out), want)
 		}
 	}
 }
