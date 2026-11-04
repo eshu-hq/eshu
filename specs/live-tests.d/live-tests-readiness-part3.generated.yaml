@@ -129,6 +129,11 @@ tests:
     class: postgres_ci
     reason: "#8607 disposable PostgreSQL 18 proof, on the migrated schema in a private schema, that the epoch probe returns the empty-set epoch instead of a scan failure when the image-identity set is globally empty"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/identity_epoch_probe_reformulation_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8875 disposable PostgreSQL 18 proof, on the migrated schema in a private schema, that the grouped epoch-probe reformulation returns the same whole epoch triple (count, max observed_at, active fingerprint) as an independent Go oracle over shaped fixtures: empty set, multi-row groups, tombstones, superseded generations, non-identity kinds, delimiter-hostile scope:generation pairs, and identity-empty activation"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/identity_page_plan_live_test.go
     tag: ~
     class: postgres_ci
