@@ -1,0 +1,23 @@
+go/internal/storage/postgres/supply_chain_impact_fleet_gate_9875_live_test.go
+  s_7547c0f0af67d4::t_fdba11793c743d 271-275
+go/internal/storage/postgres/supply_chain_impact_fleet_gate_9875_test.go
+  s_7547c0f0af67d4::t_d2f2a4e6978bcf 28-29
+docs/public/reference/local-testing/fleet-acceptance-gate.md
+  s_7547c0f0af67d4::t_4d91e5239a2a26 99-103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bf987e5039cc997a8ed560a68152d9c2d7e198c4",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

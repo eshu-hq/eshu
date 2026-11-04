@@ -1,0 +1,24 @@
+docs/mkdocs.yml
+  s_7547c0f0af67d4::t_65d2b1f9603ba3 272
+docs/public/reference/local-testing/fleet-acceptance-gate.md
+  s_7547c0f0af67d4::t_9da7f47b17aa80 1-124
+docs/public/reference/local-testing.md
+  s_7547c0f0af67d4::t_f53aca3bddc0fc 402
+  s_7547c0f0af67d4::t_d6fc8d79eaceaa 386
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4f95d4c694a3eb9dcf6e8c54724880266906a4fa",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
