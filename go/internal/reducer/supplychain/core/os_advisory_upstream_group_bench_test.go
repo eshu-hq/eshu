@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/vulnerabilityintelligence"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
@@ -47,9 +48,64 @@ func upstreamBenchEnvelopes(untagged, osUngrouped, osGrouped int) []facts.Envelo
 	return out
 }
 
+// upstreamBundleEnvelopes builds records shaped like a live USN bulletin: each
+// names cves upstream CVEs and affects pkgs packages. USN-6766-1 names 90 CVEs.
+// With hosts set it adds one installed row per package.
+func upstreamBundleEnvelopes(tb testing.TB, records, cves, pkgs int, hosts bool) []facts.Envelope {
+	tb.Helper()
+	var out []facts.Envelope
+	for r := 0; r < records; r++ {
+		upstream := make([]string, 0, cves)
+		for c := 0; c < cves; c++ {
+			upstream = append(upstream, fmt.Sprintf("CVE-2024-%05d", r*cves+c))
+		}
+		affected := make([]vulnerabilityintelligence.OSVAffected, 0, pkgs)
+		for p := 0; p < pkgs; p++ {
+			name := fmt.Sprintf("linux-%d", p)
+			affected = append(affected, vulnerabilityintelligence.OSVAffected{
+				Package: vulnerabilityintelligence.OSVPackage{Name: name, Ecosystem: "Ubuntu:22.04:LTS", PURL: "pkg:deb/ubuntu/" + name + "?arch=source&distro=jammy"},
+				Ranges:  []vulnerabilityintelligence.OSVRange{{Type: "ECOSYSTEM", Events: []vulnerabilityintelligence.OSVEvent{{Introduced: "0"}, {Fixed: "5.15.0-100.110"}}}},
+			})
+		}
+		out = append(out, convertedOSVRecord(tb, vulnerabilityintelligence.OSVVulnerability{
+			Schema: "1.9.0", ID: fmt.Sprintf("USN-%d-1", 6000+r), Modified: "2026-10-26T18:02:41Z",
+			Published: "2023-09-15T04:15:10Z", Upstream: upstream, Affected: affected,
+		}, false)...)
+	}
+	if hosts {
+		for p := 0; p < pkgs; p++ {
+			row := ubuntuCurl("22.04", "5.15.0-90.100")
+			row.name = fmt.Sprintf("linux-%d", p)
+			out = append(out, row.envelope())
+		}
+	}
+	return out
+}
+
+// BenchmarkBuildSupplyChainImpactFindingsUpstreamBundle measures the whole
+// classification over bulletins naming 1, 10 and 90 CVEs. Findings grow with the
+// CVE count by design: one per CVE per installed package. The reported findings
+// metric lets the per-finding cost be read from the same run.
+func BenchmarkBuildSupplyChainImpactFindingsUpstreamBundle(b *testing.B) {
+	for _, cves := range []int{1, 10, 90} {
+		envelopes := upstreamBundleEnvelopes(b, 100, cves, 3, true)
+		b.Run(fmt.Sprintf("records=100_cves=%d_pkgs=3", cves), func(b *testing.B) {
+			b.ReportAllocs()
+			var findings int
+			for i := 0; i < b.N; i++ {
+				findings = len(BuildSupplyChainImpactFindings(envelopes))
+			}
+			b.ReportMetric(float64(findings), "findings")
+		})
+	}
+}
+
 // BenchmarkBuildSupplyChainImpactIndexUpstreamGrouping measures the index
 // build with and without the OS upstream grouping pass active. untagged is the
 // guard: a fleet with no OS vendor record and no upstream list must not move.
+// The bundle cells are the fan-out: 300 bulletins of 3 packages naming 1, 10 and
+// 90 CVEs. The #9781 evidence budget charges loaded envelopes and retained payload
+// bytes, not these copies, so this is where their cost is measured.
 func BenchmarkBuildSupplyChainImpactIndexUpstreamGrouping(b *testing.B) {
 	for _, tc := range []struct {
 		name                             string
@@ -62,6 +118,17 @@ func BenchmarkBuildSupplyChainImpactIndexUpstreamGrouping(b *testing.B) {
 	} {
 		envelopes := upstreamBenchEnvelopes(tc.untagged, tc.osUngrouped, tc.osGrouped)
 		b.Run(tc.name, func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				if _, _, err := buildSupplyChainImpactIndexWithQuarantine(envelopes); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+	for _, cves := range []int{1, 10, 90} {
+		envelopes := upstreamBundleEnvelopes(b, 300, cves, 3, false)
+		b.Run(fmt.Sprintf("bundle_records=300_cves=%d_pkgs=3", cves), func(b *testing.B) {
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
 				if _, _, err := buildSupplyChainImpactIndexWithQuarantine(envelopes); err != nil {

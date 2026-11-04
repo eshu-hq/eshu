@@ -100,5 +100,14 @@ changing anything here.
   never from the raw payload (it reads the typed `Upstream` field only). It must
   stay zero-allocation for a record that is not an OS vendor record and carries
   no `upstream` list (`BenchmarkBuildSupplyChainImpactIndexUpstreamGrouping`).
-  Changing the key rule moves `finding_id`, the winners key and `cve_id`
-  filters for every grouped OS finding, so treat it as an identity migration.
+  It joins on `AdvisoryID`, never `cve_id`: an alias can give unrelated records
+  one `cve_id`. Changing the key rule moves `finding_id`, the winners key and
+  `cve_id` filters for every grouped OS finding, so treat it as an identity
+  migration.
+- An OS-class finding is named by `decidingAdvisoryID`, not `IdentitySource`, so
+  its identity does not depend on what the pass loaded. Do not let a scored source
+  rename one, and do not move this rule to other ecosystems: #9693 pins theirs.
+- A consumer that reads affected packages reads them from the index, after
+  `liveAdvisoryPackages`, as the primary path and the derived conflict gate do. A
+  second typed decode sees the producer's `cve_id` and misses every grouped
+  finding.
