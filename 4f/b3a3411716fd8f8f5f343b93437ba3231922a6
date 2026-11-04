@@ -1,0 +1,29 @@
+go/internal/storage/postgres/supply_chain_impact_fleet_gate_9875_live_test.go
+  s_7547c0f0af67d4::t_1d58f8d0ef76b9 262
+  s_7547c0f0af67d4::t_35269bf1179555 225-230
+  s_7547c0f0af67d4::t_6f650c1cc32efe 278
+  s_7547c0f0af67d4::t_80c7ce3e99c104 1-224,231-261,263-277,279-291
+go/internal/storage/postgres/supply_chain_impact_fleet_gate_9875_test.go
+  s_7547c0f0af67d4::t_1395ea817df744 161-165
+  s_7547c0f0af67d4::t_63a5943487ea66 1-160,166-235
+go/internal/storage/postgres/supply_chain_impact_fleet_gate_violations_9875_test.go
+  s_7547c0f0af67d4::t_110c66d0e4d32c 37
+  s_7547c0f0af67d4::t_b21c5813aca82e 92-94
+  s_7547c0f0af67d4::t_9ddcc73aebc228 1-36,38-91,95-175
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4fb3a3411716fd8f8f5f343b93437ba3231922a6",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
