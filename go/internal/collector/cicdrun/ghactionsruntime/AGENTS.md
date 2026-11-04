@@ -65,10 +65,10 @@
   re-deriving the false-positive/false-negative tradeoff in
   `run_watermark_test.go`.
 - A refused commit (#10037) reaches `ObserveClaimedGenerationRefused`, which only
-  drops the staged entry. Never save the watermark there. Until #10063,
-  `collector-cicd-run` reaches neither observer, because `providerRoutedSource`
-  hides them; do not claim watermark behavior for that binary from a test that
-  drives this source directly.
+  drops the staged entry. Never save the watermark there.
+- Both hooks are found by type assertion on `ClaimedService.Source`, so any
+  wrapper around this source must forward them. `providerRoutedSource` in
+  `cmd/collector-cicd-run` does; test through it, not only through this source.
 - `saveWatermark` is called ONLY from `ObserveClaimedGenerationCommitted`
   (`source_commit_observer.go`), which `collector.ClaimedService` invokes
   once a claim cycle's generation has committed durably (#5429). `NextClaimed`

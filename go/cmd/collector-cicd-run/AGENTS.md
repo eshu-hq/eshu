@@ -17,6 +17,9 @@ or `github_app_*_env` credential references, builds `ghactionsruntime.ClaimedSou
 - Configuration must keep credential references (`token_env`, `host_token_file`,
   or `github_app_*_env`) separate from resolved runtime tokens and private keys.
 - Add focused config tests for new environment variables or target shapes.
+- `providerRoutedSource` must forward every optional hook `ClaimedService` finds
+  by type assertion on its `Source`. A hook it hides stops working in this binary
+  with no error (#10063). Prove a hook through the router, not only on its source.
 
 ## Claim Store
 
