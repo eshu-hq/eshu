@@ -38,6 +38,21 @@ const (
 	envGitHubAppID                = "ESHU_GITHUB_APP_ID"
 	envGitHubAppPrivateKey        = "ESHU_GITHUB_APP_PRIVATE_KEY"
 	envGitHubAppInstallations     = "ESHU_GITHUB_APP_INSTALLATIONS"
+	// envCutoverEnabled is the default-off gate for the extension-host
+	// enabled flow (eshu-hq/eshu#8877 leaf 1). Unset or blank keeps the
+	// in-tree claim path byte-identically: no remote client is built and
+	// the URL-set-refuses-startup law stays in force. A set value must be
+	// a Go boolean spelling (strconv.ParseBool); anything else fails
+	// startup closed naming this variable.
+	envCutoverEnabled = "ESHU_EXTENSIONHOST_CUTOVER_ENABLED"
+	// envCutoverProducerID and envCutoverProducerVersion pin the remote
+	// client's holder identity. Both are required when the gate is
+	// enabled and both must equal the verified manifest's metadata, or
+	// startup fails closed naming only the variable. The pin keeps a
+	// misconfigured host from proving as another holder; the refused
+	// value never appears in the error.
+	envCutoverProducerID      = "ESHU_EXTENSIONHOST_CUTOVER_PRODUCER_ID"
+	envCutoverProducerVersion = "ESHU_EXTENSIONHOST_CUTOVER_PRODUCER_VERSION"
 )
 
 type runtimeConfig struct {
@@ -60,6 +75,9 @@ type runtimeConfig struct {
 	// extension-host construction. It is populated from registry state,
 	// never from the component package itself.
 	Grants []component.ProducerGrant
+	// Cutover is the resolved extension-host enabled-flow wiring. The
+	// zero value is the default-off gate: every route stays in-tree.
+	Cutover cutoverPlan
 }
 
 type activationCandidate struct {
@@ -141,9 +159,14 @@ func loadRuntimeConfigObserved(getenv func(string) string, observer component.Gr
 	if err != nil {
 		return runtimeConfig{}, fmt.Errorf("read producer grants: %w", err)
 	}
+	cutover, err := resolveCutoverPlan(getenv, candidate.manifest)
+	if err != nil {
+		return runtimeConfig{}, err
+	}
 	return runtimeConfig{
 		ComponentHome:      home,
 		Grants:             grants,
+		Cutover:            cutover,
 		Instance:           desiredInstance(candidate),
 		Manifest:           candidate.manifest,
 		CollectorKind:      candidate.collectorKind,
