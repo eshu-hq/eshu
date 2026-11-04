@@ -67,6 +67,28 @@ func TestUpstreamListIsChunkedOnTheKeyProbe(t *testing.T) {
 	}
 }
 
+// upstreamChunkSizes returns each distinct statement size the production loader
+// emits across upstream lists of 1 to longestList ids, mapped to the shortest list
+// that emits it.
+func upstreamChunkSizes(t *testing.T, longestList int) map[int]int {
+	t.Helper()
+	sizes := map[int]int{}
+	for length := 1; length <= longestList; length++ {
+		routed := &supplyChainImpactRoutingDB{branchRows: map[string][][2]string{}, facts: map[string]string{}}
+		if _, _, err := NewFactStore(routed).ListActiveSupplyChainImpactFacts(context.Background(),
+			supplychaincore.SupplyChainImpactFactFilter{UpstreamCVEIDs: upstreamCVEIDs(length)}); err != nil {
+			t.Fatalf("ListActiveSupplyChainImpactFacts(%d ids): %v", length, err)
+		}
+		for _, call := range routed.callsFor(factimpact.BranchVulnerabilityUpstreamCVEID) {
+			size := len(boundList(t, call, factimpact.UpstreamCVEIDs))
+			if _, seen := sizes[size]; !seen {
+				sizes[size] = length
+			}
+		}
+	}
+	return sizes
+}
+
 // TestUpstreamListAloneRunsSignalStatementsOnly: a follow-up round whose only new
 // input is the upstream list reads the signal arm and the suppression statement,
 // which sees the whole list, and nothing that loads an advisory or a product.

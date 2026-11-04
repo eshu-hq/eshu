@@ -11,6 +11,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -200,6 +201,77 @@ func supplyChainImpactAnchorProblem(t *testing.T, plan string, anchors ...string
 		return "no accepted anchor (" + strings.Join(anchors, ", ") + ") in plan"
 	}
 	return ""
+}
+
+// TestSupplyChainImpactUpstreamPlanHoldsAtEveryChunkSizeLive plans the upstream
+// statement at every size the production chunker can emit, under both plan modes.
+// The full-chunk proof above covers one size, and the estimate is not monotonic in
+// the id count: the planner sums the per-id default below 200 ids and uses the
+// independent formula above it, so the sizes under 200 are priced higher than the
+// full chunk. The sizes follow MaxCVEIDsPerStatement. EXPLAIN without
+// ANALYZE, because the plan choice is the claim and this runs once per size.
+//
+// Measured on PostgreSQL 18 at stock settings: with the padding every size stays on
+// the anchor under both modes; without it the custom plan leaves the anchor from 114
+// ids through 240, so this catches a walk.
+func TestSupplyChainImpactUpstreamPlanHoldsAtEveryChunkSizeLive(t *testing.T) {
+	ctx, database := openSupplyChainImpactEvidenceProofDB(t)
+	seedSupplyChainImpactScaledCorpus(t, ctx, database, 150, 40, 500)
+	seedSupplyChainImpactMatrix(t, ctx, database)
+	seedSupplyChainImpactGrowthBulk(t, ctx, database, 4000, 150)
+	seedSupplyChainImpactPlanPadding(t, ctx, database, 40000)
+	if _, err := database.ExecContext(ctx, "ANALYZE fact_records"); err != nil {
+		t.Fatalf("analyze fact_records: %v", err)
+	}
+
+	var branch factimpact.Branch
+	for _, candidate := range factimpact.Branches() {
+		if candidate.Name == factimpact.BranchVulnerabilityUpstreamCVEID {
+			branch = candidate
+		}
+	}
+	sizes := slices.Sorted(maps.Keys(upstreamChunkSizes(t, max(260, 2*factimpact.MaxCVEIDsPerStatement+1))))
+	if len(sizes) == 0 || sizes[len(sizes)-1] != factimpact.MaxCVEIDsPerStatement {
+		t.Fatalf("chunk sizes = %v, want them to reach the bound %d", sizes, factimpact.MaxCVEIDsPerStatement)
+	}
+	ids := make([]string, 0, sizes[len(sizes)-1])
+	for n := 1; len(ids) < cap(ids); n++ {
+		ids = append(ids, fmt.Sprintf("CVE-1999-%05d", n))
+	}
+
+	conn, err := database.Conn(ctx)
+	if err != nil {
+		t.Fatalf("dedicated sweep session: %v", err)
+	}
+	defer func() { _ = conn.Close() }()
+	if _, err := conn.ExecContext(ctx, "PREPARE upstream_sweep AS "+branch.SQL); err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	for _, mode := range supplyChainImpactPlanModes {
+		if _, err := conn.ExecContext(ctx, "SET plan_cache_mode = "+mode); err != nil {
+			t.Fatalf("set plan_cache_mode: %v", err)
+		}
+		var off []int
+		firstProblem := ""
+		for _, size := range sizes {
+			var plan []byte
+			execute := "EXPLAIN (FORMAT JSON) EXECUTE upstream_sweep(" + supplyChainImpactSQLLiteral(t, ids[:size]) + ")"
+			if err := conn.QueryRowContext(ctx, execute).Scan(&plan); err != nil {
+				t.Fatalf("%s explain at %d ids: %v", mode, size, err)
+			}
+			anchors := append([]string{branch.Anchor}, branch.EquivalentAnchors...)
+			if problem := supplyChainImpactAnchorProblem(t, string(plan), anchors...); problem != "" {
+				off = append(off, size)
+				if firstProblem == "" {
+					firstProblem = problem + "\n" + supplyChainImpactPlanSummary(t, string(plan))
+				}
+			}
+		}
+		t.Logf("%s: planned %d sizes up to %d, off the anchor at %v", mode, len(sizes), sizes[len(sizes)-1], off)
+		if len(off) > 0 {
+			t.Errorf("%s: off the anchor at %d of %d sizes: %v\nfirst: %s", mode, len(off), len(sizes), off, firstProblem)
+		}
+	}
 }
 
 // supplyChainImpactExecAnalyze runs one DDL statement and refreshes planner
