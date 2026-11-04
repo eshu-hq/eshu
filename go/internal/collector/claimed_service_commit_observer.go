@@ -20,7 +20,9 @@ import (
 // issue #5429) only AFTER ClaimedService has durably committed the claimed
 // generation's facts. See processClaimed in claimed_service.go for the call
 // sites: it fires exactly once, immediately after commitCollected succeeds,
-// before the claim itself is completed. An unchanged generation has no fact
+// before the claim itself is completed. A commit the committer refused returned
+// nil too, but stored nothing, so it fires ClaimedGenerationRefusalObserver
+// instead (#10037). An unchanged generation has no fact
 // commit; ClaimedService fires the hook once that generation's completion
 // mutation resolves, before the claim completes, so an unchanged result
 // records progress exactly like a committed one (#9420).
@@ -65,9 +67,26 @@ type ClaimedGenerationCommitObserver interface {
 	ObserveClaimedGenerationCommitted(ctx context.Context, item workflow.WorkItem) error
 }
 
+// ClaimedGenerationRefusalObserver is the optional hook a claim-aware
+// ClaimedSource implements to hear that its generation was refused (#10037).
+// A refusal returns a nil commit error, so the claim completes, but no facts
+// landed: the source must not advance a progress marker or report a success.
+// ClaimedService therefore calls this hook in place of
+// ClaimedGenerationCommitObserver, never alongside it, at the same point in
+// the cycle. A source that implements only the commit observer hears nothing
+// on a refusal, and its marker holds.
+type ClaimedGenerationRefusalObserver interface {
+	// ObserveClaimedGenerationRefused is called once per refused commit, after
+	// the rollback and before claim completion. item is the SAME
+	// workflow.WorkItem NextClaimed received. An error is non-fatal for the
+	// same reason a commit observer error is: nothing landed to roll back, and
+	// the next tick recollects.
+	ObserveClaimedGenerationRefused(ctx context.Context, item workflow.WorkItem, refusal CommitRefusal) error
+}
+
 // observeClaimedGenerationCommitted invokes the optional
 // ClaimedGenerationCommitObserver hook for s.Source, if it implements one.
-// Called from processClaimed immediately after commitCollected succeeds, and
+// Called from settleClaimedCommit after a commit that was not refused, and
 // after an unchanged generation's completion mutation resolves (#9420). A
 // hook error is recorded as a span event on the current claimed-run span,
 // counted on eshu_dp_workflow_claim_commit_observer_failures_total, and
@@ -81,19 +100,58 @@ func (s ClaimedService) observeClaimedGenerationCommitted(ctx context.Context, i
 		return
 	}
 	if err := observer.ObserveClaimedGenerationCommitted(ctx, item); err != nil {
-		if s.Instruments != nil && s.Instruments.WorkflowClaimCommitObserverFailures != nil {
-			s.Instruments.WorkflowClaimCommitObserverFailures.Add(ctx, 1, metric.WithAttributes(
-				telemetry.AttrCollectorKind(string(s.CollectorKind)),
-				telemetry.AttrSourceSystem(item.SourceSystem),
-			))
-		}
-		trace.SpanFromContext(ctx).AddEvent(
-			"claimed_generation_commit_observer_failed",
-			trace.WithAttributes(
-				telemetry.AttrCollectorKind(string(s.CollectorKind)),
-				telemetry.AttrSourceSystem(item.SourceSystem),
-				attribute.String("error", err.Error()),
-			),
-		)
+		s.recordObserverFailure(ctx, item, "claimed_generation_commit_observer_failed", err)
 	}
+}
+
+// observeClaimedGenerationRefused invokes the optional
+// ClaimedGenerationRefusalObserver hook for s.Source, if it implements one. A
+// hook error takes the same non-fatal path as a commit observer error.
+func (s ClaimedService) observeClaimedGenerationRefused(ctx context.Context, item workflow.WorkItem, refusal CommitRefusal) {
+	observer, ok := s.Source.(ClaimedGenerationRefusalObserver)
+	if !ok {
+		return
+	}
+	if err := observer.ObserveClaimedGenerationRefused(ctx, item, refusal); err != nil {
+		s.recordObserverFailure(ctx, item, "claimed_generation_refusal_observer_failed", err)
+	}
+}
+
+// settleClaimedCommit runs what follows a commit that returned nil and returns
+// the claim's run outcome. A refused generation stored nothing (#10037), so it
+// reaches only the refusal observer, records no fact volume, and reads as
+// outcome refused; every other disposition keeps the committed path. The claim
+// completes either way, and the next tick recollects.
+func (s ClaimedService) settleClaimedCommit(
+	ctx context.Context,
+	item workflow.WorkItem,
+	collected CollectedGeneration,
+	disposition *CommitDisposition,
+) string {
+	if refusal, refused := disposition.Refusal(); refused {
+		s.observeClaimedGenerationRefused(ctx, item, refusal)
+		return telemetry.CollectorRunOutcomeRefused
+	}
+	s.observeClaimedGenerationCommitted(ctx, item)
+	s.recordClaimFactsEmitted(ctx, item, collected)
+	return telemetry.CollectorRunOutcomeSuccess
+}
+
+// recordObserverFailure reports a swallowed observer error as a span event and
+// on eshu_dp_workflow_claim_commit_observer_failures_total.
+func (s ClaimedService) recordObserverFailure(ctx context.Context, item workflow.WorkItem, event string, err error) {
+	if s.Instruments != nil && s.Instruments.WorkflowClaimCommitObserverFailures != nil {
+		s.Instruments.WorkflowClaimCommitObserverFailures.Add(ctx, 1, metric.WithAttributes(
+			telemetry.AttrCollectorKind(string(s.CollectorKind)),
+			telemetry.AttrSourceSystem(item.SourceSystem),
+		))
+	}
+	trace.SpanFromContext(ctx).AddEvent(
+		event,
+		trace.WithAttributes(
+			telemetry.AttrCollectorKind(string(s.CollectorKind)),
+			telemetry.AttrSourceSystem(item.SourceSystem),
+			attribute.String("error", err.Error()),
+		),
+	)
 }

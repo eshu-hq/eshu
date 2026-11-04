@@ -29,6 +29,7 @@ func TestVulnerabilitySourceStateInstrumentNamesMatchContract(t *testing.T) {
 	inst.VulnerabilitySourceStateStaleWritesSkipped.Add(ctx, 1)
 	inst.VulnerabilitySourceStateWriteFailures.Add(ctx, 1)
 	inst.VulnerabilitySourceStateLastSuccessClamped.Add(ctx, 1)
+	inst.VulnerabilitySourceStateRefusedCommits.Add(ctx, 1)
 
 	var rm metricdata.ResourceMetrics
 	if err := reader.Collect(ctx, &rm); err != nil {
@@ -44,6 +45,7 @@ func TestVulnerabilitySourceStateInstrumentNamesMatchContract(t *testing.T) {
 		contract.MetricVulnerabilitySourceStateStaleWritesSkipped,
 		contract.MetricVulnerabilitySourceStateWriteFailures,
 		contract.MetricVulnerabilitySourceStateLastSuccessClamped,
+		contract.MetricVulnerabilitySourceStateRefusedCommits,
 	} {
 		if !got[name] {
 			t.Fatalf("metric %q not registered; got %v", name, got)
