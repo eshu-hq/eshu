@@ -77,7 +77,10 @@ default attempt budget, the same helpers `ClaimedService` applies to the claim. 
 writes and store failures count on
 `eshu_dp_vulnerability_source_state_stale_writes_skipped_total` and
 `eshu_dp_vulnerability_source_state_write_failures_total` (labels `status`,
-`result`). Every other kind gets no recorder.
+`result`). A success row never records a last-success time later than the host's
+processing time: a future extension-reported `ObservedAt` is clamped and counted on
+`eshu_dp_vulnerability_source_state_last_success_clamped_total` (label `source`)
+(#10008). Every other kind gets no recorder.
 
 ## Gotchas / invariants
 
