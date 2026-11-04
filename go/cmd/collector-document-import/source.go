@@ -174,7 +174,7 @@ func openVerifiedRegular(path string) (*os.File, error) {
 	if !linkInfo.Mode().IsRegular() {
 		return nil, nil
 	}
-	file, err := os.Open(path)
+	file, err := os.Open(path) // #nosec G304 -- path is Lstat-verified a regular file inside the operator-supplied artifact dir (Rel-checked, symlink rejected before open, SameFile-verified after); never request- or user-derived.
 	if err != nil {
 		return nil, fmt.Errorf("open artifact: %w", err)
 	}
