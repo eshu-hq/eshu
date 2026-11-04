@@ -6,8 +6,9 @@ Refs #9929. Part of #9209.
 
 An OS advisory fact that carries release evidence (a vendor fact such as
 `source: debian`, or a release-tagged fact) is read as published for the host's
-release. The join does not check that: a vendor fact carries no release line, so
-its list is matched by exact version string only (see Known limitation). When
+release. As shipped in #9929 the join did not check that: a vendor fact carried
+no release line, so its list was matched by exact version string only (see Known
+limitation; #9945 added the line check). When
 the list names the host version, the host reads `affected_exact` under the existing
 `dpkg_exact_affected_version` / `apk_exact_affected_version` reasons. That
 answer is now read before every verdict built from untagged OSV ranges
@@ -75,6 +76,11 @@ enable the Debian, Ubuntu, or Alpine OSV targets: NOT_CHECKED (the same code
 argument applies: their facts are untagged OSV facts).
 
 ## Known limitation: the release line is not checked
+
+Status: closed by #9945 (`docs/internal/evidence/9945-vendor-line-check.md`),
+which compares the fact's purl `distro` line with the host's before a vendor
+fact counts as release evidence. The text below is the limitation as #9929
+shipped it.
 
 Arbiter ruling (arbiter-eshu, 2026-11-03), under AGENTS.md Mandatory Startup,
 quoted in the PR for #9929 and in #9945. The owner may re-grade, and the
