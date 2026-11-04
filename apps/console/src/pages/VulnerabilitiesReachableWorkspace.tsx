@@ -36,8 +36,17 @@ export function ReachableWorkspace({
   readonly client?: EshuApiClient;
 }): React.JSX.Element {
   const [params] = useSearchParams();
-  const [view, setView] = useState<View>("findings");
   const filter = filterFromParams(params);
+  // The picked view belongs to the filter it was picked under. A group link
+  // changes the filter, so the workspace reopens the finding list for it
+  // instead of keeping the grouped view on screen with a stale URL.
+  const filterKey = filter === null ? "" : `${filter.key}=${filter.value}|${filter.profile ?? ""}`;
+  const [picked, setPicked] = useState<{ readonly view: View; readonly filterKey: string }>({
+    view: "findings",
+    filterKey,
+  });
+  const view: View = picked.filterKey === filterKey ? picked.view : "findings";
+  const setView = (next: View): void => setPicked({ view: next, filterKey });
   return (
     <div>
       <div className="seg" role="group" aria-label="Reachable view">
