@@ -207,10 +207,15 @@ func TestListActivePackageManifestDependencyFactsDeltaFailuresCountOncePerRead(t
 	target := queueFakeRows{rows: [][]any{{"repository:repo-1", "generation-1", "c0", ""}}}
 	active := queueFakeRows{rows: [][]any{manifestDependencyFakeRow(0)}}
 	failed := queueFakeRows{err: context.DeadlineExceeded}
+	baseRow := manifestDependencyFakeRow(1)
+	baseRow[0], baseRow[2] = "base-dep", "base-1"
+	basePage := queueFakeRows{rows: [][]any{baseRow}}
+	activeBase := queueFakeRows{rows: [][]any{{"base-1", "active"}}} // active base: no prune probe
 	for name, responses := range map[string][]queueFakeRows{
 		"target lookup":   {active, failed},
 		"base page":       {active, target, failed},
 		"base resolution": {active, target, {}, failed},
+		"overlay inputs":  {active, target, basePage, activeBase, failed},
 	} {
 		reader := sdkmetric.NewManualReader()
 		instruments, err := telemetry.NewInstruments(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("test"))
@@ -225,6 +230,17 @@ func TestListActivePackageManifestDependencyFactsDeltaFailuresCountOncePerRead(t
 		}
 		if got := manifestDeltaUnionCount(t, reader, manifestDeltaUnionResolveFailed); got != 1 {
 			t.Fatalf("%s: union_resolve_failed = %d, want 1", name, got)
+		}
+		last := db.queries[len(db.queries)-1].query
+		if want := map[string]string{
+			"target lookup":   manifestDeltaTargetsQuery,
+			"base resolution": deltaUnionBaseQuery,
+			"overlay inputs":  manifestDeltaOverlayInputsQuery,
+		}[name]; want != "" && last != want {
+			t.Fatalf("%s: failing statement = %s, want %s", name, last, want)
+		}
+		if name == "base page" && !strings.Contains(last, "JOIN scope_generations AS active_delta") {
+			t.Fatalf("base page: failing statement = %s, want the delta-base page", last)
 		}
 	}
 }

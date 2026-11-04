@@ -207,8 +207,11 @@ statement counts with noisier times: npm delta-active 2.428 s old against
   `read_seconds` and `read_pages` histograms it never recorded before. The
   same instruments also feed the other FactStore metrics on that path, such
   as the supply-chain impact active-evidence metrics.
-  `TestAuthorizedImpactLoaderCountsManifestDeltaUnionLive` counts a union
-  decision through the loader.
+  `TestAuthorizedImpactLoaderCountsManifestDeltaUnionLive` (disengaged, no
+  role policy) and `TestAuthorizedImpactLoaderCountsManifestDeltaUnionEngagedLive`
+  (role policy installed, snapshot clone) each count a union decision and
+  capture the base-missing WARN through the loader. Reverting the snapshot
+  line to a bare `NewFactStore` fails the engaged test only.
 - `union_resolve_failed` counts once per read whose delta-union step failed:
   the target lookup, a base page, a base resolution, or the overlay inputs
   read.

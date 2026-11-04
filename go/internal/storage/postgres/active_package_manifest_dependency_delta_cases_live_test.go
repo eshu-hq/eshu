@@ -212,23 +212,31 @@ func TestListActivePackageManifestDependencyFactsFullActiveScopeUnchangedLive(t 
 	assertDeltaManifestOutcomes(t, f.unionOutcomes(), map[string]int64{})
 }
 
-// TestAuthorizedImpactLoaderCountsManifestDeltaUnionLive runs the manifest
-// read through the supply-chain impact loader, the path #9991 was filed for,
-// and proves the delta-union counter records there (#9991 F2): the loader's
-// FactStore carries the wired instruments instead of a bare store.
-func TestAuthorizedImpactLoaderCountsManifestDeltaUnionLive(t *testing.T) {
-	f := openDeltaManifestFixture(t)
+// readManifestThroughImpactLoader seeds scope-a (a delta over a resolvable
+// base) and scope-b (a delta whose union base was never projected), then runs
+// the manifest read inside the supply-chain impact loader's static expansion,
+// the path #9991 was filed for. It reports whether the loader took the
+// engaged (snapshot) branch: only that branch passes public advisories.
+func readManifestThroughImpactLoader(t *testing.T, f *deltaManifestFixture) ([]string, bool) {
+	t.Helper()
 	seedDeltaManifestBase(f, "scope-a", "full-a")
 	f.generation("scope-a", deltaManifestGeneration{id: "delta-a", isDelta: true, commit: "c1", baseline: "c0", unionBase: "c0"})
 	f.deltaRepository("scope-a", "delta-a", []string{"web/package.json"}, nil)
 	f.pin("scope-a", "delta-a", deltaManifestPin{factID: "delta-alpha", key: "content_entity:scope-a:alpha", name: "alpha", path: "web/package.json"})
 	f.activate("scope-a", "delta-a")
+	f.scope("scope-b")
+	f.generation("scope-b", deltaManifestGeneration{id: "delta-b", isDelta: true, commit: "b2", baseline: "b1", unionBase: "b1"})
+	f.deltaRepository("scope-b", "delta-b", []string{"web/package.json"}, nil)
+	f.pin("scope-b", "delta-b", deltaManifestPin{factID: "delta-b-alpha", key: "content_entity:scope-b:alpha", name: "alpha", path: "web/package.json"})
+	f.activate("scope-b", "delta-b")
 
 	loader := NewAuthorizedSupplyChainImpactEvidenceLoaderWithTelemetry(SQLDB{DB: f.database}, f.store.Instruments(), f.store.Logger())
 	var got []string
+	engaged := false
 	if _, err := loader.ListAuthorizedSupplyChainImpactEvidence(f.ctx,
 		reducercontract.Intent{ScopeID: "scope-a", GenerationID: "delta-a", Domain: reducercontract.DomainSupplyChainImpact},
-		func(ctx context.Context, factLoader factload.FactLoader, _ []facts.Envelope) (supplychaincore.AuthorizedStaticSupplyChainImpactLoad, error) {
+		func(ctx context.Context, factLoader factload.FactLoader, public []facts.Envelope) (supplychaincore.AuthorizedStaticSupplyChainImpactLoad, error) {
+			engaged = public != nil
 			store, ok := factLoader.(*FactStore)
 			if !ok {
 				return supplychaincore.AuthorizedStaticSupplyChainImpactLoad{}, fmt.Errorf("fact loader is %T, want *FactStore", factLoader)
@@ -243,6 +251,50 @@ func TestAuthorizedImpactLoaderCountsManifestDeltaUnionLive(t *testing.T) {
 		t.Fatalf("ListAuthorizedSupplyChainImpactEvidence(): %v", err)
 	}
 	slices.Sort(got)
-	assertDeltaManifestIDs(t, got, []string{"delta-alpha", "full-bravo"})
-	assertDeltaManifestOutcomes(t, f.unionOutcomes(), map[string]int64{"union_base_found": 1})
+	return got, engaged
+}
+
+// assertImpactLoaderManifestTelemetry checks the rows, the union counter,
+// and the base-missing WARN of readManifestThroughImpactLoader.
+func assertImpactLoaderManifestTelemetry(t *testing.T, f *deltaManifestFixture, got []string) {
+	t.Helper()
+	assertDeltaManifestIDs(t, got, []string{"delta-alpha", "delta-b-alpha", "full-bravo"})
+	assertDeltaManifestOutcomes(t, f.unionOutcomes(), map[string]int64{"union_base_found": 1, "union_base_missing": 1})
+	if warnings := f.warnings("manifest dependency read delta base missing"); len(warnings) != 1 ||
+		!strings.Contains(warnings[0], "generation_id=delta-b") {
+		t.Fatalf("base-missing WARN lines = %q, want one for delta-b", warnings)
+	}
+}
+
+// TestAuthorizedImpactLoaderCountsManifestDeltaUnionLive proves the
+// delta-union counter and WARN record through the impact loader's
+// disengaged store (#9991 F2): no role policy is installed.
+func TestAuthorizedImpactLoaderCountsManifestDeltaUnionLive(t *testing.T) {
+	f := openDeltaManifestFixture(t)
+	got, engaged := readManifestThroughImpactLoader(t, f)
+	if engaged {
+		t.Fatal("loader took the engaged branch without role policy")
+	}
+	assertImpactLoaderManifestTelemetry(t, f, got)
+}
+
+// TestAuthorizedImpactLoaderCountsManifestDeltaUnionEngagedLive proves the
+// same through the engaged branch's snapshot store: with role policy
+// installed the loader reads inside its repeatable-read snapshot clone,
+// which must inherit the loader's instruments and logger (#9991 G1).
+func TestAuthorizedImpactLoaderCountsManifestDeltaUnionEngagedLive(t *testing.T) {
+	f := openDeltaManifestFixture(t)
+	f.exec("install role policy", `
+INSERT INTO eshu_security.role_policy_state
+    (policy_revision, database_oid, database_identity, system_identifier,
+     inventory_version, owner_role_oid, authority_epoch, active)
+SELECT 999101, (SELECT oid FROM pg_database WHERE datname = current_database()),
+       '11111111-2222-4333-8444-555555555555',
+       (SELECT system_identifier FROM pg_control_system()), 1,
+       (SELECT oid FROM pg_roles WHERE rolname = current_user), 1, TRUE`)
+	got, engaged := readManifestThroughImpactLoader(t, f)
+	if !engaged {
+		t.Fatal("loader took the disengaged branch with role policy installed")
+	}
+	assertImpactLoaderManifestTelemetry(t, f, got)
 }
