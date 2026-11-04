@@ -60,6 +60,14 @@ LIMIT $5
 // manifest dependency entities for the specific ecosystem/name set requested by
 // a package-registry reducer intent.
 //
+// A scope whose active generation is a git delta reads its delta overlaid on
+// its #7797 base full generation (#9991): base rows keep their own generation
+// id, and the delta wins per stable key, by tombstone, and by touched path.
+// A refused, legacy, or mismatched base keeps the delta-only rows; see
+// overlayDeltaManifestBase. Every statement runs on one read-only
+// repeatable-read snapshot.
+// Performance Evidence: docs/internal/evidence/9991-manifest-read-delta-union.md.
+//
 // The query filters fact.is_tombstone = FALSE so a manifest dependency fact
 // tombstoned within a still-active generation is never surfaced as live. The
 // active generation pointer keeps tombstoned rows joinable, so the predicate is

@@ -102,6 +102,22 @@ commit logs the `successor_guard` stage and counts
 sync recollects. The sizing evidence is in
 `docs/internal/evidence/8750-successor-guard-sizing.md`.
 
+## Reducer manifest dependency read (#9991)
+
+`ListActivePackageManifestDependencyFacts`, the manifest pin read behind
+package-source correlation, security-alert reconciliation, and supply-chain
+impact, used to join only the active generation, so a delta-active
+repository showed only its changed pins. It now overlays the delta on the
+same base the projector uses: `resolveDeltaBaseAtCommit` picks the base and
+`facts.OverlayDeltaBase` applies the delta's stable keys, tombstones, and
+touched paths. A refused base, a legacy delta with no baseline, or a delta
+with no `delta_generation` fact keeps the delta-only rows. The read counts
+each decision on
+`eshu_dp_package_manifest_dependency_read_delta_union_total` and logs a WARN
+line for a refused base or a mismatch. Other `facts_active_*` readers that
+join only the active generation still see delta-only rows (listed in
+`docs/internal/evidence/9991-manifest-read-delta-union.md`).
+
 ## Operator signals
 
 - `eshu_dp_projector_delta_union_total` by closed `outcome`

@@ -140,6 +140,16 @@ operational lessons that future storage changes still need to respect.
   prefix of the same index, so its cost follows the number of sbt dependency
   rows. Both branches over-select; `packageidentity.ManifestConsumptionKeys` is
   the accuracy gate.
+  A delta-active scope reads its delta overlaid on the #7797 base (#9991,
+  `active_package_manifest_dependency_delta.go`): a second paged query derived
+  from the active text (`deltaBasePackageManifestDependencyQuery`) returns the
+  activated fulls at the union-base commit, `resolveDeltaBaseAtCommit` picks
+  the base, and `facts.OverlayDeltaBase` applies the delta's keys, tombstones,
+  and touched paths. Never copy the base rule or overlay into SQL. A refused,
+  legacy, or mismatched base keeps the delta-only rows and counts
+  `eshu_dp_package_manifest_dependency_read_delta_union_total`. All
+  statements share one read-only repeatable-read snapshot; see
+  `docs/internal/evidence/9991-manifest-read-delta-union.md`.
   Stored sbt rows have no sidecar keys until the reducer's marker-gated sbt
   repair adds them (#8961). It writes the sidecar outside the dirty fence on
   purpose: it only inserts, under the scope row lock, so readiness never flips.
