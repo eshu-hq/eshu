@@ -36,7 +36,10 @@ ESHU_HTTP_PORT_BASE="${ESHU_HTTP_PORT:-18080}"
 ESHU_API_METRICS_PORT_BASE="${ESHU_API_METRICS_PORT:-19464}"
 ESHU_INGESTER_METRICS_PORT_BASE="${ESHU_INGESTER_METRICS_PORT:-19465}"
 ESHU_RESOLUTION_ENGINE_METRICS_PORT_BASE="${ESHU_RESOLUTION_ENGINE_METRICS_PORT:-19466}"
-ESHU_WEBHOOK_LISTENER_HTTP_PORT_BASE="${ESHU_WEBHOOK_LISTENER_HTTP_PORT:-18083}"
+ESHU_WEBHOOK_SATELLITE_HTTP_PORT_BASE="${ESHU_WEBHOOK_SATELLITE_HTTP_PORT:-18083}"
+# Ephemeral intake credential for this fixture stack. The satellite and the
+# intake host share it; both fail closed without it.
+ESHU_WEBHOOK_INTAKE_TOKEN="${ESHU_WEBHOOK_INTAKE_TOKEN:-webhook-refresh-compose-intake-token}"
 
 API_BASE_URL=""
 API_KEY=""
@@ -63,7 +66,8 @@ cleanup() {
 		echo "  webhook response: $WEBHOOK_RESPONSE_FILE"
 		echo "  index status: $INDEX_STATUS_FILE"
 		echo "Useful logs:"
-		echo "  $COMPOSE_DISPLAY logs --tail=200 webhook-listener"
+		echo "  $COMPOSE_DISPLAY logs --tail=200 webhook-satellite"
+		echo "  $COMPOSE_DISPLAY logs --tail=200 webhook-intake"
 		echo "  $COMPOSE_DISPLAY logs --tail=200 ingester"
 		echo "  $COMPOSE_DISPLAY logs --tail=200 resolution-engine"
 		echo "  $COMPOSE_DISPLAY logs --tail=200 eshu"
@@ -90,7 +94,7 @@ configure_ports() {
 	eshu_assign_reserved_port ESHU_API_METRICS_PORT "$ESHU_API_METRICS_PORT_BASE"
 	eshu_assign_reserved_port ESHU_INGESTER_METRICS_PORT "$ESHU_INGESTER_METRICS_PORT_BASE"
 	eshu_assign_reserved_port ESHU_RESOLUTION_ENGINE_METRICS_PORT "$ESHU_RESOLUTION_ENGINE_METRICS_PORT_BASE"
-	eshu_assign_reserved_port ESHU_WEBHOOK_LISTENER_HTTP_PORT "$ESHU_WEBHOOK_LISTENER_HTTP_PORT_BASE"
+	eshu_assign_reserved_port ESHU_WEBHOOK_SATELLITE_HTTP_PORT "$ESHU_WEBHOOK_SATELLITE_HTTP_PORT_BASE"
 	API_BASE_URL="http://127.0.0.1:${ESHU_HTTP_PORT}/api/v0"
 }
 
@@ -175,7 +179,7 @@ PY
 start_compose_data_plane() {
 	echo "Starting webhook proof data plane..."
 	"${COMPOSE_CMD[@]}" down -v >/dev/null 2>&1 || true
-	"${COMPOSE_CMD[@]}" build db-migrate workspace-setup eshu ingester resolution-engine webhook-listener
+	"${COMPOSE_CMD[@]}" build db-migrate workspace-setup eshu ingester resolution-engine webhook-intake
 	"${COMPOSE_CMD[@]}" up -d postgres nornicdb
 	eshu_compose_wait_for_http "http://127.0.0.1:${NEO4J_HTTP_PORT}/health" 120 2
 	"${COMPOSE_CMD[@]}" run --rm db-migrate
@@ -200,10 +204,13 @@ start_query_and_projection_runtimes() {
 	API_KEY="$(eshu_compose_read_api_key || true)"
 }
 
-start_webhook_listener() {
-	echo "Starting webhook listener..."
-	"${COMPOSE_CMD[@]}" up -d --no-deps webhook-listener
-	eshu_compose_wait_for_http "http://127.0.0.1:${ESHU_WEBHOOK_LISTENER_HTTP_PORT}/healthz" 120 2
+start_webhook_edge() {
+	# The satellite is the only provider-facing service; the intake host
+	# persists triggers. /readyz on the satellite additionally proves the
+	# intake uplink, which is stronger than either /healthz alone.
+	echo "Starting webhook intake host and satellite..."
+	"${COMPOSE_CMD[@]}" up -d --no-deps webhook-intake webhook-satellite
+	eshu_compose_wait_for_http "http://127.0.0.1:${ESHU_WEBHOOK_SATELLITE_HTTP_PORT}/readyz" 120 2
 }
 
 wait_for_content_marker() {
@@ -245,11 +252,16 @@ send_signed_github_push() {
 		-H "X-GitHub-Delivery: webhook-refresh-compose-1" \
 		-H "X-Hub-Signature-256: $signature" \
 		-d "$payload" \
-		"http://127.0.0.1:${ESHU_WEBHOOK_LISTENER_HTTP_PORT}/webhooks/github" \
+		"http://127.0.0.1:${ESHU_WEBHOOK_SATELLITE_HTTP_PORT}/webhooks/github" \
 		>"$WEBHOOK_RESPONSE_FILE"
 }
 
 configure_ports
+# The local-dev compose build contexts default to ${ESHU_REPO_ROOT:-.}, and
+# under Buildx Bake a relative context resolves against the compose file's
+# directory instead of this script's cwd. Pin it to the eshu checkout so the
+# image builds resolve the eshu Dockerfile regardless of the caller.
+export ESHU_REPO_ROOT="$REPO_ROOT"
 export COMPOSE_PROJECT_NAME
 export ESHU_FILESYSTEM_HOST_ROOT="$FIXTURE_ROOT"
 export ESHU_FILESYSTEM_ROOT="/data/repos"
@@ -257,6 +269,7 @@ export ESHU_FILESYSTEM_DIRECT="true"
 export ESHU_REPO_SOURCE_MODE="filesystem"
 export ESHU_REPOSITORY_RULES_JSON='[]'
 export ESHU_WEBHOOK_GITHUB_SECRET="$WEBHOOK_SECRET"
+export ESHU_WEBHOOK_INTAKE_TOKEN
 export ESHU_WEBHOOK_DEFAULT_BRANCH="main"
 export ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED="true"
 export ESHU_REPO_SCHEDULED_SYNC_ENABLED="true"
@@ -297,8 +310,8 @@ fi
 # ESHU_DEPLOY_CHECKOUT (CI pins the extraction commit), failing closed.
 : "${ESHU_DEPLOY_CHECKOUT:?ESHU_DEPLOY_CHECKOUT must point at an eshu-hq/eshu-deploy checkout; the gate workflow checks it out at the pinned extraction commit}"
 DEPLOY_COMPOSE="${ESHU_DEPLOY_CHECKOUT}/compose"
-COMPOSE_CMD+=(-f "${DEPLOY_COMPOSE}/docker-compose.yaml" --profile webhook-listener)
-COMPOSE_DISPLAY="$COMPOSE_DISPLAY -f ${DEPLOY_COMPOSE}/docker-compose.yaml --profile webhook-listener"
+COMPOSE_CMD+=(-f "${DEPLOY_COMPOSE}/docker-compose.yaml" --profile webhook)
+COMPOSE_DISPLAY="$COMPOSE_DISPLAY -f ${DEPLOY_COMPOSE}/docker-compose.yaml --profile webhook"
 
 cd "$REPO_ROOT"
 
@@ -314,13 +327,13 @@ INITIAL_GENERATION_COUNT="$(generation_count | tr -d '[:space:]')"
 echo "Stopping ingester before advancing the remote so only the webhook path wakes the refresh."
 "${COMPOSE_CMD[@]}" stop ingester >/dev/null
 advance_fixture_remote
-start_webhook_listener
+start_webhook_edge
 send_signed_github_push
+# The satellite answers 202 with the intake trigger id; decision/status live
+# in the trigger row the SQL check below asserts on.
 eshu_assert_json_query "$WEBHOOK_RESPONSE_FILE" '
-	(.decision // "") == "accepted" and
-	(.status // "") == "queued" and
 	(.trigger_id // "") != ""
-' "webhook listener did not accept and queue the signed GitHub push"
+' "webhook satellite did not accept the signed GitHub push"
 
 echo "Restarting ingester to claim the queued webhook trigger..."
 export ESHU_REPO_SCHEDULED_SYNC_ENABLED="false"
@@ -333,4 +346,4 @@ wait_for_content_marker "webhook-refresh-compose-v2" "$REFRESH_CONTENT_FILE"
 echo
 echo "webhook refresh compose verification passed."
 echo "API: http://127.0.0.1:${ESHU_HTTP_PORT}"
-echo "Webhook listener: http://127.0.0.1:${ESHU_WEBHOOK_LISTENER_HTTP_PORT}"
+echo "Webhook satellite (provider edge): http://127.0.0.1:${ESHU_WEBHOOK_SATELLITE_HTTP_PORT}"

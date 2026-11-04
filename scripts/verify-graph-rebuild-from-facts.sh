@@ -55,7 +55,7 @@ COMPOSE_CMD=()
 # writes into a volume that is about to be removed, or into a graph that has no
 # schema yet.
 GRAPH_WRITERS=(eshu mcp-server ingester resolution-engine projector
-	workflow-coordinator component-extension-collector webhook-listener)
+	workflow-coordinator component-extension-collector)
 
 cleanup() {
 	local exit_code=$?
