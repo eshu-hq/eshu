@@ -67,17 +67,19 @@ func TestListActivePackageManifestDependencyFactsPassesCacheDescribeEveryPage(t 
 		{
 			name:       "plain query, two pages",
 			ecosystems: []string{"npm"},
-			responses:  []queueFakeRows{{rows: fullPage}, {rows: [][]any{manifestDependencyFakeRow(listFactsByKindPageSize)}}},
-			wantCalls:  2,
-			wantPMs:    []string{"npm"},
+			// Two active pages, one delta-base page, one delta-target lookup.
+			responses: []queueFakeRows{{rows: fullPage}, {rows: [][]any{manifestDependencyFakeRow(listFactsByKindPageSize)}}, {}, {}},
+			wantCalls: 4,
+			wantPMs:   []string{"npm"},
 		},
 		{
 			name:       "maven family query",
 			ecosystems: []string{"maven"},
-			responses:  []queueFakeRows{{}},
-			wantCalls:  1,
-			wantPMs:    []string{"gradle", "maven", "sbt"},
-			wantUnion:  true,
+			// One active page and one delta-base page; no rows, so no lookup.
+			responses: []queueFakeRows{{}, {}},
+			wantCalls: 2,
+			wantPMs:   []string{"gradle", "maven", "sbt"},
+			wantUnion: true,
 		},
 	}
 	for _, tt := range tests {
@@ -94,10 +96,16 @@ func TestListActivePackageManifestDependencyFactsPassesCacheDescribeEveryPage(t 
 			if got, want := len(db.queries), tt.wantCalls; got != want {
 				t.Fatalf("query calls = %d, want %d", got, want)
 			}
-			if tt.wantCalls == 2 && len(loaded) != listFactsByKindPageSize+1 {
+			if tt.wantCalls == 4 && len(loaded) != listFactsByKindPageSize+1 {
 				t.Fatalf("loaded = %d rows, want %d", len(loaded), listFactsByKindPageSize+1)
 			}
 			for i, call := range db.queries {
+				if call.query == manifestDeltaTargetsQuery {
+					if i != len(db.queries)-1 {
+						t.Fatalf("delta-target lookup ran as call %d of %d, want last", i+1, len(db.queries))
+					}
+					continue
+				}
 				if !call.hasExecMode || call.execMode != pgx.QueryExecModeCacheDescribe {
 					t.Fatalf("page %d exec mode = %v (set %v), want QueryExecModeCacheDescribe", i+1, call.execMode, call.hasExecMode)
 				}
@@ -114,7 +122,13 @@ func TestListActivePackageManifestDependencyFactsPassesCacheDescribeEveryPage(t 
 					t.Fatalf("page %d $5 = %v, want %v", i+1, got, want)
 				}
 			}
-			if tt.wantCalls == 2 {
+			if tt.wantCalls == 4 {
+				if !strings.Contains(db.queries[2].query, "JOIN scope_generations AS active_delta") {
+					t.Fatalf("call 3 is not the delta-base page: %s", db.queries[2].query)
+				}
+				if db.queries[3].query != manifestDeltaTargetsQuery {
+					t.Fatalf("call 4 is not the delta-target lookup: %s", db.queries[3].query)
+				}
 				if db.queries[0].args[2] != nil {
 					t.Fatalf("page 1 cursor = %v, want nil", db.queries[0].args[2])
 				}

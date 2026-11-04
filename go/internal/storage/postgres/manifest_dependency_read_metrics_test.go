@@ -71,7 +71,10 @@ func TestListActivePackageManifestDependencyFactsRecordsPagesAndWallTime(t *test
 	db := &fakeExecQueryer{queryResponses: []queueFakeRows{
 		{rows: fullPage},
 		{rows: [][]any{manifestDependencyFakeRow(listFactsByKindPageSize)}},
-		{},
+		{}, // plain delta-base page
+		{}, // plain delta-target lookup: no delta-active scope
+		{}, // maven active page
+		{}, // maven delta-base page
 	}}
 	store := NewFactStore(db).WithInstruments(instruments)
 	if _, err := store.ListActivePackageManifestDependencyFacts(context.Background(), []string{"npm"}, []string{"left-pad"}); err != nil {

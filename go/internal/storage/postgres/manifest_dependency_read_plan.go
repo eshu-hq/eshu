@@ -57,6 +57,15 @@ var manifestDependencyReadLabels = map[string]string{
 	listActivePackageManifestDependencyFactsWithSBTQuery: manifestDependencyReadMavenFamily,
 }
 
+// manifestDependencyReadLabel returns the read label of one active query
+// text, or unclassified for a text missing from manifestDependencyReadLabels.
+func manifestDependencyReadLabel(query string) string {
+	if read, ok := manifestDependencyReadLabels[query]; ok {
+		return read
+	}
+	return manifestDependencyReadUnclassified
+}
+
 // recordManifestDependencyRead records one completed manifest dependency
 // read: its wall time since started and its page count, labeled by which query
 // text it ran. Every page but the last returns exactly listFactsByKindPageSize
@@ -65,11 +74,7 @@ func (s FactStore) recordManifestDependencyRead(ctx context.Context, query strin
 	if s.instruments == nil {
 		return
 	}
-	read, ok := manifestDependencyReadLabels[query]
-	if !ok {
-		read = manifestDependencyReadUnclassified
-	}
-	attrs := metric.WithAttributes(telemetry.AttrRead(read))
+	attrs := metric.WithAttributes(telemetry.AttrRead(manifestDependencyReadLabel(query)))
 	if s.instruments.PackageManifestDependencyReadDuration != nil {
 		s.instruments.PackageManifestDependencyReadDuration.Record(ctx, time.Since(started).Seconds(), attrs)
 	}

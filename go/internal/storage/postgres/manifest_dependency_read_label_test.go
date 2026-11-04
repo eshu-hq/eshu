@@ -49,7 +49,7 @@ func TestListActivePackageManifestDependencyFactsLabelsEngagedSnapshotReads(t *t
 	if err != nil {
 		t.Fatalf("NewInstruments: %v", err)
 	}
-	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{}, {}}}
+	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{}, {}, {}, {}}}
 	store := NewFactStore(db).WithInstruments(instruments)
 	store.impactStaticSnapshot = true
 	if _, err := store.ListActivePackageManifestDependencyFacts(context.Background(), []string{"npm"}, []string{"left-pad"}); err != nil {

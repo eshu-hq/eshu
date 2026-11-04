@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const listActivePackageManifestDependencyFactsQuery = `
@@ -114,10 +115,51 @@ func (s FactStore) ListActivePackageManifestDependencyFacts(
 	// text, because on a snapshot clone the static rewrite below changes
 	// the text and no rewritten text is in the label table.
 	rawQuery := query
-	query, err := s.protectedImpactStaticFactSQL(query)
+	baseQuery, err := deltaBasePackageManifestDependencyQuery(query)
 	if err != nil {
 		return nil, err
 	}
+	if query, err = s.protectedImpactStaticFactSQL(query); err != nil {
+		return nil, err
+	}
+	if baseQuery, err = s.protectedImpactStaticFactSQL(baseQuery); err != nil {
+		return nil, err
+	}
+	// One read-only repeatable-read snapshot keeps the active pages, the
+	// delta-base pages, and the base resolution on the same active
+	// generations (#9991). Inside the impact snapshot this nests as a no-op.
+	var loaded []facts.Envelope
+	activeRows := 0
+	err = withReadOnlyRepeatableRead(ctx, s.database, func(queryer db.Queryer) error {
+		reader := s
+		reader.database = snapshotReadQueryer{Queryer: queryer}
+		active, err := reader.listPackageManifestDependencyFactPages(ctx, query, packageManagers, packageNames)
+		if err != nil {
+			return err
+		}
+		activeRows = len(active)
+		base, err := reader.listPackageManifestDependencyFactPages(ctx, baseQuery, packageManagers, packageNames)
+		if err != nil {
+			return err
+		}
+		loaded, err = reader.overlayDeltaManifestBase(ctx, manifestDependencyReadLabel(rawQuery), active, base)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	s.recordManifestDependencyRead(ctx, rawQuery, started, activeRows)
+	return loaded, nil
+}
+
+// listPackageManifestDependencyFactPages runs one manifest dependency query
+// text through every keyset page.
+func (s FactStore) listPackageManifestDependencyFactPages(
+	ctx context.Context,
+	query string,
+	packageManagers []string,
+	packageNames []string,
+) ([]facts.Envelope, error) {
 	var loaded []facts.Envelope
 	var cursorObservedAt *time.Time
 	var cursorFactID string
@@ -135,7 +177,6 @@ func (s FactStore) ListActivePackageManifestDependencyFacts(
 		}
 		loaded = append(loaded, page...)
 		if len(page) < listFactsByKindPageSize {
-			s.recordManifestDependencyRead(ctx, rawQuery, started, len(loaded))
 			return loaded, nil
 		}
 
