@@ -96,6 +96,7 @@ not read the graph on the collection goroutine; `telemetry/snapshot` refreshes t
 | `ReducerIntentsEnqueued` | `eshu_dp_reducer_intents_enqueued_total` |
 | `ReducerAdmissionDeferrals` | `eshu_dp_reducer_admission_deferrals_total` |
 | `ReducerReadinessWaits` | `eshu_dp_reducer_readiness_waits_total` |
+| `ReducerWorkloadCandidateProbe` | `eshu_dp_reducer_workload_candidate_probe_total` |
 | `ReducerExecutions` | `eshu_dp_reducer_executions_total` |
 | `ReducerHeartbeatMissed` | `eshu_dp_reducer_heartbeat_missed_total` |
 | `SearchIndexMutations` | `eshu_dp_search_index_mutations_total` |
