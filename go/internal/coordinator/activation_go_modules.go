@@ -17,8 +17,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-// GoModuleRepositoryReader reads one rotation page of repositories that hold a
-// go.mod, with their observed commit and remote. It is a bounded read: one
+// GoModuleRepositoryReader reads one rotation page of repositories to scan, with
+// their observed commit and remote: those holding a go.mod, and those that lost it
+// while their go-reachability scope still holds Go evidence. It is a bounded read: one
 // primary-key probe when the bucket's run exists, otherwise at most one page of
 // candidates.
 type GoModuleRepositoryReader interface {
@@ -161,6 +162,7 @@ func (s Service) scheduleGoModuleDerivedScopes(
 			"candidates", page.Candidates,
 			"total_candidates", page.TotalCandidates,
 			"go_module_repositories", len(page.Repositories),
+			"evidence_only_repositories", page.EvidenceOnly,
 			"slot", page.Slot,
 			"slot_count", page.SlotCount,
 			"skipped_invalid_repository_id", skipped[reachability.SkipInvalidRepositoryID],

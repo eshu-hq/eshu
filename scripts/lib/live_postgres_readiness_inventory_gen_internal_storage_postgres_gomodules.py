@@ -12,6 +12,8 @@ TABLE = {
             "TestListGoModuleRepositoriesSkipsInactiveScopesLive",
             "TestListGoModuleRepositoriesDetectsFromContentNotFactsLive",
             "TestGoModulePageAdmissionIsIdempotentLive",
+            "TestListGoModuleRepositoriesPlansRepositoryThatLostItsGoModLive",
+            "TestListGoModuleRepositoriesDropsRepositoryAfterRetractionLive",
         ),
     },
 }

@@ -34,6 +34,15 @@ const plannedRunQuery = `SELECT EXISTS (SELECT 1 FROM workflow_runs WHERE run_id
 // disagree with the fact only for a go.mod with no module line, or content a
 // moment ahead of or behind the active generation; the component then reads the
 // checked-out commit and finds no module, so the cost is one empty scan.
+//
+// has_go_evidence plans a repository that lost its go.mod. Its go-reachability
+// scope keeps Go evidence active until a new generation supersedes it, and only a
+// claim can produce one, so without this branch the evidence would never retract.
+// The component scans once more and lands a trusted no_go_modules generation that
+// holds only a warning, and the repository drops out on its next visit. The probe
+// is the ingestion_scopes primary key, then a prefix of
+// fact_records_scope_generation_idx (scope_id, generation_id, fact_kind) that stops
+// at the first row, so warning-only generations cost no scan.
 const pageQuery = `
 WITH candidates AS (
     SELECT scope.scope_id,
@@ -56,7 +65,18 @@ SELECT candidate.repository_id,
            FROM content_files AS file
            WHERE file.repo_id = candidate.repository_id
              AND (file.relative_path = 'go.mod' OR file.relative_path LIKE '%/go.mod')
-       ) AS has_go_module
+       ) AS has_go_module,
+       EXISTS (
+           SELECT 1
+           FROM ingestion_scopes AS reach
+           JOIN fact_records AS fact
+             ON fact.scope_id = reach.scope_id
+            AND fact.generation_id = reach.active_generation_id
+           WHERE reach.scope_id = 'go-reachability://' || candidate.repository_id
+             AND reach.active_generation_id IS NOT NULL
+             AND fact.fact_kind IN ('vulnerability.go_module_evidence', 'vulnerability.go_call_reachability')
+             AND fact.is_tombstone = FALSE
+       ) AS has_go_evidence
 FROM candidates AS candidate
 JOIN scope_generations AS generation
   ON generation.generation_id = candidate.active_generation_id
@@ -109,16 +129,19 @@ func (s Store) ListGoModuleRepositories(
 	page := scannercomponent.GoModuleRepositoryPage{}
 	for rows.Next() {
 		var repository scannercomponent.GoModuleRepository
-		var hasGoModule bool
+		var hasGoModule, hasGoEvidence bool
 		if err := rows.Scan(
 			&repository.RepositoryID, &repository.RemoteURL, &repository.SourceCommitSHA,
-			&page.TotalCandidates, &hasGoModule,
+			&page.TotalCandidates, &hasGoModule, &hasGoEvidence,
 		); err != nil {
 			return scannercomponent.GoModuleRepositoryPage{}, fmt.Errorf("read go module repositories: %w", err)
 		}
 		page.Candidates++
-		if hasGoModule {
+		if hasGoModule || hasGoEvidence {
 			page.Repositories = append(page.Repositories, repository)
+		}
+		if hasGoEvidence && !hasGoModule {
+			page.EvidenceOnly++
 		}
 	}
 	if err := rows.Err(); err != nil {

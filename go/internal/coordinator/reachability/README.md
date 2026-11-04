@@ -36,7 +36,8 @@ results, and none holds a repository id or URL:
   `collector_kind="scanner_worker"` and `ecosystem="go"`.
 - One INFO `workflow coordinator planned derived scopes for component activation`
   line per planned page: `candidates`, `total_candidates`, `slot`, `slot_count`,
-  and one `skipped_<reason>` count per reason.
+  `evidence_only_repositories` (planned only to retract Go evidence after losing a
+  `go.mod`), and one `skipped_<reason>` count per reason.
 - One ERROR `workflow coordinator refused derived scopes for component activation`
   line for a mislabeled host. Egress denial uses the existing skip log and audit
   event.

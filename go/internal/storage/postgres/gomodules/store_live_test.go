@@ -178,7 +178,8 @@ func TestListGoModuleRepositoriesSkipsInactiveScopesLive(t *testing.T) {
 // repository whose go.mod exists only in content_files, with no module_declaration
 // fact, is planned: the component reads the commit and may scan nothing. A
 // repository with the fact and no stored go.mod is not planned until its content
-// lands.
+// lands: a module_declaration fact in the ingester's own scope is not Go evidence,
+// which only a go-reachability scope holds.
 func TestListGoModuleRepositoriesDetectsFromContentNotFactsLive(t *testing.T) {
 	database := openStoreProof(t)
 	contentOnly := seedRepository(t, database, 1, "go.mod")
@@ -274,5 +275,139 @@ func TestGoModulePageAdmissionIsIdempotentLive(t *testing.T) {
 	}
 	if target.SourceCommitSHA != fmt.Sprintf("%040x", 1) {
 		t.Fatalf("stored commit = %q, want the planned one", target.SourceCommitSHA)
+	}
+}
+
+// seedReachabilityScope writes a repository's go-reachability scope with one
+// generation per entry of kindsByGeneration, each holding one fact per kind, and
+// makes the last generation active. It returns nothing the caller needs: the rows
+// are what the page read probes.
+func seedReachabilityScope(t *testing.T, database *sql.DB, repositoryID string, kindsByGeneration ...[]string) {
+	t.Helper()
+	ctx := t.Context()
+	scopeID := scannercomponent.GoReachabilityScopePrefix + repositoryID
+	if _, err := database.ExecContext(ctx, `
+INSERT INTO ingestion_scopes (scope_id, scope_kind, source_system, source_key, collector_kind, partition_key,
+    observed_at, ingested_at, status, payload)
+VALUES ($1, 'scanner_worker', 'scanner_worker', $1, 'scanner_worker', 'p', now(), now(), 'active', '{}'::jsonb)`, scopeID); err != nil {
+		t.Fatalf("seed reachability scope: %v", err)
+	}
+	for ordinal, kinds := range kindsByGeneration {
+		generationID := fmt.Sprintf("reach-%s-%d", repositoryID, ordinal)
+		status := "superseded"
+		if ordinal == len(kindsByGeneration)-1 {
+			status = "active"
+		}
+		if _, err := database.ExecContext(ctx, `
+INSERT INTO scope_generations (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status)
+VALUES ($1, $2, 'snapshot', now(), now(), $3)`, generationID, scopeID, status); err != nil {
+			t.Fatalf("seed reachability generation: %v", err)
+		}
+		for index, kind := range kinds {
+			if _, err := database.ExecContext(ctx, `
+INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system, source_fact_key,
+    observed_at, ingested_at, payload)
+VALUES ($1, $2, $3, $4, $1, 'scanner_worker', $1, now(), now(), '{}'::jsonb)`,
+				fmt.Sprintf("%s-%d", generationID, index), scopeID, generationID, kind); err != nil {
+				t.Fatalf("seed reachability fact: %v", err)
+			}
+		}
+		if status == "active" {
+			if _, err := database.ExecContext(ctx, `UPDATE ingestion_scopes SET active_generation_id = $1 WHERE scope_id = $2`,
+				generationID, scopeID); err != nil {
+				t.Fatalf("activate reachability generation: %v", err)
+			}
+		}
+	}
+}
+
+// readGoPage reads the first page and returns the planned repository ids.
+func readGoPage(t *testing.T, database *sql.DB) (scannercomponent.GoModuleRepositoryPage, map[string]bool) {
+	t.Helper()
+	page, err := NewStore(postgres.SQLDB{DB: database}).ListGoModuleRepositories(t.Context(),
+		scannercomponent.GoModuleRepositoryFilter{PageSize: scannercomponent.GoModulePageSize})
+	if err != nil {
+		t.Fatalf("read page: %v", err)
+	}
+	planned := make(map[string]bool, len(page.Repositories))
+	for _, repository := range page.Repositories {
+		planned[repository.RepositoryID] = true
+	}
+	return page, planned
+}
+
+// TestListGoModuleRepositoriesPlansRepositoryThatLostItsGoModLive is the
+// retraction rule: a repository with no go.mod whose go-reachability scope has an
+// active generation holding Go evidence is planned, with either evidence kind on
+// its own. Otherwise it is never claimed and its evidence never retracts.
+func TestListGoModuleRepositoriesPlansRepositoryThatLostItsGoModLive(t *testing.T) {
+	database := openStoreProof(t)
+	moduleEvidence := seedRepository(t, database, 1, "")
+	seedReachabilityScope(t, database, moduleEvidence, []string{"vulnerability.go_module_evidence"})
+	callEvidence := seedRepository(t, database, 2, "")
+	seedReachabilityScope(t, database, callEvidence, []string{"vulnerability.go_call_reachability"})
+	neverGo := seedRepository(t, database, 3, "")
+	liveGo := seedRepository(t, database, 4, "go.mod")
+	seedReachabilityScope(t, database, liveGo, []string{"vulnerability.go_module_evidence"})
+
+	page, planned := readGoPage(t, database)
+	if !planned[moduleEvidence] {
+		t.Errorf("repository with active go_module_evidence and no go.mod was not planned: %+v", page)
+	}
+	if !planned[callEvidence] {
+		t.Errorf("repository with active go_call_reachability and no go.mod was not planned: %+v", page)
+	}
+	if planned[neverGo] {
+		t.Errorf("repository with no go.mod and no go-reachability scope was planned: %+v", page)
+	}
+	if !planned[liveGo] {
+		t.Errorf("repository with a go.mod and evidence was not planned: %+v", page)
+	}
+	if len(page.Repositories) != 3 || page.Candidates != 4 {
+		t.Errorf("page = %+v, want 3 planned of 4 candidates, once each", page)
+	}
+	if page.EvidenceOnly != 2 {
+		t.Errorf("EvidenceOnly = %d, want 2: a repository with a go.mod is not evidence-only", page.EvidenceOnly)
+	}
+}
+
+// TestListGoModuleRepositoriesDropsRepositoryAfterRetractionLive proves the extra
+// scan happens once: after the trusted no_go_modules generation lands, the active
+// generation holds only a warning and the repository is not planned, though the
+// superseded generation still holds its evidence. A tombstoned fact and a scope
+// with no active generation do not count either.
+func TestListGoModuleRepositoriesDropsRepositoryAfterRetractionLive(t *testing.T) {
+	database := openStoreProof(t)
+	retracted := seedRepository(t, database, 1, "")
+	seedReachabilityScope(t, database, retracted,
+		[]string{"vulnerability.go_module_evidence", "vulnerability.go_call_reachability"},
+		[]string{"vulnerability.warning"})
+	otherKinds := seedRepository(t, database, 2, "")
+	seedReachabilityScope(t, database, otherKinds, []string{"scanner_worker.warning"})
+	tombstoned := seedRepository(t, database, 3, "")
+	seedReachabilityScope(t, database, tombstoned, []string{"vulnerability.go_module_evidence"})
+	if _, err := database.ExecContext(t.Context(),
+		`UPDATE fact_records SET is_tombstone = TRUE WHERE scope_id = $1`,
+		scannercomponent.GoReachabilityScopePrefix+tombstoned); err != nil {
+		t.Fatal(err)
+	}
+	inactive := seedRepository(t, database, 4, "")
+	seedReachabilityScope(t, database, inactive, []string{"vulnerability.go_module_evidence"})
+	if _, err := database.ExecContext(t.Context(),
+		`UPDATE ingestion_scopes SET active_generation_id = NULL WHERE scope_id = $1`,
+		scannercomponent.GoReachabilityScopePrefix+inactive); err != nil {
+		t.Fatal(err)
+	}
+
+	page, planned := readGoPage(t, database)
+	for name, repositoryID := range map[string]string{
+		"retracted": retracted, "warning only": otherKinds, "tombstoned": tombstoned, "no active generation": inactive,
+	} {
+		if planned[repositoryID] {
+			t.Errorf("%s repository was planned: %+v", name, page)
+		}
+	}
+	if page.Candidates != 4 || page.EvidenceOnly != 0 {
+		t.Errorf("page = %+v, want 4 candidates and none evidence-only", page)
 	}
 }

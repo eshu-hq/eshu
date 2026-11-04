@@ -164,7 +164,8 @@ func ResolveGoReachabilityTarget(requestedScopeSetJSON, scopeID string) (GoReach
 	return *matched, nil
 }
 
-// GoModuleRepository is one repository whose active generation holds a go.mod.
+// GoModuleRepository is one repository to scan: its active generation holds a
+// go.mod, or its go-reachability scope still holds Go evidence to retract.
 type GoModuleRepository struct {
 	RepositoryID    string
 	RemoteURL       string
@@ -186,10 +187,15 @@ type GoModuleRepositoryFilter struct {
 // GoModuleRepositoryPage is one rotation page.
 type GoModuleRepositoryPage struct {
 	AlreadyPlanned bool
-	// Repositories holds only the page's candidates that have a go.mod.
+	// Repositories holds the page's candidates to scan: those with a go.mod, and
+	// those whose go-reachability scope still holds Go evidence.
 	Repositories []GoModuleRepository
 	// Candidates counts the repositories the page examined.
 	Candidates int
+	// EvidenceOnly counts the Repositories planned only because their scope
+	// still holds Go evidence: each lost its go.mod and is scanned once more so a
+	// trusted no_go_modules generation can retract that evidence.
+	EvidenceOnly int
 	// TotalCandidates counts every repository scope with an active generation.
 	TotalCandidates int
 	Slot            int

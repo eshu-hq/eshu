@@ -39,7 +39,8 @@ type fakeGoModuleRepositoryReader struct {
 
 type goFleetRepository struct {
 	scannercomponent.GoModuleRepository
-	hasGoModule bool
+	hasGoModule  bool
+	evidenceOnly bool
 }
 
 func (f *fakeGoModuleRepositoryReader) ListGoModuleRepositories(
@@ -62,6 +63,10 @@ func (f *fakeGoModuleRepositoryReader) ListGoModuleRepositories(
 		page.Candidates++
 		if repository.hasGoModule {
 			page.Repositories = append(page.Repositories, repository.GoModuleRepository)
+		}
+		if repository.evidenceOnly {
+			page.Repositories = append(page.Repositories, repository.GoModuleRepository)
+			page.EvidenceOnly++
 		}
 	}
 	return page, nil
@@ -178,6 +183,32 @@ func TestGoModulesDerivationPlansOneScopePerGoRepository(t *testing.T) {
 	}
 	if target.SourceCommitSHA != testGoCommit || target.CloneURL != "https://github.com/eshu-hq/repo-0" {
 		t.Fatalf("target = %+v", target)
+	}
+}
+
+// TestGoModulesDerivationPlansALostGoModAndReportsIt proves a repository the reader
+// returns only for its evidence becomes ordinary work, so the component can land the
+// retracting generation, and that the log line names how many there were.
+func TestGoModulesDerivationPlansALostGoModAndReportsIt(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.November, 4, 12, 0, 0, 0, time.UTC)
+	fleet := goFleet(2)
+	fleet[0].hasGoModule, fleet[0].evidenceOnly = false, true
+	store := &fakeStore{}
+	var logs bytes.Buffer
+	service := goModulesService(t, &now, store, &fakeGoModuleRepositoryReader{fleet: fleet}, `{"mode":"broad"}`)
+	service.Logger = slog.New(slog.NewJSONHandler(&logs, nil))
+	instance := goModulesInstance(now, goModulesActivationConfiguration(testGoModulesBlock, "scanner_worker", "scanner_worker"))
+
+	if err := scheduleGoModules(t, service, now, instance); err != nil {
+		t.Fatalf("schedule error = %v", err)
+	}
+	if _, ok := enqueuedScopes(store)["go-reachability://repository:r_00000000"]; !ok {
+		t.Fatalf("enqueued = %v, want the repository that lost its go.mod", keysOf(enqueuedScopes(store)))
+	}
+	if want := `"evidence_only_repositories":1`; !strings.Contains(logs.String(), want) {
+		t.Fatalf("logs = %s, want %s", logs.String(), want)
 	}
 }
 

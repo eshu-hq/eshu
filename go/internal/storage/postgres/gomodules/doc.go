@@ -4,5 +4,6 @@
 // Package gomodules reads the repositories a Go reachability scanner should
 // analyze: one rotation page of git repository scopes with an active generation,
 // each with its observed commit and remote, keeping those whose stored content
-// holds a go.mod. The workflow coordinator is its only caller.
+// holds a go.mod and those whose go-reachability scope still holds Go evidence to
+// retract. The workflow coordinator is its only caller.
 package gomodules
