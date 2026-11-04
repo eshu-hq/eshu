@@ -55,7 +55,6 @@ RUN cd go \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-projector ./cmd/projector \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-git ./cmd/collector-git \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-component-extension ./cmd/collector-component-extension \
-    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-kubernetes-live ./cmd/collector-kubernetes-live \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-oci-registry ./cmd/collector-oci-registry \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-package-registry ./cmd/collector-package-registry \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-vulnerability-intelligence ./cmd/collector-vulnerability-intelligence \

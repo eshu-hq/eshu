@@ -8,7 +8,7 @@ package envregistry
 // explicitly because collectors are inconsistent about the "_COLLECTOR_" infix;
 // the registry records the exact names each collector reads. Defaults match
 // internal/workflow/defaults.go (lease 60s, heartbeat 20s) and the common 1s
-// poll interval; pass a non-empty pollDefault to override (e.g. kubernetes-live).
+// poll interval; pass a non-empty pollDefault to override the common 1s default.
 func collectorFrameworkEntries(subsystem, instanceID, ownerID, pollInterval, pollDefault, leaseTTL, heartbeat string) []Entry {
 	if pollDefault == "" {
 		pollDefault = "1s"
@@ -76,13 +76,6 @@ var collectorEntries = func() []Entry {
 		"ESHU_OCI_REGISTRY_POLL_INTERVAL", "", "ESHU_OCI_REGISTRY_CLAIM_LEASE_TTL", "ESHU_OCI_REGISTRY_HEARTBEAT_INTERVAL")...)
 	add(Entry{Name: "ESHU_OCI_REGISTRY_TARGETS_JSON", Type: VarString, Subsystem: "collector-oci-registry", Description: "JSON array of OCI registry target configurations."})
 	add(Entry{Name: "ESHU_OCI_REGISTRY_ALLOW_EMPTY_SUCCESSOR", Type: VarBool, Default: "false", Subsystem: "collector-oci-registry", Description: "Collector-wide trusted-deletion attestation: when true, every OCI registry generation carries TrustedDeletion, bypassing the ingestion store's successor-emptiness backstop for legitimately emptied repositories. Prefer the per-target allow_empty_successor key when only some repositories may legitimately empty."})
-
-	// kubernetes-live collector (5m default poll; clusters JSON; no lease/heartbeat).
-	add(
-		Entry{Name: "ESHU_KUBERNETES_LIVE_COLLECTOR_INSTANCE_ID", Type: VarString, Subsystem: "collector-kubernetes-live", Description: "Instance ID for the kubernetes-live collector."},
-		Entry{Name: "ESHU_KUBERNETES_LIVE_CLUSTERS_JSON", Type: VarString, Subsystem: "collector-kubernetes-live", Description: "JSON array of Kubernetes cluster targets with auth configuration."},
-		Entry{Name: "ESHU_KUBERNETES_LIVE_POLL_INTERVAL", Type: VarDuration, Default: "5m", Subsystem: "collector-kubernetes-live", Description: "Poll interval for discovering Kubernetes resources."},
-	)
 
 	// document-import collector (#8879): disabled-by-default one-shot reviewed-image
 	// OCR drain. No framework vars: no polling, no claims, no lease. Every pin is

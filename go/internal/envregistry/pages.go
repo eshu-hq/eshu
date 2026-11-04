@@ -83,9 +83,9 @@ var pageLayout = []pageSpec{
 	},
 	{
 		Slug: "collectors-infrastructure", Title: "Infrastructure and registry collectors",
-		Summary: "Cloud, Kubernetes, OCI registry, and package registry collectors. AWS cloud and Terraform state now collect from their extracted satellites (eshu-hq/eshu-collector-aws-cloud, eshu-hq/eshu-collector-terraform-state). Vault now collects from its extracted satellite (eshu-hq/eshu-collector-vault-live). Azure now collects from its extracted satellite (eshu-hq/eshu-collector-azure-cloud). GCP Cloud now collects from its extracted satellite (eshu-hq/eshu-collector-gcp-cloud).",
+		Summary: "Cloud, Kubernetes, OCI registry, and package registry collectors. AWS cloud and Terraform state now collect from their extracted satellites (eshu-hq/eshu-collector-aws-cloud, eshu-hq/eshu-collector-terraform-state). Vault now collects from its extracted satellite (eshu-hq/eshu-collector-vault-live). Azure now collects from its extracted satellite (eshu-hq/eshu-collector-azure-cloud). GCP Cloud now collects from its extracted satellite (eshu-hq/eshu-collector-gcp-cloud). Kubernetes live now collects from its extracted satellite (eshu-hq/eshu-collector-kubernetes-live).",
 		Subsystems: []string{
-			"collector-kubernetes-live", "collector-oci-registry", "collector-package-registry",
+			"collector-oci-registry", "collector-package-registry",
 		},
 	},
 	{

@@ -194,8 +194,7 @@ Measured scale (all **exists**):
   **A concurrent replay driver wrapping this is therefore net-new.**
 - **Mode selection is CLI-flag, not env var.** `-mode` and `-cassette-file`
   parsed at startup across all collectors —
-  `go/cmd/collector-kubernetes-live/main.go:72-95` (`launchModeCassette`,
-  `launchModeRecord`, `launchModeLive`); same pattern in `collector-aws-cloud`,
+  same pattern in `collector-aws-cloud`,
   `collector-azure-cloud`, `collector-gcp-cloud`, `collector-grafana`,
   `collector-jira`. No env-var fallback.
 - **Correction (git collector caveat):** the **git collector is live-only** —

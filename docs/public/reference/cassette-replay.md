@@ -47,11 +47,12 @@ go test ./conformance -count=1
 The first and last commands are credential-free. The `-mode=record` command is
 the optional live step: it runs your collector once against your source system,
 writes a canonical cassette, and does not require Postgres, NornicDB, or Docker.
-Use a binary that actually implements record mode. The in-tree pilots are
-`collector-kubernetes-live` (raw) and `collector-aws-cloud` (pseudonymized, see
-[Record-Mode Pseudonymization](#record-mode-pseudonymization)); out-of-tree
-collectors should substitute their own record-capable binary after adding the
-same recorder seam.
+Use a binary that actually implements record mode. Both former in-tree pilots
+are retired: `collector-kubernetes-live` (raw) with the #8859 in-tree collector
+removal and `collector-aws-cloud` (pseudonymized, see
+[Record-Mode Pseudonymization](#record-mode-pseudonymization)) with #8852. No
+in-tree record pilot remains; out-of-tree collectors should substitute their
+own record-capable binary after adding the same recorder seam.
 
 After recording real collector facts, update `conformance/observe.go` so
 `Observe` maps those fact kinds into the node, edge, correlation, property, and
@@ -124,15 +125,15 @@ go run ./cmd/collector-<record-capable-collector> -mode=record \
   -cassette-file=../testdata/cassettes/<collector>/<recording>.json
 ```
 
-For the current in-tree pilot, that is:
-
-```bash
-go run ./cmd/collector-kubernetes-live -mode=record \
-  -cassette-file=../testdata/cassettes/kuberneteslive/supply-chain-demo.json
-```
-
-(The former `collector-aws-cloud` record pilot was retired with the #8852
-in-tree collector removal.)
+No in-tree record pilot remains: the former `collector-kubernetes-live` pilot
+was retired with the #8859 in-tree collector removal and the former
+`collector-aws-cloud` pilot with #8852. Record with another binary that
+implements record mode; the extracted k8s-live satellite replays cassettes
+(ported in `eshu-collector-kubernetes-live` v0.1.3) but does not capture
+them — recording stays out of the
+stdio claim plane (without a cluster there is nothing to capture, and one
+stdio result carries no artifact egress; see the cassette-replay section of
+the satellite README and its config example for the activation form).
 
 ### Record-Mode Pseudonymization
 

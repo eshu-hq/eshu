@@ -15,8 +15,9 @@
 #      workflow writes to GITHUB_OUTPUT or env, not to cassette files.
 #   4. The canonical-diff and redaction Go tests exist and the package
 #      compiles offline (no credentials, no network, no Docker).
-#   5. The workflow references the collector's documented credential names and
-#      overwrites the tracked cassette instead of creating an untracked sibling.
+#   5. The retired record lanes stay retired — the workflow must not build a
+#      deleted binary, wire retired collector credentials, or carry a retired
+#      record step (kubernetes_live retired with #8859, aws_cloud with #8852).
 #
 # This script runs without Docker, without live credentials, and without a
 # running Go toolchain for the YAML/shell structural checks. The Go
@@ -120,36 +121,39 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Case 6: Record mode invocation — workflow must call -mode=record
+# Case 6: retired record lanes — no in-tree record pilot remains (#8852 aws,
+# #8859 kubernetes-live), so the workflow must not invoke -mode=record.
+# Onboarding a new record-capable pilot restores a positive invocation case.
 # ---------------------------------------------------------------------------
 if rg --fixed-strings --quiet -- 'mode=record' "${workflow}" 2>/dev/null \
     || rg --fixed-strings --quiet -- '-mode record' "${workflow}" 2>/dev/null; then
-  pass "workflow invokes collector in -mode=record"
+  fail "workflow still invokes -mode=record with no record-capable pilot in-tree (retired #8852/#8859)"
 else
-  fail "workflow does not invoke -mode=record; cassettes will not be regenerated"
+  pass "workflow invokes no -mode=record; record lanes retired with #8852/#8859"
 fi
 
 # ---------------------------------------------------------------------------
-# Case 7: collector config contract — workflow must wire the collector's real
-# environment names and must not retain the old placeholder ESHU_K8S_* names.
+# Case 7: retired collector config — the workflow must not wire the retired
+# kubernetes_live collector names, and must not retain the old placeholder
+# ESHU_K8S_* names.
 # ---------------------------------------------------------------------------
 if rg --fixed-strings --quiet -- 'ESHU_KUBERNETES_LIVE_COLLECTOR_INSTANCE_ID' "${workflow}" 2>/dev/null; then
-  pass "workflow wires kubernetes_live collector instance id"
+  fail "workflow still wires the retired ESHU_KUBERNETES_LIVE_COLLECTOR_INSTANCE_ID"
 else
-  fail "workflow does not wire ESHU_KUBERNETES_LIVE_COLLECTOR_INSTANCE_ID"
+  pass "workflow does not wire the retired kubernetes_live instance id"
 fi
 
 if rg --fixed-strings --quiet -- 'ESHU_KUBERNETES_LIVE_CLUSTERS_JSON' "${workflow}" 2>/dev/null; then
-  pass "workflow wires kubernetes_live clusters JSON"
+  fail "workflow still wires the retired ESHU_KUBERNETES_LIVE_CLUSTERS_JSON"
 else
-  fail "workflow does not wire ESHU_KUBERNETES_LIVE_CLUSTERS_JSON"
+  pass "workflow does not wire the retired kubernetes_live clusters JSON"
 fi
 
 if rg --fixed-strings --quiet -- 'ESHU_KUBERNETES_LIVE_KUBECONFIG_B64' "${workflow}" 2>/dev/null \
-    && rg --fixed-strings --quiet -- '/tmp/eshu-kubernetes-live/kubeconfig' "${workflow}" 2>/dev/null; then
-  pass "workflow materializes kubernetes_live kubeconfig at the documented path"
+    || rg --fixed-strings --quiet -- '/tmp/eshu-kubernetes-live/kubeconfig' "${workflow}" 2>/dev/null; then
+  fail "workflow still materializes the retired kubernetes_live kubeconfig contract"
 else
-  fail "workflow does not materialize the kubernetes_live kubeconfig contract"
+  pass "workflow does not materialize the retired kubernetes_live kubeconfig"
 fi
 
 if rg --fixed-strings --quiet -- 'ESHU_K8S_' "${workflow}" 2>/dev/null; then
@@ -159,18 +163,33 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Case 8: cassette-file flag — workflow must overwrite the tracked corpus file.
+# Case 8: retired cassette lane — the workflow must not carry a record step
+# for the retired kubernetes_live cassette. The tracked corpus file stays and
+# the golden-corpus gate keeps replaying it through the pagerduty alias, like
+# the other extracted satellites.
 # ---------------------------------------------------------------------------
 if rg --fixed-strings --quiet -- 'testdata/cassettes/kuberneteslive/supply-chain-demo.json' "${workflow}" 2>/dev/null; then
-  pass "workflow overwrites the tracked kubernetes_live cassette"
+  fail "workflow still carries the retired kubernetes_live record lane"
 else
-  fail "workflow does not overwrite testdata/cassettes/kuberneteslive/supply-chain-demo.json"
+  pass "workflow carries no retired kubernetes_live record lane"
 fi
 
 if rg --fixed-strings --quiet -- 'live.cassette.json' "${workflow}" 2>/dev/null; then
   fail "workflow still writes the untracked kubernetes_live live.cassette.json"
 else
   pass "workflow does not write an untracked kubernetes_live cassette sibling"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 8b: no build step for the deleted in-tree binary — the
+# go/cmd/collector-kubernetes-live package is gone, so assert the workflow
+# does not reference it (a resurrected build step would fail red, but the
+# retirement stays explicit).
+# ---------------------------------------------------------------------------
+if rg --fixed-strings --quiet -- 'cmd/collector-kubernetes-live' "${workflow}" 2>/dev/null; then
+  fail "workflow still references the deleted cmd/collector-kubernetes-live package"
+else
+  pass "workflow carries no build step for the deleted in-tree binary"
 fi
 
 # ---------------------------------------------------------------------------

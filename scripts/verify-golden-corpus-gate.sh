@@ -124,7 +124,6 @@ source "${repo_root}/scripts/lib/golden-corpus-fixtures.sh"
 # a count here: the settle poll waits for the pairs these cassettes launch, and a
 # hand-maintained number drifted to half the real value before it was noticed.
 collector_specs=(
-	"collector-kubernetes-live:kuberneteslive"
 	"collector-oci-registry:ociregistry"
 	"collector-cicd-run:cicdrun"
 	"collector-package-registry:packageregistry"
@@ -146,6 +145,7 @@ cassette_replay_alias_specs=(
 	"vault-cassette-replay:collector-pagerduty:vaultlive"
 	"azure-cassette-replay:collector-pagerduty:azurecloud"
 	"gcp-cassette-replay:collector-pagerduty:gcpcloud"
+	"kubernetes-live-cassette-replay:collector-pagerduty:kuberneteslive"
 )
 cassette_recording="supply-chain-demo.json"
 

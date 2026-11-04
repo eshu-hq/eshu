@@ -38,7 +38,6 @@ var coreScanFiles = []string{
 	"cmd/collector-package-registry/config.go",
 	"cmd/collector-oci-registry/config.go",
 	"internal/collector/claim/store/select.go",
-	"cmd/collector-kubernetes-live/config.go",
 	"cmd/collector-component-extension/config.go",
 	"cmd/api/config_helpers.go",
 	"cmd/api/main.go",

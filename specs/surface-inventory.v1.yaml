@@ -384,18 +384,20 @@ surfaces:
   - category: collector
     name: kubernetes_live
     readiness: foundation_only
-    owner: internal/collector/kuberneteslive
+    owner: eshu-hq/eshu-collector-kubernetes-live
     docs: [reference/collector-reducer-readiness.md]
     notes: >-
-      Read-only core resource listing, source facts, and the
-      kubernetesLiveCollector chart workload with in-cluster RBAC exist. The
-      reducer kubernetes_correlation domain and the drift read model
-      (GET /api/v0/kubernetes/correlations, list_kubernetes_correlations) have
-      landed; claim-driven runtime and watch mode remain pending.
+      Extracted to the eshu-collector-kubernetes-live satellite
+      (eshu-hq/eshu-collector-kubernetes-live, issue #8859): the in-tree
+      command is gone and the satellite has live target-cluster proof. Core keeps
+      the read-only kernel, source facts, reducer kubernetes_correlation
+      domain, and drift read model (GET /api/v0/kubernetes/correlations,
+      list_kubernetes_correlations); claim-driven runtime and watch mode remain
+      pending.
     collector_contract:
       fact_kinds: [eks_irsa_annotation, eks_pod_identity_association, k8s_gcp_workload_identity_binding, k8s_rbac_binding, k8s_rbac_role, k8s_service_account, k8s_service_account_token_posture, k8s_workload_identity_use, kubernetes_live.namespace, kubernetes_live.pod_template, kubernetes_live.relationship, kubernetes_live.warning]
       projection_surfaces: [kubernetes_correlation, secrets_iam_trust_chain]
       read_surfaces: [GET /api/v0/kubernetes/correlations, list_kubernetes_correlations]
-      proof_gates: [cd go && go test ./cmd/collector-kubernetes-live ./internal/collector/kuberneteslive ./internal/reducer/... ./internal/query -count=1]
+      proof_gates: [cd go && go test ./internal/collector/kuberneteslive ./internal/reducer/... ./internal/query -count=1]
       fixture_refs: [go/internal/collector/kuberneteslive/testdata, docs/internal/design/388-kubernetes-live-collector.md]
       truth_profile: provider_gated

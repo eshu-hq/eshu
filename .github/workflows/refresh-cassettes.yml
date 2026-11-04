@@ -46,8 +46,9 @@ on:
     inputs:
       collector:
         description: >
-          Collector to refresh (e.g. kubernetes_live, aws_cloud). Leave empty
-          to refresh all collectors with committed cassettes.
+          Collector to refresh (no in-tree record pilot remains; retired
+          with #8852 and #8859). Leave empty to refresh all collectors
+          with committed cassettes once a pilot is onboarded.
         required: false
         type: string
         default: ''
@@ -124,10 +125,11 @@ jobs:
         run: go test ./internal/replay/refreshworkflow -count=1 -v
 
   # -----------------------------------------------------------------------
-  # record: the credentialed run. Builds each collector binary, invokes it
-  # in -mode=record, and opens/updates the diff PR. Only runs after the
-  # static-mirror job passes; only runs when the correct label is present
-  # (or workflow_dispatch).
+  # record: the credentialed run. No record lane remains (retired #8852 and
+  # #8859); when a record-capable pilot is onboarded, its build + record steps
+  # land here and open/update the diff PR. Only runs after the static-mirror
+  # job passes; only runs when the correct label is present (or
+  # workflow_dispatch).
   # -----------------------------------------------------------------------
   record:
     name: Record cassettes (credentialed)
@@ -156,12 +158,11 @@ jobs:
       # Secrets are injected as env vars and never echoed. Temporary
       # kubeconfig materialization stays outside the repo; the recorder writes
       # only canonical redacted cassette bytes to testdata/cassettes/.
-      ESHU_KUBERNETES_LIVE_COLLECTOR_INSTANCE_ID: ${{ secrets.ESHU_KUBERNETES_LIVE_COLLECTOR_INSTANCE_ID }}
-      ESHU_KUBERNETES_LIVE_CLUSTERS_JSON: ${{ secrets.ESHU_KUBERNETES_LIVE_CLUSTERS_JSON }}
-      # Optional base64-encoded kubeconfig. When set, the workflow writes it to
-      # /tmp/eshu-kubernetes-live/kubeconfig; kubeconfig-backed cluster entries
-      # in ESHU_KUBERNETES_LIVE_CLUSTERS_JSON must reference that path.
-      ESHU_KUBERNETES_LIVE_KUBECONFIG_B64: ${{ secrets.ESHU_KUBERNETES_LIVE_KUBECONFIG_B64 }}
+      # No record-capable pilot remains in-tree: the aws-cloud lane was
+      # retired with #8852 and the kubernetes-live lane with #8859 (cassette
+      # replay ported in the eshu-collector-kubernetes-live satellite v0.1.3;
+      # record capture stays out of the stdio claim plane). Add a new entry
+      # here when a new credentialed record-capable collector is onboarded.
       # GITHUB_TOKEN is the standard Actions token — used only for git push
       # and gh pr create, not as a provider credential.
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -193,31 +194,11 @@ jobs:
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh
 
-      - name: Build collector binaries
-        working-directory: go
-        run: |
-          # Build only the collectors that have committed cassettes and
-          # support -mode=record (pilot: kubernetes_live).
-          go build -o /tmp/collector-kubernetes-live ./cmd/collector-kubernetes-live
-
-      - name: Materialize kubernetes_live kubeconfig
-        if: ${{ env.ESHU_KUBERNETES_LIVE_KUBECONFIG_B64 != '' }}
-        run: |
-          kubeconfig="/tmp/eshu-kubernetes-live/kubeconfig"
-          install -d -m 0700 "$(dirname "${kubeconfig}")"
-          base64 --decode <<<"${ESHU_KUBERNETES_LIVE_KUBECONFIG_B64}" > "${kubeconfig}"
-          chmod 0600 "${kubeconfig}"
-
-      - name: Record kubernetes_live cassette
-        # Only run when no specific collector was requested, or when the
-        # requested collector matches.
-        if: >
-          github.event.inputs.collector == '' ||
-          github.event.inputs.collector == 'kubernetes_live'
-        run: |
-          /tmp/collector-kubernetes-live \
-            -mode=record \
-            -cassette-file=testdata/cassettes/kuberneteslive/supply-chain-demo.json
+      # No record lane remains: the last in-tree record pilot was retired
+      # with the #8859 kubernetes-live removal (aws-cloud went with #8852).
+      # The diff-PR step below stays as the generic mechanism and exits 0
+      # with "cassettes unchanged" until a new record-capable pilot is
+      # onboarded with its own build + record steps.
 
       - name: Open or update the diff PR
         # SECURITY: all GitHub context values that flow into shell commands are
