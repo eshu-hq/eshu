@@ -26,7 +26,7 @@ version — pinning this module pins the fixture pack too.
   `scan_level`, `scan_mode`, `scanner_version`, `source_commit_sha`, and
   `trace_count` (eshu-hq/eshu#10026, part of eshu-hq/eshu#10002; additive
   minor, no decode shim; prepared in eshu-sdk as `factschema/v0.1.0-rc.17`,
-  unpublished, so core's `go.mod` still pins rc.16 until that tag is released).
+  unpublished, so core's `go.mod` still pins rc.15 until that tag is released).
   `scan_level` (`module`, `package`, or `symbol`) says how deep the scan went,
   so a reader can tell a `symbol` scan, the only kind that can show no call path
   exists, from a shallower one; `scan_mode` is `source` or `binary`. Both are
@@ -35,7 +35,10 @@ version — pinning this module pins the fixture pack too.
   nil fields, and a value of the wrong JSON type fails the decode as
   `input_invalid`. The struct documentation now states Eshu's trace order: entry
   point first, vulnerable symbol last, the reverse of govulncheck's own order,
-  with `position` one `filename:line:column` string. The fixture pack's valid
+  with `position` one `filename:line:column` string. The type documentation
+  also states what a producer writes for each outcome: every finding that names
+  a module sets `deepest_module`, including a `not_called` finding with an empty
+  `trace`, because the core reducer joins on it. The fixture pack's valid
   payload carries the new fields.
 
 - `vulnerability.source_snapshot` gains four optional fields, `license`,
