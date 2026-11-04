@@ -1,0 +1,51 @@
+docs/mkdocs.yml
+  s_7547c0f0af67d4::t_8943e4a3e4bf8a 129
+docs/public/reference/http-api.md
+  s_7547c0f0af67d4::t_90fc29bf73ad8d 33
+docs/public/reference/http-api/evidence-and-supply-chain.md
+  s_7547c0f0af67d4::t_af40fc1f023a81 737-738
+docs/public/reference/http-api/vulnerability-impact-inventory.md
+  s_7547c0f0af67d4::t_22468340296771 1-120
+docs/public/reference/http-api/vulnerability-impact.md
+  s_7547c0f0af67d4::t_954e06d4330bce 76-77
+docs/public/reference/mcp-tool-contract-matrix.md
+  s_7547c0f0af67d4::t_5e3d381a7d41f8 125
+go/internal/mcp/supply/chain/impact/routes.go
+  s_7547c0f0af67d4::t_176dd4bcbb9bbd 121-123
+go/internal/mcp/supply/chain/impact/routes_grouped_test.go
+  s_7547c0f0af67d4::t_931e8bebadec9d 1-43
+go/internal/mcp/tools_supply_chain_aggregates.go
+  s_7547c0f0af67d4::t_4bb8a0c1e607c9 110,116-117
+go/internal/mcp/tools_supply_chain_grouped_inventory_test.go
+  s_7547c0f0af67d4::t_35aa0d00a8191a 1-53
+go/internal/query/grouped_inventory_lockstep_test.go
+  s_7547c0f0af67d4::t_2a86a2dd70ab3a 1-89
+go/internal/query/openapi/paths/supply/chain/impact_aggregate.go
+  s_7547c0f0af67d4::t_ed287ad5d80506 73,113-120,131-132
+go/internal/query/supply/chain/AGENTS.md
+  s_7547c0f0af67d4::t_daf7d8ad85b3da 105-114
+go/internal/query/supply/chain/README.md
+  s_7547c0f0af67d4::t_12cdfeaedd2f62 23
+go/internal/query/supply/chain/impact/AGENTS.md
+  s_7547c0f0af67d4::t_12338576128038 45-54,138-145
+go/internal/query/supply/chain/impact/README.md
+  s_7547c0f0af67d4::t_302f9ece234093 47-48
+go/internal/query/supply/chain/impact/doc.go
+  s_7547c0f0af67d4::t_130c5988650ae0 8-9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bf2068d34d622b71b3dd27a1fb7cea52c7d179d4",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
