@@ -44,7 +44,10 @@ const (
 	// This is the #9986 failure shape and never self-heals.
 	WorkloadCandidateProbeCauseSQLInvalid = "sql_invalid"
 	// WorkloadCandidateProbeCauseConnection means a connection-class
-	// failure (SQLSTATE class 08) or a network error.
+	// failure: SQLSTATE class 08, or a client-side failure that carries no
+	// SQLSTATE (a refused or timed-out dial, a reset connection, a dropped or
+	// closed pooled connection). A caller context cancel or deadline is
+	// classed canceled or deadline instead.
 	WorkloadCandidateProbeCauseConnection = "connection"
 	// WorkloadCandidateProbeCauseResource means a server resource or
 	// operator-intervention failure (SQLSTATE classes 53 and 57).

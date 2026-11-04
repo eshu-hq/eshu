@@ -6,14 +6,18 @@ package reducer
 import (
 	"bytes"
 	"context"
+	"database/sql/driver"
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
@@ -203,6 +207,14 @@ func TestPregateProbeErrorLogsOncePerCauseClass(t *testing.T) {
 	}
 }
 
+// timeoutError is a net.Error timeout that is not context.DeadlineExceeded,
+// the shape pgx's own connect timeout surfaces.
+type timeoutError struct{}
+
+func (timeoutError) Error() string   { return "i/o timeout" }
+func (timeoutError) Timeout() bool   { return true }
+func (timeoutError) Temporary() bool { return true }
+
 // TestClassifyWorkloadCandidateProbeError pins the closed cause-class mapping.
 func TestClassifyWorkloadCandidateProbeError(t *testing.T) {
 	t.Parallel()
@@ -222,6 +234,10 @@ func TestClassifyWorkloadCandidateProbeError(t *testing.T) {
 		{"context canceled", context.Canceled, telemetry.WorkloadCandidateProbeCauseCanceled, ""},
 		{"deadline", fmt.Errorf("probe: %w", context.DeadlineExceeded), telemetry.WorkloadCandidateProbeCauseDeadline, ""},
 		{"plain error", errors.New("boom"), telemetry.WorkloadCandidateProbeCauseOther, ""},
+		{"connection reset mid-query", fmt.Errorf("probe: %w", &net.OpError{Op: "read", Net: "tcp", Err: syscall.ECONNRESET}), telemetry.WorkloadCandidateProbeCauseConnection, ""},
+		{"driver bad connection", fmt.Errorf("probe: %w", driver.ErrBadConn), telemetry.WorkloadCandidateProbeCauseConnection, ""},
+		{"connection closed", fmt.Errorf("probe: %w", pgconn.ErrConnClosed), telemetry.WorkloadCandidateProbeCauseConnection, ""},
+		{"network timeout that is not a context deadline", &net.OpError{Op: "dial", Net: "tcp", Err: timeoutError{}}, telemetry.WorkloadCandidateProbeCauseConnection, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

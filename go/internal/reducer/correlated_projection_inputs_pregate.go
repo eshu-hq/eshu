@@ -5,13 +5,16 @@ package reducer
 
 import (
 	"context"
+	"database/sql/driver"
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
@@ -311,11 +314,28 @@ func classifyWorkloadCandidateProbeError(err error) (cause, sqlState string) {
 		}
 		return telemetry.WorkloadCandidateProbeCauseOther, sqlState
 	}
+	// Context checks come first: context.DeadlineExceeded is itself a
+	// net.Error with Timeout() true, and a caller deadline is not a Postgres
+	// outage.
 	switch {
 	case errors.Is(err, context.Canceled):
 		return telemetry.WorkloadCandidateProbeCauseCanceled, ""
 	case errors.Is(err, context.DeadlineExceeded):
 		return telemetry.WorkloadCandidateProbeCauseDeadline, ""
+	}
+	// Client-side connection failures carry no SQLSTATE: a refused or timed
+	// out dial (*pgconn.ConnectError, whose cause is a net.Error), a reset
+	// mid-query (net.Error), a dropped pooled connection (driver.ErrBadConn)
+	// and a closed pgx connection (pgconn.ErrConnClosed). Without this branch
+	// a Postgres outage reads as cause_class=other.
+	var connectErr *pgconn.ConnectError
+	var netErr net.Error
+	switch {
+	case errors.As(err, &connectErr),
+		errors.As(err, &netErr),
+		errors.Is(err, driver.ErrBadConn),
+		errors.Is(err, pgconn.ErrConnClosed):
+		return telemetry.WorkloadCandidateProbeCauseConnection, ""
 	}
 	return telemetry.WorkloadCandidateProbeCauseOther, ""
 }
