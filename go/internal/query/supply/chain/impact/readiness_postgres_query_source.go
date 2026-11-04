@@ -329,6 +329,8 @@ vulnerability_source_state_candidates AS (
     SELECT *, NULL::jsonb AS derived_detail FROM configured_vulnerability_source_state_candidates
     UNION ALL
     SELECT * FROM derived_vulnerability_source_state_candidates
+    UNION ALL
+    SELECT * FROM nvd_rolling_window_state_candidates
 ),
 vulnerability_source_state AS (
     SELECT

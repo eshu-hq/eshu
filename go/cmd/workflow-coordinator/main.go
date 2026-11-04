@@ -266,6 +266,7 @@ func run(parent context.Context) error {
 		OSPackageAdvisoryTargetReader:     factStore,
 		SBOMComponentAdvisoryTargetReader: factStore,
 		FindingCVEIDReader:                factStore,
+		NVDWindowCursorReader:             nvdWindowCursorReader{database: postgres.SQLDB{DB: db}},
 		AWSScheduledPlanner:               scheduled.WorkPlanner{},
 		AWSFreshnessTriggers:              awsFreshnessStore,
 		AWSFreshnessPlanner:               freshness.WorkPlanner{},

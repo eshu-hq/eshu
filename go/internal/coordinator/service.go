@@ -130,13 +130,16 @@ type Service struct {
 	SBOMComponentAdvisoryTargetReader SBOMComponentAdvisoryTargetReader
 	// FindingCVEIDReader loads the distinct CVE ids on active findings for
 	// the findings-derived FIRST EPSS derivation (eshu-hq/eshu#9876).
-	FindingCVEIDReader   FindingCVEIDReader
-	AWSScheduledPlanner  AWSScheduledPlanner
-	AWSFreshnessTriggers AWSFreshnessTriggerStore
-	AWSFreshnessPlanner  AWSFreshnessPlanner
-	AWSFreshnessEvents   awsFreshnessEventCounter
-	GCPFreshnessTriggers GCPFreshnessTriggerStore
-	GCPFreshnessEvents   gcpFreshnessEventCounter
+	FindingCVEIDReader FindingCVEIDReader
+	// NVDWindowCursorReader loads the stored NVD rolling cursor for the
+	// rolling NVD window derivation (eshu-hq/eshu#9971).
+	NVDWindowCursorReader NVDWindowCursorReader
+	AWSScheduledPlanner   AWSScheduledPlanner
+	AWSFreshnessTriggers  AWSFreshnessTriggerStore
+	AWSFreshnessPlanner   AWSFreshnessPlanner
+	AWSFreshnessEvents    awsFreshnessEventCounter
+	GCPFreshnessTriggers  GCPFreshnessTriggerStore
+	GCPFreshnessEvents    gcpFreshnessEventCounter
 	// GCPFreshnessFanOut is optional. When set, it records the number of
 	// scopes one GCP freshness trigger fanned out to (#4338).
 	GCPFreshnessFanOut gcpFreshnessFanOutRecorder

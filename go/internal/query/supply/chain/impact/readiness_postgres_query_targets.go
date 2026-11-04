@@ -181,7 +181,7 @@ target_vulnerability_source_scopes AS (
     FROM configured_vulnerability_source_targets
     GROUP BY collector_instance_id, scope_id, source, ecosystem
 ),
-` + readinessDerivedSourceStateCTE + `
+` + readinessDerivedSourceStateCTE + readinessNVDWindowScopesCTE + `
 target_vulnerability_source_overflow AS (
     SELECT EXISTS (
         SELECT 1 FROM (
