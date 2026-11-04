@@ -344,6 +344,12 @@ func TestCutover_EnabledWiringDeniesRevokedGrant(t *testing.T) {
 	if deny.Reason != component.GrantReasonRevoked {
 		t.Fatalf("reason = %q, want revoked", deny.Reason)
 	}
+	if deny.Stage != StageWiring {
+		t.Fatalf("stage = %q, want wiring", deny.Stage)
+	}
+	if deny.ProducerID != testProducerID || deny.Version != testProducerVersion {
+		t.Fatalf("deny = %+v, want the holder identity, never the wire's", deny)
+	}
 	decisions := observer.snapshot()
 	if len(decisions) != 1 || decisions[0].Allowed || decisions[0].Reason != component.GrantReasonRevoked {
 		t.Fatalf("decisions = %+v, want one wiring deny with reason revoked", decisions)
