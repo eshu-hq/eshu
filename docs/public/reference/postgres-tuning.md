@@ -432,7 +432,7 @@ from `relid` on are NULL (see the roll-time check below). The log line and
     - The row can outlive the vacuum through its ANALYZE, so do not wait for it
       to clear; a roll then cancels only the ANALYZE. The log still says
       "canceling autovacuum task" for a vacuum, so trust `autovacuum_count`.
-    - With the #9979 index build in the roll, the build holds the lock and no
+    - With the migration 274 index build in the roll, the build holds the lock and no
       vacuum runs until it ends (`skipping vacuum ... lock not available` each
       naptime; a session lock stood in for the build).
 
@@ -455,8 +455,8 @@ from `relid` on are NULL (see the roll-time check below). The log line and
       the migration ledger until a forward migration lands.
     - Past the default triggers, stop it with `ALTER TABLE fact_records SET
       (autovacuum_enabled = false)`, which works in both cases. Undo it with
-      `RESET (autovacuum_enabled)` before the roll that carries migration 275:
-      275 sets only the two scale factors, so it does not touch
+      `RESET (autovacuum_enabled)` before the roll that carries migration 276:
+      276 sets only the two scale factors, so it does not touch
       `autovacuum_enabled`, and a stop that is never undone leaves autovacuum off
       on the table. Until it is undone the table gets no ordinary autovacuum and
       dead rows keep growing, and the undo starts a vacuum within a naptime if a
@@ -467,7 +467,7 @@ from `relid` on are NULL (see the roll-time check below). The log line and
     - These behaviors were measured on PostgreSQL 18.6 scratch tables by a
       reviewer, as a non-superuser table owner, not on `fact_records`: the
       `SET (autovacuum_enabled = false)` succeeded and no worker ran 4 s later;
-      migration 275's `SET` left that setting in `reloptions`; `RESET
+      migration 276's `SET` left that setting in `reloptions`; `RESET
       (autovacuum_enabled)` brought a worker back in about 1 s at a 1 s naptime;
       and an anti-wraparound worker still ran with the setting false.
 

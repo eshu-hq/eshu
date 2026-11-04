@@ -6,7 +6,7 @@ spends its time on index entries that point at heap locations with no visible
 row. Dead row versions that vacuum has not yet removed are the leading
 explanation; the diagnosis left open whether those entries are dead versions,
 vacuumed-but-uncleaned line pointers, or something else. This note records why
-migration 275 sets two autovacuum storage parameters on `fact_records`, what it
+migration 276 sets two autovacuum storage parameters on `fact_records`, what it
 costs, how to read the result, and how to run the first vacuum safely.
 
 ## Classification
@@ -101,9 +101,9 @@ Both were exceeded at the last read, but a first vacuum starts within one
 still exceed the new thresholds at apply time. On QA a default-settings vacuum
 is expected to start on its own about 11:00Z to 16:00Z on 2026-11-04 (the
 arithmetic above, from counters read at 04:21Z; to be observed, not assumed).
-Once that vacuum completes, the counters reset, so a roll that applies 275
+Once that vacuum completes, the counters reset, so a roll that applies 276
 afterwards starts no immediate vacuum. At today's rates the next
-275-triggered vacuum then follows about 17 to 29 hours after a completed vacuum
+276-triggered vacuum then follows about 17 to 29 hours after a completed vacuum
 on inserts (4,898,641 inserts at 80 and 47 per second; arithmetic) and 1.1 to
 1.7 days on dead rows (14 to 21 per second), each removing about 2M row
 versions.
@@ -169,24 +169,24 @@ the vacuum completes. Read it against the after-cancel baseline (35.8 cold,
   the removable cutoff from the log line to the arbiter.
 - Buffers per row low but ticks still over 60 s: the tail has another
   component, most likely the write half, which was never measured. The
-  per-phase tick histogram in open PR #9981 would name it.
+  per-phase tick histogram (merged in #9981) would name it.
 
 One more read, shortly before the second vacuum starts: the same 10-triple
 probe plus the keyed tick gauge. It is a single read, not a soak, and it is the
-point on the sawtooth that matters. Once migration 275 has rolled, the second
+point on the sawtooth that matters. Once migration 276 has rolled, the second
 vacuum starts at whichever trigger is reached first, so key the read on
 `n_ins_since_vacuum` near 4.9M (the insert trigger, 4,898,641) or `n_dead_tup`
 near 2.05M (2,046,622), whichever comes first. The 4.9M shifts once the first
 vacuum changes `relallfrozen` and `reltuples` (20% frozen gives about 4.09M, 30%
 about 3.58M; arithmetic), so compute both live from `pg_class`: `SELECT 1000 +
 0.05 * reltuples * (1 - relallfrozen::float8 / NULLIF(relpages, 0)), 50 + 0.02 *
-reltuples FROM pg_class WHERE oid = 'fact_records'::regclass` (not run).
+reltuples FROM pg_class WHERE oid = 'fact_records'::regclass` (reviewer-run on a scratch table only, not on QA).
 Arithmetic, unmeasured: at the
 note's own rates the insert trigger comes first, 17 to 29 hours after a
 completed vacuum, and by then dead rows are only about 0.9M to 1.3M (14 to 21
 per second for 17 hours) up to 1.5M to 2.2M (29 hours), assuming the counter
 starts near zero. An operator who waits for `n_dead_tup` near 2.05M can miss
-the read. Before 275 has rolled, the triggers are the server defaults and none
+the read. Before 276 has rolled, the triggers are the server defaults and none
 of these figures apply.
 
 Local proof for the change itself (disposable PostgreSQL 18.6, migration run
@@ -216,8 +216,8 @@ signals that already exist:
   `n_dead_tup` resetting near 2% of live rows instead of climbing past 14M.
 - `pg_class.reloptions` for `fact_records` confirms the migration applied.
 - The keyed tick durations and watermark gauge show whether the ticks move.
-  The per-phase tick histogram that would split them is in open PR #9981 and
-  is not in this change.
+  The per-phase tick histogram that would split them was merged in #9981 and
+  is not part of this change.
 - Replica slot lag and primary CPU throttling, read before, during, and after
   the first vacuum, since WAL volume and CPU rise during the pass.
 - Read-side effect: `eshu_dp_postgres_reader_stage_duration_seconds` with
@@ -259,14 +259,14 @@ Consequences for rollout:
   cancel a first vacuum still running. Run a one-off only if the roll is
   expected after the first vacuum finishes, or if the owner accepts a restart.
 - Any other DDL on `fact_records` that takes the same lock does the same,
-  including a separately rolled index migration (open PR #9979 adds a
-  `CREATE INDEX CONCURRENTLY`). The PostgreSQL 18 explicit-locking page lists
+  including a separately rolled index migration (migration 274, from #9979,
+  is a `CREATE INDEX CONCURRENTLY`). The PostgreSQL 18 explicit-locking page lists
   `VACUUM` (without `FULL`), `ANALYZE`, `CREATE INDEX CONCURRENTLY`, and
   certain `ALTER TABLE` variants as acquiring SHARE UPDATE EXCLUSIVE, and the
   routine-vacuuming page says "If a process attempts to acquire a lock that
   conflicts with the `SHARE UPDATE EXCLUSIVE` lock held by autovacuum, lock
   acquisition will interrupt the autovacuum."
-- Roll-time check. Before a roll whose image carries migration 274 or 275,
+- Roll-time check. Before a roll whose image carries migration 274 or 276,
   read:
 
   ```sql
@@ -318,7 +318,7 @@ Consequences for rollout:
   where the progress view is hidden, but only as the hidden-holder test
   described here. Three gaps, each a reviewer measurement (PostgreSQL 18.6
   scratch tables, naptime 1 s):
-  - A roll carrying 274 (the #9979 index build) and 275 does not restart the
+  - A roll carrying 274 (the #9979 index build) and 276 does not restart the
     vacuum within a naptime. A session lock stood in for the build (not a real
     `CREATE INDEX CONCURRENTLY`): with the trigger exceeded, the server logged
     `skipping vacuum ... lock not available` each naptime and no worker ran
@@ -390,7 +390,7 @@ after `last_autovacuum` updates.
 - The stop procedure: RESET below and past the default triggers,
   `autovacuum_enabled = false`, its undo, and its behavior against an
   anti-wraparound run were measured only by the independent review on scratch
-  tables (PostgreSQL 18.6, naptime 1 s, non-superuser owner), not by the author
+  tables (PostgreSQL 18.6, naptime 1 s; the owner role varied by run), not by the author
   and not on `fact_records`.
 - The roll-time check on QA: the reading for a role without `pg_read_all_stats`
   rests on diagnosis 9.1 and the reviewer's scratch-table measurement. Which
@@ -399,3 +399,7 @@ after `last_autovacuum` updates.
 - QA's current `n_dead_tup`, `n_ins_since_vacuum`, `last_autovacuum`, and
   `autovacuum_count`. The 11:00Z to 16:00Z window is arithmetic from a
   04:21:55Z read.
+- The second vacuum measurement is still owed. The note describes what to read
+  shortly before the second vacuum starts (`n_ins_since_vacuum` near 4.9M or
+  `n_dead_tup` near 2.05M, with the 10-triple probe and the keyed tick gauge),
+  but no figure from that read exists yet and none is claimed here.
