@@ -57,8 +57,7 @@ func TestBuildSupplyChainImpactFindingsUsesVendorRPMOSPackageEvidence(t *testing
 		t.Fatalf("findings = %d, want 1 RPM-backed finding: %#v", len(findings), findings)
 	}
 	got := findings[0]
-	// The host-line table has no rpm row, so the listed EVR has no release
-	// evidence and reads possibly_affected, not affected_exact (#9945).
+	// No rpm row in the host-line table: the listed EVR has no release evidence (#9945).
 	assertSupplyChainImpactStatus(t, got, SupplyChainImpactPossiblyAffected)
 	if got.MatchReason != supplyChainVersionReasonOSReleaseUnverified {
 		t.Fatalf("MatchReason = %q, want %q", got.MatchReason, supplyChainVersionReasonOSReleaseUnverified)
@@ -69,8 +68,7 @@ func TestBuildSupplyChainImpactFindingsUsesVendorRPMOSPackageEvidence(t *testing
 	if got.RuntimeReachability != "image_os_package" {
 		t.Fatalf("RuntimeReachability = %q, want image_os_package", got.RuntimeReachability)
 	}
-	// No rpm row exists in the host-line table, so the join cannot verify this
-	// vendor fact's release and withholds its fix instead of offering it (#9945).
+	// The join cannot verify this rpm fact's release, so it withholds the fix (#9945).
 	if got.FixedVersion != "" || got.FixedVersionSource != "" {
 		t.Fatalf("FixedVersion = %q (source %q), want the unverified vendor fix withheld", got.FixedVersion, got.FixedVersionSource)
 	}
