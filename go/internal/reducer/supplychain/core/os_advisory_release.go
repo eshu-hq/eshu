@@ -63,7 +63,9 @@ func osHostReleaseLine(distro, distroVersion string) string {
 // source) is published per release, but carries its line only in its purl
 // distro qualifier. selectOSVendorFactLine compares that line with the host's
 // and reads the same for a binary-name and a source-package join, because both
-// run before this step. The input slice is never modified: the index shares it
+// run before this step. A non-OSV OS fact from any other source is checked
+// against no line at all, so it is never release evidence and offers no fix.
+// The input slice is never modified: the index shares it
 // across installed rows.
 func selectOSAdvisoryRelease(
 	pkgs []supplychainmodel.AffectedPackage,
@@ -77,11 +79,14 @@ func selectOSAdvisoryRelease(
 	for at, pkg := range pkgs {
 		selectable := osAdvisoryFactSelectable(pkg)
 		vendor := !selectable && osAdvisoryFactIsHostVendorFact(pkg.Source, installed.VendorAdvisorySource)
-		if !selectable && !vendor && installed.VendorAdvisorySource == "" {
-			// No installed row (an SBOM component with no joined OS row): any
-			// vendor-sourced OS fact still takes the line check, with an
-			// unknown host line, so it never reads as release evidence.
-			vendor = osAdvisoryFactIsVendorSourced(pkg)
+		// A non-OSV OS fact from a source other than the row's vendor cannot be
+		// verified against the row's line, with or without a joined row, so it
+		// takes the unknown arm with no host line: no fix and no release
+		// evidence, even beside a verified fact of the host's own vendor.
+		nonHost := false
+		if !selectable && !vendor {
+			nonHost = osAdvisoryFactIsVendorSourced(pkg)
+			vendor = nonHost
 		}
 		if !selectable && !vendor {
 			continue
@@ -94,6 +99,8 @@ func selectOSAdvisoryRelease(
 		}
 		var selected supplychainmodel.AffectedPackage
 		switch {
+		case nonHost:
+			selected = selectOSVendorFactLine(pkg, "")
 		case vendor:
 			selected = selectOSVendorFactLine(pkg, host)
 		case host == "":

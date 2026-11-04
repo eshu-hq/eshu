@@ -156,34 +156,38 @@ func TestSelectOSVendorFactLine(t *testing.T) {
 	}
 }
 
-// TestSelectOSVendorFactLineLeavesOtherFactsAlone pins the negative: only the
-// installed row's own vendor facts are line-checked. An OSV fact, an NVD fact
-// and a fact of another vendor are returned as they were, and an input with
-// none of them allocates nothing.
+// TestSelectOSVendorFactLineLeavesOtherFactsAlone pins the split. An untagged
+// OSV fact is returned as it was, and an input with only OSV facts allocates
+// nothing. A non-OSV OS fact whose source is not the installed row's vendor
+// (nvd, glad, ubuntu on a Debian row, or blank) cannot be line-checked against
+// the row, so it takes the unknown arm: no fix of its own and no release
+// evidence, even when its purl names the host's own line (#9945).
 func TestSelectOSVendorFactLineLeavesOtherFactsAlone(t *testing.T) {
 	const purl = "pkg:deb/debian/curl?distro=debian-11"
 	untaggedOSV := osvDebianCurlFact()
 	untaggedOSV.AffectedRanges = []supplychainmodel.AffectedRange{{Kind: "ECOSYSTEM", Events: untaggedOSV.AffectedRanges[0].Events}}
-	pkgs := []supplychainmodel.AffectedPackage{
-		untaggedOSV,
-		vendorLineFact("nvd", purl, "1:1.0-3"),
-		vendorLineFact("glad", purl, "1:1.0-3"),
-		vendorLineFact("ubuntu", purl, "1:1.0-3"),
-		vendorLineFact("", purl, "1:1.0-3"),
+	osvOnly := []supplychainmodel.AffectedPackage{untaggedOSV}
+	got := selectOSAdvisoryRelease(osvOnly, bookwormRow)
+	if !reflect.DeepEqual(got, osvOnly) {
+		t.Fatalf("selection changed an untagged OSV fact: %+v", got)
 	}
-	got := selectOSAdvisoryRelease(pkgs, bookwormRow)
-	if !reflect.DeepEqual(got, pkgs) {
-		t.Fatalf("selection changed facts that are not the host's vendor facts: %+v", got)
-	}
-	if allocs := testing.AllocsPerRun(50, func() { _ = selectOSAdvisoryRelease(pkgs, bookwormRow) }); allocs != 0 {
+	if allocs := testing.AllocsPerRun(50, func() { _ = selectOSAdvisoryRelease(osvOnly, bookwormRow) }); allocs != 0 {
 		t.Fatalf("allocs = %v, want 0 when no fact needs the line check", allocs)
 	}
-	// A row with no vendor advisory source (the zero row of an SBOM-only
-	// component) has no vendor to compare, so a non-OSV OS fact takes the
-	// unknown arm: no fix of its own and no release evidence.
-	got = selectOSAdvisoryRelease(pkgs[1:2], supplychainmodel.OSPackage{Distro: "debian", DistroVersion: "12"})
-	if got[0].FixedVersions != nil || osAffectedFactCarriesReleaseEvidence(got[0]) {
-		t.Fatalf("a row without a vendor source left a non-OSV OS fact trusted: %+v", got[0])
+	// A non-host source never earns ReleaseLine, whatever line its purl names
+	// and whichever row it sits beside, the zero row of an SBOM-only component
+	// included.
+	for _, row := range []supplychainmodel.OSPackage{
+		bookwormRow, {Distro: "debian", DistroVersion: "12"},
+	} {
+		for _, source := range []string{"nvd", "glad", "ubuntu", ""} {
+			for _, factPURL := range []string{purl, "pkg:deb/debian/curl?distro=debian-12"} {
+				got := selectOSAdvisoryRelease([]supplychainmodel.AffectedPackage{vendorLineFact(source, factPURL, "1:1.0-3")}, row)
+				if got[0].FixedVersions != nil || got[0].ReleaseLine != "" || osAffectedFactCarriesReleaseEvidence(got[0]) {
+					t.Fatalf("source %q purl %q row %+v: a non-host OS fact kept its fix or earned a line: %+v", source, factPURL, row, got[0])
+				}
+			}
+		}
 	}
 }
 
