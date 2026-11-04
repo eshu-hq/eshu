@@ -98,3 +98,9 @@ Focused verification:
 cd go
 go test ./internal/testutil/postgresproof -count=1
 ```
+
+## No-Regression Evidence (#9985)
+
+- No-Regression Evidence: projector deadlock load test green 6 consecutive runs (claims 668–2071, 0 deadlocks, 0 errors, 0 overlapping leases), teardown clean every run; contention intact.
+- Performance Evidence: teardown-only path; worst case about 2 s inside the 15 s cleanup budget, after all assertions; claim SQL and worker counts untouched.
+- No-Observability-Change: test-only change, no runtime signal. Baseline: pre-fix teardown flaked with 55006 on loaded runners (local PG 18).
