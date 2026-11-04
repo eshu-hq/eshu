@@ -52,7 +52,7 @@ func run(parent context.Context, logger *slog.Logger) error {
 	if !cfg.Enabled {
 		logger.Info("document import collector disabled",
 			"event_name", "collector.disabled",
-			"detail", "set "+envEnabled+"=true with an artifact dir and pinned engine to enable",
+			"detail", "set "+envEnabled+"=true with a QA tier, an artifact dir and pinned engine to enable",
 		)
 		return nil
 	}
