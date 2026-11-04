@@ -111,6 +111,9 @@ type supplyChainImpactActiveEvidenceTally struct {
 	payloadBytesRetained int64
 	branchRows           map[string]int
 	branchDurations      map[string]time.Duration
+	// branchStatements counts the statements each branch issued. A chunked branch
+	// reports one stat per statement (#9994).
+	branchStatements map[string]int
 }
 
 // add folds one load's statement accounting into the tally.
@@ -118,6 +121,7 @@ func (t *supplyChainImpactActiveEvidenceTally) add(stats SupplyChainImpactActive
 	if t.branchRows == nil {
 		t.branchRows = map[string]int{}
 		t.branchDurations = map[string]time.Duration{}
+		t.branchStatements = map[string]int{}
 	}
 	t.loads++
 	t.resolvedFactIDs += stats.ResolvedFactIDs
@@ -132,12 +136,13 @@ func (t *supplyChainImpactActiveEvidenceTally) add(stats SupplyChainImpactActive
 	for _, branch := range stats.Branches {
 		t.branchRows[branch.Branch] += branch.Rows
 		t.branchDurations[branch.Branch] += branch.Duration
+		t.branchStatements[branch.Branch]++
 	}
 }
 
 // mergeInto adds the tally to the "reducer execution succeeded" sub-signals
-// and sub-durations: per-statement rows and seconds under the closed branch
-// label set, plus the resolved ID, payload page, guard row, and truncated
+// and sub-durations: per-branch rows, seconds and statement counts under the
+// closed branch label set, plus the resolved ID, payload page, guard row, and truncated
 // load counts. Labels appear only for statements the pass issued.
 func (t supplyChainImpactActiveEvidenceTally) mergeInto(signals, durations map[string]float64) {
 	if t.loads == 0 {
@@ -153,6 +158,7 @@ func (t supplyChainImpactActiveEvidenceTally) mergeInto(signals, durations map[s
 	signals["active_evidence_payload_bytes_retained"] = float64(t.payloadBytesRetained)
 	for branch, rows := range t.branchRows {
 		signals["active_evidence_branch_"+branch+"_rows"] = float64(rows)
+		signals["active_evidence_branch_"+branch+"_statements"] = float64(t.branchStatements[branch])
 		durations["active_evidence_branch_"+branch] = t.branchDurations[branch].Seconds()
 	}
 }

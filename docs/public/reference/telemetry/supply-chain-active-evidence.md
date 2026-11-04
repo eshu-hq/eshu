@@ -38,6 +38,7 @@ are not issued and record nothing.
 The reducer's `reducer execution succeeded` line for `supply_chain_impact`
 carries the same accounting summed over the pass:
 `sub_signal_active_evidence_branch_<branch>_rows`,
+`sub_signal_active_evidence_branch_<branch>_statements`,
 `sub_duration_active_evidence_branch_<branch>_seconds`, and the
 `active_evidence_loads`, `active_evidence_resolved_fact_ids`,
 `active_evidence_payload_pages`, `active_evidence_guard_rows`, and
@@ -45,6 +46,12 @@ carries the same accounting summed over the pass:
 `active_evidence_files_folded`, `active_evidence_payload_bytes_folded`, and
 `active_evidence_payload_bytes_retained` (#9781). Read them next to
 `sub_duration_load_active_evidence_seconds`.
+
+`vulnerability_cve_id` runs one statement per 120 ids (#9994), and the histogram and
+the sub-duration count each statement. A pass with 1,000 CVE ids reports 9 statements
+on that branch, so its summed seconds cover 9 executions. A slow statement on this
+branch that plans on `fact_records_vulnerability_active_advisory_lookup_v2_idx` is
+the walk this bound exists to avoid: check the bound first.
 
 ## Evidence headroom
 
