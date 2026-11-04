@@ -13,11 +13,12 @@
 -- established cause: the first vacuum is the test.
 --
 -- 0.02 puts the dead-row trigger at about 2.05M rows and 0.05 puts the insert
--- trigger at about 4.9M, both already exceeded on QA, so the first vacuum
--- starts within one autovacuum_naptime of this landing. At today's rates later
--- vacuums follow every 1.1 to 1.7 days (dead rows) and every 17 to 29 hours
--- (inserts). That keeps dead rows near 2% of live as a table-wide average;
--- hot rows can carry more between vacuums (arithmetic, unmeasured).
+-- trigger at about 4.9M on the row count read before any vacuum; a vacuum that
+-- completes first moves both. Where both are exceeded when this lands, the
+-- first vacuum starts within one autovacuum_naptime; after a completed vacuum
+-- it does not. Later vacuums follow the rates then in force (the evidence note
+-- has the arithmetic). That keeps dead rows near 2% of live as a table-wide
+-- average; hot rows can carry more between vacuums (arithmetic, unmeasured).
 -- Evidence: docs/internal/evidence/9975-fact-records-autovacuum-reloptions.md.
 --
 -- Deliberately not set, because each is an unmeasured theory on a primary that
