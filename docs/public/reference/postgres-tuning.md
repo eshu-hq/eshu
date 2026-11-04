@@ -375,14 +375,16 @@ Plan for the first vacuum after the setting lands. It scans the pages that hold
 dead rows and every index, so its length scales with table and index size and
 can be hours on a large table on a busy or CPU-throttled primary. It also
 competes for I/O and the autovacuum cost limit, which is shared among running
-workers. Read `pg_stat_progress_vacuum` for the live state; the log line and
-`last_autovacuum` appear only at the end.
+workers. As a superuser or a role with `pg_read_all_stats`, read
+`pg_stat_progress_vacuum` for the live state; for any other role its columns are
+NULL (see the roll-time check below). The log line and `last_autovacuum` appear
+only at the end.
 
 - Applying the same `ALTER TABLE` again, or any other DDL that takes
   `SHARE UPDATE EXCLUSIVE` on `fact_records`, does not wait for a running
   ordinary autovacuum. After `deadlock_timeout` PostgreSQL cancels it, and a new
-  worker restarts from block 0. Check `pg_stat_progress_vacuum` before a roll
-  that carries `fact_records` DDL. An anti-wraparound vacuum, a manual
+  worker restarts from block 0. Run the lock check below before a roll that
+  carries `fact_records` DDL. An anti-wraparound vacuum, a manual
   `VACUUM` or `ANALYZE`, or any session holding a conflicting lock (a
   concurrent index build is one) makes the statement wait instead. Both
   `ALTER TABLE ... SET (autovacuum_*)` and `CREATE INDEX CONCURRENTLY` take
@@ -397,8 +399,27 @@ workers. Read `pg_stat_progress_vacuum` for the live state; the log line and
     AND l.granted;
   ```
 
-  A row with an autovacuum worker means the roll cancels that vacuum and it
-  restarts from block 0. PostgreSQL's maintenance documentation: "If a process
+  What the rows show depends on the role. A superuser or a role with
+  `pg_read_all_stats` sees `backend_type = 'autovacuum worker'`. A table owner
+  without those rights sees the pid with `backend_type` and `state` NULL, and
+  `pg_stat_progress_vacuum` filtered by the table returns no rows (measured by a
+  reviewer on PostgreSQL 18.6 with a scratch table, as a non-superuser owner).
+  So read the result this way:
+  - Any granted row on `fact_records` whose pid is not your own session, and not
+    a known migration or `CREATE INDEX` session, means a hidden backend holds the
+    lock, most likely an autovacuum worker. Treat a NULL-typed row as "vacuum
+    running", and do not read an empty `pg_stat_progress_vacuum` result as "no
+    vacuum".
+  - Confirm with `last_autovacuum` and `autovacuum_count` before and after. A
+    completed vacuum moves both; a cancelled one moves neither.
+  - To see that a hidden vacuum is still advancing, check that the `pg_locks`
+    row keeps the same pid. Counters such as `n_dead_tup`, the
+    `pg_statio_user_tables` block counters, and the WAL position also keep
+    moving, but they include the normal workload, so they show activity, not
+    that vacuum's own progress. Progress detail needs `pg_read_all_stats`.
+
+  A worker means the roll cancels that vacuum and it restarts from block 0.
+  PostgreSQL's maintenance documentation: "If a process
   attempts to acquire a lock that conflicts with the `SHARE UPDATE EXCLUSIVE`
   lock held by autovacuum, lock acquisition will interrupt the autovacuum."
 - On a deployment with a read replica and `hot_standby_feedback` off, vacuum
@@ -428,9 +449,12 @@ workers. Read `pg_stat_progress_vacuum` for the live state; the log line and
     anti-wraparound vacuums: PostgreSQL's documentation says the table "will
     not be autovacuumed, except to prevent transaction ID wraparound". Record
     the change, since `reloptions` carries it while it is in place.
-  - Both behaviors were measured on PostgreSQL 18.6 scratch tables by a
-    reviewer, not on `fact_records`; the re-enable step and the
-    anti-wraparound behavior were not run.
+  - These behaviors were measured on PostgreSQL 18.6 scratch tables by a
+    reviewer, as a non-superuser table owner, not on `fact_records`: the
+    `SET (autovacuum_enabled = false)` succeeded and no worker ran 4 s later;
+    migration 275's `SET` left that setting in `reloptions`; `RESET
+    (autovacuum_enabled)` brought a worker back in about 1 s at a 1 s naptime;
+    and an anti-wraparound worker still ran with the setting false.
 - The lower trigger means about four times as many index passes per day on a
   table with a large index set. Watch the second vacuum's cost, not only the
   first.

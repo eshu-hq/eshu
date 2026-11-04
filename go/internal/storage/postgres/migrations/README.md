@@ -96,7 +96,11 @@ parameters. The ALTER cancels a running ordinary autovacuum of `fact_records`
 after `deadlock_timeout` instead of waiting for it (an anti-wraparound vacuum,
 a manual VACUUM or ANALYZE, or a session holding a conflicting lock makes it
 wait), so a replay or any other DDL on that table restarts a
-vacuum that is still running; check `pg_stat_progress_vacuum` before a roll.
+vacuum that is still running. Before a roll, check `pg_locks` for a granted
+`ShareUpdateExclusiveLock` on `fact_records` held by another pid: without
+`pg_read_all_stats` that row shows a NULL `backend_type`, and
+`pg_stat_progress_vacuum` filtered by the table returns nothing, so treat the
+NULL-typed row as a running vacuum.
 See `docs/internal/evidence/9975-fact-records-autovacuum-reloptions.md` for
 the first-vacuum cost range, the read-replica `503` risk, and the stop
 procedure.
