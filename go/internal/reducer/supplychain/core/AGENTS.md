@@ -110,9 +110,16 @@ changing anything here.
   upstream id onto `CVEIDs`, directly or through `appendSignalCVEIDs`: that loads
   the CVE's NVD record and product rows, the widening the #9914 shim failed. Widen
   only with a budget measurement on a store that holds NVD data.
-- An OS-class finding is named by `decidingAdvisoryID`, not `IdentitySource`, so
+- An OS-class finding is named by `decidingObservation`, not `IdentitySource`, so
   its identity does not depend on what the pass loaded. Do not let a scored source
   rename one, and do not move this rule to other ecosystems: #9693 pins theirs.
+- Among live records the one whose range holds the installed version decides, highest
+  fix first, and only its fix and range are offered. `osVerdictComparator` must stay
+  the comparator `evaluateSupplyChainVersionMatch` uses for each family, or a record
+  can be named by a different order than the one that set the verdict.
+- An OS-class finding judges retraction over the records listing its package
+  (`recordsListingThePackage`). Do not widen that to language ecosystems here: the
+  base behaviour there is not this rule's defect, and changing it needs its own proof.
 - A consumer that reads affected packages reads them from the index, after
   `liveAdvisoryPackages`, as the primary path and the derived conflict gate do. A
   second typed decode sees the producer's `cve_id` and misses every grouped

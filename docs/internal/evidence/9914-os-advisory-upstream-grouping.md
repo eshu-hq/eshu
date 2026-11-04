@@ -26,20 +26,37 @@ producer's `cve_id` and the stored facts do not change.
 - **Join.** A record's packages are found by `AdvisoryID`, never `cve_id`: an
   alias can give unrelated records one `cve_id`. A record with no advisory id
   fails closed as `ungrouped`.
-- **Deciding record.** Among observations of one source, a record whose fact
-  lists the host's release line outranks an untagged one (a vendor-sourced
-  fact, in any verification state), which outranks one that lists other lines
-  only; the `AdvisoryID` order breaks ties inside a tier. The fix and the range
-  come from the winner. An OS-class finding's `advisory_id` names the first
-  observation in that order that supplied an affected_package fact and is not
-  retracted, so a scored NVD or GHSA record supplies the score without renaming
-  the finding, and identity does not depend on what the pass loaded. Every other
-  ecosystem keeps the scored-source rule (#9693).
+- **Selection order.** Among observations of one source, a record whose fact
+  lists the host's release line outranks an untagged one (a vendor-sourced fact,
+  in any verification state), which outranks one that lists other lines only; the
+  `AdvisoryID` order breaks ties inside a tier.
+- **Deciding record.** An OS-class finding built from an installed row is named by
+  the live record whose fact holds the installed version: a fact with release
+  evidence whose range contains the version with no fix at or below it, or whose
+  exact-version list names it (`osHoldingFacts`). Among holders the highest fix for
+  the host wins, compared with the verdict's own comparator, because a lower fix
+  leaves the host inside the other record's range; equal fixes keep selection
+  order. The fix and the range come from that record alone, so a holder naming no
+  fix leaves the fix empty and does not borrow another record's. Severity, KEV, EPSS
+  and the source lists do not change. A cross-record disagreement is not a conflict:
+  a later bulletin raising a fix is ordinary data, and two branches of one advisory
+  still read `advisory_fixed_version_conflict`.
+- **With no holder.** The first observation in selection order that supplied an
+  affected_package fact and is not retracted names the finding, and the fix and
+  range are the first live ones in that order. A scored NVD or GHSA record supplies
+  the score without renaming the finding, so identity does not depend on what the
+  pass loaded. Every other ecosystem keeps the scored-source rule (#9693).
 - **Retraction.** A retracted record does not decide a group that has a live
   record for the same package: its fact ids stay in `evidence_fact_ids` and its
   status in `advisory_sources`. A record is retracted when every cve observation
   of its `AdvisoryID` is. A wholly retracted group keeps its verdict and its
-  `AdvisoryRetraction` (#9695).
+  `AdvisoryRetraction` (#9695). An OS-class finding judges this over the records
+  that list its package: a live record for another package, or a cve-only NVD or
+  GHSA record, supplies severity and sources but never said this package is
+  affected, so it cannot keep a withdrawn assertion alive
+  (`recordsListingThePackage`). A withdrawn record that is the only one listing the
+  package still names the finding and offers no fix, the finding shows the retraction,
+  and a scored record beside it still supplies the score.
 - **Products.** A group whose packages are all upstream copies still emits its
   NVD product findings, reading only the native cve observations. A group with a
   natively keyed package still skips them.
@@ -47,56 +64,85 @@ producer's `cve_id` and the stored facts do not change.
   decode of the raw facts, so it sees exactly what the primary path grouped.
 - **Data-driven.** The rule keys on `upstream`, not on the id prefix, so the
   Alma and Rocky errata (`ALSA-*`, `RLSA-*`) that carry an `upstream` list group
-  the same way. See "Scope question" below.
+  the same way. See "Scope and limits" below.
 
 ## Identity move, measured
 
 Finding identity hashes `cve_id` and `advisory_id`, so every grouped OS finding
-gets a new `finding_id` and a new winners key; the pass's replace-set retraction
+gets a new `finding_id` and a new winners key, and, where two live records disagree,
+the name moves to the record whose range holds the installed version; the pass's
+replace-set retraction
 tombstones the old row and writes the new one in the same transaction, and both
 reach the winners dirty log. The read API filters `cve_id`, so a query by
 `DEBIAN-CVE-*` returns nothing and a query by `CVE-*` now returns the distro
 findings. A `cve_id`-scoped suppression on a distro id stops matching.
 
-Local parity differential, base `e3d816172a` against head, the same inputs, the
-full finding compared field by field. There are 672 rows: 16 inputs (the 12
-committed OSV fixtures plus 4 merged-group fixtures, below), 20 host rows plus
-the no-host row, both entry orders. Only 100 rows have any finding on either
-side; the rest are a fixture crossed with a host it does not apply to, which
-prove nothing beyond "no finding appears from nowhere".
+The name follows the host. Once a host upgrades past the highest fix no record
+holds and the first sorted record names the finding, so the upgrade itself moves
+`finding_id`, and two hosts on different sides of a fix can read different
+`advisory_id`s for one CVE. That is the same replace-set move, not a new path.
 
-| Result | Committed fixtures (504 rows) | Merged-group fixtures (168 rows) |
-| --- | --- | --- |
-| Empty on both sides | 444 | 128 |
-| Byte-identical finding (same `finding_id`) | 20 | 0 |
-| One finding to one, `cve_id` and `finding_id` move | 32 | 0 |
-| One bulletin split into one finding per upstream CVE (Alma 1 to 3, Rocky 1 to 4) | 8 | 0 |
-| Two findings merged into one, same `(status, match_reason)` set | 0 | 24 |
-| Two findings merged into one, `(status, match_reason)` set differs | 0 | 16 |
+Local parity differential, base `e3d816172a` against head, the same inputs. Each
+row compares status, match reason, `advisory_id`, package, `cve_id`, `finding_id`,
+fix, range, retraction and score. There are 1,012 rows: 23 inputs (the 12 committed
+OSV fixtures plus 11 merged-group fixtures, below), 21 host rows plus the no-host
+row, both entry orders. Only 196 rows have any finding on either side; the rest are
+a fixture crossed with a host it does not apply to, which prove nothing beyond "no
+finding appears from nowhere".
+
+| Result | Committed (528 rows) | Grouped records (176) | One record lists the package (132) | Two live records (176) |
+| --- | --- | --- | --- | --- |
+| Empty on both sides | 464 | 128 | 96 | 128 |
+| Byte-identical finding (same `finding_id`) | 24 | 0 | 0 | 0 |
+| One finding to one, `cve_id` and `finding_id` move | 32 | 0 | 36 | 0 |
+| One bulletin split into one finding per upstream CVE (Alma 1 to 3, Rocky 1 to 4) | 8 | 0 | 0 | 0 |
+| Two findings merged into one, same `(status, match_reason)` set | 0 | 24 | 0 | 44 |
+| Two findings merged into one, `(status, match_reason)` set differs | 0 | 24 | 0 | 4 |
 
 No committed fixture has two records for one CVE, so the committed rows cover
-re-key and split only. The four merged-group fixtures are written for this: a
-`DEBIAN-CVE` record beside a `DLA` for another release line, with the `DLA`
-withdrawn, rejected, live, and live beside a scored NVD record. All 16
-verdict-set differences are the Debian 11 and Debian 12 hosts on those fixtures,
-and each is the defect the change fixes: base reads two findings for one package
-and one CVE, one per record, and head reads one.
+re-key and split only. The merged-group fixtures are written for this:
+
+- Grouped records: a `DEBIAN-CVE` record beside a `DLA` for another release line,
+  with the `DLA` withdrawn, rejected, live, and live beside a scored NVD record.
+- One record lists the package: a withdrawn or rejected `DLA` beside a live record
+  listing another package, and a withdrawn `DLA` beside a live scored NVD record.
+- Two live records: a `DLA` and a `DSA` for one release line with fixes u10 and u12,
+  u12 and u10, u12 and u14, and u8 and u10.
+
+The hosts include a Debian 11 row on `deb11u11`, which sits between those fixes.
+All 28 verdict-set differences are on those fixtures, and each is the defect the
+change fixes: base reads two findings for one package and one CVE, one per record,
+and head reads one.
 
 | Merged fixture, host | Base `(status, match_reason)` set | Head | Head `advisory_id` |
 | --- | --- | --- | --- |
-| `DLA` live, Debian 11 | `affected_exact`, `possibly_affected` | `affected_exact` | the `DLA` |
+| `DLA` live, Debian 11 below its fix | `affected_exact`, `possibly_affected` | `affected_exact` | the `DLA` |
+| `DLA` live, Debian 11 on `deb11u11` | `not_affected_known_fixed`, `possibly_affected` | `not_affected_known_fixed` | the `DLA` |
 | `DLA` live, Debian 12 | `affected_exact`, `possibly_affected` | `affected_exact` | the `DEBIAN-CVE` |
-| `DLA` retracted, Debian 11 | `affected_exact`, `possibly_affected` | `possibly_affected` / `os_release_not_in_advisory` | the `DEBIAN-CVE` |
+| `DLA` retracted, Debian 11 below its fix | `affected_exact`, `possibly_affected` | `possibly_affected` / `os_release_not_in_advisory` | the `DEBIAN-CVE` |
+| `DLA` retracted, Debian 11 on `deb11u11` | `not_affected_known_fixed`, `possibly_affected` | `possibly_affected` / `os_release_not_in_advisory` | the `DEBIAN-CVE` |
 | `DLA` retracted, Debian 12 | `affected_exact`, `possibly_affected` | `affected_exact` | the `DEBIAN-CVE` |
+| `DLA` fix u10 and `DSA` fix u12, `deb11u11` | `affected_exact`, `not_affected_known_fixed` | `affected_exact`, fix u12 | the `DSA` |
+| `DLA` fix u12 and `DSA` fix u10, `deb11u11` | `affected_exact`, `not_affected_known_fixed` | `affected_exact`, fix u12 | the `DLA` |
 
-Head also reads the same finding in both entry orders on all 672 rows, and the
+Against the commit before the two accuracy fixes (`9c99579a2a`), 46 of the 1,012 rows
+move, every one on the fixtures written for them, and no `(status, match_reason)` set
+changes:
+
+| Fix | Rows moved | Fields that moved |
+| --- | --- | --- |
+| Retraction over the records listing the package | 36 | `AdvisoryRetraction` only. It now agrees with the base on every row of those fixtures |
+| Name from the record holding the version | 10 | `advisory_id`, `finding_id`, fix and range |
+
+Head also reads the same finding in both entry orders on all 1,012 rows, and the
 live-`DLA` fixture reads the same `finding_id` with and without the scored NVD
-record beside it on all 42 rows.
+record beside it on all 44 rows.
 
 The two committed Debian fixtures carry no `upstream`, so they stay
 byte-identical; a live Debian record that carries it moves the way the Ubuntu
 ones do. The unit tests in `os_advisory_upstream_join_test.go`,
 `os_advisory_upstream_liveness_test.go`, `os_advisory_deciding_record_test.go`,
+`os_advisory_holding_record_test.go`, `os_advisory_retraction_scope_test.go`,
 `os_advisory_upstream_product_test.go` and `os_advisory_upstream_derived_test.go`
 pin each rule on its own.
 
@@ -114,7 +160,11 @@ this note. Run them read-only before and after the first full pass:
   `eshu_dp_supply_chain_impact_winners_dirty_log_depth`.
 - Suppressions: the count scoped to a `DEBIAN-CVE-`, `UBUNTU-CVE-`, `ALPINE-CVE-`,
   `DSA-`, `DLA-`, `USN-`, `ALSA-` or `RLSA-` id, which stop matching and need
-  re-scoping to the CVE.
+  re-scoping. For an immediate effect re-scope by `advisory_id` (the finding's
+  deciding record id), alone or together with `cve_id=CVE-X`. A `cve_id`-only
+  re-scope lands on each holding scope's next run. Verify with the finding's
+  `suppression_state` on the read API after the holder's next pass; this change adds
+  no telemetry for it.
 
 Tripwire: if the post-pass winners count for OS evidence paths exceeds 2x the
 pre-pass count, stop and report before any further rollout. Debian and Ubuntu
@@ -175,8 +225,45 @@ The cost per finding does not move; the row count is the acceptance criterion.
 Paths the change does not target stay flat: `BenchmarkOSFleetDigestFanout` reads
 3,655 to 3,659, 32,751 to 32,757 and 69,494 to 69,502 allocs/op at 1x, 5x and 10x
 with bytes equal to within 0.2%, and
-`BenchmarkBuildSupplyChainImpactFindingsAlertEPSS` reads 119 to 118 allocs/op,
-16.8 KB to 16.7 KB.
+`BenchmarkBuildSupplyChainImpactFindingsAlertEPSS` stays flat: it reads 119 to 118
+allocs/op and 16.8 KB to 16.7 KB here, and an independent run on another host read 117
+to 117 allocs/op and 15,795 to 15,796 B/op. One binary moves between 117 and 119 from
+sample to sample (`9c99579a2a`, 3 samples), so neither pair is a change.
+
+The holding step is measured against `9c99579a2a` with
+`BenchmarkBuildSupplyChainImpactFindingsTwoLiveRecords` and
+`BenchmarkBuildSupplyChainImpactFindingsUpstreamBundle`: 3 interleaved samples of 3
+iterations at load average 16 to 22, so allocation counts and bytes only, no timing:
+
+| Bench | Allocs/op, before then after | B/op, before then after |
+| --- | --- | --- |
+| `TwoLiveRecords`, 100 CVEs with two live records each | 80,135 to 80,153, then 80,337 to 80,350 | 6.66 MB, 6.67 MB |
+| `TwoLiveRecords`, 1,000 CVEs | 1,243,936 to 1,243,946, then 1,245,939 to 1,245,946 | 96.61 MB, 96.69 MB |
+| `UpstreamBundle`, 100 bulletins, 3 packages, 1 CVE | 95,697 to 95,703, then 95,693 to 95,701 | 9.56 MB, 9.58 MB |
+| `UpstreamBundle`, 100 bulletins, 3 packages, 90 CVEs | 6,718,298 to 6,718,305, then 6,718,288 to 6,718,303 | 837.57 MB, 838.87 MB |
+
+Two live records add 2 allocations per finding. A finding with one fact returns
+before any work (`TestOSHoldingFactsDoesNotAllocateForOneFact`), and the retraction
+filter allocates only when something is retracted
+(`TestRecordsListingThePackageDoesNotAllocateWithoutARetraction`). On the bundle cells
+the allocation count does not move and bytes rise about 0.15%, which fits the two new
+observation fields; that cause is not measured on its own.
+
+Known-exploited fan-out (QA, read-only, 2026-11-04): for 240 real KEV ids the 2-kind
+statement reads 146,928 candidate rows (614 distinct generations of the known_exploited
+scope, about 612 rows per id) to keep 240 active ones. Warm it costs about 2.4 s (C8)
+against about 2.1 s (5-kind); cold-first 19.7 s on a fresh list, and one cold-first run
+hit the probe session's 30 s statement cap and printed no plan. The 5-kind statement
+reads the same 146,930 rows (cold-first 11.3 to 13.2 s on different ids, so not a
+like-for-like pair). The plan is the cve_lookup_v2 key probe in every run that printed
+one; the cost is candidate-row fan-out, not the plan, and the 240-id chunk does not bound
+it because the fan-out is per id. This cost shape is pre-existing on the cve_lookup_v2
+probe and is newly reachable from an OS pass only because the base OS pass never read KEV
+rows for its CVEs. Accepted for this change (#9994). Root cause tracked in #10020: the
+retained generations of the KEV scope. NOT_CHECKED: the production loader's statement
+timeout and what a cold chunk above it does to the pass (expected: the pass fails before
+acknowledgement and the queue retries it warm); a true cold-first pair on the same ids;
+EPSS rows, which were not present for these ids.
 
 ## Observability
 
@@ -224,7 +311,7 @@ measured, and `affected_product` is the one that could spend the budget. So:
   `vulnerability.epss_score` and the suppression scope `cve_id`, and never
   `vulnerability.cve`, `affected_package` or `affected_product`.
 - **OS findings take severity only from the record that decided them until the
-  widening is measured.** A scored record the pass loaded for another reason, such
+  widening is measured (#9994).** A scored record the pass loaded for another reason, such
   as a language finding keyed to the same CVE, still supplies the score.
 - A loaded KEV, EPSS or suppression fact whose CVE a record's `upstream` list
   names stays off `CVEIDs`. The filter feeds those ids back each round, so without
@@ -271,9 +358,16 @@ Limits, measured or not:
   comes from reading the code and is not checked on QA data.
 - This change adds no id to `vulnerability_cve_id`, which #9994 chunks at the
   same bound.
-- An intent triggered by a KEV, EPSS or suppression fact with no distro record in
-  its pass cannot reach a record keyed by its own id, since no index reads
-  `upstream`. That limit predates this change.
+- A KEV, EPSS or suppression pass cannot reach a distro record (no index reads
+  `upstream`), so it writes no OS finding and reopens no OS holder. KEV and EPSS
+  never reached OS findings on the base either. A suppression scoped by `cve_id`
+  alone is new: on the base a `cve_id=DEBIAN-CVE-X` scope applied on the operator
+  pass itself; on this code a `cve_id=CVE-X` scope applies when each holding scope
+  next runs its own pass, which reads it through the signal arm. For an immediate
+  effect scope the suppression by `advisory_id` (the finding's deciding record id,
+  shown as `advisory_id`), alone or together with `cve_id=CVE-X`; the advisory arm
+  reaches the record on the operator pass and the holder fan-out reopens the
+  holders. The holder's own cadence is not measured here. Tracked: #10019.
 
 No-Regression Evidence: the upstream statement issues nothing for a pass with no
 `upstream` key (`TestUpstreamListIsCleaned`, and the supplied-list gate in
@@ -300,7 +394,27 @@ them, and nothing was reverted.
   group with one retracted record can change verdict. No test moved. The golden
   corpus and cassette run says whether any fixture row moved; cite it in the PR body.
 
-## Scope question and limits
+Readings of the second ruling, for a reviewer to check:
+
+- **Retraction is per record, not per observation.** The ruling names the observations
+  with an affected fact. A second cve fact of the same `AdvisoryID` also counts, as
+  `liveAdvisoryPackages` and rule 5 of decision 1 read a record. Otherwise a live copy
+  beside a withdrawn one flips the retraction with whichever fact the package paired
+  with (`TestOSRetractionKeepsARecordWithOneLiveCVEFactLive`).
+- **A holder's fix is the only one offered.** The ruling's seam says selection reads the
+  deciding observation first, and its rule says the fix comes from that observation. The
+  code follows the rule and does not fall through: a holder naming no fix leaves the fix
+  empty, because taking another record's fix is the defect being fixed.
+- **A holder with no fix is not compared.** It keeps its place in sorted order, so among
+  holders `[A no fix, B u10]` A names the finding, and `[A u10, B no fix, C u12]` C does.
+- **The seam carries `holdingFixRank`, not the fix string.** Selection then needs no
+  comparator. The comparator is the verdict's own family for every OS class, not
+  `rangeComparator`, which has no rpm or `os` case.
+- **One test's expected name moved.** `TestUpstreamGroupingBundleBesideAPerCVERecord` read
+  `UBUNTU-CVE` on a fix lower than the USN's. It now covers equal fixes, which keep sort
+  order, and each side's higher fix.
+
+## Scope and limits
 
 - Alma and Rocky are in scope. The rule keys on `upstream`, not on the id prefix,
   and their errata carry it, so one bulletin reads one finding per upstream CVE.
@@ -310,6 +424,11 @@ them, and nothing was reverted.
 - A language group with two or more records carrying package facts follows the
   same retraction rule, because the liveness filter is not limited to OS
   ecosystems. No existing test moved, and this was not measured against a fleet.
+- A known asymmetry: a withdrawn GHSA beside a live NVD cve observation on a language
+  package still reads no retraction (`TestLanguageRetractionKeepsTheGroupRule`). That is
+  the base's rule, and #9914 does not change it.
+- An SBOM and scanned row that disagree on the version leave the installed version
+  unknown, so no record holds it (`TestConflictingInstalledVersionsDoNotPickAHolder`).
 - The per-target indexes of the authorized derived pass apply the grouping but
   are not counted in the grouping counter.
 - A quarantined (unreadable) `vulnerability.cve` record cannot be grouped, since
