@@ -6,7 +6,6 @@ package core
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"sort"
 	"strings"
 
@@ -34,15 +33,6 @@ const (
 	TriggerManifestDependency = "manifest_dependency"
 )
 
-// SupplyChainImpactManifestTriggerDeferredFailureClass classifies a marker
-// pass that ran before its generation activated. It is a counting class on
-// purpose (#9874 condition d): the queue retries it up to its attempt budget
-// and then dead-letters it, loud and replayable, so a generation that never
-// activates cannot keep the item retrying forever. A dead-lettered marker
-// leaves the pre-#9874 behavior (the finding converges on the next advisory
-// pass), never a wrong finding.
-const SupplyChainImpactManifestTriggerDeferredFailureClass = "supply_chain_impact_manifest_trigger_deferred"
-
 // ManifestGenerationActivation is the marker generation's place relative to
 // its scope's active generation.
 type ManifestGenerationActivation string
@@ -53,7 +43,11 @@ const (
 	// generation: fan out.
 	ManifestGenerationActive ManifestGenerationActivation = "active"
 	// ManifestGenerationPending means the generation has not activated yet
-	// (no active generation, or an older one is still active): defer.
+	// (no active generation, or an older one is still active): defer. Under
+	// the default runtime this is unreachable: Runtime.GenerationCheck defers
+	// a pending intent before Handle with the shared non-counting
+	// generation_activation_not_ready class, so the branch keeps the arm only
+	// for a runtime without the guard.
 	ManifestGenerationPending ManifestGenerationActivation = "pending"
 	// ManifestGenerationSuperseded means a newer generation, failure, or
 	// retention replaced it: succeed without work; the newer generation's own
@@ -107,22 +101,6 @@ type PackageHolderCandidate struct {
 	PackageID   string
 }
 
-// manifestTriggerDeferredError marks a pass that ran before its generation
-// activated. It is retryable and counting; see the failure class.
-type manifestTriggerDeferredError struct{ scopeID, generationID string }
-
-func (e manifestTriggerDeferredError) Error() string {
-	return fmt.Sprintf("supply chain impact manifest trigger for scope %s generation %s deferred: generation is not active yet", e.scopeID, e.generationID)
-}
-
-// Retryable reports that the queue should retry the pass.
-func (manifestTriggerDeferredError) Retryable() bool { return true }
-
-// FailureClass names the durable, counting failure class.
-func (manifestTriggerDeferredError) FailureClass() string {
-	return SupplyChainImpactManifestTriggerDeferredFailureClass
-}
-
 // handleManifestTrigger is Handle's one early return: it reports handled=false
 // for every intent without the marker, which then runs the findings pass.
 func (h SupplyChainImpactHandler) handleManifestTrigger(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, bool, error) {
@@ -160,9 +138,17 @@ func (h SupplyChainImpactHandler) runManifestTrigger(ctx context.Context, intent
 		switch generation.Activation {
 		case ManifestGenerationActive:
 		case ManifestGenerationPending:
-			h.logManifestTriggerDeferred(ctx, intent)
-			return reducercontract.Result{}, manifestTriggerDeferredError{scopeID: intent.ScopeID, generationID: intent.GenerationID}
+			// Defensive: unreachable under the default runtime, whose
+			// GenerationCheck defers this intent before Handle. Defer the
+			// same way it would, with the shared non-counting class, which
+			// ends when the generation activates or turns terminal (the
+			// runtime then skips it as superseded).
+			return reducercontract.Result{}, reducercontract.GenerationNotYetActiveError{
+				ScopeID: intent.ScopeID, GenerationID: intent.GenerationID,
+			}
 		default:
+			// Reachable only in a race: a newer generation activated after
+			// the runtime's GenerationCheck passed this intent.
 			signals["manifest_trigger_superseded"] = 1
 			return h.finishManifestTrigger(ctx, intent, state, "manifest_dependency trigger: generation superseded", signals)
 		}
@@ -249,24 +235,6 @@ func (h SupplyChainImpactHandler) finishManifestTrigger(
 		}
 	}
 	return manifestTriggerResult(intent, summary, signals), nil
-}
-
-// logManifestTriggerDeferred records the activation deferral as its own line:
-// the counting failure class shows the attempt count, and this line names the
-// scope and generation an operator needs to see why.
-func (h SupplyChainImpactHandler) logManifestTriggerDeferred(ctx context.Context, intent reducercontract.Intent) {
-	if h.Logger == nil {
-		return
-	}
-	h.Logger.InfoContext(ctx, "supply chain impact manifest trigger deferred until generation activates",
-		slog.String("domain", string(reducercontract.DomainSupplyChainImpact)),
-		slog.String("manifest_trigger_deferral", "generation_not_active"),
-		slog.String("scope_id", intent.ScopeID),
-		slog.String("generation_id", intent.GenerationID),
-		slog.String("intent_id", intent.IntentID),
-		slog.Int("attempt", intent.AttemptCount),
-		slog.String("failure_class", SupplyChainImpactManifestTriggerDeferredFailureClass),
-	)
 }
 
 func manifestTriggerResult(intent reducercontract.Intent, summary string, signals map[string]float64) reducercontract.Result {

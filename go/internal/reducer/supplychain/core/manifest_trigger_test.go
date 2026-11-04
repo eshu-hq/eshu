@@ -366,9 +366,12 @@ func TestManifestTriggerKnownLimitPriorDeltaWithMissingBase(t *testing.T) {
 }
 
 // TestManifestTriggerDefersUntilActivationThenFansOut is the deferral-then-
-// success case: a pass that runs before its generation activates fails with a
-// retryable, counting failure class (so the attempt budget bounds it) and
-// reopens nothing; the retry after activation fans out.
+// success case at handler level: a pass that sees its generation still pending
+// fails with the shared, retryable generation_activation_not_ready class and
+// reopens nothing; the retry after activation fans out. Under the default
+// runtime the reducer's GenerationCheck defers such an intent before Handle
+// (TestRuntimeDefersAManifestMarkerBeforeTheHandler in the reducer package), so
+// this arm is the defensive path for a runtime without the guard.
 func TestManifestTriggerDefersUntilActivationThenFansOut(t *testing.T) {
 	t.Parallel()
 
@@ -390,8 +393,11 @@ func TestManifestTriggerDefersUntilActivationThenFansOut(t *testing.T) {
 	if !errors.As(err, &retryable) || !retryable.Retryable() {
 		t.Fatalf("deferral error %v is not retryable", err)
 	}
-	if got := retryable.FailureClass(); got != SupplyChainImpactManifestTriggerDeferredFailureClass {
-		t.Fatalf("FailureClass() = %q, want %q", got, SupplyChainImpactManifestTriggerDeferredFailureClass)
+	if got := retryable.FailureClass(); got != reducercontract.GenerationActivationNotReadyFailureClass {
+		t.Fatalf("FailureClass() = %q, want %q", got, reducercontract.GenerationActivationNotReadyFailureClass)
+	}
+	if !errors.Is(err, reducercontract.ErrGenerationNotYetActive) {
+		t.Fatalf("deferral error %v does not wrap ErrGenerationNotYetActive", err)
 	}
 	if len(port.reopened) != 0 || len(port.candidateEcosystems) != 0 {
 		t.Fatalf("deferred pass touched holders: reopened=%v reads=%v", port.reopened, port.candidateEcosystems)
@@ -411,9 +417,13 @@ func TestManifestTriggerDefersUntilActivationThenFansOut(t *testing.T) {
 func TestManifestTriggerSupersededGenerationIsANoOp(t *testing.T) {
 	t.Parallel()
 
+	// The superseded read still carries rows that would fan out, so a branch
+	// that fell through to the fan-out would reopen holders and fail here.
+	superseded := activeFullChange()
+	superseded.Activation = ManifestGenerationSuperseded
 	port := &stubManifestPort{
 		stubFanOut:  &stubFanOut{candidates: standardCandidates()},
-		generations: []ManifestDependencyGeneration{{Activation: ManifestGenerationSuperseded}},
+		generations: []ManifestDependencyGeneration{superseded},
 	}
 	h, _ := manifestHandler(t, port, nil)
 	result, err := h.Handle(context.Background(), manifestIntent(1, nil))
