@@ -244,6 +244,46 @@ FROM generate_series(1, $2::integer) AS n`, kind, rowsPerKind, repoScopes, keys)
 	supplyChainImpactFixtureAnalyze(t, ctx, database)
 }
 
+// seedSupplyChainImpactPlanPadding adds rows of an unscanned kind whose
+// payload is wide enough to stay inline (under the 2 kB TOAST threshold), so
+// fact_records holds roughly four rows per heap page. The upstream branch
+// probes two small signal kinds on payload->>'cve_id' = ANY(240 ids). The
+// planner cannot see how selective that is: it ignores statistics from the
+// partial cve_lookup_v2 index (PostgreSQL selfuncs.c examine_variable skips
+// partial indexes), so every id costs the default equality selectivity of
+// 0.005 and 240 ids are estimated to match about 70% of the two kinds, whatever
+// the cve_id values are. At stock random_page_cost 4 that prices the key probe
+// about the same as walking the two kinds through
+// fact_records_scope_generation_idx, and the walk wins on a table small enough
+// that the heap pages of both paths saturate (#9914 review 2, N5). The probe
+// wins only when the signal rows are a small share of the heap, which is the
+// corpus shape it is built for. The padding makes the heap large enough to
+// reproduce that share; n_distinct cannot, so seeding distinct ids does not
+// help. Measured on the CI Postgres image at stock settings (this fixture, 8,503
+// signal rows, 4,299 heap pages before padding): the custom plan walks the two
+// kinds at total cost 6,126 and the key probe wins from 20,000 padding rows
+// (9,299 pages, cost 10,565); 40,000 rows (14,299 pages, cost 13,243, estimated
+// at about 6,000 signal rows) leave 2x headroom on the flip. Call after
+// seedSupplyChainImpactGrowthBulk.
+func seedSupplyChainImpactPlanPadding(t *testing.T, ctx context.Context, database *sql.DB, rows int) {
+	t.Helper()
+	if _, err := database.ExecContext(ctx, `
+INSERT INTO fact_records (
+  fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
+  schema_version, collector_kind, fencing_token, source_confidence,
+  source_system, source_fact_key, observed_at, ingested_at, payload
+)
+SELECT format('padding:%s', lpad(n::text, 7, '0')), 'git:scaled:0001', 'gen:scaled:0001:active',
+  'plan.padding', format('stable:padding:%s', n), '1.0.0', 'synthetic', 1, 'reported', 'synthetic',
+  format('source:padding:%s', n), '2026-10-23T12:00:00Z', '2026-10-23T12:00:00Z',
+  -- 50 distinct md5 blocks are about 1.7 kB: incompressible and inline.
+  jsonb_build_object('padding', (SELECT string_agg(md5(n::text || ':' || g::text), '') FROM generate_series(1, 50) AS g))
+FROM generate_series(1, $1::integer) AS n`, rows); err != nil {
+		t.Fatalf("seed plan padding rows: %v", err)
+	}
+	supplyChainImpactFixtureAnalyze(t, ctx, database)
+}
+
 // supplyChainImpactBulkKinds is every non-file scanned kind.
 func supplyChainImpactBulkKinds() []string {
 	var kinds []string

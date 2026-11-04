@@ -24,9 +24,12 @@ var supplyChainImpactPlanModes = []string{"force_generic_plan", "force_custom_pl
 
 // TestSupplyChainImpactBranchPlansStayOnAnchorsLive is ruling 4.1c/4.1d on
 // the scaled fixture: 150 repository scopes of TOASTed files, the arm matrix,
-// and 4,000 non-matching rows of every other kind spread over those scopes'
-// active and superseded generations. The production loader runs one call with every input
-// set, so every catalog branch issues its real statement with real binds.
+// 4,000 non-matching rows of every other kind spread over those scopes'
+// active and superseded generations, and 40,000 wide padding rows that give the
+// heap the size at which the upstream key probe beats the kind walk on the CI
+// image at stock settings (see seedSupplyChainImpactPlanPadding). The
+// production loader runs one call with every input set, so every catalog
+// branch issues its real statement with real binds.
 // Each must plan its fact_records read on its anchor and on nothing else,
 // under both plan_cache_mode values. Then each #8880 index is dropped (RED:
 // the branches that anchor on it plan elsewhere) and rebuilt from its
@@ -36,6 +39,7 @@ func TestSupplyChainImpactBranchPlansStayOnAnchorsLive(t *testing.T) {
 	seedSupplyChainImpactScaledCorpus(t, ctx, database, 150, 40, 500)
 	seedSupplyChainImpactMatrix(t, ctx, database)
 	seedSupplyChainImpactGrowthBulk(t, ctx, database, 4000, 150)
+	seedSupplyChainImpactPlanPadding(t, ctx, database, 40000)
 	recorder := &supplyChainImpactRecordingDB{SQLDB: SQLDB{DB: database}}
 	filter := supplyChainImpactMatrixAllFilter()
 	for n := 1; n <= 8; n++ {
