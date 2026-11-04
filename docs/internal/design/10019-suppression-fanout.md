@@ -139,8 +139,9 @@ pass yet reopen no holder.
 
 ## Measurements
 
-Performance Evidence: private native PG18.6, stock settings (`work_mem` 4 MB,
-`shared_buffers` 128 MB), full bootstrap schema (302 migrations). Six generations of
+Performance Evidence: run 2026-11-04 on a private native PG18.6, stock settings
+(`work_mem` 4 MB, `shared_buffers` 128 MB), full bootstrap schema at 73032877fd (302
+migrations). The shim was throwaway and is not committed. Six generations of
 100,000 suppressions, plus 300,000 EPSS and 200,000 finding rows across 20 holders.
 g6 against g5 changes 1,000 suppressions: 600 edited (50 moved CVE), 200 removed, 200
 added. Seven interleaved runs per arm with a rotating first mover, because other
