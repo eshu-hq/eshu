@@ -54,7 +54,7 @@ delta_reader_repo_id="repository:r_${delta_reader_hash}"
 [[ "$(jq -er '.graph.delta_reader_assertions.repository_id' "${snapshot}")" == "${delta_reader_repo_id}" ]] \
 	|| fail "B-12 delta_reader_assertions.repository_id must equal ${delta_reader_repo_id}"
 
-# The delta must stay a one-file change under the cumulative-delta growth
+# The delta must stay a small change under the cumulative-delta growth
 # valve (touched < 0.5 of the base's tracked files), or the second sync takes
 # a full snapshot and the delta stage fails.
 delta_reader_base_files="$(rg --files --hidden "${repo_root}/tests/fixtures/golden_delta_union/base" | wc -l)"

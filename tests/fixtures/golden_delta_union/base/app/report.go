@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package deltareader
 
-// deltaReaderLedgerTotal is defined in a file the delta generation never
+// deltaReaderReportLine is defined in a file the delta generation never
 // touches, so a CALLS edge to it needs the base generation's symbols.
-func deltaReaderLedgerTotal() int {
-	return 0
+func deltaReaderReportLine() string {
+	return ""
 }

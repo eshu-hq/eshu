@@ -60,16 +60,21 @@ with `ESHU_REPO_SOURCE_MODE=explicit`,
 The same run against the committed fixture
 (`tests/fixtures/golden_delta_union`) through the shipped lib gave scope
 `git-repository-scope:repository:r_0c077ab3`, base commit `f94adaec`, delta
-commit `c370dd26`, and `delta_relative_paths=["cmd/main.go"]`. The scope id
+commit `c370dd26`, and `delta_relative_paths=["cmd/main.go"]` (the first
+fixture layout; see the fixture section for today's). The scope id
 is deterministic because `CanonicalRepositoryID` hashes the synthesized remote
 `https://github.com/acme/golden-delta-reader`, not the mktemp checkout path.
 
 ## Design
 
-- **Fixture.** `base/` holds `cmd/main.go` (`main` calls a same-file helper
-  and two helpers in `cmd/ledger.go` and `cmd/report.go`), a Crossplane XRD
-  and a matching claim under `deploy/`, and a `go.mod` with no `go`
-  directive and no requires. `delta/cmd/main.go` adds one comment line.
+- **Fixture.** `base/` holds `app/main.go` (`deltaReaderRun` calls a
+  same-file helper and two helpers in `app/ledger.go` and `app/report.go`), a
+  Crossplane XRD and a matching claim under `deploy/`, and a `go.mod` with no
+  `go` directive and no requires. The delta appends a comment to
+  `app/main.go`, so no function moves, and changes one spec value in
+  `deploy/claim.yaml`. The caller is not named `main`: that name collides
+  with the existing `code/search` and `resolve_entity` shapes that query
+  `main`.
 - **Orchestration.** `scripts/lib/golden-corpus-delta-reader.sh` collects the
   full after the first drain and before the maintenance passes. The first
   live run collected it before the first drain, and that drain wedged at a
@@ -94,7 +99,7 @@ is deterministic because `CanonicalRepositoryID` hashes the synthesized remote
 | Reader | Defect | Reason |
 | --- | --- | --- |
 | manifest dependency read | #9991 | Fixed by #10018 (merged 2026-11-04) and proven by its live Postgres regressions. The handoff's premise ("until #10018 lands") no longer holds. Its graph observables are pinned by existing shapes: package-consumption `DEPENDS_ON` to lib-common is pinned by `get_code_relationship_story` (max 1) and `find_blast_radius` (max 10), and CVE-2026-00000 supply-chain findings by their own shapes. A second consumer would move unrelated assertions. |
-| Crossplane claim-side retract | #10005 | Needs a delta that adds a claim; this delta touches `cmd/main.go` only. |
+| Crossplane claim-side retract | #10005 | Needs a delta that adds a claim beside an unchanged one; this fixture has one claim, which the delta re-emits. |
 | Terraform config/backend loaders | #10006 | The observable is config-state drift, which needs a `terraform_state` cassette scope anchored to this repository's backend. |
 | JVM reachability | #10003 | No JVM package in the fixture. |
 | owned-package targets | #10007 | Collector target planning, not graph truth; lane 2's zone. |

@@ -142,8 +142,10 @@ sets `ScopeGeneration.IsDelta`. So the orchestrator
    edge in `graph.delta_reader_assertions` must be present, including the
    ones marked `expected_failure`, so a marker can't pass an edge that no
    generation produced.
-4. It commits `delta/` on top of the base. Today that is `cmd/main.go` alone.
-   A second sync then produces a real cumulative delta, which is drained once.
+4. It commits `delta/` on top of the base. Today that is a trailing comment in
+   `app/main.go`, so no function moves, and one spec value in
+   `deploy/claim.yaml`. A second sync then produces a real cumulative delta,
+   which is drained once.
 5. The final gate invocation runs the phase at stage `delta`. Plain edges
    must survive. Edges marked `expected_failure` (with `#N` and a reason) must
    stay lost. An edge that survives anyway is a required failure that tells

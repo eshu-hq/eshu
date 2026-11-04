@@ -2452,27 +2452,27 @@
       }
     ],
     "delta_reader_assertions": {
-      "description": "#10022 delta-reader contract. tests/fixtures/golden_delta_union/base is staged as the bare git origin acme/golden-delta-reader and collected by eshu-collector-git in explicit mode (scripts/lib/golden-corpus-delta-reader.sh); after the first drain activates that full generation, delta/cmd/main.go is committed and a second sync produces a real git delta generation touching only cmd/main.go. Every edge below is a reducer output a full generation of either commit produces. The delta-readers phase asserts all of them at stage full, then at stage delta asserts the plain ones survive and the expected_failure ones stay lost until their defect is fixed (an unexpected pass is a required failure that tells the fixing PR to remove the marker).",
+      "description": "#10022 delta-reader contract. tests/fixtures/golden_delta_union/base is staged as the bare git origin acme/golden-delta-reader and collected by eshu-collector-git in explicit mode (scripts/lib/golden-corpus-delta-reader.sh) after the first drain; the maintenance passes publish its backward evidence and activate the full generation. delta/ is then committed on top and a second sync produces a real git delta generation touching app/main.go (a trailing comment, so no function moves) and deploy/claim.yaml (one spec value). Every edge below is a reducer output a full generation of either commit produces. The delta-readers phase asserts all of them at stage full, then at stage delta asserts the plain ones survive and the expected_failure ones stay lost until their defect is fixed (an unexpected pass is a required failure that tells the fixing PR to remove the marker).",
       "repository_id": "repository:r_0c077ab3",
       "scope_id": "git-repository-scope:repository:r_0c077ab3",
       "edges": [
         {
           "id": "dr-1",
-          "description": "Control: main calls a helper in the same file the delta re-parses, so both endpoints are in the delta's own rows.",
+          "description": "Control: deltaReaderRun calls a helper in the same file the delta re-parses, so both endpoints are in the delta's own rows.",
           "reader": "code_call_symbols",
           "relationship": "CALLS",
           "from_label": "Function",
-          "from_name": "main",
+          "from_name": "deltaReaderRun",
           "to_label": "Function",
           "to_name": "deltaReaderSameFileHelper"
         },
         {
           "id": "dr-2",
-          "description": "main calls deltaReaderLedgerTotal, defined in cmd/ledger.go, which the delta never touches.",
+          "description": "deltaReaderRun calls deltaReaderLedgerTotal, defined in app/ledger.go, which the delta never touches.",
           "reader": "code_call_symbols",
           "relationship": "CALLS",
           "from_label": "Function",
-          "from_name": "main",
+          "from_name": "deltaReaderRun",
           "to_label": "Function",
           "to_name": "deltaReaderLedgerTotal",
           "expected_failure": {
@@ -2482,21 +2482,21 @@
         },
         {
           "id": "dr-3",
-          "description": "main calls deltaReaderReportLine, defined in cmd/report.go, which the delta never touches.",
+          "description": "deltaReaderRun calls deltaReaderReportLine, defined in app/report.go, which the delta never touches.",
           "reader": "code_call_symbols",
           "relationship": "CALLS",
           "from_label": "Function",
-          "from_name": "main",
+          "from_name": "deltaReaderRun",
           "to_label": "Function",
           "to_name": "deltaReaderReportLine",
           "expected_failure": {
             "defect": "#10003",
-            "reason": "same symbol read as dr-2: the unchanged cmd/report.go definition is not in the delta's rows"
+            "reason": "same symbol read as dr-2: the unchanged app/report.go definition is not in the delta's rows"
           }
         },
         {
           "id": "dr-4",
-          "description": "The DeltaQueue claim in deploy/claim.yaml resolves against the XRD in deploy/xrd.yaml; the delta touches neither file.",
+          "description": "The DeltaQueue claim in deploy/claim.yaml (re-emitted by the delta) resolves against the XRD in deploy/xrd.yaml, which the delta never touches.",
           "reader": "crossplane_xrd",
           "relationship": "SATISFIED_BY",
           "from_label": "K8sResource",
@@ -2505,7 +2505,7 @@
           "to_name": "xdeltaqueues.delta.acme.internal",
           "expected_failure": {
             "defect": "#10003",
-            "reason": "facts_active_crossplane_xrd.go reads XRD content entities of the active generation only, so the delta-active read returns no XRD and the scope's SATISFIED_BY edges are retracted"
+            "reason": "facts_active_crossplane_xrd.go reads XRD content entities of the active generation only, so with the claim in the delta the delta-active XRD read returns nothing and the scope's SATISFIED_BY edge is retracted"
           }
         }
       ],
@@ -2518,7 +2518,7 @@
         {
           "reader": "crossplane_claim_retract",
           "defect": "#10005",
-          "reason": "needs a delta that adds a claim; this fixture's one-file delta touches only cmd/main.go"
+          "reason": "needs a delta that adds a claim beside an unchanged one; this fixture has one claim, which the delta re-emits"
         },
         {
           "reader": "terraform_config_loaders",
