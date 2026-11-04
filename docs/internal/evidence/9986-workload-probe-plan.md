@@ -37,7 +37,7 @@ The keys now travel as one bound `text[]` parameter (`$3::text[]`, encoded by
 The live matrix corrected one row the SQL had never been able to check:
 `{"dockerfile_stages":[]}` was expected to probe false, but the key-existence
 statement answered true, so the quoting fix alone made that row expect true.
-The value-aware predicate in the next section reverses it: an empty bucket now
+The value-aware predicate (the "Value-aware predicate" section below) reverses it: an empty bucket now
 probes false, and so does the QA all-null shape.
 
 ```bash
@@ -111,7 +111,7 @@ Reading the plans:
   table below). The probe saves Go-side
   decode and allocation only when the answer is `true` and the own
   relationship generation is not ready; with the fused production loader a
-  closed corpus fence does not shed the load (F2). This is a design property of #9697, not a defect of the fix; the
+  closed corpus fence does not shed the load. This is a design property of #9697, not a defect of the fix; the
   new counter shows the true/false mix on QA.
 - The repository lookup sometimes scans the whole scope generation. In the
   generic plan the planner prices the keyset index at one row with `fact_kind`
@@ -165,7 +165,7 @@ gate can only turn a false into a true, never the reverse. A true for a
 candidate-free generation can defer it, non-counting, until its own
 relationship generation activates or its producer reaches a terminal state; it
 can never count, because the pre-gate returns nil on a counting verdict and the
-post-load gate decides on real candidates (F1). Every key travels in a bound array derived from `factload`
+post-load gate decides on real candidates. Every key travels in a bound array derived from `factload`
 (`WorkloadCandidateArrayBucketKeys`, `WorkloadCandidatePresenceKeys`,
 `WorkloadCandidateTokenKeys`; a unit test pins that they partition
 `WorkloadCandidateSignalKeys`).
@@ -285,7 +285,7 @@ Decision: leave the repository-side read as is. Record: 8.4 ms warm at 15 MB
 stored payload, about 4,000 buffers, 5% of the statement on a 23,329-file scope.
 A cache-cold repository payload read is NOT_CHECKED here.
 
-## Scheduled enrollment (F6)
+## Scheduled enrollment
 
 The correction to the #9697 note says that defect shipped because its live
 test was classed `scheduled` and never ran. The matrix
@@ -340,7 +340,7 @@ Plan times depend on the host and its load: compare buffer counts across
 machines, and read wall times only against a control run on the same host.
 The differential and matrix live tests need only `ESHU_POSTGRES_TEST_DSN`
 (see the commands above); the scheduled group uses the administrative pair
-described in the next section.
+described in the "Scheduled enrollment" section above.
 
 ## Observability Evidence
 
