@@ -156,6 +156,51 @@ func TestServiceRefreshCadenceRequiresStoreWhenOptedIn(t *testing.T) {
 	}
 }
 
+// TestServiceRefreshCadenceAllSkippedPersistsNoRun pins the documented
+// all-skipped behavior for eshu-hq/eshu#9879: when every target is inside
+// its interval the tick persists no run (so no requested_scope_set skip
+// rows exist) and records nothing; the plan-span cadence_skipped_targets
+// count is the signal.
+func TestServiceRefreshCadenceAllSkippedPersistsNoRun(t *testing.T) {
+	t.Parallel()
+
+	configuration := `{"targets":[
+	{"source":"cisa_kev","scope_id":"vuln-intel://cisa/kev","refresh_interval":"1h"},
+	{"source":"first_epss","scope_id":"vuln-intel://first/epss","refresh_interval":"1h","cve_ids":["CVE-2026-0001"]}
+]}`
+	observedT0 := time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)
+	progress := &fakeTargetRefreshProgressStore{}
+	ctx := context.Background()
+
+	seedStore := &fakeStore{}
+	seed := refreshCadenceService(configuration, seedStore, progress)
+	if err := seed.scheduleVulnerabilityIntelligenceWork(ctx, observedT0,
+		[]workflow.CollectorInstance{refreshCadenceInstance(configuration, observedT0)}); err != nil {
+		t.Fatalf("seed scheduleVulnerabilityIntelligenceWork() error = %v, want nil", err)
+	}
+	if len(seedStore.createdRuns) != 1 {
+		t.Fatalf("seed created runs = %d, want 1", len(seedStore.createdRuns))
+	}
+	recordsAfterSeed := len(progress.records)
+
+	halfHour := observedT0.Add(30 * time.Minute)
+	tickStore := &fakeStore{}
+	tick := refreshCadenceService(configuration, tickStore, progress)
+	if err := tick.scheduleVulnerabilityIntelligenceWork(ctx, halfHour,
+		[]workflow.CollectorInstance{refreshCadenceInstance(configuration, halfHour)}); err != nil {
+		t.Fatalf("all-skipped scheduleVulnerabilityIntelligenceWork() error = %v, want nil", err)
+	}
+	if len(tickStore.createdRuns) != 0 {
+		t.Fatalf("all-skipped created runs = %d, want 0 (no run persists skip-only ticks)", len(tickStore.createdRuns))
+	}
+	if len(tickStore.enqueuedItems) != 0 {
+		t.Fatalf("all-skipped enqueued items = %d, want 0", len(tickStore.enqueuedItems))
+	}
+	if len(progress.records) != recordsAfterSeed {
+		t.Fatalf("all-skipped records = %v, want no new record (nothing covered)", progress.records)
+	}
+}
+
 // TestServiceRefreshCadenceSkipsProbeWithoutOptIn proves the zero-coupling
 // rule: instances without a refresh_interval never touch the progress
 // store, so they need none wired and pay no probe per tick.
