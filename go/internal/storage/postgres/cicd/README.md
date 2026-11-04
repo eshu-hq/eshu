@@ -34,8 +34,10 @@ stays in the postgres root because it asserts against root's
 - `CICDRunWatermarkStore` with `NewCICDRunWatermarkStore(database db.ExecQueryer)`.
 - `Load(ctx, key)` returns the stored watermark for a key regardless of which
   generation wrote it.
-- `Save(ctx, value)` upserts a watermark; a fencing token strictly older than
-  the stored row's is rejected with `runwatermark.ErrStaleFence`.
+- `Save(ctx, value)` upserts a watermark. Inside one generation, a fencing
+  token strictly older than the stored row's is rejected with
+  `runwatermark.ErrStaleFence`. Across generations, an older run ID is rejected
+  the same way.
 - `EnsureSchema(ctx)` applies the CI/CD run watermark DDL (an idempotent
   convenience; production bootstrap applies the DDL through the embedded
   migration instead).
@@ -63,8 +65,10 @@ import cycle.
 is observed through `ghactionsruntime`'s existing
 `eshu_dp_ci_cd_run_partial_generations_total{reason="runs_backfill_gap"}` and
 `ci_cd_run.observe` span error recording, which cover both a detected gap and
-a store I/O failure (a failed Load/Save fails the claim and records on the
-observe span). A dedicated load/save/stale-fence event counter mirroring
+a store I/O failure. A failed `Load` fails the claim and records on the observe
+span. A failed or stale `Save` runs after the commit, so it never fails the
+claim: it counts on `eshu_dp_workflow_claim_commit_observer_failures_total` and
+adds the `claimed_generation_commit_observer_failed` span event. A dedicated load/save/stale-fence event counter mirroring
 `eshu_dp_aws_pagination_checkpoint_events_total` was scoped out of #5429;
 wire one if per-store-operation telemetry becomes necessary.
 
@@ -74,9 +78,11 @@ added, and none of the above was removed.
 
 ## Gotchas / invariants
 
-- `Save` must keep the `fencing_token <= EXCLUDED.fencing_token` conflict
-  guard, the same pattern `AWSPaginationCheckpointStore` in the postgres root
-  uses.
+- Inside one generation, `Save` must keep the
+  `fencing_token <= EXCLUDED.fencing_token` conflict guard, the same pattern
+  `AWSPaginationCheckpointStore` in the postgres root uses. Across generations it
+  must order by numeric `last_run_id`, because each generation's tokens restart
+  at 1 (#10063).
 - `Load` must NEVER gain a `generation_id`/`fencing_token` predicate:
   `ghactionsruntime` reads a PRIOR generation's watermark from a LATER
   generation's claim to detect a cross-cycle gap, so scoping `Load` to one

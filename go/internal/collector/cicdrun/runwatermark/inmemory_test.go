@@ -173,3 +173,72 @@ func TestInMemoryStoreConcurrentSavesAreSerialized(t *testing.T) {
 		t.Fatalf("Load().FencingToken = %d, want %d (highest fencing token must win)", got.FencingToken, workers)
 	}
 }
+
+// TestInMemoryStoreSaveGuard pins the guard the Postgres store's conflict filter
+// states in SQL: the fence decides inside one generation, because tokens count
+// claims of one work item, and the run ID decides across generations (#10063).
+func TestInMemoryStoreSaveGuard(t *testing.T) {
+	t.Parallel()
+
+	key := Key{ScopeID: "scope-1", Repository: "octo/repo"}
+	stored := Watermark{Key: key, LastRunID: "200", GenerationID: "gen-1", FencingToken: 2}
+	tests := []struct {
+		name    string
+		write   Watermark
+		wantErr error
+		wantRun string
+	}{
+		{
+			name:    "same generation, older fence, newer run is a superseded claim",
+			write:   Watermark{Key: key, LastRunID: "300", GenerationID: "gen-1", FencingToken: 1},
+			wantErr: ErrStaleFence,
+			wantRun: "200",
+		},
+		{
+			name:    "same generation, equal fence is a redelivery",
+			write:   Watermark{Key: key, LastRunID: "200", GenerationID: "gen-1", FencingToken: 2},
+			wantRun: "200",
+		},
+		{
+			name:    "next generation, first attempt after a retried claim advances",
+			write:   Watermark{Key: key, LastRunID: "300", GenerationID: "gen-2", FencingToken: 1},
+			wantRun: "300",
+		},
+		{
+			name:    "other generation, same run advances",
+			write:   Watermark{Key: key, LastRunID: "200", GenerationID: "gen-2", FencingToken: 1},
+			wantRun: "200",
+		},
+		{
+			name:    "other generation, older run cannot regress the row despite a higher fence",
+			write:   Watermark{Key: key, LastRunID: "150", GenerationID: "gen-0", FencingToken: 9},
+			wantErr: ErrStaleFence,
+			wantRun: "200",
+		},
+		{
+			name:    "run ids order numerically, not as text",
+			write:   Watermark{Key: key, LastRunID: "1000", GenerationID: "gen-2", FencingToken: 1},
+			wantRun: "1000",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := NewInMemoryStore()
+			if err := store.Save(context.Background(), stored); err != nil {
+				t.Fatalf("seed Save() error = %v", err)
+			}
+			if err := store.Save(context.Background(), tc.write); !errors.Is(err, tc.wantErr) {
+				t.Fatalf("Save() error = %v, want %v", err, tc.wantErr)
+			}
+			got, ok, err := store.Load(context.Background(), key)
+			if err != nil || !ok {
+				t.Fatalf("Load() = %+v, %v, %v", got, ok, err)
+			}
+			if got.LastRunID != tc.wantRun {
+				t.Fatalf("LastRunID = %q, want %q", got.LastRunID, tc.wantRun)
+			}
+		})
+	}
+}

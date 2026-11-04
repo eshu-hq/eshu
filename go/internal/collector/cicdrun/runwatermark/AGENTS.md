@@ -16,10 +16,17 @@
   Do not add a sub-resource dimension unless a real second CI/CD provider
   or per-workflow watermark need appears; keep the contract as narrow as
   the actual caller.
-- `Save` MUST reject a fencing token strictly older than the stored row's
-  (`ErrStaleFence`) and MUST accept a fencing token equal to the stored
-  row's (idempotent redelivery). Do not change the comparison to strict
-  `<` on both sides without checking every caller's retry assumption.
+- Inside one generation, `Save` MUST reject a fencing token strictly older
+  than the stored row's (`ErrStaleFence`) and MUST accept a fencing token
+  equal to the stored row's (idempotent redelivery). Do not change the
+  comparison to strict `<` on both sides without checking every caller's
+  retry assumption.
+- Across generations, `Save` MUST NOT compare fencing tokens: a token counts
+  claims of one work item, and each generation is its own work item, so a
+  retried claim would refuse every later first attempt and wedge the watermark
+  (#10063). It orders by numeric `LastRunID` instead, and `Validate` rejects a
+  non-decimal one. `InMemoryStore` and the Postgres conflict filter state the
+  same guard; change them together.
 - This package has zero dependencies beyond the standard library. Do not
   import `ghactionsruntime`, `workflow`, or any provider client here --
   gap-detection logic and telemetry belong in the caller, not this

@@ -7,12 +7,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 )
 
-// ErrStaleFence reports that a watermark write came from an older claim
-// fencing token than the row already stored for that scope+repository.
+// ErrStaleFence reports that the row already stored for that scope+repository
+// outranks a watermark write: an older claim of the same generation, or a
+// different generation that observed an older run. See Store.
 var ErrStaleFence = errors.New("ci/cd run watermark stale fence")
 
 // Key identifies one polled GitHub Actions target: the ingestion scope and
@@ -43,11 +45,16 @@ type Watermark struct {
 }
 
 // Store persists claim-fenced run watermarks for the ghactionsruntime
-// source. A Save carrying a fencing token older than the stored row is
-// rejected with ErrStaleFence so a superseded claim retry (or an
-// out-of-order redelivery) cannot regress the watermark past a newer
-// claim's progress. A Save carrying the SAME fencing token as the stored
-// row succeeds (idempotent redelivery of an already-applied claim).
+// source. Inside one generation, a Save carrying a fencing token older than
+// the stored row is rejected with ErrStaleFence so a superseded claim retry (or
+// an out-of-order redelivery) cannot regress the watermark past a newer claim's
+// progress, and a Save carrying the SAME fencing token succeeds (idempotent
+// redelivery of an already-applied claim).
+//
+// Fencing tokens do not compare across generations: a token counts claims of
+// one work item, and each generation is its own work item, so each restarts at
+// 1. Across generations a Save is rejected only when it carries an older run ID
+// than the stored row (#10063).
 type Store interface {
 	Load(context.Context, Key) (Watermark, bool, error)
 	Save(context.Context, Watermark) error
@@ -72,6 +79,9 @@ func (w Watermark) Validate() error {
 	if strings.TrimSpace(w.LastRunID) == "" {
 		return fmt.Errorf("ci/cd run watermark last_run_id is required")
 	}
+	if _, err := strconv.ParseInt(w.LastRunID, 10, 64); err != nil {
+		return fmt.Errorf("ci/cd run watermark last_run_id must be a decimal run id: %w", err)
+	}
 	if strings.TrimSpace(w.GenerationID) == "" {
 		return fmt.Errorf("ci/cd run watermark generation_id is required")
 	}
@@ -79,4 +89,15 @@ func (w Watermark) Validate() error {
 		return fmt.Errorf("ci/cd run watermark fencing_token must be positive")
 	}
 	return nil
+}
+
+// supersedes reports whether w may replace stored under the Store guard. Both
+// values passed Validate, so their run IDs parse.
+func (w Watermark) supersedes(stored Watermark) bool {
+	if w.GenerationID == stored.GenerationID {
+		return w.FencingToken >= stored.FencingToken
+	}
+	runID, _ := strconv.ParseInt(w.LastRunID, 10, 64)
+	storedRunID, _ := strconv.ParseInt(stored.LastRunID, 10, 64)
+	return runID >= storedRunID
 }
