@@ -186,7 +186,7 @@ import (
 // held by another lane's unmerged migration, so this lane took the next number.
 // #9376 adds 270_generation_commit_fences.sql (DDL only: the claim-plane
 // commit fence table), which sorts and applies before 271.
-const goldenBootstrapDefinitionsDigest = "54a8e031ab3d346f8b11ca6df2ef9d8b4c91c48b8b67b0952fd7ea2868ca55fa"
+const goldenBootstrapDefinitionsDigest = "1e1153febfc4e786a50730964695a0c1ec2a3ca6237a799915fff21d94802688"
 // #9859 adds 274_fact_records_os_package_source_purl_prefix_idx.sql (the
 // expression index serving the narrowed read's UNION source arm: the
 // version-stripped purl prefix with its last segment replaced by
@@ -196,7 +196,7 @@ const goldenBootstrapDefinitionsDigest = "54a8e031ab3d346f8b11ca6df2ef9d8b4c91c4
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 299
+const goldenBootstrapDefinitionsCount = 300
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()
