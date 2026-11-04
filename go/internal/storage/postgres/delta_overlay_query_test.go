@@ -65,7 +65,7 @@ func TestDeriveDeltaOverlayBaseQueryBindsTheScopePlaceholder(t *testing.T) {
 // hardcoded $6: the generic helper must not change the manifest reader's SQL.
 // The four fragments are the #9991 manifestActiveScopeJoin,
 // manifestDeltaBaseJoin, manifestActiveGeneration, and manifestDeltaBaseFull
-// constants (git show c9c1f40375:go/internal/storage/postgres/active_package_manifest_dependency_delta.go),
+// constants (the overlay file at the #9991 merge commit c9c1f40375),
 // frozen here as the pre-refactor oracle.
 func TestDeriveDeltaOverlayBaseQueryKeepsTheManifestText(t *testing.T) {
 	t.Parallel()

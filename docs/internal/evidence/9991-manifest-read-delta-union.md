@@ -10,8 +10,7 @@ loaded `[delta-alpha]`.
 
 ## Change
 
-`go/internal/storage/postgres/active_package_manifest_dependency_delta.go`
-(since #10003 the reader-agnostic `delta_overlay.go`, `delta_overlay_query.go`,
+The overlay file written for #9991 (since #10003 the reader-agnostic `delta_overlay.go`, `delta_overlay_query.go`,
 and `delta_union_base.go`; see
 [10003-delta-overlay-helper.md](10003-delta-overlay-helper.md)):
 
