@@ -59,6 +59,8 @@ cd "${repo_root}"; export GIT_TRACE2_EVENT=0 GIT_TRACE2_PERF=0 # #8673: keep fix
 . "${repo_root}/scripts/lib/golden-corpus-ask-source.sh"
 # shellcheck source=scripts/lib/golden-corpus-vulnerability-readiness-fixture.sh
 . "${repo_root}/scripts/lib/golden-corpus-vulnerability-readiness-fixture.sh"
+# shellcheck source=scripts/lib/golden-corpus-delta-reader.sh
+. "${repo_root}/scripts/lib/golden-corpus-delta-reader.sh" # #10022 delta-reader leg
 
 # ----------------------------------------------------------------------------
 # Configuration (override via environment).
@@ -262,7 +264,7 @@ build_bin reducer
 build_bin api
 build_bin mcp-server
 build_bin golden-corpus-gate
-build_bin eshu
+build_bin eshu; build_bin collector-git # collector-git: #10022 delta-reader leg
 build_bin mock-prometheus-mimir
 build_bin mock-openai-compatible
 for spec in "${collector_specs[@]}"; do build_bin "${spec%%:*}"; done
@@ -287,7 +289,7 @@ run_container_image_identity_cloud_reopen_ordering_proof
 phase_collect_start="$(date +%s)"
 
 log "resolve local-backend fixture scope_id (issue #5594)"
-stage_local_backend_cassette
+stage_local_backend_cassette; golden_delta_reader_collect_full
 
 log "replay B-10 cassette collectors (credential-free)"
 # shellcheck source=scripts/lib/golden-corpus-cassette-replay.sh
@@ -364,6 +366,7 @@ pipeline_end="$(date +%s)"
 elapsed=$(( pipeline_end - pipeline_start ))
 phase_maintenance_end="${pipeline_end}"
 phase_graph_query_start="${pipeline_end}"
+golden_delta_reader_run_delta_leg # brackets itself out of graph_query (#10022)
 
 log "seed cross-repo dead-code query fixture"
 seed_cross_repo_dead_code_fixture
@@ -470,7 +473,7 @@ gate_status=0
 # each tool/route with example arguments; this phase guards the demo oracle's
 # own pinned arguments so a demo answer cannot silently regress to empty.
 "${bin_dir}/eshu-golden-corpus-gate" \
-	-phase=graph,query,timing,demo-answers,delta-union \
+	-phase=graph,query,timing,demo-answers,delta-union,delta-readers -delta-reader-ignore-expected-failures="${GATE_DELTA_READER_IGNORE_EXPECTED_FAILURES:-0}" \
 	-snapshot="${golden_query_runtime_snapshot}" \
 	-demo-manifest=specs/demo-first-answers.v1.yaml \
 	-api-base-url="http://localhost:${GATE_API_PORT}" \

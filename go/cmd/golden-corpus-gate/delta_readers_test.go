@@ -120,3 +120,34 @@ func TestDeltaReaderFlagsParse(t *testing.T) {
 		t.Fatalf("default stage=%q ignore=%v, want delta and false", o.deltaReaderStage, o.deltaReaderIgnoreExpectedFailures)
 	}
 }
+
+// TestCommittedSnapshotDeltaReaderSectionIsValid loads the committed B-12
+// snapshot and proves its delta-reader section passes spec validation and
+// carries at least one control edge with no expected failure, so the delta
+// stage can never pass on expected failures alone.
+func TestCommittedSnapshotDeltaReaderSectionIsValid(t *testing.T) {
+	snap, err := LoadSnapshot(goldenSnapshotPath())
+	if err != nil {
+		t.Fatalf("LoadSnapshot: %v", err)
+	}
+	spec := snap.Graph.DeltaReaderAssertions
+	if spec == nil {
+		t.Fatal("committed snapshot has no graph.delta_reader_assertions")
+	}
+	var r Report
+	gg.EvaluateDeltaReaderAssertions(spec, gg.DeltaReaderStageFull, gg.DeltaReaderObservation{ActiveGenerationID: "g"}, true, &r)
+	controls := 0
+	for _, f := range r.Findings {
+		if f.Check == "spec" {
+			t.Fatalf("committed section is invalid: %s", f.Detail)
+		}
+	}
+	for _, e := range spec.Edges {
+		if e.ExpectedFailure == nil {
+			controls++
+		}
+	}
+	if controls == 0 {
+		t.Fatal("every delta-reader edge carries expected_failure; keep at least one control edge")
+	}
+}

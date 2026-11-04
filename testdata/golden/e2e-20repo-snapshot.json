@@ -22,8 +22,8 @@
     "node_counts": {
       "Repository": {
         "min": 15,
-        "max": 35,
-        "note": "35 corpus repos (#5954 staged cloudformation_comprehensive, previously an orphaned fixture used only by parser unit tests; #7601 staged the format-kit producer and storefront-web consumer for the cross-repository JS call proof, and the ledger-kit producer and invoice-portal consumer for the PHP one). The ceiling is exact and deliberate, not a placeholder: if a mirror stub is ever discovered, it MUST fail this ceiling and get reviewed under this file's own update-under-review policy, not be silently absorbed by a padded range."
+        "max": 36,
+        "note": "35 corpus repos plus the #10022 delta-reader fixture repository (acme/golden-delta-reader, collected from a git origin by eshu-collector-git, not staged in the filesystem corpus), so the ceiling is 36 (#5954 staged cloudformation_comprehensive, previously an orphaned fixture used only by parser unit tests; #7601 staged the format-kit producer and storefront-web consumer for the cross-repository JS call proof, and the ledger-kit producer and invoice-portal consumer for the PHP one). The ceiling is exact and deliberate, not a placeholder: if a mirror stub is ever discovered, it MUST fail this ceiling and get reviewed under this file's own update-under-review policy, not be silently absorbed by a padded range."
       },
       "DockerfileInstall": {
         "min": 3,
@@ -2450,7 +2450,93 @@
         "minimum_count": 1,
         "maximum_count": 1
       }
-    ]
+    ],
+    "delta_reader_assertions": {
+      "description": "#10022 delta-reader contract. tests/fixtures/golden_delta_union/base is staged as the bare git origin acme/golden-delta-reader and collected by eshu-collector-git in explicit mode (scripts/lib/golden-corpus-delta-reader.sh); after the first drain activates that full generation, delta/cmd/main.go is committed and a second sync produces a real git delta generation touching only cmd/main.go. Every edge below is a reducer output a full generation of either commit produces. The delta-readers phase asserts all of them at stage full, then at stage delta asserts the plain ones survive and the expected_failure ones stay lost until their defect is fixed (an unexpected pass is a required failure that tells the fixing PR to remove the marker).",
+      "repository_id": "repository:r_0c077ab3",
+      "scope_id": "git-repository-scope:repository:r_0c077ab3",
+      "edges": [
+        {
+          "id": "dr-1",
+          "description": "Control: main calls a helper in the same file the delta re-parses, so both endpoints are in the delta's own rows.",
+          "reader": "code_call_symbols",
+          "relationship": "CALLS",
+          "from_label": "Function",
+          "from_name": "main",
+          "to_label": "Function",
+          "to_name": "deltaReaderSameFileHelper"
+        },
+        {
+          "id": "dr-2",
+          "description": "main calls deltaReaderLedgerTotal, defined in cmd/ledger.go, which the delta never touches.",
+          "reader": "code_call_symbols",
+          "relationship": "CALLS",
+          "from_label": "Function",
+          "from_name": "main",
+          "to_label": "Function",
+          "to_name": "deltaReaderLedgerTotal",
+          "expected_failure": {
+            "defect": "#10003",
+            "reason": "facts_active_code_call_symbols.go joins fact.generation_id = active_generation_id, so a delta-active scope reads only the delta's file facts and the callee's definition in the unchanged file is missing"
+          }
+        },
+        {
+          "id": "dr-3",
+          "description": "main calls deltaReaderReportLine, defined in cmd/report.go, which the delta never touches.",
+          "reader": "code_call_symbols",
+          "relationship": "CALLS",
+          "from_label": "Function",
+          "from_name": "main",
+          "to_label": "Function",
+          "to_name": "deltaReaderReportLine",
+          "expected_failure": {
+            "defect": "#10003",
+            "reason": "same symbol read as dr-2: the unchanged cmd/report.go definition is not in the delta's rows"
+          }
+        },
+        {
+          "id": "dr-4",
+          "description": "The DeltaQueue claim in deploy/claim.yaml resolves against the XRD in deploy/xrd.yaml; the delta touches neither file.",
+          "reader": "crossplane_xrd",
+          "relationship": "SATISFIED_BY",
+          "from_label": "K8sResource",
+          "from_name": "golden-delta-reader-queue",
+          "to_label": "CrossplaneXRD",
+          "to_name": "xdeltaqueues.delta.acme.internal",
+          "expected_failure": {
+            "defect": "#10003",
+            "reason": "facts_active_crossplane_xrd.go reads XRD content entities of the active generation only, so the delta-active read returns no XRD and the scope's SATISFIED_BY edges are retracted"
+          }
+        }
+      ],
+      "unexpressed_readers": [
+        {
+          "reader": "package_manifest_dependency",
+          "defect": "#9991",
+          "reason": "fixed by #10018 and proven by its live Postgres regressions; its graph observables (package-consumption DEPENDS_ON to lib-common, CVE-2026-00000 supply-chain findings) are pinned by existing shapes such as get_code_relationship_story (max 1) and find_blast_radius (max 10), so a second consumer would move unrelated assertions"
+        },
+        {
+          "reader": "crossplane_claim_retract",
+          "defect": "#10005",
+          "reason": "needs a delta that adds a claim; this fixture's one-file delta touches only cmd/main.go"
+        },
+        {
+          "reader": "terraform_config_loaders",
+          "defect": "#10006",
+          "reason": "the observable is config-state drift, which needs a terraform_state cassette scope anchored to this repository's backend"
+        },
+        {
+          "reader": "jvm_reachability",
+          "defect": "#10003",
+          "reason": "the fixture carries no JVM package"
+        },
+        {
+          "reader": "owned_package_targets",
+          "defect": "#10007",
+          "reason": "a collector target-planning coverage gap, not graph truth; owned by lane 2"
+        }
+      ]
+    }
   },
   "drain_assertions": {
     "description": "B-7(a) drain checks; these validate queue state, not graph truth. Both queues must drain before B-7(b) graph assertions run.",
