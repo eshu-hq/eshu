@@ -79,7 +79,14 @@ nvd_rolling_window_state_candidates AS (
         target.coverage_eligible AND NOT committed.covered AS coverage_missing,
         FALSE AS multi_cve_target,
         NULL::jsonb AS derived_detail
-    FROM nvd_rolling_window_scopes AS target
+    FROM (
+        -- Same 200-candidate bound as the configured leg, ahead of the
+        -- keyed state and snapshot probes; the overflow CTE counts these
+        -- scopes so a truncated read still reports incomplete.
+        SELECT * FROM nvd_rolling_window_scopes
+        ORDER BY collector_instance_id, scope_id, source, ecosystem
+        LIMIT 200
+    ) AS target
     -- A source-state row is written before the generation commit. Only an
     -- active, complete snapshot for this exact executed window proves the
     -- target ran (covered). The match is the configured shape unchanged.

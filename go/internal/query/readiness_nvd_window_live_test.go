@@ -128,3 +128,53 @@ func TestSupplyChainImpactReadinessRollingWindowCoveredLive(t *testing.T) {
 		})
 	}
 }
+
+// TestSupplyChainImpactReadinessRollingWindowAnchorSupersededLive is the
+// #9971 review F-1 criterion-4 cell with an anchor-bearing config: when
+// derive_nvd_rolling_windows is enabled the configured static anchor is
+// superseded by the rolling windows, so it must not appear as a configured
+// candidate at all. With the window committed, readiness is fully
+// complete (no incomplete reasons), not merely free of
+// committed_snapshot_missing.
+func TestSupplyChainImpactReadinessRollingWindowAnchorSupersededLive(t *testing.T) {
+	ctx, database, now := readinessScopeLiveDatabase(t)
+	windowStart := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	windowEnd := time.Date(2026, 1, 3, 0, 0, 0, 0, time.UTC)
+	windowScope := "vuln-intel://nvd/_window/1767225600000000-1767398400000000"
+	anchorScope := "vuln-intel://nvd/anchor"
+	seedReadinessActiveAdvisoryFact(t, ctx, database, now, "CVE-2026-9227")
+	configuration, err := json.Marshal(map[string]any{
+		"targets": []map[string]any{{
+			"source": "nvd", "scope_id": anchorScope,
+			"modified_start": "2026-01-01T00:00:00Z", "modified_end": "2026-04-01T00:00:00Z",
+			"results_per_page": 50,
+		}},
+		"derive_nvd_rolling_windows": map[string]any{"enabled": true},
+	})
+	if err != nil {
+		t.Fatalf("marshal anchor configuration: %v", err)
+	}
+	if _, err := database.ExecContext(ctx, `INSERT INTO collector_instances
+        (instance_id, collector_kind, mode, enabled, configuration, last_observed_at, created_at, updated_at)
+        VALUES ($1, 'vulnerability_intelligence', 'continuous', TRUE, $2, $3, $3, $3)`,
+		"nvd-rolling", configuration, now); err != nil {
+		t.Fatalf("seed anchor instance: %v", err)
+	}
+	seedReadinessNVDWindowRun(t, ctx, database, now, "nvd-rolling", windowScope,
+		windowStart.Format(time.RFC3339), windowEnd.Format(time.RFC3339))
+	seedReadinessScopeState(t, ctx, database, now, "nvd-rolling", windowScope, "nvd", "fresh", "succeeded")
+	seedReadinessNVDWindowSnapshot(t, ctx, database, now, windowScope, "nvd-rolling", windowStart.UnixMicro(), windowEnd.UnixMicro())
+
+	readiness := readReadinessScopeAPI(t, database, "CVE-2026-9227")
+	for _, state := range readiness.SourceStates {
+		if strings.TrimSpace(state.ScopeID) == anchorScope {
+			t.Fatalf("superseded anchor still a configured candidate: %+v (readiness %+v)", state, readiness)
+		}
+	}
+	if len(readiness.IncompleteReasons) != 0 {
+		t.Fatalf("incomplete reasons = %v, want fully complete with the anchor superseded (state %q)", readiness.IncompleteReasons, readiness.State)
+	}
+	if string(readiness.State) == "target_incomplete" {
+		t.Fatalf("readiness state = target_incomplete, want complete: %+v", readiness)
+	}
+}

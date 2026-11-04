@@ -147,7 +147,10 @@ descriptor is built from the planned entry's bounds (never the scope id) with
 the shared endpoint-candidate set, and the committed match is the same
 complete, warning-free snapshot descriptor equality the configured path uses,
 so a committed window reads as covered and a missing one reads as
-`nvd:committed_snapshot_missing`. A rolling fetch never attests
+`nvd:committed_snapshot_missing`. With `derive_nvd_rolling_windows` enabled
+the configured static anchor is superseded and excluded from configured
+candidates (it is never claimed); rolling scopes count toward the same
+200-candidate bound and overflow probe as configured scopes. A rolling fetch never attests
 `TrustedDeletion`, so the twin rule applies unchanged: the window retracts
 nothing and the successor guard treats the generation as subject to it.
 

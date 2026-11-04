@@ -161,6 +161,20 @@ configured_vulnerability_source_targets AS (
     WHERE instance.collector_kind = 'vulnerability_intelligence'
       AND instance.enabled AND instance.deactivated_at IS NULL
       AND NULLIF(TRIM(target->>'scope_id'), '') IS NOT NULL
+      -- When rolling windows are enabled, the window-mode static anchor is
+      -- superseded by the planned per-window scopes (#9971): it is never
+      -- claimed, so keeping it a configured candidate would read pending
+      -- forever. The predicate mirrors the coordinator's anchor detector
+      -- (an nvd target with a modified window) and its config decode
+      -- (derive_nvd_rolling_windows.enabled = true as a JSON boolean, the
+      -- only shape the coordinator's typed decode accepts; COALESCE keeps
+      -- an absent section from turning the NOT into NULL).
+      AND NOT (
+        selector.source = 'nvd'
+        AND COALESCE(instance.configuration->'derive_nvd_rolling_windows'->'enabled', 'false'::jsonb) = 'true'::jsonb
+        AND (NULLIF(TRIM(target->>'modified_start'), '') IS NOT NULL
+             OR NULLIF(TRIM(target->>'modified_end'), '') IS NOT NULL)
+      )
       AND (
         ($9 <> '' AND (
           (selector.source = 'nvd' AND (
@@ -188,6 +202,8 @@ target_vulnerability_source_overflow AS (
             SELECT collector_instance_id FROM target_vulnerability_source_scopes
             UNION ALL
             SELECT collector_instance_id FROM derived_vulnerability_source_aggregates
+            UNION ALL
+            SELECT collector_instance_id FROM nvd_rolling_window_scopes
         ) AS relevant
         OFFSET 200 LIMIT 1
     ) AS overflow
