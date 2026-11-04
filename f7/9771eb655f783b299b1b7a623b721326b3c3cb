@@ -1,0 +1,46 @@
+go/internal/goldengate/snapshot.go
+  s_7547c0f0af67d4::t_e0fd047c8f6614 42-44
+go/internal/goldengate/delta_readers_test.go
+  s_7547c0f0af67d4::t_7d728d2f037331 1-217
+  s_7547c0f0af67d4::t_e5b9678facfa0d 218-229
+go/cmd/golden-corpus-gate/delta_readers.go
+  s_7547c0f0af67d4::t_1446ef5e27747f 1-155
+go/internal/goldengate/delta_readers.go
+  s_7547c0f0af67d4::t_f2d52f315ab66a 1-224
+go/cmd/golden-corpus-gate/delta_readers_test.go
+  s_7547c0f0af67d4::t_5c980392bc46cb 1-122
+go/cmd/golden-corpus-gate/main.go
+  s_7547c0f0af67d4::t_50f49713d1e679 77-80,87,118-119
+go/cmd/golden-corpus-gate/runner.go
+  s_7547c0f0af67d4::t_c183e628122440 115-119,343-344,358
+tests/fixtures/golden_delta_union/base/cmd/ledger.go
+  s_7547c0f0af67d4::t_e9d911f9b4d107 1-10
+tests/fixtures/golden_delta_union/base/cmd/main.go
+  s_7547c0f0af67d4::t_dd8c1ca20deafe 1-15
+tests/fixtures/golden_delta_union/base/cmd/report.go
+  s_7547c0f0af67d4::t_59be534d6dac6d 1-10
+tests/fixtures/golden_delta_union/base/deploy/claim.yaml
+  s_7547c0f0af67d4::t_74864d01eba7ee 1-7
+tests/fixtures/golden_delta_union/base/deploy/xrd.yaml
+  s_7547c0f0af67d4::t_ced1af53d4ee46 1-26
+tests/fixtures/golden_delta_union/base/go.mod
+  s_7547c0f0af67d4::t_72129ee4aabcae 1
+tests/fixtures/golden_delta_union/delta/cmd/main.go
+  s_7547c0f0af67d4::t_e4c807fc1733e4 1-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f79771eb655f783b299b1b7a623b721326b3c3cb",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

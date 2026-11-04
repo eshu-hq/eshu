@@ -1,0 +1,19 @@
+docs/internal/evidence/10022-delta-cassette-feasibility.md
+  s_d587d5847f5b26::t_70985da96a01cf 129-160
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "14fb172d295cd45a645f2b99d8e80508db21e77e",
+  "prompts": {},
+  "sessions": {
+    "s_d587d5847f5b26": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-adfa6233c04752f07",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
