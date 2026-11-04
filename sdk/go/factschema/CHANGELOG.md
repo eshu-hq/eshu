@@ -39,10 +39,16 @@ version — pinning this module pins the fixture pack too.
   also states what a producer writes for each outcome, and ties
   `reachability_level` to `scan_level` (`import` and `module` are for package
   and module scans; a symbol scan's package-only or module-only finding is
-  `not_called`, because the reducer reads `import` as reachable). Every finding that names
-  a module sets `deepest_module`, including a `not_called` finding with an empty
-  `trace`, because the core reducer joins on it. The fixture pack's valid
-  payload carries the new fields.
+  `not_called`, because the reducer reads `import` as reachable). Every finding
+  that names a module sets `deepest_module`, including a `not_called` finding
+  with an empty `trace`, because the core reducer joins on it. The finding depth
+  is the deepest finding for one (advisory, module) pair: govulncheck reports an
+  advisory several times as the scan deepens (module, then package, then
+  function), so a producer folds all of those messages into one fact before it
+  picks the level, and never takes a level from a single message. The reducer
+  also needs a `go_module_evidence` row and an `affected_package` row for the
+  advisory and module; without either it emits no finding for that module. The
+  fixture pack's valid payload carries the new fields.
 
 - `vulnerability.source_snapshot` gains four optional fields, `license`,
   `attribution`, `cache_expires_at`, and `cache_mode` (eshu-hq/eshu#9958, Phase 4
