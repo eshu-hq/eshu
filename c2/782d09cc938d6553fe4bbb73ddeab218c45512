@@ -1,0 +1,25 @@
+docs/internal/evidence/9873-grouped-inventory/README.md
+  s_7547c0f0af67d4::t_f777d46271b5c9 1-51
+docs/internal/evidence/9873-grouped-inventory/seed.sql
+  s_7547c0f0af67d4::t_7c67e3c739d16a 1-151
+docs/internal/evidence/9873-grouped-inventory.md
+  s_7547c0f0af67d4::t_7e0ba2c4dde88d 174-175,218-220
+docs/internal/evidence/9873-grouped-inventory/bench_overlay_test.go.txt
+  s_7547c0f0af67d4::t_51e895daae1bb5 1-209
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c2782d09cc938d6553fe4bbb73ddeab218c45512",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
