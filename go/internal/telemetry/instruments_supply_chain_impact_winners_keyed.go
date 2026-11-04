@@ -172,7 +172,7 @@ func (i *Instruments) RecordSupplyChainImpactWinnersDirtyLog(depth int64, oldest
 }
 
 // RecordSupplyChainImpactWinnersCapture counts rows appended to the winners
-// dirty log under source: by the impact writer at capture time, or by the
+// dirty log under source: by the impact writer once its transaction commits, or by the
 // maintainer at consume time for the trigger-owned sources. source must be one of the
 // SupplyChainImpactWinnersSource* constants. A zero count records nothing, so a
 // writer that captured nothing leaves its source's counter flat, which is the

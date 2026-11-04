@@ -83,8 +83,8 @@ row count:
 
 | Source | Counted by | When |
 | --- | --- | --- |
-| `fact_upsert` | the impact writer (`CaptureWinnersDirtyFacts`) | at capture, in the writer transaction |
-| `fact_retract` | the impact writer (`writer_retract.go`, statement affected rows) | at capture |
+| `fact_upsert` | the impact writer (`CaptureWinnersDirtyFacts`) | when the writer transaction commits (#9957; counted at capture before that) |
+| `fact_retract` | the impact writer (`writer_retract.go`, statement affected rows) | when the writer transaction commits (#9957; counted at capture before that) |
 | `activation`, `operator`, `scanner` | the maintainer (`recordKeyedSignals`) | when the keyed tick consumes the rows, on the keyed and the full-fallback path |
 | `audit` | the audit | when it queues a repair |
 
