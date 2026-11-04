@@ -138,6 +138,12 @@ func TestOSAdvisoryFactIsVendorSourcedReadsAPackageURLPackageID(t *testing.T) {
 		{"pkg:deb package id, blank ecosystem", supplychainmodel.AffectedPackage{Source: "nvd", PackageID: "pkg:deb/debian/curl"}, true},
 		{"pkg:deb package id, dpkg ecosystem", supplychainmodel.AffectedPackage{Source: "glad", Ecosystem: "dpkg", PackageID: "pkg:deb/debian/curl"}, true},
 		{"pkg:rpm package id", supplychainmodel.AffectedPackage{Source: "nvd", PackageID: "pkg:rpm/redhat/curl"}, true},
+		// One row per clause, so dropping any single clause is caught: each fact
+		// has exactly one OS signal and a package id that is not itself an OS id.
+		{"ecosystem is the only OS signal", supplychainmodel.AffectedPackage{Source: "nvd", Ecosystem: "os", PackageID: "curl"}, true},
+		{"purl is the only OS signal", supplychainmodel.AffectedPackage{Source: "nvd", PURL: "pkg:deb/debian/curl", PackageID: "curl"}, true},
+		{"os:// package id is the only OS signal", supplychainmodel.AffectedPackage{Source: "nvd", PackageID: "os://debian/curl"}, true},
+		{"no OS signal at all", supplychainmodel.AffectedPackage{Source: "nvd", PackageID: "curl"}, false},
 		{"OSV fact keeps its own path", supplychainmodel.AffectedPackage{Source: "osv", PackageID: "pkg:deb/debian/curl"}, false},
 		{"language package id", supplychainmodel.AffectedPackage{Source: "glad", PackageID: "pkg:npm/example"}, false},
 	} {
