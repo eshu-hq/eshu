@@ -22,6 +22,22 @@ version — pinning this module pins the fixture pack too.
 
 ### Added
 
+- `vulnerability.go_call_reachability` gains five optional provenance fields,
+  `scan_level`, `scan_mode`, `scanner_version`, `source_commit_sha`, and
+  `trace_count` (eshu-hq/eshu#10026, part of eshu-hq/eshu#10002; additive
+  minor, no decode shim; prepared in eshu-sdk as `factschema/v0.1.0-rc.17`,
+  unpublished, so core's `go.mod` still pins rc.16 until that tag is released).
+  `scan_level` (`module`, `package`, or `symbol`) says how deep the scan went,
+  so a reader can tell a `symbol` scan, the only kind that can show no call path
+  exists, from a shallower one; `scan_mode` is `source` or `binary`. Both are
+  open strings with no schema enum. `trace_count` is how many traces the scanner
+  found; `trace` carries one. A payload without the keys decodes as before, with
+  nil fields, and a value of the wrong JSON type fails the decode as
+  `input_invalid`. The struct documentation now states Eshu's trace order: entry
+  point first, vulnerable symbol last, the reverse of govulncheck's own order,
+  with `position` one `filename:line:column` string. The fixture pack's valid
+  payload carries the new fields.
+
 - `vulnerability.source_snapshot` gains four optional fields, `license`,
   `attribution`, `cache_expires_at`, and `cache_mode` (eshu-hq/eshu#9958, Phase 4
   item 4.0 of eshu-hq/eshu#9209, additive minor, no decode shim; published as
