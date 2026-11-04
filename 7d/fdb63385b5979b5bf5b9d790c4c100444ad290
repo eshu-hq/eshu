@@ -1,0 +1,35 @@
+docs/internal/evidence/9873-grouped-inventory.md
+  s_7547c0f0af67d4::t_971488847a30b0 1-217
+.github/workflows/live-postgres-readiness.yml
+  s_7547c0f0af67d4::t_41e438c8488bfe 344-345
+go/cmd/api/wiring_handlers.go
+  s_7547c0f0af67d4::t_101490a0d0d862 89
+go/cmd/api/wiring_router_completeness_test.go
+  s_7547c0f0af67d4::t_a894bdefb99599 186-193
+go/internal/query/supply/chain/impact/AGENTS.md
+  s_7547c0f0af67d4::t_18b86f6d3872c0 55-63,154-157
+go/internal/query/supply/chain/impact/README.md
+  s_7547c0f0af67d4::t_fcb7c3d3980ac8 55-56
+scripts/lib/live_postgres_readiness_env.sh
+  s_7547c0f0af67d4::t_c9f2e7f52f0487 16,58
+scripts/lib/live_postgres_readiness_inventory_gen_internal_query_supply_chain_impact.py
+  s_7547c0f0af67d4::t_33f7dcd1e96053 10-12
+specs/live-tests.d/live-tests-readiness.generated.yaml
+  s_7547c0f0af67d4::t_e810650ac65cf2 257-261
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7dfdb63385b5979b5bf5b9d790c4c100444ad290",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
