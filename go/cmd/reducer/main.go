@@ -488,7 +488,7 @@ func buildReducerService(
 			WatermarkReader: postgres.NewSupplyChainImpactWinnersStore(database),
 			// #9805: one full resweep at startup, then keyed ticks from the dirty
 			// log, with a full-recompute audit as the backstop.
-			KeyedRebuilder: postgres.NewSupplyChainImpactWinnersStore(database),
+			KeyedRebuilder: postgres.NewSupplyChainImpactWinnersStore(database).WithInstruments(instruments),
 			Auditor:        postgres.NewSupplyChainImpactWinnersStore(database),
 			AuditInterval:  loadSupplyChainImpactWinnersAuditInterval(getenv),
 			DirtyLogReader: postgres.NewSupplyChainImpactWinnersStore(database),

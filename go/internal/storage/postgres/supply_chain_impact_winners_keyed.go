@@ -48,21 +48,35 @@ func (s SupplyChainImpactWinnersStore) ResweepWinnersKeyed(
 	if !ok {
 		return none, fmt.Errorf("supply chain impact winners database must support transactions")
 	}
-	tx, err := beginner.Begin(ctx)
-	if err != nil {
-		return none, fmt.Errorf("begin supply chain impact winners keyed resweep: %w", err)
+	// claim covers the begin and the try-lock, the two round trips before the
+	// tick owns the lock. The rollback is registered as soon as a transaction
+	// exists, on the claim's failure path too.
+	var tx db.Transaction
+	var claimed bool
+	err := s.timePhase(ctx, telemetry.SupplyChainImpactWinnersPhaseClaim, func() error {
+		var err error
+		if tx, err = beginner.Begin(ctx); err != nil {
+			tx = nil
+			return fmt.Errorf("begin supply chain impact winners keyed resweep: %w", err)
+		}
+		claimed, err = claimSupplyChainImpactWinnersResweep(ctx, tx)
+		return err
+	})
+	if tx != nil {
+		defer func() { _ = tx.Rollback() }()
 	}
-	defer func() { _ = tx.Rollback() }()
-
-	claimed, err := claimSupplyChainImpactWinnersResweep(ctx, tx)
 	if err != nil {
 		return none, err
 	}
 	if !claimed {
 		return supplychaincore.SupplyChainImpactWinnersResweep{Skipped: true}, nil
 	}
-	captured, err := consumeWinnersDirtyLog(ctx, tx)
-	if err != nil {
+	var captured winnersCaptureTally
+	if err := s.timePhase(ctx, telemetry.SupplyChainImpactWinnersPhaseConsume, func() error {
+		var err error
+		captured, err = consumeWinnersDirtyLog(ctx, tx)
+		return err
+	}); err != nil {
 		return none, err
 	}
 	consumed := captured.total()
@@ -73,11 +87,13 @@ func (s SupplyChainImpactWinnersStore) ResweepWinnersKeyed(
 	}
 	switch consumed {
 	case 0:
-		previous, err := stampWinnersWatermark(ctx, tx, materializedAt)
-		if err != nil {
+		if err := s.timePhase(ctx, telemetry.SupplyChainImpactWinnersPhaseStamp, func() error {
+			previous, err := stampWinnersWatermark(ctx, tx, materializedAt)
+			result.PreviousWatermark = previous
+			return err
+		}); err != nil {
 			return none, err
 		}
-		result.PreviousWatermark = previous
 	default:
 		fallback, err := s.runKeyedOrFull(ctx, tx, materializedAt, &result)
 		if err != nil {
@@ -87,7 +103,7 @@ func (s SupplyChainImpactWinnersStore) ResweepWinnersKeyed(
 			result.Path = telemetry.SupplyChainImpactWinnersPathFull
 		}
 	}
-	if err := tx.Commit(); err != nil {
+	if err := s.timePhase(ctx, telemetry.SupplyChainImpactWinnersPhaseCommit, tx.Commit); err != nil {
 		return none, fmt.Errorf("commit supply chain impact winners keyed resweep: %w", err)
 	}
 	return result, nil
@@ -109,61 +125,99 @@ func (s SupplyChainImpactWinnersStore) runKeyedOrFull(
 	// temp table once before the tick falls back to the full rebuild. The cost
 	// is bounded by the fact set, paid once per backlog, and read through the
 	// active-scan index.
-	for _, stmt := range []string{buildWinnersKeyedIdentsSQL, analyzeWinnersKeyedIdentsSQL} {
-		if _, err := tx.ExecContext(ctx, stmt); err != nil {
-			return false, fmt.Errorf("build supply chain impact winners keyed identifiers: %w", err)
+	var over bool
+	if err := s.timePhase(ctx, telemetry.SupplyChainImpactWinnersPhaseBuildIdents, func() error {
+		for _, stmt := range []string{buildWinnersKeyedIdentsSQL, analyzeWinnersKeyedIdentsSQL} {
+			if _, err := tx.ExecContext(ctx, stmt); err != nil {
+				return fmt.Errorf("build supply chain impact winners keyed identifiers: %w", err)
+			}
 		}
-	}
-	idents, err := scanWinnersInt64(ctx, tx, countWinnersKeyedIdentsSQL, "count keyed identifiers")
-	if err != nil {
-		return false, err
-	}
-	over, err := s.overKeyedCap(ctx, tx, idents)
-	if err != nil {
+		idents, err := scanWinnersInt64(ctx, tx, countWinnersKeyedIdentsSQL, "count keyed identifiers")
+		if err != nil {
+			return err
+		}
+		over, err = s.overKeyedCap(ctx, tx, idents)
+		return err
+	}); err != nil {
 		return false, err
 	}
 	if over {
-		full, err := runSupplyChainImpactWinnersRebuild(ctx, tx, materializedAt)
-		if err != nil {
+		if err := s.timePhase(ctx, telemetry.SupplyChainImpactWinnersPhaseFullRebuild, func() error {
+			full, err := runSupplyChainImpactWinnersRebuild(ctx, tx, materializedAt)
+			if err != nil {
+				return err
+			}
+			result.Inserted, result.Updated, result.Deleted, result.Unchanged = full.Inserted, full.Updated, full.Deleted, full.Unchanged
+			result.PreviousWatermark = full.PreviousWatermark
+			return nil
+		}); err != nil {
 			return false, err
 		}
-		result.Inserted, result.Updated, result.Deleted, result.Unchanged = full.Inserted, full.Updated, full.Deleted, full.Unchanged
-		result.PreviousWatermark = full.PreviousWatermark
 		return true, nil
 	}
-	for _, stmt := range []string{buildWinnersKeyedActiveFactsSQL, addWinnersKeyedOperatorFactsSQL, analyzeWinnersKeyedActiveFactsSQL} {
-		if _, err := tx.ExecContext(ctx, stmt); err != nil {
-			return false, fmt.Errorf("build supply chain impact winners keyed active facts: %w", err)
+	if err := s.timePhase(ctx, telemetry.SupplyChainImpactWinnersPhaseBuildActiveFacts, func() error {
+		for _, stmt := range []string{buildWinnersKeyedActiveFactsSQL, addWinnersKeyedOperatorFactsSQL, analyzeWinnersKeyedActiveFactsSQL} {
+			if _, err := tx.ExecContext(ctx, stmt); err != nil {
+				return fmt.Errorf("build supply chain impact winners keyed active facts: %w", err)
+			}
 		}
+		return nil
+	}); err != nil {
+		return false, err
 	}
+	return false, s.timePhase(ctx, telemetry.SupplyChainImpactWinnersPhaseApply, func() error {
+		return applyWinnersKeyed(ctx, tx, materializedAt, result)
+	})
+}
+
+// applyWinnersKeyed runs the keyed apply statement and reads its one row of
+// counts into result. It drains and closes the cursor before returning, so the
+// driver is done with it before the transaction commits.
+func applyWinnersKeyed(
+	ctx context.Context,
+	tx db.Transaction,
+	materializedAt any,
+	result *supplychaincore.SupplyChainImpactWinnersResweep,
+) error {
 	rows, err := tx.QueryContext(ctx, applyWinnersKeyedSQL, materializedAt)
 	if err != nil {
-		return false, fmt.Errorf("apply supply chain impact winners keyed resweep: %w", err)
+		return fmt.Errorf("apply supply chain impact winners keyed resweep: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 	if !rows.Next() {
 		if err := rows.Err(); err != nil {
-			return false, fmt.Errorf("apply supply chain impact winners keyed resweep: %w", err)
+			return fmt.Errorf("apply supply chain impact winners keyed resweep: %w", err)
 		}
-		return false, fmt.Errorf("apply supply chain impact winners keyed resweep: statement returned no counts")
+		return fmt.Errorf("apply supply chain impact winners keyed resweep: statement returned no counts")
 	}
 	var previous sql.NullTime
 	if err := rows.Scan(&result.Inserted, &result.Updated, &result.Deleted, &result.Unchanged, &result.Keys, &previous); err != nil {
-		return false, fmt.Errorf("scan supply chain impact winners keyed counts: %w", err)
+		return fmt.Errorf("scan supply chain impact winners keyed counts: %w", err)
 	}
 	if rows.Next() {
-		return false, fmt.Errorf("apply supply chain impact winners keyed resweep: statement returned more than one row")
+		return fmt.Errorf("apply supply chain impact winners keyed resweep: statement returned more than one row")
 	}
 	if err := rows.Err(); err != nil {
-		return false, fmt.Errorf("apply supply chain impact winners keyed resweep: %w", err)
+		return fmt.Errorf("apply supply chain impact winners keyed resweep: %w", err)
 	}
 	if err := rows.Close(); err != nil {
-		return false, fmt.Errorf("close supply chain impact winners keyed counts: %w", err)
+		return fmt.Errorf("close supply chain impact winners keyed counts: %w", err)
 	}
 	if previous.Valid {
 		result.PreviousWatermark = previous.Time.UTC()
 	}
-	return false, nil
+	return nil
+}
+
+// timePhase runs fn and records its wall time as one sample of phase on the
+// tick-phase histogram, whether fn succeeded or failed (#9975). It adds a timer
+// around the statements fn runs and nothing else: no statement, lock or
+// ordering changes. With no Instruments it only calls fn.
+func (s SupplyChainImpactWinnersStore) timePhase(ctx context.Context, phase string, fn func() error) error {
+	started := time.Now()
+	err := fn()
+	s.Instruments.RecordSupplyChainImpactWinnersTickPhase(ctx, phase, time.Since(started))
+	return err
 }
 
 // overKeyedCap reports whether idents is more than MaxIdentifiers or more than
