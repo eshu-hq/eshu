@@ -19,6 +19,9 @@ TABLE = {
             "TestReadinessKeepsAdvisorySourcesForARefusedShrinkFromTheExtractedCollectorLive",
             "TestReadinessGlobalLayoutWithoutLocalClaimColumnsUsesLegacyLive",
         ),
+        "go/internal/query/supply/chain/impact/readiness_nvd_window_explain_live_test.go": (
+            "TestSupplyChainImpactReadinessNVDWindowQueryPlanLive",
+        ),
         "go/internal/query/supply/chain/impact/readiness_orphan_package_keys_live_test.go": (
             "TestReadinessIgnoresOrphanPackageKeysLive",
         ),

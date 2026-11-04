@@ -19,6 +19,10 @@ TABLE = {
         "go/internal/storage/postgres/migration_169_reader_bound_live_test.go": (
             "TestMigration169PhasedBackfillReaderBoundLive",
         ),
+        "go/internal/storage/postgres/nvd_window_ownership_live_test.go": (
+            "TestNVDWindowOwnershipAccumulatesAcrossWindowsLive",
+            "TestNVDWindowRefusalAndSkipHoldCursorLive",
+        ),
         "go/internal/storage/postgres/owned_package_resolver_live_test.go": (
             "TestResolveOwnedPackageNamesDifferentialLive",
             "TestResolveOwnedPackageNamesMatchesTheFeedLive",

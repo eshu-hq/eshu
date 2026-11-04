@@ -18,9 +18,9 @@ import (
 // Postgres read or write to the commit path. Both operands are server
 // timestamps (the committed head and the cursor clamped to it), so a fast
 // local clock fabricates no lag and a slow one hides none. A series exists
-// only while a position is recorded; an absent series means no claim has
-// reported a head yet (the cursor is inactive until the per-window-ownership
-// follow-up wires the recording call site).
+// only while a position is recorded; an absent series means no rolling
+// window has committed in this process yet. The recording call site is the
+// window claim's commit-transaction writer (#9971).
 type NVDCursorLagTracker struct {
 	mu        sync.Mutex
 	positions map[nvdCursorKey]nvdCursorPosition

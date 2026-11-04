@@ -138,6 +138,22 @@ garbage target can no longer abort the read as `query_error`. A comma
 fraction or a `+24:00` offset, which Go accepts and Postgres refuses, reads
 as malformed (fail closed).
 
+Rolling NVD windows (#9971) reach readiness through the latest planner run's
+`requested_scope_set`, not through configured targets. `readinessNVDWindowScopesCTE`
+takes one eligible row per planned `vuln-intel://nvd/_window/<start>-<end>`
+entry whose bounds parse under the same guards as configured windows; a
+malformed entry skips its row instead of aborting the read. The expected
+descriptor is built from the planned entry's bounds (never the scope id) with
+the shared endpoint-candidate set, and the committed match is the same
+complete, warning-free snapshot descriptor equality the configured path uses,
+so a committed window reads as covered and a missing one reads as
+`nvd:committed_snapshot_missing`. With `derive_nvd_rolling_windows` enabled
+the configured static anchor is superseded and excluded from configured
+candidates (it is never claimed); rolling scopes count toward the same
+200-candidate bound and overflow probe as configured scopes. A rolling fetch never attests
+`TrustedDeletion`, so the twin rule applies unchanged: the window retracts
+nothing and the successor guard treats the generation as subject to it.
+
 Derived owned-package OSV scopes (#9227 F7) never reach readiness by scope-id
 parsing. The collector writes each derived scope's package identities to
 `vulnerability_source_state_packages` (canonical `packageidentity` ecosystem,

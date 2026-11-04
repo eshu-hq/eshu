@@ -402,6 +402,13 @@ vulnerability_source_snapshot AS (
           AND target.collector_instance_id = snapshot.payload->>'collector_instance_id'
           AND target.source = snapshot.payload->>'source'
     )
+       OR EXISTS (
+        SELECT 1
+        FROM nvd_rolling_window_scopes AS rolling
+        WHERE rolling.scope_id = snapshot.scope_id
+          AND rolling.collector_instance_id = snapshot.payload->>'collector_instance_id'
+          AND rolling.source = snapshot.payload->>'source'
+    )
        OR (snapshot.payload->>'source' = 'glad'
            AND NULLIF(LOWER(TRIM(snapshot.payload->>'ecosystem') COLLATE "C") COLLATE "default", '') IN
                (SELECT ecosystem FROM target_vulnerability_source_ecosystems))

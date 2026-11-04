@@ -106,6 +106,10 @@ TABLE = {
         "go/internal/query/readiness_multi_cve_live_test.go": (
             "TestSupplyChainImpactReadinessMultiCVETargetSaysSoLive",
         ),
+        "go/internal/query/readiness_nvd_window_live_test.go": (
+            "TestSupplyChainImpactReadinessRollingWindowCoveredLive",
+            "TestSupplyChainImpactReadinessRollingWindowAnchorSupersededLive",
+        ),
         "go/internal/query/readiness_source_reconfiguration_live_test.go": (
             "TestSupplyChainImpactReadinessReconfiguredExactSelectorRefusesOldSuccessLive",
             "TestSupplyChainImpactReadinessMalformedCVEElementsRefuseCleanZeroLive",

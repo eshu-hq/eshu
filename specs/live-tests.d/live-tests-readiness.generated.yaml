@@ -199,6 +199,11 @@ tests:
     class: postgres_ci
     reason: "#9322 disposable PostgreSQL API proof that a multi-CVE NVD target says so in the response with multi_cve_target on its source-state row"
     runner: live-postgres-readiness
+  - file: go/internal/query/readiness_nvd_window_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9971 disposable PostgreSQL API proof that readiness reports a committed rolling NVD window as covered: the planned window entry in the latest run matches the committed snapshot descriptor, while a mismatched or missing snapshot reads as nvd:committed_snapshot_missing"
+    runner: live-postgres-readiness
   - file: go/internal/query/readiness_source_reconfiguration_live_test.go
     tag: ~
     class: postgres_ci
@@ -263,6 +268,11 @@ tests:
     tag: ~
     class: postgres_ci
     reason: "#9694 disposable PostgreSQL proof that an unchanged vulnerability fetch is skipped without storing a generation, advances the source state's last successful fetch, and keeps the advisory family fresh in readiness while the facts stay 30 days old, and that a source that was not fetched still reports advisory_sources; reads ESHU_POSTGRES_DSN"
+    runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/impact/readiness_nvd_window_explain_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9971 review F-4 disposable PostgreSQL EXPLAIN (ANALYZE, BUFFERS) proof for the rolling-window readiness CTEs: on a fixture with 200 historical planner runs the window leg prunes to the latest run's single window, the superseded static anchor contributes no configured candidate, and the full ListReadinessQuery stays inside the local performance envelope"
     runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/readiness_orphan_package_keys_live_test.go
     tag: ~
