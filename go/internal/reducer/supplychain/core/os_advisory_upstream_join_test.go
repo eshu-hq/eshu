@@ -288,27 +288,39 @@ func TestUpstreamGroupingIsNotTransitive(t *testing.T) {
 // TestUpstreamGroupingBundleBesideAPerCVERecord is decision 14 (vi) of the #9914
 // ruling: a USN bundle and the UBUNTU-CVE record for one of its CVEs read one
 // finding for that CVE, not two, and the bundle's other CVE still reads its own.
+// Both records hold the host's version, so the higher fix names the shared CVE, and
+// equal fixes keep sort order. Real USN and UBUNTU-CVE pairs read in review agree on
+// the fix (USN-5412-1 and UBUNTU-CVE-2022-27780, both 7.81.0-1ubuntu1.2).
 func TestUpstreamGroupingBundleBesideAPerCVERecord(t *testing.T) {
 	t.Parallel()
 
 	const purl = "pkg:deb/ubuntu/curl?arch=source&distro=jammy"
-	envelopes := upstreamEnvelopes(t, nil,
-		distroRecord("USN-6766-1", "Ubuntu:22.04:LTS", purl, "7.81.0-1ubuntu1.17",
-			[]string{"CVE-2024-2398", "CVE-2024-2004", "UBUNTU-CVE-2024-2398"}),
-		distroRecord("UBUNTU-CVE-2024-2398", "Ubuntu:22.04:LTS", purl, "7.81.0-1ubuntu1.16", []string{"CVE-2024-2398"}),
-	)
-	envelopes = append(envelopes, ubuntuCurl("22.04", "7.81.0-1ubuntu1.1").envelope())
+	for name, tc := range map[string]struct {
+		perCVEFix string
+		wantNamed string
+	}{
+		"equal fixes keep sort order": {"7.81.0-1ubuntu1.17", "UBUNTU-CVE-2024-2398"},
+		"the bundle's higher fix":     {"7.81.0-1ubuntu1.16", "USN-6766-1"},
+		"the per-CVE record's higher": {"7.81.0-1ubuntu1.18", "UBUNTU-CVE-2024-2398"},
+	} {
+		envelopes := upstreamEnvelopes(t, nil,
+			distroRecord("USN-6766-1", "Ubuntu:22.04:LTS", purl, "7.81.0-1ubuntu1.17",
+				[]string{"CVE-2024-2398", "CVE-2024-2004", "UBUNTU-CVE-2024-2398"}),
+			distroRecord("UBUNTU-CVE-2024-2398", "Ubuntu:22.04:LTS", purl, tc.perCVEFix, []string{"CVE-2024-2398"}),
+		)
+		envelopes = append(envelopes, ubuntuCurl("22.04", "7.81.0-1ubuntu1.1").envelope())
 
-	want := map[string]string{"CVE-2024-2004": "USN-6766-1", "CVE-2024-2398": "UBUNTU-CVE-2024-2398"}
-	for order, shuffled := range orderings(envelopes) {
-		got := map[string]string{}
-		findings := BuildSupplyChainImpactFindings(shuffled)
-		for _, finding := range findings {
-			got[finding.CVEID] = finding.AdvisoryID
-			assertSupplyChainImpactStatus(t, finding, SupplyChainImpactAffectedExact)
-		}
-		if len(findings) != 2 || !reflect.DeepEqual(got, want) {
-			t.Errorf("%s: %d findings, advisory by CVE = %v, want 2 with %v", order, len(findings), got, want)
+		want := map[string]string{"CVE-2024-2004": "USN-6766-1", "CVE-2024-2398": tc.wantNamed}
+		for order, shuffled := range orderings(envelopes) {
+			got := map[string]string{}
+			findings := BuildSupplyChainImpactFindings(shuffled)
+			for _, finding := range findings {
+				got[finding.CVEID] = finding.AdvisoryID
+				assertSupplyChainImpactStatus(t, finding, SupplyChainImpactAffectedExact)
+			}
+			if len(findings) != 2 || !reflect.DeepEqual(got, want) {
+				t.Errorf("%s/%s: %d findings, advisory by CVE = %v, want 2 with %v", name, order, len(findings), got, want)
+			}
 		}
 	}
 }

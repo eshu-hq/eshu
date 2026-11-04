@@ -39,9 +39,9 @@ func (g orderedAdvisoryGroup) selection() (advisoryProvenanceSelection, string) 
 
 // TestAdvisoryProvenanceReleaseTierOrdersSameSourceRecords pins decision 8 of
 // the #9914 ruling: within one source, a record whose fact lists the host's
-// release line outranks an untagged one (a vendor-sourced fact in every
-// verification state, which carries no line the join checks), which outranks
-// one that lists other lines only. advisory_id names the record that decided
+// release line outranks an untagged one (a vendor-sourced fact with no verified
+// line, which is what this group builds), which outranks one that lists other
+// lines only. advisory_id names the record that decided
 // and the fix, range and source come from it; the AdvisoryID string order only
 // breaks ties inside a tier.
 func TestAdvisoryProvenanceReleaseTierOrdersSameSourceRecords(t *testing.T) {

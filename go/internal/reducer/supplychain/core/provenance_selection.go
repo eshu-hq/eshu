@@ -197,10 +197,14 @@ func selectAdvisoryProvenance(
 			break
 		}
 	}
+	deciding, holding := -1, false
 	if osPackageClassEcosystem(ecosystem) {
-		selection.DecidingAdvisoryID = decidingAdvisoryID(sorted)
+		deciding, holding = decidingObservation(sorted)
+		if deciding >= 0 {
+			selection.DecidingAdvisoryID = sorted[deciding].AdvisoryID
+		}
 	}
-	for _, observation := range sorted {
+	for at, observation := range sorted {
 		if observation.retracted() {
 			continue
 		}
@@ -210,6 +214,12 @@ func selectAdvisoryProvenance(
 			selection.SeverityScoreSource = observation.SeverityScoreSource
 			selection.SeverityVector = observation.SeverityVector
 			selection.SeverityLabel = observation.SeverityLabel
+		}
+		// A holder's own fix and range are the only ones offered: another record's
+		// lower fix would tell a host still inside this range to upgrade to where it
+		// already is (#9914).
+		if holding && at != deciding {
+			continue
 		}
 		if selection.FixedVersionSource == "" && len(observation.FixedVersions) > 0 {
 			selection.FixedVersionSource = observation.Source
@@ -303,31 +313,6 @@ func osPackageClassEcosystem(ecosystem string) bool {
 	}
 	_, ok := vendorForOSPackageClass(ecosystem)
 	return ok
-}
-
-// decidingAdvisoryID names an OS-class finding: the first observation in
-// selection order that supplied an affected_package fact and is not retracted.
-// That order carries the source rank and, inside a source, the release tier, so
-// this is the record whose fact the version decision read first. When every such
-// observation is retracted the first one names the finding, so rejecting or
-// restoring a single record never moves advisory_id (#9695). A scored source with
-// no package fact supplies the score but does not rename the finding, so
-// finding_id is a function of the data and not of whether this pass loaded a
-// scored record (#9914).
-func decidingAdvisoryID(sorted []AdvisoryProvenanceObservation) string {
-	retracted := ""
-	for _, observation := range sorted {
-		if observation.AffectedFactID == "" {
-			continue
-		}
-		if !observation.retracted() {
-			return observation.AdvisoryID
-		}
-		if retracted == "" {
-			retracted = observation.AdvisoryID
-		}
-	}
-	return retracted
 }
 
 // singleFixedVersion returns the observation's fixed version only when it

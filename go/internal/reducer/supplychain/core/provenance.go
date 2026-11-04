@@ -262,6 +262,12 @@ type AdvisoryProvenanceObservation struct {
 	// advisory group holds several records for one CVE (#9914) and is zero
 	// weight for every group that is not an OS release group.
 	releaseTier int8
+	// holdsInstalled marks an observation whose affected fact holds the
+	// installed version, and holdingFixRank orders holders by the fix that fact
+	// names for the host (osHoldingFacts). Both stay zero outside an OS-class
+	// finding built from an installed row (#9914).
+	holdsInstalled bool
+	holdingFixRank int
 }
 
 // Release tiers, in selection order: lower wins within one source.
@@ -332,9 +338,10 @@ type advisoryProvenanceSelection struct {
 	// never IdentitySource, so deriving severity cannot move advisory_id,
 	// finding_id, or advisory-scoped suppression matching (#9693).
 	IdentitySource string
-	// DecidingAdvisoryID names an OS-class finding: the record that supplied the
-	// fact the version decision read first (#9914). It is empty for every
-	// ecosystem that is not an OS package class, where IdentitySource stands.
+	// DecidingAdvisoryID names an OS-class finding: the live record whose range
+	// holds the installed version, or with none the record that supplied the fact
+	// the version decision read first (#9914). It is empty for every ecosystem
+	// that is not an OS package class, where IdentitySource stands.
 	DecidingAdvisoryID   string
 	SeverityScore        float64
 	SeverityScoreSource  string

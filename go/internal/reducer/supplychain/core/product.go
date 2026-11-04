@@ -73,10 +73,12 @@ func baseSupplyChainImpactProductFinding(
 func baseSupplyChainImpactFinding(
 	cves supplyChainCVEGroup,
 	pkgs []supplychainmodel.AffectedPackage,
+	holders []osHoldingFact,
 	index supplyChainImpactIndex,
 ) SupplyChainImpactFinding {
 	pkg := representativeAffectedPackage(pkgs)
 	observations := buildAdvisoryProvenanceObservations(cves.observations, pkgs)
+	markOSHoldingObservations(observations, holders)
 	provenance := selectAdvisoryProvenance(pkg.Ecosystem, observations)
 	advisoryID := provenanceAdvisoryID(provenance, cves)
 
