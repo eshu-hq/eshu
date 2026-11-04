@@ -1,0 +1,44 @@
+go/internal/storage/postgres/supply_chain_impact_manifest_chain_live_test.go
+  s_7547c0f0af67d4::t_6e1624e889e620 1-206
+  s_7547c0f0af67d4::t_5de7e8d3e04560 207-223
+go/internal/storage/postgres/supply_chain_impact_manifest_stamp.go
+  s_7547c0f0af67d4::t_10c9cd899494ae 1-61
+go/internal/reducer/supplychain/core/manifest_chain_test.go
+  s_7547c0f0af67d4::t_3e496f935a31eb 1-252
+.github/workflows/reducer-contention-gate.yml
+  s_7547c0f0af67d4::t_afc5c9ef8525b1 404-405,408
+go/internal/reducer/supply_chain_impact_manifest_runtime_test.go
+  s_7547c0f0af67d4::t_86577dbc57a447 22-25
+go/internal/reducer/supplychain/core/manifest_change.go
+  s_7547c0f0af67d4::t_30cfbf78d00b86 22-25,27-31,34-35,38-46,48-50,53-54,56-59,61-62,65-75,77,80-81,84-88,90,92-112,115-124,131-139,141,143,203-205
+go/internal/reducer/supplychain/core/manifest_change_test.go
+  s_7547c0f0af67d4::t_ec88133b39464f 28-31,48-51
+go/internal/reducer/supplychain/core/manifest_trigger.go
+  s_7547c0f0af67d4::t_fc9b908db0bf12 60-61,76,80-95,98-107,114-117,160-162,184-187,192,201,205-207,211,215,247-252,267-269,273,275,285-289,293-311
+go/internal/reducer/supplychain/core/manifest_trigger_test.go
+  s_7547c0f0af67d4::t_37d04dfdc41e88 27-36,169-170,223-224,238-243,246-250,253-261,272,291,317-318,358-359
+go/internal/storage/postgres/supply_chain_impact_manifest_generation.go
+  s_7547c0f0af67d4::t_8d2964841667c7 90-98,107-115,120-139,145-151,177-178,182-183,186-188,191-192,195-244,248-249,251,253-254,324-333,335,338-345,349,351
+go/internal/storage/postgres/supply_chain_impact_manifest_trigger_live_test.go
+  s_7547c0f0af67d4::t_32eab924d3b6be 80-96,218-219,232,258-260,262,265,289-290,336-341
+scripts/lib/reducer_contention_inventory.json
+  s_7547c0f0af67d4::t_30751c8976a3a9 226-229,232
+specs/live-tests.d/live-tests-07.yaml
+  s_7547c0f0af67d4::t_10f3570be49988 358-362
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "eaab1b30c6756dc55e555d279429d1b9cdf1a400",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
