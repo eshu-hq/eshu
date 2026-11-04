@@ -27,3 +27,27 @@ and configured targets use `vuln-intel://nvd/...`, `vuln-intel://cisa/kev`,
 coordinator's format strings and the readiness reader's scope table.
 `DefaultFreshnessWindow` (14 days) is the shared fresh-versus-stale window for
 the in-tree collector and the extension host recorder.
+
+## Coordinator-minted scope shapes
+
+The extension host and the coordinator read these shapes without a collector:
+
+- `ParseDerivedOSVSlotScope` and `IsDerivedOSVSlotScope` validate a pinned slot
+  scope, `vuln-intel://osv/<ecosystem>/_slot/<vslot>/<chunk>` (#9432). The
+  queries behind it ride the run's `requested_scope_set`, never the scope id.
+- `DerivedScopePackageKeys` returns the package keys of a single-package or
+  `_batch` derived OSV scope, with the claim path's bounds: 100 queries, blanks
+  and repeats dropped. `SlotScopePackageKeys` does the same for a slot claim's
+  resolved names. An ecosystem `packageidentity` cannot normalize yields no keys,
+  so the scope reads as unmatched rather than guessed.
+- `NVDWindowScopeID` and `ParseNVDWindowScope` mint and read
+  `vuln-intel://nvd/_window/<startMicros>-<endMicros>` (#9971). Same bounds mint
+  the same id, and degenerate bounds mint `""`. `NormalizeNVDWindowTime` is UTC
+  truncated to the millisecond, the form the coverage descriptor persists.
+
+`derivedOSVVirtualSlotCount` duplicates `workflow.OwnedPackageVirtualSlotCount`
+so this package stays free of the reducer tree behind `workflow`; a test pins the
+two together.
+
+These functions do no I/O and hold no state, so they add no telemetry of their
+own.
