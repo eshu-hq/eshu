@@ -13,7 +13,7 @@ no recorded pin. Newer tags MUST NOT be substituted without that reviewed
 update):
 
 - `github.com/eshu-hq/eshu-sdk/collector v0.2.0-rc.3`
-- `github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.13`
+- `github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.14`
 
 Pin history: proxy-verified 2026-10-24 at collector/factschema
 `v0.1.0-rc.1`; in-tree moved to standalone modules at collector `rc.3` +
@@ -37,6 +37,10 @@ via `go get`), and to factschema `rc.13` for the `vulnerability.os_package`
 `source_package` and `vulnerability.affected_package` `releases` fields
 (eshu-hq/eshu#9859; tag at `9e57ec4a90`, zip
 `h1:3jq0u0B5tGa/R76PkyEQ9kTxkFlWtk0vAGoO2zsbUJs=`, proxy-verified 2026-11-04
+via `go mod download`), and to factschema `rc.14` for the `vulnerability.cve`
+`aliases`, `related`, and `upstream` identity-edge fields (eshu-hq/eshu#9914,
+eshu-hq/eshu#9954; tag at `dd82190ef9`, zip
+`h1:1PRVEH0rlPbdCX1Bha9P2zd3B+H6c+DAnaLTPvBEY7k=`, proxy-verified 2026-11-04
 via `go mod download`).
 The extracted port
 (`eshu-collector-sbom-attestation` main, observed 2026-10-27) still builds
