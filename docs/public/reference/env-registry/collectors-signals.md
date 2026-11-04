@@ -14,6 +14,22 @@ Grafana, Prometheus/Mimir, PagerDuty, CI/CD run, security alert, SBOM, and vulne
 | `ESHU_CICD_RUN_HEARTBEAT_INTERVAL` | duration | `20s` | Claim heartbeat interval; must be less than the lease TTL. |
 | `ESHU_CICD_RUN_POLL_INTERVAL` | duration | `1s` | Poll interval for discovering targets. |
 
+## collector-document-import
+
+| Variable | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `ESHU_DOC_IMPORT_ARTIFACT_DIR` | string | — | Absolute directory of reviewed image files to drain. Required when enabled. |
+| `ESHU_DOC_IMPORT_ENABLED` | bool | `false` | Opts in to the one-shot reviewed-image OCR drain; anything but true exits 0 with zero commits. |
+| `ESHU_DOC_IMPORT_MAX_ARTIFACTS` | int | `1024` | Per-run artifact bound; must stay positive and cannot be disabled. |
+| `ESHU_DOC_IMPORT_SCOPE_PREFIX` | string | `document-import-ocr` | Scope ID prefix for drained generations. |
+| `ESHU_DOC_IMPORT_SOURCE_SYSTEM` | string | `document_import` | Source system recorded on drained scopes. |
+| `ESHU_DOC_IMPORT_TESSERACT_BINARY_PATH` | string | — | Absolute path of the pinned tesseract executable, never resolved via PATH. Required when enabled. |
+| `ESHU_DOC_IMPORT_TESSERACT_BINARY_SHA256` | string | — | Pinned hex SHA-256 of the tesseract executable. Required when enabled. |
+| `ESHU_DOC_IMPORT_TESSERACT_ENGINE_VERSION` | string | — | Reviewed tesseract release the binary must report, e.g. 5.5.0. Required when enabled. |
+| `ESHU_DOC_IMPORT_TESSERACT_LIBRARIES` | string | — | Semicolon-separated path=digest pins for the tesseract shared libraries; at least one. Required when enabled. |
+| `ESHU_DOC_IMPORT_TESSERACT_MODEL_SHA256` | string | — | Pinned hex SHA-256 of eng.traineddata. Required when enabled. |
+| `ESHU_DOC_IMPORT_TESSERACT_TESSDATA_DIR` | string | — | Absolute tessdata directory holding eng.traineddata. Required when enabled. |
+
 ## collector-grafana
 
 | Variable | Type | Default | Notes |
