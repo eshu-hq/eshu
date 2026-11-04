@@ -90,7 +90,8 @@ that is still running (the rollout-order consequence below applies equally).
 Read `last_autovacuum`, `autovacuum_count`, and the roll-time lock check below
 before any roll.
 
-Computed triggers after this change (arithmetic from the same reltuples):
+Computed triggers after this change (arithmetic from the pre-vacuum `reltuples`;
+the first vacuum moved it, see the recomputed triggers below):
 
 | Trigger | Formula | Value |
 |---|---|---|
@@ -101,33 +102,41 @@ The insert formula that scales by the unfrozen fraction (`relallfrozen`) is
 PostgreSQL 18 behavior. On PostgreSQL 13 to 17 the same arithmetic gives
 1000 + 0.05 x 102,328,592 = 5,117,430, still exceeded.
 
-Both were exceeded at the last read, but a first vacuum starts within one
+Both were exceeded at the baseline read, but a first vacuum starts within one
 `autovacuum_naptime` (60 s) of the migration landing only where the counters
 still exceed the new thresholds at apply time. On QA the default-settings
 vacuum has now run, from 09:00:52.7Z to 10:43:24.607Z on 2026-11-04. Its end
 reset the counters (`n_dead_tup` 13,333 and `n_ins_since_vacuum` 14), so a roll
-that applies 278 afterwards starts no immediate vacuum. The next 278-triggered
-vacuum is set by the rates after the first one. In the one hour after it ended,
-`n_dead_tup` rose by 189,520 (52.1 per second) and `n_ins_since_vacuum` by
-71,824 (19.7 per second). Against the 278 triggers computed above (2,046,622
-dead rows, 4,898,641 inserts, from the pre-vacuum `reltuples`), arithmetic from
-that one hour puts the dead-row trigger at 10.9 hours (2,046,622 / 52.1) and the
-insert trigger at 69 hours (4,898,641 / 19.7). The dead-row trigger is first.
-The vacuum changed `reltuples` and `relallfrozen`: the measured post-vacuum
-default triggers (dead about 19.29M, insert about 15.97M) imply a `reltuples`
-near 96M, which would lower the 278 dead-row trigger by about 6% and the insert
-trigger by about 19% (arithmetic), the same order. These rates differ from the
-baseline ones (14 to 21 dead and 47 to 80 inserts per second), so read 10.9
-hours as one hour's reading, not a steady cycle.
+that applies 278 afterwards starts no immediate vacuum. It also moved
+`pg_class` (read at 10:45Z: `reltuples` 96,428,608, `relpages` 21,350,368,
+`relallfrozen` 3,676,984), so 278's triggers on QA are no longer the ones in
+the table above. Recomputed from that dated reading:
+
+| Trigger | Formula | Default scale (0.2) | Under 278 |
+|---|---|---|---|
+| Dead rows | 50 + scale x 96,428,608 | 19,285,772 | 1,928,622 (scale 0.02) |
+| Inserts | 1000 + scale x 96,428,608 x (1 - 3,676,984 / 21,350,368) | 15,965,313 | 3,992,078 (scale 0.05) |
+
+A later autoanalyze can move `reltuples` again, so compute the triggers live
+(the read below shows how). In the hour after the end the diagnosis reports
+52.1 dead rows and 19.7 inserts per second over 3,640 s. The two counter
+readings (13,333 and 14 at 10:45:21Z; 189,520 and 71,824 at 11:44:42Z, 3,561 s
+apart) give 49.5 and 20.2 per second, because `n_dead_tup` rose by 176,187 in
+that span. On those rates (arithmetic from one hour) the dead-row trigger is
+10.3 to 10.8 hours after the end (1,928,622 divided by 52.1 and by 49.5) and the
+insert trigger 55 to 56 hours (3,992,078 divided by 19.7 and by 20.2). The
+dead-row trigger is first. These rates differ from the baseline ones (14 to 21
+dead and 47 to 80 inserts per second), so read the hours as one hour's reading,
+not a steady cycle.
 
 "Dead rows near 2% of live" is the table-wide average, not what the probe
 pays. The probe reads hot rows, which carry 28 to 71 index entries per live
 row against a table-wide dead share of about 14%. Those entries built up over
 about 94 hours, one version per 1.3 to 3.3 hours; the live-row xmin ages in
-diagnosis section 9.2 say 0.4 to 1.9 hours. A 10.9 hour cycle therefore
-rebuilds about 3 to 8 dead entries per live row on a hot row before the next
-vacuum (10.9 / 3.3 to 10.9 / 1.3), or about 6 to 27 using the xmin ages
-(10.9 / 1.9 to 10.9 / 0.4). This is arithmetic from the one-hour rate, and kill
+diagnosis section 9.2 say 0.4 to 1.9 hours. A 10.3 to 10.8 hour
+cycle therefore rebuilds about 3 to 8 dead entries per live row on a hot row
+before the next vacuum (10.3 / 3.3 to 10.8 / 1.3), or about 5 to 27 using the
+xmin ages (10.3 / 1.9 to 10.8 / 0.4). This is arithmetic from the one-hour rate, and kill
 hints should lower it by an amount nobody has measured. It means a sawtooth:
 near 1 to 2 buffers per row just after a vacuum (measured: 1.4 right after the
 first vacuum and 1.3 an hour later), climbing back toward a share of today's
@@ -200,24 +209,25 @@ is what separates them. The per-phase histogram was not read.
 One more read, shortly before the second vacuum starts: the same 10-triple
 probe plus the keyed tick gauge. It is a single read, not a soak, and it is the
 point on the sawtooth that matters. Once migration 278 has rolled, the second
-vacuum starts at whichever trigger is reached first, so key the read on
-`n_ins_since_vacuum` near 4.9M (the insert trigger, 4,898,641) or `n_dead_tup`
-near 2.05M (2,046,622), whichever comes first. The 4.9M shifts once the first
-vacuum changes `relallfrozen` and `reltuples` (20% frozen gives about 4.09M, 30%
-about 3.58M; arithmetic), so compute both live from `pg_class`: `SELECT 1000 +
-0.05 * reltuples * (1 - relallfrozen::float8 / NULLIF(relpages, 0)), 50 + 0.02 *
-reltuples FROM pg_class WHERE oid = 'fact_records'::regclass` (reviewer-run on a scratch table only, not on QA).
-Arithmetic from the one hour after the first vacuum (52.1 dead rows and 19.7
-inserts per second): the dead-row trigger comes first, about 10.9 hours after
-the vacuum ended, and the insert trigger at about 69 hours. An earlier version
-of this note said the insert trigger comes first, 17 to 29 hours after a
-completed vacuum; that used the baseline rates (14 to 21 dead and 47 to 80
-inserts per second) and does not hold at the rates measured since. The order
-depends on the rates: at 14 dead rows and 80 inserts per second the insert
-trigger would come first, at 17 hours. So key on whichever counter is nearer its
-trigger, computed live; do not assume the order. An operator who waits only for
-`n_dead_tup` near 2.05M can miss the read when inserts lead. Before 278 has
-rolled, the triggers are the server defaults and none of these figures apply.
+vacuum starts at whichever trigger is reached first. On the post-vacuum reading
+above those are `n_dead_tup` 1,928,622 and `n_ins_since_vacuum` 3,992,078. Poll
+both every 5 minutes and take the read when either is within 5% of its trigger
+(dead rows above 1.83M, inserts above 3.79M); at 52.1 dead rows per second that
+is about 31 minutes ahead. Waiting for the trigger itself misses it, since the
+worker starts within a naptime of the crossing. Compute both triggers live
+from `pg_class`, because a later autoanalyze moves them: `SELECT 1000 + 0.05 *
+reltuples * (1 - relallfrozen::float8 / NULLIF(relpages, 0)), 50 + 0.02 *
+reltuples FROM pg_class WHERE oid = 'fact_records'::regclass` (reviewer-run on a
+scratch table only, not on QA). On the one hour's rates the dead-row trigger is
+first, 10.3 to 10.8 hours after the 10:43Z end (roughly 21:00Z to 21:30Z on
+2026-11-04, if 278 has rolled by then and the rates held), and the insert
+trigger at 55 to 56 hours. An earlier version of this note said the insert
+trigger comes first, 17 to 29 hours after a completed vacuum; that used the
+baseline rates and does not hold at the rates measured since. The order depends
+on the rates: at 14 dead rows and 80 inserts per second the insert trigger would
+come first. So key on whichever counter is nearer its trigger; do not assume
+the order. Before 278 has rolled, the triggers are the server defaults and none
+of these figures apply.
 
 Local proof for the change itself (disposable PostgreSQL 18.6, migration run
 through the shipped runner): `pg_class.reloptions` for `fact_records` is empty
@@ -450,8 +460,8 @@ whole run is excluded from the #9805 closing bar.
   `pg_read_all_stats` is observed there. Which role runs a given roll check was
   not checked, and QA's grants were not read.
 - QA's counters after the 11:44Z hour readback, and whether the 52.1 dead rows
-  per second rate persists. The 10.9 hour and 69 hour figures rest on one hour.
+  per second rate persists. The 10.3 to 10.8 hour and 55 to 56 hour figures rest on one hour.
 - The second vacuum measurement is still owed. The note describes what to read
-  shortly before the second vacuum starts (`n_ins_since_vacuum` near 4.9M or
-  `n_dead_tup` near 2.05M, with the 10-triple probe and the keyed tick gauge),
+  shortly before the second vacuum starts (`n_ins_since_vacuum` near 3.99M or
+  `n_dead_tup` near 1.93M, with the 10-triple probe and the keyed tick gauge),
   but no figure from that read exists yet and none is claimed here.

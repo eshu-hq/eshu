@@ -473,7 +473,7 @@ from `relid` on are NULL (see the roll-time check below). The log line and
 
 - The lower trigger means about ten times as many index passes on the dead-row
   path: 0.20 to 0.02 of the table, which one hour of rates on one primary put at
-  10.9 hours between runs against about 103. Watch the second vacuum's cost too.
+  10.3 hours between runs against about 103. Watch the second vacuum's cost too.
 - A physical replication slot retains WAL while its replica lags. Watch the
   slot's `wal_status` and retained WAL during the first vacuum and agree a stop
   value before it starts.

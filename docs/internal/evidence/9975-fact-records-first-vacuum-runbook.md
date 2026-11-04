@@ -51,9 +51,10 @@ QA" section holds the readings and their limits.
   thresholds are still exceeded, and the review measured a new worker within
   one naptime. Which of the next two steps works depends on the counters, so
   read `n_dead_tup` and `n_ins_since_vacuum` for `fact_records` first.
-  - Below both default triggers (about 20.5M dead rows and 19.6M inserts since
-    vacuum, the figures in the main note's Performance
-    Evidence table), `ALTER TABLE fact_records RESET
+  - Below both default triggers (after the first vacuum on QA, about 19.3M dead
+    rows and 16.0M inserts since vacuum; they were 20.5M and 19.6M before it, and
+    `reltuples` moves them, so compute them live as the main note's Performance
+    Evidence section shows), `ALTER TABLE fact_records RESET
     (autovacuum_vacuum_scale_factor, autovacuum_vacuum_insert_scale_factor)`
     stops it. The ALTER cancels the running vacuum by the lock rule in the main note's "Lock and rollout"
     section and
@@ -111,11 +112,11 @@ QA" section holds the readings and their limits.
   (52.1 dead rows and 19.7 inserts per second), and each ratio assumes those
   rates persist. At the default triggers (about 19.29M dead rows and 15.97M
   inserts after the first vacuum) the dead-row path is first, at about 103
-  hours between runs. With 278's triggers (2,046,622 dead rows, 4,898,641
-  inserts) it is first at about 10.9 hours, and the insert path would take 69.
-  That is about nine to ten times as many 84 GB index passes, because the dead
-  path moves from 0.20 to 0.02 of the table, on a throttled primary,
-  indefinitely. The earlier estimates here (insert-driven, 2.8 to 4.8 days
+  hours between runs. With 278's triggers (1,928,622 dead rows, 3,992,078
+  inserts, from the 10:45Z `pg_class` reading) it is first at about 10.3 hours,
+  and the insert path would take 56. That is about ten times as many 84 GB index
+  passes, because the dead path moves from 0.20 to 0.02 of the table, on a
+  throttled primary, indefinitely. The earlier estimates here (insert-driven, 2.8 to 4.8 days
   against 17 to 29 hours, "roughly four times") used the pre-vacuum insert rates
   of 80 and 47 per second and are replaced. Read the second run's log line to
   price the steady state.
