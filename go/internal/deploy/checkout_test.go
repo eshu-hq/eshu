@@ -15,7 +15,7 @@ import (
 // match the twin pin in go/internal/runtime/deploy_checkout_test.go: both
 // helpers fail closed on any other commit, so a skew between the twins
 // surfaces as a test failure, not a silent drift.
-const expectedDeployCheckoutCommit = "6b6164d4fd95b8959284c5af0ba9a233fe032134"
+const expectedDeployCheckoutCommit = "696793e14c1fcf00a45571cfce889fe82ea15451"
 
 // deployCheckoutForContract resolves the eshu-deploy checkout the boundary
 // test reads deploy assets from. It fails closed: an absent
