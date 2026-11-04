@@ -164,13 +164,16 @@ func TestTF8875CanonicalBackendsIndexExists(t *testing.T) {
 // variables-only decoys), same two ambiguous owners from the adapter, null
 // and scalar terraform_backends rows surviving, latest-wins repository
 // local_path not fanning rows out.
-func TestTF8875CanonicalRowDifferentialLive(t *testing.T) {
-	db := openDriftJSONBNullDB(t)
+// tf8875SeedBackendsFixture seeds the full tf8875 shape (scopes,
+// generations, shaped rows, decoy bulks) and ANALYZEs fact_records so the
+// planner faces a real selectivity choice. Shared by the row differential
+// and the outer-leg plan assertion so both prove against the same shape.
+func tf8875SeedBackendsFixture(t *testing.T, db *sql.DB) {
+	t.Helper()
 	ctx := context.Background()
 	tf8875Seed(t, db)
 
 	bucket, key := "tf8875-bucket", "envs/prod.tfstate"
-	hash := expectedLocatorHash(bucket, key)
 	backendJSON := string(fixtureBackendFact("s3", bucket, key, "us-east-1"))
 
 	// Scope A: one backends row carrying variables+locals (merge shape), one
@@ -252,6 +255,15 @@ ON CONFLICT (fact_id) DO NOTHING
 	if _, err := db.ExecContext(ctx, `ANALYZE fact_records`); err != nil {
 		t.Fatalf("analyze error = %v, want nil", err)
 	}
+}
+
+func TestTF8875CanonicalRowDifferentialLive(t *testing.T) {
+	db := openDriftJSONBNullDB(t)
+	ctx := context.Background()
+
+	bucket, key := "tf8875-bucket", "envs/prod.tfstate"
+	hash := expectedLocatorHash(bucket, key)
+	tf8875SeedBackendsFixture(t, db)
 
 	// Row differential: 3 shaped rows (main/vars/locals) + 1 scope-B main +
 	// 400 variables-only decoys. The duplicated older repository fact must

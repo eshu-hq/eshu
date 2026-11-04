@@ -334,8 +334,11 @@ var migrationShippedChecksums = map[string]string{
 	// #9971: per-instance NVD rolling cursor advanced in the generation
 	// commit transaction (migration 275).
 	"275_vulnerability_nvd_window_cursor.sql": "cd43d1ee51e8c722218a41a380177695c3ebdfb60ac166d69bcdc5550e7c9ddf",
+	// #8875 round 2 S1: partial index serving the canonical
+	// terraform-backends reader's outer leg (migration 276).
+	"276_fact_records_terraform_backends_outer_leg_idx.sql": "c0bd4a5481aa15c474bbed70a12683af7c53dabcb0b242e38c88437422a9e3fa",
 	// #9879: per-target refresh progress the coordinator paces configured
-	// targets from (migration 277; 276 is reserved).
+	// targets from (migration 277).
 	"277_vulnerability_target_refresh_progress.sql": "7467eba5e1078d4ff6aa938a67f0ba9277879e98935966beed7b5a54b809ccef",
 }
 

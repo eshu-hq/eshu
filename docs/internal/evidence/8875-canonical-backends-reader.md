@@ -77,3 +77,47 @@ suites at the sensor head (`go test ./internal/telemetry/`
 emission tests included) plus `go vet ./...` and `go build ./...` clean.
 No slow-path benchmark was run because there is no slow path to compare:
 the timed statements are byte-identical before and after.
+
+## Round-2 S1: outer-leg partial index (migration 276)
+
+Performance Evidence: fixture A/B on a disposable PostgreSQL 18 database
+(same tf8875 shape: 2 scopes, 2 active generations, 3,410 file facts with
+3,400 decoys, ANALYZE before each run; probe is the byte-exact derived
+COUNT of the shipped constant; migration-273 index kept throughout;
+3 measured runs per shape):
+
+| Shape | shared buffers | exec ms |
+|---|---|---|
+| Baseline (273 only) | 1075 | 2.62 |
+| S1: partial btree on (scope, generation, repo_id expr) WHERE file/git AND 3-CASE-sum>0 | 439 (-59%) | 1.44 (-45%) |
+| S2: S1 + INCLUDE (payload) | 514 | 1.46 |
+| S3: CASE-sum expression index | 459 | 1.40 |
+
+Row counts are byte-identical across shapes (404) with both owners of the
+shared locator hash surfacing in order. S2 loses on payload bloat with no
+index-only plan (observed_at/fact_id absent); S3 matches S1 on ms but not
+on buffers. Stop rule met at S1. Fixture timings are host-specific and
+are not a deployed wall-time claim; the deployed magnitude follows the
+live attribution (outer leg re-reading ~55k heap rows per call on the
+production EXPLAIN) and the sensor week-over-week after rollout.
+
+Why safe: the served query text is byte-identical, so the row set cannot
+change; the predicate mirrors the outer filter modulo table alias
+(verified by normalized comparison in review); the build is a single
+CREATE INDEX CONCURRENTLY, rerun-safe, with rollback as a matching DROP;
+write cost is one predicate evaluation per ingested file fact with
+entries only for rows the outer leg can return. Exactness is gated by
+the RED-to-green differential plus the pg_indexes assertion, both green
+against a fully migrated disposable database.
+
+No-Regression Evidence: the committed differential
+(TestTF8875CanonicalOuterLegExactnessDifferential) plus the row
+differential (TestTF8875CanonicalRowDifferentialLive, count 404 and
+2-owner order) run green DSN-backed; the hermetic derivation guards
+run green everywhere. No query constant changes, so no plan shape can
+regress except toward the new index.
+
+No-Observability-Change: S1 adds no signal. The existing
+eshu_dp_terraform_backend_canonical_read_duration_seconds histogram
+covers the reader; the week-over-week sensor comparison after deploy
+is the production confirmation.
