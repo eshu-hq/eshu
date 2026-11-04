@@ -35,7 +35,10 @@ changing anything here.
   one call site and the projector spelling equal to `PayloadKeyTrigger` /
   `TriggerManifestDependency`; any implementer of `SupplyChainImpactFanOut`
   must also implement `FindPackageHolderCandidates`, and the production port
-  must implement `ManifestDependencyGenerationReader`.
+  must implement `ManifestDependencyGenerationReader` (generation read plus the
+  lease-fenced `RecordManifestTriggerCompleted` stamp). Stamp only when no
+  holder is left on the continuation list or nothing changed; the next marker
+  pass of the scope diffs from the newest stamped generation.
 - New exports are join contracts other families program against. Name them
   for what they return, document who reads them, and keep the bodies
   cut-paste identical to what they replace.

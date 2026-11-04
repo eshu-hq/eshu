@@ -100,9 +100,11 @@ scores: correct, at the cost of one holder pass each.
 
 A git generation that changes a manifest or lockfile holds none of the twelve
 projector trigger kinds, so before #9874 a new or removed pin waited for an
-advisory scope to rerun. The projector now enqueues one marker intent for such a
-generation (payload `trigger: manifest_dependency`, entity key
-`supply_chain_impact:<scope>`, so a 500-pin push is one intent). `Handle` sends
+advisory scope to rerun. The projector now enqueues one marker intent for every
+git generation without one of those kinds (payload `trigger: manifest_dependency`,
+entity key `supply_chain_impact:<scope>`, so a 500-pin push is one intent; a
+generation that changed no dependency costs one marker pass that reopens
+nothing). `Handle` sends
 it to `handleManifestTrigger` before the fencing token and the evidence load
 (`manifest_trigger.go`). The marker pass writes no findings. It:
 
@@ -117,12 +119,17 @@ it to `handleManifestTrigger` before the fencing token and the evidence load
    out; superseded, reachable only when a newer generation activates in the
    gap, succeeds without work; pending is a defensive arm for a runtime without
    the guard and returns the same `generation_activation_not_ready` error.
-2. Re-derives the changed packages from the generation's own dependency rows
-   (`manifest_change.go`): with no activated prior, every pin; otherwise the
-   symmetric difference of dependency signatures against the prior view, a delta
-   compared on its touched paths only. A prior delta is read as its base
-   overlaid with its own rows (`facts.OverlayDeltaBase`). Tombstoned rows always
-   count.
+2. Re-derives the changed packages over the activated chain
+   (`manifest_change.go`, arbiter ruling D2/D3). The baseline W is the newest
+   activated prior whose marker item carries `manifest_trigger_completed`
+   (status irrelevant), so a marker the runtime skipped or a claim sweep
+   superseded is diffed through, not trusted. A package key is changed when its
+   dependency-signature set is not identical in every generation of
+   [W .. current]; every view is base-overlaid, current included. With no
+   stamped W, every pin of the chain counts; over the 32-generation cap or with
+   a pruned W, every current pin counts (`manifest_trigger_baseline_degraded`);
+   a pruned intermediate is skipped (`manifest_trigger_chain_pruned`).
+   Tombstoned rows always count.
 3. Reads the active `vulnerability.affected_package` identities in those
    ecosystems (`FindPackageHolderCandidates`) and keeps the scopes whose
    identity shares a consumption key with a changed dependency, the findings
@@ -131,6 +138,11 @@ it to `handleManifestTrigger` before the fencing token and the evidence load
    as the CVE fan-out, under `cause="manifest_dependency"`. A reopened holder
    re-derives its findings from the current manifest rows, which adds,
    re-scores, or retracts the finding.
+5. Stamps its own item with `manifest_trigger_completed` through a
+   lease-fenced UPDATE (ruling D1) on the claim that leaves no holder behind, or
+   on a no-change pass; never on a first chunk, a superseded pass, or a
+   deferral. `ReopenHolder` keeps the stamp, because it rewrites only the
+   origin key.
 
 A marker item reopened by another pass's fan-out is not a one-hop no-op: its
 re-derivation is the holder fan-out, so it re-reads the generation and reopens
@@ -140,12 +152,15 @@ fans out nothing.
 Not reopened: security alert scopes. They build findings from manifest
 consumptions too (`appendSecurityAlertImpactFindings`), but the holder read
 covers only `vulnerability.affected_package` facts, so an alert finding whose
-matched pin changed waits for that alert scope's next generation.
+matched pin changed waits for that alert scope's next generation. Tracked in
+#10061.
 
-Known limit: when the prior generation is a delta whose base cannot be read
-(missing, pruned, or a legacy delta), the prior view is the delta's own rows,
-so a pin that only the base held looks never-present and its removal is not
-fanned out. Its finding stays until that package's advisory scope reruns. The
-pass reports `manifest_trigger_prior_base_missing=1`, and
-`TestManifestTriggerKnownLimitPriorDeltaWithMissingBase` pins the behavior.
+Known limit: when a delta in the diffed chain has a base that cannot be read
+(missing, pruned, or a legacy delta), its view is the delta's own rows, so a
+pin that only the base held looks never-present and its removal is not fanned
+out. Its finding stays until that package's advisory scope reruns. The pass
+logs `sub_signal_manifest_trigger_prior_base_missing=1` on the reducer success
+line, and `TestManifestTriggerKnownLimitPriorDeltaWithMissingBase` pins the
+behavior. A degraded pass misses removals the same way. The repository-keyed
+reopen that closes both is tracked in #10059.
 Evidence: `docs/internal/evidence/9874-lockfile-retrigger.md`.

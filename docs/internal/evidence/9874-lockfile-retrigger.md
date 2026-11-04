@@ -16,9 +16,9 @@ this change; see "Not checked".
 
 | Layer | Change |
 | --- | --- |
-| Projector | `manifest_trigger.go`: when none of the twelve trigger kinds is present, the earliest git dependency row (content_entity Variable, `config_kind` dependency, source git, not a central version declaration, tombstones included) yields one intent keyed `supply_chain_impact:<scope>` with payload `trigger: manifest_dependency`. |
+| Projector | `manifest_trigger.go`: when none of the twelve trigger kinds is present, every git generation (one holding a git repository fact, delta or full; ruling F2) yields one intent keyed `supply_chain_impact:<scope>` with payload `trigger: manifest_dependency`, anchored on its earliest git dependency row (content_entity Variable, `config_kind` dependency, source git, not a central version declaration, tombstones included) or else on its repository fact. |
 | Reducer | `impact.go` gets one early-return call site before the fencing token; `fanout.go` gets the `manifest_dependency` cause and the `FindPackageHolderCandidates` port method. The branch is in `manifest_trigger.go` and `manifest_change.go`. |
-| Storage | `supply_chain_impact_package_holders.go` (holder read) and `supply_chain_impact_manifest_generation.go` (activation gate plus generation reads), both on `SupplyChainImpactFanOutStore`. No migration, no new index. |
+| Storage | `supply_chain_impact_package_holders.go` (holder read), `supply_chain_impact_manifest_generation.go` (activation gate, watermark, chain and view reads) and `supply_chain_impact_manifest_stamp.go` (the lease-fenced completion stamp), all on `SupplyChainImpactFanOutStore`. No migration, no new index. |
 
 The branch: (1) runs only for an active generation: under the default runtime
 `Runtime.GenerationCheck` defers a pending generation before Handle with the
@@ -26,18 +26,28 @@ shared non-counting `generation_activation_not_ready` class and skips a
 superseded one, and the branch re-checks with the same freshness check
 (superseded, reachable only in the activation race, succeeds with no work;
 pending is a defensive arm for a runtime without the guard and returns the
-same shared error); (2) derives changed packages as the
-symmetric difference of dependency signatures against the newest activated
-prior generation, comparing a delta on its touched paths only and reading a
-prior delta as its base overlaid with its own rows; a dependency's signature is
-every field it carries except `FactID` and `ObservedAt`, so a scope or
-direct/transitive flip at the same version counts; tombstoned rows always
-count; (3) reads the active `vulnerability.affected_package` identities whose
+same shared error); (2) derives changed packages over the activated chain
+(arbiter ruling D2/D3): the baseline W is the newest activated prior whose
+marker item carries the completion stamp `manifest_trigger_completed`
+(whatever the item's status), and a package key is changed when its set of
+dependency signatures is not identical in every generation of [W .. current].
+Every view is base-overlaid (`facts.OverlayDeltaBase`), current included, so a
+delta that reverts a path to base content is caught. The chain is capped at 32
+generations; over the cap or with a pruned W every current pin counts
+(`manifest_trigger_baseline_degraded`), and a pruned intermediate is skipped
+(`manifest_trigger_chain_pruned`). With no stamped W, every pin in any view of
+the chain counts. A dependency's signature is every field it carries except
+`FactID` and `ObservedAt`, so a scope or direct/transitive flip at the same
+version counts; tombstoned rows always count; (3) reads the active `vulnerability.affected_package` identities whose
 stored ecosystem spelling is any alias of those ecosystems
 (`packageidentity.EcosystemAliases`; GitLab Gemnasium stores raw slugs such as
 `go` and `gem`) and keeps the scopes that share a consumption key with a
 changed dependency, using the findings pass's own join; (4) reopens them with
-the existing cap (256) and continuation list.
+the existing cap (256) and continuation list; (5) stamps its own item with
+`manifest_trigger_completed {at, baseline_generation_id}` through a
+lease-fenced UPDATE (ruling D1), only on the claim that leaves no holder behind
+or on a no-change pass, never on a first chunk, a superseded pass or a
+deferral. A failed stamp fails the pass retryably.
 
 ## Decision, threshold, deadline (stated before the probe)
 
@@ -132,18 +142,32 @@ arbiter.
 
 ## Intent volume at 1x, 5x, 10x
 
-Extra marker intents per day equal the git generations per day whose own facts
-hold at least one dependency row (a delta that touched a manifest, or any full
-generation of a repository with dependencies). A delta's #7797 union base rows
-never count: the projector hands intent builders only the generation's own
-facts (`generationOwnedFacts`), which
-`TestBuildProjectionSkipsSupplyChainImpactForDeltaThatTouchedNoManifest` pins. That QA figure is unknown; lane 1
-was asked for a seven-day readback. The fan-out bound is per generation, not
-per pin: a 500-pin push is one intent
+Ruling F2 raises one marker for every git generation that holds none of the
+twelve trigger kinds, so extra marker intents per day equal the git
+generations per day (QA figure unknown; lane 1 was asked for a seven-day
+readback). A delta's #7797 union base rows never anchor the marker: the
+projector hands intent builders only the generation's own facts
+(`generationOwnedFacts`), and a code-only delta anchors on its own repository
+fact (`TestBuildProjectionQueuesOneMarkerForDeltaThatTouchedNoManifest`). The
+fan-out bound is per generation, not per pin: a 500-pin push is one intent
 (`TestBuildProjectionQueuesOneSupplyChainImpactForGitManifestChange`) and one
-holder read. Per marker pass, measured on the synthetic data above (holder
-read: first-probe medians at 1x and 5x with 1,100 scopes; the 10x row is the
-re-measured shipped query on both seeds):
+holder read.
+
+Most markers change nothing. A no-change marker pass, measured on the probe
+database (a 3,000-entity git generation with 428 dependency rows whose stamped
+baseline is identical, 1.7M fact rows in the table, host load 7 to 13, 15
+runs): 15 statements in the read transaction (BEGIN, read-only and timeout
+settings, the freshness check, four current-view reads, the watermark, the
+chain, a retention probe, four baseline-view reads) plus the one stamp UPDATE;
+19.0 to 75.7 ms, median 26.0 ms, including payload decode and the diff in Go.
+No holder read runs when nothing changed. Daily no-change cost is therefore
+about G x 26 ms of reducer time and 16 statements, where G is git generations
+per day.
+
+A marker pass that changes packages adds the holder read and the reopens,
+measured on the synthetic data above (holder read: first-probe medians at 1x
+and 5x with 1,100 scopes; the 10x row is the re-measured shipped query on both
+seeds):
 
 | Census scale | Holder read (median) | Generation reads | Reopens |
 | --- | --- | --- | --- |
@@ -154,8 +178,12 @@ re-measured shipped query on both seeds):
 H is the number of advisory scopes holding a changed package. Each reopened
 holder then runs one ordinary `supply_chain_impact` pass; that downstream cost
 dominates and is the QA `supply_chain_impact` handler duration, which is not
-measured here. A full re-index of a repository with no dependency change
-compares equal to its prior and enqueues no reopen.
+measured here. The lane lead accepted the holder read (F6): the 46.6 ms median
+passes the 50 ms bound set for the QA census of 1.1k to 5k affected rows, the
+65.3 ms median at 20,601 scopes misses it, and it runs once per changed-key
+marker pass under the 10 s timeout, not per request. If QA volumes land near
+the larger seed, the escape hatch is a lane 3 migration (278 or later) that
+anchors affected_package by folded ecosystem; no migration now.
 
 ## Concurrency and replay
 
@@ -168,6 +196,13 @@ compares equal to its prior and enqueues no reopen.
 - A fan-out reopen of a marker item re-derives (it re-reads the generation and
   reopens holders) rather than being treated as a one-hop no-op; it terminates
   because a holder pass that changes nothing fans out nothing.
+- Completion stamp: lease-fenced (`TestManifestStampIsLeaseFencedLive`),
+  kept by `ReopenHolder` (`TestManifestStampSurvivesReopenHolderLive`), and
+  re-derived and re-written on redelivery
+  (`TestManifestChainRedeliveryAfterAStampRederives`). A marker skipped by the
+  runtime guard or superseded by a claim sweep is never stamped, so the next
+  pass diffs through it (`TestManifestWatermarkSkipsUnstampedPriorsLive`,
+  `TestManifestChainEndToEndRuntimeSkipLive`).
 - Pending generation: deferred by the runtime's generation guard before the
   handler, under the shared non-counting `generation_activation_not_ready`
   class, until the generation activates or turns terminal (then the runtime
@@ -176,16 +211,20 @@ compares equal to its prior and enqueues no reopen.
 
 ## Known gap (correctness)
 
-When the prior generation is a delta whose base cannot be read (missing,
-pruned, or a legacy delta without a baseline), the prior view is the delta's
-own rows. A pin that only the base held then looks never-present, so its
-removal is not fanned out and **the finding for the removed package stays
-visible until that package's advisory scope reruns** (today's pre-#9874
-behavior for that one case). The pass reports
-`manifest_trigger_prior_base_missing=1`.
+When a delta in the diffed chain has a base that cannot be read (missing,
+pruned, or a legacy delta without a baseline), its view is the delta's own
+rows. A pin that only the base held then looks never-present, so its removal
+is not fanned out and **the finding for the removed package stays visible
+until that package's advisory scope reruns** (today's pre-#9874 behavior for
+that one case). The pass logs it as the result sub-signal
+`sub_signal_manifest_trigger_prior_base_missing=1` on the reducer's success
+log line (a log field, not a metric).
 `TestManifestTriggerKnownLimitPriorDeltaWithMissingBase` pins the behavior and
-fails if the gap closes. A prior whose facts retention pruned counts as no
-prior, so every current pin fans out and a removal is likewise missed.
+fails if the gap closes. A degraded pass (chain over the cap, or a baseline
+whose facts retention pruned) fans out every current pin, so a removal in that
+window is likewise missed (`sub_signal_manifest_trigger_baseline_degraded=1`).
+The repository-keyed reopen that closes both is tracked in the follow-up issue
+#10059.
 
 ## Holders this change does not reopen (F7)
 
@@ -196,6 +235,13 @@ repository's manifest rows), and they are not reopened by a manifest change:
 an alert finding whose matched pin changed keeps its old version or status
 until that alert scope's own next generation. Provider alert scopes usually
 re-collect after a lockfile push, but nothing in this change guarantees it.
+Tracked in #10061.
+
+## Related hazards
+
+- #10060: a CVE-keyed fan-out continuation list can be stranded when its item's
+  generation is superseded (lane 1's fan-out files, not changed here). The
+  marker's own continuation drain has the same shape and the same exposure.
 
 ## Telemetry
 
@@ -208,7 +254,10 @@ fan-out` log line; a not-yet-active marker is the runtime's
 `eshu_dp_reducer_retry_surge_total{failure_class}`); result sub-signals
 `manifest_trigger`, `manifest_trigger_changed_packages`,
 `manifest_trigger_delta_paths`, `manifest_trigger_prior_base_missing`,
-`manifest_trigger_superseded`. No new instrument.
+`manifest_trigger_baseline_degraded`, `manifest_trigger_chain_pruned`,
+`manifest_trigger_views`, `manifest_trigger_completed`,
+`manifest_trigger_superseded`, logged as `sub_signal_<name>` fields on the
+reducer success log. No new instrument.
 
 Performance Evidence: holder-read and generation-read figures above (synthetic,
 PG 18.6, scratch database); predicate microbenchmark above.
