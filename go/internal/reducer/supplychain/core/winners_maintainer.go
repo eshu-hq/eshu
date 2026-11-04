@@ -96,7 +96,7 @@ type SupplyChainImpactWinnersResweep struct {
 	// whose owner is a database trigger (activation, operator, scanner). A
 	// trigger cannot emit a Go metric, so the maintainer counts them when it
 	// consumes them. fact_upsert and fact_retract are counted by their writers
-	// at capture time, and audit by the audit, so none of them is here.
+	// once the writer's transaction commits, and audit by the audit, so none of them is here.
 	TriggerCaptured WinnersTriggerCaptured
 }
 

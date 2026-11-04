@@ -16,10 +16,11 @@ import (
 // Three capture owners append rows in the transaction that makes the change:
 //
 //   - fact_upsert: CaptureWinnersDirtyFacts, called by the impact finding writer
-//     for every new or content-changed finding. The writer counts the rows it
-//     appended at capture time.
+//     for every new or content-changed finding. The transaction holds the rows
+//     it appended and counts them when it commits.
 //   - fact_retract: the retract statement's own INSERT (writer_retract.go). The
-//     writer counts that statement's affected rows at capture time.
+//     transaction holds that statement's affected rows and counts them when it
+//     commits.
 //   - activation, operator and scanner: the triggers of migrations 272 and 272a, on
 //     ingestion_scopes.active_generation_id and the two scanner tables. A
 //     trigger cannot emit a Go metric, so the maintainer counts these sources
@@ -31,7 +32,8 @@ import (
 // CaptureWinnersDirtyFacts appends the identifiers of the findings this
 // transaction wrote to the winners dirty log, in the same transaction, so the
 // log row commits or rolls back with the finding it names. It returns the rows
-// appended and counts them under source fact_upsert.
+// appended and holds them to count under source fact_upsert once the
+// transaction commits.
 func (t *supplyChainImpactTx) CaptureWinnersDirtyFacts(
 	ctx context.Context,
 	identifiers []supplychaincore.WinnersDirtyIdentifier,
@@ -56,12 +58,45 @@ func (t *supplyChainImpactTx) CaptureWinnersDirtyFacts(
 	return rows, nil
 }
 
-// RecordWinnersCapture counts rows a statement of this transaction appended to
-// the winners dirty log under source. It is a no-op without instruments. The
-// count is recorded when the statement returns, before the transaction ends: a
-// rollback after it (a failed publish or final write) leaves the counter ahead
-// of the log by that attempt's rows. The public telemetry page says so; the
-// writer retries the whole pass, so the skew is bounded by the retries.
+// RecordWinnersCapture holds the rows a statement of this transaction appended
+// to the winners dirty log under source, and counts them when the transaction
+// commits. A rollback, or a commit that fails, discards them: the log rows
+// vanish with the transaction, and the counter must match the rows that exist
+// (#9957). A zero count holds nothing. Without instruments it holds nothing.
+// The transaction is used by one writer goroutine, so the hold needs no lock.
 func (t *supplyChainImpactTx) RecordWinnersCapture(ctx context.Context, source string, rows int64) {
-	t.instruments.RecordSupplyChainImpactWinnersCapture(ctx, source, rows)
+	if t.instruments == nil || rows <= 0 {
+		return
+	}
+	if t.pendingCapture == nil {
+		t.pendingCapture = make(map[string]int64, 2)
+	}
+	t.pendingCapture[source] += rows
+	t.captureCtx = context.WithoutCancel(ctx)
+}
+
+// Commit commits the transaction and, only if the commit succeeds, counts the
+// capture rows it held.
+func (t *supplyChainImpactTx) Commit() error {
+	err := t.tx.Commit()
+	if err == nil {
+		t.flushCapture()
+	} else {
+		t.pendingCapture = nil
+	}
+	return err
+}
+
+// Rollback rolls the transaction back and discards the capture rows it held.
+func (t *supplyChainImpactTx) Rollback() error {
+	t.pendingCapture = nil
+	return t.tx.Rollback()
+}
+
+// flushCapture counts the held capture rows and clears them.
+func (t *supplyChainImpactTx) flushCapture() {
+	for source, rows := range t.pendingCapture {
+		t.instruments.RecordSupplyChainImpactWinnersCapture(t.captureCtx, source, rows)
+	}
+	t.pendingCapture = nil
 }
