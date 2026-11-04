@@ -4,7 +4,7 @@
 package impact
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #9873 disposable PostgreSQL 18 proof of the winners-sourced grouped inventory (service_id, workload_id, environment): a two-service finding counts in both buckets, unmapped findings land in the unattributed bucket, each bucket equals the count route for filter=X (including the workload entity_keys leg and a BTRIM-ed environment), a repository grant hides an ungranted-only service and marks a partly hidden service partial, operator suppression expiry is evaluated at read time, ordering and truncation keep the whole-set distinct count, and an absent watermark or an off gate answers the typed unavailable error; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in
+//eshu:readiness:reason #9873 disposable PostgreSQL 18 proof of the winners-sourced grouped inventory (service_id, workload_id, environment): a two-service finding counts in both buckets, unmapped findings land in the unattributed bucket, each bucket equals the count route for filter=X (including the workload entity_keys leg and a BTRIM-ed environment), a repository grant and a scope-id-only grant each hide an ungranted-only service and mark a partly hidden service partial, a central catalog scope grant keeps count parity, operator suppression expiry is evaluated at read time, ordering and truncation keep the whole-set distinct count, and an absent watermark or an off gate answers the typed unavailable error; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in
 //eshu:readiness:env ESHU_GROUPED_INVENTORY_PROOF_DISPOSABLE ESHU_GROUPED_INVENTORY_PROOF_DSN
 
 import (
@@ -191,6 +191,65 @@ func TestGroupedInventoryStoreWinnersLive(t *testing.T) {
 		}
 	})
 
+	t.Run("scope-id grant hides ungranted services and marks spanning buckets partial", func(t *testing.T) {
+		scoped := precise
+		scoped.AllowedScopeIDs = []string{"git-repository-scope:repository:r1", "git-repository-scope:repository:r2"}
+		page := read(t, store, scoped, GroupedInventoryByService, 50)
+		assertGroupedLiveCounts(t, groupedLiveCounts(page), map[string]int{"service:a": 3, "service:b": 2})
+		if got := groupedLiveRow(t, page, "service:a").Completeness; got != GroupCompletenessPartial {
+			t.Fatalf("service:a completeness = %q, want partial (repository:r6's scope is outside the grant)", got)
+		}
+		if got := groupedLiveRow(t, page, "service:b").Completeness; got != GroupCompletenessComplete {
+			t.Fatalf("service:b completeness = %q, want complete", got)
+		}
+		if page.DistinctFindings != total(t, scoped) {
+			t.Fatalf("scope-granted DistinctFindings = %d, count route = %d", page.DistinctFindings, total(t, scoped))
+		}
+		for _, row := range page.Rows {
+			filter := scoped
+			filter.ServiceID = row.Value
+			if want := total(t, filter); row.Count != want {
+				t.Fatalf("scope-granted bucket %s = %d, count route = %d", row.Value, row.Count, want)
+			}
+		}
+	})
+
+	t.Run("central catalog scope grant marks finding-level hides partial", func(t *testing.T) {
+		seedGroupedInventoryCentralCatalogLive(t, ctx, database)
+		if err := storagepostgres.NewSupplyChainImpactWinnersStore(storagepostgres.SQLDB{DB: database}).
+			RebuildAllWinners(ctx, time.Now().UTC()); err != nil {
+			t.Fatalf("RebuildAllWinners: %v", err)
+		}
+		scoped := precise
+		scoped.AllowedScopeIDs = []string{"catalog:central", "git-repository-scope:repository:r7"}
+		page := read(t, store, scoped, GroupedInventoryByService, 50)
+		e := groupedLiveRow(t, page, "service:e")
+		filter := scoped
+		filter.ServiceID = "service:e"
+		if e.Count != 1 || e.Count != total(t, filter) {
+			t.Fatalf("service:e = %d, count route = %d, want 1 (repository:r8's finding scope is not granted)", e.Count, total(t, filter))
+		}
+		// Both repositories are granted through the catalog scope, so no map
+		// row is hidden; repository:r8's finding is hidden by its own scope,
+		// and that finding-level hide must still read partial.
+		if e.Completeness != GroupCompletenessPartial {
+			t.Fatalf("service:e completeness = %q, want partial: the grant hides repository:r8's finding", e.Completeness)
+		}
+		if e.MaxPriorityScore != 65 || e.ByImpactStatus["affected_exact"] != 1 {
+			t.Fatalf("service:e = %#v, want only the granted finding f8 in its breakdowns", e)
+		}
+		if page.DistinctFindings != total(t, scoped) {
+			t.Fatalf("central catalog DistinctFindings = %d, count route = %d", page.DistinctFindings, total(t, scoped))
+		}
+		onlyHidden := precise
+		onlyHidden.AllowedScopeIDs = []string{"catalog:central"}
+		hiddenPage := read(t, store, onlyHidden, GroupedInventoryByService, 50)
+		if len(hiddenPage.Rows) != 0 || hiddenPage.DistinctFindings != 0 {
+			t.Fatalf("catalog-only grant page = %v (distinct %d), want no bucket: no granted finding maps to service:e",
+				groupedLiveCounts(hiddenPage), hiddenPage.DistinctFindings)
+		}
+	})
+
 	t.Run("gate off and absent watermark answer the typed error", func(t *testing.T) {
 		off := PostgresGroupedInventoryStore{DB: database}
 		if _, err := off.SupplyChainImpactGroupedInventory(ctx, precise, GroupedInventoryByService, 10, 0); !errors.Is(err, ErrGroupedInventoryReadModelUnavailable) {
@@ -359,4 +418,23 @@ VALUES ($1, $2, $3, $4, $1, '1.0.0', 'synthetic', 1, 'observed', 'synthetic', $1
 		factID, scopeID, generationID, kind, string(body)); err != nil {
 		t.Fatalf("insert fact %s: %v", factID, err)
 	}
+}
+
+// seedGroupedInventoryCentralCatalogLive adds a central catalog scope whose
+// facts map repository:r7 and repository:r8 to service:e, with one finding in
+// each repository's own scope.
+func seedGroupedInventoryCentralCatalogLive(t *testing.T, ctx context.Context, database *sql.DB) {
+	t.Helper()
+	for _, repo := range []string{"r7", "r8"} {
+		groupedLiveScope(t, ctx, database, "git-repository-scope:repository:"+repo, "gen:"+repo)
+	}
+	groupedLiveScope(t, ctx, database, "catalog:central", "gen:catalog")
+	for _, repo := range []string{"r7", "r8"} {
+		groupedLiveFact(t, ctx, database, "central:"+repo, "catalog:central", "gen:catalog", serviceCatalogCorrelationFactKind,
+			map[string]any{"service_id": "service:e", "repository_id": "repository:" + repo, "outcome": "exact"})
+	}
+	groupedLiveFact(t, ctx, database, "finding:f8", "git-repository-scope:repository:r7", "gen:r7", FindingFactKind,
+		groupedLiveFindingPayload("f8", "r7", 65, 6.5))
+	groupedLiveFact(t, ctx, database, "finding:f9", "git-repository-scope:repository:r8", "gen:r8", FindingFactKind,
+		groupedLiveFindingPayload("f9", "r8", 64, 6.4))
 }

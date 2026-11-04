@@ -27,7 +27,13 @@ facts per finding: the winners row already carries the overlaid
   the aggregate does) and every aggregate filter on the same argument order
   (`$1..$17`). The suppression filters use the effective decision state at
   `$20`, the single UTC read clock. The grant (`$18`, `$19`) applies to
-  `repository_id` and `winner_scope_id`.
+  `repository_id` and `winner_scope_id`. An unscoped request drops nothing
+  by grant. A scoped request (either grant array non-empty) uses a separate
+  query variant: it keeps the pre-grant filtered set and carries a
+  per-finding `granted` flag (`COALESCE(..., FALSE)`), so counts, breakdowns,
+  `max_priority_score`, and `distinct_findings` read only granted findings
+  while the ungranted ones only mark their buckets partial. The unscoped SQL
+  text is byte-identical to the version before this change.
 - **Composition.** The shared runtime-filter CTE and predicate are included,
   so `group_by=environment&service_id=X` keeps AND semantics.
 - **Repository-to-group map.** It uses the same fact kinds, active-generation
@@ -47,7 +53,7 @@ facts per finding: the winners row already carries the overlaid
 
   | Case | Completeness | `missing_evidence` |
   | --- | --- | --- |
-  | The bucket's map holds a repository the grant hides | `partial` | none (the reason is not disclosed) |
+  | Scoped: the grant hides one of the bucket's map rows, or a finding on a repository the bucket maps to | `partial` | none (the reason is not disclosed) |
   | Watermark older than 2 minutes, or the probe failed | `read_model_unavailable` | `readiness_unavailable` |
   | Unattributed bucket | `unattributed`, always | the dimension's mapping reason |
   | Otherwise | `complete` | none |
@@ -105,6 +111,15 @@ production bootstrap and winners from `RebuildAllWinners`. It covers:
 - composition by service;
 - a repository grant hiding the ungranted-only `service:c`, and marking
   `service:a` partial because `repository:r6` is outside the grant;
+- the same with a scope-id-only grant, with every bucket equal to the count
+  route;
+- a grant on a central catalog scope that maps `repository:r7` and
+  `repository:r8` to `service:e`, with r8's finding in an ungranted scope.
+  The bucket counts only r7's finding (equal to the count route) and reads
+  `partial`. A grant on the catalog scope alone yields no bucket at all,
+  because no granted finding maps to `service:e`. Before the scoped variant,
+  this case read `complete` (the map rows were all granted); disabling the
+  finding-level clause brings that back and fails the subtest;
 - read-time expiry of an operator suppression, with `IncludeSuppressed` and a
   later clock, matched by the count route on the same clock;
 - ordering and truncation, with whole-set `DistinctFindings` on a truncated
@@ -196,6 +211,26 @@ lane scratchpad, not committed):
 The 5x `EXPLAIN ANALYZE` of the slowest case (environment, comprehensive,
 unscoped) took 706 ms, with shared hit 22,716, read 2,509, and temp written
 1,072 pages.
+
+Scoped path after the finding-level partial change (second run, same seed and
+host, after a fresh 5x seed; load average 6 to 8). The shim grant mixes
+repository ids and scope ids. The distinct counts equal the first run's
+(4,476 precise, 9,337 comprehensive), so the granted counts did not move.
+
+| Scoped case | p50 | max | EXPLAIN ANALYZE | buckets | distinct |
+| --- | --- | --- | --- | --- | --- |
+| service, precise | 212 | 218 | 203 | 101 | 4,476 |
+| service, comprehensive | 177 | 195 | 219 | 101 | 9,337 |
+| workload, precise | 202 | 202 | 173 | 31 | 4,476 |
+| workload, comprehensive | 238 | 286 | 267 | 31 | 9,337 |
+| environment, precise | 285 | 365 | 291 | 7 | 4,476 |
+| environment, comprehensive | 403 | 412 | 358 | 7 | 9,337 |
+
+The scoped path now scans the whole pre-grant filtered set (43,664 precise,
+90,981 comprehensive winners at 5x) instead of the granted slice. Its worst
+case is 412 ms max, under the 1.5 s threshold. The fan-out join stays a Hash
+Left Join in every scoped plan. The slowest scoped plan wrote 1,083 temp pages
+(shared hit 23,866, read 1,366).
 
 Not checked: 10x, cold cache, `__PROTECTED_READS__` mode (static winners only,
 so the marker is substituted closed), and real QA volumes.

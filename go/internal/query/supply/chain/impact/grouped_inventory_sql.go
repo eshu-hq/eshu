@@ -3,7 +3,10 @@
 
 package impact
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // groupedInventoryArgCount is the bound-parameter count of every grouped
 // inventory query: the twenty aggregate filter arguments in the aggregate
@@ -266,14 +269,98 @@ ORDER BY page.max_priority DESC, page.bucket_count DESC, page.bucket ASC`
 // are blank. The protected-reads marker is substituted closed (FALSE), as the
 // aggregate composition does.
 func groupedInventoryQuery(dimension GroupedInventoryDimension) (string, error) {
+	return groupedInventoryBuildQuery(dimension, groupedInventoryFindingsCTE, groupedInventoryTailSQL)
+}
+
+func groupedInventoryBuildQuery(dimension GroupedInventoryDimension, findingsCTE, tail string) (string, error) {
 	mapRows, err := groupedInventoryMapRowsSQL(dimension)
 	if err != nil {
 		return "", err
 	}
 	query := `
 WITH ` + supplyChainImpactRuntimeFilterCTE("$8", "$9", "$10", "$18", "$19") + `,` +
-		groupedInventoryFindingsCTE + `,
+		findingsCTE + `,
 grouped_map_rows AS MATERIALIZED (` + mapRows + `
-)` + groupedInventoryTailSQL
+)` + tail
 	return supplyChainImpactReadModeSQL(query, false), nil
+}
+
+// groupedInventoryMustReplace replaces exactly one occurrence of old in text.
+// It panics at package init when the unscoped text drifts, so the scoped
+// variant can never be built from a shape it was not written against.
+func groupedInventoryMustReplace(text, old, replacement string) string {
+	if strings.Count(text, old) != 1 {
+		panic(fmt.Sprintf("grouped inventory scoped SQL: expected one %q", old))
+	}
+	return strings.Replace(text, old, replacement, 1)
+}
+
+// groupedInventoryScopedFindingsCTE keeps the pre-grant filtered finding set
+// and carries a per-finding granted flag instead of dropping ungranted
+// findings in WHERE. Counts read only granted findings, so they keep parity
+// with the count route; the ungranted ones only mark their buckets partial.
+var groupedInventoryScopedFindingsCTE = groupedInventoryMustReplace(
+	groupedInventoryMustReplace(
+		groupedInventoryFindingsCTE,
+		`         w.priority_score
+  FROM supply_chain_impact_canonical_winners AS w`,
+		`         w.priority_score,
+         COALESCE(`+groupedInventoryGrantSQL("w.repository_id", "w.winner_scope_id")+`, FALSE) AS granted
+  FROM supply_chain_impact_canonical_winners AS w`,
+	),
+	`
+    AND `+groupedInventoryGrantSQL("w.repository_id", "w.winner_scope_id")+`
+)`,
+	`
+)`,
+)
+
+// groupedInventoryScopedTailSQL counts only granted findings and marks a
+// bucket partial when the grant hides one of its map rows or any finding on a
+// repository the bucket maps to. A bucket still appears only when it has at
+// least one granted finding, and partial is a boolean that discloses nothing
+// about the hidden findings.
+var groupedInventoryScopedTailSQL = groupedInventoryMustReplace(
+	groupedInventoryMustReplace(
+		groupedInventoryMustReplace(
+			groupedInventoryTailSQL,
+			`grouped_hidden AS MATERIALIZED (
+  SELECT DISTINCT hidden_map.dim_id
+  FROM grouped_map AS hidden_map
+  WHERE NOT hidden_map.granted
+),`,
+			`grouped_hidden_repositories AS MATERIALIZED (
+  SELECT DISTINCT hidden_finding.repository_id
+  FROM grouped_findings AS hidden_finding
+  WHERE NOT hidden_finding.granted
+),
+grouped_hidden AS MATERIALIZED (
+  SELECT DISTINCT hidden_map.dim_id
+  FROM grouped_map AS hidden_map
+  WHERE NOT hidden_map.granted
+     OR EXISTS (
+          SELECT 1
+          FROM grouped_hidden_repositories AS hidden_repository
+          WHERE hidden_repository.repository_id = hidden_map.repository_id
+        )
+),`,
+		),
+		`   AND fan_map.granted
+  GROUP BY 1, 2, 3`,
+		`   AND fan_map.granted
+  WHERE finding.granted
+  GROUP BY 1, 2, 3`,
+	),
+	`  FROM grouped_findings
+)`,
+	`  FROM grouped_findings
+  WHERE granted
+)`,
+)
+
+// groupedInventoryScopedQuery builds the scoped-request variant of
+// groupedInventoryQuery. The store uses it only when the filter carries a
+// repository or scope grant; the unscoped text is unchanged.
+func groupedInventoryScopedQuery(dimension GroupedInventoryDimension) (string, error) {
+	return groupedInventoryBuildQuery(dimension, groupedInventoryScopedFindingsCTE, groupedInventoryScopedTailSQL)
 }

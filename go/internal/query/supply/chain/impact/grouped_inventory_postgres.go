@@ -81,9 +81,12 @@ func (s PostgresGroupedInventoryStore) queryer() db.Queryer {
 // filters (subject to the scope-id grant divergence on the type).
 //
 // Completeness per named bucket: read_model_unavailable when the watermark is
-// stale or its probe failed; otherwise partial when a scoped grant hides at
-// least one repository the bucket's runtime evidence maps to (no reason is
-// disclosed); otherwise complete. Page truncation is applied by the handler.
+// stale or its probe failed; otherwise partial when a scoped grant hides one
+// of the bucket's map rows or any finding on a repository the bucket maps to
+// (no reason is disclosed); otherwise complete. A scoped request runs
+// groupedInventoryScopedQuery, which keeps the pre-grant finding set with a
+// per-finding granted flag; counts stay granted-only. Page truncation is
+// applied by the handler.
 // An absent watermark (the maintainer never materialized the table) answers
 // ErrGroupedInventoryReadModelUnavailable, since an empty table would read as
 // zero findings.
@@ -100,7 +103,11 @@ func (s PostgresGroupedInventoryStore) SupplyChainImpactGroupedInventory(
 	if s.DB == nil && s.reader == nil {
 		return GroupedInventoryPage{}, fmt.Errorf("supply chain impact grouped inventory database is required")
 	}
-	query, err := groupedInventoryQuery(dimension)
+	build := groupedInventoryQuery
+	if len(filter.AllowedRepositoryIDs) > 0 || len(filter.AllowedScopeIDs) > 0 {
+		build = groupedInventoryScopedQuery
+	}
+	query, err := build(dimension)
 	if err != nil {
 		return GroupedInventoryPage{}, err
 	}

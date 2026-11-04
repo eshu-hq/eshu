@@ -58,7 +58,10 @@ Read `doc.go` and `README.md` first.
   or fall back to the CTE when the gate is off. Its workload map MUST keep the
   `entity_keys` leg, because the `workload_id` filter matches through it. The
   map grant uses `COALESCE(..., FALSE)`, so an empty grant array bound as NULL
-  still marks a hidden repository's bucket partial. The live parity proof
+  still marks a hidden repository's bucket partial. A scoped request MUST use
+  the scoped variant (`groupedInventoryScopedQuery`), which keeps ungranted
+  findings only to mark buckets partial and never counts them; a bucket with
+  no granted finding MUST NOT appear. The live parity proof
   (`grouped_inventory_postgres_live_test.go`) pins every bucket to the count
   route for filter=X.
 - Files must stay under 500 lines. `readiness.go`

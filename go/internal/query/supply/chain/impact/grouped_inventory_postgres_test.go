@@ -386,3 +386,59 @@ func TestGroupedInventorySQLShape(t *testing.T) {
 		t.Fatal("groupedInventoryQuery(ecosystem) error = nil, want unsupported dimension")
 	}
 }
+
+// TestGroupedInventoryScopedSQLShape pins the scoped variant: it keeps the
+// pre-grant finding set with a per-finding granted flag, counts only granted
+// findings, and marks a bucket partial when a mapped finding or a map row is
+// hidden. The unscoped variant keeps dropping findings by grant in WHERE.
+func TestGroupedInventoryScopedSQLShape(t *testing.T) {
+	for _, dimension := range []GroupedInventoryDimension{GroupedInventoryByService, GroupedInventoryByWorkload, GroupedInventoryByEnvironment} {
+		scoped, err := groupedInventoryScopedQuery(dimension)
+		if err != nil {
+			t.Fatalf("groupedInventoryScopedQuery(%q) error = %v", dimension, err)
+		}
+		unscoped, err := groupedInventoryQuery(dimension)
+		if err != nil {
+			t.Fatalf("groupedInventoryQuery(%q) error = %v", dimension, err)
+		}
+		for _, want := range []string{
+			"AS granted",
+			"FROM grouped_findings AS finding\n  LEFT JOIN grouped_map",
+			"WHERE finding.granted",
+			"grouped_hidden_repositories",
+			"WHERE granted",
+		} {
+			if !strings.Contains(scoped, want) {
+				t.Fatalf("%s scoped query missing %q", dimension, want)
+			}
+		}
+		if strings.Contains(unscoped, "grouped_hidden_repositories") || strings.Contains(unscoped, "finding.granted") {
+			t.Fatalf("%s unscoped query gained the scoped finding-level grant shape", dimension)
+		}
+		assertGroupedPlaceholdersBound(t, scoped, groupedInventoryArgCount)
+	}
+}
+
+func TestGroupedInventoryStoreSelectsScopedQueryForGrants(t *testing.T) {
+	cases := []struct {
+		name   string
+		filter AggregateFilter
+		scoped bool
+	}{
+		{"unscoped", AggregateFilter{}, false},
+		{"repository grant", AggregateFilter{AllowedRepositoryIDs: []string{"repository:r"}}, true},
+		{"scope grant", AggregateFilter{AllowedScopeIDs: []string{"scope:s"}}, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			q := &groupedFakeQueryer{watermark: []time.Time{groupedTestNow}, page: [][]any{{nil, nil, nil, nil, nil, nil, nil, int64(0)}}}
+			if _, err := groupedTestStore(q).SupplyChainImpactGroupedInventory(context.Background(), tc.filter, GroupedInventoryByService, 10, 0); err != nil {
+				t.Fatalf("SupplyChainImpactGroupedInventory() error = %v", err)
+			}
+			got := strings.Contains(q.calls[1].query, "grouped_hidden_repositories")
+			if got != tc.scoped {
+				t.Fatalf("scoped query used = %v, want %v", got, tc.scoped)
+			}
+		})
+	}
+}
