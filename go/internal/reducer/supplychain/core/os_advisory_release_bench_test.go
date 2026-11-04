@@ -30,9 +30,10 @@ func BenchmarkSelectOSAdvisoryRelease(b *testing.B) {
 		{"unlisted", osvDebianCurlFact(), supplychainmodel.OSPackage{Distro: "debian", DistroVersion: "11"}},
 		{"untagged", untagged, supplychainmodel.OSPackage{Distro: "debian", DistroVersion: "12"}},
 		{"host-unknown", osvDebianCurlFact(), supplychainmodel.OSPackage{Distro: "debian"}},
-		// The vendor line check (#9945) adds one source compare per fact that
-		// is neither tagged nor selectable. A real installed row always has a
-		// vendor advisory source, so the untagged row repeats with one.
+		// The vendor line check (#9945) adds one source compare and one source
+		// classification per fact that is neither tagged nor selectable, so an
+		// untagged OSV fact on a real row (which always has a vendor advisory
+		// source) must stay at zero allocations.
 		{"untagged-vendor-row", untagged, bookwormRow},
 		{"vendor-matched", vendorLineFact("debian", "pkg:deb/debian/curl?arch=amd64&distro=debian-12"), bookwormRow},
 		{"vendor-mismatch", vendorLineFact("debian", "pkg:deb/debian/curl?arch=amd64&distro=debian-11"), bookwormRow},
