@@ -1,0 +1,41 @@
+go/internal/query/supply/chain/findings_aggregates_handler.go
+  s_7547c0f0af67d4::t_0d23d40f072128 81-82,85-89,152-157,159,171,186-190
+go/internal/query/supply/chain/findings_grouped_inventory_handler.go
+  s_7547c0f0af67d4::t_969848beb56e16 1-190
+go/internal/query/supply/chain/findings_grouped_inventory_routes_test.go
+  s_7547c0f0af67d4::t_2c0295fe5945c6 1-286
+go/internal/query/supply/chain/findings_grouped_inventory_test.go
+  s_7547c0f0af67d4::t_edae5030aeaa19 1-287
+go/internal/query/supply/chain/findings_scope.go
+  s_7547c0f0af67d4::t_9c4f6a0f3dcad1 79-83,93,104-105,112,120,131-162
+go/internal/query/supply/chain/handler.go
+  s_7547c0f0af67d4::t_2825dd430cfc23 54-59
+go/internal/query/supply/chain/impact/grouped_inventory.go
+  s_7547c0f0af67d4::t_c73c82375607d2 1-172
+go/internal/query/supply/chain/impact/grouped_inventory_test.go
+  s_7547c0f0af67d4::t_44a6658ccbca51 1-101
+go/internal/query/supply/chain/scope_helpers_test.go
+  s_7547c0f0af67d4::t_0013ca2edb53ce 55,57,64,66
+go/internal/query/supply/chain/server_failure_routes_test.go
+  s_7547c0f0af67d4::t_d2148013264786 114-118
+go/internal/query/supply/chain/sibling_reader_retryable_test.go
+  s_7547c0f0af67d4::t_c3cfa7f42527ed 126-134
+go/internal/query/supply/chain/sibling_stage_failed_test.go
+  s_7547c0f0af67d4::t_fcdbc82b2bc03f 383-393
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9d67f298a0941629a52e503993a95efd3117025b",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
