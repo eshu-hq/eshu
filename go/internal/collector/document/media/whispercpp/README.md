@@ -15,9 +15,11 @@ deterministic fixture backend.
 This package owns engine execution only: pin verification, WAV validation
 and normalization, the bounded subprocess, output parsing, failure
 classification, and per-run telemetry. It does not redact, persist, wire
-callers, add runtime flags, or enable hosted extraction. No production
-caller is wired. Use stays QA-tier only (the QA environment) until the caller lane and
-security review land.
+callers, add runtime flags, or enable hosted extraction. The only wired
+caller is `go/cmd/collector-media-import`, a disabled-by-default one-shot
+drain with explicit QA-tier-only injection. Use stays QA-tier only (the QA
+environment) until the security review lands; no production caller beyond
+the QA tier is claimed.
 
 ## Exported surface
 
@@ -25,6 +27,9 @@ See `doc.go` for the godoc contract.
 
 - `New`, `Config`, `Limits`, `Engine` (`Transcribe` implements
   `media.Engine`), and `EngineName`.
+- `Engine.Extract` runs `media.Extract` with this engine and records
+  caller-counted extraction telemetry (status, segment and redaction counts).
+- `DefaultMaxInputBytes`, the scan cap callers stage artifact bytes with.
 - `Error`, `ErrorClass`, the `Class*` constants, `ClassOf`, and
   `ErrDigestMismatch`.
 
@@ -249,7 +254,23 @@ Each `Transcribe` call emits:
 
 No signal carries transcript text, stderr, paths, or source names. Redaction
 counts belong to `media.Extract` output (section `redacted` metadata); the
-caller lane must count them when it wires extraction.
+`Engine.Extract` wrapper counts them with caller-provided instruments.
+
+Each `Extract` call additionally emits:
+
+- Span `media.transcript_extract` with closed transcript status, input
+  bytes, segment and redacted-segment counts.
+- `eshu_dp_media_transcript_extractions_total{status}`, where status is
+  `completed`, `no_text`, `no_speech`, `skipped`, or `failed`.
+- `eshu_dp_media_transcript_redacted_segments_total` for redacted segments.
+- One log line, `media transcript extraction finished`, with
+  `transcript_status`, segment counts, and duration. It logs at WARN with
+  `failure_class` on failure.
+
+`extract_test.go` pins the wrapper contract: extraction counts by status,
+redaction counts, span names, and the absence of transcript or stderr text
+from envelopes, logs, spans, and metrics for completed, no_speech, skipped,
+and failed runs.
 
 Collector Performance Evidence: baseline is no speech engine in tree (the
 DTMF decoder returns zero segments on speech), so there is no prior

@@ -17,6 +17,7 @@ import (
 // documented in README.md; the enable flag defaults the collector to off.
 const (
 	envEnabled       = "ESHU_DOC_IMPORT_ENABLED"
+	envTier          = "ESHU_DOC_IMPORT_TIER"
 	envArtifactDir   = "ESHU_DOC_IMPORT_ARTIFACT_DIR"
 	envBinaryPath    = "ESHU_DOC_IMPORT_TESSERACT_BINARY_PATH"
 	envBinarySHA256  = "ESHU_DOC_IMPORT_TESSERACT_BINARY_SHA256"
@@ -37,9 +38,12 @@ const (
 
 // Config is the validated startup configuration. Enabled is false unless the
 // operator explicitly opts in; every other field is required only when
-// Enabled is true.
+// Enabled is true. Tier is the only deployment tier this caller may inject
+// the engine on: the QA tier (#8879). No production caller beyond
+// the QA tier is claimed.
 type Config struct {
 	Enabled      bool
+	Tier         string
 	ArtifactDir  string
 	Tesseract    tesseract.Config
 	ScopePrefix  string
@@ -57,6 +61,10 @@ func loadImportConfig(getenv func(string) string) (Config, error) {
 	}
 	if !isEnabled(getenv(envEnabled)) {
 		return Config{}, nil
+	}
+	tier, err := loadTier(getenv)
+	if err != nil {
+		return Config{}, err
 	}
 	artifactDir := strings.TrimSpace(getenv(envArtifactDir))
 	if artifactDir == "" {
@@ -78,12 +86,28 @@ func loadImportConfig(getenv func(string) string) (Config, error) {
 	}
 	return Config{
 		Enabled:      true,
+		Tier:         tier,
 		ArtifactDir:  artifactDir,
 		Tesseract:    tesseractCfg,
 		ScopePrefix:  firstNonBlank(getenv(envScopePrefix), defaultScopePrefix),
 		SourceSystem: firstNonBlank(getenv(envSourceSystem), defaultSourceSystem),
 		MaxArtifacts: maxArtifacts,
 	}, nil
+}
+
+// loadTier enforces QA-tier-only engine injection: the enabled collector runs
+// only when the operator explicitly declares the QA tier (#8879).
+// Any other value fails closed naming the variable.
+func loadTier(getenv func(string) string) (string, error) {
+	const qaTier = "qa"
+	tier := strings.TrimSpace(getenv(envTier))
+	if tier == qaTier {
+		return tier, nil
+	}
+	if tier == "" {
+		return "", fmt.Errorf("%s is required when %s is true; the only accepted value is %q", envTier, envEnabled, qaTier)
+	}
+	return "", fmt.Errorf("%s=%q is not accepted; the only accepted value is %q", envTier, tier, qaTier)
 }
 
 // loadTesseractConfig validates the pinned engine installation. Every field

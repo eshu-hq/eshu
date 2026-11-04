@@ -381,6 +381,12 @@ const (
 	// (#9729). Attributes carry the engine name, closed outcome, input bytes,
 	// audio duration, and segment counts; never transcript text or paths.
 	SpanMediaTranscriptEngineRun = "media.transcript_engine.run"
+	// SpanMediaTranscriptExtract wraps one media transcript extraction: media
+	// preflight, the engine call, and redaction into documentation facts
+	// (#9729, caller lane #8879). Attributes carry only bounded values
+	// (status, input bytes, segment and redaction counts), never transcript
+	// text.
+	SpanMediaTranscriptExtract = "media.transcript_extract"
 	// SpanReducerChangedSinceLink wraps one changed-since link transaction
 	// (#7127 PR-3a): one activation of one scope linked, broken or retried.
 	SpanReducerChangedSinceLink = "reducer.changed_since_link"

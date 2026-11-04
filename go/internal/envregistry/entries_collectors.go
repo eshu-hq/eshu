@@ -89,6 +89,7 @@ var collectorEntries = func() []Entry {
 	// required when enabled; a missing piece fails startup closed.
 	add(
 		Entry{Name: "ESHU_DOC_IMPORT_ENABLED", Type: VarBool, Default: "false", Subsystem: "collector-document-import", Description: "Opts in to the one-shot reviewed-image OCR drain; anything but true exits 0 with zero commits."},
+		Entry{Name: "ESHU_DOC_IMPORT_TIER", Type: VarString, Subsystem: "collector-document-import", Description: "Deployment tier allowed to inject the engine; the only accepted value is qa (QA tier, #8879). Required when enabled."},
 		Entry{Name: "ESHU_DOC_IMPORT_ARTIFACT_DIR", Type: VarString, Subsystem: "collector-document-import", Description: "Absolute directory of reviewed image files to drain. Required when enabled."},
 		Entry{Name: "ESHU_DOC_IMPORT_TESSERACT_BINARY_PATH", Type: VarString, Subsystem: "collector-document-import", Description: "Absolute path of the pinned tesseract executable, never resolved via PATH. Required when enabled."},
 		Entry{Name: "ESHU_DOC_IMPORT_TESSERACT_BINARY_SHA256", Type: VarString, Subsystem: "collector-document-import", Description: "Pinned hex SHA-256 of the tesseract executable. Required when enabled."},
@@ -99,6 +100,24 @@ var collectorEntries = func() []Entry {
 		Entry{Name: "ESHU_DOC_IMPORT_SCOPE_PREFIX", Type: VarString, Default: "document-import-ocr", Subsystem: "collector-document-import", Description: "Scope ID prefix for drained generations."},
 		Entry{Name: "ESHU_DOC_IMPORT_SOURCE_SYSTEM", Type: VarString, Default: "document_import", Subsystem: "collector-document-import", Description: "Source system recorded on drained scopes."},
 		Entry{Name: "ESHU_DOC_IMPORT_MAX_ARTIFACTS", Type: VarInt, Default: "1024", Subsystem: "collector-document-import", Description: "Per-run artifact bound; must stay positive and cannot be disabled."},
+	)
+
+	// media-import collector (#8879, #9729 AC2): disabled-by-default one-shot
+	// reviewed-audio transcript drain on the QA tier only. No framework vars:
+	// no polling, no claims, no lease. Every pin is required when enabled; a
+	// missing piece fails startup closed.
+	add(
+		Entry{Name: "ESHU_MEDIA_IMPORT_ENABLED", Type: VarBool, Default: "false", Subsystem: "collector-media-import", Description: "Opts in to the one-shot reviewed-audio transcript drain; anything but true exits 0 with zero commits."},
+		Entry{Name: "ESHU_MEDIA_IMPORT_TIER", Type: VarString, Subsystem: "collector-media-import", Description: "Deployment tier allowed to inject the engine; the only accepted value is qa (QA tier, #8879). Required when enabled."},
+		Entry{Name: "ESHU_MEDIA_IMPORT_ARTIFACT_DIR", Type: VarString, Subsystem: "collector-media-import", Description: "Absolute directory of reviewed audio files to drain. Required when enabled."},
+		Entry{Name: "ESHU_MEDIA_IMPORT_WHISPER_BINARY_PATH", Type: VarString, Subsystem: "collector-media-import", Description: "Absolute path of the pinned whisper-cli executable, never resolved via PATH. Required when enabled."},
+		Entry{Name: "ESHU_MEDIA_IMPORT_WHISPER_BINARY_SHA256", Type: VarString, Subsystem: "collector-media-import", Description: "Pinned hex SHA-256 of the whisper-cli executable. Required when enabled."},
+		Entry{Name: "ESHU_MEDIA_IMPORT_WHISPER_MODEL_PATH", Type: VarString, Subsystem: "collector-media-import", Description: "Absolute path of the pinned ggml model file. Required when enabled."},
+		Entry{Name: "ESHU_MEDIA_IMPORT_WHISPER_MODEL_SHA256", Type: VarString, Subsystem: "collector-media-import", Description: "Pinned hex SHA-256 of the model file. Required when enabled."},
+		Entry{Name: "ESHU_MEDIA_IMPORT_WHISPER_ENGINE_VERSION", Type: VarString, Subsystem: "collector-media-import", Description: "Reviewed whisper.cpp release the backend records, e.g. v1.9.5. Required when enabled."},
+		Entry{Name: "ESHU_MEDIA_IMPORT_SCOPE_PREFIX", Type: VarString, Default: "media-import-transcript", Subsystem: "collector-media-import", Description: "Scope ID prefix for drained generations."},
+		Entry{Name: "ESHU_MEDIA_IMPORT_SOURCE_SYSTEM", Type: VarString, Default: "media_import", Subsystem: "collector-media-import", Description: "Source system recorded on drained scopes."},
+		Entry{Name: "ESHU_MEDIA_IMPORT_MAX_ARTIFACTS", Type: VarInt, Default: "1024", Subsystem: "collector-media-import", Description: "Per-run artifact bound; must stay positive and cannot be disabled."},
 	)
 
 	// component-extension collector: the ESHU_COMPONENT_* policy vars are already

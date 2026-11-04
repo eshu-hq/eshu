@@ -29,10 +29,14 @@
 // annotation returns one segment, not ClassNoSpeech.
 //
 // Results record the engine name, pinned version, model file name, and model
-// digest. Redaction stays in media.Extract: this package returns raw segment
+// digest. Redaction stays in media.Extract: Transcribe returns raw segment
 // text and never persists anything itself. Each run emits one span, the
 // eshu_dp_media_transcript_engine_* metrics, and one log line, all without
-// transcript text.
+// transcript text. Engine.Extract runs media.Extract with this engine and
+// adds caller-counted extraction telemetry: one media.transcript_extract
+// span, eshu_dp_media_transcript_extractions_total by closed status, and
+// eshu_dp_media_transcript_redacted_segments_total, all without transcript
+// text.
 //
 // The engine does not sandbox itself. A caller must run it in a container
 // or namespace with no network, a read-only root filesystem holding the
@@ -41,6 +45,8 @@
 // arbiter ruling require. New rejects limits above the section 6 ceilings.
 //
 // The backend decision, sandbox profile, and image packaging status are
-// recorded in README.md. No production caller is wired; enablement stays
-// default-off and QA-tier only.
+// recorded in README.md. The only wired caller is
+// go/cmd/collector-media-import, a disabled-by-default one-shot drain with
+// explicit QA-tier-only injection; no production caller beyond the QA tier is
+// claimed.
 package whispercpp
