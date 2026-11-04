@@ -31,6 +31,15 @@ func TestNVDWindowCodeMapsOntoClosedSet(t *testing.T) {
 	}
 }
 
+func nvdCursorTestMicros(t *testing.T, value string) int64 {
+	t.Helper()
+	parsed, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		t.Fatalf("parse time %q: %v", value, err)
+	}
+	return parsed.UTC().UnixMicro()
+}
+
 func TestNVDCursorLagTrackerHoldsMaxLagPerSource(t *testing.T) {
 	t.Parallel()
 	var nilTracker *NVDCursorLagTracker
@@ -43,13 +52,7 @@ func TestNVDCursorLagTrackerHoldsMaxLagPerSource(t *testing.T) {
 	if got := tracker.LagSecondsBySource(); len(got) != 0 {
 		t.Fatalf("blank key recorded lag %v, want nothing", got)
 	}
-	micros := func(value string) int64 {
-		parsed, err := time.Parse(time.RFC3339, value)
-		if err != nil {
-			t.Fatalf("parse time %q: %v", value, err)
-		}
-		return parsed.UTC().UnixMicro()
-	}
+	micros := func(value string) int64 { return nvdCursorTestMicros(t, value) }
 	tracker.RecordCursorPosition("nvd", "scope-a",
 		micros("2026-01-03T00:00:00Z"), micros("2026-01-05T00:00:00Z"))
 	tracker.RecordCursorPosition("nvd", "scope-b",
@@ -59,6 +62,23 @@ func TestNVDCursorLagTrackerHoldsMaxLagPerSource(t *testing.T) {
 	lags := tracker.LagSecondsBySource()
 	if got := lags["nvd"]; got != 172800 {
 		t.Fatalf("lag = %v seconds, want the 2-day max (172800), floored negatives ignored", got)
+	}
+}
+
+func TestNVDCursorLagTrackerKeepsMaxPerKey(t *testing.T) {
+	t.Parallel()
+	tracker := NewNVDCursorLagTracker()
+	tracker.RecordCursorPosition("nvd", "scope-a",
+		nvdCursorTestMicros(t, "2026-01-05T00:00:00Z"), nvdCursorTestMicros(t, "2026-01-05T00:00:00Z"))
+	tracker.RecordCursorPosition("nvd", "scope-a",
+		nvdCursorTestMicros(t, "2026-01-03T00:00:00Z"), nvdCursorTestMicros(t, "2026-01-03T00:00:00Z"))
+	if got := tracker.LagSecondsBySource()["nvd"]; got != 0 {
+		t.Fatalf("lag after stale record = %v, want 0 (late-then-stale holds)", got)
+	}
+	tracker.RecordCursorPosition("nvd", "scope-b",
+		nvdCursorTestMicros(t, "2026-01-03T00:00:00Z"), nvdCursorTestMicros(t, "2026-01-04T00:00:00Z"))
+	if got := tracker.LagSecondsBySource()["nvd"]; got != 86400 {
+		t.Fatalf("lag = %v, want 86400 with the stale scope-a record ignored", got)
 	}
 }
 

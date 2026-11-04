@@ -42,19 +42,25 @@ func NewNVDCursorLagTracker() *NVDCursorLagTracker {
 }
 
 // RecordCursorPosition stores the latest server-stamped position for key. A
-// nil tracker or a blank key records nothing. Positions move only through
-// the planner's compare-and-advance, so a stored head never precedes its
-// cursor by construction; a negative lag still floors at zero in the gauge.
+// nil tracker or a blank key records nothing. Positions keep the max per
+// key, mirroring the planner's compare-and-advance: concurrent claims can
+// record in either order, and a stale out-of-order record must not move a
+// series backward. A negative lag still floors at zero in the gauge.
 func (t *NVDCursorLagTracker) RecordCursorPosition(source, key string, cursorUnixMicro, headUnixMicro int64) {
 	if t == nil || key == "" {
 		return
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	t.positions[nvdCursorKey{source: source, key: key}] = nvdCursorPosition{
-		cursorUnixMicro: cursorUnixMicro,
-		headUnixMicro:   headUnixMicro,
+	id := nvdCursorKey{source: source, key: key}
+	current := t.positions[id]
+	if cursorUnixMicro > current.cursorUnixMicro {
+		current.cursorUnixMicro = cursorUnixMicro
 	}
+	if headUnixMicro > current.headUnixMicro {
+		current.headUnixMicro = headUnixMicro
+	}
+	t.positions[id] = current
 }
 
 // LagSecondsBySource returns, per source, the maximum lag in seconds across
