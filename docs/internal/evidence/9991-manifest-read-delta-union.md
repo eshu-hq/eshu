@@ -53,7 +53,10 @@ base over 500 manifests and an active 5,000-row delta over 50 of them. That is
 throwaway, uncommitted test calling the production code over `SQLDB`. "Old"
 pages the shipped active query only, the statements the read sent before
 #9991. "New" is the whole `ListActivePackageManifestDependencyFacts`. Each
-figure is the median of seven runs.
+figure is the median of seven runs. A rerun after the exec-mode fix, on
+the same corpus but a loaded host (load average 18.6 on 12 cores), gave old
+2.012 s and new 5.741 s for the npm delta-active shape. The ratio held
+(2.85x against 2.99x) with more noise, so the table keeps the first run.
 
 | shape | old rows | old median | new rows | new median |
 | --- | --- | --- | --- | --- |
@@ -81,9 +84,19 @@ The comparable figures:
 | active page (maven) | 0.13 ms | 9 | same index, sbt branch |
 | base page (maven) | 0.16 ms | 9 | same index, sbt branch |
 | delta targets, 2,001 scope ids | 1.69 ms | 93 | primary keys |
-| overlay inputs, 201 pairs, 15,000 keys | 4.16 ms | 2,119 | `fact_records_scope_generation_idx` |
+| overlay inputs, 201 pairs, 15,000 keys | 4.16 ms | 2,119 | `(scope_id, generation_id)` index prefix |
 | base lookup, one scope | 0.05 ms | 8 | `scope_generations_scope_idx` (unchanged #7797 query) |
 | prune probe, one scope | 0.008 ms | 0 | `generation_retention_events_generation_idx` |
+
+The overlay inputs read filters each delta's rows by
+`stable_fact_key = ANY($3)`, a residual Filter: this is the #9586 trap. Under
+`PREPARE` with `plan_cache_mode` forced each way (psql, same corpus, same
+arrays), the custom plan took 14.9 ms and the generic plan took 1,077.8 ms,
+with the same plan and the same 201 index searches. Both batched auxiliary
+reads therefore run with `manifestDependencyQueryExecMode`
+(`QueryExecModeCacheDescribe`), the same mode as the manifest pages.
+`TestListActivePackageManifestDependencyFactsDeltaAuxReadsUseCustomPlans`
+pins the mode; removing it fails the test.
 
 No statement runs a sequential scan. The base page has the active page's
 shape. Each page costs one index-prefix scan, the same as the active read's
@@ -99,9 +112,12 @@ scopes added about 50 ms in total.
   `union_base_unmatched`, `union_base_missing`, `union_scope_mismatch`,
   `union_no_baseline`, `union_resolve_failed`. No scope, generation, or
   commit labels.
-- One `package_manifest_dependency_read.delta_union` span event per decision,
-  and one WARN log for `union_base_missing` and `union_scope_mismatch` with the
-  scope, generation, both commits, and `chained`.
+- One `package_manifest_dependency_read.delta_union` span event per read that
+  reached a delta-active scope, carrying `read` and the decision count of each
+  outcome. One event per read stays under the SDK's per-span event cap on a
+  broad read.
+- One WARN log for each `union_base_missing` and `union_scope_mismatch`
+  decision, with the scope, generation, both commits, and `chained`.
 - The existing read histograms keep their meaning. `read_pages` counts active
   pages only, so the base read's cost shows as wall time while pages hold.
 

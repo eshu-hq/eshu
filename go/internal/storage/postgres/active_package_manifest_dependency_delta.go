@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
 	"strings"
 
@@ -107,8 +108,12 @@ ORDER BY scope.scope_id
 // fact (the changed and deleted paths) and every row, tombstones included,
 // whose stable key collides with a base candidate. The active read never
 // returns tombstones, so they must come from here. It probes
-// fact_records_scope_generation_idx by (scope_id, generation_id) and reads no
-// payload of non-matching rows.
+// the (scope_id, generation_id) prefix of fact_records and reads no payload
+// of non-matching rows. Its stable_fact_key = ANY($3) is a residual Filter
+// over each delta's rows, the #9586 trap: it runs with
+// manifestDependencyQueryExecMode so every execution gets a custom plan with
+// a hashed Const array. On the #9991 corpus the forced generic plan took
+// 1,077.8 ms against 14.9 ms custom, same plan and buffers.
 const manifestDeltaOverlayInputsQuery = `
 SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.fact_kind,
        fact.stable_fact_key, fact.schema_version, fact.collector_kind,
@@ -159,9 +164,11 @@ func (s FactStore) overlayDeltaManifestBase(ctx context.Context, read string, ac
 	if len(scopeIDs) == 0 {
 		return active, nil
 	}
+	tally := manifestDeltaUnionTally{read: read, outcomes: map[string]int{}}
+	defer s.recordManifestDeltaUnionSpan(ctx, &tally)
 	targets, err := s.readManifestDeltaTargets(ctx, scopeIDs)
 	if err != nil {
-		s.recordManifestDeltaUnion(ctx, read, manifestDeltaUnionResolveFailed)
+		s.recordManifestDeltaUnion(ctx, &tally, manifestDeltaUnionResolveFailed)
 		return nil, err
 	}
 	baseByScope := make(map[string][]facts.Envelope)
@@ -171,25 +178,25 @@ func (s FactStore) overlayDeltaManifestBase(ctx context.Context, read string, ac
 	var overlays []manifestDeltaOverlay
 	for _, target := range targets {
 		if target.commits.Baseline == "" {
-			s.recordManifestDeltaUnion(ctx, read, manifestDeltaUnionNoBaseline)
+			s.recordManifestDeltaUnion(ctx, &tally, manifestDeltaUnionNoBaseline)
 			continue
 		}
 		baseID, err := s.resolveDeltaBaseAtCommit(ctx, target.scopeID, target.generationID, target.commits)
 		var missing *projector.DeltaBaseMissingError
 		if errors.As(err, &missing) {
-			s.recordManifestDeltaUnion(ctx, read, manifestDeltaUnionBaseMissing)
+			s.recordManifestDeltaUnion(ctx, &tally, manifestDeltaUnionBaseMissing)
 			s.warnManifestDeltaUnion(ctx, target, "manifest dependency read delta base missing: returning the delta's rows only")
 			continue
 		}
 		if err != nil {
-			s.recordManifestDeltaUnion(ctx, read, manifestDeltaUnionResolveFailed)
+			s.recordManifestDeltaUnion(ctx, &tally, manifestDeltaUnionResolveFailed)
 			return nil, err
 		}
 		candidates := slices.DeleteFunc(slices.Clone(baseByScope[target.scopeID]), func(env facts.Envelope) bool {
 			return env.GenerationID != baseID
 		})
 		if len(candidates) == 0 {
-			s.recordManifestDeltaUnion(ctx, read, manifestDeltaUnionBaseUnmatched)
+			s.recordManifestDeltaUnion(ctx, &tally, manifestDeltaUnionBaseUnmatched)
 			continue
 		}
 		overlays = append(overlays, manifestDeltaOverlay{target: target, baseID: baseID, candidates: candidates})
@@ -199,7 +206,7 @@ func (s FactStore) overlayDeltaManifestBase(ctx context.Context, read string, ac
 	}
 	inputs, err := s.readManifestDeltaOverlayInputs(ctx, overlays)
 	if err != nil {
-		s.recordManifestDeltaUnion(ctx, read, manifestDeltaUnionResolveFailed)
+		s.recordManifestDeltaUnion(ctx, &tally, manifestDeltaUnionResolveFailed)
 		return nil, err
 	}
 	merged := slices.Clone(active)
@@ -211,7 +218,7 @@ func (s FactStore) overlayDeltaManifestBase(ctx context.Context, read string, ac
 		delta := inputs[overlay.target.scopeID]
 		scope := facts.ParseDeltaScope(delta)
 		if !scope.IsDelta {
-			s.recordManifestDeltaUnion(ctx, read, manifestDeltaUnionScopeMismatch)
+			s.recordManifestDeltaUnion(ctx, &tally, manifestDeltaUnionScopeMismatch)
 			s.warnManifestDeltaUnion(ctx, overlay.target, "manifest dependency read delta carries no delta_generation repository fact: returning the delta's rows only")
 			continue
 		}
@@ -225,7 +232,7 @@ func (s FactStore) overlayDeltaManifestBase(ctx context.Context, read string, ac
 			seen[env.FactID] = struct{}{}
 			merged = append(merged, env)
 		}
-		s.recordManifestDeltaUnion(ctx, read, manifestDeltaUnionBaseFound)
+		s.recordManifestDeltaUnion(ctx, &tally, manifestDeltaUnionBaseFound)
 	}
 	slices.SortStableFunc(merged, func(a, b facts.Envelope) int {
 		if c := a.ObservedAt.Compare(b.ObservedAt); c != 0 {
@@ -250,7 +257,7 @@ func manifestScopeIDs(groups ...[]facts.Envelope) []string {
 
 // readManifestDeltaTargets returns the delta-active scopes among scopeIDs.
 func (s FactStore) readManifestDeltaTargets(ctx context.Context, scopeIDs []string) ([]manifestDeltaTarget, error) {
-	rows, err := s.database.QueryContext(ctx, manifestDeltaTargetsQuery, scopeIDs)
+	rows, err := s.database.QueryContext(ctx, manifestDeltaTargetsQuery, manifestDependencyQueryExecMode, scopeIDs)
 	if err != nil {
 		return nil, fmt.Errorf("read manifest dependency delta targets: %w", err)
 	}
@@ -288,7 +295,7 @@ func (s FactStore) readManifestDeltaOverlayInputs(ctx context.Context, overlays 
 	}
 	slices.Sort(keys)
 	keys = slices.Compact(keys)
-	rows, err := s.database.QueryContext(ctx, manifestDeltaOverlayInputsQuery, scopeIDs, generationIDs, keys)
+	rows, err := s.database.QueryContext(ctx, manifestDeltaOverlayInputsQuery, manifestDependencyQueryExecMode, scopeIDs, generationIDs, keys)
 	if err != nil {
 		return nil, fmt.Errorf("read manifest dependency delta overlay inputs: %w", err)
 	}
@@ -307,18 +314,36 @@ func (s FactStore) readManifestDeltaOverlayInputs(ctx context.Context, overlays 
 	return inputs, nil
 }
 
-// recordManifestDeltaUnion counts one delta-active scope's union decision
-// and adds a span event to the caller's span. Scope ids, generation ids, and
-// commit SHAs never become metric labels.
-func (s FactStore) recordManifestDeltaUnion(ctx context.Context, read, outcome string) {
+// manifestDeltaUnionTally holds one read's union decisions by outcome, for
+// the single span event the read emits.
+type manifestDeltaUnionTally struct {
+	read     string
+	outcomes map[string]int
+}
+
+// recordManifestDeltaUnion counts one delta-active scope's union decision.
+// Scope ids, generation ids, and commit SHAs never become metric labels.
+func (s FactStore) recordManifestDeltaUnion(ctx context.Context, tally *manifestDeltaUnionTally, outcome string) {
+	tally.outcomes[outcome]++
 	if s.instruments != nil && s.instruments.PackageManifestDependencyReadDeltaUnion != nil {
 		s.instruments.PackageManifestDependencyReadDeltaUnion.Add(context.WithoutCancel(ctx), 1,
-			metric.WithAttributes(telemetry.AttrRead(read), telemetry.AttrOutcome(outcome)))
+			metric.WithAttributes(telemetry.AttrRead(tally.read), telemetry.AttrOutcome(outcome)))
 	}
-	trace.SpanFromContext(ctx).AddEvent("package_manifest_dependency_read.delta_union", trace.WithAttributes(
-		attribute.String(telemetry.MetricDimensionRead, read),
-		attribute.String(telemetry.MetricDimensionOutcome, outcome),
-	))
+}
+
+// recordManifestDeltaUnionSpan adds one span event per read that reached a
+// delta-active scope, carrying the decision count of each outcome. One event
+// per read, not per scope, keeps a broad read under the SDK's per-span event
+// cap.
+func (s FactStore) recordManifestDeltaUnionSpan(ctx context.Context, tally *manifestDeltaUnionTally) {
+	if len(tally.outcomes) == 0 {
+		return
+	}
+	attrs := []attribute.KeyValue{attribute.String(telemetry.MetricDimensionRead, tally.read)}
+	for _, outcome := range slices.Sorted(maps.Keys(tally.outcomes)) {
+		attrs = append(attrs, attribute.Int(outcome, tally.outcomes[outcome]))
+	}
+	trace.SpanFromContext(ctx).AddEvent("package_manifest_dependency_read.delta_union", trace.WithAttributes(attrs...))
 }
 
 // warnManifestDeltaUnion logs one delta-active scope whose base pins the
