@@ -88,7 +88,7 @@ these a single statement; see
 `docs/internal/evidence/8950-writer-prototype.md`. Migration 245 (#9320) adds
 the nullable `shared_projection_intents.reopened_at` column the same way: no
 default, backfill, CHECK, or index, one statement.
-Migration 276 (#9975) sets `fact_records` `autovacuum_vacuum_scale_factor = 0.02`
+Migration 278 (#9975) sets `fact_records` `autovacuum_vacuum_scale_factor = 0.02`
 and `autovacuum_vacuum_insert_scale_factor = 0.05` in one catalog-only ALTER
 (SHARE UPDATE EXCLUSIVE, no rewrite), so autovacuum fires on this table's churn
 rather than on 20% of 102M rows. It carries no cost, toast, or analyze

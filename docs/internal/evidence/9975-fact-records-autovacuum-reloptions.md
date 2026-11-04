@@ -6,7 +6,7 @@ spends its time on index entries that point at heap locations with no visible
 row. Dead row versions that vacuum has not yet removed are the leading
 explanation; the diagnosis left open whether those entries are dead versions,
 vacuumed-but-uncleaned line pointers, or something else. This note records why
-migration 276 sets two autovacuum storage parameters on `fact_records`, what it
+migration 278 sets two autovacuum storage parameters on `fact_records`, what it
 costs, how to read the result, and how to run the first vacuum safely.
 
 ## Classification
@@ -101,9 +101,9 @@ Both were exceeded at the last read, but a first vacuum starts within one
 still exceed the new thresholds at apply time. On QA a default-settings vacuum
 is expected to start on its own about 11:00Z to 16:00Z on 2026-11-04 (the
 arithmetic above, from counters read at 04:21Z; to be observed, not assumed).
-Once that vacuum completes, the counters reset, so a roll that applies 276
+Once that vacuum completes, the counters reset, so a roll that applies 278
 afterwards starts no immediate vacuum. At today's rates the next
-276-triggered vacuum then follows about 17 to 29 hours after a completed vacuum
+278-triggered vacuum then follows about 17 to 29 hours after a completed vacuum
 on inserts (4,898,641 inserts at 80 and 47 per second; arithmetic) and 1.1 to
 1.7 days on dead rows (14 to 21 per second), each removing about 2M row
 versions.
@@ -173,7 +173,7 @@ the vacuum completes. Read it against the after-cancel baseline (35.8 cold,
 
 One more read, shortly before the second vacuum starts: the same 10-triple
 probe plus the keyed tick gauge. It is a single read, not a soak, and it is the
-point on the sawtooth that matters. Once migration 276 has rolled, the second
+point on the sawtooth that matters. Once migration 278 has rolled, the second
 vacuum starts at whichever trigger is reached first, so key the read on
 `n_ins_since_vacuum` near 4.9M (the insert trigger, 4,898,641) or `n_dead_tup`
 near 2.05M (2,046,622), whichever comes first. The 4.9M shifts once the first
@@ -186,12 +186,12 @@ note's own rates the insert trigger comes first, 17 to 29 hours after a
 completed vacuum, and by then dead rows are only about 0.9M to 1.3M (14 to 21
 per second for 17 hours) up to 1.5M to 2.2M (29 hours), assuming the counter
 starts near zero. An operator who waits for `n_dead_tup` near 2.05M can miss
-the read. Before 276 has rolled, the triggers are the server defaults and none
+the read. Before 278 has rolled, the triggers are the server defaults and none
 of these figures apply.
 
 Local proof for the change itself (disposable PostgreSQL 18.6, migration run
 through the shipped runner): `pg_class.reloptions` for `fact_records` is empty
-before migration 276 and holds exactly the two parameters after; the relation
+before migration 278 and holds exactly the two parameters after; the relation
 file is unchanged (catalog-only, no rewrite); a restart skips it by ledger
 receipt and a ledger-less replay leaves the options identical. That is a
 behavior proof, not a vacuum-duration claim.
@@ -266,8 +266,10 @@ Consequences for rollout:
   routine-vacuuming page says "If a process attempts to acquire a lock that
   conflicts with the `SHARE UPDATE EXCLUSIVE` lock held by autovacuum, lock
   acquisition will interrupt the autovacuum."
-- Roll-time check. Before a roll whose image carries migration 274 or 276,
-  read:
+- Roll-time check. Before a roll whose image carries migration 278 or any other
+  `CREATE INDEX CONCURRENTLY` on `fact_records` (274, the #9979 index build, and
+  #10035's migration 276, a partial index on the same table that was still an
+  open PR when this was written), read:
 
   ```sql
   SELECT l.pid, a.backend_type, a.state
@@ -318,7 +320,7 @@ Consequences for rollout:
   where the progress view is hidden, but only as the hidden-holder test
   described here. Three gaps, each a reviewer measurement (PostgreSQL 18.6
   scratch tables, naptime 1 s):
-  - A roll carrying 274 (the #9979 index build) and 276 does not restart the
+  - A roll carrying 274 (the #9979 index build) and 278 does not restart the
     vacuum within a naptime. A session lock stood in for the build (not a real
     `CREATE INDEX CONCURRENTLY`): with the trigger exceeded, the server logged
     `skipping vacuum ... lock not available` each naptime and no worker ran

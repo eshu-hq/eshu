@@ -362,7 +362,7 @@ PostgreSQL's maintenance documentation is the source of truth for server-level
 autovacuum behavior:
 <https://www.postgresql.org/docs/current/routine-vacuuming.html>.
 
-`fact_records` carries its own autovacuum triggers (migration 276):
+`fact_records` carries its own autovacuum triggers (migration 278):
 `autovacuum_vacuum_scale_factor = 0.02` and
 `autovacuum_vacuum_insert_scale_factor = 0.05`. The server defaults scale to
 20% of the table, which on a table of about 100M rows leaves tens of millions of
@@ -455,8 +455,8 @@ from `relid` on are NULL (see the roll-time check below). The log line and
       the migration ledger until a forward migration lands.
     - Past the default triggers, stop it with `ALTER TABLE fact_records SET
       (autovacuum_enabled = false)`, which works in both cases. Undo it with
-      `RESET (autovacuum_enabled)` before the roll that carries migration 276:
-      276 sets only the two scale factors, so it does not touch
+      `RESET (autovacuum_enabled)` before the roll that carries migration 278:
+      278 sets only the two scale factors, so it does not touch
       `autovacuum_enabled`, and a stop that is never undone leaves autovacuum off
       on the table. Until it is undone the table gets no ordinary autovacuum and
       dead rows keep growing, and the undo starts a vacuum within a naptime if a
@@ -467,7 +467,7 @@ from `relid` on are NULL (see the roll-time check below). The log line and
     - These behaviors were measured on PostgreSQL 18.6 scratch tables by a
       reviewer, as a non-superuser table owner, not on `fact_records`: the
       `SET (autovacuum_enabled = false)` succeeded and no worker ran 4 s later;
-      migration 276's `SET` left that setting in `reloptions`; `RESET
+      migration 278's `SET` left that setting in `reloptions`; `RESET
       (autovacuum_enabled)` brought a worker back in about 1 s at a 1 s naptime;
       and an anti-wraparound worker still ran with the setting false.
 

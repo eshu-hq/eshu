@@ -1,7 +1,7 @@
 # #9975: running the first vacuum on fact_records
 
 Operator checklist for the first (and later) vacuum of `fact_records` after
-migration 276. It is the companion to the evidence note
+migration 278. It is the companion to the evidence note
 [9975-fact-records-autovacuum-reloptions.md](9975-fact-records-autovacuum-reloptions.md),
 which holds the diagnosis, the trigger arithmetic ("Performance Evidence"), the
 lock rule ("Lock and rollout"), and what was not checked. "The main note" below
@@ -79,10 +79,10 @@ WAL here is unmeasured.
     public.fact_records (to prevent wraparound)`. While the setting is on, the
     table gets no ordinary autovacuum at all, so dead rows and the insert
     counter keep growing. It must be undone with `ALTER TABLE fact_records RESET
-    (autovacuum_enabled)` before the roll that carries 276, because 276's `SET`
+    (autovacuum_enabled)` before the roll that carries 278, because 278's `SET`
     names only the two scale factors and leaves `autovacuum_enabled = false` in
     place; skip the undo and autovacuum stays off on the table through the roll.
-    Reviewer-measured, same setup: the 276 `SET` of the two scale factors
+    Reviewer-measured, same setup: the 278 `SET` of the two scale factors
     succeeded and left `autovacuum_enabled=false` in `reloptions`, and no worker
     ran 4 s later. `RESET (autovacuum_enabled)` succeeded, a worker was back
     in about 1 s (naptime 1 s) with the scale factors kept. So the undo restarts
@@ -91,7 +91,7 @@ WAL here is unmeasured.
     it is in place `pg_class.reloptions` carries `autovacuum_enabled=false`,
     which the migration ledger does not describe.
   - A RESET of the two scale factors also leaves `pg_class.reloptions`
-    different from the migration ledger, which will still show 276 applied and
+    different from the migration ledger, which will still show 278 applied and
     will not re-apply it. A forward migration is the way back into line.
   - Owner rights are enough for the `SET` and `RESET` above (reviewer-measured
     as a non-superuser table owner on a scratch table). Whether the runtime role
