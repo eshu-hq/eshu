@@ -238,8 +238,13 @@ func osVendorFactLineStatus(pkg supplychainmodel.AffectedPackage, host string) o
 //     so a list match reads possibly_affected like an untagged OSV fact's and
 //     never affected_exact.
 //
-// The verdict depends only on the fact and the host row, never on the position
-// of the fact among its siblings, so fleet and fact order cannot change it.
+// The verdict for one fact depends only on that fact and the host row it is
+// joined to, never on the position of the fact among its siblings, so fact
+// order cannot change it. Which host row a finding joins is outside this check:
+// when fleet rows resolve to distinct image digests each digest keeps its own
+// row and fleet order is irrelevant, but rows with no digest share one finding
+// that the first row decides, so their order can change the verdict (as it
+// already does for a release-tagged OSV fact).
 func selectOSVendorFactLine(pkg supplychainmodel.AffectedPackage, host string) supplychainmodel.AffectedPackage {
 	switch osVendorFactLineStatus(pkg, host) {
 	case osVendorLineMatched:

@@ -6,6 +6,7 @@ package core
 import (
 	"fmt"
 	"slices"
+	"sort"
 	"strings"
 	"testing"
 
@@ -234,5 +235,51 @@ func TestVendorFactLineSpellingsAllMatchTheHost(t *testing.T) {
 			got := vendorLineFindings(t, s, purl, s.hostRelease)
 			assertVendorLineVerdict(t, got, SupplyChainImpactAffectedExact, s.exactReason)
 		})
+	}
+}
+
+// TestVendorLineVerdictIsFleetOrderIndependentWithDigests pins the limit of the
+// order independence (#9945). When the installed rows of two hosts on different
+// release lines resolve to distinct image digests, each digest gets its own
+// finding and the verdict depends on that host's row alone, so listing the
+// fleet in either order yields the same findings. Rows with no digest are not
+// covered: the index then keeps the first row, so which host decides is a
+// property of that join (the same one a release-tagged OSV fact already has),
+// not of the line check.
+func TestVendorLineVerdictIsFleetOrderIndependentWithDigests(t *testing.T) {
+	t.Parallel()
+	cve := vulnerabilityCVEFact("cve-9945", vendorLineCVE, 7.5)
+	// The vendor fact is published for debian-11 and its list names the shared
+	// version, so only the debian-11 host may read it as exact.
+	vendor := withDistroLine(vendorLineScenarios[0].affectedEnvelope(""), "debian-11")
+	d11 := fleetOSRow(debianCurl("11", "1:1.0-3"), "image://fleet/d11", "gen-d11", fmt.Sprintf("sha256:%064x", 0x11))
+	d12 := fleetOSRow(debianCurl("12", "1:1.0-3"), "image://fleet/d12", "gen-d12", fmt.Sprintf("sha256:%064x", 0x12))
+	summarize := func(rows ...[]facts.Envelope) []string {
+		envelopes := []facts.Envelope{cve, vendor}
+		for _, group := range rows {
+			envelopes = append(envelopes, group...)
+		}
+		var out []string
+		for _, finding := range BuildSupplyChainImpactFindings(envelopes) {
+			out = append(out, fmt.Sprintf("%v %s/%s", finding.EvidenceFactIDs, finding.Status, finding.MatchReason))
+		}
+		sort.Strings(out)
+		return out
+	}
+	forward, reverse := summarize(d11, d12), summarize(d12, d11)
+	if len(forward) != 2 {
+		t.Fatalf("findings = %v, want one per digest", forward)
+	}
+	if !slices.Equal(forward, reverse) {
+		t.Fatalf("fleet order changed the findings:\n[11 12] %v\n[12 11] %v", forward, reverse)
+	}
+	var exact int
+	for _, line := range forward {
+		if strings.Contains(line, string(SupplyChainImpactAffectedExact)) {
+			exact++
+		}
+	}
+	if exact != 1 {
+		t.Fatalf("exact findings = %d in %v, want only the debian-11 host", exact, forward)
 	}
 }
