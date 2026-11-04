@@ -43,7 +43,8 @@ const (
 	// osAdvisoryReleaseVendorLineUnknown: a vendor-sourced fact whose release
 	// line cannot be compared: its purl names no distro line the reducer can
 	// read, or the installed row's own line is unknown. It carries no release
-	// evidence, so it never yields affected_exact (#9945).
+	// evidence and its fixed versions are withheld, so it never yields
+	// affected_exact or not_affected_known_fixed (#9945).
 	osAdvisoryReleaseVendorLineUnknown = "vendor_line_unknown"
 )
 
