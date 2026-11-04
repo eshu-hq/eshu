@@ -6,6 +6,7 @@ package reducer
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/accepted"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // loadResolvedRelationshipsForIntent reads the generation-pinned own-scope
@@ -36,69 +38,6 @@ func loadResolvedRelationshipsForIntent(
 		)
 	}
 	return loader.GetResolvedRelationships(ctx, intent.ScopeID)
-}
-
-// WorkloadMaterializationResolutionNotReadyFailureClass classifies a deferral
-// of workload projection inputs whose own relationship generation has not
-// activated yet.
-//
-// Registered as a non-counting reducer retry class
-// (nonCountingReducerRetryFailureClasses in
-// go/internal/storage/postgres/reducer_queue_readiness_sql.go): the load is
-// waiting on upstream resolution, not failing on its own merits. Without this
-// gate the loader merges the generation-pinned own-scope read with an empty
-// by-repos read while the generation is retired-or-pending and workload
-// materialization succeeds on that partial input, which nothing reopens
-// (#6184).
-const WorkloadMaterializationResolutionNotReadyFailureClass = "workload_materialization_resolution_not_ready"
-
-// workloadMaterializationResolutionNotReadyError defers the input load until
-// the scope's own relationship generation activates.
-type workloadMaterializationResolutionNotReadyError struct {
-	scopeID      string
-	generationID string
-	// cause carries the fence lookup failure when the deferral is outage
-	// driven rather than backpressure driven; nil for a genuinely
-	// incomplete corpus fence (#6730: a swallowed lookup error reads
-	// exactly like healthy backpressure at 3 AM).
-	cause error
-	// holdingScopeIDs names the scopes holding the corpus fence, best
-	// effort; empty when the holder lookup is unwired or failed.
-	holdingScopeIDs []string
-	// producerDetail names the own generation's deployment_mapping producer
-	// state on an own-gate deferral (#7597); empty otherwise.
-	producerDetail string
-}
-
-func (e workloadMaterializationResolutionNotReadyError) Error() string {
-	msg := fmt.Sprintf(
-		"cross-repo resolution not active for scope %s generation %s; deferring workload projection inputs rather than materializing against a partial resolved set",
-		e.scopeID,
-		e.generationID,
-	)
-	if e.cause != nil {
-		msg += fmt.Sprintf("; corpus fence lookup failed: %v", e.cause)
-	}
-	if len(e.holdingScopeIDs) > 0 {
-		msg += fmt.Sprintf("; holding scopes: %s", strings.Join(e.holdingScopeIDs, ","))
-	}
-	if e.producerDetail != "" {
-		msg += "; " + e.producerDetail
-	}
-	return msg
-}
-
-// Unwrap exposes the fence lookup failure to errors.Is/As without changing
-// the retryable failure class: the cause travels for logs, the class travels
-// for the queue.
-func (e workloadMaterializationResolutionNotReadyError) Unwrap() error {
-	return e.cause
-}
-
-func (workloadMaterializationResolutionNotReadyError) Retryable() bool { return true }
-
-func (workloadMaterializationResolutionNotReadyError) FailureClass() string {
-	return WorkloadMaterializationResolutionNotReadyFailureClass
 }
 
 // CorrelatedWorkloadProjectionInputLoader reuses deployable-unit correlation
@@ -131,6 +70,14 @@ type CorrelatedWorkloadProjectionInputLoader struct {
 	// producer counts instead of deferring forever. Nil keeps the plain
 	// deferral for test wiring; see crossrepo.EvaluateOwnGate.
 	ResolutionProducerLookup crossrepo.ProducerLookup
+	// Instruments and Logger make the candidate-precondition probe outcome
+	// observable (#9986): a counter per call and a rate-limited error log.
+	// Both are optional; a nil Logger falls back to slog.Default().
+	Instruments *telemetry.Instruments
+	Logger      *slog.Logger
+	// probeErrorLog rate-limits the probe error log per cause class; nil
+	// uses the process-wide limiter. Tests inject their own.
+	probeErrorLog *probeErrorLogLimiter
 }
 
 // LoadWorkloadProjectionInputs loads workload candidates, enriches them with

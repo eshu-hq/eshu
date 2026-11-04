@@ -259,6 +259,8 @@ func buildReducerService(
 			ResolutionsCompleteLookup: resolutionsComplete,
 			IncompleteScopesLookup:    incompleteScopes,
 			ResolutionProducerLookup:  resolutionProducer,
+			Instruments:               instruments,
+			Logger:                    logger,
 		},
 		WorkloadDependencyLookup:        neo4jWorkloadDependencyLookup{reader: graphReader},
 		InstanceRetractionLookup:        neo4jWorkloadInstanceRetractionLookup{reader: graphReader},
