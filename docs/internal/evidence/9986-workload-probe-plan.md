@@ -49,11 +49,11 @@ cd go && ESHU_POSTGRES_TEST_DSN='postgres://postgres@127.0.0.1:55986/eshu9986?ss
 
 Performance Evidence: baseline none (the statement never executed in
 production; the comparison is the 89.195 ms DB-side bulk-load read of the same
-scope). Transport fix (first commit): 0.3 to 4 ms for ordinary scopes and 240
+scope). Transport fix (the key-existence statement): 0.3 to 4 ms for ordinary scopes and 240
 to 279 ms for a 300,000-file scope with no signal or the signal last, on
 PostgreSQL 18.6, over 5,253,002 synthetic `fact_records` rows; the predicate
-was unchanged there, only the key transport. Value-aware predicate (second
-commit, section below): 0.3 to 1.9 ms for ordinary scopes and 460 to 640 ms
+was unchanged there, only the key transport. Value-aware predicate (the shipped
+statement, section below): 0.3 to 1.9 ms for ordinary scopes and 460 to 640 ms
 (no signal or signal last) or about 1.3 s (every file carries the QA null
 shape) for a 300,000-file scope, bounded by the scope generation and linear
 in its file count. Terminal result: every scenario returns the expected
@@ -134,7 +134,7 @@ numbered migration, `TestDDLMigrationParity` coverage, and the QA read-only
 plan first. The decision is the owner's.
 
 ```bash
-psql -d perf9986 -f explain.sql   # PREPARE probe(text,text,text[]); EXPLAIN (ANALYZE, BUFFERS) EXECUTE probe(...)
+psql -d perf9986 -f 9986-workload-probe-plan-key-existence.sql   # PREPARE probe(text,text,text[]); EXPLAIN (ANALYZE, BUFFERS) EXECUTE probe(...)
                                   # custom plans first, then SET plan_cache_mode = force_generic_plan
 ```
 
@@ -186,8 +186,8 @@ payloads, repository identity shapes, and the QA all-null shape.
 
 | probe | probe true | false positives | false negatives |
 | --- | --- | --- | --- |
-| key existence (first commit) | 7,318 | 2,720 | 34 (all Jenkinsfile-path generations, plus two padded-identity generations) |
-| value-aware (this commit) | 4,685 | 53 | 0 |
+| key-existence statement | 7,318 | 2,720 | 34 (all Jenkinsfile-path generations, plus two padded-identity generations) |
+| value-aware statement (shipped) | 4,685 | 53 | 0 |
 
 4,632 of the 7,523 generations yield a candidate. The 53 false positives are the
 language and path gates described above (`dockerfile_stages` outside a
@@ -207,8 +207,8 @@ guard on `parsed_file_data` removed (1).
 
 Same cluster and data as above, plus two scopes with the QA shape (150 files
 and 300,000 files, every file carrying all 13 signal keys as null or empty).
-Warm second run, custom plan, ms; the key-existence column is the first
-commit's statement on the same data in the same session.
+Warm second run, custom plan, ms; the key-existence column is the
+key-existence statement on the same data in the same session.
 
 | scenario | answer | key existence | value-aware custom | value-aware generic |
 | --- | --- | --- | --- | --- |
@@ -238,7 +238,7 @@ out of the storm-window deferral loop. It removes an extra deferral round for
 each of them, so the recommendation is yes.
 
 ```bash
-psql -d perf9986 -f explain10.sql   # shipped statement, custom then generic
+psql -d perf9986 -f 9986-workload-probe-plan-value-aware.sql   # shipped statement, custom then generic
 ```
 
 ## Repository identity cost (#9986, part B)
@@ -284,6 +284,29 @@ Reading it:
 Decision: leave the repository-side read as is. Record: 8.4 ms warm at 15 MB
 stored payload, about 4,000 buffers, 5% of the statement on a 23,329-file scope.
 A cache-cold repository payload read is NOT_CHECKED here.
+
+## Reproducing the figures
+
+The generator and plan scripts sit beside this note, so the figures do not
+depend on a scratch cluster. On a private disposable PostgreSQL 18 cluster
+(`fsync=off`, `shared_buffers=1GB`):
+
+```bash
+createdb perf9986
+# apply every repository migration in numeric order
+for f in $(ls go/internal/storage/postgres/migrations/*.sql | sort); do psql -X -v ON_ERROR_STOP=1 -d perf9986 -f "$f"; done
+psql -X -d perf9986 -f docs/internal/evidence/9986-workload-probe-load.sql
+psql -X -d perf9986 -f docs/internal/evidence/9986-workload-probe-load-null.sql
+psql -X -d perf9986 -f docs/internal/evidence/9986-workload-probe-load-big.sql
+psql -X -d perf9986 -f docs/internal/evidence/9986-workload-probe-plan-key-existence.sql
+psql -X -d perf9986 -f docs/internal/evidence/9986-workload-probe-plan-value-aware.sql
+psql -X -d perf9986 -f docs/internal/evidence/9986-workload-probe-plan-repository-identity.sql
+```
+
+Plan times depend on the host and its load: compare buffer counts across
+machines, and read wall times only against a control run on the same host.
+The differential and matrix live tests need only `ESHU_POSTGRES_TEST_DSN`
+(see the commands above).
 
 ## Observability Evidence
 
