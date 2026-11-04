@@ -93,8 +93,8 @@ func TestSelectOSVendorFactLine(t *testing.T) {
 		{
 			"line is another release", vendorLineFact("debian", dir+"debian-11", "1:1.0-3"), bookwormRow,
 			func(t *testing.T, got supplychainmodel.AffectedPackage) {
-				if !got.ReleaseUnlisted || !got.VendorLineUnverified || got.ReleaseLine != "" {
-					t.Fatalf("flags = unlisted %v unverified %v line %q, want unlisted and unverified", got.ReleaseUnlisted, got.VendorLineUnverified, got.ReleaseLine)
+				if !got.ReleaseUnlisted || got.ReleaseLine != "" {
+					t.Fatalf("flags = unlisted %v line %q, want unlisted with no line", got.ReleaseUnlisted, got.ReleaseLine)
 				}
 				// Another release's list and fix must not reach the host's verdict.
 				if got.FixedVersions != nil || got.AffectedVersions != nil {
@@ -109,12 +109,12 @@ func TestSelectOSVendorFactLine(t *testing.T) {
 			"fact line unreadable", vendorLineFact("debian", dir+"bookworm", "1:1.0-3"), bookwormRow,
 			func(t *testing.T, got supplychainmodel.AffectedPackage) {
 				want := vendorLineFact("debian", dir+"bookworm", "1:1.0-3")
-				want.VendorLineUnverified = true
+				want.FixedVersions = nil // a release of unknown identity offers no fix of its own
 				if !reflect.DeepEqual(got, want) {
-					t.Fatalf("got %+v, want only VendorLineUnverified set: %+v", got, want)
+					t.Fatalf("got %+v, want only the fixed versions cleared: %+v", got, want)
 				}
-				if osAffectedFactCarriesReleaseEvidence(got) {
-					t.Fatal("an unverified vendor fact must carry no release evidence")
+				if osAffectedFactCarriesReleaseEvidence(got) || !osAffectedFactIsUnverifiedVendor(got) {
+					t.Fatal("an unreadable-line vendor fact must carry no release evidence and read as unverified")
 				}
 			},
 		},
@@ -122,8 +122,8 @@ func TestSelectOSVendorFactLine(t *testing.T) {
 			"host line unknown", vendorLineFact("debian", dir+"debian-12", "1:1.0-3"),
 			supplychainmodel.OSPackage{Distro: "debian", DistroVersion: "testing", VendorAdvisorySource: "debian"},
 			func(t *testing.T, got supplychainmodel.AffectedPackage) {
-				if !got.VendorLineUnverified || got.ReleaseLine != "" || osAffectedFactCarriesReleaseEvidence(got) {
-					t.Fatalf("got %+v, want unverified with no evidence", got)
+				if got.FixedVersions != nil || got.ReleaseLine != "" || osAffectedFactCarriesReleaseEvidence(got) {
+					t.Fatalf("got %+v, want no fix and no release evidence", got)
 				}
 			},
 		},
@@ -178,9 +178,12 @@ func TestSelectOSVendorFactLineLeavesOtherFactsAlone(t *testing.T) {
 	if allocs := testing.AllocsPerRun(50, func() { _ = selectOSAdvisoryRelease(pkgs, bookwormRow) }); allocs != 0 {
 		t.Fatalf("allocs = %v, want 0 when no fact needs the line check", allocs)
 	}
-	// A row with no vendor advisory source has no vendor facts of its own.
-	if got := selectOSAdvisoryRelease(pkgs[1:2], supplychainmodel.OSPackage{Distro: "debian", DistroVersion: "12"}); !reflect.DeepEqual(got, pkgs[1:2]) {
-		t.Fatalf("a row without a vendor source line-checked a fact: %+v", got)
+	// A row with no vendor advisory source (the zero row of an SBOM-only
+	// component) has no vendor to compare, so a non-OSV OS fact takes the
+	// unknown arm: no fix of its own and no release evidence.
+	got = selectOSAdvisoryRelease(pkgs[1:2], supplychainmodel.OSPackage{Distro: "debian", DistroVersion: "12"})
+	if got[0].FixedVersions != nil || osAffectedFactCarriesReleaseEvidence(got[0]) {
+		t.Fatalf("a row without a vendor source left a non-OSV OS fact trusted: %+v", got[0])
 	}
 }
 
@@ -203,8 +206,8 @@ func TestUnknownHostLineDoesNotRestoreTrustAfterATaggedFact(t *testing.T) {
 		if at < 0 {
 			t.Fatalf("%s: vendor fact missing from %+v", name, got)
 		}
-		if !got[at].VendorLineUnverified || osAffectedFactCarriesReleaseEvidence(got[at]) {
-			t.Errorf("%s: vendor fact %+v must be unverified with no release evidence", name, got[at])
+		if got[at].FixedVersions != nil || osAffectedFactCarriesReleaseEvidence(got[at]) {
+			t.Errorf("%s: vendor fact %+v must offer no fix and carry no release evidence", name, got[at])
 		}
 	}
 }

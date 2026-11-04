@@ -55,22 +55,18 @@ func markAuthorizedFixedVersionConflicts(
 		}
 		packages = append(packages, pkg)
 	}
-	hostByRow := make(map[string]authorizedHost, len(osPackages))
+	hostLineByRow := make(map[string]string, len(osPackages))
 	for _, row := range osPackages {
 		if row.FactID == "" {
 			continue
 		}
-		if _, ok := hostByRow[row.FactID]; !ok {
-			hostByRow[row.FactID] = authorizedHost{
-				line:   osHostReleaseLine(row.Distro, row.DistroVersion),
-				vendor: row.VendorAdvisorySource,
-			}
+		if _, ok := hostLineByRow[row.FactID]; !ok {
+			hostLineByRow[row.FactID] = osHostReleaseLine(row.Distro, row.DistroVersion)
 		}
 	}
 	for i := range findings {
 		finding := &findings[i]
-		host := authorizedFindingHost(*finding, hostByRow)
-		hostLine := host.line
+		hostLine := authorizedFindingHostLine(*finding, hostLineByRow)
 		var related []supplychainmodel.AffectedPackage
 		for _, pkg := range packages {
 			if sameAuthorizedAdvisoryPackage(pkg, pkg, *finding) {
@@ -101,7 +97,7 @@ func markAuthorizedFixedVersionConflicts(
 			}
 		}
 		if !conflict {
-			selectApplicableAuthorizedBranch(finding, candidates, host)
+			selectApplicableAuthorizedBranch(finding, candidates, hostLine)
 			continue
 		}
 		finding.Status = SupplyChainImpactPossiblyAffected
@@ -122,65 +118,63 @@ func markAuthorizedFixedVersionConflicts(
 	}
 }
 
-// authorizedHost is what the conflict pass knows about a finding's installed
-// row: its release line ("" when unknown) and its vendor advisory source, which
-// decides whether a fact is the host vendor's own (osAdvisoryFactIsHostVendorFact).
-type authorizedHost struct {
-	line   string
-	vendor string
-}
-
-// authorizedFindingHost returns the installed row's release line and vendor
-// advisory source for the finding, or the zero value when the finding names no
-// known row. The finding carries its installed row's fact ID in EvidenceFactIDs
-// (the primary path stamps osPackage.FactID there when it builds the finding),
-// so the conflict path resolves the same host line the primary path narrowed
-// facts against. An unknown line is not evidence of anything: without it no
-// branch can be proven foreign, so callers keep the existing behavior.
-func authorizedFindingHost(finding SupplyChainImpactFinding, hostByRow map[string]authorizedHost) authorizedHost {
+// authorizedFindingHostLine returns the installed row's release line for the
+// finding, or "" when the finding names no known row. The finding carries its
+// installed row's fact ID in EvidenceFactIDs (the primary path stamps
+// osPackage.FactID there when it builds the finding), so the conflict path
+// resolves the same host line the primary path narrowed facts against. An
+// unknown line is not evidence of anything: without it no tagged branch can be
+// proven foreign, so callers keep the existing behavior for those.
+func authorizedFindingHostLine(finding SupplyChainImpactFinding, hostLineByRow map[string]string) string {
 	for _, factID := range finding.EvidenceFactIDs {
-		if host, ok := hostByRow[factID]; ok {
-			return host
+		if hostLine, ok := hostLineByRow[factID]; ok {
+			return hostLine
 		}
 	}
-	return authorizedHost{}
+	return ""
 }
 
 // filterAuthorizedBranchesToHostLine keeps the branches that may describe the
-// finding's installed release line. Untagged facts always qualify: the primary
-// path passes them through un-narrowed, so they contend exactly as before. A
-// vendor-sourced fact qualifies unless its purl names another release than the
-// host's (osVendorFactForOtherLine, #9945): its fix is that release's, so it
-// must not be picked as the host's. A vendor fact with no readable line still
-// contends, but if it is the branch that applies, the verdict it yields is
-// unverified, never exact (selectApplicableAuthorizedBranch). A release-tagged fact qualifies only through a range that names the
-// host line; a tagged fact naming only other lines is dropped.
+// finding's installed release line. Untagged non-vendor facts always qualify:
+// the primary path passes them through un-narrowed, so they contend exactly as
+// before. A vendor-sourced OS fact (osAdvisoryFactIsVendorSourced, #9945)
+// contends only when its purl distro qualifier names the host's own line, and
+// it is kept as selectOSVendorFactLine returns it, with ReleaseLine set, so the
+// evaluator reads it as release evidence. A vendor fact for another line, one
+// with no readable line, and any vendor fact when the host line is unknown are
+// dropped: a branch that cannot be verified as the host's must never pick the
+// host's fix. A release-tagged fact qualifies only through a range that names
+// the host line; a tagged fact naming only other lines is dropped.
 //
-// An empty hostLine disables the filter: without the installed row no branch
-// can be proven foreign, so the existing containment behavior stands. When
-// the line is known but nothing qualifies, the caller leaves the finding
-// untouched, preserving the primary not-in-advisory precision.
+// An empty hostLine disables the tagged-branch filter: without the installed
+// row no tagged branch can be proven foreign, so the existing containment
+// behavior stands for it. When nothing qualifies, the caller leaves the finding
+// untouched, preserving the primary verdict, which already fails closed.
 func filterAuthorizedBranchesToHostLine(
 	branches []supplychainmodel.AffectedPackage,
 	hostLine string,
 ) []supplychainmodel.AffectedPackage {
-	if hostLine == "" {
-		return branches
-	}
 	var out []supplychainmodel.AffectedPackage
 	for _, branch := range branches {
-		if !osAdvisoryFactSelectable(branch) {
-			if !osVendorFactForOtherLine(branch, hostLine) {
+		switch {
+		case osAdvisoryFactSelectable(branch):
+			if hostLine == "" {
 				out = append(out, branch)
+				continue
 			}
-			continue
-		}
-		for _, affectedRange := range branch.AffectedRanges {
-			if strings.EqualFold(affectedRange.Kind, "ECOSYSTEM") &&
-				slices.Contains(affectedRange.Releases, hostLine) {
-				out = append(out, branch)
-				break
+			for _, affectedRange := range branch.AffectedRanges {
+				if strings.EqualFold(affectedRange.Kind, "ECOSYSTEM") &&
+					slices.Contains(affectedRange.Releases, hostLine) {
+					out = append(out, branch)
+					break
+				}
 			}
+		case osAdvisoryFactIsVendorSourced(branch):
+			if osVendorFactLineStatus(branch, hostLine) == osVendorLineMatched {
+				out = append(out, selectOSVendorFactLine(branch, hostLine))
+			}
+		default:
+			out = append(out, branch)
 		}
 	}
 	return out
@@ -283,18 +277,15 @@ func affectedVersionSetsOverlap(first, second []string) bool {
 
 // selectApplicableAuthorizedBranch chooses a fixed version only when explicit
 // disjoint ranges prove one branch applies to this observed installation.
-// host.line is the finding's installed release line ("ubuntu:22.04"): tagged
+// hostLine is the finding's installed release line ("ubuntu:22.04"): tagged
 // branches naming only other lines are filtered before containment, so a
-// cross-release fix can never present as the host's own (#9806 P1). The branch
-// that applies is then line-checked like the primary join checks a vendor fact
-// (selectOSVendorFactLine, #9945), so a branch whose release line is foreign,
-// unreadable or unverifiable against an unknown host line never reads exact.
+// cross-release fix can never present as the host's own (#9806 P1), and a
+// vendor branch contends only when its own line is the host's (#9945).
 func selectApplicableAuthorizedBranch(
 	finding *SupplyChainImpactFinding,
 	packages []supplychainmodel.AffectedPackage,
-	host authorizedHost,
+	hostLine string,
 ) {
-	hostLine := host.line
 	branches := make([]supplychainmodel.AffectedPackage, 0)
 	for _, pkg := range packages {
 		if sameAuthorizedAdvisoryPackage(pkg, pkg, *finding) {
@@ -343,9 +334,6 @@ func selectApplicableAuthorizedBranch(
 		return
 	}
 	selected := applicable[0]
-	if !osAdvisoryFactSelectable(selected) && osAdvisoryFactIsHostVendorFact(selected.Source, host.vendor) {
-		selected = selectOSVendorFactLine(selected, hostLine)
-	}
 	finding.FixedVersion = selected.FixedVersions[0]
 	finding.FixedVersionSource = classifyAffectedPackageAdvisorySource(selected)
 	finding.VulnerableRange = supplyChainAffectedRangeSummary(selected)

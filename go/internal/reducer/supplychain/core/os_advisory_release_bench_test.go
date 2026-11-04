@@ -37,6 +37,10 @@ func BenchmarkSelectOSAdvisoryRelease(b *testing.B) {
 		{"vendor-matched", vendorLineFact("debian", "pkg:deb/debian/curl?arch=amd64&distro=debian-12"), bookwormRow},
 		{"vendor-mismatch", vendorLineFact("debian", "pkg:deb/debian/curl?arch=amd64&distro=debian-11"), bookwormRow},
 		{"vendor-unknown", vendorLineFact("debian", "pkg:deb/debian/curl?arch=amd64"), bookwormRow},
+		// The SBOM-only path runs the boundary with the zero row, so a vendor
+		// fact takes the unknown arm and an untagged OSV fact is left alone.
+		{"vendor-zero-row", vendorLineFact("debian", "pkg:deb/debian/curl?arch=amd64&distro=debian-12"), supplychainmodel.OSPackage{}},
+		{"untagged-zero-row", untagged, supplychainmodel.OSPackage{}},
 	} {
 		b.Run(tc.name, func(b *testing.B) {
 			pkgs := []supplychainmodel.AffectedPackage{tc.pkg}

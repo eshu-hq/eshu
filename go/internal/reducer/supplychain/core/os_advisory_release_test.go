@@ -110,7 +110,6 @@ func TestSelectOSAdvisoryRelease(t *testing.T) {
 				p.AffectedRanges[i].Releases = nil
 			}
 		}, bookworm},
-		{"vendor-sourced fact", func(p *supplychainmodel.AffectedPackage) { p.Source = "debian"; p.AdvisoryID = "DSA-0000-1" }, bookworm},
 		{"host release unknown", func(*supplychainmodel.AffectedPackage) {}, supplychainmodel.OSPackage{Distro: "debian"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

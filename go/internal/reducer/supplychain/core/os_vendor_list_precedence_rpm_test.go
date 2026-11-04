@@ -35,7 +35,27 @@ func rpmVendorFact(versions ...string) supplychainmodel.AffectedPackage {
 		CVEID: "CVE-2099-0929", Source: "alma", AdvisoryID: "ALSA-2099-0929-V",
 		PackageID: "os://alma/curl", Ecosystem: "os", Name: "curl",
 		PURL: "pkg:rpm/alma/curl", AffectedVersions: versions,
+		// The shape the join hands the matcher once a line is verified. No rpm
+		// row exists in the host-line table, so the join cannot verify one
+		// today (see TestRPMVendorFactIsUnverifiedUntilTheHostLineIsReadable).
+		ReleaseLine: "alma:8",
 	}
+}
+
+// TestRPMVendorFactIsUnverifiedUntilTheHostLineIsReadable pins what the join
+// does with an rpm vendor fact today: osHostReleaseLine has no rpm row, so the
+// host line is unknown and the fact reads possibly_affected, never exact,
+// until an rpm producer and line reader are designed together.
+func TestRPMVendorFactIsUnverifiedUntilTheHostLineIsReadable(t *testing.T) {
+	t.Parallel()
+	row := supplychainmodel.OSPackage{Distro: "alma", DistroVersion: "8.9", VendorAdvisorySource: "alma"}
+	vendor := rpmVendorFact(rpmHost)
+	vendor.ReleaseLine = ""
+	pkgs := selectOSAdvisoryRelease([]supplychainmodel.AffectedPackage{rpmOSVFact(), vendor}, row)
+	got := evaluateSupplyChainVersionMatch("os", rpmHost, "", rpmFixBelow, pkgs)
+	// The vendor list names the host with no release evidence while the
+	// OSV range says it is fixed: the host stays possibly affected.
+	assertOSDecision(t, got, SupplyChainImpactPossiblyAffected, supplyChainVersionReasonOSReleaseAmbiguous)
 }
 
 // TestVendorVersionListBeatsOSVRangesRPM pins the rpm path of #9929: an

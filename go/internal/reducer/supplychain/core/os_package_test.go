@@ -64,8 +64,10 @@ func TestBuildSupplyChainImpactFindingsUsesVendorRPMOSPackageEvidence(t *testing
 	if got.RuntimeReachability != "image_os_package" {
 		t.Fatalf("RuntimeReachability = %q, want image_os_package", got.RuntimeReachability)
 	}
-	if got.FixedVersionSource != "redhat" {
-		t.Fatalf("FixedVersionSource = %q, want redhat", got.FixedVersionSource)
+	// No rpm row exists in the host-line table, so the join cannot verify this
+	// vendor fact's release and withholds its fix instead of offering it (#9945).
+	if got.FixedVersion != "" || got.FixedVersionSource != "" {
+		t.Fatalf("FixedVersion = %q (source %q), want the unverified vendor fix withheld", got.FixedVersion, got.FixedVersionSource)
 	}
 	if got.DetectionProfile != DetectionProfilePrecise {
 		t.Fatalf("DetectionProfile = %q, want precise", got.DetectionProfile)

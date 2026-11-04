@@ -302,7 +302,7 @@ func TestSupplyChainImpactExactOSPackageReasonsQualifyForPreciseProfile(t *testi
 			decision := evaluateOSPackageVersionMatch(
 				test.observedVersion,
 				test.fixedVersion,
-				[]supplychainmodel.AffectedPackage{{AffectedVersions: test.affectedVersions}},
+				[]supplychainmodel.AffectedPackage{{AffectedVersions: test.affectedVersions, ReleaseLine: "verified:line"}},
 				test.affectedReason,
 				test.knownFixedReason,
 				test.rangeAffectedReason,

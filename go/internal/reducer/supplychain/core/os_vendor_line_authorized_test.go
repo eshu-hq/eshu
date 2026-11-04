@@ -15,10 +15,12 @@ import (
 
 // TestAuthorizedBranchFilterDropsForeignLineVendorFacts pins the second reader
 // of vendor facts (#9945). The authorized-scan conflict pass picks the fix that
-// applies to the host from the advisory's branches, so a vendor branch for
-// another release must not contend there: its fix is that release's, not the
-// host's. A branch with no readable line contends exactly as it did before, and
-// an empty host line disables the filter.
+// applies to the host from the advisory's branches, so a vendor branch contends
+// only when its own purl line is the host's, and it contends already
+// line-checked (ReleaseLine set). A branch for another release, one with no
+// readable line, and every vendor branch when the host line is unknown are
+// dropped: none can be verified as the host's. A tagged OSV branch keeps its
+// range rule, and an empty host line leaves it in.
 func TestAuthorizedBranchFilterDropsForeignLineVendorFacts(t *testing.T) {
 	t.Parallel()
 	const dir = "pkg:deb/debian/curl?distro="
@@ -28,41 +30,43 @@ func TestAuthorizedBranchFilterDropsForeignLineVendorFacts(t *testing.T) {
 	osv := osvDebianCurlFact() // tagged for debian:12, 13 and 14
 
 	got := filterAuthorizedBranchesToHostLine([]supplychainmodel.AffectedPackage{same, other, unknown, osv}, "debian:12")
-	want := []supplychainmodel.AffectedPackage{same, unknown, osv}
+	selected := same
+	selected.ReleaseLine = "debian:12"
+	want := []supplychainmodel.AffectedPackage{selected, osv}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("host debian:12 kept %+v, want %+v", got, want)
 	}
-	all := []supplychainmodel.AffectedPackage{same, other, unknown}
-	if got := filterAuthorizedBranchesToHostLine(all, ""); !reflect.DeepEqual(got, all) {
-		t.Fatalf("an empty host line must keep every branch, got %+v", got)
+	if got := filterAuthorizedBranchesToHostLine([]supplychainmodel.AffectedPackage{same, other, unknown, osv}, ""); !reflect.DeepEqual(got, []supplychainmodel.AffectedPackage{osv}) {
+		t.Fatalf("an empty host line must drop every vendor branch and keep the tagged OSV branch, got %+v", got)
 	}
 }
 
 // TestAuthorizedBranchFilterKeepsNonVendorBranchesWithAForeignLine pins the
-// source check of osVendorFactForOtherLine (#9945). Only the host vendor's own
-// advisory is "for another line" when its purl names one. An untagged OSV
-// branch, a branch with no source and a branch of another vendor are not line
-// checked, so a readable foreign line on them must not drop them from the
-// branches that contend, exactly as before the vendor check existed.
+// vendor test of the filter (#9945). Only a vendor-sourced OS fact is
+// line-checked. An untagged OSV branch and a non-OS branch (a language
+// advisory) name a readable foreign line or none, and still contend exactly as
+// before the vendor check existed.
 func TestAuthorizedBranchFilterKeepsNonVendorBranchesWithAForeignLine(t *testing.T) {
 	t.Parallel()
 	const foreign = "pkg:deb/debian/curl?distro=debian-11"
 	untaggedOSV := osvDebianCurlFact()
 	untaggedOSV.AffectedRanges = []supplychainmodel.AffectedRange{{Kind: "ECOSYSTEM", Events: untaggedOSV.AffectedRanges[0].Events}}
 	untaggedOSV.PURL = foreign
-	branches := []supplychainmodel.AffectedPackage{
-		untaggedOSV,
-		vendorLineFact("", foreign, "1:1.0-3"),
-		vendorLineFact("ubuntu", foreign, "1:1.0-3"),
-		vendorLineFact("nvd", foreign, "1:1.0-3"),
+	language := supplychainmodel.AffectedPackage{
+		CVEID: "CVE-2099-9945", Source: "glad", AdvisoryID: "GLAD-1", Ecosystem: "npm",
+		PackageID: "pkg:npm/example", PURL: "pkg:npm/example", Name: "example",
 	}
-	if got := filterAuthorizedBranchesToHostLine(branches, "debian:12"); !reflect.DeepEqual(got, branches) {
-		t.Fatalf("kept %+v, want every non-vendor branch kept: %+v", got, branches)
+	branches := []supplychainmodel.AffectedPackage{untaggedOSV, language}
+	for _, hostLine := range []string{"debian:12", ""} {
+		if got := filterAuthorizedBranchesToHostLine(branches, hostLine); !reflect.DeepEqual(got, branches) {
+			t.Fatalf("host %q kept %+v, want every non-vendor branch kept: %+v", hostLine, got, branches)
+		}
 	}
-	// The host vendor's own branch with the same foreign line is dropped.
-	own := vendorLineFact("debian", foreign, "1:1.0-3")
-	if got := filterAuthorizedBranchesToHostLine(append(slices.Clone(branches), own), "debian:12"); !reflect.DeepEqual(got, branches) {
-		t.Fatalf("kept %+v, want only the host vendor's foreign branch dropped", got)
+	// A vendor branch with the same foreign line is dropped, and so is a
+	// blank-source OS fact, which classifies as a non-OSV source.
+	dropped := append(slices.Clone(branches), vendorLineFact("debian", foreign, "1:1.0-3"), vendorLineFact("", foreign, "1:1.0-3"))
+	if got := filterAuthorizedBranchesToHostLine(dropped, "debian:12"); !reflect.DeepEqual(got, branches) {
+		t.Fatalf("kept %+v, want only the vendor-sourced OS branches dropped", got)
 	}
 }
 

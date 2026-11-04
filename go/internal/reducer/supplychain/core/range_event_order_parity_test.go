@@ -169,7 +169,7 @@ func TestRangeEventOrderParityAgainstOSVOracle(t *testing.T) {
 			for i, events := range ranges {
 				model[i] = eventRange(family.kind, orderEventsToModel(events)...)
 			}
-			pkgs := affectedPackageWithRanges(model...)
+			pkgs := verifiedForOSHost(affectedPackageWithRanges(model...))
 			for observed := 0; observed < 36; observed++ {
 				got := evaluateSupplyChainVersionMatch(family.ecosystem, orderEvent{'f', observed}.text(), "", "", pkgs)
 				gotAffected := rangeContainsObserved(family.ecosystem, got)

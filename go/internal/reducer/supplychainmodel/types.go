@@ -47,21 +47,18 @@ type AffectedPackage struct {
 	AffectedRanges   []AffectedRange
 	AffectedRangeRaw string
 	FixedVersions    []string
-	// ReleaseLine is the host release line ("debian:12") the OS join narrowed
-	// AffectedRanges and FixedVersions to, because every range of the fact
-	// named its release lines and one named the host's (#9806 PR-2b). Empty
-	// when the fact was not narrowed.
+	// ReleaseLine is the host release line ("debian:12") the OS join verified
+	// the fact against: either every range of a tagged OSV fact named its
+	// release lines and one named the host's, and the join narrowed
+	// AffectedRanges and FixedVersions to it (#9806 PR-2b), or a vendor
+	// fact's purl distro qualifier equals the host's line (#9945). It is the
+	// only release evidence on the OS path: a fact without it never yields
+	// affected_exact or not_affected_known_fixed. Empty when the fact was not
+	// verified.
 	ReleaseLine string
 	// ReleaseUnlisted marks a fact whose ranges all name their release lines
 	// and none names the host's line. The fact keeps every range.
 	ReleaseUnlisted bool
-	// VendorLineUnverified marks a vendor-sourced OS fact (source debian,
-	// ubuntu, alpine, ...) whose release line the join could not verify as the
-	// host's: its purl distro qualifier names another release or none the
-	// reducer can read, or the host's own line is unknown (#9945). Such a fact
-	// carries no release evidence, so it never decides a verdict as exact. A
-	// vendor fact verified for the host's line has ReleaseLine set instead.
-	VendorLineUnverified bool
 }
 
 // AffectedRange is one typed version-range event group inside an

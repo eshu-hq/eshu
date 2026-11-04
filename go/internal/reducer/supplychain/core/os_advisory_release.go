@@ -77,6 +77,12 @@ func selectOSAdvisoryRelease(
 	for at, pkg := range pkgs {
 		selectable := osAdvisoryFactSelectable(pkg)
 		vendor := !selectable && osAdvisoryFactIsHostVendorFact(pkg.Source, installed.VendorAdvisorySource)
+		if !selectable && !vendor && installed.VendorAdvisorySource == "" {
+			// No installed row (an SBOM component with no joined OS row): any
+			// vendor-sourced OS fact still takes the line check, with an
+			// unknown host line, so it never reads as release evidence.
+			vendor = osAdvisoryFactIsVendorSourced(pkg)
+		}
 		if !selectable && !vendor {
 			continue
 		}
@@ -229,22 +235,21 @@ func osVendorFactLineStatus(pkg supplychainmodel.AffectedPackage, host string) o
 //   - matched: ReleaseLine is the host's line. The fact's exact-version list
 //     and ranges decide the host as they always have.
 //   - mismatch: the fact is published for another release. It is marked
-//     ReleaseUnlisted and unverified, and its fixed versions and exact-version
+//     ReleaseUnlisted, and its fixed versions and exact-version
 //     list are cleared, so it contributes only the weakest "advisory does not
 //     list the installed release" signal: no consumer reads another release's
 //     fix as the host's, and a version string that two releases happen to share
 //     cannot block or override a verdict the host's own line decided.
-//   - unknown: the fact is marked unverified and carries no release evidence,
-//     so a list match reads possibly_affected like an untagged OSV fact's and
-//     never affected_exact.
+//   - unknown: the fact carries no release evidence (ReleaseLine stays empty)
+//     and its fixed versions are cleared, because a fix of a release of
+//     unknown identity says nothing about the host. Its exact-version list and
+//     ranges are kept, so a list or range that names the host reads
+//     possibly_affected (os_release_unverified), never affected_exact, and a
+//     fix at or below the host never reads not_affected_known_fixed.
 //
-// The verdict for one fact depends only on that fact and the host row it is
-// joined to, never on the position of the fact among its siblings, so fact
-// order cannot change it. Which host row a finding joins is outside this check:
-// when fleet rows resolve to distinct image digests each digest keeps its own
-// row and fleet order is irrelevant, but rows with no digest share one finding
-// that the first row decides, so their order can change the verdict (as it
-// already does for a release-tagged OSV fact).
+// The verdict for an installed row depends only on the fact and that row,
+// never on the fact's position among its siblings. Which row a digest-less
+// fleet group evaluates is decided upstream by row order (#9984).
 func selectOSVendorFactLine(pkg supplychainmodel.AffectedPackage, host string) supplychainmodel.AffectedPackage {
 	switch osVendorFactLineStatus(pkg, host) {
 	case osVendorLineMatched:
@@ -253,25 +258,23 @@ func selectOSVendorFactLine(pkg supplychainmodel.AffectedPackage, host string) s
 		pkg.FixedVersions = nil
 		pkg.AffectedVersions = nil
 		pkg.ReleaseUnlisted = true
-		pkg.VendorLineUnverified = true
 	default:
-		pkg.VendorLineUnverified = true
+		pkg.FixedVersions = nil
 	}
 	return pkg
 }
 
-// osVendorFactForOtherLine reports whether pkg is a vendor fact of the host's
-// distribution whose purl names a readable release line other than host (the
-// "<vendor>:<line>" key of the installed row). The authorized-scan conflict pass
-// has the host's line but no installed row, so the vendor is read from the line:
-// a fact whose source is the host's distribution is the host vendor's own
-// advisory. A fact with no readable line, or another source, is not "for another
-// line".
-func osVendorFactForOtherLine(pkg supplychainmodel.AffectedPackage, host string) bool {
-	vendor, _, found := strings.Cut(host, ":")
-	if !found || !strings.EqualFold(strings.TrimSpace(pkg.Source), vendor) {
+// osAdvisoryFactIsVendorSourced reports whether pkg is an OS fact from a source
+// other than OSV: the vendor's own advisory, whichever distribution it is for.
+// The join accepts a fact only from the installed row's vendor, and a fact
+// with no installed row has none to compare, so this reads the source and the
+// OS shape of the fact instead (the ecosystem, a deb/apk/rpm purl, or an os://
+// package id).
+func osAdvisoryFactIsVendorSourced(pkg supplychainmodel.AffectedPackage) bool {
+	if classifyAdvisorySource(pkg.Source, pkg.AdvisoryID) == "osv" {
 		return false
 	}
-	line := osAdvisoryPURLReleaseLine(pkg.PURL)
-	return line != "" && line != host
+	return normalizedSupplyChainVersionEcosystem(pkg.Ecosystem) == string(packageidentity.EcosystemOS) ||
+		osPackageFamilyFromPURL(pkg.PURL) != "" ||
+		strings.HasPrefix(packageidentity.LowerASCII(strings.TrimSpace(pkg.PackageID)), "os://")
 }

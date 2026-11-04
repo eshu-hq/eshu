@@ -217,6 +217,20 @@ func osPackageRangesVerdict(
 			continue
 		}
 		contains, fixedBelow, malformed := osPackageRangeSignals(observed, pkg, compare)
+		if osAffectedFactIsUnverifiedVendor(pkg) {
+			// A vendor record of unknown release says nothing exact about the
+			// host: a range that contains it or a fix at or below it only
+			// leaves the host possibly affected, and never known fixed.
+			switch {
+			case contains:
+				out.unverified = true
+			case malformed:
+				out.malformed = true
+			case fixedBelow:
+				out.unverified = true
+			}
+			continue
+		}
 		switch {
 		case contains && !fixedBelow && osAffectedFactCarriesReleaseEvidence(pkg):
 			out.exact = true
@@ -237,23 +251,26 @@ func osPackageRangesVerdict(
 }
 
 // osAffectedFactCarriesReleaseEvidence reports whether an affected OS fact's
-// ranges and exact-version list describe the host's release line.
+// ranges and exact-version list describe the host's release line. It is true
+// only when ReleaseLine is set, which only a verified join sets (#9945): a
+// tagged OSV fact whose ranges name the host's line (#9806 PR-2b), or a vendor
+// fact whose purl distro qualifier equals it (selectOSVendorFactLine).
 //
-// A vendor-sourced fact (source debian, ubuntu, alpine) is published per
-// release, but only after selectOSVendorFactLine has compared its purl distro
-// qualifier with the host's line (#9945): a matched fact has ReleaseLine set,
-// and one whose line is another release or unknown is VendorLineUnverified and
-// carries none. A tagged OSV fact narrowed to the host's line (ReleaseLine set,
-// #9806 PR-2b) carries it too. An OSV OS fact otherwise is the untagged union of
-// every release's ranges (#9847 merges them), so it carries none (#9848,
-// ruling D). A fact from any other non-OSV source (NVD, GLAD) is not a host
-// vendor fact, never passes through the line check, and keeps its
-// source-based rule.
+// Trust is positive. A fact that skipped selection, a vendor fact whose line is
+// another release or unreadable, an untagged OSV fact (the union of every
+// release's ranges, #9847, #9848 ruling D) and a blank-source fact all carry
+// none, so the answer never depends on selection having run first.
 func osAffectedFactCarriesReleaseEvidence(pkg supplychainmodel.AffectedPackage) bool {
-	if pkg.ReleaseLine != "" {
-		return true
-	}
-	return !pkg.VendorLineUnverified && classifyAdvisorySource(pkg.Source, pkg.AdvisoryID) != "osv"
+	return pkg.ReleaseLine != ""
+}
+
+// osAffectedFactIsUnverifiedVendor reports whether pkg is a vendor-sourced OS
+// fact (any non-OSV source) that no join verified against the host's line and
+// that is not marked as another release's: it describes one release of unknown
+// identity, so neither its ranges nor its fixes may decide the host.
+func osAffectedFactIsUnverifiedVendor(pkg supplychainmodel.AffectedPackage) bool {
+	return pkg.ReleaseLine == "" && !pkg.ReleaseUnlisted &&
+		classifyAdvisorySource(pkg.Source, pkg.AdvisoryID) != "osv"
 }
 
 // osPackageRangeSignals reads one fact's ECOSYSTEM ranges: whether any range
