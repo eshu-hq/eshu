@@ -53,8 +53,8 @@ type AffectedPackage struct {
 	// AffectedRanges and FixedVersions to it (#9806 PR-2b), or a vendor
 	// fact's purl distro qualifier equals the host's line (#9945). It is the
 	// only release evidence on the OS path: a fact without it never yields
-	// affected_exact or not_affected_known_fixed. Empty when the fact was not
-	// verified.
+	// affected_exact or not_affected_known_fixed, rpm lists included (the
+	// host-line table has no rpm row). Empty when the fact was not verified.
 	ReleaseLine string
 	// ReleaseUnlisted marks a fact whose ranges all name their release lines
 	// and none names the host's line. The fact keeps every range.
