@@ -14,7 +14,7 @@ each with its own `fact_id > $2 ORDER BY fact_id LIMIT $3`, with an outer
 `ORDER BY fact_id LIMIT $3`. UNION, never UNION ALL: a row whose binary name
 equals its source name is a candidate of both arms and must drain exactly
 once. The drain code, page size, crossing/truncated semantics, parameter
-order, and one-statement contract are untouched, and migrations 273 (source
+order, and one-statement contract are untouched, and migrations 274 (source
 index) and 153 (binary index) are unchanged.
 
 A bare OR across the two expression predicates made the generic plan cost the

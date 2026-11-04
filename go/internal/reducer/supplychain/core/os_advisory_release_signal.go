@@ -39,7 +39,7 @@ const (
 // advisory facts. They sum the counter's cells over vendors, so an operator
 // reading the reducer's success line sees how many joined facts were decided on
 // the host's own release, how many named other releases only, and how many were
-// untagged (all of them until the factschema pin that declares the tag ships).
+// untagged when any ECOSYSTEM range carries no release tag; fully tagged facts were untagged only before the rc.13 pin (#9859).
 const (
 	osAdvisoriesReleaseMatchedSubSignal  = "os_advisories_release_matched"
 	osAdvisoriesReleaseUnlistedSubSignal = "os_advisories_release_unlisted"
