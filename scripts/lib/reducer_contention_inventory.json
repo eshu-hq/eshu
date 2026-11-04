@@ -65,7 +65,11 @@
   },
   "go/internal/storage/postgres/installed_advisory_targets_paging_live_test.go": {
     "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
-    "tests": ["TestListOSPackageAdvisoryFactEnvelopesGenerationFlipMidDrainLive", "TestListOSPackageAdvisoryFactEnvelopesNarrowedPagesToCompletionLive", "TestListOSPackageAdvisoryFactEnvelopesPURLFormsMatchTheGoMatcherLive", "TestOSPackageNarrowedQueryUsesTheIndexAtScaleLive"]
+    "tests": ["TestListOSPackageAdvisoryFactEnvelopesGenerationFlipMidDrainLive", "TestListOSPackageAdvisoryFactEnvelopesMixedArmsPageToCompletionLive", "TestListOSPackageAdvisoryFactEnvelopesNarrowedPagesToCompletionLive", "TestListOSPackageAdvisoryFactEnvelopesPURLFormsMatchTheGoMatcherLive"]
+  },
+  "go/internal/storage/postgres/installed_advisory_targets_union_scale_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": ["TestOSPackageNarrowedQueryUsesTheIndexAtScaleLive"]
   },
   "go/internal/storage/postgres/projector_fenced_revival_guard_live_test.go": {
     "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
