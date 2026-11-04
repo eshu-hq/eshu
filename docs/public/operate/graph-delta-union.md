@@ -133,8 +133,11 @@ sets `ScopeGeneration.IsDelta`. So the orchestrator
    `acme/golden-delta-reader`.
 2. It collects that origin with `eshu-collector-git` in explicit mode,
    through a private `GIT_CONFIG_GLOBAL` whose `insteadOf` maps
-   `https://github.com/` to the origin. The first drain activates the full
-   generation.
+   `https://github.com/` to the origin. This runs after the first drain,
+   because a new repository changes the repository catalog. The reducer's
+   activation-obligation consumer then refuses partition-scoped maintenance
+   (`catalog_changed`), so only the corpus-wide maintenance passes publish the
+   repository's backward evidence and activate its full generation.
 3. After the maintenance drains, it runs `-delta-reader-stage=full`. Every
    edge in `graph.delta_reader_assertions` must be present, including the
    ones marked `expected_failure`, so a marker can't pass an edge that no

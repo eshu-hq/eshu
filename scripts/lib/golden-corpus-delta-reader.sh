@@ -21,7 +21,18 @@
 # path, producing a delta generation that touches only cmd/main.go.
 #
 # Order in the orchestrator:
-#   golden_delta_reader_collect_full     before the first drain
+#   golden_delta_reader_collect_full     after the first drain, before the
+#                                        maintenance passes. A new repository
+#                                        changes the repository catalog, and
+#                                        the reducer's activation-obligation
+#                                        consumer then refuses partition-scoped
+#                                        maintenance (catalog_changed), so only
+#                                        a corpus-wide deferred maintenance pass
+#                                        (bootstrap-index, maintenance pass 1)
+#                                        publishes its backward evidence.
+#                                        Collected before the first drain, its
+#                                        deployment_mapping waits on that pass
+#                                        and wedges the first drain.
 #   golden_delta_reader_run_delta_leg    after the maintenance drains, inside a
 #                                        graph_query exclusion bracket: the
 #                                        full-stage check, the delta commit and
@@ -127,7 +138,8 @@ golden_delta_reader_sync() {
 }
 
 # golden_delta_reader_collect_full stages the origin and collects the base
-# full generation, so the first drain projects and activates it.
+# full generation; the maintenance passes publish its backward evidence and
+# their drains project and activate it.
 golden_delta_reader_collect_full() {
 	log "delta-reader leg (#10022): stage git origin and collect the base full generation"
 	golden_delta_reader_stage_origin

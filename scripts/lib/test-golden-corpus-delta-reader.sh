@@ -18,6 +18,17 @@ for delta_reader_call in golden_delta_reader_collect_full golden_delta_reader_ru
 	rg --fixed-strings --quiet -- "${delta_reader_call}" "${script}" \
 		|| fail "orchestrator must call ${delta_reader_call} (#10022 delta-reader leg)"
 done
+# The full is collected after the first drain and before the maintenance
+# passes: a new repository changes the repository catalog, so only a
+# corpus-wide maintenance pass publishes its backward evidence, and a full
+# collected earlier wedges the first drain (catalog_changed).
+delta_reader_first_drain_line="$(rg --line-number --fixed-strings -- 'die "first drain pass failed"' "${script}" | cut -d: -f1)"
+delta_reader_collect_line="$(rg --line-number '^golden_delta_reader_collect_full' "${script}" | cut -d: -f1)"
+delta_reader_maintenance_line="$(rg --line-number '^run_maintenance_drain_cycles' "${script}" | cut -d: -f1)"
+[[ -n "${delta_reader_first_drain_line}" && -n "${delta_reader_collect_line}" && -n "${delta_reader_maintenance_line}" &&
+	"${delta_reader_collect_line}" -gt "${delta_reader_first_drain_line}" &&
+	"${delta_reader_collect_line}" -lt "${delta_reader_maintenance_line}" ]] \
+	|| fail "golden_delta_reader_collect_full must run after the first drain and before run_maintenance_drain_cycles"
 # The delta leg runs after the graph_query window opens and brackets itself
 # out of it, so its syncs and drain are never billed to api/mcp startup.
 delta_reader_window_line="$(rg --line-number --fixed-strings -- 'phase_graph_query_start="${pipeline_end}"' "${script}" | cut -d: -f1)"

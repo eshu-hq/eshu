@@ -289,7 +289,7 @@ run_container_image_identity_cloud_reopen_ordering_proof
 phase_collect_start="$(date +%s)"
 
 log "resolve local-backend fixture scope_id (issue #5594)"
-stage_local_backend_cassette; golden_delta_reader_collect_full
+stage_local_backend_cassette
 
 log "replay B-10 cassette collectors (credential-free)"
 # shellcheck source=scripts/lib/golden-corpus-cassette-replay.sh
@@ -345,7 +345,7 @@ golden_changed_since_capture_prior
 golden_service_changed_since_mutate_owner
 golden_changed_since_mutate_fixture
 phase_first_drain_end="$(date +%s)"
-phase_maintenance_start="${phase_first_drain_end}"
+golden_delta_reader_collect_full; phase_maintenance_start="$(date +%s)" # fixture staging (#10022) is not maintenance work
 
 # Deferred maintenance + drain cycles. Extracted to
 # scripts/lib/golden-corpus-maintenance-drains.sh (defines

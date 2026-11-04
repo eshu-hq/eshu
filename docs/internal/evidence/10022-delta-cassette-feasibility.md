@@ -71,7 +71,15 @@ is deterministic because `CanonicalRepositoryID` hashes the synthesized remote
   and a matching claim under `deploy/`, and a `go.mod` with no `go`
   directive and no requires. `delta/cmd/main.go` adds one comment line.
 - **Orchestration.** `scripts/lib/golden-corpus-delta-reader.sh` collects the
-  full before the first drain. After the maintenance drains, inside its own
+  full after the first drain and before the maintenance passes. The first
+  live run collected it before the first drain, and that drain wedged at a
+  constant residual of 46 work items. The fixture scope's `deployment_mapping` was
+  retrying `cross_repo_backward_evidence_not_ready`. The reducer log showed
+  why: `activation obligation held: maintenance refused: catalog_changed:
+  partition-scoped maintenance refused: repository catalog changed since
+  active backward evidence was committed`. A brand-new repository changes the
+  catalog, so only a corpus-wide pass (bootstrap-index's maintenance pass)
+  publishes its backward evidence. After the maintenance drains, inside its own
   `graph_query` exclusion bracket, it asserts stage `full`, commits `delta/`,
   syncs the delta, waits for the projector to activate it, and drains once.
   The final gate invocation asserts stage `delta`.
