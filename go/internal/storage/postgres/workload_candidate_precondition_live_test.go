@@ -406,9 +406,13 @@ CREATE TABLE fact_records (
 	}
 }
 
-// probeSignalValueJSON returns a value extraction reads as evidence for one
-// signal key, chosen by value class so a per-key live row proves the probe
-// reads that key the way extraction does.
+// probeSignalValueJSON returns a value for one signal key, chosen by value
+// class so a per-key live row proves the probe reads that key's class. For
+// most keys extraction reads the same value as evidence. The dockerfile_stages
+// and pipeline_calls rows carry no language, so extraction rejects them while
+// the probe answers true: those two rows pin the documented superset (the
+// value class matches and the language gate is dropped by design). Agreement
+// for those two signals rests on the differential corpus.
 func probeSignalValueJSON(key string) string {
 	for _, tokenKey := range factload.WorkloadCandidateTokenKeys {
 		if key == tokenKey {

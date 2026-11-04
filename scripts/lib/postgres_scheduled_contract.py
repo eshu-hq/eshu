@@ -106,6 +106,7 @@ PR_PATHS = {
     "go/internal/query/*fixture*test.go",
     "go/internal/query/testdata/**",
     "go/internal/reducer/containerimage/*.go",
+    "go/internal/reducer/factload/candidate_probe.go",
     "go/internal/storage/postgres/*fixture*test.go",
     "go/internal/storage/postgres/ack_supersession_assertions_test.go",
     "go/internal/storage/postgres/crossplane/testdata/**",
