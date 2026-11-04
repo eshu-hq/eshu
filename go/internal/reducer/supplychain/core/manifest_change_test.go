@@ -25,10 +25,10 @@ func TestManifestChangeScopeFlipAtTheSameVersionIsAChange(t *testing.T) {
 		return row
 	}
 	change := changedManifestDependencyKeys(ManifestDependencyGeneration{
-		Activation: ManifestGenerationActive,
-		Current:    ManifestDependencyView{Rows: []facts.Envelope{withScope("new", "runtime")}},
-		HasPrior:   true,
-		Prior:      ManifestDependencyView{Rows: []facts.Envelope{withScope("old", "development")}},
+		Activation:  ManifestGenerationActive,
+		Current:     ManifestDependencyView{Rows: []facts.Envelope{withScope("new", "runtime")}},
+		HasBaseline: true,
+		Baseline:    ManifestDependencyView{Rows: []facts.Envelope{withScope("old", "development")}},
 	})
 	if change.packages != 1 {
 		t.Fatalf("changed packages = %d, want 1 for a scope flip at the same version", change.packages)
@@ -45,10 +45,10 @@ func TestManifestChangeIgnoresFactIdentityAndObservationTime(t *testing.T) {
 	current := depRow("new", "package-lock.json", "lodash", "4.17.21")
 	current.ObservedAt = time.Date(2026, 11, 4, 0, 0, 0, 0, time.UTC)
 	change := changedManifestDependencyKeys(ManifestDependencyGeneration{
-		Activation: ManifestGenerationActive,
-		Current:    ManifestDependencyView{Rows: []facts.Envelope{current}},
-		HasPrior:   true,
-		Prior:      ManifestDependencyView{Rows: []facts.Envelope{old}},
+		Activation:  ManifestGenerationActive,
+		Current:     ManifestDependencyView{Rows: []facts.Envelope{current}},
+		HasBaseline: true,
+		Baseline:    ManifestDependencyView{Rows: []facts.Envelope{old}},
 	})
 	if change.packages != 0 {
 		t.Fatalf("changed packages = %d, want 0 when only the fact id and time differ", change.packages)

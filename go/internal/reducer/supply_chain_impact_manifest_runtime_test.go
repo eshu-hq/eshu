@@ -19,6 +19,10 @@ type manifestRuntimePort struct {
 	reads int
 }
 
+func (p *manifestRuntimePort) RecordManifestTriggerCompleted(context.Context, reducercontract.Intent, string) error {
+	return nil
+}
+
 func (p *manifestRuntimePort) ReadManifestDependencyGeneration(context.Context, string, string) (supplychaincore.ManifestDependencyGeneration, error) {
 	p.reads++
 	return supplychaincore.ManifestDependencyGeneration{Activation: supplychaincore.ManifestGenerationActive}, nil

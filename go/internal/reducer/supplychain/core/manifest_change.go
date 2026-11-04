@@ -19,103 +19,128 @@ type manifestChange struct {
 	keys map[string]struct{}
 	// packages counts the distinct (package manager, name) pairs changed.
 	packages int
-	// priorBaseMissing reports the known gap: the prior generation was a
-	// delta whose base could not be read, so removals of pins only that base
-	// held are not seen (see TestManifestTriggerKnownLimitPriorDeltaWithMissingBase).
+	// priorBaseMissing reports the known gap: a delta in the diffed chain had
+	// a base that could not be read, so removals of pins only that base held
+	// are not seen (TestManifestTriggerKnownLimitPriorDeltaWithMissingBase,
+	// tracked in #10059).
 	priorBaseMissing bool
-	// deltaPaths is the number of paths a delta generation touched; 0 for a
+	// degraded and chainPruned mirror the generation read: the diff fell back
+	// to every current pin, or skipped a pruned intermediate.
+	degraded    bool
+	chainPruned bool
+	// deltaPaths is the number of paths the current delta touched; 0 for a
 	// full generation.
 	deltaPaths int
+	// views is the number of generation views compared.
+	views int
 }
 
-// changedManifestDependencyKeys derives the changed packages from the
-// generation's own dependency rows (ruling Option B):
+// changedManifestDependencyKeys derives the changed packages from the full
+// dependency views of the activated chain [Baseline .. Current] (arbiter
+// ruling D3). A package key is changed when its set of dependency signatures
+// is not identical in every generation of the chain, which is the union of
+// the pairwise symmetric differences: a pin added in an intermediate that
+// never completed its own marker pass, and removed since, still counts. Each
+// view is base-overlaid (facts.OverlayDeltaBase) on every side, current
+// included, so a delta that reverts a path to its base content is compared
+// against the base, not skipped.
 //
-//   - no prior activated generation: every pin, live or tombstoned, is new;
-//   - otherwise the symmetric difference of dependency signatures between the
-//     current rows and the prior view. A delta is compared on its touched
-//     paths only, because it carries rows for nothing else. The prior view of
-//     a delta prior is its base overlaid with its own rows
-//     (facts.OverlayDeltaBase), so a pin only the base held still counts.
+//   - Degraded (chain over the depth cap, or an unreadable baseline): every
+//     current pin counts.
+//   - No baseline: every pin in any view of the chain counts.
 //
 // Tombstoned rows in the current generation always count as changed: a
-// tombstone is a removal. Both sides of a change (old and new version) report
-// the same package key, so a version bump reopens that package's holders once.
+// tombstone is a removal. Both sides of a change report the same package key,
+// so a version bump reopens that package's holders once.
 func changedManifestDependencyKeys(generation ManifestDependencyGeneration) manifestChange {
-	scope := facts.ParseDeltaScope(generation.Current.Rows)
-	touched := scope.Touched()
-	inScope := func(envelope facts.Envelope) bool {
-		if !scope.IsDelta {
-			return true
-		}
-		_, ok := touched[scope.FilePath(envelope)]
-		return ok
+	change := manifestChange{
+		keys:        map[string]struct{}{},
+		degraded:    generation.Degraded,
+		chainPruned: generation.ChainPruned,
 	}
-	change := manifestChange{keys: map[string]struct{}{}}
-	if scope.IsDelta {
-		change.deltaPaths = len(touched)
+	if scope := facts.ParseDeltaScope(generation.Current.Rows); scope.IsDelta {
+		change.deltaPaths = len(scope.Touched())
 	}
 	packages := map[string]struct{}{}
-	add := func(dependency correlation.PackageManifestDependency) {
-		keys := manifestDependencyKeySet(dependency)
-		if len(keys) == 0 {
-			return
+	labels := map[string]string{}
+	mark := func(key string) {
+		change.keys[key] = struct{}{}
+		packages[labels[key]] = struct{}{}
+	}
+	keyed := func(dependency correlation.PackageManifestDependency) []string {
+		label := dependency.PackageManager + "\x00" + strings.ToLower(dependency.DependencyName)
+		var keys []string
+		for key := range manifestDependencyKeySet(dependency) {
+			labels[key] = label
+			keys = append(keys, key)
 		}
-		for key := range keys {
-			change.keys[key] = struct{}{}
+		return keys
+	}
+	for _, dependency := range tombstonedDependencies(generation.Current.Rows) {
+		for _, key := range keyed(dependency) {
+			mark(key)
 		}
-		packages[dependency.PackageManager+"\x00"+strings.ToLower(dependency.DependencyName)] = struct{}{}
 	}
 
-	current := dependencySignatures(generation.Current.Rows, inScope)
-	for _, dependency := range tombstonedDependencies(generation.Current.Rows) {
-		add(dependency)
-	}
-	if !generation.HasPrior {
-		for _, dependency := range current {
-			add(dependency)
+	views := []ManifestDependencyView{}
+	if !generation.Degraded {
+		if generation.HasBaseline {
+			views = append(views, generation.Baseline)
 		}
-		change.packages = len(packages)
-		return change
+		views = append(views, generation.Chain...)
 	}
-	priorRows := generation.Prior.Rows
-	priorScope := facts.ParseDeltaScope(priorRows)
-	if priorScope.IsDelta {
-		if generation.Prior.BaseMissing {
-			change.priorBaseMissing = true
-		} else {
-			priorRows = facts.OverlayDeltaBase(generation.Prior.Base, priorRows, priorScope)
+	views = append(views, generation.Current)
+	change.views = len(views)
+
+	// perView[key][i] is the sorted signature list of key in view i.
+	perView := map[string][]string{}
+	for i, view := range views {
+		dependencies, baseMissing := viewDependencies(view)
+		change.priorBaseMissing = change.priorBaseMissing || baseMissing
+		signatures := map[string][]string{}
+		for _, dependency := range dependencies {
+			signature := dependencySignature(dependency)
+			for _, key := range keyed(dependency) {
+				signatures[key] = append(signatures[key], signature)
+			}
+		}
+		for key, list := range signatures {
+			sort.Strings(list)
+			if perView[key] == nil {
+				perView[key] = make([]string, len(views))
+			}
+			perView[key][i] = strings.Join(list, "\x01")
 		}
 	}
-	prior := dependencySignatures(priorRows, inScope)
-	for signature, dependency := range current {
-		if _, unchanged := prior[signature]; !unchanged {
-			add(dependency)
+	for key, sets := range perView {
+		if !generation.HasBaseline || generation.Degraded {
+			mark(key)
+			continue
 		}
-	}
-	for signature, dependency := range prior {
-		if _, unchanged := current[signature]; !unchanged {
-			add(dependency)
+		for _, set := range sets[1:] {
+			if set != sets[0] {
+				mark(key)
+				break
+			}
 		}
 	}
 	change.packages = len(packages)
 	return change
 }
 
-// dependencySignatures extracts the live dependency rows that pass keep, keyed
-// by dependencySignature: every field the finding can carry.
-func dependencySignatures(rows []facts.Envelope, keep func(facts.Envelope) bool) map[string]correlation.PackageManifestDependency {
-	kept := make([]facts.Envelope, 0, len(rows))
-	for _, row := range rows {
-		if keep(row) {
-			kept = append(kept, row)
+// viewDependencies extracts one view's live dependencies: a delta view is its
+// base overlaid with its own rows, or its own rows alone when the base could
+// not be read (reported as baseMissing).
+func viewDependencies(view ManifestDependencyView) ([]correlation.PackageManifestDependency, bool) {
+	rows := view.Rows
+	scope := facts.ParseDeltaScope(rows)
+	if scope.IsDelta {
+		if view.BaseMissing {
+			return correlation.ExtractPackageManifestDependencies(rows), true
 		}
+		rows = facts.OverlayDeltaBase(view.Base, rows, scope)
 	}
-	out := map[string]correlation.PackageManifestDependency{}
-	for _, dependency := range correlation.ExtractPackageManifestDependencies(kept) {
-		out[dependencySignature(dependency)] = dependency
-	}
-	return out
+	return correlation.ExtractPackageManifestDependencies(rows), false
 }
 
 // dependencySignature is the dependency with the two fields every re-index
@@ -175,4 +200,7 @@ func (c manifestChange) mergeSubSignals(signals map[string]float64) {
 	signals["manifest_trigger_changed_packages"] = float64(c.packages)
 	signals["manifest_trigger_delta_paths"] = float64(c.deltaPaths)
 	signals["manifest_trigger_prior_base_missing"] = boolSignal(c.priorBaseMissing)
+	signals["manifest_trigger_baseline_degraded"] = boolSignal(c.degraded)
+	signals["manifest_trigger_chain_pruned"] = boolSignal(c.chainPruned)
+	signals["manifest_trigger_views"] = float64(c.views)
 }

@@ -57,6 +57,8 @@ const (
 
 // ManifestDependencyView is one generation's dependency evidence.
 type ManifestDependencyView struct {
+	// GenerationID names the generation the view was read from.
+	GenerationID string
 	// Rows are the generation's own git dependency rows, tombstones included,
 	// plus its repository fact when the generation is a delta (the fact that
 	// names the delta's changed and deleted paths).
@@ -71,15 +73,37 @@ type ManifestDependencyView struct {
 }
 
 // ManifestDependencyGeneration is what a marker pass reads about its own
-// generation and the activated generation before it.
+// generation and the activated chain behind it (arbiter ruling D2/D3).
 type ManifestDependencyGeneration struct {
 	Activation ManifestGenerationActivation
 	Current    ManifestDependencyView
-	// Prior is the newest activated generation before Current; HasPrior is
-	// false on a first index or when retention pruned it.
-	Prior    ManifestDependencyView
-	HasPrior bool
+	// Baseline is the watermark W: the newest activated generation before
+	// Current whose own marker pass completed (its work item carries
+	// PayloadKeyManifestTriggerCompleted). HasBaseline is false when no prior
+	// generation was ever stamped.
+	Baseline    ManifestDependencyView
+	HasBaseline bool
+	// Chain is the activated generations strictly between Baseline (or, with
+	// no baseline, the scope's first generation) and Current, oldest first.
+	// A generation whose facts retention pruned is left out and ChainPruned is
+	// set.
+	Chain       []ManifestDependencyView
+	ChainPruned bool
+	// Degraded reports that the chain could not be diffed: it was longer than
+	// ManifestTriggerChainDepthCap, or the baseline's facts were pruned. Every
+	// current pin then counts as changed.
+	Degraded bool
 }
+
+// ManifestTriggerChainDepthCap bounds how many activated generations a
+// marker pass diffs between its baseline and itself.
+const ManifestTriggerChainDepthCap = 32
+
+// PayloadKeyManifestTriggerCompleted is the work-item payload key a marker
+// pass stamps on its own item when it reopened every holder it owed (or found
+// nothing to reopen). The next marker pass of the scope diffs against the
+// newest generation carrying it.
+const PayloadKeyManifestTriggerCompleted = "manifest_trigger_completed"
 
 // ManifestDependencyGenerationReader reads a marker pass's generation. The
 // Postgres SupplyChainImpactFanOutStore implements it beside the fan-out port;
@@ -87,6 +111,10 @@ type ManifestDependencyGeneration struct {
 // no handler field.
 type ManifestDependencyGenerationReader interface {
 	ReadManifestDependencyGeneration(ctx context.Context, scopeID, generationID string) (ManifestDependencyGeneration, error)
+	// RecordManifestTriggerCompleted stamps the calling pass's own item with
+	// PayloadKeyManifestTriggerCompleted, fenced on its lease like an
+	// acknowledgement. It fails when the lease is no longer held.
+	RecordManifestTriggerCompleted(ctx context.Context, intent reducercontract.Intent, baselineGenerationID string) error
 }
 
 // PackageHolderCandidate is one active vulnerability.affected_package identity
@@ -129,6 +157,9 @@ func (h SupplyChainImpactHandler) runManifestTrigger(ctx context.Context, intent
 	}
 	remaining := fanOutRemaining(intent)
 	holders := remaining
+	// baseline is the stamp's baseline_generation_id; a continuation claim
+	// does not re-read the generation, so its stamp names no baseline.
+	baseline := ""
 	if len(remaining) == 0 {
 		generation, err := reader.ReadManifestDependencyGeneration(ctx, intent.ScopeID, intent.GenerationID)
 		if err != nil {
@@ -150,12 +181,15 @@ func (h SupplyChainImpactHandler) runManifestTrigger(ctx context.Context, intent
 			// Reachable only in a race: a newer generation activated after
 			// the runtime's GenerationCheck passed this intent.
 			signals["manifest_trigger_superseded"] = 1
-			return h.finishManifestTrigger(ctx, intent, state, "manifest_dependency trigger: generation superseded", signals)
+			return h.finishManifestTrigger(ctx, intent, reader, state, nil, "manifest_dependency trigger: generation superseded", signals)
+		}
+		if generation.HasBaseline {
+			baseline = generation.Baseline.GenerationID
 		}
 		change := changedManifestDependencyKeys(generation)
 		change.mergeSubSignals(signals)
 		if len(change.keys) == 0 {
-			return h.finishManifestTrigger(ctx, intent, state, "manifest_dependency trigger: no changed package", signals)
+			return h.finishManifestTrigger(ctx, intent, reader, state, &baseline, "manifest_dependency trigger: no changed package", signals)
 		}
 		candidates, err := h.FanOut.FindPackageHolderCandidates(ctx, intent.ScopeID, change.ecosystems())
 		if err != nil {
@@ -164,17 +198,21 @@ func (h SupplyChainImpactHandler) runManifestTrigger(ctx context.Context, intent
 		}
 		holders = matchPackageHolders(intent.ScopeID, candidates, change.keys)
 	}
-	return h.reopenManifestHolders(ctx, intent, state, holders, len(remaining) > 0, signals)
+	return h.reopenManifestHolders(ctx, intent, reader, state, holders, len(remaining) > 0, baseline, signals)
 }
 
 // reopenManifestHolders reopens one capped batch of holders, carries the rest
-// on the item's continuation list, and records the pass.
+// on the item's continuation list, and records the pass. Only the claim that
+// leaves no holder behind writes the completion stamp (ruling D1): a first
+// chunk with a continuation list has not reopened everything it owes.
 func (h SupplyChainImpactHandler) reopenManifestHolders(
 	ctx context.Context,
 	intent reducercontract.Intent,
+	reader ManifestDependencyGenerationReader,
 	state FanOutState,
 	holders []string,
 	continuation bool,
+	baseline string,
 	signals map[string]float64,
 ) (reducercontract.Result, error) {
 	ctx, span := h.startFanOutSpan(ctx, intent)
@@ -206,6 +244,12 @@ func (h SupplyChainImpactHandler) reopenManifestHolders(
 			return reducercontract.Result{}, fanOutError{fmt.Errorf("record supply chain impact fan-out state: %w", err)}
 		}
 	}
+	if len(rest) == 0 {
+		if err := h.stampManifestTrigger(ctx, intent, reader, baseline, signals); err != nil {
+			span.RecordError(err)
+			return reducercontract.Result{}, err
+		}
+	}
 	h.emitFanOut(ctx, intent, result)
 	span.SetAttributes(
 		attribute.String("cause", result.cause),
@@ -220,11 +264,15 @@ func (h SupplyChainImpactHandler) reopenManifestHolders(
 }
 
 // finishManifestTrigger ends a pass that reopens nothing, consuming a fan-out
-// stamp it carries so a later reopen by another path is judged fresh.
+// stamp it carries so a later reopen by another path is judged fresh. A
+// no-change pass is complete and writes the completion stamp (stampBaseline
+// set); a superseded pass is not and writes none.
 func (h SupplyChainImpactHandler) finishManifestTrigger(
 	ctx context.Context,
 	intent reducercontract.Intent,
+	reader ManifestDependencyGenerationReader,
 	state FanOutState,
+	stampBaseline *string,
 	summary string,
 	signals map[string]float64,
 ) (reducercontract.Result, error) {
@@ -234,7 +282,31 @@ func (h SupplyChainImpactHandler) finishManifestTrigger(
 			return reducercontract.Result{}, fanOutError{fmt.Errorf("clear supply chain impact fan-out state: %w", err)}
 		}
 	}
+	if stampBaseline != nil {
+		if err := h.stampManifestTrigger(ctx, intent, reader, *stampBaseline, signals); err != nil {
+			return reducercontract.Result{}, err
+		}
+	}
 	return manifestTriggerResult(intent, summary, signals), nil
+}
+
+// stampManifestTrigger writes the completion stamp. A failed stamp fails the
+// pass retryably: the retry re-derives, finds its holders already queued, and
+// stamps then, so a completed fan-out is never recorded without its stamp
+// being durable.
+func (h SupplyChainImpactHandler) stampManifestTrigger(
+	ctx context.Context,
+	intent reducercontract.Intent,
+	reader ManifestDependencyGenerationReader,
+	baseline string,
+	signals map[string]float64,
+) error {
+	if err := reader.RecordManifestTriggerCompleted(ctx, intent, baseline); err != nil {
+		h.countFanOut(ctx, fanOutCauseManifestDependency, fanOutOutcomeStateError, 1)
+		return fanOutError{fmt.Errorf("record supply chain impact manifest trigger completion: %w", err)}
+	}
+	signals["manifest_trigger_completed"] = 1
+	return nil
 }
 
 func manifestTriggerResult(intent reducercontract.Intent, summary string, signals map[string]float64) reducercontract.Result {

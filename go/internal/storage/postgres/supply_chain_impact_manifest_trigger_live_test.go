@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 )
 
@@ -76,6 +75,23 @@ VALUES ($1, $2, $3, $4, $5, '1.0.0', $6, $1, now(), now(), $7, $8::jsonb)`,
 		envelope.IsTombstone, string(payload)); err != nil {
 		t.Fatalf("seed fact %s: %v", envelope.FactID, err)
 	}
+}
+
+// manifestLiveSeedMarker inserts the git scope's marker item for generation
+// with status, stamped with the completion key when stamped is set.
+func manifestLiveSeedMarker(t *testing.T, ctx context.Context, db *sql.DB, generation, status string, stamped bool) string {
+	t.Helper()
+	id := fanOutSeedItemAt(t, ctx, db, manifestLiveGitScope, generation)
+	if _, err := db.ExecContext(ctx, `
+UPDATE fact_work_items
+SET status = $2,
+    payload = payload || jsonb_build_object('`+supplychaincore.PayloadKeyTrigger+`', '`+supplychaincore.TriggerManifestDependency+`')
+            || CASE WHEN $3 THEN jsonb_build_object('`+supplychaincore.PayloadKeyManifestTriggerCompleted+`',
+                   jsonb_build_object('at', now(), 'baseline_generation_id', '')) ELSE '{}'::jsonb END
+WHERE work_item_id = $1`, id, status, stamped); err != nil {
+		t.Fatalf("seed marker %s: %v", id, err)
+	}
+	return id
 }
 
 func manifestLiveDependency(factID, path, name, version string) facts.Envelope {
@@ -199,8 +215,8 @@ func TestFindPackageHolderCandidatesMatchesRawEcosystemSpellingsLive(t *testing.
 }
 
 // TestReadManifestDependencyGenerationLive proves the activation gate and the
-// current and prior views, including a prior delta overlaid on its base and a
-// prior delta whose base is gone.
+// current and baseline views, including a stamped baseline delta overlaid on
+// its base and a baseline delta whose base is gone.
 func TestReadManifestDependencyGenerationLive(t *testing.T) {
 	ctx, db := fanOutLiveDB(t)
 	at := func(minute int) time.Time { return time.Date(2026, 11, 4, 0, minute, 0, 0, time.UTC) }
@@ -213,6 +229,7 @@ func TestReadManifestDependencyGenerationLive(t *testing.T) {
 	seed := func(generation string, envelope facts.Envelope) {
 		manifestLiveSeedFact(t, ctx, db, manifestLiveGitScope, generation, envelope)
 	}
+	manifestLiveSeedMarker(t, ctx, db, "gen-2", "succeeded", true)
 	seed("gen-1", manifestLiveRepository("repo-1", false))
 	seed("gen-1", manifestLiveDependency("g1-lodash", "package-lock.json", "lodash", "4.17.20"))
 	seed("gen-1", manifestLiveDependency("g1-left-pad", "package-lock.json", "left-pad", "1.3.0"))
@@ -238,13 +255,14 @@ func TestReadManifestDependencyGenerationLive(t *testing.T) {
 	if ids := factIDs(got.Current.Rows); !reflect.DeepEqual(ids, []string{"g3-lodash", "g3-tomb", "repo-3"}) {
 		t.Fatalf("current rows = %v", ids)
 	}
-	if !got.HasPrior || got.Prior.BaseMissing {
-		t.Fatalf("HasPrior=%v BaseMissing=%v, want the prior delta with its base", got.HasPrior, got.Prior.BaseMissing)
+	if !got.HasBaseline || got.Baseline.GenerationID != "gen-2" || got.Baseline.BaseMissing || len(got.Chain) != 0 {
+		t.Fatalf("baseline = %q (has %v, base missing %v), chain %d; want stamped gen-2 with its base and no chain",
+			got.Baseline.GenerationID, got.HasBaseline, got.Baseline.BaseMissing, len(got.Chain))
 	}
-	if ids := factIDs(got.Prior.Rows); !reflect.DeepEqual(ids, []string{"repo-2"}) {
+	if ids := factIDs(got.Baseline.Rows); !reflect.DeepEqual(ids, []string{"repo-2"}) {
 		t.Fatalf("prior rows = %v, want the delta's own rows", ids)
 	}
-	if ids := factIDs(got.Prior.Base); !reflect.DeepEqual(ids, []string{"g1-left-pad", "g1-lodash", "repo-1"}) {
+	if ids := factIDs(got.Baseline.Base); !reflect.DeepEqual(ids, []string{"g1-left-pad", "g1-lodash", "repo-1"}) {
 		t.Fatalf("prior base rows = %v, want gen-1's rows", ids)
 	}
 
@@ -268,8 +286,8 @@ func TestReadManifestDependencyGenerationLive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadManifestDependencyGeneration(base gone) error = %v", err)
 	}
-	if !missing.HasPrior || !missing.Prior.BaseMissing || len(missing.Prior.Base) != 0 {
-		t.Fatalf("base gone: HasPrior=%v BaseMissing=%v base=%v", missing.HasPrior, missing.Prior.BaseMissing, factIDs(missing.Prior.Base))
+	if !missing.HasBaseline || !missing.Baseline.BaseMissing || len(missing.Baseline.Base) != 0 {
+		t.Fatalf("base gone: HasBaseline=%v BaseMissing=%v base=%v", missing.HasBaseline, missing.Baseline.BaseMissing, factIDs(missing.Baseline.Base))
 	}
 }
 
@@ -315,10 +333,12 @@ func TestManifestTriggerReopensAdvisoryHolderLive(t *testing.T) {
 		Writer:             manifestLiveNoWrite{t: t},
 		FanOut:             fanOutLiveStore(db),
 	}
-	intent := reducercontract.Intent{
-		IntentID: "intent-manifest", ScopeID: manifestLiveGitScope, GenerationID: "gen-2",
-		Domain: reducercontract.DomainSupplyChainImpact, AttemptCount: 1,
-		Payload: map[string]any{supplychaincore.PayloadKeyTrigger: supplychaincore.TriggerManifestDependency},
+	// The marker item is claimed like production does, so the pass holds the
+	// lease its completion stamp is fenced on.
+	markerID := manifestLiveSeedMarker(t, ctx, db, "gen-2", "pending", false)
+	intent, ok, err := fanOutLiveQueue(db).Claim(ctx)
+	if err != nil || !ok || intent.IntentID != markerID {
+		t.Fatalf("Claim() = %q, %v, %v; want the marker item %q", intent.IntentID, ok, err, markerID)
 	}
 	if _, err := handler.Handle(ctx, intent); err != nil {
 		t.Fatalf("Handle() error = %v", err)

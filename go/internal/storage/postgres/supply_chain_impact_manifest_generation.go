@@ -87,13 +87,15 @@ WHERE fact.scope_id = $1
   AND (fact.payload->'entity_metadata'->>'config_kind') = 'dependency'
 `
 
-// priorActivatedGenerationQuery resolves the newest generation before the
-// intent's own row, in the activation order the projector supersedes by
-// (ingested_at, generation_id), that ever activated. A failed or never-active
-// predecessor never held active rows, so it is not a diff source. Both probes
-// are index range scans on scope_generations_scope_latest_lookup_idx and
-// scope_generations_scope_generation_idx.
-const priorActivatedGenerationQuery = `
+// manifestWatermarkQuery resolves the baseline W of a marker pass (#9874
+// ruling D2): the newest generation before the intent's own row, in the
+// activation order the projector supersedes by (ingested_at, generation_id),
+// that ever activated and whose supply_chain_impact reducer item carries the
+// completion stamp, whatever that item's status. A generation whose marker the
+// runtime guard skipped, or that a claim sweep superseded, has no stamp and is
+// passed over, so its pins are diffed as part of the chain instead. The stamp
+// probe is an index range scan on fact_work_items_scope_generation_idx.
+const manifestWatermarkQuery = `
 SELECT prior.generation_id
 FROM scope_generations AS intent
 JOIN scope_generations AS prior
@@ -101,10 +103,38 @@ JOIN scope_generations AS prior
 WHERE intent.scope_id = $1
   AND intent.generation_id = $2
   AND prior.activated_at IS NOT NULL
-  AND prior.status IN ('active', 'completed', 'superseded')
   AND (prior.ingested_at, prior.generation_id) < (intent.ingested_at, intent.generation_id)
+  AND EXISTS (
+      SELECT 1
+      FROM fact_work_items AS work
+      WHERE work.scope_id = prior.scope_id
+        AND work.generation_id = prior.generation_id
+        AND work.stage = 'reducer'
+        AND work.domain = 'supply_chain_impact'
+        AND work.payload ? '` + supplychaincore.PayloadKeyManifestTriggerCompleted + `'
+  )
 ORDER BY prior.ingested_at DESC, prior.generation_id DESC
 LIMIT 1
+`
+
+// manifestChainQuery lists the activated generations strictly between the
+// baseline ($3, or the scope's start when empty) and the intent, oldest first,
+// one past the depth cap ($4) so the caller can tell the cap was exceeded.
+const manifestChainQuery = `
+SELECT chain.generation_id
+FROM scope_generations AS intent
+JOIN scope_generations AS chain
+  ON chain.scope_id = intent.scope_id
+LEFT JOIN scope_generations AS baseline
+  ON baseline.scope_id = intent.scope_id
+ AND baseline.generation_id = $3
+WHERE intent.scope_id = $1
+  AND intent.generation_id = $2
+  AND chain.activated_at IS NOT NULL
+  AND (chain.ingested_at, chain.generation_id) < (intent.ingested_at, intent.generation_id)
+  AND ($3 = '' OR (chain.ingested_at, chain.generation_id) > (baseline.ingested_at, baseline.generation_id))
+ORDER BY chain.ingested_at ASC, chain.generation_id ASC
+LIMIT $4
 `
 
 // ReadManifestDependencyGeneration implements
@@ -112,11 +142,13 @@ LIMIT 1
 // transaction under the holder-read timeout it decides the activation state
 // with the shared generation freshness check (equal: active; pending before
 // activation: pending; anything older, failed, or pruned: superseded), then
-// reads the generation's own dependency rows and those of the newest
-// activated generation before it. A prior delta also returns its #7797 base
-// rows, resolved by the same rules the delta union uses; a missing, pruned,
-// or legacy base is reported as BaseMissing, never guessed. A prior whose
-// facts retention pruned counts as no prior.
+// reads the full view of the current generation, of the baseline W (newest
+// stamped activated prior), and of every activated generation between them.
+// A delta view also carries its #7797 base rows, resolved by the same rules
+// the delta union uses; a missing, pruned, or legacy base is BaseMissing,
+// never guessed. A chain longer than ManifestTriggerChainDepthCap, or a
+// baseline whose facts retention pruned, is Degraded; a pruned intermediate is
+// skipped and reported as ChainPruned.
 func (s SupplyChainImpactFanOutStore) ReadManifestDependencyGeneration(
 	ctx context.Context,
 	scopeID string,
@@ -142,38 +174,84 @@ func (s SupplyChainImpactFanOutStore) ReadManifestDependencyGeneration(
 		return out, nil
 	}
 	out.Activation = supplychaincore.ManifestGenerationActive
-	if out.Current.Rows, err = readManifestGenerationRows(ctx, tx, scopeID, generationID); err != nil {
+	store := FactStore{database: tx}
+	if out.Current, err = readManifestView(ctx, tx, store, scopeID, generationID); err != nil {
 		return out, err
 	}
 
-	priorID, err := readPriorActivatedGeneration(ctx, tx, scopeID, generationID)
-	if err != nil || priorID == "" {
+	baselineID, err := queryManifestGenerationID(ctx, tx, manifestWatermarkQuery, scopeID, generationID)
+	if err != nil {
 		return out, err
 	}
-	store := FactStore{database: tx}
-	if pruned, err := store.deltaUnionBasePruned(ctx, scopeID, priorID); err != nil {
-		return out, classifyFanOutReadError(err)
-	} else if pruned {
-		return out, nil
-	}
-	out.HasPrior = true
-	if out.Prior.Rows, err = readManifestGenerationRows(ctx, tx, scopeID, priorID); err != nil {
+	chain, err := queryManifestGenerationIDs(ctx, tx, manifestChainQuery,
+		scopeID, generationID, baselineID, supplychaincore.ManifestTriggerChainDepthCap+1)
+	if err != nil {
 		return out, err
 	}
-	if !facts.ParseDeltaScope(out.Prior.Rows).IsDelta {
+	if len(chain) > supplychaincore.ManifestTriggerChainDepthCap {
+		out.Degraded = true
 		return out, nil
 	}
-	baseID, _, wantUnion, err := store.resolveDeltaUnionBase(ctx, scopeID, priorID)
+	if baselineID != "" {
+		pruned, err := store.deltaUnionBasePruned(ctx, scopeID, baselineID)
+		if err != nil {
+			return out, classifyFanOutReadError(err)
+		}
+		if pruned {
+			out.Degraded = true
+			return out, nil
+		}
+		out.HasBaseline = true
+		if out.Baseline, err = readManifestView(ctx, tx, store, scopeID, baselineID); err != nil {
+			return out, err
+		}
+	}
+	for _, id := range chain {
+		pruned, err := store.deltaUnionBasePruned(ctx, scopeID, id)
+		if err != nil {
+			return out, classifyFanOutReadError(err)
+		}
+		if pruned {
+			out.ChainPruned = true
+			continue
+		}
+		view, err := readManifestView(ctx, tx, store, scopeID, id)
+		if err != nil {
+			return out, err
+		}
+		out.Chain = append(out.Chain, view)
+	}
+	return out, nil
+}
+
+// readManifestView reads one generation's dependency view and, for a delta,
+// its base rows.
+func readManifestView(
+	ctx context.Context,
+	tx db.Queryer,
+	store FactStore,
+	scopeID string,
+	generationID string,
+) (supplychaincore.ManifestDependencyView, error) {
+	view := supplychaincore.ManifestDependencyView{GenerationID: generationID}
+	var err error
+	if view.Rows, err = readManifestGenerationRows(ctx, tx, scopeID, generationID); err != nil {
+		return view, err
+	}
+	if !facts.ParseDeltaScope(view.Rows).IsDelta {
+		return view, nil
+	}
+	baseID, _, wantUnion, err := store.resolveDeltaUnionBase(ctx, scopeID, generationID)
 	var missing *projector.DeltaBaseMissingError
 	switch {
 	case errors.As(err, &missing), err == nil && (!wantUnion || strings.TrimSpace(baseID) == ""):
-		out.Prior.BaseMissing = true
-		return out, nil
+		view.BaseMissing = true
+		return view, nil
 	case err != nil:
-		return out, classifyFanOutReadError(err)
+		return view, classifyFanOutReadError(err)
 	}
-	out.Prior.Base, err = readManifestGenerationRows(ctx, tx, scopeID, baseID)
-	return out, err
+	view.Base, err = readManifestGenerationRows(ctx, tx, scopeID, baseID)
+	return view, err
 }
 
 // readManifestGenerationRows reads one generation's repository fact, live
@@ -243,20 +321,32 @@ func queryManifestRepoIDs(ctx context.Context, tx db.Queryer, scopeID, generatio
 	return ids, nil
 }
 
-func readPriorActivatedGeneration(ctx context.Context, tx db.Queryer, scopeID, generationID string) (string, error) {
-	rows, err := tx.QueryContext(ctx, priorActivatedGenerationQuery, scopeID, generationID)
+func queryManifestGenerationID(ctx context.Context, tx db.Queryer, query string, args ...any) (string, error) {
+	ids, err := queryManifestGenerationIDs(ctx, tx, query, args...)
+	if err != nil || len(ids) == 0 {
+		return "", err
+	}
+	return ids[0], nil
+}
+
+func queryManifestGenerationIDs(ctx context.Context, tx db.Queryer, query string, args ...any) ([]string, error) {
+	rows, err := tx.QueryContext(ctx, query, args...)
 	if err != nil {
-		return "", classifyFanOutReadError(err)
+		return nil, classifyFanOutReadError(err)
 	}
 	defer func() { _ = rows.Close() }()
-	var prior string
-	if rows.Next() {
-		if err := rows.Scan(&prior); err != nil {
-			return "", fmt.Errorf("scan prior activated generation: %w", err)
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan manifest generation id: %w", err)
+		}
+		if id = strings.TrimSpace(id); id != "" {
+			ids = append(ids, id)
 		}
 	}
 	if err := rows.Err(); err != nil {
-		return "", classifyFanOutReadError(err)
+		return nil, classifyFanOutReadError(err)
 	}
-	return strings.TrimSpace(prior), nil
+	return ids, nil
 }

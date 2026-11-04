@@ -24,6 +24,16 @@ type stubManifestPort struct {
 	generations []ManifestDependencyGeneration
 	readErr     error
 	reads       int
+	// stamps records each completion stamp's baseline generation id.
+	stamps []string
+}
+
+func (p *stubManifestPort) RecordManifestTriggerCompleted(_ context.Context, _ reducercontract.Intent, baselineGenerationID string) error {
+	p.stamps = append(p.stamps, baselineGenerationID)
+	if p.payload != nil {
+		p.payload[PayloadKeyManifestTriggerCompleted] = map[string]any{"baseline_generation_id": baselineGenerationID}
+	}
+	return nil
 }
 
 func (p *stubManifestPort) ReadManifestDependencyGeneration(_ context.Context, scopeID, generationID string) (ManifestDependencyGeneration, error) {
@@ -156,8 +166,8 @@ func activeFullChange() ManifestDependencyGeneration {
 			depRow("new-lodash", "package-lock.json", "lodash", "4.17.21"),
 			depRow("new-react", "package-lock.json", "react", "18.0.0"),
 		}},
-		HasPrior: true,
-		Prior: ManifestDependencyView{Rows: []facts.Envelope{
+		HasBaseline: true,
+		Baseline: ManifestDependencyView{Rows: []facts.Envelope{
 			depRow("old-lodash", "package-lock.json", "lodash", "4.17.20"),
 			depRow("old-react", "package-lock.json", "react", "18.0.0"),
 			depRow("old-left-pad", "package-lock.json", "left-pad", "1.3.0"),
@@ -210,8 +220,8 @@ func TestManifestTriggerFirstIndexReopensHoldersOfEveryPin(t *testing.T) {
 	t.Parallel()
 
 	generation := activeFullChange()
-	generation.HasPrior = false
-	generation.Prior = ManifestDependencyView{}
+	generation.HasBaseline = false
+	generation.Baseline = ManifestDependencyView{}
 	port := &stubManifestPort{
 		stubFanOut:  &stubFanOut{candidates: standardCandidates()},
 		generations: []ManifestDependencyGeneration{generation},
@@ -225,25 +235,30 @@ func TestManifestTriggerFirstIndexReopensHoldersOfEveryPin(t *testing.T) {
 	}
 }
 
-// TestManifestTriggerDeltaComparesTouchedPathsAgainstThePriorView proves a
-// delta generation is judged on its touched paths only: an edited lockfile
-// that dropped left-pad reopens left-pad's holder (a removal with no row in
-// the delta), and an untouched manifest's pins are not reported as removed.
-func TestManifestTriggerDeltaComparesTouchedPathsAgainstThePriorView(t *testing.T) {
+// TestManifestTriggerDeltaIsComparedAsItsBaseOverlaidView proves a delta
+// generation is judged as its base overlaid with its own rows (ruling D3): an
+// edited lockfile that dropped left-pad reopens left-pad's holder (a removal
+// with no row in the delta), and the untouched manifest's pins, which the
+// overlay keeps from the base, are not reported as removed.
+func TestManifestTriggerDeltaIsComparedAsItsBaseOverlaidView(t *testing.T) {
 	t.Parallel()
 
+	base := []facts.Envelope{
+		depRow("p-react", "web/package-lock.json", "react", "18.0.0"),
+		depRow("p-left-pad", "web/package-lock.json", "left-pad", "1.3.0"),
+		depRow("p-lodash", "api/package-lock.json", "lodash", "4.17.20"),
+	}
 	generation := ManifestDependencyGeneration{
 		Activation: ManifestGenerationActive,
-		Current: ManifestDependencyView{Rows: []facts.Envelope{
-			deltaRepositoryFact([]string{"web/package-lock.json"}, nil),
-			depRow("d-react", "web/package-lock.json", "react", "18.0.0"),
-		}},
-		HasPrior: true,
-		Prior: ManifestDependencyView{Rows: []facts.Envelope{
-			depRow("p-react", "web/package-lock.json", "react", "18.0.0"),
-			depRow("p-left-pad", "web/package-lock.json", "left-pad", "1.3.0"),
-			depRow("p-lodash", "api/package-lock.json", "lodash", "4.17.20"),
-		}},
+		Current: ManifestDependencyView{
+			Rows: []facts.Envelope{
+				deltaRepositoryFact([]string{"web/package-lock.json"}, nil),
+				depRow("d-react", "web/package-lock.json", "react", "18.0.0"),
+			},
+			Base: base,
+		},
+		HasBaseline: true,
+		Baseline:    ManifestDependencyView{Rows: base},
 	}
 	port := &stubManifestPort{
 		stubFanOut:  &stubFanOut{candidates: standardCandidates()},
@@ -254,7 +269,7 @@ func TestManifestTriggerDeltaComparesTouchedPathsAgainstThePriorView(t *testing.
 		t.Fatalf("Handle() error = %v", err)
 	}
 	if want := []string{"vuln-intel://osv/c"}; !reflect.DeepEqual(port.reopened, want) {
-		t.Fatalf("reopened = %v, want %v (lodash's file was not touched)", port.reopened, want)
+		t.Fatalf("reopened = %v, want %v (lodash's file kept its base pin)", port.reopened, want)
 	}
 }
 
@@ -273,7 +288,7 @@ func TestManifestTriggerTombstonedRowCountsAsAChange(t *testing.T) {
 			deltaRepositoryFact([]string{"web/package-lock.json"}, nil),
 			removed,
 		}},
-		HasPrior: false,
+		HasBaseline: false,
 	}
 	port := &stubManifestPort{
 		stubFanOut:  &stubFanOut{candidates: standardCandidates()},
@@ -299,8 +314,8 @@ func TestManifestTriggerPriorDeltaIsOverlaidOnItsBase(t *testing.T) {
 		Current: ManifestDependencyView{Rows: []facts.Envelope{
 			depRow("n-react", "package-lock.json", "react", "18.0.0"),
 		}},
-		HasPrior: true,
-		Prior: ManifestDependencyView{
+		HasBaseline: true,
+		Baseline: ManifestDependencyView{
 			Rows: []facts.Envelope{
 				deltaRepositoryFact([]string{"README.md"}, nil),
 			},
@@ -340,8 +355,8 @@ func TestManifestTriggerKnownLimitPriorDeltaWithMissingBase(t *testing.T) {
 		Current: ManifestDependencyView{Rows: []facts.Envelope{
 			depRow("n-react", "package-lock.json", "react", "18.0.0"),
 		}},
-		HasPrior: true,
-		Prior: ManifestDependencyView{
+		HasBaseline: true,
+		Baseline: ManifestDependencyView{
 			Rows:        []facts.Envelope{deltaRepositoryFact([]string{"README.md"}, nil)},
 			BaseMissing: true,
 		},
