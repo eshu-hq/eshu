@@ -13,6 +13,7 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
+	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
 // candidateFreeWorkflowLookalikeEnvelopes is a real parser shape that the
@@ -193,5 +194,53 @@ func TestPregateActivationLookupErrorCarriesCause(t *testing.T) {
 	}
 	if stub.calls != 0 {
 		t.Fatalf("bulk loads = %d, want 0: an outage defers before the load", stub.calls)
+	}
+}
+
+// fusedStubResolvedLoader is the production shape: a resolved loader that is a
+// CorpusFencedResolvedRelationshipLoader, so the pre-gate does not read the
+// corpus fence before the load.
+type fusedStubResolvedLoader struct {
+	stubResolvedRelationshipLoader
+	complete bool
+}
+
+func (f *fusedStubResolvedLoader) GetResolvedRelationshipsForReposWithCorpusFence(
+	context.Context,
+	[]string,
+) ([]relationships.ResolvedRelationship, bool, error) {
+	return nil, f.complete, nil
+}
+
+// TestPregateFusedLoaderClosedCorpusFenceDoesNotShed pins the F2 limit: with
+// the fused production loader a closed corpus fence is not read before the
+// load. The intent loads once, then defers non-counting on the fused
+// statement's own snapshot. Adding a pre-load fence read is tracked in a
+// follow-up and must change this test deliberately.
+func TestPregateFusedLoaderClosedCorpusFenceDoesNotShed(t *testing.T) {
+	t.Parallel()
+
+	stub := &stubFactLoader{envelopes: dockerfileLoaderEnvelopes(), mayHoldCandidates: true}
+	fenceLookupReads := 0
+	loader := CorrelatedWorkloadProjectionInputLoader{
+		FactLoader:             probeStubLoader{stubFactLoader: stub},
+		ResolvedLoader:         &fusedStubResolvedLoader{complete: false},
+		ResolutionActiveLookup: func(string) (bool, error) { return true, nil },
+		ResolutionsCompleteLookup: func(context.Context) (bool, error) {
+			fenceLookupReads++
+			return false, nil
+		},
+	}
+
+	_, err := loader.LoadWorkloadProjectionScopeInputs(context.Background(), dockerfileLoaderIntent())
+	var deferral workloadMaterializationResolutionNotReadyError
+	if !errors.As(err, &deferral) {
+		t.Fatalf("error = %v, want the post-load workloadMaterializationResolutionNotReadyError", err)
+	}
+	if stub.calls != 1 {
+		t.Fatalf("bulk loads = %d, want 1: the fused loader does not shed on the corpus fence", stub.calls)
+	}
+	if fenceLookupReads != 0 {
+		t.Fatalf("fence lookup reads = %d, want 0: the fused verdict comes from its own statement", fenceLookupReads)
 	}
 }

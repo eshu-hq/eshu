@@ -14,12 +14,13 @@ import (
 // is closed.
 const (
 	// WorkloadCandidateProbeOutcomeMayHold means the probe found a repository
-	// identity joined to a file fact holding a workload signal key, so the
-	// bulk-load pre-gate may shed the load while the resolution fence is
-	// closed.
+	// identity joined to a file fact whose parsed payload holds a value the
+	// workload extraction reads, so the bulk-load pre-gate evaluates the
+	// own-generation gate before the load and may shed it. The corpus-wide
+	// fence does not shed on the fused production loader (#9986).
 	WorkloadCandidateProbeOutcomeMayHold = "may_hold"
 	// WorkloadCandidateProbeOutcomeNoCandidates means the probe found no such
-	// pair; the loader takes its pinned vacuous-success path.
+	// pair; the loader takes the normal load, then the post-load gates.
 	WorkloadCandidateProbeOutcomeNoCandidates = "no_candidates"
 	// WorkloadCandidateProbeOutcomeError means the probe statement failed and
 	// the loader fell back to the full bulk load. A steady error rate means

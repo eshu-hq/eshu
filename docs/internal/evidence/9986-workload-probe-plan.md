@@ -106,8 +106,9 @@ Reading the plans:
   (`SELECT fact_id, fact_kind, payload … fact_kind = ANY(…)`) took 89.195 ms
   warm. A candidate-free monorepo therefore pays the probe on top of a load it
   could not shed, about 3 times the DB-side read. The probe saves Go-side
-  decode and allocation only when the answer is `true` and the fence is
-  closed. This is a design property of #9697, not a defect of the fix; the
+  decode and allocation only when the answer is `true` and the own
+  relationship generation is not ready; with the fused production loader a
+  closed corpus fence does not shed the load (F2). This is a design property of #9697, not a defect of the fix; the
   new counter shows the true/false mix on QA.
 - The repository lookup sometimes scans the whole scope generation. In the
   generic plan the planner prices the keyset index at one row with `fact_kind`
@@ -142,8 +143,8 @@ null or an empty list when the file holds no such evidence. The caller reads
 the answer one way (`deferUnlessReadyForBulkLoad`): true runs the readiness
 gates before the bulk load and can defer there; false, an error, or no probe
 loads and gates normally. So key existence did not make the shed inert. It made
-the shed fire for candidate-free scopes too, which then waited for the fence
-instead of succeeding vacuously. The probe now tests the value the way
+the shed fire for candidate-free scopes too, which then waited for their own
+relationship generation instead of succeeding vacuously. The probe now tests the value the way
 `ExtractWorkloadCandidates` reads it:
 
 | key class | counts when | keys |

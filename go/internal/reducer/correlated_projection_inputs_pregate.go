@@ -48,6 +48,13 @@ import (
 // until its own relationship generation activates or its producer reaches a
 // terminal state; it can never count, because the pre-gate returns nil on a
 // counting verdict and the post-load gate decides on real candidates.
+//
+// Limit (#9986): the pre-gate sheds on the own-generation gate only for the
+// production loader. The corpus-wide fence is read before the load only for a
+// loader that is not a CorpusFencedResolvedRelationshipLoader, and the
+// production ResolvedLoader is fused. With a fused loader a closed corpus fence
+// does not shed the bulk load: it loads, then defers post-load on the fused
+// statement's own snapshot.
 func (l CorrelatedWorkloadProjectionInputLoader) deferUnlessReadyForBulkLoad(
 	ctx context.Context,
 	intent reducercontract.Intent,
