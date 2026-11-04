@@ -86,11 +86,19 @@ func buildClaimedService(
 		return collector.ClaimedService{}, err
 	}
 	grantHome := config.ComponentHome
+	// controlStore is the core workflow control store. It serves the
+	// slot-scope resolver's run-row reads in every mode: the claim plane
+	// has no run-row route, so the enabled path keeps those reads on core
+	// by explicit carve-out below, never by falling through to whichever
+	// store serves claims. Installation selection reads the same rows.
+	controlStore := postgres.NewWorkflowControlStore(database)
 	// Host-minted App tokens are optional: when the operator configures all
 	// three GitHub App variables the host mints one installation token per
 	// claim for the security-alerts activation; otherwise the static config
-	// path applies. A malformed mapping fails startup closed here.
-	tokenProvider, err := tokenProviderFromEnv(getenv)
+	// path applies. A malformed mapping fails startup closed here. A derived
+	// Go reachability scope selects its installation from the remote stored in
+	// its run row.
+	tokenProvider, err := tokenProviderFromEnv(getenv, extensionhost.GoReachabilityInstallationKey(controlStore))
 	if err != nil {
 		return collector.ClaimedService{}, err
 	}
@@ -106,12 +114,6 @@ func buildClaimedService(
 	if err != nil {
 		return collector.ClaimedService{}, err
 	}
-	// controlStore is the core workflow control store. It serves the
-	// slot-scope resolver's run-row reads in every mode: the claim plane
-	// has no run-row route, so the enabled path keeps those reads on core
-	// by explicit carve-out below, never by falling through to whichever
-	// store serves claims.
-	controlStore := postgres.NewWorkflowControlStore(database)
 	// The CoreOnlyReason lift is reserved for the designed enabled path:
 	// the flag is on, the holder is pinned to the verified manifest, and
 	// the routes below (core run reads, fenced committer, cutover grant
@@ -172,6 +174,10 @@ func buildClaimedService(
 		// which keeps a misbinding a compile error, not a wrong
 		// answer at runtime.
 		ScopeQueryResolver: vulnerability.SlotScopeQueryResolver(controlStore),
+		// A Go reachability scope id names no URL, so its commit and remote
+		// reach the component from the same core run row, under the same
+		// carve-out (#10027).
+		DerivedTargetResolver: extensionhost.GoReachabilityTargetResolver(controlStore),
 		// StatusTelemetry turns the extension's SDK status rows into the
 		// eshu_dp_component_extension_* instruments and one bounded log
 		// line per claim result (#8908); an extracted collector emits no

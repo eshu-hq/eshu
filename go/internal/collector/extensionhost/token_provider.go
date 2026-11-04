@@ -47,19 +47,26 @@ type TokenProvider func(ctx context.Context, item workflow.WorkItem) (string, er
 // are the host-owned GitHub App credentials; they never cross the stdio
 // boundary. Installations maps a claimed scope ID to the installation that
 // serves it, so one provider covers every planned caller without one Source
-// per installation. BaseURL overrides the GitHub REST base (empty means the
+// per installation. A key starting with
+// scannercomponent.InstallationOwnerKeyPrefix ("github-owner:<host>/<owner>")
+// instead serves a derived scope, whose id cannot be listed ahead of time;
+// InstallationKey resolves a claim to such a key. BaseURL overrides the GitHub REST base (empty means the
 // production default); HTTPClient overrides the mint transport (nil means a
 // 15-second client) and exists as a test seam.
 type AppTokenProviderConfig struct {
 	AppID         string
 	PrivateKey    string
 	Installations map[string]string
-	BaseURL       string
-	HTTPClient    *http.Client
+	// InstallationKey is consulted only after an exact scope match misses. Nil
+	// keeps the exact-match table as the whole rule.
+	InstallationKey InstallationKeyResolver
+	BaseURL         string
+	HTTPClient      *http.Client
 }
 
 // NewAppTokenProvider builds the production TokenProvider: per claim it
-// selects the installation for the claimed scope ID and mints one short-lived
+// selects the installation for the claimed scope ID, or for the key
+// InstallationKey resolves for a derived scope, and mints one short-lived
 // installation token with app.MintInstallationToken. An unknown scope fails
 // closed with a bounded *app.ConfigError (terminal auth_denied downstream);
 // the App key stays host-side and only the minted token crosses to the
@@ -80,10 +87,19 @@ func NewAppTokenProvider(cfg AppTokenProviderConfig) (TokenProvider, error) {
 		if scopeID == "" || installationID == "" {
 			return nil, app.NewConfigError("github app token provider requires non-blank scope and installation ids")
 		}
-		installations[scopeID] = installationID
+		installations[reservedOwnerKey(scopeID)] = installationID
 	}
 	return func(ctx context.Context, item workflow.WorkItem) (string, error) {
 		installationID, ok := installations[strings.TrimSpace(item.ScopeID)]
+		if !ok && cfg.InstallationKey != nil {
+			key, err := cfg.InstallationKey(ctx, item)
+			if err != nil {
+				return "", installationKeyError(err)
+			}
+			if key != "" {
+				installationID, ok = installations[key]
+			}
+		}
 		if !ok {
 			return "", app.NewConfigError("no github app installation for this claim scope")
 		}

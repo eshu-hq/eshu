@@ -49,7 +49,7 @@ func TestTokenProviderFromEnvBuildsScopedProvider(t *testing.T) {
 	provider, err := tokenProviderFromEnv(mapEnv(hostTokenTestEnv(
 		hostTokenTestKey(t),
 		`{"scope-a":"111","scope-b":"222"}`,
-	)))
+	)), nil)
 	if err != nil {
 		t.Fatalf("tokenProviderFromEnv() error = %v, want nil", err)
 	}
@@ -80,7 +80,7 @@ func TestTokenProviderFromEnvToleratesSingleLinePEM(t *testing.T) {
 	provider, err := tokenProviderFromEnv(mapEnv(hostTokenTestEnv(
 		collapsed,
 		`{"scope-a":"111"}`,
-	)))
+	)), nil)
 	if err != nil {
 		t.Fatalf("tokenProviderFromEnv() error = %v, want nil for single-line PEM", err)
 	}
@@ -112,7 +112,7 @@ func TestTokenProviderFromEnvLeavesProviderUnsetWhenAnyMissing(t *testing.T) {
 				values[k] = v
 			}
 			delete(values, tt.clear)
-			provider, err := tokenProviderFromEnv(mapEnv(values))
+			provider, err := tokenProviderFromEnv(mapEnv(values), nil)
 			if err != nil {
 				t.Fatalf("tokenProviderFromEnv() error = %v, want nil", err)
 			}
@@ -121,7 +121,7 @@ func TestTokenProviderFromEnvLeavesProviderUnsetWhenAnyMissing(t *testing.T) {
 			}
 		})
 	}
-	if provider, err := tokenProviderFromEnv(mapEnv(nil)); err != nil || provider != nil {
+	if provider, err := tokenProviderFromEnv(mapEnv(nil), nil); err != nil || provider != nil {
 		t.Fatalf("tokenProviderFromEnv() = (%v, %v), want (nil, nil) when nothing is set", provider, err)
 	}
 }
@@ -147,7 +147,7 @@ func TestTokenProviderFromEnvRejectsMalformedInstallations(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			_, err := tokenProviderFromEnv(mapEnv(hostTokenTestEnv(keyPEM, tt.installations)))
+			_, err := tokenProviderFromEnv(mapEnv(hostTokenTestEnv(keyPEM, tt.installations)), nil)
 			if err == nil {
 				t.Fatalf("tokenProviderFromEnv() error = nil, want rejection of %s", tt.name)
 			}

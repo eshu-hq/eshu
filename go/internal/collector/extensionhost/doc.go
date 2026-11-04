@@ -50,6 +50,11 @@
 // with a bounded auth_denied failure before the runner launches, while a
 // transient mint fault stays retryable.
 //
+// When Config.DerivedTargetResolver is set, the host adds a derived scope's
+// target to the per-claim config under HostDerivedTargetKey. A Go reachability
+// scope also selects its installation through a host-and-owner key resolved from
+// that target, because a static table cannot name scopes that are derived.
+//
 // When Config.ClaimOutcomeRecorder is set, the Source reports one
 // ClaimOutcome per claim on every exit path and, for a completed claim, the
 // same outcome again from ObserveClaimedGenerationCommitted once

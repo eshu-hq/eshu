@@ -14,6 +14,9 @@ extensions. Follow the root `AGENTS.md`, `docs/internal/agent-guide.md`, and
   credentials, local file paths, or high-cardinality source values in errors or
   status records.
 - Add failing tests first for every behavior change.
+- `host_derived_target` is host-owned: never let static config set it, and never
+  put a clone URL in a scope id, error, log, or metric. Keep owner keys bound to
+  host and owner, since the minted token goes to that remote.
 - Grant decisions are reported at the owning site (`NewSource` for activation,
   `Source.validateGrantCoverage` for emission), once per distinct core kind per
   result. Observation must never change the allow/deny outcome, and no observer

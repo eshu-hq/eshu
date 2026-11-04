@@ -50,6 +50,13 @@ func NewSource(config Config) (*Source, error) {
 	if config.MaxResultPages < 0 {
 		return nil, errors.New("max_result_pages must not be negative")
 	}
+	if config.DerivedTargetResolver != nil {
+		// Static config under this key could forge a commit or remote, so it
+		// fails closed at activation. The message names only the key.
+		if _, reserved := config.Config[HostDerivedTargetKey]; reserved {
+			return nil, fmt.Errorf("extension config must not define %q when a derived target resolver is set", HostDerivedTargetKey)
+		}
+	}
 	if config.TokenProvider != nil {
 		// A static value under the host-minted key would be silently
 		// overwritten per claim; fail closed at activation instead. The
@@ -77,26 +84,27 @@ func NewSource(config Config) (*Source, error) {
 		collectorKinds[scope.CollectorKind(kind)] = struct{}{}
 	}
 	return &Source{
-		manifest:            config.Manifest,
-		collectorInstanceID: instanceID,
-		scopeKind:           config.ScopeKind,
-		configHandle:        strings.TrimSpace(config.ConfigHandle),
-		config:              cloneConfig(config.Config),
-		contract:            contract,
-		validator:           sdkcollector.NewValidator(contract),
-		payloadSchemas:      payloadSchemasForManifest(config.Manifest),
-		runner:              config.Runner,
-		statusRecorder:      config.StatusRecorder,
-		tokenProvider:       config.TokenProvider,
-		resultRecorder:      resultRecorder,
-		clock:               clock,
-		collectorKinds:      collectorKinds,
-		liveGrants:          liveGrants,
-		grantObserver:       config.GrantObserver,
-		maxPages:            config.MaxResultPages,
-		outcomeRecorder:     config.ClaimOutcomeRecorder,
-		pendingOutcomes:     newPendingClaimOutcomes(),
-		scopeQueryResolver:  config.ScopeQueryResolver,
+		manifest:              config.Manifest,
+		collectorInstanceID:   instanceID,
+		scopeKind:             config.ScopeKind,
+		configHandle:          strings.TrimSpace(config.ConfigHandle),
+		config:                cloneConfig(config.Config),
+		contract:              contract,
+		validator:             sdkcollector.NewValidator(contract),
+		payloadSchemas:        payloadSchemasForManifest(config.Manifest),
+		runner:                config.Runner,
+		statusRecorder:        config.StatusRecorder,
+		tokenProvider:         config.TokenProvider,
+		resultRecorder:        resultRecorder,
+		clock:                 clock,
+		collectorKinds:        collectorKinds,
+		liveGrants:            liveGrants,
+		grantObserver:         config.GrantObserver,
+		maxPages:              config.MaxResultPages,
+		outcomeRecorder:       config.ClaimOutcomeRecorder,
+		pendingOutcomes:       newPendingClaimOutcomes(),
+		scopeQueryResolver:    config.ScopeQueryResolver,
+		derivedTargetResolver: config.DerivedTargetResolver,
 	}, nil
 }
 
