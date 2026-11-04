@@ -230,13 +230,13 @@ hardware before being applied as a server setting.
   before/after on a representative statement (see [Run Evidence](#run-evidence)
   and [Hot-Path Checks](#hot-path-checks)):
 
-    ```sql
-    SET random_page_cost = 1.1;   -- session-local; compare EXPLAIN ANALYZE
-    RESET random_page_cost;       -- back to the server default
-    ```
+  ```sql
+  SET random_page_cost = 1.1;   -- session-local; compare EXPLAIN ANALYZE
+  RESET random_page_cost;       -- back to the server default
+  ```
 
-    Apply it as a server setting (or per-role) only after the before/after shows a
-    win with no regression on your own storage and cache state.
+  Apply it as a server setting (or per-role) only after the before/after shows a
+  win with no regression on your own storage and cache state.
 
 ## Run Evidence
 
@@ -288,10 +288,10 @@ the bottleneck moved.
 
 ```sql
 SELECT
-    stage,
-    status,
-    count(*) AS rows,
-    EXTRACT(EPOCH FROM (now() - min(COALESCE(visible_at, created_at)))) AS oldest_age_seconds
+  stage,
+  status,
+  count(*) AS rows,
+  EXTRACT(EPOCH FROM (now() - min(COALESCE(visible_at, created_at)))) AS oldest_age_seconds
 FROM fact_work_items
 WHERE status IN ('pending', 'retrying', 'claimed', 'running')
 GROUP BY stage, status
@@ -300,37 +300,37 @@ ORDER BY stage, status;
 
 ```sql
 SELECT
-    schemaname,
-    relname,
-    n_live_tup,
-    n_dead_tup,
-    last_autovacuum,
-    last_autoanalyze,
-    vacuum_count,
-    autovacuum_count,
-    analyze_count,
-    autoanalyze_count
+  schemaname,
+  relname,
+  n_live_tup,
+  n_dead_tup,
+  last_autovacuum,
+  last_autoanalyze,
+  vacuum_count,
+  autovacuum_count,
+  analyze_count,
+  autoanalyze_count
 FROM pg_stat_user_tables
 WHERE relname IN (
-    'fact_records',
-    'fact_work_items',
-    'workflow_work_items',
-    'workflow_claims',
-    'content_files',
-    'content_entities',
-    'eshu_search_index_documents',
-    'eshu_search_index_terms'
+  'fact_records',
+  'fact_work_items',
+  'workflow_work_items',
+  'workflow_claims',
+  'content_files',
+  'content_entities',
+  'eshu_search_index_documents',
+  'eshu_search_index_terms'
 )
 ORDER BY relname;
 ```
 
 ```sql
 SELECT
-    relname,
-    indexrelname,
-    idx_scan,
-    idx_tup_read,
-    idx_tup_fetch
+  relname,
+  indexrelname,
+  idx_scan,
+  idx_tup_read,
+  idx_tup_fetch
 FROM pg_stat_user_indexes
 WHERE relname IN ('fact_records', 'fact_work_items', 'eshu_search_index_terms')
 ORDER BY relname, idx_scan DESC, indexrelname;
@@ -346,15 +346,15 @@ views such as `pg_stat_all_tables`, `pg_stat_user_tables`,
 Suspect Postgres when:
 
 - fact commit or content/search write stage time grows while parser throughput
-    is steady;
+  is steady;
 - queue oldest age rises while claim workers are active and graph write latency
-    is not the long pole;
+  is not the long pole;
 - `pg_stat_statements` shows the same Eshu query family consuming most total
-    execution time across the run;
+  execution time across the run;
 - hot tables show high dead tuple counts or no recent analyze after a large
-    ingest/reducer wave;
+  ingest/reducer wave;
 - index scans suddenly drop or row estimates are clearly wrong after a data
-    shape change;
+  shape change;
 - pool wait is visible in traces/logs and Postgres still has server headroom.
 
 Routine vacuuming and analyze keep table space and planner statistics healthy;
@@ -427,7 +427,7 @@ from `relid` on are NULL (see the roll-time check below). The log line and
     lock held by autovacuum, lock acquisition will interrupt the autovacuum."
 
     Roll cases, reviewer-measured on scratch tables (naptime 1 s). The read is
-    point-in-time, so rerun it right before the ALTER:
+    point-in-time, so rerun it right before the roll:
 
     - The row can outlive the vacuum through its ANALYZE, so do not wait for it
       to clear; a roll then cancels only the ANALYZE. The log still says
