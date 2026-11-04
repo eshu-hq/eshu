@@ -1,0 +1,23 @@
+go/internal/envregistry/entries.go
+  s_7547c0f0af67d4::t_758b4164757268 295-297
+docs/public/reference/env-registry.md
+  s_7547c0f0af67d4::t_5bd8028df0a720 14,26
+docs/public/reference/env-registry/runtime-and-storage.md
+  s_7547c0f0af67d4::t_f0ce2ed862fd76 15-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "03212b25c0357999d51b203c222f64795f242a0e",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
