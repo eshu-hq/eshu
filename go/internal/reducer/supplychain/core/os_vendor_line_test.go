@@ -184,6 +184,31 @@ func TestSelectOSVendorFactLineLeavesOtherFactsAlone(t *testing.T) {
 	}
 }
 
+// TestUnknownHostLineDoesNotRestoreTrustAfterATaggedFact pins that an unknown
+// host line is judged per fact (#9945). A release-tagged OSV fact needs the
+// host line and is skipped when it is unknown; that must not end the pass, or a
+// vendor fact listed after it would escape the line check and read as trusted
+// release evidence. The result is the same whichever fact comes first.
+func TestUnknownHostLineDoesNotRestoreTrustAfterATaggedFact(t *testing.T) {
+	t.Parallel()
+	unknownHost := supplychainmodel.OSPackage{Distro: "debian", DistroVersion: "testing", VendorAdvisorySource: "debian"}
+	tagged := osvDebianCurlFact()
+	vendor := vendorLineFact("debian", "pkg:deb/debian/curl?distro=debian-12", "1:1.0-3")
+	for name, pkgs := range map[string][]supplychainmodel.AffectedPackage{
+		"tagged fact first": {tagged, vendor},
+		"vendor fact first": {vendor, tagged},
+	} {
+		got := selectOSAdvisoryRelease(pkgs, unknownHost)
+		at := slices.IndexFunc(got, func(pkg supplychainmodel.AffectedPackage) bool { return pkg.Source == "debian" })
+		if at < 0 {
+			t.Fatalf("%s: vendor fact missing from %+v", name, got)
+		}
+		if !got[at].VendorLineUnverified || osAffectedFactCarriesReleaseEvidence(got[at]) {
+			t.Errorf("%s: vendor fact %+v must be unverified with no release evidence", name, got[at])
+		}
+	}
+}
+
 // TestSelectOSVendorFactLineIsOrderIndependent pins that a verdict never
 // depends on where a fact sits among its siblings: every permutation of a
 // mixed group reads the same per-fact result.

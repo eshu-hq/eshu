@@ -5,6 +5,7 @@ package core
 
 import (
 	"reflect"
+	"slices"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -34,6 +35,34 @@ func TestAuthorizedBranchFilterDropsForeignLineVendorFacts(t *testing.T) {
 	all := []supplychainmodel.AffectedPackage{same, other, unknown}
 	if got := filterAuthorizedBranchesToHostLine(all, ""); !reflect.DeepEqual(got, all) {
 		t.Fatalf("an empty host line must keep every branch, got %+v", got)
+	}
+}
+
+// TestAuthorizedBranchFilterKeepsNonVendorBranchesWithAForeignLine pins the
+// source check of osVendorFactForOtherLine (#9945). Only the host vendor's own
+// advisory is "for another line" when its purl names one. An untagged OSV
+// branch, a branch with no source and a branch of another vendor are not line
+// checked, so a readable foreign line on them must not drop them from the
+// branches that contend, exactly as before the vendor check existed.
+func TestAuthorizedBranchFilterKeepsNonVendorBranchesWithAForeignLine(t *testing.T) {
+	t.Parallel()
+	const foreign = "pkg:deb/debian/curl?distro=debian-11"
+	untaggedOSV := osvDebianCurlFact()
+	untaggedOSV.AffectedRanges = []supplychainmodel.AffectedRange{{Kind: "ECOSYSTEM", Events: untaggedOSV.AffectedRanges[0].Events}}
+	untaggedOSV.PURL = foreign
+	branches := []supplychainmodel.AffectedPackage{
+		untaggedOSV,
+		vendorLineFact("", foreign, "1:1.0-3"),
+		vendorLineFact("ubuntu", foreign, "1:1.0-3"),
+		vendorLineFact("nvd", foreign, "1:1.0-3"),
+	}
+	if got := filterAuthorizedBranchesToHostLine(branches, "debian:12"); !reflect.DeepEqual(got, branches) {
+		t.Fatalf("kept %+v, want every non-vendor branch kept: %+v", got, branches)
+	}
+	// The host vendor's own branch with the same foreign line is dropped.
+	own := vendorLineFact("debian", foreign, "1:1.0-3")
+	if got := filterAuthorizedBranchesToHostLine(append(slices.Clone(branches), own), "debian:12"); !reflect.DeepEqual(got, branches) {
+		t.Fatalf("kept %+v, want only the host vendor's foreign branch dropped", got)
 	}
 }
 
