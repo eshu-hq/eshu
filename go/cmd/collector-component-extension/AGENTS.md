@@ -57,6 +57,12 @@ scripts/verify-performance-evidence.sh
 
 ## Claim Store
 
-- Keep the `CoreOnlyReason` on the `store.New` call while its slot-scope resolver reads `workflow_runs.requested_scope_set`, which only core Postgres holds.
-  Removing it would let a claim-plane claim read run rows from the wrong
-  database (#8875).
+- Keep the `CoreOnlyReason` on the `store.New` call unless the cutover gate
+  is enabled (`config.Cutover.enabled`). The slot-scope resolver stays bound
+  to the core control store in every mode: it reads
+  `workflow_runs.requested_scope_set`, which only core Postgres holds, and
+  the plane client has no run-row route, so a misbinding is a compile error,
+  not a wrong answer (#8875, #8877 leaf 1).
+- On the enabled path every route must resolve or startup fails: plane claim
+  store, plane-fenced committer, pinned holder identity, core run reads,
+  cutover grant re-read. No silent third option.

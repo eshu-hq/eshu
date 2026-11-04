@@ -173,8 +173,33 @@ classes, and service metrics endpoint.
 
 ## Workflow Claim Store
 
-This collector stays on the core Postgres workflow claim store. It passes a
-`CoreOnlyReason` to `store.New` because its slot-scope resolver reads `workflow_runs.requested_scope_set`, which only core Postgres holds. Setting
-`ESHU_WORKFLOW_CLAIM_PLANE_URL` for this collector stops startup with an error
-that names the variable and that reason (#8875). Lifting the refusal needs a
-claim-plane route for those reads first.
+By default this collector stays on the core Postgres workflow claim store.
+It passes a `CoreOnlyReason` to `store.New` because its slot-scope resolver
+reads `workflow_runs.requested_scope_set`, which only core Postgres holds.
+Setting `ESHU_WORKFLOW_CLAIM_PLANE_URL` without the enabled flow below stops
+startup with an error that names the variable and that reason (#8875).
+
+### Enabled flow (eshu-hq/eshu#8877 leaf 1, default off)
+
+Setting `ESHU_EXTENSIONHOST_CUTOVER_ENABLED` to a true Go boolean spelling
+lifts the refusal for one designed path only, and only when every route is
+bound:
+
+- `ESHU_WORKFLOW_CLAIM_PLANE_URL` set: claims flow through the claim-plane
+  client over `workflow.v1`, and commits take the plane commit fence pinned
+  on that client.
+- `ESHU_EXTENSIONHOST_CUTOVER_PRODUCER_ID` and
+  `ESHU_EXTENSIONHOST_CUTOVER_PRODUCER_VERSION` set, both equal to the
+  verified component manifest: the remote client proves under exactly that
+  holder identity. A mismatch fails startup naming only the variable.
+- Slot-scope run reads stay on core Postgres by explicit carve-out: the
+  resolver binds the core control store in every mode because the plane has
+  no run-row route.
+- Live-grant re-reads route through the cutover gate; the backing authority
+  (the on-disk registry) is unchanged.
+
+Any other URL-set state keeps the refusal, and any unrecognized flag
+spelling fails startup. The grant-observer backing that makes seam grant
+decisions visible to operators lands with the telemetry leaf; until then
+the seam observes nothing new. Claim/commit lifecycle operations through
+the cutover gate are exercised by the parity and concurrency leaves.

@@ -13,24 +13,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/component"
 )
 
-const (
-	// envCutoverEnabled is the default-off gate for the extension-host
-	// enabled flow (eshu-hq/eshu#8877 leaf 1). Unset or blank keeps the
-	// in-tree claim path byte-identically: no remote client is built and
-	// the URL-set-refuses-startup law stays in force. A set value must be
-	// a Go boolean spelling (strconv.ParseBool); anything else fails
-	// startup closed naming this variable.
-	envCutoverEnabled = "ESHU_EXTENSIONHOST_CUTOVER_ENABLED"
-	// envCutoverProducerID and envCutoverProducerVersion pin the remote
-	// client's holder identity. Both are required when the gate is
-	// enabled and both must equal the verified manifest's metadata,
-	// or startup fails closed naming only the variable. The pin keeps a
-	// misconfigured host from proving as another holder; the refused
-	// value never appears in the error.
-	envCutoverProducerID      = "ESHU_EXTENSIONHOST_CUTOVER_PRODUCER_ID"
-	envCutoverProducerVersion = "ESHU_EXTENSIONHOST_CUTOVER_PRODUCER_VERSION"
-)
-
 // cutoverPlan is the resolved enabled-flow wiring for one worker process.
 // The zero value is the default-off gate: every route stays in-tree.
 type cutoverPlan struct {

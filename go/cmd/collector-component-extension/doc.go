@@ -16,4 +16,11 @@
 // durable source state: sourceStateRecorder wires a vulnerability.Recorder from
 // extensionhost/vulnerability that writes vulnerability_source_states from claim
 // outcomes (#9420), because the extension itself has no storage handle.
+//
+// The extension-host cutover gate (eshu-hq/eshu#8877 leaf 1) is default-off:
+// without ESHU_EXTENSIONHOST_CUTOVER_ENABLED every route stays in-tree.
+// When enabled with the claim-plane URL and a producer pin matching the
+// verified manifest, claims flow through the claim-plane client, commits
+// take the plane commit fence, slot-scope run reads stay on core Postgres,
+// and live-grant re-reads go through the cutover gate.
 package main
