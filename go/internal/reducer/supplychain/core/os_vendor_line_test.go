@@ -103,6 +103,12 @@ func TestSelectOSVendorFactLine(t *testing.T) {
 				if osAffectedFactCarriesReleaseEvidence(got) {
 					t.Fatal("a foreign-line vendor fact must carry no release evidence")
 				}
+				// It is another release's record, not a record of unknown
+				// release: the weaker os_release_not_in_advisory arm owns it,
+				// so the unverified-vendor arm must not.
+				if osAffectedFactIsUnverifiedVendor(got) {
+					t.Fatal("a foreign-line vendor fact must not read as an unverified vendor fact")
+				}
 			},
 		},
 		{

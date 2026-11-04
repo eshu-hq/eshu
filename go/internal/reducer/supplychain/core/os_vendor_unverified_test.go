@@ -205,6 +205,34 @@ func TestUnknownLineVendorFixIsNeverTheHostsFix(t *testing.T) {
 	}
 }
 
+// TestUnknownLineVendorMalformedRangeStillFailsClosed pins ruling C2 (#9945):
+// an unverified vendor fact gives the range verdict an unverified signal, but
+// an unreadable range still reads possibly_affected with the malformed-range
+// reason, so a corrupt advisory is never hidden behind the unverified read. It
+// runs dpkg and apk through the joined row, in both fact orders.
+func TestUnknownLineVendorMalformedRangeStillFailsClosed(t *testing.T) {
+	t.Parallel()
+	for _, s := range []vendorLineScenario{vendorLineScenarios[0], vendorLineScenarios[2]} {
+		t.Run(s.name, func(t *testing.T) {
+			t.Parallel()
+			cve := vulnerabilityCVEFact("cve-9945", vendorLineCVE, 7.5)
+			unknown := s.affectedEnvelope(s.purl("edge-x"))
+			delete(unknown.Payload, "affected_versions")
+			unknown.Payload["affected_ranges"] = []any{map[string]any{"type": "ECOSYSTEM", "events": []any{
+				map[string]any{"introduced": "not a version"}, map[string]any{"fixed": "also not a version"},
+			}}}
+			host := s.row(s.hostRelease).envelope()
+			for _, order := range [][]facts.Envelope{{cve, unknown, host}, {host, unknown, cve}} {
+				findings := BuildSupplyChainImpactFindings(slices.Clone(order))
+				if len(findings) != 1 {
+					t.Fatalf("findings = %d, want 1: %#v", len(findings), findings)
+				}
+				assertVendorLineVerdict(t, findings[0], SupplyChainImpactPossiblyAffected, supplyChainVersionReasonMalformedRange)
+			}
+		})
+	}
+}
+
 // TestLanguageComponentPURLSkipsTheOSBoundaryWithoutAllocating pins the cost of
 // the SBOM-only guard in classifySupplyChainImpactPackage (#9945): it runs for
 // every component finding with no installed row, language packages included,
