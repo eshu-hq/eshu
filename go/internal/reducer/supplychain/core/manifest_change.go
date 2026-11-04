@@ -4,8 +4,10 @@
 package core
 
 import (
+	"encoding/json"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
@@ -100,9 +102,8 @@ func changedManifestDependencyKeys(generation ManifestDependencyGeneration) mani
 	return change
 }
 
-// dependencySignatures extracts the live dependency rows that pass keep,
-// keyed by everything that can change a finding: file, package identity, and
-// the declared, observed, and installed version text.
+// dependencySignatures extracts the live dependency rows that pass keep, keyed
+// by dependencySignature: every field the finding can carry.
 func dependencySignatures(rows []facts.Envelope, keep func(facts.Envelope) bool) map[string]correlation.PackageManifestDependency {
 	kept := make([]facts.Envelope, 0, len(rows))
 	for _, row := range rows {
@@ -112,20 +113,28 @@ func dependencySignatures(rows []facts.Envelope, keep func(facts.Envelope) bool)
 	}
 	out := map[string]correlation.PackageManifestDependency{}
 	for _, dependency := range correlation.ExtractPackageManifestDependencies(kept) {
-		signature := strings.Join([]string{
-			dependency.RelativePath,
-			dependency.PackageManager,
-			dependency.PackageNamespace,
-			dependency.DependencyName,
-			dependency.ManifestSection,
-			dependency.DependencyRange,
-			dependency.ObservedVersion,
-			dependency.RequestedRange,
-			dependency.InstalledVersion,
-		}, "\x00")
-		out[signature] = dependency
+		out[dependencySignature(dependency)] = dependency
 	}
 	return out
+}
+
+// dependencySignature is the dependency with the two fields every re-index
+// rewrites (FactID, ObservedAt) cleared, encoded whole. Encoding the struct
+// rather than listing fields means a field added to PackageManifestDependency
+// is part of change detection by default (#9874 F5);
+// TestDependencySignatureCoversEveryFindingField enumerates the fields to
+// prove it. encoding/json writes struct fields in declaration order and
+// follows pointers, so equal dependencies encode equally.
+func dependencySignature(dependency correlation.PackageManifestDependency) string {
+	dependency.FactID = ""
+	dependency.ObservedAt = time.Time{}
+	encoded, err := json.Marshal(dependency)
+	if err != nil {
+		// Unreachable for this all-plain-field struct; fall back to a
+		// signature that differs from every other so the row counts as changed.
+		return "unencodable\x00" + dependency.PackageManager + "\x00" + dependency.DependencyName
+	}
+	return string(encoded)
 }
 
 // tombstonedDependencies extracts the dependency rows the generation
