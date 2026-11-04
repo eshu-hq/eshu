@@ -86,6 +86,9 @@ func convertedOSVRecord(t testing.TB, record vulnerabilityintelligence.OSVVulner
 type installedOSRow struct {
 	vendor, release, manager, name, arch, version string
 	source                                        string
+	// distro overrides the distro the row reports and its purl names, for a
+	// derivative distribution of vendor. Empty means the vendor itself.
+	distro string
 }
 
 func (r installedOSRow) envelope() facts.Envelope {
@@ -96,10 +99,14 @@ func (r installedOSRow) envelope() facts.Envelope {
 	case "rpm":
 		purlType = "rpm"
 	}
+	distro := r.vendor
+	if r.distro != "" {
+		distro = r.distro
+	}
 	purl := "pkg:" + purlType + "/" + r.vendor + "/" + r.name + "@" + r.version +
-		"?arch=" + r.arch + "&distro=" + r.vendor + "-" + r.release
+		"?arch=" + r.arch + "&distro=" + distro + "-" + r.release
 	payload := map[string]any{
-		"distro":                 r.vendor,
+		"distro":                 distro,
 		"distro_version":         r.release,
 		"package_manager":        r.manager,
 		"name":                   r.name,

@@ -4,7 +4,7 @@
 package core
 
 import (
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -271,22 +271,7 @@ func matchingOSPackageImpactPaths(
 			}
 		}
 	}
-	sort.Slice(matches, func(i, j int) bool {
-		a, b := matches[i], matches[j]
-		if a.InstalledVersion != b.InstalledVersion {
-			return a.InstalledVersion < b.InstalledVersion
-		}
-		if a.PURL != b.PURL {
-			return a.PURL < b.PURL
-		}
-		if a.ScopeID != b.ScopeID {
-			return a.ScopeID < b.ScopeID
-		}
-		if a.GenerationID != b.GenerationID {
-			return a.GenerationID < b.GenerationID
-		}
-		return a.FactID < b.FactID
-	})
+	slices.SortFunc(matches, compareOSPackageRows)
 	return matches
 }
 

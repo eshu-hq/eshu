@@ -67,12 +67,14 @@ func appendSupplyChainImpactPackageFindings(
 		findings = appendSupplyChainImpactFinding(findings, classifySupplyChainImpactPackage(cves, pkgs, scoped))
 	}
 	// Keep independently owned manifest and scan evidence visible. A scanner
-	// digest without a matching SBOM is still a valid OS-package path.
+	// digest without a matching SBOM is still a valid OS-package path, and these
+	// rows split the way the no-SBOM fleet does, so a row here cannot decide the
+	// finding for another image or release line by arriving first (#9984).
 	base := index
 	base.components = nil
 	base.osPackages = baseOS
 	if len(consumptionRepositoriesForPackage(pkg.PackageID, base.consumption)) > 0 || hasMatchingOSPackage(pkg, base) {
-		findings = appendSupplyChainImpactManifestFindings(findings, cves, pkgs, base)
+		findings = appendSupplyChainImpactFleetOSFindings(findings, cves, pkgs, base)
 	}
 	return findings
 }
@@ -115,9 +117,10 @@ func appendSupplyChainImpactManifestFindings(
 // over its own scoped index — the osByDigest scoping the SBOM path above —
 // through the same manifest fanout, so per-repository composition is
 // unchanged: a scope holding a single digest classifies exactly as before.
-// Rows no sibling analysis resolves to a digest stay in the base index, which
-// keeps their pre-fix composition (full consumption over the digest-less
-// rows) so no matching row is dropped.
+// Rows no sibling analysis resolves to a digest classify once per (release
+// line, installed version) through the same fanout (#9984), since the first of
+// them used to decide one finding for every host. With no matching row at all
+// the whole index classifies once, which is every non-OS advisory.
 func appendSupplyChainImpactFleetOSFindings(
 	findings []SupplyChainImpactFinding,
 	cves supplyChainCVEGroup,
@@ -126,7 +129,7 @@ func appendSupplyChainImpactFleetOSFindings(
 ) []SupplyChainImpactFinding {
 	pkg := representativeAffectedPackage(pkgs)
 	osByDigest, baseOS := groupOSPackagesByDigest(pkg, index)
-	if len(osByDigest) == 0 {
+	if len(osByDigest) == 0 && len(baseOS) == 0 {
 		return appendSupplyChainImpactManifestFindings(findings, cves, pkgs, index)
 	}
 	digests := make([]string, 0, len(osByDigest))
@@ -139,10 +142,10 @@ func appendSupplyChainImpactFleetOSFindings(
 		scoped.osPackages = osByDigest[digest]
 		findings = appendSupplyChainImpactManifestFindings(findings, cves, pkgs, scoped)
 	}
-	base := index
-	base.osPackages = baseOS
-	if hasMatchingOSPackage(pkg, base) {
-		findings = appendSupplyChainImpactManifestFindings(findings, cves, pkgs, base)
+	for _, shard := range splitOSPackagesByReleaseLine(baseOS) {
+		scoped := index
+		scoped.osPackages = shard
+		findings = appendSupplyChainImpactManifestFindings(findings, cves, pkgs, scoped)
 	}
 	return findings
 }
@@ -150,7 +153,7 @@ func appendSupplyChainImpactFleetOSFindings(
 // groupOSPackagesByDigest partitions the advisory's matching installed rows
 // by the image digest their sibling scanner analysis resolves, mirroring the
 // osByDigest partition in appendSupplyChainImpactPackageFindings. Rows with
-// no digest-bearing sibling stay in base for the manifest classification.
+// no digest-bearing sibling stay in base for splitOSPackagesByReleaseLine.
 func groupOSPackagesByDigest(
 	pkg supplychainmodel.AffectedPackage,
 	index supplyChainImpactIndex,

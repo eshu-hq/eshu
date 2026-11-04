@@ -242,10 +242,8 @@ func TestVendorFactLineSpellingsAllMatchTheHost(t *testing.T) {
 // order independence (#9945). When the installed rows of two hosts on different
 // release lines resolve to distinct image digests, each digest gets its own
 // finding and the verdict depends on that host's row alone, so listing the
-// fleet in either order yields the same findings. Rows with no digest are not
-// covered: the index then keeps the first row, so which host decides is a
-// property of that join (the same one a release-tagged OSV fact already has),
-// not of the line check.
+// fleet in either order yields the same findings. Rows with no digest take the
+// release-line split instead, which os_package_fleet_groups_test.go pins (#9984).
 func TestVendorLineVerdictIsFleetOrderIndependentWithDigests(t *testing.T) {
 	t.Parallel()
 	cve := vulnerabilityCVEFact("cve-9945", vendorLineCVE, 7.5)
