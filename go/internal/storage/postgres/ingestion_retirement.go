@@ -8,11 +8,17 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
+
+// commitRefusalRepositoryRetiring is the collector.CommitRefusal reason of a
+// commit the retirement gate refused (#10037). It equals the outcome the
+// logRetirementRefusal line carries.
+const commitRefusalRepositoryRetiring = "repository_retiring"
 
 // applyScopeGateOutcome applies the folded retirement marker gate's answer
 // inside the commit transaction (#7766). It reports admitted: true means
@@ -43,6 +49,7 @@ func (s IngestionStore) applyScopeGateOutcome(
 		if streamErr := drainFactsAndCheckStream(factStream, factStreamErr); streamErr != nil {
 			return false, fmt.Errorf("read refused retiring scope stream: %w", streamErr)
 		}
+		collector.MarkCommitRefused(ctx, collector.CommitRefusal{Reason: commitRefusalRepositoryRetiring})
 		s.logRetirementRefusal(ctx, scopeValue, generation)
 		return false, nil
 	case scopeGateReadmitted:

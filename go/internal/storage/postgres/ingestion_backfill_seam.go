@@ -18,6 +18,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
@@ -141,6 +142,7 @@ func (s IngestionStore) skipUnchangedGeneration(
 		}
 	}
 	s.backfillStore().RecordSkippedRefresh(ctx, scopeValue, generation, candidate.GenerationID, reason)
+	collector.MarkCommitUnchangedSkip(ctx)
 	s.clearSuccessorHold(scopeValue)
 	return true, successorPrior{}, nil
 }

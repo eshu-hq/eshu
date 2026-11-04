@@ -253,6 +253,7 @@ func (s IngestionStore) commitScopeGeneration(
 				return fmt.Errorf("read skipped finalized generation stream: %w", streamErr)
 			}
 			s.backfillStore().RecordSkippedRefresh(ctx, scopeValue, generation, generation.GenerationID, telemetry.RefreshSkipReasonFinalizedGenerationReplay)
+			collector.MarkCommitUnchangedSkip(ctx)
 			s.logCommitStage(ctx, scopeValue, generation, "skip_finalized_generation", stageStart)
 			return nil
 		}
