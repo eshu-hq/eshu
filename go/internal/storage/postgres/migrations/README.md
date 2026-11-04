@@ -92,7 +92,13 @@ Migration 276 (#9975) sets `fact_records` `autovacuum_vacuum_scale_factor = 0.02
 and `autovacuum_vacuum_insert_scale_factor = 0.05` in one catalog-only ALTER
 (SHARE UPDATE EXCLUSIVE, no rewrite), so autovacuum fires on this table's churn
 rather than on 20% of 102M rows. It carries no cost, toast, or analyze
-parameters; see `docs/internal/evidence/9975-fact-records-autovacuum-reloptions.md`.
+parameters. The ALTER cancels a running ordinary autovacuum of `fact_records`
+after `deadlock_timeout` instead of waiting for it (only an anti-wraparound
+vacuum makes it wait), so a replay or any other DDL on that table restarts a
+vacuum that is still running; check `pg_stat_progress_vacuum` before a roll.
+See `docs/internal/evidence/9975-fact-records-autovacuum-reloptions.md` for
+the first-vacuum cost range, the read-replica `503` risk, and the stop
+procedure.
 
 ## Keep table-locking DDL and bulk DML in separate files (#7961)
 

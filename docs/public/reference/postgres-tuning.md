@@ -369,9 +369,39 @@ autovacuum behavior:
 dead row versions before a vacuum starts and makes index probes visit heap pages
 that hold no visible row. Check `pg_class.reloptions` for the table to confirm
 the setting, and `pg_stat_user_tables` (`n_dead_tup`, `last_autovacuum`) to see
-vacuum keeping up. The first vacuum after the setting lands walks the whole
-table and its indexes, so expect it to take tens of minutes and to slow reads
-while it runs.
+vacuum keeping up.
+
+Plan for the first vacuum after the setting lands. It scans the pages that hold
+dead rows and every index, so its length scales with table and index size and
+can be hours on a large table on a busy or CPU-throttled primary. It also
+competes for I/O and the autovacuum cost limit, which is shared among running
+workers. Read `pg_stat_progress_vacuum` for the live state; the log line and
+`last_autovacuum` appear only at the end.
+
+- Applying the same `ALTER TABLE` again, or any other DDL that takes
+  `SHARE UPDATE EXCLUSIVE` on `fact_records`, does not wait for a running
+  ordinary autovacuum. After `deadlock_timeout` PostgreSQL cancels it, and a new
+  worker restarts from block 0. Check `pg_stat_progress_vacuum` before a roll
+  that carries `fact_records` DDL. Only an anti-wraparound vacuum or a manual
+  `VACUUM` makes the statement wait.
+- On a deployment with a read replica and `hot_standby_feedback` off, vacuum
+  cleanup records can conflict with replica queries and cancel them. API and MCP
+  reads may then return `503`; see
+  [Postgres read routing](../deployment/postgres-read-routing.md) and watch
+  `pg_stat_database_conflicts` on the replica.
+- Cancelling the worker with `pg_cancel_backend` does not stop autovacuum for
+  long: the triggers are still exceeded and a new worker starts within one
+  `autovacuum_naptime`. Resetting the two storage parameters with
+  `ALTER TABLE fact_records RESET (...)` should stop it, but then
+  `pg_class.reloptions` no longer matches the migration ledger until a forward
+  migration lands. (The reset reasoning has not been run on a table below the
+  default trigger.)
+- The lower trigger means about four times as many index passes per day on a
+  table with a large index set. Watch the second vacuum's cost, not only the
+  first.
+- A physical replication slot retains WAL while its replica lags. Watch the
+  slot's `wal_status` and retained WAL during the first vacuum and agree a stop
+  value before it starts.
 
 ## What Not To Do
 
