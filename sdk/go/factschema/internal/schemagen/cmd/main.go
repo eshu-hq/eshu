@@ -162,6 +162,10 @@ func run() error {
 		// decode call nor a raw-SQL read-model consumer.
 		{name: "vulnerability.reference.v1.schema.json", generate: schemagen.VulnerabilityReferenceSchema},
 		{name: "vulnerability.source_snapshot.v1.schema.json", generate: schemagen.VulnerabilitySourceSnapshotSchema},
+		// vulnerability.changed_name has no reducer decode call and no
+		// read-model consumer yet (issue #9777 step 1, contract only); it
+		// is typed now so the schema exists before its step-2 consumer.
+		{name: "vulnerability.changed_name.v1.schema.json", generate: schemagen.VulnerabilityChangedNameSchema},
 		{name: "vulnerability.suppression.v1.schema.json", generate: schemagen.VulnerabilitySuppressionSchema},
 		// The code family fact kinds are BARE (no family prefix), unlike every
 		// other family here: they are the git collector's original,

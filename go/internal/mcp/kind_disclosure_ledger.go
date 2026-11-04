@@ -147,6 +147,14 @@ var grandfatheredUnconsumedKinds = map[string]string{
 	// fails on a disclosed kind with live consumer evidence.
 	"ref_overlay.branch_observation": "5b3e77a9de688c4a4fc27153fe26a8602d8d0734881d07f491a816d57e93e987",
 	"config_key_divergence":          "03a16ac79f202c0175485ad9e93febec85d6b37f140feaacfcecaec23f1942f3",
+
+	// eshu-hq/eshu#9777 step-1 contract-only kind (vulnerability_intelligence
+	// family). The satellite delta-poller emitter and the in-tree
+	// intersection/queue consumer land in later steps; until they do this
+	// kind has no reducer, projector, query, storage, or relationships
+	// consumer. Remove this entry the moment its consumer lands — the gate
+	// fails on a disclosed kind with live consumer evidence.
+	"vulnerability.changed_name": "cb43920830ed64b686d8a767db9f7de41a99b714fd98e4861e39e24be34eb45c",
 }
 
 // kindDisclosureDigest computes the SHA-256 digest of the disclosure entry
@@ -280,6 +288,12 @@ var kindDisclosureEntries = []kindDisclosureEntry{
 	// remove these entries when they do.
 	{Family: "ref_overlay_isolation", Kind: "ref_overlay.branch_observation", Reason: "eshu-hq/eshu#5393 Phase 1 contract-only kind (ref-extraction emitter and ref-scoped read surface land in sibling leaves): `rg -n \"RefOverlayBranchObservationFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"ref_overlay.branch_observation\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
 	{Family: "ref_overlay_isolation", Kind: "config_key_divergence", Reason: "eshu-hq/eshu#5393 Phase 1 contract-only kind (config-divergence emitter and dedicated divergence surface land in sibling leaves): `rg -n \"ConfigKeyDivergenceFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"config_key_divergence\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
+
+	// eshu-hq/eshu#9777 step-1 contract-only kind (vulnerability_intelligence
+	// family). The satellite delta-poller emitter and the in-tree
+	// intersection/queue consumer land in later steps, which must remove
+	// this entry when they do.
+	{Family: "vulnerability_intelligence", Kind: "vulnerability.changed_name", Reason: "eshu-hq/eshu#9777 step-1 contract-only kind (satellite delta-poller emitter and in-tree intersection/queue consumer land in later steps): `rg -n \"VulnerabilityChangedNameFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"vulnerability.changed_name\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
 }
 
 // isKindDisclosed returns true if kind is pinned in the disclosure ledger at

@@ -150,7 +150,7 @@ surfaces:
     proof: reference/collector-reducer-readiness.md#vulnerability-intelligence-promotion-proof
     docs: [reference/collector-reducer-readiness.md, reference/security-intelligence.md]
     collector_contract:
-      fact_kinds: [vulnerability.affected_package, vulnerability.affected_product, vulnerability.cve, vulnerability.epss_score, vulnerability.go_call_reachability, vulnerability.go_module_evidence, vulnerability.known_exploited, vulnerability.os_package, vulnerability.reference, vulnerability.source_snapshot, vulnerability.warning]
+      fact_kinds: [vulnerability.affected_package, vulnerability.affected_product, vulnerability.changed_name, vulnerability.cve, vulnerability.epss_score, vulnerability.go_call_reachability, vulnerability.go_module_evidence, vulnerability.known_exploited, vulnerability.os_package, vulnerability.reference, vulnerability.source_snapshot, vulnerability.warning]
       projection_surfaces: [supply_chain_impact, vulnerability_source_state]
       read_surfaces: [GET /api/v0/supply-chain/impact/findings, "GET /api/v0/supply-chain/vulnerabilities/{id}", explain_supply_chain_impact, list_supply_chain_impact_findings]
       proof_gates: [cd go && go test ./internal/collector/vulnerabilityintelligence ./internal/reducer ./internal/query ./internal/mcp -count=1]
