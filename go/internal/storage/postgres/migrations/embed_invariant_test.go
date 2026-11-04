@@ -187,6 +187,7 @@ import (
 // #9376 adds 270_generation_commit_fences.sql (DDL only: the claim-plane
 // commit fence table), which sorts and applies before 271.
 const goldenBootstrapDefinitionsDigest = "1e1153febfc4e786a50730964695a0c1ec2a3ca6237a799915fff21d94802688"
+
 // #9859 adds 274_fact_records_os_package_source_purl_prefix_idx.sql (the
 // expression index serving the narrowed read's UNION source arm: the
 // version-stripped purl prefix with its last segment replaced by
