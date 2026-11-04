@@ -195,3 +195,41 @@ func TestReducerReadsImportLevelAsReachablePackageScanOnly(t *testing.T) {
 		t.Fatalf("MissingEvidence = %#v, want the missing symbol trace named", got.Reachability.MissingEvidence)
 	}
 }
+
+// TestNotCalledFactWithoutDeepestModuleIsDropped pins the join boundary: the
+// reducer matches a reachability fact to its module row by deepest_module, so
+// a not_called fact (which has no call trace) must still carry it. Without it
+// the fact is never joined and the finding falls back to module_only, which
+// reads unknown instead of not_called.
+func TestNotCalledFactWithoutDeepestModuleIsDropped(t *testing.T) {
+	t.Parallel()
+	stream, reach := recordedSymbolScan(t)
+
+	for _, envelope := range reach {
+		if envelope.Payload["reachability_level"] != "not_called" {
+			continue
+		}
+		if envelope.Payload["deepest_module"] != realShapeModule {
+			t.Fatalf("emitter rules left deepest_module off a not_called fact: %#v", envelope.Payload)
+		}
+		if _, hasTrace := envelope.Payload["trace"]; hasTrace {
+			t.Fatalf("not_called fact carries a trace: %#v", envelope.Payload)
+		}
+	}
+
+	stripped := make([]facts.Envelope, 0, len(reach))
+	for _, envelope := range reach {
+		payload := map[string]any{}
+		for key, value := range envelope.Payload {
+			payload[key] = value
+		}
+		delete(payload, "deepest_module")
+		envelope.Payload = payload
+		stripped = append(stripped, envelope)
+	}
+	findings := realShapeFindings(t, stream, stripped)
+	for _, osv := range []string{"GO-2022-1059", "GO-2026-5970", "GO-2026-6629", "GO-2021-0113"} {
+		got := findings[osv]
+		wantReachability(t, got, SupplyChainReachabilityUnknown, string(GoVulnReachabilityModuleOnly))
+	}
+}
