@@ -122,10 +122,7 @@ func buildReducerService(
 	incompleteScopes := postgres.NewRelationshipGenerationsIncompleteScopesLookup(relationshipStore)
 	// #7597: a closed own gate reads its deployment_mapping producer.
 	resolutionProducer := postgres.NewResolutionProducerLookup(database)
-	factStore := postgres.NewFactStore(database).WithInstruments(instruments)
-	if identityCache != nil {
-		factStore = postgres.NewFactStoreWithIdentityCache(database, identityCache).WithInstruments(instruments)
-	}
+	factStore := newReducerFactStore(database, identityCache, instruments, logger)
 	admissionDecisionWriter := newAdmissionDecisionWriter(database)
 	codeCallIntentWriter := postgres.NewCodeCallIntentWriterWithInstruments(database, instruments)
 	repoDependencyIntentWriter := postgres.NewSharedIntentAcceptanceWriterWithInstruments(database, instruments)

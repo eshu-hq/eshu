@@ -86,7 +86,7 @@ func TestPackageManifestConsumptionKeyRowsJoinSBTArtifact(t *testing.T) {
 func TestListActivePackageManifestDependencyFactsReachesSBTAndGradleRows(t *testing.T) {
 	t.Parallel()
 
-	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{}}}
+	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{}, {}}}
 	if _, err := NewFactStore(db).ListActivePackageManifestDependencyFacts(
 		context.Background(), []string{"maven"}, []string{"org.typelevel:cats-core_2.13"},
 	); err != nil {
@@ -112,7 +112,7 @@ func TestListActivePackageManifestDependencyFactsReachesSBTAndGradleRows(t *test
 
 func TestListActivePackageManifestDependencyFactsMapsGoModuleToParserManager(t *testing.T) {
 	t.Parallel()
-	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{}}}
+	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{}, {}}}
 	if _, err := NewFactStore(db).ListActivePackageManifestDependencyFacts(
 		context.Background(), []string{"gomod"}, []string{"github.com/acme/lib-common"},
 	); err != nil {
@@ -130,7 +130,7 @@ func TestListActivePackageManifestDependencyFactsMapsGoModuleToParserManager(t *
 func TestListActivePackageManifestDependencyFactsKeepsNonMavenQueryUnchanged(t *testing.T) {
 	t.Parallel()
 
-	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{}}}
+	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{}, {}}}
 	if _, err := NewFactStore(db).ListActivePackageManifestDependencyFacts(
 		context.Background(), []string{"npm"}, []string{"left-pad"},
 	); err != nil {

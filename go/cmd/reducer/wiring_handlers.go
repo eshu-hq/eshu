@@ -241,7 +241,7 @@ func buildReducerSupplyChainSecurityHandlers(
 			DB: database,
 		},
 		SupplyChainImpactWriter:                          supplyChainImpactWriterFor(database, instruments),
-		SupplyChainImpactAuthorizedEvidenceLoader:        postgres.NewAuthorizedSupplyChainImpactEvidenceLoader(database),
+		SupplyChainImpactAuthorizedEvidenceLoader:        postgres.NewAuthorizedSupplyChainImpactEvidenceLoaderWithTelemetry(database, instruments, factStore.Logger()),
 		RequireSupplyChainImpactAuthorizedEvidenceLoader: true,
 		// #9695: after its writer commit a pass reopens the scopes that hold stale
 		// copies of what it changed. Wired beside the writer; the registration test

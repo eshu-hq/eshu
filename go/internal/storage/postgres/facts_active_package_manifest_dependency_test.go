@@ -37,6 +37,7 @@ func TestFactStoreListActivePackageManifestDependencyFactsUsesActiveGenerations(
 					[]byte(`{"entity_type":"Variable","entity_name":"left-pad","entity_metadata":{"config_kind":"dependency","package_manager":"npm"}}`),
 				}},
 			},
+			{}, // delta-target lookup: no delta-active scope, so no base scan
 		},
 	}
 	store := NewFactStore(db)
@@ -85,7 +86,7 @@ func TestFactStoreListActivePackageManifestDependencyFactsExcludesTombstones(t *
 	t.Parallel()
 
 	db := &fakeExecQueryer{
-		queryResponses: []queueFakeRows{{}},
+		queryResponses: []queueFakeRows{{}, {}},
 	}
 	store := NewFactStore(db)
 

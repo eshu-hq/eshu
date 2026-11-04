@@ -20,6 +20,21 @@ TABLE = {
             "TestListActivePackageManifestDependencyFactsLoadsMixedCaseNamesLive",
             "TestListActivePackageManifestDependencyFactsLoadsMixedCaseNamesThroughSBTQueryLive",
         ),
+        "go/internal/storage/postgres/active_package_manifest_dependency_delta_cases_live_test.go": (
+            "TestListActivePackageManifestDependencyFactsDeltaOverridesBasePinLive",
+            "TestListActivePackageManifestDependencyFactsDeltaDeletesManifestPathLive",
+            "TestListActivePackageManifestDependencyFactsDeltaTombstonesPinLive",
+            "TestListActivePackageManifestDependencyFactsChainedDeltasLive",
+            "TestListActivePackageManifestDependencyFactsDeltaBaseUnavailableLive",
+            "TestListActivePackageManifestDependencyFactsDeltaWithoutUnionLive",
+            "TestListActivePackageManifestDependencyFactsDeltaMavenFamilyLive",
+            "TestListActivePackageManifestDependencyFactsFullActiveScopeUnchangedLive",
+            "TestAuthorizedImpactLoaderCountsManifestDeltaUnionLive",
+            "TestAuthorizedImpactLoaderCountsManifestDeltaUnionEngagedLive",
+        ),
+        "go/internal/storage/postgres/active_package_manifest_dependency_delta_live_test.go": (
+            "TestListActivePackageManifestDependencyFactsDeltaActiveScopeLive",
+        ),
         "go/internal/storage/postgres/active_symbol_loader_composer_live_test.go": (
             "TestReducerContentionGateActiveCodeCallSymbolLoaderAnchorsComposerKeys",
             "TestReducerContentionGateActiveCodeCallSymbolLoaderKeepsNpmAndComposerNamesApart",

@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const listActivePackageManifestDependencyFactsQuery = `
@@ -58,6 +59,14 @@ LIMIT $5
 // ListActivePackageManifestDependencyFacts loads active, non-tombstoned Git
 // manifest dependency entities for the specific ecosystem/name set requested by
 // a package-registry reducer intent.
+//
+// A scope whose active generation is a git delta reads its delta overlaid on
+// its #7797 base full generation (#9991): base rows keep their own generation
+// id, and the delta wins per stable key, by tombstone, and by touched path.
+// A refused, legacy, or mismatched base keeps the delta-only rows; see
+// overlayDeltaManifestBase. Every statement runs on one read-only
+// repeatable-read snapshot.
+// Performance Evidence: docs/internal/evidence/9991-manifest-read-delta-union.md.
 //
 // The query filters fact.is_tombstone = FALSE so a manifest dependency fact
 // tombstoned within a still-active generation is never surfaced as live. The
@@ -114,10 +123,62 @@ func (s FactStore) ListActivePackageManifestDependencyFacts(
 	// text, because on a snapshot clone the static rewrite below changes
 	// the text and no rewritten text is in the label table.
 	rawQuery := query
-	query, err := s.protectedImpactStaticFactSQL(query)
+	baseQuery, err := deltaBasePackageManifestDependencyQuery(query)
 	if err != nil {
 		return nil, err
 	}
+	if query, err = s.protectedImpactStaticFactSQL(query); err != nil {
+		return nil, err
+	}
+	if baseQuery, err = s.protectedImpactStaticFactSQL(baseQuery); err != nil {
+		return nil, err
+	}
+	// One read-only repeatable-read snapshot keeps the active pages, the
+	// delta-base pages, and the base resolution on the same active
+	// generations (#9991). Inside the impact snapshot this nests as a no-op.
+	var loaded []facts.Envelope
+	activeRows := 0
+	err = withReadOnlyRepeatableRead(ctx, s.database, func(queryer db.Queryer) error {
+		reader := s
+		reader.database = snapshotReadQueryer{Queryer: queryer}
+		active, err := reader.listPackageManifestDependencyFactPages(ctx, query, packageManagers, packageNames)
+		if err != nil {
+			return err
+		}
+		activeRows = len(active)
+		read := manifestDependencyReadLabel(rawQuery)
+		targets, err := reader.readManifestDeltaTargets(ctx)
+		if err != nil {
+			reader.recordManifestDeltaUnionFailure(ctx, read)
+			return err
+		}
+		var base []facts.Envelope
+		if baseScopes := manifestDeltaBaseScopes(targets); len(baseScopes) > 0 {
+			base, err = reader.listPackageManifestDependencyFactPages(ctx, baseQuery, packageManagers, packageNames, baseScopes)
+			if err != nil {
+				reader.recordManifestDeltaUnionFailure(ctx, read)
+				return err
+			}
+		}
+		loaded, err = reader.overlayDeltaManifestBase(ctx, read, targets, active, base)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	s.recordManifestDependencyRead(ctx, rawQuery, started, activeRows)
+	return loaded, nil
+}
+
+// listPackageManifestDependencyFactPages runs one manifest dependency query
+// text through every keyset page. extra binds as $6 onward on every page.
+func (s FactStore) listPackageManifestDependencyFactPages(
+	ctx context.Context,
+	query string,
+	packageManagers []string,
+	packageNames []string,
+	extra ...any,
+) ([]facts.Envelope, error) {
 	var loaded []facts.Envelope
 	var cursorObservedAt *time.Time
 	var cursorFactID string
@@ -129,13 +190,13 @@ func (s FactStore) ListActivePackageManifestDependencyFacts(
 			packageNames,
 			cursorObservedAt,
 			cursorFactID,
+			extra...,
 		)
 		if err != nil {
 			return nil, err
 		}
 		loaded = append(loaded, page...)
 		if len(page) < listFactsByKindPageSize {
-			s.recordManifestDependencyRead(ctx, rawQuery, started, len(loaded))
 			return loaded, nil
 		}
 
@@ -153,22 +214,22 @@ func (s FactStore) listActivePackageManifestDependencyFactsPage(
 	packageNames []string,
 	cursorObservedAt *time.Time,
 	cursorFactID string,
+	extra ...any,
 ) ([]facts.Envelope, error) {
 	var cursor any
 	if cursorObservedAt != nil {
 		cursor = cursorObservedAt.UTC()
 	}
 
-	rows, err := s.database.QueryContext(
-		ctx,
-		query,
+	args := append([]any{
 		manifestDependencyQueryExecMode,
 		packageManagers,
 		packageNames,
 		cursor,
 		cursorFactID,
 		listFactsByKindPageSize,
-	)
+	}, extra...)
+	rows, err := s.database.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list active package manifest dependency facts: %w", err)
 	}

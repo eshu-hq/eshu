@@ -1100,6 +1100,14 @@ type Instruments struct {
 	// PackageManifestDependencyReadPages records how many keyset pages one
 	// completed manifest dependency read issued (#9586). Label: read.
 	PackageManifestDependencyReadPages metric.Int64Histogram
+	// PackageManifestDependencyReadDeltaUnion counts the delta-base union
+	// decisions of manifest dependency reads, one per delta-active scope a
+	// read reached (#9991). Labels: read and outcome (union_base_found,
+	// union_base_unmatched, union_base_missing, union_scope_mismatch,
+	// union_no_baseline, union_resolve_failed). Every outcome but
+	// union_base_found returns that scope's delta rows only;
+	// union_resolve_failed counts once per read whose lookups failed.
+	PackageManifestDependencyReadDeltaUnion metric.Int64Counter
 	// SupplyChainImpactActiveEvidenceBranchRows counts rows each
 	// active-evidence statement returned (#8880). Label: branch.
 	SupplyChainImpactActiveEvidenceBranchRows metric.Int64Counter

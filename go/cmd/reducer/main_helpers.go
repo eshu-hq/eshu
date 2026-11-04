@@ -416,3 +416,20 @@ func newRepoDependencyProjectionRunner(
 		Logger:              logger,
 	}
 }
+
+// newReducerFactStore builds the reducer's shared FactStore: the identity
+// epoch cache when one is configured, plus the process instruments and
+// logger, so every FactStore signal (the #9991 manifest delta-union WARN, the
+// #7797 union log) reaches the operator.
+func newReducerFactStore(
+	database db.ExecQueryer,
+	identityCache *postgres.IdentityEpochCache,
+	instruments *telemetry.Instruments,
+	logger *slog.Logger,
+) *postgres.FactStore {
+	store := postgres.NewFactStore(database)
+	if identityCache != nil {
+		store = postgres.NewFactStoreWithIdentityCache(database, identityCache)
+	}
+	return store.WithInstruments(instruments).WithLogger(logger)
+}
