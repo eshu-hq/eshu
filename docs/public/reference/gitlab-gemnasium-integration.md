@@ -125,7 +125,6 @@ GLAD facts, where a fixture produces them, use the same fact kinds the
 supply-chain impact reducer reads for OSV, GHSA, NVD, and KEV. The normalizer
 emits source facts at reported confidence; it does not publish user-facing
 impact truth. The reducer owns admission and conflict resolution across the advisory sources, and the
->>>>>>> 42f28a00be (Remove the remaining public claims that GLAD is collected)
 `glad` source is recognized in the reducer's impact provenance selection
 alongside `osv`, `ghsa`, and `nvd`.
 
