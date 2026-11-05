@@ -14,7 +14,7 @@ measured: 6,151.92 s (1 h 42 min 32 s) from 09:00:52.7Z to 10:43:24.607Z on
 pass at one moment. A later pass or another primary is not measured. The main
 note's "First vacuum on QA" section holds the readings and their limits.
 "Diagnosis section" numbers here and in the main note mean the #9805 diagnosis,
-which lives with #9805, not in this repository.
+is kept outside this repository; #9805 carries a dated summary without them.
 
 - Before the roll: counters first, then the roll, then watch. The owner's roll
   notice must carry this step, because by the one hour of post-vacuum rates
@@ -51,9 +51,12 @@ which lives with #9805, not in this repository.
     from the first vacuum's log line), a bypass below it. On the one hour's
     rates the table passes 2.27M 12.1 to 12.7 hours after the first vacuum's
     end, so a roll later than that most likely gets an index scan.
-  - After the roll read the pass's log line when it exists; the main note lists
-    the three cases, including a moved `autovacuum_count` with no log line
-    (QA logs only passes over 10 minutes).
+  - After the pass take the second probe read (the same 10 triples and the
+    keyed tick gauge). The pre-roll read is the top of the sawtooth, against the
+    60 s bar; this one is the read the main note's decision bullets judge, with
+    the pass's log line read first. The main note lists the three cases,
+    including a moved `autovacuum_count` with no log line (QA logs only passes
+    over 10 minutes).
 
 - API and MCP reads can return `503` while the first vacuum runs, and more
   mildly during later ones. QA runs `hot_standby_feedback` off. Vacuum cleanup
@@ -71,8 +74,8 @@ which lives with #9805, not in this repository.
   `pg_stat_progress_vacuum` for `fact_records` is the only view of a running
   pass. Diagnosis section 12 (9.1 earlier) found the progress columns NULL for
   `eshu`, and `delay_time` and the other columns need `pg_read_all_stats`, which
-  QA does not grant that role. A grant is a change nobody has authorized here. To tell
-  whether a hidden vacuum is still running, read, every 10 minutes:
+  QA does not grant that role. A grant is a change nobody has authorized here.
+  To tell whether a hidden vacuum is still running, read, every 10 minutes:
   - The `pg_locks` row keeps the same pid. A new pid or no row means the pass
     ended or restarted; check `last_autovacuum` and `autovacuum_count`. A steady
     pid shows the worker is alive, not that the vacuum is advancing: the
@@ -99,7 +102,8 @@ which lives with #9805, not in this repository.
     Evidence section shows), `ALTER TABLE fact_records RESET
     (autovacuum_vacuum_scale_factor, autovacuum_vacuum_insert_scale_factor)`
     stops it. The ALTER cancels the running vacuum by the lock rule in the main
-    note's "Lock and rollout" section and the restored 20% triggers are not met. Reviewer-measured on PostgreSQL 18.6
+    note's "Lock and rollout" section and the restored 20% triggers are not met.
+    Reviewer-measured on PostgreSQL 18.6
     (scratch table, 100k dead rows, 150k inserts, naptime 1 s): the vacuum was
     cancelled and no new one started over 8 s. Not run by the author, and not
     on `fact_records`.

@@ -30,8 +30,8 @@ each is an unmeasured theory on a primary that is already CPU-throttled.
 ## Performance Evidence:
 
 Source: the #9805 read-only diagnosis on the QA environment primary, taken on
-2026-11-04. Its section numbers (7, 9.1, 12.1 and so on) are cited below; the
-diagnosis and its raw files live with #9805, not in this repository. Nothing in
+2026-11-04. Its section numbers (7, 9.1, 12.1 and so on) are cited below; the diagnosis
+is kept outside this repository, and #9805 carries a dated summary without them. Nothing in
 the baseline tables was measured after this change; they are the baseline it is
 meant to move. The first vacuum section near the end records a vacuum that ran
 under the server defaults, before migration 279 had rolled.
@@ -58,17 +58,15 @@ state, unlike milliseconds):
 | After the holder was cancelled | 2 (repeat) | 12.2 | 4,970 | 66 |
 
 The 46.0 figure was taken with the holder open, and the cancel plus kill hints
-set by earlier passes had already moved it before any vacuum ran. The
-baseline for the vacuum is therefore the after-cancel pair. Buffers per row
-are cache-independent on both passes; the repeat pass (12.2) is the
-hint-settled comparison, because pass 1 sets the kill hints that pass 2 then
-benefits from. This is one before/after pair per arm with no control run, so
-the cancel cannot be separated from hint accumulation across passes. Two of
-the three 2-row triples (2 and 6) and the 197-row triple (7) moved little
-after the cancel (triple 7 went from 5,485 to 4,220 buffers, about 23%);
-triple 8, the third 2-row triple, fell from 199 to 7. The 197-row one is
-unexplained. These figures predate the first vacuum; the first vacuum section
-below records what it did.
+set by earlier passes had already moved it before any vacuum ran, so the
+baseline for the vacuum is the after-cancel pair. The repeat pass (12.2) is the
+hint-settled comparison, because pass 1 sets the kill hints that pass 2
+benefits from. This is one before/after pair per arm with no control run, so the
+cancel cannot be separated from hint accumulation across passes. Two of the
+three 2-row triples (2 and 6) and the 197-row triple (7) moved little after the
+cancel (triple 7 went from 5,485 to 4,220 buffers, about 23%); triple 8, the
+third 2-row triple, fell from 199 to 7. The 197-row one is unexplained. These
+figures predate the first vacuum, which the first vacuum section below records.
 
 The default triggers are scaled to 102M rows, so at the baseline rates (14 to 21
 dead rows per second, 47 to 80 inserts per second) the table would take 3.3 to
@@ -120,7 +118,7 @@ the table above. Recomputed from that dated reading:
 | Inserts | 1000 + scale x 96,428,608 x (1 - 3,676,984 / 21,350,368) | 15,965,313 | 3,992,078 (scale 0.05) |
 
 A later autoanalyze can move `reltuples` again, so compute the triggers live
-(the read below shows how). In the hour after the end the diagnosis reports
+(the runbook's query shows how). In the hour after the end the diagnosis reports
 52.1 dead rows and 19.7 inserts per second over 3,640 s. The two counter
 readings (13,333 and 14 at 10:45:21Z; 189,520 and 71,824 at 11:44:42Z, 3,561 s
 apart) give 49.5 and 20.2 per second, because `n_dead_tup` rose by 176,187 in
@@ -225,28 +223,30 @@ rule was:
   per-phase tick histogram (merged in #9981) would name it.
 
 The first bullet applies on these readings (n = 1): 1.4 buffers per row on the
-repeat pass right after the vacuum and 1.3 an hour later, the log shows no
-second holder (8,736 dead but not yet removable), and the hour after completion
-was inside the bar. The tick bar cannot tell the vacuum from the earlier
-holder cancel, because keyed p95 was already under 15 s before it; the probe
-is what separates them. The per-phase histogram was not read.
+repeat pass right after the vacuum and 1.3 an hour later, no second holder in
+the log (8,736 dead but not yet removable), and the hour after completion inside
+the bar. The tick bar cannot tell the vacuum from the earlier holder cancel
+(keyed p95 was already under 15 s before it); the probe separates them. The
+per-phase histogram was not read.
 
 Read the counters before the roll: counters read, then the roll, then watch.
 The owner's roll notice must carry that step; the runbook ("Before the roll")
-has the query and the polling window. The owed read of the next vacuum, the
-10-triple probe plus the keyed tick gauge (one read, not a soak), has to come
-before that vacuum starts. Either counter at or past its 279 trigger starts one
-within a naptime of apply (`n_dead_tup` 1,928,622 or `n_ins_since_vacuum`
-3,992,078 on the dated reading; compute live), so a 5% polling window cannot
-work then. Expect an index scan at or above 2% of live `relpages` times the dead
-items per page in hand (QA about 2.27M at 5.32), a bypass below. The arithmetic
-rests on one hour of rates ending 11:44Z; no counter has been read since, and
-this branch read nothing on QA.
+has the query and the polling window. The owed probe (the 10-triple probe plus
+the keyed tick gauge, one read each time, not a soak) is taken twice: before the
+roll, the top of the sawtooth, read against the 60 s bar; and after the pass,
+the read the bullets below judge. Either counter at or past its 279 trigger
+starts a vacuum within a naptime of apply (`n_dead_tup` 1,928,622 or
+`n_ins_since_vacuum` 3,992,078 on the dated reading; compute live), so a 5%
+polling window cannot work then. Expect an index scan at or above 2% of live
+`relpages` times the dead items per page (QA about 2.27M at 5.32), a bypass
+below. The arithmetic rests on one hour of rates ending 11:44Z; no counter has
+been read since, and this branch read nothing on QA.
 
-Read the pass's log line before the probe, `index scans:` then `index scan
-needed` or `index scan bypassed`:
+Read the pass's log line, then take the post-pass probe: `index scans:` then
+`index scan needed` or `index scan bypassed`.
 
-- `index scans: 1`: read the probe against the first vacuum's 1.4 buffers per row.
+- `index scans: 1`: read the post-pass probe against the first vacuum's 1.4
+  buffers per row.
 - `index scans: 0` with `index scan bypassed`: PostgreSQL skipped index
   vacuuming, so a high probe says nothing yet about the mechanism while
   `n_dead_tup` reads near zero. Do not call the setting failed, and do not change
@@ -256,8 +256,9 @@ needed` or `index scan bypassed`:
   on is a separate, unmeasured change.
 - `autovacuum_count` moved and no log line: QA logs only autovacuums over 10
   minutes (`log_autovacuum_min_duration` 600000 ms, diagnosis section 12.1), and
-  a bypassed pass likely runs a few minutes (362,753 dirtied pages at 20 credits
-  is 73 s at the full limit; arithmetic, not measured). The counters show a pass
+  a bypassed pass likely runs a few minutes, perhaps nearer 10 (362,753 dead-item
+  pages at 20 credits is a 73 s floor, since the pass still scans heap and the
+  first pass dirtied 11.77M pages; arithmetic, not measured). The counters show a pass
   finished and `n_dead_tup` fell (it reads near zero until the next ANALYZE
   counts the leftover dead item pointers); they cannot say whether it scanned the
   indexes. Do not judge the mechanism from the probe: a low one fits an index
@@ -265,12 +266,12 @@ needed` or `index scan bypassed`:
   one fits a bypass or a failed setting. Wait for a pass that logs. A table-level
   `log_autovacuum_min_duration` is not part of this change.
 
-Local proof for the change itself (disposable PostgreSQL 18.6, migration run
-through the shipped runner): `pg_class.reloptions` for `fact_records` is empty
-before migration 279 and holds exactly the two parameters after; the relation
-file is unchanged (catalog-only, no rewrite); a restart skips it by ledger
-receipt and a ledger-less replay leaves the options identical. That is a
-behavior proof, not a vacuum-duration claim.
+Local proof for the change itself (disposable PostgreSQL 18.6, run through the
+shipped runner): `pg_class.reloptions` for `fact_records` is empty before
+migration 279 and holds exactly the two parameters after; the relation file is
+unchanged (catalog-only, no rewrite); a restart skips it by ledger receipt and a
+ledger-less replay leaves the options identical. A behavior proof, not a
+vacuum-duration claim.
 
 ## Observability Evidence:
 
@@ -286,7 +287,7 @@ signals that already exist:
 - The autovacuum log line for `fact_records` (pages removed and remaining,
   tuples removed, dead-but-not-yet-removable count, removable cutoff, index
   stats, duration, buffer and WAL usage) appears for any run over 10 minutes.
-  Read the second vacuum's line too; it prices the steady state.
+  Read the next pass's line too, if it wrote one; it prices the steady state.
 - `pg_stat_user_tables` for `fact_records`: `n_dead_tup`, `n_ins_since_vacuum`,
   `last_autovacuum`, `autovacuum_count`. A table keeping up shows `n_dead_tup`
   resetting after each pass instead of climbing past 14M. A bypassed pass resets
@@ -472,11 +473,10 @@ Proof limits:
 - Whether any other session holds an older snapshot; the first logged vacuum's
   removable cutoff is the test. `idle_in_transaction_session_timeout` and
   `transaction_timeout` were 0 on the QA primary, so a new holder can recur.
-- Whether the schema Job connects as the table owner, and whether that role
-  may signal an autovacuum worker. QA's `fact_records` owner is `eshu`, the role
-  the diagnosis session used (diagnosis section 12.1). That the Job runs as
-  `eshu` is read from migration 273, which builds an index on the table through
-  it, not from QA.
+- Whether the schema Job connects as the table owner, and whether that role may
+  signal an autovacuum worker. QA's `fact_records` owner is `eshu`, the role the
+  diagnosis session used (diagnosis section 12.1); that the Job runs as `eshu`
+  is read from migration 273, which builds an index on the table, not from QA.
 - The deployed PostgreSQL major version: the diagnosis read 18.3, the lock text
   is from the 18 docs, and the lock behavior was measured on 18.6.
 - The stop procedure: RESET below and past the default triggers,
@@ -487,14 +487,14 @@ Proof limits:
 - The roll-time check on QA: QA's own worker showed the NULL-typed row at T0
   (diagnosis section 12.8: pid, NULL `backend_type`, NULL `state`, query
   `<insufficient privilege>`), so the reading for a role without
-  `pg_read_all_stats` is observed there. Which role runs a given roll check was
-  not checked, and QA's grants were not read.
+  `pg_read_all_stats` is observed there. The role that runs a roll check and
+  QA's grants were not read.
 - QA's counters after the 11:44Z hour readback (this branch read nothing on
   QA), and whether the post-vacuum rates (52.1 dead rows and 19.7 inserts per
   second, above the baseline dead-row range) persist. The hours to each trigger
   and the 12.1 to 12.7 hour break-even rest on that one hour.
 - Whether QA's next vacuum bypasses index vacuuming: the 2.27M dead-row line is
   arithmetic from the first vacuum's density, the 32 MiB condition was not
-  measured at scale, and a bypassed pass's duration is arithmetic.
-- The next vacuum's measurement is still owed. Read the counters before the
-  roll (above); no figure from that read exists yet and none is claimed here.
+  measured at scale, and a bypassed pass's duration is arithmetic. The next
+  vacuum's two probe reads (before the roll, after the pass) are still owed;
+  no figure from them exists and none is claimed here.

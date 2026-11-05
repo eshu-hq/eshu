@@ -470,9 +470,9 @@ and `last_autovacuum` appear only at the end.
 
 - About ten times as many passes on the dead-row path (0.20 to 0.02 of the
   table; 10.3 hours between runs against about 103, one hour of rates). A pass
-  can skip index vacuuming (`index scans: 0`), and one under QA's 10-minute
-  `log_autovacuum_min_duration` writes no log line, so read `autovacuum_count`
-  too. Read `n_dead_tup` and `n_ins_since_vacuum` before the roll: once either
+  can skip index vacuuming (`index scans: 0`), and one under
+  `log_autovacuum_min_duration` (10 minutes by default) writes no log line, so
+  read `autovacuum_count` too. Read `n_dead_tup` and `n_ins_since_vacuum` before the roll: once either
   is past its trigger, a vacuum starts within a naptime of the roll.
 - A physical replication slot retains WAL while its replica lags. Watch the
   slot's `wal_status` and retained WAL during the first vacuum and agree a stop
