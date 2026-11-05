@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
@@ -23,7 +24,7 @@ func TestDeltaOverlaySnapshotReadsTargetsOnceAndNests(t *testing.T) {
 	t.Parallel()
 
 	db := &fakeExecQueryer{queryResponses: []queueFakeRows{
-		{rows: [][]any{{"scope-1", "delta-1", "commit-base", ""}}},
+		{rows: [][]any{{"scope-1", "delta-1", "commit-base", "", `["base-b","base-a"]`}}},
 	}}
 	var legs [][]deltaOverlayTarget
 	err := NewFactStore(db).withDeltaOverlaySnapshot(context.Background(), func(outer *deltaOverlaySnapshot) error {
@@ -50,11 +51,14 @@ func TestDeltaOverlaySnapshotReadsTargetsOnceAndNests(t *testing.T) {
 	if got := len(db.queries); got != 1 || db.queries[0].query != deltaOverlayTargetsQuery {
 		t.Fatalf("statements = %d, want one delta-target lookup shared by both legs", got)
 	}
-	if len(legs) != 2 || len(legs[0]) != 1 || legs[1][0] != legs[0][0] {
+	if len(legs) != 2 || len(legs[0]) != 1 || !reflect.DeepEqual(legs[1][0], legs[0][0]) {
 		t.Fatalf("legs = %+v, want the same one target for both", legs)
 	}
 	if want := deltaUnionCommitsFor("commit-base", ""); legs[0][0].commits != want {
 		t.Fatalf("target commits = %+v, want %+v", legs[0][0].commits, want)
+	}
+	if want := []string{"base-b", "base-a"}; !reflect.DeepEqual(legs[0][0].baseCandidates, want) {
+		t.Fatalf("target base candidates = %v, want %v (#9611)", legs[0][0].baseCandidates, want)
 	}
 	if db.beginReadOnlyRepeatableReadCalls != 1 || db.transactionCommitCalls != 1 {
 		t.Fatalf("BEGIN = %d, COMMIT = %d; want one snapshot transaction for the nested call",
@@ -100,10 +104,10 @@ func TestListActivePackageManifestDependencyFactsResolvesReachedScopesInOneBatch
 	db := &fakeExecQueryer{queryResponses: []queueFakeRows{
 		{rows: [][]any{manifestOverlayFakeRow(0, "scope-1", "delta-1")}}, // active page
 		{rows: [][]any{ // delta-target lookup: four delta-active scopes
-			{"scope-1", "delta-1", "c1", ""},
-			{"scope-2", "delta-2", "c2", ""},
-			{"scope-3", "delta-3", "c3", ""},
-			{"scope-4", "delta-4", "c4", ""},
+			{"scope-1", "delta-1", "c1", "", `["base-1"]`},
+			{"scope-2", "delta-2", "c2", "", `["base-2"]`},
+			{"scope-3", "delta-3", "c3", "", `["base-3"]`},
+			{"scope-4", "delta-4", "c4", "", `["base-4"]`},
 		}},
 		{rows: [][]any{ // base page: scopes 1 to 3 reached, scope 4 not
 			manifestOverlayFakeRow(1, "scope-1", "base-1"),
@@ -149,5 +153,31 @@ func TestListActivePackageManifestDependencyFactsResolvesReachedScopesInOneBatch
 	}
 	if got := manifestDeltaUnionCount(t, reader, deltaOverlayBaseMissing); got != 1 {
 		t.Fatalf("union_base_missing = %d, want 1", got)
+	}
+}
+
+// TestDeltaOverlayBaseGenerationsBindsTheCandidates pins the #9611 base-page
+// binding: the sorted, distinct candidate base generation ids of every target
+// with a recorded baseline. A legacy delta (no baseline) contributes none,
+// and a target with a baseline but no candidate keeps the base page (an empty
+// array), so the statement count holds.
+func TestDeltaOverlayBaseGenerationsBindsTheCandidates(t *testing.T) {
+	t.Parallel()
+
+	targets := []deltaOverlayTarget{
+		{scopeID: "s-1", commits: deltaUnionCommitsFor("c1", ""), baseCandidates: []string{"g-2", "g-1"}},
+		{scopeID: "s-2", commits: deltaUnionCommitsFor("", ""), baseCandidates: []string{"g-legacy"}},
+		{scopeID: "s-3", commits: deltaUnionCommitsFor("c3", "u3"), baseCandidates: []string{"g-1", "g-3"}},
+		{scopeID: "s-4", commits: deltaUnionCommitsFor("c4", "")},
+	}
+	got, scan := deltaOverlayBaseGenerations(targets)
+	if want := []string{"g-1", "g-2", "g-3"}; !reflect.DeepEqual(got, want) || !scan {
+		t.Fatalf("base generations = %v (scan %v), want %v and a scan", got, scan, want)
+	}
+	if got, scan := deltaOverlayBaseGenerations(targets[3:]); len(got) != 0 || !scan {
+		t.Fatalf("baseline with no candidate = %v (scan %v), want an empty array and a scan", got, scan)
+	}
+	if _, scan := deltaOverlayBaseGenerations(targets[1:2]); scan {
+		t.Fatal("a legacy delta alone must not scan the base")
 	}
 }

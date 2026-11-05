@@ -29,9 +29,10 @@ WHERE fact.fact_kind = 'file'
 
 // TestDeriveDeltaOverlayBaseQueryBindsTheScopePlaceholder pins the
 // placeholder parametrization the #10003 readers need: Crossplane XRD binds
-// the scope ids at $4, code-call at $5 and $6, JVM at $6, terraform at $1 and
-// $2. The derived text names the requested placeholder once per branch and no
-// other scope placeholder.
+// at $4, code-call at $5 and $6, JVM at $6, terraform at $1 and $2. Since
+// #9611 the placeholder carries the candidate base generation ids, not the
+// delta-active scope ids. The derived text names the requested placeholder
+// once per branch and binds no scope array.
 func TestDeriveDeltaOverlayBaseQueryBindsTheScopePlaceholder(t *testing.T) {
 	t.Parallel()
 
@@ -44,12 +45,12 @@ func TestDeriveDeltaOverlayBaseQueryBindsTheScopePlaceholder(t *testing.T) {
 		if err != nil {
 			t.Fatalf("$%d: derive: %v", param, err)
 		}
-		want := fmt.Sprintf("AND fact.scope_id = ANY($%d::text[])", param)
+		want := fmt.Sprintf("AND fact.generation_id = ANY($%d::text[])", param)
 		if got := strings.Count(derived, want); got != 1 {
 			t.Fatalf("$%d: derived carries %q %d times, want 1:\n%s", param, want, got, derived)
 		}
-		if got := strings.Count(derived, "fact.scope_id = ANY("); got != 1 {
-			t.Fatalf("$%d: derived carries %d scope filters, want 1:\n%s", param, got, derived)
+		if violations := deltaOverlayBaseBindingViolations(derived); len(violations) > 0 {
+			t.Fatalf("$%d: derived base binding: %v", param, violations)
 		}
 		if strings.Contains(derived, deltaOverlayActiveScopeJoin) || strings.Contains(derived, deltaOverlayActiveGeneration) {
 			t.Fatalf("$%d: derived keeps an active-generation fragment:\n%s", param, derived)
@@ -66,7 +67,10 @@ func TestDeriveDeltaOverlayBaseQueryBindsTheScopePlaceholder(t *testing.T) {
 // The four fragments are the #9991 manifestActiveScopeJoin,
 // manifestDeltaBaseJoin, manifestActiveGeneration, and manifestDeltaBaseFull
 // constants (the overlay file at the #9991 merge commit c9c1f40375),
-// frozen here as the pre-refactor oracle.
+// frozen here as the pre-refactor oracle, except the last line of
+// genAfter: #9611 binds the candidate base generation ids instead of the
+// delta-active scope ids, so the restriction is an Index Cond of the folded
+// entity index (whose trailing column is generation_id).
 func TestDeriveDeltaOverlayBaseQueryKeepsTheManifestText(t *testing.T) {
 	t.Parallel()
 
@@ -74,7 +78,7 @@ func TestDeriveDeltaOverlayBaseQueryKeepsTheManifestText(t *testing.T) {
 		joinBefore = "AND scope.active_generation_id = fact.generation_id"
 		joinAfter  = "AND scope.active_generation_id <> fact.generation_id\nJOIN scope_generations AS active_delta\n  ON active_delta.scope_id = scope.scope_id\n AND active_delta.generation_id = scope.active_generation_id"
 		genBefore  = "AND generation.status = 'active'"
-		genAfter   = "AND generation.is_delta = false\n  AND generation.activated_at IS NOT NULL\n  AND generation.source_commit_sha = COALESCE(NULLIF(TRIM(active_delta.delta_union_base_commit_sha), ''), NULLIF(TRIM(active_delta.delta_baseline_commit_sha), ''))\n  AND active_delta.is_delta = true\n  AND active_delta.status = 'active'\n  AND fact.scope_id = ANY($6::text[])"
+		genAfter   = "AND generation.is_delta = false\n  AND generation.activated_at IS NOT NULL\n  AND generation.source_commit_sha = COALESCE(NULLIF(TRIM(active_delta.delta_union_base_commit_sha), ''), NULLIF(TRIM(active_delta.delta_baseline_commit_sha), ''))\n  AND active_delta.is_delta = true\n  AND active_delta.status = 'active'\n  AND fact.generation_id = ANY($6::text[])"
 	)
 	for _, active := range []string{
 		listActivePackageManifestDependencyFactsQuery,
@@ -129,8 +133,8 @@ ORDER BY requested.repo_id, fact.observed_at, fact.fact_id
 	if err != nil {
 		t.Fatalf("derive JOIN-shaped reader: %v", err)
 	}
-	if got := strings.Count(derived, "AND fact.scope_id = ANY($2::text[])"); got != 1 {
-		t.Fatalf("derived carries the $2 scope filter %d times, want 1:\n%s", got, derived)
+	if got := strings.Count(derived, "AND fact.generation_id = ANY($2::text[])"); got != 1 {
+		t.Fatalf("derived carries the $2 base generation restriction %d times, want 1:\n%s", got, derived)
 	}
 	for _, kept := range []string{
 		"AND repository_scope.active_generation_id = repository.generation_id",
@@ -172,5 +176,43 @@ func TestDeriveDeltaOverlayBaseQueryFailsClosed(t *testing.T) {
 	// not $1.
 	if _, err := deriveDeltaOverlayBaseQuery(deltaOverlayShapeActive("  AND fact.fact_id <> $10::text\n"), 1); err != nil {
 		t.Fatalf("derive with $10 bound and $1 requested: %v, want nil", err)
+	}
+}
+
+// deltaOverlayBaseBindingViolations reports how a derived base text departs
+// from the #9611 binding: exactly one generation_id = ANY($n) restriction per
+// fact branch and no scope_id = ANY array. A scope array is a residual Filter
+// on every probed row; a generation array is an Index Cond.
+func deltaOverlayBaseBindingViolations(derived string) []string {
+	var violations []string
+	branches := countDeltaOverlayFactBranches(derived)
+	if got := strings.Count(derived, "AND fact.generation_id = ANY($"); got != branches {
+		violations = append(violations, fmt.Sprintf("%d generation_id restrictions for %d fact branches", got, branches))
+	}
+	if strings.Contains(derived, "fact.scope_id = ANY(") {
+		violations = append(violations, "binds a scope_id array")
+	}
+	return violations
+}
+
+// TestDeltaOverlayBaseBindingGuardFiresOnTheScopeArray is the seeded pair for
+// the #9611 binding guard: the pre-#9611 scope-bound fragment fails it, the
+// shipped derivation passes it.
+func TestDeltaOverlayBaseBindingGuardFiresOnTheScopeArray(t *testing.T) {
+	t.Parallel()
+
+	derived, err := deriveDeltaOverlayBaseQuery(deltaOverlayShapeActive(""), 1)
+	if err != nil {
+		t.Fatalf("derive: %v", err)
+	}
+	if violations := deltaOverlayBaseBindingViolations(derived); len(violations) > 0 {
+		t.Fatalf("shipped derivation fails the binding guard: %v", violations)
+	}
+	seeded := strings.Replace(derived, "AND fact.generation_id = ANY($1::text[])", "AND fact.scope_id = ANY($1::text[])", 1)
+	if seeded == derived {
+		seeded = strings.Replace(derived, "AND active_delta.status = 'active'", "AND active_delta.status = 'active'\n  AND fact.scope_id = ANY($1::text[])", 1)
+	}
+	if len(deltaOverlayBaseBindingViolations(seeded)) == 0 {
+		t.Fatal("binding guard is quiet on the scope-bound fragment")
 	}
 }

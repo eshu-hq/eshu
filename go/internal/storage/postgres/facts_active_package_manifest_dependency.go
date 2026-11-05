@@ -126,8 +126,8 @@ func (s FactStore) listManifestDependencyFactsWithQuery(
 			return err
 		}
 		var base []facts.Envelope
-		if baseScopes := deltaOverlayBaseScopes(targets); len(baseScopes) > 0 {
-			base, err = reader.listPackageManifestDependencyFactPages(ctx, baseQuery, packageManagers, packageNames, baseScopes)
+		if baseGenerations, scan := deltaOverlayBaseGenerations(targets); scan {
+			base, err = reader.listPackageManifestDependencyFactPages(ctx, baseQuery, packageManagers, packageNames, baseGenerations)
 			if err != nil {
 				reader.recordDeltaOverlayFailure(ctx, sink)
 				return err

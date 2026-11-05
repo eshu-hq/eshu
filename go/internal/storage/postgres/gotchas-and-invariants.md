@@ -149,8 +149,8 @@ operational lessons that future storage changes still need to respect.
   through the shared `delta_overlay.go` helper, #10003): a global delta-target
   lookup runs first, and only when some scope is delta-active does a second
   paged query derived from the active text (`deriveDeltaOverlayBaseQuery` at
-  `$6`, limited to those scopes) return the activated fulls at the union-base
-  commit, `resolveDeltaBases` picks every reached scope's base in one base
+  `$6`, limited to the candidate base generation ids the target lookup returns,
+  #9611) return the activated fulls at the union-base commit, `resolveDeltaBases` picks every reached scope's base in one base
   lookup and at most one retention probe, and `facts.OverlayDeltaBase` applies the delta's keys, tombstones,
   and touched paths. Never copy the base rule or overlay into SQL. A refused,
   legacy, or mismatched base keeps the delta-only rows and counts
@@ -166,8 +166,9 @@ operational lessons that future storage changes still need to respect.
   delta-active scope's unchanged base rows. Fix it through `delta_overlay.go`:
   `withDeltaOverlaySnapshot` (one read-only repeatable-read snapshot, with the
   delta-target lookup read once and shared by every leg), base pages from
-  `deriveDeltaOverlayBaseQuery` (the reader names its scope-array placeholder;
-  the derivation fails closed on a shape it cannot swap), and
+  `deriveDeltaOverlayBaseQuery` (the reader names the placeholder it binds
+  `deltaOverlayBaseGenerations` at, a `generation_id` array since #9611; the
+  derivation fails closed on a shape it cannot swap), and
   `overlayDeltaBase` (`resolveDeltaBases`, then `facts.OverlayDeltaBase`). The
   base rule lives only in `delta_union_base.go` (`deltaUnionBaseQuery` and
   `deltaUnionBasePrunedQuery`, batched; the projector and the successor guard

@@ -15,8 +15,13 @@ import (
 // active read. Its generation predicate is a strict superset of
 // deltaUnionBaseQuery: every activated full generation of a delta-active
 // scope at the delta's union-base commit (COALESCE union base, baseline). It
-// is limited to the delta-active scope ids bound at the reader's placeholder,
-// so a read never scans base rows of a scope it will not overlay.
+// is limited to the candidate base generation ids bound at the reader's
+// placeholder (the target lookup's last column, the same superset), so a
+// read never scans base rows of a generation it will not overlay. #9611: a
+// generation_id array, not the scope ids. generation_id is the global primary
+// key of scope_generations and the trailing column of the folded entity
+// index, so the restriction is an Index Cond of each per-name probe; a
+// scope_id array was a residual Filter on every probed row.
 // resolveDeltaBases then picks the one base the projector overlays, so the
 // base rule keeps one definition. Deriving the base from the active text keeps
 // both in step when a reader's active text changes (#9611 for the manifest
@@ -25,19 +30,20 @@ const (
 	deltaOverlayActiveScopeJoin  = "AND scope.active_generation_id = fact.generation_id"
 	deltaOverlayBaseJoin         = "AND scope.active_generation_id <> fact.generation_id\nJOIN scope_generations AS active_delta\n  ON active_delta.scope_id = scope.scope_id\n AND active_delta.generation_id = scope.active_generation_id"
 	deltaOverlayActiveGeneration = "AND generation.status = 'active'"
-	deltaOverlayBaseFullPrefix   = "AND generation.is_delta = false\n  AND generation.activated_at IS NOT NULL\n  AND generation.source_commit_sha = COALESCE(NULLIF(TRIM(active_delta.delta_union_base_commit_sha), ''), NULLIF(TRIM(active_delta.delta_baseline_commit_sha), ''))\n  AND active_delta.is_delta = true\n  AND active_delta.status = 'active'\n  AND fact.scope_id = ANY($"
+	deltaOverlayBaseFullPrefix   = "AND generation.is_delta = false\n  AND generation.activated_at IS NOT NULL\n  AND generation.source_commit_sha = COALESCE(NULLIF(TRIM(active_delta.delta_union_base_commit_sha), ''), NULLIF(TRIM(active_delta.delta_baseline_commit_sha), ''))\n  AND active_delta.is_delta = true\n  AND active_delta.status = 'active'\n  AND fact.generation_id = ANY($"
 	// deltaOverlayFactBranch marks one fact branch, FROM- or JOIN-shaped.
 	deltaOverlayFactBranch = "fact_records AS fact"
 )
 
 // deltaOverlayBaseFull returns the base generation predicate with the
-// delta-active scope ids bound at placeholder $scopeParam.
+// candidate base generation ids bound at placeholder $scopeParam.
 func deltaOverlayBaseFull(scopeParam int) string {
 	return deltaOverlayBaseFullPrefix + strconv.Itoa(scopeParam) + "::text[])"
 }
 
 // deriveDeltaOverlayBaseQuery derives the base-candidate query from one
-// active reader text, binding the delta-active scope ids at $scopeParam. A
+// active reader text, binding the candidate base generation ids
+// (deltaOverlayBaseGenerations) at $scopeParam. A
 // fact branch is each fact_records AS fact, whether it follows FROM or JOIN.
 // It fails closed unless every branch carries exactly one active scope join
 // and one active generation predicate, $scopeParam is unused in the active
@@ -111,11 +117,25 @@ func isSQLIdentifierByte(b byte) bool {
 // the active rows alone. The projector's target is the claimed generation by
 // primary key instead (deltaUnionTargetQuery). With no delta-active scope the
 // read skips the base scan entirely.
+//
+// The last column (#9611) is a JSON array of the scope's candidate base
+// generations: every activated full generation at the union-base commit,
+// with the exact predicate the derived base text applies, so binding them
+// restricts the base pages without narrowing them. resolveDeltaBases still
+// picks the one base among them for each scope the rows reach.
 const deltaOverlayTargetsQuery = `
 SELECT scope.scope_id,
        active.generation_id,
        COALESCE(active.delta_baseline_commit_sha, ''),
-       COALESCE(active.delta_union_base_commit_sha, '')
+       COALESCE(active.delta_union_base_commit_sha, ''),
+       COALESCE((
+         SELECT jsonb_agg(base.generation_id ORDER BY base.generation_id)
+         FROM scope_generations AS base
+         WHERE base.scope_id = scope.scope_id
+           AND base.is_delta = false
+           AND base.activated_at IS NOT NULL
+           AND base.source_commit_sha = COALESCE(NULLIF(TRIM(active.delta_union_base_commit_sha), ''), NULLIF(TRIM(active.delta_baseline_commit_sha), ''))
+       ), '[]'::jsonb)::text
 FROM ingestion_scopes AS scope
 JOIN scope_generations AS active
   ON active.scope_id = scope.scope_id

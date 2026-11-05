@@ -85,7 +85,7 @@ func TestManifestDependencyQueriesProbeEachRequestedName(t *testing.T) {
 		// branch's own joins.
 		flat := squashSQLSpace(base)
 		inner := strings.Index(flat, squashSQLSpace(manifestProbeInnerTop))
-		for _, swapped := range []string{deltaOverlayBaseJoin, "AND fact.scope_id = ANY($6::text[])"} {
+		for _, swapped := range []string{deltaOverlayBaseJoin, "AND fact.generation_id = ANY($6::text[])"} {
 			at := strings.Index(flat, squashSQLSpace(swapped))
 			if at < strings.Index(flat, manifestProbeLateral) || at > inner {
 				t.Errorf("%s base text: %q is not inside the per-name probe", name, swapped)

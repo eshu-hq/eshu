@@ -22,7 +22,8 @@ and `delta_union_base.go`; see
 3. Otherwise a base-candidate query, derived from the active text by
    `deltaBasePackageManifestDependencyQuery` (now `deriveDeltaOverlayBaseQuery` at `$6`; two fragment swaps, fail-closed
    shape check), pages through the same partial indexes, keyset cursor, and
-   limit, restricted to those scopes (`fact.scope_id = ANY($6)`). It selects
+   limit, restricted to those scopes (`fact.scope_id = ANY($6)`; since #9611
+   the candidate base generation ids, `fact.generation_id = ANY($6)`). It selects
    activated full generations at the delta's union-base commit,
    `COALESCE(delta_union_base_commit_sha, delta_baseline_commit_sha)`, a
    strict superset of `deltaUnionBaseQuery`. #9611 rewrites the active text,
