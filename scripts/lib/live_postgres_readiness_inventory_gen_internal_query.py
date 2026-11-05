@@ -90,6 +90,7 @@ TABLE = {
         ),
         "go/internal/query/readiness_derived_rotation_live_test.go": (
             "TestSupplyChainImpactReadinessDerivedRotationKeepsVerdictsLive",
+            "TestSupplyChainImpactReadinessDerivedRotationSkipTracksPlanner",
         ),
         "go/internal/query/readiness_derived_skip_live_test.go": (
             "TestSupplyChainImpactReadinessPlannerSkippedPackageReportsSkipLive",
@@ -99,6 +100,9 @@ TABLE = {
             "TestSupplyChainImpactReadinessDerivedVerdictIgnoresPlanWindowLive",
             "TestSupplyChainImpactReadinessDerivedLegacyScopeStopsCountingOnStateLive",
             "TestSupplyChainImpactReadinessDerivedLegacyScopeNeverMasksReleaseLive",
+            "TestSupplyChainImpactReadinessDerivedAgedOutReleaseIsNamedStaleLive",
+            "TestSupplyChainImpactReadinessDerivedPlanForAnotherDistroExpectsNothingLive",
+            "TestSupplyChainImpactReadinessDerivedUnqualifiedScopesShareOneGroupLive",
         ),
         "go/internal/query/readiness_derived_source_keys_live_test.go": (
             "TestSupplyChainImpactReadinessDerivedRepositoryAcrossBatchScopesLive",

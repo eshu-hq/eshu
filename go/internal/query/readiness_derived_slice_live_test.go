@@ -4,7 +4,7 @@
 package query
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #10015 disposable PostgreSQL API proof that a derived package's release coverage is decided by the state rows alone, so the slice of releases a rotating planner run names cannot change a verdict, and that a legacy scope with no release stops counting only once a real release state exists
+//eshu:readiness:reason #10015 disposable PostgreSQL API proof that a derived package's release coverage is decided by the state rows alone, so the slice of releases a rotating planner run names cannot change a verdict, that a legacy scope with no release stops counting only once a real release state exists, and the aged-out reason, plan-distro binding and unqualified-group rules the statement relies on
 //eshu:readiness:env ESHU_POSTGRES_DSN
 
 import (
@@ -190,4 +190,72 @@ func TestSupplyChainImpactReadinessDerivedLegacyScopeNeverMasksReleaseLive(t *te
 			t.Fatalf("incomplete reasons = %v, want osv:pending:alpine:v3.18", readiness.IncompleteReasons)
 		}
 	})
+}
+
+// TestSupplyChainImpactReadinessDerivedAgedOutReleaseIsNamedStaleLive pins the
+// reason for a state that is stored fresh but older than the freshness window:
+// the aggregate reads stale, so the reason must name the aged verdict
+// (osv:stale:alpine:v3.17) and not the stored one, or an operator is told a
+// release is fresh while the package reads not covered.
+func TestSupplyChainImpactReadinessDerivedAgedOutReleaseIsNamedStaleLive(t *testing.T) {
+	ctx, db, now := readinessScopeLiveDatabase(t)
+	seedDerivedInstance(t, ctx, db, now, "derived-alpine", "alpine")
+	seedCurlState(t, ctx, db, now.Add(-15*24*time.Hour), curlV317Scope, "fresh")
+	seedCurlState(t, ctx, db, now, curlV318Scope, "fresh")
+
+	readiness := readDerivedReadiness(t, db, curlPackageID)
+	state := onlyDerivedState(t, readiness)
+	if state.FreshnessState != "stale" || state.ScopeCount != 2 {
+		t.Fatalf("derived aggregate = %+v, want stale across two release scopes", state)
+	}
+	for _, want := range []string{"osv:stale", "osv:stale:alpine:v3.17"} {
+		if !slices.Contains(readiness.IncompleteReasons, want) {
+			t.Fatalf("incomplete reasons = %v, want %s", readiness.IncompleteReasons, want)
+		}
+	}
+	if slices.Contains(readiness.IncompleteReasons, "osv:fresh:alpine:v3.17") {
+		t.Fatalf("incomplete reasons = %v, must not name the stored fresh state of an aged-out release", readiness.IncompleteReasons)
+	}
+}
+
+// TestSupplyChainImpactReadinessDerivedPlanForAnotherDistroExpectsNothingLive
+// pins that a plan target counts only for a distro the instance derives from:
+// this instance derives alpine, so a debian release in the plan is not a scope
+// it will ever write and must not read pending.
+func TestSupplyChainImpactReadinessDerivedPlanForAnotherDistroExpectsNothingLive(t *testing.T) {
+	ctx, db, now := readinessScopeLiveDatabase(t)
+	seedDerivedInstance(t, ctx, db, now, "derived-alpine", "alpine")
+	seedCurlState(t, ctx, db, now, curlV318Scope, "fresh")
+	debian := plannedAlpineTarget("vuln-intel://osv/debian/curl?release=bookworm&version=7.88.1-10", "curl")
+	debian["ecosystem"] = "debian"
+	seedPlannerRun(t, ctx, db, now, "derived-alpine", []map[string]any{plannedAlpineTarget(curlV318Scope, "curl"), debian}, nil)
+
+	readiness := readDerivedReadiness(t, db, curlPackageID)
+	state := onlyDerivedState(t, readiness)
+	if state.FreshnessState != "fresh" || state.ScopeCount != 1 || !slices.Equal(state.ScopeIDs, []string{curlV318Scope}) {
+		t.Fatalf("derived aggregate = %+v, want fresh with only the alpine release scope", state)
+	}
+	if len(readiness.IncompleteReasons) != 0 {
+		t.Fatalf("incomplete reasons = %v, want none", readiness.IncompleteReasons)
+	}
+}
+
+// TestSupplyChainImpactReadinessDerivedUnqualifiedScopesShareOneGroupLive pins
+// the documented limit that scopes with no release qualifier share one newest-wins
+// group per package whatever their distro: a newer fresh Alpine scope hides an
+// older failed Debian one. Only a release qualifier opens a group of its own.
+func TestSupplyChainImpactReadinessDerivedUnqualifiedScopesShareOneGroupLive(t *testing.T) {
+	const (
+		debianOlder = "vuln-intel://osv/debian/curl?version=7.88.1-10"
+		alpineNewer = "vuln-intel://osv/alpine/curl?version=7.87.0-r0"
+	)
+	ctx, db, now := readinessScopeLiveDatabase(t)
+	seedDerivedInstance(t, ctx, db, now, "derived-os", "alpine", "debian")
+	seedDerivedScope(t, ctx, db, now.Add(-time.Hour), "derived-os", debianOlder, "debian", "failed", "failed_retryable", curlKeys)
+	seedDerivedScope(t, ctx, db, now, "derived-os", alpineNewer, "alpine", "fresh", "succeeded", curlKeys)
+
+	state := onlyDerivedState(t, readDerivedReadiness(t, db, curlPackageID))
+	if state.FreshnessState != "fresh" || state.ScopeCount != 1 || !slices.Equal(state.ScopeIDs, []string{alpineNewer}) {
+		t.Fatalf("derived aggregate = %+v, want only the newer unqualified scope", state)
+	}
 }

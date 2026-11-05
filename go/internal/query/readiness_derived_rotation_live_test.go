@@ -130,6 +130,10 @@ func plannedRotationReleases(t *testing.T, raw string) map[string]map[string]boo
 //
 // The planner only mints release scope ids once #9993 lands. Until then there is
 // nothing for readiness to read from the plan, so the test skips with that reason.
+// It skips only when none of the nine plans names a release, and
+// TestSupplyChainImpactReadinessDerivedRotationSkipTracksPlanner fails if that
+// check ever stops following the planner, so the skip cannot hide the proof once
+// the planner does mint release scopes.
 func TestSupplyChainImpactReadinessDerivedRotationKeepsVerdictsLive(t *testing.T) {
 	for _, layout := range []string{"hash", "image-grouped"} {
 		t.Run(layout, func(t *testing.T) {
@@ -159,7 +163,10 @@ func TestSupplyChainImpactReadinessDerivedRotationKeepsVerdictsLive(t *testing.T
 			interval := schedule.DefaultReconcileInterval
 			targetLimit := vulnerability.DerivedTargetLimit(0)
 			base := now.Truncate(interval)
-			sliced := 0
+			// Plan every window before storing any, so the skip below looks at the whole
+			// rotation: a plan in a later window that names a release must never be
+			// hidden by an earlier one that does not.
+			runs := make([]workflow.Run, 0, 9)
 			for window := 0; window < 9; window++ {
 				observedAt := base.Add(time.Duration(window) * interval)
 				rows, err := store.ListOSPackageAdvisoryTargets(ctx, workflow.OSPackageAdvisoryTargetFilter{
@@ -177,6 +184,14 @@ func TestSupplyChainImpactReadinessDerivedRotationKeepsVerdictsLive(t *testing.T
 				if err != nil {
 					t.Fatalf("window %d: plan: %v", window, err)
 				}
+				runs = append(runs, run)
+			}
+			if !rotationPlansNameReleases(runs) {
+				t.Skip("the planner mints no release scope ids until #9993 (PR #10047) lands, so no stored plan names a release for readiness to follow")
+			}
+			sliced := 0
+			for window, run := range runs {
+				observedAt := base.Add(time.Duration(window) * interval)
 				if _, err := db.ExecContext(ctx, `INSERT INTO workflow_runs
         (run_id, trigger_kind, status, requested_scope_set, requested_collector, created_at, updated_at)
         VALUES ($1, $2, $3, $4, $5, $6, $6)
@@ -185,9 +200,6 @@ func TestSupplyChainImpactReadinessDerivedRotationKeepsVerdictsLive(t *testing.T
 					t.Fatalf("window %d: store plan: %v", window, err)
 				}
 				planned := plannedRotationReleases(t, run.RequestedScopeSet)
-				if window == 0 && !strings.Contains(run.RequestedScopeSet, "release=") {
-					t.Skip("the planner mints no release scope ids until #9993 lands, so the stored plan has no release for readiness to follow")
-				}
 				if len(planned["pkg-104"]) == 1 {
 					sliced++
 				}
@@ -224,5 +236,49 @@ func TestSupplyChainImpactReadinessDerivedRotationKeepsVerdictsLive(t *testing.T
 			}
 			t.Logf("%s: %d of 9 windows named one release of the two-release package pkg-104", layout, sliced)
 		})
+	}
+}
+
+// rotationPlansNameReleases reports whether any plan in runs names a release
+// scope. The rotation test skips exactly when it returns false.
+func rotationPlansNameReleases(runs []workflow.Run) bool {
+	for _, run := range runs {
+		if strings.Contains(run.RequestedScopeSet, "release=") {
+			return true
+		}
+	}
+	return false
+}
+
+// TestSupplyChainImpactReadinessDerivedRotationSkipTracksPlanner is the guard
+// for the rotation test's skip: it plans a small fleet with the real planner and
+// fails when the plan names a release but the precondition says the rotation
+// test may skip, so the skip cannot outlive #9993 (PR #10047). It needs no
+// database.
+func TestSupplyChainImpactReadinessDerivedRotationSkipTracksPlanner(t *testing.T) {
+	now := time.Date(2026, 11, 5, 12, 0, 0, 0, time.UTC)
+	interval := schedule.DefaultReconcileInterval
+	rows := []workflow.OSPackageAdvisoryTarget{
+		{Ecosystem: "alpine", PackageName: "curl", InstalledVersion: "7.87.0-r0", PackageManager: "apk", VendorAdvisorySource: "alpine", RepositoryClass: "vendor", DistroVersion: "3.18.4"},
+		{Ecosystem: "alpine", PackageName: "curl", InstalledVersion: "7.86.0-r0", PackageManager: "apk", VendorAdvisorySource: "alpine", RepositoryClass: "vendor", DistroVersion: "3.17.3"},
+	}
+	run, _, _, err := vulnerability.IntelligenceWorkPlanner{}.PlanVulnerabilityIntelligenceWork(context.Background(), vulnerability.IntelligencePlanRequest{
+		Instance: workflow.CollectorInstance{
+			InstanceID: rotationInstance, CollectorKind: scope.CollectorVulnerabilityIntelligence,
+			Mode: workflow.CollectorModeContinuous, Enabled: true, ClaimsEnabled: true,
+			Configuration:  `{"targets":[],"derive_from_installed_evidence":{"enabled":true,"sources":["osv"],"ecosystems":["alpine"]}}`,
+			LastObservedAt: now, CreatedAt: now, UpdatedAt: now,
+		},
+		ObservedAt: now, PlanKey: schedule.DerivedTargetPlanKey("continuous", now, interval, ""),
+		OSPackageTargets: rows,
+	})
+	if err != nil {
+		t.Fatalf("plan: %v", err)
+	}
+	if named := strings.Contains(run.RequestedScopeSet, "release="); named != rotationPlansNameReleases([]workflow.Run{run}) {
+		t.Fatalf("the planner names a release = %t, but the rotation test's precondition reads %t: the skip no longer tracks the planner", named, !named)
+	}
+	if !rotationPlansNameReleases([]workflow.Run{{RequestedScopeSet: `{"targets":[{"scope_id":"vuln-intel://osv/alpine/curl?release=v3.18"}]}`}}) {
+		t.Fatal("a plan that names release=v3.18 must satisfy the rotation precondition")
 	}
 }
