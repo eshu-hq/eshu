@@ -7,8 +7,8 @@ Base: `origin/main` at `0650a6a4d2`. Worktree
 `drive/10071-ocr-repin`. Answers #10071 acceptance criterion 3 (root
 cause, rejected hypotheses, remediation options). Moves no product code;
 touches `scripts/ocr-sandbox/Dockerfile`, `scripts/prove-ocr-sandbox.sh`
-(per-arch digests), the new weekly `ocr-sandbox-proof.yml` schedule, and
-this record.
+(per-arch digests), the event-driven `ocr-sandbox-proof.yml` trigger
+(supersedes the weekly schedule), and this record.
 
 ## Root cause
 
@@ -68,13 +68,19 @@ way.
   distinguish "stale but stuck in the base layer" from "broken" — only
   a build can. Touching the shared guard for this would add risk for
   no signal.
-- **Weekly scheduled proof run (chosen).** New `ocr-sandbox-proof.yml`
-  runs `prove-ocr-sandbox.sh --platform linux/amd64` on `ubuntu-24.04`
-  every Wednesday 06:30 UTC plus `workflow_dispatch`. Standalone
-  workflow (not a `static-contract-gates.yml` matrix entry) per the
-  bespoke-trigger exception, following the `apk-floors-drift.yml` /
-  `scanner-freshness.yml` precedent. No `pull_request` trigger, so it
-  never blocks unrelated changes.
+- **Event-driven proof run (chosen; supersedes the weekly schedule).**
+  `ocr-sandbox-proof.yml` runs `prove-ocr-sandbox.sh
+  --platform linux/amd64` on `ubuntu-24.04` on push to the proof
+  surface (the workflow, the Dockerfile, the proof script) plus
+  `workflow_dispatch`. Standalone workflow (not a
+  `static-contract-gates.yml` matrix entry) per the bespoke-trigger
+  exception, following the `apk-floors-drift.yml` /
+  `scanner-freshness.yml` precedent. The paths filter — not the
+  absence of a trigger — is what keeps it from blocking unrelated
+  changes, and a `pull_request` trigger is unnecessary: same-repo
+  pushes already fire it, and upstream-side rot with no repo activity
+  is discovered at the next base bump, when the fix is the same pin
+  edit.
 
 ## Proof
 
@@ -97,5 +103,5 @@ way.
   6.5–11.2 s vs 0.2–0.3 s native; test ran 311.17 s, `context deadline
   exceeded`). Full amd64 proof is therefore infeasible on this
   emulation host without weakening the timeout bound, which is out of
-  scope; the weekly CI job runs `--platform linux/amd64` natively on
+  scope; the CI job runs `--platform linux/amd64` natively on
   `ubuntu-24.04`, where the bound holds.
