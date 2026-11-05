@@ -139,7 +139,8 @@ Result against A:
 - Generic plan: within 1.1x of main except `base1` and `base4` at 1x (12.4
   against 2.7 ms and 21.8 against 10.6 ms). Main's generic plan there drives
   from the one or four scopes; the probe's floor is 400 index searches. At 5x
-  both are 0.00x main's buffers. The read runs custom plans.
+  both are 0.00x main's buffers. Informational only: the read runs custom
+  plans (see Known limits).
 - Every other shape: within 1.1x of main or +2 ms. Rows identical in every
   shape measured.
 
@@ -224,9 +225,29 @@ ROLLBACK;
 
 ## Known limits
 
-- The A misses above: `maven600_base_p1` at 1x (1.22x the time over seven
-  runs), the generic `base1` and `base4` cells at 1x, and the 10x active
-  cursor page against the 0.5x bar.
+- `maven600_base_p1` at 1x takes 1.22x main's time over seven runs (73.2
+  against 60.0 ms) while reading 0.20 of its buffers. The mechanism is a fixed
+  per-page CPU floor: the probe runs one folded-index search per (manager,
+  distinct name) pair, here 3 Maven managers by 600 names, 1,800 searches.
+  The 1x plan shows 0.018 to 0.019 ms a search under `EXPLAIN ANALYZE` timing
+  at load average 17; the arbiter measured about 9 microseconds a search. The
+  floor is bounded by the request, not the corpus, so the page crosses under
+  main as the corpus grows: 0.86x at 5x (342.4 against 398.5 ms) and 0.78x at
+  10x (648.9 against 828.0 ms). The loss is only below the 1x corpus (400
+  scopes, under the QA gold point of 896 repositories), about 13 ms. Keeping
+  the old Maven shape would lose 56 ms at 5x and 179 ms at 10x. The arbiter
+  ruled this a P3 known limit.
+- The 10x active cursor page reads 0.510 of main's buffers in 0.516 of its
+  time, a miss of the 0.5x bar; at retention depth 24 it reads 0.40. The
+  arbiter ruled this a known limit.
+- The generic-plan `base1` and `base4` cells at 1x are informational, not a
+  production shape: every manifest page, active and base, runs with
+  `manifestDependencyQueryExecMode` (`pgx.QueryExecModeCacheDescribe`), which
+  replans each execution with its bound values. `listActivePackageManifestDependencyFactsPage`
+  passes it on every page, and
+  `TestListActivePackageManifestDependencyFactsPassesCacheDescribeEveryPage` and
+  `TestListActivePackageManifestDependencyFactsDeltaAuxReadsUseCustomPlans`
+  pin it.
 - The probe reads each requested name's rows in every retained generation, so
   page 1's cost grows with retention depth (3.56x from depth 1 to 24 here),
   though more slowly than main's.
