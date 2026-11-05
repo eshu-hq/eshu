@@ -197,8 +197,8 @@ func (s FactStore) ListActiveJVMReachabilityFacts(
 			return err
 		}
 		var base []facts.Envelope
-		if baseScopes := deltaOverlayBaseScopes(targets); len(baseScopes) > 0 {
-			base, err = reader.listJVMReachabilityFactPages(ctx, baseQuery, filter.RepositoryIDs, filter.APIPackages, baseScopes)
+		if baseGenerations, runBase := deltaOverlayBaseGenerations(targets); runBase {
+			base, err = reader.listJVMReachabilityFactPages(ctx, baseQuery, filter.RepositoryIDs, filter.APIPackages, baseGenerations)
 			if err != nil {
 				reader.recordDeltaOverlayFailure(ctx, sink)
 				return err
@@ -214,14 +214,14 @@ func (s FactStore) ListActiveJVMReachabilityFacts(
 }
 
 // listJVMReachabilityFactPages runs one JVM reachability query text through
-// every keyset page. A non-nil baseScopeIDs is bound as $6 of the derived
+// every keyset page. A non-nil baseGenerationIDs is bound as $6 of the derived
 // base text.
 func (s FactStore) listJVMReachabilityFactPages(
 	ctx context.Context,
 	query string,
 	repositoryIDs []string,
 	apiPackages []string,
-	baseScopeIDs []string,
+	baseGenerationIDs []string,
 ) ([]facts.Envelope, error) {
 	var loaded []facts.Envelope
 	var cursorObservedAt *time.Time
@@ -232,7 +232,7 @@ func (s FactStore) listJVMReachabilityFactPages(
 			query,
 			repositoryIDs,
 			apiPackages,
-			baseScopeIDs,
+			baseGenerationIDs,
 			cursorObservedAt,
 			cursorFactID,
 		)
@@ -256,7 +256,7 @@ func (s FactStore) listActiveJVMReachabilityFactsPage(
 	query string,
 	repositoryIDs []string,
 	apiPackages []string,
-	baseScopeIDs []string,
+	baseGenerationIDs []string,
 	cursorObservedAt *time.Time,
 	cursorFactID string,
 ) ([]facts.Envelope, error) {
@@ -272,8 +272,8 @@ func (s FactStore) listActiveJVMReachabilityFactsPage(
 		cursorFactID,
 		listFactsByKindPageSize,
 	}
-	if baseScopeIDs != nil {
-		args = append(args, baseScopeIDs)
+	if baseGenerationIDs != nil {
+		args = append(args, baseGenerationIDs)
 	}
 	rows, err := s.database.QueryContext(ctx, query, args...)
 	if err != nil {

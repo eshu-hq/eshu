@@ -346,11 +346,11 @@ func (s FactStore) loadCodeCallSymbolDefinitionLegRows(
 		return nil, nil, err
 	}
 	var baseRows []facts.Envelope
-	if baseScopes := deltaOverlayBaseScopes(targets); len(baseScopes) > 0 {
+	if baseGenerations, runBase := deltaOverlayBaseGenerations(targets); runBase {
 		for i := range legs {
 			started := time.Now()
 			page, err := s.loadActiveCodeCallSymbolDefinitionFacts(
-				ctx, legs[i].baseQuery, legs[i].keys, legs[i].producerScopeIDs, baseScopes,
+				ctx, legs[i].baseQuery, legs[i].keys, legs[i].producerScopeIDs, baseGenerations,
 			)
 			if err != nil {
 				s.recordDeltaOverlayFailure(ctx, sink)
@@ -399,14 +399,14 @@ func (l codeCallSymbolLoadStats) log(ctx context.Context, err error) {
 
 // loadActiveCodeCallSymbolDefinitionFacts pages one definition scan to the
 // end. A non-nil producerScopeIDs is bound as $5 of the anchored statement;
-// a non-nil baseScopeIDs is bound as $5 of the unanchored base text or $6 of
+// a non-nil baseGenerationIDs is bound as $5 of the unanchored base text or $6 of
 // the anchored base text.
 func (s FactStore) loadActiveCodeCallSymbolDefinitionFacts(
 	ctx context.Context,
 	query string,
 	symbolKeys []string,
 	producerScopeIDs []string,
-	baseScopeIDs []string,
+	baseGenerationIDs []string,
 ) ([]facts.Envelope, error) {
 	var loaded []facts.Envelope
 	var cursorObservedAt *time.Time
@@ -417,7 +417,7 @@ func (s FactStore) loadActiveCodeCallSymbolDefinitionFacts(
 			query,
 			symbolKeys,
 			producerScopeIDs,
-			baseScopeIDs,
+			baseGenerationIDs,
 			cursorObservedAt,
 			cursorFactID,
 		)
@@ -441,7 +441,7 @@ func (s FactStore) listActiveCodeCallSymbolDefinitionFactsPage(
 	query string,
 	symbolKeys []string,
 	producerScopeIDs []string,
-	baseScopeIDs []string,
+	baseGenerationIDs []string,
 	cursorObservedAt *time.Time,
 	cursorFactID string,
 ) ([]facts.Envelope, error) {
@@ -454,8 +454,8 @@ func (s FactStore) listActiveCodeCallSymbolDefinitionFactsPage(
 	if producerScopeIDs != nil {
 		args = append(args, producerScopeIDs)
 	}
-	if baseScopeIDs != nil {
-		args = append(args, baseScopeIDs)
+	if baseGenerationIDs != nil {
+		args = append(args, baseGenerationIDs)
 	}
 	rows, err := s.database.QueryContext(ctx, query, args...)
 	if err != nil {
