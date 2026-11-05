@@ -14,10 +14,14 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
+// collectedGeneration maps one SDK result to the generation the core commits.
+// sourceCommitSHA is the commit the host delivered on the claim, empty for every
+// scope with no derived target, whose generation stays as it was.
 func (s *Source) collectedGeneration(
 	item workflow.WorkItem,
 	result sdkcollector.Result,
 	envelopes []facts.Envelope,
+	sourceCommitSHA string,
 ) collector.CollectedGeneration {
 	ingestedAt := s.clock().UTC()
 	if ingestedAt.Before(result.Generation.ObservedAt) {
@@ -42,6 +46,9 @@ func (s *Source) collectedGeneration(
 		Status:        scope.GenerationStatusPending,
 		TriggerKind:   scope.TriggerKindSnapshot,
 		FreshnessHint: result.Generation.FreshnessHint,
+		// The host owns this value, not the component: the SDK result has no
+		// commit field, and the commit-skew fence compares against it.
+		SourceCommitSHA: sourceCommitSHA,
 		// Forward the extension's attestation: only an explicitly
 		// attested generation bypasses the store's successor-emptiness
 		// backstop.
