@@ -15,7 +15,6 @@ from live_postgres_readiness_gen_scan import fail, packages_of, slug
 FRAGMENT_NAMES = (
     "live-tests-readiness.generated.yaml",
     "live-tests-readiness-part2.generated.yaml",
-    "live-tests-readiness-part2b.generated.yaml",
     "live-tests-readiness-part3.generated.yaml",
     "live-tests-readiness-part4.generated.yaml",
 )
@@ -33,13 +32,8 @@ FRAGMENT_NAMES = (
 # Rebalanced 2026-11-05 for #9959: the readiness ghsa-target live proof raised
 # enrollment to 368 rows and the first fragment to 99, so the stable-shard seed
 # rendered 502 lines. The first cut moves to the 96th path again (95 rows).
-# Rebalanced 2026-11-05 for #10003: the row-1/row-2 delta proofs raised the
-# second fragment to 100 rows (502 lines) over the 499 budget. A cut at the
-# fence_live_test path returns both halves under budget; the first fragment
-# is untouched (stays within its 95-98 row seed band).
 FRAGMENT_BOUNDARIES = (
     "go/internal/storage/postgres/activation/producer_obligation_contract_live_test.go",
-    "go/internal/storage/postgres/config/artifacts/fence_live_test.go",
     "go/internal/storage/postgres/fact_key_foreign_key_reverse_live_test.go",
     "go/internal/storage/postgres/projector_queue_claim_marked_guard_epq_live_test.go",
 )
@@ -285,7 +279,7 @@ def mutate_fragments_block(v1: str) -> str:
         raise fail("specs/live-tests.v1.yaml has no fragments block")
     kept = []
     for line in tail.splitlines(keepends=True):
-        if (re.fullmatch(r"  - live-tests\.d/live-tests-readiness(?:-part[0-9]+[a-z]?)?\.generated\.yaml\n", line)
+        if (re.fullmatch(r"  - live-tests\.d/live-tests-readiness(?:-part[0-9]+)?\.generated\.yaml\n", line)
                 or line.rstrip("\n") == f"  {GENEREF_COMMENT}"):
             continue
         if (re_fullmatch_ref(line) or line.strip() == ""
