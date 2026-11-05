@@ -28,6 +28,9 @@ func uniqueSemanticFilePaths(filePaths []string) []string {
 }
 
 func (w *SemanticEntityWriter) semanticDeltaRetractStatements(filePaths []string) []sourcecypher.Statement {
+	if w.writeMode == semanticEntityWriteModeCanonicalNodeRowsLegacyOrder {
+		return w.semanticDeltaBroadCanonicalRetractStatements(filePaths)
+	}
 	if w.writeMode == semanticEntityWriteModeCanonicalNodeRows {
 		return w.semanticDeltaCanonicalNodeRetractStatements(filePaths)
 	}
@@ -69,6 +72,37 @@ func (w *SemanticEntityWriter) semanticDeltaCanonicalNodeRetractStatements(fileP
 			continue
 		}
 		stmts = append(stmts, semanticDeltaEdgeRetractStatement(semanticEntityDeltaLabelReapCypher(plan.label), plan.label, filePaths))
+	}
+	return stmts
+}
+
+// semanticDeltaBroadCanonicalRetractStatements is the delta counterpart of
+// semanticBroadCanonicalRetractStatements (#10110): the broad pipe-label
+// edge retracts and reap scoped to the touched file paths, plus one REMOVE
+// clear per canonical-owned label on those paths.
+func (w *SemanticEntityWriter) semanticDeltaBroadCanonicalRetractStatements(filePaths []string) []sourcecypher.Statement {
+	stmts := []sourcecypher.Statement{
+		semanticDeltaEdgeRetractStatement(RetractSemanticEntityContainmentDeltaEdgesCypher, "all", filePaths),
+		semanticDeltaEdgeRetractStatement(RetractSemanticEntityContainmentDeltaNodeScopedEdgesCypher, "all", filePaths),
+		semanticDeltaEdgeRetractStatement(semanticEntityDeltaReapCypher, "all", filePaths),
+	}
+	for _, plan := range semanticEntityPlans() {
+		if !semanticEntityCanonicalNodeOwnedLabel(plan.label) {
+			continue
+		}
+		props := semanticEntityClearPropertiesForLabel(plan.label)
+		if len(props) == 0 {
+			continue
+		}
+		stmts = append(stmts, sourcecypher.Statement{
+			Operation: sourcecypher.OperationCanonicalRetract,
+			Cypher:    semanticEntityDeltaCanonicalNodeClearCypher(plan.label, props),
+			Parameters: map[string]any{
+				"file_paths": filePaths,
+				sourcecypher.StatementMetadataEntityLabelKey: plan.label,
+				sourcecypher.StatementMetadataSummaryKey:     semanticEntityDeltaRetractStatementSummary(plan.label, filePaths),
+			},
+		})
 	}
 	return stmts
 }

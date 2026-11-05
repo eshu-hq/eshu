@@ -125,11 +125,12 @@ func semanticIndexKeyWrite() semantic.EntityWrite {
 // through sourcecypher.InstrumentedExecutor, as it does in production.
 func TestSemanticEntityWriterSkipsOversizedIndexKeysInEveryWriteMode(t *testing.T) {
 	modes := map[string]func(sourcecypher.Executor, int) *SemanticEntityWriter{
-		"legacy_rows":         NewSemanticEntityWriter,
-		"parameterized_rows":  NewSemanticEntityWriterWithParameterizedRows,
-		"batched_properties":  NewSemanticEntityWriterWithBatchedProperties,
-		"merge_first_rows":    NewSemanticEntityWriterWithMergeFirstRows,
-		"canonical_node_rows": NewSemanticEntityWriterWithCanonicalNodeRows,
+		"legacy_rows":                      NewSemanticEntityWriter,
+		"parameterized_rows":               NewSemanticEntityWriterWithParameterizedRows,
+		"batched_properties":               NewSemanticEntityWriterWithBatchedProperties,
+		"merge_first_rows":                 NewSemanticEntityWriterWithMergeFirstRows,
+		"canonical_node_rows":              NewSemanticEntityWriterWithCanonicalNodeRows,
+		"canonical_node_rows_legacy_order": NewSemanticEntityWriterWithCanonicalNodeRowsLegacyOrder,
 	}
 	for name, newWriter := range modes {
 		t.Run(name, func(t *testing.T) {

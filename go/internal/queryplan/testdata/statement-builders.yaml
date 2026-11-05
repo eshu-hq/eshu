@@ -584,6 +584,13 @@ builders:
           exempt: executed but unattributed (stale-edge retract recorded once per backend in the run 39515780996 captures); emits the caller-supplied RetractKubernetesNamespaceStaleTargetsEnvironmentCypher template const that discovery cannot resolve inter-procedurally
     - file: internal/storage/cypher/semantic/entity/delta_retract.go
       builders:
+        - symbol: (*SemanticEntityWriter).semanticDeltaBroadCanonicalRetractStatements
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - {}
+          source_sha256: 0480cf0b181f88e18dc9bde693c6e87455ca0dd324cf309f16d7e3982e544d1a
+          exempt: Neo4j-only delta retract builder added by #10110; retract path is pinned by leaf unit tests and the Neo4j live ownership proof, not the corpus replay
         - symbol: (*SemanticEntityWriter).semanticDeltaCanonicalNodeRetractStatements
           count: 1
           operation: sourcecypher.OperationCanonicalRetract
@@ -607,6 +614,22 @@ builders:
             - {}
           source_sha256: 96bf541899ffc5554bcc1133388484fa370daef04a15b3abaa8dc51975ce0a4a
           exempt: B-7 differential captures contain zero executions of this retract builder on either backend (pair1+pair2 neo4j+nornicdb); retract path is pinned by leaf unit tests, not the corpus replay
+    - file: internal/storage/cypher/semantic/entity/retract_dispatch.go
+      builders:
+        - symbol: (*SemanticEntityWriter).semanticBroadCanonicalRetractStatements
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - {}
+          source_sha256: 788e80bdc4eb65b050a8f1e4840e76d97bf9693e275dd913d6d90a9f4aaef141
+          exempt: Neo4j-only retract builder added by #10110; retract path is pinned by leaf unit tests and the Neo4j live ownership proof, not the corpus replay
+        - symbol: (*SemanticEntityWriter).semanticCanonicalNodeRetractStatements
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - {}
+          source_sha256: cee1eccfcc2231ad65ebd163e696eb9bb1e7a34badf2a4f5fd87732872d6abb4
+          exempt: B-7 differential captures contain zero executions of this retract builder on either backend (pair1+pair2 neo4j+nornicdb); retract path is pinned by leaf unit tests, not the corpus replay
     - file: internal/storage/cypher/semantic/entity/rows.go
       builders:
         - symbol: buildParameterizedSemanticEntityStatement
@@ -627,15 +650,8 @@ builders:
             - {}
             - {}
             - template: 'UNWIND $rows AS row MATCH (impl:ImplBlock {uid: row.impl_block_id}) MATCH (fn:Function {uid: row.function_id}) MERGE (impl)-[rel:CONTAINS]->(fn) SET rel.evidence_source = row.evidence_source'
-          source_sha256: e526aac41bbcc1f3b843d83c7e1f7691ecf69ca74a1927f2f7f647141cc55f19
+          source_sha256: 3e06936dba71401ecff2ae086411b4196d032ca9b292148525c05b29342fa167
           exempt: dispatcher composing the leaf builders inventoried here; delegated statements execute through those callees
-        - symbol: (*SemanticEntityWriter).semanticCanonicalNodeRetractStatements
-          count: 1
-          operation: sourcecypher.OperationCanonicalRetract
-          variants:
-            - {}
-          source_sha256: cee1eccfcc2231ad65ebd163e696eb9bb1e7a34badf2a4f5fd87732872d6abb4
-          exempt: B-7 differential captures contain zero executions of this retract builder on either backend (pair1+pair2 neo4j+nornicdb); retract path is pinned by leaf unit tests, not the corpus replay
     - file: internal/storage/cypher/sweep/orphan/queries.go
       builders:
         - symbol: BuildCandidateOrphanNodesQuery

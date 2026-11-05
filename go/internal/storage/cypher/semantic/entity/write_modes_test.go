@@ -40,6 +40,11 @@ func TestSemanticEntityWriterConstructorsSetExclusiveWriteModes(t *testing.T) {
 			got:  NewSemanticEntityWriterWithCanonicalNodeRows(&recordingExecutor{}, 0),
 			want: semanticEntityWriteModeCanonicalNodeRows,
 		},
+		{
+			name: "canonical node rows legacy order",
+			got:  NewSemanticEntityWriterWithCanonicalNodeRowsLegacyOrder(&recordingExecutor{}, 0),
+			want: semanticEntityWriteModeCanonicalNodeRowsLegacyOrder,
+		},
 	}
 
 	for _, tt := range tests {
