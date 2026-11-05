@@ -282,6 +282,43 @@ func TestSupplyChainImpactReadinessDerivedPlanStaysWithItsInstanceLive(t *testin
 	}
 }
 
+// TestSupplyChainImpactReadinessDerivedEmptyReleaseValueHasNoReleaseLive pins how
+// the SPLIT_PART parse reads a scope whose first release value is empty: the
+// first value decides, so ?release=&release=v3.18 has no release, where a regular
+// expression would have skipped to v3.18. The coordinator writes one release
+// value per scope, so this shape needs a hand-written row. A state row like this
+// stands on its own and fails toward not covered. A plan target like this expects
+// no release, so it creates no pending row and retires nothing.
+func TestSupplyChainImpactReadinessDerivedEmptyReleaseValueHasNoReleaseLive(t *testing.T) {
+	const emptyFirst = "vuln-intel://osv/alpine/curl?release=&release=v3.18&version=7.86.0-r0"
+	t.Run("state row stays out of the release it names second", func(t *testing.T) {
+		ctx, db, now := readinessScopeLiveDatabase(t)
+		seedDerivedInstance(t, ctx, db, now, "derived-alpine", "alpine")
+		seedCurlState(t, ctx, db, now.Add(-time.Hour), emptyFirst, "stale")
+		seedCurlState(t, ctx, db, now, curlV318Scope, "fresh")
+
+		readiness := readDerivedReadiness(t, db, curlPackageID)
+		state := onlyDerivedState(t, readiness)
+		if state.FreshnessState != "stale" || state.ScopeCount != 2 || !slices.Contains(state.ScopeIDs, emptyFirst) {
+			t.Fatalf("derived aggregate = %+v, want stale across both scopes", state)
+		}
+		if slices.Contains(readiness.IncompleteReasons, "osv:stale:alpine:v3.18") {
+			t.Fatalf("incomplete reasons = %v, want no release named for a scope with no release", readiness.IncompleteReasons)
+		}
+	})
+	t.Run("plan target expects no release", func(t *testing.T) {
+		ctx, db, now := readinessScopeLiveDatabase(t)
+		seedDerivedInstance(t, ctx, db, now, "derived-alpine", "alpine")
+		seedCurlState(t, ctx, db, now, curlV317Scope, "fresh")
+		seedPlannerRun(t, ctx, db, now, "derived-alpine", []map[string]any{plannedAlpineTarget(emptyFirst, "curl")}, nil)
+
+		state := onlyDerivedState(t, readDerivedReadiness(t, db, curlPackageID))
+		if state.FreshnessState != "fresh" || state.ScopeCount != 1 || !slices.Equal(state.ScopeIDs, []string{curlV317Scope}) {
+			t.Fatalf("derived aggregate = %+v, want only the fresh v3.17 scope", state)
+		}
+	})
+}
+
 // TestSupplyChainImpactReadinessDerivedSkipDoesNotHideUncoveredReleaseLive
 // proves a skipped package cannot turn a request with an uncovered release
 // into the terminal skipped verdict: the failed and pending scopes keep the

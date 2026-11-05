@@ -85,6 +85,7 @@ TABLE = {
             "TestSupplyChainImpactReadinessDerivedPlannedReleasesCoverLive",
             "TestSupplyChainImpactReadinessDerivedUnqualifiedDistroKeepsNewestWinsLive",
             "TestSupplyChainImpactReadinessDerivedPlanStaysWithItsInstanceLive",
+            "TestSupplyChainImpactReadinessDerivedEmptyReleaseValueHasNoReleaseLive",
             "TestSupplyChainImpactReadinessDerivedSkipDoesNotHideUncoveredReleaseLive",
         ),
         "go/internal/query/readiness_derived_skip_live_test.go": (
