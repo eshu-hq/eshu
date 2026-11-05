@@ -35,13 +35,21 @@ hot path.
 
 ## Telemetry and status evidence
 
-- No-Observability-Change: no new metric, span, log key schema, route,
-  worker, lease, or runtime knob. Drops stay operator-visible through one
-  Info line per held pass (`held_denied_rows`,
-  `held_duplicate_or_refused_rows`, `drained_rows` + collector id) beside
-  the existing survivor list, using the pre-existing `Service.Logger`.
+- Observability Evidence: one new operator signal, nothing else. A pass
+  that holds rows past the drain emits one INFO
+  `workflow coordinator held owned target replan rows past the drain`
+  line with keys `collector_instance_id`, `held_denied_rows`,
+  `held_duplicate_or_refused_rows`, `drained_rows`, using the
+  pre-existing `Service.Logger` (nil-guarded). Cardinality is bounded:
+  at most one line per held pass, keys are counts plus the collector id
+  already logged elsewhere. No new metric, span, route, worker, lease, or
+  runtime knob; the held rows also stay visible beside the existing
+  survivor list the report carries. The line is registered in the replan
+  enumeration in
+  `docs/public/observability/telemetry-coverage-collectors.md`.
 - Operators diagnose the path through the same Postgres query spans and
-  `eshu_dp_postgres_query_duration_seconds` as before.
+  `eshu_dp_postgres_query_duration_seconds` as before, paired with the
+  new held-drain line.
 
 ## Why the change is safe
 
