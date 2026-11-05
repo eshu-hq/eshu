@@ -110,8 +110,8 @@ func sortedPackageKeys(groups map[string][]supplychainmodel.AffectedPackage) []s
 // package as the row used for shape fields (ecosystem, package name, purl).
 // Per-source provenance still flows through the AdvisoryProvenanceObservation
 // list so callers do not lose vendor or upstream rows. A fact marked
-// JoinRepresentative wins before source order: it is the fact that can join the
-// installed row when the source-order winner cannot (#9990).
+// JoinRepresentative wins before source order: it is the best-ranked fact that
+// joins the installed row once the group is narrowed to the facts that join (#9990).
 func representativeAffectedPackage(packages []supplychainmodel.AffectedPackage) supplychainmodel.AffectedPackage {
 	if len(packages) == 0 {
 		return supplychainmodel.AffectedPackage{}

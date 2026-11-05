@@ -75,9 +75,10 @@ type AffectedPackage struct {
 	// copies still emits its product findings (#9914).
 	UpstreamCopy bool
 	// JoinRepresentative marks the one fact of a (cve, package_id) group that
-	// names the finding because it can join an installed row and the source-order
-	// winner cannot (#9990). The reducer sets it on its own slice of the joining
-	// facts; no fact payload decodes into it.
+	// names the finding once the group is narrowed to the facts that join an
+	// installed row, because the source-order winner cannot join or joins with a
+	// blank ecosystem beside a fact that cannot (#9990). The reducer sets it on its
+	// own slice of the joining facts; no fact payload decodes into it.
 	JoinRepresentative bool
 }
 
