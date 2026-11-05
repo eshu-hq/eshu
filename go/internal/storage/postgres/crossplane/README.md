@@ -282,9 +282,12 @@ for direct live interleavings and the 501-target paged sweep measurement.
 Performance Evidence (#10094): the discovery text collapses claims to one
 (scope, generation) row before its joins. The delta-base leg derived from it
 uses `fact_records_active_k8s_claim_redrive_idx` with the candidate base
-generation ids pushed into the index condition. On the plan corpus with 2000
-delta-active scopes, the active leg measured 1.8 ms and the base leg 4.2 ms;
-the lookup plus base leg came to 18.8 ms, within the 25 ms bound. See
+generation ids pushed into the index condition. Before the rebase onto the
+generation-id derivation, the plan corpus with 2000 delta-active scopes
+measured the active leg at 1.8 ms, the base leg at 4.2 ms, and lookup plus
+base at 18.8 ms, within the 25 ms bound. At the rebased head the same guard
+measured added cost over the bound on a contended host; that verdict is open
+pending a quiet-host re-measurement. See
 [the #10094 evidence](../../../../../docs/internal/evidence/10094-crossplane-redrive-delta-base.md).
 
 No-Regression Evidence (comment correction): relative to merged source

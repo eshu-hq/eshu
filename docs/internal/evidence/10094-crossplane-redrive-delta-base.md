@@ -8,10 +8,11 @@ generation is a git delta that did not touch the claim's file, the claim lives
 only in the delta's base full generation, so the sweep never found the scope.
 A quiet repository gets no new generation to re-run its own intent. Its claim
 kept no SATISFIED_BY edge until the next commit that touched a K8s or XRD file,
-or until its next full generation. That window has no bound. This PR is
-stacked on #10005 and must merge after it. Before #10005, the handler loaded
-only the delta and retracted by scope, so a re-drive would have deleted the
-edges of unchanged claims.
+or until its next full generation. That window has no bound. This change was
+stacked on #10005 and rebased onto `main` after #10005 merged (#10131) and its
+follow-up #10167 merged (#10174), which satisfies the ordering condition.
+Before #10005, the handler loaded only the delta and retracted by scope, so a
+re-drive would have deleted the edges of unchanged claims.
 
 The binding rulings are the arbiter's in `.claude/ruling-10094.md`: the
 ruling, plus a follow-up that accepts the reshaped discovery text and amends
@@ -159,7 +160,8 @@ The lookup counts toward the absolute bound only.
 Corpus: the plan-guard corpus of 4000 claim scopes with 50 claims each, 60 of
 them matching the XRD. #10094 makes every even scope delta-active: 2000
 delta-active scopes, 30 of them matching with the claim only in the base. The
-base leg binds 2000 scope ids. Database: disposable PostgreSQL 18.6.
+base leg binds 2000 ids (scope ids before the rebase, candidate generation
+ids after it; see the rebase section). Database: disposable PostgreSQL 18.6.
 Method: `EXPLAIN (ANALYZE, BUFFERS)` Execution Time p50 of 15 runs, warm
 cache. Each figure below is a row in `docs/internal/measurements.jsonl`
 (`"issue": 10094`), cited by id.
@@ -253,3 +255,43 @@ wired. The telemetry coverage table lists the leg and the collaborator.
 ## Migration
 
 None. The plan uses migration 076's `fact_records_active_k8s_claim_redrive_idx`.
+
+## Rebase re-proof (2026-11-05)
+
+Rebased onto `origin/main` `23b21edf7f` (#10174) as `c75c70ccc4`. The four
+#10005 commits under the old head `d539a43867` (old base `1326b96b2d`) were
+already squash-merged (#10131, plus #10124 and #10160/#10161), so only the
+#10094 commit was replayed (`git rebase --onto`). One conflict, in the
+generated readiness inventory, was resolved by re-running
+`scripts/generate-live-postgres-readiness.py`, never by hand.
+
+One adaptation was forced by upstream: `deriveDeltaOverlayBaseQuery` now
+binds candidate base generation ids (`fact.generation_id = ANY($6)` via
+`deltaOverlayBaseGenerations`), not scope ids; `deltaOverlayBaseScopes` no
+longer exists. The collaborator follows the shared derivation, so the sweep
+binds generation ids. The row set is unchanged: the candidate set is exactly
+the activated full generations at each delta's union-base commit that the
+scope form selected, and `generation_id` determines its scope. A scope with
+a baseline but no activated full generation at it contributes no candidate
+and runs no base page, where the scope form ran a page that returned no
+rows. The live differential and all eight `delta_base_leg` Sweep cases pass
+at the rebased head on PostgreSQL 18.6, as do the state concurrency and
+crash-recovery tests and the full `crossplane` package under `-race`.
+
+Performance re-measurement at the rebased head (same corpus and method; best
+of two guard runs): active ledger:10094-rebase-guard-active-p50, base
+ledger:10094-rebase-guard-base-p50, lookup
+ledger:10094-rebase-guard-lookup-p50, counterfactual
+ledger:10094-rebase-guard-counterfactual-p50, added
+ledger:10094-rebase-guard-added-ms. Both legs use the redrive index in custom
+and generic plans, the base plan's `Index Cond` carries
+`generation_id = ANY`, and there is no Seq Scan on `fact_records`. The
+base/active ratio still misses the 1.5x first rule, as before. The added
+cost exceeds the 25 ms absolute bound on this host (load average 8-13 on 12
+cores during measurement, so the figures are not quiet-host numbers). A
+minimal-corpus shim attributes most of the increase to the shared lookup's
+new candidate aggregation (4.0 ms old shape against 30.3 ms new shape at
+2000 delta scopes, same host and load), which every delta-overlay reader
+now pays. The absolute-bound verdict at the rebased head is therefore OPEN:
+it needs a quiet-host re-measurement or an arbiter decision on the bound.
+NOT_CHECKED on a quiet host.
