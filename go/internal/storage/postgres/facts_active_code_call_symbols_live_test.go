@@ -344,6 +344,15 @@ func openActiveCodeCallSymbolContentSchema(t *testing.T) (context.Context, *sql.
 	if _, err := database.ExecContext(ctx, MigrationSQL("scope_generations_projection_write_started_at")); err != nil {
 		t.Fatalf("apply projection_write_started_at migration: %v", err)
 	}
+	// The row-1 reader routes through the delta overlay (#10003), whose
+	// targets lookup reads the delta baseline/union-base commits, so the
+	// schema carries migrations 148 and 210 for those columns.
+	if _, err := database.ExecContext(ctx, MigrationSQL("scope_generations_delta_baseline_commit_sha")); err != nil {
+		t.Fatalf("apply delta_baseline_commit_sha migration: %v", err)
+	}
+	if _, err := database.ExecContext(ctx, MigrationSQL("scope_generations_delta_union_base_commit_sha")); err != nil {
+		t.Fatalf("apply delta_union_base_commit_sha migration: %v", err)
+	}
 	return ctx, database
 }
 
