@@ -63,6 +63,29 @@ None: this is a test-only package with deterministic fixtures. Scenario
 mismatches print both outcome records with the underlying error texts.
 Throughput numbers log per leg for the dark-deployment no-regression baseline.
 
+## Live re-bind record (2026-11-05, drive/8875-parity-rebind-c5)
+
+- Bound image: `ghcr.io/eshu-hq/eshu-workflow@sha256:e1b564afa5f72167e3911aea7c881973c74bab123183c03d9d6af5a2d80e47a4`
+  (tag `v0.1.1`), the exact digest the live dark deployment serves (read
+  back from the deployment spec the same day). Local leg ran that digest as a
+  container (`--platform linux/amd64`, `--reap-interval=1h`) against a
+  disposable Postgres; the in-tree leg ran on a second disposable Postgres.
+- Result: full `go test ./internal/workflow/parity/ -count=1` green on
+  three two-legged runs, no skips: twice at 10/10 on the pre-change tree
+  (8-scenario conformance slice, pin gap, pin-survives-reaper,
+  duplicate-admission gap, stale-writer fence, throughput), and once at
+  11/11 on the final tree including the new read/report live compat
+  (`TestReadReportPlaneLiveCompat`, all five routes round-tripped).
+- Residue: satellite tables 0/0/0/0/0 (claims/items/runs/progress/
+  completeness) after the run. The first run left one
+  `eshu_content_index_proof_*` disposable database behind despite its green
+  verdict (dropped by hand, no active backends at drop time); the repeat
+  run disposed every database, so the helper's cleanup is best-effort and
+  the repeat run is the standing check before any dark-leg residue claim.
+- NOT_CHECKED: the dark-deployment leg (synthetic writes to the shared
+  satellite database stay with the coordinator under the standing grant
+  preconditions). No shared-infra writes were made from this lane.
+
 ## Known divergences
 
 - None on the claim path: an identical replay of an already-applied
