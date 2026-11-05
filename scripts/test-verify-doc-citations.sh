@@ -369,6 +369,8 @@ source "${repo_root}/scripts/lib/test-verify-doc-citations-review-cases.sh"
 source "${repo_root}/scripts/lib/test-verify-doc-citations-binary-cases.sh"
 # shellcheck source=scripts/lib/test-verify-doc-citations-preparation-cases.sh
 source "${repo_root}/scripts/lib/test-verify-doc-citations-preparation-cases.sh"
+# shellcheck source=scripts/lib/test-verify-doc-citations-base-cases.sh
+source "${repo_root}/scripts/lib/test-verify-doc-citations-base-cases.sh"
 
 # shellcheck source=scripts/lib/test-verify-doc-citations-scope-cases.sh
 source "${repo_root}/scripts/lib/test-verify-doc-citations-scope-cases.sh"
@@ -386,6 +388,7 @@ test_mode_partition_contract() {
       source "$1/test-verify-doc-citations-review-cases.sh"
       source "$1/test-verify-doc-citations-binary-cases.sh"
       source "$1/test-verify-doc-citations-preparation-cases.sh"
+      source "$1/test-verify-doc-citations-base-cases.sh"
       source "$1/test-verify-doc-citations-scope-cases.sh"
       source "$1/test-verify-doc-citations-artifact-cases.sh"
       for test_case in $(declare -F | awk "{ print \$3 }"); do

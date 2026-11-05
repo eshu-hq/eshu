@@ -37,6 +37,28 @@ eshu_gate_fetch_base() {
   fi
 }
 
+# eshu_gate_merge_ref_parent prints the first parent of a pull-request merge
+# ref, or nothing when HEAD is not one. GitHub builds refs/pull/N/merge from the
+# base branch's tip at that moment and runs the job later; parent 1 is the base
+# branch as it was combined with the PR, and it stays put when the base branch
+# moves on. Passing it as the gate's base override diffs a PR against what it
+# was merged with, where origin/$GITHUB_BASE_REF fetched at job time also
+# contains commits that landed after the ref was built and reads them as the
+# PR's own removals or additions (#10131). Only a pull_request event with a
+# two-parent HEAD and a present parent object qualifies; a local run, a push,
+# and a depth-1 checkout print nothing and keep the resolver's own order.
+eshu_gate_merge_ref_parent() {
+  local repo_root="$1" line
+  [ "${GITHUB_EVENT_NAME:-}" = "pull_request" ] || return 0
+  line="$(git -C "$repo_root" rev-list --parents -n 1 HEAD 2>/dev/null)" || return 0
+  # Word-splitting is the point: "<head> <parent1> <parent2>".
+  # shellcheck disable=SC2086
+  set -- $line
+  [ "$#" -eq 3 ] || return 0
+  git -C "$repo_root" cat-file -e "$2^{commit}" 2>/dev/null || return 0
+  printf '%s\n' "$2"
+}
+
 # eshu_gate_resolve_diff_base picks the commit a gate diffs HEAD against and
 # stores it in eshu_gate_diff_base (empty when no base is available at all).
 #

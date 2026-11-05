@@ -255,8 +255,14 @@ load_immutable_line_authority() {
     return 0
   fi
 
-  eshu_gate_resolve_diff_base "verify-doc-citations" "${repo_root}" \
-    "${ESHU_DOC_CITATIONS_BASE:-}"
+  # A pull request is measured against its merge ref's first parent, not the
+  # base branch tip fetched now, which may include commits that landed after
+  # the merge ref was built (#10131). ESHU_DOC_CITATIONS_BASE still wins.
+  local base_override="${ESHU_DOC_CITATIONS_BASE:-}"
+  if [[ -z "${base_override}" ]]; then
+    base_override="$(eshu_gate_merge_ref_parent "${repo_root}")"
+  fi
+  eshu_gate_resolve_diff_base "verify-doc-citations" "${repo_root}" "${base_override}"
   line_authority_base="${eshu_gate_diff_base}"
   if [[ -z "${line_authority_base}" ]]; then
     log "cannot resolve immutable diff base for LINE debt authority"
