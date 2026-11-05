@@ -59,17 +59,33 @@ type osRepresentativeOutcomeKey struct {
 }
 
 // withJoinableOSRepresentative returns only the facts of pkgs that join an installed
-// row, with the fact that should name the finding marked, when the source-order
-// representative has no anchor of its own and another fact of the group joins (#9990).
-// A fact that cannot join says nothing about this host, so on a reselected finding it
-// offers no fix and decides no verdict.
+// row, with the fact that should name the finding marked, when the facts that join
+// should decide the finding instead of the whole group (#9990). A fact that cannot
+// join says nothing about this host, so it offers no fix and decides no verdict.
 //
-// It runs only for a group that produces no finding without it: the caller has
-// already found no SBOM path, this checks no consuming repository and no OS join,
-// and those are the only sources of the owned anchor
-// supplyChainImpactFindingHasOwnedAnchor requires. A group with any anchor keeps
-// its source-order representative, so a finding that exists is not moved by a
-// fact that could also have joined.
+// Two groups are narrowed, and both are rows this change creates:
+//
+//   - reselected: the source-order representative has no anchor of its own and
+//     another fact of the group joins an installed row.
+//   - narrowed direct: the representative joins an installed row, its trimmed
+//     ecosystem is blank, every row it joins carries an installed version, and at
+//     least one fact of the group joins no row. The base drops a blank ecosystem
+//     with an observed version as unsupported_ecosystem, so no row exists to move.
+//     A spelled ecosystem that joins has a base row, a row with no version has a
+//     base row (installed_version_missing is decided before the ecosystem is
+//     read), and a group whose facts all join keeps its pick for the ranking rule
+//     of #10034 item 1.
+//
+// It runs only for a group that has no SBOM path and no consuming repository: the
+// caller has already found no SBOM path, and this checks the consumer. Those are
+// the only sources of the owned anchor supplyChainImpactFindingHasOwnedAnchor
+// requires, so a group with any anchor keeps its source-order representative and a
+// finding that exists is not moved by a fact that could also have joined.
+//
+// reselected is true only for the first kind: the source-order representative did
+// not join. The caller takes the narrowed slice when ok is true, whichever kind it
+// is, and counts the narrowed direct group as joined because its representative
+// did join.
 //
 // The input slice is never modified: the index shares it across installed rows
 // and across scan targets, and a different target may join a different fact. The
@@ -79,15 +95,17 @@ func withJoinableOSRepresentative(
 	pkgs []supplychainmodel.AffectedPackage,
 	representative supplychainmodel.AffectedPackage,
 	index supplyChainImpactIndex,
-) ([]supplychainmodel.AffectedPackage, bool) {
+) (joining []supplychainmodel.AffectedPackage, reselected, ok bool) {
 	if len(pkgs) < 2 || len(index.osPackages) == 0 {
-		return pkgs, false
+		return pkgs, false, false
 	}
-	if len(consumptionRepositoriesForPackage(representative.PackageID, index.consumption)) > 0 ||
-		hasMatchingOSPackage(representative, index) {
-		return pkgs, false
+	if len(consumptionRepositoriesForPackage(representative.PackageID, index.consumption)) > 0 {
+		return pkgs, false, false
 	}
-	var joining []supplychainmodel.AffectedPackage
+	_, direct := firstOSPackageImpactPath(representative, index)
+	if direct && !blankEcosystemJoinsOnlyVersionedRows(representative, index) {
+		return pkgs, false, false
+	}
 	best, bestRank := -1, 0
 	for _, pkg := range pkgs {
 		installed, joins := firstOSPackageImpactPath(pkg, index)
@@ -100,11 +118,31 @@ func withJoinableOSRepresentative(
 		}
 		joining = append(joining, pkg)
 	}
-	if best < 0 {
-		return pkgs, false
+	if best < 0 || (direct && len(joining) == len(pkgs)) {
+		return pkgs, false, false
 	}
 	joining[best].JoinRepresentative = true
-	return joining, true
+	return joining, !direct, true
+}
+
+// blankEcosystemJoinsOnlyVersionedRows reports whether a representative that joins an
+// installed row is of the kind the narrowed direct group covers: its trimmed
+// ecosystem is blank and every row it joins carries an installed version. The cheap
+// ecosystem test runs before any row is collected, so a spelled ecosystem, which no
+// producer leaves blank, costs one string trim.
+func blankEcosystemJoinsOnlyVersionedRows(
+	representative supplychainmodel.AffectedPackage,
+	index supplyChainImpactIndex,
+) bool {
+	if strings.TrimSpace(representative.Ecosystem) != "" {
+		return false
+	}
+	for _, row := range matchingOSPackageImpactPaths(representative, index) {
+		if strings.TrimSpace(row.InstalledVersion) == "" {
+			return false
+		}
+	}
+	return true
 }
 
 // joinableRepresentativeBefore orders two facts that each join an installed row:

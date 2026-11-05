@@ -50,7 +50,7 @@ func TestJoinableRepresentativeChoiceIgnoresFactOrder(t *testing.T) {
 					slices.Reverse(pkgs)
 				}
 				before := slices.Clone(pkgs)
-				marked, ok := withJoinableOSRepresentative(pkgs, loser, index)
+				marked, _, ok := withJoinableOSRepresentative(pkgs, loser, index)
 				if !ok {
 					t.Fatal("no fact was marked")
 				}
@@ -100,7 +100,7 @@ func TestJoinableRepresentativeRanksUnderEveryRowVendor(t *testing.T) {
 				if reversed {
 					slices.Reverse(pkgs)
 				}
-				marked, ok := withJoinableOSRepresentative(pkgs, rows[2], index)
+				marked, _, ok := withJoinableOSRepresentative(pkgs, rows[2], index)
 				if !ok {
 					t.Fatal("no fact was marked")
 				}
