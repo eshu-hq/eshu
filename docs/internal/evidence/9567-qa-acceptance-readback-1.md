@@ -30,7 +30,7 @@ its 247 GiB node:
 
 - `restartCount: 0`, no last termination recorded.
 - Pod `startTime 2026-11-05T00:11:02Z`, container started `00:11:16Z`
-  (uptime ~70 min at last sample 01:24:35Z).
+  (uptime ~73 min at last sample 01:24:35Z).
 - Every pod in namespace `eshu` shows age ~67m: cluster-wide restart at
   ~00:11Z (cause not investigated; read-only lane).
 
