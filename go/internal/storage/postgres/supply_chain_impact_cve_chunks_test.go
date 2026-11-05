@@ -188,6 +188,25 @@ func TestCVEChunkingLeavesOtherCVEStatementsWhole(t *testing.T) {
 	}
 }
 
+// TestCVEChunkBranchRejectsNonListParam: a chunked branch bound to a non-list
+// param must fail loudly. The ignored type assertion used to return zero rows,
+// which the loader would mistake for complete evidence (missing vulnerability
+// rows fail open as missed findings).
+func TestCVEChunkBranchRejectsNonListParam(t *testing.T) {
+	t.Parallel()
+
+	branch := supplyChainImpactBranch(t, cveChunkBranch)
+	if branch.MaxListLength <= 0 {
+		t.Fatalf("branch %s has no MaxListLength, want the chunked key probe", branch.Name)
+	}
+	values := map[factimpact.Param]any{branch.Params[0]: "CVE-2024-00001"}
+	routed := &supplyChainImpactRoutingDB{branchRows: map[string][][2]string{}, facts: map[string]string{}}
+	var stats supplychaincore.SupplyChainImpactActiveEvidenceLoadStats
+	if _, err := supplyChainImpactBranchStatements(context.Background(), routed, branch, values, &stats); err == nil {
+		t.Fatalf("supplyChainImpactBranchStatements with a non-list param = nil error, want a loud failure")
+	}
+}
+
 // cveChunkBeginCounter counts the snapshots a load opens.
 type cveChunkBeginCounter struct {
 	*supplyChainImpactRoutingDB

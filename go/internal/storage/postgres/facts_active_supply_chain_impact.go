@@ -273,7 +273,10 @@ func supplyChainImpactBranchStatements(
 	if branch.MaxListLength <= 0 {
 		return run(values)
 	}
-	list, _ := values[branch.Params[0]].([]string)
+	list, ok := values[branch.Params[0]].([]string)
+	if !ok {
+		return nil, fmt.Errorf("list active supply chain impact facts: branch %s binds non-list param %d", branch.Name, branch.Params[0])
+	}
 	var out []supplyChainImpactBranchRow
 	for chunk := range slices.Chunk(list, branch.MaxListLength) {
 		rows, err := run(map[factimpact.Param]any{branch.Params[0]: chunk})
