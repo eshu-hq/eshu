@@ -120,18 +120,16 @@ still be compared. Counted as `oldest_retained`. With nothing older, every
 suppression is new (`none`).
 
 **Rollout limits.** Edits admitted before the rollout stay on the holders' own cadence,
-and existing admission rows mean the rollout causes no storm. Mixed versions have one
-more window: a replica on the old binary admits a generation without fanning out, and
-a new-binary pass then takes that admission as its baseline. That edit stays on the
-holders' cadence too.
+and existing admission rows mean no storm. Mixed versions add one window: a replica on
+the old binary admits a generation without fanning out, and a new-binary pass then takes
+that admission as its baseline; that edit stays on the holders' cadence too.
 
 ## Activation
 
 The first design said a pass could run before the projector's Ack activates its
-generation, and proposed a suppression-only deferral. That was wrong, and the ruling
-removed it. The projector enqueues the reducer intent before Ack, and the claim query
-has no activation predicate (`reducer_queue_claim_query.go`). But the claim is not where
-the check lives. What protects the pass:
+generation, and proposed a suppression-only deferral. The ruling removed it. The projector
+enqueues the intent before Ack and the claim query has no activation predicate
+(`reducer_queue_claim_query.go`), but the check lives above the claim:
 
 | Layer | Where | Effect |
 |---|---|---|
@@ -247,8 +245,7 @@ pass yet reopen no holder.
 
 ## Measurements
 
-Full tables, the rounds and their loads: [the measurements note](10019-suppression-fanout-measurements.md).
-
+Full tables and round loads: [the measurements note](10019-suppression-fanout-measurements.md).
 **Inline is accepted.** The decision the threshold served was inline in the writer
 transaction, or an index, another shape, or an earlier cut. The plan and buffers pass: a
 Hash Full Join over two index accesses on `fact_records_scope_generation_idx` with no
@@ -295,10 +292,9 @@ Holder reads are `ceil(changed ids / 200)`, and reopens are holders of those ids
 
 | Case | Ids | Holder reads |
 |---|---:|---:|
-| Usual Upsert, one suppression | 1, or 2 on a re-scope or lower-case id | 1 |
+| Usual Upsert, one suppression | 1 (2 on a re-scope or lower-case id) | 1 |
 | 1% of 100,000 changed | 1,028 | 6 |
-| Without the diff, same fixture | 54,234 | 272 |
-| First generation ever, 100,000 suppressions | 54,234 | 272, drained at 256 holders per claim |
+| Same fixture without the diff, or a first generation of 100,000 | 54,234 | 272, at 256 holders per claim |
 
 ## Concurrency
 
@@ -340,8 +336,8 @@ Moving the walk out would need a second lock step for a saving of a few seconds 
 | Duplicate delivery after success | Admitted, no marker | `skipped_duplicate` | Reopens nobody |
 | Reopened later by another scope's fan-out | Admitted, stamped | `skipped_duplicate` | Stops at one hop |
 | Pass claims before activation | `pending`, not activated | Runtime guard defers before the handler | Handler not called, no admission, `generation_activation_not_ready` |
-| Writer reads G as not activated (invariant) | `pending`, not activated | `deferred_unactivated` | Rollback, no admission, `GenerationNotYetActiveError`; should never fire |
-| Generation failed or superseded while pending | Not activated | `skipped_never_activated` | Its admission is ignored as a baseline |
+| Writer reads G as not activated (invariant) | `pending`, not activated | `deferred_unactivated` | Rollback, no admission, `GenerationNotYetActiveError`; never fires |
+| Generation failed or superseded while pending | Not activated | `skipped_never_activated` | Ignored as a baseline |
 | Late pass, generation since superseded | Activated, not admitted | `ran` | Covers its own range |
 | Fencing token lost | Admission rejected | No diff | Existing superseded path |
 | Baseline moves between retry attempts | Older pass admitted meanwhile | `ran` | Narrower range; the older pass covers the rest |
@@ -349,10 +345,9 @@ Moving the walk out would need a second lock step for a saving of a few seconds 
 | Holder pending or retrying | Reopen leaves it | n/a | It reads the active set when it runs |
 | Holder claimed or running | Replay flag set | n/a | Reruns after an in-flight read |
 
-The retry's baseline is deterministic except in the row above that names the move, and
-that move is safe because the older pass owes its own range. A one-hop stamp cannot
-cycle here: holders hold no suppression facts, and a generation's diff runs at most
-once outside recovery.
+The retry's baseline is deterministic except in the row that names the move, which is safe
+because the older pass owes its own range. A one-hop stamp cannot cycle: holders hold no
+suppression facts, and a generation's diff runs at most once outside recovery.
 
 **One wiring hazard.** `fanOutHolders` leaves its id list empty on a one-hop pass, and
 `owedRecorder` returns nil there. A one-hop first pass on an operator generation would
@@ -383,10 +378,19 @@ test, and wiring must let the diff's ids through regardless of the stamp.
 2. **Net-zero inside the unwalked span.** The walk closes net-zero changes up to the
    cap. Past it, a change that cancels out inside the endpoint diff stays on the holders'
    own cadence. `walk_truncated` makes the span visible.
-3. **A generation with no suppression facts.** It names no trigger kind, so no intent
-   runs. Harmless while Upsert is the only writer; a future delete path must enqueue.
-4. **Expiry.** It is evaluated at read time and mints no generation, so it is not a diff
-   trigger and does not fan out.
+3. **A generation with no suppression facts** names no trigger kind, so no intent runs.
+   Harmless while Upsert is the only writer; a future delete path must enqueue.
+4. **Expiry** is evaluated at read time and mints no generation, so it never fans out.
+
+## Open dependency: #10060
+
+#10060 reports that a fan-out continuation claimed after a newer generation activates is
+marked superseded and never runs. That breaks the baseline proof: a pass on B that hit the
+holder cap leaves its owed marker set, and if a newer operator generation C lands first, the
+holders past the first 256 are never reopened, while B's admission row still marks B as
+covered. One option, not decided: the baseline is the newest admitted generation whose owed
+marker is cleared. The wiring PR must settle it with #10060. Separately, #9740 needs a `*`
+sentinel when the walk reports `walk_truncated`.
 
 ## Telemetry
 
@@ -475,15 +479,13 @@ them yet.
     on C fans out B's and C's ids. RED against the prior-generation baseline.
   - **Net-zero, both directions, on the convergence harness.** A holder that ran during B
     reads the right state after the pass on C. RED against the endpoint diff.
-- The skewed `activated_at` selector test is committed (`older means ingest order`).
-- Inline wiring conditions: see [Measurements](#measurements).
+- The skewed `activated_at` selector test is committed. Inline wiring conditions: see [Measurements](#measurements).
 - Telemetry registration, the coverage doc, `HOLDER_FANOUT.md`, the `ChangedCVEIDs` comment
-  on `SupplyChainImpactWriteResult`, and the operator guidance in the #9914 note.
+  on `SupplyChainImpactWriteResult`, and the #9914 operator guidance.
 
 **Rebase plan.** After #9914 merges, `git rebase origin/main`. No conflict is expected in the
 fan-out files (at 9c99579a2a #9914 changes only `active_filter.go` and `impact.go` there).
-Then rerun the focused tests, read the merged `signalCVEIDs` to confirm a `cve_id` scope
-reaches the holder read, write the positive proof RED, and wire.
+Then rerun the focused tests, confirm via the merged `signalCVEIDs` that a `cve_id` scope reaches the holder read, write the positive proof RED, and wire.
 
 ## Not checked
 
