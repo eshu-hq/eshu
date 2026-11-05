@@ -225,7 +225,7 @@
   },
   "go/internal/storage/postgres/supply_chain_impact_manifest_chain_live_test.go": {
     "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
-    "tests": ["TestManifestChainDepthCapBoundaryLive", "TestManifestChainEndToEndRuntimeSkipLive", "TestManifestPassReadsASharedBaseOnceLive", "TestManifestStampIsLeaseFencedLive", "TestManifestStampSurvivesReopenHolderLive", "TestManifestWatermarkSkipsUnstampedPriorsLive"]
+    "tests": ["TestManifestChainDepthCapBoundaryLive", "TestManifestChainEndToEndRuntimeSkipLive", "TestManifestChainPrunedGenerationsLive", "TestManifestPassReadsASharedBaseOnceLive", "TestManifestStampIsLeaseFencedLive", "TestManifestStampSurvivesReopenHolderLive", "TestManifestWatermarkSkipsUnstampedPriorsLive"]
   },
   "go/internal/storage/postgres/supply_chain_impact_manifest_trigger_live_test.go": {
     "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",

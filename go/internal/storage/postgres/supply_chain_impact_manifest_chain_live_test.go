@@ -5,7 +5,9 @@ package postgres_test
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"testing"
@@ -339,5 +341,59 @@ func TestManifestPassReadsASharedBaseOnceLive(t *testing.T) {
 	}
 	if reads["gen-f"] != 1 {
 		t.Fatalf("dependency reads = %v; want the shared base gen-f read once", reads)
+	}
+}
+
+// manifestLiveRetentionHash is the retention events' identity hash. A test
+// that used the wrong hash would find no prune event and fail, never pass.
+func manifestLiveRetentionHash(kind, value string) string {
+	sum := sha256.Sum256([]byte(kind + "\x00" + value))
+	return hex.EncodeToString(sum[:])
+}
+
+func manifestLiveSeedPruneEvent(t *testing.T, ctx context.Context, db *sql.DB, generation string) {
+	t.Helper()
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO generation_retention_events
+    (event_id, scope_id_hash, generation_id_hash, scope_class, policy_scope, policy_revision, reason, row_counts, pruned_at)
+VALUES ($1, $2, $3, 'repository', 'default', 'r1', 'superseded', '{}'::jsonb, clock_timestamp())`,
+		"event-"+generation, manifestLiveRetentionHash("scope", manifestLiveGitScope), manifestLiveRetentionHash("generation", generation)); err != nil {
+		t.Fatalf("seed prune event for %s: %v", generation, err)
+	}
+}
+
+// TestManifestChainPrunedGenerationsLive proves the retention probe the reader
+// runs per generation (the shared deltaUnionBasePrunedQuery, one pair): a
+// pruned intermediate is skipped and reported, and a pruned baseline degrades
+// the pass to no views.
+func TestManifestChainPrunedGenerationsLive(t *testing.T) {
+	ctx, db := fanOutLiveDB(t)
+	manifestLiveSeedGitScope(t, ctx, db, "gen-cur",
+		manifestLiveGeneration{id: "gen-w", status: "superseded", commit: "cw", activated: true, ingested: manifestLiveAt(1)},
+		manifestLiveGeneration{id: "gen-1", status: "superseded", commit: "c1", activated: true, ingested: manifestLiveAt(2)},
+		manifestLiveGeneration{id: "gen-2", status: "superseded", commit: "c2", activated: true, ingested: manifestLiveAt(3)},
+		manifestLiveGeneration{id: "gen-cur", status: "active", commit: "c3", activated: true, ingested: manifestLiveAt(4)},
+	)
+	manifestLiveSeedMarker(t, ctx, db, "gen-w", "succeeded", true)
+	manifestLiveSeedPruneEvent(t, ctx, db, "gen-1")
+
+	store := fanOutLiveStore(db)
+	got, err := store.ReadManifestDependencyGeneration(ctx, manifestLiveGitScope, "gen-cur")
+	if err != nil {
+		t.Fatalf("ReadManifestDependencyGeneration() error = %v", err)
+	}
+	if !got.ChainPruned || got.Degraded || len(got.Chain) != 1 || got.Chain[0].GenerationID != "gen-2" {
+		t.Fatalf("pruned intermediate: chain pruned %v, degraded %v, chain %d; want gen-1 skipped and gen-2 kept",
+			got.ChainPruned, got.Degraded, len(got.Chain))
+	}
+
+	manifestLiveSeedPruneEvent(t, ctx, db, "gen-w")
+	got, err = store.ReadManifestDependencyGeneration(ctx, manifestLiveGitScope, "gen-cur")
+	if err != nil {
+		t.Fatalf("ReadManifestDependencyGeneration() error = %v", err)
+	}
+	if !got.Degraded || got.HasBaseline || len(got.Chain) != 0 {
+		t.Fatalf("pruned baseline: degraded %v, has baseline %v, chain %d; want degraded with no views",
+			got.Degraded, got.HasBaseline, len(got.Chain))
 	}
 }

@@ -201,7 +201,7 @@ func (s SupplyChainImpactFanOutStore) ReadManifestDependencyGeneration(
 		return out, nil
 	}
 	if baselineID != "" {
-		pruned, err := store.deltaUnionBasePruned(ctx, scopeID, baselineID)
+		pruned, err := manifestGenerationPruned(ctx, tx, scopeID, baselineID)
 		if err != nil {
 			return out, classifyFanOutReadError(err)
 		}
@@ -215,7 +215,7 @@ func (s SupplyChainImpactFanOutStore) ReadManifestDependencyGeneration(
 		}
 	}
 	for _, id := range chain {
-		pruned, err := store.deltaUnionBasePruned(ctx, scopeID, id)
+		pruned, err := manifestGenerationPruned(ctx, tx, scopeID, id)
 		if err != nil {
 			return out, classifyFanOutReadError(err)
 		}
@@ -345,6 +345,27 @@ func queryManifestRepoIDs(ctx context.Context, tx db.Queryer, scopeID, generatio
 		return nil, classifyFanOutReadError(err)
 	}
 	return ids, nil
+}
+
+// manifestGenerationPruned reports whether retention recorded a prune event for
+// one generation of the scope. It binds the shared deltaUnionBasePrunedQuery
+// (delta_union_base.go) to one-element hash arrays, the probe the delta-union
+// base resolution uses, so a pruned baseline or intermediate is detected by
+// the same retention identities. A probe failure is returned: the caller fails
+// the pass retryably rather than diff a possibly half-pruned generation
+// (#8181).
+func manifestGenerationPruned(ctx context.Context, tx db.Queryer, scopeID, generationID string) (bool, error) {
+	rows, err := tx.QueryContext(ctx, deltaUnionBasePrunedQuery,
+		[]string{retentionHashID("scope", scopeID)}, []string{retentionHashID("generation", generationID)})
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = rows.Close() }()
+	pruned := rows.Next()
+	if err := rows.Err(); err != nil {
+		return false, err
+	}
+	return pruned, nil
 }
 
 func queryManifestGenerationID(ctx context.Context, tx db.Queryer, query string, args ...any) (string, error) {
