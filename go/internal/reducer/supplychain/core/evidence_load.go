@@ -67,6 +67,7 @@ type supplyChainImpactLoadedEvidence struct {
 	// the byte budget.
 	pythonReachabilityPayloadBytes int64
 	jvmReachabilityFactCount       int
+	goReachabilityFacts            int
 	postSecurityAlertScopeFacts    int
 	securityAlertScopingApplied    bool
 	securityAlertScopedOutFacts    int
@@ -233,18 +234,12 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 	envelopes = appendUniqueSupplyChainImpactFacts(envelopes, jvmReachabilityFacts...)
 	jvmReachabilityFactCount := len(envelopes) - jvmReachabilityStartCount
 
-	preSecurityAlertScopeFacts := len(envelopes)
-	phaseStarted = time.Now()
-	securityAlertScopingApplied := supplyChainImpactUsesSecurityAlertScope(intent, envelopes)
-	if securityAlertScopingApplied {
-		envelopes = scopeSupplyChainImpactEvidenceToSecurityAlerts(envelopes)
+	envelopes, goReachabilityFactCount, err := h.appendGoReachabilityEvidenceFacts(ctx, envelopes, budget, &truncation, &timing)
+	if err != nil {
+		return supplyChainImpactLoadedEvidence{}, timing, err
 	}
-	timing.securityAlertScopingDuration = time.Since(phaseStarted)
-	postSecurityAlertScopeFacts := len(envelopes)
-	securityAlertScopedOutFacts := 0
-	if securityAlertScopingApplied && preSecurityAlertScopeFacts > postSecurityAlertScopeFacts {
-		securityAlertScopedOutFacts = preSecurityAlertScopeFacts - postSecurityAlertScopeFacts
-	}
+
+	envelopes, securityAlertScopingApplied, securityAlertScopedOutFacts, postSecurityAlertScopeFacts := applySupplyChainImpactSecurityAlertScope(intent, envelopes, &timing)
 	for _, envelope := range envelopes {
 		if strings.HasPrefix(envelope.ScopeID, "image://derived/") {
 			return supplyChainImpactLoadedEvidence{}, timing, fmt.Errorf("derived fact %q requires protected impact evidence loader", envelope.FactID)
@@ -271,12 +266,38 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 		pythonReachabilityFacts:         pythonReachabilityFacts,
 		pythonReachabilityPayloadBytes:  pythonReachability.foldedBytes,
 		jvmReachabilityFactCount:        jvmReachabilityFactCount,
+		goReachabilityFacts:             goReachabilityFactCount,
 		postSecurityAlertScopeFacts:     postSecurityAlertScopeFacts,
 		securityAlertScopingApplied:     securityAlertScopingApplied,
 		securityAlertScopedOutFacts:     securityAlertScopedOutFacts,
 		floorArmed:                      floorArmed,
 		crossScopeProducerDelta:         producerDelta,
 	}, timing, nil
+}
+
+// applySupplyChainImpactSecurityAlertScope runs the security-alert scoping
+// tail of loadSupplyChainImpactEvidence as one timed step: when the pass
+// carries provider alerts, evidence outside their scope is dropped and the
+// scoped-out count is reported. It returns the scoped evidence, whether
+// scoping applied, how many envelopes it removed, and the post-scope count.
+func applySupplyChainImpactSecurityAlertScope(
+	intent reducercontract.Intent,
+	envelopes []facts.Envelope,
+	timing *supplyChainImpactTiming,
+) ([]facts.Envelope, bool, int, int) {
+	preCount := len(envelopes)
+	started := time.Now()
+	applied := supplyChainImpactUsesSecurityAlertScope(intent, envelopes)
+	if applied {
+		envelopes = scopeSupplyChainImpactEvidenceToSecurityAlerts(envelopes)
+	}
+	timing.securityAlertScopingDuration = time.Since(started)
+	postCount := len(envelopes)
+	scopedOut := 0
+	if applied && preCount > postCount {
+		scopedOut = preCount - postCount
+	}
+	return envelopes, applied, scopedOut, postCount
 }
 
 // supplyChainImpactCrossScopeFloor carries the #5709 floor's state across the

@@ -156,7 +156,7 @@ func TestSupplyChainImpactHandlerTimesSecurityAlertScoping(t *testing.T) {
 
 func TestSupplyChainImpactDiagnosticSignalsSkippedKey(t *testing.T) {
 	signals := supplyChainImpactDiagnosticSignals(
-		1, 1, 0, 0, 1, 3, 1, 1, 0, 0, 1, false, 0, 1, false, 1,
+		1, 1, 0, 0, 1, 3, 1, 1, 0, 0, 0, 1, false, 0, 1, false, 1,
 	)
 	value, ok := signals["os_package_advisory_targets_skipped"]
 	if !ok {
