@@ -194,16 +194,27 @@ func groupOSAdvisoriesByUpstream(index *supplyChainImpactIndex) {
 	index.cves = regrouped
 }
 
+// advisoryRecordKey names one advisory record: the source class of its facts and
+// the advisory id they carry. Two sources can share an id, so the id alone would
+// join their lifecycles.
+type advisoryRecordKey struct {
+	class string
+	id    string
+}
+
 // liveAdvisoryPackages drops the facts of retracted records from one package's
 // classification when another record still asserts the package (#9914). Grouping
 // puts a withdrawn DLA and a live DEBIAN-CVE record in one group, and the group
 // is not retracted because one record is live, so without this the withdrawn
 // record's range could decide an exact verdict with no retraction shown.
 //
-// A record is retracted when every cve observation of its AdvisoryID retracted:
-// the same rule retractionFromObservations applies to a group, so one source's
-// rejection does not hide what another still asserts. A package with no cve
-// observation counts as live, as it does there. When no package's record is live
+// A record is an advisory id within one source class (advisoryRecordKey), as
+// retractedRecordOf reads it, and it is retracted when every cve observation of
+// that record retracted: the same rule retractionFromObservations applies to a
+// group, so one source's rejection does not hide what another source still asserts
+// under the same id (an NVD record and a vendor record are both named by the CVE
+// id). A package with no cve observation of its record counts as live, as it does
+// there. When no package's record is live
 // nothing is dropped, so a wholly retracted group keeps its verdict and its
 // retraction (#9695).
 //
@@ -217,7 +228,9 @@ func groupOSAdvisoriesByUpstream(index *supplyChainImpactIndex) {
 // the index would produce without it (arbiter ruling 9914-r5). So when only the
 // retracted facts have an anchor (onlyRetractedRecordsAnchor), they stay and the
 // live ones are the ones left out: the finding reads as it would if the live
-// record listed no package, with the retraction shown. The live record's cve
+// record listed no package, with the retraction shown. A quarantined sibling cve
+// fact is the one exception: the record then counts as live and the retraction
+// does not show. The live record's cve
 // observation stays in the group, in AdvisorySources and as a source of severity.
 func liveAdvisoryPackages(
 	cves supplyChainCVEGroup,
@@ -227,19 +240,20 @@ func liveAdvisoryPackages(
 	if !slices.ContainsFunc(cves.observations, impactCVERetracted) {
 		return cves, pkgs
 	}
-	retracted := make(map[string]bool, len(cves.observations))
+	retracted := make(map[advisoryRecordKey]bool, len(cves.observations))
 	for _, cve := range cves.observations {
+		key := advisoryRecordKey{class: classifyAdvisorySource(cve.Source, cve.AdvisoryID), id: cve.AdvisoryID}
 		isRetracted := impactCVERetracted(cve)
-		if prior, seen := retracted[cve.AdvisoryID]; seen {
+		if prior, seen := retracted[key]; seen {
 			isRetracted = isRetracted && prior
 		}
-		retracted[cve.AdvisoryID] = isRetracted
+		retracted[key] = isRetracted
 	}
 	live := make([]supplychainmodel.AffectedPackage, 0, len(pkgs))
 	var retired []string
 	var retractedPkgs []supplychainmodel.AffectedPackage
 	for _, pkg := range pkgs {
-		if retracted[pkg.AdvisoryID] {
+		if retracted[advisoryRecordKey{class: classifyAdvisorySource(pkg.Source, pkg.AdvisoryID), id: pkg.AdvisoryID}] {
 			retired = append(retired, pkg.FactID)
 			retractedPkgs = append(retractedPkgs, pkg)
 			continue

@@ -181,7 +181,7 @@ func TestLiveAdvisoryPackages(t *testing.T) {
 		},
 		{
 			name:     "only the retracted record has an anchor on the index, so its fact stays",
-			cves:     []supplychainmodel.ImpactCVE{{AdvisoryID: unjoinableAdvisory, WithdrawnAt: withdrawn}, {AdvisoryID: "EXT-1"}},
+			cves:     []supplychainmodel.ImpactCVE{{Source: "ubuntu", AdvisoryID: unjoinableAdvisory, WithdrawnAt: withdrawn}, {Source: "nvd", AdvisoryID: "EXT-1"}},
 			pkgs:     anchored.affectedPackages[unjoinableCVE],
 			index:    anchored,
 			wantPkgs: []string{"affected-own"},

@@ -118,3 +118,27 @@ func TestFilterKeysRetractionBySourceClassAndAdvisoryID(t *testing.T) {
 		})
 	}
 }
+
+// TestRecordClassIsTheClassifiedSourceNotTheLiteralSource pins that a package fact
+// collected by osv under a GHSA id and a cve fact from the ghsa collector are one
+// record: classifyAdvisorySource maps both to ghsa. The second package fact pairs
+// with nothing, so only retractedRecordOf can give it its record's lifecycle, and it
+// must do so whichever literal source name each fact carries (review 6, P3-4).
+func TestRecordClassIsTheClassifiedSourceNotTheLiteralSource(t *testing.T) {
+	t.Parallel()
+
+	input := []facts.Envelope{
+		recordWithdrawn("cve-1", "ghsa", recordGHSA),
+		recordNPMFact("a", recordGHSA, "4.17.20", "4.17.21"),
+		recordNPMFact("b", recordGHSA, "4.17.20", "4.17.22"),
+		recordConsumer(),
+	}
+	for _, order := range everyOrder(input) {
+		findings := BuildSupplyChainImpactFindings(order)
+		got := oneRecordFinding(t, findings)
+		assertRetractedOffersNoFix(t, findings)
+		if got.AdvisoryRetraction == nil {
+			t.Fatalf("no retraction: fix %q, sources %#v", got.FixedVersion, got.AdvisorySources)
+		}
+	}
+}
