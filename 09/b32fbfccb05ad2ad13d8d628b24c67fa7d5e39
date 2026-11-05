@@ -1,0 +1,19 @@
+specs/live-tests.d/live-tests-07.yaml
+  s_7547c0f0af67d4::t_7dbee5efaecf69 361,366
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "09b32fbfccb05ad2ad13d8d628b24c67fa7d5e39",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
