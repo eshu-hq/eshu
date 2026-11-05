@@ -13,7 +13,6 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -210,7 +209,7 @@ func (s IngestionStore) commitScopeGeneration(
 	}
 
 	stageStart = time.Now()
-	if err := lockstore.AcquireDeferredMaintenanceRepoSharedLock(ctx, tx, lockstore.DeferredMaintenanceRepoLockKey(scopeValue)); err != nil {
+	if err := acquireCommitSharedBarrier(ctx, tx, scopeValue); err != nil {
 		return fmt.Errorf("acquire deferred maintenance shared barrier: %w", err)
 	}
 	if _, err := tx.ExecContext(ctx, setPackageManifestConsumptionKeysWriterSQL); err != nil {
@@ -222,7 +221,7 @@ func (s IngestionStore) commitScopeGeneration(
 	s.logCommitStage(ctx, scopeValue, generation, "deferred_maintenance_shared_barrier", stageStart)
 
 	stageStart = time.Now()
-	gateOutcome, retirementID, err := upsertIngestionScope(ctx, tx, scopeValue, generation)
+	gateOutcome, retirementID, err := s.gateAndUpsertIngestionScope(ctx, tx, scopeValue, generation)
 	if err != nil {
 		return fmt.Errorf("upsert ingestion scope: %w", err)
 	}

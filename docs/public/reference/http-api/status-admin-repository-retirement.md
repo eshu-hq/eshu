@@ -65,6 +65,12 @@ retirement. An already-open conflict means a foreign open row exists under
 a different idempotency key; the per-repository entry identifies which
 repository.
 
+Retirement also removes the repository's derived Go reachability scope
+(`go-reachability://<repository id>`), its generations, and its facts. The
+tombstone's `rows_deleted` ledger names them as `derived_ingestion_scopes` and
+`derived_fact_records`. A scan still in flight is refused at commit, and a
+readmitted repository is planned fresh.
+
 Read surfaces report a fenced repository as `retiring` and a purged one as
 `retired` (`GET /api/v0/repositories`, index status, freshness, and
 `list_indexed_repositories` / `get_index_status`).
@@ -74,6 +80,10 @@ Read surfaces report a fenced repository as `retiring` and a purged one as
 - `eshu_dp_repository_retirements_total{outcome}` -- one `accepted` per
   marked repository plus exactly one terminal outcome per marked repository.
 - `eshu_dp_repository_retirements_purged_total` — purge completions.
+- `eshu_dp_repository_retirement_derived_scopes_purged_total` — derived Go
+  reachability scopes removed with their repository.
+- `eshu_dp_repository_retirement_derived_commits_refused_total{outcome}` —
+  scanner commits refused while the repository is retiring or retired.
 - WARN `repository retirement refused at fence`, WARN `repository
   retirement mark failed` (a mid-loop mark error stopped the request
   before any fence: `outcome`, the failing `repo_id`, the still-open

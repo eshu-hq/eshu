@@ -192,6 +192,18 @@ tests:
     tag: ~
     class: scheduled
     reason: "#8659 retirement purge scale measurement live proof, untagged and gated by the ESHU_POSTGRES_DSN env Skip; not yet run against a live backend in this lane — promote to blocking with measured timing evidence"
+  - file: go/internal/storage/postgres/repository_retirements_derived_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#10054 derived-scope retirement live proof (purge, preview equals ledger, neighbor and longer-id scopes untouched, winners capture, budget attribution, graph-key capture), untagged and gated by the ESHU_POSTGRES_DSN env Skip; promote to blocking with measured timing evidence"
+  - file: go/internal/storage/postgres/repository_retirements_derived_race_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#10054 derived-scope concurrency live proof (late commit refused, in-flight first scan, Ack lock contention, projector lease drain, stale Ack, idempotent fence and purge, barrier lock order), untagged and gated by the ESHU_POSTGRES_DSN env Skip; promote to blocking with measured timing evidence"
+  - file: go/internal/storage/postgres/repository_retirements_derived_explain_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#10054 before and after EXPLAIN of the retirement statements at 100,000 scopes on the real schema, gated by the ESHU_POSTGRES_DSN and ESHU_RETIREMENT_EXPLAIN env Skips; a measurement run on demand, not a regression gate"
   - file: go/internal/storage/postgres/retirement_table_census_live_test.go
     tag: ~
     class: scheduled

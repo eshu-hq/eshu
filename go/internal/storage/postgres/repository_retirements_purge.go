@@ -238,6 +238,10 @@ func (p RetirementPurger) purgeOne(
 	if err != nil {
 		return "", nil, err
 	}
+	derived, err := addDerivedLedgerCounts(ctx, tx, repoID, scopeIDs, ledger)
+	if err != nil {
+		return "", nil, err
+	}
 	// The scope delete cascades generations and their fact rows, but the
 	// per-fact key sidecars do not cascade: prune them first, in Deletes
 	// order, so no orphaned sidecar row survives the retirement. The
@@ -270,11 +274,13 @@ func (p RetirementPurger) purgeOne(
 	rolledBack = true
 
 	recordRetirementPurged(ctx, p.Instruments)
+	recordDerivedScopesPurged(ctx, p.Instruments, int64(len(derived)))
 	opts.Logger.InfoContext(ctx, "repository retirement purged",
 		slog.String("outcome", "purged"),
 		slog.String("repo_id", repoID),
 		slog.String("retirement_id", record.RetirementID),
 		slog.Int64("scopes_deleted", scopes),
+		slog.Int("derived_scopes_deleted", len(derived)),
 		telemetry.PhaseAttr(telemetry.PhaseEmission),
 	)
 	return repoID, nil, nil
@@ -480,15 +486,4 @@ func completePurgeTombstone(
 		return fmt.Errorf("retirement purge complete tombstone: %d rows, want 1 (concurrent completion)", affected)
 	}
 	return nil
-}
-
-// recordRetirementPurged counts one completed operator retirement on
-// eshu_dp_repository_retirements_purged_total (#7766). Nil instruments are
-// a no-op. The count lands after the purge commit, so a crash between
-// commit and emission under-counts rather than double-counts.
-func recordRetirementPurged(ctx context.Context, instruments *telemetry.Instruments) {
-	if instruments == nil || instruments.OperatorRepositoryRetirementsPurged == nil {
-		return
-	}
-	instruments.OperatorRepositoryRetirementsPurged.Add(ctx, 1)
 }

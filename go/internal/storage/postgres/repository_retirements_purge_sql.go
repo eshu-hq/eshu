@@ -20,9 +20,11 @@ const (
 	// purgeLockScopesQuery locks the repository's scope rows without
 	// waiting: a concurrent retention pass holding a scope lock reports
 	// scope_lock_busy instead of queueing behind the purge. NOWAIT raises
-	// 55P03, the same signal the fence restarts on.
-	purgeLockScopesQuery = `SELECT scope_id FROM ingestion_scopes
-		WHERE partition_key = $1 ORDER BY scope_id FOR NO KEY UPDATE NOWAIT`
+	// 55P03, the same signal the fence restarts on. The set includes the
+	// repository's derived scope (#10054), which a projector Ack may hold just
+	// as retention holds the others.
+	purgeLockScopesQuery = `SELECT s.scope_id FROM ingestion_scopes AS s
+		WHERE ` + retirementScopesOfRepoSQL + ` ORDER BY s.scope_id FOR NO KEY UPDATE NOWAIT`
 
 	// purgeBlockingGenerationsQuery is the terminal gate readback: every
 	// generation still in a live status, grouped for the WARN log. Failed

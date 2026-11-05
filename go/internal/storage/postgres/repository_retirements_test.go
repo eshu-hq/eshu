@@ -211,7 +211,7 @@ func TestPreviewRetirementCounts(t *testing.T) {
 	t.Parallel()
 
 	fake := &retirementFakeDB{
-		queryRows: [][]any{{int64(3), int64(41), int64(17), int64(9), int64(2), int64(4)}},
+		queryRows: [][]any{{int64(3), int64(41), int64(17), int64(9), int64(2), int64(4), int64(5), int64(1), int64(8)}},
 	}
 	preview, err := NewRetirementStore(fake).Preview(
 		context.Background(), "git-repo-scope:test", []string{"git-repo-scope:test@main"},
@@ -221,8 +221,9 @@ func TestPreviewRetirementCounts(t *testing.T) {
 	}
 	if preview.Generations != 3 || preview.FactWorkItems != 41 ||
 		preview.ContentFiles != 17 || preview.SharedIntents != 9 ||
-		preview.UnroutableIntents != 2 || preview.DeadLetters != 4 {
-		t.Fatalf("preview = %+v, want 3/41/17/9/2/4", preview)
+		preview.UnroutableIntents != 2 || preview.DeadLetters != 4 ||
+		preview.Scopes != 5 || preview.DerivedScopes != 1 || preview.DerivedFacts != 8 {
+		t.Fatalf("preview = %+v, want 3/41/17/9/2/4/5/1/8", preview)
 	}
 	lookup := fake.queryQueries[0]
 	for _, want := range []string{

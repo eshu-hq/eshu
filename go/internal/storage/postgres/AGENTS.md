@@ -229,11 +229,8 @@
   `listPackageManifestConsumptionKeyScopeFactsSQL`'s predicate byte-aligned
   with migration 181's partial index. See `consumption/AGENTS.md` and
   `docs/internal/evidence/7663-backfill-page-lock.md`.
-- **Key sidecar deletes (#7420).** A new statement that deletes
-  `fact_records` (directly, or through a `scope_generations` or
-  `ingestion_scopes` cascade) runs the `facts/keys` delete first in the same
-  transaction, or touches only fact kinds that own no key rows, and is
-  classified in `factDeleteSites`. Read `facts/keys/AGENTS.md` first.
+- **Derived scopes retire with their repository (#10054).** Resolve a repository's scopes only through `retirementScopesOfReposSQL`/`retirementScopesOfRepoSQL` and attribute them through `retirementScopeRepoIDSQL`; never select by a derived scope's `partition_key` (the shared fairness key) or a scope-id prefix. A derived commit takes its parent's shared key in sorted order and refuses on any open parent tombstone; a non-derived commit must keep its one barrier and no extra read. See `derived-scope-retirement.md`; run the `repository_retirements_derived*_live_test.go` proofs after changing either side.
+- **Key sidecar deletes (#7420).** A new statement that deletes `fact_records` (directly, or through a `scope_generations` or `ingestion_scopes` cascade) runs the `facts/keys` delete first in the same transaction, or touches only fact kinds that own no key rows, and is classified in `factDeleteSites`. Read `facts/keys/AGENTS.md` first.
 
 ## Evidence notes
 

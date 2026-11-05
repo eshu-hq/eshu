@@ -87,7 +87,7 @@ func (s IngestionStore) logRetirementRefusal(
 	}
 	s.Logger.WarnContext(ctx, "repository ingest refused: retiring",
 		slog.String("scope_id", scopeValue.ScopeID),
-		slog.String("repo_id", scopeValue.PartitionKey),
+		slog.String("repo_id", retirementRepoKey(scopeValue)),
 		slog.String("generation_id", generation.GenerationID),
 		slog.String("outcome", "repository_retiring"),
 		telemetry.PhaseAttr(telemetry.PhaseEmission),

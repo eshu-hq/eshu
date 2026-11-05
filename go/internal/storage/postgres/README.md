@@ -56,12 +56,12 @@ guide current when changing bootstrap DDL ordering, fact persistence, projector
 or reducer queue behavior, workflow fencing, graph projection phase state,
 webhook triggers, AWS scan status, or runtime drift evidence loading.
 
-How retired, removed, tombstoned, and superseded evidence is kept out of
-active-generation reads — the candidate-case matrix, the two retirement
-mechanisms, and the index/pointer-bounded retraction shape — is documented in
-[`retirement-proof-matrix.md`](retirement-proof-matrix.md) and proven by
-`proof_domain_retirement_test.go` here plus `retirement_retract_proof_test.go`
-in `internal/reducer`.
+How retired, removed, tombstoned, and superseded evidence is kept out of active-generation reads — the candidate-case matrix,
+the two retirement mechanisms, and the index/pointer-bounded retraction shape — is documented in
+[`retirement-proof-matrix.md`](retirement-proof-matrix.md) and proven by `proof_domain_retirement_test.go` here plus
+`retirement_retract_proof_test.go` in `internal/reducer`.
+Operator retirement also removes the repository's derived scopes and refuses a scan still in flight:
+[`derived-scope-retirement.md`](derived-scope-retirement.md) (#10054).
 
 High-signal invariants for this package:
 

@@ -110,6 +110,15 @@ type RetirementPreview struct {
 	UnroutableIntents int64
 	// DeadLetters counts collector_generation_dead_letters rows of the scopes.
 	DeadLetters int64
+	// Scopes counts the ingestion_scopes rows the purge deletes. It equals the
+	// ledger's ingestion_scopes entry.
+	Scopes int64
+	// DerivedScopes counts the repository's derived scopes among Scopes. It
+	// equals the ledger's derived_ingestion_scopes entry.
+	DerivedScopes int64
+	// DerivedFacts counts fact_records rows of the derived scopes. It equals the
+	// ledger's derived_fact_records entry.
+	DerivedFacts int64
 }
 
 // RetirementStore owns the repository_retirements tombstone rows. It writes
@@ -223,17 +232,30 @@ func stampRetirementReadmitted(ctx context.Context, database db.ExecQueryer, ret
 	return affected == 1, nil
 }
 
-// Preview returns the dry-run counts for the repository and scopes. It
-// writes nothing and is the arbiter-review input before the irreversible
-// act (#7766).
+// Preview returns the dry-run counts for the repository and scopes. It writes
+// nothing and is the arbiter-review input before the irreversible act (#7766).
+// It resolves the repository's own scope set with the predicate the purge locks,
+// so the counts cover the derived scope and any scope the caller did not know of;
+// scopeIDs only adds to that set (#10054). The three scope and derived counts
+// compare directly with the purge ledger.
 func (s RetirementStore) Preview(ctx context.Context, repoID string, scopeIDs []string) (RetirementPreview, error) {
-	const preview = `SELECT
-		(SELECT count(*) FROM scope_generations WHERE scope_id = ANY($2)),
-		(SELECT count(*) FROM fact_work_items WHERE scope_id = ANY($2)),
+	const preview = `WITH scope_set AS (
+			SELECT COALESCE(array_agg(s.scope_id), '{}'::text[]) AS ids FROM ingestion_scopes AS s
+			WHERE ` + retirementScopesOfRepoSQL + ` OR s.scope_id = ANY($2)
+		)
+		SELECT
+		(SELECT count(*) FROM scope_generations WHERE scope_id = ANY((SELECT ids FROM scope_set))),
+		(SELECT count(*) FROM fact_work_items WHERE scope_id = ANY((SELECT ids FROM scope_set))),
 		(SELECT count(*) FROM content_files WHERE repo_id = $1),
-		(SELECT count(*) FROM shared_projection_intents WHERE repository_id = $1 OR scope_id = ANY($2)),
-		(SELECT count(*) FROM shared_projection_unroutable_intents WHERE repository_id = $1 OR scope_id = ANY($2)),
-		(SELECT count(*) FROM collector_generation_dead_letters WHERE scope_id = ANY($2))`
+		(SELECT count(*) FROM shared_projection_intents WHERE repository_id = $1 OR scope_id = ANY((SELECT ids FROM scope_set))),
+		(SELECT count(*) FROM shared_projection_unroutable_intents WHERE repository_id = $1 OR scope_id = ANY((SELECT ids FROM scope_set))),
+		(SELECT count(*) FROM collector_generation_dead_letters WHERE scope_id = ANY((SELECT ids FROM scope_set))),
+		(SELECT cardinality(ids) FROM scope_set),
+		(SELECT count(*) FROM ingestion_scopes WHERE scope_id = '` + goReachabilityScopePrefix + `' || $1::text),
+		(SELECT count(*) FROM fact_records WHERE scope_id = '` + goReachabilityScopePrefix + `' || $1::text)`
+	if scopeIDs == nil {
+		scopeIDs = []string{}
+	}
 	rows, err := s.database.QueryContext(ctx, preview, repoID, scopeIDs)
 	if err != nil {
 		return RetirementPreview{}, fmt.Errorf("retirement preview: %w", err)
@@ -247,7 +269,7 @@ func (s RetirementStore) Preview(ctx context.Context, repoID string, scopeIDs []
 	}
 	var counts RetirementPreview
 	if err := rows.Scan(&counts.Generations, &counts.FactWorkItems, &counts.ContentFiles, &counts.SharedIntents,
-		&counts.UnroutableIntents, &counts.DeadLetters); err != nil {
+		&counts.UnroutableIntents, &counts.DeadLetters, &counts.Scopes, &counts.DerivedScopes, &counts.DerivedFacts); err != nil {
 		return RetirementPreview{}, fmt.Errorf("retirement preview scan: %w", err)
 	}
 	return counts, nil

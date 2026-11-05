@@ -2353,6 +2353,20 @@ type Instruments struct {
 	// path-conflict retirement, unrelated to this operator path).
 	OperatorRepositoryRetirements metric.Int64Counter
 
+	// DerivedScopesPurged counts the derived scopes (today only
+	// go-reachability://<repository id>) a committed repository retirement
+	// purge removed with their repository (#10054), unlabelled. A repository
+	// with no derived scope moves nothing.
+	DerivedScopesPurged metric.Int64Counter
+
+	// DerivedScopeCommitsRefused counts derived scope commits refused because
+	// the parent repository has an open tombstone (#10054), by closed outcome:
+	// retiring (a scan racing an open retirement, expected and short) and
+	// retired (a claim still landing after the purge). A refused commit writes
+	// nothing and the claim reports success, so this counter and the WARN log
+	// are the only signals of the refusal.
+	DerivedScopeCommitsRefused metric.Int64Counter
+
 	// CollectorTerminalFailureAcknowledgements counts the operator
 	// acknowledgement requests for a collector terminal failure (#8830) by
 	// closed outcome: acknowledged (a new acknowledgement committed),
