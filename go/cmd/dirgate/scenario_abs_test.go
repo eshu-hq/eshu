@@ -89,15 +89,6 @@ func TestAbsR2bTheSameOvershootStaysRedOnEveryNonPullRequestEvent(t *testing.T) 
 		mustExit(t, 1, "RED", "41 -> 41", "never waived")
 }
 
-func TestAbsR2cPrePushKeepsTheFullSweep(t *testing.T) {
-	r := raceRepo(t)
-	mergeBranch(r, "b")
-	r.git("checkout", "-q", "-b", "later", "main")
-	r.write("go/internal/elsewhere/x.go", "package elsewhere\n")
-	r.commit("a following unrelated change")
-	r.run("-base-ref", "main", "pre-push").mustExit(t, 1, "RED", "internal/foo", "41 -> 41", "never waived")
-}
-
 // TestAbsR2dAPullRequestThatChangesTheOvershootDirectoryOwesIt: a PR that adds
 // one file to internal/foo (41 -> 42) owes the overshoot plus its own growth, so
 // +1 is RED and +2 is GREEN. A PR that only removes a file from it is still in

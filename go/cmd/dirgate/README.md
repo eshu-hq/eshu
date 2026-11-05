@@ -42,15 +42,17 @@ landed concurrently and was never waived (two PRs each +1 on a 39-file directory
 the second push run goes RED and a one-commit repair PR carries the trailer. The
 gate prints the exact line to add and the commit that carries an invalid trailer.
 
-On a `pull_request` run only, `abs_needed` counts for the directories the change
-touched: those whose set of non-test `.go` files differs between base and head,
-plus every directory a valid trailer names. `delta_needed` and the trailer check
-always cover every directory. A PR that does not touch an overshoot directory is
-not failed for it, so one lost trailer no longer blocks unrelated PRs until a
-repair merges. The debt still fails `push`, `schedule`, `workflow_dispatch`, a
-missing or unknown event name, and `pre-push`, where it was made. A PR that does
-touch the directory owes the overshoot plus its own growth (`+2` for one new
-file on a directory 1 over).
+On a `pull_request` run and on `pre-push` (which simulates it), `abs_needed`
+counts for the directories the change touched: those whose set of non-test `.go`
+files differs between base and head (added, removed or renamed files), plus every
+directory a valid trailer names. `delta_needed` and the trailer check always
+cover every directory. A branch that does not touch an overshoot directory is not
+failed for it, so one lost trailer no longer blocks unrelated PRs, or their
+authors' pre-push floor, until a repair merges. The debt still fails `push`,
+`schedule`, `workflow_dispatch`, `merge_group`, and a missing or unknown event
+name: the full sweep on `push` to main is what catches it where it is made. A
+branch that does touch the directory owes the overshoot plus its own growth (`+2`
+for one new file on a directory 1 over).
 
 ## Baselines
 
@@ -86,9 +88,12 @@ job unless validated reuse covers the gate; a code-path guard cannot skip it.
 
 Every event is enforcing, including `push`, `schedule`, `workflow_dispatch` and an
 empty event name. Only the exact event name `pull_request` (from `-event` or
-`$GITHUB_EVENT_NAME`) scopes `abs_needed` to the touched directories; every other
-value, including a missing or unknown one, keeps the full sweep. Pre-commit is the one exception: growth and trailer findings are
-notes there because the message does not exist yet. A shallow checkout is
+`$GITHUB_EVENT_NAME`) and the `pre-push` mode scope `abs_needed` to the touched
+directories; every other value, including a missing or unknown one, keeps the
+full sweep.
+
+Pre-commit is the one exception: growth and trailer findings are notes there
+because the message does not exist yet. A shallow checkout is
 unshallowed with one blobless fetch; there is no commit-count limit and a failed
 fetch exits 2. An unresolvable base exits 2. Pre-commit and pre-push need
 `origin/main` or `ESHU_DIRGATE_BASE`. A trailer on a commit reverted inside the

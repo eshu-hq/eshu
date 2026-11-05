@@ -416,9 +416,10 @@ A rebase has nothing to re-derive, and nothing edits the baselines after landing
   never waived. `b` is the count at the base, `B0` the baseline row, `W` the
   waivers in all history reachable from the base. The base is the first parent of
   the merge ref in CI, and `origin/main` merged with `HEAD` for a local pre-push.
-  On a `pull_request` run, `abs_needed` counts only for the directories the PR
-  touched (file set differs, or a valid trailer names them); push, schedule and
-  pre-push check every directory.
+  On a `pull_request` run and on pre-push (which simulates it), `abs_needed`
+  counts only for the directories the change touched (file set differs, or a
+  valid trailer names them); push, schedule, dispatch and merge_group check every
+  directory, so the push run on main catches debt where it is made.
 - Moving files out of a directory, swapping files, or renaming inside it needs no
   action. A move that grows the destination past `max(40, base count)` needs a
   `Dirgate-Growth:` trailer in the commit message that adds the files. The

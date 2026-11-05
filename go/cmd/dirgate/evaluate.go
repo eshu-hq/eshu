@@ -61,9 +61,9 @@ type evalInput struct {
 	// absScoped limits the absolute term to the directories this change touched:
 	// those whose set of non-test .go files differs between base and head, plus
 	// every directory a valid trailer names. It is set for a pull_request run
-	// only. Growth that landed unwaived is caught where it was made (push,
-	// schedule, pre-push); a pull request that does not touch the directory is
-	// not made to repair it.
+	// and for pre-push, which simulates it. Growth that landed unwaived is caught
+	// where it was made (the push run on main, schedule, dispatch); a branch that
+	// does not touch the directory is not made to repair it.
 	absScoped bool
 }
 
@@ -80,7 +80,7 @@ type evalInput struct {
 //
 // D is RED when w != needed: too little, too much, and an unused trailer all
 // fail. delta_needed guards each merge; abs_needed catches growth that landed
-// concurrently and was never waived. When in.absScoped is set (pull_request),
+// concurrently and was never waived. When in.absScoped is set (pull_request and pre-push),
 // abs_needed counts only for the directories the change touched; delta_needed
 // and the trailer check always apply to every directory.
 func evaluate(in evalInput) ([]finding, int) {

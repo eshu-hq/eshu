@@ -33,16 +33,18 @@ own run, and both land. The directory is then at 41 with no waiver. The push run
 of the second merge goes RED (`40 -> 41`), naming the overshoot as "already on
 base and never waived".
 
-On a `pull_request` run, `abs_needed` counts only for the directories the PR
-touched. A directory is touched when its set of non-test `.go` files differs
-between the base and the merge ref, or when a valid trailer in the PR names it.
-`delta_needed` and the trailer check cover every directory. So a PR that does not
-touch the overshoot directory is not failed for it, and one dropped trailer no
-longer blocks unrelated PRs until a repair merges. A PR that adds a file to the
-overshoot directory owes the overshoot plus its own growth: one new file on a
-directory 1 over needs `+2`. Push, schedule, `workflow_dispatch`, a missing or
-unknown event name, and pre-push still check every directory, so the debt stays
-RED where it was made.
+On a `pull_request` run, and on `make pre-push` (which simulates it),
+`abs_needed` counts only for the directories the change touched. A directory is
+touched when its set of non-test `.go` files differs between the base and the
+merge ref (files added, removed or renamed), or when a valid trailer in the
+change names it. `delta_needed` and the trailer check cover every directory. So a
+branch that does not touch the overshoot directory is not failed for it, and one
+dropped trailer no longer blocks unrelated PRs, or their authors' pre-push floor,
+until a repair merges. A branch that adds a file to the overshoot directory owes
+the overshoot plus its own growth: one new file on a directory 1 over needs `+2`.
+Push, schedule, `workflow_dispatch`, `merge_group`, and a missing or unknown
+event name still check every directory. The push run on main is what catches the
+debt where it is made.
 
 ## The trailer
 
@@ -83,7 +85,7 @@ merges, every surface is GREEN. No history rewrite is needed.
 | `merge_group` (CI) | `HEAD` | `HEAD^1` | enforced, every directory |
 | `push`, `schedule` | `HEAD` | `HEAD^1` | enforced, every directory |
 | `workflow_dispatch`, or no event name | `HEAD` | `HEAD^1` | enforced, every directory |
-| `make pre-push` | `origin/main` merged with `HEAD` | `origin/main` | enforced, every directory |
+| `make pre-push` | `origin/main` merged with `HEAD` | `origin/main` | enforced; `abs_needed` only for touched directories |
 | pre-commit hook | the index | merge base | naming and baseline findings enforced; growth and trailer findings are notes |
 
 CI uses `HEAD^1`, never the merge base. A PR that branched before main moved

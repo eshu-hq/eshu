@@ -46,7 +46,7 @@ directory at 40 as a ratchet derived from git, plus two write-once baselines
 (`go/cmd/dirgate/baseline-cap.tsv`, `baseline-naming.tsv`) for what already
 existed: a directory may not grow past `max(40, its count at the base)`, and the
 gate also names growth that landed concurrently and was never waived (on a pull
-request only when the PR touches that directory; push and pre-push check all). Shrinking,
+request and on pre-push only when the change touches that directory; the push run on main checks all). Shrinking,
 swapping, and renaming inside a directory need no action. Growth needs a
 `Dirgate-Growth:` trailer in the commit message that adds the files — see the
 [`Dirgate-Growth` trailer](../eshu-publish/references/commit-trailers.md) for

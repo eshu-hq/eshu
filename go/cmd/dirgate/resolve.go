@@ -20,7 +20,9 @@ const (
 // eventPullRequest is the one CI event whose absolute check is scoped to the
 // directories the change touched. A pull request that does not touch a directory
 // cannot have caused its debt, and failing it blocks unrelated work until someone
-// repairs the base. The debt still fails push, schedule and pre-push runs.
+// repairs the base. Pre-push simulates this event, so it is scoped the same way.
+// The debt still fails push, schedule, dispatch and merge_group runs, where it
+// is made.
 const eventPullRequest = "pull_request"
 
 // defaultBaseRef is the local comparison branch.
@@ -37,7 +39,8 @@ type resolution struct {
 	notes      []string
 	only       map[string]bool // go/-relative directories to judge; nil = all
 	// absScoped narrows the absolute term to the directories the change touched.
-	// Only a pull_request run sets it; every other event sweeps every directory.
+	// A pull_request run and a pre-push run (which simulates it) set it; every
+	// other event sweeps every directory.
 	absScoped bool
 }
 
@@ -78,7 +81,9 @@ func resolveCI(g gitRepo, event, headRef string) (resolution, error) {
 
 // resolvePrePush compares what the branch would look like merged onto the base
 // ref with the base ref. A conflicting merge falls back to the merge base and
-// says so.
+// says so. It simulates the pull_request check, so the absolute term is scoped
+// to the directories the branch touched; debt on the base that the branch does
+// not touch is left to the push run on main.
 func resolvePrePush(g gitRepo, baseRef string) (resolution, error) {
 	base, err := g.resolveCommit(baseRef)
 	if err != nil || base == "" {
@@ -90,7 +95,7 @@ func resolvePrePush(g gitRepo, baseRef string) (resolution, error) {
 	out, mergeErr := g.output("merge-tree", "--write-tree", base, "HEAD")
 	if mergeErr == nil {
 		tree := strings.TrimSpace(strings.SplitN(out, "\n", 2)[0])
-		return resolution{mode: modePrePush, baseCommit: base, headTree: tree, revRange: base + "..HEAD"}, nil
+		return resolution{mode: modePrePush, baseCommit: base, headTree: tree, revRange: base + "..HEAD", absScoped: true}, nil
 	}
 	if exitCode(mergeErr) != 1 {
 		return resolution{}, fmt.Errorf("merge %s into HEAD: %w", baseRef, mergeErr)
@@ -105,6 +110,7 @@ func resolvePrePush(g gitRepo, baseRef string) (resolution, error) {
 	}
 	return resolution{
 		mode: modePrePush, baseCommit: mb, headTree: headTree, revRange: mb + "..HEAD",
+		absScoped: true,
 		notes: []string{fmt.Sprintf(
 			"merging %s into HEAD conflicts, so the merge-base fallback is in use (base %s); it cannot see growth that landed on %s, so rebase before you push",
 			baseRef, short(mb), baseRef)},
