@@ -1,0 +1,148 @@
+# Suppression Fan-Out Measurements (#10019)
+
+Companion to [the design](10019-suppression-fanout.md). It holds the shim runs behind
+its [Measurements](10019-suppression-fanout.md#measurements) section. The shims were
+throwaway SQL on a private native PostgreSQL and are not committed.
+
+Decision stated before each run. First run: can the diff run inline in the writer
+transaction, or does it need an index, another shape, or an earlier cut? Threshold: p50 warm
+under 500 ms, no whole-table sequential scan, buffers within about twice the rows read.
+Second run: what does the walk cost at 1, 2, 4 and 8 adjacent pairs, which statement shape
+is cheaper, and which cap `K` does the rule pick?
+
+## The walk cost curve
+
+Performance Evidence: run 2026-11-04 on a private native PG18.6, stock settings (`work_mem`
+4 MB, `shared_buffers` 128 MB), full bootstrap schema at 0cb384ca89 (303 migrations). Two
+operator-shaped scopes of 9 generations each, one generation per `INSERT` as the store
+writes them: 100,000 suppressions per generation, and 1,000. Between adjacent generations 1%
+of the suppressions change (every row with `i % 100 = k - 1` is edited at generation `k`,
+one in twenty of those also moves `scope.cve_id`). Background rows: 300,000 EPSS and
+200,000 finding rows across 20 holders. Generic plans (`plan_cache_mode =
+force_generic_plan`), `EXPLAIN (ANALYZE, BUFFERS)` execution time, summed over the pairs of
+a walk. Seven rounds; in each round every arm ran once, with the starting arm rotated, so a
+round's arms share a load and rounds are not comparable with each other. The pairs are the
+newest N of the nine generations.
+
+| Round | Load1 at start | Canary ms |
+|---:|---:|---:|
+| 1 | 59 | 576 |
+| 2 | 55 | 372 |
+| 3 | 49 | 492 |
+| 4 | 43 | 475 |
+| 5 | 39 | 481 |
+| 6 | 39 | 473 |
+| 7 | 40 | 499 |
+
+Control canary: `SELECT count(*) FROM generate_series(1, 3000000)`, run at the start of each
+round (372-576 ms across the seven rounds, so the host speed varied by about 1.5 times).
+
+| Suppressions | Pairs | Shape | Runs | p50 ms | Range ms | Mean load1 |
+|---|---:|---|---:|---:|---|---:|
+| 100,000 | 1 | one statement per pair | 7 | 550 | 493-739 | 46 |
+| 100,000 | 1 | single GROUP BY statement | 7 | 969 | 828-1,173 | 46 |
+| 100,000 | 2 | one statement per pair | 7 | 1,134 | 998-1,576 | 46 |
+| 100,000 | 2 | single GROUP BY statement | 7 | 1,532 | 1,328-1,714 | 45 |
+| 100,000 | 4 | one statement per pair | 7 | 2,044 | 1,933-3,128 | 45 |
+| 100,000 | 4 | single GROUP BY statement | 7 | 2,372 | 2,301-2,706 | 46 |
+| 100,000 | 8 | one statement per pair | 7 | 4,147 | 3,840-4,911 | 45 |
+| 100,000 | 8 | single GROUP BY statement | 7 | 4,482 | 4,188-5,175 | 45 |
+| 1,000 | 1 | one statement per pair | 7 | 3 | 3-4 | 45 |
+| 1,000 | 1 | single GROUP BY statement | 7 | 11 | 7-11 | 45 |
+| 1,000 | 2 | one statement per pair | 7 | 4 | 3-5 | 45 |
+| 1,000 | 2 | single GROUP BY statement | 7 | 14 | 10-15 | 45 |
+| 1,000 | 4 | one statement per pair | 7 | 8 | 7-9 | 45 |
+| 1,000 | 4 | single GROUP BY statement | 7 | 23 | 17-23 | 45 |
+| 1,000 | 8 | one statement per pair | 7 | 14 | 12-18 | 45 |
+| 1,000 | 8 | single GROUP BY statement | 7 | 42 | 31-44 | 46 |
+
+**Reading it.**
+
+- One statement per pair is linear in the pair count, about 520 ms per pair at 100,000
+  suppressions at load 45, and about 1.8 ms per pair at 1,000.
+- The single `GROUP BY` statement is exact but never cheaper. It sorts every payload for
+  `count(DISTINCT payload)`: 969 ms against 550 ms at one pair, and 1.1 times the pairs
+  at eight. At 1,000 suppressions it is three times slower. The pairs shape wins.
+- **No round was quiet.** The lowest start load was 39, so the rule (the largest pair count
+  whose median stays under 500 ms at load1 below 12) picks nothing, and the data cannot choose
+  `K`. A watcher polled load1 every 30 s from 19:42 to 20:17 EST (70 polls) for a reading under
+  12 held for 20 s, to rerun the rounds. The lowest reading was 18.3 and it ended at 86 to
+  110, so no quiet window came. The options for `K` are in the design doc.
+
+**The single statement.** Over a chain of N+1 generations, a suppression changed between some
+adjacent pair exactly when it is missing from one generation or its payload varies:
+
+```sql
+SELECT stable_fact_key, array_agg(DISTINCT payload #>> '{scope,cve_id}') AS cve_ids
+FROM fact_records
+WHERE fact_kind = 'vulnerability.suppression' AND is_tombstone = FALSE
+  AND scope_id = $1 AND generation_id = ANY($2)
+GROUP BY stable_fact_key
+HAVING count(*) < $3 OR count(DISTINCT payload) > 1;
+```
+
+On the 1,000-suppression chain of 9 generations the union of the eight pair diffs and this
+statement returned the same 80 changed suppressions and the same 90 CVE ids (symmetric
+difference 0).
+
+**Plan.** One pair at 100,000 suppressions plans as a Hash Full Join over a Bitmap Heap Scan
+on each side, each fed by a Bitmap Index Scan on `fact_records_scope_generation_idx`, no
+sequential scan. The earlier fixture planned an Index Scan; both are index access on the
+same index. The hash spills: 8 batches at 4 MB, temp 12,771 pages read and written (about
+100 MB). Buffers: 16,835 pages for 200,000 rows read. Planning time was 44 ms on the one execution inspected.
+
+**Fixture note.** This fixture inserts each generation in its own statement, as the store
+does, so each generation sits contiguously on the heap (about 8,330 heap blocks for one generation).
+
+## One pair, earlier runs
+
+Performance Evidence: run 2026-11-04 on a private native PG18.6, stock settings, full
+bootstrap schema at 73032877fd (302 migrations). Six generations of 100,000 suppressions, plus
+300,000 EPSS and 200,000 finding rows across 20 holders. g6 against g5 changes 1,000
+suppressions: 600 edited (50 moved CVE), 200 removed, 200 added. Seven interleaved runs per
+arm with a rotating first mover. Times are the median of seven. Rows from separate rounds
+are not comparable with each other, since the load differed.
+
+| Round, 1-minute load | Arm | Median ms | Range ms |
+|---|---|---:|---:|
+| A, about 32 | custom plan | 483 | 425-801 |
+| A, about 32 | generic plan | 518 | 476-806 |
+| B, about 10 | generic, 4 MB `work_mem` | 321 | 317-350 |
+| B, about 10 | generic, 64 MB `work_mem` | 193 | 185-196 |
+| B, about 10 | generic, sha256 of payload text | 481 | 468-495 |
+| C, about 17 | generic, 4 MB `work_mem` | 439 | 375-500 |
+| D, about 49 | generic, 4 MB `work_mem` | 666 | 503-1257 |
+| D, about 49 | generic, `jsonb_hash_extended` | 627 | 502-658 |
+
+| Other read | Result |
+|---|---|
+| Diff plan | Hash Full Join over two index scans on `fact_records_scope_generation_idx`; no seq scan |
+| Diff buffers | 50,172 pages for 200,000 rows read; 1,000 returned (all 50,169 pages read from the OS cache; `shared_buffers` was 128 MB) |
+| Temp spill at 4 MB | 13,019 pages, about 104 MB; none at 64 MB |
+| Candidate read, 6 generations | 0.16 ms median (range 0.13-0.21), tiny-table seq scans |
+| No-baseline first pass, 100,000 rows | 33 ms median, 8,420 pages |
+| Distinct CVE ids reaching the holder read | 1,028 with the diff, 54,234 without |
+| One 200-id holder read, 20 holders | 95 ms, 34,200 pages |
+| Unchanged set, g5 against g4 | 0 rows |
+| Lock modes during the diff | `AccessShareLock` only (148 relation locks) |
+
+Against the threshold: buffers and plan pass. Time passes at load 10, 17 and 32 with the
+custom plan, and misses at load 32 with the generic plan (518 ms) and at load 49 (666 ms).
+The least loaded round gave 321 ms with a tight range. No round met the repo timing rule
+(load1 under 9 with a control canary), so the timing is recorded as met on the least loaded
+round with no qualifying quiet-host proof yet.
+
+**The earlier fixture is pessimistic on one point.** g1 to g5 were inserted together and
+interleave on the heap, so g5 costs 41,751 pages. g6 was inserted alone and costs 8,418.
+The walk fixture above inserts one generation at a time and reads about 8,330 heap blocks per generation, which
+matches the g6 figure.
+
+**Rejected shapes.** Comparing a digest gains nothing: `jsonb_hash_extended` wrote the same
+temp pages and took about the same time, and adds a false-equal risk that drops a change
+silently. sha256 is slower. Raising `work_mem` for this statement is the only lever that
+moved the number (193 ms at 64 MB), and it is not needed unless the quiet-host re-measure
+misses.
+
+**The bigger cost is elsewhere.** Inserting g6's 99,800 rows took 6.9 s on that cluster,
+because Upsert rewrites the full set per change. At 100,000 suppressions the diff is a small
+part of an operator write. The real suppression count is NOT_CHECKED.

@@ -10,9 +10,12 @@ import (
 )
 
 // suppressionWalkMaxPairs is the most adjacent generation pairs one pass diffs
-// one by one. The value comes from the cost curve in the design doc; past it the
-// pass folds the older remainder into one endpoint diff.
-const suppressionWalkMaxPairs = 8
+// one by one; past it the pass folds the older remainder into one endpoint diff.
+// The value is provisional. The shim cost curve (one statement per pair, linear
+// in the pair count) ran on a loaded host, so it could not pick the largest count
+// whose median stays under 500 ms. The wiring PR fixes it from the quiet-host
+// re-measure at the cap; see docs/internal/design/10019-suppression-fanout.md.
+const suppressionWalkMaxPairs = 4
 
 // suppressionWalkStep is one diff statement of a walk: the suppressions whose
 // payload differs between two generations of the scope. Adjacent steps compare
