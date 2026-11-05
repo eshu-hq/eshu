@@ -1,0 +1,18 @@
+go/internal/query/governance_audit_admission.go
+  h_78a442cba0b3e6 1-72
+go/internal/query/governance_audit_admission_contract_test.go
+  h_78a442cba0b3e6 1-60
+go/internal/query/governance_audit_admission_test.go
+  h_78a442cba0b3e6 1-147
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "56b6746b0c119744052874bf7bdb67103afdeafb",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
