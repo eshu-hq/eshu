@@ -198,7 +198,7 @@ if rg -q 'non-closing references:' <<<"${OUT}"; then ok=1; fi
 check "GREEN all six arms pass, exit 0" "${ok}"
 printf '%s\n' "${OUT}" | sed 's/^/    | /'
 ok=0
-if rg -v '^(pr view|api graphql|api repos/eshu-hq/eshu/commits/[0-9a-f]{40}/status|api --paginate repos/eshu-hq/eshu/commits/[0-9a-f]{40}/check-runs\?per_page=100 )' \
+if rg -v '^(pr view|api graphql|api repos/eshu-hq/eshu/commits/[0-9a-f]{40}/status|api --paginate repos/eshu-hq/eshu/commits/[0-9a-f]{40}/check-runs\?per_page=100(&filter=all)? )' \
 	"${FIXTURES}/calls.log" >/dev/null; then ok=1; fi
 check "GREEN issues only read calls to gh" "${ok}"
 
@@ -364,6 +364,7 @@ expect_red "queue tip not fetchable" merge-queue
 # sibling so this file stays under the 500-line cap.
 source "${repo_root}/scripts/lib/test-pre-enqueue-check-checks-cases.sh"
 source "${repo_root}/scripts/lib/test-pre-enqueue-check-suite-cases.sh"
+source "${repo_root}/scripts/lib/test-pre-enqueue-check-attempts-cases.sh"
 new_case unresolved
 edit threads.json '.data.repository.pullRequest.reviewThreads.nodes[1].isResolved = false'
 expect_red "unresolved review thread" threads

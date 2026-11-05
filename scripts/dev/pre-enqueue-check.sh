@@ -96,6 +96,8 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/ai-attribution-patt
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/private-identifier-pattern.sh"
 # shellcheck source=scripts/lib/pre-enqueue-check-contexts.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/pre-enqueue-check-contexts.sh"
+# shellcheck source=scripts/lib/pre-enqueue-check-attempts.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/pre-enqueue-check-attempts.sh"
 # shellcheck source=scripts/lib/pre-enqueue-check-checks.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/pre-enqueue-check-checks.sh"
 

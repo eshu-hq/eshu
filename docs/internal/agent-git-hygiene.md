@@ -85,7 +85,7 @@ check that is not green and on a completed red not named with
 check that the ruleset does not require. It accepts `mergeStateStatus` UNSTABLE,
 which GitHub reports for a red check the ruleset does not require, only when
 every completed red is dispositioned, at least one dispositioned check is red,
-and the required checks are green. UNSTABLE with nothing red fails.
+and the required checks are green. UNSTABLE with nothing red fails. It also reads every attempt of each check on the head (`filter=all`), not only the latest: an attempt that completed `failure`, `timed_out`, or `action_required` and was then replaced by a green rerun fails the arm until `--dispositioned '<check>=<reason>'` names it, so a rerun cannot hide a red from the merge rule. A superseded `cancelled` attempt is not red.
 
 The Ifá/Odù protection was never fully local: the live cells (fault injection,
 determinism and dead-letter matrices, golden-corpus, e2e) need

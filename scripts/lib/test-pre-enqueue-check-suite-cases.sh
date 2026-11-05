@@ -103,15 +103,17 @@ rg -q '^PASS checks ' <<<"${OUT}" || ok=1
 check "GREEN pending=13 is counted per suite, named multi-suite, and is a note (#9094)" "${ok}"
 [[ "${ok}" -eq 0 ]] || printf '%s\n' "${OUT}" | sed 's/^/    | /'
 
-# S5: the request never asks for filter=all, and a fixture never repeats a
-# (name, suite) pair, so a duplicate row cannot appear from the same suite.
+# S5: the tally read never asks for filter=all, and a fixture never repeats a
+# (name, suite) pair, so a duplicate row cannot appear from the same suite. The
+# one filter=all call is the separate superseded-attempt read (#10148): it only
+# compares check run ids and never feeds the tally.
 new_case suite-request-shape
 run
 ok=0
-if rg -q 'filter=all' "${FIXTURES}/calls.log"; then ok=1; fi
-rg -q 'check-runs\?per_page=100 ' "${FIXTURES}/calls.log" || ok=1
+[[ "$(rg -c 'filter=all' "${FIXTURES}/calls.log")" -eq 1 ]] || ok=1
+[[ "$(rg -c 'check-runs\?per_page=100 ' "${FIXTURES}/calls.log")" -eq 1 ]] || ok=1
 [[ "$(jq '[.check_runs[] | [.name, (.check_suite.id // 0)]] | (length - (unique | length))' "${FIXTURES}/check-runs.json")" -eq 0 ]] || ok=1
-check "GREEN the request has no filter=all and rows are unique per (name, suite)" "${ok}"
+check "GREEN the tally read has no filter=all, one separate filter=all read, and rows are unique per (name, suite)" "${ok}"
 
 # S6: a row with no check_suite projects to suite 0. Suite 0 is never
 # superseded: a required-context failure with a missing suite stays tallied and
