@@ -84,7 +84,7 @@ new `go/internal/collector/document/ocr/tesseract` package.
 - Measured pins (per architecture except the model):
   - eng.traineddata `sha256:daa0c97d651c19fba3b25e81317cd697e9908c8208090c94c3905381c23fc047`
   - tesseract arm64 `sha256:62a760cd…`; amd64 `sha256:38b441bd…`
-  - library set arm64 `sha256:5556b1aa…`; amd64 `sha256:7a62cadd…`
+  - library set arm64 `sha256:012ca858…`; amd64 `sha256:74ed1eae…`
   The full values live in `scripts/prove-ocr-sandbox.sh`.
 - Recorded version: `5.5.0; binary=sha256:<hex>; libs=sha256:<hex> (15
   files); eng.traineddata=sha256:<hex>`. `ocr.Extract` copies it unchanged

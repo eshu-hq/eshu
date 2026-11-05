@@ -209,7 +209,7 @@ results are derived from the inputs rather than written by hand. See
 - `ifa-load-saturation` (blocking): Checks the real backpressure gate holds under saturation load so overflow work waits and drains instead of dead-lettering.
 - `perf-evidence` (blocking): Requires hot-path changes to carry a recorded performance-benchmark marker proving the perf budget still holds.
 
-### Secondary: What do we watch without blocking a merge? (12 gates)
+### Secondary: What do we watch without blocking a merge? (13 gates)
 
 - `docs-prose-quality` (advisory): Advisory check that flags weak prose quality in public docs as a burn-down baseline, not a merge gate.
 - `docs-contradiction` (advisory): Advisory scan for self-contradicting statements across public docs, run as a burn-down baseline.
@@ -220,6 +220,7 @@ results are derived from the inputs rather than written by hand. See
 - `ci-service-mirror-verify-public` (advisory): Verifies on a main-only manual dispatch that the mirrored CI service images resolve to the reviewed digests without registry credentials.
 - `apk-floors-drift` (advisory): Runs the apk floor check daily against the live Alpine repository so a stale floor surfaces without a Dockerfile change.
 - `scanner-freshness-signal` (advisory): Compares the scanner manifest anchor to the latest successful satellite release weekly, so a stale anchor surfaces without a manifest change.
+- `ocr-sandbox-proof` (advisory): Rebuilds the OCR proof image and runs prove-ocr-sandbox.sh weekly so a pin that drifted off the Alpine 3.21 index surfaces without a manual proof run.
 - `docker-publish` (advisory): Publishes the Docker image after merge; the publish steps never block a pull request. The Helm chart lane moved to eshu-hq/eshu-deploy.
 - `macos-build` (advisory): Builds the project on macOS on a schedule as an extra-platform check with no bearing on merges.
 - `ghcr-buildcache-prune-run` (advisory): Deletes untagged eshu-buildcache versions older than 7 days, keeping the 4 newest; that GHCR package holds the docker-publish BuildKit cache (#9632).
@@ -378,6 +379,7 @@ results are derived from the inputs rather than written by hand. See
 | `apk-floors` | Alpine apk floors match the repository | exactness | pre-pr | true | `bash scripts/verify-apk-floors.sh`<br>then self-test: `bash scripts/test-verify-apk-floors.sh` | docker-publish.yml / verify-apk-floors | 6 path(s): Dockerfile, .github/workflows/docker-publish.yml, scripts/ci/select-docker-publish-lanes.sh, … |
 | `apk-floors-drift` | Alpine apk floors drift (daily) | exactness | ci-heavy | false | — (CI-only: daily scheduled run against the live Alpine repository; the blocking apk-floors row runs the same script) | apk-floors-drift.yml / Apk floors drift (daily) | 5 path(s): Dockerfile, .github/workflows/apk-floors-drift.yml, scripts/verify-apk-floors.sh, … |
 | `scanner-freshness-signal` | Scanner freshness signal (weekly) | exactness | ci-heavy | false | — (CI-only: weekly scheduled run against the live satellite release API; the hermetic mirror runs in the pre-push floor and the lane self-test step) | scanner-freshness.yml / Scanner freshness (weekly) | 3 path(s): .github/workflows/scanner-freshness.yml, scripts/check-scanner-freshness.sh, scripts/test-check-scanner-freshness.sh |
+| `ocr-sandbox-proof` | OCR sandbox proof (weekly) | exactness | ci-heavy | false | — (CI-only: weekly scheduled docker build plus proof run against the live Alpine repository; the lane proves it locally before merge) | ocr-sandbox-proof.yml / OCR sandbox proof (weekly) | 3 path(s): .github/workflows/ocr-sandbox-proof.yml, scripts/ocr-sandbox/Dockerfile, scripts/prove-ocr-sandbox.sh |
 | `docker-publish` | Docker image publication | release | manual | false | — (CI-only: post-merge publication requires registry push credentials and cannot block its own merge) | docker-publish.yml / build-and-push-image | 2 path(s): go/**, Dockerfile |
 | `macos-build` | macOS build verification (nightly) | build | ci-heavy | false | — (CI-only: requires macOS hosted runner; nightly/dispatch only and non-blocking (0 of 29 macOS failures since 2026-09-21 were macOS-only, ~2,800 macOS-min/day)) | macos.yml / macos | 2 path(s): go/**, scripts/ci/go-mod-download-retry.sh |
 | `root-cause-evidence` | Root-cause claims carry observed evidence | exactness | pre-pr | false | `bash scripts/verify-root-cause-evidence.sh`<br>then self-test: `bash scripts/test-verify-root-cause-evidence.sh` | static-contract-gates.yml / Verify root-cause-evidence gate | 6 path(s): docs/internal/evidence/**, scripts/verify-root-cause-evidence.sh, scripts/test-verify-root-cause-evidence.sh, … |

@@ -39,8 +39,8 @@ declare -A EXPECTED_BINARY_SHA256=(
 	[amd64]="38b441bd41257037a03d6a15d9f849d8bd83da4c24dab1df428a7a4ad265332f"
 )
 declare -A EXPECTED_LIBS_SHA256=(
-	[arm64]="5556b1aae5d04ee66b47756a2112813798281d32abbd84eb240cf1a1a7414d24"
-	[amd64]="7a62cadddfc8cbfdb4591c635050a75fc18f8b8b1455f2418f82fe42c24693a6"
+	[arm64]="012ca858713e85b929be7d63203dbd5874914b96548cb7bb24aee74cfca4f5d7"
+	[amd64]="74ed1eae10bc08cb82770d3bbebd7394e431bd3b8091729a46cccf2c922f93bf"
 )
 # Lists the resolved library set of the tesseract binary inside the image as
 # "<sha256>  <path>" lines. It runs in the container shell, so the awk

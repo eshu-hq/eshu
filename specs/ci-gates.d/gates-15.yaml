@@ -101,6 +101,24 @@ gates:
       - network
     ci_only_reason: "weekly scheduled run against the live satellite release API; the hermetic mirror runs in the pre-push floor and the lane self-test step"
 
+  - id: ocr-sandbox-proof
+    name: OCR sandbox proof (weekly)
+    category: exactness
+    layer: secondary
+    purpose: "Rebuilds the OCR proof image and runs prove-ocr-sandbox.sh weekly so a pin that drifted off the Alpine 3.21 index surfaces without a manual proof run."
+    tier: ci-heavy
+    blocking: false
+    triggers:
+      - ".github/workflows/ocr-sandbox-proof.yml"
+      - "scripts/ocr-sandbox/Dockerfile"
+      - "scripts/prove-ocr-sandbox.sh"
+    ci:
+      workflow: ocr-sandbox-proof.yml
+      job: "OCR sandbox proof (weekly)"
+    requirements:
+      - network
+    ci_only_reason: "weekly scheduled docker build plus proof run against the live Alpine repository; the lane proves it locally before merge"
+
   - id: docker-publish
     name: Docker image publication
     category: release

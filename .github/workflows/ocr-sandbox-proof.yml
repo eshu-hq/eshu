@@ -1,0 +1,56 @@
+name: OCR Sandbox Proof
+
+# Weekly, non-blocking (#10071). Rebuilds the proof image from
+# scripts/ocr-sandbox/Dockerfile and runs scripts/prove-ocr-sandbox.sh, so a
+# pin that has drifted off the Alpine 3.21 index pages CI within a week
+# instead of rotting silently until the next manual proof run. Exact `=`
+# pins are invisible to the apk-floors drift detector (it audits `>=`
+# floors), and base-preinstalled packages resolve stale instead of failing
+# closed, so only a real build proves this image. This workflow has no
+# pull_request trigger, so it never holds an unrelated change.
+on:
+  schedule:
+    # Wednesdays 06:30 UTC, clear of the Monday security/satellite pileup.
+    - cron: "30 6 * * 3"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# #9066: -std=gnu17 keeps go-sitter-forest/perl compiling on GCC 15 + glibc 2.43 (C23
+# bsearch macro) when the Go build cache is cold. "-O2 -g" is Go's own default, kept
+# because setting CGO_CFLAGS replaces it. Remove with scripts/lib/cgo-cflags.sh.
+env:
+  CGO_CFLAGS: "-O2 -g -std=gnu17"
+
+jobs:
+  prove-ocr-sandbox:
+    name: OCR sandbox proof (weekly)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+          # Same store pressure as build.yml (#9462, #9648): no cache.
+          cache: false
+
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
+
+      - name: Log in to Docker Hub
+        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Run OCR sandbox proof
+        run: bash scripts/prove-ocr-sandbox.sh --platform linux/amd64
