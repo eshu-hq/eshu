@@ -22,6 +22,9 @@ TABLE = {
             "TestLoadActiveCodeCallSymbolDefinitionFactsNoDeltaStatementsLive",
             "TestLoadActiveCodeCallSymbolDefinitionFactsDeltaAnchoredBaseBindingLive",
             "TestDeriveDeltaOverlayBaseQueryForCodeCallReaders",
+            "TestLoadActiveCodeCallSymbolDefinitionFactsManifestChangingDeltaLive",
+            "TestLoadActiveCodeCallSymbolDefinitionFactsManifestStableAnchoredLive",
+            "TestLoadActiveCodeCallSymbolDefinitionFactsAnchoredNoDeltaStatementsLive",
         ),
         "go/internal/storage/postgres/active_jvm_reachability_delta_live_test.go": (
             "TestListActiveJVMReachabilityFactsDeltaActiveScopeLive",
