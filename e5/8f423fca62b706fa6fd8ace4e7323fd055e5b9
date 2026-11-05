@@ -1,0 +1,35 @@
+.github/workflows/reducer-contention-gate.yml
+  s_7547c0f0af67d4::t_3b68e3e06254db 406-407,410
+docs/internal/evidence/9874-lockfile-retrigger.md
+  s_7547c0f0af67d4::t_7905d56b76e5a0 42-45,276-303
+go/internal/reducer/supplychain/core/HOLDER_FANOUT.md
+  s_7547c0f0af67d4::t_110985f87ed879 134-143
+go/internal/reducer/supplychain/core/README.md
+  s_7547c0f0af67d4::t_6fed1dec6274b7 377
+go/internal/reducer/supplychain/core/fanout_stub_test.go
+  s_7547c0f0af67d4::t_b1b0261e5ce447 54
+go/internal/reducer/supplychain/core/manifest_inflight_test.go
+  s_7547c0f0af67d4::t_b8bbd20308f2ce 1-132
+go/internal/reducer/supplychain/core/manifest_trigger.go
+  s_7547c0f0af67d4::t_9cc92093ccbdd4 197-210,216,372-382
+go/internal/storage/postgres/supply_chain_impact_manifest_chain_live_test.go
+  s_7547c0f0af67d4::t_f0d05e1f29560e 400-451
+scripts/lib/reducer_contention_inventory.json
+  s_7547c0f0af67d4::t_c19ac2a3529d9f 228
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e58f423fca62b706fa6fd8ace4e7323fd055e5b9",
+  "prompts": {},
+  "sessions": {
+    "s_7547c0f0af67d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7c8b2d5-3286-4c2a-be1f-589162535d83",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
