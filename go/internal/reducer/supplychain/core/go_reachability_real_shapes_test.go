@@ -176,6 +176,51 @@ func TestEmitterRulesNeverEmitImportForSymbolLevelScan(t *testing.T) {
 	}
 }
 
+// TestDerivePackageGroupKeepsLexicographicMin pins the tie-break for an
+// (osv, module) group that holds several package-level findings: govulncheck
+// emits one package-level finding per imported vulnerable package
+// (emitPackageFindings in golang.org/x/vuln v1.9.0, one Vuln per matching
+// package from importedVulnPackages), so one advisory names several packages
+// of the same module when each is imported but never called. The derived fact
+// keeps the lexicographically smallest package. Findings are listed
+// largest-first so a first-wins derivation would keep the wrong package.
+func TestDerivePackageGroupKeepsLexicographicMin(t *testing.T) {
+	t.Parallel()
+	stream := govulncheckStreamFixture{
+		config: govulncheckConfig{
+			ScannerVersion: "v1.9.0",
+			DBLastModified: "2026-11-02T22:01:43Z",
+			GoVersion:      "go1.26.6",
+			ScanLevel:      "symbol",
+			ScanMode:       "source",
+		},
+		findings: []govulncheckFinding{
+			{
+				OSV:          "GO-2099-0001",
+				FixedVersion: "v0.4.0",
+				Trace:        []govulncheckPath{{Module: realShapeModule, Version: realShapeVersion, Package: realShapeModule + "/message"}},
+			},
+			{
+				OSV:          "GO-2099-0001",
+				FixedVersion: "v0.4.0",
+				Trace:        []govulncheckPath{{Module: realShapeModule, Version: realShapeVersion, Package: realShapeModule + "/language"}},
+			},
+		},
+	}
+
+	got := deriveGoCallReachabilityFacts(t, stream, realShapeRepositoryID)
+	if len(got) != 1 {
+		t.Fatalf("derived %d facts, want 1 (one fact per (osv, module))", len(got))
+	}
+	payload := got[0].Payload
+	if payload["deepest_package"] != realShapeModule+"/language" {
+		t.Fatalf("deepest_package = %q, want the lexicographic min %q", payload["deepest_package"], realShapeModule+"/language")
+	}
+	if payload["reachability_level"] != "not_called" {
+		t.Fatalf("reachability_level = %q, want not_called for a symbol-level scan with no call path", payload["reachability_level"])
+	}
+}
+
 // TestReducerReadsImportLevelAsReachablePackageScanOnly pins the reducer's
 // handling of level import: a PACKAGE-level scan (govulncheck -scan package)
 // cannot see calls, so a vulnerable imported package is reported reachable

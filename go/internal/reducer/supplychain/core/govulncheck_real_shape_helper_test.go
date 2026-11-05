@@ -28,6 +28,9 @@ import (
 //
 // Rules (design ruling for #10002, section 3 stage B):
 //   - one fact per (osv, Trace[0].Module);
+//   - when a group holds several package-level findings (govulncheck emits
+//     one per imported vulnerable package), the fact keeps the
+//     lexicographically smallest package;
 //   - level symbol when any finding of the group has Trace[0].Function;
 //   - otherwise, in a symbol-level scan, a package-level or module-level
 //     finding means govulncheck found no call path: level not_called;
