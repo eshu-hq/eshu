@@ -11,8 +11,7 @@
   },
   "binary": {
     "path": "/opt/whisper/bin/whisper-cli",
-    "sha256": null,
-    "status": "not_recorded: the binary digest is toolchain-dependent and no amd64 reference build has been recorded; the Dockerfile gate fails closed for this arch until one is (see docker/satellites/README.md)"
+    "sha256": "6ed322b01a81a775784826863ccb8a66022ac4c39eba97c187a3d4ae2342ade6"
   },
   "libraries": [
     {"path": "/lib/ld-musl-x86_64.so.1", "sha256": "19313c7fcdd4816403c95fa43a9d63639b17f09cbb69fbb8cae414efef4f57cb"},
@@ -36,6 +35,6 @@
     "cmake": "3.31.1-r0",
     "git": "2.47.3-r0"
   },
-  "measured": "2026-11-04, qemu amd64 reference run for the runtime libraries only; the library digests match the ocr.amd64.json entries for the same packages. No amd64 whisper-cli build was run here.",
-  "notes": "Record the amd64 binary reference before building this arch: build the whisper stage, hash /out/whisper-cli, store it here, then run the full build with all three digest args. The whispercpp engine takes no per-file library pins (binary plus model only); the library list and set hash exist for the image gate."
+  "measured": "2026-11-05, buildx linux/amd64 reference build of the whisper stage under QEMU user-mode emulation on an arm64 host (alpine:3.21/gcc 14.2.0/cmake 3.31.1 toolchain from the pinned Dockerfile); the /out/whisper-cli digest reproduced byte-for-byte across two independent stage builds and the stage .git HEAD equals the pinned commit d1be6fde. Runtime library digests carried over from the 2026-11-04 qemu amd64 reference run (they match the ocr.amd64.json entries for the same packages). Full gated image build eshu-satellite-transcription:amd64 prints GATE PASS (binary, model, 3 libraries); scripts/verify-apk-floors.sh --dockerfile PASS (6 comparisons); disabled start exits 0 with collector.disabled.",
+  "notes": "Binary reference recorded 2026-11-05: build the whisper stage for this arch, hash /out/whisper-cli, store it here, then run the full build with all three digest args. The whispercpp engine takes no per-file library pins (binary plus model only); the library list and set hash exist for the image gate."
 }
